@@ -5,7 +5,7 @@
 
 #include "sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int simple_add(int i) {
   return i + 1;

@@ -8,13 +8,13 @@
 
 #pragma once
 
-#include <CL/sycl/detail/device_filter.hpp>
-#include <CL/sycl/device_selector.hpp>
+#include <sycl/detail/device_filter.hpp>
+#include <sycl/device_selector.hpp>
 
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 // Forward declarations
 class device;
@@ -44,7 +44,7 @@ private:
 } // namespace ext
 
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
-  using namespace ext::oneapi;
+using namespace ext::oneapi;
 }
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

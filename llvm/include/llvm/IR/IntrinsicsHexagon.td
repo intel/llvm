@@ -18,7 +18,7 @@ let TargetPrefix = "hexagon" in {
   class Hexagon_Intrinsic<string GCCIntSuffix, list<LLVMType> ret_types,
                               list<LLVMType> param_types,
                               list<IntrinsicProperty> properties>
-    : GCCBuiltin<!strconcat("__builtin_", GCCIntSuffix)>,
+    : ClangBuiltin<!strconcat("__builtin_", GCCIntSuffix)>,
       Intrinsic<ret_types, param_types, properties>;
 
   /// Hexagon_NonGCC_Intrinsic - Base class for bitcode convertible Hexagon
@@ -381,6 +381,32 @@ Hexagon_NonGCC_Intrinsic<[llvm_anyvector_ty], [llvm_anyvector_ty], [IntrNoMem]>;
 def int_hexagon_V6_pred_typecast_128B :
 Hexagon_NonGCC_Intrinsic<[llvm_anyvector_ty], [llvm_anyvector_ty], [IntrNoMem]>;
 
+// HVX full-precision multiplication.
+// V6_vmpyss_parts(Vu,Vv) = (MulHS(Vu,Vv),  Mul(Vu,Vv))
+// V6_vmpyuu_parts(Vu,Vv) = (MulHU(Vu,Vv),  Mul(Vu,Vv))
+// V6_vmpyus_parts(Vu,Vv) = (MulHUS(Vu,Vv), Mul(Vu,Vv))
+//
+// Both, the (purportedly) 64b and the _128B versions are exactly equivalent
+// regardless of the HVX mode, they are both defined for consistency.
+// The purpose of these intrinsics is to have a uniform way of multiplying two
+// integer vectors in the LLVM IR. Many HVX multiply operations interleave
+// the even-odd results, except for 32x32 multiplications. Also, different
+// HVX versions have different instructions that can be used, so defer the
+// instruction choice to the isel.
+class Hexagon_vv_vv_pure:
+  Hexagon_NonGCC_Intrinsic<
+    [llvm_anyvector_ty, LLVMMatchType<0>],
+    [LLVMMatchType<0>, LLVMMatchType<0>],
+    [IntrNoMem]>;
+
+def int_hexagon_V6_vmpyss_parts:      Hexagon_vv_vv_pure;
+def int_hexagon_V6_vmpyss_parts_128B: Hexagon_vv_vv_pure;
+def int_hexagon_V6_vmpyuu_parts:      Hexagon_vv_vv_pure;
+def int_hexagon_V6_vmpyuu_parts_128B: Hexagon_vv_vv_pure;
+def int_hexagon_V6_vmpyus_parts:      Hexagon_vv_vv_pure;
+def int_hexagon_V6_vmpyus_parts_128B: Hexagon_vv_vv_pure;
+
+
 // Masked vector stores
 //
 // These are all deprecated, the intrinsics matching instruction names
@@ -403,5 +429,16 @@ def int_hexagon_V6_vmaskedstoreq_128B: Hexagon_custom_vms_Intrinsic_128B;
 def int_hexagon_V6_vmaskedstorenq_128B: Hexagon_custom_vms_Intrinsic_128B;
 def int_hexagon_V6_vmaskedstorentq_128B: Hexagon_custom_vms_Intrinsic_128B;
 def int_hexagon_V6_vmaskedstorentnq_128B: Hexagon_custom_vms_Intrinsic_128B;
+
+
+// Intrinsic for instrumentation based profiling using a custom handler. The
+// name of the handler is passed as the first operand to the intrinsic. The
+// handler can take only one int32 input which is passed as the second
+// operand to the intrinsic.
+def int_hexagon_instrprof_custom
+    : Hexagon_NonGCC_Intrinsic<[],
+                               [llvm_ptr_ty, llvm_i32_ty],
+                               [IntrInaccessibleMemOnly]>;
+
 
 include "llvm/IR/IntrinsicsHexagonDep.td"

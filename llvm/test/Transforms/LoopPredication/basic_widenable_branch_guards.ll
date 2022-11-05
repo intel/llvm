@@ -18,20 +18,22 @@ define i32 @unsigned_loop_0_to_n_ult_check(i32* %array, i32 %length, i32 %n) {
 ; CHECK:       loop:
 ; CHECK-NEXT:    [[LOOP_ACC:%.*]] = phi i32 [ [[LOOP_ACC_NEXT:%.*]], [[GUARDED:%.*]] ], [ 0, [[LOOP_PREHEADER]] ]
 ; CHECK-NEXT:    [[I:%.*]] = phi i32 [ [[I_NEXT:%.*]], [[GUARDED]] ], [ 0, [[LOOP_PREHEADER]] ]
+; CHECK-NEXT:    [[WITHIN_BOUNDS:%.*]] = icmp ult i32 [[I]], [[LENGTH]]
 ; CHECK-NEXT:    [[WIDENABLE_COND:%.*]] = call i1 @llvm.experimental.widenable.condition()
 ; CHECK-NEXT:    [[TMP3:%.*]] = and i1 [[TMP2]], [[WIDENABLE_COND]]
-; CHECK-NEXT:    br i1 [[TMP3]], label [[GUARDED]], label [[DEOPT:%.*]], !prof !0
+; CHECK-NEXT:    br i1 [[TMP3]], label [[GUARDED]], label [[DEOPT:%.*]], !prof [[PROF0:![0-9]+]]
 ; CHECK:       deopt:
 ; CHECK-NEXT:    [[DEOPTCALL:%.*]] = call i32 (...) @llvm.experimental.deoptimize.i32(i32 9) [ "deopt"() ]
 ; CHECK-NEXT:    ret i32 [[DEOPTCALL]]
 ; CHECK:       guarded:
+; CHECK-NEXT:    call void @llvm.assume(i1 [[WITHIN_BOUNDS]])
 ; CHECK-NEXT:    [[I_I64:%.*]] = zext i32 [[I]] to i64
 ; CHECK-NEXT:    [[ARRAY_I_PTR:%.*]] = getelementptr inbounds i32, i32* [[ARRAY:%.*]], i64 [[I_I64]]
 ; CHECK-NEXT:    [[ARRAY_I:%.*]] = load i32, i32* [[ARRAY_I_PTR]], align 4
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT]] = add i32 [[LOOP_ACC]], [[ARRAY_I]]
 ; CHECK-NEXT:    [[I_NEXT]] = add nuw i32 [[I]], 1
 ; CHECK-NEXT:    [[CONTINUE:%.*]] = icmp ult i32 [[I_NEXT]], [[N]]
-; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof !1
+; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof [[PROF1:![0-9]+]]
 ; CHECK:       exit.loopexit:
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT_LCSSA:%.*]] = phi i32 [ [[LOOP_ACC_NEXT]], [[GUARDED]] ]
 ; CHECK-NEXT:    br label [[EXIT]]
@@ -85,20 +87,22 @@ define i32 @unsigned_loop_0_to_n_ule_latch_ult_check(i32* %array, i32 %length, i
 ; CHECK:       loop:
 ; CHECK-NEXT:    [[LOOP_ACC:%.*]] = phi i32 [ [[LOOP_ACC_NEXT:%.*]], [[GUARDED:%.*]] ], [ 0, [[LOOP_PREHEADER]] ]
 ; CHECK-NEXT:    [[I:%.*]] = phi i32 [ [[I_NEXT:%.*]], [[GUARDED]] ], [ 0, [[LOOP_PREHEADER]] ]
+; CHECK-NEXT:    [[WITHIN_BOUNDS:%.*]] = icmp ult i32 [[I]], [[LENGTH]]
 ; CHECK-NEXT:    [[WIDENABLE_COND:%.*]] = call i1 @llvm.experimental.widenable.condition()
 ; CHECK-NEXT:    [[TMP3:%.*]] = and i1 [[TMP2]], [[WIDENABLE_COND]]
-; CHECK-NEXT:    br i1 [[TMP3]], label [[GUARDED]], label [[DEOPT:%.*]], !prof !0
+; CHECK-NEXT:    br i1 [[TMP3]], label [[GUARDED]], label [[DEOPT:%.*]], !prof [[PROF0]]
 ; CHECK:       deopt:
 ; CHECK-NEXT:    [[DEOPTCALL:%.*]] = call i32 (...) @llvm.experimental.deoptimize.i32(i32 9) [ "deopt"() ]
 ; CHECK-NEXT:    ret i32 [[DEOPTCALL]]
 ; CHECK:       guarded:
+; CHECK-NEXT:    call void @llvm.assume(i1 [[WITHIN_BOUNDS]])
 ; CHECK-NEXT:    [[I_I64:%.*]] = zext i32 [[I]] to i64
 ; CHECK-NEXT:    [[ARRAY_I_PTR:%.*]] = getelementptr inbounds i32, i32* [[ARRAY:%.*]], i64 [[I_I64]]
 ; CHECK-NEXT:    [[ARRAY_I:%.*]] = load i32, i32* [[ARRAY_I_PTR]], align 4
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT]] = add i32 [[LOOP_ACC]], [[ARRAY_I]]
 ; CHECK-NEXT:    [[I_NEXT]] = add nuw i32 [[I]], 1
 ; CHECK-NEXT:    [[CONTINUE:%.*]] = icmp ule i32 [[I_NEXT]], [[N]]
-; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof !1
+; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof [[PROF1]]
 ; CHECK:       exit.loopexit:
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT_LCSSA:%.*]] = phi i32 [ [[LOOP_ACC_NEXT]], [[GUARDED]] ]
 ; CHECK-NEXT:    br label [[EXIT]]
@@ -152,20 +156,22 @@ define i32 @unsigned_loop_0_to_n_ugt_check(i32* %array, i32 %length, i32 %n) {
 ; CHECK:       loop:
 ; CHECK-NEXT:    [[LOOP_ACC:%.*]] = phi i32 [ [[LOOP_ACC_NEXT:%.*]], [[GUARDED:%.*]] ], [ 0, [[LOOP_PREHEADER]] ]
 ; CHECK-NEXT:    [[I:%.*]] = phi i32 [ [[I_NEXT:%.*]], [[GUARDED]] ], [ 0, [[LOOP_PREHEADER]] ]
+; CHECK-NEXT:    [[WITHIN_BOUNDS:%.*]] = icmp ugt i32 [[LENGTH]], [[I]]
 ; CHECK-NEXT:    [[WIDENABLE_COND:%.*]] = call i1 @llvm.experimental.widenable.condition()
 ; CHECK-NEXT:    [[TMP3:%.*]] = and i1 [[TMP2]], [[WIDENABLE_COND]]
-; CHECK-NEXT:    br i1 [[TMP3]], label [[GUARDED]], label [[DEOPT:%.*]], !prof !0
+; CHECK-NEXT:    br i1 [[TMP3]], label [[GUARDED]], label [[DEOPT:%.*]], !prof [[PROF0]]
 ; CHECK:       deopt:
 ; CHECK-NEXT:    [[DEOPTCALL:%.*]] = call i32 (...) @llvm.experimental.deoptimize.i32(i32 9) [ "deopt"() ]
 ; CHECK-NEXT:    ret i32 [[DEOPTCALL]]
 ; CHECK:       guarded:
+; CHECK-NEXT:    call void @llvm.assume(i1 [[WITHIN_BOUNDS]])
 ; CHECK-NEXT:    [[I_I64:%.*]] = zext i32 [[I]] to i64
 ; CHECK-NEXT:    [[ARRAY_I_PTR:%.*]] = getelementptr inbounds i32, i32* [[ARRAY:%.*]], i64 [[I_I64]]
 ; CHECK-NEXT:    [[ARRAY_I:%.*]] = load i32, i32* [[ARRAY_I_PTR]], align 4
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT]] = add i32 [[LOOP_ACC]], [[ARRAY_I]]
 ; CHECK-NEXT:    [[I_NEXT]] = add nuw i32 [[I]], 1
 ; CHECK-NEXT:    [[CONTINUE:%.*]] = icmp ult i32 [[I_NEXT]], [[N]]
-; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof !1
+; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof [[PROF1]]
 ; CHECK:       exit.loopexit:
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT_LCSSA:%.*]] = phi i32 [ [[LOOP_ACC_NEXT]], [[GUARDED]] ]
 ; CHECK-NEXT:    br label [[EXIT]]
@@ -219,20 +225,22 @@ define i32 @signed_loop_0_to_n_ult_check(i32* %array, i32 %length, i32 %n) {
 ; CHECK:       loop:
 ; CHECK-NEXT:    [[LOOP_ACC:%.*]] = phi i32 [ [[LOOP_ACC_NEXT:%.*]], [[GUARDED:%.*]] ], [ 0, [[LOOP_PREHEADER]] ]
 ; CHECK-NEXT:    [[I:%.*]] = phi i32 [ [[I_NEXT:%.*]], [[GUARDED]] ], [ 0, [[LOOP_PREHEADER]] ]
+; CHECK-NEXT:    [[WITHIN_BOUNDS:%.*]] = icmp ult i32 [[I]], [[LENGTH]]
 ; CHECK-NEXT:    [[WIDENABLE_COND:%.*]] = call i1 @llvm.experimental.widenable.condition()
 ; CHECK-NEXT:    [[TMP3:%.*]] = and i1 [[TMP2]], [[WIDENABLE_COND]]
-; CHECK-NEXT:    br i1 [[TMP3]], label [[GUARDED]], label [[DEOPT:%.*]], !prof !0
+; CHECK-NEXT:    br i1 [[TMP3]], label [[GUARDED]], label [[DEOPT:%.*]], !prof [[PROF0]]
 ; CHECK:       deopt:
 ; CHECK-NEXT:    [[DEOPTCALL:%.*]] = call i32 (...) @llvm.experimental.deoptimize.i32(i32 9) [ "deopt"() ]
 ; CHECK-NEXT:    ret i32 [[DEOPTCALL]]
 ; CHECK:       guarded:
+; CHECK-NEXT:    call void @llvm.assume(i1 [[WITHIN_BOUNDS]])
 ; CHECK-NEXT:    [[I_I64:%.*]] = zext i32 [[I]] to i64
 ; CHECK-NEXT:    [[ARRAY_I_PTR:%.*]] = getelementptr inbounds i32, i32* [[ARRAY:%.*]], i64 [[I_I64]]
 ; CHECK-NEXT:    [[ARRAY_I:%.*]] = load i32, i32* [[ARRAY_I_PTR]], align 4
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT]] = add i32 [[LOOP_ACC]], [[ARRAY_I]]
 ; CHECK-NEXT:    [[I_NEXT]] = add nuw i32 [[I]], 1
 ; CHECK-NEXT:    [[CONTINUE:%.*]] = icmp slt i32 [[I_NEXT]], [[N]]
-; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof !1
+; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof [[PROF1]]
 ; CHECK:       exit.loopexit:
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT_LCSSA:%.*]] = phi i32 [ [[LOOP_ACC_NEXT]], [[GUARDED]] ]
 ; CHECK-NEXT:    br label [[EXIT]]
@@ -278,7 +286,7 @@ define i32 @signed_loop_0_to_n_ult_check_length_range_known(i32* %array, i32* %l
 ; CHECK-LABEL: @signed_loop_0_to_n_ult_check_length_range_known(
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    [[TMP5:%.*]] = icmp sle i32 [[N:%.*]], 0
-; CHECK-NEXT:    [[LENGTH:%.*]] = load i32, i32* [[LENGTH_PTR:%.*]], !range !2
+; CHECK-NEXT:    [[LENGTH:%.*]] = load i32, i32* [[LENGTH_PTR:%.*]], align 4, !range [[RNG2:![0-9]+]]
 ; CHECK-NEXT:    br i1 [[TMP5]], label [[EXIT:%.*]], label [[LOOP_PREHEADER:%.*]]
 ; CHECK:       loop.preheader:
 ; CHECK-NEXT:    [[TMP0:%.*]] = icmp sle i32 [[N]], [[LENGTH]]
@@ -287,20 +295,22 @@ define i32 @signed_loop_0_to_n_ult_check_length_range_known(i32* %array, i32* %l
 ; CHECK:       loop:
 ; CHECK-NEXT:    [[LOOP_ACC:%.*]] = phi i32 [ [[LOOP_ACC_NEXT:%.*]], [[GUARDED:%.*]] ], [ 0, [[LOOP_PREHEADER]] ]
 ; CHECK-NEXT:    [[I:%.*]] = phi i32 [ [[I_NEXT:%.*]], [[GUARDED]] ], [ 0, [[LOOP_PREHEADER]] ]
+; CHECK-NEXT:    [[WITHIN_BOUNDS:%.*]] = icmp ult i32 [[I]], [[LENGTH]]
 ; CHECK-NEXT:    [[WIDENABLE_COND:%.*]] = call i1 @llvm.experimental.widenable.condition()
 ; CHECK-NEXT:    [[TMP2:%.*]] = and i1 [[TMP1]], [[WIDENABLE_COND]]
-; CHECK-NEXT:    br i1 [[TMP2]], label [[GUARDED]], label [[DEOPT:%.*]], !prof !0
+; CHECK-NEXT:    br i1 [[TMP2]], label [[GUARDED]], label [[DEOPT:%.*]], !prof [[PROF0]]
 ; CHECK:       deopt:
 ; CHECK-NEXT:    [[DEOPTCALL:%.*]] = call i32 (...) @llvm.experimental.deoptimize.i32(i32 9) [ "deopt"() ]
 ; CHECK-NEXT:    ret i32 [[DEOPTCALL]]
 ; CHECK:       guarded:
+; CHECK-NEXT:    call void @llvm.assume(i1 [[WITHIN_BOUNDS]])
 ; CHECK-NEXT:    [[I_I64:%.*]] = zext i32 [[I]] to i64
 ; CHECK-NEXT:    [[ARRAY_I_PTR:%.*]] = getelementptr inbounds i32, i32* [[ARRAY:%.*]], i64 [[I_I64]]
 ; CHECK-NEXT:    [[ARRAY_I:%.*]] = load i32, i32* [[ARRAY_I_PTR]], align 4
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT]] = add i32 [[LOOP_ACC]], [[ARRAY_I]]
 ; CHECK-NEXT:    [[I_NEXT]] = add nuw i32 [[I]], 1
 ; CHECK-NEXT:    [[CONTINUE:%.*]] = icmp slt i32 [[I_NEXT]], [[N]]
-; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof !1
+; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof [[PROF1]]
 ; CHECK:       exit.loopexit:
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT_LCSSA:%.*]] = phi i32 [ [[LOOP_ACC_NEXT]], [[GUARDED]] ]
 ; CHECK-NEXT:    br label [[EXIT]]
@@ -355,20 +365,22 @@ define i32 @signed_loop_0_to_n_inverse_latch_predicate(i32* %array, i32 %length,
 ; CHECK:       loop:
 ; CHECK-NEXT:    [[LOOP_ACC:%.*]] = phi i32 [ [[LOOP_ACC_NEXT:%.*]], [[GUARDED:%.*]] ], [ 0, [[LOOP_PREHEADER]] ]
 ; CHECK-NEXT:    [[I:%.*]] = phi i32 [ [[I_NEXT:%.*]], [[GUARDED]] ], [ 0, [[LOOP_PREHEADER]] ]
+; CHECK-NEXT:    [[WITHIN_BOUNDS:%.*]] = icmp ult i32 [[I]], [[LENGTH]]
 ; CHECK-NEXT:    [[WIDENABLE_COND:%.*]] = call i1 @llvm.experimental.widenable.condition()
 ; CHECK-NEXT:    [[TMP3:%.*]] = and i1 [[TMP2]], [[WIDENABLE_COND]]
-; CHECK-NEXT:    br i1 [[TMP3]], label [[GUARDED]], label [[DEOPT:%.*]], !prof !0
+; CHECK-NEXT:    br i1 [[TMP3]], label [[GUARDED]], label [[DEOPT:%.*]], !prof [[PROF0]]
 ; CHECK:       deopt:
 ; CHECK-NEXT:    [[DEOPTCALL:%.*]] = call i32 (...) @llvm.experimental.deoptimize.i32(i32 9) [ "deopt"() ]
 ; CHECK-NEXT:    ret i32 [[DEOPTCALL]]
 ; CHECK:       guarded:
+; CHECK-NEXT:    call void @llvm.assume(i1 [[WITHIN_BOUNDS]])
 ; CHECK-NEXT:    [[I_I64:%.*]] = zext i32 [[I]] to i64
 ; CHECK-NEXT:    [[ARRAY_I_PTR:%.*]] = getelementptr inbounds i32, i32* [[ARRAY:%.*]], i64 [[I_I64]]
 ; CHECK-NEXT:    [[ARRAY_I:%.*]] = load i32, i32* [[ARRAY_I_PTR]], align 4
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT]] = add i32 [[LOOP_ACC]], [[ARRAY_I]]
 ; CHECK-NEXT:    [[I_NEXT]] = add nuw i32 [[I]], 1
 ; CHECK-NEXT:    [[CONTINUE:%.*]] = icmp sgt i32 [[I_NEXT]], [[N]]
-; CHECK-NEXT:    br i1 [[CONTINUE]], label [[EXIT_LOOPEXIT:%.*]], label [[LOOP]], !prof !1
+; CHECK-NEXT:    br i1 [[CONTINUE]], label [[EXIT_LOOPEXIT:%.*]], label [[LOOP]], !prof [[PROF1]]
 ; CHECK:       exit.loopexit:
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT_LCSSA:%.*]] = phi i32 [ [[LOOP_ACC_NEXT]], [[GUARDED]] ]
 ; CHECK-NEXT:    br label [[EXIT]]
@@ -422,20 +434,22 @@ define i32 @signed_loop_0_to_n_sle_latch_ult_check(i32* %array, i32 %length, i32
 ; CHECK:       loop:
 ; CHECK-NEXT:    [[LOOP_ACC:%.*]] = phi i32 [ [[LOOP_ACC_NEXT:%.*]], [[GUARDED:%.*]] ], [ 0, [[LOOP_PREHEADER]] ]
 ; CHECK-NEXT:    [[I:%.*]] = phi i32 [ [[I_NEXT:%.*]], [[GUARDED]] ], [ 0, [[LOOP_PREHEADER]] ]
+; CHECK-NEXT:    [[WITHIN_BOUNDS:%.*]] = icmp ult i32 [[I]], [[LENGTH]]
 ; CHECK-NEXT:    [[WIDENABLE_COND:%.*]] = call i1 @llvm.experimental.widenable.condition()
 ; CHECK-NEXT:    [[TMP3:%.*]] = and i1 [[TMP2]], [[WIDENABLE_COND]]
-; CHECK-NEXT:    br i1 [[TMP3]], label [[GUARDED]], label [[DEOPT:%.*]], !prof !0
+; CHECK-NEXT:    br i1 [[TMP3]], label [[GUARDED]], label [[DEOPT:%.*]], !prof [[PROF0]]
 ; CHECK:       deopt:
 ; CHECK-NEXT:    [[DEOPTCALL:%.*]] = call i32 (...) @llvm.experimental.deoptimize.i32(i32 9) [ "deopt"() ]
 ; CHECK-NEXT:    ret i32 [[DEOPTCALL]]
 ; CHECK:       guarded:
+; CHECK-NEXT:    call void @llvm.assume(i1 [[WITHIN_BOUNDS]])
 ; CHECK-NEXT:    [[I_I64:%.*]] = zext i32 [[I]] to i64
 ; CHECK-NEXT:    [[ARRAY_I_PTR:%.*]] = getelementptr inbounds i32, i32* [[ARRAY:%.*]], i64 [[I_I64]]
 ; CHECK-NEXT:    [[ARRAY_I:%.*]] = load i32, i32* [[ARRAY_I_PTR]], align 4
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT]] = add i32 [[LOOP_ACC]], [[ARRAY_I]]
 ; CHECK-NEXT:    [[I_NEXT]] = add nuw i32 [[I]], 1
 ; CHECK-NEXT:    [[CONTINUE:%.*]] = icmp sle i32 [[I_NEXT]], [[N]]
-; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof !1
+; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof [[PROF1]]
 ; CHECK:       exit.loopexit:
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT_LCSSA:%.*]] = phi i32 [ [[LOOP_ACC_NEXT]], [[GUARDED]] ]
 ; CHECK-NEXT:    br label [[EXIT]]
@@ -490,20 +504,22 @@ define i32 @signed_loop_0_to_n_preincrement_latch_check(i32* %array, i32 %length
 ; CHECK:       loop:
 ; CHECK-NEXT:    [[LOOP_ACC:%.*]] = phi i32 [ [[LOOP_ACC_NEXT:%.*]], [[GUARDED:%.*]] ], [ 0, [[LOOP_PREHEADER]] ]
 ; CHECK-NEXT:    [[I:%.*]] = phi i32 [ [[I_NEXT:%.*]], [[GUARDED]] ], [ 0, [[LOOP_PREHEADER]] ]
+; CHECK-NEXT:    [[WITHIN_BOUNDS:%.*]] = icmp ult i32 [[I]], [[LENGTH]]
 ; CHECK-NEXT:    [[WIDENABLE_COND:%.*]] = call i1 @llvm.experimental.widenable.condition()
 ; CHECK-NEXT:    [[TMP4:%.*]] = and i1 [[TMP3]], [[WIDENABLE_COND]]
-; CHECK-NEXT:    br i1 [[TMP4]], label [[GUARDED]], label [[DEOPT:%.*]], !prof !0
+; CHECK-NEXT:    br i1 [[TMP4]], label [[GUARDED]], label [[DEOPT:%.*]], !prof [[PROF0]]
 ; CHECK:       deopt:
 ; CHECK-NEXT:    [[DEOPTCALL:%.*]] = call i32 (...) @llvm.experimental.deoptimize.i32(i32 9) [ "deopt"() ]
 ; CHECK-NEXT:    ret i32 [[DEOPTCALL]]
 ; CHECK:       guarded:
+; CHECK-NEXT:    call void @llvm.assume(i1 [[WITHIN_BOUNDS]])
 ; CHECK-NEXT:    [[I_I64:%.*]] = zext i32 [[I]] to i64
 ; CHECK-NEXT:    [[ARRAY_I_PTR:%.*]] = getelementptr inbounds i32, i32* [[ARRAY:%.*]], i64 [[I_I64]]
 ; CHECK-NEXT:    [[ARRAY_I:%.*]] = load i32, i32* [[ARRAY_I_PTR]], align 4
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT]] = add i32 [[LOOP_ACC]], [[ARRAY_I]]
 ; CHECK-NEXT:    [[I_NEXT]] = add i32 [[I]], 1
 ; CHECK-NEXT:    [[CONTINUE:%.*]] = icmp slt i32 [[I]], [[N]]
-; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof !1
+; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof [[PROF1]]
 ; CHECK:       exit.loopexit:
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT_LCSSA:%.*]] = phi i32 [ [[LOOP_ACC_NEXT]], [[GUARDED]] ]
 ; CHECK-NEXT:    br label [[EXIT]]
@@ -559,19 +575,21 @@ define i32 @signed_loop_0_to_n_preincrement_latch_check_postincrement_guard_chec
 ; CHECK-NEXT:    [[LOOP_ACC:%.*]] = phi i32 [ [[LOOP_ACC_NEXT:%.*]], [[GUARDED:%.*]] ], [ 0, [[LOOP_PREHEADER]] ]
 ; CHECK-NEXT:    [[I:%.*]] = phi i32 [ [[I_NEXT:%.*]], [[GUARDED]] ], [ 0, [[LOOP_PREHEADER]] ]
 ; CHECK-NEXT:    [[I_NEXT]] = add i32 [[I]], 1
+; CHECK-NEXT:    [[WITHIN_BOUNDS:%.*]] = icmp ult i32 [[I_NEXT]], [[LENGTH]]
 ; CHECK-NEXT:    [[WIDENABLE_COND:%.*]] = call i1 @llvm.experimental.widenable.condition()
 ; CHECK-NEXT:    [[TMP4:%.*]] = and i1 [[TMP3]], [[WIDENABLE_COND]]
-; CHECK-NEXT:    br i1 [[TMP4]], label [[GUARDED]], label [[DEOPT:%.*]], !prof !0
+; CHECK-NEXT:    br i1 [[TMP4]], label [[GUARDED]], label [[DEOPT:%.*]], !prof [[PROF0]]
 ; CHECK:       deopt:
 ; CHECK-NEXT:    [[DEOPTCALL:%.*]] = call i32 (...) @llvm.experimental.deoptimize.i32(i32 9) [ "deopt"() ]
 ; CHECK-NEXT:    ret i32 [[DEOPTCALL]]
 ; CHECK:       guarded:
+; CHECK-NEXT:    call void @llvm.assume(i1 [[WITHIN_BOUNDS]])
 ; CHECK-NEXT:    [[I_I64:%.*]] = zext i32 [[I]] to i64
 ; CHECK-NEXT:    [[ARRAY_I_PTR:%.*]] = getelementptr inbounds i32, i32* [[ARRAY:%.*]], i64 [[I_I64]]
 ; CHECK-NEXT:    [[ARRAY_I:%.*]] = load i32, i32* [[ARRAY_I_PTR]], align 4
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT]] = add i32 [[LOOP_ACC]], [[ARRAY_I]]
 ; CHECK-NEXT:    [[CONTINUE:%.*]] = icmp slt i32 [[I]], [[N]]
-; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof !1
+; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof [[PROF1]]
 ; CHECK:       exit.loopexit:
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT_LCSSA:%.*]] = phi i32 [ [[LOOP_ACC_NEXT]], [[GUARDED]] ]
 ; CHECK-NEXT:    br label [[EXIT]]
@@ -626,20 +644,23 @@ define i32 @signed_loop_0_to_n_sle_latch_offset_ult_check(i32* %array, i32 %leng
 ; CHECK:       loop:
 ; CHECK-NEXT:    [[LOOP_ACC:%.*]] = phi i32 [ [[LOOP_ACC_NEXT:%.*]], [[GUARDED:%.*]] ], [ 0, [[LOOP_PREHEADER]] ]
 ; CHECK-NEXT:    [[I:%.*]] = phi i32 [ [[I_NEXT:%.*]], [[GUARDED]] ], [ 0, [[LOOP_PREHEADER]] ]
+; CHECK-NEXT:    [[I_OFFSET:%.*]] = add i32 [[I]], 1
+; CHECK-NEXT:    [[WITHIN_BOUNDS:%.*]] = icmp ult i32 [[I_OFFSET]], [[LENGTH]]
 ; CHECK-NEXT:    [[WIDENABLE_COND:%.*]] = call i1 @llvm.experimental.widenable.condition()
 ; CHECK-NEXT:    [[TMP4:%.*]] = and i1 [[TMP3]], [[WIDENABLE_COND]]
-; CHECK-NEXT:    br i1 [[TMP4]], label [[GUARDED]], label [[DEOPT:%.*]], !prof !0
+; CHECK-NEXT:    br i1 [[TMP4]], label [[GUARDED]], label [[DEOPT:%.*]], !prof [[PROF0]]
 ; CHECK:       deopt:
 ; CHECK-NEXT:    [[DEOPTCALL:%.*]] = call i32 (...) @llvm.experimental.deoptimize.i32(i32 9) [ "deopt"() ]
 ; CHECK-NEXT:    ret i32 [[DEOPTCALL]]
 ; CHECK:       guarded:
+; CHECK-NEXT:    call void @llvm.assume(i1 [[WITHIN_BOUNDS]])
 ; CHECK-NEXT:    [[I_I64:%.*]] = zext i32 [[I]] to i64
 ; CHECK-NEXT:    [[ARRAY_I_PTR:%.*]] = getelementptr inbounds i32, i32* [[ARRAY:%.*]], i64 [[I_I64]]
 ; CHECK-NEXT:    [[ARRAY_I:%.*]] = load i32, i32* [[ARRAY_I_PTR]], align 4
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT]] = add i32 [[LOOP_ACC]], [[ARRAY_I]]
 ; CHECK-NEXT:    [[I_NEXT]] = add i32 [[I]], 1
 ; CHECK-NEXT:    [[CONTINUE:%.*]] = icmp sle i32 [[I_NEXT]], [[N]]
-; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof !1
+; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof [[PROF1]]
 ; CHECK:       exit.loopexit:
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT_LCSSA:%.*]] = phi i32 [ [[LOOP_ACC_NEXT]], [[GUARDED]] ]
 ; CHECK-NEXT:    br label [[EXIT]]
@@ -694,13 +715,16 @@ define i32 @signed_loop_0_to_n_offset_sle_latch_offset_ult_check(i32* %array, i3
 ; CHECK:       loop:
 ; CHECK-NEXT:    [[LOOP_ACC:%.*]] = phi i32 [ [[LOOP_ACC_NEXT:%.*]], [[GUARDED:%.*]] ], [ 0, [[LOOP_PREHEADER]] ]
 ; CHECK-NEXT:    [[I:%.*]] = phi i32 [ [[I_NEXT:%.*]], [[GUARDED]] ], [ 0, [[LOOP_PREHEADER]] ]
+; CHECK-NEXT:    [[I_OFFSET:%.*]] = add i32 [[I]], 1
+; CHECK-NEXT:    [[WITHIN_BOUNDS:%.*]] = icmp ult i32 [[I_OFFSET]], [[LENGTH]]
 ; CHECK-NEXT:    [[WIDENABLE_COND:%.*]] = call i1 @llvm.experimental.widenable.condition()
 ; CHECK-NEXT:    [[TMP3:%.*]] = and i1 [[TMP2]], [[WIDENABLE_COND]]
-; CHECK-NEXT:    br i1 [[TMP3]], label [[GUARDED]], label [[DEOPT:%.*]], !prof !0
+; CHECK-NEXT:    br i1 [[TMP3]], label [[GUARDED]], label [[DEOPT:%.*]], !prof [[PROF0]]
 ; CHECK:       deopt:
 ; CHECK-NEXT:    [[DEOPTCALL:%.*]] = call i32 (...) @llvm.experimental.deoptimize.i32(i32 9) [ "deopt"() ]
 ; CHECK-NEXT:    ret i32 [[DEOPTCALL]]
 ; CHECK:       guarded:
+; CHECK-NEXT:    call void @llvm.assume(i1 [[WITHIN_BOUNDS]])
 ; CHECK-NEXT:    [[I_I64:%.*]] = zext i32 [[I]] to i64
 ; CHECK-NEXT:    [[ARRAY_I_PTR:%.*]] = getelementptr inbounds i32, i32* [[ARRAY:%.*]], i64 [[I_I64]]
 ; CHECK-NEXT:    [[ARRAY_I:%.*]] = load i32, i32* [[ARRAY_I_PTR]], align 4
@@ -708,7 +732,7 @@ define i32 @signed_loop_0_to_n_offset_sle_latch_offset_ult_check(i32* %array, i3
 ; CHECK-NEXT:    [[I_NEXT]] = add i32 [[I]], 1
 ; CHECK-NEXT:    [[I_NEXT_OFFSET:%.*]] = add i32 [[I_NEXT]], 1
 ; CHECK-NEXT:    [[CONTINUE:%.*]] = icmp sle i32 [[I_NEXT_OFFSET]], [[N]]
-; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof !1
+; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof [[PROF1]]
 ; CHECK:       exit.loopexit:
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT_LCSSA:%.*]] = phi i32 [ [[LOOP_ACC_NEXT]], [[GUARDED]] ]
 ; CHECK-NEXT:    br label [[EXIT]]
@@ -764,7 +788,7 @@ define i32 @unsupported_latch_pred_loop_0_to_n(i32* %array, i32 %length, i32 %n)
 ; CHECK-NEXT:    [[WITHIN_BOUNDS:%.*]] = icmp ult i32 [[I]], [[LENGTH:%.*]]
 ; CHECK-NEXT:    [[WIDENABLE_COND:%.*]] = call i1 @llvm.experimental.widenable.condition()
 ; CHECK-NEXT:    [[EXIPLICIT_GUARD_COND:%.*]] = and i1 [[WITHIN_BOUNDS]], [[WIDENABLE_COND]]
-; CHECK-NEXT:    br i1 [[EXIPLICIT_GUARD_COND]], label [[GUARDED]], label [[DEOPT:%.*]], !prof !0
+; CHECK-NEXT:    br i1 [[EXIPLICIT_GUARD_COND]], label [[GUARDED]], label [[DEOPT:%.*]], !prof [[PROF0]]
 ; CHECK:       deopt:
 ; CHECK-NEXT:    [[DEOPTCALL:%.*]] = call i32 (...) @llvm.experimental.deoptimize.i32(i32 9) [ "deopt"() ]
 ; CHECK-NEXT:    ret i32 [[DEOPTCALL]]
@@ -775,7 +799,7 @@ define i32 @unsupported_latch_pred_loop_0_to_n(i32* %array, i32 %length, i32 %n)
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT]] = add i32 [[LOOP_ACC]], [[ARRAY_I]]
 ; CHECK-NEXT:    [[I_NEXT]] = add nsw i32 [[I]], 1
 ; CHECK-NEXT:    [[CONTINUE:%.*]] = icmp ne i32 [[I_NEXT]], [[N]]
-; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof !1
+; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof [[PROF1]]
 ; CHECK:       exit.loopexit:
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT_LCSSA:%.*]] = phi i32 [ [[LOOP_ACC_NEXT]], [[GUARDED]] ]
 ; CHECK-NEXT:    br label [[EXIT]]
@@ -829,7 +853,7 @@ define i32 @signed_loop_0_to_n_unsupported_iv_step(i32* %array, i32 %length, i32
 ; CHECK-NEXT:    [[WITHIN_BOUNDS:%.*]] = icmp ult i32 [[I]], [[LENGTH:%.*]]
 ; CHECK-NEXT:    [[WIDENABLE_COND:%.*]] = call i1 @llvm.experimental.widenable.condition()
 ; CHECK-NEXT:    [[EXIPLICIT_GUARD_COND:%.*]] = and i1 [[WITHIN_BOUNDS]], [[WIDENABLE_COND]]
-; CHECK-NEXT:    br i1 [[EXIPLICIT_GUARD_COND]], label [[GUARDED]], label [[DEOPT:%.*]], !prof !0
+; CHECK-NEXT:    br i1 [[EXIPLICIT_GUARD_COND]], label [[GUARDED]], label [[DEOPT:%.*]], !prof [[PROF0]]
 ; CHECK:       deopt:
 ; CHECK-NEXT:    [[DEOPTCALL:%.*]] = call i32 (...) @llvm.experimental.deoptimize.i32(i32 9) [ "deopt"() ]
 ; CHECK-NEXT:    ret i32 [[DEOPTCALL]]
@@ -840,7 +864,7 @@ define i32 @signed_loop_0_to_n_unsupported_iv_step(i32* %array, i32 %length, i32
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT]] = add i32 [[LOOP_ACC]], [[ARRAY_I]]
 ; CHECK-NEXT:    [[I_NEXT]] = add nsw i32 [[I]], 2
 ; CHECK-NEXT:    [[CONTINUE:%.*]] = icmp slt i32 [[I_NEXT]], [[N]]
-; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof !1
+; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof [[PROF1]]
 ; CHECK:       exit.loopexit:
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT_LCSSA:%.*]] = phi i32 [ [[LOOP_ACC_NEXT]], [[GUARDED]] ]
 ; CHECK-NEXT:    br label [[EXIT]]
@@ -895,13 +919,15 @@ define i32 @signed_loop_0_to_n_equal_iv_range_check(i32* %array, i32 %length, i3
 ; CHECK-NEXT:    [[LOOP_ACC:%.*]] = phi i32 [ [[LOOP_ACC_NEXT:%.*]], [[GUARDED:%.*]] ], [ 0, [[LOOP_PREHEADER]] ]
 ; CHECK-NEXT:    [[I:%.*]] = phi i32 [ [[I_NEXT:%.*]], [[GUARDED]] ], [ 0, [[LOOP_PREHEADER]] ]
 ; CHECK-NEXT:    [[J:%.*]] = phi i32 [ [[J_NEXT:%.*]], [[GUARDED]] ], [ 0, [[LOOP_PREHEADER]] ]
+; CHECK-NEXT:    [[WITHIN_BOUNDS:%.*]] = icmp ult i32 [[J]], [[LENGTH]]
 ; CHECK-NEXT:    [[WIDENABLE_COND:%.*]] = call i1 @llvm.experimental.widenable.condition()
 ; CHECK-NEXT:    [[TMP3:%.*]] = and i1 [[TMP2]], [[WIDENABLE_COND]]
-; CHECK-NEXT:    br i1 [[TMP3]], label [[GUARDED]], label [[DEOPT:%.*]], !prof !0
+; CHECK-NEXT:    br i1 [[TMP3]], label [[GUARDED]], label [[DEOPT:%.*]], !prof [[PROF0]]
 ; CHECK:       deopt:
 ; CHECK-NEXT:    [[DEOPTCALL:%.*]] = call i32 (...) @llvm.experimental.deoptimize.i32(i32 9) [ "deopt"() ]
 ; CHECK-NEXT:    ret i32 [[DEOPTCALL]]
 ; CHECK:       guarded:
+; CHECK-NEXT:    call void @llvm.assume(i1 [[WITHIN_BOUNDS]])
 ; CHECK-NEXT:    [[I_I64:%.*]] = zext i32 [[I]] to i64
 ; CHECK-NEXT:    [[ARRAY_I_PTR:%.*]] = getelementptr inbounds i32, i32* [[ARRAY:%.*]], i64 [[I_I64]]
 ; CHECK-NEXT:    [[ARRAY_I:%.*]] = load i32, i32* [[ARRAY_I_PTR]], align 4
@@ -909,7 +935,7 @@ define i32 @signed_loop_0_to_n_equal_iv_range_check(i32* %array, i32 %length, i3
 ; CHECK-NEXT:    [[J_NEXT]] = add nsw i32 [[J]], 1
 ; CHECK-NEXT:    [[I_NEXT]] = add nsw i32 [[I]], 1
 ; CHECK-NEXT:    [[CONTINUE:%.*]] = icmp slt i32 [[I_NEXT]], [[N]]
-; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof !1
+; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof [[PROF1]]
 ; CHECK:       exit.loopexit:
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT_LCSSA:%.*]] = phi i32 [ [[LOOP_ACC_NEXT]], [[GUARDED]] ]
 ; CHECK-NEXT:    br label [[EXIT]]
@@ -968,13 +994,15 @@ define i32 @signed_loop_start_to_n_offset_iv_range_check(i32* %array, i32 %start
 ; CHECK-NEXT:    [[LOOP_ACC:%.*]] = phi i32 [ [[LOOP_ACC_NEXT:%.*]], [[GUARDED:%.*]] ], [ 0, [[LOOP_PREHEADER]] ]
 ; CHECK-NEXT:    [[I:%.*]] = phi i32 [ [[I_NEXT:%.*]], [[GUARDED]] ], [ [[START_I]], [[LOOP_PREHEADER]] ]
 ; CHECK-NEXT:    [[J:%.*]] = phi i32 [ [[J_NEXT:%.*]], [[GUARDED]] ], [ [[START_J]], [[LOOP_PREHEADER]] ]
+; CHECK-NEXT:    [[WITHIN_BOUNDS:%.*]] = icmp ult i32 [[J]], [[LENGTH]]
 ; CHECK-NEXT:    [[WIDENABLE_COND:%.*]] = call i1 @llvm.experimental.widenable.condition()
 ; CHECK-NEXT:    [[TMP5:%.*]] = and i1 [[TMP4]], [[WIDENABLE_COND]]
-; CHECK-NEXT:    br i1 [[TMP5]], label [[GUARDED]], label [[DEOPT:%.*]], !prof !0
+; CHECK-NEXT:    br i1 [[TMP5]], label [[GUARDED]], label [[DEOPT:%.*]], !prof [[PROF0]]
 ; CHECK:       deopt:
 ; CHECK-NEXT:    [[DEOPTCALL:%.*]] = call i32 (...) @llvm.experimental.deoptimize.i32(i32 9) [ "deopt"() ]
 ; CHECK-NEXT:    ret i32 [[DEOPTCALL]]
 ; CHECK:       guarded:
+; CHECK-NEXT:    call void @llvm.assume(i1 [[WITHIN_BOUNDS]])
 ; CHECK-NEXT:    [[I_I64:%.*]] = zext i32 [[I]] to i64
 ; CHECK-NEXT:    [[ARRAY_I_PTR:%.*]] = getelementptr inbounds i32, i32* [[ARRAY:%.*]], i64 [[I_I64]]
 ; CHECK-NEXT:    [[ARRAY_I:%.*]] = load i32, i32* [[ARRAY_I_PTR]], align 4
@@ -982,7 +1010,7 @@ define i32 @signed_loop_start_to_n_offset_iv_range_check(i32* %array, i32 %start
 ; CHECK-NEXT:    [[J_NEXT]] = add i32 [[J]], 1
 ; CHECK-NEXT:    [[I_NEXT]] = add i32 [[I]], 1
 ; CHECK-NEXT:    [[CONTINUE:%.*]] = icmp slt i32 [[I_NEXT]], [[N]]
-; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof !1
+; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof [[PROF1]]
 ; CHECK:       exit.loopexit:
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT_LCSSA:%.*]] = phi i32 [ [[LOOP_ACC_NEXT]], [[GUARDED]] ]
 ; CHECK-NEXT:    br label [[EXIT]]
@@ -1039,7 +1067,7 @@ define i32 @signed_loop_0_to_n_different_iv_types(i32* %array, i16 %length, i32 
 ; CHECK-NEXT:    [[WITHIN_BOUNDS:%.*]] = icmp ult i16 [[J]], [[LENGTH:%.*]]
 ; CHECK-NEXT:    [[WIDENABLE_COND:%.*]] = call i1 @llvm.experimental.widenable.condition()
 ; CHECK-NEXT:    [[EXIPLICIT_GUARD_COND:%.*]] = and i1 [[WITHIN_BOUNDS]], [[WIDENABLE_COND]]
-; CHECK-NEXT:    br i1 [[EXIPLICIT_GUARD_COND]], label [[GUARDED]], label [[DEOPT:%.*]], !prof !0
+; CHECK-NEXT:    br i1 [[EXIPLICIT_GUARD_COND]], label [[GUARDED]], label [[DEOPT:%.*]], !prof [[PROF0]]
 ; CHECK:       deopt:
 ; CHECK-NEXT:    [[DEOPTCALL:%.*]] = call i32 (...) @llvm.experimental.deoptimize.i32(i32 9) [ "deopt"() ]
 ; CHECK-NEXT:    ret i32 [[DEOPTCALL]]
@@ -1051,7 +1079,7 @@ define i32 @signed_loop_0_to_n_different_iv_types(i32* %array, i16 %length, i32 
 ; CHECK-NEXT:    [[J_NEXT]] = add i16 [[J]], 1
 ; CHECK-NEXT:    [[I_NEXT]] = add i32 [[I]], 1
 ; CHECK-NEXT:    [[CONTINUE:%.*]] = icmp slt i32 [[I_NEXT]], [[N]]
-; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof !1
+; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof [[PROF1]]
 ; CHECK:       exit.loopexit:
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT_LCSSA:%.*]] = phi i32 [ [[LOOP_ACC_NEXT]], [[GUARDED]] ]
 ; CHECK-NEXT:    br label [[EXIT]]
@@ -1108,7 +1136,7 @@ define i32 @signed_loop_0_to_n_different_iv_strides(i32* %array, i32 %length, i3
 ; CHECK-NEXT:    [[WITHIN_BOUNDS:%.*]] = icmp ult i32 [[J]], [[LENGTH:%.*]]
 ; CHECK-NEXT:    [[WIDENABLE_COND:%.*]] = call i1 @llvm.experimental.widenable.condition()
 ; CHECK-NEXT:    [[EXIPLICIT_GUARD_COND:%.*]] = and i1 [[WITHIN_BOUNDS]], [[WIDENABLE_COND]]
-; CHECK-NEXT:    br i1 [[EXIPLICIT_GUARD_COND]], label [[GUARDED]], label [[DEOPT:%.*]], !prof !0
+; CHECK-NEXT:    br i1 [[EXIPLICIT_GUARD_COND]], label [[GUARDED]], label [[DEOPT:%.*]], !prof [[PROF0]]
 ; CHECK:       deopt:
 ; CHECK-NEXT:    [[DEOPTCALL:%.*]] = call i32 (...) @llvm.experimental.deoptimize.i32(i32 9) [ "deopt"() ]
 ; CHECK-NEXT:    ret i32 [[DEOPTCALL]]
@@ -1120,7 +1148,7 @@ define i32 @signed_loop_0_to_n_different_iv_strides(i32* %array, i32 %length, i3
 ; CHECK-NEXT:    [[J_NEXT]] = add nsw i32 [[J]], 2
 ; CHECK-NEXT:    [[I_NEXT]] = add nsw i32 [[I]], 1
 ; CHECK-NEXT:    [[CONTINUE:%.*]] = icmp slt i32 [[I_NEXT]], [[N]]
-; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof !1
+; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof [[PROF1]]
 ; CHECK:       exit.loopexit:
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT_LCSSA:%.*]] = phi i32 [ [[LOOP_ACC_NEXT]], [[GUARDED]] ]
 ; CHECK-NEXT:    br label [[EXIT]]
@@ -1179,14 +1207,18 @@ define i32 @two_range_checks(i32* %array.1, i32 %length.1, i32* %array.2, i32 %l
 ; CHECK:       loop:
 ; CHECK-NEXT:    [[LOOP_ACC:%.*]] = phi i32 [ [[LOOP_ACC_NEXT:%.*]], [[GUARDED:%.*]] ], [ 0, [[LOOP_PREHEADER]] ]
 ; CHECK-NEXT:    [[I:%.*]] = phi i32 [ [[I_NEXT:%.*]], [[GUARDED]] ], [ 0, [[LOOP_PREHEADER]] ]
+; CHECK-NEXT:    [[WITHIN_BOUNDS_1:%.*]] = icmp ult i32 [[I]], [[LENGTH_1]]
+; CHECK-NEXT:    [[WITHIN_BOUNDS_2:%.*]] = icmp ult i32 [[I]], [[LENGTH_2]]
+; CHECK-NEXT:    [[WITHIN_BOUNDS:%.*]] = and i1 [[WITHIN_BOUNDS_1]], [[WITHIN_BOUNDS_2]]
 ; CHECK-NEXT:    [[WIDENABLE_COND:%.*]] = call i1 @llvm.experimental.widenable.condition()
 ; CHECK-NEXT:    [[TMP6:%.*]] = and i1 [[TMP2]], [[TMP5]]
 ; CHECK-NEXT:    [[TMP7:%.*]] = and i1 [[TMP6]], [[WIDENABLE_COND]]
-; CHECK-NEXT:    br i1 [[TMP7]], label [[GUARDED]], label [[DEOPT:%.*]], !prof !0
+; CHECK-NEXT:    br i1 [[TMP7]], label [[GUARDED]], label [[DEOPT:%.*]], !prof [[PROF0]]
 ; CHECK:       deopt:
 ; CHECK-NEXT:    [[DEOPTCALL:%.*]] = call i32 (...) @llvm.experimental.deoptimize.i32(i32 9) [ "deopt"() ]
 ; CHECK-NEXT:    ret i32 [[DEOPTCALL]]
 ; CHECK:       guarded:
+; CHECK-NEXT:    call void @llvm.assume(i1 [[WITHIN_BOUNDS]])
 ; CHECK-NEXT:    [[I_I64:%.*]] = zext i32 [[I]] to i64
 ; CHECK-NEXT:    [[ARRAY_1_I_PTR:%.*]] = getelementptr inbounds i32, i32* [[ARRAY_1:%.*]], i64 [[I_I64]]
 ; CHECK-NEXT:    [[ARRAY_1_I:%.*]] = load i32, i32* [[ARRAY_1_I_PTR]], align 4
@@ -1196,7 +1228,7 @@ define i32 @two_range_checks(i32* %array.1, i32 %length.1, i32* %array.2, i32 %l
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT]] = add i32 [[LOOP_ACC_1]], [[ARRAY_2_I]]
 ; CHECK-NEXT:    [[I_NEXT]] = add nuw i32 [[I]], 1
 ; CHECK-NEXT:    [[CONTINUE:%.*]] = icmp ult i32 [[I_NEXT]], [[N]]
-; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof !1
+; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof [[PROF1]]
 ; CHECK:       exit.loopexit:
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT_LCSSA:%.*]] = phi i32 [ [[LOOP_ACC_NEXT]], [[GUARDED]] ]
 ; CHECK-NEXT:    br label [[EXIT]]
@@ -1261,15 +1293,21 @@ define i32 @three_range_checks(i32* %array.1, i32 %length.1, i32* %array.2, i32 
 ; CHECK:       loop:
 ; CHECK-NEXT:    [[LOOP_ACC:%.*]] = phi i32 [ [[LOOP_ACC_NEXT:%.*]], [[GUARDED:%.*]] ], [ 0, [[LOOP_PREHEADER]] ]
 ; CHECK-NEXT:    [[I:%.*]] = phi i32 [ [[I_NEXT:%.*]], [[GUARDED]] ], [ 0, [[LOOP_PREHEADER]] ]
+; CHECK-NEXT:    [[WITHIN_BOUNDS_1:%.*]] = icmp ult i32 [[I]], [[LENGTH_1]]
+; CHECK-NEXT:    [[WITHIN_BOUNDS_2:%.*]] = icmp ult i32 [[I]], [[LENGTH_2]]
+; CHECK-NEXT:    [[WITHIN_BOUNDS_3:%.*]] = icmp ult i32 [[I]], [[LENGTH_3]]
+; CHECK-NEXT:    [[WITHIN_BOUNDS_1_AND_2:%.*]] = and i1 [[WITHIN_BOUNDS_1]], [[WITHIN_BOUNDS_2]]
+; CHECK-NEXT:    [[WITHIN_BOUNDS:%.*]] = and i1 [[WITHIN_BOUNDS_1_AND_2]], [[WITHIN_BOUNDS_3]]
 ; CHECK-NEXT:    [[WIDENABLE_COND:%.*]] = call i1 @llvm.experimental.widenable.condition()
 ; CHECK-NEXT:    [[TMP9:%.*]] = and i1 [[TMP2]], [[TMP5]]
 ; CHECK-NEXT:    [[TMP10:%.*]] = and i1 [[TMP9]], [[TMP8]]
 ; CHECK-NEXT:    [[TMP11:%.*]] = and i1 [[TMP10]], [[WIDENABLE_COND]]
-; CHECK-NEXT:    br i1 [[TMP11]], label [[GUARDED]], label [[DEOPT:%.*]], !prof !0
+; CHECK-NEXT:    br i1 [[TMP11]], label [[GUARDED]], label [[DEOPT:%.*]], !prof [[PROF0]]
 ; CHECK:       deopt:
 ; CHECK-NEXT:    [[DEOPTCALL:%.*]] = call i32 (...) @llvm.experimental.deoptimize.i32(i32 9) [ "deopt"() ]
 ; CHECK-NEXT:    ret i32 [[DEOPTCALL]]
 ; CHECK:       guarded:
+; CHECK-NEXT:    call void @llvm.assume(i1 [[WITHIN_BOUNDS]])
 ; CHECK-NEXT:    [[I_I64:%.*]] = zext i32 [[I]] to i64
 ; CHECK-NEXT:    [[ARRAY_1_I_PTR:%.*]] = getelementptr inbounds i32, i32* [[ARRAY_1:%.*]], i64 [[I_I64]]
 ; CHECK-NEXT:    [[ARRAY_1_I:%.*]] = load i32, i32* [[ARRAY_1_I_PTR]], align 4
@@ -1282,7 +1320,7 @@ define i32 @three_range_checks(i32* %array.1, i32 %length.1, i32* %array.2, i32 
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT]] = add i32 [[LOOP_ACC_2]], [[ARRAY_3_I]]
 ; CHECK-NEXT:    [[I_NEXT]] = add nuw i32 [[I]], 1
 ; CHECK-NEXT:    [[CONTINUE:%.*]] = icmp ult i32 [[I_NEXT]], [[N]]
-; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof !1
+; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof [[PROF1]]
 ; CHECK:       exit.loopexit:
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT_LCSSA:%.*]] = phi i32 [ [[LOOP_ACC_NEXT]], [[GUARDED]] ]
 ; CHECK-NEXT:    br label [[EXIT]]
@@ -1352,40 +1390,46 @@ define i32 @three_guards(i32* %array.1, i32 %length.1, i32* %array.2, i32 %lengt
 ; CHECK:       loop:
 ; CHECK-NEXT:    [[LOOP_ACC:%.*]] = phi i32 [ [[LOOP_ACC_NEXT:%.*]], [[GUARDED6:%.*]] ], [ 0, [[LOOP_PREHEADER]] ]
 ; CHECK-NEXT:    [[I:%.*]] = phi i32 [ [[I_NEXT:%.*]], [[GUARDED6]] ], [ 0, [[LOOP_PREHEADER]] ]
+; CHECK-NEXT:    [[WITHIN_BOUNDS_1:%.*]] = icmp ult i32 [[I]], [[LENGTH_1]]
 ; CHECK-NEXT:    [[WIDENABLE_COND:%.*]] = call i1 @llvm.experimental.widenable.condition()
 ; CHECK-NEXT:    [[TMP9:%.*]] = and i1 [[TMP2]], [[WIDENABLE_COND]]
-; CHECK-NEXT:    br i1 [[TMP9]], label [[GUARDED:%.*]], label [[DEOPT:%.*]], !prof !0
+; CHECK-NEXT:    br i1 [[TMP9]], label [[GUARDED:%.*]], label [[DEOPT:%.*]], !prof [[PROF0]]
 ; CHECK:       deopt:
 ; CHECK-NEXT:    [[DEOPTCALL:%.*]] = call i32 (...) @llvm.experimental.deoptimize.i32(i32 9) [ "deopt"() ]
 ; CHECK-NEXT:    ret i32 [[DEOPTCALL]]
 ; CHECK:       guarded:
+; CHECK-NEXT:    call void @llvm.assume(i1 [[WITHIN_BOUNDS_1]])
 ; CHECK-NEXT:    [[I_I64:%.*]] = zext i32 [[I]] to i64
 ; CHECK-NEXT:    [[ARRAY_1_I_PTR:%.*]] = getelementptr inbounds i32, i32* [[ARRAY_1:%.*]], i64 [[I_I64]]
 ; CHECK-NEXT:    [[ARRAY_1_I:%.*]] = load i32, i32* [[ARRAY_1_I_PTR]], align 4
 ; CHECK-NEXT:    [[LOOP_ACC_1:%.*]] = add i32 [[LOOP_ACC]], [[ARRAY_1_I]]
+; CHECK-NEXT:    [[WITHIN_BOUNDS_2:%.*]] = icmp ult i32 [[I]], [[LENGTH_2]]
 ; CHECK-NEXT:    [[WIDENABLE_COND4:%.*]] = call i1 @llvm.experimental.widenable.condition()
 ; CHECK-NEXT:    [[TMP10:%.*]] = and i1 [[TMP5]], [[WIDENABLE_COND4]]
-; CHECK-NEXT:    br i1 [[TMP10]], label [[GUARDED1:%.*]], label [[DEOPT2:%.*]], !prof !0
+; CHECK-NEXT:    br i1 [[TMP10]], label [[GUARDED1:%.*]], label [[DEOPT2:%.*]], !prof [[PROF0]]
 ; CHECK:       deopt2:
 ; CHECK-NEXT:    [[DEOPTCALL3:%.*]] = call i32 (...) @llvm.experimental.deoptimize.i32(i32 9) [ "deopt"() ]
 ; CHECK-NEXT:    ret i32 [[DEOPTCALL3]]
 ; CHECK:       guarded1:
+; CHECK-NEXT:    call void @llvm.assume(i1 [[WITHIN_BOUNDS_2]])
 ; CHECK-NEXT:    [[ARRAY_2_I_PTR:%.*]] = getelementptr inbounds i32, i32* [[ARRAY_2:%.*]], i64 [[I_I64]]
 ; CHECK-NEXT:    [[ARRAY_2_I:%.*]] = load i32, i32* [[ARRAY_2_I_PTR]], align 4
 ; CHECK-NEXT:    [[LOOP_ACC_2:%.*]] = add i32 [[LOOP_ACC_1]], [[ARRAY_2_I]]
+; CHECK-NEXT:    [[WITHIN_BOUNDS_3:%.*]] = icmp ult i32 [[I]], [[LENGTH_3]]
 ; CHECK-NEXT:    [[WIDENABLE_COND9:%.*]] = call i1 @llvm.experimental.widenable.condition()
 ; CHECK-NEXT:    [[TMP11:%.*]] = and i1 [[TMP8]], [[WIDENABLE_COND9]]
-; CHECK-NEXT:    br i1 [[TMP11]], label [[GUARDED6]], label [[DEOPT7:%.*]], !prof !0
+; CHECK-NEXT:    br i1 [[TMP11]], label [[GUARDED6]], label [[DEOPT7:%.*]], !prof [[PROF0]]
 ; CHECK:       deopt7:
 ; CHECK-NEXT:    [[DEOPTCALL8:%.*]] = call i32 (...) @llvm.experimental.deoptimize.i32(i32 9) [ "deopt"() ]
 ; CHECK-NEXT:    ret i32 [[DEOPTCALL8]]
 ; CHECK:       guarded6:
+; CHECK-NEXT:    call void @llvm.assume(i1 [[WITHIN_BOUNDS_3]])
 ; CHECK-NEXT:    [[ARRAY_3_I_PTR:%.*]] = getelementptr inbounds i32, i32* [[ARRAY_3:%.*]], i64 [[I_I64]]
 ; CHECK-NEXT:    [[ARRAY_3_I:%.*]] = load i32, i32* [[ARRAY_3_I_PTR]], align 4
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT]] = add i32 [[LOOP_ACC_2]], [[ARRAY_3_I]]
 ; CHECK-NEXT:    [[I_NEXT]] = add nuw i32 [[I]], 1
 ; CHECK-NEXT:    [[CONTINUE:%.*]] = icmp ult i32 [[I_NEXT]], [[N]]
-; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof !1
+; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof [[PROF1]]
 ; CHECK:       exit.loopexit:
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT_LCSSA:%.*]] = phi i32 [ [[LOOP_ACC_NEXT]], [[GUARDED6]] ]
 ; CHECK-NEXT:    br label [[EXIT]]
@@ -1465,22 +1509,25 @@ define i32 @unsigned_loop_0_to_n_unrelated_condition(i32* %array, i32 %length, i
 ; CHECK:       loop:
 ; CHECK-NEXT:    [[LOOP_ACC:%.*]] = phi i32 [ [[LOOP_ACC_NEXT:%.*]], [[GUARDED:%.*]] ], [ 0, [[LOOP_PREHEADER]] ]
 ; CHECK-NEXT:    [[I:%.*]] = phi i32 [ [[I_NEXT:%.*]], [[GUARDED]] ], [ 0, [[LOOP_PREHEADER]] ]
+; CHECK-NEXT:    [[WITHIN_BOUNDS:%.*]] = icmp ult i32 [[I]], [[LENGTH]]
 ; CHECK-NEXT:    [[UNRELATED_COND:%.*]] = icmp ult i32 [[X:%.*]], [[LENGTH]]
+; CHECK-NEXT:    [[GUARD_COND:%.*]] = and i1 [[WITHIN_BOUNDS]], [[UNRELATED_COND]]
 ; CHECK-NEXT:    [[WIDENABLE_COND:%.*]] = call i1 @llvm.experimental.widenable.condition()
 ; CHECK-NEXT:    [[TMP3:%.*]] = and i1 [[UNRELATED_COND]], [[TMP2]]
 ; CHECK-NEXT:    [[TMP4:%.*]] = and i1 [[TMP3]], [[WIDENABLE_COND]]
-; CHECK-NEXT:    br i1 [[TMP4]], label [[GUARDED]], label [[DEOPT:%.*]], !prof !0
+; CHECK-NEXT:    br i1 [[TMP4]], label [[GUARDED]], label [[DEOPT:%.*]], !prof [[PROF0]]
 ; CHECK:       deopt:
 ; CHECK-NEXT:    [[DEOPTCALL:%.*]] = call i32 (...) @llvm.experimental.deoptimize.i32(i32 9) [ "deopt"() ]
 ; CHECK-NEXT:    ret i32 [[DEOPTCALL]]
 ; CHECK:       guarded:
+; CHECK-NEXT:    call void @llvm.assume(i1 [[GUARD_COND]])
 ; CHECK-NEXT:    [[I_I64:%.*]] = zext i32 [[I]] to i64
 ; CHECK-NEXT:    [[ARRAY_I_PTR:%.*]] = getelementptr inbounds i32, i32* [[ARRAY:%.*]], i64 [[I_I64]]
 ; CHECK-NEXT:    [[ARRAY_I:%.*]] = load i32, i32* [[ARRAY_I_PTR]], align 4
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT]] = add i32 [[LOOP_ACC]], [[ARRAY_I]]
 ; CHECK-NEXT:    [[I_NEXT]] = add nuw i32 [[I]], 1
 ; CHECK-NEXT:    [[CONTINUE:%.*]] = icmp ult i32 [[I_NEXT]], [[N]]
-; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof !1
+; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof [[PROF1]]
 ; CHECK:       exit.loopexit:
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT_LCSSA:%.*]] = phi i32 [ [[LOOP_ACC_NEXT]], [[GUARDED]] ]
 ; CHECK-NEXT:    br label [[EXIT]]
@@ -1540,7 +1587,7 @@ define i32 @test_no_widened_conditions(i32* %array, i32 %length, i32 %n, i32 %x1
 ; CHECK-NEXT:    [[GUARD_COND:%.*]] = and i1 [[UNRELATED_COND_AND_1]], [[UNRELATED_COND_3]]
 ; CHECK-NEXT:    [[WIDENABLE_COND:%.*]] = call i1 @llvm.experimental.widenable.condition()
 ; CHECK-NEXT:    [[EXIPLICIT_GUARD_COND:%.*]] = and i1 [[GUARD_COND]], [[WIDENABLE_COND]]
-; CHECK-NEXT:    br i1 [[EXIPLICIT_GUARD_COND]], label [[GUARDED]], label [[DEOPT:%.*]], !prof !0
+; CHECK-NEXT:    br i1 [[EXIPLICIT_GUARD_COND]], label [[GUARDED]], label [[DEOPT:%.*]], !prof [[PROF0]]
 ; CHECK:       deopt:
 ; CHECK-NEXT:    [[DEOPTCALL:%.*]] = call i32 (...) @llvm.experimental.deoptimize.i32(i32 9) [ "deopt"() ]
 ; CHECK-NEXT:    ret i32 [[DEOPTCALL]]
@@ -1551,7 +1598,7 @@ define i32 @test_no_widened_conditions(i32* %array, i32 %length, i32 %n, i32 %x1
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT]] = add i32 [[LOOP_ACC]], [[ARRAY_I]]
 ; CHECK-NEXT:    [[I_NEXT]] = add nuw i32 [[I]], 1
 ; CHECK-NEXT:    [[CONTINUE:%.*]] = icmp ult i32 [[I_NEXT]], [[N]]
-; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof !1
+; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof [[PROF1]]
 ; CHECK:       exit.loopexit:
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT_LCSSA:%.*]] = phi i32 [ [[LOOP_ACC_NEXT]], [[GUARDED]] ]
 ; CHECK-NEXT:    br label [[EXIT]]
@@ -1610,7 +1657,7 @@ define i32 @signed_loop_start_to_n_loop_variant_bound(i32* %array, i32 %x, i32 %
 ; CHECK-NEXT:    [[WITHIN_BOUNDS:%.*]] = icmp ult i32 [[I]], [[BOUND]]
 ; CHECK-NEXT:    [[WIDENABLE_COND:%.*]] = call i1 @llvm.experimental.widenable.condition()
 ; CHECK-NEXT:    [[EXIPLICIT_GUARD_COND:%.*]] = and i1 [[WITHIN_BOUNDS]], [[WIDENABLE_COND]]
-; CHECK-NEXT:    br i1 [[EXIPLICIT_GUARD_COND]], label [[GUARDED]], label [[DEOPT:%.*]], !prof !0
+; CHECK-NEXT:    br i1 [[EXIPLICIT_GUARD_COND]], label [[GUARDED]], label [[DEOPT:%.*]], !prof [[PROF0]]
 ; CHECK:       deopt:
 ; CHECK-NEXT:    [[DEOPTCALL:%.*]] = call i32 (...) @llvm.experimental.deoptimize.i32(i32 9) [ "deopt"() ]
 ; CHECK-NEXT:    ret i32 [[DEOPTCALL]]
@@ -1621,7 +1668,7 @@ define i32 @signed_loop_start_to_n_loop_variant_bound(i32* %array, i32 %x, i32 %
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT]] = add i32 [[LOOP_ACC]], [[ARRAY_I]]
 ; CHECK-NEXT:    [[I_NEXT]] = add nsw i32 [[I]], 1
 ; CHECK-NEXT:    [[CONTINUE:%.*]] = icmp slt i32 [[I_NEXT]], [[N]]
-; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof !1
+; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof [[PROF1]]
 ; CHECK:       exit.loopexit:
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT_LCSSA:%.*]] = phi i32 [ [[LOOP_ACC_NEXT]], [[GUARDED]] ]
 ; CHECK-NEXT:    br label [[EXIT]]
@@ -1676,7 +1723,7 @@ define i32 @signed_loop_start_to_n_non_monotonic_predicate(i32* %array, i32 %x, 
 ; CHECK-NEXT:    [[GUARD_COND:%.*]] = icmp eq i32 [[I]], [[X:%.*]]
 ; CHECK-NEXT:    [[WIDENABLE_COND:%.*]] = call i1 @llvm.experimental.widenable.condition()
 ; CHECK-NEXT:    [[EXIPLICIT_GUARD_COND:%.*]] = and i1 [[GUARD_COND]], [[WIDENABLE_COND]]
-; CHECK-NEXT:    br i1 [[EXIPLICIT_GUARD_COND]], label [[GUARDED]], label [[DEOPT:%.*]], !prof !0
+; CHECK-NEXT:    br i1 [[EXIPLICIT_GUARD_COND]], label [[GUARDED]], label [[DEOPT:%.*]], !prof [[PROF0]]
 ; CHECK:       deopt:
 ; CHECK-NEXT:    [[DEOPTCALL:%.*]] = call i32 (...) @llvm.experimental.deoptimize.i32(i32 9) [ "deopt"() ]
 ; CHECK-NEXT:    ret i32 [[DEOPTCALL]]
@@ -1687,7 +1734,7 @@ define i32 @signed_loop_start_to_n_non_monotonic_predicate(i32* %array, i32 %x, 
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT]] = add i32 [[LOOP_ACC]], [[ARRAY_I]]
 ; CHECK-NEXT:    [[I_NEXT]] = add nsw i32 [[I]], 1
 ; CHECK-NEXT:    [[CONTINUE:%.*]] = icmp slt i32 [[I_NEXT]], [[N]]
-; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof !1
+; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof [[PROF1]]
 ; CHECK:       exit.loopexit:
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT_LCSSA:%.*]] = phi i32 [ [[LOOP_ACC_NEXT]], [[GUARDED]] ]
 ; CHECK-NEXT:    br label [[EXIT]]
@@ -1742,20 +1789,23 @@ define i32 @unsigned_loop_0_to_n_hoist_length(i32* %array, i16 %length.i16, i32 
 ; CHECK:       loop:
 ; CHECK-NEXT:    [[LOOP_ACC:%.*]] = phi i32 [ [[LOOP_ACC_NEXT:%.*]], [[GUARDED:%.*]] ], [ 0, [[LOOP_PREHEADER]] ]
 ; CHECK-NEXT:    [[I:%.*]] = phi i32 [ [[I_NEXT:%.*]], [[GUARDED]] ], [ 0, [[LOOP_PREHEADER]] ]
+; CHECK-NEXT:    [[LENGTH:%.*]] = zext i16 [[LENGTH_I16]] to i32
+; CHECK-NEXT:    [[WITHIN_BOUNDS:%.*]] = icmp ult i32 [[I]], [[LENGTH]]
 ; CHECK-NEXT:    [[WIDENABLE_COND:%.*]] = call i1 @llvm.experimental.widenable.condition()
 ; CHECK-NEXT:    [[TMP4:%.*]] = and i1 [[TMP3]], [[WIDENABLE_COND]]
-; CHECK-NEXT:    br i1 [[TMP4]], label [[GUARDED]], label [[DEOPT:%.*]], !prof !0
+; CHECK-NEXT:    br i1 [[TMP4]], label [[GUARDED]], label [[DEOPT:%.*]], !prof [[PROF0]]
 ; CHECK:       deopt:
 ; CHECK-NEXT:    [[DEOPTCALL:%.*]] = call i32 (...) @llvm.experimental.deoptimize.i32(i32 9) [ "deopt"() ]
 ; CHECK-NEXT:    ret i32 [[DEOPTCALL]]
 ; CHECK:       guarded:
+; CHECK-NEXT:    call void @llvm.assume(i1 [[WITHIN_BOUNDS]])
 ; CHECK-NEXT:    [[I_I64:%.*]] = zext i32 [[I]] to i64
 ; CHECK-NEXT:    [[ARRAY_I_PTR:%.*]] = getelementptr inbounds i32, i32* [[ARRAY:%.*]], i64 [[I_I64]]
 ; CHECK-NEXT:    [[ARRAY_I:%.*]] = load i32, i32* [[ARRAY_I_PTR]], align 4
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT]] = add i32 [[LOOP_ACC]], [[ARRAY_I]]
 ; CHECK-NEXT:    [[I_NEXT]] = add nuw i32 [[I]], 1
 ; CHECK-NEXT:    [[CONTINUE:%.*]] = icmp ult i32 [[I_NEXT]], [[N]]
-; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof !1
+; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof [[PROF1]]
 ; CHECK:       exit.loopexit:
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT_LCSSA:%.*]] = phi i32 [ [[LOOP_ACC_NEXT]], [[GUARDED]] ]
 ; CHECK-NEXT:    br label [[EXIT]]
@@ -1808,23 +1858,25 @@ define i32 @unsigned_loop_0_to_n_cant_hoist_length(i32* %array, i32 %length, i32
 ; CHECK-NEXT:    [[LOOP_ACC:%.*]] = phi i32 [ [[LOOP_ACC_NEXT:%.*]], [[GUARDED:%.*]] ], [ 0, [[LOOP_PREHEADER]] ]
 ; CHECK-NEXT:    [[I:%.*]] = phi i32 [ [[I_NEXT:%.*]], [[GUARDED]] ], [ 0, [[LOOP_PREHEADER]] ]
 ; CHECK-NEXT:    [[LENGTH_UDIV:%.*]] = udiv i32 [[LENGTH:%.*]], [[DIVIDER:%.*]]
+; CHECK-NEXT:    [[WITHIN_BOUNDS:%.*]] = icmp ult i32 [[I]], [[LENGTH_UDIV]]
 ; CHECK-NEXT:    [[WIDENABLE_COND:%.*]] = call i1 @llvm.experimental.widenable.condition()
 ; CHECK-NEXT:    [[TMP0:%.*]] = icmp ule i32 [[N]], [[LENGTH_UDIV]]
 ; CHECK-NEXT:    [[TMP1:%.*]] = icmp ult i32 0, [[LENGTH_UDIV]]
 ; CHECK-NEXT:    [[TMP2:%.*]] = and i1 [[TMP1]], [[TMP0]]
 ; CHECK-NEXT:    [[TMP3:%.*]] = and i1 [[TMP2]], [[WIDENABLE_COND]]
-; CHECK-NEXT:    br i1 [[TMP3]], label [[GUARDED]], label [[DEOPT:%.*]], !prof !0
+; CHECK-NEXT:    br i1 [[TMP3]], label [[GUARDED]], label [[DEOPT:%.*]], !prof [[PROF0]]
 ; CHECK:       deopt:
 ; CHECK-NEXT:    [[DEOPTCALL:%.*]] = call i32 (...) @llvm.experimental.deoptimize.i32(i32 9) [ "deopt"() ]
 ; CHECK-NEXT:    ret i32 [[DEOPTCALL]]
 ; CHECK:       guarded:
+; CHECK-NEXT:    call void @llvm.assume(i1 [[WITHIN_BOUNDS]])
 ; CHECK-NEXT:    [[I_I64:%.*]] = zext i32 [[I]] to i64
 ; CHECK-NEXT:    [[ARRAY_I_PTR:%.*]] = getelementptr inbounds i32, i32* [[ARRAY:%.*]], i64 [[I_I64]]
 ; CHECK-NEXT:    [[ARRAY_I:%.*]] = load i32, i32* [[ARRAY_I_PTR]], align 4
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT]] = add i32 [[LOOP_ACC]], [[ARRAY_I]]
 ; CHECK-NEXT:    [[I_NEXT]] = add nuw i32 [[I]], 1
 ; CHECK-NEXT:    [[CONTINUE:%.*]] = icmp ult i32 [[I_NEXT]], [[N]]
-; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof !1
+; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof [[PROF1]]
 ; CHECK:       exit.loopexit:
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT_LCSSA:%.*]] = phi i32 [ [[LOOP_ACC_NEXT]], [[GUARDED]] ]
 ; CHECK-NEXT:    br label [[EXIT]]
@@ -1879,7 +1931,7 @@ define i32 @negative_WC_required(i32* %array, i32 %length, i32 %n, i1 %unrelated
 ; CHECK-NEXT:    [[I:%.*]] = phi i32 [ [[I_NEXT:%.*]], [[GUARDED:%.*]] ], [ 0, [[LOOP_PREHEADER]] ]
 ; CHECK-NEXT:    [[WITHIN_BOUNDS:%.*]] = icmp ult i32 [[I]], [[LENGTH:%.*]]
 ; CHECK-NEXT:    [[NOT_WIDENABLE:%.*]] = and i1 [[WITHIN_BOUNDS]], [[UNRELATED:%.*]]
-; CHECK-NEXT:    br i1 [[NOT_WIDENABLE]], label [[GUARDED]], label [[DEOPT:%.*]], !prof !0
+; CHECK-NEXT:    br i1 [[NOT_WIDENABLE]], label [[GUARDED]], label [[DEOPT:%.*]], !prof [[PROF0]]
 ; CHECK:       deopt:
 ; CHECK-NEXT:    [[DEOPTCALL:%.*]] = call i32 (...) @llvm.experimental.deoptimize.i32(i32 9) [ "deopt"() ]
 ; CHECK-NEXT:    ret i32 [[DEOPTCALL]]
@@ -1889,7 +1941,7 @@ define i32 @negative_WC_required(i32* %array, i32 %length, i32 %n, i1 %unrelated
 ; CHECK-NEXT:    store i32 0, i32* [[ARRAY_I_PTR]], align 4
 ; CHECK-NEXT:    [[I_NEXT]] = add nuw i32 [[I]], 1
 ; CHECK-NEXT:    [[CONTINUE:%.*]] = icmp ult i32 [[I_NEXT]], [[N]]
-; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof !1
+; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof [[PROF1]]
 ; CHECK:       exit.loopexit:
 ; CHECK-NEXT:    br label [[EXIT]]
 ; CHECK:       exit:
@@ -1939,18 +1991,20 @@ define i32 @swapped_wb(i32* %array, i32 %length, i32 %n) {
 ; CHECK:       loop:
 ; CHECK-NEXT:    [[LOOP_ACC:%.*]] = phi i32 [ [[LOOP_ACC_NEXT:%.*]], [[GUARDED:%.*]] ], [ 0, [[LOOP_PREHEADER]] ]
 ; CHECK-NEXT:    [[I:%.*]] = phi i32 [ [[I_NEXT:%.*]], [[GUARDED]] ], [ 0, [[LOOP_PREHEADER]] ]
-; CHECK-NEXT:    br i1 [[TMP3]], label [[GUARDED]], label [[DEOPT:%.*]], !prof !0
+; CHECK-NEXT:    [[WITHIN_BOUNDS:%.*]] = icmp ult i32 [[I]], [[LENGTH]]
+; CHECK-NEXT:    br i1 [[TMP3]], label [[GUARDED]], label [[DEOPT:%.*]], !prof [[PROF0]]
 ; CHECK:       deopt:
 ; CHECK-NEXT:    [[DEOPTCALL:%.*]] = call i32 (...) @llvm.experimental.deoptimize.i32(i32 9) [ "deopt"() ]
 ; CHECK-NEXT:    ret i32 [[DEOPTCALL]]
 ; CHECK:       guarded:
+; CHECK-NEXT:    call void @llvm.assume(i1 [[WITHIN_BOUNDS]])
 ; CHECK-NEXT:    [[I_I64:%.*]] = zext i32 [[I]] to i64
 ; CHECK-NEXT:    [[ARRAY_I_PTR:%.*]] = getelementptr inbounds i32, i32* [[ARRAY:%.*]], i64 [[I_I64]]
 ; CHECK-NEXT:    [[ARRAY_I:%.*]] = load i32, i32* [[ARRAY_I_PTR]], align 4
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT]] = add i32 [[LOOP_ACC]], [[ARRAY_I]]
 ; CHECK-NEXT:    [[I_NEXT]] = add nuw i32 [[I]], 1
 ; CHECK-NEXT:    [[CONTINUE:%.*]] = icmp ult i32 [[I_NEXT]], [[N]]
-; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof !1
+; CHECK-NEXT:    br i1 [[CONTINUE]], label [[LOOP]], label [[EXIT_LOOPEXIT:%.*]], !prof [[PROF1]]
 ; CHECK:       exit.loopexit:
 ; CHECK-NEXT:    [[LOOP_ACC_NEXT_LCSSA:%.*]] = phi i32 [ [[LOOP_ACC_NEXT]], [[GUARDED]] ]
 ; CHECK-NEXT:    br label [[EXIT]]

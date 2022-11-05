@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "SyncAPI.h"
+#include "Protocol.h"
 #include "index/Index.h"
 
 namespace clang {
@@ -26,9 +27,7 @@ namespace {
 ///    T Result;
 ///    someAsyncFunc(Param1, Param2, /*Callback=*/capture(Result));
 template <typename T> struct CaptureProxy {
-  CaptureProxy(llvm::Optional<T> &Target) : Target(&Target) {
-    assert(!Target.hasValue());
-  }
+  CaptureProxy(llvm::Optional<T> &Target) : Target(&Target) { assert(!Target); }
 
   CaptureProxy(const CaptureProxy &) = delete;
   CaptureProxy &operator=(const CaptureProxy &) = delete;
@@ -50,7 +49,7 @@ template <typename T> struct CaptureProxy {
     if (!Target)
       return;
     assert(Future.valid() && "conversion to callback was not called");
-    assert(!Target->hasValue());
+    assert(!Target->has_value());
     Target->emplace(std::move(*Future.get()));
   }
 
@@ -77,9 +76,10 @@ runCodeComplete(ClangdServer &Server, PathRef File, Position Pos,
 }
 
 llvm::Expected<SignatureHelp> runSignatureHelp(ClangdServer &Server,
-                                               PathRef File, Position Pos) {
+                                               PathRef File, Position Pos,
+                                               MarkupKind DocumentationFormat) {
   llvm::Optional<llvm::Expected<SignatureHelp>> Result;
-  Server.signatureHelp(File, Pos, capture(Result));
+  Server.signatureHelp(File, Pos, DocumentationFormat, capture(Result));
   return std::move(*Result);
 }
 

@@ -8,7 +8,7 @@
 
 #include "mlir/Analysis/AliasAnalysis/LocalAliasAnalysis.h"
 
-#include "mlir/IR/FunctionSupport.h"
+#include "mlir/IR/FunctionInterfaces.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
@@ -78,12 +78,12 @@ static void collectUnderlyingAddressValues(RegionBranchOpInterface branch,
   if (region) {
     // Determine the actual region number from the passed region.
     regionIndex = region->getRegionNumber();
-    if (Optional<unsigned> operandIndex =
-            getOperandIndexIfPred(/*predIndex=*/llvm::None)) {
-      collectUnderlyingAddressValues(
-          branch.getSuccessorEntryOperands(*regionIndex)[*operandIndex],
-          maxDepth, visited, output);
-    }
+  }
+  if (Optional<unsigned> operandIndex =
+          getOperandIndexIfPred(/*predIndex=*/llvm::None)) {
+    collectUnderlyingAddressValues(
+        branch.getSuccessorEntryOperands(regionIndex)[*operandIndex], maxDepth,
+        visited, output);
   }
   // Check branches from each child region.
   Operation *op = branch.getOperation();
@@ -149,14 +149,13 @@ static void collectUnderlyingAddressValues(BlockArgument arg, unsigned maxDepth,
 
       // Try to get the operand passed for this argument.
       unsigned index = it.getSuccessorIndex();
-      Optional<OperandRange> operands = branch.getSuccessorOperands(index);
-      if (!operands) {
+      Value operand = branch.getSuccessorOperands(index)[argNumber];
+      if (!operand) {
         // We can't analyze the control flow, so bail out early.
         output.push_back(arg);
         return;
       }
-      collectUnderlyingAddressValues((*operands)[argNumber], maxDepth, visited,
-                                     output);
+      collectUnderlyingAddressValues(operand, maxDepth, visited, output);
     }
     return;
   }
@@ -240,7 +239,7 @@ getAllocEffectFor(Value value, Optional<MemoryEffects::EffectInstance> &effect,
   // freed on all paths within the region, or is just not captured by anything.
   // For now assume allocation scope to the function scope (we don't care if
   // pointer escape outside function).
-  allocScopeOp = op->getParentWithTrait<OpTrait::FunctionLike>();
+  allocScopeOp = op->getParentOfType<FunctionOpInterface>();
   return success();
 }
 
@@ -349,7 +348,7 @@ AliasResult LocalAliasAnalysis::alias(Value lhs, Value rhs) {
 
 ModRefResult LocalAliasAnalysis::getModRef(Operation *op, Value location) {
   // Check to see if this operation relies on nested side effects.
-  if (op->hasTrait<OpTrait::HasRecursiveSideEffects>()) {
+  if (op->hasTrait<OpTrait::HasRecursiveMemoryEffects>()) {
     // TODO: To check recursive operations we need to check all of the nested
     // operations, which can result in a quadratic number of queries. We should
     // introduce some caching of some kind to help alleviate this, especially as

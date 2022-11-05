@@ -81,7 +81,7 @@ static SourceLocation findEndLocation(const Stmt &S, const SourceManager &SM,
     SourceRange TokRange(Loc, TokEndLoc);
     StringRef Comment = Lexer::getSourceText(
         CharSourceRange::getTokenRange(TokRange), SM, Context->getLangOpts());
-    if (Comment.startswith("/*") && Comment.find('\n') != StringRef::npos) {
+    if (Comment.startswith("/*") && Comment.contains('\n')) {
       // Multi-line block comment, insert brace before.
       break;
     }
@@ -131,6 +131,10 @@ void BracesAroundStatementsCheck::check(
       return;
     checkStmt(Result, S->getBody(), StartLoc);
   } else if (const auto *S = Result.Nodes.getNodeAs<IfStmt>("if")) {
+    // "if consteval" always has braces.
+    if (S->isConsteval())
+      return;
+
     SourceLocation StartLoc = findRParenLoc(S, SM, Context);
     if (StartLoc.isInvalid())
       return;

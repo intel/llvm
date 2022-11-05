@@ -23,6 +23,11 @@ _Value
 __parallel_reduce_body(_RandomAccessIterator __first, _RandomAccessIterator __last, _Value __identity,
                        _RealBody __real_body, _Reduction __reduce)
 {
+    if (__should_run_serial(__first, __last))
+    {
+        return __real_body(__first, __last, __identity);
+    }
+
     auto __middle = __first + ((__last - __first) / 2);
     _Value __v1(__identity), __v2(__identity);
     __parallel_invoke_body(
@@ -40,8 +45,8 @@ __parallel_reduce_body(_RandomAccessIterator __first, _RandomAccessIterator __la
 
 template <class _ExecutionPolicy, class _RandomAccessIterator, class _Value, typename _RealBody, typename _Reduction>
 _Value
-__parallel_reduce(_ExecutionPolicy&&, _RandomAccessIterator __first, _RandomAccessIterator __last, _Value __identity,
-                  _RealBody __real_body, _Reduction __reduction)
+__parallel_reduce(__pstl::__internal::__openmp_backend_tag, _ExecutionPolicy&&, _RandomAccessIterator __first,
+                  _RandomAccessIterator __last, _Value __identity, _RealBody __real_body, _Reduction __reduction)
 {
     // We don't create a nested parallel region in an existing parallel region:
     // just create tasks.

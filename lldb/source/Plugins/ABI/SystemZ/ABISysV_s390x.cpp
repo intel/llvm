@@ -25,6 +25,7 @@
 #include "lldb/Target/Thread.h"
 #include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/DataExtractor.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/RegisterValue.h"
 #include "lldb/Utility/Status.h"
@@ -171,8 +172,7 @@ static const RegisterInfo g_register_infos[] = {
     DEFINE_REG(f15, 8, nullptr, LLDB_INVALID_REGNUM),
 };
 
-static const uint32_t k_num_register_infos =
-    llvm::array_lengthof(g_register_infos);
+static const uint32_t k_num_register_infos = std::size(g_register_infos);
 
 const lldb_private::RegisterInfo *
 ABISysV_s390x::GetRegisterInfoArray(uint32_t &count) {
@@ -195,7 +195,7 @@ ABISysV_s390x::CreateInstance(lldb::ProcessSP process_sp, const ArchSpec &arch) 
 bool ABISysV_s390x::PrepareTrivialCall(Thread &thread, addr_t sp,
                                        addr_t func_addr, addr_t return_addr,
                                        llvm::ArrayRef<addr_t> args) const {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS));
+  Log *log = GetLog(LLDBLog::Expressions);
 
   if (log) {
     StreamString s;
@@ -715,9 +715,4 @@ void ABISysV_s390x::Initialize() {
 
 void ABISysV_s390x::Terminate() {
   PluginManager::UnregisterPlugin(CreateInstance);
-}
-
-lldb_private::ConstString ABISysV_s390x::GetPluginNameStatic() {
-  static ConstString g_name("sysv-s390x");
-  return g_name;
 }

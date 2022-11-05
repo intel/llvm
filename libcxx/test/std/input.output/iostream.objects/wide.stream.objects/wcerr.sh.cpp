@@ -10,9 +10,9 @@
 
 // istream wcerr;
 
-// XFAIL: libcpp-has-no-wide-characters
-// XFAIL: LIBCXX-WINDOWS-FIXME
+// XFAIL: no-wide-characters
 
+// UNSUPPORTED: executor-has-no-bash
 // FILE_DEPENDENCIES: ../check-stderr.sh
 // RUN: %{build}
 // RUN: %{exec} bash check-stderr.sh "%t.exe" "1234"

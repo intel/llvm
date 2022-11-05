@@ -136,9 +136,11 @@ public:
     /// should be textually included.
     TextualHeader = 0x2,
 
+    /// This header is explicitly excluded from the module.
+    ExcludedHeader = 0x4,
+
     // Caution: Adding an enumerator needs other changes.
     // Adjust the number of bits for KnownHeader::Storage.
-    // Adjust the bitfield HeaderFileInfo::HeaderRole size.
     // Adjust the HeaderFileInfoTrait::ReadData streaming.
     // Adjust the HeaderFileInfoTrait::EmitData streaming.
     // Adjust ModuleMap::addHeader.
@@ -150,10 +152,13 @@ public:
   /// Convert a header role to a kind.
   static Module::HeaderKind headerRoleToKind(ModuleHeaderRole Role);
 
+  /// Check if the header with the given role is a modular one.
+  static bool isModular(ModuleHeaderRole Role);
+
   /// A header that is known to reside within a given module,
   /// whether it was included or excluded.
   class KnownHeader {
-    llvm::PointerIntPair<Module *, 2, ModuleHeaderRole> Storage;
+    llvm::PointerIntPair<Module *, 3, ModuleHeaderRole> Storage;
 
   public:
     KnownHeader() : Storage(nullptr, NormalHeader) {}
@@ -174,7 +179,7 @@ public:
 
     /// Whether this header is available in the module.
     bool isAvailable() const {
-      return getModule()->isAvailable();
+      return getRole() != ExcludedHeader && getModule()->isAvailable();
     }
 
     /// Whether this header is accessible from the specified module.
@@ -434,7 +439,8 @@ public:
   /// given header file.  The KnownHeader is default constructed to indicate
   /// that no module owns this header file.
   KnownHeader findModuleForHeader(const FileEntry *File,
-                                  bool AllowTextual = false);
+                                  bool AllowTextual = false,
+                                  bool AllowExcluded = false);
 
   /// Retrieve all the modules that contain the given header file. Note that
   /// this does not implicitly load module maps, except for builtin headers,
@@ -456,8 +462,11 @@ public:
   /// is effectively internal, but is exposed so HeaderSearch can call it.
   void resolveHeaderDirectives(const FileEntry *File) const;
 
-  /// Resolve all lazy header directives for the specified module.
-  void resolveHeaderDirectives(Module *Mod) const;
+  /// Resolve lazy header directives for the specified module. If File is
+  /// provided, only headers with same size and modtime are resolved. If File
+  /// is not set, all headers are resolved.
+  void resolveHeaderDirectives(Module *Mod,
+                               llvm::Optional<const FileEntry *> File) const;
 
   /// Reports errors if a module must not include a specific file.
   ///
@@ -476,7 +485,7 @@ public:
   void diagnoseHeaderInclusion(Module *RequestingModule,
                                bool RequestingModuleIsModuleInterface,
                                SourceLocation FilenameLoc, StringRef Filename,
-                               const FileEntry *File);
+                               FileEntryRef File);
 
   /// Determine whether the given header is part of a module
   /// marked 'unavailable'.
@@ -538,8 +547,11 @@ public:
   ///
   /// We model the global module fragment as a submodule of the module
   /// interface unit. Unfortunately, we can't create the module interface
-  /// unit's Module until later, because we don't know what it will be called.
-  Module *createGlobalModuleFragmentForModuleUnit(SourceLocation Loc);
+  /// unit's Module until later, because we don't know what it will be called
+  /// usually. See C++20 [module.unit]/7.2 for the case we could know its
+  /// parent.
+  Module *createGlobalModuleFragmentForModuleUnit(SourceLocation Loc,
+                                                  Module *Parent = nullptr);
 
   /// Create a global module fragment for a C++ module interface unit.
   Module *createPrivateModuleFragmentForInterfaceUnit(Module *Parent,
@@ -557,6 +569,10 @@ public:
 
   /// Create a header module from the specified list of headers.
   Module *createHeaderModule(StringRef Name, ArrayRef<Module::Header> Headers);
+
+  /// Create a C++20 header unit.
+  Module *createHeaderUnit(SourceLocation Loc, StringRef Name,
+                           Module::Header H);
 
   /// Infer the contents of a framework module map from the given
   /// framework directory.
@@ -581,6 +597,12 @@ public:
     return ModuleScopeIDs[ExistingModule] < CurrentModuleScopeID;
   }
 
+  /// Check whether a framework module can be inferred in the given directory.
+  bool canInferFrameworkModule(const DirectoryEntry *Dir) const {
+    auto It = InferredDirectories.find(Dir);
+    return It != InferredDirectories.end() && It->getSecond().InferModules;
+  }
+
   /// Retrieve the module map file containing the definition of the given
   /// module.
   ///
@@ -588,7 +610,7 @@ public:
   ///
   /// \returns The file entry for the module map file containing the given
   /// module, or nullptr if the module definition was inferred.
-  const FileEntry *getContainingModuleMapFile(const Module *Module) const;
+  Optional<FileEntryRef> getContainingModuleMapFile(const Module *Module) const;
 
   /// Get the module map file that (along with the module name) uniquely
   /// identifies this module.
@@ -599,9 +621,18 @@ public:
   /// of inferred modules, returns the module map that allowed the inference
   /// (e.g. contained 'module *'). Otherwise, returns
   /// getContainingModuleMapFile().
-  const FileEntry *getModuleMapFileForUniquing(const Module *M) const;
+  Optional<FileEntryRef> getModuleMapFileForUniquing(const Module *M) const;
 
   void setInferredModuleAllowedBy(Module *M, const FileEntry *ModMap);
+
+  /// Canonicalize \p Path in a manner suitable for a module map file. In
+  /// particular, this canonicalizes the parent directory separately from the
+  /// filename so that it does not affect header resolution relative to the
+  /// modulemap.
+  ///
+  /// \returns an error code if any filesystem operations failed. In this case
+  /// \p Path is not modified.
+  std::error_code canonicalizeModuleMapPath(SmallVectorImpl<char> &Path);
 
   /// Get any module map files other than getModuleMapFileForUniquing(M)
   /// that define submodules of a top-level module \p M. This is cheaper than
@@ -662,9 +693,6 @@ public:
   /// \param Role The role of the header wrt the module.
   void addHeader(Module *Mod, Module::Header Header,
                  ModuleHeaderRole Role, bool Imported = false);
-
-  /// Marks this header as being excluded from the given module.
-  void excludeHeader(Module *Mod, Module::Header Header);
 
   /// Parse the given module map file, and record any modules we
   /// encounter.

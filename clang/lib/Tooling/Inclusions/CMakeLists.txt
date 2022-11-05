@@ -10,3 +10,5 @@ add_clang_library(clangToolingInclusions
   clangRewrite
   clangToolingCore
   )
+
+  add_subdirectory(Stdlib)

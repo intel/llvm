@@ -13,12 +13,12 @@
 #include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER > 17 && !defined(_LIBCPP_HAS_NO_SPACESHIP_OPERATOR)
+#if _LIBCPP_STD_VER > 17
 
 // exposition only
 enum class _LIBCPP_ENUM_VIS _OrdResult : signed char {
@@ -312,7 +312,13 @@ inline constexpr strong_ordering strong_ordering::equal(_OrdResult::__equiv);
 inline constexpr strong_ordering strong_ordering::equivalent(_OrdResult::__equiv);
 inline constexpr strong_ordering strong_ordering::greater(_OrdResult::__greater);
 
-#endif // _LIBCPP_STD_VER > 17 && !defined(_LIBCPP_HAS_NO_SPACESHIP_OPERATOR)
+/// [cmp.categories.pre]/1
+/// The types partial_ordering, weak_ordering, and strong_ordering are
+/// collectively termed the comparison category types.
+template <class _Tp>
+concept __comparison_category = __one_of_v<_Tp, partial_ordering, weak_ordering, strong_ordering>;
+
+#endif // _LIBCPP_STD_VER > 17
 
 _LIBCPP_END_NAMESPACE_STD
 

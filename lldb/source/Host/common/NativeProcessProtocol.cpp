@@ -12,6 +12,7 @@
 #include "lldb/Host/common/NativeRegisterContext.h"
 #include "lldb/Host/common/NativeThreadProtocol.h"
 #include "lldb/Utility/LLDBAssert.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/State.h"
 #include "lldb/lldb-enumerations.h"
@@ -74,7 +75,7 @@ llvm::Optional<WaitStatus> NativeProcessProtocol::GetExitStatus() {
 
 bool NativeProcessProtocol::SetExitStatus(WaitStatus status,
                                           bool bNotifyStateChange) {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_PROCESS));
+  Log *log = GetLog(LLDBLog::Process);
   LLDB_LOG(log, "status = {0}, notify = {1}", status, bNotifyStateChange);
 
   // Exit status already set
@@ -128,7 +129,7 @@ NativeProcessProtocol::GetWatchpointMap() const {
 
 llvm::Optional<std::pair<uint32_t, uint32_t>>
 NativeProcessProtocol::GetHardwareDebugSupportInfo() const {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_PROCESS));
+  Log *log = GetLog(LLDBLog::Process);
 
   // get any thread
   NativeThreadProtocol *thread(
@@ -152,7 +153,7 @@ Status NativeProcessProtocol::SetWatchpoint(lldb::addr_t addr, size_t size,
   // thread that is attached to via the (FIXME implement) OnThreadAttached ()
   // method.
 
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_PROCESS));
+  Log *log = GetLog(LLDBLog::Process);
 
   // Update the thread list
   UpdateThreads();
@@ -236,7 +237,7 @@ Status NativeProcessProtocol::SetHardwareBreakpoint(lldb::addr_t addr,
   // This default implementation assumes setting a hardware breakpoint for this
   // process will require setting same hardware breakpoint for each of its
   // existing threads. New thread will do the same once created.
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_PROCESS));
+  Log *log = GetLog(LLDBLog::Process);
 
   // Update the thread list
   UpdateThreads();
@@ -308,24 +309,36 @@ Status NativeProcessProtocol::RemoveHardwareBreakpoint(lldb::addr_t addr) {
 
 void NativeProcessProtocol::SynchronouslyNotifyProcessStateChanged(
     lldb::StateType state) {
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_PROCESS));
+  Log *log = GetLog(LLDBLog::Process);
 
   m_delegate.ProcessStateChanged(this, state);
+
+  switch (state) {
+  case eStateStopped:
+  case eStateExited:
+  case eStateCrashed:
+    NotifyTracersProcessDidStop();
+    break;
+  default:
+    break;
+  }
 
   LLDB_LOG(log, "sent state notification [{0}] from process {1}", state,
            GetID());
 }
 
 void NativeProcessProtocol::NotifyDidExec() {
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_PROCESS));
+  Log *log = GetLog(LLDBLog::Process);
   LLDB_LOG(log, "process {0} exec()ed", GetID());
+
+  m_software_breakpoints.clear();
 
   m_delegate.DidExec(this);
 }
 
 Status NativeProcessProtocol::SetSoftwareBreakpoint(lldb::addr_t addr,
                                                     uint32_t size_hint) {
-  Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_BREAKPOINTS));
+  Log *log = GetLog(LLDBLog::Breakpoints);
   LLDB_LOG(log, "addr = {0:x}, size_hint = {1}", addr, size_hint);
 
   auto it = m_software_breakpoints.find(addr);
@@ -342,7 +355,7 @@ Status NativeProcessProtocol::SetSoftwareBreakpoint(lldb::addr_t addr,
 }
 
 Status NativeProcessProtocol::RemoveSoftwareBreakpoint(lldb::addr_t addr) {
-  Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_BREAKPOINTS));
+  Log *log = GetLog(LLDBLog::Breakpoints);
   LLDB_LOG(log, "addr = {0:x}", addr);
   auto it = m_software_breakpoints.find(addr);
   if (it == m_software_breakpoints.end())
@@ -408,7 +421,7 @@ Status NativeProcessProtocol::RemoveSoftwareBreakpoint(lldb::addr_t addr) {
 llvm::Expected<NativeProcessProtocol::SoftwareBreakpoint>
 NativeProcessProtocol::EnableSoftwareBreakpoint(lldb::addr_t addr,
                                                 uint32_t size_hint) {
-  Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_BREAKPOINTS));
+  Log *log = GetLog(LLDBLog::Breakpoints);
 
   auto expected_trap = GetSoftwareBreakpointTrapOpcode(size_hint);
   if (!expected_trap)
@@ -490,8 +503,10 @@ NativeProcessProtocol::GetSoftwareBreakpointTrapOpcode(size_t size_hint) {
   static const uint8_t g_mips64_opcode[] = {0x00, 0x00, 0x00, 0x0d};
   static const uint8_t g_mips64el_opcode[] = {0x0d, 0x00, 0x00, 0x00};
   static const uint8_t g_s390x_opcode[] = {0x00, 0x01};
-  static const uint8_t g_ppc_opcode[] = {0x7f, 0xe0, 0x00, 0x08}; // trap
+  static const uint8_t g_ppc_opcode[] = {0x7f, 0xe0, 0x00, 0x08};   // trap
   static const uint8_t g_ppcle_opcode[] = {0x08, 0x00, 0xe0, 0x7f}; // trap
+  static const uint8_t g_riscv_opcode[] = {0x73, 0x00, 0x10, 0x00}; // ebreak
+  static const uint8_t g_riscv_opcode_c[] = {0x02, 0x90};           // c.ebreak
 
   switch (GetArchitecture().GetMachine()) {
   case llvm::Triple::aarch64:
@@ -520,6 +535,12 @@ NativeProcessProtocol::GetSoftwareBreakpointTrapOpcode(size_t size_hint) {
   case llvm::Triple::ppc64le:
     return llvm::makeArrayRef(g_ppcle_opcode);
 
+  case llvm::Triple::riscv32:
+  case llvm::Triple::riscv64: {
+    return size_hint == 2 ? llvm::makeArrayRef(g_riscv_opcode_c)
+                          : llvm::makeArrayRef(g_riscv_opcode);
+  }
+
   default:
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                    "CPU type not supported!");
@@ -544,6 +565,8 @@ size_t NativeProcessProtocol::GetSoftwareBreakpointPCOffset() {
   case llvm::Triple::ppc:
   case llvm::Triple::ppc64:
   case llvm::Triple::ppc64le:
+  case llvm::Triple::riscv32:
+  case llvm::Triple::riscv64:
     // On these architectures the PC doesn't get updated for breakpoint hits.
     return 0;
 
@@ -554,7 +577,7 @@ size_t NativeProcessProtocol::GetSoftwareBreakpointPCOffset() {
 
 void NativeProcessProtocol::FixupBreakpointPCAsNeeded(
     NativeThreadProtocol &thread) {
-  Log *log = GetLogIfAnyCategoriesSet(LIBLLDB_LOG_BREAKPOINTS);
+  Log *log = GetLog(LLDBLog::Breakpoints);
 
   Status error;
 

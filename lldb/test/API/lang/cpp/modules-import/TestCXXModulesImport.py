@@ -1,7 +1,6 @@
 """Test that importing modules in C++ works as expected."""
 
 
-import unittest2
 import lldb
 import shutil
 
@@ -11,8 +10,6 @@ from lldbsuite.test import lldbutil
 
 
 class CXXModulesImportTestCase(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
 
     def build(self):
         include = self.getBuildArtifact('include')
@@ -24,6 +21,7 @@ class CXXModulesImportTestCase(TestBase):
     
     @skipUnlessDarwin
     @skipIf(macos_version=["<", "10.12"])
+    @skipIf(compiler="clang", compiler_version=['<', '14.0'])
     def test_expr(self):
         self.build()
         target, process, thread, bkpt = lldbutil.run_to_source_breakpoint(
@@ -36,6 +34,7 @@ class CXXModulesImportTestCase(TestBase):
 
     @skipUnlessDarwin
     @skipIf(macos_version=["<", "10.12"])
+    @skipIf(compiler="clang", compiler_version=['<', '14.0'])
     def test_expr_failing_import(self):
         self.build()
         shutil.rmtree(self.getBuildArtifact('include'))

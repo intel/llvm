@@ -10,6 +10,7 @@
 #define LLVM_LIB_TARGET_SYSTEMZ_SYSTEMZTARGETSTREAMER_H
 
 #include "llvm/ADT/StringRef.h"
+#include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCStreamer.h"
 
 namespace llvm {
@@ -47,7 +48,7 @@ public:
 
   void emitConstantPools() override;
 
-  virtual void emitMachine(StringRef CPU) = 0;
+  virtual void emitMachine(StringRef CPU) {};
 };
 
 } // end namespace llvm

@@ -4,6 +4,7 @@
 ; RUN: opt -thinlto-bc %p/Inputs/import-ro-constant-foo.ll -o %t-foo
 ; RUN: opt -thinlto-bc %p/Inputs/import-ro-constant-bar.ll -o %t-bar
 ; RUN: llvm-lto2 run -save-temps -o %t-out %t-main %t-foo %t-bar \
+; RUN:      -opaque-pointers \
 ; RUN:      -r=%t-foo,foo,pl \
 ; RUN:      -r=%t-main,main,plx \
 ; RUN:      -r=%t-main,_Z3barv,l \
@@ -26,7 +27,7 @@ target triple = "x86_64-unknown-linux-gnu"
 @foo = external dso_local local_unnamed_addr constant i32, align 4
 define dso_local i32 @main() local_unnamed_addr {
 entry:
-  %0 = load i32, i32* @foo, align 4
+  %0 = load i32, ptr @foo, align 4
   %call = tail call i32 @_Z3barv()
   %add = add nsw i32 %call, %0
   ret i32 %add

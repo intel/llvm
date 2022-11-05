@@ -14,7 +14,6 @@
 #ifndef LLVM_SUPPORT_ARMTARGETPARSER_H
 #define LLVM_SUPPORT_ARMTARGETPARSER_H
 
-#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/ARMBuildAttributes.h"
 #include <vector>
@@ -59,7 +58,7 @@ enum ArchExtKind : uint64_t {
   AEK_CDECP5 =      1 << 27,
   AEK_CDECP6 =      1 << 28,
   AEK_CDECP7 =      1 << 29,
-
+  AEK_PACBTI =      1 << 30,
   // Unsupported extensions.
   AEK_OS       =    1ULL << 59,
   AEK_IWMMXT   =    1ULL << 60,
@@ -217,7 +216,14 @@ template <typename T> struct ArchNames {
   StringRef getCPUAttr() const { return StringRef(CPUAttrCStr, CPUAttrLength); }
 
   // Sub-Arch name.
-  StringRef getSubArch() const { return StringRef(SubArchCStr, SubArchLength); }
+  StringRef getSubArch() const {
+    return getArchFeature().substr(1, SubArchLength);
+  }
+
+  // Arch Feature name.
+  StringRef getArchFeature() const {
+    return StringRef(SubArchCStr, SubArchLength);
+  }
 };
 
 static const ArchNames<ArchKind> ARCHNames[] = {
@@ -225,11 +231,25 @@ static const ArchNames<ArchKind> ARCHNames[] = {
                  ARCH_BASE_EXT)                                                \
   {NAME,         sizeof(NAME) - 1,                                             \
    CPU_ATTR,     sizeof(CPU_ATTR) - 1,                                         \
-   SUB_ARCH,     sizeof(SUB_ARCH) - 1,                                         \
+   "+" SUB_ARCH, sizeof(SUB_ARCH),                                             \
    ARCH_FPU,     ARCH_BASE_EXT,                                                \
    ArchKind::ID, ARCH_ATTR},
 #include "llvm/Support/ARMTargetParser.def"
 };
+
+inline ArchKind &operator--(ArchKind &Kind) {
+  assert((Kind >= ArchKind::ARMV8A && Kind <= ArchKind::ARMV9_3A) &&
+         "We only expect operator-- to be called with ARMV8/V9");
+  if (Kind == ArchKind::INVALID || Kind == ArchKind::ARMV8A ||
+      Kind == ArchKind::ARMV8_1A || Kind == ArchKind::ARMV9A ||
+      Kind == ArchKind::ARMV8R)
+    Kind = ArchKind::INVALID;
+  else {
+    unsigned KindAsInteger = static_cast<unsigned>(Kind);
+    Kind = static_cast<ArchKind>(--KindAsInteger);
+  }
+  return Kind;
+}
 
 // Information by ID
 StringRef getFPUName(unsigned FPUKind);
@@ -252,6 +272,7 @@ StringRef getArchExtFeature(StringRef ArchExt);
 bool appendArchExtFeatures(StringRef CPU, ARM::ArchKind AK, StringRef ArchExt,
                            std::vector<StringRef> &Features,
                            unsigned &ArgFPUKind);
+ArchKind convertV9toV8(ArchKind AK);
 
 // Information by Name
 unsigned getDefaultFPU(StringRef CPU, ArchKind AK);

@@ -17,7 +17,9 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ExecutionEngine/JITSymbol.h"
+#include "llvm/ExecutionEngine/Orc/Shared/AllocationActions.h"
 #include "llvm/ExecutionEngine/Orc/Shared/ExecutorAddress.h"
+#include "llvm/ExecutionEngine/Orc/Shared/MemoryFlags.h"
 #include "llvm/ExecutionEngine/Orc/Shared/SimplePackedSerialization.h"
 #include "llvm/ExecutionEngine/Orc/Shared/WrapperFunctionUtils.h"
 #include "llvm/Support/Memory.h"
@@ -28,74 +30,8 @@ namespace llvm {
 namespace orc {
 namespace tpctypes {
 
-enum WireProtectionFlags : uint8_t {
-  WPF_None = 0,
-  WPF_Read = 1U << 0,
-  WPF_Write = 1U << 1,
-  WPF_Exec = 1U << 2,
-  LLVM_MARK_AS_BITMASK_ENUM(WPF_Exec)
-};
-
-/// Convert from sys::Memory::ProtectionFlags
-inline WireProtectionFlags
-toWireProtectionFlags(sys::Memory::ProtectionFlags PF) {
-  WireProtectionFlags WPF = WPF_None;
-  if (PF & sys::Memory::MF_READ)
-    WPF |= WPF_Read;
-  if (PF & sys::Memory::MF_WRITE)
-    WPF |= WPF_Write;
-  if (PF & sys::Memory::MF_EXEC)
-    WPF |= WPF_Exec;
-  return WPF;
-}
-
-inline sys::Memory::ProtectionFlags
-fromWireProtectionFlags(WireProtectionFlags WPF) {
-  int PF = 0;
-  if (WPF & WPF_Read)
-    PF |= sys::Memory::MF_READ;
-  if (WPF & WPF_Write)
-    PF |= sys::Memory::MF_WRITE;
-  if (WPF & WPF_Exec)
-    PF |= sys::Memory::MF_EXEC;
-  return static_cast<sys::Memory::ProtectionFlags>(PF);
-}
-
-inline std::string getWireProtectionFlagsStr(WireProtectionFlags WPF) {
-  std::string Result;
-  Result += (WPF & WPF_Read) ? 'R' : '-';
-  Result += (WPF & WPF_Write) ? 'W' : '-';
-  Result += (WPF & WPF_Exec) ? 'X' : '-';
-  return Result;
-}
-
-struct SupportFunctionCall {
-  using FnTy = shared::detail::CWrapperFunctionResult(const char *ArgData,
-                                                      size_t ArgSize);
-  ExecutorAddr Func;
-  ExecutorAddr ArgData;
-  uint64_t ArgSize;
-
-  Error run() {
-    shared::WrapperFunctionResult WFR(
-        Func.toPtr<FnTy *>()(ArgData.toPtr<const char *>(), ArgSize));
-    if (const char *ErrMsg = WFR.getOutOfBandError())
-      return make_error<StringError>(ErrMsg, inconvertibleErrorCode());
-    if (!WFR.empty())
-      return make_error<StringError>("Unexpected result bytes from "
-                                     "support function call",
-                                     inconvertibleErrorCode());
-    return Error::success();
-  }
-};
-
-struct AllocationActionsPair {
-  SupportFunctionCall Finalize;
-  SupportFunctionCall Deallocate;
-};
-
 struct SegFinalizeRequest {
-  WireProtectionFlags Prot;
+  AllocGroup AG;
   ExecutorAddr Addr;
   uint64_t Size;
   ArrayRef<char> Content;
@@ -103,15 +39,25 @@ struct SegFinalizeRequest {
 
 struct FinalizeRequest {
   std::vector<SegFinalizeRequest> Segments;
-  std::vector<AllocationActionsPair> Actions;
+  shared::AllocActions Actions;
+};
+
+struct SharedMemorySegFinalizeRequest {
+  AllocGroup AG;
+  ExecutorAddr Addr;
+  uint64_t Size;
+};
+
+struct SharedMemoryFinalizeRequest {
+  std::vector<SharedMemorySegFinalizeRequest> Segments;
+  shared::AllocActions Actions;
 };
 
 template <typename T> struct UIntWrite {
   UIntWrite() = default;
-  UIntWrite(JITTargetAddress Address, T Value)
-      : Address(Address), Value(Value) {}
+  UIntWrite(ExecutorAddr Addr, T Value) : Addr(Addr), Value(Value) {}
 
-  JITTargetAddress Address = 0;
+  ExecutorAddr Addr;
   T Value = 0;
 };
 
@@ -131,36 +77,36 @@ using UInt64Write = UIntWrite<uint64_t>;
 /// For use with TargetProcessControl::MemoryAccess objects.
 struct BufferWrite {
   BufferWrite() = default;
-  BufferWrite(JITTargetAddress Address, StringRef Buffer)
-      : Address(Address), Buffer(Buffer) {}
+  BufferWrite(ExecutorAddr Addr, StringRef Buffer)
+      : Addr(Addr), Buffer(Buffer) {}
 
-  JITTargetAddress Address = 0;
+  ExecutorAddr Addr;
   StringRef Buffer;
 };
 
 /// A handle used to represent a loaded dylib in the target process.
-using DylibHandle = JITTargetAddress;
+using DylibHandle = ExecutorAddr;
 
-using LookupResult = std::vector<JITTargetAddress>;
+using LookupResult = std::vector<ExecutorAddr>;
 
 } // end namespace tpctypes
 
 namespace shared {
 
-class SPSMemoryProtectionFlags {};
-
-using SPSSupportFunctionCall =
-    SPSTuple<SPSExecutorAddr, SPSExecutorAddr, uint64_t>;
+class SPSAllocGroup {};
 
 using SPSSegFinalizeRequest =
-    SPSTuple<SPSMemoryProtectionFlags, SPSExecutorAddr, uint64_t,
-             SPSSequence<char>>;
-
-using SPSAllocationActionsPair =
-    SPSTuple<SPSSupportFunctionCall, SPSSupportFunctionCall>;
+    SPSTuple<SPSAllocGroup, SPSExecutorAddr, uint64_t, SPSSequence<char>>;
 
 using SPSFinalizeRequest = SPSTuple<SPSSequence<SPSSegFinalizeRequest>,
-                                    SPSSequence<SPSAllocationActionsPair>>;
+                                    SPSSequence<SPSAllocActionCallPair>>;
+
+using SPSSharedMemorySegFinalizeRequest =
+    SPSTuple<SPSAllocGroup, SPSExecutorAddr, uint64_t>;
+
+using SPSSharedMemoryFinalizeRequest =
+    SPSTuple<SPSSequence<SPSSharedMemorySegFinalizeRequest>,
+             SPSSequence<SPSAllocActionCallPair>>;
 
 template <typename T>
 using SPSMemoryAccessUIntWrite = SPSTuple<SPSExecutorAddr, T>;
@@ -172,68 +118,48 @@ using SPSMemoryAccessUInt64Write = SPSMemoryAccessUIntWrite<uint64_t>;
 
 using SPSMemoryAccessBufferWrite = SPSTuple<SPSExecutorAddr, SPSSequence<char>>;
 
-template <>
-class SPSSerializationTraits<SPSMemoryProtectionFlags,
-                             tpctypes::WireProtectionFlags> {
+template <> class SPSSerializationTraits<SPSAllocGroup, AllocGroup> {
+  enum WireBits {
+    ReadBit = 1 << 0,
+    WriteBit = 1 << 1,
+    ExecBit = 1 << 2,
+    FinalizeBit = 1 << 3
+  };
+
 public:
-  static size_t size(const tpctypes::WireProtectionFlags &WPF) {
-    return SPSArgList<uint8_t>::size(static_cast<uint8_t>(WPF));
+  static size_t size(const AllocGroup &AG) {
+    // All AllocGroup values encode to the same size.
+    return SPSArgList<uint8_t>::size(uint8_t(0));
   }
 
-  static bool serialize(SPSOutputBuffer &OB,
-                        const tpctypes::WireProtectionFlags &WPF) {
-    return SPSArgList<uint8_t>::serialize(OB, static_cast<uint8_t>(WPF));
+  static bool serialize(SPSOutputBuffer &OB, const AllocGroup &AG) {
+    uint8_t WireValue = 0;
+    if ((AG.getMemProt() & MemProt::Read) != MemProt::None)
+      WireValue |= ReadBit;
+    if ((AG.getMemProt() & MemProt::Write) != MemProt::None)
+      WireValue |= WriteBit;
+    if ((AG.getMemProt() & MemProt::Exec) != MemProt::None)
+      WireValue |= ExecBit;
+    if (AG.getMemDeallocPolicy() == MemDeallocPolicy::Finalize)
+      WireValue |= FinalizeBit;
+    return SPSArgList<uint8_t>::serialize(OB, WireValue);
   }
 
-  static bool deserialize(SPSInputBuffer &IB,
-                          tpctypes::WireProtectionFlags &WPF) {
+  static bool deserialize(SPSInputBuffer &IB, AllocGroup &AG) {
     uint8_t Val;
     if (!SPSArgList<uint8_t>::deserialize(IB, Val))
       return false;
-    WPF = static_cast<tpctypes::WireProtectionFlags>(Val);
+    MemProt MP = MemProt::None;
+    if (Val & ReadBit)
+      MP |= MemProt::Read;
+    if (Val & WriteBit)
+      MP |= MemProt::Write;
+    if (Val & ExecBit)
+      MP |= MemProt::Exec;
+    MemDeallocPolicy MDP = (Val & FinalizeBit) ? MemDeallocPolicy::Finalize
+                                               : MemDeallocPolicy::Standard;
+    AG = AllocGroup(MP, MDP);
     return true;
-  }
-};
-
-template <>
-class SPSSerializationTraits<SPSSupportFunctionCall,
-                             tpctypes::SupportFunctionCall> {
-  using AL = SPSSupportFunctionCall::AsArgList;
-
-public:
-  static size_t size(const tpctypes::SupportFunctionCall &SFC) {
-    return AL::size(SFC.Func, SFC.ArgData, SFC.ArgSize);
-  }
-
-  static bool serialize(SPSOutputBuffer &OB,
-                        const tpctypes::SupportFunctionCall &SFC) {
-    return AL::serialize(OB, SFC.Func, SFC.ArgData, SFC.ArgSize);
-  }
-
-  static bool deserialize(SPSInputBuffer &IB,
-                          tpctypes::SupportFunctionCall &SFC) {
-    return AL::deserialize(IB, SFC.Func, SFC.ArgData, SFC.ArgSize);
-  }
-};
-
-template <>
-class SPSSerializationTraits<SPSAllocationActionsPair,
-                             tpctypes::AllocationActionsPair> {
-  using AL = SPSAllocationActionsPair::AsArgList;
-
-public:
-  static size_t size(const tpctypes::AllocationActionsPair &AAP) {
-    return AL::size(AAP.Finalize, AAP.Deallocate);
-  }
-
-  static bool serialize(SPSOutputBuffer &OB,
-                        const tpctypes::AllocationActionsPair &AAP) {
-    return AL::serialize(OB, AAP.Finalize, AAP.Deallocate);
-  }
-
-  static bool deserialize(SPSInputBuffer &IB,
-                          tpctypes::AllocationActionsPair &AAP) {
-    return AL::deserialize(IB, AAP.Finalize, AAP.Deallocate);
   }
 };
 
@@ -244,17 +170,17 @@ class SPSSerializationTraits<SPSSegFinalizeRequest,
 
 public:
   static size_t size(const tpctypes::SegFinalizeRequest &SFR) {
-    return SFRAL::size(SFR.Prot, SFR.Addr, SFR.Size, SFR.Content);
+    return SFRAL::size(SFR.AG, SFR.Addr, SFR.Size, SFR.Content);
   }
 
   static bool serialize(SPSOutputBuffer &OB,
                         const tpctypes::SegFinalizeRequest &SFR) {
-    return SFRAL::serialize(OB, SFR.Prot, SFR.Addr, SFR.Size, SFR.Content);
+    return SFRAL::serialize(OB, SFR.AG, SFR.Addr, SFR.Size, SFR.Content);
   }
 
   static bool deserialize(SPSInputBuffer &IB,
                           tpctypes::SegFinalizeRequest &SFR) {
-    return SFRAL::deserialize(IB, SFR.Prot, SFR.Addr, SFR.Size, SFR.Content);
+    return SFRAL::deserialize(IB, SFR.AG, SFR.Addr, SFR.Size, SFR.Content);
   }
 };
 
@@ -277,21 +203,63 @@ public:
   }
 };
 
+template <>
+class SPSSerializationTraits<SPSSharedMemorySegFinalizeRequest,
+                             tpctypes::SharedMemorySegFinalizeRequest> {
+  using SFRAL = SPSSharedMemorySegFinalizeRequest::AsArgList;
+
+public:
+  static size_t size(const tpctypes::SharedMemorySegFinalizeRequest &SFR) {
+    return SFRAL::size(SFR.AG, SFR.Addr, SFR.Size);
+  }
+
+  static bool serialize(SPSOutputBuffer &OB,
+                        const tpctypes::SharedMemorySegFinalizeRequest &SFR) {
+    return SFRAL::serialize(OB, SFR.AG, SFR.Addr, SFR.Size);
+  }
+
+  static bool deserialize(SPSInputBuffer &IB,
+                          tpctypes::SharedMemorySegFinalizeRequest &SFR) {
+    return SFRAL::deserialize(IB, SFR.AG, SFR.Addr, SFR.Size);
+  }
+};
+
+template <>
+class SPSSerializationTraits<SPSSharedMemoryFinalizeRequest,
+                             tpctypes::SharedMemoryFinalizeRequest> {
+  using FRAL = SPSSharedMemoryFinalizeRequest::AsArgList;
+
+public:
+  static size_t size(const tpctypes::SharedMemoryFinalizeRequest &FR) {
+    return FRAL::size(FR.Segments, FR.Actions);
+  }
+
+  static bool serialize(SPSOutputBuffer &OB,
+                        const tpctypes::SharedMemoryFinalizeRequest &FR) {
+    return FRAL::serialize(OB, FR.Segments, FR.Actions);
+  }
+
+  static bool deserialize(SPSInputBuffer &IB,
+                          tpctypes::SharedMemoryFinalizeRequest &FR) {
+    return FRAL::deserialize(IB, FR.Segments, FR.Actions);
+  }
+};
+
 template <typename T>
 class SPSSerializationTraits<SPSMemoryAccessUIntWrite<T>,
                              tpctypes::UIntWrite<T>> {
 public:
   static size_t size(const tpctypes::UIntWrite<T> &W) {
-    return SPSTuple<SPSExecutorAddr, T>::AsArgList::size(W.Address, W.Value);
+    return SPSTuple<SPSExecutorAddr, T>::AsArgList::size(W.Addr, W.Value);
   }
 
   static bool serialize(SPSOutputBuffer &OB, const tpctypes::UIntWrite<T> &W) {
-    return SPSTuple<SPSExecutorAddr, T>::AsArgList::serialize(OB, W.Address,
+    return SPSTuple<SPSExecutorAddr, T>::AsArgList::serialize(OB, W.Addr,
                                                               W.Value);
   }
 
   static bool deserialize(SPSInputBuffer &IB, tpctypes::UIntWrite<T> &W) {
-    return SPSTuple<SPSExecutorAddr, T>::AsArgList::deserialize(IB, W.Address,
+    return SPSTuple<SPSExecutorAddr, T>::AsArgList::deserialize(IB, W.Addr,
                                                                 W.Value);
   }
 };
@@ -302,21 +270,20 @@ class SPSSerializationTraits<SPSMemoryAccessBufferWrite,
 public:
   static size_t size(const tpctypes::BufferWrite &W) {
     return SPSTuple<SPSExecutorAddr, SPSSequence<char>>::AsArgList::size(
-        W.Address, W.Buffer);
+        W.Addr, W.Buffer);
   }
 
   static bool serialize(SPSOutputBuffer &OB, const tpctypes::BufferWrite &W) {
     return SPSTuple<SPSExecutorAddr, SPSSequence<char>>::AsArgList ::serialize(
-        OB, W.Address, W.Buffer);
+        OB, W.Addr, W.Buffer);
   }
 
   static bool deserialize(SPSInputBuffer &IB, tpctypes::BufferWrite &W) {
     return SPSTuple<SPSExecutorAddr,
-                    SPSSequence<char>>::AsArgList ::deserialize(IB, W.Address,
+                    SPSSequence<char>>::AsArgList ::deserialize(IB, W.Addr,
                                                                 W.Buffer);
   }
 };
-
 
 } // end namespace shared
 } // end namespace orc

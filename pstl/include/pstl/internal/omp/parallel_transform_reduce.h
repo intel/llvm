@@ -60,7 +60,7 @@ __transform_reduce_body(_RandomAccessIterator __first, _RandomAccessIterator __l
     _PSTL_PRAGMA(omp taskloop shared(__accums))
     for (std::size_t __chunk = 0; __chunk < __policy.__n_chunks; ++__chunk)
     {
-        __omp_backend::__process_chunk(__policy, __first + __num_threads, __chunk,
+        __pstl::__omp_backend::__process_chunk(__policy, __first + __num_threads, __chunk,
                                        [&](auto __chunk_first, auto __chunk_last)
                                        {
                                            auto __thread_num = omp_get_thread_num();
@@ -81,8 +81,9 @@ __transform_reduce_body(_RandomAccessIterator __first, _RandomAccessIterator __l
 template <class _ExecutionPolicy, class _RandomAccessIterator, class _UnaryOp, class _Value, class _Combiner,
           class _Reduction>
 _Value
-__parallel_transform_reduce(_ExecutionPolicy&&, _RandomAccessIterator __first, _RandomAccessIterator __last,
-                            _UnaryOp __unary_op, _Value __init, _Combiner __combiner, _Reduction __reduction)
+__parallel_transform_reduce(__pstl::__internal::__openmp_backend_tag, _ExecutionPolicy&&, _RandomAccessIterator __first,
+                            _RandomAccessIterator __last, _UnaryOp __unary_op, _Value __init, _Combiner __combiner,
+                            _Reduction __reduction)
 {
     _Value __result = __init;
     if (omp_in_parallel())

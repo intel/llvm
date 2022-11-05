@@ -3,7 +3,7 @@
 ; RUN: FileCheck < %t.txt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV: TypeInt [[IntTyID:[0-9]+]]
@@ -13,7 +13,7 @@
 ; CHECK-SPIRV: FunctionParameter [[ImageTyID]] [[ImageArgID:[0-9]+]]
 ; CHECK-SPIRV: ImageQuerySizeLod [[VectorTyID]] {{[0-9]+}} [[ImageArgID]]
 
-; CHECK-LLVM: call spir_func <2 x i32> @_Z13get_image_dim20ocl_image2d_array_ro(%opencl.image2d_array_ro_t addrspace(1)*
+; CHECK-LLVM: call spir_func <2 x i32> @_Z13get_image_dim20ocl_image2d_array_ro(ptr addrspace(1)
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64"

@@ -15,13 +15,16 @@
 #include "lldb/Utility/ArchSpec.h"
 
 using namespace lldb_private;
+using namespace llvm;
 
 UnixSignals::Signal::Signal(const char *name, bool default_suppress,
                             bool default_stop, bool default_notify,
                             const char *description, const char *alias)
     : m_name(name), m_alias(alias), m_description(),
       m_suppress(default_suppress), m_stop(default_stop),
-      m_notify(default_notify) {
+      m_notify(default_notify),
+      m_default_suppress(default_suppress), m_default_stop(default_stop),
+      m_default_notify(default_notify) {
   if (description)
     m_description.assign(description);
 }
@@ -297,14 +300,13 @@ UnixSignals::GetFilteredSignals(llvm::Optional<bool> should_suppress,
 
     // If any of filtering conditions are not met, we move on to the next
     // signal.
-    if (should_suppress.hasValue() &&
-        signal_suppress != should_suppress.getValue())
+    if (should_suppress && signal_suppress != should_suppress.value())
       continue;
 
-    if (should_stop.hasValue() && signal_stop != should_stop.getValue())
+    if (should_stop && signal_stop != should_stop.value())
       continue;
 
-    if (should_notify.hasValue() && signal_notify != should_notify.getValue())
+    if (should_notify && signal_notify != should_notify.value())
       continue;
 
     result.push_back(signo);
@@ -312,3 +314,40 @@ UnixSignals::GetFilteredSignals(llvm::Optional<bool> should_suppress,
 
   return result;
 }
+
+void UnixSignals::IncrementSignalHitCount(int signo) {
+  collection::iterator pos = m_signals.find(signo);
+  if (pos != m_signals.end())
+    pos->second.m_hit_count += 1;
+}
+
+json::Value UnixSignals::GetHitCountStatistics() const {
+  json::Array json_signals;
+  for (const auto &pair: m_signals) {
+    if (pair.second.m_hit_count > 0)
+      json_signals.emplace_back(json::Object{
+        { pair.second.m_name.GetCString(), pair.second.m_hit_count }
+      });
+  }
+  return std::move(json_signals);
+}
+
+void UnixSignals::Signal::Reset(bool reset_stop, bool reset_notify, 
+                                bool reset_suppress) {
+  if (reset_stop)
+    m_stop = m_default_stop;
+  if (reset_notify)
+    m_notify = m_default_notify;
+  if (reset_suppress)
+    m_suppress = m_default_suppress;
+}
+
+bool UnixSignals::ResetSignal(int32_t signo, bool reset_stop, 
+                                 bool reset_notify, bool reset_suppress) {
+    auto elem = m_signals.find(signo);
+    if (elem == m_signals.end())
+      return false;
+    (*elem).second.Reset(reset_stop, reset_notify, reset_suppress);
+    return true;
+}
+

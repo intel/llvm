@@ -16,17 +16,15 @@
 
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/StringSet.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalValue.h"
-#include "llvm/IR/Module.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/MathExtras.h"
-#include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cstdint>
 #include <list>
@@ -39,6 +37,9 @@
 #include <utility>
 
 namespace llvm {
+
+class DILocation;
+class raw_ostream;
 
 const std::error_category &sampleprof_category();
 
@@ -55,7 +56,6 @@ enum class sampleprof_error {
   not_implemented,
   counter_overflow,
   ostream_seek_unsupported,
-  compress_failed,
   uncompress_failed,
   zlib_unavailable,
   hash_mismatch
@@ -195,18 +195,21 @@ enum class SecProfSummaryFlags : uint32_t {
   /// The common profile is usually merged from profiles collected
   /// from running other targets.
   SecFlagPartial = (1 << 0),
-  /// SecFlagContext means this is context-sensitive profile for
+  /// SecFlagContext means this is context-sensitive flat profile for
   /// CSSPGO
   SecFlagFullContext = (1 << 1),
   /// SecFlagFSDiscriminator means this profile uses flow-sensitive
   /// discriminators.
-  SecFlagFSDiscriminator = (1 << 2)
+  SecFlagFSDiscriminator = (1 << 2),
+  /// SecFlagIsPreInlined means this profile contains ShouldBeInlined
+  /// contexts thus this is CS preinliner computed.
+  SecFlagIsPreInlined = (1 << 4),
 };
 
 enum class SecFuncMetadataFlags : uint32_t {
   SecFlagInvalid = 0,
   SecFlagIsProbeBased = (1 << 0),
-  SecFlagHasAttribute = (1 << 1)
+  SecFlagHasAttribute = (1 << 1),
 };
 
 enum class SecFuncOffsetFlags : uint32_t {
@@ -300,6 +303,13 @@ struct LineLocation {
   uint32_t Discriminator;
 };
 
+struct LineLocationHash {
+  uint64_t operator()(const LineLocation &Loc) const {
+    return std::hash<std::uint64_t>{}((((uint64_t)Loc.LineOffset) << 32) |
+                                      Loc.Discriminator);
+  }
+};
+
 raw_ostream &operator<<(raw_ostream &OS, const LineLocation &Loc);
 
 /// Representation of a single sample record.
@@ -340,6 +350,15 @@ public:
                       : sampleprof_error::success;
   }
 
+  /// Decrease the number of samples for this record by \p S. Return the amout
+  /// of samples actually decreased.
+  uint64_t removeSamples(uint64_t S) {
+    if (S > NumSamples)
+      S = NumSamples;
+    NumSamples -= S;
+    return S;
+  }
+
   /// Add called function \p F with samples \p S.
   /// Optionally scale sample count \p S by \p Weight.
   ///
@@ -355,6 +374,18 @@ public:
                       : sampleprof_error::success;
   }
 
+  /// Remove called function from the call target map. Return the target sample
+  /// count of the called function.
+  uint64_t removeCalledTarget(StringRef F) {
+    uint64_t Count = 0;
+    auto I = CallTargets.find(F);
+    if (I != CallTargets.end()) {
+      Count = I->second;
+      CallTargets.erase(I);
+    }
+    return Count;
+  }
+
   /// Return true if this sample record contains function calls.
   bool hasCalls() const { return !CallTargets.empty(); }
 
@@ -362,6 +393,13 @@ public:
   const CallTargetMap &getCallTargets() const { return CallTargets; }
   const SortedCallTargetSet getSortedCallTargets() const {
     return SortCallTargets(CallTargets);
+  }
+
+  uint64_t getCallTargetSum() const {
+    uint64_t Sum = 0;
+    for (const auto &I : CallTargets)
+      Sum += I.second;
+    return Sum;
   }
 
   /// Sort call targets in descending order of call frequency.
@@ -410,6 +448,8 @@ enum ContextAttributeMask {
   ContextNone = 0x0,
   ContextWasInlined = 0x1,      // Leaf of context was inlined in previous build
   ContextShouldBeInlined = 0x2, // Leaf of context should be inlined
+  ContextDuplicatedIntoBase =
+      0x4, // Leaf of context is duplicated into the base profile
 };
 
 // Represents a context frame with function name and line location
@@ -447,7 +487,7 @@ static inline hash_code hash_value(const SampleContextFrame &arg) {
                       arg.Location.Discriminator);
 }
 
-using SampleContextFrameVector = SmallVector<SampleContextFrame, 10>;
+using SampleContextFrameVector = SmallVector<SampleContextFrame, 1>;
 using SampleContextFrames = ArrayRef<SampleContextFrame>;
 
 struct SampleContextFrameHash {
@@ -495,36 +535,30 @@ public:
       State = UnknownContext;
       Name = ContextStr;
     } else {
-      // Remove encapsulating '[' and ']' if any
-      ContextStr = ContextStr.substr(1, ContextStr.size() - 2);
       CSNameTable.emplace_back();
       SampleContextFrameVector &Context = CSNameTable.back();
-      /// Create a context vector from a given context string and save it in
-      /// `Context`.
-      StringRef ContextRemain = ContextStr;
-      StringRef ChildContext;
-      StringRef CalleeName;
-      while (!ContextRemain.empty()) {
-        auto ContextSplit = ContextRemain.split(" @ ");
-        ChildContext = ContextSplit.first;
-        ContextRemain = ContextSplit.second;
-        LineLocation CallSiteLoc(0, 0);
-        decodeContextString(ChildContext, CalleeName, CallSiteLoc);
-        Context.emplace_back(CalleeName, CallSiteLoc);
-      }
-
+      createCtxVectorFromStr(ContextStr, Context);
       setContext(Context, CState);
     }
   }
 
-  // Promote context by removing top frames with the length of
-  // `ContextFramesToRemove`. Note that with array representation of context,
-  // the promotion is effectively a slice operation with first
-  // `ContextFramesToRemove` elements removed from left.
-  void promoteOnPath(uint32_t ContextFramesToRemove) {
-    assert(ContextFramesToRemove <= FullContext.size() &&
-           "Cannot remove more than the whole context");
-    FullContext = FullContext.drop_front(ContextFramesToRemove);
+  /// Create a context vector from a given context string and save it in
+  /// `Context`.
+  static void createCtxVectorFromStr(StringRef ContextStr,
+                                     SampleContextFrameVector &Context) {
+    // Remove encapsulating '[' and ']' if any
+    ContextStr = ContextStr.substr(1, ContextStr.size() - 2);
+    StringRef ContextRemain = ContextStr;
+    StringRef ChildContext;
+    StringRef CalleeName;
+    while (!ContextRemain.empty()) {
+      auto ContextSplit = ContextRemain.split(" @ ");
+      ChildContext = ContextSplit.first;
+      ContextRemain = ContextSplit.second;
+      LineLocation CallSiteLoc(0, 0);
+      decodeContextString(ChildContext, CalleeName, CallSiteLoc);
+      Context.emplace_back(CalleeName, CallSiteLoc);
+    }
   }
 
   // Decode context string for a frame to get function name and location.
@@ -587,11 +621,11 @@ public:
                         : hash_value(getName());
   }
 
-  /// Set the name of the function.
+  /// Set the name of the function and clear the current context.
   void setName(StringRef FunctionName) {
-    assert(FullContext.empty() &&
-           "setName should only be called for non-CS profile");
     Name = FunctionName;
+    FullContext = SampleContextFrames();
+    State = UnknownContext;
   }
 
   void setContext(SampleContextFrames Context,
@@ -696,6 +730,13 @@ public:
                       : sampleprof_error::success;
   }
 
+  void removeTotalSamples(uint64_t Num) {
+    if (TotalSamples < Num)
+      TotalSamples = 0;
+    else
+      TotalSamples -= Num;
+  }
+
   void setTotalSamples(uint64_t Num) { TotalSamples = Num; }
 
   sampleprof_error addHeadSamples(uint64_t Num, uint64_t Weight = 1) {
@@ -720,11 +761,64 @@ public:
         FName, Num, Weight);
   }
 
+  // Remove a call target and decrease the body sample correspondingly. Return
+  // the number of body samples actually decreased.
+  uint64_t removeCalledTargetAndBodySample(uint32_t LineOffset,
+                                           uint32_t Discriminator,
+                                           StringRef FName) {
+    uint64_t Count = 0;
+    auto I = BodySamples.find(LineLocation(LineOffset, Discriminator));
+    if (I != BodySamples.end()) {
+      Count = I->second.removeCalledTarget(FName);
+      Count = I->second.removeSamples(Count);
+      if (!I->second.getSamples())
+        BodySamples.erase(I);
+    }
+    return Count;
+  }
+
   sampleprof_error addBodySamplesForProbe(uint32_t Index, uint64_t Num,
                                           uint64_t Weight = 1) {
     SampleRecord S;
     S.addSamples(Num, Weight);
     return BodySamples[LineLocation(Index, 0)].merge(S, Weight);
+  }
+
+  // Accumulate all call target samples to update the body samples.
+  void updateCallsiteSamples() {
+    for (auto &I : BodySamples) {
+      uint64_t TargetSamples = I.second.getCallTargetSum();
+      // It's possible that the body sample count can be greater than the call
+      // target sum. E.g, if some call targets are external targets, they won't
+      // be considered valid call targets, but the body sample count which is
+      // from lbr ranges can actually include them.
+      if (TargetSamples > I.second.getSamples())
+        I.second.addSamples(TargetSamples - I.second.getSamples());
+    }
+  }
+
+  // Accumulate all body samples to set total samples.
+  void updateTotalSamples() {
+    setTotalSamples(0);
+    for (const auto &I : BodySamples)
+      addTotalSamples(I.second.getSamples());
+
+    for (auto &I : CallsiteSamples) {
+      for (auto &CS : I.second) {
+        CS.second.updateTotalSamples();
+        addTotalSamples(CS.second.getTotalSamples());
+      }
+    }
+  }
+
+  // Set current context and all callee contexts to be synthetic.
+  void SetContextSynthetic() {
+    Context.setState(SyntheticContext);
+    for (auto &I : CallsiteSamples) {
+      for (auto &CS : I.second) {
+        CS.second.SetContextSynthetic();
+      }
+    }
   }
 
   /// Return the number of samples collected at the given location.
@@ -788,16 +882,20 @@ public:
   /// Return the total number of samples collected inside the function.
   uint64_t getTotalSamples() const { return TotalSamples; }
 
-  /// Return the total number of branch samples that have the function as the
-  /// branch target. This should be equivalent to the sample of the first
-  /// instruction of the symbol. But as we directly get this info for raw
-  /// profile without referring to potentially inaccurate debug info, this
+  /// For top-level functions, return the total number of branch samples that
+  /// have the function as the branch target (or 0 otherwise). This is the raw
+  /// data fetched from the profile. This should be equivalent to the sample of
+  /// the first instruction of the symbol. But as we directly get this info for
+  /// raw profile without referring to potentially inaccurate debug info, this
   /// gives more accurate profile data and is preferred for standalone symbols.
   uint64_t getHeadSamples() const { return TotalHeadSamples; }
 
-  /// Return the sample count of the first instruction of the function.
+  /// Return an estimate of the sample count of the function entry basic block.
   /// The function can be either a standalone symbol or an inlined function.
-  uint64_t getEntrySamples() const {
+  /// For Context-Sensitive profiles, this will prefer returning the head
+  /// samples (i.e. getHeadSamples()), if non-zero. Otherwise it estimates from
+  /// the function body's samples or callsite samples.
+  uint64_t getHeadSamplesEstimate() const {
     if (FunctionSamples::ProfileIsCS && getHeadSamples()) {
       // For CS profile, if we already have more accurate head samples
       // counted by branch sample from caller, use them as entry samples.
@@ -814,7 +912,7 @@ public:
       // An indirect callsite may be promoted to several inlined direct calls.
       // We need to get the sum of them.
       for (const auto &N_FS : CallsiteSamples.begin()->second)
-        Count += N_FS.second.getEntrySamples();
+        Count += N_FS.second.getHeadSamplesEstimate();
     }
     // Return at least 1 if total sample is not 0.
     return Count ? Count : TotalSamples > 0;
@@ -990,7 +1088,13 @@ public:
   /// instruction. This is wrapper of two scenarios, the probe-based profile and
   /// regular profile, to hide implementation details from the sample loader and
   /// the context tracker.
-  static LineLocation getCallSiteIdentifier(const DILocation *DIL);
+  static LineLocation getCallSiteIdentifier(const DILocation *DIL,
+                                            bool ProfileIsFS = false);
+
+  /// Returns a unique hash code for a combination of a callsite location and
+  /// the callee function name.
+  static uint64_t getCallSiteHash(StringRef CalleeName,
+                                  const LineLocation &Callsite);
 
   /// Get the FunctionSamples of the inline instance where DIL originates
   /// from.
@@ -1011,11 +1115,11 @@ public:
 
   static bool ProfileIsCS;
 
+  static bool ProfileIsPreInlined;
+
   SampleContext &getContext() const { return Context; }
 
   void setContext(const SampleContext &FContext) { Context = FContext; }
-
-  static SampleProfileFormat Format;
 
   /// Whether the profile uses MD5 to represent string.
   static bool UseMD5;
@@ -1124,16 +1228,57 @@ private:
 class SampleContextTrimmer {
 public:
   SampleContextTrimmer(SampleProfileMap &Profiles) : ProfileMap(Profiles){};
-  // Trim and merge cold context profile when requested.
+  // Trim and merge cold context profile when requested. TrimBaseProfileOnly
+  // should only be effective when TrimColdContext is true. On top of
+  // TrimColdContext, TrimBaseProfileOnly can be used to specify to trim all
+  // cold profiles or only cold base profiles. Trimming base profiles only is
+  // mainly to honor the preinliner decsion. Note that when MergeColdContext is
+  // true, preinliner decsion is not honored anyway so TrimBaseProfileOnly will
+  // be ignored.
   void trimAndMergeColdContextProfiles(uint64_t ColdCountThreshold,
                                        bool TrimColdContext,
                                        bool MergeColdContext,
-                                       uint32_t ColdContextFrameLength);
+                                       uint32_t ColdContextFrameLength,
+                                       bool TrimBaseProfileOnly);
   // Canonicalize context profile name and attributes.
   void canonicalizeContextProfiles();
 
 private:
   SampleProfileMap &ProfileMap;
+};
+
+// CSProfileConverter converts a full context-sensitive flat sample profile into
+// a nested context-sensitive sample profile.
+class CSProfileConverter {
+public:
+  CSProfileConverter(SampleProfileMap &Profiles);
+  void convertProfiles();
+  struct FrameNode {
+    FrameNode(StringRef FName = StringRef(),
+              FunctionSamples *FSamples = nullptr,
+              LineLocation CallLoc = {0, 0})
+        : FuncName(FName), FuncSamples(FSamples), CallSiteLoc(CallLoc){};
+
+    // Map line+discriminator location to child frame
+    std::map<uint64_t, FrameNode> AllChildFrames;
+    // Function name for current frame
+    StringRef FuncName;
+    // Function Samples for current frame
+    FunctionSamples *FuncSamples;
+    // Callsite location in parent context
+    LineLocation CallSiteLoc;
+
+    FrameNode *getOrCreateChildFrame(const LineLocation &CallSite,
+                                     StringRef CalleeName);
+  };
+
+private:
+  // Nest all children profiles into the profile of Node.
+  void convertProfiles(FrameNode &Node);
+  FrameNode *getOrCreateContextPath(const SampleContext &Context);
+
+  SampleProfileMap &ProfileMap;
+  FrameNode RootFrame;
 };
 
 /// ProfileSymbolList records the list of function symbols shown up
@@ -1194,6 +1339,26 @@ template <> struct DenseMapInfo<SampleContext> {
     return LHS == RHS;
   }
 };
+
+// Prepend "__uniq" before the hash for tools like profilers to understand
+// that this symbol is of internal linkage type.  The "__uniq" is the
+// pre-determined prefix that is used to tell tools that this symbol was
+// created with -funique-internal-linakge-symbols and the tools can strip or
+// keep the prefix as needed.
+inline std::string getUniqueInternalLinkagePostfix(const StringRef &FName) {
+  llvm::MD5 Md5;
+  Md5.update(FName);
+  llvm::MD5::MD5Result R;
+  Md5.final(R);
+  SmallString<32> Str;
+  llvm::MD5::stringifyResult(R, Str);
+  // Convert MD5hash to Decimal. Demangler suffixes can either contain
+  // numbers or characters but not both.
+  llvm::APInt IntHash(128, Str.str(), 16);
+  return toString(IntHash, /* Radix = */ 10, /* Signed = */ false)
+      .insert(0, FunctionSamples::UniqSuffix);
+}
+
 } // end namespace llvm
 
 #endif // LLVM_PROFILEDATA_SAMPLEPROF_H

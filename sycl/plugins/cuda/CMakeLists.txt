@@ -23,49 +23,49 @@ else()
   )
 endif()
 
-add_library(pi_cuda SHARED
-  "${sycl_inc_dir}/CL/sycl/detail/pi.h"
-  "${sycl_inc_dir}/CL/sycl/detail/pi.hpp"
-  "pi_cuda.hpp"
-  "pi_cuda.cpp"
+if (SYCL_ENABLE_XPTI_TRACING)
+  set(XPTI_PROXY_SRC "${CMAKE_SOURCE_DIR}/../xpti/src/xpti_proxy.cpp")
+endif()
+
+# The following two if's can be removed when FindCUDA -> FindCUDAToolkit.
+# CUDA_CUPTI_INCLUDE_DIR -> CUDAToolkit_CUPTI_INCLUDE_DIR
+include(FindCUDACupti)
+if(NOT CUDA_CUPTI_INCLUDE_DIR)
+   find_cuda_cupti_include_dir()
+endif()
+# CUDA_cupti_LIBRARY -> CUDAToolkit_cupti_LIBRARY
+if(NOT CUDA_cupti_LIBRARY)
+   find_cuda_cupti_library()
+endif()
+
+add_sycl_plugin(cuda
+  SOURCES
+    "${sycl_inc_dir}/sycl/detail/pi.h"
+    "${sycl_inc_dir}/sycl/detail/pi.hpp"
+    "pi_cuda.hpp"
+    "pi_cuda.cpp"
+    "tracing.cpp"
+    ${XPTI_PROXY_SRC}
+  LIBRARIES
+    cudadrv
+    ${CUDA_cupti_LIBRARY}
 )
 
-add_dependencies(sycl-toolchain pi_cuda)
+if (SYCL_ENABLE_XPTI_TRACING)
+  target_compile_definitions(pi_cuda PRIVATE
+    XPTI_ENABLE_INSTRUMENTATION
+    XPTI_STATIC_LIBRARY
+  )
+  target_include_directories(pi_cuda PRIVATE "${CMAKE_SOURCE_DIR}/../xpti/include")
+  target_link_libraries(pi_cuda PRIVATE ${CMAKE_DL_LIBS})
+endif()
 
-set_target_properties(pi_cuda PROPERTIES LINKER_LANGUAGE CXX)
 
 target_include_directories(pi_cuda
   PRIVATE
     ${sycl_inc_dir}
+    ${CUDA_CUPTI_INCLUDE_DIR}
 )
 
-target_link_libraries(pi_cuda
-  PRIVATE
-    OpenCL-Headers
-    cudadrv
-)
+set_target_properties(pi_cuda PROPERTIES LINKER_LANGUAGE CXX)
 
-if (MSVC)
-  # by defining __SYCL_BUILD_SYCL_DLL, we can use __declspec(dllexport)
-  # which are individually tagged for all pi* symbols in pi.h
-  target_compile_definitions(pi_cuda PRIVATE __SYCL_BUILD_SYCL_DLL)
-else()
-  # we set the visibility of all symbols 'hidden' by default.
-  # In pi.h file, we set exported symbols with visibility==default individually
-  target_compile_options(pi_cuda PUBLIC -fvisibility=hidden)
-
-  # This script file is used to allow exporting pi* symbols only.
-  # All other symbols are regarded as local (hidden)
-  set(linker_script "${CMAKE_CURRENT_SOURCE_DIR}/../ld-version-script.txt")
-
-  # Filter symbols based on the scope defined in the script file,
-  # and export pi* function symbols in the library.
-  target_link_libraries(pi_cuda PRIVATE "-Wl,--version-script=${linker_script}")
-endif()
-
-add_common_options(pi_cuda)
-
-install(TARGETS pi_cuda
-  LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT pi_cuda
-  RUNTIME DESTINATION "bin" COMPONENT pi_cuda
-)

@@ -30,10 +30,11 @@ if(${OPENMP_STANDALONE_BUILD})
   # If adding a new architecture, take a look at cmake/LibompGetArchitecture.cmake
   libomp_get_architecture(LIBOMP_DETECTED_ARCH)
   set(LIBOMP_ARCH ${LIBOMP_DETECTED_ARCH} CACHE STRING
-    "The architecture to build for (x86_64/i386/arm/ppc64/ppc64le/aarch64/mic/mips/mips64/riscv64).")
+    "The architecture to build for (x86_64/i386/arm/ppc64/ppc64le/aarch64/mic/mips/mips64/riscv64/loongarch64).")
   # Should assertions be enabled?  They are on by default.
   set(LIBOMP_ENABLE_ASSERTIONS TRUE CACHE BOOL
     "enable assertions?")
+  string(TOUPPER "${CMAKE_BUILD_TYPE}" uppercase_CMAKE_BUILD_TYPE)
 else() # Part of LLVM build
   # Determine the native architecture from LLVM.
   string(TOLOWER "${LLVM_TARGET_ARCH}" LIBOMP_NATIVE_ARCH)
@@ -60,6 +61,8 @@ else() # Part of LLVM build
     set(LIBOMP_ARCH arm)
   elseif(LIBOMP_NATIVE_ARCH MATCHES "riscv64")
     set(LIBOMP_ARCH riscv64)
+  elseif(LIBOMP_NATIVE_ARCH MATCHES "loongarch64")
+    set(LIBOMP_ARCH loongarch64)
   else()
     # last ditch effort
     libomp_get_architecture(LIBOMP_ARCH)
@@ -80,7 +83,7 @@ if(LIBOMP_ARCH STREQUAL "aarch64")
   endif()
 endif()
 
-libomp_check_variable(LIBOMP_ARCH 32e x86_64 32 i386 arm ppc64 ppc64le aarch64 aarch64_a64fx mic mips mips64 riscv64)
+libomp_check_variable(LIBOMP_ARCH 32e x86_64 32 i386 arm ppc64 ppc64le aarch64 aarch64_a64fx mic mips mips64 riscv64 loongarch64)
 
 set(LIBOMP_LIB_TYPE normal CACHE STRING
   "Performance,Profiling,Stubs library (normal/profile/stubs)")
@@ -158,6 +161,7 @@ set(MIC FALSE)
 set(MIPS64 FALSE)
 set(MIPS FALSE)
 set(RISCV64 FALSE)
+set(LOONGARCH64 FALSE)
 if("${LIBOMP_ARCH}" STREQUAL "i386" OR "${LIBOMP_ARCH}" STREQUAL "32")    # IA-32 architecture
   set(IA32 TRUE)
 elseif("${LIBOMP_ARCH}" STREQUAL "x86_64" OR "${LIBOMP_ARCH}" STREQUAL "32e") # Intel(R) 64 architecture
@@ -180,8 +184,10 @@ elseif("${LIBOMP_ARCH}" STREQUAL "mips") # MIPS architecture
     set(MIPS TRUE)
 elseif("${LIBOMP_ARCH}" STREQUAL "mips64") # MIPS64 architecture
     set(MIPS64 TRUE)
-  elseif("${LIBOMP_ARCH}" STREQUAL "riscv64") # RISCV64 architecture
+elseif("${LIBOMP_ARCH}" STREQUAL "riscv64") # RISCV64 architecture
     set(RISCV64 TRUE)
+elseif("${LIBOMP_ARCH}" STREQUAL "loongarch64") # LoongArch64 architecture
+    set(LOONGARCH64 TRUE)
 endif()
 
 # Set some flags based on build_type
@@ -189,14 +195,13 @@ set(RELEASE_BUILD FALSE)
 set(DEBUG_BUILD FALSE)
 set(RELWITHDEBINFO_BUILD FALSE)
 set(MINSIZEREL_BUILD FALSE)
-string(TOLOWER "${CMAKE_BUILD_TYPE}" libomp_build_type_lowercase)
-if("${libomp_build_type_lowercase}" STREQUAL "release")
+if("${uppercase_CMAKE_BUILD_TYPE}" STREQUAL "RELEASE")
   set(RELEASE_BUILD TRUE)
-elseif("${libomp_build_type_lowercase}" STREQUAL "debug")
+elseif("${uppercase_CMAKE_BUILD_TYPE}" STREQUAL "DEBUG")
   set(DEBUG_BUILD TRUE)
-elseif("${libomp_build_type_lowercase}" STREQUAL "relwithdebinfo")
+elseif("${uppercase_CMAKE_BUILD_TYPE}" STREQUAL "RELWITHDEBINFO")
   set(RELWITHDEBINFO_BUILD TRUE)
-elseif("${libomp_build_type_lowercase}" STREQUAL "minsizerel")
+elseif("${uppercase_CMAKE_BUILD_TYPE}" STREQUAL "MINSIZEREL")
   set(MINSIZEREL_BUILD TRUE)
 endif()
 
@@ -355,6 +360,11 @@ if(${STUBS_LIBRARY})
   set(LIBOMP_DEFAULT_LIB_NAME ${LIBOMP_DEFAULT_LIB_NAME}stubs)
 endif()
 set(LIBOMP_LIB_NAME ${LIBOMP_DEFAULT_LIB_NAME} CACHE STRING "Base OMP library name")
+if (OPENMP_MSVC_NAME_SCHEME)
+  # MSVC_TOOLS_VERSION corresponds to the version of the VC++ toolset.
+  set(MSVC_TOOLS_VERSION 140)
+  set(LIBOMP_LIB_NAME ${LIBOMP_LIB_NAME}${MSVC_TOOLS_VERSION}.${LIBOMP_ARCH})
+endif()
 
 if(${LIBOMP_ENABLE_SHARED})
   set(LIBOMP_LIBRARY_SUFFIX ${CMAKE_SHARED_LIBRARY_SUFFIX})

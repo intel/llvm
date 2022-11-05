@@ -11,7 +11,7 @@ set (FILES
   ProcessLaunchInfoTest.cpp
   SocketAddressTest.cpp
   SocketTest.cpp
-  SocketTestUtilities.cpp
+  ThreadLauncherTest.cpp
   XMLTest.cpp
 )
 
@@ -33,5 +33,6 @@ add_lldb_unittest(HostTests
   LINK_LIBS
     lldbHost
     lldbUtilityHelpers
+    lldbHostHelpers
     LLVMTestingSupport
   )

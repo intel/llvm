@@ -50,7 +50,9 @@ if (FUCHSIA)
   list(APPEND SCUDO_CFLAGS -nostdinc++)
   list(APPEND SCUDO_DYNAMIC_LINK_FLAGS -nostdlib++)
 else()
-  list(APPEND SCUDO_DYNAMIC_LIBS ${SANITIZER_CXX_ABI_LIBRARIES})
+  list(APPEND SCUDO_DYNAMIC_LIBS
+    ${COMPILER_RT_UNWINDER_LINK_LIBS}
+    ${SANITIZER_CXX_ABI_LIBRARIES})
   list(APPEND SCUDO_OBJECT_LIBS
     RTSanitizerCommonCoverage
     RTSanitizerCommonSymbolizer
@@ -86,8 +88,11 @@ set(SCUDO_HEADERS
   scudo_tsd_shared.inc
   scudo_utils.h)
 
-# Enable the SSE 4.2 instruction set for scudo_crc32.cpp, if available.
-if (COMPILER_RT_HAS_MSSE4_2_FLAG)
+# Enable the necessary instruction set for scudo_crc32.cpp, if available.
+# Newer compiler versions use -mcrc32 rather than -msse4.2.
+if (COMPILER_RT_HAS_MCRC32_FLAG)
+  set_source_files_properties(scudo_crc32.cpp PROPERTIES COMPILE_FLAGS -mcrc32)
+elseif (COMPILER_RT_HAS_MSSE4_2_FLAG)
   set_source_files_properties(scudo_crc32.cpp PROPERTIES COMPILE_FLAGS -msse4.2)
 endif()
 

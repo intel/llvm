@@ -22,6 +22,16 @@ template struct U<Base>;
 
 const S s5;
 
+template <typename T>
+class randomType {
+public:
+  randomType() {}
+  T val;
+};
+
+template <typename T>
+const randomType<T> Var;
+
 void usage() {
   // expected-error@+1{{SYCL kernel cannot use a non-const static data variable}}
   static int s1;
@@ -34,6 +44,9 @@ void usage() {
   (void)s5;
   // expected-error@+1{{SYCL kernel cannot use a const static or global variable that is neither zero-initialized nor constant-initialized}}
   (void)s6;
+
+  // expected-error@+1{{SYCL kernel cannot use a const static or global variable that is neither zero-initialized nor constant-initialized}}
+  (void)Var<int>;
 }
 
 template <typename Name, typename Func>
@@ -46,6 +59,26 @@ __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   kernelFunc(U<Base>::s2);
 }
 
+struct C {
+  static int c;
+};
+
+template <typename T>
+struct D {
+  static T d;
+};
+
+template <typename T>
+T D<T>::d = T();
+
+template <typename T>
+void test() {
+  // expected-error@+1{{SYCL kernel cannot use a non-const static data variable}}
+  C::c = 10;
+  // expected-error@+1{{SYCL kernel cannot use a non-const static data variable}}
+  D<int>::d = 11;
+}
+
 int main() {
   static int s2;
   kernel_single_task<class fake_kernel>([](S s4) {
@@ -54,6 +87,7 @@ int main() {
     s4.foo();
     // expected-error@+1{{SYCL kernel cannot use a non-const static data variable}}
     static int s3;
+    test<int>();
   });
 
   return 0;

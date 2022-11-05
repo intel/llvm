@@ -3,7 +3,7 @@
 // Tests for AST of Intel FPGA loop fusion function attributes
 #include "sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 queue q;
 
 // CHECK: FunctionDecl {{.*}} func1 'void ()'
@@ -41,8 +41,8 @@ queue q;
 // CHECK: FunctionTemplateDecl {{.*}} func5
 // CHECK: FunctionDecl {{.*}} func5 'void ()'
 // CHECK-NEXT: CompoundStmt
-// CHECK_NEXT: SYCLIntelLoopFuseAttr {{.*}} loop_fuse
-// CHECK_NEXT: DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'N' 'int'
+// CHECK-NEXT: SYCLIntelLoopFuseAttr {{.*}} loop_fuse
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'N' 'int'
 // CHECK: FunctionDecl {{.*}} func5 'void ()'
 // CHECK-NEXT: TemplateArgument integral 1
 // CHECK-NEXT: CompoundStmt
@@ -58,8 +58,8 @@ template <int N>
 // CHECK: FunctionTemplateDecl {{.*}} func6
 // CHECK: FunctionDecl {{.*}} func6 'void ()'
 // CHECK-NEXT: CompoundStmt
-// CHECK_NEXT: SYCLIntelLoopFuseAttr {{.*}} loop_fuse_independent
-// CHECK_NEXT: DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'N' 'int'
+// CHECK-NEXT: SYCLIntelLoopFuseAttr {{.*}} loop_fuse_independent
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'N' 'int'
 // CHECK: FunctionDecl {{.*}} func6 'void ()'
 // CHECK-NEXT: TemplateArgument integral 5
 // CHECK-NEXT: CompoundStmt

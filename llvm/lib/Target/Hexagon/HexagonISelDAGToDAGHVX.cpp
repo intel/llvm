@@ -230,8 +230,7 @@ bool Coloring::color() {
       WorkQ.push_back(N);
   }
 
-  for (unsigned I = 0; I < WorkQ.size(); ++I) {
-    Node N = WorkQ[I];
+  for (Node N : WorkQ) {
     NodeSet &Ns = Edges[N];
     auto P = getUniqueColor(Ns);
     if (P.first) {
@@ -270,8 +269,7 @@ bool Coloring::color() {
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
 void Coloring::dump() const {
   dbgs() << "{ Order:   {";
-  for (unsigned I = 0; I != Order.size(); ++I) {
-    Node P = Order[I];
+  for (Node P : Order) {
     if (P != Ignore)
       dbgs() << ' ' << P;
     else
@@ -761,8 +759,7 @@ void ResultStack::print(raw_ostream &OS, const SelectionDAG &G) const {
 namespace {
 struct ShuffleMask {
   ShuffleMask(ArrayRef<int> M) : Mask(M) {
-    for (unsigned I = 0, E = Mask.size(); I != E; ++I) {
-      int M = Mask[I];
+    for (int M : Mask) {
       if (M == -1)
         continue;
       MinSrc = (MinSrc == -1) ? M : std::min(MinSrc, M);
@@ -804,7 +801,7 @@ static const HexagonTargetLowering &getHexagonLowering(SelectionDAG &G) {
   return static_cast<const HexagonTargetLowering&>(G.getTargetLoweringInfo());
 }
 static const HexagonSubtarget &getHexagonSubtarget(SelectionDAG &G) {
-  return static_cast<const HexagonSubtarget&>(G.getSubtarget());
+  return G.getSubtarget<HexagonSubtarget>();
 }
 
 namespace llvm {
@@ -935,8 +932,7 @@ static SmallVector<unsigned, 4> getInputSegmentList(ShuffleMask SM,
   unsigned Shift = Log2_32(SegLen);
   BitVector Segs(alignTo(SM.MaxSrc + 1, SegLen) >> Shift);
 
-  for (int I = 0, E = SM.Mask.size(); I != E; ++I) {
-    int M = SM.Mask[I];
+  for (int M : SM.Mask) {
     if (M >= 0)
       Segs.set(M >> Shift);
   }
@@ -1006,7 +1002,7 @@ static void packSegmentMask(ArrayRef<int> Mask, ArrayRef<unsigned> OutSegMap,
 
 static bool isPermutation(ArrayRef<int> Mask) {
   // Check by adding all numbers only works if there is no overflow.
-  assert(Mask.size() < 0x00007FFF && "Sanity failure");
+  assert(Mask.size() < 0x00007FFF && "Overflow failure");
   int Sum = 0;
   for (int Idx : Mask) {
     if (Idx == -1)
@@ -1153,7 +1149,7 @@ OpRef HvxSelector::packs(ShuffleMask SM, OpRef Va, OpRef Vb,
 
   // Check if we can shuffle vector halves around to get the used elements
   // into a single vector.
-  SmallVector<int,128> MaskH(SM.Mask.begin(), SM.Mask.end());
+  SmallVector<int, 128> MaskH(SM.Mask);
   SmallVector<unsigned, 4> SegList = getInputSegmentList(SM.Mask, SegLen);
   unsigned SegCount = SegList.size();
   SmallVector<unsigned, 4> SegMap = getOutputSegmentMap(SM.Mask, SegLen);
@@ -1217,7 +1213,7 @@ OpRef HvxSelector::packs(ShuffleMask SM, OpRef Va, OpRef Vb,
       } else if (Seg0 == ~1u) {
         Seg0 = SegList[0] != Seg1 ? SegList[0] : SegList[1];
       } else {
-        assert(Seg1 == ~1u); // Sanity
+        assert(Seg1 == ~1u);
         Seg1 = SegList[0] != Seg0 ? SegList[0] : SegList[1];
       }
     }
@@ -1265,7 +1261,7 @@ OpRef HvxSelector::packs(ShuffleMask SM, OpRef Va, OpRef Vb,
       } else {
         // BC or DA: this could be done via valign by SegLen.
         // Do nothing here, because valign (if possible) will be generated
-        // later on (make sure the Seg0 values are as expected, for sanity).
+        // later on (make sure the Seg0 values are as expected).
         assert(Seg0 == 1 || Seg0 == 3);
       }
     }
@@ -1275,11 +1271,11 @@ OpRef HvxSelector::packs(ShuffleMask SM, OpRef Va, OpRef Vb,
 
   ShuffleMask SMH(MaskH);
   assert(SMH.Mask.size() == VecLen);
-  SmallVector<int,128> MaskA(SMH.Mask.begin(), SMH.Mask.end());
+  SmallVector<int, 128> MaskA(SMH.Mask);
 
   if (SMH.MaxSrc - SMH.MinSrc >= static_cast<int>(HwLen)) {
     // valign(Lo=Va,Hi=Vb) won't work. Try swapping Va/Vb.
-    SmallVector<int,128> Swapped(SMH.Mask.begin(), SMH.Mask.end());
+    SmallVector<int, 128> Swapped(SMH.Mask);
     ShuffleVectorSDNode::commuteMask(Swapped);
     ShuffleMask SW(Swapped);
     if (SW.MaxSrc - SW.MinSrc < static_cast<int>(HwLen)) {
@@ -1414,7 +1410,7 @@ OpRef HvxSelector::shuffs1(ShuffleMask SM, OpRef Va, ResultStack &Results) {
     return OpRef::undef(getSingleVT(MVT::i8));
 
   unsigned HalfLen = HwLen / 2;
-  assert(isPowerOf2_32(HalfLen)); // Sanity.
+  assert(isPowerOf2_32(HalfLen));
 
   // Handle special case where the output is the same half of the input
   // repeated twice, i.e. if Va = AB, then handle the output of AA or BB.
@@ -1738,7 +1734,13 @@ OpRef HvxSelector::contracting(ShuffleMask SM, OpRef Va, OpRef Vb,
 
   // The following shuffles only work for bytes and halfwords. This requires
   // the strip length to be 1 or 2.
-  if (Strip.second != 1 && Strip.second != 2)
+  // FIXME: Collecting even/odd elements of any power-of-2 length could be
+  // done by taking half of a deal operation. This should be handled in
+  // perfect shuffle generation, but currently that code requires an exact
+  // mask to work. To work with contracting perfect shuffles, it would need
+  // to be able to complete an incomplete mask.
+  // Once that's done, remove the handling of L=4.
+  if (Strip.second != 1 && Strip.second != 2 && /*FIXME*/Strip.second != 4)
     return OpRef::fail();
 
   // The patterns for the shuffles, in terms of the starting offsets of the
@@ -1804,6 +1806,17 @@ OpRef HvxSelector::contracting(ShuffleMask SM, OpRef Va, OpRef Vb,
     assert(Strip.first == 0 || Strip.first == L);
     using namespace Hexagon;
     NodeTemplate Res;
+    // FIXME: remove L=4 case after adding perfect mask completion.
+    if (L == 4) {
+      const SDLoc &dl(Results.InpNode);
+      Results.push(Hexagon::A2_tfrsi, MVT::i32, {getConst32(-L, dl)});
+      OpRef C = OpRef::res(Results.top());
+      MVT JoinTy = MVT::getVectorVT(ResTy.getVectorElementType(),
+                                    2 * ResTy.getVectorNumElements());
+      Results.push(Hexagon::V6_vshuffvdd, JoinTy, {Vb, Va, C});
+      return Strip.first == 0 ? OpRef::lo(OpRef::res(Results.top()))
+                              : OpRef::hi(OpRef::res(Results.top()));
+    }
     Res.Opc = Strip.second == 1 // Number of bytes.
                   ? (Strip.first == 0 ? V6_vpackeb : V6_vpackob)
                   : (Strip.first == 0 ? V6_vpackeh : V6_vpackoh);
@@ -2002,7 +2015,7 @@ OpRef HvxSelector::perfect(ShuffleMask SM, OpRef Va, ResultStack &Results) {
   // a vector pair, but the two vectors in the pair are swapped.
   // The code below that identifies perfect shuffles will reject
   // it, unless the order is reversed.
-  SmallVector<int,128> MaskStorage(SM.Mask.begin(), SM.Mask.end());
+  SmallVector<int, 128> MaskStorage(SM.Mask);
   bool InvertedPair = false;
   if (HavePairs && SM.Mask[0] >= int(HwLen)) {
     for (int i = 0, e = SM.Mask.size(); i != e; ++i) {
@@ -2397,6 +2410,7 @@ void HexagonDAGToDAGISel::SelectV65GatherPred(SDNode *N) {
   SDValue Base = N->getOperand(4);
   SDValue Modifier = N->getOperand(5);
   SDValue Offset = N->getOperand(6);
+  SDValue ImmOperand = CurDAG->getTargetConstant(0, dl, MVT::i32);
 
   unsigned Opcode;
   unsigned IntNo = cast<ConstantSDNode>(N->getOperand(1))->getZExtValue();
@@ -2418,7 +2432,8 @@ void HexagonDAGToDAGISel::SelectV65GatherPred(SDNode *N) {
   }
 
   SDVTList VTs = CurDAG->getVTList(MVT::Other);
-  SDValue Ops[] = { Address, Predicate, Base, Modifier, Offset, Chain };
+  SDValue Ops[] = { Address, ImmOperand,
+                    Predicate, Base, Modifier, Offset, Chain };
   SDNode *Result = CurDAG->getMachineNode(Opcode, dl, VTs, Ops);
 
   MachineMemOperand *MemOp = cast<MemIntrinsicSDNode>(N)->getMemOperand();
@@ -2434,6 +2449,7 @@ void HexagonDAGToDAGISel::SelectV65Gather(SDNode *N) {
   SDValue Base = N->getOperand(3);
   SDValue Modifier = N->getOperand(4);
   SDValue Offset = N->getOperand(5);
+  SDValue ImmOperand = CurDAG->getTargetConstant(0, dl, MVT::i32);
 
   unsigned Opcode;
   unsigned IntNo = cast<ConstantSDNode>(N->getOperand(1))->getZExtValue();
@@ -2455,7 +2471,7 @@ void HexagonDAGToDAGISel::SelectV65Gather(SDNode *N) {
   }
 
   SDVTList VTs = CurDAG->getVTList(MVT::Other);
-  SDValue Ops[] = { Address, Base, Modifier, Offset, Chain };
+  SDValue Ops[] = { Address, ImmOperand, Base, Modifier, Offset, Chain };
   SDNode *Result = CurDAG->getMachineNode(Opcode, dl, VTs, Ops);
 
   MachineMemOperand *MemOp = cast<MemIntrinsicSDNode>(N)->getMemOperand();

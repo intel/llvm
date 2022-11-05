@@ -69,7 +69,7 @@ namespace clang {
 namespace ento {
 
 static bool isLoopStmt(const Stmt *S) {
-  return S && (isa<ForStmt>(S) || isa<WhileStmt>(S) || isa<DoStmt>(S));
+  return isa_and_nonnull<ForStmt, WhileStmt, DoStmt>(S);
 }
 
 ProgramStateRef processLoopEnd(const Stmt *LoopStmt, ProgramStateRef State) {
@@ -175,7 +175,7 @@ static bool isCapturedByReference(ExplodedNode *N, const DeclRefExpr *DR) {
   const CXXRecordDecl *LambdaCXXRec = MD->getParent();
 
   // Lookup the fields of the lambda
-  llvm::DenseMap<const VarDecl *, FieldDecl *> LambdaCaptureFields;
+  llvm::DenseMap<const ValueDecl *, FieldDecl *> LambdaCaptureFields;
   FieldDecl *LambdaThisCaptureField;
   LambdaCXXRec->getCaptureFields(LambdaCaptureFields, LambdaThisCaptureField);
 
@@ -264,8 +264,8 @@ bool shouldCompletelyUnroll(const Stmt *LoopStmt, ASTContext &ASTCtx,
       Matches[0].getNodeAs<IntegerLiteral>("initNum")->getValue();
   auto CondOp = Matches[0].getNodeAs<BinaryOperator>("conditionOperator");
   if (InitNum.getBitWidth() != BoundNum.getBitWidth()) {
-    InitNum = InitNum.zextOrSelf(BoundNum.getBitWidth());
-    BoundNum = BoundNum.zextOrSelf(InitNum.getBitWidth());
+    InitNum = InitNum.zext(BoundNum.getBitWidth());
+    BoundNum = BoundNum.zext(InitNum.getBitWidth());
   }
 
   if (CondOp->getOpcode() == BO_GE || CondOp->getOpcode() == BO_LE)

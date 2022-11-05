@@ -187,13 +187,15 @@ TEST(TypeMatcher, MatchesDeclTypes) {
                       parmVarDecl(hasType(namedDecl(hasName("T"))))));
   // InjectedClassNameType
   EXPECT_TRUE(matches("template <typename T> struct S {"
-                        "  void f(S s);"
-                        "};",
-                      parmVarDecl(hasType(injectedClassNameType()))));
+                      "  void f(S s);"
+                      "};",
+                      parmVarDecl(hasType(elaboratedType(
+                          namesType(injectedClassNameType()))))));
   EXPECT_TRUE(notMatches("template <typename T> struct S {"
-                           "  void g(S<T> s);"
-                           "};",
-                         parmVarDecl(hasType(injectedClassNameType()))));
+                         "  void g(S<T> s);"
+                         "};",
+                         parmVarDecl(hasType(elaboratedType(
+                             namesType(injectedClassNameType()))))));
   // InjectedClassNameType -> CXXRecordDecl
   EXPECT_TRUE(matches("template <typename T> struct S {"
                         "  void f(S s);"
@@ -243,24 +245,28 @@ TEST(HasDeclaration, ElaboratedType) {
 }
 
 TEST(HasDeclaration, HasDeclarationOfTypeWithDecl) {
-  EXPECT_TRUE(matches("typedef int X; X a;",
-                      varDecl(hasName("a"),
-                              hasType(typedefType(hasDeclaration(decl()))))));
+  EXPECT_TRUE(matches(
+      "typedef int X; X a;",
+      varDecl(hasName("a"), hasType(elaboratedType(namesType(
+                                typedefType(hasDeclaration(decl()))))))));
 
   // FIXME: Add tests for other types with getDecl() (e.g. RecordType)
 }
 
 TEST(HasDeclaration, HasDeclarationOfTemplateSpecializationType) {
-  EXPECT_TRUE(matches("template <typename T> class A {}; A<int> a;",
-                      varDecl(hasType(templateSpecializationType(
-                        hasDeclaration(namedDecl(hasName("A"))))))));
-  EXPECT_TRUE(matches("template <typename T> class A {};"
-                      "template <typename T> class B { A<T> a; };",
-                      fieldDecl(hasType(templateSpecializationType(
-                        hasDeclaration(namedDecl(hasName("A"))))))));
-  EXPECT_TRUE(matches("template <typename T> class A {}; A<int> a;",
-                      varDecl(hasType(templateSpecializationType(
-                          hasDeclaration(cxxRecordDecl()))))));
+  EXPECT_TRUE(matches(
+      "template <typename T> class A {}; A<int> a;",
+      varDecl(hasType(elaboratedType(namesType(templateSpecializationType(
+          hasDeclaration(namedDecl(hasName("A"))))))))));
+  EXPECT_TRUE(matches(
+      "template <typename T> class A {};"
+      "template <typename T> class B { A<T> a; };",
+      fieldDecl(hasType(elaboratedType(namesType(templateSpecializationType(
+          hasDeclaration(namedDecl(hasName("A"))))))))));
+  EXPECT_TRUE(matches(
+      "template <typename T> class A {}; A<int> a;",
+      varDecl(hasType(elaboratedType(namesType(
+          templateSpecializationType(hasDeclaration(cxxRecordDecl()))))))));
 }
 
 TEST(HasDeclaration, HasDeclarationOfCXXNewExpr) {
@@ -270,9 +276,10 @@ TEST(HasDeclaration, HasDeclarationOfCXXNewExpr) {
 }
 
 TEST(HasDeclaration, HasDeclarationOfTypeAlias) {
-  EXPECT_TRUE(matches("template <typename T> using C = T; C<int> c;",
-                      varDecl(hasType(templateSpecializationType(
-                          hasDeclaration(typeAliasTemplateDecl()))))));
+  EXPECT_TRUE(matches(
+      "template <typename T> using C = T; C<int> c;",
+      varDecl(hasType(elaboratedType(namesType(templateSpecializationType(
+          hasDeclaration(typeAliasTemplateDecl()))))))));
 }
 
 TEST(HasUnqualifiedDesugaredType, DesugarsUsing) {
@@ -393,9 +400,9 @@ TEST(HasTypeLoc, MatchesCXXBaseSpecifierAndCtorInitializer) {
   )cpp";
 
   EXPECT_TRUE(matches(
-      code, cxxRecordDecl(hasAnyBase(hasTypeLoc(loc(asString("class Foo")))))));
-  EXPECT_TRUE(matches(
-      code, cxxCtorInitializer(hasTypeLoc(loc(asString("class Foo"))))));
+      code, cxxRecordDecl(hasAnyBase(hasTypeLoc(loc(asString("Foo")))))));
+  EXPECT_TRUE(
+      matches(code, cxxCtorInitializer(hasTypeLoc(loc(asString("Foo"))))));
 }
 
 TEST(HasTypeLoc, MatchesCXXFunctionalCastExpr) {
@@ -407,13 +414,13 @@ TEST(HasTypeLoc, MatchesCXXNewExpr) {
   EXPECT_TRUE(matches("auto* x = new int(3);",
                       cxxNewExpr(hasTypeLoc(loc(asString("int"))))));
   EXPECT_TRUE(matches("class Foo{}; auto* x = new Foo();",
-                      cxxNewExpr(hasTypeLoc(loc(asString("class Foo"))))));
+                      cxxNewExpr(hasTypeLoc(loc(asString("Foo"))))));
 }
 
 TEST(HasTypeLoc, MatchesCXXTemporaryObjectExpr) {
   EXPECT_TRUE(
       matches("struct Foo { Foo(int, int); }; auto x = Foo(1, 2);",
-              cxxTemporaryObjectExpr(hasTypeLoc(loc(asString("struct Foo"))))));
+              cxxTemporaryObjectExpr(hasTypeLoc(loc(asString("Foo"))))));
 }
 
 TEST(HasTypeLoc, MatchesCXXUnresolvedConstructExpr) {
@@ -430,8 +437,8 @@ TEST(HasTypeLoc, MatchesClassTemplateSpecializationDecl) {
 
 TEST(HasTypeLoc, MatchesCompoundLiteralExpr) {
   EXPECT_TRUE(
-      matches("int* x = (int [2]) { 0, 1 };",
-              compoundLiteralExpr(hasTypeLoc(loc(asString("int [2]"))))));
+      matches("int* x = (int[2]) { 0, 1 };",
+              compoundLiteralExpr(hasTypeLoc(loc(asString("int[2]"))))));
 }
 
 TEST(HasTypeLoc, MatchesDeclaratorDecl) {
@@ -439,9 +446,8 @@ TEST(HasTypeLoc, MatchesDeclaratorDecl) {
                       varDecl(hasName("x"), hasTypeLoc(loc(asString("int"))))));
   EXPECT_TRUE(matches("int x(3);",
                       varDecl(hasName("x"), hasTypeLoc(loc(asString("int"))))));
-  EXPECT_TRUE(
-      matches("struct Foo { Foo(int, int); }; Foo x(1, 2);",
-              varDecl(hasName("x"), hasTypeLoc(loc(asString("struct Foo"))))));
+  EXPECT_TRUE(matches("struct Foo { Foo(int, int); }; Foo x(1, 2);",
+                      varDecl(hasName("x"), hasTypeLoc(loc(asString("Foo"))))));
 
   // Make sure we don't crash on implicit constructors.
   EXPECT_TRUE(notMatches("class X {}; X x;",
@@ -563,26 +569,6 @@ TEST(Matcher, HasReceiver) {
       objcMessageExpr(hasReceiver(declRefExpr(to(varDecl(hasName("x"))))))));
 }
 
-TEST(Matcher, HasAnyCapture) {
-  auto HasCaptureX = lambdaExpr(hasAnyCapture(varDecl(hasName("x"))));
-  EXPECT_TRUE(matches("void f() { int x = 3; [x](){}; }", HasCaptureX));
-  EXPECT_TRUE(matches("void f() { int x = 3; [&x](){}; }", HasCaptureX));
-  EXPECT_TRUE(notMatches("void f() { [](){}; }", HasCaptureX));
-  EXPECT_TRUE(notMatches("void f() { int z = 3; [&z](){}; }", HasCaptureX));
-  EXPECT_TRUE(
-      notMatches("struct a { void f() { [this](){}; }; };", HasCaptureX));
-}
-
-TEST(Matcher, CapturesThis) {
-  auto HasCaptureThis = lambdaExpr(hasAnyCapture(cxxThisExpr()));
-  EXPECT_TRUE(
-      matches("struct a { void f() { [this](){}; }; };", HasCaptureThis));
-  EXPECT_TRUE(notMatches("void f() { [](){}; }", HasCaptureThis));
-  EXPECT_TRUE(notMatches("void f() { int x = 3; [x](){}; }", HasCaptureThis));
-  EXPECT_TRUE(notMatches("void f() { int x = 3; [&x](){}; }", HasCaptureThis));
-  EXPECT_TRUE(notMatches("void f() { int z = 3; [&z](){}; }", HasCaptureThis));
-}
-
 TEST(Matcher, MatchesMethodsOnLambda) {
   StringRef Code = R"cpp(
 struct A {
@@ -623,7 +609,6 @@ TEST(Matcher, MatchesCoroutine) {
   FileContentMappings M;
   M.push_back(std::make_pair("/coro_header", R"cpp(
 namespace std {
-namespace experimental {
 
 template <class... Args>
 struct void_t_imp {
@@ -642,7 +627,7 @@ struct traits_sfinae_base<T, void_t<typename T::promise_type>> {
 
 template <class Ret, class... Args>
 struct coroutine_traits : public traits_sfinae_base<Ret> {};
-}}  // namespace std::experimental
+}  // namespace std
 struct awaitable {
   bool await_ready() noexcept;
   template <typename F>
@@ -658,14 +643,13 @@ struct promise {
   void unhandled_exception();
 };
 template <typename... T>
-struct std::experimental::coroutine_traits<void, T...> { using promise_type = promise; };
+struct std::coroutine_traits<void, T...> { using promise_type = promise; };
 namespace std {
-namespace experimental {
 template <class PromiseType = void>
 struct coroutine_handle {
   static coroutine_handle from_address(void *) noexcept;
 };
-}} // namespace std::experimental
+} // namespace std
 )cpp"));
   StringRef CoReturnCode = R"cpp(
 #include <coro_header>
@@ -1110,6 +1094,31 @@ TEST(ForEachArgumentWithParamType, MatchesMemberFunctionPtrCalls) {
                 "  a.x = &A::f;\n"
                 "  (a.*(a.x))(y);\n"
                 "}";
+  EXPECT_TRUE(matchAndVerifyResultTrue(
+      S, CallExpr, std::make_unique<VerifyIdIsBoundTo<QualType>>("type")));
+  EXPECT_TRUE(matchAndVerifyResultTrue(
+      S, CallExpr, std::make_unique<VerifyIdIsBoundTo<DeclRefExpr>>("arg")));
+}
+
+TEST(ForEachArgumentWithParamType, MatchesVariadicFunctionPtrCalls) {
+  StatementMatcher ArgumentY =
+      declRefExpr(to(varDecl(hasName("y")))).bind("arg");
+  TypeMatcher IntType = qualType(builtinType()).bind("type");
+  StatementMatcher CallExpr =
+      callExpr(forEachArgumentWithParamType(ArgumentY, IntType));
+
+  StringRef S = R"cpp(
+    void fcntl(int fd, int cmd, ...) {}
+
+    template <typename Func>
+    void f(Func F) {
+      int y = 42;
+      F(y, 1, 3);
+    }
+
+    void g() { f(fcntl); }
+  )cpp";
+
   EXPECT_TRUE(matchAndVerifyResultTrue(
       S, CallExpr, std::make_unique<VerifyIdIsBoundTo<QualType>>("type")));
   EXPECT_TRUE(matchAndVerifyResultTrue(
@@ -4791,6 +4800,66 @@ TEST(ForEachConstructorInitializer, MatchesInitializers) {
     cxxConstructorDecl(forEachConstructorInitializer(cxxCtorInitializer()))));
 }
 
+TEST(ForEachLambdaCapture, MatchesCaptures) {
+  EXPECT_TRUE(matches(
+      "int main() { int x, y; auto f = [x, y]() { return x + y; }; }",
+      lambdaExpr(forEachLambdaCapture(lambdaCapture())), langCxx11OrLater()));
+  auto matcher = lambdaExpr(forEachLambdaCapture(
+      lambdaCapture(capturesVar(varDecl(hasType(isInteger())))).bind("LC")));
+  EXPECT_TRUE(matchAndVerifyResultTrue(
+      "int main() { int x, y; float z; auto f = [=]() { return x + y + z; }; }",
+      matcher, std::make_unique<VerifyIdIsBoundTo<LambdaCapture>>("LC", 2)));
+  EXPECT_TRUE(matchAndVerifyResultTrue(
+      "int main() { int x, y; float z; auto f = [x, y, z]() { return x + y + "
+      "z; }; }",
+      matcher, std::make_unique<VerifyIdIsBoundTo<LambdaCapture>>("LC", 2)));
+}
+
+TEST(ForEachLambdaCapture, IgnoreUnlessSpelledInSource) {
+  auto matcher =
+      traverse(TK_IgnoreUnlessSpelledInSource,
+               lambdaExpr(forEachLambdaCapture(
+                   lambdaCapture(capturesVar(varDecl(hasType(isInteger()))))
+                       .bind("LC"))));
+  EXPECT_TRUE(
+      notMatches("int main() { int x, y; auto f = [=]() { return x + y; }; }",
+                 matcher, langCxx11OrLater()));
+  EXPECT_TRUE(
+      notMatches("int main() { int x, y; auto f = [&]() { return x + y; }; }",
+                 matcher, langCxx11OrLater()));
+  EXPECT_TRUE(matchAndVerifyResultTrue(
+      R"cc(
+      int main() {
+        int x, y;
+        float z;
+        auto f = [=, &y]() { return x + y + z; };
+      }
+      )cc",
+      matcher, std::make_unique<VerifyIdIsBoundTo<LambdaCapture>>("LC", 1)));
+}
+
+TEST(ForEachLambdaCapture, MatchImplicitCapturesOnly) {
+  auto matcher =
+      lambdaExpr(forEachLambdaCapture(lambdaCapture(isImplicit()).bind("LC")));
+  EXPECT_TRUE(matchAndVerifyResultTrue(
+      "int main() { int x, y, z; auto f = [=, &z]() { return x + y + z; }; }",
+      matcher, std::make_unique<VerifyIdIsBoundTo<LambdaCapture>>("LC", 2)));
+  EXPECT_TRUE(matchAndVerifyResultTrue(
+      "int main() { int x, y, z; auto f = [&, z]() { return x + y + z; }; }",
+      matcher, std::make_unique<VerifyIdIsBoundTo<LambdaCapture>>("LC", 2)));
+}
+
+TEST(ForEachLambdaCapture, MatchExplicitCapturesOnly) {
+  auto matcher = lambdaExpr(
+      forEachLambdaCapture(lambdaCapture(unless(isImplicit())).bind("LC")));
+  EXPECT_TRUE(matchAndVerifyResultTrue(
+      "int main() { int x, y, z; auto f = [=, &z]() { return x + y + z; }; }",
+      matcher, std::make_unique<VerifyIdIsBoundTo<LambdaCapture>>("LC", 1)));
+  EXPECT_TRUE(matchAndVerifyResultTrue(
+      "int main() { int x, y, z; auto f = [&, z]() { return x + y + z; }; }",
+      matcher, std::make_unique<VerifyIdIsBoundTo<LambdaCapture>>("LC", 1)));
+}
+
 TEST(HasConditionVariableStatement, DoesNotMatchCondition) {
   EXPECT_TRUE(notMatches(
     "void x() { if(true) {} }",
@@ -4906,6 +4975,62 @@ TEST(ForEachDescendant, BindsCombinations) {
     compoundStmt(forEachDescendant(ifStmt().bind("if")),
                  forEachDescendant(whileStmt().bind("while"))),
     std::make_unique<VerifyIdIsBoundTo<IfStmt>>("if", 6)));
+}
+
+TEST(ForEachTemplateArgument, OnFunctionDecl) {
+  const std::string Code = R"(
+template <typename T, typename U> void f(T, U) {}
+void test() {
+  int I = 1;
+  bool B = false;
+  f(I, B);
+})";
+  EXPECT_TRUE(matches(
+      Code, functionDecl(forEachTemplateArgument(refersToType(builtinType()))),
+      langCxx11OrLater()));
+  auto matcher =
+      functionDecl(forEachTemplateArgument(
+                       templateArgument(refersToType(builtinType().bind("BT")))
+                           .bind("TA")))
+          .bind("FN");
+
+  EXPECT_TRUE(matchAndVerifyResultTrue(
+      Code, matcher,
+      std::make_unique<VerifyIdIsBoundTo<FunctionDecl>>("FN", 2)));
+  EXPECT_TRUE(matchAndVerifyResultTrue(
+      Code, matcher,
+      std::make_unique<VerifyIdIsBoundTo<TemplateArgument>>("TA", 2)));
+  EXPECT_TRUE(matchAndVerifyResultTrue(
+      Code, matcher,
+      std::make_unique<VerifyIdIsBoundTo<BuiltinType>>("BT", 2)));
+}
+
+TEST(ForEachTemplateArgument, OnClassTemplateSpecialization) {
+  const std::string Code = R"(
+template <typename T, unsigned N, unsigned M>
+struct Matrix {};
+
+static constexpr unsigned R = 2;
+
+Matrix<int, R * 2, R * 4> M;
+)";
+  EXPECT_TRUE(matches(
+      Code, templateSpecializationType(forEachTemplateArgument(isExpr(expr()))),
+      langCxx11OrLater()));
+  auto matcher = templateSpecializationType(
+                     forEachTemplateArgument(
+                         templateArgument(isExpr(expr().bind("E"))).bind("TA")))
+                     .bind("TST");
+
+  EXPECT_TRUE(matchAndVerifyResultTrue(
+      Code, matcher,
+      std::make_unique<VerifyIdIsBoundTo<TemplateSpecializationType>>("TST",
+                                                                      2)));
+  EXPECT_TRUE(matchAndVerifyResultTrue(
+      Code, matcher,
+      std::make_unique<VerifyIdIsBoundTo<TemplateArgument>>("TA", 2)));
+  EXPECT_TRUE(matchAndVerifyResultTrue(
+      Code, matcher, std::make_unique<VerifyIdIsBoundTo<Expr>>("E", 2)));
 }
 
 TEST(Has, DoesNotDeleteBindings) {
@@ -5979,19 +6104,21 @@ TEST(HasReferentLoc, DoesNotBindToParameterWithoutIntReferenceTypeLoc) {
 }
 
 TEST(HasAnyTemplateArgumentLoc, BindsToSpecializationWithIntArgument) {
-  EXPECT_TRUE(
-      matches("template<typename T> class A {}; A<int> a;",
-              varDecl(hasName("a"), hasTypeLoc(templateSpecializationTypeLoc(
-                                        hasAnyTemplateArgumentLoc(hasTypeLoc(
-                                            loc(asString("int")))))))));
+  EXPECT_TRUE(matches(
+      "template<typename T> class A {}; A<int> a;",
+      varDecl(hasName("a"),
+              hasTypeLoc(elaboratedTypeLoc(hasNamedTypeLoc(
+                  templateSpecializationTypeLoc(hasAnyTemplateArgumentLoc(
+                      hasTypeLoc(loc(asString("int")))))))))));
 }
 
 TEST(HasAnyTemplateArgumentLoc, BindsToSpecializationWithDoubleArgument) {
-  EXPECT_TRUE(
-      matches("template<typename T> class A {}; A<double> a;",
-              varDecl(hasName("a"), hasTypeLoc(templateSpecializationTypeLoc(
-                                        hasAnyTemplateArgumentLoc(hasTypeLoc(
-                                            loc(asString("double")))))))));
+  EXPECT_TRUE(matches(
+      "template<typename T> class A {}; A<double> a;",
+      varDecl(hasName("a"),
+              hasTypeLoc(elaboratedTypeLoc(hasNamedTypeLoc(
+                  templateSpecializationTypeLoc(hasAnyTemplateArgumentLoc(
+                      hasTypeLoc(loc(asString("double")))))))))));
 }
 
 TEST(HasAnyTemplateArgumentLoc, BindsToExplicitSpecializationWithIntArgument) {
@@ -6051,19 +6178,21 @@ TEST(HasAnyTemplateArgumentLoc,
 }
 
 TEST(HasTemplateArgumentLoc, BindsToSpecializationWithIntArgument) {
-  EXPECT_TRUE(matches(
-      "template<typename T> class A {}; A<int> a;",
-      varDecl(hasName("a"),
-              hasTypeLoc(templateSpecializationTypeLoc(hasTemplateArgumentLoc(
-                  0, hasTypeLoc(loc(asString("int")))))))));
+  EXPECT_TRUE(
+      matches("template<typename T> class A {}; A<int> a;",
+              varDecl(hasName("a"),
+                      hasTypeLoc(elaboratedTypeLoc(hasNamedTypeLoc(
+                          templateSpecializationTypeLoc(hasTemplateArgumentLoc(
+                              0, hasTypeLoc(loc(asString("int")))))))))));
 }
 
 TEST(HasTemplateArgumentLoc, BindsToSpecializationWithDoubleArgument) {
-  EXPECT_TRUE(matches(
-      "template<typename T> class A {}; A<double> a;",
-      varDecl(hasName("a"),
-              hasTypeLoc(templateSpecializationTypeLoc(hasTemplateArgumentLoc(
-                  0, hasTypeLoc(loc(asString("double")))))))));
+  EXPECT_TRUE(
+      matches("template<typename T> class A {}; A<double> a;",
+              varDecl(hasName("a"),
+                      hasTypeLoc(elaboratedTypeLoc(hasNamedTypeLoc(
+                          templateSpecializationTypeLoc(hasTemplateArgumentLoc(
+                              0, hasTypeLoc(loc(asString("double")))))))))));
 }
 
 TEST(HasTemplateArgumentLoc, BindsToExplicitSpecializationWithIntArgument) {
@@ -6201,7 +6330,7 @@ TEST(HasNamedTypeLoc, BindsToElaboratedObjectDeclaration) {
 }
 
 TEST(HasNamedTypeLoc, DoesNotBindToNonElaboratedObjectDeclaration) {
-  EXPECT_TRUE(notMatches(
+  EXPECT_TRUE(matches(
       R"(
       template <typename T>
       class C {};

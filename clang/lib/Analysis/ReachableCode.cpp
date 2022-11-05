@@ -87,10 +87,8 @@ static bool isDeadReturn(const CFGBlock *B, const Stmt *S) {
   // block, or may be in a subsequent block because of destructors.
   const CFGBlock *Current = B;
   while (true) {
-    for (CFGBlock::const_reverse_iterator I = Current->rbegin(),
-                                          E = Current->rend();
-         I != E; ++I) {
-      if (Optional<CFGStmt> CS = I->getAs<CFGStmt>()) {
+    for (const CFGElement &CE : llvm::reverse(*Current)) {
+      if (Optional<CFGStmt> CS = CE.getAs<CFGStmt>()) {
         if (const ReturnStmt *RS = dyn_cast<ReturnStmt>(CS->getStmt())) {
           if (RS == S)
             return true;
@@ -220,7 +218,7 @@ static bool isConfigurationValue(const Stmt *S,
       return isConfigurationValue(cast<DeclRefExpr>(S)->getDecl(), PP);
     case Stmt::ObjCBoolLiteralExprClass:
       IgnoreYES_NO = true;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case Stmt::CXXBoolLiteralExprClass:
     case Stmt::IntegerLiteralClass: {
       const Expr *E = cast<Expr>(S);
@@ -301,6 +299,12 @@ static bool shouldTreatSuccessorsAsReachable(const CFGBlock *B,
     if (isa<BinaryOperator>(Term)) {
       return isConfigurationValue(Term, PP);
     }
+    // Do not treat constexpr if statement successors as unreachable in warnings
+    // since the point of these statements is to determine branches at compile
+    // time.
+    if (const auto *IS = dyn_cast<IfStmt>(Term);
+        IS != nullptr && IS->isConstexpr())
+      return true;
   }
 
   const Stmt *Cond = B->getTerminatorCondition(/* stripParens */ false);
@@ -347,13 +351,13 @@ static unsigned scanFromBlock(const CFGBlock *Start,
         if (!UB)
           break;
 
-        if (!TreatAllSuccessorsAsReachable.hasValue()) {
+        if (!TreatAllSuccessorsAsReachable) {
           assert(PP);
           TreatAllSuccessorsAsReachable =
             shouldTreatSuccessorsAsReachable(item, *PP);
         }
 
-        if (TreatAllSuccessorsAsReachable.getValue()) {
+        if (*TreatAllSuccessorsAsReachable) {
           B = UB;
           break;
         }

@@ -12,9 +12,9 @@ target triple = "powerpc64-unknown-linux-gnu"
 %struct.S6 = type { [6 x i8] }
 %struct.S7 = type { [7 x i8] }
 
-define void @test(%struct.S3* byval(%struct.S3) %s3, %struct.S5* byval(%struct.S5) %s5, %struct.S6* byval(%struct.S6) %s6, %struct.S7* byval(%struct.S7) %s7) nounwind {
+define void @test(ptr byval(%struct.S3) %s3, ptr byval(%struct.S5) %s5, ptr byval(%struct.S6) %s6, ptr byval(%struct.S7) %s7) nounwind {
 entry:
-  call void @check(%struct.S3* byval(%struct.S3) %s3, %struct.S5* byval(%struct.S5) %s5, %struct.S6* byval(%struct.S6) %s6, %struct.S7* byval(%struct.S7) %s7)
+  call void @check(ptr byval(%struct.S3) %s3, ptr byval(%struct.S5) %s5, ptr byval(%struct.S6) %s6, ptr byval(%struct.S7) %s7)
   ret void
 }
 
@@ -36,7 +36,7 @@ entry:
 ; CHECK-DAG: lbz {{[0-9]+}}, 167(1)
 ; CHECK-DAG: lhz {{[0-9]+}}, 165(1)
 ; CHECK-DAG: stb {{[0-9]+}}, 55(1)
-; CHECK-DAG-DAG: sth {{[0-9]+}}, 53(1)
+; CHECK-DAG: sth {{[0-9]+}}, 53(1)
 ; CHECK-DAG: lbz {{[0-9]+}}, 175(1)
 ; CHECK-DAG: lwz {{[0-9]+}}, 171(1)
 ; CHECK-DAG: stb {{[0-9]+}}, 63(1)
@@ -54,4 +54,4 @@ entry:
 ; CHECK-DAG: ld 4, 56(1)
 ; CHECK-DAG: ld 3, 48(1)
 
-declare void @check(%struct.S3* byval(%struct.S3), %struct.S5* byval(%struct.S5), %struct.S6* byval(%struct.S6), %struct.S7* byval(%struct.S7))
+declare void @check(ptr byval(%struct.S3), ptr byval(%struct.S5), ptr byval(%struct.S6), ptr byval(%struct.S7))

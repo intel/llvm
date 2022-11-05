@@ -11,19 +11,24 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclGroup.h"
 #include "clang/Basic/Builtins.h"
+#include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Basic/LangStandard.h"
+#include "clang/Basic/Sarif.h"
 #include "clang/Frontend/ASTUnit.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendDiagnostic.h"
 #include "clang/Frontend/FrontendPluginRegistry.h"
 #include "clang/Frontend/LayoutOverrideSource.h"
 #include "clang/Frontend/MultiplexConsumer.h"
+#include "clang/Frontend/SARIFDiagnosticPrinter.h"
 #include "clang/Frontend/Utils.h"
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/LiteralSupport.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Lex/PreprocessorOptions.h"
 #include "clang/Parse/ParseAST.h"
+#include "clang/Sema/HLSLExternalSemaSource.h"
+#include "clang/Sema/MultiplexExternalSemaSource.h"
 #include "clang/Serialization/ASTDeserializationListener.h"
 #include "clang/Serialization/ASTReader.h"
 #include "clang/Serialization/GlobalModuleIndex.h"
@@ -34,6 +39,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
+#include <memory>
 #include <system_error>
 using namespace clang;
 
@@ -187,14 +193,17 @@ FrontendAction::CreateWrappedASTConsumer(CompilerInstance &CI,
        FrontendPluginRegistry::entries()) {
     std::unique_ptr<PluginASTAction> P = Plugin.instantiate();
     PluginASTAction::ActionType ActionType = P->getActionType();
-    if (ActionType == PluginASTAction::Cmdline) {
+    if (ActionType == PluginASTAction::CmdlineAfterMainAction ||
+        ActionType == PluginASTAction::CmdlineBeforeMainAction) {
       // This is O(|plugins| * |add_plugins|), but since both numbers are
       // way below 50 in practice, that's ok.
-      if (llvm::any_of(CI.getFrontendOpts().AddPluginActions,
-                       [&](const std::string &PluginAction) {
-                         return PluginAction == Plugin.getName();
-                       }))
-        ActionType = PluginASTAction::AddAfterMainAction;
+      if (llvm::is_contained(CI.getFrontendOpts().AddPluginActions,
+                             Plugin.getName())) {
+        if (ActionType == PluginASTAction::CmdlineBeforeMainAction)
+          ActionType = PluginASTAction::AddBeforeMainAction;
+        else
+          ActionType = PluginASTAction::AddAfterMainAction;
+      }
     }
     if ((ActionType == PluginASTAction::AddBeforeMainAction ||
          ActionType == PluginASTAction::AddAfterMainAction) &&
@@ -212,8 +221,13 @@ FrontendAction::CreateWrappedASTConsumer(CompilerInstance &CI,
 
   // Add to Consumers the main consumer, then all the plugins that go after it
   Consumers.push_back(std::move(Consumer));
-  for (auto &C : AfterConsumers) {
-    Consumers.push_back(std::move(C));
+  if (!AfterConsumers.empty()) {
+    // If we have plugins after the main consumer, which may be the codegen
+    // action, they likely will need the ASTContext, so don't clear it in the
+    // codegen action.
+    CI.getCodeGenOpts().ClearASTBeforeBackend = false;
+    for (auto &C : AfterConsumers)
+      Consumers.push_back(std::move(C));
   }
 
   return std::make_unique<MultiplexConsumer>(std::move(Consumers));
@@ -321,7 +335,7 @@ static std::error_code collectModuleHeaderIncludes(
     return std::error_code();
 
   // Resolve all lazy header directives to header files.
-  ModMap.resolveHeaderDirectives(Module);
+  ModMap.resolveHeaderDirectives(Module, /*File=*/llvm::None);
 
   // If any headers are missing, we can't build this module. In most cases,
   // diagnostics for this should have already been produced; we only get here
@@ -403,11 +417,7 @@ static std::error_code collectModuleHeaderIncludes(
 
     // Sort header paths and make the header inclusion order deterministic
     // across different OSs and filesystems.
-    llvm::sort(Headers.begin(), Headers.end(), [](
-      const std::pair<std::string, const FileEntry *> &LHS,
-      const std::pair<std::string, const FileEntry *> &RHS) {
-        return LHS.first < RHS.first;
-    });
+    llvm::sort(Headers, llvm::less_first());
     for (auto &H : Headers) {
       // Include this header as part of the umbrella directory.
       Module->addTopHeader(H.second);
@@ -454,6 +464,15 @@ static bool loadModuleMapForModuleBuild(CompilerInstance &CI, bool IsSystem,
 
   if (SrcMgr.getBufferOrFake(ModuleMapID).getBufferSize() == Offset)
     Offset = 0;
+
+  // Infer framework module if possible.
+  if (HS.getModuleMap().canInferFrameworkModule(ModuleMap->getDir())) {
+    SmallString<128> InferredFrameworkPath = ModuleMap->getDir()->getName();
+    llvm::sys::path::append(InferredFrameworkPath,
+                            CI.getLangOpts().ModuleName + ".framework");
+    if (auto Dir = CI.getFileManager().getDirectory(InferredFrameworkPath))
+      (void)HS.getModuleMap().inferFrameworkModule(*Dir, IsSystem, nullptr);
+  }
 
   return false;
 }
@@ -565,6 +584,7 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
   auto FailureCleanup = llvm::make_scope_exit([&]() {
     if (HasBegunSourceFile)
       CI.getDiagnosticClient().EndSourceFile();
+    CI.setASTConsumer(nullptr);
     CI.clearOutputFiles(/*EraseFiles=*/true);
     CI.getLangOpts().setCompilingModule(LangOptions::CMK_None);
     setCurrentInput(FrontendInputFile());
@@ -700,8 +720,14 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
       return false;
     }
   }
-  if (!CI.hasSourceManager())
+  if (!CI.hasSourceManager()) {
     CI.createSourceManager(CI.getFileManager());
+    if (CI.getDiagnosticOpts().getFormat() == DiagnosticOptions::SARIF) {
+      static_cast<SARIFDiagnosticPrinter *>(&CI.getDiagnosticClient())
+          ->setSarifWriter(
+              std::make_unique<SarifDocumentWriter>(CI.getSourceManager()));
+    }
+  }
 
   // Set up embedding for any specified files. Do this before we load any
   // source files, including the primary module map for the compilation.
@@ -742,10 +768,10 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
     PreprocessorOptions &PPOpts = CI.getPreprocessorOpts();
     StringRef PCHInclude = PPOpts.ImplicitPCHInclude;
     std::string SpecificModuleCachePath = CI.getSpecificModuleCachePath();
-    if (auto PCHDir = FileMgr.getDirectory(PCHInclude)) {
+    if (auto PCHDir = FileMgr.getOptionalDirectoryRef(PCHInclude)) {
       std::error_code EC;
       SmallString<128> DirNative;
-      llvm::sys::path::native((*PCHDir)->getName(), DirNative);
+      llvm::sys::path::native(PCHDir->getName(), DirNative);
       bool Found = false;
       llvm::vfs::FileSystem &FS = FileMgr.getVirtualFileSystem();
       for (llvm::vfs::directory_iterator Dir = FS.dir_begin(DirNative, EC),
@@ -755,7 +781,7 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
         if (ASTReader::isAcceptableASTFile(
                 Dir->path(), FileMgr, CI.getPCHContainerReader(),
                 CI.getLangOpts(), CI.getTargetOpts(), CI.getPreprocessorOpts(),
-                SpecificModuleCachePath)) {
+                SpecificModuleCachePath, /*RequireStrictOptionMatches=*/true)) {
           PPOpts.ImplicitPCHInclude = std::string(Dir->path());
           Found = true;
           break;
@@ -779,9 +805,65 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
                                            &CI.getPreprocessor());
   HasBegunSourceFile = true;
 
-  // Initialize the main file entry.
+  // Handle C++20 header units.
+  // Here, the user has the option to specify that the header name should be
+  // looked up in the pre-processor search paths (and the main filename as
+  // passed by the driver might therefore be incomplete until that look-up).
+  if (CI.getLangOpts().CPlusPlusModules && Input.getKind().isHeaderUnit() &&
+      !Input.getKind().isPreprocessed()) {
+    StringRef FileName = Input.getFile();
+    InputKind Kind = Input.getKind();
+    if (Kind.getHeaderUnitKind() != InputKind::HeaderUnit_Abs) {
+      assert(CI.hasPreprocessor() &&
+             "trying to build a header unit without a Pre-processor?");
+      HeaderSearch &HS = CI.getPreprocessor().getHeaderSearchInfo();
+      // Relative searches begin from CWD.
+      const DirectoryEntry *Dir = nullptr;
+      if (auto DirOrErr = CI.getFileManager().getDirectory("."))
+        Dir = *DirOrErr;
+      SmallVector<std::pair<const FileEntry *, const DirectoryEntry *>, 1> CWD;
+      CWD.push_back({nullptr, Dir});
+      Optional<FileEntryRef> FE =
+          HS.LookupFile(FileName, SourceLocation(),
+                        /*Angled*/ Input.getKind().getHeaderUnitKind() ==
+                            InputKind::HeaderUnit_System,
+                        nullptr, nullptr, CWD, nullptr, nullptr, nullptr,
+                        nullptr, nullptr, nullptr);
+      if (!FE) {
+        CI.getDiagnostics().Report(diag::err_module_header_file_not_found)
+            << FileName;
+        return false;
+      }
+      // We now have the filename...
+      FileName = FE->getFileEntry().getName();
+      // ... still a header unit, but now use the path as written.
+      Kind = Input.getKind().withHeaderUnit(InputKind::HeaderUnit_Abs);
+      Input = FrontendInputFile(FileName, Kind, Input.isSystem());
+    }
+    // Unless the user has overridden the name, the header unit module name is
+    // the pathname for the file.
+    if (CI.getLangOpts().ModuleName.empty())
+      CI.getLangOpts().ModuleName = std::string(FileName);
+    CI.getLangOpts().CurrentModule = CI.getLangOpts().ModuleName;
+  }
+
   if (!CI.InitializeSourceManager(Input))
     return false;
+
+  if (CI.getLangOpts().CPlusPlusModules && Input.getKind().isHeaderUnit() &&
+      Input.getKind().isPreprocessed() && !usesPreprocessorOnly()) {
+    // We have an input filename like foo.iih, but we want to find the right
+    // module name (and original file, to build the map entry).
+    // Check if the first line specifies the original source file name with a
+    // linemarker.
+    std::string PresumedInputFile = std::string(getCurrentFileOrBufferName());
+    ReadOriginalFileName(CI, PresumedInputFile);
+    // Unless the user overrides this, the module name is the name by which the
+    // original file was known.
+    if (CI.getLangOpts().ModuleName.empty())
+      CI.getLangOpts().ModuleName = std::string(PresumedInputFile);
+    CI.getLangOpts().CurrentModule = CI.getLangOpts().ModuleName;
+  }
 
   // For module map files, we first parse the module map and synthesize a
   // "<module-includes>" buffer before more conventional processing.
@@ -831,6 +913,9 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
     else
       CI.getDiagnostics().Report(diag::err_module_map_not_found) << Filename;
   }
+
+  // If compiling implementation of a module, load its module map file now.
+  (void)CI.getPreprocessor().getCurrentModuleImplementation();
 
   // Add a module declaration scope so that modules from -fmodule-map-file
   // arguments may shadow modules found implicitly in search paths.
@@ -943,6 +1028,19 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
     CI.getASTContext().setExternalSource(Override);
   }
 
+  // Setup HLSL External Sema Source
+  if (CI.getLangOpts().HLSL && CI.hasASTContext()) {
+    IntrusiveRefCntPtr<ExternalSemaSource> HLSLSema(
+        new HLSLExternalSemaSource());
+    if (auto *SemaSource = dyn_cast_if_present<ExternalSemaSource>(
+            CI.getASTContext().getExternalSource())) {
+      IntrusiveRefCntPtr<ExternalSemaSource> MultiSema(
+          new MultiplexExternalSemaSource(SemaSource, HLSLSema.get()));
+      CI.getASTContext().setExternalSource(MultiSema);
+    } else
+      CI.getASTContext().setExternalSource(HLSLSema);
+  }
+
   FailureCleanup.release();
   return true;
 }
@@ -1004,7 +1102,7 @@ void FrontendAction::EndSourceFile() {
   }
 
   if (CI.getFrontendOpts().ShowStats) {
-    llvm::errs() << "\nSTATISTICS FOR '" << getCurrentFile() << "':\n";
+    llvm::errs() << "\nSTATISTICS FOR '" << getCurrentFileOrBufferName() << "':\n";
     CI.getPreprocessor().PrintStats();
     CI.getPreprocessor().getIdentifierTable().PrintStats();
     CI.getPreprocessor().getHeaderSearchInfo().PrintStats();
@@ -1125,4 +1223,3 @@ bool WrapperFrontendAction::hasCodeCompletionSupport() const {
 WrapperFrontendAction::WrapperFrontendAction(
     std::unique_ptr<FrontendAction> WrappedAction)
   : WrappedAction(std::move(WrappedAction)) {}
-

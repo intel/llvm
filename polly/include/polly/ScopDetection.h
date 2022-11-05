@@ -56,8 +56,6 @@
 
 namespace llvm {
 class AAResults;
-
-void initializeScopDetectionWrapperPassPass(PassRegistry &);
 } // namespace llvm
 
 namespace polly {
@@ -146,6 +144,10 @@ public:
     Region &CurRegion;   // The region to check.
     AliasSetTracker AST; // The AliasSetTracker to hold the alias information.
     bool Verifying;      // If we are in the verification phase?
+
+    /// If this flag is set, the SCoP must eventually be rejected, even with
+    /// KeepGoing.
+    bool IsInvalid = false;
 
     /// Container to remember rejection reasons for this region.
     RejectLog Log;
@@ -290,13 +292,13 @@ private:
   bool hasBaseAffineAccesses(DetectionContext &Context,
                              const SCEVUnknown *BasePointer, Loop *Scope) const;
 
-  // Delinearize all non affine memory accesses and return false when there
-  // exists a non affine memory access that cannot be delinearized. Return true
-  // when all array accesses are affine after delinearization.
+  /// Delinearize all non affine memory accesses and return false when there
+  /// exists a non affine memory access that cannot be delinearized. Return true
+  /// when all array accesses are affine after delinearization.
   bool hasAffineMemoryAccesses(DetectionContext &Context) const;
 
-  // Try to expand the region R. If R can be expanded return the expanded
-  // region, NULL otherwise.
+  /// Try to expand the region R. If R can be expanded return the expanded
+  /// region, NULL otherwise.
   Region *expandRegion(Region &R);
 
   /// Find the Scops in this region tree.
@@ -307,8 +309,6 @@ private:
   /// Check if all basic block in the region are valid.
   ///
   /// @param Context The context of scop detection.
-  ///
-  /// @return True if all blocks in R are valid, false otherwise.
   bool allBlocksValid(DetectionContext &Context);
 
   /// Check if a region has sufficient compute instructions.
@@ -350,23 +350,21 @@ private:
   ///
   /// @param Context The context of scop detection.
   ///
-  /// @return True if R is a Scop, false otherwise.
+  /// @return If we short-circuited early to not waste time on known-invalid
+  ///         SCoPs. Use Context.IsInvalid to determine whether the region is a
+  ///         valid SCoP.
   bool isValidRegion(DetectionContext &Context);
 
   /// Check if an intrinsic call can be part of a Scop.
   ///
   /// @param II      The intrinsic call instruction to check.
   /// @param Context The current detection context.
-  ///
-  /// @return True if the call instruction is valid, false otherwise.
   bool isValidIntrinsicInst(IntrinsicInst &II, DetectionContext &Context) const;
 
   /// Check if a call instruction can be part of a Scop.
   ///
   /// @param CI      The call instruction to check.
   /// @param Context The current detection context.
-  ///
-  /// @return True if the call instruction is valid, false otherwise.
   bool isValidCallInst(CallInst &CI, DetectionContext &Context) const;
 
   /// Check if the given loads could be invariant and can be hoisted.
@@ -404,26 +402,12 @@ private:
   ///
   /// @param Inst The instruction accessing the memory.
   /// @param Context The context of scop detection.
-  ///
-  /// @return True if the memory access is valid, false otherwise.
   bool isValidMemoryAccess(MemAccInst Inst, DetectionContext &Context) const;
-
-  /// Check if an instruction has any non trivial scalar dependencies as part of
-  /// a Scop.
-  ///
-  /// @param Inst The instruction to check.
-  /// @param RefRegion The region in respect to which we check the access
-  ///                  function.
-  ///
-  /// @return True if the instruction has scalar dependences, false otherwise.
-  bool hasScalarDependency(Instruction &Inst, Region &RefRegion) const;
 
   /// Check if an instruction can be part of a Scop.
   ///
   /// @param Inst The instruction to check.
   /// @param Context The context of scop detection.
-  ///
-  /// @return True if the instruction is valid, false otherwise.
   bool isValidInstruction(Instruction &Inst, DetectionContext &Context);
 
   /// Check if the switch @p SI with condition @p Condition is valid.
@@ -433,8 +417,6 @@ private:
   /// @param Condition    The switch condition.
   /// @param IsLoopBranch Flag to indicate the branch is a loop exit/latch.
   /// @param Context      The context of scop detection.
-  ///
-  /// @return True if the branch @p BI is valid.
   bool isValidSwitch(BasicBlock &BB, SwitchInst *SI, Value *Condition,
                      bool IsLoopBranch, DetectionContext &Context) const;
 
@@ -445,8 +427,6 @@ private:
   /// @param Condition    The branch condition.
   /// @param IsLoopBranch Flag to indicate the branch is a loop exit/latch.
   /// @param Context      The context of scop detection.
-  ///
-  /// @return True if the branch @p BI is valid.
   bool isValidBranch(BasicBlock &BB, BranchInst *BI, Value *Condition,
                      bool IsLoopBranch, DetectionContext &Context);
 
@@ -471,10 +451,8 @@ private:
   ///
   /// @param BB               The BB to check the control flow.
   /// @param IsLoopBranch     Flag to indicate the branch is a loop exit/latch.
-  //  @param AllowUnreachable Allow unreachable statements.
+  ///  @param AllowUnreachable Allow unreachable statements.
   /// @param Context          The context of scop detection.
-  ///
-  /// @return True if the BB contains only valid control flow.
   bool isValidCFG(BasicBlock &BB, bool IsLoopBranch, bool AllowUnreachable,
                   DetectionContext &Context);
 
@@ -482,8 +460,6 @@ private:
   ///
   /// @param L The loop to check.
   /// @param Context The context of scop detection.
-  ///
-  /// @return True if the loop is valid in the region.
   bool isValidLoop(Loop *L, DetectionContext &Context);
 
   /// Count the number of loops and the maximal loop depth in @p L.
@@ -562,9 +538,6 @@ public:
   /// Return the set of rejection causes for @p R.
   const RejectLog *lookupRejectionLog(const Region *R) const;
 
-  /// Return true if @p SubR is a non-affine subregion in @p ScopR.
-  bool isNonAffineSubRegion(const Region *SubR, const Region *ScopR) const;
-
   /// Get a message why a region is invalid
   ///
   /// @param R The region for which we get the error message
@@ -642,7 +615,7 @@ private:
   OptimizationRemarkEmitter &ORE;
 };
 
-struct ScopAnalysis : public AnalysisInfoMixin<ScopAnalysis> {
+struct ScopAnalysis : AnalysisInfoMixin<ScopAnalysis> {
   static AnalysisKey Key;
 
   using Result = ScopDetection;
@@ -652,7 +625,7 @@ struct ScopAnalysis : public AnalysisInfoMixin<ScopAnalysis> {
   Result run(Function &F, FunctionAnalysisManager &FAM);
 };
 
-struct ScopAnalysisPrinterPass : public PassInfoMixin<ScopAnalysisPrinterPass> {
+struct ScopAnalysisPrinterPass final : PassInfoMixin<ScopAnalysisPrinterPass> {
   ScopAnalysisPrinterPass(raw_ostream &OS) : OS(OS) {}
 
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM);
@@ -660,22 +633,30 @@ struct ScopAnalysisPrinterPass : public PassInfoMixin<ScopAnalysisPrinterPass> {
   raw_ostream &OS;
 };
 
-struct ScopDetectionWrapperPass : public FunctionPass {
-  static char ID;
+class ScopDetectionWrapperPass final : public FunctionPass {
   std::unique_ptr<ScopDetection> Result;
 
+public:
   ScopDetectionWrapperPass();
 
   /// @name FunctionPass interface
-  //@{
+  ///@{
+  static char ID;
   void getAnalysisUsage(AnalysisUsage &AU) const override;
   void releaseMemory() override;
   bool runOnFunction(Function &F) override;
-  void print(raw_ostream &OS, const Module *) const override;
-  //@}
+  void print(raw_ostream &OS, const Module *M = nullptr) const override;
+  ///@}
 
   ScopDetection &getSD() const { return *Result; }
 };
+
+llvm::Pass *createScopDetectionPrinterLegacyPass(llvm::raw_ostream &OS);
 } // namespace polly
+
+namespace llvm {
+void initializeScopDetectionWrapperPassPass(llvm::PassRegistry &);
+void initializeScopDetectionPrinterLegacyPassPass(llvm::PassRegistry &);
+} // namespace llvm
 
 #endif // POLLY_SCOPDETECTION_H

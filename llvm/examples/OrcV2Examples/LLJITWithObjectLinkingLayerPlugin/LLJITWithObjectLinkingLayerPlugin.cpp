@@ -100,14 +100,15 @@ private:
       return;
     }
 
-    JITTargetAddress InitAddr = B.getAddress() & ~(LineWidth - 1);
-    JITTargetAddress StartAddr = B.getAddress();
-    JITTargetAddress EndAddr = B.getAddress() + B.getSize();
+    ExecutorAddr InitAddr(B.getAddress().getValue() & ~(LineWidth - 1));
+    ExecutorAddr StartAddr = B.getAddress();
+    ExecutorAddr EndAddr = B.getAddress() + B.getSize();
     auto *Data = reinterpret_cast<const uint8_t *>(B.getContent().data());
 
-    for (JITTargetAddress CurAddr = InitAddr; CurAddr != EndAddr; ++CurAddr) {
+    for (ExecutorAddr CurAddr = InitAddr; CurAddr != EndAddr; ++CurAddr) {
       if (CurAddr % LineWidth == 0)
-        outs() << "          " << formatv("{0:x16}", CurAddr) << ": ";
+        outs() << "          " << formatv("{0:x16}", CurAddr.getValue())
+               << ": ";
       if (CurAddr < StartAddr)
         outs() << "   ";
       else
@@ -156,7 +157,7 @@ private:
         printBlockContent(B);
         BlocksAlreadyVisited.insert(&B);
 
-        if (!llvm::empty(B.edges())) {
+        if (!B.edges().empty()) {
           outs() << "        Edges:\n";
           for (auto &E : B.edges()) {
             outs() << "          "
@@ -182,7 +183,7 @@ static cl::opt<std::string>
     EntryPointName("entry", cl::desc("Symbol to call as main entry point"),
                    cl::init("entry"));
 
-static cl::list<std::string> InputObjects(cl::Positional, cl::ZeroOrMore,
+static cl::list<std::string> InputObjects(cl::Positional,
                                           cl::desc("input objects"));
 
 int main(int argc, char *argv[]) {
@@ -240,8 +241,8 @@ int main(int argc, char *argv[]) {
   }
 
   // Look up the JIT'd function, cast it to a function pointer, then call it.
-  auto EntrySym = ExitOnErr(J->lookup(EntryPointName));
-  auto *Entry = (int (*)())EntrySym.getAddress();
+  auto EntryAddr = ExitOnErr(J->lookup(EntryPointName));
+  auto *Entry = EntryAddr.toPtr<int()>();
 
   int Result = Entry();
   outs() << "---Result---\n"

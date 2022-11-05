@@ -58,7 +58,6 @@ check_cxx_compiler_flag(-Wstringop-overflow=0 LIBOMP_HAVE_WSTRINGOP_OVERFLOW_FLA
 check_cxx_compiler_flag(-Wno-stringop-truncation LIBOMP_HAVE_WNO_STRINGOP_TRUNCATION_FLAG)
 check_cxx_compiler_flag(-Wno-switch LIBOMP_HAVE_WNO_SWITCH_FLAG)
 check_cxx_compiler_flag(-Wno-uninitialized LIBOMP_HAVE_WNO_UNINITIALIZED_FLAG)
-check_cxx_compiler_flag(-Wno-unused-but-set-variable LIBOMP_HAVE_WNO_UNUSED_BUT_SET_VARIABLE_FLAG)
 check_cxx_compiler_flag(-Wno-return-type-c-linkage LIBOMP_HAVE_WNO_RETURN_TYPE_C_LINKAGE_FLAG)
 check_cxx_compiler_flag(-Wno-cast-qual LIBOMP_HAVE_WNO_CAST_QUAL_FLAG)
 check_cxx_compiler_flag(-Wno-int-to-void-pointer-cast LIBOMP_HAVE_WNO_INT_TO_VOID_POINTER_CAST_FLAG)
@@ -139,7 +138,7 @@ elseif(NOT APPLE)
 endif()
 
 # Check Intel(R) C Compiler specific flags
-if(CMAKE_C_COMPILER_ID STREQUAL "Intel")
+if(CMAKE_C_COMPILER_ID STREQUAL "Intel" OR CMAKE_C_COMPILER_ID STREQUAL "IntelLLVM")
   check_cxx_compiler_flag(/Qlong_double LIBOMP_HAVE_LONG_DOUBLE_FLAG)
   check_cxx_compiler_flag(/Qdiag-disable:177 LIBOMP_HAVE_DIAG_DISABLE_177_FLAG)
   check_cxx_compiler_flag(/Qinline-min-size=1 LIBOMP_HAVE_INLINE_MIN_SIZE_FLAG)
@@ -247,7 +246,7 @@ libomp_check_version_symbols(LIBOMP_HAVE_VERSION_SYMBOLS)
 # Check if quad precision types are available
 if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
   set(LIBOMP_HAVE_QUAD_PRECISION TRUE)
-elseif(CMAKE_C_COMPILER_ID STREQUAL "Intel")
+elseif(CMAKE_C_COMPILER_ID STREQUAL "Intel" OR CMAKE_C_COMPILER_ID STREQUAL "IntelLLVM")
   if(LIBOMP_HAVE_EXTENDED_FLOAT_TYPES_FLAG)
     set(LIBOMP_HAVE_QUAD_PRECISION TRUE)
   else()
@@ -321,7 +320,8 @@ else()
       (LIBOMP_ARCH STREQUAL aarch64_a64fx) OR
       (LIBOMP_ARCH STREQUAL ppc64le) OR
       (LIBOMP_ARCH STREQUAL ppc64) OR
-      (LIBOMP_ARCH STREQUAL riscv64))
+      (LIBOMP_ARCH STREQUAL riscv64) OR
+      (LIBOMP_ARCH STREQUAL loongarch64))
      AND # OS supported?
      ((WIN32 AND LIBOMP_HAVE_PSAPI) OR APPLE OR (NOT WIN32 AND LIBOMP_HAVE_WEAK_ATTRIBUTE)))
     set(LIBOMP_HAVE_OMPT_SUPPORT TRUE)
@@ -329,11 +329,11 @@ else()
     set(LIBOMP_HAVE_OMPT_SUPPORT FALSE)
   endif()
 endif()
-set(LIBOMP_HAVE_OMPT_SUPPORT ${LIBOMP_HAVE_OMPT_SUPPORT} PARENT_SCOPE)
 
 # Check if HWLOC support is available
 if(${LIBOMP_USE_HWLOC})
-  set(CMAKE_REQUIRED_INCLUDES ${LIBOMP_HWLOC_INSTALL_DIR}/include)
+  find_path(LIBOMP_HWLOC_INCLUDE_DIR NAMES hwloc.h HINTS ${LIBOMP_HWLOC_INSTALL_DIR} PATH_SUFFIXES include)
+  set(CMAKE_REQUIRED_INCLUDES ${LIBOMP_HWLOC_INCLUDE_DIR})
   check_include_file(hwloc.h LIBOMP_HAVE_HWLOC_H)
   set(CMAKE_REQUIRED_INCLUDES)
   find_library(LIBOMP_HWLOC_LIBRARY

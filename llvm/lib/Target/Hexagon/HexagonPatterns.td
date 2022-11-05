@@ -10,7 +10,7 @@
 //     (0) Definitions
 //     (1) Immediates
 //     (2) Type casts
-//     (3) Extend/truncate
+//     (3) Extend/truncate/saturate
 //     (4) Logical
 //     (5) Compare
 //     (6) Select
@@ -87,18 +87,6 @@ def V8I8:   PatLeaf<(v8i8    DoubleRegs:$R)>;
 def V4I16:  PatLeaf<(v4i16   DoubleRegs:$R)>;
 def V2I32:  PatLeaf<(v2i32   DoubleRegs:$R)>;
 
-def HQ8:    PatLeaf<(VecQ8   HvxQR:$R)>;
-def HQ16:   PatLeaf<(VecQ16  HvxQR:$R)>;
-def HQ32:   PatLeaf<(VecQ32  HvxQR:$R)>;
-
-def HVI8:   PatLeaf<(VecI8   HvxVR:$R)>;
-def HVI16:  PatLeaf<(VecI16  HvxVR:$R)>;
-def HVI32:  PatLeaf<(VecI32  HvxVR:$R)>;
-
-def HWI8:   PatLeaf<(VecPI8  HvxWR:$R)>;
-def HWI16:  PatLeaf<(VecPI16 HvxWR:$R)>;
-def HWI32:  PatLeaf<(VecPI32 HvxWR:$R)>;
-
 def SDTVecLeaf:
   SDTypeProfile<1, 0, [SDTCisVec<0>]>;
 def SDTVecVecIntOp:
@@ -109,6 +97,12 @@ def HexagonPTRUE:      SDNode<"HexagonISD::PTRUE",      SDTVecLeaf>;
 def HexagonPFALSE:     SDNode<"HexagonISD::PFALSE",     SDTVecLeaf>;
 def HexagonVALIGN:     SDNode<"HexagonISD::VALIGN",     SDTVecVecIntOp>;
 def HexagonVALIGNADDR: SDNode<"HexagonISD::VALIGNADDR", SDTIntUnaryOp>;
+def HexagonMULHUS:     SDNode<"HexagonISD::MULHUS",     SDTIntBinOp>;
+
+def SDTSaturate:
+  SDTypeProfile<1, 2, [SDTCisInt<0>, SDTCisInt<1>, SDTCisVT<2, OtherVT>]>;
+def HexagonSSAT: SDNode<"HexagonISD::SSAT", SDTSaturate>;
+def HexagonUSAT: SDNode<"HexagonISD::USAT", SDTSaturate>;
 
 def ptrue:  PatFrag<(ops), (HexagonPTRUE)>;
 def pfalse: PatFrag<(ops), (HexagonPFALSE)>;
@@ -117,6 +111,9 @@ def pnot:   PatFrag<(ops node:$Pu), (xor node:$Pu, ptrue)>;
 def valign: PatFrag<(ops node:$Vt, node:$Vs, node:$Ru),
                     (HexagonVALIGN node:$Vt, node:$Vs, node:$Ru)>;
 def valignaddr: PatFrag<(ops node:$Addr), (HexagonVALIGNADDR node:$Addr)>;
+
+def ssat: PatFrag<(ops node:$V, node:$Ty), (HexagonSSAT node:$V, node:$Ty)>;
+def usat: PatFrag<(ops node:$V, node:$Ty), (HexagonUSAT node:$V, node:$Ty)>;
 
 // Pattern fragments to extract the low and high subregisters from a
 // 64-bit value.
@@ -269,6 +266,9 @@ def anyimm3: PatLeaf<(i32 AnyImm3:$Addr)>;
 
 def f32ImmPred : PatLeaf<(f32 fpimm:$F)>;
 def f64ImmPred : PatLeaf<(f64 fpimm:$F)>;
+def f32zero: PatLeaf<(f32 fpimm:$F), [{
+  return N->isExactlyValue(APFloat::getZero(APFloat::IEEEsingle(), false));
+}]>;
 
 // This complex pattern is really only to detect various forms of
 // sign-extension i32->i64. The selected value will be of type i64
@@ -378,6 +378,12 @@ def Umin: pf2<umin>;  def Umax: pf2<umax>;
 
 def Rol: pf2<rotl>;
 
+def Fptosi: pf1<fp_to_sint>;
+def Fptoui: pf1<fp_to_uint>;
+def Sitofp: pf1<sint_to_fp>;
+def Uitofp: pf1<uint_to_fp>;
+
+
 // --(1) Immediate -------------------------------------------------------
 //
 
@@ -480,7 +486,7 @@ defm: NopCast_pat<v2i32,  v8i8, DoubleRegs>;
 defm: NopCast_pat<v4i16,  v8i8, DoubleRegs>;
 
 
-// --(3) Extend/truncate -------------------------------------------------
+// --(3) Extend/truncate/saturate ----------------------------------------
 //
 
 def: Pat<(sext_inreg I32:$Rs, i8),  (A2_sxtb I32:$Rs)>;
@@ -555,6 +561,22 @@ def: Pat<(v4i8 (trunc V4I16:$Rs)),
 
 def: Pat<(v2i16 (trunc V2I32:$Rs)),
          (A2_combine_ll (HiReg $Rs), (LoReg $Rs))>;
+
+// Saturation:
+// Note: saturation assumes the same signed-ness for the input and the
+// output.
+def: Pat<(i32 (ssat I32:$Rs, i8)),  (A2_satb  I32:$Rs)>;
+def: Pat<(i32 (ssat I32:$Rs, i16)), (A2_sath  I32:$Rs)>;
+def: Pat<(i32 (ssat I64:$Rs, i32)), (A2_sat   I64:$Rs)>;
+def: Pat<(i32 (usat I32:$Rs, i8)),  (A2_satub I32:$Rs)>;
+def: Pat<(i32 (usat I32:$Rs, i16)), (A2_satuh I32:$Rs)>;
+def: Pat<(i32 (usat I64:$Rs, i32)),
+         (C2_mux (C2_cmpeqi (HiReg $Rs), (i32 0)), (LoReg $Rs), (i32 -1))>;
+
+def: Pat<(v4i8  (ssat V4I16:$Rs, v4i8)),  (S2_vsathb  V4I16:$Rs)>;
+def: Pat<(v2i16 (ssat V2I32:$Rs, v2i16)), (S2_vsatwh  V2I32:$Rs)>;
+def: Pat<(v4i8  (usat V4I16:$Rs, v4i8)),  (S2_vsathub V4I16:$Rs)>;
+def: Pat<(v2i16 (usat V2I32:$Rs, v2i16)), (S2_vsatwuh V2I32:$Rs)>;
 
 
 // --(4) Logical ---------------------------------------------------------
@@ -1036,6 +1058,30 @@ def: Pat<(v8i8 (splat_vector I32:$Rs)), (S6_vsplatrbp I32:$Rs)>,
 def: Pat<(v8i8 (splat_vector I32:$Rs)),
          (Combinew (S2_vsplatrb I32:$Rs), (S2_vsplatrb I32:$Rs))>;
 
+let AddedComplexity = 10 in {
+  def: Pat<(sext_inreg (HexagonEXTRACTU I32:$Rs,  8, u5_0ImmPred:$U5),  i8),
+           (S4_extract  I32:$Rs,  8, imm:$U5)>;
+  def: Pat<(sext_inreg (HexagonEXTRACTU I32:$Rs, 16, u5_0ImmPred:$U5), i16),
+           (S4_extract  I32:$Rs, 16, imm:$U5)>;
+  def: Pat<(sext_inreg (HexagonEXTRACTU I64:$Rs,  8, u6_0ImmPred:$U6),  i8),
+           (S4_extractp I64:$Rs,  8, imm:$U6)>;
+  def: Pat<(sext_inreg (HexagonEXTRACTU I64:$Rs, 16, u6_0ImmPred:$U6), i16),
+           (S4_extractp I64:$Rs, 16, imm:$U6)>;
+  def: Pat<(sext_inreg (HexagonEXTRACTU I64:$Rs, 32, u6_0ImmPred:$U6), i32),
+           (S4_extractp I64:$Rs, 32, imm:$U6)>;
+}
+
+def: Pat<(sext_inreg (HexagonEXTRACTU I32:$Rs,  8, I32:$Off),  i8),
+         (S4_extract_rp  I32:$Rs, (Combinew (ToI32 8), I32:$Off))>;
+def: Pat<(sext_inreg (HexagonEXTRACTU I32:$Rs, 16, I32:$Off), i16),
+         (S4_extract_rp  I32:$Rs, (Combinew (ToI32 16), I32:$Off))>;
+def: Pat<(sext_inreg (HexagonEXTRACTU I64:$Rs,  8, I32:$Off),  i8),
+         (S4_extractp_rp I64:$Rs, (Combinew (ToI32 8), I32:$Off))>;
+def: Pat<(sext_inreg (HexagonEXTRACTU I64:$Rs, 16, I32:$Off), i16),
+         (S4_extractp_rp I64:$Rs, (Combinew (ToI32 16), I32:$Off))>;
+def: Pat<(sext_inreg (HexagonEXTRACTU I64:$Rs, 32, I32:$Off), i32),
+         (S4_extractp_rp I64:$Rs, (Combinew (ToI32 32), I32:$Off))>;
+
 
 // --(8) Shift/permute ---------------------------------------------------
 //
@@ -1320,6 +1366,10 @@ def SDTHexagonVShift
 def HexagonVASL: SDNode<"HexagonISD::VASL", SDTHexagonVShift>;
 def HexagonVASR: SDNode<"HexagonISD::VASR", SDTHexagonVShift>;
 def HexagonVLSR: SDNode<"HexagonISD::VLSR", SDTHexagonVShift>;
+
+// Funnel shifts with the shift amount module element bit width.
+def HexagonMFSHL: SDNode<"HexagonISD::MFSHL", SDTIntShiftDOp>;
+def HexagonMFSHR: SDNode<"HexagonISD::MFSHR", SDTIntShiftDOp>;
 
 def: OpR_RI_pat<S2_asl_i_vw, pf2<HexagonVASL>, v2i32, V2I32, u5_0ImmPred>;
 def: OpR_RI_pat<S2_asl_i_vh, pf2<HexagonVASL>, v4i16, V4I16, u4_0ImmPred>;
@@ -2083,7 +2133,7 @@ let AddedComplexity = 20 in {
   defm: Loadxi_pat<sextloadi8,      i32,   anyimm0, L2_loadrb_io>;
   defm: Loadxi_pat<sextloadi16,     i32,   anyimm1, L2_loadrh_io>;
   defm: Loadxi_pat<sextloadv2i8,    v2i16, anyimm1, L2_loadbsw2_io>;
-  defm: Loadxi_pat<sextloadv4i8,    v4i16, anyimm2, L2_loadbzw4_io>;
+  defm: Loadxi_pat<sextloadv4i8,    v4i16, anyimm2, L2_loadbsw4_io>;
   defm: Loadxi_pat<zextloadi1,      i32,   anyimm0, L2_loadrub_io>;
   defm: Loadxi_pat<zextloadi8,      i32,   anyimm0, L2_loadrub_io>;
   defm: Loadxi_pat<zextloadi16,     i32,   anyimm1, L2_loadruh_io>;
@@ -2135,7 +2185,7 @@ let AddedComplexity  = 60 in {
   def: Loadxu_pat<sextloadi8,   i32,   anyimm0, L4_loadrb_ur>;
   def: Loadxu_pat<sextloadi16,  i32,   anyimm1, L4_loadrh_ur>;
   def: Loadxu_pat<sextloadv2i8, v2i16, anyimm1, L4_loadbsw2_ur>;
-  def: Loadxu_pat<sextloadv4i8, v4i16, anyimm2, L4_loadbzw4_ur>;
+  def: Loadxu_pat<sextloadv4i8, v4i16, anyimm2, L4_loadbsw4_ur>;
   def: Loadxu_pat<zextloadi1,   i32,   anyimm0, L4_loadrub_ur>;
   def: Loadxu_pat<zextloadi8,   i32,   anyimm0, L4_loadrub_ur>;
   def: Loadxu_pat<zextloadi16,  i32,   anyimm1, L4_loadruh_ur>;
@@ -3276,3 +3326,9 @@ let AddedComplexity = 100 in {
   def: Pat<(i1 (seteq (int_hexagon_S4_stored_locked I32:$Rs, I64:$Rt), 0)),
            (C2_not (S4_stored_locked I32:$Rs, I64:$Rt))>;
 }
+
+def: Pat<(int_hexagon_instrprof_custom (HexagonAtPcrel tglobaladdr:$addr), u32_0ImmPred:$I),
+         (PS_call_instrprof_custom tglobaladdr:$addr, imm:$I)>;
+
+def: Pat<(int_hexagon_instrprof_custom (HexagonCONST32 tglobaladdr:$addr), u32_0ImmPred:$I),
+         (PS_call_instrprof_custom tglobaladdr:$addr, imm:$I)>;

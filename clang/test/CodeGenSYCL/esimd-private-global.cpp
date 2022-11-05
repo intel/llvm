@@ -1,5 +1,5 @@
 // RUN: %clang_cc1 -disable-llvm-passes -triple spir64-unknown-unknown \
-// RUN:   -fsycl-is-device -emit-llvm %s -o - | FileCheck %s
+// RUN:   -fsycl-is-device -opaque-pointers -emit-llvm %s -o - | FileCheck %s
 
 // This test checks that FE generates appropriate attributes for ESIMD private globals with register_num attribute.
 
@@ -14,7 +14,7 @@ __attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
 void init_vc(int x) {
   kernel<class kernel_esimd>([=]() __attribute__((sycl_explicit_simd)) {
     vc = x;
-    // CHECK: store i32 %{{[0-9a-zA-Z_]+}}, i32* @vc
+    // CHECK: store i32 %{{[0-9a-zA-Z_]+}}, ptr @vc
   });
 }
 // CHECK: attributes #[[ATTR]] = { "genx_byte_offset"="17" "genx_volatile" }

@@ -1,7 +1,7 @@
 ; REQUIRES: spirv-as
 ; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r -o - %t.spv | llvm-dis | FileCheck %s
+; RUN: llvm-spirv -r -emit-opaque-pointers -o - %t.spv | llvm-dis | FileCheck %s
                OpCapability Addresses
                OpCapability Kernel
                OpCapability Int16

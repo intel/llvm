@@ -14,6 +14,7 @@
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/None.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/AsmParser/LLToken.h"
@@ -36,7 +37,9 @@
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Metadata.h"
+#include "llvm/IR/ModRef.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/Operator.h"
 #include "llvm/IR/Value.h"
 #include "llvm/IR/ValueSymbolTable.h"
 #include "llvm/Support/Casting.h"
@@ -47,7 +50,6 @@
 #include <algorithm>
 #include <cassert>
 #include <cstring>
-#include <iterator>
 #include <vector>
 
 using namespace llvm;
@@ -59,9 +61,31 @@ static std::string getTypeString(Type *T) {
   return Tmp.str();
 }
 
+static void setContextOpaquePointers(LLLexer &L, LLVMContext &C) {
+  while (true) {
+    lltok::Kind K = L.Lex();
+    // LLLexer will set the opaque pointers option in LLVMContext if it sees an
+    // explicit "ptr".
+    if (K == lltok::star || K == lltok::Error || K == lltok::Eof ||
+        isa_and_nonnull<PointerType>(L.getTyVal())) {
+      if (K == lltok::star)
+        C.setOpaquePointers(false);
+      return;
+    }
+  }
+}
+
 /// Run: module ::= toplevelentity*
 bool LLParser::Run(bool UpgradeDebugInfo,
                    DataLayoutCallbackTy DataLayoutCallback) {
+  // If we haven't decided on whether or not we're using opaque pointers, do a
+  // quick lex over the tokens to see if we explicitly construct any typed or
+  // opaque pointer types.
+  // Don't bail out on an error so we do the same work in the parsing below
+  // regardless of if --opaque-pointers is set.
+  if (!Context.hasSetOpaquePointersValue())
+    setContextOpaquePointers(OPLex, Context);
+
   // Prime the lexer.
   Lex.Lex();
 
@@ -124,8 +148,8 @@ void LLParser::restoreParsingState(const SlotMapping *Slots) {
         std::make_pair(I.first, std::make_pair(I.second, LocTy())));
 }
 
-/// validateEndOfModule - Do final validity and sanity checks at the end of the
-/// module.
+/// validateEndOfModule - Do final validity and basic correctness checks at the
+/// end of the module.
 bool LLParser::validateEndOfModule(bool UpgradeDebugInfo) {
   if (!M)
     return false;
@@ -133,50 +157,53 @@ bool LLParser::validateEndOfModule(bool UpgradeDebugInfo) {
   for (const auto &RAG : ForwardRefAttrGroups) {
     Value *V = RAG.first;
     const std::vector<unsigned> &Attrs = RAG.second;
-    AttrBuilder B;
+    AttrBuilder B(Context);
 
-    for (const auto &Attr : Attrs)
-      B.merge(NumberedAttrBuilders[Attr]);
+    for (const auto &Attr : Attrs) {
+      auto R = NumberedAttrBuilders.find(Attr);
+      if (R != NumberedAttrBuilders.end())
+        B.merge(R->second);
+    }
 
     if (Function *Fn = dyn_cast<Function>(V)) {
       AttributeList AS = Fn->getAttributes();
-      AttrBuilder FnAttrs(AS.getFnAttrs());
+      AttrBuilder FnAttrs(M->getContext(), AS.getFnAttrs());
       AS = AS.removeFnAttributes(Context);
 
       FnAttrs.merge(B);
 
       // If the alignment was parsed as an attribute, move to the alignment
       // field.
-      if (FnAttrs.hasAlignmentAttr()) {
-        Fn->setAlignment(FnAttrs.getAlignment());
+      if (MaybeAlign A = FnAttrs.getAlignment()) {
+        Fn->setAlignment(A);
         FnAttrs.removeAttribute(Attribute::Alignment);
       }
 
-      AS = AS.addFnAttributes(Context, AttributeSet::get(Context, FnAttrs));
+      AS = AS.addFnAttributes(Context, FnAttrs);
       Fn->setAttributes(AS);
     } else if (CallInst *CI = dyn_cast<CallInst>(V)) {
       AttributeList AS = CI->getAttributes();
-      AttrBuilder FnAttrs(AS.getFnAttrs());
+      AttrBuilder FnAttrs(M->getContext(), AS.getFnAttrs());
       AS = AS.removeFnAttributes(Context);
       FnAttrs.merge(B);
-      AS = AS.addFnAttributes(Context, AttributeSet::get(Context, FnAttrs));
+      AS = AS.addFnAttributes(Context, FnAttrs);
       CI->setAttributes(AS);
     } else if (InvokeInst *II = dyn_cast<InvokeInst>(V)) {
       AttributeList AS = II->getAttributes();
-      AttrBuilder FnAttrs(AS.getFnAttrs());
+      AttrBuilder FnAttrs(M->getContext(), AS.getFnAttrs());
       AS = AS.removeFnAttributes(Context);
       FnAttrs.merge(B);
-      AS = AS.addFnAttributes(Context, AttributeSet::get(Context, FnAttrs));
+      AS = AS.addFnAttributes(Context, FnAttrs);
       II->setAttributes(AS);
     } else if (CallBrInst *CBI = dyn_cast<CallBrInst>(V)) {
       AttributeList AS = CBI->getAttributes();
-      AttrBuilder FnAttrs(AS.getFnAttrs());
+      AttrBuilder FnAttrs(M->getContext(), AS.getFnAttrs());
       AS = AS.removeFnAttributes(Context);
       FnAttrs.merge(B);
-      AS = AS.addFnAttributes(Context, AttributeSet::get(Context, FnAttrs));
+      AS = AS.addFnAttributes(Context, FnAttrs);
       CBI->setAttributes(AS);
     } else if (auto *GV = dyn_cast<GlobalVariable>(V)) {
-      AttrBuilder Attrs(GV->getAttributes());
+      AttrBuilder Attrs(M->getContext(), GV->getAttributes());
       Attrs.merge(B);
       GV->setAttributes(AttributeSet::get(Context,Attrs));
     } else {
@@ -189,6 +216,44 @@ bool LLParser::validateEndOfModule(bool UpgradeDebugInfo) {
   if (!ForwardRefBlockAddresses.empty())
     return error(ForwardRefBlockAddresses.begin()->first.Loc,
                  "expected function name in blockaddress");
+
+  auto ResolveForwardRefDSOLocalEquivalents = [&](const ValID &GVRef,
+                                                  GlobalValue *FwdRef) {
+    GlobalValue *GV = nullptr;
+    if (GVRef.Kind == ValID::t_GlobalName) {
+      GV = M->getNamedValue(GVRef.StrVal);
+    } else if (GVRef.UIntVal < NumberedVals.size()) {
+      GV = dyn_cast<GlobalValue>(NumberedVals[GVRef.UIntVal]);
+    }
+
+    if (!GV)
+      return error(GVRef.Loc, "unknown function '" + GVRef.StrVal +
+                                  "' referenced by dso_local_equivalent");
+
+    if (!GV->getValueType()->isFunctionTy())
+      return error(GVRef.Loc,
+                   "expected a function, alias to function, or ifunc "
+                   "in dso_local_equivalent");
+
+    auto *Equiv = DSOLocalEquivalent::get(GV);
+    FwdRef->replaceAllUsesWith(Equiv);
+    FwdRef->eraseFromParent();
+    return false;
+  };
+
+  // If there are entries in ForwardRefDSOLocalEquivalentIDs/Names at this
+  // point, they are references after the function was defined.  Resolve those
+  // now.
+  for (auto &Iter : ForwardRefDSOLocalEquivalentIDs) {
+    if (ResolveForwardRefDSOLocalEquivalents(Iter.first, Iter.second))
+      return true;
+  }
+  for (auto &Iter : ForwardRefDSOLocalEquivalentNames) {
+    if (ResolveForwardRefDSOLocalEquivalents(Iter.first, Iter.second))
+      return true;
+  }
+  ForwardRefDSOLocalEquivalentIDs.clear();
+  ForwardRefDSOLocalEquivalentNames.clear();
 
   for (const auto &NT : NumberedTypes)
     if (NT.second.second.isValid())
@@ -240,16 +305,6 @@ bool LLParser::validateEndOfModule(bool UpgradeDebugInfo) {
   for (Function &F : llvm::make_early_inc_range(*M))
     UpgradeCallsToIntrinsic(&F);
 
-  // Some types could be renamed during loading if several modules are
-  // loaded in the same LLVMContext (LTO scenario). In this case we should
-  // remangle intrinsics names as well.
-  for (Function &F : llvm::make_early_inc_range(*M)) {
-    if (auto Remangled = Intrinsic::remangleIntrinsicFunction(&F)) {
-      F.replaceAllUsesWith(Remangled.getValue());
-      F.eraseFromParent();
-    }
-  }
-
   if (UpgradeDebugInfo)
     llvm::UpgradeDebugInfo(*M);
 
@@ -271,7 +326,7 @@ bool LLParser::validateEndOfModule(bool UpgradeDebugInfo) {
   return false;
 }
 
-/// Do final validity and sanity checks at the end of the index.
+/// Do final validity and basic correctness checks at the end of the index.
 bool LLParser::validateEndOfIndex() {
   if (!Index)
     return false;
@@ -431,10 +486,15 @@ bool LLParser::parseTargetDefinition() {
     return false;
   case lltok::kw_datalayout:
     Lex.Lex();
-    if (parseToken(lltok::equal, "expected '=' after target datalayout") ||
-        parseStringConstant(Str))
+    if (parseToken(lltok::equal, "expected '=' after target datalayout"))
       return true;
-    M->setDataLayout(Str);
+    LocTy Loc = Lex.getLoc();
+    if (parseStringConstant(Str))
+      return true;
+    Expected<DataLayout> MaybeDL = DataLayout::parse(Str);
+    if (!MaybeDL)
+      return error(Loc, toString(MaybeDL.takeError()));
+    M->setDataLayout(MaybeDL.get());
     return false;
   }
 }
@@ -601,12 +661,15 @@ bool LLParser::parseUnnamedGlobal() {
       parseOptionalThreadLocal(TLM) || parseOptionalUnnamedAddr(UnnamedAddr))
     return true;
 
-  if (Lex.getKind() != lltok::kw_alias && Lex.getKind() != lltok::kw_ifunc)
+  switch (Lex.getKind()) {
+  default:
     return parseGlobal(Name, NameLoc, Linkage, HasLinkage, Visibility,
                        DLLStorageClass, DSOLocal, TLM, UnnamedAddr);
-
-  return parseIndirectSymbol(Name, NameLoc, Linkage, Visibility,
+  case lltok::kw_alias:
+  case lltok::kw_ifunc:
+    return parseAliasOrIFunc(Name, NameLoc, Linkage, Visibility,
                              DLLStorageClass, DSOLocal, TLM, UnnamedAddr);
+  }
 }
 
 /// parseNamedGlobal:
@@ -631,12 +694,15 @@ bool LLParser::parseNamedGlobal() {
       parseOptionalThreadLocal(TLM) || parseOptionalUnnamedAddr(UnnamedAddr))
     return true;
 
-  if (Lex.getKind() != lltok::kw_alias && Lex.getKind() != lltok::kw_ifunc)
+  switch (Lex.getKind()) {
+  default:
     return parseGlobal(Name, NameLoc, Linkage, HasLinkage, Visibility,
                        DLLStorageClass, DSOLocal, TLM, UnnamedAddr);
-
-  return parseIndirectSymbol(Name, NameLoc, Linkage, Visibility,
+  case lltok::kw_alias:
+  case lltok::kw_ifunc:
+    return parseAliasOrIFunc(Name, NameLoc, Linkage, Visibility,
                              DLLStorageClass, DSOLocal, TLM, UnnamedAddr);
+  }
 }
 
 bool LLParser::parseComdat() {
@@ -893,6 +959,10 @@ static bool isValidVisibilityForLinkage(unsigned V, unsigned L) {
   return !GlobalValue::isLocalLinkage((GlobalValue::LinkageTypes)L) ||
          (GlobalValue::VisibilityTypes)V == GlobalValue::DefaultVisibility;
 }
+static bool isValidDLLStorageClassForLinkage(unsigned S, unsigned L) {
+  return !GlobalValue::isLocalLinkage((GlobalValue::LinkageTypes)L) ||
+         (GlobalValue::DLLStorageClassTypes)S == GlobalValue::DefaultStorageClass;
+}
 
 // If there was an explicit dso_local, update GV. In the absence of an explicit
 // dso_local we keep the default value.
@@ -909,25 +979,25 @@ static std::string typeComparisonErrorMessage(StringRef Message, Type *Ty1,
   return ErrOS.str();
 }
 
-/// parseIndirectSymbol:
+/// parseAliasOrIFunc:
 ///   ::= GlobalVar '=' OptionalLinkage OptionalPreemptionSpecifier
 ///                     OptionalVisibility OptionalDLLStorageClass
 ///                     OptionalThreadLocal OptionalUnnamedAddr
-///                     'alias|ifunc' IndirectSymbol IndirectSymbolAttr*
+///                     'alias|ifunc' AliaseeOrResolver SymbolAttrs*
 ///
-/// IndirectSymbol
+/// AliaseeOrResolver
 ///   ::= TypeAndValue
 ///
-/// IndirectSymbolAttr
+/// SymbolAttrs
 ///   ::= ',' 'partition' StringConstant
 ///
 /// Everything through OptionalUnnamedAddr has already been parsed.
 ///
-bool LLParser::parseIndirectSymbol(const std::string &Name, LocTy NameLoc,
-                                   unsigned L, unsigned Visibility,
-                                   unsigned DLLStorageClass, bool DSOLocal,
-                                   GlobalVariable::ThreadLocalMode TLM,
-                                   GlobalVariable::UnnamedAddr UnnamedAddr) {
+bool LLParser::parseAliasOrIFunc(const std::string &Name, LocTy NameLoc,
+                                 unsigned L, unsigned Visibility,
+                                 unsigned DLLStorageClass, bool DSOLocal,
+                                 GlobalVariable::ThreadLocalMode TLM,
+                                 GlobalVariable::UnnamedAddr UnnamedAddr) {
   bool IsAlias;
   if (Lex.getKind() == lltok::kw_alias)
     IsAlias = true;
@@ -945,6 +1015,10 @@ bool LLParser::parseIndirectSymbol(const std::string &Name, LocTy NameLoc,
   if (!isValidVisibilityForLinkage(Visibility, L))
     return error(NameLoc,
                  "symbol with local linkage must have default visibility");
+
+  if (!isValidDLLStorageClassForLinkage(DLLStorageClass, L))
+    return error(NameLoc,
+                 "symbol with local linkage cannot have a DLL storage class");
 
   Type *Ty;
   LocTy ExplicitTypeLoc = Lex.getLoc();
@@ -976,17 +1050,18 @@ bool LLParser::parseIndirectSymbol(const std::string &Name, LocTy NameLoc,
     return error(AliaseeLoc, "An alias or ifunc must have pointer type");
   unsigned AddrSpace = PTy->getAddressSpace();
 
-  if (IsAlias && !PTy->isOpaqueOrPointeeTypeMatches(Ty)) {
-    return error(
-        ExplicitTypeLoc,
-        typeComparisonErrorMessage(
-            "explicit pointee type doesn't match operand's pointee type", Ty,
-            PTy->getElementType()));
-  }
-
-  if (!IsAlias && !PTy->getElementType()->isFunctionTy()) {
-    return error(ExplicitTypeLoc,
-                 "explicit pointee type should be a function type");
+  if (IsAlias) {
+    if (!PTy->isOpaqueOrPointeeTypeMatches(Ty))
+      return error(
+          ExplicitTypeLoc,
+          typeComparisonErrorMessage(
+              "explicit pointee type doesn't match operand's pointee type", Ty,
+              PTy->getNonOpaquePointerElementType()));
+  } else {
+    if (!PTy->isOpaque() &&
+        !PTy->getNonOpaquePointerElementType()->isFunctionTy())
+      return error(ExplicitTypeLoc,
+                   "explicit pointee type should be a function type");
   }
 
   GlobalValue *GVal = nullptr;
@@ -1009,21 +1084,26 @@ bool LLParser::parseIndirectSymbol(const std::string &Name, LocTy NameLoc,
     }
   }
 
-  // Okay, create the alias but do not insert it into the module yet.
-  std::unique_ptr<GlobalIndirectSymbol> GA;
-  if (IsAlias)
+  // Okay, create the alias/ifunc but do not insert it into the module yet.
+  std::unique_ptr<GlobalAlias> GA;
+  std::unique_ptr<GlobalIFunc> GI;
+  GlobalValue *GV;
+  if (IsAlias) {
     GA.reset(GlobalAlias::create(Ty, AddrSpace,
                                  (GlobalValue::LinkageTypes)Linkage, Name,
                                  Aliasee, /*Parent*/ nullptr));
-  else
-    GA.reset(GlobalIFunc::create(Ty, AddrSpace,
+    GV = GA.get();
+  } else {
+    GI.reset(GlobalIFunc::create(Ty, AddrSpace,
                                  (GlobalValue::LinkageTypes)Linkage, Name,
                                  Aliasee, /*Parent*/ nullptr));
-  GA->setThreadLocalMode(TLM);
-  GA->setVisibility((GlobalValue::VisibilityTypes)Visibility);
-  GA->setDLLStorageClass((GlobalValue::DLLStorageClassTypes)DLLStorageClass);
-  GA->setUnnamedAddr(UnnamedAddr);
-  maybeSetDSOLocal(DSOLocal, *GA);
+    GV = GI.get();
+  }
+  GV->setThreadLocalMode(TLM);
+  GV->setVisibility((GlobalValue::VisibilityTypes)Visibility);
+  GV->setDLLStorageClass((GlobalValue::DLLStorageClassTypes)DLLStorageClass);
+  GV->setUnnamedAddr(UnnamedAddr);
+  maybeSetDSOLocal(DSOLocal, *GV);
 
   // At this point we've parsed everything except for the IndirectSymbolAttrs.
   // Now parse them if there are any.
@@ -1032,7 +1112,7 @@ bool LLParser::parseIndirectSymbol(const std::string &Name, LocTy NameLoc,
 
     if (Lex.getKind() == lltok::kw_partition) {
       Lex.Lex();
-      GA->setPartition(Lex.getStrVal());
+      GV->setPartition(Lex.getStrVal());
       if (parseToken(lltok::StringConstant, "expected partition string"))
         return true;
     } else {
@@ -1041,31 +1121,67 @@ bool LLParser::parseIndirectSymbol(const std::string &Name, LocTy NameLoc,
   }
 
   if (Name.empty())
-    NumberedVals.push_back(GA.get());
+    NumberedVals.push_back(GV);
 
   if (GVal) {
     // Verify that types agree.
-    if (GVal->getType() != GA->getType())
+    if (GVal->getType() != GV->getType())
       return error(
           ExplicitTypeLoc,
           "forward reference and definition of alias have different types");
 
     // If they agree, just RAUW the old value with the alias and remove the
     // forward ref info.
-    GVal->replaceAllUsesWith(GA.get());
+    GVal->replaceAllUsesWith(GV);
     GVal->eraseFromParent();
   }
 
   // Insert into the module, we know its name won't collide now.
   if (IsAlias)
-    M->getAliasList().push_back(cast<GlobalAlias>(GA.get()));
+    M->getAliasList().push_back(GA.release());
   else
-    M->getIFuncList().push_back(cast<GlobalIFunc>(GA.get()));
-  assert(GA->getName() == Name && "Should not be a name conflict!");
+    M->getIFuncList().push_back(GI.release());
+  assert(GV->getName() == Name && "Should not be a name conflict!");
 
-  // The module owns this now
-  GA.release();
+  return false;
+}
 
+static bool isSanitizer(lltok::Kind Kind) {
+  switch (Kind) {
+  case lltok::kw_no_sanitize_address:
+  case lltok::kw_no_sanitize_hwaddress:
+  case lltok::kw_sanitize_memtag:
+  case lltok::kw_sanitize_address_dyninit:
+    return true;
+  default:
+    return false;
+  }
+}
+
+bool LLParser::parseSanitizer(GlobalVariable *GV) {
+  using SanitizerMetadata = GlobalValue::SanitizerMetadata;
+  SanitizerMetadata Meta;
+  if (GV->hasSanitizerMetadata())
+    Meta = GV->getSanitizerMetadata();
+
+  switch (Lex.getKind()) {
+  case lltok::kw_no_sanitize_address:
+    Meta.NoAddress = true;
+    break;
+  case lltok::kw_no_sanitize_hwaddress:
+    Meta.NoHWAddress = true;
+    break;
+  case lltok::kw_sanitize_memtag:
+    Meta.Memtag = true;
+    break;
+  case lltok::kw_sanitize_address_dyninit:
+    Meta.IsDynInit = true;
+    break;
+  default:
+    return tokError("non-sanitizer token passed to LLParser::parseSanitizer()");
+  }
+  GV->setSanitizerMetadata(Meta);
+  Lex.Lex();
   return false;
 }
 
@@ -1090,6 +1206,10 @@ bool LLParser::parseGlobal(const std::string &Name, LocTy NameLoc,
   if (!isValidVisibilityForLinkage(Visibility, Linkage))
     return error(NameLoc,
                  "symbol with local linkage must have default visibility");
+
+  if (!isValidDLLStorageClassForLinkage(DLLStorageClass, Linkage))
+    return error(NameLoc,
+                 "symbol with local linkage cannot have a DLL storage class");
 
   unsigned AddrSpace;
   bool IsConstant, IsExternallyInitialized;
@@ -1156,7 +1276,7 @@ bool LLParser::parseGlobal(const std::string &Name, LocTy NameLoc,
   GV->setUnnamedAddr(UnnamedAddr);
 
   if (GVal) {
-    if (!GVal->getType()->isOpaque() && GVal->getValueType() != Ty)
+    if (GVal->getType() != Ty->getPointerTo(AddrSpace))
       return error(
           TyLoc,
           "forward reference and definition of global have different types");
@@ -1187,6 +1307,9 @@ bool LLParser::parseGlobal(const std::string &Name, LocTy NameLoc,
     } else if (Lex.getKind() == lltok::MetadataVar) {
       if (parseGlobalObjectMetadataAttachment(*GV))
         return true;
+    } else if (isSanitizer(Lex.getKind())) {
+      if (parseSanitizer(GV))
+        return true;
     } else {
       Comdat *C;
       if (parseOptionalComdat(Name, C))
@@ -1198,7 +1321,7 @@ bool LLParser::parseGlobal(const std::string &Name, LocTy NameLoc,
     }
   }
 
-  AttrBuilder Attrs;
+  AttrBuilder Attrs(M->getContext());
   LocTy BuiltinLoc;
   std::vector<unsigned> FwdRefAttrGrps;
   if (parseFnAttributeValuePairs(Attrs, FwdRefAttrGrps, false, BuiltinLoc))
@@ -1227,13 +1350,18 @@ bool LLParser::parseUnnamedAttrGrp() {
   Lex.Lex();
 
   if (parseToken(lltok::equal, "expected '=' here") ||
-      parseToken(lltok::lbrace, "expected '{' here") ||
-      parseFnAttributeValuePairs(NumberedAttrBuilders[VarID], unused, true,
-                                 BuiltinLoc) ||
+      parseToken(lltok::lbrace, "expected '{' here"))
+    return true;
+
+  auto R = NumberedAttrBuilders.find(VarID);
+  if (R == NumberedAttrBuilders.end())
+    R = NumberedAttrBuilders.emplace(VarID, AttrBuilder(M->getContext())).first;
+
+  if (parseFnAttributeValuePairs(R->second, unused, true, BuiltinLoc) ||
       parseToken(lltok::rbrace, "expected end of attribute group"))
     return true;
 
-  if (!NumberedAttrBuilders[VarID].hasAttributes())
+  if (!R->second.hasAttributes())
     return error(AttrGrpLoc, "attribute group has no attributes");
 
   return false;
@@ -1298,7 +1426,8 @@ bool LLParser::parseEnumAttribute(Attribute::AttrKind Attr, AttrBuilder &B,
     unsigned MinValue, MaxValue;
     if (parseVScaleRangeArguments(MinValue, MaxValue))
       return true;
-    B.addVScaleRangeAttr(MinValue, MaxValue);
+    B.addVScaleRangeAttr(MinValue,
+                         MaxValue > 0 ? MaxValue : Optional<unsigned>());
     return false;
   }
   case Attribute::Dereferenceable: {
@@ -1313,6 +1442,27 @@ bool LLParser::parseEnumAttribute(Attribute::AttrKind Attr, AttrBuilder &B,
     if (parseOptionalDerefAttrBytes(lltok::kw_dereferenceable_or_null, Bytes))
       return true;
     B.addDereferenceableOrNullAttr(Bytes);
+    return false;
+  }
+  case Attribute::UWTable: {
+    UWTableKind Kind;
+    if (parseOptionalUWTableKind(Kind))
+      return true;
+    B.addUWTableAttr(Kind);
+    return false;
+  }
+  case Attribute::AllocKind: {
+    AllocFnKind Kind = AllocFnKind::Unknown;
+    if (parseAllocKind(Kind))
+      return true;
+    B.addAllocKindAttr(Kind);
+    return false;
+  }
+  case Attribute::Memory: {
+    Optional<MemoryEffects> ME = parseMemoryAttr();
+    if (!ME)
+      return true;
+    B.addMemoryAttr(*ME);
     return false;
   }
   default:
@@ -1393,14 +1543,14 @@ static inline GlobalValue *createGlobalFwdRef(Module *M, PointerType *PTy) {
                               nullptr, GlobalVariable::NotThreadLocal,
                               PTy->getAddressSpace());
 
-  if (auto *FT = dyn_cast<FunctionType>(PTy->getPointerElementType()))
+  Type *ElemTy = PTy->getNonOpaquePointerElementType();
+  if (auto *FT = dyn_cast<FunctionType>(ElemTy))
     return Function::Create(FT, GlobalValue::ExternalWeakLinkage,
                             PTy->getAddressSpace(), "", M);
   else
-    return new GlobalVariable(*M, PTy->getPointerElementType(), false,
-                              GlobalValue::ExternalWeakLinkage, nullptr, "",
-                              nullptr, GlobalVariable::NotThreadLocal,
-                              PTy->getAddressSpace());
+    return new GlobalVariable(
+        *M, ElemTy, false, GlobalValue::ExternalWeakLinkage, nullptr, "",
+        nullptr, GlobalVariable::NotThreadLocal, PTy->getAddressSpace());
 }
 
 Value *LLParser::checkValidVariableType(LocTy Loc, const Twine &Name, Type *Ty,
@@ -1774,6 +1924,8 @@ void LLParser::parseOptionalDLLStorageClass(unsigned &Res) {
 ///   ::= 'arm_aapcs_vfpcc'
 ///   ::= 'aarch64_vector_pcs'
 ///   ::= 'aarch64_sve_vector_pcs'
+///   ::= 'aarch64_sme_preservemost_from_x0'
+///   ::= 'aarch64_sme_preservemost_from_x2'
 ///   ::= 'msp430_intrcc'
 ///   ::= 'avr_intrcc'
 ///   ::= 'avr_signalcc'
@@ -1823,6 +1975,12 @@ bool LLParser::parseOptionalCallingConv(unsigned &CC) {
   case lltok::kw_aarch64_vector_pcs:CC = CallingConv::AArch64_VectorCall; break;
   case lltok::kw_aarch64_sve_vector_pcs:
     CC = CallingConv::AArch64_SVE_VectorCall;
+    break;
+  case lltok::kw_aarch64_sme_preservemost_from_x0:
+    CC = CallingConv::AArch64_SME_ABI_Support_Routines_PreserveMost_From_X0;
+    break;
+  case lltok::kw_aarch64_sme_preservemost_from_x2:
+    CC = CallingConv::AArch64_SME_ABI_Support_Routines_PreserveMost_From_X2;
     break;
   case lltok::kw_msp430_intrcc:  CC = CallingConv::MSP430_INTR; break;
   case lltok::kw_avr_intrcc:     CC = CallingConv::AVR_INTR; break;
@@ -1976,6 +2134,137 @@ bool LLParser::parseOptionalDerefAttrBytes(lltok::Kind AttrKind,
   if (!Bytes)
     return error(DerefLoc, "dereferenceable bytes must be non-zero");
   return false;
+}
+
+bool LLParser::parseOptionalUWTableKind(UWTableKind &Kind) {
+  Lex.Lex();
+  Kind = UWTableKind::Default;
+  if (!EatIfPresent(lltok::lparen))
+    return false;
+  LocTy KindLoc = Lex.getLoc();
+  if (Lex.getKind() == lltok::kw_sync)
+    Kind = UWTableKind::Sync;
+  else if (Lex.getKind() == lltok::kw_async)
+    Kind = UWTableKind::Async;
+  else
+    return error(KindLoc, "expected unwind table kind");
+  Lex.Lex();
+  return parseToken(lltok::rparen, "expected ')'");
+}
+
+bool LLParser::parseAllocKind(AllocFnKind &Kind) {
+  Lex.Lex();
+  LocTy ParenLoc = Lex.getLoc();
+  if (!EatIfPresent(lltok::lparen))
+    return error(ParenLoc, "expected '('");
+  LocTy KindLoc = Lex.getLoc();
+  std::string Arg;
+  if (parseStringConstant(Arg))
+    return error(KindLoc, "expected allockind value");
+  for (StringRef A : llvm::split(Arg, ",")) {
+    if (A == "alloc") {
+      Kind |= AllocFnKind::Alloc;
+    } else if (A == "realloc") {
+      Kind |= AllocFnKind::Realloc;
+    } else if (A == "free") {
+      Kind |= AllocFnKind::Free;
+    } else if (A == "uninitialized") {
+      Kind |= AllocFnKind::Uninitialized;
+    } else if (A == "zeroed") {
+      Kind |= AllocFnKind::Zeroed;
+    } else if (A == "aligned") {
+      Kind |= AllocFnKind::Aligned;
+    } else {
+      return error(KindLoc, Twine("unknown allockind ") + A);
+    }
+  }
+  ParenLoc = Lex.getLoc();
+  if (!EatIfPresent(lltok::rparen))
+    return error(ParenLoc, "expected ')'");
+  if (Kind == AllocFnKind::Unknown)
+    return error(KindLoc, "expected allockind value");
+  return false;
+}
+
+static Optional<MemoryEffects::Location> keywordToLoc(lltok::Kind Tok) {
+  switch (Tok) {
+  case lltok::kw_argmem:
+    return MemoryEffects::ArgMem;
+  case lltok::kw_inaccessiblemem:
+    return MemoryEffects::InaccessibleMem;
+  default:
+    return None;
+  }
+}
+
+static Optional<ModRefInfo> keywordToModRef(lltok::Kind Tok) {
+  switch (Tok) {
+  case lltok::kw_none:
+    return ModRefInfo::NoModRef;
+  case lltok::kw_read:
+    return ModRefInfo::Ref;
+  case lltok::kw_write:
+    return ModRefInfo::Mod;
+  case lltok::kw_readwrite:
+    return ModRefInfo::ModRef;
+  default:
+    return None;
+  }
+}
+
+Optional<MemoryEffects> LLParser::parseMemoryAttr() {
+  MemoryEffects ME = MemoryEffects::none();
+
+  // We use syntax like memory(argmem: read), so the colon should not be
+  // interpreted as a label terminator.
+  Lex.setIgnoreColonInIdentifiers(true);
+  auto _ = make_scope_exit([&] { Lex.setIgnoreColonInIdentifiers(false); });
+
+  Lex.Lex();
+  if (!EatIfPresent(lltok::lparen)) {
+    tokError("expected '('");
+    return None;
+  }
+
+  bool SeenLoc = false;
+  do {
+    Optional<MemoryEffects::Location> Loc = keywordToLoc(Lex.getKind());
+    if (Loc) {
+      Lex.Lex();
+      if (!EatIfPresent(lltok::colon)) {
+        tokError("expected ':' after location");
+        return None;
+      }
+    }
+
+    Optional<ModRefInfo> MR = keywordToModRef(Lex.getKind());
+    if (!MR) {
+      if (!Loc)
+        tokError("expected memory location (argmem, inaccessiblemem) "
+                 "or access kind (none, read, write, readwrite)");
+      else
+        tokError("expected access kind (none, read, write, readwrite)");
+      return None;
+    }
+
+    Lex.Lex();
+    if (Loc) {
+      SeenLoc = true;
+      ME = ME.getWithModRef(*Loc, *MR);
+    } else {
+      if (SeenLoc) {
+        tokError("default access kind must be specified first");
+        return None;
+      }
+      ME = MemoryEffects(*MR);
+    }
+
+    if (EatIfPresent(lltok::rparen))
+      return ME;
+  } while (EatIfPresent(lltok::comma));
+
+  tokError("unterminated memory attribute");
+  return None;
 }
 
 /// parseOptionalCommaAlign
@@ -2363,10 +2652,11 @@ bool LLParser::parseParameterList(SmallVectorImpl<ParamInfo> &ArgList,
     // parse the argument.
     LocTy ArgLoc;
     Type *ArgTy = nullptr;
-    AttrBuilder ArgAttrs;
     Value *V;
     if (parseType(ArgTy, ArgLoc))
       return true;
+
+    AttrBuilder ArgAttrs(M->getContext());
 
     if (ArgTy->isMetadataTy()) {
       if (parseMetadataAsValue(V, PFS))
@@ -2484,7 +2774,7 @@ bool LLParser::parseArgumentList(SmallVectorImpl<ArgInfo> &ArgList,
   } else {
     LocTy TypeLoc = Lex.getLoc();
     Type *ArgTy = nullptr;
-    AttrBuilder Attrs;
+    AttrBuilder Attrs(M->getContext());
     std::string Name;
 
     if (parseType(ArgTy) || parseOptionalParamAttrs(Attrs))
@@ -2981,9 +3271,10 @@ BasicBlock *LLParser::PerFunctionState::defineBB(const std::string &Name,
 /// parseValID - parse an abstract value that doesn't necessarily have a
 /// type implied.  For example, if we parse "4" we don't know what integer type
 /// it has.  The value will later be combined with its type and checked for
-/// sanity.  PFS is used to convert function-local operands of metadata (since
-/// metadata operands are not just parsed here but also converted to values).
-/// PFS can be null when we are not parsing metadata values inside a function.
+/// basic correctness.  PFS is used to convert function-local operands of
+/// metadata (since metadata operands are not just parsed here but also
+/// converted to values). PFS can be null when we are not parsing metadata
+/// values inside a function.
 bool LLParser::parseValID(ValID &ID, PerFunctionState *PFS, Type *ExpectedTy) {
   ID.Loc = Lex.getLoc();
   switch (Lex.getKind()) {
@@ -3267,7 +3558,22 @@ bool LLParser::parseValID(ValID &ID, PerFunctionState *PFS, Type *ExpectedTy) {
       GV = M->getNamedValue(Fn.StrVal);
     }
 
-    assert(GV && "Could not find a corresponding global variable");
+    if (!GV) {
+      // Make a placeholder global variable as a placeholder for this reference.
+      auto &FwdRefMap = (Fn.Kind == ValID::t_GlobalID)
+                            ? ForwardRefDSOLocalEquivalentIDs
+                            : ForwardRefDSOLocalEquivalentNames;
+      GlobalValue *&FwdRef = FwdRefMap.try_emplace(Fn, nullptr).first->second;
+      if (!FwdRef) {
+        FwdRef = new GlobalVariable(*M, Type::getInt8Ty(Context), false,
+                                    GlobalValue::InternalLinkage, nullptr, "",
+                                    nullptr, GlobalValue::NotThreadLocal);
+      }
+
+      ID.ConstantVal = FwdRef;
+      ID.Kind = ValID::t_Constant;
+      return false;
+    }
 
     if (!GV->getValueType()->isFunctionTy())
       return error(Fn.Loc, "expected a function, alias to function, or ifunc "
@@ -3275,6 +3581,20 @@ bool LLParser::parseValID(ValID &ID, PerFunctionState *PFS, Type *ExpectedTy) {
 
     ID.ConstantVal = DSOLocalEquivalent::get(GV);
     ID.Kind = ValID::t_Constant;
+    return false;
+  }
+
+  case lltok::kw_no_cfi: {
+    // ValID ::= 'no_cfi' @foo
+    Lex.Lex();
+
+    if (parseValID(ID, PFS))
+      return true;
+
+    if (ID.Kind != ValID::t_GlobalID && ID.Kind != ValID::t_GlobalName)
+      return error(ID.Loc, "expected global value name in no_cfi");
+
+    ID.NoCFI = true;
     return false;
   }
 
@@ -3310,50 +3630,30 @@ bool LLParser::parseValID(ValID &ID, PerFunctionState *PFS, Type *ExpectedTy) {
     ID.Kind = ValID::t_Constant;
     return false;
   }
-  case lltok::kw_extractvalue: {
-    Lex.Lex();
-    Constant *Val;
-    SmallVector<unsigned, 4> Indices;
-    if (parseToken(lltok::lparen,
-                   "expected '(' in extractvalue constantexpr") ||
-        parseGlobalTypeAndValue(Val) || parseIndexList(Indices) ||
-        parseToken(lltok::rparen, "expected ')' in extractvalue constantexpr"))
-      return true;
-
-    if (!Val->getType()->isAggregateType())
-      return error(ID.Loc, "extractvalue operand must be aggregate type");
-    if (!ExtractValueInst::getIndexedType(Val->getType(), Indices))
-      return error(ID.Loc, "invalid indices for extractvalue");
-    ID.ConstantVal = ConstantExpr::getExtractValue(Val, Indices);
-    ID.Kind = ValID::t_Constant;
-    return false;
-  }
-  case lltok::kw_insertvalue: {
-    Lex.Lex();
-    Constant *Val0, *Val1;
-    SmallVector<unsigned, 4> Indices;
-    if (parseToken(lltok::lparen, "expected '(' in insertvalue constantexpr") ||
-        parseGlobalTypeAndValue(Val0) ||
-        parseToken(lltok::comma,
-                   "expected comma in insertvalue constantexpr") ||
-        parseGlobalTypeAndValue(Val1) || parseIndexList(Indices) ||
-        parseToken(lltok::rparen, "expected ')' in insertvalue constantexpr"))
-      return true;
-    if (!Val0->getType()->isAggregateType())
-      return error(ID.Loc, "insertvalue operand must be aggregate type");
-    Type *IndexedType =
-        ExtractValueInst::getIndexedType(Val0->getType(), Indices);
-    if (!IndexedType)
-      return error(ID.Loc, "invalid indices for insertvalue");
-    if (IndexedType != Val1->getType())
-      return error(ID.Loc, "insertvalue operand and field disagree in type: '" +
-                               getTypeString(Val1->getType()) +
-                               "' instead of '" + getTypeString(IndexedType) +
-                               "'");
-    ID.ConstantVal = ConstantExpr::getInsertValue(Val0, Val1, Indices);
-    ID.Kind = ValID::t_Constant;
-    return false;
-  }
+  case lltok::kw_extractvalue:
+    return error(ID.Loc, "extractvalue constexprs are no longer supported");
+  case lltok::kw_insertvalue:
+    return error(ID.Loc, "insertvalue constexprs are no longer supported");
+  case lltok::kw_udiv:
+    return error(ID.Loc, "udiv constexprs are no longer supported");
+  case lltok::kw_sdiv:
+    return error(ID.Loc, "sdiv constexprs are no longer supported");
+  case lltok::kw_urem:
+    return error(ID.Loc, "urem constexprs are no longer supported");
+  case lltok::kw_srem:
+    return error(ID.Loc, "srem constexprs are no longer supported");
+  case lltok::kw_fadd:
+    return error(ID.Loc, "fadd constexprs are no longer supported");
+  case lltok::kw_fsub:
+    return error(ID.Loc, "fsub constexprs are no longer supported");
+  case lltok::kw_fmul:
+    return error(ID.Loc, "fmul constexprs are no longer supported");
+  case lltok::kw_fdiv:
+    return error(ID.Loc, "fdiv constexprs are no longer supported");
+  case lltok::kw_frem:
+    return error(ID.Loc, "frem constexprs are no longer supported");
+  case lltok::kw_fneg:
+    return error(ID.Loc, "fneg constexprs are no longer supported");
   case lltok::kw_icmp:
   case lltok::kw_fcmp: {
     unsigned PredVal, Opc = Lex.getUIntVal();
@@ -3387,43 +3687,10 @@ bool LLParser::parseValID(ValID &ID, PerFunctionState *PFS, Type *ExpectedTy) {
     return false;
   }
 
-  // Unary Operators.
-  case lltok::kw_fneg: {
-    unsigned Opc = Lex.getUIntVal();
-    Constant *Val;
-    Lex.Lex();
-    if (parseToken(lltok::lparen, "expected '(' in unary constantexpr") ||
-        parseGlobalTypeAndValue(Val) ||
-        parseToken(lltok::rparen, "expected ')' in unary constantexpr"))
-      return true;
-
-    // Check that the type is valid for the operator.
-    switch (Opc) {
-    case Instruction::FNeg:
-      if (!Val->getType()->isFPOrFPVectorTy())
-        return error(ID.Loc, "constexpr requires fp operands");
-      break;
-    default: llvm_unreachable("Unknown unary operator!");
-    }
-    unsigned Flags = 0;
-    Constant *C = ConstantExpr::get(Opc, Val, Flags);
-    ID.ConstantVal = C;
-    ID.Kind = ValID::t_Constant;
-    return false;
-  }
   // Binary Operators.
   case lltok::kw_add:
-  case lltok::kw_fadd:
   case lltok::kw_sub:
-  case lltok::kw_fsub:
   case lltok::kw_mul:
-  case lltok::kw_fmul:
-  case lltok::kw_udiv:
-  case lltok::kw_sdiv:
-  case lltok::kw_fdiv:
-  case lltok::kw_urem:
-  case lltok::kw_srem:
-  case lltok::kw_frem:
   case lltok::kw_shl:
   case lltok::kw_lshr:
   case lltok::kw_ashr: {
@@ -3555,7 +3822,7 @@ bool LLParser::parseValID(ValID &ID, PerFunctionState *PFS, Type *ExpectedTy) {
             ExplicitTypeLoc,
             typeComparisonErrorMessage(
                 "explicit pointee type doesn't match operand's pointee type",
-                Ty, BasePointerType->getElementType()));
+                Ty, BasePointerType->getNonOpaquePointerElementType()));
       }
 
       unsigned GEPWidth =
@@ -3847,11 +4114,11 @@ struct MDAPSIntField : public MDFieldImpl<APSInt> {
 };
 
 struct MDSignedField : public MDFieldImpl<int64_t> {
-  int64_t Min;
-  int64_t Max;
+  int64_t Min = INT64_MIN;
+  int64_t Max = INT64_MAX;
 
   MDSignedField(int64_t Default = 0)
-      : ImplTy(Default), Min(INT64_MIN), Max(INT64_MAX) {}
+      : ImplTy(Default) {}
   MDSignedField(int64_t Default, int64_t Min, int64_t Max)
       : ImplTy(Default), Min(Min), Max(Max) {}
 };
@@ -4110,8 +4377,8 @@ bool LLParser::parseMDField(LocTy Loc, StringRef Name, DIFlagField &Result) {
 
     Val = DINode::getFlag(Lex.getStrVal());
     if (!Val)
-      return tokError(Twine("invalid debug info flag flag '") +
-                      Lex.getStrVal() + "'");
+      return tokError(Twine("invalid debug info flag '") + Lex.getStrVal() +
+                      "'");
     Lex.Lex();
     return false;
   };
@@ -4517,16 +4784,17 @@ bool LLParser::parseDIStringType(MDNode *&Result, bool IsDistinct) {
   OPTIONAL(name, MDStringField, );                                             \
   OPTIONAL(stringLength, MDField, );                                           \
   OPTIONAL(stringLengthExpression, MDField, );                                 \
+  OPTIONAL(stringLocationExpression, MDField, );                               \
   OPTIONAL(size, MDUnsignedField, (0, UINT64_MAX));                            \
   OPTIONAL(align, MDUnsignedField, (0, UINT32_MAX));                           \
   OPTIONAL(encoding, DwarfAttEncodingField, );
   PARSE_MD_FIELDS();
 #undef VISIT_MD_FIELDS
 
-  Result = GET_OR_DISTINCT(DIStringType,
-                           (Context, tag.Val, name.Val, stringLength.Val,
-                            stringLengthExpression.Val, size.Val, align.Val,
-                            encoding.Val));
+  Result = GET_OR_DISTINCT(
+      DIStringType,
+      (Context, tag.Val, name.Val, stringLength.Val, stringLengthExpression.Val,
+       stringLocationExpression.Val, size.Val, align.Val, encoding.Val));
   return false;
 }
 
@@ -4744,7 +5012,8 @@ bool LLParser::parseDISubprogram(MDNode *&Result, bool IsDistinct) {
   OPTIONAL(declaration, MDField, );                                            \
   OPTIONAL(retainedNodes, MDField, );                                          \
   OPTIONAL(thrownTypes, MDField, );                                            \
-  OPTIONAL(annotations, MDField, );
+  OPTIONAL(annotations, MDField, );                                            \
+  OPTIONAL(targetFuncName, MDStringField, );
   PARSE_MD_FIELDS();
 #undef VISIT_MD_FIELDS
 
@@ -4763,7 +5032,8 @@ bool LLParser::parseDISubprogram(MDNode *&Result, bool IsDistinct) {
       (Context, scope.Val, name.Val, linkageName.Val, file.Val, line.Val,
        type.Val, scopeLine.Val, containingType.Val, virtualIndex.Val,
        thisAdjustment.Val, flags.Val, SPFlags, unit.Val, templateParams.Val,
-       declaration.Val, retainedNodes.Val, thrownTypes.Val, annotations.Val));
+       declaration.Val, retainedNodes.Val, thrownTypes.Val, annotations.Val,
+       targetFuncName.Val));
   return false;
 }
 
@@ -4930,7 +5200,7 @@ bool LLParser::parseDITemplateValueParameter(MDNode *&Result, bool IsDistinct) {
 ///                         declaration: !4, align: 8)
 bool LLParser::parseDIGlobalVariable(MDNode *&Result, bool IsDistinct) {
 #define VISIT_MD_FIELDS(OPTIONAL, REQUIRED)                                    \
-  REQUIRED(name, MDStringField, (/* AllowEmpty */ false));                     \
+  OPTIONAL(name, MDStringField, (/* AllowEmpty */ false));                     \
   OPTIONAL(scope, MDField, );                                                  \
   OPTIONAL(linkageName, MDStringField, );                                      \
   OPTIONAL(file, MDField, );                                                   \
@@ -5249,8 +5519,10 @@ bool LLParser::convertValIDToValue(Type *Ty, ValID &ID, Value *&V,
     V = PFS->getVal(ID.StrVal, Ty, ID.Loc);
     return V == nullptr;
   case ValID::t_InlineAsm: {
-    if (!ID.FTy || !InlineAsm::Verify(ID.FTy, ID.StrVal2))
+    if (!ID.FTy)
       return error(ID.Loc, "invalid type for inline asm constraint string");
+    if (Error Err = InlineAsm::verify(ID.FTy, ID.StrVal2))
+      return error(ID.Loc, toString(std::move(Err)));
     V = InlineAsm::get(
         ID.FTy, ID.StrVal, ID.StrVal2, ID.UIntVal & 1, (ID.UIntVal >> 1) & 1,
         InlineAsm::AsmDialect((ID.UIntVal >> 2) & 1), (ID.UIntVal >> 3) & 1);
@@ -5258,9 +5530,13 @@ bool LLParser::convertValIDToValue(Type *Ty, ValID &ID, Value *&V,
   }
   case ValID::t_GlobalName:
     V = getGlobalVal(ID.StrVal, Ty, ID.Loc);
+    if (V && ID.NoCFI)
+      V = NoCFIValue::get(cast<GlobalValue>(V));
     return V == nullptr;
   case ValID::t_GlobalID:
     V = getGlobalVal(ID.UIntVal, Ty, ID.Loc);
+    if (V && ID.NoCFI)
+      V = NoCFIValue::get(cast<GlobalValue>(V));
     return V == nullptr;
   case ValID::t_APSInt:
     if (!Ty->isIntegerTy())
@@ -5434,7 +5710,7 @@ bool LLParser::parseFunctionHeader(Function *&Fn, bool IsDefine) {
   unsigned Visibility;
   unsigned DLLStorageClass;
   bool DSOLocal;
-  AttrBuilder RetAttrs;
+  AttrBuilder RetAttrs(M->getContext());
   unsigned CC;
   bool HasLinkage;
   Type *RetType = nullptr;
@@ -5472,6 +5748,10 @@ bool LLParser::parseFunctionHeader(Function *&Fn, bool IsDefine) {
     return error(LinkageLoc,
                  "symbol with local linkage must have default visibility");
 
+  if (!isValidDLLStorageClassForLinkage(DLLStorageClass, Linkage))
+    return error(LinkageLoc,
+                 "symbol with local linkage cannot have a DLL storage class");
+
   if (!FunctionType::isValidReturnType(RetType))
     return error(RetTypeLoc, "invalid function return type");
 
@@ -5497,7 +5777,7 @@ bool LLParser::parseFunctionHeader(Function *&Fn, bool IsDefine) {
 
   SmallVector<ArgInfo, 8> ArgList;
   bool IsVarArg;
-  AttrBuilder FuncAttrs;
+  AttrBuilder FuncAttrs(M->getContext());
   std::vector<unsigned> FwdRefAttrGrps;
   LocTy BuiltinLoc;
   std::string Section;
@@ -5531,8 +5811,8 @@ bool LLParser::parseFunctionHeader(Function *&Fn, bool IsDefine) {
     return error(BuiltinLoc, "'builtin' attribute not valid on function");
 
   // If the alignment was parsed as an attribute, move to the alignment field.
-  if (FuncAttrs.hasAlignmentAttr()) {
-    Alignment = FuncAttrs.getAlignment();
+  if (MaybeAlign A = FuncAttrs.getAlignment()) {
+    Alignment = A;
     FuncAttrs.removeAttribute(Attribute::Alignment);
   }
 
@@ -5564,20 +5844,19 @@ bool LLParser::parseFunctionHeader(Function *&Fn, bool IsDefine) {
     auto FRVI = ForwardRefVals.find(FunctionName);
     if (FRVI != ForwardRefVals.end()) {
       FwdFn = FRVI->second.first;
-      if (!FwdFn->getType()->isOpaque()) {
-        if (!FwdFn->getType()->getPointerElementType()->isFunctionTy())
-          return error(FRVI->second.second, "invalid forward reference to "
-                                            "function as global value!");
-        if (FwdFn->getType() != PFT)
-          return error(FRVI->second.second,
-                       "invalid forward reference to "
-                       "function '" +
-                           FunctionName +
-                           "' with wrong type: "
-                           "expected '" +
-                           getTypeString(PFT) + "' but was '" +
-                           getTypeString(FwdFn->getType()) + "'");
-      }
+      if (!FwdFn->getType()->isOpaque() &&
+          !FwdFn->getType()->getNonOpaquePointerElementType()->isFunctionTy())
+        return error(FRVI->second.second, "invalid forward reference to "
+                                          "function as global value!");
+      if (FwdFn->getType() != PFT)
+        return error(FRVI->second.second,
+                     "invalid forward reference to "
+                     "function '" +
+                         FunctionName +
+                         "' with wrong type: "
+                         "expected '" +
+                         getTypeString(PFT) + "' but was '" +
+                         getTypeString(FwdFn->getType()) + "'");
       ForwardRefVals.erase(FRVI);
     } else if ((Fn = M->getFunction(FunctionName))) {
       // Reject redefinitions.
@@ -5592,8 +5871,8 @@ bool LLParser::parseFunctionHeader(Function *&Fn, bool IsDefine) {
     // types agree.
     auto I = ForwardRefValIDs.find(NumberedVals.size());
     if (I != ForwardRefValIDs.end()) {
-      FwdFn = cast<Function>(I->second.first);
-      if (!FwdFn->getType()->isOpaque() && FwdFn->getType() != PFT)
+      FwdFn = I->second.first;
+      if (FwdFn->getType() != PFT)
         return error(NameLoc, "type of definition and forward reference of '@" +
                                   Twine(NumberedVals.size()) +
                                   "' disagree: "
@@ -6215,12 +6494,33 @@ bool LLParser::parseIndirectBr(Instruction *&Inst, PerFunctionState &PFS) {
   return false;
 }
 
+// If RetType is a non-function pointer type, then this is the short syntax
+// for the call, which means that RetType is just the return type.  Infer the
+// rest of the function argument types from the arguments that are present.
+bool LLParser::resolveFunctionType(Type *RetType,
+                                   const SmallVector<ParamInfo, 16> &ArgList,
+                                   FunctionType *&FuncTy) {
+  FuncTy = dyn_cast<FunctionType>(RetType);
+  if (!FuncTy) {
+    // Pull out the types of all of the arguments...
+    std::vector<Type*> ParamTypes;
+    for (unsigned i = 0, e = ArgList.size(); i != e; ++i)
+      ParamTypes.push_back(ArgList[i].V->getType());
+
+    if (!FunctionType::isValidReturnType(RetType))
+      return true;
+
+    FuncTy = FunctionType::get(RetType, ParamTypes, false);
+  }
+  return false;
+}
+
 /// parseInvoke
 ///   ::= 'invoke' OptionalCallingConv OptionalAttrs Type Value ParamList
 ///       OptionalAttrs 'to' TypeAndValue 'unwind' TypeAndValue
 bool LLParser::parseInvoke(Instruction *&Inst, PerFunctionState &PFS) {
   LocTy CallLoc = Lex.getLoc();
-  AttrBuilder RetAttrs, FnAttrs;
+  AttrBuilder RetAttrs(M->getContext()), FnAttrs(M->getContext());
   std::vector<unsigned> FwdRefAttrGrps;
   LocTy NoBuiltinLoc;
   unsigned CC;
@@ -6248,18 +6548,9 @@ bool LLParser::parseInvoke(Instruction *&Inst, PerFunctionState &PFS) {
   // If RetType is a non-function pointer type, then this is the short syntax
   // for the call, which means that RetType is just the return type.  Infer the
   // rest of the function argument types from the arguments that are present.
-  FunctionType *Ty = dyn_cast<FunctionType>(RetType);
-  if (!Ty) {
-    // Pull out the types of all of the arguments...
-    std::vector<Type*> ParamTypes;
-    for (unsigned i = 0, e = ArgList.size(); i != e; ++i)
-      ParamTypes.push_back(ArgList[i].V->getType());
-
-    if (!FunctionType::isValidReturnType(RetType))
-      return error(RetTypeLoc, "Invalid result type for LLVM function");
-
-    Ty = FunctionType::get(RetType, ParamTypes, false);
-  }
+  FunctionType *Ty;
+  if (resolveFunctionType(RetType, ArgList, Ty))
+    return error(RetTypeLoc, "Invalid result type for LLVM function");
 
   CalleeID.FTy = Ty;
 
@@ -6294,9 +6585,6 @@ bool LLParser::parseInvoke(Instruction *&Inst, PerFunctionState &PFS) {
 
   if (I != E)
     return error(CallLoc, "not enough parameters specified for call");
-
-  if (FnAttrs.hasAlignmentAttr())
-    return error(CallLoc, "invoke instructions may not have an alignment");
 
   // Finish off the Attribute and check them
   AttributeList PAL =
@@ -6530,7 +6818,7 @@ bool LLParser::parseUnaryOp(Instruction *&Inst, PerFunctionState &PFS,
 ///       '[' LabelList ']'
 bool LLParser::parseCallBr(Instruction *&Inst, PerFunctionState &PFS) {
   LocTy CallLoc = Lex.getLoc();
-  AttrBuilder RetAttrs, FnAttrs;
+  AttrBuilder RetAttrs(M->getContext()), FnAttrs(M->getContext());
   std::vector<unsigned> FwdRefAttrGrps;
   LocTy NoBuiltinLoc;
   unsigned CC;
@@ -6574,18 +6862,9 @@ bool LLParser::parseCallBr(Instruction *&Inst, PerFunctionState &PFS) {
   // If RetType is a non-function pointer type, then this is the short syntax
   // for the call, which means that RetType is just the return type.  Infer the
   // rest of the function argument types from the arguments that are present.
-  FunctionType *Ty = dyn_cast<FunctionType>(RetType);
-  if (!Ty) {
-    // Pull out the types of all of the arguments...
-    std::vector<Type *> ParamTypes;
-    for (unsigned i = 0, e = ArgList.size(); i != e; ++i)
-      ParamTypes.push_back(ArgList[i].V->getType());
-
-    if (!FunctionType::isValidReturnType(RetType))
-      return error(RetTypeLoc, "Invalid result type for LLVM function");
-
-    Ty = FunctionType::get(RetType, ParamTypes, false);
-  }
+  FunctionType *Ty;
+  if (resolveFunctionType(RetType, ArgList, Ty))
+    return error(RetTypeLoc, "Invalid result type for LLVM function");
 
   CalleeID.FTy = Ty;
 
@@ -6619,9 +6898,6 @@ bool LLParser::parseCallBr(Instruction *&Inst, PerFunctionState &PFS) {
 
   if (I != E)
     return error(CallLoc, "not enough parameters specified for call");
-
-  if (FnAttrs.hasAlignmentAttr())
-    return error(CallLoc, "callbr instructions may not have an alignment");
 
   // Finish off the Attribute and check them
   AttributeList PAL =
@@ -6835,21 +7111,22 @@ int LLParser::parsePHI(Instruction *&Inst, PerFunctionState &PFS) {
   Type *Ty = nullptr;  LocTy TypeLoc;
   Value *Op0, *Op1;
 
-  if (parseType(Ty, TypeLoc) ||
-      parseToken(lltok::lsquare, "expected '[' in phi value list") ||
-      parseValue(Ty, Op0, PFS) ||
-      parseToken(lltok::comma, "expected ',' after insertelement value") ||
-      parseValue(Type::getLabelTy(Context), Op1, PFS) ||
-      parseToken(lltok::rsquare, "expected ']' in phi value list"))
+  if (parseType(Ty, TypeLoc))
     return true;
 
+  if (!Ty->isFirstClassType())
+    return error(TypeLoc, "phi node must have first class type");
+
+  bool First = true;
   bool AteExtraComma = false;
   SmallVector<std::pair<Value*, BasicBlock*>, 16> PHIVals;
 
   while (true) {
-    PHIVals.push_back(std::make_pair(Op0, cast<BasicBlock>(Op1)));
-
-    if (!EatIfPresent(lltok::comma))
+    if (First) {
+      if (Lex.getKind() != lltok::lsquare)
+        break;
+      First = false;
+    } else if (!EatIfPresent(lltok::comma))
       break;
 
     if (Lex.getKind() == lltok::MetadataVar) {
@@ -6863,10 +7140,9 @@ int LLParser::parsePHI(Instruction *&Inst, PerFunctionState &PFS) {
         parseValue(Type::getLabelTy(Context), Op1, PFS) ||
         parseToken(lltok::rsquare, "expected ']' in phi value list"))
       return true;
-  }
 
-  if (!Ty->isFirstClassType())
-    return error(TypeLoc, "phi node must have first class type");
+    PHIVals.push_back(std::make_pair(Op0, cast<BasicBlock>(Op1)));
+  }
 
   PHINode *PN = PHINode::Create(Ty, PHIVals.size());
   for (unsigned i = 0, e = PHIVals.size(); i != e; ++i)
@@ -6947,7 +7223,7 @@ bool LLParser::parseFreeze(Instruction *&Inst, PerFunctionState &PFS) {
 ///           OptionalAttrs Type Value ParameterList OptionalAttrs
 bool LLParser::parseCall(Instruction *&Inst, PerFunctionState &PFS,
                          CallInst::TailCallKind TCK) {
-  AttrBuilder RetAttrs, FnAttrs;
+  AttrBuilder RetAttrs(M->getContext()), FnAttrs(M->getContext());
   std::vector<unsigned> FwdRefAttrGrps;
   LocTy BuiltinLoc;
   unsigned CallAddrSpace;
@@ -6979,18 +7255,9 @@ bool LLParser::parseCall(Instruction *&Inst, PerFunctionState &PFS,
   // If RetType is a non-function pointer type, then this is the short syntax
   // for the call, which means that RetType is just the return type.  Infer the
   // rest of the function argument types from the arguments that are present.
-  FunctionType *Ty = dyn_cast<FunctionType>(RetType);
-  if (!Ty) {
-    // Pull out the types of all of the arguments...
-    std::vector<Type*> ParamTypes;
-    for (unsigned i = 0, e = ArgList.size(); i != e; ++i)
-      ParamTypes.push_back(ArgList[i].V->getType());
-
-    if (!FunctionType::isValidReturnType(RetType))
-      return error(RetTypeLoc, "Invalid result type for LLVM function");
-
-    Ty = FunctionType::get(RetType, ParamTypes, false);
-  }
+  FunctionType *Ty;
+  if (resolveFunctionType(RetType, ArgList, Ty))
+    return error(RetTypeLoc, "Invalid result type for LLVM function");
 
   CalleeID.FTy = Ty;
 
@@ -7026,9 +7293,6 @@ bool LLParser::parseCall(Instruction *&Inst, PerFunctionState &PFS,
 
   if (I != E)
     return error(CallLoc, "not enough parameters specified for call");
-
-  if (FnAttrs.hasAlignmentAttr())
-    return error(CallLoc, "call instructions may not have an alignment");
 
   // Finish off the Attribute and check them
   AttributeList PAL =
@@ -7168,7 +7432,7 @@ int LLParser::parseLoad(Instruction *&Inst, PerFunctionState &PFS) {
         ExplicitTypeLoc,
         typeComparisonErrorMessage(
             "explicit pointee type doesn't match operand's pointee type", Ty,
-            cast<PointerType>(Val->getType())->getElementType()));
+            Val->getType()->getNonOpaquePointerElementType()));
   }
   SmallPtrSet<Type *, 4> Visited;
   if (!Alignment && !Ty->isSized(&Visited))
@@ -7283,9 +7547,9 @@ int LLParser::parseCmpXchg(Instruction *&Inst, PerFunctionState &PFS) {
       PFS.getFunction().getParent()->getDataLayout().getTypeStoreSize(
           Cmp->getType()));
 
-  AtomicCmpXchgInst *CXI = new AtomicCmpXchgInst(
-      Ptr, Cmp, New, Alignment.getValueOr(DefaultAlignment), SuccessOrdering,
-      FailureOrdering, SSID);
+  AtomicCmpXchgInst *CXI =
+      new AtomicCmpXchgInst(Ptr, Cmp, New, Alignment.value_or(DefaultAlignment),
+                            SuccessOrdering, FailureOrdering, SSID);
   CXI->setVolatile(isVolatile);
   CXI->setWeak(isWeak);
 
@@ -7331,6 +7595,14 @@ int LLParser::parseAtomicRMW(Instruction *&Inst, PerFunctionState &PFS) {
     Operation = AtomicRMWInst::FSub;
     IsFP = true;
     break;
+  case lltok::kw_fmax:
+    Operation = AtomicRMWInst::FMax;
+    IsFP = true;
+    break;
+  case lltok::kw_fmin:
+    Operation = AtomicRMWInst::FMin;
+    IsFP = true;
+    break;
   }
   Lex.Lex();  // Eat the operation.
 
@@ -7351,10 +7623,12 @@ int LLParser::parseAtomicRMW(Instruction *&Inst, PerFunctionState &PFS) {
 
   if (Operation == AtomicRMWInst::Xchg) {
     if (!Val->getType()->isIntegerTy() &&
-        !Val->getType()->isFloatingPointTy()) {
-      return error(ValLoc,
-                   "atomicrmw " + AtomicRMWInst::getOperationName(Operation) +
-                       " operand must be an integer or floating point type");
+        !Val->getType()->isFloatingPointTy() &&
+        !Val->getType()->isPointerTy()) {
+      return error(
+          ValLoc,
+          "atomicrmw " + AtomicRMWInst::getOperationName(Operation) +
+              " operand must be an integer, floating point, or pointer type");
     }
   } else if (IsFP) {
     if (!Val->getType()->isFloatingPointTy()) {
@@ -7370,7 +7644,9 @@ int LLParser::parseAtomicRMW(Instruction *&Inst, PerFunctionState &PFS) {
     }
   }
 
-  unsigned Size = Val->getType()->getPrimitiveSizeInBits();
+  unsigned Size =
+      PFS.getFunction().getParent()->getDataLayout().getTypeStoreSizeInBits(
+          Val->getType());
   if (Size < 8 || (Size & (Size - 1)))
     return error(ValLoc, "atomicrmw operand must be power-of-two byte-sized"
                          " integer");
@@ -7379,7 +7655,7 @@ int LLParser::parseAtomicRMW(Instruction *&Inst, PerFunctionState &PFS) {
           Val->getType()));
   AtomicRMWInst *RMWI =
       new AtomicRMWInst(Operation, Ptr, Val,
-                        Alignment.getValueOr(DefaultAlignment), Ordering, SSID);
+                        Alignment.value_or(DefaultAlignment), Ordering, SSID);
   RMWI->setVolatile(isVolatile);
   Inst = RMWI;
   return AteExtraComma ? InstExtraComma : InstNormal;
@@ -7428,7 +7704,7 @@ int LLParser::parseGetElementPtr(Instruction *&Inst, PerFunctionState &PFS) {
         ExplicitTypeLoc,
         typeComparisonErrorMessage(
             "explicit pointee type doesn't match operand's pointee type", Ty,
-            BasePointerType->getElementType()));
+            BasePointerType->getNonOpaquePointerElementType()));
   }
 
   SmallVector<Value*, 16> Indices;
@@ -8524,6 +8800,7 @@ bool LLParser::parseFlag(unsigned &Val) {
 ///        [',' 'noUnwind' ':' Flag]? ')'
 ///        [',' 'mayThrow' ':' Flag]? ')'
 ///        [',' 'hasUnknownCall' ':' Flag]? ')'
+///        [',' 'mustBeUnreachable' ':' Flag]? ')'
 
 bool LLParser::parseOptionalFFlags(FunctionSummary::FFlags &FFlags) {
   assert(Lex.getKind() == lltok::kw_funcFlags);
@@ -8589,6 +8866,12 @@ bool LLParser::parseOptionalFFlags(FunctionSummary::FFlags &FFlags) {
       if (parseToken(lltok::colon, "expected ':'") || parseFlag(Val))
         return true;
       FFlags.HasUnknownCall = Val;
+      break;
+    case lltok::kw_mustBeUnreachable:
+      Lex.Lex();
+      if (parseToken(lltok::colon, "expected ':'") || parseFlag(Val))
+        return true;
+      FFlags.MustBeUnreachable = Val;
       break;
     default:
       return error(Lex.getLoc(), "expected function flag type");

@@ -39,6 +39,7 @@ def brtarget21 : Operand<OtherVT> {
   let OperandType = "OPERAND_PCREL";
   let DecoderMethod = "DecodeBranchTarget21";
   let ParserMatchClass = MipsJumpTargetAsmOperand;
+  let PrintMethod = "printBranchOperand";
 }
 
 def brtarget26 : Operand<OtherVT> {
@@ -46,6 +47,7 @@ def brtarget26 : Operand<OtherVT> {
   let OperandType = "OPERAND_PCREL";
   let DecoderMethod = "DecodeBranchTarget26";
   let ParserMatchClass = MipsJumpTargetAsmOperand;
+  let PrintMethod = "printBranchOperand";
 }
 
 def jmpoffset16 : Operand<OtherVT> {
@@ -839,6 +841,7 @@ class GINV_DESC_BASE<string instr_asm, RegisterOperand GPROpnd,
 }
 
 class GINVI_DESC : GINV_DESC_BASE<"ginvi", GPR32Opnd, II_GINVI> {
+  bits<2> type_ = 0b00;
   dag InOperandList = (ins GPR32Opnd:$rs);
   string AsmString = "ginvi\t$rs";
 }

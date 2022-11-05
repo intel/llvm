@@ -62,8 +62,8 @@ body: |
     MOV64mr $rip, 1, _, @addr, _, killed $rax
     JMP64m $rip, 1, _, @addr, _
 
-  bb.1.block (address-taken):
-    RETQ
+  bb.1.block (ir-block-address-taken %ir-block.block):
+    RET64
 ...
 ---
 name:            test2
@@ -76,8 +76,8 @@ body: |
     MOV64mr $rip, 1, _, @addr, _, killed $rax
     JMP64m $rip, 1, _, @addr, _
 
-  bb.1 (address-taken):
-    RETQ
+  bb.1 (%ir-block."quoted block", ir-block-address-taken %ir-block."quoted block"):
+    RET64
 ...
 ---
 name:            slot_in_other_function
@@ -89,7 +89,7 @@ body: |
   ; CHECK: $rax = LEA64r $rip, 1, $noreg, blockaddress(@test3, %ir-block.0), $noreg
     $rax = LEA64r $rip, 1, _, blockaddress(@test3, %ir-block.0), _
     MOV64mr killed $rdi, 1, _, 0, _, killed $rax
-    RETQ
+    RET64
 ...
 ---
 name:            test3
@@ -103,8 +103,8 @@ body: |
     MOV64mr $rip, 1, _, @addr, _, killed $rax
     JMP64m $rip, 1, _, @addr, _
 
-  bb.1 (address-taken):
-    RETQ
+  bb.1 (%ir-block.0, ir-block-address-taken %ir-block.0):
+    RET64
 ...
 ---
 name:            test4
@@ -116,6 +116,6 @@ body: |
     MOV64mr $rip, 1, _, @addr, _, killed $rax
     JMP64m $rip, 1, _, @addr, _
 
-  bb.1.block (address-taken):
-    RETQ
+  bb.1.block (ir-block-address-taken %ir-block.block):
+    RET64
 ...

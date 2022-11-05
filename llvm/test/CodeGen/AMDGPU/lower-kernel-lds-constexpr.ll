@@ -10,6 +10,7 @@
 ; CHECK: %llvm.amdgcn.kernel.k3.lds.t = type { [32 x i8] }
 ; CHECK: %llvm.amdgcn.kernel.k4.lds.t = type { [2 x i8] }
 ; CHECK: %llvm.amdgcn.kernel.k5.lds.t = type { [505 x i32] }
+; CHECK: %llvm.amdgcn.kernel.k6.lds.t = type { [4 x i32] }
 
 ; Use constant from different kernels
 ;.
@@ -19,6 +20,7 @@
 ; CHECK: @llvm.amdgcn.kernel.k3.lds = internal addrspace(3) global %llvm.amdgcn.kernel.k3.lds.t undef, align 16
 ; CHECK: @llvm.amdgcn.kernel.k4.lds = internal addrspace(3) global %llvm.amdgcn.kernel.k4.lds.t undef, align 2
 ; CHECK: @llvm.amdgcn.kernel.k5.lds = internal addrspace(3) global %llvm.amdgcn.kernel.k5.lds.t undef, align 16
+; CHECK: @llvm.amdgcn.kernel.k6.lds = internal addrspace(3) global %llvm.amdgcn.kernel.k6.lds.t undef, align 16
 ;.
 define amdgpu_kernel void @k0(i64 %x) {
 ; CHECK-LABEL: @k0(
@@ -105,10 +107,30 @@ define amdgpu_kernel void @k4(i64 %x) {
 ; Multiple constexpr use in a same instruction.
 define amdgpu_kernel void @k5() {
 ; CHECK-LABEL: @k5(
-; CHECK-NEXT: %1 = addrspacecast [505 x i32] addrspace(3)* getelementptr inbounds (%llvm.amdgcn.kernel.k5.lds.t, %llvm.amdgcn.kernel.k5.lds.t addrspace(3)* @llvm.amdgcn.kernel.k5.lds, i32 0, i32 0) to [505 x i32]*
-; CHECK-NEXT: %2 = getelementptr inbounds [505 x i32], [505 x i32]* %1, i64 0, i64 0
-; CHECK-NEXT: call void undef(i32* %2, i32* %2)
+; CHECK-NEXT:  %1 = addrspacecast [505 x i32] addrspace(3)* getelementptr inbounds (%llvm.amdgcn.kernel.k5.lds.t, %llvm.amdgcn.kernel.k5.lds.t addrspace(3)* @llvm.amdgcn.kernel.k5.lds, i32 0, i32 0) to [505 x i32]*
+; CHECK-NEXT:  %2 = getelementptr inbounds [505 x i32], [505 x i32]* %1, i64 0, i64 0
+; CHECK-NEXT:  %3 = addrspacecast [505 x i32] addrspace(3)* getelementptr inbounds (%llvm.amdgcn.kernel.k5.lds.t, %llvm.amdgcn.kernel.k5.lds.t addrspace(3)* @llvm.amdgcn.kernel.k5.lds, i32 0, i32 0) to [505 x i32]*
+; CHECK-NEXT:  %4 = getelementptr inbounds [505 x i32], [505 x i32]* %3, i64 0, i64 0
+; CHECK-NEXT:  call void undef(i32* %2, i32* %4)
 ;
   call void undef(i32* getelementptr inbounds ([505 x i32], [505 x i32]* addrspacecast ([505 x i32] addrspace(3)* @lds.4 to [505 x i32]*), i64 0, i64 0), i32* getelementptr inbounds ([505 x i32], [505 x i32]* addrspacecast ([505 x i32] addrspace(3)* @lds.4 to [505 x i32]*), i64 0, i64 0))
+  ret void
+}
+
+@lds.5 = internal addrspace(3) global [4 x i32] undef, align 4
+
+; Both the *value* and *pointer* operands of store instruction are constant expressions, and
+; both of these constant expression paths use same lds - @lds.5. Hence both of these constant
+; expression operands of store should be replaced by equivalent instruction sequences.
+define amdgpu_kernel void @k6() {
+; CHECK-LABEL: @k6(
+
+; CHECK-NEXT:  %1 = getelementptr inbounds [4 x i32], [4 x i32] addrspace(3)* getelementptr inbounds (%llvm.amdgcn.kernel.k6.lds.t, %llvm.amdgcn.kernel.k6.lds.t addrspace(3)* @llvm.amdgcn.kernel.k6.lds, i32 0, i32 0), i32 0, i32 2
+; CHECK-NEXT:  %2 = ptrtoint i32 addrspace(3)* %1 to i32
+; CHECK-NEXT:  %3 = getelementptr inbounds [4 x i32], [4 x i32] addrspace(3)* getelementptr inbounds (%llvm.amdgcn.kernel.k6.lds.t, %llvm.amdgcn.kernel.k6.lds.t addrspace(3)* @llvm.amdgcn.kernel.k6.lds, i32 0, i32 0), i32 0, i32 2
+; CHECK-NEXT:  store i32 %2, i32 addrspace(3)* %3, align 8
+; CHECK-NEXT:  ret void
+;
+  store i32 ptrtoint (i32 addrspace(3)* getelementptr inbounds ([4 x i32], [4 x i32] addrspace(3)* @lds.5, i32 0, i32 2) to i32), i32 addrspace(3)* getelementptr inbounds ([4 x i32], [4 x i32] addrspace(3)* @lds.5, i32 0, i32 2)
   ret void
 }

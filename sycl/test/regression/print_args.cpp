@@ -9,7 +9,7 @@ template <typename TArg0, typename... TArgs>
 auto printArgs(TArg0 arg, TArgs... args) {
 }
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 int main() {
   return 0;

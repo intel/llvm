@@ -1,4 +1,4 @@
-//===------------------------- UnwindLevel1.c -----------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -41,10 +41,14 @@
 // In exception handing, some stack frames will be skipped before jumping to
 // landing pad and we must adjust CET shadow stack accordingly.
 // _LIBUNWIND_POP_CET_SSP is used to adjust CET shadow stack pointer and we
-// directly jump to __libunwind_Registerts_x86/x86_64_jumpto instead of using
+// directly jump to __libunwind_Registers_x86/x86_64_jumpto instead of using
 // a regular function call to avoid pushing to CET shadow stack again.
 #if !defined(_LIBUNWIND_USE_CET)
-#define __unw_phase2_resume(cursor, fn) __unw_resume((cursor))
+#define __unw_phase2_resume(cursor, fn)                                        \
+  do {                                                                         \
+    (void)fn;                                                                  \
+    __unw_resume((cursor));                                                    \
+  } while (0)
 #elif defined(_LIBUNWIND_TARGET_I386)
 #define __unw_phase2_resume(cursor, fn)                                        \
   do {                                                                         \
@@ -161,7 +165,7 @@ unwind_phase1(unw_context_t *uc, unw_cursor_t *cursor, _Unwind_Exception *except
   }
   return _URC_NO_REASON;
 }
-
+extern int __unw_step_stage2(unw_cursor_t *);
 
 static _Unwind_Reason_Code
 unwind_phase2(unw_context_t *uc, unw_cursor_t *cursor, _Unwind_Exception *exception_object) {
@@ -178,16 +182,16 @@ unwind_phase2(unw_context_t *uc, unw_cursor_t *cursor, _Unwind_Exception *except
 
     // Ask libunwind to get next frame (skip over first which is
     // _Unwind_RaiseException).
-    int stepResult = __unw_step(cursor);
+    int stepResult = __unw_step_stage2(cursor);
     if (stepResult == 0) {
       _LIBUNWIND_TRACE_UNWINDING(
-          "unwind_phase2(ex_ojb=%p): __unw_step() reached "
+          "unwind_phase2(ex_ojb=%p): __unw_step_stage2() reached "
           "bottom => _URC_END_OF_STACK",
           (void *)exception_object);
       return _URC_END_OF_STACK;
     } else if (stepResult < 0) {
       _LIBUNWIND_TRACE_UNWINDING(
-          "unwind_phase2(ex_ojb=%p): __unw_step failed => "
+          "unwind_phase2(ex_ojb=%p): __unw_step_stage2 failed => "
           "_URC_FATAL_PHASE1_ERROR",
           (void *)exception_object);
       return _URC_FATAL_PHASE2_ERROR;
@@ -292,14 +296,15 @@ unwind_phase2_forced(unw_context_t *uc, unw_cursor_t *cursor,
   // frame walked is unwind_phase2_forced.
   unsigned framesWalked = 1;
   // Walk each frame until we reach where search phase said to stop
-  while (__unw_step(cursor) > 0) {
+  while (__unw_step_stage2(cursor) > 0) {
 
     // Update info about this frame.
     unw_proc_info_t frameInfo;
     if (__unw_get_proc_info(cursor, &frameInfo) != UNW_ESUCCESS) {
-      _LIBUNWIND_TRACE_UNWINDING("unwind_phase2_forced(ex_ojb=%p): __unw_step "
-                                 "failed => _URC_END_OF_STACK",
-                                 (void *)exception_object);
+      _LIBUNWIND_TRACE_UNWINDING(
+          "unwind_phase2_forced(ex_ojb=%p): __unw_step_stage2 "
+          "failed => _URC_END_OF_STACK",
+          (void *)exception_object);
       return _URC_FATAL_PHASE2_ERROR;
     }
 
@@ -421,7 +426,7 @@ _Unwind_RaiseException(_Unwind_Exception *exception_object) {
 /// may force a jump to a landing pad in that function, the landing
 /// pad code may then call _Unwind_Resume() to continue with the
 /// unwinding.  Note: the call to _Unwind_Resume() is from compiler
-/// geneated user code.  All other _Unwind_* routines are called
+/// generated user code.  All other _Unwind_* routines are called
 /// by the C++ runtime __cxa_* routines.
 ///
 /// Note: re-throwing an exception (as opposed to continuing the unwind)
@@ -480,11 +485,13 @@ _Unwind_GetLanguageSpecificData(struct _Unwind_Context *context) {
   _LIBUNWIND_TRACE_API(
       "_Unwind_GetLanguageSpecificData(context=%p) => 0x%" PRIxPTR,
       (void *)context, result);
+#if !defined(_LIBUNWIND_SUPPORT_TBTAB_UNWIND)
   if (result != 0) {
     if (*((uint8_t *)result) != 0xFF)
       _LIBUNWIND_DEBUG_LOG("lsda at 0x%" PRIxPTR " does not start with 0xFF",
                            result);
   }
+#endif
   return result;
 }
 

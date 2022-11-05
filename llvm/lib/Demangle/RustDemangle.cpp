@@ -23,9 +23,9 @@
 
 using namespace llvm;
 
-using llvm::itanium_demangle::OutputStream;
+using llvm::itanium_demangle::OutputBuffer;
+using llvm::itanium_demangle::ScopedOverride;
 using llvm::itanium_demangle::StringView;
-using llvm::itanium_demangle::SwapAndRestore;
 
 namespace {
 
@@ -88,7 +88,7 @@ class Demangler {
 
 public:
   // Demangled output.
-  OutputStream Output;
+  OutputBuffer Output;
 
   Demangler(size_t MaxRecursionLevel = 500);
 
@@ -119,7 +119,7 @@ private:
     if (!Print)
       return;
 
-    SwapAndRestore<size_t> SavePosition(Position, Position);
+    ScopedOverride<size_t> SavePosition(Position, Position);
     Position = Backref;
     Demangler();
   }
@@ -147,57 +147,24 @@ private:
 
 } // namespace
 
-char *llvm::rustDemangle(const char *MangledName, char *Buf, size_t *N,
-                         int *Status) {
-  if (MangledName == nullptr || (Buf != nullptr && N == nullptr)) {
-    if (Status != nullptr)
-      *Status = demangle_invalid_args;
+char *llvm::rustDemangle(const char *MangledName) {
+  if (MangledName == nullptr)
     return nullptr;
-  }
 
   // Return early if mangled name doesn't look like a Rust symbol.
   StringView Mangled(MangledName);
-  if (!Mangled.startsWith("_R")) {
-    if (Status != nullptr)
-      *Status = demangle_invalid_mangled_name;
+  if (!Mangled.startsWith("_R"))
     return nullptr;
-  }
 
   Demangler D;
-  if (!initializeOutputStream(nullptr, nullptr, D.Output, 1024)) {
-    if (Status != nullptr)
-      *Status = demangle_memory_alloc_failure;
-    return nullptr;
-  }
-
   if (!D.demangle(Mangled)) {
-    if (Status != nullptr)
-      *Status = demangle_invalid_mangled_name;
     std::free(D.Output.getBuffer());
     return nullptr;
   }
 
   D.Output += '\0';
-  char *Demangled = D.Output.getBuffer();
-  size_t DemangledLen = D.Output.getCurrentPosition();
 
-  if (Buf != nullptr) {
-    if (DemangledLen <= *N) {
-      std::memcpy(Buf, Demangled, DemangledLen);
-      std::free(Demangled);
-      Demangled = Buf;
-    } else {
-      std::free(Buf);
-    }
-  }
-
-  if (N != nullptr)
-    *N = DemangledLen;
-
-  if (Status != nullptr)
-    *Status = demangle_success;
-
-  return Demangled;
+  return D.Output.getBuffer();
 }
 
 Demangler::Demangler(size_t MaxRecursionLevel)
@@ -241,7 +208,7 @@ bool Demangler::demangle(StringView Mangled) {
   demanglePath(IsInType::No);
 
   if (Position != Input.size()) {
-    SwapAndRestore<bool> SavePrint(Print, false);
+    ScopedOverride<bool> SavePrint(Print, false);
     demanglePath(IsInType::No);
   }
 
@@ -279,7 +246,7 @@ bool Demangler::demanglePath(IsInType InType, LeaveGenericsOpen LeaveOpen) {
     Error = true;
     return false;
   }
-  SwapAndRestore<size_t> SaveRecursionLevel(RecursionLevel, RecursionLevel + 1);
+  ScopedOverride<size_t> SaveRecursionLevel(RecursionLevel, RecursionLevel + 1);
 
   switch (consume()) {
   case 'C': {
@@ -380,7 +347,7 @@ bool Demangler::demanglePath(IsInType InType, LeaveGenericsOpen LeaveOpen) {
 // <impl-path> = [<disambiguator>] <path>
 // <disambiguator> = "s" <base-62-number>
 void Demangler::demangleImplPath(IsInType InType) {
-  SwapAndRestore<bool> SavePrint(Print, false);
+  ScopedOverride<bool> SavePrint(Print, false);
   parseOptionalBase62Number('s');
   demanglePath(InType);
 }
@@ -574,7 +541,7 @@ void Demangler::demangleType() {
     Error = true;
     return;
   }
-  SwapAndRestore<size_t> SaveRecursionLevel(RecursionLevel, RecursionLevel + 1);
+  ScopedOverride<size_t> SaveRecursionLevel(RecursionLevel, RecursionLevel + 1);
 
   size_t Start = Position;
   char C = consume();
@@ -657,7 +624,7 @@ void Demangler::demangleType() {
 // <abi> = "C"
 //       | <undisambiguated-identifier>
 void Demangler::demangleFnSig() {
-  SwapAndRestore<size_t> SaveBoundLifetimes(BoundLifetimes, BoundLifetimes);
+  ScopedOverride<size_t> SaveBoundLifetimes(BoundLifetimes, BoundLifetimes);
   demangleOptionalBinder();
 
   if (consumeIf('U'))
@@ -699,7 +666,7 @@ void Demangler::demangleFnSig() {
 
 // <dyn-bounds> = [<binder>] {<dyn-trait>} "E"
 void Demangler::demangleDynBounds() {
-  SwapAndRestore<size_t> SaveBoundLifetimes(BoundLifetimes, BoundLifetimes);
+  ScopedOverride<size_t> SaveBoundLifetimes(BoundLifetimes, BoundLifetimes);
   print("dyn ");
   demangleOptionalBinder();
   for (size_t I = 0; !Error && !consumeIf('E'); ++I) {
@@ -763,7 +730,7 @@ void Demangler::demangleConst() {
     Error = true;
     return;
   }
-  SwapAndRestore<size_t> SaveRecursionLevel(RecursionLevel, RecursionLevel + 1);
+  ScopedOverride<size_t> SaveRecursionLevel(RecursionLevel, RecursionLevel + 1);
 
   char C = consume();
   BasicType Type;
@@ -1094,7 +1061,7 @@ static inline bool decodePunycodeDigit(char C, size_t &Value) {
   return false;
 }
 
-static void removeNullBytes(OutputStream &Output, size_t StartIdx) {
+static void removeNullBytes(OutputBuffer &Output, size_t StartIdx) {
   char *Buffer = Output.getBuffer();
   char *Start = Buffer + StartIdx;
   char *End = Buffer + Output.getCurrentPosition();
@@ -1138,7 +1105,7 @@ static inline bool encodeUTF8(size_t CodePoint, char *Output) {
 
 // Decodes string encoded using punycode and appends results to Output.
 // Returns true if decoding was successful.
-static bool decodePunycode(StringView Input, OutputStream &Output) {
+static bool decodePunycode(StringView Input, OutputBuffer &Output) {
   size_t OutputSize = Output.getCurrentPosition();
   size_t InputIdx = 0;
 

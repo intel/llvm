@@ -468,8 +468,8 @@ hasAnyOverloadedOperatorNameFunc(ArrayRef<const StringRef *> NameRefs) {
 }
 
 HasNameMatcher::HasNameMatcher(std::vector<std::string> N)
-    : UseUnqualifiedMatch(llvm::all_of(
-          N, [](StringRef Name) { return Name.find("::") == Name.npos; })),
+    : UseUnqualifiedMatch(
+          llvm::all_of(N, [](StringRef Name) { return !Name.contains("::"); })),
       Names(std::move(N)) {
 #ifndef NDEBUG
   for (StringRef Name : Names)
@@ -768,6 +768,7 @@ const internal::VariadicDynCastAllOfMatcher<Decl, TemplateTypeParmDecl>
 const internal::VariadicDynCastAllOfMatcher<Decl, TemplateTemplateParmDecl>
     templateTemplateParmDecl;
 
+const internal::VariadicAllOfMatcher<LambdaCapture> lambdaCapture;
 const internal::VariadicAllOfMatcher<QualType> qualType;
 const internal::VariadicAllOfMatcher<Type> type;
 const internal::VariadicAllOfMatcher<TypeLoc> typeLoc;
@@ -916,6 +917,7 @@ const internal::VariadicDynCastAllOfMatcher<Stmt, AsmStmt> asmStmt;
 const internal::VariadicDynCastAllOfMatcher<Stmt, CXXBoolLiteralExpr>
     cxxBoolLiteral;
 const internal::VariadicDynCastAllOfMatcher<Stmt, StringLiteral> stringLiteral;
+const internal::VariadicDynCastAllOfMatcher<Stmt, ObjCStringLiteral> objcStringLiteral;
 const internal::VariadicDynCastAllOfMatcher<Stmt, CharacterLiteral>
     characterLiteral;
 const internal::VariadicDynCastAllOfMatcher<Stmt, IntegerLiteral>
@@ -1058,6 +1060,7 @@ const AstTypeMatcher<UnaryTransformType> unaryTransformType;
 const AstTypeMatcher<RecordType> recordType;
 const AstTypeMatcher<TagType> tagType;
 const AstTypeMatcher<ElaboratedType> elaboratedType;
+const AstTypeMatcher<UsingType> usingType;
 const AstTypeMatcher<SubstTemplateTypeParmType> substTemplateTypeParmType;
 const AstTypeMatcher<TemplateTypeParmType> templateTypeParmType;
 const AstTypeMatcher<InjectedClassNameType> injectedClassNameType;

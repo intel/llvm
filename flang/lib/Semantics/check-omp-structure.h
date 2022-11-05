@@ -191,6 +191,7 @@ public:
   }
 
 private:
+  void CheckMultListItems();
   bool HasInvalidWorksharingNesting(
       const parser::CharBlock &, const OmpDirectiveSet &);
   bool IsCloselyNestedRegion(const OmpDirectiveSet &set);
@@ -217,6 +218,8 @@ private:
       const parser::OmpObjectList &, const llvm::omp::Clause);
   void GetSymbolsInObjectList(const parser::OmpObjectList &, SymbolSourceMap &);
   void CheckDefinableObjects(SymbolSourceMap &, const llvm::omp::Clause);
+  void CheckCopyingPolymorphicAllocatable(
+      SymbolSourceMap &, const llvm::omp::Clause);
   void CheckPrivateSymbolsInOuterCxt(
       SymbolSourceMap &, DirectivesClauseTriple &, const llvm::omp::Clause);
   const parser::Name GetLoopIndex(const parser::DoConstruct *x);
@@ -229,13 +232,17 @@ private:
   void CheckLoopItrVariableIsInt(const parser::OpenMPLoopConstruct &x);
   void CheckDoWhile(const parser::OpenMPLoopConstruct &x);
   void CheckCycleConstraints(const parser::OpenMPLoopConstruct &x);
+  template <typename T, typename D> bool IsOperatorValid(const T &, const D &);
+  void CheckAtomicMemoryOrderClause(
+      const parser::OmpAtomicClauseList *, const parser::OmpAtomicClauseList *);
+  void CheckAtomicUpdateAssignmentStmt(const parser::AssignmentStmt &);
+  void CheckAtomicConstructStructure(const parser::OpenMPAtomicConstruct &);
   void CheckDistLinear(const parser::OpenMPLoopConstruct &x);
   void CheckSIMDNest(const parser::OpenMPConstruct &x);
   void CheckTargetNest(const parser::OpenMPConstruct &x);
   void CheckCancellationNest(
       const parser::CharBlock &source, const parser::OmpCancelType::Type &type);
   std::int64_t GetOrdCollapseLevel(const parser::OpenMPLoopConstruct &x);
-  void CheckIfDoOrderedClause(const parser::OmpBlockDirective &blkDirectiv);
   bool CheckReductionOperators(const parser::OmpClause::Reduction &);
   bool CheckIntrinsicOperator(
       const parser::DefinedOperator::IntrinsicOperator &);
@@ -244,6 +251,7 @@ private:
   void ChecksOnOrderedAsBlock();
   void CheckBarrierNesting(const parser::OpenMPSimpleStandaloneConstruct &x);
   void ChecksOnOrderedAsStandalone();
+  void CheckOrderedDependClause(std::optional<std::int64_t> orderedValue);
   void CheckReductionArraySection(const parser::OmpObjectList &ompObjectList);
   void CheckIntentInPointerAndDefinable(
       const parser::OmpObjectList &, const llvm::omp::Clause);
@@ -260,6 +268,7 @@ private:
   void EnterDirectiveNest(const int index) { directiveNest_[index]++; }
   void ExitDirectiveNest(const int index) { directiveNest_[index]--; }
   int GetDirectiveNest(const int index) { return directiveNest_[index]; }
+  template <typename D> void CheckHintClause(D *, D *);
 
   enum directiveNestType {
     SIMDNest,

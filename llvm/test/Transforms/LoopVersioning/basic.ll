@@ -1,4 +1,4 @@
-; RUN: opt -basic-aa -loop-versioning -S < %s | FileCheck %s
+; RUN: opt -loop-versioning -S < %s | FileCheck %s
 ; RUN: opt -aa-pipeline=basic-aa -passes=loop-versioning -S < %s | FileCheck %s
 
 target datalayout = "e-m:o-i64:64-f80:128-n8:16:32:64-S128"
@@ -15,7 +15,7 @@ entry:
 ; CHECK:   icmp
 ; CHECK:   icmp
 ; CHECK-NOT: icmp
-; CHECK:   br i1 %memcheck.conflict, label %for.body.ph.lver.orig, label %for.body.ph
+; CHECK:   br i1 %conflict.rdx, label %for.body.ph.lver.orig, label %for.body.ph
 
 ; CHECK: for.body.ph.lver.orig:
 ; CHECK: for.body.lver.orig:

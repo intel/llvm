@@ -17,7 +17,7 @@
 ; RUN: FileCheck < %t.txt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
@@ -36,7 +36,7 @@ for.cond:                                         ; preds = %for.inc, %entry
   %j.0 = phi i32 [ 0, %entry ], [ %inc, %for.inc ]
 ;CHECK-SPIRV: Phi {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} [[BitcastResultId:[0-9]+]] {{[0-9]+}}
 ;CHECK-SPIRV-NEXT: Phi
-;CHECK-LLVM: phi %struct.Node addrspace(1)* [ %pNodes, %entry ], [ [[BitcastResult:%[0-9]+]], %for.inc ]
+;CHECK-LLVM: phi ptr addrspace(1) [ %pNodes, %entry ], [ [[BitcastResult:%[0-9]+]], %for.inc ]
 ;CHECK-LLVM-NEXT: phi
 
   %cmp = icmp slt i32 %j.0, 10
@@ -49,8 +49,8 @@ for.body:                                         ; preds = %for.cond
   %1 = bitcast %struct.Node.0 addrspace(1)* %0 to %struct.Node addrspace(1)*
 ;CHECK-SPIRV: Load {{[0-9]+}} [[LoadResultId:[0-9]+]]
 ;CHECK-SPIRV: Bitcast {{[0-9]+}} [[BitcastResultId]] [[LoadResultId]]
-;CHECK-LLVM: [[LoadResult:%[0-9]+]] = load %struct.Node.0 addrspace(1)*, %struct.Node.0 addrspace(1)* addrspace(1)* {{.*}}
-;CHECK-LLVM: [[BitcastResult]] = bitcast %struct.Node.0 addrspace(1)* [[LoadResult]] to %struct.Node addrspace(1)*
+;CHECK-LLVM: [[LoadResult:%[0-9]+]] = load ptr addrspace(1), ptr addrspace(1) {{.*}}
+;CHECK-LLVM: [[BitcastResult]] = bitcast ptr addrspace(1) [[LoadResult]] to ptr addrspace(1)
 
   br label %for.inc
 

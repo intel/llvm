@@ -12,6 +12,7 @@
 #include "GDBRemoteCommunicationHistory.h"
 
 #include <condition_variable>
+#include <future>
 #include <mutex>
 #include <queue>
 #include <string>
@@ -81,12 +82,6 @@ class ProcessGDBRemote;
 
 class GDBRemoteCommunication : public Communication {
 public:
-  enum {
-    eBroadcastBitRunPacketSent = kLoUserBroadcastBit,
-    eBroadcastBitGdbReadThreadGotNotify =
-        kLoUserBroadcastBit << 1 // Sent when we received a notify packet.
-  };
-
   enum class PacketType { Invalid = 0, Standard, Notify };
 
   enum class PacketResult {
@@ -121,7 +116,7 @@ public:
     bool m_timeout_modified;
   };
 
-  GDBRemoteCommunication(const char *comm_name, const char *listener_name);
+  GDBRemoteCommunication();
 
   ~GDBRemoteCommunication() override;
 
@@ -181,23 +176,19 @@ protected:
                       // false if this class represents a debug session for
                       // a single process
 
+  std::string m_bytes;
+  std::recursive_mutex m_bytes_mutex;
   CompressionType m_compression_type;
 
   PacketResult SendPacketNoLock(llvm::StringRef payload);
+  PacketResult SendNotificationPacketNoLock(llvm::StringRef notify_type,
+                                            std::deque<std::string>& queue,
+                                            llvm::StringRef payload);
   PacketResult SendRawPacketNoLock(llvm::StringRef payload,
                                    bool skip_ack = false);
 
   PacketResult ReadPacket(StringExtractorGDBRemote &response,
                           Timeout<std::micro> timeout, bool sync_on_timeout);
-
-  PacketResult ReadPacketWithOutputSupport(
-      StringExtractorGDBRemote &response, Timeout<std::micro> timeout,
-      bool sync_on_timeout,
-      llvm::function_ref<void(llvm::StringRef)> output_callback);
-
-  // Pop a packet from the queue in a thread safe manner
-  PacketResult PopPacketFromQueue(StringExtractorGDBRemote &response,
-                                  Timeout<std::micro> timeout);
 
   PacketResult WaitForPacketNoLock(StringExtractorGDBRemote &response,
                                    Timeout<std::micro> timeout,
@@ -223,26 +214,11 @@ protected:
 
   bool JoinListenThread();
 
-  static lldb::thread_result_t ListenThread(lldb::thread_arg_t arg);
-
-  // GDB-Remote read thread
-  //  . this thread constantly tries to read from the communication
-  //    class and stores all packets received in a queue.  The usual
-  //    threads read requests simply pop packets off the queue in the
-  //    usual order.
-  //    This setup allows us to intercept and handle async packets, such
-  //    as the notify packet.
-
-  // This method is defined as part of communication.h
-  // when the read thread gets any bytes it will pass them on to this function
-  void AppendBytesToCache(const uint8_t *bytes, size_t len, bool broadcast,
-                          lldb::ConnectionStatus status) override;
+  lldb::thread_result_t ListenThread();
 
 private:
-  std::queue<StringExtractorGDBRemote> m_packet_queue; // The packet queue
-  std::mutex m_packet_queue_mutex; // Mutex for accessing queue
-  std::condition_variable
-      m_condition_queue_not_empty; // Condition variable to wait for packets
+  // Promise used to grab the port number from listening thread
+  std::promise<uint16_t> m_port_promise;
 
   HostThread m_listen_thread;
   std::string m_listen_url;

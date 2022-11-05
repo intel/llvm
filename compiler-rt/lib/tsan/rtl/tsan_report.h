@@ -43,7 +43,7 @@ struct ReportStack {
 };
 
 struct ReportMopMutex {
-  u64 id;
+  int id;
   bool write;
 };
 
@@ -76,6 +76,7 @@ struct ReportLocation {
   uptr external_tag = 0;
   Tid tid = kInvalidTid;
   int fd = 0;
+  bool fd_closed = false;
   bool suppressable = false;
   ReportStack *stack = nullptr;
 };
@@ -91,9 +92,8 @@ struct ReportThread {
 };
 
 struct ReportMutex {
-  u64 id;
+  int id;
   uptr addr;
-  bool destroyed;
   ReportStack *stack;
 };
 
@@ -109,6 +109,7 @@ class ReportDesc {
   Vector<Tid> unique_tids;
   ReportStack *sleep;
   int count;
+  int signum = 0;
 
   ReportDesc();
   ~ReportDesc();

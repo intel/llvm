@@ -19,7 +19,6 @@
 #include "llvm/ADT/None.h"
 #include "llvm/CodeGen/MIRFormatter.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
-#include "llvm/CodeGen/MachineCombinerPattern.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
@@ -38,7 +37,6 @@
 
 namespace llvm {
 
-class AAResults;
 class DFAPacketizer;
 class InstrItineraryData;
 class LiveIntervals;
@@ -55,11 +53,14 @@ class ScheduleDAGMI;
 class ScheduleHazardRecognizer;
 class SDNode;
 class SelectionDAG;
+class SMSchedule;
+class SwingSchedulerDAG;
 class RegScavenger;
 class TargetRegisterClass;
 class TargetRegisterInfo;
 class TargetSchedModel;
 class TargetSubtargetInfo;
+enum class MachineCombinerPattern;
 
 template <class T> class SmallVectorImpl;
 
@@ -109,6 +110,11 @@ public:
     return Opc <= TargetOpcode::GENERIC_OP_END;
   }
 
+  static bool isGenericAtomicRMWOpcode(unsigned Opc) {
+    return Opc >= TargetOpcode::GENERIC_ATOMICRMW_OP_START &&
+           Opc <= TargetOpcode::GENERIC_ATOMICRMW_OP_END;
+  }
+
   /// Given a machine instruction descriptor, returns the register
   /// class constraint for OpNum, or NULL.
   virtual
@@ -121,16 +127,15 @@ public:
   /// This means the only allowed uses are constants and unallocatable physical
   /// registers so that the instructions result is independent of the place
   /// in the function.
-  bool isTriviallyReMaterializable(const MachineInstr &MI,
-                                   AAResults *AA = nullptr) const {
+  bool isTriviallyReMaterializable(const MachineInstr &MI) const {
     return MI.getOpcode() == TargetOpcode::IMPLICIT_DEF ||
            (MI.getDesc().isRematerializable() &&
-            (isReallyTriviallyReMaterializable(MI, AA) ||
-             isReallyTriviallyReMaterializableGeneric(MI, AA)));
+            (isReallyTriviallyReMaterializable(MI) ||
+             isReallyTriviallyReMaterializableGeneric(MI)));
   }
 
   /// Given \p MO is a PhysReg use return if it can be ignored for the purpose
-  /// of instruction rematerialization.
+  /// of instruction rematerialization or sinking.
   virtual bool isIgnorableUse(const MachineOperand &MO) const {
     return false;
   }
@@ -143,8 +148,7 @@ protected:
   /// than producing a value, or if it requres any address registers that are
   /// not always available.
   /// Requirements must be check as stated in isTriviallyReMaterializable() .
-  virtual bool isReallyTriviallyReMaterializable(const MachineInstr &MI,
-                                                 AAResults *AA) const {
+  virtual bool isReallyTriviallyReMaterializable(const MachineInstr &MI) const {
     return false;
   }
 
@@ -186,8 +190,7 @@ private:
   /// set and the target hook isReallyTriviallyReMaterializable returns false,
   /// this function does target-independent tests to determine if the
   /// instruction is really trivially rematerializable.
-  bool isReallyTriviallyReMaterializableGeneric(const MachineInstr &MI,
-                                                AAResults *AA) const;
+  bool isReallyTriviallyReMaterializableGeneric(const MachineInstr &MI) const;
 
 public:
   /// These methods return the opcode of the frame setup/destroy instructions
@@ -382,6 +385,17 @@ public:
   /// to which instructions should be sunk.
   virtual bool shouldSink(const MachineInstr &MI) const { return true; }
 
+  /// Return false if the instruction should not be hoisted by MachineLICM.
+  ///
+  /// MachineLICM determines on its own whether the instruction is safe to
+  /// hoist; this gives the target a hook to extend this assessment and prevent
+  /// an instruction being hoisted from a given loop for target specific
+  /// reasons.
+  virtual bool shouldHoist(const MachineInstr &MI,
+                           const MachineLoop *FromLoop) const {
+    return true;
+  }
+
   /// Re-issue the specified 'original' instruction at the
   /// specific location targeting a new destination register.
   /// The register in Orig->getOperand(0).getReg() will be substituted by
@@ -411,8 +425,12 @@ public:
   /// This method returns a null pointer if the transformation cannot be
   /// performed, otherwise it returns the last new instruction.
   ///
+  /// If \p LIS is not nullptr, the LiveIntervals info should be updated for
+  /// replacing \p MI with new instructions, even though this function does not
+  /// remove MI.
   virtual MachineInstr *convertToThreeAddress(MachineInstr &MI,
-                                              LiveVariables *LV) const {
+                                              LiveVariables *LV,
+                                              LiveIntervals *LIS) const {
     return nullptr;
   }
 
@@ -582,15 +600,14 @@ public:
   }
 
   /// Insert an unconditional indirect branch at the end of \p MBB to \p
-  /// NewDestBB.  \p BrOffset indicates the offset of \p NewDestBB relative to
+  /// NewDestBB. Optionally, insert the clobbered register restoring in \p
+  /// RestoreBB. \p BrOffset indicates the offset of \p NewDestBB relative to
   /// the offset of the position to insert the new branch.
-  ///
-  /// \returns The number of bytes added to the block.
-  virtual unsigned insertIndirectBranch(MachineBasicBlock &MBB,
-                                        MachineBasicBlock &NewDestBB,
-                                        const DebugLoc &DL,
-                                        int64_t BrOffset = 0,
-                                        RegScavenger *RS = nullptr) const {
+  virtual void insertIndirectBranch(MachineBasicBlock &MBB,
+                                    MachineBasicBlock &NewDestBB,
+                                    MachineBasicBlock &RestoreBB,
+                                    const DebugLoc &DL, int64_t BrOffset = 0,
+                                    RegScavenger *RS = nullptr) const {
     llvm_unreachable("target did not implement");
   }
 
@@ -719,13 +736,24 @@ public:
     /// update with no users being pipelined.
     virtual bool shouldIgnoreForPipelining(const MachineInstr *MI) const = 0;
 
+    /// Return true if the proposed schedule should used.  Otherwise return
+    /// false to not pipeline the loop. This function should be used to ensure
+    /// that pipelined loops meet target-specific quality heuristics.
+    virtual bool shouldUseSchedule(SwingSchedulerDAG &SSD, SMSchedule &SMS) {
+      return true;
+    }
+
     /// Create a condition to determine if the trip count of the loop is greater
-    /// than TC.
+    /// than TC, where TC is always one more than for the previous prologue or
+    /// 0 if this is being called for the outermost prologue.
     ///
     /// If the trip count is statically known to be greater than TC, return
     /// true. If the trip count is statically known to be not greater than TC,
     /// return false. Otherwise return nullopt and fill out Cond with the test
     /// condition.
+    ///
+    /// Note: This hook is guaranteed to be called from the innermost to the
+    /// outermost prologue of the loop being software pipelined.
     virtual Optional<bool>
     createTripCountGreaterCondition(int TC, MachineBasicBlock &MBB,
                                     SmallVectorImpl<MachineOperand> &Cond) = 0;
@@ -1187,8 +1215,6 @@ public:
                                      MachineInstr &NewMI1,
                                      MachineInstr &NewMI2) const {}
 
-  virtual void setSpecialOperandAttr(MachineInstr &MI, uint16_t Flags) const {}
-
   /// Return true when a target supports MachineCombiner.
   virtual bool useMachineCombiner() const { return false; }
 
@@ -1267,13 +1293,6 @@ protected:
   }
 
 public:
-  /// getAddressSpaceForPseudoSourceKind - Given the kind of memory
-  /// (e.g. stack) the target returns the corresponding address space.
-  virtual unsigned
-  getAddressSpaceForPseudoSourceKind(unsigned Kind) const {
-    return 0;
-  }
-
   /// unfoldMemoryOperand - Separate a single instruction which folded a load or
   /// a store or a load and a store into two or more instruction. If this is
   /// possible, returns true as well as the new instructions by reference.
@@ -1910,6 +1929,12 @@ public:
         "Target didn't implement TargetInstrInfo::getOutliningCandidateInfo!");
   }
 
+  /// Optional target hook to create the LLVM IR attributes for the outlined
+  /// function. If overridden, the overriding function must call the default
+  /// implementation.
+  virtual void mergeOutliningCandidateAttributes(
+      Function &F, std::vector<outliner::Candidate> &Candidates) const;
+
   /// Returns how or if \p MI should be outlined.
   virtual outliner::InstrType
   getOutliningType(MachineBasicBlock::iterator &MIT, unsigned Flags) const {
@@ -1920,9 +1945,7 @@ public:
   /// Optional target hook that returns true if \p MBB is safe to outline from,
   /// and returns any target-specific information in \p Flags.
   virtual bool isMBBSafeToOutlineFrom(MachineBasicBlock &MBB,
-                                      unsigned &Flags) const {
-    return true;
-  }
+                                      unsigned &Flags) const;
 
   /// Insert a custom frame for outlined functions.
   virtual void buildOutlinedFrame(MachineBasicBlock &MBB, MachineFunction &MF,
@@ -1937,7 +1960,7 @@ public:
   virtual MachineBasicBlock::iterator
   insertOutlinedCall(Module &M, MachineBasicBlock &MBB,
                      MachineBasicBlock::iterator &It, MachineFunction &MF,
-                     const outliner::Candidate &C) const {
+                     outliner::Candidate &C) const {
     llvm_unreachable(
         "Target didn't implement TargetInstrInfo::insertOutlinedCall!");
   }

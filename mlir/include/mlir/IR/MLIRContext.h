@@ -17,17 +17,18 @@
 
 namespace llvm {
 class ThreadPool;
-} // end namespace llvm
+} // namespace llvm
 
 namespace mlir {
-class AbstractOperation;
 class DebugActionManager;
 class DiagnosticEngine;
 class Dialect;
 class DialectRegistry;
+class DynamicDialect;
 class InFlightDiagnostic;
 class Location;
 class MLIRContextImpl;
+class RegisteredOperationName;
 class StorageUniquer;
 
 /// MLIRContext is the top-level object for a collection of MLIR operations. It
@@ -100,15 +101,23 @@ public:
   /// Load a dialect in the context.
   template <typename Dialect>
   void loadDialect() {
-    getOrLoadDialect<Dialect>();
+    // Do not load the dialect if it is currently loading. This can happen if a
+    // dialect initializer triggers loading the same dialect recursively.
+    if (!isDialectLoading(Dialect::getDialectNamespace()))
+      getOrLoadDialect<Dialect>();
   }
 
   /// Load a list dialects in the context.
   template <typename Dialect, typename OtherDialect, typename... MoreDialects>
   void loadDialect() {
-    getOrLoadDialect<Dialect>();
+    loadDialect<Dialect>();
     loadDialect<OtherDialect, MoreDialects...>();
   }
+
+  /// Get (or create) a dynamic dialect for the given name.
+  DynamicDialect *
+  getOrLoadDynamicDialect(StringRef dialectNamespace,
+                          function_ref<void(DynamicDialect *)> ctor);
 
   /// Load all dialects available in the registry in this context.
   void loadAllAvailableDialects();
@@ -147,6 +156,13 @@ public:
   /// this call in this case.
   void setThreadPool(llvm::ThreadPool &pool);
 
+  /// Return the number of threads used by the thread pool in this context. The
+  /// number of computed hardware threads can change over the lifetime of a
+  /// process based on affinity changes, so users should use the number of
+  /// threads actually in the thread pool for dispatching work. Returns 1 if
+  /// multithreading is disabled.
+  unsigned getNumThreads();
+
   /// Return the thread pool used by this context. This method requires that
   /// multithreading be enabled within the context, and should generally not be
   /// used directly. Users should instead prefer the threading utilities within
@@ -169,10 +185,9 @@ public:
   /// emitting diagnostics.
   void printStackTraceOnDiagnostic(bool enable);
 
-  /// Return information about all registered operations.  This isn't very
-  /// efficient: typically you should ask the operations about their properties
-  /// directly.
-  std::vector<AbstractOperation *> getRegisteredOperations();
+  /// Return a sorted array containing the information about all registered
+  /// operations.
+  ArrayRef<RegisteredOperationName> getRegisteredOperations();
 
   /// Return true if this operation name is registered in this context.
   bool isOperationRegistered(StringRef name);
@@ -221,6 +236,9 @@ public:
   llvm::hash_code getRegistryHash();
 
 private:
+  /// Return true if the given dialect is currently loading.
+  bool isDialectLoading(StringRef dialectNamespace);
+
   const std::unique_ptr<MLIRContextImpl> impl;
 
   MLIRContext(const MLIRContext &) = delete;
@@ -236,6 +254,6 @@ private:
 /// an MLIR context for initialization.
 void registerMLIRContextCLOptions();
 
-} // end namespace mlir
+} // namespace mlir
 
 #endif // MLIR_IR_MLIRCONTEXT_H

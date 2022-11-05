@@ -109,10 +109,16 @@ exit:
 
 declare void @baz()
 
-; Verify that having the switch block as a determinator is handled correctly.
-define i32 @main() {
-; CHECK: < bb43 bb59 bb3 bb31 bb41 > [ 77, bb43 ]
-; CHECK-NEXT: < bb43 bb49 bb59 bb3 bb31 bb41 > [ 77, bb43 ]
+; Do not jump-thread those paths where the determinator basic block does not
+; precede the basic block that defines the switch condition.
+;
+; Otherwise, it is possible that the state defined in the determinator block
+; defines the state for the next iteration of the loop, rather than for the
+; current one.
+define i32 @wrong_bb_order() {
+; CHECK-LABEL: DFA Jump threading: wrong_bb_order
+; CHECK-NOT: < bb43 bb59 bb3 bb31 bb41 > [ 77, bb43 ]
+; CHECK-NOT: < bb43 bb49 bb59 bb3 bb31 bb41 > [ 77, bb43 ]
 bb:
   %i = alloca [420 x i8], align 1
   %i2 = getelementptr inbounds [420 x i8], [420 x i8]* %i, i64 0, i64 390
@@ -176,5 +182,70 @@ bb49:                                             ; preds = %bb43, %bb43
   br label %bb59
 
 bb66:                                             ; preds = %bb59
+  ret i32 0
+}
+
+; Value %init is not predictable but it's okay since it is the value initial to the switch.
+define i32 @initial.value.positive1(i32 %init) {
+; CHECK: < loop.3 case2 > [ 3, loop.3 ]
+; CHECK-NEXT: < loop.3 case2 loop.1.backedge loop.1 loop.2 > [ 1, loop.1 ]
+; CHECK-NEXT: < loop.3 case2 loop.1.backedge si.unfold.false loop.1 loop.2 > [ 4, loop.1.backedge ]
+; CHECK-NEXT: < loop.3 case3 loop.2.backedge loop.2 > [ 0, loop.2.backedge ]
+; CHECK-NEXT: < loop.3 case3 case4 loop.2.backedge loop.2 > [ 3, loop.2.backedge ]
+; CHECK-NEXT: < loop.3 case3 case4 loop.1.backedge loop.1 loop.2 > [ 1, loop.1 ]
+; CHECK-NEXT: < loop.3 case3 case4 loop.1.backedge si.unfold.false loop.1 loop.2 > [ 2, loop.1.backedge ]
+; CHECK-NEXT: < loop.3 case4 loop.2.backedge loop.2 > [ 3, loop.2.backedge ]
+; CHECK-NEXT: < loop.3 case4 loop.1.backedge loop.1 loop.2 > [ 1, loop.1 ]
+; CHECK-NEXT: < loop.3 case4 loop.1.backedge si.unfold.false loop.1 loop.2 > [ 2, loop.1.backedge ]
+entry:
+  %cmp = icmp eq i32 %init, 0
+  br label %loop.1
+
+loop.1:
+  %state.1 = phi i32 [ %init, %entry ], [ %state.1.be2, %loop.1.backedge ]
+  br label %loop.2
+
+loop.2:
+  %state.2 = phi i32 [ %state.1, %loop.1 ], [ %state.2.be, %loop.2.backedge ]
+  br label %loop.3
+
+loop.3:
+  %state = phi i32 [ %state.2, %loop.2 ], [ 3, %case2 ]
+  switch i32 %state, label %infloop.i [
+    i32 2, label %case2
+    i32 3, label %case3
+    i32 4, label %case4
+    i32 0, label %case0
+    i32 1, label %case1
+  ]
+
+case2:
+  br i1 %cmp, label %loop.3, label %loop.1.backedge
+
+case3:
+  br i1 %cmp, label %loop.2.backedge, label %case4
+
+case4:
+  br i1 %cmp, label %loop.2.backedge, label %loop.1.backedge
+
+loop.1.backedge:
+  %state.1.be = phi i32 [ 2, %case4 ], [ 4, %case2 ]
+  %state.1.be2 = select i1 %cmp, i32 1, i32 %state.1.be
+  br label %loop.1
+
+loop.2.backedge:
+  %state.2.be = phi i32 [ 3, %case4 ], [ 0, %case3 ]
+  br label %loop.2
+
+case0:
+  br label %exit
+
+case1:
+  br label %exit
+
+infloop.i:
+  br label %infloop.i
+
+exit:
   ret i32 0
 }

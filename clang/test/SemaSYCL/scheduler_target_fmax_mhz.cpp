@@ -11,7 +11,7 @@
 
 [[intel::scheduler_target_fmax_mhz(1048577)]] void correct() {} // OK
 
-[[intel::scheduler_target_fmax_mhz("foo")]] void func() {} // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'const char [4]'}}
+[[intel::scheduler_target_fmax_mhz("foo")]] void func() {} // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'const char[4]'}}
 
 [[intel::scheduler_target_fmax_mhz(-1)]] void func1() {} // expected-error{{'scheduler_target_fmax_mhz' attribute requires a non-negative integral compile time constant expression}}
 

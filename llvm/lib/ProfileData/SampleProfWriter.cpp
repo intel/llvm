@@ -19,7 +19,6 @@
 
 #include "llvm/ProfileData/SampleProfWriter.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/StringSet.h"
 #include "llvm/ProfileData/ProfileCommon.h"
 #include "llvm/ProfileData/SampleProf.h"
 #include "llvm/Support/Compression.h"
@@ -79,21 +78,20 @@ SampleProfileWriterExtBinaryBase::markSectionStart(SecType Type,
 }
 
 std::error_code SampleProfileWriterExtBinaryBase::compressAndOutput() {
-  if (!llvm::zlib::isAvailable())
+  if (!llvm::compression::zlib::isAvailable())
     return sampleprof_error::zlib_unavailable;
   std::string &UncompressedStrings =
       static_cast<raw_string_ostream *>(LocalBufStream.get())->str();
   if (UncompressedStrings.size() == 0)
     return sampleprof_error::success;
   auto &OS = *OutputStream;
-  SmallString<128> CompressedStrings;
-  llvm::Error E = zlib::compress(UncompressedStrings, CompressedStrings,
-                                 zlib::BestSizeCompression);
-  if (E)
-    return sampleprof_error::compress_failed;
+  SmallVector<uint8_t, 128> CompressedStrings;
+  compression::zlib::compress(arrayRefFromStringRef(UncompressedStrings),
+                              CompressedStrings,
+                              compression::zlib::BestSizeCompression);
   encodeULEB128(UncompressedStrings.size(), OS);
   encodeULEB128(CompressedStrings.size(), OS);
-  OS << CompressedStrings.str();
+  OS << toStringRef(CompressedStrings);
   UncompressedStrings.clear();
   return sampleprof_error::success;
 }
@@ -195,17 +193,45 @@ std::error_code SampleProfileWriterExtBinaryBase::writeFuncOffsetTable() {
 }
 
 std::error_code SampleProfileWriterExtBinaryBase::writeFuncMetadata(
-    const SampleProfileMap &Profiles) {
-  if (!FunctionSamples::ProfileIsProbeBased && !FunctionSamples::ProfileIsCS)
-    return sampleprof_error::success;
+    const FunctionSamples &FunctionProfile) {
   auto &OS = *OutputStream;
+  if (std::error_code EC = writeContextIdx(FunctionProfile.getContext()))
+    return EC;
+
+  if (FunctionSamples::ProfileIsProbeBased)
+    encodeULEB128(FunctionProfile.getFunctionHash(), OS);
+  if (FunctionSamples::ProfileIsCS || FunctionSamples::ProfileIsPreInlined) {
+    encodeULEB128(FunctionProfile.getContext().getAllAttributes(), OS);
+  }
+
+  if (!FunctionSamples::ProfileIsCS) {
+    // Recursively emit attributes for all callee samples.
+    uint64_t NumCallsites = 0;
+    for (const auto &J : FunctionProfile.getCallsiteSamples())
+      NumCallsites += J.second.size();
+    encodeULEB128(NumCallsites, OS);
+    for (const auto &J : FunctionProfile.getCallsiteSamples()) {
+      for (const auto &FS : J.second) {
+        LineLocation Loc = J.first;
+        encodeULEB128(Loc.LineOffset, OS);
+        encodeULEB128(Loc.Discriminator, OS);
+        if (std::error_code EC = writeFuncMetadata(FS.second))
+          return EC;
+      }
+    }
+  }
+
+  return sampleprof_error::success;
+}
+
+std::error_code SampleProfileWriterExtBinaryBase::writeFuncMetadata(
+    const SampleProfileMap &Profiles) {
+  if (!FunctionSamples::ProfileIsProbeBased && !FunctionSamples::ProfileIsCS &&
+      !FunctionSamples::ProfileIsPreInlined)
+    return sampleprof_error::success;
   for (const auto &Entry : Profiles) {
-    if (std::error_code EC = writeContextIdx(Entry.second.getContext()))
+    if (std::error_code EC = writeFuncMetadata(Entry.second))
       return EC;
-    if (FunctionSamples::ProfileIsProbeBased)
-      encodeULEB128(Entry.second.getFunctionHash(), OS);
-    if (FunctionSamples::ProfileIsCS)
-      encodeULEB128(Entry.second.getContext().getAllAttributes(), OS);
   }
   return sampleprof_error::success;
 }
@@ -240,7 +266,7 @@ std::error_code SampleProfileWriterExtBinaryBase::writeNameTableSection(
   // so compiler won't strip the suffix during profile matching after
   // seeing the flag in the profile.
   for (const auto &I : NameTable) {
-    if (I.first.find(FunctionSamples::UniqSuffix) != StringRef::npos) {
+    if (I.first.contains(FunctionSamples::UniqSuffix)) {
       addSectionFlag(SecNameTable, SecNameTableFlags::SecFlagUniqSuffix);
       break;
     }
@@ -295,10 +321,13 @@ std::error_code SampleProfileWriterExtBinaryBase::writeOneSection(
     setToCompressSection(SecProfileSymbolList);
   if (Type == SecFuncMetadata && FunctionSamples::ProfileIsProbeBased)
     addSectionFlag(SecFuncMetadata, SecFuncMetadataFlags::SecFlagIsProbeBased);
+  if (Type == SecFuncMetadata &&
+      (FunctionSamples::ProfileIsCS || FunctionSamples::ProfileIsPreInlined))
+    addSectionFlag(SecFuncMetadata, SecFuncMetadataFlags::SecFlagHasAttribute);
   if (Type == SecProfSummary && FunctionSamples::ProfileIsCS)
     addSectionFlag(SecProfSummary, SecProfSummaryFlags::SecFlagFullContext);
-  if (Type == SecFuncMetadata && FunctionSamples::ProfileIsCS)
-    addSectionFlag(SecFuncMetadata, SecFuncMetadataFlags::SecFlagHasAttribute);
+  if (Type == SecProfSummary && FunctionSamples::ProfileIsPreInlined)
+    addSectionFlag(SecProfSummary, SecProfSummaryFlags::SecFlagIsPreInlined);
   if (Type == SecProfSummary && FunctionSamples::ProfileIsFS)
     addSectionFlag(SecProfSummary, SecProfSummaryFlags::SecFlagFSDiscriminator);
 
@@ -483,15 +512,14 @@ std::error_code SampleProfileWriterText::writeSample(const FunctionSamples &S) {
     }
   Indent -= 1;
 
-  if (Indent == 0) {
-    if (FunctionSamples::ProfileIsProbeBased) {
-      OS.indent(Indent + 1);
-      OS << "!CFGChecksum: " << S.getFunctionHash() << "\n";
-    }
-    if (FunctionSamples::ProfileIsCS) {
-      OS.indent(Indent + 1);
-      OS << "!Attributes: " << S.getContext().getAllAttributes() << "\n";
-    }
+  if (FunctionSamples::ProfileIsProbeBased) {
+    OS.indent(Indent + 1);
+    OS << "!CFGChecksum: " << S.getFunctionHash() << "\n";
+  }
+
+  if (S.getContext().getAllAttributes()) {
+    OS.indent(Indent + 1);
+    OS << "!Attributes: " << S.getContext().getAllAttributes() << "\n";
   }
 
   return sampleprof_error::success;
@@ -734,7 +762,8 @@ std::error_code SampleProfileWriterBinary::writeSummary() {
   encodeULEB128(Summary->getMaxFunctionCount(), OS);
   encodeULEB128(Summary->getNumCounts(), OS);
   encodeULEB128(Summary->getNumFunctions(), OS);
-  std::vector<ProfileSummaryEntry> &Entries = Summary->getDetailedSummary();
+  const std::vector<ProfileSummaryEntry> &Entries =
+      Summary->getDetailedSummary();
   encodeULEB128(Entries.size(), OS);
   for (auto Entry : Entries) {
     encodeULEB128(Entry.Cutoff, OS);

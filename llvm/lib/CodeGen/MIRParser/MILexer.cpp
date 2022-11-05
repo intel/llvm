@@ -15,7 +15,6 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Twine.h"
-#include <algorithm>
 #include <cassert>
 #include <cctype>
 #include <string>
@@ -250,7 +249,7 @@ static MIToken::TokenKind getIdentifierKind(StringRef Identifier) {
       .Case("dereferenceable", MIToken::kw_dereferenceable)
       .Case("invariant", MIToken::kw_invariant)
       .Case("align", MIToken::kw_align)
-      .Case("basealign", MIToken::kw_align)
+      .Case("basealign", MIToken::kw_basealign)
       .Case("addrspace", MIToken::kw_addrspace)
       .Case("stack", MIToken::kw_stack)
       .Case("got", MIToken::kw_got)
@@ -259,7 +258,6 @@ static MIToken::TokenKind getIdentifierKind(StringRef Identifier) {
       .Case("call-entry", MIToken::kw_call_entry)
       .Case("custom", MIToken::kw_custom)
       .Case("liveout", MIToken::kw_liveout)
-      .Case("address-taken", MIToken::kw_address_taken)
       .Case("landing-pad", MIToken::kw_landing_pad)
       .Case("inlineasm-br-indirect-target",
             MIToken::kw_inlineasm_br_indirect_target)
@@ -272,10 +270,14 @@ static MIToken::TokenKind getIdentifierKind(StringRef Identifier) {
       .Case("pre-instr-symbol", MIToken::kw_pre_instr_symbol)
       .Case("post-instr-symbol", MIToken::kw_post_instr_symbol)
       .Case("heap-alloc-marker", MIToken::kw_heap_alloc_marker)
+      .Case("pcsections", MIToken::kw_pcsections)
+      .Case("cfi-type", MIToken::kw_cfi_type)
       .Case("bbsections", MIToken::kw_bbsections)
       .Case("unknown-size", MIToken::kw_unknown_size)
       .Case("unknown-address", MIToken::kw_unknown_address)
       .Case("distinct", MIToken::kw_distinct)
+      .Case("ir-block-address-taken", MIToken::kw_ir_block_address_taken)
+      .Case("machine-block-address-taken", MIToken::kw_machine_block_address_taken)
       .Default(MIToken::Identifier);
 }
 

@@ -12,11 +12,12 @@
 
 ; CHECK-DYNAMIC-LABEL: foo:
 ; CHECK-DYNAMIC: orq _swift_async_extendedFramePointerFlags@GOTPCREL(%rip), %rbp
+; CHECK-DYNAMIC: .weak_reference _swift_async_extendedFramePointerFlags
 
 ; CHECK-NEVER-LABEL: foo:
 ; CHECK-NEVER-NOT: btsq $60, %rbp
 ; CHECK-NEVER-NOT: _swift_async_extendedFramePointerFlags
 
-define void @foo(i8* swiftasync) "frame-pointer"="all" {
+define void @foo(ptr swiftasync) "frame-pointer"="all" {
   ret void
 }

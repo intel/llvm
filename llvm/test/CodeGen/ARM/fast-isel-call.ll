@@ -2,6 +2,7 @@
 ; RUN: llc < %s -O0 -verify-machineinstrs -fast-isel-abort=1 -relocation-model=dynamic-no-pic -mtriple=armv7-linux-gnueabi | FileCheck %s --check-prefix=ARM
 ; RUN: llc < %s -O0 -verify-machineinstrs -fast-isel-abort=1 -relocation-model=dynamic-no-pic -mtriple=thumbv7-apple-ios | FileCheck %s --check-prefix=THUMB
 ; RUN: llc < %s -O0 -verify-machineinstrs -fast-isel-abort=1 -relocation-model=dynamic-no-pic -mtriple=armv7-apple-ios -mattr=+long-calls | FileCheck %s --check-prefix=ARM-LONG --check-prefix=ARM-LONG-MACHO
+; RUN: llc < %s -O0 -verify-machineinstrs -fast-isel-abort=1 -relocation-model=static -mtriple=armv7-apple-ios -mattr=+long-calls | FileCheck %s --check-prefix=ARM-LONG --check-prefix=ARM-LONG-MACHO-STATIC
 ; RUN: llc < %s -O0 -verify-machineinstrs -fast-isel-abort=1 -relocation-model=dynamic-no-pic -mtriple=armv7-linux-gnueabi -mattr=+long-calls | FileCheck %s --check-prefix=ARM-LONG --check-prefix=ARM-LONG-ELF
 ; RUN: llc < %s -O0 -verify-machineinstrs -fast-isel-abort=1 -relocation-model=dynamic-no-pic -mtriple=thumbv7-apple-ios -mattr=+long-calls | FileCheck %s --check-prefix=THUMB-LONG
 ; RUN: llc < %s -O0 -verify-machineinstrs -fast-isel-abort=1 -relocation-model=dynamic-no-pic -mtriple=armv7-apple-ios -mattr=-fpregs | FileCheck %s --check-prefix=ARM-NOVFP
@@ -107,11 +108,15 @@ entry:
 
 ; ARM-LONG-MACHO: {{(movw)|(ldr)}} [[R1:l?r[0-9]*]], {{(:lower16:L_bar\$non_lazy_ptr)|(.LCPI)}}
 ; ARM-LONG-MACHO: {{(movt [[R1]], :upper16:L_bar\$non_lazy_ptr)?}}
-; ARM-LONG-MACHO: ldr [[R:r[0-9]+]], {{\[}}[[R1]]]
+; ARM-LONG-MACHO: ldr [[R:r[0-9]+]], [[[R1]]]
 
-; ARM-LONG-ELF: movw [[R1:r[0-9]*]], :lower16:bar
-; ARM-LONG-ELF: movt [[R1]], :upper16:bar
-; ARM-LONG-ELF: ldr [[R:r[0-9]+]], {{\[}}[[R1]]]
+; ARM-LONG-MACHO-STATIC: movw [[R:.*]], :lower16:_bar
+; ARM-LONG-MACHO-STATIC: movt [[R]], :upper16:_bar
+; ARM-LONG-MACHO-STATIC-NOT: ldr{{.*}}[[R]]
+
+; ARM-LONG-ELF: movw [[R:r[0-9]*]], :lower16:bar
+; ARM-LONG-ELF: movt [[R]], :upper16:bar
+; ARM-LONG-ELF-NOT: ldr{{.*}}[[R]]
 
 ; ARM-LONG: blx [[R]]
 ; THUMB-LABEL: @t10
@@ -133,7 +138,7 @@ entry:
 ; THUMB-LONG-LABEL: @t10
 ; THUMB-LONG: {{(movw)|(ldr.n)}} [[R1:l?r[0-9]*]], {{(:lower16:L_bar\$non_lazy_ptr)|(.LCPI)}}
 ; THUMB-LONG: {{(movt [[R1]], :upper16:L_bar\$non_lazy_ptr)?}}
-; THUMB-LONG: ldr{{(.w)?}} [[R:r[0-9]+]], {{\[}}[[R1]]{{\]}}
+; THUMB-LONG: ldr{{(.w)?}} [[R:r[0-9]+]], [[[R1]]]
 ; THUMB-LONG: blx [[R]]
   %call = call i32 @bar(i8 zeroext 0, i8 zeroext -8, i8 zeroext -69, i8 zeroext 28, i8 zeroext 40, i8 zeroext -70)
   ret i32 0

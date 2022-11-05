@@ -49,18 +49,18 @@ static constexpr int64_t kDefaultDevice = -1;
 /// Create a constant string location from the MLIR Location information.
 static llvm::Constant *createSourceLocStrFromLocation(Location loc,
                                                       OpenACCIRBuilder &builder,
-                                                      StringRef name) {
+                                                      StringRef name,
+                                                      uint32_t &strLen) {
   if (auto fileLoc = loc.dyn_cast<FileLineColLoc>()) {
     StringRef fileName = fileLoc.getFilename();
     unsigned lineNo = fileLoc.getLine();
     unsigned colNo = fileLoc.getColumn();
-    return builder.getOrCreateSrcLocStr(name, fileName, lineNo, colNo);
-  } else {
-    std::string locStr;
-    llvm::raw_string_ostream locOS(locStr);
-    locOS << loc;
-    return builder.getOrCreateSrcLocStr(locOS.str());
+    return builder.getOrCreateSrcLocStr(name, fileName, lineNo, colNo, strLen);
   }
+  std::string locStr;
+  llvm::raw_string_ostream locOS(locStr);
+  locOS << loc;
+  return builder.getOrCreateSrcLocStr(locOS.str(), strLen);
 }
 
 /// Create the location struct from the operation location information.
@@ -69,21 +69,23 @@ static llvm::Value *createSourceLocationInfo(OpenACCIRBuilder &builder,
   auto loc = op->getLoc();
   auto funcOp = op->getParentOfType<LLVM::LLVMFuncOp>();
   StringRef funcName = funcOp ? funcOp.getName() : "unknown";
+  uint32_t strLen;
   llvm::Constant *locStr =
-      createSourceLocStrFromLocation(loc, builder, funcName);
-  return builder.getOrCreateIdent(locStr);
+      createSourceLocStrFromLocation(loc, builder, funcName, strLen);
+  return builder.getOrCreateIdent(locStr, strLen);
 }
 
 /// Create a constant string representing the mapping information extracted from
 /// the MLIR location information.
 static llvm::Constant *createMappingInformation(Location loc,
                                                 OpenACCIRBuilder &builder) {
+  uint32_t strLen;
   if (auto nameLoc = loc.dyn_cast<NameLoc>()) {
     StringRef name = nameLoc.getName();
-    return createSourceLocStrFromLocation(nameLoc.getChildLoc(), builder, name);
-  } else {
-    return createSourceLocStrFromLocation(loc, builder, "unknown");
+    return createSourceLocStrFromLocation(nameLoc.getChildLoc(), builder, name,
+                                          strLen);
   }
+  return createSourceLocStrFromLocation(loc, builder, "unknown", strLen);
 }
 
 /// Return the runtime function used to lower the given operation.
@@ -203,13 +205,13 @@ processDataOperands(llvm::IRBuilderBase &builder,
 
   // Create operands are handled as `alloc` call.
   if (failed(processOperands(builder, moduleTranslation, op,
-                             op.createOperands(), op.getNumDataOperands(),
+                             op.getCreateOperands(), op.getNumDataOperands(),
                              kCreateFlag, flags, names, index, mapperAllocas)))
     return failure();
 
   // Copyin operands are handled as `to` call.
   if (failed(processOperands(builder, moduleTranslation, op,
-                             op.copyinOperands(), op.getNumDataOperands(),
+                             op.getCopyinOperands(), op.getNumDataOperands(),
                              kDeviceCopyinFlag, flags, names, index,
                              mapperAllocas)))
     return failure();
@@ -230,13 +232,13 @@ processDataOperands(llvm::IRBuilderBase &builder,
 
   // Delete operands are handled as `delete` call.
   if (failed(processOperands(builder, moduleTranslation, op,
-                             op.deleteOperands(), op.getNumDataOperands(),
+                             op.getDeleteOperands(), op.getNumDataOperands(),
                              kDeleteFlag, flags, names, index, mapperAllocas)))
     return failure();
 
   // Copyout operands are handled as `from` call.
   if (failed(processOperands(builder, moduleTranslation, op,
-                             op.copyoutOperands(), op.getNumDataOperands(),
+                             op.getCopyoutOperands(), op.getNumDataOperands(),
                              kHostCopyoutFlag, flags, names, index,
                              mapperAllocas)))
     return failure();
@@ -254,14 +256,15 @@ processDataOperands(llvm::IRBuilderBase &builder,
   unsigned index = 0;
 
   // Host operands are handled as `from` call.
-  if (failed(processOperands(builder, moduleTranslation, op, op.hostOperands(),
-                             op.getNumDataOperands(), kHostCopyoutFlag, flags,
-                             names, index, mapperAllocas)))
+  if (failed(processOperands(builder, moduleTranslation, op,
+                             op.getHostOperands(), op.getNumDataOperands(),
+                             kHostCopyoutFlag, flags, names, index,
+                             mapperAllocas)))
     return failure();
 
   // Device operands are handled as `to` call.
   if (failed(processOperands(builder, moduleTranslation, op,
-                             op.deviceOperands(), op.getNumDataOperands(),
+                             op.getDeviceOperands(), op.getNumDataOperands(),
                              kDeviceCopyinFlag, flags, names, index,
                              mapperAllocas)))
     return failure();
@@ -308,39 +311,41 @@ static LogicalResult convertDataOp(acc::DataOp &op,
 
   // TODO handle no_create, deviceptr and attach operands.
 
-  if (failed(processOperands(builder, moduleTranslation, op, op.copyOperands(),
-                             totalNbOperand, kCopyFlag | kHoldFlag, flags,
-                             names, index, mapperAllocas)))
+  if (failed(processOperands(
+          builder, moduleTranslation, op, op.getCopyOperands(), totalNbOperand,
+          kCopyFlag | kHoldFlag, flags, names, index, mapperAllocas)))
     return failure();
 
-  if (failed(processOperands(
-          builder, moduleTranslation, op, op.copyinOperands(), totalNbOperand,
-          kDeviceCopyinFlag | kHoldFlag, flags, names, index, mapperAllocas)))
+  if (failed(processOperands(builder, moduleTranslation, op,
+                             op.getCopyinOperands(), totalNbOperand,
+                             kDeviceCopyinFlag | kHoldFlag, flags, names, index,
+                             mapperAllocas)))
     return failure();
 
   // TODO copyin readonly currenlty handled as copyin. Update when extension
   // available.
   if (failed(processOperands(builder, moduleTranslation, op,
-                             op.copyinReadonlyOperands(), totalNbOperand,
+                             op.getCopyinReadonlyOperands(), totalNbOperand,
                              kDeviceCopyinFlag | kHoldFlag, flags, names, index,
                              mapperAllocas)))
     return failure();
 
-  if (failed(processOperands(
-          builder, moduleTranslation, op, op.copyoutOperands(), totalNbOperand,
-          kHostCopyoutFlag | kHoldFlag, flags, names, index, mapperAllocas)))
+  if (failed(processOperands(builder, moduleTranslation, op,
+                             op.getCopyoutOperands(), totalNbOperand,
+                             kHostCopyoutFlag | kHoldFlag, flags, names, index,
+                             mapperAllocas)))
     return failure();
 
   // TODO copyout zero currenlty handled as copyout. Update when extension
   // available.
   if (failed(processOperands(builder, moduleTranslation, op,
-                             op.copyoutZeroOperands(), totalNbOperand,
+                             op.getCopyoutZeroOperands(), totalNbOperand,
                              kHostCopyoutFlag | kHoldFlag, flags, names, index,
                              mapperAllocas)))
     return failure();
 
   if (failed(processOperands(builder, moduleTranslation, op,
-                             op.createOperands(), totalNbOperand,
+                             op.getCreateOperands(), totalNbOperand,
                              kCreateFlag | kHoldFlag, flags, names, index,
                              mapperAllocas)))
     return failure();
@@ -348,13 +353,13 @@ static LogicalResult convertDataOp(acc::DataOp &op,
   // TODO create zero currenlty handled as create. Update when extension
   // available.
   if (failed(processOperands(builder, moduleTranslation, op,
-                             op.createZeroOperands(), totalNbOperand,
+                             op.getCreateZeroOperands(), totalNbOperand,
                              kCreateFlag | kHoldFlag, flags, names, index,
                              mapperAllocas)))
     return failure();
 
   if (failed(processOperands(builder, moduleTranslation, op,
-                             op.presentOperands(), totalNbOperand,
+                             op.getPresentOperands(), totalNbOperand,
                              kPresentFlag | kHoldFlag, flags, names, index,
                              mapperAllocas)))
     return failure();
@@ -379,7 +384,7 @@ static LogicalResult convertDataOp(acc::DataOp &op,
   // Convert the region.
   llvm::BasicBlock *entryBlock = nullptr;
 
-  for (Block &bb : op.region()) {
+  for (Block &bb : op.getRegion()) {
     llvm::BasicBlock *llvmBB = llvm::BasicBlock::Create(
         ctx, "acc.data", builder.GetInsertBlock()->getParent());
     if (entryBlock == nullptr)
@@ -396,7 +401,7 @@ static LogicalResult convertDataOp(acc::DataOp &op,
       ctx, "acc.end_data", builder.GetInsertBlock()->getParent());
 
   SetVector<Block *> blocks =
-      LLVM::detail::getTopologicallySortedBlocks(op.region());
+      LLVM::detail::getTopologicallySortedBlocks(op.getRegion());
   for (Block *bb : blocks) {
     llvm::BasicBlock *llvmBB = moduleTranslation.lookupBlock(bb);
     if (bb->isEntryBlock()) {
@@ -492,7 +497,7 @@ public:
                    LLVM::ModuleTranslation &moduleTranslation) const final;
 };
 
-} // end namespace
+} // namespace
 
 /// Given an OpenACC MLIR operation, create the corresponding LLVM IR
 /// (including OpenACC runtime calls).
@@ -531,8 +536,9 @@ LogicalResult OpenACCDialectLLVMIRTranslationInterface::convertOperation(
 
 void mlir::registerOpenACCDialectTranslation(DialectRegistry &registry) {
   registry.insert<acc::OpenACCDialect>();
-  registry.addDialectInterface<acc::OpenACCDialect,
-                               OpenACCDialectLLVMIRTranslationInterface>();
+  registry.addExtension(+[](MLIRContext *ctx, acc::OpenACCDialect *dialect) {
+    dialect->addInterfaces<OpenACCDialectLLVMIRTranslationInterface>();
+  });
 }
 
 void mlir::registerOpenACCDialectTranslation(MLIRContext &context) {

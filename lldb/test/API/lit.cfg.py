@@ -98,18 +98,18 @@ def delete_module_cache(path):
   This is necessary in an incremental build whenever clang changes underneath,
   so doing it once per lit.py invocation is close enough. """
   if os.path.isdir(path):
-    print("Deleting module cache at %s." % path)
+    lit_config.note("Deleting module cache at %s." % path)
     shutil.rmtree(path)
 
 if is_configured('llvm_use_sanitizer'):
   if 'Address' in config.llvm_use_sanitizer:
     config.environment['ASAN_OPTIONS'] = 'detect_stack_use_after_return=1'
-    if 'Darwin' in config.host_os and 'x86' in config.host_triple:
+    if 'Darwin' in config.host_os:
       config.environment['DYLD_INSERT_LIBRARIES'] = find_sanitizer_runtime(
           'libclang_rt.asan_osx_dynamic.dylib')
 
   if 'Thread' in config.llvm_use_sanitizer:
-    if 'Darwin' in config.host_os and 'x86' in config.host_triple:
+    if 'Darwin' in config.host_os:
       config.environment['DYLD_INSERT_LIBRARIES'] = find_sanitizer_runtime(
           'libclang_rt.tsan_osx_dynamic.dylib')
 
@@ -155,12 +155,29 @@ else:
 # Build dotest command.
 dotest_cmd = [os.path.join(config.lldb_src_root, 'test', 'API', 'dotest.py')]
 
-if is_configured('dotest_args_str'):
-  dotest_cmd.extend(config.dotest_args_str.split(';'))
+if is_configured('dotest_common_args_str'):
+  dotest_cmd.extend(config.dotest_common_args_str.split(';'))
 
-# Library path may be needed to locate just-built clang.
+# Library path may be needed to locate just-built clang and libcxx.
 if is_configured('llvm_libs_dir'):
   dotest_cmd += ['--env', 'LLVM_LIBS_DIR=' + config.llvm_libs_dir]
+
+# Include path may be needed to locate just-built libcxx.
+if is_configured('llvm_include_dir'):
+  dotest_cmd += ['--env', 'LLVM_INCLUDE_DIR=' + config.llvm_include_dir]
+
+# This path may be needed to locate required llvm tools
+if is_configured('llvm_tools_dir'):
+  dotest_cmd += ['--env', 'LLVM_TOOLS_DIR=' + config.llvm_tools_dir]
+
+# If we have a just-built libcxx, prefer it over the system one.
+if is_configured('has_libcxx') and config.has_libcxx:
+  if platform.system() != 'Windows':
+    if is_configured('libcxx_include_dir') and is_configured('libcxx_libs_dir'):
+      dotest_cmd += ['--libcxx-include-dir', config.libcxx_include_dir]
+      if is_configured('libcxx_include_target_dir'):
+        dotest_cmd += ['--libcxx-include-target-dir', config.libcxx_include_target_dir]
+      dotest_cmd += ['--libcxx-library-dir', config.libcxx_libs_dir]
 
 # Forward ASan-specific environment variables to tests, as a test may load an
 # ASan-ified dylib.
@@ -221,6 +238,20 @@ if is_configured('enabled_plugins'):
   for plugin in config.enabled_plugins:
     dotest_cmd += ['--enable-plugin', plugin]
 
+# `dotest` args come from three different sources:
+# 1. Derived by CMake based on its configs (LLDB_TEST_COMMON_ARGS), which end
+# up in `dotest_common_args_str`.
+# 2. CMake user parameters (LLDB_TEST_USER_ARGS), which end up in
+# `dotest_user_args_str`.
+# 3. With `llvm-lit "--param=dotest-args=..."`, which end up in
+# `dotest_lit_args_str`.
+# Check them in this order, so that more specific overrides are visited last.
+# In particular, (1) is visited at the top of the file, since the script
+# derives other information from it.
+
+if is_configured('dotest_user_args_str'):
+  dotest_cmd.extend(config.dotest_user_args_str.split(';'))
+
 if is_configured('dotest_lit_args_str'):
   # We don't want to force users passing arguments to lit to use `;` as a
   # separator. We use Python's simple lexical analyzer to turn the args into a
@@ -234,6 +265,9 @@ import lldbtest
 
 # testFormat: The test format to use to interpret tests.
 config.test_format = lldbtest.LLDBTest(dotest_cmd)
+
+# Propagate TERM or default to vt100.
+config.environment['TERM'] = os.getenv('TERM', default='vt100')
 
 # Propagate FREEBSD_LEGACY_PLUGIN
 if 'FREEBSD_LEGACY_PLUGIN' in os.environ:

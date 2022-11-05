@@ -45,7 +45,7 @@ operations are generated from. To define an operation one needs to specify:
 
 ```tablegen
 def TFL_LeakyReluOp: TFL_Op<TFL_Dialect, "leaky_relu",
-                            [NoSideEffect, SameValueType]>,
+                            [NoMemoryEffect, SameValueType]>,
                      Results<(outs Tensor)> {
   let arguments = (ins
     F32Tensor:$x,
@@ -275,7 +275,7 @@ the legalization pass test in TensorFlow Lite) such as:
 ```mlir
 // RUN: mlir-opt -tfl-legalize-tf %s | FileCheck %s
 
-func @LeakyRelu(%arg0: tensor<1xf32>) -> tensor<1xf32> {
+func.func @LeakyRelu(%arg0: tensor<1xf32>) -> tensor<1xf32> {
   %2 = "tf.LeakyRelu"(%arg0) {alpha: 0.1} : (tensor<1xf32>) -> tensor<1xf32>
   return %2: tensor<1xf32>
 

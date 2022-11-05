@@ -67,7 +67,11 @@ enum {
   /// This instruction is an X-Form memory operation.
   XFormMemOp = 0x1 << NewDef_Shift,
   /// This instruction is prefixed.
-  Prefixed = 0x1 << (NewDef_Shift+1)
+  Prefixed = 0x1 << (NewDef_Shift + 1),
+  /// This instruction produced a sign extended result.
+  SExt32To64 = 0x1 << (NewDef_Shift + 2),
+  /// This instruction produced a zero extended result.
+  ZExt32To64 = 0x1 << (NewDef_Shift + 3)
 };
 } // end namespace PPCII
 
@@ -247,7 +251,8 @@ class PPCInstrInfo : public PPCGenInstrInfo {
   bool isRegElgibleForForwarding(const MachineOperand &RegMO,
                                  const MachineInstr &DefMI,
                                  const MachineInstr &MI, bool KillDefMI,
-                                 bool &IsFwdFeederRegKilled) const;
+                                 bool &IsFwdFeederRegKilled,
+                                 bool &SeenIntermediateUse) const;
   unsigned getSpillTarget() const;
   const unsigned *getStoreOpcodesForSpillArray() const;
   const unsigned *getLoadOpcodesForSpillArray() const;
@@ -293,6 +298,105 @@ public:
   }
   bool isPrefixed(unsigned Opcode) const {
     return get(Opcode).TSFlags & PPCII::Prefixed;
+  }
+  bool isSExt32To64(unsigned Opcode) const {
+    return get(Opcode).TSFlags & PPCII::SExt32To64;
+  }
+  bool isZExt32To64(unsigned Opcode) const {
+    return get(Opcode).TSFlags & PPCII::ZExt32To64;
+  }
+
+  /// Check if Opcode corresponds to a call instruction that should be marked
+  /// with the NOTOC relocation.
+  bool isNoTOCCallInstr(unsigned Opcode) const {
+    if (!get(Opcode).isCall())
+      return false;
+
+    switch (Opcode) {
+    default:
+#ifndef NDEBUG
+      llvm_unreachable("Unknown call opcode");
+#endif
+      return false;
+    case PPC::BL8_NOTOC:
+    case PPC::BL8_NOTOC_TLS:
+    case PPC::BL8_NOTOC_RM:
+      return true;
+#ifndef NDEBUG
+    case PPC::BL8:
+    case PPC::BL:
+    case PPC::BL8_TLS:
+    case PPC::BL_TLS:
+    case PPC::BLA8:
+    case PPC::BLA:
+    case PPC::BCCL:
+    case PPC::BCCLA:
+    case PPC::BCL:
+    case PPC::BCLn:
+    case PPC::BL8_NOP:
+    case PPC::BL_NOP:
+    case PPC::BL8_NOP_TLS:
+    case PPC::BLA8_NOP:
+    case PPC::BCTRL8:
+    case PPC::BCTRL:
+    case PPC::BCCCTRL8:
+    case PPC::BCCCTRL:
+    case PPC::BCCTRL8:
+    case PPC::BCCTRL:
+    case PPC::BCCTRL8n:
+    case PPC::BCCTRLn:
+    case PPC::BL8_RM:
+    case PPC::BLA8_RM:
+    case PPC::BL8_NOP_RM:
+    case PPC::BLA8_NOP_RM:
+    case PPC::BCTRL8_RM:
+    case PPC::BCTRL8_LDinto_toc:
+    case PPC::BCTRL8_LDinto_toc_RM:
+    case PPC::BL8_TLS_:
+    case PPC::TCRETURNdi8:
+    case PPC::TCRETURNai8:
+    case PPC::TCRETURNri8:
+    case PPC::TAILBCTR8:
+    case PPC::TAILB8:
+    case PPC::TAILBA8:
+    case PPC::BCLalways:
+    case PPC::BLRL:
+    case PPC::BCCLRL:
+    case PPC::BCLRL:
+    case PPC::BCLRLn:
+    case PPC::BDZL:
+    case PPC::BDNZL:
+    case PPC::BDZLA:
+    case PPC::BDNZLA:
+    case PPC::BDZLp:
+    case PPC::BDNZLp:
+    case PPC::BDZLAp:
+    case PPC::BDNZLAp:
+    case PPC::BDZLm:
+    case PPC::BDNZLm:
+    case PPC::BDZLAm:
+    case PPC::BDNZLAm:
+    case PPC::BDZLRL:
+    case PPC::BDNZLRL:
+    case PPC::BDZLRLp:
+    case PPC::BDNZLRLp:
+    case PPC::BDZLRLm:
+    case PPC::BDNZLRLm:
+    case PPC::BL_RM:
+    case PPC::BLA_RM:
+    case PPC::BL_NOP_RM:
+    case PPC::BCTRL_RM:
+    case PPC::TCRETURNdi:
+    case PPC::TCRETURNai:
+    case PPC::TCRETURNri:
+    case PPC::BCTRL_LWZinto_toc:
+    case PPC::BCTRL_LWZinto_toc_RM:
+    case PPC::TAILBCTR:
+    case PPC::TAILB:
+    case PPC::TAILBA:
+      return false;
+#endif
+    }
   }
 
   static bool isSameClassPhysRegCopy(unsigned Opcode) {
@@ -393,15 +497,16 @@ public:
                              MachineInstr &NewMI1,
                              MachineInstr &NewMI2) const override;
 
-  void setSpecialOperandAttr(MachineInstr &MI, uint16_t Flags) const override;
+  // PowerPC specific version of setSpecialOperandAttr that copies Flags to MI
+  // and clears nuw, nsw, and exact flags.
+  void setSpecialOperandAttr(MachineInstr &MI, uint16_t Flags) const;
 
   bool isCoalescableExtInstr(const MachineInstr &MI,
                              Register &SrcReg, Register &DstReg,
                              unsigned &SubIdx) const override;
   unsigned isLoadFromStackSlot(const MachineInstr &MI,
                                int &FrameIndex) const override;
-  bool isReallyTriviallyReMaterializable(const MachineInstr &MI,
-                                         AAResults *AA) const override;
+  bool isReallyTriviallyReMaterializable(const MachineInstr &MI) const override;
   unsigned isStoreToStackSlot(const MachineInstr &MI,
                               int &FrameIndex) const override;
 
@@ -540,6 +645,8 @@ public:
                                     int64_t &Offset, unsigned &Width,
                                     const TargetRegisterInfo *TRI) const;
 
+  bool optimizeCmpPostRA(MachineInstr &MI) const;
+
   /// Get the base operand and byte offset of an instruction that reads/writes
   /// memory.
   bool getMemOperandsWithOffsetWidth(
@@ -593,19 +700,20 @@ public:
 
   bool isTOCSaveMI(const MachineInstr &MI) const;
 
-  bool isSignOrZeroExtended(const MachineInstr &MI, bool SignExt,
-                            const unsigned PhiDepth) const;
+  std::pair<bool, bool>
+  isSignOrZeroExtended(const unsigned Reg, const unsigned BinOpDepth,
+                       const MachineRegisterInfo *MRI) const;
 
-  /// Return true if the output of the instruction is always a sign-extended,
-  /// i.e. 0 to 31-th bits are same as 32-th bit.
-  bool isSignExtended(const MachineInstr &MI, const unsigned depth = 0) const {
-    return isSignOrZeroExtended(MI, true, depth);
+  // Return true if the register is sign-extended from 32 to 64 bits.
+  bool isSignExtended(const unsigned Reg,
+                      const MachineRegisterInfo *MRI) const {
+    return isSignOrZeroExtended(Reg, 0, MRI).first;
   }
 
-  /// Return true if the output of the instruction is always zero-extended,
-  /// i.e. 0 to 31-th bits are all zeros
-  bool isZeroExtended(const MachineInstr &MI, const unsigned depth = 0) const {
-   return isSignOrZeroExtended(MI, false, depth);
+  // Return true if the register is zero-extended from 32 to 64 bits.
+  bool isZeroExtended(const unsigned Reg,
+                      const MachineRegisterInfo *MRI) const {
+    return isSignOrZeroExtended(Reg, 0, MRI).second;
   }
 
   bool convertToImmediateForm(MachineInstr &MI,
@@ -650,6 +758,12 @@ public:
   // \p SeenIntermediate is set to true if uses between DefMI and \p MI exist.
   MachineInstr *getDefMIPostRA(unsigned Reg, MachineInstr &MI,
                                bool &SeenIntermediateUse) const;
+
+  // Materialize immediate after RA.
+  void materializeImmPostRA(MachineBasicBlock &MBB,
+                            MachineBasicBlock::iterator MBBI,
+                            const DebugLoc &DL, Register Reg,
+                            int64_t Imm) const;
 
   /// getRegNumForOperand - some operands use different numbering schemes
   /// for the same registers. For example, a VSX instruction may have any of

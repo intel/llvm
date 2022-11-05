@@ -20,16 +20,13 @@
 #define CLANG_CONFIG_H
 
 /* Bug report URL. */
-#define BUG_REPORT_URL "https://bugs.llvm.org/"
+#define BUG_REPORT_URL "https://github.com/llvm/llvm-project/issues/"
+
+/* Default to -fPIE and -pie on Linux. */
+#define CLANG_DEFAULT_PIE_ON_LINUX 1
 
 /* Default linker to use. */
 #define CLANG_DEFAULT_LINKER ""
-
-/* Default C/ObjC standard to use. */
-/* #undef CLANG_DEFAULT_STD_C */
-
-/* Default C++/ObjC++ standard to use. */
-/* #undef CLANG_DEFAULT_STD_CXX */
 
 /* Default C++ stdlib to use. */
 #define CLANG_DEFAULT_CXX_STDLIB ""
@@ -52,8 +49,8 @@
 /* Default architecture for SystemZ. */
 #define CLANG_SYSTEMZ_DEFAULT_ARCH "z10"
 
-/* Multilib suffix for libdir. */
-#define CLANG_LIBDIR_SUFFIX ""
+/* Multilib basename for libdir. */
+#define CLANG_INSTALL_LIBDIR_BASENAME "lib"
 
 /* Relative directory for resource files */
 #define CLANG_RESOURCE_DIR ""
@@ -75,10 +72,7 @@
 /* #undef CLANG_HAVE_LIBXML */
 
 /* Define if we have sys/resource.h (rlimits) */
-#define CLANG_HAVE_RLIMITS 1
-
-/* The LLVM product name and version */
-#define BACKEND_PACKAGE_STRING "LLVM 12.0.0git"
+/* CLANG_HAVE_RLIMITS defined conditionally below */
 
 /* Linker version detected at compile time. */
 /* #undef HOST_LINK_VERSION */
@@ -88,6 +82,9 @@
 
 /* enable x86 relax relocations by default */
 #define ENABLE_X86_RELAX_RELOCATIONS 1
+
+/* enable IEEE binary128 as default long double format on PowerPC Linux. */
+#define PPC_LINUX_DEFAULT_IEEELONGDOUBLE 0
 
 /* Enable the experimental new pass manager by default */
 #define ENABLE_EXPERIMENTAL_NEW_PASS_MANAGER 0
@@ -99,5 +96,18 @@
 
 /* Spawn a new process clang.exe for the CC1 tool invocation, when necessary */
 #define CLANG_SPAWN_CC1 0
+
+/* Whether to enable opaque pointers by default */
+#define CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL 1
+
+/* Directly provide definitions here behind platform preprocessor definitions.
+ * The preprocessor conditions are sufficient to handle all of the configuration
+ * on platforms targeted by Bazel, and defining these here more faithfully
+ * matches how the users of this header expect things to work with CMake.
+ */
+
+#ifndef _WIN32
+#define CLANG_HAVE_RLIMITS 1
+#endif
 
 #endif

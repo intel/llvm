@@ -28,6 +28,7 @@
 #include "lldb/Target/Thread.h"
 #include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/DataExtractor.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/RegisterValue.h"
 #include "lldb/Utility/Status.h"
@@ -52,10 +53,10 @@ LLDB_PLUGIN_DEFINE(ABISysV_ppc64)
 const lldb_private::RegisterInfo *
 ABISysV_ppc64::GetRegisterInfoArray(uint32_t &count) {
   if (GetByteOrder() == lldb::eByteOrderLittle) {
-    count = llvm::array_lengthof(g_register_infos_ppc64le);
+    count = std::size(g_register_infos_ppc64le);
     return g_register_infos_ppc64le;
   } else {
-    count = llvm::array_lengthof(g_register_infos_ppc64);
+    count = std::size(g_register_infos_ppc64);
     return g_register_infos_ppc64;
   }
 }
@@ -80,7 +81,7 @@ ABISysV_ppc64::CreateInstance(lldb::ProcessSP process_sp,
 bool ABISysV_ppc64::PrepareTrivialCall(Thread &thread, addr_t sp,
                                        addr_t func_addr, addr_t return_addr,
                                        llvm::ArrayRef<addr_t> args) const {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS));
+  Log *log = GetLog(LLDBLog::Expressions);
 
   if (log) {
     StreamString s;
@@ -462,7 +463,7 @@ class ReturnValueExtractor {
 
       Status error;
       uint32_t rc = reg_val.GetAsMemoryData(
-          reg_info, &raw_data, sizeof(raw_data), m_byte_order, error);
+          *reg_info, &raw_data, sizeof(raw_data), m_byte_order, error);
       if (rc != sizeof(raw_data)) {
         LLDB_LOG(m_log, LOG_PREFIX "GetAsMemoryData() failed");
         return false;
@@ -478,8 +479,7 @@ class ReturnValueExtractor {
     Type m_type;
     RegisterContext *m_reg_ctx;
     ByteOrder m_byte_order;
-    Log *m_log =
-        lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS);
+    Log *m_log = GetLog(LLDBLog::Expressions);
   };
 
   Register GetGPR(uint32_t index) const {
@@ -555,7 +555,7 @@ private:
   int32_t m_src_offs = 0;
   int32_t m_dst_offs = 0;
   bool m_packed = false;
-  Log *m_log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS);
+  Log *m_log = GetLog(LLDBLog::Expressions);
   RegisterContext *m_reg_ctx;
   ProcessSP m_process_sp;
   ByteOrder m_byte_order;
@@ -567,7 +567,7 @@ private:
   ReturnValueExtractor(Thread &thread, CompilerType &type,
                        RegisterContext *reg_ctx, ProcessSP process_sp)
       : m_thread(thread), m_type(type),
-        m_byte_size(m_type.GetByteSize(&thread).getValueOr(0)),
+        m_byte_size(m_type.GetByteSize(&thread).value_or(0)),
         m_data_up(new DataBufferHeap(m_byte_size, 0)), m_reg_ctx(reg_ctx),
         m_process_sp(process_sp), m_byte_order(process_sp->GetByteOrder()),
         m_addr_size(
@@ -727,7 +727,7 @@ private:
         LLDB_LOG(m_log, LOG_PREFIX "Failed to read vector register contents");
         return ValueObjectSP();
       }
-      if (!vr_val[i].GetAsMemoryData(vr[i], vr_data->GetBytes() + i * vr_size,
+      if (!vr_val[i].GetAsMemoryData(*vr[i], vr_data->GetBytes() + i * vr_size,
                                      vr_size, m_byte_order, error)) {
         LLDB_LOG(m_log, LOG_PREFIX "Failed to extract vector register bytes");
         return ValueObjectSP();
@@ -934,7 +934,7 @@ ABISysV_ppc64::GetReturnValueObjectSimple(Thread &thread,
 
   auto exp_extractor = ReturnValueExtractor::Create(thread, type);
   if (!exp_extractor) {
-    Log *log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS);
+    Log *log = GetLog(LLDBLog::Expressions);
     LLDB_LOG_ERROR(log, exp_extractor.takeError(),
                    "Extracting return value failed: {0}");
     return ValueObjectSP();
@@ -1073,9 +1073,4 @@ void ABISysV_ppc64::Initialize() {
 
 void ABISysV_ppc64::Terminate() {
   PluginManager::UnregisterPlugin(CreateInstance);
-}
-
-lldb_private::ConstString ABISysV_ppc64::GetPluginNameStatic() {
-  static ConstString g_name("sysv-ppc64");
-  return g_name;
 }

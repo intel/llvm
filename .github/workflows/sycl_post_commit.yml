@@ -1,0 +1,125 @@
+name: SYCL Post Commit
+
+on:
+  push:
+    branches:
+    - sycl
+  pull_request:
+    branches:
+    - sycl
+    paths:
+    - .github/workflows/sycl_post_commit.yml
+    - .github/workflows/sycl_gen_test_matrix.yml
+    - .github/workflows/sycl_linux_build_and_test.yml
+    - .github/workflows/sycl_windows_build_and_test.yml
+    - .github/workflows/sycl_macos_build_and_test.yml
+  workflow_dispatch:
+
+jobs:
+  # This job generates matrix of tests for LLVM Test Suite
+  test_matrix:
+    name: Generate Test Matrix
+    uses: ./.github/workflows/sycl_gen_test_matrix.yml
+    with:
+      lts_config: "l0_gen9"
+      cts_config: "cuda"
+  linux_default:
+    name: Linux Default
+    needs: test_matrix
+    uses: ./.github/workflows/sycl_linux_build_and_test.yml
+    secrets: inherit
+    with:
+      build_cache_root: "/__w/llvm"
+      build_artifact_suffix: "post_commit"
+      lts_matrix: ${{ needs.test_matrix.outputs.lts_matrix }}
+      cts_matrix: ${{ needs.test_matrix.outputs.cts_matrix }}
+      lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
+  linux_no_assert:
+    name: Linux (no assert)
+    uses: ./.github/workflows/sycl_linux_build_and_test.yml
+    secrets: inherit
+    with:
+      build_cache_root: "/__w/llvm"
+      build_cache_suffix: gcc_no_assertions
+      build_artifact_suffix: gcc_no_assertions
+      build_configure_extra_args: --no-assertions
+  linux_clang_shared_libs:
+    # TODO use nightly images when Docker containers are available
+    name: Linux + Clang + Shared libs
+    runs-on: ubuntu-20.04
+    if: github.repository == 'intel/llvm'
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        path: src
+    - name: Install Ubuntu deps
+      run: sudo apt install -y ninja-build ccache
+    - name: Setup Cache
+      uses: actions/cache@v3
+      id: cache
+      with:
+        path: ${{ github.workspace }}/cache
+        key: build-linux-shared-libs-${{ github.sha }}
+        restore-keys: |
+          build-linux-shared-libs-
+    - name: Configure
+      run: |
+        wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+        sudo add-apt-repository "deb http://apt.llvm.org/focal/   llvm-toolchain-focal-13 main"
+        sudo apt-get update
+        sudo apt-get install -y clang-13
+        export CC="clang-13"
+        export CXX="clang++-13"
+        mkdir -p $GITHUB_WORKSPACE/build
+        cd $GITHUB_WORKSPACE/build
+        python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
+         -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
+         --ci-defaults --shared-libs --cmake-opt="-DLLVM_CCACHE_BUILD=ON" \
+         --cmake-opt="-DLLVM_CCACHE_DIR=$GITHUB_WORKSPACE/cache" \
+         --cmake-opt="-DLLVM_CCACHE_MAXSIZE=2G"
+    - name: Compile
+      run: |
+        python3 $GITHUB_WORKSPACE/src/buildbot/compile.py -w  $GITHUB_WORKSPACE \
+         -s  $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build
+    - name: check-llvm
+      if: always()
+      run: |
+        python3 $GITHUB_WORKSPACE/src/buildbot/check.py -w  $GITHUB_WORKSPACE \
+         -s  $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t check-llvm
+    - name: check-clang
+      if: always()
+      run: |
+        python3 $GITHUB_WORKSPACE/src/buildbot/check.py -w  $GITHUB_WORKSPACE \
+         -s  $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t check-clang
+    - name: check-sycl
+      if: always()
+      run: |
+        python3 $GITHUB_WORKSPACE/src/buildbot/check.py -w  $GITHUB_WORKSPACE \
+         -s  $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t check-sycl
+    - name: check-llvm-spirv
+      if: always()
+      run: |
+        python3 $GITHUB_WORKSPACE/src/buildbot/check.py -w  $GITHUB_WORKSPACE \
+         -s  $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t check-llvm-spirv
+    - name: check-xptifw
+      if: always()
+      run: |
+        python3 $GITHUB_WORKSPACE/src/buildbot/check.py -w  $GITHUB_WORKSPACE \
+         -s  $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t check-xptifw
+    - name: Pack
+      run: tar -czvf llvm_sycl.tar.gz -C $GITHUB_WORKSPACE/build/install .
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: sycl_linux_${{ matrix.config }}
+        path: llvm_sycl.tar.gz
+
+  windows_default:
+    name: Windows
+    if: github.repository == 'intel/llvm'
+    uses: ./.github/workflows/sycl_windows_build_and_test.yml
+
+  macos_default:
+    name: macOS
+    if: github.repository == 'intel/llvm'
+    uses: ./.github/workflows/sycl_macos_build_and_test.yml

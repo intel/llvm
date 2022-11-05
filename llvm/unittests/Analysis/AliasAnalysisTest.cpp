@@ -74,9 +74,7 @@ namespace {
 /// A test customizable AA result. It merely accepts a callback to run whenever
 /// it receives an alias query. Useful for testing that a particular AA result
 /// is reached.
-struct TestCustomAAResult : AAResultBase<TestCustomAAResult> {
-  friend AAResultBase<TestCustomAAResult>;
-
+struct TestCustomAAResult : AAResultBase {
   std::function<void()> CB;
 
   explicit TestCustomAAResult(std::function<void()> CB)
@@ -333,6 +331,39 @@ TEST_F(AliasAnalysisTest, PartialAliasOffset) {
   EXPECT_EQ(4, AR.getOffset());
 }
 
+// Check that swapping the order of parameters to `AA.alias()` changes offset
+// sign and that the sign is such that FirstLoc + Offset == SecondLoc.
+TEST_F(AliasAnalysisTest, PartialAliasOffsetSign) {
+  LLVMContext C;
+  SMDiagnostic Err;
+  std::unique_ptr<Module> M = parseAssemblyString(R"(
+    define void @f(i64* %p) {
+      %L1 = load i64, i64* %p
+      %p.i8 = bitcast i64* %p to i8*
+      %q = getelementptr i8,  i8* %p.i8, i32 1
+      %L2 = load i8, i8* %q
+      ret void
+    }
+  )",
+                                                  Err, C);
+
+  if (!M)
+    Err.print("PartialAliasOffsetSign", errs());
+
+  Function *F = M->getFunction("f");
+  const auto Loc1 = MemoryLocation::get(getInstructionByName(*F, "L1"));
+  const auto Loc2 = MemoryLocation::get(getInstructionByName(*F, "L2"));
+
+  auto &AA = getAAResults(*F);
+
+  auto AR = AA.alias(Loc1, Loc2);
+  EXPECT_EQ(AR, AliasResult::PartialAlias);
+  EXPECT_EQ(1, AR.getOffset());
+
+  AR = AA.alias(Loc2, Loc1);
+  EXPECT_EQ(AR, AliasResult::PartialAlias);
+  EXPECT_EQ(-1, AR.getOffset());
+}
 class AAPassInfraTest : public testing::Test {
 protected:
   LLVMContext C;

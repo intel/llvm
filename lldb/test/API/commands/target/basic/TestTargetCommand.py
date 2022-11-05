@@ -14,8 +14,6 @@ from lldbsuite.test import lldbutil
 
 class targetCommandTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def setUp(self):
         # Call super's setUp().
         TestBase.setUp(self)
@@ -44,8 +42,7 @@ class targetCommandTestCase(TestBase):
         self.buildAll()
         self.do_target_command()
 
-    @expectedFailureAll(archs=['arm64e']) # <rdar://problem/37773624>
-    @expectedFailureDarwin(archs=["arm64"]) # <rdar://problem/37773624>
+    @skipIfDarwin # Chained Fixups
     def test_target_variable_command(self):
         """Test 'target variable' command before and after starting the inferior."""
         d = {'C_SOURCES': 'globals.c', 'EXE': self.getBuildArtifact('globals')}
@@ -54,8 +51,7 @@ class targetCommandTestCase(TestBase):
 
         self.do_target_variable_command('globals')
 
-    @expectedFailureAll(archs=['arm64e']) # <rdar://problem/37773624>
-    @expectedFailureDarwin(archs=["arm64"]) # <rdar://problem/37773624>
+    @skipIfDarwin # Chained Fixups
     def test_target_variable_command_no_fail(self):
         """Test 'target variable' command before and after starting the inferior."""
         d = {'C_SOURCES': 'globals.c', 'EXE': self.getBuildArtifact('globals')}
@@ -329,7 +325,7 @@ class targetCommandTestCase(TestBase):
     @no_debug_info_test
     def test_target_list_args(self):
         self.expect("target list blub", error=True,
-                    substrs=["the 'target list' command takes no arguments"])
+                    substrs=["'target list' doesn't take any arguments"])
 
     @no_debug_info_test
     def test_target_select_no_index(self):
@@ -470,3 +466,13 @@ class targetCommandTestCase(TestBase):
         # Invalid arguments.
         self.expect("target modules search-paths query faz baz", error=True,
                     substrs=["query requires one argument"])
+
+    @no_debug_info_test
+    @expectedFailureAll(oslist=["freebsd"],
+                        bugnumber="github.com/llvm/llvm-project/issues/56079")
+    def test_target_modules_type(self):
+        self.buildB()
+        self.runCmd("file " + self.getBuildArtifact("b.out"),
+                    CURRENT_EXECUTABLE_SET)
+        self.expect("target modules lookup --type int",
+                    substrs=["1 match found", 'name = "int"'])

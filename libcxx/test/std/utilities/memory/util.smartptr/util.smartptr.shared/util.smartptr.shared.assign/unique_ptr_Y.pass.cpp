@@ -15,6 +15,7 @@
 #include <memory>
 #include <type_traits>
 #include <cassert>
+#include <utility>
 
 #include "test_macros.h"
 
@@ -125,6 +126,7 @@ int main(int, char**)
     assert(B::count == 0);
     assert(A::count == 0);
 
+#ifdef _LIBCPP_VERSION // https://llvm.org/PR53368
     {
       std::unique_ptr<A[]> ptr(new A[8]);
       A* raw_ptr = ptr.get();
@@ -156,6 +158,7 @@ int main(int, char**)
       std::shared_ptr<int> p;
       p = std::move(ptr);
     }
+#endif // _LIBCPP_VERSION
 
 #if TEST_STD_VER > 14
     {
@@ -169,6 +172,7 @@ int main(int, char**)
     assert(A::count == 0);
     assert(B::count == 0);
 
+#ifdef _LIBCPP_VERSION // https://llvm.org/PR53368
     {
       std::unique_ptr<A[]> ptr(new A[8]);
       A* raw_ptr = ptr.get();
@@ -182,6 +186,7 @@ int main(int, char**)
     }
     assert(A::count == 0);
     assert(B::count == 0);
+#endif // _LIBCPP_VERSION
 
     {
       std::unique_ptr<A[]> ptr(new A[8]);

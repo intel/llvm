@@ -39,12 +39,6 @@ ARM::ArchKind ARM::parseArch(StringRef Arch) {
 unsigned ARM::parseArchVersion(StringRef Arch) {
   Arch = getCanonicalArchName(Arch);
   switch (parseArch(Arch)) {
-  case ArchKind::ARMV2:
-  case ArchKind::ARMV2A:
-    return 2;
-  case ArchKind::ARMV3:
-  case ArchKind::ARMV3M:
-    return 3;
   case ArchKind::ARMV4:
   case ArchKind::ARMV4T:
     return 4;
@@ -77,6 +71,7 @@ unsigned ARM::parseArchVersion(StringRef Arch) {
   case ArchKind::ARMV8_5A:
   case ArchKind::ARMV8_6A:
   case ArchKind::ARMV8_7A:
+  case ArchKind::ARMV8_8A:
   case ArchKind::ARMV8R:
   case ArchKind::ARMV8MBaseline:
   case ArchKind::ARMV8MMainline:
@@ -85,6 +80,7 @@ unsigned ARM::parseArchVersion(StringRef Arch) {
   case ArchKind::ARMV9A:
   case ArchKind::ARMV9_1A:
   case ArchKind::ARMV9_2A:
+  case ArchKind::ARMV9_3A:
     return 9;
   case ArchKind::INVALID:
     return 0;
@@ -92,56 +88,58 @@ unsigned ARM::parseArchVersion(StringRef Arch) {
   llvm_unreachable("Unhandled architecture");
 }
 
+static ARM::ProfileKind getProfileKind(ARM::ArchKind AK) {
+  switch (AK) {
+  case ARM::ArchKind::ARMV6M:
+  case ARM::ArchKind::ARMV7M:
+  case ARM::ArchKind::ARMV7EM:
+  case ARM::ArchKind::ARMV8MMainline:
+  case ARM::ArchKind::ARMV8MBaseline:
+  case ARM::ArchKind::ARMV8_1MMainline:
+    return ARM::ProfileKind::M;
+  case ARM::ArchKind::ARMV7R:
+  case ARM::ArchKind::ARMV8R:
+    return ARM::ProfileKind::R;
+  case ARM::ArchKind::ARMV7A:
+  case ARM::ArchKind::ARMV7VE:
+  case ARM::ArchKind::ARMV7K:
+  case ARM::ArchKind::ARMV8A:
+  case ARM::ArchKind::ARMV8_1A:
+  case ARM::ArchKind::ARMV8_2A:
+  case ARM::ArchKind::ARMV8_3A:
+  case ARM::ArchKind::ARMV8_4A:
+  case ARM::ArchKind::ARMV8_5A:
+  case ARM::ArchKind::ARMV8_6A:
+  case ARM::ArchKind::ARMV8_7A:
+  case ARM::ArchKind::ARMV8_8A:
+  case ARM::ArchKind::ARMV9A:
+  case ARM::ArchKind::ARMV9_1A:
+  case ARM::ArchKind::ARMV9_2A:
+  case ARM::ArchKind::ARMV9_3A:
+    return ARM::ProfileKind::A;
+  case ARM::ArchKind::ARMV4:
+  case ARM::ArchKind::ARMV4T:
+  case ARM::ArchKind::ARMV5T:
+  case ARM::ArchKind::ARMV5TE:
+  case ARM::ArchKind::ARMV5TEJ:
+  case ARM::ArchKind::ARMV6:
+  case ARM::ArchKind::ARMV6K:
+  case ARM::ArchKind::ARMV6T2:
+  case ARM::ArchKind::ARMV6KZ:
+  case ARM::ArchKind::ARMV7S:
+  case ARM::ArchKind::IWMMXT:
+  case ARM::ArchKind::IWMMXT2:
+  case ARM::ArchKind::XSCALE:
+  case ARM::ArchKind::INVALID:
+    return ARM::ProfileKind::INVALID;
+  }
+  llvm_unreachable("Unhandled architecture");
+}
+
 // Profile A/R/M
 ARM::ProfileKind ARM::parseArchProfile(StringRef Arch) {
   Arch = getCanonicalArchName(Arch);
-  switch (parseArch(Arch)) {
-  case ArchKind::ARMV6M:
-  case ArchKind::ARMV7M:
-  case ArchKind::ARMV7EM:
-  case ArchKind::ARMV8MMainline:
-  case ArchKind::ARMV8MBaseline:
-  case ArchKind::ARMV8_1MMainline:
-    return ProfileKind::M;
-  case ArchKind::ARMV7R:
-  case ArchKind::ARMV8R:
-    return ProfileKind::R;
-  case ArchKind::ARMV7A:
-  case ArchKind::ARMV7VE:
-  case ArchKind::ARMV7K:
-  case ArchKind::ARMV8A:
-  case ArchKind::ARMV8_1A:
-  case ArchKind::ARMV8_2A:
-  case ArchKind::ARMV8_3A:
-  case ArchKind::ARMV8_4A:
-  case ArchKind::ARMV8_5A:
-  case ArchKind::ARMV8_6A:
-  case ArchKind::ARMV8_7A:
-  case ArchKind::ARMV9A:
-  case ArchKind::ARMV9_1A:
-  case ArchKind::ARMV9_2A:
-    return ProfileKind::A;
-  case ArchKind::ARMV2:
-  case ArchKind::ARMV2A:
-  case ArchKind::ARMV3:
-  case ArchKind::ARMV3M:
-  case ArchKind::ARMV4:
-  case ArchKind::ARMV4T:
-  case ArchKind::ARMV5T:
-  case ArchKind::ARMV5TE:
-  case ArchKind::ARMV5TEJ:
-  case ArchKind::ARMV6:
-  case ArchKind::ARMV6K:
-  case ArchKind::ARMV6T2:
-  case ArchKind::ARMV6KZ:
-  case ArchKind::ARMV7S:
-  case ArchKind::IWMMXT:
-  case ArchKind::IWMMXT2:
-  case ArchKind::XSCALE:
-  case ArchKind::INVALID:
-    return ProfileKind::INVALID;
-  }
-  llvm_unreachable("Unhandled architecture");
+  return getProfileKind(parseArch(Arch));
 }
 
 StringRef ARM::getArchSynonym(StringRef Arch) {
@@ -164,10 +162,12 @@ StringRef ARM::getArchSynonym(StringRef Arch) {
       .Case("v8.5a", "v8.5-a")
       .Case("v8.6a", "v8.6-a")
       .Case("v8.7a", "v8.7-a")
+      .Case("v8.8a", "v8.8-a")
       .Case("v8r", "v8-r")
       .Cases("v9", "v9a", "v9-a")
       .Case("v9.1a", "v9.1-a")
       .Case("v9.2a", "v9.2-a")
+      .Case("v9.3a", "v9.3-a")
       .Case("v8m.base", "v8-m.base")
       .Case("v8m.main", "v8-m.main")
       .Case("v8.1m.main", "v8.1-m.main")
@@ -307,7 +307,7 @@ StringRef ARM::getCanonicalArchName(StringRef Arch) {
   else if (A.startswith("aarch64")) {
     offset = 7;
     // AArch64 uses "_be", not "eb" suffix.
-    if (A.find("eb") != StringRef::npos)
+    if (A.contains("eb"))
       return Error;
     if (A.substr(offset, 3) == "_be")
       offset += 3;
@@ -333,7 +333,7 @@ StringRef ARM::getCanonicalArchName(StringRef Arch) {
     if (A.size() >= 2 && (A[0] != 'v' || !std::isdigit(A[1])))
       return Error;
     // Can't have an extra 'eb'.
-    if (A.find("eb") != StringRef::npos)
+    if (A.contains("eb"))
       return Error;
   }
 
@@ -548,6 +548,17 @@ bool ARM::appendArchExtFeatures(StringRef CPU, ARM::ArchKind AK,
     return ARM::getFPUFeatures(FPUKind, Features);
   }
   return StartingNumFeatures != Features.size();
+}
+
+ARM::ArchKind ARM::convertV9toV8(ARM::ArchKind AK) {
+  if (getProfileKind(AK) != ProfileKind::A)
+    return ARM::ArchKind::INVALID;
+  if (AK < ARM::ArchKind::ARMV9A || AK > ARM::ArchKind::ARMV9_3A)
+    return ARM::ArchKind::INVALID;
+  unsigned AK_v8 = static_cast<unsigned>(ARM::ArchKind::ARMV8_5A);
+  AK_v8 += static_cast<unsigned>(AK) -
+           static_cast<unsigned>(ARM::ArchKind::ARMV9A);
+  return static_cast<ARM::ArchKind>(AK_v8);
 }
 
 StringRef ARM::getDefaultCPU(StringRef Arch) {

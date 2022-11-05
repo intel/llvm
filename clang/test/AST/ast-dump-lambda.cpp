@@ -51,7 +51,7 @@ template <typename... Ts> void test(Ts... a) {
 // CHECK-NEXT:    |   | |-MoveAssignment exists simple trivial needs_implicit
 // CHECK-NEXT:    |   | `-Destructor simple irrelevant trivial needs_implicit
 // CHECK-NEXT:    |   |-CXXRecordDecl {{.*}} <col:3, col:10> col:10{{( imported)?}} implicit struct V
-// CHECK-NEXT:    |   `-CXXMethodDecl {{.*}} <line:17:5, line:20:5> line:17:10{{( imported)?}} f 'void ()'
+// CHECK-NEXT:    |   `-CXXMethodDecl {{.*}} <line:17:5, line:20:5> line:17:10{{( imported)?}} f 'void ()' implicit-inline
 // CHECK-NEXT:    |     `-CompoundStmt {{.*}} <col:14, line:20:5>
 // CHECK-NEXT:    |       |-LambdaExpr {{.*}} <line:18:7, col:15> '(lambda at {{.*}}ast-dump-lambda.cpp:18:7)'
 // CHECK-NEXT:    |       | |-CXXRecordDecl {{.*}} <col:7> col:7{{( imported)?}} implicit{{( <undeserialized declarations>)?}} class definition
@@ -305,7 +305,7 @@ template <typename... Ts> void test(Ts... a) {
 // CHECK-NEXT:      | | `-Destructor simple irrelevant trivial needs_implicit
 // CHECK-NEXT:      | |-CXXMethodDecl {{.*}} <col:20, col:23> col:3{{( imported)?}} operator() 'auto () const' inline
 // CHECK-NEXT:      | | |-CompoundStmt {{.*}} <col:22, col:23>
-// CHECK-NEXT:      | | `-CXX11NoReturnAttr {{.*}} <col:8>
+// CHECK-NEXT:      | | `-CXX11NoReturnAttr {{.*}} <col:8> noreturn
 // CHECK-NEXT:      | |-CXXConversionDecl {{.*}} <col:3, col:23> col:3{{( imported)?}} implicit constexpr operator auto (*)() 'auto (*() const noexcept)()' inline
 // CHECK-NEXT:      | `-CXXMethodDecl {{.*}} <col:3, col:23> col:3{{( imported)?}} implicit __invoke 'auto ()' static inline
 // CHECK-NEXT:      `-CompoundStmt {{.*}} <col:22, col:23>

@@ -32,13 +32,13 @@ StringRef Dialect::getCppNamespace() const {
 std::string Dialect::getCppClassName() const {
   // Simply use the name and remove any '_' tokens.
   std::string cppName = def->getName().str();
-  llvm::erase_if(cppName, [](char c) { return c == '_'; });
+  llvm::erase_value(cppName, '_');
   return cppName;
 }
 
 static StringRef getAsStringOrEmpty(const llvm::Record &record,
                                     StringRef fieldName) {
-  if (auto valueInit = record.getValueInit(fieldName)) {
+  if (auto *valueInit = record.getValueInit(fieldName)) {
     if (llvm::isa<llvm::StringInit>(valueInit))
       return record.getValueAsString(fieldName);
   }
@@ -90,11 +90,24 @@ bool Dialect::hasOperationInterfaceFallback() const {
   return def->getValueAsBit("hasOperationInterfaceFallback");
 }
 
+bool Dialect::useDefaultAttributePrinterParser() const {
+  return def->getValueAsBit("useDefaultAttributePrinterParser");
+}
+
+bool Dialect::useDefaultTypePrinterParser() const {
+  return def->getValueAsBit("useDefaultTypePrinterParser");
+}
+
 Dialect::EmitPrefix Dialect::getEmitAccessorPrefix() const {
   int prefix = def->getValueAsInt("emitAccessorPrefix");
   if (prefix < 0 || prefix > static_cast<int>(EmitPrefix::Both))
     PrintFatalError(def->getLoc(), "Invalid accessor prefix value");
+
   return static_cast<EmitPrefix>(prefix);
+}
+
+bool Dialect::isExtensible() const {
+  return def->getValueAsBit("isExtensible");
 }
 
 bool Dialect::operator==(const Dialect &other) const {

@@ -6,11 +6,11 @@
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.bc
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV: 7 ExtInst {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} fmod {{[0-9]+}} {{[0-9]+}}
-; CHECK-LLVM: call spir_func float @_Z4fmodff
+; CHECK-LLVM: call spir_func float @_Z4fmodff(
 ; CHECK-LLVM: declare spir_func float @_Z4fmodff(float, float)
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

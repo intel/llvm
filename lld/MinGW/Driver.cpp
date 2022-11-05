@@ -100,7 +100,7 @@ opt::InputArgList MinGWOptTable::parse(ArrayRef<const char *> argv) {
   unsigned missingCount;
 
   SmallVector<const char *, 256> vec(argv.data(), argv.data() + argv.size());
-  cl::ExpandResponseFiles(saver, getQuotingStyle(), vec);
+  cl::ExpandResponseFiles(saver(), getQuotingStyle(), vec);
   opt::InputArgList args = this->ParseArgs(vec, missingIndex, missingCount);
 
   if (missingCount)
@@ -139,9 +139,9 @@ searchLibrary(StringRef name, ArrayRef<StringRef> searchPaths, bool bStatic) {
     }
     if (Optional<std::string> s = findFile(dir, "lib" + name + ".a"))
       return *s;
+    if (Optional<std::string> s = findFile(dir, name + ".lib"))
+       return *s;
     if (!bStatic) {
-      if (Optional<std::string> s = findFile(dir, name + ".lib"))
-        return *s;
       if (Optional<std::string> s = findFile(dir, "lib" + name + ".dll"))
         return *s;
       if (Optional<std::string> s = findFile(dir, name + ".dll"))
@@ -154,12 +154,11 @@ searchLibrary(StringRef name, ArrayRef<StringRef> searchPaths, bool bStatic) {
 
 // Convert Unix-ish command line arguments to Windows-ish ones and
 // then call coff::link.
-bool mingw::link(ArrayRef<const char *> argsArr, bool canExitEarly,
-                 raw_ostream &stdoutOS, raw_ostream &stderrOS) {
-  lld::stdoutOS = &stdoutOS;
-  lld::stderrOS = &stderrOS;
-
-  stderrOS.enable_colors(stderrOS.has_colors());
+bool mingw::link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
+                 llvm::raw_ostream &stderrOS, bool exitEarly,
+                 bool disableOutput) {
+  auto *ctx = new CommonLinkerContext;
+  ctx->e.initialize(stdoutOS, stderrOS, exitEarly, disableOutput);
 
   MinGWOptTable parser;
   opt::InputArgList args = parser.parse(argsArr.slice(1));
@@ -265,6 +264,8 @@ bool mingw::link(ArrayRef<const char *> argsArr, bool canExitEarly,
     add("-filealign:" + StringRef(a->getValue()));
   if (auto *a = args.getLastArg(OPT_section_alignment))
     add("-align:" + StringRef(a->getValue()));
+  if (auto *a = args.getLastArg(OPT_heap))
+    add("-heap:" + StringRef(a->getValue()));
 
   if (auto *a = args.getLastArg(OPT_o))
     add("-out:" + StringRef(a->getValue()));
@@ -322,6 +323,9 @@ bool mingw::link(ArrayRef<const char *> argsArr, bool canExitEarly,
   if (args.hasFlag(OPT_disable_tsaware, OPT_tsaware, false))
     add("-tsaware:no");
 
+  if (args.hasFlag(OPT_disable_reloc_section, OPT_enable_reloc_section, false))
+    add("-fixed");
+
   if (args.hasFlag(OPT_no_insert_timestamp, OPT_insert_timestamp, false))
     add("-timestamp:0");
 
@@ -375,6 +379,17 @@ bool mingw::link(ArrayRef<const char *> argsArr, bool canExitEarly,
       error("unknown parameter: -m" + s);
   }
 
+  if (args.hasFlag(OPT_guard_cf, OPT_no_guard_cf, false)) {
+    if (args.hasFlag(OPT_guard_longjmp, OPT_no_guard_longjmp, true))
+      add("-guard:cf,longjmp");
+    else
+      add("-guard:cf,nolongjmp");
+  } else if (args.hasFlag(OPT_guard_longjmp, OPT_no_guard_longjmp, false)) {
+    auto *a = args.getLastArg(OPT_guard_longjmp);
+    warn("parameter " + a->getSpelling() +
+         " only takes effect when used with --guard-cf");
+  }
+
   for (auto *a : args.filtered(OPT_mllvm))
     add("-mllvm:" + StringRef(a->getValue()));
 
@@ -394,6 +409,8 @@ bool mingw::link(ArrayRef<const char *> argsArr, bool canExitEarly,
     add("-delayload:" + StringRef(a->getValue()));
   for (auto *a : args.filtered(OPT_wrap))
     add("-wrap:" + StringRef(a->getValue()));
+  for (auto *a : args.filtered(OPT_exclude_symbols))
+    add("-exclude-symbols:" + StringRef(a->getValue()));
 
   std::vector<StringRef> searchPaths;
   for (auto *a : args.filtered(OPT_L)) {
@@ -445,5 +462,9 @@ bool mingw::link(ArrayRef<const char *> argsArr, bool canExitEarly,
   // Pass the actual binary name, to make error messages be printed with
   // the right prefix.
   vec[0] = argsArr[0];
-  return coff::link(vec, canExitEarly, stdoutOS, stderrOS);
+
+  // The context will be re-created in the COFF driver.
+  lld::CommonLinkerContext::destroy();
+
+  return coff::link(vec, stdoutOS, stderrOS, exitEarly, disableOutput);
 }

@@ -18,10 +18,8 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Allocator.h"
-#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/SourceMgr.h"
-#include "llvm/Support/VirtualFileSystem.h"
 #include <memory>
 
 namespace clang {
@@ -127,7 +125,7 @@ public:
     for (const DotClangTidyCache *Cache : Caches)
       if (auto Config = Cache->get(FS, FreshTime)) {
         OptionStack.push_back(std::move(Config));
-        if (!OptionStack.back()->InheritParentConfig.getValueOr(false))
+        if (!OptionStack.back()->InheritParentConfig.value_or(false))
           break;
       }
     unsigned Order = 1u;
@@ -213,7 +211,15 @@ TidyProvider disableUnusableChecks(llvm::ArrayRef<std::string> ExtraBadChecks) {
                        // Check can choke on invalid (intermediate) c++
                        // code, which is often the case when clangd
                        // tries to build an AST.
-                       "-bugprone-use-after-move");
+                       "-bugprone-use-after-move",
+                       // Alias for bugprone-use-after-move.
+                       "-hicpp-invalid-access-moved",
+
+                       // ----- Performance problems -----
+
+                       // This check runs expensive analysis for each variable.
+                       // It has been observed to increase reparse time by 10x.
+                       "-misc-const-correctness");
 
   size_t Size = BadChecks.size();
   for (const std::string &Str : ExtraBadChecks) {

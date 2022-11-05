@@ -1,5 +1,5 @@
-; RUN: opt %loadPolly -polly-detect -analyze < %s | FileCheck %s
-; RUN: opt %loadPolly -polly-scops -analyze < %s
+; RUN: opt %loadPolly -polly-print-detect -disable-output < %s | FileCheck %s
+; RUN: opt %loadPolly -polly-scops -disable-output < %s
 
 ; CHECK: Valid Region for Scop: bb10 => bb16
 
@@ -14,7 +14,7 @@
 ;
 ; which introduced a new parameter (-1 + %b) * %a which was not registered
 ; correctly and consequently caused a crash due to an expression not being
-; regiustered as a parameter.
+; registered as a parameter.
 
 target datalayout = "e-m:e-p:32:32-i64:64-v128:64:128-a:0:32-n32-S64"
 

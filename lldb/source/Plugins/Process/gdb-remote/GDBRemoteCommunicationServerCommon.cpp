@@ -30,6 +30,7 @@
 #include "lldb/Target/Platform.h"
 #include "lldb/Utility/Endian.h"
 #include "lldb/Utility/GDBRemote.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/StreamString.h"
 #include "lldb/Utility/StructuredData.h"
@@ -56,11 +57,9 @@ const static uint32_t g_default_packet_timeout_sec = 0; // not specified
 #endif
 
 // GDBRemoteCommunicationServerCommon constructor
-GDBRemoteCommunicationServerCommon::GDBRemoteCommunicationServerCommon(
-    const char *comm_name, const char *listener_name)
-    : GDBRemoteCommunicationServer(comm_name, listener_name),
-      m_process_launch_info(), m_process_launch_error(), m_proc_infos(),
-      m_proc_infos_index(0) {
+GDBRemoteCommunicationServerCommon::GDBRemoteCommunicationServerCommon()
+    : GDBRemoteCommunicationServer(), m_process_launch_info(),
+      m_process_launch_error(), m_proc_infos(), m_proc_infos_index(0) {
   RegisterMemberFunctionHandler(StringExtractorGDBRemote::eServerPacketType_A,
                                 &GDBRemoteCommunicationServerCommon::Handle_A);
   RegisterMemberFunctionHandler(
@@ -267,18 +266,18 @@ GDBRemoteCommunicationServerCommon::Handle_qHostInfo(
   }
 #endif
 
-  std::string s;
-  if (HostInfo::GetOSBuildString(s)) {
+  if (llvm::Optional<std::string> s = HostInfo::GetOSBuildString()) {
     response.PutCString("os_build:");
-    response.PutStringAsRawHex8(s);
+    response.PutStringAsRawHex8(*s);
     response.PutChar(';');
   }
-  if (HostInfo::GetOSKernelDescription(s)) {
+  if (llvm::Optional<std::string> s = HostInfo::GetOSKernelDescription()) {
     response.PutCString("os_kernel:");
-    response.PutStringAsRawHex8(s);
+    response.PutStringAsRawHex8(*s);
     response.PutChar(';');
   }
 
+  std::string s;
 #if defined(__APPLE__)
 
 #if defined(__arm__) || defined(__arm64__) || defined(__aarch64__)
@@ -303,7 +302,7 @@ GDBRemoteCommunicationServerCommon::Handle_qHostInfo(
     response.PutChar(';');
   }
 #endif // #if defined(__APPLE__)
-
+  // coverity[unsigned_compare]
   if (g_default_packet_timeout_sec > 0)
     response.Printf("default_packet_timeout:%u;", g_default_packet_timeout_sec);
 
@@ -426,7 +425,7 @@ GDBRemoteCommunication::PacketResult
 GDBRemoteCommunicationServerCommon::Handle_qUserName(
     StringExtractorGDBRemote &packet) {
 #if LLDB_ENABLE_POSIX
-  Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PROCESS));
+  Log *log = GetLog(LLDBLog::Process);
   LLDB_LOGF(log, "GDBRemoteCommunicationServerCommon::%s begin", __FUNCTION__);
 
   // Packet format: "qUserName:%i" where %i is the uid
@@ -771,8 +770,11 @@ GDBRemoteCommunicationServerCommon::Handle_qPlatform_shell(
 
 template <typename T, typename U>
 static void fill_clamp(T &dest, U src, typename T::value_type fallback) {
-  dest = src <= std::numeric_limits<typename T::value_type>::max() ? src
-                                                                   : fallback;
+  static_assert(std::is_unsigned<typename T::value_type>::value,
+                "Destination type must be unsigned.");
+  using UU = std::make_unsigned_t<U>;
+  constexpr auto T_max = std::numeric_limits<typename T::value_type>::max();
+  dest = src >= 0 && static_cast<UU>(src) <= T_max ? src : fallback;
 }
 
 GDBRemoteCommunication::PacketResult
@@ -1017,7 +1019,7 @@ GDBRemoteCommunicationServerCommon::Handle_A(StringExtractorGDBRemote &packet) {
   // encoded argument value list, but we will stay true to the documented
   // version of the 'A' packet here...
 
-  Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PROCESS));
+  Log *log = GetLog(LLDBLog::Process);
   int actual_arg_index = 0;
 
   packet.SetFilePos(1); // Skip the 'A'
@@ -1134,7 +1136,8 @@ GDBRemoteCommunicationServerCommon::Handle_qModuleInfo(
   response.PutChar(';');
 
   response.PutCString("file_path:");
-  response.PutStringAsRawHex8(matched_module_spec.GetFileSpec().GetCString());
+  response.PutStringAsRawHex8(
+        matched_module_spec.GetFileSpec().GetPath().c_str());
   response.PutChar(';');
   response.PutCString("file_offset:");
   response.PutHex64(file_offset);
@@ -1209,7 +1212,7 @@ void GDBRemoteCommunicationServerCommon::CreateProcessInfoResponse(
       proc_info.GetUserID(), proc_info.GetGroupID(),
       proc_info.GetEffectiveUserID(), proc_info.GetEffectiveGroupID());
   response.PutCString("name:");
-  response.PutStringAsRawHex8(proc_info.GetExecutableFile().GetCString());
+  response.PutStringAsRawHex8(proc_info.GetExecutableFile().GetPath().c_str());
 
   response.PutChar(';');
   response.PutCString("args:");
@@ -1346,5 +1349,6 @@ std::vector<std::string> GDBRemoteCommunicationServerCommon::HandleFeatures(
       llvm::formatv("PacketSize={0}", max_packet_size),
       "QStartNoAckMode+",
       "qEcho+",
+      "native-signals+",
   };
 }

@@ -8,6 +8,7 @@
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/Twine.h"
 #include "gtest/gtest.h"
@@ -1181,18 +1182,22 @@ TEST(APIntTest, SaturatingMath) {
   APInt AP_100 = APInt(8, 100);
   APInt AP_200 = APInt(8, 200);
 
+  EXPECT_EQ(APInt(8, 100), AP_100.truncUSat(8));
   EXPECT_EQ(APInt(7, 100), AP_100.truncUSat(7));
   EXPECT_EQ(APInt(6, 63), AP_100.truncUSat(6));
   EXPECT_EQ(APInt(5, 31), AP_100.truncUSat(5));
 
+  EXPECT_EQ(APInt(8, 200), AP_200.truncUSat(8));
   EXPECT_EQ(APInt(7, 127), AP_200.truncUSat(7));
   EXPECT_EQ(APInt(6, 63), AP_200.truncUSat(6));
   EXPECT_EQ(APInt(5, 31), AP_200.truncUSat(5));
 
+  EXPECT_EQ(APInt(8, 42), AP_42.truncSSat(8));
   EXPECT_EQ(APInt(7, 42), AP_42.truncSSat(7));
   EXPECT_EQ(APInt(6, 31), AP_42.truncSSat(6));
   EXPECT_EQ(APInt(5, 15), AP_42.truncSSat(5));
 
+  EXPECT_EQ(APInt(8, -56), AP_200.truncSSat(8));
   EXPECT_EQ(APInt(7, -56), AP_200.truncSSat(7));
   EXPECT_EQ(APInt(6, -32), AP_200.truncSSat(6));
   EXPECT_EQ(APInt(5, -16), AP_200.truncSSat(5));
@@ -1746,21 +1751,43 @@ TEST(APIntTest, isShiftedMask) {
   EXPECT_TRUE(APInt(32, 0xffff0000).isShiftedMask());
   EXPECT_TRUE(APInt(32, 0xff << 1).isShiftedMask());
 
+  unsigned MaskIdx, MaskLen;
+  EXPECT_FALSE(APInt(32, 0x01010101).isShiftedMask(MaskIdx, MaskLen));
+  EXPECT_TRUE(APInt(32, 0xf0000000).isShiftedMask(MaskIdx, MaskLen));
+  EXPECT_EQ(28, (int)MaskIdx);
+  EXPECT_EQ(4, (int)MaskLen);
+  EXPECT_TRUE(APInt(32, 0xffff0000).isShiftedMask(MaskIdx, MaskLen));
+  EXPECT_EQ(16, (int)MaskIdx);
+  EXPECT_EQ(16, (int)MaskLen);
+  EXPECT_TRUE(APInt(32, 0xff << 1).isShiftedMask(MaskIdx, MaskLen));
+  EXPECT_EQ(1, (int)MaskIdx);
+  EXPECT_EQ(8, (int)MaskLen);
+
   for (int N : { 1, 2, 3, 4, 7, 8, 16, 32, 64, 127, 128, 129, 256 }) {
     EXPECT_FALSE(APInt(N, 0).isShiftedMask());
+    EXPECT_FALSE(APInt(N, 0).isShiftedMask(MaskIdx, MaskLen));
 
     APInt One(N, 1);
     for (int I = 1; I < N; ++I) {
       APInt MaskVal = One.shl(I) - 1;
       EXPECT_TRUE(MaskVal.isShiftedMask());
+      EXPECT_TRUE(MaskVal.isShiftedMask(MaskIdx, MaskLen));
+      EXPECT_EQ(0, (int)MaskIdx);
+      EXPECT_EQ(I, (int)MaskLen);
     }
     for (int I = 1; I < N - 1; ++I) {
       APInt MaskVal = One.shl(I);
       EXPECT_TRUE(MaskVal.isShiftedMask());
+      EXPECT_TRUE(MaskVal.isShiftedMask(MaskIdx, MaskLen));
+      EXPECT_EQ(I, (int)MaskIdx);
+      EXPECT_EQ(1, (int)MaskLen);
     }
     for (int I = 1; I < N; ++I) {
       APInt MaskVal = APInt::getHighBitsSet(N, I);
       EXPECT_TRUE(MaskVal.isShiftedMask());
+      EXPECT_TRUE(MaskVal.isShiftedMask(MaskIdx, MaskLen));
+      EXPECT_EQ(N - I, (int)MaskIdx);
+      EXPECT_EQ(I, (int)MaskLen);
     }
   }
 }
@@ -1769,7 +1796,7 @@ TEST(APIntTest, isPowerOf2) {
   EXPECT_FALSE(APInt(5, 0x00).isPowerOf2());
   EXPECT_FALSE(APInt(32, 0x11).isPowerOf2());
   EXPECT_TRUE(APInt(17, 0x01).isPowerOf2());
-  EXPECT_TRUE(APInt(32, 0xff << 31).isPowerOf2());
+  EXPECT_TRUE(APInt(32, (unsigned)(0xffu << 31)).isPowerOf2());
 
   for (int N : {1, 2, 3, 4, 7, 8, 16, 32, 64, 127, 128, 129, 256}) {
     EXPECT_FALSE(APInt(N, 0).isPowerOf2());
@@ -1781,6 +1808,32 @@ TEST(APIntTest, isPowerOf2) {
 
       APInt MaskVal = One.shl(I);
       EXPECT_TRUE(MaskVal.isPowerOf2());
+    }
+  }
+}
+
+TEST(APIntTest, isNegatedPowerOf2) {
+  EXPECT_FALSE(APInt(5, 0x00).isNegatedPowerOf2());
+  EXPECT_TRUE(APInt(15, 0x7ffe).isNegatedPowerOf2());
+  EXPECT_TRUE(APInt(16, 0xfffc).isNegatedPowerOf2());
+  EXPECT_TRUE(APInt(32, 0xffffffff).isNegatedPowerOf2());
+
+  for (int N : {1, 2, 3, 4, 7, 8, 16, 32, 64, 127, 128, 129, 256}) {
+    EXPECT_FALSE(APInt(N, 0).isNegatedPowerOf2());
+    EXPECT_TRUE(APInt::getAllOnes(N).isNegatedPowerOf2());
+    EXPECT_TRUE(APInt::getSignedMinValue(N).isNegatedPowerOf2());
+    EXPECT_TRUE((-APInt::getSignedMinValue(N)).isNegatedPowerOf2());
+
+    APInt One(N, 1);
+    for (int I = 1; I < N - 1; ++I) {
+      EXPECT_FALSE(APInt::getOneBitSet(N, I).isNegatedPowerOf2());
+      EXPECT_TRUE((-APInt::getOneBitSet(N, I)).isNegatedPowerOf2());
+
+      APInt MaskVal = One.shl(I);
+      EXPECT_TRUE((-MaskVal).isNegatedPowerOf2());
+
+      APInt ShiftMaskVal = One.getHighBitsSet(N, I);
+      EXPECT_TRUE(ShiftMaskVal.isNegatedPowerOf2());
     }
   }
 }
@@ -2589,26 +2642,28 @@ TEST(APIntTest, sext) {
   EXPECT_EQ(~uint64_t(0), APInt(1, 1).sext(64));
 
   APInt i32_max(APInt::getSignedMaxValue(32).sext(63));
+  EXPECT_EQ(i32_max, i32_max.sext(63));
   EXPECT_EQ(32U, i32_max.countLeadingZeros());
   EXPECT_EQ(0U, i32_max.countTrailingZeros());
   EXPECT_EQ(31U, i32_max.countPopulation());
 
   APInt i32_min(APInt::getSignedMinValue(32).sext(63));
+  EXPECT_EQ(i32_min, i32_min.sext(63));
   EXPECT_EQ(32U, i32_min.countLeadingOnes());
   EXPECT_EQ(31U, i32_min.countTrailingZeros());
   EXPECT_EQ(32U, i32_min.countPopulation());
 
   APInt i32_neg1(APInt(32, ~uint64_t(0)).sext(63));
+  EXPECT_EQ(i32_neg1, i32_neg1.sext(63));
   EXPECT_EQ(63U, i32_neg1.countLeadingOnes());
   EXPECT_EQ(0U, i32_neg1.countTrailingZeros());
   EXPECT_EQ(63U, i32_neg1.countPopulation());
 }
 
-TEST(APIntTest, truncOrSelf) {
+TEST(APIntTest, trunc) {
   APInt val(32, 0xFFFFFFFF);
-  EXPECT_EQ(0xFFFF, val.truncOrSelf(16));
-  EXPECT_EQ(0xFFFFFFFF, val.truncOrSelf(32));
-  EXPECT_EQ(0xFFFFFFFF, val.truncOrSelf(64));
+  EXPECT_EQ(0xFFFF, val.trunc(16));
+  EXPECT_EQ(0xFFFFFFFF, val.trunc(32));
 }
 
 TEST(APIntTest, concat) {
@@ -2843,7 +2898,7 @@ TEST(APIntTest, SolveQuadraticEquationWrap) {
           Optional<APInt> S = APIntOps::SolveQuadraticEquationWrap(
                                 APInt(Width, A), APInt(Width, B),
                                 APInt(Width, C), Width);
-          if (S.hasValue())
+          if (S)
             Validate(A, B, C, Width, S->getSExtValue());
         }
       }
@@ -2924,7 +2979,7 @@ TEST(APIntTest, GetMostSignificantDifferentBitExaustive) {
         auto Bit = APIntOps::GetMostSignificantDifferentBit(A, B);
         EXPECT_EQ(Bit, GetHighestDifferentBitBruteforce(A, B));
 
-        if (!Bit.hasValue())
+        if (!Bit)
           EXPECT_EQ(A, B);
         else {
           EXPECT_NE(A, B);
@@ -3028,6 +3083,9 @@ TEST(APIntTest, ZeroWidth) {
   EXPECT_EQ(0U, APInt(4, 3).trunc(0).getBitWidth());
   EXPECT_TRUE(ZW.isAllOnes());
 
+  // Zero extension.
+  EXPECT_EQ(0U, ZW.getZExtValue());
+
   SmallString<42> STR;
   ZW.toStringUnsigned(STR);
   EXPECT_EQ("0", STR);
@@ -3058,6 +3116,22 @@ TEST(APIntTest, ScaleBitMask) {
             APInt::getAllOnes(256));
   EXPECT_EQ(APIntOps::ScaleBitMask(APInt::getOneBitSet(4096, 32), 256),
             APInt::getOneBitSet(256, 2));
+
+  EXPECT_EQ(APIntOps::ScaleBitMask(APInt(2, 0x00), 8, true), APInt(8, 0x00));
+  EXPECT_EQ(APIntOps::ScaleBitMask(APInt(2, 0x01), 8, true), APInt(8, 0x0F));
+  EXPECT_EQ(APIntOps::ScaleBitMask(APInt(2, 0x02), 8, true), APInt(8, 0xF0));
+  EXPECT_EQ(APIntOps::ScaleBitMask(APInt(2, 0x03), 8, true), APInt(8, 0xFF));
+
+  EXPECT_EQ(APIntOps::ScaleBitMask(APInt(8, 0x00), 4, true), APInt(4, 0x00));
+  EXPECT_EQ(APIntOps::ScaleBitMask(APInt(8, 0xFF), 4, true), APInt(4, 0x0F));
+  EXPECT_EQ(APIntOps::ScaleBitMask(APInt(8, 0xE4), 4, true), APInt(4, 0x08));
+}
+
+TEST(APIntTest, DenseMap) {
+  DenseMap<APInt, int> Map;
+  APInt ZeroWidthInt(0, 0, false);
+  Map.insert({ZeroWidthInt, 0});
+  Map.find(ZeroWidthInt);
 }
 
 } // end anonymous namespace

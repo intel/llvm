@@ -328,6 +328,8 @@ public:
     case OCLTK_Queue:
     case OCLTK_ReserveID:
       return LangAS::opencl_global;
+    case OCLTK_Event:
+      return LangAS::opencl_private;
 
     default:
       return TargetInfo::getOpenCLTypeAddrSpace(TK);
@@ -411,6 +413,7 @@ public:
       return CCCR_Warning;
     case CC_C:
     case CC_OpenCLKernel:
+    case CC_AMDGPUKernelCall:
       return CCCR_OK;
     }
   }
@@ -426,7 +429,7 @@ public:
 
   void setAuxTarget(const TargetInfo *Aux) override;
 
-  bool hasExtIntType() const override { return true; }
+  bool hasBitIntType() const override { return true; }
 
   // Record offload arch features since they are needed for defining the
   // pre-defined macros.
@@ -434,17 +437,17 @@ public:
                             DiagnosticsEngine &Diags) override {
     auto TargetIDFeatures =
         getAllPossibleTargetIDFeatures(getTriple(), getArchNameAMDGCN(GPUKind));
-    llvm::for_each(Features, [&](const auto &F) {
+    for (const auto &F : Features) {
       assert(F.front() == '+' || F.front() == '-');
       if (F == "+wavefrontsize64")
         WavefrontSize = 64;
       bool IsOn = F.front() == '+';
       StringRef Name = StringRef(F).drop_front();
       if (!llvm::is_contained(TargetIDFeatures, Name))
-        return;
+        continue;
       assert(OffloadArchFeatures.find(Name) == OffloadArchFeatures.end());
       OffloadArchFeatures[Name] = IsOn;
-    });
+    }
     return true;
   }
 

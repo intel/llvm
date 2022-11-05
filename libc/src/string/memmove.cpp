@@ -9,57 +9,110 @@
 #include "src/string/memmove.h"
 
 #include "src/__support/common.h"
-#include "src/__support/integer_operations.h"
-#include "src/string/memcpy.h"
+#include "src/string/memory_utils/op_aarch64.h"
+#include "src/string/memory_utils/op_builtin.h"
+#include "src/string/memory_utils/op_generic.h"
+#include "src/string/memory_utils/op_x86.h"
 #include <stddef.h> // size_t, ptrdiff_t
+
+#include <stdio.h>
 
 namespace __llvm_libc {
 
-static inline void move_byte_forward(char *dest_m, const char *src_m,
-                                     size_t count) {
-  for (size_t offset = 0; count; --count, ++offset)
-    dest_m[offset] = src_m[offset];
+[[maybe_unused]] static inline void
+inline_memmove_embedded_tiny(Ptr dst, CPtr src, size_t count) {
+  if ((count == 0) || (dst == src))
+    return;
+  if (dst < src) {
+#pragma nounroll
+    for (size_t offset = 0; offset < count; ++offset)
+      builtin::Memcpy<1>::block(dst + offset, src + offset);
+  } else {
+#pragma nounroll
+    for (ptrdiff_t offset = count - 1; offset >= 0; --offset)
+      builtin::Memcpy<1>::block(dst + offset, src + offset);
+  }
 }
 
-static inline void move_byte_backward(char *dest_m, const char *src_m,
-                                      size_t count) {
-  for (size_t offset = count - 1; count; --count, --offset)
-    dest_m[offset] = src_m[offset];
+template <size_t MaxSize>
+[[maybe_unused]] static inline void inline_memmove_generic(Ptr dst, CPtr src,
+                                                           size_t count) {
+  if (count == 0)
+    return;
+  if (count == 1)
+    return generic::Memmove<1, MaxSize>::block(dst, src);
+  if (count <= 4)
+    return generic::Memmove<2, MaxSize>::head_tail(dst, src, count);
+  if (count <= 8)
+    return generic::Memmove<4, MaxSize>::head_tail(dst, src, count);
+  if (count <= 16)
+    return generic::Memmove<8, MaxSize>::head_tail(dst, src, count);
+  if (count <= 32)
+    return generic::Memmove<16, MaxSize>::head_tail(dst, src, count);
+  if (count <= 64)
+    return generic::Memmove<32, MaxSize>::head_tail(dst, src, count);
+  if (count <= 128)
+    return generic::Memmove<64, MaxSize>::head_tail(dst, src, count);
+  if (dst < src) {
+    generic::Memmove<32, MaxSize>::template align_forward<Arg::Src>(dst, src,
+                                                                    count);
+    return generic::Memmove<64, MaxSize>::loop_and_tail_forward(dst, src,
+                                                                count);
+  } else {
+    generic::Memmove<32, MaxSize>::template align_backward<Arg::Src>(dst, src,
+                                                                     count);
+    return generic::Memmove<64, MaxSize>::loop_and_tail_backward(dst, src,
+                                                                 count);
+  }
+}
+
+static inline void inline_memmove(Ptr dst, CPtr src, size_t count) {
+#if defined(LLVM_LIBC_ARCH_X86) || defined(LLVM_LIBC_ARCH_AARCH64)
+#if defined(LLVM_LIBC_ARCH_X86)
+  static constexpr size_t kMaxSize = x86::kAvx512F ? 64
+                                     : x86::kAvx   ? 32
+                                     : x86::kSse2  ? 16
+                                                   : 8;
+#elif defined(LLVM_LIBC_ARCH_AARCH64)
+  static constexpr size_t kMaxSize = aarch64::kNeon ? 16 : 8;
+#endif
+  // return inline_memmove_generic<kMaxSize>(dst, src, count);
+  if (count == 0)
+    return;
+  if (count == 1)
+    return generic::Memmove<1, kMaxSize>::block(dst, src);
+  if (count <= 4)
+    return generic::Memmove<2, kMaxSize>::head_tail(dst, src, count);
+  if (count <= 8)
+    return generic::Memmove<4, kMaxSize>::head_tail(dst, src, count);
+  if (count <= 16)
+    return generic::Memmove<8, kMaxSize>::head_tail(dst, src, count);
+  if (count <= 32)
+    return generic::Memmove<16, kMaxSize>::head_tail(dst, src, count);
+  if (count <= 64)
+    return generic::Memmove<32, kMaxSize>::head_tail(dst, src, count);
+  if (count <= 128)
+    return generic::Memmove<64, kMaxSize>::head_tail(dst, src, count);
+  if (dst < src) {
+    generic::Memmove<32, kMaxSize>::align_forward<Arg::Src>(dst, src, count);
+    return generic::Memmove<64, kMaxSize>::loop_and_tail_forward(dst, src,
+                                                                 count);
+  } else {
+    generic::Memmove<32, kMaxSize>::align_backward<Arg::Src>(dst, src, count);
+    return generic::Memmove<64, kMaxSize>::loop_and_tail_backward(dst, src,
+                                                                  count);
+  }
+#elif defined(LLVM_LIBC_ARCH_ARM)
+  return inline_memmove_embedded_tiny(dst, src, count);
+#else
+#error "Unsupported platform"
+#endif
 }
 
 LLVM_LIBC_FUNCTION(void *, memmove,
                    (void *dst, const void *src, size_t count)) {
-  char *dest_c = reinterpret_cast<char *>(dst);
-  const char *src_c = reinterpret_cast<const char *>(src);
-
-  // If the distance between `src_c` and `dest_c` is equal to or greater
-  // than `count` (integerAbs(src_c - dest_c) >= count), they would not overlap.
-  // e.g.   greater     equal       overlapping
-  //        [12345678]  [12345678]  [12345678]
-  // src_c: [_ab_____]  [_ab_____]  [_ab_____]
-  // dest_c:[_____yz_]  [___yz___]  [__yz____]
-
-  // Call `memcpy` if `src_c` and `dest_c` do not overlap.
-  if (__llvm_libc::integerAbs(src_c - dest_c) >= static_cast<ptrdiff_t>(count))
-    return __llvm_libc::memcpy(dest_c, src_c, count);
-
-  // Overlapping cases.
-  // If `dest_c` starts before `src_c` (dest_c < src_c), copy
-  // forward(pointer add 1) from beginning to end.
-  // If `dest_c` starts after `src_c` (dest_c > src_c), copy
-  // backward(pointer add -1) from end to beginning.
-  // If `dest_c` and `src_c` start at the same address (dest_c == src_c),
-  // just return dest.
-  // e.g.    forward      backward
-  //                *->    <-*
-  // src_c : [___abcde_]  [_abcde___]
-  // dest_c: [_abc--___]  [___--cde_]
-
-  // TODO: Optimize `move_byte_xxx(...)` functions.
-  if (dest_c < src_c)
-    move_byte_forward(dest_c, src_c, count);
-  if (dest_c > src_c)
-    move_byte_backward(dest_c, src_c, count);
+  inline_memmove(reinterpret_cast<Ptr>(dst), reinterpret_cast<CPtr>(src),
+                 count);
   return dst;
 }
 

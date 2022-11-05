@@ -8,11 +8,21 @@
 
 // UNSUPPORTED: c++03
 
+// test_memory_resource requires RTTI for dynamic_cast
+// UNSUPPORTED: no-rtti
+
+// Aligned allocation is required by std::experimental::pmr, but it was not provided
+// before macosx10.13 and as a result we get linker errors when deploying to older than
+// macosx10.13.
+// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11|12}}
+
 // <experimental/memory_resource>
 
 // template <class T> class polymorphic_allocator
 
 // T* polymorphic_allocator<T>::allocate(size_t n)
+
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS
 
 #include <experimental/memory_resource>
 #include <limits>
@@ -61,11 +71,11 @@ void testAllocForSizeThrows() {
     size_t sizeTypeMax = std::numeric_limits<std::size_t>::max();
     if (maxSize != sizeTypeMax)
     {
-        // Test that allocating size_t(~0) throws bad alloc.
+        // Test that allocating size_t(~0) throws bad_array_new_length.
         try {
             a.allocate(sizeTypeMax);
             assert(false);
-        } catch (std::exception const&) {
+        } catch (std::bad_array_new_length const&) {
         }
 
         // Test that allocating even one more than the max size does throw.
@@ -73,7 +83,7 @@ void testAllocForSizeThrows() {
         try {
             a.allocate(overSize);
             assert(false);
-        } catch (std::exception const&) {
+        } catch (std::bad_array_new_length const&) {
         }
     }
 }

@@ -3,7 +3,7 @@
 // RUN: llvm-spirv %t.bc -o %t.spv
 // RUN: spirv-val %t.spv
 // RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
-// RUN: llvm-spirv %t.spv -r --spirv-target-env=CL2.0 -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: llvm-spirv %t.spv -r -emit-opaque-pointers --spirv-target-env=CL2.0 -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 // This test checks that the translator is capable to correctly translate
 // atomic_work_item_fence OpenCL C 2.0 built-in function [1] into corresponding

@@ -16,7 +16,7 @@
 #include "lld/Common/ErrorHandler.h"
 #include "lld/Common/Memory.h"
 #include "lld/Common/Timer.h"
-#include "llvm/DebugInfo/Symbolize/Symbolize.h"
+#include "llvm/DebugInfo/DIContext.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/LTO/LTO.h"
 #include "llvm/Object/WindowsMachineFlag.h"
@@ -26,8 +26,7 @@
 
 using namespace llvm;
 
-namespace lld {
-namespace coff {
+namespace lld::coff {
 
 StringRef ltrim1(StringRef s, const char *chars) {
   if (!s.empty() && strchr(chars, s[0]))
@@ -37,23 +36,30 @@ StringRef ltrim1(StringRef s, const char *chars) {
 
 void SymbolTable::addFile(InputFile *file) {
   log("Reading " + toString(file));
-  file->parse();
+  if (file->lazy) {
+    if (auto *f = dyn_cast<BitcodeFile>(file))
+      f->parseLazy();
+    else
+      cast<ObjFile>(file)->parseLazy();
+  } else {
+    file->parse();
+    if (auto *f = dyn_cast<ObjFile>(file)) {
+      ctx.objFileInstances.push_back(f);
+    } else if (auto *f = dyn_cast<BitcodeFile>(file)) {
+      ctx.bitcodeFileInstances.push_back(f);
+    } else if (auto *f = dyn_cast<ImportFile>(file)) {
+      ctx.importFileInstances.push_back(f);
+    }
+  }
 
   MachineTypes mt = file->getMachineType();
   if (config->machine == IMAGE_FILE_MACHINE_UNKNOWN) {
     config->machine = mt;
+    driver->addWinSysRootLibSearchPaths();
   } else if (mt != IMAGE_FILE_MACHINE_UNKNOWN && config->machine != mt) {
     error(toString(file) + ": machine type " + machineToStr(mt) +
           " conflicts with " + machineToStr(config->machine));
     return;
-  }
-
-  if (auto *f = dyn_cast<ObjFile>(file)) {
-    ctx.objFileInstances.push_back(f);
-  } else if (auto *f = dyn_cast<BitcodeFile>(file)) {
-    ctx.bitcodeFileInstances.push_back(f);
-  } else if (auto *f = dyn_cast<ImportFile>(file)) {
-    ctx.importFileInstances.push_back(f);
   }
 
   driver->parseDirectives(file);
@@ -75,9 +81,11 @@ static void forceLazy(Symbol *s) {
     l->file->addMember(l->sym);
     break;
   }
-  case Symbol::Kind::LazyObjectKind:
-    cast<LazyObject>(s)->file->fetch();
+  case Symbol::Kind::LazyObjectKind: {
+    InputFile *file = cast<LazyObject>(s)->file;
+    file->ctx.symtab.addFile(file);
     break;
+  }
   case Symbol::Kind::LazyDLLSymbolKind: {
     auto *l = cast<LazyDLLSymbol>(s);
     l->file->makeImport(l->sym);
@@ -126,7 +134,7 @@ getFileLineDwarf(const SectionChunk *c, uint32_t addr) {
   const DILineInfo &lineInfo = *optionalLineInfo;
   if (lineInfo.FileName == DILineInfo::BadString)
     return None;
-  return std::make_pair(saver.save(lineInfo.FileName), lineInfo.Line);
+  return std::make_pair(saver().save(lineInfo.FileName), lineInfo.Line);
 }
 
 static Optional<std::pair<StringRef, uint32_t>>
@@ -236,9 +244,7 @@ static void reportUndefinedSymbol(const UndefinedDiag &undefDiag) {
   const size_t maxUndefReferences = 3;
   size_t numDisplayedRefs = 0, numRefs = 0;
   for (const UndefinedDiag::File &ref : undefDiag.files) {
-    std::vector<std::string> symbolLocations;
-    size_t totalLocations = 0;
-    std::tie(symbolLocations, totalLocations) = getSymbolLocations(
+    auto [symbolLocations, totalLocations] = getSymbolLocations(
         ref.file, ref.symIndex, maxUndefReferences - numDisplayedRefs);
 
     numRefs += totalLocations;
@@ -534,9 +540,7 @@ std::pair<Symbol *, bool> SymbolTable::insert(StringRef name, InputFile *file) {
 
 Symbol *SymbolTable::addUndefined(StringRef name, InputFile *f,
                                   bool isWeakAlias) {
-  Symbol *s;
-  bool wasInserted;
-  std::tie(s, wasInserted) = insert(name, f);
+  auto [s, wasInserted] = insert(name, f);
   if (wasInserted || (s->isLazy() && isWeakAlias)) {
     replaceSymbol<Undefined>(s, name);
     return s;
@@ -548,9 +552,7 @@ Symbol *SymbolTable::addUndefined(StringRef name, InputFile *f,
 
 void SymbolTable::addLazyArchive(ArchiveFile *f, const Archive::Symbol &sym) {
   StringRef name = sym.getName();
-  Symbol *s;
-  bool wasInserted;
-  std::tie(s, wasInserted) = insert(name);
+  auto [s, wasInserted] = insert(name);
   if (wasInserted) {
     replaceSymbol<LazyArchive>(s, f, sym);
     return;
@@ -562,10 +564,9 @@ void SymbolTable::addLazyArchive(ArchiveFile *f, const Archive::Symbol &sym) {
   f->addMember(sym);
 }
 
-void SymbolTable::addLazyObject(LazyObjFile *f, StringRef n) {
-  Symbol *s;
-  bool wasInserted;
-  std::tie(s, wasInserted) = insert(n, f);
+void SymbolTable::addLazyObject(InputFile *f, StringRef n) {
+  assert(f->lazy);
+  auto [s, wasInserted] = insert(n, f);
   if (wasInserted) {
     replaceSymbol<LazyObject>(s, f, n);
     return;
@@ -574,14 +575,13 @@ void SymbolTable::addLazyObject(LazyObjFile *f, StringRef n) {
   if (!u || u->weakAlias || s->pendingArchiveLoad)
     return;
   s->pendingArchiveLoad = true;
-  f->fetch();
+  f->lazy = false;
+  addFile(f);
 }
 
 void SymbolTable::addLazyDLLSymbol(DLLFile *f, DLLFile::Symbol *sym,
                                    StringRef n) {
-  Symbol *s;
-  bool wasInserted;
-  std::tie(s, wasInserted) = insert(n);
+  auto [s, wasInserted] = insert(n);
   if (wasInserted) {
     replaceSymbol<LazyDLLSymbol>(s, f, sym, n);
     return;
@@ -661,9 +661,7 @@ void SymbolTable::reportDuplicate(Symbol *existing, InputFile *newFile,
 }
 
 Symbol *SymbolTable::addAbsolute(StringRef n, COFFSymbolRef sym) {
-  Symbol *s;
-  bool wasInserted;
-  std::tie(s, wasInserted) = insert(n, nullptr);
+  auto [s, wasInserted] = insert(n, nullptr);
   s->isUsedInRegularObj = true;
   if (wasInserted || isa<Undefined>(s) || s->isLazy())
     replaceSymbol<DefinedAbsolute>(s, n, sym);
@@ -676,9 +674,7 @@ Symbol *SymbolTable::addAbsolute(StringRef n, COFFSymbolRef sym) {
 }
 
 Symbol *SymbolTable::addAbsolute(StringRef n, uint64_t va) {
-  Symbol *s;
-  bool wasInserted;
-  std::tie(s, wasInserted) = insert(n, nullptr);
+  auto [s, wasInserted] = insert(n, nullptr);
   s->isUsedInRegularObj = true;
   if (wasInserted || isa<Undefined>(s) || s->isLazy())
     replaceSymbol<DefinedAbsolute>(s, n, va);
@@ -691,9 +687,7 @@ Symbol *SymbolTable::addAbsolute(StringRef n, uint64_t va) {
 }
 
 Symbol *SymbolTable::addSynthetic(StringRef n, Chunk *c) {
-  Symbol *s;
-  bool wasInserted;
-  std::tie(s, wasInserted) = insert(n, nullptr);
+  auto [s, wasInserted] = insert(n, nullptr);
   s->isUsedInRegularObj = true;
   if (wasInserted || isa<Undefined>(s) || s->isLazy())
     replaceSymbol<DefinedSynthetic>(s, n, c);
@@ -704,14 +698,12 @@ Symbol *SymbolTable::addSynthetic(StringRef n, Chunk *c) {
 
 Symbol *SymbolTable::addRegular(InputFile *f, StringRef n,
                                 const coff_symbol_generic *sym, SectionChunk *c,
-                                uint32_t sectionOffset) {
-  Symbol *s;
-  bool wasInserted;
-  std::tie(s, wasInserted) = insert(n, f);
-  if (wasInserted || !isa<DefinedRegular>(s))
+                                uint32_t sectionOffset, bool isWeak) {
+  auto [s, wasInserted] = insert(n, f);
+  if (wasInserted || !isa<DefinedRegular>(s) || s->isWeak)
     replaceSymbol<DefinedRegular>(s, f, n, /*IsCOMDAT*/ false,
-                                  /*IsExternal*/ true, sym, c);
-  else
+                                  /*IsExternal*/ true, sym, c, isWeak);
+  else if (!isWeak)
     reportDuplicate(s, f, c, sectionOffset);
   return s;
 }
@@ -719,9 +711,7 @@ Symbol *SymbolTable::addRegular(InputFile *f, StringRef n,
 std::pair<DefinedRegular *, bool>
 SymbolTable::addComdat(InputFile *f, StringRef n,
                        const coff_symbol_generic *sym) {
-  Symbol *s;
-  bool wasInserted;
-  std::tie(s, wasInserted) = insert(n, f);
+  auto [s, wasInserted] = insert(n, f);
   if (wasInserted || !isa<DefinedRegular>(s)) {
     replaceSymbol<DefinedRegular>(s, f, n, /*IsCOMDAT*/ true,
                                   /*IsExternal*/ true, sym, nullptr);
@@ -735,9 +725,7 @@ SymbolTable::addComdat(InputFile *f, StringRef n,
 
 Symbol *SymbolTable::addCommon(InputFile *f, StringRef n, uint64_t size,
                                const coff_symbol_generic *sym, CommonChunk *c) {
-  Symbol *s;
-  bool wasInserted;
-  std::tie(s, wasInserted) = insert(n, f);
+  auto [s, wasInserted] = insert(n, f);
   if (wasInserted || !isa<DefinedCOFF>(s))
     replaceSymbol<DefinedCommon>(s, f, n, size, sym, c);
   else if (auto *dc = dyn_cast<DefinedCommon>(s))
@@ -747,9 +735,7 @@ Symbol *SymbolTable::addCommon(InputFile *f, StringRef n, uint64_t size,
 }
 
 Symbol *SymbolTable::addImportData(StringRef n, ImportFile *f) {
-  Symbol *s;
-  bool wasInserted;
-  std::tie(s, wasInserted) = insert(n, nullptr);
+  auto [s, wasInserted] = insert(n, nullptr);
   s->isUsedInRegularObj = true;
   if (wasInserted || isa<Undefined>(s) || s->isLazy()) {
     replaceSymbol<DefinedImportData>(s, n, f);
@@ -762,9 +748,7 @@ Symbol *SymbolTable::addImportData(StringRef n, ImportFile *f) {
 
 Symbol *SymbolTable::addImportThunk(StringRef name, DefinedImportData *id,
                                     uint16_t machine) {
-  Symbol *s;
-  bool wasInserted;
-  std::tie(s, wasInserted) = insert(name, nullptr);
+  auto [s, wasInserted] = insert(name, nullptr);
   s->isUsedInRegularObj = true;
   if (wasInserted || isa<Undefined>(s) || s->isLazy()) {
     replaceSymbol<DefinedImportThunk>(s, name, id, machine);
@@ -865,7 +849,7 @@ Symbol *SymbolTable::addUndefined(StringRef name) {
   return addUndefined(name, nullptr, false);
 }
 
-void SymbolTable::addCombinedLTOObjects() {
+void SymbolTable::compileBitcodeFiles() {
   if (ctx.bitcodeFileInstances.empty())
     return;
 
@@ -880,5 +864,4 @@ void SymbolTable::addCombinedLTOObjects() {
   }
 }
 
-} // namespace coff
-} // namespace lld
+} // namespace lld::coff

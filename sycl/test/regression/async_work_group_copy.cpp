@@ -4,7 +4,7 @@
 // builtin async_work_group_copy
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 // Define the number of work items to enqueue.
 const size_t NElems = 32;
@@ -56,7 +56,7 @@ int main() {
   test<int16_t>();
   test<int32_t>();
   test<int64_t>();
-  test<cl::sycl::cl_half>();
+  test<sycl::cl_half>();
   test<float>();
   test<double>();
   return 1;

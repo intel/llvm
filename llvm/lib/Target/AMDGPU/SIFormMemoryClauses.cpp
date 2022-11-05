@@ -241,7 +241,7 @@ void SIFormMemoryClauses::collectRegUses(const MachineInstr &MI,
 }
 
 // Check register def/use conflicts, occupancy limits and collect def/use maps.
-// Return true if instruction can be bundled with previous. It it cannot
+// Return true if instruction can be bundled with previous. If it cannot
 // def/use maps are not updated.
 bool SIFormMemoryClauses::processRegUses(const MachineInstr &MI,
                                          RegUse &Defs, RegUse &Uses,
@@ -393,13 +393,11 @@ bool SIFormMemoryClauses::runOnMachineFunction(MachineFunction &MF) {
         Ind->insertMachineInstrInMaps(*Kill);
       }
 
-      if (!Kill) {
-        RPT.reset(MI, &LiveRegsCopy);
-        continue;
-      }
-
       // Restore the state after processing the end of the bundle.
-      RPT.reset(*Kill, &LiveRegsCopy);
+      RPT.reset(MI, &LiveRegsCopy);
+
+      if (!Kill)
+        continue;
 
       for (auto &&R : Defs) {
         Register Reg = R.first;

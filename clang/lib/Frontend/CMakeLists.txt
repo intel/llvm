@@ -24,7 +24,6 @@ add_clang_library(clangFrontend
   FrontendActions.cpp
   FrontendOptions.cpp
   HeaderIncludeGen.cpp
-  InitHeaderSearch.cpp
   InitPreprocessor.cpp
   LayoutOverrideSource.cpp
   LogDiagnosticPrinter.cpp
@@ -32,6 +31,8 @@ add_clang_library(clangFrontend
   MultiplexConsumer.cpp
   PrecompiledPreamble.cpp
   PrintPreprocessedOutput.cpp
+  SARIFDiagnostic.cpp
+  SARIFDiagnosticPrinter.cpp
   SerializedDiagnosticPrinter.cpp
   SerializedDiagnosticReader.cpp
   TestModuleFileExtension.cpp

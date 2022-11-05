@@ -24,7 +24,7 @@ void lookupAndRecordAddrs(
     Symbols.add(KV.first, LookupFlags);
 
   ES.lookup(
-      K, SearchOrder, Symbols, SymbolState::Ready,
+      K, SearchOrder, std::move(Symbols), SymbolState::Ready,
       [Pairs = std::move(Pairs),
        OnRec = std::move(OnRecorded)](Expected<SymbolMap> Result) mutable {
         if (!Result)
@@ -47,7 +47,7 @@ Error lookupAndRecordAddrs(
   std::promise<MSVCPError> ResultP;
   auto ResultF = ResultP.get_future();
   lookupAndRecordAddrs([&](Error Err) { ResultP.set_value(std::move(Err)); },
-                       ES, K, SearchOrder, Pairs, LookupFlags);
+                       ES, K, SearchOrder, std::move(Pairs), LookupFlags);
   return ResultF.get();
 }
 
@@ -73,7 +73,7 @@ Error lookupAndRecordAddrs(
                                    inconvertibleErrorCode());
 
   for (unsigned I = 0; I != Pairs.size(); ++I)
-    Pairs[I].second->setValue(Result->front()[I]);
+    *Pairs[I].second = Result->front()[I];
 
   return Error::success();
 }

@@ -12,8 +12,8 @@
 // Define extension macros
 
 #if (defined(__OPENCL_CPP_VERSION__) || __OPENCL_C_VERSION__ >= 200)
-// For SPIR all extensions are supported.
-#if defined(__SPIR__)
+// For SPIR and SPIR-V all extensions are supported.
+#if defined(__SPIR__) || defined(__SPIRV__)
 #define cl_khr_subgroup_extended_types 1
 #define cl_khr_subgroup_non_uniform_vote 1
 #define cl_khr_subgroup_ballot 1
@@ -21,6 +21,7 @@
 #define cl_khr_subgroup_shuffle 1
 #define cl_khr_subgroup_shuffle_relative 1
 #define cl_khr_subgroup_clustered_reduce 1
+#define cl_khr_subgroup_rotate 1
 #define cl_khr_extended_bit_ops 1
 #define cl_khr_integer_dot_product 1
 #define __opencl_c_integer_dot_product_input_4x8bit 1
@@ -45,7 +46,7 @@
 #define __opencl_c_ext_fp32_global_atomic_min_max 1
 #define __opencl_c_ext_fp32_local_atomic_min_max 1
 
-#endif // defined(__SPIR__)
+#endif // defined(__SPIR__) || defined(__SPIRV__)
 #endif // (defined(__OPENCL_CPP_VERSION__) || __OPENCL_C_VERSION__ >= 200)
 
 // Define feature macros for OpenCL C 2.0
@@ -65,11 +66,26 @@
 
 // Define header-only feature macros for OpenCL C 3.0.
 #if (__OPENCL_CPP_VERSION__ == 202100 || __OPENCL_C_VERSION__ == 300)
-// For the SPIR target all features are supported.
-#if defined(__SPIR__)
+// For the SPIR and SPIR-V target all features are supported.
+#if defined(__SPIR__) || defined(__SPIRV__)
+#define __opencl_c_work_group_collective_functions 1
+#define __opencl_c_atomic_order_seq_cst 1
+#define __opencl_c_atomic_scope_device 1
 #define __opencl_c_atomic_scope_all_devices 1
+#define __opencl_c_read_write_images 1
 #endif // defined(__SPIR__)
 #endif // (__OPENCL_CPP_VERSION__ == 202100 || __OPENCL_C_VERSION__ == 300)
+
+#if !defined(__opencl_c_generic_address_space)
+// Internal feature macro to provide named (global, local, private) address
+// space overloads for builtin functions that take a pointer argument.
+#define __opencl_c_named_address_space_builtins 1
+#endif // !defined(__opencl_c_generic_address_space)
+
+#if defined(cl_intel_subgroups) || defined(cl_khr_subgroups) || defined(__opencl_c_subgroups)
+// Internal feature macro to provide subgroup builtins.
+#define __opencl_subgroup_builtins 1
+#endif
 
 // built-in scalar data types:
 
@@ -187,6 +203,9 @@ typedef double double4 __attribute__((ext_vector_type(4)));
 typedef double double8 __attribute__((ext_vector_type(8)));
 typedef double double16 __attribute__((ext_vector_type(16)));
 #endif
+
+// An internal alias for half, for use by OpenCLBuiltins.td.
+#define __half half
 
 #if defined(__OPENCL_CPP_VERSION__)
 #define NULL nullptr
@@ -498,12 +517,14 @@ typedef int clk_profiling_info;
 
 #define MAX_WORK_DIM 3
 
+#ifdef __opencl_c_device_enqueue
 typedef struct {
   unsigned int workDimension;
   size_t globalWorkOffset[MAX_WORK_DIM];
   size_t globalWorkSize[MAX_WORK_DIM];
   size_t localWorkSize[MAX_WORK_DIM];
 } ndrange_t;
+#endif // __opencl_c_device_enqueue
 
 #endif // defined(__OPENCL_CPP_VERSION__) || (__OPENCL_C_VERSION__ >= CL_VERSION_2_0)
 
@@ -600,9 +621,11 @@ typedef struct {
 // C++ for OpenCL - __remove_address_space
 #if defined(__OPENCL_CPP_VERSION__)
 template <typename _Tp> struct __remove_address_space { using type = _Tp; };
+#if defined(__opencl_c_generic_address_space)
 template <typename _Tp> struct __remove_address_space<__generic _Tp> {
   using type = _Tp;
 };
+#endif
 template <typename _Tp> struct __remove_address_space<__global _Tp> {
   using type = _Tp;
 };

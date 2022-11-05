@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "src/string/mempcpy.h"
-#include "src/string/memcpy.h"
+#include "src/string/memory_utils/memcpy_implementations.h"
 
 #include "src/__support/common.h"
 #include <stddef.h> // For size_t.
@@ -15,12 +15,10 @@
 namespace __llvm_libc {
 
 LLVM_LIBC_FUNCTION(void *, mempcpy,
-                   (void *__restrict dest, const void *__restrict src,
+                   (void *__restrict dst, const void *__restrict src,
                     size_t count)) {
-  void *result = __llvm_libc::memcpy(dest, src, count);
-  return result == nullptr
-             ? result
-             : static_cast<void *>(static_cast<char *>(result) + count);
+  inline_memcpy(dst, src, count);
+  return reinterpret_cast<char *>(dst) + count;
 }
 
 } // namespace __llvm_libc

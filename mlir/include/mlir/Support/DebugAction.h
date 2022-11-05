@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file contains defintions for the debug action framework. This framework
-// allows for external entites to control certain actions taken by the compiler
+// This file contains definitions for the debug action framework. This framework
+// allows for external entities to control certain actions taken by the compiler
 // by registering handler functions. A debug action handler provides the
 // internal implementation for the various queries on a debug action, such as
 // whether it should execute or not.
@@ -25,6 +25,7 @@
 #include "llvm/Support/TypeName.h"
 #include "llvm/Support/raw_ostream.h"
 #include <functional>
+#include <type_traits>
 
 namespace mlir {
 
@@ -48,7 +49,7 @@ public:
   /// This class represents the base class of a debug action handler.
   class HandlerBase {
   public:
-    virtual ~HandlerBase() {}
+    virtual ~HandlerBase() = default;
 
     /// Return the unique handler id of this handler, use for casting
     /// functionality.
@@ -64,7 +65,7 @@ public:
 
   /// This class represents a generic action handler. A generic handler allows
   /// for handling any action type. Handlers of this type are useful for
-  /// implementing general functionality that doesn’t necessarily need to
+  /// implementing general functionality that doesn't necessarily need to
   /// interpret the exact action parameters, or can rely on an external
   /// interpreter (such as the user). Given that these handlers are generic,
   /// they take a set of opaque parameters that try to map the context of the
@@ -90,7 +91,7 @@ public:
   /// Register the given action handler with the manager.
   void registerActionHandler(std::unique_ptr<HandlerBase> handler) {
     // The manager is always disabled if built without debug.
-#ifndef NDEBUG
+#if LLVM_ENABLE_ABI_BREAKING_CHECKS
     actionHandlers.emplace_back(std::move(handler));
 #endif
   }
@@ -107,13 +108,13 @@ public:
   /// `Args` are a set of parameters used by handlers of `ActionType` to
   /// determine if the action should be executed.
   template <typename ActionType, typename... Args>
-  bool shouldExecute(Args &&... args) {
+  bool shouldExecute(Args &&...args) {
     // The manager is always disabled if built without debug.
-#ifdef NDEBUG
+#if !LLVM_ENABLE_ABI_BREAKING_CHECKS
     return true;
 #else
     // Invoke the `shouldExecute` method on the provided handler.
-    auto shouldExecuteFn = [&](auto *handler, auto &&... handlerParams) {
+    auto shouldExecuteFn = [&](auto *handler, auto &&...handlerParams) {
       return handler->shouldExecute(
           std::forward<decltype(handlerParams)>(handlerParams)...);
     };
@@ -127,7 +128,7 @@ public:
 
 private:
 // The manager is always disabled if built without debug.
-#ifndef NDEBUG
+#if LLVM_ENABLE_ABI_BREAKING_CHECKS
   //===--------------------------------------------------------------------===//
   // Query to Handler Dispatch
   //===--------------------------------------------------------------------===//
@@ -139,7 +140,7 @@ private:
   template <typename ActionType, typename ResultT, typename HandlerCallbackT,
             typename... Args>
   FailureOr<ResultT> dispatchToHandler(HandlerCallbackT &&handlerCallback,
-                                       Args &&... args) {
+                                       Args &&...args) {
     static_assert(ActionType::template canHandleWith<Args...>(),
                   "cannot execute action with the given set of parameters");
 
@@ -175,7 +176,7 @@ private:
 
 /// A debug action is a specific action that is to be taken by the compiler,
 /// that can be toggled and controlled by an external user. There are no
-/// constraints on the granulity of an action, it could be as simple as
+/// constraints on the granularity of an action, it could be as simple as
 /// "perform this fold" and as complex as "run this pass pipeline". Via template
 /// parameters `ParameterTs`, a user may provide the set of argument types that
 /// are provided when handling a query on this action. Derived classes are
@@ -189,11 +190,12 @@ private:
 /// This class provides a handler class that can be derived from to handle
 /// instances of this action. The parameters to its query methods map 1-1 to the
 /// types on the action type.
-template <typename... ParameterTs> class DebugAction {
+template <typename Derived, typename... ParameterTs>
+class DebugAction {
 public:
   class Handler : public DebugActionManager::HandlerBase {
   public:
-    Handler() : HandlerBase(TypeID::get<Handler>()) {}
+    Handler() : HandlerBase(TypeID::get<Derived>()) {}
 
     /// This hook allows for controlling whether an action should execute or
     /// not. `parameters` correspond to the set of values provided by the
@@ -205,8 +207,7 @@ public:
 
     /// Provide classof to allow casting between handler types.
     static bool classof(const DebugActionManager::HandlerBase *handler) {
-      return handler->getHandlerID() ==
-             TypeID::get<DebugAction<ParameterTs...>::Handler>();
+      return handler->getHandlerID() == TypeID::get<Derived>();
     }
   };
 
@@ -215,14 +216,14 @@ private:
   /// parameter types.
   template <typename... CallerParameterTs>
   static constexpr bool canHandleWith() {
-    return llvm::is_invocable<function_ref<void(ParameterTs...)>,
-                              CallerParameterTs...>::value;
+    return std::is_invocable_v<function_ref<void(ParameterTs...)>,
+                               CallerParameterTs...>;
   }
 
   /// Allow access to `canHandleWith`.
   friend class DebugActionManager;
 };
 
-} // end namespace mlir
+} // namespace mlir
 
 #endif // MLIR_SUPPORT_DEBUGACTION_H

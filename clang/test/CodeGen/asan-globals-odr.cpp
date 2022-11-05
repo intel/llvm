@@ -20,11 +20,11 @@ int main() {
 // INDICATOR1: [[ODR:@.*__odr_asan_gen_.*global.*]] = global i8 0, align 1
 
 // GLOB_VAR: @0 = internal global {{.*}} [[VAR]] to i64), {{.*}}, i64 0 }]
-// GLOB_VAR_INDICATOR: @0 = internal global {{.*}} [[VAR]] to i64), {{.*}}, i64 ptrtoint (i8* [[ODR]] to i64) }]
-// GLOB_ALIAS_INDICATOR: @0 = internal global {{.*}} @1 to i64), {{.*}}, i64 ptrtoint (i8* [[ODR]] to i64) }]
+// GLOB_VAR_INDICATOR: @0 = internal global {{.*}} [[VAR]] to i64), {{.*}}, i64 ptrtoint (ptr [[ODR]] to i64) }]
+// GLOB_ALIAS_INDICATOR: @0 = internal global {{.*}} @1 to i64), {{.*}}, i64 ptrtoint (ptr [[ODR]] to i64) }]
 
 // ALIAS0-NOT: private alias
 // ALIAS1: @1 = private alias {{.*}} [[VAR]]
 
-// CHECK: call void @__asan_register_globals(i64 ptrtoint ([1 x { i64, i64, i64, i64, i64, i64, i64, i64 }]* @0 to i64), i64 1)
-// CHECK: call void @__asan_unregister_globals(i64 ptrtoint ([1 x { i64, i64, i64, i64, i64, i64, i64, i64 }]* @0 to i64), i64 1)
+// CHECK: call void @__asan_register_globals(i64 ptrtoint (ptr @0 to i64), i64 1)
+// CHECK: call void @__asan_unregister_globals(i64 ptrtoint (ptr @0 to i64), i64 1)

@@ -48,7 +48,7 @@ private:
   MlirPassManager passManager;
 };
 
-} // anonymous namespace
+} // namespace
 
 /// Create the `mlir.passmanager` here.
 void mlir::python::populatePassManagerSubmodule(py::module &m) {
@@ -73,24 +73,24 @@ void mlir::python::populatePassManagerSubmodule(py::module &m) {
           [](PyPassManager &passManager) {
             mlirPassManagerEnableIRPrinting(passManager.get());
           },
-          "Enable print-ir-after-all.")
+          "Enable mlir-print-ir-after-all.")
       .def(
           "enable_verifier",
           [](PyPassManager &passManager, bool enable) {
             mlirPassManagerEnableVerifier(passManager.get(), enable);
           },
-          "Enable / disable verify-each.")
+          py::arg("enable"), "Enable / disable verify-each.")
       .def_static(
           "parse",
-          [](const std::string pipeline, DefaultingPyMlirContext context) {
+          [](const std::string &pipeline, DefaultingPyMlirContext context) {
             MlirPassManager passManager = mlirPassManagerCreate(context->get());
-            MlirLogicalResult status = mlirParsePassPipeline(
+            PyPrintAccumulator errorMsg;
+            MlirLogicalResult status = mlirOpPassManagerAddPipeline(
                 mlirPassManagerGetAsOpPassManager(passManager),
-                mlirStringRefCreate(pipeline.data(), pipeline.size()));
+                mlirStringRefCreate(pipeline.data(), pipeline.size()),
+                errorMsg.getCallback(), errorMsg.getUserData());
             if (mlirLogicalResultIsFailure(status))
-              throw SetPyError(PyExc_ValueError,
-                               llvm::Twine("invalid pass pipeline '") +
-                                   pipeline + "'.");
+              throw SetPyError(PyExc_ValueError, std::string(errorMsg.join()));
             return new PyPassManager(passManager);
           },
           py::arg("pipeline"), py::arg("context") = py::none(),
@@ -106,6 +106,7 @@ void mlir::python::populatePassManagerSubmodule(py::module &m) {
               throw SetPyError(PyExc_RuntimeError,
                                "Failure while executing pass pipeline.");
           },
+          py::arg("module"),
           "Run the pass manager on the provided module, throw a RuntimeError "
           "on failure.")
       .def(

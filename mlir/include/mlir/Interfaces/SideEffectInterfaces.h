@@ -11,8 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_INTERFACES_SIDEEFFECTS_H
-#define MLIR_INTERFACES_SIDEEFFECTS_H
+#ifndef MLIR_INTERFACES_SIDEEFFECTINTERFACES_H
+#define MLIR_INTERFACES_SIDEEFFECTINTERFACES_H
 
 #include "mlir/IR/OpDefinition.h"
 
@@ -53,7 +53,8 @@ public:
   TypeID getEffectID() const { return id; }
 
   /// Returns a unique instance for the given effect class.
-  template <typename DerivedEffect> static DerivedEffect *get() {
+  template <typename DerivedEffect>
+  static DerivedEffect *get() {
     static_assert(std::is_base_of<Effect, DerivedEffect>::value,
                   "expected DerivedEffect to inherit from Effect");
 
@@ -77,7 +78,7 @@ private:
 /// class represents an abstract interface for a given resource.
 class Resource {
 public:
-  virtual ~Resource() {}
+  virtual ~Resource() = default;
 
   /// This base class is used for derived effects that are non-parametric.
   template <typename DerivedResource, typename BaseResource = Resource>
@@ -134,7 +135,8 @@ struct AutomaticAllocationScopeResource
 /// applied, and an optional symbol reference or value(either operand, result,
 /// or region entry argument) that the effect is applied to, and an optional
 /// parameters attribute further specifying the details of the effect.
-template <typename EffectT> class EffectInstance {
+template <typename EffectT>
+class EffectInstance {
 public:
   EffectInstance(EffectT *effect, Resource *resource = DefaultResource::get())
       : effect(effect), resource(resource) {}
@@ -192,18 +194,65 @@ private:
 };
 } // namespace SideEffects
 
+namespace Speculation {
+/// This enum is returned from the `getSpeculatability` method in the
+/// `ConditionallySpeculatable` op interface.
+enum class Speculatability {
+  /// The Operation in question cannot be speculatively executed.  This could be
+  /// because it may invoke undefined behavior or have other side effects.
+  NotSpeculatable,
+
+  // The Operation in question can be speculatively executed.  It does not have
+  // any side effects or undefined behavior.
+  Speculatable,
+
+  // The Operation in question can be speculatively executed if all the
+  // operations in all attached regions can also be speculatively executed.
+  RecursivelySpeculatable,
+};
+
+constexpr auto NotSpeculatable = Speculatability::NotSpeculatable;
+constexpr auto Speculatable = Speculatability::Speculatable;
+constexpr auto RecursivelySpeculatable =
+    Speculatability::RecursivelySpeculatable;
+} // namespace Speculation
+
 //===----------------------------------------------------------------------===//
 // SideEffect Traits
 //===----------------------------------------------------------------------===//
 
 namespace OpTrait {
-/// This trait indicates that the side effects of an operation includes the
+/// This trait indicates that the memory effects of an operation includes the
 /// effects of operations nested within its regions. If the operation has no
 /// derived effects interfaces, the operation itself can be assumed to have no
-/// side effects.
+/// memory effects.
 template <typename ConcreteType>
-class HasRecursiveSideEffects
-    : public TraitBase<ConcreteType, HasRecursiveSideEffects> {};
+class HasRecursiveMemoryEffects
+    : public TraitBase<ConcreteType, HasRecursiveMemoryEffects> {};
+
+/// This trait marks an op (which must be tagged as implementing the
+/// ConditionallySpeculatable interface) as being recursively speculatable.
+/// This means that said op can be speculated only if all the instructions in
+/// all the regions attached to the op can be speculated.
+template <typename ConcreteType>
+struct RecursivelySpeculatableImplTrait
+    : public TraitBase<ConcreteType, RecursivelySpeculatableImplTrait> {
+
+  Speculation::Speculatability getSpeculatability() {
+    return Speculation::RecursivelySpeculatable;
+  }
+};
+
+/// This trait marks an op (which must be tagged as implementing the
+/// ConditionallySpeculatable interface) as being always speculatable.
+template <typename ConcreteType>
+struct AlwaysSpeculatableImplTrait
+    : public TraitBase<ConcreteType, AlwaysSpeculatableImplTrait> {
+
+  Speculation::Speculatability getSpeculatability() {
+    return Speculation::Speculatable;
+  }
+};
 } // namespace OpTrait
 
 //===----------------------------------------------------------------------===//
@@ -248,6 +297,18 @@ struct Write : public Effect::Base<Write> {};
 // SideEffect Utilities
 //===----------------------------------------------------------------------===//
 
+/// Returns true if `op` has only an effect of type `EffectTy` (and of no other
+/// type) on `value`. If no value is provided, simply check if effects of that
+/// type and only of that type are present.
+template <typename EffectTy>
+bool hasSingleEffect(Operation *op, Value value = nullptr);
+
+/// Returns true if `op` has an effect of type `EffectTy` on `value`. If no
+/// `value` is provided, simply check if effects of the given type(s) are
+/// present.
+template <typename... EffectTys>
+bool hasEffect(Operation *op, Value value = nullptr);
+
 /// Return true if the given operation is unused, and has no side effects on
 /// memory that prevent erasing.
 bool isOpTriviallyDead(Operation *op);
@@ -257,7 +318,7 @@ bool isOpTriviallyDead(Operation *op);
 /// `isOpTriviallyDead` if `op` was unused.
 bool wouldOpBeTriviallyDead(Operation *op);
 
-} // end namespace mlir
+} // namespace mlir
 
 //===----------------------------------------------------------------------===//
 // SideEffect Interfaces
@@ -266,4 +327,4 @@ bool wouldOpBeTriviallyDead(Operation *op);
 /// Include the definitions of the side effect interfaces.
 #include "mlir/Interfaces/SideEffectInterfaces.h.inc"
 
-#endif // MLIR_INTERFACES_SIDEEFFECTS_H
+#endif // MLIR_INTERFACES_SIDEEFFECTINTERFACES_H

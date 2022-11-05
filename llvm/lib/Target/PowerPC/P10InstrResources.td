@@ -312,7 +312,7 @@ def : InstRW<[P10W_BR_2C, P10W_DISP_ANY],
       (instrs
     BCLR, BCLRn, BDNZLR, BDNZLR8, BDNZLRm, BDNZLRp, BDZLR, BDZLR8, BDZLRm, BDZLRp, gBCLR,
     BCLRL, BCLRLn, BDNZLRL, BDNZLRLm, BDNZLRLp, BDZLRL, BDZLRLm, BDZLRLp, gBCLRL,
-    BL, BL8, BL8_NOP, BL8_NOP_TLS, BL8_NOTOC, BL8_NOTOC_TLS, BL8_TLS, BL8_TLS_, BLR, BLR8, BLRL, BL_NOP, BL_TLS
+    BL, BL8, BL8_NOP, BL8_NOP_RM, BL8_NOP_TLS, BL8_NOTOC, BL8_NOTOC_RM, BL8_NOTOC_TLS, BL8_RM, BL8_TLS, BL8_TLS_, BLR, BLR8, BLRL, BL_NOP, BL_NOP_RM, BL_RM, BL_TLS
 )>;
 
 // 2 Cycles Branch operations, 1 input operands
@@ -320,9 +320,9 @@ def : InstRW<[P10W_BR_2C, P10W_DISP_ANY, P10BR_Read],
       (instrs
     B, BCC, BCCA, BCCCTR, BCCCTR8, BCCCTRL, BCCCTRL8, BCCL, BCCLA, BCCLR, BCCLRL, CTRL_DEP, TAILB, TAILB8,
     BA, TAILBA, TAILBA8,
-    BC, BCTR, BCTR8, BCTRL, BCTRL8, BCTRL8_LDinto_toc, BCTRL_LWZinto_toc, BCn, BDNZ, BDNZ8, BDNZm, BDNZp, BDZ, BDZ8, BDZm, BDZp, TAILBCTR, TAILBCTR8, gBC, gBCat,
+    BC, BCTR, BCTR8, BCTRL, BCTRL8, BCTRL8_LDinto_toc, BCTRL8_LDinto_toc_RM, BCTRL8_RM, BCTRL_LWZinto_toc, BCTRL_LWZinto_toc_RM, BCTRL_RM, BCn, BDNZ, BDNZ8, BDNZm, BDNZp, BDZ, BDZ8, BDZm, BDZp, TAILBCTR, TAILBCTR8, gBC, gBCat,
     BCL, BCLalways, BCLn, BDNZL, BDNZLm, BDNZLp, BDZL, BDZLm, BDZLp, gBCL, gBCLat,
-    BLA, BLA8, BLA8_NOP
+    BLA, BLA8, BLA8_NOP, BLA8_NOP_RM, BLA8_RM, BLA_RM
 )>;
 
 // 2 Cycles Branch operations, 3 input operands
@@ -409,8 +409,8 @@ def : InstRW<[P10W_DF_13C, P10W_DISP_ANY, P10DF_Read, P10DF_Read, P10DF_Read],
 // 13 Cycles Decimal Floating Point operations, and 3 Cycles Store operations, 2 input operands
 def : InstRW<[P10W_DF_13C, P10W_DISP_EVEN, P10W_ST_3C, P10W_DISP_ANY],
       (instrs
-    HASHST,
-    HASHSTP
+    HASHST, HASHST8,
+    HASHSTP, HASHSTP8
 )>;
 
 // 24 Cycles Decimal Floating Point operations, 1 input operands
@@ -619,6 +619,8 @@ def : InstRW<[P10W_DX_5C, P10W_DISP_ANY, P10DX_Read, P10DX_Read],
     XSCMPEXPQP,
     XSCMPOQP,
     XSCMPUQP,
+    XSMAXCQP,
+    XSMINCQP,
     XSTSTDCQP,
     XXGENPCVBM
 )>;
@@ -626,7 +628,9 @@ def : InstRW<[P10W_DX_5C, P10W_DISP_ANY, P10DX_Read, P10DX_Read],
 // 5 Cycles Fixed-Point and BCD operations, 3 input operands
 def : InstRW<[P10W_DX_5C, P10W_DISP_ANY, P10DX_Read, P10DX_Read, P10DX_Read],
       (instrs
+    BCDADD_rec,
     BCDS_rec,
+    BCDSUB_rec,
     BCDTRUNC_rec,
     VADDECUQ,
     VADDEUQM,
@@ -952,7 +956,7 @@ def : InstRW<[P10W_FX_3C, P10W_DISP_ANY, P10FX_Read],
     WAIT,
     XSABSDP,
     XSABSQP,
-    XSNABSDP,
+    XSNABSDP, XSNABSDPs,
     XSNABSQP,
     XSNEGDP,
     XSNEGQP,
@@ -995,6 +999,7 @@ def : InstRW<[P10W_FX_3C, P10W_DISP_ANY, P10FX_Read, P10FX_Read],
     CRANDC,
     CRNAND,
     CRNOR,
+    CRNOT,
     CROR,
     CRORC,
     CR6UNSET, CRUNSET, CRXOR,
@@ -1334,8 +1339,8 @@ def : InstRW<[P10W_LD_6C, P10W_DISP_ANY, P10LD_Read, P10LD_Read],
 // 6 Cycles Load operations, and 13 Cycles Decimal Floating Point operations, 2 input operands
 def : InstRW<[P10W_LD_6C, P10W_DISP_EVEN, P10W_DF_13C, P10W_DISP_ANY],
       (instrs
-    HASHCHK,
-    HASHCHKP
+    HASHCHK, HASHCHK8,
+    HASHCHKP, HASHCHKP8
 )>;
 
 // Single crack instructions
@@ -1368,7 +1373,7 @@ def : InstRW<[P10W_LD_6C, P10W_DISP_EVEN, P10W_DISP_ANY, P10LD_Read, P10LD_Read]
     LDCIX,
     LHZCIX,
     LWZCIX,
-    MTSPR, MTSPR8, MTSR, MTVRSAVE, MTVRSAVEv
+    MTSPR, MTSPR8, MTSR, MTUDSCR, MTVRSAVE, MTVRSAVEv
 )>;
 
 // Expand instructions
@@ -1465,7 +1470,7 @@ def : InstRW<[P10W_LD_6C, P10W_DISP_PAIR, P10W_SX_3C],
 // 13 Cycles Unknown operations, 1 input operands
 def : InstRW<[P10W_MFL_13C, P10W_DISP_EVEN, P10W_DISP_ANY],
       (instrs
-    MFSPR, MFSPR8, MFSR, MFTB8, MFVRSAVE, MFVRSAVEv
+    MFSPR, MFSPR8, MFSR, MFTB8, MFUDSCR, MFVRSAVE, MFVRSAVEv
 )>;
 
 // 10 Cycles SIMD Matrix Multiply Engine operations, 0 input operands
@@ -1621,6 +1626,7 @@ def : InstRW<[P10W_PM_4C, P10W_DISP_ANY, P10PM_Read],
       (instrs
     LVSL,
     LVSR,
+    LXVKQ,
     MFVSRLD,
     MTVSRWS,
     VCLZLSBB,
@@ -1974,8 +1980,7 @@ def : InstRW<[P10W_SX, P10W_DISP_ANY],
     ICBLQ,
     ICBTLS,
     ICCCI,
-    LA,
-    LDMX,
+    LA, LA8,
     MFDCR,
     MFPMR,
     MFSRIN,
@@ -2073,3 +2078,4 @@ def : InstRW<[P10W_vMU_7C, P10W_DISP_ANY, P10vMU_Read, P10vMU_Read, P10vMU_Read]
     VMSUMUHM,
     VMSUMUHS
 )>;
+

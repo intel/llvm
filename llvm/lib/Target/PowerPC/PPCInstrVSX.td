@@ -51,35 +51,6 @@
 // **   printing (for example: xxswapd for xxpermdi with 0x2 as the imm).    **
 // ****************************************************************************
 
-def PPCRegVSRCAsmOperand : AsmOperandClass {
-  let Name = "RegVSRC"; let PredicateMethod = "isVSRegNumber";
-}
-def vsrc : RegisterOperand<VSRC> {
-  let ParserMatchClass = PPCRegVSRCAsmOperand;
-}
-
-def PPCRegVSFRCAsmOperand : AsmOperandClass {
-  let Name = "RegVSFRC"; let PredicateMethod = "isVSRegNumber";
-}
-def vsfrc : RegisterOperand<VSFRC> {
-  let ParserMatchClass = PPCRegVSFRCAsmOperand;
-}
-
-def PPCRegVSSRCAsmOperand : AsmOperandClass {
-  let Name = "RegVSSRC"; let PredicateMethod = "isVSRegNumber";
-}
-def vssrc : RegisterOperand<VSSRC> {
-  let ParserMatchClass = PPCRegVSSRCAsmOperand;
-}
-
-def PPCRegSPILLTOVSRRCAsmOperand : AsmOperandClass {
-  let Name = "RegSPILLTOVSRRC"; let PredicateMethod = "isVSRegNumber";
-}
-
-def spilltovsrrc : RegisterOperand<SPILLTOVSRRC> {
-  let ParserMatchClass = PPCRegSPILLTOVSRRCAsmOperand;
-}
-
 def SDT_PPCldvsxlh : SDTypeProfile<1, 1, [
   SDTCisVT<0, v4f32>, SDTCisPtrTy<1>
 ]>;
@@ -138,6 +109,10 @@ def PPCldvsxlh : SDNode<"PPCISD::LD_VSX_LH", SDT_PPCldvsxlh,
                         [SDNPHasChain, SDNPMayLoad, SDNPMemOperand]>;
 def PPCldsplat : SDNode<"PPCISD::LD_SPLAT", SDT_PPCldsplat,
                         [SDNPHasChain, SDNPMayLoad, SDNPMemOperand]>;
+def PPCzextldsplat : SDNode<"PPCISD::ZEXT_LD_SPLAT", SDT_PPCldsplat,
+                        [SDNPHasChain, SDNPMayLoad, SDNPMemOperand]>;
+def PPCsextldsplat : SDNode<"PPCISD::SEXT_LD_SPLAT", SDT_PPCldsplat,
+                        [SDNPHasChain, SDNPMayLoad, SDNPMemOperand]>;
 def PPCSToV : SDNode<"PPCISD::SCALAR_TO_VECTOR_PERMUTED",
                      SDTypeProfile<1, 1, []>, []>;
 
@@ -153,6 +128,11 @@ def NoP9Vector : Predicate<"!Subtarget->hasP9Vector()">;
 def HasP9Vector : Predicate<"Subtarget->hasP9Vector()">;
 def NoP9Altivec : Predicate<"!Subtarget->hasP9Altivec()">;
 def NoP10Vector: Predicate<"!Subtarget->hasP10Vector()">;
+
+def PPCldsplatAlign16 : PatFrag<(ops node:$ptr), (PPCldsplat node:$ptr), [{
+  return cast<MemIntrinsicSDNode>(N)->getAlign() >= Align(16) &&
+         isOffsetMultipleOf(N, 16);
+}]>;
 
 //--------------------- VSX-specific instruction formats ---------------------//
 // By default, all VSX instructions are to be selected over their Altivec
@@ -723,6 +703,11 @@ let hasSideEffects = 0 in {
                       (outs vsfrc:$XT), (ins vsfrc:$XB),
                       "xsnabsdp $XT, $XB", IIC_VecFP,
                       [(set f64:$XT, (fneg (fabs f64:$XB)))]>;
+  let isCodeGenOnly = 1 in
+  def XSNABSDPs : XX2Form<60, 361,
+                      (outs vssrc:$XT), (ins vssrc:$XB),
+                      "xsnabsdp $XT, $XB", IIC_VecFP,
+                      [(set f32:$XT, (fneg (fabs f32:$XB)))]>;
   def XSNEGDP : XX2Form<60, 377,
                       (outs vsfrc:$XT), (ins vsfrc:$XB),
                       "xsnegdp $XT, $XB", IIC_VecFP,
@@ -902,16 +887,13 @@ let hasSideEffects = 0 in {
   // Rounding Instructions respecting current rounding mode
   def XSRDPIC : XX2Form<60, 107,
                       (outs vsfrc:$XT), (ins vsfrc:$XB),
-                      "xsrdpic $XT, $XB", IIC_VecFP,
-                      [(set f64:$XT, (fnearbyint f64:$XB))]>;
+                      "xsrdpic $XT, $XB", IIC_VecFP, []>;
   def XVRDPIC : XX2Form<60, 235,
                       (outs vsrc:$XT), (ins vsrc:$XB),
-                      "xvrdpic $XT, $XB", IIC_VecFP,
-                      [(set v2f64:$XT, (fnearbyint v2f64:$XB))]>;
+                      "xvrdpic $XT, $XB", IIC_VecFP, []>;
   def XVRSPIC : XX2Form<60, 171,
                       (outs vsrc:$XT), (ins vsrc:$XB),
-                      "xvrspic $XT, $XB", IIC_VecFP,
-                      [(set v4f32:$XT, (fnearbyint v4f32:$XB))]>;
+                      "xvrspic $XT, $XB", IIC_VecFP, []>;
   // Max/Min Instructions
   let isCommutable = 1 in {
   def XSMAXDP : XX3Form<60, 160,
@@ -1062,6 +1044,14 @@ let hasSideEffects = 0 in {
                        [(set v2i64:$XT, (PPCxxpermdi v2i64:$XA, v2i64:$XB,
                          imm32SExt16:$DM))]>;
   let isCodeGenOnly = 1 in
+  // Note that the input register class for `$XA` of XXPERMDIs is `vsfrc` which
+  // is not the same with the input register class(`vsrc`) of XXPERMDI instruction.
+  // We did this on purpose because:
+  // 1: The input is primarily for loads that load a partial vector(LFIWZX,
+  //    etc.), no need for SUBREG_TO_REG.
+  // 2: With `vsfrc` register class, in the final assembly, float registers
+  //    like `f0` are used instead of vector scalar register like `vs0`. This
+  //    helps readability.
   def XXPERMDIs : XX3Form_2s<60, 10, (outs vsrc:$XT), (ins vsfrc:$XA, u2imm:$DM),
                              "xxpermdi $XT, $XA, $XA, $DM", IIC_VecPerm, []>;
   def XXSEL : XX4Form<60, 3,
@@ -1310,7 +1300,7 @@ let Predicates = [HasVSX, HasP8Vector] in {
       Requires<[In64BitMode]>;
   def MFVSRWZ : XX1_RS6_RD5_XO<31, 115, (outs gprc:$rA), (ins vsfrc:$XT),
                                "mfvsrwz $rA, $XT", IIC_VecGeneral,
-                               [(set i32:$rA, (PPCmfvsr f64:$XT))]>;
+                               [(set i32:$rA, (PPCmfvsr f64:$XT))]>, ZExt32To64;
   // FIXME: Setting the hasSideEffects flag here to match current behaviour.
   let isCodeGenOnly = 1, hasSideEffects = 1 in
   def MFVRWZ : XX1_RS6_RD5_XO<31, 115, (outs gprc:$rA), (ins vsrc:$XT),
@@ -2462,6 +2452,7 @@ def DblwdCmp {
 // [HasVSX, HasP8Vector, IsLittleEndian]
 // [HasVSX, HasP8Vector, NoP9Vector, IsBigEndian, IsPPC64]
 // [HasVSX, HasP8Vector, NoP9Vector, IsLittleEndian]
+// [HasVSX, HasP8Altivec]
 // [HasVSX, HasDirectMove]
 // [HasVSX, HasDirectMove, IsBigEndian]
 // [HasVSX, HasDirectMove, IsLittleEndian]
@@ -2490,6 +2481,10 @@ let Predicates = [HasVSX, IsLittleEndian, HasP8Altivec] in
 let Predicates = [HasVSX, IsBigEndian, HasP8Altivec] in
   def : Pat<(v16i8 (int_ppc_altivec_crypto_vpermxor v16i8:$a,
                                                     v16i8:$b, v16i8:$c)),
+            (v16i8 (VPERMXOR $a, $b, $c))>;
+let Predicates = [HasVSX, HasP8Altivec] in
+  def : Pat<(v16i8 (int_ppc_altivec_crypto_vpermxor_be v16i8:$a,
+                                                       v16i8:$b, v16i8:$c)),
             (v16i8 (VPERMXOR $a, $b, $c))>;
 
 let AddedComplexity = 400 in {
@@ -2771,9 +2766,6 @@ def : Pat<(v2f64 (int_ppc_vsx_lxvd2x_be ForceXForm:$src)), (LXVD2X ForceXForm:$s
 def : Pat<(f32 (any_fround f32:$S)),
           (f32 (COPY_TO_REGCLASS (XSRDPI
                                    (COPY_TO_REGCLASS $S, VSFRC)), VSSRC))>;
-def : Pat<(f32 (fnearbyint f32:$S)),
-          (f32 (COPY_TO_REGCLASS (XSRDPIC
-                                   (COPY_TO_REGCLASS $S, VSFRC)), VSSRC))>;
 def : Pat<(f32 (any_ffloor f32:$S)),
           (f32 (COPY_TO_REGCLASS (XSRDPIM
                                    (COPY_TO_REGCLASS $S, VSFRC)), VSSRC))>;
@@ -2791,6 +2783,19 @@ def : Pat<(v4f32 (any_frint v4f32:$S)), (v4f32 (XVRSPIC $S))>;
 // Rounding for double precision.
 def : Pat<(f64 (any_frint f64:$S)), (f64 (XSRDPIC $S))>;
 def : Pat<(v2f64 (any_frint v2f64:$S)), (v2f64 (XVRDPIC $S))>;
+
+// Rounding without exceptions (nearbyint). Due to strange tblgen behaviour,
+// these need to be defined after the any_frint versions so ISEL will correctly
+// add the chain to the strict versions.
+def : Pat<(f32 (fnearbyint f32:$S)),
+          (f32 (COPY_TO_REGCLASS (XSRDPIC
+                                   (COPY_TO_REGCLASS $S, VSFRC)), VSSRC))>;
+def : Pat<(f64 (fnearbyint f64:$S)),
+          (f64 (XSRDPIC $S))>;
+def : Pat<(v2f64 (fnearbyint v2f64:$S)),
+          (v2f64 (XVRDPIC $S))>;
+def : Pat<(v4f32 (fnearbyint v4f32:$S)),
+          (v4f32 (XVRSPIC $S))>;
 
 // Materialize a zero-vector of long long
 def : Pat<(v2i64 immAllZerosV),
@@ -2827,10 +2832,20 @@ def : Pat<(v4f32 (build_vector (f32 (fpround f64:$A)), (f32 (fpround f64:$A)),
 
 def : Pat<(v4f32 (build_vector f32:$A, f32:$A, f32:$A, f32:$A)),
           (v4f32 (XXSPLTW (v4f32 (XSCVDPSPN $A)), 0))>;
+
+// Splat loads.
 def : Pat<(v2f64 (PPCldsplat ForceXForm:$A)),
           (v2f64 (LXVDSX ForceXForm:$A))>;
+def : Pat<(v4f32 (PPCldsplat ForceXForm:$A)),
+          (v4f32 (XXSPLTW (SUBREG_TO_REG (i64 1), (LFIWZX ForceXForm:$A), sub_64), 1))>;
 def : Pat<(v2i64 (PPCldsplat ForceXForm:$A)),
           (v2i64 (LXVDSX ForceXForm:$A))>;
+def : Pat<(v4i32 (PPCldsplat ForceXForm:$A)),
+          (v4i32 (XXSPLTW (SUBREG_TO_REG (i64 1), (LFIWZX ForceXForm:$A), sub_64), 1))>;
+def : Pat<(v2i64 (PPCzextldsplat ForceXForm:$A)),
+          (v2i64 (XXPERMDIs (LFIWZX ForceXForm:$A), 0))>;
+def : Pat<(v2i64 (PPCsextldsplat ForceXForm:$A)),
+          (v2i64 (XXPERMDIs (LFIWAX ForceXForm:$A), 0))>;
 
 // Build vectors of floating point converted to i64.
 def : Pat<(v2i64 (build_vector FltToLong.A, FltToLong.A)),
@@ -2858,10 +2873,32 @@ def : Pat<(v2i64 (PPCvcmp_rec v2i64:$vA, v2i64:$vB, 199)),
 
 // XL Compat builtins.
 def : Pat<(int_ppc_fmsub f64:$A, f64:$B, f64:$C), (XSMSUBMDP $A, $B, $C)>;
-def : Pat<(int_ppc_fnmsub f64:$A, f64:$B, f64:$C), (XSNMSUBMDP $A, $B, $C)>;
 def : Pat<(int_ppc_fnmadd f64:$A, f64:$B, f64:$C), (XSNMADDMDP $A, $B, $C)>;
 def : Pat<(int_ppc_fre f64:$A), (XSREDP $A)>;
 def : Pat<(int_ppc_frsqrte vsfrc:$XB), (XSRSQRTEDP $XB)>;
+def : Pat<(int_ppc_fnabs f64:$A), (XSNABSDP $A)>;
+def : Pat<(int_ppc_fnabss f32:$A), (XSNABSDPs $A)>;
+
+// XXMRG[LH]W is a direct replacement for VMRG[LH]W respectively.
+// Prefer the VSX form for greater register range.
+def:Pat<(vmrglw_unary_shuffle v16i8:$vA, undef),
+        (COPY_TO_REGCLASS (XXMRGLW (COPY_TO_REGCLASS $vA, VSRC),
+                                   (COPY_TO_REGCLASS $vA, VSRC)), VRRC)>;
+def:Pat<(vmrghw_unary_shuffle v16i8:$vA, undef),
+        (COPY_TO_REGCLASS (XXMRGHW (COPY_TO_REGCLASS $vA, VSRC),
+                                   (COPY_TO_REGCLASS $vA, VSRC)), VRRC)>;
+def:Pat<(vmrglw_shuffle v16i8:$vA, v16i8:$vB),
+        (COPY_TO_REGCLASS (XXMRGLW (COPY_TO_REGCLASS $vA, VSRC),
+                                   (COPY_TO_REGCLASS $vB, VSRC)), VRRC)>;
+def:Pat<(vmrghw_shuffle v16i8:$vA, v16i8:$vB),
+        (COPY_TO_REGCLASS (XXMRGHW (COPY_TO_REGCLASS $vA, VSRC),
+                                   (COPY_TO_REGCLASS $vB, VSRC)), VRRC)>;
+def:Pat<(vmrglw_swapped_shuffle v16i8:$vA, v16i8:$vB),
+        (COPY_TO_REGCLASS (XXMRGLW (COPY_TO_REGCLASS $vB, VSRC),
+                                   (COPY_TO_REGCLASS $vA, VSRC)), VRRC)>;
+def:Pat<(vmrghw_swapped_shuffle v16i8:$vA, v16i8:$vB),
+        (COPY_TO_REGCLASS (XXMRGHW (COPY_TO_REGCLASS $vB, VSRC),
+                                   (COPY_TO_REGCLASS $vA, VSRC)), VRRC)>;
 } // HasVSX
 
 // Any big endian VSX subtarget.
@@ -2984,9 +3021,6 @@ defm : ScalToVecWPermute<v2f64, (f64 f64:$A),
                                    (SUBREG_TO_REG (i64 1), $A, sub_64), 0),
                          (SUBREG_TO_REG (i64 1), $A, sub_64)>;
 
-def : Pat<(f64 (extractelt (v2f64 (bitconvert (v16i8
-                 (PPCvperm v16i8:$A, v16i8:$B, v16i8:$C)))), 0)),
-          (f64 (EXTRACT_SUBREG (VPERM $B, $A, $C), sub_64))>;
 def : Pat<(f64 (extractelt v2f64:$S, 0)),
           (f64 (EXTRACT_SUBREG (XXPERMDI $S, $S, 2), sub_64))>;
 def : Pat<(f64 (extractelt v2f64:$S, 1)),
@@ -3146,6 +3180,12 @@ defm : ScalToVecWPermute<
   v2f64, (f64 (load ForceXForm:$src)),
   (XXPERMDIs (XFLOADf64 ForceXForm:$src), 2),
   (SUBREG_TO_REG (i64 1), (XFLOADf64 ForceXForm:$src), sub_64)>;
+
+// Splat loads.
+def : Pat<(v8i16 (PPCldsplatAlign16 ForceXForm:$A)),
+          (v8i16 (VSPLTH 7, (LVX ForceXForm:$A)))>;
+def : Pat<(v16i8 (PPCldsplatAlign16 ForceXForm:$A)),
+          (v16i8 (VSPLTB 15, (LVX ForceXForm:$A)))>;
 } // HasVSX, NoP9Vector, IsLittleEndian
 
 let Predicates = [HasVSX, NoP9Vector, IsBigEndian] in {
@@ -3153,6 +3193,12 @@ let Predicates = [HasVSX, NoP9Vector, IsBigEndian] in {
             (LXVD2X ForceXForm:$src)>;
   def : Pat<(int_ppc_vsx_stxvd2x v2f64:$rS, ForceXForm:$dst),
             (STXVD2X $rS, ForceXForm:$dst)>;
+
+  // Splat loads.
+  def : Pat<(v8i16 (PPCldsplatAlign16 ForceXForm:$A)),
+            (v8i16 (VSPLTH 0, (LVX ForceXForm:$A)))>;
+  def : Pat<(v16i8 (PPCldsplatAlign16 ForceXForm:$A)),
+            (v16i8 (VSPLTB 0, (LVX ForceXForm:$A)))>;
 } // HasVSX, NoP9Vector, IsBigEndian
 
 // Any VSX subtarget that only has loads and stores that load in big endian
@@ -3260,7 +3306,6 @@ def : Pat<(v16i8 (bitconvert (v16i8 immAllOnesV))),
 
 // XL Compat builtins.
 def : Pat<(int_ppc_fmsubs f32:$A, f32:$B, f32:$C), (XSMSUBMSP $A, $B, $C)>;
-def : Pat<(int_ppc_fnmsubs f32:$A, f32:$B, f32:$C), (XSNMSUBMSP $A, $B, $C)>;
 def : Pat<(int_ppc_fnmadds f32:$A, f32:$B, f32:$C), (XSNMADDMSP $A, $B, $C)>;
 def : Pat<(int_ppc_fres f32:$A), (XSRESP $A)>;
 def : Pat<(i32 (int_ppc_extract_exp f64:$A)),
@@ -3319,6 +3364,15 @@ def : Pat<(f32 (vector_extract v4f32:$S, i32:$Idx)),
 
 def : Pat<(f64 (vector_extract v2f64:$S, i32:$Idx)),
           (f64 VectorExtractions.BE_32B_VARIABLE_DOUBLE)>;
+
+defm : ScalToVecWPermute<
+  v4i32, (i32 (load ForceXForm:$src)),
+  (XXSLDWIs (LIWZX ForceXForm:$src), 1),
+  (SUBREG_TO_REG (i64 1), (LIWZX ForceXForm:$src), sub_64)>;
+defm : ScalToVecWPermute<
+  v4f32, (f32 (load ForceXForm:$src)),
+  (XXSLDWIs (LIWZX ForceXForm:$src), 1),
+  (SUBREG_TO_REG (i64 1), (LIWZX ForceXForm:$src), sub_64)>;
 } // HasVSX, HasP8Vector, IsBigEndian
 
 // Big endian Power8 64Bit VSX subtarget.
@@ -3333,14 +3387,6 @@ def : Pat<(v2i64 (scalar_to_vector (i64 (sextloadi32 ForceXForm:$src)))),
           (v2i64 (SUBREG_TO_REG (i64 1), (LIWAX ForceXForm:$src), sub_64))>;
 def : Pat<(v2i64 (scalar_to_vector (i64 (zextloadi32 ForceXForm:$src)))),
           (v2i64 (SUBREG_TO_REG (i64 1), (LIWZX ForceXForm:$src), sub_64))>;
-defm : ScalToVecWPermute<
-  v4i32, (i32 (load ForceXForm:$src)),
-  (XXSLDWIs (LIWZX ForceXForm:$src), 1),
-  (SUBREG_TO_REG (i64 1), (LIWZX ForceXForm:$src), sub_64)>;
-defm : ScalToVecWPermute<
-  v4f32, (f32 (load ForceXForm:$src)),
-  (XXSLDWIs (LIWZX ForceXForm:$src), 1),
-  (SUBREG_TO_REG (i64 1), (LIWZX ForceXForm:$src), sub_64)>;
 
 def : Pat<DWToSPExtractConv.BVU,
           (v4f32 (VPKUDUM (XXSLDWI (XVCVUXDSP $S1), (XVCVUXDSP $S1), 3),
@@ -3540,6 +3586,12 @@ def : Pat<(v16i8 (PPCmtvsrz i32:$A)),
 def : Pat<(v4i32 (build_vector immSExt5NonZero:$A, immSExt5NonZero:$A,
                                immSExt5NonZero:$A, immSExt5NonZero:$A)),
           (v4i32 (VSPLTISW imm:$A))>;
+
+// Splat loads.
+def : Pat<(v8i16 (PPCldsplat ForceXForm:$A)),
+          (v8i16 (VSPLTHs 3, (MTVSRWZ (LHZX ForceXForm:$A))))>;
+def : Pat<(v16i8 (PPCldsplat ForceXForm:$A)),
+          (v16i8 (VSPLTBs 7, (MTVSRWZ (LBZX ForceXForm:$A))))>;
 } // HasVSX, HasDirectMove
 
 // Big endian VSX subtarget with direct moves.
@@ -4087,6 +4139,10 @@ def : Pat<(v4f32 (PPCldsplat ForceXForm:$A)),
           (v4f32 (LXVWSX ForceXForm:$A))>;
 def : Pat<(v4i32 (PPCldsplat ForceXForm:$A)),
           (v4i32 (LXVWSX ForceXForm:$A))>;
+def : Pat<(v8i16 (PPCldsplat ForceXForm:$A)),
+          (v8i16 (VSPLTHs 3, (LXSIHZX ForceXForm:$A)))>;
+def : Pat<(v16i8 (PPCldsplat ForceXForm:$A)),
+          (v16i8 (VSPLTBs 7, (LXSIBZX ForceXForm:$A)))>;
 } // HasVSX, HasP9Vector
 
 // Any Power9 VSX subtarget with equivalent length but better Power10 VSX

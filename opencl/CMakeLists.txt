@@ -2,6 +2,15 @@ cmake_minimum_required(VERSION 3.14)
 
 include(FetchContent)
 
+# Suppress warnings related to dependencies
+if (MSVC)
+  add_definitions(
+    -wd4133 # Suppress ''function': incompatible types - from 'char [9]' to 'LPCWSTR''
+    -wd4152 # Suppress 'nonstandard extension, function/data pointer conversion in expression'
+    -wd4201 # Suppress 'nonstandard extension used: nameless struct/union'
+  )
+endif()
+
 # Repo URLs
 
 set(OCL_HEADERS_REPO
@@ -11,8 +20,8 @@ set(OCL_LOADER_REPO
 
 # Repo tags/hashes
 
-set(OCL_HEADERS_TAG 23710f1b99186065c1768fc3098ba681adc0f253)
-set(OCL_LOADER_TAG 5f8249691ec8c25775789498951f8e9eb62c201d)
+set(OCL_HEADERS_TAG dcd5bede6859d26833cd85f0d6bbcee7382dc9b3)
+set(OCL_LOADER_TAG 792682ad3d877ab38573b997808bab3b43902b70)
 
 # OpenCL Headers
 if(NOT OpenCL_HEADERS)

@@ -6,53 +6,53 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "memory_utils/memory_check_utils.h"
 #include "src/string/bcmp.h"
 #include "utils/UnitTest/Test.h"
+
+namespace __llvm_libc {
 
 TEST(LlvmLibcBcmpTest, CmpZeroByte) {
   const char *lhs = "ab";
   const char *rhs = "bc";
-  EXPECT_EQ(__llvm_libc::bcmp(lhs, rhs, 0), 0);
+  ASSERT_EQ(__llvm_libc::bcmp(lhs, rhs, 0), 0);
 }
 
 TEST(LlvmLibcBcmpTest, LhsRhsAreTheSame) {
   const char *lhs = "ab";
   const char *rhs = "ab";
-  EXPECT_EQ(__llvm_libc::bcmp(lhs, rhs, 2), 0);
+  ASSERT_EQ(__llvm_libc::bcmp(lhs, rhs, 2), 0);
 }
 
 TEST(LlvmLibcBcmpTest, LhsBeforeRhsLexically) {
   const char *lhs = "ab";
   const char *rhs = "ac";
-  EXPECT_EQ(__llvm_libc::bcmp(lhs, rhs, 2), 1);
+  ASSERT_NE(__llvm_libc::bcmp(lhs, rhs, 2), 0);
 }
 
 TEST(LlvmLibcBcmpTest, LhsAfterRhsLexically) {
   const char *lhs = "ac";
   const char *rhs = "ab";
-  EXPECT_EQ(__llvm_libc::bcmp(lhs, rhs, 2), 1);
+  ASSERT_NE(__llvm_libc::bcmp(lhs, rhs, 2), 0);
 }
 
-TEST(LlvmLibcBcmpTest, Sweep) {
+// Adapt CheckBcmp signature to op implementation signatures.
+template <auto FnImpl>
+int CmpAdaptor(cpp::span<char> p1, cpp::span<char> p2, size_t size) {
+  return FnImpl(p1.begin(), p2.begin(), size);
+}
+
+TEST(LlvmLibcBcmpTest, SizeSweep) {
   static constexpr size_t kMaxSize = 1024;
-  char lhs[kMaxSize];
-  char rhs[kMaxSize];
-
-  const auto reset = [](char *const ptr) {
-    for (size_t i = 0; i < kMaxSize; ++i)
-      ptr[i] = 'a';
-  };
-
-  reset(lhs);
-  reset(rhs);
-  for (size_t i = 0; i < kMaxSize; ++i)
-    EXPECT_EQ(__llvm_libc::bcmp(lhs, rhs, i), 0);
-
-  reset(lhs);
-  reset(rhs);
-  for (size_t i = 0; i < kMaxSize; ++i) {
-    rhs[i] = 'b';
-    EXPECT_EQ(__llvm_libc::bcmp(lhs, rhs, kMaxSize), 1);
-    rhs[i] = 'a';
+  static constexpr auto Impl = CmpAdaptor<__llvm_libc::bcmp>;
+  Buffer Buffer1(kMaxSize);
+  Buffer Buffer2(kMaxSize);
+  Randomize(Buffer1.span());
+  for (size_t size = 0; size < kMaxSize; ++size) {
+    auto span1 = Buffer1.span().subspan(0, size);
+    auto span2 = Buffer2.span().subspan(0, size);
+    ASSERT_TRUE((CheckBcmp<Impl>(span1, span2, size)));
   }
 }
+
+} // namespace __llvm_libc

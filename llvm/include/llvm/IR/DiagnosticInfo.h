@@ -15,14 +15,16 @@
 #define LLVM_IR_DIAGNOSTICINFO_H
 
 #include "llvm-c/Types.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/Support/CBindingWrapping.h"
+#include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/TypeSize.h"
-#include "llvm/Support/YAMLTraits.h"
 #include <algorithm>
 #include <cstdint>
 #include <functional>
@@ -33,13 +35,15 @@ namespace llvm {
 
 // Forward declarations.
 class DiagnosticPrinter;
+class DIFile;
+class DISubprogram;
 class CallInst;
 class Function;
 class Instruction;
 class InstructionCost;
-class LLVMContext;
 class Module;
-class SMDiagnostic;
+class Type;
+class Value;
 
 /// Defines the different supported severity of a diagnostic.
 enum DiagnosticSeverity : char {
@@ -81,6 +85,8 @@ enum DiagnosticKind {
   DK_Unsupported,
   DK_SrcMgr,
   DK_DontCall,
+  DK_MisExpect,
+  DK_AspectMismatch,
   DK_FirstPluginKind // Must be last value to work with
                      // getNextAvailablePluginDiagnosticKind
 };
@@ -173,62 +179,6 @@ public:
 
   static bool classof(const DiagnosticInfo *DI) {
     return DI->getKind() == DK_InlineAsm;
-  }
-};
-
-/// Diagnostic information for stack size etc. reporting.
-/// This is basically a function and a size.
-class DiagnosticInfoResourceLimit : public DiagnosticInfo {
-private:
-  /// The function that is concerned by this resource limit diagnostic.
-  const Function &Fn;
-
-  /// Description of the resource type (e.g. stack size)
-  const char *ResourceName;
-
-  /// The computed size usage
-  uint64_t ResourceSize;
-
-  // Threshould passed
-  uint64_t ResourceLimit;
-
-public:
-  /// \p The function that is concerned by this stack size diagnostic.
-  /// \p The computed stack size.
-  DiagnosticInfoResourceLimit(const Function &Fn, const char *ResourceName,
-                              uint64_t ResourceSize, uint64_t ResourceLimit,
-                              DiagnosticSeverity Severity = DS_Warning,
-                              DiagnosticKind Kind = DK_ResourceLimit)
-      : DiagnosticInfo(Kind, Severity), Fn(Fn), ResourceName(ResourceName),
-        ResourceSize(ResourceSize), ResourceLimit(ResourceLimit) {}
-
-  const Function &getFunction() const { return Fn; }
-  const char *getResourceName() const { return ResourceName; }
-  uint64_t getResourceSize() const { return ResourceSize; }
-  uint64_t getResourceLimit() const { return ResourceLimit; }
-
-  /// \see DiagnosticInfo::print.
-  void print(DiagnosticPrinter &DP) const override;
-
-  static bool classof(const DiagnosticInfo *DI) {
-    return DI->getKind() == DK_ResourceLimit || DI->getKind() == DK_StackSize;
-  }
-};
-
-class DiagnosticInfoStackSize : public DiagnosticInfoResourceLimit {
-  void anchor() override;
-public:
-  DiagnosticInfoStackSize(const Function &Fn, uint64_t StackSize,
-                          uint64_t StackLimit,
-                          DiagnosticSeverity Severity = DS_Warning)
-      : DiagnosticInfoResourceLimit(Fn, "stack frame size", StackSize,
-                                    StackLimit, Severity, DK_StackSize) {}
-
-  uint64_t getStackSize() const { return getResourceSize(); }
-  uint64_t getStackLimit() const { return getResourceLimit(); }
-
-  static bool classof(const DiagnosticInfo *DI) {
-    return DI->getKind() == DK_StackSize;
   }
 };
 
@@ -402,6 +352,61 @@ private:
 
   /// Debug location where this diagnostic is triggered.
   DiagnosticLocation Loc;
+};
+
+/// Diagnostic information for stack size etc. reporting.
+/// This is basically a function and a size.
+class DiagnosticInfoResourceLimit : public DiagnosticInfoWithLocationBase {
+private:
+  /// The function that is concerned by this resource limit diagnostic.
+  const Function &Fn;
+
+  /// Description of the resource type (e.g. stack size)
+  const char *ResourceName;
+
+  /// The computed size usage
+  uint64_t ResourceSize;
+
+  // Threshould passed
+  uint64_t ResourceLimit;
+
+public:
+  /// \p The function that is concerned by this stack size diagnostic.
+  /// \p The computed stack size.
+  DiagnosticInfoResourceLimit(const Function &Fn, const char *ResourceName,
+                              uint64_t ResourceSize, uint64_t ResourceLimit,
+                              DiagnosticSeverity Severity = DS_Warning,
+                              DiagnosticKind Kind = DK_ResourceLimit);
+
+  const Function &getFunction() const { return Fn; }
+  const char *getResourceName() const { return ResourceName; }
+  uint64_t getResourceSize() const { return ResourceSize; }
+  uint64_t getResourceLimit() const { return ResourceLimit; }
+
+  /// \see DiagnosticInfo::print.
+  void print(DiagnosticPrinter &DP) const override;
+
+  static bool classof(const DiagnosticInfo *DI) {
+    return DI->getKind() == DK_ResourceLimit || DI->getKind() == DK_StackSize;
+  }
+};
+
+class DiagnosticInfoStackSize : public DiagnosticInfoResourceLimit {
+  void anchor() override;
+
+public:
+  DiagnosticInfoStackSize(const Function &Fn, uint64_t StackSize,
+                          uint64_t StackLimit,
+                          DiagnosticSeverity Severity = DS_Warning)
+      : DiagnosticInfoResourceLimit(Fn, "stack frame size", StackSize,
+                                    StackLimit, Severity, DK_StackSize) {}
+
+  uint64_t getStackSize() const { return getResourceSize(); }
+  uint64_t getStackLimit() const { return getResourceLimit(); }
+
+  static bool classof(const DiagnosticInfo *DI) {
+    return DI->getKind() == DK_StackSize;
+  }
 };
 
 /// Common features for diagnostics dealing with optimization remarks
@@ -1028,6 +1033,25 @@ public:
   void print(DiagnosticPrinter &DP) const override;
 };
 
+/// Diagnostic information for MisExpect analysis.
+class DiagnosticInfoMisExpect : public DiagnosticInfoWithLocationBase {
+public:
+  DiagnosticInfoMisExpect(const Instruction *Inst, Twine &Msg);
+
+  /// \see DiagnosticInfo::print.
+  void print(DiagnosticPrinter &DP) const override;
+
+  static bool classof(const DiagnosticInfo *DI) {
+    return DI->getKind() == DK_MisExpect;
+  }
+
+  const Twine &getMsg() const { return Msg; }
+
+private:
+  /// Message to report.
+  const Twine &Msg;
+};
+
 static DiagnosticSeverity getDiagnosticSeverity(SourceMgr::DiagKind DK) {
   switch (DK) {
   case llvm::SourceMgr::DK_Error:
@@ -1049,18 +1073,20 @@ static DiagnosticSeverity getDiagnosticSeverity(SourceMgr::DiagKind DK) {
 /// Diagnostic information for SMDiagnostic reporting.
 class DiagnosticInfoSrcMgr : public DiagnosticInfo {
   const SMDiagnostic &Diagnostic;
+  StringRef ModName;
 
   // For inlineasm !srcloc translation.
   bool InlineAsmDiag;
   unsigned LocCookie;
 
 public:
-  DiagnosticInfoSrcMgr(const SMDiagnostic &Diagnostic,
+  DiagnosticInfoSrcMgr(const SMDiagnostic &Diagnostic, StringRef ModName,
                        bool InlineAsmDiag = true, unsigned LocCookie = 0)
       : DiagnosticInfo(DK_SrcMgr, getDiagnosticSeverity(Diagnostic.getKind())),
-        Diagnostic(Diagnostic), InlineAsmDiag(InlineAsmDiag),
+        Diagnostic(Diagnostic), ModName(ModName), InlineAsmDiag(InlineAsmDiag),
         LocCookie(LocCookie) {}
 
+  StringRef getModuleName() const { return ModName; }
   bool isInlineAsmDiag() const { return InlineAsmDiag; }
   const SMDiagnostic &getSMDiag() const { return Diagnostic; }
   unsigned getLocCookie() const { return LocCookie; }
@@ -1089,6 +1115,38 @@ public:
   void print(DiagnosticPrinter &DP) const override;
   static bool classof(const DiagnosticInfo *DI) {
     return DI->getKind() == DK_DontCall;
+  }
+};
+
+void diagnoseAspectsMismatch(const Function *F,
+                             const SmallVector<Function *, 8> &CallChain,
+                             StringRef Aspect);
+
+// Diagnostic information for SYCL aspects usage mismatch.
+class DiagnosticInfoAspectsMismatch : public DiagnosticInfo {
+  StringRef FunctionName;
+  unsigned LocCookie;
+  llvm::SmallVector<std::pair<StringRef, unsigned>, 8> CallChain;
+  StringRef Aspect;
+
+public:
+  DiagnosticInfoAspectsMismatch(
+      StringRef FunctionName, unsigned LocCookie,
+      const llvm::SmallVector<std::pair<StringRef, unsigned>, 8> &CallChain,
+      StringRef Aspect)
+      : DiagnosticInfo(DK_AspectMismatch, DiagnosticSeverity::DS_Warning),
+        FunctionName(FunctionName), LocCookie(LocCookie), CallChain(CallChain),
+        Aspect(Aspect) {}
+  StringRef getFunctionName() const { return FunctionName; }
+  unsigned getLocCookie() const { return LocCookie; }
+  const llvm::SmallVector<std::pair<StringRef, unsigned>, 8> &
+  getCallChain() const {
+    return CallChain;
+  }
+  StringRef getAspect() const { return Aspect; }
+  void print(DiagnosticPrinter &DP) const override;
+  static bool classof(const DiagnosticInfo *DI) {
+    return DI->getKind() == DK_AspectMismatch;
   }
 };
 

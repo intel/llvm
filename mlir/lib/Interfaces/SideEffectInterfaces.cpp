@@ -8,6 +8,8 @@
 
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 
+#include "llvm/ADT/SmallPtrSet.h"
+
 using namespace mlir;
 
 //===----------------------------------------------------------------------===//
@@ -45,7 +47,8 @@ static bool wouldOpBeTriviallyDeadImpl(Operation *rootOp) {
 
     // If the operation has recursive effects, push all of the nested operations
     // on to the stack to consider.
-    bool hasRecursiveEffects = op->hasTrait<OpTrait::HasRecursiveSideEffects>();
+    bool hasRecursiveEffects =
+        op->hasTrait<OpTrait::HasRecursiveMemoryEffects>();
     if (hasRecursiveEffects) {
       for (Region &region : op->getRegions()) {
         for (auto &block : region) {
@@ -62,11 +65,20 @@ static bool wouldOpBeTriviallyDeadImpl(Operation *rootOp) {
       // memory.
       SmallVector<MemoryEffects::EffectInstance, 1> effects;
       effectInterface.getEffects(effects);
-      if (!llvm::all_of(effects, [op](const MemoryEffects::EffectInstance &it) {
-            // We can drop allocations if the value is a result of the
-            // operation.
-            if (isa<MemoryEffects::Allocate>(it.getEffect()))
-              return it.getValue() && it.getValue().getDefiningOp() == op;
+
+      // Gather all results of this op that are allocated.
+      SmallPtrSet<Value, 4> allocResults;
+      for (const MemoryEffects::EffectInstance &it : effects)
+        if (isa<MemoryEffects::Allocate>(it.getEffect()) && it.getValue() &&
+            it.getValue().getDefiningOp() == op)
+          allocResults.insert(it.getValue());
+
+      if (!llvm::all_of(effects, [&allocResults](
+                                     const MemoryEffects::EffectInstance &it) {
+            // We can drop effects if the value is an allocation and is a result
+            // of the operation.
+            if (allocResults.contains(it.getValue()))
+              return true;
             // Otherwise, the effect must be a read.
             return isa<MemoryEffects::Read>(it.getEffect());
           })) {
@@ -76,9 +88,9 @@ static bool wouldOpBeTriviallyDeadImpl(Operation *rootOp) {
 
       // Otherwise, if the op has recursive side effects we can treat the
       // operation itself as having no effects.
-    } else if (hasRecursiveEffects) {
-      continue;
     }
+    if (hasRecursiveEffects)
+      continue;
 
     // If there were no effect interfaces, we treat this op as conservatively
     // having effects.
@@ -89,6 +101,53 @@ static bool wouldOpBeTriviallyDeadImpl(Operation *rootOp) {
   // 'op' as dead.
   return true;
 }
+
+template <typename EffectTy>
+bool mlir::hasSingleEffect(Operation *op, Value value) {
+  auto memOp = dyn_cast<MemoryEffectOpInterface>(op);
+  if (!memOp)
+    return false;
+  SmallVector<SideEffects::EffectInstance<MemoryEffects::Effect>, 4> effects;
+  memOp.getEffects(effects);
+  bool hasSingleEffectOnVal = false;
+  // Iterate through `effects` and check if an effect of type `EffectTy` and
+  // only of that type is present. A `value` to check the effect on may or may
+  // not have been provided.
+  for (auto &effect : effects) {
+    if (value && effect.getValue() != value)
+      continue;
+    hasSingleEffectOnVal = isa<EffectTy>(effect.getEffect());
+    if (!hasSingleEffectOnVal)
+      return false;
+  }
+  return hasSingleEffectOnVal;
+}
+
+template bool mlir::hasSingleEffect<MemoryEffects::Allocate>(Operation *,
+                                                             Value);
+template bool mlir::hasSingleEffect<MemoryEffects::Free>(Operation *, Value);
+template bool mlir::hasSingleEffect<MemoryEffects::Read>(Operation *, Value);
+template bool mlir::hasSingleEffect<MemoryEffects::Write>(Operation *, Value);
+
+template <typename... EffectTys>
+bool mlir::hasEffect(Operation *op, Value value) {
+  auto memOp = dyn_cast<MemoryEffectOpInterface>(op);
+  if (!memOp)
+    return false;
+  SmallVector<SideEffects::EffectInstance<MemoryEffects::Effect>, 4> effects;
+  memOp.getEffects(effects);
+  return llvm::any_of(effects, [&](MemoryEffects::EffectInstance &effect) {
+    if (value && effect.getValue() != value)
+      return false;
+    return isa<EffectTys...>(effect.getEffect());
+  });
+}
+template bool mlir::hasEffect<MemoryEffects::Allocate>(Operation *, Value);
+template bool mlir::hasEffect<MemoryEffects::Free>(Operation *, Value);
+template bool mlir::hasEffect<MemoryEffects::Read>(Operation *, Value);
+template bool mlir::hasEffect<MemoryEffects::Write>(Operation *, Value);
+template bool
+mlir::hasEffect<MemoryEffects::Write, MemoryEffects::Free>(Operation *, Value);
 
 bool mlir::wouldOpBeTriviallyDead(Operation *op) {
   if (op->mightHaveTrait<OpTrait::IsTerminator>())

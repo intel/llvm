@@ -1,19 +1,20 @@
 add_mlir_conversion_library(MLIRGPUToSPIRV
   GPUToSPIRV.cpp
   GPUToSPIRVPass.cpp
+  WmmaOpsToSPIRV.cpp
 
   DEPENDS
   MLIRConversionPassIncGen
 
   LINK_LIBS PUBLIC
-  MLIRArithmeticToSPIRV
+  MLIRArithToSPIRV
   MLIRGPUOps
+  MLIRFuncToSPIRV
   MLIRIR
   MLIRPass
   MLIRSCFToSPIRV
-  MLIRSPIRV
+  MLIRSPIRVDialect
   MLIRSPIRVConversion
-  MLIRStandardToSPIRV
   MLIRSupport
   MLIRTransforms
   )

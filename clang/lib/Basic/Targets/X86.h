@@ -14,6 +14,7 @@
 #define LLVM_CLANG_LIB_BASIC_TARGETS_X86_H
 
 #include "OSTargets.h"
+#include "clang/Basic/BitmaskEnum.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TargetOptions.h"
 #include "llvm/ADT/Triple.h"
@@ -42,7 +43,8 @@ static const unsigned X86AddrSpaceMap[] = {
     0,   // sycl_private
     270, // ptr32_sptr
     271, // ptr32_uptr
-    272  // ptr64
+    272, // ptr64
+    0,   // hlsl_groupshared
 };
 
 // X86 target abstract base class; x86-32 and x86-64 are very close, so
@@ -102,6 +104,7 @@ class LLVM_LIBRARY_VISIBILITY X86TargetInfo : public TargetInfo {
   bool HasAVX512VL = false;
   bool HasAVX512VBMI = false;
   bool HasAVX512VBMI2 = false;
+  bool HasAVXIFMA = false;
   bool HasAVX512IFMA = false;
   bool HasAVX512VP2INTERSECT = false;
   bool HasSHA = false;
@@ -122,8 +125,10 @@ class LLVM_LIBRARY_VISIBILITY X86TargetInfo : public TargetInfo {
   bool HasCLFLUSHOPT = false;
   bool HasCLWB = false;
   bool HasMOVBE = false;
+  bool HasPREFETCHI = false;
   bool HasPREFETCHWT1 = false;
   bool HasRDPID = false;
+  bool HasRDPRU = false;
   bool HasRetpolineExternalThunk = false;
   bool HasLAHFSAHF = false;
   bool HasWBNOINVD = false;
@@ -133,6 +138,11 @@ class LLVM_LIBRARY_VISIBILITY X86TargetInfo : public TargetInfo {
   bool HasPTWRITE = false;
   bool HasINVPCID = false;
   bool HasENQCMD = false;
+  bool HasAMXFP16 = false;
+  bool HasCMPCCXADD = false;
+  bool HasRAOINT = false;
+  bool HasAVXVNNIINT8 = false;
+  bool HasAVXNECONVERT = false;
   bool HasKL = false;      // For key locker
   bool HasWIDEKL = false; // For wide key locker
   bool HasHRESET = false;
@@ -144,6 +154,7 @@ class LLVM_LIBRARY_VISIBILITY X86TargetInfo : public TargetInfo {
   bool HasTSXLDTRK = false;
   bool HasUINTR = false;
   bool HasCRC32 = false;
+  bool HasX87 = false;
 
 protected:
   llvm::X86::CPUKind CPU = llvm::X86::CK_None;
@@ -153,6 +164,8 @@ protected:
 public:
   X86TargetInfo(const llvm::Triple &Triple, const TargetOptions &)
       : TargetInfo(Triple) {
+    BFloat16Width = BFloat16Align = 16;
+    BFloat16Format = &llvm::APFloat::BFloat();
     LongDoubleFormat = &llvm::APFloat::x87DoubleExtended();
     AddrSpaceMap = &X86AddrSpaceMap;
     HasStrictFP = true;
@@ -167,10 +180,14 @@ public:
     return LongDoubleFormat == &llvm::APFloat::IEEEquad() ? "g" : "e";
   }
 
-  unsigned getFloatEvalMethod() const override {
+  LangOptions::FPEvalMethodKind getFPEvalMethod() const override {
     // X87 evaluates with 80 bits "long double" precision.
-    return SSELevel == NoSSE ? 2 : 0;
+    return SSELevel == NoSSE ? LangOptions::FPEvalMethodKind::FEM_Extended
+                             : LangOptions::FPEvalMethodKind::FEM_Source;
   }
+
+  // EvalMethod `source` is not supported for targets with `NoSSE` feature.
+  bool supportSourceEvalMethod() const override { return SSELevel > NoSSE; }
 
   ArrayRef<const char *> getGCCRegNames() const override;
 
@@ -196,6 +213,8 @@ public:
       StringRef Name,
       llvm::SmallVectorImpl<StringRef> &Features) const override;
 
+  StringRef getCPUSpecificTuneName(StringRef Name) const override;
+
   Optional<unsigned> getCPUCacheLineSize() const override;
 
   bool validateAsmConstraint(const char *&Name,
@@ -220,12 +239,12 @@ public:
   bool validateInputSize(const llvm::StringMap<bool> &FeatureMap,
                          StringRef Constraint, unsigned Size) const override;
 
-  virtual bool
+  bool
   checkCFProtectionReturnSupported(DiagnosticsEngine &Diags) const override {
     return true;
   };
 
-  virtual bool
+  bool
   checkCFProtectionBranchSupported(DiagnosticsEngine &Diags) const override {
     return true;
   };
@@ -277,6 +296,10 @@ public:
 
   bool useFP16ConversionIntrinsics() const override {
     return false;
+  }
+
+  bool shouldEmitFloat16WithExcessPrecision() const override {
+    return HasFloat16 && !hasLegalHalfType();
   }
 
   void getTargetDefines(const LangOptions &Opts,
@@ -387,6 +410,8 @@ public:
   uint64_t getPointerAlignV(unsigned AddrSpace) const override {
     return getPointerWidthV(AddrSpace);
   }
+
+  const char *getBFloat16Mangling() const override { return "u6__bf16"; };
 };
 
 // X86-32 generic target
@@ -411,9 +436,9 @@ public:
     RegParmMax = 3;
 
     // Use fpret for all types.
-    RealTypeUsesObjCFPRet =
-        ((1 << (int)FloatModeKind::Float) | (1 << (int)FloatModeKind::Double) |
-         (1 << (int)FloatModeKind::LongDouble));
+    RealTypeUsesObjCFPRetMask =
+        (unsigned)(FloatModeKind::Float | FloatModeKind::Double |
+                   FloatModeKind::LongDouble);
 
     // x86-32 has atomics up to 8 bytes
     MaxAtomicPromoteWidth = 64;
@@ -461,7 +486,7 @@ public:
 
   ArrayRef<Builtin::Info> getTargetBuiltins() const override;
 
-  bool hasExtIntType() const override { return true; }
+  bool hasBitIntType() const override { return true; }
 };
 
 class LLVM_LIBRARY_VISIBILITY NetBSDI386TargetInfo
@@ -470,14 +495,13 @@ public:
   NetBSDI386TargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
       : NetBSDTargetInfo<X86_32TargetInfo>(Triple, Opts) {}
 
-  unsigned getFloatEvalMethod() const override {
-    unsigned Major, Minor, Micro;
-    getTriple().getOSVersion(Major, Minor, Micro);
+  LangOptions::FPEvalMethodKind getFPEvalMethod() const override {
+    VersionTuple OsVersion = getTriple().getOSVersion();
     // New NetBSD uses the default rounding mode.
-    if (Major >= 7 || (Major == 6 && Minor == 99 && Micro >= 26) || Major == 0)
-      return X86_32TargetInfo::getFloatEvalMethod();
+    if (OsVersion >= VersionTuple(6, 99, 26) || OsVersion.getMajor() == 0)
+      return X86_32TargetInfo::getFPEvalMethod();
     // NetBSD before 6.99.26 defaults to "double" rounding.
-    return 1;
+    return LangOptions::FPEvalMethodKind::FEM_Double;
   }
 };
 
@@ -533,11 +557,12 @@ public:
     DoubleAlign = LongLongAlign = 64;
     bool IsWinCOFF =
         getTriple().isOSWindows() && getTriple().isOSBinFormatCOFF();
-    resetDataLayout(IsWinCOFF ? "e-m:x-p:32:32-p270:32:32-p271:32:32-p272:64:"
-                                "64-i64:64-f80:32-n8:16:32-a:0:32-S32"
-                              : "e-m:e-p:32:32-p270:32:32-p271:32:32-p272:64:"
-                                "64-i64:64-f80:32-n8:16:32-a:0:32-S32",
-                    IsWinCOFF ? "_" : "");
+    bool IsMSVC = getTriple().isWindowsMSVCEnvironment();
+    std::string Layout = IsWinCOFF ? "e-m:x" : "e-m:e";
+    Layout += "-p:32:32-p270:32:32-p271:32:32-p272:64:64-i64:64-";
+    Layout += IsMSVC ? "f80:128" : "f80:32";
+    Layout += "-n8:16:32-a:0:32-S32";
+    resetDataLayout(Layout, IsWinCOFF ? "_" : "");
   }
 };
 
@@ -692,7 +717,7 @@ public:
                                         "64-i64:64-f80:128-n8:16:32:64-S128");
 
     // Use fpret only for long double.
-    RealTypeUsesObjCFPRet = (1 << (int)FloatModeKind::LongDouble);
+    RealTypeUsesObjCFPRetMask = (unsigned)FloatModeKind::LongDouble;
 
     // Use fp2ret for _Complex long double.
     ComplexLongDoubleUsesFP2Ret = true;
@@ -768,7 +793,7 @@ public:
 
   ArrayRef<Builtin::Info> getTargetBuiltins() const override;
 
-  bool hasExtIntType() const override { return true; }
+  bool hasBitIntType() const override { return true; }
 };
 
 // x86-64 Windows target

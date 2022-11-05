@@ -1,10 +1,10 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -Xclang -verify %s
 
-#include <sycl/ext/intel/experimental/esimd.hpp>
 #include <limits>
+#include <sycl/ext/intel/esimd.hpp>
 #include <utility>
 
-using namespace sycl::ext::intel::experimental::esimd;
+using namespace sycl::ext::intel::esimd;
 
 SYCL_ESIMD_FUNCTION auto test_simd_view_bin_ops() {
   simd<int, 16> v0 = 1;
@@ -106,6 +106,24 @@ SYCL_ESIMD_FUNCTION void test_simd_view_copy_ctor() {
   auto v0_view_copy(v0_view);
 }
 
+// test construction from vector.
+SYCL_ESIMD_FUNCTION void test_simd_view_from_vector() {
+  simd<int, 16> v16 = 0;
+  simd_view sv16a = v16;
+  simd_view sv16b(v16);
+  // expected-error@+5 {{no matching constructor for initialization of 'simd_view}}
+  // expected-note@sycl/ext/intel/esimd/simd_view.hpp:* 3 {{candidate }}
+  // expected-note@sycl/ext/intel/esimd/simd.hpp:* 2 {{candidate }}
+  // expected-note@sycl/ext/intel/esimd/detail/simd_obj_impl.hpp:* {{candidate }}
+  // expected-note@sycl/ext/intel/esimd/simd_view.hpp:* 2 {{candidate }}
+  simd_view<simd<int, 16>, region_base<false, int, 1, 1, 16, 1>> sv16c(
+      (simd<int, 16>()));
+
+  simd<int, 1> v1 = 0;
+  simd_view sv1a = v1;
+  simd_view sv1b(v1);
+}
+
 // move constructor transfers the same view of the underlying data.
 SYCL_ESIMD_FUNCTION void test_simd_view_move_ctor() {
   simd<int, 16> v0 = 1;
@@ -182,9 +200,6 @@ void test_simd_view_subscript() SYCL_ESIMD_FUNCTION {
   const auto vv = v.select<2, 1>(0);
 
   int x = vv[1];
-  // expected-warning@+2 2 {{deprecated}}
-  // expected-note@sycl/ext/intel/experimental/esimd/detail/simd_view_impl.hpp:* 2 {{has been explicitly marked deprecated here}}
-  int y = vv(1);
 }
 
 void test_simd_view_writeable_subscript() SYCL_ESIMD_FUNCTION {
@@ -194,10 +209,6 @@ void test_simd_view_writeable_subscript() SYCL_ESIMD_FUNCTION {
   auto x = vv1 == vv2; // test relational operations
   vv1[1] = 0;          // returns writeable simd_view
   int y = vv1[1];      // nested simd_view -> int
-
-  // expected-warning@+2 2 {{deprecated}}
-  // expected-note@sycl/ext/intel/experimental/esimd/detail/simd_view_impl.hpp:* 2 {{has been explicitly marked deprecated here}}
-  vv1(1) = 1;
 }
 
 // In this test `g.row(1)` return simd_view and `(g.row(1))[0]` returns

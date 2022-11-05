@@ -33,7 +33,7 @@ struct Throws {
 bool Throws::sThrows = false;
 #endif
 
-int main(int, char**)
+TEST_CONSTEXPR_CXX20 bool tests()
 {
     int a1[] = {1, 2, 3};
     {
@@ -41,16 +41,16 @@ int main(int, char**)
         assert(is_contiguous_container_asan_correct(l1));
         std::vector<int>::iterator i = l1.erase(l1.cbegin(), l1.cbegin());
         assert(l1.size() == 3);
-        assert(distance(l1.cbegin(), l1.cend()) == 3);
+        assert(std::distance(l1.cbegin(), l1.cend()) == 3);
         assert(i == l1.begin());
         assert(is_contiguous_container_asan_correct(l1));
     }
     {
         std::vector<int> l1(a1, a1+3);
         assert(is_contiguous_container_asan_correct(l1));
-        std::vector<int>::iterator i = l1.erase(l1.cbegin(), next(l1.cbegin()));
+        std::vector<int>::iterator i = l1.erase(l1.cbegin(), std::next(l1.cbegin()));
         assert(l1.size() == 2);
-        assert(distance(l1.cbegin(), l1.cend()) == 2);
+        assert(std::distance(l1.cbegin(), l1.cend()) == 2);
         assert(i == l1.begin());
         assert(l1 == std::vector<int>(a1+1, a1+3));
         assert(is_contiguous_container_asan_correct(l1));
@@ -58,9 +58,9 @@ int main(int, char**)
     {
         std::vector<int> l1(a1, a1+3);
         assert(is_contiguous_container_asan_correct(l1));
-        std::vector<int>::iterator i = l1.erase(l1.cbegin(), next(l1.cbegin(), 2));
+        std::vector<int>::iterator i = l1.erase(l1.cbegin(), std::next(l1.cbegin(), 2));
         assert(l1.size() == 1);
-        assert(distance(l1.cbegin(), l1.cend()) == 1);
+        assert(std::distance(l1.cbegin(), l1.cend()) == 1);
         assert(i == l1.begin());
         assert(l1 == std::vector<int>(a1+2, a1+3));
         assert(is_contiguous_container_asan_correct(l1));
@@ -68,9 +68,9 @@ int main(int, char**)
     {
         std::vector<int> l1(a1, a1+3);
         assert(is_contiguous_container_asan_correct(l1));
-        std::vector<int>::iterator i = l1.erase(l1.cbegin(), next(l1.cbegin(), 3));
+        std::vector<int>::iterator i = l1.erase(l1.cbegin(), std::next(l1.cbegin(), 3));
         assert(l1.size() == 0);
-        assert(distance(l1.cbegin(), l1.cend()) == 0);
+        assert(std::distance(l1.cbegin(), l1.cend()) == 0);
         assert(i == l1.begin());
         assert(is_contiguous_container_asan_correct(l1));
     }
@@ -93,16 +93,16 @@ int main(int, char**)
         assert(is_contiguous_container_asan_correct(l1));
         std::vector<int, min_allocator<int>>::iterator i = l1.erase(l1.cbegin(), l1.cbegin());
         assert(l1.size() == 3);
-        assert(distance(l1.cbegin(), l1.cend()) == 3);
+        assert(std::distance(l1.cbegin(), l1.cend()) == 3);
         assert(i == l1.begin());
         assert(is_contiguous_container_asan_correct(l1));
     }
     {
         std::vector<int, min_allocator<int>> l1(a1, a1+3);
         assert(is_contiguous_container_asan_correct(l1));
-        std::vector<int, min_allocator<int>>::iterator i = l1.erase(l1.cbegin(), next(l1.cbegin()));
+        std::vector<int, min_allocator<int>>::iterator i = l1.erase(l1.cbegin(), std::next(l1.cbegin()));
         assert(l1.size() == 2);
-        assert(distance(l1.cbegin(), l1.cend()) == 2);
+        assert(std::distance(l1.cbegin(), l1.cend()) == 2);
         assert(i == l1.begin());
         assert((l1 == std::vector<int, min_allocator<int>>(a1+1, a1+3)));
         assert(is_contiguous_container_asan_correct(l1));
@@ -110,9 +110,9 @@ int main(int, char**)
     {
         std::vector<int, min_allocator<int>> l1(a1, a1+3);
         assert(is_contiguous_container_asan_correct(l1));
-        std::vector<int, min_allocator<int>>::iterator i = l1.erase(l1.cbegin(), next(l1.cbegin(), 2));
+        std::vector<int, min_allocator<int>>::iterator i = l1.erase(l1.cbegin(), std::next(l1.cbegin(), 2));
         assert(l1.size() == 1);
-        assert(distance(l1.cbegin(), l1.cend()) == 1);
+        assert(std::distance(l1.cbegin(), l1.cend()) == 1);
         assert(i == l1.begin());
         assert((l1 == std::vector<int, min_allocator<int>>(a1+2, a1+3)));
         assert(is_contiguous_container_asan_correct(l1));
@@ -120,9 +120,9 @@ int main(int, char**)
     {
         std::vector<int, min_allocator<int>> l1(a1, a1+3);
         assert(is_contiguous_container_asan_correct(l1));
-        std::vector<int, min_allocator<int>>::iterator i = l1.erase(l1.cbegin(), next(l1.cbegin(), 3));
+        std::vector<int, min_allocator<int>>::iterator i = l1.erase(l1.cbegin(), std::next(l1.cbegin(), 3));
         assert(l1.size() == 0);
-        assert(distance(l1.cbegin(), l1.cend()) == 0);
+        assert(std::distance(l1.cbegin(), l1.cend()) == 0);
         assert(i == l1.begin());
         assert(is_contiguous_container_asan_correct(l1));
     }
@@ -140,19 +140,30 @@ int main(int, char**)
         assert(is_contiguous_container_asan_correct(outer[1]));
     }
 #endif
+
+    return true;
+}
+
+int main(int, char**)
+{
+    tests();
+#if TEST_STD_VER > 17
+    static_assert(tests());
+#endif
+
 #ifndef TEST_HAS_NO_EXCEPTIONS
 // Test for LWG2853:
 // Throws: Nothing unless an exception is thrown by the assignment operator or move assignment operator of T.
     {
-    Throws arr[] = {1, 2, 3};
-    std::vector<Throws> v(arr, arr+3);
-    Throws::sThrows = true;
-    v.erase(v.begin(), --v.end());
-    assert(v.size() == 1);
-    v.erase(v.begin(), v.end());
-    assert(v.size() == 0);
+        Throws arr[] = {1, 2, 3};
+        std::vector<Throws> v(arr, arr+3);
+        Throws::sThrows = true;
+        v.erase(v.begin(), --v.end());
+        assert(v.size() == 1);
+        v.erase(v.begin(), v.end());
+        assert(v.size() == 0);
     }
 #endif
 
-  return 0;
+    return 0;
 }

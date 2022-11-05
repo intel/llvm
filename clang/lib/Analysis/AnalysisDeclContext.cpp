@@ -142,7 +142,7 @@ bool AnalysisDeclContext::isBodyAutosynthesizedFromModelFile() const {
 
 /// Returns true if \param VD is an Objective-C implicit 'self' parameter.
 static bool isSelfDecl(const VarDecl *VD) {
-  return isa<ImplicitParamDecl>(VD) && VD->getName() == "self";
+  return isa_and_nonnull<ImplicitParamDecl>(VD) && VD->getName() == "self";
 }
 
 const ImplicitParamDecl *AnalysisDeclContext::getSelfDecl() const {
@@ -169,8 +169,8 @@ const ImplicitParamDecl *AnalysisDeclContext::getSelfDecl() const {
     if (!LC.capturesVariable())
       continue;
 
-    VarDecl *VD = LC.getCapturedVar();
-    if (isSelfDecl(VD))
+    ValueDecl *VD = LC.getCapturedVar();
+    if (isSelfDecl(dyn_cast<VarDecl>(VD)))
       return dyn_cast<ImplicitParamDecl>(VD);
   }
 
@@ -352,7 +352,7 @@ std::string AnalysisDeclContext::getFunctionName(const Decl *D) {
       for (const auto &P : FD->parameters()) {
         if (P != *FD->param_begin())
           OS << ", ";
-        OS << P->getType().getAsString();
+        OS << P->getType();
       }
       OS << ')';
     }
@@ -387,7 +387,7 @@ std::string AnalysisDeclContext::getFunctionName(const Decl *D) {
     OS << ' ' << OMD->getSelector().getAsString() << ']';
   }
 
-  return OS.str();
+  return Str;
 }
 
 LocationContextManager &AnalysisDeclContext::getLocationContextManager() {

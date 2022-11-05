@@ -40,23 +40,62 @@ protected:
   std::unique_ptr<Module> createVPDeclarationModule() {
     const char *BinaryIntOpcodes[] = {"add",  "sub",  "mul", "sdiv", "srem",
                                       "udiv", "urem", "and", "xor",  "or",
-                                      "ashr", "lshr", "shl"};
+                                      "ashr", "lshr", "shl", "smin", "smax",
+                                      "umin", "umax"};
     std::stringstream Str;
     for (const char *BinaryIntOpcode : BinaryIntOpcodes)
       Str << " declare <8 x i32> @llvm.vp." << BinaryIntOpcode
           << ".v8i32(<8 x i32>, <8 x i32>, <8 x i1>, i32) ";
 
-    const char *BinaryFPOpcodes[] = {"fadd", "fsub", "fmul", "fdiv", "frem"};
+    const char *BinaryFPOpcodes[] = {"fadd", "fsub",   "fmul",   "fdiv",
+                                     "frem", "minnum", "maxnum", "copysign"};
     for (const char *BinaryFPOpcode : BinaryFPOpcodes)
       Str << " declare <8 x float> @llvm.vp." << BinaryFPOpcode
           << ".v8f32(<8 x float>, <8 x float>, <8 x i1>, i32) ";
 
+    Str << " declare <8 x float> @llvm.vp.floor.v8f32(<8 x float>, <8 x i1>, "
+           "i32)";
+    Str << " declare <8 x float> @llvm.vp.round.v8f32(<8 x float>, <8 x i1>, "
+           "i32)";
+    Str << " declare <8 x float> @llvm.vp.roundeven.v8f32(<8 x float>, <8 x "
+           "i1>, "
+           "i32)";
+    Str << " declare <8 x float> @llvm.vp.roundtozero.v8f32(<8 x float>, <8 x "
+           "i1>, "
+           "i32)";
+    Str << " declare <8 x float> @llvm.vp.rint.v8f32(<8 x float>, <8 x i1>, "
+           "i32)";
+    Str << " declare <8 x float> @llvm.vp.ceil.v8f32(<8 x float>, <8 x i1>, "
+           "i32)";
+    Str << " declare <8 x float> @llvm.vp.fneg.v8f32(<8 x float>, <8 x i1>, "
+           "i32)";
+    Str << " declare <8 x float> @llvm.vp.fabs.v8f32(<8 x float>, <8 x i1>, "
+           "i32)";
+    Str << " declare <8 x float> @llvm.vp.sqrt.v8f32(<8 x float>, <8 x i1>, "
+           "i32)";
+    Str << " declare <8 x float> @llvm.vp.fma.v8f32(<8 x float>, <8 x float>, "
+           "<8 x float>, <8 x i1>, i32) ";
+    Str << " declare <8 x float> @llvm.vp.fmuladd.v8f32(<8 x float>, "
+           "<8 x float>, <8 x float>, <8 x i1>, i32) ";
+
     Str << " declare void @llvm.vp.store.v8i32.p0v8i32(<8 x i32>, <8 x i32>*, "
            "<8 x i1>, i32) ";
+    Str << "declare void "
+           "@llvm.experimental.vp.strided.store.v8i32.i32(<8 x i32>, "
+           "i32*, i32, <8 x i1>, i32) ";
+    Str << "declare void "
+           "@llvm.experimental.vp.strided.store.v8i32.p1i32.i32(<8 x i32>, "
+           "i32 addrspace(1)*, i32, <8 x i1>, i32) ";
     Str << " declare void @llvm.vp.scatter.v8i32.v8p0i32(<8 x i32>, <8 x "
            "i32*>, <8 x i1>, i32) ";
     Str << " declare <8 x i32> @llvm.vp.load.v8i32.p0v8i32(<8 x i32>*, <8 x "
            "i1>, i32) ";
+    Str << "declare <8 x i32> "
+           "@llvm.experimental.vp.strided.load.v8i32.i32(i32*, i32, <8 "
+           "x i1>, i32) ";
+    Str << "declare <8 x i32> "
+           "@llvm.experimental.vp.strided.load.v8i32.p1i32.i32(i32 "
+           "addrspace(1)*, i32, <8 x i1>, i32) ";
     Str << " declare <8 x i32> @llvm.vp.gather.v8i32.v8p0i32(<8 x i32*>, <8 x "
            "i1>, i32) ";
 
@@ -68,10 +107,40 @@ protected:
       Str << " declare float @llvm.vp.reduce." << ReductionOpcode
           << ".v8f32(float, <8 x float>, <8 x i1>, i32) ";
 
+    Str << " declare <8 x i32> @llvm.vp.merge.v8i32(<8 x i1>, <8 x i32>, <8 x "
+           "i32>, i32)";
     Str << " declare <8 x i32> @llvm.vp.select.v8i32(<8 x i1>, <8 x i32>, <8 x "
            "i32>, i32)";
     Str << " declare <8 x i32> @llvm.experimental.vp.splice.v8i32(<8 x "
            "i32>, <8 x i32>, i32, <8 x i1>, i32, i32) ";
+
+    Str << " declare <8 x i32> @llvm.vp.fptoui.v8i32"
+        << ".v8f32(<8 x float>, <8 x i1>, i32) ";
+    Str << " declare <8 x i32> @llvm.vp.fptosi.v8i32"
+        << ".v8f32(<8 x float>, <8 x i1>, i32) ";
+    Str << " declare <8 x float> @llvm.vp.uitofp.v8f32"
+        << ".v8i32(<8 x i32>, <8 x i1>, i32) ";
+    Str << " declare <8 x float> @llvm.vp.sitofp.v8f32"
+        << ".v8i32(<8 x i32>, <8 x i1>, i32) ";
+    Str << " declare <8 x float> @llvm.vp.fptrunc.v8f32"
+        << ".v8f64(<8 x double>, <8 x i1>, i32) ";
+    Str << " declare <8 x double> @llvm.vp.fpext.v8f64"
+        << ".v8f32(<8 x float>, <8 x i1>, i32) ";
+    Str << " declare <8 x i32> @llvm.vp.trunc.v8i32"
+        << ".v8i64(<8 x i64>, <8 x i1>, i32) ";
+    Str << " declare <8 x i64> @llvm.vp.zext.v8i64"
+        << ".v8i32(<8 x i32>, <8 x i1>, i32) ";
+    Str << " declare <8 x i64> @llvm.vp.sext.v8i64"
+        << ".v8i32(<8 x i32>, <8 x i1>, i32) ";
+    Str << " declare <8 x i32> @llvm.vp.ptrtoint.v8i32"
+        << ".v8p0i32(<8 x i32*>, <8 x i1>, i32) ";
+    Str << " declare <8 x i32*> @llvm.vp.inttoptr.v8p0i32"
+        << ".v8i32(<8 x i32>, <8 x i1>, i32) ";
+
+    Str << " declare <8 x i1> @llvm.vp.fcmp.v8f32"
+        << "(<8 x float>, <8 x float>, metadata, <8 x i1>, i32) ";
+    Str << " declare <8 x i1> @llvm.vp.icmp.v8i16"
+        << "(<8 x i16>, <8 x i16>, metadata, <8 x i1>, i32) ";
 
     return parseAssemblyString(Str.str(), Err, C);
   }
@@ -81,25 +150,25 @@ protected:
 TEST_F(VPIntrinsicTest, VPIntrinsicsDefScopes) {
   Optional<Intrinsic::ID> ScopeVPID;
 #define BEGIN_REGISTER_VP_INTRINSIC(VPID, ...)                                 \
-  ASSERT_FALSE(ScopeVPID.hasValue());                                          \
+  ASSERT_FALSE(ScopeVPID.has_value());                                         \
   ScopeVPID = Intrinsic::VPID;
 #define END_REGISTER_VP_INTRINSIC(VPID)                                        \
-  ASSERT_TRUE(ScopeVPID.hasValue());                                           \
-  ASSERT_EQ(ScopeVPID.getValue(), Intrinsic::VPID);                            \
+  ASSERT_TRUE(ScopeVPID.has_value());                                          \
+  ASSERT_EQ(ScopeVPID.value(), Intrinsic::VPID);                               \
   ScopeVPID = None;
 
   Optional<ISD::NodeType> ScopeOPC;
 #define BEGIN_REGISTER_VP_SDNODE(SDOPC, ...)                                   \
-  ASSERT_FALSE(ScopeOPC.hasValue());                                           \
+  ASSERT_FALSE(ScopeOPC.has_value());                                          \
   ScopeOPC = ISD::SDOPC;
 #define END_REGISTER_VP_SDNODE(SDOPC)                                          \
-  ASSERT_TRUE(ScopeOPC.hasValue());                                            \
-  ASSERT_EQ(ScopeOPC.getValue(), ISD::SDOPC);                                  \
+  ASSERT_TRUE(ScopeOPC.has_value());                                           \
+  ASSERT_EQ(ScopeOPC.value(), ISD::SDOPC);                                     \
   ScopeOPC = None;
 #include "llvm/IR/VPIntrinsics.def"
 
-  ASSERT_FALSE(ScopeVPID.hasValue());
-  ASSERT_FALSE(ScopeOPC.hasValue());
+  ASSERT_FALSE(ScopeVPID.has_value());
+  ASSERT_FALSE(ScopeOPC.has_value());
 }
 
 /// Check that every VP intrinsic in the test module is recognized as a VP
@@ -186,8 +255,8 @@ TEST_F(VPIntrinsicTest, GetParamPos) {
     ASSERT_TRUE(F.isIntrinsic());
     Optional<unsigned> MaskParamPos =
         VPIntrinsic::getMaskParamPos(F.getIntrinsicID());
-    if (MaskParamPos.hasValue()) {
-      Type *MaskParamType = F.getArg(MaskParamPos.getValue())->getType();
+    if (MaskParamPos) {
+      Type *MaskParamType = F.getArg(MaskParamPos.value())->getType();
       ASSERT_TRUE(MaskParamType->isVectorTy());
       ASSERT_TRUE(
           cast<VectorType>(MaskParamType)->getElementType()->isIntegerTy(1));
@@ -195,8 +264,8 @@ TEST_F(VPIntrinsicTest, GetParamPos) {
 
     Optional<unsigned> VecLenParamPos =
         VPIntrinsic::getVectorLengthParamPos(F.getIntrinsicID());
-    if (VecLenParamPos.hasValue()) {
-      Type *VecLenParamType = F.getArg(VecLenParamPos.getValue())->getType();
+    if (VecLenParamPos) {
+      Type *VecLenParamType = F.getArg(VecLenParamPos.value())->getType();
       ASSERT_TRUE(VecLenParamType->isIntegerTy(32));
     }
   }
@@ -272,7 +341,7 @@ TEST_F(VPIntrinsicTest, VPIntrinsicDeclarationForParams) {
 
     ASSERT_NE(F.getIntrinsicID(), Intrinsic::not_intrinsic);
     auto *NewDecl = VPIntrinsic::getDeclarationForParams(
-        OutM.get(), F.getIntrinsicID(), Values);
+        OutM.get(), F.getIntrinsicID(), FuncTy->getReturnType(), Values);
     ASSERT_TRUE(NewDecl);
 
     // Check that 'old decl' == 'new decl'.
@@ -290,16 +359,17 @@ TEST_F(VPIntrinsicTest, VPIntrinsicDeclarationForParams) {
 }
 
 /// Check that the HANDLE_VP_TO_CONSTRAINEDFP maps to an existing intrinsic with
-/// the right amount of metadata args.
+/// the right amount of constrained-fp metadata args.
 TEST_F(VPIntrinsicTest, HandleToConstrainedFP) {
-#define HANDLE_VP_TO_CONSTRAINEDFP(HASROUND, HASEXCEPT, CFPID)                 \
+#define VP_PROPERTY_CONSTRAINEDFP(HASROUND, HASEXCEPT, CFPID)                  \
   {                                                                            \
     SmallVector<Intrinsic::IITDescriptor, 5> T;                                \
     Intrinsic::getIntrinsicInfoTableEntries(Intrinsic::CFPID, T);              \
     unsigned NumMetadataArgs = 0;                                              \
     for (auto TD : T)                                                          \
       NumMetadataArgs += (TD.Kind == Intrinsic::IITDescriptor::Metadata);      \
-    ASSERT_EQ(NumMetadataArgs, (unsigned)(HASROUND + HASEXCEPT));              \
+    bool IsCmp = Intrinsic::CFPID == Intrinsic::experimental_constrained_fcmp; \
+    ASSERT_EQ(NumMetadataArgs, (unsigned)(IsCmp + HASROUND + HASEXCEPT));      \
   }
 #include "llvm/IR/VPIntrinsics.def"
 }
@@ -358,13 +428,13 @@ TEST_F(VPIntrinsicTest, VPReductions) {
 
     if (!VPReductionIntrinsic::isVPReduction(ID)) {
       EXPECT_EQ(VPRedI, nullptr);
-      EXPECT_EQ(VPReductionIntrinsic::getStartParamPos(ID).hasValue(), false);
-      EXPECT_EQ(VPReductionIntrinsic::getVectorParamPos(ID).hasValue(), false);
+      EXPECT_EQ(VPReductionIntrinsic::getStartParamPos(ID).has_value(), false);
+      EXPECT_EQ(VPReductionIntrinsic::getVectorParamPos(ID).has_value(), false);
       continue;
     }
 
-    EXPECT_EQ(VPReductionIntrinsic::getStartParamPos(ID).hasValue(), true);
-    EXPECT_EQ(VPReductionIntrinsic::getVectorParamPos(ID).hasValue(), true);
+    EXPECT_EQ(VPReductionIntrinsic::getStartParamPos(ID).has_value(), true);
+    EXPECT_EQ(VPReductionIntrinsic::getVectorParamPos(ID).has_value(), true);
     ASSERT_NE(VPRedI, nullptr);
     EXPECT_EQ(VPReductionIntrinsic::getStartParamPos(ID),
               VPRedI->getStartParamPos());

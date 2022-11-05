@@ -19,7 +19,7 @@
 
 using namespace _OMP;
 
-#pragma omp declare target
+#pragma omp begin declare target device_type(nohost)
 
 static void inititializeRuntime(bool IsSPMD) {
   // Order is important here.
@@ -30,11 +30,12 @@ static void inititializeRuntime(bool IsSPMD) {
 
 /// Simple generic state machine for worker threads.
 static void genericStateMachine(IdentTy *Ident) {
+  FunctionTracingRAII();
 
   uint32_t TId = mapping::getThreadIdInBlock();
 
   do {
-    ParallelRegionFnTy WorkFn = 0;
+    ParallelRegionFnTy WorkFn = nullptr;
 
     // Wait for the signal that we have a new work function.
     synchronize::threads();
@@ -66,10 +67,11 @@ extern "C" {
 ///
 int32_t __kmpc_target_init(IdentTy *Ident, int8_t Mode,
                            bool UseGenericStateMachine, bool) {
+  FunctionTracingRAII();
   const bool IsSPMD = Mode & OMP_TGT_EXEC_MODE_SPMD;
   if (IsSPMD) {
     inititializeRuntime(/* IsSPMD */ true);
-    synchronize::threads();
+    synchronize::threadsAligned();
   } else {
     inititializeRuntime(/* IsSPMD */ false);
     // No need to wait since only the main threads will execute user
@@ -81,11 +83,37 @@ int32_t __kmpc_target_init(IdentTy *Ident, int8_t Mode,
     return -1;
   }
 
-  if (mapping::isMainThreadInGenericMode(IsSPMD))
+  if (mapping::isInitialThreadInLevel0(IsSPMD))
     return -1;
 
-  if (UseGenericStateMachine)
+  // Enter the generic state machine if enabled and if this thread can possibly
+  // be an active worker thread.
+  //
+  // The latter check is important for NVIDIA Pascal (but not Volta) and AMD
+  // GPU.  In those cases, a single thread can apparently satisfy a barrier on
+  // behalf of all threads in the same warp.  Thus, it would not be safe for
+  // other threads in the main thread's warp to reach the first
+  // synchronize::threads call in genericStateMachine before the main thread
+  // reaches its corresponding synchronize::threads call: that would permit all
+  // active worker threads to proceed before the main thread has actually set
+  // state::ParallelRegionFn, and then they would immediately quit without
+  // doing any work.  mapping::getBlockSize() does not include any of the main
+  // thread's warp, so none of its threads can ever be active worker threads.
+  if (UseGenericStateMachine &&
+      mapping::getThreadIdInBlock() < mapping::getBlockSize(IsSPMD)) {
     genericStateMachine(Ident);
+  } else {
+    // Retrieve the work function just to ensure we always call
+    // __kmpc_kernel_parallel even if a custom state machine is used.
+    // TODO: this is not super pretty. The problem is we create the call to
+    // __kmpc_kernel_parallel in the openmp-opt pass but while we optimize it is
+    // not there yet. Thus, we assume we never reach it from
+    // __kmpc_target_deinit. That allows us to remove the store in there to
+    // ParallelRegionFn, which leads to bad results later on.
+    ParallelRegionFnTy WorkFn = nullptr;
+    __kmpc_kernel_parallel(&WorkFn);
+    ASSERT(WorkFn == nullptr);
+  }
 
   return mapping::getThreadIdInBlock();
 }
@@ -98,6 +126,7 @@ int32_t __kmpc_target_init(IdentTy *Ident, int8_t Mode,
 /// \param Ident Source location identification, can be NULL.
 ///
 void __kmpc_target_deinit(IdentTy *Ident, int8_t Mode, bool) {
+  FunctionTracingRAII();
   const bool IsSPMD = Mode & OMP_TGT_EXEC_MODE_SPMD;
   state::assumeInitialState(IsSPMD);
   if (IsSPMD)
@@ -107,7 +136,10 @@ void __kmpc_target_deinit(IdentTy *Ident, int8_t Mode, bool) {
   state::ParallelRegionFn = nullptr;
 }
 
-int8_t __kmpc_is_spmd_exec_mode() { return mapping::isSPMDMode(); }
+int8_t __kmpc_is_spmd_exec_mode() {
+  FunctionTracingRAII();
+  return mapping::isSPMDMode();
+}
 }
 
 #pragma omp end declare target

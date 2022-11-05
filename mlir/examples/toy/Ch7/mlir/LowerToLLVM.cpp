@@ -9,12 +9,13 @@
 // This file implements full lowering of Toy operations to LLVM MLIR dialect.
 // 'toy.print' is lowered to a loop nest that calls `printf` on each element of
 // the input array. The file also sets up the ToyToLLVMLoweringPass. This pass
-// lowers the combination of Affine + SCF + Standard dialects to the LLVM one:
+// lowers the combination of Arithmetic + Affine + SCF + Func dialects to the
+// LLVM one:
 //
 //                         Affine --
 //                                  |
 //                                  v
-//                                  Standard --> LLVM (Dialect)
+//                       Arithmetic + Func --> LLVM (Dialect)
 //                                  ^
 //                                  |
 //     'toy.print' --> Loop (SCF) --
@@ -25,19 +26,20 @@
 #include "toy/Passes.h"
 
 #include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
-#include "mlir/Conversion/ArithmeticToLLVM/ArithmeticToLLVM.h"
+#include "mlir/Conversion/ArithToLLVM/ArithToLLVM.h"
+#include "mlir/Conversion/ControlFlowToLLVM/ControlFlowToLLVM.h"
+#include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"
+#include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVMPass.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"
-#include "mlir/Conversion/SCFToStandard/SCFToStandard.h"
-#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
-#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
+#include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "llvm/ADT/Sequence.h"
@@ -90,8 +92,8 @@ public:
 
       // Insert a newline after each of the inner dimensions of the shape.
       if (i != e - 1)
-        rewriter.create<CallOp>(loc, printfRef, rewriter.getIntegerType(32),
-                                newLineCst);
+        rewriter.create<func::CallOp>(loc, printfRef,
+                                      rewriter.getIntegerType(32), newLineCst);
       rewriter.create<scf::YieldOp>(loc);
       rewriter.setInsertionPointToStart(loop.getBody());
     }
@@ -99,9 +101,10 @@ public:
     // Generate a call to printf for the current element of the loop.
     auto printOp = cast<toy::PrintOp>(op);
     auto elementLoad =
-        rewriter.create<memref::LoadOp>(loc, printOp.input(), loopIvs);
-    rewriter.create<CallOp>(loc, printfRef, rewriter.getIntegerType(32),
-                            ArrayRef<Value>({formatSpecifierCst, elementLoad}));
+        rewriter.create<memref::LoadOp>(loc, printOp.getInput(), loopIvs);
+    rewriter.create<func::CallOp>(
+        loc, printfRef, rewriter.getIntegerType(32),
+        ArrayRef<Value>({formatSpecifierCst, elementLoad}));
 
     // Notify the rewriter that this operation has been removed.
     rewriter.eraseOp(op);
@@ -151,16 +154,15 @@ private:
 
     // Get the pointer to the first character in the global string.
     Value globalPtr = builder.create<LLVM::AddressOfOp>(loc, global);
-    Value cst0 = builder.create<LLVM::ConstantOp>(
-        loc, IntegerType::get(builder.getContext(), 64),
-        builder.getIntegerAttr(builder.getIndexType(), 0));
+    Value cst0 = builder.create<LLVM::ConstantOp>(loc, builder.getI64Type(),
+                                                  builder.getIndexAttr(0));
     return builder.create<LLVM::GEPOp>(
         loc,
         LLVM::LLVMPointerType::get(IntegerType::get(builder.getContext(), 8)),
         globalPtr, ArrayRef<Value>({cst0, cst0}));
   }
 };
-} // end anonymous namespace
+} // namespace
 
 //===----------------------------------------------------------------------===//
 // ToyToLLVMLoweringPass
@@ -169,12 +171,14 @@ private:
 namespace {
 struct ToyToLLVMLoweringPass
     : public PassWrapper<ToyToLLVMLoweringPass, OperationPass<ModuleOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(ToyToLLVMLoweringPass)
+
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<LLVM::LLVMDialect, scf::SCFDialect>();
   }
   void runOnOperation() final;
 };
-} // end anonymous namespace
+} // namespace
 
 void ToyToLLVMLoweringPass::runOnOperation() {
   // The first thing to define is the conversion target. This will define the
@@ -200,11 +204,11 @@ void ToyToLLVMLoweringPass::runOnOperation() {
   // set of legal ones.
   RewritePatternSet patterns(&getContext());
   populateAffineToStdConversionPatterns(patterns);
-  populateLoopToStdConversionPatterns(patterns);
-  mlir::arith::populateArithmeticToLLVMConversionPatterns(typeConverter,
-                                                          patterns);
+  populateSCFToControlFlowConversionPatterns(patterns);
+  mlir::arith::populateArithToLLVMConversionPatterns(typeConverter, patterns);
   populateMemRefToLLVMConversionPatterns(typeConverter, patterns);
-  populateStdToLLVMConversionPatterns(typeConverter, patterns);
+  cf::populateControlFlowToLLVMConversionPatterns(typeConverter, patterns);
+  populateFuncToLLVMConversionPatterns(typeConverter, patterns);
 
   // The only remaining operation to lower from the `toy` dialect, is the
   // PrintOp.

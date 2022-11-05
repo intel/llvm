@@ -8,8 +8,8 @@
 // CHECK: invoke void @llvm.seh.scope.end()
 
 // CHECK: invoke void @llvm.seh.try.begin()
-// CHECK: %[[src:[0-9-]+]] = load volatile i32, i32* %i
-// CHECK-NEXT: invoke void @"?crash@@YAXH@Z"(i32 %[[src]])
+// CHECK: %[[src:[0-9-]+]] = load volatile i32, ptr %i
+// CHECK-NEXT: invoke void @"?crash@@YAXH@Z"(i32 noundef %[[src]])
 // CHECK: invoke void @llvm.seh.try.end()
 
 // ****************************************************************************

@@ -14,7 +14,7 @@
 ; CHECK-LABEL: void @kernel_B
 ; CHECK-RT: call i8 @_Z20__spirv_SpecConstantia(i32 [[#]], i8
 ;
-; CHECK-DEF: %[[GEP:gep.*]] = getelementptr i8, i8 addrspace(4)* null, i32 1
+; CHECK-DEF: %[[GEP:gep.*]] = getelementptr i8, i8 addrspace(4)* null, i32 4
 ; CHECK-DEF: %[[BC:bc.*]] = bitcast i8 addrspace(4)* %[[GEP]] to %struct.user_type addrspace(4)*
 ; CHECK-DEF: %[[LOAD:load.*]] = load %struct.user_type, %struct.user_type addrspace(4)* %[[BC]], align 4
 

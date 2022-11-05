@@ -354,7 +354,7 @@ void JumpScopeChecker::BuildScopeInformation(Stmt *S,
       BuildScopeInformation(Var, ParentScope);
       ++StmtsToSkip;
     }
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
 
   case Stmt::GotoStmtClass:
     // Remember both what scope a goto is in as well as the fact that we have
@@ -493,8 +493,7 @@ void JumpScopeChecker::BuildScopeInformation(Stmt *S,
     }
 
     // Jump from the catch to the finally or try is not valid.
-    for (unsigned I = 0, N = AT->getNumCatchStmts(); I != N; ++I) {
-      ObjCAtCatchStmt *AC = AT->getCatchStmt(I);
+    for (ObjCAtCatchStmt *AC : AT->catch_stmts()) {
       unsigned NewParentScope = Scopes.size();
       Scopes.push_back(GotoScope(ParentScope,
                                  diag::note_protected_by_objc_catch,

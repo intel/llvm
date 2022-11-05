@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''A utility to update LLVM IR CHECK lines in C/C++ FileCheck test files.
 
 Example RUN lines in .c/.cc test files:
@@ -16,11 +16,11 @@ from __future__ import print_function
 
 import argparse
 import collections
-import distutils.spawn
 import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -140,6 +140,14 @@ def infer_dependent_args(args):
       args.opt = os.path.join(args.llvm_bin, 'opt')
 
 
+def find_executable(executable):
+  _, ext = os.path.splitext(executable)
+  if sys.platform == 'win32' and ext != '.exe':
+    executable = executable + '.exe'
+
+  return shutil.which(executable)
+
+
 def config():
   parser = argparse.ArgumentParser(
       description=__doc__,
@@ -167,7 +175,7 @@ def config():
   args = common.parse_commandline_args(parser)
   infer_dependent_args(args)
 
-  if not distutils.spawn.find_executable(args.clang):
+  if not find_executable(args.clang):
     print('Please specify --llvm-bin or --clang', file=sys.stderr)
     sys.exit(1)
 
@@ -183,7 +191,7 @@ def config():
     common.warn('Could not determine clang builtins directory, some tests '
                 'might not update correctly.')
 
-  if not distutils.spawn.find_executable(args.opt):
+  if not find_executable(args.opt):
     # Many uses of this tool will not need an opt binary, because it's only
     # needed for updating a test that runs clang | opt | FileCheck. So we
     # defer this error message until we find that opt is actually needed.
@@ -214,6 +222,7 @@ def get_function_body(builder, args, filename, clang_args, extra_commands,
     builder.process_run_line(
             common.OPT_FUNCTION_RE, common.scrub_body, raw_tool_output,
             prefixes, False)
+    builder.processed_prefixes(prefixes)
   else:
     print('The clang command line should include -emit-llvm as asm tests '
           'are discouraged in Clang testsuite.', file=sys.stderr)
@@ -241,7 +250,7 @@ def main():
     subs = {
       '%s' : ti.path,
       '%t' : tempfile.NamedTemporaryFile().name,
-      '%S' : os.getcwd(),
+      '%S' : os.path.dirname(ti.path),
     }
 
     for l in ti.run_lines:
@@ -340,15 +349,17 @@ def main():
       # Now generate all the checks.
       def check_generator(my_output_lines, prefixes, func):
         if '-emit-llvm' in clang_args:
-          common.add_ir_checks(my_output_lines, '//',
-                               prefixes,
-                               func_dict, func, False,
-                               ti.args.function_signature,
-                               global_vars_seen_dict)
+          return common.add_ir_checks(my_output_lines, '//',
+                                      prefixes,
+                                      func_dict, func, False,
+                                      ti.args.function_signature,
+                                      global_vars_seen_dict,
+                                      is_filtered=builder.is_filtered())
         else:
-          asm.add_asm_checks(my_output_lines, '//',
-                             prefixes,
-                             func_dict, func)
+          return asm.add_checks(my_output_lines, '//',
+                                prefixes,
+                                func_dict, func, global_vars_seen_dict,
+                                is_filtered=builder.is_filtered())
 
       if ti.args.check_globals:
         common.add_global_checks(builder.global_var_dict(), '//', run_list,
@@ -398,7 +409,8 @@ def main():
                 output_lines.append('//')
               added.add(mangled)
               common.add_ir_checks(output_lines, '//', filecheck_run_list, func_dict, mangled,
-                                   False, args.function_signature, global_vars_seen_dict)
+                                   False, args.function_signature, global_vars_seen_dict,
+                                   is_filtered=builder.is_filtered())
               if line.rstrip('\n') == '//':
                 include_line = False
 

@@ -103,6 +103,7 @@ public:
   void VisitTemplateTemplateParmDecl(const TemplateTemplateParmDecl *D);
   void VisitUnresolvedUsingValueDecl(const UnresolvedUsingValueDecl *D);
   void VisitUnresolvedUsingTypenameDecl(const UnresolvedUsingTypenameDecl *D);
+  void VisitConceptDecl(const ConceptDecl *D);
 
   void VisitLinkageSpecDecl(const LinkageSpecDecl *D) {
     IgnoreResults = true; // No USRs for linkage specs themselves.
@@ -178,10 +179,11 @@ public:
 //===----------------------------------------------------------------------===//
 
 bool USRGenerator::EmitDeclName(const NamedDecl *D) {
-  const unsigned startSize = Buf.size();
-  D->printName(Out);
-  const unsigned endSize = Buf.size();
-  return startSize == endSize;
+  DeclarationName N = D->getDeclName();
+  if (N.isEmpty())
+    return true;
+  Out << N;
+  return false;
 }
 
 bool USRGenerator::ShouldGenerateLocation(const NamedDecl *D) {
@@ -257,7 +259,7 @@ void USRGenerator::VisitFunctionDecl(const FunctionDecl *D) {
   }
 
   // Mangle in type information for the arguments.
-  for (auto PD : D->parameters()) {
+  for (auto *PD : D->parameters()) {
     Out << '#';
     VisitType(PD->getType());
   }
@@ -549,21 +551,21 @@ void USRGenerator::VisitTagDecl(const TagDecl *D) {
     if (const TypedefNameDecl *TD = D->getTypedefNameForAnonDecl()) {
       Buf[off] = 'A';
       Out << '@' << *TD;
-    }
-  else {
-    if (D->isEmbeddedInDeclarator() && !D->isFreeStanding()) {
-      printLoc(Out, D->getLocation(), Context->getSourceManager(), true);
     } else {
-      Buf[off] = 'a';
-      if (auto *ED = dyn_cast<EnumDecl>(D)) {
-        // Distinguish USRs of anonymous enums by using their first enumerator.
-        auto enum_range = ED->enumerators();
-        if (enum_range.begin() != enum_range.end()) {
-          Out << '@' << **enum_range.begin();
+      if (D->isEmbeddedInDeclarator() && !D->isFreeStanding()) {
+        printLoc(Out, D->getLocation(), Context->getSourceManager(), true);
+      } else {
+        Buf[off] = 'a';
+        if (auto *ED = dyn_cast<EnumDecl>(D)) {
+          // Distinguish USRs of anonymous enums by using their first
+          // enumerator.
+          auto enum_range = ED->enumerators();
+          if (enum_range.begin() != enum_range.end()) {
+            Out << '@' << **enum_range.begin();
+          }
         }
       }
     }
-  }
   }
 
   // For a class template specialization, mangle the template arguments.
@@ -859,9 +861,9 @@ void USRGenerator::VisitType(QualType T) {
                                     = T->getAs<TemplateSpecializationType>()) {
       Out << '>';
       VisitTemplateName(Spec->getTemplateName());
-      Out << Spec->getNumArgs();
-      for (unsigned I = 0, N = Spec->getNumArgs(); I != N; ++I)
-        VisitTemplateArgument(Spec->getArg(I));
+      Out << Spec->template_arguments().size();
+      for (const auto &Arg : Spec->template_arguments())
+        VisitTemplateArgument(Arg);
       return;
     }
     if (const DependentNameType *DNT = T->getAs<DependentNameType>()) {
@@ -967,7 +969,7 @@ void USRGenerator::VisitTemplateArgument(const TemplateArgument &Arg) {
 
   case TemplateArgument::TemplateExpansion:
     Out << 'P'; // pack expansion of...
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case TemplateArgument::Template:
     VisitTemplateName(Arg.getAsTemplateOrTemplatePattern());
     break;
@@ -1012,7 +1014,13 @@ void USRGenerator::VisitUnresolvedUsingTypenameDecl(const UnresolvedUsingTypenam
   Out << D->getName(); // Simple name.
 }
 
-
+void USRGenerator::VisitConceptDecl(const ConceptDecl *D) {
+  if (ShouldGenerateLocation(D) && GenLoc(D, /*IncludeOffset=*/isLocal(D)))
+    return;
+  VisitDeclContext(D->getDeclContext());
+  Out << "@CT@";
+  EmitDeclName(D);
+}
 
 //===----------------------------------------------------------------------===//
 // USR generation functions.

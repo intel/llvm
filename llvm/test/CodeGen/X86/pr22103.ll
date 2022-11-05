@@ -1,4 +1,4 @@
-; RUN: llc < %s | FileCheck %s
+; RUN: llc -opaque-pointers < %s | FileCheck %s
 ; Don't try to emit a direct call through a TLS global.
 ; This fixes PR22103
 
@@ -14,6 +14,6 @@ define void @_Z1fv() {
 ; CHECK-NEXT: addq    a@GOTTPOFF(%rip), [[RAX]]
 ; CHECK-NEXT: callq *[[RAX]]
 entry:
-  call void bitcast (i64* @a to void ()*)()
+  call void @a()
   ret void
 }

@@ -6,6 +6,44 @@
 #
 #===------------------------------------------------------------------------===#
 
+if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+  cmake_minimum_required(VERSION 3.13.4)
+
+  project(FlangRuntime C CXX)
+
+  set(CMAKE_CXX_STANDARD 17)
+  set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
+  set(CMAKE_CXX_EXTENSIONS OFF)
+
+  set(FLANG_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/..")
+
+  set(LLVM_COMMON_CMAKE_UTILS "${FLANG_SOURCE_DIR}/../cmake")
+  set(LLVM_CMAKE_UTILS "${FLANG_SOURCE_DIR}/../llvm/cmake")
+
+  # Add path for custom modules
+  list(INSERT CMAKE_MODULE_PATH 0
+    "${FLANG_SOURCE_DIR}/cmake"
+    "${FLANG_SOURCE_DIR}/cmake/modules"
+    "${LLVM_COMMON_CMAKE_UTILS}"
+    "${LLVM_COMMON_CMAKE_UTILS}/Modules"
+    "${LLVM_CMAKE_UTILS}"
+    "${LLVM_CMAKE_UTILS}/modules"
+    )
+
+  include(AddLLVM)
+  include(AddFlang)
+
+  include(TestBigEndian)
+  test_big_endian(IS_BIGENDIAN)
+  if (IS_BIGENDIAN)
+    add_compile_definitions(FLANG_BIG_ENDIAN=1)
+  else ()
+    add_compile_definitions(FLANG_LITTLE_ENDIAN=1)
+  endif ()
+  include_directories(BEFORE
+    ${FLANG_SOURCE_DIR}/include)
+endif()
+
 include(CheckCXXSymbolExists)
 include(CheckCXXSourceCompiles)
 check_cxx_symbol_exists(strerror string.h HAVE_STRERROR)
@@ -30,12 +68,15 @@ configure_file(config.h.cmake config.h)
 # with different names
 include_directories(AFTER ${CMAKE_CURRENT_BINARY_DIR})
 
+add_subdirectory(FortranMain)
+
 add_flang_library(FortranRuntime
   ISO_Fortran_binding.cpp
   allocatable.cpp
   assign.cpp
   buffer.cpp
   command.cpp
+  complex-powi.cpp
   complex-reduction.c
   copy.cpp
   character.cpp
@@ -48,10 +89,12 @@ add_flang_library(FortranRuntime
   edit-input.cpp
   edit-output.cpp
   environment.cpp
+  extensions.cpp
   extrema.cpp
   file.cpp
   findloc.cpp
   format.cpp
+  inquiry.cpp
   internal-unit.cpp
   iostat.cpp
   io-api.cpp
@@ -63,6 +106,7 @@ add_flang_library(FortranRuntime
   misc-intrinsic.cpp
   namelist.cpp
   numeric.cpp
+  ragged.cpp
   random.cpp
   reduction.cpp
   pointer.cpp
@@ -70,6 +114,7 @@ add_flang_library(FortranRuntime
   stat.cpp
   stop.cpp
   sum.cpp
+  support.cpp
   terminator.cpp
   time-intrinsic.cpp
   tools.cpp
@@ -78,7 +123,10 @@ add_flang_library(FortranRuntime
   type-info.cpp
   unit.cpp
   unit-map.cpp
+  utf.cpp
 
   LINK_LIBS
   FortranDecimal
+
+  INSTALL_WITH_TOOLCHAIN
 )

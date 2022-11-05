@@ -23,10 +23,8 @@
 
 namespace llvm {
 
-template <typename T> struct DenseMapInfo;
-
 class FoldingSetNodeID;
-template <typename T> struct FoldingSetTrait;
+template <typename T, typename Enable> struct FoldingSetTrait;
 
 } // namespace llvm
 
@@ -89,7 +87,7 @@ class SourceLocation {
   friend class ASTReader;
   friend class ASTWriter;
   friend class SourceManager;
-  friend struct llvm::FoldingSetTrait<SourceLocation>;
+  friend struct llvm::FoldingSetTrait<SourceLocation, void>;
 
 public:
   using UIntTy = uint32_t;
@@ -467,7 +465,7 @@ namespace llvm {
   /// Define DenseMapInfo so that FileID's can be used as keys in DenseMap and
   /// DenseSets.
   template <>
-  struct DenseMapInfo<clang::FileID> {
+  struct DenseMapInfo<clang::FileID, void> {
     static clang::FileID getEmptyKey() {
       return {};
     }
@@ -488,7 +486,7 @@ namespace llvm {
   /// Define DenseMapInfo so that SourceLocation's can be used as keys in
   /// DenseMap and DenseSet. This trait class is eqivalent to
   /// DenseMapInfo<unsigned> which uses SourceLocation::ID is used as a key.
-  template <> struct DenseMapInfo<clang::SourceLocation> {
+  template <> struct DenseMapInfo<clang::SourceLocation, void> {
     static clang::SourceLocation getEmptyKey() {
       constexpr clang::SourceLocation::UIntTy Zero = 0;
       return clang::SourceLocation::getFromRawEncoding(~Zero);
@@ -509,7 +507,7 @@ namespace llvm {
   };
 
   // Allow calling FoldingSetNodeID::Add with SourceLocation object as parameter
-  template <> struct FoldingSetTrait<clang::SourceLocation> {
+  template <> struct FoldingSetTrait<clang::SourceLocation, void> {
     static void Profile(const clang::SourceLocation &X, FoldingSetNodeID &ID);
   };
 

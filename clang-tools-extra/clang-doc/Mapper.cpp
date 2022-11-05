@@ -14,8 +14,6 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Error.h"
 
-using clang::comments::FullComment;
-
 namespace clang {
 namespace doc {
 
@@ -68,8 +66,16 @@ bool MapASTVisitor::VisitCXXMethodDecl(const CXXMethodDecl *D) {
 
 bool MapASTVisitor::VisitFunctionDecl(const FunctionDecl *D) {
   // Don't visit CXXMethodDecls twice
-  if (dyn_cast<CXXMethodDecl>(D))
+  if (isa<CXXMethodDecl>(D))
     return true;
+  return mapDecl(D);
+}
+
+bool MapASTVisitor::VisitTypedefDecl(const TypedefDecl *D) {
+  return mapDecl(D);
+}
+
+bool MapASTVisitor::VisitTypeAliasDecl(const TypeAliasDecl *D) {
   return mapDecl(D);
 }
 

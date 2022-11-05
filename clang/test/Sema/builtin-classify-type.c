@@ -14,21 +14,38 @@ enum gcc_type_class {
   lang_type_class
 };
 
-void foo() {
+void foo(void) {
   int i;
   char c;
   enum { red, green, blue } enum_obj;
   int *p;
   double d;
   _Complex double cc;
-  extern void f();
+  extern void f(void);
   struct { int a; float b; } s_obj;
   union { int a; float b; } u_obj;
   int arr[10];
-  int (^block)();
+  int (^block)(void);
   __attribute__((vector_size(16))) int vec;
   typedef __attribute__((ext_vector_type(4))) int evec_t;
   evec_t evec;
+  typedef _BitInt(8) int8_t3 __attribute__((ext_vector_type(3)));
+  int8_t3 t3;
+  typedef _BitInt(16) int16_t3 __attribute__((ext_vector_type(4)));
+  int16_t3 t4;
+  typedef _BitInt(32) int32_t3 __attribute__((ext_vector_type(5)));
+  int32_t3 t5;
+  typedef _BitInt(64) int64_t3 __attribute__((ext_vector_type(6)));
+  int64_t3 t6;
+  typedef _BitInt(8) vint8_t3 __attribute__((vector_size(3)));
+  vint8_t3 vt3;
+  typedef _BitInt(16) vint16_t3 __attribute__((vector_size(4)));
+  vint16_t3 vt4;
+  typedef _BitInt(32) vint32_t3 __attribute__((vector_size(8)));
+  vint32_t3 vt5;
+  typedef _BitInt(64) vint64_t3 __attribute__((vector_size(16)));
+  vint64_t3 vt6;
+
   _Atomic int atomic_i;
   _Atomic double atomic_d;
   _Complex int complex_i;
@@ -55,5 +72,5 @@ void foo() {
   int a19[__builtin_classify_type(complex_d) == complex_type_class ? 1 : -1];
 }
 
-extern int (^p)();
+extern int (^p)(void);
 int n = __builtin_classify_type(p);

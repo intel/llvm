@@ -12,11 +12,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "asan_poisoning.h"
+
 #include "asan_report.h"
 #include "asan_stack.h"
 #include "sanitizer_common/sanitizer_atomic.h"
-#include "sanitizer_common/sanitizer_libc.h"
 #include "sanitizer_common/sanitizer_flags.h"
+#include "sanitizer_common/sanitizer_interface_internal.h"
+#include "sanitizer_common/sanitizer_libc.h"
 
 namespace __asan {
 
@@ -35,7 +37,7 @@ void PoisonShadow(uptr addr, uptr size, u8 value) {
   CHECK(AddrIsAlignedByGranularity(addr));
   CHECK(AddrIsInMem(addr));
   CHECK(AddrIsAlignedByGranularity(addr + size));
-  CHECK(AddrIsInMem(addr + size - SHADOW_GRANULARITY));
+  CHECK(AddrIsInMem(addr + size - ASAN_SHADOW_GRANULARITY));
   CHECK(REAL(memset));
   FastPoisonShadow(addr, size, value);
 }
@@ -52,12 +54,12 @@ void PoisonShadowPartialRightRedzone(uptr addr,
 
 struct ShadowSegmentEndpoint {
   u8 *chunk;
-  s8 offset;  // in [0, SHADOW_GRANULARITY)
+  s8 offset;  // in [0, ASAN_SHADOW_GRANULARITY)
   s8 value;  // = *chunk;
 
   explicit ShadowSegmentEndpoint(uptr address) {
     chunk = (u8*)MemToShadow(address);
-    offset = address & (SHADOW_GRANULARITY - 1);
+    offset = address & (ASAN_SHADOW_GRANULARITY - 1);
     value = *chunk;
   }
 };
@@ -66,20 +68,20 @@ void AsanPoisonOrUnpoisonIntraObjectRedzone(uptr ptr, uptr size, bool poison) {
   uptr end = ptr + size;
   if (Verbosity()) {
     Printf("__asan_%spoison_intra_object_redzone [%p,%p) %zd\n",
-           poison ? "" : "un", ptr, end, size);
+           poison ? "" : "un", (void *)ptr, (void *)end, size);
     if (Verbosity() >= 2)
       PRINT_CURRENT_STACK();
   }
   CHECK(size);
   CHECK_LE(size, 4096);
-  CHECK(IsAligned(end, SHADOW_GRANULARITY));
-  if (!IsAligned(ptr, SHADOW_GRANULARITY)) {
+  CHECK(IsAligned(end, ASAN_SHADOW_GRANULARITY));
+  if (!IsAligned(ptr, ASAN_SHADOW_GRANULARITY)) {
     *(u8 *)MemToShadow(ptr) =
-        poison ? static_cast<u8>(ptr % SHADOW_GRANULARITY) : 0;
-    ptr |= SHADOW_GRANULARITY - 1;
+        poison ? static_cast<u8>(ptr % ASAN_SHADOW_GRANULARITY) : 0;
+    ptr |= ASAN_SHADOW_GRANULARITY - 1;
     ptr++;
   }
-  for (; ptr < end; ptr += SHADOW_GRANULARITY)
+  for (; ptr < end; ptr += ASAN_SHADOW_GRANULARITY)
     *(u8*)MemToShadow(ptr) = poison ? kAsanIntraObjectRedzone : 0;
 }
 
@@ -181,12 +183,12 @@ uptr __asan_region_is_poisoned(uptr beg, uptr size) {
   if (!AddrIsInMem(end))
     return end;
   CHECK_LT(beg, end);
-  uptr aligned_b = RoundUpTo(beg, SHADOW_GRANULARITY);
-  uptr aligned_e = RoundDownTo(end, SHADOW_GRANULARITY);
+  uptr aligned_b = RoundUpTo(beg, ASAN_SHADOW_GRANULARITY);
+  uptr aligned_e = RoundDownTo(end, ASAN_SHADOW_GRANULARITY);
   uptr shadow_beg = MemToShadow(aligned_b);
   uptr shadow_end = MemToShadow(aligned_e);
   // First check the first and the last application bytes,
-  // then check the SHADOW_GRANULARITY-aligned region by calling
+  // then check the ASAN_SHADOW_GRANULARITY-aligned region by calling
   // mem_is_zero on the corresponding shadow.
   if (!__asan::AddressIsPoisoned(beg) && !__asan::AddressIsPoisoned(end - 1) &&
       (shadow_end <= shadow_beg ||
@@ -285,7 +287,7 @@ uptr __asan_load_cxx_array_cookie(uptr *p) {
 // assumes that left border of region to be poisoned is properly aligned.
 static void PoisonAlignedStackMemory(uptr addr, uptr size, bool do_poison) {
   if (size == 0) return;
-  uptr aligned_size = size & ~(SHADOW_GRANULARITY - 1);
+  uptr aligned_size = size & ~(ASAN_SHADOW_GRANULARITY - 1);
   PoisonShadow(addr, aligned_size,
                do_poison ? kAsanStackUseAfterScopeMagic : 0);
   if (size == aligned_size)
@@ -308,6 +310,34 @@ static void PoisonAlignedStackMemory(uptr addr, uptr size, bool do_poison) {
 
 void __asan_set_shadow_00(uptr addr, uptr size) {
   REAL(memset)((void *)addr, 0, size);
+}
+
+void __asan_set_shadow_01(uptr addr, uptr size) {
+  REAL(memset)((void *)addr, 0x01, size);
+}
+
+void __asan_set_shadow_02(uptr addr, uptr size) {
+  REAL(memset)((void *)addr, 0x02, size);
+}
+
+void __asan_set_shadow_03(uptr addr, uptr size) {
+  REAL(memset)((void *)addr, 0x03, size);
+}
+
+void __asan_set_shadow_04(uptr addr, uptr size) {
+  REAL(memset)((void *)addr, 0x04, size);
+}
+
+void __asan_set_shadow_05(uptr addr, uptr size) {
+  REAL(memset)((void *)addr, 0x05, size);
+}
+
+void __asan_set_shadow_06(uptr addr, uptr size) {
+  REAL(memset)((void *)addr, 0x06, size);
+}
+
+void __asan_set_shadow_07(uptr addr, uptr size) {
+  REAL(memset)((void *)addr, 0x07, size);
 }
 
 void __asan_set_shadow_f1(uptr addr, uptr size) {
@@ -351,15 +381,64 @@ void __sanitizer_annotate_contiguous_container(const void *beg_p,
   uptr end = reinterpret_cast<uptr>(end_p);
   uptr old_mid = reinterpret_cast<uptr>(old_mid_p);
   uptr new_mid = reinterpret_cast<uptr>(new_mid_p);
-  uptr granularity = SHADOW_GRANULARITY;
-  if (!(beg <= old_mid && beg <= new_mid && old_mid <= end && new_mid <= end &&
-        IsAligned(beg, granularity))) {
+  uptr granularity = ASAN_SHADOW_GRANULARITY;
+  if (!(beg <= old_mid && beg <= new_mid && old_mid <= end && new_mid <= end)) {
     GET_STACK_TRACE_FATAL_HERE;
     ReportBadParamsToAnnotateContiguousContainer(beg, end, old_mid, new_mid,
                                                  &stack);
   }
   CHECK_LE(end - beg,
            FIRST_32_SECOND_64(1UL << 30, 1ULL << 40)); // Sanity check.
+
+  if (old_mid == new_mid)
+    return;  // Nothing to do here.
+
+  // Handle misaligned end and cut it off.
+  if (UNLIKELY(!AddrIsAlignedByGranularity(end))) {
+    uptr end_down = RoundDownTo(end, granularity);
+    // Either new or old mid must be in the granule to affect it.
+    if (new_mid > end_down) {
+      if (AddressIsPoisoned(end)) {
+        *(u8 *)MemToShadow(end_down) = static_cast<u8>(new_mid - end_down);
+      } else {
+        // Something after the container - don't touch.
+      }
+    } else if (old_mid > end_down) {
+      if (AddressIsPoisoned(end)) {
+        *(u8 *)MemToShadow(end_down) = kAsanContiguousContainerOOBMagic;
+      } else {
+        // Something after the container - don't touch.
+      }
+    }
+
+    if (beg >= end_down)
+      return;  // Same granule.
+
+    old_mid = Min(end_down, old_mid);
+    new_mid = Min(end_down, new_mid);
+  }
+
+  // Handle misaligned begin and cut it off.
+  if (UNLIKELY(!AddrIsAlignedByGranularity(beg))) {
+    uptr beg_up = RoundUpTo(beg, granularity);
+    uptr beg_down = RoundDownTo(beg, granularity);
+    // As soon as we add first byte into container we will not be able to
+    // determine the state of the byte before the container. So we assume it's
+    // always unpoison.
+
+    // Either new or old mid must be in the granule to affect it.
+    if (new_mid < beg_up) {
+      *(u8 *)MemToShadow(beg_down) = static_cast<u8>(new_mid - beg_down);
+    } else if (old_mid < beg_up) {
+      *(u8 *)MemToShadow(beg_down) = 0;
+    }
+
+    old_mid = Max(beg_up, old_mid);
+    new_mid = Max(beg_up, new_mid);
+  }
+
+  if (old_mid == new_mid)
+    return;
 
   uptr a = RoundDownTo(Min(old_mid, new_mid), granularity);
   uptr c = RoundUpTo(Max(old_mid, new_mid), granularity);
@@ -395,8 +474,13 @@ const void *__sanitizer_contiguous_container_find_bad_address(
     const void *beg_p, const void *mid_p, const void *end_p) {
   if (!flags()->detect_container_overflow)
     return nullptr;
+  uptr granularity = ASAN_SHADOW_GRANULARITY;
   uptr beg = reinterpret_cast<uptr>(beg_p);
   uptr end = reinterpret_cast<uptr>(end_p);
+  uptr annotations_end =
+      (!AddrIsAlignedByGranularity(end) && !AddressIsPoisoned(end))
+          ? RoundDownTo(end, granularity)
+          : end;
   uptr mid = reinterpret_cast<uptr>(mid_p);
   CHECK_LE(beg, mid);
   CHECK_LE(mid, end);
@@ -406,9 +490,9 @@ const void *__sanitizer_contiguous_container_find_bad_address(
   uptr r1_beg = beg;
   uptr r1_end = Min(beg + kMaxRangeToCheck, mid);
   uptr r2_beg = Max(beg, mid - kMaxRangeToCheck);
-  uptr r2_end = Min(end, mid + kMaxRangeToCheck);
-  uptr r3_beg = Max(end - kMaxRangeToCheck, mid);
-  uptr r3_end = end;
+  uptr r2_end = Min(annotations_end, mid + kMaxRangeToCheck);
+  uptr r3_beg = Max(annotations_end - kMaxRangeToCheck, mid);
+  uptr r3_end = annotations_end;
   for (uptr i = r1_beg; i < r1_end; i++)
     if (AddressIsPoisoned(i))
       return reinterpret_cast<const void *>(i);

@@ -81,13 +81,23 @@ static StringInitFailureKind IsStringInit(Expr *Init, const ArrayType *AT,
   const QualType ElemTy =
       Context.getCanonicalType(AT->getElementType()).getUnqualifiedType();
 
+  auto IsCharOrUnsignedChar = [](const QualType &T) {
+    const BuiltinType *BT = dyn_cast<BuiltinType>(T.getTypePtr());
+    return BT && BT->isCharType() && BT->getKind() != BuiltinType::SChar;
+  };
+
   switch (SL->getKind()) {
   case StringLiteral::UTF8:
     // char8_t array can be initialized with a UTF-8 string.
-    if (ElemTy->isChar8Type())
+    // - C++20 [dcl.init.string] (DR)
+    //   Additionally, an array of char or unsigned char may be initialized
+    //   by a UTF-8 string literal.
+    if (ElemTy->isChar8Type() ||
+        (Context.getLangOpts().Char8 &&
+         IsCharOrUnsignedChar(ElemTy.getCanonicalType())))
       return SIF_None;
-    LLVM_FALLTHROUGH;
-  case StringLiteral::Ascii:
+    [[fallthrough]];
+  case StringLiteral::Ordinary:
     // char array can be initialized with a narrow string.
     // Only allow char x[] = "foo";  not char x[] = L"foo";
     if (ElemTy->isCharType())
@@ -695,10 +705,10 @@ void InitListChecker::FillInEmptyInitForField(unsigned Init, FieldDecl *Field,
         //   member of reference type uninitialized, the program is
         //   ill-formed.
         SemaRef.Diag(Loc, diag::err_init_reference_member_uninitialized)
-          << Field->getType()
-          << ILE->getSyntacticForm()->getSourceRange();
-        SemaRef.Diag(Field->getLocation(),
-                     diag::note_uninit_reference_member);
+            << Field->getType()
+            << (ILE->isSyntacticForm() ? ILE : ILE->getSyntacticForm())
+                   ->getSourceRange();
+        SemaRef.Diag(Field->getLocation(), diag::note_uninit_reference_member);
       }
       hadError = true;
       return;
@@ -1696,7 +1706,7 @@ void InitListChecker::CheckVectorType(const InitializedEntity &Entity,
     return;
   }
 
-  if (!SemaRef.getLangOpts().OpenCL) {
+  if (!SemaRef.getLangOpts().OpenCL && !SemaRef.getLangOpts().HLSL ) {
     // If the initializing element is a vector, try to copy-initialize
     // instead of breaking it apart (which is doomed to failure anyway).
     Expr *Init = IList->getInit(Index);
@@ -1790,7 +1800,7 @@ void InitListChecker::CheckVectorType(const InitializedEntity &Entity,
   InitializedEntity ElementEntity =
     InitializedEntity::InitializeElement(SemaRef.Context, 0, Entity);
 
-  // OpenCL initializers allows vectors to be constructed from vectors.
+  // OpenCL and HLSL initializers allow vectors to be constructed from vectors.
   for (unsigned i = 0; i < maxElements; ++i) {
     // Don't attempt to go past the end of the init list
     if (Index >= IList->getNumInits())
@@ -1819,7 +1829,7 @@ void InitListChecker::CheckVectorType(const InitializedEntity &Entity,
     }
   }
 
-  // OpenCL requires all elements to be initialized.
+  // OpenCL and HLSL require all elements to be initialized.
   if (numEltsInit != maxElements) {
     if (!VerifyOnly)
       SemaRef.Diag(IList->getBeginLoc(),
@@ -2004,10 +2014,6 @@ bool InitListChecker::CheckFlexibleArrayInit(const InitializedEntity &Entity,
       cast<InitListExpr>(InitExpr)->getNumInits() == 0) {
     // Empty flexible array init always allowed as an extension
     FlexArrayDiag = diag::ext_flexible_array_init;
-  } else if (SemaRef.getLangOpts().CPlusPlus) {
-    // Disallow flexible array init in C++; it is not required for gcc
-    // compatibility, and it needs work to IRGen correctly in general.
-    FlexArrayDiag = diag::err_flexible_array_init;
   } else if (!TopLevelObject) {
     // Disallow flexible array init on non-top-level object
     FlexArrayDiag = diag::err_flexible_array_init;
@@ -2127,6 +2133,9 @@ void InitListChecker::CheckStructUnionTypes(
   // worthwhile to skip over the rest of the initializer, though.
   RecordDecl *RD = DeclType->castAs<RecordType>()->getDecl();
   RecordDecl::field_iterator FieldEnd = RD->field_end();
+  size_t NumRecordDecls = llvm::count_if(RD->decls(), [&](const Decl *D) {
+    return isa<FieldDecl>(D) || isa<RecordDecl>(D);
+  });
   bool CheckForMissingFields =
     !IList->isIdiomaticZeroInitializer(SemaRef.getLangOpts());
   bool HasDesignatedInit = false;
@@ -2169,6 +2178,35 @@ void InitListChecker::CheckStructUnionTypes(
       // This matches gcc behaviour.
       CheckForMissingFields = false;
       continue;
+    }
+
+    // Check if this is an initializer of forms:
+    //
+    //   struct foo f = {};
+    //   struct foo g = {0};
+    //
+    // These are okay for randomized structures. [C99 6.7.8p19]
+    //
+    // Also, if there is only one element in the structure, we allow something
+    // like this, because it's really not randomized in the tranditional sense.
+    //
+    //   struct foo h = {bar};
+    auto IsZeroInitializer = [&](const Expr *I) {
+      if (IList->getNumInits() == 1) {
+        if (NumRecordDecls == 1)
+          return true;
+        if (const auto *IL = dyn_cast<IntegerLiteral>(I))
+          return IL->getValue().isZero();
+      }
+      return false;
+    };
+
+    // Don't allow non-designated initializers on randomized structures.
+    if (RD->isRandomized() && !IsZeroInitializer(Init)) {
+      if (!VerifyOnly)
+        SemaRef.Diag(InitLoc, diag::err_non_designated_init_used);
+      hadError = true;
+      break;
     }
 
     if (Field == FieldEnd) {
@@ -2906,7 +2944,7 @@ InitListChecker::CheckDesignatedInitializer(const InitializedEntity &Entity,
 
     // Compute the type of the integer literals.
     QualType PromotedCharTy = CharTy;
-    if (CharTy->isPromotableIntegerType())
+    if (Context.isPromotableIntegerType(CharTy))
       PromotedCharTy = Context.getPromotedIntegerType(CharTy);
     unsigned PromotedCharTyWidth = Context.getTypeSize(PromotedCharTy);
 
@@ -3441,7 +3479,7 @@ unsigned InitializedEntity::dumpImpl(raw_ostream &OS) const {
     D->printQualifiedName(OS);
   }
 
-  OS << " '" << getType().getAsString() << "'\n";
+  OS << " '" << getType() << "'\n";
 
   return Depth + 1;
 }
@@ -3501,10 +3539,10 @@ void InitializationSequence::Step::Destroy() {
 
 bool InitializationSequence::isDirectReferenceBinding() const {
   // There can be some lvalue adjustments after the SK_BindReference step.
-  for (auto I = Steps.rbegin(); I != Steps.rend(); ++I) {
-    if (I->Kind == SK_BindReference)
+  for (const Step &S : llvm::reverse(Steps)) {
+    if (S.Kind == SK_BindReference)
       return true;
-    if (I->Kind == SK_BindReferenceToTemporary)
+    if (S.Kind == SK_BindReferenceToTemporary)
       return false;
   }
   return false;
@@ -4475,13 +4513,13 @@ static void TryListInitialization(Sema &S,
         Kind.getKind() == InitializationKind::IK_DirectList &&
         ET && ET->getDecl()->isFixed() &&
         !S.Context.hasSameUnqualifiedType(E->getType(), DestType) &&
-        (E->getType()->isIntegralOrEnumerationType() ||
+        (E->getType()->isIntegralOrUnscopedEnumerationType() ||
          E->getType()->isFloatingType())) {
       // There are two ways that T(v) can work when T is an enumeration type.
       // If there is either an implicit conversion sequence from v to T or
       // a conversion function that can convert from v to T, then we use that.
-      // Otherwise, if v is of integral, enumeration, or floating-point type,
-      // it is converted to the enumeration type via its underlying type.
+      // Otherwise, if v is of integral, unscoped enumeration, or floating-point
+      // type, it is converted to the enumeration type via its underlying type.
       // There is no overlap possible between these two cases (except when the
       // source value is already of the destination type), and the first
       // case is handled by the general case for single-element lists below.
@@ -5942,6 +5980,37 @@ void InitializationSequence::InitializeFrom(Sema &S,
 
   assert(Args.size() >= 1 && "Zero-argument case handled above");
 
+  // For HLSL ext vector types we allow list initialization behavior for C++
+  // constructor syntax. This is accomplished by converting initialization
+  // arguments an InitListExpr late.
+  if (S.getLangOpts().HLSL && DestType->isExtVectorType() &&
+      (SourceType.isNull() ||
+       !Context.hasSameUnqualifiedType(SourceType, DestType))) {
+
+    llvm::SmallVector<Expr *> InitArgs;
+    for (auto *Arg : Args) {
+      if (Arg->getType()->isExtVectorType()) {
+        const auto *VTy = Arg->getType()->castAs<ExtVectorType>();
+        unsigned Elm = VTy->getNumElements();
+        for (unsigned Idx = 0; Idx < Elm; ++Idx) {
+          InitArgs.emplace_back(new (Context) ArraySubscriptExpr(
+              Arg,
+              IntegerLiteral::Create(
+                  Context, llvm::APInt(Context.getIntWidth(Context.IntTy), Idx),
+                  Context.IntTy, SourceLocation()),
+              VTy->getElementType(), Arg->getValueKind(), Arg->getObjectKind(),
+              SourceLocation()));
+        }
+      } else
+        InitArgs.emplace_back(Arg);
+    }
+    InitListExpr *ILE = new (Context) InitListExpr(
+        S.getASTContext(), SourceLocation(), InitArgs, SourceLocation());
+    Args[0] = ILE;
+    AddListInitializationStep(DestType);
+    return;
+  }
+
   // The remaining cases all need a source type.
   if (Args.size() > 1) {
     SetFailed(FK_TooManyInitsForScalar);
@@ -6933,10 +7002,10 @@ static void handleGslAnnotatedTypes(IndirectLocalPath &Path, Expr *Call,
       return;
     // Once we initialized a value with a reference, it can no longer dangle.
     if (!Value) {
-      for (auto It = Path.rbegin(), End = Path.rend(); It != End; ++It) {
-        if (It->Kind == IndirectLocalPathEntry::GslReferenceInit)
+      for (const IndirectLocalPathEntry &PE : llvm::reverse(Path)) {
+        if (PE.Kind == IndirectLocalPathEntry::GslReferenceInit)
           continue;
-        if (It->Kind == IndirectLocalPathEntry::GslPointerInit)
+        if (PE.Kind == IndirectLocalPathEntry::GslPointerInit)
           return;
         break;
       }
@@ -7514,7 +7583,7 @@ static SourceRange nextPathEntryRange(const IndirectLocalPath &Path, unsigned I,
     case IndirectLocalPathEntry::VarInit:
       if (cast<VarDecl>(Path[I].D)->isImplicit())
         return SourceRange();
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case IndirectLocalPathEntry::DefaultInit:
       return Path[I].E->getSourceRange();
 
@@ -7788,7 +7857,7 @@ void Sema::checkInitializerLifetime(const InitializedEntity &Entity,
           break;
         // FIXME: We can't easily tell apart an init-capture from a nested
         // capture of an init-capture.
-        const VarDecl *VD = Elem.Capture->getCapturedVar();
+        const ValueDecl *VD = Elem.Capture->getCapturedVar();
         Diag(Elem.Capture->getLocation(), diag::note_lambda_capture_initializer)
             << VD << VD->isInitCapture() << Elem.Capture->isExplicit()
             << (Elem.Capture->getCaptureKind() == LCK_ByRef) << VD
@@ -7995,19 +8064,29 @@ ExprResult InitializationSequence::Perform(Sema &S,
     return ExprError();
   }
   if (!ZeroInitializationFixit.empty()) {
-    unsigned DiagID = diag::err_default_init_const;
-    if (Decl *D = Entity.getDecl())
-      if (S.getLangOpts().MSVCCompat && D->hasAttr<SelectAnyAttr>())
-        DiagID = diag::ext_default_init_const;
+    const Decl *D = Entity.getDecl();
+    const auto *VD = dyn_cast_or_null<VarDecl>(D);
+    QualType DestType = Entity.getType();
 
     // The initialization would have succeeded with this fixit. Since the fixit
     // is on the error, we need to build a valid AST in this case, so this isn't
     // handled in the Failed() branch above.
-    QualType DestType = Entity.getType();
-    S.Diag(Kind.getLocation(), DiagID)
-        << DestType << (bool)DestType->getAs<RecordType>()
-        << FixItHint::CreateInsertion(ZeroInitializationFixitLoc,
-                                      ZeroInitializationFixit);
+    if (!DestType->isRecordType() && VD && VD->isConstexpr()) {
+      // Use a more useful diagnostic for constexpr variables.
+      S.Diag(Kind.getLocation(), diag::err_constexpr_var_requires_const_init)
+          << VD
+          << FixItHint::CreateInsertion(ZeroInitializationFixitLoc,
+                                        ZeroInitializationFixit);
+    } else {
+      unsigned DiagID = diag::err_default_init_const;
+      if (S.getLangOpts().MSVCCompat && D && D->hasAttr<SelectAnyAttr>())
+        DiagID = diag::ext_default_init_const;
+
+      S.Diag(Kind.getLocation(), DiagID)
+          << DestType << (bool)DestType->getAs<RecordType>()
+          << FixItHint::CreateInsertion(ZeroInitializationFixitLoc,
+                                        ZeroInitializationFixit);
+    }
   }
 
   if (getKind() == DependentSequence) {
@@ -8102,6 +8181,12 @@ ExprResult InitializationSequence::Perform(Sema &S,
   ExprResult CurInit((Expr *)nullptr);
   SmallVector<Expr*, 4> ArrayLoopCommonExprs;
 
+  // HLSL allows vector initialization to function like list initialization, but
+  // use the syntax of a C++-like constructor.
+  bool IsHLSLVectorInit = S.getLangOpts().HLSL && DestType->isExtVectorType() &&
+                          isa<InitListExpr>(Args[0]);
+  (void)IsHLSLVectorInit;
+
   // For initialization steps that start with a single initializer,
   // grab the only argument out the Args and place it into the "current"
   // initializer.
@@ -8139,7 +8224,7 @@ ExprResult InitializationSequence::Perform(Sema &S,
   case SK_StdInitializerList:
   case SK_OCLSamplerInit:
   case SK_OCLZeroOpaqueType: {
-    assert(Args.size() == 1);
+    assert(Args.size() == 1 || IsHLSLVectorInit);
     CurInit = Args[0];
     if (!CurInit.get()) return ExprError();
     break;
@@ -8190,6 +8275,10 @@ ExprResult InitializationSequence::Perform(Sema &S,
       CurInit = S.FixOverloadedFunctionReference(CurInit,
                                                  Step->Function.FoundDecl,
                                                  Step->Function.Function);
+      // We might get back another placeholder expression if we resolved to a
+      // builtin.
+      if (!CurInit.isInvalid())
+        CurInit = S.CheckPlaceholderExpr(CurInit.get());
       break;
 
     case SK_CastDerivedToBasePRValue:
@@ -8671,7 +8760,7 @@ ExprResult InitializationSequence::Perform(Sema &S,
         << Step->Type << CurInit.get()->getType()
         << CurInit.get()->getSourceRange();
       updateGNUCompoundLiteralRValue(CurInit.get());
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case SK_ArrayInit:
       // If the destination type is an incomplete array type, update the
       // type accordingly.
@@ -9046,9 +9135,8 @@ bool InitializationSequence::Diagnose(Sema &S,
         << FixItHint::CreateInsertion(Args.front()->getBeginLoc(), "u8");
     break;
   case FK_UTF8StringIntoPlainChar:
-    S.Diag(Kind.getLocation(),
-           diag::err_array_init_utf8_string_into_char)
-      << S.getLangOpts().CPlusPlus20;
+    S.Diag(Kind.getLocation(), diag::err_array_init_utf8_string_into_char)
+        << DestType->isSignedIntegerType() << S.getLangOpts().CPlusPlus20;
     break;
   case FK_ArrayTypeMismatch:
   case FK_NonConstantArrayInit:
@@ -9143,7 +9231,7 @@ bool InitializationSequence::Diagnose(Sema &S,
       << Args[0]->getSourceRange();
       break;
     }
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
 
   case FK_NonConstLValueReferenceBindingToUnrelated:
     S.Diag(Kind.getLocation(),
@@ -9406,6 +9494,10 @@ bool InitializationSequence::Diagnose(Sema &S,
         << Entity.getName();
       S.Diag(Entity.getDecl()->getLocation(), diag::note_previous_decl)
         << Entity.getName();
+    } else if (const auto *VD = dyn_cast_if_present<VarDecl>(Entity.getDecl());
+               VD && VD->isConstexpr()) {
+      S.Diag(Kind.getLocation(), diag::err_constexpr_var_requires_const_init)
+          << VD;
     } else {
       S.Diag(Kind.getLocation(), diag::err_default_init_const)
           << DestType << (bool)DestType->getAs<RecordType>();
@@ -9781,7 +9873,7 @@ void InitializationSequence::dump(raw_ostream &OS) const {
       break;
     }
 
-    OS << " [" << S->Type.getAsString() << ']';
+    OS << " [" << S->Type << ']';
   }
 
   OS << '\n';
@@ -9810,6 +9902,7 @@ static void DiagnoseNarrowingInInitList(Sema &S,
     SCS = &ICS.UserDefined.After;
     break;
   case ImplicitConversionSequence::AmbiguousConversion:
+  case ImplicitConversionSequence::StaticObjectArgumentConversion:
   case ImplicitConversionSequence::EllipsisConversion:
   case ImplicitConversionSequence::BadConversion:
     return;
@@ -9983,7 +10076,7 @@ QualType Sema::DeduceTemplateSpecializationFromInitializer(
 
   auto TemplateName = DeducedTST->getTemplateName();
   if (TemplateName.isDependent())
-    return SubstAutoType(TSInfo->getType(), Context.DependentTy);
+    return SubstAutoTypeDependent(TSInfo->getType());
 
   // We can only perform deduction for class templates.
   auto *Template =
@@ -10002,7 +10095,7 @@ QualType Sema::DeduceTemplateSpecializationFromInitializer(
     Diag(TSInfo->getTypeLoc().getBeginLoc(),
          diag::warn_cxx14_compat_class_template_argument_deduction)
         << TSInfo->getTypeLoc().getSourceRange() << 0;
-    return SubstAutoType(TSInfo->getType(), Context.DependentTy);
+    return SubstAutoTypeDependent(TSInfo->getType());
   }
 
   // FIXME: Perform "exact type" matching first, per CWG discussion?

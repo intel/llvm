@@ -11,6 +11,7 @@
 #include "SourceCode.h"
 #include "index/SymbolCollector.h"
 #include "support/Logger.h"
+#include "support/Path.h"
 #include "clang/AST/Decl.h"
 
 namespace clang {
@@ -25,17 +26,13 @@ llvm::Optional<Path> getCorrespondingHeaderOrSource(
   llvm::StringRef PathExt = llvm::sys::path::extension(OriginalFile);
 
   // Lookup in a list of known extensions.
-  auto SourceIter =
-      llvm::find_if(SourceExtensions, [&PathExt](PathRef SourceExt) {
-        return SourceExt.equals_insensitive(PathExt);
-      });
-  bool IsSource = SourceIter != std::end(SourceExtensions);
+  bool IsSource = llvm::any_of(SourceExtensions, [&PathExt](PathRef SourceExt) {
+    return SourceExt.equals_insensitive(PathExt);
+  });
 
-  auto HeaderIter =
-      llvm::find_if(HeaderExtensions, [&PathExt](PathRef HeaderExt) {
-        return HeaderExt.equals_insensitive(PathExt);
-      });
-  bool IsHeader = HeaderIter != std::end(HeaderExtensions);
+  bool IsHeader = llvm::any_of(HeaderExtensions, [&PathExt](PathRef HeaderExt) {
+    return HeaderExt.equals_insensitive(PathExt);
+  });
 
   // We can only switch between the known extensions.
   if (!IsSource && !IsHeader)
@@ -82,7 +79,7 @@ llvm::Optional<Path> getCorrespondingHeaderOrSource(PathRef OriginalFile,
   llvm::StringMap<int> Candidates; // Target path => score.
   auto AwardTarget = [&](const char *TargetURI) {
     if (auto TargetPath = URI::resolve(TargetURI, OriginalFile)) {
-      if (*TargetPath != OriginalFile) // exclude the original file.
+      if (!pathEqual(*TargetPath, OriginalFile)) // exclude the original file.
         ++Candidates[*TargetPath];
     } else {
       elog("Failed to resolve URI {0}: {1}", TargetURI, TargetPath.takeError());

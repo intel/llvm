@@ -31,7 +31,7 @@ class raw_ostream;
 template <typename T> class SmallVectorImpl;
 template <typename T> class ArrayRef;
 template <typename T> class Optional;
-template <typename T> struct DenseMapInfo;
+template <typename T, typename Enable> struct DenseMapInfo;
 
 class APInt;
 
@@ -72,7 +72,7 @@ inline APInt operator-(APInt);
 ///     shifts are defined, but sign extension and ashr is not.  Zero bit values
 ///     compare and hash equal to themselves, and countLeadingZeros returns 0.
 ///
-class LLVM_NODISCARD APInt {
+class [[nodiscard]] APInt {
 public:
   typedef uint64_t WordType;
 
@@ -147,7 +147,7 @@ public:
   APInt(unsigned numBits, StringRef str, uint8_t radix);
 
   /// Default constructor that creates an APInt with a 1-bit zero value.
-  explicit APInt() : BitWidth(1) { U.VAL = 0; }
+  explicit APInt() { U.VAL = 0; }
 
   /// Copy Constructor.
   APInt(const APInt &that) : BitWidth(that.BitWidth) {
@@ -417,7 +417,7 @@ public:
   bool isIntN(unsigned N) const { return getActiveBits() <= N; }
 
   /// Check if this APInt has an N-bits signed integer value.
-  bool isSignedIntN(unsigned N) const { return getMinSignedBits() <= N; }
+  bool isSignedIntN(unsigned N) const { return getSignificantBits() <= N; }
 
   /// Check if this APInt's value is a power of two greater than zero.
   ///
@@ -428,6 +428,17 @@ public:
       return isPowerOf2_64(U.VAL);
     }
     return countPopulationSlowCase() == 1;
+  }
+
+  /// Check if this APInt's negated value is a power of two greater than zero.
+  bool isNegatedPowerOf2() const {
+    assert(BitWidth && "zero width values not allowed");
+    if (isNonNegative())
+      return false;
+    // NegatedPowerOf2 - shifted mask in the top bits.
+    unsigned LO = countLeadingOnes();
+    unsigned TZ = countTrailingZeros();
+    return (LO + TZ) == BitWidth;
   }
 
   /// Check if the APInt's value is returned by getSignMask.
@@ -475,7 +486,7 @@ public:
     return (Ones > 0) && ((Ones + countLeadingZerosSlowCase()) == BitWidth);
   }
 
-  /// Return true if this APInt value contains a sequence of ones with
+  /// Return true if this APInt value contains a non-empty sequence of ones with
   /// the remainder zero.
   bool isShiftedMask() const {
     if (isSingleWord())
@@ -483,6 +494,23 @@ public:
     unsigned Ones = countPopulationSlowCase();
     unsigned LeadZ = countLeadingZerosSlowCase();
     return (Ones + LeadZ + countTrailingZeros()) == BitWidth;
+  }
+
+  /// Return true if this APInt value contains a non-empty sequence of ones with
+  /// the remainder zero. If true, \p MaskIdx will specify the index of the
+  /// lowest set bit and \p MaskLen is updated to specify the length of the
+  /// mask, else neither are updated.
+  bool isShiftedMask(unsigned &MaskIdx, unsigned &MaskLen) const {
+    if (isSingleWord())
+      return isShiftedMask_64(U.VAL, MaskIdx, MaskLen);
+    unsigned Ones = countPopulationSlowCase();
+    unsigned LeadZ = countLeadingZerosSlowCase();
+    unsigned TrailZ = countTrailingZerosSlowCase();
+    if ((Ones + LeadZ + TrailZ) != BitWidth)
+      return false;
+    MaskLen = Ones;
+    MaskIdx = TrailZ;
+    return true;
   }
 
   /// Compute an APInt containing numBits highbits from this APInt.
@@ -829,6 +857,26 @@ public:
     return R;
   }
 
+  /// relative logical shift right
+  APInt relativeLShr(int RelativeShift) const {
+    return RelativeShift > 0 ? lshr(RelativeShift) : shl(-RelativeShift);
+  }
+
+  /// relative logical shift left
+  APInt relativeLShl(int RelativeShift) const {
+    return relativeLShr(-RelativeShift);
+  }
+
+  /// relative arithmetic shift right
+  APInt relativeAShr(int RelativeShift) const {
+    return RelativeShift > 0 ? ashr(RelativeShift) : shl(-RelativeShift);
+  }
+
+  /// relative arithmetic shift left
+  APInt relativeAShl(int RelativeShift) const {
+    return relativeAShr(-RelativeShift);
+  }
+
   /// Rotate left by rotateAmt.
   APInt rotl(unsigned rotateAmt) const;
 
@@ -1058,8 +1106,9 @@ public:
   ///
   /// \returns true if *this < RHS when considered signed.
   bool slt(int64_t RHS) const {
-    return (!isSingleWord() && getMinSignedBits() > 64) ? isNegative()
-                                                        : getSExtValue() < RHS;
+    return (!isSingleWord() && getSignificantBits() > 64)
+               ? isNegative()
+               : getSExtValue() < RHS;
   }
 
   /// Unsigned less or equal comparison
@@ -1128,8 +1177,9 @@ public:
   ///
   /// \returns true if *this > RHS when considered signed.
   bool sgt(int64_t RHS) const {
-    return (!isSingleWord() && getMinSignedBits() > 64) ? !isNegative()
-                                                        : getSExtValue() > RHS;
+    return (!isSingleWord() && getSignificantBits() > 64)
+               ? !isNegative()
+               : getSExtValue() > RHS;
   }
 
   /// Unsigned greater or equal comparison
@@ -1188,7 +1238,7 @@ public:
   /// Truncate to new width.
   ///
   /// Truncate the APInt to a specified width. It is an error to specify a width
-  /// that is greater than or equal to the current width.
+  /// that is greater than the current width.
   APInt trunc(unsigned width) const;
 
   /// Truncate to new width with unsigned saturation.
@@ -1208,7 +1258,7 @@ public:
   ///
   /// This operation sign extends the APInt to a new width. If the high order
   /// bit is set, the fill on the left will be done with 1 bits, otherwise zero.
-  /// It is an error to specify a width that is less than or equal to the
+  /// It is an error to specify a width that is less than the
   /// current width.
   APInt sext(unsigned width) const;
 
@@ -1216,7 +1266,7 @@ public:
   ///
   /// This operation zero extends the APInt to a new width. The high order bits
   /// are filled with 0 bits.  It is an error to specify a width that is less
-  /// than or equal to the current width.
+  /// than the current width.
   APInt zext(unsigned width) const;
 
   /// Sign extend or truncate to width
@@ -1230,24 +1280,6 @@ public:
   /// Make this APInt have the bit width given by \p width. The value is zero
   /// extended, truncated, or left alone to make it that width.
   APInt zextOrTrunc(unsigned width) const;
-
-  /// Truncate to width
-  ///
-  /// Make this APInt have the bit width given by \p width. The value is
-  /// truncated or left alone to make it that width.
-  APInt truncOrSelf(unsigned width) const;
-
-  /// Sign extend or truncate to width
-  ///
-  /// Make this APInt have the bit width given by \p width. The value is sign
-  /// extended, or left alone to make it that width.
-  APInt sextOrSelf(unsigned width) const;
-
-  /// Zero extend or truncate to width
-  ///
-  /// Make this APInt have the bit width given by \p width. The value is zero
-  /// extended, or left alone to make it that width.
-  APInt zextOrSelf(unsigned width) const;
 
   /// @}
   /// \name Bit Manipulation Operators
@@ -1439,7 +1471,12 @@ public:
   /// returns the smallest bit width that will retain the negative value. For
   /// example, -1 can be written as 0b1 or 0xFFFFFFFFFF. 0b1 is shorter and so
   /// for -1, this function will always return 1.
-  unsigned getMinSignedBits() const { return BitWidth - getNumSignBits() + 1; }
+  unsigned getSignificantBits() const {
+    return BitWidth - getNumSignBits() + 1;
+  }
+
+  /// NOTE: This is soft-deprecated.  Please use `getSignificantBits()` instead.
+  unsigned getMinSignedBits() const { return getSignificantBits(); }
 
   /// Get zero extended value
   ///
@@ -1447,10 +1484,8 @@ public:
   /// uint64_t. The bitwidth must be <= 64 or the value must fit within a
   /// uint64_t. Otherwise an assertion will result.
   uint64_t getZExtValue() const {
-    if (isSingleWord()) {
-      assert(BitWidth && "zero width values not allowed");
+    if (isSingleWord())
       return U.VAL;
-    }
     assert(getActiveBits() <= 64 && "Too many bits for uint64_t");
     return U.pVal[0];
   }
@@ -1463,7 +1498,7 @@ public:
   int64_t getSExtValue() const {
     if (isSingleWord())
       return SignExtend64(U.VAL, BitWidth);
-    assert(getMinSignedBits() <= 64 && "Too many bits for int64_t");
+    assert(getSignificantBits() <= 64 && "Too many bits for int64_t");
     return int64_t(U.pVal[0]);
   }
 
@@ -1472,6 +1507,11 @@ public:
   /// This method determines how many bits are required to hold the APInt
   /// equivalent of the string given by \p str.
   static unsigned getBitsNeeded(StringRef str, uint8_t radix);
+
+  /// Get the bits that are sufficient to represent the string value. This may
+  /// over estimate the amount of bits required, but it does not require
+  /// parsing the value in the string.
+  static unsigned getSufficientBitsNeeded(StringRef Str, uint8_t Radix);
 
   /// The APInt version of the countLeadingZeros functions in
   ///   MathExtras.h.
@@ -1804,9 +1844,9 @@ private:
     uint64_t *pVal; ///< Used to store the >64 bits integer value.
   } U;
 
-  unsigned BitWidth; ///< The number of bits in this APInt.
+  unsigned BitWidth = 1; ///< The number of bits in this APInt.
 
-  friend struct DenseMapInfo<APInt>;
+  friend struct DenseMapInfo<APInt, void>;
   friend class APSInt;
 
   /// This constructor is used only internally for speed of construction of
@@ -2219,12 +2259,16 @@ Optional<unsigned> GetMostSignificantDifferentBit(const APInt &A,
 /// Splat/Merge neighboring bits to widen/narrow the bitmask represented
 /// by \param A to \param NewBitWidth bits.
 ///
+/// MatchAnyBits: (Default)
 /// e.g. ScaleBitMask(0b0101, 8) -> 0b00110011
 /// e.g. ScaleBitMask(0b00011011, 4) -> 0b0111
-/// A.getBitwidth() or NewBitWidth must be a whole multiples of the other.
 ///
-/// TODO: Do we need a mode where all bits must be set when merging down?
-APInt ScaleBitMask(const APInt &A, unsigned NewBitWidth);
+/// MatchAllBits:
+/// e.g. ScaleBitMask(0b0101, 8) -> 0b00110011
+/// e.g. ScaleBitMask(0b00011011, 4) -> 0b0001
+/// A.getBitwidth() or NewBitWidth must be a whole multiples of the other.
+APInt ScaleBitMask(const APInt &A, unsigned NewBitWidth,
+                   bool MatchAllBits = false);
 } // namespace APIntOps
 
 // See friend declaration above. This additional declaration is required in
@@ -2240,16 +2284,16 @@ void StoreIntToMemory(const APInt &IntVal, uint8_t *Dst, unsigned StoreBytes);
 void LoadIntFromMemory(APInt &IntVal, const uint8_t *Src, unsigned LoadBytes);
 
 /// Provide DenseMapInfo for APInt.
-template <> struct DenseMapInfo<APInt> {
+template <> struct DenseMapInfo<APInt, void> {
   static inline APInt getEmptyKey() {
     APInt V(nullptr, 0);
-    V.U.VAL = 0;
+    V.U.VAL = ~0ULL;
     return V;
   }
 
   static inline APInt getTombstoneKey() {
     APInt V(nullptr, 0);
-    V.U.VAL = 1;
+    V.U.VAL = ~1ULL;
     return V;
   }
 

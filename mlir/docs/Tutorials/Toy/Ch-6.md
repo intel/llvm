@@ -94,9 +94,11 @@ multiple stages by relying on
 ```c++
   mlir::RewritePatternSet patterns(&getContext());
   mlir::populateAffineToStdConversionPatterns(patterns, &getContext());
-  mlir::populateLoopToStdConversionPatterns(patterns, &getContext());
-  mlir::populateArithmeticToLLVMConversionPatterns(typeConverter, patterns);
-  mlir::populateStdToLLVMConversionPatterns(typeConverter, patterns);
+  mlir::cf::populateSCFToControlFlowConversionPatterns(patterns, &getContext());
+  mlir::arith::populateArithToLLVMConversionPatterns(typeConverter,
+                                                          patterns);
+  mlir::populateFuncToLLVMConversionPatterns(typeConverter, patterns);
+  mlir::cf::populateControlFlowToLLVMConversionPatterns(patterns, &getContext());
 
   // The only remaining operation, to lower from the `toy` dialect, is the
   // PrintOp.
@@ -117,7 +119,7 @@ that only legal operations will remain after the conversion.
 Looking back at our current working example:
 
 ```mlir
-func @main() {
+toy.func @main() {
   %0 = toy.constant dense<[[1.000000e+00, 2.000000e+00, 3.000000e+00], [4.000000e+00, 5.000000e+00, 6.000000e+00]]> : tensor<2x3xf64>
   %2 = toy.transpose(%0 : tensor<2x3xf64>) to tensor<3x2xf64>
   %3 = toy.mul %2, %2 : tensor<3x2xf64>
@@ -139,7 +141,7 @@ llvm.func @main() {
   ...
 
 ^bb16:
-  %221 = llvm.extractvalue %25[0 : index] : !llvm<"{ double*, i64, [2 x i64], [2 x i64] }">
+  %221 = llvm.extractvalue %25[0] : !llvm<"{ double*, i64, [2 x i64], [2 x i64] }">
   %222 = llvm.mlir.constant(0 : index) : i64
   %223 = llvm.mlir.constant(2 : index) : i64
   %224 = llvm.mul %214, %223 : i64
@@ -156,13 +158,13 @@ llvm.func @main() {
   ...
 
 ^bb18:
-  %235 = llvm.extractvalue %65[0 : index] : !llvm<"{ double*, i64, [2 x i64], [2 x i64] }">
+  %235 = llvm.extractvalue %65[0] : !llvm<"{ double*, i64, [2 x i64], [2 x i64] }">
   %236 = llvm.bitcast %235 : !llvm<"double*"> to !llvm<"i8*">
   llvm.call @free(%236) : (!llvm<"i8*">) -> ()
-  %237 = llvm.extractvalue %45[0 : index] : !llvm<"{ double*, i64, [2 x i64], [2 x i64] }">
+  %237 = llvm.extractvalue %45[0] : !llvm<"{ double*, i64, [2 x i64], [2 x i64] }">
   %238 = llvm.bitcast %237 : !llvm<"double*"> to !llvm<"i8*">
   llvm.call @free(%238) : (!llvm<"i8*">) -> ()
-  %239 = llvm.extractvalue %25[0 : index] : !llvm<"{ double*, i64, [2 x i64], [2 x i64] }">
+  %239 = llvm.extractvalue %25[0] : !llvm<"{ double*, i64, [2 x i64], [2 x i64] }">
   %240 = llvm.bitcast %239 : !llvm<"double*"> to !llvm<"i8*">
   llvm.call @free(%240) : (!llvm<"i8*">) -> ()
   llvm.return
@@ -206,7 +208,7 @@ define void @main() {
   %109 = memref.load double, double* %108
   %110 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @frmt_spec, i64 0, i64 0), double %109)
   %111 = add i64 %100, 1
-  br label %99
+  cf.br label %99
 
   ...
 
@@ -322,7 +324,7 @@ $ echo 'def main() { print([[1, 2], [3, 4]]); }' | ./bin/toyc-ch6 -emit=jit
 
 You can also play with `-emit=mlir`, `-emit=mlir-affine`, `-emit=mlir-llvm`, and
 `-emit=llvm` to compare the various levels of IR involved. Also try options like
-[`--print-ir-after-all`](../../PassManagement.md/#ir-printing) to track the
+[`--mlir-print-ir-after-all`](../../PassManagement.md/#ir-printing) to track the
 evolution of the IR throughout the pipeline.
 
 The example code used throughout this section can be found in

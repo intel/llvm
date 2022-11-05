@@ -240,6 +240,8 @@ TEST_F(TargetLibraryInfoTest, ValidProto) {
       "declare i8* @memmove(i8*, i8*, i64)\n"
       "declare i8* @memset(i8*, i32, i64)\n"
       "declare void @memset_pattern16(i8*, i8*, i64)\n"
+      "declare void @memset_pattern4(i8*, i8*, i64)\n"
+      "declare void @memset_pattern8(i8*, i8*, i64)\n"
       "declare i32 @mkdir(i8*, i16)\n"
       "declare double @modf(double, double*)\n"
       "declare float @modff(float, float*)\n"
@@ -320,8 +322,8 @@ TEST_F(TargetLibraryInfoTest, ValidProto) {
       "declare i8* @strtok(i8*, i8*)\n"
       "declare i8* @strtok_r(i8*, i8*, i8**)\n"
       "declare i64 @strtol(i8*, i8**, i32)\n"
-      "declare i64 @strlcat(i8*, i8**, i64)\n"
-      "declare i64 @strlcpy(i8*, i8**, i64)\n"
+      "declare i64 @strlcat(i8*, i8*, i64)\n"
+      "declare i64 @strlcpy(i8*, i8*, i64)\n"
       "declare x86_fp80 @strtold(i8*, i8**)\n"
       "declare i64 @strtoll(i8*, i8**, i32)\n"
       "declare i64 @strtoul(i8*, i8**, i32)\n"
@@ -480,7 +482,7 @@ TEST_F(TargetLibraryInfoTest, ValidProto) {
       "declare i8* @__stpncpy_chk(i8*, i8*, i64, i64)\n"
       "declare i8* @__strcpy_chk(i8*, i8*, i64)\n"
       "declare i8* @__strncpy_chk(i8*, i8*, i64, i64)\n"
-      "declare i8* @__memccpy_chk(i8*, i8*, i32, i64)\n"
+      "declare i8* @__memccpy_chk(i8*, i8*, i32, i64, i64)\n"
       "declare i8* @__mempcpy_chk(i8*, i8*, i64, i64)\n"
       "declare i32 @__snprintf_chk(i8*, i64, i32, i64, i8*, ...)\n"
       "declare i32 @__sprintf_chk(i8*, i32, i64, i8*, ...)\n"
@@ -521,7 +523,8 @@ TEST_F(TargetLibraryInfoTest, ValidProto) {
       "declare i32 @iprintf(i8*, ...)\n"
       "declare i32 @siprintf(i8*, i8*, ...)\n"
 
-      // __small_printf variants have the same prototype as the non-'i' versions.
+      // __small_printf variants have the same prototype as the non-'i'
+      // versions.
       "declare i32 @__small_fprintf(%struct*, i8*, ...)\n"
       "declare i32 @__small_printf(i8*, ...)\n"
       "declare i32 @__small_sprintf(i8*, i8*, ...)\n"
@@ -589,8 +592,7 @@ TEST_F(TargetLibraryInfoTest, ValidProto) {
 
       // These functions are OpenMP Offloading allocation / free routines
       "declare i8* @__kmpc_alloc_shared(i64)\n"
-      "declare void @__kmpc_free_shared(i8*, i64)\n"
-      );
+      "declare void @__kmpc_free_shared(i8*, i64)\n");
 
   for (unsigned FI = 0; FI != LibFunc::NumLibFuncs; ++FI) {
     LibFunc LF = (LibFunc)FI;

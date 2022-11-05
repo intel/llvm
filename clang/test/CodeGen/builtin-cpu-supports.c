@@ -7,7 +7,7 @@ extern void a(const char *);
 // CHECK: @__cpu_model = external dso_local global { i32, i32, i32, [1 x i32] }
 // CHECK: @__cpu_features2 = external dso_local global i32
 
-int main() {
+int main(void) {
   __builtin_cpu_init();
 
   // CHECK: call void @__cpu_indicator_init
@@ -15,14 +15,14 @@ int main() {
   if (__builtin_cpu_supports("sse4.2"))
     a("sse4.2");
 
-  // CHECK: [[LOAD:%[^ ]+]] = load i32, i32* getelementptr inbounds ({ i32, i32, i32, [1 x i32] }, { i32, i32, i32, [1 x i32] }* @__cpu_model, i32 0, i32 3, i32 0)
+  // CHECK: [[LOAD:%[^ ]+]] = load i32, ptr getelementptr inbounds ({ i32, i32, i32, [1 x i32] }, ptr @__cpu_model, i32 0, i32 3, i32 0)
   // CHECK: [[AND:%[^ ]+]] = and i32 [[LOAD]], 256
   // CHECK: = icmp eq i32 [[AND]], 256
 
   if (__builtin_cpu_supports("gfni"))
     a("gfni");
 
-  // CHECK: [[LOAD:%[^ ]+]] = load i32, i32* @__cpu_features2
+  // CHECK: [[LOAD:%[^ ]+]] = load i32, ptr @__cpu_features2
   // CHECK: [[AND:%[^ ]+]] = and i32 [[LOAD]], 1
   // CHECK: = icmp eq i32 [[AND]], 1
 

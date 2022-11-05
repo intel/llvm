@@ -40,10 +40,9 @@
 #include "llvm/Support/MD5.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Endian.h"
-#include "llvm/Support/Format.h"
-#include "llvm/Support/raw_ostream.h"
 #include <array>
 #include <cstdint>
 #include <cstring>
@@ -262,13 +261,13 @@ void MD5::final(MD5Result &Result) {
   support::endian::write32le(&Result[12], InternalState.d);
 }
 
-StringRef MD5::final() {
+MD5::MD5Result MD5::final() {
+  MD5Result Result;
   final(Result);
-  return StringRef(reinterpret_cast<char *>(Result.Bytes.data()),
-                   Result.Bytes.size());
+  return Result;
 }
 
-StringRef MD5::result() {
+MD5::MD5Result MD5::result() {
   auto StateToRestore = InternalState;
 
   auto Hash = final();
@@ -281,17 +280,15 @@ StringRef MD5::result() {
 
 SmallString<32> MD5::MD5Result::digest() const {
   SmallString<32> Str;
-  raw_svector_ostream Res(Str);
-  for (int i = 0; i < 16; ++i)
-    Res << format("%.2x", Bytes[i]);
+  toHex(*this, /*LowerCase*/ true, Str);
   return Str;
 }
 
-void MD5::stringifyResult(MD5Result &Result, SmallString<32> &Str) {
-  Str = Result.digest();
+void MD5::stringifyResult(MD5Result &Result, SmallVectorImpl<char> &Str) {
+  toHex(Result, /*LowerCase*/ true, Str);
 }
 
-std::array<uint8_t, 16> MD5::hash(ArrayRef<uint8_t> Data) {
+MD5::MD5Result MD5::hash(ArrayRef<uint8_t> Data) {
   MD5 Hash;
   Hash.update(Data);
   MD5::MD5Result Res;

@@ -1,4 +1,4 @@
-//===-- Convenient sanitizer macros ---------------------------------------===//
+//===-- Convenient sanitizer macros -----------------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -40,6 +40,13 @@
 #define LLVM_LIBC_HAVE_ADDRESS_SANITIZER 1
 #elif LLVM_LIBC_HAVE_FEATURE(address_sanitizer)
 #define LLVM_LIBC_HAVE_ADDRESS_SANITIZER 1
+#endif
+
+// HWAddressSanitizer (HWASan) is a fast, low memory overhead error detector.
+#ifdef LLVM_LIBC_HAVE_HWADDRESS_SANITIZER
+#error "LLVM_LIBC_HAVE_HWADDRESS_SANITIZER cannot be directly set."
+#elif LLVM_LIBC_HAVE_FEATURE(hwaddress_sanitizer)
+#define LLVM_LIBC_HAVE_HWADDRESS_SANITIZER 1
 #endif
 
 #if LLVM_LIBC_HAVE_MEMORY_SANITIZER

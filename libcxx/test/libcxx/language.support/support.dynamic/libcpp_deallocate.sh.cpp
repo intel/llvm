@@ -6,12 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// test libc++'s implementation of align_val_t, and the relevant new/delete
+// test libc++'s implementation of align_val_t, and the relevant new/delete && !hwasan
 // overloads in all dialects when -faligned-allocation is present.
-
-// Libc++ defers to the underlying MSVC library to provide the new/delete
-// definitions, which does not yet provide aligned allocation
-// XFAIL: LIBCXX-WINDOWS-FIXME
 
 // The dylibs shipped before macosx10.13 do not contain the aligned allocation
 // functions, so trying to force using those with -faligned-allocation results
@@ -22,7 +18,10 @@
 // nor does the dynamic library shipped with z/OS.
 // UNSUPPORTED: target={{.+}}-zos{{.*}}
 
-// XFAIL: sanitizer-new-delete, ubsan
+// XFAIL: sanitizer-new-delete && !hwasan
+
+// It fails with clang-14 or clang-16, but passes with clang-15.
+// UNSUPPORTED: ubsan
 
 // GCC doesn't support the aligned-allocation flags.
 // XFAIL: gcc
@@ -113,14 +112,14 @@ void operator delete(void* p, size_t n)TEST_NOEXCEPT {
 
 #ifndef NO_ALIGN
 void operator delete(void* p, std::align_val_t a)TEST_NOEXCEPT {
-  ::free(p);
+  std::__libcpp_aligned_free(p);
   stats.aligned_called++;
   stats.last_align = static_cast<int>(a);
   stats.last_size = -1;
 }
 
 void operator delete(void* p, size_t n, std::align_val_t a)TEST_NOEXCEPT {
-  ::free(p);
+  std::__libcpp_aligned_free(p);
   stats.aligned_sized_called++;
   stats.last_align = static_cast<int>(a);
   stats.last_size = n;

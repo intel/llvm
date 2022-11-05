@@ -13,6 +13,7 @@
 
 #include "ReduceFunctionBodies.h"
 #include "Delta.h"
+#include "Utils.h"
 #include "llvm/IR/GlobalValue.h"
 
 using namespace llvm;
@@ -21,33 +22,15 @@ using namespace llvm;
 /// desired Chunks.
 static void extractFunctionBodiesFromModule(Oracle &O, Module &Program) {
   // Delete out-of-chunk function bodies
-  std::vector<Function *> FuncDefsToReduce;
-  for (auto &F : Program)
-    if (!F.isDeclaration() && !O.shouldKeep()) {
+  for (auto &F : Program) {
+    if (!F.isDeclaration() && !hasAliasUse(F) && !O.shouldKeep()) {
       F.deleteBody();
       F.setComdat(nullptr);
     }
-}
-
-/// Counts the amount of non-declaration functions and prints their
-/// respective name & index
-static int countFunctionDefinitions(Module &Program) {
-  // TODO: Silence index with --quiet flag
-  errs() << "----------------------------\n";
-  errs() << "Function Definition Index Reference:\n";
-  int FunctionDefinitionCount = 0;
-  for (auto &F : Program)
-    if (!F.isDeclaration())
-      errs() << "\t" << ++FunctionDefinitionCount << ": " << F.getName()
-             << "\n";
-
-  errs() << "----------------------------\n";
-  return FunctionDefinitionCount;
+  }
 }
 
 void llvm::reduceFunctionBodiesDeltaPass(TestRunner &Test) {
-  errs() << "*** Reducing Function Bodies...\n";
-  int Functions = countFunctionDefinitions(Test.getProgram());
-  runDeltaPass(Test, Functions, extractFunctionBodiesFromModule);
-  errs() << "----------------------------\n";
+  runDeltaPass(Test, extractFunctionBodiesFromModule,
+               "Reducing Function Bodies");
 }

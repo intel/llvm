@@ -8,7 +8,9 @@
 
 #include "ReduceOperandsToArgs.h"
 #include "Delta.h"
+#include "Utils.h"
 #include "llvm/ADT/Sequence.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instructions.h"
@@ -33,8 +35,8 @@ static bool canReduceUse(Use &Op) {
   if (!Ty->isFirstClassType())
     return false;
 
-  // Don't pass labels as arguments.
-  if (Ty->isLabelTy())
+  // Don't pass labels/metadata as arguments.
+  if (Ty->isLabelTy() || Ty->isMetadataTy())
     return false;
 
   // No need to replace values that are already arguments.
@@ -66,10 +68,10 @@ static void replaceFunctionCalls(Function *OldF, Function *NewF) {
   // Call arguments for NewF.
   SmallVector<Value *> Args(NewF->arg_size(), nullptr);
 
-  // Fill up the additional parameters with undef values.
+  // Fill up the additional parameters with default values.
   for (auto ArgIdx : llvm::seq<size_t>(OldF->arg_size(), NewF->arg_size())) {
     Type *NewArgTy = NewF->getArg(ArgIdx)->getType();
-    Args[ArgIdx] = UndefValue::get(NewArgTy);
+    Args[ArgIdx] = getDefaultValue(NewArgTy);
   }
 
   for (CallBase *CI : Callers) {
@@ -174,6 +176,8 @@ static void substituteOperandWithArgument(Function *OldF,
 static void reduceOperandsToArgs(Oracle &O, Module &Program) {
   SmallVector<Use *> OperandsToReduce;
   for (Function &F : make_early_inc_range(Program.functions())) {
+    if (!canReplaceFunction(&F))
+      continue;
     OperandsToReduce.clear();
     for (Instruction &I : instructions(&F)) {
       for (Use &Op : I.operands()) {
@@ -190,27 +194,7 @@ static void reduceOperandsToArgs(Oracle &O, Module &Program) {
   }
 }
 
-/// Counts the amount of operands in the module that can be reduced.
-static int countOperands(Module &Program) {
-  int Count = 0;
-
-  for (Function &F : Program.functions()) {
-    if (!canReplaceFunction(&F))
-      continue;
-    for (Instruction &I : instructions(&F)) {
-      for (Use &Op : I.operands()) {
-        if (!canReduceUse(Op))
-          continue;
-        Count += 1;
-      }
-    }
-  }
-
-  return Count;
-}
-
 void llvm::reduceOperandsToArgsDeltaPass(TestRunner &Test) {
-  outs() << "*** Converting operands to function arguments ...\n";
-  int ArgCount = countOperands(Test.getProgram());
-  return runDeltaPass(Test, ArgCount, reduceOperandsToArgs);
+  runDeltaPass(Test, reduceOperandsToArgs,
+               "Converting operands to function arguments");
 }

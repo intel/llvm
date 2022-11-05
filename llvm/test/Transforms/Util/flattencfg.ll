@@ -1,4 +1,4 @@
-; RUN: opt -flattencfg -S < %s -enable-new-pm=0 | FileCheck %s
+; RUN: opt -passes=flattencfg -S < %s | FileCheck %s
 
 
 ; This test checks whether the pass completes without a crash.
@@ -95,7 +95,7 @@ bb3:                                              ; preds = %bb2, %bb1
 ; CHECK-NEXT:    [[COND:%[a-z0-9]+]] = or i1 %cmp.x, %cmp.y
 ; CHECK-NEXT:    br i1 [[COND]], label %if.then.y, label %exit
 ; CHECK:       if.then.y:
-; CHECK-NEXT:    store i32 %z, i32* @g, align 4
+; CHECK-NEXT:    store i32 %z, ptr @g, align 4
 ; CHECK-NEXT:    br label %exit
 ; CHECK:       exit:
 ; CHECK-NEXT:    ret void
@@ -105,7 +105,7 @@ entry.x:
   br i1 %cmp.x, label %if.then.x, label %entry.y
 
 if.then.x:
-  store i32 %z, i32* @g, align 4
+  store i32 %z, ptr @g, align 4
   br label %entry.y
 
 entry.y:
@@ -113,7 +113,7 @@ entry.y:
   br i1 %cmp.y, label %if.then.y, label %exit
 
 if.then.y:
-  store i32 %z, i32* @g, align 4
+  store i32 %z, ptr @g, align 4
   br label %exit
 
 exit:
@@ -127,7 +127,7 @@ exit:
 ; CHECK-NEXT:    [[COND:%[a-z0-9]+]] = and i1 %cmp.x, %cmp.y
 ; CHECK-NEXT:    br i1 [[COND]], label %exit, label %if.else.y
 ; CHECK:       if.else.y:
-; CHECK-NEXT:    store i32 %z, i32* @g, align 4
+; CHECK-NEXT:    store i32 %z, ptr @g, align 4
 ; CHECK-NEXT:    br label %exit
 ; CHECK:       exit:
 ; CHECK-NEXT:    ret void
@@ -137,7 +137,7 @@ entry.x:
   br i1 %cmp.x, label %entry.y, label %if.else.x
 
 if.else.x:
-  store i32 %z, i32* @g, align 4
+  store i32 %z, ptr @g, align 4
   br label %entry.y
 
 entry.y:
@@ -145,7 +145,7 @@ entry.y:
   br i1 %cmp.y, label %exit, label %if.else.y
 
 if.else.y:
-  store i32 %z, i32* @g, align 4
+  store i32 %z, ptr @g, align 4
   br label %exit
 
 exit:
@@ -159,7 +159,7 @@ exit:
 ; CHECK-NEXT:    [[COND:%[a-z0-9]+]] = and i1 %cmp.x, %cmp.y
 ; CHECK-NEXT:    br i1 [[COND]], label %exit, label %if.then.y
 ; CHECK:       if.then.y:
-; CHECK-NEXT:    store i32 %z, i32* @g, align 4
+; CHECK-NEXT:    store i32 %z, ptr @g, align 4
 ; CHECK-NEXT:    br label %exit
 ; CHECK:       exit:
 ; CHECK-NEXT:    ret void
@@ -169,7 +169,7 @@ entry.x:
   br i1 %cmp.x, label %entry.y, label %if.else.x
 
 if.else.x:
-  store i32 %z, i32* @g, align 4
+  store i32 %z, ptr @g, align 4
   br label %entry.y
 
 entry.y:
@@ -177,7 +177,7 @@ entry.y:
   br i1 %cmp.y, label %if.then.y, label %exit
 
 if.then.y:
-  store i32 %z, i32* @g, align 4
+  store i32 %z, ptr @g, align 4
   br label %exit
 
 exit:
@@ -191,7 +191,7 @@ exit:
 ; CHECK-NEXT:    [[COND:%[a-z0-9]+]] = or i1 %cmp.x, %cmp.y
 ; CHECK-NEXT:    br i1 [[COND]], label %if.else.y, label %exit
 ; CHECK:       if.else.y:
-; CHECK-NEXT:    store i32 %z, i32* @g, align 4
+; CHECK-NEXT:    store i32 %z, ptr @g, align 4
 ; CHECK-NEXT:    br label %exit
 ; CHECK:       exit:
 ; CHECK-NEXT:    ret void
@@ -201,7 +201,7 @@ entry.x:
   br i1 %cmp.x, label %if.then.x, label %entry.y
 
 if.then.x:
-  store i32 %z, i32* @g, align 4
+  store i32 %z, ptr @g, align 4
   br label %entry.y
 
 entry.y:
@@ -209,9 +209,26 @@ entry.y:
   br i1 %cmp.y, label %exit, label %if.else.y
 
 if.else.y:
-  store i32 %z, i32* @g, align 4
+  store i32 %z, ptr @g, align 4
   br label %exit
 
 exit:
   ret void
+}
+
+; This would crash.
+
+declare i1 @llvm.smax.i1(i1, i1) #0
+
+; CHECK-LABEL: @PR56875
+define void @PR56875(i1 %val_i1_5) {
+entry_1:
+  ret void
+
+bb_2:                                             ; preds = %bb_4
+  br label %bb_4
+
+bb_4:                                             ; preds = %bb_4, %bb_2
+  %val_i1_46 = call i1 @llvm.smax.i1(i1 %val_i1_5, i1 %val_i1_5)
+  br i1 %val_i1_46, label %bb_4, label %bb_2
 }

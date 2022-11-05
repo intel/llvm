@@ -9,13 +9,16 @@ unittest("LexTests") {
     "//clang/lib/Parse",
     "//clang/lib/Sema",
     "//llvm/lib/Support",
+    "//llvm/lib/Testing/Support",
   ]
   sources = [
-    "DependencyDirectivesSourceMinimizerTest.cpp",
+    "DependencyDirectivesScannerTest.cpp",
     "HeaderMapTest.cpp",
     "HeaderSearchTest.cpp",
     "LexerTest.cpp",
     "PPCallbacksTest.cpp",
     "PPConditionalDirectiveRecordTest.cpp",
+    "PPDependencyDirectivesTest.cpp",
+    "PPMemoryAllocationsTest.cpp",
   ]
 }

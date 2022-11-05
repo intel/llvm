@@ -1,59 +1,11 @@
 include "config/public_api.td"
 
+include "spec/bsd_ext.td"
 include "spec/gnu_ext.td"
 include "spec/linux.td"
 include "spec/llvm_libc_ext.td"
 include "spec/posix.td"
 include "spec/stdc.td"
-
-def SizeT : TypeDecl<"size_t"> {
-  let Decl = [{
-    #define __need_size_t
-    #include <stddef.h>
-  }];
-}
-
-def SSizeT : TypeDecl<"ssize_t"> {
-  let Decl = [{
-    #define __need_ssize_t
-    #include <__posix-types.h>
-  }];
-}
-
-def StructTm: TypeDecl<"struct tm"> {
-  let Decl = [{
-    struct tm {
-      int tm_sec; // seconds after the minute
-      int tm_min; // minutes after the hour
-      int tm_hour; // hours since midnight
-      int tm_mday; // day of the month
-      int tm_mon; // months since January
-      int tm_year; // years since 1900
-      int tm_wday; // days since Sunday
-      int tm_yday; // days since January
-      int tm_isdst; // Daylight Saving Time flag
-    };
-  }];
-}
-
-def TimeT: TypeDecl<"time_t"> {
-   let Decl = [{
-   typedef long time_t;
-  }];
-}
-
-def OffT : TypeDecl<"off_t"> {
-  let Decl = [{
-    #define __need_off_t
-    #include <__posix-types.h>
-  }];
-}
-
-def FILE : TypeDecl<"FILE"> {
-  let Decl = [{
-    typedef struct FILE FILE;
-  }];
-}
 
 def AssertMacro : MacroDef<"assert"> {
   let Defn = [{
@@ -93,11 +45,8 @@ def NullMacro : MacroDef<"NULL"> {
 
 def ErrnoMacro : MacroDef<"errno"> {
   let Defn = [{
-    #ifdef __cplusplus
-    extern "C"
-    #endif
-    int *__errno_location();
-    #define errno (*__errno_location())
+    extern _Thread_local int __llvmlibc_errno;
+    #define errno __llvmlibc_errno
   }];
 }
 
@@ -111,19 +60,12 @@ def AssertAPI : PublicAPI<"assert.h"> {
 def CTypeAPI : PublicAPI<"ctype.h"> {
 }
 
-def IMaxDivT : TypeDecl<"imaxdiv_t"> {
-  let Decl = [{
-    typedef struct {
-      intmax_t quot;
-      intmax_t rem;
-    } imaxdiv_t;
-  }];
+def FCntlAPI : PublicAPI<"fcntl.h"> {
+  let Types = ["mode_t"];
 }
 
 def IntTypesAPI : PublicAPI<"inttypes.h"> {
-  let TypeDeclarations = [
-    IMaxDivT,
-  ];
+  let Types = ["imaxdiv_t"];
 }
 
 def MathErrHandlingMacro : MacroDef<"math_errhandling"> {
@@ -158,26 +100,13 @@ def IsNanMacro : MacroDef<"isnan"> {
   }];
 }
 
-def FloatT : TypeDecl<"float_t"> {
-  let Decl = [{
-    #define __need_float_t
-    #include <__llvm-libc-stdc-types.h>
-  }];
-}
-
-def DoubleT : TypeDecl<"double_t"> {
-  let Decl = [{
-    #define __need_double_t
-    #include <__llvm-libc-stdc-types.h>
-  }];
-}
-
 def MathAPI : PublicAPI<"math.h"> {
   let Macros = [
     SimpleMacroDef<"MATH_ERRNO", "1">,
     SimpleMacroDef<"MATH_ERREXCEPT", "2">,
     MathErrHandlingMacro,
 
+    SimpleMacroDef<"HUGE_VAL", "__builtin_huge_val()">,
     SimpleMacroDef<"INFINITY", "__builtin_inff()">,
     SimpleMacroDef<"NAN", "__builtin_nanf(\"\")">,
 
@@ -188,33 +117,7 @@ def MathAPI : PublicAPI<"math.h"> {
     IsInfMacro,
     IsNanMacro,
   ];
-  let TypeDeclarations = [
-    DoubleT,
-    FloatT,
-  ];
-}
-
-def FEnvT : TypeDecl<"fenv_t"> {
-  let Decl = [{
-    #ifdef __aarch64__
-    typedef struct {
-      unsigned char __control_word[4];
-      unsigned char __status_word[4];
-    } fenv_t;
-    #endif
-    #ifdef __x86_64__
-    typedef struct {
-      unsigned char __x86_status[28];
-      unsigned char __mxcsr[4];
-    } fenv_t;
-    #endif
-  }];
-}
-
-def FExceptT : TypeDecl<"fexcept_t"> {
-  let Decl = [{
-    typedef int fexcept_t;
-  }];
+  let Types = ["double_t", "float_t"];
 }
 
 def FenvAPI: PublicAPI<"fenv.h"> {
@@ -233,16 +136,11 @@ def FenvAPI: PublicAPI<"fenv.h"> {
 
     SimpleMacroDef<"FE_DFL_ENV", "((fenv_t *)-1)">,
   ];
-  let TypeDeclarations = [
-    FEnvT,
-    FExceptT,
-  ];
+  let Types = ["fenv_t", "fexcept_t"];
 }
 
 def StringAPI : PublicAPI<"string.h"> {
-  let TypeDeclarations = [
-    SizeT,
-  ];
+  let Types = ["size_t"];
 
   let Macros = [
     NullMacro,
@@ -250,75 +148,32 @@ def StringAPI : PublicAPI<"string.h"> {
 }
 
 def StdIOAPI : PublicAPI<"stdio.h"> {
-  let TypeDeclarations = [
-    SizeT,
-    FILE,
+  let Macros = [
+    SimpleMacroDef<"stderr", "stderr">,
+    SimpleMacroDef<"stdin", "stdin">,
+    SimpleMacroDef<"stdout", "stdout">,
+    SimpleMacroDef<"_IOFBF", "0">,
+    SimpleMacroDef<"_IOLBF", "1">,
+    SimpleMacroDef<"_IONBF", "2">,
+    SimpleMacroDef<"EOF", "-1">,
   ];
-}
-
-def DivT : TypeDecl<"div_t"> {
-  let Decl = [{
-    typedef struct {
-      int quot;
-      int rem;
-    } div_t;
-  }];
-}
-
-def LDivT : TypeDecl<"ldiv_t"> {
-  let Decl = [{
-    typedef struct {
-      long quot;
-      long rem;
-    } ldiv_t;
-  }];
-}
-
-def LLDivT : TypeDecl<"lldiv_t"> {
-  let Decl = [{
-    typedef struct {
-      long long quot;
-      long long rem;
-    } lldiv_t;
-  }];
-}
-
-def BSearchCompareTDefn : TypeDecl<"__bsearchcompare_t"> {
-  let Decl = [{
-    typedef int(*__bsearchcompare_t)(const void *, const void *);
-  }];
-}
-
-def QSortCompareTDefn : TypeDecl<"__qsortcompare_t"> {
-  let Decl = [{
-    typedef int(*__qsortcompare_t)(const void *, const void *);
-  }];
+  let Types = ["size_t", "FILE", "cookie_io_functions_t"];
 }
 
 def StdlibAPI : PublicAPI<"stdlib.h"> {
-  let TypeDeclarations = [
-    DivT,
-    LDivT,
-    LLDivT,
-    SizeT,
-    BSearchCompareTDefn,
-    QSortCompareTDefn,
+  let Types = [
+    "div_t",
+    "ldiv_t",
+    "lldiv_t",
+    "size_t",
+    "__bsearchcompare_t",
+    "__qsortcompare_t",
+    "__atexithandler_t",
   ];
 }
 
 def TimeAPI : PublicAPI<"time.h"> {
-  let TypeDeclarations = [
-    StructTm,
-    TimeT,
-  ];
-
-  let Functions = [
-    "asctime",
-    "asctime_r",
-    "gmtime",
-    "gmtime_r",
-    "mktime",
-  ];
+  let Types = ["clock_t", "time_t", "struct tm", "struct timespec", "clockid_t",];
 }
 
 def ErrnoAPI : PublicAPI<"errno.h"> {
@@ -340,108 +195,43 @@ def ErrnoAPI : PublicAPI<"errno.h"> {
   ];
 }
 
+def SchedAPI : PublicAPI<"sched.h"> {
+  let Types = ["pid_t", "size_t", "cpu_set_t"];
+}
+
 def SysMManAPI : PublicAPI<"sys/mman.h"> {
+  let Types = ["off_t", "size_t"];
   let Macros = [
-    SimpleMacroDef<"PROT_NONE", "0">,
-    SimpleMacroDef<"PROT_READ", "1">,
-    SimpleMacroDef<"PROT_WRITE", "2">,
-    SimpleMacroDef<"PROT_EXEC", "4">,
-
-    SimpleMacroDef<"MAP_FIXED", "1">,
-    SimpleMacroDef<"MAP_PRIVATE", "2">,
-    SimpleMacroDef<"MAP_SHARED", "4">,
-
-    SimpleMacroDef<"MAP_FAILED", "((void*)-1)">,
-
-    // TODO: The value of 0x20 is good for x86_64, but has to be extended
-    // in some manner to accommodate other machine architectures.
-    SimpleMacroDef<"MAP_ANONYMOUS", "0x20">
-
-    // TODO: Add other MAP_* macros used by Linux.
   ];
 
-  let TypeDeclarations = [
-    SizeT,
-    OffT,
-  ];
-}
-
-def StructSigactionDefn : TypeDecl<"struct sigaction"> {
-  let Decl = [{
-    struct __sigaction {
-      union {
-        void (*sa_handler)(int);
-        void (*sa_action)(int, siginfo_t *, void *);
-      };
-      sigset_t sa_mask;
-      int sa_flags;
-      void (*sa_restorer)(void);
-    };
-  }];
-}
-
-def SighandlerTDefn : TypeDecl<"__sighandler_t"> {
-  let Decl = [{
-    typedef void(*__sighandler_t)(int);
-  }];
 }
 
 def SignalAPI : PublicAPI<"signal.h"> {
-  let TypeDeclarations = [
-    StructSigactionDefn,
-    SighandlerTDefn,
+  let Types = [
+    "sig_atomic_t",
+    "sigset_t",
+    "struct sigaction",
+    "union sigval",
+    "siginfo_t",
+    "stack_t",
+    "pid_t",
   ];
-}
-
-def OnceFlag : TypeDecl<"once_flag"> {
-  let Decl = [{
-    typedef unsigned int once_flag;
-  }];
-}
-
-def MtxT : TypeDecl<"mtx_t"> {
-  let Decl = [{
-    typedef struct {
-      unsigned char __internal_data[4];
-      int __mtx_type;
-    } mtx_t;
-  }];
-}
-
-def CndT : TypeDecl<"cnd_t"> {
-  let Decl = [{
-    typedef struct {
-      void *__qfront;
-      void *__qback;
-      struct {
-        unsigned char __w[4];
-        int __t;
-      } __qmtx;
-    } cnd_t;
-  }];
-}
-
-def ThreadStartT : TypeDecl<"thrd_start_t"> {
-  let Decl = "typedef int (*thrd_start_t)(void *);";
-}
-
-def CallOnceFuncT : TypeDecl<"__call_once_func_t"> {
-  let Decl = [{
-    typedef void(*__call_once_func_t)(void);
-  }];
 }
 
 def ThreadsAPI : PublicAPI<"threads.h"> {
   let Macros = [
-    SimpleMacroDef<"ONCE_FLAG_INIT", "0">,
+    SimpleMacroDef<"ONCE_FLAG_INIT", "{0}">,
   ];
 
-  let TypeDeclarations = [
-    OnceFlag,
-    CallOnceFuncT,
-    MtxT,
-    CndT,
-    ThreadStartT,
+  let Types = [
+    "__call_once_func_t",
+    "once_flag",
+    "cnd_t",
+    "mtx_t",
+    "thrd_t",
+    "thrd_start_t",
+    "tss_t",
+    "tss_dtor_t",
   ];
 
   let Enumerations = [
@@ -456,9 +246,77 @@ def ThreadsAPI : PublicAPI<"threads.h"> {
   ];
 }
 
-def UniStdAPI : PublicAPI<"unistd.h"> {
-  let TypeDeclarations = [
-    SSizeT,
-    SizeT,
+def PThreadAPI : PublicAPI<"pthread.h"> {
+  let Types = [
+      "__atfork_callback_t",
+      "__pthread_once_func_t",
+      "__pthread_start_t",
+      "__pthread_tss_dtor_t",
+      "pthread_attr_t",
+      "pthread_mutex_t",
+      "pthread_mutexattr_t",
+      "pthread_t",
+      "pthread_key_t",
+      "pthread_once_t",
   ];
+}
+
+def DirentAPI : PublicAPI<"dirent.h"> {
+  let Types = [
+    "ino_t",
+    "DIR",
+    "struct dirent",
+  ];
+}
+
+def UniStdAPI : PublicAPI<"unistd.h"> {
+  let Types = ["__exec_argv_t", "__exec_envp_t", "off_t", "pid_t", "size_t", "ssize_t", "uid_t", "__getoptargv_t"];
+}
+
+def SysRandomAPI : PublicAPI<"sys/random.h"> {
+  let Types = ["size_t", "ssize_t"];
+}
+
+def SysSelectAPI : PublicAPI<"sys/select.h"> {
+  let Types = ["fd_set", "sigset_t", "suseconds_t", "time_t", "struct timespec", "struct timeval"];
+}
+
+def SysResourceAPI : PublicAPI<"sys/resource.h"> {
+  let Types = ["rlim_t", "struct rlimit"];
+}
+
+def SysStatAPI : PublicAPI<"sys/stat.h"> {
+  let Types = ["mode_t", "dev_t", "ino_t", "nlink_t", "uid_t", "gid_t", "off_t",
+               "struct timespec", "blksize_t", "blkcnt_t", "struct stat"];
+}
+
+def SysWaitAPI : PublicAPI<"sys/wait.h"> {
+  let Types = ["pid_t", "struct rusage"];
+}
+
+def SysSendfileAPI : PublicAPI<"sys/sendfile.h"> {
+  let Types = ["off_t", "size_t", "ssize_t"];
+}
+
+def SysTypesAPI : PublicAPI<"sys/types.h"> {
+  let Types = ["blkcnt_t", "blksize_t", "clockid_t", "dev_t", "gid_t", "ino_t",
+               "mode_t", "nlink_t", "off_t", "pid_t", "pthread_attr_t", "pthread_key_t",
+               "pthread_mutex_t", "pthread_mutexattr_t", "pthread_once_t", "pthread_t",
+               "size_t", "ssize_t", "suseconds_t", "time_t", "uid_t"];
+}
+
+def SysUtsNameAPI : PublicAPI<"sys/utsname.h"> {
+  let Types = ["struct utsname"];
+}
+
+def SpawnAPI : PublicAPI<"spawn.h"> {
+  let Types = ["mode_t", "pid_t", "posix_spawnattr_t", "posix_spawn_file_actions_t"];
+}
+
+def TermiosAPI : PublicAPI<"termios.h"> {
+  let Types = ["cc_t", "pid_t", "speed_t", "struct termios", "tcflag_t"];
+}
+
+def SetJmpAPI : PublicAPI<"setjmp.h"> {
+  let Types = ["jmp_buf"];
 }

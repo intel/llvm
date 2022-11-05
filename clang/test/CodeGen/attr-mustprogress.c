@@ -32,7 +32,7 @@ int b = 0;
 // C11-NOT:       br {{.*}}!llvm.loop
 // FINITE-NEXT:   br {{.*}}!llvm.loop
 //
-void f0() {
+void f0(void) {
   for (; ;) ;
 }
 
@@ -49,7 +49,7 @@ void f0() {
 // CHECK:       for.end:
 // CHECK-NEXT:    ret void
 //
-void f1() {
+void f1(void) {
   for (; 1;) {
   }
 }
@@ -59,8 +59,8 @@ void f1() {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    br label %for.cond
 // CHECK:       for.cond:
-// CHECK-NEXT:    [[TMP0:%.*]] = load i32, i32* @a, align 4
-// CHECK-NEXT:    [[TMP1:%.*]] = load i32, i32* @b, align 4
+// CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr @a, align 4
+// CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr @b, align 4
 // CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[TMP0]], [[TMP1]]
 // CHECK-NEXT:    br i1 [[CMP]], label %for.body, label %for.end
 // CHECK:       for.body:
@@ -70,7 +70,7 @@ void f1() {
 // CHECK:       for.end:
 // CHECK-NEXT:    ret void
 //
-void f2() {
+void f2(void) {
   for (; a == b;) {
   }
 }
@@ -88,8 +88,8 @@ void f2() {
 // CHECK:       for.end:
 // CHECK-NEXT:    br label %for.cond1
 // CHECK:       for.cond1:
-// CHECK-NEXT:    [[TMP0:%.*]] = load i32, i32* @a, align 4
-// CHECK-NEXT:    [[TMP1:%.*]] = load i32, i32* @b, align 4
+// CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr @a, align 4
+// CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr @b, align 4
 // CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[TMP0]], [[TMP1]]
 // CHECK-NEXT:    br i1 [[CMP]], label %for.body2, label %for.end3
 // CHECK:       for.body2:
@@ -99,7 +99,7 @@ void f2() {
 // CHECK:       for.end3:
 // CHECK-NEXT:    ret void
 //
-void F() {
+void F(void) {
   for (; 1;) {
   }
   for (; a == b;) {
@@ -115,7 +115,7 @@ void F() {
 // C11-NOT:       br {{.*}}, !llvm.loop
 // FINITE-NEXT:   br {{.*}}, !llvm.loop
 //
-void w1() {
+void w1(void) {
   while (1) {
   }
 }
@@ -125,8 +125,8 @@ void w1() {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    br label %while.cond
 // CHECK:       while.cond:
-// CHECK-NEXT:    [[TMP0:%.*]] = load i32, i32* @a, align 4
-// CHECK-NEXT:    [[TMP1:%.*]] = load i32, i32* @b, align 4
+// CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr @a, align 4
+// CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr @b, align 4
 // CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[TMP0]], [[TMP1]]
 // CHECK-NEXT:    br i1 [[CMP]], label %while.body, label %while.end
 // CHECK:       while.body:
@@ -136,7 +136,7 @@ void w1() {
 // CHECK:       while.end:
 // CHECK-NEXT:    ret void
 //
-void w2() {
+void w2(void) {
   while (a == b) {
   }
 }
@@ -146,8 +146,8 @@ void w2() {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    br label [[WHILE_COND:%.*]]
 // CHECK:       while.cond:
-// CHECK-NEXT:    [[TMP0:%.*]] = load i32, i32* @a, align 4
-// CHECK-NEXT:    [[TMP1:%.*]] = load i32, i32* @b, align 4
+// CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr @a, align 4
+// CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr @b, align 4
 // CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[TMP0]], [[TMP1]]
 // CHECK-NEXT:    br i1 [[CMP]], label %while.body, label %while.end
 // CHECK:       while.body:
@@ -161,7 +161,7 @@ void w2() {
 // C11-NOT:       br {{.*}} !llvm.loop
 // FINITE-NEXT:   br {{.*}} !llvm.loop
 //
-void W() {
+void W(void) {
   while (a == b) {
   }
   while (1) {
@@ -181,7 +181,7 @@ void W() {
 // CHECK:       do.end:
 // CHECK-NEXT:    ret void
 //
-void d1() {
+void d1(void) {
   do {
   } while (1);
 }
@@ -193,8 +193,8 @@ void d1() {
 // CHECK:       do.body:
 // CHECK-NEXT:    br label %do.cond
 // CHECK:       do.cond:
-// CHECK-NEXT:    [[TMP0:%.*]] = load i32, i32* @a, align 4
-// CHECK-NEXT:    [[TMP1:%.*]] = load i32, i32* @b, align 4
+// CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr @a, align 4
+// CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr @b, align 4
 // CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[TMP0]], [[TMP1]]
 // C99-NOT:       br {{.*}}, !llvm.loop
 // C11:           br i1 [[CMP]], label %do.body, label %do.end, !llvm.loop [[LOOP5:!.*]]
@@ -202,7 +202,7 @@ void d1() {
 // CHECK:       do.end:
 // CHECK-NEXT:    ret void
 //
-void d2() {
+void d2(void) {
   do {
   } while (a == b);
 }
@@ -220,8 +220,8 @@ void d2() {
 // CHECK:       do.body1:
 // CHECK-NEXT:    br label %do.cond2
 // CHECK:       do.cond2:
-// CHECK-NEXT:    [[TMP0:%.*]] = load i32, i32* @a, align 4
-// CHECK-NEXT:    [[TMP1:%.*]] = load i32, i32* @b, align 4
+// CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr @a, align 4
+// CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr @b, align 4
 // CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[TMP0]], [[TMP1]]
 // C99-NOT:       br {{.*}}, !llvm.loop
 // C11:           br i1 [[CMP]], label %do.body1, label %do.end3, !llvm.loop [[LOOP6:!.*]]
@@ -229,7 +229,7 @@ void d2() {
 // CHECK:       do.end3:
 // CHECK-NEXT:    ret void
 //
-void D() {
+void D(void) {
   do {
   } while (1);
   do {

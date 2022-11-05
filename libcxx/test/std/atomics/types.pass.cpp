@@ -6,8 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: libcpp-has-no-threads
-
 // <atomic>
 
 // Test nested types
@@ -16,19 +14,18 @@
 // class atomic
 // {
 // public:
-//     typedef T                                        value_type;
+//     typedef T value_type;
 // };
 
 #include <atomic>
-#include <type_traits>
-
-#include <thread>
 #include <chrono>
+#include <memory>
+#include <type_traits>
 
 #include "test_macros.h"
 
-#if TEST_STD_VER >= 20
-# include <memory>
+#ifndef TEST_HAS_NO_THREADS
+#  include <thread>
 #endif
 
 template <class A, bool Integral>
@@ -170,7 +167,9 @@ int main(int, char**)
     test<LargeTriviallyCopyable>();
 #endif
 
+#ifndef TEST_HAS_NO_THREADS
     test<std::thread::id>();
+#endif
     test<std::chrono::nanoseconds>();
     test<float>();
 

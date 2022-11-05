@@ -32,25 +32,24 @@ def LLVMLibcExt : StandardSpec<"llvm_libc_ext"> {
           >,
       ]
   >;
-
-  HeaderSpec Errno = HeaderSpec<
-      "errno.h",
+  
+  HeaderSpec Sched = HeaderSpec<
+      "sched.h",
       [], // Macros
-      [], // Types
+      [PidT, SizeTType, CpuSetT], // Types
       [], // Enumerations
       [
-          FunctionSpec<
-              "__errno_location",
-              RetValSpec<IntPtr>,
-              [ArgSpec<VoidType>]
-
-          >,
+        FunctionSpec<
+            "__sched_getcpucount",
+            RetValSpec<IntType>,
+            [ArgSpec<SizeTType>, ArgSpec<ConstCpuSetPtr>]
+        >,
       ]
   >;
 
   let Headers = [
     String,
+    Sched,
     Assert,
-    Errno,
   ];
 }

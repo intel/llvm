@@ -12,7 +12,7 @@
 
 #include <iostream>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 pi_result redefinePiEnqueueEventsWaitWithBarrier(pi_queue Queue,
                                                  pi_uint32 NumEventsInWaitList,
@@ -34,15 +34,11 @@ pi_result redefinePiEventGetInfo(pi_event, pi_event_info, size_t,
   return PI_SUCCESS;
 }
 
-pi_result redefinePiEventRetain(pi_event) { return PI_SUCCESS; }
-
-pi_result redefinePiEventRelease(pi_event) { return PI_SUCCESS; }
-
 //
 // This test checks a handling of empty events in WaitWithBarrier command.
 // Original reproducer for l0 plugin led to segfault(nullptr dereference):
 //
-// #include <CL/sycl.hpp>
+// #include <sycl/sycl.hpp>
 // int main() {
 //     sycl::queue q;
 //     sycl::event e;
@@ -50,33 +46,29 @@ pi_result redefinePiEventRelease(pi_event) { return PI_SUCCESS; }
 // }
 //
 TEST_F(SchedulerTest, WaitEmptyEventWithBarrier) {
-  // NB! This test requires at least one non-host environmet
-  // For example, OpenCL.
-  default_selector Selector{};
-  if (Selector.select_device().is_host()) {
-    std::cerr << "Not run due to host-only environment\n";
-    return;
-  }
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
 
-  platform Plt{Selector};
-  unittest::PiMock Mock{Plt};
-
-  Mock.redefine<detail::PiApiKind::piEnqueueEventsWaitWithBarrier>(
+  Mock.redefineBefore<detail::PiApiKind::piEnqueueEventsWaitWithBarrier>(
       redefinePiEnqueueEventsWaitWithBarrier);
 
   queue Queue{Plt.get_devices()[0]};
-  cl::sycl::detail::QueueImplPtr QueueImpl = detail::getSyclObjImpl(Queue);
+  sycl::detail::QueueImplPtr QueueImpl = detail::getSyclObjImpl(Queue);
 
   queue_global_context =
       detail::getSyclObjImpl(Queue.get_context())->getHandleRef();
 
-  Mock.redefine<detail::PiApiKind::piEventGetInfo>(redefinePiEventGetInfo);
-  Mock.redefine<detail::PiApiKind::piEventRetain>(redefinePiEventRetain);
-  Mock.redefine<detail::PiApiKind::piEventRelease>(redefinePiEventRelease);
+  Mock.redefineBefore<detail::PiApiKind::piEventGetInfo>(
+      redefinePiEventGetInfo);
 
   auto EmptyEvent = std::make_shared<detail::event_impl>();
-  auto Event = std::make_shared<detail::event_impl>(
-      reinterpret_cast<RT::PiEvent>(0x01), Queue.get_context());
+
+  pi_event PIEvent = nullptr;
+  pi_result Res = mock_piEventCreate(/*context = */ (pi_context)0x1, &PIEvent);
+  EXPECT_TRUE(PI_SUCCESS == Res);
+
+  auto Event =
+      std::make_shared<detail::event_impl>(PIEvent, Queue.get_context());
 
   using EventList = std::vector<detail::EventImplPtr>;
   std::vector<EventList> InputEventWaitLists = {

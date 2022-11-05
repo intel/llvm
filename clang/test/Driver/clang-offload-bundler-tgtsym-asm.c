@@ -9,7 +9,7 @@
 // RUN: %clang -target x86_64-pc-linux-gnu -emit-llvm -c %s -o %t.tgt1
 // RUN: %clang -target spir64              -emit-llvm -c %s -o %t.tgt2
 
-// RUN: clang-offload-bundler -type=o -targets=host-%itanium_abi_triple,openmp-x86_64-pc-linux-gnu,sycl-spir64 -inputs=%t.o,%t.tgt1,%t.tgt2 -outputs=%t.fat.o
+// RUN: clang-offload-bundler -type=o -targets=host-%itanium_abi_triple,openmp-x86_64-pc-linux-gnu,sycl-spir64 -input=%t.o -input=%t.tgt1 -input=%t.tgt2 -output=%t.fat.o
 // RUN: llvm-readobj --string-dump=.tgtsym %t.fat.o | FileCheck %s
 
 // CHECK: String dump of section '.tgtsym':

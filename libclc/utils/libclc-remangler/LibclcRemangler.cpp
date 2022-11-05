@@ -11,15 +11,29 @@
 // `unsigned long`, and `char` to appear as if they use `long long`,
 // `unsigned long long`, and `signed char`, as is consistent with the primitive
 // types defined by OpenCL C. Following a remangling, the original function
-// mangling will be made an alias to either the remangled function or a function
-// with a suitable function if any exists.
+// mangling will be built as a clone of either the remangled function or a
+// function with a suitable function if any exists. In some cases a clone of
+// the remangled function is created for functions where multiple parameters
+// have been replaced, and the replaced values are aliases.
 //
-// Example: If libclc defined a function `f(long)` the mangled name would be
+// Original Clone Example:
+//          If libclc defined a function `f(long)` the mangled name would be
 //          `_Z1fl`. The remangler would rename this function to `_Z1fx`
-//          (`f(long long)`.) If the target uses 64-bit `long`, `_Z1fl` is made
-//          an alias to the old function now under the name `_Z1fx`, whereas if
-//          the target uses 32-bit `long`, `_Z1fl` is made an alias to `_Z1fi`
+//          (`f(long long)`.) If the target uses 64-bit `long`, `_Z1fl` is
+//          cloned from the old function now under the name `_Z1fx`, whereas if
+//          the target uses 32-bit `long`, `_Z1fl` is cloned from `_Z1fi`
 //          (`f(int)`) if such a function exists.
+//
+// Remangled Clone Example:
+//          In cases where the remangled name squashes valid versions of a
+//          function a clone is created. `f(long, char, signed char)` would be
+//          mangled to
+//          `_Z1flca`. The remangler would rename this function to `_Z1fyaa`
+//          (`f(long long, signed char, signed char)`). If the target uses a
+//          signed char then a valid clone `_Z1fyca`,
+//          (`f(long long, char, signed char)`), is not defined. The remangler
+//          creates a clone of the renamed function,`_Z1fyaa` , to this
+//          permutation, `_Z1fyca`.
 //
 //===----------------------------------------------------------------------===//
 
@@ -44,6 +58,8 @@
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/Utils/Cloning.h"
+#include "llvm/Transforms/Utils/ValueMapper.h"
 
 #include <iostream>
 #include <memory>
@@ -139,7 +155,7 @@ class DefaultAllocator {
 public:
   void reset() { Alloc.reset(); }
 
-  template <typename T, typename... Args> T *makeNode(Args &&... args) {
+  template <typename T, typename... Args> T *makeNode(Args &&...args) {
     return new (Alloc.allocate(sizeof(T))) T(std::forward<Args>(args)...);
   }
 
@@ -158,15 +174,13 @@ class Remangler {
   SmallVector<std::string, 16> Subs;
   bool Failed = false;
 
-  OutputStream printNode(const Node *node) {
-    OutputStream nodeOutStream;
-    initializeOutputStream(nullptr, nullptr, nodeOutStream, 1024);
-    node->print(nodeOutStream);
-    return nodeOutStream;
+  void printNode(const Node *node, OutputBuffer &nodeOutBuffer) {
+    node->print(nodeOutBuffer);
   }
 
   void addSub(const Node *node) {
-    OutputStream nodeOut = printNode(node);
+    OutputBuffer nodeOut;
+    printNode(node, nodeOut);
     char *nodeOutBuf = nodeOut.getBuffer();
     auto nodeOutStr =
         std::string(nodeOutBuf, nodeOutBuf + nodeOut.getCurrentPosition());
@@ -175,7 +189,8 @@ class Remangler {
   }
 
   bool findSub(const Node *node, size_t *index) {
-    OutputStream nodeOut = printNode(node);
+    OutputBuffer nodeOut;
+    printNode(node, nodeOut);
     char *nodeOutBuf = nodeOut.getBuffer();
     auto nodeOutStr =
         std::string(nodeOutBuf, nodeOutBuf + nodeOut.getCurrentPosition());
@@ -190,39 +205,39 @@ class Remangler {
     return false;
   }
 
-  bool remangleSub(const Node *node, OutputStream &S) {
+  bool remangleSub(const Node *node, OutputBuffer &OB) {
     size_t index = 0;
     if (findSub(node, &index)) {
-      S << 'S';
+      OB << 'S';
       if (index != 0)
-        S << index;
-      S << '_';
+        OB << index;
+      OB << '_';
       return true;
     }
     return false;
   }
 
-  void remangleOpenCLCName(const Node *nameNode, OutputStream &S,
+  void remangleOpenCLCName(const Node *nameNode, OutputBuffer &OB,
                            bool Substitutable, bool isNameRoot = true) {
-    if (Substitutable && remangleSub(nameNode, S))
+    if (Substitutable && remangleSub(nameNode, OB))
       return;
     switch (nameNode->getKind()) {
     case Node::Kind::KNameType: {
       const NameType *name = static_cast<const NameType *>(nameNode);
-      S << name->getName().size();
-      S << name->getName();
+      OB << name->getName().size();
+      OB << name->getName();
       break;
     }
     case Node::Kind::KNestedName: {
       if (isNameRoot)
-        S << 'N';
+        OB << 'N';
       const NestedName *nestedName = static_cast<const NestedName *>(nameNode);
-      remangleOpenCLCName(nestedName->Qual, S, Substitutable,
+      remangleOpenCLCName(nestedName->Qual, OB, Substitutable,
                           /* isNameRoot= */ false);
-      remangleOpenCLCName(nestedName->Name, S, /* Substitutable= */ false,
+      remangleOpenCLCName(nestedName->Name, OB, /* Substitutable= */ false,
                           /* isNameRoot= */ false);
       if (isNameRoot)
-        S << 'E';
+        OB << 'E';
       break;
     }
     case Node::Kind::KNameWithTemplateArgs: {
@@ -230,19 +245,18 @@ class Remangler {
           static_cast<const NameWithTemplateArgs *>(nameNode);
       assert(templateName->TemplateArgs->getKind() ==
              Node::Kind::KTemplateArgs);
-      remangleOpenCLCName(templateName->Name, S, /* Substitutable= */ false,
+      remangleOpenCLCName(templateName->Name, OB, /* Substitutable= */ false,
                           /* isNameRoot= */ false);
-      S << 'I';
+      OB << 'I';
       const TemplateArgs *templateArgs =
           static_cast<const TemplateArgs *>(templateName->TemplateArgs);
       for (auto templateArgType : templateArgs->getParams())
-        remangleOpenCLCType(templateArgType, S);
-      S << 'E';
+        remangleOpenCLCType(templateArgType, OB);
+      OB << 'E';
       break;
     }
     default: {
-      OutputStream errorTypeOut;
-      initializeOutputStream(nullptr, nullptr, errorTypeOut, 1024);
+      OutputBuffer errorTypeOut;
       errorTypeOut << "Unhandled name : ";
       nameNode->print(errorTypeOut);
       errorTypeOut << "\n";
@@ -255,7 +269,7 @@ class Remangler {
       addSub(nameNode);
   }
 
-  void remangleOpenCLCTypeName(const NameType *typeName, OutputStream &S) {
+  void remangleOpenCLCTypeName(const NameType *typeName, OutputBuffer &OB) {
     StringView name = typeName->getName();
 
     auto it = TypeReplacements.find(name.begin());
@@ -263,96 +277,96 @@ class Remangler {
       name = StringView(it->second);
 
     if (name == "void")
-      S << 'v';
+      OB << 'v';
     else if (name == "wchar_t")
-      S << 'w';
+      OB << 'w';
     else if (name == "bool")
-      S << 'b';
+      OB << 'b';
     else if (name == "char")
-      S << 'c';
+      OB << 'c';
     else if (name == "signed char")
-      S << 'a';
+      OB << 'a';
     else if (name == "unsigned char")
-      S << 'h';
+      OB << 'h';
     else if (name == "short")
-      S << 's';
+      OB << 's';
     else if (name == "unsigned short")
-      S << 't';
+      OB << 't';
     else if (name == "int")
-      S << 'i';
+      OB << 'i';
     else if (name == "unsigned int")
-      S << 'j';
+      OB << 'j';
     else if (name == "long")
-      S << 'l';
+      OB << 'l';
     else if (name == "unsigned long")
-      S << 'm';
+      OB << 'm';
     else if (name == "long long")
-      S << 'x';
+      OB << 'x';
     else if (name == "unsigned long long")
-      S << 'y';
+      OB << 'y';
     else if (name == "__int128")
-      S << 'n';
+      OB << 'n';
     else if (name == "unsigned __int128")
-      S << 'o';
+      OB << 'o';
     else if (name == "float")
-      S << 'f';
+      OB << 'f';
     else if (name == "double")
-      S << 'd';
+      OB << 'd';
     else if (name == "long double")
-      S << 'e';
+      OB << 'e';
     else if (name == "__float128")
-      S << 'g';
+      OB << 'g';
     else if (name == "...")
-      S << 'z';
+      OB << 'z';
     // TODO: u
     else if (name == "decimal64")
-      S << "Dd";
+      OB << "Dd";
     else if (name == "decimal128")
-      S << "De";
+      OB << "De";
     else if (name == "decimal32")
-      S << "Df";
+      OB << "Df";
     else if (name == "decimal16")
-      S << "Dh";
+      OB << "Dh";
     else if (name == "char32_t")
-      S << "Di";
+      OB << "Di";
     else if (name == "char16_t")
-      S << "Ds";
+      OB << "Ds";
     else if (name == "char8_t")
-      S << "Du";
+      OB << "Du";
     else if (name == "_Float16")
-      S << "DF16_";
+      OB << "DF16_";
     else if (name == "auto")
-      S << 'a';
+      OB << 'a';
     else if (name == "decltype(auto)")
-      S << 'c';
+      OB << 'c';
     else if (name == "std::nullptr_t")
-      S << 'n';
+      OB << 'n';
     // Enum
     else
-      remangleOpenCLCName(typeName, S, /* Substitutable= */ true);
+      remangleOpenCLCName(typeName, OB, /* Substitutable= */ true);
   }
 
   void remangleOpenCLCQualifiers(const itanium_demangle::Qualifiers quals,
-                                 OutputStream &S) {
+                                 OutputBuffer &OB) {
     if (quals & QualConst)
-      S << "K";
+      OB << "K";
     if (quals & QualVolatile)
-      S << "V";
+      OB << "V";
     if (quals & QualRestrict)
-      S << "r";
+      OB << "r";
   }
 
-  void remangleOpenCLCType(const Node *typeNode, OutputStream &S) {
+  void remangleOpenCLCType(const Node *typeNode, OutputBuffer &OB) {
     switch (typeNode->getKind()) {
     case Node::Kind::KPointerType: {
       const itanium_demangle::PointerType *ptype =
           static_cast<const itanium_demangle::PointerType *>(typeNode);
-      S << 'P';
-      remangleOpenCLCType(ptype->getPointee(), S);
+      OB << 'P';
+      remangleOpenCLCType(ptype->getPointee(), OB);
       break;
     }
     case Node::Kind::KVectorType: {
-      if (remangleSub(typeNode, S))
+      if (remangleSub(typeNode, OB))
         return;
 
       const itanium_demangle::VectorType *vecType =
@@ -360,15 +374,15 @@ class Remangler {
       assert(vecType->getDimension()->getKind() == Node::Kind::KNameType);
       const NameType *dims =
           static_cast<const NameType *>(vecType->getDimension());
-      S << "Dv";
-      S << dims->getName();
-      S << '_';
-      remangleOpenCLCType(vecType->getBaseType(), S);
+      OB << "Dv";
+      OB << dims->getName();
+      OB << '_';
+      remangleOpenCLCType(vecType->getBaseType(), OB);
       addSub(typeNode);
       break;
     }
     case Node::Kind::KBinaryFPType: {
-      if (remangleSub(typeNode, S))
+      if (remangleSub(typeNode, OB))
         return;
 
       const BinaryFPType *BFPType = static_cast<const BinaryFPType *>(typeNode);
@@ -376,44 +390,43 @@ class Remangler {
       const NameType *dims =
           static_cast<const NameType *>(BFPType->getDimension());
 
-      S << "DF";
-      S << dims->getName();
-      S << '_';
+      OB << "DF";
+      OB << dims->getName();
+      OB << '_';
       break;
     }
     case Node::Kind::KVendorExtQualType: {
-      if (remangleSub(typeNode, S))
+      if (remangleSub(typeNode, OB))
         return;
 
       const VendorExtQualType *extQualType =
           static_cast<const VendorExtQualType *>(typeNode);
-      S << 'U';
-      S << extQualType->getExt().size();
-      S << extQualType->getExt();
-      remangleOpenCLCType(extQualType->getTy(), S);
+      OB << 'U';
+      OB << extQualType->getExt().size();
+      OB << extQualType->getExt();
+      remangleOpenCLCType(extQualType->getTy(), OB);
       addSub(typeNode);
       break;
     }
     case Node::Kind::KQualType: {
       const itanium_demangle::QualType *qtype =
           static_cast<const itanium_demangle::QualType *>(typeNode);
-      remangleOpenCLCQualifiers(qtype->getQuals(), S);
-      remangleOpenCLCType(qtype->getChild(), S);
+      remangleOpenCLCQualifiers(qtype->getQuals(), OB);
+      remangleOpenCLCType(qtype->getChild(), OB);
       break;
     }
     case Node::Kind::KNameType: {
       const NameType *typeName = static_cast<const NameType *>(typeNode);
-      remangleOpenCLCTypeName(typeName, S);
+      remangleOpenCLCTypeName(typeName, OB);
       break;
     }
     case Node::Kind::KNestedName: {
       // Enum type with nested name
-      remangleOpenCLCName(typeNode, S, /* Substitutable= */ true);
+      remangleOpenCLCName(typeNode, OB, /* Substitutable= */ true);
       break;
     }
     default: {
-      OutputStream errorTypeOut;
-      initializeOutputStream(nullptr, nullptr, errorTypeOut, 1024);
+      OutputBuffer errorTypeOut;
       errorTypeOut << "Unhandled type : ";
       typeNode->print(errorTypeOut);
       errorTypeOut << "\n";
@@ -424,23 +437,23 @@ class Remangler {
     }
   }
 
-  void remangleOpenCLCFunction(const Node *root, OutputStream &S) {
+  void remangleOpenCLCFunction(const Node *root, OutputBuffer &OB) {
     assert(root->getKind() == Node::Kind::KFunctionEncoding);
-    S << "_Z";
+    OB << "_Z";
 
     const FunctionEncoding *encoding =
         static_cast<const FunctionEncoding *>(root);
 
-    remangleOpenCLCName(encoding->getName(), S, /* Substitutable= */ false);
+    remangleOpenCLCName(encoding->getName(), OB, /* Substitutable= */ false);
 
     if (encoding->getReturnType())
-      remangleOpenCLCType(encoding->getReturnType(), S);
+      remangleOpenCLCType(encoding->getReturnType(), OB);
 
     for (const Node *paramType : encoding->getParams())
-      remangleOpenCLCType(paramType, S);
+      remangleOpenCLCType(paramType, OB);
 
     if (encoding->getParams().size() == 0)
-      S << 'v';
+      OB << 'v';
   }
 
 public:
@@ -452,8 +465,7 @@ public:
 
   std::string remangle() {
     Subs.clear();
-    OutputStream remanglingStream;
-    initializeOutputStream(nullptr, nullptr, remanglingStream, 1024);
+    OutputBuffer remanglingStream;
     remangleOpenCLCFunction(Root, remanglingStream);
     std::string remangled = std::string(remanglingStream.getBuffer(),
                                         remanglingStream.getCurrentPosition());
@@ -464,7 +476,21 @@ public:
 
 class TargetTypeReplacements {
   SmallDenseMap<const char *, const char *> ParameterTypeReplacements;
-  SmallDenseMap<const char *, const char *> AliasTypeReplacements;
+  SmallDenseMap<const char *, const char *> CloneTypeReplacements;
+  SmallDenseMap<const char *, const char *> RemangledCloneTypeReplacements;
+
+  void CreateRemangledTypeReplacements() {
+    // RemangleTypes which are not aliases or not the exact same alias type
+    for (auto &TypeReplacementPair : ParameterTypeReplacements)
+      if (CloneTypeReplacements.find(TypeReplacementPair.getFirst()) ==
+          CloneTypeReplacements.end())
+        RemangledCloneTypeReplacements[TypeReplacementPair.getFirst()] =
+            TypeReplacementPair.getSecond();
+      else if (CloneTypeReplacements[TypeReplacementPair.getFirst()] !=
+               TypeReplacementPair.getSecond())
+        RemangledCloneTypeReplacements[TypeReplacementPair.getFirst()] =
+            TypeReplacementPair.getSecond();
+  }
 
 public:
   TargetTypeReplacements() {
@@ -475,54 +501,93 @@ public:
     // Replace char with signed char
     ParameterTypeReplacements["char"] = "signed char";
 
-    // Make replaced long functions aliases to either integer or long long
+    // Make replaced long functions clones of either integer or long long
     // variant
     if (LongWidth == SupportedLongWidth::L32) {
-      AliasTypeReplacements["long"] = "int";
-      AliasTypeReplacements["unsigned long"] = "unsigned int";
+      CloneTypeReplacements["long"] = "int";
+      CloneTypeReplacements["unsigned long"] = "unsigned int";
     } else {
-      AliasTypeReplacements["long"] = "long long";
-      AliasTypeReplacements["unsigned long"] = "unsigned long long";
+      CloneTypeReplacements["long"] = "long long";
+      CloneTypeReplacements["unsigned long"] = "unsigned long long";
     }
 
-    // Make replaced char functions aliases to either integer or long long
+    // Make replaced char functions clones of either integer or long long
     // variant
     if (CharSignedness == Signedness::Signed) {
-      AliasTypeReplacements["char"] = "signed char";
+      CloneTypeReplacements["char"] = "signed char";
     } else {
-      AliasTypeReplacements["char"] = "unsigned char";
+      CloneTypeReplacements["char"] = "unsigned char";
     }
+
+    CreateRemangledTypeReplacements();
   }
 
   SmallDenseMap<const char *, const char *> getParameterTypeReplacements() {
     return ParameterTypeReplacements;
   }
 
-  SmallDenseMap<const char *, const char *> getAliasTypeReplacements() {
-    return AliasTypeReplacements;
+  SmallDenseMap<const char *, const char *> getCloneTypeReplacements() {
+    return CloneTypeReplacements;
+  }
+
+  SmallDenseMap<const char *, const char *>
+  getRemangledCloneTypeReplacements() {
+    return RemangledCloneTypeReplacements;
   }
 };
 
-bool createAlias(Module *M, std::string originalMangledName,
-                 const itanium_demangle::Node *functionTree,
-                 TargetTypeReplacements replacements) {
-  Remangler ATR{functionTree, replacements.getAliasTypeReplacements()};
-  std::string RemangledAliasName = ATR.remangle();
+bool createCloneFromMap(
+    Module *M, std::string originalName,
+    const itanium_demangle::Node *functionTree,
+    SmallDenseMap<const char *, const char *> TypeReplacements,
+    bool CloneeTypeReplacement = false) {
+  Remangler ATR{functionTree, TypeReplacements};
+  std::string RemangledName = ATR.remangle();
 
   if (ATR.hasFailed())
     return false;
 
   // Name has not changed from the original name.
-  if (RemangledAliasName == originalMangledName)
+  if (RemangledName == originalName)
     return true;
 
-  Function *Alias = M->getFunction(RemangledAliasName);
-  if (Alias) {
-    GlobalAlias::create(originalMangledName, Alias);
-  } else if (Verbose) {
-    std::cout << "Could not create alias " << originalMangledName
-              << " : missing " << RemangledAliasName << std::endl;
+  StringRef CloneName, CloneeName;
+  if (CloneeTypeReplacement) {
+    CloneName = originalName;
+    CloneeName = RemangledName;
+  } else {
+    CloneName = RemangledName;
+    CloneeName = originalName;
   }
+
+  Function *Clonee = M->getFunction(CloneeName);
+  if (Clonee) {
+    ValueToValueMapTy Dummy;
+    Function *NewF = CloneFunction(Clonee, Dummy);
+    NewF->setName(std::string(CloneName));
+  } else if (Verbose) {
+    std::cout << "Could not create copy " << CloneName.data() << " : missing "
+              << CloneeName.data() << std::endl;
+  }
+
+  return true;
+}
+
+bool createClones(Module *M, std::string originalMangledName,
+                  std::string remangledName,
+                  const itanium_demangle::Node *functionTree,
+                  TargetTypeReplacements replacements) {
+  // create clone of original function
+  if (!createCloneFromMap(M, originalMangledName, functionTree,
+                          replacements.getCloneTypeReplacements(),
+                          /* CloneeTypeReplacement= */ true))
+    return false;
+
+  // create clone of remangled function
+  if (!createCloneFromMap(M, remangledName, functionTree,
+                          replacements.getRemangledCloneTypeReplacements()))
+    return false;
+
   return true;
 }
 
@@ -556,9 +621,10 @@ bool remangleFunction(Function &func, Module *M,
     }
     func.setName(RemangledName);
 
-    // Make an alias to a suitable function using the old name if there is a
-    // type-mapping and the corresponding aliasee function exists.
-    if (!createAlias(M, MangledName, FunctionTree, replacements))
+    // Make a clone of a suitable function using the old name if there is a
+    // type-mapping and the corresponding clonee function exists.
+    if (!createClones(M, MangledName, RemangledName, FunctionTree,
+                      replacements))
       return false;
   }
 
@@ -587,6 +653,15 @@ int main(int argc, const char **argv) {
   std::unique_ptr<llvm::Module> M =
       ExitOnErr(parseBitcodeFile(BufferPtr.get()->getMemBufferRef(), Context));
 
+  // This module is built explicitly for linking with any .bc compiled with the
+  // "nvptx64-nvidia-cuda" (CUDA) or "amdgcn-amd-amdhsa" (HIP AMD) triples.
+  // Therefore we update the module triple.
+  if (M.get()->getTargetTriple() == "nvptx64-unknown-nvidiacl") {
+    M.get()->setTargetTriple("nvptx64-nvidia-cuda");
+  }
+  else if (M.get()->getTargetTriple() == "amdgcn-unknown-amdhsa") {
+    M.get()->setTargetTriple("amdgcn-amd-amdhsa");
+  }
   std::error_code EC;
   std::unique_ptr<ToolOutputFile> Out(
       new ToolOutputFile(OutputFilename, EC, sys::fs::OF_None));
@@ -595,10 +670,14 @@ int main(int argc, const char **argv) {
     return 1;
   }
 
-  bool Success = true;
+  std::vector<Function *> FuncList;
   for (auto &Func : M->getFunctionList())
-    Success = remangleFunction(Func, M.get(), Replacements) && Success;
+    FuncList.push_back(&Func);
 
+  bool Success = true;
+  for (auto Func : FuncList) {
+    Success = remangleFunction(*Func, M.get(), Replacements) && Success;
+  }
   // Only fail after all to give as much context as possible.
   if (!Success) {
     errs() << "Failed to remangle all mangled functions in module.\n";

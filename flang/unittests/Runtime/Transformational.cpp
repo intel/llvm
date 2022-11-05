@@ -1,4 +1,4 @@
-//===-- flang/unittests/RuntimeGTest/Transformational.cpp -----------------===//
+//===-- flang/unittests/Runtime/Transformational.cpp ----------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -93,6 +93,25 @@ TEST(Transformational, Shifts) {
   }
   vectorResult.Destroy();
 
+  // VECTOR  1 3 5 2 4 6 WITH non zero lower bound in a negative cshift.
+  auto vectorWithLowerBounds{MakeArray<TypeCategory::Integer, 4>(
+      std::vector<int>{6}, std::vector<std::int32_t>{1, 2, 3, 4, 5, 6})};
+  vectorWithLowerBounds->GetDimension(0).SetLowerBound(2);
+
+  RTNAME(CshiftVector)
+  (vectorResult, *vectorWithLowerBounds, -2, __FILE__, __LINE__);
+  EXPECT_EQ(vectorResult.type(), array->type());
+  EXPECT_EQ(vectorResult.rank(), 1);
+  EXPECT_EQ(vectorResult.GetDimension(0).LowerBound(), 1);
+  EXPECT_EQ(vectorResult.GetDimension(0).Extent(), 6);
+  EXPECT_EQ(vectorResult.type(), (TypeCode{TypeCategory::Integer, 4}));
+  static std::int32_t cshiftExpect5[6]{5, 6, 1, 2, 3, 4};
+  for (int j{0}; j < 6; ++j) {
+    EXPECT_EQ(*vectorResult.ZeroBasedIndexedElement<std::int32_t>(j),
+        cshiftExpect5[j]);
+  }
+  vectorResult.Destroy();
+
   auto boundary{MakeArray<TypeCategory::Integer, 4>(
       std::vector<int>{3}, std::vector<std::int32_t>{-1, -2, -3})};
   boundary->GetDimension(0).SetLowerBound(9); // shouldn't matter
@@ -128,6 +147,22 @@ TEST(Transformational, Shifts) {
   for (int j{0}; j < 6; ++j) {
     EXPECT_EQ(*vectorResult.ZeroBasedIndexedElement<std::int32_t>(j),
         eoshiftVectorExpect[j]);
+  }
+  vectorResult.Destroy();
+
+  // VECTOR EOSHIFT on input with non zero lower bounds
+  RTNAME(EoshiftVector)
+  (vectorResult, *vectorWithLowerBounds, -2, &vectorBoundary, __FILE__,
+      __LINE__);
+  EXPECT_EQ(vectorResult.type(), array->type());
+  EXPECT_EQ(vectorResult.rank(), 1);
+  EXPECT_EQ(vectorResult.GetDimension(0).LowerBound(), 1);
+  EXPECT_EQ(vectorResult.GetDimension(0).Extent(), 6);
+  EXPECT_EQ(vectorResult.type(), (TypeCode{TypeCategory::Integer, 4}));
+  static std::int32_t eoshiftVectorExpect2[6]{343, 343, 1, 2, 3, 4};
+  for (int j{0}; j < 6; ++j) {
+    EXPECT_EQ(*vectorResult.ZeroBasedIndexedElement<std::int32_t>(j),
+        eoshiftVectorExpect2[j]);
   }
   vectorResult.Destroy();
 }
@@ -282,3 +317,31 @@ TEST(Transformational, Unpack) {
   }
   result.Destroy();
 }
+
+#if LDBL_MANT_DIG == 64
+// Make sure the destination descriptor is created by the runtime
+// with proper element size, when REAL*10 maps to 'long double'.
+#define Real10CppType long double
+TEST(Transformational, TransposeReal10) {
+  // ARRAY  1 3 5
+  //        2 4 6
+  auto array{MakeArray<TypeCategory::Real, 10>(std::vector<int>{2, 3},
+      std::vector<Real10CppType>{1.0, 2.0, 3.0, 4.0, 5.0, 6.0},
+      sizeof(Real10CppType))};
+  StaticDescriptor<2, true> statDesc;
+  Descriptor &result{statDesc.descriptor()};
+  RTNAME(Transpose)(result, *array, __FILE__, __LINE__);
+  EXPECT_EQ(result.ElementBytes(), sizeof(Real10CppType));
+  EXPECT_EQ(result.type(), array->type());
+  EXPECT_EQ(result.rank(), 2);
+  EXPECT_EQ(result.GetDimension(0).LowerBound(), 1);
+  EXPECT_EQ(result.GetDimension(0).Extent(), 3);
+  EXPECT_EQ(result.GetDimension(1).LowerBound(), 1);
+  EXPECT_EQ(result.GetDimension(1).Extent(), 2);
+  static Real10CppType expect[6]{1.0, 3.0, 5.0, 2.0, 4.0, 6.0};
+  for (int j{0}; j < 6; ++j) {
+    EXPECT_EQ(*result.ZeroBasedIndexedElement<Real10CppType>(j), expect[j]);
+  }
+  result.Destroy();
+}
+#endif

@@ -1,3 +1,5 @@
+include(GNUInstallDirs)
+
 function(lldb_tablegen)
   # Syntax:
   # lldb_tablegen output-file [tablegen-arg ...] SOURCE source-file
@@ -103,7 +105,7 @@ function(add_lldb_library name)
   # this may result in the wrong install DESTINATION. The FRAMEWORK property
   # must be set earlier.
   if(PARAM_FRAMEWORK)
-    set_target_properties(liblldb PROPERTIES FRAMEWORK ON)
+    set_target_properties(${name} PROPERTIES FRAMEWORK ON)
   endif()
 
   if(PARAM_SHARED)
@@ -113,7 +115,7 @@ function(add_lldb_library name)
     endif()
     # RUNTIME is relevant for DLL platforms, FRAMEWORK for macOS
     install(TARGETS ${name} COMPONENT ${name}
-      RUNTIME DESTINATION bin
+      RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
       LIBRARY DESTINATION ${install_dest}
       ARCHIVE DESTINATION ${install_dest}
       FRAMEWORK DESTINATION ${install_dest})

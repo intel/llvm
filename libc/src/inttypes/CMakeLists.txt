@@ -5,7 +5,7 @@ add_entrypoint_object(
   HDRS
     strtoimax.h
   DEPENDS
-    libc.src.__support.str_conv_utils
+    libc.src.__support.str_to_integer
 )
 
 add_entrypoint_object(
@@ -15,7 +15,7 @@ add_entrypoint_object(
   HDRS
     strtoumax.h
   DEPENDS
-    libc.src.__support.str_conv_utils
+    libc.src.__support.str_to_integer
 )
 
 add_entrypoint_object(
@@ -24,6 +24,17 @@ add_entrypoint_object(
     imaxdiv.cpp
   HDRS
     imaxdiv.h
+  DEPENDS
+    libc.include.inttypes
+    libc.src.__support.integer_operations
+)
+
+add_entrypoint_object(
+  imaxabs
+  SRCS
+    imaxabs.cpp
+  HDRS
+    imaxabs.h
   DEPENDS
     libc.include.inttypes
     libc.src.__support.integer_operations

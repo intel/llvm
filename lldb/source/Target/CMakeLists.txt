@@ -20,6 +20,7 @@ add_lldb_library(lldbTarget
   Memory.cpp
   MemoryHistory.cpp
   MemoryRegionInfo.cpp
+  MemoryTagMap.cpp
   ModuleCache.cpp
   OperatingSystem.cpp
   PathMappingList.cpp
@@ -39,6 +40,7 @@ add_lldb_library(lldbTarget
   StackFrameList.cpp
   StackFrameRecognizer.cpp
   StackID.cpp
+  Statistics.cpp
   StopInfo.cpp
   StructuredDataPlugin.cpp
   SystemRuntime.cpp
@@ -70,7 +72,7 @@ add_lldb_library(lldbTarget
   Trace.cpp
   TraceCursor.cpp
   TraceExporter.cpp
-  TraceInstructionDumper.cpp
+  TraceDumper.cpp
   UnixSignals.cpp
   UnwindAssembly.cpp
   UnwindLLDB.cpp

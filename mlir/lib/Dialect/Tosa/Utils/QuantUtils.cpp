@@ -43,6 +43,13 @@ static void computeMultiplierAndShiftTosaScale16(double scale,
          "Shifted mantissa exceeds 32-bit signed output type");
 
   multiplier = static_cast<int32_t>(shiftedM);
+
+  // Shifting tops out at 63 bits. Right shift to make 63 bits the max.
+  if (shift > 63) {
+    // Shifting the multiplier by more than 31-bits is unnecessary.
+    multiplier = multiplier >> std::min<int32_t>(31, shift - 63);
+    shift = 63;
+  }
 }
 
 /// From a scale value, generates multiplier and shift values where
@@ -71,6 +78,13 @@ static void computeMultiplierAndShiftTosaScale32(double scale,
          "Shifted mantissa exceeds 32-bit signed output type");
 
   multiplier = static_cast<int32_t>(shiftedM);
+
+  // Shifting tops out at 63 bits. Right shift to make 63 bits the max.
+  if (shift > 63) {
+    // Shifting the multiplier by more than 32-bits is unnecessary.
+    multiplier = multiplier >> std::min<int32_t>(31, shift - 63);
+    shift = 63;
+  }
 }
 
 /// Generates a quantized multiplier/shift from double.
@@ -123,7 +137,6 @@ mlir::tosa::buildConvOpQuantizationAttr(OpBuilder &builder, Value input,
          "Inputs and weights must be all quantized or all not quantized");
 
   if (inputQType) {
-
     int64_t inputZp = inputQType.getZeroPoint();
     int64_t weightZp = 0;
 
@@ -133,11 +146,7 @@ mlir::tosa::buildConvOpQuantizationAttr(OpBuilder &builder, Value input,
       weightZp = weightPerAxisQType.getZeroPoints().front();
     }
 
-    auto quantAttr = tosa::ConvOpQuantizationAttr::get(
-        builder.getI32IntegerAttr(inputZp), builder.getI32IntegerAttr(weightZp),
-        builder.getContext());
-
-    return quantAttr;
+    return builder.getAttr<tosa::ConvOpQuantizationAttr>(inputZp, weightZp);
   }
 
   return nullptr;
@@ -165,15 +174,8 @@ mlir::tosa::buildMatMulOpQuantizationAttr(OpBuilder &builder, Value a,
          "Matmul operands must be all quantized or all not quantized");
 
   if (aQType) {
-
-    int64_t aZp = aQType.getZeroPoint();
-    int64_t bZp = bQType.getZeroPoint();
-
-    auto quantAttr = tosa::MatMulOpQuantizationAttr::get(
-        builder.getI32IntegerAttr(aZp), builder.getI32IntegerAttr(bZp),
-        builder.getContext());
-
-    return quantAttr;
+    return builder.getAttr<tosa::MatMulOpQuantizationAttr>(
+        aQType.getZeroPoint(), bQType.getZeroPoint());
   }
 
   return nullptr;
@@ -201,15 +203,8 @@ mlir::tosa::buildUnaryOpQuantizationAttr(OpBuilder &builder, Value input,
          "Unary inputs/outputs must be all quantized or all not quantized");
 
   if (inputQType) {
-
-    int64_t inputZp = inputQType.getZeroPoint();
-    int64_t outputZp = outputQType.getZeroPoint();
-
-    auto quantAttr = tosa::UnaryOpQuantizationAttr::get(
-        builder.getI32IntegerAttr(inputZp), builder.getI32IntegerAttr(outputZp),
-        builder.getContext());
-
-    return quantAttr;
+    return builder.getAttr<UnaryOpQuantizationAttr>(inputQType.getZeroPoint(),
+                                                    outputQType.getZeroPoint());
   }
 
   return nullptr;
@@ -228,13 +223,8 @@ PadOpQuantizationAttr mlir::tosa::buildPadOpQuantizationAttr(OpBuilder &builder,
   auto inputQType = GET_UQTYPE(inputType);
 
   if (inputQType) {
-
-    int64_t inputZp = inputQType.getZeroPoint();
-
-    auto quantAttr = tosa::PadOpQuantizationAttr::get(
-        builder.getI32IntegerAttr(inputZp), builder.getContext());
-
-    return quantAttr;
+    return builder.getAttr<tosa::PadOpQuantizationAttr>(
+        inputQType.getZeroPoint());
   }
 
   return nullptr;

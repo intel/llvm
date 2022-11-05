@@ -22,7 +22,8 @@ ProBoundsConstantArrayIndexCheck::ProBoundsConstantArrayIndexCheck(
     StringRef Name, ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context), GslHeader(Options.get("GslHeader", "")),
       Inserter(Options.getLocalOrGlobal("IncludeStyle",
-                                        utils::IncludeSorter::IS_LLVM)) {}
+                                        utils::IncludeSorter::IS_LLVM),
+               areDiagsSelfContained()) {}
 
 void ProBoundsConstantArrayIndexCheck::storeOptions(
     ClangTidyOptions::OptionMap &Opts) {
@@ -60,6 +61,12 @@ void ProBoundsConstantArrayIndexCheck::check(
   const auto *Matched = Result.Nodes.getNodeAs<Expr>("expr");
   const auto *IndexExpr = Result.Nodes.getNodeAs<Expr>("index");
 
+  // This expression can only appear inside ArrayInitLoopExpr, which
+  // is always implicitly generated. ArrayInitIndexExpr is not a
+  // constant, but we shouldn't report a warning for it.
+  if (isa<ArrayInitIndexExpr>(IndexExpr))
+    return;
+
   if (IndexExpr->isValueDependent())
     return; // We check in the specialization.
 
@@ -71,13 +78,12 @@ void ProBoundsConstantArrayIndexCheck::check(
       BaseRange = ArraySubscriptE->getBase()->getSourceRange();
     else
       BaseRange =
-          dyn_cast<CXXOperatorCallExpr>(Matched)->getArg(0)->getSourceRange();
+          cast<CXXOperatorCallExpr>(Matched)->getArg(0)->getSourceRange();
     SourceRange IndexRange = IndexExpr->getSourceRange();
 
     auto Diag = diag(Matched->getExprLoc(),
                      "do not use array subscript when the index is "
-                     "not an integer constant expression; use gsl::at() "
-                     "instead");
+                     "not an integer constant expression");
     if (!GslHeader.empty()) {
       Diag << FixItHint::CreateInsertion(BaseRange.getBegin(), "gsl::at(")
            << FixItHint::CreateReplacement(

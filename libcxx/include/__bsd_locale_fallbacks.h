@@ -1,5 +1,5 @@
 // -*- C++ -*-
-//===---------------------- __bsd_locale_fallbacks.h ----------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,15 +10,14 @@
 // of those functions for non-BSD platforms.
 //===----------------------------------------------------------------------===//
 
-#ifndef _LIBCPP_BSD_LOCALE_FALLBACKS_DEFAULTS_H
-#define _LIBCPP_BSD_LOCALE_FALLBACKS_DEFAULTS_H
+#ifndef _LIBCPP___BSD_LOCALE_FALLBACKS_H
+#define _LIBCPP___BSD_LOCALE_FALLBACKS_H
 
-#include <memory>
 #include <stdarg.h>
 #include <stdlib.h>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 _LIBCPP_BEGIN_NAMESPACE_STD
@@ -108,7 +107,7 @@ size_t __libcpp_mbsrtowcs_l(wchar_t *__dest, const char **__src, size_t __len,
 }
 #endif
 
-inline
+inline _LIBCPP_ATTRIBUTE_FORMAT(__printf__, 4, 5)
 int __libcpp_snprintf_l(char *__s, size_t __n, locale_t __l, const char *__format, ...) {
     va_list __va;
     va_start(__va, __format);
@@ -118,7 +117,7 @@ int __libcpp_snprintf_l(char *__s, size_t __n, locale_t __l, const char *__forma
     return __res;
 }
 
-inline
+inline _LIBCPP_ATTRIBUTE_FORMAT(__printf__, 3, 4)
 int __libcpp_asprintf_l(char **__s, locale_t __l, const char *__format, ...) {
     va_list __va;
     va_start(__va, __format);
@@ -128,7 +127,7 @@ int __libcpp_asprintf_l(char **__s, locale_t __l, const char *__format, ...) {
     return __res;
 }
 
-inline
+inline _LIBCPP_ATTRIBUTE_FORMAT(__scanf__, 3, 4)
 int __libcpp_sscanf_l(const char *__s, locale_t __l, const char *__format, ...) {
     va_list __va;
     va_start(__va, __format);
@@ -140,4 +139,4 @@ int __libcpp_sscanf_l(const char *__s, locale_t __l, const char *__format, ...) 
 
 _LIBCPP_END_NAMESPACE_STD
 
-#endif // _LIBCPP_BSD_LOCALE_FALLBACKS_DEFAULTS_H
+#endif // _LIBCPP___BSD_LOCALE_FALLBACKS_H

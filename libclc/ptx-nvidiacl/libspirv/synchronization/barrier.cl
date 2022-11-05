@@ -11,17 +11,20 @@
 
 _CLC_OVERLOAD _CLC_DEF void __spirv_MemoryBarrier(unsigned int memory,
                                                   unsigned int semantics) {
-  __nvvm_membar_cta();
+  if (memory == CrossDevice) {
+    __nvvm_membar_sys();
+  } else {
+    __nvvm_membar_cta();
+  }
 }
 
 _CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT void
 __spirv_ControlBarrier(unsigned int scope, unsigned int memory,
                        unsigned int semantics) {
   if (scope == Subgroup) {
-    uint FULL_MASK = 0xFFFFFFFF;
-    uint max_size = __spirv_SubgroupMaxSize();
-    uint sg_size = __spirv_SubgroupSize();
-    __nvvm_bar_warp_sync(FULL_MASK >> (max_size - sg_size));
+    // use a full mask as barriers are required to be convergent and exited
+    // threads can safely be in the mask
+    __nvvm_bar_warp_sync(0xFFFFFFFF);
   } else {
     __syncthreads();
   }

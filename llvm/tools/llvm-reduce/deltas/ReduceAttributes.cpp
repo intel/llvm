@@ -141,7 +141,7 @@ struct AttributeCounter : public InstVisitor<AttributeCounter> {
 AttributeSet
 convertAttributeRefToAttributeSet(LLVMContext &C,
                                   ArrayRef<const Attribute *> Attributes) {
-  AttrBuilder B;
+  AttrBuilder B(C);
   for (const Attribute *A : Attributes)
     B.addAttribute(*A);
   return AttributeSet::get(C, B);
@@ -158,10 +158,7 @@ AttributeList convertAttributeRefVecToAttributeList(
                   V.first, convertAttributeRefToAttributeSet(C, V.second));
             });
 
-  sort(SetVec, [](const std::pair<unsigned, AttributeSet> &LHS,
-                  const std::pair<unsigned, AttributeSet> &RHS) {
-    return LHS.first < RHS.first; // All values are unique.
-  });
+  llvm::sort(SetVec, llvm::less_first()); // All values are unique.
 
   return AttributeList::get(C, SetVec);
 }
@@ -180,20 +177,6 @@ static void extractAttributesFromModule(Oracle &O, Module &Program) {
     I.first->setAttributes(convertAttributeRefVecToAttributeList(C, I.second));
 }
 
-/// Counts the amount of attributes.
-static int countAttributes(Module &Program) {
-  AttributeCounter C;
-
-  // TODO: Silence index with --quiet flag
-  outs() << "----------------------------\n";
-  C.visit(Program);
-  outs() << "Number of attributes: " << C.AttributeCount << "\n";
-
-  return C.AttributeCount;
-}
-
 void llvm::reduceAttributesDeltaPass(TestRunner &Test) {
-  outs() << "*** Reducing Attributes...\n";
-  int AttributeCount = countAttributes(Test.getProgram());
-  runDeltaPass(Test, AttributeCount, extractAttributesFromModule);
+  runDeltaPass(Test, extractAttributesFromModule, "Reducing Attributes");
 }

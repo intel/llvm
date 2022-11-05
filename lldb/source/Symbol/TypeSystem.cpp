@@ -22,7 +22,7 @@ using namespace lldb;
 static const size_t g_num_small_bitvector_bits = 64 - 8;
 static_assert(eNumLanguageTypes < g_num_small_bitvector_bits,
               "Languages bit vector is no longer small on 64 bit systems");
-LanguageSet::LanguageSet() : bitvector(eNumLanguageTypes, 0) {}
+LanguageSet::LanguageSet() : bitvector(eNumLanguageTypes, false) {}
 
 llvm::Optional<LanguageType> LanguageSet::GetSingularLanguage() {
   if (bitvector.count() == 1)
@@ -118,23 +118,25 @@ CompilerType TypeSystem::GetTypeForFormatters(void *type) {
   return CompilerType(this, type);
 }
 
-size_t TypeSystem::GetNumTemplateArguments(lldb::opaque_compiler_type_t type) {
+size_t TypeSystem::GetNumTemplateArguments(lldb::opaque_compiler_type_t type,
+                                           bool expand_pack) {
   return 0;
 }
 
 TemplateArgumentKind
-TypeSystem::GetTemplateArgumentKind(opaque_compiler_type_t type, size_t idx) {
+TypeSystem::GetTemplateArgumentKind(opaque_compiler_type_t type, size_t idx,
+                                    bool expand_pack) {
   return eTemplateArgumentKindNull;
 }
 
 CompilerType TypeSystem::GetTypeTemplateArgument(opaque_compiler_type_t type,
-                                                 size_t idx) {
+                                                 size_t idx, bool expand_pack) {
   return CompilerType();
 }
 
 llvm::Optional<CompilerType::IntegralTemplateArgument>
-TypeSystem::GetIntegralTemplateArgument(opaque_compiler_type_t type,
-                                        size_t idx) {
+TypeSystem::GetIntegralTemplateArgument(opaque_compiler_type_t type, size_t idx,
+                                        bool expand_pack) {
   return llvm::None;
 }
 

@@ -19,6 +19,7 @@
 #include "R600InstPrinter.h"
 #include "R600MCTargetDesc.h"
 #include "TargetInfo/AMDGPUTargetInfo.h"
+#include "llvm/MC/LaneBitmask.h"
 #include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCCodeEmitter.h"
 #include "llvm/MC/MCELFStreamer.h"
@@ -27,6 +28,7 @@
 #include "llvm/MC/MCInstrDesc.h"
 #include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCObjectWriter.h"
+#include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/TargetRegistry.h"
@@ -34,6 +36,7 @@
 using namespace llvm;
 
 #define GET_INSTRINFO_MC_DESC
+#define ENABLE_INSTR_PREDICATE_VERIFIER
 #include "AMDGPUGenInstrInfo.inc"
 
 #define GET_SUBTARGETINFO_MC_DESC
@@ -100,6 +103,10 @@ static MCTargetStreamer * createAMDGPUObjectTargetStreamer(
                                                    MCStreamer &S,
                                                    const MCSubtargetInfo &STI) {
   return new AMDGPUTargetELFStreamer(S, STI);
+}
+
+static MCTargetStreamer *createAMDGPUNullTargetStreamer(MCStreamer &S) {
+  return new AMDGPUTargetStreamer(S);
 }
 
 static MCStreamer *createMCStreamer(const Triple &T, MCContext &Context,
@@ -169,4 +176,6 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTargetMC() {
                                             createAMDGPUAsmTargetStreamer);
   TargetRegistry::RegisterObjectTargetStreamer(
       getTheGCNTarget(), createAMDGPUObjectTargetStreamer);
+  TargetRegistry::RegisterNullTargetStreamer(getTheGCNTarget(),
+                                             createAMDGPUNullTargetStreamer);
 }

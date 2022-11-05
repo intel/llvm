@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <sycl/detail/defines_elementary.hpp>
+
 #include <cstddef>
 #include <cstdint>
 
@@ -106,11 +108,31 @@ enum class GroupOperation : uint32_t {
   ExclusiveScan = 2
 };
 
-enum class MatrixLayout { RowMajor, ColumnMajor, PackedA, PackedB };
+enum class MatrixLayout : uint32_t {
+  RowMajor = 0,
+  ColumnMajor = 1,
+  PackedA = 2,
+  PackedB = 3,
+  Unused = 4
+};
 
-template <typename T, std::size_t R, std::size_t C, MatrixLayout U,
+enum class MatrixUse : uint32_t {
+  MatrixA = 0,
+  MatrixB = 1,
+  Accumulator = 2,
+  Unnecessary = 3
+};
+
+#if (SYCL_EXT_ONEAPI_MATRIX_VERSION > 1)
+template <typename T, std::size_t R, std::size_t C, MatrixLayout L,
+          Scope::Flag S = Scope::Flag::Subgroup,
+          MatrixUse U = MatrixUse::Unnecessary>
+struct __spirv_JointMatrixINTEL;
+#else
+template <typename T, std::size_t R, std::size_t C, MatrixLayout L,
           Scope::Flag S = Scope::Flag::Subgroup>
 struct __spirv_JointMatrixINTEL;
+#endif // SYCL_EXT_ONEAPI_MATRIX_VERSION
 
 } // namespace __spv
 
@@ -133,8 +155,14 @@ struct ConstantPipeStorage {
   int32_t _Capacity;
 };
 
+namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace detail {
 // Arbitrary precision integer type
-template <int Bits> using ap_int = _ExtInt(Bits);
+template <int Bits> using ap_int = _BitInt(Bits);
+} // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl
 #endif // __SYCL_DEVICE_ONLY__
 
 // This class does not have definition, it is only predeclared here.

@@ -161,7 +161,7 @@ test.format_multiple_variadic_operands (%i64, %i64, %i64), (%i64, %i32 : i64, i3
 // Format successors
 //===----------------------------------------------------------------------===//
 
-"foo.successor_test_region"() ( {
+"foo.successor_test_region"() ({
   ^bb0:
     // CHECK: test.format_successor_a_op ^bb1 {attr}
     test.format_successor_a_op ^bb1 {attr}
@@ -196,6 +196,15 @@ test.format_optional_enum_attr case5
 // CHECK: test.format_optional_enum_attr
 // CHECK-NOT: "case5"
 test.format_optional_enum_attr
+
+// CHECK: test.format_optional_default_attrs "foo" @foo case10
+test.format_optional_default_attrs "foo" @foo case10
+
+// CHECK: test.format_optional_default_attr
+// CHECK-NOT: "default"
+// CHECK-NOT: @default
+// CHECK-NOT: case5
+test.format_optional_default_attrs "default" @default case5
 
 //===----------------------------------------------------------------------===//
 // Format optional operands and results
@@ -251,6 +260,73 @@ test.format_optional_else then
 
 // CHECK: test.format_optional_else else
 test.format_optional_else else
+
+//===----------------------------------------------------------------------===//
+// Format a custom attribute
+//===----------------------------------------------------------------------===//
+
+// CHECK: test.format_compound_attr <1, !test.smpla, [5, 6]>
+test.format_compound_attr <1, !test.smpla, [5, 6]>
+
+//-----
+
+
+// CHECK:   module attributes {test.nested = #test.cmpnd_nested<nested = <1, !test.smpla, [5, 6]>>} {
+module attributes {test.nested = #test.cmpnd_nested<nested = <1, !test.smpla, [5, 6]>>} {
+}
+
+//-----
+
+// Same as above, but fully spelling the inner attribute prefix `#test.cmpnd_a`.
+// CHECK:   module attributes {test.nested = #test.cmpnd_nested<nested = <1, !test.smpla, [5, 6]>>} {
+module attributes {test.nested = #test.cmpnd_nested<nested = #test.cmpnd_a<1, !test.smpla, [5, 6]>>} {
+}
+
+// CHECK: test.format_nested_attr <nested = <1, !test.smpla, [5, 6]>>
+test.format_nested_attr #test.cmpnd_nested<nested = <1, !test.smpla, [5, 6]>>
+
+//-----
+
+// Same as above, but fully spelling the inner attribute prefix `#test.cmpnd_a`.
+// CHECK: test.format_nested_attr <nested = <1, !test.smpla, [5, 6]>>
+test.format_nested_attr #test.cmpnd_nested<nested = #test.cmpnd_a<1, !test.smpla, [5, 6]>>
+
+//-----
+
+// CHECK: module attributes {test.someAttr = #test.cmpnd_nested_inner<42 <1, !test.smpla, [5, 6]>>}
+module attributes {test.someAttr = #test.cmpnd_nested_inner<42 <1, !test.smpla, [5, 6]>>}
+{
+}
+
+//-----
+
+// CHECK: module attributes {test.someAttr = #test.cmpnd_nested_outer<i <42 <1, !test.smpla, [5, 6]>>>}
+module attributes {test.someAttr = #test.cmpnd_nested_outer<i <42 <1, !test.smpla, [5, 6]>>>}
+{
+}
+
+//-----
+
+// CHECK: test.format_cpmd_nested_attr nested <i <42 <1, !test.smpla, [5, 6]>>>
+test.format_cpmd_nested_attr nested <i <42 <1, !test.smpla, [5, 6]>>>
+
+//-----
+
+// CHECK: test.format_qual_cpmd_nested_attr nested #test.cmpnd_nested_outer<i <42 <1, !test.smpla, [5, 6]>>>
+test.format_qual_cpmd_nested_attr nested #test.cmpnd_nested_outer<i <42 <1, !test.smpla, [5, 6]>>>
+
+//-----
+
+// Check the `qualified` directive in the declarative assembly format.
+// CHECK: @qualifiedCompoundNestedExplicit(%arg0: !test.cmpnd_nested_outer<i <42 <1, !test.smpla, [5, 6]>>>)
+func.func @qualifiedCompoundNestedExplicit(%arg0: !test.cmpnd_nested_outer<i !test.cmpnd_inner<42 <1, !test.smpla, [5, 6]>>>) -> () {
+  // Verify that the type prefix is not elided
+  // CHECK: format_qual_cpmd_nested_type %arg0 nested !test.cmpnd_nested_outer<i <42 <1, !test.smpla, [5, 6]>>>
+  test.format_qual_cpmd_nested_type %arg0 nested !test.cmpnd_nested_outer<i <42 <1, !test.smpla, [5, 6]>>>
+  return
+}
+
+//-----
 
 //===----------------------------------------------------------------------===//
 // Format custom directives
@@ -310,7 +386,7 @@ test.format_custom_directive_with_optional_operand_ref %i64 : 1
 // CHECK: test.format_custom_directive_with_optional_operand_ref : 0
 test.format_custom_directive_with_optional_operand_ref : 0
 
-func @foo() {
+func.func @foo() {
   // CHECK: test.format_custom_directive_successors ^bb1, ^bb2
   test.format_custom_directive_successors ^bb1, ^bb2
 
@@ -319,6 +395,15 @@ func @foo() {
   test.format_custom_directive_successors ^bb2
 
 ^bb2:
+  return
+}
+
+// CHECK: test.format_literal_following_optional_group(5 : i32) : i32 {a}
+test.format_literal_following_optional_group(5 : i32) : i32 {a}
+
+func.func @variadic(%a: i32) {
+  // CHECK: test.ellipsis(%{{.*}} ...) : i32 ...
+  test.ellipsis(%a ...) : i32 ...
   return
 }
 
@@ -360,7 +445,32 @@ test.format_infer_variadic_type_from_non_variadic %i64, %i64 : i64
 //===----------------------------------------------------------------------===//
 
 // CHECK: test.format_infer_type
-%ignored_res7 = test.format_infer_type
+%ignored_res7a = test.format_infer_type
+
+// CHECK: test.format_infer_type2
+%ignored_res7b = test.format_infer_type2
+
+// CHECK: test.format_infer_type_all_operands_and_types(%[[I64]], %[[I32]]) : i64, i32
+%ignored_res8:2 = test.format_infer_type_all_operands_and_types(%i64, %i32) : i64, i32
+
+// CHECK: test.format_infer_type_all_types_one_operand(%[[I64]], %[[I32]]) : i64, i32
+%ignored_res9:2 = test.format_infer_type_all_types_one_operand(%i64, %i32) : i64, i32
+
+// CHECK: test.format_infer_type_all_types_two_operands(%[[I64]], %[[I32]]) (%[[I64]], %[[I32]]) : i64, i32, i64, i32
+%ignored_res10:4 = test.format_infer_type_all_types_two_operands(%i64, %i32) (%i64, %i32) : i64, i32, i64, i32
+
+// CHECK: test.format_infer_type_all_types(%[[I64]], %[[I32]]) : i64, i32
+%ignored_res11:2 = test.format_infer_type_all_types(%i64, %i32) : i64, i32
+
+// CHECK: test.format_infer_type_regions
+// CHECK-NEXT: ^bb0(%{{.*}}: {{.*}}, %{{.*}}: {{.*}}):
+%ignored_res12:2 = test.format_infer_type_regions {
+^bb0(%arg0: i32, %arg1: f32):
+  "test.terminator"() : () -> ()
+}
+
+// CHECK: test.format_infer_type_variadic_operands(%[[I32]], %[[I32]] : i32, i32) (%[[I64]], %[[I64]] : i64, i64)
+%ignored_res13:4 = test.format_infer_type_variadic_operands(%i32, %i32 : i32, i32) (%i64, %i64 : i64, i64)
 
 //===----------------------------------------------------------------------===//
 // Check DefaultValuedStrAttr
@@ -368,3 +478,18 @@ test.format_infer_variadic_type_from_non_variadic %i64, %i64 : i64
 
 // CHECK: test.has_str_value
 test.has_str_value {}
+
+//===----------------------------------------------------------------------===//
+// ElseAnchorOp
+//===----------------------------------------------------------------------===//
+
+// CHECK-LABEL: @else_anchor_op
+func.func @else_anchor_op(%a: !test.else_anchor<?>, %b: !test.else_anchor<5>) {
+  // CHECK: test.else_anchor(?) {a = !test.else_anchor_struct<?>}
+  test.else_anchor(?) {a = !test.else_anchor_struct<?>}
+  // CHECK: test.else_anchor(%{{.*}} : !test.else_anchor<?>) {a = !test.else_anchor_struct<a = 0>}
+  test.else_anchor(%a : !test.else_anchor<?>) {a = !test.else_anchor_struct<a = 0>}
+  // CHECK: test.else_anchor(%{{.*}} : !test.else_anchor<5>) {a = !test.else_anchor_struct<b = 0>}
+  test.else_anchor(%b : !test.else_anchor<5>) {a = !test.else_anchor_struct<b = 0>}
+  return
+}

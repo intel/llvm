@@ -19,9 +19,9 @@
 namespace llvm {
 namespace orc {
 
-ExecutorProcessControl::MemoryAccess::~MemoryAccess() {}
+ExecutorProcessControl::MemoryAccess::~MemoryAccess() = default;
 
-ExecutorProcessControl::~ExecutorProcessControl() {}
+ExecutorProcessControl::~ExecutorProcessControl() = default;
 
 SelfExecutorProcessControl::SelfExecutorProcessControl(
     std::shared_ptr<SymbolStringPool> SSP, std::unique_ptr<TaskDispatcher> D,
@@ -75,12 +75,10 @@ SelfExecutorProcessControl::Create(
 Expected<tpctypes::DylibHandle>
 SelfExecutorProcessControl::loadDylib(const char *DylibPath) {
   std::string ErrMsg;
-  auto Dylib = std::make_unique<sys::DynamicLibrary>(
-      sys::DynamicLibrary::getPermanentLibrary(DylibPath, &ErrMsg));
-  if (!Dylib->isValid())
+  auto Dylib = sys::DynamicLibrary::getPermanentLibrary(DylibPath, &ErrMsg);
+  if (!Dylib.isValid())
     return make_error<StringError>(std::move(ErrMsg), inconvertibleErrorCode());
-  DynamicLibraries.push_back(std::move(Dylib));
-  return pointerToJITTargetAddress(DynamicLibraries.back().get());
+  return ExecutorAddr::fromPtr(Dylib.getOSSpecificHandle());
 }
 
 Expected<std::vector<tpctypes::LookupResult>>
@@ -88,26 +86,20 @@ SelfExecutorProcessControl::lookupSymbols(ArrayRef<LookupRequest> Request) {
   std::vector<tpctypes::LookupResult> R;
 
   for (auto &Elem : Request) {
-    auto *Dylib = jitTargetAddressToPointer<sys::DynamicLibrary *>(Elem.Handle);
-    assert(llvm::any_of(DynamicLibraries,
-                        [=](const std::unique_ptr<sys::DynamicLibrary> &DL) {
-                          return DL.get() == Dylib;
-                        }) &&
-           "Invalid handle");
-
-    R.push_back(std::vector<JITTargetAddress>());
+    sys::DynamicLibrary Dylib(Elem.Handle.toPtr<void *>());
+    R.push_back(std::vector<ExecutorAddr>());
     for (auto &KV : Elem.Symbols) {
       auto &Sym = KV.first;
       std::string Tmp((*Sym).data() + !!GlobalManglingPrefix,
                       (*Sym).size() - !!GlobalManglingPrefix);
-      void *Addr = Dylib->getAddressOfSymbol(Tmp.c_str());
+      void *Addr = Dylib.getAddressOfSymbol(Tmp.c_str());
       if (!Addr && KV.second == SymbolLookupFlags::RequiredSymbol) {
         // FIXME: Collect all failing symbols before erroring out.
         SymbolNameVector MissingSymbols;
         MissingSymbols.push_back(Sym);
         return make_error<SymbolsNotFound>(SSP, std::move(MissingSymbols));
       }
-      R.back().push_back(pointerToJITTargetAddress(Addr));
+      R.back().push_back(ExecutorAddr::fromPtr(Addr));
     }
   }
 
@@ -121,11 +113,23 @@ SelfExecutorProcessControl::runAsMain(ExecutorAddr MainFnAddr,
   return orc::runAsMain(MainFnAddr.toPtr<MainTy>(), Args);
 }
 
+Expected<int32_t>
+SelfExecutorProcessControl::runAsVoidFunction(ExecutorAddr VoidFnAddr) {
+  using VoidTy = int (*)();
+  return orc::runAsVoidFunction(VoidFnAddr.toPtr<VoidTy>());
+}
+
+Expected<int32_t>
+SelfExecutorProcessControl::runAsIntFunction(ExecutorAddr IntFnAddr, int Arg) {
+  using IntTy = int (*)(int);
+  return orc::runAsIntFunction(IntFnAddr.toPtr<IntTy>(), Arg);
+}
+
 void SelfExecutorProcessControl::callWrapperAsync(ExecutorAddr WrapperFnAddr,
                                                   IncomingWFRHandler SendResult,
                                                   ArrayRef<char> ArgBuffer) {
   using WrapperFnTy =
-      shared::detail::CWrapperFunctionResult (*)(const char *Data, size_t Size);
+      shared::CWrapperFunctionResult (*)(const char *Data, size_t Size);
   auto *WrapperFn = WrapperFnAddr.toPtr<WrapperFnTy>();
   SendResult(WrapperFn(ArgBuffer.data(), ArgBuffer.size()));
 }
@@ -138,40 +142,39 @@ Error SelfExecutorProcessControl::disconnect() {
 void SelfExecutorProcessControl::writeUInt8sAsync(
     ArrayRef<tpctypes::UInt8Write> Ws, WriteResultFn OnWriteComplete) {
   for (auto &W : Ws)
-    *jitTargetAddressToPointer<uint8_t *>(W.Address) = W.Value;
+    *W.Addr.toPtr<uint8_t *>() = W.Value;
   OnWriteComplete(Error::success());
 }
 
 void SelfExecutorProcessControl::writeUInt16sAsync(
     ArrayRef<tpctypes::UInt16Write> Ws, WriteResultFn OnWriteComplete) {
   for (auto &W : Ws)
-    *jitTargetAddressToPointer<uint16_t *>(W.Address) = W.Value;
+    *W.Addr.toPtr<uint16_t *>() = W.Value;
   OnWriteComplete(Error::success());
 }
 
 void SelfExecutorProcessControl::writeUInt32sAsync(
     ArrayRef<tpctypes::UInt32Write> Ws, WriteResultFn OnWriteComplete) {
   for (auto &W : Ws)
-    *jitTargetAddressToPointer<uint32_t *>(W.Address) = W.Value;
+    *W.Addr.toPtr<uint32_t *>() = W.Value;
   OnWriteComplete(Error::success());
 }
 
 void SelfExecutorProcessControl::writeUInt64sAsync(
     ArrayRef<tpctypes::UInt64Write> Ws, WriteResultFn OnWriteComplete) {
   for (auto &W : Ws)
-    *jitTargetAddressToPointer<uint64_t *>(W.Address) = W.Value;
+    *W.Addr.toPtr<uint64_t *>() = W.Value;
   OnWriteComplete(Error::success());
 }
 
 void SelfExecutorProcessControl::writeBuffersAsync(
     ArrayRef<tpctypes::BufferWrite> Ws, WriteResultFn OnWriteComplete) {
   for (auto &W : Ws)
-    memcpy(jitTargetAddressToPointer<char *>(W.Address), W.Buffer.data(),
-           W.Buffer.size());
+    memcpy(W.Addr.toPtr<char *>(), W.Buffer.data(), W.Buffer.size());
   OnWriteComplete(Error::success());
 }
 
-shared::detail::CWrapperFunctionResult
+shared::CWrapperFunctionResult
 SelfExecutorProcessControl::jitDispatchViaWrapperFunctionManager(
     void *Ctx, const void *FnTag, const char *Data, size_t Size) {
 

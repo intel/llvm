@@ -13,7 +13,7 @@
 #include "integer.h"
 #include "rounding-bits.h"
 #include "flang/Common/real.h"
-#include "flang/Evaluate/common.h"
+#include "flang/Evaluate/target.h"
 #include <cinttypes>
 #include <limits>
 #include <string>
@@ -88,6 +88,9 @@ public:
   constexpr bool IsSubnormal() const {
     return Exponent() == 0 && !GetSignificand().IsZero();
   }
+  constexpr bool IsNormal() const {
+    return !(IsInfinite() || IsNotANumber() || IsSubnormal());
+  }
 
   constexpr Real ABS() const { // non-arithmetic, no flags returned
     return {word_.IBCLR(bits - 1)};
@@ -104,36 +107,49 @@ public:
   constexpr Real Negate() const { return {word_.IEOR(word_.MASKL(1))}; }
 
   Relation Compare(const Real &) const;
-  ValueWithRealFlags<Real> Add(
-      const Real &, Rounding rounding = defaultRounding) const;
-  ValueWithRealFlags<Real> Subtract(
-      const Real &y, Rounding rounding = defaultRounding) const {
+  ValueWithRealFlags<Real> Add(const Real &,
+      Rounding rounding = TargetCharacteristics::defaultRounding) const;
+  ValueWithRealFlags<Real> Subtract(const Real &y,
+      Rounding rounding = TargetCharacteristics::defaultRounding) const {
     return Add(y.Negate(), rounding);
   }
-  ValueWithRealFlags<Real> Multiply(
-      const Real &, Rounding rounding = defaultRounding) const;
-  ValueWithRealFlags<Real> Divide(
-      const Real &, Rounding rounding = defaultRounding) const;
+  ValueWithRealFlags<Real> Multiply(const Real &,
+      Rounding rounding = TargetCharacteristics::defaultRounding) const;
+  ValueWithRealFlags<Real> Divide(const Real &,
+      Rounding rounding = TargetCharacteristics::defaultRounding) const;
 
-  ValueWithRealFlags<Real> SQRT(Rounding rounding = defaultRounding) const;
-
+  ValueWithRealFlags<Real> SQRT(
+      Rounding rounding = TargetCharacteristics::defaultRounding) const;
+  // NEAREST(), IEEE_NEXT_AFTER(), IEEE_NEXT_UP(), and IEEE_NEXT_DOWN()
+  ValueWithRealFlags<Real> NEAREST(bool upward) const;
   // HYPOT(x,y)=SQRT(x**2 + y**2) computed so as to avoid spurious
   // intermediate overflows.
-  ValueWithRealFlags<Real> HYPOT(
-      const Real &, Rounding rounding = defaultRounding) const;
+  ValueWithRealFlags<Real> HYPOT(const Real &,
+      Rounding rounding = TargetCharacteristics::defaultRounding) const;
+  // DIM(X,Y) = MAX(X-Y, 0)
+  ValueWithRealFlags<Real> DIM(const Real &,
+      Rounding rounding = TargetCharacteristics::defaultRounding) const;
+  // MOD(x,y) = x - AINT(x/y)*y
+  // MODULO(x,y) = x - FLOOR(x/y)*y
+  ValueWithRealFlags<Real> MOD(const Real &,
+      Rounding rounding = TargetCharacteristics::defaultRounding) const;
+  ValueWithRealFlags<Real> MODULO(const Real &,
+      Rounding rounding = TargetCharacteristics::defaultRounding) const;
 
   template <typename INT> constexpr INT EXPONENT() const {
     if (Exponent() == maxExponent) {
       return INT::HUGE();
+    } else if (IsZero()) {
+      return {0};
     } else {
-      return {UnbiasedExponent()};
+      return {UnbiasedExponent() + 1};
     }
   }
 
   static constexpr Real EPSILON() {
     Real epsilon;
     epsilon.Normalize(
-        false, exponentBias - binaryPrecision, Fraction::MASKL(1));
+        false, exponentBias + 1 - binaryPrecision, Fraction::MASKL(1));
     return epsilon;
   }
   static constexpr Real HUGE() {
@@ -150,8 +166,40 @@ public:
   static constexpr int DIGITS{binaryPrecision};
   static constexpr int PRECISION{Details::decimalPrecision};
   static constexpr int RANGE{Details::decimalRange};
-  static constexpr int MAXEXPONENT{maxExponent - 1 - exponentBias};
-  static constexpr int MINEXPONENT{1 - exponentBias};
+  static constexpr int MAXEXPONENT{maxExponent - exponentBias};
+  static constexpr int MINEXPONENT{2 - exponentBias};
+  Real RRSPACING() const;
+  Real SPACING() const;
+  Real SET_EXPONENT(std::int64_t) const;
+  Real FRACTION() const;
+
+  // SCALE(); also known as IEEE_SCALB and (in IEEE-754 '08) ScaleB.
+  template <typename INT>
+  ValueWithRealFlags<Real> SCALE(const INT &by,
+      Rounding rounding = TargetCharacteristics::defaultRounding) const {
+    // Normalize a fraction with just its LSB set and then multiply.
+    // (Set the LSB, not the MSB, in case the scale factor needs to
+    //  be subnormal.)
+    auto adjust{exponentBias + binaryPrecision - 1};
+    auto expo{adjust + by.ToInt64()};
+    Real twoPow;
+    RealFlags flags;
+    int rMask{1};
+    if (IsZero()) {
+      expo = exponentBias; // ignore by, don't overflow
+    } else if (by > INT{maxExponent}) {
+      expo = maxExponent + binaryPrecision - 1;
+    } else if (by < INT{-adjust}) { // underflow
+      expo = 0;
+      rMask = 0;
+      flags.set(RealFlag::Underflow);
+    }
+    flags |=
+        twoPow.Normalize(false, static_cast<int>(expo), Fraction::MASKR(rMask));
+    ValueWithRealFlags<Real> result{Multiply(twoPow, rounding)};
+    result.flags |= flags;
+    return result;
+  }
 
   constexpr Real FlushSubnormalToZero() const {
     if (IsSubnormal()) {
@@ -168,6 +216,10 @@ public:
                 .IBSET(significandBits - 2)};
   }
 
+  static constexpr Real PositiveZero() { return Real{}; }
+
+  static constexpr Real NegativeZero() { return {Word{}.MASKL(1)}; }
+
   static constexpr Real Infinity(bool negative) {
     Word infinity{maxExponent};
     infinity = infinity.SHIFTL(significandBits);
@@ -178,8 +230,8 @@ public:
   }
 
   template <typename INT>
-  static ValueWithRealFlags<Real> FromInteger(
-      const INT &n, Rounding rounding = defaultRounding) {
+  static ValueWithRealFlags<Real> FromInteger(const INT &n,
+      Rounding rounding = TargetCharacteristics::defaultRounding) {
     bool isNegative{n.IsNegative()};
     INT absN{n};
     if (isNegative) {
@@ -239,8 +291,10 @@ public:
     if (IsSignBitSet()) {
       result.value = result.value.Negate().value;
     }
-    if (IsSignBitSet() != result.value.IsNegative()) {
-      result.flags.set(RealFlag::Overflow);
+    if (!result.value.IsZero()) {
+      if (IsSignBitSet() != result.value.IsNegative()) {
+        result.flags.set(RealFlag::Overflow);
+      }
     }
     if (result.flags.test(RealFlag::Overflow)) {
       result.value =
@@ -251,7 +305,7 @@ public:
 
   template <typename A>
   static ValueWithRealFlags<Real> Convert(
-      const A &x, Rounding rounding = defaultRounding) {
+      const A &x, Rounding rounding = TargetCharacteristics::defaultRounding) {
     ValueWithRealFlags<Real> result;
     if (x.IsNotANumber()) {
       result.flags.set(RealFlag::InvalidArgument);
@@ -308,6 +362,8 @@ public:
 
   // Extracts unbiased exponent value.
   // Corrects the exponent value of a subnormal number.
+  // Note that the result is one less than the EXPONENT intrinsic;
+  // UnbiasedExponent(1.0) is 0, not 1.
   constexpr int UnbiasedExponent() const {
     int exponent{Exponent() - exponentBias};
     if (IsSubnormal()) {
@@ -316,8 +372,8 @@ public:
     return exponent;
   }
 
-  static ValueWithRealFlags<Real> Read(
-      const char *&, Rounding rounding = defaultRounding);
+  static ValueWithRealFlags<Real> Read(const char *&,
+      Rounding rounding = TargetCharacteristics::defaultRounding);
   std::string DumpHexadecimal() const;
 
   // Emits a character representation for an equivalent Fortran constant
@@ -362,7 +418,7 @@ private:
   // a maximal exponent and zero fraction doesn't signify infinity, although
   // this member function will detect overflow and encode infinities).
   RealFlags Normalize(bool negative, int exponent, const Fraction &fraction,
-      Rounding rounding = defaultRounding,
+      Rounding rounding = TargetCharacteristics::defaultRounding,
       RoundingBits *roundingBits = nullptr);
 
   // Rounds a result, if necessary, in place.

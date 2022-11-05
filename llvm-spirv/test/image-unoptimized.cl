@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 %s -triple spir -O0 -emit-llvm-bc -o %t.bc
+// RUN: %clang_cc1 %s -triple spir -O0 -emit-llvm-bc -o %t.bc -no-opaque-pointers
 // RUN: llvm-spirv %t.bc -o %t.spv
 // RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s
 // RUN: spirv-val %t.spv

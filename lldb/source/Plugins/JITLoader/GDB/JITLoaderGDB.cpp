@@ -23,6 +23,7 @@
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/DataBufferHeap.h"
 #include "lldb/Utility/LLDBAssert.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/StreamString.h"
 #include "llvm/Support/MathExtras.h"
@@ -52,7 +53,6 @@ template <typename ptr_t> struct jit_descriptor {
 };
 
 namespace {
-
 enum EnableJITLoaderGDB {
   eEnableJITLoaderGDBDefault,
   eEnableJITLoaderGDBOn,
@@ -90,7 +90,7 @@ enum {
 class PluginProperties : public Properties {
 public:
   static ConstString GetSettingName() {
-    return JITLoaderGDB::GetPluginNameStatic();
+    return ConstString(JITLoaderGDB::GetPluginNameStatic());
   }
 
   PluginProperties() {
@@ -104,6 +104,7 @@ public:
         g_jitloadergdb_properties[ePropertyEnable].default_uint_value);
   }
 };
+} // namespace
 
 static PluginProperties &GetGlobalPluginProperties() {
   static PluginProperties g_settings;
@@ -111,8 +112,8 @@ static PluginProperties &GetGlobalPluginProperties() {
 }
 
 template <typename ptr_t>
-bool ReadJITEntry(const addr_t from_addr, Process *process,
-                  jit_code_entry<ptr_t> *entry) {
+static bool ReadJITEntry(const addr_t from_addr, Process *process,
+                         jit_code_entry<ptr_t> *entry) {
   lldbassert(from_addr % sizeof(ptr_t) == 0);
 
   ArchSpec::Core core = process->GetTarget().GetArchitecture().GetCore();
@@ -140,8 +141,6 @@ bool ReadJITEntry(const addr_t from_addr, Process *process,
 
   return true;
 }
-
-} // anonymous namespace end
 
 JITLoaderGDB::JITLoaderGDB(lldb_private::Process *process)
     : JITLoader(process), m_jit_objects(),
@@ -186,7 +185,7 @@ void JITLoaderGDB::SetJITBreakpoint(lldb_private::ModuleList &module_list) {
   if (DidSetJITBreakpoint())
     return;
 
-  Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_JIT_LOADER));
+  Log *log = GetLog(LLDBLog::JITLoader);
   LLDB_LOGF(log, "JITLoaderGDB::%s looking for JIT register hook",
             __FUNCTION__);
 
@@ -218,7 +217,7 @@ bool JITLoaderGDB::JITDebugBreakpointHit(void *baton,
                                          StoppointCallbackContext *context,
                                          user_id_t break_id,
                                          user_id_t break_loc_id) {
-  Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_JIT_LOADER));
+  Log *log = GetLog(LLDBLog::JITLoader);
   LLDB_LOGF(log, "JITLoaderGDB::%s hit JIT breakpoint", __FUNCTION__);
   JITLoaderGDB *instance = static_cast<JITLoaderGDB *>(baton);
   return instance->ReadJITDescriptor(false);
@@ -282,7 +281,7 @@ bool JITLoaderGDB::ReadJITDescriptorImpl(bool all_entries) {
   if (m_jit_descriptor_addr == LLDB_INVALID_ADDRESS)
     return false;
 
-  Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_JIT_LOADER));
+  Log *log = GetLog(LLDBLog::JITLoader);
   Target &target = m_process->GetTarget();
   ModuleList &module_list = target.GetImages();
 
@@ -402,11 +401,6 @@ bool JITLoaderGDB::ReadJITDescriptorImpl(bool all_entries) {
 }
 
 // PluginInterface protocol
-lldb_private::ConstString JITLoaderGDB::GetPluginNameStatic() {
-  static ConstString g_name("gdb");
-  return g_name;
-}
-
 JITLoaderSP JITLoaderGDB::CreateInstance(Process *process, bool force) {
   JITLoaderSP jit_loader_sp;
   bool enable;
@@ -427,7 +421,7 @@ JITLoaderSP JITLoaderGDB::CreateInstance(Process *process, bool force) {
   return jit_loader_sp;
 }
 
-const char *JITLoaderGDB::GetPluginDescriptionStatic() {
+llvm::StringRef JITLoaderGDB::GetPluginDescriptionStatic() {
   return "JIT loader plug-in that watches for JIT events using the GDB "
          "interface.";
 }

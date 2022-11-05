@@ -1,9 +1,10 @@
 ; RUN: llc < %s -mtriple=nvptx64-nvidia-cuda | FileCheck %s
+; RUN: %if ptxas %{ llc < %s -mtriple=nvptx64-nvidia-cuda | %ptxas-verify %}
 
-; // Bitcode int this test case is reduced version of compiled code below:
-;__device__ inline void res(float x, float y, float *res) { *res = x + y; }
+; // Bitcode in this test case is reduced version of compiled code below:
+;__device__ inline void res(float x, float y, ptr res) { *res = x + y; }
 ;
-;__global__ void saxpy(int n, float a, float *x, float *y) {
+;__global__ void saxpy(int n, float a, ptr x, ptr y) {
 ;  int i = blockIdx.x * blockDim.x + threadIdx.x;
 ;  if (i < n)
 ;    res(a * x[i], y[i], &y[i]);
@@ -35,18 +36,18 @@
 ; CHECK: .loc [[DEBUG_INFO_CU]] 7 9
 ; CHECK: setp.ge.s32     %p{{.+}}, %r{{.+}}, %r{{.+}};
 ; CHECK: .loc [[DEBUG_INFO_CU]] 7 7
-; CHECK: @%p{{.+}} bra   [[BB:.+]];
+; CHECK: @%p{{.+}} bra   [[BB:\$L__.+]];
 ; CHECK: ld.param.f32    %f{{.+}}, [{{.+}}];
 ; CHECK: ld.param.u64    %rd{{.+}}, [{{.+}}];
 ; CHECK: cvta.to.global.u64      %rd{{.+}}, %rd{{.+}};
 ; CHECK: ld.param.u64    %rd{{.+}}, [{{.+}}];
 ; CHECK: cvta.to.global.u64      %rd{{.+}}, %rd{{.+}};
+; CHECK: .loc [[DEBUG_INFO_CU]] 8 13
 ; CHECK: mul.wide.u32    %rd{{.+}}, %r{{.+}}, 4;
 ; CHECK: add.s64         %rd{{.+}}, %rd{{.+}}, %rd{{.+}};
-; CHECK: .loc [[DEBUG_INFO_CU]] 8 13
 ; CHECK: ld.global.f32   %f{{.+}}, [%rd{{.+}}];
-; CHECK: add.s64         %rd{{.+}}, %rd{{.+}}, %rd{{.+}};
 ; CHECK: .loc [[DEBUG_INFO_CU]] 8 19
+; CHECK: add.s64         %rd{{.+}}, %rd{{.+}}, %rd{{.+}};
 ; CHECK: ld.global.f32   %f{{.+}}, [%rd{{.+}}];
 ; CHECK: .loc [[DEBUG_INFO_CU]] 3 82
 ; CHECK: fma.rn.f32      %f{{.+}}, %f{{.+}}, %f{{.+}}, %f{{.+}};
@@ -58,12 +59,12 @@
 ; CHECK: }
 
 ; Function Attrs: nounwind
-define void @_Z5saxpyifPfS_(i32 %n, float %a, float* nocapture readonly %x, float* nocapture %y) local_unnamed_addr #0 !dbg !566 {
+define void @_Z5saxpyifPfS_(i32 %n, float %a, ptr nocapture readonly %x, ptr nocapture %y) local_unnamed_addr #0 !dbg !566 {
 entry:
   call void @llvm.dbg.value(metadata i32 %n, metadata !570, metadata !DIExpression()), !dbg !575
   call void @llvm.dbg.value(metadata float %a, metadata !571, metadata !DIExpression()), !dbg !576
-  call void @llvm.dbg.value(metadata float* %x, metadata !572, metadata !DIExpression()), !dbg !577
-  call void @llvm.dbg.value(metadata float* %y, metadata !573, metadata !DIExpression()), !dbg !578
+  call void @llvm.dbg.value(metadata ptr %x, metadata !572, metadata !DIExpression()), !dbg !577
+  call void @llvm.dbg.value(metadata ptr %y, metadata !573, metadata !DIExpression()), !dbg !578
   %0 = tail call i32 @llvm.nvvm.read.ptx.sreg.ctaid.x() #3, !dbg !579, !range !616
   %1 = tail call i32 @llvm.nvvm.read.ptx.sreg.ntid.x() #3, !dbg !617, !range !661
   %mul = mul nuw nsw i32 %1, %0, !dbg !662
@@ -75,16 +76,16 @@ entry:
 
 if.then:                                          ; preds = %entry
   %3 = zext i32 %add to i64, !dbg !697
-  %arrayidx = getelementptr inbounds float, float* %x, i64 %3, !dbg !697
-  %4 = load float, float* %arrayidx, align 4, !dbg !697, !tbaa !698
+  %arrayidx = getelementptr inbounds float, ptr %x, i64 %3, !dbg !697
+  %4 = load float, ptr %arrayidx, align 4, !dbg !697, !tbaa !698
   %mul3 = fmul contract float %4, %a, !dbg !702
-  %arrayidx5 = getelementptr inbounds float, float* %y, i64 %3, !dbg !703
-  %5 = load float, float* %arrayidx5, align 4, !dbg !703, !tbaa !698
+  %arrayidx5 = getelementptr inbounds float, ptr %y, i64 %3, !dbg !703
+  %5 = load float, ptr %arrayidx5, align 4, !dbg !703, !tbaa !698
   call void @llvm.dbg.value(metadata float %mul3, metadata !704, metadata !DIExpression()), !dbg !711
   call void @llvm.dbg.value(metadata float %5, metadata !709, metadata !DIExpression()), !dbg !713
-  call void @llvm.dbg.value(metadata float* %arrayidx5, metadata !710, metadata !DIExpression()), !dbg !714
+  call void @llvm.dbg.value(metadata ptr %arrayidx5, metadata !710, metadata !DIExpression()), !dbg !714
   %add.i = fadd contract float %mul3, %5, !dbg !715
-  store float %add.i, float* %arrayidx5, align 4, !dbg !716, !tbaa !698
+  store float %add.i, ptr %arrayidx5, align 4, !dbg !716, !tbaa !698
   br label %if.end, !dbg !717
 
 if.end:                                           ; preds = %if.then, %entry
@@ -100,7 +101,7 @@ if.end:                                           ; preds = %if.then, %entry
 ; CHECK-DAG: .file {{[0-9]+}} "{{.*}}/usr/include{{/|\\\\}}stdlib-bsearch.h"
 ; CHECK-DAG: .file {{[0-9]+}} "{{.*}}clang/include{{/|\\\\}}stddef.h"
 ; CHECK-DAG: .file {{[0-9]+}} "{{.*}}/usr/local/cuda/include{{/|\\\\}}math_functions.hpp"
-; CHECK_DAG: .file {{[0-9]+}} "{{.*}}clang/include{{/|\\\\}}__clang_cuda_cmath.h"
+; CHECK-DAG: .file {{[0-9]+}} "{{.*}}clang/include{{/|\\\\}}__clang_cuda_cmath.h"
 ; CHECK-DAG: .file {{[0-9]+}} "{{.*}}/usr/local/cuda/include{{/|\\\\}}device_functions.hpp"
 ; CHECK-DAG: .file [[DEBUG_INFO_CU]] "{{.*}}debug-info.cu"
 ; CHECK-DAG: .file [[BUILTUIN_VARS_H]] "{{.*}}clang/include{{/|\\\\}}__clang_cuda_builtin_vars.h"
@@ -742,8 +743,8 @@ if.end:                                           ; preds = %if.then, %entry
 ; CHECK-NEXT:.b8 114
 ; CHECK-NEXT:.b8 121
 ; CHECK-NEXT:.b8 0
-; CHECK-NEXT:.b64 Lfunc_begin0                       // DW_AT_low_pc
-; CHECK-NEXT:.b64 Lfunc_end0                         // DW_AT_high_pc
+; CHECK-NEXT:.b64 $L__func_begin0                    // DW_AT_low_pc
+; CHECK-NEXT:.b64 $L__func_end0                      // DW_AT_high_pc
 ; CHECK-NEXT:.b8 2                                   // Abbrev [2] 0x41:0x588 DW_TAG_namespace
 ; CHECK-NEXT:.b8 115                                 // DW_AT_name
 ; CHECK-NEXT:.b8 116
@@ -8307,8 +8308,8 @@ if.end:                                           ; preds = %if.then, %entry
 ; CHECK-NEXT:.b32 3345                               // DW_AT_type
 ; CHECK-NEXT:.b8 0                                   // End Of Children Mark
 ; CHECK-NEXT:.b8 40                                  // Abbrev [40] 0x2671:0xbf DW_TAG_subprogram
-; CHECK-NEXT:.b64 Lfunc_begin0                       // DW_AT_low_pc
-; CHECK-NEXT:.b64 Lfunc_end0                         // DW_AT_high_pc
+; CHECK-NEXT:.b64 $L__func_begin0                    // DW_AT_low_pc
+; CHECK-NEXT:.b64 $L__func_end0                      // DW_AT_high_pc
 ; CHECK-NEXT:.b8 1                                   // DW_AT_frame_base
 ; CHECK-NEXT:.b8 156
 ; CHECK-NEXT:.b8 95                                  // DW_AT_MIPS_linkage_name
@@ -8367,29 +8368,29 @@ if.end:                                           ; preds = %if.then, %entry
 ; CHECK-NEXT:.b32 2332                               // DW_AT_type
 ; CHECK-NEXT:.b8 42                                  // Abbrev [42] 0x26c9:0x18 DW_TAG_inlined_subroutine
 ; CHECK-NEXT:.b32 8432                               // DW_AT_abstract_origin
-; CHECK-NEXT:.b64 Ltmp0                              // DW_AT_low_pc
-; CHECK-NEXT:.b64 Ltmp1                              // DW_AT_high_pc
+; CHECK-NEXT:.b64 $L__tmp0                           // DW_AT_low_pc
+; CHECK-NEXT:.b64 $L__tmp1                           // DW_AT_high_pc
 ; CHECK-NEXT:.b8 12                                  // DW_AT_call_file
 ; CHECK-NEXT:.b8 6                                   // DW_AT_call_line
 ; CHECK-NEXT:.b8 11                                  // DW_AT_call_column
 ; CHECK-NEXT:.b8 42                                  // Abbrev [42] 0x26e1:0x18 DW_TAG_inlined_subroutine
 ; CHECK-NEXT:.b32 9191                               // DW_AT_abstract_origin
-; CHECK-NEXT:.b64 Ltmp1                              // DW_AT_low_pc
-; CHECK-NEXT:.b64 Ltmp2                              // DW_AT_high_pc
+; CHECK-NEXT:.b64 $L__tmp1                           // DW_AT_low_pc
+; CHECK-NEXT:.b64 $L__tmp2                           // DW_AT_high_pc
 ; CHECK-NEXT:.b8 12                                  // DW_AT_call_file
 ; CHECK-NEXT:.b8 6                                   // DW_AT_call_line
 ; CHECK-NEXT:.b8 24                                  // DW_AT_call_column
 ; CHECK-NEXT:.b8 42                                  // Abbrev [42] 0x26f9:0x18 DW_TAG_inlined_subroutine
 ; CHECK-NEXT:.b32 9785                               // DW_AT_abstract_origin
-; CHECK-NEXT:.b64 Ltmp2                              // DW_AT_low_pc
-; CHECK-NEXT:.b64 Ltmp3                              // DW_AT_high_pc
+; CHECK-NEXT:.b64 $L__tmp2                           // DW_AT_low_pc
+; CHECK-NEXT:.b64 $L__tmp3                           // DW_AT_high_pc
 ; CHECK-NEXT:.b8 12                                  // DW_AT_call_file
 ; CHECK-NEXT:.b8 6                                   // DW_AT_call_line
 ; CHECK-NEXT:.b8 37                                  // DW_AT_call_column
 ; CHECK-NEXT:.b8 43                                  // Abbrev [43] 0x2711:0x1e DW_TAG_inlined_subroutine
 ; CHECK-NEXT:.b32 9791                               // DW_AT_abstract_origin
-; CHECK-NEXT:.b64 Ltmp9                              // DW_AT_low_pc
-; CHECK-NEXT:.b64 Ltmp10                             // DW_AT_high_pc
+; CHECK-NEXT:.b64 $L__tmp9                           // DW_AT_low_pc
+; CHECK-NEXT:.b64 $L__tmp10                          // DW_AT_high_pc
 ; CHECK-NEXT:.b8 12                                  // DW_AT_call_file
 ; CHECK-NEXT:.b8 8                                   // DW_AT_call_line
 ; CHECK-NEXT:.b8 5                                   // DW_AT_call_column
@@ -8981,7 +8982,7 @@ attributes #3 = { nounwind }
 !552 = !DISubprogram(name: "tgammaf", linkageName: "_ZL7tgammaff", scope: !444, file: !444, line: 1592, type: !13, isLocal: true, isDefinition: false, flags: DIFlagPrototyped, isOptimized: true)
 !553 = !DIImportedEntity(tag: DW_TAG_imported_declaration, scope: !5, entity: !554, file: !445, line: 459)
 !554 = !DISubprogram(name: "truncf", linkageName: "_ZL6truncff", scope: !462, file: !462, line: 662, type: !13, isLocal: true, isDefinition: false, flags: DIFlagPrototyped, isOptimized: true)
-!555 = !{void (i32, float, float*, float*)* @_Z5saxpyifPfS_, !"kernel", i32 1}
+!555 = !{ptr @_Z5saxpyifPfS_, !"kernel", i32 1}
 !556 = !{null, !"align", i32 8}
 !557 = !{null, !"align", i32 8, !"align", i32 65544, !"align", i32 131080}
 !558 = !{null, !"align", i32 16}

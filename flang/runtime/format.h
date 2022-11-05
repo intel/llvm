@@ -18,7 +18,13 @@
 #include <cinttypes>
 #include <optional>
 
+namespace Fortran::runtime {
+class Descriptor;
+} // namespace Fortran::runtime
+
 namespace Fortran::runtime::io {
+
+class IoStatementState;
 
 enum EditingFlags {
   blankZero = 1, // BLANK=ZERO or BZ edit
@@ -51,6 +57,9 @@ struct DataEdit {
     return descriptor == ListDirected || descriptor == ListDirectedRealPart ||
         descriptor == ListDirectedImaginaryPart;
   }
+  constexpr bool IsNamelist() const {
+    return IsListDirected() && modes.inNamelist;
+  }
 
   static constexpr char DefinedDerivedType{'d'}; // DT user-defined derived type
 
@@ -77,16 +86,12 @@ struct DataEdit {
 template <typename CONTEXT> class FormatControl {
 public:
   using Context = CONTEXT;
-  using CharType = typename Context::CharType;
+  using CharType = char; // formats are always default kind CHARACTER
 
   FormatControl() {}
   FormatControl(const Terminator &, const CharType *format,
-      std::size_t formatLength, int maxHeight = maxMaxHeight);
-
-  // Determines the max parenthesis nesting level by scanning and validating
-  // the FORMAT string.
-  static int GetMaxParenthesisNesting(
-      IoErrorHandler &, const CharType *format, std::size_t formatLength);
+      std::size_t formatLength, const Descriptor *formatDescriptor = nullptr,
+      int maxHeight = maxMaxHeight);
 
   // For attempting to allocate in a user-supplied stack area
   static std::size_t GetNeededSize(int maxHeight) {
@@ -113,7 +118,9 @@ private:
   };
 
   void SkipBlanks() {
-    while (offset_ < formatLength_ && format_[offset_] == ' ') {
+    while (offset_ < formatLength_ &&
+        (format_[offset_] == ' ' || format_[offset_] == '\t' ||
+            format_[offset_] == '\v')) {
       ++offset_;
     }
   }
@@ -124,8 +131,13 @@ private:
   CharType GetNextChar(IoErrorHandler &handler) {
     SkipBlanks();
     if (offset_ >= formatLength_) {
-      handler.SignalError(
-          IostatErrorInFormat, "FORMAT missing at least one ')'");
+      if (formatLength_ == 0) {
+        handler.SignalError(
+            IostatErrorInFormat, "Empty or badly assigned FORMAT");
+      } else {
+        handler.SignalError(
+            IostatErrorInFormat, "FORMAT missing at least one ')'");
+      }
       return '\n';
     }
     return format_[offset_++];
@@ -143,13 +155,36 @@ private:
     return ch >= 'a' && ch <= 'z' ? ch + 'A' - 'a' : ch;
   }
 
+  void ReportBadFormat(Context &context, const char *msg, int offset) const {
+    if constexpr (std::is_same_v<CharType, char>) {
+      // Echo the bad format in the error message, but trim any leading or
+      // trailing spaces.
+      int firstNonBlank{0};
+      while (firstNonBlank < formatLength_ && format_[firstNonBlank] == ' ') {
+        ++firstNonBlank;
+      }
+      int lastNonBlank{formatLength_ - 1};
+      while (lastNonBlank > firstNonBlank && format_[lastNonBlank] == ' ') {
+        --lastNonBlank;
+      }
+      if (firstNonBlank <= lastNonBlank) {
+        context.SignalError(IostatErrorInFormat,
+            "%s; at offset %d in format '%.*s'", msg, offset,
+            lastNonBlank - firstNonBlank + 1, format_ + firstNonBlank);
+        return;
+      }
+    }
+    context.SignalError(IostatErrorInFormat, "%s; at offset %d", msg, offset);
+  }
+
   // Data members are arranged and typed so as to reduce size.
   // This structure may be allocated in stack space loaned by the
   // user program for internal I/O.
   const std::uint8_t maxHeight_{maxMaxHeight};
   std::uint8_t height_{0};
+  bool freeFormat_{false};
   const CharType *format_{nullptr};
-  int formatLength_{0};
+  int formatLength_{0}; // in units of characters
   int offset_{0}; // next item is at format_[offset_]
 
   // must be last, may be incomplete

@@ -26,7 +26,7 @@ struct S {};
 void make_move_iterator(S*) {}
 }
 
-int main(int, char**)
+TEST_CONSTEXPR_CXX20 bool tests()
 {
     {
         typedef std::vector<int> V;
@@ -179,8 +179,17 @@ int main(int, char**)
 
     {
         std::vector<adl::S> s;
-        s.insert(s.end(), cpp17_input_iterator<adl::S*>(), cpp17_input_iterator<adl::S*>());
+        s.insert(s.end(), cpp17_input_iterator<adl::S*>(nullptr), cpp17_input_iterator<adl::S*>(nullptr));
     }
 
-  return 0;
+    return true;
+}
+
+int main(int, char**)
+{
+    tests();
+#if TEST_STD_VER > 17
+    static_assert(tests());
+#endif
+    return 0;
 }

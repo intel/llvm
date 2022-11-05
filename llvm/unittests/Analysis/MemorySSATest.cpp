@@ -1003,50 +1003,6 @@ TEST_F(MemorySSATest, RemovingDefInvalidatesCache) {
       << "(DefX1 = " << DefX1 << ")";
 }
 
-// Test Must alias for optimized uses
-TEST_F(MemorySSATest, TestLoadMustAlias) {
-  F = Function::Create(FunctionType::get(B.getVoidTy(), {}, false),
-                       GlobalValue::ExternalLinkage, "F", &M);
-  B.SetInsertPoint(BasicBlock::Create(C, "", F));
-  Type *Int8 = Type::getInt8Ty(C);
-  Value *AllocaA = B.CreateAlloca(Int8, ConstantInt::get(Int8, 1), "A");
-  Value *AllocaB = B.CreateAlloca(Int8, ConstantInt::get(Int8, 1), "B");
-
-  B.CreateStore(ConstantInt::get(Int8, 1), AllocaB);
-  // Check load from LOE
-  LoadInst *LA1 = B.CreateLoad(Int8, AllocaA, "");
-  // Check load alias cached for second load
-  LoadInst *LA2 = B.CreateLoad(Int8, AllocaA, "");
-
-  B.CreateStore(ConstantInt::get(Int8, 1), AllocaA);
-  // Check load from store/def
-  LoadInst *LA3 = B.CreateLoad(Int8, AllocaA, "");
-  // Check load alias cached for second load
-  LoadInst *LA4 = B.CreateLoad(Int8, AllocaA, "");
-
-  setupAnalyses();
-  MemorySSA &MSSA = *Analyses->MSSA;
-
-  unsigned I = 0;
-  for (LoadInst *V : {LA1, LA2}) {
-    MemoryUse *MemUse = dyn_cast_or_null<MemoryUse>(MSSA.getMemoryAccess(V));
-    EXPECT_EQ(MemUse->getOptimizedAccessType(), None)
-        << "Load " << I << " doesn't have the correct alias information";
-    // EXPECT_EQ expands such that if we increment I above, it won't get
-    // incremented except when we try to print the error message.
-    ++I;
-  }
-  for (LoadInst *V : {LA3, LA4}) {
-    MemoryUse *MemUse = dyn_cast_or_null<MemoryUse>(MSSA.getMemoryAccess(V));
-    EXPECT_EQ(MemUse->getOptimizedAccessType().getValue(),
-              AliasResult::MustAlias)
-        << "Load " << I << " doesn't have the correct alias information";
-    // EXPECT_EQ expands such that if we increment I above, it won't get
-    // incremented except when we try to print the error message.
-    ++I;
-  }
-}
-
 // Test Must alias for optimized defs.
 TEST_F(MemorySSATest, TestStoreMustAlias) {
   F = Function::Create(FunctionType::get(B.getVoidTy(), {}, false),
@@ -1071,9 +1027,6 @@ TEST_F(MemorySSATest, TestStoreMustAlias) {
     MemoryDef *MemDef = dyn_cast_or_null<MemoryDef>(MSSA.getMemoryAccess(V));
     EXPECT_EQ(MemDef->isOptimized(), false)
         << "Store " << I << " is optimized from the start?";
-    EXPECT_EQ(MemDef->getOptimizedAccessType(), None)
-        << "Store " << I
-        << " has correct alias information before being optimized?";
     if (V == SA1)
       Walker->getClobberingMemoryAccess(V);
     else {
@@ -1084,57 +1037,6 @@ TEST_F(MemorySSATest, TestStoreMustAlias) {
     }
     EXPECT_EQ(MemDef->isOptimized(), true)
         << "Store " << I << " was not optimized";
-    if (I == 0 || I == 1)
-      EXPECT_EQ(MemDef->getOptimizedAccessType(), None)
-          << "Store " << I << " doesn't have the correct alias information";
-    else
-      EXPECT_EQ(MemDef->getOptimizedAccessType().getValue(),
-                AliasResult::MustAlias)
-          << "Store " << I << " doesn't have the correct alias information";
-    // EXPECT_EQ expands such that if we increment I above, it won't get
-    // incremented except when we try to print the error message.
-    ++I;
-  }
-}
-
-// Test May alias for optimized uses.
-TEST_F(MemorySSATest, TestLoadMayAlias) {
-  F = Function::Create(FunctionType::get(B.getVoidTy(),
-                                         {B.getInt8PtrTy(), B.getInt8PtrTy()},
-                                         false),
-                       GlobalValue::ExternalLinkage, "F", &M);
-  B.SetInsertPoint(BasicBlock::Create(C, "", F));
-  Type *Int8 = Type::getInt8Ty(C);
-  auto *ArgIt = F->arg_begin();
-  Argument *PointerA = &*ArgIt;
-  Argument *PointerB = &*(++ArgIt);
-  B.CreateStore(ConstantInt::get(Int8, 1), PointerB);
-  LoadInst *LA1 = B.CreateLoad(Int8, PointerA, "");
-  B.CreateStore(ConstantInt::get(Int8, 0), PointerA);
-  LoadInst *LB1 = B.CreateLoad(Int8, PointerB, "");
-  B.CreateStore(ConstantInt::get(Int8, 0), PointerA);
-  LoadInst *LA2 = B.CreateLoad(Int8, PointerA, "");
-  B.CreateStore(ConstantInt::get(Int8, 0), PointerB);
-  LoadInst *LB2 = B.CreateLoad(Int8, PointerB, "");
-
-  setupAnalyses();
-  MemorySSA &MSSA = *Analyses->MSSA;
-
-  unsigned I = 0;
-  for (LoadInst *V : {LA1, LB1}) {
-    MemoryUse *MemUse = dyn_cast_or_null<MemoryUse>(MSSA.getMemoryAccess(V));
-    EXPECT_EQ(MemUse->getOptimizedAccessType().getValue(),
-              AliasResult::MayAlias)
-        << "Load " << I << " doesn't have the correct alias information";
-    // EXPECT_EQ expands such that if we increment I above, it won't get
-    // incremented except when we try to print the error message.
-    ++I;
-  }
-  for (LoadInst *V : {LA2, LB2}) {
-    MemoryUse *MemUse = dyn_cast_or_null<MemoryUse>(MSSA.getMemoryAccess(V));
-    EXPECT_EQ(MemUse->getOptimizedAccessType().getValue(),
-              AliasResult::MustAlias)
-        << "Load " << I << " doesn't have the correct alias information";
     // EXPECT_EQ expands such that if we increment I above, it won't get
     // incremented except when we try to print the error message.
     ++I;
@@ -1178,9 +1080,6 @@ TEST_F(MemorySSATest, TestStoreMayAlias) {
     MemoryDef *MemDef = dyn_cast_or_null<MemoryDef>(MSSA.getMemoryAccess(V));
     EXPECT_EQ(MemDef->isOptimized(), false)
         << "Store " << I << " is optimized from the start?";
-    EXPECT_EQ(MemDef->getOptimizedAccessType(), None)
-        << "Store " << I
-        << " has correct alias information before being optimized?";
     ++I;
   }
 
@@ -1192,17 +1091,6 @@ TEST_F(MemorySSATest, TestStoreMayAlias) {
     MemoryDef *MemDef = dyn_cast_or_null<MemoryDef>(MSSA.getMemoryAccess(V));
     EXPECT_EQ(MemDef->isOptimized(), true)
         << "Store " << I << " was not optimized";
-    if (I == 1 || I == 3 || I == 4)
-      EXPECT_EQ(MemDef->getOptimizedAccessType().getValue(),
-                AliasResult::MayAlias)
-          << "Store " << I << " doesn't have the correct alias information";
-    else if (I == 0 || I == 2)
-      EXPECT_EQ(MemDef->getOptimizedAccessType(), None)
-          << "Store " << I << " doesn't have the correct alias information";
-    else
-      EXPECT_EQ(MemDef->getOptimizedAccessType().getValue(),
-                AliasResult::MustAlias)
-          << "Store " << I << " doesn't have the correct alias information";
     // EXPECT_EQ expands such that if we increment I above, it won't get
     // incremented except when we try to print the error message.
     ++I;
@@ -1771,4 +1659,140 @@ TEST_F(MemorySSATest, TestInvariantGroup) {
     MemoryAccess *LClobber = Walker->getClobberingMemoryAccess(LAccess);
     EXPECT_EQ(CallAccess, LClobber);
   }
+}
+
+static BasicBlock *getBasicBlockByName(Function &F, StringRef Name) {
+  for (BasicBlock &BB : F)
+    if (BB.getName() == Name)
+      return &BB;
+  llvm_unreachable("Expected to find basic block!");
+}
+
+static Instruction *getInstructionByName(Function &F, StringRef Name) {
+  for (BasicBlock &BB : F)
+    for (Instruction &I : BB)
+      if (I.getName() == Name)
+        return &I;
+  llvm_unreachable("Expected to find instruction!");
+}
+
+TEST_F(MemorySSATest, TestVisitedBlocks) {
+  SMDiagnostic E;
+  auto M = parseAssemblyString(
+      "define void @test(i64* noalias %P, i64 %N) {\n"
+      "preheader.n:\n"
+      "  br label %header.n\n"
+      "header.n:\n"
+      "  %n = phi i64 [ 0, %preheader.n ], [ %inc.n, %latch.n ]\n"
+      "  %guard.cond.i = icmp slt i64 0, %N\n"
+      "  br i1 %guard.cond.i, label %header.i.check, label %other.i\n"
+      "header.i.check:\n"
+      "  br label %preheader.i\n"
+      "preheader.i:\n"
+      "  br label %header.i\n"
+      "header.i:\n"
+      "  %i = phi i64 [ 0, %preheader.i ], [ %inc.i, %header.i ]\n"
+      "  %v1 = load i64, i64* %P, align 8\n"
+      "  %v2 = load i64, i64* %P, align 8\n"
+      "  %inc.i = add nsw i64 %i, 1\n"
+      "  %cmp.i = icmp slt i64 %inc.i, %N\n"
+      "  br i1 %cmp.i, label %header.i, label %exit.i\n"
+      "exit.i:\n"
+      "  br label %commonexit\n"
+      "other.i:\n"
+      "  br label %commonexit\n"
+      "commonexit:\n"
+      "  br label %latch.n\n"
+      "latch.n:\n"
+      "  %inc.n = add nsw i64 %n, 1\n"
+      "  %cmp.n = icmp slt i64 %inc.n, %N\n"
+      "  br i1 %cmp.n, label %header.n, label %exit.n\n"
+      "exit.n:\n"
+      "  ret void\n"
+      "}\n",
+      E, C);
+  ASSERT_TRUE(M);
+  F = M->getFunction("test");
+  ASSERT_TRUE(F);
+  setupAnalyses();
+  MemorySSA &MSSA = *Analyses->MSSA;
+  MemorySSAUpdater Updater(&MSSA);
+
+  {
+    // Move %v1 before the terminator of %header.i.check
+    BasicBlock *BB = getBasicBlockByName(*F, "header.i.check");
+    Instruction *LI = getInstructionByName(*F, "v1");
+    LI->moveBefore(BB->getTerminator());
+    if (MemoryUseOrDef *MUD = MSSA.getMemoryAccess(LI))
+      Updater.moveToPlace(MUD, BB, MemorySSA::BeforeTerminator);
+
+    // Change the termiantor of %header.i.check to `br label true, label
+    // %preheader.i, label %other.i`
+    BB->getTerminator()->eraseFromParent();
+    ConstantInt *BoolTrue = ConstantInt::getTrue(F->getContext());
+    BranchInst::Create(getBasicBlockByName(*F, "preheader.i"),
+                       getBasicBlockByName(*F, "other.i"), BoolTrue, BB);
+    SmallVector<DominatorTree::UpdateType, 4> DTUpdates;
+    DTUpdates.push_back(DominatorTree::UpdateType(
+        DominatorTree::Insert, BB, getBasicBlockByName(*F, "other.i")));
+    Updater.applyUpdates(DTUpdates, Analyses->DT, true);
+  }
+
+  // After the first moveToPlace(), %other.i is in VisitedBlocks, even after
+  // there is a new edge to %other.i, which makes the second moveToPlace()
+  // traverse incorrectly.
+  {
+    // Move %v2 before the terminator of %preheader.i
+    BasicBlock *BB = getBasicBlockByName(*F, "preheader.i");
+    Instruction *LI = getInstructionByName(*F, "v2");
+    LI->moveBefore(BB->getTerminator());
+    // Check that there is no assertion of "Incomplete phi during partial
+    // rename"
+    if (MemoryUseOrDef *MUD = MSSA.getMemoryAccess(LI))
+      Updater.moveToPlace(MUD, BB, MemorySSA::BeforeTerminator);
+  }
+}
+
+TEST_F(MemorySSATest, TestNoDbgInsts) {
+  SMDiagnostic E;
+  auto M = parseAssemblyString(R"(
+      define void @test() presplitcoroutine {
+      entry:
+        %i = alloca i32
+        call void @llvm.dbg.declare(metadata ptr %i, metadata !6, metadata !DIExpression()), !dbg !10
+        call void @llvm.dbg.value(metadata ptr %i, metadata !6, metadata !DIExpression()), !dbg !10
+        ret void
+      }
+
+      declare void @llvm.dbg.declare(metadata, metadata, metadata) nocallback nofree nosync nounwind readnone speculatable willreturn
+      declare void @llvm.dbg.value(metadata, metadata, metadata) nocallback nofree nosync nounwind readnone speculatable willreturn
+
+      !llvm.dbg.cu = !{!0}
+
+      !0 = distinct !DICompileUnit(language: DW_LANG_C_plus_plus_14, file: !1, producer: "clang version 15.0.0", isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug, enums: !2, retainedTypes: !2, splitDebugInlining: false, nameTableKind: None)
+      !1 = !DIFile(filename: "repro.cpp", directory: ".")
+      !2 = !{}
+      !3 = !{i32 7, !"Dwarf Version", i32 4}
+      !4 = !{i32 2, !"Debug Info Version", i32 3}
+      !5 = !{!"clang version 15.0.0"}
+      !6 = !DILocalVariable(name: "i", scope: !7, file: !1, line: 24, type: !10)
+      !7 = distinct !DILexicalBlock(scope: !8, file: !1, line: 23, column: 12)
+      !8 = distinct !DISubprogram(name: "foo", linkageName: "_Z3foov", scope: !1, file: !1, line: 23, type: !9, scopeLine: 23, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: !0, retainedNodes: !2)
+      !9 = !DISubroutineType(types: !2)
+      !10 = !DILocation(line: 24, column: 7, scope: !7)
+    )",
+    E, C);
+  ASSERT_TRUE(M);
+  F = M->getFunction("test");
+  ASSERT_TRUE(F);
+  setupAnalyses();
+  MemorySSA &MSSA = *Analyses->MSSA;
+  MemorySSAUpdater Updater(&MSSA);
+
+  BasicBlock &Entry = F->front();
+  auto I = Entry.begin();
+  Instruction *DbgDeclare = cast<Instruction>(I++);
+  Instruction *DbgValue = cast<Instruction>(I++);
+  ASSERT_EQ(MSSA.getMemoryAccess(DbgDeclare), nullptr);
+  ASSERT_EQ(MSSA.getMemoryAccess(DbgValue), nullptr);
 }

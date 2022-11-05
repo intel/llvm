@@ -18,17 +18,17 @@ int memcmp(const void *p, const void *q, unsigned long size) {
 
 // CHECK-LABEL: @con_unify_unimap_q1(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[P_ADDR_I:%.*]] = alloca i8*, align 8
-// CHECK-NEXT:    [[Q_ADDR_I:%.*]] = alloca i8*, align 8
+// CHECK-NEXT:    [[P_ADDR_I:%.*]] = alloca ptr, align 8
+// CHECK-NEXT:    [[Q_ADDR_I:%.*]] = alloca ptr, align 8
 // CHECK-NEXT:    [[SIZE_ADDR_I:%.*]] = alloca i64, align 8
-// CHECK-NEXT:    [[TMP0:%.*]] = load i8*, i8** @con_unify_unimap_p1, align 8
-// CHECK-NEXT:    store i8* [[TMP0]], i8** [[P_ADDR_I]], align 8
-// CHECK-NEXT:    store i8* bitcast (i32 ()* @con_unify_unimap_q1 to i8*), i8** [[Q_ADDR_I]], align 8
-// CHECK-NEXT:    store i64 4, i64* [[SIZE_ADDR_I]], align 8
-// CHECK-NEXT:    [[TMP1:%.*]] = load i8*, i8** [[P_ADDR_I]], align 8
-// CHECK-NEXT:    [[TMP2:%.*]] = load i8*, i8** [[Q_ADDR_I]], align 8
-// CHECK-NEXT:    [[TMP3:%.*]] = load i64, i64* [[SIZE_ADDR_I]], align 8
-// CHECK-NEXT:    [[CALL_I:%.*]] = call i32 @memcmp(i8* [[TMP1]], i8* [[TMP2]], i64 [[TMP3]]) #[[ATTR3:[0-9]+]]
+// CHECK-NEXT:    [[TMP0:%.*]] = load ptr, ptr @con_unify_unimap_p1, align 8
+// CHECK-NEXT:    store ptr [[TMP0]], ptr [[P_ADDR_I]], align 8
+// CHECK-NEXT:    store ptr @con_unify_unimap_q1, ptr [[Q_ADDR_I]], align 8
+// CHECK-NEXT:    store i64 4, ptr [[SIZE_ADDR_I]], align 8
+// CHECK-NEXT:    [[TMP1:%.*]] = load ptr, ptr [[P_ADDR_I]], align 8
+// CHECK-NEXT:    [[TMP2:%.*]] = load ptr, ptr [[Q_ADDR_I]], align 8
+// CHECK-NEXT:    [[TMP3:%.*]] = load i64, ptr [[SIZE_ADDR_I]], align 8
+// CHECK-NEXT:    [[CALL_I:%.*]] = call i32 @memcmp(ptr noundef [[TMP1]], ptr noundef [[TMP2]], i64 noundef [[TMP3]]) #[[ATTR3:[0-9]+]]
 // CHECK-NEXT:    ret i32 [[CALL_I]]
 //
 int con_unify_unimap_q1(void) {

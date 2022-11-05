@@ -1,5 +1,11 @@
 cmake_minimum_required(VERSION 3.13.4)
 
+if(NOT DEFINED LLVM_COMMON_CMAKE_UTILS)
+  set(LLVM_COMMON_CMAKE_UTILS ${CMAKE_CURRENT_SOURCE_DIR}/../cmake)
+endif()
+include(${LLVM_COMMON_CMAKE_UTILS}/Modules/CMakePolicy.cmake
+  NO_POLICY_SCOPE)
+
 # Add path for custom modules.
 set(CMAKE_MODULE_PATH
   ${CMAKE_MODULE_PATH}
@@ -11,9 +17,18 @@ set(CMAKE_MODULE_PATH
 # using LLVM as an external library.
 if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   project(lldb)
+  set(LLDB_BUILT_STANDALONE TRUE)
+endif()
+
+# Must go below project(..)
+include(GNUInstallDirs)
+
+option(LLDB_INCLUDE_TESTS "Generate build targets for the LLDB unit tests." ${LLVM_INCLUDE_TESTS})
+
+if(LLDB_BUILT_STANDALONE)
   include(LLDBStandalone)
 
-  set(CMAKE_CXX_STANDARD 14 CACHE STRING "C++ standard to conform to")
+  set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard to conform to")
   set(CMAKE_CXX_STANDARD_REQUIRED YES)
   set(CMAKE_CXX_EXTENSIONS NO)
 endif()
@@ -31,24 +46,30 @@ if (WIN32)
 endif()
 
 if (LLDB_ENABLE_PYTHON)
-  if (NOT CMAKE_CROSSCOMPILING)
-    execute_process(
-      COMMAND ${Python3_EXECUTABLE}
-          -c "import distutils.sysconfig; print(distutils.sysconfig.get_python_lib(True, False, ''))"
-      OUTPUT_VARIABLE LLDB_PYTHON_DEFAULT_RELATIVE_PATH
-      OUTPUT_STRIP_TRAILING_WHITESPACE)
+  set(cachestring_LLDB_PYTHON_RELATIVE_PATH
+    "Path where Python modules are installed, relative to LLDB's install prefix")
+  set(cachestring_LLDB_PYTHON_EXE_RELATIVE_PATH
+    "Path to python interpreter exectuable, relative to python's install prefix")
+  set(cachestring_LLDB_PYTHON_EXT_SUFFIX
+    "Filename extension for native code python modules")
 
-    file(TO_CMAKE_PATH ${LLDB_PYTHON_DEFAULT_RELATIVE_PATH} LLDB_PYTHON_DEFAULT_RELATIVE_PATH)
-  else ()
-    if ("${LLDB_PYTHON_RELATIVE_PATH}" STREQUAL "")
-      message(FATAL_ERROR
-        "Crosscompiling LLDB with Python requires manually setting
-        LLDB_PYTHON_RELATIVE_PATH.")
-    endif ()
-  endif ()
-
-  set(LLDB_PYTHON_RELATIVE_PATH ${LLDB_PYTHON_DEFAULT_RELATIVE_PATH}
-    CACHE STRING "Path where Python modules are installed, relative to install prefix")
+  foreach(var LLDB_PYTHON_RELATIVE_PATH LLDB_PYTHON_EXE_RELATIVE_PATH LLDB_PYTHON_EXT_SUFFIX)
+    if(NOT DEFINED ${var} AND NOT CMAKE_CROSSCOMPILING)
+      execute_process(
+        COMMAND ${Python3_EXECUTABLE}
+          ${CMAKE_CURRENT_SOURCE_DIR}/bindings/python/get-python-config.py
+          ${var}
+        OUTPUT_VARIABLE value
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
+      file(TO_CMAKE_PATH "${value}" value)
+      set(${var} ${value} CACHE STRING ${cachestring_${var}})
+    else()
+      if ("${${var}}" STREQUAL "")
+        message(FATAL_ERROR
+          "Crosscompiling LLDB with Python requires manually setting ${var}.")
+      endif()
+    endif()
+  endforeach()
 endif ()
 
 if (LLDB_ENABLE_LUA)
@@ -111,10 +132,16 @@ if (LLDB_ENABLE_LUA)
   finish_swig_lua("lldb-lua" "${lldb_lua_bindings_dir}" "${lldb_lua_target_dir}")
 endif()
 
-option(LLDB_INCLUDE_TESTS "Generate build targets for the LLDB unit tests." ${LLVM_INCLUDE_TESTS})
+set(LLDB_INCLUDE_UNITTESTS ON)
+if (NOT TARGET llvm_gtest)
+  set(LLDB_INCLUDE_UNITTESTS OFF)
+endif()
+
 if(LLDB_INCLUDE_TESTS)
   add_subdirectory(test)
-  add_subdirectory(unittests)
+  if (LLDB_INCLUDE_UNITTESTS)
+    add_subdirectory(unittests)
+  endif()
   add_subdirectory(utils)
 endif()
 

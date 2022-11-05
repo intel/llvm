@@ -42,7 +42,8 @@ static const unsigned NVPTXAddrSpaceMap[] = {
     0, // sycl_private
     0, // ptr32_sptr
     0, // ptr32_uptr
-    0  // ptr64
+    0, // ptr64
+    0, // hlsl_groupshared
 };
 
 /// The DWARF address class. Taken from
@@ -121,7 +122,7 @@ public:
 
   void fillValidCPUList(SmallVectorImpl<StringRef> &Values) const override {
     for (int i = static_cast<int>(CudaArch::SM_20);
-         i < static_cast<int>(CudaArch::LAST); ++i)
+         i < static_cast<int>(CudaArch::Generic); ++i)
       Values.emplace_back(CudaArchToString(static_cast<CudaArch>(i)));
   }
 
@@ -167,7 +168,7 @@ public:
   /// DWARF.
   Optional<unsigned>
   getDWARFAddressSpace(unsigned AddressSpace) const override {
-    if (AddressSpace >= llvm::array_lengthof(NVPTXDWARFAddrSpaceMap) ||
+    if (AddressSpace >= std::size(NVPTXDWARFAddrSpaceMap) ||
         NVPTXDWARFAddrSpaceMap[AddressSpace] < 0)
       return llvm::None;
     return NVPTXDWARFAddrSpaceMap[AddressSpace];
@@ -189,7 +190,9 @@ public:
     TLSSupported = TLSSupported || Opts.SYCLIsDevice;
   }
 
-  bool hasExtIntType() const override { return true; }
+  bool hasBitIntType() const override { return true; }
+  bool hasBFloat16Type() const override { return true; }
+  const char *getBFloat16Mangling() const override { return "u6__bf16"; };
 };
 } // namespace targets
 } // namespace clang

@@ -8,10 +8,10 @@
 
 #pragma once
 
-#include <CL/sycl/detail/cg.hpp>
-#include <CL/sycl/detail/sycl_mem_obj_i.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/leaves_collection.hpp>
+#include <detail/sycl_mem_obj_i.hpp>
+#include <sycl/detail/cg.hpp>
 
 #include <cstddef>
 #include <memory>
@@ -64,8 +64,8 @@
 /// \code{.cpp}
 /// {
 ///   // Creating SYCL CPU and GPU queues
-///   cl::sycl::queue CPU_Queue = ...;
-///   cl::sycl::queue GPU_Queue = ...;
+///   sycl::queue CPU_Queue = ...;
+///   sycl::queue GPU_Queue = ...;
 ///
 ///   // Creating 3 SYCL buffers
 ///   auto BufferA = ...; // Buffer is initialized with host memory.
@@ -171,8 +171,8 @@
 // For testing purposes
 class MockScheduler;
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 class queue_impl;
@@ -364,7 +364,7 @@ public:
   /// \param CommandGroup is a unique_ptr to a command group to be added.
   /// \return an event object to wait on for command group completion.
   EventImplPtr addCG(std::unique_ptr<detail::CG> CommandGroup,
-                     QueueImplPtr Queue);
+                     const QueueImplPtr &Queue);
 
   /// Registers a command group, that copies most recent memory to the memory
   /// pointed by the requirement.
@@ -380,7 +380,7 @@ public:
   /// corresponding function of device API.
   ///
   /// \param Event is a pointer to event to wait on.
-  void waitForEvent(EventImplPtr Event);
+  void waitForEvent(const EventImplPtr &Event);
 
   /// Removes buffer from the graph.
   ///
@@ -404,7 +404,7 @@ public:
   /// \sa GraphBuilder::cleanupFinishedCommands
   ///
   /// \param FinishedEvent is a cleanup candidate event.
-  void cleanupFinishedCommands(EventImplPtr FinishedEvent);
+  void cleanupFinishedCommands(const EventImplPtr &FinishedEvent);
 
   /// Adds nodes to the graph, that update the requirement with the pointer
   /// to the host memory.
@@ -427,9 +427,6 @@ public:
   /// \return an instance of the scheduler object.
   static Scheduler &getInstance();
 
-  /// \return a vector of "immediate" dependencies for the Event given.
-  std::vector<EventImplPtr> getWaitList(EventImplPtr Event);
-
   /// Allocate buffers in the pool for a provided stream
   ///
   /// \param Impl to the stream object
@@ -444,25 +441,47 @@ public:
 
   QueueImplPtr getDefaultHostQueue() { return DefaultHostQueue; }
 
+  const QueueImplPtr &getDefaultHostQueue() const { return DefaultHostQueue; }
+
   static MemObjRecord *getMemObjRecord(const Requirement *const Req);
 
   Scheduler();
   ~Scheduler();
 
 protected:
-  // TODO: after switching to C++17, change std::shared_timed_mutex to
-  // std::shared_mutex
   using RWLockT = std::shared_timed_mutex;
   using ReadLockT = std::shared_lock<RWLockT>;
   using WriteLockT = std::unique_lock<RWLockT>;
 
   /// Provides exclusive access to std::shared_timed_mutex object with deadlock
   /// avoidance
-  ///
-  /// \param Lock is an instance of WriteLockT, created with \c std::defer_lock
-  void acquireWriteLock(WriteLockT &Lock);
+  WriteLockT acquireWriteLock() {
+#ifdef _WIN32
+    WriteLockT Lock(MGraphLock, std::defer_lock);
+    while (!Lock.try_lock_for(std::chrono::milliseconds(10))) {
+      // Without yield while loop acts like endless while loop and occupies the
+      // whole CPU when multiple command groups are created in multiple host
+      // threads
+      std::this_thread::yield();
+    }
+#else
+    WriteLockT Lock(MGraphLock);
+    // It is a deadlock on UNIX in implementation of lock and lock_shared, if
+    // try_lock in the loop above will be executed, so using a single lock here
+#endif // _WIN32
+    return Lock;
+  }
 
-  static void enqueueLeavesOfReqUnlocked(const Requirement *const Req);
+  /// Provides shared access to std::shared_timed_mutex object with deadlock
+  /// avoidance
+  ReadLockT acquireReadLock() { return ReadLockT{MGraphLock}; }
+
+  void cleanupCommands(const std::vector<Command *> &Cmds);
+
+  void NotifyHostTaskCompletion(Command *Cmd, Command *BlockingCmd);
+
+  static void enqueueLeavesOfReqUnlocked(const Requirement *const Req,
+                                         std::vector<Command *> &ToCleanUp);
 
   /// Graph builder class.
   ///
@@ -479,7 +498,8 @@ protected:
     /// \sa queue::submit, Scheduler::addCG
     ///
     /// \return a command that represents command group execution.
-    Command *addCG(std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue,
+    Command *addCG(std::unique_ptr<detail::CG> CommandGroup,
+                   const QueueImplPtr &Queue,
                    std::vector<Command *> &ToEnqueue);
 
     /// Registers a \ref CG "command group" that updates host memory to the
@@ -487,7 +507,7 @@ protected:
     ///
     /// \return a command that represents command group execution.
     Command *addCGUpdateHost(std::unique_ptr<detail::CG> CommandGroup,
-                             QueueImplPtr HostQueue,
+                             const QueueImplPtr &HostQueue,
                              std::vector<Command *> &ToEnqueue);
 
     /// Enqueues a command to update memory to the latest state.
@@ -506,13 +526,16 @@ protected:
 
     /// [Provisional] Optimizes subgraph that consists of command associated
     /// with Event passed and its dependencies.
-    void optimize(EventImplPtr Event);
+    void optimize(const EventImplPtr &Event);
+
+    void cleanupCommand(Command *Cmd);
 
     /// Removes finished non-leaf non-alloca commands from the subgraph
     /// (assuming that all its commands have been waited for).
     void cleanupFinishedCommands(
         Command *FinishedCmd,
-        std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>> &);
+        std::vector<std::shared_ptr<sycl::detail::stream_impl>> &,
+        std::vector<std::shared_ptr<const void>> &);
 
     /// Reschedules the command passed using Queue provided.
     ///
@@ -520,7 +543,7 @@ protected:
     /// used when the user provides a "secondary" queue to the submit method
     /// which may be used when the command fails to enqueue/execute in the
     /// primary queue.
-    void rescheduleCommand(Command *Cmd, QueueImplPtr Queue);
+    void rescheduleCommand(Command *Cmd, const QueueImplPtr &Queue);
 
     /// \return a pointer to the corresponding memory object record for the
     /// SYCL memory object provided, or nullptr if it does not exist.
@@ -538,7 +561,8 @@ protected:
     /// Removes commands that use the given MemObjRecord from the graph.
     void cleanupCommandsForRecord(
         MemObjRecord *Record,
-        std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>> &);
+        std::vector<std::shared_ptr<sycl::detail::stream_impl>> &,
+        std::vector<std::shared_ptr<const void>> &);
 
     /// Removes the MemObjRecord for the memory object passed.
     void removeRecordForMemObj(SYCLMemObjI *MemObject);
@@ -550,17 +574,21 @@ protected:
 
     /// Removes commands from leaves.
     void updateLeaves(const std::set<Command *> &Cmds, MemObjRecord *Record,
-                      access::mode AccessMode);
+                      access::mode AccessMode,
+                      std::vector<Command *> &ToCleanUp);
 
     /// Perform connection of events in multiple contexts
     /// \param Cmd dependant command
     /// \param DepEvent event to depend on
     /// \param Dep optional DepDesc to perform connection properly
+    /// \param ToCleanUp container for commands that can be cleaned up due to
+    /// their removal from leaves
     /// \returns the connecting command which is to be enqueued
     ///
     /// Optionality of Dep is set by Dep.MDepCommand equal to nullptr.
-    Command *connectDepEvent(Command *const Cmd, EventImplPtr DepEvent,
-                             const DepDesc &Dep);
+    Command *connectDepEvent(Command *const Cmd, const EventImplPtr &DepEvent,
+                             const DepDesc &Dep,
+                             std::vector<Command *> &ToCleanUp);
 
     std::vector<SYCLMemObjI *> MMemObjs;
 
@@ -600,7 +628,8 @@ protected:
         EmptyCommand *>
     addEmptyCmd(Command *Cmd, const std::vector<T *> &Req,
                 const QueueImplPtr &Queue, Command::BlockReason Reason,
-                std::vector<Command *> &ToEnqueue);
+                std::vector<Command *> &ToEnqueue,
+                const bool AddDepsToLeaves = true);
 
   protected:
     /// Finds a command dependency corresponding to the record.
@@ -609,10 +638,10 @@ protected:
     /// Searches for suitable alloca in memory record.
     AllocaCommandBase *findAllocaForReq(MemObjRecord *Record,
                                         const Requirement *Req,
-                                        const ContextImplPtr &Context);
+                                        const ContextImplPtr &Context,
+                                        bool AllowConst = true);
 
     friend class Command;
-    friend class Scheduler;
 
   private:
     friend class ::MockScheduler;
@@ -622,7 +651,7 @@ protected:
     /// If none found, creates new one.
     AllocaCommandBase *
     getOrCreateAllocaForReq(MemObjRecord *Record, const Requirement *Req,
-                            QueueImplPtr Queue,
+                            const QueueImplPtr &Queue,
                             std::vector<Command *> &ToEnqueue);
 
     void markModifiedIfWrite(MemObjRecord *Record, Requirement *Req);
@@ -722,27 +751,28 @@ protected:
   /// \ingroup sycl_graph
   class GraphProcessor {
   public:
-    /// \return a list of events that represent immediate dependencies of the
-    /// command associated with Event passed.
-    static std::vector<EventImplPtr> getWaitList(EventImplPtr Event);
-
     /// Waits for the command, associated with Event passed, is completed.
     /// \param GraphReadLock read-lock which is already acquired for reading
+    /// \param ToCleanUp container for commands that can be cleaned up.
     /// \param LockTheLock selects if graph lock should be locked upon return
     ///
     /// The function may unlock and lock GraphReadLock as needed. Upon return
     /// the lock is left in locked state if and only if LockTheLock is true.
-    static void waitForEvent(EventImplPtr Event, ReadLockT &GraphReadLock,
+    static void waitForEvent(const EventImplPtr &Event,
+                             ReadLockT &GraphReadLock,
+                             std::vector<Command *> &ToCleanUp,
                              bool LockTheLock = true);
 
     /// Enqueues the command and all its dependencies.
     ///
     /// \param EnqueueResult is set to specific status if enqueue failed.
+    /// \param ToCleanUp container for commands that can be cleaned up.
     /// \return true if the command is successfully enqueued.
     ///
     /// The function may unlock and lock GraphReadLock as needed. Upon return
     /// the lock is left in locked state.
     static bool enqueueCommand(Command *Cmd, EnqueueResultT &EnqueueResult,
+                               std::vector<Command *> &ToCleanUp,
                                BlockingT Blocking = NON_BLOCKING);
   };
 
@@ -759,11 +789,15 @@ protected:
   GraphBuilder MGraphBuilder;
   RWLockT MGraphLock;
 
+  std::vector<Command *> MDeferredCleanupCommands;
+  std::mutex MDeferredCleanupMutex;
+
   QueueImplPtr DefaultHostQueue;
 
   friend class Command;
   friend class DispatchHostTask;
   friend class queue_impl;
+  friend class event_impl;
 
   /// Stream buffers structure.
   ///
@@ -813,5 +847,5 @@ protected:
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

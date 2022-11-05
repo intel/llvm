@@ -11,16 +11,22 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
+#include "mlir/Dialect/SCF/Transforms/Passes.h"
+
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/SCF/Passes.h"
-#include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/Dialect/SCF/Transforms.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/SCF/Transforms/Transforms.h"
+#include "mlir/Dialect/SCF/Utils/AffineCanonicalizationUtils.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "llvm/ADT/TypeSwitch.h"
+
+namespace mlir {
+#define GEN_PASS_DEF_SCFFORLOOPCANONICALIZATION
+#include "mlir/Dialect/SCF/Transforms/Passes.h.inc"
+} // namespace mlir
 
 using namespace mlir;
 using namespace mlir::scf;
@@ -31,9 +37,9 @@ using namespace mlir::scf;
 /// Note: This function handles only simple cases. Expand as needed.
 static bool isShapePreserving(ForOp forOp, int64_t arg) {
   auto yieldOp = cast<YieldOp>(forOp.getBody()->getTerminator());
-  assert(arg < static_cast<int64_t>(yieldOp.results().size()) &&
+  assert(arg < static_cast<int64_t>(yieldOp.getResults().size()) &&
          "arg is out of bounds");
-  Value value = yieldOp.results()[arg];
+  Value value = yieldOp.getResults()[arg];
   while (value) {
     if (value == forOp.getRegionIterArgs()[arg])
       return true;
@@ -45,7 +51,7 @@ static bool isShapePreserving(ForOp forOp, int64_t arg) {
     value =
         llvm::TypeSwitch<Operation *, Value>(opResult.getOwner())
             .template Case<InsertSliceOp>(
-                [&](InsertSliceOp op) { return op.dest(); })
+                [&](InsertSliceOp op) { return op.getDest(); })
             .template Case<ForOp>([&](ForOp forOp) {
               return isShapePreserving(forOp, opResult.getResultNumber())
                          ? forOp.getIterOperands()[opResult.getResultNumber()]
@@ -85,7 +91,7 @@ struct DimOfIterArgFolder : public OpRewritePattern<OpTy> {
 
   LogicalResult matchAndRewrite(OpTy dimOp,
                                 PatternRewriter &rewriter) const override {
-    auto blockArg = dimOp.source().template dyn_cast<BlockArgument>();
+    auto blockArg = dimOp.getSource().template dyn_cast<BlockArgument>();
     if (!blockArg)
       return failure();
     auto forOp = dyn_cast<ForOp>(blockArg.getParentBlock()->getParentOp());
@@ -96,7 +102,7 @@ struct DimOfIterArgFolder : public OpRewritePattern<OpTy> {
 
     Value initArg = forOp.getOpOperandForRegionIterArg(blockArg).get();
     rewriter.updateRootInPlace(
-        dimOp, [&]() { dimOp.sourceMutable().assign(initArg); });
+        dimOp, [&]() { dimOp.getSourceMutable().assign(initArg); });
 
     return success();
   };
@@ -130,15 +136,15 @@ struct DimOfLoopResultFolder : public OpRewritePattern<OpTy> {
 
   LogicalResult matchAndRewrite(OpTy dimOp,
                                 PatternRewriter &rewriter) const override {
-    auto forOp = dimOp.source().template getDefiningOp<scf::ForOp>();
+    auto forOp = dimOp.getSource().template getDefiningOp<scf::ForOp>();
     if (!forOp)
       return failure();
-    auto opResult = dimOp.source().template cast<OpResult>();
+    auto opResult = dimOp.getSource().template cast<OpResult>();
     unsigned resultNumber = opResult.getResultNumber();
     if (!isShapePreserving(forOp, resultNumber))
       return failure();
-    rewriter.updateRootInPlace(dimOp, [&](){
-      dimOp.sourceMutable().assign(forOp.getIterOperands()[resultNumber]);
+    rewriter.updateRootInPlace(dimOp, [&]() {
+      dimOp.getSourceMutable().assign(forOp.getIterOperands()[resultNumber]);
     });
     return success();
   }
@@ -152,19 +158,32 @@ struct AffineOpSCFCanonicalizationPattern : public OpRewritePattern<OpTy> {
 
   LogicalResult matchAndRewrite(OpTy op,
                                 PatternRewriter &rewriter) const override {
-    auto loopMatcher = [](Value iv, Value &lb, Value &ub, Value &step) {
+    auto loopMatcher = [](Value iv, OpFoldResult &lb, OpFoldResult &ub,
+                          OpFoldResult &step) {
       if (scf::ForOp forOp = scf::getForInductionVarOwner(iv)) {
-        lb = forOp.lowerBound();
-        ub = forOp.upperBound();
-        step = forOp.step();
+        lb = forOp.getLowerBound();
+        ub = forOp.getUpperBound();
+        step = forOp.getStep();
         return success();
       }
       if (scf::ParallelOp parOp = scf::getParallelForInductionVarOwner(iv)) {
         for (unsigned idx = 0; idx < parOp.getNumLoops(); ++idx) {
           if (parOp.getInductionVars()[idx] == iv) {
-            lb = parOp.lowerBound()[idx];
-            ub = parOp.upperBound()[idx];
-            step = parOp.step()[idx];
+            lb = parOp.getLowerBound()[idx];
+            ub = parOp.getUpperBound()[idx];
+            step = parOp.getStep()[idx];
+            return success();
+          }
+        }
+        return failure();
+      }
+      if (scf::ForeachThreadOp foreachThreadOp =
+              scf::getForeachThreadOpThreadIndexOwner(iv)) {
+        for (int64_t idx = 0; idx < foreachThreadOp.getRank(); ++idx) {
+          if (foreachThreadOp.getThreadIndices()[idx] == iv) {
+            lb = OpBuilder(iv.getContext()).getIndexAttr(0);
+            ub = foreachThreadOp.getNumThreads()[idx];
+            step = OpBuilder(iv.getContext()).getIndexAttr(1);
             return success();
           }
         }
@@ -179,13 +198,13 @@ struct AffineOpSCFCanonicalizationPattern : public OpRewritePattern<OpTy> {
 };
 
 struct SCFForLoopCanonicalization
-    : public SCFForLoopCanonicalizationBase<SCFForLoopCanonicalization> {
-  void runOnFunction() override {
-    FuncOp funcOp = getFunction();
-    MLIRContext *ctx = funcOp.getContext();
+    : public impl::SCFForLoopCanonicalizationBase<SCFForLoopCanonicalization> {
+  void runOnOperation() override {
+    auto *parentOp = getOperation();
+    MLIRContext *ctx = parentOp->getContext();
     RewritePatternSet patterns(ctx);
     scf::populateSCFForLoopCanonicalizationPatterns(patterns);
-    if (failed(applyPatternsAndFoldGreedily(funcOp, std::move(patterns))))
+    if (failed(applyPatternsAndFoldGreedily(parentOp, std::move(patterns))))
       signalPassFailure();
   }
 };
@@ -195,12 +214,11 @@ void mlir::scf::populateSCFForLoopCanonicalizationPatterns(
     RewritePatternSet &patterns) {
   MLIRContext *ctx = patterns.getContext();
   patterns
-      .insert<AffineOpSCFCanonicalizationPattern<AffineMinOp, /*IsMin=*/true>,
-              AffineOpSCFCanonicalizationPattern<AffineMaxOp, /*IsMin=*/false>,
-              DimOfIterArgFolder<tensor::DimOp>,
-              DimOfIterArgFolder<memref::DimOp>,
-              DimOfLoopResultFolder<tensor::DimOp>,
-              DimOfLoopResultFolder<memref::DimOp>>(ctx);
+      .add<AffineOpSCFCanonicalizationPattern<AffineMinOp, /*IsMin=*/true>,
+           AffineOpSCFCanonicalizationPattern<AffineMaxOp, /*IsMin=*/false>,
+           DimOfIterArgFolder<tensor::DimOp>, DimOfIterArgFolder<memref::DimOp>,
+           DimOfLoopResultFolder<tensor::DimOp>,
+           DimOfLoopResultFolder<memref::DimOp>>(ctx);
 }
 
 std::unique_ptr<Pass> mlir::createSCFForLoopCanonicalizationPass() {

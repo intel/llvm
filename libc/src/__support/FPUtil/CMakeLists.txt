@@ -1,53 +1,180 @@
-if(${LIBC_TARGET_ARCHITECTURE_IS_X86})
-  set(LONG_DOUBLE_HDR LongDoubleBitsX86.h)
-else()
-  set(LONG_DOUBLE_HDR)
-endif()
-
-if(EXISTS ${LIBC_TARGET_ARCHITECTURE})
-  set(FENV_IMPL ${LIBC_TARGET_ARCHITECTURE}/FEnvImpl.h)
-else()
-  set(FENV_IMPL DummyFEnvImpl.h)
-endif()
-
 add_header_library(
-  fputil
+  fenv_impl
   HDRS
-    ${LONG_DOUBLE_HDR}
-    ${FENV_IMPL}
-    BasicOperations.h
-    DivisionAndRemainderOperations.h
-    FEnvUtils.h
-    FloatProperties.h
-    FPBits.h
-    BasicOperations.h
-    ManipulationFunctions.h
-    NearestIntegerOperations.h
-    NormalFloat.h
-    PlatformDefs.h
-    PolyEval.h
-    UInt.h
-    XFloat.h
+    FEnvImpl.h
   DEPENDS
-    libc.include.math
-    libc.include.errno
     libc.include.fenv
     libc.src.__support.common
-    libc.utils.CPP.standalone_cpp
 )
 
-add_library(
-  LibcFPTestHelpers
-    FPExceptMatcher.cpp
-    FPExceptMatcher.h
-    TestHelpers.cpp
-    TestHelpers.h
+add_header_library(
+  platform_defs
+  HDRS
+    PlatformDefs.h
+  DEPENDS
+    libc.src.__support.common
 )
-target_include_directories(LibcFPTestHelpers PUBLIC ${LIBC_SOURCE_DIR})
-target_link_libraries(LibcFPTestHelpers LibcUnitTest)
-add_dependencies(
-  LibcFPTestHelpers
-  LibcUnitTest
-  libc.utils.CPP.standalone_cpp
-  libc.src.__support.FPUtil.fputil
+
+add_header_library(
+  float_properties
+  HDRS
+    FloatProperties.h
+  DEPENDS
+    .platform_defs
+    libc.src.__support.uint128
 )
+
+add_header_library(
+  fp_bits
+  HDRS
+    FPBits.h
+  DEPENDS
+    .platform_defs
+    .float_properties
+    libc.src.__support.builtin_wrappers
+    libc.src.__support.CPP.bit
+    libc.src.__support.CPP.type_traits
+    libc.src.__support.common
+)
+
+add_header_library(
+  nearest_integer_operations
+  HDRS
+    NearestIntegerOperations.h
+  DEPENDS
+    .fp_bits
+    .fenv_impl
+    libc.src.__support.CPP.type_traits
+    libc.include.math
+    libc.include.errno
+    libc.src.errno.errno
+)
+
+add_header_library(
+  normal_float
+  HDRS
+    NormalFloat.h
+  DEPENDS
+    .fp_bits
+    libc.src.__support.CPP.type_traits
+)
+
+add_header_library(
+  manipulation_functions
+  HDRS
+    ManipulationFunctions.h
+  DEPENDS
+    .fp_bits
+    .nearest_integer_operations
+    .normal_float
+    .platform_defs
+    libc.src.__support.CPP.bit
+    libc.src.__support.CPP.type_traits
+    libc.include.math
+    libc.include.errno
+    libc.src.errno.errno
+)
+
+add_header_library(
+  basic_operations
+  HDRS
+    BasicOperations.h
+  DEPENDS
+    .fp_bits
+    libc.src.__support.CPP.type_traits
+)
+
+add_header_library(
+  division_and_remainder_operations
+  HDRS
+    DivisionAndRemainderOperations.h
+  DEPENDS
+    .fp_bits
+    .manipulation_functions
+    .normal_float
+    libc.src.__support.CPP.type_traits
+)
+
+add_header_library(
+  except_value_utils
+  HDRS
+    except_value_utils.h
+  DEPENDS
+    .fp_bits
+    .fenv_impl
+    libc.src.__support.CPP.optional
+)
+
+
+add_header_library(
+  hypot
+  HDRS
+    Hypot.h
+  DEPENDS
+    .basic_operations
+    .fenv_impl
+    .fp_bits
+    libc.src.__support.builtin_wrappers
+    libc.src.__support.CPP.bit
+    libc.src.__support.CPP.type_traits
+    libc.src.__support.uint128
+)
+
+add_header_library(
+  xfloat
+  HDRS
+    XFloat.h
+  DEPENDS
+    .fp_bits
+    .normal_float
+    libc.src.__support.uint
+)
+
+add_header_library(
+  sqrt
+  HDRS
+    sqrt.h
+  DEPENDS
+    libc.src.__support.common
+    libc.src.__support.FPUtil.generic.sqrt
+)
+
+add_header_library(
+  fma
+  HDRS
+    FMA.h
+  DEPENDS
+    libc.src.__support.common
+    libc.src.__support.CPP.type_traits
+    libc.src.__support.FPUtil.generic.fma
+  FLAGS
+    FMA_OPT
+)
+
+add_header_library(
+  multiply_add
+  HDRS
+    multiply_add.h
+  DEPENDS
+    .fma
+)
+
+add_header_library(
+  polyeval
+  HDRS
+    PolyEval.h
+  DEPENDS
+    .multiply_add
+)
+
+add_header_library(
+  nearest_integer
+  HDRS
+    nearest_integer.h
+  DEPENDS
+    libc.src.__support.common
+  FLAGS
+    ROUND_OPT
+)
+
+add_subdirectory(generic)

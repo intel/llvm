@@ -11,11 +11,11 @@ typedef enum memory_order {
 void test_presence(void)
 {
   // CHECK-LABEL: @test_presence
-  // CHECK: atomicrmw add i32* {{.*}} seq_cst, align 4
+  // CHECK: atomicrmw add ptr {{.*}} seq_cst, align 4
   __atomic_fetch_add(&i, 1, memory_order_seq_cst);
-  // CHECK: atomicrmw sub i32* {{.*}} seq_cst, align 4
+  // CHECK: atomicrmw sub ptr {{.*}} seq_cst, align 4
   __atomic_fetch_sub(&i, 1, memory_order_seq_cst);
-  // CHECK: load atomic i32, i32* {{.*}} seq_cst, align 4
+  // CHECK: load atomic i32, ptr {{.*}} seq_cst, align 4
   int r;
   __atomic_load(&i, &r, memory_order_seq_cst);
   // CHECK: store atomic i32 {{.*}} seq_cst, align 4

@@ -17,7 +17,7 @@ namespace Fortran::semantics {
 void DeallocateChecker::Leave(const parser::DeallocateStmt &deallocateStmt) {
   for (const parser::AllocateObject &allocateObject :
       std::get<std::list<parser::AllocateObject>>(deallocateStmt.t)) {
-    std::visit(
+    common::visit(
         common::visitors{
             [&](const parser::Name &name) {
               auto const *symbol{name.symbol};
@@ -26,7 +26,8 @@ void DeallocateChecker::Leave(const parser::DeallocateStmt &deallocateStmt) {
               } else if (!IsVariableName(*symbol)) {
                 context_.Say(name.source,
                     "name in DEALLOCATE statement must be a variable name"_err_en_US);
-              } else if (!IsAllocatableOrPointer(*symbol)) { // C932
+              } else if (!IsAllocatableOrPointer(
+                             symbol->GetUltimate())) { // C932
                 context_.Say(name.source,
                     "name in DEALLOCATE statement must have the ALLOCATABLE or POINTER attribute"_err_en_US);
               } else {
@@ -36,7 +37,7 @@ void DeallocateChecker::Leave(const parser::DeallocateStmt &deallocateStmt) {
             [&](const parser::StructureComponent &structureComponent) {
               // Only perform structureComponent checks it was successfully
               // analyzed in expression analysis.
-              if (GetExpr(allocateObject)) {
+              if (GetExpr(context_, allocateObject)) {
                 if (!IsAllocatableOrPointer(
                         *structureComponent.component.symbol)) { // C932
                   context_.Say(structureComponent.component.source,
@@ -50,7 +51,7 @@ void DeallocateChecker::Leave(const parser::DeallocateStmt &deallocateStmt) {
   bool gotStat{false}, gotMsg{false};
   for (const parser::StatOrErrmsg &deallocOpt :
       std::get<std::list<parser::StatOrErrmsg>>(deallocateStmt.t)) {
-    std::visit(
+    common::visit(
         common::visitors{
             [&](const parser::StatVariable &) {
               if (gotStat) {

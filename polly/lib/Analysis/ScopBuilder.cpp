@@ -73,20 +73,19 @@ bool polly::ModelReadOnlyScalars;
 // More complex access ranges will result in very high compile time and are also
 // unlikely to result in good code. This value is very high and should only
 // trigger for corner cases (e.g., the "dct_luma" function in h264, SPEC2006).
-static int const MaxDimensionsInAccessRange = 9;
+static unsigned const MaxDimensionsInAccessRange = 9;
 
 static cl::opt<bool, true> XModelReadOnlyScalars(
     "polly-analyze-read-only-scalars",
     cl::desc("Model read-only scalar values in the scop description"),
-    cl::location(ModelReadOnlyScalars), cl::Hidden, cl::ZeroOrMore,
-    cl::init(true), cl::cat(PollyCategory));
+    cl::location(ModelReadOnlyScalars), cl::Hidden, cl::init(true),
+    cl::cat(PollyCategory));
 
 static cl::opt<int>
     OptComputeOut("polly-analysis-computeout",
                   cl::desc("Bound the scop analysis by a maximal amount of "
                            "computational steps (0 means no bound)"),
-                  cl::Hidden, cl::init(800000), cl::ZeroOrMore,
-                  cl::cat(PollyCategory));
+                  cl::Hidden, cl::init(800000), cl::cat(PollyCategory));
 
 static cl::opt<bool> PollyAllowDereferenceOfAllFunctionParams(
     "polly-allow-dereference-of-all-function-parameters",
@@ -106,18 +105,18 @@ static cl::opt<bool>
 static cl::opt<unsigned> RunTimeChecksMaxArraysPerGroup(
     "polly-rtc-max-arrays-per-group",
     cl::desc("The maximal number of arrays to compare in each alias group."),
-    cl::Hidden, cl::ZeroOrMore, cl::init(20), cl::cat(PollyCategory));
+    cl::Hidden, cl::init(20), cl::cat(PollyCategory));
 
-static cl::opt<int> RunTimeChecksMaxAccessDisjuncts(
+static cl::opt<unsigned> RunTimeChecksMaxAccessDisjuncts(
     "polly-rtc-max-array-disjuncts",
     cl::desc("The maximal number of disjunts allowed in memory accesses to "
              "to build RTCs."),
-    cl::Hidden, cl::ZeroOrMore, cl::init(8), cl::cat(PollyCategory));
+    cl::Hidden, cl::init(8), cl::cat(PollyCategory));
 
 static cl::opt<unsigned> RunTimeChecksMaxParameters(
     "polly-rtc-max-parameters",
     cl::desc("The maximal number of parameters allowed in RTCs."), cl::Hidden,
-    cl::ZeroOrMore, cl::init(8), cl::cat(PollyCategory));
+    cl::init(8), cl::cat(PollyCategory));
 
 static cl::opt<bool> UnprofitableScalarAccs(
     "polly-unprofitable-scalar-accs",
@@ -131,16 +130,16 @@ static cl::opt<std::string> UserContextStr(
 
 static cl::opt<bool> DetectReductions("polly-detect-reductions",
                                       cl::desc("Detect and exploit reductions"),
-                                      cl::Hidden, cl::ZeroOrMore,
-                                      cl::init(true), cl::cat(PollyCategory));
+                                      cl::Hidden, cl::init(true),
+                                      cl::cat(PollyCategory));
 
 // Multiplicative reductions can be disabled separately as these kind of
 // operations can overflow easily. Additive reductions and bit operations
 // are in contrast pretty stable.
 static cl::opt<bool> DisableMultiplicativeReductions(
     "polly-disable-multiplicative-reductions",
-    cl::desc("Disable multiplicative reductions"), cl::Hidden, cl::ZeroOrMore,
-    cl::init(false), cl::cat(PollyCategory));
+    cl::desc("Disable multiplicative reductions"), cl::Hidden,
+    cl::cat(PollyCategory));
 
 enum class GranularityChoice { BasicBlocks, ScalarIndependence, Stores };
 
@@ -198,8 +197,8 @@ static bool containsErrorBlock(RegionNode *RN, const Region &R,
 static isl::map createNextIterationMap(isl::space SetSpace, unsigned Dim) {
   isl::space MapSpace = SetSpace.map_from_set();
   isl::map NextIterationMap = isl::map::universe(MapSpace);
-  for (auto u : seq<isl_size>(0, NextIterationMap.domain_tuple_dim().release()))
-    if (u != (isl_size)Dim)
+  for (unsigned u : rangeIslSize(0, NextIterationMap.domain_tuple_dim()))
+    if (u != Dim)
       NextIterationMap =
           NextIterationMap.equate(isl::dim::in, u, isl::dim::out, u);
   isl::constraint C =
@@ -226,10 +225,10 @@ static isl::set collectBoundedParts(isl::set S) {
 ///          both with regards to the dimension @p Dim.
 static std::pair<isl::set, isl::set> partitionSetParts(isl::set S,
                                                        unsigned Dim) {
-  for (unsigned u = 0, e = S.tuple_dim().release(); u < e; u++)
+  for (unsigned u : rangeIslSize(0, S.tuple_dim()))
     S = S.lower_bound_si(isl::dim::set, u, 0);
 
-  unsigned NumDimsS = S.tuple_dim().release();
+  unsigned NumDimsS = unsignedFromIslSize(S.tuple_dim());
   isl::set OnlyDimS = S;
 
   // Remove dimensions that are greater than Dim as they are not interesting.
@@ -323,8 +322,8 @@ isl::set ScopBuilder::adjustDomainDimensions(isl::set Dom, Loop *OldL,
     Dom = Dom.add_dims(isl::dim::set, 1);
   } else {
     assert(OldDepth > NewDepth);
-    int Diff = OldDepth - NewDepth;
-    int NumDim = Dom.tuple_dim().release();
+    unsigned Diff = OldDepth - NewDepth;
+    unsigned NumDim = unsignedFromIslSize(Dom.tuple_dim());
     assert(NumDim >= Diff);
     Dom = Dom.project_out(isl::dim::set, NumDim - Diff, Diff);
   }
@@ -540,13 +539,13 @@ bool ScopBuilder::buildConditionSets(
 
   isl_set *AlternativeCondSet = nullptr;
   bool TooComplex =
-      isl_set_n_basic_set(ConsequenceCondSet) >= MaxDisjunctsInDomain;
+      isl_set_n_basic_set(ConsequenceCondSet) >= (int)MaxDisjunctsInDomain;
 
   if (!TooComplex) {
     AlternativeCondSet = isl_set_subtract(isl_set_copy(Domain),
                                           isl_set_copy(ConsequenceCondSet));
     TooComplex =
-        isl_set_n_basic_set(AlternativeCondSet) >= MaxDisjunctsInDomain;
+        isl_set_n_basic_set(AlternativeCondSet) >= (int)MaxDisjunctsInDomain;
   }
 
   if (TooComplex) {
@@ -698,8 +697,7 @@ isl::set ScopBuilder::getPredecessorDomainConstraints(BasicBlock *BB,
 
     // If the predecessor is in a region we used for propagation we can skip it.
     auto PredBBInRegion = [PredBB](Region *PR) { return PR->contains(PredBB); };
-    if (std::any_of(PropagatedRegions.begin(), PropagatedRegions.end(),
-                    PredBBInRegion)) {
+    if (llvm::any_of(PropagatedRegions, PredBBInRegion)) {
       continue;
     }
 
@@ -910,7 +908,7 @@ bool ScopBuilder::buildDomainsWithBranchConstraints(
       continue;
     isl::set Domain = scop->getDomainConditions(BB);
 
-    scop->updateMaxLoopDepth(Domain.tuple_dim().release());
+    scop->updateMaxLoopDepth(unsignedFromIslSize(Domain.tuple_dim()));
 
     auto *BBLoop = getRegionNodeLoop(RN, LI);
     // Propagate the domain from BB directly to blocks that have a superset
@@ -984,7 +982,7 @@ bool ScopBuilder::buildDomainsWithBranchConstraints(
 
       // Check if the maximal number of domain disjunctions was reached.
       // In case this happens we will clean up and bail.
-      if (SuccDomain.n_basic_set().release() < MaxDisjunctsInDomain)
+      if (unsignedFromIslSize(SuccDomain.n_basic_set()) < MaxDisjunctsInDomain)
         continue;
 
       scop->invalidate(COMPLEXITY, DebugLoc());
@@ -1064,7 +1062,8 @@ bool ScopBuilder::propagateInvalidStmtDomains(
 
       // Check if the maximal number of domain disjunctions was reached.
       // In case this happens we will bail.
-      if (SuccInvalidDomain.n_basic_set().release() < MaxDisjunctsInDomain)
+      if (unsignedFromIslSize(SuccInvalidDomain.n_basic_set()) <
+          MaxDisjunctsInDomain)
         continue;
 
       InvalidDomainMap.erase(BB);
@@ -1155,15 +1154,15 @@ static isl::schedule combineInSequence(isl::schedule Prev, isl::schedule Succ) {
 //               mapping.
 // @param N      The dimension to map to.
 // @returns      A mapping from USet to its N-th dimension.
-static isl::multi_union_pw_aff mapToDimension(isl::union_set USet, int N) {
-  assert(N >= 0);
+static isl::multi_union_pw_aff mapToDimension(isl::union_set USet, unsigned N) {
   assert(!USet.is_null());
   assert(!USet.is_empty());
 
   auto Result = isl::union_pw_multi_aff::empty(USet.get_space());
 
   for (isl::set S : USet.get_set_list()) {
-    int Dim = S.tuple_dim().release();
+    unsigned Dim = unsignedFromIslSize(S.tuple_dim());
+    assert(Dim >= N);
     auto PMA = isl::pw_multi_aff::project_out_map(S.get_space(), isl::dim::set,
                                                   N, Dim - N);
     if (N > 1)
@@ -1440,6 +1439,10 @@ void ScopBuilder::addUserAssumptions(
 }
 
 bool ScopBuilder::buildAccessMultiDimFixed(MemAccInst Inst, ScopStmt *Stmt) {
+  // Memory builtins are not considered in this function.
+  if (!Inst.isLoad() && !Inst.isStore())
+    return false;
+
   Value *Val = Inst.getValueOperand();
   Type *ElementType = Val->getType();
   Value *Address = Inst.getPointerOperand();
@@ -1450,23 +1453,12 @@ bool ScopBuilder::buildAccessMultiDimFixed(MemAccInst Inst, ScopStmt *Stmt) {
   enum MemoryAccess::AccessType AccType =
       isa<LoadInst>(Inst) ? MemoryAccess::READ : MemoryAccess::MUST_WRITE;
 
-  if (auto *BitCast = dyn_cast<BitCastInst>(Address)) {
-    auto *Src = BitCast->getOperand(0);
-    auto *SrcTy = Src->getType();
-    auto *DstTy = BitCast->getType();
-    // Do not try to delinearize non-sized (opaque) pointers.
-    if ((SrcTy->isPointerTy() && !SrcTy->getPointerElementType()->isSized()) ||
-        (DstTy->isPointerTy() && !DstTy->getPointerElementType()->isSized())) {
-      return false;
-    }
-    if (SrcTy->isPointerTy() && DstTy->isPointerTy() &&
-        DL.getTypeAllocSize(SrcTy->getPointerElementType()) ==
-            DL.getTypeAllocSize(DstTy->getPointerElementType()))
-      Address = Src;
-  }
+  if (auto *BitCast = dyn_cast<BitCastInst>(Address))
+    Address = BitCast->getOperand(0);
 
   auto *GEP = dyn_cast<GetElementPtrInst>(Address);
-  if (!GEP)
+  if (!GEP || DL.getTypeAllocSize(GEP->getResultElementType()) !=
+                  DL.getTypeAllocSize(ElementType))
     return false;
 
   SmallVector<const SCEV *, 4> Subscripts;
@@ -1513,6 +1505,10 @@ bool ScopBuilder::buildAccessMultiDimFixed(MemAccInst Inst, ScopStmt *Stmt) {
 }
 
 bool ScopBuilder::buildAccessMultiDimParam(MemAccInst Inst, ScopStmt *Stmt) {
+  // Memory builtins are not considered by this function.
+  if (!Inst.isLoad() && !Inst.isStore())
+    return false;
+
   if (!PollyDelinearize)
     return false;
 
@@ -1646,31 +1642,16 @@ bool ScopBuilder::buildAccessCallInst(MemAccInst Inst, ScopStmt *Stmt) {
   if (CI->doesNotAccessMemory() || isIgnoredIntrinsic(CI) || isDebugCall(CI))
     return true;
 
-  bool ReadOnly = false;
   auto *AF = SE.getConstant(IntegerType::getInt64Ty(CI->getContext()), 0);
   auto *CalledFunction = CI->getCalledFunction();
-  switch (AA.getModRefBehavior(CalledFunction)) {
-  case FMRB_UnknownModRefBehavior:
-    llvm_unreachable("Unknown mod ref behaviour cannot be represented.");
-  case FMRB_DoesNotAccessMemory:
+  MemoryEffects ME = AA.getMemoryEffects(CalledFunction);
+  if (ME.doesNotAccessMemory())
     return true;
-  case FMRB_OnlyWritesMemory:
-  case FMRB_OnlyWritesInaccessibleMem:
-  case FMRB_OnlyWritesInaccessibleOrArgMem:
-  case FMRB_OnlyAccessesInaccessibleMem:
-  case FMRB_OnlyAccessesInaccessibleOrArgMem:
-    return false;
-  case FMRB_OnlyReadsMemory:
-  case FMRB_OnlyReadsInaccessibleMem:
-  case FMRB_OnlyReadsInaccessibleOrArgMem:
-    GlobalReads.emplace_back(Stmt, CI);
-    return true;
-  case FMRB_OnlyReadsArgumentPointees:
-    ReadOnly = true;
-    LLVM_FALLTHROUGH;
-  case FMRB_OnlyWritesArgumentPointees:
-  case FMRB_OnlyAccessesArgumentPointees: {
-    auto AccType = ReadOnly ? MemoryAccess::READ : MemoryAccess::MAY_WRITE;
+
+  if (ME.onlyAccessesArgPointees()) {
+    ModRefInfo ArgMR = ME.getModRef(MemoryEffects::ArgMem);
+    auto AccType =
+        !isModSet(ArgMR) ? MemoryAccess::READ : MemoryAccess::MAY_WRITE;
     Loop *L = LI.getLoopFor(Inst->getParent());
     for (const auto &Arg : CI->args()) {
       if (!Arg->getType()->isPointerTy())
@@ -1691,12 +1672,19 @@ bool ScopBuilder::buildAccessCallInst(MemAccInst Inst, ScopStmt *Stmt) {
     }
     return true;
   }
-  }
 
-  return true;
+  if (ME.onlyReadsMemory()) {
+    GlobalReads.emplace_back(Stmt, CI);
+    return true;
+  }
+  return false;
 }
 
-void ScopBuilder::buildAccessSingleDim(MemAccInst Inst, ScopStmt *Stmt) {
+bool ScopBuilder::buildAccessSingleDim(MemAccInst Inst, ScopStmt *Stmt) {
+  // Memory builtins are not considered by this function.
+  if (!Inst.isLoad() && !Inst.isStore())
+    return false;
+
   Value *Address = Inst.getPointerOperand();
   Value *Val = Inst.getValueOperand();
   Type *ElementType = Val->getType();
@@ -1738,6 +1726,7 @@ void ScopBuilder::buildAccessSingleDim(MemAccInst Inst, ScopStmt *Stmt) {
 
   addArrayAccess(Stmt, Inst, AccType, BasePointer->getValue(), ElementType,
                  IsAffine, {AccessFunction}, {nullptr}, Val);
+  return true;
 }
 
 void ScopBuilder::buildMemoryAccess(MemAccInst Inst, ScopStmt *Stmt) {
@@ -1753,7 +1742,12 @@ void ScopBuilder::buildMemoryAccess(MemAccInst Inst, ScopStmt *Stmt) {
   if (buildAccessMultiDimParam(Inst, Stmt))
     return;
 
-  buildAccessSingleDim(Inst, Stmt);
+  if (buildAccessSingleDim(Inst, Stmt))
+    return;
+
+  llvm_unreachable(
+      "At least one of the buildAccess functions must handled this access, or "
+      "ScopDetection should have rejected this SCoP");
 }
 
 void ScopBuilder::buildAccessFunctions() {
@@ -2212,8 +2206,8 @@ void ScopBuilder::foldSizeConstantsToRight() {
     isl::map Transform = isl::map::universe(Array->getSpace().map_from_set());
 
     std::vector<int> Int;
-    int Dims = Elements.tuple_dim().release();
-    for (int i = 0; i < Dims; i++) {
+    unsigned Dims = unsignedFromIslSize(Elements.tuple_dim());
+    for (unsigned i = 0; i < Dims; i++) {
       isl::set DimOnly = isl::set(Elements).project_out(isl::dim::set, 0, i);
       DimOnly = DimOnly.project_out(isl::dim::set, 1, Dims - i - 1);
       DimOnly = DimOnly.lower_bound_si(isl::dim::set, 0, 0);
@@ -2226,7 +2220,7 @@ void ScopBuilder::foldSizeConstantsToRight() {
         continue;
       }
 
-      if (DimHull.dim(isl::dim::div).release() == 1) {
+      if (unsignedFromIslSize(DimHull.dim(isl::dim::div)) == 1) {
         isl::aff Diff = DimHull.get_div(0);
         isl::val Val = Diff.get_denominator_val();
 
@@ -2397,7 +2391,7 @@ void ScopBuilder::ensureValueRead(Value *V, ScopStmt *UserStmt) {
     if (!ModelReadOnlyScalars)
       break;
 
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case VirtualUse::Inter:
 
     // Do not create another MemoryAccess for reloading the value if one already
@@ -2494,7 +2488,7 @@ static MemoryAccess::ReductionType getReductionType(const BinaryOperator *BinOp,
   case Instruction::FAdd:
     if (!BinOp->isFast())
       return MemoryAccess::RT_NONE;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case Instruction::Add:
     return MemoryAccess::RT_ADD;
   case Instruction::Or:
@@ -2506,7 +2500,7 @@ static MemoryAccess::ReductionType getReductionType(const BinaryOperator *BinOp,
   case Instruction::FMul:
     if (!BinOp->isFast())
       return MemoryAccess::RT_NONE;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case Instruction::Mul:
     if (DisableMultiplicativeReductions)
       return MemoryAccess::RT_NONE;
@@ -2625,11 +2619,11 @@ void ScopBuilder::hoistInvariantLoads() {
 ///
 /// @returns True if the access range is too complex.
 static bool isAccessRangeTooComplex(isl::set AccessRange) {
-  int NumTotalDims = 0;
+  unsigned NumTotalDims = 0;
 
   for (isl::basic_set BSet : AccessRange.get_basic_set_list()) {
-    NumTotalDims += BSet.dim(isl::dim::div).release();
-    NumTotalDims += BSet.dim(isl::dim::set).release();
+    NumTotalDims += unsignedFromIslSize(BSet.dim(isl::dim::div));
+    NumTotalDims += unsignedFromIslSize(BSet.dim(isl::dim::set));
   }
 
   if (NumTotalDims > MaxDimensionsInAccessRange)
@@ -2658,8 +2652,9 @@ void ScopBuilder::addUserContext() {
 
   isl::set UserContext = isl::set(scop->getIslCtx(), UserContextStr.c_str());
   isl::space Space = scop->getParamSpace();
-  if (Space.dim(isl::dim::param).release() !=
-      UserContext.dim(isl::dim::param).release()) {
+  isl::size SpaceParams = Space.dim(isl::dim::param);
+  if (unsignedFromIslSize(SpaceParams) !=
+      unsignedFromIslSize(UserContext.dim(isl::dim::param))) {
     std::string SpaceStr = stringFromIslObj(Space, "null");
     errs() << "Error: the context provided in -polly-context has not the same "
            << "number of dimensions than the computed context. Due to this "
@@ -2668,7 +2663,7 @@ void ScopBuilder::addUserContext() {
     return;
   }
 
-  for (auto i : seq<isl_size>(0, Space.dim(isl::dim::param).release())) {
+  for (auto i : rangeIslSize(0, SpaceParams)) {
     std::string NameContext =
         scop->getContext().get_dim_name(isl::dim::param, i);
     std::string NameUserContext = UserContext.get_dim_name(isl::dim::param, i);
@@ -2752,7 +2747,8 @@ isl::set ScopBuilder::getNonHoistableCtx(MemoryAccess *Access,
     return WrittenCtx;
 
   WrittenCtx = WrittenCtx.remove_divs();
-  bool TooComplex = WrittenCtx.n_basic_set().release() >= MaxDisjunctsInDomain;
+  bool TooComplex =
+      unsignedFromIslSize(WrittenCtx.n_basic_set()) >= MaxDisjunctsInDomain;
   if (TooComplex || !isRequiredInvariantLoad(LI))
     return {};
 
@@ -2818,7 +2814,7 @@ void ScopBuilder::addInvariantLoads(ScopStmt &Stmt,
   isl::set DomainCtx = Stmt.getDomain().params();
   DomainCtx = DomainCtx.subtract(StmtInvalidCtx);
 
-  if (DomainCtx.n_basic_set().release() >= MaxDisjunctsInDomain) {
+  if (unsignedFromIslSize(DomainCtx.n_basic_set()) >= MaxDisjunctsInDomain) {
     auto *AccInst = InvMAs.front().MA->getAccessInstruction();
     scop->invalidate(COMPLEXITY, AccInst->getDebugLoc(), AccInst->getParent());
     return;
@@ -3094,7 +3090,7 @@ static bool buildMinMaxAccess(isl::set Set,
   Set = Set.remove_divs();
   polly::simplify(Set);
 
-  if (Set.n_basic_set().release() > RunTimeChecksMaxAccessDisjuncts)
+  if (unsignedFromIslSize(Set.n_basic_set()) > RunTimeChecksMaxAccessDisjuncts)
     Set = Set.simple_hull();
 
   // Restrict the number of parameters involved in the access as the lexmin/
@@ -3128,14 +3124,18 @@ static bool buildMinMaxAccess(isl::set Set,
   MinPMA = MinPMA.coalesce();
   MaxPMA = MaxPMA.coalesce();
 
+  if (MaxPMA.is_null())
+    return false;
+
+  unsigned MaxOutputSize = unsignedFromIslSize(MaxPMA.dim(isl::dim::out));
+
   // Adjust the last dimension of the maximal access by one as we want to
   // enclose the accessed memory region by MinPMA and MaxPMA. The pointer
   // we test during code generation might now point after the end of the
   // allocated array but we will never dereference it anyway.
-  assert((MaxPMA.is_null() || MaxPMA.dim(isl::dim::out).release()) &&
-         "Assumed at least one output dimension");
+  assert(MaxOutputSize >= 1 && "Assumed at least one output dimension");
 
-  Pos = MaxPMA.dim(isl::dim::out).release() - 1;
+  Pos = MaxOutputSize - 1;
   LastDimAff = MaxPMA.at(Pos);
   OneAff = isl::aff(isl::local_space(LastDimAff.get_domain_space()));
   OneAff = OneAff.add_constant_si(1);
@@ -3176,7 +3176,8 @@ bool ScopBuilder::calculateMinMaxAccess(AliasGroupTy AliasGroup,
 
 static isl::set getAccessDomain(MemoryAccess *MA) {
   isl::set Domain = MA->getStatement()->getDomain();
-  Domain = Domain.project_out(isl::dim::set, 0, Domain.tuple_dim().release());
+  Domain = Domain.project_out(isl::dim::set, 0,
+                              unsignedFromIslSize(Domain.tuple_dim()));
   return Domain.reset_tuple_id();
 }
 
@@ -3603,7 +3604,7 @@ void ScopBuilder::buildScop(Region &R, AssumptionCache &AC) {
 #endif
 }
 
-ScopBuilder::ScopBuilder(Region *R, AssumptionCache &AC, AliasAnalysis &AA,
+ScopBuilder::ScopBuilder(Region *R, AssumptionCache &AC, AAResults &AA,
                          const DataLayout &DL, DominatorTree &DT, LoopInfo &LI,
                          ScopDetection &SD, ScalarEvolution &SE,
                          OptimizationRemarkEmitter &ORE)

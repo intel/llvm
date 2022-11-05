@@ -81,25 +81,10 @@
 // CHECK-NEXT:     ]
 // CHECK-NEXT:   }
 // CHECK-NEXT:   RuntimeFunction {
-// CHECK-NEXT:     Function: func5
-// CHECK-NEXT:     Fragment: No
-// CHECK-NEXT:     FunctionLength: 56
-// CHECK-NEXT:     RegF: 0
-// CHECK-NEXT:     RegI: 1
-// CHECK-NEXT:     HomedParameters: Yes
-// CHECK-NEXT:     CR: 0
-// CHECK-NEXT:     FrameSize: 112
-// CHECK-NEXT:     Prologue [
-// CHECK-NEXT:       sub sp, sp, #32
-// CHECK-NEXT:       stp x6, x7, [sp, #56]
-// CHECK-NEXT:       stp x4, x5, [sp, #40]
-// CHECK-NEXT:       stp x2, x3, [sp, #24]
-// CHECK-NEXT:       stp x0, x1, [sp, #8]
-// CHECK-NEXT:       str x19, [sp, #-80]!
-// CHECK-NEXT:       end
-// CHECK-NEXT:     ]
-// CHECK-NEXT:   }
-// CHECK-NEXT:   RuntimeFunction {
+// CHECK-NEXT:     Function: notpacked_func5
+// CHECK-NEXT:     ExceptionRecord:
+// CHECK-NEXT:     ExceptionData {
+// CHECK:        RuntimeFunction {
 // CHECK-NEXT:     Function: func6
 // CHECK-NEXT:     Fragment: No
 // CHECK-NEXT:     FunctionLength: 24
@@ -258,6 +243,58 @@
 // CHECK-NEXT:       end
 // CHECK-NEXT:     ]
 // CHECK-NEXT:   }
+// CHECK-NEXT:   RuntimeFunction {
+// CHECK-NEXT:     Function: func16
+// CHECK-NEXT:     Fragment: No
+// CHECK-NEXT:     FunctionLength: 28
+// CHECK-NEXT:     RegF: 0
+// CHECK-NEXT:     RegI: 0
+// CHECK-NEXT:     HomedParameters: No
+// CHECK-NEXT:     CR: 2
+// CHECK-NEXT:     FrameSize: 32
+// CHECK-NEXT:     Prologue [
+// CHECK-NEXT:       mov x29, sp
+// CHECK-NEXT:       stp x29, lr, [sp, #-32]!
+// CHECK-NEXT:       pacibsp
+// CHECK-NEXT:       end
+// CHECK-NEXT:     ]
+// CHECK-NEXT:   }
+// CHECK-NEXT:   RuntimeFunction {
+// CHECK-NEXT:     Function: func17
+// CHECK-NEXT:     Fragment: No
+// CHECK-NEXT:     FunctionLength: 40
+// CHECK-NEXT:     RegF: 0
+// CHECK-NEXT:     RegI: 2
+// CHECK-NEXT:     HomedParameters: No
+// CHECK-NEXT:     CR: 2
+// CHECK-NEXT:     FrameSize: 48
+// CHECK-NEXT:     Prologue [
+// CHECK-NEXT:       mov x29, sp
+// CHECK-NEXT:       stp x29, lr, [sp, #-32]!
+// CHECK-NEXT:       stp x19, x20, [sp, #-16]!
+// CHECK-NEXT:       pacibsp
+// CHECK-NEXT:       end
+// CHECK-NEXT:     ]
+// CHECK-NEXT:   }
+// CHECK-NEXT:   RuntimeFunction {
+// CHECK-NEXT:     Function: func18
+// CHECK-NEXT:     Fragment: No
+// CHECK-NEXT:     FunctionLength: 56
+// CHECK-NEXT:     RegF: 0
+// CHECK-NEXT:     RegI: 2
+// CHECK-NEXT:     HomedParameters: No
+// CHECK-NEXT:     CR: 2
+// CHECK-NEXT:     FrameSize: 4112
+// CHECK-NEXT:     Prologue [
+// CHECK-NEXT:       mov x29, sp
+// CHECK-NEXT:       stp x29, lr, [sp, #0]
+// CHECK-NEXT:       sub sp, sp, #16
+// CHECK-NEXT:       sub sp, sp, #4080
+// CHECK-NEXT:       stp x19, x20, [sp, #-16]!
+// CHECK-NEXT:       pacibsp
+// CHECK-NEXT:       end
+// CHECK-NEXT:     ]
+// CHECK-NEXT:   }
 // CHECK:        RuntimeFunction {
 // CHECK-NEXT:     Function: nonpacked1
 // CHECK-NEXT:     ExceptionRecord:
@@ -320,6 +357,16 @@
 // CHECK:            EpiloguePacked: Yes
 // CHECK:        RuntimeFunction {
 // CHECK-NEXT:     Function: nonpacked13
+// CHECK-NEXT:     ExceptionRecord:
+// CHECK-NEXT:     ExceptionData {
+// CHECK:            EpiloguePacked: Yes
+// CHECK:        RuntimeFunction {
+// CHECK-NEXT:     Function: nonpacked14
+// CHECK-NEXT:     ExceptionRecord:
+// CHECK-NEXT:     ExceptionData {
+// CHECK:            EpiloguePacked: Yes
+// CHECK:        RuntimeFunction {
+// CHECK-NEXT:     Function: nonpacked15
 // CHECK-NEXT:     ExceptionRecord:
 // CHECK-NEXT:     ExceptionData {
 // CHECK:            EpiloguePacked: Yes
@@ -441,17 +488,17 @@ func4:
     ret
     .seh_endproc
 
-func5:
-    .seh_proc func5
+notpacked_func5:
+    .seh_proc notpacked_func5
     str x19, [sp, #-80]!
     .seh_save_reg_x x19, 80
-    stp x0,  x1,  [sp, #8]
+    stp x0,  x1,  [sp, #16]
     .seh_nop
-    stp x2,  x3,  [sp, #24]
+    stp x2,  x3,  [sp, #32]
     .seh_nop
-    stp x4,  x5,  [sp, #40]
+    stp x4,  x5,  [sp, #48]
     .seh_nop
-    stp x6,  x7,  [sp, #56]
+    stp x6,  x7,  [sp, #64]
     .seh_nop
     sub sp,  sp,  #32
     .seh_stackalloc 32
@@ -675,6 +722,83 @@ func15:
     // Epilogue missing the .seh_set_fp, but still generating packed info.
     ldp x29, lr,  [sp], #32
     .seh_save_fplr_x 32
+    .seh_endepilogue
+    ret
+    .seh_endproc
+
+func16:
+    .seh_proc func16
+    pacibsp
+    .seh_pac_sign_lr
+    stp x29, lr,  [sp, #-32]!
+    .seh_save_fplr_x 32
+    mov x29, sp
+    .seh_set_fp
+    .seh_endprologue
+    nop
+    .seh_startepilogue
+    ldp x29, lr, [sp], #32
+    .seh_save_fplr_x 32
+    autibsp
+    .seh_pac_sign_lr
+    .seh_endepilogue
+    ret
+    .seh_endproc
+
+func17:
+    .seh_proc func17
+    pacibsp
+    .seh_pac_sign_lr
+    stp x19, x20, [sp, #-16]!
+    .seh_save_r19r20_x 16
+    stp x29, lr,  [sp, #-32]!
+    .seh_save_fplr_x 32
+    mov x29, sp
+    .seh_set_fp
+    .seh_endprologue
+    nop
+    .seh_startepilogue
+    mov sp,  x29
+    .seh_set_fp
+    ldp x29, lr,  [sp], #32
+    .seh_save_fplr_x 32
+    ldp x19, x20, [sp], #16
+    .seh_save_r19r20_x 16
+    autibsp
+    .seh_pac_sign_lr
+    .seh_endepilogue
+    ret
+    .seh_endproc
+
+func18:
+    .seh_proc func18
+    pacibsp
+    .seh_pac_sign_lr
+    stp x19, x20, [sp, #-16]!
+    .seh_save_r19r20_x 16
+    sub sp,  sp,  #4080
+    .seh_stackalloc 4080
+    sub sp,  sp,  #16
+    .seh_stackalloc 16
+    stp x29, lr,  [sp, #0]
+    .seh_save_fplr 0
+    mov x29, sp
+    .seh_set_fp
+    .seh_endprologue
+    nop
+    .seh_startepilogue
+    mov sp,  x29
+    .seh_set_fp
+    ldp x29, lr,  [sp, #0]
+    .seh_save_fplr 0
+    add sp,  sp,  #16
+    .seh_stackalloc 16
+    add sp,  sp,  #4080
+    .seh_stackalloc 4080
+    ldp x19, x20, [sp], #16
+    .seh_save_r19r20_x 16
+    autibsp
+    .seh_pac_sign_lr
     .seh_endepilogue
     ret
     .seh_endproc
@@ -944,4 +1068,50 @@ nonpacked13:
     .seh_handlerdata
     .long 0
     .text
+    .seh_endproc
+
+nonpacked14:
+    .seh_proc nonpacked14
+    // Can't be packed; a signed return address can only be expressed if
+    // we save both x29 and lr on the stack.
+    pacibsp
+    .seh_pac_sign_lr
+    str lr,       [sp, #-32]!
+    .seh_save_reg_x lr, 32
+    .seh_endprologue
+    nop
+    .seh_startepilogue
+    ldr lr,       [sp], #32
+    .seh_save_reg_x lr, 32
+    autibsp
+    .seh_pac_sign_lr
+    .seh_endepilogue
+    ret
+    .seh_endproc
+
+nonpacked15:
+    .seh_proc nonpacked15
+    // Can't be packed; a signed return address can only be expressed if
+    // we save both x29 and lr on the stack.
+    pacibsp
+    .seh_pac_sign_lr
+    stp x19, x20, [sp, #-32]!
+    .seh_save_r19r20_x 32
+    stp x21, lr,  [sp, #16]
+    .seh_save_lrpair x21, 16
+    sub sp,  sp,  #16
+    .seh_stackalloc 16
+    .seh_endprologue
+    nop
+    .seh_startepilogue
+    add sp,  sp,  #16
+    .seh_stackalloc 16
+    ldp x21, lr,  [sp, #16]
+    .seh_save_lrpair x21, 16
+    ldp x19, x20, [sp], #32
+    .seh_save_r19r20_x 32
+    autibsp
+    .seh_pac_sign_lr
+    .seh_endepilogue
+    ret
     .seh_endproc

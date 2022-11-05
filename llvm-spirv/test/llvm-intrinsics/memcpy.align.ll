@@ -29,7 +29,7 @@
 ; RUN: FileCheck < %t.txt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
@@ -42,7 +42,7 @@ target triple = "spir"
 @__const.bar.a = private unnamed_addr addrspace(2) constant %struct.A { i64 0, %struct.B { [2 x i32] [i32 1, i32 2] } }, align 8
 
 ; Function Attrs: convergent nounwind
-define spir_func void @foo(%struct.A* noalias sret(%struct.A*) %agg.result) #0 {
+define spir_func void @foo(%struct.A* noalias sret(%struct.A) %agg.result) #0 {
 entry:
   %b = alloca %struct.B, align 4
   %0 = bitcast %struct.B* %b to i8*
@@ -54,7 +54,7 @@ entry:
   %2 = bitcast %struct.B* %b1 to i8*
   %3 = bitcast %struct.B* %b to i8*
 ; CHECK-SPIRV: CopyMemorySized {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} 4
-; CHECK-LLVM: call void @llvm.memcpy.p0i8.p0i8.i32(i8* align 4 {{%[0-9]+}}, i8* align 4 {{%[0-9]+}}, i32 8, i1 false)
+; CHECK-LLVM: call void @llvm.memcpy.p0.p0.i32(ptr align 4 {{%[0-9]+}}, ptr align 4 {{%[0-9]+}}, i32 8, i1 false)
   call void @llvm.memcpy.p0i8.p0i8.i32(i8* align 8 %2, i8* align 4 %3, i32 8, i1 false), !tbaa.struct !4
   %4 = bitcast %struct.B* %b to i8*
   call void @llvm.lifetime.end.p0i8(i64 8, i8* %4) #2
@@ -74,7 +74,7 @@ declare void @llvm.memcpy.p0i8.p0i8.i32(i8* nocapture writeonly, i8* nocapture r
 declare void @llvm.lifetime.end.p0i8(i64, i8* nocapture) #1
 
 ; Function Attrs: convergent nounwind
-define spir_func void @bar(%struct.B* noalias sret(%struct.B*) %agg.result) #0 {
+define spir_func void @bar(%struct.B* noalias sret(%struct.B) %agg.result) #0 {
 entry:
   %a = alloca %struct.A, align 8
   %0 = bitcast %struct.A* %a to i8*
@@ -86,7 +86,7 @@ entry:
   %2 = bitcast %struct.B* %agg.result to i8*
   %3 = bitcast %struct.B* %b to i8*
 ; CHECK-SPIRV: CopyMemorySized {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} 4
-; CHECK-LLVM: call void @llvm.memcpy.p0i8.p0i8.i32(i8* align 4 {{%[0-9]+}}, i8* align 4 {{%[0-9]+}}, i32 8, i1 false)
+; CHECK-LLVM: call void @llvm.memcpy.p0.p0.i32(ptr align 4 {{%[0-9]+}}, ptr align 4 {{%[0-9]+}}, i32 8, i1 false)
   call void @llvm.memcpy.p0i8.p0i8.i32(i8* align 4 %2, i8* align 8 %3, i32 8, i1 false), !tbaa.struct !4
   %4 = bitcast %struct.A* %a to i8*
   call void @llvm.lifetime.end.p0i8(i64 16, i8* %4) #2

@@ -16,7 +16,7 @@ class TestOrder(enum.Enum):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(prog='lit')
+    parser = argparse.ArgumentParser(prog='lit', fromfile_prefix_chars='@')
     parser.add_argument('test_paths',
             nargs='+',
             metavar="TEST_PATH",
@@ -92,7 +92,8 @@ def parse_args():
     execution_group.add_argument("--path",
             help="Additional paths to add to testing environment",
             action="append",
-            default=[])
+            default=[],
+            type=os.path.abspath)
     execution_group.add_argument("--vg",
             dest="useValgrind",
             help="Run tests under valgrind",

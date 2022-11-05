@@ -8,8 +8,8 @@
 //
 //===------------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 #include <type_traits>
 
 template <typename KernelName, std::size_t... Is>

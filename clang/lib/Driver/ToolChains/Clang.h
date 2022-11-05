@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_Clang_H
-#define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_Clang_H
+#ifndef LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_CLANG_H
+#define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_CLANG_H
 
 #include "MSVC.h"
 #include "clang/Basic/DebugInfoOptions.h"
@@ -26,6 +26,10 @@ namespace tools {
 
 /// Clang compiler tool.
 class LLVM_LIBRARY_VISIBILITY Clang : public Tool {
+  // Indicates whether this instance has integrated backend using
+  // internal LLVM infrastructure.
+  bool HasBackend;
+
 public:
   static const char *getBaseInputName(const llvm::opt::ArgList &Args,
                                       const InputInfo &Input);
@@ -53,6 +57,8 @@ private:
                         bool KernelOrKext) const;
   void AddARM64TargetArgs(const llvm::opt::ArgList &Args,
                           llvm::opt::ArgStringList &CmdArgs) const;
+  void AddLoongArchTargetArgs(const llvm::opt::ArgList &Args,
+                              llvm::opt::ArgStringList &CmdArgs) const;
   void AddMIPSTargetArgs(const llvm::opt::ArgList &Args,
                          llvm::opt::ArgStringList &CmdArgs) const;
   void AddPPCTargetArgs(const llvm::opt::ArgList &Args,
@@ -104,11 +110,12 @@ private:
       const InputInfo &Input, const llvm::opt::ArgList &Args) const;
 
 public:
-  Clang(const ToolChain &TC);
+  Clang(const ToolChain &TC, bool HasIntegratedBackend = true);
   ~Clang() override;
 
   bool hasGoodDiagnostics() const override { return true; }
   bool hasIntegratedAssembler() const override { return true; }
+  bool hasIntegratedBackend() const override { return HasBackend; }
   bool hasIntegratedCPP() const override { return true; }
   bool canEmitIR() const override { return true; }
 
@@ -162,6 +169,19 @@ class LLVM_LIBRARY_VISIBILITY OffloadWrapper final : public Tool {
 public:
   OffloadWrapper(const ToolChain &TC)
       : Tool("offload wrapper", "clang-offload-wrapper", TC) {}
+
+  bool hasIntegratedCPP() const override { return false; }
+  void ConstructJob(Compilation &C, const JobAction &JA,
+                    const InputInfo &Output, const InputInfoList &Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const override;
+};
+
+/// Offload binary tool.
+class LLVM_LIBRARY_VISIBILITY OffloadPackager final : public Tool {
+public:
+  OffloadPackager(const ToolChain &TC)
+      : Tool("Offload::Packager", "clang-offload-packager", TC) {}
 
   bool hasIntegratedCPP() const override { return false; }
   void ConstructJob(Compilation &C, const JobAction &JA,
@@ -260,6 +280,42 @@ public:
                     const llvm::opt::ArgList &TCArgs,
                     const char *LinkingOutput) const override;
 };
+
+/// SPIR-V to LLVM-IR wrapper tool
+class LLVM_LIBRARY_VISIBILITY SpirvToIrWrapper final : public Tool {
+public:
+  SpirvToIrWrapper(const ToolChain &TC)
+      : Tool("Convert SPIR-V to LLVM-IR if needed", "spirv-to-ir-wrapper", TC) {
+  }
+
+  bool hasIntegratedCPP() const override { return false; }
+  bool hasGoodDiagnostics() const override { return true; }
+  void ConstructJob(Compilation &C, const JobAction &JA,
+                    const InputInfo &Output, const InputInfoList &Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const override;
+};
+
+/// Linker wrapper tool.
+class LLVM_LIBRARY_VISIBILITY LinkerWrapper final : public Tool {
+  const Tool *Linker;
+
+public:
+  LinkerWrapper(const ToolChain &TC, const Tool *Linker)
+      : Tool("Offload::Linker", "linker", TC), Linker(Linker) {}
+
+  bool hasIntegratedCPP() const override { return false; }
+  void ConstructJob(Compilation &C, const JobAction &JA,
+                    const InputInfo &Output, const InputInfoList &Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const override;
+};
+
+enum class DwarfFissionKind { None, Split, Single };
+
+DwarfFissionKind getDebugFissionKind(const Driver &D,
+                                     const llvm::opt::ArgList &Args,
+                                     llvm::opt::Arg *&Arg);
 
 } // end namespace tools
 

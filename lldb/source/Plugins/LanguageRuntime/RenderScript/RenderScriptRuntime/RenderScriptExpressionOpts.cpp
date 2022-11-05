@@ -22,6 +22,7 @@
 
 #include "lldb/Target/Process.h"
 #include "lldb/Target/Target.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 
 #include "RenderScriptExpressionOpts.h"
@@ -48,7 +49,7 @@ static bool registerRSDefaultTargetOpts(clang::TargetOptions &proto,
     proto.CPU = "atom";
     proto.Features.push_back("+long64");
     // Fallthrough for common x86 family features
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case llvm::Triple::ArchType::x86_64:
     proto.Features.push_back("+mmx");
     proto.Features.push_back("+sse");
@@ -77,8 +78,7 @@ static bool registerRSDefaultTargetOpts(clang::TargetOptions &proto,
 
 bool RenderScriptRuntimeModulePass::runOnModule(llvm::Module &module) {
   bool changed_module = false;
-  Log *log(
-      GetLogIfAllCategoriesSet(LIBLLDB_LOG_LANGUAGE | LIBLLDB_LOG_EXPRESSIONS));
+  Log *log = GetLog(LLDBLog::Language | LLDBLog::Expressions);
 
   std::string err;
   llvm::StringRef real_triple =
@@ -92,7 +92,7 @@ bool RenderScriptRuntimeModulePass::runOnModule(llvm::Module &module) {
     return false;
   }
 
-  llvm::Optional<llvm::Reloc::Model> reloc_model = llvm::None;
+  llvm::Optional<llvm::Reloc::Model> reloc_model;
   assert(m_process_ptr && "no available lldb process");
   switch (m_process_ptr->GetTarget().GetArchitecture().GetMachine()) {
   case llvm::Triple::ArchType::x86:

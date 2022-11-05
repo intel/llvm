@@ -29,7 +29,7 @@ unsigned R600RegisterInfo::getSubRegFromChannel(unsigned Channel) {
     R600::sub12, R600::sub13, R600::sub14, R600::sub15
   };
 
-  assert(Channel < array_lengthof(SubRegFromChannelTable));
+  assert(Channel < std::size(SubRegFromChannelTable));
   return SubRegFromChannelTable[Channel];
 }
 
@@ -54,10 +54,8 @@ BitVector R600RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   reserveRegisterTuples(Reserved, R600::PRED_SEL_ONE);
   reserveRegisterTuples(Reserved, R600::INDIRECT_BASE_ADDR);
 
-  for (TargetRegisterClass::iterator I = R600::R600_AddrRegClass.begin(),
-                        E = R600::R600_AddrRegClass.end(); I != E; ++I) {
-    reserveRegisterTuples(Reserved, *I);
-  }
+  for (MCPhysReg R : R600::R600_AddrRegClass)
+    reserveRegisterTuples(Reserved, R);
 
   TII->reserveIndirectRegisters(Reserved, MF, *this);
 

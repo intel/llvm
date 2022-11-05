@@ -38,6 +38,7 @@ enum MSDemangleFlags {
   MSDF_NoCallingConvention = 1 << 2,
   MSDF_NoReturnType = 1 << 3,
   MSDF_NoMemberType = 1 << 4,
+  MSDF_NoVariableType = 1 << 5,
 };
 
 /// Demangles the Microsoft symbol pointed at by mangled_name and returns it.
@@ -56,8 +57,11 @@ char *microsoftDemangle(const char *mangled_name, size_t *n_read, char *buf,
                         size_t *n_buf, int *status,
                         MSDemangleFlags Flags = MSDF_None);
 
-// Demangles a Rust v0 mangled symbol. The API follows that of __cxa_demangle.
-char *rustDemangle(const char *MangledName, char *Buf, size_t *N, int *Status);
+// Demangles a Rust v0 mangled symbol.
+char *rustDemangle(const char *MangledName);
+
+// Demangles a D mangled symbol.
+char *dlangDemangle(const char *MangledName);
 
 /// Attempt to demangle a string using different demangling schemes.
 /// The function uses heuristics to determine which demangling scheme to use.

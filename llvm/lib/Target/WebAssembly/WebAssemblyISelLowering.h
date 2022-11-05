@@ -65,8 +65,8 @@ private:
   std::pair<unsigned, const TargetRegisterClass *>
   getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
                                StringRef Constraint, MVT VT) const override;
-  bool isCheapToSpeculateCttz() const override;
-  bool isCheapToSpeculateCtlz() const override;
+  bool isCheapToSpeculateCttz(Type *Ty) const override;
+  bool isCheapToSpeculateCtlz(Type *Ty) const override;
   bool isLegalAddressingMode(const DataLayout &DL, const AddrMode &AM, Type *Ty,
                              unsigned AS,
                              Instruction *I = nullptr) const override;
@@ -113,6 +113,10 @@ private:
     report_fatal_error("llvm.clear_cache is not supported on wasm");
   }
 
+  bool
+  shouldSimplifyDemandedVectorElts(SDValue Op,
+                                   const TargetLoweringOpt &TLO) const override;
+
   // Custom lowering hooks.
   SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
   SDValue LowerFrameIndex(SDValue Op, SelectionDAG &DAG) const;
@@ -135,6 +139,11 @@ private:
   SDValue LowerFP_TO_INT_SAT(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerLoad(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerStore(SDValue Op, SelectionDAG &DAG) const;
+
+  // Helper for LoadLoad and LowerStore
+  bool MatchTableForLowering(SelectionDAG &DAG, const SDLoc &DL,
+                             const SDValue &Base, GlobalAddressSDNode *&GA,
+                             SDValue &Idx) const;
 
   // Custom DAG combine hooks
   SDValue

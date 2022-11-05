@@ -43,7 +43,7 @@ enum ID {
 #include "Opts.inc"
 #undef PREFIX
 
-static const opt::OptTable::Info InfoTable[] = {
+const opt::OptTable::Info InfoTable[] = {
 #define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
                HELPTEXT, METAVAR, VALUES)                                      \
   {                                                                            \
@@ -61,11 +61,10 @@ public:
 };
 } // namespace
 
-const char ToolName[] = "llvm-strings";
+static StringRef ToolName;
 
 static cl::list<std::string> InputFileNames(cl::Positional,
-                                            cl::desc("<input object files>"),
-                                            cl::ZeroOrMore);
+                                            cl::desc("<input object files>"));
 
 static int MinLength = 4;
 static bool PrintFileName;
@@ -129,6 +128,7 @@ int main(int argc, char **argv) {
   BumpPtrAllocator A;
   StringSaver Saver(A);
   StringsOptTable Tbl;
+  ToolName = argv[0];
   opt::InputArgList Args =
       Tbl.parseArgs(argc, argv, OPT_UNKNOWN, Saver,
                     [&](StringRef Msg) { reportCmdLineError(Msg); });

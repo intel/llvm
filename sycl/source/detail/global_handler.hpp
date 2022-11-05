@@ -8,14 +8,14 @@
 
 #pragma once
 
-#include <CL/sycl/detail/spinlock.hpp>
-#include <CL/sycl/detail/util.hpp>
+#include <sycl/detail/spinlock.hpp>
+#include <sycl/detail/util.hpp>
 
 #include <memory>
 #include <unordered_map>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 class platform_impl;
 class context_impl;
@@ -24,7 +24,9 @@ class ProgramManager;
 class Sync;
 class plugin;
 class device_filter_list;
+class ods_target_list;
 class XPTIRegistry;
+class ThreadPool;
 
 using PlatformImplPtr = std::shared_ptr<platform_impl>;
 using ContextImplPtr = std::shared_ptr<context_impl>;
@@ -65,11 +67,16 @@ public:
   std::mutex &getFilterMutex();
   std::vector<plugin> &getPlugins();
   device_filter_list &getDeviceFilterList(const std::string &InitValue);
+  ods_target_list &getOneapiDeviceSelectorTargets(const std::string &InitValue);
   XPTIRegistry &getXPTIRegistry();
-  std::mutex &getHandlerExtendedMembersMutex();
+  ThreadPool &getHostTaskThreadPool();
+
+  static void registerDefaultContextReleaseHandler();
+
+  void unloadPlugins();
 
 private:
-  friend void releaseSharedGlobalHandles();
+  friend void releaseDefaultContexts();
   friend void shutdown();
 
   // Constructor and destructor are declared out-of-line to allow incomplete
@@ -96,10 +103,11 @@ private:
   InstWithLock<std::mutex> MFilterMutex;
   InstWithLock<std::vector<plugin>> MPlugins;
   InstWithLock<device_filter_list> MDeviceFilterList;
+  InstWithLock<ods_target_list> MOneapiDeviceSelectorTargets;
   InstWithLock<XPTIRegistry> MXPTIRegistry;
-  // The mutex for synchronizing accesses to handlers extended members
-  InstWithLock<std::mutex> MHandlerExtendedMembersMutex;
+  // Thread pool for host task and event callbacks execution
+  InstWithLock<ThreadPool> MHostTaskThreadPool;
 };
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

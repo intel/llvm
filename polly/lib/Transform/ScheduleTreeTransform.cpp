@@ -58,7 +58,7 @@ applyBandMemberAttributes(isl::schedule_node_band Target, int TargetIdx,
 template <typename CbTy>
 static isl::schedule rebuildBand(isl::schedule_node_band OldBand,
                                  isl::schedule Body, CbTy IncludeCb) {
-  int NumBandDims = OldBand.n_member().release();
+  int NumBandDims = unsignedFromIslSize(OldBand.n_member());
 
   bool ExcludeAny = false;
   bool IncludeAny = false;
@@ -118,35 +118,6 @@ static isl::schedule rebuildBand(isl::schedule_node_band OldBand,
   return NewBand.get_schedule();
 }
 
-/// Recursively visit all nodes of a schedule tree while allowing changes.
-///
-/// The visit methods return an isl::schedule_node that is used to continue
-/// visiting the tree. Structural changes such as returning a different node
-/// will confuse the visitor.
-template <typename Derived, typename... Args>
-struct ScheduleNodeRewriter
-    : public RecursiveScheduleTreeVisitor<Derived, isl::schedule_node,
-                                          Args...> {
-  Derived &getDerived() { return *static_cast<Derived *>(this); }
-  const Derived &getDerived() const {
-    return *static_cast<const Derived *>(this);
-  }
-
-  isl::schedule_node visitNode(const isl::schedule_node &Node, Args... args) {
-    if (!Node.has_children())
-      return Node;
-
-    isl::schedule_node It = Node.first_child();
-    while (true) {
-      It = getDerived().visit(It, std::forward<Args>(args)...);
-      if (!It.has_next_sibling())
-        break;
-      It = It.next_sibling();
-    }
-    return It.parent();
-  }
-};
-
 /// Rewrite a schedule tree by reconstructing it bottom-up.
 ///
 /// By default, the original schedule tree is reconstructed. To build a
@@ -157,7 +128,7 @@ struct ScheduleNodeRewriter
 /// AST build options must be set after the tree has been constructed.
 template <typename Derived, typename... Args>
 struct ScheduleTreeRewriter
-    : public RecursiveScheduleTreeVisitor<Derived, isl::schedule, Args...> {
+    : RecursiveScheduleTreeVisitor<Derived, isl::schedule, Args...> {
   Derived &getDerived() { return *static_cast<Derived *>(this); }
   const Derived &getDerived() const {
     return *static_cast<const Derived *>(this);
@@ -241,7 +212,7 @@ struct ScheduleTreeRewriter
 
 /// Rewrite the schedule tree without any changes. Useful to copy a subtree into
 /// a new schedule, discarding everything but.
-struct IdentityRewriter : public ScheduleTreeRewriter<IdentityRewriter> {};
+struct IdentityRewriter : ScheduleTreeRewriter<IdentityRewriter> {};
 
 /// Rewrite a schedule tree to an equivalent one without extension nodes.
 ///
@@ -254,9 +225,9 @@ struct IdentityRewriter : public ScheduleTreeRewriter<IdentityRewriter> {};
 ///    band nodes to schedule the additional domains at the same position as the
 ///    extension node would.
 ///
-struct ExtensionNodeRewriter
-    : public ScheduleTreeRewriter<ExtensionNodeRewriter, const isl::union_set &,
-                                  isl::union_map &> {
+struct ExtensionNodeRewriter final
+    : ScheduleTreeRewriter<ExtensionNodeRewriter, const isl::union_set &,
+                           isl::union_map &> {
   using BaseTy = ScheduleTreeRewriter<ExtensionNodeRewriter,
                                       const isl::union_set &, isl::union_map &>;
   BaseTy &getBase() { return *this; }
@@ -323,7 +294,7 @@ struct ExtensionNodeRewriter
     isl::union_map NewPartialSchedMap = isl::union_map::from(PartialSched);
     unsigned BandDims = isl_schedule_node_band_n_member(OldNode.get());
     for (isl::map Ext : NewChildExtensions.get_map_list()) {
-      unsigned ExtDims = Ext.domain_tuple_dim().release();
+      unsigned ExtDims = unsignedFromIslSize(Ext.domain_tuple_dim());
       assert(ExtDims >= BandDims);
       unsigned OuterDims = ExtDims - BandDims;
 
@@ -385,8 +356,8 @@ struct ExtensionNodeRewriter
 ///
 /// ScheduleTreeRewriter cannot apply the schedule tree options. This class
 /// collects these options to apply them later.
-struct CollectASTBuildOptions
-    : public RecursiveScheduleTreeVisitor<CollectASTBuildOptions> {
+struct CollectASTBuildOptions final
+    : RecursiveScheduleTreeVisitor<CollectASTBuildOptions> {
   using BaseTy = RecursiveScheduleTreeVisitor<CollectASTBuildOptions>;
   BaseTy &getBase() { return *this; }
   const BaseTy &getBase() const { return *this; }
@@ -405,8 +376,7 @@ struct CollectASTBuildOptions
 /// This rewrites a schedule tree with the AST build options applied. We assume
 /// that the band nodes are visited in the same order as they were when the
 /// build options were collected, typically by CollectASTBuildOptions.
-struct ApplyASTBuildOptions
-    : public ScheduleNodeRewriter<ApplyASTBuildOptions> {
+struct ApplyASTBuildOptions final : ScheduleNodeRewriter<ApplyASTBuildOptions> {
   using BaseTy = ScheduleNodeRewriter<ApplyASTBuildOptions>;
   BaseTy &getBase() { return *this; }
   const BaseTy &getBase() const { return *this; }
@@ -458,7 +428,7 @@ static bool containsExtensionNode(isl::schedule Schedule) {
 /// Find a named MDNode property in a LoopID.
 static MDNode *findOptionalNodeOperand(MDNode *LoopMD, StringRef Name) {
   return dyn_cast_or_null<MDNode>(
-      findMetadataOperand(LoopMD, Name).getValueOr(nullptr));
+      findMetadataOperand(LoopMD, Name).value_or(nullptr));
 }
 
 /// Is this node of type mark?
@@ -574,7 +544,8 @@ static isl::basic_set isDivisibleBySet(isl::ctx &Ctx, long Factor,
 /// @param Set         A set, which should be modified.
 /// @param VectorWidth A parameter, which determines the constraint.
 static isl::set addExtentConstraints(isl::set Set, int VectorWidth) {
-  unsigned Dims = Set.tuple_dim().release();
+  unsigned Dims = unsignedFromIslSize(Set.tuple_dim());
+  assert(Dims >= 1);
   isl::space Space = Set.get_space();
   isl::local_space LocalSpace = isl::local_space(Space);
   isl::constraint ExtConstr = isl::constraint::alloc_inequality(LocalSpace);
@@ -588,7 +559,8 @@ static isl::set addExtentConstraints(isl::set Set, int VectorWidth) {
 }
 
 /// Collapse perfectly nested bands into a single band.
-class BandCollapseRewriter : public ScheduleTreeRewriter<BandCollapseRewriter> {
+class BandCollapseRewriter final
+    : public ScheduleTreeRewriter<BandCollapseRewriter> {
 private:
   using BaseTy = ScheduleTreeRewriter<BandCollapseRewriter>;
   BaseTy &getBase() { return *this; }
@@ -601,8 +573,8 @@ public:
 
     // Do not merge permutable band to avoid loosing the permutability property.
     // Cannot collapse even two permutable loops, they might be permutable
-    // individually, but not necassarily accross.
-    if (Band.n_member().release() > 1 && Band.permutable())
+    // individually, but not necassarily across.
+    if (unsignedFromIslSize(Band.n_member()) > 1u && Band.permutable())
       return getBase().visitBand(Band);
 
     // Find collapsable bands.
@@ -611,7 +583,7 @@ public:
     isl::schedule_node Body;
     while (true) {
       Nest.push_back(Band);
-      NumTotalLoops += Band.n_member().release();
+      NumTotalLoops += unsignedFromIslSize(Band.n_member());
       Body = Band.first_child();
       if (!Body.isa<isl::schedule_node_band>())
         break;
@@ -619,7 +591,7 @@ public:
 
       // Do not include next band if it is permutable to not lose its
       // permutability property.
-      if (Band.n_member().release() > 1 && Band.permutable())
+      if (unsignedFromIslSize(Band.n_member()) > 1u && Band.permutable())
         break;
     }
 
@@ -640,7 +612,7 @@ public:
     // Collect partial schedules from all members.
     isl::union_pw_aff_list PartScheds{Ctx, NumTotalLoops};
     for (isl::schedule_node_band Band : Nest) {
-      int NumLoops = Band.n_member().release();
+      int NumLoops = unsignedFromIslSize(Band.n_member());
       isl::multi_union_pw_aff BandScheds = Band.get_partial_schedule();
       for (auto j : seq<int>(0, NumLoops))
         PartScheds = PartScheds.add(BandScheds.at(j));
@@ -657,7 +629,7 @@ public:
     // Copy over loop attributes form original bands.
     int LoopIdx = 0;
     for (isl::schedule_node_band Band : Nest) {
-      int NumLoops = Band.n_member().release();
+      int NumLoops = unsignedFromIslSize(Band.n_member());
       for (int i : seq<int>(0, NumLoops)) {
         CollapsedBand = applyBandMemberAttributes(std::move(CollapsedBand),
                                                   LoopIdx, Band, i);
@@ -713,7 +685,7 @@ static void collectPotentiallyFusableBands(
 /// everything that we already know is executed in-order.
 static isl::union_map remainingDepsFromPartialSchedule(isl::union_map PartSched,
                                                        isl::union_map Deps) {
-  int NumDims = getNumScatterDims(PartSched);
+  unsigned NumDims = getNumScatterDims(PartSched);
   auto ParamSpace = PartSched.get_space().params();
 
   // { Scatter[] }
@@ -861,7 +833,7 @@ static isl::schedule tryGreedyFuse(isl::schedule_node LHS,
 ///
 /// The isl::union_map parameters is the set of validity dependencies that have
 /// not been resolved/carried by a parent schedule node.
-class GreedyFusionRewriter
+class GreedyFusionRewriter final
     : public ScheduleTreeRewriter<GreedyFusionRewriter, isl::union_map> {
 private:
   using BaseTy = ScheduleTreeRewriter<GreedyFusionRewriter, isl::union_map>;
@@ -876,7 +848,8 @@ public:
     // { Domain[] -> Scatter[] }
     isl::union_map PartSched =
         isl::union_map::from(Band.get_partial_schedule());
-    assert(getNumScatterDims(PartSched) == Band.n_member().release());
+    assert(getNumScatterDims(PartSched) ==
+           unsignedFromIslSize(Band.n_member()));
     isl::space ParamSpace = PartSched.get_space().params();
 
     // { Scatter[] -> Domain[] }
@@ -1030,7 +1003,7 @@ isl::schedule polly::applyFullUnroll(isl::schedule_node BandToUnroll) {
 
   isl::multi_union_pw_aff PartialSched = isl::manage(
       isl_schedule_node_band_get_partial_schedule(BandToUnroll.get()));
-  assert(PartialSched.dim(isl::dim::out).release() == 1 &&
+  assert(unsignedFromIslSize(PartialSched.dim(isl::dim::out)) == 1u &&
          "Can only unroll a single dimension");
   isl::union_pw_aff PartialSchedUAff = PartialSched.at(0);
 
@@ -1139,7 +1112,8 @@ isl::schedule polly::applyPartialUnroll(isl::schedule_node BandToUnroll,
 
 isl::set polly::getPartialTilePrefixes(isl::set ScheduleRange,
                                        int VectorWidth) {
-  isl_size Dims = ScheduleRange.tuple_dim().release();
+  unsigned Dims = unsignedFromIslSize(ScheduleRange.tuple_dim());
+  assert(Dims >= 1);
   isl::set LoopPrefixes =
       ScheduleRange.drop_constraints_involving_dims(isl::dim::set, Dims - 1, 1);
   auto ExtentPrefixes = addExtentConstraints(LoopPrefixes, VectorWidth);
@@ -1150,8 +1124,8 @@ isl::set polly::getPartialTilePrefixes(isl::set ScheduleRange,
 }
 
 isl::union_set polly::getIsolateOptions(isl::set IsolateDomain,
-                                        isl_size OutDimsNum) {
-  isl_size Dims = IsolateDomain.tuple_dim().release();
+                                        unsigned OutDimsNum) {
+  unsigned Dims = unsignedFromIslSize(IsolateDomain.tuple_dim());
   assert(OutDimsNum <= Dims &&
          "The isl::set IsolateDomain is used to describe the range of schedule "
          "dimensions values, which should be isolated. Consequently, the "
@@ -1182,9 +1156,8 @@ isl::schedule_node polly::tileNode(isl::schedule_node Node,
   auto Dims = Space.dim(isl::dim::set);
   auto Sizes = isl::multi_val::zero(Space);
   std::string IdentifierString(Identifier);
-  for (auto i : seq<isl_size>(0, Dims.release())) {
-    auto tileSize =
-        i < (isl_size)TileSizes.size() ? TileSizes[i] : DefaultTileSize;
+  for (unsigned i : rangeIslSize(0, Dims)) {
+    unsigned tileSize = i < TileSizes.size() ? TileSizes[i] : DefaultTileSize;
     Sizes = Sizes.set_val(i, isl::val(Node.ctx(), tileSize));
   }
   auto TileLoopMarkerStr = IdentifierString + " - Tiles";
@@ -1212,7 +1185,7 @@ isl::schedule_node polly::applyRegisterTiling(isl::schedule_node Node,
 
 /// Find statements and sub-loops in (possibly nested) sequences.
 static void
-collectFussionableStmts(isl::schedule_node Node,
+collectFissionableStmts(isl::schedule_node Node,
                         SmallVectorImpl<isl::schedule_node> &ScheduleStmts) {
   if (isBand(Node) || isLeaf(Node)) {
     ScheduleStmts.push_back(Node);
@@ -1222,7 +1195,7 @@ collectFussionableStmts(isl::schedule_node Node,
   if (Node.has_children()) {
     isl::schedule_node C = Node.first_child();
     while (true) {
-      collectFussionableStmts(C, ScheduleStmts);
+      collectFissionableStmts(C, ScheduleStmts);
       if (!C.has_next_sibling())
         break;
       C = C.next_sibling();
@@ -1236,7 +1209,7 @@ isl::schedule polly::applyMaxFission(isl::schedule_node BandToFission) {
   isl::schedule_node BandBody = BandToFission.child(0);
 
   SmallVector<isl::schedule_node> FissionableStmts;
-  collectFussionableStmts(BandBody, FissionableStmts);
+  collectFissionableStmts(BandBody, FissionableStmts);
   size_t N = FissionableStmts.size();
 
   // Collect the domain for each of the statements that will get their own loop.

@@ -96,6 +96,9 @@ ds_write_src2_b64 v1
 image_gather4 v[5:8], v1, s[8:15], s[12:15]
 // GFX90A: error: instruction not supported on this GPU
 
+image_gather4h v[251:254], v[1:2], s[8:15], s[12:15] dmask:0x1
+// GFX90A: error: instruction not supported on this GPU
+
 image_get_lod v5, v1, s[8:15], s[12:15]
 // GFX90A: error: instruction not supported on this GPU
 
@@ -278,3 +281,15 @@ ds_gws_barrier a3 offset:4 gds
 
 ds_gws_barrier a255 offset:4 gds
 // GFX90A: error: vgpr must be even aligned
+
+ds_ordered_count v5, v1 offset:65535 gds
+// GFX90A: error: instruction not supported on this GPU
+
+exp pos0 v3, v2, v1, v0
+// GFX90A: error: instruction not supported on this GPU
+
+global_load_lds_dword v[2:3], off
+// GFX90A: error: instruction not supported on this GPU
+
+scratch_load_lds_dword v2, off
+// GFX90A: error: instruction not supported on this GPU

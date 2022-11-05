@@ -194,7 +194,7 @@ void ConstantArrayType::Profile(llvm::FoldingSetNodeID &ID,
   ID.AddInteger(ArraySize.getZExtValue());
   ID.AddInteger(SizeMod);
   ID.AddInteger(TypeQuals);
-  ID.AddBoolean(SizeExpr != 0);
+  ID.AddBoolean(SizeExpr != nullptr);
   if (SizeExpr)
     SizeExpr->Profile(ID, Context, true);
 }
@@ -338,25 +338,25 @@ VectorType::VectorType(TypeClass tc, QualType vecType, unsigned nElements,
   VectorTypeBits.NumElements = nElements;
 }
 
-ExtIntType::ExtIntType(bool IsUnsigned, unsigned NumBits)
-    : Type(ExtInt, QualType{}, TypeDependence::None), IsUnsigned(IsUnsigned),
+BitIntType::BitIntType(bool IsUnsigned, unsigned NumBits)
+    : Type(BitInt, QualType{}, TypeDependence::None), IsUnsigned(IsUnsigned),
       NumBits(NumBits) {}
 
-DependentExtIntType::DependentExtIntType(const ASTContext &Context,
+DependentBitIntType::DependentBitIntType(const ASTContext &Context,
                                          bool IsUnsigned, Expr *NumBitsExpr)
-    : Type(DependentExtInt, QualType{},
+    : Type(DependentBitInt, QualType{},
            toTypeDependence(NumBitsExpr->getDependence())),
       Context(Context), ExprAndUnsigned(NumBitsExpr, IsUnsigned) {}
 
-bool DependentExtIntType::isUnsigned() const {
+bool DependentBitIntType::isUnsigned() const {
   return ExprAndUnsigned.getInt();
 }
 
-clang::Expr *DependentExtIntType::getNumBitsExpr() const {
+clang::Expr *DependentBitIntType::getNumBitsExpr() const {
   return ExprAndUnsigned.getPointer();
 }
 
-void DependentExtIntType::Profile(llvm::FoldingSetNodeID &ID,
+void DependentBitIntType::Profile(llvm::FoldingSetNodeID &ID,
                                   const ASTContext &Context, bool IsUnsigned,
                                   Expr *NumBitsExpr) {
   ID.AddBoolean(IsUnsigned);
@@ -722,8 +722,7 @@ bool Type::isObjCClassOrClassKindOfType() const {
 
 ObjCTypeParamType::ObjCTypeParamType(const ObjCTypeParamDecl *D, QualType can,
                                      ArrayRef<ObjCProtocolDecl *> protocols)
-    : Type(ObjCTypeParam, can,
-           can->getDependence() & ~TypeDependence::UnexpandedPack),
+    : Type(ObjCTypeParam, can, toSemanticDependence(can->getDependence())),
       OTPDecl(const_cast<ObjCTypeParamDecl *>(D)) {
   initialize(protocols);
 }
@@ -819,6 +818,13 @@ QualType ObjCObjectType::stripObjCKindOfTypeAndQuals(
                                getTypeArgsAsWritten(),
                                /*protocols=*/{},
                                /*isKindOf=*/false);
+}
+
+ObjCInterfaceDecl *ObjCInterfaceType::getDecl() const {
+  ObjCInterfaceDecl *Canon = Decl->getCanonicalDecl();
+  if (ObjCInterfaceDecl *Def = Canon->getDefinition())
+    return Def;
+  return Canon;
 }
 
 const ObjCObjectPointerType *ObjCObjectPointerType::stripObjCKindOfTypeAndQuals(
@@ -1160,8 +1166,9 @@ public:
           == T->getReplacementType().getAsOpaquePtr())
       return QualType(T, 0);
 
-    return Ctx.getSubstTemplateTypeParmType(T->getReplacedParameter(),
-                                            replacementType);
+    return Ctx.getSubstTemplateTypeParmType(replacementType,
+                                            T->getAssociatedDecl(),
+                                            T->getIndex(), T->getPackIndex());
   }
 
   // FIXME: Non-trivial to implement, but important for C++
@@ -1885,15 +1892,21 @@ DeducedType *Type::getContainedDeducedType() const {
 }
 
 bool Type::hasAutoForTrailingReturnType() const {
-  return dyn_cast_or_null<FunctionType>(
+  return isa_and_nonnull<FunctionType>(
       GetContainedDeducedTypeVisitor(true).Visit(this));
 }
 
 bool Type::hasIntegerRepresentation() const {
   if (const auto *VT = dyn_cast<VectorType>(CanonicalType))
     return VT->getElementType()->isIntegerType();
-  else
-    return isIntegerType();
+  if (CanonicalType->isVLSTBuiltinType()) {
+    const auto *VT = cast<BuiltinType>(CanonicalType);
+    return VT->getKind() == BuiltinType::SveBool ||
+           (VT->getKind() >= BuiltinType::SveInt8 &&
+            VT->getKind() <= BuiltinType::SveUint64);
+  }
+
+  return isIntegerType();
 }
 
 /// Determine whether this type is an integral type.
@@ -1925,7 +1938,7 @@ bool Type::isIntegralType(const ASTContext &Ctx) const {
     if (const auto *ET = dyn_cast<EnumType>(CanonicalType))
       return ET->getDecl()->isComplete();
 
-  return isExtIntType();
+  return isBitIntType();
 }
 
 bool Type::isIntegralOrUnscopedEnumerationType() const {
@@ -1933,7 +1946,7 @@ bool Type::isIntegralOrUnscopedEnumerationType() const {
     return BT->getKind() >= BuiltinType::Bool &&
            BT->getKind() <= BuiltinType::Int128;
 
-  if (isExtIntType())
+  if (isBitIntType())
     return true;
 
   return isUnscopedEnumerationType();
@@ -2016,7 +2029,9 @@ bool Type::isSignedIntegerType() const {
       return ET->getDecl()->getIntegerType()->isSignedIntegerType();
   }
 
-  if (const ExtIntType *IT = dyn_cast<ExtIntType>(CanonicalType))
+  if (const auto *IT = dyn_cast<BitIntType>(CanonicalType))
+    return IT->isSigned();
+  if (const auto *IT = dyn_cast<DependentBitIntType>(CanonicalType))
     return IT->isSigned();
 
   return false;
@@ -2033,9 +2048,10 @@ bool Type::isSignedIntegerOrEnumerationType() const {
       return ET->getDecl()->getIntegerType()->isSignedIntegerType();
   }
 
-  if (const ExtIntType *IT = dyn_cast<ExtIntType>(CanonicalType))
+  if (const auto *IT = dyn_cast<BitIntType>(CanonicalType))
     return IT->isSigned();
-
+  if (const auto *IT = dyn_cast<DependentBitIntType>(CanonicalType))
+    return IT->isSigned();
 
   return false;
 }
@@ -2063,7 +2079,9 @@ bool Type::isUnsignedIntegerType() const {
       return ET->getDecl()->getIntegerType()->isUnsignedIntegerType();
   }
 
-  if (const ExtIntType *IT = dyn_cast<ExtIntType>(CanonicalType))
+  if (const auto *IT = dyn_cast<BitIntType>(CanonicalType))
+    return IT->isUnsigned();
+  if (const auto *IT = dyn_cast<DependentBitIntType>(CanonicalType))
     return IT->isUnsigned();
 
   return false;
@@ -2080,7 +2098,9 @@ bool Type::isUnsignedIntegerOrEnumerationType() const {
       return ET->getDecl()->getIntegerType()->isUnsignedIntegerType();
   }
 
-  if (const ExtIntType *IT = dyn_cast<ExtIntType>(CanonicalType))
+  if (const auto *IT = dyn_cast<BitIntType>(CanonicalType))
+    return IT->isUnsigned();
+  if (const auto *IT = dyn_cast<DependentBitIntType>(CanonicalType))
     return IT->isUnsigned();
 
   return false;
@@ -2091,6 +2111,11 @@ bool Type::hasUnsignedIntegerRepresentation() const {
     return VT->getElementType()->isUnsignedIntegerOrEnumerationType();
   if (const auto *VT = dyn_cast<MatrixType>(CanonicalType))
     return VT->getElementType()->isUnsignedIntegerOrEnumerationType();
+  if (CanonicalType->isVLSTBuiltinType()) {
+    const auto *VT = cast<BuiltinType>(CanonicalType);
+    return VT->getKind() >= BuiltinType::SveUint8 &&
+           VT->getKind() <= BuiltinType::SveUint64;
+  }
   return isUnsignedIntegerOrEnumerationType();
 }
 
@@ -2122,7 +2147,7 @@ bool Type::isRealType() const {
            BT->getKind() <= BuiltinType::Ibm128;
   if (const auto *ET = dyn_cast<EnumType>(CanonicalType))
       return ET->getDecl()->isComplete() && !ET->getDecl()->isScoped();
-  return isExtIntType();
+  return isBitIntType();
 }
 
 bool Type::isArithmeticType() const {
@@ -2138,7 +2163,7 @@ bool Type::isArithmeticType() const {
     // false for scoped enumerations since that will disable any
     // unwanted implicit conversions.
     return !ET->getDecl()->isScoped() && ET->getDecl()->isComplete();
-  return isa<ComplexType>(CanonicalType) || isExtIntType();
+  return isa<ComplexType>(CanonicalType) || isBitIntType();
 }
 
 Type::ScalarTypeKind Type::getScalarTypeKind() const {
@@ -2167,7 +2192,7 @@ Type::ScalarTypeKind Type::getScalarTypeKind() const {
     if (CT->getElementType()->isRealFloatingType())
       return STK_FloatingComplex;
     return STK_IntegralComplex;
-  } else if (isExtIntType()) {
+  } else if (isBitIntType()) {
     return STK_Integral;
   }
 
@@ -2374,7 +2399,7 @@ bool QualType::isCXX98PODType(const ASTContext &Context) const {
   case Type::MemberPointer:
   case Type::Vector:
   case Type::ExtVector:
-  case Type::ExtInt:
+  case Type::BitInt:
     return true;
 
   case Type::Enum:
@@ -2479,6 +2504,25 @@ bool QualType::isTriviallyCopyableType(const ASTContext &Context) const {
 
   // No other types can match.
   return false;
+}
+
+bool QualType::isTriviallyRelocatableType(const ASTContext &Context) const {
+  QualType BaseElementType = Context.getBaseElementType(*this);
+
+  if (BaseElementType->isIncompleteType()) {
+    return false;
+  } else if (const auto *RD = BaseElementType->getAsRecordDecl()) {
+    return RD->canPassInRegisters();
+  } else {
+    switch (isNonTrivialToPrimitiveDestructiveMove()) {
+    case PCK_Trivial:
+      return !isDestructedType();
+    case PCK_ARCStrong:
+      return true;
+    default:
+      return false;
+    }
+  }
 }
 
 bool QualType::isNonWeakInMRRWithObjCWeak(const ASTContext &Context) const {
@@ -2734,39 +2778,6 @@ bool Type::isStdByteType() const {
   return false;
 }
 
-bool Type::isPromotableIntegerType() const {
-  if (const auto *BT = getAs<BuiltinType>())
-    switch (BT->getKind()) {
-    case BuiltinType::Bool:
-    case BuiltinType::Char_S:
-    case BuiltinType::Char_U:
-    case BuiltinType::SChar:
-    case BuiltinType::UChar:
-    case BuiltinType::Short:
-    case BuiltinType::UShort:
-    case BuiltinType::WChar_S:
-    case BuiltinType::WChar_U:
-    case BuiltinType::Char8:
-    case BuiltinType::Char16:
-    case BuiltinType::Char32:
-      return true;
-    default:
-      return false;
-    }
-
-  // Enumerated types are promotable to their compatible integer types
-  // (C99 6.3.1.1) a.k.a. its underlying type (C++ [conv.prom]p2).
-  if (const auto *ET = getAs<EnumType>()){
-    if (this->isDependentType() || ET->getDecl()->getPromotionType().isNull()
-        || ET->getDecl()->isScoped())
-      return false;
-
-    return true;
-  }
-
-  return false;
-}
-
 bool Type::isSpecifierType() const {
   // Note that this intentionally does not use the canonical type.
   switch (getTypeClass()) {
@@ -2785,7 +2796,6 @@ bool Type::isSpecifierType() const {
   case DependentTemplateSpecialization:
   case ObjCInterface:
   case ObjCObject:
-  case ObjCObjectPointer: // FIXME: object pointers aren't really specifiers
     return true;
   default:
     return false;
@@ -2886,7 +2896,7 @@ DependentTemplateSpecializationType::DependentTemplateSpecializationType(
   DependentTemplateSpecializationTypeBits.NumArgs = Args.size();
   assert((!NNS || NNS->isDependent()) &&
          "DependentTemplateSpecializatonType requires dependent qualifier");
-  TemplateArgument *ArgBuffer = getArgBuffer();
+  auto *ArgBuffer = const_cast<TemplateArgument *>(template_arguments().data());
   for (const TemplateArgument &Arg : Args) {
     addDependence(toTypeDependence(Arg.getDependence() &
                                    TemplateArgumentDependence::UnexpandedPack));
@@ -3042,7 +3052,7 @@ StringRef BuiltinType::getName(const PrintingPolicy &Policy) const {
   case Char32:
     return "char32_t";
   case NullPtr:
-    return "std::nullptr_t";
+    return Policy.NullptrTypeInNamespace ? "std::nullptr_t" : "nullptr_t";
   case Overload:
     return "<overloaded function type>";
   case BoundMember:
@@ -3149,6 +3159,8 @@ StringRef FunctionType::getNameForCallConv(CallingConv CC) {
   case CC_AAPCS: return "aapcs";
   case CC_AAPCS_VFP: return "aapcs-vfp";
   case CC_AArch64VectorCall: return "aarch64_vector_pcs";
+  case CC_AArch64SVEPCS: return "aarch64_sve_pcs";
+  case CC_AMDGPUKernelCall: return "amdgpu_kernel";
   case CC_IntelOclBicc: return "intel_ocl_bicc";
   case CC_SpirFunction: return "spir_function";
   case CC_OpenCLKernel: return "opencl_kernel";
@@ -3175,11 +3187,14 @@ FunctionProtoType::FunctionProtoType(QualType result, ArrayRef<QualType> params,
   FunctionTypeBits.Variadic = epi.Variadic;
   FunctionTypeBits.HasTrailingReturn = epi.HasTrailingReturn;
 
-  // Fill in the extra trailing bitfields if present.
-  if (hasExtraBitfields(epi.ExceptionSpec.Type)) {
+  if (epi.requiresFunctionProtoTypeExtraBitfields()) {
+    FunctionTypeBits.HasExtraBitfields = true;
     auto &ExtraBits = *getTrailingObjects<FunctionTypeExtraBitfields>();
-    ExtraBits.NumExceptionType = epi.ExceptionSpec.Exceptions.size();
+    ExtraBits = FunctionTypeExtraBitfields();
+  } else {
+    FunctionTypeBits.HasExtraBitfields = false;
   }
+
 
   // Fill in the trailing argument array.
   auto *argSlot = getTrailingObjects<QualType>();
@@ -3191,6 +3206,9 @@ FunctionProtoType::FunctionProtoType(QualType result, ArrayRef<QualType> params,
 
   // Fill in the exception type array if present.
   if (getExceptionSpecType() == EST_Dynamic) {
+    auto &ExtraBits = *getTrailingObjects<FunctionTypeExtraBitfields>();
+    ExtraBits.NumExceptionType = epi.ExceptionSpec.Exceptions.size();
+
     assert(hasExtraBitfields() && "missing trailing extra bitfields!");
     auto *exnSlot =
         reinterpret_cast<QualType *>(getTrailingObjects<ExceptionType>());
@@ -3294,7 +3312,6 @@ CanThrowResult FunctionProtoType::canThrow() const {
   switch (getExceptionSpecType()) {
   case EST_Unparsed:
   case EST_Unevaluated:
-  case EST_Uninstantiated:
     llvm_unreachable("should not call this with unresolved exception specs");
 
   case EST_DynamicNone:
@@ -3316,6 +3333,7 @@ CanThrowResult FunctionProtoType::canThrow() const {
         return CT_Can;
     return CT_Dependent;
 
+  case EST_Uninstantiated:
   case EST_DependentNoexcept:
     return CT_Dependent;
   }
@@ -3390,14 +3408,34 @@ void FunctionProtoType::Profile(llvm::FoldingSetNodeID &ID,
 }
 
 TypedefType::TypedefType(TypeClass tc, const TypedefNameDecl *D,
-                         QualType underlying, QualType can)
-    : Type(tc, can, underlying->getDependence()),
+                         QualType Underlying, QualType can)
+    : Type(tc, can, toSemanticDependence(can->getDependence())),
       Decl(const_cast<TypedefNameDecl *>(D)) {
   assert(!isa<TypedefType>(can) && "Invalid canonical type");
+  TypedefBits.hasTypeDifferentFromDecl = !Underlying.isNull();
+  if (!typeMatchesDecl())
+    *getTrailingObjects<QualType>() = Underlying;
 }
 
 QualType TypedefType::desugar() const {
-  return getDecl()->getUnderlyingType();
+  return typeMatchesDecl() ? Decl->getUnderlyingType()
+                           : *getTrailingObjects<QualType>();
+}
+
+UsingType::UsingType(const UsingShadowDecl *Found, QualType Underlying,
+                     QualType Canon)
+    : Type(Using, Canon, toSemanticDependence(Canon->getDependence())),
+      Found(const_cast<UsingShadowDecl *>(Found)) {
+  UsingBits.hasTypeDifferentFromDecl = !Underlying.isNull();
+  if (!typeMatchesDecl())
+    *getTrailingObjects<QualType>() = Underlying;
+}
+
+QualType UsingType::getUnderlyingType() const {
+  return typeMatchesDecl()
+             ? QualType(
+                   cast<TypeDecl>(Found->getTargetDecl())->getTypeForDecl(), 0)
+             : *getTrailingObjects<QualType>();
 }
 
 QualType MacroQualifiedType::desugar() const { return getUnderlyingType(); }
@@ -3414,27 +3452,37 @@ QualType MacroQualifiedType::getModifiedType() const {
   return Inner;
 }
 
-TypeOfExprType::TypeOfExprType(Expr *E, QualType can)
-    : Type(TypeOfExpr, can,
+TypeOfExprType::TypeOfExprType(Expr *E, TypeOfKind Kind, QualType Can)
+    : Type(TypeOfExpr,
+           // We have to protect against 'Can' being invalid through its
+           // default argument.
+           Kind == TypeOfKind::Unqualified && !Can.isNull()
+               ? Can.getAtomicUnqualifiedType()
+               : Can,
            toTypeDependence(E->getDependence()) |
                (E->getType()->getDependence() &
                 TypeDependence::VariablyModified)),
-      TOExpr(E) {}
+      TOExpr(E) {
+  TypeOfBits.IsUnqual = Kind == TypeOfKind::Unqualified;
+}
 
 bool TypeOfExprType::isSugared() const {
   return !TOExpr->isTypeDependent();
 }
 
 QualType TypeOfExprType::desugar() const {
-  if (isSugared())
-    return getUnderlyingExpr()->getType();
-
+  if (isSugared()) {
+    QualType QT = getUnderlyingExpr()->getType();
+    return TypeOfBits.IsUnqual ? QT.getAtomicUnqualifiedType() : QT;
+  }
   return QualType(this, 0);
 }
 
 void DependentTypeOfExprType::Profile(llvm::FoldingSetNodeID &ID,
-                                      const ASTContext &Context, Expr *E) {
+                                      const ASTContext &Context, Expr *E,
+                                      bool IsUnqual) {
   E->Profile(ID, Context, true);
+  ID.AddBoolean(IsUnqual);
 }
 
 DecltypeType::DecltypeType(Expr *E, QualType underlyingType, QualType can)
@@ -3484,7 +3532,7 @@ TagType::TagType(TypeClass TC, const TagDecl *D, QualType can)
       decl(const_cast<TagDecl *>(D)) {}
 
 static TagDecl *getInterestingTagDecl(TagDecl *decl) {
-  for (auto I : decl->redecls()) {
+  for (auto *I : decl->redecls()) {
     if (I->isCompleteDefinition() || I->isBeingDefined())
       return I;
   }
@@ -3573,6 +3621,8 @@ bool AttributedType::isCallingConv() const {
   case attr::SwiftAsyncCall:
   case attr::VectorCall:
   case attr::AArch64VectorPcs:
+  case attr::AArch64SVEPcs:
+  case attr::AMDGPUKernelCall:
   case attr::Pascal:
   case attr::MSABI:
   case attr::SysVABI:
@@ -3592,14 +3642,63 @@ IdentifierInfo *TemplateTypeParmType::getIdentifier() const {
   return isCanonicalUnqualified() ? nullptr : getDecl()->getIdentifier();
 }
 
+static const TemplateTypeParmDecl *getReplacedParameter(Decl *D,
+                                                        unsigned Index) {
+  if (const auto *TTP = dyn_cast<TemplateTypeParmDecl>(D))
+    return TTP;
+  return cast<TemplateTypeParmDecl>(
+      getReplacedTemplateParameterList(D)->getParam(Index));
+}
+
+SubstTemplateTypeParmType::SubstTemplateTypeParmType(
+    QualType Replacement, Decl *AssociatedDecl, unsigned Index,
+    Optional<unsigned> PackIndex)
+    : Type(SubstTemplateTypeParm, Replacement.getCanonicalType(),
+           Replacement->getDependence()),
+      AssociatedDecl(AssociatedDecl) {
+  SubstTemplateTypeParmTypeBits.HasNonCanonicalUnderlyingType =
+      Replacement != getCanonicalTypeInternal();
+  if (SubstTemplateTypeParmTypeBits.HasNonCanonicalUnderlyingType)
+    *getTrailingObjects<QualType>() = Replacement;
+
+  SubstTemplateTypeParmTypeBits.Index = Index;
+  SubstTemplateTypeParmTypeBits.PackIndex = PackIndex ? *PackIndex + 1 : 0;
+  assert(AssociatedDecl != nullptr);
+}
+
+const TemplateTypeParmDecl *
+SubstTemplateTypeParmType::getReplacedParameter() const {
+  return ::getReplacedParameter(getAssociatedDecl(), getIndex());
+}
+
 SubstTemplateTypeParmPackType::SubstTemplateTypeParmPackType(
-    const TemplateTypeParmType *Param, QualType Canon,
+    QualType Canon, Decl *AssociatedDecl, unsigned Index, bool Final,
     const TemplateArgument &ArgPack)
     : Type(SubstTemplateTypeParmPack, Canon,
            TypeDependence::DependentInstantiation |
                TypeDependence::UnexpandedPack),
-      Replaced(Param), Arguments(ArgPack.pack_begin()) {
+      Arguments(ArgPack.pack_begin()),
+      AssociatedDeclAndFinal(AssociatedDecl, Final) {
+  SubstTemplateTypeParmPackTypeBits.Index = Index;
   SubstTemplateTypeParmPackTypeBits.NumArgs = ArgPack.pack_size();
+  assert(AssociatedDecl != nullptr);
+}
+
+Decl *SubstTemplateTypeParmPackType::getAssociatedDecl() const {
+  return AssociatedDeclAndFinal.getPointer();
+}
+
+bool SubstTemplateTypeParmPackType::getFinal() const {
+  return AssociatedDeclAndFinal.getInt();
+}
+
+const TemplateTypeParmDecl *
+SubstTemplateTypeParmPackType::getReplacedParameter() const {
+  return ::getReplacedParameter(getAssociatedDecl(), getIndex());
+}
+
+IdentifierInfo *SubstTemplateTypeParmPackType::getIdentifier() const {
+  return getReplacedParameter()->getIdentifier();
 }
 
 TemplateArgument SubstTemplateTypeParmPackType::getArgumentPack() const {
@@ -3607,13 +3706,16 @@ TemplateArgument SubstTemplateTypeParmPackType::getArgumentPack() const {
 }
 
 void SubstTemplateTypeParmPackType::Profile(llvm::FoldingSetNodeID &ID) {
-  Profile(ID, getReplacedParameter(), getArgumentPack());
+  Profile(ID, getAssociatedDecl(), getIndex(), getFinal(), getArgumentPack());
 }
 
 void SubstTemplateTypeParmPackType::Profile(llvm::FoldingSetNodeID &ID,
-                                           const TemplateTypeParmType *Replaced,
+                                            const Decl *AssociatedDecl,
+                                            unsigned Index, bool Final,
                                             const TemplateArgument &ArgPack) {
-  ID.AddPointer(Replaced);
+  ID.AddPointer(AssociatedDecl);
+  ID.AddInteger(Index);
+  ID.AddBoolean(Final);
   ID.AddInteger(ArgPack.pack_size());
   for (const auto &P : ArgPack.pack_elements())
     ID.AddPointer(P.getAsType().getAsOpaquePtr());
@@ -3647,8 +3749,7 @@ TemplateSpecializationType::TemplateSpecializationType(
     : Type(TemplateSpecialization, Canon.isNull() ? QualType(this, 0) : Canon,
            (Canon.isNull()
                 ? TypeDependence::DependentInstantiation
-                : Canon->getDependence() & ~(TypeDependence::VariablyModified |
-                                             TypeDependence::UnexpandedPack)) |
+                : toSemanticDependence(Canon->getDependence())) |
                (toTypeDependence(T.getDependence()) &
                 TypeDependence::UnexpandedPack)),
       Template(T) {
@@ -3659,7 +3760,8 @@ TemplateSpecializationType::TemplateSpecializationType(
          "Use DependentTemplateSpecializationType for dependent template-name");
   assert((T.getKind() == TemplateName::Template ||
           T.getKind() == TemplateName::SubstTemplateTemplateParm ||
-          T.getKind() == TemplateName::SubstTemplateTemplateParmPack) &&
+          T.getKind() == TemplateName::SubstTemplateTemplateParmPack ||
+          T.getKind() == TemplateName::UsingTemplate) &&
          "Unexpected template name for TemplateSpecializationType");
 
   auto *TemplateArgs = reinterpret_cast<TemplateArgument *>(this + 1);
@@ -3683,8 +3785,20 @@ TemplateSpecializationType::TemplateSpecializationType(
   // Store the aliased type if this is a type alias template specialization.
   if (isTypeAlias()) {
     auto *Begin = reinterpret_cast<TemplateArgument *>(this + 1);
-    *reinterpret_cast<QualType*>(Begin + getNumArgs()) = AliasedType;
+    *reinterpret_cast<QualType *>(Begin + Args.size()) = AliasedType;
   }
+}
+
+QualType TemplateSpecializationType::getAliasedType() const {
+  assert(isTypeAlias() && "not a type alias template specialization");
+  return *reinterpret_cast<const QualType *>(template_arguments().end());
+}
+
+void TemplateSpecializationType::Profile(llvm::FoldingSetNodeID &ID,
+                                         const ASTContext &Ctx) {
+  Profile(ID, Template, template_arguments(), Ctx);
+  if (isTypeAlias())
+    getAliasedType().Profile(ID);
 }
 
 void
@@ -3723,7 +3837,7 @@ void ObjCObjectTypeImpl::Profile(llvm::FoldingSetNodeID &ID,
   for (auto typeArg : typeArgs)
     ID.AddPointer(typeArg.getAsOpaquePtr());
   ID.AddInteger(protocols.size());
-  for (auto proto : protocols)
+  for (auto *proto : protocols)
     ID.AddPointer(proto);
   ID.AddBoolean(isKindOf);
 }
@@ -3741,7 +3855,7 @@ void ObjCTypeParamType::Profile(llvm::FoldingSetNodeID &ID,
   ID.AddPointer(OTPDecl);
   ID.AddPointer(CanonicalType.getAsOpaquePtr());
   ID.AddInteger(protocols.size());
-  for (auto proto : protocols)
+  for (auto *proto : protocols)
     ID.AddPointer(proto);
 }
 
@@ -3849,7 +3963,7 @@ static CachedProperties computeCachedProperties(const Type *T) {
     // here in error recovery.
     return CachedProperties(ExternalLinkage, false);
 
-  case Type::ExtInt:
+  case Type::BitInt:
   case Type::Builtin:
     // C++ [basic.link]p8:
     //   A type is said to have linkage if and only if:
@@ -3949,7 +4063,7 @@ LinkageInfo LinkageComputer::computeTypeLinkageInfo(const Type *T) {
     assert(T->isInstantiationDependentType());
     return LinkageInfo::external();
 
-  case Type::ExtInt:
+  case Type::BitInt:
   case Type::Builtin:
     return LinkageInfo::external();
 
@@ -4174,8 +4288,8 @@ bool Type::canHaveNullability(bool ResultIfUnknown) const {
   case Type::ObjCInterface:
   case Type::Atomic:
   case Type::Pipe:
-  case Type::ExtInt:
-  case Type::DependentExtInt:
+  case Type::BitInt:
+  case Type::DependentBitInt:
     return false;
   }
   llvm_unreachable("bad type kind!");
@@ -4268,20 +4382,13 @@ bool Type::isObjCARCImplicitlyUnretainedType() const {
 }
 
 bool Type::isObjCNSObjectType() const {
-  const Type *cur = this;
-  while (true) {
-    if (const auto *typedefType = dyn_cast<TypedefType>(cur))
-      return typedefType->getDecl()->hasAttr<ObjCNSObjectAttr>();
-
-    // Single-step desugar until we run out of sugar.
-    QualType next = cur->getLocallyUnqualifiedSingleStepDesugaredType();
-    if (next.getTypePtr() == cur) return false;
-    cur = next.getTypePtr();
-  }
+  if (const auto *typedefType = getAs<TypedefType>())
+    return typedefType->getDecl()->hasAttr<ObjCNSObjectAttr>();
+  return false;
 }
 
 bool Type::isObjCIndependentClassType() const {
-  if (const auto *typedefType = dyn_cast<TypedefType>(this))
+  if (const auto *typedefType = getAs<TypedefType>())
     return typedefType->getDecl()->hasAttr<ObjCIndependentClassAttr>();
   return false;
 }
@@ -4405,15 +4512,16 @@ void clang::FixedPointValueToString(SmallVectorImpl<char> &Str,
 }
 
 AutoType::AutoType(QualType DeducedAsType, AutoTypeKeyword Keyword,
-                   TypeDependence ExtraDependence,
+                   TypeDependence ExtraDependence, QualType Canon,
                    ConceptDecl *TypeConstraintConcept,
                    ArrayRef<TemplateArgument> TypeConstraintArgs)
-    : DeducedType(Auto, DeducedAsType, ExtraDependence) {
+    : DeducedType(Auto, DeducedAsType, ExtraDependence, Canon) {
   AutoTypeBits.Keyword = (unsigned)Keyword;
   AutoTypeBits.NumArgs = TypeConstraintArgs.size();
   this->TypeConstraintConcept = TypeConstraintConcept;
   if (TypeConstraintConcept) {
-    TemplateArgument *ArgBuffer = getArgBuffer();
+    auto *ArgBuffer =
+        const_cast<TemplateArgument *>(getTypeConstraintArguments().data());
     for (const TemplateArgument &Arg : TypeConstraintArgs) {
       addDependence(
           toSyntacticDependence(toTypeDependence(Arg.getDependence())));
@@ -4433,4 +4541,9 @@ void AutoType::Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Context,
   ID.AddPointer(CD);
   for (const TemplateArgument &Arg : Arguments)
     Arg.Profile(ID, Context);
+}
+
+void AutoType::Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Context) {
+  Profile(ID, Context, getDeducedType(), getKeyword(), isDependentType(),
+          getTypeConstraintConcept(), getTypeConstraintArguments());
 }

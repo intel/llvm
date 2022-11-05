@@ -1,7 +1,9 @@
 // RUN: %libomptarget-compilexx-run-and-check-generic
 
-// amdgcn does not have printf definition
+// Wrong results on amdgpu
 // XFAIL: amdgcn-amd-amdhsa
+// XFAIL: amdgcn-amd-amdhsa-oldDriver
+// XFAIL: amdgcn-amd-amdhsa-LTO
 
 #include <cstdio>
 #include <cstdlib>
@@ -10,7 +12,7 @@ typedef struct {
   int a;
   double *b;
 } C;
-#pragma omp declare mapper(id1 : C s) map(to : s.a) map(from : s.b [0:2])
+#pragma omp declare mapper(id1 : C s) map(to : s.a) map(from : s.b[0 : 2])
 
 typedef struct {
   int e;
@@ -18,11 +20,8 @@ typedef struct {
   int h;
   short *g;
 } D;
-#pragma omp declare mapper(default                                             \
-                           : D r) map(from                                     \
-                                      : r.e) map(mapper(id1), tofrom           \
-                                                 : r.f) map(tofrom             \
-                                                            : r.g [0:r.h])
+#pragma omp declare mapper(default : D r) map(from : r.e)                      \
+    map(mapper(id1), tofrom : r.f) map(tofrom : r.g[0 : r.h])
 
 int main() {
   constexpr int N = 10;

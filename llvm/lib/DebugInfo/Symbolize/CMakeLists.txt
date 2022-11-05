@@ -1,5 +1,7 @@
 add_llvm_component_library(LLVMSymbolize
   DIPrinter.cpp
+  Markup.cpp
+  MarkupFilter.cpp
   SymbolizableObjectFile.cpp
   Symbolize.cpp
 

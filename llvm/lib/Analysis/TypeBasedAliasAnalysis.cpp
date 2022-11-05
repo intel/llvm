@@ -112,7 +112,6 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/InstrTypes.h"
-#include "llvm/IR/Instruction.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/InitializePasses.h"
@@ -304,24 +303,27 @@ public:
   /// given offset. Update the offset to be relative to the field type.
   TBAAStructTypeNode getField(uint64_t &Offset) const {
     bool NewFormat = isNewFormat();
+    const ArrayRef<MDOperand> Operands = Node->operands();
+    const unsigned NumOperands = Operands.size();
+
     if (NewFormat) {
       // New-format root and scalar type nodes have no fields.
-      if (Node->getNumOperands() < 6)
+      if (NumOperands < 6)
         return TBAAStructTypeNode();
     } else {
       // Parent can be omitted for the root node.
-      if (Node->getNumOperands() < 2)
+      if (NumOperands < 2)
         return TBAAStructTypeNode();
 
       // Fast path for a scalar type node and a struct type node with a single
       // field.
-      if (Node->getNumOperands() <= 3) {
-        uint64_t Cur = Node->getNumOperands() == 2
-                           ? 0
-                           : mdconst::extract<ConstantInt>(Node->getOperand(2))
-                                 ->getZExtValue();
+      if (NumOperands <= 3) {
+        uint64_t Cur =
+            NumOperands == 2
+                ? 0
+                : mdconst::extract<ConstantInt>(Operands[2])->getZExtValue();
         Offset -= Cur;
-        MDNode *P = dyn_cast_or_null<MDNode>(Node->getOperand(1));
+        MDNode *P = dyn_cast_or_null<MDNode>(Operands[1]);
         if (!P)
           return TBAAStructTypeNode();
         return TBAAStructTypeNode(P);
@@ -333,10 +335,11 @@ public:
     unsigned FirstFieldOpNo = NewFormat ? 3 : 1;
     unsigned NumOpsPerField = NewFormat ? 3 : 2;
     unsigned TheIdx = 0;
-    for (unsigned Idx = FirstFieldOpNo; Idx < Node->getNumOperands();
+
+    for (unsigned Idx = FirstFieldOpNo; Idx < NumOperands;
          Idx += NumOpsPerField) {
-      uint64_t Cur = mdconst::extract<ConstantInt>(Node->getOperand(Idx + 1))
-                         ->getZExtValue();
+      uint64_t Cur =
+          mdconst::extract<ConstantInt>(Operands[Idx + 1])->getZExtValue();
       if (Cur > Offset) {
         assert(Idx >= FirstFieldOpNo + NumOpsPerField &&
                "TBAAStructTypeNode::getField should have an offset match!");
@@ -346,11 +349,11 @@ public:
     }
     // Move along the last field.
     if (TheIdx == 0)
-      TheIdx = Node->getNumOperands() - NumOpsPerField;
-    uint64_t Cur = mdconst::extract<ConstantInt>(Node->getOperand(TheIdx + 1))
-                       ->getZExtValue();
+      TheIdx = NumOperands - NumOpsPerField;
+    uint64_t Cur =
+        mdconst::extract<ConstantInt>(Operands[TheIdx + 1])->getZExtValue();
     Offset -= Cur;
-    MDNode *P = dyn_cast_or_null<MDNode>(Node->getOperand(TheIdx));
+    MDNode *P = dyn_cast_or_null<MDNode>(Operands[TheIdx]);
     if (!P)
       return TBAAStructTypeNode();
     return TBAAStructTypeNode(P);
@@ -382,45 +385,42 @@ AliasResult TypeBasedAAResult::alias(const MemoryLocation &LocA,
   return AliasResult::NoAlias;
 }
 
-bool TypeBasedAAResult::pointsToConstantMemory(const MemoryLocation &Loc,
-                                               AAQueryInfo &AAQI,
-                                               bool OrLocal) {
+ModRefInfo TypeBasedAAResult::getModRefInfoMask(const MemoryLocation &Loc,
+                                                AAQueryInfo &AAQI,
+                                                bool IgnoreLocals) {
   if (!EnableTBAA)
-    return AAResultBase::pointsToConstantMemory(Loc, AAQI, OrLocal);
+    return AAResultBase::getModRefInfoMask(Loc, AAQI, IgnoreLocals);
 
   const MDNode *M = Loc.AATags.TBAA;
   if (!M)
-    return AAResultBase::pointsToConstantMemory(Loc, AAQI, OrLocal);
+    return AAResultBase::getModRefInfoMask(Loc, AAQI, IgnoreLocals);
 
   // If this is an "immutable" type, we can assume the pointer is pointing
   // to constant memory.
   if ((!isStructPathTBAA(M) && TBAANode(M).isTypeImmutable()) ||
       (isStructPathTBAA(M) && TBAAStructTagNode(M).isTypeImmutable()))
-    return true;
+    return ModRefInfo::NoModRef;
 
-  return AAResultBase::pointsToConstantMemory(Loc, AAQI, OrLocal);
+  return AAResultBase::getModRefInfoMask(Loc, AAQI, IgnoreLocals);
 }
 
-FunctionModRefBehavior
-TypeBasedAAResult::getModRefBehavior(const CallBase *Call) {
+MemoryEffects TypeBasedAAResult::getMemoryEffects(const CallBase *Call,
+                                                  AAQueryInfo &AAQI) {
   if (!EnableTBAA)
-    return AAResultBase::getModRefBehavior(Call);
+    return AAResultBase::getMemoryEffects(Call, AAQI);
 
-  FunctionModRefBehavior Min = FMRB_UnknownModRefBehavior;
-
-  // If this is an "immutable" type, we can assume the call doesn't write
-  // to memory.
+  // If this is an "immutable" type, the access is not observable.
   if (const MDNode *M = Call->getMetadata(LLVMContext::MD_tbaa))
     if ((!isStructPathTBAA(M) && TBAANode(M).isTypeImmutable()) ||
         (isStructPathTBAA(M) && TBAAStructTagNode(M).isTypeImmutable()))
-      Min = FMRB_OnlyReadsMemory;
+      return MemoryEffects::none();
 
-  return FunctionModRefBehavior(AAResultBase::getModRefBehavior(Call) & Min);
+  return AAResultBase::getMemoryEffects(Call, AAQI);
 }
 
-FunctionModRefBehavior TypeBasedAAResult::getModRefBehavior(const Function *F) {
+MemoryEffects TypeBasedAAResult::getMemoryEffects(const Function *F) {
   // Functions don't have metadata. Just chain to the next implementation.
-  return AAResultBase::getModRefBehavior(F);
+  return AAResultBase::getMemoryEffects(F);
 }
 
 ModRefInfo TypeBasedAAResult::getModRefInfo(const CallBase *Call,
@@ -785,4 +785,38 @@ MDNode *AAMDNodes::shiftTBAAStruct(MDNode *MD, size_t Offset) {
     Sub.push_back(MD->getOperand(i + 2));
   }
   return MDNode::get(MD->getContext(), Sub);
+}
+
+MDNode *AAMDNodes::extendToTBAA(MDNode *MD, ssize_t Len) {
+  // Fast path if 0-length
+  if (Len == 0)
+    return nullptr;
+
+  // Regular TBAA is invariant of length, so we only need to consider
+  // struct-path TBAA.
+  if (!isStructPathTBAA(MD))
+    return MD;
+
+  TBAAStructTagNode Tag(MD);
+
+  // Only new format TBAA has a size
+  if (!Tag.isNewFormat())
+    return MD;
+
+  // If unknown size, drop the TBAA.
+  if (Len == -1)
+    return nullptr;
+
+  // Otherwise, create TBAA with the new Len
+  ArrayRef<MDOperand> MDOperands = MD->operands();
+  SmallVector<Metadata *, 4> NextNodes(MDOperands.begin(), MDOperands.end());
+  ConstantInt *PreviousSize = mdconst::extract<ConstantInt>(NextNodes[3]);
+
+  // Don't create a new MDNode if it is the same length.
+  if (PreviousSize->equalsInt(Len))
+    return MD;
+
+  NextNodes[3] =
+      ConstantAsMetadata::get(ConstantInt::get(PreviousSize->getType(), Len));
+  return MDNode::get(MD->getContext(), NextNodes);
 }

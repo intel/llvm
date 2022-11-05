@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "ReduceGlobalVars.h"
+#include "Utils.h"
 #include "llvm/IR/Constants.h"
 #include <set>
 
@@ -20,10 +21,16 @@ using namespace llvm;
 /// Removes all the GVs that aren't inside the desired Chunks.
 static void extractGVsFromModule(Oracle &O, Module &Program) {
   // Get GVs inside desired chunks
-  std::set<GlobalVariable *> GVsToKeep;
+  std::vector<GlobalVariable *> InitGVsToKeep;
   for (auto &GV : Program.globals())
     if (O.shouldKeep())
-      GVsToKeep.insert(&GV);
+      InitGVsToKeep.push_back(&GV);
+
+  // We create a vector first, then convert it to a set, so that we don't have
+  // to pay the cost of rebalancing the set frequently if the order we insert
+  // the elements doesn't match the order they should appear inside the set.
+  std::set<GlobalVariable *> GVsToKeep(InitGVsToKeep.begin(),
+                                       InitGVsToKeep.end());
 
   // Delete out-of-chunk GVs and their uses
   std::vector<GlobalVariable *> ToRemove;
@@ -34,7 +41,7 @@ static void extractGVsFromModule(Oracle &O, Module &Program) {
         if (auto *Inst = dyn_cast<Instruction>(U))
           InstToRemove.push_back(Inst);
 
-      GV.replaceAllUsesWith(UndefValue::get(GV.getType()));
+      GV.replaceAllUsesWith(getDefaultValue(GV.getType()));
       ToRemove.push_back(&GV);
     }
 
@@ -43,7 +50,7 @@ static void extractGVsFromModule(Oracle &O, Module &Program) {
     if (!V)
       continue;
     auto *Inst = cast<Instruction>(V);
-    Inst->replaceAllUsesWith(UndefValue::get(Inst->getType()));
+    Inst->replaceAllUsesWith(getDefaultValue(Inst->getType()));
     Inst->eraseFromParent();
   }
 
@@ -51,21 +58,6 @@ static void extractGVsFromModule(Oracle &O, Module &Program) {
     GV->eraseFromParent();
 }
 
-/// Counts the amount of GVs and displays their
-/// respective name & index
-static int countGVs(Module &Program) {
-  // TODO: Silence index with --quiet flag
-  outs() << "----------------------------\n";
-  outs() << "GlobalVariable Index Reference:\n";
-  int GVCount = 0;
-  for (auto &GV : Program.globals())
-    outs() << "\t" << ++GVCount << ": " << GV.getName() << "\n";
-  outs() << "----------------------------\n";
-  return GVCount;
-}
-
 void llvm::reduceGlobalsDeltaPass(TestRunner &Test) {
-  outs() << "*** Reducing GVs...\n";
-  int GVCount = countGVs(Test.getProgram());
-  runDeltaPass(Test, GVCount, extractGVsFromModule);
+  runDeltaPass(Test, extractGVsFromModule, "Reducing GlobalVariables");
 }

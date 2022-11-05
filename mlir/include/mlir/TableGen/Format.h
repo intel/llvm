@@ -50,8 +50,11 @@ public:
 
   FmtContext() = default;
 
+  // Create a format context with a list of substitutions.
+  FmtContext(ArrayRef<std::pair<StringRef, StringRef>> subs);
+
   // Setter for custom placeholders
-  FmtContext &addSubst(StringRef placeholder, Twine subst);
+  FmtContext &addSubst(StringRef placeholder, const Twine &subst);
 
   // Setters for builtin placeholders
   FmtContext &withBuilder(Twine subst);
@@ -149,7 +152,7 @@ public:
   FmtObjectBase(const FmtObjectBase &that) = delete;
 
   FmtObjectBase(FmtObjectBase &&that)
-      : fmt(std::move(that.fmt)), context(that.context),
+      : fmt(that.fmt), context(that.context),
         adapters(), // adapters are initialized by FmtObject
         replacements(std::move(that.replacements)) {}
 
@@ -162,19 +165,24 @@ public:
     return s.str();
   }
 
-  template <unsigned N> SmallString<N> sstr() const {
+  template <unsigned N>
+  SmallString<N> sstr() const {
     SmallString<N> result;
     llvm::raw_svector_ostream s(result);
     format(s);
     return result;
   }
 
-  template <unsigned N> operator SmallString<N>() const { return sstr<N>(); }
+  template <unsigned N>
+  operator SmallString<N>() const {
+    return sstr<N>();
+  }
 
   operator std::string() const { return str(); }
 };
 
-template <typename Tuple> class FmtObject : public FmtObjectBase {
+template <typename Tuple>
+class FmtObject : public FmtObjectBase {
   // Storage for the parameter adapters.  Since the base class erases the type
   // of the parameters, we have to own the storage for the parameters here, and
   // have the base class store type-erased pointers into this tuple.
@@ -185,7 +193,7 @@ public:
       : FmtObjectBase(fmt, ctx, std::tuple_size<Tuple>::value),
         parameters(std::move(params)) {
     adapters.reserve(std::tuple_size<Tuple>::value);
-    adapters = llvm::apply_tuple(CreateAdapters(), parameters);
+    adapters = std::apply(CreateAdapters(), parameters);
   }
 
   FmtObject(FmtObject const &that) = delete;
@@ -193,7 +201,7 @@ public:
   FmtObject(FmtObject &&that)
       : FmtObjectBase(std::move(that)), parameters(std::move(that.parameters)) {
     adapters.reserve(that.adapters.size());
-    adapters = llvm::apply_tuple(CreateAdapters(), parameters);
+    adapters = std::apply(CreateAdapters(), parameters);
   }
 };
 
@@ -268,7 +276,7 @@ inline FmtStrVecObject tgfmt(StringRef fmt, const FmtContext *ctx,
   return FmtStrVecObject(fmt, ctx, params);
 }
 
-} // end namespace tblgen
-} // end namespace mlir
+} // namespace tblgen
+} // namespace mlir
 
 #endif // MLIR_TABLEGEN_FORMAT_H_

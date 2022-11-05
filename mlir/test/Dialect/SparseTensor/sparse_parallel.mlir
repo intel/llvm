@@ -1,13 +1,14 @@
-// RUN: mlir-opt %s -sparsification="parallelization-strategy=0" | \
+// RUN: mlir-opt %s -sparsification="parallelization-strategy=none" | \
 // RUN:   FileCheck %s --check-prefix=CHECK-PAR0
-// RUN: mlir-opt %s -sparsification="parallelization-strategy=1" | \
-// RUN:   FileCheck %s --check-prefix=CHECK-PAR1
-// RUN: mlir-opt %s -sparsification="parallelization-strategy=2" | \
-// RUN:   FileCheck %s --check-prefix=CHECK-PAR2
-// RUN: mlir-opt %s -sparsification="parallelization-strategy=3" | \
-// RUN:   FileCheck %s --check-prefix=CHECK-PAR3
-// RUN: mlir-opt %s -sparsification="parallelization-strategy=4" | \
-// RUN:   FileCheck %s --check-prefix=CHECK-PAR4
+// FIXME: we do not support vectorization/parallel loops in loop emitter right now
+// R_U_N: mlir-opt %s -sparsification="parallelization-strategy=dense-outer-loop" | \
+// R_U_N:   FileCheck %s --check-prefix=CHECK-PAR1
+// R_U_N: mlir-opt %s -sparsification="parallelization-strategy=any-storage-outer-loop" | \
+// R_U_N:   FileCheck %s --check-prefix=CHECK-PAR2
+// R_U_N: mlir-opt %s -sparsification="parallelization-strategy=dense-any-loop" | \
+// R_U_N:   FileCheck %s --check-prefix=CHECK-PAR3
+// R_U_N: mlir-opt %s -sparsification="parallelization-strategy=any-storage-any-loop" | \
+// R_U_N:   FileCheck %s --check-prefix=CHECK-PAR4
 
 #DenseMatrix = #sparse_tensor.encoding<{
   dimLevelType = [ "dense", "dense" ]
@@ -56,7 +57,7 @@
 // CHECK-PAR4:           scf.parallel
 // CHECK-PAR4:         return
 //
-func @scale_dd(%scale: f32,
+func.func @scale_dd(%scale: f32,
                %arga: tensor<?x?xf32, #DenseMatrix>,
 	       %argx: tensor<?x?xf32>) -> tensor<?x?xf32> {
   %0 = linalg.generic #trait_dd
@@ -104,7 +105,7 @@ func @scale_dd(%scale: f32,
 // CHECK-PAR4:           scf.parallel
 // CHECK-PAR4:         return
 //
-func @scale_ss(%scale: f32,
+func.func @scale_ss(%scale: f32,
                %arga: tensor<?x?xf32, #SparseMatrix>,
 	       %argx: tensor<?x?xf32>) -> tensor<?x?xf32> {
   %0 = linalg.generic #trait_ss
@@ -153,7 +154,7 @@ func @scale_ss(%scale: f32,
 // CHECK-PAR4:           scf.for
 // CHECK-PAR4:         return
 //
-func @matvec(%arga: tensor<16x32xf32, #CSR>,
+func.func @matvec(%arga: tensor<16x32xf32, #CSR>,
              %argb: tensor<32xf32>,
 	     %argx: tensor<16xf32>) -> tensor<16xf32> {
   %0 = linalg.generic #trait_matvec

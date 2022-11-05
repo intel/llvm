@@ -7,32 +7,32 @@
 
 struct Base {
   int A, B;
-  cl::sycl::accessor<char, 1, cl::sycl::access::mode::read,
-                     cl::sycl::access::target::global_buffer,
-                     cl::sycl::access::placeholder::false_t,
-                     cl::sycl::ext::oneapi::accessor_property_list<
-                         cl::sycl::ext::intel::property::buffer_location::instance<2>>>
+  sycl::accessor<char, 1, sycl::access::mode::read,
+                     sycl::access::target::global_buffer,
+                     sycl::access::placeholder::false_t,
+                     sycl::ext::oneapi::accessor_property_list<
+                         sycl::ext::intel::property::buffer_location::instance<2>>>
       AccField;
 };
 
 struct Captured : Base,
-                  cl::sycl::accessor<char, 1, cl::sycl::access::mode::read,
-                                     cl::sycl::access::target::global_buffer,
-                                     cl::sycl::access::placeholder::false_t,
-                                     cl::sycl::ext::oneapi::accessor_property_list<
-                                         cl::sycl::ext::intel::property::buffer_location::instance<2>>> {
+                  sycl::accessor<char, 1, sycl::access::mode::read,
+                                     sycl::access::target::global_buffer,
+                                     sycl::access::placeholder::false_t,
+                                     sycl::ext::oneapi::accessor_property_list<
+                                         sycl::ext::intel::property::buffer_location::instance<2>>> {
   int C;
 };
 
 int main() {
   Captured Obj;
-  cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
-                     cl::sycl::access::target::global_buffer,
-                     cl::sycl::access::placeholder::false_t,
-                     cl::sycl::ext::oneapi::accessor_property_list<
-                         cl::sycl::ext::intel::property::buffer_location::instance<3>>>
+  sycl::accessor<int, 1, sycl::access::mode::read_write,
+                     sycl::access::target::global_buffer,
+                     sycl::access::placeholder::false_t,
+                     sycl::ext::oneapi::accessor_property_list<
+                         sycl::ext::intel::property::buffer_location::instance<3>>>
       accessorA;
-  cl::sycl::kernel_single_task<class kernel_function>(
+  sycl::kernel_single_task<class kernel_function>(
       [=]() {
         accessorA.use();
         Obj.use();

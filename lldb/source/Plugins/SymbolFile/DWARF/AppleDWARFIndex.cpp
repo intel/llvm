@@ -16,6 +16,7 @@
 
 using namespace lldb_private;
 using namespace lldb;
+using namespace lldb_private::dwarf;
 
 std::unique_ptr<AppleDWARFIndex> AppleDWARFIndex::Create(
     Module &module, DWARFDataExtractor apple_names,
@@ -122,8 +123,7 @@ void AppleDWARFIndex::GetTypes(
   if (!m_apple_types_up)
     return;
 
-  Log *log = LogChannelDWARF::GetLogIfAny(DWARF_LOG_TYPE_COMPLETION |
-                                          DWARF_LOG_LOOKUPS);
+  Log *log = GetLog(DWARFLog::TypeCompletion | DWARFLog::Lookups);
   const bool has_tag = m_apple_types_up->GetHeader().header_data.ContainsAtom(
       DWARFMappedHash::eAtomTypeTag);
   const bool has_qualified_name_hash =
@@ -180,12 +180,13 @@ void AppleDWARFIndex::GetNamespaces(
 }
 
 void AppleDWARFIndex::GetFunctions(
-    ConstString name, SymbolFileDWARF &dwarf,
-    const CompilerDeclContext &parent_decl_ctx, uint32_t name_type_mask,
+    const Module::LookupInfo &lookup_info, SymbolFileDWARF &dwarf,
+    const CompilerDeclContext &parent_decl_ctx,
     llvm::function_ref<bool(DWARFDIE die)> callback) {
+  ConstString name = lookup_info.GetLookupName();
   m_apple_names_up->FindByName(name.GetStringRef(), [&](DIERef die_ref) {
-    return ProcessFunctionDIE(name.GetStringRef(), die_ref, dwarf,
-                              parent_decl_ctx, name_type_mask, callback);
+    return ProcessFunctionDIE(lookup_info, die_ref, dwarf, parent_decl_ctx,
+                              callback);
   });
 }
 

@@ -65,6 +65,14 @@ CudaVersion getCudaVersion(uint32_t raw_version) {
     return CudaVersion::CUDA_113;
   if (raw_version < 11050)
     return CudaVersion::CUDA_114;
+  if (raw_version < 11060)
+    return CudaVersion::CUDA_115;
+  if (raw_version < 11070)
+    return CudaVersion::CUDA_116;
+  if (raw_version < 11080)
+    return CudaVersion::CUDA_117;
+  if (raw_version < 11090)
+    return CudaVersion::CUDA_118;
   return CudaVersion::NEW;
 }
 
@@ -134,6 +142,11 @@ CudaInstallationDetector::CudaInstallationDetector(
     Candidates.emplace_back(
         Args.getLastArgValue(clang::driver::options::OPT_cuda_path_EQ).str());
   } else if (HostTriple.isOSWindows()) {
+    // CUDA_PATH is set by the installer, prefer it over other versions that
+    // might be present on the system.
+    if (const char *CudaPathEnvVar = ::getenv("CUDA_PATH"))
+      Candidates.emplace_back(CudaPathEnvVar);
+
     for (const char *Ver : Versions)
       Candidates.emplace_back(
           D.SysRoot + "/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v" +
@@ -420,9 +433,6 @@ void NVPTX::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("--return-at-end");
   } else if (Arg *A = Args.getLastArg(options::OPT_O_Group)) {
     // Map the -O we received to -O{0,1,2,3}.
-    //
-    // TODO: Perhaps we should map host -O2 to ptxas -O3. -O3 is ptxas's
-    // default, so it may correspond more closely to the spirit of clang -O2.
 
     // -O3 seems like the least-bad option when -Osomething is specified to
     // clang but it isn't handled below.
@@ -444,9 +454,9 @@ void NVPTX::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
     }
     CmdArgs.push_back(Args.MakeArgString(llvm::Twine("-O") + OOpt));
   } else {
-    // If no -O was passed, pass -O0 to ptxas -- no opt flag should correspond
-    // to no optimizations, but ptxas's default is -O3.
-    CmdArgs.push_back("-O0");
+    // If no -O was passed, pass -O3 to ptxas -- this makes ptxas's
+    // optimization level the same as the ptxjitcompiler.
+    CmdArgs.push_back("-O3");
   }
   if (DIKind == DebugDirectivesOnly)
     CmdArgs.push_back("-lineinfo");
@@ -458,7 +468,10 @@ void NVPTX::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
   CmdArgs.push_back("--gpu-name");
   CmdArgs.push_back(Args.MakeArgString(CudaArchToString(gpu_arch)));
   CmdArgs.push_back("--output-file");
-  CmdArgs.push_back(Args.MakeArgString(TC.getInputFilename(Output)));
+  const char *OutputFileName = Args.MakeArgString(TC.getInputFilename(Output));
+  if (std::string(OutputFileName) != std::string(Output.getFilename()))
+    C.addTempFile(OutputFileName);
+  CmdArgs.push_back(OutputFileName);
   for (const auto& II : Inputs)
     CmdArgs.push_back(Args.MakeArgString(II.getFilename()));
 
@@ -544,8 +557,9 @@ void NVPTX::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     const char *Arch = (II.getType() == types::TY_PP_Asm)
                            ? CudaArchToVirtualArchString(gpu_arch)
                            : gpu_arch_str;
-    CmdArgs.push_back(Args.MakeArgString(llvm::Twine("--image=profile=") +
-                                         Arch + ",file=" + II.getFilename()));
+    CmdArgs.push_back(
+        Args.MakeArgString(llvm::Twine("--image=profile=") + Arch +
+                           ",file=" + getToolChain().getInputFilename(II)));
   }
 
   for (const auto& A : Args.getAllArgValues(options::OPT_Xcuda_fatbinary))
@@ -599,7 +613,7 @@ void NVPTX::OpenMPLinker::ConstructJob(Compilation &C, const JobAction &JA,
   // Add paths for the default clang library path.
   SmallString<256> DefaultLibPath =
       llvm::sys::path::parent_path(TC.getDriver().Dir);
-  llvm::sys::path::append(DefaultLibPath, "lib" CLANG_LIBDIR_SUFFIX);
+  llvm::sys::path::append(DefaultLibPath, CLANG_INSTALL_LIBDIR_BASENAME);
   CmdArgs.push_back(Args.MakeArgString(Twine("-L") + DefaultLibPath));
 
   for (const auto &II : Inputs) {
@@ -617,14 +631,15 @@ void NVPTX::OpenMPLinker::ConstructJob(Compilation &C, const JobAction &JA,
     if (!II.isFilename())
       continue;
 
-    const char *CubinF = C.addTempFile(
-        C.getArgs().MakeArgString(getToolChain().getInputFilename(II)));
+    const char *CubinF =
+        C.getArgs().MakeArgString(getToolChain().getInputFilename(II));
 
     CmdArgs.push_back(CubinF);
   }
 
-  AddStaticDeviceLibsLinking(C, *this, JA, Inputs, Args, CmdArgs, "nvptx", GPUArch,
-                      false, false);
+  AddStaticDeviceLibsLinking(C, *this, JA, Inputs, Args, CmdArgs, "nvptx",
+                             GPUArch, /*isBitCodeSDL=*/false,
+                             /*postClangLink=*/false);
 
   // Find nvlink and pass it as "--nvlink-path=" argument of
   // clang-nvlink-wrapper.
@@ -640,13 +655,54 @@ void NVPTX::OpenMPLinker::ConstructJob(Compilation &C, const JobAction &JA,
       Exec, CmdArgs, Inputs, Output));
 }
 
+void NVPTX::getNVPTXTargetFeatures(const Driver &D, const llvm::Triple &Triple,
+                                   const llvm::opt::ArgList &Args,
+                                   std::vector<StringRef> &Features) {
+  if (Args.hasArg(options::OPT_cuda_feature_EQ)) {
+    StringRef PtxFeature =
+        Args.getLastArgValue(options::OPT_cuda_feature_EQ, "+ptx42");
+    Features.push_back(Args.MakeArgString(PtxFeature));
+    return;
+  }
+  CudaInstallationDetector CudaInstallation(D, Triple, Args);
+
+  // New CUDA versions often introduce new instructions that are only supported
+  // by new PTX version, so we need to raise PTX level to enable them in NVPTX
+  // back-end.
+  const char *PtxFeature = nullptr;
+  switch (CudaInstallation.version()) {
+#define CASE_CUDA_VERSION(CUDA_VER, PTX_VER)                                   \
+  case CudaVersion::CUDA_##CUDA_VER:                                           \
+    PtxFeature = "+ptx" #PTX_VER;                                              \
+    break;
+    CASE_CUDA_VERSION(118, 78);
+    CASE_CUDA_VERSION(117, 77);
+    CASE_CUDA_VERSION(116, 76);
+    CASE_CUDA_VERSION(115, 75);
+    CASE_CUDA_VERSION(114, 74);
+    CASE_CUDA_VERSION(113, 73);
+    CASE_CUDA_VERSION(112, 72);
+    CASE_CUDA_VERSION(111, 71);
+    CASE_CUDA_VERSION(110, 70);
+    CASE_CUDA_VERSION(102, 65);
+    CASE_CUDA_VERSION(101, 64);
+    CASE_CUDA_VERSION(100, 63);
+    CASE_CUDA_VERSION(92, 61);
+    CASE_CUDA_VERSION(91, 61);
+    CASE_CUDA_VERSION(90, 60);
+#undef CASE_CUDA_VERSION
+  default:
+    PtxFeature = "+ptx42";
+  }
+  Features.push_back(PtxFeature);
+}
+
 /// CUDA toolchain.  Our assembler is ptxas, and our "linker" is fatbinary,
 /// which isn't properly a linker but nonetheless performs the step of stitching
 /// together object files from the assembler into a single blob.
 
 CudaToolChain::CudaToolChain(const Driver &D, const llvm::Triple &Triple,
-                             const ToolChain &HostTC, const ArgList &Args,
-                             const Action::OffloadKind OK)
+                             const ToolChain &HostTC, const ArgList &Args, const Action::OffloadKind OK)
     : ToolChain(D, Triple, Args), HostTC(HostTC),
       CudaInstallation(D, HostTC.getTriple(), Args), OK(OK) {
   if (CudaInstallation.isValid()) {
@@ -660,9 +716,8 @@ CudaToolChain::CudaToolChain(const Driver &D, const llvm::Triple &Triple,
 
 std::string CudaToolChain::getInputFilename(const InputInfo &Input) const {
   // Only object files are changed, for example assembly files keep their .s
-  // extensions. CUDA also continues to use .o as they don't use nvlink but
-  // fatbinary.
-  if (!(OK == Action::OFK_OpenMP && Input.getType() == types::TY_Object))
+  // extensions. If the user requested device-only compilation don't change it.
+  if (Input.getType() != types::TY_Object || getDriver().offloadDeviceOnly())
     return ToolChain::getInputFilename(Input);
 
   // Replace extension for object files with cubin because nvlink relies on
@@ -676,8 +731,8 @@ std::string CudaToolChain::getInputFilename(const InputInfo &Input) const {
 // Windows
 static const char *getLibSpirvTargetName(const ToolChain &HostTC) {
   if (HostTC.getTriple().isOSWindows())
-    return "remangled-l32-signed_char.libspirv-nvptx64--nvidiacl.bc";
-  return "remangled-l64-signed_char.libspirv-nvptx64--nvidiacl.bc";
+    return "remangled-l32-signed_char.libspirv-nvptx64-nvidia-cuda.bc";
+  return "remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc";
 }
 
 void CudaToolChain::addClangTargetOptions(
@@ -705,6 +760,10 @@ void CudaToolChain::addClangTargetOptions(
   if (DeviceOffloadingKind == Action::OFK_SYCL) {
     toolchains::SYCLToolChain::AddSYCLIncludeArgs(getDriver(), DriverArgs,
                                                   CC1Args);
+
+    if (DriverArgs.hasArg(options::OPT_fsycl_fp32_prec_sqrt)) {
+      CC1Args.push_back("-fcuda-prec-sqrt");
+    }
   }
 
   auto NoLibSpirv = DriverArgs.hasArg(options::OPT_fno_sycl_libspirv,
@@ -772,31 +831,6 @@ void CudaToolChain::addClangTargetOptions(
 
   clang::CudaVersion CudaInstallationVersion = CudaInstallation.version();
 
-  // New CUDA versions often introduce new instructions that are only supported
-  // by new PTX version, so we need to raise PTX level to enable them in NVPTX
-  // back-end.
-  const char *PtxFeature = nullptr;
-  switch (CudaInstallationVersion) {
-#define CASE_CUDA_VERSION(CUDA_VER, PTX_VER)                                   \
-  case CudaVersion::CUDA_##CUDA_VER:                                           \
-    PtxFeature = "+ptx" #PTX_VER;                                              \
-    break;
-    CASE_CUDA_VERSION(114, 74);
-    CASE_CUDA_VERSION(113, 73);
-    CASE_CUDA_VERSION(112, 72);
-    CASE_CUDA_VERSION(111, 71);
-    CASE_CUDA_VERSION(110, 70);
-    CASE_CUDA_VERSION(102, 65);
-    CASE_CUDA_VERSION(101, 64);
-    CASE_CUDA_VERSION(100, 63);
-    CASE_CUDA_VERSION(92, 61);
-    CASE_CUDA_VERSION(91, 61);
-    CASE_CUDA_VERSION(90, 60);
-#undef CASE_CUDA_VERSION
-  default:
-    PtxFeature = "+ptx42";
-  }
-  CC1Args.append({"-target-feature", PtxFeature});
   if (DriverArgs.hasFlag(options::OPT_fcuda_short_ptr,
                          options::OPT_fno_cuda_short_ptr, false))
     CC1Args.append({"-mllvm", "--nvptx-short-ptr"});
@@ -814,17 +848,15 @@ void CudaToolChain::addClangTargetOptions(
       return;
     }
 
-    std::string BitcodeSuffix;
-    if (DriverArgs.hasFlag(options::OPT_fopenmp_target_new_runtime,
-                           options::OPT_fno_openmp_target_new_runtime, false))
-      BitcodeSuffix = "new-nvptx-" + GpuArch.str();
-    else
-      BitcodeSuffix = "nvptx-" + GpuArch.str();
+    // Link the bitcode library late if we're using device LTO.
+    if (getDriver().isUsingLTO(/* IsOffload */ true))
+      return;
 
-    addOpenMPDeviceRTL(getDriver(), DriverArgs, CC1Args, BitcodeSuffix,
+    addOpenMPDeviceRTL(getDriver(), DriverArgs, CC1Args, GpuArch.str(),
                        getTriple());
-    AddStaticDeviceLibsPostLinking(getDriver(), DriverArgs, CC1Args, "nvptx", GpuArch,
-                        /* bitcode SDL?*/ true, /* PostClang Link? */ true);
+    AddStaticDeviceLibsPostLinking(getDriver(), DriverArgs, CC1Args, "nvptx",
+                                   GpuArch, /*isBitCodeSDL=*/true,
+                                   /*postClangLink=*/true);
   }
 }
 
@@ -896,22 +928,14 @@ CudaToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
   // flags are not duplicated.
   // Also append the compute capability.
   if (DeviceOffloadKind == Action::OFK_OpenMP) {
-    for (Arg *A : Args) {
-      bool IsDuplicate = false;
-      for (Arg *DALArg : *DAL) {
-        if (A == DALArg) {
-          IsDuplicate = true;
-          break;
-        }
-      }
-      if (!IsDuplicate)
+    for (Arg *A : Args)
+      if (!llvm::is_contained(*DAL, A))
         DAL->append(A);
-    }
 
-    StringRef Arch = DAL->getLastArgValue(options::OPT_march_EQ);
-    if (Arch.empty())
+    if (!DAL->hasArg(options::OPT_march_EQ))
       DAL->AddJoinedArg(nullptr, Opts.getOption(options::OPT_march_EQ),
-                        CLANG_OPENMP_NVPTX_DEFAULT_ARCH);
+                        !BoundArch.empty() ? BoundArch
+                                           : CLANG_OPENMP_NVPTX_DEFAULT_ARCH);
 
     return DAL;
   }

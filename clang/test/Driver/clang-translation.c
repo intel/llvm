@@ -6,12 +6,11 @@
 // I386: "-mframe-pointer=all"
 // I386: "-funwind-tables=2"
 // I386: "-Os"
-// I386: "-fvisibility"
-// I386: "hidden"
+// I386: "-fvisibility=hidden"
 // I386: "-o"
 // I386: clang-translation
 
-// RUN: %clang -target i386-unknown-unknown -### -S %s -fasynchronous-unwind-tables -fno-unwind-tables 2>&1 | FileCheck --check-prefix=UNWIND-TABLES %s
+// RUN: %clang -target i386-unknown-unknown -### -S %s -fasynchronous-unwind-tables -fno-unwind-tables 2>&1 | FileCheck --check-prefix=UNWIND-TABLES %s --implicit-check-not=warning:
 // UNWIND-TABLES: "-funwind-tables=2"
 
 // RUN: %clang -target i386-apple-darwin9 -### -S %s -o %t.s 2>&1 | \
@@ -78,7 +77,11 @@
 
 // RUN: %clang -target arm64-apple-ios10 -### -S %s -arch arm64 2>&1 | \
 // RUN: FileCheck -check-prefix=ARM64-APPLE %s
-// ARM64-APPLE: -funwind-tables=2
+// ARM64-APPLE: -funwind-tables=1
+
+// RUN: %clang -target arm64-apple-ios10 -funwind-tables -### -S %s -arch arm64 2>&1 | \
+// RUN: FileCheck -check-prefix=ARM64-APPLE-UNWIND %s
+// ARM64-APPLE-UNWIND: -funwind-tables=1
 
 // RUN: %clang -target arm64-apple-ios10 -### -ffreestanding -S %s -arch arm64 2>&1 | \
 // RUN: FileCheck -check-prefix=ARM64-FREESTANDING-APPLE %s
@@ -96,6 +99,17 @@
 //
 // ARM64-EXPLICIT-UWTABLE-APPLE: -funwind-tables
 
+// RUN: %clang -target arm64-apple-macosx -### -ffreestanding -fasynchronous-unwind-tables %s 2>&1 | \
+// RUN: FileCheck --check-prefix=ASYNC-UNWIND-FREESTANDING %s
+//
+// ASYNC-UNWIND-FREESTANDING: -funwind-tables=2
+
+// Quite weird behaviour, but it's a long-standing default.
+// RUN: %clang -target x86_64-apple-macosx -### -fno-unwind-tables %s 2>&1 |\
+// RUN: FileCheck --check-prefix=NOUNWIND-IGNORED %s
+//
+// NOUNWIND-IGNORED: -funwind-tables=2
+
 // RUN: %clang -target arm64-apple-ios10 -fno-exceptions -### -S %s -arch arm64 2>&1 | \
 // RUN: FileCheck -check-prefix=ARM64-APPLE-EXCEP %s
 // ARM64-APPLE-EXCEP-NOT: -funwind-tables
@@ -110,15 +124,37 @@
 // ARMV5E: "-cc1"
 // ARMV5E: "-target-cpu" "arm1022e"
 
-// RUN: %clang -target arm-linux -mtp=cp15 -### -S %s -arch armv7 2>&1 | \
+// RUN: %clang -target armv7-linux -mtp=cp15 -### -S %s 2>&1 | \
 // RUN: FileCheck -check-prefix=ARMv7_THREAD_POINTER-HARD %s
 // ARMv7_THREAD_POINTER-HARD: "-target-feature" "+read-tp-hard"
 
-// RUN: %clang -target arm-linux -mtp=soft -### -S %s -arch armv7 2>&1 | \
+// RUN: %clang -target armv6t2-linux -mtp=cp15 -### -S %s 2>&1 | \
+// RUN: FileCheck -check-prefix=ARM_THREAD_POINTER-HARD %s
+// RUN: %clang -target thumbv6t2-linux -mtp=cp15 -### -S %s 2>&1 | \
+// RUN: FileCheck -check-prefix=ARM_THREAD_POINTER-HARD %s
+// RUN: %clang -target armv6k-linux -mtp=cp15 -### -S %s 2>&1 | \
+// RUN: FileCheck -check-prefix=ARM_THREAD_POINTER-HARD %s
+// RUN: %clang -target armv6-linux -mtp=cp15 -### -S %s 2>&1 | \
+// RUN: FileCheck -check-prefix=ARM_THREAD_POINTER-HARD %s
+// RUN: %clang -target armv5t-linux -mtp=cp15 -### -S %s 2>&1 | \
+// RUN: FileCheck -check-prefix=ARM_THREAD_POINTER-HARD %s
+// ARM_THREAD_POINTER-HARD: "-target-feature" "+read-tp-hard"
+
+// RUN: %clang -target armv5t-linux -mtp=cp15 -x assembler -### %s 2>&1 | \
+// RUN: FileCheck -check-prefix=ARMv5_THREAD_POINTER_ASSEMBLER %s
+// ARMv5_THREAD_POINTER_ASSEMBLER-NOT: hardware TLS register is not supported for the armv5 sub-architecture
+
+// RUN: %clang -target armv6-linux -mthumb -mtp=cp15 -### -S %s 2>&1 | \
+// RUN: FileCheck -check-prefix=THUMBv6_THREAD_POINTER_UNSUPP %s
+// RUN: %clang -target thumbv6-linux -mthumb -mtp=cp15 -### -S %s 2>&1 | \
+// RUN: FileCheck -check-prefix=THUMBv6_THREAD_POINTER_UNSUPP %s
+// THUMBv6_THREAD_POINTER_UNSUPP: hardware TLS register is not supported for the thumbv6 sub-architecture
+
+// RUN: %clang -target armv7-linux -mtp=soft -### -S %s 2>&1 | \
 // RUN: FileCheck -check-prefix=ARMv7_THREAD_POINTER_SOFT %s
 // ARMv7_THREAD_POINTER_SOFT-NOT: "-target-feature" "+read-tp-hard"
 
-// RUN: %clang -target arm-linux -### -S %s -arch armv7 2>&1 | \
+// RUN: %clang -target armv7-linux -### -S %s 2>&1 | \
 // RUN: FileCheck -check-prefix=ARMv7_THREAD_POINTER_NON %s
 // ARMv7_THREAD_POINTER_NON-NOT: "-target-feature" "+read-tp-hard"
 

@@ -6,15 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/device_filter.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/spinlock.hpp>
+#include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/plugin.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/thread_pool.hpp>
 #include <detail/xpti_registry.hpp>
+#include <sycl/detail/device_filter.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/detail/spinlock.hpp>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -22,8 +24,8 @@
 
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 using LockGuard = std::lock_guard<SpinLock>;
 
@@ -81,15 +83,23 @@ GlobalHandler::getDeviceFilterList(const std::string &InitValue) {
   return getOrCreate(MDeviceFilterList, InitValue);
 }
 
+ods_target_list &
+GlobalHandler::getOneapiDeviceSelectorTargets(const std::string &InitValue) {
+  return getOrCreate(MOneapiDeviceSelectorTargets, InitValue);
+}
+
 XPTIRegistry &GlobalHandler::getXPTIRegistry() {
   return getOrCreate(MXPTIRegistry);
 }
 
-std::mutex &GlobalHandler::getHandlerExtendedMembersMutex() {
-  return getOrCreate(MHandlerExtendedMembersMutex);
+ThreadPool &GlobalHandler::getHostTaskThreadPool() {
+  int Size = SYCLConfig<SYCL_QUEUE_THREAD_POOL_SIZE>::get();
+  ThreadPool &TP = getOrCreate(MHostTaskThreadPool, Size);
+
+  return TP;
 }
 
-void releaseSharedGlobalHandles() {
+void releaseDefaultContexts() {
   // Release shared-pointers to SYCL objects.
 #ifndef _WIN32
   GlobalHandler::instance().MPlatformToDefaultContextCache.Inst.reset(nullptr);
@@ -101,14 +111,19 @@ void releaseSharedGlobalHandles() {
   // routines will be called in the end.
   GlobalHandler::instance().MPlatformToDefaultContextCache.Inst.release();
 #endif
-  GlobalHandler::instance().MPlatformCache.Inst.reset(nullptr);
 }
 
-void shutdown() {
-  // First, release resources, that may access plugins.
-  GlobalHandler::instance().MScheduler.Inst.reset(nullptr);
-  GlobalHandler::instance().MProgramManager.Inst.reset(nullptr);
+struct DefaultContextReleaseHandler {
+  ~DefaultContextReleaseHandler() { releaseDefaultContexts(); }
+};
 
+void GlobalHandler::registerDefaultContextReleaseHandler() {
+  static DefaultContextReleaseHandler handler{};
+}
+
+// Note: Split from shutdown so it is available to the unittests for ensuring
+//       that the mock plugin is the lone plugin.
+void GlobalHandler::unloadPlugins() {
   // Call to GlobalHandler::instance().getPlugins() initializes plugins. If
   // user application has loaded SYCL runtime, and never called any APIs,
   // there's no need to load and unload plugins.
@@ -121,8 +136,33 @@ void shutdown() {
       Plugin.call<PiApiKind::piTearDown>(PluginParameter);
       Plugin.unload();
     }
-    GlobalHandler::instance().MPlugins.Inst.reset(nullptr);
   }
+  // Clear after unload to avoid uses after unload.
+  GlobalHandler::instance().getPlugins().clear();
+}
+
+void shutdown() {
+  // Ensure neither host task is working so that no default context is accessed
+  // upon its release
+  if (GlobalHandler::instance().MHostTaskThreadPool.Inst)
+    GlobalHandler::instance().MHostTaskThreadPool.Inst->finishAndWait();
+
+  // If default contexts are requested after the first default contexts have
+  // been released there may be a new default context. These must be released
+  // prior to closing the plugins.
+  // Note: Releasing a default context here may cause failures in plugins with
+  // global state as the global state may have been released.
+  releaseDefaultContexts();
+
+  // First, release resources, that may access plugins.
+  GlobalHandler::instance().MPlatformCache.Inst.reset(nullptr);
+  GlobalHandler::instance().MScheduler.Inst.reset(nullptr);
+  GlobalHandler::instance().MProgramManager.Inst.reset(nullptr);
+
+  // Clear the plugins and reset the instance if it was there.
+  GlobalHandler::instance().unloadPlugins();
+  if (GlobalHandler::instance().MPlugins.Inst)
+    GlobalHandler::instance().MPlugins.Inst.reset(nullptr);
 
   // Release the rest of global resources.
   delete &GlobalHandler::instance();
@@ -135,8 +175,8 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
   // Perform actions based on the reason for calling.
   switch (fdwReason) {
   case DLL_PROCESS_DETACH:
-    releaseSharedGlobalHandles();
-    shutdown();
+    if (!lpReserved)
+      shutdown();
     break;
   case DLL_PROCESS_ATTACH:
   case DLL_THREAD_ATTACH:
@@ -146,14 +186,6 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
   return TRUE; // Successful DLL_PROCESS_ATTACH.
 }
 #else
-// Release shared SYCL object implementation handles at normal destructor
-// priority to avoid the global handler from keeping the objects alive after
-// the backends have destroyed any state they may rely on to correctly handle
-// further operations.
-__attribute__((destructor)) static void syclPreunload() {
-  releaseSharedGlobalHandles();
-}
-
 // Setting low priority on destructor ensures it runs after all other global
 // destructors. Priorities 0-100 are reserved by the compiler. The priority
 // value 110 allows SYCL users to run their destructors after runtime library
@@ -161,5 +193,5 @@ __attribute__((destructor)) static void syclPreunload() {
 __attribute__((destructor(110))) static void syclUnload() { shutdown(); }
 #endif
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

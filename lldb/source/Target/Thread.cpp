@@ -13,6 +13,7 @@
 #include "lldb/Core/Module.h"
 #include "lldb/Core/StructuredDataImpl.h"
 #include "lldb/Core/ValueObject.h"
+#include "lldb/Core/ValueObjectConstResult.h"
 #include "lldb/Host/Host.h"
 #include "lldb/Interpreter/OptionValueFileSpecList.h"
 #include "lldb/Interpreter/OptionValueProperties.h"
@@ -43,6 +44,7 @@
 #include "lldb/Target/ThreadPlanStepUntil.h"
 #include "lldb/Target/ThreadSpec.h"
 #include "lldb/Target/UnwindLLDB.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/RegularExpression.h"
 #include "lldb/Utility/State.h"
@@ -219,6 +221,7 @@ Thread::Thread(Process &process, lldb::tid_t tid, bool use_invalid_index_id)
                   Thread::GetStaticBroadcasterClass().AsCString()),
       m_process_wp(process.shared_from_this()), m_stop_info_sp(),
       m_stop_info_stop_id(0), m_stop_info_override_stop_id(0),
+      m_should_run_before_public_stop(false),
       m_index_id(use_invalid_index_id ? LLDB_INVALID_INDEX32
                                       : process.GetNextThreadIndexID(tid)),
       m_reg_context_sp(), m_state(eStateUnloaded), m_state_mutex(),
@@ -228,7 +231,7 @@ Thread::Thread(Process &process, lldb::tid_t tid, bool use_invalid_index_id)
       m_unwinder_up(), m_destroy_called(false),
       m_override_should_notify(eLazyBoolCalculate),
       m_extended_info_fetched(false), m_extended_info() {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_OBJECT));
+  Log *log = GetLog(LLDBLog::Object);
   LLDB_LOGF(log, "%p Thread::Thread(tid = 0x%4.4" PRIx64 ")",
             static_cast<void *>(this), GetID());
 
@@ -236,7 +239,7 @@ Thread::Thread(Process &process, lldb::tid_t tid, bool use_invalid_index_id)
 }
 
 Thread::~Thread() {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_OBJECT));
+  Log *log = GetLog(LLDBLog::Object);
   LLDB_LOGF(log, "%p Thread::~Thread(tid = 0x%4.4" PRIx64 ")",
             static_cast<void *>(this), GetID());
   /// If you hit this assert, it means your derived class forgot to call
@@ -367,7 +370,10 @@ void Thread::CalculatePublicStopInfo() {
   SetStopInfo(GetStopInfo());
 }
 
-lldb::StopInfoSP Thread::GetPrivateStopInfo() {
+lldb::StopInfoSP Thread::GetPrivateStopInfo(bool calculate) {
+  if (!calculate)
+    return m_stop_info_sp;
+
   if (m_destroy_called)
     return m_stop_info_sp;
 
@@ -375,9 +381,15 @@ lldb::StopInfoSP Thread::GetPrivateStopInfo() {
   if (process_sp) {
     const uint32_t process_stop_id = process_sp->GetStopID();
     if (m_stop_info_stop_id != process_stop_id) {
+      // We preserve the old stop info for a variety of reasons:
+      // 1) Someone has already updated it by the time we get here
+      // 2) We didn't get to execute the breakpoint instruction we stopped at
+      // 3) This is a virtual step so we didn't actually run
+      // 4) If this thread wasn't allowed to run the last time round.
       if (m_stop_info_sp) {
         if (m_stop_info_sp->IsValid() || IsStillAtLastBreakpointHit() ||
-            GetCurrentPlan()->IsVirtualStep())
+            GetCurrentPlan()->IsVirtualStep()
+            || GetTemporaryResumeState() == eStateSuspended)
           SetStopInfo(m_stop_info_sp);
         else
           m_stop_info_sp.reset();
@@ -445,7 +457,7 @@ void Thread::SetStopInfo(const lldb::StopInfoSP &stop_info_sp) {
     m_stop_info_stop_id = process_sp->GetStopID();
   else
     m_stop_info_stop_id = UINT32_MAX;
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_THREAD));
+  Log *log = GetLog(LLDBLog::Thread);
   LLDB_LOGF(log, "%p: tid = 0x%" PRIx64 ": stop info = %s (stop_id = %u)",
             static_cast<void *>(this), GetID(),
             stop_info_sp ? stop_info_sp->GetDescription() : "<NULL>",
@@ -471,9 +483,7 @@ void Thread::SetStopInfoToNothing() {
       StopInfo::CreateStopReasonWithSignal(*this, LLDB_INVALID_SIGNAL_NUMBER));
 }
 
-bool Thread::ThreadStoppedForAReason(void) {
-  return (bool)GetPrivateStopInfo();
-}
+bool Thread::ThreadStoppedForAReason() { return (bool)GetPrivateStopInfo(); }
 
 bool Thread::CheckpointThreadState(ThreadStateCheckpoint &saved_state) {
   saved_state.register_backup_sp.reset();
@@ -578,7 +588,7 @@ std::string Thread::GetStopDescriptionRaw() {
 }
 
 void Thread::SelectMostRelevantFrame() {
-  Log *log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_THREAD);
+  Log *log = GetLog(LLDBLog::Thread);
 
   auto frames_list_sp = GetStackFrameList();
 
@@ -723,7 +733,11 @@ bool Thread::ShouldResume(StateType resume_state) {
   return need_to_resume;
 }
 
-void Thread::DidResume() { SetResumeSignal(LLDB_INVALID_SIGNAL_NUMBER); }
+void Thread::DidResume() { 
+  SetResumeSignal(LLDB_INVALID_SIGNAL_NUMBER);
+  // This will get recomputed each time when we stop.
+  SetShouldRunBeforePublicStop(false);
+}
 
 void Thread::DidStop() { SetState(eStateStopped); }
 
@@ -732,7 +746,7 @@ bool Thread::ShouldStop(Event *event_ptr) {
 
   bool should_stop = true;
 
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
+  Log *log = GetLog(LLDBLog::Step);
 
   if (GetResumeState() == eStateSuspended) {
     LLDB_LOGF(log,
@@ -763,6 +777,9 @@ bool Thread::ShouldStop(Event *event_ptr) {
                                    : LLDB_INVALID_ADDRESS);
     return false;
   }
+  
+  // Clear the "must run me before stop" if it was set:
+  SetShouldRunBeforePublicStop(false);
 
   if (log) {
     LLDB_LOGF(log,
@@ -844,10 +861,15 @@ bool Thread::ShouldStop(Event *event_ptr) {
             // we're done, otherwise we forward this to the next plan in the
             // stack below.
             done_processing_current_plan =
-                (plan_ptr->IsMasterPlan() && !plan_ptr->OkayToDiscard());
-          } else
+                (plan_ptr->IsControllingPlan() && !plan_ptr->OkayToDiscard());
+          } else {
+            bool should_force_run = plan_ptr->ShouldRunBeforePublicStop();
+            if (should_force_run) {
+              SetShouldRunBeforePublicStop(true);
+              should_stop = false;
+            }
             done_processing_current_plan = true;
-
+          }
           break;
         }
       }
@@ -882,11 +904,11 @@ bool Thread::ShouldStop(Event *event_ptr) {
                       current_plan->GetName());
           }
 
-          // If a Master Plan wants to stop, we let it. Otherwise, see if the
-          // plan's parent wants to stop.
+          // If a Controlling Plan wants to stop, we let it. Otherwise, see if
+          // the plan's parent wants to stop.
 
           PopPlan();
-          if (should_stop && current_plan->IsMasterPlan() &&
+          if (should_stop && current_plan->IsControllingPlan() &&
               !current_plan->OkayToDiscard()) {
             break;
           }
@@ -905,8 +927,8 @@ bool Thread::ShouldStop(Event *event_ptr) {
       should_stop = false;
   }
 
-  // One other potential problem is that we set up a master plan, then stop in
-  // before it is complete - for instance by hitting a breakpoint during a
+  // One other potential problem is that we set up a controlling plan, then stop
+  // in before it is complete - for instance by hitting a breakpoint during a
   // step-over - then do some step/finish/etc operations that wind up past the
   // end point condition of the initial plan.  We don't want to strand the
   // original plan on the stack, This code clears stale plans off the stack.
@@ -957,7 +979,7 @@ Vote Thread::ShouldReportStop(Event *event_ptr) {
   StateType thread_state = GetResumeState();
   StateType temp_thread_state = GetTemporaryResumeState();
 
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
+  Log *log = GetLog(LLDBLog::Step);
 
   if (thread_state == eStateSuspended || thread_state == eStateInvalid) {
     LLDB_LOGF(log,
@@ -989,7 +1011,7 @@ Vote Thread::ShouldReportStop(Event *event_ptr) {
     // the last plan, regardless of whether it is private or not.
     LLDB_LOGF(log,
               "Thread::ShouldReportStop() tid = 0x%4.4" PRIx64
-              ": returning vote  for complete stack's back plan",
+              ": returning vote for complete stack's back plan",
               GetID());
     return GetPlans().GetCompletedPlan(false)->ShouldReportStop(event_ptr);
   } else {
@@ -1021,7 +1043,7 @@ Vote Thread::ShouldReportRun(Event *event_ptr) {
     return eVoteNoOpinion;
   }
 
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
+  Log *log = GetLog(LLDBLog::Step);
   if (GetPlans().AnyCompletedPlans()) {
     // Pass skip_private = false to GetCompletedPlan, since we want to ask 
     // the last plan, regardless of whether it is private or not.
@@ -1068,7 +1090,7 @@ ThreadPlanStack &Thread::GetPlans() const {
 void Thread::PushPlan(ThreadPlanSP thread_plan_sp) {
   assert(thread_plan_sp && "Don't push an empty thread plan.");
 
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
+  Log *log = GetLog(LLDBLog::Step);
   if (log) {
     StreamString s;
     thread_plan_sp->GetDescription(&s, lldb::eDescriptionLevelFull);
@@ -1081,7 +1103,7 @@ void Thread::PushPlan(ThreadPlanSP thread_plan_sp) {
 }
 
 void Thread::PopPlan() {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
+  Log *log = GetLog(LLDBLog::Step);
   ThreadPlanSP popped_plan_sp = GetPlans().PopPlan();
   if (log) {
     LLDB_LOGF(log, "Popping plan: \"%s\", tid = 0x%4.4" PRIx64 ".",
@@ -1090,8 +1112,8 @@ void Thread::PopPlan() {
 }
 
 void Thread::DiscardPlan() {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
-  ThreadPlanSP discarded_plan_sp = GetPlans().PopPlan();
+  Log *log = GetLog(LLDBLog::Step);
+  ThreadPlanSP discarded_plan_sp = GetPlans().DiscardPlan();
 
   LLDB_LOGF(log, "Discarding plan: \"%s\", tid = 0x%4.4" PRIx64 ".",
             discarded_plan_sp->GetName(), 
@@ -1193,7 +1215,7 @@ void Thread::DiscardThreadPlansUpToPlan(lldb::ThreadPlanSP &up_to_plan_sp) {
 }
 
 void Thread::DiscardThreadPlansUpToPlan(ThreadPlan *up_to_plan_ptr) {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
+  Log *log = GetLog(LLDBLog::Step);
   LLDB_LOGF(log,
             "Discarding thread plans for thread tid = 0x%4.4" PRIx64
             ", up to %p",
@@ -1202,7 +1224,7 @@ void Thread::DiscardThreadPlansUpToPlan(ThreadPlan *up_to_plan_ptr) {
 }
 
 void Thread::DiscardThreadPlans(bool force) {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
+  Log *log = GetLog(LLDBLog::Step);
   if (log) {
     LLDB_LOGF(log,
               "Discarding thread plans for thread (tid = 0x%4.4" PRIx64
@@ -1214,7 +1236,7 @@ void Thread::DiscardThreadPlans(bool force) {
     GetPlans().DiscardAllPlans();
     return;
   }
-  GetPlans().DiscardConsultingMasterPlans();
+  GetPlans().DiscardConsultingControllingPlans();
 }
 
 Status Thread::UnwindInnermostExpression() {
@@ -1370,15 +1392,9 @@ lldb::ThreadPlanSP Thread::QueueThreadPlanForStepScripted(
     bool abort_other_plans, const char *class_name, 
     StructuredData::ObjectSP extra_args_sp,  bool stop_other_threads,
     Status &status) {
-    
-  StructuredDataImpl *extra_args_impl = nullptr; 
-  if (extra_args_sp) {
-    extra_args_impl = new StructuredDataImpl();
-    extra_args_impl->SetObjectSP(extra_args_sp);
-  }
 
-  ThreadPlanSP thread_plan_sp(new ThreadPlanPython(*this, class_name, 
-                                                   extra_args_impl));
+  ThreadPlanSP thread_plan_sp(new ThreadPlanPython(
+      *this, class_name, StructuredDataImpl(extra_args_sp)));
   thread_plan_sp->SetStopOthers(stop_other_threads);
   status = QueueThreadPlan(thread_plan_sp, abort_other_plans);
   return thread_plan_sp;
@@ -1914,7 +1930,7 @@ Status Thread::StepIn(bool source_step,
           false, abort_other_plans, run_mode, error);
     }
 
-    new_plan_sp->SetIsMasterPlan(true);
+    new_plan_sp->SetIsControllingPlan(true);
     new_plan_sp->SetOkayToDiscard(false);
 
     // Why do we need to set the current thread by ID here???
@@ -1947,7 +1963,7 @@ Status Thread::StepOver(bool source_step,
           true, abort_other_plans, run_mode, error);
     }
 
-    new_plan_sp->SetIsMasterPlan(true);
+    new_plan_sp->SetIsControllingPlan(true);
     new_plan_sp->SetOkayToDiscard(false);
 
     // Why do we need to set the current thread by ID here???
@@ -1959,7 +1975,7 @@ Status Thread::StepOver(bool source_step,
   return error;
 }
 
-Status Thread::StepOut() {
+Status Thread::StepOut(uint32_t frame_idx) {
   Status error;
   Process *process = GetProcess().get();
   if (StateIsStoppedState(process->GetState(), true)) {
@@ -1969,9 +1985,9 @@ Status Thread::StepOut() {
 
     ThreadPlanSP new_plan_sp(QueueThreadPlanForStepOut(
         abort_other_plans, nullptr, first_instruction, stop_other_threads,
-        eVoteYes, eVoteNoOpinion, 0, error));
+        eVoteYes, eVoteNoOpinion, frame_idx, error));
 
-    new_plan_sp->SetIsMasterPlan(true);
+    new_plan_sp->SetIsControllingPlan(true);
     new_plan_sp->SetOkayToDiscard(false);
 
     // Why do we need to set the current thread by ID here???
@@ -2012,4 +2028,28 @@ ThreadSP Thread::GetCurrentExceptionBacktrace() {
   }
 
   return ThreadSP();
+}
+
+lldb::ValueObjectSP Thread::GetSiginfoValue() {
+  ProcessSP process_sp = GetProcess();
+  assert(process_sp);
+  Target &target = process_sp->GetTarget();
+  PlatformSP platform_sp = target.GetPlatform();
+  assert(platform_sp);
+  ArchSpec arch = target.GetArchitecture();
+
+  CompilerType type = platform_sp->GetSiginfoType(arch.GetTriple());
+  if (!type.IsValid())
+    return ValueObjectConstResult::Create(&target, Status("no siginfo_t for the platform"));
+
+  llvm::Optional<uint64_t> type_size = type.GetByteSize(nullptr);
+  assert(type_size);
+  llvm::Expected<std::unique_ptr<llvm::MemoryBuffer>> data =
+      GetSiginfo(type_size.value());
+  if (!data)
+    return ValueObjectConstResult::Create(&target, Status(data.takeError()));
+
+  DataExtractor data_extractor{data.get()->getBufferStart(), data.get()->getBufferSize(),
+    process_sp->GetByteOrder(), arch.GetAddressByteSize()};
+  return ValueObjectConstResult::Create(&target, type, ConstString("__lldb_siginfo"), data_extractor);
 }

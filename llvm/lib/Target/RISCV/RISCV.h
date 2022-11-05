@@ -30,15 +30,25 @@ class MachineInstr;
 class MachineOperand;
 class PassRegistry;
 
+FunctionPass *createRISCVCodeGenPreparePass();
+void initializeRISCVCodeGenPreparePass(PassRegistry &);
+
 bool lowerRISCVMachineInstrToMCInst(const MachineInstr *MI, MCInst &OutMI,
                                     AsmPrinter &AP);
-bool LowerRISCVMachineOperandToMCOperand(const MachineOperand &MO,
+bool lowerRISCVMachineOperandToMCOperand(const MachineOperand &MO,
                                          MCOperand &MCOp, const AsmPrinter &AP);
 
-FunctionPass *createRISCVISelDag(RISCVTargetMachine &TM);
+FunctionPass *createRISCVISelDag(RISCVTargetMachine &TM,
+                                 CodeGenOpt::Level OptLevel);
+
+FunctionPass *createRISCVMakeCompressibleOptPass();
+void initializeRISCVMakeCompressibleOptPass(PassRegistry &);
 
 FunctionPass *createRISCVGatherScatterLoweringPass();
 void initializeRISCVGatherScatterLoweringPass(PassRegistry &);
+
+FunctionPass *createRISCVSExtWRemovalPass();
+void initializeRISCVSExtWRemovalPass(PassRegistry &);
 
 FunctionPass *createRISCVMergeBaseOffsetOptPass();
 void initializeRISCVMergeBaseOffsetOptPass(PassRegistry &);
@@ -46,11 +56,17 @@ void initializeRISCVMergeBaseOffsetOptPass(PassRegistry &);
 FunctionPass *createRISCVExpandPseudoPass();
 void initializeRISCVExpandPseudoPass(PassRegistry &);
 
+FunctionPass *createRISCVPreRAExpandPseudoPass();
+void initializeRISCVPreRAExpandPseudoPass(PassRegistry &);
+
 FunctionPass *createRISCVExpandAtomicPseudoPass();
 void initializeRISCVExpandAtomicPseudoPass(PassRegistry &);
 
 FunctionPass *createRISCVInsertVSETVLIPass();
 void initializeRISCVInsertVSETVLIPass(PassRegistry &);
+
+FunctionPass *createRISCVRedundantCopyEliminationPass();
+void initializeRISCVRedundantCopyEliminationPass(PassRegistry &);
 
 InstructionSelector *createRISCVInstructionSelector(const RISCVTargetMachine &,
                                                     RISCVSubtarget &,

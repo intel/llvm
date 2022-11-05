@@ -28,8 +28,13 @@ public:
   /// Create from a ExecutorProcessControl instance alone. This will use
   /// the EPC's lookupSymbols method to find the registration/deregistration
   /// funciton addresses by name.
+  ///
+  /// If RegistrationFunctionsDylib is non-None then it will be searched to
+  /// find the registration functions. If it is None then the process dylib
+  /// will be loaded to find the registration functions.
   static Expected<std::unique_ptr<EPCEHFrameRegistrar>>
-  Create(ExecutionSession &ES);
+  Create(ExecutionSession &ES,
+         Optional<ExecutorAddr> RegistrationFunctionsDylib = None);
 
   /// Create a EPCEHFrameRegistrar with the given ExecutorProcessControl
   /// object and registration/deregistration function addresses.
@@ -39,10 +44,8 @@ public:
       : ES(ES), RegisterEHFrameWrapperFnAddr(RegisterEHFrameWrapperFnAddr),
         DeregisterEHFrameWrapperFnAddr(DeregisterEHFRameWrapperFnAddr) {}
 
-  Error registerEHFrames(JITTargetAddress EHFrameSectionAddr,
-                         size_t EHFrameSectionSize) override;
-  Error deregisterEHFrames(JITTargetAddress EHFrameSectionAddr,
-                           size_t EHFrameSectionSize) override;
+  Error registerEHFrames(ExecutorAddrRange EHFrameSection) override;
+  Error deregisterEHFrames(ExecutorAddrRange EHFrameSection) override;
 
 private:
   ExecutionSession &ES;

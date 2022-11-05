@@ -25,6 +25,7 @@
 #include "lldb/Target/Thread.h"
 #include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/DataExtractor.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/RegisterValue.h"
 #include "lldb/Utility/Status.h"
@@ -203,8 +204,7 @@ static const RegisterInfo g_register_infos[] = {
      nullptr,
      }};
 
-static const uint32_t k_num_register_infos =
-    llvm::array_lengthof(g_register_infos);
+static const uint32_t k_num_register_infos = std::size(g_register_infos);
 
 const lldb_private::RegisterInfo *
 ABISysV_ppc::GetRegisterInfoArray(uint32_t &count) {
@@ -228,7 +228,7 @@ ABISysV_ppc::CreateInstance(lldb::ProcessSP process_sp, const ArchSpec &arch) {
 bool ABISysV_ppc::PrepareTrivialCall(Thread &thread, addr_t sp,
                                      addr_t func_addr, addr_t return_addr,
                                      llvm::ArrayRef<addr_t> args) const {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS));
+  Log *log = GetLog(LLDBLog::Expressions);
 
   if (log) {
     StreamString s;
@@ -621,7 +621,7 @@ ValueObjectSP ABISysV_ppc::GetReturnValueObjectSimple(
             if (reg_ctx->ReadRegister(altivec_reg, reg_value)) {
               Status error;
               if (reg_value.GetAsMemoryData(
-                      altivec_reg, heap_data_up->GetBytes(),
+                      *altivec_reg, heap_data_up->GetBytes(),
                       heap_data_up->GetByteSize(), byte_order, error)) {
                 DataExtractor data(DataBufferSP(heap_data_up.release()),
                                    byte_order,
@@ -665,7 +665,7 @@ ValueObjectSP ABISysV_ppc::GetReturnValueObjectImpl(
     bool is_memory = true;
     if (*bit_width <= 128) {
       ByteOrder target_byte_order = target->GetArchitecture().GetByteOrder();
-      DataBufferSP data_sp(new DataBufferHeap(16, 0));
+      WritableDataBufferSP data_sp(new DataBufferHeap(16, 0));
       DataExtractor return_ext(data_sp, target_byte_order,
                                target->GetArchitecture().GetAddressByteSize());
 
@@ -961,9 +961,4 @@ void ABISysV_ppc::Initialize() {
 
 void ABISysV_ppc::Terminate() {
   PluginManager::UnregisterPlugin(CreateInstance);
-}
-
-lldb_private::ConstString ABISysV_ppc::GetPluginNameStatic() {
-  static ConstString g_name("sysv-ppc");
-  return g_name;
 }

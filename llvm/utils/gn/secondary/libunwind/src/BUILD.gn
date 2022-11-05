@@ -38,6 +38,7 @@ unwind_sources = [
   "UnwindLevel1.c",
   "UnwindRegistersRestore.S",
   "UnwindRegistersSave.S",
+  "Unwind_AIXExtras.cpp",
   "assembly.h",
   "cet_unwind.h",
   "config.h",
@@ -73,7 +74,7 @@ config("unwind_config") {
   }
 }
 
-if (libunwind_enable_shared) {
+if (libunwind_enable_shared && current_os != "android") {
   shared_library("unwind_shared") {
     output_dir = unwind_output_dir
     output_name = "unwind"
@@ -137,7 +138,7 @@ if (libunwind_enable_static) {
 
 group("src") {
   deps = []
-  if (libunwind_enable_shared) {
+  if (libunwind_enable_shared && current_os != "android") {
     deps += [ ":unwind_shared" ]
   }
   if (libunwind_enable_static) {

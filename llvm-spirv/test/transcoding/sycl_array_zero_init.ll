@@ -1,6 +1,6 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s
 
 ; ModuleID = 'sycl_array_zero_init.cpp'
@@ -21,10 +21,11 @@ define weak_odr dso_local spir_kernel void @main() #0 comdat !kernel_arg_addr_sp
   %3 = addrspacecast %array* %1  to %array addrspace(4)*
   %4 = getelementptr inbounds %array, %array addrspace(4)* %3, i32 0, i32 0
   %5 = bitcast [3 x i64] addrspace(4)* %4 to i8 addrspace(4)*
-; CHECK: %[[V_ARR:[0-9]+]] = bitcast [3 x i64] addrspace(4)* %{{[0-9]+}} to i8 addrspace(4)*
+; CHECK: %[[V_ARR:[0-9]+]] = bitcast ptr addrspace(4) %{{[0-9]+}} to ptr addrspace(4)
   %6 = bitcast [3 x i64] addrspace(4)* @constinit to i8 addrspace(4)*
+; CHECK: %[[#CONST_INIT:]] = bitcast ptr addrspace(4) @constinit to ptr addrspace(4)
   call void @llvm.memcpy.p4i8.p4i8.i64(i8 addrspace(4)* align 8 %5, i8 addrspace(4)* align 8 %6, i64 24, i1 false), !tbaa.struct !7
-; CHECK: call void @llvm.memset.p4i8.i64(i8 addrspace(4)* align 8 %[[V_ARR]], i8 0, i64 24, i1 false)
+; CHECK: call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 8 %[[V_ARR]], ptr addrspace(4) align 8 %[[#CONST_INIT]], i64 24, i1 false)
   %7 = bitcast %array* %1  to i8*
   call void @llvm.lifetime.end.p0i8(i64 24, i8* %7) #2
   ret void

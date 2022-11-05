@@ -121,6 +121,16 @@ void test(int x) {
   foo->func(x);
 }
 
+void AccessIncompleteClass() {
+  struct Forward;
+  Forward* ptr;
+  // CHECK:      CallExpr {{.*}} '<dependent type>'
+  // CHECK-NEXT: `-CXXDependentScopeMemberExpr {{.*}} '<dependent type>'
+  // CHECK-NEXT:   `-RecoveryExpr {{.*}} '<dependent type>' contains-errors
+  // CHECK-NEXT:     `-DeclRefExpr {{.*}} 'Forward *'
+  ptr->method();
+}
+
 struct Foo2 {
   double func();
   class ForwardClass;
@@ -135,7 +145,7 @@ void test2(Foo2 f) {
   // CHECK-NEXT:   | `-DeclRefExpr {{.*}} 'f'
   // CHECK-NEXT: `-IntegerLiteral {{.*}} 'int' 1
   f.func(1);
-  // CHECK:      RecoveryExpr {{.*}} 'Foo2::ForwardClass'
+  // CHECK:      RecoveryExpr {{.*}} 'ForwardClass':'Foo2::ForwardClass'
   // CHECK-NEXT: `-MemberExpr {{.*}} '<bound member function type>' .createFwd
   // CHECK-NEXT:   `-DeclRefExpr {{.*}} 'f'
   f.createFwd();
@@ -192,27 +202,27 @@ void InvalidInitalizer(int x) {
   // CHECK-NEXT:  `-InitListExpr
   Bar b2 = {1};
   // CHECK:     `-VarDecl {{.*}} b3 'Bar'
-  // CHECK-NEXT:  `-RecoveryExpr {{.*}} 'Bar' contains-errors
+  // CHECK-NEXT:  `-RecoveryExpr {{.*}} 'Bar':'Bar' contains-errors
   // CHECK-NEXT:    `-DeclRefExpr {{.*}} 'x' 'int'
   Bar b3 = Bar(x);
   // CHECK:     `-VarDecl {{.*}} b4 'Bar'
-  // CHECK-NEXT:  `-RecoveryExpr {{.*}} 'Bar' contains-errors
+  // CHECK-NEXT:  `-RecoveryExpr {{.*}} 'Bar':'Bar' contains-errors
   // CHECK-NEXT:    `-InitListExpr {{.*}} 'void'
   // CHECK-NEXT:      `-DeclRefExpr {{.*}} 'x' 'int'
   Bar b4 = Bar{x};
   // CHECK:     `-VarDecl {{.*}} b5 'Bar'
-  // CHECK-NEXT: `-CXXUnresolvedConstructExpr {{.*}} 'Bar' contains-errors 'Bar'
+  // CHECK-NEXT: `-CXXUnresolvedConstructExpr {{.*}} 'Bar':'Bar' contains-errors 'Bar'
   // CHECK-NEXT:   `-RecoveryExpr {{.*}} contains-errors
   // CHECK-NEXT:     `-UnresolvedLookupExpr {{.*}} 'invalid'
   Bar b5 = Bar(invalid());
   // CHECK:     `-VarDecl {{.*}} b6 'Bar'
-  // CHECK-NEXT: `-CXXUnresolvedConstructExpr {{.*}} 'Bar' contains-errors 'Bar'
+  // CHECK-NEXT: `-CXXUnresolvedConstructExpr {{.*}} 'Bar':'Bar' contains-errors 'Bar'
   // CHECK-NEXT:  `-InitListExpr {{.*}} contains-errors
   // CHECK-NEXT:   `-RecoveryExpr {{.*}} contains-errors
   // CHECK-NEXT:     `-UnresolvedLookupExpr {{.*}} 'invalid'
   Bar b6 = Bar{invalid()};
 
-  // CHECK:     RecoveryExpr {{.*}} 'Bar' contains-errors
+  // CHECK:     RecoveryExpr {{.*}} 'Bar':'Bar' contains-errors
   // CHECK-NEXT:  `-IntegerLiteral {{.*}} 'int' 1
   Bar(1);
 
@@ -316,7 +326,7 @@ void CtorInitializer() {
     // CHECK-NEXT: |   `-RecoveryExpr {{.*}} '<dependent type>'
     // CHECK-NEXT: |     `-UnresolvedLookupExpr {{.*}} '<overloaded function type>'
     // CHECK-NEXT: |-CXXCtorInitializer Field {{.*}} 's' 'S'
-    // CHECK-NEXT: | `-RecoveryExpr {{.*}} 'S' contains-errors
+    // CHECK-NEXT: | `-RecoveryExpr {{.*}} 'S':'S' contains-errors
     // CHECK-NEXT: |   |-IntegerLiteral {{.*}} 1
     // CHECK-NEXT: |   `-IntegerLiteral {{.*}} 2
   };
@@ -350,4 +360,63 @@ void CtorInitializer() {
     // CHECK-NEXT: | `-ParenListExpr
     // CHECK-NEXT: |   `-RecoveryExpr {{.*}} '<dependent type>'
   };
+}
+
+float *brokenReturn() {
+  // CHECK:      FunctionDecl {{.*}} brokenReturn
+  return 42;
+  // CHECK:      ReturnStmt
+  // CHECK-NEXT: `-RecoveryExpr {{.*}} 'float *'
+  // CHECK-NEXT:   `-IntegerLiteral {{.*}} 'int' 42
+}
+
+// Return deduction treats the first, second *and* third differently!
+auto *brokenDeducedReturn(int *x, float *y, double *z) {
+  // CHECK:      FunctionDecl {{.*}} invalid brokenDeducedReturn
+  if (x) return x;
+  // CHECK:      ReturnStmt
+  // CHECK-NEXT: `-ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   `-DeclRefExpr {{.*}} 'x' 'int *'
+  if (y) return y;
+  // CHECK:      ReturnStmt
+  // CHECK-NEXT: `-RecoveryExpr {{.*}} 'int *'
+  // CHECK-NEXT:   `-DeclRefExpr {{.*}} 'y' 'float *'
+  if (z) return z;
+  // CHECK:      ReturnStmt
+  // CHECK-NEXT: `-RecoveryExpr {{.*}} 'int *'
+  // CHECK-NEXT:   `-DeclRefExpr {{.*}} 'z' 'double *'
+  return x;
+  // Unfortunate: we wrap a valid return in RecoveryExpr.
+  // This is to avoid running deduction again after it failed once.
+  // CHECK:      ReturnStmt
+  // CHECK-NEXT: `-RecoveryExpr {{.*}} 'int *'
+  // CHECK-NEXT:   `-DeclRefExpr {{.*}} 'x' 'int *'
+}
+
+void returnInitListFromVoid() {
+  // CHECK:      FunctionDecl {{.*}} returnInitListFromVoid
+  return {7,8};
+  // CHECK:      ReturnStmt
+  // CHECK-NEXT: `-RecoveryExpr {{.*}} '<dependent type>'
+  // CHECK-NEXT:   |-IntegerLiteral {{.*}} 'int' 7
+  // CHECK-NEXT:   `-IntegerLiteral {{.*}} 'int' 8
+}
+
+void RecoveryExprForInvalidDecls(Unknown InvalidDecl) {
+  InvalidDecl + 1;
+  // CHECK:      BinaryOperator {{.*}}
+  // CHECK-NEXT: |-RecoveryExpr {{.*}} '<dependent type>'
+  // CHECK-NEXT: | | `-DeclRefExpr {{.*}} 'InvalidDecl' 'int'
+  // CHECK-NEXT: `-IntegerLiteral {{.*}} 'int' 1
+  InvalidDecl();
+  // CHECK:      CallExpr {{.*}}
+  // CHECK-NEXT: `-RecoveryExpr {{.*}} '<dependent type>'
+}
+
+void RecoverToAnInvalidDecl() {
+  Unknown* foo; // invalid decl
+  goo; // the typo was correct to the invalid foo.
+  // Verify that RecoveryExpr has an inner DeclRefExpr.
+  // CHECK:      RecoveryExpr {{.*}} '<dependent type>' contains-errors lvalue
+  // CHECK-NEXT: `-DeclRefExpr {{.*}} 'foo' 'int *'
 }

@@ -45,7 +45,6 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalAlias.h"
 #include "llvm/IR/GlobalIFunc.h"
-#include "llvm/IR/GlobalIndirectSymbol.h"
 #include "llvm/IR/GlobalObject.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/GlobalVariable.h"
@@ -63,6 +62,7 @@
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/TypeFinder.h"
+#include "llvm/IR/TypedPointerType.h"
 #include "llvm/IR/Use.h"
 #include "llvm/IR/User.h"
 #include "llvm/IR/Value.h"
@@ -224,9 +224,7 @@ predictValueUseListOrder(const Value *V, unsigned ID, const OrderMap &OM) {
     return LU->getOperandNo() > RU->getOperandNo();
   });
 
-  if (llvm::is_sorted(List, [](const Entry &L, const Entry &R) {
-        return L.second < R.second;
-      }))
+  if (llvm::is_sorted(List, llvm::less_second()))
     // Order is already correct.
     return {};
 
@@ -314,6 +312,12 @@ static void PrintCallingConv(unsigned cc, raw_ostream &Out) {
   case CallingConv::AArch64_SVE_VectorCall:
     Out << "aarch64_sve_vector_pcs";
     break;
+  case CallingConv::AArch64_SME_ABI_Support_Routines_PreserveMost_From_X0:
+    Out << "aarch64_sme_preservemost_from_x0";
+    break;
+  case CallingConv::AArch64_SME_ABI_Support_Routines_PreserveMost_From_X2:
+    Out << "aarch64_sme_preservemost_from_x2";
+    break;
   case CallingConv::MSP430_INTR:   Out << "msp430_intrcc"; break;
   case CallingConv::AVR_INTR:      Out << "avr_intrcc "; break;
   case CallingConv::AVR_SIGNAL:    Out << "avr_signalcc "; break;
@@ -354,12 +358,11 @@ void llvm::printLLVMNameWithoutPrefix(raw_ostream &OS, StringRef Name) {
   // Scan the name to see if it needs quotes first.
   bool NeedsQuotes = isdigit(static_cast<unsigned char>(Name[0]));
   if (!NeedsQuotes) {
-    for (unsigned i = 0, e = Name.size(); i != e; ++i) {
+    for (unsigned char C : Name) {
       // By making this unsigned, the value passed in to isalnum will always be
       // in the range 0-255.  This is important when building with MSVC because
       // its implementation will assert.  This situation can arise when dealing
       // with UTF-8 multibyte characters.
-      unsigned char C = Name[i];
       if (!isalnum(static_cast<unsigned char>(C)) && C != '-' && C != '.' &&
           C != '_') {
         NeedsQuotes = true;
@@ -514,10 +517,8 @@ void TypePrinting::incorporateTypes() {
   // the unnamed ones out to a numbering and remove the anonymous structs.
   unsigned NextNumber = 0;
 
-  std::vector<StructType*>::iterator NextToUse = NamedTypes.begin(), I, E;
-  for (I = NamedTypes.begin(), E = NamedTypes.end(); I != E; ++I) {
-    StructType *STy = *I;
-
+  std::vector<StructType *>::iterator NextToUse = NamedTypes.begin();
+  for (StructType *STy : NamedTypes) {
     // Ignore anonymous types.
     if (STy->isLiteral())
       continue;
@@ -556,16 +557,13 @@ void TypePrinting::print(Type *Ty, raw_ostream &OS) {
     FunctionType *FTy = cast<FunctionType>(Ty);
     print(FTy->getReturnType(), OS);
     OS << " (";
-    for (FunctionType::param_iterator I = FTy->param_begin(),
-         E = FTy->param_end(); I != E; ++I) {
-      if (I != FTy->param_begin())
-        OS << ", ";
-      print(*I, OS);
+    ListSeparator LS;
+    for (Type *Ty : FTy->params()) {
+      OS << LS;
+      print(Ty, OS);
     }
-    if (FTy->isVarArg()) {
-      if (FTy->getNumParams()) OS << ", ";
-      OS << "...";
-    }
+    if (FTy->isVarArg())
+      OS << LS << "...";
     OS << ')';
     return;
   }
@@ -594,7 +592,7 @@ void TypePrinting::print(Type *Ty, raw_ostream &OS) {
         OS << " addrspace(" << AddressSpace << ')';
       return;
     }
-    print(PTy->getElementType(), OS);
+    print(PTy->getNonOpaquePointerElementType(), OS);
     if (unsigned AddressSpace = PTy->getAddressSpace())
       OS << " addrspace(" << AddressSpace << ')';
     OS << '*';
@@ -619,6 +617,12 @@ void TypePrinting::print(Type *Ty, raw_ostream &OS) {
     OS << '>';
     return;
   }
+  case Type::TypedPointerTyID: {
+    TypedPointerType *TPTy = cast<TypedPointerType>(Ty);
+    OS << "typedptr(" << *TPTy->getElementType() << ", "
+       << TPTy->getAddressSpace() << ")";
+    return;
+  }
   }
   llvm_unreachable("Invalid TypeID");
 }
@@ -635,12 +639,11 @@ void TypePrinting::printStructBody(StructType *STy, raw_ostream &OS) {
   if (STy->getNumElements() == 0) {
     OS << "{}";
   } else {
-    StructType::element_iterator I = STy->element_begin();
     OS << "{ ";
-    print(*I++, OS);
-    for (StructType::element_iterator E = STy->element_end(); I != E; ++I) {
-      OS << ", ";
-      print(*I, OS);
+    ListSeparator LS;
+    for (Type *Ty : STy->elements()) {
+      OS << LS;
+      print(Ty, OS);
     }
 
     OS << " }";
@@ -649,7 +652,7 @@ void TypePrinting::printStructBody(StructType *STy, raw_ostream &OS) {
     OS << '>';
 }
 
-AbstractSlotTrackerStorage::~AbstractSlotTrackerStorage() {}
+AbstractSlotTrackerStorage::~AbstractSlotTrackerStorage() = default;
 
 namespace llvm {
 
@@ -1298,7 +1301,7 @@ struct AsmWriterContext {
   /// prints a Metadata as operand.
   virtual void onWriteMetadataAsOperand(const Metadata *) {}
 
-  virtual ~AsmWriterContext() {}
+  virtual ~AsmWriterContext() = default;
 };
 } // end anonymous namespace
 
@@ -1314,27 +1317,8 @@ static void WriteAsOperandInternal(raw_ostream &Out, const Metadata *MD,
                                    bool FromValue = false);
 
 static void WriteOptimizationInfo(raw_ostream &Out, const User *U) {
-  if (const FPMathOperator *FPO = dyn_cast<const FPMathOperator>(U)) {
-    // 'Fast' is an abbreviation for all fast-math-flags.
-    if (FPO->isFast())
-      Out << " fast";
-    else {
-      if (FPO->hasAllowReassoc())
-        Out << " reassoc";
-      if (FPO->hasNoNaNs())
-        Out << " nnan";
-      if (FPO->hasNoInfs())
-        Out << " ninf";
-      if (FPO->hasNoSignedZeros())
-        Out << " nsz";
-      if (FPO->hasAllowReciprocal())
-        Out << " arcp";
-      if (FPO->hasAllowContract())
-        Out << " contract";
-      if (FPO->hasApproxFunc())
-        Out << " afn";
-    }
-  }
+  if (const FPMathOperator *FPO = dyn_cast<const FPMathOperator>(U))
+    Out << FPO->getFastMathFlags();
 
   if (const OverflowingBinaryOperator *OBO =
         dyn_cast<OverflowingBinaryOperator>(U)) {
@@ -1475,6 +1459,12 @@ static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
     return;
   }
 
+  if (const auto *NC = dyn_cast<NoCFIValue>(CV)) {
+    Out << "no_cfi ";
+    WriteAsOperandInternal(Out, NC->getGlobalValue(), WriterCtx);
+    return;
+  }
+
   if (const ConstantArray *CA = dyn_cast<ConstantArray>(CV)) {
     Type *ETy = CA->getType()->getElementType();
     Out << '[';
@@ -1606,12 +1596,6 @@ static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
       WriteAsOperandInternal(Out, *OI, WriterCtx);
       if (OI+1 != CE->op_end())
         Out << ", ";
-    }
-
-    if (CE->hasIndices()) {
-      ArrayRef<unsigned> Indices = CE->getIndices();
-      for (unsigned i = 0, e = Indices.size(); i != e; ++i)
-        Out << ", " << Indices[i];
     }
 
     if (CE->isCast()) {
@@ -2009,6 +1993,8 @@ static void writeDIStringType(raw_ostream &Out, const DIStringType *N,
   Printer.printString("name", N->getName());
   Printer.printMetadata("stringLength", N->getRawStringLength());
   Printer.printMetadata("stringLengthExpression", N->getRawStringLengthExp());
+  Printer.printMetadata("stringLocationExpression",
+                        N->getRawStringLocationExp());
   Printer.printInt("size", N->getSizeInBits());
   Printer.printInt("align", N->getAlignInBits());
   Printer.printDwarfEnum("encoding", N->getEncoding(),
@@ -2093,7 +2079,7 @@ static void writeDIFile(raw_ostream &Out, const DIFile *N, AsmWriterContext &) {
   // Print all values for checksum together, or not at all.
   if (N->getChecksum())
     Printer.printChecksum(*N->getChecksum());
-  Printer.printString("source", N->getSource().getValueOr(StringRef()),
+  Printer.printString("source", N->getSource().value_or(StringRef()),
                       /* ShouldSkipEmpty */ true);
   Out << ")";
 }
@@ -2152,6 +2138,7 @@ static void writeDISubprogram(raw_ostream &Out, const DISubprogram *N,
   Printer.printMetadata("retainedNodes", N->getRawRetainedNodes());
   Printer.printMetadata("thrownTypes", N->getRawThrownTypes());
   Printer.printMetadata("annotations", N->getRawAnnotations());
+  Printer.printString("targetFuncName", N->getTargetFuncName());
   Out << ")";
 }
 
@@ -2594,7 +2581,8 @@ public:
 
   void printTypeIdentities();
   void printGlobal(const GlobalVariable *GV);
-  void printIndirectSymbol(const GlobalIndirectSymbol *GIS);
+  void printAlias(const GlobalAlias *GA);
+  void printIFunc(const GlobalIFunc *GI);
   void printComdat(const Comdat *C);
   void printFunction(const Function *F);
   void printArgument(const Argument *FA, AttributeSet Attrs);
@@ -2832,12 +2820,12 @@ void AssemblyWriter::printModule(const Module *M) {
   // Output all aliases.
   if (!M->alias_empty()) Out << "\n";
   for (const GlobalAlias &GA : M->aliases())
-    printIndirectSymbol(&GA);
+    printAlias(&GA);
 
   // Output all ifuncs.
   if (!M->ifunc_empty()) Out << "\n";
   for (const GlobalIFunc &GI : M->ifuncs())
-    printIndirectSymbol(&GI);
+    printIFunc(&GI);
 
   // Output all of the functions.
   for (const Function &F : *M) {
@@ -3551,9 +3539,22 @@ void AssemblyWriter::printGlobal(const GlobalVariable *GV) {
     Out << '"';
   }
 
+  using SanitizerMetadata = llvm::GlobalValue::SanitizerMetadata;
+  if (GV->hasSanitizerMetadata()) {
+    SanitizerMetadata MD = GV->getSanitizerMetadata();
+    if (MD.NoAddress)
+      Out << ", no_sanitize_address";
+    if (MD.NoHWAddress)
+      Out << ", no_sanitize_hwaddress";
+    if (MD.Memtag)
+      Out << ", sanitize_memtag";
+    if (MD.IsDynInit)
+      Out << ", sanitize_address_dyninit";
+  }
+
   maybePrintComdat(Out, *GV);
-  if (GV->getAlignment())
-    Out << ", align " << GV->getAlignment();
+  if (MaybeAlign A = GV->getAlign())
+    Out << ", align " << A->value();
 
   SmallVector<std::pair<unsigned, MDNode *>, 4> MDs;
   GV->getAllMetadata(MDs);
@@ -3566,50 +3567,76 @@ void AssemblyWriter::printGlobal(const GlobalVariable *GV) {
   printInfoComment(*GV);
 }
 
-void AssemblyWriter::printIndirectSymbol(const GlobalIndirectSymbol *GIS) {
-  if (GIS->isMaterializable())
+void AssemblyWriter::printAlias(const GlobalAlias *GA) {
+  if (GA->isMaterializable())
     Out << "; Materializable\n";
 
-  AsmWriterContext WriterCtx(&TypePrinter, &Machine, GIS->getParent());
-  WriteAsOperandInternal(Out, GIS, WriterCtx);
+  AsmWriterContext WriterCtx(&TypePrinter, &Machine, GA->getParent());
+  WriteAsOperandInternal(Out, GA, WriterCtx);
   Out << " = ";
 
-  Out << getLinkageNameWithSpace(GIS->getLinkage());
-  PrintDSOLocation(*GIS, Out);
-  PrintVisibility(GIS->getVisibility(), Out);
-  PrintDLLStorageClass(GIS->getDLLStorageClass(), Out);
-  PrintThreadLocalModel(GIS->getThreadLocalMode(), Out);
-  StringRef UA = getUnnamedAddrEncoding(GIS->getUnnamedAddr());
+  Out << getLinkageNameWithSpace(GA->getLinkage());
+  PrintDSOLocation(*GA, Out);
+  PrintVisibility(GA->getVisibility(), Out);
+  PrintDLLStorageClass(GA->getDLLStorageClass(), Out);
+  PrintThreadLocalModel(GA->getThreadLocalMode(), Out);
+  StringRef UA = getUnnamedAddrEncoding(GA->getUnnamedAddr());
   if (!UA.empty())
       Out << UA << ' ';
 
-  if (isa<GlobalAlias>(GIS))
-    Out << "alias ";
-  else if (isa<GlobalIFunc>(GIS))
-    Out << "ifunc ";
-  else
-    llvm_unreachable("Not an alias or ifunc!");
+  Out << "alias ";
 
-  TypePrinter.print(GIS->getValueType(), Out);
-
+  TypePrinter.print(GA->getValueType(), Out);
   Out << ", ";
 
-  const Constant *IS = GIS->getIndirectSymbol();
-
-  if (!IS) {
-    TypePrinter.print(GIS->getType(), Out);
-    Out << " <<NULL ALIASEE>>";
+  if (const Constant *Aliasee = GA->getAliasee()) {
+    writeOperand(Aliasee, !isa<ConstantExpr>(Aliasee));
   } else {
-    writeOperand(IS, !isa<ConstantExpr>(IS));
+    TypePrinter.print(GA->getType(), Out);
+    Out << " <<NULL ALIASEE>>";
   }
 
-  if (GIS->hasPartition()) {
+  if (GA->hasPartition()) {
     Out << ", partition \"";
-    printEscapedString(GIS->getPartition(), Out);
+    printEscapedString(GA->getPartition(), Out);
     Out << '"';
   }
 
-  printInfoComment(*GIS);
+  printInfoComment(*GA);
+  Out << '\n';
+}
+
+void AssemblyWriter::printIFunc(const GlobalIFunc *GI) {
+  if (GI->isMaterializable())
+    Out << "; Materializable\n";
+
+  AsmWriterContext WriterCtx(&TypePrinter, &Machine, GI->getParent());
+  WriteAsOperandInternal(Out, GI, WriterCtx);
+  Out << " = ";
+
+  Out << getLinkageNameWithSpace(GI->getLinkage());
+  PrintDSOLocation(*GI, Out);
+  PrintVisibility(GI->getVisibility(), Out);
+
+  Out << "ifunc ";
+
+  TypePrinter.print(GI->getValueType(), Out);
+  Out << ", ";
+
+  if (const Constant *Resolver = GI->getResolver()) {
+    writeOperand(Resolver, !isa<ConstantExpr>(Resolver));
+  } else {
+    TypePrinter.print(GI->getType(), Out);
+    Out << " <<NULL RESOLVER>>";
+  }
+
+  if (GI->hasPartition()) {
+    Out << ", partition \"";
+    printEscapedString(GI->getPartition(), Out);
+    Out << '"';
+  }
+
+  printInfoComment(*GI);
   Out << '\n';
 }
 
@@ -3635,13 +3662,13 @@ void AssemblyWriter::printTypeIdentities() {
   }
 
   auto &NamedTypes = TypePrinter.getNamedTypes();
-  for (unsigned I = 0, E = NamedTypes.size(); I != E; ++I) {
-    PrintLLVMName(Out, NamedTypes[I]->getName(), LocalPrefix);
+  for (StructType *NamedType : NamedTypes) {
+    PrintLLVMName(Out, NamedType->getName(), LocalPrefix);
     Out << " = type ";
 
     // Make sure we print out at least one level of the type structure, so
     // that we do not get %FILE = type %FILE
-    TypePrinter.printStructBody(NamedTypes[I], Out);
+    TypePrinter.printStructBody(NamedType, Out);
     Out << '\n';
   }
 }
@@ -3755,8 +3782,8 @@ void AssemblyWriter::printFunction(const Function *F) {
     Out << '"';
   }
   maybePrintComdat(Out, *F);
-  if (F->getAlignment())
-    Out << " align " << F->getAlignment();
+  if (MaybeAlign A = F->getAlign())
+    Out << " align " << A->value();
   if (F->hasGC())
     Out << " gc \"" << F->getGC() << '"';
   if (F->hasPrefixData()) {
@@ -4063,8 +4090,7 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
     Out << " within ";
     writeOperand(FPI->getParentPad(), /*PrintType=*/false);
     Out << " [";
-    for (unsigned Op = 0, NumOps = FPI->getNumArgOperands(); Op < NumOps;
-         ++Op) {
+    for (unsigned Op = 0, NumOps = FPI->arg_size(); Op < NumOps; ++Op) {
       if (Op > 0)
         Out << ", ";
       writeOperand(FPI->getArgOperand(Op), /*PrintType=*/true);
@@ -4237,11 +4263,11 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
       Out << ", ";
       writeOperand(AI->getArraySize(), true);
     }
-    if (AI->getAlignment()) {
-      Out << ", align " << AI->getAlignment();
+    if (MaybeAlign A = AI->getAlign()) {
+      Out << ", align " << A->value();
     }
 
-    unsigned AddrSpace = AI->getType()->getAddressSpace();
+    unsigned AddrSpace = AI->getAddressSpace();
     if (AddrSpace != 0) {
       Out << ", addrspace(" << AddrSpace << ')';
     }
@@ -4276,9 +4302,9 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
     bool PrintAllTypes = false;
     Type *TheType = Operand->getType();
 
-    // Select, Store and ShuffleVector always print all types.
-    if (isa<SelectInst>(I) || isa<StoreInst>(I) || isa<ShuffleVectorInst>(I)
-        || isa<ReturnInst>(I)) {
+    // Select, Store, ShuffleVector and CmpXchg always print all types.
+    if (isa<SelectInst>(I) || isa<StoreInst>(I) || isa<ShuffleVectorInst>(I) ||
+        isa<ReturnInst>(I) || isa<AtomicCmpXchgInst>(I)) {
       PrintAllTypes = true;
     } else {
       for (unsigned i = 1, E = I.getNumOperands(); i != E; ++i) {
@@ -4308,13 +4334,13 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
   if (const LoadInst *LI = dyn_cast<LoadInst>(&I)) {
     if (LI->isAtomic())
       writeAtomic(LI->getContext(), LI->getOrdering(), LI->getSyncScopeID());
-    if (LI->getAlignment())
-      Out << ", align " << LI->getAlignment();
+    if (MaybeAlign A = LI->getAlign())
+      Out << ", align " << A->value();
   } else if (const StoreInst *SI = dyn_cast<StoreInst>(&I)) {
     if (SI->isAtomic())
       writeAtomic(SI->getContext(), SI->getOrdering(), SI->getSyncScopeID());
-    if (SI->getAlignment())
-      Out << ", align " << SI->getAlignment();
+    if (MaybeAlign A = SI->getAlign())
+      Out << ", align " << A->value();
   } else if (const AtomicCmpXchgInst *CXI = dyn_cast<AtomicCmpXchgInst>(&I)) {
     writeAtomicCmpXchg(CXI->getContext(), CXI->getSuccessOrdering(),
                        CXI->getFailureOrdering(), CXI->getSyncScopeID());
@@ -4600,8 +4626,12 @@ void Value::print(raw_ostream &ROS, ModuleSlotTracker &MST,
       W.printGlobal(V);
     else if (const Function *F = dyn_cast<Function>(GV))
       W.printFunction(F);
+    else if (const GlobalAlias *A = dyn_cast<GlobalAlias>(GV))
+      W.printAlias(A);
+    else if (const GlobalIFunc *I = dyn_cast<GlobalIFunc>(GV))
+      W.printIFunc(I);
     else
-      W.printIndirectSymbol(cast<GlobalIndirectSymbol>(GV));
+      llvm_unreachable("Unknown GlobalValue to print out!");
   } else if (const MetadataAsValue *V = dyn_cast<MetadataAsValue>(this)) {
     V->getMetadata()->print(ROS, MST, getModuleFromVal(V));
   } else if (const Constant *C = dyn_cast<Constant>(this)) {
@@ -4698,9 +4728,8 @@ struct MDTreeAsmWriterContext : public AsmWriterContext {
       : AsmWriterContext(TP, ST, M), Level(0U), Visited({InitMD}), MainOS(OS) {}
 
   void onWriteMetadataAsOperand(const Metadata *MD) override {
-    if (Visited.count(MD))
+    if (!Visited.insert(MD).second)
       return;
-    Visited.insert(MD);
 
     std::string Str;
     raw_string_ostream SS(Str);

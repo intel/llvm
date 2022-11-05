@@ -1,7 +1,6 @@
 // Test that incompatible combinations of -ffp-model= options
 // and other floating point options get a warning diagnostic.
 //
-// REQUIRES: clang-driver
 
 // RUN: %clang -### -ffp-model=fast -ffp-contract=off -c %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=WARN %s
@@ -87,7 +86,7 @@
 // CHECK-FPM-FAST: "-cc1"
 // CHECK-FPM-FAST: "-menable-no-infs"
 // CHECK-FPM-FAST: "-menable-no-nans"
-// CHECK-FPM-FAST: "-menable-unsafe-fp-math"
+// CHECK-FPM-FAST: "-funsafe-math-optimizations"
 // CHECK-FPM-FAST: "-fno-signed-zeros"
 // CHECK-FPM-FAST: "-mreassociate"
 // CHECK-FPM-FAST: "-freciprocal-math"
@@ -99,7 +98,7 @@
 // RUN: %clang -### -nostdinc -ffp-model=precise -c %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=CHECK-FPM-PRECISE %s
 // CHECK-FPM-PRECISE: "-cc1"
-// CHECK-FPM-PRECISE: "-ffp-contract=fast"
+// CHECK-FPM-PRECISE: "-ffp-contract=on"
 // CHECK-FPM-PRECISE: "-fno-rounding-math"
 
 // RUN: %clang -### -nostdinc -ffp-model=strict -c %s 2>&1 \

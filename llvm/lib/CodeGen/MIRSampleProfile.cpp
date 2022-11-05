@@ -15,7 +15,15 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/Analysis/BlockFrequencyInfoImpl.h"
+#include "llvm/CodeGen/MachineBlockFrequencyInfo.h"
+#include "llvm/CodeGen/MachineBranchProbabilityInfo.h"
+#include "llvm/CodeGen/MachineDominators.h"
+#include "llvm/CodeGen/MachineLoopInfo.h"
+#include "llvm/CodeGen/MachineOptimizationRemarkEmitter.h"
+#include "llvm/CodeGen/MachinePostDominators.h"
+#include "llvm/CodeGen/Passes.h"
 #include "llvm/IR/Function.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
@@ -169,10 +177,7 @@ void MIRProfileLoader::setBranchProbs(MachineFunction &F) {
     const MachineBasicBlock *EC = EquivalenceClass[BB];
     uint64_t BBWeight = BlockWeights[EC];
     uint64_t SumEdgeWeight = 0;
-    for (MachineBasicBlock::succ_iterator SI = BB->succ_begin(),
-                                          SE = BB->succ_end();
-         SI != SE; ++SI) {
-      MachineBasicBlock *Succ = *SI;
+    for (MachineBasicBlock *Succ : BB->successors()) {
       Edge E = std::make_pair(BB, Succ);
       SumEdgeWeight += EdgeWeights[E];
     }
@@ -317,6 +322,8 @@ bool MIRProfileLoaderPass::runOnMachineFunction(MachineFunction &MF) {
   }
 
   bool Changed = MIRSampleLoader->runOnFunction(MF);
+  if (Changed)
+    MBFI->calculate(MF, *MBFI->getMBPI(), *&getAnalysis<MachineLoopInfo>());
 
   if (ViewBFIAfter && ViewBlockLayoutWithBFI != GVDT_None &&
       (ViewBlockFreqFuncName.empty() ||

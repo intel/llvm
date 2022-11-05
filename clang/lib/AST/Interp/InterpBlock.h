@@ -25,16 +25,14 @@ namespace clang {
 namespace interp {
 class Block;
 class DeadBlock;
-class Context;
 class InterpState;
 class Pointer;
-class Function;
 enum PrimType : unsigned;
 
 /// A memory block, either on the stack or in the heap.
 ///
 /// The storage described by the block immediately follows it in memory.
-class Block {
+class Block final {
 public:
   // Creates a new block.
   Block(const llvm::Optional<unsigned> &DeclID, Descriptor *Desc,
@@ -75,6 +73,12 @@ public:
                    /*isActive=*/true, Desc);
   }
 
+  // Invokes the Destructor.
+  void invokeDtor() {
+    if (Desc->DtorFn)
+      Desc->DtorFn(this, data(), Desc);
+  }
+
 protected:
   friend class Pointer;
   friend class DeadBlock;
@@ -109,7 +113,7 @@ protected:
 ///
 /// Dead blocks are chained in a double-linked list to deallocate them
 /// whenever pointers become dead.
-class DeadBlock {
+class DeadBlock final {
 public:
   /// Copies the block.
   DeadBlock(DeadBlock *&Root, Block *Blk);

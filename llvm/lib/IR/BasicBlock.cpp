@@ -12,15 +12,14 @@
 
 #include "llvm/IR/BasicBlock.h"
 #include "SymbolTableListTraitsImpl.h"
-#include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/Statistic.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Type.h"
-#include <algorithm>
 
 using namespace llvm;
 
@@ -149,12 +148,6 @@ const Module *BasicBlock::getModule() const {
   return getParent()->getParent();
 }
 
-const Instruction *BasicBlock::getTerminator() const {
-  if (InstList.empty() || !InstList.back().isTerminator())
-    return nullptr;
-  return &InstList.back();
-}
-
 const CallInst *BasicBlock::getTerminatingMustTailCall() const {
   if (InstList.empty())
     return nullptr;
@@ -257,6 +250,30 @@ BasicBlock::const_iterator BasicBlock::getFirstInsertionPt() const {
 
   const_iterator InsertPt = FirstNonPHI->getIterator();
   if (InsertPt->isEHPad()) ++InsertPt;
+  return InsertPt;
+}
+
+BasicBlock::const_iterator BasicBlock::getFirstNonPHIOrDbgOrAlloca() const {
+  const Instruction *FirstNonPHI = getFirstNonPHI();
+  if (!FirstNonPHI)
+    return end();
+
+  const_iterator InsertPt = FirstNonPHI->getIterator();
+  if (InsertPt->isEHPad())
+    ++InsertPt;
+
+  if (isEntryBlock()) {
+    const_iterator End = end();
+    while (InsertPt != End &&
+           (isa<AllocaInst>(*InsertPt) || isa<DbgInfoIntrinsic>(*InsertPt) ||
+            isa<PseudoProbeInst>(*InsertPt))) {
+      if (const AllocaInst *AI = dyn_cast<AllocaInst>(&*InsertPt)) {
+        if (!AI->isStaticAlloca())
+          break;
+      }
+      ++InsertPt;
+    }
+  }
   return InsertPt;
 }
 
@@ -435,7 +452,11 @@ BasicBlock *BasicBlock::splitBasicBlockBefore(iterator I, const Twine &BBName) {
   // If there were PHI nodes in 'this' block, the PHI nodes are updated
   // to reflect that the incoming branches will be from the New block and not
   // from predecessors of the 'this' block.
-  for (BasicBlock *Pred : predecessors(this)) {
+  // Save predecessors to separate vector before modifying them.
+  SmallVector<BasicBlock *, 4> Predecessors;
+  for (BasicBlock *Pred : predecessors(this))
+    Predecessors.push_back(Pred);
+  for (BasicBlock *Pred : Predecessors) {
     Instruction *TI = Pred->getTerminator();
     TI->replaceSuccessorWith(this, New);
     this->replacePhiUsesWith(Pred, New);
@@ -450,8 +471,8 @@ BasicBlock *BasicBlock::splitBasicBlockBefore(iterator I, const Twine &BBName) {
 void BasicBlock::replacePhiUsesWith(BasicBlock *Old, BasicBlock *New) {
   // N.B. This might not be a complete BasicBlock, so don't assume
   // that it ends with a non-phi instruction.
-  for (iterator II = begin(), IE = end(); II != IE; ++II) {
-    PHINode *PN = dyn_cast<PHINode>(II);
+  for (Instruction &I : *this) {
+    PHINode *PN = dyn_cast<PHINode>(&I);
     if (!PN)
       break;
     PN->replaceIncomingBlockWith(Old, New);

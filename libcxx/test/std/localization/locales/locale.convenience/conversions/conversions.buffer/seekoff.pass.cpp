@@ -8,6 +8,8 @@
 
 // <locale>
 
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS
+
 // wbuffer_convert<Codecvt, Elem, Tr>
 
 // pos_type seekoff(off_type off, ios_base::seekdir way,
@@ -17,7 +19,7 @@
 
 // This test is not entirely portable
 
-// XFAIL: libcpp-has-no-wide-characters
+// XFAIL: no-wide-characters
 
 #include <locale>
 #include <codecvt>

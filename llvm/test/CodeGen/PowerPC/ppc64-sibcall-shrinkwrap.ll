@@ -9,9 +9,9 @@
 declare void @__assert_fail();
 
 define dso_local i8 @_ZNK5clang9NamedDecl23getLinkageAndVisibilityEv(
-    %"class.clang::NamedDecl"* %this) {
+    ptr %this) {
 entry:
-  %tobool = icmp eq %"class.clang::NamedDecl"* %this, null
+  %tobool = icmp eq ptr %this, null
   br i1 %tobool, label %cond.false, label %exit
 
 cond.false:
@@ -19,21 +19,12 @@ cond.false:
   unreachable
 
 exit:
-  %DeclKind = getelementptr inbounds
-                            %"class.clang::NamedDecl",
-                            %"class.clang::NamedDecl"* %this, i64 0, i32 0
-  %bf.load = load i32, i32* %DeclKind, align 4
+  %bf.load = load i32, ptr %this, align 4
   %call.i = tail call i8 @LVComputationKind(
-    %"class.clang::NamedDecl"* %this,
+    ptr %this,
     i32 %bf.load)
   ret i8 %call.i
 
-; CHECK-SCO-SHRK-LABEL: _ZNK5clang9NamedDecl23getLinkageAndVisibilityEv:
-; CHECK-SCO-SHRK: b LVComputationKind
-; CHECK-SCO-SHRK: #TC_RETURNd8
-; CHECK-SCO-SHRK: stdu 1, -{{[0-9]+}}(1)
-; CHECK-SCO-SHRK: bl __assert_fail
-;
 ; CHECK-SCO-ONLY-LABEL: _ZNK5clang9NamedDecl23getLinkageAndVisibilityEv:
 ; CHECK-SCO-ONLY: stdu 1, -{{[0-9]+}}(1)
 ; CHECK-SCO-ONLY: b LVComputationKind
@@ -44,7 +35,7 @@ exit:
 }
 
 define dso_local fastcc i8 @LVComputationKind(
-    %"class.clang::NamedDecl"* %D,
+    ptr %D,
     i32 %computation) {
   ret i8 0
 }

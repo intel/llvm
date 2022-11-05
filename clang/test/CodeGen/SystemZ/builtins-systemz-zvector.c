@@ -64,25 +64,25 @@ void test_core(void) {
   // CHECK-ASM-LABEL: test_core
 
   len = __lcbb(cptr, 64);
-  // CHECK: call i32 @llvm.s390.lcbb(i8* %{{.*}}, i32 0)
+  // CHECK: call i32 @llvm.s390.lcbb(ptr %{{.*}}, i32 0)
   // CHECK-ASM: lcbb
   len = __lcbb(cptr, 128);
-  // CHECK: call i32 @llvm.s390.lcbb(i8* %{{.*}}, i32 1)
+  // CHECK: call i32 @llvm.s390.lcbb(ptr %{{.*}}, i32 1)
   // CHECK-ASM: lcbb
   len = __lcbb(cptr, 256);
-  // CHECK: call i32 @llvm.s390.lcbb(i8* %{{.*}}, i32 2)
+  // CHECK: call i32 @llvm.s390.lcbb(ptr %{{.*}}, i32 2)
   // CHECK-ASM: lcbb
   len = __lcbb(cptr, 512);
-  // CHECK: call i32 @llvm.s390.lcbb(i8* %{{.*}}, i32 3)
+  // CHECK: call i32 @llvm.s390.lcbb(ptr %{{.*}}, i32 3)
   // CHECK-ASM: lcbb
   len = __lcbb(cptr, 1024);
-  // CHECK: call i32 @llvm.s390.lcbb(i8* %{{.*}}, i32 4)
+  // CHECK: call i32 @llvm.s390.lcbb(ptr %{{.*}}, i32 4)
   // CHECK-ASM: lcbb
   len = __lcbb(cptr, 2048);
-  // CHECK: call i32 @llvm.s390.lcbb(i8* %{{.*}}, i32 5)
+  // CHECK: call i32 @llvm.s390.lcbb(ptr %{{.*}}, i32 5)
   // CHECK-ASM: lcbb
   len = __lcbb(cptr, 4096);
-  // CHECK: call i32 @llvm.s390.lcbb(i8* %{{.*}}, i32 6)
+  // CHECK: call i32 @llvm.s390.lcbb(ptr %{{.*}}, i32 6)
   // CHECK-ASM: lcbb
 
   sc = vec_extract(vsc, idx);
@@ -194,31 +194,31 @@ void test_core(void) {
   // CHECK-ASM: vlvgg
 
   vsc = vec_insert_and_zero(cptrsc);
-  // CHECK: insertelement <16 x i8> <i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 poison, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0>, i8 %{{.*}}, i32 7
+  // CHECK: insertelement <16 x i8> <i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 poison, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0>, i8 %{{.*}}, i64 7
   // CHECK-ASM: vllezb
   vuc = vec_insert_and_zero(cptruc);
-  // CHECK: insertelement <16 x i8> <i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 poison, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0>, i8 %{{.*}}, i32 7
+  // CHECK: insertelement <16 x i8> <i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 poison, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0>, i8 %{{.*}}, i64 7
   // CHECK-ASM: vllezb
   vss = vec_insert_and_zero(cptrss);
-  // CHECK: insertelement <8 x i16> <i16 0, i16 0, i16 0, i16 poison, i16 0, i16 0, i16 0, i16 0>, i16 %{{.*}}, i32 3
+  // CHECK: insertelement <8 x i16> <i16 0, i16 0, i16 0, i16 poison, i16 0, i16 0, i16 0, i16 0>, i16 %{{.*}}, i64 3
   // CHECK-ASM: vllezh
   vus = vec_insert_and_zero(cptrus);
-  // CHECK: insertelement <8 x i16> <i16 0, i16 0, i16 0, i16 poison, i16 0, i16 0, i16 0, i16 0>, i16 %{{.*}}, i32 3
+  // CHECK: insertelement <8 x i16> <i16 0, i16 0, i16 0, i16 poison, i16 0, i16 0, i16 0, i16 0>, i16 %{{.*}}, i64 3
   // CHECK-ASM: vllezh
   vsi = vec_insert_and_zero(cptrsi);
-  // CHECK: insertelement <4 x i32> <i32 0, i32 poison, i32 0, i32 0>, i32 %{{.*}}, i32 1
+  // CHECK: insertelement <4 x i32> <i32 0, i32 poison, i32 0, i32 0>, i32 %{{.*}}, i64 1
   // CHECK-ASM: vllezf
   vui = vec_insert_and_zero(cptrui);
-  // CHECK: insertelement <4 x i32> <i32 0, i32 poison, i32 0, i32 0>, i32 %{{.*}}, i32 1
+  // CHECK: insertelement <4 x i32> <i32 0, i32 poison, i32 0, i32 0>, i32 %{{.*}}, i64 1
   // CHECK-ASM: vllezf
   vsl = vec_insert_and_zero(cptrsl);
-  // CHECK: insertelement <2 x i64> <i64 poison, i64 0>, i64 %{{.*}}, i32 0
+  // CHECK: insertelement <2 x i64> <i64 poison, i64 0>, i64 %{{.*}}, i64 0
   // CHECK-ASM: vllezg
   vul = vec_insert_and_zero(cptrul);
-  // CHECK: insertelement <2 x i64> <i64 poison, i64 0>, i64 %{{.*}}, i32 0
+  // CHECK: insertelement <2 x i64> <i64 poison, i64 0>, i64 %{{.*}}, i64 0
   // CHECK-ASM: vllezg
   vd = vec_insert_and_zero(cptrd);
-  // CHECK: insertelement <2 x double> <double poison, double 0.000000e+00>, double %{{.*}}, i32 0
+  // CHECK: insertelement <2 x double> <double poison, double 0.000000e+00>, double %{{.*}}, i64 0
   // CHECK-ASM: vllezg
 
   vsc = vec_perm(vsc, vsc, vuc);
@@ -590,105 +590,105 @@ void test_core(void) {
   // CHECK-ASM: vst
 
   vsc = vec_load_bndry(cptrsc, 64);
-  // CHECK: call <16 x i8> @llvm.s390.vlbb(i8* %{{.*}}, i32 0)
+  // CHECK: call <16 x i8> @llvm.s390.vlbb(ptr %{{.*}}, i32 0)
   // CHECK-ASM: vlbb
   vuc = vec_load_bndry(cptruc, 64);
-  // CHECK: call <16 x i8> @llvm.s390.vlbb(i8* %{{.*}}, i32 0)
+  // CHECK: call <16 x i8> @llvm.s390.vlbb(ptr %{{.*}}, i32 0)
   // CHECK-ASM: vlbb
   vss = vec_load_bndry(cptrss, 64);
-  // CHECK: call <16 x i8> @llvm.s390.vlbb(i8* %{{.*}}, i32 0)
+  // CHECK: call <16 x i8> @llvm.s390.vlbb(ptr %{{.*}}, i32 0)
   // CHECK-ASM: vlbb
   vus = vec_load_bndry(cptrus, 64);
-  // CHECK: call <16 x i8> @llvm.s390.vlbb(i8* %{{.*}}, i32 0)
+  // CHECK: call <16 x i8> @llvm.s390.vlbb(ptr %{{.*}}, i32 0)
   // CHECK-ASM: vlbb
   vsi = vec_load_bndry(cptrsi, 64);
-  // CHECK: call <16 x i8> @llvm.s390.vlbb(i8* %{{.*}}, i32 0)
+  // CHECK: call <16 x i8> @llvm.s390.vlbb(ptr %{{.*}}, i32 0)
   // CHECK-ASM: vlbb
   vui = vec_load_bndry(cptrui, 64);
-  // CHECK: call <16 x i8> @llvm.s390.vlbb(i8* %{{.*}}, i32 0)
+  // CHECK: call <16 x i8> @llvm.s390.vlbb(ptr %{{.*}}, i32 0)
   // CHECK-ASM: vlbb
   vsl = vec_load_bndry(cptrsl, 64);
-  // CHECK: call <16 x i8> @llvm.s390.vlbb(i8* %{{.*}}, i32 0)
+  // CHECK: call <16 x i8> @llvm.s390.vlbb(ptr %{{.*}}, i32 0)
   // CHECK-ASM: vlbb
   vul = vec_load_bndry(cptrul, 64);
-  // CHECK: call <16 x i8> @llvm.s390.vlbb(i8* %{{.*}}, i32 0)
+  // CHECK: call <16 x i8> @llvm.s390.vlbb(ptr %{{.*}}, i32 0)
   // CHECK-ASM: vlbb
   vd = vec_load_bndry(cptrd, 64);
-  // CHECK: call <16 x i8> @llvm.s390.vlbb(i8* %{{.*}}, i32 0)
+  // CHECK: call <16 x i8> @llvm.s390.vlbb(ptr %{{.*}}, i32 0)
   // CHECK-ASM: vlbb
   vsc = vec_load_bndry(cptrsc, 128);
-  // CHECK: call <16 x i8> @llvm.s390.vlbb(i8* %{{.*}}, i32 1)
+  // CHECK: call <16 x i8> @llvm.s390.vlbb(ptr %{{.*}}, i32 1)
   // CHECK-ASM: vlbb
   vsc = vec_load_bndry(cptrsc, 256);
-  // CHECK: call <16 x i8> @llvm.s390.vlbb(i8* %{{.*}}, i32 2)
+  // CHECK: call <16 x i8> @llvm.s390.vlbb(ptr %{{.*}}, i32 2)
   // CHECK-ASM: vlbb
   vsc = vec_load_bndry(cptrsc, 512);
-  // CHECK: call <16 x i8> @llvm.s390.vlbb(i8* %{{.*}}, i32 3)
+  // CHECK: call <16 x i8> @llvm.s390.vlbb(ptr %{{.*}}, i32 3)
   // CHECK-ASM: vlbb
   vsc = vec_load_bndry(cptrsc, 1024);
-  // CHECK: call <16 x i8> @llvm.s390.vlbb(i8* %{{.*}}, i32 4)
+  // CHECK: call <16 x i8> @llvm.s390.vlbb(ptr %{{.*}}, i32 4)
   // CHECK-ASM: vlbb
   vsc = vec_load_bndry(cptrsc, 2048);
-  // CHECK: call <16 x i8> @llvm.s390.vlbb(i8* %{{.*}}, i32 5)
+  // CHECK: call <16 x i8> @llvm.s390.vlbb(ptr %{{.*}}, i32 5)
   // CHECK-ASM: vlbb
   vsc = vec_load_bndry(cptrsc, 4096);
-  // CHECK: call <16 x i8> @llvm.s390.vlbb(i8* %{{.*}}, i32 6)
+  // CHECK: call <16 x i8> @llvm.s390.vlbb(ptr %{{.*}}, i32 6)
   // CHECK-ASM: vlbb
 
   vsc = vec_load_len(cptrsc, idx);
-  // CHECK: call <16 x i8> @llvm.s390.vll(i32 %{{.*}}, i8* %{{.*}})
+  // CHECK: call <16 x i8> @llvm.s390.vll(i32 %{{.*}}, ptr %{{.*}})
   // CHECK-ASM: vll
   vuc = vec_load_len(cptruc, idx);
-  // CHECK: call <16 x i8> @llvm.s390.vll(i32 %{{.*}}, i8* %{{.*}})
+  // CHECK: call <16 x i8> @llvm.s390.vll(i32 %{{.*}}, ptr %{{.*}})
   // CHECK-ASM: vll
   vss = vec_load_len(cptrss, idx);
-  // CHECK: call <16 x i8> @llvm.s390.vll(i32 %{{.*}}, i8* %{{.*}})
+  // CHECK: call <16 x i8> @llvm.s390.vll(i32 %{{.*}}, ptr %{{.*}})
   // CHECK-ASM: vll
   vus = vec_load_len(cptrus, idx);
-  // CHECK: call <16 x i8> @llvm.s390.vll(i32 %{{.*}}, i8* %{{.*}})
+  // CHECK: call <16 x i8> @llvm.s390.vll(i32 %{{.*}}, ptr %{{.*}})
   // CHECK-ASM: vll
   vsi = vec_load_len(cptrsi, idx);
-  // CHECK: call <16 x i8> @llvm.s390.vll(i32 %{{.*}}, i8* %{{.*}})
+  // CHECK: call <16 x i8> @llvm.s390.vll(i32 %{{.*}}, ptr %{{.*}})
   // CHECK-ASM: vll
   vui = vec_load_len(cptrui, idx);
-  // CHECK: call <16 x i8> @llvm.s390.vll(i32 %{{.*}}, i8* %{{.*}})
+  // CHECK: call <16 x i8> @llvm.s390.vll(i32 %{{.*}}, ptr %{{.*}})
   // CHECK-ASM: vll
   vsl = vec_load_len(cptrsl, idx);
-  // CHECK: call <16 x i8> @llvm.s390.vll(i32 %{{.*}}, i8* %{{.*}})
+  // CHECK: call <16 x i8> @llvm.s390.vll(i32 %{{.*}}, ptr %{{.*}})
   // CHECK-ASM: vll
   vul = vec_load_len(cptrul, idx);
-  // CHECK: call <16 x i8> @llvm.s390.vll(i32 %{{.*}}, i8* %{{.*}})
+  // CHECK: call <16 x i8> @llvm.s390.vll(i32 %{{.*}}, ptr %{{.*}})
   // CHECK-ASM: vll
   vd = vec_load_len(cptrd, idx);
-  // CHECK: call <16 x i8> @llvm.s390.vll(i32 %{{.*}}, i8* %{{.*}})
+  // CHECK: call <16 x i8> @llvm.s390.vll(i32 %{{.*}}, ptr %{{.*}})
   // CHECK-ASM: vll
 
   vec_store_len(vsc, ptrsc, idx);
-  // CHECK: call void @llvm.s390.vstl(<16 x i8> %{{.*}}, i32 %{{.*}}, i8* %{{.*}})
+  // CHECK: call void @llvm.s390.vstl(<16 x i8> %{{.*}}, i32 %{{.*}}, ptr %{{.*}})
   // CHECK-ASM: vstl
   vec_store_len(vuc, ptruc, idx);
-  // CHECK: call void @llvm.s390.vstl(<16 x i8> %{{.*}}, i32 %{{.*}}, i8* %{{.*}})
+  // CHECK: call void @llvm.s390.vstl(<16 x i8> %{{.*}}, i32 %{{.*}}, ptr %{{.*}})
   // CHECK-ASM: vstl
   vec_store_len(vss, ptrss, idx);
-  // CHECK: call void @llvm.s390.vstl(<16 x i8> %{{.*}}, i32 %{{.*}}, i8* %{{.*}})
+  // CHECK: call void @llvm.s390.vstl(<16 x i8> %{{.*}}, i32 %{{.*}}, ptr %{{.*}})
   // CHECK-ASM: vstl
   vec_store_len(vus, ptrus, idx);
-  // CHECK: call void @llvm.s390.vstl(<16 x i8> %{{.*}}, i32 %{{.*}}, i8* %{{.*}})
+  // CHECK: call void @llvm.s390.vstl(<16 x i8> %{{.*}}, i32 %{{.*}}, ptr %{{.*}})
   // CHECK-ASM: vstl
   vec_store_len(vsi, ptrsi, idx);
-  // CHECK: call void @llvm.s390.vstl(<16 x i8> %{{.*}}, i32 %{{.*}}, i8* %{{.*}})
+  // CHECK: call void @llvm.s390.vstl(<16 x i8> %{{.*}}, i32 %{{.*}}, ptr %{{.*}})
   // CHECK-ASM: vstl
   vec_store_len(vui, ptrui, idx);
-  // CHECK: call void @llvm.s390.vstl(<16 x i8> %{{.*}}, i32 %{{.*}}, i8* %{{.*}})
+  // CHECK: call void @llvm.s390.vstl(<16 x i8> %{{.*}}, i32 %{{.*}}, ptr %{{.*}})
   // CHECK-ASM: vstl
   vec_store_len(vsl, ptrsl, idx);
-  // CHECK: call void @llvm.s390.vstl(<16 x i8> %{{.*}}, i32 %{{.*}}, i8* %{{.*}})
+  // CHECK: call void @llvm.s390.vstl(<16 x i8> %{{.*}}, i32 %{{.*}}, ptr %{{.*}})
   // CHECK-ASM: vstl
   vec_store_len(vul, ptrul, idx);
-  // CHECK: call void @llvm.s390.vstl(<16 x i8> %{{.*}}, i32 %{{.*}}, i8* %{{.*}})
+  // CHECK: call void @llvm.s390.vstl(<16 x i8> %{{.*}}, i32 %{{.*}}, ptr %{{.*}})
   // CHECK-ASM: vstl
   vec_store_len(vd, ptrd, idx);
-  // CHECK: call void @llvm.s390.vstl(<16 x i8> %{{.*}}, i32 %{{.*}}, i8* %{{.*}})
+  // CHECK: call void @llvm.s390.vstl(<16 x i8> %{{.*}}, i32 %{{.*}}, ptr %{{.*}})
   // CHECK-ASM: vstl
 
   vsl = vec_load_pair(sl + 1, sl - 1);
@@ -3289,13 +3289,13 @@ void test_integer(void) {
   // CHECK-ASM: vsrlb
 
   vsc = vec_abs(vsc);
-  // CHECK-ASM: vlpb
+  // CHECK-ASM: vlcb
   vss = vec_abs(vss);
-  // CHECK-ASM: vlph
+  // CHECK-ASM: vlch
   vsi = vec_abs(vsi);
-  // CHECK-ASM: vlpf
+  // CHECK-ASM: vlcf
   vsl = vec_abs(vsl);
-  // CHECK-ASM: vlpg
+  // CHECK-ASM: vlcg
 
   vsc = vec_max(vsc, vsc);
   // CHECK-ASM: vmxb
@@ -4457,12 +4457,12 @@ void test_float(void) {
   // CHECK-ASM: vfsqdb
 
   vd = vec_ld2f(cptrf);
-  // CHECK: [[VAL:%[^ ]+]] = load <2 x float>, <2 x float>* %{{.*}}
+  // CHECK: [[VAL:%[^ ]+]] = load <2 x float>, ptr %{{.*}}
   // CHECK: fpext <2 x float> [[VAL]] to <2 x double>
   // (emulated)
   vec_st2f(vd, ptrf);
   // CHECK: [[VAL:%[^ ]+]] = fptrunc <2 x double> %{{.*}} to <2 x float>
-  // CHECK: store <2 x float> [[VAL]], <2 x float>* %{{.*}}
+  // CHECK: store <2 x float> [[VAL]], ptr %{{.*}}
   // (emulated)
 
   vd = vec_ctd(vsl, 0);

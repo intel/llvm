@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
 #include <detail/context_impl.hpp>
 #include <gtest/gtest.h>
 #include <helpers/PiMock.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace sycl;
 
@@ -19,6 +19,9 @@ struct TestCtx {
 
   context &Ctx;
   bool UUIDInfoCalled = false;
+  bool FreeMemoryInfoCalled = false;
+
+  std::string BuiltInKernels;
 };
 } // namespace
 
@@ -31,6 +34,28 @@ static pi_result redefinedDeviceGetInfo(pi_device device,
                                         size_t *param_value_size_ret) {
   if (param_name == PI_DEVICE_INFO_UUID) {
     TestContext->UUIDInfoCalled = true;
+  } else if (param_name == PI_DEVICE_INFO_BUILT_IN_KERNELS) {
+    if (param_value_size_ret) {
+      *param_value_size_ret = TestContext->BuiltInKernels.size() + 1;
+    } else if (param_value) {
+      char *dst = static_cast<char *>(param_value);
+      dst[TestContext->BuiltInKernels.copy(dst, param_value_size)] = '\0';
+    }
+  } else if (param_name == PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY) {
+    TestContext->FreeMemoryInfoCalled = true;
+  }
+
+  // This mock device has no sub-devices
+  if (param_name == PI_DEVICE_INFO_PARTITION_PROPERTIES) {
+    if (param_value_size_ret) {
+      *param_value_size_ret = 0;
+    }
+  }
+  if (param_name == PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN) {
+    assert(param_value_size == sizeof(pi_device_affinity_domain));
+    if (param_value) {
+      *static_cast<pi_device_affinity_domain *>(param_value) = 0;
+    }
   }
 
   return PI_SUCCESS;
@@ -38,32 +63,20 @@ static pi_result redefinedDeviceGetInfo(pi_device device,
 
 class DeviceInfoTest : public ::testing::Test {
 public:
-  DeviceInfoTest() : Plt{default_selector()} {}
+  DeviceInfoTest() : Mock{}, Plt{Mock.getPlatform()} {}
 
 protected:
   void SetUp() override {
-    if (Plt.is_host()) {
-      std::clog << "This test is only supported on non-host platforms.\n";
-      std::clog << "Current platform is "
-                << Plt.get_info<info::platform::name>() << "\n";
-      return;
-    }
-
-    Mock = std::make_unique<unittest::PiMock>(Plt);
-
-    Mock->redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
+    Mock.redefineBefore<detail::PiApiKind::piDeviceGetInfo>(
+        redefinedDeviceGetInfo);
   }
 
 protected:
-  platform Plt;
-  std::unique_ptr<unittest::PiMock> Mock;
+  unittest::PiMock Mock;
+  sycl::platform Plt;
 };
 
 TEST_F(DeviceInfoTest, GetDeviceUUID) {
-  if (Plt.is_host()) {
-    return;
-  }
-
   context Ctx{Plt.get_devices()[0]};
   TestContext.reset(new TestCtx(Ctx));
 
@@ -75,7 +88,7 @@ TEST_F(DeviceInfoTest, GetDeviceUUID) {
     return;
   }
 
-  auto UUID = Dev.get_info<info::device::ext_intel_device_info_uuid>();
+  auto UUID = Dev.get_info<ext::intel::info::device::uuid>();
 
   EXPECT_EQ(TestContext->UUIDInfoCalled, true)
       << "Expect piDeviceGetInfo to be "
@@ -84,4 +97,54 @@ TEST_F(DeviceInfoTest, GetDeviceUUID) {
   EXPECT_EQ(sizeof(UUID), 16 * sizeof(unsigned char))
       << "Expect device UUID to be "
       << "of 16 bytes";
+}
+
+TEST_F(DeviceInfoTest, GetDeviceFreeMemory) {
+  context Ctx{Plt.get_devices()[0]};
+  TestContext.reset(new TestCtx(Ctx));
+
+  device Dev = Ctx.get_devices()[0];
+
+  if (!Dev.has(aspect::ext_intel_free_memory)) {
+    std::clog << "This test is only for the devices with "
+                 "ext_intel_free_memory extension support.\n";
+    return;
+  }
+
+  auto FreeMemory = Dev.get_info<ext::intel::info::device::free_memory>();
+
+  EXPECT_EQ(TestContext->FreeMemoryInfoCalled, true)
+      << "Expect piDeviceGetInfo to be "
+      << "called with PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY";
+
+  EXPECT_EQ(sizeof(FreeMemory), sizeof(uint64_t))
+      << "Expect free_memory to be of uint64_t size";
+}
+
+TEST_F(DeviceInfoTest, BuiltInKernelIDs) {
+  context Ctx{Plt.get_devices()[0]};
+  TestContext.reset(new TestCtx(Ctx));
+  TestContext->BuiltInKernels = "Kernel0;Kernel1;Kernel2";
+
+  device Dev = Ctx.get_devices()[0];
+
+  auto ids = Dev.get_info<info::device::built_in_kernel_ids>();
+
+  ASSERT_EQ(ids.size(), 3u);
+  EXPECT_STREQ(ids[0].get_name(), "Kernel0");
+  EXPECT_STREQ(ids[1].get_name(), "Kernel1");
+  EXPECT_STREQ(ids[2].get_name(), "Kernel2");
+
+  errc val = errc::success;
+  std::string msg;
+  try {
+    get_kernel_bundle<bundle_state::executable>(Ctx, {Dev}, ids);
+  } catch (sycl::exception &e) {
+    val = errc(e.code().value());
+    msg = e.what();
+  }
+
+  EXPECT_EQ(val, errc::kernel_argument);
+  EXPECT_EQ(
+      msg, "Attempting to use a built-in kernel. They are not fully supported");
 }

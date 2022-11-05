@@ -17,12 +17,12 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/CFG.h"
-#include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/InstructionSimplify.h"
 #include "llvm/Analysis/LoopIterator.h"
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/Analysis/MemorySSA.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
+#include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/IR/Dominators.h"
 
 #include "llvm/IR/PatternMatch.h"
@@ -36,6 +36,8 @@ using namespace llvm;
 #define DEBUG_TYPE "loop-delete"
 
 STATISTIC(NumDeleted, "Number of loops deleted");
+STATISTIC(NumBackedgesBroken,
+          "Number of loops for which we managed to break the backedge");
 
 static cl::opt<bool> EnableSymbolicExecution(
     "loop-deletion-enable-symbolic-execution", cl::Hidden, cl::init(true),
@@ -87,16 +89,15 @@ static bool isLoopDead(Loop *L, ScalarEvolution &SE,
       if (!AllOutgoingValuesSame)
         break;
 
-      if (Instruction *I = dyn_cast<Instruction>(incoming))
-        if (!L->makeLoopInvariant(I, Changed, Preheader->getTerminator())) {
+      if (Instruction *I = dyn_cast<Instruction>(incoming)) {
+        if (!L->makeLoopInvariant(I, Changed, Preheader->getTerminator(),
+                                  /*MSSAU=*/nullptr, &SE)) {
           AllEntriesInvariant = false;
           break;
         }
+      }
     }
   }
-
-  if (Changed)
-    SE.forgetLoopDispositions(L);
 
   if (!AllEntriesInvariant || !AllOutgoingValuesSame)
     return false;
@@ -104,7 +105,7 @@ static bool isLoopDead(Loop *L, ScalarEvolution &SE,
   // Make sure that no instructions in the block have potential side-effects.
   // This includes instructions that could write to memory, and loads that are
   // marked volatile.
-  for (auto &I : L->blocks())
+  for (const auto &I : L->blocks())
     if (any_of(*I, [](Instruction &I) {
           return I.mayHaveSideEffects() && !I.isDroppable();
         }))
@@ -190,13 +191,13 @@ getValueOnFirstIteration(Value *V, DenseMap<Value *, Value *> &FirstIterValue,
         getValueOnFirstIteration(BO->getOperand(0), FirstIterValue, SQ);
     Value *RHS =
         getValueOnFirstIteration(BO->getOperand(1), FirstIterValue, SQ);
-    FirstIterV = SimplifyBinOp(BO->getOpcode(), LHS, RHS, SQ);
+    FirstIterV = simplifyBinOp(BO->getOpcode(), LHS, RHS, SQ);
   } else if (auto *Cmp = dyn_cast<ICmpInst>(V)) {
     Value *LHS =
         getValueOnFirstIteration(Cmp->getOperand(0), FirstIterValue, SQ);
     Value *RHS =
         getValueOnFirstIteration(Cmp->getOperand(1), FirstIterValue, SQ);
-    FirstIterV = SimplifyICmpInst(Cmp->getPredicate(), LHS, RHS, SQ);
+    FirstIterV = simplifyICmpInst(Cmp->getPredicate(), LHS, RHS, SQ);
   } else if (auto *Select = dyn_cast<SelectInst>(V)) {
     Value *Cond =
         getValueOnFirstIteration(Select->getCondition(), FirstIterValue, SQ);
@@ -405,23 +406,19 @@ breakBackedgeIfNotTaken(Loop *L, DominatorTree &DT, ScalarEvolution &SE,
   if (!L->getLoopLatch())
     return LoopDeletionResult::Unmodified;
 
-  auto *BTC = SE.getSymbolicMaxBackedgeTakenCount(L);
-  if (BTC->isZero()) {
-    // SCEV knows this backedge isn't taken!
-    breakLoopBackedge(L, DT, SE, LI, MSSA);
-    return LoopDeletionResult::Deleted;
-  }
-
-  // If SCEV leaves open the possibility of a zero trip count, see if
-  // symbolically evaluating the first iteration lets us prove the backedge
-  // unreachable.
-  if (isa<SCEVCouldNotCompute>(BTC) || !SE.isKnownNonZero(BTC))
-    if (canProveExitOnFirstIteration(L, DT, LI)) {
-      breakLoopBackedge(L, DT, SE, LI, MSSA);
-      return LoopDeletionResult::Deleted;
+  auto *BTCMax = SE.getConstantMaxBackedgeTakenCount(L);
+  if (!BTCMax->isZero()) {
+    auto *BTC = SE.getBackedgeTakenCount(L);
+    if (!BTC->isZero()) {
+      if (!isa<SCEVCouldNotCompute>(BTC) && SE.isKnownNonZero(BTC))
+        return LoopDeletionResult::Unmodified;
+      if (!canProveExitOnFirstIteration(L, DT, LI))
+        return LoopDeletionResult::Unmodified;
     }
-
-  return LoopDeletionResult::Unmodified;
+  }
+  ++NumBackedgesBroken;
+  breakLoopBackedge(L, DT, SE, LI, MSSA);
+  return LoopDeletionResult::Deleted;
 }
 
 /// Remove a loop if it is dead.
@@ -460,13 +457,13 @@ static LoopDeletionResult deleteLoopIfDead(Loop *L, DominatorTree &DT,
   if (ExitBlock && isLoopNeverExecuted(L)) {
     LLVM_DEBUG(dbgs() << "Loop is proven to never execute, delete it!");
     // We need to forget the loop before setting the incoming values of the exit
-    // phis to undef, so we properly invalidate the SCEV expressions for those
+    // phis to poison, so we properly invalidate the SCEV expressions for those
     // phis.
     SE.forgetLoop(L);
-    // Set incoming value to undef for phi nodes in the exit block.
+    // Set incoming value to poison for phi nodes in the exit block.
     for (PHINode &P : ExitBlock->phis()) {
       std::fill(P.incoming_values().begin(), P.incoming_values().end(),
-                UndefValue::get(P.getType()));
+                PoisonValue::get(P.getType()));
     }
     ORE.emit([&]() {
       return OptimizationRemark(DEBUG_TYPE, "NeverExecutes", L->getStartLoc(),

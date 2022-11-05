@@ -9,7 +9,6 @@
 #if defined(__i386__) || defined(__x86_64__)
 
 #include "NativeRegisterContextLinux_x86_64.h"
-
 #include "Plugins/Process/Linux/NativeThreadLinux.h"
 #include "Plugins/Process/Utility/RegisterContextLinux_i386.h"
 #include "Plugins/Process/Utility/RegisterContextLinux_x86_64.h"
@@ -255,6 +254,12 @@ NativeRegisterContextLinux::CreateHostNativeRegisterContextLinux(
       new NativeRegisterContextLinux_x86_64(target_arch, native_thread));
 }
 
+llvm::Expected<ArchSpec>
+NativeRegisterContextLinux::DetermineArchitecture(lldb::tid_t tid) {
+  return DetermineArchitectureViaGPR(
+      tid, RegisterContextLinux_x86_64::GetGPRSizeStatic());
+}
+
 // NativeRegisterContextLinux_x86_64 members.
 
 static RegisterInfoInterface *
@@ -452,7 +457,7 @@ NativeRegisterContextLinux_x86_64::ReadRegister(const RegisterInfo *reg_info,
       // then use the type specified by reg_info rather than the uint64_t
       // default
       if (reg_value.GetByteSize() > reg_info->byte_size)
-        reg_value.SetType(reg_info);
+        reg_value.SetType(*reg_info);
     }
     return error;
   }
@@ -689,7 +694,7 @@ Status NativeRegisterContextLinux_x86_64::WriteRegister(
 }
 
 Status NativeRegisterContextLinux_x86_64::ReadAllRegisterValues(
-    lldb::DataBufferSP &data_sp) {
+    lldb::WritableDataBufferSP &data_sp) {
   Status error;
 
   data_sp.reset(new DataBufferHeap(REG_CONTEXT_SIZE, 0));
@@ -780,7 +785,7 @@ Status NativeRegisterContextLinux_x86_64::WriteAllRegisterValues(
     return error;
   }
 
-  uint8_t *src = data_sp->GetBytes();
+  const uint8_t *src = data_sp->GetBytes();
   if (src == nullptr) {
     error.SetErrorStringWithFormat("NativeRegisterContextLinux_x86_64::%s "
                                    "DataBuffer::GetBytes() returned a null "

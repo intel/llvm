@@ -16,15 +16,12 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/Loads.h"
-#include "llvm/IR/ConstantRange.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/Transforms/InstCombine/InstCombiner.h"
-#include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Local.h"
 using namespace llvm;
 using namespace PatternMatch;
@@ -34,20 +31,20 @@ using namespace PatternMatch;
 STATISTIC(NumDeadStore,    "Number of dead stores eliminated");
 STATISTIC(NumGlobalCopies, "Number of allocas copied from constant global");
 
-/// isOnlyCopiedFromConstantGlobal - Recursively walk the uses of a (derived)
+/// isOnlyCopiedFromConstantMemory - Recursively walk the uses of a (derived)
 /// pointer to an alloca.  Ignore any reads of the pointer, return false if we
 /// see any stores or other unknown uses.  If we see pointer arithmetic, keep
 /// track of whether it moves the pointer (with IsOffset) but otherwise traverse
 /// the uses.  If we see a memcpy/memmove that targets an unoffseted pointer to
-/// the alloca, and if the source pointer is a pointer to a constant global, we
-/// can optimize this.
+/// the alloca, and if the source pointer is a pointer to a constant memory
+/// location, we can optimize this.
 static bool
-isOnlyCopiedFromConstantMemory(AAResults *AA,
-                               Value *V, MemTransferInst *&TheCopy,
+isOnlyCopiedFromConstantMemory(AAResults *AA, AllocaInst *V,
+                               MemTransferInst *&TheCopy,
                                SmallVectorImpl<Instruction *> &ToDelete) {
   // We track lifetime intrinsics as we encounter them.  If we decide to go
-  // ahead and replace the value with the global, this lets the caller quickly
-  // eliminate the markers.
+  // ahead and replace the value with the memory location, this lets the caller
+  // quickly eliminate the markers.
 
   SmallVector<std::pair<Value *, bool>, 35> ValuesToInspect;
   ValuesToInspect.emplace_back(V, false);
@@ -88,11 +85,12 @@ isOnlyCopiedFromConstantMemory(AAResults *AA,
         if (IsArgOperand && Call->isInAllocaArgument(DataOpNo))
           return false;
 
-        // If this is a readonly/readnone call site, then we know it is just a
-        // load (but one that potentially returns the value itself), so we can
+        // If this call site doesn't modify the memory, then we know it is just
+        // a load (but one that potentially returns the value itself), so we can
         // ignore it if we know that the value isn't captured.
-        if (Call->onlyReadsMemory() &&
-            (Call->use_empty() || Call->doesNotCapture(DataOpNo)))
+        bool NoCapture = Call->doesNotCapture(DataOpNo);
+        if ((Call->onlyReadsMemory() && (Call->use_empty() || NoCapture)) ||
+            (Call->onlyReadsMemory(DataOpNo) && NoCapture))
           continue;
 
         // If this is being passed as a byval argument, the caller is making a
@@ -114,12 +112,14 @@ isOnlyCopiedFromConstantMemory(AAResults *AA,
       if (!MI)
         return false;
 
+      // If the transfer is volatile, reject it.
+      if (MI->isVolatile())
+        return false;
+
       // If the transfer is using the alloca as a source of the transfer, then
       // ignore it since it is a load (unless the transfer is volatile).
-      if (U.getOperandNo() == 1) {
-        if (MI->isVolatile()) return false;
+      if (U.getOperandNo() == 1)
         continue;
-      }
 
       // If we already have seen a copy, reject the second one.
       if (TheCopy) return false;
@@ -131,8 +131,8 @@ isOnlyCopiedFromConstantMemory(AAResults *AA,
       // If the memintrinsic isn't using the alloca as the dest, reject it.
       if (U.getOperandNo() != 0) return false;
 
-      // If the source of the memcpy/move is not a constant global, reject it.
-      if (!AA->pointsToConstantMemory(MI->getSource()))
+      // If the source of the memcpy/move is not constant, reject it.
+      if (isModSet(AA->getModRefInfoMask(MI->getSource())))
         return false;
 
       // Otherwise, the transform is safe.  Remember the copy instruction.
@@ -142,9 +142,10 @@ isOnlyCopiedFromConstantMemory(AAResults *AA,
   return true;
 }
 
-/// isOnlyCopiedFromConstantGlobal - Return true if the specified alloca is only
-/// modified by a copy from a constant global.  If we can prove this, we can
-/// replace any uses of the alloca with uses of the global directly.
+/// isOnlyCopiedFromConstantMemory - Return true if the specified alloca is only
+/// modified by a copy from a constant memory location. If we can prove this, we
+/// can replace any uses of the alloca with uses of the memory location
+/// directly.
 static MemTransferInst *
 isOnlyCopiedFromConstantMemory(AAResults *AA,
                                AllocaInst *AI,
@@ -163,7 +164,7 @@ static bool isDereferenceableForAllocaSize(const Value *V, const AllocaInst *AI,
   uint64_t AllocaSize = DL.getTypeStoreSize(AI->getAllocatedType());
   if (!AllocaSize)
     return false;
-  return isDereferenceableAndAlignedPointer(V, Align(AI->getAlignment()),
+  return isDereferenceableAndAlignedPointer(V, AI->getAlign(),
                                             APInt(64, AllocaSize), DL);
 }
 
@@ -183,7 +184,8 @@ static Instruction *simplifyAllocaArraySize(InstCombinerImpl &IC,
   if (const ConstantInt *C = dyn_cast<ConstantInt>(AI.getArraySize())) {
     if (C->getValue().getActiveBits() <= 64) {
       Type *NewTy = ArrayType::get(AI.getAllocatedType(), C->getZExtValue());
-      AllocaInst *New = IC.Builder.CreateAlloca(NewTy, nullptr, AI.getName());
+      AllocaInst *New = IC.Builder.CreateAlloca(NewTy, AI.getAddressSpace(),
+                                                nullptr, AI.getName());
       New->setAlignment(AI.getAlign());
 
       // Scan to the end of the allocation instructions, to skip over a block of
@@ -199,21 +201,13 @@ static Instruction *simplifyAllocaArraySize(InstCombinerImpl &IC,
       Type *IdxTy = IC.getDataLayout().getIntPtrType(AI.getType());
       Value *NullIdx = Constant::getNullValue(IdxTy);
       Value *Idx[2] = {NullIdx, NullIdx};
-      Instruction *NewI = GetElementPtrInst::CreateInBounds(
+      Instruction *GEP = GetElementPtrInst::CreateInBounds(
           NewTy, New, Idx, New->getName() + ".sub");
-      IC.InsertNewInstBefore(NewI, *It);
-
-      // Gracefully handle allocas in other address spaces.
-      if (AI.getType()->getPointerAddressSpace() !=
-          NewI->getType()->getPointerAddressSpace()) {
-        NewI =
-            CastInst::CreatePointerBitCastOrAddrSpaceCast(NewI, AI.getType());
-        IC.InsertNewInstBefore(NewI, *It);
-      }
+      IC.InsertNewInstBefore(GEP, *It);
 
       // Now make everything use the getelementptr instead of the original
       // allocation.
-      return IC.replaceInstUsesWith(AI, NewI);
+      return IC.replaceInstUsesWith(AI, GEP);
     }
   }
 
@@ -260,7 +254,7 @@ private:
 } // end anonymous namespace
 
 bool PointerReplacer::collectUsers(Instruction &I) {
-  for (auto U : I.users()) {
+  for (auto *U : I.users()) {
     auto *Inst = cast<Instruction>(&*U);
     if (auto *Load = dyn_cast<LoadInst>(Inst)) {
       if (Load->isVolatile())
@@ -308,16 +302,17 @@ void PointerReplacer::replace(Instruction *I) {
     assert(V && "Operand not replaced");
     SmallVector<Value *, 8> Indices;
     Indices.append(GEP->idx_begin(), GEP->idx_end());
-    auto *NewI = GetElementPtrInst::Create(
-        V->getType()->getPointerElementType(), V, Indices);
+    auto *NewI =
+        GetElementPtrInst::Create(GEP->getSourceElementType(), V, Indices);
     IC.InsertNewInstWith(NewI, *GEP);
     NewI->takeName(GEP);
     WorkMap[GEP] = NewI;
   } else if (auto *BC = dyn_cast<BitCastInst>(I)) {
     auto *V = getReplacement(BC->getOperand(0));
     assert(V && "Operand not replaced");
-    auto *NewT = PointerType::get(BC->getType()->getPointerElementType(),
-                                  V->getType()->getPointerAddressSpace());
+    auto *NewT = PointerType::getWithSamePointeeType(
+        cast<PointerType>(BC->getType()),
+        V->getType()->getPointerAddressSpace());
     auto *NewI = new BitCastInst(V, NewT);
     IC.InsertNewInstWith(NewI, *BC);
     NewI->takeName(BC);
@@ -352,8 +347,7 @@ void PointerReplacer::replacePointer(Instruction &I, Value *V) {
 #ifndef NDEBUG
   auto *PT = cast<PointerType>(I.getType());
   auto *NT = cast<PointerType>(V->getType());
-  assert(PT != NT && PT->getElementType() == NT->getElementType() &&
-         "Invalid usage");
+  assert(PT != NT && PT->hasSameElementTypeAs(NT) && "Invalid usage");
 #endif
   WorkMap[&I] = V;
 
@@ -405,11 +399,11 @@ Instruction *InstCombinerImpl::visitAllocaInst(AllocaInst &AI) {
   }
 
   // Check to see if this allocation is only modified by a memcpy/memmove from
-  // a constant whose alignment is equal to or exceeds that of the allocation.
-  // If this is the case, we can change all users to use the constant global
-  // instead.  This is commonly produced by the CFE by constructs like "void
-  // foo() { int A[] = {1,2,3,4,5,6,7,8,9...}; }" if 'A' is only subsequently
-  // read.
+  // a memory location whose alignment is equal to or exceeds that of the
+  // allocation. If this is the case, we can change all users to use the
+  // constant memory location instead.  This is commonly produced by the CFE by
+  // constructs like "void foo() { int A[] = {1,2,3,4,5,6,7,8,9...}; }" if 'A'
+  // is only subsequently read.
   SmallVector<Instruction *, 4> ToDelete;
   if (MemTransferInst *Copy = isOnlyCopiedFromConstantMemory(AA, &AI, ToDelete)) {
     Value *TheSrc = Copy->getSource();
@@ -425,7 +419,7 @@ Instruction *InstCombinerImpl::visitAllocaInst(AllocaInst &AI) {
       LLVM_DEBUG(dbgs() << "  memcpy = " << *Copy << '\n');
       unsigned SrcAddrSpace = TheSrc->getType()->getPointerAddressSpace();
       auto *DestTy = PointerType::get(AI.getAllocatedType(), SrcAddrSpace);
-      if (AI.getType()->getAddressSpace() == SrcAddrSpace) {
+      if (AI.getAddressSpace() == SrcAddrSpace) {
         for (Instruction *Delete : ToDelete)
           eraseInstFromFunction(*Delete);
 
@@ -640,7 +634,6 @@ static Instruction *unpackLoadToAggregate(InstCombinerImpl &IC, LoadInst &LI) {
     return nullptr;
 
   StringRef Name = LI.getName();
-  assert(LI.getAlignment() && "Alignment must be set at this point");
 
   if (auto *ST = dyn_cast<StructType>(T)) {
     // If the struct only have one element, we unpack.
@@ -650,7 +643,7 @@ static Instruction *unpackLoadToAggregate(InstCombinerImpl &IC, LoadInst &LI) {
                                                   ".unpack");
       NewLoad->setAAMetadata(LI.getAAMetadata());
       return IC.replaceInstUsesWith(LI, IC.Builder.CreateInsertValue(
-        UndefValue::get(T), NewLoad, 0, Name));
+        PoisonValue::get(T), NewLoad, 0, Name));
     }
 
     // We don't want to break loads with padding here as we'd loose
@@ -665,7 +658,7 @@ static Instruction *unpackLoadToAggregate(InstCombinerImpl &IC, LoadInst &LI) {
     auto *IdxType = Type::getInt32Ty(T->getContext());
     auto *Zero = ConstantInt::get(IdxType, 0);
 
-    Value *V = UndefValue::get(T);
+    Value *V = PoisonValue::get(T);
     for (unsigned i = 0; i < NumElements; i++) {
       Value *Indices[2] = {
         Zero,
@@ -692,7 +685,7 @@ static Instruction *unpackLoadToAggregate(InstCombinerImpl &IC, LoadInst &LI) {
       LoadInst *NewLoad = IC.combineLoadToNewType(LI, ET, ".unpack");
       NewLoad->setAAMetadata(LI.getAAMetadata());
       return IC.replaceInstUsesWith(LI, IC.Builder.CreateInsertValue(
-        UndefValue::get(T), NewLoad, 0, Name));
+        PoisonValue::get(T), NewLoad, 0, Name));
     }
 
     // Bail out if the array is too large. Ideally we would like to optimize
@@ -710,7 +703,7 @@ static Instruction *unpackLoadToAggregate(InstCombinerImpl &IC, LoadInst &LI) {
     auto *IdxType = Type::getInt64Ty(T->getContext());
     auto *Zero = ConstantInt::get(IdxType, 0);
 
-    Value *V = UndefValue::get(T);
+    Value *V = PoisonValue::get(T);
     uint64_t Offset = 0;
     for (uint64_t i = 0; i < NumElements; i++) {
       Value *Indices[2] = {
@@ -780,10 +773,13 @@ static bool isObjectSizeLessThanOrEq(Value *V, uint64_t MaxSize,
       if (!CS)
         return false;
 
-      uint64_t TypeSize = DL.getTypeAllocSize(AI->getAllocatedType());
+      TypeSize TS = DL.getTypeAllocSize(AI->getAllocatedType());
+      if (TS.isScalable())
+        return false;
       // Make sure that, even if the multiplication below would wrap as an
       // uint64_t, we still do the right thing.
-      if ((CS->getValue().zextOrSelf(128)*APInt(128, TypeSize)).ugt(MaxSize))
+      if ((CS->getValue().zext(128) * APInt(128, TS.getFixedSize()))
+              .ugt(MaxSize))
         return false;
       continue;
     }
@@ -1383,7 +1379,7 @@ Instruction *InstCombinerImpl::visitStoreInst(StoreInst &SI) {
   // If we have a store to a location which is known constant, we can conclude
   // that the store must be storing the constant value (else the memory
   // wouldn't be constant), and this must be a noop.
-  if (AA->pointsToConstantMemory(Ptr))
+  if (!isModSet(AA->getModRefInfoMask(Ptr)))
     return eraseInstFromFunction(SI);
 
   // Do really simple DSE, to catch cases where there are several consecutive
@@ -1403,8 +1399,10 @@ Instruction *InstCombinerImpl::visitStoreInst(StoreInst &SI) {
 
     if (StoreInst *PrevSI = dyn_cast<StoreInst>(BBI)) {
       // Prev store isn't volatile, and stores to the same location?
-      if (PrevSI->isUnordered() && equivalentAddressValues(PrevSI->getOperand(1),
-                                                        SI.getOperand(1))) {
+      if (PrevSI->isUnordered() &&
+          equivalentAddressValues(PrevSI->getOperand(1), SI.getOperand(1)) &&
+          PrevSI->getValueOperand()->getType() ==
+              SI.getValueOperand()->getType()) {
         ++NumDeadStore;
         // Manually add back the original store to the worklist now, so it will
         // be processed after the operands of the removed store, as this may
@@ -1444,6 +1442,8 @@ Instruction *InstCombinerImpl::visitStoreInst(StoreInst &SI) {
   }
 
   // store undef, Ptr -> noop
+  // FIXME: This is technically incorrect because it might overwrite a poison
+  // value. Change to PoisonValue once #52930 is resolved.
   if (isa<UndefValue>(Val))
     return eraseInstFromFunction(SI);
 

@@ -1,8 +1,8 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
 
-; RUN: llc -mtriple=x86_64-linux-gnu -filetype=obj -o - %t.ll | llvm-dwarfdump -name i4 - \
+; RUN: llc -mtriple=x86_64-linux-gnu -filetype=obj -o - %t.ll -experimental-debug-variable-locations=false | llvm-dwarfdump -name i4 - \
 ; RUN:     | FileCheck %s
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
@@ -34,7 +34,7 @@ target triple = "spir64-unknown-unknown"
 ; CHECK: DW_TAG_formal_parameter
 ; Check concrete entry has a single location.
 ; CHECK:      DW_TAG_formal_parameter
-; CHECK-NEXT:   DW_AT_location (DW_OP_reg3 RBX)
+; CHECK-NEXT:   DW_AT_location (DW_OP_reg6 RBP)
 ; CHECK-NEXT:   DW_AT_abstract_origin
 ; CHECK-NOT:  DW_TAG_formal_parameter
 

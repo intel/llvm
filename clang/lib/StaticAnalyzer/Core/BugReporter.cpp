@@ -537,10 +537,10 @@ static void removeEdgesToDefaultInitializers(PathPieces &Pieces) {
     if (auto *CF = dyn_cast<PathDiagnosticControlFlowPiece>(I->get())) {
       const Stmt *Start = CF->getStartLocation().asStmt();
       const Stmt *End = CF->getEndLocation().asStmt();
-      if (Start && isa<CXXDefaultInitExpr>(Start)) {
+      if (isa_and_nonnull<CXXDefaultInitExpr>(Start)) {
         I = Pieces.erase(I);
         continue;
-      } else if (End && isa<CXXDefaultInitExpr>(End)) {
+      } else if (isa_and_nonnull<CXXDefaultInitExpr>(End)) {
         PathPieces::iterator Next = std::next(I);
         if (Next != E) {
           if (auto *NextCF =
@@ -1314,8 +1314,7 @@ void PathDiagnosticBuilder::generatePathDiagnosticsForNode(
             C.getActivePath().push_front(std::move(PE));
           }
         }
-      } else if (isa<BreakStmt>(Term) || isa<ContinueStmt>(Term) ||
-                 isa<GotoStmt>(Term)) {
+      } else if (isa<BreakStmt, ContinueStmt, GotoStmt>(Term)) {
         PathDiagnosticLocation L(Term, SM, C.getCurrLocationContext());
         addEdgeToPath(C.getActivePath(), PrevLoc, L);
       }
@@ -1354,9 +1353,7 @@ static const Stmt *getStmtParent(const Stmt *S, const ParentMap &PM) {
     if (!S)
       break;
 
-    if (isa<FullExpr>(S) ||
-        isa<CXXBindTemporaryExpr>(S) ||
-        isa<SubstNonTypeTemplateParmExpr>(S))
+    if (isa<FullExpr, CXXBindTemporaryExpr, SubstNonTypeTemplateParmExpr>(S))
       continue;
 
     break;
@@ -1552,9 +1549,8 @@ static void simplifySimpleBranches(PathPieces &pieces) {
 
     // We only perform this transformation for specific branch kinds.
     // We don't want to do this for do..while, for example.
-    if (!(isa<ForStmt>(s1Start) || isa<WhileStmt>(s1Start) ||
-          isa<IfStmt>(s1Start) || isa<ObjCForCollectionStmt>(s1Start) ||
-          isa<CXXForRangeStmt>(s1Start)))
+    if (!isa<ForStmt, WhileStmt, IfStmt, ObjCForCollectionStmt,
+             CXXForRangeStmt>(s1Start))
       continue;
 
     // Is s1End the branch condition?
@@ -1887,7 +1883,7 @@ static bool optimizeEdges(const PathDiagnosticConstruct &C, PathPieces &path,
                  lexicalContains(PM, s1Start, s1End)) {
           SourceRange EdgeRange(PieceI->getEndLocation().asLocation(),
                                 PieceI->getStartLocation().asLocation());
-          if (!getLengthOnSingleLine(SM, EdgeRange).hasValue())
+          if (!getLengthOnSingleLine(SM, EdgeRange))
             removeEdge = true;
         }
       }
@@ -2367,15 +2363,15 @@ PathSensitiveBugReport::getInterestingnessKind(const MemRegion *R) const {
 }
 
 bool PathSensitiveBugReport::isInteresting(SVal V) const {
-  return getInterestingnessKind(V).hasValue();
+  return getInterestingnessKind(V).has_value();
 }
 
 bool PathSensitiveBugReport::isInteresting(SymbolRef sym) const {
-  return getInterestingnessKind(sym).hasValue();
+  return getInterestingnessKind(sym).has_value();
 }
 
 bool PathSensitiveBugReport::isInteresting(const MemRegion *R) const {
-  return getInterestingnessKind(R).hasValue();
+  return getInterestingnessKind(R).has_value();
 }
 
 bool PathSensitiveBugReport::isInteresting(const LocationContext *LC)  const {
@@ -3101,9 +3097,8 @@ void BugReporter::FlushReport(BugReportEquivClass& EQ) {
     if (getAnalyzerOptions().ShouldDisplayNotesAsEvents) {
       // For path diagnostic consumers that don't support extra notes,
       // we may optionally convert those to path notes.
-      for (auto I = report->getNotes().rbegin(),
-           E = report->getNotes().rend(); I != E; ++I) {
-        PathDiagnosticNotePiece *Piece = I->get();
+      for (const auto &I : llvm::reverse(report->getNotes())) {
+        PathDiagnosticNotePiece *Piece = I.get();
         auto ConvertedPiece = std::make_shared<PathDiagnosticEventPiece>(
           Piece->getLocation(), Piece->getString());
         for (const auto &R: Piece->getRanges())
@@ -3112,9 +3107,8 @@ void BugReporter::FlushReport(BugReportEquivClass& EQ) {
         Pieces.push_front(std::move(ConvertedPiece));
       }
     } else {
-      for (auto I = report->getNotes().rbegin(),
-           E = report->getNotes().rend(); I != E; ++I)
-        Pieces.push_front(*I);
+      for (const auto &I : llvm::reverse(report->getNotes()))
+        Pieces.push_front(I);
     }
 
     for (const auto &I : report->getFixits())
@@ -3193,7 +3187,7 @@ findExecutedLines(const SourceManager &SM, const ExplodedNode *N) {
         P = N->getParentMap().getParent(RS);
       }
 
-      if (P && (isa<SwitchCase>(P) || isa<LabelStmt>(P)))
+      if (isa_and_nonnull<SwitchCase, LabelStmt>(P))
         populateExecutedLinesWithStmt(P, SM, *ExecutedLines);
     }
 

@@ -18,30 +18,34 @@ using namespace mlir;
 Optional<SmallVector<ReassociationIndices>>
 mlir::getReassociationIndicesForReshape(ShapedType sourceType,
                                         ShapedType targetType) {
-  // Make the sourceType greater rank than the targetType. If they are same
-  // rank, then its an unsupported reshape op.
-  if (sourceType.getRank() == targetType.getRank())
-    return llvm::None;
+  if (sourceType.getRank() > targetType.getRank())
+    return getReassociationIndicesForCollapse(sourceType.getShape(),
+                                              targetType.getShape());
   if (sourceType.getRank() < targetType.getRank())
-    std::swap(sourceType, targetType);
+    return getReassociationIndicesForCollapse(targetType.getShape(),
+                                              sourceType.getShape());
+  return llvm::None;
+}
 
-  ArrayRef<int64_t> sourceShape = sourceType.getShape();
-  ArrayRef<int64_t> targetShape = targetType.getShape();
+Optional<SmallVector<ReassociationIndices>>
+mlir::getReassociationIndicesForCollapse(ArrayRef<int64_t> sourceShape,
+                                         ArrayRef<int64_t> targetShape) {
+  if (sourceShape.size() <= targetShape.size())
+    return llvm::None;
   unsigned sourceDim = 0;
   SmallVector<ReassociationIndices> reassociationMap;
-  reassociationMap.reserve(targetType.getRank());
+  reassociationMap.reserve(targetShape.size());
 
   ReassociationIndices currIndices;
   int64_t prodOfCollapsedDims = 1;
   while (sourceDim < sourceShape.size()) {
     unsigned targetDim = reassociationMap.size();
+    // If we have mapped all the target dimensions stop and handle the remaining
+    // tail of size-1 dimensions explictly.
+    if (targetDim == targetShape.size())
+      break;
 
-    // If all the dimensions of the targetShape are exhausted, then the
-    // remaining dims in the source shape must be all 1s. So for such cases, set
-    // 1 as the target shape. The actual reassociation indices will be handled
-    // later.
-    int64_t currTargetShape =
-        (targetDim < targetType.getRank() ? targetShape[targetDim] : 1);
+    int64_t currTargetShape = targetShape[targetDim];
     while (sourceShape[sourceDim] != ShapedType::kDynamicSize &&
            prodOfCollapsedDims * sourceShape[sourceDim] < currTargetShape &&
            sourceDim < sourceShape.size()) {
@@ -69,80 +73,24 @@ mlir::getReassociationIndicesForReshape(ShapedType sourceType,
       return llvm::None;
 
     currIndices.push_back(sourceDim++);
-    // If the reassociation is empty but the currIndices is not, this by
-    // definition is folding unit-dimensions with the result being scalar type.
-    // So only append the `currIndices` if reassociation map is not empty.
-    if (targetDim == targetShape.size()) {
-      if (!reassociationMap.empty() && !currIndices.empty())
-        reassociationMap.back().append(currIndices.begin(), currIndices.end());
-      // Break out of the loops. We should be done here.
-      break;
-    }
     reassociationMap.emplace_back(ReassociationIndices{});
     std::swap(reassociationMap.back(), currIndices);
     prodOfCollapsedDims = 1;
   }
-  // All the dimensions in the two shapes must have been processed.
-  if (reassociationMap.size() != targetShape.size() ||
-      sourceDim != sourceShape.size())
+  // All the dimensions in the target must have been processed.
+  if (reassociationMap.size() != targetShape.size())
     return llvm::None;
-  return reassociationMap;
-}
-
-ParseResult mlir::parseReshapeLikeOp(OpAsmParser &parser,
-                                     OperationState &result) {
-  // Parse the operand.
-  OpAsmParser::OperandType src;
-  if (parser.parseOperand(src))
-    return failure();
-
-  // Parse reassociation indices.
-  Builder &b = parser.getBuilder();
-  SmallVector<Attribute, 4> reassociation;
-  if (parser.parseLSquare())
-    return failure();
-
-  while (true) {
-    if (succeeded(parser.parseOptionalRSquare()))
-      break;
-    if (parser.parseLSquare())
-      return failure();
-    SmallVector<int64_t> indices;
-    while (true) {
-      int64_t index;
-      if (parser.parseInteger(index))
-        return failure();
-      indices.push_back(index);
-
-      if (succeeded(parser.parseOptionalComma()))
-        continue;
-      if (failed(parser.parseRSquare()))
-        return failure();
-      break;
-    }
-    reassociation.push_back(b.getI64ArrayAttr(indices));
-    if (succeeded(parser.parseOptionalComma()))
-      continue;
-    if (failed(parser.parseRSquare()))
-      return failure();
-    break;
+  // Process any remaining entries in the source shape. They all need to be
+  // 1 or dynamic.
+  for (; sourceDim < sourceShape.size(); sourceDim++) {
+    if (sourceShape[sourceDim] != ShapedType::kDynamicSize &&
+        sourceShape[sourceDim] != 1)
+      return llvm::None;
+    // The map is empty when the target type is a scalar.
+    if (!reassociationMap.empty())
+      reassociationMap.back().push_back(sourceDim);
   }
-
-  result.addAttribute(getReassociationAttrName(),
-                      b.getArrayAttr(reassociation));
-
-  // Parse optional attributes.
-  parser.parseOptionalAttrDict(result.attributes);
-
-  // Parse types.
-  Type srcType;
-  Type resultType;
-  if (parser.parseColon() || parser.parseType(srcType) ||
-      parser.resolveOperand(src, srcType, result.operands) ||
-      parser.parseKeyword("into") || parser.parseType(resultType))
-    return failure();
-  result.addTypes(resultType);
-  return success();
+  return reassociationMap;
 }
 
 Optional<SmallVector<ReassociationIndices>> mlir::composeReassociationIndices(
@@ -173,8 +121,7 @@ Optional<SmallVector<ReassociationIndices>> mlir::composeReassociationIndices(
   for (ReassociationIndicesRef consumerIndices : consumerReassociations) {
     ReassociationIndices reassociations;
     for (int64_t consumerIndex : consumerIndices) {
-      for (int64_t producerIndex : producerReassociations[consumerIndex])
-        reassociations.push_back(producerIndex);
+      llvm::append_range(reassociations, producerReassociations[consumerIndex]);
     }
     composedIndices.push_back(std::move(reassociations));
   }
@@ -213,7 +160,7 @@ ArrayAttr mlir::getReassociationIndicesAttribute(
     OpBuilder &b, ArrayRef<ReassociationIndices> reassociation) {
   SmallVector<Attribute, 4> reassociationAttr =
       llvm::to_vector<4>(llvm::map_range(
-          reassociation, [&](ReassociationIndices indices) -> Attribute {
+          reassociation, [&](const ReassociationIndices &indices) -> Attribute {
             return b.getI64ArrayAttr(indices).cast<Attribute>();
           }));
   return b.getArrayAttr(reassociationAttr);
@@ -245,13 +192,14 @@ mlir::getSymbolLessAffineMaps(ArrayRef<ReassociationExprs> reassociation) {
   }
   return maps;
 }
+
 bool mlir::isReassociationValid(ArrayRef<AffineMap> reassociation,
                                 int *invalidIndex) {
   if (reassociation.empty())
     return true;
   unsigned nDims = reassociation[0].getNumDims();
   unsigned nextExpectedDim = 0;
-  for (auto it : llvm::enumerate(reassociation)) {
+  for (const auto &it : llvm::enumerate(reassociation)) {
     auto m = it.value();
     if (m.getNumDims() != nDims || m.getNumSymbols() != 0) {
       if (invalidIndex)
@@ -273,4 +221,230 @@ bool mlir::isReassociationValid(ArrayRef<AffineMap> reassociation,
     return false;
   }
   return true;
+}
+
+LogicalResult mlir::reshapeLikeShapesAreCompatible(
+    function_ref<LogicalResult(const Twine &)> emitError,
+    ArrayRef<int64_t> collapsedShape, ArrayRef<int64_t> expandedShape,
+    ArrayRef<ReassociationIndices> reassociationMaps, bool isExpandingReshape) {
+  unsigned expandedDimStart = 0;
+  for (const auto &map : llvm::enumerate(reassociationMaps)) {
+    Optional<int64_t> dynamicShape;
+    int64_t linearizedStaticShape = 1;
+    for (const auto &dim : llvm::enumerate(
+             expandedShape.slice(expandedDimStart, map.value().size()))) {
+      if (ShapedType::isDynamic(dim.value())) {
+        if (isExpandingReshape && dynamicShape) {
+          return emitError("invalid to have a single dimension (" +
+                           Twine(map.index()) +
+                           ") expanded into multiple dynamic dims (" +
+                           Twine(expandedDimStart + dynamicShape.value()) +
+                           "," + Twine(expandedDimStart + dim.index()) + ")");
+        }
+        dynamicShape = dim.index();
+      } else {
+        linearizedStaticShape *= dim.value();
+      }
+    }
+    if (dynamicShape) {
+      if (!ShapedType::isDynamic(collapsedShape[map.index()])) {
+        return emitError(
+            "expected dimension " + Twine(map.index()) +
+            " of collapsed type to be dynamic since one or more of the "
+            "corresponding dimensions in the expanded type is dynamic");
+      }
+    } else {
+      if (collapsedShape[map.index()] != linearizedStaticShape) {
+        return emitError("expected dimension " + Twine(map.index()) +
+                         " of collapsed type to be static value of " +
+                         Twine(linearizedStaticShape));
+      }
+    }
+    expandedDimStart += map.value().size();
+  }
+  return success();
+}
+
+bool mlir::hasNonIdentityLayout(Type type) {
+  if (auto memrefType = type.dyn_cast<MemRefType>())
+    return !memrefType.getLayout().isIdentity();
+  return false;
+}
+
+llvm::SmallBitVector
+mlir::getSlicedDimensions(ArrayRef<OpFoldResult> sliceInputShape,
+                          ArrayRef<Range> sliceParams) {
+  assert(sliceParams.size() == sliceInputShape.size() &&
+         "only supports non rank-reducing case");
+  llvm::SmallBitVector mask(sliceInputShape.size());
+  unsigned idx = 0;
+  for (const auto &[offset, size, stride] : sliceParams) {
+    Optional<int64_t> offsetConst = getConstantIntValue(offset);
+    Optional<int64_t> strideConst = getConstantIntValue(stride);
+    mask[idx] = !isEqualConstantIntOrValue(size, sliceInputShape[idx]) ||
+                (!strideConst || *strideConst != 1) ||
+                (!offsetConst || *offsetConst != 0);
+    idx++;
+  }
+  return mask;
+}
+
+llvm::SmallBitVector mlir::getLinearizedDimensions(
+    ArrayRef<ReassociationIndices> reassociationIndices) {
+  llvm::SmallBitVector result(reassociationIndices.size());
+  for (const auto &it : llvm::enumerate(reassociationIndices))
+    result[it.index()] = it.value().size() > 1;
+  return result;
+}
+
+SmallVector<Range> SliceFromCollapseHelper::getExtractSliceParams(
+    MLIRContext *ctx, ArrayRef<ValueRange> multiIndices) {
+  unsigned loopIdx = 0;
+  auto oneAttr = IntegerAttr::get(IndexType::get(ctx), 1);
+  auto zeroAttr = IntegerAttr::get(IndexType::get(ctx), 0);
+  SmallVector<Range> offsetsSizesAndStrides;
+  offsetsSizesAndStrides.reserve(collapseShapeInputShape.size());
+  for (const auto &it : llvm::enumerate(reassociationIndices)) {
+    // Case 1: Linearized dimensions that have also been sliced. These
+    // are size of 1 because we are iterating over these dimensions. The
+    // offsets are exactly the de-linearized multi-indices.
+    if (slicedDimensions[it.index()] && linearizedDimensions[it.index()]) {
+      llvm::append_range(
+          offsetsSizesAndStrides,
+          llvm::map_range(multiIndices[loopIdx++], [&](Value v) -> Range {
+            return Range{getAsOpFoldResult(v), oneAttr, oneAttr};
+          }));
+      continue;
+    }
+
+    // Case 2: One or possibly multiple combined input dimensions, but we
+    // have proven that these are not sliced. In this case we just take
+    // the full extent of each dimension in the reassociation list.
+    if (linearizedDimensions[it.index()]) {
+      llvm::append_range(
+          offsetsSizesAndStrides,
+          llvm::map_range(it.value(), [&](int64_t idx) -> Range {
+            return {zeroAttr, collapseShapeInputShape[idx], oneAttr};
+          }));
+      continue;
+    }
+
+    // Case 3: A single index, but it may be sliced.
+    offsetsSizesAndStrides.push_back(sliceParams[it.index()]);
+  }
+  return offsetsSizesAndStrides;
+}
+
+SmallVector<Range>
+SliceFromCollapseHelper::getInsertSliceParams(MLIRContext *ctx,
+                                              ValueRange tileIndices) {
+  auto one = IntegerAttr::get(IndexType::get(ctx), 1);
+  auto zero = IntegerAttr::get(IndexType::get(ctx), 0);
+  SmallVector<Range> insertParams;
+  insertParams.reserve(linearizedDimensions.size());
+  unsigned loopIdx = 0;
+  for (unsigned i = 0; i < linearizedDimensions.size(); i++) {
+    if (linearizedDimensions[i] && slicedDimensions[i]) {
+      insertParams.push_back(Range{tileIndices[loopIdx++], one, one});
+      continue;
+    }
+    insertParams.push_back(Range{zero, sliceParams[i].size, one});
+  }
+  return insertParams;
+}
+
+/// Returns the index of the only non-unit dimension among `indices` of `shape`,
+/// if such a dimension exists and `indices` has more than one element.
+/// Otherwise, return none.
+static Optional<int64_t> getUniqueNonUnitDim(ArrayRef<int64_t> indices,
+                                             ArrayRef<int64_t> shape) {
+  // Return false if more than one of the dimensions in this group are not 1.
+  Optional<int64_t> dimIndex = None;
+  if (indices.size() < 2)
+    return None;
+  for (int64_t idx : indices) {
+    if (shape[idx] != 1) {
+      if (dimIndex != None)
+        return None;
+      dimIndex = idx;
+    }
+  }
+  return dimIndex;
+}
+
+// For each segment in the reassociation indices, check whether we can
+// simplify that segment with a rank-reducing extract slice. We can do this if
+// all but (exactly) one of the corresponding source dims is 1.
+static SmallVector<Optional<int64_t>> getCollapseShapeTrivialSegments(
+    RankedTensorType sourceType,
+    ArrayRef<ReassociationIndices> reassociationIndices) {
+  SmallVector<Optional<int64_t>> trivialSegments;
+  for (const auto &indices : reassociationIndices)
+    trivialSegments.push_back(
+        getUniqueNonUnitDim(indices, sourceType.getShape()));
+  return trivialSegments;
+}
+
+/// Returns true if any of the segments of the reassociation indices for a
+/// collapsing reshape can be simplified using a rank-reducing slice.
+static FailureOr<SmallVector<Optional<int64_t>>>
+canCollapseShapeBeSimplifiedByRankReducingSlice(
+    RankedTensorType sourceType,
+    ArrayRef<ReassociationIndices> reassociationIndices) {
+  SmallVector<Optional<int64_t>> trivialSegments =
+      getCollapseShapeTrivialSegments(sourceType, reassociationIndices);
+  if (!llvm::any_of(trivialSegments, [](const Optional<int64_t> &idx) {
+        return idx.has_value();
+      }))
+    return failure();
+  return trivialSegments;
+}
+
+FailureOr<CollapseShapeRankReducingSliceSimplificationInfo>
+mlir::getSimplifyCollapseShapeWithRankReducingSliceInfo(
+    RankedTensorType sourceType,
+    ArrayRef<ReassociationIndices> reassociationIndices) {
+  FailureOr<SmallVector<Optional<int64_t>>> trivialSegments =
+      canCollapseShapeBeSimplifiedByRankReducingSlice(sourceType,
+                                                      reassociationIndices);
+  if (failed(trivialSegments))
+    return failure();
+
+  // Create the expected result shape of the rank-reducing slice.
+  SmallVector<int64_t> sliceShape;
+  for (const auto &[nonUnitDim, indices] :
+       llvm::zip(*trivialSegments, reassociationIndices)) {
+    if (nonUnitDim) {
+      sliceShape.push_back(sourceType.getDimSize(nonUnitDim.value()));
+      continue;
+    }
+    llvm::append_range(sliceShape, llvm::map_range(indices, [&](int64_t idx) {
+                         return sourceType.getDimSize(idx);
+                       }));
+  }
+  auto sliceType =
+      RankedTensorType::get(sliceShape, sourceType.getElementType());
+
+  // If the rank-reducing slice simplified every segment, then we are done.
+  if (sliceShape.size() == reassociationIndices.size())
+    return CollapseShapeRankReducingSliceSimplificationInfo{sliceType, None};
+
+  // Otherwise, we need to create a new collapse_shape op for the segments that
+  // weren't covered by the slice. By design, the new reassociation indices has
+  // the same number of groups as the old reassociation indices.
+  SmallVector<ReassociationIndices> newReassociationIndices;
+  SmallVector<int64_t, 2> reassociation;
+  int64_t groupIdx = 0;
+  for (int64_t dimIdx = 0; dimIdx < sliceType.getRank(); dimIdx++) {
+    reassociation.push_back(dimIdx);
+    if ((*trivialSegments)[groupIdx] ||
+        reassociation.size() == reassociationIndices[groupIdx].size()) {
+      newReassociationIndices.push_back(reassociation);
+      reassociation.clear();
+      groupIdx++;
+    }
+  }
+
+  return CollapseShapeRankReducingSliceSimplificationInfo{
+      sliceType, newReassociationIndices};
 }

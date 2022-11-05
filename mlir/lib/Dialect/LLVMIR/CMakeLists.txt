@@ -1,8 +1,10 @@
 add_subdirectory(Transforms)
 
-add_mlir_dialect_library(MLIRLLVMIR
+add_mlir_dialect_library(MLIRLLVMDialect
   IR/FunctionCallUtils.cpp
+  IR/LLVMAttrs.cpp
   IR/LLVMDialect.cpp
+  IR/LLVMIntrinsicOps.cpp
   IR/LLVMTypes.cpp
   IR/LLVMTypeSyntax.cpp
 
@@ -11,12 +13,15 @@ add_mlir_dialect_library(MLIRLLVMIR
 
   DEPENDS
   MLIRLLVMOpsIncGen
+  MLIRLLVMTypesIncGen
+  MLIRLLVMIntrinsicOpsIncGen
   MLIRLLVMOpsInterfacesIncGen
   MLIROpenMPOpsIncGen
   intrinsics_gen
 
   LINK_COMPONENTS
   AsmParser
+  BinaryFormat
   BitReader
   BitWriter
   Core
@@ -25,12 +30,13 @@ add_mlir_dialect_library(MLIRLLVMIR
   MLIRCallInterfaces
   MLIRControlFlowInterfaces
   MLIRDataLayoutInterfaces
+  MLIRInferTypeOpInterface
   MLIRIR
   MLIRSideEffectInterfaces
   MLIRSupport
   )
 
-add_mlir_dialect_library(MLIRNVVMIR
+add_mlir_dialect_library(MLIRNVVMDialect
   IR/NVVMDialect.cpp
 
   ADDITIONAL_HEADER_DIRS
@@ -47,11 +53,11 @@ add_mlir_dialect_library(MLIRNVVMIR
 
   LINK_LIBS PUBLIC
   MLIRIR
-  MLIRLLVMIR
+  MLIRLLVMDialect
   MLIRSideEffectInterfaces
   )
 
-add_mlir_dialect_library(MLIRROCDLIR
+add_mlir_dialect_library(MLIRROCDLDialect
   IR/ROCDLDialect.cpp
 
   ADDITIONAL_HEADER_DIRS

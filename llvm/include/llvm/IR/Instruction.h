@@ -24,9 +24,6 @@
 #include "llvm/IR/User.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Support/AtomicOrdering.h"
-#include "llvm/Support/Casting.h"
-#include <algorithm>
-#include <cassert>
 #include <cstdint>
 #include <utility>
 
@@ -152,6 +149,13 @@ public:
   /// it takes constant time.
   bool comesBefore(const Instruction *Other) const;
 
+  /// Get the first insertion point at which the result of this instruction
+  /// is defined. This is *not* the directly following instruction in a number
+  /// of cases, e.g. phi nodes or terminators that return values. This function
+  /// may return null if the insertion after the definition is not possible,
+  /// e.g. due to a catchswitch terminator.
+  Instruction *getInsertionPointAfterDef();
+
   //===--------------------------------------------------------------------===//
   // Subclass classification.
   //===--------------------------------------------------------------------===//
@@ -174,10 +178,6 @@ public:
   /// It checks if this instruction is the only user of at least one of
   /// its operands.
   bool isOnlyUserOfAnyOperand();
-
-  bool isIndirectTerminator() const {
-    return isIndirectTerminator(getOpcode());
-  }
 
   static const char* getOpcodeName(unsigned OpCode);
 
@@ -239,17 +239,6 @@ public:
     case Instruction::CleanupRet:
     case Instruction::Invoke:
     case Instruction::Resume:
-      return true;
-    default:
-      return false;
-    }
-  }
-
-  /// Returns true if the OpCode is a terminator with indirect targets.
-  static inline bool isIndirectTerminator(unsigned OpCode) {
-    switch (OpCode) {
-    case Instruction::IndirectBr:
-    case Instruction::CallBr:
       return true;
     default:
       return false;
@@ -353,11 +342,6 @@ public:
   /// Sets the AA metadata on this instruction from the AAMDNodes structure.
   void setAAMetadata(const AAMDNodes &N);
 
-  /// Retrieve the raw weight values of a conditional branch or select.
-  /// Returns true on success with profile weights filled in.
-  /// Returns false if no metadata or invalid metadata was found.
-  bool extractProfMetadata(uint64_t &TrueVal, uint64_t &FalseVal) const;
-
   /// Retrieve total raw weight values of a branch.
   /// Returns true on success with profile total weights filled in.
   /// Returns false if no metadata was found.
@@ -382,10 +366,14 @@ public:
   void setIsExact(bool b = true);
 
   /// Determine whether the no unsigned wrap flag is set.
-  bool hasNoUnsignedWrap() const;
+  bool hasNoUnsignedWrap() const LLVM_READONLY;
 
   /// Determine whether the no signed wrap flag is set.
-  bool hasNoSignedWrap() const;
+  bool hasNoSignedWrap() const LLVM_READONLY;
+
+  /// Return true if this operator has flags which may cause this instruction
+  /// to evaluate to poison despite having non-poison inputs.
+  bool hasPoisonGeneratingFlags() const LLVM_READONLY;
 
   /// Drops flags that may cause this instruction to evaluate to poison despite
   /// having non-poison inputs.
@@ -399,7 +387,7 @@ public:
   dropUndefImplyingAttrsAndUnknownMetadata(ArrayRef<unsigned> KnownIDs = {});
 
   /// Determine whether the exact flag is set.
-  bool isExact() const;
+  bool isExact() const LLVM_READONLY;
 
   /// Set or clear all fast-math-flags on this instruction, which must be an
   /// operator which supports this flag. See LangRef.html for the meaning of
@@ -452,33 +440,33 @@ public:
   void copyFastMathFlags(FastMathFlags FMF);
 
   /// Determine whether all fast-math-flags are set.
-  bool isFast() const;
+  bool isFast() const LLVM_READONLY;
 
   /// Determine whether the allow-reassociation flag is set.
-  bool hasAllowReassoc() const;
+  bool hasAllowReassoc() const LLVM_READONLY;
 
   /// Determine whether the no-NaNs flag is set.
-  bool hasNoNaNs() const;
+  bool hasNoNaNs() const LLVM_READONLY;
 
   /// Determine whether the no-infs flag is set.
-  bool hasNoInfs() const;
+  bool hasNoInfs() const LLVM_READONLY;
 
   /// Determine whether the no-signed-zeros flag is set.
-  bool hasNoSignedZeros() const;
+  bool hasNoSignedZeros() const LLVM_READONLY;
 
   /// Determine whether the allow-reciprocal flag is set.
-  bool hasAllowReciprocal() const;
+  bool hasAllowReciprocal() const LLVM_READONLY;
 
   /// Determine whether the allow-contract flag is set.
-  bool hasAllowContract() const;
+  bool hasAllowContract() const LLVM_READONLY;
 
   /// Determine whether the approximate-math-functions flag is set.
-  bool hasApproxFunc() const;
+  bool hasApproxFunc() const LLVM_READONLY;
 
   /// Convenience function for getting all the fast-math flags, which must be an
   /// operator which supports these flags. See LangRef.html for the meaning of
   /// these flags.
-  FastMathFlags getFastMathFlags() const;
+  FastMathFlags getFastMathFlags() const LLVM_READONLY;
 
   /// Copy I's fast-math flags
   void copyFastMathFlags(const Instruction *I);
@@ -589,10 +577,10 @@ public:
   }
 
   /// Return true if this instruction may modify memory.
-  bool mayWriteToMemory() const;
+  bool mayWriteToMemory() const LLVM_READONLY;
 
   /// Return true if this instruction may read memory.
-  bool mayReadFromMemory() const;
+  bool mayReadFromMemory() const LLVM_READONLY;
 
   /// Return true if this instruction may read or write memory.
   bool mayReadOrWriteMemory() const {
@@ -601,19 +589,19 @@ public:
 
   /// Return true if this instruction has an AtomicOrdering of unordered or
   /// higher.
-  bool isAtomic() const;
+  bool isAtomic() const LLVM_READONLY;
 
   /// Return true if this atomic instruction loads from memory.
-  bool hasAtomicLoad() const;
+  bool hasAtomicLoad() const LLVM_READONLY;
 
   /// Return true if this atomic instruction stores to memory.
-  bool hasAtomicStore() const;
+  bool hasAtomicStore() const LLVM_READONLY;
 
   /// Return true if this instruction has a volatile memory access.
-  bool isVolatile() const;
+  bool isVolatile() const LLVM_READONLY;
 
   /// Return true if this instruction may throw an exception.
-  bool mayThrow() const;
+  bool mayThrow() const LLVM_READONLY;
 
   /// Return true if this instruction behaves like a memory fence: it can load
   /// or store to memory location without being given a memory location.
@@ -643,7 +631,7 @@ public:
   /// effects because the newly allocated memory is completely invisible to
   /// instructions which don't use the returned value.  For cases where this
   /// matters, isSafeToSpeculativelyExecute may be more appropriate.
-  bool mayHaveSideEffects() const;
+  bool mayHaveSideEffects() const LLVM_READONLY;
 
   /// Return true if the instruction can be removed if the result is unused.
   ///
@@ -651,11 +639,11 @@ public:
   /// results are unused. Specifically terminator instructions and calls that
   /// may have side effects cannot be removed without semantically changing the
   /// generated program.
-  bool isSafeToRemove() const;
+  bool isSafeToRemove() const LLVM_READONLY;
 
   /// Return true if the instruction will return (unwinding is considered as
   /// a form of returning control flow here).
-  bool willReturn() const;
+  bool willReturn() const LLVM_READONLY;
 
   /// Return true if the instruction is a variety of EH-block.
   bool isEHPad() const {
@@ -672,14 +660,14 @@ public:
 
   /// Return true if the instruction is a llvm.lifetime.start or
   /// llvm.lifetime.end marker.
-  bool isLifetimeStartOrEnd() const;
+  bool isLifetimeStartOrEnd() const LLVM_READONLY;
 
   /// Return true if the instruction is a llvm.launder.invariant.group or
   /// llvm.strip.invariant.group.
-  bool isLaunderOrStripInvariantGroup() const;
+  bool isLaunderOrStripInvariantGroup() const LLVM_READONLY;
 
   /// Return true if the instruction is a DbgInfoIntrinsic or PseudoProbeInst.
-  bool isDebugOrPseudoInst() const;
+  bool isDebugOrPseudoInst() const LLVM_READONLY;
 
   /// Return a pointer to the next non-debug instruction in the same basic
   /// block as 'this', or nullptr if no such instruction exists. Skip any pseudo
@@ -713,12 +701,12 @@ public:
   /// Return true if the specified instruction is exactly identical to the
   /// current one. This means that all operands match and any extra information
   /// (e.g. load is volatile) agree.
-  bool isIdenticalTo(const Instruction *I) const;
+  bool isIdenticalTo(const Instruction *I) const LLVM_READONLY;
 
   /// This is like isIdenticalTo, except that it ignores the
   /// SubclassOptionalData flags, which may specify conditions under which the
   /// instruction's result is undefined.
-  bool isIdenticalToWhenDefined(const Instruction *I) const;
+  bool isIdenticalToWhenDefined(const Instruction *I) const LLVM_READONLY;
 
   /// When checking for operation equivalence (using isSameOperationAs) it is
   /// sometimes useful to ignore certain attributes.
@@ -738,19 +726,19 @@ public:
   /// @returns true if the specified instruction is the same operation as
   /// the current one.
   /// Determine if one instruction is the same operation as another.
-  bool isSameOperationAs(const Instruction *I, unsigned flags = 0) const;
+  bool isSameOperationAs(const Instruction *I, unsigned flags = 0) const LLVM_READONLY;
 
   /// Return true if there are any uses of this instruction in blocks other than
   /// the specified block. Note that PHI nodes are considered to evaluate their
   /// operands in the corresponding predecessor block.
-  bool isUsedOutsideOfBlock(const BasicBlock *BB) const;
+  bool isUsedOutsideOfBlock(const BasicBlock *BB) const LLVM_READONLY;
 
   /// Return the number of successors that this instruction has. The instruction
   /// must be a terminator.
-  unsigned getNumSuccessors() const;
+  unsigned getNumSuccessors() const LLVM_READONLY;
 
   /// Return the specified successor. This instruction must be a terminator.
-  BasicBlock *getSuccessor(unsigned Idx) const;
+  BasicBlock *getSuccessor(unsigned Idx) const LLVM_READONLY;
 
   /// Update the specified successor to point at the provided block. This
   /// instruction must be a terminator.

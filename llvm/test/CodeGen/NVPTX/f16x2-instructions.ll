@@ -2,15 +2,31 @@
 ; RUN: llc < %s -mtriple=nvptx64-nvidia-cuda -mcpu=sm_53 -asm-verbose=false \
 ; RUN:          -O0 -disable-post-ra -frame-pointer=all -verify-machineinstrs \
 ; RUN: | FileCheck -allow-deprecated-dag-overlap -check-prefixes CHECK,CHECK-F16 %s
+; RUN: %if ptxas %{                                                           \
+; RUN:   llc < %s -mtriple=nvptx64-nvidia-cuda -mcpu=sm_53 -asm-verbose=false \
+; RUN:          -O0 -disable-post-ra -frame-pointer=all -verify-machineinstrs \
+; RUN:   | %ptxas-verify -arch=sm_53                                          \
+; RUN: %}
 ; ## FP16 support explicitly disabled.
 ; RUN: llc < %s -mtriple=nvptx64-nvidia-cuda -mcpu=sm_53 -asm-verbose=false \
 ; RUN:          -O0 -disable-post-ra -frame-pointer=all --nvptx-no-f16-math \
 ; RUN:           -verify-machineinstrs \
 ; RUN: | FileCheck -allow-deprecated-dag-overlap -check-prefixes CHECK,CHECK-NOF16 %s
+; RUN: %if ptxas %{                                                           \
+; RUN:   llc < %s -mtriple=nvptx64-nvidia-cuda -mcpu=sm_53 -asm-verbose=false \
+; RUN:          -O0 -disable-post-ra -frame-pointer=all --nvptx-no-f16-math   \
+; RUN:           -verify-machineinstrs                                        \
+; RUN:   | %ptxas-verify -arch=sm_53                                          \
+; RUN: %}
 ; ## FP16 is not supported by hardware.
 ; RUN: llc < %s -O0 -mtriple=nvptx64-nvidia-cuda -mcpu=sm_52 -asm-verbose=false \
 ; RUN:          -disable-post-ra -frame-pointer=all -verify-machineinstrs \
 ; RUN: | FileCheck -allow-deprecated-dag-overlap -check-prefixes CHECK,CHECK-NOF16 %s
+; RUN: %if ptxas %{                                                               \
+; RUN:   llc < %s -O0 -mtriple=nvptx64-nvidia-cuda -mcpu=sm_52 -asm-verbose=false \
+; RUN:          -disable-post-ra -frame-pointer=all -verify-machineinstrs         \
+; RUN:   | %ptxas-verify -arch=sm_52                                              \
+; RUN: %}
 
 target datalayout = "e-m:o-i64:64-i128:128-n32:64-S128"
 
@@ -1002,6 +1018,25 @@ define <2 x half> @test_bitcast_2xi16_to_2xhalf(<2 x i16> %a) #0 {
   ret <2 x half> %r
 }
 
+; CHECK-LABEL: test_bitcast_float_to_2xhalf(
+; CHECK: ld.param.f32 	[[AF1:%f[0-9]+]], [test_bitcast_float_to_2xhalf_param_0];
+; CHECK: mov.b32 	[[R:%hh[0-9]+]], [[AF1]];
+; CHECK: st.param.b32 	[func_retval0+0], [[R]];
+; CHECK: ret;
+define <2 x half> @test_bitcast_float_to_2xhalf(float %a) #0 {
+  %r = bitcast float %a to <2 x half>
+  ret <2 x half> %r
+}
+
+; CHECK-LABEL: test_bitcast_2xhalf_to_float(
+; CHECK: ld.param.u32 	[[R:%r[0-9]+]], [test_bitcast_2xhalf_to_float_param_0];
+; CHECK: mov.b32 	[[AF1:%f[0-9]+]], [[R]];
+; CHECK: st.param.f32 	[func_retval0+0], [[AF1]];
+; CHECK: ret;
+define float @test_bitcast_2xhalf_to_float(<2 x half> %a) #0 {
+  %r = bitcast <2 x half> %a to float
+  ret float %r
+}
 
 declare <2 x half> @llvm.sqrt.f16(<2 x half> %a) #0
 declare <2 x half> @llvm.powi.f16.i32(<2 x half> %a, <2 x i32> %b) #0
@@ -1024,6 +1059,7 @@ declare <2 x half> @llvm.trunc.f16(<2 x half> %a) #0
 declare <2 x half> @llvm.rint.f16(<2 x half> %a) #0
 declare <2 x half> @llvm.nearbyint.f16(<2 x half> %a) #0
 declare <2 x half> @llvm.round.f16(<2 x half> %a) #0
+declare <2 x half> @llvm.roundeven.f16(<2 x half> %a) #0
 declare <2 x half> @llvm.fmuladd.f16(<2 x half> %a, <2 x half> %b, <2 x half> %c) #0
 
 ; CHECK-LABEL: test_sqrt(
@@ -1388,6 +1424,19 @@ define <2 x half> @test_rint(<2 x half> %a) #0 {
 ; CHECK:      ret;
 define <2 x half> @test_nearbyint(<2 x half> %a) #0 {
   %r = call <2 x half> @llvm.nearbyint.f16(<2 x half> %a)
+  ret <2 x half> %r
+}
+
+; CHECK-LABEL: test_roundeven(
+; CHECK:      ld.param.b32    [[A:%hh[0-9]+]], [test_roundeven_param_0];
+; CHECK-DAG:  mov.b32         {[[A0:%h[0-9]+]], [[A1:%h[0-9]+]]}, [[A]];
+; CHECK-DAG:  cvt.rni.f16.f16 [[R1:%h[0-9]+]], [[A1]];
+; CHECK-DAG:  cvt.rni.f16.f16 [[R0:%h[0-9]+]], [[A0]];
+; CHECK:      mov.b32         [[R:%hh[0-9]+]], {[[R0]], [[R1]]}
+; CHECK:      st.param.b32    [func_retval0+0], [[R]];
+; CHECK:      ret;
+define <2 x half> @test_roundeven(<2 x half> %a) #0 {
+  %r = call <2 x half> @llvm.roundeven.f16(<2 x half> %a)
   ret <2 x half> %r
 }
 

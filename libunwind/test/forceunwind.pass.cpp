@@ -9,15 +9,13 @@
 
 // REQUIRES: linux
 
-// TODO: Investigate these failures
-// XFAIL: asan, tsan, ubsan
-
-// TODO: Investigate this failure
-// XFAIL: 32bits-on-64bits
+// TODO: Figure out why this fails with Memory Sanitizer.
+// XFAIL: msan
 
 // Basic test for _Unwind_ForcedUnwind.
 // See libcxxabi/test/forced_unwind* tests too.
 
+#undef NDEBUG
 #include <assert.h>
 #include <dlfcn.h>
 #include <signal.h>

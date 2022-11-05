@@ -28,17 +28,17 @@ typedef enum memory_order {
 } memory_order;
 
 void test(float *f, float ff, double *d, double dd) {
-  // FLOAT: atomicrmw fadd float* {{.*}} monotonic
+  // FLOAT: atomicrmw fadd ptr {{.*}} monotonic
   __atomic_fetch_add(f, ff, memory_order_relaxed);
 
-  // FLOAT: atomicrmw fsub float* {{.*}} monotonic
+  // FLOAT: atomicrmw fsub ptr {{.*}} monotonic
   __atomic_fetch_sub(f, ff, memory_order_relaxed);
 
 #ifdef DOUBLE
-  // DOUBLE: atomicrmw fadd double* {{.*}} monotonic
+  // DOUBLE: atomicrmw fadd ptr {{.*}} monotonic
   __atomic_fetch_add(d, dd, memory_order_relaxed);
 
-  // DOUBLE: atomicrmw fsub double* {{.*}} monotonic
+  // DOUBLE: atomicrmw fsub ptr {{.*}} monotonic
   __atomic_fetch_sub(d, dd, memory_order_relaxed);
 #endif
 }

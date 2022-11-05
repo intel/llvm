@@ -1,16 +1,11 @@
-// RUN: mlir-opt %s \
-// RUN:   --sparsification --sparse-tensor-conversion \
-// RUN:   --convert-vector-to-scf --convert-scf-to-std \
-// RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
-// RUN:   --std-bufferize --finalizing-bufferize  \
-// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm --reconcile-unrealized-casts | \
-// RUN: TENSOR0="%mlir_integration_test_dir/data/test.mtx" \
+// RUN: mlir-opt %s --sparse-compiler | \
+// RUN: TENSOR0="%mlir_src_dir/test/Integration/data/test.mtx" \
 // RUN: mlir-cpu-runner \
 // RUN:  -e entry -entry-point-result=void  \
-// RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
+// RUN:  -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
 // RUN: FileCheck %s
 
-!Filename = type !llvm.ptr<i8>
+!Filename = !llvm.ptr<i8>
 
 #DCSR = #sparse_tensor.encoding<{
   dimLevelType = [ "compressed", "compressed" ],
@@ -22,7 +17,7 @@
     affine_map<(i,j) -> (i,j)>  // X (out)
   ],
   iterator_types = ["parallel", "parallel"],
-  doc = "X(i,j) += X(i,j) * X(i,j)"
+  doc = "X(i,j) *= X(i,j)"
 }
 
 //
@@ -37,7 +32,7 @@ module {
   // a sparse tensor as output, but although the values of the
   // sparse tensor change, its nonzero structure remains the same.
   //
-  func @kernel_eltwise_mult(%argx: tensor<?x?xf64, #DCSR> {linalg.inplaceable = true})
+  func.func @kernel_eltwise_mult(%argx: tensor<?x?xf64, #DCSR>)
     -> tensor<?x?xf64, #DCSR> {
     %0 = linalg.generic #eltwise_mult
       outs(%argx: tensor<?x?xf64, #DCSR>) {
@@ -48,12 +43,12 @@ module {
     return %0 : tensor<?x?xf64, #DCSR>
   }
 
-  func private @getTensorFilename(index) -> (!Filename)
+  func.func private @getTensorFilename(index) -> (!Filename)
 
   //
   // Main driver that reads matrix from file and calls the sparse kernel.
   //
-  func @entry() {
+  func.func @entry() {
     %d0 = arith.constant 0.0 : f64
     %c0 = arith.constant 0 : index
 
@@ -73,7 +68,7 @@ module {
     vector.print %v : vector<9xf64>
 
     // Release the resources.
-    sparse_tensor.release %x : tensor<?x?xf64, #DCSR>
+    bufferization.dealloc_tensor %x : tensor<?x?xf64, #DCSR>
 
     return
   }

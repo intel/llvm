@@ -7,10 +7,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
-namespace s = cl::sycl;
-namespace d = cl::sycl::detail;
+namespace s = sycl;
+namespace d = sycl::detail;
 
 template <bool... V> using bool_list = d::value_list<bool, V...>;
 

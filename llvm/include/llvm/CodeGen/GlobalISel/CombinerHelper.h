@@ -17,16 +17,21 @@
 #ifndef LLVM_CODEGEN_GLOBALISEL_COMBINERHELPER_H
 #define LLVM_CODEGEN_GLOBALISEL_COMBINERHELPER_H
 
-#include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/CodeGen/GlobalISel/GenericMachineInstrs.h"
-#include "llvm/CodeGen/LowLevelType.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/CodeGen/Register.h"
-#include "llvm/Support/Alignment.h"
+#include "llvm/Support/LowLevelTypeImpl.h"
+#include "llvm/IR/InstrTypes.h"
+#include <functional>
 
 namespace llvm {
 
 class GISelChangeObserver;
+class APFloat;
+class APInt;
+class GPtrAdd;
+class GStore;
+class GZExtLoad;
 class MachineIRBuilder;
 class MachineInstrBuilder;
 class MachineRegisterInfo;
@@ -108,12 +113,14 @@ protected:
   GISelChangeObserver &Observer;
   GISelKnownBits *KB;
   MachineDominatorTree *MDT;
+  bool IsPreLegalize;
   const LegalizerInfo *LI;
   const RegisterBankInfo *RBI;
   const TargetRegisterInfo *TRI;
 
 public:
   CombinerHelper(GISelChangeObserver &Observer, MachineIRBuilder &B,
+                 bool IsPreLegalize,
                  GISelKnownBits *KB = nullptr,
                  MachineDominatorTree *MDT = nullptr,
                  const LegalizerInfo *LI = nullptr);
@@ -124,9 +131,19 @@ public:
 
   const TargetLowering &getTargetLowering() const;
 
+  /// \returns true if the combiner is running pre-legalization.
+  bool isPreLegalize() const;
+
+  /// \returns true if \p Query is legal on the target.
+  bool isLegal(const LegalityQuery &Query) const;
+
   /// \return true if the combine is running prior to legalization, or if \p
   /// Query is legal on the target.
   bool isLegalOrBeforeLegalizer(const LegalityQuery &Query) const;
+
+  /// \return true if the combine is running prior to legalization, or if \p Ty
+  /// is a legal integer constant type on the target.
+  bool isConstantLegalOrBeforeLegalizer(const LLT Ty) const;
 
   /// MachineRegisterInfo::replaceRegWith() and inform the observer of the changes
   void replaceRegWith(MachineRegisterInfo &MRI, Register FromReg, Register ToReg) const;
@@ -135,6 +152,10 @@ public:
   /// observer of the changes.
   void replaceRegOpWith(MachineRegisterInfo &MRI, MachineOperand &FromRegOp,
                         Register ToReg) const;
+
+  /// Replace the opcode in instruction with a new opcode and inform the
+  /// observer of the changes.
+  void replaceOpcodeWith(MachineInstr &FromMI, unsigned ToOpcode) const;
 
   /// Get the register bank of \p Reg.
   /// If Reg has not been assigned a register, a register class,
@@ -319,6 +340,11 @@ public:
   void applyCombineUnmergeConstant(MachineInstr &MI,
                                    SmallVectorImpl<APInt> &Csts);
 
+  /// Transform G_UNMERGE G_IMPLICIT_DEF -> G_IMPLICIT_DEF, G_IMPLICIT_DEF, ...
+  bool
+  matchCombineUnmergeUndef(MachineInstr &MI,
+                           std::function<void(MachineIRBuilder &)> &MatchInfo);
+
   /// Transform X, Y<dead> = G_UNMERGE Z -> X = G_TRUNC Z.
   bool matchCombineUnmergeWithDeadLanesToTrunc(MachineInstr &MI);
   void applyCombineUnmergeWithDeadLanesToTrunc(MachineInstr &MI);
@@ -338,7 +364,6 @@ public:
   void applyCombineI2PToP2I(MachineInstr &MI, Register &Reg);
 
   /// Transform PtrToInt(IntToPtr(x)) to x.
-  bool matchCombineP2IToI2P(MachineInstr &MI, Register &Reg);
   void applyCombineP2IToI2P(MachineInstr &MI, Register &Reg);
 
   /// Transform G_ADD (G_PTRTOINT x), y -> G_PTRTOINT (G_PTR_ADD x, y)
@@ -349,8 +374,8 @@ public:
                                   std::pair<Register, bool> &PtrRegAndCommute);
 
   // Transform G_PTR_ADD (G_PTRTOINT C1), C2 -> C1 + C2
-  bool matchCombineConstPtrAddToI2P(MachineInstr &MI, int64_t &NewCst);
-  void applyCombineConstPtrAddToI2P(MachineInstr &MI, int64_t &NewCst);
+  bool matchCombineConstPtrAddToI2P(MachineInstr &MI, APInt &NewCst);
+  void applyCombineConstPtrAddToI2P(MachineInstr &MI, APInt &NewCst);
 
   /// Transform anyext(trunc(x)) to x.
   bool matchCombineAnyExtTrunc(MachineInstr &MI, Register &Reg);
@@ -365,11 +390,7 @@ public:
   void applyCombineExtOfExt(MachineInstr &MI,
                             std::tuple<Register, unsigned> &MatchInfo);
 
-  /// Transform fneg(fneg(x)) to x.
-  bool matchCombineFNegOfFNeg(MachineInstr &MI, Register &Reg);
-
-  /// Match fabs(fabs(x)) to fabs(x).
-  bool matchCombineFAbsOfFAbs(MachineInstr &MI, Register &Src);
+  /// Transform fabs(fabs(x)) to fabs(x).
   void applyCombineFAbsOfFAbs(MachineInstr &MI, Register &Src);
 
   /// Transform fabs(fneg(x)) to fabs(x).
@@ -407,6 +428,9 @@ public:
 
   /// Return true if a G_SELECT instruction \p MI has an undef comparison.
   bool matchUndefSelectCmp(MachineInstr &MI);
+
+  /// Return true if a G_{EXTRACT,INSERT}_VECTOR_ELT has an out of range index.
+  bool matchInsertExtractVecEltOutOfBounds(MachineInstr &MI);
 
   /// Return true if a G_SELECT instruction \p MI has a constant comparison. If
   /// true, \p OpIdx will store the operand index of the known selected value.
@@ -520,6 +544,13 @@ public:
   /// Combine G_UREM x, (known power of 2) to an add and bitmasking.
   void applySimplifyURemByPow2(MachineInstr &MI);
 
+  /// Push a binary operator through a select on constants.
+  ///
+  /// binop (select cond, K0, K1), K2 ->
+  ///   select cond, (binop K0, K2), (binop K1, K2)
+  bool matchFoldBinOpIntoSelect(MachineInstr &MI, unsigned &SelectOpNo);
+  bool applyFoldBinOpIntoSelect(MachineInstr &MI, const unsigned &SelectOpNo);
+
   bool matchCombineInsertVecElts(MachineInstr &MI,
                                  SmallVectorImpl<Register> &MatchInfo);
 
@@ -560,6 +591,7 @@ public:
   /// This variant does not erase \p MI after calling the build function.
   void applyBuildFnNoErase(MachineInstr &MI, BuildFnTy &MatchInfo);
 
+  bool matchOrShiftToFunnelShift(MachineInstr &MI, BuildFnTy &MatchInfo);
   bool matchFunnelShiftToRotate(MachineInstr &MI);
   void applyFunnelShiftToRotate(MachineInstr &MI);
   bool matchRotateOutOfRange(MachineInstr &MI);
@@ -575,6 +607,9 @@ public:
   matchICmpToLHSKnownBits(MachineInstr &MI,
                           BuildFnTy &MatchInfo);
 
+  /// \returns true if (and (or x, c1), c2) can be replaced with (and x, c2)
+  bool matchAndOrDisjointMask(MachineInstr &MI, BuildFnTy &MatchInfo);
+
   bool matchBitfieldExtractFromSExtInReg(MachineInstr &MI,
                                          BuildFnTy &MatchInfo);
   /// Match: and (lshr x, cst), mask -> ubfx x, cst, width
@@ -582,6 +617,9 @@ public:
 
   /// Match: shr (shl x, n), k -> sbfx/ubfx x, pos, width
   bool matchBitfieldExtractFromShr(MachineInstr &MI, BuildFnTy &MatchInfo);
+
+  /// Match: shr (and x, n), k -> ubfx x, pos, width
+  bool matchBitfieldExtractFromShrAnd(MachineInstr &MI, BuildFnTy &MatchInfo);
 
   // Helpers for reassociation:
   bool matchReassocConstantInnerRHS(GPtrAdd &MI, MachineInstr *RHS,
@@ -610,6 +648,13 @@ public:
   bool matchUDivByConst(MachineInstr &MI);
   void applyUDivByConst(MachineInstr &MI);
 
+  /// Given an G_SDIV \p MI expressing a signed divide by constant, return an
+  /// expression that implements it by multiplying by a magic number.
+  /// Ref: "Hacker's Delight" or "The PowerPC Compiler Writer's Guide".
+  MachineInstr *buildSDivUsingMul(MachineInstr &MI);
+  bool matchSDivByConst(MachineInstr &MI);
+  void applySDivByConst(MachineInstr &MI);
+
   // G_UMULH x, (1 << c)) -> x >> (bitwidth - c)
   bool matchUMulHToLShr(MachineInstr &MI);
   void applyUMulHToLShr(MachineInstr &MI);
@@ -629,6 +674,19 @@ public:
   ///   (G_SMULO x, 2) -> (G_SADDO x, x)
   bool matchMulOBy2(MachineInstr &MI, BuildFnTy &MatchInfo);
 
+  /// Match:
+  /// (G_*MULO x, 0) -> 0 + no carry out
+  bool matchMulOBy0(MachineInstr &MI, BuildFnTy &MatchInfo);
+
+  /// Match:
+  /// (G_*ADDO x, 0) -> x + no carry out
+  bool matchAddOBy0(MachineInstr &MI, BuildFnTy &MatchInfo);
+
+  /// Match:
+  /// (G_*ADDE x, y, 0) -> (G_*ADDO x, y)
+  /// (G_*SUBE x, y, 0) -> (G_*SUBO x, y)
+  bool matchAddEToAddO(MachineInstr &MI, BuildFnTy &MatchInfo);
+
   /// Transform (fadd x, fneg(y)) -> (fsub x, y)
   ///           (fadd fneg(x), y) -> (fsub y, x)
   ///           (fsub x, fneg(y)) -> (fadd x, y)
@@ -637,6 +695,87 @@ public:
   ///           (fmad fneg(x), fneg(y), z) -> (fmad x, y, z)
   ///           (fma fneg(x), fneg(y), z) -> (fma x, y, z)
   bool matchRedundantNegOperands(MachineInstr &MI, BuildFnTy &MatchInfo);
+
+  bool canCombineFMadOrFMA(MachineInstr &MI, bool &AllowFusionGlobally,
+                           bool &HasFMAD, bool &Aggressive,
+                           bool CanReassociate = false);
+
+  /// Transform (fadd (fmul x, y), z) -> (fma x, y, z)
+  ///           (fadd (fmul x, y), z) -> (fmad x, y, z)
+  bool matchCombineFAddFMulToFMadOrFMA(MachineInstr &MI, BuildFnTy &MatchInfo);
+
+  /// Transform (fadd (fpext (fmul x, y)), z) -> (fma (fpext x), (fpext y), z)
+  ///           (fadd (fpext (fmul x, y)), z) -> (fmad (fpext x), (fpext y), z)
+  bool matchCombineFAddFpExtFMulToFMadOrFMA(MachineInstr &MI,
+                                            BuildFnTy &MatchInfo);
+
+  /// Transform (fadd (fma x, y, (fmul u, v)), z) -> (fma x, y, (fma u, v, z))
+  ///          (fadd (fmad x, y, (fmul u, v)), z) -> (fmad x, y, (fmad u, v, z))
+  bool matchCombineFAddFMAFMulToFMadOrFMA(MachineInstr &MI,
+                                          BuildFnTy &MatchInfo);
+
+  // Transform (fadd (fma x, y, (fpext (fmul u, v))), z)
+  //            -> (fma x, y, (fma (fpext u), (fpext v), z))
+  //           (fadd (fmad x, y, (fpext (fmul u, v))), z)
+  //            -> (fmad x, y, (fmad (fpext u), (fpext v), z))
+  bool matchCombineFAddFpExtFMulToFMadOrFMAAggressive(MachineInstr &MI,
+                                                      BuildFnTy &MatchInfo);
+
+  /// Transform (fsub (fmul x, y), z) -> (fma x, y, -z)
+  ///           (fsub (fmul x, y), z) -> (fmad x, y, -z)
+  bool matchCombineFSubFMulToFMadOrFMA(MachineInstr &MI, BuildFnTy &MatchInfo);
+
+  /// Transform (fsub (fneg (fmul, x, y)), z) -> (fma (fneg x), y, (fneg z))
+  ///           (fsub (fneg (fmul, x, y)), z) -> (fmad (fneg x), y, (fneg z))
+  bool matchCombineFSubFNegFMulToFMadOrFMA(MachineInstr &MI,
+                                           BuildFnTy &MatchInfo);
+
+  /// Transform (fsub (fpext (fmul x, y)), z)
+  ///           -> (fma (fpext x), (fpext y), (fneg z))
+  ///           (fsub (fpext (fmul x, y)), z)
+  ///           -> (fmad (fpext x), (fpext y), (fneg z))
+  bool matchCombineFSubFpExtFMulToFMadOrFMA(MachineInstr &MI,
+                                            BuildFnTy &MatchInfo);
+
+  /// Transform (fsub (fpext (fneg (fmul x, y))), z)
+  ///           -> (fneg (fma (fpext x), (fpext y), z))
+  ///           (fsub (fpext (fneg (fmul x, y))), z)
+  ///           -> (fneg (fmad (fpext x), (fpext y), z))
+  bool matchCombineFSubFpExtFNegFMulToFMadOrFMA(MachineInstr &MI,
+                                                BuildFnTy &MatchInfo);
+
+  /// Fold boolean selects to logical operations.
+  bool matchSelectToLogical(MachineInstr &MI, BuildFnTy &MatchInfo);
+
+  bool matchCombineFMinMaxNaN(MachineInstr &MI, unsigned &Info);
+
+  /// Transform G_ADD(x, G_SUB(y, x)) to y.
+  /// Transform G_ADD(G_SUB(y, x), x) to y.
+  bool matchAddSubSameReg(MachineInstr &MI, Register &Src);
+
+  bool matchBuildVectorIdentityFold(MachineInstr &MI, Register &MatchInfo);
+  bool matchTruncBuildVectorFold(MachineInstr &MI, Register &MatchInfo);
+  bool matchTruncLshrBuildVectorFold(MachineInstr &MI, Register &MatchInfo);
+
+  /// Transform:
+  ///   (x + y) - y -> x
+  ///   (x + y) - x -> y
+  ///   x - (y + x) -> 0 - y
+  ///   x - (x + z) -> 0 - z
+  bool matchSubAddSameReg(MachineInstr &MI, BuildFnTy &MatchInfo);
+
+  /// \returns true if it is possible to simplify a select instruction \p MI
+  /// to a min/max instruction of some sort.
+  bool matchSimplifySelectToMinMax(MachineInstr &MI, BuildFnTy &MatchInfo);
+
+  /// Transform:
+  ///   (X + Y) == X -> Y == 0
+  ///   (X - Y) == X -> Y == 0
+  ///   (X ^ Y) == X -> Y == 0
+  ///   (X + Y) != X -> Y != 0
+  ///   (X - Y) != X -> Y != 0
+  ///   (X ^ Y) != X -> Y != 0
+  bool matchRedundantBinOpInEquality(MachineInstr &MI, BuildFnTy &MatchInfo);
 
 private:
   /// Given a non-indexed load or store instruction \p MI, find an offset that
@@ -683,6 +822,49 @@ private:
   /// a re-association of its operands would break an existing legal addressing
   /// mode that the address computation currently represents.
   bool reassociationCanBreakAddressingModePattern(MachineInstr &PtrAdd);
+
+  /// Behavior when a floating point min/max is given one NaN and one
+  /// non-NaN as input.
+  enum class SelectPatternNaNBehaviour {
+    NOT_APPLICABLE = 0, /// NaN behavior not applicable.
+    RETURNS_NAN,        /// Given one NaN input, returns the NaN.
+    RETURNS_OTHER,      /// Given one NaN input, returns the non-NaN.
+    RETURNS_ANY /// Given one NaN input, can return either (or both operands are
+                /// known non-NaN.)
+  };
+
+  /// \returns which of \p LHS and \p RHS would be the result of a non-equality
+  /// floating point comparison where one of \p LHS and \p RHS may be NaN.
+  ///
+  /// If both \p LHS and \p RHS may be NaN, returns
+  /// SelectPatternNaNBehaviour::NOT_APPLICABLE.
+  SelectPatternNaNBehaviour
+  computeRetValAgainstNaN(Register LHS, Register RHS,
+                          bool IsOrderedComparison) const;
+
+  /// Determines the floating point min/max opcode which should be used for
+  /// a G_SELECT fed by a G_FCMP with predicate \p Pred.
+  ///
+  /// \returns 0 if this G_SELECT should not be combined to a floating point
+  /// min or max. If it should be combined, returns one of
+  ///
+  /// * G_FMAXNUM
+  /// * G_FMAXIMUM
+  /// * G_FMINNUM
+  /// * G_FMINIMUM
+  ///
+  /// Helper function for matchFPSelectToMinMax.
+  unsigned getFPMinMaxOpcForSelect(CmpInst::Predicate Pred, LLT DstTy,
+                                   SelectPatternNaNBehaviour VsNaNRetVal) const;
+
+  /// Handle floating point cases for matchSimplifySelectToMinMax.
+  ///
+  /// E.g.
+  ///
+  /// select (fcmp uge x, 1.0) x, 1.0 -> fmax x, 1.0
+  /// select (fcmp uge x, 1.0) 1.0, x -> fminnm x, 1.0
+  bool matchFPSelectToMinMax(Register Dst, Register Cond, Register TrueVal,
+                             Register FalseVal, BuildFnTy &MatchInfo);
 };
 } // namespace llvm
 

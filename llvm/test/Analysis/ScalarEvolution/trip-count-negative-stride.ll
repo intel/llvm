@@ -56,9 +56,11 @@ for.end:                                          ; preds = %for.body, %entry
 define void @ult_infinite_ub() mustprogress {
 ; CHECK-LABEL: 'ult_infinite_ub'
 ; CHECK-NEXT:  Determining loop execution counts for: @ult_infinite_ub
-; CHECK-NEXT:  Loop %for.body: Unpredictable backedge-taken count.
-; CHECK-NEXT:  Loop %for.body: Unpredictable max backedge-taken count.
-; CHECK-NEXT:  Loop %for.body: Unpredictable predicated backedge-taken count.
+; CHECK-NEXT:  Loop %for.body: backedge-taken count is 1
+; CHECK-NEXT:  Loop %for.body: max backedge-taken count is 1
+; CHECK-NEXT:  Loop %for.body: Predicated backedge-taken count is 1
+; CHECK-NEXT:   Predicates:
+; CHECK:       Loop %for.body: Trip multiple is 2
 ;
 entry:
   br label %for.body
@@ -100,9 +102,9 @@ for.end:                                          ; preds = %for.body, %entry
 define void @ult_129_unknown_start(i8 %start) mustprogress {
 ; CHECK-LABEL: 'ult_129_unknown_start'
 ; CHECK-NEXT:  Determining loop execution counts for: @ult_129_unknown_start
-; CHECK-NEXT:  Loop %for.body: backedge-taken count is (((127 + (-1 * (1 umin (127 + (-1 * %start) + (-128 umax (-127 + %start)))))<nuw><nsw> + (-1 * %start) + (-128 umax (-127 + %start))) /u -127) + (1 umin (127 + (-1 * %start) + (-128 umax (-127 + %start)))))
-; CHECK-NEXT:  Loop %for.body: max backedge-taken count is 1
-; CHECK-NEXT:  Loop %for.body: Predicated backedge-taken count is (((127 + (-1 * (1 umin (127 + (-1 * %start) + (-128 umax (-127 + %start)))))<nuw><nsw> + (-1 * %start) + (-128 umax (-127 + %start))) /u -127) + (1 umin (127 + (-1 * %start) + (-128 umax (-127 + %start)))))
+; CHECK-NEXT:  Loop %for.body: backedge-taken count is 0
+; CHECK-NEXT:  Loop %for.body: max backedge-taken count is 0
+; CHECK-NEXT:  Loop %for.body: Predicated backedge-taken count is 0
 ; CHECK-NEXT:   Predicates:
 ; CHECK:       Loop %for.body: Trip multiple is 1
 ;
@@ -340,9 +342,11 @@ for.end:                                          ; preds = %for.body, %entry
 define void @slt_infinite_ub() mustprogress {
 ; CHECK-LABEL: 'slt_infinite_ub'
 ; CHECK-NEXT:  Determining loop execution counts for: @slt_infinite_ub
-; CHECK-NEXT:  Loop %for.body: Unpredictable backedge-taken count.
-; CHECK-NEXT:  Loop %for.body: Unpredictable max backedge-taken count.
-; CHECK-NEXT:  Loop %for.body: Unpredictable predicated backedge-taken count.
+; CHECK-NEXT:  Loop %for.body: backedge-taken count is 0
+; CHECK-NEXT:  Loop %for.body: max backedge-taken count is 0
+; CHECK-NEXT:  Loop %for.body: Predicated backedge-taken count is 0
+; CHECK-NEXT:   Predicates:
+; CHECK:       Loop %for.body: Trip multiple is 1
 ;
 entry:
   br label %for.body
@@ -407,9 +411,11 @@ for.end:                                          ; preds = %for.body, %entry
 define void @slt_129_unknown_start(i8 %start) mustprogress {
 ; CHECK-LABEL: 'slt_129_unknown_start'
 ; CHECK-NEXT:  Determining loop execution counts for: @slt_129_unknown_start
-; CHECK-NEXT:  Loop %for.body: Unpredictable backedge-taken count.
-; CHECK-NEXT:  Loop %for.body: Unpredictable max backedge-taken count.
-; CHECK-NEXT:  Loop %for.body: Unpredictable predicated backedge-taken count.
+; CHECK-NEXT:  Loop %for.body: backedge-taken count is (((127 + (-1 * (1 umin (127 + (-1 * %start) + (0 smax (-127 + %start)<nsw>))))<nuw><nsw> + (-1 * %start) + (0 smax (-127 + %start)<nsw>)) /u -127) + (1 umin (127 + (-1 * %start) + (0 smax (-127 + %start)<nsw>))))
+; CHECK-NEXT:  Loop %for.body: max backedge-taken count is 2
+; CHECK-NEXT:  Loop %for.body: Predicated backedge-taken count is (((127 + (-1 * (1 umin (127 + (-1 * %start) + (0 smax (-127 + %start)<nsw>))))<nuw><nsw> + (-1 * %start) + (0 smax (-127 + %start)<nsw>)) /u -127) + (1 umin (127 + (-1 * %start) + (0 smax (-127 + %start)<nsw>))))
+; CHECK-NEXT:   Predicates:
+; CHECK:       Loop %for.body: Trip multiple is 1
 ;
 entry:
   br label %for.body
@@ -567,4 +573,126 @@ for.end:                                          ; preds = %for.body, %entry
 
 declare void @llvm.assume(i1)
 
+; Test case for PR57818.
+define void @step_is_neg_addrec_slt_8(i64 %n) {
+; CHECK-LABEL: 'step_is_neg_addrec_slt_8'
+; CHECK-NEXT:  Determining loop execution counts for: @step_is_neg_addrec_slt_8
+; CHECK-NEXT:  Loop %inner: backedge-taken count is (7 /u {0,+,-1}<nuw><nsw><%outer.header>)
+; CHECK-NEXT:  Loop %inner: max backedge-taken count is -2147483640
+; CHECK-NEXT:  Loop %inner: Predicated backedge-taken count is (7 /u {0,+,-1}<nuw><nsw><%outer.header>)
+; CHECK-NEXT:   Predicates:
+; CHECK:       Loop %inner: Trip multiple is 1
+; CHECK-NEXT:  Loop %outer.header: backedge-taken count is 0
+; CHECK-NEXT:  Loop %outer.header: max backedge-taken count is 0
+; CHECK-NEXT:  Loop %outer.header: Predicated backedge-taken count is 0
+; CHECK-NEXT:   Predicates:
+; CHECK:       Loop %outer.header: Trip multiple is 1
+;
+entry:
+  br label %outer.header
 
+outer.header:
+  %outer.iv = phi i64 [ 0, %entry ], [ %outer.iv.next, %outer.latch ]
+  %ec.1 = icmp eq i64 %outer.iv, 100
+  br i1 %ec.1, label %inner.ph, label %exit
+
+inner.ph:
+  %outer.trunc = trunc i64 %outer.iv to i32
+  br label %inner
+
+inner:
+  %inner.iv = phi i32 [ 0, %inner.ph ], [ %inner.iv.next, %inner ]
+  %inner.iv.next = add nsw i32 %inner.iv, %outer.trunc
+  %inner.c = icmp slt i32 %inner.iv.next, 8
+  br i1 %inner.c, label %inner, label %outer.latch, !llvm.loop !0
+
+outer.latch:
+  %outer.iv.next = add nsw i64 %outer.iv, -1
+  br label %outer.header
+
+exit:
+  ret void
+}
+
+define void @step_is_neg_addrec_slt_var(i32 %n) {
+; CHECK-LABEL: 'step_is_neg_addrec_slt_var'
+; CHECK-NEXT:  Determining loop execution counts for: @step_is_neg_addrec_slt_var
+; CHECK-NEXT:  Loop %inner: backedge-taken count is ((((-1 * (1 umin ({0,+,1}<nuw><%outer.header> + ({0,+,-1}<nuw><nsw><%outer.header> smax %n))))<nuw><nsw> + {0,+,1}<nuw><%outer.header> + ({0,+,-1}<nuw><nsw><%outer.header> smax %n)) /u (1 umax {0,+,-1}<nuw><nsw><%outer.header>)) + (1 umin ({0,+,1}<nuw><%outer.header> + ({0,+,-1}<nuw><nsw><%outer.header> smax %n))))
+; CHECK-NEXT:  Loop %inner: max backedge-taken count is -1
+; CHECK-NEXT:  Loop %inner: Predicated backedge-taken count is ((((-1 * (1 umin ({0,+,1}<nuw><%outer.header> + ({0,+,-1}<nuw><nsw><%outer.header> smax %n))))<nuw><nsw> + {0,+,1}<nuw><%outer.header> + ({0,+,-1}<nuw><nsw><%outer.header> smax %n)) /u (1 umax {0,+,-1}<nuw><nsw><%outer.header>)) + (1 umin ({0,+,1}<nuw><%outer.header> + ({0,+,-1}<nuw><nsw><%outer.header> smax %n))))
+; CHECK-NEXT:   Predicates:
+; CHECK:       Loop %inner: Trip multiple is 1
+; CHECK-NEXT:  Loop %outer.header: backedge-taken count is 0
+; CHECK-NEXT:  Loop %outer.header: max backedge-taken count is 0
+; CHECK-NEXT:  Loop %outer.header: Predicated backedge-taken count is 0
+; CHECK-NEXT:   Predicates:
+; CHECK:       Loop %outer.header: Trip multiple is 1
+;
+entry:
+  br label %outer.header
+
+outer.header:
+  %outer.iv = phi i64 [ 0, %entry ], [ %outer.iv.next, %outer.latch ]
+  %ec.1 = icmp eq i64 %outer.iv, 100
+  br i1 %ec.1, label %inner.ph, label %exit
+
+inner.ph:
+  %outer.trunc = trunc i64 %outer.iv to i32
+  br label %inner
+
+inner:
+  %inner.iv = phi i32 [ 0, %inner.ph ], [ %inner.iv.next, %inner ]
+  %inner.iv.next = add nsw i32 %inner.iv, %outer.trunc
+  %inner.c = icmp slt i32 %inner.iv.next, %n
+  br i1 %inner.c, label %inner, label %outer.latch, !llvm.loop !0
+
+outer.latch:
+  %outer.iv.next = add nsw i64 %outer.iv, -1
+  br label %outer.header
+
+exit:
+  ret void
+}
+
+define void @step_is_neg_addrec_unknown_start(i32 %n) {
+; CHECK-LABEL: 'step_is_neg_addrec_unknown_start'
+; CHECK-NEXT:  Determining loop execution counts for: @step_is_neg_addrec_unknown_start
+; CHECK-NEXT:  Loop %inner: backedge-taken count is ((((-1 * (1 umin ({(-1 * %n),+,1}<nw><%outer.header> + (8 smax {%n,+,-1}<nuw><nsw><%outer.header>))))<nuw><nsw> + {(-1 * %n),+,1}<nw><%outer.header> + (8 smax {%n,+,-1}<nuw><nsw><%outer.header>)) /u (1 umax {0,+,-1}<%outer.header>)) + (1 umin ({(-1 * %n),+,1}<nw><%outer.header> + (8 smax {%n,+,-1}<nuw><nsw><%outer.header>))))
+; CHECK-NEXT:  Loop %inner: max backedge-taken count is -2147483640
+; CHECK-NEXT:  Loop %inner: Predicated backedge-taken count is ((((-1 * (1 umin ({(-1 * %n),+,1}<nw><%outer.header> + (8 smax {%n,+,-1}<nuw><nsw><%outer.header>))))<nuw><nsw> + {(-1 * %n),+,1}<nw><%outer.header> + (8 smax {%n,+,-1}<nuw><nsw><%outer.header>)) /u (1 umax {0,+,-1}<%outer.header>)) + (1 umin ({(-1 * %n),+,1}<nw><%outer.header> + (8 smax {%n,+,-1}<nuw><nsw><%outer.header>))))
+; CHECK-NEXT:   Predicates:
+; CHECK:       Loop %inner: Trip multiple is 1
+; CHECK-NEXT:  Loop %outer.header: backedge-taken count is 0
+; CHECK-NEXT:  Loop %outer.header: max backedge-taken count is 0
+; CHECK-NEXT:  Loop %outer.header: Predicated backedge-taken count is 0
+; CHECK-NEXT:   Predicates:
+; CHECK:       Loop %outer.header: Trip multiple is 1
+;
+entry:
+  br label %outer.header
+
+outer.header:
+  %outer.iv = phi i64 [ 0, %entry ], [ %outer.iv.next, %outer.latch ]
+  %ec.1 = icmp eq i64 %outer.iv, 100
+  br i1 %ec.1, label %inner.ph, label %exit
+
+inner.ph:
+  %outer.trunc = trunc i64 %outer.iv to i32
+  br label %inner
+
+inner:
+  %inner.iv = phi i32 [ %n, %inner.ph ], [ %inner.iv.next, %inner ]
+  %inner.iv.next = add nsw i32 %inner.iv, %outer.trunc
+  %inner.c = icmp slt i32 %inner.iv.next, 8
+  br i1 %inner.c, label %inner, label %outer.latch, !llvm.loop !0
+
+outer.latch:
+  %outer.iv.next = add nsw i64 %outer.iv, -1
+  br label %outer.header
+
+exit:
+  ret void
+}
+
+!0 = distinct !{!0, !1}
+!1 = !{!"llvm.loop.mustprogress"}

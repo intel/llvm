@@ -12,7 +12,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/IR/DiagnosticInfo.h"
-#include "LLVMContextImpl.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/ADT/iterator_range.h"
@@ -24,22 +23,19 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/Instruction.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Casting.h"
-#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/InstructionCost.h"
 #include "llvm/Support/Path.h"
-#include "llvm/Support/Regex.h"
 #include "llvm/Support/ScopedPrinter.h"
 #include "llvm/Support/raw_ostream.h"
 #include <atomic>
-#include <cassert>
-#include <memory>
 #include <string>
 
 using namespace llvm;
@@ -69,9 +65,17 @@ void DiagnosticInfoInlineAsm::print(DiagnosticPrinter &DP) const {
     DP << " at line " << getLocCookie();
 }
 
+DiagnosticInfoResourceLimit::DiagnosticInfoResourceLimit(
+    const Function &Fn, const char *ResourceName, uint64_t ResourceSize,
+    uint64_t ResourceLimit, DiagnosticSeverity Severity, DiagnosticKind Kind)
+    : DiagnosticInfoWithLocationBase(Kind, Severity, Fn, Fn.getSubprogram()),
+      Fn(Fn), ResourceName(ResourceName), ResourceSize(ResourceSize),
+      ResourceLimit(ResourceLimit) {}
+
 void DiagnosticInfoResourceLimit::print(DiagnosticPrinter &DP) const {
-  DP << getResourceName() << " (" << getResourceSize() << ") exceeds limit ("
-     << getResourceLimit() << ") in function '" << getFunction() << '\'';
+  DP << getLocationStr() << ": " << getResourceName() << " ("
+     << getResourceSize() << ") exceeds limit (" << getResourceLimit()
+     << ") in function '" << getFunction() << '\'';
 }
 
 void DiagnosticInfoDebugMetadataVersion::print(DiagnosticPrinter &DP) const {
@@ -397,6 +401,17 @@ std::string DiagnosticInfoOptimizationBase::getMsg() const {
   return OS.str();
 }
 
+DiagnosticInfoMisExpect::DiagnosticInfoMisExpect(const Instruction *Inst,
+                                                 Twine &Msg)
+    : DiagnosticInfoWithLocationBase(DK_MisExpect, DS_Warning,
+                                     *Inst->getParent()->getParent(),
+                                     Inst->getDebugLoc()),
+      Msg(Msg) {}
+
+void DiagnosticInfoMisExpect::print(DiagnosticPrinter &DP) const {
+  DP << getLocationStr() << ": " << getMsg();
+}
+
 void OptimizationRemarkAnalysisFPCommute::anchor() {}
 void OptimizationRemarkAnalysisAliasing::anchor() {}
 
@@ -430,4 +445,33 @@ void DiagnosticInfoDontCall::print(DiagnosticPrinter &DP) const {
     DP << "warn\"";
   if (!getNote().empty())
     DP << ": " << getNote();
+}
+
+void llvm::diagnoseAspectsMismatch(const Function *F,
+                                   const SmallVector<Function *, 8> &CallChain,
+                                   StringRef Aspect) {
+  unsigned LocCookie = 0;
+  if (MDNode *MD = F->getMetadata("srcloc"))
+    LocCookie =
+        mdconst::extract<ConstantInt>(MD->getOperand(0))->getZExtValue();
+
+  llvm::SmallVector<std::pair<StringRef, unsigned>, 8> LoweredCallChain;
+  for (const Function *Callee : CallChain) {
+    unsigned CalleeLocCookie = 0;
+    if (MDNode *MD = Callee->getMetadata("srcloc"))
+      CalleeLocCookie =
+          mdconst::extract<ConstantInt>(MD->getOperand(0))->getZExtValue();
+    LoweredCallChain.push_back(
+        std::make_pair(Callee->getName(), CalleeLocCookie));
+  }
+
+  DiagnosticInfoAspectsMismatch D(F->getName(), LocCookie, LoweredCallChain,
+                                  Aspect);
+  F->getContext().diagnose(D);
+}
+
+void DiagnosticInfoAspectsMismatch::print(DiagnosticPrinter &DP) const {
+  DP << getFunctionName() << " uses aspect \"" << getAspect()
+     << "\" but does not specify that aspect as available in its "
+        "\"sycl::device_has\" attribute";
 }

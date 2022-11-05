@@ -1,8 +1,5 @@
 ; Test that signedness of calls to read_image(u)i/write_image(u)i is preserved.
 
-; TODO: Translator does not handle signedness for read_image/write_image yet.
-; XFAIL: *
-
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv

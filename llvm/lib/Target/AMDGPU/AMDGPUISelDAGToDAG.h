@@ -136,6 +136,10 @@ private:
   bool isUniformLoad(const SDNode *N) const;
   bool isUniformBr(const SDNode *N) const;
 
+  // Returns true if ISD::AND SDNode `N`'s masking of the shift amount operand's
+  // `ShAmtBits` bits is unneeded.
+  bool isUnneededShiftMask(const SDNode *N, unsigned ShAmtBits) const;
+
   bool isBaseWithConstantOffset64(SDValue Addr, SDValue &LHS,
                                   SDValue &RHS) const;
 
@@ -184,17 +188,29 @@ private:
                          SDValue &VOffset, SDValue &Offset) const;
   bool SelectScratchSAddr(SDNode *N, SDValue Addr, SDValue &SAddr,
                           SDValue &Offset) const;
+  bool checkFlatScratchSVSSwizzleBug(SDValue VAddr, SDValue SAddr,
+                                     uint64_t ImmOffset) const;
+  bool SelectScratchSVAddr(SDNode *N, SDValue Addr, SDValue &VAddr,
+                           SDValue &SAddr, SDValue &Offset) const;
 
-  bool SelectSMRDOffset(SDValue ByteOffsetNode, SDValue &Offset,
-                        bool &Imm) const;
+  bool SelectSMRDOffset(SDValue ByteOffsetNode, SDValue *SOffset,
+                        SDValue *Offset, bool Imm32Only = false,
+                        bool IsBuffer = false) const;
   SDValue Expand32BitAddress(SDValue Addr) const;
-  bool SelectSMRD(SDValue Addr, SDValue &SBase, SDValue &Offset,
-                  bool &Imm) const;
+  bool SelectSMRDBaseOffset(SDValue Addr, SDValue &SBase, SDValue *SOffset,
+                            SDValue *Offset, bool Imm32Only = false,
+                            bool IsBuffer = false) const;
+  bool SelectSMRD(SDValue Addr, SDValue &SBase, SDValue *SOffset,
+                  SDValue *Offset, bool Imm32Only = false) const;
   bool SelectSMRDImm(SDValue Addr, SDValue &SBase, SDValue &Offset) const;
   bool SelectSMRDImm32(SDValue Addr, SDValue &SBase, SDValue &Offset) const;
-  bool SelectSMRDSgpr(SDValue Addr, SDValue &SBase, SDValue &Offset) const;
-  bool SelectSMRDBufferImm(SDValue Addr, SDValue &Offset) const;
-  bool SelectSMRDBufferImm32(SDValue Addr, SDValue &Offset) const;
+  bool SelectSMRDSgpr(SDValue Addr, SDValue &SBase, SDValue &SOffset) const;
+  bool SelectSMRDSgprImm(SDValue Addr, SDValue &SBase, SDValue &SOffset,
+                         SDValue &Offset) const;
+  bool SelectSMRDBufferImm(SDValue N, SDValue &Offset) const;
+  bool SelectSMRDBufferImm32(SDValue N, SDValue &Offset) const;
+  bool SelectSMRDBufferSgprImm(SDValue N, SDValue &SOffset,
+                               SDValue &Offset) const;
   bool SelectMOVRELOffset(SDValue Index, SDValue &Base, SDValue &Offset) const;
 
   bool SelectVOP3Mods_NNaN(SDValue In, SDValue &Src, SDValue &SrcMods) const;
@@ -210,10 +226,20 @@ private:
   bool SelectVOP3NoMods0(SDValue In, SDValue &Src, SDValue &SrcMods,
                          SDValue &Clamp, SDValue &Omod) const;
 
+  bool SelectVINTERPModsImpl(SDValue In, SDValue &Src, SDValue &SrcMods,
+                             bool OpSel) const;
+  bool SelectVINTERPMods(SDValue In, SDValue &Src, SDValue &SrcMods) const;
+  bool SelectVINTERPModsHi(SDValue In, SDValue &Src, SDValue &SrcMods) const;
+
   bool SelectVOP3OMods(SDValue In, SDValue &Src, SDValue &Clamp,
                        SDValue &Omod) const;
 
-  bool SelectVOP3PMods(SDValue In, SDValue &Src, SDValue &SrcMods) const;
+  bool SelectVOP3PMods(SDValue In, SDValue &Src, SDValue &SrcMods,
+                       bool IsDOT = false) const;
+  bool SelectVOP3PModsDOT(SDValue In, SDValue &Src, SDValue &SrcMods) const;
+
+  bool SelectDotIUVOP3PMods(SDValue In, SDValue &Src) const;
+  bool SelectWMMAOpSelVOP3PMods(SDValue In, SDValue &Src) const;
 
   bool SelectVOP3OpSel(SDValue In, SDValue &Src, SDValue &SrcMods) const;
 
@@ -231,18 +257,18 @@ private:
   void SelectUADDO_USUBO(SDNode *N);
   void SelectDIV_SCALE(SDNode *N);
   void SelectMAD_64_32(SDNode *N);
+  void SelectMUL_LOHI(SDNode *N);
   void SelectFMA_W_CHAIN(SDNode *N);
   void SelectFMUL_W_CHAIN(SDNode *N);
-
-  SDNode *getS_BFE(unsigned Opcode, const SDLoc &DL, SDValue Val,
-                   uint32_t Offset, uint32_t Width);
+  SDNode *getBFE32(bool IsSigned, const SDLoc &DL, SDValue Val, uint32_t Offset,
+                   uint32_t Width);
   void SelectS_BFEFromShifts(SDNode *N);
   void SelectS_BFE(SDNode *N);
   bool isCBranchSCC(const SDNode *N) const;
   void SelectBRCOND(SDNode *N);
   void SelectFMAD_FMA(SDNode *N);
-  void SelectATOMIC_CMP_SWAP(SDNode *N);
   void SelectDSAppendConsume(SDNode *N, unsigned IntrID);
+  void SelectDSBvhStackIntrinsic(SDNode *N);
   void SelectDS_GWS(SDNode *N, unsigned IntrID);
   void SelectInterpP1F16(SDNode *N);
   void SelectINTRINSIC_W_CHAIN(SDNode *N);

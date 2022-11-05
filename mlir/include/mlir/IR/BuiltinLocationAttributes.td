@@ -13,11 +13,13 @@
 #ifndef BUILTIN_LOCATION_ATTRIBUTES_TD
 #define BUILTIN_LOCATION_ATTRIBUTES_TD
 
+include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/BuiltinDialect.td"
+include "mlir/IR/SubElementInterfaces.td"
 
 // Base class for Builtin dialect location attributes.
-class Builtin_LocationAttr<string name>
-    : AttrDef<Builtin_Dialect, name, [], "::mlir::LocationAttr"> {
+class Builtin_LocationAttr<string name, list<Trait> traits = []>
+    : AttrDef<Builtin_Dialect, name, traits, "::mlir::LocationAttr"> {
   let cppClassName = name;
   let mnemonic = ?;
 }
@@ -26,7 +28,9 @@ class Builtin_LocationAttr<string name>
 // CallSiteLoc
 //===----------------------------------------------------------------------===//
 
-def CallSiteLoc : Builtin_LocationAttr<"CallSiteLoc"> {
+def CallSiteLoc : Builtin_LocationAttr<"CallSiteLoc", [
+    DeclareAttrInterfaceMethods<SubElementAttrInterface>
+  ]> {
   let summary = "A callsite source location";
   let description = [{
     Syntax:
@@ -81,10 +85,10 @@ def FileLineColLoc : Builtin_LocationAttr<"FileLineColLoc"> {
     loc("mysource.cc":10:8)
     ```
   }];
-  let parameters = (ins "Identifier":$filename, "unsigned":$line,
+  let parameters = (ins "StringAttr":$filename, "unsigned":$line,
                         "unsigned":$column);
   let builders = [
-    AttrBuilderWithInferredContext<(ins "Identifier":$filename,
+    AttrBuilderWithInferredContext<(ins "StringAttr":$filename,
                                         "unsigned":$line,
                                         "unsigned":$column), [{
       return $_get(filename.getContext(), filename, line, column);
@@ -92,7 +96,7 @@ def FileLineColLoc : Builtin_LocationAttr<"FileLineColLoc"> {
     AttrBuilder<(ins "StringRef":$filename, "unsigned":$line,
                      "unsigned":$column), [{
       return $_get($_ctxt,
-                   Identifier::get(filename.empty() ? "-" : filename, $_ctxt),
+                   StringAttr::get($_ctxt, filename.empty() ? "-" : filename),
                    line, column);
     }]>
   ];
@@ -103,7 +107,9 @@ def FileLineColLoc : Builtin_LocationAttr<"FileLineColLoc"> {
 // FusedLoc
 //===----------------------------------------------------------------------===//
 
-def FusedLoc : Builtin_LocationAttr<"FusedLoc"> {
+def FusedLoc : Builtin_LocationAttr<"FusedLoc", [
+    DeclareAttrInterfaceMethods<SubElementAttrInterface>
+  ]> {
   let summary = "A tuple of other source locations";
   let description = [{
     Syntax:
@@ -142,7 +148,9 @@ def FusedLoc : Builtin_LocationAttr<"FusedLoc"> {
 // NameLoc
 //===----------------------------------------------------------------------===//
 
-def NameLoc : Builtin_LocationAttr<"NameLoc"> {
+def NameLoc : Builtin_LocationAttr<"NameLoc", [
+    DeclareAttrInterfaceMethods<SubElementAttrInterface>
+  ]> {
   let summary = "A named source location";
   let description = [{
     Syntax:
@@ -161,13 +169,13 @@ def NameLoc : Builtin_LocationAttr<"NameLoc"> {
     loc("CSE"("mysource.cc":10:8))
     ```
   }];
-  let parameters = (ins "Identifier":$name, "Location":$childLoc);
+  let parameters = (ins "StringAttr":$name, "Location":$childLoc);
   let builders = [
-    AttrBuilderWithInferredContext<(ins "Identifier":$name,
+    AttrBuilderWithInferredContext<(ins "StringAttr":$name,
                                         "Location":$childLoc), [{
       return $_get(name.getContext(), name, childLoc);
     }]>,
-    AttrBuilderWithInferredContext<(ins "Identifier":$name), [{
+    AttrBuilderWithInferredContext<(ins "StringAttr":$name), [{
       return $_get(name.getContext(), name,
                    UnknownLoc::get(name.getContext()));
     }]>
@@ -179,7 +187,9 @@ def NameLoc : Builtin_LocationAttr<"NameLoc"> {
 // OpaqueLoc
 //===----------------------------------------------------------------------===//
 
-def OpaqueLoc : Builtin_LocationAttr<"OpaqueLoc"> {
+def OpaqueLoc : Builtin_LocationAttr<"OpaqueLoc", [
+    DeclareAttrInterfaceMethods<SubElementAttrInterface>
+  ]> {
   let summary = "An opaque source location";
   let description = [{
     An instance of this location essentially contains a pointer to some data
@@ -202,12 +212,12 @@ def OpaqueLoc : Builtin_LocationAttr<"OpaqueLoc"> {
     /// Returns an instance of opaque location which contains a given pointer to
     /// an object. The corresponding MLIR location is set to UnknownLoc.
     template <typename T>
-    static Location get(T underlyingLocation, MLIRContext *context);
+    static OpaqueLoc get(T underlyingLocation, MLIRContext *context);
 
     /// Returns an instance of opaque location which contains a given pointer to
     /// an object and an additional MLIR location.
     template <typename T>
-    static Location get(T underlyingLocation, Location fallbackLocation) {
+    static OpaqueLoc get(T underlyingLocation, Location fallbackLocation) {
       return get(reinterpret_cast<uintptr_t>(underlyingLocation),
                  TypeID::get<T>(), fallbackLocation);
     }

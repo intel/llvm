@@ -15,12 +15,7 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/LoopInfo.h"
-#include "llvm/Analysis/ValueTracking.h"
-#include "llvm/IR/CFG.h"
-#include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Dominators.h"
-#include "llvm/IR/IntrinsicInst.h"
-#include "llvm/IR/Module.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
@@ -48,7 +43,7 @@ static bool isSafeToMove(Instruction *Inst, AliasAnalysis &AA,
   }
 
   if (Inst->isTerminator() || isa<PHINode>(Inst) || Inst->isEHPad() ||
-      Inst->mayThrow())
+      Inst->mayThrow() || !Inst->willReturn())
     return false;
 
   if (auto *Call = dyn_cast<CallBase>(Inst)) {
@@ -84,7 +79,8 @@ static bool IsAcceptableTarget(Instruction *Inst, BasicBlock *SuccToSinkTo,
   if (SuccToSinkTo->getUniquePredecessor() != Inst->getParent()) {
     // We cannot sink a load across a critical edge - there may be stores in
     // other code paths.
-    if (Inst->mayReadFromMemory())
+    if (Inst->mayReadFromMemory() &&
+        !Inst->hasMetadata(LLVMContext::MD_invariant_load))
       return false;
 
     // We don't want to sink across a critical edge if we don't dominate the

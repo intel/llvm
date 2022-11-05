@@ -53,6 +53,8 @@ TEST_F(TestTypeSystemClang, TestGetBasicTypeFromEnum) {
       context.hasSameType(GetBasicQualType(eBasicTypeBool), context.BoolTy));
   EXPECT_TRUE(
       context.hasSameType(GetBasicQualType(eBasicTypeChar), context.CharTy));
+  EXPECT_TRUE(context.hasSameType(GetBasicQualType(eBasicTypeChar8),
+                                  context.Char8Ty));
   EXPECT_TRUE(context.hasSameType(GetBasicQualType(eBasicTypeChar16),
                                   context.Char16Ty));
   EXPECT_TRUE(context.hasSameType(GetBasicQualType(eBasicTypeChar32),
@@ -498,18 +500,24 @@ TEST_F(TestTypeSystemClang, TemplateArguments) {
   for (CompilerType t : {type, typedef_type, auto_type}) {
     SCOPED_TRACE(t.GetTypeName().AsCString());
 
-    EXPECT_EQ(m_ast->GetTemplateArgumentKind(t.GetOpaqueQualType(), 0),
-              eTemplateArgumentKindType);
-    EXPECT_EQ(m_ast->GetTypeTemplateArgument(t.GetOpaqueQualType(), 0),
-              int_type);
-    EXPECT_EQ(llvm::None,
-              m_ast->GetIntegralTemplateArgument(t.GetOpaqueQualType(), 0));
+    const bool expand_pack = false;
+    EXPECT_EQ(
+        m_ast->GetTemplateArgumentKind(t.GetOpaqueQualType(), 0, expand_pack),
+        eTemplateArgumentKindType);
+    EXPECT_EQ(
+        m_ast->GetTypeTemplateArgument(t.GetOpaqueQualType(), 0, expand_pack),
+        int_type);
+    EXPECT_EQ(llvm::None, m_ast->GetIntegralTemplateArgument(
+                              t.GetOpaqueQualType(), 0, expand_pack));
 
-    EXPECT_EQ(m_ast->GetTemplateArgumentKind(t.GetOpaqueQualType(), 1),
-              eTemplateArgumentKindIntegral);
-    EXPECT_EQ(m_ast->GetTypeTemplateArgument(t.GetOpaqueQualType(), 1),
-              CompilerType());
-    auto result = m_ast->GetIntegralTemplateArgument(t.GetOpaqueQualType(), 1);
+    EXPECT_EQ(
+        m_ast->GetTemplateArgumentKind(t.GetOpaqueQualType(), 1, expand_pack),
+        eTemplateArgumentKindIntegral);
+    EXPECT_EQ(
+        m_ast->GetTypeTemplateArgument(t.GetOpaqueQualType(), 1, expand_pack),
+        CompilerType());
+    auto result = m_ast->GetIntegralTemplateArgument(t.GetOpaqueQualType(), 1,
+                                                     expand_pack);
     ASSERT_NE(llvm::None, result);
     EXPECT_EQ(arg, result->value);
     EXPECT_EQ(int_type, result->type);
@@ -718,21 +726,22 @@ TEST_F(TestTypeSystemClang, TestGetTypeClassDeclType) {
 
 TEST_F(TestTypeSystemClang, TestGetTypeClassTypeOf) {
   clang::ASTContext &ctxt = m_ast->getASTContext();
-  QualType t = ctxt.getTypeOfType(makeConstInt(ctxt));
+  QualType t = ctxt.getTypeOfType(makeConstInt(ctxt), TypeOfKind::Qualified);
   EXPECT_EQ(lldb::eTypeClassBuiltin, m_ast->GetTypeClass(t.getAsOpaquePtr()));
 }
 
 TEST_F(TestTypeSystemClang, TestGetTypeClassTypeOfExpr) {
   clang::ASTContext &ctxt = m_ast->getASTContext();
   auto *nullptr_expr = new (ctxt) CXXNullPtrLiteralExpr(ctxt.NullPtrTy, SourceLocation());
-  QualType t = ctxt.getTypeOfExprType(nullptr_expr);
+  QualType t = ctxt.getTypeOfExprType(nullptr_expr, TypeOfKind::Qualified);
   EXPECT_EQ(lldb::eTypeClassBuiltin, m_ast->GetTypeClass(t.getAsOpaquePtr()));
 }
 
 TEST_F(TestTypeSystemClang, TestGetTypeClassNested) {
   clang::ASTContext &ctxt = m_ast->getASTContext();
-  QualType t_base = ctxt.getTypeOfType(makeConstInt(ctxt));
-  QualType t = ctxt.getTypeOfType(t_base);
+  QualType t_base =
+      ctxt.getTypeOfType(makeConstInt(ctxt), TypeOfKind::Qualified);
+  QualType t = ctxt.getTypeOfType(t_base, TypeOfKind::Qualified);
   EXPECT_EQ(lldb::eTypeClassBuiltin, m_ast->GetTypeClass(t.getAsOpaquePtr()));
 }
 
@@ -910,6 +919,32 @@ TEST_F(TestTypeSystemClang, AddMethodToObjCObjectType) {
   EXPECT_TRUE(method->isImplicit());
   EXPECT_FALSE(method->isDirectMethod());
   EXPECT_EQ(method->getDeclName().getObjCSelector().getAsString(), "foo");
+}
+
+TEST_F(TestTypeSystemClang, GetFullyUnqualifiedType) {
+  CompilerType bool_ = m_ast->GetBasicType(eBasicTypeBool);
+  CompilerType cv_bool = bool_.AddConstModifier().AddVolatileModifier();
+
+  // const volatile bool -> bool
+  EXPECT_EQ(bool_, cv_bool.GetFullyUnqualifiedType());
+
+  // const volatile bool[47] -> bool[47]
+  EXPECT_EQ(bool_.GetArrayType(47),
+            cv_bool.GetArrayType(47).GetFullyUnqualifiedType());
+
+  // const volatile bool[47][42] -> bool[47][42]
+  EXPECT_EQ(
+      bool_.GetArrayType(42).GetArrayType(47),
+      cv_bool.GetArrayType(42).GetArrayType(47).GetFullyUnqualifiedType());
+
+  // const volatile bool * -> bool *
+  EXPECT_EQ(bool_.GetPointerType(),
+            cv_bool.GetPointerType().GetFullyUnqualifiedType());
+
+  // const volatile bool *[47] -> bool *[47]
+  EXPECT_EQ(
+      bool_.GetPointerType().GetArrayType(47),
+      cv_bool.GetPointerType().GetArrayType(47).GetFullyUnqualifiedType());
 }
 
 TEST(TestScratchTypeSystemClang, InferSubASTFromLangOpts) {

@@ -18,6 +18,7 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/CodeGen/LiveInterval.h"
 #include "llvm/CodeGen/LiveIntervals.h"
+#include "llvm/CodeGen/LivePhysRegs.h"
 #include "llvm/CodeGen/LiveVariables.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
@@ -27,8 +28,10 @@
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/SlotIndexes.h"
+#include "llvm/CodeGen/StackMaps.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
+#include "llvm/CodeGen/VirtRegMap.h"
 #include "llvm/MC/MCInstrDesc.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/Support/BranchProbability.h"
@@ -118,9 +121,11 @@ void SystemZInstrInfo::splitAdjDynAlloc(MachineBasicBlock::iterator MI) const {
   MachineFunction &MF = *MBB->getParent();
   MachineFrameInfo &MFFrame = MF.getFrameInfo();
   MachineOperand &OffsetMO = MI->getOperand(2);
+  SystemZCallingConventionRegisters *Regs = STI.getSpecialRegisters();
 
   uint64_t Offset = (MFFrame.getMaxCallFrameSize() +
-                     SystemZMC::ELFCallFrameSize +
+                     Regs->getCallFrameSize() +
+                     Regs->getStackPointerBias() +
                      OffsetMO.getImm());
   unsigned NewOpcode = getOpcodeForOffset(SystemZ::LA, Offset);
   assert(NewOpcode && "No support for huge argument lists yet");
@@ -202,8 +207,8 @@ void SystemZInstrInfo::expandZExtPseudo(MachineInstr &MI, unsigned LowOpcode,
                Size, MI.getOperand(1).isKill(), MI.getOperand(1).isUndef());
 
   // Keep the remaining operands as-is.
-  for (unsigned I = 2; I < MI.getNumOperands(); ++I)
-    MIB.add(MI.getOperand(I));
+  for (const MachineOperand &MO : llvm::drop_begin(MI.operands(), 2))
+    MIB.add(MO);
 
   MI.eraseFromParent();
 }
@@ -392,8 +397,7 @@ bool SystemZInstrInfo::analyzeBranch(MachineBasicBlock &MBB,
       }
 
       // If the block has any instructions after a JMP, delete them.
-      while (std::next(I) != MBB.end())
-        std::next(I)->eraseFromParent();
+      MBB.erase(std::next(I), MBB.end());
 
       Cond.clear();
       FBB = nullptr;
@@ -625,7 +629,7 @@ bool SystemZInstrInfo::FoldImmediate(MachineInstr &UseMI, MachineInstr &DefMI,
   switch (UseOpc) {
   case SystemZ::SELRMux:
     TieOps = true;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case SystemZ::LOCRMux:
     if (!STI.hasLoadStoreOnCond2())
       return false;
@@ -639,7 +643,7 @@ bool SystemZInstrInfo::FoldImmediate(MachineInstr &UseMI, MachineInstr &DefMI,
     break;
   case SystemZ::SELGR:
     TieOps = true;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case SystemZ::LOCGR:
     if (!STI.hasLoadStoreOnCond2())
       return false;
@@ -673,6 +677,7 @@ bool SystemZInstrInfo::FoldImmediate(MachineInstr &UseMI, MachineInstr &DefMI,
 bool SystemZInstrInfo::isPredicable(const MachineInstr &MI) const {
   unsigned Opcode = MI.getOpcode();
   if (Opcode == SystemZ::Return ||
+      Opcode == SystemZ::Return_XPLINK ||
       Opcode == SystemZ::Trap ||
       Opcode == SystemZ::CallJG ||
       Opcode == SystemZ::CallBR)
@@ -730,18 +735,20 @@ bool SystemZInstrInfo::PredicateInstruction(
       .addReg(SystemZ::CC, RegState::Implicit);
     return true;
   }
-  if (Opcode == SystemZ::Return) {
-    MI.setDesc(get(SystemZ::CondReturn));
+  if (Opcode == SystemZ::Return || Opcode == SystemZ::Return_XPLINK) {
+    MI.setDesc(get(Opcode == SystemZ::Return ? SystemZ::CondReturn
+                                             : SystemZ::CondReturn_XPLINK));
     MachineInstrBuilder(*MI.getParent()->getParent(), MI)
-      .addImm(CCValid).addImm(CCMask)
-      .addReg(SystemZ::CC, RegState::Implicit);
+        .addImm(CCValid)
+        .addImm(CCMask)
+        .addReg(SystemZ::CC, RegState::Implicit);
     return true;
   }
   if (Opcode == SystemZ::CallJG) {
     MachineOperand FirstOp = MI.getOperand(0);
     const uint32_t *RegMask = MI.getOperand(1).getRegMask();
-    MI.RemoveOperand(1);
-    MI.RemoveOperand(0);
+    MI.removeOperand(1);
+    MI.removeOperand(0);
     MI.setDesc(get(SystemZ::CallBRCL));
     MachineInstrBuilder(*MI.getParent()->getParent(), MI)
         .addImm(CCValid)
@@ -754,8 +761,8 @@ bool SystemZInstrInfo::PredicateInstruction(
   if (Opcode == SystemZ::CallBR) {
     MachineOperand Target = MI.getOperand(0);
     const uint32_t *RegMask = MI.getOperand(1).getRegMask();
-    MI.RemoveOperand(1);
-    MI.RemoveOperand(0);
+    MI.removeOperand(1);
+    MI.removeOperand(0);
     MI.setDesc(get(SystemZ::CallBCR));
     MachineInstrBuilder(*MI.getParent()->getParent(), MI)
       .addImm(CCValid).addImm(CCMask)
@@ -942,8 +949,9 @@ static void transferMIFlag(MachineInstr *OldMI, MachineInstr *NewMI,
     NewMI->setFlag(Flag);
 }
 
-MachineInstr *SystemZInstrInfo::convertToThreeAddress(MachineInstr &MI,
-                                                      LiveVariables *LV) const {
+MachineInstr *
+SystemZInstrInfo::convertToThreeAddress(MachineInstr &MI, LiveVariables *LV,
+                                        LiveIntervals *LIS) const {
   MachineBasicBlock *MBB = MI.getParent();
 
   // Try to convert an AND into an RISBG-type instruction.
@@ -984,6 +992,8 @@ MachineInstr *SystemZInstrInfo::convertToThreeAddress(MachineInstr &MI,
             LV->replaceKillInstruction(Op.getReg(), MI, *MIB);
         }
       }
+      if (LIS)
+        LIS->ReplaceMachineInstrInMaps(MI, *MIB);
       transferDeadCC(&MI, MIB);
       return MIB;
     }
@@ -1305,7 +1315,7 @@ MachineInstr *SystemZInstrInfo::foldMemoryOperandImpl(
     // allocated regs are in an FP reg-class per previous check above.
     for (const MachineOperand &MO : MIB->operands())
       if (MO.isReg() && Register::isVirtualRegister(MO.getReg())) {
-        unsigned Reg = MO.getReg();
+        Register Reg = MO.getReg();
         if (MRI.getRegClass(Reg) == &SystemZ::VR32BitRegClass)
           MRI.setRegClass(Reg, &SystemZ::FP32BitRegClass);
         else if (MRI.getRegClass(Reg) == &SystemZ::VR64BitRegClass)
@@ -1515,6 +1525,13 @@ unsigned SystemZInstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
     const char *AsmStr = MI.getOperand(0).getSymbolName();
     return getInlineAsmLength(AsmStr, *MF->getTarget().getMCAsmInfo());
   }
+  else if (MI.getOpcode() == SystemZ::PATCHPOINT)
+    return PatchPointOpers(&MI).getNumPatchBytes();
+  else if (MI.getOpcode() == SystemZ::STACKMAP)
+    return MI.getOperand(1).getImm();
+  else if (MI.getOpcode() == SystemZ::FENTRY_CALL)
+    return 6;
+
   return MI.getDesc().getSize();
 }
 
@@ -1615,7 +1632,8 @@ void SystemZInstrInfo::getLoadStoreOpcodes(const TargetRegisterClass *RC,
 }
 
 unsigned SystemZInstrInfo::getOpcodeForOffset(unsigned Opcode,
-                                              int64_t Offset) const {
+                                              int64_t Offset,
+                                              const MachineInstr *MI) const {
   const MCInstrDesc &MCID = get(Opcode);
   int64_t Offset2 = (MCID.TSFlags & SystemZII::Is128Bit ? Offset + 8 : Offset);
   if (isUInt<12>(Offset) && isUInt<12>(Offset2)) {
@@ -1637,8 +1655,33 @@ unsigned SystemZInstrInfo::getOpcodeForOffset(unsigned Opcode,
     // Check whether Opcode allows signed 20-bit displacements.
     if (MCID.TSFlags & SystemZII::Has20BitOffset)
       return Opcode;
+
+    // If a VR32/VR64 reg ended up in an FP register, use the FP opcode.
+    if (MI && MI->getOperand(0).isReg()) {
+      Register Reg = MI->getOperand(0).getReg();
+      if (Reg.isPhysical() && SystemZMC::getFirstReg(Reg) < 16) {
+        switch (Opcode) {
+        case SystemZ::VL32:
+          return SystemZ::LEY;
+        case SystemZ::VST32:
+          return SystemZ::STEY;
+        case SystemZ::VL64:
+          return SystemZ::LDY;
+        case SystemZ::VST64:
+          return SystemZ::STDY;
+        default: break;
+        }
+      }
+    }
   }
   return 0;
+}
+
+bool SystemZInstrInfo::hasDisplacementPairInsn(unsigned Opcode) const {
+  const MCInstrDesc &MCID = get(Opcode);
+  if (MCID.TSFlags & SystemZII::Has20BitOffset)
+    return SystemZ::getDisp12Opcode(Opcode) >= 0;
+  return SystemZ::getDisp20Opcode(Opcode) >= 0;
 }
 
 unsigned SystemZInstrInfo::getLoadAndTest(unsigned Opcode) const {
@@ -1835,16 +1878,15 @@ prepareCompareSwapOperands(MachineBasicBlock::iterator const MBBI) const {
   MachineBasicBlock *MBB = MBBI->getParent();
   bool CCLive = true;
   SmallVector<MachineInstr *, 4> CCUsers;
-  for (MachineBasicBlock::iterator Itr = std::next(MBBI);
-       Itr != MBB->end(); ++Itr) {
-    if (Itr->readsRegister(SystemZ::CC)) {
-      unsigned Flags = Itr->getDesc().TSFlags;
+  for (MachineInstr &MI : llvm::make_range(std::next(MBBI), MBB->end())) {
+    if (MI.readsRegister(SystemZ::CC)) {
+      unsigned Flags = MI.getDesc().TSFlags;
       if ((Flags & SystemZII::CCMaskFirst) || (Flags & SystemZII::CCMaskLast))
-        CCUsers.push_back(&*Itr);
+        CCUsers.push_back(&MI);
       else
         return false;
     }
-    if (Itr->definesRegister(SystemZ::CC)) {
+    if (MI.definesRegister(SystemZ::CC)) {
       CCLive = false;
       break;
     }

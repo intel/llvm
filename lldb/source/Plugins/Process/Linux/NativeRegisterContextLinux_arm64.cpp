@@ -11,7 +11,7 @@
 #include "NativeRegisterContextLinux_arm.h"
 #include "NativeRegisterContextLinux_arm64.h"
 
-
+#include "lldb/Host/HostInfo.h"
 #include "lldb/Host/common/NativeProcessProtocol.h"
 #include "lldb/Host/linux/Ptrace.h"
 #include "lldb/Utility/DataBufferHeap.h"
@@ -27,7 +27,7 @@
 
 // System includes - They have to be included after framework includes because
 // they define some macros which collide with variable names in other modules
-#include <sys/socket.h>
+#include <sys/uio.h>
 // NT_PRSTATUS and NT_FPREGSET definition
 #include <elf.h>
 
@@ -93,6 +93,12 @@ NativeRegisterContextLinux::CreateHostNativeRegisterContextLinux(
   default:
     llvm_unreachable("have no register context for architecture");
   }
+}
+
+llvm::Expected<ArchSpec>
+NativeRegisterContextLinux::DetermineArchitecture(lldb::tid_t tid) {
+  return DetermineArchitectureViaGPR(
+      tid, RegisterInfoPOSIX_arm64::GetGPRSizeStatic());
 }
 
 NativeRegisterContextLinux_arm64::NativeRegisterContextLinux_arm64(
@@ -278,7 +284,7 @@ NativeRegisterContextLinux_arm64::ReadRegister(const RegisterInfo *reg_info,
     return Status("failed - register wasn't recognized to be a GPR or an FPR, "
                   "write strategy unknown");
 
-  reg_value.SetFromMemoryData(reg_info, src, reg_info->byte_size,
+  reg_value.SetFromMemoryData(*reg_info, src, reg_info->byte_size,
                               eByteOrderLittle, error);
 
   return error;
@@ -449,7 +455,7 @@ Status NativeRegisterContextLinux_arm64::WriteRegister(
 }
 
 Status NativeRegisterContextLinux_arm64::ReadAllRegisterValues(
-    lldb::DataBufferSP &data_sp) {
+    lldb::WritableDataBufferSP &data_sp) {
   // AArch64 register data must contain GPRs, either FPR or SVE registers
   // and optional MTE register. Pointer Authentication (PAC) registers are
   // read-only and will be skiped.
@@ -524,7 +530,7 @@ Status NativeRegisterContextLinux_arm64::WriteAllRegisterValues(
     return error;
   }
 
-  uint8_t *src = data_sp->GetBytes();
+  const uint8_t *src = data_sp->GetBytes();
   if (src == nullptr) {
     error.SetErrorStringWithFormat("NativeRegisterContextLinux_arm64::%s "
                                    "DataBuffer::GetBytes() returned a null "

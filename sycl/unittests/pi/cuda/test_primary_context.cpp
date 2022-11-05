@@ -11,13 +11,12 @@
 #include <cuda.h>
 
 #include "TestGetPlatforms.hpp"
-#include <CL/sycl.hpp>
-#include <CL/sycl/backend/cuda.hpp>
 #include <pi_cuda.hpp>
+#include <sycl/sycl.hpp>
 
 #include <iostream>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 struct CudaPrimaryContextTests : public ::testing::TestWithParam<platform> {
 
@@ -37,11 +36,12 @@ protected:
 
 TEST_P(CudaPrimaryContextTests, piSingleContext) {
   std::cout << "create single context" << std::endl;
-  context Context(deviceA_, async_handler{},
-                  {sycl::property::context::cuda::use_primary_context{}});
+  context Context(
+      deviceA_, async_handler{},
+      {sycl::ext::oneapi::cuda::property::context::use_primary_context{}});
 
-  CUdevice CudaDevice = deviceA_.get_native<backend::cuda>();
-  CUcontext CudaContext = Context.get_native<backend::cuda>();
+  CUdevice CudaDevice = get_native<backend::ext_oneapi_cuda>(deviceA_);
+  CUcontext CudaContext = get_native<backend::ext_oneapi_cuda>(Context);
 
   CUcontext PrimaryCudaContext;
   cuDevicePrimaryCtxRetain(&PrimaryCudaContext, CudaDevice);
@@ -53,13 +53,15 @@ TEST_P(CudaPrimaryContextTests, piSingleContext) {
 
 TEST_P(CudaPrimaryContextTests, piMultiContextSingleDevice) {
   std::cout << "create multiple contexts for one device" << std::endl;
-  context ContextA(deviceA_, async_handler{},
-                   {sycl::property::context::cuda::use_primary_context{}});
-  context ContextB(deviceA_, async_handler{},
-                   {sycl::property::context::cuda::use_primary_context{}});
+  context ContextA(
+      deviceA_, async_handler{},
+      {sycl::ext::oneapi::cuda::property::context::use_primary_context{}});
+  context ContextB(
+      deviceA_, async_handler{},
+      {sycl::ext::oneapi::cuda::property::context::use_primary_context{}});
 
-  CUcontext CudaContextA = ContextA.get_native<backend::cuda>();
-  CUcontext CudaContextB = ContextB.get_native<backend::cuda>();
+  CUcontext CudaContextA = get_native<backend::ext_oneapi_cuda>(ContextA);
+  CUcontext CudaContextB = get_native<backend::ext_oneapi_cuda>(ContextB);
 
   ASSERT_EQ(CudaContextA, CudaContextB);
 }
@@ -68,19 +70,21 @@ TEST_P(CudaPrimaryContextTests, piMultiContextMultiDevice) {
   if (deviceA_ == deviceB_)
     return;
 
-  CUdevice CudaDeviceA = deviceA_.get_native<backend::cuda>();
-  CUdevice CudaDeviceB = deviceB_.get_native<backend::cuda>();
+  CUdevice CudaDeviceA = get_native<backend::ext_oneapi_cuda>(deviceA_);
+  CUdevice CudaDeviceB = get_native<backend::ext_oneapi_cuda>(deviceB_);
 
   ASSERT_NE(CudaDeviceA, CudaDeviceB);
 
   std::cout << "create multiple contexts for multiple devices" << std::endl;
-  context ContextA(deviceA_, async_handler{},
-                   {sycl::property::context::cuda::use_primary_context{}});
-  context ContextB(deviceB_, async_handler{},
-                   {sycl::property::context::cuda::use_primary_context{}});
+  context ContextA(
+      deviceA_, async_handler{},
+      {sycl::ext::oneapi::cuda::property::context::use_primary_context{}});
+  context ContextB(
+      deviceB_, async_handler{},
+      {sycl::ext::oneapi::cuda::property::context::use_primary_context{}});
 
-  CUcontext CudaContextA = ContextA.get_native<backend::cuda>();
-  CUcontext CudaContextB = ContextB.get_native<backend::cuda>();
+  CUcontext CudaContextA = get_native<backend::ext_oneapi_cuda>(ContextA);
+  CUcontext CudaContextB = get_native<backend::ext_oneapi_cuda>(ContextB);
 
   ASSERT_NE(CudaContextA, CudaContextB);
 }

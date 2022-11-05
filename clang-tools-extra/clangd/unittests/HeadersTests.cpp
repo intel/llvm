@@ -9,17 +9,18 @@
 #include "Headers.h"
 
 #include "Compiler.h"
+#include "Matchers.h"
 #include "TestFS.h"
 #include "TestTU.h"
 #include "clang/Basic/TokenKinds.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Frontend/FrontendActions.h"
-#include "clang/Lex/PreprocessorOptions.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Testing/Support/Error.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -30,10 +31,10 @@ namespace {
 using ::testing::AllOf;
 using ::testing::Contains;
 using ::testing::ElementsAre;
+using ::testing::Eq;
 using ::testing::IsEmpty;
 using ::testing::Not;
 using ::testing::UnorderedElementsAre;
-using ::testing::UnorderedElementsAreArray;
 
 class HeadersTest : public ::testing::Test {
 public:
@@ -70,8 +71,8 @@ protected:
   IncludeStructure::HeaderID getID(StringRef Filename,
                                    IncludeStructure &Includes) {
     auto &SM = Clang->getSourceManager();
-    auto Entry = SM.getFileManager().getFile(Filename);
-    EXPECT_TRUE(Entry);
+    auto Entry = SM.getFileManager().getFileRef(Filename);
+    EXPECT_THAT_EXPECTED(Entry, llvm::Succeeded());
     return Includes.getOrCreateID(*Entry);
   }
 
@@ -81,8 +82,7 @@ protected:
     EXPECT_TRUE(
         Action.BeginSourceFile(*Clang, Clang->getFrontendOpts().Inputs[0]));
     IncludeStructure Includes;
-    Clang->getPreprocessor().addPPCallbacks(
-        Includes.collect(Clang->getSourceManager()));
+    Includes.collect(*Clang);
     EXPECT_FALSE(Action.Execute());
     Action.EndSourceFile();
     return Includes;
@@ -114,7 +114,7 @@ protected:
       return "";
     auto Path = Inserter.calculateIncludePath(Inserted, MainFile);
     Action.EndSourceFile();
-    return Path.getValueOr("");
+    return Path.value_or("");
   }
 
   llvm::Optional<TextEdit> insert(llvm::StringRef VerbatimHeader) {
@@ -140,10 +140,11 @@ protected:
   std::unique_ptr<CompilerInstance> Clang;
 };
 
-MATCHER_P(Written, Name, "") { return arg.Written == Name; }
-MATCHER_P(Resolved, Name, "") { return arg.Resolved == Name; }
-MATCHER_P(IncludeLine, N, "") { return arg.HashLine == N; }
-MATCHER_P(Directive, D, "") { return arg.Directive == D; }
+MATCHER_P(written, Name, "") { return arg.Written == Name; }
+MATCHER_P(resolved, Name, "") { return arg.Resolved == Name; }
+MATCHER_P(includeLine, N, "") { return arg.HashLine == N; }
+MATCHER_P(directive, D, "") { return arg.Directive == D; }
+MATCHER_P(hasPragmaKeep, H, "") { return arg.BehindPragmaKeep == H; }
 
 MATCHER_P2(Distance, File, D, "") {
   if (arg.getFirst() != File)
@@ -163,7 +164,7 @@ TEST_F(HeadersTest, CollectRewrittenAndResolved) {
   auto Includes = collectIncludes();
   EXPECT_THAT(Includes.MainFileIncludes,
               UnorderedElementsAre(
-                  AllOf(Written("\"sub/bar.h\""), Resolved(BarHeader))));
+                  AllOf(written("\"sub/bar.h\""), resolved(BarHeader))));
   EXPECT_THAT(Includes.includeDepth(getID(MainFile, Includes)),
               UnorderedElementsAre(Distance(getID(MainFile, Includes), 0u),
                                    Distance(getID(BarHeader, Includes), 1u)));
@@ -182,7 +183,7 @@ TEST_F(HeadersTest, OnlyCollectInclusionsInMain) {
   auto Includes = collectIncludes();
   EXPECT_THAT(
       Includes.MainFileIncludes,
-      UnorderedElementsAre(AllOf(Written("\"bar.h\""), Resolved(BarHeader))));
+      UnorderedElementsAre(AllOf(written("\"bar.h\""), resolved(BarHeader))));
   EXPECT_THAT(Includes.includeDepth(getID(MainFile, Includes)),
               UnorderedElementsAre(Distance(getID(MainFile, Includes), 0u),
                                    Distance(getID(BarHeader, Includes), 1u),
@@ -206,7 +207,7 @@ TEST_F(HeadersTest, PreambleIncludesPresentOnce) {
   )cpp");
   TU.HeaderFilename = "a.h"; // suppress "not found".
   EXPECT_THAT(TU.build().getIncludeStructure().MainFileIncludes,
-              ElementsAre(IncludeLine(1), IncludeLine(3), IncludeLine(5)));
+              ElementsAre(includeLine(1), includeLine(3), includeLine(5)));
 }
 
 TEST_F(HeadersTest, UnResolvedInclusion) {
@@ -215,7 +216,7 @@ TEST_F(HeadersTest, UnResolvedInclusion) {
 )cpp";
 
   EXPECT_THAT(collectIncludes().MainFileIncludes,
-              UnorderedElementsAre(AllOf(Written("\"foo.h\""), Resolved(""))));
+              UnorderedElementsAre(AllOf(written("\"foo.h\""), resolved(""))));
   EXPECT_THAT(collectIncludes().IncludeChildren, IsEmpty());
 }
 
@@ -254,9 +255,21 @@ TEST_F(HeadersTest, IncludeDirective) {
   // ms-compatibility changes meaning of #import, make sure it is turned off.
   CDB.ExtraClangFlags.push_back("-fno-ms-compatibility");
   EXPECT_THAT(collectIncludes().MainFileIncludes,
-              UnorderedElementsAre(Directive(tok::pp_include),
-                                   Directive(tok::pp_import),
-                                   Directive(tok::pp_include_next)));
+              UnorderedElementsAre(directive(tok::pp_include),
+                                   directive(tok::pp_import),
+                                   directive(tok::pp_include_next)));
+}
+
+TEST_F(HeadersTest, IWYUPragmaKeep) {
+  FS.Files[MainFile] = R"cpp(
+#include "bar.h" // IWYU pragma: keep
+#include "foo.h"
+)cpp";
+
+  EXPECT_THAT(
+      collectIncludes().MainFileIncludes,
+      UnorderedElementsAre(AllOf(written("\"foo.h\""), hasPragmaKeep(false)),
+                           AllOf(written("\"bar.h\""), hasPragmaKeep(true))));
 }
 
 TEST_F(HeadersTest, InsertInclude) {
@@ -318,7 +331,7 @@ TEST_F(HeadersTest, DontInsertDuplicateResolved) {
 
 TEST_F(HeadersTest, PreferInserted) {
   auto Edit = insert("<y>");
-  EXPECT_TRUE(Edit.hasValue());
+  EXPECT_TRUE(Edit);
   EXPECT_TRUE(StringRef(Edit->newText).contains("<y>"));
 }
 
@@ -357,13 +370,95 @@ TEST_F(HeadersTest, PresumedLocations) {
   // Including through non-builtin file has no effects.
   FS.Files[MainFile] = "#include \"__preamble_patch__.h\"\n\n";
   EXPECT_THAT(collectIncludes().MainFileIncludes,
-              Not(Contains(Written("<a.h>"))));
+              Not(Contains(written("<a.h>"))));
 
   // Now include through built-in file.
   CDB.ExtraClangFlags = {"-include", testPath(HeaderFile)};
   EXPECT_THAT(collectIncludes().MainFileIncludes,
-              Contains(AllOf(IncludeLine(2), Written("<a.h>"))));
+              Contains(AllOf(includeLine(2), written("<a.h>"))));
 }
+
+TEST_F(HeadersTest, SelfContainedHeaders) {
+  // Including through non-builtin file has no effects.
+  FS.Files[MainFile] = R"cpp(
+#include "includeguarded.h"
+#include "nonguarded.h"
+#include "pp_depend.h"
+#include "pragmaguarded.h"
+#include "recursive.h"
+)cpp";
+  FS.Files["pragmaguarded.h"] = R"cpp(
+#pragma once
+)cpp";
+  FS.Files["includeguarded.h"] = R"cpp(
+#ifndef INCLUDE_GUARDED_H
+#define INCLUDE_GUARDED_H
+void foo();
+#endif // INCLUDE_GUARDED_H
+)cpp";
+  FS.Files["nonguarded.h"] = R"cpp(
+)cpp";
+  FS.Files["pp_depend.h"] = R"cpp(
+  #ifndef REQUIRED_PP_DIRECTIVE
+  # error You have to have PP directive set to include this one!
+  #endif
+)cpp";
+  FS.Files["recursive.h"] = R"cpp(
+  #ifndef RECURSIVE_H
+  #define RECURSIVE_H
+
+  #include "recursive.h"
+
+  #endif // RECURSIVE_H
+)cpp";
+
+  auto Includes = collectIncludes();
+  EXPECT_TRUE(Includes.isSelfContained(getID("pragmaguarded.h", Includes)));
+  EXPECT_TRUE(Includes.isSelfContained(getID("includeguarded.h", Includes)));
+  EXPECT_TRUE(Includes.isSelfContained(getID("recursive.h", Includes)));
+  EXPECT_FALSE(Includes.isSelfContained(getID("nonguarded.h", Includes)));
+  EXPECT_FALSE(Includes.isSelfContained(getID("pp_depend.h", Includes)));
+}
+
+TEST_F(HeadersTest, HasIWYUPragmas) {
+  FS.Files[MainFile] = R"cpp(
+#include "export.h"
+#include "begin_exports.h"
+#include "none.h"
+)cpp";
+  FS.Files["export.h"] = R"cpp(
+#pragma once
+#include "none.h" // IWYU pragma: export
+)cpp";
+  FS.Files["begin_exports.h"] = R"cpp(
+#pragma once
+// IWYU pragma: begin_exports
+#include "none.h"
+// IWYU pragma: end_exports
+)cpp";
+  FS.Files["none.h"] = R"cpp(
+#pragma once
+// Not a pragma.
+)cpp";
+
+  auto Includes = collectIncludes();
+  EXPECT_TRUE(Includes.hasIWYUExport(getID("export.h", Includes)));
+  EXPECT_TRUE(Includes.hasIWYUExport(getID("begin_exports.h", Includes)));
+  EXPECT_FALSE(Includes.hasIWYUExport(getID("none.h", Includes)));
+}
+
+TEST(Headers, ParseIWYUPragma) {
+  EXPECT_THAT(parseIWYUPragma("// IWYU pragma: keep"), HasValue(Eq("keep")));
+  EXPECT_THAT(parseIWYUPragma("// IWYU pragma: keep\netc"),
+              HasValue(Eq("keep")));
+  EXPECT_EQ(parseIWYUPragma("/* IWYU pragma: keep"), llvm::None)
+      << "Only // comments supported!";
+  EXPECT_EQ(parseIWYUPragma("//  IWYU pragma: keep"), llvm::None)
+      << "Sensitive to whitespace";
+  EXPECT_EQ(parseIWYUPragma("// IWYU pragma:keep"), llvm::None)
+      << "Sensitive to whitespace";
+}
+
 } // namespace
 } // namespace clangd
 } // namespace clang

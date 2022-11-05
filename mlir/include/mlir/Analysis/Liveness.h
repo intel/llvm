@@ -129,9 +129,20 @@ public:
   /// provided (must be referenced in this block).
   Operation *getEndOperation(Value value, Operation *startOperation) const;
 
+  /// Get the set of values that are currently live (if any) for the current op.
+  /// This analysis takes an expansive view of "live" in that if a value is
+  /// defined by or within the operation or is fully consumed (as in last user)
+  /// by or within the operation the value is considered "live". The values in
+  /// the list are not ordered.
+  ///
+  /// This check is quite expensive as it does not cache the results of the
+  /// computation, so the currently live values have to be recomputed for each
+  /// op.
+  ValueSetT currentlyLiveValues(Operation *op) const;
+
 private:
   /// The underlying block.
-  Block *block;
+  Block *block = nullptr;
 
   /// The set of all live in values.
   ValueSetT inValues;
@@ -142,6 +153,6 @@ private:
   friend class Liveness;
 };
 
-} // end namespace mlir
+} // namespace mlir
 
 #endif // MLIR_ANALYSIS_LIVENESS_H

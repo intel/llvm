@@ -1,7 +1,8 @@
 ; RUN:  llc -amdgpu-scalarize-global-loads=false  -march=amdgcn -mcpu=verde -verify-machineinstrs < %s | FileCheck -allow-deprecated-dag-overlap -check-prefixes=GCN,SI,FUNC %s
 ; RUN:  llc -amdgpu-scalarize-global-loads=false  -march=amdgcn -mcpu=tonga -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck -allow-deprecated-dag-overlap -check-prefixes=GCN,VI,FUNC %s
-; RUN:  llc -amdgpu-scalarize-global-loads=false  -march=amdgcn -mcpu=gfx900 -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck -allow-deprecated-dag-overlap -check-prefixes=FUNC,GFX9_10 %s
-; RUN:  llc -amdgpu-scalarize-global-loads=false  -march=amdgcn -mcpu=gfx1010 -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck -allow-deprecated-dag-overlap -check-prefixes=FUNC,GFX9_10 %s
+; RUN:  llc -amdgpu-scalarize-global-loads=false  -march=amdgcn -mcpu=gfx900 -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck -allow-deprecated-dag-overlap -check-prefixes=FUNC,GFX9PLUS %s
+; RUN:  llc -amdgpu-scalarize-global-loads=false  -march=amdgcn -mcpu=gfx1010 -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck -allow-deprecated-dag-overlap -check-prefixes=FUNC,GFX9PLUS %s
+; RUN:  llc -amdgpu-scalarize-global-loads=false  -march=amdgcn -mcpu=gfx1100 -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck -allow-deprecated-dag-overlap -check-prefixes=FUNC,GFX9PLUS %s
 ; RUN:  llc -amdgpu-scalarize-global-loads=false  -march=r600 -mcpu=redwood < %s | FileCheck -allow-deprecated-dag-overlap -check-prefixes=EG,FUNC %s
 
 ; mul24 and mad24 are affected
@@ -73,8 +74,9 @@ define amdgpu_kernel void @v_trunc_i64_mul_to_i32(i32 addrspace(1)* %out, i64 ad
 ; FUNC-LABEL: {{^}}mul64_sext_c:
 ; EG-DAG: MULLO_INT
 ; EG-DAG: MULHI_INT
-; GCN-DAG: s_mul_i32
-; GCN-DAG: v_mul_hi_i32
+; SI-DAG: s_mulk_i32
+; SI-DAG: v_mul_hi_i32
+; VI: v_mad_i64_i32
 define amdgpu_kernel void @mul64_sext_c(i64 addrspace(1)* %out, i32 %in) {
 entry:
   %0 = sext i32 %in to i64
@@ -86,8 +88,9 @@ entry:
 ; FUNC-LABEL: {{^}}v_mul64_sext_c:
 ; EG-DAG: MULLO_INT
 ; EG-DAG: MULHI_INT
-; GCN-DAG: v_mul_lo_u32
-; GCN-DAG: v_mul_hi_i32
+; SI-DAG: v_mul_lo_u32
+; SI-DAG: v_mul_hi_i32
+; VI: v_mad_i64_i32
 ; GCN: s_endpgm
 define amdgpu_kernel void @v_mul64_sext_c(i64 addrspace(1)* %out, i32 addrspace(1)* %in) {
   %val = load i32, i32 addrspace(1)* %in, align 4
@@ -98,8 +101,9 @@ define amdgpu_kernel void @v_mul64_sext_c(i64 addrspace(1)* %out, i32 addrspace(
 }
 
 ; FUNC-LABEL: {{^}}v_mul64_sext_inline_imm:
-; GCN-DAG: v_mul_lo_u32 v{{[0-9]+}}, v{{[0-9]+}}, 9
-; GCN-DAG: v_mul_hi_i32 v{{[0-9]+}}, v{{[0-9]+}}, 9
+; SI-DAG: v_mul_lo_u32 v{{[0-9]+}}, v{{[0-9]+}}, 9
+; SI-DAG: v_mul_hi_i32 v{{[0-9]+}}, v{{[0-9]+}}, 9
+; VI: v_mad_i64_i32 v[{{[0-9]+}}:{{[0-9]+}}], s[{{[0-9]+}}:{{[0-9]+}}], v{{[0-9]+}}, 9, 0
 ; GCN: s_endpgm
 define amdgpu_kernel void @v_mul64_sext_inline_imm(i64 addrspace(1)* %out, i32 addrspace(1)* %in) {
   %val = load i32, i32 addrspace(1)* %in, align 4
@@ -141,11 +145,11 @@ define amdgpu_kernel void @v_mul_i32(i32 addrspace(1)* %out, i32 addrspace(1)* %
 ; crash with a 'failed to select' error.
 
 ; FUNC-LABEL: {{^}}s_mul_i64:
-; GFX9_10-DAG: s_mul_i32
-; GFX9_10-DAG: s_mul_hi_u32
-; GFX9_10-DAG: s_mul_i32
-; GFX9_10-DAG: s_mul_i32
-; GFX9_10: s_endpgm
+; GFX9PLUS-DAG: s_mul_i32
+; GFX9PLUS-DAG: s_mul_hi_u32
+; GFX9PLUS-DAG: s_mul_i32
+; GFX9PLUS-DAG: s_mul_i32
+; GFX9PLUS: s_endpgm
 define amdgpu_kernel void @s_mul_i64(i64 addrspace(1)* %out, i64 %a, i64 %b) nounwind {
   %mul = mul i64 %a, %b
   store i64 %mul, i64 addrspace(1)* %out, align 8
@@ -184,8 +188,9 @@ endif:
 }
 
 ; FUNC-LABEL: {{^}}mul64_in_branch:
-; GCN-DAG: s_mul_i32
-; GCN-DAG: v_mul_hi_u32
+; SI-DAG: s_mul_i32
+; SI-DAG: v_mul_hi_u32
+; VI: v_mad_u64_u32
 ; GCN: s_endpgm
 define amdgpu_kernel void @mul64_in_branch(i64 addrspace(1)* %out, i64 addrspace(1)* %in, i64 %a, i64 %b, i64 %c) {
 entry:
@@ -225,19 +230,16 @@ endif:
 ; SI-DAG: s_mul_i32
 ; SI-DAG: v_mul_hi_u32
 
-; VI: v_mul_hi_u32
-; VI: s_mul_i32
-; VI: s_mul_i32
-; VI: v_mul_hi_u32
-; VI: v_mul_hi_u32
-; VI: s_mul_i32
-; VI: v_mad_u64_u32
-; VI: s_mul_i32
-; VI: v_mad_u64_u32
-; VI: s_mul_i32
-; VI: s_mul_i32
-; VI: v_mad_u64_u32
-; VI: s_mul_i32
+; VI-DAG: v_mad_u64_u32
+; VI-DAG: v_mad_u64_u32
+; VI-DAG: v_mad_u64_u32
+; VI-DAG: v_mad_u64_u32
+; VI-DAG: v_mad_u64_u32
+; VI-DAG: v_mad_u64_u32
+; VI-DAG: s_mul_i32
+; VI-DAG: s_mul_i32
+; VI-DAG: s_mul_i32
+; VI-DAG: s_mul_i32
 
 
 ; GCN: buffer_store_dwordx4
@@ -270,11 +272,15 @@ define amdgpu_kernel void @s_mul_i128(i128 addrspace(1)* %out, [8 x i32], i128 %
 ; SI-DAG: v_mul_lo_u32
 ; SI-DAG: v_mul_lo_u32
 
+; VI-DAG: v_mad_u64_u32
+; VI-DAG: v_mad_u64_u32
+; VI-DAG: v_mad_u64_u32
+; VI-DAG: v_mad_u64_u32
+; VI-DAG: v_mad_u64_u32
+; VI-DAG: v_mad_u64_u32
 ; VI-DAG: v_mul_lo_u32
-; VI-DAG: v_mul_hi_u32
-; VI: v_mad_u64_u32
-; VI: v_mad_u64_u32
-; VI: v_mad_u64_u32
+; VI-DAG: v_mul_lo_u32
+; VI-DAG: v_mul_lo_u32
 
 ; GCN: {{buffer|flat}}_store_dwordx4
 define amdgpu_kernel void @v_mul_i128(i128 addrspace(1)* %out, i128 addrspace(1)* %aptr, i128 addrspace(1)* %bptr) #0 {

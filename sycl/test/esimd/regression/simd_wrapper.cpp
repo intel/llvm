@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl -fsyntax-only -fsycl-device-only -Xclang -verify %s
 
 #include <limits>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 #include <utility>
 
 // This is a regression test for simd object being non-trivial copy
@@ -9,7 +9,7 @@
 // SimdWrapper, e.g.:
 //   SimdWrapper (const SimdWrapper& rhs) : v1(rhs.v1) {}
 
-using namespace sycl::ext::intel::experimental::esimd;
+using namespace sycl::ext::intel::esimd;
 
 struct SimdWrapper {
   union {

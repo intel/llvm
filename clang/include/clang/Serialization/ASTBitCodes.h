@@ -41,7 +41,7 @@ namespace serialization {
 /// Version 4 of AST files also requires that the version control branch and
 /// revision match exactly, since there is no backward compatibility of
 /// AST files at this time.
-const unsigned VERSION_MAJOR = 15;
+const unsigned VERSION_MAJOR = 24;
 
 /// AST file minor version number supported by this version of
 /// Clang.
@@ -342,9 +342,6 @@ enum ControlRecordTypes {
   /// generate the AST file, including both its file ID and its
   /// name.
   ORIGINAL_FILE,
-
-  /// The directory that the PCH was originally created in.
-  ORIGINAL_PCH_DIR,
 
   /// Record code for file ID of the file or buffer that was used to
   /// generate the AST file.
@@ -695,6 +692,13 @@ enum ASTRecordTypes {
 
   /// Record code for \#pragma float_control options.
   FLOAT_CONTROL_PRAGMA_OPTIONS = 65,
+
+  /// Record code for included files.
+  PP_INCLUDED_FILES = 66,
+
+  /// Record code for an unterminated \#pragma clang assume_nonnull begin
+  /// recorded in a preamble.
+  PP_ASSUME_NONNULL_LOC = 67,
 };
 
 /// Record types used within a source manager block.
@@ -825,6 +829,9 @@ enum SubmoduleRecordTypes {
   /// Specifies the name of the module that will eventually
   /// re-export the entities in this module.
   SUBMODULE_EXPORT_AS = 17,
+
+  /// Specifies affecting modules that were not imported.
+  SUBMODULE_AFFECTING_MODULES = 18,
 };
 
 /// Record types used within a comments block.
@@ -1506,7 +1513,16 @@ enum DeclCode {
   /// An OMPDeclareReductionDecl record.
   DECL_OMP_DECLARE_REDUCTION,
 
-  DECL_LAST = DECL_OMP_DECLARE_REDUCTION
+  /// A UnnamedGlobalConstantDecl record.
+  DECL_UNNAMED_GLOBAL_CONSTANT,
+
+  /// A HLSLBufferDecl record.
+  DECL_HLSL_BUFFER,
+
+  /// An ImplicitConceptSpecializationDecl record.
+  DECL_IMPLICIT_CONCEPT_SPECIALIZATION,
+
+  DECL_LAST = DECL_IMPLICIT_CONCEPT_SPECIALIZATION
 };
 
 /// Record codes for each kind of statement or expression.
@@ -1917,6 +1933,7 @@ enum StmtCode {
   STMT_OMP_PARALLEL_FOR_DIRECTIVE,
   STMT_OMP_PARALLEL_FOR_SIMD_DIRECTIVE,
   STMT_OMP_PARALLEL_MASTER_DIRECTIVE,
+  STMT_OMP_PARALLEL_MASKED_DIRECTIVE,
   STMT_OMP_PARALLEL_SECTIONS_DIRECTIVE,
   STMT_OMP_TASK_DIRECTIVE,
   STMT_OMP_TASKYIELD_DIRECTIVE,
@@ -1943,6 +1960,10 @@ enum StmtCode {
   STMT_OMP_MASTER_TASKLOOP_SIMD_DIRECTIVE,
   STMT_OMP_PARALLEL_MASTER_TASKLOOP_DIRECTIVE,
   STMT_OMP_PARALLEL_MASTER_TASKLOOP_SIMD_DIRECTIVE,
+  STMT_OMP_MASKED_TASKLOOP_DIRECTIVE,
+  STMT_OMP_MASKED_TASKLOOP_SIMD_DIRECTIVE,
+  STMT_OMP_PARALLEL_MASKED_TASKLOOP_DIRECTIVE,
+  STMT_OMP_PARALLEL_MASKED_TASKLOOP_SIMD_DIRECTIVE,
   STMT_OMP_DISTRIBUTE_DIRECTIVE,
   STMT_OMP_TARGET_UPDATE_DIRECTIVE,
   STMT_OMP_DISTRIBUTE_PARALLEL_FOR_DIRECTIVE,
@@ -1962,6 +1983,11 @@ enum StmtCode {
   STMT_OMP_INTEROP_DIRECTIVE,
   STMT_OMP_DISPATCH_DIRECTIVE,
   STMT_OMP_MASKED_DIRECTIVE,
+  STMT_OMP_GENERIC_LOOP_DIRECTIVE,
+  STMT_OMP_TEAMS_GENERIC_LOOP_DIRECTIVE,
+  STMT_OMP_TARGET_TEAMS_GENERIC_LOOP_DIRECTIVE,
+  STMT_OMP_PARALLEL_GENERIC_LOOP_DIRECTIVE,
+  STMT_OMP_TARGET_PARALLEL_GENERIC_LOOP_DIRECTIVE,
   EXPR_OMP_ARRAY_SECTION,
   EXPR_OMP_ARRAY_SHAPING,
   EXPR_OMP_ITERATOR,

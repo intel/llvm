@@ -1,6 +1,6 @@
-; RUN: opt < %s -wasm-lower-em-ehsjlj -enable-emscripten-sjlj -S | FileCheck %s --check-prefixes=CHECK,NO-TLS -DPTR=i32
-; RUN: opt < %s -wasm-lower-em-ehsjlj -enable-emscripten-sjlj -S --mattr=+atomics,+bulk-memory | FileCheck %s --check-prefixes=CHECK,TLS -DPTR=i32
-; RUN: opt < %s -wasm-lower-em-ehsjlj -enable-emscripten-sjlj --mtriple=wasm64-unknown-unknown -data-layout="e-m:e-p:64:64-i64:64-n32:64-S128" -S | FileCheck %s --check-prefixes=CHECK -DPTR=i64
+; RUN: opt < %s -wasm-lower-em-ehsjlj -enable-emscripten-sjlj -S | FileCheck %s -DPTR=i32
+; RUN: opt < %s -wasm-lower-em-ehsjlj -enable-emscripten-sjlj -S --mattr=+atomics,+bulk-memory | FileCheck %s -DPTR=i32
+; RUN: opt < %s -wasm-lower-em-ehsjlj -enable-emscripten-sjlj --mtriple=wasm64-unknown-unknown -data-layout="e-m:e-p:64:64-i64:64-n32:64-S128" -S | FileCheck %s -DPTR=i64
 
 target datalayout = "e-m:e-p:32:32-i64:64-n32:64-S128"
 target triple = "wasm32-unknown-unknown"
@@ -8,11 +8,9 @@ target triple = "wasm32-unknown-unknown"
 %struct.__jmp_buf_tag = type { [6 x i32], i32, [32 x i32] }
 
 @global_var = global i32 0, align 4
-; NO-TLS-DAG: __THREW__ = external global [[PTR]]
-; NO-TLS-DAG: __threwValue = external global [[PTR]]
-; TLS-DAG: __THREW__ = external thread_local(localexec) global i32
-; TLS-DAG: __threwValue = external thread_local(localexec) global i32
 @global_longjmp_ptr = global void (%struct.__jmp_buf_tag*, i32)* @longjmp, align 4
+; CHECK-DAG: @__THREW__ = external thread_local global [[PTR]]
+; CHECK-DAG: @__threwValue = external thread_local global i32
 ; CHECK-DAG: @global_longjmp_ptr = global void (%struct.__jmp_buf_tag*, i32)* bitcast (void ([[PTR]], i32)* @emscripten_longjmp to void (%struct.__jmp_buf_tag*, i32)*)
 
 ; Test a simple setjmp - longjmp sequence
@@ -26,7 +24,7 @@ entry:
   call void @longjmp(%struct.__jmp_buf_tag* %arraydecay1, i32 1) #1
   unreachable
 ; CHECK: entry:
-; CHECK-NEXT: %[[MALLOCCALL:.*]] = tail call i8* @malloc(i32 40)
+; CHECK-NEXT: %[[MALLOCCALL:.*]] = tail call i8* @malloc([[PTR]] 40)
 ; CHECK-NEXT: %[[SETJMP_TABLE:.*]] = bitcast i8* %[[MALLOCCALL]] to i32*
 ; CHECK-NEXT: store i32 0, i32* %[[SETJMP_TABLE]]
 ; CHECK-NEXT: %[[SETJMP_TABLE_SIZE:.*]] = add i32 4, 0
@@ -131,7 +129,7 @@ entry:
 
 ; Test a case where a function has a setjmp call but no other calls that can
 ; longjmp. We don't need to do any transformation in this case.
-define void @setjmp_only(i8* %ptr) {
+define i32 @setjmp_only(i8* %ptr) {
 ; CHECK-LABEL: @setjmp_only
 entry:
   %buf = alloca [1 x %struct.__jmp_buf_tag], align 16
@@ -139,11 +137,15 @@ entry:
   %call = call i32 @setjmp(%struct.__jmp_buf_tag* %arraydecay) #0
   ; free cannot longjmp
   call void @free(i8* %ptr)
-  ret void
+  ret i32 %call
+; CHECK: entry:
 ; CHECK-NOT: @malloc
 ; CHECK-NOT: %setjmpTable
 ; CHECK-NOT: @saveSetjmp
 ; CHECK-NOT: @testSetjmp
+; The remaining setjmp call is converted to constant 0, because setjmp returns 0
+; when called directly.
+; CHECK: ret i32 0
 }
 
 ; Test SSA validity
@@ -309,7 +311,6 @@ declare void @_longjmp(%struct.__jmp_buf_tag*, i32) #1
 declare i32 @__gxx_personality_v0(...)
 declare i8* @__cxa_begin_catch(i8*)
 declare void @__cxa_end_catch()
-declare i8* @malloc(i32)
 declare void @free(i8*)
 
 ; JS glue functions and invoke wrappers declaration

@@ -11,7 +11,9 @@ int main() {
   // Access work-group local memory with read and write access.
   sycl::accessor<int, 1, sycl::access::mode::read_write,
                  sycl::access::target::local>
-      local_acc;
+      local_acc_dep;
+  // Access work-group local memory with read and write access.
+  sycl::local_accessor<int, 1> local_acc;
   // Access buffer via global memory with read and write access.
   sycl::accessor<int, 1, sycl::access::mode::read_write,
                  sycl::access::target::global_buffer>
@@ -20,6 +22,13 @@ int main() {
   sycl::accessor<int, 1, sycl::access::mode::read_write,
                  sycl::access::target::constant_buffer>
       constant_acc;
+
+  q.submit([&](sycl::handler &h) {
+    h.single_task<class use_local_dep>(
+        [=] {
+          local_acc_dep.use();
+        });
+  });
 
   q.submit([&](sycl::handler &h) {
     h.single_task<class use_local>(
@@ -42,6 +51,7 @@ int main() {
         });
   });
 }
+// CHECK: {{.*}}use_local_dep{{.*}} 'void (__local int *, sycl::range<1>, sycl::range<1>, sycl::id<1>)'
 // CHECK: {{.*}}use_local{{.*}} 'void (__local int *, sycl::range<1>, sycl::range<1>, sycl::id<1>)'
 // CHECK: {{.*}}use_global{{.*}} 'void (__global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>)'
 // CHECK: {{.*}}use_constant{{.*}} 'void (__constant int *, sycl::range<1>, sycl::range<1>, sycl::id<1>)'

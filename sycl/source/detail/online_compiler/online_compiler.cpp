@@ -6,16 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/detail/pi.hpp>
+#include <sycl/detail/os_util.hpp>
+#include <sycl/detail/pi.hpp>
 #include <sycl/ext/intel/experimental/online_compiler.hpp>
 
 #include <cstring>
 
 #include "ocloc_api.h"
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace intel {
 namespace experimental {
@@ -143,7 +143,7 @@ compileToSPIRV(const std::string &Source, sycl::info::device_type DeviceType,
 
   uint32_t NumOutputs = 0;
   byte **Outputs = nullptr;
-  size_t *OutputLengths = nullptr;
+  uint64_t *OutputLengths = nullptr;
   char **OutputNames = nullptr;
 
   const byte *Sources[] = {reinterpret_cast<const byte *>(Source.c_str())};
@@ -160,16 +160,14 @@ compileToSPIRV(const std::string &Source, sycl::info::device_type DeviceType,
                       &SourceName, 0, nullptr, nullptr, nullptr, &NumOutputs,
                       &Outputs, &OutputLengths, &OutputNames);
 
-  byte *SpirV = nullptr;
+  std::vector<byte> SpirV;
   std::string CompileLog;
-  size_t SpirVSize = 0;
   for (uint32_t I = 0; I < NumOutputs; I++) {
     size_t NameLen = strlen(OutputNames[I]);
     if (NameLen >= 4 && strstr(OutputNames[I], ".spv") != nullptr &&
         Outputs[I] != nullptr) {
-      SpirVSize = OutputLengths[I];
-      SpirV = new byte[SpirVSize];
-      std::memcpy(SpirV, Outputs[I], SpirVSize);
+      assert(SpirV.size() == 0 && "More than one SPIR-V output found.");
+      SpirV = std::vector<byte>(Outputs[I], Outputs[I] + OutputLengths[I]);
     } else if (!strcmp(OutputNames[I], "stdout.log")) {
       CompileLog = std::string(reinterpret_cast<const char *>(Outputs[I]));
     }
@@ -184,13 +182,13 @@ compileToSPIRV(const std::string &Source, sycl::info::device_type DeviceType,
   if (CompileError)
     throw online_compile_error("ocloc reported compilation errors: {\n" +
                                CompileLog + "\n}");
-  if (!SpirV)
+  if (SpirV.empty())
     throw online_compile_error(
         "Unexpected output: ocloc did not return SPIR-V");
   if (MemFreeError)
     throw online_compile_error("ocloc cannot safely free resources");
 
-  return std::vector<byte>(SpirV, SpirV + SpirVSize);
+  return SpirV;
 }
 } // namespace detail
 
@@ -237,13 +235,13 @@ __SYCL_EXPORT std::vector<byte> online_compiler<source_language::cm>::compile(
 namespace ext {
 namespace __SYCL2020_DEPRECATED(
     "use 'ext::intel::experimental' instead") intel {
-  using namespace ext::intel::experimental;
-} // namespace intel
+using namespace ext::intel::experimental;
+}
 } // namespace ext
 
 namespace __SYCL2020_DEPRECATED(
     "use 'ext::intel::experimental' instead") INTEL {
-  using namespace ext::intel::experimental;
-} // namespace INTEL
+using namespace ext::intel::experimental;
+}
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -52,6 +52,7 @@
 #include "llvm/Support/ScopedPrinter.h"
 #include "llvm/Support/Win64EH.h"
 #include "llvm/Support/raw_ostream.h"
+#include <ctime>
 
 using namespace llvm;
 using namespace llvm::object;
@@ -126,7 +127,7 @@ private:
   void printCOFFTLSDirectory(const coff_tls_directory<IntTy> *TlsTable);
   typedef void (*PrintExtraCB)(raw_ostream &, const uint8_t *);
   void printRVATable(uint64_t TableVA, uint64_t Count, uint64_t EntrySize,
-                     PrintExtraCB PrintExtra = 0);
+                     PrintExtraCB PrintExtra = nullptr);
 
   void printCodeViewSymbolSection(StringRef SectionName, const SectionRef &Section);
   void printCodeViewTypeSection(StringRef SectionName, const SectionRef &Section);
@@ -192,7 +193,6 @@ private:
   CPUType CompilationCPUType = CPUType::X64;
 
   ScopedPrinter &Writer;
-  BinaryByteStream TypeContents;
   LazyRandomTypeCollection Types;
 };
 
@@ -337,12 +337,13 @@ void COFFDumper::printBinaryBlockWithRelocs(StringRef Label,
   }
 }
 
-static const EnumEntry<COFF::MachineTypes> ImageFileMachineType[] = {
+const EnumEntry<COFF::MachineTypes> ImageFileMachineType[] = {
   LLVM_READOBJ_ENUM_ENT(COFF, IMAGE_FILE_MACHINE_UNKNOWN  ),
   LLVM_READOBJ_ENUM_ENT(COFF, IMAGE_FILE_MACHINE_AM33     ),
   LLVM_READOBJ_ENUM_ENT(COFF, IMAGE_FILE_MACHINE_AMD64    ),
   LLVM_READOBJ_ENUM_ENT(COFF, IMAGE_FILE_MACHINE_ARM      ),
   LLVM_READOBJ_ENUM_ENT(COFF, IMAGE_FILE_MACHINE_ARM64    ),
+  LLVM_READOBJ_ENUM_ENT(COFF, IMAGE_FILE_MACHINE_ARM64EC  ),
   LLVM_READOBJ_ENUM_ENT(COFF, IMAGE_FILE_MACHINE_ARMNT    ),
   LLVM_READOBJ_ENUM_ENT(COFF, IMAGE_FILE_MACHINE_EBC      ),
   LLVM_READOBJ_ENUM_ENT(COFF, IMAGE_FILE_MACHINE_I386     ),
@@ -362,7 +363,7 @@ static const EnumEntry<COFF::MachineTypes> ImageFileMachineType[] = {
   LLVM_READOBJ_ENUM_ENT(COFF, IMAGE_FILE_MACHINE_WCEMIPSV2)
 };
 
-static const EnumEntry<COFF::Characteristics> ImageFileCharacteristics[] = {
+const EnumEntry<COFF::Characteristics> ImageFileCharacteristics[] = {
   LLVM_READOBJ_ENUM_ENT(COFF, IMAGE_FILE_RELOCS_STRIPPED        ),
   LLVM_READOBJ_ENUM_ENT(COFF, IMAGE_FILE_EXECUTABLE_IMAGE       ),
   LLVM_READOBJ_ENUM_ENT(COFF, IMAGE_FILE_LINE_NUMS_STRIPPED     ),
@@ -380,7 +381,7 @@ static const EnumEntry<COFF::Characteristics> ImageFileCharacteristics[] = {
   LLVM_READOBJ_ENUM_ENT(COFF, IMAGE_FILE_BYTES_REVERSED_HI      )
 };
 
-static const EnumEntry<COFF::WindowsSubsystem> PEWindowsSubsystem[] = {
+const EnumEntry<COFF::WindowsSubsystem> PEWindowsSubsystem[] = {
   LLVM_READOBJ_ENUM_ENT(COFF, IMAGE_SUBSYSTEM_UNKNOWN                ),
   LLVM_READOBJ_ENUM_ENT(COFF, IMAGE_SUBSYSTEM_NATIVE                 ),
   LLVM_READOBJ_ENUM_ENT(COFF, IMAGE_SUBSYSTEM_WINDOWS_GUI            ),
@@ -394,7 +395,7 @@ static const EnumEntry<COFF::WindowsSubsystem> PEWindowsSubsystem[] = {
   LLVM_READOBJ_ENUM_ENT(COFF, IMAGE_SUBSYSTEM_XBOX                   ),
 };
 
-static const EnumEntry<COFF::DLLCharacteristics> PEDLLCharacteristics[] = {
+const EnumEntry<COFF::DLLCharacteristics> PEDLLCharacteristics[] = {
   LLVM_READOBJ_ENUM_ENT(COFF, IMAGE_DLL_CHARACTERISTICS_HIGH_ENTROPY_VA      ),
   LLVM_READOBJ_ENUM_ENT(COFF, IMAGE_DLL_CHARACTERISTICS_DYNAMIC_BASE         ),
   LLVM_READOBJ_ENUM_ENT(COFF, IMAGE_DLL_CHARACTERISTICS_FORCE_INTEGRITY      ),
@@ -453,7 +454,7 @@ ImageSectionCharacteristics[] = {
   LLVM_READOBJ_ENUM_ENT(COFF, IMAGE_SCN_MEM_WRITE             )
 };
 
-static const EnumEntry<COFF::SymbolBaseType> ImageSymType[] = {
+const EnumEntry<COFF::SymbolBaseType> ImageSymType[] = {
   { "Null"  , COFF::IMAGE_SYM_TYPE_NULL   },
   { "Void"  , COFF::IMAGE_SYM_TYPE_VOID   },
   { "Char"  , COFF::IMAGE_SYM_TYPE_CHAR   },
@@ -472,14 +473,14 @@ static const EnumEntry<COFF::SymbolBaseType> ImageSymType[] = {
   { "DWord" , COFF::IMAGE_SYM_TYPE_DWORD  }
 };
 
-static const EnumEntry<COFF::SymbolComplexType> ImageSymDType[] = {
+const EnumEntry<COFF::SymbolComplexType> ImageSymDType[] = {
   { "Null"    , COFF::IMAGE_SYM_DTYPE_NULL     },
   { "Pointer" , COFF::IMAGE_SYM_DTYPE_POINTER  },
   { "Function", COFF::IMAGE_SYM_DTYPE_FUNCTION },
   { "Array"   , COFF::IMAGE_SYM_DTYPE_ARRAY    }
 };
 
-static const EnumEntry<COFF::SymbolStorageClass> ImageSymClass[] = {
+const EnumEntry<COFF::SymbolStorageClass> ImageSymClass[] = {
   { "EndOfFunction"  , COFF::IMAGE_SYM_CLASS_END_OF_FUNCTION  },
   { "Null"           , COFF::IMAGE_SYM_CLASS_NULL             },
   { "Automatic"      , COFF::IMAGE_SYM_CLASS_AUTOMATIC        },
@@ -509,7 +510,7 @@ static const EnumEntry<COFF::SymbolStorageClass> ImageSymClass[] = {
   { "CLRToken"       , COFF::IMAGE_SYM_CLASS_CLR_TOKEN        }
 };
 
-static const EnumEntry<COFF::COMDATType> ImageCOMDATSelect[] = {
+const EnumEntry<COFF::COMDATType> ImageCOMDATSelect[] = {
   { "NoDuplicates", COFF::IMAGE_COMDAT_SELECT_NODUPLICATES },
   { "Any"         , COFF::IMAGE_COMDAT_SELECT_ANY          },
   { "SameSize"    , COFF::IMAGE_COMDAT_SELECT_SAME_SIZE    },
@@ -519,7 +520,7 @@ static const EnumEntry<COFF::COMDATType> ImageCOMDATSelect[] = {
   { "Newest"      , COFF::IMAGE_COMDAT_SELECT_NEWEST       }
 };
 
-static const EnumEntry<COFF::DebugType> ImageDebugType[] = {
+const EnumEntry<COFF::DebugType> ImageDebugType[] = {
     {"Unknown", COFF::IMAGE_DEBUG_TYPE_UNKNOWN},
     {"COFF", COFF::IMAGE_DEBUG_TYPE_COFF},
     {"CodeView", COFF::IMAGE_DEBUG_TYPE_CODEVIEW},
@@ -548,7 +549,7 @@ WeakExternalCharacteristics[] = {
   { "Alias"    , COFF::IMAGE_WEAK_EXTERN_SEARCH_ALIAS     }
 };
 
-static const EnumEntry<uint32_t> SubSectionTypes[] = {
+const EnumEntry<uint32_t> SubSectionTypes[] = {
     LLVM_READOBJ_ENUM_CLASS_ENT(DebugSubsectionKind, Symbols),
     LLVM_READOBJ_ENUM_CLASS_ENT(DebugSubsectionKind, Lines),
     LLVM_READOBJ_ENUM_CLASS_ENT(DebugSubsectionKind, StringTable),
@@ -564,17 +565,63 @@ static const EnumEntry<uint32_t> SubSectionTypes[] = {
     LLVM_READOBJ_ENUM_CLASS_ENT(DebugSubsectionKind, CoffSymbolRVA),
 };
 
-static const EnumEntry<uint32_t> FrameDataFlags[] = {
+const EnumEntry<uint32_t> FrameDataFlags[] = {
     LLVM_READOBJ_ENUM_ENT(FrameData, HasSEH),
     LLVM_READOBJ_ENUM_ENT(FrameData, HasEH),
     LLVM_READOBJ_ENUM_ENT(FrameData, IsFunctionStart),
 };
 
-static const EnumEntry<uint8_t> FileChecksumKindNames[] = {
+const EnumEntry<uint8_t> FileChecksumKindNames[] = {
   LLVM_READOBJ_ENUM_CLASS_ENT(FileChecksumKind, None),
   LLVM_READOBJ_ENUM_CLASS_ENT(FileChecksumKind, MD5),
   LLVM_READOBJ_ENUM_CLASS_ENT(FileChecksumKind, SHA1),
   LLVM_READOBJ_ENUM_CLASS_ENT(FileChecksumKind, SHA256),
+};
+
+const EnumEntry<uint32_t> PELoadConfigGuardFlags[] = {
+    LLVM_READOBJ_ENUM_CLASS_ENT(COFF::GuardFlags, CF_INSTRUMENTED),
+    LLVM_READOBJ_ENUM_CLASS_ENT(COFF::GuardFlags, CFW_INSTRUMENTED),
+    LLVM_READOBJ_ENUM_CLASS_ENT(COFF::GuardFlags, CF_FUNCTION_TABLE_PRESENT),
+    LLVM_READOBJ_ENUM_CLASS_ENT(COFF::GuardFlags, SECURITY_COOKIE_UNUSED),
+    LLVM_READOBJ_ENUM_CLASS_ENT(COFF::GuardFlags, PROTECT_DELAYLOAD_IAT),
+    LLVM_READOBJ_ENUM_CLASS_ENT(COFF::GuardFlags,
+                                DELAYLOAD_IAT_IN_ITS_OWN_SECTION),
+    LLVM_READOBJ_ENUM_CLASS_ENT(COFF::GuardFlags,
+                                CF_EXPORT_SUPPRESSION_INFO_PRESENT),
+    LLVM_READOBJ_ENUM_CLASS_ENT(COFF::GuardFlags, CF_ENABLE_EXPORT_SUPPRESSION),
+    LLVM_READOBJ_ENUM_CLASS_ENT(COFF::GuardFlags, CF_LONGJUMP_TABLE_PRESENT),
+    LLVM_READOBJ_ENUM_CLASS_ENT(COFF::GuardFlags,
+                                EH_CONTINUATION_TABLE_PRESENT),
+    LLVM_READOBJ_ENUM_CLASS_ENT(COFF::GuardFlags,
+                                CF_FUNCTION_TABLE_SIZE_5BYTES),
+    LLVM_READOBJ_ENUM_CLASS_ENT(COFF::GuardFlags,
+                                CF_FUNCTION_TABLE_SIZE_6BYTES),
+    LLVM_READOBJ_ENUM_CLASS_ENT(COFF::GuardFlags,
+                                CF_FUNCTION_TABLE_SIZE_7BYTES),
+    LLVM_READOBJ_ENUM_CLASS_ENT(COFF::GuardFlags,
+                                CF_FUNCTION_TABLE_SIZE_8BYTES),
+    LLVM_READOBJ_ENUM_CLASS_ENT(COFF::GuardFlags,
+                                CF_FUNCTION_TABLE_SIZE_9BYTES),
+    LLVM_READOBJ_ENUM_CLASS_ENT(COFF::GuardFlags,
+                                CF_FUNCTION_TABLE_SIZE_10BYTES),
+    LLVM_READOBJ_ENUM_CLASS_ENT(COFF::GuardFlags,
+                                CF_FUNCTION_TABLE_SIZE_11BYTES),
+    LLVM_READOBJ_ENUM_CLASS_ENT(COFF::GuardFlags,
+                                CF_FUNCTION_TABLE_SIZE_12BYTES),
+    LLVM_READOBJ_ENUM_CLASS_ENT(COFF::GuardFlags,
+                                CF_FUNCTION_TABLE_SIZE_13BYTES),
+    LLVM_READOBJ_ENUM_CLASS_ENT(COFF::GuardFlags,
+                                CF_FUNCTION_TABLE_SIZE_14BYTES),
+    LLVM_READOBJ_ENUM_CLASS_ENT(COFF::GuardFlags,
+                                CF_FUNCTION_TABLE_SIZE_15BYTES),
+    LLVM_READOBJ_ENUM_CLASS_ENT(COFF::GuardFlags,
+                                CF_FUNCTION_TABLE_SIZE_16BYTES),
+    LLVM_READOBJ_ENUM_CLASS_ENT(COFF::GuardFlags,
+                                CF_FUNCTION_TABLE_SIZE_17BYTES),
+    LLVM_READOBJ_ENUM_CLASS_ENT(COFF::GuardFlags,
+                                CF_FUNCTION_TABLE_SIZE_18BYTES),
+    LLVM_READOBJ_ENUM_CLASS_ENT(COFF::GuardFlags,
+                                CF_FUNCTION_TABLE_SIZE_19BYTES),
 };
 
 template <typename T>
@@ -806,11 +853,18 @@ void COFFDumper::printCOFFLoadConfig() {
 
   if (Tables.GuardFidTableVA) {
     ListScope LS(W, "GuardFidTable");
-    if (Tables.GuardFlags & uint32_t(coff_guard_flags::FidTableHasFlags))
-      printRVATable(Tables.GuardFidTableVA, Tables.GuardFidTableCount, 5,
+    if (uint32_t Size =
+            Tables.GuardFlags &
+            uint32_t(COFF::GuardFlags::CF_FUNCTION_TABLE_SIZE_MASK)) {
+      // The size mask gives the number of extra bytes in addition to the 4-byte
+      // RVA of each entry in the table. As of writing only a 1-byte extra flag
+      // has been defined.
+      Size = (Size >> 28) + 4;
+      printRVATable(Tables.GuardFidTableVA, Tables.GuardFidTableCount, Size,
                     PrintGuardFlags);
-    else
+    } else {
       printRVATable(Tables.GuardFidTableVA, Tables.GuardFidTableCount, 4);
+    }
   }
 
   if (Tables.GuardIatTableVA) {
@@ -880,7 +934,9 @@ void COFFDumper::printCOFFLoadConfig(const T *Conf, LoadConfigTables &Tables) {
   W.printHex("GuardCFCheckDispatch", Conf->GuardCFCheckDispatch);
   W.printHex("GuardCFFunctionTable", Conf->GuardCFFunctionTable);
   W.printNumber("GuardCFFunctionCount", Conf->GuardCFFunctionCount);
-  W.printHex("GuardFlags", Conf->GuardFlags);
+  W.printFlags("GuardFlags", Conf->GuardFlags,
+               makeArrayRef(PELoadConfigGuardFlags),
+               (uint32_t)COFF::GuardFlags::CF_FUNCTION_TABLE_SIZE_MASK);
 
   Tables.GuardFidTableVA = Conf->GuardCFFunctionTable;
   Tables.GuardFidTableCount = Conf->GuardCFFunctionCount;
@@ -1615,9 +1671,10 @@ void COFFDumper::printUnwindInfo() {
     break;
   }
   case COFF::IMAGE_FILE_MACHINE_ARM64:
+  case COFF::IMAGE_FILE_MACHINE_ARM64EC:
   case COFF::IMAGE_FILE_MACHINE_ARMNT: {
-    ARM::WinEH::Decoder Decoder(W, Obj->getMachine() ==
-                                       COFF::IMAGE_FILE_MACHINE_ARM64);
+    ARM::WinEH::Decoder Decoder(W, Obj->getMachine() !=
+                                       COFF::IMAGE_FILE_MACHINE_ARMNT);
     // TODO Propagate the error.
     consumeError(Decoder.dumpProcedureData(*Obj));
     break;
@@ -1732,18 +1789,29 @@ void COFFDumper::printCOFFExports() {
     DictScope Export(W, "Export");
 
     StringRef Name;
-    uint32_t Ordinal, RVA;
+    uint32_t Ordinal;
+    bool IsForwarder;
 
     if (Error E = Exp.getSymbolName(Name))
       reportError(std::move(E), Obj->getFileName());
     if (Error E = Exp.getOrdinal(Ordinal))
       reportError(std::move(E), Obj->getFileName());
-    if (Error E = Exp.getExportRVA(RVA))
+    if (Error E = Exp.isForwarder(IsForwarder))
       reportError(std::move(E), Obj->getFileName());
 
     W.printNumber("Ordinal", Ordinal);
     W.printString("Name", Name);
-    W.printHex("RVA", RVA);
+    StringRef ForwardTo;
+    if (IsForwarder) {
+      if (Error E = Exp.getForwardTo(ForwardTo))
+        reportError(std::move(E), Obj->getFileName());
+      W.printString("ForwardedTo", ForwardTo);
+    } else {
+      uint32_t RVA;
+      if (Error E = Exp.getExportRVA(RVA))
+        reportError(std::move(E), Obj->getFileName());
+      W.printHex("RVA", RVA);
+    }
   }
 }
 

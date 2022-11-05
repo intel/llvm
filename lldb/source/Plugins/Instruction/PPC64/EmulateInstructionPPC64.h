@@ -23,9 +23,9 @@ public:
 
   static void Terminate();
 
-  static ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "ppc64"; }
 
-  static const char *GetPluginDescriptionStatic();
+  static llvm::StringRef GetPluginDescriptionStatic();
 
   static EmulateInstruction *CreateInstance(const ArchSpec &arch,
                                             InstructionType inst_type);
@@ -44,9 +44,7 @@ public:
     return false;
   }
 
-  llvm::StringRef GetPluginName() override {
-    return GetPluginNameStatic().GetStringRef();
-  }
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
   bool SetTargetTriple(const ArchSpec &arch) override;
 
@@ -63,8 +61,8 @@ public:
     return false;
   }
 
-  bool GetRegisterInfo(lldb::RegisterKind reg_kind, uint32_t reg_num,
-                       RegisterInfo &reg_info) override;
+  llvm::Optional<RegisterInfo> GetRegisterInfo(lldb::RegisterKind reg_kind,
+                                               uint32_t reg_num) override;
 
   bool CreateFunctionEntryUnwind(UnwindPlan &unwind_plan) override;
 

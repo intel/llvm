@@ -1,7 +1,7 @@
 // REQUIRES: arm
 // RUN: llvm-mc -filetype=obj -triple=armv7a-none-linux-gnueabi %s -o %t.o
 // RUN: ld.lld %t.o -o %t
-// RUN: llvm-objdump --triple=armv7a-none-linux-gnueabi -d --no-show-raw-insn %t | FileCheck %s --check-prefix=DISASM
+// RUN: llvm-objdump --no-print-imm-hex --triple=armv7a-none-linux-gnueabi -d --no-show-raw-insn %t | FileCheck %s --check-prefix=DISASM
 // RUN: llvm-readobj -r --symbols --sections %t | FileCheck %s
  .syntax unified
  .text
@@ -118,8 +118,8 @@ _start:
 // DISASM: <bar>:
 // DISASM-NEXT:    20108:      bx      lr
 // DISASM: <_start>:
-// DISASM-NEXT:    2010c:      bl      0x20130
-// DISASM-NEXT:    20110:      bl      0x20140
+// DISASM-NEXT:    2010c:      bl      0x20140
+// DISASM-NEXT:    20110:      bl      0x20130
 // 1 * 65536 + 244 = 0x100f4 __rel_iplt_start
 // DISASM-NEXT:    20114:      movw    r0, #244
 // DISASM-NEXT:    20118:      movt    r0, #1

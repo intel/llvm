@@ -10,7 +10,7 @@ contains
   ! testing with data object results
   function f1()
     real :: x, f1
-    !ERROR: 'f1' is not a function
+    !ERROR: Recursive call to 'f1' requires a distinct RESULT in its declaration
     x = acos(f1())
     f1 = x
     x = acos(f1) !OK
@@ -18,7 +18,7 @@ contains
   function f2(i)
     integer i
     real :: x, f2
-    !ERROR: 'f2' is not an array
+    !ERROR: Recursive call to 'f2' requires a distinct RESULT in its declaration
     x = acos(f2(i+1))
     f2 = x
     x = acos(f2) !OK
@@ -59,11 +59,13 @@ contains
     x = acos(f5)
   end function
   ! Sanity test: f18 handles C1560 violation by ignoring RESULT
-  function f6() result(f6) !OKI (warning)
+  !WARNING: The function name should not appear in RESULT, references to 'f6' inside the function will be considered as references to the result only
+  function f6() result(f6)
   end function
-  function f7() result(f7) !OKI (warning)
+  !WARNING: The function name should not appear in RESULT, references to 'f7' inside the function will be considered as references to the result only
+  function f7() result(f7)
     real :: x, f7
-    !ERROR: 'f7' is not a function
+    !ERROR: Recursive call to 'f7' requires a distinct RESULT in its declaration
     x = acos(f7())
     f7 = x
     x = acos(f7) !OK
@@ -124,7 +126,7 @@ contains
   ! testing that calling the result is also caught
   function f6() result(r)
     real :: x, r
-    !ERROR: 'r' is not a function
+    !ERROR: 'r' is not a callable procedure
     x = r()
   end function
 end module

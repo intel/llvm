@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -Xclang -verify %s
 
-#include <sycl/ext/intel/experimental/esimd.hpp>
-using namespace sycl::ext::intel::experimental::esimd;
+#include <sycl/ext/intel/esimd.hpp>
+using namespace sycl::ext::intel::esimd;
 
 // Explicitly returning simd_view for local objects is wrong,
 // and it should be programmers fault, similar to string_view.

@@ -7,8 +7,8 @@
 ; Per-module split
 ; RUN: sycl-post-link -symbols -split=source -emit-exported-symbols -S %s -o %t.per_module.files.table
 ; RUN: FileCheck %s -input-file=%t.per_module.files_0.prop -implicit-check-not="NotExported" --check-prefix=CHECK-PERMODULE-0-PROP
-; RUN: FileCheck %s -input-file=%t.per_module.files_1.prop -implicit-check-not="NotExported" --check-prefix=CHECK-PERMODULE-1-PROP
-; RUN: FileCheck %s -input-file=%t.per_module.files_2.prop -implicit-check-not="NotExported" --check-prefix=CHECK-KERNELONLY-PROP
+; RUN: FileCheck %s -input-file=%t.per_module.files_1.prop -implicit-check-not="NotExported" --check-prefix=CHECK-KERNELONLY-PROP
+; RUN: FileCheck %s -input-file=%t.per_module.files_2.prop -implicit-check-not="NotExported" --check-prefix=CHECK-PERMODULE-2-PROP
 ;
 ; Per-kernel split
 ; RUN: sycl-post-link -symbols -split=kernel -emit-exported-symbols -S %s -o %t.per_kernel.files.table
@@ -61,31 +61,31 @@ attributes #2 = { "sycl-module-id"="c.cpp" }
 ; CHECK-GLOBAL-PROP-NEXT: ExportedSpirFunc3
 
 ; Per-module split
-; CHECK-PERMODULE-0-PROP: [SYCL/exported symbols]
-; CHECK-PERMODULE-0-PROP-NEXT: ExportedSpirFunc1
-; CHECK-PERMODULE-0-PROP-NEXT: ExportedSpirFunc3
-; CHECK-PERMODULE-0-PROP-NOT: ExportedSpirFunc2
+; CHECK-PERMODULE-2-PROP: [SYCL/exported symbols]
+; CHECK-PERMODULE-2-PROP-NEXT: ExportedSpirFunc1
+; CHECK-PERMODULE-2-PROP-NEXT: ExportedSpirFunc3
+; CHECK-PERMODULE-2-PROP-NOT: ExportedSpirFunc2
 
-; CHECK-PERMODULE-1-PROP: [SYCL/exported symbols]
-; CHECK-PERMODULE-1-PROP-NEXT: ExportedSpirFunc2
-; CHECK-PERMODULE-1-PROP-NOT: ExportedSpirFunc1
-; CHECK-PERMODULE-1-PROP-NOT: ExportedSpirFunc3
+; CHECK-PERMODULE-0-PROP: [SYCL/exported symbols]
+; CHECK-PERMODULE-0-PROP-NEXT: ExportedSpirFunc2
+; CHECK-PERMODULE-0-PROP-NOT: ExportedSpirFunc1
+; CHECK-PERMODULE-0-PROP-NOT: ExportedSpirFunc3
 
 ; Per-kernel split
-; CHECK-PERKERNEL-0-PROP: [SYCL/exported symbols]
-; CHECK-PERKERNEL-0-PROP-NEXT: ExportedSpirFunc1
-; CHECK-PERKERNEL-0-PROP-NOT: ExportedSpirFunc2
-; CHECK-PERKERNEL-0-PROP-NOT: ExportedSpirFunc3
+; CHECK-PERKERNEL-2-PROP: [SYCL/exported symbols]
+; CHECK-PERKERNEL-2-PROP-NEXT: ExportedSpirFunc1
+; CHECK-PERKERNEL-2-PROP-NOT: ExportedSpirFunc2
+; CHECK-PERKERNEL-2-PROP-NOT: ExportedSpirFunc3
 
 ; CHECK-PERKERNEL-1-PROP: [SYCL/exported symbols]
 ; CHECK-PERKERNEL-1-PROP-NEXT: ExportedSpirFunc2
 ; CHECK-PERKERNEL-1-PROP-NOT: ExportedSpirFunc1
 ; CHECK-PERKERNEL-1-PROP-NOT: ExportedSpirFunc3
 
-; CHECK-PERKERNEL-2-PROP: [SYCL/exported symbols]
-; CHECK-PERKERNEL-2-PROP-NEXT: ExportedSpirFunc3
-; CHECK-PERKERNEL-2-PROP-NOT: ExportedSpirFunc1
-; CHECK-PERKERNEL-2-PROP-NOT: ExportedSpirFunc2
+; CHECK-PERKERNEL-0-PROP: [SYCL/exported symbols]
+; CHECK-PERKERNEL-0-PROP-NEXT: ExportedSpirFunc3
+; CHECK-PERKERNEL-0-PROP-NOT: ExportedSpirFunc1
+; CHECK-PERKERNEL-0-PROP-NOT: ExportedSpirFunc2
 
 ; Kernel-only generated modules should have no exported Symbols
 ; CHECK-KERNELONLY-PROP-NOT: [SYCL/exported symbols]

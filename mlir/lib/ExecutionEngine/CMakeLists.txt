@@ -5,17 +5,56 @@ set(LLVM_OPTIONAL_SOURCES
   AsyncRuntime.cpp
   CRunnerUtils.cpp
   CudaRuntimeWrappers.cpp
-  SparseUtils.cpp
+  SparseTensorRuntime.cpp
   ExecutionEngine.cpp
+  Float16bits.cpp
   RocmRuntimeWrappers.cpp
   RunnerUtils.cpp
   OptUtils.cpp
   JitRunner.cpp
   )
 
+# Use a separate library for OptUtils, to avoid pulling in the entire JIT and
+# codegen infrastructure. Unlike MLIRExecutionEngine, this is part of
+# libMLIR.so.
+add_mlir_library(MLIRExecutionEngineUtils
+  OptUtils.cpp
+
+  ADDITIONAL_HEADER_DIRS
+  ${MLIR_MAIN_INCLUDE_DIR}/mlir/ExecutionEngine
+
+  DEPENDS
+  intrinsics_gen
+
+  LINK_COMPONENTS
+  Analysis
+  Core
+  Coroutines
+  AggressiveInstCombine
+  InstCombine
+  ScalarOpts
+  Vectorize
+  TransformUtils
+  IPO
+  Passes
+  )
+
+if(NOT MLIR_ENABLE_EXECUTION_ENGINE)
+  return()
+endif()
+
+if(LLVM_USE_INTEL_JITEVENTS)
+  set(LLVM_JIT_LISTENER_LIB
+      IntelJITEvents)
+endif(LLVM_USE_INTEL_JITEVENTS)
+
+if(LLVM_USE_PERF)
+  set(LLVM_JIT_LISTENER_LIB
+      PerfJITEvents)
+endif(LLVM_USE_PERF)
+
 add_mlir_library(MLIRExecutionEngine
   ExecutionEngine.cpp
-  OptUtils.cpp
 
   EXCLUDE_FROM_LIBMLIR
 
@@ -42,9 +81,12 @@ add_mlir_library(MLIRExecutionEngine
   TransformUtils
   nativecodegen
   IPO
+  Passes
+  ${LLVM_JIT_LISTENER_LIB}
 
   LINK_LIBS PUBLIC
-  MLIRLLVMIR
+  MLIRExecutionEngineUtils
+  MLIRLLVMDialect
   MLIRLLVMToLLVMIRTranslation
   MLIRTargetLLVMIRExport
   )
@@ -66,24 +108,40 @@ add_mlir_library(MLIRJitRunner
   LINK_LIBS PUBLIC
   ${dialect_libs}
   MLIRExecutionEngine
+  MLIRFuncDialect
+  MLIRFuncToLLVM
   MLIRIR
   MLIRParser
-  MLIRStandard
   MLIRLLVMToLLVMIRTranslation
   MLIRTargetLLVMIRExport
   MLIRTransforms
-  MLIRStandardToLLVM
   MLIRSupport
 )
+
+add_mlir_library(mlir_float16_utils
+  SHARED
+  Float16bits.cpp
+
+  EXCLUDE_FROM_LIBMLIR
+  )
+set_property(TARGET mlir_float16_utils PROPERTY CXX_STANDARD 17)
+target_compile_definitions(mlir_float16_utils PRIVATE mlir_float16_utils_EXPORTS)
+
+add_subdirectory(SparseTensor)
 
 add_mlir_library(mlir_c_runner_utils
   SHARED
   CRunnerUtils.cpp
-  SparseUtils.cpp
+  SparseTensorRuntime.cpp
 
   EXCLUDE_FROM_LIBMLIR
+
+  LINK_LIBS PUBLIC
+  mlir_float16_utils
+  MLIRSparseTensorEnums
+  MLIRSparseTensorRuntime
   )
-set_property(TARGET mlir_c_runner_utils PROPERTY CXX_STANDARD 11)
+set_property(TARGET mlir_c_runner_utils PROPERTY CXX_STANDARD 17)
 target_compile_definitions(mlir_c_runner_utils PRIVATE mlir_c_runner_utils_EXPORTS)
 
 add_mlir_library(mlir_runner_utils
@@ -146,23 +204,30 @@ if(MLIR_ENABLE_ROCM_RUNNER)
     else()
       set(ROCM_PATH $ENV{ROCM_PATH} CACHE PATH "Path to which ROCm has been installed")
     endif()
-    set(HIP_PATH "${ROCM_PATH}/hip" CACHE PATH "Path to which HIP has been installed")
   endif()
-  set(CMAKE_MODULE_PATH "${HIP_PATH}/cmake" ${CMAKE_MODULE_PATH})
-  find_package(HIP)
-  if (NOT HIP_FOUND)
-    message(SEND_ERROR "Building mlir with ROCm support requires a working ROCm and HIP install")
-  else()
-    message(STATUS "ROCm HIP version: ${HIP_VERSION}")
-  endif()
+  list(APPEND CMAKE_PREFIX_PATH ${ROCM_PATH} "${ROCM_PATH}/hip")
+  find_package(hip REQUIRED)
 
-  # Locate HIP runtime library.
-  find_library(ROCM_RUNTIME_LIBRARY amdhip64
-               PATHS "${HIP_PATH}/lib")
-  if (NOT ROCM_RUNTIME_LIBRARY)
-    message(SEND_ERROR "Could not locate ROCm HIP runtime library")
-  else()
-    message(STATUS "ROCm HIP runtime lib: ${ROCM_RUNTIME_LIBRARY}")
+  if (NOT DEFINED ROCM_TEST_CHIPSET)
+    execute_process(COMMAND "${ROCM_PATH}/bin/rocm_agent_enumerator"
+    OUTPUT_VARIABLE AGENTS_STRING
+    ERROR_VARIABLE AGENTS_STRING
+    RESULT_VARIABLE AGENT_ENUMERATOR_RESULT)
+
+    if (NOT AGENT_ENUMERATOR_RESULT EQUAL 0)
+      message(SEND_ERROR "Could not run rocm_agent_enumerator and ROCM_TEST_CHIPSET is not defined")
+      set(AGENTS_STRING "")
+    endif()
+    string(STRIP AGENTS_STRING ${AGENTS_STRING})
+    string(REPLACE "\n" ";" AGENTS_LIST ${AGENTS_STRING})
+    list(FILTER AGENTS_LIST EXCLUDE REGEX "gfx000")
+    if (AGENTS_LIST STREQUAL "")
+      message(SEND_ERROR "No non-CPU ROCm agents found on the system, and ROCM_TEST_CHIPSET is not defined")
+    else()
+      list(GET AGENTS_LIST 0 FIRST_AGENT)
+      set(ROCM_TEST_CHIPSET ${FIRST_AGENT} CACHE STRING "Chipset for which to compile ROCm integration tests")
+      message(STATUS "Compiling integration tests for ${ROCM_TEST_CHIPSET}")
+    endif()
   endif()
 
   add_mlir_library(mlir_rocm_runtime
@@ -171,17 +236,38 @@ if(MLIR_ENABLE_ROCM_RUNNER)
 
     EXCLUDE_FROM_LIBMLIR
   )
-  target_compile_definitions(mlir_rocm_runtime
-    PRIVATE
-    __HIP_PLATFORM_HCC__
-  )
-  target_include_directories(mlir_rocm_runtime
-    PRIVATE
-    ${HIP_PATH}/include
-    ${ROCM_PATH}/include
-  )
+
+  # Supress compiler warnings from HIP headers
+  check_cxx_compiler_flag(-Wno-c++98-compat-extra-semi
+    CXX_SUPPORTS_NO_CXX98_COMPAT_EXTRA_SEMI_FLAG)
+  if (CXX_SUPPORTS_CXX98_COMPAT_EXTRA_SEMI_FLAG)
+    target_compile_options(mlir_rocm_runtime PRIVATE
+      "-Wno-c++98-compat-extra-semi")
+  endif()
+  check_cxx_compiler_flag(-Wno-return-type-c-linkage
+      CXX_SUPPORTS_WNO_RETURN_TYPE_C_LINKAGE_FLAG)
+  if (CXX_SUPPORTS_WNO_RETURN_TYPE_C_LINKAGE_FLAG)
+    target_compile_options(mlir_rocm_runtime PRIVATE
+      "-Wno-return-type-c-linkage")
+  endif()
+  check_cxx_compiler_flag(-Wno-nested-anon-types
+    CXX_SUPPORTS_WNO_NESTED_ANON_TYPES_FLAG)
+  if (CXX_SUPPORTS_WNO_NESTED_ANON_TYPES_FLAG)
+    target_compile_options(mlir_rocm_runtime PRIVATE
+      "-Wno-nested-anon-types")
+  endif()
+  check_cxx_compiler_flag(-Wno-gnu-anonymous-struct
+    CXX_SUPPORTS_WNO_GNU_ANONYMOUS_STRUCT_FLAG)
+  if (CXX_SUPPORTS_WNO_GNU_ANONYMOUS_STRUCT_FLAG)
+    target_compile_options(mlir_rocm_runtime PRIVATE
+     "-Wno-gnu-anonymous-struct")
+  endif()
+
+  set_property(TARGET mlir_rocm_runtime
+    PROPERTY INSTALL_RPATH_USE_LINK_PATH ON)
+
   target_link_libraries(mlir_rocm_runtime
-    PRIVATE
-    ${ROCM_RUNTIME_LIBRARY}
+    PUBLIC
+    hip::host hip::amdhip64
   )
 endif()

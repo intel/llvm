@@ -5,7 +5,6 @@
 // support.
 //
 // Both of them use gcc driver for as.
-// REQUIRES: clang-driver
 //
 // RUN: %clang -### -fno-honor-infinities -c %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=CHECK-NO-INFS %s
@@ -70,6 +69,23 @@
 // CHECK-NO-NANS-NO-FAST-MATH: "-cc1"
 // CHECK-NO-NANS-NO-FAST-MATH-NOT: "-menable-no-nans"
 //
+// RUN: %clang -### -ffast-math -fno-approx-func -c %s 2>&1 \
+// RUN:   | FileCheck --check-prefix=CHECK-FAST-MATH-NO-APPROX-FUNC %s
+// CHECK-FAST-MATH-NO-APPROX-FUNC:     "-cc1"
+// CHECK-FAST-MATH-NO-APPROX-FUNC:     "-menable-no-infs"
+// CHECK-FAST-MATH-NO-APPROX-FUNC:     "-menable-no-nans"
+// CHECK-FAST-MATH-NO-APPROX-FUNC:     "-fno-signed-zeros"
+// CHECK-FAST-MATH-NO-APPROX-FUNC:     "-mreassociate"
+// CHECK-FAST-MATH-NO-APPROX-FUNC:     "-freciprocal-math"
+// CHECK-FAST-MATH-NO-APPROX-FUNC:     "-ffp-contract=fast"
+// CHECK-FAST-MATH-NO-APPROX-FUNC-NOT: "-ffast-math"
+// CHECK-FAST-MATH-NO-APPROX-FUNC-NOT: "-fapprox-func"
+//
+// RUN: %clang -### -fno-approx-func -ffast-math -c %s 2>&1 \
+// RUN:   | FileCheck --check-prefix=CHECK-NO-APPROX-FUNC-FAST-MATH %s
+// CHECK-NO-APPROX-FUNC-FAST-MATH: "-cc1"
+// CHECK-NO-APPROX-FUNC-FAST-MATH: "-ffast-math"
+//
 // RUN: %clang -### -fapprox-func -c %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=CHECK-APPROX-FUNC %s
 // CHECK-APPROX-FUNC: "-cc1"
@@ -102,6 +118,8 @@
 // RUN:   | FileCheck --check-prefix=CHECK-NO-MATH-ERRNO %s
 // RUN: %clang -### -target x86_64-linux-android -c %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=CHECK-NO-MATH-ERRNO %s
+// RUN: %clang -### -target x86_64-linux-musl -c %s 2>&1 \
+// RUN:   | FileCheck --check-prefix=CHECK-NO-MATH-ERRNO %s
 // RUN: %clang -### -target amdgcn-amd-amdhsa -c %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=CHECK-NO-MATH-ERRNO %s
 // RUN: %clang -### -target amdgcn-amd-amdpal -c %s 2>&1 \
@@ -130,17 +148,17 @@
 // RUN:   | FileCheck --check-prefix=CHECK-NO-MATH-ERRNO %s
 //
 // RUN: %clang -### -fno-math-errno -fassociative-math -freciprocal-math \
-// RUN:     -fno-signed-zeros -fno-trapping-math -c %s 2>&1 \
+// RUN:     -fno-signed-zeros -fno-trapping-math -fapprox-func -c %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=CHECK-UNSAFE-MATH %s
 // CHECK-UNSAFE-MATH: "-cc1"
-// CHECK-UNSAFE-MATH: "-menable-unsafe-fp-math"
+// CHECK-UNSAFE-MATH: "-funsafe-math-optimizations"
 // CHECK-UNSAFE-MATH: "-mreassociate"
 //
 // RUN: %clang -### -fno-fast-math -fno-math-errno -fassociative-math -freciprocal-math \
-// RUN:     -fno-signed-zeros -fno-trapping-math -c %s 2>&1 \
+// RUN:     -fno-signed-zeros -fno-trapping-math -fapprox-func -c %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=CHECK-NO-FAST-MATH-UNSAFE-MATH %s
 // CHECK-NO-FAST-MATH-UNSAFE-MATH: "-cc1"
-// CHECK-NO-FAST-MATH-UNSAFE-MATH: "-menable-unsafe-fp-math"
+// CHECK-NO-FAST-MATH-UNSAFE-MATH: "-funsafe-math-optimizations"
 // CHECK-NO-FAST-MATH-UNSAFE-MATH: "-mreassociate"
 
 // The 2nd -fno-fast-math overrides -fassociative-math.
@@ -149,7 +167,7 @@
 // RUN:     -fno-fast-math -fno-signed-zeros -fno-trapping-math -c %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=CHECK-UNSAFE-MATH-NO-FAST-MATH %s
 // CHECK-UNSAFE-MATH-NO-FAST-MATH: "-cc1"
-// CHECK-UNSAFE-MATH-NO-FAST-MATH-NOT: "-menable-unsafe-fp-math"
+// CHECK-UNSAFE-MATH-NO-FAST-MATH-NOT: "-funsafe-math-optimizations"
 // CHECK-UNSAFE-MATH-NO-FAST-MATH-NOT: "-mreassociate"
 //
 // Check that various umbrella flags also enable these frontend options.
@@ -178,7 +196,7 @@
 // RUN:     -fno-math-errno -ffp-contract=fast -fno-rounding-math -c %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=CHECK-FAST-MATH %s
 // RUN: %clang -### -fno-honor-infinities -fno-honor-nans -fno-math-errno \
-// RUN:     -fassociative-math -freciprocal-math -fno-signed-zeros \
+// RUN:     -fassociative-math -freciprocal-math -fno-signed-zeros -fapprox-func \
 // RUN:     -fno-trapping-math -ffp-contract=fast -fno-rounding-math -c %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=CHECK-FAST-MATH %s
 // CHECK-FAST-MATH: "-cc1"
@@ -262,7 +280,7 @@
 // RUN:   | FileCheck --check-prefix=CHECK-NO-UNSAFE-MATH %s
 
 // CHECK-NO-UNSAFE-MATH: "-cc1"
-// CHECK-NO-UNSAFE-MATH-NOT: "-menable-unsafe-fp-math"
+// CHECK-NO-UNSAFE-MATH-NOT: "-funsafe-math-optimizations"
 // CHECK-NO_UNSAFE-MATH-NOT: "-mreassociate"
 // CHECK-NO-UNSAFE-MATH: "-o"
 
@@ -274,9 +292,9 @@
 // RUN:   | FileCheck --check-prefix=CHECK-REASSOC-NO-UNSAFE-MATH %s
 
 // CHECK-REASSOC-NO-UNSAFE-MATH: "-cc1"
-// CHECK-REASSOC-NO-UNSAFE-MATH-NOT: "-menable-unsafe-fp-math"
+// CHECK-REASSOC-NO_UNSAFE-MATH-NOT: "-funsafe-math-optimizations"
 // CHECK-REASSOC-NO_UNSAFE-MATH: "-mreassociate"
-// CHECK-REASSOC-NO-UNSAFE-MATH-NOT: "-menable-unsafe-fp-math"
+// CHECK-REASSOC-NO-UNSAFE-MATH-NOT: "-funsafe-math-optimizations"
 // CHECK-REASSOC-NO-UNSAFE-MATH: "-o"
 
 
@@ -291,9 +309,9 @@
 // RUN:   | FileCheck --check-prefix=CHECK-NO-REASSOC-NO-UNSAFE-MATH %s
 
 // CHECK-NO-REASSOC-NO-UNSAFE-MATH: "-cc1"
-// CHECK-NO-REASSOC-NO-UNSAFE-MATH-NOT: "-menable-unsafe-fp-math"
+// CHECK-NO-REASSOC-NO_UNSAFE-MATH-NOT: "-funsafe-math-optimizations"
 // CHECK-NO-REASSOC-NO_UNSAFE-MATH-NOT: "-mreassociate"
-// CHECK-NO-REASSOC-NO-UNSAFE-MATH-NOT: "-menable-unsafe-fp-math"
+// CHECK-NO-REASSOC-NO_UNSAFE-MATH-NOT: "-funsafe-math-optimizations"
 // CHECK-NO-REASSOC-NO-UNSAFE-MATH: "-o"
 
 

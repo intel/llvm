@@ -77,8 +77,8 @@ using has_impltype_hash_t = decltype(ImplTy::hashKey(std::declval<T>()));
 ///      one-time assignment of the mutable component.
 ///
 /// All storage classes must be registered with the uniquer via
-/// `registerStorageType` using an appropriate unique `TypeID` for the storage
-/// class.
+/// `registerParametricStorageType` or `registerSingletonStorageType`
+/// using an appropriate unique `TypeID` for the storage class.
 class StorageUniquer {
 public:
   /// This class acts as the base storage that all storage classes must derived
@@ -94,7 +94,8 @@ public:
   public:
     /// Copy the specified array of elements into memory managed by our bump
     /// pointer allocator.  This assumes the elements are all PODs.
-    template <typename T> ArrayRef<T> copyInto(ArrayRef<T> elements) {
+    template <typename T>
+    ArrayRef<T> copyInto(ArrayRef<T> elements) {
       if (elements.empty())
         return llvm::None;
       auto result = allocator.Allocate<T>(elements.size());
@@ -105,12 +106,20 @@ public:
     /// Copy the provided string into memory managed by our bump pointer
     /// allocator.
     StringRef copyInto(StringRef str) {
-      auto result = copyInto(ArrayRef<char>(str.data(), str.size()));
-      return StringRef(result.data(), str.size());
+      if (str.empty())
+        return StringRef();
+
+      char *result = allocator.Allocate<char>(str.size() + 1);
+      std::uninitialized_copy(str.begin(), str.end(), result);
+      result[str.size()] = 0;
+      return StringRef(result, str.size());
     }
 
     /// Allocate an instance of the provided type.
-    template <typename T> T *allocate() { return allocator.Allocate<T>(); }
+    template <typename T>
+    T *allocate() {
+      return allocator.Allocate<T>();
+    }
 
     /// Allocate 'size' bytes of 'alignment' aligned memory.
     void *allocate(size_t size, size_t alignment) {
@@ -119,7 +128,7 @@ public:
 
     /// Returns true if this allocator allocated the provided object pointer.
     bool allocated(const void *ptr) {
-      return allocator.identifyObject(ptr).hasValue();
+      return allocator.identifyObject(ptr).has_value();
     }
 
   private:
@@ -136,7 +145,8 @@ public:
   /// Register a new parametric storage class, this is necessary to create
   /// instances of this class type. `id` is the type identifier that will be
   /// used to identify this type when creating instances of it via 'get'.
-  template <typename Storage> void registerParametricStorageType(TypeID id) {
+  template <typename Storage>
+  void registerParametricStorageType(TypeID id) {
     // If the storage is trivially destructible, we don't need a destructor
     // function.
     if (std::is_trivially_destructible<Storage>::value)
@@ -146,7 +156,8 @@ public:
     });
   }
   /// Utility override when the storage type represents the type id.
-  template <typename Storage> void registerParametricStorageType() {
+  template <typename Storage>
+  void registerParametricStorageType() {
     registerParametricStorageType<Storage>(TypeID::get<Storage>());
   }
   /// Register a new singleton storage class, this is necessary to get the
@@ -165,7 +176,8 @@ public:
     };
     registerSingletonImpl(id, ctorFn);
   }
-  template <typename Storage> void registerSingletonStorageType(TypeID id) {
+  template <typename Storage>
+  void registerSingletonStorageType(TypeID id) {
     registerSingletonStorageType<Storage>(id, llvm::None);
   }
   /// Utility override when the storage type represents the type id.
@@ -214,11 +226,13 @@ public:
 
   /// Gets a uniqued instance of 'Storage' which is a singleton storage type.
   /// 'id' is the type id used when registering the storage instance.
-  template <typename Storage> Storage *get(TypeID id) {
+  template <typename Storage>
+  Storage *get(TypeID id) {
     return static_cast<Storage *>(getSingletonImpl(id));
   }
   /// Utility override when the storage type represents the type id.
-  template <typename Storage> Storage *get() {
+  template <typename Storage>
+  Storage *get() {
     return get<Storage>(TypeID::get<Storage>());
   }
 
@@ -282,18 +296,18 @@ private:
   /// Used to construct an instance of 'ImplTy::KeyTy' if there is an
   /// 'ImplTy::getKey' function for the provided arguments.
   template <typename ImplTy, typename... Args>
-  static typename std::enable_if<
+  static std::enable_if_t<
       llvm::is_detected<detail::has_impltype_getkey_t, ImplTy, Args...>::value,
-      typename ImplTy::KeyTy>::type
+      typename ImplTy::KeyTy>
   getKey(Args &&...args) {
     return ImplTy::getKey(args...);
   }
   /// If there is no 'ImplTy::getKey' method, then we try to directly construct
   /// the 'ImplTy::KeyTy' with the provided arguments.
   template <typename ImplTy, typename... Args>
-  static typename std::enable_if<
+  static std::enable_if_t<
       !llvm::is_detected<detail::has_impltype_getkey_t, ImplTy, Args...>::value,
-      typename ImplTy::KeyTy>::type
+      typename ImplTy::KeyTy>
   getKey(Args &&...args) {
     return typename ImplTy::KeyTy(args...);
   }
@@ -305,22 +319,22 @@ private:
   /// Used to generate a hash for the 'ImplTy::KeyTy' of a storage instance if
   /// there is an 'ImplTy::hashKey' overload for 'DerivedKey'.
   template <typename ImplTy, typename DerivedKey>
-  static typename std::enable_if<
+  static std::enable_if_t<
       llvm::is_detected<detail::has_impltype_hash_t, ImplTy, DerivedKey>::value,
-      ::llvm::hash_code>::type
+      ::llvm::hash_code>
   getHash(const DerivedKey &derivedKey) {
     return ImplTy::hashKey(derivedKey);
   }
   /// If there is no 'ImplTy::hashKey' default to using the 'llvm::DenseMapInfo'
   /// definition for 'DerivedKey' for generating a hash.
   template <typename ImplTy, typename DerivedKey>
-  static typename std::enable_if<!llvm::is_detected<detail::has_impltype_hash_t,
-                                                    ImplTy, DerivedKey>::value,
-                                 ::llvm::hash_code>::type
+  static std::enable_if_t<!llvm::is_detected<detail::has_impltype_hash_t,
+                                             ImplTy, DerivedKey>::value,
+                          ::llvm::hash_code>
   getHash(const DerivedKey &derivedKey) {
     return DenseMapInfo<DerivedKey>::getHashValue(derivedKey);
   }
 };
-} // end namespace mlir
+} // namespace mlir
 
 #endif

@@ -12,20 +12,21 @@
 #include "Protocol.h"
 #include "SourceCode.h"
 #include "index/Symbol.h"
-#include "support/Logger.h"
 #include "support/Path.h"
 #include "clang/Basic/FileEntry.h"
 #include "clang/Basic/TokenKinds.h"
 #include "clang/Format/Format.h"
+#include "clang/Frontend/CompilerInstance.h"
 #include "clang/Lex/HeaderSearch.h"
-#include "clang/Lex/PPCallbacks.h"
+#include "clang/Lex/Preprocessor.h"
 #include "clang/Tooling/Inclusions/HeaderIncludes.h"
+#include "clang/Tooling/Inclusions/StandardLibrary.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem/UniqueID.h"
-#include "llvm/Support/VirtualFileSystem.h"
 #include <string>
 
 namespace clang {
@@ -33,6 +34,12 @@ namespace clangd {
 
 /// Returns true if \p Include is literal include like "path" or <path>.
 bool isLiteralInclude(llvm::StringRef Include);
+
+/// If Text begins an Include-What-You-Use directive, returns it.
+/// Given "// IWYU pragma: keep", returns "keep".
+/// Input is a null-terminated char* as provided by SM.getCharacterData().
+/// (This should not be StringRef as we do *not* want to scan for its length).
+llvm::Optional<StringRef> parseIWYUPragma(const char *Text);
 
 /// Represents a header file to be #include'd.
 struct HeaderFile {
@@ -62,6 +69,7 @@ struct Inclusion {
   int HashLine = 0;        // Line number containing the directive, 0-indexed.
   SrcMgr::CharacteristicKind FileKind = SrcMgr::C_User;
   llvm::Optional<unsigned> HeaderID;
+  bool BehindPragmaKeep = false; // Has IWYU pragma: keep right after.
 };
 llvm::raw_ostream &operator<<(llvm::raw_ostream &, const Inclusion &);
 bool operator==(const Inclusion &LHS, const Inclusion &RHS);
@@ -121,9 +129,10 @@ public:
     RealPathNames.emplace_back();
   }
 
-  // Returns a PPCallback that visits all inclusions in the main file and
-  // populates the structure.
-  std::unique_ptr<PPCallbacks> collect(const SourceManager &SM);
+  // Inserts a PPCallback and CommentHandler that visits all includes in the
+  // main file and populates the structure. It will also scan for IWYU pragmas
+  // in comments.
+  void collect(const CompilerInstance &CI);
 
   // HeaderID identifies file in the include graph. It corresponds to a
   // FileEntry rather than a FileID, but stays stable across preamble & main
@@ -131,11 +140,19 @@ public:
   enum class HeaderID : unsigned {};
 
   llvm::Optional<HeaderID> getID(const FileEntry *Entry) const;
-  HeaderID getOrCreateID(const FileEntry *Entry);
+  HeaderID getOrCreateID(FileEntryRef Entry);
 
   StringRef getRealPath(HeaderID ID) const {
     assert(static_cast<unsigned>(ID) <= RealPathNames.size());
     return RealPathNames[static_cast<unsigned>(ID)];
+  }
+
+  bool isSelfContained(HeaderID ID) const {
+    return !NonSelfContained.contains(ID);
+  }
+
+  bool hasIWYUExport(HeaderID ID) const {
+    return HasIWYUExport.contains(ID);
   }
 
   // Return all transitively reachable files.
@@ -151,12 +168,17 @@ public:
   // Maps HeaderID to the ids of the files included from it.
   llvm::DenseMap<HeaderID, SmallVector<HeaderID>> IncludeChildren;
 
+  llvm::DenseMap<tooling::stdlib::Header, llvm::SmallVector<HeaderID>>
+      StdlibHeaders;
+
   std::vector<Inclusion> MainFileIncludes;
 
   // We reserve HeaderID(0) for the main file and will manually check for that
   // in getID and getOrCreateID because the UniqueID is not stable when the
   // content of the main file changes.
   static const HeaderID MainFileID = HeaderID(0u);
+
+  class RecordHeaders;
 
 private:
   // MainFileEntry will be used to check if the queried file is the main file
@@ -170,6 +192,12 @@ private:
   // and RealPathName and UniqueID are not preserved in
   // the preamble.
   llvm::DenseMap<llvm::sys::fs::UniqueID, HeaderID> UIDToIndex;
+  // Contains HeaderIDs of all non self-contained entries in the
+  // IncludeStructure.
+  llvm::DenseSet<HeaderID> NonSelfContained;
+  // Contains a set of headers that have either "IWYU pragma: export" or "IWYU
+  // pragma: begin_exports".
+  llvm::DenseSet<HeaderID> HasIWYUExport;
 };
 
 // Calculates insertion edit for including a new header in a file.
@@ -236,13 +264,11 @@ namespace llvm {
 // Support HeaderIDs as DenseMap keys.
 template <> struct DenseMapInfo<clang::clangd::IncludeStructure::HeaderID> {
   static inline clang::clangd::IncludeStructure::HeaderID getEmptyKey() {
-    return static_cast<clang::clangd::IncludeStructure::HeaderID>(
-        DenseMapInfo<unsigned>::getEmptyKey());
+    return static_cast<clang::clangd::IncludeStructure::HeaderID>(-1);
   }
 
   static inline clang::clangd::IncludeStructure::HeaderID getTombstoneKey() {
-    return static_cast<clang::clangd::IncludeStructure::HeaderID>(
-        DenseMapInfo<unsigned>::getTombstoneKey());
+    return static_cast<clang::clangd::IncludeStructure::HeaderID>(-2);
   }
 
   static unsigned

@@ -1,7 +1,7 @@
 # LLVM/SPIR-V Bi-Directional Translator
 
-[![Out-of-tree build & tests](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/workflows/Out-of-tree%20build%20&%20tests/badge.svg?branch=master&event=schedule)](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/actions?query=workflow%3A%22Out-of-tree+build+%26+tests%22+event%3Aschedule)
-[![In-tree build & tests](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/workflows/In-tree%20build%20&%20tests/badge.svg?branch=master&event=schedule)](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/actions?query=workflow%3A%22In-tree+build+%26+tests%22+event%3Aschedule)
+[![Out-of-tree build & tests](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/workflows/Out-of-tree%20build%20&%20tests/badge.svg?branch=main&event=schedule)](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/actions?query=workflow%3A%22Out-of-tree+build+%26+tests%22+event%3Aschedule)
+[![In-tree build & tests](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/workflows/In-tree%20build%20&%20tests/badge.svg?branch=main&event=schedule)](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/actions?query=workflow%3A%22In-tree+build+%26+tests%22+event%3Aschedule)
 
 This repository contains source code for the LLVM/SPIR-V Bi-Directional Translator, a library and tool for translation between LLVM IR and [SPIR-V](https://www.khronos.org/registry/spir-v/).
 
@@ -19,7 +19,7 @@ The files/directories related to the translator:
 
 ## Build Instructions
 
-The `master` branch of this repo is aimed to be buildable with the latest
+The `main` branch of this repo is aimed to be buildable with the latest
 LLVM `main` revision.
 
 ### Build with pre-installed LLVM
@@ -29,7 +29,7 @@ The translator can be built with the latest(nightly) package of LLVM. For Ubuntu
 wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
 sudo add-apt-repository "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial main"
 sudo apt-get update
-sudo apt-get install llvm-14-dev llvm-14-tools clang-14 libclang-14-dev
+sudo apt-get install llvm-16-dev llvm-16-tools clang-16 libclang-16-dev
 ```
 The installed version of LLVM will be used by default for out-of-tree build of the translator.
 ```
@@ -93,6 +93,34 @@ Building clang from sources takes time and resources and it can be avoided:
   moment, see [KhronosGroup/SPIRV-LLVM-Translator#477](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/issues/477)
   to track progress, discuss and contribute.
 
+### Build with SPIRV-Tools
+
+The translator can use [SPIRV-Tools](https://github.com/KhronosGroup/SPIRV-Tools) to generate assembly with widely adopted syntax.
+If SPIRV-Tools have been installed prior to the build it will be detected and
+used automatically. However it is also possible to enable use of SPIRV-Tools
+from a custom location using the following instructions:
+
+1. Checkout, build and install SPIRV-Tools using
+   [the following instructions](https://github.com/KhronosGroup/SPIRV-Tools#build).
+   Example using CMake with Ninja:
+```
+cmake -G Ninja <SPIRV-Tools source location> -DCMAKE_INSTALL_PREFIX=<SPIRV-Tools installation location>
+ninja install
+```
+2. Point pkg-config to the SPIR-V tools installation when configuring the translator by setting
+   `PKG_CONFIG_PATH=<SPIRV-Tools installation location>/lib/pkgconfig/` variable
+   before the cmake line invocation.
+   Example:
+```
+PKG_CONFIG_PATH=<SPIRV-Tools installation location>/lib/pkgconfig/ cmake <other options>
+```
+
+To verify the SPIR-V Tools integration in the translator build, run the following line
+```
+llvm-spirv --spirv-tools-dis input.bc -o -
+```
+The output should be printed in the standard assembly syntax.
+
 ## Configuring SPIR-V Headers
 
 The translator build is dependent on the official Khronos header file
@@ -125,7 +153,7 @@ make test
 ```
 This requires that the `-DLLVM_SPIRV_INCLUDE_TESTS=ON` argument is
 passed to CMake during the build step. Additionally,
-`-DLLVM_EXTERNAL_LIT="/usr/lib/llvm-14/build/utils/lit/lit.py"` is
+`-DLLVM_EXTERNAL_LIT="/usr/lib/llvm-16/build/utils/lit/lit.py"` is
 needed when building with a pre-installed version of LLVM.
 
 The translator test suite can be disabled by passing
@@ -153,6 +181,7 @@ To translate between LLVM IR and SPIR-V:
     * `-o file_name` - to specify output name
     * `-spirv-debug` - output debugging information
     * `-spirv-text` - read/write SPIR-V in an internal textual format for debugging purpose. The textual format is not defined by SPIR-V spec.
+    * `--spirv-tools-dis` - print SPIR-V assembly in SPIRV-Tools format. Only available on [builds with SPIRV-Tools](#build-with-spirv-tools).
     * `-help` - to see full list of options
 
 Translation from LLVM IR to SPIR-V and then back to LLVM IR is not guaranteed to
@@ -173,7 +202,7 @@ the version of the SPIR-V file which is being generated/consumed.
   the input file and emit an error if the SPIR-V version in it is higher than
   one specified via this option.
 
-Allowed values are `1.0`/`1.1`.
+Allowed values are `1.0`, `1.1`, `1.2`, `1.3`, and `1.4`.
 
 More information can be found in
 [SPIR-V versions and extensions handling](docs/SPIRVVersionsAndExtensionsHandling.rst)
@@ -204,13 +233,13 @@ More information can be found in
 
 ## Branching strategy
 
-Code on the master branch in this repository is intended to be compatible with
+Code on the main branch in this repository is intended to be compatible with
 the main branch of the [llvm](https://github.com/llvm/llvm-project)
 project. That is, for an OpenCL kernel compiled to llvm bitcode by the latest
 git revision of Clang it should be possible to translate it to SPIR-V with the
 llvm-spirv tool.
 
-All new development should be done on the master branch.
+All new development should be done on the main branch.
 
 To have versions compatible with released versions of LLVM and Clang,
 corresponding tags are available in this repository. For example, to build
@@ -220,9 +249,9 @@ one should use the
 [v7.0.0-1](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/tree/v7.0.0-1)
 tag. The 7.x releases are maintained on the
 [llvm_release_70](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/tree/llvm_release_70)
-branch. As a general rule, commits from the master branch may be backported to
+branch. As a general rule, commits from the main branch may be backported to
 the release branches as long as they do not depend on features from a later
 LLVM/Clang release and there are no objections from the maintainer(s). There
 is no guarantee that older release branches are proactively kept up to date
-with master, but you can request specific commits on older release branches by
+with main, but you can request specific commits on older release branches by
 creating a pull request or raising an issue on GitHub.

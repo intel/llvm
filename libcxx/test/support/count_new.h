@@ -210,6 +210,11 @@ public:
         return disable_checking || n != delete_called;
     }
 
+    bool checkDeleteCalledGreaterThan(int n) const
+    {
+        return disable_checking || delete_called > n;
+    }
+
     bool checkAlignedNewCalledEq(int n) const
     {
         return disable_checking || n == aligned_new_called;
@@ -245,6 +250,11 @@ public:
         return disable_checking || n != last_new_size;
     }
 
+    bool checkLastNewSizeGe(std::size_t n) const
+    {
+        return disable_checking || last_new_size >= n;
+    }
+
     bool checkLastNewAlignEq(std::size_t n) const
     {
         return disable_checking || n == last_new_align;
@@ -253,6 +263,11 @@ public:
     bool checkLastNewAlignNotEq(std::size_t n) const
     {
         return disable_checking || n != last_new_align;
+    }
+
+    bool checkLastNewAlignGe(std::size_t n) const
+    {
+        return disable_checking || last_new_align >= n;
     }
 
     bool checkLastDeleteAlignEq(std::size_t n) const
@@ -347,17 +362,13 @@ public:
   const bool MemCounter::disable_checking = false;
 #endif
 
-#ifdef _MSC_VER
-#pragma warning(push)
-#pragma warning(disable: 4640) // '%s' construction of local static object is not thread safe (/Zc:threadSafeInit-)
-#endif // _MSC_VER
+TEST_DIAGNOSTIC_PUSH
+TEST_MSVC_DIAGNOSTIC_IGNORED(4640) // '%s' construction of local static object is not thread safe (/Zc:threadSafeInit-)
 inline MemCounter* getGlobalMemCounter() {
   static MemCounter counter((MemCounter::MemCounterCtorArg_()));
   return &counter;
 }
-#ifdef _MSC_VER
-#pragma warning(pop)
-#endif
+TEST_DIAGNOSTIC_POP
 
 MemCounter &globalMemCounter = *getGlobalMemCounter();
 

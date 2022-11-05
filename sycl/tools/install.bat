@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableDelayedExpansion
+setlocal EnableDelayedExpansion enableextensions
 set OCL_RT_DIR=%~dp0
 
 echo ###
@@ -12,27 +12,24 @@ IF NOT EXIST %OCL_RT_ENTRY_LIB% (
    set OCL_RT_ENTRY_LIB=%OCL_RT_DIR%intelocl64_emu.dll
 )
 
-IF "%OCL_ICD_FILENAMES%" == "" (
-  set EXTENDEXISTING=N
-) else (
+IF NOT "%OCL_ICD_FILENAMES%" == "" (
   echo OCL_ICD_FILENAMES is present and contains %OCL_ICD_FILENAMES%
   :USERINPUT
-  set /P "EXTENDEXISTING=Should the OpenCL RT extend existing configuration (Y/N): "
-)
-IF "%EXTENDEXISTING%" == "N" (
-  echo Clean up previous configuration
-  set OCL_ICD_FILENAMES=%OCL_RT_ENTRY_LIB%
-) else (
-  IF "%EXTENDEXISTING%" == "Y" (
-
-    set OCL_ICD_FILENAMES=%OCL_ICD_FILENAMES%;%OCL_RT_ENTRY_LIB%
-    echo Extend previous configuration to %OCL_ICD_FILENAMES%;%OCL_RT_ENTRY_LIB%
+  set /P "CLEAREXISTING=Should the OCL_ICD_FILENAMES be removed (Y/N): "
+  IF "!CLEAREXISTING!" == "N" (
+    echo Existing configuration is going to be preserved
   ) else (
-    echo WARNING: Incorrect input %EXTENDEXISTING%. Only Y and N are allowed.
-    goto USERINPUT
+    IF "!CLEAREXISTING!" == "Y" (
+      echo Clean up previous configuration
+      REG DELETE "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /f /v OCL_ICD_FILENAMES
+      echo Execute `set OCL_ICD_FILENAMES=` to remove variable from the current console
+
+    ) else (
+      echo WARNING: Incorrect input !CLEAREXISTING!. Only Y and N are allowed.
+      goto USERINPUT
+    )
   )
 )
-
 
 set SYSTEM_OCL_ICD_LOADER=C:\Windows\System32\OpenCL.dll
 set NEW_OCL_ICD_LOADER=%OCL_RT_DIR%\OpenCL.dll
@@ -103,11 +100,13 @@ IF %NEED_OPENCL_UPGRADE% == True (
 
 echo.
 echo ###
-echo ### 3. Set the environment variable OCL_ICD_FILENAMES to %OCL_ICD_FILENAMES%
+echo ### 3. Configure ICD registry records
 echo ###
-REG ADD "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /f /v OCL_ICD_FILENAMES /d "%OCL_ICD_FILENAMES%"
+echo Deleting all obsolete registry keys
+REG DELETE "HKLM\SOFTWARE\Khronos\OpenCL\Vendors" /va
+REG ADD "HKLM\SOFTWARE\Khronos\OpenCL\Vendors" /f /v %OCL_RT_ENTRY_LIB% /t REG_DWORD /d "0"
 IF ERRORLEVEL 1 (
-  echo !!! Cannot set the environment variable OCL_ICD_FILENAMES
+  echo !!! Cannot set ICD registry key
   set INSTALL_ERRORS=1
 )
 
@@ -165,7 +164,7 @@ IF %INSTALL_ERRORS% == 1 (
   echo See recommendations printed above and perform the following actions manually:
   echo   1. Save %SYSTEM_OCL_ICD_LOADER% to %SYSTEM_OCL_ICD_LOADER%.%SYSTEM_OPENCL_VER%
   echo   2. Copy %NEW_OCL_ICD_LOADER% to %SYSTEM_OCL_ICD_LOADER%
-  echo   3. Add/set the environment variable OCL_ICD_FILENAMES to %OCL_RT_ENTRY_LIB%
+  echo   3. Add/update registry string value in Computer\HKEY_LOCAL_MACHINE\SOFTWARE\Khronos\OpenCL\Vendors\%OCL_RT_ENTRY_LIB% containing 0
   echo   4. Copy TBB libraries or create symbolic links in %OCL_RT_DIR%tbb.
   echo   5. Add/set the environment variable PATH to %OCL_RT_DIR%tbb
   echo Or try running this batch file as Administrator.

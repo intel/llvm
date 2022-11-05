@@ -2,7 +2,7 @@
 // RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 // RUN: llvm-spirv %t.bc -o %t.spv
 // RUN: spirv-val %t.spv
-// RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+// RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 // RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 kernel void testConvertPtrToU(global int *a, global unsigned long *res) {
@@ -12,7 +12,7 @@ kernel void testConvertPtrToU(global int *a, global unsigned long *res) {
 // CHECK-SPIRV: 4 ConvertPtrToU
 
 // CHECK-LLVM-LABEL: @testConvertPtrToU
-// CHECK-LLVM: %0 = ptrtoint i32 addrspace(1)* %a to i32
+// CHECK-LLVM: %0 = ptrtoint ptr addrspace(1) %a to i32
 // CHECK-LLVM: zext i32 %0 to i64
 
 kernel void testConvertUToPtr(unsigned long a) {
@@ -24,4 +24,4 @@ kernel void testConvertUToPtr(unsigned long a) {
 
 // CHECK-LLVM-LABEL: @testConvertUToPtr
 // CHECK-LLVM: %[[Conv:[a-z]+]] = trunc i64 %a to i32
-// CHECK-LLVM: inttoptr i32 %[[Conv]] to i32 addrspace(1)*
+// CHECK-LLVM: inttoptr i32 %[[Conv]] to ptr addrspace(1)

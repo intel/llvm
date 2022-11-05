@@ -3,6 +3,8 @@ static_library("BinaryFormat") {
   deps = [ "//llvm/lib/Support" ]
   sources = [
     "AMDGPUMetadataVerifier.cpp",
+    "COFF.cpp",
+    "DXContainer.cpp",
     "Dwarf.cpp",
     "ELF.cpp",
     "MachO.cpp",

@@ -1,4 +1,4 @@
-//===-- flang/unittests/RuntimeGTest/CrashHandlerFixture.cpp ----*- C++ -*-===//
+//===-- flang/unittests/Runtime/CrashHandlerFixture.cpp ---------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,13 +11,15 @@
 //
 //===----------------------------------------------------------------------===//
 #include "CrashHandlerFixture.h"
+#include "tools.h"
 #include "../../runtime/terminator.h"
 #include "flang/Runtime/io-api.h"
-#include "flang/Runtime/stop.h"
+#include "flang/Runtime/transformational.h"
 #include <gtest/gtest.h>
 
 using namespace Fortran::runtime;
 using namespace Fortran::runtime::io;
+using Fortran::common::TypeCategory;
 
 //------------------------------------------------------------------------------
 /// Test crashes through direct calls to terminator methods
@@ -57,8 +59,8 @@ TEST(TestIOCrash, FormatDescriptorWriteMismatchTest) {
   static const char *format{"(A4)"};
   auto *cookie{IONAME(BeginInternalFormattedOutput)(
       buffer, bufferSize, format, std::strlen(format))};
-  ASSERT_DEATH(IONAME(OutputInteger64)(cookie, 0xfeedface),
-      "Data edit descriptor 'A' may not be used with an INTEGER data item");
+  ASSERT_DEATH(IONAME(OutputLogical)(cookie, true),
+      "Data edit descriptor 'A' may not be used with a LOGICAL data item");
 }
 
 TEST(TestIOCrash, InvalidFormatCharacterTest) {
@@ -157,20 +159,22 @@ TEST(TestIOCrash, OverwriteBufferIntegerTest) {
       "Internal write overran available records");
 }
 
-TEST(TestIOCrash, StopTest) {
-  EXPECT_EXIT(RTNAME(StopStatement)(), testing::ExitedWithCode(EXIT_SUCCESS),
-      "Fortran STOP");
-}
+//------------------------------------------------------------------------------
+/// Test conformity issue reports in transformational intrinsics
+//------------------------------------------------------------------------------
+struct TestIntrinsicCrash : CrashHandlerFixture {};
 
-TEST(TestIOCrash, FailImageTest) {
-  EXPECT_EXIT(
-      RTNAME(FailImageStatement)(), testing::ExitedWithCode(EXIT_FAILURE), "");
-}
+TEST(TestIntrinsicCrash, ConformityErrors) {
+  // ARRAY(2,3) and MASK(2,4) should trigger a runtime error.
+  auto array{MakeArray<TypeCategory::Integer, 4>(
+      std::vector<int>{2, 3}, std::vector<std::int32_t>{1, 2, 3, 4, 5, 6})};
+  auto mask{MakeArray<TypeCategory::Logical, 1>(std::vector<int>{2, 4},
+      std::vector<std::uint8_t>{
+          false, true, true, false, false, true, true, true})};
+  StaticDescriptor<1, true> statDesc;
+  Descriptor &result{statDesc.descriptor()};
 
-TEST(TestIOCrash, ExitTest) {
-  EXPECT_EXIT(RTNAME(Exit)(), testing::ExitedWithCode(EXIT_SUCCESS), "");
-  EXPECT_EXIT(
-      RTNAME(Exit)(EXIT_FAILURE), testing::ExitedWithCode(EXIT_FAILURE), "");
+  ASSERT_DEATH(RTNAME(Pack)(result, *array, *mask, nullptr, __FILE__, __LINE__),
+      "Incompatible array arguments to PACK: dimension 2 of ARRAY= has extent "
+      "3 but MASK= has extent 4");
 }
-
-TEST(TestIOCrash, AbortTest) { EXPECT_DEATH(RTNAME(Abort)(), ""); }

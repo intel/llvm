@@ -19,6 +19,8 @@
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SetVector.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
@@ -575,6 +577,8 @@ static unsigned getEncodedRMWOperation(AtomicRMWInst::BinOp Op) {
   case AtomicRMWInst::UMin: return bitc::RMW_UMIN;
   case AtomicRMWInst::FAdd: return bitc::RMW_FADD;
   case AtomicRMWInst::FSub: return bitc::RMW_FSUB;
+  case AtomicRMWInst::FMax: return bitc::RMW_FMAX;
+  case AtomicRMWInst::FMin: return bitc::RMW_FMIN;
   }
 }
 
@@ -596,10 +600,10 @@ static void writeStringRecord(BitstreamWriter &Stream, unsigned Code,
   SmallVector<unsigned, 64> Vals;
 
   // Code: [strchar x N]
-  for (unsigned i = 0, e = Str.size(); i != e; ++i) {
-    if (AbbrevToUse && !BitCodeAbbrevOp::isChar6(Str[i]))
+  for (char C : Str) {
+    if (AbbrevToUse && !BitCodeAbbrevOp::isChar6(C))
       AbbrevToUse = 0;
-    Vals.push_back(Str[i]);
+    Vals.push_back(C);
   }
 
   // Emit the finished record.
@@ -610,6 +614,8 @@ static uint64_t getAttrKindEncoding(Attribute::AttrKind Kind) {
   switch (Kind) {
   case Attribute::Alignment:
     return bitc::ATTR_KIND_ALIGNMENT;
+  case Attribute::AllocAlign:
+    return bitc::ATTR_KIND_ALLOC_ALIGN;
   case Attribute::AllocSize:
     return bitc::ATTR_KIND_ALLOC_SIZE;
   case Attribute::AlwaysInline:
@@ -628,6 +634,8 @@ static uint64_t getAttrKindEncoding(Attribute::AttrKind Kind) {
     return bitc::ATTR_KIND_COLD;
   case Attribute::DisableSanitizerInstrumentation:
     return bitc::ATTR_KIND_DISABLE_SANITIZER_INSTRUMENTATION;
+  case Attribute::FnRetThunkExtern:
+    return bitc::ATTR_KIND_FNRETTHUNK_EXTERN;
   case Attribute::Hot:
     return bitc::ATTR_KIND_HOT;
   case Attribute::ElementType:
@@ -644,6 +652,12 @@ static uint64_t getAttrKindEncoding(Attribute::AttrKind Kind) {
     return bitc::ATTR_KIND_JUMP_TABLE;
   case Attribute::MinSize:
     return bitc::ATTR_KIND_MIN_SIZE;
+  case Attribute::AllocatedPointer:
+    return bitc::ATTR_KIND_ALLOCATED_POINTER;
+  case Attribute::AllocKind:
+    return bitc::ATTR_KIND_ALLOC_KIND;
+  case Attribute::Memory:
+    return bitc::ATTR_KIND_MEMORY;
   case Attribute::Naked:
     return bitc::ATTR_KIND_NAKED;
   case Attribute::Nest:
@@ -686,8 +700,12 @@ static uint64_t getAttrKindEncoding(Attribute::AttrKind Kind) {
     return bitc::ATTR_KIND_NOCF_CHECK;
   case Attribute::NoProfile:
     return bitc::ATTR_KIND_NO_PROFILE;
+  case Attribute::SkipProfile:
+    return bitc::ATTR_KIND_SKIP_PROFILE;
   case Attribute::NoUnwind:
     return bitc::ATTR_KIND_NO_UNWIND;
+  case Attribute::NoSanitizeBounds:
+    return bitc::ATTR_KIND_NO_SANITIZE_BOUNDS;
   case Attribute::NoSanitizeCoverage:
     return bitc::ATTR_KIND_NO_SANITIZE_COVERAGE;
   case Attribute::NullPointerIsValid:
@@ -764,6 +782,8 @@ static uint64_t getAttrKindEncoding(Attribute::AttrKind Kind) {
     return bitc::ATTR_KIND_BYREF;
   case Attribute::MustProgress:
     return bitc::ATTR_KIND_MUSTPROGRESS;
+  case Attribute::PresplitCoroutine:
+    return bitc::ATTR_KIND_PRESPLIT_COROUTINE;
   case Attribute::EndAttrKinds:
     llvm_unreachable("Can not encode end-attribute kinds marker.");
   case Attribute::None:
@@ -833,8 +853,7 @@ void ModuleBitcodeWriter::writeAttributeTable() {
   Stream.EnterSubblock(bitc::PARAMATTR_BLOCK_ID, 3);
 
   SmallVector<uint64_t, 64> Record;
-  for (unsigned i = 0, e = Attrs.size(); i != e; ++i) {
-    AttributeList AL = Attrs[i];
+  for (const AttributeList &AL : Attrs) {
     for (unsigned i : AL.indexes()) {
       AttributeSet AS = AL.getAttributes(i);
       if (AS.hasAttributes())
@@ -914,8 +933,7 @@ void ModuleBitcodeWriter::writeTypeTable() {
   TypeVals.clear();
 
   // Loop over all of the types, emitting each in turn.
-  for (unsigned i = 0, e = TypeList.size(); i != e; ++i) {
-    Type *T = TypeList[i];
+  for (Type *T : TypeList) {
     int AbbrevToUse = 0;
     unsigned Code = 0;
 
@@ -950,7 +968,7 @@ void ModuleBitcodeWriter::writeTypeTable() {
       } else {
         // POINTER: [pointee type, address space]
         Code = bitc::TYPE_CODE_POINTER;
-        TypeVals.push_back(VE.getTypeID(PTy->getElementType()));
+        TypeVals.push_back(VE.getTypeID(PTy->getNonOpaquePointerElementType()));
         TypeVals.push_back(AddressSpace);
         if (AddressSpace == 0)
           AbbrevToUse = PtrAbbrev;
@@ -973,9 +991,8 @@ void ModuleBitcodeWriter::writeTypeTable() {
       // STRUCT: [ispacked, eltty x N]
       TypeVals.push_back(ST->isPacked());
       // Output all of the element types.
-      for (StructType::element_iterator I = ST->element_begin(),
-           E = ST->element_end(); I != E; ++I)
-        TypeVals.push_back(VE.getTypeID(*I));
+      for (Type *ET : ST->elements())
+        TypeVals.push_back(VE.getTypeID(ET));
 
       if (ST->isLiteral()) {
         Code = bitc::TYPE_CODE_STRUCT_ANON;
@@ -1016,6 +1033,8 @@ void ModuleBitcodeWriter::writeTypeTable() {
         TypeVals.push_back(true);
       break;
     }
+    case Type::TypedPointerTyID:
+      llvm_unreachable("Typed pointers cannot be added to IR modules");
     }
 
     // Emit the finished record.
@@ -1069,6 +1088,7 @@ static uint64_t getEncodedFFlags(FunctionSummary::FFlags Flags) {
   RawFlags |= (Flags.NoUnwind << 6);
   RawFlags |= (Flags.MayThrow << 7);
   RawFlags |= (Flags.HasUnknownCall << 8);
+  RawFlags |= (Flags.MustBeUnreachable << 9);
   return RawFlags;
 }
 
@@ -1213,6 +1233,14 @@ static StringEncoding getStringEncoding(StringRef Str) {
   return SE_Fixed7;
 }
 
+static_assert(sizeof(GlobalValue::SanitizerMetadata) <= sizeof(unsigned),
+              "Sanitizer Metadata is too large for naive serialization.");
+static unsigned
+serializeSanitizerMetadata(const GlobalValue::SanitizerMetadata &Meta) {
+  return Meta.NoAddress | (Meta.NoHWAddress << 1) |
+         (Meta.Memtag << 2) | (Meta.IsDynInit << 3);
+}
+
 /// Emit top-level description of module, including target triple, inline asm,
 /// descriptors for global variables, and function prototype info.
 /// Returns the bit offset to backpatch with the location of the real VST.
@@ -1336,7 +1364,7 @@ void ModuleBitcodeWriter::writeModuleInfo() {
     // GLOBALVAR: [strtab offset, strtab size, type, isconst, initid,
     //             linkage, alignment, section, visibility, threadlocal,
     //             unnamed_addr, externally_initialized, dllstorageclass,
-    //             comdat, attributes, DSO_Local]
+    //             comdat, attributes, DSO_Local, GlobalSanitizer]
     Vals.push_back(addToStrtab(GV.getName()));
     Vals.push_back(GV.getName().size());
     Vals.push_back(VE.getTypeID(GV.getValueType()));
@@ -1352,10 +1380,8 @@ void ModuleBitcodeWriter::writeModuleInfo() {
         GV.getUnnamedAddr() != GlobalValue::UnnamedAddr::None ||
         GV.isExternallyInitialized() ||
         GV.getDLLStorageClass() != GlobalValue::DefaultStorageClass ||
-        GV.hasComdat() ||
-        GV.hasAttributes() ||
-        GV.isDSOLocal() ||
-        GV.hasPartition()) {
+        GV.hasComdat() || GV.hasAttributes() || GV.isDSOLocal() ||
+        GV.hasPartition() || GV.hasSanitizerMetadata()) {
       Vals.push_back(getEncodedVisibility(GV));
       Vals.push_back(getEncodedThreadLocalMode(GV));
       Vals.push_back(getEncodedUnnamedAddr(GV));
@@ -1369,6 +1395,10 @@ void ModuleBitcodeWriter::writeModuleInfo() {
       Vals.push_back(GV.isDSOLocal());
       Vals.push_back(addToStrtab(GV.getPartition()));
       Vals.push_back(GV.getPartition().size());
+
+      Vals.push_back((GV.hasSanitizerMetadata() ? serializeSanitizerMetadata(
+                                                      GV.getSanitizerMetadata())
+                                                : 0));
     } else {
       AbbrevToUse = SimpleGVarAbbrev;
     }
@@ -1659,6 +1689,7 @@ void ModuleBitcodeWriter::writeDIStringType(const DIStringType *N,
   Record.push_back(VE.getMetadataOrNullID(N->getRawName()));
   Record.push_back(VE.getMetadataOrNullID(N->getStringLength()));
   Record.push_back(VE.getMetadataOrNullID(N->getStringLengthExp()));
+  Record.push_back(VE.getMetadataOrNullID(N->getStringLocationExp()));
   Record.push_back(N->getSizeInBits());
   Record.push_back(N->getAlignInBits());
   Record.push_back(N->getEncoding());
@@ -1818,6 +1849,7 @@ void ModuleBitcodeWriter::writeDISubprogram(const DISubprogram *N,
   Record.push_back(N->getThisAdjustment());
   Record.push_back(VE.getMetadataOrNullID(N->getThrownTypes().get()));
   Record.push_back(VE.getMetadataOrNullID(N->getAnnotations().get()));
+  Record.push_back(VE.getMetadataOrNullID(N->getRawTargetFuncName()));
 
   Stream.EmitRecord(bitc::METADATA_SUBPROGRAM, Record, Abbrev);
   Record.clear();
@@ -2460,6 +2492,7 @@ void ModuleBitcodeWriter::writeConstants(unsigned FirstVal, unsigned LastVal,
     }
 
     if (const InlineAsm *IA = dyn_cast<InlineAsm>(V)) {
+      Record.push_back(VE.getTypeID(IA->getFunctionType()));
       Record.push_back(
           unsigned(IA->hasSideEffects()) | unsigned(IA->isAlignStack()) << 1 |
           unsigned(IA->getDialect() & 1) << 2 | unsigned(IA->canThrow()) << 3);
@@ -2659,6 +2692,10 @@ void ModuleBitcodeWriter::writeConstants(unsigned FirstVal, unsigned LastVal,
       Code = bitc::CST_CODE_DSO_LOCAL_EQUIVALENT;
       Record.push_back(VE.getTypeID(Equiv->getGlobalValue()->getType()));
       Record.push_back(VE.getValueID(Equiv->getGlobalValue()));
+    } else if (const auto *NC = dyn_cast<NoCFIValue>(C)) {
+      Code = bitc::CST_CODE_NO_CFI_VALUE;
+      Record.push_back(VE.getTypeID(NC->getGlobalValue()->getType()));
+      Record.push_back(VE.getValueID(NC->getGlobalValue()));
     } else {
 #ifndef NDEBUG
       C->dump();
@@ -2948,7 +2985,7 @@ void ModuleBitcodeWriter::writeInstruction(const Instruction &I,
                                          : bitc::FUNC_CODE_INST_CLEANUPPAD;
     pushValue(FuncletPad.getParentPad(), InstID, Vals);
 
-    unsigned NumArgOperands = FuncletPad.getNumArgOperands();
+    unsigned NumArgOperands = FuncletPad.arg_size();
     Vals.push_back(NumArgOperands);
     for (unsigned Op = 0; Op != NumArgOperands; ++Op)
       pushValueAndType(FuncletPad.getArgOperand(Op), InstID, Vals);
@@ -3064,6 +3101,10 @@ void ModuleBitcodeWriter::writeInstruction(const Instruction &I,
     Bitfield::set<APV::ExplicitType>(Record, true);
     Bitfield::set<APV::SwiftError>(Record, AI.isSwiftError());
     Vals.push_back(Record);
+
+    unsigned AS = AI.getAddressSpace();
+    if (AS != M.getDataLayout().getAllocaAddrSpace())
+      Vals.push_back(AS);
     break;
   }
 
@@ -3343,20 +3384,21 @@ void ModuleBitcodeWriter::writeFunction(
   bool NeedsMetadataAttachment = F.hasMetadata();
 
   DILocation *LastDL = nullptr;
-  // Finally, emit all the instructions, in order.
-  for (Function::const_iterator BB = F.begin(), E = F.end(); BB != E; ++BB)
-    for (BasicBlock::const_iterator I = BB->begin(), E = BB->end();
-         I != E; ++I) {
-      writeInstruction(*I, InstID, Vals);
+  SmallSetVector<Function *, 4> BlockAddressUsers;
 
-      if (!I->getType()->isVoidTy())
+  // Finally, emit all the instructions, in order.
+  for (const BasicBlock &BB : F) {
+    for (const Instruction &I : BB) {
+      writeInstruction(I, InstID, Vals);
+
+      if (!I.getType()->isVoidTy())
         ++InstID;
 
       // If the instruction has metadata, write a metadata attachment later.
-      NeedsMetadataAttachment |= I->hasMetadataOtherThanDebugLoc();
+      NeedsMetadataAttachment |= I.hasMetadataOtherThanDebugLoc();
 
       // If the instruction has a debug location, emit it.
-      DILocation *DL = I->getDebugLoc();
+      DILocation *DL = I.getDebugLoc();
       if (!DL)
         continue;
 
@@ -3376,6 +3418,32 @@ void ModuleBitcodeWriter::writeFunction(
 
       LastDL = DL;
     }
+
+    if (BlockAddress *BA = BlockAddress::lookup(&BB)) {
+      SmallVector<Value *> Worklist{BA};
+      SmallPtrSet<Value *, 8> Visited{BA};
+      while (!Worklist.empty()) {
+        Value *V = Worklist.pop_back_val();
+        for (User *U : V->users()) {
+          if (auto *I = dyn_cast<Instruction>(U)) {
+            Function *P = I->getFunction();
+            if (P != &F)
+              BlockAddressUsers.insert(P);
+          } else if (isa<Constant>(U) && !isa<GlobalValue>(U) &&
+                     Visited.insert(U).second)
+            Worklist.push_back(U);
+        }
+      }
+    }
+  }
+
+  if (!BlockAddressUsers.empty()) {
+    Vals.resize(BlockAddressUsers.size());
+    for (auto I : llvm::enumerate(BlockAddressUsers))
+      Vals[I.index()] = VE.getValueID(I.value());
+    Stream.EmitRecord(bitc::FUNC_CODE_BLOCKADDR_USERS, Vals);
+    Vals.clear();
+  }
 
   // Emit names for all the instructions etc.
   if (auto *Symtab = F.getValueSymbolTable())
@@ -4040,8 +4108,9 @@ void ModuleBitcodeWriterBase::writePerModuleGlobalValueSummary() {
 
   for (const GlobalAlias &A : M.aliases()) {
     auto *Aliasee = A.getAliaseeObject();
-    if (!Aliasee->hasName())
-      // Nameless function don't have an entry in the summary, skip it.
+    // Skip ifunc and nameless functions which don't have an entry in the
+    // summary.
+    if (!Aliasee->hasName() || isa<GlobalIFunc>(Aliasee))
       continue;
     auto AliasId = VE.getValueID(&A);
     auto AliaseeId = VE.getValueID(Aliasee);
@@ -4372,7 +4441,7 @@ void ModuleBitcodeWriter::writeModuleHash(size_t BlockStartPos) {
     uint32_t Vals[5];
     Hasher.update(ArrayRef<uint8_t>((const uint8_t *)&(Buffer)[BlockStartPos],
                                     Buffer.size() - BlockStartPos));
-    StringRef Hash = Hasher.result();
+    std::array<uint8_t, 20> Hash = Hasher.result();
     for (int Pos = 0; Pos < 20; Pos += 4) {
       Vals[Pos / 4] = support::endian::read32be(Hash.data() + Pos);
     }
@@ -4430,9 +4499,9 @@ void ModuleBitcodeWriter::write() {
 
   // Emit function bodies.
   DenseMap<const Function *, uint64_t> FunctionToBitcodeIndex;
-  for (Module::const_iterator F = M.begin(), E = M.end(); F != E; ++F)
-    if (!F->isDeclaration())
-      writeFunction(*F, FunctionToBitcodeIndex);
+  for (const Function &F : M)
+    if (!F.isDeclaration())
+      writeFunction(F, FunctionToBitcodeIndex);
 
   // Need to write after the above call to WriteFunction which populates
   // the summary information in the index.
@@ -4666,7 +4735,7 @@ void IndexBitcodeWriter::write() {
 // where it will be written in a new bitcode block. This is used when
 // writing the combined index file for ThinLTO. When writing a subset of the
 // index for a distributed backend, provide a \p ModuleToSummariesForIndex map.
-void llvm::WriteIndexToFile(
+void llvm::writeIndexToFile(
     const ModuleSummaryIndex &Index, raw_ostream &Out,
     const std::map<std::string, GVSummaryMapTy> *ModuleToSummariesForIndex) {
   SmallVector<char, 0> Buffer;
@@ -4826,7 +4895,7 @@ void BitcodeWriter::writeThinLinkBitcode(const Module &M,
 // Write the specified thin link bitcode file to the given raw output stream,
 // where it will be written in a new bitcode block. This is used when
 // writing the per-module index file for ThinLTO.
-void llvm::WriteThinLinkBitcodeToFile(const Module &M, raw_ostream &Out,
+void llvm::writeThinLinkBitcodeToFile(const Module &M, raw_ostream &Out,
                                       const ModuleSummaryIndex &Index,
                                       const ModuleHash &ModHash) {
   SmallVector<char, 0> Buffer;
@@ -4852,8 +4921,14 @@ static const char *getSectionNameForBitcode(const Triple &T) {
   case Triple::GOFF:
     llvm_unreachable("GOFF is not yet implemented");
     break;
+  case Triple::SPIRV:
+    llvm_unreachable("SPIRV is not yet implemented");
+    break;
   case Triple::XCOFF:
     llvm_unreachable("XCOFF is not yet implemented");
+    break;
+  case Triple::DXContainer:
+    llvm_unreachable("DXContainer is not yet implemented");
     break;
   }
   llvm_unreachable("Unimplemented ObjectFormatType");
@@ -4871,14 +4946,20 @@ static const char *getSectionNameForCommandline(const Triple &T) {
   case Triple::GOFF:
     llvm_unreachable("GOFF is not yet implemented");
     break;
+  case Triple::SPIRV:
+    llvm_unreachable("SPIRV is not yet implemented");
+    break;
   case Triple::XCOFF:
     llvm_unreachable("XCOFF is not yet implemented");
+    break;
+  case Triple::DXContainer:
+    llvm_unreachable("DXC is not yet implemented");
     break;
   }
   llvm_unreachable("Unimplemented ObjectFormatType");
 }
 
-void llvm::EmbedBitcodeInModule(llvm::Module &M, llvm::MemoryBufferRef Buf,
+void llvm::embedBitcodeInModule(llvm::Module &M, llvm::MemoryBufferRef Buf,
                                 bool EmbedBitcode, bool EmbedCmdline,
                                 const std::vector<uint8_t> &CmdArgs) {
   // Save llvm.compiler.used and remove it.
@@ -4928,7 +5009,7 @@ void llvm::EmbedBitcodeInModule(llvm::Module &M, llvm::MemoryBufferRef Buf,
       ConstantExpr::getPointerBitCastOrAddrSpaceCast(GV, UsedElementType));
   if (llvm::GlobalVariable *Old =
           M.getGlobalVariable("llvm.embedded.module", true)) {
-    assert(Old->hasOneUse() &&
+    assert(Old->hasZeroLiveUses() &&
            "llvm.embedded.module can only be used once in llvm.compiler.used");
     GV->takeName(Old);
     Old->eraseFromParent();
@@ -4951,7 +5032,7 @@ void llvm::EmbedBitcodeInModule(llvm::Module &M, llvm::MemoryBufferRef Buf,
     UsedArray.push_back(
         ConstantExpr::getPointerBitCastOrAddrSpaceCast(GV, UsedElementType));
     if (llvm::GlobalVariable *Old = M.getGlobalVariable("llvm.cmdline", true)) {
-      assert(Old->hasOneUse() &&
+      assert(Old->hasZeroLiveUses() &&
              "llvm.cmdline can only be used once in llvm.compiler.used");
       GV->takeName(Old);
       Old->eraseFromParent();

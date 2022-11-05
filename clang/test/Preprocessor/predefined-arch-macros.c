@@ -3216,6 +3216,7 @@
 // CHECK_ZNVER2_M32: #define __POPCNT__ 1
 // CHECK_ZNVER2_M32: #define __PRFCHW__ 1
 // CHECK_ZNVER2_M32: #define __RDPID__ 1
+// CHECK_ZNVER2_M32: #define __RDPRU__ 1
 // CHECK_ZNVER2_M32: #define __RDRND__ 1
 // CHECK_ZNVER2_M32: #define __RDSEED__ 1
 // CHECK_ZNVER2_M32: #define __SHA__ 1
@@ -3266,6 +3267,7 @@
 // CHECK_ZNVER2_M64: #define __POPCNT__ 1
 // CHECK_ZNVER2_M64: #define __PRFCHW__ 1
 // CHECK_ZNVER2_M64: #define __RDPID__ 1
+// CHECK_ZNVER2_M64: #define __RDPRU__ 1
 // CHECK_ZNVER2_M64: #define __RDRND__ 1
 // CHECK_ZNVER2_M64: #define __RDSEED__ 1
 // CHECK_ZNVER2_M64: #define __SHA__ 1
@@ -3318,6 +3320,7 @@
 // CHECK_ZNVER3_M32: #define __POPCNT__ 1
 // CHECK_ZNVER3_M32: #define __PRFCHW__ 1
 // CHECK_ZNVER3_M32: #define __RDPID__ 1
+// CHECK_ZNVER3_M32: #define __RDPRU__ 1
 // CHECK_ZNVER3_M32: #define __RDRND__ 1
 // CHECK_ZNVER3_M32: #define __RDSEED__ 1
 // CHECK_ZNVER3_M32: #define __SHA__ 1
@@ -3368,6 +3371,7 @@
 // CHECK_ZNVER3_M64: #define __POPCNT__ 1
 // CHECK_ZNVER3_M64: #define __PRFCHW__ 1
 // CHECK_ZNVER3_M64: #define __RDPID__ 1
+// CHECK_ZNVER3_M64: #define __RDPRU__ 1
 // CHECK_ZNVER3_M64: #define __RDRND__ 1
 // CHECK_ZNVER3_M64: #define __RDSEED__ 1
 // CHECK_ZNVER3_M64: #define __SHA__ 1
@@ -3479,8 +3483,8 @@
 // CHECK_SPARC-V9-NOT: #define __sparcv8 1
 // CHECK_SPARC-V9-NOT: #define __sparcv8__ 1
 // CHECK_SPARC-V9: #define __sparc_v9__ 1
-// CHECK_SPARC-V9: #define __sparcv9 1
-// CHECK_SPARC-V9: #define __sparcv9__ 1
+// CHECK_SPARC-V9-NOT: #define __sparcv9 1
+// CHECK_SPARC-V9-NOT: #define __sparcv9__ 1
 
 // RUN: %clang -E -dM %s -o - 2>&1 \
 // RUN:     -target sparc-sun-solaris \
@@ -3688,6 +3692,9 @@
 // CHECK_SYSTEMZ_ARCH13: #define __zarch__ 1
 
 // RUN: %clang -march=arch14 -E -dM %s -o - 2>&1 \
+// RUN:     -target s390x-unknown-linux \
+// RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_SYSTEMZ_ARCH14
+// RUN: %clang -march=z16 -E -dM %s -o - 2>&1 \
 // RUN:     -target s390x-unknown-linux \
 // RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_SYSTEMZ_ARCH14
 // CHECK_SYSTEMZ_ARCH14: #define __ARCH__ 14

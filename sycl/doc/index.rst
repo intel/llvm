@@ -1,8 +1,8 @@
-Data Parallel C++ Documentation
+DPC++ Documentation
 ===============================
 
 Using oneAPI DPC++ for Application Development
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+----------------------------------------------
 
 .. toctree::
    :maxdepth: 1
@@ -16,9 +16,10 @@ Using oneAPI DPC++ for Application Development
    FAQ
    User API Reference <https://intel.github.io/llvm-docs/doxygen/group__sycl__api.html>
    EnvironmentVariables
+   MultiTileCardWithLevelZero
 
-Developing oneAPI DPC++ Compiler
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Design Documents for the oneAPI DPC++ Compiler
+----------------------------------------------
 
 .. toctree::
    :maxdepth: 1
@@ -26,18 +27,32 @@ Developing oneAPI DPC++ Compiler
    API Reference <https://intel.github.io/llvm-docs/doxygen>
    Clang Documentation <https://intel.github.io/llvm-docs/clang>
    Clang API Reference <https://intel.github.io/llvm-docs/clang_doxygen>
-   CompilerAndRuntimeDesign
-   KernelParameterPassing
-   PluginInterface
-   ABIPolicyGuide
-   SpecializationConstants
-   KernelProgramCache
-   GlobalObjectsInRuntime
-   LinkedAllocations
-   Assert
-   SharedLibraries
-   MultiTileCardWithLevelZero
-   OptionalDeviceFeatures
-   SYCLInstrumentationUsingXPTI
-   ITTAnnotations
+   design/CompilerAndRuntimeDesign
+   design/KernelParameterPassing
+   design/PluginInterface
+   design/SpecializationConstants
+   design/SYCL2020-SpecializationConstants
+   design/KernelProgramCache
+   design/GlobalObjectsInRuntime
+   design/LinkedAllocations
+   design/Assert
+   design/SharedLibraries
+   design/OptionalDeviceFeatures
+   design/SYCLInstrumentationUsingXPTI
+   design/ITTAnnotations
+   design/DeviceGlobal
+   design/CompileTimeProperties
+   design/ESIMDStatelesAccessors
+   design/DeviceIf
+   New OpenCL Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/design/opencl-extensions>
+   New SPIR-V Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/design/spirv-extensions>
 
+Developer Documentation
+~~~~~~~~~~~~~~~~~~~~~~~
+
+.. toctree::
+   :maxdepth: 1
+
+   developer/DockerBKMs
+   developer/ABIPolicyGuide
+   developer/ContributeToDPCPP

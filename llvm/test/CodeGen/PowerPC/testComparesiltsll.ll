@@ -65,11 +65,10 @@ define dso_local void @test_iltsll_store(i64 %a, i64 %b) {
 ; CHECK-NEXT:    xori r3, r3, 1
 ; CHECK-NEXT:    std r3, glob@toc@l(r5)
 ; CHECK-NEXT:    blr
-; CHECK-DIAG:    subfc [[REG3:r[0-9]+]], r4, r3
 entry:
   %cmp = icmp slt i64 %a, %b
   %conv1 = zext i1 %cmp to i64
-  store i64 %conv1, i64* @glob, align 8
+  store i64 %conv1, ptr @glob, align 8
   ret void
 }
 
@@ -86,11 +85,10 @@ define dso_local void @test_iltsll_sext_store(i64 %a, i64 %b) {
 ; CHECK-NEXT:    neg r3, r3
 ; CHECK-NEXT:    std r3, glob@toc@l(r5)
 ; CHECK-NEXT:    blr
-; CHECK-DIAG:    subfc [[REG3:r[0-9]+]], r4, r3
 entry:
   %cmp = icmp slt i64 %a, %b
   %conv1 = sext i1 %cmp to i64
-  store i64 %conv1, i64* @glob, align 8
+  store i64 %conv1, ptr @glob, align 8
   ret void
 }
 
@@ -105,6 +103,6 @@ define dso_local void @test_iltsll_sext_z_store(i64 %a) {
 entry:
   %cmp = icmp slt i64 %a, 0
   %conv2 = sext i1 %cmp to i64
-  store i64 %conv2, i64* @glob, align 8
+  store i64 %conv2, ptr @glob, align 8
   ret void
 }

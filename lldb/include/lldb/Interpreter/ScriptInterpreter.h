@@ -13,10 +13,10 @@
 #include "lldb/API/SBError.h"
 #include "lldb/API/SBMemoryRegionInfo.h"
 #include "lldb/Breakpoint/BreakpointOptions.h"
-#include "lldb/Core/Communication.h"
 #include "lldb/Core/PluginInterface.h"
 #include "lldb/Core/SearchFilter.h"
 #include "lldb/Core/StreamFile.h"
+#include "lldb/Core/ThreadedCommunication.h"
 #include "lldb/Host/PseudoTerminal.h"
 #include "lldb/Interpreter/ScriptedProcessInterface.h"
 #include "lldb/Utility/Broadcaster.h"
@@ -119,7 +119,7 @@ private:
   lldb::FileSP m_input_file_sp;
   lldb::StreamFileSP m_output_file_sp;
   lldb::StreamFileSP m_error_file_sp;
-  Communication m_communication;
+  ThreadedCommunication m_communication;
   bool m_disconnect;
 };
 
@@ -147,6 +147,8 @@ public:
       Debugger &debugger, lldb::ScriptLanguage script_lang,
       lldb::ScriptedProcessInterfaceUP scripted_process_interface_up =
           std::make_unique<ScriptedProcessInterface>());
+
+  virtual StructuredData::DictionarySP GetInterpreterInfo();
 
   ~ScriptInterpreter() override = default;
 
@@ -272,7 +274,7 @@ public:
 
   virtual StructuredData::ObjectSP
   CreateScriptedThreadPlan(const char *class_name,
-                           StructuredDataImpl *args_data,
+                           const StructuredDataImpl &args_data,
                            std::string &error_str,
                            lldb::ThreadPlanSP thread_plan_sp) {
     return StructuredData::ObjectSP();
@@ -308,7 +310,7 @@ public:
 
   virtual StructuredData::GenericSP
   CreateScriptedBreakpointResolver(const char *class_name,
-                                   StructuredDataImpl *args_data,
+                                   const StructuredDataImpl &args_data,
                                    lldb::BreakpointSP &bkpt_sp) {
     return StructuredData::GenericSP();
   }
@@ -328,7 +330,7 @@ public:
 
   virtual StructuredData::GenericSP
   CreateScriptedStopHook(lldb::TargetSP target_sp, const char *class_name,
-                         StructuredDataImpl *args_data, Status &error) {
+                         const StructuredDataImpl &args_data, Status &error) {
     error.SetErrorString("Creating scripted stop-hooks with the current "
                          "script interpreter is not supported.");
     return StructuredData::GenericSP();
@@ -414,6 +416,14 @@ public:
                                   const TypeSummaryOptions &options,
                                   std::string &retval) {
     return false;
+  }
+
+  // Calls the specified formatter matching Python function and returns its
+  // result (true if it's a match, false if we should keep looking for a
+  // matching formatter).
+  virtual bool FormatterCallbackFunction(const char *function_name,
+                                         lldb::TypeImplSP type_impl_sp) {
+    return true;
   }
 
   virtual void Clear() {

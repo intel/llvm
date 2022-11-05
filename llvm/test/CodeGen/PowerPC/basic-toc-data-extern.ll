@@ -3,12 +3,17 @@
 ; RUN:                 -verify-machineinstrs < %s 2>&1 | \
 ; RUN:   FileCheck %s --check-prefix=OBJ
 
+; RUN: llc -mtriple powerpc64-ibm-aix-xcoff -verify-machineinstrs < %s | FileCheck %s
+; RUN: not --crash llc -filetype=obj -mtriple powerpc64-ibm-aix-xcoff  \
+; RUN:                 -verify-machineinstrs < %s 2>&1 | \
+; RUN:   FileCheck %s --check-prefix=OBJ
+
 @i = external global i32, align 4  #0
 
 ; Function Attrs: noinline nounwind optnone
-define i32* @get() {
+define ptr @get() {
   entry:
-    ret i32* @i
+    ret ptr @i
 }
 
 ; CHECK:        la 3, i[TD](2)

@@ -29,22 +29,6 @@ static void extractAliasesFromModule(Oracle &O, Module &Program) {
   }
 }
 
-/// Counts the amount of aliases and prints their respective name & index.
-static int countAliases(Module &Program) {
-  // TODO: Silence index with --quiet flag
-  errs() << "----------------------------\n";
-  errs() << "Aliases Index Reference:\n";
-  int Count = 0;
-  for (auto &GA : Program.aliases())
-    errs() << "\t" << ++Count << ": " << GA.getName() << "\n";
-
-  errs() << "----------------------------\n";
-  return Count;
-}
-
 void llvm::reduceAliasesDeltaPass(TestRunner &Test) {
-  errs() << "*** Reducing Aliases ...\n";
-  int Functions = countAliases(Test.getProgram());
-  runDeltaPass(Test, Functions, extractAliasesFromModule);
-  errs() << "----------------------------\n";
+  runDeltaPass(Test, extractAliasesFromModule, "Reducing Aliases");
 }

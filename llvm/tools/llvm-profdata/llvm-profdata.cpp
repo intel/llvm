@@ -13,10 +13,15 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/DebugInfo/DWARF/DWARFContext.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/Object/Binary.h"
+#include "llvm/ProfileData/InstrProfCorrelator.h"
 #include "llvm/ProfileData/InstrProfReader.h"
 #include "llvm/ProfileData/InstrProfWriter.h"
+#include "llvm/ProfileData/MemProf.h"
 #include "llvm/ProfileData/ProfileCommon.h"
+#include "llvm/ProfileData/RawMemProfReader.h"
 #include "llvm/ProfileData/SampleProfReader.h"
 #include "llvm/ProfileData/SampleProfWriter.h"
 #include "llvm/Support/CommandLine.h"
@@ -26,6 +31,7 @@
 #include "llvm/Support/Format.h"
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/InitLLVM.h"
+#include "llvm/Support/MD5.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/ThreadPool.h"
@@ -33,8 +39,14 @@
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
+#include <cmath>
+#include <queue>
 
 using namespace llvm;
+
+// We use this string to indicate that there are
+// multiple static functions map to the same name.
+const std::string DuplicateNameStr = "----";
 
 enum ProfileFormat {
   PF_None = 0,
@@ -44,6 +56,8 @@ enum ProfileFormat {
   PF_GCC,
   PF_Binary
 };
+
+enum class ShowFormat { Text, Json, Yaml };
 
 static void warn(Twine Message, std::string Whence = "",
                  std::string Hint = "") {
@@ -80,11 +94,12 @@ static void exitWithError(Error E, StringRef Whence = "") {
       instrprof_error instrError = IPE.get();
       StringRef Hint = "";
       if (instrError == instrprof_error::unrecognized_format) {
-        // Hint for common error of forgetting --sample for sample profiles.
-        Hint = "Perhaps you forgot to use the --sample option?";
+        // Hint in case user missed specifying the profile type.
+        Hint = "Perhaps you forgot to use the --sample or --memory option?";
       }
       exitWithError(IPE.message(), std::string(Whence), std::string(Hint));
     });
+    return;
   }
 
   exitWithError(toString(std::move(E)), std::string(Whence));
@@ -95,7 +110,7 @@ static void exitWithErrorCode(std::error_code EC, StringRef Whence = "") {
 }
 
 namespace {
-enum ProfileKinds { instr, sample };
+enum ProfileKinds { instr, sample, memory };
 enum FailureMode { failIfAnyAreInvalid, failIfAllAreInvalid };
 }
 
@@ -200,8 +215,8 @@ struct WriterContext {
 
   WriterContext(bool IsSparse, std::mutex &ErrLock,
                 SmallSet<instrprof_error, 4> &WriterErrorCodes)
-      : Lock(), Writer(IsSparse), Errors(), ErrLock(ErrLock),
-        WriterErrorCodes(WriterErrorCodes) {}
+      : Writer(IsSparse), ErrLock(ErrLock), WriterErrorCodes(WriterErrorCodes) {
+  }
 };
 
 /// Computer the overlap b/w profile BaseFilename and TestFileName,
@@ -232,7 +247,8 @@ static void overlapInput(const std::string &BaseFilename,
 
 /// Load an input into a writer context.
 static void loadInput(const WeightedFile &Input, SymbolRemapper *Remapper,
-                      WriterContext *WC) {
+                      const InstrProfCorrelator *Correlator,
+                      const StringRef ProfiledBinary, WriterContext *WC) {
   std::unique_lock<std::mutex> CtxGuard{WC->Lock};
 
   // Copy the filename, because llvm::ThreadPool copied the input "const
@@ -240,7 +256,49 @@ static void loadInput(const WeightedFile &Input, SymbolRemapper *Remapper,
   // invalid outside of this packaged task.
   std::string Filename = Input.Filename;
 
-  auto ReaderOrErr = InstrProfReader::create(Input.Filename);
+  using ::llvm::memprof::RawMemProfReader;
+  if (RawMemProfReader::hasFormat(Input.Filename)) {
+    auto ReaderOrErr = RawMemProfReader::create(Input.Filename, ProfiledBinary);
+    if (!ReaderOrErr) {
+      exitWithError(ReaderOrErr.takeError(), Input.Filename);
+    }
+    std::unique_ptr<RawMemProfReader> Reader = std::move(ReaderOrErr.get());
+    // Check if the profile types can be merged, e.g. clang frontend profiles
+    // should not be merged with memprof profiles.
+    if (Error E = WC->Writer.mergeProfileKind(Reader->getProfileKind())) {
+      consumeError(std::move(E));
+      WC->Errors.emplace_back(
+          make_error<StringError>(
+              "Cannot merge MemProf profile with Clang generated profile.",
+              std::error_code()),
+          Filename);
+      return;
+    }
+
+    auto MemProfError = [&](Error E) {
+      instrprof_error IPE = InstrProfError::take(std::move(E));
+      WC->Errors.emplace_back(make_error<InstrProfError>(IPE), Filename);
+    };
+
+    // Add the frame mappings into the writer context.
+    const auto &IdToFrame = Reader->getFrameMapping();
+    for (const auto &I : IdToFrame) {
+      bool Succeeded = WC->Writer.addMemProfFrame(
+          /*Id=*/I.first, /*Frame=*/I.getSecond(), MemProfError);
+      // If we weren't able to add the frame mappings then it doesn't make sense
+      // to try to add the records from this profile.
+      if (!Succeeded)
+        return;
+    }
+    const auto &FunctionProfileData = Reader->getProfileData();
+    // Add the memprof records into the writer context.
+    for (const auto &I : FunctionProfileData) {
+      WC->Writer.addMemProfRecord(/*Id=*/I.first, /*Record=*/I.second);
+    }
+    return;
+  }
+
+  auto ReaderOrErr = InstrProfReader::create(Input.Filename, Correlator);
   if (Error E = ReaderOrErr.takeError()) {
     // Skip the empty profiles by returning sliently.
     instrprof_error IPE = InstrProfError::take(std::move(E));
@@ -250,9 +308,7 @@ static void loadInput(const WeightedFile &Input, SymbolRemapper *Remapper,
   }
 
   auto Reader = std::move(ReaderOrErr.get());
-  bool IsIRProfile = Reader->isIRLevelProfile();
-  bool HasCSIRProfile = Reader->hasCSIRLevelProfile();
-  if (Error E = WC->Writer.setIsIRLevelProfile(IsIRProfile, HasCSIRProfile)) {
+  if (Error E = WC->Writer.mergeProfileKind(Reader->getProfileKind())) {
     consumeError(std::move(E));
     WC->Errors.emplace_back(
         make_error<StringError>(
@@ -261,7 +317,6 @@ static void loadInput(const WeightedFile &Input, SymbolRemapper *Remapper,
         Filename);
     return;
   }
-  WC->Writer.setInstrEntryBBEnabled(Reader->instrEntryBBEnabled());
 
   for (auto &I : *Reader) {
     if (Remapper)
@@ -324,13 +379,24 @@ static void writeInstrProfile(StringRef OutputFilename,
 }
 
 static void mergeInstrProfile(const WeightedFileVector &Inputs,
+                              StringRef DebugInfoFilename,
                               SymbolRemapper *Remapper,
                               StringRef OutputFilename,
                               ProfileFormat OutputFormat, bool OutputSparse,
-                              unsigned NumThreads, FailureMode FailMode) {
+                              unsigned NumThreads, FailureMode FailMode,
+                              const StringRef ProfiledBinary) {
   if (OutputFormat != PF_Binary && OutputFormat != PF_Compact_Binary &&
       OutputFormat != PF_Ext_Binary && OutputFormat != PF_Text)
     exitWithError("unknown format is specified");
+
+  std::unique_ptr<InstrProfCorrelator> Correlator;
+  if (!DebugInfoFilename.empty()) {
+    if (auto Err =
+            InstrProfCorrelator::get(DebugInfoFilename).moveInto(Correlator))
+      exitWithError(std::move(Err), DebugInfoFilename);
+    if (auto Err = Correlator->correlateProfileData())
+      exitWithError(std::move(Err), DebugInfoFilename);
+  }
 
   std::mutex ErrorLock;
   SmallSet<instrprof_error, 4> WriterErrorCodes;
@@ -351,14 +417,16 @@ static void mergeInstrProfile(const WeightedFileVector &Inputs,
 
   if (NumThreads == 1) {
     for (const auto &Input : Inputs)
-      loadInput(Input, Remapper, Contexts[0].get());
+      loadInput(Input, Remapper, Correlator.get(), ProfiledBinary,
+                Contexts[0].get());
   } else {
     ThreadPool Pool(hardware_concurrency(NumThreads));
 
     // Load the inputs in parallel (N/NumThreads serial steps).
     unsigned Ctx = 0;
     for (const auto &Input : Inputs) {
-      Pool.async(loadInput, Input, Remapper, Contexts[Ctx].get());
+      Pool.async(loadInput, Input, Remapper, Correlator.get(), ProfiledBinary,
+                 Contexts[Ctx].get());
       Ctx = (Ctx + 1) % NumThreads;
     }
     Pool.wait();
@@ -401,6 +469,7 @@ static void mergeInstrProfile(const WeightedFileVector &Inputs,
 /// The profile entry for a function in instrumentation profile.
 struct InstrProfileEntry {
   uint64_t MaxCount = 0;
+  uint64_t NumEdgeCounters = 0;
   float ZeroCounterRatio = 0.0;
   InstrProfRecord *ProfRecord;
   InstrProfileEntry(InstrProfRecord *Record);
@@ -416,33 +485,49 @@ InstrProfileEntry::InstrProfileEntry(InstrProfRecord *Record) {
     ZeroCntNum += !Record->Counts[I];
   }
   ZeroCounterRatio = (float)ZeroCntNum / CntNum;
+  NumEdgeCounters = CntNum;
 }
 
-/// Either set all the counters in the instr profile entry \p IFE to -1
-/// in order to drop the profile or scale up the counters in \p IFP to
-/// be above hot threshold. We use the ratio of zero counters in the
-/// profile of a function to decide the profile is helpful or harmful
-/// for performance, and to choose whether to scale up or drop it.
-static void updateInstrProfileEntry(InstrProfileEntry &IFE,
+/// Either set all the counters in the instr profile entry \p IFE to
+/// -1 / -2 /in order to drop the profile or scale up the
+/// counters in \p IFP to be above hot / cold threshold. We use
+/// the ratio of zero counters in the profile of a function to
+/// decide the profile is helpful or harmful for performance,
+/// and to choose whether to scale up or drop it.
+static void updateInstrProfileEntry(InstrProfileEntry &IFE, bool SetToHot,
                                     uint64_t HotInstrThreshold,
+                                    uint64_t ColdInstrThreshold,
                                     float ZeroCounterThreshold) {
   InstrProfRecord *ProfRecord = IFE.ProfRecord;
   if (!IFE.MaxCount || IFE.ZeroCounterRatio > ZeroCounterThreshold) {
     // If all or most of the counters of the function are zero, the
-    // profile is unaccountable and shuld be dropped. Reset all the
-    // counters to be -1 and PGO profile-use will drop the profile.
+    // profile is unaccountable and should be dropped. Reset all the
+    // counters to be -1 / -2 and PGO profile-use will drop the profile.
     // All counters being -1 also implies that the function is hot so
     // PGO profile-use will also set the entry count metadata to be
     // above hot threshold.
-    for (size_t I = 0; I < ProfRecord->Counts.size(); ++I)
-      ProfRecord->Counts[I] = -1;
+    // All counters being -2 implies that the function is warm so
+    // PGO profile-use will also set the entry count metadata to be
+    // above cold threshold.
+    auto Kind =
+        (SetToHot ? InstrProfRecord::PseudoHot : InstrProfRecord::PseudoWarm);
+    ProfRecord->setPseudoCount(Kind);
     return;
   }
 
-  // Scale up the MaxCount to be multiple times above hot threshold.
+  // Scale up the MaxCount to be multiple times above hot / cold threshold.
   const unsigned MultiplyFactor = 3;
-  uint64_t Numerator = HotInstrThreshold * MultiplyFactor;
+  uint64_t Threshold = (SetToHot ? HotInstrThreshold : ColdInstrThreshold);
+  uint64_t Numerator = Threshold * MultiplyFactor;
+
+  // Make sure Threshold for warm counters is below the HotInstrThreshold.
+  if (!SetToHot && Threshold >= HotInstrThreshold) {
+    Threshold = (HotInstrThreshold + ColdInstrThreshold) / 2;
+  }
+
   uint64_t Denominator = IFE.MaxCount;
+  if (Numerator <= Denominator)
+    return;
   ProfRecord->scale(Numerator, Denominator, [&](instrprof_error E) {
     warn(toString(make_error<InstrProfError>(E)));
   });
@@ -479,7 +564,73 @@ adjustInstrProfile(std::unique_ptr<WriterContext> &WC,
                    unsigned InstrProfColdThreshold) {
   // Function to its entry in instr profile.
   StringMap<InstrProfileEntry> InstrProfileMap;
+  StringMap<StringRef> StaticFuncMap;
   InstrProfSummaryBuilder IPBuilder(ProfileSummaryBuilder::DefaultCutoffs);
+
+  auto checkSampleProfileHasFUnique = [&Reader]() {
+    for (const auto &PD : Reader->getProfiles()) {
+      auto &FContext = PD.first;
+      if (FContext.toString().find(FunctionSamples::UniqSuffix) !=
+          std::string::npos) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  bool SampleProfileHasFUnique = checkSampleProfileHasFUnique();
+
+  auto buildStaticFuncMap = [&StaticFuncMap,
+                             SampleProfileHasFUnique](const StringRef Name) {
+    std::string Prefixes[] = {".cpp:", "cc:", ".c:", ".hpp:", ".h:"};
+    size_t PrefixPos = StringRef::npos;
+    for (auto &Prefix : Prefixes) {
+      PrefixPos = Name.find_insensitive(Prefix);
+      if (PrefixPos == StringRef::npos)
+        continue;
+      PrefixPos += Prefix.size();
+      break;
+    }
+
+    if (PrefixPos == StringRef::npos) {
+      return;
+    }
+
+    StringRef NewName = Name.drop_front(PrefixPos);
+    StringRef FName = Name.substr(0, PrefixPos - 1);
+    if (NewName.size() == 0) {
+      return;
+    }
+
+    // This name should have a static linkage.
+    size_t PostfixPos = NewName.find(FunctionSamples::UniqSuffix);
+    bool ProfileHasFUnique = (PostfixPos != StringRef::npos);
+
+    // If sample profile and instrumented profile do not agree on symbol
+    // uniqification.
+    if (SampleProfileHasFUnique != ProfileHasFUnique) {
+      // If instrumented profile uses -funique-internal-linakge-symbols,
+      // we need to trim the name.
+      if (ProfileHasFUnique) {
+        NewName = NewName.substr(0, PostfixPos);
+      } else {
+        // If sample profile uses -funique-internal-linakge-symbols,
+        // we build the map.
+        std::string NStr =
+            NewName.str() + getUniqueInternalLinkagePostfix(FName);
+        NewName = StringRef(NStr);
+        StaticFuncMap[NewName] = Name;
+        return;
+      }
+    }
+
+    if (StaticFuncMap.find(NewName) == StaticFuncMap.end()) {
+      StaticFuncMap[NewName] = Name;
+    } else {
+      StaticFuncMap[NewName] = DuplicateNameStr;
+    }
+  };
+
   for (auto &PD : WC->Writer.getProfileData()) {
     // Populate IPBuilder.
     for (const auto &PDV : PD.getValue()) {
@@ -493,13 +644,20 @@ adjustInstrProfile(std::unique_ptr<WriterContext> &WC,
 
     // Initialize InstrProfileMap.
     InstrProfRecord *R = &PD.getValue().begin()->second;
-    InstrProfileMap[PD.getKey()] = InstrProfileEntry(R);
+    StringRef FullName = PD.getKey();
+    InstrProfileMap[FullName] = InstrProfileEntry(R);
+    buildStaticFuncMap(FullName);
   }
 
   ProfileSummary InstrPS = *IPBuilder.getSummary();
   ProfileSummary SamplePS = Reader->getSummary();
 
   // Compute cold thresholds for instr profile and sample profile.
+  uint64_t HotSampleThreshold =
+      ProfileSummaryBuilder::getEntryForPercentile(
+          SamplePS.getDetailedSummary(),
+          ProfileSummaryBuilder::DefaultCutoffs[HotPercentileIdx])
+          .MinCount;
   uint64_t ColdSampleThreshold =
       ProfileSummaryBuilder::getEntryForPercentile(
           SamplePS.getDetailedSummary(),
@@ -521,16 +679,30 @@ adjustInstrProfile(std::unique_ptr<WriterContext> &WC,
   // Find hot/warm functions in sample profile which is cold in instr profile
   // and adjust the profiles of those functions in the instr profile.
   for (const auto &PD : Reader->getProfiles()) {
-    auto &FContext = PD.first;
     const sampleprof::FunctionSamples &FS = PD.second;
+    uint64_t SampleMaxCount = FS.getMaxCountInside();
+    if (SampleMaxCount < ColdSampleThreshold)
+      continue;
+    auto &FContext = PD.first;
     auto It = InstrProfileMap.find(FContext.toString());
-    if (FS.getHeadSamples() > ColdSampleThreshold &&
-        It != InstrProfileMap.end() &&
-        It->second.MaxCount <= ColdInstrThreshold &&
-        FS.getBodySamples().size() >= SupplMinSizeThreshold) {
-      updateInstrProfileEntry(It->second, HotInstrThreshold,
-                              ZeroCounterThreshold);
+    if (It == InstrProfileMap.end()) {
+      auto NewName = StaticFuncMap.find(FContext.toString());
+      if (NewName != StaticFuncMap.end()) {
+        It = InstrProfileMap.find(NewName->second.str());
+        if (NewName->second == DuplicateNameStr) {
+          WithColor::warning()
+              << "Static function " << FContext.toString()
+              << " has multiple promoted names, cannot adjust profile.\n";
+        }
+      }
     }
+    if (It == InstrProfileMap.end() ||
+        It->second.MaxCount > ColdInstrThreshold ||
+        It->second.NumEdgeCounters < SupplMinSizeThreshold)
+      continue;
+    bool SetToHot = SampleMaxCount >= HotSampleThreshold;
+    updateInstrProfileEntry(It->second, SetToHot, HotInstrThreshold,
+                            ColdInstrThreshold, ZeroCounterThreshold);
   }
 }
 
@@ -574,7 +746,7 @@ static void supplementInstrProfile(
   SmallSet<instrprof_error, 4> WriterErrorCodes;
   auto WC = std::make_unique<WriterContext>(OutputSparse, ErrorLock,
                                             WriterErrorCodes);
-  loadInput(Inputs[0], nullptr, WC.get());
+  loadInput(Inputs[0], nullptr, nullptr, /*ProfiledBinary=*/"", WC.get());
   if (WC->Errors.size() > 0)
     exitWithError(std::move(WC->Errors[0].first), InstrFilename);
 
@@ -645,8 +817,8 @@ static void populateProfileSymbolList(MemoryBuffer *Buffer,
   StringRef Data = Buffer->getBuffer();
   Data.split(SymbolVec, '\n', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
 
-  for (StringRef symbol : SymbolVec)
-    PSL.add(symbol);
+  for (StringRef SymbolStr : SymbolVec)
+    PSL.add(SymbolStr.trim());
 }
 
 static void handleExtBinaryWriter(sampleprof::SampleProfileWriter &Writer,
@@ -686,7 +858,7 @@ static void
 mergeSampleProfile(const WeightedFileVector &Inputs, SymbolRemapper *Remapper,
                    StringRef OutputFilename, ProfileFormat OutputFormat,
                    StringRef ProfileSymbolListFile, bool CompressAllSections,
-                   bool UseMD5, bool GenPartialProfile,
+                   bool UseMD5, bool GenPartialProfile, bool GenCSNestedProfile,
                    bool SampleMergeColdContext, bool SampleTrimColdContext,
                    bool SampleColdContextFrameDepth, FailureMode FailMode) {
   using namespace sampleprof;
@@ -717,12 +889,12 @@ mergeSampleProfile(const WeightedFileVector &Inputs, SymbolRemapper *Remapper,
     }
 
     SampleProfileMap &Profiles = Reader->getProfiles();
-    if (ProfileIsProbeBased.hasValue() &&
+    if (ProfileIsProbeBased &&
         ProfileIsProbeBased != FunctionSamples::ProfileIsProbeBased)
       exitWithError(
           "cannot merge probe-based profile with non-probe-based profile");
     ProfileIsProbeBased = FunctionSamples::ProfileIsProbeBased;
-    if (ProfileIsCS.hasValue() && ProfileIsCS != FunctionSamples::ProfileIsCS)
+    if (ProfileIsCS && ProfileIsCS != FunctionSamples::ProfileIsCS)
       exitWithError("cannot merge CS profile with non-CS profile");
     ProfileIsCS = FunctionSamples::ProfileIsCS;
     for (SampleProfileMap::iterator I = Profiles.begin(), E = Profiles.end();
@@ -759,7 +931,13 @@ mergeSampleProfile(const WeightedFileVector &Inputs, SymbolRemapper *Remapper,
     SampleContextTrimmer(ProfileMap)
         .trimAndMergeColdContextProfiles(
             SampleProfColdThreshold, SampleTrimColdContext,
-            SampleMergeColdContext, SampleColdContextFrameDepth);
+            SampleMergeColdContext, SampleColdContextFrameDepth, false);
+  }
+
+  if (ProfileIsCS && GenCSNestedProfile) {
+    CSProfileConverter CSConverter(ProfileMap);
+    CSConverter.convertProfiles();
+    ProfileIsCS = FunctionSamples::ProfileIsCS = false;
   }
 
   auto WriterOrErr =
@@ -836,7 +1014,7 @@ static void parseInputFilenamesFile(MemoryBuffer *Buffer,
     if (SanitizedEntry.startswith("#"))
       continue;
     // If there's no comma, it's an unweighted profile.
-    else if (SanitizedEntry.find(',') == StringRef::npos)
+    else if (!SanitizedEntry.contains(','))
       addWeightedInput(WFV, {std::string(SanitizedEntry), 1});
     else
       addWeightedInput(WFV, parseWeightedFile(SanitizedEntry));
@@ -913,7 +1091,7 @@ static int merge_main(int argc, const char *argv[]) {
       cl::desc(
           "Trim context sample profiles whose count is below cold threshold"));
   cl::opt<uint32_t> SampleColdContextFrameDepth(
-      "sample-frame-depth-for-cold-context", cl::init(1), cl::ZeroOrMore,
+      "sample-frame-depth-for-cold-context", cl::init(1),
       cl::desc("Keep the last K frames while merging cold profile. 1 means the "
                "context-less base profile"));
   cl::opt<bool> GenPartialProfile(
@@ -929,7 +1107,7 @@ static int merge_main(int argc, const char *argv[]) {
       "zero-counter-threshold", cl::init(0.7), cl::Hidden,
       cl::desc("For the function which is cold in instr profile but hot in "
                "sample profile, if the ratio of the number of zero counters "
-               "divided by the the total number of counters is above the "
+               "divided by the total number of counters is above the "
                "threshold, the profile of the function will be regarded as "
                "being harmful for performance and will be dropped."));
   cl::opt<unsigned> SupplMinSizeThreshold(
@@ -940,7 +1118,16 @@ static int merge_main(int argc, const char *argv[]) {
   cl::opt<unsigned> InstrProfColdThreshold(
       "instr-prof-cold-threshold", cl::init(0), cl::Hidden,
       cl::desc("User specified cold threshold for instr profile which will "
-               "override the cold threshold got from profile summary."));
+               "override the cold threshold got from profile summary. "));
+  cl::opt<bool> GenCSNestedProfile(
+      "gen-cs-nested-profile", cl::Hidden, cl::init(false),
+      cl::desc("Generate nested function profiles for CSSPGO"));
+  cl::opt<std::string> DebugInfoFilename(
+      "debug-info", cl::init(""),
+      cl::desc("Use the provided debug info to correlate the raw profile."));
+  cl::opt<std::string> ProfiledBinary(
+      "profiled-binary", cl::init(""),
+      cl::desc("Path to binary from which the profile was collected."));
 
   cl::ParseCommandLineOptions(argc, argv, "LLVM profile data merger\n");
 
@@ -981,15 +1168,15 @@ static int merge_main(int argc, const char *argv[]) {
   }
 
   if (ProfileKind == instr)
-    mergeInstrProfile(WeightedInputs, Remapper.get(), OutputFilename,
-                      OutputFormat, OutputSparse, NumThreads, FailureMode);
+    mergeInstrProfile(WeightedInputs, DebugInfoFilename, Remapper.get(),
+                      OutputFilename, OutputFormat, OutputSparse, NumThreads,
+                      FailureMode, ProfiledBinary);
   else
     mergeSampleProfile(WeightedInputs, Remapper.get(), OutputFilename,
                        OutputFormat, ProfileSymbolListFile, CompressAllSections,
-                       UseMD5, GenPartialProfile, SampleMergeColdContext,
-                       SampleTrimColdContext, SampleColdContextFrameDepth,
-                       FailureMode);
-
+                       UseMD5, GenPartialProfile, GenCSNestedProfile,
+                       SampleMergeColdContext, SampleTrimColdContext,
+                       SampleColdContextFrameDepth, FailureMode);
   return 0;
 }
 
@@ -1014,7 +1201,7 @@ static void overlapInstrProfile(const std::string &BaseFilename,
     OS << "Sum of edge counts for profile " << TestFilename << " is 0.\n";
     exit(0);
   }
-  loadInput(WeightedInput, nullptr, &Context);
+  loadInput(WeightedInput, nullptr, nullptr, /*ProfiledBinary=*/"", &Context);
   overlapInput(BaseFilename, TestFilename, &Context, Overlap, FuncFilter, OS,
                IsCS);
   Overlap.dump(OS);
@@ -2066,11 +2253,17 @@ static int showInstrProfile(const std::string &Filename, bool ShowCounts,
                             bool ShowAllFunctions, bool ShowCS,
                             uint64_t ValueCutoff, bool OnlyListBelow,
                             const std::string &ShowFunction, bool TextFormat,
-                            bool ShowBinaryIds, raw_fd_ostream &OS) {
+                            bool ShowBinaryIds, bool ShowCovered,
+                            bool ShowProfileVersion, ShowFormat SFormat,
+                            raw_fd_ostream &OS) {
+  if (SFormat == ShowFormat::Json)
+    exitWithError("JSON output is not supported for instr profiles");
+  if (SFormat == ShowFormat::Yaml)
+    exitWithError("YAML output is not supported for instr profiles");
   auto ReaderOrErr = InstrProfReader::create(Filename);
   std::vector<uint32_t> Cutoffs = std::move(DetailedSummaryCutoffs);
   if (ShowDetailedSummary && Cutoffs.empty()) {
-    Cutoffs = {800000, 900000, 950000, 990000, 999000, 999900, 999990};
+    Cutoffs = ProfileSummaryBuilder::DefaultCutoffs;
   }
   InstrProfSummaryBuilder Builder(std::move(Cutoffs));
   if (Error E = ReaderOrErr.takeError())
@@ -2108,9 +2301,8 @@ static int showInstrProfile(const std::string &Filename, bool ShowCounts,
       if (FuncIsCS != ShowCS)
         continue;
     }
-    bool Show =
-        ShowAllFunctions || (!ShowFunction.empty() &&
-                             Func.Name.find(ShowFunction) != Func.Name.npos);
+    bool Show = ShowAllFunctions ||
+                (!ShowFunction.empty() && Func.Name.contains(ShowFunction));
 
     bool doTextFormatDump = (Show && TextFormat);
 
@@ -2124,11 +2316,35 @@ static int showInstrProfile(const std::string &Filename, bool ShowCounts,
     assert(Func.Counts.size() > 0 && "function missing entry counter");
     Builder.addRecord(Func);
 
+    if (ShowCovered) {
+      if (llvm::any_of(Func.Counts, [](uint64_t C) { return C; }))
+        OS << Func.Name << "\n";
+      continue;
+    }
+
     uint64_t FuncMax = 0;
     uint64_t FuncSum = 0;
+
+    auto PseudoKind = Func.getCountPseudoKind();
+    if (PseudoKind != InstrProfRecord::NotPseudo) {
+      if (Show) {
+        if (!ShownFunctions)
+          OS << "Counters:\n";
+        ++ShownFunctions;
+        OS << "  " << Func.Name << ":\n"
+           << "    Hash: " << format("0x%016" PRIx64, Func.Hash) << "\n"
+           << "    Counters: " << Func.Counts.size();
+        if (PseudoKind == InstrProfRecord::PseudoHot)
+          OS << "    <PseudoHot>\n";
+        else if (PseudoKind == InstrProfRecord::PseudoWarm)
+          OS << "    <PseudoWarm>\n";
+        else
+          llvm_unreachable("Unknown PseudoKind");
+      }
+      continue;
+    }
+
     for (size_t I = 0, E = Func.Counts.size(); I < E; ++I) {
-      if (Func.Counts[I] == (uint64_t)-1)
-        continue;
       FuncMax = std::max(FuncMax, Func.Counts[I]);
       FuncSum += Func.Counts[I];
     }
@@ -2200,7 +2416,7 @@ static int showInstrProfile(const std::string &Filename, bool ShowCounts,
   if (Reader->hasError())
     exitWithError(Reader->getError(), Filename);
 
-  if (TextFormat)
+  if (TextFormat || ShowCovered)
     return 0;
   std::unique_ptr<ProfileSummary> PS(Builder.getSummary());
   bool IsIR = Reader->isIRLevelProfile();
@@ -2253,6 +2469,8 @@ static int showInstrProfile(const std::string &Filename, bool ShowCounts,
     if (Error E = Reader->printBinaryIds(OS))
       exitWithError(std::move(E), Filename);
 
+  if (ShowProfileVersion)
+    OS << "Profile version: " << Reader->getVersion() << "\n";
   return 0;
 }
 
@@ -2275,8 +2493,7 @@ struct HotFuncInfo {
   uint64_t EntryCount;
 
   HotFuncInfo()
-      : FuncName(), TotalCount(0), TotalCountPercent(0.0f), MaxCount(0),
-        EntryCount(0) {}
+      : TotalCount(0), TotalCountPercent(0.0f), MaxCount(0), EntryCount(0) {}
 
   HotFuncInfo(StringRef FN, uint64_t TS, double TSP, uint64_t MS, uint64_t ES)
       : FuncName(FN.begin(), FN.end()), TotalCount(TS), TotalCountPercent(TSP),
@@ -2390,9 +2607,10 @@ static int showHotFunctionList(const sampleprof::SampleProfileMap &Profiles,
         (ProfileTotalSample > 0)
             ? (Func.getTotalSamples() * 100.0) / ProfileTotalSample
             : 0;
-    PrintValues.emplace_back(HotFuncInfo(
-        Func.getContext().toString(), Func.getTotalSamples(),
-        TotalSamplePercent, FuncPair.second.second, Func.getEntrySamples()));
+    PrintValues.emplace_back(
+        HotFuncInfo(Func.getContext().toString(), Func.getTotalSamples(),
+                    TotalSamplePercent, FuncPair.second.second,
+                    Func.getHeadSamplesEstimate()));
   }
   dumpHotFunctionList(ColumnTitle, ColumnOffset, PrintValues, HotFuncCount,
                       Profiles.size(), HotFuncSample, ProfileTotalSample,
@@ -2407,7 +2625,9 @@ static int showSampleProfile(const std::string &Filename, bool ShowCounts,
                              const std::string &ShowFunction,
                              bool ShowProfileSymbolList,
                              bool ShowSectionInfoOnly, bool ShowHotFuncList,
-                             raw_fd_ostream &OS) {
+                             ShowFormat SFormat, raw_fd_ostream &OS) {
+  if (SFormat == ShowFormat::Yaml)
+    exitWithError("YAML output is not supported for sample profiles");
   using namespace sampleprof;
   LLVMContext Context;
   auto ReaderOrErr =
@@ -2424,11 +2644,20 @@ static int showSampleProfile(const std::string &Filename, bool ShowCounts,
   if (std::error_code EC = Reader->read())
     exitWithErrorCode(EC, Filename);
 
-  if (ShowAllFunctions || ShowFunction.empty())
-    Reader->dump(OS);
-  else
+  if (ShowAllFunctions || ShowFunction.empty()) {
+    if (SFormat == ShowFormat::Json)
+      Reader->dumpJson(OS);
+    else
+      Reader->dump(OS);
+  } else {
+    if (SFormat == ShowFormat::Json)
+      exitWithError(
+          "the JSON format is supported only when all functions are to "
+          "be printed");
+
     // TODO: parse context string to support filtering by contexts.
     Reader->dumpFunctionProfile(StringRef(ShowFunction), OS);
+  }
 
   if (ShowProfileSymbolList) {
     std::unique_ptr<sampleprof::ProfileSymbolList> ReaderList =
@@ -2448,15 +2677,80 @@ static int showSampleProfile(const std::string &Filename, bool ShowCounts,
   return 0;
 }
 
+static int showMemProfProfile(const std::string &Filename,
+                              const std::string &ProfiledBinary,
+                              ShowFormat SFormat, raw_fd_ostream &OS) {
+  if (SFormat == ShowFormat::Json)
+    exitWithError("JSON output is not supported for MemProf");
+  auto ReaderOr = llvm::memprof::RawMemProfReader::create(
+      Filename, ProfiledBinary, /*KeepNames=*/true);
+  if (Error E = ReaderOr.takeError())
+    // Since the error can be related to the profile or the binary we do not
+    // pass whence. Instead additional context is provided where necessary in
+    // the error message.
+    exitWithError(std::move(E), /*Whence*/ "");
+
+  std::unique_ptr<llvm::memprof::RawMemProfReader> Reader(
+      ReaderOr.get().release());
+
+  Reader->printYAML(OS);
+  return 0;
+}
+
+static int showDebugInfoCorrelation(const std::string &Filename,
+                                    bool ShowDetailedSummary,
+                                    bool ShowProfileSymbolList,
+                                    ShowFormat SFormat, raw_fd_ostream &OS) {
+  if (SFormat == ShowFormat::Json)
+    exitWithError("JSON output is not supported for debug info correlation");
+  std::unique_ptr<InstrProfCorrelator> Correlator;
+  if (auto Err = InstrProfCorrelator::get(Filename).moveInto(Correlator))
+    exitWithError(std::move(Err), Filename);
+  if (SFormat == ShowFormat::Yaml) {
+    if (auto Err = Correlator->dumpYaml(OS))
+      exitWithError(std::move(Err), Filename);
+    return 0;
+  }
+
+  if (auto Err = Correlator->correlateProfileData())
+    exitWithError(std::move(Err), Filename);
+
+  InstrProfSymtab Symtab;
+  if (auto Err = Symtab.create(
+          StringRef(Correlator->getNamesPointer(), Correlator->getNamesSize())))
+    exitWithError(std::move(Err), Filename);
+
+  if (ShowProfileSymbolList)
+    Symtab.dumpNames(OS);
+  // TODO: Read "Profile Data Type" from debug info to compute and show how many
+  // counters the section holds.
+  if (ShowDetailedSummary)
+    OS << "Counters section size: 0x"
+       << Twine::utohexstr(Correlator->getCountersSectionSize()) << " bytes\n";
+  OS << "Found " << Correlator->getDataSize() << " functions\n";
+
+  return 0;
+}
+
 static int show_main(int argc, const char *argv[]) {
-  cl::opt<std::string> Filename(cl::Positional, cl::Required,
-                                cl::desc("<profdata-file>"));
+  cl::opt<std::string> Filename(cl::Positional, cl::desc("<profdata-file>"));
 
   cl::opt<bool> ShowCounts("counts", cl::init(false),
                            cl::desc("Show counter values for shown functions"));
+  cl::opt<ShowFormat> SFormat(
+      "show-format", cl::init(ShowFormat::Text),
+      cl::desc("Emit output in the selected format if supported"),
+      cl::values(clEnumValN(ShowFormat::Text, "text",
+                            "emit normal text output (default)"),
+                 clEnumValN(ShowFormat::Json, "json", "emit JSON"),
+                 clEnumValN(ShowFormat::Yaml, "yaml", "emit YAML")));
+  // TODO: Consider replacing this with `--show-format=text-encoding`.
   cl::opt<bool> TextFormat(
       "text", cl::init(false),
       cl::desc("Show instr profile data in text dump format"));
+  cl::opt<bool> JsonFormat(
+      "json", cl::desc("Show sample profile data in the JSON format "
+                       "(deprecated, please use --show-format=json)"));
   cl::opt<bool> ShowIndirectCallTargets(
       "ic-targets", cl::init(false),
       cl::desc("Show indirect call site target values for shown functions"));
@@ -2488,7 +2782,8 @@ static int show_main(int argc, const char *argv[]) {
   cl::opt<ProfileKinds> ProfileKind(
       cl::desc("Profile kind:"), cl::init(instr),
       cl::values(clEnumVal(instr, "Instrumentation profile (default)"),
-                 clEnumVal(sample, "Sample profile")));
+                 clEnumVal(sample, "Sample profile"),
+                 clEnumVal(memory, "MemProf memory access profile")));
   cl::opt<uint32_t> TopNFunctions(
       "topn", cl::init(0),
       cl::desc("Show the list of functions with the largest internal counts"));
@@ -2510,14 +2805,32 @@ static int show_main(int argc, const char *argv[]) {
                "extbinary format"));
   cl::opt<bool> ShowBinaryIds("binary-ids", cl::init(false),
                               cl::desc("Show binary ids in the profile. "));
-
+  cl::opt<std::string> DebugInfoFilename(
+      "debug-info", cl::init(""),
+      cl::desc("Read and extract profile metadata from debug info and show "
+               "the functions it found."));
+  cl::opt<bool> ShowCovered(
+      "covered", cl::init(false),
+      cl::desc("Show only the functions that have been executed."));
+  cl::opt<std::string> ProfiledBinary(
+      "profiled-binary", cl::init(""),
+      cl::desc("Path to binary from which the profile was collected."));
+  cl::opt<bool> ShowProfileVersion("profile-version", cl::init(false),
+                                   cl::desc("Show profile version. "));
   cl::ParseCommandLineOptions(argc, argv, "LLVM profile data summary\n");
+
+  if (Filename.empty() && DebugInfoFilename.empty())
+    exitWithError(
+        "the positional argument '<profdata-file>' is required unless '--" +
+        DebugInfoFilename.ArgStr + "' is provided");
 
   if (Filename == OutputFilename) {
     errs() << sys::path::filename(argv[0])
            << ": Input file name cannot be the same as the output file name!\n";
     return 1;
   }
+  if (JsonFormat)
+    SFormat = ShowFormat::Json;
 
   std::error_code EC;
   raw_fd_ostream OS(OutputFilename.data(), EC, sys::fs::OF_TextWithCRLF);
@@ -2527,20 +2840,27 @@ static int show_main(int argc, const char *argv[]) {
   if (ShowAllFunctions && !ShowFunction.empty())
     WithColor::warning() << "-function argument ignored: showing all functions\n";
 
+  if (!DebugInfoFilename.empty())
+    return showDebugInfoCorrelation(DebugInfoFilename, ShowDetailedSummary,
+                                    ShowProfileSymbolList, SFormat, OS);
+
   if (ProfileKind == instr)
     return showInstrProfile(
         Filename, ShowCounts, TopNFunctions, ShowIndirectCallTargets,
         ShowMemOPSizes, ShowDetailedSummary, DetailedSummaryCutoffs,
         ShowAllFunctions, ShowCS, ValueCutoff, OnlyListBelow, ShowFunction,
-        TextFormat, ShowBinaryIds, OS);
-  else
+        TextFormat, ShowBinaryIds, ShowCovered, ShowProfileVersion, SFormat,
+        OS);
+  if (ProfileKind == sample)
     return showSampleProfile(Filename, ShowCounts, TopNFunctions,
                              ShowAllFunctions, ShowDetailedSummary,
                              ShowFunction, ShowProfileSymbolList,
-                             ShowSectionInfoOnly, ShowHotFuncList, OS);
+                             ShowSectionInfoOnly, ShowHotFuncList, SFormat, OS);
+  return showMemProfProfile(Filename, ProfiledBinary, SFormat, OS);
 }
 
-int main(int argc, const char *argv[]) {
+int llvm_profdata_main(int argc, char **argvNonConst) {
+  const char **argv = const_cast<const char **>(argvNonConst);
   InitLLVM X(argc, argv);
 
   StringRef ProgName(sys::path::filename(argv[0]));

@@ -42,7 +42,7 @@ class DebugObjectSection {
 public:
   virtual void setTargetMemoryRange(SectionRange Range) = 0;
   virtual void dump(raw_ostream &OS, StringRef Name) {}
-  virtual ~DebugObjectSection() {}
+  virtual ~DebugObjectSection() = default;
 };
 
 template <typename ELFT>
@@ -67,9 +67,9 @@ private:
 template <typename ELFT>
 void ELFDebugObjectSection<ELFT>::setTargetMemoryRange(SectionRange Range) {
   // Only patch load-addresses for executable and data sections.
-  if (isTextOrDataSection()) {
-    Header->sh_addr = static_cast<typename ELFT::uint>(Range.getStart());
-  }
+  if (isTextOrDataSection())
+    Header->sh_addr =
+        static_cast<typename ELFT::uint>(Range.getStart().getValue());
 }
 
 template <typename ELFT>
@@ -289,6 +289,9 @@ ELFDebugObject::CreateArchType(MemoryBufferRef Buffer,
       continue;
     HasDwarfSection |= isDwarfSection(*Name);
 
+    if (!(Header.sh_flags & ELF::SHF_ALLOC))
+      continue;
+
     auto Wrapped = std::make_unique<ELFDebugObjectSection<ELFT>>(&Header);
     if (Error Err = DebugObj->recordSection(*Name, std::move(Wrapped)))
       return std::move(Err);
@@ -370,7 +373,9 @@ Error ELFDebugObject::recordSection(
     return Err;
   auto ItInserted = Sections.try_emplace(Name, std::move(Section));
   if (!ItInserted.second)
-    return make_error<StringError>("Duplicate section",
+    return make_error<StringError>("In " + Buffer->getBufferIdentifier() +
+				   ", encountered duplicate section \"" +
+				   Name + "\" while building debug object",
                                    inconvertibleErrorCode());
   return Error::success();
 }

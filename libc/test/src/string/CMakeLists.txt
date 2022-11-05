@@ -43,6 +43,26 @@ add_libc_unittest(
 )
 
 add_libc_unittest(
+  stpcpy_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    stpcpy_test.cpp
+  DEPENDS
+    libc.src.string.stpcpy
+)
+
+add_libc_unittest(
+  stpncpy_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    stpncpy_test.cpp
+  DEPENDS
+    libc.src.string.stpncpy
+)
+
+add_libc_unittest(
   strcat_test
   SUITE
     libc_string_unittests
@@ -73,6 +93,16 @@ add_libc_unittest(
 )
 
 add_libc_unittest(
+  strcoll_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strcoll_test.cpp
+  DEPENDS
+    libc.src.string.strcoll
+)
+
+add_libc_unittest(
   strcpy_test
   SUITE
     libc_string_unittests
@@ -90,6 +120,58 @@ add_libc_unittest(
     strcspn_test.cpp
   DEPENDS
     libc.src.string.strcspn
+)
+
+add_libc_unittest(
+  strdup_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strdup_test.cpp
+  DEPENDS
+    libc.include.stdlib
+    libc.src.string.strdup
+)
+
+add_libc_unittest(
+  strerror_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strerror_test.cpp
+  DEPENDS
+    libc.src.string.strerror
+)
+
+
+add_libc_unittest(
+  strerror_r_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strerror_r_test.cpp
+  DEPENDS
+    libc.src.string.strerror_r
+)
+
+add_libc_unittest(
+  strlcat_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strlcat_test.cpp
+  DEPENDS
+    libc.src.string.strlcat
+)
+
+add_libc_unittest(
+  strlcpy_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strlcpy_test.cpp
+  DEPENDS
+    libc.src.string.strlcpy
 )
 
 add_libc_unittest(
@@ -133,6 +215,17 @@ add_libc_unittest(
 )
 
 add_libc_unittest(
+  strndup_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strndup_test.cpp
+  DEPENDS
+    libc.include.stdlib
+    libc.src.string.strndup
+)
+
+add_libc_unittest(
   strnlen_test
   SUITE
     libc_string_unittests
@@ -160,6 +253,16 @@ add_libc_unittest(
     strrchr_test.cpp
   DEPENDS
     libc.src.string.strrchr
+)
+
+add_libc_unittest(
+  strsignal_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strsignal_test.cpp
+  DEPENDS
+    libc.src.string.strsignal
 )
 
 add_libc_unittest(
@@ -213,12 +316,15 @@ function(add_libc_multi_impl_test name)
         ${fq_config_name}_test
         SUITE
           libc_string_unittests
-        DEPENDS
-          ${fq_config_name}
         COMPILE_OPTIONS
           ${LIBC_COMPILE_OPTIONS_NATIVE}
+        LINK_LIBRARIES
+          LibcMemoryHelpers
         ${ARGN}
+        DEPENDS
+          ${fq_config_name}
       )
+      get_fq_target_name(${fq_config_name}_test fq_target_name)
     else()
       message(STATUS "Skipping test for '${fq_config_name}' insufficient host cpu features '${required_cpu_features}'")
     endif()

@@ -1,6 +1,6 @@
-// REQUIRES: clang-driver, amdgpu-registered-target
+// REQUIRES: amdgpu-registered-target
 
-// RUN: %clang -### -target x86_64-linux-gnu \
+// RUN: %clang -### --target=x86_64-linux-gnu \
 // RUN:   --offload-arch=gfx803 --offload-arch=gfx900 \
 // RUN:   --cuda-device-only -nogpuinc -nogpulib -c \
 // RUN:   %s 2>&1 | FileCheck %s
@@ -26,4 +26,4 @@
 
 // CHECK: [[BUNDLER:".*clang-offload-bundler"]] "-type=o"
 // CHECK-SAME: "-targets={{.*}},hip{{.*}}-amdgcn-amd-amdhsa--gfx803,hip{{.*}}-amdgcn-amd-amdhsa--gfx900"
-// CHECK-SAME: "-inputs={{.*}},[[IMG_DEV_A_803]],[[IMG_DEV_A_900]]" "-outputs=[[BUNDLE_A:.*hipfb]]"
+// CHECK-SAME: "-input={{.*}}" "-input=[[IMG_DEV_A_803]]" "-input=[[IMG_DEV_A_900]]" "-output=[[BUNDLE_A:.*hipfb]]"

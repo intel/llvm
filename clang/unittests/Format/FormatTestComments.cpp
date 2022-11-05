@@ -91,6 +91,14 @@ TEST_F(FormatTestComments, UnderstandsSingleLineComments) {
                "// line 2\n"
                "void f() {}\n");
 
+  EXPECT_EQ("// comment\n", format("//comment\n"));
+  EXPECT_EQ("// #comment\n", format("//#comment\n"));
+
+  EXPECT_EQ("// comment\n"
+            "// clang-format on\n",
+            format("//comment\n"
+                   "// clang-format on\n"));
+
   verifyFormat("void f() {\n"
                "  // Doesn't do anything\n"
                "}");
@@ -2842,6 +2850,230 @@ TEST_F(FormatTestComments, AlignTrailingComments) {
              "#define FOO_NODELOCAL 4  // Loopback\n\n"
              "} // namespace m\n",
              getLLVMStyleWithColumns(80)));
+
+  // https://llvm.org/PR53441
+  verifyFormat("/* */  //\n"
+               "int a; //\n");
+  verifyFormat("/**/   //\n"
+               "int a; //\n");
+}
+
+TEST_F(FormatTestComments, AlignTrailingCommentsAcrossEmptyLines) {
+  FormatStyle Style = getLLVMStyle();
+  Style.AlignTrailingComments.Kind = FormatStyle::TCAS_Always;
+  Style.AlignTrailingComments.OverEmptyLines = 1;
+  verifyFormat("#include \"a.h\"  // simple\n"
+               "\n"
+               "#include \"aa.h\" // example case\n",
+               Style);
+
+  verifyFormat("#include \"a.h\"   // align across\n"
+               "\n"
+               "#include \"aa.h\"  // two empty lines\n"
+               "\n"
+               "#include \"aaa.h\" // in a row\n",
+               Style);
+
+  verifyFormat("#include \"a.h\"      // align\n"
+               "#include \"aa.h\"     // comment\n"
+               "#include \"aaa.h\"    // blocks\n"
+               "\n"
+               "#include \"aaaa.h\"   // across\n"
+               "#include \"aaaaa.h\"  // one\n"
+               "#include \"aaaaaa.h\" // empty line\n",
+               Style);
+
+  verifyFormat("#include \"a.h\"  // align trailing comments\n"
+               "#include \"a.h\"\n"
+               "#include \"aa.h\" // across a line without comment\n",
+               Style);
+
+  verifyFormat("#include \"a.h\"   // align across\n"
+               "#include \"a.h\"\n"
+               "#include \"aa.h\"  // two lines without comment\n"
+               "#include \"a.h\"\n"
+               "#include \"aaa.h\" // in a row\n",
+               Style);
+
+  verifyFormat("#include \"a.h\"      // align\n"
+               "#include \"aa.h\"     // comment\n"
+               "#include \"aaa.h\"    // blocks\n"
+               "#include \"a.h\"\n"
+               "#include \"aaaa.h\"   // across\n"
+               "#include \"aaaaa.h\"  // a line without\n"
+               "#include \"aaaaaa.h\" // comment\n",
+               Style);
+
+  // Start of testing OverEmptyLines
+  Style.MaxEmptyLinesToKeep = 3;
+  Style.AlignTrailingComments.OverEmptyLines = 2;
+  // Cannot use verifyFormat here
+  // test::messUp removes all new lines which changes the logic
+  EXPECT_EQ("#include \"a.h\" // comment\n"
+            "\n"
+            "\n"
+            "\n"
+            "#include \"ab.h\"      // comment\n"
+            "\n"
+            "\n"
+            "#include \"abcdefg.h\" // comment\n",
+            format("#include \"a.h\" // comment\n"
+                   "\n"
+                   "\n"
+                   "\n"
+                   "#include \"ab.h\" // comment\n"
+                   "\n"
+                   "\n"
+                   "#include \"abcdefg.h\" // comment\n",
+                   Style));
+
+  Style.MaxEmptyLinesToKeep = 1;
+  Style.AlignTrailingComments.OverEmptyLines = 1;
+  // End of testing OverEmptyLines
+
+  Style.ColumnLimit = 15;
+  EXPECT_EQ("int ab; // line\n"
+            "int a;  // long\n"
+            "        // long\n"
+            "\n"
+            "        // long",
+            format("int ab; // line\n"
+                   "int a; // long long\n"
+                   "\n"
+                   "// long",
+                   Style));
+
+  Style.ColumnLimit = 15;
+  EXPECT_EQ("int ab; // line\n"
+            "\n"
+            "int a;  // long\n"
+            "        // long\n",
+            format("int ab; // line\n"
+                   "\n"
+                   "int a; // long long\n",
+                   Style));
+
+  Style.ColumnLimit = 30;
+  EXPECT_EQ("int foo = 12345; // comment\n"
+            "int bar =\n"
+            "    1234;  // This is a very\n"
+            "           // long comment\n"
+            "           // which is wrapped\n"
+            "           // arround.\n"
+            "\n"
+            "int x = 2; // Is this still\n"
+            "           // aligned?\n",
+            format("int foo = 12345; // comment\n"
+                   "int bar = 1234; // This is a very long comment\n"
+                   "                // which is wrapped arround.\n"
+                   "\n"
+                   "int x = 2; // Is this still aligned?\n",
+                   Style));
+
+  Style.ColumnLimit = 35;
+  EXPECT_EQ("int foo = 12345; // comment\n"
+            "int bar =\n"
+            "    1234; // This is a very long\n"
+            "          // comment which is\n"
+            "          // wrapped arround.\n"
+            "\n"
+            "int x =\n"
+            "    2; // Is this still aligned?\n",
+            format("int foo = 12345; // comment\n"
+                   "int bar = 1234; // This is a very long comment\n"
+                   "                // which is wrapped arround.\n"
+                   "\n"
+                   "int x = 2; // Is this still aligned?\n",
+                   Style));
+
+  Style.ColumnLimit = 40;
+  EXPECT_EQ("int foo = 12345; // comment\n"
+            "int bar =\n"
+            "    1234; // This is a very long comment\n"
+            "          // which is wrapped arround.\n"
+            "\n"
+            "int x = 2; // Is this still aligned?\n",
+            format("int foo = 12345; // comment\n"
+                   "int bar = 1234; // This is a very long comment\n"
+                   "                // which is wrapped arround.\n"
+                   "\n"
+                   "int x = 2; // Is this still aligned?\n",
+                   Style));
+
+  Style.ColumnLimit = 45;
+  EXPECT_EQ("int foo = 12345; // comment\n"
+            "int bar =\n"
+            "    1234;  // This is a very long comment\n"
+            "           // which is wrapped arround.\n"
+            "\n"
+            "int x = 2; // Is this still aligned?\n",
+            format("int foo = 12345; // comment\n"
+                   "int bar = 1234; // This is a very long comment\n"
+                   "                // which is wrapped arround.\n"
+                   "\n"
+                   "int x = 2; // Is this still aligned?\n",
+                   Style));
+
+  Style.ColumnLimit = 80;
+  EXPECT_EQ("int a; // line about a\n"
+            "\n"
+            "// line about b\n"
+            "long b;",
+            format("int a; // line about a\n"
+                   "\n"
+                   "       // line about b\n"
+                   "       long b;",
+                   Style));
+
+  Style.ColumnLimit = 80;
+  EXPECT_EQ("int a; // line about a\n"
+            "\n"
+            "// line 1 about b\n"
+            "// line 2 about b\n"
+            "long b;",
+            format("int a; // line about a\n"
+                   "\n"
+                   "       // line 1 about b\n"
+                   "       // line 2 about b\n"
+                   "       long b;",
+                   Style));
+}
+
+TEST_F(FormatTestComments, AlignTrailingCommentsLeave) {
+  FormatStyle Style = getLLVMStyle();
+  Style.AlignTrailingComments.Kind = FormatStyle::TCAS_Leave;
+
+  EXPECT_EQ("int a;// do not touch\n"
+            "int b; // any comments\n"
+            "int c;  // comment\n"
+            "int d;   // comment\n",
+            format("int a;// do not touch\n"
+                   "int b; // any comments\n"
+                   "int c;  // comment\n"
+                   "int d;   // comment\n",
+                   Style));
+
+  EXPECT_EQ("int a;   // do not touch\n"
+            "int b;  // any comments\n"
+            "int c; // comment\n"
+            "int d;// comment\n",
+            format("int a;   // do not touch\n"
+                   "int b;  // any comments\n"
+                   "int c; // comment\n"
+                   "int d;// comment\n",
+                   Style));
+
+  // Just format comments normally when leaving exceeds the column limit
+  Style.ColumnLimit = 35;
+  EXPECT_EQ("int foo = 12345; // comment\n"
+            "int bar =\n"
+            "    1234; // This is a very long\n"
+            "          // comment which is\n"
+            "          // wrapped arround.\n",
+            format("int foo = 12345; // comment\n"
+                   "int bar = 1234;       // This is a very long comment\n"
+                   "          // which is wrapped arround.\n",
+                   Style));
 }
 
 TEST_F(FormatTestComments, AlignsBlockCommentDecorations) {
@@ -3291,6 +3523,7 @@ TEST_F(FormatTestComments, SpaceAtLineCommentBegin) {
             format(NoTextInComment, Style));
 
   Style.SpacesInLineCommentPrefix.Minimum = 0;
+  EXPECT_EQ("//#comment", format("//#comment", Style));
   EXPECT_EQ("//\n"
             "\n"
             "void foo() { //\n"
@@ -3299,6 +3532,7 @@ TEST_F(FormatTestComments, SpaceAtLineCommentBegin) {
             format(NoTextInComment, Style));
 
   Style.SpacesInLineCommentPrefix.Minimum = 5;
+  EXPECT_EQ("//     #comment", format("//#comment", Style));
   EXPECT_EQ("//\n"
             "\n"
             "void foo() { //\n"
@@ -3315,6 +3549,18 @@ TEST_F(FormatTestComments, SpaceAtLineCommentBegin) {
       "///Free Doxygen without space\n"
       "\n"
       "///   Free Doxygen with 3 spaces\n"
+      "\n"
+      "//🐉 A nice dragon\n"
+      "\n"
+      "//\t abccba\n"
+      "\n"
+      "//\\t deffed\n"
+      "\n"
+      "//   🐉 Another nice dragon\n"
+      "\n"
+      "//   \t Three leading spaces following tab\n"
+      "\n"
+      "//   \\t Three leading spaces following backslash\n"
       "\n"
       "/// A Doxygen Comment with a nested list:\n"
       "/// - Foo\n"
@@ -3375,6 +3621,18 @@ TEST_F(FormatTestComments, SpaceAtLineCommentBegin) {
             "\n"
             "///   Free Doxygen with 3 spaces\n"
             "\n"
+            "// 🐉 A nice dragon\n"
+            "\n"
+            "//\t abccba\n"
+            "\n"
+            "//\\t deffed\n"
+            "\n"
+            "//   🐉 Another nice dragon\n"
+            "\n"
+            "//   \t Three leading spaces following tab\n"
+            "\n"
+            "//   \\t Three leading spaces following backslash\n"
+            "\n"
             "/// A Doxygen Comment with a nested list:\n"
             "/// - Foo\n"
             "/// - Bar\n"
@@ -3428,6 +3686,7 @@ TEST_F(FormatTestComments, SpaceAtLineCommentBegin) {
             format(Code, Style));
 
   Style.SpacesInLineCommentPrefix = {0, 0};
+  EXPECT_EQ("//#comment", format("//   #comment", Style));
   EXPECT_EQ("//Free comment without space\n"
             "\n"
             "//Free comment with 3 spaces\n"
@@ -3435,6 +3694,18 @@ TEST_F(FormatTestComments, SpaceAtLineCommentBegin) {
             "///Free Doxygen without space\n"
             "\n"
             "///Free Doxygen with 3 spaces\n"
+            "\n"
+            "//🐉 A nice dragon\n"
+            "\n"
+            "//\t abccba\n"
+            "\n"
+            "//\\t deffed\n"
+            "\n"
+            "//🐉 Another nice dragon\n"
+            "\n"
+            "//\t Three leading spaces following tab\n"
+            "\n"
+            "//\\t Three leading spaces following backslash\n"
             "\n"
             "///A Doxygen Comment with a nested list:\n"
             "///- Foo\n"
@@ -3496,6 +3767,18 @@ TEST_F(FormatTestComments, SpaceAtLineCommentBegin) {
             "///  Free Doxygen without space\n"
             "\n"
             "///   Free Doxygen with 3 spaces\n"
+            "\n"
+            "//  🐉 A nice dragon\n"
+            "\n"
+            "//\t abccba\n"
+            "\n"
+            "//\\t deffed\n"
+            "\n"
+            "//   🐉 Another nice dragon\n"
+            "\n"
+            "//   \t Three leading spaces following tab\n"
+            "\n"
+            "//   \\t Three leading spaces following backslash\n"
             "\n"
             "///  A Doxygen Comment with a nested list:\n"
             "///  - Foo\n"
@@ -3591,6 +3874,18 @@ TEST_F(FormatTestComments, SpaceAtLineCommentBegin) {
             "           // World\n"
             "}",
             format(WrapCode, Style));
+  EXPECT_EQ("// x\n"
+            "// y",
+            format("//   x\n"
+                   "// y",
+                   Style));
+  EXPECT_EQ(
+      "// loooooooooooooooooooooooooooooong\n"
+      "// commentcomments\n"
+      "// normal comments",
+      format("//            loooooooooooooooooooooooooooooong commentcomments\n"
+             "// normal comments",
+             Style));
 
   Style.SpacesInLineCommentPrefix = {3, 3};
   EXPECT_EQ("//   Lorem ipsum\n"
@@ -3606,17 +3901,17 @@ TEST_F(FormatTestComments, SpaceAtLineCommentBegin) {
             format(WrapCode, Style));
 
   Style = getLLVMStyleWithColumns(20);
-  StringRef AShitloadOfSpaces = "//                      This are more spaces "
-                                "than the ColumnLimit, what now?\n"
-                                "\n"
-                                "//   Comment\n"
-                                "\n"
-                                "// This is a text to split in multiple "
-                                "lines, please. Thank you very much!\n"
-                                "\n"
-                                "// A comment with\n"
-                                "//   some indentation that has to be split.\n"
-                                "// And now without";
+  StringRef LotsOfSpaces = "//                      This are more spaces "
+                           "than the ColumnLimit, what now?\n"
+                           "\n"
+                           "//   Comment\n"
+                           "\n"
+                           "// This is a text to split in multiple "
+                           "lines, please. Thank you very much!\n"
+                           "\n"
+                           "// A comment with\n"
+                           "//   some indentation that has to be split.\n"
+                           "// And now without";
   EXPECT_EQ("//                      This are more spaces "
             "than the ColumnLimit, what now?\n"
             "\n"
@@ -3634,7 +3929,7 @@ TEST_F(FormatTestComments, SpaceAtLineCommentBegin) {
             "//   that has to be\n"
             "//   split.\n"
             "// And now without",
-            format(AShitloadOfSpaces, Style));
+            format(LotsOfSpaces, Style));
 
   Style.SpacesInLineCommentPrefix = {0, 0};
   EXPECT_EQ("//This are more\n"
@@ -3655,7 +3950,7 @@ TEST_F(FormatTestComments, SpaceAtLineCommentBegin) {
             "//  that has to be\n"
             "//  split.\n"
             "//And now without",
-            format(AShitloadOfSpaces, Style));
+            format(LotsOfSpaces, Style));
 
   Style.SpacesInLineCommentPrefix = {3, 3};
   EXPECT_EQ("//   This are more\n"
@@ -3677,7 +3972,7 @@ TEST_F(FormatTestComments, SpaceAtLineCommentBegin) {
             "//     that has to\n"
             "//     be split.\n"
             "//   And now without",
-            format(AShitloadOfSpaces, Style));
+            format(LotsOfSpaces, Style));
 
   Style.SpacesInLineCommentPrefix = {30, -1u};
   EXPECT_EQ("//                              This are more spaces than the "
@@ -3692,7 +3987,7 @@ TEST_F(FormatTestComments, SpaceAtLineCommentBegin) {
             "//                                some indentation that has to be "
             "split.\n"
             "//                              And now without",
-            format(AShitloadOfSpaces, Style));
+            format(LotsOfSpaces, Style));
 
   Style.SpacesInLineCommentPrefix = {2, 4};
   EXPECT_EQ("//  A Comment to be\n"
@@ -3803,6 +4098,18 @@ TEST_F(FormatTestComments, SpaceAtLineCommentBegin) {
             "\n"
             "///   Free Doxygen with 3 spaces\n"
             "\n"
+            "// 🐉 A nice dragon\n"
+            "\n"
+            "//\t abccba\n"
+            "\n"
+            "//\\t deffed\n"
+            "\n"
+            "//   🐉 Another nice dragon\n"
+            "\n"
+            "//   \t Three leading spaces following tab\n"
+            "\n"
+            "//   \\t Three leading spaces following backslash\n"
+            "\n"
             "/// A Doxygen Comment with a nested list:\n"
             "/// - Foo\n"
             "/// - Bar\n"
@@ -3863,6 +4170,18 @@ TEST_F(FormatTestComments, SpaceAtLineCommentBegin) {
             "///Free Doxygen without space\n"
             "\n"
             "///Free Doxygen with 3 spaces\n"
+            "\n"
+            "//🐉 A nice dragon\n"
+            "\n"
+            "//\t abccba\n"
+            "\n"
+            "//\\t deffed\n"
+            "\n"
+            "//🐉 Another nice dragon\n"
+            "\n"
+            "//\t Three leading spaces following tab\n"
+            "\n"
+            "//\\t Three leading spaces following backslash\n"
             "\n"
             "///A Doxygen Comment with a nested list:\n"
             "///- Foo\n"
@@ -3925,6 +4244,18 @@ TEST_F(FormatTestComments, SpaceAtLineCommentBegin) {
             "\n"
             "///   Free Doxygen with 3 spaces\n"
             "\n"
+            "//  🐉 A nice dragon\n"
+            "\n"
+            "//\t abccba\n"
+            "\n"
+            "//\\t deffed\n"
+            "\n"
+            "//   🐉 Another nice dragon\n"
+            "\n"
+            "//   \t Three leading spaces following tab\n"
+            "\n"
+            "//   \\t Three leading spaces following backslash\n"
+            "\n"
             "///  A Doxygen Comment with a nested list:\n"
             "///  - Foo\n"
             "///  - Bar\n"
@@ -3976,6 +4307,18 @@ TEST_F(FormatTestComments, SpaceAtLineCommentBegin) {
             "//  vv will only move\n"
             "//  } if the line above does\n",
             format(Code, Style));
+}
+
+TEST_F(FormatTestComments, SplitCommentIntroducers) {
+  EXPECT_EQ(R"(//
+/\
+/
+)",
+            format(R"(//
+/\
+/ 
+  )",
+                   getLLVMStyleWithColumns(10)));
 }
 
 } // end namespace

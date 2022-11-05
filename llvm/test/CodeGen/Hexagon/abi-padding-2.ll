@@ -1,5 +1,4 @@
 ; RUN: llc -march=hexagon -mcpu=hexagonv65 < %s | FileCheck %s
-; REQUIRES: hexagon
 
 ; C file was:
 ; struct S { char b; long long a; };
@@ -14,7 +13,7 @@
 ; Test that while passing a 7-byte struct on the stack, the
 ; size of the struct is 16 bytes including padding since its
 ; largest member is of type long long. This was being handled
-; correctly but is a sanity check against any potential future
+; correctly but is a check against any potential future
 ; regressions.
 ;
 

@@ -63,6 +63,20 @@ struct stat_and_more {
   unsigned char z;
 };
 
+static void get_temp_dir(char *buf, size_t bufsize) {
+#if SANITIZER_WINDOWS
+  buf[0] = '\0';
+  if (!::GetTempPathA(bufsize, buf))
+    return;
+#else
+  const char *tmpdir = "/tmp";
+#  if SANITIZER_ANDROID
+  tmpdir = GetEnv("TMPDIR");
+#  endif
+  internal_snprintf(buf, bufsize, "%s", tmpdir);
+#endif
+}
+
 static void temp_file_name(char *buf, size_t bufsize, const char *prefix) {
 #if SANITIZER_WINDOWS
   buf[0] = '\0';
@@ -109,7 +123,7 @@ TEST(SanitizerCommon, FileOps) {
 
   fd = OpenFile(tmpfile, WrOnly);
   ASSERT_NE(fd, kInvalidFd);
-#if SANITIZER_POSIX && !SANITIZER_MAC
+#if SANITIZER_POSIX && !SANITIZER_APPLE
   EXPECT_EQ(internal_lseek(fd, 0, SEEK_END), 0u);
 #endif
   uptr bytes_written = 0;
@@ -297,7 +311,7 @@ TEST(SanitizerCommon, InternalWideStringFunctions) {
 }
 
 // FIXME: File manipulations are not yet supported on Windows
-#if SANITIZER_POSIX && !SANITIZER_MAC
+#if SANITIZER_POSIX && !SANITIZER_APPLE
 TEST(SanitizerCommon, InternalMmapWithOffset) {
   char tmpfile[128];
   temp_file_name(tmpfile, sizeof(tmpfile),
@@ -339,4 +353,20 @@ TEST(SanitizerCommon, ReportFile) {
   // This will close tmpfile.
   report_file.SetReportPath("stderr");
   Unlink(tmpfile);
+}
+
+TEST(SanitizerCommon, FileExists) {
+  char tmpfile[128];
+  temp_file_name(tmpfile, sizeof(tmpfile), "sanitizer_common.fileexists.tmp.");
+  fd_t fd = OpenFile(tmpfile, WrOnly);
+  ASSERT_NE(fd, kInvalidFd);
+  EXPECT_TRUE(FileExists(tmpfile));
+  CloseFile(fd);
+  Unlink(tmpfile);
+}
+
+TEST(SanitizerCommon, DirExists) {
+  char tmpdir[128];
+  get_temp_dir(tmpdir, sizeof(tmpdir));
+  EXPECT_TRUE(DirExists(tmpdir));
 }

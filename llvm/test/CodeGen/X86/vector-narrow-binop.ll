@@ -83,7 +83,7 @@ define <4 x i32> @do_not_use_256bit_op(<4 x i32> %a, <4 x i32> %b, <4 x i32> %c,
 ; When extracting from a vector binop, the source width should be a multiple of the destination width.
 ; https://bugs.llvm.org/show_bug.cgi?id=39511
 
-define <3 x float> @PR39511(<4 x float> %t0, <3 x float>* %b) {
+define <3 x float> @PR39511(<4 x float> %t0, ptr %b) {
 ; SSE-LABEL: PR39511:
 ; SSE:       # %bb.0:
 ; SSE-NEXT:    addps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
@@ -153,9 +153,9 @@ define <4 x double> @fmul_v2f64(<2 x  double> %x, <2 x double> %y) {
 ; SSE-NEXT:    unpcklpd {{.*#+}} xmm2 = xmm2[0],xmm0[0]
 ; SSE-NEXT:    mulpd %xmm2, %xmm2
 ; SSE-NEXT:    mulpd %xmm1, %xmm1
-; SSE-NEXT:    addpd %xmm2, %xmm1
-; SSE-NEXT:    unpckhpd {{.*#+}} xmm1 = xmm1[1,1]
-; SSE-NEXT:    movapd %xmm1, %xmm0
+; SSE-NEXT:    addpd %xmm1, %xmm2
+; SSE-NEXT:    unpckhpd {{.*#+}} xmm2 = xmm2[1,1]
+; SSE-NEXT:    movapd %xmm2, %xmm0
 ; SSE-NEXT:    retq
 ;
 ; AVX1-LABEL: fmul_v2f64:

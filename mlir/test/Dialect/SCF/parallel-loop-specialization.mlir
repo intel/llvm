@@ -1,9 +1,9 @@
-// RUN: mlir-opt %s -parallel-loop-specialization -split-input-file | FileCheck %s
+// RUN: mlir-opt %s -scf-parallel-loop-specialization -split-input-file | FileCheck %s
 
 #map0 = affine_map<()[s0, s1] -> (1024, s0 - s1)>
 #map1 = affine_map<()[s0, s1] -> (64, s0 - s1)>
 
-func @parallel_loop(%outer_i0: index, %outer_i1: index, %A: memref<?x?xf32>, %B: memref<?x?xf32>,
+func.func @parallel_loop(%outer_i0: index, %outer_i1: index, %A: memref<?x?xf32>, %B: memref<?x?xf32>,
                     %C: memref<?x?xf32>, %result: memref<?x?xf32>) {
   %c0 = arith.constant 0 : index
   %c1 = arith.constant 1 : index
@@ -26,7 +26,7 @@ func @parallel_loop(%outer_i0: index, %outer_i1: index, %A: memref<?x?xf32>, %B:
 // CHECK:           [[VAL_7:%.*]] = arith.constant 1 : index
 // CHECK:           [[VAL_8:%.*]] = memref.dim [[VAL_2]], [[VAL_6]] : memref<?x?xf32>
 // CHECK:           [[VAL_9:%.*]] = memref.dim [[VAL_2]], [[VAL_7]] : memref<?x?xf32>
-// CHECK:           [[VAL_10:%.*]] = affine.min #map0(){{\[}}[[VAL_8]], [[VAL_0]]]
+// CHECK:           [[VAL_10:%.*]] = affine.min #map(){{\[}}[[VAL_8]], [[VAL_0]]]
 // CHECK:           [[VAL_11:%.*]] = affine.min #map1(){{\[}}[[VAL_9]], [[VAL_1]]]
 // CHECK:           [[VAL_12:%.*]] = arith.constant 1024 : index
 // CHECK:           [[VAL_13:%.*]] = arith.cmpi eq, [[VAL_10]], [[VAL_12]] : index

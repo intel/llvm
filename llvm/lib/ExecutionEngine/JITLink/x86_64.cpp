@@ -26,6 +26,8 @@ const char *getEdgeKindName(Edge::Kind K) {
     return "Pointer32";
   case Pointer32Signed:
     return "Pointer32Signed";
+  case Pointer16:
+    return "Pointer16";
   case Delta64:
     return "Delta64";
   case Delta32:
@@ -36,6 +38,8 @@ const char *getEdgeKindName(Edge::Kind K) {
     return "NegDelta32";
   case Delta64FromGOT:
     return "Delta64FromGOT";
+  case PCRel32:
+    return "PCRel32";
   case BranchPCRel32:
     return "BranchPCRel32";
   case BranchPCRel32ToPtrJumpStub:
@@ -71,7 +75,7 @@ const char NullPointerContent[PointerSize] = {0x00, 0x00, 0x00, 0x00,
 const char PointerJumpStubContent[6] = {
     static_cast<char>(0xFFu), 0x25, 0x00, 0x00, 0x00, 0x00};
 
-Error optimize_x86_64_GOTAndStubs(LinkGraph &G) {
+Error optimizeGOTAndStubAccesses(LinkGraph &G) {
   LLVM_DEBUG(dbgs() << "Optimizing GOT entries and stubs:\n");
 
   for (auto *B : G.blocks())
@@ -95,10 +99,10 @@ Error optimize_x86_64_GOTAndStubs(LinkGraph &G) {
         assert(GOTEntryBlock.edges_size() == 1 &&
                "GOT entry should only have one outgoing edge");
         auto &GOTTarget = GOTEntryBlock.edges().begin()->getTarget();
-        JITTargetAddress TargetAddr = GOTTarget.getAddress();
-        JITTargetAddress EdgeAddr = B->getFixupAddress(E);
+        orc::ExecutorAddr TargetAddr = GOTTarget.getAddress();
+        orc::ExecutorAddr EdgeAddr = B->getFixupAddress(E);
         int64_t Displacement = TargetAddr - EdgeAddr + 4;
-        bool TargetInRangeForImmU32 = isInRangeForImmU32(TargetAddr);
+        bool TargetInRangeForImmU32 = isInRangeForImmU32(TargetAddr.getValue());
         bool DisplacementInRangeForImmS32 = isInRangeForImmS32(Displacement);
 
         // If both of the Target and displacement is out of range, then
@@ -165,8 +169,8 @@ Error optimize_x86_64_GOTAndStubs(LinkGraph &G) {
                "GOT block should only have one outgoing edge");
 
         auto &GOTTarget = GOTBlock.edges().begin()->getTarget();
-        JITTargetAddress EdgeAddr = B->getAddress() + E.getOffset();
-        JITTargetAddress TargetAddr = GOTTarget.getAddress();
+        orc::ExecutorAddr EdgeAddr = B->getAddress() + E.getOffset();
+        orc::ExecutorAddr TargetAddr = GOTTarget.getAddress();
 
         int64_t Displacement = TargetAddr - EdgeAddr + 4;
         if (isInRangeForImmS32(Displacement)) {

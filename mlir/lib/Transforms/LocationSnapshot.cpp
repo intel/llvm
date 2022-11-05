@@ -7,12 +7,18 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Transforms/LocationSnapshot.h"
-#include "PassDetail.h"
+
 #include "mlir/IR/AsmState.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Support/FileUtilities.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/ToolOutputFile.h"
+
+namespace mlir {
+#define GEN_PASS_DEF_LOCATIONSNAPSHOT
+#include "mlir/Transforms/Passes.h.inc"
+} // namespace mlir
 
 using namespace mlir;
 
@@ -27,15 +33,15 @@ static void generateLocationsFromIR(raw_ostream &os, StringRef fileName,
   // Print the IR to the stream, and collect the raw line+column information.
   AsmState::LocationMap opToLineCol;
   AsmState state(op, flags, &opToLineCol);
-  op->print(os, state, flags);
+  op->print(os, state);
 
   Builder builder(op->getContext());
-  Optional<Identifier> tagIdentifier;
+  Optional<StringAttr> tagIdentifier;
   if (!tag.empty())
-    tagIdentifier = builder.getIdentifier(tag);
+    tagIdentifier = builder.getStringAttr(tag);
 
   // Walk and generate new locations for each of the operations.
-  Identifier file = builder.getIdentifier(fileName);
+  StringAttr file = builder.getStringAttr(fileName);
   op->walk([&](Operation *opIt) {
     // Check to see if this operation has a mapped location. Some operations may
     // be elided from the printed form, e.g. the body terminators of some region
@@ -123,7 +129,7 @@ LogicalResult mlir::generateLocationsFromIR(StringRef fileName, StringRef tag,
 
 namespace {
 struct LocationSnapshotPass
-    : public LocationSnapshotBase<LocationSnapshotPass> {
+    : public impl::LocationSnapshotBase<LocationSnapshotPass> {
   LocationSnapshotPass() = default;
   LocationSnapshotPass(OpPrintingFlags flags, StringRef fileName, StringRef tag)
       : flags(flags) {
@@ -140,7 +146,7 @@ struct LocationSnapshotPass
   /// The printing flags to use when creating the snapshot.
   OpPrintingFlags flags;
 };
-} // end anonymous namespace
+} // namespace
 
 std::unique_ptr<Pass> mlir::createLocationSnapshotPass(OpPrintingFlags flags,
                                                        StringRef fileName,

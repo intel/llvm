@@ -14,6 +14,7 @@
 
 #include <memory>
 #include <cassert>
+#include <utility>
 
 #include "test_macros.h"
 
@@ -48,6 +49,26 @@ int main(int, char**)
         {
             B b;
             std::shared_ptr<B> pB(pA, &b);
+            assert(A::count == 1);
+            assert(B::count == 1);
+            assert(pA.use_count() == 2);
+            assert(pB.use_count() == 2);
+            assert(pB.get() == &b);
+        }
+        assert(pA.use_count() == 1);
+        assert(A::count == 1);
+        assert(B::count == 0);
+    }
+    assert(A::count == 0);
+    assert(B::count == 0);
+
+    {
+        std::shared_ptr<A const> pA(new A);
+        assert(pA.use_count() == 1);
+
+        {
+            B const b;
+            std::shared_ptr<B const> pB(pA, &b);
             assert(A::count == 1);
             assert(B::count == 1);
             assert(pA.use_count() == 2);

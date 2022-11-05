@@ -86,6 +86,9 @@ uint8_t XCOFFRelocation<AddressType>::getRelocatedLength() const {
   return (Info & XR_BIASED_LENGTH_MASK) + 1;
 }
 
+template struct ExceptionSectionEntry<support::ubig32_t>;
+template struct ExceptionSectionEntry<support::ubig64_t>;
+
 uintptr_t
 XCOFFObjectFile::getAdvancedSymbolEntryAddress(uintptr_t CurrentAddress,
                                                uint32_t Distance) {
@@ -147,6 +150,16 @@ const XCOFFFileHeader32 *XCOFFObjectFile::fileHeader32() const {
 const XCOFFFileHeader64 *XCOFFObjectFile::fileHeader64() const {
   assert(is64Bit() && "64-bit interface called on a 32-bit object file.");
   return static_cast<const XCOFFFileHeader64 *>(FileHeader);
+}
+
+const XCOFFAuxiliaryHeader32 *XCOFFObjectFile::auxiliaryHeader32() const {
+  assert(!is64Bit() && "32-bit interface called on 64-bit object file.");
+  return static_cast<const XCOFFAuxiliaryHeader32 *>(AuxiliaryHeader);
+}
+
+const XCOFFAuxiliaryHeader64 *XCOFFObjectFile::auxiliaryHeader64() const {
+  assert(is64Bit() && "64-bit interface called on a 32-bit object file.");
+  return static_cast<const XCOFFAuxiliaryHeader64 *>(AuxiliaryHeader);
 }
 
 template <typename T> const T *XCOFFObjectFile::sectionHeaderTable() const {
@@ -382,41 +395,58 @@ uint64_t XCOFFObjectFile::getSectionAlignment(DataRefImpl Sec) const {
   return Result;
 }
 
-Expected<uintptr_t> XCOFFObjectFile::getLoaderSectionAddress() const {
-  uint64_t OffsetToLoaderSection = 0;
-  uint64_t SizeOfLoaderSection = 0;
+uint64_t XCOFFObjectFile::getSectionFileOffsetToRawData(DataRefImpl Sec) const {
+  if (is64Bit())
+    return toSection64(Sec)->FileOffsetToRawData;
 
-  if (is64Bit()) {
-    for (const auto &Sec64 : sections64())
-      if (Sec64.getSectionType() == XCOFF::STYP_LOADER) {
-        OffsetToLoaderSection = Sec64.FileOffsetToRawData;
-        SizeOfLoaderSection = Sec64.SectionSize;
-        break;
-      }
-  } else {
-    for (const auto &Sec32 : sections32())
-      if (Sec32.getSectionType() == XCOFF::STYP_LOADER) {
-        OffsetToLoaderSection = Sec32.FileOffsetToRawData;
-        SizeOfLoaderSection = Sec32.SectionSize;
-        break;
-      }
-  }
+  return toSection32(Sec)->FileOffsetToRawData;
+}
 
-  // No loader section is not an error.
-  if (!SizeOfLoaderSection)
+Expected<uintptr_t> XCOFFObjectFile::getSectionFileOffsetToRawData(
+    XCOFF::SectionTypeFlags SectType) const {
+  DataRefImpl DRI = getSectionByType(SectType);
+
+  if (DRI.p == 0) // No section is not an error.
     return 0;
 
-  uintptr_t LoderSectionStart =
-      reinterpret_cast<uintptr_t>(base() + OffsetToLoaderSection);
-  if (Error E =
-          Binary::checkOffset(Data, LoderSectionStart, SizeOfLoaderSection))
-    return createError(toString(std::move(E)) +
-                       ": loader section with offset 0x" +
-                       Twine::utohexstr(OffsetToLoaderSection) +
-                       " and size 0x" + Twine::utohexstr(SizeOfLoaderSection) +
-                       " goes past the end of the file");
+  uint64_t SectionOffset = getSectionFileOffsetToRawData(DRI);
+  uint64_t SizeOfSection = getSectionSize(DRI);
 
-  return LoderSectionStart;
+  uintptr_t SectionStart = reinterpret_cast<uintptr_t>(base() + SectionOffset);
+  if (Error E = Binary::checkOffset(Data, SectionStart, SizeOfSection)) {
+    SmallString<32> UnknownType;
+    Twine(("<Unknown:") + Twine::utohexstr(SectType) + ">")
+        .toVector(UnknownType);
+    const char *SectionName = UnknownType.c_str();
+
+    switch (SectType) {
+#define ECASE(Value, String)                                                   \
+  case XCOFF::Value:                                                           \
+    SectionName = String;                                                      \
+    break
+
+      ECASE(STYP_PAD, "pad");
+      ECASE(STYP_DWARF, "dwarf");
+      ECASE(STYP_TEXT, "text");
+      ECASE(STYP_DATA, "data");
+      ECASE(STYP_BSS, "bss");
+      ECASE(STYP_EXCEPT, "expect");
+      ECASE(STYP_INFO, "info");
+      ECASE(STYP_TDATA, "tdata");
+      ECASE(STYP_TBSS, "tbss");
+      ECASE(STYP_LOADER, "loader");
+      ECASE(STYP_DEBUG, "debug");
+      ECASE(STYP_TYPCHK, "typchk");
+      ECASE(STYP_OVRFLO, "ovrflo");
+#undef ECASE
+    }
+    return createError(toString(std::move(E)) + ": " + SectionName +
+                       " section with offset 0x" +
+                       Twine::utohexstr(SectionOffset) + " and size 0x" +
+                       Twine::utohexstr(SizeOfSection) +
+                       " goes past the end of the file");
+  }
+  return SectionStart;
 }
 
 bool XCOFFObjectFile::isSectionCompressed(DataRefImpl Sec) const {
@@ -605,6 +635,16 @@ Expected<uint32_t> XCOFFObjectFile::getSymbolFlags(DataRefImpl Symb) const {
   if (XCOFFSym.getSectionNumber() == XCOFF::N_UNDEF)
     Result |= SymbolRef::SF_Undefined;
 
+  // There is no visibility in old 32 bit XCOFF object file interpret.
+  if (is64Bit() || (auxiliaryHeader32() && (auxiliaryHeader32()->getVersion() ==
+                                            NEW_XCOFF_INTERPRET))) {
+    uint16_t SymType = XCOFFSym.getSymbolType();
+    if ((SymType & VISIBILITY_MASK) == SYM_V_HIDDEN)
+      Result |= SymbolRef::SF_Hidden;
+
+    if ((SymType & VISIBILITY_MASK) == SYM_V_EXPORTED)
+      Result |= SymbolRef::SF_Exported;
+  }
   return Result;
 }
 
@@ -689,6 +729,19 @@ bool XCOFFObjectFile::is64Bit() const {
   return Binary::ID_XCOFF64 == getType();
 }
 
+Expected<StringRef> XCOFFObjectFile::getRawData(const char *Start,
+                                                uint64_t Size,
+                                                StringRef Name) const {
+  uintptr_t StartPtr = reinterpret_cast<uintptr_t>(Start);
+  // TODO: this path is untested.
+  if (Error E = Binary::checkOffset(Data, StartPtr, Size))
+    return createError(toString(std::move(E)) + ": " + Name.data() +
+                       " data with offset 0x" + Twine::utohexstr(StartPtr) +
+                       " and size 0x" + Twine::utohexstr(Size) +
+                       " goes past the end of the file");
+  return StringRef(Start, Size);
+}
+
 uint16_t XCOFFObjectFile::getMagic() const {
   return is64Bit() ? fileHeader64()->Magic : fileHeader32()->Magic;
 }
@@ -702,6 +755,22 @@ Expected<DataRefImpl> XCOFFObjectFile::getSectionByNum(int16_t Num) const {
   DataRefImpl DRI;
   DRI.p = getWithOffset(getSectionHeaderTableAddress(),
                         getSectionHeaderSize() * (Num - 1));
+  return DRI;
+}
+
+DataRefImpl
+XCOFFObjectFile::getSectionByType(XCOFF::SectionTypeFlags SectType) const {
+  DataRefImpl DRI;
+  auto GetSectionAddr = [&](const auto &Sections) -> uintptr_t {
+    for (const auto &Sec : Sections)
+      if (Sec.getSectionType() == SectType)
+        return reinterpret_cast<uintptr_t>(&Sec);
+    return uintptr_t(0);
+  };
+  if (is64Bit())
+    DRI.p = GetSectionAddr(sections64());
+  else
+    DRI.p = GetSectionAddr(sections32());
   return DRI;
 }
 
@@ -927,6 +996,31 @@ Expected<ArrayRef<Reloc>> XCOFFObjectFile::relocations(const Shdr &Sec) const {
   return ArrayRef<Reloc>(StartReloc, StartReloc + NumRelocEntries);
 }
 
+template <typename ExceptEnt>
+Expected<ArrayRef<ExceptEnt>> XCOFFObjectFile::getExceptionEntries() const {
+  assert((is64Bit() && sizeof(ExceptEnt) == sizeof(ExceptionSectionEntry64)) ||
+         (!is64Bit() && sizeof(ExceptEnt) == sizeof(ExceptionSectionEntry32)));
+
+  Expected<uintptr_t> ExceptionSectOrErr =
+      getSectionFileOffsetToRawData(XCOFF::STYP_EXCEPT);
+  if (!ExceptionSectOrErr)
+    return ExceptionSectOrErr.takeError();
+
+  DataRefImpl DRI = getSectionByType(XCOFF::STYP_EXCEPT);
+  if (DRI.p == 0)
+    return ArrayRef<ExceptEnt>();
+
+  ExceptEnt *ExceptEntStart =
+      reinterpret_cast<ExceptEnt *>(*ExceptionSectOrErr);
+  return ArrayRef<ExceptEnt>(
+      ExceptEntStart, ExceptEntStart + getSectionSize(DRI) / sizeof(ExceptEnt));
+}
+
+template Expected<ArrayRef<ExceptionSectionEntry32>>
+XCOFFObjectFile::getExceptionEntries() const;
+template Expected<ArrayRef<ExceptionSectionEntry64>>
+XCOFFObjectFile::getExceptionEntries() const;
+
 Expected<XCOFFStringTable>
 XCOFFObjectFile::parseStringTable(const XCOFFObjectFile *Obj, uint64_t Offset) {
   // If there is a string table, then the buffer must contain at least 4 bytes
@@ -964,7 +1058,8 @@ XCOFFObjectFile::parseStringTable(const XCOFFObjectFile *Obj, uint64_t Offset) {
 // This function returns the import file table. Each entry in the import file
 // table consists of: "path_name\0base_name\0archive_member_name\0".
 Expected<StringRef> XCOFFObjectFile::getImportFileTable() const {
-  Expected<uintptr_t> LoaderSectionAddrOrError = getLoaderSectionAddress();
+  Expected<uintptr_t> LoaderSectionAddrOrError =
+      getSectionFileOffsetToRawData(XCOFF::STYP_LOADER);
   if (!LoaderSectionAddrOrError)
     return LoaderSectionAddrOrError.takeError();
 
@@ -1027,8 +1122,15 @@ XCOFFObjectFile::create(unsigned Type, MemoryBufferRef MBR) {
   Obj->FileHeader = FileHeaderOrErr.get();
 
   CurOffset += Obj->getFileHeaderSize();
-  // TODO FIXME we don't have support for an optional header yet, so just skip
-  // past it.
+
+  if (Obj->getOptionalHeaderSize()) {
+    auto AuxiliaryHeaderOrErr =
+        getObject<void>(Data, Base + CurOffset, Obj->getOptionalHeaderSize());
+    if (Error E = AuxiliaryHeaderOrErr.takeError())
+      return std::move(E);
+    Obj->AuxiliaryHeader = AuxiliaryHeaderOrErr.get();
+  }
+
   CurOffset += Obj->getOptionalHeaderSize();
 
   // Parse the section header table if it is present.
@@ -1095,8 +1197,12 @@ bool XCOFFSymbolRef::isFunction() const {
     return true;
 
   Expected<XCOFFCsectAuxRef> ExpCsectAuxEnt = getXCOFFCsectAuxRef();
-  if (!ExpCsectAuxEnt)
+  if (!ExpCsectAuxEnt) {
+    // If we could not get the CSECT auxiliary entry, then treat this symbol as
+    // if it isn't a function. Consume the error and return `false` to move on.
+    consumeError(ExpCsectAuxEnt.takeError());
     return false;
+  }
 
   const XCOFFCsectAuxRef CsectAuxRef = ExpCsectAuxEnt.get();
 
@@ -1298,7 +1404,7 @@ XCOFFTracebackTable::XCOFFTracebackTable(const uint8_t *Ptr, uint64_t &Size,
     NumOfCtlAnchors = DE.getU32(Cur);
     if (Cur && NumOfCtlAnchors) {
       SmallVector<uint32_t, 8> Disp;
-      Disp.reserve(NumOfCtlAnchors.getValue());
+      Disp.reserve(*NumOfCtlAnchors);
       for (uint32_t I = 0; I < NumOfCtlAnchors && Cur; ++I)
         Disp.push_back(DE.getU32(Cur));
       if (Cur)
@@ -1325,7 +1431,7 @@ XCOFFTracebackTable::XCOFFTracebackTable(const uint8_t *Ptr, uint64_t &Size,
         return;
       }
       VecExt = TBVecExtOrErr.get();
-      VectorParmsNum = VecExt.getValue().getNumberOfVectorParms();
+      VectorParmsNum = VecExt->getNumberOfVectorParms();
     }
   }
 

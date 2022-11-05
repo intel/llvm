@@ -15,7 +15,7 @@
 #ifndef HEADER
 #define HEADER
 
-// ALL:       [[IDENT_T_TY:%.+]] = type { i32, i32, i32, i32, i8* }
+// ALL:       [[IDENT_T_TY:%.+]] = type { i32, i32, i32, i32, ptr }
 
 // ALL:       define {{.*}}void [[FOO:@.+]]()
 
@@ -27,39 +27,41 @@ int main() {
   // ALL:      			[[A_ADDR:%.+]] = alloca i8
   char a;
 
-// ALL:       			[[GTID:%.+]] = call {{.*}}i32 @__kmpc_global_thread_num([[IDENT_T_TY]]* [[DEFAULT_LOC:@.+]])
-// ALL:       			[[RES:%.+]] = call {{.*}}i32 @__kmpc_masked([[IDENT_T_TY]]* [[DEFAULT_LOC]], i32 [[GTID]], i32 0)
+// ALL:       			[[GTID:%.+]] = call {{.*}}i32 @__kmpc_global_thread_num(ptr [[DEFAULT_LOC:@.+]])
+// ALL:       			[[RES:%.+]] = call {{.*}}i32 @__kmpc_masked(ptr [[DEFAULT_LOC]], i32 [[GTID]], i32 0)
 // ALL-NEXT:  			[[IS_MASKED:%.+]] = icmp ne i32 [[RES]], 0
 // ALL-NEXT:  			br i1 [[IS_MASKED]], label {{%?}}[[THEN:.+]], label {{%?}}[[EXIT:.+]]
 // ALL:       			[[THEN]]
-// ALL-NEXT:  			store i8 2, i8* [[A_ADDR]]
-// ALL-NEXT:  			call {{.*}}void @__kmpc_end_masked([[IDENT_T_TY]]* [[DEFAULT_LOC]], i32 [[GTID]])
+// ALL-NEXT:  			store i8 2, ptr [[A_ADDR]]
+// IRBUILDER-NEXT:		br label %[[AFTER:[^ ,]+]]
+// IRBUILDER:			[[AFTER]]
+// ALL-NEXT:  			call {{.*}}void @__kmpc_end_masked(ptr [[DEFAULT_LOC]], i32 [[GTID]])
 // ALL-NEXT:  			br label {{%?}}[[EXIT]]
 // ALL:       			[[EXIT]]
 #pragma omp masked
   a = 2;
-// IRBUILDER: 			[[GTID:%.+]] = call {{.*}}i32 @__kmpc_global_thread_num([[IDENT_T_TY]]* [[DEFAULT_LOC:@.+]])
-// ALL:       			[[RES:%.+]] = call {{.*}}i32 @__kmpc_masked([[IDENT_T_TY]]* [[DEFAULT_LOC]], i32 [[GTID]], i32 2)
+// IRBUILDER: 			[[GTID:%.+]] = call {{.*}}i32 @__kmpc_global_thread_num(ptr [[DEFAULT_LOC:@.+]])
+// ALL:       			[[RES:%.+]] = call {{.*}}i32 @__kmpc_masked(ptr [[DEFAULT_LOC]], i32 [[GTID]], i32 2)
 // ALL-NEXT:  			[[IS_MASKED:%.+]] = icmp ne i32 [[RES]], 0
 // ALL-NEXT:  			br i1 [[IS_MASKED]], label {{%?}}[[THEN:.+]], label {{%?}}[[EXIT:.+]]
 // ALL:       			[[THEN]]
 // IRBUILDER-NEXT:  call {{.*}}void [[FOO]]()
 // NORMAL-NEXT:  		invoke {{.*}}void [[FOO]]()
-// ALL:       			call {{.*}}void @__kmpc_end_masked([[IDENT_T_TY]]* [[DEFAULT_LOC]], i32 [[GTID]])
+// ALL:       			call {{.*}}void @__kmpc_end_masked(ptr [[DEFAULT_LOC]], i32 [[GTID]])
 // ALL-NEXT:  			br label {{%?}}[[EXIT]]
 // ALL:       			[[EXIT]]
 #pragma omp masked filter(2)
   foo();
-// ALL:                         store i32 9, i32* [[X:.+]],
-// ALL:                         [[X_VAL:%.+]] = load i32, i32* [[X]]
-// IRBUILDER: 			[[GTID:%.+]] = call {{.*}}i32 @__kmpc_global_thread_num([[IDENT_T_TY]]* [[DEFAULT_LOC:@.+]])
-// ALL:       			[[RES:%.+]] = call {{.*}}i32 @__kmpc_masked([[IDENT_T_TY]]* [[DEFAULT_LOC]], i32 [[GTID]], i32 [[X_VAL]])
+// ALL:                         store i32 9, ptr [[X:.+]],
+// ALL:                         [[X_VAL:%.+]] = load i32, ptr [[X]]
+// IRBUILDER: 			[[GTID:%.+]] = call {{.*}}i32 @__kmpc_global_thread_num(ptr [[DEFAULT_LOC:@.+]])
+// ALL:       			[[RES:%.+]] = call {{.*}}i32 @__kmpc_masked(ptr [[DEFAULT_LOC]], i32 [[GTID]], i32 [[X_VAL]])
 // ALL-NEXT:  			[[IS_MASKED:%.+]] = icmp ne i32 [[RES]], 0
 // ALL-NEXT:  			br i1 [[IS_MASKED]], label {{%?}}[[THEN:.+]], label {{%?}}[[EXIT:.+]]
 // ALL:       			[[THEN]]
 // IRBUILDER-NEXT:  call {{.*}}void [[FOO]]()
 // NORMAL-NEXT:  		invoke {{.*}}void [[FOO]]()
-// ALL:       			call {{.*}}void @__kmpc_end_masked([[IDENT_T_TY]]* [[DEFAULT_LOC]], i32 [[GTID]])
+// ALL:       			call {{.*}}void @__kmpc_end_masked(ptr [[DEFAULT_LOC]], i32 [[GTID]])
 // ALL-NEXT:  			br label {{%?}}[[EXIT]]
 // ALL:       			[[EXIT]]
   int x = 9;

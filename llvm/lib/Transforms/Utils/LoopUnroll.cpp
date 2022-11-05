@@ -66,6 +66,7 @@
 #include "llvm/Transforms/Utils/ValueMapper.h"
 #include <algorithm>
 #include <assert.h>
+#include <numeric>
 #include <type_traits>
 #include <vector>
 
@@ -98,6 +99,17 @@ UnrollVerifyDomtree("unroll-verify-domtree", cl::Hidden,
     cl::init(false)
 #endif
                     );
+
+static cl::opt<bool>
+UnrollVerifyLoopInfo("unroll-verify-loopinfo", cl::Hidden,
+                    cl::desc("Verify loopinfo after unrolling"),
+#ifdef EXPENSIVE_CHECKS
+    cl::init(true)
+#else
+    cl::init(false)
+#endif
+                    );
+
 
 /// Check if unrolling created a situation where we need to insert phi nodes to
 /// preserve LCSSA form.
@@ -225,7 +237,7 @@ void llvm::simplifyLoopAfterUnroll(Loop *L, bool SimplifyIVs, LoopInfo *LI,
   SmallVector<WeakTrackingVH, 16> DeadInsts;
   for (BasicBlock *BB : L->getBlocks()) {
     for (Instruction &Inst : llvm::make_early_inc_range(*BB)) {
-      if (Value *V = SimplifyInstruction(&Inst, {DL, nullptr, DT, AC}))
+      if (Value *V = simplifyInstruction(&Inst, {DL, nullptr, DT, AC}))
         if (LI->replacementPreservesLCSSAForm(&Inst, V))
           Inst.replaceAllUsesWith(V);
       if (isInstructionTriviallyDead(&Inst))
@@ -330,7 +342,7 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
       Info.TripMultiple = 0;
     } else {
       Info.BreakoutTrip = Info.TripMultiple =
-          (unsigned)GreatestCommonDivisor64(ULO.Count, Info.TripMultiple);
+          (unsigned)std::gcd(ULO.Count, Info.TripMultiple);
     }
     Info.ExitOnTrue = !L->contains(BI->getSuccessor(0));
     Info.ExitingBlocks.push_back(ExitingBlock);
@@ -453,8 +465,10 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
   if (SE) {
     if (ULO.ForgetAllSCEV)
       SE->forgetAllLoops();
-    else
+    else {
       SE->forgetTopmostLoop(L);
+      SE->forgetBlockAndLoopDispositions();
+    }
   }
 
   if (!LatchIsExiting)
@@ -502,7 +516,7 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
           if (const DILocation *DIL = I.getDebugLoc()) {
             auto NewDIL = DIL->cloneByMultiplyingDuplicationFactor(ULO.Count);
             if (NewDIL)
-              I.setDebugLoc(NewDIL.getValue());
+              I.setDebugLoc(*NewDIL);
             else
               LLVM_DEBUG(dbgs()
                          << "Failed to create new discriminator: "
@@ -514,6 +528,10 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
   SmallVector<MDNode *, 6> LoopLocalNoAliasDeclScopes;
   identifyNoAliasScopesToClone(L->getBlocks(), LoopLocalNoAliasDeclScopes);
 
+  // We place the unrolled iterations immediately after the original loop
+  // latch.  This is a reasonable default placement if we don't have block
+  // frequencies, and if we do, well the layout will be adjusted later.
+  auto BlockInsertPt = std::next(LatchBlock->getIterator());
   for (unsigned It = 1; It != ULO.Count; ++It) {
     SmallVector<BasicBlock *, 8> NewBlocks;
     SmallDenseMap<const Loop *, Loop *, 4> NewLoops;
@@ -522,7 +540,7 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
     for (LoopBlocksDFS::RPOIterator BB = BlockBegin; BB != BlockEnd; ++BB) {
       ValueToValueMapTy VMap;
       BasicBlock *New = CloneBasicBlock(*BB, VMap, "." + Twine(It));
-      Header->getParent()->getBasicBlockList().push_back(New);
+      Header->getParent()->getBasicBlockList().insert(BlockInsertPt, New);
 
       assert((*BB != Header || LI->getLoopFor(*BB) == L) &&
              "Header should not be in a sub-loop");
@@ -560,6 +578,7 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
           if (It != LastValueMap.end())
             Incoming = It->second;
           PHI.addIncoming(Incoming, New);
+          SE->forgetValue(&PHI);
         }
       }
       // Keep track of new headers and latches as we create them, so that
@@ -760,6 +779,9 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
   // Apply updates to the DomTree.
   DT = &DTU.getDomTree();
 
+  assert(!UnrollVerifyDomtree ||
+         DT->verify(DominatorTree::VerificationLevel::Fast));
+
   // At this point, the code is well formed.  We now simplify the unrolled loop,
   // doing constant propagation and dead code elimination as we go.
   simplifyLoopAfterUnroll(L, !CompletelyUnroll && ULO.Count > 1, LI, SE, DT, AC,
@@ -772,6 +794,10 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
   // Update LoopInfo if the loop is completely removed.
   if (CompletelyUnroll)
     LI->erase(L);
+
+  // LoopInfo should not be valid, confirm that.
+  if (UnrollVerifyLoopInfo)
+    LI->verify(*DT);
 
   // After complete unrolling most of the blocks should be contained in OuterL.
   // However, some of them might happen to be out of OuterL (e.g. if they

@@ -16,19 +16,23 @@
 
 include "mlir/Dialect/Linalg/IR/LinalgBase.td"
 include "mlir/Dialect/Linalg/IR/LinalgInterfaces.td"
-include "mlir/Interfaces/CopyOpInterface.td"
+include "mlir/Interfaces/ControlFlowInterfaces.td"
+include "mlir/Interfaces/DestinationStyleOpInterface.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
+include "mlir/IR/OpAsmInterface.td"
 
 // Base Tablegen class for Linalg ops.
 // Linalg ops that correspond to library calls operate on ShapedType as their
 // first operands. These may be optionally followed by non-view operands
 // depending on the specific Linalg op.
-class LinalgStructuredBase_Op<string mnemonic, list<OpTrait> props>
+class LinalgStructuredBase_Op<string mnemonic, list<Trait> props>
   : Op<Linalg_Dialect, mnemonic, !listconcat([
        SingleBlockImplicitTerminator<"YieldOp">,
        DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
+       DestinationStyleOpInterface,
        LinalgStructuredInterface,
+       RegionBranchOpInterface,
        ReifyRankedShapedTypeOpInterface], props)> {
   code structuredOpsBaseDecls = [{
     // Return whether the op accesses the iteration indices.
@@ -38,193 +42,26 @@ class LinalgStructuredBase_Op<string mnemonic, list<OpTrait> props>
 
     LogicalResult reifyResultShapes(OpBuilder &b,
         ReifiedRankedShapedTypeDims &reifiedReturnShapes) {
-      return cast<LinalgOp>(getOperation()).reifyResultShapes(b,
+      return llvm::cast<LinalgOp>(getOperation()).reifyResultShapes(b,
           reifiedReturnShapes);
     }
-  }];
-}
 
-class LinalgStructured_Op<string mnemonic, list<OpTrait> props>
-  : LinalgStructuredBase_Op<mnemonic, !listconcat(props, [])> {
-  code structuredOpsDecls = structuredOpsBaseDecls # [{
-    std::string getLibraryCallName() {
-      return generateLibraryCallName(getOperation());
+    void getSuccessorRegions(
+        Optional<unsigned> index, ArrayRef<Attribute> operands,
+        SmallVectorImpl<RegionSuccessor> &regions) {
+      // Op has a region, but conceptually the control flow does not enter the
+      // region.
     }
   }];
-  let assemblyFormat = "`(` operands `)` attr-dict `:` type(operands)";
-}
-
-//===----------------------------------------------------------------------===//
-// Named Linalg ops, implemented as special configurations of generic ops.
-//===----------------------------------------------------------------------===//
-// At the moment these are not declarative and require a bunch of C++ code.
-// In the future, these should be migrated to a declarative specification.
-def CopyOp : LinalgStructured_Op<"copy", [CopyOpInterface]> {
-  let description = [{
-    Copies the data in the input view into the output view.
-
-    Usage:
-
-    ```mlir
-    linalg.copy(%arg0, %arg1) : memref<?xf32, stride_specification>,
-                                memref<?xf32, stride_specification>
-    ```
-
-    One possible lowering to loop form is:
-
-    ```mlir
-    %0 = linalg.dim %arg0, 0 : index
-    scf.for %i0 = %c0 to %0 step %c1 {
-      %1 = load %arg0[%i0] : memref<?xf32, stride_specification>
-      store %1, %arg1[%i0] : memref<?xf32, stride_specification>
-    }
-    ```
-
-    Optionally, can take `input_permutation` and `output_permutation` attributes
-    to reorder the dimensions of the input and output views.
-
-    Usage:
-
-    ```mlir
-    linalg.copy(%arg0, %arg1) {inputPermutation : (i, j, k) -> (i, k, j),
-                               outputPermutation : (i, j, k) -> (k, j, i)} :
-      memref<?x?x?xf32, stride_specification>,
-      memref<?x?x?xf32, stride_specification>
-    ```
-
-    One possible lowering to loop form is:
-
-    ```mlir
-    %0 = linalg.dim %arg0, 0
-    %1 = linalg.dim %arg0, 1
-    %2 = linalg.dim %arg0, 2
-    scf.for %i0 = %c0 to %{{.*}} step %c1 {
-      scf.for %i1 = %c0 to %{{.*}} step %c1 {
-        scf.for %i2 = %c0 to %{{.*}} step %c1 {
-          %3 = load %arg0[%i0, %i2, %i1] :
-                  memref<?x?x?xf32, stride_specification>
-          store %3, %arg1[%i2, %i1, %i0] :
-                  memref<?x?x?xf32, stride_specification>
-    ```
-
-    The views are expected to be compatible for correctness but this is not
-    enforced at the moment.
-  }];
-
-  let arguments = (ins
-    AnyStridedMemRef:$input,
-    AnyStridedMemRef:$output,
-    OptionalAttr<AffineMapAttr>:$inputPermutation,
-    OptionalAttr<AffineMapAttr>:$outputPermutation);
-  let regions = (region AnyRegion:$region);
-
-  let builders = [
-    OpBuilder<(ins "Value":$input, "Value":$output,
-      CArg<"AffineMap", "AffineMap()">:$inputPermutation,
-      CArg<"AffineMap", "AffineMap()">:$outputPermutation,
-      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>];
-
-  let extraClassDeclaration = structuredOpsDecls # [{
-    ValueRange inputs() { return getOperands().take_front(); }
-    ValueRange outputs() { return getOperands().take_back(); }
-
-    // Rank-polymorphic.
-    //   filling_value -> O(ivs) with parallel iterators.
-    ArrayAttr iterator_types() {
-      int64_t nPar = getRank(getInputOperand(0));
-      return Builder(getContext()).getStrArrayAttr(
-        SmallVector<StringRef, 8>(nPar, getParallelIteratorTypeName()));
-    }
-
-    // I(input_perm(ivs)) -> O(output_perm(ivs))
-    ArrayAttr indexing_maps() {
-      MLIRContext *context = getContext();
-      auto maybeInputMap = inputPermutation();
-      auto maybeOutputMap = outputPermutation();
-      int64_t inputRank = getRank(getInputOperand(0));
-      int64_t outputRank = getRank(getOutputOperand(0));
-      return Builder(getContext()).getAffineMapArrayAttr({
-          extractOrIdentityMap(maybeInputMap, inputRank, context),
-          extractOrIdentityMap(maybeOutputMap, outputRank, context)});
-    }
-
-    Value getSource() { return input();}
-    Value getTarget() { return output(); }
-
-    static void regionBuilder(ImplicitLocOpBuilder &b, Block &block);
-    static std::function<void(ImplicitLocOpBuilder &b, Block &block)>
-    getRegionBuilder() {
-      return &regionBuilder;
-    }
-    static unsigned getNumRegionArgs() { return 2; }
-  }];
-  let verifier = [{ return ::verify(*this); }];
-
-  let assemblyFormat = [{
-    `(` $input `,` $output `)` attr-dict `:`
-        type($input) `,` type($output)
-      custom<CopyOpRegion>($region, ref(type($input)), ref(type($input)))
-  }];
-
-  let hasCanonicalizer = 1;
-  let hasFolder = 1;
-  let skipDefaultBuilders = 1;
-}
-
-def FillOp : LinalgStructured_Op<"fill", []> {
-  let arguments = (ins
-    AnyTypeOf<[AnyComplex, AnyFloat, AnySignlessInteger, AnyVector]>:$value,
-    AnyShaped:$output);
-  let results = (outs Optional<AnyRankedTensor>:$result);
-  let regions = (region AnyRegion:$region);
-  let extraClassDeclaration = structuredOpsDecls # [{
-    ValueRange inputs() { return getOperands().take_front(); }
-    ValueRange outputs() { return getOperands().take_back(); }
-
-    // Rank-polymorphic.
-    //   filling_value -> O(ivs) with parallel iterators.
-    ArrayAttr iterator_types() {
-      int64_t nPar = getRank(getOutputOperand(0));
-      return Builder(getContext()).getStrArrayAttr(
-        SmallVector<StringRef, 8>(nPar, getParallelIteratorTypeName()));
-    }
-
-    ArrayAttr indexing_maps() {
-      MLIRContext *context = getContext();
-      // filling_value -> O(ivs)
-      return Builder(getContext()).getAffineMapArrayAttr({
-          AffineMap::get(getNumParallelLoops(), 0, {}, getContext()),
-          extractOrIdentityMap(llvm::None, getNumParallelLoops(), context)});
-    }
-
-    static void regionBuilder(ImplicitLocOpBuilder &b, Block &block);
-    static std::function<void(ImplicitLocOpBuilder &b, Block &block)>
-    getRegionBuilder() {
-      return &regionBuilder;
-    }
-    static unsigned getNumRegionArgs() { return 2; }
-  }];
-
-  let assemblyFormat = [{
-    `(` $value `,` $output `)` attr-dict `:`
-        type($value) `,` type($output) (`->` type($result)^)?
-      custom<FillOpRegion>($region, ref(type($value)), ref(type($output)))
-  }];
-
-  let builders = [
-    OpBuilder<(ins "Value":$value, "Value":$output)>
-  ];
-
-  let verifier = [{ return ::verify(*this); }];
-
-  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
 // Generic Linalg ops.
 //===----------------------------------------------------------------------===//
 
-def GenericOp : LinalgStructuredBase_Op<"generic", [AttrSizedOperandSegments]> {
+def GenericOp : LinalgStructuredBase_Op<"generic", [
+    DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmBlockArgumentNames"]>,
+    AttrSizedOperandSegments]> {
   let description = [{
     Generic Linalg op form where the key properties of the computation are
     specified as attributes. In pretty form, a `linalg.generic` op is written
@@ -334,6 +171,12 @@ def GenericOp : LinalgStructuredBase_Op<"generic", [AttrSizedOperandSegments]> {
 
   let builders = [
     OpBuilder<(ins "TypeRange":$resultTensorTypes, "ValueRange":$inputs,
+      "ValueRange":$outputs, "ArrayAttr":$indexingMaps,
+      "ArrayAttr":$iteratorTypes, "StringAttr":$doc,
+      "StringAttr":$libraryCall,
+      "function_ref<void(OpBuilder &, Location, ValueRange)>",
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes)>,
+    OpBuilder<(ins "TypeRange":$resultTensorTypes, "ValueRange":$inputs,
       "ValueRange":$outputs, "ArrayRef<AffineMap>":$indexingMaps,
       "ArrayRef<StringRef>":$iteratorTypes, "StringRef":$doc,
       "StringRef":$libraryCall,
@@ -364,25 +207,248 @@ def GenericOp : LinalgStructuredBase_Op<"generic", [AttrSizedOperandSegments]> {
       };
     }
     std::string getLibraryCallName() {
-      return library_call().hasValue() ?
-        library_call()->str() : "op_has_no_registered_library_name";
+      return getLibraryCall() ?
+        getLibraryCall()->str() : "op_has_no_registered_library_name";
     }
 
-    static std::function<void(ImplicitLocOpBuilder &b, Block &block)>
+    static std::function<void(ImplicitLocOpBuilder &,
+                              Block &, ArrayRef<NamedAttribute>)>
+    getRegionBuilder() {
+      return nullptr;
+    }
+    std::pair<int64_t, int64_t> getDpsInitsPositionRange() {
+      int64_t getNumOperands = this->getNumOperands();
+      return {getNumOperands - getOutputs().size(), getNumOperands};
+    }
+  }];
+
+  let hasCanonicalizer = 1;
+  let hasCustomAssemblyFormat = 1;
+  let hasFolder = 1;
+  let hasVerifier = 1;
+}
+
+
+//===----------------------------------------------------------------------===//
+// Map op.
+//===----------------------------------------------------------------------===//
+
+def TensorOrMemref :
+  AnyTypeOf<[AnyMemRef, AnyRankedTensor], "", "::mlir::ShapedType">;
+
+def MapOp : LinalgStructuredBase_Op<"map", [
+    DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
+    DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmBlockArgumentNames"]>,
+    SingleBlockImplicitTerminator<"YieldOp">]> {
+  let summary = "Elementwise operations";
+  let description = [{
+    Models elementwise operations on tensors in terms of arithmetic operations
+    on the corresponding elements.
+
+    Example:
+    ```
+      %add = linalg.map
+          ins(%lhs, %rhs : tensor<64xf32>, tensor<64xf32>)
+          outs(%init: tensor<64xf32>)
+          (%lhs_elem: f32, %rhs_elem: f32) {
+            %0 = arith.addf %lhs_elem, %rhs_elem: f32
+            linalg.yield %0: f32
+          }
+    ```
+  }];
+
+  let arguments = (ins
+    // Input args
+    Variadic<TensorOrMemref>:$inputs,
+
+    // Output arg
+    TensorOrMemref:$init
+  );
+  let results = (outs Variadic<AnyTensor>:$result);
+  let regions = (region SizedRegion<1>:$mapper);
+
+  let builders = [
+    OpBuilder<(ins "ValueRange":$inputs, "Value":$init,
+      "function_ref<void(OpBuilder &, Location, ValueRange)>",
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes)>
+  ];
+
+  let extraClassDeclaration = structuredOpsBaseDecls # [{
+    // Implement functions necessary for LinalgStructuredInterface.
+    SmallVector<StringRef> getIteratorTypesArray();
+    ArrayAttr getIndexingMaps();
+    std::string getLibraryCallName() {
+      return "op_has_no_registered_library_name";
+    }
+
+    // Implement functions necessary for DestinationStyleOpInterface.
+    std::pair<int64_t, int64_t> getDpsInitsPositionRange() {
+      int64_t getNumOperands = this->getNumOperands();
+      return {getNumOperands - 1, getNumOperands};
+    }
+    OpOperandVector getOpOperandsMatchingBBargs() {
+      return getDpsInputOperands();
+    }
+
+    bool payloadUsesValueFromOperand(OpOperand * opOperand) {
+      if (isDpsInit(opOperand)) return false;
+      return !getMatchingBlockArgument(opOperand).use_empty();
+    }
+
+    static std::function<void(mlir::ImplicitLocOpBuilder &, mlir::Block &,
+                              mlir::ArrayRef<mlir::NamedAttribute>)>
     getRegionBuilder() {
       return nullptr;
     }
   }];
 
-  let printer = [{ return ::print(p, *this); }];
-  let parser = [{ return ::parseGenericOp(parser, result); }];
-
-  let verifier = [{ return ::verify(*this); }];
-
-  let hasCanonicalizer = 1;
-  let hasFolder = 1;
+  let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1;
 }
 
+
+//===----------------------------------------------------------------------===//
+// Reduce op.
+//===----------------------------------------------------------------------===//
+
+def ReduceOp : LinalgStructuredBase_Op<"reduce", [
+    DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
+    DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmBlockArgumentNames"]>,
+    SameVariadicOperandSize,
+    SingleBlockImplicitTerminator<"YieldOp">]> {
+  let summary = "Reduce operator";
+  let description = [{
+    Executes `combiner` on the `dimensions` of `inputs` and returns the
+    reduced result. The `dimensions` attribute needs to list the reduction
+    dimensions in increasing order.
+
+    Example:
+    ```
+      %reduce = linalg.reduce
+          ins(%input:tensor<16x32x64xf32>)
+          outs(%init:tensor<16x64xf32>)
+          dimensions = [1]
+          (%in: f32, %out: f32) {
+            %0 = arith.addf %in, %out: f32
+            linalg.yield %0: f32
+          }
+    ```
+  }];
+
+  let arguments = (ins
+    // Input arg
+    Variadic<TensorOrMemref>:$inputs,
+    // Output arg
+    Variadic<TensorOrMemref>:$inits,
+
+    ConfinedAttr<DenseI64ArrayAttr,
+                 [DenseArrayStrictlySorted<DenseI64ArrayAttr>]>:$dimensions
+  );
+  let results = (outs Variadic<AnyTensor>);
+  let regions = (region SizedRegion<1>:$combiner);
+
+  let builders = [
+    OpBuilder<(ins "ValueRange":$inputs, "ValueRange":$inits,
+      "ArrayRef<int64_t>":$dimensions,
+      "function_ref<void(OpBuilder &, Location, ValueRange)>",
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes)>
+  ];
+
+  let extraClassDeclaration = structuredOpsBaseDecls # [{
+    // Declare functions necessary for LinalgStructuredInterface.
+    SmallVector<StringRef> getIteratorTypesArray();
+    ArrayAttr getIndexingMaps();
+    std::string getLibraryCallName() {
+      return "op_has_no_registered_library_name";
+    }
+
+    // Implement functions necessary for DestinationStyleOpInterface.
+    static std::function<void(mlir::ImplicitLocOpBuilder &, mlir::Block &,
+                              mlir::ArrayRef<mlir::NamedAttribute>)>
+    getRegionBuilder() {
+      return nullptr;
+    }
+    std::pair<int64_t, int64_t> getDpsInitsPositionRange() {
+      return {getInits().size(), getNumOperands()};
+    }
+  }];
+
+  let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1;
+}
+
+
+//===----------------------------------------------------------------------===//
+// Transpose op.
+//===----------------------------------------------------------------------===//
+
+def TransposeOp : LinalgStructuredBase_Op<"transpose", [
+    DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
+    SameVariadicOperandSize,
+    SingleBlockImplicitTerminator<"YieldOp">]> {
+  let summary = "Transpose operator";
+  let description = [{
+    Permutes the dimensions of `input` according to the given `permutation`.
+      `dim(result, i) = dim(input, permutation[i])`
+
+    This op actually moves data, unlike `memref.transpose` which is a metadata
+    operation only that produces a transposed "view".
+
+    Example:
+    ```
+      %transpose = linalg.transpose
+          ins(%input:tensor<16x64xf32>)
+          outs(%init:tensor<64x16xf32>)
+          permutation = [1, 0]
+    ```
+  }];
+
+  let arguments = (ins
+    // Input arg
+    TensorOrMemref:$input,
+    // Output arg
+    TensorOrMemref:$init,
+
+    DenseI64ArrayAttr:$permutation
+  );
+  let results = (outs Variadic<AnyTensor>:$result);
+  let regions = (region SizedRegion<1>:$region);
+
+  let skipDefaultBuilders = 1;
+  let builders = [
+    OpBuilder<(ins "Value":$input, "Value":$init,
+        "DenseI64ArrayAttr":$permutation, CArg<"ArrayRef<NamedAttribute>",
+        "{}">:$attributes)>,
+    OpBuilder<(ins "Value":$input, "Value":$init,
+        "ArrayRef<int64_t>":$permutation, CArg<"ArrayRef<NamedAttribute>",
+        "{}">:$attributes)>,
+  ];
+
+  let extraClassDeclaration = structuredOpsBaseDecls # [{
+    // Declare functions necessary for LinalgStructuredInterface.
+    SmallVector<StringRef> getIteratorTypesArray();
+    ArrayAttr getIndexingMaps();
+    std::string getLibraryCallName() {
+      return "op_has_no_registered_library_name";
+    }
+
+    // Implement functions necessary for DestinationStyleOpInterface.
+    std::pair<int64_t, int64_t> getDpsInitsPositionRange() {
+      int64_t getNumOperands = this->getNumOperands();
+      return {getNumOperands - 1, getNumOperands};
+    }
+
+    static std::function<void(mlir::ImplicitLocOpBuilder &, mlir::Block &,
+        mlir::ArrayRef<mlir::NamedAttribute>)>
+      getRegionBuilder();
+
+    static void createRegion(::mlir::OpBuilder &opBuilder,
+                             ::mlir::OperationState & odsState);
+  }];
+
+  let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1;
+}
 
 //===----------------------------------------------------------------------===//
 // Named Linalg ops, implemented as a declarative configurations of generic ops.

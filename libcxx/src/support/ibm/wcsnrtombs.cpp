@@ -1,4 +1,4 @@
-//===----------------------- wcsnrtombs.cpp -------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,7 +14,7 @@
 // Converts `max_source_chars` from the wide character buffer pointer to by *`src`,
 // into the multi byte character sequence buffer stored at `dst`, which must be
 // `dst_size_bytes` bytes in size. Returns the number of bytes in the sequence
-// converted from *src, excluding the null terminator. 
+// converted from *src, excluding the null terminator.
 // Returns (size_t) -1 if an error occurs and sets errno.
 // If `dst` is NULL, `dst_size_bytes` is ignored and no bytes are copied to `dst`.
 _LIBCPP_FUNC_VIS

@@ -1,19 +1,14 @@
 // RUN: %libomptarget-compilexx-run-and-check-generic
 
-// amdgcn does not have printf definition
-// UNSUPPORTED: amdgcn-amd-amdhsa
-
 #include <stdio.h>
 
-void sum(int* input, int size, int* output)
-{
-#pragma omp target teams distribute parallel for reduction(+:output[0]) \
-                                                 map(to:input[0:size])
+void sum(int *input, int size, int *output) {
+#pragma omp target teams distribute parallel for reduction(+ : output[0])      \
+    map(to : input[0 : size])
   for (int i = 0; i < size; i++)
     output[0] += input[i];
 }
-int main()
-{
+int main() {
   const int size = 100;
   int *array = new int[size];
   int result = 0;
@@ -25,4 +20,3 @@ int main()
   delete[] array;
   return 0;
 }
-

@@ -10,21 +10,25 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/SCF/Passes.h"
-#include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/Dialect/SCF/Transforms.h"
-#include "mlir/Dialect/SCF/Utils.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/SCF/Transforms/Passes.h"
+
+#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/SCF/Transforms/Transforms.h"
+#include "mlir/Dialect/SCF/Utils/Utils.h"
 #include "mlir/IR/BlockAndValueMapping.h"
+
+namespace mlir {
+#define GEN_PASS_DEF_SCFFORLOOPRANGEFOLDING
+#include "mlir/Dialect/SCF/Transforms/Passes.h.inc"
+} // namespace mlir
 
 using namespace mlir;
 using namespace mlir::scf;
 
 namespace {
 struct ForLoopRangeFolding
-    : public SCFForLoopRangeFoldingBase<ForLoopRangeFolding> {
+    : public impl::SCFForLoopRangeFoldingBase<ForLoopRangeFolding> {
   void runOnOperation() override;
 };
 } // namespace
@@ -54,11 +58,11 @@ void ForLoopRangeFolding::runOnOperation() {
 
       OpBuilder b(op);
       BlockAndValueMapping lbMap;
-      lbMap.map(indVar, op.lowerBound());
+      lbMap.map(indVar, op.getLowerBound());
       BlockAndValueMapping ubMap;
-      ubMap.map(indVar, op.upperBound());
+      ubMap.map(indVar, op.getUpperBound());
       BlockAndValueMapping stepMap;
-      stepMap.map(indVar, op.step());
+      stepMap.map(indVar, op.getStep());
 
       if (isa<arith::AddIOp>(user)) {
         Operation *lbFold = b.clone(*user, lbMap);

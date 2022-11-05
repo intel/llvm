@@ -144,7 +144,6 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
   ModulePassManager MPM;
   ModuleAnalysisManager MAM;
 
-  FAM.registerPass([&] { return PB.buildDefaultAAPipeline(); });
   PB.registerModuleAnalyses(MAM);
   PB.registerCGSCCAnalyses(CGAM);
   PB.registerFunctionAnalyses(FAM);
@@ -192,16 +191,13 @@ extern "C" LLVM_ATTRIBUTE_USED int LLVMFuzzerInitialize(
 
   PassRegistry &Registry = *PassRegistry::getPassRegistry();
   initializeCore(Registry);
-  initializeCoroutines(Registry);
   initializeScalarOpts(Registry);
-  initializeObjCARCOpts(Registry);
   initializeVectorization(Registry);
   initializeIPO(Registry);
   initializeAnalysis(Registry);
   initializeTransformUtils(Registry);
   initializeInstCombine(Registry);
   initializeAggressiveInstCombine(Registry);
-  initializeInstrumentation(Registry);
   initializeTarget(Registry);
 
   // Parse input options

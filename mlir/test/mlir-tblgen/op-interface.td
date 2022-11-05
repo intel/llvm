@@ -3,6 +3,24 @@
 
 include "mlir/IR/OpBase.td"
 
+def ExtraShardDeclsInterface : OpInterface<"ExtraShardDeclsInterface"> {
+  let extraSharedClassDeclaration = [{
+    bool sharedMethodDeclaration() {
+      return $_op.someOtherMethod();
+    }
+  }];
+}
+
+// DECL: class ExtraShardDeclsInterface
+// DECL:      bool sharedMethodDeclaration() {
+// DECL-NEXT:   return (*this).someOtherMethod();
+// DECL-NEXT: }
+
+// DECL: struct ExtraShardDeclsInterfaceTrait
+// DECL:      bool sharedMethodDeclaration() {
+// DECL-NEXT:   return (*static_cast<ConcreteOp *>(this)).someOtherMethod();
+// DECL-NEXT: }
+
 def TestOpInterface : OpInterface<"TestOpInterface"> {
   let description = [{some op interface description}];
 
@@ -24,6 +42,19 @@ def TestOpInterface : OpInterface<"TestOpInterface"> {
   ];
 }
 
+def TestOpInterfaceVerify : OpInterface<"TestOpInterfaceVerify"> {
+  let verify = [{
+    return foo();
+  }];
+}
+
+def TestOpInterfaceVerifyRegion : OpInterface<"TestOpInterfaceVerifyRegion"> {
+  let verify = [{
+    return foo();
+  }];
+  let verifyWithRegions = 1;
+}
+
 // Define Ops with TestOpInterface and
 // DeclareOpInterfaceMethods<TestOpInterface> traits to check that there
 // are not duplicated C++ classes generated.
@@ -42,8 +73,16 @@ def DeclareMethodsWithDefaultOp : Op<TestDialect, "declare_methods_op",
 // DECL-LABEL: TestOpInterfaceInterfaceTraits
 // DECL: class TestOpInterface : public ::mlir::OpInterface<TestOpInterface, detail::TestOpInterfaceInterfaceTraits>
 
+// DECL: /// some function comment
 // DECL: int foo(int input);
 
+// DECL-LABEL: struct TestOpInterfaceVerifyTrait
+// DECL: verifyTrait
+
+// DECL-LABEL: struct TestOpInterfaceVerifyRegionTrait
+// DECL: verifyRegionTrait
+
+// Method implementations come last, after all class definitions.
 // DECL: template<typename ConcreteOp>
 // DECL: int detail::TestOpInterfaceInterfaceTraits::Model<ConcreteOp>::foo
 

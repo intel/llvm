@@ -6,12 +6,14 @@ endif()
 include(CheckIncludeFile)
 include(CheckLibraryExists)
 include(CheckSymbolExists)
+include(CheckCXXSymbolExists)
 include(CheckFunctionExists)
 include(CheckStructHasMember)
 include(CheckCCompilerFlag)
 include(CMakePushCheckState)
 
 include(CheckCompilerVersion)
+include(CheckProblematicConfigurations)
 include(HandleLLVMStdlib)
 
 if( UNIX AND NOT (APPLE OR BEOS OR HAIKU) )
@@ -63,7 +65,6 @@ check_symbol_exists(FE_ALL_EXCEPT "fenv.h" HAVE_DECL_FE_ALL_EXCEPT)
 check_symbol_exists(FE_INEXACT "fenv.h" HAVE_DECL_FE_INEXACT)
 
 check_include_file(mach/mach.h HAVE_MACH_MACH_H)
-check_include_file(histedit.h HAVE_HISTEDIT_H)
 check_include_file(CrashReporterClient.h HAVE_CRASHREPORTERCLIENT_H)
 if(APPLE)
   include(CheckCSourceCompiles)
@@ -87,14 +88,12 @@ endif()
 if( NOT PURE_WINDOWS )
   check_library_exists(pthread pthread_create "" HAVE_LIBPTHREAD)
   if (HAVE_LIBPTHREAD)
-    check_library_exists(pthread pthread_getspecific "" HAVE_PTHREAD_GETSPECIFIC)
     check_library_exists(pthread pthread_rwlock_init "" HAVE_PTHREAD_RWLOCK_INIT)
     check_library_exists(pthread pthread_mutex_lock "" HAVE_PTHREAD_MUTEX_LOCK)
   else()
     # this could be Android
     check_library_exists(c pthread_create "" PTHREAD_IN_LIBC)
     if (PTHREAD_IN_LIBC)
-      check_library_exists(c pthread_getspecific "" HAVE_PTHREAD_GETSPECIFIC)
       check_library_exists(c pthread_rwlock_init "" HAVE_PTHREAD_RWLOCK_INIT)
       check_library_exists(c pthread_mutex_lock "" HAVE_PTHREAD_MUTEX_LOCK)
     endif()
@@ -135,7 +134,22 @@ if(LLVM_ENABLE_ZLIB)
     endif()
   endif()
   set(LLVM_ENABLE_ZLIB "${HAVE_ZLIB}")
+else()
+  set(LLVM_ENABLE_ZLIB 0)
 endif()
+
+set(zstd_FOUND 0)
+if(LLVM_ENABLE_ZSTD)
+  if(LLVM_ENABLE_ZSTD STREQUAL FORCE_ON)
+    find_package(zstd REQUIRED)
+    if(NOT zstd_FOUND)
+      message(FATAL_ERROR "Failed to configure zstd, but LLVM_ENABLE_ZSTD is FORCE_ON")
+    endif()
+  elseif(NOT LLVM_USE_SANITIZER MATCHES "Memory.*")
+    find_package(zstd QUIET)
+  endif()
+endif()
+set(LLVM_ENABLE_ZSTD ${zstd_FOUND})
 
 if(LLVM_ENABLE_LIBXML2)
   if(LLVM_ENABLE_LIBXML2 STREQUAL FORCE_ON)
@@ -169,8 +183,7 @@ if(LLVM_ENABLE_CURL)
     # Check if curl we found is usable; for example, we may have found a 32-bit
     # library on a 64-bit system which would result in a link-time failure.
     cmake_push_check_state()
-    list(APPEND CMAKE_REQUIRED_INCLUDES ${CURL_INCLUDE_DIRS})
-    list(APPEND CMAKE_REQUIRED_LIBRARIES ${CURL_LIBRARY})
+    list(APPEND CMAKE_REQUIRED_LIBRARIES CURL::libcurl)
     check_symbol_exists(curl_easy_init curl/curl.h HAVE_CURL)
     cmake_pop_check_state()
     if(LLVM_ENABLE_CURL STREQUAL FORCE_ON AND NOT HAVE_CURL)
@@ -180,29 +193,45 @@ if(LLVM_ENABLE_CURL)
   set(LLVM_ENABLE_CURL "${HAVE_CURL}")
 endif()
 
+if(LLVM_ENABLE_HTTPLIB)
+  if(LLVM_ENABLE_HTTPLIB STREQUAL FORCE_ON)
+    find_package(httplib REQUIRED)
+  else()
+    find_package(httplib)
+  endif()
+  if(HTTPLIB_FOUND)
+    # Check if the "httplib" we found is usable; for example there may be another
+    # library with the same name.
+    cmake_push_check_state()
+    list(APPEND CMAKE_REQUIRED_LIBRARIES ${HTTPLIB_LIBRARY})
+    check_cxx_symbol_exists(CPPHTTPLIB_HTTPLIB_H ${HTTPLIB_HEADER_PATH} HAVE_HTTPLIB)
+    cmake_pop_check_state()
+    if(LLVM_ENABLE_HTTPLIB STREQUAL FORCE_ON AND NOT HAVE_HTTPLIB)
+      message(FATAL_ERROR "Failed to configure cpp-httplib")
+    endif()
+  endif()
+  set(LLVM_ENABLE_HTTPLIB "${HAVE_HTTPLIB}")
+endif()
+
 # Don't look for these libraries if we're using MSan, since uninstrumented third
 # party code may call MSan interceptors like strlen, leading to false positives.
 if(NOT LLVM_USE_SANITIZER MATCHES "Memory.*")
   # Don't look for these libraries on Windows.
   if (NOT PURE_WINDOWS)
     # Skip libedit if using ASan as it contains memory leaks.
-    if (LLVM_ENABLE_LIBEDIT AND HAVE_HISTEDIT_H AND NOT LLVM_USE_SANITIZER MATCHES ".*Address.*")
-      check_library_exists(edit el_init "" HAVE_LIBEDIT)
+    if (LLVM_ENABLE_LIBEDIT AND NOT LLVM_USE_SANITIZER MATCHES ".*Address.*")
+      find_package(LibEdit)
+      set(HAVE_LIBEDIT ${LibEdit_FOUND})
     else()
       set(HAVE_LIBEDIT 0)
     endif()
-    if(LLVM_ENABLE_TERMINFO STREQUAL FORCE_ON)
-      set(MAYBE_REQUIRED REQUIRED)
-    else()
-      set(MAYBE_REQUIRED)
-    endif()
     if(LLVM_ENABLE_TERMINFO)
-      find_library(TERMINFO_LIB NAMES terminfo tinfo curses ncurses ncursesw ${MAYBE_REQUIRED})
-    endif()
-    if(TERMINFO_LIB)
-      set(LLVM_ENABLE_TERMINFO 1)
-    else()
-      set(LLVM_ENABLE_TERMINFO 0)
+      if(LLVM_ENABLE_TERMINFO STREQUAL FORCE_ON)
+        find_package(Terminfo REQUIRED)
+      else()
+        find_package(Terminfo)
+      endif()
+      set(LLVM_ENABLE_TERMINFO "${Terminfo_FOUND}")
     endif()
   else()
     set(LLVM_ENABLE_TERMINFO 0)
@@ -213,7 +242,13 @@ endif()
 
 check_library_exists(xar xar_open "" LLVM_HAVE_LIBXAR)
 if(LLVM_HAVE_LIBXAR)
-  set(XAR_LIB xar)
+  message(STATUS "The xar file format has been deprecated: LLVM_HAVE_LIBXAR might be removed in the future.")
+  # The xar file format has been deprecated since macOS 12.0.
+  if (CMAKE_OSX_DEPLOYMENT_TARGET VERSION_GREATER_EQUAL 12)
+    set(LLVM_HAVE_LIBXAR 0)
+  else()
+    set(XAR_LIB xar)
+  endif()
 endif()
 
 # function checks
@@ -242,7 +277,6 @@ check_symbol_exists(setrlimit sys/resource.h HAVE_SETRLIMIT)
 check_symbol_exists(isatty unistd.h HAVE_ISATTY)
 check_symbol_exists(futimens sys/stat.h HAVE_FUTIMENS)
 check_symbol_exists(futimes sys/time.h HAVE_FUTIMES)
-check_symbol_exists(posix_fallocate fcntl.h HAVE_POSIX_FALLOCATE)
 # AddressSanitizer conflicts with lib/Support/Unix/Signals.inc
 # Avoid sigaltstack on Apple platforms, where backtrace() cannot handle it
 # (rdar://7089625) and _Unwind_Backtrace is unusable because it cannot unwind
@@ -348,49 +382,21 @@ if (LLVM_ENABLE_DOXYGEN)
   llvm_find_program(dot)
 endif ()
 
-if( LLVM_ENABLE_FFI )
-  find_path(FFI_INCLUDE_PATH ffi.h PATHS ${FFI_INCLUDE_DIR})
-  if( EXISTS "${FFI_INCLUDE_PATH}/ffi.h" )
-    set(FFI_HEADER ffi.h CACHE INTERNAL "")
-    set(HAVE_FFI_H 1 CACHE INTERNAL "")
+if(LLVM_ENABLE_FFI)
+  set(FFI_REQUIRE_INCLUDE On)
+  if(LLVM_ENABLE_FFI STREQUAL FORCE_ON)
+    find_package(FFI REQUIRED)
   else()
-    find_path(FFI_INCLUDE_PATH ffi/ffi.h PATHS ${FFI_INCLUDE_DIR})
-    if( EXISTS "${FFI_INCLUDE_PATH}/ffi/ffi.h" )
-      set(FFI_HEADER ffi/ffi.h CACHE INTERNAL "")
-      set(HAVE_FFI_FFI_H 1 CACHE INTERNAL "")
-    endif()
+    find_package(FFI)
   endif()
-
-  if( NOT FFI_HEADER )
-    message(FATAL_ERROR "libffi includes are not found.")
-  endif()
-
-  find_library(FFI_LIBRARY_PATH ffi PATHS ${FFI_LIBRARY_DIR})
-  if( NOT FFI_LIBRARY_PATH )
-    message(FATAL_ERROR "libffi is not found.")
-  endif()
-
-  list(APPEND CMAKE_REQUIRED_LIBRARIES ${FFI_LIBRARY_PATH})
-  list(APPEND CMAKE_REQUIRED_INCLUDES ${FFI_INCLUDE_PATH})
-  check_symbol_exists(ffi_call ${FFI_HEADER} HAVE_FFI_CALL)
-  list(REMOVE_ITEM CMAKE_REQUIRED_INCLUDES ${FFI_INCLUDE_PATH})
-  list(REMOVE_ITEM CMAKE_REQUIRED_LIBRARIES ${FFI_LIBRARY_PATH})
+  set(LLVM_ENABLE_FFI "${FFI_FOUND}")
 else()
   unset(HAVE_FFI_FFI_H CACHE)
   unset(HAVE_FFI_H CACHE)
   unset(HAVE_FFI_CALL CACHE)
-endif( LLVM_ENABLE_FFI )
+endif()
 
 check_symbol_exists(proc_pid_rusage "libproc.h" HAVE_PROC_PID_RUSAGE)
-
-# Whether we can use std::is_trivially_copyable to verify llvm::is_trivially_copyable.
-CHECK_CXX_SOURCE_COMPILES("
-#include <type_traits>
-struct T { int val; };
-static_assert(std::is_trivially_copyable<T>::value, \"ok\");
-int main() { return 0;}
-" HAVE_STD_IS_TRIVIALLY_COPYABLE)
-
 
 # Define LLVM_HAS_ATOMICS if gcc or MSVC atomic builtins are supported.
 include(CheckAtomic)
@@ -483,6 +489,8 @@ elseif (LLVM_NATIVE_ARCH MATCHES "riscv64")
   set(LLVM_NATIVE_ARCH RISCV)
 elseif (LLVM_NATIVE_ARCH STREQUAL "m68k")
   set(LLVM_NATIVE_ARCH M68k)
+elseif (LLVM_NATIVE_ARCH MATCHES "loongarch")
+  set(LLVM_NATIVE_ARCH LoongArch)
 else ()
   message(FATAL_ERROR "Unknown architecture ${LLVM_NATIVE_ARCH}")
 endif ()
@@ -560,9 +568,6 @@ else()
   set(LLVM_ENABLE_DIA_SDK 0)
 endif( MSVC )
 
-# FIXME: Signal handler return type, currently hardcoded to 'void'
-set(RETSIGTYPE void)
-
 if( LLVM_ENABLE_THREADS )
   # Check if threading primitives aren't supported on this platform
   if( NOT HAVE_PTHREAD_H AND NOT WIN32 )
@@ -598,30 +603,11 @@ else()
   message(STATUS "Doxygen disabled.")
 endif()
 
-set(LLVM_BINDINGS "")
-find_program(GO_EXECUTABLE NAMES go DOC "go executable")
-if(WIN32 OR NOT LLVM_ENABLE_BINDINGS)
-  message(STATUS "Go bindings disabled.")
-else()
-  if(GO_EXECUTABLE STREQUAL "GO_EXECUTABLE-NOTFOUND")
-    message(STATUS "Go bindings disabled.")
-  else()
-    execute_process(COMMAND ${GO_EXECUTABLE} run ${PROJECT_SOURCE_DIR}/bindings/go/conftest.go
-                    RESULT_VARIABLE GO_CONFTEST)
-    if(GO_CONFTEST STREQUAL "0")
-      set(LLVM_BINDINGS "${LLVM_BINDINGS} go")
-      message(STATUS "Go bindings enabled.")
-    else()
-      message(STATUS "Go bindings disabled, need at least Go 1.2.")
-    endif()
-  endif()
-endif()
-
 find_program(GOLD_EXECUTABLE NAMES ${LLVM_DEFAULT_TARGET_TRIPLE}-ld.gold ld.gold ${LLVM_DEFAULT_TARGET_TRIPLE}-ld ld DOC "The gold linker")
 set(LLVM_BINUTILS_INCDIR "" CACHE PATH
     "PATH to binutils/include containing plugin-api.h for gold plugin.")
 
-if(CMAKE_GENERATOR STREQUAL "Ninja")
+if(CMAKE_GENERATOR MATCHES "Ninja")
   execute_process(COMMAND ${CMAKE_MAKE_PROGRAM} --version
     OUTPUT_VARIABLE NINJA_VERSION
     OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -629,7 +615,7 @@ if(CMAKE_GENERATOR STREQUAL "Ninja")
   message(STATUS "Ninja version: ${NINJA_VERSION}")
 endif()
 
-if(CMAKE_GENERATOR STREQUAL "Ninja" AND
+if(CMAKE_GENERATOR MATCHES "Ninja" AND
     NOT "${NINJA_VERSION}" VERSION_LESS "1.9.0" AND
     CMAKE_HOST_APPLE AND CMAKE_HOST_SYSTEM_VERSION VERSION_GREATER "15.6.0")
   set(LLVM_TOUCH_STATIC_LIBRARIES ON)
@@ -654,6 +640,7 @@ if(CMAKE_HOST_APPLE AND APPLE)
 endif()
 
 # Keep the version requirements in sync with bindings/ocaml/README.txt.
+set(LLVM_BINDINGS "")
 include(FindOCaml)
 include(AddOCaml)
 if(WIN32 OR NOT LLVM_ENABLE_BINDINGS)
@@ -669,7 +656,6 @@ else()
       find_ocamlfind_package(ctypes VERSION 0.4 OPTIONAL)
       if( HAVE_OCAML_CTYPES )
         message(STATUS "OCaml bindings enabled.")
-        find_ocamlfind_package(oUnit VERSION 2 OPTIONAL)
         set(LLVM_BINDINGS "${LLVM_BINDINGS} ocaml")
 
         set(LLVM_OCAML_INSTALL_PATH "${OCAML_STDLIB_PATH}" CACHE STRING

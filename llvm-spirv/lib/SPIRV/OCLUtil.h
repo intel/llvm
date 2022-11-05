@@ -54,6 +54,10 @@ using namespace SPIRV;
 using namespace llvm;
 using namespace spv;
 
+namespace SPIRV {
+class BuiltinCallMutator;
+} // namespace SPIRV
+
 namespace OCLUtil {
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -154,12 +158,12 @@ struct OCLBuiltinTransInfo {
   std::string MangledName;
   std::string Postfix; // Postfix to be added
   /// Postprocessor of operands
-  std::function<void(std::vector<Value *> &)> PostProc;
+  std::function<void(BuiltinCallMutator &)> PostProc;
   Type *RetTy;      // Return type of the translated function
   bool IsRetSigned; // When RetTy is int, determines if extensions
                     // on it should be a sext or zet.
   OCLBuiltinTransInfo() : RetTy(nullptr), IsRetSigned(false) {
-    PostProc = [](std::vector<Value *> &) {};
+    PostProc = [](BuiltinCallMutator &) {};
   }
 };
 
@@ -233,6 +237,9 @@ const static char Barrier[] = "barrier";
 const static char Clamp[] = "clamp";
 const static char ConvertPrefix[] = "convert_";
 const static char Dot[] = "dot";
+const static char DotAccSat[] = "dot_acc_sat";
+const static char Dot4x8PackedPrefix[] = "dot_4x8packed_";
+const static char DotAccSat4x8PackedPrefix[] = "dot_acc_sat_4x8packed_";
 const static char EnqueueKernel[] = "enqueue_kernel";
 const static char FixedSqrtINTEL[] = "intel_arbitrary_fixed_sqrt";
 const static char FixedRecipINTEL[] = "intel_arbitrary_fixed_recip";
@@ -304,6 +311,28 @@ const static char SubgroupBlockWriteINTELPrefix[] =
     "intel_sub_group_block_write";
 const static char SubgroupImageMediaBlockINTELPrefix[] =
     "intel_sub_group_media_block";
+const static char SplitBarrierINTELPrefix[] = "intel_work_group_barrier_";
+const static char LDEXP[] = "ldexp";
+#define _SPIRV_OP(x)                                                           \
+  const static char ConvertBFloat16##x##AsUShort##x[] =                        \
+      "intel_convert_bfloat16" #x "_as_ushort" #x;
+_SPIRV_OP()
+_SPIRV_OP(2)
+_SPIRV_OP(3)
+_SPIRV_OP(4)
+_SPIRV_OP(8)
+_SPIRV_OP(16)
+#undef _SPIRV_OP
+#define _SPIRV_OP(x)                                                           \
+  const static char ConvertAsBFloat16##x##Float##x[] =                         \
+      "intel_convert_as_bfloat16" #x "_float" #x;
+_SPIRV_OP()
+_SPIRV_OP(2)
+_SPIRV_OP(3)
+_SPIRV_OP(4)
+_SPIRV_OP(8)
+_SPIRV_OP(16)
+#undef _SPIRV_OP
 } // namespace kOCLBuiltinName
 
 /// Offset for OpenCL image channel order enumeration values.
@@ -460,36 +489,17 @@ inline OCLMemOrderKind mapSPIRVMemOrderToOCL(unsigned Sema) {
   return OCLMemOrderMap::rmap(extractSPIRVMemOrderSemantic(Sema));
 }
 
-/// Mutate call instruction to call OpenCL builtin function.
-CallInst *mutateCallInstOCL(
-    Module *M, CallInst *CI,
-    std::function<std::string(CallInst *, std::vector<Value *> &)> ArgMutate,
-    AttributeList *Attrs = nullptr);
-
-/// Mutate call instruction to call OpenCL builtin function.
-Instruction *mutateCallInstOCL(
-    Module *M, CallInst *CI,
-    std::function<std::string(CallInst *, std::vector<Value *> &, Type *&RetTy)>
-        ArgMutate,
-    std::function<Instruction *(CallInst *)> RetMutate,
-    AttributeList *Attrs = nullptr, bool TakeFuncName = false);
-
-/// Check if instruction is bitcast from spirv.ConstantSampler to spirv.Sampler
-bool isSamplerInitializer(Instruction *Inst);
-
-/// Check if instruction is bitcast from spirv.ConstantPipeStorage
-/// to spirv.PipeStorage
-bool isPipeStorageInitializer(Instruction *Inst);
-
-/// Check (isSamplerInitializer || isPipeStorageInitializer)
-bool isSpecialTypeInitializer(Instruction *Inst);
+/// If the value is a special type initializer (something that bitcasts from
+/// spirv.ConstantSampler to spirv.Sampler or likewise for PipeStorage), get the
+/// original type initializer, unwrap the bitcast. Otherwise, return nullptr.
+Value *unwrapSpecialTypeInitializer(Value *V);
 
 bool isPipeOrAddressSpaceCastBI(const StringRef MangledName);
 bool isEnqueueKernelBI(const StringRef MangledName);
 bool isKernelQueryBI(const StringRef MangledName);
 
 /// Check that the type is the sampler_t
-bool isSamplerTy(Type *Ty);
+bool isSamplerStructTy(Type *Ty);
 
 // Checks if the binary operator is an unfused fmul + fadd instruction.
 bool isUnfusedMulAdd(BinaryOperator *B);
@@ -502,6 +512,8 @@ std::string getIntelSubgroupBlockDataPostfix(unsigned ElementBitSize,
 
 void insertImageNameAccessQualifier(SPIRVAccessQualifierKind Acc,
                                     std::string &Name);
+
+std::unique_ptr<SPIRV::BuiltinFuncMangleInfo> makeMangler(Function &F);
 } // namespace OCLUtil
 
 using namespace OCLUtil;

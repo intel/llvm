@@ -23,6 +23,7 @@
 #include "lldb/Utility/ProcessInfo.h"
 #include "lldb/Utility/StructuredData.h"
 #include "lldb/Utility/TraceGDBRemotePackets.h"
+#include "lldb/Utility/UUID.h"
 #if defined(_WIN32)
 #include "lldb/Host/windows/PosixApi.h"
 #endif
@@ -79,8 +80,6 @@ public:
 
   lldb::pid_t GetCurrentProcessID(bool allow_lazy = true);
 
-  bool GetLaunchSuccess(std::string &error_str);
-
   bool LaunchGDBServer(const char *remote_accept_hostname, lldb::pid_t &pid,
                        uint16_t &port, std::string &socket_name);
 
@@ -89,19 +88,11 @@ public:
 
   bool KillSpawnedProcess(lldb::pid_t pid);
 
-  /// Sends a GDB remote protocol 'A' packet that delivers program
-  /// arguments to the remote server.
+  /// Launch the process using the provided arguments.
   ///
-  /// \param[in] launch_info
-  ///     A NULL terminated array of const C strings to use as the
-  ///     arguments.
-  ///
-  /// \return
-  ///     Zero if the response was "OK", a positive value if the
-  ///     the response was "Exx" where xx are two hex digits, or
-  ///     -1 if the call is unsupported or any other unexpected
-  ///     response was received.
-  int SendArgumentsPacket(const ProcessLaunchInfo &launch_info);
+  /// \param[in] args
+  ///     A list of program arguments. The first entry is the program being run.
+  llvm::Error LaunchProcess(const Args &args);
 
   /// Sends a "QEnvironment:NAME=VALUE" packet that will build up the
   /// environment that will get used when launching an application
@@ -217,6 +208,11 @@ public:
 
   const ArchSpec &GetProcessArchitecture();
 
+  bool GetProcessStandaloneBinary(UUID &uuid, lldb::addr_t &value,
+                                  bool &value_is_offset);
+
+  std::vector<lldb::addr_t> GetProcessStandaloneBinaries();
+
   void GetRemoteQSupported();
 
   bool GetVContSupported(char flavor);
@@ -239,9 +235,9 @@ public:
 
   llvm::VersionTuple GetMacCatalystVersion();
 
-  bool GetOSBuildString(std::string &s);
+  llvm::Optional<std::string> GetOSBuildString();
 
-  bool GetOSKernelDescription(std::string &s);
+  llvm::Optional<std::string> GetOSKernelDescription();
 
   ArchSpec GetSystemArchitecture();
 
@@ -250,8 +246,6 @@ public:
   bool GetHostname(std::string &s);
 
   lldb::addr_t GetShlibInfoAddr();
-
-  bool GetSupportsThreadSuffix();
 
   bool GetProcessInfo(lldb::pid_t pid, ProcessInstanceInfo &process_info);
 
@@ -333,6 +327,10 @@ public:
   bool GetQXferFeaturesReadSupported();
 
   bool GetQXferMemoryMapReadSupported();
+
+  bool GetQXferSigInfoReadSupported();
+
+  bool GetMultiprocessSupported();
 
   LazyBool SupportsAllocDeallocMemory() // const
   {
@@ -433,6 +431,8 @@ public:
 
   bool GetMemoryTaggingSupported();
 
+  bool UsesNativeSignals();
+
   lldb::DataBufferSP ReadMemoryTags(lldb::addr_t addr, size_t len,
                                     int32_t type);
 
@@ -516,6 +516,8 @@ public:
 
   bool GetSaveCoreSupported() const;
 
+  llvm::Expected<int> KillProcess(lldb::pid_t pid);
+
 protected:
   LazyBool m_supports_not_sending_acks = eLazyBoolCalculate;
   LazyBool m_supports_thread_suffix = eLazyBoolCalculate;
@@ -546,6 +548,7 @@ protected:
   LazyBool m_supports_qXfer_libraries_svr4_read = eLazyBoolCalculate;
   LazyBool m_supports_qXfer_features_read = eLazyBoolCalculate;
   LazyBool m_supports_qXfer_memory_map_read = eLazyBoolCalculate;
+  LazyBool m_supports_qXfer_siginfo_read = eLazyBoolCalculate;
   LazyBool m_supports_augmented_libraries_svr4_read = eLazyBoolCalculate;
   LazyBool m_supports_jThreadExtendedInfo = eLazyBoolCalculate;
   LazyBool m_supports_jLoadedDynamicLibrariesInfos = eLazyBoolCalculate;
@@ -555,6 +558,7 @@ protected:
   LazyBool m_supports_multiprocess = eLazyBoolCalculate;
   LazyBool m_supports_memory_tagging = eLazyBoolCalculate;
   LazyBool m_supports_qSaveCore = eLazyBoolCalculate;
+  LazyBool m_uses_native_signals = eLazyBoolCalculate;
 
   bool m_supports_qProcessInfoPID : 1, m_supports_qfProcessInfo : 1,
       m_supports_qUserName : 1, m_supports_qGroupName : 1,
@@ -581,6 +585,10 @@ protected:
 
   ArchSpec m_host_arch;
   ArchSpec m_process_arch;
+  UUID m_process_standalone_uuid;
+  lldb::addr_t m_process_standalone_value = LLDB_INVALID_ADDRESS;
+  bool m_process_standalone_value_is_offset = false;
+  std::vector<lldb::addr_t> m_binary_addresses;
   llvm::VersionTuple m_os_version;
   llvm::VersionTuple m_maccatalyst_version;
   std::string m_os_build;

@@ -46,11 +46,8 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassInstrumentation.h"
 #include "llvm/IR/PassManagerInternal.h"
-#include "llvm/Pass.h"
-#include "llvm/Support/Debug.h"
 #include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/TypeName.h"
-#include <algorithm>
 #include <cassert>
 #include <cstring>
 #include <iterator>
@@ -233,11 +230,11 @@ public:
     }
     // The intersection requires the *union* of the explicitly not-preserved
     // IDs and the *intersection* of the preserved IDs.
-    for (auto ID : Arg.NotPreservedAnalysisIDs) {
+    for (auto *ID : Arg.NotPreservedAnalysisIDs) {
       PreservedIDs.erase(ID);
       NotPreservedAnalysisIDs.insert(ID);
     }
-    for (auto ID : PreservedIDs)
+    for (auto *ID : PreservedIDs)
       if (!Arg.PreservedIDs.count(ID))
         PreservedIDs.erase(ID);
   }
@@ -255,11 +252,11 @@ public:
     }
     // The intersection requires the *union* of the explicitly not-preserved
     // IDs and the *intersection* of the preserved IDs.
-    for (auto ID : Arg.NotPreservedAnalysisIDs) {
+    for (auto *ID : Arg.NotPreservedAnalysisIDs) {
       PreservedIDs.erase(ID);
       NotPreservedAnalysisIDs.insert(ID);
     }
-    for (auto ID : PreservedIDs)
+    for (auto *ID : PreservedIDs)
       if (!Arg.PreservedIDs.count(ID))
         PreservedIDs.erase(ID);
   }
@@ -473,7 +470,7 @@ class PassManager : public PassInfoMixin<
                         PassManager<IRUnitT, AnalysisManagerT, ExtraArgTs...>> {
 public:
   /// Construct a pass manager.
-  explicit PassManager() {}
+  explicit PassManager() = default;
 
   // FIXME: These are equivalent to the default move constructor/move
   // assignment. However, using = default triggers linker errors due to the
@@ -510,24 +507,18 @@ public:
         detail::getAnalysisResult<PassInstrumentationAnalysis>(
             AM, IR, std::tuple<ExtraArgTs...>(ExtraArgs...));
 
-    for (unsigned Idx = 0, Size = Passes.size(); Idx != Size; ++Idx) {
-      auto *P = Passes[Idx].get();
-
+    for (auto &Pass : Passes) {
       // Check the PassInstrumentation's BeforePass callbacks before running the
       // pass, skip its execution completely if asked to (callback returns
       // false).
-      if (!PI.runBeforePass<IRUnitT>(*P, IR))
+      if (!PI.runBeforePass<IRUnitT>(*Pass, IR))
         continue;
 
-      PreservedAnalyses PassPA;
-      {
-        TimeTraceScope TimeScope(P->name(), IR.getName());
-        PassPA = P->run(IR, AM, ExtraArgs...);
-      }
+      PreservedAnalyses PassPA = Pass->run(IR, AM, ExtraArgs...);
 
       // Call onto PassInstrumentation's AfterPass callbacks immediately after
       // running the pass.
-      PI.runAfterPass<IRUnitT>(*P, IR, PassPA);
+      PI.runAfterPass<IRUnitT>(*Pass, IR, PassPA);
 
       // Update the analysis manager as each pass runs and potentially
       // invalidates analyses.
@@ -1107,7 +1098,7 @@ public:
           DeadKeys.push_back(OuterID);
       }
 
-      for (auto OuterID : DeadKeys)
+      for (auto *OuterID : DeadKeys)
         OuterAnalysisInvalidationMap.erase(OuterID);
 
       // The proxy itself remains valid regardless of anything else.
@@ -1204,8 +1195,9 @@ class ModuleToFunctionPassAdaptor
 public:
   using PassConceptT = detail::PassConcept<Function, FunctionAnalysisManager>;
 
-  explicit ModuleToFunctionPassAdaptor(std::unique_ptr<PassConceptT> Pass)
-      : Pass(std::move(Pass)) {}
+  explicit ModuleToFunctionPassAdaptor(std::unique_ptr<PassConceptT> Pass,
+                                       bool EagerlyInvalidate)
+      : Pass(std::move(Pass)), EagerlyInvalidate(EagerlyInvalidate) {}
 
   /// Runs the function pass across every function in the module.
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
@@ -1216,13 +1208,15 @@ public:
 
 private:
   std::unique_ptr<PassConceptT> Pass;
+  bool EagerlyInvalidate;
 };
 
 /// A function to deduce a function pass type and wrap it in the
 /// templated adaptor.
 template <typename FunctionPassT>
 ModuleToFunctionPassAdaptor
-createModuleToFunctionPassAdaptor(FunctionPassT &&Pass) {
+createModuleToFunctionPassAdaptor(FunctionPassT &&Pass,
+                                  bool EagerlyInvalidate = false) {
   using PassModelT =
       detail::PassModel<Function, FunctionPassT, PreservedAnalyses,
                         FunctionAnalysisManager>;
@@ -1230,7 +1224,8 @@ createModuleToFunctionPassAdaptor(FunctionPassT &&Pass) {
   // causing terrible compile times.
   return ModuleToFunctionPassAdaptor(
       std::unique_ptr<ModuleToFunctionPassAdaptor::PassConceptT>(
-          new PassModelT(std::forward<FunctionPassT>(Pass))));
+          new PassModelT(std::forward<FunctionPassT>(Pass))),
+      EagerlyInvalidate);
 }
 
 /// A utility pass template to force an analysis result to be available.

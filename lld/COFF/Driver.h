@@ -23,15 +23,14 @@
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/TarWriter.h"
+#include "llvm/WindowsDriver/MSVCPaths.h"
 #include <memory>
 #include <set>
 #include <vector>
 
-namespace lld {
-namespace coff {
+namespace lld::coff {
 
-class LinkerDriver;
-extern LinkerDriver *driver;
+extern std::unique_ptr<class LinkerDriver> driver;
 
 using llvm::COFF::MachineTypes;
 using llvm::COFF::WindowsSubsystem;
@@ -54,6 +53,7 @@ extern COFFOptTable optTable;
 struct ParsedDirectives {
   std::vector<StringRef> exports;
   std::vector<StringRef> includes;
+  std::vector<StringRef> excludes;
   llvm::opt::InputArgList args;
 };
 
@@ -83,6 +83,10 @@ public:
 
   void linkerMain(llvm::ArrayRef<const char *> args);
 
+  // Adds various search paths based on the sysroot.  Must only be called once
+  // config->machine has been set.
+  void addWinSysRootLibSearchPaths();
+
   // Used by the resolver to parse .drectve section contents.
   void parseDirectives(InputFile *file);
 
@@ -107,6 +111,9 @@ private:
   StringRef doFindLibMinGW(StringRef filename);
 
   bool findUnderscoreMangle(StringRef sym);
+
+  // Determines the location of the sysroot based on `args`, environment, etc.
+  void detectWinSysRoot(const llvm::opt::InputArgList &args);
 
   // Parses LIB environment which contains a list of search paths.
   void addLibSearchPaths();
@@ -152,9 +159,18 @@ private:
   std::vector<StringRef> filePaths;
   std::vector<MemoryBufferRef> resources;
 
-  llvm::StringSet<> directivesExports;
+  llvm::DenseSet<StringRef> directivesExports;
+  llvm::DenseSet<StringRef> excludedSymbols;
 
   COFFLinkerContext &ctx;
+
+  llvm::ToolsetLayout vsLayout = llvm::ToolsetLayout::OlderVS;
+  std::string vcToolChainPath;
+  llvm::SmallString<128> diaPath;
+  bool useWinSysRootLibPath = false;
+  llvm::SmallString<128> universalCRTLibPath;
+  int sdkMajor = 0;
+  llvm::SmallString<128> windowsSdkLibPath;
 };
 
 // Functions below this line are defined in DriverUtils.cpp.
@@ -176,6 +192,7 @@ void parseSubsystem(StringRef arg, WindowsSubsystem *sys, uint32_t *major,
 
 void parseAlternateName(StringRef);
 void parseMerge(StringRef);
+void parsePDBPageSize(StringRef);
 void parseSection(StringRef);
 void parseAligncomm(StringRef);
 
@@ -218,7 +235,6 @@ enum {
 #undef OPTION
 };
 
-} // namespace coff
-} // namespace lld
+} // namespace lld::coff
 
 #endif

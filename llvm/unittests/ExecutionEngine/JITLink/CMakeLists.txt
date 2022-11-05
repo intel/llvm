@@ -9,7 +9,10 @@ set(LLVM_LINK_COMPONENTS
   )
 
 add_llvm_unittest(JITLinkTests
+    EHFrameSupportTests.cpp
     LinkGraphTests.cpp
   )
 
 target_link_libraries(JITLinkTests PRIVATE LLVMTestingSupport)
+
+set_property(TARGET JITLinkTests PROPERTY FOLDER "Tests/UnitTests/ExecutionTests")

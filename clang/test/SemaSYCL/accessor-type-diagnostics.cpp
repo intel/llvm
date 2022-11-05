@@ -9,7 +9,7 @@
 
 #include "Inputs/sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 
 //alias template
 template <typename...>

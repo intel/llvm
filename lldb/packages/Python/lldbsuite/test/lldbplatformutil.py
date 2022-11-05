@@ -4,16 +4,12 @@ architecture and/or the platform dependent nature of the tests. """
 from __future__ import absolute_import
 
 # System modules
-import ctypes
 import itertools
-import os
 import re
 import subprocess
 import sys
-
-# Third-party modules
-import six
-from six.moves.urllib import parse as urlparse
+import os
+from urllib.parse import urlparse
 
 # LLDB modules
 from . import configuration
@@ -57,18 +53,13 @@ def _run_adb_command(cmd, device_id):
 
 
 def target_is_android():
-    if not hasattr(target_is_android, 'result'):
-        triple = lldb.selected_platform.GetTriple()
-        match = re.match(".*-.*-.*-android", triple)
-        target_is_android.result = match is not None
-    return target_is_android.result
-
+    return configuration.lldb_platform_name == "remote-android"
 
 def android_device_api():
     if not hasattr(android_device_api, 'result'):
         assert configuration.lldb_platform_url is not None
         device_id = None
-        parsed_url = urlparse.urlparse(configuration.lldb_platform_url)
+        parsed_url = urlparse(configuration.lldb_platform_url)
         host_name = parsed_url.netloc.split(":")[0]
         if host_name != 'localhost':
             device_id = host_name
@@ -115,7 +106,7 @@ def getHostPlatform():
     elif sys.platform.startswith('win32') or sys.platform.startswith('cygwin'):
         return 'windows'
     elif sys.platform.startswith('darwin'):
-        return 'darwin'
+        return 'macosx'
     elif sys.platform.startswith('freebsd'):
         return 'freebsd'
     elif sys.platform.startswith('netbsd'):
@@ -139,18 +130,16 @@ def getPlatform():
             platform = 'ios'
         return platform
 
-    # Use the triple to determine the platform if set.
-    triple = lldb.selected_platform.GetTriple()
-    if triple:
-        platform = triple.split('-')[2]
-        if platform.startswith('freebsd'):
-            platform = 'freebsd'
-        elif platform.startswith('netbsd'):
-            platform = 'netbsd'
-        return platform
-
-    # It still might be an unconnected remote platform.
-    return ''
+    platform = configuration.lldb_platform_name
+    if platform is None:
+        platform = "host"
+    if platform == "qemu-user":
+        platform = "host"
+    if platform == "host":
+        return getHostPlatform()
+    if platform.startswith("remote-"):
+        return platform[7:]
+    return platform
 
 
 def platformIsDarwin():
@@ -199,14 +188,3 @@ def hasChattyStderr(test_case):
     if match_android_device(test_case.getArchitecture(), ['aarch64'], range(22, 25+1)):
         return True  # The dynamic linker on the device will complain about unknown DT entries
     return False
-
-if getHostPlatform() == "linux":
-    def enable_attach():
-        """Enable attaching to _this_ process, if host requires such an action.
-        Suitable for use as a preexec_fn in subprocess.Popen and similar."""
-        c = ctypes.CDLL(None)
-        PR_SET_PTRACER = ctypes.c_int(0x59616d61)
-        PR_SET_PTRACER_ANY = ctypes.c_ulong(-1)
-        c.prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY)
-else:
-    enable_attach = None

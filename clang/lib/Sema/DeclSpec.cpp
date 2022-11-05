@@ -18,6 +18,7 @@
 #include "clang/AST/TypeLoc.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/SourceManager.h"
+#include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Sema/ParsedTemplate.h"
 #include "clang/Sema/Sema.h"
@@ -238,7 +239,7 @@ DeclaratorChunk DeclaratorChunk::getFunction(bool hasProto,
     // is already used (consider a function returning a function pointer) or too
     // small (function with too many parameters), go to the heap.
     if (!TheDeclarator.InlineStorageUsed &&
-        NumParams <= llvm::array_lengthof(TheDeclarator.InlineParams)) {
+        NumParams <= std::size(TheDeclarator.InlineParams)) {
       I.Fun.Params = TheDeclarator.InlineParams;
       new (I.Fun.Params) ParamInfo[NumParams];
       I.Fun.DeleteParams = false;
@@ -307,8 +308,7 @@ void Declarator::setDecompositionBindings(
 
   // Allocate storage for bindings and stash them away.
   if (Bindings.size()) {
-    if (!InlineStorageUsed &&
-        Bindings.size() <= llvm::array_lengthof(InlineBindings)) {
+    if (!InlineStorageUsed && Bindings.size() <= std::size(InlineBindings)) {
       BindingGroup.Bindings = InlineBindings;
       BindingGroup.DeleteBindings = false;
       InlineStorageUsed = true;
@@ -365,7 +365,7 @@ bool Declarator::isDeclarationOfFunction() const {
     case TST_half:
     case TST_int:
     case TST_int128:
-    case TST_extint:
+    case TST_bitint:
     case TST_struct:
     case TST_interface:
     case TST_union:
@@ -384,13 +384,16 @@ bool Declarator::isDeclarationOfFunction() const {
       return false;
 
     case TST_decltype:
+    case TST_typeof_unqualExpr:
     case TST_typeofExpr:
       if (Expr *E = DS.getRepAsExpr())
         return E->getType()->isFunctionType();
       return false;
 
-    case TST_underlyingType:
+#define TRANSFORM_TYPE_TRAIT_DEF(_, Trait) case TST_##Trait:
+#include "clang/Basic/TransformTypeTraits.def"
     case TST_typename:
+    case TST_typeof_unqualType:
     case TST_typeofType: {
       QualType QT = DS.getRepAsType().get();
       if (QT.isNull())
@@ -412,7 +415,7 @@ bool Declarator::isDeclarationOfFunction() const {
 bool Declarator::isStaticMember() {
   assert(getContext() == DeclaratorContext::Member);
   return getDeclSpec().getStorageClassSpec() == DeclSpec::SCS_static ||
-         (getName().Kind == UnqualifiedIdKind::IK_OperatorFunctionId &&
+         (getName().getKind() == UnqualifiedIdKind::IK_OperatorFunctionId &&
           CXXMethodDecl::isStaticOverloadedOperator(
               getName().OperatorFunctionId.Operator));
 }
@@ -551,7 +554,7 @@ const char *DeclSpec::getSpecifierName(DeclSpec::TST T,
   case DeclSpec::TST_char32:      return "char32_t";
   case DeclSpec::TST_int:         return "int";
   case DeclSpec::TST_int128:      return "__int128";
-  case DeclSpec::TST_extint:      return "_ExtInt";
+  case DeclSpec::TST_bitint:      return "_BitInt";
   case DeclSpec::TST_half:        return "half";
   case DeclSpec::TST_float:       return "float";
   case DeclSpec::TST_double:      return "double";
@@ -572,11 +575,16 @@ const char *DeclSpec::getSpecifierName(DeclSpec::TST T,
   case DeclSpec::TST_typename:    return "type-name";
   case DeclSpec::TST_typeofType:
   case DeclSpec::TST_typeofExpr:  return "typeof";
+  case DeclSpec::TST_typeof_unqualType:
+  case DeclSpec::TST_typeof_unqualExpr: return "typeof_unqual";
   case DeclSpec::TST_auto:        return "auto";
   case DeclSpec::TST_auto_type:   return "__auto_type";
   case DeclSpec::TST_decltype:    return "(decltype)";
   case DeclSpec::TST_decltype_auto: return "decltype(auto)";
-  case DeclSpec::TST_underlyingType: return "__underlying_type";
+#define TRANSFORM_TYPE_TRAIT_DEF(_, Trait)                                     \
+  case DeclSpec::TST_##Trait:                                                  \
+    return "__" #Trait;
+#include "clang/Basic/TransformTypeTraits.def"
   case DeclSpec::TST_unknown_anytype: return "__unknown_anytype";
   case DeclSpec::TST_atomic: return "_Atomic";
   case DeclSpec::TST_BFloat16: return "__bf16";
@@ -932,7 +940,7 @@ bool DeclSpec::SetTypeSpecError() {
   return false;
 }
 
-bool DeclSpec::SetExtIntType(SourceLocation KWLoc, Expr *BitsExpr,
+bool DeclSpec::SetBitIntType(SourceLocation KWLoc, Expr *BitsExpr,
                              const char *&PrevSpec, unsigned &DiagID,
                              const PrintingPolicy &Policy) {
   assert(BitsExpr && "no expression provided!");
@@ -945,7 +953,7 @@ bool DeclSpec::SetExtIntType(SourceLocation KWLoc, Expr *BitsExpr,
     return true;
   }
 
-  TypeSpecType = TST_extint;
+  TypeSpecType = TST_bitint;
   ExprRep = BitsExpr;
   TSTLoc = KWLoc;
   TSTNameLoc = KWLoc;
@@ -1109,9 +1117,8 @@ void DeclSpec::SaveWrittenBuiltinSpecs() {
 }
 
 /// Finish - This does final analysis of the declspec, rejecting things like
-/// "_Imaginary" (lacking an FP type).  This returns a diagnostic to issue or
-/// diag::NUM_DIAGNOSTICS if there is no error.  After calling this method,
-/// DeclSpec is guaranteed self-consistent, even if an error occurred.
+/// "_Imaginary" (lacking an FP type). After calling this method, DeclSpec is
+/// guaranteed to be self-consistent, even if an error occurred.
 void DeclSpec::Finish(Sema &S, const PrintingPolicy &Policy) {
   // Before possibly changing their values, save specs as written.
   SaveWrittenBuiltinSpecs();
@@ -1252,7 +1259,7 @@ void DeclSpec::Finish(Sema &S, const PrintingPolicy &Policy) {
       TypeSpecType = TST_int; // unsigned -> unsigned int, signed -> signed int.
     else if (TypeSpecType != TST_int && TypeSpecType != TST_int128 &&
              TypeSpecType != TST_char && TypeSpecType != TST_wchar &&
-             !IsFixedPointType && TypeSpecType != TST_extint) {
+             !IsFixedPointType && TypeSpecType != TST_bitint) {
       S.Diag(TSSLoc, diag::err_invalid_sign_spec)
         << getSpecifierName((TST)TypeSpecType, Policy);
       // signed double -> double.
@@ -1302,7 +1309,7 @@ void DeclSpec::Finish(Sema &S, const PrintingPolicy &Policy) {
                                                  " double");
       TypeSpecType = TST_double;   // _Complex -> _Complex double.
     } else if (TypeSpecType == TST_int || TypeSpecType == TST_char ||
-               TypeSpecType == TST_extint) {
+               TypeSpecType == TST_bitint) {
       // Note that this intentionally doesn't include _Complex _Bool.
       if (!S.getLangOpts().CPlusPlus)
         S.Diag(TSTLoc, diag::ext_integer_complex);

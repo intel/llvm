@@ -18,7 +18,7 @@
 
 namespace llvm {
 class BitVector;
-} // end namespace llvm
+} // namespace llvm
 
 namespace mlir {
 class TypeRange;
@@ -29,7 +29,7 @@ class ValueTypeRange;
 class Block : public IRObjectWithUseList<BlockOperand>,
               public llvm::ilist_node_with_parent<Block, Region> {
 public:
-  explicit Block() {}
+  explicit Block() = default;
   ~Block();
 
   void clear() {
@@ -88,31 +88,28 @@ public:
   bool args_empty() { return arguments.empty(); }
 
   /// Add one value to the argument list.
-  BlockArgument addArgument(Type type, Optional<Location> loc = {});
+  BlockArgument addArgument(Type type, Location loc);
 
   /// Insert one value to the position in the argument list indicated by the
   /// given iterator. The existing arguments are shifted. The block is expected
   /// not to have predecessors.
-  BlockArgument insertArgument(args_iterator it, Type type,
-                               Optional<Location> loc = {});
+  BlockArgument insertArgument(args_iterator it, Type type, Location loc);
 
   /// Add one argument to the argument list for each type specified in the list.
+  /// `locs` is required to have the same number of elements as `types`.
   iterator_range<args_iterator> addArguments(TypeRange types,
-                                             ArrayRef<Location> locs = {});
+                                             ArrayRef<Location> locs);
 
   /// Add one value to the argument list at the specified position.
-  BlockArgument insertArgument(unsigned index, Type type,
-                               Optional<Location> loc = {});
+  BlockArgument insertArgument(unsigned index, Type type, Location loc);
 
   /// Erase the argument at 'index' and remove it from the argument list.
   void eraseArgument(unsigned index);
-  /// Erases the arguments listed in `argIndices` and removes them from the
-  /// argument list.
-  /// `argIndices` is allowed to have duplicates and can be in any order.
-  void eraseArguments(ArrayRef<unsigned> argIndices);
+  /// Erases 'num' arguments from the index 'start'.
+  void eraseArguments(unsigned start, unsigned num);
   /// Erases the arguments that have their corresponding bit set in
   /// `eraseIndices` and removes them from the argument list.
-  void eraseArguments(const llvm::BitVector &eraseIndices);
+  void eraseArguments(const BitVector &eraseIndices);
   /// Erases arguments using the given predicate. If the predicate returns true,
   /// that argument is erased.
   void eraseArguments(function_ref<bool(BlockArgument)> shouldEraseFn);
@@ -287,7 +284,7 @@ public:
   /// See Operation::walk for more details.
   template <WalkOrder Order = WalkOrder::PostOrder, typename FnT,
             typename RetT = detail::walkResultType<FnT>>
-  typename std::enable_if<std::is_same<RetT, void>::value, RetT>::type
+  std::enable_if_t<std::is_same<RetT, void>::value, RetT>
   walk(Block::iterator begin, Block::iterator end, FnT &&callback) {
     for (auto &op : llvm::make_early_inc_range(llvm::make_range(begin, end)))
       detail::walk<Order>(&op, callback);
@@ -306,7 +303,7 @@ public:
   /// See Operation::walk for more details.
   template <WalkOrder Order = WalkOrder::PostOrder, typename FnT,
             typename RetT = detail::walkResultType<FnT>>
-  typename std::enable_if<std::is_same<RetT, WalkResult>::value, RetT>::type
+  std::enable_if_t<std::is_same<RetT, WalkResult>::value, RetT>
   walk(Block::iterator begin, Block::iterator end, FnT &&callback) {
     for (auto &op : llvm::make_early_inc_range(llvm::make_range(begin, end)))
       if (detail::walk<Order>(&op, callback).wasInterrupted())
@@ -364,6 +361,6 @@ private:
 
   friend struct llvm::ilist_traits<Block>;
 };
-} // end namespace mlir
+} // namespace mlir
 
 #endif // MLIR_IR_BLOCK_H

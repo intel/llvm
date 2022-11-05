@@ -297,6 +297,7 @@ public:
     return {};
   }
   const std::string &getName() const { return Name; }
+  size_t getNumDecorations() const { return Decorates.size(); }
   bool hasDecorate(Decoration Kind, size_t Index = 0,
                    SPIRVWord *Result = 0) const;
   bool hasDecorateId(Decoration Kind, size_t Index = 0,
@@ -309,11 +310,17 @@ public:
   std::vector<SPIRVWord>
   getMemberDecorationLiterals(Decoration Kind, SPIRVWord MemberNumber) const;
   std::vector<std::string> getDecorationStringLiteral(Decoration Kind) const;
+  std::vector<std::vector<std::string>>
+  getAllDecorationStringLiterals(Decoration Kind) const;
+  std::vector<std::vector<std::string>>
+  getAllMemberDecorationStringLiterals(Decoration Kind,
+                                       SPIRVWord MemberNumber) const;
   std::vector<std::string>
   getMemberDecorationStringLiteral(Decoration Kind,
                                    SPIRVWord MemberNumber) const;
   std::set<SPIRVWord> getDecorate(Decoration Kind, size_t Index = 0) const;
   std::vector<SPIRVDecorate const *> getDecorations(Decoration Kind) const;
+  std::vector<SPIRVDecorate const *> getDecorations() const;
   std::set<SPIRVId> getDecorateId(Decoration Kind, size_t Index = 0) const;
   std::vector<SPIRVDecorateId const *> getDecorationIds(Decoration Kind) const;
   bool hasId() const { return !(Attrib & SPIRVEA_NOID); }
@@ -421,8 +428,8 @@ protected:
   /// An entry may have multiple FuncParamAttr decorations.
   typedef std::multimap<Decoration, const SPIRVDecorate *> DecorateMapType;
   typedef std::multimap<Decoration, const SPIRVDecorateId *> DecorateIdMapType;
-  typedef std::map<std::pair<SPIRVWord, Decoration>,
-                   const SPIRVMemberDecorate *>
+  typedef std::multimap<std::pair<SPIRVWord, Decoration>,
+                        const SPIRVMemberDecorate *>
       MemberDecorateMapType;
 
   bool canHaveMemberDecorates() const {

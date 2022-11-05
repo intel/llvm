@@ -162,7 +162,9 @@ const StackFrameContext *VarRegion::getStackFrame() const {
 }
 
 ObjCIvarRegion::ObjCIvarRegion(const ObjCIvarDecl *ivd, const SubRegion *sReg)
-    : DeclRegion(sReg, ObjCIvarRegionKind), IVD(ivd) {}
+    : DeclRegion(sReg, ObjCIvarRegionKind), IVD(ivd) {
+  assert(IVD);
+}
 
 const ObjCIvarDecl *ObjCIvarRegion::getDecl() const { return IVD; }
 
@@ -444,7 +446,7 @@ std::string MemRegion::getString() const {
   std::string s;
   llvm::raw_string_ostream os(s);
   dumpToStream(os);
-  return os.str();
+  return s;
 }
 
 void MemRegion::dumpToStream(raw_ostream &os) const {
@@ -480,7 +482,7 @@ void CompoundLiteralRegion::dumpToStream(raw_ostream &os) const {
 }
 
 void CXXTempObjectRegion::dumpToStream(raw_ostream &os) const {
-  os << "temp_object{" << getValueType().getAsString() << ", "
+  os << "temp_object{" << getValueType() << ", "
      << "S" << Ex->getID(getContext()) << '}';
 }
 
@@ -497,8 +499,8 @@ void CXXThisRegion::dumpToStream(raw_ostream &os) const {
 }
 
 void ElementRegion::dumpToStream(raw_ostream &os) const {
-  os << "Element{" << superRegion << ','
-     << Index << ',' << getElementType().getAsString() << '}';
+  os << "Element{" << superRegion << ',' << Index << ',' << getElementType()
+     << '}';
 }
 
 void FieldRegion::dumpToStream(raw_ostream &os) const {
@@ -792,7 +794,15 @@ DefinedOrUnknownSVal MemRegionManager::getStaticSize(const MemRegion *MR,
         if (Size.isZero())
           return true;
 
+        using FAMKind = LangOptions::StrictFlexArraysLevelKind;
+        const FAMKind StrictFlexArraysLevel =
+          Ctx.getLangOpts().getStrictFlexArraysLevel();
+        if (StrictFlexArraysLevel == FAMKind::ZeroOrIncomplete ||
+            StrictFlexArraysLevel == FAMKind::IncompleteOnly)
+          return false;
+
         const AnalyzerOptions &Opts = SVB.getAnalyzerOptions();
+        // FIXME: this option is probably redundant with -fstrict-flex-arrays=1.
         if (Opts.ShouldConsiderSingleElementArraysAsFlexibleArrayMembers &&
             Size.isOne())
           return true;
@@ -971,26 +981,14 @@ const VarRegion *MemRegionManager::getVarRegion(const VarDecl *D,
   const MemRegion *sReg = nullptr;
 
   if (D->hasGlobalStorage() && !D->isStaticLocal()) {
-
-    // First handle the globals defined in system headers.
-    if (Ctx.getSourceManager().isInSystemHeader(D->getLocation())) {
-      // Whitelist the system globals which often DO GET modified, assume the
-      // rest are immutable.
-      if (D->getName().find("errno") != StringRef::npos)
-        sReg = getGlobalsRegion(MemRegion::GlobalSystemSpaceRegionKind);
-      else
-        sReg = getGlobalsRegion(MemRegion::GlobalImmutableSpaceRegionKind);
-
-    // Treat other globals as GlobalInternal unless they are constants.
+    QualType Ty = D->getType();
+    assert(!Ty.isNull());
+    if (Ty.isConstQualified()) {
+      sReg = getGlobalsRegion(MemRegion::GlobalImmutableSpaceRegionKind);
+    } else if (Ctx.getSourceManager().isInSystemHeader(D->getLocation())) {
+      sReg = getGlobalsRegion(MemRegion::GlobalSystemSpaceRegionKind);
     } else {
-      QualType GQT = D->getType();
-      const Type *GT = GQT.getTypePtrOrNull();
-      // TODO: We could walk the complex types here and see if everything is
-      // constified.
-      if (GT && GQT.isConstQualified() && GT->isArithmeticType())
-        sReg = getGlobalsRegion(MemRegion::GlobalImmutableSpaceRegionKind);
-      else
-        sReg = getGlobalsRegion();
+      sReg = getGlobalsRegion(MemRegion::GlobalInternalSpaceRegionKind);
     }
 
   // Finally handle static locals.
@@ -1012,14 +1010,15 @@ const VarRegion *MemRegionManager::getVarRegion(const VarDecl *D,
       sReg = getUnknownRegion();
     } else {
       if (D->hasLocalStorage()) {
-        sReg = isa<ParmVarDecl>(D) || isa<ImplicitParamDecl>(D)
-               ? static_cast<const MemRegion*>(getStackArgumentsRegion(STC))
-               : static_cast<const MemRegion*>(getStackLocalsRegion(STC));
+        sReg =
+            isa<ParmVarDecl, ImplicitParamDecl>(D)
+                ? static_cast<const MemRegion *>(getStackArgumentsRegion(STC))
+                : static_cast<const MemRegion *>(getStackLocalsRegion(STC));
       }
       else {
         assert(D->isStaticLocal());
         const Decl *STCD = STC->getDecl();
-        if (isa<FunctionDecl>(STCD) || isa<ObjCMethodDecl>(STCD))
+        if (isa<FunctionDecl, ObjCMethodDecl>(STCD))
           sReg = getGlobalsRegion(MemRegion::StaticGlobalSpaceRegionKind,
                                   getFunctionCodeRegion(cast<NamedDecl>(STCD)));
         else if (const auto *BD = dyn_cast<BlockDecl>(STCD)) {
@@ -1032,8 +1031,10 @@ const VarRegion *MemRegionManager::getVarRegion(const VarDecl *D,
             T = TSI->getType();
           if (T.isNull())
             T = getContext().VoidTy;
-          if (!T->getAs<FunctionType>())
-            T = getContext().getFunctionNoProtoType(T);
+          if (!T->getAs<FunctionType>()) {
+            FunctionProtoType::ExtProtoInfo Ext;
+            T = getContext().getFunctionType(T, None, Ext);
+          }
           T = getContext().getBlockPointerType(T);
 
           const BlockCodeRegion *BTR =
@@ -1079,14 +1080,18 @@ MemRegionManager::getBlockDataRegion(const BlockCodeRegion *BC,
     sReg = getGlobalsRegion(MemRegion::GlobalImmutableSpaceRegionKind);
   }
   else {
-    if (LC) {
+    bool IsArcManagedBlock = Ctx.getLangOpts().ObjCAutoRefCount;
+
+    // ARC managed blocks can be initialized on stack or directly in heap
+    // depending on the implementations.  So we initialize them with
+    // UnknownRegion.
+    if (!IsArcManagedBlock && LC) {
       // FIXME: Once we implement scope handling, we want the parent region
       // to be the scope.
       const StackFrameContext *STC = LC->getStackFrame();
       assert(STC);
       sReg = getStackLocalsRegion(STC);
-    }
-    else {
+    } else {
       // We allow 'LC' to be NULL for cases where want BlockDataRegions
       // without context-sensitivity.
       sReg = getUnknownRegion();
@@ -1152,9 +1157,12 @@ MemRegionManager::getBlockCodeRegion(const BlockDecl *BD, CanQualType locTy,
   return getSubRegion<BlockCodeRegion>(BD, locTy, AC, getCodeRegion());
 }
 
-/// getSymbolicRegion - Retrieve or create a "symbolic" memory region.
-const SymbolicRegion *MemRegionManager::getSymbolicRegion(SymbolRef sym) {
-  return getSubRegion<SymbolicRegion>(sym, getUnknownRegion());
+const SymbolicRegion *
+MemRegionManager::getSymbolicRegion(SymbolRef sym,
+                                    const MemSpaceRegion *MemSpace) {
+  if (MemSpace == nullptr)
+    MemSpace = getUnknownRegion();
+  return getSubRegion<SymbolicRegion>(sym, MemSpace);
 }
 
 const SymbolicRegion *MemRegionManager::getSymbolicHeapRegion(SymbolRef Sym) {
@@ -1283,13 +1291,11 @@ bool MemRegion::hasStackParametersStorage() const {
 }
 
 bool MemRegion::hasGlobalsOrParametersStorage() const {
-  const MemSpaceRegion *MS = getMemorySpace();
-  return isa<StackArgumentsSpaceRegion>(MS) ||
-         isa<GlobalsSpaceRegion>(MS);
+  return isa<StackArgumentsSpaceRegion, GlobalsSpaceRegion>(getMemorySpace());
 }
 
-// getBaseRegion strips away all elements and fields, and get the base region
-// of them.
+// Strips away all elements and fields.
+// Returns the base region of them.
 const MemRegion *MemRegion::getBaseRegion() const {
   const MemRegion *R = this;
   while (true) {
@@ -1309,8 +1315,7 @@ const MemRegion *MemRegion::getBaseRegion() const {
   return R;
 }
 
-// getgetMostDerivedObjectRegion gets the region of the root class of a C++
-// class hierarchy.
+// Returns the region of the root class of a C++ class hierarchy.
 const MemRegion *MemRegion::getMostDerivedObjectRegion() const {
   const MemRegion *R = this;
   while (const auto *BR = dyn_cast<CXXBaseObjectRegion>(R))
@@ -1484,7 +1489,7 @@ static RegionOffset calculateOffset(const MemRegion *R) {
         // If our base region is symbolic, we don't know what type it really is.
         // Pretend the type of the symbol is the true dynamic type.
         // (This will at least be self-consistent for the life of the symbol.)
-        Ty = SR->getSymbol()->getType()->getPointeeType();
+        Ty = SR->getPointeeStaticType();
         RootIsSymbolic = true;
       }
 

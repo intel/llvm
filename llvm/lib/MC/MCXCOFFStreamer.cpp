@@ -13,12 +13,14 @@
 #include "llvm/MC/MCXCOFFStreamer.h"
 #include "llvm/BinaryFormat/XCOFF.h"
 #include "llvm/MC/MCAsmBackend.h"
+#include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCCodeEmitter.h"
 #include "llvm/MC/MCDirectives.h"
 #include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCSectionXCOFF.h"
 #include "llvm/MC/MCSymbolXCOFF.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/Support/Casting.h"
 
 using namespace llvm;
 
@@ -35,6 +37,10 @@ bool MCXCOFFStreamer::emitSymbolAttribute(MCSymbol *Sym,
   getAssembler().registerSymbol(*Symbol);
 
   switch (Attribute) {
+  // XCOFF doesn't support the cold feature.
+  case MCSA_Cold:
+    return false;
+
   case MCSA_Global:
   case MCSA_Extern:
     Symbol->setStorageClass(XCOFF::C_EXT);
@@ -54,6 +60,9 @@ bool MCXCOFFStreamer::emitSymbolAttribute(MCSymbol *Sym,
   case llvm::MCSA_Protected:
     Symbol->setVisibilityType(XCOFF::SYM_V_PROTECTED);
     break;
+  case llvm::MCSA_Exported:
+    Symbol->setVisibilityType(XCOFF::SYM_V_EXPORTED);
+    break;
   default:
     report_fatal_error("Not implemented yet.");
   }
@@ -70,6 +79,16 @@ void MCXCOFFStreamer::emitXCOFFSymbolLinkageWithVisibility(
     return;
 
   emitSymbolAttribute(Symbol, Visibility);
+}
+
+void MCXCOFFStreamer::emitXCOFFExceptDirective(const MCSymbol *Symbol,
+                                               MCSymbol *Trap, unsigned Lang,
+                                               unsigned Reason,
+                                               unsigned FunctionSize,
+                                               bool hasDebug) {
+  report_fatal_error(
+      "emitXCOFFExceptDirective not yet supported for integrated "
+      "assembler path.");
 }
 
 void MCXCOFFStreamer::emitCommonSymbol(MCSymbol *Symbol, uint64_t Size,

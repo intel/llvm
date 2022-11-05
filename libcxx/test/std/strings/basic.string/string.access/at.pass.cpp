@@ -8,8 +8,8 @@
 
 // <string>
 
-// const_reference at(size_type pos) const;
-//       reference at(size_type pos);
+// const_reference at(size_type pos) const; // constexpr since C++20
+//       reference at(size_type pos); // constexpr since C++20
 
 #include <string>
 #include <stdexcept>
@@ -20,7 +20,7 @@
 #include "test_macros.h"
 
 template <class S>
-void
+TEST_CONSTEXPR_CXX20 void
 test(S s, typename S::size_type pos)
 {
     const S& cs = s;
@@ -30,7 +30,7 @@ test(S s, typename S::size_type pos)
         assert(cs.at(pos) == cs[pos]);
     }
 #ifndef TEST_HAS_NO_EXCEPTIONS
-    else
+    else if (!TEST_IS_CONSTANT_EVALUATED)
     {
         try
         {
@@ -54,25 +54,29 @@ test(S s, typename S::size_type pos)
 #endif
 }
 
+template <class S>
+TEST_CONSTEXPR_CXX20 void test_string() {
+  test(S(), 0);
+  test(S("123"), 0);
+  test(S("123"), 1);
+  test(S("123"), 2);
+  test(S("123"), 3);
+}
+
+TEST_CONSTEXPR_CXX20 bool test() {
+  test_string<std::string>();
+#if TEST_STD_VER >= 11
+  test_string<std::basic_string<char, std::char_traits<char>, min_allocator<char>>>();
+#endif
+
+  return true;
+}
+
 int main(int, char**)
 {
-    {
-    typedef std::string S;
-    test(S(), 0);
-    test(S("123"), 0);
-    test(S("123"), 1);
-    test(S("123"), 2);
-    test(S("123"), 3);
-    }
-#if TEST_STD_VER >= 11
-    {
-    typedef std::basic_string<char, std::char_traits<char>, min_allocator<char>> S;
-    test(S(), 0);
-    test(S("123"), 0);
-    test(S("123"), 1);
-    test(S("123"), 2);
-    test(S("123"), 3);
-    }
+  test();
+#if TEST_STD_VER > 17
+  static_assert(test());
 #endif
 
   return 0;

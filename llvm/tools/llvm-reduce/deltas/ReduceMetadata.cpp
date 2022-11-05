@@ -16,9 +16,18 @@
 #include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/InstIterator.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include <vector>
 
 using namespace llvm;
+
+static bool shouldKeepDebugIntrinsicMetadata(Instruction &I, MDNode &MD) {
+  return isa<DILocation>(MD) && isa<DbgInfoIntrinsic>(I);
+}
+
+static bool shouldKeepDebugNamedMetadata(NamedMDNode &MD) {
+  return MD.getName() == "llvm.dbg.cu" && MD.getNumOperands() != 0;
+}
 
 /// Removes all the Named and Unnamed Metadata Nodes, as well as any debug
 /// functions that aren't inside the desired Chunks.
@@ -26,72 +35,46 @@ static void extractMetadataFromModule(Oracle &O, Module &Program) {
   // Get out-of-chunk Named metadata nodes
   SmallVector<NamedMDNode *> NamedNodesToDelete;
   for (NamedMDNode &MD : Program.named_metadata())
-    if (!O.shouldKeep())
+    if (!shouldKeepDebugNamedMetadata(MD) && !O.shouldKeep())
       NamedNodesToDelete.push_back(&MD);
 
   for (NamedMDNode *NN : NamedNodesToDelete) {
     for (auto I : seq<unsigned>(0, NN->getNumOperands()))
-      NN->setOperand(I, NULL);
+      NN->setOperand(I, nullptr);
     NN->eraseFromParent();
   }
 
   // Delete out-of-chunk metadata attached to globals.
-  SmallVector<std::pair<unsigned, MDNode *>> MDs;
   for (GlobalVariable &GV : Program.globals()) {
+    SmallVector<std::pair<unsigned, MDNode *>> MDs;
     GV.getAllMetadata(MDs);
     for (std::pair<unsigned, MDNode *> &MD : MDs)
       if (!O.shouldKeep())
-        GV.setMetadata(MD.first, NULL);
+        GV.setMetadata(MD.first, nullptr);
   }
 
   for (Function &F : Program) {
-    // Delete out-of-chunk metadata attached to functions.
-    F.getAllMetadata(MDs);
-    for (std::pair<unsigned, MDNode *> &MD : MDs)
-      if (!O.shouldKeep())
-        F.setMetadata(MD.first, NULL);
+    {
+      SmallVector<std::pair<unsigned, MDNode *>> MDs;
+      // Delete out-of-chunk metadata attached to functions.
+      F.getAllMetadata(MDs);
+      for (std::pair<unsigned, MDNode *> &MD : MDs)
+        if (!O.shouldKeep())
+          F.setMetadata(MD.first, nullptr);
+    }
 
     // Delete out-of-chunk metadata attached to instructions.
     for (Instruction &I : instructions(F)) {
+      SmallVector<std::pair<unsigned, MDNode *>> MDs;
       I.getAllMetadata(MDs);
-      for (std::pair<unsigned, MDNode *> &MD : MDs)
-        if (!O.shouldKeep())
-          I.setMetadata(MD.first, NULL);
+      for (std::pair<unsigned, MDNode *> &MD : MDs) {
+        if (!shouldKeepDebugIntrinsicMetadata(I, *MD.second) && !O.shouldKeep())
+          I.setMetadata(MD.first, nullptr);
+      }
     }
   }
-}
-
-static int countMetadataTargets(Module &Program) {
-  int NamedMetadataNodes = Program.named_metadata_size();
-
-  // Get metadata attached to globals.
-  int GlobalMetadataArgs = 0;
-  SmallVector<std::pair<unsigned, MDNode *>> MDs;
-  for (GlobalVariable &GV : Program.globals()) {
-    GV.getAllMetadata(MDs);
-    GlobalMetadataArgs += MDs.size();
-  }
-
-  // Get metadata attached to functions & instructions.
-  int FunctionMetadataArgs = 0;
-  int InstructionMetadataArgs = 0;
-  for (Function &F : Program) {
-    F.getAllMetadata(MDs);
-    FunctionMetadataArgs += MDs.size();
-
-    for (Instruction &I : instructions(F)) {
-      I.getAllMetadata(MDs);
-      InstructionMetadataArgs += MDs.size();
-    }
-  }
-
-  return NamedMetadataNodes + GlobalMetadataArgs + FunctionMetadataArgs +
-         InstructionMetadataArgs;
 }
 
 void llvm::reduceMetadataDeltaPass(TestRunner &Test) {
-  outs() << "*** Reducing Metadata...\n";
-  int MDCount = countMetadataTargets(Test.getProgram());
-  runDeltaPass(Test, MDCount, extractMetadataFromModule);
-  outs() << "----------------------------\n";
+  runDeltaPass(Test, extractMetadataFromModule, "Reducing Metadata");
 }

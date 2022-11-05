@@ -16,6 +16,7 @@
 
 #include "ReduceSpecialGlobals.h"
 #include "Delta.h"
+#include "Utils.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/GlobalValue.h"
@@ -29,30 +30,13 @@ static StringRef SpecialGlobalNames[] = {"llvm.used", "llvm.compiler.used"};
 static void extractSpecialGlobalsFromModule(Oracle &O, Module &Program) {
   for (StringRef Name : SpecialGlobalNames) {
     if (auto *Used = Program.getNamedGlobal(Name)) {
-      Used->replaceAllUsesWith(UndefValue::get(Used->getType()));
+      Used->replaceAllUsesWith(getDefaultValue(Used->getType()));
       Used->eraseFromParent();
     }
   }
 }
 
-/// Counts the amount of special globals and prints their
-/// respective name & index
-static int countSpecialGlobals(Module &Program) {
-  // TODO: Silence index with --quiet flag
-  errs() << "----------------------------\n";
-  errs() << "Special Globals Index Reference:\n";
-  int Count = 0;
-  for (StringRef Name : SpecialGlobalNames) {
-    if (auto *Used = Program.getNamedGlobal(Name))
-      errs() << "\t" << ++Count << ": " << Used->getName() << "\n";
-  }
-  errs() << "----------------------------\n";
-  return Count;
-}
-
 void llvm::reduceSpecialGlobalsDeltaPass(TestRunner &Test) {
-  errs() << "*** Reducing Special Globals ...\n";
-  int Functions = countSpecialGlobals(Test.getProgram());
-  runDeltaPass(Test, Functions, extractSpecialGlobalsFromModule);
-  errs() << "----------------------------\n";
+  runDeltaPass(Test, extractSpecialGlobalsFromModule,
+               "Reducing Special Globals");
 }

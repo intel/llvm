@@ -16,10 +16,10 @@
 #include <thread>
 #include <vector>
 
-#include <CL/sycl/detail/defines.hpp>
+#include <sycl/detail/defines.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 class ThreadPool {
@@ -51,11 +51,6 @@ class ThreadPool {
     }
   }
 
-public:
-  ThreadPool(unsigned int ThreadCount = 1) : MThreadCount(ThreadCount) {}
-
-  ~ThreadPool() { finishAndWait(); }
-
   void start() {
     MLaunchedThreads.reserve(MThreadCount);
 
@@ -64,6 +59,13 @@ public:
     for (size_t Idx = 0; Idx < MThreadCount; ++Idx)
       MLaunchedThreads.emplace_back([this] { worker(); });
   }
+
+public:
+  ThreadPool(unsigned int ThreadCount = 1) : MThreadCount(ThreadCount) {
+    start();
+  }
+
+  ~ThreadPool() { finishAndWait(); }
 
   void finishAndWait() {
     MStop.store(true);
@@ -95,5 +97,5 @@ public:
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

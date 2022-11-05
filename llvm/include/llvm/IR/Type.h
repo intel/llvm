@@ -15,7 +15,6 @@
 #define LLVM_IR_TYPE_H
 
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Support/CBindingWrapping.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
@@ -33,6 +32,7 @@ class LLVMContext;
 class PointerType;
 class raw_ostream;
 class StringRef;
+template <typename PtrType> class SmallPtrSetImpl;
 
 /// The instances of the Type class are immutable: once they are created,
 /// they are never changed.  Also note that only one instance of a particular
@@ -68,13 +68,14 @@ public:
     TokenTyID,     ///< Tokens
 
     // Derived types... see DerivedTypes.h file.
-    IntegerTyID,       ///< Arbitrary bit width integers
-    FunctionTyID,      ///< Functions
-    PointerTyID,       ///< Pointers
-    StructTyID,        ///< Structures
-    ArrayTyID,         ///< Arrays
-    FixedVectorTyID,   ///< Fixed width SIMD vector type
-    ScalableVectorTyID ///< Scalable SIMD vector type
+    IntegerTyID,        ///< Arbitrary bit width integers
+    FunctionTyID,       ///< Functions
+    PointerTyID,        ///< Pointers
+    StructTyID,         ///< Structures
+    ArrayTyID,          ///< Arrays
+    FixedVectorTyID,    ///< Fixed width SIMD vector type
+    ScalableVectorTyID, ///< Scalable SIMD vector type
+    TypedPointerTyID,   ///< Typed pointer used by some GPU targets
   };
 
 private:
@@ -142,6 +143,11 @@ public:
 
   /// Return true if this is 'bfloat', a 16-bit bfloat type.
   bool isBFloatTy() const { return getTypeID() == BFloatTyID; }
+
+  /// Return true if this is a 16-bit float type.
+  bool is16bitFPTy() const {
+    return getTypeID() == BFloatTyID || getTypeID() == HalfTyID;
+  }
 
   /// Return true if this is 'float', a 32-bit IEEE fp type.
   bool isFloatTy() const { return getTypeID() == FloatTyID; }
@@ -366,8 +372,22 @@ public:
     return ContainedTys[0];
   }
 
+  /// This method is deprecated without replacement. Pointer element types are
+  /// not available with opaque pointers.
+  [[deprecated("Deprecated without replacement, see "
+               "https://llvm.org/docs/OpaquePointers.html for context and "
+               "migration instructions")]]
   Type *getPointerElementType() const {
+    return getNonOpaquePointerElementType();
+  }
+
+  /// Only use this method in code that is not reachable with opaque pointers,
+  /// or part of deprecated methods that will be removed as part of the opaque
+  /// pointers transition.
+  Type *getNonOpaquePointerElementType() const {
     assert(getTypeID() == PointerTyID);
+    assert(NumContainedTys &&
+           "Attempting to get element type of opaque pointer");
     return ContainedTys[0];
   }
 

@@ -34,7 +34,7 @@ int main() {
 // Check lambda declaration inside the wrapper
 
 // CHECK: DeclStmt
-// CHECK-NEXT: VarDecl {{.*}} used '(lambda at {{.*}}basic-kernel-wrapper.cpp{{.*}})'
+// CHECK-NEXT: VarDecl {{.*}} used __SYCLKernel '(lambda at {{.*}}basic-kernel-wrapper.cpp{{.*}})'
 
 // Check accessor initialization
 

@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -DSIZE_T_64 -fsyntax-only -triple x86_64-linux -verify %s
-// RUN: %clang_cc1 -fsyntax-only -triple i386-freebsd -verify %s
+// RUN: %clang_cc1 -DSIZE_T_64 -fsyntax-only -Wno-strict-prototypes -triple x86_64-linux -verify %s
+// RUN: %clang_cc1 -fsyntax-only -Wno-strict-prototypes -triple i386-freebsd -verify %s
 
 // __builtin_assume_aligned's second parameter is size_t, which may be 32 bits,
 // so test differently when size_t is 32 bits and when it is 64 bits.
@@ -25,7 +25,7 @@ int test4(int *a) {
 }
 
 int test5(int *a, unsigned *b) {
-  a = __builtin_assume_aligned(a, 32, b); // expected-warning {{incompatible pointer to integer conversion passing 'unsigned int *' to parameter of type}}
+  a = __builtin_assume_aligned(a, 32, b); // expected-error {{incompatible pointer to integer conversion passing 'unsigned int *' to parameter of type}}
   return a[0];
 }
 
@@ -65,6 +65,11 @@ int test12(int *a) {
   return a[0];
 }
 #endif
+
+int test13(int *a) {
+  a = (int *)__builtin_assume_aligned(a, 2 * 2.0); // expected-error {{argument to '__builtin_assume_aligned' must be a constant integer}}
+  return a[0];
+}
 
 void test_void_assume_aligned(void) __attribute__((assume_aligned(32))); // expected-warning {{'assume_aligned' attribute only applies to return values that are pointers}}
 int test_int_assume_aligned(void) __attribute__((assume_aligned(16))); // expected-warning {{'assume_aligned' attribute only applies to return values that are pointers}}

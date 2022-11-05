@@ -21,16 +21,15 @@
 #include "llvm/Analysis/ModuleSummaryAnalysis.h"
 #include "llvm/Analysis/ProfileSummaryInfo.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
-#include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DiagnosticPrinter.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LLVMRemarkStreamer.h"
-#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Mangler.h"
 #include "llvm/IR/PassTimingInfo.h"
 #include "llvm/IR/Verifier.h"
@@ -54,11 +53,9 @@
 #include "llvm/Support/Threading.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Target/TargetMachine.h"
-#include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/FunctionAttrs.h"
 #include "llvm/Transforms/IPO/FunctionImport.h"
 #include "llvm/Transforms/IPO/Internalize.h"
-#include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/Transforms/IPO/WholeProgramDevirt.h"
 #include "llvm/Transforms/ObjCARC.h"
 #include "llvm/Transforms/Utils/FunctionImportUtils.h"
@@ -239,38 +236,7 @@ crossImportIntoModule(Module &TheModule, const ModuleSummaryIndex &Index,
 
 static void optimizeModule(Module &TheModule, TargetMachine &TM,
                            unsigned OptLevel, bool Freestanding,
-                           ModuleSummaryIndex *Index) {
-  // Populate the PassManager
-  PassManagerBuilder PMB;
-  PMB.LibraryInfo = new TargetLibraryInfoImpl(TM.getTargetTriple());
-  if (Freestanding)
-    PMB.LibraryInfo->disableAllFunctions();
-  PMB.Inliner = createFunctionInliningPass();
-  // FIXME: should get it from the bitcode?
-  PMB.OptLevel = OptLevel;
-  PMB.LoopVectorize = true;
-  PMB.SLPVectorize = true;
-  // Already did this in verifyLoadedModule().
-  PMB.VerifyInput = false;
-  PMB.VerifyOutput = false;
-  PMB.ImportSummary = Index;
-
-  legacy::PassManager PM;
-
-  // Add the TTI (required to inform the vectorizer about register size for
-  // instance)
-  PM.add(createTargetTransformInfoWrapperPass(TM.getTargetIRAnalysis()));
-
-  // Add optimizations
-  PMB.populateThinLTOPassManager(PM);
-
-  PM.run(TheModule);
-}
-
-static void optimizeModuleNewPM(Module &TheModule, TargetMachine &TM,
-                                unsigned OptLevel, bool Freestanding,
-                                bool DebugPassManager,
-                                ModuleSummaryIndex *Index) {
+                           bool DebugPassManager, ModuleSummaryIndex *Index) {
   Optional<PGOOptions> PGOOpt;
   LoopAnalysisManager LAM;
   FunctionAnalysisManager FAM;
@@ -290,11 +256,6 @@ static void optimizeModuleNewPM(Module &TheModule, TargetMachine &TM,
   if (Freestanding)
     TLII->disableAllFunctions();
   FAM.registerPass([&] { return TargetLibraryAnalysis(*TLII); });
-
-  AAManager AA = PB.buildDefaultAAPipeline();
-
-  // Register the AA manager first so that our version is the one used.
-  FAM.registerPass([&] { return std::move(AA); });
 
   // Register all the basic analyses with the managers.
   PB.registerModuleAnalyses(MAM);
@@ -383,7 +344,8 @@ std::unique_ptr<MemoryBuffer> codegenModule(Module &TheModule,
     // Run codegen now. resulting binary is in OutputBuffer.
     PM.run(TheModule);
   }
-  return std::make_unique<SmallVectorMemoryBuffer>(std::move(OutputBuffer));
+  return std::make_unique<SmallVectorMemoryBuffer>(
+      std::move(OutputBuffer), /*RequiresNullTerminator=*/false);
 }
 
 /// Manage caching for a single Module.
@@ -489,7 +451,11 @@ ProcessThinLTOModule(Module &TheModule, ModuleSummaryIndex &Index,
                      const ThinLTOCodeGenerator::CachingOptions &CacheOptions,
                      bool DisableCodeGen, StringRef SaveTempsDir,
                      bool Freestanding, unsigned OptLevel, unsigned count,
-                     bool UseNewPM, bool DebugPassManager) {
+                     bool DebugPassManager) {
+  // See comment at call to updateVCallVisibilityInIndex() for why
+  // WholeProgramVisibilityEnabledInLTO is false.
+  updatePublicTypeTestCalls(TheModule,
+                            /* WholeProgramVisibilityEnabledInLTO */ false);
 
   // "Benchmark"-like optimization: single-source case
   bool SingleModule = (ModuleMap.size() == 1);
@@ -529,11 +495,8 @@ ProcessThinLTOModule(Module &TheModule, ModuleSummaryIndex &Index,
     saveTempBitcode(TheModule, SaveTempsDir, count, ".3.imported.bc");
   }
 
-  if (UseNewPM)
-    optimizeModuleNewPM(TheModule, TM, OptLevel, Freestanding, DebugPassManager,
-                        &Index);
-  else
-    optimizeModule(TheModule, TM, OptLevel, Freestanding, &Index);
+  optimizeModule(TheModule, TM, OptLevel, Freestanding, DebugPassManager,
+                 &Index);
 
   saveTempBitcode(TheModule, SaveTempsDir, count, ".4.opt.bc");
 
@@ -546,7 +509,8 @@ ProcessThinLTOModule(Module &TheModule, ModuleSummaryIndex &Index,
       auto Index = buildModuleSummaryIndex(TheModule, nullptr, &PSI);
       WriteBitcodeToFile(TheModule, OS, true, &Index);
     }
-    return std::make_unique<SmallVectorMemoryBuffer>(std::move(OutputBuffer));
+    return std::make_unique<SmallVectorMemoryBuffer>(
+        std::move(OutputBuffer), /*RequiresNullTerminator=*/false);
   }
 
   return codegenModule(TheModule, TM);
@@ -956,7 +920,7 @@ void ThinLTOCodeGenerator::optimize(Module &TheModule) {
 
   // Optimize now
   optimizeModule(TheModule, *TMBuilder.create(), OptLevel, Freestanding,
-                 nullptr);
+                 DebugPassManager, nullptr);
 }
 
 /// Write out the generated object file, either from CacheEntryPath or from
@@ -1055,7 +1019,7 @@ void ThinLTOCodeGenerator::run() {
     if (EC)
       report_fatal_error(Twine("Failed to open ") + SaveTempPath +
                          " to save optimized bitcode\n");
-    WriteIndexToFile(*Index, OS);
+    writeIndexToFile(*Index, OS);
   }
 
 
@@ -1087,6 +1051,8 @@ void ThinLTOCodeGenerator::run() {
   // Currently there is no support for enabling whole program visibility via a
   // linker option in the old LTO API, but this call allows it to be specified
   // via the internal option. Must be done before WPD below.
+  if (hasWholeProgramVisibility(/* WholeProgramVisibilityEnabledInLTO */ false))
+    Index->setWithWholeProgramVisibility();
   updateVCallVisibilityInIndex(*Index,
                                /* WholeProgramVisibilityEnabledInLTO */ false,
                                // FIXME: This needs linker information via a
@@ -1219,7 +1185,7 @@ void ThinLTOCodeGenerator::run() {
             ExportList, GUIDPreservedSymbols,
             ModuleToDefinedGVSummaries[ModuleIdentifier], CacheOptions,
             DisableCodeGen, SaveTempsDir, Freestanding, OptLevel, count,
-            UseNewPM, DebugPassManager);
+            DebugPassManager);
 
         // Commit to the cache (if enabled)
         CacheEntry.write(*OutputBuffer);

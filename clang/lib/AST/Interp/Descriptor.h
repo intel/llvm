@@ -48,7 +48,7 @@ using BlockMoveFn = void (*)(Block *Storage, char *SrcFieldPtr,
 using InterpSize = unsigned;
 
 /// Describes a memory block created by an allocation site.
-struct Descriptor {
+struct Descriptor final {
 private:
   /// Original declaration, used to emit the error message.
   const DeclTy Source;
@@ -186,7 +186,7 @@ struct InlineDescriptor {
 /// A pointer to this is embedded at the end of all primitive arrays.
 /// If the map was not yet created and nothing was initialized, the pointer to
 /// this structure is 0. If the object was fully initialized, the pointer is -1.
-struct InitMap {
+struct InitMap final {
 private:
   /// Type packing bits.
   using T = uint64_t;

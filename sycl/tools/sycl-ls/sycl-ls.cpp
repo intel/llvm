@@ -16,14 +16,14 @@
 // In verbose mode it also prints, which devices would be chosen by various SYCL
 // device selectors.
 //
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <cstdlib>
 #include <iostream>
 #include <map>
 #include <stdlib.h>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 // Controls verbose output vs. concise.
 bool verbose;
@@ -84,7 +84,7 @@ static void printSelectorChoice(const device_selector &Selector,
     auto PlatformName = Platform.get_info<info::platform::name>();
     printDeviceInfo(Device, verbose,
                     Prepend + DeviceTypeName + ", " + PlatformName);
-  } catch (const cl::sycl::runtime_error &Exception) {
+  } catch (const sycl::runtime_error &Exception) {
     // Truncate long string so it can fit in one-line
     std::string What = Exception.what();
     if (What.length() > 50)
@@ -107,10 +107,21 @@ int main(int argc, char **argv) {
 
   const char *filter = std::getenv("SYCL_DEVICE_FILTER");
   if (filter) {
-    std::cout << "Warning: SYCL_DEVICE_FILTER environment variable is set to "
+    std::cerr << "Warning: SYCL_DEVICE_FILTER environment variable is set to "
               << filter << "." << std::endl;
-    std::cout
+    std::cerr
         << "To see the correct device id, please unset SYCL_DEVICE_FILTER."
+        << std::endl
+        << std::endl;
+  }
+
+  const char *ods_targets = std::getenv("ONEAPI_DEVICE_SELECTOR");
+  if (ods_targets) {
+    std::cerr
+        << "Warning: ONEAPI_DEVICE_SELECTOR environment variable is set to "
+        << ods_targets << "." << std::endl;
+    std::cerr
+        << "To see the correct device id, please unset ONEAPI_DEVICE_SELECTOR."
         << std::endl
         << std::endl;
   }
@@ -124,6 +135,11 @@ int main(int argc, char **argv) {
     backend Backend = Platform.get_backend();
     auto PlatformName = Platform.get_info<info::platform::name>();
     const auto &Devices = Platform.get_devices();
+
+    // the device counting done here should have the same result as the counting
+    // done by SYCL itself. But technically, it is not the same method, as SYCL
+    // keeps a table of platforms:start_dev_index in each plugin.
+
     for (const auto &Device : Devices) {
       std::cout << "[" << Backend << ":" << getDeviceTypeName(Device) << ":"
                 << DeviceNums[Backend] << "] ";
@@ -166,7 +182,6 @@ int main(int argc, char **argv) {
 
   // Print built-in device selectors choice
   printSelectorChoice(default_selector(), "default_selector()      : ");
-  printSelectorChoice(host_selector(), "host_selector()         : ");
   printSelectorChoice(accelerator_selector(), "accelerator_selector()  : ");
   printSelectorChoice(cpu_selector(), "cpu_selector()          : ");
   printSelectorChoice(gpu_selector(), "gpu_selector()          : ");

@@ -23,7 +23,7 @@
 #error g++ >= 7.2 is required
 #endif
 
-#include "llvm/Support/Compiler.h"
+#include "visit.h"
 #include <functional>
 #include <list>
 #include <memory>
@@ -49,8 +49,8 @@ using namespace std::literals::string_literals;
 namespace Fortran::common {
 
 // Helper templates for combining a list of lambdas into an anonymous
-// struct for use with std::visit() on a std::variant<> sum type.
-// E.g.: std::visit(visitors{
+// struct for use with common::visit() on a std::variant<> sum type.
+// E.g.: common::visit(visitors{
 //         [&](const firstType &x) { ... },
 //         [&](const secondType &x) { ... },
 //         ...
@@ -124,11 +124,11 @@ template <typename A> struct ListItemCount {
 
 #define ENUM_CLASS(NAME, ...) \
   enum class NAME { __VA_ARGS__ }; \
-  LLVM_ATTRIBUTE_UNUSED static constexpr std::size_t NAME##_enumSize{[] { \
+  [[maybe_unused]] static constexpr std::size_t NAME##_enumSize{[] { \
     enum { __VA_ARGS__ }; \
     return Fortran::common::ListItemCount{__VA_ARGS__}.value; \
   }()}; \
-  LLVM_ATTRIBUTE_UNUSED static inline std::string EnumToString(NAME e) { \
+  [[maybe_unused]] static inline std::string EnumToString(NAME e) { \
     return Fortran::common::EnumIndexToString( \
         static_cast<int>(e), #__VA_ARGS__); \
   }

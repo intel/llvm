@@ -14,7 +14,6 @@
 #define LLVM_SUPPORT_ERROR_H
 
 #include "llvm-c/Error.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/Twine.h"
@@ -26,7 +25,6 @@
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/raw_ostream.h"
-#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <cstdlib>
@@ -154,7 +152,7 @@ private:
 /// *All* Error instances must be checked before destruction, even if
 /// they're moved-assigned or constructed from Success values that have already
 /// been checked. This enforces checking through all levels of the call stack.
-class LLVM_NODISCARD Error {
+class [[nodiscard]] Error {
   // ErrorList needs to be able to yank ErrorInfoBase pointers out of Errors
   // to add to the error list. It can't rely on handleErrors for this, since
   // handleErrors does not support ErrorList handlers.
@@ -465,10 +463,10 @@ inline Error joinErrors(Error E1, Error E2) {
 ///     outs() << "The answer is " << *Result << "\n";
 ///   @endcode
 ///
-///  For unit-testing a function returning an 'Expceted<T>', see the
+///  For unit-testing a function returning an 'Expected<T>', see the
 ///  'EXPECT_THAT_EXPECTED' macros in llvm/Testing/Support/Error.h
 
-template <class T> class LLVM_NODISCARD Expected {
+template <class T> class [[nodiscard]] Expected {
   template <class T1> friend class ExpectedAsOutParameter;
   template <class OtherT> friend class Expected;
 
@@ -575,6 +573,16 @@ public:
   const_reference get() const {
     assertIsChecked();
     return const_cast<Expected<T> *>(this)->get();
+  }
+
+  /// Returns \a takeError() after moving the held T (if any) into \p V.
+  template <class OtherT>
+  Error moveInto(OtherT &Value,
+                 std::enable_if_t<std::is_assignable<OtherT &, T &&>::value> * =
+                     nullptr) && {
+    if (*this)
+      Value = std::move(get());
+    return takeError();
   }
 
   /// Check that this Expected<T> is an error of type ErrT.
@@ -814,8 +822,8 @@ T& cantFail(Expected<T&> ValOrErr, const char *Msg = nullptr) {
 /// ErrorInfo types.
 template <typename HandlerT>
 class ErrorHandlerTraits
-    : public ErrorHandlerTraits<decltype(
-          &std::remove_reference<HandlerT>::type::operator())> {};
+    : public ErrorHandlerTraits<
+          decltype(&std::remove_reference_t<HandlerT>::operator())> {};
 
 // Specialization functions of the form 'Error (const ErrT&)'.
 template <typename ErrT> class ErrorHandlerTraits<Error (&)(ErrT &)> {
@@ -1133,7 +1141,7 @@ private:
 class ECError : public ErrorInfo<ECError> {
   friend Error errorCodeToError(std::error_code);
 
-  virtual void anchor() override;
+  void anchor() override;
 
 public:
   void setErrorCode(std::error_code EC) { this->EC = EC; }
@@ -1261,8 +1269,8 @@ public:
   void log(raw_ostream &OS) const override {
     assert(Err && "Trying to log after takeError().");
     OS << "'" << FileName << "': ";
-    if (Line.hasValue())
-      OS << "line " << Line.getValue() << ": ";
+    if (Line)
+      OS << "line " << Line.value() << ": ";
     Err->log(OS);
   }
 
@@ -1273,7 +1281,7 @@ public:
     return OS.str();
   }
 
-  StringRef getFileName() { return FileName; }
+  StringRef getFileName() const { return FileName; }
 
   Error takeError() { return Error(std::move(Err)); }
 

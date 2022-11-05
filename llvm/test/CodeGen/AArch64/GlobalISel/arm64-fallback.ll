@@ -12,14 +12,6 @@ target datalayout = "e-m:o-i64:64-i128:128-n32:64-S128"
 target triple = "aarch64--"
 
 ; BIG-ENDIAN: unable to translate in big endian mode
-; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to legalize instruction: %{{[0-9]+}}:_(<28 x s32>) = G_CONCAT_VECTORS %{{[0-9]+}}:_(<4 x s32>), %{{[0-9]+}}:_(<4 x s32>), %{{[0-9]+}}:_(<4 x s32>), %{{[0-9]+}}:_(<4 x s32>), %{{[0-9]+}}:_(<4 x s32>), %{{[0-9]+}}:_(<4 x s32>), %{{[0-9]+}}:_(<4 x s32>) (in function: odd_vector)
-; FALLBACK-WITH-REPORT-ERR: warning: Instruction selection used fallback path for odd_vector
-; FALLBACK-WITH-REPORT-OUT-LABEL: odd_vector:
-define void @odd_vector(<7 x i32>* %addr) {
-  %vec = load <7 x i32>, <7 x i32>* %addr
-  store <7 x i32> %vec, <7 x i32>* %addr
-  ret void
-}
 
 ; Make sure we don't mess up metadata arguments.
 declare void @llvm.write_register.i64(metadata, i64)
@@ -108,7 +100,7 @@ define void @asm_indirect_output() {
 entry:
   %ap = alloca i8*, align 8
   %0 = load i8*, i8** %ap, align 8
-  call void asm sideeffect "", "=*r|m,0,~{memory}"(i8** %ap, i8* %0)
+  call void asm sideeffect "", "=*r|m,0,~{memory}"(i8** elementtype(i8*) %ap, i8* %0)
   ret void
 }
 
@@ -147,6 +139,21 @@ entry:
   %obit = extractvalue {i128, i1} %t, 1
   store i128 %val, i128* %res
   ret i1 %obit
+}
+
+; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to translate instruction: {{.*}}llvm.experimental.gc.statepoint{{.*}} (in function: gc_intr)
+; FALLBACK-WITH-REPORT-ERR: warning: Instruction selection used fallback path for gc_intr
+; FALLBACK-WITH-REPORT-OUT-LABEL: gc_intr
+
+declare token @llvm.experimental.gc.statepoint.p0(i64 immarg, i32 immarg, i32()*, i32 immarg, i32 immarg, ...)
+declare i32 @llvm.experimental.gc.result(token)
+
+declare i32 @extern_returning_i32()
+
+define i32 @gc_intr() gc "statepoint-example" {
+   %statepoint_token = call token (i64, i32, i32()*, i32, i32, ...) @llvm.experimental.gc.statepoint.p0(i64 2882400000, i32 0, i32()* elementtype(i32 ()) @extern_returning_i32, i32 0, i32 0, i32 0, i32 0) [ "deopt"() ]
+   %ret = call i32 (token) @llvm.experimental.gc.result(token %statepoint_token)
+   ret i32 %ret
 }
 
 attributes #1 = { "target-features"="+sve" }

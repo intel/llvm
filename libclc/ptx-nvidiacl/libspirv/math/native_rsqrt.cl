@@ -8,10 +8,14 @@
 
 #include <spirv/spirv.h>
 
-#include "../../include/libdevice.h"
 #include <clcmacro.h>
 
-#define __CLC_FUNCTION __spirv_ocl_native_rsqrt
-#define __CLC_BUILTIN __nv_rsqrt
-#define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, f)
-#include <math/unary_builtin.inc>
+extern int __clc_nvvm_reflect_ftz();
+
+_CLC_DEF _CLC_OVERLOAD float __spirv_ocl_native_rsqrt(float x) {
+  return (__clc_nvvm_reflect_ftz()) ? __nvvm_rsqrt_approx_ftz_f(x)
+                                    : __nvvm_rsqrt_approx_f(x);
+}
+
+_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_native_rsqrt,
+                     float)

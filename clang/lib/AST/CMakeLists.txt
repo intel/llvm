@@ -91,12 +91,14 @@ add_clang_library(clangAST
   MicrosoftMangle.cpp
   NestedNameSpecifier.cpp
   NSAPI.cpp
+  ODRDiagsEmitter.cpp
   ODRHash.cpp
   OpenMPClause.cpp
   OSLog.cpp
   ParentMap.cpp
   PrintfFormatString.cpp
   QualTypeNames.cpp
+  Randstruct.cpp
   RawCommentList.cpp
   RecordLayout.cpp
   RecordLayoutBuilder.cpp

@@ -14,7 +14,6 @@
 #include "llvm-c/Linker.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/IR/Comdat.h"
-#include "llvm/IR/DiagnosticPrinter.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
@@ -485,20 +484,14 @@ bool ModuleLinker::run() {
 
   // Alias have to go first, since we are not able to find their comdats
   // otherwise.
-  for (auto I = DstM.alias_begin(), E = DstM.alias_end(); I != E;) {
-    GlobalAlias &GV = *I++;
+  for (GlobalAlias &GV : llvm::make_early_inc_range(DstM.aliases()))
     dropReplacedComdat(GV, ReplacedDstComdats);
-  }
 
-  for (auto I = DstM.global_begin(), E = DstM.global_end(); I != E;) {
-    GlobalVariable &GV = *I++;
+  for (GlobalVariable &GV : llvm::make_early_inc_range(DstM.globals()))
     dropReplacedComdat(GV, ReplacedDstComdats);
-  }
 
-  for (auto I = DstM.begin(), E = DstM.end(); I != E;) {
-    Function &GV = *I++;
+  for (Function &GV : llvm::make_early_inc_range(DstM))
     dropReplacedComdat(GV, ReplacedDstComdats);
-  }
 
   for (GlobalVariable &GV : SrcM->globals())
     if (GV.hasLinkOnceLinkage())
@@ -579,11 +572,13 @@ bool ModuleLinker::run() {
   // FIXME: Propagate Errors through to the caller instead of emitting
   // diagnostics.
   bool HasErrors = false;
-  if (Error E = Mover.move(std::move(SrcM), ValuesToLink.getArrayRef(),
-                           [this](GlobalValue &GV, IRMover::ValueAdder Add) {
-                             addLazyFor(GV, Add);
-                           },
-                           /* IsPerformingImport */ false)) {
+  if (Error E =
+          Mover.move(std::move(SrcM), ValuesToLink.getArrayRef(),
+                     IRMover::LazyCallback(
+                         [this](GlobalValue &GV, IRMover::ValueAdder Add) {
+                           addLazyFor(GV, Add);
+                         }),
+                     /* IsPerformingImport */ false)) {
     handleAllErrors(std::move(E), [&](ErrorInfoBase &EIB) {
       DstM.getContext().diagnose(LinkDiagnosticInfo(DS_Error, EIB.message()));
       HasErrors = true;

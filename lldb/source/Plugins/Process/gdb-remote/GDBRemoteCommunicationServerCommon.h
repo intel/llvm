@@ -15,7 +15,6 @@
 #include "lldb/lldb-private-forward.h"
 
 #include "GDBRemoteCommunicationServer.h"
-#include "GDBRemoteCommunicationServerCommon.h"
 
 class StringExtractorGDBRemote;
 
@@ -26,8 +25,7 @@ class ProcessGDBRemote;
 
 class GDBRemoteCommunicationServerCommon : public GDBRemoteCommunicationServer {
 public:
-  GDBRemoteCommunicationServerCommon(const char *comm_name,
-                                     const char *listener_name);
+  GDBRemoteCommunicationServerCommon();
 
   ~GDBRemoteCommunicationServerCommon() override;
 

@@ -204,7 +204,7 @@ void backtrace() {
   };
 
   struct B {
-    // expected-note@+1 {{invalid type 'A [10]' is a member of 'B'}}
+    // expected-note@+1 {{invalid type 'A[10]' is a member of 'B'}}
     A as[10];
   };
 
@@ -446,7 +446,7 @@ constexpr bool f(bool read_uninit) {
 }
 
 static_assert(f(/*read_uninit=*/false), "");
-static_assert(f(/*read_uninit=*/true), ""); // expected-error{{static_assert expression is not an integral constant expression}} expected-note{{in call to 'f(true)'}}
+static_assert(f(/*read_uninit=*/true), ""); // expected-error{{static assertion expression is not an integral constant expression}} expected-note{{in call to 'f(true)'}}
 
 constexpr bytes ld539 = {
   0x0, 0x0,  0x0,  0x0,

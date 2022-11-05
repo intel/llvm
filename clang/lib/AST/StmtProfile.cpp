@@ -38,6 +38,10 @@ namespace {
 
     void VisitStmt(const Stmt *S);
 
+    void VisitStmtNoChildren(const Stmt *S) {
+      HandleStmtClass(S->getStmtClass());
+    }
+
     virtual void HandleStmtClass(Stmt::StmtClass SC) = 0;
 
 #define STMT(Node, Base) void Visit##Node(const Node *S);
@@ -218,7 +222,7 @@ namespace {
 void StmtProfiler::VisitStmt(const Stmt *S) {
   assert(S && "Requires non-null Stmt pointer");
 
-  HandleStmtClass(S->getStmtClass());
+  VisitStmtNoChildren(S);
 
   for (const Stmt *SubStmt : S->children()) {
     if (SubStmt)
@@ -452,6 +456,11 @@ void OMPClauseProfiler::VisitOMPNumThreadsClause(const OMPNumThreadsClause *C) {
     Profiler->VisitStmt(C->getNumThreads());
 }
 
+void OMPClauseProfiler::VisitOMPAlignClause(const OMPAlignClause *C) {
+  if (C->getAlignment())
+    Profiler->VisitStmt(C->getAlignment());
+}
+
 void OMPClauseProfiler::VisitOMPSafelenClause(const OMPSafelenClause *C) {
   if (C->getSafelen())
     Profiler->VisitStmt(C->getSafelen());
@@ -463,7 +472,7 @@ void OMPClauseProfiler::VisitOMPSimdlenClause(const OMPSimdlenClause *C) {
 }
 
 void OMPClauseProfiler::VisitOMPSizesClause(const OMPSizesClause *C) {
-  for (auto E : C->getSizesRefs())
+  for (auto *E : C->getSizesRefs())
     if (E)
       Profiler->VisitExpr(E);
 }
@@ -545,6 +554,8 @@ void OMPClauseProfiler::VisitOMPWriteClause(const OMPWriteClause *) {}
 void OMPClauseProfiler::VisitOMPUpdateClause(const OMPUpdateClause *) {}
 
 void OMPClauseProfiler::VisitOMPCaptureClause(const OMPCaptureClause *) {}
+
+void OMPClauseProfiler::VisitOMPCompareClause(const OMPCompareClause *) {}
 
 void OMPClauseProfiler::VisitOMPSeqCstClause(const OMPSeqCstClause *) {}
 
@@ -850,6 +861,10 @@ void OMPClauseProfiler::VisitOMPIsDevicePtrClause(
     const OMPIsDevicePtrClause *C) {
   VisitOMPClauseList(C);
 }
+void OMPClauseProfiler::VisitOMPHasDeviceAddrClause(
+    const OMPHasDeviceAddrClause *C) {
+  VisitOMPClauseList(C);
+}
 void OMPClauseProfiler::VisitOMPNontemporalClause(
     const OMPNontemporalClause *C) {
   VisitOMPClauseList(C);
@@ -878,6 +893,7 @@ void OMPClauseProfiler::VisitOMPAffinityClause(const OMPAffinityClause *C) {
     Profiler->VisitStmt(E);
 }
 void OMPClauseProfiler::VisitOMPOrderClause(const OMPOrderClause *C) {}
+void OMPClauseProfiler::VisitOMPBindClause(const OMPBindClause *C) {}
 } // namespace
 
 void
@@ -969,6 +985,11 @@ void StmtProfiler::VisitOMPParallelForSimdDirective(
 
 void StmtProfiler::VisitOMPParallelMasterDirective(
     const OMPParallelMasterDirective *S) {
+  VisitOMPExecutableDirective(S);
+}
+
+void StmtProfiler::VisitOMPParallelMaskedDirective(
+    const OMPParallelMaskedDirective *S) {
   VisitOMPExecutableDirective(S);
 }
 
@@ -1074,8 +1095,18 @@ void StmtProfiler::VisitOMPMasterTaskLoopDirective(
   VisitOMPLoopDirective(S);
 }
 
+void StmtProfiler::VisitOMPMaskedTaskLoopDirective(
+    const OMPMaskedTaskLoopDirective *S) {
+  VisitOMPLoopDirective(S);
+}
+
 void StmtProfiler::VisitOMPMasterTaskLoopSimdDirective(
     const OMPMasterTaskLoopSimdDirective *S) {
+  VisitOMPLoopDirective(S);
+}
+
+void StmtProfiler::VisitOMPMaskedTaskLoopSimdDirective(
+    const OMPMaskedTaskLoopSimdDirective *S) {
   VisitOMPLoopDirective(S);
 }
 
@@ -1084,8 +1115,18 @@ void StmtProfiler::VisitOMPParallelMasterTaskLoopDirective(
   VisitOMPLoopDirective(S);
 }
 
+void StmtProfiler::VisitOMPParallelMaskedTaskLoopDirective(
+    const OMPParallelMaskedTaskLoopDirective *S) {
+  VisitOMPLoopDirective(S);
+}
+
 void StmtProfiler::VisitOMPParallelMasterTaskLoopSimdDirective(
     const OMPParallelMasterTaskLoopSimdDirective *S) {
+  VisitOMPLoopDirective(S);
+}
+
+void StmtProfiler::VisitOMPParallelMaskedTaskLoopSimdDirective(
+    const OMPParallelMaskedTaskLoopSimdDirective *S) {
   VisitOMPLoopDirective(S);
 }
 
@@ -1188,6 +1229,31 @@ void StmtProfiler::VisitOMPDispatchDirective(const OMPDispatchDirective *S) {
 
 void StmtProfiler::VisitOMPMaskedDirective(const OMPMaskedDirective *S) {
   VisitOMPExecutableDirective(S);
+}
+
+void StmtProfiler::VisitOMPGenericLoopDirective(
+    const OMPGenericLoopDirective *S) {
+  VisitOMPLoopDirective(S);
+}
+
+void StmtProfiler::VisitOMPTeamsGenericLoopDirective(
+    const OMPTeamsGenericLoopDirective *S) {
+  VisitOMPLoopDirective(S);
+}
+
+void StmtProfiler::VisitOMPTargetTeamsGenericLoopDirective(
+    const OMPTargetTeamsGenericLoopDirective *S) {
+  VisitOMPLoopDirective(S);
+}
+
+void StmtProfiler::VisitOMPParallelGenericLoopDirective(
+    const OMPParallelGenericLoopDirective *S) {
+  VisitOMPLoopDirective(S);
+}
+
+void StmtProfiler::VisitOMPTargetParallelGenericLoopDirective(
+    const OMPTargetParallelGenericLoopDirective *S) {
+  VisitOMPLoopDirective(S);
 }
 
 void StmtProfiler::VisitExpr(const Expr *S) {
@@ -1959,7 +2025,11 @@ StmtProfiler::VisitCXXTemporaryObjectExpr(const CXXTemporaryObjectExpr *S) {
 
 void
 StmtProfiler::VisitLambdaExpr(const LambdaExpr *S) {
-  VisitExpr(S);
+  // Do not recursively visit the children of this expression. Profiling the
+  // body would result in unnecessary work, and is not safe to do during
+  // deserialization.
+  VisitStmtNoChildren(S);
+
   // C++20 [temp.over.link]p5:
   //   Two lambda-expressions are never considered equivalent.
   VisitDecl(S->getLambdaClass());

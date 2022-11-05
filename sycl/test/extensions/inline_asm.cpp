@@ -2,9 +2,9 @@
 // found in https://github.com/intel/llvm-test-suite/tree/intel/SYCL/InlineAsm
 // RUN: %clangxx -fsycl %s -o %t.out
 
-#include <CL/sycl.hpp>
 #include <cmath>
 #include <iostream>
+#include <sycl/sycl.hpp>
 #include <vector>
 
 constexpr const size_t DEFAULT_PROBLEM_SIZE = 16;
@@ -31,7 +31,7 @@ int main() {
     sycl::buffer<DataType, 1> BufB(DataB, DEFAULT_PROBLEM_SIZE);
     sycl::buffer<DataType, 1> BufC(DataC, DEFAULT_PROBLEM_SIZE);
 
-    sycl::queue deviceQueue(sycl::gpu_selector{}, AsyncHandler);
+    sycl::queue deviceQueue(sycl::gpu_selector_v, AsyncHandler);
 
     deviceQueue.submit([&](sycl::handler &cgh) {
       auto A = BufA.get_access<sycl::access::mode::read>(cgh);

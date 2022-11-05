@@ -7,16 +7,18 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Support/DebugCounter.h"
+#include "mlir/Support/TypeID.h"
 #include "gmock/gmock.h"
 
 using namespace mlir;
 
 // DebugActionManager is only enabled in DEBUG mode.
-#ifndef NDEBUG
+#if LLVM_ENABLE_ABI_BREAKING_CHECKS
 
 namespace {
 
-struct CounterAction : public DebugAction<> {
+struct CounterAction : public DebugAction<CounterAction> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(CounterAction)
   static StringRef getTag() { return "counter-action"; }
   static StringRef getDescription() { return "Test action for debug counters"; }
 };

@@ -5,10 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// This file implements the APSInt class, which is a simple class that
-// represents an arbitrary sized integer that knows its signedness.
-//
+///
+/// \file
+/// This file implements the APSInt class, which is a simple class that
+/// represents an arbitrary sized integer that knows its signedness.
+///
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_ADT_APSINT_H
@@ -19,12 +20,12 @@
 namespace llvm {
 
 /// An arbitrary precision integer that knows its signedness.
-class LLVM_NODISCARD APSInt : public APInt {
-  bool IsUnsigned;
+class [[nodiscard]] APSInt : public APInt {
+  bool IsUnsigned = false;
 
 public:
   /// Default constructor that creates an uninitialized APInt.
-  explicit APSInt() : IsUnsigned(false) {}
+  explicit APSInt() = default;
 
   /// Create an APSInt with the specified width, default to unsigned.
   explicit APSInt(uint32_t BitWidth, bool isUnsigned = true)
@@ -143,6 +144,10 @@ public:
       ashrInPlace(Amt);
     return *this;
   }
+  APSInt relativeShr(unsigned Amt) const {
+    return IsUnsigned ? APSInt(relativeLShr(Amt), true)
+                      : APSInt(relativeAShr(Amt), false);
+  }
 
   inline bool operator<(const APSInt& RHS) const {
     assert(IsUnsigned == RHS.IsUnsigned && "Signedness mismatch!");
@@ -196,6 +201,10 @@ public:
   APSInt& operator<<=(unsigned Amt) {
     static_cast<APInt&>(*this) <<= Amt;
     return *this;
+  }
+  APSInt relativeShl(unsigned Amt) const {
+    return IsUnsigned ? APSInt(relativeLShl(Amt), true)
+                      : APSInt(relativeAShl(Amt), false);
   }
 
   APSInt& operator++() {
@@ -344,17 +353,17 @@ inline raw_ostream &operator<<(raw_ostream &OS, const APSInt &I) {
 }
 
 /// Provide DenseMapInfo for APSInt, using the DenseMapInfo for APInt.
-template <> struct DenseMapInfo<APSInt> {
+template <> struct DenseMapInfo<APSInt, void> {
   static inline APSInt getEmptyKey() {
-    return APSInt(DenseMapInfo<APInt>::getEmptyKey());
+    return APSInt(DenseMapInfo<APInt, void>::getEmptyKey());
   }
 
   static inline APSInt getTombstoneKey() {
-    return APSInt(DenseMapInfo<APInt>::getTombstoneKey());
+    return APSInt(DenseMapInfo<APInt, void>::getTombstoneKey());
   }
 
   static unsigned getHashValue(const APSInt &Key) {
-    return DenseMapInfo<APInt>::getHashValue(Key);
+    return DenseMapInfo<APInt, void>::getHashValue(Key);
   }
 
   static bool isEqual(const APSInt &LHS, const APSInt &RHS) {

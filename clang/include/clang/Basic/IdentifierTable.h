@@ -15,6 +15,7 @@
 #ifndef LLVM_CLANG_BASIC_IDENTIFIERTABLE_H
 #define LLVM_CLANG_BASIC_IDENTIFIERTABLE_H
 
+#include "clang/Basic/DiagnosticIDs.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/TokenKinds.h"
 #include "llvm/ADT/DenseMapInfo.h"
@@ -458,6 +459,10 @@ public:
   /// 7.1.3, C++ [lib.global.names]).
   ReservedIdentifierStatus isReserved(const LangOptions &LangOpts) const;
 
+  /// If the identifier is an "uglified" reserved name, return a cleaned form.
+  /// e.g. _Foo => Foo. Otherwise, just returns the name.
+  StringRef deuglifiedName() const;
+
   /// Provide less than operator for lexicographical sorting.
   bool operator<(const IdentifierInfo &RHS) const {
     return getName() < RHS.getName();
@@ -664,6 +669,12 @@ public:
   /// Populate the identifier table with info about the language keywords
   /// for the language specified by \p LangOpts.
   void AddKeywords(const LangOptions &LangOpts);
+
+  /// Returns the correct diagnostic to issue for a future-compat diagnostic
+  /// warning. Note, this function assumes the identifier passed has already
+  /// been determined to be a future compatible keyword.
+  diag::kind getFutureCompatDiagKind(const IdentifierInfo &II,
+                                     const LangOptions &LangOpts);
 };
 
 /// A family of Objective-C methods.

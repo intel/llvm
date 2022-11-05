@@ -1,3 +1,4 @@
+reflect.ll
 atomic/loadstore_helpers.ll
 cl_khr_int64_extended_atomics/minmax_helpers.ll
 integer/mul24.cl
@@ -25,6 +26,7 @@ math/fabs.cl
 math/fdim.cl
 math/floor.cl
 math/fma.cl
+math/fma_relu.cl
 math/fmax.cl
 math/fmin.cl
 math/fmod.cl
@@ -40,6 +42,7 @@ math/log2.cl
 math/logb.cl
 math/modf.cl
 math/native_cos.cl
+math/native_divide.cl
 math/native_exp.cl
 math/native_exp10.cl
 math/native_exp2.cl
@@ -47,13 +50,15 @@ math/native_log.cl
 math/native_log10.cl
 math/native_log2.cl
 math/native_powr.cl
+math/native_recip.cl
 math/native_rsqrt.cl
 math/native_sin.cl
 math/native_sqrt.cl
 math/native_tan.cl
+math/native_tanh.cl
 math/nextafter.cl
 math/pow.cl
-math/remainer.cl
+math/remainder.cl
 math/round.cl
 math/rsqrt.cl
 math/sin.cl
@@ -69,6 +74,9 @@ relational/isfinite.cl
 relational/isinf.cl
 relational/isnan.cl
 synchronization/barrier.cl
+synchronization/aw_barrier.cl
+async/async_work_group_strided_copy.cl
+async/wait_group_events.cl
 workitem/get_global_id.cl
 workitem/get_global_offset.cl
 workitem/get_global_size.cl
@@ -85,5 +93,17 @@ images/image_helpers.ll
 images/image.cl
 group/collectives_helpers.ll
 group/collectives.cl
-SPV_EXT_shader_atomic_float_add/atomicfaddext.cl
-SPV_EXT_shader_atomic_float_add/faddext_helpers.ll
+group/group_ballot.cl
+atomic/atomic_add.cl
+atomic/atomic_and.cl
+atomic/atomic_cmpxchg.cl
+atomic/atomic_dec.cl
+atomic/atomic_inc.cl
+atomic/atomic_max.cl
+atomic/atomic_min.cl
+atomic/atomic_sub.cl
+atomic/atomic_xchg.cl
+atomic/atomic_or.cl
+atomic/atomic_xor.cl
+atomic/atomic_load.cl
+atomic/atomic_store.cl

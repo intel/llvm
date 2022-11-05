@@ -128,6 +128,15 @@ public:
     }
   }
 
+  void TruncateFrame(std::int64_t at, IoErrorHandler &handler) {
+    RUNTIME_CHECK(handler, !dirty_);
+    if (at <= fileOffset_) {
+      Reset(at);
+    } else if (at < fileOffset_ + length_) {
+      length_ = at - fileOffset_;
+    }
+  }
+
 private:
   STORE &Store() { return static_cast<STORE &>(*this); }
 
@@ -135,7 +144,7 @@ private:
     if (bytes > size_) {
       char *old{buffer_};
       auto oldSize{size_};
-      size_ = std::max<std::int64_t>(bytes, minBuffer);
+      size_ = std::max<std::int64_t>(bytes, size_ + minBuffer);
       buffer_ =
           reinterpret_cast<char *>(AllocateMemoryOrCrash(terminator, size_));
       auto chunk{std::min<std::int64_t>(length_, oldSize - start_)};

@@ -31,8 +31,8 @@
 #include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
-#include "llvm/DebugInfo/DWARF/DWARFExpression.h"
 #include "llvm/DebugInfo/DWARF/DWARFDataExtractor.h"
+#include "llvm/DebugInfo/DWARF/DWARFExpression.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalVariable.h"
@@ -45,14 +45,11 @@
 #include "llvm/MC/MCTargetOptions.h"
 #include "llvm/MC/MachineLocation.h"
 #include "llvm/MC/SectionKind.h"
-#include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MD5.h"
-#include "llvm/Support/MathExtras.h"
-#include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetLoweringObjectFile.h"
 #include "llvm/Target/TargetMachine.h"
@@ -360,7 +357,7 @@ DwarfDebug::DwarfDebug(AsmPrinter *A)
     DebuggerTuning = Asm->TM.Options.DebuggerTuning;
   else if (IsDarwin)
     DebuggerTuning = DebuggerKind::LLDB;
-  else if (TT.isPS4CPU())
+  else if (TT.isPS())
     DebuggerTuning = DebuggerKind::SCE;
   else if (TT.isOSAIX())
     DebuggerTuning = DebuggerKind::DBX;
@@ -431,8 +428,7 @@ DwarfDebug::DwarfDebug(AsmPrinter *A)
   // https://sourceware.org/bugzilla/show_bug.cgi?id=11616
   UseGNUTLSOpcode = tuneForGDB() || DwarfVersion < 3;
 
-  // GDB does not fully support the DWARF 4 representation for bitfields.
-  UseDWARF2Bitfields = (DwarfVersion < 4) || tuneForGDB();
+  UseDWARF2Bitfields = DwarfVersion < 4;
 
   // The DWARF v5 string offsets table has - possibly shared - contributions
   // from each compile and type unit each preceded by a header. The string
@@ -480,7 +476,7 @@ static bool hasObjCCategory(StringRef Name) {
   if (!isObjCClass(Name))
     return false;
 
-  return Name.find(") ") != StringRef::npos;
+  return Name.contains(") ");
 }
 
 static void getObjCClassCategory(StringRef In, StringRef &Class,
@@ -822,7 +818,7 @@ static void collectCallSiteParameters(const MachineInstr *CallMI,
   }
 
   // Do not emit CSInfo for undef forwarding registers.
-  for (auto &MO : CallMI->uses())
+  for (const auto &MO : CallMI->uses())
     if (MO.isReg() && MO.isUndef())
       ForwardedRegWorklist.erase(MO.getReg());
 
@@ -1224,17 +1220,15 @@ void DwarfDebug::beginModule(Module *M) {
         CU.getOrCreateGlobalVariableDIE(GV, sortGlobalExprs(GVMap[GV]));
     }
 
-    for (auto *Ty : CUNode->getEnumTypes()) {
-      // The enum types array by design contains pointers to
-      // MDNodes rather than DIRefs. Unique them here.
+    for (auto *Ty : CUNode->getEnumTypes())
       CU.getOrCreateTypeDIE(cast<DIType>(Ty));
-    }
+
     for (auto *Ty : CUNode->getRetainedTypes()) {
       // The retained types array by design contains pointers to
       // MDNodes rather than DIRefs. Unique them here.
       if (DIType *RT = dyn_cast<DIType>(Ty))
-          // There is no point in force-emitting a forward declaration.
-          CU.getOrCreateTypeDIE(RT);
+        // There is no point in force-emitting a forward declaration.
+        CU.getOrCreateTypeDIE(RT);
     }
     // Emit imported_modules last so that the relevant context is already
     // available.
@@ -1407,6 +1401,10 @@ void DwarfDebug::finalizeModuleInfo() {
 
 // Emit all Dwarf sections that should come after the content.
 void DwarfDebug::endModule() {
+  // Terminate the pending line table.
+  if (PrevCU)
+    terminateLineTable(PrevCU);
+  PrevCU = nullptr;
   assert(CurFn == nullptr);
   assert(CurMI == nullptr);
 
@@ -2172,10 +2170,22 @@ DwarfDebug::getDwarfCompileUnitIDForLineTable(const DwarfCompileUnit &CU) {
     return CU.getUniqueID();
 }
 
+void DwarfDebug::terminateLineTable(const DwarfCompileUnit *CU) {
+  const auto &CURanges = CU->getRanges();
+  auto &LineTable = Asm->OutStreamer->getContext().getMCDwarfLineTable(
+      getDwarfCompileUnitIDForLineTable(*CU));
+  // Add the last range label for the given CU.
+  LineTable.getMCLineSections().addEndEntry(
+      const_cast<MCSymbol *>(CURanges.back().End));
+}
+
 void DwarfDebug::skippedNonDebugFunction() {
   // If we don't have a subprogram for this function then there will be a hole
   // in the range information. Keep note of this by setting the previously used
   // section to nullptr.
+  // Terminate the pending line table.
+  if (PrevCU)
+    terminateLineTable(PrevCU);
   PrevCU = nullptr;
   CurFn = nullptr;
 }
@@ -2224,7 +2234,7 @@ void DwarfDebug::endFunctionImpl(const MachineFunction *MF) {
 #endif
   // Construct abstract scopes.
   for (LexicalScope *AScope : LScopes.getAbstractScopesList()) {
-    auto *SP = cast<DISubprogram>(AScope->getScopeNode());
+    const auto *SP = cast<DISubprogram>(AScope->getScopeNode());
     for (const DINode *DN : SP->getRetainedNodes()) {
       if (!Processed.insert(InlinedEntity(DN, nullptr)).second)
         continue;
@@ -2301,7 +2311,7 @@ void DwarfDebug::emitStringOffsetsTableHeader() {
 template <typename AccelTableT>
 void DwarfDebug::emitAccel(AccelTableT &Accel, MCSection *Section,
                            StringRef TableName) {
-  Asm->OutStreamer->SwitchSection(Section);
+  Asm->OutStreamer->switchSection(Section);
 
   // Emit the full data.
   emitAppleAccelTable(Asm, Accel, TableName, Section->getBeginSymbol());
@@ -2420,12 +2430,12 @@ void DwarfDebug::emitDebugPubSections() {
     bool GnuStyle = TheU->getCUNode()->getNameTableKind() ==
                     DICompileUnit::DebugNameTableKind::GNU;
 
-    Asm->OutStreamer->SwitchSection(
+    Asm->OutStreamer->switchSection(
         GnuStyle ? Asm->getObjFileLowering().getDwarfGnuPubNamesSection()
                  : Asm->getObjFileLowering().getDwarfPubNamesSection());
     emitDebugPubSection(GnuStyle, "Names", TheU, TheU->getGlobalNames());
 
-    Asm->OutStreamer->SwitchSection(
+    Asm->OutStreamer->switchSection(
         GnuStyle ? Asm->getObjFileLowering().getDwarfGnuPubTypesSection()
                  : Asm->getObjFileLowering().getDwarfPubTypesSection());
     emitDebugPubSection(GnuStyle, "Types", TheU, TheU->getGlobalTypes());
@@ -2516,7 +2526,7 @@ void DwarfDebug::emitDebugLocEntry(ByteStreamer &Streamer,
 
   using Encoding = DWARFExpression::Operation::Encoding;
   uint64_t Offset = 0;
-  for (auto &Op : Expr) {
+  for (const auto &Op : Expr) {
     assert(Op.getCode() != dwarf::DW_OP_const_type &&
            "3 operand ops not yet supported");
     Streamer.emitInt8(Op.getCode(), Comment != End ? *(Comment++) : "");
@@ -2525,12 +2535,10 @@ void DwarfDebug::emitDebugLocEntry(ByteStreamer &Streamer,
       if (Op.getDescription().Op[I] == Encoding::SizeNA)
         continue;
       if (Op.getDescription().Op[I] == Encoding::BaseTypeRef) {
-        uint64_t Offset =
-            CU->ExprRefedBaseTypes[Op.getRawOperand(I)].Die->getOffset();
-        assert(Offset < (1ULL << (ULEB128PadSize * 7)) && "Offset wont fit");
-        Streamer.emitULEB128(Offset, "", ULEB128PadSize);
+        unsigned Length =
+          Streamer.emitDIERef(*CU->ExprRefedBaseTypes[Op.getRawOperand(I)].Die);
         // Make sure comments stay aligned.
-        for (unsigned J = 0; J < ULEB128PadSize; ++J)
+        for (unsigned J = 0; J < Length; ++J)
           if (Comment != End)
             Comment++;
       } else {
@@ -2837,7 +2845,7 @@ void DwarfDebug::emitDebugLocImpl(MCSection *Sec) {
   if (DebugLocs.getLists().empty())
     return;
 
-  Asm->OutStreamer->SwitchSection(Sec);
+  Asm->OutStreamer->switchSection(Sec);
 
   MCSymbol *TableEnd = nullptr;
   if (getDwarfVersion() >= 5)
@@ -2868,7 +2876,7 @@ void DwarfDebug::emitDebugLocDWO() {
   }
 
   for (const auto &List : DebugLocs.getLists()) {
-    Asm->OutStreamer->SwitchSection(
+    Asm->OutStreamer->switchSection(
         Asm->getObjFileLowering().getDwarfLocDWOSection());
     Asm->OutStreamer->emitLabel(List.Label);
 
@@ -2941,8 +2949,8 @@ void DwarfDebug::emitDebugARanges() {
 
     // Sort the symbols by offset within the section.
     llvm::stable_sort(List, [&](const SymbolCU &A, const SymbolCU &B) {
-      unsigned IA = A.Sym ? Asm->OutStreamer->GetSymbolOrder(A.Sym) : 0;
-      unsigned IB = B.Sym ? Asm->OutStreamer->GetSymbolOrder(B.Sym) : 0;
+      unsigned IA = A.Sym ? Asm->OutStreamer->getSymbolOrder(A.Sym) : 0;
+      unsigned IB = B.Sym ? Asm->OutStreamer->getSymbolOrder(B.Sym) : 0;
 
       // Symbols with no order assigned should be placed at the end.
       // (e.g. section end labels)
@@ -2975,7 +2983,7 @@ void DwarfDebug::emitDebugARanges() {
   }
 
   // Start the dwarf aranges section.
-  Asm->OutStreamer->SwitchSection(
+  Asm->OutStreamer->switchSection(
       Asm->getObjFileLowering().getDwarfARangesSection());
 
   unsigned PtrSize = Asm->MAI->getCodePointerSize();
@@ -3033,15 +3041,22 @@ void DwarfDebug::emitDebugARanges() {
     for (const ArangeSpan &Span : List) {
       Asm->emitLabelReference(Span.Start, PtrSize);
 
-      // Calculate the size as being from the span start to it's end.
-      if (Span.End) {
+      // Calculate the size as being from the span start to its end.
+      //
+      // If the size is zero, then round it up to one byte. The DWARF
+      // specification requires that entries in this table have nonzero
+      // lengths.
+      auto SizeRef = SymSize.find(Span.Start);
+      if ((SizeRef == SymSize.end() || SizeRef->second != 0) && Span.End) {
         Asm->emitLabelDifference(Span.End, Span.Start, PtrSize);
       } else {
         // For symbols without an end marker (e.g. common), we
         // write a single arange entry containing just that one symbol.
-        uint64_t Size = SymSize[Span.Start];
-        if (Size == 0)
+        uint64_t Size;
+        if (SizeRef == SymSize.end() || SizeRef->second == 0)
           Size = 1;
+        else
+          Size = SizeRef->second;
 
         Asm->OutStreamer->emitIntValue(Size, PtrSize);
       }
@@ -3075,7 +3090,7 @@ void DwarfDebug::emitDebugRangesImpl(const DwarfFile &Holder, MCSection *Section
     return !Pair.second->getCUNode()->isDebugDirectivesOnly();
   }));
 
-  Asm->OutStreamer->SwitchSection(Section);
+  Asm->OutStreamer->switchSection(Section);
 
   MCSymbol *TableEnd = nullptr;
   if (getDwarfVersion() >= 5)
@@ -3227,7 +3242,7 @@ void DwarfDebug::emitDebugMacinfoImpl(MCSection *Section) {
     DIMacroNodeArray Macros = CUNode->getMacros();
     if (Macros.empty())
       continue;
-    Asm->OutStreamer->SwitchSection(Section);
+    Asm->OutStreamer->switchSection(Section);
     Asm->OutStreamer->emitLabel(U.getMacroLabelBegin());
     if (UseDebugMacroSection)
       emitMacroHeader(Asm, *this, U, getDwarfVersion());
@@ -3435,22 +3450,6 @@ void DwarfDebug::addDwarfTypeUnitType(DwarfCompileUnit &CU,
   CU.addDIETypeSignature(RefDie, Signature);
 }
 
-DwarfDebug::NonTypeUnitContext::NonTypeUnitContext(DwarfDebug *DD)
-    : DD(DD),
-      TypeUnitsUnderConstruction(std::move(DD->TypeUnitsUnderConstruction)), AddrPoolUsed(DD->AddrPool.hasBeenUsed()) {
-  DD->TypeUnitsUnderConstruction.clear();
-  DD->AddrPool.resetUsedFlag();
-}
-
-DwarfDebug::NonTypeUnitContext::~NonTypeUnitContext() {
-  DD->TypeUnitsUnderConstruction = std::move(TypeUnitsUnderConstruction);
-  DD->AddrPool.resetUsedFlag(AddrPoolUsed);
-}
-
-DwarfDebug::NonTypeUnitContext DwarfDebug::enterNonTypeUnitContext() {
-  return NonTypeUnitContext(this);
-}
-
 // Add the Name along with its companion DIE to the appropriate accelerator
 // table (for AccelTableKind::Dwarf it's always AccelDebugNames, for
 // AccelTableKind::Apple, we use the table we got as an argument). If
@@ -3543,6 +3542,6 @@ Optional<MD5::MD5Result> DwarfDebug::getMD5AsBytes(const DIFile *File) const {
   // An MD5 checksum is 16 bytes.
   std::string ChecksumString = fromHex(Checksum->Value);
   MD5::MD5Result CKMem;
-  std::copy(ChecksumString.begin(), ChecksumString.end(), CKMem.Bytes.data());
+  std::copy(ChecksumString.begin(), ChecksumString.end(), CKMem.data());
   return CKMem;
 }

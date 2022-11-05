@@ -13,10 +13,10 @@ _Complex T global = __builtin_complex(1.0, 2.0);
 // CHECK-LABEL: @test
 _Complex T test(T a, T b) {
   return __builtin_complex(a, b);
-  // CHECK: %[[A:.*]] = load [[T]], [[T]]* %a.addr,
-  // CHECK: %[[B:.*]] = load [[T]], [[T]]* %b.addr,
-  // CHECK: %[[RET_RE:.*]] = getelementptr inbounds { [[T]], [[T]] }, { [[T]], [[T]] }* %[[RET:[^,]*]], i32 0, i32 0
-  // CHECK: %[[RET_IM:.*]] = getelementptr inbounds { [[T]], [[T]] }, { [[T]], [[T]] }* %[[RET]], i32 0, i32 1
-  // CHECK: store [[T]] %[[A]], [[T]]* %[[RET_RE]],
-  // CHECK: store [[T]] %[[B]], [[T]]* %[[RET_IM]],
+  // CHECK: %[[A:.*]] = load [[T]], ptr %a.addr,
+  // CHECK: %[[B:.*]] = load [[T]], ptr %b.addr,
+  // CHECK: %[[RET_RE:.*]] = getelementptr inbounds { [[T]], [[T]] }, ptr %[[RET:[^,]*]], i32 0, i32 0
+  // CHECK: %[[RET_IM:.*]] = getelementptr inbounds { [[T]], [[T]] }, ptr %[[RET]], i32 0, i32 1
+  // CHECK: store [[T]] %[[A]], ptr %[[RET_RE]],
+  // CHECK: store [[T]] %[[B]], ptr %[[RET_IM]],
 }

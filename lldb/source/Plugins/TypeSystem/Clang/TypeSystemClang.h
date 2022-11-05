@@ -23,6 +23,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTFwd.h"
 #include "clang/AST/TemplateBase.h"
+#include "clang/AST/Type.h"
 #include "clang/Basic/TargetInfo.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/SmallVector.h"
@@ -35,7 +36,6 @@
 #include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/Flags.h"
 #include "lldb/Utility/Log.h"
-#include "lldb/Utility/Logging.h"
 #include "lldb/lldb-enumerations.h"
 
 class DWARFASTParserClang;
@@ -92,7 +92,7 @@ public:
   void SetOwningModule(OptionalClangModuleID id);
   /// \}
 };
-  
+
 /// A TypeSystem implementation based on Clang.
 ///
 /// This class uses a single clang::ASTContext as the backend for storing
@@ -138,11 +138,9 @@ public:
   void Finalize() override;
 
   // PluginInterface functions
-  llvm::StringRef GetPluginName() override {
-    return GetPluginNameStatic().GetStringRef();
-  }
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
-  static ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "clang"; }
 
   static lldb::TypeSystemSP CreateInstance(lldb::LanguageType language,
                                            Module *module, Target *target);
@@ -197,6 +195,11 @@ public:
   void SetMetadata(const clang::Type *object, ClangASTMetadata &meta_data);
   ClangASTMetadata *GetMetadata(const clang::Decl *object);
   ClangASTMetadata *GetMetadata(const clang::Type *object);
+
+  void SetCXXRecordDeclAccess(const clang::CXXRecordDecl *object,
+                              clang::AccessSpecifier access);
+  clang::AccessSpecifier
+  GetCXXRecordDeclAccess(const clang::CXXRecordDecl *object);
 
   // Basic Types
   CompilerType GetBuiltinTypeForEncodingAndBitSize(lldb::Encoding encoding,
@@ -332,7 +335,7 @@ public:
 
     llvm::SmallVector<const char *, 2> names;
     llvm::SmallVector<clang::TemplateArgument, 2> args;
-    
+
     const char * pack_name = nullptr;
     std::unique_ptr<TemplateParameterInfos> packed_args;
   };
@@ -345,11 +348,10 @@ public:
       clang::FunctionDecl *func_decl, clang::FunctionTemplateDecl *Template,
       const TemplateParameterInfos &infos);
 
-  clang::ClassTemplateDecl *
-  CreateClassTemplateDecl(clang::DeclContext *decl_ctx,
-                          OptionalClangModuleID owning_module,
-                          lldb::AccessType access_type, const char *class_name,
-                          int kind, const TemplateParameterInfos &infos);
+  clang::ClassTemplateDecl *CreateClassTemplateDecl(
+      clang::DeclContext *decl_ctx, OptionalClangModuleID owning_module,
+      lldb::AccessType access_type, llvm::StringRef class_name, int kind,
+      const TemplateParameterInfos &infos);
 
   clang::TemplateTemplateParmDecl *
   CreateTemplateTemplateParmDecl(const char *template_name);
@@ -397,10 +399,11 @@ public:
       llvm::StringRef name, const CompilerType &function_Type,
       clang::StorageClass storage, bool is_inline);
 
-  CompilerType CreateFunctionType(const CompilerType &result_type,
-                                  const CompilerType *args, unsigned num_args,
-                                  bool is_variadic, unsigned type_quals,
-                                  clang::CallingConv cc = clang::CC_C);
+  CompilerType
+  CreateFunctionType(const CompilerType &result_type, const CompilerType *args,
+                     unsigned num_args, bool is_variadic, unsigned type_quals,
+                     clang::CallingConv cc = clang::CC_C,
+                     clang::RefQualifierKind ref_qual = clang::RQ_None);
 
   clang::ParmVarDecl *
   CreateParameterDeclaration(clang::DeclContext *decl_ctx,
@@ -419,7 +422,7 @@ public:
                                size_t element_count, bool is_vector);
 
   // Enumeration Types
-  CompilerType CreateEnumerationType(const char *name,
+  CompilerType CreateEnumerationType(llvm::StringRef name,
                                      clang::DeclContext *decl_ctx,
                                      OptionalClangModuleID owning_module,
                                      const Declaration &decl,
@@ -440,6 +443,7 @@ public:
   // TypeSystem methods
   DWARFASTParser *GetDWARFParser() override;
   PDBASTParser *GetPDBParser() override;
+  npdb::PdbAstBuilder *GetNativePDBParser() override;
 
   // TypeSystemClang callbacks for external source lookups.
   void CompleteTagDecl(clang::TagDecl *);
@@ -536,7 +540,7 @@ public:
 #ifndef NDEBUG
   bool Verify(lldb::opaque_compiler_type_t type) override;
 #endif
-  
+
   bool IsArrayType(lldb::opaque_compiler_type_t type,
                    CompilerType *element_type, uint64_t *size,
                    bool *is_incomplete) override;
@@ -639,7 +643,8 @@ public:
 
   // Accessors
 
-  ConstString GetTypeName(lldb::opaque_compiler_type_t type) override;
+  ConstString GetTypeName(lldb::opaque_compiler_type_t type,
+                          bool BaseOnly) override;
 
   ConstString GetDisplayTypeName(lldb::opaque_compiler_type_t type) override;
 
@@ -809,16 +814,17 @@ public:
                                 const char *name, bool omit_empty_base_classes,
                                 std::vector<uint32_t> &child_indexes) override;
 
-  size_t GetNumTemplateArguments(lldb::opaque_compiler_type_t type) override;
+  size_t GetNumTemplateArguments(lldb::opaque_compiler_type_t type,
+                                 bool expand_pack) override;
 
   lldb::TemplateArgumentKind
-  GetTemplateArgumentKind(lldb::opaque_compiler_type_t type,
-                          size_t idx) override;
+  GetTemplateArgumentKind(lldb::opaque_compiler_type_t type, size_t idx,
+                          bool expand_pack) override;
   CompilerType GetTypeTemplateArgument(lldb::opaque_compiler_type_t type,
-                                       size_t idx) override;
+                                       size_t idx, bool expand_pack) override;
   llvm::Optional<CompilerType::IntegralTemplateArgument>
-  GetIntegralTemplateArgument(lldb::opaque_compiler_type_t type,
-                              size_t idx) override;
+  GetIntegralTemplateArgument(lldb::opaque_compiler_type_t type, size_t idx,
+                              bool expand_pack) override;
 
   CompilerType GetTypeForFormatters(void *type) override;
 
@@ -938,7 +944,8 @@ public:
   LLVM_DUMP_METHOD void dump(lldb::opaque_compiler_type_t type) const override;
 #endif
 
-  void Dump(Stream &s);
+  /// \see lldb_private::TypeSystem::Dump
+  void Dump(llvm::raw_ostream &output) override;
 
   /// Dump clang AST types from the symbol file.
   ///
@@ -1066,6 +1073,7 @@ private:
   std::unique_ptr<clang::ModuleMap> m_module_map_up;
   std::unique_ptr<DWARFASTParserClang> m_dwarf_ast_parser_up;
   std::unique_ptr<PDBASTParser> m_pdb_ast_parser_up;
+  std::unique_ptr<npdb::PdbAstBuilder> m_native_pdb_ast_parser_up;
   std::unique_ptr<clang::MangleContext> m_mangle_ctx_up;
   uint32_t m_pointer_byte_size = 0;
   bool m_ast_owned = false;
@@ -1081,6 +1089,12 @@ private:
   typedef llvm::DenseMap<const clang::Type *, ClangASTMetadata> TypeMetadataMap;
   /// Maps Types to their associated ClangASTMetadata.
   TypeMetadataMap m_type_metadata;
+
+  typedef llvm::DenseMap<const clang::CXXRecordDecl *, clang::AccessSpecifier>
+      CXXRecordDeclAccessMap;
+  /// Maps CXXRecordDecl to their most recent added method/field's
+  /// AccessSpecifier.
+  CXXRecordDeclAccessMap m_cxx_record_decl_access;
 
   /// The sema associated that is currently used to build this ASTContext.
   /// May be null if we are already done parsing this ASTContext or the
@@ -1161,6 +1175,9 @@ public:
                                        const clang::LangOptions &lang_opts) {
     return GetForTarget(target, InferIsolatedASTKindFromLangOpts(lang_opts));
   }
+
+  /// \see lldb_private::TypeSystem::Dump
+  void Dump(llvm::raw_ostream &output) override;
 
   UserExpression *
   GetUserExpression(llvm::StringRef expr, llvm::StringRef prefix,

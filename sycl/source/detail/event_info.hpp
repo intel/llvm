@@ -8,40 +8,40 @@
 
 #pragma once
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/info/info_desc.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/plugin.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/info_desc_helpers.hpp>
+#include <sycl/info/info_desc.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
-template <info::event_profiling Param> struct get_event_profiling_info {
-  using RetType =
-      typename info::param_traits<info::event_profiling, Param>::return_type;
+template <typename Param>
+typename Param::return_type get_event_profiling_info(RT::PiEvent Event,
+                                                     const plugin &Plugin) {
+  static_assert(is_event_profiling_info_desc<Param>::value,
+                "Unexpected event profiling info descriptor");
+  typename Param::return_type Result{0};
+  // TODO catch an exception and put it to list of asynchronous exceptions
+  Plugin.call<PiApiKind::piEventGetProfilingInfo>(
+      Event, PiInfoCode<Param>::value, sizeof(Result), &Result, nullptr);
+  return Result;
+}
 
-  static RetType get(RT::PiEvent Event, const plugin &Plugin) {
-    RetType Result = 0;
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin.call<PiApiKind::piEventGetProfilingInfo>(
-        Event, pi_profiling_info(Param), sizeof(Result), &Result, nullptr);
-    return Result;
-  }
-};
-
-template <info::event Param> struct get_event_info {
-  using RetType = typename info::param_traits<info::event, Param>::return_type;
-
-  static RetType get(RT::PiEvent Event, const plugin &Plugin) {
-    RetType Result = (RetType)0;
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin.call<PiApiKind::piEventGetInfo>(Event, pi_event_info(Param),
-                                           sizeof(Result), &Result, nullptr);
-    return Result;
-  }
-};
+template <typename Param>
+typename Param::return_type get_event_info(RT::PiEvent Event,
+                                           const plugin &Plugin) {
+  static_assert(is_event_info_desc<Param>::value,
+                "Unexpected event info descriptor");
+  typename Param::return_type Result{0};
+  // TODO catch an exception and put it to list of asynchronous exceptions
+  Plugin.call<PiApiKind::piEventGetInfo>(Event, PiInfoCode<Param>::value,
+                                         sizeof(Result), &Result, nullptr);
+  return Result;
+}
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

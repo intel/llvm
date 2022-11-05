@@ -6,13 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/interop_handler.hpp>
 #include <detail/queue_impl.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/interop_handler.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 pi_native_handle interop_handler::GetNativeQueue() const {
   return MQueue->getNative();
@@ -33,5 +33,5 @@ pi_native_handle interop_handler::GetNativeMem(detail::Requirement *Req) const {
   return Handle;
 }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

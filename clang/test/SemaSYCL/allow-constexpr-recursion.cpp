@@ -8,7 +8,7 @@ sycl::queue q;
 
 constexpr int constexpr_recurse1(int n);
 
-// expected-note@+1 5{{function implemented using recursion declared here}}
+// expected-note@+1 6{{function implemented using recursion declared here}}
 constexpr int constexpr_recurse(int n) {
   if (n)
     return constexpr_recurse1(n - 1);
@@ -87,6 +87,10 @@ void constexpr_recurse_test() {
     k = constexpr_recurse(1);
   else
     constexpr int l = test_constexpr_context(constexpr_recurse(1));
+
+  static constexpr struct ConstExprObjInit {
+    int a;
+  } objfoo = {constexpr_recurse(1)};
 }
 
 void constexpr_recurse_test_err() {
@@ -114,6 +118,11 @@ void constexpr_recurse_test_err() {
     j = constexpr_recurse(5);
     break;
   }
+
+  // expected-error@+3{{SYCL kernel cannot call a recursive function}}
+  struct ObjInit {
+    int a;
+  } objbar = {constexpr_recurse(1)};
 }
 
 int main() {

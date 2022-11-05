@@ -37,6 +37,7 @@
 //===----------------------------------------------------------------------===//
 #define DEBUG_TYPE "spv-lower-const-expr"
 
+#include "SPIRVLowerConstExpr.h"
 #include "OCLUtil.h"
 #include "SPIRVInternal.h"
 #include "SPIRVMDBuilder.h"
@@ -65,29 +66,6 @@ cl::opt<bool> SPIRVLowerConst(
     "spirv-lower-const-expr", cl::init(true),
     cl::desc("LLVM/SPIR-V translation enable lowering constant expression"));
 
-class SPIRVLowerConstExprBase {
-public:
-  SPIRVLowerConstExprBase() : M(nullptr), Ctx(nullptr) {}
-
-  bool runLowerConstExpr(Module &M);
-  void visit(Module *M);
-
-private:
-  Module *M;
-  LLVMContext *Ctx;
-};
-
-class SPIRVLowerConstExprPass
-    : public llvm::PassInfoMixin<SPIRVLowerConstExprPass>,
-      public SPIRVLowerConstExprBase {
-public:
-  llvm::PreservedAnalyses run(llvm::Module &M,
-                              llvm::ModuleAnalysisManager &MAM) {
-    return runLowerConstExpr(M) ? llvm::PreservedAnalyses::none()
-                                : llvm::PreservedAnalyses::all();
-  }
-};
-
 class SPIRVLowerConstExprLegacy : public ModulePass,
                                   public SPIRVLowerConstExprBase {
 public:
@@ -110,11 +88,11 @@ bool SPIRVLowerConstExprBase::runLowerConstExpr(Module &Module) {
   Ctx = &M->getContext();
 
   LLVM_DEBUG(dbgs() << "Enter SPIRVLowerConstExpr:\n");
-  visit(M);
+  bool Changed = visit(M);
 
   verifyRegularizationPass(*M, "SPIRVLowerConstExpr");
 
-  return true;
+  return Changed;
 }
 
 /// Since SPIR-V cannot represent constant expression, constant expressions
@@ -126,7 +104,8 @@ bool SPIRVLowerConstExprBase::runLowerConstExpr(Module &Module) {
 /// is replaced by one instruction.
 /// ToDo: remove redundant instructions for common subexpression
 
-void SPIRVLowerConstExprBase::visit(Module *M) {
+bool SPIRVLowerConstExprBase::visit(Module *M) {
+  bool Changed = false;
   for (auto &I : M->functions()) {
     std::list<Instruction *> WorkList;
     for (auto &BI : I) {
@@ -138,7 +117,7 @@ void SPIRVLowerConstExprBase::visit(Module *M) {
     while (!WorkList.empty()) {
       auto II = WorkList.front();
 
-      auto LowerOp = [&II, &FBegin, &I](Value *V) -> Value * {
+      auto LowerOp = [&II, &FBegin, &I, &Changed](Value *V) -> Value * {
         if (isa<Function>(V))
           return V;
         auto *CE = cast<ConstantExpr>(V);
@@ -163,57 +142,21 @@ void SPIRVLowerConstExprBase::visit(Module *M) {
               ReplInst->moveBefore(User);
           User->replaceUsesOfWith(CE, ReplInst);
         }
+        Changed = true;
         return ReplInst;
       };
 
       WorkList.pop_front();
-      auto LowerConstantVec = [&II, &LowerOp, &WorkList,
-                               &M](ConstantVector *Vec,
-                                   unsigned NumOfOp) -> Value * {
-        if (std::all_of(Vec->op_begin(), Vec->op_end(), [](Value *V) {
-              return isa<ConstantExpr>(V) || isa<Function>(V);
-            })) {
-          // Expand a vector of constexprs and construct it back with
-          // series of insertelement instructions
-          std::list<Value *> OpList;
-          std::transform(Vec->op_begin(), Vec->op_end(),
-                         std::back_inserter(OpList),
-                         [LowerOp](Value *V) { return LowerOp(V); });
-          Value *Repl = nullptr;
-          unsigned Idx = 0;
-          auto *PhiII = dyn_cast<PHINode>(II);
-          auto *InsPoint =
-              PhiII ? &PhiII->getIncomingBlock(NumOfOp)->back() : II;
-          std::list<Instruction *> ReplList;
-          for (auto V : OpList) {
-            if (auto *Inst = dyn_cast<Instruction>(V))
-              ReplList.push_back(Inst);
-            Repl = InsertElementInst::Create(
-                (Repl ? Repl : UndefValue::get(Vec->getType())), V,
-                ConstantInt::get(Type::getInt32Ty(M->getContext()), Idx++), "",
-                InsPoint);
-          }
-          WorkList.splice(WorkList.begin(), ReplList);
-          return Repl;
-        }
-        return nullptr;
-      };
 
       for (unsigned OI = 0, OE = II->getNumOperands(); OI != OE; ++OI) {
         auto *Op = II->getOperand(OI);
-        if (auto *Vec = dyn_cast<ConstantVector>(Op)) {
-          Value *ReplInst = LowerConstantVec(Vec, OI);
-          if (ReplInst)
-            II->replaceUsesOfWith(Op, ReplInst);
-        } else if (auto CE = dyn_cast<ConstantExpr>(Op)) {
+        if (auto *CE = dyn_cast<ConstantExpr>(Op)) {
           WorkList.push_front(cast<Instruction>(LowerOp(CE)));
         } else if (auto MDAsVal = dyn_cast<MetadataAsValue>(Op)) {
           Metadata *MD = MDAsVal->getMetadata();
           if (auto ConstMD = dyn_cast<ConstantAsMetadata>(MD)) {
             Constant *C = ConstMD->getValue();
             Value *ReplInst = nullptr;
-            if (auto *Vec = dyn_cast<ConstantVector>(C))
-              ReplInst = LowerConstantVec(Vec, OI);
             if (auto *CE = dyn_cast<ConstantExpr>(C))
               ReplInst = LowerOp(CE);
             if (ReplInst) {
@@ -227,6 +170,7 @@ void SPIRVLowerConstExprBase::visit(Module *M) {
       }
     }
   }
+  return Changed;
 }
 
 } // namespace SPIRV

@@ -36,6 +36,7 @@
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/Specifiers.h"
 #include "clang/CrossTU/CrossTranslationUnit.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/CallDescription.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/DynamicType.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/DynamicTypeInfo.h"
@@ -302,88 +303,6 @@ ProgramPoint CallEvent::getProgramPoint(bool IsPreVisit,
   return PostImplicitCall(D, Loc, getLocationContext(), Tag);
 }
 
-bool CallEvent::isCalled(const CallDescription &CD) const {
-  // FIXME: Add ObjC Message support.
-  if (getKind() == CE_ObjCMessage)
-    return false;
-
-  const auto *FD = dyn_cast_or_null<FunctionDecl>(getDecl());
-  if (!FD)
-    return false;
-
-  if (CD.Flags & CDF_MaybeBuiltin) {
-    return CheckerContext::isCLibraryFunction(FD, CD.getFunctionName()) &&
-           (!CD.RequiredArgs || CD.RequiredArgs <= getNumArgs()) &&
-           (!CD.RequiredParams || CD.RequiredParams <= parameters().size());
-  }
-
-  if (!CD.II.hasValue()) {
-    CD.II = &getState()->getStateManager().getContext().Idents.get(
-        CD.getFunctionName());
-  }
-
-  const auto MatchNameOnly = [](const CallDescription &CD,
-                                const NamedDecl *ND) -> bool {
-    DeclarationName Name = ND->getDeclName();
-    if (const auto *II = Name.getAsIdentifierInfo())
-      return II == CD.II.getValue(); // Fast case.
-
-    // Fallback to the slow stringification and comparison for:
-    // C++ overloaded operators, constructors, destructors, etc.
-    // FIXME This comparison is way SLOWER than comparing pointers.
-    // At some point in the future, we should compare FunctionDecl pointers.
-    return Name.getAsString() == CD.getFunctionName();
-  };
-
-  const auto ExactMatchArgAndParamCounts =
-      [](const CallEvent &Call, const CallDescription &CD) -> bool {
-    const bool ArgsMatch =
-        !CD.RequiredArgs || CD.RequiredArgs == Call.getNumArgs();
-    const bool ParamsMatch =
-        !CD.RequiredParams || CD.RequiredParams == Call.parameters().size();
-    return ArgsMatch && ParamsMatch;
-  };
-
-  const auto MatchQualifiedNameParts = [](const CallDescription &CD,
-                                          const Decl *D) -> bool {
-    const auto FindNextNamespaceOrRecord =
-        [](const DeclContext *Ctx) -> const DeclContext * {
-      while (Ctx && !isa<NamespaceDecl, RecordDecl>(Ctx))
-        Ctx = Ctx->getParent();
-      return Ctx;
-    };
-
-    auto QualifierPartsIt = CD.begin_qualified_name_parts();
-    const auto QualifierPartsEndIt = CD.end_qualified_name_parts();
-
-    // Match namespace and record names. Skip unrelated names if they don't
-    // match.
-    const DeclContext *Ctx = FindNextNamespaceOrRecord(D->getDeclContext());
-    for (; Ctx && QualifierPartsIt != QualifierPartsEndIt;
-         Ctx = FindNextNamespaceOrRecord(Ctx->getParent())) {
-      // If not matched just continue and try matching for the next one.
-      if (cast<NamedDecl>(Ctx)->getName() != *QualifierPartsIt)
-        continue;
-      ++QualifierPartsIt;
-    }
-
-    // We matched if we consumed all expected qualifier segments.
-    return QualifierPartsIt == QualifierPartsEndIt;
-  };
-
-  // Let's start matching...
-  if (!ExactMatchArgAndParamCounts(*this, CD))
-    return false;
-
-  if (!MatchNameOnly(CD, FD))
-    return false;
-
-  if (!CD.hasQualifiedNameParts())
-    return true;
-
-  return MatchQualifiedNameParts(CD, FD);
-}
-
 SVal CallEvent::getArgSVal(unsigned Index) const {
   const Expr *ArgE = getArgExpr(Index);
   if (!ArgE)
@@ -411,7 +330,6 @@ void CallEvent::dump(raw_ostream &Out) const {
   ASTContext &Ctx = getState()->getStateManager().getContext();
   if (const Expr *E = getOriginExpr()) {
     E->printPretty(Out, nullptr, Ctx.getPrintingPolicy());
-    Out << "\n";
     return;
   }
 
@@ -425,9 +343,7 @@ void CallEvent::dump(raw_ostream &Out) const {
 }
 
 bool CallEvent::isCallStmt(const Stmt *S) {
-  return isa<CallExpr>(S) || isa<ObjCMessageExpr>(S)
-                          || isa<CXXConstructExpr>(S)
-                          || isa<CXXNewExpr>(S);
+  return isa<CallExpr, ObjCMessageExpr, CXXConstructExpr, CXXNewExpr>(S);
 }
 
 QualType CallEvent::getDeclaredResultType(const Decl *D) {
@@ -508,6 +424,38 @@ static SVal processArgument(SVal Value, const Expr *ArgumentExpr,
   return Value;
 }
 
+/// Cast the argument value to the type of the parameter at the function
+/// declaration.
+/// Returns the argument value if it didn't need a cast.
+/// Or returns the cast argument if it needed a cast.
+/// Or returns 'Unknown' if it would need a cast but the callsite and the
+/// runtime definition don't match in terms of argument and parameter count.
+static SVal castArgToParamTypeIfNeeded(const CallEvent &Call, unsigned ArgIdx,
+                                       SVal ArgVal, SValBuilder &SVB) {
+  const FunctionDecl *RTDecl =
+      Call.getRuntimeDefinition().getDecl()->getAsFunction();
+  const auto *CallExprDecl = dyn_cast_or_null<FunctionDecl>(Call.getDecl());
+
+  if (!RTDecl || !CallExprDecl)
+    return ArgVal;
+
+  // The function decl of the Call (in the AST) will not have any parameter
+  // declarations, if it was 'only' declared without a prototype. However, the
+  // engine will find the appropriate runtime definition - basically a
+  // redeclaration, which has a function body (and a function prototype).
+  if (CallExprDecl->hasPrototype() || !RTDecl->hasPrototype())
+    return ArgVal;
+
+  // Only do this cast if the number arguments at the callsite matches with
+  // the parameters at the runtime definition.
+  if (Call.getNumArgs() != RTDecl->getNumParams())
+    return UnknownVal();
+
+  const Expr *ArgExpr = Call.getArgExpr(ArgIdx);
+  const ParmVarDecl *Param = RTDecl->getParamDecl(ArgIdx);
+  return SVB.evalCast(ArgVal, Param->getType(), ArgExpr->getType());
+}
+
 static void addParameterValuesToBindings(const StackFrameContext *CalleeCtx,
                                          CallEvent::BindingsTy &Bindings,
                                          SValBuilder &SVB,
@@ -533,12 +481,18 @@ static void addParameterValuesToBindings(const StackFrameContext *CalleeCtx,
     // which makes getArgSVal() fail and return UnknownVal.
     SVal ArgVal = Call.getArgSVal(Idx);
     const Expr *ArgExpr = Call.getArgExpr(Idx);
-    if (!ArgVal.isUnknown()) {
-      Loc ParamLoc = SVB.makeLoc(
-          MRMgr.getParamVarRegion(Call.getOriginExpr(), Idx, CalleeCtx));
-      Bindings.push_back(
-          std::make_pair(ParamLoc, processArgument(ArgVal, ArgExpr, *I, SVB)));
-    }
+
+    if (ArgVal.isUnknown())
+      continue;
+
+    // Cast the argument value to match the type of the parameter in some
+    // edge-cases.
+    ArgVal = castArgToParamTypeIfNeeded(Call, Idx, ArgVal, SVB);
+
+    Loc ParamLoc = SVB.makeLoc(
+        MRMgr.getParamVarRegion(Call.getOriginExpr(), Idx, CalleeCtx));
+    Bindings.push_back(
+        std::make_pair(ParamLoc, processArgument(ArgVal, ArgExpr, *I, SVB)));
   }
 
   // FIXME: Variadic arguments are not handled at all right now.
@@ -569,9 +523,9 @@ CallEvent::getReturnValueUnderConstruction() const {
 
   EvalCallOptions CallOpts;
   ExprEngine &Engine = getState()->getStateManager().getOwningEngine();
-  SVal RetVal =
-    Engine.computeObjectUnderConstruction(getOriginExpr(), getState(),
-                                          getLocationContext(), CC, CallOpts);
+  SVal RetVal = Engine.computeObjectUnderConstruction(
+      getOriginExpr(), getState(), &Engine.getBuilderContext(),
+      getLocationContext(), CC, CallOpts);
   return RetVal;
 }
 
@@ -599,20 +553,28 @@ RuntimeDefinition AnyFunctionCall::getRuntimeDefinition() const {
       llvm::dbgs() << "Using autosynthesized body for " << FD->getName()
                    << "\n";
   });
-  if (Body) {
-    const Decl* Decl = AD->getDecl();
-    return RuntimeDefinition(Decl);
-  }
 
   ExprEngine &Engine = getState()->getStateManager().getOwningEngine();
+  cross_tu::CrossTranslationUnitContext &CTUCtx =
+      *Engine.getCrossTranslationUnitContext();
+
   AnalyzerOptions &Opts = Engine.getAnalysisManager().options;
+
+  if (Body) {
+    const Decl* Decl = AD->getDecl();
+    if (Opts.IsNaiveCTUEnabled && CTUCtx.isImportedAsNew(Decl)) {
+      // A newly created definition, but we had error(s) during the import.
+      if (CTUCtx.hasError(Decl))
+        return {};
+      return RuntimeDefinition(Decl, /*Foreign=*/true);
+    }
+    return RuntimeDefinition(Decl, /*Foreign=*/false);
+  }
 
   // Try to get CTU definition only if CTUDir is provided.
   if (!Opts.IsNaiveCTUEnabled)
     return {};
 
-  cross_tu::CrossTranslationUnitContext &CTUCtx =
-      *Engine.getCrossTranslationUnitContext();
   llvm::Expected<const FunctionDecl *> CTUDeclOrError =
       CTUCtx.getCrossTUDefinition(FD, Opts.CTUDir, Opts.CTUIndexName,
                                   Opts.DisplayCTUProgress);
@@ -625,7 +587,7 @@ RuntimeDefinition AnyFunctionCall::getRuntimeDefinition() const {
     return {};
   }
 
-  return RuntimeDefinition(*CTUDeclOrError);
+  return RuntimeDefinition(*CTUDeclOrError, /*Foreign=*/true);
 }
 
 void AnyFunctionCall::getInitialStackFrameContents(
@@ -681,7 +643,7 @@ bool AnyFunctionCall::argumentsMayEscape() const {
 
   // - NSXXInsertXX, for example NSMapInsertIfAbsent, since they can
   //   be deallocated by NSMapRemove.
-  if (FName.startswith("NS") && (FName.find("Insert") != StringRef::npos))
+  if (FName.startswith("NS") && FName.contains("Insert"))
     return true;
 
   // - Many CF containers allow objects to escape through custom
@@ -756,7 +718,7 @@ SVal CXXInstanceCall::getCXXThisVal() const {
     return UnknownVal();
 
   SVal ThisVal = getSVal(Base);
-  assert(ThisVal.isUnknownOrUndef() || ThisVal.getAs<Loc>());
+  assert(ThisVal.isUnknownOrUndef() || isa<Loc>(ThisVal));
   return ThisVal;
 }
 
@@ -846,9 +808,9 @@ void CXXInstanceCall::getInitialStackFrameContents(
       QualType Ty = Ctx.getPointerType(Ctx.getRecordType(Class));
 
       // FIXME: CallEvent maybe shouldn't be directly accessing StoreManager.
-      bool Failed;
-      ThisVal = StateMgr.getStoreManager().attemptDownCast(ThisVal, Ty, Failed);
-      if (Failed) {
+      Optional<SVal> V =
+          StateMgr.getStoreManager().evalBaseToDerived(ThisVal, Ty);
+      if (!V) {
         // We might have suffered some sort of placement new earlier, so
         // we're constructing in a completely unexpected storage.
         // Fall back to a generic pointer cast for this-value.
@@ -856,7 +818,8 @@ void CXXInstanceCall::getInitialStackFrameContents(
         const CXXRecordDecl *StaticClass = StaticMD->getParent();
         QualType StaticTy = Ctx.getPointerType(Ctx.getRecordType(StaticClass));
         ThisVal = SVB.evalCast(ThisVal, Ty, StaticTy);
-      }
+      } else
+        ThisVal = *V;
     }
 
     if (!ThisVal.isUnknown())
@@ -1199,7 +1162,7 @@ static const ObjCMethodDecl *findDefiningRedecl(const ObjCMethodDecl *MD) {
 
   // Find the redeclaration that defines the method.
   if (!MD->hasBody()) {
-    for (auto I : MD->redecls())
+    for (auto *I : MD->redecls())
       if (I->hasBody())
         MD = cast<ObjCMethodDecl>(I);
   }
@@ -1267,7 +1230,7 @@ lookupRuntimeDefinition(const ObjCInterfaceDecl *Interface,
       PMC[{Interface, LookupSelector, InstanceMethod}];
 
   // Query lookupPrivateMethod() if the cache does not hit.
-  if (!Val.hasValue()) {
+  if (!Val) {
     Val = Interface->lookupPrivateMethod(LookupSelector, InstanceMethod);
 
     if (!*Val) {
@@ -1276,7 +1239,7 @@ lookupRuntimeDefinition(const ObjCInterfaceDecl *Interface,
     }
   }
 
-  return Val.getValue();
+  return *Val;
 }
 
 RuntimeDefinition ObjCMethodCall::getRuntimeDefinition() const {
@@ -1481,7 +1444,7 @@ CallEventManager::getCaller(const StackFrameContext *CalleeCtx,
     Trigger = Dtor->getBody();
 
   return getCXXDestructorCall(Dtor, Trigger, ThisVal.getAsRegion(),
-                              E.getAs<CFGBaseDtor>().hasValue(), State,
+                              E.getAs<CFGBaseDtor>().has_value(), State,
                               CallerCtx);
 }
 
@@ -1491,6 +1454,8 @@ CallEventRef<> CallEventManager::getCall(const Stmt *S, ProgramStateRef State,
     return getSimpleCall(CE, State, LC);
   } else if (const auto *NE = dyn_cast<CXXNewExpr>(S)) {
     return getCXXAllocatorCall(NE, State, LC);
+  } else if (const auto *DE = dyn_cast<CXXDeleteExpr>(S)) {
+    return getCXXDeallocatorCall(DE, State, LC);
   } else if (const auto *ME = dyn_cast<ObjCMessageExpr>(S)) {
     return getObjCMethodCall(ME, State, LC);
   } else {

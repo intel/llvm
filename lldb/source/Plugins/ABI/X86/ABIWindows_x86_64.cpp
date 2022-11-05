@@ -26,6 +26,7 @@
 #include "lldb/Target/Thread.h"
 #include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/DataExtractor.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/RegisterValue.h"
 #include "lldb/Utility/Status.h"
@@ -123,7 +124,7 @@ ABIWindows_x86_64::CreateInstance(lldb::ProcessSP process_sp, const ArchSpec &ar
 bool ABIWindows_x86_64::PrepareTrivialCall(Thread &thread, addr_t sp,
                                            addr_t func_addr, addr_t return_addr,
                                            llvm::ArrayRef<addr_t> args) const {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS));
+  Log *log = GetLog(LLDBLog::Expressions);
 
   if (log) {
     StreamString s;
@@ -516,9 +517,9 @@ ValueObjectSP ABIWindows_x86_64::GetReturnValueObjectSimple(
             RegisterValue reg_value;
             if (reg_ctx->ReadRegister(xmm_reg, reg_value)) {
               Status error;
-              if (reg_value.GetAsMemoryData(
-                      xmm_reg, heap_data_up->GetBytes(),
-                      heap_data_up->GetByteSize(), byte_order, error)) {
+              if (reg_value.GetAsMemoryData(*xmm_reg, heap_data_up->GetBytes(),
+                                            heap_data_up->GetByteSize(),
+                                            byte_order, error)) {
                 DataExtractor data(DataBufferSP(heap_data_up.release()),
                                    byte_order,
                                    process_sp->GetTarget()
@@ -641,7 +642,7 @@ ValueObjectSP ABIWindows_x86_64::GetReturnValueObjectImpl(
                            0, aggregate_field_offsets,
                            aggregate_compiler_types)) {
     ByteOrder byte_order = target->GetArchitecture().GetByteOrder();
-    DataBufferSP data_sp(
+    WritableDataBufferSP data_sp(
         new DataBufferHeap(max_register_value_bit_width / 8, 0));
     DataExtractor return_ext(data_sp, byte_order,
         target->GetArchitecture().GetAddressByteSize());
@@ -822,9 +823,4 @@ void ABIWindows_x86_64::Initialize() {
 
 void ABIWindows_x86_64::Terminate() {
   PluginManager::UnregisterPlugin(CreateInstance);
-}
-
-lldb_private::ConstString ABIWindows_x86_64::GetPluginNameStatic() {
-  static ConstString g_name("windows-x86_64");
-  return g_name;
 }

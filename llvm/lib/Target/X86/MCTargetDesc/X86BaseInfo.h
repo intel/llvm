@@ -441,6 +441,11 @@ namespace X86II {
     ///    SYMBOL_LABEL @GOTPCREL
     MO_GOTPCREL,
 
+    /// MO_GOTPCREL_NORELAX - Same as MO_GOTPCREL except that R_X86_64_GOTPCREL
+    /// relocations are guaranteed to be emitted by the integrated assembler
+    /// instead of the relaxable R_X86_64[_REX]_GOTPCRELX relocations.
+    MO_GOTPCREL_NORELAX,
+
     /// MO_PLT - On a symbol operand this indicates that the immediate is
     /// offset to the PLT entry of symbol name from the current code location.
     ///
@@ -624,6 +629,11 @@ namespace X86II {
     /// PrefixByte - This form is used for instructions that represent a prefix
     /// byte like data16 or rep.
     PrefixByte = 10,
+
+    /// MRMDestMem4VOp3CC - This form is used for instructions that use the Mod/RM
+    /// byte to specify a destination which in this case is memory and operand 3
+    /// with VEX.VVVV, and also encodes a condition code.
+    MRMDestMem4VOp3CC = 20,
 
     /// MRM[0-7][rm] - These forms are used to represent instructions that use
     /// a Mod/RM byte, and use the middle field to hold extended opcode
@@ -1120,6 +1130,7 @@ namespace X86II {
       // Skip registers encoded in reg, VEX_VVVV, and I8IMM.
       return 3;
     case X86II::MRMSrcMemCC:
+    case X86II::MRMDestMem4VOp3CC:
       // Start from 1, skip any registers encoded in VEX_VVVV or I8IMM, or a
       // mask register.
       return 1;

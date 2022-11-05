@@ -73,9 +73,8 @@ define dso_local void @test_llgeus_store(i16 zeroext %a, i16 zeroext %b) {
 entry:
   %cmp = icmp uge i16 %a, %b
   %conv3 = zext i1 %cmp to i16
-  store i16 %conv3, i16* @glob
+  store i16 %conv3, ptr @glob
   ret void
-; CHECK_LABEL: test_llgeus_store:
 }
 
 ; Function Attrs: norecurse nounwind
@@ -91,7 +90,7 @@ define dso_local void @test_llgeus_sext_store(i16 zeroext %a, i16 zeroext %b) {
 entry:
   %cmp = icmp uge i16 %a, %b
   %conv3 = sext i1 %cmp to i16
-  store i16 %conv3, i16* @glob
+  store i16 %conv3, ptr @glob
   ret void
 }
 
@@ -106,7 +105,7 @@ define dso_local void @test_llgeus_z_store(i16 zeroext %a) {
 entry:
   %cmp = icmp uge i16 %a, 0
   %conv1 = zext i1 %cmp to i16
-  store i16 %conv1, i16* @glob
+  store i16 %conv1, ptr @glob
   ret void
 }
 
@@ -121,7 +120,7 @@ define dso_local void @test_llgeus_sext_z_store(i16 zeroext %a) {
 entry:
   %cmp = icmp uge i16 %a, 0
   %conv1 = sext i1 %cmp to i16
-  store i16 %conv1, i16* @glob
+  store i16 %conv1, ptr @glob
   ret void
 }
 

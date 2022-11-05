@@ -21,10 +21,8 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/Module.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Casting.h"
-#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/TypeSize.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cassert>
@@ -676,7 +674,7 @@ VectorType *VectorType::get(Type *ElementType, ElementCount EC) {
 
 bool VectorType::isValidElementType(Type *ElemTy) {
   return ElemTy->isIntegerTy() || ElemTy->isFloatingPointTy() ||
-         ElemTy->isPointerTy();
+         ElemTy->isPointerTy() || ElemTy->getTypeID() == TypedPointerTyID;
 }
 
 //===----------------------------------------------------------------------===//
@@ -733,7 +731,7 @@ PointerType *PointerType::get(Type *EltTy, unsigned AddressSpace) {
   LLVMContextImpl *CImpl = EltTy->getContext().pImpl;
 
   // Automatically convert typed pointers to opaque pointers.
-  if (CImpl->OpaquePointers)
+  if (CImpl->getOpaquePointers())
     return get(EltTy->getContext(), AddressSpace);
 
   // Since AddressSpace #0 is the common case, we special case it.
@@ -747,7 +745,7 @@ PointerType *PointerType::get(Type *EltTy, unsigned AddressSpace) {
 
 PointerType *PointerType::get(LLVMContext &C, unsigned AddressSpace) {
   LLVMContextImpl *CImpl = C.pImpl;
-  assert(CImpl->OpaquePointers &&
+  assert(CImpl->getOpaquePointers() &&
          "Can only create opaque pointers in opaque pointer mode");
 
   // Since AddressSpace #0 is the common case, we special case it.

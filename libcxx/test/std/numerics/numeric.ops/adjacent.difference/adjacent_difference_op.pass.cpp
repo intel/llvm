@@ -70,7 +70,7 @@ test_use_move()
 // don't have the support yet. In these cases omit the constexpr test.
 // FIXME Remove constexpr string workaround introduced in D90569
 #if TEST_STD_VER > 17 && \
-	(!defined(__cpp_lib_constexpr_string) || __cpp_lib_constexpr_string < 201907L)
+    (!defined(__cpp_lib_constexpr_string) || __cpp_lib_constexpr_string < 201907L)
 void
 #else
 TEST_CONSTEXPR_CXX20 void
@@ -140,31 +140,31 @@ public:
 TEST_CONSTEXPR_CXX20 bool
 test()
 {
-    test<cpp17_input_iterator<const int*>, output_iterator<int*> >();
+    test<cpp17_input_iterator<const int*>, cpp17_output_iterator<int*> >();
     test<cpp17_input_iterator<const int*>, forward_iterator<int*> >();
     test<cpp17_input_iterator<const int*>, bidirectional_iterator<int*> >();
     test<cpp17_input_iterator<const int*>, random_access_iterator<int*> >();
     test<cpp17_input_iterator<const int*>, int*>();
 
-    test<forward_iterator<const int*>, output_iterator<int*> >();
+    test<forward_iterator<const int*>, cpp17_output_iterator<int*> >();
     test<forward_iterator<const int*>, forward_iterator<int*> >();
     test<forward_iterator<const int*>, bidirectional_iterator<int*> >();
     test<forward_iterator<const int*>, random_access_iterator<int*> >();
     test<forward_iterator<const int*>, int*>();
 
-    test<bidirectional_iterator<const int*>, output_iterator<int*> >();
+    test<bidirectional_iterator<const int*>, cpp17_output_iterator<int*> >();
     test<bidirectional_iterator<const int*>, forward_iterator<int*> >();
     test<bidirectional_iterator<const int*>, bidirectional_iterator<int*> >();
     test<bidirectional_iterator<const int*>, random_access_iterator<int*> >();
     test<bidirectional_iterator<const int*>, int*>();
 
-    test<random_access_iterator<const int*>, output_iterator<int*> >();
+    test<random_access_iterator<const int*>, cpp17_output_iterator<int*> >();
     test<random_access_iterator<const int*>, forward_iterator<int*> >();
     test<random_access_iterator<const int*>, bidirectional_iterator<int*> >();
     test<random_access_iterator<const int*>, random_access_iterator<int*> >();
     test<random_access_iterator<const int*>, int*>();
 
-    test<const int*, output_iterator<int*> >();
+    test<const int*, cpp17_output_iterator<int*> >();
     test<const int*, forward_iterator<int*> >();
     test<const int*, bidirectional_iterator<int*> >();
     test<const int*, random_access_iterator<int*> >();
@@ -183,8 +183,8 @@ test()
     // don't have the support yet. In these cases omit the constexpr test.
     // FIXME Remove constexpr string workaround introduced in D90569
 #if TEST_STD_VER > 17 && \
-	(!defined(__cpp_lib_constexpr_string) || __cpp_lib_constexpr_string < 201907L)
-	if (!std::is_constant_evaluated())
+    (!defined(__cpp_lib_constexpr_string) || __cpp_lib_constexpr_string < 201907L)
+    if (!std::is_constant_evaluated())
 #endif
     test_string();
 

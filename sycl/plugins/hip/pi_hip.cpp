@@ -11,10 +11,10 @@
 ///
 /// \ingroup sycl_pi_hip
 
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/hip_definitions.hpp>
-#include <CL/sycl/detail/pi.hpp>
 #include <pi_hip.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/detail/hip_definitions.hpp>
+#include <sycl/detail/pi.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -98,18 +98,37 @@ pi_result map_error(hipError_t result) {
   case hipSuccess:
     return PI_SUCCESS;
   case hipErrorInvalidContext:
-    return PI_INVALID_CONTEXT;
+    return PI_ERROR_INVALID_CONTEXT;
   case hipErrorInvalidDevice:
-    return PI_INVALID_DEVICE;
+    return PI_ERROR_INVALID_DEVICE;
   case hipErrorInvalidValue:
-    return PI_INVALID_VALUE;
+    return PI_ERROR_INVALID_VALUE;
   case hipErrorOutOfMemory:
-    return PI_OUT_OF_HOST_MEMORY;
+    return PI_ERROR_OUT_OF_HOST_MEMORY;
   case hipErrorLaunchOutOfResources:
-    return PI_OUT_OF_RESOURCES;
+    return PI_ERROR_OUT_OF_RESOURCES;
   default:
     return PI_ERROR_UNKNOWN;
   }
+}
+
+// Global variables for PI_ERROR_PLUGIN_SPECIFIC_ERROR
+constexpr size_t MaxMessageSize = 256;
+thread_local pi_result ErrorMessageCode = PI_SUCCESS;
+thread_local char ErrorMessage[MaxMessageSize];
+
+// Utility function for setting a message and warning
+[[maybe_unused]] static void setErrorMessage(const char *message,
+                                             pi_result error_code) {
+  assert(strlen(message) <= MaxMessageSize);
+  strcpy(ErrorMessage, message);
+  ErrorMessageCode = error_code;
+}
+
+// Returns plugin specific error and warning messages
+pi_result hip_piPluginGetLastError(char **message) {
+  *message = &ErrorMessage[0];
+  return ErrorMessageCode;
 }
 
 // Iterates over the event wait list, returns correct pi_result error codes.
@@ -120,7 +139,7 @@ pi_result forLatestEvents(const pi_event *event_wait_list,
                           std::size_t num_events_in_wait_list, Func &&f) {
 
   if (event_wait_list == nullptr || num_events_in_wait_list == 0) {
-    return PI_INVALID_EVENT_WAIT_LIST;
+    return PI_ERROR_INVALID_EVENT_WAIT_LIST;
   }
 
   // Fast path if we only have a single event
@@ -133,20 +152,20 @@ pi_result forLatestEvents(const pi_event *event_wait_list,
   std::sort(events.begin(), events.end(), [](pi_event e0, pi_event e1) {
     // Tiered sort creating sublists of streams (smallest value first) in which
     // the corresponding events are sorted into a sequence of newest first.
-    return e0->get_queue()->stream_ < e1->get_queue()->stream_ ||
-           (e0->get_queue()->stream_ == e1->get_queue()->stream_ &&
+    return e0->get_stream() < e1->get_stream() ||
+           (e0->get_stream() == e1->get_stream() &&
             e0->get_event_id() > e1->get_event_id());
   });
 
   bool first = true;
   hipStream_t lastSeenStream = 0;
   for (pi_event event : events) {
-    if (!event || (!first && event->get_queue()->stream_ == lastSeenStream)) {
+    if (!event || (!first && event->get_stream() == lastSeenStream)) {
       continue;
     }
 
     first = false;
-    lastSeenStream = event->get_queue()->stream_;
+    lastSeenStream = event->get_stream();
 
     auto result = f(event);
     if (result != PI_SUCCESS) {
@@ -170,17 +189,21 @@ pi_result check_error(hipError_t result, const char *function, int line,
     return PI_SUCCESS;
   }
 
-  const char *errorString = nullptr;
-  const char *errorName = nullptr;
-  errorName = hipGetErrorName(result);
-  errorString = hipGetErrorString(result);
-  std::cerr << "\nPI HIP ERROR:"
-            << "\n\tValue:           " << result
-            << "\n\tName:            " << errorName
-            << "\n\tDescription:     " << errorString
-            << "\n\tFunction:        " << function
-            << "\n\tSource Location: " << file << ":" << line << "\n"
-            << std::endl;
+  if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr) {
+    const char *errorString = nullptr;
+    const char *errorName = nullptr;
+    errorName = hipGetErrorName(result);
+    errorString = hipGetErrorString(result);
+    std::stringstream ss;
+    ss << "\nPI HIP ERROR:"
+       << "\n\tValue:           " << result
+       << "\n\tName:            " << errorName
+       << "\n\tDescription:     " << errorString
+       << "\n\tFunction:        " << function << "\n\tSource Location: " << file
+       << ":" << line << "\n"
+       << std::endl;
+    std::cerr << ss.str();
+  }
 
   if (std::getenv("PI_HIP_ABORT") != nullptr) {
     std::abort();
@@ -207,7 +230,7 @@ public:
   ScopedContext(pi_context ctxt) : placedContext_{ctxt}, needToRecover_{false} {
 
     if (!placedContext_) {
-      throw PI_INVALID_CONTEXT;
+      throw PI_ERROR_INVALID_CONTEXT;
     }
 
     hipCtx_t desired = placedContext_->get();
@@ -244,7 +267,7 @@ pi_result getInfoImpl(size_t param_value_size, void *param_value,
   if (param_value != nullptr) {
 
     if (param_value_size < value_size) {
-      return PI_INVALID_VALUE;
+      return PI_ERROR_INVALID_VALUE;
     }
 
     assign_func(param_value, value, value_size);
@@ -293,13 +316,13 @@ pi_result getInfo<const char *>(size_t param_value_size, void *param_value,
 
 int getAttribute(pi_device device, hipDeviceAttribute_t attribute) {
   int value;
-  cl::sycl::detail::pi::assertion(
+  sycl::detail::pi::assertion(
       hipDeviceGetAttribute(&value, attribute, device->get()) == hipSuccess);
   return value;
 }
 /// \endcond
 
-void simpleGuessLocalWorkSize(int *threadsPerBlock,
+void simpleGuessLocalWorkSize(size_t *threadsPerBlock,
                               const size_t *global_work_size,
                               const size_t maxThreadsPerBlock[3],
                               pi_kernel kernel) {
@@ -314,8 +337,7 @@ void simpleGuessLocalWorkSize(int *threadsPerBlock,
 
   //(void)minGrid; // Not used, avoid warnings
 
-  threadsPerBlock[0] = std::min(static_cast<int>(maxThreadsPerBlock[0]),
-                                static_cast<int>(global_work_size[0]));
+  threadsPerBlock[0] = std::min(maxThreadsPerBlock[0], global_work_size[0]);
 
   // Find a local work group size that is a divisor of the global
   // work group size to produce uniform work groups.
@@ -324,11 +346,41 @@ void simpleGuessLocalWorkSize(int *threadsPerBlock,
   }
 }
 
+pi_result enqueueEventsWait(pi_queue command_queue, hipStream_t stream,
+                            pi_uint32 num_events_in_wait_list,
+                            const pi_event *event_wait_list) {
+  if (!event_wait_list) {
+    return PI_SUCCESS;
+  }
+  try {
+    ScopedContext active(command_queue->get_context());
+
+    auto result = forLatestEvents(
+        event_wait_list, num_events_in_wait_list,
+        [stream](pi_event event) -> pi_result {
+          if (event->get_stream() == stream) {
+            return PI_SUCCESS;
+          } else {
+            return PI_CHECK_ERROR(hipStreamWaitEvent(stream, event->get(), 0));
+          }
+        });
+
+    if (result != PI_SUCCESS) {
+      return result;
+    }
+    return PI_SUCCESS;
+  } catch (pi_result err) {
+    return err;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
+}
+
 } // anonymous namespace
 
 /// ------ Error handling, matching OpenCL plugin semantics.
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 namespace pi {
 
@@ -353,8 +405,8 @@ void assertion(bool Condition, const char *Message) {
 
 } // namespace pi
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 //--------------
 // PI object implementation
@@ -366,6 +418,10 @@ pi_result hip_piEnqueueEventsWait(pi_queue command_queue,
                                   pi_uint32 num_events_in_wait_list,
                                   const pi_event *event_wait_list,
                                   pi_event *event);
+pi_result hip_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
+                                             pi_uint32 num_events_in_wait_list,
+                                             const pi_event *event_wait_list,
+                                             pi_event *event);
 pi_result hip_piEventRelease(pi_event event);
 pi_result hip_piEventRetain(pi_event event);
 
@@ -373,10 +429,108 @@ pi_result hip_piEventRetain(pi_event event);
 
 /// \endcond
 
-_pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue)
-    : commandType_{type}, refCount_{1}, isCompleted_{false}, isRecorded_{false},
-      isStarted_{false}, evEnd_{nullptr}, evStart_{nullptr}, evQueued_{nullptr},
-      queue_{queue}, context_{context} {
+void _pi_queue::compute_stream_wait_for_barrier_if_needed(hipStream_t stream,
+                                                          pi_uint32 stream_i) {
+  if (barrier_event_ && !compute_applied_barrier_[stream_i]) {
+    PI_CHECK_ERROR(hipStreamWaitEvent(stream, barrier_event_, 0));
+    compute_applied_barrier_[stream_i] = true;
+  }
+}
+
+void _pi_queue::transfer_stream_wait_for_barrier_if_needed(hipStream_t stream,
+                                                           pi_uint32 stream_i) {
+  if (barrier_event_ && !transfer_applied_barrier_[stream_i]) {
+    PI_CHECK_ERROR(hipStreamWaitEvent(stream, barrier_event_, 0));
+    transfer_applied_barrier_[stream_i] = true;
+  }
+}
+
+hipStream_t _pi_queue::get_next_compute_stream(pi_uint32 *stream_token) {
+  pi_uint32 stream_i;
+  pi_uint32 token;
+  while (true) {
+    if (num_compute_streams_ < compute_streams_.size()) {
+      // the check above is for performance - so as not to lock mutex every time
+      std::lock_guard<std::mutex> guard(compute_stream_mutex_);
+      // The second check is done after mutex is locked so other threads can not
+      // change num_compute_streams_ after that
+      if (num_compute_streams_ < compute_streams_.size()) {
+        PI_CHECK_ERROR(hipStreamCreateWithFlags(
+            &compute_streams_[num_compute_streams_++], flags_));
+      }
+    }
+    token = compute_stream_idx_++;
+    stream_i = token % compute_streams_.size();
+    // if a stream has been reused before it was next selected round-robin
+    // fashion, we want to delay its next use and instead select another one
+    // that is more likely to have completed all the enqueued work.
+    if (delay_compute_[stream_i]) {
+      delay_compute_[stream_i] = false;
+    } else {
+      break;
+    }
+  }
+  if (stream_token) {
+    *stream_token = token;
+  }
+  hipStream_t res = compute_streams_[stream_i];
+  compute_stream_wait_for_barrier_if_needed(res, stream_i);
+  return res;
+}
+
+hipStream_t _pi_queue::get_next_compute_stream(
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    _pi_stream_guard &guard, pi_uint32 *stream_token) {
+  for (pi_uint32 i = 0; i < num_events_in_wait_list; i++) {
+    pi_uint32 token = event_wait_list[i]->get_compute_stream_token();
+    if (event_wait_list[i]->get_queue() == this && can_reuse_stream(token)) {
+      std::unique_lock<std::mutex> compute_sync_guard(
+          compute_stream_sync_mutex_);
+      // redo the check after lock to avoid data races on
+      // last_sync_compute_streams_
+      if (can_reuse_stream(token)) {
+        pi_uint32 stream_i = token % delay_compute_.size();
+        delay_compute_[stream_i] = true;
+        if (stream_token) {
+          *stream_token = token;
+        }
+        guard = _pi_stream_guard{std::move(compute_sync_guard)};
+        hipStream_t res = event_wait_list[i]->get_stream();
+        compute_stream_wait_for_barrier_if_needed(res, stream_i);
+        return res;
+      }
+    }
+  }
+  guard = {};
+  return get_next_compute_stream(stream_token);
+}
+
+hipStream_t _pi_queue::get_next_transfer_stream() {
+  if (transfer_streams_.empty()) { // for example in in-order queue
+    return get_next_compute_stream();
+  }
+  if (num_transfer_streams_ < transfer_streams_.size()) {
+    // the check above is for performance - so as not to lock mutex every time
+    std::lock_guard<std::mutex> guard(transfer_stream_mutex_);
+    // The second check is done after mutex is locked so other threads can not
+    // change num_transfer_streams_ after that
+    if (num_transfer_streams_ < transfer_streams_.size()) {
+      PI_CHECK_ERROR(hipStreamCreateWithFlags(
+          &transfer_streams_[num_transfer_streams_++], flags_));
+    }
+  }
+  pi_uint32 stream_i = transfer_stream_idx_++ % transfer_streams_.size();
+  hipStream_t res = transfer_streams_[stream_i];
+  transfer_stream_wait_for_barrier_if_needed(res, stream_i);
+  return res;
+}
+
+_pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue,
+                     hipStream_t stream, pi_uint32 stream_token)
+    : commandType_{type}, refCount_{1}, hasBeenWaitedOn_{false},
+      isRecorded_{false}, isStarted_{false},
+      streamToken_{stream_token}, evEnd_{nullptr}, evStart_{nullptr},
+      evQueued_{nullptr}, queue_{queue}, stream_{stream}, context_{context} {
 
   assert(type != PI_COMMAND_TYPE_USER);
 
@@ -421,6 +575,23 @@ pi_result _pi_event::start() {
   return result;
 }
 
+bool _pi_event::is_completed() const noexcept {
+  if (!isRecorded_) {
+    return false;
+  }
+  if (!hasBeenWaitedOn_) {
+    const hipError_t ret = hipEventQuery(evEnd_);
+    if (ret != hipSuccess && ret != hipErrorNotReady) {
+      PI_CHECK_ERROR(ret);
+      return false;
+    }
+    if (ret == hipErrorNotReady) {
+      return false;
+    }
+  }
+  return true;
+}
+
 pi_uint64 _pi_event::get_queued_time() const {
   float miliSeconds = 0.0f;
   assert(is_started());
@@ -449,24 +620,22 @@ pi_uint64 _pi_event::get_end_time() const {
 pi_result _pi_event::record() {
 
   if (is_recorded() || !is_started()) {
-    return PI_INVALID_EVENT;
+    return PI_ERROR_INVALID_EVENT;
   }
 
-  pi_result result = PI_INVALID_OPERATION;
+  pi_result result = PI_ERROR_INVALID_OPERATION;
 
   if (!queue_) {
-    return PI_INVALID_QUEUE;
+    return PI_ERROR_INVALID_QUEUE;
   }
-
-  hipStream_t hipStream = queue_->get();
 
   try {
     eventId_ = queue_->get_next_event_id();
     if (eventId_ == 0) {
-      cl::sycl::detail::pi::die(
+      sycl::detail::pi::die(
           "Unrecoverable program state reached in event identifier overflow");
     }
-    result = PI_CHECK_ERROR(hipEventRecord(evEnd_, hipStream));
+    result = PI_CHECK_ERROR(hipEventRecord(evEnd_, stream_));
   } catch (pi_result error) {
     result = error;
   }
@@ -482,7 +651,7 @@ pi_result _pi_event::wait() {
   pi_result retErr;
   try {
     retErr = PI_CHECK_ERROR(hipEventSynchronize(evEnd_));
-    isCompleted_ = true;
+    hasBeenWaitedOn_ = true;
   } catch (pi_result error) {
     retErr = error;
   }
@@ -507,7 +676,10 @@ pi_result enqueueEventWait(pi_queue queue, pi_event event) {
   // for native events, the hipStreamWaitEvent call is used.
   // This makes all future work submitted to stream wait for all
   // work captured in event.
-  return PI_CHECK_ERROR(hipStreamWaitEvent(queue->get(), event->get(), 0));
+  queue->for_each_stream([e = event->get()](hipStream_t s) {
+    PI_CHECK_ERROR(hipStreamWaitEvent(s, e, 0));
+  });
+  return PI_SUCCESS;
 }
 
 _pi_program::_pi_program(pi_context ctxt)
@@ -558,7 +730,7 @@ pi_result _pi_program::build_program(const char *build_options) {
       success ? PI_PROGRAM_BUILD_STATUS_SUCCESS : PI_PROGRAM_BUILD_STATUS_ERROR;
 
   // If no exception, result is correct
-  return success ? PI_SUCCESS : PI_BUILD_PROGRAM_FAILURE;
+  return success ? PI_SUCCESS : PI_ERROR_BUILD_PROGRAM_FAILURE;
 }
 
 /// Finds kernel names by searching for entry points in the PTX source, as the
@@ -567,7 +739,8 @@ pi_result _pi_program::build_program(const char *build_options) {
 ///       has_kernel method, so an alternative would be to move the has_kernel
 ///       query to PI and use hipModuleGetFunction to check for a kernel.
 std::string getKernelNames(pi_program program) {
-  cl::sycl::detail::pi::die("getKernelNames not implemented");
+  (void)program;
+  sycl::detail::pi::die("getKernelNames not implemented");
   return {};
 }
 
@@ -627,7 +800,7 @@ public:
         // HIP error for which it is unclear if the function that reported it
         // succeeded or not. Either way, the state of the program is compromised
         // and likely unrecoverable.
-        cl::sycl::detail::pi::die(
+        sycl::detail::pi::die(
             "Unrecoverable program state reached in hip_piMemRelease");
       }
     }
@@ -666,10 +839,10 @@ pi_result hip_piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
     static std::vector<_pi_platform> platformIds;
 
     if (num_entries == 0 and platforms != nullptr) {
-      return PI_INVALID_VALUE;
+      return PI_ERROR_INVALID_VALUE;
     }
     if (platforms == nullptr and num_platforms == nullptr) {
-      return PI_INVALID_VALUE;
+      return PI_ERROR_INVALID_VALUE;
     }
 
     pi_result err = PI_SUCCESS;
@@ -708,7 +881,7 @@ pi_result hip_piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
               platformIds[i].devices_.clear();
             }
             platformIds.clear();
-            err = PI_OUT_OF_HOST_MEMORY;
+            err = PI_ERROR_OUT_OF_HOST_MEMORY;
           } catch (...) {
             // Clear and rethrow to allow retry
             for (int i = 0; i < numDevices; ++i) {
@@ -734,7 +907,7 @@ pi_result hip_piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
   } catch (pi_result err) {
     return err;
   } catch (...) {
-    return PI_OUT_OF_RESOURCES;
+    return PI_ERROR_OUT_OF_RESOURCES;
   }
 }
 
@@ -765,7 +938,7 @@ pi_result hip_piPlatformGetInfo(pi_platform platform,
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
-  cl::sycl::detail::pi::die("Platform info request not implemented");
+  sycl::detail::pi::die("Platform info request not implemented");
   return {};
 }
 
@@ -800,7 +973,7 @@ pi_result hip_piDevicesGet(pi_platform platform, pi_device_type device_type,
   } catch (pi_result err) {
     return err;
   } catch (...) {
-    return PI_OUT_OF_RESOURCES;
+    return PI_ERROR_OUT_OF_RESOURCES;
   }
 }
 
@@ -824,11 +997,12 @@ pi_result hip_piContextGetInfo(pi_context context, pi_context_info param_name,
   case PI_CONTEXT_INFO_REFERENCE_COUNT:
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    context->get_reference_count());
+  case PI_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
 
-  return PI_OUT_OF_RESOURCES;
+  return PI_ERROR_OUT_OF_RESOURCES;
 }
 
 pi_result hip_piContextRetain(pi_context context) {
@@ -847,17 +1021,17 @@ pi_result hip_piextContextSetExtendedDeleter(
 
 /// Not applicable to HIP, devices cannot be partitioned.
 ///
-pi_result hip_piDevicePartition(
-    pi_device device,
-    const cl_device_partition_property *properties, // TODO: untie from OpenCL
-    pi_uint32 num_devices, pi_device *out_devices, pi_uint32 *out_num_devices) {
+pi_result hip_piDevicePartition(pi_device device,
+                                const pi_device_partition_property *properties,
+                                pi_uint32 num_devices, pi_device *out_devices,
+                                pi_uint32 *out_num_devices) {
   (void)device;
   (void)properties;
   (void)num_devices;
   (void)out_devices;
   (void)out_num_devices;
 
-  return PI_INVALID_OPERATION;
+  return PI_ERROR_INVALID_OPERATION;
 }
 
 /// \return If available, the first binary that is PTX
@@ -868,10 +1042,10 @@ pi_result hip_piextDeviceSelectBinary(pi_device device,
                                       pi_uint32 *selected_binary) {
   (void)device;
   if (!binaries) {
-    cl::sycl::detail::pi::die("No list of device images provided");
+    sycl::detail::pi::die("No list of device images provided");
   }
   if (num_binaries < 1) {
-    cl::sycl::detail::pi::die("No binary images in the list");
+    sycl::detail::pi::die("No binary images in the list");
   }
 
   // Look for an image for the HIP target, and return the first one that is
@@ -892,7 +1066,7 @@ pi_result hip_piextDeviceSelectBinary(pi_device device,
   }
 
   // No image can be loaded for the given device
-  return PI_INVALID_BINARY;
+  return PI_ERROR_INVALID_BINARY;
 }
 
 pi_result hip_piextGetDeviceFunctionPointer(pi_device device,
@@ -912,7 +1086,7 @@ pi_result hip_piextGetDeviceFunctionPointer(pi_device device,
     retError = PI_CHECK_ERROR(ret);
   if (ret == hipErrorNotFound) {
     *func_pointer_ret = 0;
-    retError = PI_INVALID_KERNEL_NAME;
+    retError = PI_ERROR_INVALID_KERNEL_NAME;
   }
 
   return retError;
@@ -939,15 +1113,24 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    PI_DEVICE_TYPE_GPU);
   }
   case PI_DEVICE_INFO_VENDOR_ID: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, 4318u);
+#if defined(__HIP_PLATFORM_AMD__)
+    pi_uint32 vendor_id = 4098u;
+#elif defined(__HIP_PLATFORM_NVIDIA__)
+    pi_uint32 vendor_id = 4318u;
+#else
+    pi_uint32 vendor_id = 0u;
+#endif
+
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   vendor_id);
   }
   case PI_DEVICE_INFO_MAX_COMPUTE_UNITS: {
     int compute_units = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&compute_units,
                               hipDeviceAttributeMultiprocessorCount,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(compute_units >= 0);
+    sycl::detail::pi::assertion(compute_units >= 0);
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    pi_uint32(compute_units));
   }
@@ -959,20 +1142,20 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     size_t return_sizes[max_work_item_dimensions];
 
     int max_x = 0, max_y = 0, max_z = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&max_x, hipDeviceAttributeMaxBlockDimX,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(max_x >= 0);
+    sycl::detail::pi::assertion(max_x >= 0);
 
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&max_y, hipDeviceAttributeMaxBlockDimY,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(max_y >= 0);
+    sycl::detail::pi::assertion(max_y >= 0);
 
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&max_z, hipDeviceAttributeMaxBlockDimZ,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(max_z >= 0);
+    sycl::detail::pi::assertion(max_z >= 0);
 
     return_sizes[0] = size_t(max_x);
     return_sizes[1] = size_t(max_y);
@@ -984,20 +1167,20 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D: {
     size_t return_sizes[max_work_item_dimensions];
     int max_x = 0, max_y = 0, max_z = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&max_x, hipDeviceAttributeMaxGridDimX,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(max_x >= 0);
+    sycl::detail::pi::assertion(max_x >= 0);
 
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&max_y, hipDeviceAttributeMaxGridDimY,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(max_y >= 0);
+    sycl::detail::pi::assertion(max_y >= 0);
 
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&max_z, hipDeviceAttributeMaxGridDimZ,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(max_z >= 0);
+    sycl::detail::pi::assertion(max_z >= 0);
 
     return_sizes[0] = size_t(max_x);
     return_sizes[1] = size_t(max_y);
@@ -1008,12 +1191,12 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
 
   case PI_DEVICE_INFO_MAX_WORK_GROUP_SIZE: {
     int max_work_group_size = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&max_work_group_size,
                               hipDeviceAttributeMaxThreadsPerBlock,
                               device->get()) == hipSuccess);
 
-    cl::sycl::detail::pi::assertion(max_work_group_size >= 0);
+    sycl::detail::pi::assertion(max_work_group_size >= 0);
 
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    size_t(max_work_group_size));
@@ -1063,12 +1246,12 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS: {
     // Number of sub-groups = max block size / warp size + possible remainder
     int max_threads = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&max_threads,
                               hipDeviceAttributeMaxThreadsPerBlock,
                               device->get()) == hipSuccess);
     int warpSize = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&warpSize, hipDeviceAttributeWarpSize,
                               device->get()) == hipSuccess);
     int maxWarps = (max_threads + warpSize - 1) / warpSize;
@@ -1079,7 +1262,7 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     // Volta provides independent thread scheduling
     // TODO: Revisit for previous generation GPUs
     int major = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&major, hipDeviceAttributeComputeCapabilityMajor,
                               device->get()) == hipSuccess);
     bool ifp = (major >= 7);
@@ -1087,7 +1270,7 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
   case PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
     int warpSize = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&warpSize, hipDeviceAttributeWarpSize,
                               device->get()) == hipSuccess);
     size_t sizes[1] = {static_cast<size_t>(warpSize)};
@@ -1096,10 +1279,10 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
   case PI_DEVICE_INFO_MAX_CLOCK_FREQUENCY: {
     int clock_freq = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&clock_freq, hipDeviceAttributeClockRate,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(clock_freq >= 0);
+    sycl::detail::pi::assertion(clock_freq >= 0);
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    pi_uint32(clock_freq) / 1000u);
   }
@@ -1115,8 +1298,8 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     // CL_DEVICE_TYPE_HIPSTOM.
 
     size_t global = 0;
-    cl::sycl::detail::pi::assertion(hipDeviceTotalMem(&global, device->get()) ==
-                                    hipSuccess);
+    sycl::detail::pi::assertion(hipDeviceTotalMem(&global, device->get()) ==
+                                hipSuccess);
 
     auto quarter_global = static_cast<pi_uint32>(global / 4u);
 
@@ -1146,16 +1329,16 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_IMAGE2D_MAX_HEIGHT: {
     // Take the smaller of maximum surface and maximum texture height.
     int tex_height = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&tex_height, hipDeviceAttributeMaxTexture2DHeight,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(tex_height >= 0);
+    sycl::detail::pi::assertion(tex_height >= 0);
     int surf_height = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&surf_height,
                               hipDeviceAttributeMaxTexture2DHeight,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(surf_height >= 0);
+    sycl::detail::pi::assertion(surf_height >= 0);
 
     int min = std::min(tex_height, surf_height);
 
@@ -1164,15 +1347,15 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_IMAGE2D_MAX_WIDTH: {
     // Take the smaller of maximum surface and maximum texture width.
     int tex_width = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&tex_width, hipDeviceAttributeMaxTexture2DWidth,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(tex_width >= 0);
+    sycl::detail::pi::assertion(tex_width >= 0);
     int surf_width = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&surf_width, hipDeviceAttributeMaxTexture2DWidth,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(surf_width >= 0);
+    sycl::detail::pi::assertion(surf_width >= 0);
 
     int min = std::min(tex_width, surf_width);
 
@@ -1181,16 +1364,16 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_IMAGE3D_MAX_HEIGHT: {
     // Take the smaller of maximum surface and maximum texture height.
     int tex_height = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&tex_height, hipDeviceAttributeMaxTexture3DHeight,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(tex_height >= 0);
+    sycl::detail::pi::assertion(tex_height >= 0);
     int surf_height = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&surf_height,
                               hipDeviceAttributeMaxTexture3DHeight,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(surf_height >= 0);
+    sycl::detail::pi::assertion(surf_height >= 0);
 
     int min = std::min(tex_height, surf_height);
 
@@ -1199,15 +1382,15 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_IMAGE3D_MAX_WIDTH: {
     // Take the smaller of maximum surface and maximum texture width.
     int tex_width = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&tex_width, hipDeviceAttributeMaxTexture3DWidth,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(tex_width >= 0);
+    sycl::detail::pi::assertion(tex_width >= 0);
     int surf_width = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&surf_width, hipDeviceAttributeMaxTexture3DWidth,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(surf_width >= 0);
+    sycl::detail::pi::assertion(surf_width >= 0);
 
     int min = std::min(tex_width, surf_width);
 
@@ -1216,15 +1399,15 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_IMAGE3D_MAX_DEPTH: {
     // Take the smaller of maximum surface and maximum texture depth.
     int tex_depth = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&tex_depth, hipDeviceAttributeMaxTexture3DDepth,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(tex_depth >= 0);
+    sycl::detail::pi::assertion(tex_depth >= 0);
     int surf_depth = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&surf_depth, hipDeviceAttributeMaxTexture3DDepth,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(surf_depth >= 0);
+    sycl::detail::pi::assertion(surf_depth >= 0);
 
     int min = std::min(tex_depth, surf_depth);
 
@@ -1233,15 +1416,15 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE: {
     // Take the smaller of maximum surface and maximum texture width.
     int tex_width = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&tex_width, hipDeviceAttributeMaxTexture1DWidth,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(tex_width >= 0);
+    sycl::detail::pi::assertion(tex_width >= 0);
     int surf_width = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&surf_width, hipDeviceAttributeMaxTexture1DWidth,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(surf_width >= 0);
+    sycl::detail::pi::assertion(surf_width >= 0);
 
     int min = std::min(tex_width, surf_width);
 
@@ -1264,7 +1447,7 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
   case PI_DEVICE_INFO_MEM_BASE_ADDR_ALIGN: {
     int mem_base_addr_align = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&mem_base_addr_align,
                               hipDeviceAttributeTextureAlignment,
                               device->get()) == hipSuccess);
@@ -1289,7 +1472,7 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
   case PI_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE: {
     return getInfo(param_value_size, param_value, param_value_size_ret,
-                   CL_READ_WRITE_CACHE);
+                   PI_DEVICE_MEM_CACHE_TYPE_READ_WRITE_CACHE);
   }
   case PI_DEVICE_INFO_GLOBAL_MEM_CACHELINE_SIZE: {
     // The value is dohipmented for all existing GPUs in the HIP programming
@@ -1298,10 +1481,10 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
   case PI_DEVICE_INFO_GLOBAL_MEM_CACHE_SIZE: {
     int cache_size = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&cache_size, hipDeviceAttributeL2CacheSize,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(cache_size >= 0);
+    sycl::detail::pi::assertion(cache_size >= 0);
     // The L2 cache is global to the GPU.
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    pi_uint64(cache_size));
@@ -1309,18 +1492,22 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_GLOBAL_MEM_SIZE: {
     size_t bytes = 0;
     // Runtime API has easy access to this value, driver API info is scarse.
-    cl::sycl::detail::pi::assertion(hipDeviceTotalMem(&bytes, device->get()) ==
-                                    hipSuccess);
+    sycl::detail::pi::assertion(hipDeviceTotalMem(&bytes, device->get()) ==
+                                hipSuccess);
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    pi_uint64{bytes});
   }
   case PI_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE: {
-    int constant_memory = 0;
-    cl::sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&constant_memory,
+    unsigned int constant_memory = 0;
+
+    // hipDeviceGetAttribute takes a int*, however the size of the constant
+    // memory on AMD GPU may be larger than what can fit in the positive part
+    // of a signed integer, so use an unsigned integer and cast the pointer to
+    // int*.
+    sycl::detail::pi::assertion(
+        hipDeviceGetAttribute(reinterpret_cast<int *>(&constant_memory),
                               hipDeviceAttributeTotalConstantMemory,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(constant_memory >= 0);
 
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    pi_uint64(constant_memory));
@@ -1340,32 +1527,31 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     // HIP has its own definition of "local memory", which maps to OpenCL's
     // "private memory".
     int local_mem_size = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&local_mem_size,
                               hipDeviceAttributeMaxSharedMemoryPerBlock,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(local_mem_size >= 0);
+    sycl::detail::pi::assertion(local_mem_size >= 0);
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    pi_uint64(local_mem_size));
   }
   case PI_DEVICE_INFO_ERROR_CORRECTION_SUPPORT: {
     int ecc_enabled = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&ecc_enabled, hipDeviceAttributeEccEnabled,
                               device->get()) == hipSuccess);
 
-    cl::sycl::detail::pi::assertion((ecc_enabled == 0) | (ecc_enabled == 1));
+    sycl::detail::pi::assertion((ecc_enabled == 0) | (ecc_enabled == 1));
     auto result = static_cast<pi_bool>(ecc_enabled);
     return getInfo(param_value_size, param_value, param_value_size_ret, result);
   }
   case PI_DEVICE_INFO_HOST_UNIFIED_MEMORY: {
     int is_integrated = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&is_integrated, hipDeviceAttributeIntegrated,
                               device->get()) == hipSuccess);
 
-    cl::sycl::detail::pi::assertion((is_integrated == 0) |
-                                    (is_integrated == 1));
+    sycl::detail::pi::assertion((is_integrated == 0) | (is_integrated == 1));
     auto result = static_cast<pi_bool>(is_integrated);
     return getInfo(param_value_size, param_value, param_value_size_ret, result);
   }
@@ -1383,6 +1569,10 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    PI_TRUE);
   }
+  case PI_DEVICE_INFO_BUILD_ON_SUBDEVICE: {
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   PI_TRUE);
+  }
   case PI_DEVICE_INFO_COMPILER_AVAILABLE: {
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    PI_TRUE);
@@ -1392,20 +1582,20 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    PI_TRUE);
   }
   case PI_DEVICE_INFO_EXECUTION_CAPABILITIES: {
-    auto capability = CL_EXEC_KERNEL;
+    auto capability = PI_DEVICE_EXEC_CAPABILITIES_KERNEL;
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capability);
   }
   case PI_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES: {
     // The mandated minimum capability:
     auto capability =
-        CL_QUEUE_PROFILING_ENABLE | CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+        PI_QUEUE_PROFILING_ENABLE | PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capability);
   }
   case PI_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES: {
     // The mandated minimum capability:
-    auto capability = CL_QUEUE_PROFILING_ENABLE;
+    auto capability = PI_QUEUE_PROFILING_ENABLE;
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capability);
   }
@@ -1421,9 +1611,19 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_NAME: {
     static constexpr size_t MAX_DEVICE_NAME_LENGTH = 256u;
     char name[MAX_DEVICE_NAME_LENGTH];
-    cl::sycl::detail::pi::assertion(
-        hipDeviceGetName(name, MAX_DEVICE_NAME_LENGTH, device->get()) ==
-        hipSuccess);
+    sycl::detail::pi::assertion(hipDeviceGetName(name, MAX_DEVICE_NAME_LENGTH,
+                                                 device->get()) == hipSuccess);
+
+    // On AMD GPUs hipDeviceGetName returns an empty string, so return the arch
+    // name instead, this is also what AMD OpenCL devices return.
+    if (strlen(name) == 0) {
+      hipDeviceProp_t props;
+      sycl::detail::pi::assertion(
+          hipGetDeviceProperties(&props, device->get()) == hipSuccess);
+
+      return getInfoArray(strlen(props.gcnArchName) + 1, param_value_size,
+                          param_value, param_value_size_ret, props.gcnArchName);
+    }
     return getInfoArray(strlen(name) + 1, param_value_size, param_value,
                         param_value_size_ret, name);
   }
@@ -1480,15 +1680,14 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
   case PI_DEVICE_INFO_PARTITION_PROPERTIES: {
     return getInfo(param_value_size, param_value, param_value_size_ret,
-                   static_cast<cl_device_partition_property>(0u));
+                   static_cast<pi_device_partition_property>(0u));
   }
   case PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN: {
     return getInfo(param_value_size, param_value, param_value_size_ret, 0u);
   }
   case PI_DEVICE_INFO_PARTITION_TYPE: {
-    // TODO: uncouple from OpenCL
     return getInfo(param_value_size, param_value, param_value_size_ret,
-                   static_cast<cl_device_partition_property>(0u));
+                   static_cast<pi_device_partition_property>(0u));
   }
 
     // Intel USM extensions
@@ -1596,23 +1795,46 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret, value);
   }
 
+  case PI_DEVICE_INFO_ATOMIC_64: {
+    // TODO: Reconsider it when AMD supports SYCL_USE_NATIVE_FP_ATOMICS.
+    hipDeviceProp_t props;
+    sycl::detail::pi::assertion(hipGetDeviceProperties(&props, device->get()) ==
+                                hipSuccess);
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   props.arch.hasGlobalInt64Atomics &&
+                       props.arch.hasSharedInt64Atomics);
+  }
+
+  case PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY: {
+    size_t FreeMemory = 0;
+    size_t TotalMemory = 0;
+    sycl::detail::pi::assertion(hipMemGetInfo(&FreeMemory, &TotalMemory) ==
+                                    hipSuccess,
+                                "failed hipMemGetInfo() API.");
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   FreeMemory);
+  }
+
   // TODO: Implement.
-  case PI_DEVICE_INFO_ATOMIC_64:
   case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
   // TODO: Investigate if this information is available on HIP.
+  case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
+  case PI_DEVICE_INFO_DEVICE_ID:
   case PI_DEVICE_INFO_PCI_ADDRESS:
   case PI_DEVICE_INFO_GPU_EU_COUNT:
   case PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
   case PI_DEVICE_INFO_GPU_SLICES:
   case PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
   case PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
+  case PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
-    return PI_INVALID_VALUE;
+  case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16:
+    return PI_ERROR_INVALID_VALUE;
 
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
-  cl::sycl::detail::pi::die("Device info request not implemented");
+  sycl::detail::pi::die("Device info request not implemented");
   return {};
 }
 
@@ -1643,7 +1865,7 @@ pi_result hip_piextDeviceCreateWithNativeHandle(pi_native_handle nativeHandle,
   (void)nativeHandle;
   (void)platform;
   (void)device;
-  cl::sycl::detail::pi::die(
+  sycl::detail::pi::die(
       "Creation of PI device from native handle not implemented");
   return {};
 }
@@ -1700,9 +1922,9 @@ pi_result hip_piContextCreate(const pi_context_properties *properties,
       break;
     default:
       // Unknown property.
-      cl::sycl::detail::pi::die(
+      sycl::detail::pi::die(
           "Unknown piContextCreate property in property list");
-      return PI_INVALID_VALUE;
+      return PI_ERROR_INVALID_VALUE;
     }
   }
 
@@ -1746,7 +1968,7 @@ pi_result hip_piContextCreate(const pi_context_properties *properties,
   } catch (pi_result err) {
     errcode_ret = err;
   } catch (...) {
-    errcode_ret = PI_OUT_OF_RESOURCES;
+    errcode_ret = PI_ERROR_OUT_OF_RESOURCES;
   }
   return errcode_ret;
 }
@@ -1823,7 +2045,7 @@ pi_result hip_piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
   (void)devices;
   (void)ownNativeHandle;
   (void)context;
-  cl::sycl::detail::pi::die(
+  sycl::detail::pi::die(
       "Creation of PI context from native handle not implemented");
   return {};
 }
@@ -1837,7 +2059,8 @@ pi_result hip_piMemBufferCreate(pi_context context, pi_mem_flags flags,
                                 const pi_mem_properties *properties) {
   // Need input memory object
   assert(ret_mem != nullptr);
-  assert(properties == nullptr && "no mem properties goes to HIP RT yet");
+  assert((properties == nullptr || *properties == 0) &&
+         "no mem properties goes to HIP RT yet");
   // Currently, USE_HOST_PTR is not implemented using host register
   // since this triggers a weird segfault after program ends.
   // Setting this constant to true enables testing that behavior.
@@ -1891,13 +2114,13 @@ pi_result hip_piMemBufferCreate(pi_context context, pi_mem_flags flags,
           }
         }
       } else {
-        retErr = PI_OUT_OF_HOST_MEMORY;
+        retErr = PI_ERROR_OUT_OF_HOST_MEMORY;
       }
     }
   } catch (pi_result err) {
     retErr = err;
   } catch (...) {
-    retErr = PI_OUT_OF_RESOURCES;
+    retErr = PI_ERROR_OUT_OF_RESOURCES;
   }
 
   *ret_mem = retMemObj;
@@ -1910,7 +2133,7 @@ pi_result hip_piMemBufferCreate(pi_context context, pi_mem_flags flags,
 /// \return PI_SUCCESS unless deallocation error
 ///
 pi_result hip_piMemRelease(pi_mem memObj) {
-  assert((memObj != nullptr) && "PI_INVALID_MEM_OBJECTS");
+  assert((memObj != nullptr) && "PI_ERROR_INVALID_MEM_OBJECTS");
 
   pi_result ret = PI_SUCCESS;
 
@@ -1957,7 +2180,7 @@ pi_result hip_piMemRelease(pi_mem memObj) {
   } catch (pi_result err) {
     ret = err;
   } catch (...) {
-    ret = PI_OUT_OF_RESOURCES;
+    ret = PI_ERROR_OUT_OF_RESOURCES;
   }
 
   if (ret != PI_SUCCESS) {
@@ -1965,7 +2188,7 @@ pi_result hip_piMemRelease(pi_mem memObj) {
     // error for which it is unclear if the function that reported it succeeded
     // or not. Either way, the state of the program is compromised and likely
     // unrecoverable.
-    cl::sycl::detail::pi::die(
+    sycl::detail::pi::die(
         "Unrecoverable program state reached in hip_piMemRelease");
   }
 
@@ -1979,30 +2202,30 @@ pi_result hip_piMemRelease(pi_mem memObj) {
 pi_result hip_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
                                    pi_buffer_create_type buffer_create_type,
                                    void *buffer_create_info, pi_mem *memObj) {
-  assert((parent_buffer != nullptr) && "PI_INVALID_MEM_OBJECT");
-  assert(parent_buffer->is_buffer() && "PI_INVALID_MEM_OBJECTS");
-  assert(!parent_buffer->is_sub_buffer() && "PI_INVALID_MEM_OBJECT");
+  assert((parent_buffer != nullptr) && "PI_ERROR_INVALID_MEM_OBJECT");
+  assert(parent_buffer->is_buffer() && "PI_ERROR_INVALID_MEM_OBJECTS");
+  assert(!parent_buffer->is_sub_buffer() && "PI_ERROR_INVALID_MEM_OBJECT");
 
   // Default value for flags means PI_MEM_FLAGS_ACCCESS_RW.
   if (flags == 0) {
     flags = PI_MEM_FLAGS_ACCESS_RW;
   }
 
-  assert((flags == PI_MEM_FLAGS_ACCESS_RW) && "PI_INVALID_VALUE");
+  assert((flags == PI_MEM_FLAGS_ACCESS_RW) && "PI_ERROR_INVALID_VALUE");
   assert((buffer_create_type == PI_BUFFER_CREATE_TYPE_REGION) &&
-         "PI_INVALID_VALUE");
-  assert((buffer_create_info != nullptr) && "PI_INVALID_VALUE");
+         "PI_ERROR_INVALID_VALUE");
+  assert((buffer_create_info != nullptr) && "PI_ERROR_INVALID_VALUE");
   assert(memObj != nullptr);
 
   const auto bufferRegion =
       *reinterpret_cast<pi_buffer_region>(buffer_create_info);
-  assert((bufferRegion.size != 0u) && "PI_INVALID_BUFFER_SIZE");
+  assert((bufferRegion.size != 0u) && "PI_ERROR_INVALID_BUFFER_SIZE");
 
   assert((bufferRegion.origin <= (bufferRegion.origin + bufferRegion.size)) &&
          "Overflow");
   assert(((bufferRegion.origin + bufferRegion.size) <=
           parent_buffer->mem_.buffer_mem_.get_size()) &&
-         "PI_INVALID_BUFFER_SIZE");
+         "PI_ERROR_INVALID_BUFFER_SIZE");
   // Retained indirectly due to retaining parent buffer below.
   pi_context context = parent_buffer->context_;
   _pi_mem::mem_::buffer_mem_::alloc_mode allocMode =
@@ -2032,7 +2255,7 @@ pi_result hip_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
     return err;
   } catch (...) {
     *memObj = nullptr;
-    return PI_OUT_OF_HOST_MEMORY;
+    return PI_ERROR_OUT_OF_HOST_MEMORY;
   }
 
   releaseGuard.dismiss();
@@ -2040,7 +2263,7 @@ pi_result hip_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
   return PI_SUCCESS;
 }
 
-pi_result hip_piMemGetInfo(pi_mem memObj, cl_mem_info queriedInfo,
+pi_result hip_piMemGetInfo(pi_mem memObj, pi_mem_info queriedInfo,
                            size_t expectedQuerySize, void *queryOutput,
                            size_t *writtenQuerySize) {
   (void)memObj;
@@ -2049,7 +2272,7 @@ pi_result hip_piMemGetInfo(pi_mem memObj, cl_mem_info queriedInfo,
   (void)queryOutput;
   (void)writtenQuerySize;
 
-  cl::sycl::detail::pi::die("hip_piMemGetInfo not implemented");
+  sycl::detail::pi::die("hip_piMemGetInfo not implemented");
 }
 
 /// Gets the native HIP handle of a PI mem object
@@ -2058,21 +2281,53 @@ pi_result hip_piMemGetInfo(pi_mem memObj, cl_mem_info queriedInfo,
 /// \param[out] nativeHandle Set to the native handle of the PI mem object.
 ///
 /// \return PI_SUCCESS
+pi_result hip_piextMemGetNativeHandle(pi_mem mem,
+                                      pi_native_handle *nativeHandle) {
+#if defined(__HIP_PLATFORM_NVIDIA__)
+  if (sizeof(_pi_mem::mem_::buffer_mem_::native_type) >
+      sizeof(pi_native_handle)) {
+    // Check that all the upper bits that cannot be represented by
+    // pi_native_handle are empty.
+    // NOTE: The following shift might trigger a warning, but the check in the
+    // if above makes sure that this does not underflow.
+    _pi_mem::mem_::buffer_mem_::native_type upperBits =
+        mem->mem_.buffer_mem_.get() >> (sizeof(pi_native_handle) * CHAR_BIT);
+    if (upperBits) {
+      // Return an error if any of the remaining bits is non-zero.
+      return PI_ERROR_INVALID_MEM_OBJECT;
+    }
+  }
+  *nativeHandle = static_cast<pi_native_handle>(mem->mem_.buffer_mem_.get());
+#elif defined(__HIP_PLATFORM_AMD__)
+  *nativeHandle =
+      reinterpret_cast<pi_native_handle>(mem->mem_.buffer_mem_.get());
+#else
+#error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
+#endif
+  return PI_SUCCESS;
+}
 
 /// Created a PI mem object from a HIP mem handle.
 /// TODO: Implement this.
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param[in] nativeHandle The native handle to create PI mem object from.
+/// \param[in] context The PI context of the memory allocation.
+/// \param[in] ownNativeHandle Indicates if we own the native memory handle or
+/// it came from interop that asked to not transfer the ownership to SYCL RT.
 /// \param[out] mem Set to the PI mem object created from native handle.
 ///
 /// \return TBD
 pi_result hip_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                             pi_context context,
+                                             bool ownNativeHandle,
                                              pi_mem *mem) {
   (void)nativeHandle;
+  (void)context;
+  (void)ownNativeHandle;
   (void)mem;
 
-  cl::sycl::detail::pi::die(
+  sycl::detail::pi::die(
       "Creation of PI mem from native handle not implemented");
   return {};
 }
@@ -2086,26 +2341,26 @@ pi_result hip_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
 pi_result hip_piQueueCreate(pi_context context, pi_device device,
                             pi_queue_properties properties, pi_queue *queue) {
   try {
-    pi_result err = PI_SUCCESS;
-
     std::unique_ptr<_pi_queue> queueImpl{nullptr};
 
     if (context->get_device() != device) {
       *queue = nullptr;
-      return PI_INVALID_DEVICE;
+      return PI_ERROR_INVALID_DEVICE;
     }
 
-    ScopedContext active(context);
+    unsigned int flags = 0;
 
-    hipStream_t hipStream;
+    const bool is_out_of_order =
+        properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
 
-    err = PI_CHECK_ERROR(hipStreamCreate(&hipStream));
-    if (err != PI_SUCCESS) {
-      return err;
-    }
+    std::vector<hipStream_t> computeHipStreams(
+        is_out_of_order ? _pi_queue::default_num_compute_streams : 1);
+    std::vector<hipStream_t> transferHipStreams(
+        is_out_of_order ? _pi_queue::default_num_transfer_streams : 0);
 
-    queueImpl = std::unique_ptr<_pi_queue>(
-        new _pi_queue{hipStream, context, device, properties});
+    queueImpl = std::unique_ptr<_pi_queue>(new _pi_queue{
+        std::move(computeHipStreams), std::move(transferHipStreams), context,
+        device, properties, flags});
 
     *queue = queueImpl.release();
 
@@ -2116,7 +2371,7 @@ pi_result hip_piQueueCreate(pi_context context, pi_device device,
 
   } catch (...) {
 
-    return PI_OUT_OF_RESOURCES;
+    return PI_ERROR_OUT_OF_RESOURCES;
   }
 }
 
@@ -2141,7 +2396,7 @@ pi_result hip_piQueueGetInfo(pi_queue command_queue, pi_queue_info param_name,
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
-  cl::sycl::detail::pi::die("Queue info request not implemented");
+  sycl::detail::pi::die("Queue info request not implemented");
   return {};
 }
 
@@ -2165,29 +2420,33 @@ pi_result hip_piQueueRelease(pi_queue command_queue) {
 
     ScopedContext active(command_queue->get_context());
 
-    auto stream = queueImpl->stream_;
-    PI_CHECK_ERROR(hipStreamSynchronize(stream));
-    PI_CHECK_ERROR(hipStreamDestroy(stream));
+    command_queue->for_each_stream([](hipStream_t s) {
+      PI_CHECK_ERROR(hipStreamSynchronize(s));
+      PI_CHECK_ERROR(hipStreamDestroy(s));
+    });
 
     return PI_SUCCESS;
   } catch (pi_result err) {
     return err;
   } catch (...) {
-    return PI_OUT_OF_RESOURCES;
+    return PI_ERROR_OUT_OF_RESOURCES;
   }
 }
 
 pi_result hip_piQueueFinish(pi_queue command_queue) {
 
   // set default result to a negative result (avoid false-positve tests)
-  pi_result result = PI_OUT_OF_HOST_MEMORY;
+  pi_result result = PI_ERROR_OUT_OF_HOST_MEMORY;
 
   try {
 
     assert(command_queue !=
            nullptr); // need PI_ERROR_INVALID_EXTERNAL_HANDLE error code
     ScopedContext active(command_queue->get_context());
-    result = PI_CHECK_ERROR(hipStreamSynchronize(command_queue->stream_));
+
+    command_queue->sync_streams<true>([&result](hipStream_t s) {
+      result = PI_CHECK_ERROR(hipStreamSynchronize(s));
+    });
 
   } catch (pi_result err) {
 
@@ -2195,10 +2454,18 @@ pi_result hip_piQueueFinish(pi_queue command_queue) {
 
   } catch (...) {
 
-    result = PI_OUT_OF_RESOURCES;
+    result = PI_ERROR_OUT_OF_RESOURCES;
   }
 
   return result;
+}
+
+// There is no HIP counterpart for queue flushing and we don't run into the
+// same problem of having to flush cross-queue dependencies as some of the
+// other plugins, so it can be left as no-op.
+pi_result hip_piQueueFlush(pi_queue command_queue) {
+  (void)command_queue;
+  return PI_SUCCESS;
 }
 
 /// Gets the native HIP handle of a PI queue object
@@ -2209,7 +2476,9 @@ pi_result hip_piQueueFinish(pi_queue command_queue) {
 /// \return PI_SUCCESS
 pi_result hip_piextQueueGetNativeHandle(pi_queue queue,
                                         pi_native_handle *nativeHandle) {
-  *nativeHandle = reinterpret_cast<pi_native_handle>(queue->get());
+  ScopedContext active(queue->get_context());
+  *nativeHandle =
+      reinterpret_cast<pi_native_handle>(queue->get_next_compute_stream());
   return PI_SUCCESS;
 }
 
@@ -2227,13 +2496,15 @@ pi_result hip_piextQueueGetNativeHandle(pi_queue queue,
 /// \return TBD
 pi_result hip_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
                                                pi_context context,
-                                               pi_queue *queue,
-                                               bool ownNativeHandle) {
+                                               pi_device device,
+                                               bool ownNativeHandle,
+                                               pi_queue *queue) {
   (void)nativeHandle;
   (void)context;
+  (void)device;
   (void)queue;
   (void)ownNativeHandle;
-  cl::sycl::detail::pi::die(
+  sycl::detail::pi::die(
       "Creation of PI queue from native handle not implemented");
   return {};
 }
@@ -2248,18 +2519,17 @@ pi_result hip_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
   assert(buffer != nullptr);
   assert(command_queue != nullptr);
   pi_result retErr = PI_SUCCESS;
-  hipStream_t hipStream = command_queue->get();
   std::unique_ptr<_pi_event> retImplEv{nullptr};
 
   try {
     ScopedContext active(command_queue->get_context());
-
-    retErr = hip_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
-                                     event_wait_list, nullptr);
+    hipStream_t hipStream = command_queue->get_next_transfer_stream();
+    retErr = enqueueEventsWait(command_queue, hipStream,
+                               num_events_in_wait_list, event_wait_list);
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_MEM_BUFFER_WRITE, command_queue));
+          PI_COMMAND_TYPE_MEM_BUFFER_WRITE, command_queue, hipStream));
       retImplEv->start();
     }
 
@@ -2294,18 +2564,17 @@ pi_result hip_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
   assert(buffer != nullptr);
   assert(command_queue != nullptr);
   pi_result retErr = PI_SUCCESS;
-  hipStream_t hipStream = command_queue->get();
   std::unique_ptr<_pi_event> retImplEv{nullptr};
 
   try {
     ScopedContext active(command_queue->get_context());
-
-    retErr = hip_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
-                                     event_wait_list, nullptr);
+    hipStream_t hipStream = command_queue->get_next_transfer_stream();
+    retErr = enqueueEventsWait(command_queue, hipStream,
+                               num_events_in_wait_list, event_wait_list);
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_MEM_BUFFER_READ, command_queue));
+          PI_COMMAND_TYPE_MEM_BUFFER_READ, command_queue, hipStream));
       retImplEv->start();
     }
 
@@ -2337,11 +2606,11 @@ pi_result hip_piEventsWait(pi_uint32 num_events, const pi_event *event_list) {
     assert(num_events != 0);
     assert(event_list);
     if (num_events == 0) {
-      return PI_INVALID_VALUE;
+      return PI_ERROR_INVALID_VALUE;
     }
 
     if (!event_list) {
-      return PI_INVALID_EVENT;
+      return PI_ERROR_INVALID_EVENT;
     }
 
     auto context = event_list[0]->get_context();
@@ -2349,11 +2618,11 @@ pi_result hip_piEventsWait(pi_uint32 num_events, const pi_event *event_list) {
 
     auto waitFunc = [context](pi_event event) -> pi_result {
       if (!event) {
-        return PI_INVALID_EVENT;
+        return PI_ERROR_INVALID_EVENT;
       }
 
       if (event->get_context() != context) {
-        return PI_INVALID_CONTEXT;
+        return PI_ERROR_INVALID_CONTEXT;
       }
 
       return event->wait();
@@ -2362,7 +2631,7 @@ pi_result hip_piEventsWait(pi_uint32 num_events, const pi_event *event_list) {
   } catch (pi_result err) {
     return err;
   } catch (...) {
-    return PI_OUT_OF_RESOURCES;
+    return PI_ERROR_OUT_OF_RESOURCES;
   }
 }
 
@@ -2399,7 +2668,7 @@ pi_result hip_piKernelCreate(pi_program program, const char *kernel_name,
   } catch (pi_result err) {
     retErr = err;
   } catch (...) {
-    retErr = PI_OUT_OF_HOST_MEMORY;
+    retErr = PI_ERROR_OUT_OF_HOST_MEMORY;
   }
 
   *kernel = retKernel.release();
@@ -2441,7 +2710,7 @@ pi_result hip_piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
       if (Format != HIP_AD_FORMAT_UNSIGNED_INT32 &&
           Format != HIP_AD_FORMAT_SIGNED_INT32 &&
           Format != HIP_AD_FORMAT_HALF && Format != HIP_AD_FORMAT_FLOAT) {
-        cl::sycl::detail::pi::die(
+        sycl::detail::pi::die(
             "PI HIP kernels only support images with channel types int32, "
             "uint32, float, and half.");
       }
@@ -2495,7 +2764,7 @@ pi_result hip_piEnqueueKernelLaunch(
 
   // Set the number of threads per block to the number of threads per warp
   // by default unless user has provided a better number
-  int threadsPerBlock[3] = {32, 1, 1};
+  size_t threadsPerBlock[3] = {32u, 1u, 1u};
   size_t maxWorkGroupSize = 0u;
   size_t maxThreadsPerBlock[3] = {};
   bool providedLocalWorkGroupSize = (local_work_size != nullptr);
@@ -2517,15 +2786,15 @@ pi_result hip_piEnqueueKernelLaunch(
     if (providedLocalWorkGroupSize) {
       auto isValid = [&](int dim) {
         if (local_work_size[dim] > maxThreadsPerBlock[dim])
-          return PI_INVALID_WORK_ITEM_SIZE;
+          return PI_ERROR_INVALID_WORK_ITEM_SIZE;
         // Checks that local work sizes are a divisor of the global work sizes
         // which includes that the local work sizes are neither larger than the
         // global work sizes and not 0.
         if (0u == local_work_size[dim])
-          return PI_INVALID_WORK_GROUP_SIZE;
+          return PI_ERROR_INVALID_WORK_GROUP_SIZE;
         if (0u != (global_work_size[dim] % local_work_size[dim]))
-          return PI_INVALID_WORK_GROUP_SIZE;
-        threadsPerBlock[dim] = static_cast<int>(local_work_size[dim]);
+          return PI_ERROR_INVALID_WORK_GROUP_SIZE;
+        threadsPerBlock[dim] = local_work_size[dim];
         return PI_SUCCESS;
       };
 
@@ -2540,12 +2809,16 @@ pi_result hip_piEnqueueKernelLaunch(
     }
   }
 
-  int blocksPerGrid[3] = {1, 1, 1};
+  if (maxWorkGroupSize <
+      size_t(threadsPerBlock[0] * threadsPerBlock[1] * threadsPerBlock[2])) {
+    return PI_ERROR_INVALID_WORK_GROUP_SIZE;
+  }
+
+  size_t blocksPerGrid[3] = {1u, 1u, 1u};
 
   for (size_t i = 0; i < work_dim; i++) {
     blocksPerGrid[i] =
-        static_cast<int>(global_work_size[i] + threadsPerBlock[i] - 1) /
-        threadsPerBlock[i];
+        (global_work_size[i] + threadsPerBlock[i] - 1) / threadsPerBlock[i];
   }
 
   pi_result retError = PI_SUCCESS;
@@ -2553,11 +2826,15 @@ pi_result hip_piEnqueueKernelLaunch(
 
   try {
     ScopedContext active(command_queue->get_context());
-    hipStream_t hipStream = command_queue->get();
+
+    pi_uint32 stream_token;
+    _pi_stream_guard guard;
+    hipStream_t hipStream = command_queue->get_next_compute_stream(
+        num_events_in_wait_list, event_wait_list, guard, &stream_token);
     hipFunction_t hipFunc = kernel->get();
 
-    retError = hip_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
-                                       event_wait_list, nullptr);
+    retError = enqueueEventsWait(command_queue, hipStream,
+                                 num_events_in_wait_list, event_wait_list);
 
     // Set the implicit global offset parameter if kernel has offset variant
     if (kernel->get_with_offset_parameter()) {
@@ -2578,8 +2855,9 @@ pi_result hip_piEnqueueKernelLaunch(
     auto argIndices = kernel->get_arg_indices();
 
     if (event) {
-      retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_NDRANGE_KERNEL, command_queue));
+      retImplEv = std::unique_ptr<_pi_event>(
+          _pi_event::make_native(PI_COMMAND_TYPE_NDRANGE_KERNEL, command_queue,
+                                 hipStream, stream_token));
       retImplEv->start();
     }
 
@@ -2589,11 +2867,9 @@ pi_result hip_piEnqueueKernelLaunch(
         kernel->get_local_size(), hipStream, argIndices.data(), nullptr));
 
     kernel->clear_local_size();
-    if (event) {
-      retError = retImplEv->record();
-    }
 
     if (event) {
+      retError = retImplEv->record();
       *event = retImplEv.release();
     }
   } catch (pi_result err) {
@@ -2620,7 +2896,7 @@ hip_piEnqueueNativeKernel(pi_queue queue, void (*user_func)(void *), void *args,
   (void)event_wait_list;
   (void)event;
 
-  cl::sycl::detail::pi::die("Not implemented in HIP backend");
+  sycl::detail::pi::die("Not implemented in HIP backend");
   return {};
 }
 
@@ -2641,7 +2917,7 @@ pi_result hip_piMemImageCreate(pi_context context, pi_mem_flags flags,
   // TODO: check SYCL CTS and spec. May also have to support BGRA
   if (image_format->image_channel_order !=
       pi_image_channel_order::PI_IMAGE_CHANNEL_ORDER_RGBA) {
-    cl::sycl::detail::pi::die(
+    sycl::detail::pi::die(
         "hip_piMemImageCreate only supports RGBA channel order");
   }
 
@@ -2702,7 +2978,7 @@ pi_result hip_piMemImageCreate(pi_context context, pi_mem_flags flags,
     pixel_type_size_bytes = 4;
     break;
   default:
-    cl::sycl::detail::pi::die(
+    sycl::detail::pi::die(
         "hip_piMemImageCreate given unsupported image_channel_data_type");
   }
 
@@ -2765,7 +3041,7 @@ pi_result hip_piMemImageCreate(pi_context context, pi_mem_flags flags,
         context, image_array, surface, image_desc->image_type, host_ptr});
 
     if (piMemObj == nullptr) {
-      return PI_OUT_OF_HOST_MEMORY;
+      return PI_ERROR_OUT_OF_HOST_MEMORY;
     }
 
     *ret_mem = piMemObj.release();
@@ -2789,7 +3065,7 @@ pi_result hip_piMemImageGetInfo(pi_mem image, pi_image_info param_name,
   (void)param_value;
   (void)param_value_size_ret;
 
-  cl::sycl::detail::pi::die("hip_piMemImageGetInfo not implemented");
+  sycl::detail::pi::die("hip_piMemImageGetInfo not implemented");
   return {};
 }
 
@@ -2813,9 +3089,8 @@ pi_result hip_piclProgramCreateWithSource(pi_context context, pi_uint32 count,
   (void)lengths;
   (void)program;
 
-  cl::sycl::detail::pi::hipPrint(
-      "hip_piclProgramCreateWithSource not implemented");
-  return PI_INVALID_OPERATION;
+  sycl::detail::pi::hipPrint("hip_piclProgramCreateWithSource not implemented");
+  return PI_ERROR_INVALID_OPERATION;
 }
 
 /// Loads the images from a PI program into a HIPmodule that can be
@@ -2854,7 +3129,7 @@ pi_result hip_piProgramCreate(pi_context context, const void *il, size_t length,
   (void)length;
   (void)res_program;
 
-  cl::sycl::detail::pi::die("hip_piProgramCreate not implemented");
+  sycl::detail::pi::die("hip_piProgramCreate not implemented");
   return {};
 }
 
@@ -2936,7 +3211,28 @@ pi_result hip_piProgramGetInfo(pi_program program, pi_program_info param_name,
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
-  cl::sycl::detail::pi::die("Program info request not implemented");
+  sycl::detail::pi::die("Program info request not implemented");
+  return {};
+}
+
+pi_result hip_piProgramLink(pi_context context, pi_uint32 num_devices,
+                            const pi_device *device_list, const char *options,
+                            pi_uint32 num_input_programs,
+                            const pi_program *input_programs,
+                            void (*pfn_notify)(pi_program program,
+                                               void *user_data),
+                            void *user_data, pi_program *ret_program) {
+  (void)context;
+  (void)num_devices;
+  (void)device_list;
+  (void)options;
+  (void)num_input_programs;
+  (void)input_programs;
+  (void)pfn_notify;
+  (void)user_data;
+  (void)ret_program;
+  sycl::detail::pi::die(
+      "hip_piProgramLink: linking not supported with hip backend");
   return {};
 }
 
@@ -2972,7 +3268,7 @@ pi_result hip_piProgramCompile(
 }
 
 pi_result hip_piProgramGetBuildInfo(pi_program program, pi_device device,
-                                    cl_program_build_info param_name,
+                                    pi_program_build_info param_name,
                                     size_t param_value_size, void *param_value,
                                     size_t *param_value_size_ret) {
   (void)device;
@@ -2993,7 +3289,7 @@ pi_result hip_piProgramGetBuildInfo(pi_program program, pi_device device,
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
-  cl::sycl::detail::pi::die("Program Build info request not implemented");
+  sycl::detail::pi::die("Program Build info request not implemented");
   return {};
 }
 
@@ -3020,14 +3316,14 @@ pi_result hip_piProgramRelease(pi_program program) {
 
     std::unique_ptr<_pi_program> program_ptr{program};
 
-    pi_result result = PI_INVALID_PROGRAM;
+    pi_result result = PI_ERROR_INVALID_PROGRAM;
 
     try {
       ScopedContext active(program->get_context());
       auto hipModule = program->get();
       result = PI_CHECK_ERROR(hipModuleUnload(hipModule));
     } catch (...) {
-      result = PI_OUT_OF_RESOURCES;
+      result = PI_ERROR_OUT_OF_RESOURCES;
     }
 
     return result;
@@ -3068,7 +3364,7 @@ pi_result hip_piextProgramCreateWithNativeHandle(pi_native_handle nativeHandle,
   (void)ownNativeHandle;
   (void)program;
 
-  cl::sycl::detail::pi::die(
+  sycl::detail::pi::die(
       "Creation of PI program from native handle not implemented");
   return {};
 }
@@ -3106,7 +3402,7 @@ pi_result hip_piKernelGetInfo(pi_kernel kernel, pi_kernel_info param_name,
     }
   }
 
-  return PI_INVALID_KERNEL;
+  return PI_ERROR_INVALID_KERNEL;
 }
 
 pi_result hip_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
@@ -3121,7 +3417,7 @@ pi_result hip_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
     switch (param_name) {
     case PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
       int max_threads = 0;
-      cl::sycl::detail::pi::assertion(
+      sycl::detail::pi::assertion(
           hipFuncGetAttribute(&max_threads,
                               HIP_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
                               kernel->get()) == hipSuccess);
@@ -3142,7 +3438,7 @@ pi_result hip_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
     case PI_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE: {
       // OpenCL LOCAL == HIP SHARED
       int bytes = 0;
-      cl::sycl::detail::pi::assertion(
+      sycl::detail::pi::assertion(
           hipFuncGetAttribute(&bytes, HIP_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES,
                               kernel->get()) == hipSuccess);
       return getInfo(param_value_size, param_value, param_value_size_ret,
@@ -3151,7 +3447,7 @@ pi_result hip_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
     case PI_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE: {
       // Work groups should be multiples of the warp size
       int warpSize = 0;
-      cl::sycl::detail::pi::assertion(
+      sycl::detail::pi::assertion(
           hipDeviceGetAttribute(&warpSize, hipDeviceAttributeWarpSize,
                                 device->get()) == hipSuccess);
       return getInfo(param_value_size, param_value, param_value_size_ret,
@@ -3160,15 +3456,15 @@ pi_result hip_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
     case PI_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE: {
       // OpenCL PRIVATE == HIP LOCAL
       int bytes = 0;
-      cl::sycl::detail::pi::assertion(
+      sycl::detail::pi::assertion(
           hipFuncGetAttribute(&bytes, HIP_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES,
                               kernel->get()) == hipSuccess);
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      pi_uint64(bytes));
     }
     case PI_KERNEL_GROUP_INFO_NUM_REGS: {
-      cl::sycl::detail::pi::die("PI_KERNEL_GROUP_INFO_NUM_REGS in "
-                                "piKernelGetGroupInfo not implemented\n");
+      sycl::detail::pi::die("PI_KERNEL_GROUP_INFO_NUM_REGS in "
+                            "piKernelGetGroupInfo not implemented\n");
       return {};
     }
 
@@ -3177,7 +3473,7 @@ pi_result hip_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
     }
   }
 
-  return PI_INVALID_KERNEL;
+  return PI_ERROR_INVALID_KERNEL;
 }
 
 pi_result hip_piKernelGetSubGroupInfo(
@@ -3192,7 +3488,7 @@ pi_result hip_piKernelGetSubGroupInfo(
     case PI_KERNEL_MAX_SUB_GROUP_SIZE: {
       // Sub-group size is equivalent to warp size
       int warpSize = 0;
-      cl::sycl::detail::pi::assertion(
+      sycl::detail::pi::assertion(
           hipDeviceGetAttribute(&warpSize, hipDeviceAttributeWarpSize,
                                 device->get()) == hipSuccess);
       return getInfo(param_value_size, param_value, param_value_size_ret,
@@ -3201,7 +3497,7 @@ pi_result hip_piKernelGetSubGroupInfo(
     case PI_KERNEL_MAX_NUM_SUB_GROUPS: {
       // Number of sub-groups = max block size / warp size + possible remainder
       int max_threads = 0;
-      cl::sycl::detail::pi::assertion(
+      sycl::detail::pi::assertion(
           hipFuncGetAttribute(&max_threads,
                               HIP_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
                               kernel->get()) == hipSuccess);
@@ -3229,7 +3525,7 @@ pi_result hip_piKernelGetSubGroupInfo(
       __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
     }
   }
-  return PI_INVALID_KERNEL;
+  return PI_ERROR_INVALID_KERNEL;
 }
 
 pi_result hip_piKernelRetain(pi_kernel kernel) {
@@ -3271,6 +3567,14 @@ pi_result hip_piKernelSetExecInfo(pi_kernel kernel,
   return PI_SUCCESS;
 }
 
+pi_result hip_piextProgramSetSpecializationConstant(pi_program, pi_uint32,
+                                                    size_t, const void *) {
+  // This entry point is only used for native specialization constants (SPIR-V),
+  // and the HIP plugin is AOT only so this entry point is not supported.
+  sycl::detail::pi::die("Native specialization constants are not supported");
+  return {};
+}
+
 pi_result hip_piextKernelSetArgPointer(pi_kernel kernel, pi_uint32 arg_index,
                                        size_t arg_size, const void *arg_value) {
   kernel->set_kernel_arg(arg_index, arg_size, arg_value);
@@ -3284,7 +3588,7 @@ pi_result hip_piEventCreate(pi_context context, pi_event *event) {
   (void)context;
   (void)event;
 
-  cl::sycl::detail::pi::die("PI Event Create not implemented in HIP backend");
+  sycl::detail::pi::die("PI Event Create not implemented in HIP backend");
 }
 
 pi_result hip_piEventGetInfo(pi_event event, pi_event_info param_name,
@@ -3313,11 +3617,11 @@ pi_result hip_piEventGetInfo(pi_event event, pi_event_info param_name,
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
 
-  return PI_INVALID_EVENT;
+  return PI_ERROR_INVALID_EVENT;
 }
 
 /// Obtain profiling information from PI HIP events
-/// \TODO Untie from OpenCL, timings from HIP are only elapsed time.
+/// Timings from HIP are only elapsed time.
 pi_result hip_piEventGetProfilingInfo(pi_event event,
                                       pi_profiling_info param_name,
                                       size_t param_value_size,
@@ -3328,7 +3632,7 @@ pi_result hip_piEventGetProfilingInfo(pi_event event,
 
   pi_queue queue = event->get_queue();
   if (queue == nullptr || !(queue->properties_ & PI_QUEUE_PROFILING_ENABLE)) {
-    return PI_PROFILING_INFO_NOT_AVAILABLE;
+    return PI_ERROR_PROFILING_INFO_NOT_AVAILABLE;
   }
 
   switch (param_name) {
@@ -3345,7 +3649,7 @@ pi_result hip_piEventGetProfilingInfo(pi_event event,
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
-  cl::sycl::detail::pi::die("Event Profiling info request not implemented");
+  sycl::detail::pi::die("Event Profiling info request not implemented");
   return {};
 }
 
@@ -3357,7 +3661,7 @@ pi_result hip_piEventSetCallback(pi_event event,
   (void)notify;
   (void)user_data;
 
-  cl::sycl::detail::pi::die("Event Callback not implemented in HIP backend");
+  sycl::detail::pi::die("Event Callback not implemented in HIP backend");
   return PI_SUCCESS;
 }
 
@@ -3365,8 +3669,8 @@ pi_result hip_piEventSetStatus(pi_event event, pi_int32 execution_status) {
   (void)event;
   (void)execution_status;
 
-  cl::sycl::detail::pi::die("Event Set Status not implemented in HIP backend");
-  return PI_INVALID_VALUE;
+  sycl::detail::pi::die("Event Set Status not implemented in HIP backend");
+  return PI_ERROR_INVALID_VALUE;
 }
 
 pi_result hip_piEventRetain(pi_event event) {
@@ -3374,7 +3678,7 @@ pi_result hip_piEventRetain(pi_event event) {
 
   const auto refCount = event->increment_reference_count();
 
-  cl::sycl::detail::pi::assertion(
+  sycl::detail::pi::assertion(
       refCount != 0, "Reference count overflow detected in hip_piEventRetain.");
 
   return PI_SUCCESS;
@@ -3385,19 +3689,19 @@ pi_result hip_piEventRelease(pi_event event) {
 
   // double delete or someone is messing with the ref count.
   // either way, cannot safely proceed.
-  cl::sycl::detail::pi::assertion(
+  sycl::detail::pi::assertion(
       event->get_reference_count() != 0,
       "Reference count overflow detected in hip_piEventRelease.");
 
   // decrement ref count. If it is 0, delete the event.
   if (event->decrement_reference_count() == 0) {
     std::unique_ptr<_pi_event> event_ptr{event};
-    pi_result result = PI_INVALID_EVENT;
+    pi_result result = PI_ERROR_INVALID_EVENT;
     try {
       ScopedContext active(event->get_context());
       result = event->release();
     } catch (...) {
-      result = PI_OUT_OF_RESOURCES;
+      result = PI_ERROR_OUT_OF_RESOURCES;
     }
     return result;
   }
@@ -3405,34 +3709,90 @@ pi_result hip_piEventRelease(pi_event event) {
   return PI_SUCCESS;
 }
 
-/// Enqueues a wait on the given CUstream for all events.
+/// Enqueues a wait on the given queue for all events.
 /// See \ref enqueueEventWait
 ///
+/// Currently queues are represented by a single in-order stream, therefore
+/// every command is an implicit barrier and so hip_piEnqueueEventsWait has the
+/// same behavior as hip_piEnqueueEventsWaitWithBarrier. So
+/// hip_piEnqueueEventsWait can just call hip_piEnqueueEventsWaitWithBarrier.
 pi_result hip_piEnqueueEventsWait(pi_queue command_queue,
                                   pi_uint32 num_events_in_wait_list,
                                   const pi_event *event_wait_list,
                                   pi_event *event) {
+  return hip_piEnqueueEventsWaitWithBarrier(
+      command_queue, num_events_in_wait_list, event_wait_list, event);
+}
+
+/// Enqueues a wait on the given queue for all specified events.
+/// See \ref enqueueEventWaitWithBarrier
+///
+/// If the events list is empty, the enqueued wait will wait on all previous
+/// events in the queue.
+pi_result hip_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
+                                             pi_uint32 num_events_in_wait_list,
+                                             const pi_event *event_wait_list,
+                                             pi_event *event) {
   if (!command_queue) {
-    return PI_INVALID_QUEUE;
+    return PI_ERROR_INVALID_QUEUE;
   }
+
+  pi_result result;
 
   try {
     ScopedContext active(command_queue->get_context());
-
-    if (event_wait_list) {
-      auto result =
-          forLatestEvents(event_wait_list, num_events_in_wait_list,
-                          [command_queue](pi_event event) -> pi_result {
-                            return enqueueEventWait(command_queue, event);
-                          });
-
-      if (result != PI_SUCCESS) {
-        return result;
+    pi_uint32 stream_token;
+    _pi_stream_guard guard;
+    hipStream_t hipStream = command_queue->get_next_compute_stream(
+        num_events_in_wait_list, event_wait_list, guard, &stream_token);
+    {
+      std::lock_guard(command_queue->barrier_mutex_);
+      if (command_queue->barrier_event_ == nullptr) {
+        PI_CHECK_ERROR(hipEventCreate(&command_queue->barrier_event_));
       }
+      if (num_events_in_wait_list == 0) { //  wait on all work
+        if (command_queue->barrier_tmp_event_ == nullptr) {
+          PI_CHECK_ERROR(hipEventCreate(&command_queue->barrier_tmp_event_));
+        }
+        command_queue->sync_streams(
+            [hipStream,
+             tmp_event = command_queue->barrier_tmp_event_](hipStream_t s) {
+              if (hipStream != s) {
+                PI_CHECK_ERROR(hipEventRecord(tmp_event, s));
+                PI_CHECK_ERROR(hipStreamWaitEvent(hipStream, tmp_event, 0));
+              }
+            });
+      } else { // wait just on given events
+        forLatestEvents(event_wait_list, num_events_in_wait_list,
+                        [hipStream](pi_event event) -> pi_result {
+                          if (event->get_queue()->has_been_synchronized(
+                                  event->get_compute_stream_token())) {
+                            return PI_SUCCESS;
+                          } else {
+                            return PI_CHECK_ERROR(
+                                hipStreamWaitEvent(hipStream, event->get(), 0));
+                          }
+                        });
+      }
+
+      result = PI_CHECK_ERROR(
+          hipEventRecord(command_queue->barrier_event_, hipStream));
+      for (unsigned int i = 0;
+           i < command_queue->compute_applied_barrier_.size(); i++) {
+        command_queue->compute_applied_barrier_[i] = false;
+      }
+      for (unsigned int i = 0;
+           i < command_queue->transfer_applied_barrier_.size(); i++) {
+        command_queue->transfer_applied_barrier_[i] = false;
+      }
+    }
+    if (result != PI_SUCCESS) {
+      return result;
     }
 
     if (event) {
-      *event = _pi_event::make_native(PI_COMMAND_TYPE_MARKER, command_queue);
+      *event = _pi_event::make_native(PI_COMMAND_TYPE_MARKER, command_queue,
+                                      hipStream, stream_token);
       (*event)->start();
       (*event)->record();
     }
@@ -3450,7 +3810,7 @@ pi_result hip_piEnqueueEventsWait(pi_queue command_queue,
 /// \param[in] event The PI event to get the native HIP object of.
 /// \param[out] nativeHandle Set to the native handle of the PI event object.
 ///
-/// \return PI_SUCCESS on success. PI_INVALID_EVENT if given a user event.
+/// \return PI_SUCCESS on success. PI_ERROR_INVALID_EVENT if given a user event.
 pi_result hip_piextEventGetNativeHandle(pi_event event,
                                         pi_native_handle *nativeHandle) {
   *nativeHandle = reinterpret_cast<pi_native_handle>(event->get());
@@ -3474,7 +3834,7 @@ pi_result hip_piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
   (void)ownNativeHandle;
   (void)event;
 
-  cl::sycl::detail::pi::die(
+  sycl::detail::pi::die(
       "Creation of PI event from native handle not implemented");
   return {};
 }
@@ -3485,7 +3845,8 @@ pi_result hip_piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
 /// \param[in] sampler_properties The properties for the sampler.
 /// \param[out] result_sampler Set to the resulting sampler object.
 ///
-/// \return PI_SUCCESS on success. PI_INVALID_VALUE if given an invalid property
+/// \return PI_SUCCESS on success. PI_ERROR_INVALID_VALUE if given an invalid
+/// property
 ///         or if there is multiple of properties from the same category.
 pi_result hip_piSamplerCreate(pi_context context,
                               const pi_sampler_properties *sampler_properties,
@@ -3497,14 +3858,14 @@ pi_result hip_piSamplerCreate(pi_context context,
     switch (sampler_properties[i]) {
     case PI_SAMPLER_PROPERTIES_NORMALIZED_COORDS:
       if (propSeen[0]) {
-        return PI_INVALID_VALUE;
+        return PI_ERROR_INVALID_VALUE;
       }
       propSeen[0] = true;
       retImplSampl->props_ |= sampler_properties[i + 1];
       break;
     case PI_SAMPLER_PROPERTIES_FILTER_MODE:
       if (propSeen[1]) {
-        return PI_INVALID_VALUE;
+        return PI_ERROR_INVALID_VALUE;
       }
       propSeen[1] = true;
       retImplSampl->props_ |=
@@ -3512,23 +3873,25 @@ pi_result hip_piSamplerCreate(pi_context context,
       break;
     case PI_SAMPLER_PROPERTIES_ADDRESSING_MODE:
       if (propSeen[2]) {
-        return PI_INVALID_VALUE;
+        return PI_ERROR_INVALID_VALUE;
       }
       propSeen[2] = true;
       retImplSampl->props_ |=
           (sampler_properties[i + 1] - PI_SAMPLER_ADDRESSING_MODE_NONE) << 2;
       break;
     default:
-      return PI_INVALID_VALUE;
+      return PI_ERROR_INVALID_VALUE;
     }
   }
 
   if (!propSeen[0]) {
-    retImplSampl->props_ |= CL_TRUE;
+    retImplSampl->props_ |= PI_TRUE;
   }
   // Default filter mode to CL_FILTER_NEAREST
   if (!propSeen[2]) {
-    retImplSampl->props_ |= (CL_ADDRESS_CLAMP % CL_ADDRESS_NONE) << 2;
+    retImplSampl->props_ |=
+        (PI_SAMPLER_ADDRESSING_MODE_CLAMP % PI_SAMPLER_ADDRESSING_MODE_NONE)
+        << 2;
   }
 
   *result_sampler = retImplSampl.release();
@@ -3544,7 +3907,7 @@ pi_result hip_piSamplerCreate(pi_context context,
 /// \param[out] param_value_size_ret Set to the size of the information value.
 ///
 /// \return PI_SUCCESS on success.
-pi_result hip_piSamplerGetInfo(pi_sampler sampler, cl_sampler_info param_name,
+pi_result hip_piSamplerGetInfo(pi_sampler sampler, pi_sampler_info param_name,
                                size_t param_value_size, void *param_value,
                                size_t *param_value_size_ret) {
   assert(sampler != nullptr);
@@ -3602,7 +3965,7 @@ pi_result hip_piSamplerRelease(pi_sampler sampler) {
 
   // double delete or someone is messing with the ref count.
   // either way, cannot safely proceed.
-  cl::sycl::detail::pi::assertion(
+  sycl::detail::pi::assertion(
       sampler->get_reference_count() != 0,
       "Reference count overflow detected in hip_piSamplerRelease.");
 
@@ -3685,19 +4048,19 @@ pi_result hip_piEnqueueMemBufferReadRect(
   assert(command_queue != nullptr);
 
   pi_result retErr = PI_SUCCESS;
-  hipStream_t hipStream = command_queue->get();
   void *devPtr = buffer->mem_.buffer_mem_.get_void();
   std::unique_ptr<_pi_event> retImplEv{nullptr};
 
   try {
     ScopedContext active(command_queue->get_context());
+    hipStream_t hipStream = command_queue->get_next_transfer_stream();
 
-    retErr = hip_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
-                                     event_wait_list, nullptr);
+    retErr = enqueueEventsWait(command_queue, hipStream,
+                               num_events_in_wait_list, event_wait_list);
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_MEM_BUFFER_READ_RECT, command_queue));
+          PI_COMMAND_TYPE_MEM_BUFFER_READ_RECT, command_queue, hipStream));
       retImplEv->start();
     }
 
@@ -3736,19 +4099,18 @@ pi_result hip_piEnqueueMemBufferWriteRect(
   assert(command_queue != nullptr);
 
   pi_result retErr = PI_SUCCESS;
-  hipStream_t hipStream = command_queue->get();
   void *devPtr = buffer->mem_.buffer_mem_.get_void();
   std::unique_ptr<_pi_event> retImplEv{nullptr};
 
   try {
     ScopedContext active(command_queue->get_context());
-
-    retErr = hip_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
-                                     event_wait_list, nullptr);
+    hipStream_t hipStream = command_queue->get_next_transfer_stream();
+    retErr = enqueueEventsWait(command_queue, hipStream,
+                               num_events_in_wait_list, event_wait_list);
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_MEM_BUFFER_WRITE_RECT, command_queue));
+          PI_COMMAND_TYPE_MEM_BUFFER_WRITE_RECT, command_queue, hipStream));
       retImplEv->start();
     }
 
@@ -3782,28 +4144,27 @@ pi_result hip_piEnqueueMemBufferCopy(pi_queue command_queue, pi_mem src_buffer,
                                      const pi_event *event_wait_list,
                                      pi_event *event) {
   if (!command_queue) {
-    return PI_INVALID_QUEUE;
+    return PI_ERROR_INVALID_QUEUE;
   }
 
   std::unique_ptr<_pi_event> retImplEv{nullptr};
 
   try {
     ScopedContext active(command_queue->get_context());
+    pi_result result;
+    auto stream = command_queue->get_next_transfer_stream();
 
     if (event_wait_list) {
-      hip_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
-                              event_wait_list, nullptr);
+      result = enqueueEventsWait(command_queue, stream, num_events_in_wait_list,
+                                 event_wait_list);
     }
-
-    pi_result result;
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_MEM_BUFFER_COPY, command_queue));
+          PI_COMMAND_TYPE_MEM_BUFFER_COPY, command_queue, stream));
       result = retImplEv->start();
     }
 
-    auto stream = command_queue->get();
     auto src = src_buffer->mem_.buffer_mem_.get_with_offset(src_offset);
     auto dst = dst_buffer->mem_.buffer_mem_.get_with_offset(dst_offset);
 
@@ -3835,20 +4196,19 @@ pi_result hip_piEnqueueMemBufferCopyRect(
   assert(command_queue != nullptr);
 
   pi_result retErr = PI_SUCCESS;
-  hipStream_t hipStream = command_queue->get();
   void *srcPtr = src_buffer->mem_.buffer_mem_.get_void();
   void *dstPtr = dst_buffer->mem_.buffer_mem_.get_void();
   std::unique_ptr<_pi_event> retImplEv{nullptr};
 
   try {
     ScopedContext active(command_queue->get_context());
-
-    retErr = hip_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
-                                     event_wait_list, nullptr);
+    hipStream_t hipStream = command_queue->get_next_transfer_stream();
+    retErr = enqueueEventsWait(command_queue, hipStream,
+                               num_events_in_wait_list, event_wait_list);
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_MEM_BUFFER_COPY_RECT, command_queue));
+          PI_COMMAND_TYPE_MEM_BUFFER_COPY_RECT, command_queue, hipStream));
       retImplEv->start();
     }
 
@@ -3896,21 +4256,20 @@ pi_result hip_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
   try {
     ScopedContext active(command_queue->get_context());
 
-    if (event_wait_list) {
-      hip_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
-                              event_wait_list, nullptr);
-    }
-
+    auto stream = command_queue->get_next_transfer_stream();
     pi_result result;
+    if (event_wait_list) {
+      result = enqueueEventsWait(command_queue, stream, num_events_in_wait_list,
+                                 event_wait_list);
+    }
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_MEM_BUFFER_FILL, command_queue));
+          PI_COMMAND_TYPE_MEM_BUFFER_FILL, command_queue, stream));
       result = retImplEv->start();
     }
 
     auto dstDevice = buffer->mem_.buffer_mem_.get_with_offset(offset);
-    auto stream = command_queue->get();
     auto N = size / pattern_size;
 
     // pattern size in bytes
@@ -3997,7 +4356,7 @@ static size_t imageElementByteSize(hipArray_Format array_format) {
   default:
     return 0;
   }
-  cl::sycl::detail::pi::die("Invalid iamge format.");
+  sycl::detail::pi::die("Invalid iamge format.");
   return 0;
 }
 
@@ -4072,7 +4431,7 @@ static pi_result commonEnqueueMemImageNDCopy(
     return PI_ERROR_UNKNOWN;
   }
 
-  return PI_INVALID_VALUE;
+  return PI_ERROR_INVALID_VALUE;
 }
 
 pi_result hip_piEnqueueMemImageRead(pi_queue command_queue, pi_mem image,
@@ -4090,14 +4449,14 @@ pi_result hip_piEnqueueMemImageRead(pi_queue command_queue, pi_mem image,
   assert(image->mem_type_ == _pi_mem::mem_type::surface);
 
   pi_result retErr = PI_SUCCESS;
-  hipStream_t hipStream = command_queue->get();
 
   try {
     ScopedContext active(command_queue->get_context());
+    hipStream_t hipStream = command_queue->get_next_transfer_stream();
 
     if (event_wait_list) {
-      hip_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
-                              event_wait_list, nullptr);
+      retErr = enqueueEventsWait(command_queue, hipStream,
+                                 num_events_in_wait_list, event_wait_list);
     }
 
     hipArray *array = image->mem_.surface_mem_.get_array();
@@ -4125,8 +4484,8 @@ pi_result hip_piEnqueueMemImageRead(pi_queue command_queue, pi_mem image,
     }
 
     if (event) {
-      auto new_event =
-          _pi_event::make_native(PI_COMMAND_TYPE_IMAGE_READ, command_queue);
+      auto new_event = _pi_event::make_native(PI_COMMAND_TYPE_IMAGE_READ,
+                                              command_queue, hipStream);
       new_event->record();
       *event = new_event;
     }
@@ -4159,14 +4518,14 @@ pi_result hip_piEnqueueMemImageWrite(pi_queue command_queue, pi_mem image,
   assert(image->mem_type_ == _pi_mem::mem_type::surface);
 
   pi_result retErr = PI_SUCCESS;
-  hipStream_t hipStream = command_queue->get();
 
   try {
     ScopedContext active(command_queue->get_context());
+    hipStream_t hipStream = command_queue->get_next_transfer_stream();
 
     if (event_wait_list) {
-      hip_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
-                              event_wait_list, nullptr);
+      retErr = enqueueEventsWait(command_queue, hipStream,
+                                 num_events_in_wait_list, event_wait_list);
     }
 
     hipArray *array = image->mem_.surface_mem_.get_array();
@@ -4194,8 +4553,8 @@ pi_result hip_piEnqueueMemImageWrite(pi_queue command_queue, pi_mem image,
     }
 
     if (event) {
-      auto new_event =
-          _pi_event::make_native(PI_COMMAND_TYPE_IMAGE_WRITE, command_queue);
+      auto new_event = _pi_event::make_native(PI_COMMAND_TYPE_IMAGE_WRITE,
+                                              command_queue, hipStream);
       new_event->record();
       *event = new_event;
     }
@@ -4224,14 +4583,13 @@ pi_result hip_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
          dst_image->mem_.surface_mem_.get_image_type());
 
   pi_result retErr = PI_SUCCESS;
-  hipStream_t hipStream = command_queue->get();
 
   try {
     ScopedContext active(command_queue->get_context());
-
+    hipStream_t hipStream = command_queue->get_next_transfer_stream();
     if (event_wait_list) {
-      hip_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
-                              event_wait_list, nullptr);
+      retErr = enqueueEventsWait(command_queue, hipStream,
+                                 num_events_in_wait_list, event_wait_list);
     }
 
     hipArray *srcArray = src_image->mem_.surface_mem_.get_array();
@@ -4268,8 +4626,8 @@ pi_result hip_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
     }
 
     if (event) {
-      auto new_event =
-          _pi_event::make_native(PI_COMMAND_TYPE_IMAGE_COPY, command_queue);
+      auto new_event = _pi_event::make_native(PI_COMMAND_TYPE_IMAGE_COPY,
+                                              command_queue, hipStream);
       new_event->record();
       *event = new_event;
     }
@@ -4283,7 +4641,7 @@ pi_result hip_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
   return retErr;
 }
 
-/// \TODO Not implemented in HIP, requires untie from OpenCL
+/// \TODO Not implemented in HIP.
 pi_result hip_piEnqueueMemImageFill(pi_queue command_queue, pi_mem image,
                                     const void *fill_color,
                                     const size_t *origin, const size_t *region,
@@ -4299,7 +4657,7 @@ pi_result hip_piEnqueueMemImageFill(pi_queue command_queue, pi_mem image,
   (void)event_wait_list;
   (void)event;
 
-  cl::sycl::detail::pi::die("hip_piEnqueueMemImageFill not implemented");
+  sycl::detail::pi::die("hip_piEnqueueMemImageFill not implemented");
   return {};
 }
 
@@ -4307,7 +4665,6 @@ pi_result hip_piEnqueueMemImageFill(pi_queue command_queue, pi_mem image,
 /// Mapped pointers are stored in the pi_mem object.
 /// If the buffer uses pinned host memory a pointer to that memory is returned
 /// and no read operation is done.
-/// \TODO Untie types from OpenCL
 ///
 pi_result hip_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
                                     pi_bool blocking_map,
@@ -4321,7 +4678,7 @@ pi_result hip_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
   assert(buffer != nullptr);
   assert(buffer->mem_type_ == _pi_mem::mem_type::buffer);
 
-  pi_result ret_err = PI_INVALID_OPERATION;
+  pi_result ret_err = PI_ERROR_INVALID_OPERATION;
   const bool is_pinned = buffer->mem_.buffer_mem_.allocMode_ ==
                          _pi_mem::mem_::buffer_mem_::alloc_mode::alloc_host_ptr;
 
@@ -4352,8 +4709,9 @@ pi_result hip_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
 
     if (event) {
       try {
-        *event = _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_MAP,
-                                        command_queue);
+        *event = _pi_event::make_native(
+            PI_COMMAND_TYPE_MEM_BUFFER_MAP, command_queue,
+            command_queue->get_next_transfer_stream());
         (*event)->start();
         (*event)->record();
       } catch (pi_result error) {
@@ -4406,8 +4764,9 @@ pi_result hip_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
 
     if (event) {
       try {
-        *event = _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_UNMAP,
-                                        command_queue);
+        *event = _pi_event::make_native(
+            PI_COMMAND_TYPE_MEM_BUFFER_UNMAP, command_queue,
+            command_queue->get_next_transfer_stream());
         (*event)->start();
         (*event)->record();
       } catch (pi_result error) {
@@ -4427,7 +4786,7 @@ pi_result hip_piextUSMHostAlloc(void **result_ptr, pi_context context,
                                 pi_uint32 alignment) {
   assert(result_ptr != nullptr);
   assert(context != nullptr);
-  assert(properties == nullptr);
+  assert(properties == nullptr || *properties == 0);
   pi_result result = PI_SUCCESS;
   try {
     ScopedContext active(context);
@@ -4451,7 +4810,7 @@ pi_result hip_piextUSMDeviceAlloc(void **result_ptr, pi_context context,
   assert(result_ptr != nullptr);
   assert(context != nullptr);
   assert(device != nullptr);
-  assert(properties == nullptr);
+  assert(properties == nullptr || *properties == 0);
   pi_result result = PI_SUCCESS;
   try {
     ScopedContext active(context);
@@ -4475,7 +4834,7 @@ pi_result hip_piextUSMSharedAlloc(void **result_ptr, pi_context context,
   assert(result_ptr != nullptr);
   assert(context != nullptr);
   assert(device != nullptr);
-  assert(properties == nullptr);
+  assert(properties == nullptr || *properties == 0);
   pi_result result = PI_SUCCESS;
   try {
     ScopedContext active(context);
@@ -4525,17 +4884,20 @@ pi_result hip_piextUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
 
   assert(queue != nullptr);
   assert(ptr != nullptr);
-  hipStream_t hipStream = queue->get();
   pi_result result = PI_SUCCESS;
   std::unique_ptr<_pi_event> event_ptr{nullptr};
 
   try {
     ScopedContext active(queue->get_context());
-    result = hip_piEnqueueEventsWait(queue, num_events_in_waitlist,
-                                     events_waitlist, nullptr);
+    pi_uint32 stream_token;
+    _pi_stream_guard guard;
+    hipStream_t hipStream = queue->get_next_compute_stream(
+        num_events_in_waitlist, events_waitlist, guard, &stream_token);
+    result = enqueueEventsWait(queue, hipStream, num_events_in_waitlist,
+                               events_waitlist);
     if (event) {
-      event_ptr = std::unique_ptr<_pi_event>(
-          _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_FILL, queue));
+      event_ptr = std::unique_ptr<_pi_event>(_pi_event::make_native(
+          PI_COMMAND_TYPE_MEM_BUFFER_FILL, queue, hipStream, stream_token));
       event_ptr->start();
     }
     result = PI_CHECK_ERROR(
@@ -4558,21 +4920,21 @@ pi_result hip_piextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking,
                                     pi_uint32 num_events_in_waitlist,
                                     const pi_event *events_waitlist,
                                     pi_event *event) {
-
   assert(queue != nullptr);
   assert(dst_ptr != nullptr);
   assert(src_ptr != nullptr);
-  hipStream_t hipStream = queue->get();
   pi_result result = PI_SUCCESS;
+
   std::unique_ptr<_pi_event> event_ptr{nullptr};
 
   try {
     ScopedContext active(queue->get_context());
-    result = hip_piEnqueueEventsWait(queue, num_events_in_waitlist,
-                                     events_waitlist, nullptr);
+    hipStream_t hipStream = queue->get_next_transfer_stream();
+    result = enqueueEventsWait(queue, hipStream, num_events_in_waitlist,
+                               events_waitlist);
     if (event) {
-      event_ptr = std::unique_ptr<_pi_event>(
-          _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_COPY, queue));
+      event_ptr = std::unique_ptr<_pi_event>(_pi_event::make_native(
+          PI_COMMAND_TYPE_MEM_BUFFER_COPY, queue, hipStream));
       event_ptr->start();
     }
     result = PI_CHECK_ERROR(
@@ -4589,7 +4951,6 @@ pi_result hip_piextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking,
   } catch (pi_result err) {
     result = err;
   }
-
   return result;
 }
 
@@ -4601,20 +4962,20 @@ pi_result hip_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
 
   // flags is currently unused so fail if set
   if (flags != 0)
-    return PI_INVALID_VALUE;
+    return PI_ERROR_INVALID_VALUE;
   assert(queue != nullptr);
   assert(ptr != nullptr);
-  hipStream_t hipStream = queue->get();
   pi_result result = PI_SUCCESS;
   std::unique_ptr<_pi_event> event_ptr{nullptr};
 
   try {
     ScopedContext active(queue->get_context());
-    result = hip_piEnqueueEventsWait(queue, num_events_in_waitlist,
-                                     events_waitlist, nullptr);
+    hipStream_t hipStream = queue->get_next_transfer_stream();
+    result = enqueueEventsWait(queue, hipStream, num_events_in_waitlist,
+                               events_waitlist);
     if (event) {
-      event_ptr = std::unique_ptr<_pi_event>(
-          _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_COPY, queue));
+      event_ptr = std::unique_ptr<_pi_event>(_pi_event::make_native(
+          PI_COMMAND_TYPE_MEM_BUFFER_COPY, queue, hipStream));
       event_ptr->start();
     }
     result = PI_CHECK_ERROR(hipMemPrefetchAsync(
@@ -4663,7 +5024,7 @@ pi_result hip_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
 /// \param param_value is the result
 /// \param param_value_ret is how many bytes were written
 pi_result hip_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
-                                      pi_mem_info param_name,
+                                      pi_mem_alloc_info param_name,
                                       size_t param_value_size,
                                       void *param_value,
                                       size_t *param_value_size_ret) {
@@ -4712,22 +5073,26 @@ pi_result hip_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
                      PI_MEM_TYPE_UNKNOWN);
     }
     case PI_MEM_ALLOC_BASE_PTR: {
-      return PI_INVALID_VALUE;
+      return PI_ERROR_INVALID_VALUE;
     }
     case PI_MEM_ALLOC_SIZE: {
-      return PI_INVALID_VALUE;
+      return PI_ERROR_INVALID_VALUE;
     }
 
     case PI_MEM_ALLOC_DEVICE: {
-      unsigned int value;
+      // get device index associated with this pointer
       result = PI_CHECK_ERROR(
           hipPointerGetAttributes(&hipPointerAttributeType, ptr));
-      auto devicePointer =
-          static_cast<int *>(hipPointerAttributeType.devicePointer);
-      value = *devicePointer;
-      pi_platform platform;
-      result = hip_piPlatformsGet(0, &platform, nullptr);
-      pi_device device = platform->devices_[value].get();
+      int device_idx = hipPointerAttributeType.device;
+
+      // currently each device is in its own platform, so find the platform at
+      // the same index
+      std::vector<pi_platform> platforms;
+      platforms.resize(device_idx + 1);
+      result = hip_piPlatformsGet(device_idx + 1, platforms.data(), nullptr);
+
+      // get the device from the platform
+      pi_device device = platforms[device_idx]->devices_[0].get();
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      device);
     }
@@ -4747,18 +5112,17 @@ pi_result hip_piTearDown(void *PluginParameter) {
   return PI_SUCCESS;
 }
 
-const char SupportedVersion[] = _PI_H_VERSION_STRING;
+const char SupportedVersion[] = _PI_HIP_PLUGIN_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
-  int CompareVersions = strcmp(PluginInit->PiVersion, SupportedVersion);
-  if (CompareVersions < 0) {
-    // PI interface supports lower version of PI.
-    // TODO: Take appropriate actions.
-    return PI_INVALID_OPERATION;
-  }
+  // Check that the major version matches in PiVersion and SupportedVersion
+  _PI_PLUGIN_VERSION_CHECK(PluginInit->PiVersion, SupportedVersion);
 
   // PI interface supports higher version or the same version.
-  strncpy(PluginInit->PluginVersion, SupportedVersion, 4);
+  size_t PluginVersionSize = sizeof(PluginInit->PluginVersion);
+  if (strlen(SupportedVersion) >= PluginVersionSize)
+    return PI_ERROR_INVALID_VALUE;
+  strncpy(PluginInit->PluginVersion, SupportedVersion, PluginVersionSize);
 
   // Set whole function table to zero to make it easier to detect if
   // functions are not set up below.
@@ -4796,6 +5160,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piQueueCreate, hip_piQueueCreate)
   _PI_CL(piQueueGetInfo, hip_piQueueGetInfo)
   _PI_CL(piQueueFinish, hip_piQueueFinish)
+  _PI_CL(piQueueFlush, hip_piQueueFlush)
   _PI_CL(piQueueRetain, hip_piQueueRetain)
   _PI_CL(piQueueRelease, hip_piQueueRelease)
   _PI_CL(piextQueueGetNativeHandle, hip_piextQueueGetNativeHandle)
@@ -4808,7 +5173,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piMemRetain, hip_piMemRetain)
   _PI_CL(piMemRelease, hip_piMemRelease)
   _PI_CL(piMemBufferPartition, hip_piMemBufferPartition)
-  //_PI_CL(piextMemGetNativeHandle, hip_piextMemGetNativeHandle)
+  _PI_CL(piextMemGetNativeHandle, hip_piextMemGetNativeHandle)
   _PI_CL(piextMemCreateWithNativeHandle, hip_piextMemCreateWithNativeHandle)
   // Program
   _PI_CL(piProgramCreate, hip_piProgramCreate)
@@ -4817,6 +5182,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piProgramGetInfo, hip_piProgramGetInfo)
   _PI_CL(piProgramCompile, hip_piProgramCompile)
   _PI_CL(piProgramBuild, hip_piProgramBuild)
+  _PI_CL(piProgramLink, hip_piProgramLink)
   _PI_CL(piProgramGetBuildInfo, hip_piProgramGetBuildInfo)
   _PI_CL(piProgramRetain, hip_piProgramRetain)
   _PI_CL(piProgramRelease, hip_piProgramRelease)
@@ -4832,6 +5198,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piKernelRetain, hip_piKernelRetain)
   _PI_CL(piKernelRelease, hip_piKernelRelease)
   _PI_CL(piKernelSetExecInfo, hip_piKernelSetExecInfo)
+  _PI_CL(piextProgramSetSpecializationConstant,
+         hip_piextProgramSetSpecializationConstant)
   _PI_CL(piextKernelSetArgPointer, hip_piextKernelSetArgPointer)
   // Event
   _PI_CL(piEventCreate, hip_piEventCreate)
@@ -4853,6 +5221,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piEnqueueKernelLaunch, hip_piEnqueueKernelLaunch)
   _PI_CL(piEnqueueNativeKernel, hip_piEnqueueNativeKernel)
   _PI_CL(piEnqueueEventsWait, hip_piEnqueueEventsWait)
+  _PI_CL(piEnqueueEventsWaitWithBarrier, hip_piEnqueueEventsWaitWithBarrier)
   _PI_CL(piEnqueueMemBufferRead, hip_piEnqueueMemBufferRead)
   _PI_CL(piEnqueueMemBufferReadRect, hip_piEnqueueMemBufferReadRect)
   _PI_CL(piEnqueueMemBufferWrite, hip_piEnqueueMemBufferWrite)
@@ -4879,6 +5248,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
   _PI_CL(piextKernelSetArgMemObj, hip_piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, hip_piextKernelSetArgSampler)
+  _PI_CL(piPluginGetLastError, hip_piPluginGetLastError)
   _PI_CL(piTearDown, hip_piTearDown)
 
 #undef _PI_CL

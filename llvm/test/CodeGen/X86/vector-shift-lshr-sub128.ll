@@ -161,33 +161,31 @@ define <4 x i16> @var_shift_v4i16(<4 x i16> %a, <4 x i16> %b) nounwind {
 ;
 ; SSE41-LABEL: var_shift_v4i16:
 ; SSE41:       # %bb.0:
-; SSE41-NEXT:    movdqa %xmm1, %xmm2
-; SSE41-NEXT:    movdqa %xmm0, %xmm1
-; SSE41-NEXT:    movdqa %xmm2, %xmm0
-; SSE41-NEXT:    psllw $12, %xmm0
-; SSE41-NEXT:    psllw $4, %xmm2
-; SSE41-NEXT:    por %xmm0, %xmm2
-; SSE41-NEXT:    movdqa %xmm2, %xmm3
-; SSE41-NEXT:    paddw %xmm2, %xmm3
-; SSE41-NEXT:    movdqa %xmm1, %xmm4
-; SSE41-NEXT:    psrlw $8, %xmm4
-; SSE41-NEXT:    movdqa %xmm2, %xmm0
-; SSE41-NEXT:    pblendvb %xmm0, %xmm4, %xmm1
-; SSE41-NEXT:    movdqa %xmm1, %xmm2
-; SSE41-NEXT:    psrlw $4, %xmm2
-; SSE41-NEXT:    movdqa %xmm3, %xmm0
-; SSE41-NEXT:    pblendvb %xmm0, %xmm2, %xmm1
-; SSE41-NEXT:    movdqa %xmm1, %xmm2
-; SSE41-NEXT:    psrlw $2, %xmm2
-; SSE41-NEXT:    paddw %xmm3, %xmm3
-; SSE41-NEXT:    movdqa %xmm3, %xmm0
-; SSE41-NEXT:    pblendvb %xmm0, %xmm2, %xmm1
-; SSE41-NEXT:    movdqa %xmm1, %xmm2
-; SSE41-NEXT:    psrlw $1, %xmm2
-; SSE41-NEXT:    paddw %xmm3, %xmm3
-; SSE41-NEXT:    movdqa %xmm3, %xmm0
-; SSE41-NEXT:    pblendvb %xmm0, %xmm2, %xmm1
+; SSE41-NEXT:    movdqa %xmm0, %xmm2
 ; SSE41-NEXT:    movdqa %xmm1, %xmm0
+; SSE41-NEXT:    psllw $12, %xmm0
+; SSE41-NEXT:    psllw $4, %xmm1
+; SSE41-NEXT:    por %xmm1, %xmm0
+; SSE41-NEXT:    movdqa %xmm0, %xmm1
+; SSE41-NEXT:    paddw %xmm0, %xmm1
+; SSE41-NEXT:    movdqa %xmm2, %xmm3
+; SSE41-NEXT:    psrlw $8, %xmm3
+; SSE41-NEXT:    pblendvb %xmm0, %xmm3, %xmm2
+; SSE41-NEXT:    movdqa %xmm2, %xmm3
+; SSE41-NEXT:    psrlw $4, %xmm3
+; SSE41-NEXT:    movdqa %xmm1, %xmm0
+; SSE41-NEXT:    pblendvb %xmm0, %xmm3, %xmm2
+; SSE41-NEXT:    movdqa %xmm2, %xmm3
+; SSE41-NEXT:    psrlw $2, %xmm3
+; SSE41-NEXT:    paddw %xmm1, %xmm1
+; SSE41-NEXT:    movdqa %xmm1, %xmm0
+; SSE41-NEXT:    pblendvb %xmm0, %xmm3, %xmm2
+; SSE41-NEXT:    movdqa %xmm2, %xmm3
+; SSE41-NEXT:    psrlw $1, %xmm3
+; SSE41-NEXT:    paddw %xmm1, %xmm1
+; SSE41-NEXT:    movdqa %xmm1, %xmm0
+; SSE41-NEXT:    pblendvb %xmm0, %xmm3, %xmm2
+; SSE41-NEXT:    movdqa %xmm2, %xmm0
 ; SSE41-NEXT:    retq
 ;
 ; AVX1-LABEL: var_shift_v4i16:
@@ -334,33 +332,31 @@ define <2 x i16> @var_shift_v2i16(<2 x i16> %a, <2 x i16> %b) nounwind {
 ;
 ; SSE41-LABEL: var_shift_v2i16:
 ; SSE41:       # %bb.0:
-; SSE41-NEXT:    movdqa %xmm1, %xmm2
-; SSE41-NEXT:    movdqa %xmm0, %xmm1
-; SSE41-NEXT:    movdqa %xmm2, %xmm0
-; SSE41-NEXT:    psllw $12, %xmm0
-; SSE41-NEXT:    psllw $4, %xmm2
-; SSE41-NEXT:    por %xmm0, %xmm2
-; SSE41-NEXT:    movdqa %xmm2, %xmm3
-; SSE41-NEXT:    paddw %xmm2, %xmm3
-; SSE41-NEXT:    movdqa %xmm1, %xmm4
-; SSE41-NEXT:    psrlw $8, %xmm4
-; SSE41-NEXT:    movdqa %xmm2, %xmm0
-; SSE41-NEXT:    pblendvb %xmm0, %xmm4, %xmm1
-; SSE41-NEXT:    movdqa %xmm1, %xmm2
-; SSE41-NEXT:    psrlw $4, %xmm2
-; SSE41-NEXT:    movdqa %xmm3, %xmm0
-; SSE41-NEXT:    pblendvb %xmm0, %xmm2, %xmm1
-; SSE41-NEXT:    movdqa %xmm1, %xmm2
-; SSE41-NEXT:    psrlw $2, %xmm2
-; SSE41-NEXT:    paddw %xmm3, %xmm3
-; SSE41-NEXT:    movdqa %xmm3, %xmm0
-; SSE41-NEXT:    pblendvb %xmm0, %xmm2, %xmm1
-; SSE41-NEXT:    movdqa %xmm1, %xmm2
-; SSE41-NEXT:    psrlw $1, %xmm2
-; SSE41-NEXT:    paddw %xmm3, %xmm3
-; SSE41-NEXT:    movdqa %xmm3, %xmm0
-; SSE41-NEXT:    pblendvb %xmm0, %xmm2, %xmm1
+; SSE41-NEXT:    movdqa %xmm0, %xmm2
 ; SSE41-NEXT:    movdqa %xmm1, %xmm0
+; SSE41-NEXT:    psllw $12, %xmm0
+; SSE41-NEXT:    psllw $4, %xmm1
+; SSE41-NEXT:    por %xmm1, %xmm0
+; SSE41-NEXT:    movdqa %xmm0, %xmm1
+; SSE41-NEXT:    paddw %xmm0, %xmm1
+; SSE41-NEXT:    movdqa %xmm2, %xmm3
+; SSE41-NEXT:    psrlw $8, %xmm3
+; SSE41-NEXT:    pblendvb %xmm0, %xmm3, %xmm2
+; SSE41-NEXT:    movdqa %xmm2, %xmm3
+; SSE41-NEXT:    psrlw $4, %xmm3
+; SSE41-NEXT:    movdqa %xmm1, %xmm0
+; SSE41-NEXT:    pblendvb %xmm0, %xmm3, %xmm2
+; SSE41-NEXT:    movdqa %xmm2, %xmm3
+; SSE41-NEXT:    psrlw $2, %xmm3
+; SSE41-NEXT:    paddw %xmm1, %xmm1
+; SSE41-NEXT:    movdqa %xmm1, %xmm0
+; SSE41-NEXT:    pblendvb %xmm0, %xmm3, %xmm2
+; SSE41-NEXT:    movdqa %xmm2, %xmm3
+; SSE41-NEXT:    psrlw $1, %xmm3
+; SSE41-NEXT:    paddw %xmm1, %xmm1
+; SSE41-NEXT:    movdqa %xmm1, %xmm0
+; SSE41-NEXT:    pblendvb %xmm0, %xmm3, %xmm2
+; SSE41-NEXT:    movdqa %xmm2, %xmm0
 ; SSE41-NEXT:    retq
 ;
 ; AVX1-LABEL: var_shift_v2i16:
@@ -1487,11 +1483,9 @@ define <4 x i16> @constant_shift_v4i16(<4 x i16> %a) nounwind {
 ; SSE2-LABEL: constant_shift_v4i16:
 ; SSE2:       # %bb.0:
 ; SSE2-NEXT:    movdqa {{.*#+}} xmm1 = [0,65535,65535,65535,65535,65535,65535,65535]
-; SSE2-NEXT:    movdqa %xmm1, %xmm2
-; SSE2-NEXT:    pandn %xmm0, %xmm2
+; SSE2-NEXT:    pandn %xmm0, %xmm1
 ; SSE2-NEXT:    pmulhuw {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
-; SSE2-NEXT:    pand %xmm1, %xmm0
-; SSE2-NEXT:    por %xmm2, %xmm0
+; SSE2-NEXT:    por %xmm1, %xmm0
 ; SSE2-NEXT:    retq
 ;
 ; SSE41-LABEL: constant_shift_v4i16:
@@ -1541,11 +1535,9 @@ define <4 x i16> @constant_shift_v4i16(<4 x i16> %a) nounwind {
 ; X86-SSE-LABEL: constant_shift_v4i16:
 ; X86-SSE:       # %bb.0:
 ; X86-SSE-NEXT:    movdqa {{.*#+}} xmm1 = [0,65535,65535,65535,65535,65535,65535,65535]
-; X86-SSE-NEXT:    movdqa %xmm1, %xmm2
-; X86-SSE-NEXT:    pandn %xmm0, %xmm2
+; X86-SSE-NEXT:    pandn %xmm0, %xmm1
 ; X86-SSE-NEXT:    pmulhuw {{\.?LCPI[0-9]+_[0-9]+}}, %xmm0
-; X86-SSE-NEXT:    pand %xmm1, %xmm0
-; X86-SSE-NEXT:    por %xmm2, %xmm0
+; X86-SSE-NEXT:    por %xmm1, %xmm0
 ; X86-SSE-NEXT:    retl
   %shift = lshr <4 x i16> %a, <i16 0, i16 1, i16 2, i16 3>
   ret <4 x i16> %shift

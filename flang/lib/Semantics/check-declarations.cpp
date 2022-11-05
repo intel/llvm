@@ -34,7 +34,6 @@ using characteristics::Procedure;
 class CheckHelper {
 public:
   explicit CheckHelper(SemanticsContext &c) : context_{c} {}
-  CheckHelper(SemanticsContext &c, const Scope &s) : context_{c}, scope_{&s} {}
 
   SemanticsContext &context() { return context_; }
   void Check() { Check(context_.globalScope()); }
@@ -47,6 +46,7 @@ public:
   void Check(const ArraySpec &);
   void Check(const DeclTypeSpec &, bool canHaveAssumedTypeParameters);
   void Check(const Symbol &);
+  void CheckCommonBlock(const Symbol &);
   void Check(const Scope &);
   const Procedure *Characterize(const Symbol &);
 
@@ -91,10 +91,16 @@ private:
     return innermostSymbol_ && IsPureProcedure(*innermostSymbol_);
   }
   bool InElemental() const {
-    return innermostSymbol_ && innermostSymbol_->attrs().test(Attr::ELEMENTAL);
+    return innermostSymbol_ && IsElementalProcedure(*innermostSymbol_);
   }
   bool InFunction() const {
     return innermostSymbol_ && IsFunction(*innermostSymbol_);
+  }
+  bool InInterface() const {
+    const SubprogramDetails *subp{innermostSymbol_
+            ? innermostSymbol_->detailsIf<SubprogramDetails>()
+            : nullptr};
+    return subp && subp->isInterface();
   }
   template <typename... A>
   void SayWithDeclaration(const Symbol &symbol, A &&...x) {
@@ -105,17 +111,19 @@ private:
     }
   }
   bool IsResultOkToDiffer(const FunctionResult &);
-  void CheckBindCName(const Symbol &);
+  void CheckBindC(const Symbol &);
   // Check functions for defined I/O procedures
   void CheckDefinedIoProc(
       const Symbol &, const GenericDetails &, GenericKind::DefinedIo);
   bool CheckDioDummyIsData(const Symbol &, const Symbol *, std::size_t);
-  void CheckDioDummyIsDerived(
-      const Symbol &, const Symbol &, GenericKind::DefinedIo ioKind);
+  void CheckDioDummyIsDerived(const Symbol &, const Symbol &,
+      GenericKind::DefinedIo ioKind, const Symbol &);
   void CheckDioDummyIsDefaultInteger(const Symbol &, const Symbol &);
   void CheckDioDummyIsScalar(const Symbol &, const Symbol &);
   void CheckDioDummyAttrs(const Symbol &, const Symbol &, Attr);
-  void CheckDioDtvArg(const Symbol &, const Symbol *, GenericKind::DefinedIo);
+  void CheckDioDtvArg(
+      const Symbol &, const Symbol *, GenericKind::DefinedIo, const Symbol &);
+  void CheckGenericVsIntrinsic(const Symbol &, const GenericDetails &);
   void CheckDefaultIntegerArg(const Symbol &, const Symbol *, Attr);
   void CheckDioAssumedLenCharacterArg(
       const Symbol &, const Symbol *, std::size_t, Attr);
@@ -123,12 +131,13 @@ private:
   void CheckDioArgCount(
       const Symbol &, GenericKind::DefinedIo ioKind, std::size_t);
   struct TypeWithDefinedIo {
-    const DerivedTypeSpec *type;
+    const DerivedTypeSpec &type;
     GenericKind::DefinedIo ioKind;
     const Symbol &proc;
+    const Symbol &generic;
   };
-  void CheckAlreadySeenDefinedIo(
-      const DerivedTypeSpec *, GenericKind::DefinedIo, const Symbol &);
+  void CheckAlreadySeenDefinedIo(const DerivedTypeSpec &,
+      GenericKind::DefinedIo, const Symbol &, const Symbol &generic);
 
   SemanticsContext &context_;
   evaluate::FoldingContext &foldingContext_{context_.foldingContext()};
@@ -198,6 +207,14 @@ void CheckHelper::Check(
 }
 
 void CheckHelper::Check(const Symbol &symbol) {
+  if (symbol.name().size() > common::maxNameLen &&
+      &symbol == &symbol.GetUltimate() &&
+      !FindModuleFileContaining(symbol.owner())) {
+    messages_.Say(symbol.name(),
+        "%s has length %d, which is greater than the maximum name length "
+        "%d"_port_en_US,
+        symbol.name(), symbol.name().size(), common::maxNameLen);
+  }
   if (context_.HasError(symbol)) {
     return;
   }
@@ -206,7 +223,7 @@ void CheckHelper::Check(const Symbol &symbol) {
   const DeclTypeSpec *type{symbol.GetType()};
   const DerivedTypeSpec *derived{type ? type->AsDerived() : nullptr};
   bool isDone{false};
-  std::visit(
+  common::visit(
       common::visitors{
           [&](const UseDetails &x) { isDone = true; },
           [&](const HostAssocDetails &x) {
@@ -228,7 +245,7 @@ void CheckHelper::Check(const Symbol &symbol) {
   if (symbol.attrs().test(Attr::VOLATILE)) {
     CheckVolatile(symbol, derived);
   }
-  CheckBindCName(symbol);
+  CheckBindC(symbol);
   if (isDone) {
     return; // following checks do not apply
   }
@@ -236,30 +253,43 @@ void CheckHelper::Check(const Symbol &symbol) {
     CheckPointer(symbol);
   }
   if (InPure()) {
-    if (IsSaved(symbol)) {
-      messages_.Say(
-          "A pure subprogram may not have a variable with the SAVE attribute"_err_en_US);
+    if (InInterface()) {
+      // Declarations in interface definitions "have no effect" if they
+      // are not pertinent to the characteristics of the procedure.
+      // Restrictions on entities in pure procedure interfaces don't need
+      // enforcement.
+    } else {
+      if (IsSaved(symbol)) {
+        if (IsInitialized(symbol)) {
+          messages_.Say(
+              "A pure subprogram may not initialize a variable"_err_en_US);
+        } else {
+          messages_.Say(
+              "A pure subprogram may not have a variable with the SAVE attribute"_err_en_US);
+        }
+      }
+      if (!IsDummy(symbol) && !IsFunctionResult(symbol)) {
+        if (IsPolymorphicAllocatable(symbol)) {
+          SayWithDeclaration(symbol,
+              "Deallocation of polymorphic object '%s' is not permitted in a pure subprogram"_err_en_US,
+              symbol.name());
+        } else if (derived) {
+          if (auto bad{FindPolymorphicAllocatableUltimateComponent(*derived)}) {
+            SayWithDeclaration(*bad,
+                "Deallocation of polymorphic object '%s%s' is not permitted in a pure subprogram"_err_en_US,
+                symbol.name(), bad.BuildResultDesignatorName());
+          }
+        }
+      }
     }
-    if (symbol.attrs().test(Attr::VOLATILE)) {
+    if (symbol.attrs().test(Attr::VOLATILE) &&
+        (IsDummy(symbol) || !InInterface())) {
       messages_.Say(
           "A pure subprogram may not have a variable with the VOLATILE attribute"_err_en_US);
     }
     if (IsProcedure(symbol) && !IsPureProcedure(symbol) && IsDummy(symbol)) {
       messages_.Say(
           "A dummy procedure of a pure subprogram must be pure"_err_en_US);
-    }
-    if (!IsDummy(symbol) && !IsFunctionResult(symbol)) {
-      if (IsPolymorphicAllocatable(symbol)) {
-        SayWithDeclaration(symbol,
-            "Deallocation of polymorphic object '%s' is not permitted in a pure subprogram"_err_en_US,
-            symbol.name());
-      } else if (derived) {
-        if (auto bad{FindPolymorphicAllocatableUltimateComponent(*derived)}) {
-          SayWithDeclaration(*bad,
-              "Deallocation of polymorphic object '%s%s' is not permitted in a pure subprogram"_err_en_US,
-              symbol.name(), bad.BuildResultDesignatorName());
-        }
-      }
     }
   }
   if (type) { // Section 7.2, paragraph 7
@@ -277,7 +307,11 @@ void CheckHelper::Check(const Symbol &symbol) {
         canHaveAssumedParameter |= symbol.has<AssocEntityDetails>();
       }
     }
-    Check(*type, canHaveAssumedParameter);
+    if (IsProcedurePointer(symbol) && symbol.HasExplicitInterface()) {
+      // Don't check function result types here
+    } else {
+      Check(*type, canHaveAssumedParameter);
+    }
     if (InPure() && InFunction() && IsFunctionResult(symbol)) {
       if (derived && HasImpureFinal(*derived)) { // C1584
         messages_.Say(
@@ -305,13 +339,12 @@ void CheckHelper::Check(const Symbol &symbol) {
       messages_.Say(
           "An assumed-length CHARACTER(*) function cannot return an array"_err_en_US);
     }
-    if (symbol.attrs().test(Attr::PURE)) {
-      messages_.Say(
-          "An assumed-length CHARACTER(*) function cannot be PURE"_err_en_US);
-    }
-    if (symbol.attrs().test(Attr::ELEMENTAL)) {
+    if (IsElementalProcedure(symbol)) {
       messages_.Say(
           "An assumed-length CHARACTER(*) function cannot be ELEMENTAL"_err_en_US);
+    } else if (IsPureProcedure(symbol)) {
+      messages_.Say(
+          "An assumed-length CHARACTER(*) function cannot be PURE"_err_en_US);
     }
     if (const Symbol * result{FindFunctionResult(symbol)}) {
       if (IsPointer(*result)) {
@@ -338,6 +371,10 @@ void CheckHelper::Check(const Symbol &symbol) {
           "A dummy argument may not have the SAVE attribute"_err_en_US);
     }
   } else if (IsFunctionResult(symbol)) {
+    if (IsNamedConstant(symbol)) {
+      messages_.Say(
+          "A function result may not also be a named constant"_err_en_US);
+    }
     if (!symbol.test(Symbol::Flag::InDataStmt) /*caught elsewhere*/ &&
         IsSaved(symbol)) {
       messages_.Say(
@@ -358,6 +395,8 @@ void CheckHelper::Check(const Symbol &symbol) {
   }
 }
 
+void CheckHelper::CheckCommonBlock(const Symbol &symbol) { CheckBindC(symbol); }
+
 void CheckHelper::CheckValue(
     const Symbol &symbol, const DerivedTypeSpec *derived) { // C863 - C865
   if (!IsDummy(symbol)) {
@@ -372,7 +411,7 @@ void CheckHelper::CheckValue(
     messages_.Say(
         "VALUE attribute may not apply to an assumed-size array"_err_en_US);
   }
-  if (IsCoarray(symbol)) {
+  if (evaluate::IsCoarray(symbol)) {
     messages_.Say("VALUE attribute may not apply to a coarray"_err_en_US);
   }
   if (IsAllocatable(symbol)) {
@@ -390,10 +429,15 @@ void CheckHelper::CheckValue(
   if (symbol.attrs().test(Attr::VOLATILE)) {
     messages_.Say("VALUE attribute may not apply to a VOLATILE"_err_en_US);
   }
-  if (innermostSymbol_ && IsBindCProcedure(*innermostSymbol_) &&
-      IsOptional(symbol)) {
-    messages_.Say(
-        "VALUE attribute may not apply to an OPTIONAL in a BIND(C) procedure"_err_en_US);
+  if (innermostSymbol_ && IsBindCProcedure(*innermostSymbol_)) {
+    if (IsOptional(symbol)) {
+      messages_.Say(
+          "VALUE attribute may not apply to an OPTIONAL in a BIND(C) procedure"_err_en_US);
+    }
+    if (symbol.Rank() > 0) {
+      messages_.Say(
+          "VALUE attribute may not apply to an array in a BIND(C) procedure"_err_en_US);
+    }
   }
   if (derived) {
     if (FindCoarrayUltimateComponent(*derived)) {
@@ -432,7 +476,7 @@ void CheckHelper::CheckAssumedTypeEntity( // C709
             "Assumed-type argument '%s' cannot be INTENT(OUT)"_err_en_US,
             symbol.name());
       }
-      if (IsCoarray(symbol)) {
+      if (evaluate::IsCoarray(symbol)) {
         messages_.Say(
             "Assumed-type argument '%s' cannot be a coarray"_err_en_US,
             symbol.name());
@@ -449,13 +493,33 @@ void CheckHelper::CheckAssumedTypeEntity( // C709
 
 void CheckHelper::CheckObjectEntity(
     const Symbol &symbol, const ObjectEntityDetails &details) {
+  if (!IsAllocatableOrPointer(symbol)) { // C702
+    if (auto dyType{evaluate::DynamicType::From(symbol)}) {
+      if (dyType->HasDeferredTypeParameter()) {
+        messages_.Say(
+            "'%s' has a type %s with a deferred type parameter but is neither an allocatable or a pointer"_err_en_US,
+            symbol.name(), dyType->AsFortran());
+      }
+    }
+  }
   CheckArraySpec(symbol, details.shape());
   Check(details.shape());
   Check(details.coshape());
+  if (details.shape().Rank() > common::maxRank) {
+    messages_.Say(
+        "'%s' has rank %d, which is greater than the maximum supported rank %d"_err_en_US,
+        symbol.name(), details.shape().Rank(), common::maxRank);
+  } else if (details.shape().Rank() + details.coshape().Rank() >
+      common::maxRank) {
+    messages_.Say(
+        "'%s' has rank %d and corank %d, whose sum is greater than the maximum supported rank %d"_err_en_US,
+        symbol.name(), details.shape().Rank(), details.coshape().Rank(),
+        common::maxRank);
+  }
   CheckAssumedTypeEntity(symbol, details);
   WarnMissingFinal(symbol);
   if (!details.coshape().empty()) {
-    bool isDeferredCoshape{details.coshape().IsDeferredShape()};
+    bool isDeferredCoshape{details.coshape().CanBeDeferredShape()};
     if (IsAllocatable(symbol)) {
       if (!isDeferredCoshape) { // C827
         messages_.Say("'%s' is an ALLOCATABLE coarray and must have a deferred"
@@ -469,7 +533,7 @@ void CheckHelper::CheckObjectEntity(
                     " attribute%s"_err_en_US,
           symbol.name(), deferredMsg);
     } else {
-      if (!details.coshape().IsAssumedSize()) { // C828
+      if (!details.coshape().CanBeAssumedSize()) { // C828
         messages_.Say(
             "'%s' is a non-ALLOCATABLE coarray and must have an explicit coshape"_err_en_US,
             symbol.name());
@@ -486,7 +550,7 @@ void CheckHelper::CheckObjectEntity(
   if (details.isDummy()) {
     if (symbol.attrs().test(Attr::INTENT_OUT)) {
       if (FindUltimateComponent(symbol, [](const Symbol &x) {
-            return IsCoarray(x) && IsAllocatable(x);
+            return evaluate::IsCoarray(x) && IsAllocatable(x);
           })) { // C846
         messages_.Say(
             "An INTENT(OUT) dummy argument may not be, or contain, an ALLOCATABLE coarray"_err_en_US);
@@ -545,7 +609,7 @@ void CheckHelper::CheckObjectEntity(
         messages_.Say(
             "A dummy argument of an ELEMENTAL procedure may not be ALLOCATABLE"_err_en_US);
       }
-      if (IsCoarray(symbol)) {
+      if (evaluate::IsCoarray(symbol)) {
         messages_.Say(
             "A dummy argument of an ELEMENTAL procedure may not be a coarray"_err_en_US);
       }
@@ -582,9 +646,10 @@ void CheckHelper::CheckObjectEntity(
       messages_.Say("A dummy argument must not be initialized"_err_en_US);
     } else if (IsFunctionResult(symbol)) {
       messages_.Say("A function result must not be initialized"_err_en_US);
-    } else if (IsInBlankCommon(symbol)) {
+    } else if (IsInBlankCommon(symbol) &&
+        !FindModuleFileContaining(symbol.owner())) {
       messages_.Say(
-          "A variable in blank COMMON should not be initialized"_en_US);
+          "A variable in blank COMMON should not be initialized"_port_en_US);
     }
   }
   if (symbol.owner().kind() == Scope::Kind::BlockData) {
@@ -615,7 +680,8 @@ void CheckHelper::CheckPointerInitialization(const Symbol &symbol) {
         if (auto designator{evaluate::AsGenericExpr(symbol)}) {
           auto restorer{messages_.SetLocation(symbol.name())};
           context_.set_location(symbol.name());
-          CheckInitialTarget(foldingContext_, *designator, *object->init());
+          CheckInitialTarget(
+              foldingContext_, *designator, *object->init(), DEREF(scope_));
         }
       }
     } else if (const auto *proc{symbol.detailsIf<ProcEntityDetails>()}) {
@@ -624,10 +690,14 @@ void CheckHelper::CheckPointerInitialization(const Symbol &symbol) {
         // or an unrestricted specific intrinsic function.
         const Symbol &ultimate{(*proc->init())->GetUltimate()};
         if (ultimate.attrs().test(Attr::INTRINSIC)) {
-          if (!context_.intrinsics().IsSpecificIntrinsicFunction(
-                  ultimate.name().ToString())) { // C1030
+          if (const auto intrinsic{
+                  context_.intrinsics().IsSpecificIntrinsicFunction(
+                      ultimate.name().ToString())};
+              !intrinsic || intrinsic->isRestrictedSpecific) { // C1030
             context_.Say(
-                "Intrinsic procedure '%s' is not a specific intrinsic permitted for use as the initializer for procedure pointer '%s'"_err_en_US,
+                "Intrinsic procedure '%s' is not an unrestricted specific "
+                "intrinsic permitted for use as the initializer for procedure "
+                "pointer '%s'"_err_en_US,
                 ultimate.name(), symbol.name());
           }
         } else if (!ultimate.attrs().test(Attr::EXTERNAL) &&
@@ -635,7 +705,7 @@ void CheckHelper::CheckPointerInitialization(const Symbol &symbol) {
           context_.Say("Procedure pointer '%s' initializer '%s' is neither "
                        "an external nor a module procedure"_err_en_US,
               symbol.name(), ultimate.name());
-        } else if (ultimate.attrs().test(Attr::ELEMENTAL)) {
+        } else if (IsElementalProcedure(ultimate)) {
           context_.Say("Procedure pointer '%s' cannot be initialized with the "
                        "elemental procedure '%s"_err_en_US,
               symbol.name(), ultimate.name());
@@ -666,16 +736,18 @@ void CheckHelper::CheckArraySpec(
     return;
   }
   bool isExplicit{arraySpec.IsExplicitShape()};
-  bool isDeferred{arraySpec.IsDeferredShape()};
-  bool isImplied{arraySpec.IsImpliedShape()};
-  bool isAssumedShape{arraySpec.IsAssumedShape()};
-  bool isAssumedSize{arraySpec.IsAssumedSize()};
+  bool canBeDeferred{arraySpec.CanBeDeferredShape()};
+  bool canBeImplied{arraySpec.CanBeImpliedShape()};
+  bool canBeAssumedShape{arraySpec.CanBeAssumedShape()};
+  bool canBeAssumedSize{arraySpec.CanBeAssumedSize()};
   bool isAssumedRank{arraySpec.IsAssumedRank()};
   std::optional<parser::MessageFixedText> msg;
-  if (symbol.test(Symbol::Flag::CrayPointee) && !isExplicit && !isAssumedSize) {
+  if (symbol.test(Symbol::Flag::CrayPointee) && !isExplicit &&
+      !canBeAssumedSize) {
     msg = "Cray pointee '%s' must have must have explicit shape or"
           " assumed size"_err_en_US;
-  } else if (IsAllocatableOrPointer(symbol) && !isDeferred && !isAssumedRank) {
+  } else if (IsAllocatableOrPointer(symbol) && !canBeDeferred &&
+      !isAssumedRank) {
     if (symbol.owner().IsDerivedType()) { // C745
       if (IsAllocatable(symbol)) {
         msg = "Allocatable array component '%s' must have"
@@ -693,22 +765,22 @@ void CheckHelper::CheckArraySpec(
       }
     }
   } else if (IsDummy(symbol)) {
-    if (isImplied && !isAssumedSize) { // C836
+    if (canBeImplied && !canBeAssumedSize) { // C836
       msg = "Dummy array argument '%s' may not have implied shape"_err_en_US;
     }
-  } else if (isAssumedShape && !isDeferred) {
+  } else if (canBeAssumedShape && !canBeDeferred) {
     msg = "Assumed-shape array '%s' must be a dummy argument"_err_en_US;
-  } else if (isAssumedSize && !isImplied) { // C833
+  } else if (canBeAssumedSize && !canBeImplied) { // C833
     msg = "Assumed-size array '%s' must be a dummy argument"_err_en_US;
   } else if (isAssumedRank) { // C837
     msg = "Assumed-rank array '%s' must be a dummy argument"_err_en_US;
-  } else if (isImplied) {
+  } else if (canBeImplied) {
     if (!IsNamedConstant(symbol)) { // C835, C836
       msg = "Implied-shape array '%s' must be a named constant or a "
             "dummy argument"_err_en_US;
     }
   } else if (IsNamedConstant(symbol)) {
-    if (!isExplicit && !isImplied) {
+    if (!isExplicit && !canBeImplied) {
       msg = "Named constant '%s' array must have constant or"
             " implied shape"_err_en_US;
     }
@@ -742,9 +814,9 @@ void CheckHelper::CheckProcEntity(
     }
     const Symbol *interface { details.interface().symbol() };
     if (!symbol.attrs().test(Attr::INTRINSIC) &&
-        (symbol.attrs().test(Attr::ELEMENTAL) ||
+        (IsElementalProcedure(symbol) ||
             (interface && !interface->attrs().test(Attr::INTRINSIC) &&
-                interface->attrs().test(Attr::ELEMENTAL)))) {
+                IsElementalProcedure(*interface)))) {
       // There's no explicit constraint or "shall" that we can find in the
       // standard for this check, but it seems to be implied in multiple
       // sites, and ELEMENTAL non-intrinsic actual arguments *are*
@@ -773,14 +845,19 @@ void CheckHelper::CheckProcEntity(
   if (symbol.attrs().test(Attr::POINTER)) {
     CheckPointerInitialization(symbol);
     if (const Symbol * interface{details.interface().symbol()}) {
-      if (interface->attrs().test(Attr::INTRINSIC)) {
-        if (!context_.intrinsics().IsSpecificIntrinsicFunction(
-                interface->name().ToString())) { // C1515
+      const Symbol &ultimate{interface->GetUltimate()};
+      if (ultimate.attrs().test(Attr::INTRINSIC)) {
+        if (const auto intrinsic{
+                context_.intrinsics().IsSpecificIntrinsicFunction(
+                    ultimate.name().ToString())};
+            !intrinsic || intrinsic->isRestrictedSpecific) { // C1515
           messages_.Say(
-              "Intrinsic procedure '%s' is not a specific intrinsic permitted for use as the definition of the interface to procedure pointer '%s'"_err_en_US,
-              interface->name(), symbol.name());
+              "Intrinsic procedure '%s' is not an unrestricted specific "
+              "intrinsic permitted for use as the definition of the interface "
+              "to procedure pointer '%s'"_err_en_US,
+              ultimate.name(), symbol.name());
         }
-      } else if (interface->attrs().test(Attr::ELEMENTAL)) {
+      } else if (IsElementalProcedure(*interface)) {
         messages_.Say("Procedure pointer '%s' may not be ELEMENTAL"_err_en_US,
             symbol.name()); // C1517
       }
@@ -865,14 +942,9 @@ void CheckHelper::CheckSubprogram(
     if (subprogram) {
       subprogramDetails = subprogram->detailsIf<SubprogramDetails>();
     }
-    if (entryScope->kind() != Scope::Kind::Subprogram) {
-      error = "ENTRY may appear only in a subroutine or function"_err_en_US;
-    } else if (!(entryScope->parent().IsGlobal() ||
-                   entryScope->parent().IsModule() ||
-                   entryScope->parent().IsSubmodule())) {
+    if (!(entryScope->parent().IsGlobal() || entryScope->parent().IsModule() ||
+            entryScope->parent().IsSubmodule())) {
       error = "ENTRY may not appear in an internal subprogram"_err_en_US;
-    } else if (FindSeparateModuleSubprogramInterface(subprogram)) {
-      error = "ENTRY may not appear in a separate module procedure"_err_en_US;
     } else if (subprogramDetails && details.isFunction() &&
         subprogramDetails->isFunction() &&
         !context_.HasError(details.result()) &&
@@ -895,7 +967,7 @@ void CheckHelper::CheckSubprogram(
       }
     }
   }
-  if (symbol.attrs().test(Attr::ELEMENTAL)) {
+  if (IsElementalProcedure(symbol)) {
     // See comment on the similar check in CheckProcEntity()
     if (details.isDummy()) {
       messages_.Say("A dummy procedure may not be ELEMENTAL"_err_en_US);
@@ -907,6 +979,11 @@ void CheckHelper::CheckSubprogram(
         }
       }
     }
+  }
+  if (details.isInterface() && !details.isDummy() && details.isFunction() &&
+      IsAssumedLengthCharacter(details.result())) { // C721
+    messages_.Say(details.result().name(),
+        "A function interface may not declare an assumed-length CHARACTER(*) result"_err_en_US);
   }
 }
 
@@ -1097,7 +1174,8 @@ bool CheckHelper::CheckDistinguishableFinals(const Symbol &f1,
   const Procedure *p1{Characterize(f1)};
   const Procedure *p2{Characterize(f2)};
   if (p1 && p2) {
-    if (characteristics::Distinguishable(*p1, *p2)) {
+    if (characteristics::Distinguishable(
+            context_.languageFeatures(), *p1, *p2)) {
       return true;
     }
     if (auto *msg{messages_.Say(f1Name,
@@ -1129,12 +1207,17 @@ void CheckHelper::CheckHostAssoc(
 void CheckHelper::CheckGeneric(
     const Symbol &symbol, const GenericDetails &details) {
   CheckSpecificsAreDistinguishable(symbol, details);
-  std::visit(common::visitors{
-                 [&](const GenericKind::DefinedIo &io) {
-                   CheckDefinedIoProc(symbol, details, io);
-                 },
-                 [](const auto &) {},
-             },
+  common::visit(common::visitors{
+                    [&](const GenericKind::DefinedIo &io) {
+                      CheckDefinedIoProc(symbol, details, io);
+                    },
+                    [&](const GenericKind::OtherKind &other) {
+                      if (other == GenericKind::OtherKind::Name) {
+                        CheckGenericVsIntrinsic(symbol, details);
+                      }
+                    },
+                    [](const auto &) {},
+                },
       details.kind().u);
 }
 
@@ -1142,15 +1225,22 @@ void CheckHelper::CheckGeneric(
 void CheckHelper::CheckSpecificsAreDistinguishable(
     const Symbol &generic, const GenericDetails &details) {
   GenericKind kind{details.kind()};
-  const SymbolVector &specifics{details.specificProcs()};
-  std::size_t count{specifics.size()};
-  if (count < 2 || !kind.IsName()) {
+  if (!kind.IsName()) {
     return;
   }
   DistinguishabilityHelper helper{context_};
-  for (const Symbol &specific : specifics) {
+  for (const Symbol &specific : details.specificProcs()) {
     if (const Procedure * procedure{Characterize(specific)}) {
-      helper.Add(generic, kind, specific, *procedure);
+      if (procedure->HasExplicitInterface()) {
+        helper.Add(generic, kind, specific, *procedure);
+      } else {
+        if (auto *msg{messages_.Say(specific.name(),
+                "Specific procedure '%s' of generic interface '%s' must have an explicit interface"_err_en_US,
+                specific.name(), generic.name())}) {
+          msg->Attach(
+              generic.name(), "Definition of '%s'"_en_US, generic.name());
+        }
+      }
     }
   }
   helper.Check(generic.owner());
@@ -1171,7 +1261,7 @@ static bool ConflictsWithIntrinsicOperator(
   auto arg0{std::get<DummyDataObject>(proc.dummyArguments[0].u).type};
   auto type0{arg0.type()};
   if (proc.dummyArguments.size() == 1) { // unary
-    return std::visit(
+    return common::visit(
         common::visitors{
             [&](common::NumericOperator) { return IsIntrinsicNumeric(type0); },
             [&](common::LogicalOperator) { return IsIntrinsicLogical(type0); },
@@ -1183,7 +1273,7 @@ static bool ConflictsWithIntrinsicOperator(
     auto arg1{std::get<DummyDataObject>(proc.dummyArguments[1].u).type};
     auto type1{arg1.type()};
     int rank1{arg1.Rank()};
-    return std::visit(
+    return common::visit(
         common::visitors{
             [&](common::NumericOperator) {
               return IsIntrinsicNumeric(type0, rank0, type1, rank1);
@@ -1222,6 +1312,12 @@ bool CheckHelper::CheckDefinedOperator(SourceName opName, GenericKind kind,
   } else if (!proc.functionResult.has_value()) {
     msg = "%s procedure '%s' must be a function"_err_en_US;
   } else if (proc.functionResult->IsAssumedLengthCharacter()) {
+    const auto *subpDetails{specific.detailsIf<SubprogramDetails>()};
+    if (subpDetails && !subpDetails->isDummy() && subpDetails->isInterface()) {
+      // Error is caught by more general test for interfaces with
+      // assumed-length character function results
+      return true;
+    }
     msg = "%s function '%s' may not have assumed-length CHARACTER(*)"
           " result"_err_en_US;
   } else if (auto m{CheckNumberOfArgs(kind, proc.dummyArguments.size())}) {
@@ -1247,27 +1343,27 @@ std::optional<parser::MessageFixedText> CheckHelper::CheckNumberOfArgs(
     return std::nullopt;
   }
   std::size_t min{2}, max{2}; // allowed number of args; default is binary
-  std::visit(common::visitors{
-                 [&](const common::NumericOperator &x) {
-                   if (x == common::NumericOperator::Add ||
-                       x == common::NumericOperator::Subtract) {
-                     min = 1; // + and - are unary or binary
-                   }
-                 },
-                 [&](const common::LogicalOperator &x) {
-                   if (x == common::LogicalOperator::Not) {
-                     min = 1; // .NOT. is unary
-                     max = 1;
-                   }
-                 },
-                 [](const common::RelationalOperator &) {
-                   // all are binary
-                 },
-                 [](const GenericKind::OtherKind &x) {
-                   CHECK(x == GenericKind::OtherKind::Concat);
-                 },
-                 [](const auto &) { DIE("expected intrinsic operator"); },
-             },
+  common::visit(common::visitors{
+                    [&](const common::NumericOperator &x) {
+                      if (x == common::NumericOperator::Add ||
+                          x == common::NumericOperator::Subtract) {
+                        min = 1; // + and - are unary or binary
+                      }
+                    },
+                    [&](const common::LogicalOperator &x) {
+                      if (x == common::LogicalOperator::Not) {
+                        min = 1; // .NOT. is unary
+                        max = 1;
+                      }
+                    },
+                    [](const common::RelationalOperator &) {
+                      // all are binary
+                    },
+                    [](const GenericKind::OtherKind &x) {
+                      CHECK(x == GenericKind::OtherKind::Concat);
+                    },
+                    [](const auto &) { DIE("expected intrinsic operator"); },
+                },
       kind.u);
   if (nargs >= min && nargs <= max) {
     return std::nullopt;
@@ -1322,14 +1418,18 @@ bool CheckHelper::CheckDefinedAssignment(
   } else if (proc.dummyArguments.size() != 2) {
     msg = "Defined assignment subroutine '%s' must have"
           " two dummy arguments"_err_en_US;
-  } else if (!CheckDefinedAssignmentArg(specific, proc.dummyArguments[0], 0) |
-      !CheckDefinedAssignmentArg(specific, proc.dummyArguments[1], 1)) {
-    return false; // error was reported
-  } else if (ConflictsWithIntrinsicAssignment(proc)) {
-    msg = "Defined assignment subroutine '%s' conflicts with"
-          " intrinsic assignment"_err_en_US;
   } else {
-    return true; // OK
+    // Check both arguments even if the first has an error.
+    bool ok0{CheckDefinedAssignmentArg(specific, proc.dummyArguments[0], 0)};
+    bool ok1{CheckDefinedAssignmentArg(specific, proc.dummyArguments[1], 1)};
+    if (!(ok0 && ok1)) {
+      return false; // error was reported
+    } else if (ConflictsWithIntrinsicAssignment(proc)) {
+      msg = "Defined assignment subroutine '%s' conflicts with"
+            " intrinsic assignment"_err_en_US;
+    } else {
+      return true; // OK
+    }
   }
   SayWithDeclaration(specific, std::move(msg.value()), specific.name());
   context_.SetError(specific);
@@ -1398,10 +1498,10 @@ void CheckHelper::WarnMissingFinal(const Symbol &symbol) {
         !derivedDetails->GetFinalForRank(rank)) {
       if (auto *msg{derivedSym == initialDerivedSym
                   ? messages_.Say(symbol.name(),
-                        "'%s' of derived type '%s' does not have a FINAL subroutine for its rank (%d)"_en_US,
+                        "'%s' of derived type '%s' does not have a FINAL subroutine for its rank (%d)"_warn_en_US,
                         symbol.name(), derivedSym->name(), rank)
                   : messages_.Say(symbol.name(),
-                        "'%s' of derived type '%s' extended from '%s' does not have a FINAL subroutine for its rank (%d)"_en_US,
+                        "'%s' of derived type '%s' extended from '%s' does not have a FINAL subroutine for its rank (%d)"_warn_en_US,
                         symbol.name(), initialDerivedSym->name(),
                         derivedSym->name(), rank)}) {
         msg->Attach(derivedSym->name(),
@@ -1435,7 +1535,7 @@ void CheckHelper::CheckVolatile(const Symbol &symbol,
   }
   if (symbol.has<UseDetails>() || symbol.has<HostAssocDetails>()) {
     const Symbol &ultimate{symbol.GetUltimate()};
-    if (IsCoarray(ultimate)) {
+    if (evaluate::IsCoarray(ultimate)) {
       messages_.Say(
           "VOLATILE attribute may not apply to a coarray accessed by USE or host association"_err_en_US);
     }
@@ -1468,11 +1568,14 @@ void CheckHelper::CheckPointer(const Symbol &symbol) { // C852
 // C760 constraints on the passed-object dummy argument
 // C757 constraints on procedure pointer components
 void CheckHelper::CheckPassArg(
-    const Symbol &proc, const Symbol *interface, const WithPassArg &details) {
+    const Symbol &proc, const Symbol *interface0, const WithPassArg &details) {
   if (proc.attrs().test(Attr::NOPASS)) {
     return;
   }
   const auto &name{proc.name()};
+  const Symbol *interface {
+    interface0 ? FindInterface(*interface0) : nullptr
+  };
   if (!interface) {
     messages_.Say(name,
         "Procedure component '%s' must have NOPASS attribute or explicit interface"_err_en_US,
@@ -1615,8 +1718,8 @@ void CheckHelper::CheckProcBinding(
             "An overridden pure type-bound procedure binding must also be pure"_err_en_US);
         return;
       }
-      if (!binding.symbol().attrs().test(Attr::ELEMENTAL) &&
-          overriddenBinding->symbol().attrs().test(Attr::ELEMENTAL)) {
+      if (!IsElementalProcedure(binding.symbol()) &&
+          IsElementalProcedure(*overridden)) {
         SayWithDeclaration(*overridden,
             "A type-bound procedure and its override must both, or neither, be ELEMENTAL"_err_en_US);
         return;
@@ -1629,7 +1732,7 @@ void CheckHelper::CheckProcBinding(
                 : "A passed-argument type-bound procedure may not override a NOPASS procedure"_err_en_US);
       } else {
         const auto *bindingChars{Characterize(binding.symbol())};
-        const auto *overriddenChars{Characterize(overriddenBinding->symbol())};
+        const auto *overriddenChars{Characterize(*overridden)};
         if (bindingChars && overriddenChars) {
           if (isNopass) {
             if (!bindingChars->CanOverride(*overriddenChars, std::nullopt)) {
@@ -1686,8 +1789,20 @@ void CheckHelper::Check(const Scope &scope) {
     for (const auto &pair : scope) {
       Check(*pair.second);
     }
+    for (const auto &pair : scope.commonBlocks()) {
+      CheckCommonBlock(*pair.second);
+    }
+    int mainProgCnt{0};
     for (const Scope &child : scope.children()) {
       Check(child);
+      // A program shall consist of exactly one main program (5.2.2).
+      if (child.kind() == Scope::Kind::MainProgram) {
+        ++mainProgCnt;
+        if (mainProgCnt > 1) {
+          messages_.Say(child.sourceRange(),
+              "A source file cannot contain more than one main program"_err_en_US);
+        }
+      }
     }
     if (scope.kind() == Scope::Kind::BlockData) {
       CheckBlockData(scope);
@@ -1761,6 +1876,14 @@ void CheckHelper::CheckGenericOps(const Scope &scope) {
   auto addSpecifics{[&](const Symbol &generic) {
     const auto *details{generic.GetUltimate().detailsIf<GenericDetails>()};
     if (!details) {
+      // Not a generic; ensure characteristics are defined if a function.
+      auto restorer{messages_.SetLocation(generic.name())};
+      if (IsFunction(generic) && !context_.HasError(generic)) {
+        if (const Symbol * result{FindFunctionResult(generic)};
+            result && !context_.HasError(*result)) {
+          Characterize(generic);
+        }
+      }
       return;
     }
     GenericKind kind{details->kind()};
@@ -1771,8 +1894,8 @@ void CheckHelper::CheckGenericOps(const Scope &scope) {
     const std::vector<SourceName> &bindingNames{details->bindingNames()};
     for (std::size_t i{0}; i < specifics.size(); ++i) {
       const Symbol &specific{*specifics[i]};
+      auto restorer{messages_.SetLocation(bindingNames[i])};
       if (const Procedure * proc{Characterize(specific)}) {
-        auto restorer{messages_.SetLocation(bindingNames[i])};
         if (kind.IsAssignment()) {
           if (!CheckDefinedAssignment(specific, *proc)) {
             continue;
@@ -1803,7 +1926,8 @@ void CheckHelper::CheckGenericOps(const Scope &scope) {
 
 static const std::string *DefinesBindCName(const Symbol &symbol) {
   const auto *subp{symbol.detailsIf<SubprogramDetails>()};
-  if ((subp && !subp->isInterface()) || symbol.has<ObjectEntityDetails>()) {
+  if ((subp && !subp->isInterface()) || symbol.has<ObjectEntityDetails>() ||
+      symbol.has<CommonBlockDetails>()) {
     // Symbol defines data or entry point
     return symbol.GetBindName();
   } else {
@@ -1811,21 +1935,83 @@ static const std::string *DefinesBindCName(const Symbol &symbol) {
   }
 }
 
-// Check that BIND(C) names are distinct
-void CheckHelper::CheckBindCName(const Symbol &symbol) {
+void CheckHelper::CheckBindC(const Symbol &symbol) {
+  if (!symbol.attrs().test(Attr::BIND_C)) {
+    return;
+  }
+  CheckConflicting(symbol, Attr::BIND_C, Attr::PARAMETER);
+  CheckConflicting(symbol, Attr::BIND_C, Attr::ELEMENTAL);
+  if (symbol.has<ObjectEntityDetails>() && !symbol.owner().IsModule()) {
+    messages_.Say(symbol.name(),
+        "A variable with BIND(C) attribute may only appear in the specification part of a module"_err_en_US);
+    context_.SetError(symbol);
+  }
   if (const std::string * name{DefinesBindCName(symbol)}) {
     auto pair{bindC_.emplace(*name, symbol)};
     if (!pair.second) {
       const Symbol &other{*pair.first->second};
-      if (DefinesBindCName(other) && !context_.HasError(other)) {
-        if (auto *msg{messages_.Say(
-                "Two symbols have the same BIND(C) name '%s'"_err_en_US,
+      if (symbol.has<CommonBlockDetails>() && other.has<CommonBlockDetails>() &&
+          symbol.name() == other.name()) {
+        // Two common blocks can have the same BIND(C) name so long as
+        // they're not in the same scope.
+      } else if (!context_.HasError(other)) {
+        if (auto *msg{messages_.Say(symbol.name(),
+                "Two entities have the same BIND(C) name '%s'"_err_en_US,
                 *name)}) {
-          msg->Attach(other.name(), "Conflicting symbol"_en_US);
+          msg->Attach(other.name(), "Conflicting declaration"_en_US);
         }
         context_.SetError(symbol);
         context_.SetError(other);
       }
+    }
+  }
+  if (const auto *proc{symbol.detailsIf<ProcEntityDetails>()}) {
+    if (!proc->interface().symbol() ||
+        !proc->interface().symbol()->attrs().test(Attr::BIND_C)) {
+      messages_.Say(symbol.name(),
+          "An interface name with BIND attribute must be specified if the BIND attribute is specified in a procedure declaration statement"_err_en_US);
+      context_.SetError(symbol);
+    }
+  } else if (const auto *derived{symbol.detailsIf<DerivedTypeDetails>()}) {
+    if (derived->sequence()) { // C1801
+      messages_.Say(symbol.name(),
+          "A derived type with the BIND attribute cannot have the SEQUENCE attribute"_err_en_US);
+      context_.SetError(symbol);
+    } else if (!derived->paramDecls().empty()) { // C1802
+      messages_.Say(symbol.name(),
+          "A derived type with the BIND attribute has type parameter(s)"_err_en_US);
+      context_.SetError(symbol);
+    } else if (symbol.scope()->GetDerivedTypeParent()) { // C1803
+      messages_.Say(symbol.name(),
+          "A derived type with the BIND attribute cannot extend from another derived type"_err_en_US);
+      context_.SetError(symbol);
+    } else {
+      for (const auto &pair : *symbol.scope()) {
+        const Symbol *component{&*pair.second};
+        if (IsProcedure(*component)) { // C1804
+          messages_.Say(symbol.name(),
+              "A derived type with the BIND attribute cannot have a type bound procedure"_err_en_US);
+          context_.SetError(symbol);
+          break;
+        } else if (IsAllocatableOrPointer(*component)) { // C1806
+          messages_.Say(symbol.name(),
+              "A derived type with the BIND attribute cannot have a pointer or allocatable component"_err_en_US);
+          context_.SetError(symbol);
+          break;
+        } else if (component->GetType() && component->GetType()->AsDerived() &&
+            !component->GetType()->AsDerived()->typeSymbol().attrs().test(
+                Attr::BIND_C)) {
+          messages_.Say(component->GetType()->AsDerived()->typeSymbol().name(),
+              "The component of the interoperable derived type must have the BIND attribute"_err_en_US);
+          context_.SetError(symbol);
+          break;
+        }
+      }
+    }
+    if (derived->componentNames().empty() &&
+        !FindModuleFileContaining(symbol.owner())) { // C1805
+      messages_.Say(symbol.name(),
+          "A derived type with the BIND attribute is empty"_port_en_US);
     }
   }
 }
@@ -1847,28 +2033,34 @@ bool CheckHelper::CheckDioDummyIsData(
   }
 }
 
-void CheckHelper::CheckAlreadySeenDefinedIo(const DerivedTypeSpec *derivedType,
-    GenericKind::DefinedIo ioKind, const Symbol &proc) {
+void CheckHelper::CheckAlreadySeenDefinedIo(const DerivedTypeSpec &derivedType,
+    GenericKind::DefinedIo ioKind, const Symbol &proc, const Symbol &generic) {
   for (TypeWithDefinedIo definedIoType : seenDefinedIoTypes_) {
-    if (*derivedType == *definedIoType.type && ioKind == definedIoType.ioKind &&
-        proc != definedIoType.proc) {
+    // It's okay to have two or more distinct derived type I/O procedures
+    // for the same type if they're coming from distinct non-type-bound
+    // interfaces.  (The non-type-bound interfaces would have been merged into
+    // a single generic if both were visible in the same scope.)
+    if (derivedType == definedIoType.type && ioKind == definedIoType.ioKind &&
+        proc != definedIoType.proc &&
+        (generic.owner().IsDerivedType() ||
+            definedIoType.generic.owner().IsDerivedType())) {
       SayWithDeclaration(proc, definedIoType.proc.name(),
           "Derived type '%s' already has defined input/output procedure"
           " '%s'"_err_en_US,
-          derivedType->name(),
+          derivedType.name(),
           parser::ToUpperCaseLetters(GenericKind::EnumToString(ioKind)));
       return;
     }
   }
   seenDefinedIoTypes_.emplace_back(
-      TypeWithDefinedIo{derivedType, ioKind, proc});
+      TypeWithDefinedIo{derivedType, ioKind, proc, generic});
 }
 
-void CheckHelper::CheckDioDummyIsDerived(
-    const Symbol &subp, const Symbol &arg, GenericKind::DefinedIo ioKind) {
+void CheckHelper::CheckDioDummyIsDerived(const Symbol &subp, const Symbol &arg,
+    GenericKind::DefinedIo ioKind, const Symbol &generic) {
   if (const DeclTypeSpec * type{arg.GetType()}) {
     if (const DerivedTypeSpec * derivedType{type->AsDerived()}) {
-      CheckAlreadySeenDefinedIo(derivedType, ioKind, subp);
+      CheckAlreadySeenDefinedIo(*derivedType, ioKind, subp, generic);
       bool isPolymorphic{type->IsPolymorphic()};
       if (isPolymorphic != IsExtensibleType(derivedType)) {
         messages_.Say(arg.name(),
@@ -1909,16 +2101,50 @@ void CheckHelper::CheckDioDummyIsScalar(const Symbol &subp, const Symbol &arg) {
   }
 }
 
-void CheckHelper::CheckDioDtvArg(
-    const Symbol &subp, const Symbol *arg, GenericKind::DefinedIo ioKind) {
+void CheckHelper::CheckDioDtvArg(const Symbol &subp, const Symbol *arg,
+    GenericKind::DefinedIo ioKind, const Symbol &generic) {
   // Dtv argument looks like: dtv-type-spec, INTENT(INOUT) :: dtv
   if (CheckDioDummyIsData(subp, arg, 0)) {
-    CheckDioDummyIsDerived(subp, *arg, ioKind);
+    CheckDioDummyIsDerived(subp, *arg, ioKind, generic);
     CheckDioDummyAttrs(subp, *arg,
         ioKind == GenericKind::DefinedIo::ReadFormatted ||
                 ioKind == GenericKind::DefinedIo::ReadUnformatted
             ? Attr::INTENT_INOUT
             : Attr::INTENT_IN);
+  }
+}
+
+// If an explicit INTRINSIC name is a function, so must all the specifics be,
+// and similarly for subroutines
+void CheckHelper::CheckGenericVsIntrinsic(
+    const Symbol &symbol, const GenericDetails &generic) {
+  if (symbol.attrs().test(Attr::INTRINSIC)) {
+    const evaluate::IntrinsicProcTable &table{
+        context_.foldingContext().intrinsics()};
+    bool isSubroutine{table.IsIntrinsicSubroutine(symbol.name().ToString())};
+    if (isSubroutine || table.IsIntrinsicFunction(symbol.name().ToString())) {
+      for (const SymbolRef &ref : generic.specificProcs()) {
+        const Symbol &ultimate{ref->GetUltimate()};
+        bool specificFunc{ultimate.test(Symbol::Flag::Function)};
+        bool specificSubr{ultimate.test(Symbol::Flag::Subroutine)};
+        if (!specificFunc && !specificSubr) {
+          if (const auto *proc{ultimate.detailsIf<SubprogramDetails>()}) {
+            if (proc->isFunction()) {
+              specificFunc = true;
+            } else {
+              specificSubr = true;
+            }
+          }
+        }
+        if ((specificFunc || specificSubr) &&
+            isSubroutine != specificSubr) { // C848
+          messages_.Say(symbol.name(),
+              "Generic interface '%s' with explicit intrinsic %s of the same name may not have specific procedure '%s' that is a %s"_err_en_US,
+              symbol.name(), isSubroutine ? "subroutine" : "function",
+              ref->name(), isSubroutine ? "function" : "subroutine");
+        }
+      }
+    }
   }
 }
 
@@ -1952,15 +2178,13 @@ void CheckHelper::CheckDioVlistArg(
   if (CheckDioDummyIsData(subp, arg, argPosition)) {
     CheckDioDummyIsDefaultInteger(subp, *arg);
     CheckDioDummyAttrs(subp, *arg, Attr::INTENT_IN);
-    if (const auto *objectDetails{arg->detailsIf<ObjectEntityDetails>()}) {
-      if (objectDetails->shape().IsDeferredShape()) {
-        return;
-      }
+    const auto *objectDetails{arg->detailsIf<ObjectEntityDetails>()};
+    if (!objectDetails || !objectDetails->shape().CanBeDeferredShape()) {
+      messages_.Say(arg->name(),
+          "Dummy argument '%s' of a defined input/output procedure must be"
+          " deferred shape"_err_en_US,
+          arg->name());
     }
-    messages_.Say(arg->name(),
-        "Dummy argument '%s' of a defined input/output procedure must be"
-        " deferred shape"_err_en_US,
-        arg->name());
   }
 }
 
@@ -2019,7 +2243,7 @@ void CheckHelper::CheckDefinedIoProc(const Symbol &symbol,
         switch (argCount++) {
         case 0:
           // dtv-type-spec, INTENT(INOUT) :: dtv
-          CheckDioDtvArg(specific, arg, ioKind);
+          CheckDioDtvArg(specific, arg, ioKind, symbol);
           break;
         case 1:
           // INTEGER, INTENT(IN) :: unit
@@ -2119,6 +2343,21 @@ void SubprogramMatchHelper::Check(
   if (!proc1 || !proc2) {
     return;
   }
+  if (proc1->attrs.test(Procedure::Attr::Pure) !=
+      proc2->attrs.test(Procedure::Attr::Pure)) {
+    Say(symbol1, symbol2,
+        "Module subprogram '%s' and its corresponding interface body are not both PURE"_err_en_US);
+  }
+  if (proc1->attrs.test(Procedure::Attr::Elemental) !=
+      proc2->attrs.test(Procedure::Attr::Elemental)) {
+    Say(symbol1, symbol2,
+        "Module subprogram '%s' and its corresponding interface body are not both ELEMENTAL"_err_en_US);
+  }
+  if (proc1->attrs.test(Procedure::Attr::BindC) !=
+      proc2->attrs.test(Procedure::Attr::BindC)) {
+    Say(symbol1, symbol2,
+        "Module subprogram '%s' and its corresponding interface body are not both BIND(C)"_err_en_US);
+  }
   if (proc1->functionResult && proc2->functionResult &&
       *proc1->functionResult != *proc2->functionResult) {
     Say(symbol1, symbol2,
@@ -2157,28 +2396,29 @@ void SubprogramMatchHelper::Check(
 void SubprogramMatchHelper::CheckDummyArg(const Symbol &symbol1,
     const Symbol &symbol2, const DummyArgument &arg1,
     const DummyArgument &arg2) {
-  std::visit(common::visitors{
-                 [&](const DummyDataObject &obj1, const DummyDataObject &obj2) {
-                   CheckDummyDataObject(symbol1, symbol2, obj1, obj2);
-                 },
-                 [&](const DummyProcedure &proc1, const DummyProcedure &proc2) {
-                   CheckDummyProcedure(symbol1, symbol2, proc1, proc2);
-                 },
-                 [&](const DummyDataObject &, const auto &) {
-                   Say(symbol1, symbol2,
-                       "Dummy argument '%s' is a data object; the corresponding"
-                       " argument in the interface body is not"_err_en_US);
-                 },
-                 [&](const DummyProcedure &, const auto &) {
-                   Say(symbol1, symbol2,
-                       "Dummy argument '%s' is a procedure; the corresponding"
-                       " argument in the interface body is not"_err_en_US);
-                 },
-                 [&](const auto &, const auto &) {
-                   llvm_unreachable("Dummy arguments are not data objects or"
-                                    "procedures");
-                 },
-             },
+  common::visit(
+      common::visitors{
+          [&](const DummyDataObject &obj1, const DummyDataObject &obj2) {
+            CheckDummyDataObject(symbol1, symbol2, obj1, obj2);
+          },
+          [&](const DummyProcedure &proc1, const DummyProcedure &proc2) {
+            CheckDummyProcedure(symbol1, symbol2, proc1, proc2);
+          },
+          [&](const DummyDataObject &, const auto &) {
+            Say(symbol1, symbol2,
+                "Dummy argument '%s' is a data object; the corresponding"
+                " argument in the interface body is not"_err_en_US);
+          },
+          [&](const DummyProcedure &, const auto &) {
+            Say(symbol1, symbol2,
+                "Dummy argument '%s' is a procedure; the corresponding"
+                " argument in the interface body is not"_err_en_US);
+          },
+          [&](const auto &, const auto &) {
+            llvm_unreachable("Dummy arguments are not data objects or"
+                             "procedures");
+          },
+      },
       arg1.u, arg2.u);
 }
 
@@ -2290,7 +2530,8 @@ void DistinguishabilityHelper::Check(const Scope &scope) {
         auto distinguishable{kind.IsName()
                 ? evaluate::characteristics::Distinguishable
                 : evaluate::characteristics::DistinguishableOpOrAssign};
-        if (!distinguishable(proc, info[i2].procedure)) {
+        if (!distinguishable(
+                context_.languageFeatures(), proc, info[i2].procedure)) {
           SayNotDistinguishable(GetTopLevelUnitContaining(scope), name, kind,
               symbol, info[i2].symbol);
         }

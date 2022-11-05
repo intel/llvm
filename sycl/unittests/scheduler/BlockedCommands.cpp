@@ -9,11 +9,15 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-using namespace cl::sycl;
+#include <helpers/PiMock.hpp>
+
+using namespace sycl;
 using namespace testing;
 
 TEST_F(SchedulerTest, BlockedCommands) {
-  MockCommand MockCmd(detail::getSyclObjImpl(MQueue));
+  sycl::unittest::PiMock Mock;
+  sycl::queue Q{Mock.getPlatform().get_devices()[0], MAsyncHandler};
+  MockCommand MockCmd(detail::getSyclObjImpl(Q));
 
   MockCmd.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
   MockCmd.MIsBlockable = true;
@@ -50,21 +54,24 @@ TEST_F(SchedulerTest, BlockedCommands) {
 }
 
 TEST_F(SchedulerTest, DontEnqueueDepsIfOneOfThemIsBlocked) {
-  MockCommand A(detail::getSyclObjImpl(MQueue));
+  sycl::unittest::PiMock Mock;
+  sycl::queue Q{Mock.getPlatform().get_devices()[0], MAsyncHandler};
+
+  MockCommand A(detail::getSyclObjImpl(Q));
   A.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
   A.MIsBlockable = true;
   A.MRetVal = CL_SUCCESS;
 
-  MockCommand B(detail::getSyclObjImpl(MQueue));
+  MockCommand B(detail::getSyclObjImpl(Q));
   B.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
   B.MIsBlockable = true;
   B.MRetVal = CL_SUCCESS;
 
-  MockCommand C(detail::getSyclObjImpl(MQueue));
+  MockCommand C(detail::getSyclObjImpl(Q));
   C.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
   C.MIsBlockable = true;
 
-  MockCommand D(detail::getSyclObjImpl(MQueue));
+  MockCommand D(detail::getSyclObjImpl(Q));
   D.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
   D.MIsBlockable = true;
   D.MRetVal = CL_SUCCESS;
@@ -81,10 +88,10 @@ TEST_F(SchedulerTest, DontEnqueueDepsIfOneOfThemIsBlocked) {
   //
   // If C is blocked, we should not try to enqueue D.
 
-  EXPECT_CALL(A, enqueue(_, _)).Times(0);
-  EXPECT_CALL(B, enqueue(_, _)).Times(1);
-  EXPECT_CALL(C, enqueue(_, _)).Times(0);
-  EXPECT_CALL(D, enqueue(_, _)).Times(0);
+  EXPECT_CALL(A, enqueue).Times(0);
+  EXPECT_CALL(B, enqueue).Times(1);
+  EXPECT_CALL(C, enqueue).Times(0);
+  EXPECT_CALL(D, enqueue).Times(0);
 
   MockScheduler MS;
   auto Lock = MS.acquireGraphReadLock();
@@ -97,11 +104,14 @@ TEST_F(SchedulerTest, DontEnqueueDepsIfOneOfThemIsBlocked) {
 }
 
 TEST_F(SchedulerTest, EnqueueBlockedCommandEarlyExit) {
-  MockCommand A(detail::getSyclObjImpl(MQueue));
+  sycl::unittest::PiMock Mock;
+  sycl::queue Q{Mock.getPlatform().get_devices()[0], MAsyncHandler};
+
+  MockCommand A(detail::getSyclObjImpl(Q));
   A.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
   A.MIsBlockable = true;
 
-  MockCommand B(detail::getSyclObjImpl(MQueue));
+  MockCommand B(detail::getSyclObjImpl(Q));
   B.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
   B.MRetVal = CL_OUT_OF_RESOURCES;
 
@@ -113,8 +123,8 @@ TEST_F(SchedulerTest, EnqueueBlockedCommandEarlyExit) {
   //
   // If A is blocked, we should not try to enqueue B.
 
-  EXPECT_CALL(A, enqueue(_, _)).Times(0);
-  EXPECT_CALL(B, enqueue(_, _)).Times(0);
+  EXPECT_CALL(A, enqueue).Times(0);
+  EXPECT_CALL(B, enqueue).Times(0);
 
   MockScheduler MS;
   auto Lock = MS.acquireGraphReadLock();
@@ -127,8 +137,8 @@ TEST_F(SchedulerTest, EnqueueBlockedCommandEarlyExit) {
 
   // But if the enqueue type is blocking we should not exit early.
 
-  EXPECT_CALL(A, enqueue(_, _)).Times(0);
-  EXPECT_CALL(B, enqueue(_, _)).Times(1);
+  EXPECT_CALL(A, enqueue).Times(0);
+  EXPECT_CALL(B, enqueue).Times(1);
 
   Enqueued = MockScheduler::enqueueCommand(&A, Res, detail::BLOCKING);
   ASSERT_FALSE(Enqueued) << "Blocked command should not be enqueued\n";
@@ -140,21 +150,25 @@ TEST_F(SchedulerTest, EnqueueBlockedCommandEarlyExit) {
 // This unit test is for workaround described in GraphProcessor::enqueueCommand
 // method.
 TEST_F(SchedulerTest, EnqueueHostDependency) {
-  MockCommand A(detail::getSyclObjImpl(MQueue));
+  sycl::unittest::PiMock Mock;
+  sycl::queue Q{Mock.getPlatform().get_devices()[0], MAsyncHandler};
+
+  MockCommand A(detail::getSyclObjImpl(Q));
   A.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
   A.MIsBlockable = true;
   A.MRetVal = CL_SUCCESS;
 
-  MockCommand B(detail::getSyclObjImpl(MQueue));
+  MockCommand B(detail::getSyclObjImpl(Q));
   B.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
   B.MIsBlockable = true;
   B.MRetVal = CL_SUCCESS;
 
-  cl::sycl::detail::EventImplPtr DepEvent{
-      new cl::sycl::detail::event_impl(detail::getSyclObjImpl(MQueue))};
+  sycl::detail::EventImplPtr DepEvent{
+      new sycl::detail::event_impl(detail::getSyclObjImpl(Q))};
   DepEvent->setCommand(&B);
 
-  (void)A.addDep(DepEvent);
+  std::vector<detail::Command *> ToCleanUp;
+  (void)A.addDep(DepEvent, ToCleanUp);
 
   // We have such a "graph":
   //
@@ -166,8 +180,8 @@ TEST_F(SchedulerTest, EnqueueHostDependency) {
   // "Graph" is quoted as we don't have this dependency in MDeps. Instead, we
   // have this dependecy as result of handler::depends_on() call.
 
-  EXPECT_CALL(A, enqueue(_, _)).Times(1);
-  EXPECT_CALL(B, enqueue(_, _)).Times(1);
+  EXPECT_CALL(A, enqueue).Times(1);
+  EXPECT_CALL(B, enqueue).Times(1);
 
   MockScheduler MS;
   auto Lock = MS.acquireGraphReadLock();

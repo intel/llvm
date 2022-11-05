@@ -21,6 +21,8 @@ class ObjCDataFormatterKVO(ObjCDataFormatterTestCase):
             self, '// Set break point at this line.',
             lldb.SBFileSpec('main.m', False))
 
+        self.runCmd('settings set target.prefer-dynamic-value no-dynamic-values')
+
         # The stop reason of the thread should be breakpoint.
         self.expect(
             "thread list",
@@ -56,7 +58,7 @@ class ObjCDataFormatterKVO(ObjCDataFormatterTestCase):
                 ' 21 key/value pairs'
             ])
 
-        lldbutil.run_break_set_by_regexp(self, 'setAtoms')
+        lldbutil.run_break_set_by_symbol(self, '-[Molecule setAtoms:]')
 
         self.runCmd("continue")
         self.expect("frame variable _cmd", substrs=['setAtoms:'])

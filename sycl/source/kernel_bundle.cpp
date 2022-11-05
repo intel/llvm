@@ -11,8 +11,8 @@
 
 #include <set>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 kernel_id::kernel_id(const char *Name)
     : impl(std::make_shared<detail::kernel_id_impl>(Name)) {}
@@ -113,6 +113,19 @@ bool kernel_bundle_plain::is_specialization_constant_set(
 ///// sycl::detail free functions
 //////////////////////////////////
 
+const std::vector<device>
+removeDuplicateDevices(const std::vector<device> &Devs) {
+  std::vector<device> UniqueDevices;
+
+  // Building a new vector with unique elements and keep original order
+  std::unordered_set<device> UniqueDeviceSet;
+  for (const device &Dev : Devs)
+    if (UniqueDeviceSet.insert(Dev).second)
+      UniqueDevices.push_back(Dev);
+
+  return UniqueDevices;
+}
+
 kernel_id get_kernel_id_impl(std::string KernelName) {
   return detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
 }
@@ -138,9 +151,16 @@ get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                                                       State);
 }
 
+detail::KernelBundleImplPtr
+get_empty_interop_kernel_bundle_impl(const context &Ctx,
+                                     const std::vector<device> &Devs) {
+  return std::make_shared<detail::kernel_bundle_impl>(Ctx, Devs);
+}
+
 std::shared_ptr<detail::kernel_bundle_impl>
-join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles) {
-  return std::make_shared<detail::kernel_bundle_impl>(Bundles);
+join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles,
+          bundle_state State) {
+  return std::make_shared<detail::kernel_bundle_impl>(Bundles, State);
 }
 
 bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
@@ -205,8 +225,8 @@ bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl =
         getSyclObjImpl(DeviceImage);
 
-    CombinedKernelIDs.insert(DeviceImageImpl->get_kernel_ids_ref().begin(),
-                             DeviceImageImpl->get_kernel_ids_ref().end());
+    CombinedKernelIDs.insert(DeviceImageImpl->get_kernel_ids_ptr()->begin(),
+                             DeviceImageImpl->get_kernel_ids_ptr()->end());
   }
 
   const bool AllKernelIDsRepresented =
@@ -274,5 +294,5 @@ std::vector<kernel_id> get_kernel_ids() {
   return detail::ProgramManager::getInstance().getAllSYCLKernelIDs();
 }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

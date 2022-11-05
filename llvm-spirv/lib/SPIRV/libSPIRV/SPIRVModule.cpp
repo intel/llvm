@@ -180,6 +180,7 @@ public:
   void setGeneratorId(unsigned short Id) override { GeneratorId = Id; }
   void setGeneratorVer(unsigned short Ver) override { GeneratorVer = Ver; }
   void resolveUnknownStructFields() override;
+  void insertEntryNoId(SPIRVEntry *Entry) override { EntryNoId.insert(Entry); }
 
   void setSPIRVVersion(SPIRVWord Ver) override {
     assert(this->isAllowedToUseVersion(static_cast<VersionNumber>(Ver)));
@@ -244,9 +245,8 @@ public:
   SPIRVEntry *addTypeStructContinuedINTEL(unsigned NumMembers) override;
   void closeStructType(SPIRVTypeStruct *T, bool) override;
   SPIRVTypeVector *addVectorType(SPIRVType *, SPIRVWord) override;
-  SPIRVTypeJointMatrixINTEL *addJointMatrixINTELType(SPIRVType *, SPIRVValue *,
-                                                     SPIRVValue *, SPIRVValue *,
-                                                     SPIRVValue *) override;
+  SPIRVTypeJointMatrixINTEL *
+  addJointMatrixINTELType(SPIRVType *, std::vector<SPIRVValue *>) override;
   SPIRVType *addOpaqueGenericType(Op) override;
   SPIRVTypeDeviceEvent *addDeviceEventType() override;
   SPIRVTypeQueue *addQueueType() override;
@@ -272,8 +272,8 @@ public:
                            const std::vector<SPIRVValue *> &Elements) override;
   SPIRVEntry *addSpecConstantCompositeContinuedINTEL(
       const std::vector<SPIRVValue *> &) override;
-  SPIRVValue *addConstFunctionPointerINTEL(SPIRVType *Ty,
-                                           SPIRVFunction *F) override;
+  SPIRVValue *addConstantFunctionPointerINTEL(SPIRVType *Ty,
+                                              SPIRVFunction *F) override;
   SPIRVValue *addConstant(SPIRVValue *) override;
   SPIRVValue *addConstant(SPIRVType *, uint64_t) override;
   SPIRVValue *addConstant(SPIRVType *, llvm::APInt) override;
@@ -508,6 +508,7 @@ private:
   SPIRVForwardPointerVec ForwardPointerVec;
   SPIRVTypeVec TypeVec;
   SPIRVIdToEntryMap IdEntryMap;
+  SPIRVIdToEntryMap IdTypeForwardMap; // Forward declared IDs
   SPIRVFunctionVector FuncVec;
   SPIRVConstantVector ConstVec;
   SPIRVVariableVec VariableVec;
@@ -609,8 +610,8 @@ void SPIRVModuleImpl::addCapability(SPIRVCapabilityKind Cap) {
     // While we are reading existing SPIR-V we need to read it as-is and don't
     // add required extensions for each entry automatically
     auto Ext = CapObj->getRequiredExtension();
-    if (Ext.hasValue())
-      addExtension(Ext.getValue());
+    if (Ext.has_value())
+      addExtension(Ext.value());
   }
 
   CapMap.insert(std::make_pair(Cap, CapObj));
@@ -667,9 +668,9 @@ void SPIRVModuleImpl::layoutEntry(SPIRVEntry *E) {
     addTo(AsmTargetVec, E);
     break;
   }
-  case internal::OpAliasDomainDeclINTEL:
-  case internal::OpAliasScopeDeclINTEL:
-  case internal::OpAliasScopeListDeclINTEL: {
+  case OpAliasDomainDeclINTEL:
+  case OpAliasScopeDeclINTEL:
+  case OpAliasScopeListDeclINTEL: {
     addTo(AliasInstMDVec, E);
     break;
   }
@@ -705,9 +706,15 @@ SPIRVEntry *SPIRVModuleImpl::addEntry(SPIRVEntry *Entry) {
     } else
       IdEntryMap[Id] = Entry;
   } else {
+    // Collect entries with no ID to de-allocate them at the end.
     // Entry of OpLine will be deleted by std::shared_ptr automatically.
     if (Entry->getOpCode() != OpLine)
       EntryNoId.insert(Entry);
+
+    // Store the known ID of pointer type that would be declared later.
+    if (Entry->getOpCode() == OpTypeForwardPointer)
+      IdTypeForwardMap[static_cast<SPIRVTypeForwardPointer *>(Entry)
+                           ->getPointerId()] = Entry;
   }
 
   Entry->setModule(this);
@@ -728,8 +735,8 @@ SPIRVEntry *SPIRVModuleImpl::addEntry(SPIRVEntry *Entry) {
     // While we are reading existing SPIR-V we need to read it as-is and don't
     // add required extensions for each entry automatically
     auto Ext = Entry->getRequiredExtension();
-    if (Ext.hasValue())
-      addExtension(Ext.getValue());
+    if (Ext.has_value())
+      addExtension(Ext.value());
   }
 
   return Entry;
@@ -761,8 +768,15 @@ SPIRVId SPIRVModuleImpl::getId(SPIRVId Id, unsigned Increment) {
 SPIRVEntry *SPIRVModuleImpl::getEntry(SPIRVId Id) const {
   assert(Id != SPIRVID_INVALID && "Invalid Id");
   SPIRVIdToEntryMap::const_iterator Loc = IdEntryMap.find(Id);
-  assert(Loc != IdEntryMap.end() && "Id is not in map");
-  return Loc->second;
+  if (Loc != IdEntryMap.end()) {
+    return Loc->second;
+  }
+  SPIRVIdToEntryMap::const_iterator LocFwd = IdTypeForwardMap.find(Id);
+  if (LocFwd != IdTypeForwardMap.end()) {
+    return LocFwd->second;
+  }
+  assert(false && "Id is not in map");
+  return nullptr;
 }
 
 SPIRVExtInstSetKind SPIRVModuleImpl::getBuiltinSet(SPIRVId SetId) const {
@@ -901,11 +915,10 @@ SPIRVTypeVector *SPIRVModuleImpl::addVectorType(SPIRVType *CompType,
   return addType(new SPIRVTypeVector(this, getId(), CompType, CompCount));
 }
 
-SPIRVTypeJointMatrixINTEL *SPIRVModuleImpl::addJointMatrixINTELType(
-    SPIRVType *CompType, SPIRVValue *Rows, SPIRVValue *Columns,
-    SPIRVValue *Layout, SPIRVValue *Scope) {
-  return addType(new SPIRVTypeJointMatrixINTEL(this, getId(), CompType, Rows,
-                                               Columns, Layout, Scope));
+SPIRVTypeJointMatrixINTEL *
+SPIRVModuleImpl::addJointMatrixINTELType(SPIRVType *CompType,
+                                         std::vector<SPIRVValue *> Args) {
+  return addType(new SPIRVTypeJointMatrixINTEL(this, getId(), CompType, Args));
 }
 
 SPIRVType *SPIRVModuleImpl::addOpaqueGenericType(Op TheOpCode) {
@@ -1153,9 +1166,10 @@ SPIRVEntry *SPIRVModuleImpl::addSpecConstantCompositeContinuedINTEL(
   return add(new SPIRVSpecConstantCompositeContinuedINTEL(this, Elements));
 }
 
-SPIRVValue *SPIRVModuleImpl::addConstFunctionPointerINTEL(SPIRVType *Ty,
-                                                          SPIRVFunction *F) {
-  return addConstant(new SPIRVConstFunctionPointerINTEL(getId(), Ty, F, this));
+SPIRVValue *SPIRVModuleImpl::addConstantFunctionPointerINTEL(SPIRVType *Ty,
+                                                             SPIRVFunction *F) {
+  return addConstant(
+      new SPIRVConstantFunctionPointerINTEL(getId(), Ty, F, this));
 }
 
 SPIRVValue *SPIRVModuleImpl::addUndef(SPIRVType *TheType) {
@@ -1730,6 +1744,11 @@ class TopologicalSort {
       return true;
     State = Discovered;
     for (SPIRVEntry *Op : E->getNonLiteralOperands()) {
+      if (Op->getOpCode() == OpTypeForwardPointer) {
+        SPIRVEntry *FP = E->getModule()->getEntry(
+            static_cast<SPIRVTypeForwardPointer *>(Op)->getPointerId());
+        Op = FP;
+      }
       if (EntryStateMap[Op] == Visited)
         continue;
       if (visit(Op)) {
@@ -1743,7 +1762,7 @@ class TopologicalSort {
           SPIRVTypePointer *Ptr = static_cast<SPIRVTypePointer *>(E);
           SPIRVModule *BM = E->getModule();
           ForwardPointerSet.insert(BM->add(new SPIRVTypeForwardPointer(
-              BM, Ptr, Ptr->getPointerStorageClass())));
+              BM, Ptr->getId(), Ptr->getPointerStorageClass())));
           return false;
         }
         return true;
@@ -1774,11 +1793,11 @@ public:
       : ForwardPointerSet(
             16, // bucket count
             [](const SPIRVTypeForwardPointer *Ptr) {
-              return std::hash<SPIRVId>()(Ptr->getPointer()->getId());
+              return std::hash<SPIRVId>()(Ptr->getPointerId());
             },
             [](const SPIRVTypeForwardPointer *Ptr1,
                const SPIRVTypeForwardPointer *Ptr2) {
-              return Ptr1->getPointer()->getId() == Ptr2->getPointer()->getId();
+              return Ptr1->getPointerId() == Ptr2->getPointerId();
             }),
         EntryStateMap([](SPIRVEntry *A, SPIRVEntry *B) -> bool {
           return A->getId() < B->getId();

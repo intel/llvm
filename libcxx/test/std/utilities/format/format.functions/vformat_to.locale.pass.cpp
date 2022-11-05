@@ -6,20 +6,21 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
-// UNSUPPORTED: libcpp-has-no-localization
+// UNSUPPORTED: no-localization
 // UNSUPPORTED: libcpp-has-no-incomplete-format
-// TODO FMT Evaluate gcc-11 status
-// UNSUPPORTED: gcc-11
+// TODO FMT Evaluate gcc-12 status
+// UNSUPPORTED: gcc-12
+// TODO FMT Investigate AppleClang ICE
+// UNSUPPORTED: apple-clang-13
 
 // <format>
 
 // template<class Out>
 //   Out vformat_to(Out out, const locale& loc, string_view fmt,
-//                  format_args_t<type_identity_t<Out>, char> args);
+//                  format_args args);
 // template<class Out>
 //    Out vformat_to(Out out, const locale& loc, wstring_view fmt,
-//                   format_args_t<type_identity_t<Out>, wchar_t> args);
+//                   wformat_args args);
 
 #include <format>
 #include <algorithm>
@@ -29,72 +30,53 @@
 
 #include "test_macros.h"
 #include "format_tests.h"
+#include "string_literal.h"
 
-auto test = []<class CharT, class... Args>(std::basic_string<CharT> expected,
-                                           std::basic_string<CharT> fmt,
-                                           const Args&... args) {
+auto test = []<class CharT, class... Args>(
+                std::basic_string_view<CharT> expected, std::basic_string_view<CharT> fmt, Args&&... args) constexpr {
   {
     std::basic_string<CharT> out(expected.size(), CharT(' '));
-    auto it = std::vformat_to(
-        out.begin(), std::locale(), fmt,
-        std::make_format_args<std::basic_format_context<
-            typename std::basic_string<CharT>::iterator, CharT>>(args...));
+    auto it = std::vformat_to(out.begin(), std::locale(), fmt, std::make_format_args<context_t<CharT>>(args...));
     assert(it == out.end());
     assert(out == expected);
   }
   {
     std::list<CharT> out;
-    std::vformat_to(
-        std::back_inserter(out), std::locale(), fmt,
-        std::make_format_args<std::basic_format_context<
-            std::back_insert_iterator<std::list<CharT>>, CharT>>(args...));
-    assert(
-        std::equal(out.begin(), out.end(), expected.begin(), expected.end()));
+    std::vformat_to(std::back_inserter(out), std::locale(), fmt, std::make_format_args<context_t<CharT>>(args...));
+    assert(std::equal(out.begin(), out.end(), expected.begin(), expected.end()));
   }
   {
     std::vector<CharT> out;
-    std::vformat_to(
-        std::back_inserter(out), std::locale(), fmt,
-        std::make_format_args<std::basic_format_context<
-            std::back_insert_iterator<std::vector<CharT>>, CharT>>(args...));
-    assert(
-        std::equal(out.begin(), out.end(), expected.begin(), expected.end()));
+    std::vformat_to(std::back_inserter(out), std::locale(), fmt, std::make_format_args<context_t<CharT>>(args...));
+    assert(std::equal(out.begin(), out.end(), expected.begin(), expected.end()));
   }
   {
     assert(expected.size() < 4096 && "Update the size of the buffer.");
     CharT out[4096];
-    CharT* it = std::vformat_to(
-        out, std::locale(), fmt,
-        std::make_format_args<std::basic_format_context<CharT*, CharT>>(
-            args...));
+    CharT* it = std::vformat_to(out, std::locale(), fmt, std::make_format_args<context_t<CharT>>(args...));
     assert(std::distance(out, it) == int(expected.size()));
     // Convert to std::string since output contains '\0' for boolean tests.
     assert(std::basic_string<CharT>(out, it) == expected);
   }
 };
 
-auto test_exception = []<class CharT, class... Args>(
-    std::string_view what, std::basic_string<CharT> fmt, const Args&... args) {
+auto test_exception =
+    []<class CharT, class... Args>(
+        [[maybe_unused]] std::string_view what,
+        [[maybe_unused]] std::basic_string_view<CharT> fmt,
+        [[maybe_unused]] Args&&... args) {
 #ifndef TEST_HAS_NO_EXCEPTIONS
-  try {
-    std::basic_string<CharT> out;
-    std::vformat_to(
-        std::back_inserter(out), std::locale(), fmt,
-        std::make_format_args<std::basic_format_context<
-            std::back_insert_iterator<std::basic_string<CharT>>, CharT>>(
-            args...));
-    assert(false);
-  } catch (std::format_error& e) {
-    LIBCPP_ASSERT(e.what() == what);
-    return;
-  }
-  assert(false);
-#else
-  (void)what;
-  (void)fmt;
-  (void)sizeof...(args);
+      try {
+        std::basic_string<CharT> out;
+        std::vformat_to(std::back_inserter(out), std::locale(), fmt, std::make_format_args<context_t<CharT>>(args...));
+        assert(false);
+      } catch ([[maybe_unused]] const std::format_error& e) {
+        LIBCPP_ASSERT(e.what() == what);
+        return;
+      }
+      assert(false);
 #endif
-};
+    };
 
 int main(int, char**) {
   format_tests<char>(test, test_exception);

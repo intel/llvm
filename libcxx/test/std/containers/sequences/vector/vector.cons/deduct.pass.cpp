@@ -15,19 +15,20 @@
 //
 
 #include <vector>
-#include <iterator>
 #include <cassert>
 #include <cstddef>
 #include <climits> // INT_MAX
+#include <iterator>
+#include <type_traits>
 
+#include "deduction_guides_sfinae_checks.h"
 #include "test_macros.h"
 #include "test_iterators.h"
 #include "test_allocator.h"
 
 struct A {};
 
-int main(int, char**)
-{
+TEST_CONSTEXPR_CXX20 bool tests() {
 
 //  Test the explicit deduction guides
     {
@@ -139,5 +140,15 @@ int main(int, char**)
         }
     }
 
+    SequenceContainerDeductionGuidesSfinaeAway<std::vector, std::vector<int>>();
+
+    return true;
+}
+
+int main(int, char**) {
+    tests();
+#if TEST_STD_VER > 17
+    static_assert(tests());
+#endif
     return 0;
 }

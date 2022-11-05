@@ -1,5 +1,7 @@
 ; RUN: llc < %s -mtriple=i686-pc-windows-msvc | FileCheck %s -check-prefix=X32
-; RUN: llc < %s -mtriple=x86_64-pc-windows-msvc | FileCheck %s -check-prefix=X64
+; RUN: llc < %s -mtriple=x86_64-pc-windows-msvc | FileCheck %s -check-prefixes=X64,X64_MSVC
+; RUN: llc < %s -mtriple=i686-w64-windows-gnu | FileCheck %s -check-prefixes=X32,X32_MINGW
+; RUN: llc < %s -mtriple=x86_64-w64-windows-gnu | FileCheck %s -check-prefixes=X64,X64_MINGW
 ; Control Flow Guard is currently only available on Windows
 
 ; Test that Control Flow Guard checks are correctly added when required.
@@ -105,6 +107,7 @@ lpad:                                             ; preds = %entry
   ; X32: 	     movl  $_target_func, %esi
 	; X32: 	     movl  $_target_func, %ecx
 	; X32: 	     calll *___guard_check_icall_fptr
+  ; X32_MINGW-NEXT: Ltmp0:
 	; X32-NEXT:  calll *%esi
   ; X32:       # %invoke.cont
   ; X32:       # %lpad
@@ -143,12 +146,17 @@ entry:
   ; On x86_64, __guard_dispatch_icall_fptr tail calls the function, so there should be only one call instruction.
   ; X64-LABEL: func_cf_doubles
   ; X64:       leaq	target_func_doubles(%rip), %rax
-  ; X64:       movsd __real@3ff0000000000000(%rip), %xmm0
-  ; X64:       movsd __real@4000000000000000(%rip), %xmm1
-  ; X64:       movsd __real@4008000000000000(%rip), %xmm2
-  ; X64:       movsd __real@4010000000000000(%rip), %xmm3
+  ; X64_MSVC:  movsd __real@3ff0000000000000(%rip), %xmm0
+  ; X64_MSVC:  movsd __real@4000000000000000(%rip), %xmm1
+  ; X64_MSVC:  movsd __real@4008000000000000(%rip), %xmm2
+  ; X64_MSVC:  movsd __real@4010000000000000(%rip), %xmm3
+  ; X64_MINGW: movsd .LCPI4_0(%rip), %xmm0
+  ; X64_MINGW: movsd .LCPI4_1(%rip), %xmm1
+  ; X64_MINGW: movsd .LCPI4_2(%rip), %xmm2
+  ; X64_MINGW: movsd .LCPI4_3(%rip), %xmm3
   ; X64:       callq *__guard_dispatch_icall_fptr(%rip)
   ; X64-NOT:   callq
+
 }
 
 
@@ -174,6 +182,7 @@ entry:
   ; X64:       rex64 jmpq *__guard_dispatch_icall_fptr(%rip)         # TAILCALL
   ; X64-NOT:   callq
 }
+
 
 %struct.Foo = type { i32 (%struct.Foo*)** }
 

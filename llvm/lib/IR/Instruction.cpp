@@ -16,7 +16,6 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
-#include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/Type.h"
 using namespace llvm;
@@ -117,6 +116,32 @@ bool Instruction::comesBefore(const Instruction *Other) const {
   return Order < Other->Order;
 }
 
+Instruction *Instruction::getInsertionPointAfterDef() {
+  assert(!getType()->isVoidTy() && "Instruction must define result");
+  BasicBlock *InsertBB;
+  BasicBlock::iterator InsertPt;
+  if (auto *PN = dyn_cast<PHINode>(this)) {
+    InsertBB = PN->getParent();
+    InsertPt = InsertBB->getFirstInsertionPt();
+  } else if (auto *II = dyn_cast<InvokeInst>(this)) {
+    InsertBB = II->getNormalDest();
+    InsertPt = InsertBB->getFirstInsertionPt();
+  } else if (auto *CB = dyn_cast<CallBrInst>(this)) {
+    InsertBB = CB->getDefaultDest();
+    InsertPt = InsertBB->getFirstInsertionPt();
+  } else {
+    assert(!isTerminator() && "Only invoke/callbr terminators return value");
+    InsertBB = getParent();
+    InsertPt = std::next(getIterator());
+  }
+
+  // catchswitch blocks don't have any legal insertion point (because they
+  // are both an exception pad and a terminator).
+  if (InsertPt == InsertBB->end())
+    return nullptr;
+  return &*InsertPt;
+}
+
 bool Instruction::isOnlyUserOfAnyOperand() {
   return any_of(operands(), [](Value *V) { return V->hasOneUser(); });
 }
@@ -141,6 +166,10 @@ bool Instruction::hasNoSignedWrap() const {
   return cast<OverflowingBinaryOperator>(this)->hasNoSignedWrap();
 }
 
+bool Instruction::hasPoisonGeneratingFlags() const {
+  return cast<Operator>(this)->hasPoisonGeneratingFlags();
+}
+
 void Instruction::dropPoisonGeneratingFlags() {
   switch (getOpcode()) {
   case Instruction::Add:
@@ -162,7 +191,12 @@ void Instruction::dropPoisonGeneratingFlags() {
     cast<GetElementPtrInst>(this)->setIsInBounds(false);
     break;
   }
-  // TODO: FastMathFlags!
+  if (isa<FPMathOperator>(this)) {
+    setHasNoNaNs(false);
+    setHasNoInfs(false);
+  }
+
+  assert(!hasPoisonGeneratingFlags() && "must be kept in sync");
 }
 
 void Instruction::dropUndefImplyingAttrsAndUnknownMetadata(
@@ -177,7 +211,8 @@ void Instruction::dropUndefImplyingAttrsAndUnknownMetadata(
   AttributeList AL = CB->getAttributes();
   if (AL.isEmpty())
     return;
-  AttrBuilder UBImplyingAttributes = AttributeFuncs::getUBImplyingAttributes();
+  AttributeMask UBImplyingAttributes =
+      AttributeFuncs::getUBImplyingAttributes();
   for (unsigned ArgNo = 0; ArgNo < CB->arg_size(); ArgNo++)
     CB->removeParamAttrs(ArgNo, UBImplyingAttributes);
   CB->removeRetAttrs(UBImplyingAttributes);
@@ -430,17 +465,17 @@ static bool haveSameSpecialState(const Instruction *I1, const Instruction *I2,
 
   if (const AllocaInst *AI = dyn_cast<AllocaInst>(I1))
     return AI->getAllocatedType() == cast<AllocaInst>(I2)->getAllocatedType() &&
-           (AI->getAlignment() == cast<AllocaInst>(I2)->getAlignment() ||
+           (AI->getAlign() == cast<AllocaInst>(I2)->getAlign() ||
             IgnoreAlignment);
   if (const LoadInst *LI = dyn_cast<LoadInst>(I1))
     return LI->isVolatile() == cast<LoadInst>(I2)->isVolatile() &&
-           (LI->getAlignment() == cast<LoadInst>(I2)->getAlignment() ||
+           (LI->getAlign() == cast<LoadInst>(I2)->getAlign() ||
             IgnoreAlignment) &&
            LI->getOrdering() == cast<LoadInst>(I2)->getOrdering() &&
            LI->getSyncScopeID() == cast<LoadInst>(I2)->getSyncScopeID();
   if (const StoreInst *SI = dyn_cast<StoreInst>(I1))
     return SI->isVolatile() == cast<StoreInst>(I2)->isVolatile() &&
-           (SI->getAlignment() == cast<StoreInst>(I2)->getAlignment() ||
+           (SI->getAlign() == cast<StoreInst>(I2)->getAlign() ||
             IgnoreAlignment) &&
            SI->getOrdering() == cast<StoreInst>(I2)->getOrdering() &&
            SI->getSyncScopeID() == cast<StoreInst>(I2)->getSyncScopeID();
@@ -483,6 +518,9 @@ static bool haveSameSpecialState(const Instruction *I1, const Instruction *I2,
   if (const ShuffleVectorInst *SVI = dyn_cast<ShuffleVectorInst>(I1))
     return SVI->getShuffleMask() ==
            cast<ShuffleVectorInst>(I2)->getShuffleMask();
+  if (const GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(I1))
+    return GEP->getSourceElementType() ==
+           cast<GetElementPtrInst>(I2)->getSourceElementType();
 
   return true;
 }
@@ -575,7 +613,7 @@ bool Instruction::mayReadFromMemory() const {
   case Instruction::Call:
   case Instruction::Invoke:
   case Instruction::CallBr:
-    return !cast<CallBase>(this)->doesNotReadMemory();
+    return !cast<CallBase>(this)->onlyWritesMemory();
   case Instruction::Store:
     return !cast<StoreInst>(this)->isUnordered();
   }
@@ -686,7 +724,7 @@ bool Instruction::mayHaveSideEffects() const {
 
 bool Instruction::isSafeToRemove() const {
   return (!isa<CallInst>(this) || !this->mayHaveSideEffects()) &&
-         !this->isTerminator();
+         !this->isTerminator() && !this->isEHPad();
 }
 
 bool Instruction::willReturn() const {

@@ -1,4 +1,4 @@
-; RUN: opt < %s -passes='asan-pipeline' -S | FileCheck %s
+; RUN: opt < %s -passes=asan -S | FileCheck %s
 
 target triple = "x86_64-unknown-linux-gnu"
 
@@ -13,7 +13,7 @@ entry:
 !llvm.module.flags = !{!0, !1}
 
 ;; Due to -fasynchronous-unwind-tables.
-!0 = !{i32 7, !"uwtable", i32 1}
+!0 = !{i32 7, !"uwtable", i32 2}
 
 ;; Due to -fno-omit-frame-pointer.
 !1 = !{i32 7, !"frame-pointer", i32 2}

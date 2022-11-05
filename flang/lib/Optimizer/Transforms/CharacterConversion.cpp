@@ -6,18 +6,23 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
 #include "flang/Optimizer/Dialect/FIRDialect.h"
 #include "flang/Optimizer/Dialect/FIROps.h"
 #include "flang/Optimizer/Dialect/FIRType.h"
 #include "flang/Optimizer/Support/FIRContext.h"
 #include "flang/Optimizer/Support/KindMapping.h"
 #include "flang/Optimizer/Transforms/Passes.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "llvm/Support/Debug.h"
+
+namespace fir {
+#define GEN_PASS_DEF_CHARACTERCONVERSION
+#include "flang/Optimizer/Transforms/Passes.h.inc"
+} // namespace fir
 
 #define DEBUG_TYPE "flang-character-conversion"
 
@@ -46,7 +51,7 @@ public:
     auto zero = rewriter.create<mlir::arith::ConstantIndexOp>(loc, 0);
     auto one = rewriter.create<mlir::arith::ConstantIndexOp>(loc, 1);
     auto idxTy = rewriter.getIndexType();
-    auto castCnt = rewriter.create<fir::ConvertOp>(loc, idxTy, conv.count());
+    auto castCnt = rewriter.create<fir::ConvertOp>(loc, idxTy, conv.getCount());
     auto countm1 = rewriter.create<mlir::arith::SubIOp>(loc, castCnt, one);
     auto loop = rewriter.create<fir::DoLoopOp>(loc, zero, countm1, one);
     auto insPt = rewriter.saveInsertionPoint();
@@ -59,8 +64,8 @@ public:
                        .cast<fir::CharacterType>();
       return kindMap.getCharacterBitsize(chrTy.getFKind());
     };
-    auto fromBits = getCharBits(conv.from().getType());
-    auto toBits = getCharBits(conv.to().getType());
+    auto fromBits = getCharBits(conv.getFrom().getType());
+    auto toBits = getCharBits(conv.getTo().getType());
     auto pointerType = [&](unsigned bits) {
       return fir::ReferenceType::get(fir::SequenceType::get(
           fir::SequenceType::ShapeRef{fir::SequenceType::getUnknownExtent()},
@@ -69,8 +74,9 @@ public:
     auto fromPtrTy = pointerType(fromBits);
     auto toTy = rewriter.getIntegerType(toBits);
     auto toPtrTy = pointerType(toBits);
-    auto fromPtr = rewriter.create<fir::ConvertOp>(loc, fromPtrTy, conv.from());
-    auto toPtr = rewriter.create<fir::ConvertOp>(loc, toPtrTy, conv.to());
+    auto fromPtr =
+        rewriter.create<fir::ConvertOp>(loc, fromPtrTy, conv.getFrom());
+    auto toPtr = rewriter.create<fir::ConvertOp>(loc, toPtrTy, conv.getTo());
     auto getEleTy = [&](unsigned bits) {
       return fir::ReferenceType::get(rewriter.getIntegerType(bits));
     };
@@ -94,19 +100,19 @@ public:
 /// Rewrite the `fir.char_convert` op into a loop. This pass must be run only on
 /// fir::CharConvertOp.
 class CharacterConversion
-    : public fir::CharacterConversionBase<CharacterConversion> {
+    : public fir::impl::CharacterConversionBase<CharacterConversion> {
 public:
   void runOnOperation() override {
     CharacterConversionOptions clOpts{useRuntimeCalls.getValue()};
     if (clOpts.runtimeName.empty()) {
       auto *context = &getContext();
       auto *func = getOperation();
-      mlir::OwningRewritePatternList patterns(context);
+      mlir::RewritePatternSet patterns(context);
       patterns.insert<CharacterConvertConversion>(context);
       mlir::ConversionTarget target(*context);
       target.addLegalDialect<mlir::AffineDialect, fir::FIROpsDialect,
-                             mlir::arith::ArithmeticDialect,
-                             mlir::StandardOpsDialect>();
+                             mlir::arith::ArithDialect,
+                             mlir::func::FuncDialect>();
 
       // apply the patterns
       target.addIllegalOp<fir::CharConvertOp>();

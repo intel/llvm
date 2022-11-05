@@ -62,6 +62,7 @@ add_unittest(ClangdUnitTests ClangdTests
   IndexActionTests.cpp
   IndexTests.cpp
   InlayHintTests.cpp
+  InsertionPointTests.cpp
   JSONTransportTests.cpp
   LoggerTests.cpp
   LSPBinderTests.cpp
@@ -80,6 +81,7 @@ add_unittest(ClangdUnitTests ClangdTests
   SemanticSelectionTests.cpp
   SerializationTests.cpp
   SourceCodeTests.cpp
+  StdLibTests.cpp
   SymbolCollectorTests.cpp
   SymbolInfoTests.cpp
   SyncAPI.cpp
@@ -88,6 +90,7 @@ add_unittest(ClangdUnitTests ClangdTests
   TestIndex.cpp
   TestTU.cpp
   TestWorkspace.cpp
+  ThreadCrashReporterTests.cpp
   TidyProviderTests.cpp
   TypeHierarchyTests.cpp
   URITests.cpp
@@ -115,7 +118,9 @@ add_unittest(ClangdUnitTests ClangdTests
   tweaks/ExpandMacroTests.cpp
   tweaks/ExtractFunctionTests.cpp
   tweaks/ExtractVariableTests.cpp
+  tweaks/MemberwiseConstructorTests.cpp
   tweaks/ObjCLocalizeStringLiteralTests.cpp
+  tweaks/ObjCMemberwiseInitializerTests.cpp
   tweaks/PopulateSwitchTests.cpp
   tweaks/RawStringLiteralTests.cpp
   tweaks/RemoveUsingNamespaceTests.cpp
@@ -148,6 +153,7 @@ clang_target_link_libraries(ClangdTests
   clangTooling
   clangToolingCore
   clangToolingInclusions
+  clangToolingInclusionsStdlib
   clangToolingRefactoring
   clangToolingSyntax
   )
@@ -163,7 +169,7 @@ if (CLANGD_ENABLE_REMOTE)
   target_link_libraries(ClangdTests
     PRIVATE
     clangdRemoteMarshalling
-    RemoteIndexProto)
+    clangdRemoteIndexProto)
 endif()
 
 if (CLANGD_BUILD_XPC)

@@ -43,6 +43,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeBPFTarget() {
   PassRegistry &PR = *PassRegistry::getPassRegistry();
   initializeBPFAbstractMemberAccessLegacyPassPass(PR);
   initializeBPFPreserveDITypePass(PR);
+  initializeBPFIRPeepholePass(PR);
   initializeBPFAdjustOptPass(PR);
   initializeBPFCheckAndAdjustIRPass(PR);
   initializeBPFMIPeepholePass(PR);
@@ -58,7 +59,7 @@ static std::string computeDataLayout(const Triple &TT) {
 }
 
 static Reloc::Model getEffectiveRelocModel(Optional<Reloc::Model> RM) {
-  return RM.getValueOr(Reloc::PIC_);
+  return RM.value_or(Reloc::PIC_);
 }
 
 BPFTargetMachine::BPFTargetMachine(const Target &T, const Triple &TT,
@@ -107,6 +108,7 @@ void BPFTargetMachine::adjustPassManager(PassManagerBuilder &Builder) {
       [&](const PassManagerBuilder &, legacy::PassManagerBase &PM) {
         PM.add(createBPFAbstractMemberAccess(this));
         PM.add(createBPFPreserveDIType());
+        PM.add(createBPFIRPeephole());
       });
 
   Builder.addExtension(
@@ -128,6 +130,7 @@ void BPFTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
         FunctionPassManager FPM;
         FPM.addPass(BPFAbstractMemberAccessPass(this));
         FPM.addPass(BPFPreserveDITypePass());
+        FPM.addPass(BPFIRPeepholePass());
         MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
       });
   PB.registerPeepholeEPCallback([=](FunctionPassManager &FPM,
@@ -146,7 +149,7 @@ void BPFPassConfig::addIRPasses() {
 }
 
 TargetTransformInfo
-BPFTargetMachine::getTargetTransformInfo(const Function &F) {
+BPFTargetMachine::getTargetTransformInfo(const Function &F) const {
   return TargetTransformInfo(BPFTTIImpl(this, F));
 }
 

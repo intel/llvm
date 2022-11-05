@@ -31,6 +31,9 @@ class DWARFASTParser;
 class PDBASTParser;
 
 namespace lldb_private {
+namespace npdb {
+  class PdbAstBuilder;
+} // namespace npdb
 
 /// A SmallBitVector that represents a set of source languages (\p
 /// lldb::LanguageType).  Each lldb::LanguageType is represented by
@@ -88,10 +91,10 @@ public:
 
   virtual DWARFASTParser *GetDWARFParser() { return nullptr; }
   virtual PDBASTParser *GetPDBParser() { return nullptr; }
+  virtual npdb::PdbAstBuilder *GetNativePDBParser() { return nullptr; }
 
   virtual SymbolFile *GetSymbolFile() const { return m_sym_file; }
 
-  // Returns true if the symbol file changed during the set accessor.
   virtual void SetSymbolFile(SymbolFile *sym_file) { m_sym_file = sym_file; }
 
   // CompilerDecl functions
@@ -203,7 +206,8 @@ public:
 
   // Accessors
 
-  virtual ConstString GetTypeName(lldb::opaque_compiler_type_t type) = 0;
+  virtual ConstString GetTypeName(lldb::opaque_compiler_type_t type,
+                                  bool BaseOnly) = 0;
 
   virtual ConstString GetDisplayTypeName(lldb::opaque_compiler_type_t type) = 0;
 
@@ -347,14 +351,18 @@ public:
                                 const char *name, bool omit_empty_base_classes,
                                 std::vector<uint32_t> &child_indexes) = 0;
 
-  virtual size_t GetNumTemplateArguments(lldb::opaque_compiler_type_t type);
+  virtual size_t GetNumTemplateArguments(lldb::opaque_compiler_type_t type,
+                                         bool expand_pack);
 
   virtual lldb::TemplateArgumentKind
-  GetTemplateArgumentKind(lldb::opaque_compiler_type_t type, size_t idx);
-  virtual CompilerType GetTypeTemplateArgument(lldb::opaque_compiler_type_t type,
-                                           size_t idx);
+  GetTemplateArgumentKind(lldb::opaque_compiler_type_t type, size_t idx,
+                          bool expand_pack);
+  virtual CompilerType
+  GetTypeTemplateArgument(lldb::opaque_compiler_type_t type, size_t idx,
+                          bool expand_pack);
   virtual llvm::Optional<CompilerType::IntegralTemplateArgument>
-  GetIntegralTemplateArgument(lldb::opaque_compiler_type_t type, size_t idx);
+  GetIntegralTemplateArgument(lldb::opaque_compiler_type_t type, size_t idx,
+                              bool expand_pack);
 
   // Dumping types
 
@@ -363,7 +371,7 @@ public:
   LLVM_DUMP_METHOD virtual void
   dump(lldb::opaque_compiler_type_t type) const = 0;
 #endif
-  
+
   virtual void DumpValue(lldb::opaque_compiler_type_t type,
                          ExecutionContext *exe_ctx, Stream *s,
                          lldb::Format format, const DataExtractor &data,
@@ -391,6 +399,12 @@ public:
   virtual void DumpTypeDescription(
       lldb::opaque_compiler_type_t type, Stream *s,
       lldb::DescriptionLevel level = lldb::eDescriptionLevelFull) = 0;
+
+  /// Dump a textual representation of the internal TypeSystem state to the
+  /// given stream.
+  ///
+  /// This should not modify the state of the TypeSystem if possible.
+  virtual void Dump(llvm::raw_ostream &output) = 0;
 
   // TODO: These methods appear unused. Should they be removed?
 

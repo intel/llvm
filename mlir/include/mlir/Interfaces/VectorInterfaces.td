@@ -28,7 +28,7 @@ def VectorUnrollOpInterface : OpInterface<"VectorUnrollOpInterface"> {
         `targetShape`. Return `None` if the op cannot be unrolled to the target
         vector shape.
       }],
-      /*retTy=*/"::mlir::Optional<::mlir::SmallVector<int64_t, 4>>",
+      /*retTy=*/"::llvm::Optional<::llvm::SmallVector<int64_t, 4>>",
       /*methodName=*/"getShapeForUnroll",
       /*args=*/(ins),
       /*methodBody=*/"",
@@ -38,7 +38,7 @@ def VectorUnrollOpInterface : OpInterface<"VectorUnrollOpInterface"> {
           template dyn_cast<::mlir::VectorType>();
         if (!vt)
           return ::mlir::None;
-        ::mlir::SmallVector<int64_t, 4> res(vt.getShape().begin(), vt.getShape().end());
+        ::llvm::SmallVector<int64_t, 4> res(vt.getShape().begin(), vt.getShape().end());
         return res;
       }]
     >,
@@ -55,7 +55,7 @@ def VectorTransferOpInterface : OpInterface<"VectorTransferOpInterface"> {
     StaticInterfaceMethod<
       /*desc=*/"Return the `in_bounds` attribute name.",
       /*retTy=*/"::mlir::StringRef",
-      /*methodName=*/"getInBoundsAttrName",
+      /*methodName=*/"getInBoundsAttrStrName",
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/ [{ return "in_bounds"; }]
@@ -63,7 +63,7 @@ def VectorTransferOpInterface : OpInterface<"VectorTransferOpInterface"> {
     StaticInterfaceMethod<
       /*desc=*/"Return the `permutation_map` attribute name.",
       /*retTy=*/"::mlir::StringRef",
-      /*methodName=*/"getPermutationMapAttrName",
+      /*methodName=*/"getPermutationMapAttrStrName",
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/ [{ return "permutation_map"; }]
@@ -77,8 +77,8 @@ def VectorTransferOpInterface : OpInterface<"VectorTransferOpInterface"> {
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
         return $_op.isBroadcastDim(dim)
-            || ($_op.in_bounds()
-                && $_op.in_bounds()->template cast<::mlir::ArrayAttr>()[dim]
+            || ($_op.getInBounds()
+                && $_op.getInBounds()->template cast<::mlir::ArrayAttr>()[dim]
                                     .template cast<::mlir::BoolAttr>().getValue());
       }]
     >,
@@ -87,7 +87,7 @@ def VectorTransferOpInterface : OpInterface<"VectorTransferOpInterface"> {
       /*retTy=*/"::mlir::Value",
       /*methodName=*/"source",
       /*args=*/(ins),
-      /*methodBody=*/"return $_op.source();"
+      /*methodBody=*/"return $_op.getSource();"
       /*defaultImplementation=*/
     >,
     InterfaceMethod<
@@ -95,7 +95,7 @@ def VectorTransferOpInterface : OpInterface<"VectorTransferOpInterface"> {
       /*retTy=*/"::mlir::Value",
       /*methodName=*/"vector",
       /*args=*/(ins),
-      /*methodBody=*/"return $_op.vector();"
+      /*methodBody=*/"return $_op.getVector();"
       /*defaultImplementation=*/
     >,
     InterfaceMethod<
@@ -103,7 +103,7 @@ def VectorTransferOpInterface : OpInterface<"VectorTransferOpInterface"> {
       /*retTy=*/"::mlir::ValueRange",
       /*methodName=*/"indices",
       /*args=*/(ins),
-      /*methodBody=*/"return $_op.indices();"
+      /*methodBody=*/"return $_op.getIndices();"
       /*defaultImplementation=*/
     >,
     InterfaceMethod<
@@ -111,31 +111,8 @@ def VectorTransferOpInterface : OpInterface<"VectorTransferOpInterface"> {
       /*retTy=*/"::mlir::AffineMap",
       /*methodName=*/"permutation_map",
       /*args=*/(ins),
-      /*methodBody=*/"return $_op.permutation_map();"
+      /*methodBody=*/"return $_op.getPermutationMap();"
       /*defaultImplementation=*/
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Returns true if op involves a 0-d tensor/memref and a vector
-        of shape {1}. This is temporary until we have 0-d vectors.
-        // TODO: turn this into 0-d vectors + empty permutation_map.
-      }],
-      /*retTy=*/"bool",
-      /*methodName=*/"isZeroD",
-      /*args=*/(ins),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        if (getShapedType().getRank() > 0)
-          return false;
-        if (getVectorType().getShape() != ArrayRef<int64_t>{1})
-          return false;
-        AffineMap map = AffineMap::get(
-          /*numDims=*/0, /*numSymbols=*/0,
-          getAffineConstantExpr(0, $_op->getContext()));
-        if ($_op.permutation_map() != map)
-          return false;
-        return true;
-      }]
     >,
     InterfaceMethod<
       /*desc=*/[{ Returns true if the specified dimension is a broadcast. }],
@@ -144,7 +121,7 @@ def VectorTransferOpInterface : OpInterface<"VectorTransferOpInterface"> {
       /*args=*/(ins "unsigned":$idx),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        auto expr = $_op.permutation_map().getResult(idx);
+        auto expr = $_op.getPermutationMap().getResult(idx);
         return expr.template isa<::mlir::AffineConstantExpr>() &&
                expr.template dyn_cast<::mlir::AffineConstantExpr>().getValue() == 0;
       }]
@@ -157,10 +134,7 @@ def VectorTransferOpInterface : OpInterface<"VectorTransferOpInterface"> {
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        // 0-d transfers are not considered broadcasts but they need to be 
-        // represented with a vector<1xt> until we have 0-d vectors.
-        if ($_op.isZeroD()) return false;
-        for (unsigned i = 0; i < $_op.permutation_map().getNumResults(); ++i) {
+        for (unsigned i = 0, rank = getTransferRank(); i < rank; ++i) {
           if ($_op.isBroadcastDim(i))
             return true;
         }
@@ -169,10 +143,10 @@ def VectorTransferOpInterface : OpInterface<"VectorTransferOpInterface"> {
     >,
     InterfaceMethod<
       /*desc=*/"Return the `in_bounds` boolean ArrayAttr.",
-      /*retTy=*/"::mlir::Optional<::mlir::ArrayAttr>",
+      /*retTy=*/"::llvm::Optional<::mlir::ArrayAttr>",
       /*methodName=*/"in_bounds",
       /*args=*/(ins),
-      /*methodBody=*/"return $_op.in_bounds();"
+      /*methodBody=*/"return $_op.getInBounds();"
       /*defaultImplementation=*/
     >,
     InterfaceMethod<
@@ -182,7 +156,7 @@ def VectorTransferOpInterface : OpInterface<"VectorTransferOpInterface"> {
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/
-        "return $_op.source().getType().template cast<::mlir::ShapedType>();"
+        "return $_op.getSource().getType().template cast<::mlir::ShapedType>();"
     >,
     InterfaceMethod<
       /*desc=*/"Return the VectorType.",
@@ -191,7 +165,7 @@ def VectorTransferOpInterface : OpInterface<"VectorTransferOpInterface"> {
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return $_op.vector().getType().template dyn_cast<::mlir::VectorType>();
+        return $_op.getVector().getType().template dyn_cast<::mlir::VectorType>();
         }]
     >,
     InterfaceMethod<
@@ -201,9 +175,9 @@ def VectorTransferOpInterface : OpInterface<"VectorTransferOpInterface"> {
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return $_op.mask()
+        return $_op.getMask()
             ? ::mlir::vector::detail::transferMaskType(
-                $_op.getVectorType(), $_op.permutation_map())
+                $_op.getVectorType(), $_op.getPermutationMap())
             : ::mlir::VectorType();
       }]
     >,
@@ -215,7 +189,7 @@ def VectorTransferOpInterface : OpInterface<"VectorTransferOpInterface"> {
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/
-        "return $_op.permutation_map().getNumResults();"
+        "return $_op.getPermutationMap().getNumResults();"
     >,
     InterfaceMethod<
       /*desc=*/[{ Return the number of leading shaped dimensions that do not
@@ -267,6 +241,36 @@ def VectorTransferOpInterface : OpInterface<"VectorTransferOpInterface"> {
            resultIdx < eResult;
            ++resultIdx, ++indicesIdx)
         fun(resultIdx, indicesIdx);
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/[{
+      Return an upper-bound shape accessed by the transfer op within the
+      tensor/memref operand.
+      For example:
+      ```
+        vector.transfer %w0[%i, %j] {
+          permutation_map = affine_map<(d0, d1) -> (d1, d0, 0)>} :
+          tensor<?x?xf32>, vector<4x2x6xf32>
+      ```
+      returns a shape [2, 4].
+      }],
+      /*retTy=*/"SmallVector<int64_t>",
+      /*methodName=*/"getTransferChunkAccessed",
+      /*args=*/(ins),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        SmallVector<int64_t> dimSizes($_op.getPermutationMap().getNumDims(), 0);
+        for (auto vecDims : llvm::zip($_op.getPermutationMap().getResults(),
+                                      $_op.getVectorType().getShape())) {
+          AffineExpr dim = std::get<0>(vecDims);
+          int64_t size = std::get<1>(vecDims);
+          // Skip broadcast.
+          if (dim.isa<AffineConstantExpr>())
+            continue;
+          dimSizes[dim.cast<AffineDimExpr>().getPosition()] = size;
+        }
+        return dimSizes;
       }]
     >,
   ];

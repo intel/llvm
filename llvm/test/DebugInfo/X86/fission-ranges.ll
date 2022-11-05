@@ -5,7 +5,7 @@
 ; RUN: llc -dwarf-version=5 -O0 %s -mtriple=x86_64-unknown-linux-gnu -filetype=obj -o %t
 ; RUN: llvm-dwarfdump -v %t | FileCheck --check-prefix=V5RNGLISTS %s
 
-; RUN: llc -O0 %s -mtriple=x86_64-unknown-linux-gnu -stop-after=livedebugvalues -o -| FileCheck --check-prefix=CHECK-MIR %s
+; RUN: llc -O0 %s -mtriple=x86_64-unknown-linux-gnu -stop-after=livedebugvalues -o - | FileCheck --check-prefix=CHECK-MIR %s
 
 ; LiveDebugValues should produce DBG_VALUEs for variable "b" in successive
 ; blocks once we recognize that it is spilled.
@@ -51,7 +51,7 @@
 ; CHECK-NEXT:   DW_LLE_end_of_list   ()
 ; CHECK:      [[E]]:
 ; CHECK-NEXT:   DW_LLE_startx_length (0x00000004, 0x0000000b): DW_OP_reg0 RAX
-; CHECK-NEXT:   DW_LLE_startx_length (0x00000005, 0x0000005a): DW_OP_breg7 RSP-48
+; CHECK-NEXT:   DW_LLE_startx_length (0x00000005, 0x0000005a): DW_OP_breg7 RSP-36
 ; CHECK-NEXT:   DW_LLE_end_of_list   ()
 ; CHECK:      [[B]]:
 ; CHECK-NEXT:   DW_LLE_startx_length (0x00000006, 0x0000000b): DW_OP_reg0 RAX

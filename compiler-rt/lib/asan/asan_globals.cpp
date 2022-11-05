@@ -61,14 +61,13 @@ ALWAYS_INLINE void PoisonShadowForGlobal(const Global *g, u8 value) {
 }
 
 ALWAYS_INLINE void PoisonRedZones(const Global &g) {
-  uptr aligned_size = RoundUpTo(g.size, SHADOW_GRANULARITY);
+  uptr aligned_size = RoundUpTo(g.size, ASAN_SHADOW_GRANULARITY);
   FastPoisonShadow(g.beg + aligned_size, g.size_with_redzone - aligned_size,
                    kAsanGlobalRedzoneMagic);
   if (g.size != aligned_size) {
     FastPoisonShadowPartialRightRedzone(
-        g.beg + RoundDownTo(g.size, SHADOW_GRANULARITY),
-        g.size % SHADOW_GRANULARITY,
-        SHADOW_GRANULARITY,
+        g.beg + RoundDownTo(g.size, ASAN_SHADOW_GRANULARITY),
+        g.size % ASAN_SHADOW_GRANULARITY, ASAN_SHADOW_GRANULARITY,
         kAsanGlobalRedzoneMagic);
   }
 }
@@ -85,12 +84,13 @@ static void ReportGlobal(const Global &g, const char *prefix) {
   Report(
       "%s Global[%p]: beg=%p size=%zu/%zu name=%s module=%s dyn_init=%zu "
       "odr_indicator=%p\n",
-      prefix, &g, (void *)g.beg, g.size, g.size_with_redzone, g.name,
+      prefix, (void *)&g, (void *)g.beg, g.size, g.size_with_redzone, g.name,
       g.module_name, g.has_dynamic_init, (void *)g.odr_indicator);
-  if (g.location) {
-    Report("  location (%p): name=%s[%p], %d %d\n", g.location,
-           g.location->filename, g.location->filename, g.location->line_no,
-           g.location->column_no);
+
+  DataInfo info;
+  Symbolizer::GetOrInit()->SymbolizeData(g.beg, &info);
+  if (info.line != 0) {
+    Report("  location: name=%s, %d\n", info.file, static_cast<int>(info.line));
   }
 }
 
@@ -296,19 +296,15 @@ void PrintGlobalNameIfASCII(InternalScopedString *str, const __asan_global &g) {
               (char *)g.beg);
 }
 
-static const char *GlobalFilename(const __asan_global &g) {
-  const char *res = g.module_name;
-  // Prefer the filename from source location, if is available.
-  if (g.location) res = g.location->filename;
-  CHECK(res);
-  return res;
-}
-
 void PrintGlobalLocation(InternalScopedString *str, const __asan_global &g) {
-  str->append("%s", GlobalFilename(g));
-  if (!g.location) return;
-  if (g.location->line_no) str->append(":%d", g.location->line_no);
-  if (g.location->column_no) str->append(":%d", g.location->column_no);
+  DataInfo info;
+  Symbolizer::GetOrInit()->SymbolizeData(g.beg, &info);
+
+  if (info.line != 0) {
+    str->append("%s:%d", info.file, static_cast<int>(info.line));
+  } else {
+    str->append("%s", g.module_name);
+  }
 }
 
 } // namespace __asan
@@ -369,7 +365,8 @@ void __asan_register_globals(__asan_global *globals, uptr n) {
   global_registration_site_vector->push_back(site);
   if (flags()->report_globals >= 2) {
     PRINT_CURRENT_STACK();
-    Printf("=== ID %d; %p %p\n", stack_id, &globals[0], &globals[n - 1]);
+    Printf("=== ID %d; %p %p\n", stack_id, (void *)&globals[0],
+           (void *)&globals[n - 1]);
   }
   for (uptr i = 0; i < n; i++) {
     if (SANITIZER_WINDOWS && globals[i].beg == 0) {

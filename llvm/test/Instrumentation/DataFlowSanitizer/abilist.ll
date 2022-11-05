@@ -1,4 +1,4 @@
-; RUN: opt < %s -dfsan -dfsan-abilist=%S/Inputs/abilist.txt -S | FileCheck %s
+; RUN: opt < %s -passes=dfsan -dfsan-abilist=%S/Inputs/abilist.txt -S | FileCheck %s
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
@@ -42,7 +42,7 @@ define void @f(i32 %x) {
   ; CHECK: call i32 @__dfsw_custom2(i32 1, i32 2, i[[#SBITS]] zeroext 0, i[[#SBITS]] zeroext 0, i[[#SBITS]]* %[[LABELRETURN]])
   call i32 @custom2(i32 1, i32 2)
 
-  ; CHECK: call void @__dfsw_customcb({{.*}} @"dfst0$customcb", i8* bitcast ({{.*}} @cb.dfsan to i8*), i[[#SBITS]] zeroext 0)
+  ; CHECK: call void @__dfsw_customcb({{.*}} @cb.dfsan, i[[#SBITS]] zeroext 0)
   call void @customcb(i32 (i32)* @cb)
 
   ; CHECK: %[[LABELVA1_0:.*]] = getelementptr inbounds [2 x i[[#SBITS]]], [2 x i[[#SBITS]]]* %[[LABELVA1]], i32 0, i32 0
@@ -92,13 +92,6 @@ define i32 (i32, i32)* @g(i32) {
 
 ; CHECK: declare void @__dfsw_custom1(i32, i32, i[[#SBITS]], i[[#SBITS]])
 ; CHECK: declare i32 @__dfsw_custom2(i32, i32, i[[#SBITS]], i[[#SBITS]], i[[#SBITS]]*)
-
-; CHECK-LABEL: define linkonce_odr i32 @"dfst0$customcb"
-; CHECK-SAME: (i32 (i32)* %0, i32 %1, i[[#SBITS]] %2, i[[#SBITS]]* %3)
-; CHECK: %[[CALL:.*]] = call i32 %0(i32 %1)
-; CHECK: %[[RVSHADOW2:.*]] = load i[[#SBITS]], {{.*}} @__dfsan_retval_tls
-; CHECK: store i[[#SBITS]] %[[RVSHADOW2]], i[[#SBITS]]* %3
-; CHECK: ret i32 %[[CALL]]
 
 ; CHECK: declare void @__dfsw_custom3(i32, i[[#SBITS]], i[[#SBITS]]*, ...)
 ; CHECK: declare i32 @__dfsw_custom4(i32, i[[#SBITS]], i[[#SBITS]]*, i[[#SBITS]]*, ...)

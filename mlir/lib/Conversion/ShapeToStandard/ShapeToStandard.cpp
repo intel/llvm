@@ -8,16 +8,21 @@
 
 #include "mlir/Conversion/ShapeToStandard/ShapeToStandard.h"
 
-#include "../PassDetail.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Shape/IR/Shape.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "llvm/ADT/STLExtras.h"
+
+namespace mlir {
+#define GEN_PASS_DEF_CONVERTSHAPETOSTANDARD
+#include "mlir/Conversion/Passes.h.inc"
+} // namespace mlir
 
 using namespace mlir;
 using namespace mlir::shape;
@@ -40,7 +45,7 @@ AnyOpConversion::matchAndRewrite(AnyOp op, OpAdaptor adaptor,
                                  ConversionPatternRewriter &rewriter) const {
   // Replace `any` with its first operand.
   // Any operand would be a valid substitution.
-  rewriter.replaceOp(op, {adaptor.inputs().front()});
+  rewriter.replaceOp(op, {adaptor.getInputs().front()});
   return success();
 }
 
@@ -57,7 +62,8 @@ public:
     if (op.getType().template isa<SizeType>())
       return failure();
 
-    rewriter.replaceOpWithNewOp<DstOpTy>(op, adaptor.lhs(), adaptor.rhs());
+    rewriter.replaceOpWithNewOp<DstOpTy>(op, adaptor.getLhs(),
+                                         adaptor.getRhs());
     return success();
   }
 };
@@ -106,8 +112,8 @@ Value getBroadcastedDim(ImplicitLocOpBuilder lb, ValueRange extentTensors,
                 Value dimIsOne =
                     b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
                                             lesserRankOperandExtent, one);
-                Value dim = b.create<SelectOp>(loc, dimIsOne, broadcastedDim,
-                                               lesserRankOperandExtent);
+                Value dim = b.create<arith::SelectOp>(
+                    loc, dimIsOne, broadcastedDim, lesserRankOperandExtent);
                 b.create<scf::YieldOp>(loc, dim);
               })
             .getResult(0);
@@ -134,7 +140,7 @@ LogicalResult BroadcastOpConverter::matchAndRewrite(
   // representing the shape extents, the rank is the extent of the only
   // dimension in the tensor.
   SmallVector<Value> ranks, rankDiffs;
-  llvm::append_range(ranks, llvm::map_range(adaptor.shapes(), [&](Value v) {
+  llvm::append_range(ranks, llvm::map_range(adaptor.getShapes(), [&](Value v) {
                        return lb.create<tensor::DimOp>(v, zero);
                      }));
 
@@ -143,7 +149,7 @@ LogicalResult BroadcastOpConverter::matchAndRewrite(
   for (Value v : llvm::drop_begin(ranks, 1)) {
     Value rankIsGreater =
         lb.create<arith::CmpIOp>(arith::CmpIPredicate::ugt, v, maxRank);
-    maxRank = lb.create<SelectOp>(rankIsGreater, v, maxRank);
+    maxRank = lb.create<arith::SelectOp>(rankIsGreater, v, maxRank);
   }
 
   // Calculate the difference of ranks and the maximum rank for later offsets.
@@ -154,8 +160,9 @@ LogicalResult BroadcastOpConverter::matchAndRewrite(
   Value replacement = lb.create<tensor::GenerateOp>(
       getExtentTensorType(lb.getContext()), ValueRange{maxRank},
       [&](OpBuilder &b, Location loc, ValueRange args) {
-        Value broadcastedDim = getBroadcastedDim(
-            ImplicitLocOpBuilder(loc, b), adaptor.shapes(), rankDiffs, args[0]);
+        Value broadcastedDim =
+            getBroadcastedDim(ImplicitLocOpBuilder(loc, b), adaptor.getShapes(),
+                              rankDiffs, args[0]);
 
         b.create<tensor::YieldOp>(loc, broadcastedDim);
       });
@@ -187,14 +194,14 @@ LogicalResult ConstShapeOpConverter::matchAndRewrite(
 
   auto loc = op.getLoc();
   SmallVector<Value, 4> extentOperands;
-  for (auto extent : op.shape()) {
+  for (auto extent : op.getShape()) {
     extentOperands.push_back(
         rewriter.create<arith::ConstantIndexOp>(loc, extent.getLimitedValue()));
   }
-  Type indexTy = rewriter.getIndexType();
+  Type resultTy =
+      RankedTensorType::get({op.getShape().size()}, rewriter.getIndexType());
   Value tensor =
-      rewriter.create<tensor::FromElementsOp>(loc, indexTy, extentOperands);
-  Type resultTy = RankedTensorType::get({op.shape().size()}, indexTy);
+      rewriter.create<tensor::FromElementsOp>(loc, resultTy, extentOperands);
   rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultTy, tensor);
   return success();
 }
@@ -214,7 +221,7 @@ LogicalResult ConstSizeOpConversion::matchAndRewrite(
     ConstSizeOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   rewriter.replaceOpWithNewOp<arith::ConstantIndexOp>(
-      op, op.value().getSExtValue());
+      op, op.getValue().getSExtValue());
   return success();
 }
 
@@ -234,7 +241,7 @@ LogicalResult IsBroadcastableOpConverter::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
   // For now, this lowering is only defined on `tensor<?xindex>` operands, not
   // on shapes.
-  if (!llvm::all_of(op.shapes(),
+  if (!llvm::all_of(op.getShapes(),
                     [](Value v) { return !v.getType().isa<ShapeType>(); }))
     return failure();
 
@@ -248,7 +255,7 @@ LogicalResult IsBroadcastableOpConverter::matchAndRewrite(
   // representing the shape extents, the rank is the extent of the only
   // dimension in the tensor.
   SmallVector<Value> ranks, rankDiffs;
-  llvm::append_range(ranks, llvm::map_range(adaptor.shapes(), [&](Value v) {
+  llvm::append_range(ranks, llvm::map_range(adaptor.getShapes(), [&](Value v) {
                        return lb.create<tensor::DimOp>(v, zero);
                      }));
 
@@ -257,7 +264,7 @@ LogicalResult IsBroadcastableOpConverter::matchAndRewrite(
   for (Value v : llvm::drop_begin(ranks, 1)) {
     Value rankIsGreater =
         lb.create<arith::CmpIOp>(arith::CmpIPredicate::ugt, v, maxRank);
-    maxRank = lb.create<SelectOp>(rankIsGreater, v, maxRank);
+    maxRank = lb.create<arith::SelectOp>(rankIsGreater, v, maxRank);
   }
 
   // Calculate the difference of ranks and the maximum rank for later offsets.
@@ -276,10 +283,10 @@ LogicalResult IsBroadcastableOpConverter::matchAndRewrite(
         // could reuse the Broadcast lowering entirely, but we redo the work
         // here to make optimizations easier between the two loops.
         Value broadcastedDim = getBroadcastedDim(
-            ImplicitLocOpBuilder(loc, b), adaptor.shapes(), rankDiffs, iv);
+            ImplicitLocOpBuilder(loc, b), adaptor.getShapes(), rankDiffs, iv);
 
         Value broadcastable = iterArgs[0];
-        for (auto tup : llvm::zip(adaptor.shapes(), rankDiffs)) {
+        for (auto tup : llvm::zip(adaptor.getShapes(), rankDiffs)) {
           Value shape, rankDiff;
           std::tie(shape, rankDiff) = tup;
           Value outOfBounds = b.create<arith::CmpIOp>(
@@ -316,7 +323,29 @@ LogicalResult IsBroadcastableOpConverter::matchAndRewrite(
         b.create<scf::YieldOp>(loc, broadcastable);
       });
 
-  rewriter.replaceOp(op, reduceResult.results().front());
+  rewriter.replaceOp(op, reduceResult.getResults().front());
+  return success();
+}
+
+namespace {
+class DimOpConverter : public OpConversionPattern<DimOp> {
+  using OpConversionPattern<DimOp>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(DimOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override;
+};
+} // namespace
+
+LogicalResult
+DimOpConverter::matchAndRewrite(DimOp op, OpAdaptor adaptor,
+                                ConversionPatternRewriter &rewriter) const {
+  // Lower to dim(X, i) to get_extent(shape_of(X), i) and rely on further
+  // lowerings. This can be further optimized if needed to avoid intermediate
+  // steps.
+  auto shapeOf = rewriter.create<shape::ShapeOfOp>(op.getLoc(), op.getValue());
+  rewriter.replaceOpWithNewOp<shape::GetExtentOp>(op, op.getType(), shapeOf,
+                                                  op.getIndex());
   return success();
 }
 
@@ -339,16 +368,17 @@ LogicalResult GetExtentOpConverter::matchAndRewrite(
 
   // Derive shape extent directly from shape origin if possible. This
   // circumvents the necessity to materialize the shape in memory.
-  if (auto shapeOfOp = op.shape().getDefiningOp<ShapeOfOp>()) {
-    if (shapeOfOp.arg().getType().isa<ShapedType>()) {
-      rewriter.replaceOpWithNewOp<tensor::DimOp>(op, shapeOfOp.arg(),
-                                                 adaptor.dim());
+  if (auto shapeOfOp = op.getShape().getDefiningOp<ShapeOfOp>()) {
+    if (shapeOfOp.getArg().getType().isa<ShapedType>()) {
+      rewriter.replaceOpWithNewOp<tensor::DimOp>(op, shapeOfOp.getArg(),
+                                                 adaptor.getDim());
       return success();
     }
   }
 
-  rewriter.replaceOpWithNewOp<tensor::ExtractOp>(
-      op, rewriter.getIndexType(), adaptor.shape(), ValueRange{adaptor.dim()});
+  rewriter.replaceOpWithNewOp<tensor::ExtractOp>(op, rewriter.getIndexType(),
+                                                 adaptor.getShape(),
+                                                 ValueRange{adaptor.getDim()});
   return success();
 }
 
@@ -370,7 +400,7 @@ RankOpConverter::matchAndRewrite(shape::RankOp op, OpAdaptor adaptor,
   if (op.getType().isa<SizeType>())
     return failure();
 
-  rewriter.replaceOpWithNewOp<tensor::DimOp>(op, adaptor.shape(), 0);
+  rewriter.replaceOpWithNewOp<tensor::DimOp>(op, adaptor.getShape(), 0);
   return success();
 }
 
@@ -390,7 +420,7 @@ LogicalResult
 ReduceOpConverter::matchAndRewrite(shape::ReduceOp op, OpAdaptor adaptor,
                                    ConversionPatternRewriter &rewriter) const {
   // For now, this lowering is only defined on `tensor<?xindex>` operands.
-  if (op.shape().getType().isa<ShapeType>())
+  if (op.getShape().getType().isa<ShapeType>())
     return failure();
 
   auto loc = op.getLoc();
@@ -399,12 +429,12 @@ ReduceOpConverter::matchAndRewrite(shape::ReduceOp op, OpAdaptor adaptor,
   Value one = rewriter.create<arith::ConstantIndexOp>(loc, 1);
   Type indexTy = rewriter.getIndexType();
   Value rank =
-      rewriter.create<tensor::DimOp>(loc, indexTy, adaptor.shape(), zero);
+      rewriter.create<tensor::DimOp>(loc, indexTy, adaptor.getShape(), zero);
 
   auto loop = rewriter.create<scf::ForOp>(
-      loc, zero, rank, one, op.initVals(),
+      loc, zero, rank, one, op.getInitVals(),
       [&](OpBuilder &b, Location loc, Value iv, ValueRange args) {
-        Value extent = b.create<tensor::ExtractOp>(loc, adaptor.shape(), iv);
+        Value extent = b.create<tensor::ExtractOp>(loc, adaptor.getShape(), iv);
 
         SmallVector<Value, 2> mappedValues{iv, extent};
         mappedValues.append(args.begin(), args.end());
@@ -468,12 +498,12 @@ struct ShapeEqOpConverter : public OpConversionPattern<ShapeEqOp> {
 LogicalResult
 ShapeEqOpConverter::matchAndRewrite(ShapeEqOp op, OpAdaptor adaptor,
                                     ConversionPatternRewriter &rewriter) const {
-  if (!llvm::all_of(op.shapes(),
+  if (!llvm::all_of(op.getShapes(),
                     [](Value v) { return !v.getType().isa<ShapeType>(); }))
     return failure();
 
   Type i1Ty = rewriter.getI1Type();
-  if (op.shapes().size() <= 1) {
+  if (op.getShapes().size() <= 1) {
     rewriter.replaceOpWithNewOp<arith::ConstantOp>(op, i1Ty,
                                                    rewriter.getBoolAttr(true));
     return success();
@@ -482,12 +512,12 @@ ShapeEqOpConverter::matchAndRewrite(ShapeEqOp op, OpAdaptor adaptor,
   auto loc = op.getLoc();
   Type indexTy = rewriter.getIndexType();
   Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-  Value firstShape = adaptor.shapes().front();
+  Value firstShape = adaptor.getShapes().front();
   Value firstRank =
       rewriter.create<tensor::DimOp>(loc, indexTy, firstShape, zero);
   Value result = nullptr;
   // Generate a linear sequence of compares, all with firstShape as lhs.
-  for (Value shape : adaptor.shapes().drop_front(1)) {
+  for (Value shape : adaptor.getShapes().drop_front(1)) {
     Value rank = rewriter.create<tensor::DimOp>(loc, indexTy, shape, zero);
     Value eqRank = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
                                                   firstRank, rank);
@@ -545,7 +575,7 @@ LogicalResult ShapeOfOpConversion::matchAndRewrite(
 
   // For ranked tensor arguments, lower to `tensor.from_elements`.
   auto loc = op.getLoc();
-  Value tensor = adaptor.arg();
+  Value tensor = adaptor.getArg();
   Type tensorTy = tensor.getType();
   if (tensorTy.isa<RankedTensorType>()) {
 
@@ -566,7 +596,8 @@ LogicalResult ShapeOfOpConversion::matchAndRewrite(
 
     // Materialize extent tensor.
     Value staticExtentTensor = rewriter.create<tensor::FromElementsOp>(
-        loc, rewriter.getIndexType(), extentValues);
+        loc, RankedTensorType::get({rank}, rewriter.getIndexType()),
+        extentValues);
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, op.getType(),
                                                 staticExtentTensor);
     return success();
@@ -574,7 +605,7 @@ LogicalResult ShapeOfOpConversion::matchAndRewrite(
 
   // Lower to `tensor.generate` otherwise.
   auto *ctx = rewriter.getContext();
-  Value rank = rewriter.create<mlir::RankOp>(loc, tensor);
+  Value rank = rewriter.create<tensor::RankOp>(loc, tensor);
   rewriter.replaceOpWithNewOp<tensor::GenerateOp>(
       op, getExtentTensorType(ctx), ValueRange{rank},
       [&](OpBuilder &b, Location loc, ValueRange args) {
@@ -602,27 +633,27 @@ LogicalResult SplitAtOpConversion::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
   // Error conditions are not implemented, only lower if all operands and
   // results are extent tensors.
-  if (llvm::any_of(ValueRange{op.operand(), op.head(), op.tail()},
+  if (llvm::any_of(ValueRange{op.getOperand(), op.getHead(), op.getTail()},
                    [](Value v) { return v.getType().isa<ShapeType>(); }))
     return failure();
 
   ImplicitLocOpBuilder b(op.getLoc(), rewriter);
   Value zero = b.create<arith::ConstantIndexOp>(0);
-  Value rank = b.create<tensor::DimOp>(adaptor.operand(), zero);
+  Value rank = b.create<tensor::DimOp>(adaptor.getOperand(), zero);
 
   // index < 0 ? index + rank : index
-  Value originalIndex = adaptor.index();
+  Value originalIndex = adaptor.getIndex();
   Value add = b.create<arith::AddIOp>(originalIndex, rank);
   Value indexIsNegative =
       b.create<arith::CmpIOp>(arith::CmpIPredicate::slt, originalIndex, zero);
-  Value index = b.create<SelectOp>(indexIsNegative, add, originalIndex);
+  Value index = b.create<arith::SelectOp>(indexIsNegative, add, originalIndex);
 
   Value one = b.create<arith::ConstantIndexOp>(1);
   Value head =
-      b.create<tensor::ExtractSliceOp>(adaptor.operand(), zero, index, one);
+      b.create<tensor::ExtractSliceOp>(adaptor.getOperand(), zero, index, one);
   Value tailSize = b.create<arith::SubIOp>(rank, index);
-  Value tail =
-      b.create<tensor::ExtractSliceOp>(adaptor.operand(), index, tailSize, one);
+  Value tail = b.create<tensor::ExtractSliceOp>(adaptor.getOperand(), index,
+                                                tailSize, one);
   rewriter.replaceOp(op, {head, tail});
   return success();
 }
@@ -636,11 +667,11 @@ public:
   LogicalResult
   matchAndRewrite(ToExtentTensorOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    if (!adaptor.input().getType().isa<RankedTensorType>())
+    if (!adaptor.getInput().getType().isa<RankedTensorType>())
       return rewriter.notifyMatchFailure(op, "input needs to be a tensor");
 
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, op.getType(),
-                                                adaptor.input());
+                                                adaptor.getInput());
     return success();
   }
 };
@@ -654,7 +685,7 @@ namespace {
 namespace {
 /// Conversion pass.
 class ConvertShapeToStandardPass
-    : public ConvertShapeToStandardBase<ConvertShapeToStandardPass> {
+    : public impl::ConvertShapeToStandardBase<ConvertShapeToStandardPass> {
 
   void runOnOperation() override;
 };
@@ -664,9 +695,9 @@ void ConvertShapeToStandardPass::runOnOperation() {
   // Setup target legality.
   MLIRContext &ctx = getContext();
   ConversionTarget target(ctx);
-  target.addLegalDialect<arith::ArithmeticDialect, StandardOpsDialect,
-                         SCFDialect, tensor::TensorDialect>();
-  target.addLegalOp<CstrRequireOp, FuncOp, ModuleOp>();
+  target.addLegalDialect<arith::ArithDialect, SCFDialect,
+                         tensor::TensorDialect>();
+  target.addLegalOp<CstrRequireOp, func::FuncOp, ModuleOp>();
 
   // Setup conversion patterns.
   RewritePatternSet patterns(&ctx);
@@ -689,6 +720,7 @@ void mlir::populateShapeToStandardConversionPatterns(
       BroadcastOpConverter,
       ConstShapeOpConverter,
       ConstSizeOpConversion,
+      DimOpConverter,
       IsBroadcastableOpConverter,
       GetExtentOpConverter,
       RankOpConverter,

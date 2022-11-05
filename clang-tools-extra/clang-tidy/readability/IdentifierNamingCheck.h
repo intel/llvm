@@ -12,9 +12,6 @@
 #include "../utils/RenamerClangTidyCheck.h"
 #include "llvm/ADT/Optional.h"
 namespace clang {
-
-class MacroInfo;
-
 namespace tidy {
 namespace readability {
 
@@ -92,7 +89,7 @@ public:
 
   struct HungarianNotation {
   public:
-    bool checkOptionValid(int StyleKindIndex, StringRef StyleString) const;
+    bool checkOptionValid(int StyleKindIndex) const;
     bool isOptionEnabled(StringRef OptionKey,
                          const llvm::StringMap<std::string> &StrMap) const;
     void loadDefaultConfig(
@@ -186,12 +183,12 @@ public:
 
 private:
   llvm::Optional<FailureInfo>
-  GetDeclFailureInfo(const NamedDecl *Decl,
+  getDeclFailureInfo(const NamedDecl *Decl,
                      const SourceManager &SM) const override;
   llvm::Optional<FailureInfo>
-  GetMacroFailureInfo(const Token &MacroNameTok,
+  getMacroFailureInfo(const Token &MacroNameTok,
                       const SourceManager &SM) const override;
-  DiagInfo GetDiagInfo(const NamingCheckId &ID,
+  DiagInfo getDiagInfo(const NamingCheckId &ID,
                        const NamingCheckFailure &Failure) const override;
 
   const FileStyle &getStyleForFile(StringRef FileName) const;
@@ -201,7 +198,7 @@ private:
   mutable llvm::StringMap<FileStyle> NamingStylesCache;
   FileStyle *MainFileStyle;
   ClangTidyContext *Context;
-  const std::string CheckName;
+  const StringRef CheckName;
   const bool GetConfigPerFile;
   const bool IgnoreFailedSplit;
   HungarianNotation HungarianNotation;

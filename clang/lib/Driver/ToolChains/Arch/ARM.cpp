@@ -12,6 +12,7 @@
 #include "clang/Driver/Options.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Option/ArgList.h"
+#include "llvm/Support/ARMTargetParser.h"
 #include "llvm/Support/TargetParser.h"
 #include "llvm/Support/Host.h"
 
@@ -120,7 +121,8 @@ static void checkARMArchName(const Driver &D, const Arg *A, const ArgList &Args,
   if (ArchKind == llvm::ARM::ArchKind::INVALID ||
       (Split.second.size() && !DecodeARMFeatures(D, Split.second, CPUName,
                                                  ArchKind, Features, ArgFPUID)))
-    D.Diag(clang::diag::err_drv_clang_unsupported) << A->getAsString(Args);
+    D.Diag(clang::diag::err_drv_unsupported_option_argument)
+        << A->getOption().getName() << A->getValue();
 }
 
 // Check -mcpu=. Needs ArchName to handle -mcpu=generic.
@@ -136,7 +138,8 @@ static void checkARMCPUName(const Driver &D, const Arg *A, const ArgList &Args,
   if (ArchKind == llvm::ARM::ArchKind::INVALID ||
       (Split.second.size() &&
        !DecodeARMFeatures(D, Split.second, CPU, ArchKind, Features, ArgFPUID)))
-    D.Diag(clang::diag::err_drv_clang_unsupported) << A->getAsString(Args);
+    D.Diag(clang::diag::err_drv_unsupported_option_argument)
+        << A->getOption().getName() << A->getValue();
 }
 
 bool arm::useAAPCSForMachO(const llvm::Triple &T) {
@@ -147,14 +150,30 @@ bool arm::useAAPCSForMachO(const llvm::Triple &T) {
          T.getOS() == llvm::Triple::UnknownOS || isARMMProfile(T);
 }
 
+// We follow GCC and support when the backend has support for the MRC/MCR
+// instructions that are used to set the hard thread pointer ("CP15 C13
+// Thread id").
+bool arm::isHardTPSupported(const llvm::Triple &Triple) {
+  int Ver = getARMSubArchVersionNumber(Triple);
+  llvm::ARM::ArchKind AK = llvm::ARM::parseArch(Triple.getArchName());
+  return Triple.isARM() || AK == llvm::ARM::ArchKind::ARMV6T2 ||
+         (Ver >= 7 && AK != llvm::ARM::ArchKind::ARMV8MBaseline);
+}
+
 // Select mode for reading thread pointer (-mtp=soft/cp15).
-arm::ReadTPMode arm::getReadTPMode(const Driver &D, const ArgList &Args) {
+arm::ReadTPMode arm::getReadTPMode(const Driver &D, const ArgList &Args,
+                                   const llvm::Triple &Triple, bool ForAS) {
   if (Arg *A = Args.getLastArg(options::OPT_mtp_mode_EQ)) {
     arm::ReadTPMode ThreadPointer =
         llvm::StringSwitch<arm::ReadTPMode>(A->getValue())
             .Case("cp15", ReadTPMode::Cp15)
             .Case("soft", ReadTPMode::Soft)
             .Default(ReadTPMode::Invalid);
+    if (ThreadPointer == ReadTPMode::Cp15 && !isHardTPSupported(Triple) &&
+        !ForAS) {
+      D.Diag(diag::err_target_unsupported_tp_hard) << Triple.getArchName();
+      return ReadTPMode::Invalid;
+    }
     if (ThreadPointer != ReadTPMode::Invalid)
       return ThreadPointer;
     if (StringRef(A->getValue()).empty())
@@ -303,6 +322,7 @@ arm::FloatABI arm::getDefaultFloatABI(const llvm::Triple &Triple) {
   case llvm::Triple::MacOSX:
   case llvm::Triple::IOS:
   case llvm::Triple::TvOS:
+  case llvm::Triple::DriverKit:
     // Darwin defaults to "softfp" for v6 and v7.
     if (Triple.isWatchABI())
       return FloatABI::Hard;
@@ -417,12 +437,11 @@ static bool hasIntegerMVE(const std::vector<StringRef> &F) {
 }
 
 void arm::getARMTargetFeatures(const Driver &D, const llvm::Triple &Triple,
-                               const ArgList &Args, ArgStringList &CmdArgs,
+                               const ArgList &Args,
                                std::vector<StringRef> &Features, bool ForAS) {
   bool KernelOrKext =
       Args.hasArg(options::OPT_mkernel, options::OPT_fapple_kext);
   arm::FloatABI ABI = arm::getARMFloatABI(D, Triple, Args);
-  arm::ReadTPMode ThreadPointer = arm::getReadTPMode(D, Args);
   llvm::Optional<std::pair<const Arg *, StringRef>> WaCPU, WaFPU, WaHDiv,
       WaArch;
 
@@ -474,7 +493,7 @@ void arm::getARMTargetFeatures(const Driver &D, const llvm::Triple &Triple,
     }
   }
 
-  if (ThreadPointer == arm::ReadTPMode::Cp15)
+  if (getReadTPMode(D, Args, Triple, ForAS) == ReadTPMode::Cp15)
     Features.push_back("+read-tp-hard");
 
   const Arg *ArchArg = Args.getLastArg(options::OPT_march_EQ);
@@ -529,6 +548,11 @@ void arm::getARMTargetFeatures(const Driver &D, const llvm::Triple &Triple,
   if (CPUArg)
     checkARMCPUName(D, CPUArg, Args, CPUName, ArchName, ExtensionFeatures,
                     Triple, CPUArgFPUID);
+
+  // TODO Handle -mtune=. Suppress -Wunused-command-line-argument as a
+  // longstanding behavior.
+  (void)Args.getLastArg(options::OPT_mtune_EQ);
+
   // Honor -mfpu=. ClangAs gives preference to -Wa,-mfpu=.
   unsigned FPUID = llvm::ARM::FK_INVALID;
   const Arg *FPUArg = Args.getLastArg(options::OPT_mfpu_EQ);
@@ -701,6 +725,15 @@ fp16_fml_fallthrough:
     }
   }
 
+  // Propagate frame-chain model selection
+  if (Arg *A = Args.getLastArg(options::OPT_mframe_chain)) {
+    StringRef FrameChainOption = A->getValue();
+    if (FrameChainOption.startswith("aapcs"))
+      Features.push_back("+aapcs-frame-chain");
+    if (FrameChainOption == "aapcs+leaf")
+      Features.push_back("+aapcs-frame-chain-leaf");
+  }
+
   // CMSE: Check for target 8M (for -mcmse to be applicable) is performed later.
   if (Args.getLastArg(options::OPT_mcmse))
     Features.push_back("+8msecext");
@@ -715,6 +748,16 @@ fp16_fml_fallthrough:
       Features.push_back("+fix-cmse-cve-2021-35465");
     else
       Features.push_back("-fix-cmse-cve-2021-35465");
+  }
+
+  // This also handles the -m(no-)fix-cortex-a72-1655431 arguments via aliases.
+  if (Arg *A = Args.getLastArg(options::OPT_mfix_cortex_a57_aes_1742098,
+                               options::OPT_mno_fix_cortex_a57_aes_1742098)) {
+    if (A->getOption().matches(options::OPT_mfix_cortex_a57_aes_1742098)) {
+      Features.push_back("+fix-cortex-a57-aes-1742098");
+    } else {
+      Features.push_back("-fix-cortex-a57-aes-1742098");
+    }
   }
 
   // Look for the last occurrence of -mlong-calls or -mno-long-calls. If
@@ -733,31 +776,25 @@ fp16_fml_fallthrough:
   // This only makes sense for the compiler, not for the assembler.
   if (!ForAS) {
     // Supported only on ARMv6T2 and ARMv7 and above.
-    // Cannot be combined with -mno-movt or -mlong-calls
+    // Cannot be combined with -mno-movt.
     if (Arg *A = Args.getLastArg(options::OPT_mexecute_only, options::OPT_mno_execute_only)) {
       if (A->getOption().matches(options::OPT_mexecute_only)) {
         if (getARMSubArchVersionNumber(Triple) < 7 &&
             llvm::ARM::parseArch(Triple.getArchName()) != llvm::ARM::ArchKind::ARMV6T2)
               D.Diag(diag::err_target_unsupported_execute_only) << Triple.getArchName();
         else if (Arg *B = Args.getLastArg(options::OPT_mno_movt))
-          D.Diag(diag::err_opt_not_valid_with_opt) << A->getAsString(Args) << B->getAsString(Args);
-        // Long calls create constant pool entries and have not yet been fixed up
-        // to play nicely with execute-only. Hence, they cannot be used in
-        // execute-only code for now
-        else if (Arg *B = Args.getLastArg(options::OPT_mlong_calls, options::OPT_mno_long_calls)) {
-          if (B->getOption().matches(options::OPT_mlong_calls))
-            D.Diag(diag::err_opt_not_valid_with_opt) << A->getAsString(Args) << B->getAsString(Args);
-        }
+          D.Diag(diag::err_opt_not_valid_with_opt)
+              << A->getAsString(Args) << B->getAsString(Args);
         Features.push_back("+execute-only");
       }
     }
   }
 
   // Kernel code has more strict alignment requirements.
-  if (KernelOrKext)
+  if (KernelOrKext) {
     Features.push_back("+strict-align");
-  else if (Arg *A = Args.getLastArg(options::OPT_mno_unaligned_access,
-                                    options::OPT_munaligned_access)) {
+  } else if (Arg *A = Args.getLastArg(options::OPT_mno_unaligned_access,
+                                      options::OPT_munaligned_access)) {
     if (A->getOption().matches(options::OPT_munaligned_access)) {
       // No v6M core supports unaligned memory access (v6M ARM ARM A3.2).
       if (Triple.getSubArch() == llvm::Triple::SubArchType::ARMSubArch_v6m)
@@ -841,8 +878,8 @@ fp16_fml_fallthrough:
           DisableComdat = true;
           continue;
         }
-        D.Diag(diag::err_invalid_sls_hardening)
-            << Scope << A->getAsString(Args);
+        D.Diag(diag::err_drv_unsupported_option_argument)
+            << A->getOption().getName() << Scope;
         break;
       }
     }
@@ -861,6 +898,8 @@ fp16_fml_fallthrough:
     }
   }
 
+  if (Args.getLastArg(options::OPT_mno_bti_at_return_twice))
+    Features.push_back("+no-bti-at-return-twice");
 }
 
 std::string arm::getARMArch(StringRef Arch, const llvm::Triple &Triple) {
