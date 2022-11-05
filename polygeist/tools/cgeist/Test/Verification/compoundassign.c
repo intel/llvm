@@ -170,5 +170,4 @@ unsigned f11(unsigned *a, unsigned b) {
 
 unsigned f12(unsigned *a, unsigned b) {
   return *a ^= b;
-
 }
