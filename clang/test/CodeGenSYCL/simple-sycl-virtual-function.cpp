@@ -1,4 +1,8 @@
-// RUN: %clang_cc1 -fsycl-allow-virtual-functions -fsycl-is-device -internal-isystem Inputs -emit-llvm %s -o - | FileCheck %s
+// The test checks that FE generates specific virtual table global variables
+// with GLOBAL address space (addrspace(1)) if -fsycl-allow-virtual-functions is
+// passed.
+
+// RUN: %clang_cc1 -fsycl-allow-virtual-functions -fsycl-is-device -internal-isystem %S/Inputs -emit-llvm %s -o - | FileCheck %s
 
 // CHECK: @_ZTVN10__cxxabiv120__si_class_type_infoE = external addrspace(1) global ptr addrspace(1)
 // CHECK: @_ZTVN10__cxxabiv117__class_type_infoE = external addrspace(1) global ptr addrspace(1)
@@ -8,19 +12,11 @@
 
 #include "sycl.hpp"
 
-#define STANDAR 0
 #define BASE 1
 #define DERIVED1 2
 #define DERIVED2 3
 
 SYCL_EXTERNAL int rand();
-
-class Standar {
-   public:
-    [[intel::device_indirectly_callable]] int display() {
-       return STANDAR;
-    }
-};
 
 class Base {
    public:

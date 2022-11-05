@@ -293,7 +293,8 @@ LANGOPT(
 LANGOPT(SYCLDisableRangeRounding, 1, 0, "Disable parallel for range rounding")
 LANGOPT(SYCLEnableIntHeaderDiags, 1, 0, "Enable diagnostics that require the "
         "SYCL integration header")
-LANGOPT(SYCLAllowVirtualFunctions, 1, 0, "Allow virtual functions calls in code for SYCL device")
+LANGOPT(SYCLAllowVirtualFunctions, 1, 0,
+        "Allow virtual functions calls in code for SYCL device")
 
 LANGOPT(HIPUseNewLaunchAPI, 1, 0, "Use new kernel launching API for HIP")
 
