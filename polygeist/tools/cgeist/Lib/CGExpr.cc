@@ -2598,7 +2598,6 @@ MLIRScanner::EmitCompoundAssignmentLValue(clang::CompoundAssignOperator *E) {
 ValueCategory MLIRScanner::EmitLValue(Expr *E) {
   switch (E->getStmtClass()) {
   default:
-    llvm::WithColor::warning() << "Emitting generic LValue\n";
     return Visit(E);
 
   case Expr::CompoundAssignOperatorClass: {
