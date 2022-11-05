@@ -1,7 +1,5 @@
 // RUN: cgeist %s --function=* -S -o - | FileCheck %s
 
-#include <stdbool.h>
-
 // CHECK-LABEL:   func.func @f1(
 // CHECK-SAME:                  %[[VAL_0:.*]]: memref<?xi32>,
 // CHECK-SAME:                  %[[VAL_1:.*]]: i32) -> i32
