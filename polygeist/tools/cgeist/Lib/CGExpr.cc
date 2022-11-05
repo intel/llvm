@@ -2400,9 +2400,8 @@ ValueCategory MLIRScanner::EmitScalarCast(ValueCategory Src, QualType SrcType,
                                           QualType DstType, mlir::Type SrcTy,
                                           mlir::Type DstTy) {
   // The Element types determine the type of cast to perform.
-  if (SrcType->isMatrixType() && DstType->isMatrixType()) {
-    llvm_unreachable("Not supported in cgeist");
-  }
+  assert(!(SrcType->isMatrixType() && DstType->isMatrixType()) &&
+         "Not supported in cgeist");
 
   if (SrcTy.isIntOrIndex()) {
     bool InputSigned = SrcType->isSignedIntegerOrEnumerationType();
@@ -2452,11 +2451,11 @@ ValueCategory MLIRScanner::EmitScalarConversion(ValueCategory Src,
   // TODO: Handle fixed points here when supported.
   // TODO: Take into account scalar conversion options.
 
-  if (SrcType->isFixedPointType())
-    llvm_unreachable("Not handling conversion from fixed point types");
+  assert(!SrcType->isFixedPointType() &&
+         "Not handling conversion from fixed point types");
 
-  if (DstType->isFixedPointType())
-    llvm_unreachable("Not handling conversion to fixed point types");
+  assert(!DstType->isFixedPointType() &&
+         "Not handling conversion to fixed point types");
 
   mlirclang::CodeGen::CodeGenTypes &CGTypes = Glob.getTypes();
 
@@ -2508,18 +2507,18 @@ ValueCategory MLIRScanner::EmitScalarConversion(ValueCategory Src,
   // Handle pointer conversions next: pointers can only be converted to/from
   // other pointers and integers. Check for pointer types in terms of LLVM, as
   // some native types (like Obj-C id) may map to a pointer type.
-  if (DstTy.isa<MemRefType>() || SrcTy.isa<MemRefType>())
-    llvm_unreachable("Not implemented yet");
+  assert(!(DstTy.isa<MemRefType>() || SrcTy.isa<MemRefType>()) &&
+         "Not implemented yet");
 
   // A scalar can be splatted to an extended vector of the same element type
-  if (DstType->isExtVectorType() && !SrcType->isVectorType())
-    llvm_unreachable("Not implemented yet");
+  assert(!(DstType->isExtVectorType() && !SrcType->isVectorType()) &&
+         "Not implemented yet");
 
   if (SrcType->isMatrixType() && DstType->isMatrixType())
     return EmitScalarCast(Src, SrcType, DstType, SrcTy, DstTy);
 
-  if (SrcTy.isa<mlir::VectorType>() || DstTy.isa<mlir::VectorType>())
-    llvm_unreachable("Not implemented yet");
+  assert(!(SrcTy.isa<mlir::VectorType>() || DstTy.isa<mlir::VectorType>()) &&
+         "Not implemented yet");
 
   // Finally, we have the arithmetic types: real int/float.
   mlir::Type ResTy = DstTy;
@@ -2663,8 +2662,7 @@ std::pair<ValueCategory, ValueCategory> MLIRScanner::EmitCompoundAssignLValue(
   // specially because the result is altered by the store, i.e.,
   // [C99 6.5.16p1] 'An assignment expression has the value of the left
   // operand after the assignment...'.
-  if (LHSLV.isBitField)
-    llvm_unreachable("Not handling bitfields");
+  assert(!LHSLV.isBitField && "Not handling bitfields");
   LHSLV.store(builder, Result.val);
 
   if (Glob.getCGM().getLangOpts().OpenMP) {
