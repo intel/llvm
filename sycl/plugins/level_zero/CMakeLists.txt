@@ -113,6 +113,9 @@ add_sycl_plugin(level_zero
     "${CMAKE_CURRENT_SOURCE_DIR}/usm_allocator.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/usm_allocator.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/tracing.cpp"
+    "${CMAKE_SOURCE_DIR}/../sycl/plugins/unified_runtime/ur.hpp"
+    "${CMAKE_SOURCE_DIR}/../sycl/plugins/unified_runtime/adapters/level_zero/ur_level_zero.hpp"
+    "${CMAKE_SOURCE_DIR}/../sycl/plugins/unified_runtime/adapters/level_zero/ur_level_zero.cpp"
     ${XPTI_PROXY_SRC}
   LIBRARIES
     "${LEVEL_ZERO_LOADER}"
