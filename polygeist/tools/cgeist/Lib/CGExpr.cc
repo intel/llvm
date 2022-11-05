@@ -1866,7 +1866,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
       }
       */
     }
-    auto prev = Visit(E->getSubExpr());
+    auto prev = EmitLValue(E->getSubExpr());
 
     bool isArray = false;
     Glob.getTypes().getMLIRType(E->getType(), &isArray);
@@ -2609,6 +2609,8 @@ ValueCategory MLIRScanner::EmitLValue(Expr *E) {
     assert(!Ty->isAnyComplexType() && "Handle complex types.");
     return EmitCompoundAssignmentLValue(CAO);
   }
+  case Expr::ParenExprClass:
+    return EmitLValue(cast<ParenExpr>(E)->getSubExpr());
   }
 }
 
