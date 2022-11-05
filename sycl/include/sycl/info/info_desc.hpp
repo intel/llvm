@@ -103,11 +103,12 @@ template <int Dimensions> struct max_work_item_sizes;
   template <> struct Desc {                                                    \
     using return_type = ReturnT;                                               \
   };
+#define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, PiCode)  \
+  __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)
+
 #include <sycl/info/device_traits.def>
-// requires explicit handling
-__SYCL_PARAM_TRAITS_SPEC(device, parent_device, sycl::device,
-                         PI_DEVICE_INFO_PARENT_DEVICE)
 } // namespace device
+#undef __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC
 
 // A.4 Queue information descriptors
