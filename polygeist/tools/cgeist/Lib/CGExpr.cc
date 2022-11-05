@@ -2665,7 +2665,7 @@ std::pair<ValueCategory, ValueCategory> MLIRScanner::EmitCompoundAssignLValue(
   // [C99 6.5.16p1] 'An assignment expression has the value of the left
   // operand after the assignment...'.
   if (LHSLV.isBitField)
-    llvm::WithColor::warning() << "Not handling bitfields.\n";
+    llvm_unreachable("Not handling bitfields");
   LHSLV.store(builder, Result.val);
 
   if (Glob.getCGM().getLangOpts().OpenMP) {
@@ -2680,25 +2680,8 @@ ValueCategory MLIRScanner::EmitCompoundAssign(
     CompoundAssignOperator *E,
     ValueCategory (MLIRScanner::*Func)(const BinOpInfo &)) {
   const auto &[LHS, Result] = EmitCompoundAssignLValue(E, Func);
-
-  // If the result is clearly ignored, return now.
-  constexpr bool Ignore{false};
-  if (Ignore) {
-    llvm_unreachable("Ignore detection not implemented.");
-    return nullptr;
-  }
-
-  // The result of an assignment in C is the assigned r-value.
-  if (!Glob.getCGM().getLangOpts().CPlusPlus)
-    return Result;
-
-  // If the lvalue is non-volatile, return the computed value of the
-  // assignment.
-  if (!LHS.isVolatile)
-    return Result;
-
-  llvm_unreachable("Volatile detection not implemented.");
-  return {LHS.getValue(builder), false};
+  // The return value is the stored value in C and the LValue in C++.
+  return Glob.getCGM().getLangOpts().CPlusPlus ? LHS : Result;
 }
 
 #define HANDLEBINOP(OP)                                                        \

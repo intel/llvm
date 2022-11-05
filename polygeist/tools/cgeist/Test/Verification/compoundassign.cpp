@@ -1,6 +1,6 @@
 // RUN: cgeist %s --function=* -S -o - | FileCheck %s
 
-// COM: We need to check this in C++ as it's illegal in C.
+// COM: Return value of compound assignment differs in C and C++.
 
 // CHECK-LABEL:   func.func @{{.*}}f1{{.*}}(
 // CHECK-SAME:                         %[[VAL_0:.*]]: memref<?xi32>,
@@ -30,4 +30,17 @@ int f1(int &a, int b, int c) {
 
 int f2(int &a, int b, int c) {
   return a += (b += c);
+}
+
+// CHECK-LABEL:   func.func @{{.*}}f3{{.*}}(
+// CHECK-SAME:                        %[[VAL_0:.*]]: memref<?xi32>,
+// CHECK-SAME:                        %[[VAL_1:.*]]: i32) -> memref<?xi32>
+// CHECK:           %[[VAL_2:.*]] = affine.load %[[VAL_0]][0] : memref<?xi32>
+// CHECK:           %[[VAL_3:.*]] = arith.addi %[[VAL_2]], %[[VAL_1]] : i32
+// CHECK:           affine.store %[[VAL_3]], %[[VAL_0]][0] : memref<?xi32>
+// CHECK:           return %[[VAL_0]] : memref<?xi32>
+// CHECK:         }
+
+int& f3(int &a, int b) {
+  return a += b;
 }

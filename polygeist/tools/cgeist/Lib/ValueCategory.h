@@ -29,11 +29,11 @@ private:
   }
 
 public:
+  // TODO: Store whether an LValue is a bitfield.
+  static constexpr bool isBitField{false};
+
   mlir::Value val;
   bool isReference;
-  // TODO: Set these values when appropriate
-  bool isVolatile = false;
-  bool isBitField = false;
 
 public:
   ValueCategory() : val(nullptr), isReference(false) {}
