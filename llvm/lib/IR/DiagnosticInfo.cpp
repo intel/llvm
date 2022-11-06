@@ -446,3 +446,32 @@ void DiagnosticInfoDontCall::print(DiagnosticPrinter &DP) const {
   if (!getNote().empty())
     DP << ": " << getNote();
 }
+
+void llvm::diagnoseAspectsMismatch(const Function *F,
+                                   const SmallVector<Function *, 8> &CallChain,
+                                   StringRef Aspect) {
+  unsigned LocCookie = 0;
+  if (MDNode *MD = F->getMetadata("srcloc"))
+    LocCookie =
+        mdconst::extract<ConstantInt>(MD->getOperand(0))->getZExtValue();
+
+  llvm::SmallVector<std::pair<StringRef, unsigned>, 8> LoweredCallChain;
+  for (const Function *Callee : CallChain) {
+    unsigned CalleeLocCookie = 0;
+    if (MDNode *MD = Callee->getMetadata("srcloc"))
+      CalleeLocCookie =
+          mdconst::extract<ConstantInt>(MD->getOperand(0))->getZExtValue();
+    LoweredCallChain.push_back(
+        std::make_pair(Callee->getName(), CalleeLocCookie));
+  }
+
+  DiagnosticInfoAspectsMismatch D(F->getName(), LocCookie, LoweredCallChain,
+                                  Aspect);
+  F->getContext().diagnose(D);
+}
+
+void DiagnosticInfoAspectsMismatch::print(DiagnosticPrinter &DP) const {
+  DP << getFunctionName() << " uses aspect \"" << getAspect()
+     << "\" but does not specify that aspect as available in its "
+        "\"sycl::device_has\" attribute";
+}

@@ -32,7 +32,7 @@
 ; CHECK-SPIRV: Bitcast [[#VECTYPE3]]
 ; CHECK-SPIRV: GenericCastToPtr [[#VECTYPE1]]
 ; CHECK-SPIRV: FunctionCall [[#VECTYPE1]]
-; CHECK-SPIRV: InBoundsPtrAccessChain [[#PTRTYPE1]]
+; CHECK-SPIRV: InBoundsPtrAccessChain [[#VECTYPE1]]
 
 ; CHECK-LLVM: alloca <4 x i8 addrspace(4)*>
 ; CHECK-LLVM-NEXT: alloca <4 x i8 addrspace(4)*>

@@ -446,6 +446,11 @@ public:
     return MAssertHappenedBuffer;
   }
 
+  void registerStreamServiceEvent(const EventImplPtr &Event) {
+    std::lock_guard<std::mutex> Lock(MMutex);
+    MStreamsServiceEvents.push_back(Event);
+  }
+
 protected:
   // template is needed for proper unit testing
   template <typename HandlerType = handler>
@@ -480,7 +485,7 @@ protected:
       EventRet = Handler.finalize();
   }
 
-private:
+protected:
   /// Helper function for checking whether a device is either a member of a
   /// context or a descendnant of its member.
   /// \return True iff the device or its parent is a member of the context.
@@ -610,12 +615,14 @@ private:
 
   const bool MIsInorder;
 
+  std::vector<EventImplPtr> MStreamsServiceEvents;
+
 public:
   // Queue constructed with the discard_events property
   const bool MDiscardEvents;
   const bool MIsProfilingEnabled;
 
-private:
+protected:
   // This flag says if we can discard events based on a queue "setup" which will
   // be common for all operations submitted to the queue. This is a must
   // condition for discarding, but even if it's true, in some cases, we won't be
