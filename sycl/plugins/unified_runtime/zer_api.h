@@ -826,9 +826,9 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerEnqueueMemBufferReadRect(
     size_t bufferSlicePitch, ///< [in] length of each 2D slice in bytes in the
                              ///< buffer object being read
     size_t hostRowPitch,     ///< [in] length of each row in bytes in the host
-                         ///< memory region pointed by dst
-    size_t hostSlicePitch, ///< [in] length of each 2D slice in bytes in the
-                           ///< host memory region pointed by dst
+                             ///< memory region pointed by dst
+    size_t hostSlicePitch,   ///< [in] length of each 2D slice in bytes in the
+                             ///< host memory region pointed by dst
     void *dst, ///< [in] pointer to host memory where data is to be read into
     uint32_t numEventsInWaitList, ///< [in] size of the event wait list
     const zer_event_handle_t *
@@ -885,10 +885,10 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerEnqueueMemBufferWriteRect(
                              ///< object
     size_t bufferSlicePitch, ///< [in] length of each 2D slice in bytes in the
                              ///< buffer object being written
-    size_t hostRowPitch, ///< [in] length of each row in bytes in the host
-                         ///< memory region pointed by src
-    size_t hostSlicePitch, ///< [in] length of each 2D slice in bytes in the
-                           ///< host memory region pointed by src
+    size_t hostRowPitch,     ///< [in] length of each row in bytes in the host
+                             ///< memory region pointed by src
+    size_t hostSlicePitch,   ///< [in] length of each 2D slice in bytes in the
+                             ///< host memory region pointed by src
     void *src, ///< [in] pointer to host memory where data is to be written from
     uint32_t numEventsInWaitList, ///< [in] size of the event wait list
     const zer_event_handle_t *
@@ -1078,8 +1078,8 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerEnqueueMemImageRead(
                               ///< the 1D, 2D, or 3D image
     zer_rect_region_t region, ///< [in] defines the (width, height, depth) in
                               ///< pixels of the 1D, 2D, or 3D image
-    size_t rowPitch,   ///< [in] length of each row in bytes
-    size_t slicePitch, ///< [in] length of each 2D slice of the 3D image
+    size_t rowPitch,          ///< [in] length of each row in bytes
+    size_t slicePitch,        ///< [in] length of each 2D slice of the 3D image
     void *dst, ///< [in] pointer to host memory where image is to be read into
     uint32_t numEventsInWaitList, ///< [in] size of the event wait list
     const zer_event_handle_t *
@@ -1130,8 +1130,8 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerEnqueueMemImageWrite(
                               ///< the 1D, 2D, or 3D image
     zer_rect_region_t region, ///< [in] defines the (width, height, depth) in
                               ///< pixels of the 1D, 2D, or 3D image
-    size_t inputRowPitch,   ///< [in] length of each row in bytes
-    size_t inputSlicePitch, ///< [in] length of each 2D slice of the 3D image
+    size_t inputRowPitch,     ///< [in] length of each row in bytes
+    size_t inputSlicePitch,   ///< [in] length of each 2D slice of the 3D image
     void *src, ///< [in] pointer to host memory where image is to be read into
     uint32_t numEventsInWaitList, ///< [in] size of the event wait list
     const zer_event_handle_t *
@@ -1176,8 +1176,8 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerEnqueueMemImageCopy(
                                  ///< in the source 1D, 2D, or 3D image
     zer_rect_offset_t dstOrigin, ///< [in] defines the (x,y,z) offset in pixels
                                  ///< in the destination 1D, 2D, or 3D image
-    zer_rect_region_t region, ///< [in] defines the (width, height, depth) in
-                              ///< pixels of the 1D, 2D, or 3D image
+    zer_rect_region_t region,    ///< [in] defines the (width, height, depth) in
+                                 ///< pixels of the 1D, 2D, or 3D image
     uint32_t numEventsInWaitList, ///< [in] size of the event wait list
     const zer_event_handle_t *
         eventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
@@ -1448,9 +1448,9 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerEnqueueUSMMemAdvice(
     size_t size,               ///< [in] size in bytes to be adviced
     zer_mem_advice_t advice,   ///< [in] USM memory advice
     zer_event_handle_t *event  ///< [in,out] return an event object that
-                              ///< identifies this particular command instance.
-                              ///< Input can not be a nullptr.
-                              ///< TODO: change to allow nullptr.
+                               ///< identifies this particular command instance.
+                               ///< Input can not be a nullptr.
+                               ///< TODO: change to allow nullptr.
 );
 
 #if !defined(__GNUC__)
@@ -2859,10 +2859,11 @@ typedef enum _zer_device_info_t {
   ZER_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN =
       75, ///< uint32_t: return a bit-field of affinity domain
           ///< ::zer_device_affinity_domain_flags_t
-  ZER_DEVICE_INFO_PARTITION_TYPE = 76, ///< uint32_t: return a bit-field of
-                                       ///< ::zer_device_partition_property_flags_t
-                                       ///< for properties specified in
-                                       ///< ::zerDevicePartition
+  ZER_DEVICE_INFO_PARTITION_TYPE =
+      76, ///< uint32_t: return a bit-field of
+          ///< ::zer_device_partition_property_flags_t
+          ///< for properties specified in
+          ///< ::zerDevicePartition
   ZER_DEVICE_INFO_MAX_NUM_SUB_GROUPS =
       77, ///< uint32_t: max number of sub groups
   ZER_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS =
@@ -2921,19 +2922,18 @@ typedef enum _zer_device_info_t {
 ///     - ::ZER_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `nullptr == pSize`
 ZER_APIEXPORT
-    zer_result_t ZER_APICALL
-    zerDeviceGetInfo(
-        zer_device_handle_t hDevice, ///< [in] handle of the device instance
-        zer_device_info_t infoType,  ///< [in] type of the info to retrieve
-        size_t *pSize, ///< [in,out] pointer to the number of bytes needed to
-                       ///< return info queried. The call shall update it with
-                       ///< the real number of bytes needed to return the info
-        void *pDeviceInfo ///< [out][optional] array of bytes holding the info.
-                          ///< If *pSize input is not 0 and not equal to the
-                          ///< real number of bytes needed to return the info
-                          ///< then the ::ZER_RESULT_ERROR_INVALID_SIZE error is
-                          ///< returned and pDeviceInfo is not used.
-    );
+zer_result_t ZER_APICALL zerDeviceGetInfo(
+    zer_device_handle_t hDevice, ///< [in] handle of the device instance
+    zer_device_info_t infoType,  ///< [in] type of the info to retrieve
+    size_t *pSize,    ///< [in,out] pointer to the number of bytes needed to
+                      ///< return info queried. The call shall update it with
+                      ///< the real number of bytes needed to return the info
+    void *pDeviceInfo ///< [out][optional] array of bytes holding the info.
+                      ///< If *pSize input is not 0 and not equal to the
+                      ///< real number of bytes needed to return the info
+                      ///< then the ::ZER_RESULT_ERROR_INVALID_SIZE error is
+                      ///< returned and pDeviceInfo is not used.
+);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Makes a reference of the device handle indicating it's in use until
@@ -4187,10 +4187,10 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerProgramGetBuildInfo(
                       ///< number of bytes of the build info property, the call
                       ///< shall update the value with actual number of bytes of
                       ///< the build info property.
-    void *propValue ///< [in,out][optional][range(0, *propSize)] value of the
-                    ///< Program build property. If *propSize is less than the
-                    ///< number of bytes for the Program build property, only
-                    ///< the first *propSize bytes will be returned.
+    void *propValue   ///< [in,out][optional][range(0, *propSize)] value of the
+                      ///< Program build property. If *propSize is less than the
+                      ///< number of bytes for the Program build property, only
+                      ///< the first *propSize bytes will be returned.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
