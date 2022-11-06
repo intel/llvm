@@ -190,7 +190,7 @@ TEST_F(SchedulerTest, StreamAUXCmdsWait) {
     pi_event PIEvent = nullptr;
     pi_result Res =
         mock_piEventCreate(/*context = */ (pi_context)0x1, &PIEvent);
-    assert(PI_SUCCESS == Res);
+    ASSERT_TRUE(PI_SUCCESS == Res);
 
     auto EventImpl = std::make_shared<sycl::detail::event_impl>(QueueImpl);
     EventImpl->getHandleRef() = PIEvent;
