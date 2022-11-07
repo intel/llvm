@@ -142,10 +142,6 @@ bool setEnvVar(const char *name, const char *value);
 #define ZE_CALL_NOCHECK(ZeName, ZeArgs)                                        \
   ZeCall().doCall(ZeName ZeArgs, #ZeName, #ZeArgs, false)
 
-// Flags which tell whether various Level Zero extensions are available.
-static bool ZeDriverGlobalOffsetExtensionFound = false;
-static bool ZeDriverModuleProgramExtensionFound = false;
-
 struct _ur_level_zero_platform : public _ur_platform {
   _ur_level_zero_platform(ze_driver_handle_t Driver) : ZeDriver{Driver} {}
   // Performs initialization of a newly constructed PI platform.
@@ -162,6 +158,10 @@ struct _ur_level_zero_platform : public _ur_platform {
 
   // Cache driver extensions
   std::unordered_map<std::string, uint32_t> zeDriverExtensionMap;
+
+  // Flags to tell whether various Level Zero platform extensions are available.
+  bool ZeDriverGlobalOffsetExtensionFound{false};
+  bool ZeDriverModuleProgramExtensionFound{false};
 };
 
 using ur_level_zero_platform = _ur_level_zero_platform *;

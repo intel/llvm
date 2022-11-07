@@ -4668,7 +4668,8 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
     // input module.
     //
     // TODO: Remove this workaround when the driver is fixed.
-    if (!ZeDriverModuleProgramExtensionFound || (NumInputPrograms == 1)) {
+    if (!DeviceList[0]->Platform->ZeDriverModuleProgramExtensionFound ||
+        (NumInputPrograms == 1)) {
       if (NumInputPrograms == 1) {
         ZeModuleDesc.pNext = nullptr;
         ZeModuleDesc.inputSize = ZeExtModuleDesc.inputSizes[0];
@@ -5307,7 +5308,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   std::scoped_lock<pi_shared_mutex, pi_shared_mutex, pi_shared_mutex> Lock(
       Queue->Mutex, Kernel->Mutex, Kernel->Program->Mutex);
   if (GlobalWorkOffset != NULL) {
-    if (!ZeDriverGlobalOffsetExtensionFound) {
+    if (!Queue->Device->Platform->ZeDriverGlobalOffsetExtensionFound) {
       zePrint("No global offset extension found on this driver\n");
       return PI_ERROR_INVALID_VALUE;
     }
