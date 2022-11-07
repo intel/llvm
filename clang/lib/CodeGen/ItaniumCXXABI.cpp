@@ -3568,16 +3568,16 @@ void ItaniumRTTIBuilder::BuildVTablePointer(const Type *Ty) {
 
   // To generate valid device code global pointers should have global address
   // space in SYCL.
-  bool GenTyInfoGVWIthGlobalAS =
+  bool GenTyInfoGVWithGlobalAS =
       CGM.getLangOpts().SYCLIsDevice &&
       CGM.getLangOpts().SYCLAllowVirtualFunctions &&
       (VTableName == ClassTypeInfo || VTableName == SIClassTypeInfo);
-  auto VTableTy = GenTyInfoGVWIthGlobalAS
+  auto VTableTy = GenTyInfoGVWithGlobalAS
                       ? CGM.Int8Ty->getPointerTo(
                             static_cast<unsigned>(LangAS::opencl_global))
                       : CGM.Int8PtrTy;
   if (!VTable) {
-    if (GenTyInfoGVWIthGlobalAS) {
+    if (GenTyInfoGVWithGlobalAS) {
       VTable = CGM.getModule().getOrInsertGlobal(VTableName, VTableTy, [&] {
         return new llvm::GlobalVariable(
             CGM.getModule(), VTableTy, /*isConstant=*/false,
