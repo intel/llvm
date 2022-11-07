@@ -1,0 +1,550 @@
+#
+# Copyright (C) 2022 Intel Corporation
+#
+# SPDX-License-Identifier: MIT
+#
+# See YaML.md for syntax definition
+#
+
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Level-Zero Runtime APIs for Device"
+ordinal: "2"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Supported device types"
+class: $xDevice
+name: $x_device_type_t
+etors:
+    - name: DEFAULT
+      value: "1"
+      desc: "The default device type as preferred by the runtime"
+    - name: ALL
+      desc: "Devices of all types"
+    - name: GPU
+      desc: "Graphics Processing Unit"
+    - name: CPU
+      desc: "Central Processing Unit"
+    - name: FPGA
+      desc: "Field Programmable Gate Array"
+    - name: MCA
+      desc: "Memory Copy Accelerator"
+    - name: VPU
+      desc: "Vision Processing Unit"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Retrieves devices within a platform"
+class: $xDevice
+name: Get
+decl: static
+ordinal: "0"
+analogue:
+    - "**clGetDeviceIDs**"
+details:
+    - "Multiple calls to this function will return identical device handles, in the same order."
+    - "The number and order of handles returned from this function can be affected by environment variables that filter devices exposed through API."
+    - "The returned devices are taken a reference of and must be released with a subsequent call to $xDeviceRelease."
+    - "The application may call this function from simultaneous threads, the implementation must be thread-safe"
+params:
+    - type: $x_platform_handle_t
+      name: hPlatform
+      desc: "[in] handle of the platform instance"
+    - type: "$x_device_type_t"
+      name: DevicesType
+      desc: |
+            [in] the type of the devices.
+    - type: "uint32_t*"
+      name: pCount
+      desc: |
+            [in,out] pointer to the number of devices.
+            If count is zero, then the call shall update the value with the total number of devices available.
+            If count is greater than the number of devices available, then the call shall update the value with the correct number of devices available.
+    - type: "$x_device_handle_t*"
+      name: phDevices
+      desc: |
+            [out][optional][range(0, *pCount)] array of handle of devices.
+            If count is less than the number of devices available, then platform shall only retrieve that number of devices.
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Supported device info"
+class: $xDevice
+name: $x_device_info_t
+etors:
+    - name: TYPE
+      desc: "$x_device_type_t: type of the device"
+    - name: VENDOR_ID
+      desc: "uint32_t: vendor Id of the device"
+    - name: MAX_COMPUTE_UNITS
+      desc: "uint32_t: the number of compute units"
+    - name: MAX_WORK_ITEM_DIMENSIONS
+      desc: "uint32_t: max work item dimensions"
+    - name: MAX_WORK_ITEM_SIZES
+      desc: "size_t[]: return an array of max work item sizes"
+    - name: MAX_WORK_GROUP_SIZE
+      desc: "size_t: max work group size"
+    - name: SINGLE_FP_CONFIG
+      desc: "Return a bit field of $x_fp_capability_flags_t: single precision floating point capability"
+    - name: HALF_FP_CONFIG
+      desc: "Return a bit field of $x_fp_capability_flags_t: half precsion floating point capability"
+    - name: DOUBLE_FP_CONFIG
+      desc: "Return a bit field of $x_fp_capability_flags_t: double precision floating point capability"
+    - name: QUEUE_PROPERTIES
+      desc: "Return a bit field of $x_queue_flags_t: command queue properties supported by the device"
+    - name: PREFERRED_VECTOR_WIDTH_CHAR
+      desc: "uint32_t: preferred vector width for char"
+    - name: PREFERRED_VECTOR_WIDTH_SHORT
+      desc: "uint32_t: preferred vector width for short"
+    - name: PREFERRED_VECTOR_WIDTH_INT
+      desc: "uint32_t: preferred vector width for int"
+    - name: PREFERRED_VECTOR_WIDTH_LONG
+      desc: "uint32_t: preferred vector width for long"
+    - name: PREFERRED_VECTOR_WIDTH_FLOAT
+      desc: "uint32_t: preferred vector width for float"
+    - name: PREFERRED_VECTOR_WIDTH_DOUBLE
+      desc: "uint32_t: preferred vector width for double"
+    - name: PREFERRED_VECTOR_WIDTH_HALF
+      desc: "uint32_t: preferred vector width for half float"
+    - name: NATIVE_VECTOR_WIDTH_CHAR
+      desc: "uint32_t: native vector width for char"
+    - name: NATIVE_VECTOR_WIDTH_SHORT
+      desc: "uint32_t: native vector width for short"
+    - name: NATIVE_VECTOR_WIDTH_INT
+      desc: "uint32_t: native vector width for int"
+    - name: NATIVE_VECTOR_WIDTH_LONG
+      desc: "uint32_t: native vector width for long"
+    - name: NATIVE_VECTOR_WIDTH_FLOAT
+      desc: "uint32_t: native vector width for float"
+    - name: NATIVE_VECTOR_WIDTH_DOUBLE
+      desc: "uint32_t: native vector width for double"
+    - name: NATIVE_VECTOR_WIDTH_HALF
+      desc: "uint32_t: native vector width for half float"
+    - name: MAX_CLOCK_FREQUENCY
+      desc: "uint32_t: max clock frequency in MHz"
+    - name: ADDRESS_BITS
+      desc: "uint32_t: address bits"
+    - name: MAX_MEM_ALLOC_SIZE
+      desc: "uint64_t: max memory allocation size"
+    - name: IMAGE_SUPPORTED
+      desc: "bool: images are supported"
+    - name: MAX_READ_IMAGE_ARGS
+      desc: "uint32_t: max number of image objects arguments of a kernel declared with the read_only qualifier"
+    - name: MAX_WRITE_IMAGE_ARGS
+      desc: "uint32_t: max number of image objects arguments of a kernel declared with the write_only qualifier"
+    - name: MAX_READ_WRITE_IMAGE_ARGS
+      desc: "uint32_t: max number of image objects arguments of a kernel declared with the read_write qualifier"
+    - name: IMAGE2D_MAX_WIDTH
+      desc: "size_t: max width of Image2D object"
+    - name: IMAGE2D_MAX_HEIGHT
+      desc: "size_t: max heigh of Image2D object"
+    - name: IMAGE3D_MAX_WIDTH
+      desc: "size_t: max width of Image3D object"
+    - name: IMAGE3D_MAX_HEIGHT
+      desc: "size_t: max height of Image3D object"
+    - name: IMAGE3D_MAX_DEPTH
+      desc: "size_t: max depth of Image3D object"
+    - name: IMAGE_MAX_BUFFER_SIZE
+      desc: "size_t: max image buffer size"
+    - name: IMAGE_MAX_ARRAR_SIZE
+      desc: "size_t: max image array size"
+    - name: MAX_SAMPLERS
+      desc: "uint32_t: max number of samplers that can be used in a kernel"
+    - name: MAX_PARAMETER_SIZE
+      desc: "size_t: max size in bytes of all arguments passed to a kernel"
+    - name: MEM_BASE_ADDR_ALIGN
+      desc: "uint32_t: memory base address alignment"
+    - name: GLOBAL_MEM_CACHE_TYPE
+      desc: "$x_device_mem_cache_type_t: global memory cache type"
+    - name: GLOBAL_MEM_CACHELINE_SIZE
+      desc: "uint32_t: global memory cache line size in bytes"
+    - name: GLOBAL_MEM_CACHE_SIZE
+      desc: "uint64_t: size of global memory cache in bytes"
+    - name: GLOBAL_MEM_SIZE
+      desc: "uint64_t: size of global memory in bytes"
+    - name: MAX_CONSTANT_BUFFER_SIZE
+      desc: "uint64_t: max constant buffer size in bytes"
+    - name: MAX_CONSTANT_ARGS
+      desc: "uint32_t: max number of __const declared arguments in a kernel"
+    - name: LOCAL_MEM_TYPE
+      desc: "$x_device_local_mem_type_t: local memory type"
+    - name: LOCAL_MEM_SIZE
+      desc: "uint64_t: local memory size in bytes"
+    - name: ERROR_CORRECTION_SUPPORT
+      desc: "bool: support error correction to gloal and local memory"
+    - name: HOST_UNIFIED_MEMORY
+      desc: "bool: unifed host device memory"
+    - name: PROFILING_TIMER_RESOLUTION
+      desc: "size_t: profiling timer resolution in nanoseconds"
+    - name: ENDIAN_LITTLE
+      desc: "bool: little endian byte order"
+    - name: AVAILABLE
+      desc: "bool: device is available"
+    - name: COMPILER_AVAILABLE
+      desc: "bool: device compiler is available"
+    - name: LINKER_AVAILABLE
+      desc: "bool: device linker is available"
+    - name: EXECUTION_CAPABILITIES
+      desc: "$x_device_exec_capability_flags_t: device kernel execution capability bit-field"
+    - name: QUEUE_ON_DEVICE_PROPERTIES
+      desc: "$x_queue_flags_t: device command queue property bit-field"
+    - name: QUEUE_ON_HOST_PROPERTIES
+      desc: "$x_queue_flags_t: host queue property bit-field"
+    - name: BUILT_IN_KERNELS
+      desc: "char[]: a semi-colon separated list of built-in kernels"
+    - name: PLATFORM
+      desc: "$x_platform_handle_t: the platform associated with the device"
+    - name: REFERENCE_COUNT
+      desc: "uint32_t: reference count"
+    - name: IL_VERSION
+      desc: "char[]: IL version"
+    - name: NAME
+      desc: "char[]: Device name"
+    - name: VENDOR
+      desc: "char[]: Device vendor"
+    - name: DRIVER_VERSION
+      desc: "char[]: Driver version"
+    - name: PROFILE
+      desc: "char[]: Device profile"
+    - name: VERSION
+      desc: "char[]: Device version"
+    - name: OPENCL_C_VERSION
+      desc: "char[]: OpenCL C version"
+    - name: EXTENSIONS
+      desc: "char[]: Return a space separated list of extension names"
+    - name: PRINTF_BUFFER_SIZE
+      desc: "size_t: Maximum size in bytes of internal printf buffer"
+    - name: PREFERRED_INTEROP_USER_SYNC
+      desc: "bool: prefer user synchronization when sharing object with other API"
+    - name: PARENT_DEVICE
+      desc: "$x_device_handle_t: return parent device handle"
+    - name: PARTITION_PROPERTIES
+      desc: "uint32_t: return a bit-field of partition properties $x_device_partition_property_flags_t"
+    - name: PARTITION_MAX_SUB_DEVICES
+      desc: "uint32_t: maximum number of sub-devices when the device is partitioned"
+    - name: PARTITION_AFFINITY_DOMAIN
+      desc: "uint32_t: return a bit-field of affinity domain $x_device_affinity_domain_flags_t"
+    - name: PARTITION_TYPE
+      desc: "uint32_t: return a bit-field of $x_device_partition_property_flags_t for properties specified in $xDevicePartition"
+    - name: MAX_NUM_SUB_GROUPS
+      desc: "uint32_t: max number of sub groups"
+    - name: SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS
+      desc: "bool: support sub group independent forward progress"
+    - name: SUB_GROUP_SIZES_INTEL
+      desc: "uint32_t[]: return an array of sub group sizes supported on Intel device"
+    - name: USM_HOST_SUPPORT
+      desc: "bool: support USM host memory access"
+    - name: USM_DEVICE_SUPPORT
+      desc: "bool: support USM device memory access"
+    - name: USM_SINGLE_SHARED_SUPPORT
+      desc: "bool: support USM single device shared memory access"
+    - name: USM_CROSS_SHARED_SUPPORT
+      desc: "bool: support USM cross device shared memory access"
+    - name: USM_SYSTEM_SHARED_SUPPORT
+      desc: "bool: support USM system wide shared memory access"
+    - name: UUID
+      desc: "char[]: return device UUID"
+    - name: PCI_ADDRESS
+      desc: "char[]: return device PCI address"
+    - name: GPU_EU_COUNT
+      desc: "uint32_t: return Intel GPU EU count"
+    - name: GPU_EU_SIMD_WIDTH
+      desc: "uint32_t: return Intel GPU EU SIMD width"
+    - name: GPU_EU_SLICES
+      desc: "uint32_t: return Intel GPU number of slices"
+    - name: GPU_SUBSLICES_PER_SLICE
+      desc: "uint32_t: return Intel GPU number of subslices per slice"
+    - name: MAX_MEMORY_BANDWIDTH
+      desc: "uint32_t: return max memory bandwidth in Mb/s"
+    - name: IMAGE_SRGB
+      desc: "bool: image is SRGB"
+    - name: ATOMIC_64
+      desc: "bool: support 64 bit atomics"
+    - name: ATOMIC_MEMORY_ORDER_CAPABILITIES
+      desc: "uint32_t: atomics memory order capabilities"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Retrieves various information about device"
+class: $xDevice
+name: GetInfo
+decl: static
+ordinal: "0"
+analogue:
+    - "**clGetDeviceInfo**"
+details:
+    - "The application may call this function from simultaneous threads."
+    - "The implementation of this function should be lock-free."
+params:
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device instance"
+    - type: $x_device_info_t
+      name: infoType
+      desc: "[in] type of the info to retrieve"
+    - type: "size_t*"
+      name: pSize
+      desc: |
+            [in,out] pointer to the number of bytes needed to return info queried.
+            The call shall update it with the real number of bytes needed to return the info
+    - type: "void*"
+      name: pDeviceInfo
+      desc: |
+            [out][optional] array of bytes holding the info.
+            If *pSize input is not 0 and not equal to the real number of bytes needed to return the info
+            then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pDeviceInfo is not used.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Makes a reference of the device handle indicating it's in use until paired $xDeviceRelease is called"
+class: $xDevice
+name: GetReference
+decl: static
+ordinal: "0"
+analogue:
+    - "**clRetainDevice**"
+details:
+    - "It is not valid to use the device handle, which has all of its references released."
+    - "The application may call this function from simultaneous threads for the same device."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: "$x_device_handle_t"
+      name: hDevice
+      desc: |
+            [in] handle of the device to get a reference of.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Releases the device handle reference indicating end of its usage"
+class: $xDevice
+name: Release
+decl: static
+ordinal: "0"
+analogue:
+    - "**clReleaseDevice**"
+details:
+    
+    - "The application may call this function from simultaneous threads for the same device."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: "$x_device_handle_t"
+      name: hDevice
+      desc: |
+            [in] handle of the device to release.
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Device partition property"
+class: $xDevice
+name: $x_device_partition_property_flags_t
+etors:
+    - name: EQUALLY
+      desc: "Support equal partition"
+      value: "$X_BIT(0)"
+    - name: BY_COUNTS      
+      desc: "Support partition by count"
+      value: "$X_BIT(1)"
+    - name: BY_AFFINITY_DOMAIN
+      desc: "Support partition by affinity domain"
+      value: "$X_BIT(2)"
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Partition property value"
+class: $xDevice
+name: $x_device_partition_property_value_t
+members:
+    - type: $x_device_partition_property_flags_t
+      name: property
+      desc: "[in] device partition property flags"
+    - type: uint32_t
+      name: value
+      desc: "[in] partition value"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Partition the device into sub-devices"
+class: $xDevice
+name: Partition
+decl: static
+ordinal: "0"
+analogue:
+    - "**clCreateSubDevices**"
+details:
+    - "Repeated calls to this function with the same inputs will produce the same output in the same order."
+    - "The function may be called to request a further partitioning of a sub-device into sub-sub-devices, and so on."
+    - "The application may call this function from simultaneous threads for the same device."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: "$x_device_handle_t"
+      name: hDevice
+      desc: |
+            [in] handle of the device to partition.
+    - type: "$x_device_partition_property_value_t*"
+      name: Properties
+      desc: |
+            [in] null-terminated array of <property, value> pair of the requested partitioning.
+    - type: "uint32_t*"
+      name: pCount
+      desc: |
+            [in,out] pointer to the number of sub-devices.
+            If count is zero, then the function shall update the value with the total number of sub-devices available.
+            If count is greater than the number of sub-devices available, then the function shall update the value with the correct number of sub-devices available.
+    - type: "$x_device_handle_t*"
+      name: phSubDevices
+      desc: |
+            [out][optional][range(0, *pCount)] array of handle of devices.
+            If count is less than the number of sub-devices available, then the function shall only retrieve that number of sub-devices.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Selects the most appropriate device binary based on runtime information and the IR characteristics."
+class: $xDevice
+name: SelectBinary
+decl: static
+ordinal: "0"
+details:
+    - "The input binaries are various AOT images, and possibly a SPIR-V binary for JIT compilation."
+    - "The selected binary will be able to be run on the target device."
+    - "If no suitable binary can be found then function returns ${X}_INVALID_BINARY."
+    - "The application may call this function from simultaneous threads for the same device."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: "$x_device_handle_t"
+      name: hDevice
+      desc: |
+            [in] handle of the device to select binary for.
+    - type: "uint32_t"
+      name: NumBinaries
+      desc: |
+            [in] the number of binaries passed in Binaries. Must greater or equal than zero.
+    - type: "const uint8_t**"
+      name: Binaries
+      desc: |
+            [in] the array of binaries to select from.
+    - type: "uint32_t"
+      name: SelectedBinary
+      desc: |
+            [out] the index of the selected binary in the input array of binaries.
+            If a suitable binary was not found the function returns ${X}_INVALID_BINARY.
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "FP capabilities"
+class: $xDevice
+name: $x_fp_capability_flags_t
+etors:
+    - name: CORRECTLY_ROUNDED_DIVIDE_SQRT
+      desc: "Support correctly rounded divide and sqrt"
+      value: "$X_BIT(0)"
+    - name: ROUND_TO_NEAREST      
+      desc: "Support round to nearest"
+      value: "$X_BIT(1)"
+    - name: ROUND_TO_ZERO
+      desc: "Support round to zero"
+      value: "$X_BIT(2)"
+    - name: ROUND_TO_INF
+      desc: "Support round to infinity"
+      value: "$X_BIT(3)"
+    - name: INF_NAN
+      desc: "Support INF to NAN"
+      value: "$X_BIT(4)"
+    - name: DENORM
+      desc: "Support denorm"
+      value: "$X_BIT(5)"
+    - name: FMA
+      desc: "Support FMA"
+      value: "$X_BIT(6)"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Device memory cache type"
+class: $xDevice
+name: $x_device_mem_cache_type_t
+etors:
+    - name: NONE
+      desc: "Has none cache"
+    - name: READ_ONLY_CACHE
+      desc: "Has read only cache"
+    - name: READ_WRITE_CACHE
+      desc: "Has read write cache"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Device local memory type"
+class: $xDevice
+name: $x_device_local_mem_type_t
+etors:
+    - name: LOCAL
+      desc: "Dedicated local memory"
+    - name: GLOBAL
+      desc: "Global memory"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Device kernel execution capability"
+class: $xDevice
+name: $x_device_exec_capability_flags_t
+etors:
+    - name: KERNEL
+      desc: "Support kernel execution"
+      value: "$X_BIT(0)"
+    - name: NATIVE_KERNEL      
+      desc: "Support native kernel execution"
+      value: "$X_BIT(1)"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Device affinity domain"
+class: $xDevice
+name: $x_device_affinity_domain_flags_t
+etors:
+    - name: NUMA
+      desc: "By NUMA"
+      value: "$X_BIT(0)"
+    - name: NEXT_PARTITIONABLE
+      desc: "BY next partitionable"
+      value: "$X_BIT(1)"
+--- #--------------------------------------------------------------------------
+type: class
+desc: "C++ wrapper for a device"
+name: $xDevice
+attribute: singleton
+owner: $xPlatform
+members:
+    - type: $x_device_handle_t
+      name: handle
+      desc: "[in] handle of device object"
+    - type: $xPlatform*
+      name: pPlatform
+      desc: "[in] pointer to owner object"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Return platform native device handle."
+class: $xDevice
+name: GetNativeHandle
+decl: static
+ordinal: "0"
+details:
+    - "Retrieved native handle can be used for direct interaction with the native platform driver."
+    - "Use interoperability platform extensions to convert native handle to native type."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: "$x_device_handle_t"
+      name: hDevice
+      desc: |
+            [in] handle of the device.
+    - type: $x_native_handle_t*
+      name: phNativeDevice
+      desc: |
+            [out] a pointer to the native handle of the device.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create runtime device object from native device handle."
+class: $xDevice
+name: CreateWithNativeHandle
+decl: static
+ordinal: "0"
+details:
+    - "Creates runtime device handle from native driver device handle."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: $x_platform_handle_t
+      name: hPlatform
+      desc: "[in] handle of the platform instance"
+    - type: $x_native_handle_t
+      name: hNativeDevice
+      desc: |
+            [in] the native handle of the device.
+    - type: "$x_device_handle_t*"
+      name: phDevice
+      desc: |
+            [out] pointer to the handle of the device object created.

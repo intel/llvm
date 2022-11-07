@@ -1,0 +1,370 @@
+#
+# Copyright (C) 2022 Intel Corporation
+#
+# SPDX-License-Identifier: MIT
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Level-Zero Runtime APIs"
+ordinal: "0"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Memory flags"
+class: $xMem
+name: $x_mem_flags_t
+etors:
+    - name: MEM_READ_WRITE
+      value: "$X_BIT(0)"
+      desc: "The memory object will be read and written by a kernel. This is the default"
+    - name: MEM_WRITE_ONLY
+      value: "$X_BIT(1)"
+      desc: "The memory object will be written but not read by a kernel"
+    - name: MEM_READ_ONLY
+      value: "$X_BIT(2)"
+      desc: "The memory object is a read-only inside a kernel"
+    - name: MEM_USE_HOST_POINTER
+      value: "$X_BIT(3)"
+      desc: "Use memory pointed by a host pointer parameter as the storage bits for the memory object"
+    - name: MEM_ALLOC_HOST_POINTER
+      value: "$X_BIT(4)"
+      desc: "Allocate memory object from host accessible memory"
+    - name: MEM_ALLOC_COPY_HOST_POINTER
+      value: "$X_BIT(5)"
+      desc: "Allocate memory and copy the data from host pointer pointed memory"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Memory types"
+class: $xMem
+name: $x_image_type_t
+etors:
+    - name: MEM_TYPE_BUFFER
+      desc: "Buffer object"
+    - name: MEM_TYPE_IMAGE2D
+      desc: "2D image object"
+    - name: MEM_TYPE_IMAGE3D
+      desc: "3D image object"
+    - name: MEM_TYPE_IMAGE2D_ARRAY
+      desc: "2D image array object"
+    - name: MEM_TYPE_IMAGE1D
+      desc: "1D image object"
+    - name: MEM_TYPE_IMAGE1D_ARRAY
+      desc: "1D image array object"
+    - name: MEM_TYPE_IMAGE1D_BUFFER
+      desc: "1D image buffer object"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Image channel order info: number of channels and the channel layout"
+class: $xMem
+name: $x_image_channel_order_t
+etors:
+    - name: CHANNEL_ORDER_A
+      desc: "channel order A"
+    - name: CHANNEL_ORDER_R
+      desc: "channel order R"
+    - name: CHANNEL_ORDER_RG
+      desc: "channel order RG"
+    - name: CHANNEL_ORDER_RA
+      desc: "channel order RA"
+    - name: CHANNEL_ORDER_RGB
+      desc: "channel order RGB"
+    - name: CHANNEL_ORDER_RGBA
+      desc: "channel order RGBA"
+    - name: CHANNEL_ORDER_BGRA
+      desc: "channel order BGRA"
+    - name: CHANNEL_ORDER_ARGB
+      desc: "channel order ARGB"
+    - name: CHANNEL_ORDER_INTENSITY
+      desc: "channel order intensity"
+    - name: CHANNEL_ORDER_LUMINANCE
+      desc: "channel order luminance"
+    - name: CHANNEL_ORDER_RX
+      desc: "channel order Rx"
+    - name: CHANNEL_ORDER_RGX
+      desc: "channel order RGx"
+    - name: CHANNEL_ORDER_RGBX
+      desc: "channel order RGBx"
+    - name: CHANNEL_ORDER_SRGBA
+      desc: "channel order sRGBA"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Image channel type info: describe the size of the channel data type"
+class: $xMem
+name: $x_image_channel_type_t
+etors:
+    - name: CHANNEL_TYPE_SNORM_INT8
+      desc: "channel type snorm int8"
+    - name: CHANNEL_TYPE_SNORM_INT16
+      desc: "channel type snorm int16"
+    - name: CHANNEL_TYPE_UNORM_INT8
+      desc: "channel type unorm int8"
+    - name: CHANNEL_TYPE_UNORM_INT16
+      desc: "channel type unorm int16"
+    - name: CHANNEL_TYPE_UNORM_SHORT_565
+      desc: "channel type unorm short 565"
+    - name: CHANNEL_TYPE_UNORM_SHORT_555
+      desc: "channel type unorm short 555"
+    - name: CHANNEL_TYPE_INT_101010
+      desc: "channel type int 101010"
+    - name: CHANNEL_TYPE_SIGNED_INT8
+      desc: "channel type signed int8"
+    - name: CHANNEL_TYPE_SIGNED_INT16
+      desc: "channel type signed int16"
+    - name: CHANNEL_TYPE_SIGNED_INT32
+      desc: "channel type signed int32"
+    - name: CHANNEL_TYPE_UNSIGNED_INT8
+      desc: "channel type unsigned int8"
+    - name: CHANNEL_TYPE_UNSIGNED_INT16
+      desc: "channel type unsigned int16"
+    - name: CHANNEL_TYPE_UNSIGNED_INT32
+      desc: "channel type unsigned int32"
+    - name: CHANNEL_TYPE_HALF_FLOAT
+      desc: "channel type half float"
+    - name: CHANNEL_TYPE_FLOAT
+      desc: "channel type float"
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Image format including channel layout and data type"
+class: $xMem
+name: $x_image_format_t
+members:
+    - type: $x_image_channel_order_t
+      name: channelOrder
+      desc: "[in] image channel order"
+    - type: $x_image_channel_type_t
+      name: channelType
+      desc: "[in] image channel type"
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Image descriptor type."
+class: $xMem
+name: $x_image_desc_t
+base: $x_base_desc_t
+members:
+    - type: $x_image_type_t
+      name: type
+      desc: "[in] image type"
+    - type: size_t
+      name: width
+      desc: "[in] image width"
+    - type: size_t
+      name: height
+      desc: "[in] image height"
+    - type: size_t
+      name: depth
+      desc: "[in] image depth"
+    - type: size_t
+      name: arraySize
+      desc: "[in] image array size"
+    - type: size_t
+      name: rowPitch
+      desc: "[in] image row pitch"
+    - type: size_t
+      name: slicePitch
+      desc: "[in] image slice pitch"
+    - type: uint32_t
+      name: numMipLevel
+      desc: "[in] number of MIP levels"
+    - type: uint32_t
+      name: numSamples
+      desc: "[in] number of samples"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create an image object"
+class: $xMem
+name: ImageCreate
+ordinal: "0"
+analogue:
+    - "**clCreateImage**"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_mem_flags_t
+      name: flags
+      desc: "[in] allocation and usage information flags"
+    - type: "const $x_image_format_t*"
+      name: imageFormat
+      desc: "[in] pointer to image format specification"
+    - type: "const $x_image_desc_t*"
+      name: imageDesc
+      desc: "[in] pointer to image description"
+    - type: "void*"
+      name: hostPtr
+      desc: "[in] pointer to the buffer data"
+    - type: $x_mem_handle_t*
+      name: phMem      
+      desc: "[out] pointer to handle of image object created"
+returns:      
+    - $X_RESULT_INVALID_CONTEXT
+    - $X_RESULT_INVALID_VALUE
+    - $X_RESULT_INVALID_IMAGE_FORMAT_DESCRIPTOR
+    - $X_RESULT_INVALID_IMAGE_SIZE
+    - $X_RESULT_INVALID_OPERATION
+    - $X_RESULT_INVALID_HOST_PTR
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create a memory buffer"
+class: $xMem
+name: BufferCreate
+ordinal: "0"
+analogue:
+    - "**clCreateBuffer**"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_mem_flags_t
+      name: flags
+      desc: "[in] allocation and usage information flags"
+    - type: "size_t"
+      name: size
+      desc: "[in] size in bytes of the memory object to be allocated"
+    - type: "void*"
+      name: hostPtr
+      desc: "[in] pointer to the buffer data"
+    - type: $x_mem_handle_t*
+      name: phBuffer     
+      desc: "[out] pointer to handle of the memory buffer created"
+returns:      
+    - $X_RESULT_INVALID_CONTEXT
+    - $X_RESULT_INVALID_VALUE
+    - $X_RESULT_INVALID_BUFFER_SIZE
+    - $X_RESULT_INVALID_HOST_PTR
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Get a reference the memory object. Increment the memory object's reference count"
+class: $xMem
+name: GetReference
+decl: static
+ordinal: "0"
+analogue:
+    - "**clRetainMemoryObject**"
+details:
+    - "Useful in library function to retain access to the memory object after the caller released the object"
+params:
+    - type: $x_mem_handle_t
+      name: hMem
+      desc: "[in] handle of the memory object to get access"
+returns:
+    - $X_RESULT_INVALID_MEM_OBJECT
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Decrement the memory object's reference count and delete the object if the reference count becomes zero."
+class: $xMem
+name: Release
+decl: static
+ordinal: "0"
+analogue:
+    - "**clReleaseMemoryObject**"
+params:
+    - type: $x_mem_handle_t
+      name: hMem
+      desc: "[in] handle of the memory object to release"
+returns:
+    - $X_RESULT_INVALID_MEM_OBJECT
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Buffer region type, used to describe a sub buffer"
+class: $xMem
+name: $x_buffer_region_t
+members:
+    - type: size_t
+      name: origin
+      desc: "[in] buffer origin offset"
+    - type: size_t
+      name: size
+      desc: "[in] size of the buffer region"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Buffer creation type"
+class: $xMem
+name: $x_buffer_create_type_t
+etors:
+    - name: BUFFER_CREATE_TYPE_REGION
+      value: "0"
+      desc: "buffer create type is region"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create a sub buffer representing a region in an existing buffer"
+class: $xMem
+name: BufferPartition
+ordinal: "0"
+analogue:
+    - "**clCreateSubBuffer**"
+params:
+    - type: $x_mem_handle_t
+      name: hBuffer
+      desc: "[in] handle of the buffer object to allocate from"
+    - type: $x_mem_flags_t
+      name: flags
+      desc: "[in] allocation and usage information flags"
+    - type: $x_buffer_create_type_t
+      name: bufferCreateType
+      desc: "[in] buffer creation type"
+    - type: "$x_buffer_region_t*"
+      name: pBufferCreateInfo
+      desc: "[in] pointer to buffer create region information"
+    - type: $x_mem_handle_t*
+      name: phMem      
+      desc: "[out] pointer to the handle of sub buffer created"
+returns:      
+    - $X_RESULT_INVALID_MEM_OBJECT
+    - $X_RESULT_OBJECT_ALLOCATION_FAILURE
+    - $X_RESULT_INVALID_VALUE
+    - $X_RESULT_INVALID_BUFFER_SIZE
+    - $X_RESULT_INVALID_HOST_PTR
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Return platform native mem handle."
+class: $xMem
+name: GetNativeHandle
+decl: static
+ordinal: "0"
+details:
+    - "Retrieved native handle can be used for direct interaction with the native platform driver."
+    - "Use interoperability platform extensions to convert native handle to native type."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: $x_mem_handle_t
+      name: hMem
+      desc: |
+            [in] handle of the mem.
+    - type: $x_native_handle_t*
+      name: phNativeMem
+      desc: |
+            [out] a pointer to the native handle of the mem.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create runtime mem object from native mem handle."
+class: $xMem
+name: CreateWithNativeHandle
+decl: static
+ordinal: "0"
+details:
+    - "Creates runtime mem handle from native driver mem handle."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: $x_platform_handle_t
+      name: hPlatform
+      desc: "[in] handle of the platform instance"
+    - type: $x_native_handle_t
+      name: hNativeMem
+      desc: |
+            [in] the native handle of the mem.
+    - type: $x_mem_handle_t*
+      name: phMem
+      desc: |
+            [out] pointer to the handle of the mem object created.

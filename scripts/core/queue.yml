@@ -1,0 +1,190 @@
+#
+# Copyright (C) 2022 Intel Corporation
+#
+# SPDX-License-Identifier: MIT
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Level-Zero Runtime APIs"
+ordinal: "0"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Query queue info"
+class: $xQueue
+name: $x_queue_info_t
+etors:
+    - name: CONTEXT
+      desc: "Queue context info"
+    - name: DEVICE
+      desc: "Queue device info"
+    - name: DEVICE_DEFAULT
+      desc: "Queue device default info"
+    - name: PROPERTIES
+      desc: "Queue properties info"
+    - name: REFERENCE_COUNT
+      desc: "Queue reference count"
+    - name: SIZE
+      desc: "Queue size info"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Queue properties"
+class: $xQueue
+name: $x_queue_flags_t
+etors:
+    - name: OUT_OF_ORDER_EXEC_MODE_ENABLE
+      value: "$X_BIT(0)"
+      desc: "Enable/disable out of order execution"
+    - name: PROFILING_ENABLE
+      value: "$X_BIT(1)"
+      desc: "Enable/disable profiling"
+    - name: ON_DEVICE
+      value: "$X_BIT(2)"
+      desc: "Is a device queue"
+    - name: ON_DEVICE_DEFAULT
+      value: "$X_BIT(3)"
+      desc: "Is the default queue for a device"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Query information about a command queue"
+class: $xQueue
+name: GetInfo
+ordinal: "0"
+analogue:
+    - "**clGetCommandQueueInfo**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: "$x_queue_info_t"
+      name: propName
+      desc: "[in] name of the queue property to query"
+    - type: "size_t"
+      name: propValueSize
+      desc: "[in] size in bytes of the queue property value provided"
+    - type: "void*"
+      name: propValue
+      desc: "[out] value of the queue property"
+    - type: "size_t*"
+      name: pSize
+      desc: "[out] size in bytes returned in queue property value"
+returns:
+    - $X_RESULT_INVALID_QUEUE
+    - $X_RESULT_INVALID_VALUE
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create a command queue for a device in a context"
+class: $xQueue
+name: Create
+decl: static
+ordinal: "0"
+analogue:
+    - "**clCreateCommandQueueWithProperties**"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: $x_queue_flags_t
+      name: props
+      desc: |
+            [in] initialization properties.
+            must be 0 (default) or a combination of $x_queue_flags_t.
+    - type: $x_queue_handle_t*
+      name: phQueue
+      desc: "[out] pointer to handle of queue object created"
+returns:
+    - $X_RESULT_INVALID_CONTEXT
+    - $X_RESULT_INVALID_DEVICE
+    - $X_RESULT_INVALID_VALUE
+    - $X_RESULT_INVALID_QUEUE_PROPERTIES
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Get a reference to the command queue handle. Increment the command queue's reference count"
+class: $xQueue
+name: GetReference
+decl: static
+ordinal: "0"
+analogue:
+    - "**clRetainCommandQueue**"
+details:
+    - "Useful in library function to retain access to the command queue after the caller released the queue."
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object to get access"
+returns:
+    - $X_RESULT_INVALID_QUEUE
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Decrement the command queue's reference count and delete the command queue if the reference count becomes zero."
+class: $xQueue
+name: Release
+decl: static
+ordinal: "0"
+analogue:
+    - "**clReleaseCommandQueue**"
+details:
+    - "After the command queue reference count becomes zero and all queued commands in the queue have finished, the queue is deleted."
+    - "It also performs an implicit flush to issue all previously queued commands in the queue."
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object to release"
+returns:
+    - $X_RESULT_INVALID_QUEUE
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES    
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Return queue native queue handle."
+class: $xQueue
+name: GetNativeHandle
+decl: static
+ordinal: "0"
+details:
+    - "Retrieved native handle can be used for direct interaction with the native platform driver."
+    - "Use interoperability queue extensions to convert native handle to native type."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: "$x_queue_handle_t"
+      name: hQueue
+      desc: |
+            [in] handle of the queue.
+    - type: $x_native_handle_t*
+      name: phNativeQueue
+      desc: |
+            [out] a pointer to the native handle of the queue.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create runtime queue object from native queue handle."
+class: $xQueue
+name: CreateWithNativeHandle
+decl: static
+ordinal: "0"
+details:
+    - "Creates runtime queue handle from native driver queue handle."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue instance"
+    - type: $x_native_handle_t
+      name: hNativeQueue
+      desc: |
+            [in] the native handle of the queue.
+    - type: "$x_queue_handle_t*"
+      name: phQueue
+      desc: |
+            [out] pointer to the handle of the queue object created.

@@ -1,0 +1,163 @@
+#
+# Copyright (C) 2022 Intel Corporation
+#
+# SPDX-License-Identifier: MIT
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Level-Zero Runtime APIs for Context"
+ordinal: "0"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Creates a context with the given devices."
+class: $xContext
+name: Create
+decl: static
+ordinal: "0"
+analogue:
+    - "**clCreateContext**"
+details:
+    - "All devices should be from the same platform."
+    - "Context is used for resource sharing between all the devices associated with it."
+    - "Context also serves for resource isolation such that resources do not cross context boundaries."
+    - "The returned context is a reference and must be released with a subsequent call to $xContextRelease."
+    - "The application may call this function from simultaneous threads."
+    - "The implementation of this function must be thread-safe."
+params:
+    - type: "uint32_t"
+      name: DeviceCount
+      desc: |
+            [in] the number of devices given in phDevices
+    - type: "$x_device_handle_t*"
+      name: phDevices
+      desc: |
+            [in][range(0, DeviceCount)] array of handle of devices.
+    - type: $x_context_handle_t*
+      name: phContext
+      desc: "[out] pointer to handle of context object created"
+returns:
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_DEVICE_MEMORY
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Makes a reference of the context handle indicating it's in use until paired $xContextRelease is called"
+class: $xContext
+name: GetReference
+decl: static
+ordinal: "0"
+analogue:
+    - "**clRetainContext**"
+details:
+    - "It is not valid to use a context handle, which has all of its references released."
+    - "The application may call this function from simultaneous threads for the same device."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: "$x_context_handle_t"
+      name: hContext
+      desc: |
+            [in] handle of the context to get a reference of.
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Supported context info"
+class: $xContext
+name: $x_context_info_t
+etors:
+    - name: NUM_DEVICES
+      value: "1"
+      desc: "[uint32_t] The number of the devices in the context"
+    - name: DEVICES
+      value: "2"
+      desc: "[$x_context_handle_t...] The array of the device handles in the context"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Releases the context handle reference indicating end of its usage"
+class: $xContext
+name: Release
+decl: static
+ordinal: "0"
+analogue:
+    - "**clReleaseContext**"
+details:    
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: "$x_context_handle_t"
+      name: hContext
+      desc: |
+            [in] handle of the context to release.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Retrieves various information about context"
+class: $xContext
+name: GetInfo
+decl: static
+ordinal: "0"
+analogue:
+    - "**clGetContextInfo**"
+details:
+    - "The application may call this function from simultaneous threads."
+    - "The implementation of this function should be lock-free."
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context"
+    - type: $x_context_info_t
+      name: ContextInfoType
+      desc: "[in] type of the info to retrieve"
+    - type: "size_t*"
+      name: pSize
+      desc: |
+            [in,out] pointer to the number of bytes needed to return info queried.
+            the call shall update it with the real number of bytes needed to return the info
+    - type: "void*"
+      name: pContextInfo
+      desc: |
+            [out][optional] array of bytes holding the info.
+            if *pSize is not equal to the real number of bytes needed to return the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pContextInfo is not used.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Return platform native context handle."
+class: $xContext
+name: GetNativeHandle
+decl: static
+ordinal: "0"
+details:
+    - "Retrieved native handle can be used for direct interaction with the native platform driver."
+    - "Use interoperability platform extensions to convert native handle to native type."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: "$x_context_handle_t"
+      name: hContext
+      desc: |
+            [in] handle of the context.
+    - type: $x_native_handle_t*
+      name: phNativeContext
+      desc: |
+            [out] a pointer to the native handle of the context.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create runtime context object from native context handle."
+class: $xContext
+name: CreateWithNativeHandle
+decl: static
+ordinal: "0"
+details:
+    - "Creates runtime context handle from native driver context handle."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: $x_platform_handle_t
+      name: hPlatform
+      desc: "[in] handle of the platform instance"
+      todo: "Replace the platform with array of devices similar to what's in zerContextCreate"
+    - type: $x_native_handle_t
+      name: hNativeContext
+      desc: |
+            [in] the native handle of the context.
+    - type: "$x_context_handle_t*"
+      name: phContext
+      desc: |
+            [out] pointer to the handle of the context object created.

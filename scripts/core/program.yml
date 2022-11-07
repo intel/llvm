@@ -1,0 +1,318 @@
+#
+# Copyright (C) 2022 Intel Corporation
+#
+# SPDX-License-Identifier: MIT
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Level-Zero Runtime APIs for Program"
+ordinal: "2"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create Program from input SPIR-V modules."
+class: $xProgram
+name: Create
+decl: static
+ordinal: "0"
+analogue:
+    - "**clCreateProgram**"
+details:
+    - "The application may call this function from simultaneous threads."
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context instance"
+    - type: uint32_t
+      name: count
+      desc: "[in] number of module handles in module list."
+    - type: const $x_module_handle_t**
+      name: phModules
+      desc: "[in] pointers to array of modules."
+    - type: const char*
+      name: pOptions
+      desc: "[in][optional] pointer to linker options null-terminated string."
+    - type: $x_program_handle_t*
+      name: phProgram
+      desc: "[out] pointer to handle of program object created."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create program object from native binary."
+class: $xProgram
+name: CreateWithBinary
+decl: static
+ordinal: "0"
+analogue:
+    - "**clCreateProgramWithBinary**"
+details:
+    - "The application may call this function from simultaneous threads."
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context instance"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle to device associated with binary."
+    - type: uint32_t
+      name: size
+      desc: "[in] size in bytes."
+    - type: const uint8_t*
+      name: pBinary
+      desc: "[in] pointer to binary."
+    - type: $x_program_handle_t*
+      name: phProgram
+      desc: "[out] pointer to handle of Program object created."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Get a reference to the Program object."
+class: $xProgram
+name: GetReference
+decl: static
+ordinal: "0"
+analogue:
+    - "**clRetainProgram**"
+details:
+    - "Get a reference to the Program object handle. Increment its reference count"
+    - "The application may call this function from simultaneous threads."
+    - "The implementation of this function should be lock-free."
+params:
+    - type: $x_program_handle_t
+      name: hProgram
+      desc: "[in] handle for the Program to retain"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Release Program."
+class: $xProgram
+name: Release
+decl: static
+ordinal: "0"
+analogue:
+    - "**clReleaseProgram**"
+details:
+    - "Decrement reference count and destroy the Program if reference count becomes zero."
+    - "The application may call this function from simultaneous threads."
+    - "The implementation of this function should be lock-free."
+params:
+    - type: $x_program_handle_t
+      name: hProgram
+      desc: "[in] handle for the Program to release"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Retrieves a device function pointer to a user-defined function."
+class: $xProgram
+name: GetFunctionPointer
+decl: static
+ordinal: "0"
+analogue:
+    - "**clGetDeviceFunctionPointerINTEL**"
+details:
+    - "Retrieves a pointer to the functions with the given name and defined in the given program."
+    - "$X_RESULT_ERROR_INVALID_FUNCTION_NAME is returned if the function can not be obtained."
+    - "The application may call this function from simultaneous threads for the same device."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: "$x_device_handle_t"
+      name: hDevice
+      desc: |
+            [in] handle of the device to retrieve pointer for.
+      todo: "Should this parameter be a context instead of device?"
+    - type: "$x_program_handle_t"
+      name: hProgram
+      desc: |
+            [in] handle of the program to search for function in.
+            The program must already be built to the specified device, or otherwise $X_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE is returned.
+    - type: "const char*"
+      name: pFunctionName
+      desc: |
+            [in] A null-terminates string denoting the mangled function name.
+    - type: "void**"
+      name: pFunctionPointer
+      desc: |
+            [out] Returns the pointer to the function if it is found in the program.
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Get Program object information"
+class: $xProgram
+name: $x_program_info_t
+etors:
+    - name: REFERENCE_COUNT
+      desc: "Program reference count info"
+    - name: CONTEXT
+      desc: "Program context info"
+    - name: NUM_DEVICES
+      desc: "Return number of devices associated with Program"
+    - name: DEVICES
+      desc: "Return list of devices associated with Program, return type uint32_t[]."
+    - name: SOURCE
+      desc: "Return program source associated with Program, return type char[]."
+    - name: BINARY_SIZES
+      desc: "Return program binary sizes for each device, return type size_t[]."
+    - name: BINARIES
+      desc: "Return program binaries for all devices for this Program, return type uchar[]."
+    - name: NUM_KERNELS
+      desc: "Number of kernels in Program, return type size_t"
+    - name: KERNEL_NAMES
+      desc: "Return a semi-colon separated list of kernel names in Program, return type char[]"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Query information about a Program object"
+class: $xProgram
+name: GetInfo
+ordinal: "0"
+analogue:
+    - "**clGetProgramInfo**"
+params:
+    - type: $x_program_handle_t
+      name: hProgram
+      desc: "[in] handle of the Program object"
+    - type: "$x_program_info_t"
+      name: propName
+      desc: "[in] name of the Program property to query"
+    - type: "size_t*"
+      name: propSize
+      desc: |
+            [in,out] pointer to the size of the Program property.
+            If *propSize is 0 or greater than the number of bytes of the Program property,
+            the call shall update the value with actual number of bytes of the Program property.
+    - type: "void*"
+      name: propValue
+      desc: |
+            [in,out][optional][range(0, *propSize)] value of the Program property.
+            If *propSize is less than the number of bytes for the Program property,
+            only the first *propSize bytes will be returned.
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Program object build status"
+class: $xProgram
+name: $x_program_build_status_t
+etors:
+    - name: NONE
+      desc: "Program build status none"
+    - name: ERROR
+      desc: "Program build error"
+    - name: SUCCESS
+      desc: "Program build success"
+    - name: IN_PROGRESS
+      desc: "Program build in progress"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Program object binary type"
+class: $xProgram
+name: $x_program_binary_type_t
+etors:
+    - name: NONE
+      desc: "No program binary is associated with device"
+    - name: COMPILED_OBJECT
+      desc: "Program binary is compiled object"
+    - name: LIBRARY
+      desc: "Program binary is library object"
+    - name: EXECUTABLE
+      desc: "Program binary is executable"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Get Program object build information"
+class: $xProgram
+name: $x_program_build_info_t
+etors:
+    - name: STATUS
+      desc: "Program build status, return type $x_program_build_status_t"
+    - name: OPTIONS
+      desc: "Program build options, return type char[]"
+    - name: LOG
+      desc: "Program build log, return type char[]"
+    - name: BINARY_TYPE
+      desc: "Program binary type, return type $x_program_binary_type_t"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Query build information about a Program object for a Device"
+class: $xProgram
+name: GetBuildInfo
+ordinal: "0"
+analogue:
+    - "**clGetProgramBuildInfo**"
+params:
+    - type: $x_program_handle_t
+      name: hProgram
+      desc: "[in] handle of the Program object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the Device object"
+    - type: $x_program_build_info_t
+      name: propName
+      desc: "[in] name of the Program build info to query"
+    - type: "size_t*"
+      name: propSize
+      desc: |
+            [in,out] pointer to the size of the Program build info property.
+            If *propSize is 0 or greater than the number of bytes of the build info property,
+            the call shall update the value with actual number of bytes of the build info property.
+    - type: "void*"
+      name: propValue
+      desc: |
+            [in,out][optional][range(0, *propSize)] value of the Program build property.
+            If *propSize is less than the number of bytes for the Program build property,
+            only the first *propSize bytes will be returned.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Set a Program object specialization constant to a specific value"
+class: $xProgram
+name: SetSpecializationConstant
+ordinal: "0"
+params:
+    - type: $x_program_handle_t
+      name: hProgram
+      desc: "[in] handle of the Program object"
+    - type: uint32_t
+      name: specId
+      desc: "[in] specification constant Id"
+    - type: "size_t"
+      name: specSize
+      desc: "[in] size of the specialization constant value" 
+    - type: "const void*"
+      name: specValue
+      desc: "[in] pointer to the specialization value bytes"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Return program native program handle."
+class: $xProgram
+name: GetNativeHandle
+decl: static
+ordinal: "0"
+details:
+    - "Retrieved native handle can be used for direct interaction with the native platform driver."
+    - "Use interoperability program extensions to convert native handle to native type."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: "$x_program_handle_t"
+      name: hProgram
+      desc: |
+            [in] handle of the program.
+    - type: $x_native_handle_t*
+      name: phNativeProgram
+      desc: |
+            [out] a pointer to the native handle of the program.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create runtime program object from native program handle."
+class: $xProgram
+name: CreateWithNativeHandle
+decl: static
+ordinal: "0"
+details:
+    - "Creates runtime program handle from native driver program handle."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: $x_program_handle_t
+      name: hProgram
+      desc: "[in] handle of the program instance"
+    - type: $x_native_handle_t
+      name: hNativeProgram
+      desc: |
+            [in] the native handle of the program.
+    - type: "$x_program_handle_t*"
+      name: phProgram
+      desc: |
+            [out] pointer to the handle of the program object created.

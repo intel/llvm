@@ -1,0 +1,190 @@
+#
+# Copyright (C) 2022 Intel Corporation
+#
+# SPDX-License-Identifier: MIT
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Level-Zero Runtime APIs"
+ordinal: "0"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Get sample object information"
+class: $xSampler
+name: $x_sampler_info_t
+etors:
+    - name: SAMPLER_INFO_REFERENCE_COUNT
+      desc: "Sampler reference count info"
+    - name: SAMPLER_INFO_CONTEXT
+      desc: "Sampler context info"
+    - name: SAMPLER_INFO_NORMALIZED_COORDS
+      desc: "Sampler normalized coordindate setting"
+    - name: SAMPLER_INFO_ADDRESSING_MODE
+      desc: "Sampler addressing mode setting"
+    - name: SAMPLER_INFO_FILTER_MODE
+      desc: "Sampler filter mode setting"
+    - name: SAMPLER_INFO_MIP_FILTER_MODE
+      desc: "Sampler MIP filter mode setting"
+    - name: SAMPLER_INFO_LOD_MIN
+      desc: "Sampler LOD Min value"
+    - name: SAMPLER_INFO_LOD_MAX
+      desc: "Sampler LOD Max value"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Sampler properties"
+class: $xSampler
+name: $x_sampler_properties_t
+etors:
+    - name: SAMPLER_PROPERTIES_NORMALIZED_COORDS
+      desc: "Sampler normalized coordinates"
+    - name: SAMPLER_PROPERTIES_ADDRESSING_MODE
+      desc: "Sampler addressing mode"
+    - name: SAMPLER_PROPERTIES_FILTER_MODE
+      desc: "Sampler filter mode"
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Sampler properties <name, value> pair"
+class: $xSampler
+name: $x_sampler_property_value_t
+members:
+    - type: $x_sampler_properties_t
+      name: propName
+      desc: "[in] Sampler property"
+    - type: uint32_t
+      name: propValue
+      desc: "[in] Sampler property value"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create a sampler object in a context"
+class: $xSampler
+name: Create
+ordinal: "0"
+details:
+    - "The props parameter specifies a list of sampler property names and their corresponding values."
+    - "The list is terminated with 0. If the list is NULL, default values will be used."
+analogue:
+    - "**clCreateSamplerWithProperties**"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: "const $x_sampler_property_value_t*"
+      name: props
+      desc: |
+            [in] specifies a list of sampler property names and their corresponding values.
+    - type: $x_sampler_handle_t*
+      name: phSampler
+      desc: "[out] pointer to handle of sampler object created"
+returns:
+    - $X_RESULT_INVALID_CONTEXT
+    - $X_RESULT_INVALID_VALUE
+    - $X_RESULT_INVALID_OPERATION
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Get a reference to the sampler object handle. Increment its reference count"
+class: $xSampler
+name: GetReference
+ordinal: "0"
+analogue:
+    - "**clRetainSampler**"
+params:
+    - type: $x_sampler_handle_t
+      name: hSampler
+      desc: "[in] handle of the sampler object to get access"
+returns:
+    - $X_RESULT_INVALID_SAMPLER
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Decrement the sampler's reference count and delete the sampler if the reference count becomes zero."
+class: $xSampler
+name: Release
+ordinal: "0"
+analogue:
+    - "**clReleaseSampler**"
+params:
+    - type: $x_sampler_handle_t
+      name: hSampler
+      desc: "[in] handle of the sampler object to release"
+returns:
+    - $X_RESULT_INVALID_SAMPLER
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES    
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Query information about a sampler object"
+class: $xSampler
+name: GetInfo
+ordinal: "0"
+analogue:
+    - "**clGetSamplerInfo**"
+params:
+    - type: $x_sampler_handle_t
+      name: hSampler
+      desc: "[in] handle of the sampler object"
+    - type: "$x_sampler_info_t"
+      name: propName
+      desc: "[in] name of the sampler property to query"
+    - type: "size_t"
+      name: propValueSize
+      desc: "[in] size in bytes of the sampler property value provided"
+    - type: "void*"
+      name: propValue
+      desc: "[out] value of the sampler property"
+    - type: "size_t*"
+      name: pSize
+      desc: "[out] size in bytes returned in sampler property value"
+returns:
+    - $X_RESULT_INVALID_SAMPLER
+    - $X_RESULT_INVALID_VALUE
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Return sampler native sampler handle."
+class: $xSampler
+name: GetNativeHandle
+decl: static
+ordinal: "0"
+details:
+    - "Retrieved native handle can be used for direct interaction with the native platform driver."
+    - "Use interoperability sampler extensions to convert native handle to native type."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: "$x_sampler_handle_t"
+      name: hSampler
+      desc: |
+            [in] handle of the sampler.
+    - type: $x_native_handle_t*
+      name: phNativeSampler
+      desc: |
+            [out] a pointer to the native handle of the sampler.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create runtime sampler object from native sampler handle."
+class: $xSampler
+name: CreateWithNativeHandle
+decl: static
+ordinal: "0"
+details:
+    - "Creates runtime sampler handle from native driver sampler handle."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: $x_sampler_handle_t
+      name: hSampler
+      desc: "[in] handle of the sampler instance"
+    - type: $x_native_handle_t
+      name: hNativeSampler
+      desc: |
+            [in] the native handle of the sampler.
+    - type: "$x_sampler_handle_t*"
+      name: phSampler
+      desc: |
+            [out] pointer to the handle of the sampler object created.

@@ -1,0 +1,327 @@
+#
+# Copyright (C) 2022 Intel Corporation
+#
+# SPDX-License-Identifier: MIT
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Level-Zero Runtime API common types"
+ordinal: "0"
+--- #--------------------------------------------------------------------------
+type: macro
+desc: "Generates generic $OneApi API versions"
+name: "$X_MAKE_VERSION( _major, _minor )"
+value: "(( _major << 16 )|( _minor & 0x0000ffff))"
+--- #--------------------------------------------------------------------------
+type: macro
+desc: "Extracts $OneApi API major version"
+name: "$X_MAJOR_VERSION( _ver )"
+value: "( _ver >> 16 )"
+--- #--------------------------------------------------------------------------
+type: macro
+desc: "Extracts $OneApi API minor version"
+name: "$X_MINOR_VERSION( _ver )"
+value: "( _ver & 0x0000ffff )"
+--- #--------------------------------------------------------------------------
+type: macro
+desc: "Calling convention for all API functions"
+condition: "defined(_WIN32)"
+name: $X_APICALL
+value: __cdecl
+altvalue: ""
+--- #--------------------------------------------------------------------------
+type: macro
+desc: "Microsoft-specific dllexport storage-class attribute"
+condition: "defined(_WIN32)"
+name: $X_APIEXPORT
+value: __declspec(dllexport)
+altvalue: ""
+--- #--------------------------------------------------------------------------
+type: macro
+desc: "Microsoft-specific dllexport storage-class attribute"
+condition: "defined(_WIN32)"
+name: $X_DLLEXPORT
+value: __declspec(dllexport)
+--- #--------------------------------------------------------------------------
+type: macro
+desc: "GCC-specific dllexport storage-class attribute"
+condition: "__GNUC__ >= 4"
+name: $X_DLLEXPORT
+value: __attribute__ ((visibility ("default")))
+altvalue: ""
+--- #--------------------------------------------------------------------------
+type: typedef
+desc: "compiler-independent type"
+name: $x_bool_t
+value: uint8_t
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of a platform instance"
+class: $xPlatform
+name: "$x_platform_handle_t"
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of platform's device object"
+class: $xDevice
+name: "$x_device_handle_t"
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of context object"
+class: $xContext
+name: "$x_context_handle_t"
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of event object"
+class: $xEvent
+name: "$x_event_handle_t"
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of Program object"
+class: $xProgram
+name: "$x_program_handle_t"
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of Module object"
+class: $xModule
+name: "$x_module_handle_t"
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of module's Kernel object"
+class: $xKernel
+name: "$x_kernel_handle_t"
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of a queue object"
+class: $xPlatform
+name: "$x_queue_handle_t"
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of a native object"
+class: $xPlatform
+name: "$x_native_handle_t"
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of a Sampler object"
+class: $xSampler
+name: "$x_sampler_handle_t"
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of memory object which can either be buffer or image"
+class: $xMem
+name: "$x_mem_handle_t"
+--- #--------------------------------------------------------------------------
+type: macro
+desc: "Generic macro for enumerator bit masks"
+name: "$X_BIT( _i )"
+value: "( 1 << _i )"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Defines Return/Error codes"
+name: $x_result_t
+etors:
+    - name: SUCCESS
+      value: "0"
+      desc: "Success"
+    - name: INVALID_KERNEL_NAME
+      desc: "Invalid kernel name"
+    - name: INVALID_OPERATION
+      desc: "Invalid operation"
+    - name: INVALID_KERNEL
+      desc: "Invalid kernel"
+    - name: INVALID_QUEUE_PROPERTIES
+      desc: "Invalid queue properties"
+    - name: INVALID_VALUE
+      desc: "Invalid Value"
+    - name: INVALID_CONTEXT
+      desc: "Invalid context"
+    - name: INVALID_PLATFORM
+      desc: "Invalid platform"
+    - name: INVALID_DEVICE
+      desc: "Invalid device"
+    - name: INVALID_BINARY
+      desc: "Invalid binary"
+    - name: INVALID_QUEUE
+      desc: "Invalid queue"
+    - name: OUT_OF_HOST_MEMORY
+      desc: "Out of host memory"
+    - name: INVALID_PROGRAM
+      desc: "Invalid program"
+    - name: INVALID_PROGRAM_EXECUTABLE
+      desc: "Invalid program executable"
+    - name: INVALID_SAMPLER
+      desc: "Invalid sampler"
+    - name: INVALID_BUFFER_SIZE
+      desc: "Invalid buffer size"
+    - name: INVALID_MEM_OBJECT
+      desc: "Invalid memory object"
+    - name: OUT_OF_RESOURCES
+      desc: "Out of resources"
+    - name: INVALID_EVENT
+      desc: "Invalid event"
+    - name: INVALID_EVENT_WAIT_LIST
+      desc: "Invalid event wait list"
+    - name: MISALIGNED_SUB_BUFFER_OFFSET
+      desc: "Misaligned sub buffer offset"
+    - name: BUILD_PROGRAM_FAILURE
+      desc: "Build program failure"
+    - name: INVALID_WORK_GROUP_SIZE
+      desc: "Invalid work group size"
+    - name: COMPILER_NOT_AVAILABLE
+      desc: "Compiler not available"
+    - name: PROFILING_INFO_NOT_AVAILABLE
+      desc: "Profiling info not available"
+    - name: DEVICE_NOT_FOUND
+      desc: "Device not found"
+    - name: INVALID_WORK_ITEM_SIZE
+      desc: "Invalid work item size"
+    - name: INVALID_WORK_DIMENSION
+      desc: "Invalid work dimension"
+    - name: INVALID_KERNEL_ARGS
+      desc: "Invalid kernel args"
+    - name: INVALID_IMAGE_SIZE
+      desc: "Invalid image size"
+    - name: INVALID_IMAGE_FORMAT_DESCRIPTOR
+      desc: "Invalid image format descriptor"
+    - name: IMAGE_FORMAT_NOT_SUPPORTED
+      desc: "Image format not supported"
+    - name: MEM_OBJECT_ALLOCATION_FAILURE
+      desc: "Memory object allocation failure"
+    - name: ERROR_INVALID_PROGRAM_EXECUTABLE
+      desc: "Program object parameter is invalid."
+    - name: ERROR_UNINITIALIZED
+      value: "0x78000001"
+      desc: "[Validation] driver is not initialized"
+    - name: ERROR_DEVICE_LOST
+      desc: "Device hung, reset, was removed, or driver update occurred"
+    - name: ERROR_OUT_OF_HOST_MEMORY
+      desc: "Insufficient host memory to satisfy call"
+    - name: ERROR_OUT_OF_DEVICE_MEMORY
+      desc: "Insufficient device memory to satisfy call"
+    - name: ERROR_MODULE_BUILD_FAILURE
+      desc: "Error occurred when building module, see build log for details"
+    - name: ERROR_MODULE_LINK_FAILURE
+      desc: "Error occurred when linking modules, see build log for details"
+    - name: ERROR_DEVICE_REQUIRES_RESET
+      desc: "Device requires a reset"
+    - name: ERROR_DEVICE_IN_LOW_POWER_STATE
+      desc: "Device currently in low power state"
+    - name: ERROR_UNSUPPORTED_VERSION
+      desc: "[Validation] generic error code for unsupported versions"
+    - name: ERROR_UNSUPPORTED_FEATURE
+      desc: "[Validation] generic error code for unsupported features"
+    - name: ERROR_INVALID_ARGUMENT
+      desc: "[Validation] generic error code for invalid arguments"
+    - name: ERROR_INVALID_NULL_HANDLE
+      desc: "[Validation] handle argument is not valid"
+    - name: ERROR_HANDLE_OBJECT_IN_USE
+      desc: "[Validation] object pointed to by handle still in-use by device"
+    - name: ERROR_INVALID_NULL_POINTER
+      desc: "[Validation] pointer argument may not be nullptr"
+    - name: ERROR_INVALID_SIZE
+      desc: "[Validation] size argument is invalid (e.g., must not be zero)"
+    - name: ERROR_UNSUPPORTED_SIZE
+      desc: "[Validation] size argument is not supported by the device (e.g., too large)"
+    - name: ERROR_UNSUPPORTED_ALIGNMENT
+      desc: "[Validation] alignment argument is not supported by the device (e.g., too small)"
+    - name: ERROR_INVALID_SYNCHRONIZATION_OBJECT
+      desc: "[Validation] synchronization object in invalid state"
+    - name: ERROR_INVALID_ENUMERATION
+      desc: "[Validation] enumerator argument is not valid"
+    - name: ERROR_UNSUPPORTED_ENUMERATION
+      desc: "[Validation] enumerator argument is not supported by the device"
+    - name: ERROR_UNSUPPORTED_IMAGE_FORMAT
+      desc: "[Validation] image format is not supported by the device"
+    - name: ERROR_INVALID_NATIVE_BINARY
+      desc: "[Validation] native binary is not supported by the device"
+    - name: ERROR_INVALID_GLOBAL_NAME
+      desc: "[Validation] global variable is not found in the module"
+    - name: ERROR_INVALID_KERNEL_NAME
+      desc: "[Validation] kernel name is not found in the module"
+    - name: ERROR_INVALID_FUNCTION_NAME
+      desc: "[Validation] function name is not found in the module"
+    - name: ERROR_INVALID_GROUP_SIZE_DIMENSION
+      desc: "[Validation] group size dimension is not valid for the kernel or device"
+    - name: ERROR_INVALID_GLOBAL_WIDTH_DIMENSION
+      desc: "[Validation] global width dimension is not valid for the kernel or device"
+    - name: ERROR_INVALID_KERNEL_ARGUMENT_INDEX
+      desc: "[Validation] kernel argument index is not valid for kernel"
+    - name: ERROR_INVALID_KERNEL_ARGUMENT_SIZE
+      desc: "[Validation] kernel argument size does not match kernel"
+    - name: ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE
+      desc: "[Validation] value of kernel attribute is not valid for the kernel or device"
+    - name: ERROR_INVALID_MODULE_UNLINKED
+      desc: "[Validation] module with imports needs to be linked before kernels can be created from it."
+    - name: ERROR_INVALID_COMMAND_LIST_TYPE
+      desc: "[Validation] command list type does not match command queue type"
+    - name: ERROR_OVERLAPPING_REGIONS
+      desc: "[Validation] copy operations do not support overlapping regions of memory"
+    - name: INVALID_HOST_PTR
+      desc: "Invalid host pointer"
+    - name: INVALID_USM_SIZE
+      desc: "Invalid USM size"
+    - name: OBJECT_ALLOCATION_FAILURE
+      desc: "Objection allocation failure"
+    - name: ERROR_UNKNOWN
+      value: "0x7ffffffe"
+      desc: "Unknown or internal error"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Defines structure types"
+name: $x_structure_type_t
+etors:
+    - name: IMAGE_DESC
+      desc: $zer_image_desc_t
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Base for all properties types"
+name: $x_base_properties_t
+members:
+    - type: $x_structure_type_t
+      name: stype
+      desc: "[in] type of this structure"
+    - type: "void*"
+      name: pNext
+      desc: "[in,out][optional] pointer to extension-specific structure"
+      init: nullptr
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Base for all descriptor types"
+name: $x_base_desc_t
+members:
+    - type: $x_structure_type_t
+      name: stype
+      desc: "[in] type of this structure"
+    - type: "const void*"
+      name: pNext
+      desc: "[in][optional] pointer to extension-specific structure"
+      init: nullptr
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "3D offset argument passed to buffer rect operations"
+name: $x_rect_offset_t
+members:
+    - type: uint64_t
+      name: x
+      desc: "[in] x offset (bytes)"
+    - type: uint64_t
+      name: y
+      desc: "[in] y offset (scalar)"
+    - type: uint64_t
+      name: z
+      desc: "[in] z offset (scalar)"
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "3D region argument passed to buffer rect operations"
+name: $x_rect_region_t
+members:
+    - type: uint64_t
+      name: width
+      desc: "[in] width (bytes)"
+    - type: uint64_t
+      name: height
+      desc: "[in] height (scalar)"
+    - type: uint64_t
+      name: depth
+      desc: "[in] scalar (scalar)"

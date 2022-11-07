@@ -1,0 +1,216 @@
+#
+# Copyright (C) 2022 Intel Corporation
+#
+# SPDX-License-Identifier: MIT
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Level-Zero Runtime APIs"
+ordinal: "0"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Event query information type"
+class: $xEvent
+name: $x_event_info_t
+etors:
+    - name: EVENT_INFO_COMMAND_QUEUE
+      desc: "Command queue information of an event object"
+    - name: EVENT_INFO_CONTEXT
+      desc: "Context information of an event object"
+    - name: EVENT_INFO_COMMAND_TYPE
+      desc: "Command type information of an event object"
+    - name: EVENT_INFO_COMMAND_EXECUTION_STATUS
+      desc: "Command execution status of an event object"
+    - name: EVENT_INFO_REFERENCE_COUNT
+      desc: "Reference count of an event object"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Profiling query information type"
+class: $xEvent
+name: $x_profiling_info_t
+etors:
+    - name: PROFILING_INFO_COMMAND_QUEUED
+      desc: "A 64-bit value of current device counter in nanoseconds when the event is enqueued"
+    - name: PROFILING_INFO_COMMAND_SUBMIT
+      desc: "A 64-bit value of current device counter in nanoseconds when the event is submitted"
+    - name: PROFILING_INFO_COMMAND_START
+      desc: "A 64-bit value of current device counter in nanoseconds when the event starts execution"
+    - name: PROFILING_INFO_COMMAND_END
+      desc: "A 64-bit value of current device counter in nanoseconds when the event has finished execution"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create an event object. Events allow applications to enqueue commands that wait on an event to finish or signal a command completion."
+class: $xEvent
+name: Create
+ordinal: "0"
+analogue:
+    - "**clCreateUserEvent**"
+params:
+    - type: $x_context_handle_t
+      name: context
+      desc: "[in] handle of the context object"
+    - type: $x_event_handle_t*
+      name: pEvent
+      desc: "[out] pointer to handle of the event object created"
+returns:      
+    - $X_RESULT_INVALID_CONTEXT
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Get event object information"
+class: $xEvent
+name: GetInfo
+ordinal: "0"
+analogue:
+    - "**clGetEventInfo**"
+params:
+    - type: $x_event_handle_t
+      name: event
+      desc: "[in] handle of the event object"
+    - type: $x_event_info_t
+      name: propName
+      desc: "[in] the name of the event property to query"
+    - type: size_t
+      name: propValueSize
+      desc: "[in] size in bytes of the event property value"
+    - type: void*
+      name: propValue
+      desc: "[out] value of the event property"
+    - type: size_t*
+      name: propValueSizeRet
+      desc: "[out] bytes returned in event property"
+returns:
+    - $X_RESULT_INVALID_VALUE
+    - $X_RESULT_INVALID_EVENT
+    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Get profiling information for the command associated with an event object"
+class: $xEvent
+name: GetProfilingInfo
+ordinal: "0"
+analogue:
+    - "**clGetEventProfilingInfo**"
+params:
+    - type: $x_event_handle_t
+      name: event
+      desc: "[in] handle of the event object"
+    - type: $x_profiling_info_t
+      name: propName
+      desc: "[in] the name of the profiling property to query"
+    - type: size_t
+      name: propValueSize
+      desc: "[in] size in bytes of the profiling property value"
+    - type: void*
+      name: propValue
+      desc: "[out] value of the profiling property"
+    - type: size_t
+      name: propValueSizeRet
+      desc: "[out] bytes returned in profiling property"
+returns:
+    - $X_RESULT_INVALID_VALUE
+    - $X_RESULT_INVALID_EVENT
+    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Wait for a list of events to finish."
+class: $xEvent
+name: Wait
+decl: static
+ordinal: "0"
+analogue:
+    - "**clWaitForEvent**"
+params:
+    - type: uint32_t
+      name: numEvents
+      desc: "[in] number of events in the event list"
+    - type: "const $x_event_handle_t*"
+      name: eventList
+      desc: "[in][range(0, numEvents)] pointer to a list of events to wait for completion"
+returns:      
+    - $X_RESULT_INVALID_VALUE
+    - $X_RESULT_INVALID_EVENT
+    - $X_RESULT_INVALID_CONTEXT
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Get a reference to an event handle. Increment the event object's reference count."
+class: $xEvent
+name: GetReference
+ordinal: "0"
+analogue:
+    - "**clRetainEvent**"
+params:
+    - type: $x_event_handle_t
+      name: event
+      desc: "[in] handle of the event object"
+returns:
+    - $X_RESULT_INVALID_EVENT
+    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Decrement the event object's reference count and delete the event object if the reference count becomes zero."
+class: $xEvent
+name: Release
+ordinal: "0"
+analogue:
+    - "**clReleaseEvent**"
+params:
+    - type: $x_event_handle_t
+      name: event
+      desc: "[in] handle of the event object"
+returns:
+    - $X_RESULT_INVALID_EVENT
+    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Return platform native event handle."
+class: $xEvent
+name: GetNativeHandle
+decl: static
+ordinal: "0"
+details:
+    - "Retrieved native handle can be used for direct interaction with the native platform driver."
+    - "Use interoperability platform extensions to convert native handle to native type."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: "$x_event_handle_t"
+      name: hEvent
+      desc: |
+            [in] handle of the event.
+    - type: $x_native_handle_t*
+      name: phNativeEvent
+      desc: |
+            [out] a pointer to the native handle of the event.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create runtime event object from native event handle."
+class: $xEvent
+name: CreateWithNativeHandle
+decl: static
+ordinal: "0"
+details:
+    - "Creates runtime event handle from native driver event handle."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: $x_platform_handle_t
+      name: hPlatform
+      desc: "[in] handle of the platform instance"
+    - type: $x_native_handle_t
+      name: hNativeEvent
+      desc: |
+            [in] the native handle of the event.
+    - type: "$x_event_handle_t*"
+      name: phEvent
+      desc: |
+            [out] pointer to the handle of the event object created.

@@ -1,0 +1,348 @@
+#
+# Copyright (C) 2022 Intel Corporation
+#
+# SPDX-License-Identifier: MIT
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Level-Zero Runtime APIs for Program"
+ordinal: "2"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create kernel object from a program."
+class: $xKernel
+name: Create
+decl: static
+ordinal: "0"
+details:
+    - "Multiple calls to this function will return identical device handles, in the same order."
+    - "The application may call this function from simultaneous threads."
+    - "The implementation of this function should be lock-free."
+params:
+    - type: $x_program_handle_t
+      name: hProgram
+      desc: "[in] handle of the program instance"
+    - type: const char*
+      name: pKernelName
+      desc: "[in] pointer to null-terminated string."
+    - type: $x_kernel_handle_t*
+      name: phKernel
+      desc: "[out] pointer to handle of kernel object created."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Set kernel argument for a kernel."
+class: $xKernel
+name: SetArg
+analogue:
+    - "**clSetKernelArg**"
+details:
+    - "The application must **not** call this function from simultaneous threads with the same kernel handle."
+    - "The implementation of this function should be lock-free."
+params:
+    - type: "$x_kernel_handle_t"
+      name: hKernel
+      desc: "[in] handle of the kernel object"
+    - type: "uint32_t"
+      name: argIndex
+      desc: "[in] argument index in range [0, num args - 1]"
+    - type: "size_t"
+      name: argSize
+      desc: "[in] size of argument type"
+    - type: "const void*"
+      name: pArgValue
+      desc: "[in][optional] argument value represented as matching arg type. If null then argument value is considered null."
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Get Kernel object information"
+class: $xKernel
+name: $x_kernel_info_t
+etors:
+    - name: FUNCTION_NAME
+      desc: "Return Kernel function name, return type char[]"
+    - name: NUM_ARGS
+      desc: "Return Kernel number of arguments"
+    - name: REFERENCE_COUNT
+      desc: "Return Kernel reference count"
+    - name: CONTEXT
+      desc: "Return Context object associated with Kernel"
+    - name: PROGRAM
+      desc: "Return Program object associated with Kernel"
+    - name: ATTRIBUTES
+      desc: "Return Kernel attributes, return type char[]"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Get Kernel Work Group information"
+class: $xKernel
+name: $x_kernel_group_info_t
+etors:
+    - name: GLOBAL_WORK_SIZE
+      desc: "Return Work Group maximum global size, return type size_t[3]"
+    - name: WORK_GROUP_SIZE
+      desc: "Return maximum Work Group size, return type size_t"
+    - name: COMPILE_WORK_GROUP_SIZE
+      desc: "Return Work Group size required by the source code, such as __attribute__((required_work_group_size(X,Y,Z)), return type size_t[3]"
+    - name: LOCAL_MEM_SIZE
+      desc: "Return local memory required by the Kernel, return type size_t"
+    - name: PREFERRED_WORK_GROUP_SIZE_MULTIPLE
+      desc: "Return preferred multiple of Work Group size for launch, return type size_t"
+    - name: PRIVATE_MEM_SIZE
+      desc: "Return minimum amount of private memory in bytes used by each work item in the Kernel, return type size_t"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Get Kernel SubGroup information"
+class: $xKernel
+name: $x_kernel_sub_group_info_t
+etors:
+    - name: MAX_SUB_GROUP_SIZE
+      desc: "Return maximum SubGroup size, return type uint32_t"
+    - name: MAX_NUM_SUB_GROUPS
+      desc: "Return maximum number of SubGroup, return type uint32_t"
+    - name: COMPILE_NUM_SUB_GROUPS
+      desc: "Return number of SubGroup required by the source code, return type uint32_t"
+    - name: SUB_GROUP_SIZE_INTEL
+      desc: "Return SubGroup size required by Intel, return type uint32_t"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Set additional Kernel execution information"
+class: $xKernel
+name: $x_kernel_exec_info_t
+etors:
+    - name: USM_INDIRECT_ACCESS
+      desc: "Kernel might access data through USM pointer, type bool_t*"
+    - name: USM_PTRS
+      desc: "Provide an explicit list of USM pointers that the kernel will access, type void*[]."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Query information about a Kernel object"
+class: $xKernel
+name: GetInfo
+ordinal: "0"
+analogue:
+    - "**clGetKernelInfo**"
+params:
+    - type: $x_kernel_handle_t
+      name: hKernel
+      desc: "[in] handle of the Kernel object"
+    - type: $x_kernel_info_t
+      name: propName
+      desc: "[in] name of the Kernel property to query"
+    - type: "size_t*"
+      name: propSize
+      desc: |
+            [in,out] pointer to the size of the Kernel property value
+            If *propSize is 0 or greater than the number of bytes of the Kernel property,
+            the call shall update the value with actual number of bytes of the Kernel property.            
+    - type: "void*"
+      name: propValue
+      desc: |
+            [in,out][optional][range(0, *propSize)] value of the Kernel property.
+            If *propSize is less than the number of bytes for the Kernel property,
+            only the first *propSize bytes will be returned.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Query work Group information about a Kernel object"
+class: $xKernel
+name: GetGroupInfo
+ordinal: "0"
+analogue:
+    - "**clGetKernelWorkGroupInfo**"
+params:
+    - type: $x_kernel_handle_t
+      name: hKernel
+      desc: "[in] handle of the Kernel object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the Device object"
+    - type: $x_kernel_group_info_t
+      name: propName
+      desc: "[in] name of the work Group property to query"
+    - type: "size_t"
+      name: propSize
+      desc: "[in] size of the Kernel Work Group property value"
+    - type: "void*"
+      name: propValue
+      desc: "[in,out][range(0, propSize)] value of the Kernel Work Group property."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Query SubGroup information about a Kernel object"
+class: $xKernel
+name: GetSubGroupInfo
+ordinal: "0"
+params:
+    - type: $x_kernel_handle_t
+      name: hKernel
+      desc: "[in] handle of the Kernel object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the Device object"
+    - type: $x_kernel_sub_group_info_t
+      name: propName
+      desc: "[in] name of the SubGroup property to query"
+    - type: "size_t"
+      name: propSize
+      desc: "[in] size of the Kernel SubGroup property value"
+    - type: "void*"
+      name: propValue
+      desc: "[in,out][range(0, propSize)] value of the Kernel SubGroup property."      
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Get a reference to the Kernel object."
+class: $xKernel
+name: GetReference
+decl: static
+ordinal: "0"
+analogue:
+    - "**clRetainKernel**"
+details:
+    - "Get a reference to the Kernel object handle. Increment its reference count"
+    - "The application may call this function from simultaneous threads."
+    - "The implementation of this function should be lock-free."
+params:
+    - type: $x_kernel_handle_t
+      name: hKernel
+      desc: "[in] handle for the Kernel to retain"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Release Kernel."
+class: $xKernel
+name: Release
+decl: static
+ordinal: "0"
+analogue:
+    - "**clReleaseKernel**"
+details:
+    - "Decrement reference count and destroy the Kernel if reference count becomes zero."
+    - "The application may call this function from simultaneous threads."
+    - "The implementation of this function should be lock-free."
+params:
+    - type: $x_kernel_handle_t
+      name: hKernel
+      desc: "[in] handle for the Kernel to release"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Set a USM pointer as the argument value of a Kernel."
+class: $xKernel
+name: SetArgPointer
+analogue:
+    - "**clSetKernelArgSVMPointer**"
+details:
+    - "The application must **not** call this function from simultaneous threads with the same kernel handle."
+    - "The implementation of this function should be lock-free."
+params:
+    - type: "$x_kernel_handle_t"
+      name: hKernel
+      desc: "[in] handle of the kernel object"
+    - type: "uint32_t"
+      name: argIndex
+      desc: "[in] argument index in range [0, num args - 1]"
+    - type: "size_t"
+      name: argSize
+      desc: "[in] size of argument type"
+    - type: "const void*"
+      name: pArgValue
+      desc: "[in][optional] SVM pointer to memory location holding the argument value. If null then argument value is considered null."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Set additional Kernel execution attributes."
+class: $xKernel
+name: SetExecInfo
+analogue:
+    - "**clSetKernelExecInfo**"
+details:
+    - "The application must **not** call this function from simultaneous threads with the same kernel handle."
+    - "The implementation of this function should be lock-free."
+params:
+    - type: "$x_kernel_handle_t"
+      name: hKernel
+      desc: "[in] handle of the kernel object"
+    - type: "$x_kernel_exec_info_t"
+      name: propName
+      desc: "[in] name of the execution attribute"
+    - type: "size_t"
+      name: propSize
+      desc: "[in] size in byte the attribute value"
+    - type: "const void*"
+      name: propValue
+      desc: "[in][range(0, propSize)] pointer to memory location holding the property value."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Set a Sampler object as the argument value of a Kernel."
+class: $xKernel
+name: SetArgSampler
+details:
+    - "The application must **not** call this function from simultaneous threads with the same kernel handle."
+    - "The implementation of this function should be lock-free."
+params:
+    - type: "$x_kernel_handle_t"
+      name: hKernel
+      desc: "[in] handle of the kernel object"
+    - type: "uint32_t"
+      name: argIndex
+      desc: "[in] argument index in range [0, num args - 1]"
+    - type: "$x_sampler_handle_t"
+      name: pArgValue
+      desc: "[in] handle of Sampler object."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Set a Memory object as the argument value of a Kernel."
+class: $xKernel
+name: SetArgMemObj
+details:
+    - "The application must **not** call this function from simultaneous threads with the same kernel handle."
+    - "The implementation of this function should be lock-free."
+params:
+    - type: "$x_kernel_handle_t"
+      name: hKernel
+      desc: "[in] handle of the kernel object"
+    - type: "uint32_t"
+      name: argIndex
+      desc: "[in] argument index in range [0, num args - 1]"
+    - type: "$x_mem_handle_t"
+      name: pArgValue
+      desc: "[in] handle of Memory object."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Return platform native kernel handle."
+class: $xKernel
+name: GetNativeHandle
+decl: static
+ordinal: "0"
+details:
+    - "Retrieved native handle can be used for direct interaction with the native platform driver."
+    - "Use interoperability platform extensions to convert native handle to native type."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: "$x_kernel_handle_t"
+      name: hKernel
+      desc: |
+            [in] handle of the kernel.
+    - type: $x_native_handle_t*
+      name: phNativeKernel
+      desc: |
+            [out] a pointer to the native handle of the kernel.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create runtime kernel object from native kernel handle."
+class: $xKernel
+name: CreateWithNativeHandle
+decl: static
+ordinal: "0"
+details:
+    - "Creates runtime kernel handle from native driver kernel handle."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: $x_platform_handle_t
+      name: hPlatform
+      desc: "[in] handle of the platform instance"
+    - type: $x_native_handle_t
+      name: hNativeKernel
+      desc: |
+            [in] the native handle of the kernel.
+    - type: "$x_kernel_handle_t*"
+      name: phKernel
+      desc: |
+            [out] pointer to the handle of the kernel object created.

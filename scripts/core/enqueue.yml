@@ -1,0 +1,1056 @@
+#
+# Copyright (C) 2021 Intel Corporation
+#
+# SPDX-License-Identifier: MIT
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Level-Zero APIs"
+ordinal: "0"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to execute a kernel"
+class: $xEnqueue
+name: KernelLaunch
+ordinal: "0"
+analogue:
+    - "**clEnqueueNDRangeKernel**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_kernel_handle_t
+      name: hKernel
+      desc: "[in] handle of the kernel object"
+    - type: uint32_t
+      name: workDim
+      desc: "[in] number of dimensions, from 1 to 3, to specify the global and work-group work-items"
+    - type: "const size_t*"
+      name: globalWorkOffset
+      desc: "[in] pointer to an array of workDim unsigned values that specify the offset used to calculate the global ID of a work-item"
+    - type: "const size_t*"
+      name: globalWorkSize      
+      desc: "[in] pointer to an array of workDim unsigned values that specify the number of global work-items in workDim that will execute the kernel function"
+    - type: "const size_t*"
+      name: localWorkSize
+      desc: |
+            [in][optional] pointer to an array of workDim unsigned values that specify the number of local work-items forming a work-group that will execute the kernel function.
+            If nullptr, the runtime implementation will choose the work-group size. 
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: eventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
+            If nullptr, the numEventsInWaitList must be 0, indicating that no wait event. 
+    - type: $x_event_handle_t*
+      name: event
+      desc: |
+            [in,out] return an event object that identifies this particular kernel execution instance.
+            Contrary to clEnqueueNDRangeKernel, its input can not be a nullptr. 
+            TODO: change to allow nullptr.
+returns:      
+    - $X_RESULT_INVALID_QUEUE
+    - $X_RESULT_INVALID_KERNEL
+    - $X_RESULT_INVALID_EVENT
+    - $X_RESULT_INVALID_WORK_DIMENSION
+    - $X_RESULT_INVALID_WORK_GROUP_SIZE
+    - $X_RESULT_INVALID_VALUE
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command which waits a list of events to complete before it completes" 
+class: $xEnqueue
+name: EventsWait
+ordinal: "0"
+details:
+    - "If the event list is empty, it waits for all previously enqueued commands to complete."
+    - "It returns an event which can be waited on."
+analogue:
+    - "**clEnqueueMarkerWithWaitList**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: eventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that all previously enqueued commands
+            must be complete. 
+    - type: $x_event_handle_t*
+      name: event
+      desc: |
+            [in,out] return an event object that identifies this particular command instance.
+            Input can not be a nullptr.
+            TODO: change to allow nullptr. 
+returns:      
+    - $X_RESULT_INVALID_QUEUE
+    - $X_RESULT_INVALID_EVENT
+    - $X_RESULT_INVALID_VALUE
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a barrier command which waits a list of events to complete before it completes" 
+class: $xEnqueue
+name: EventsWaitWithBarrier
+ordinal: "0"
+details:
+    - "If the event list is empty, it waits for all previously enqueued commands to complete."
+    - "It blocks command execution - any following commands enqueued after it do not execute until it completes."
+    - "It returns an event which can be waited on."
+analogue:
+    - "**clEnqueueBarrierWithWaitList**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: eventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that all previously enqueued commands
+            must be complete. 
+    - type: $x_event_handle_t*
+      name: event
+      desc: |
+            [in,out] return an event object that identifies this particular command instance.
+            Input can not be a nullptr.
+            TODO: change to allow nullptr. 
+returns:      
+    - $X_RESULT_INVALID_QUEUE
+    - $X_RESULT_INVALID_EVENT
+    - $X_RESULT_INVALID_VALUE
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to read from a buffer object to host memory" 
+class: $xEnqueue
+name: MemBufferRead
+ordinal: "0"
+details:
+    - "Input parameter blockingRead indicates if the read is blocking or non-blocking."
+analogue:
+    - "**clEnqueueReadBuffer**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_mem_handle_t
+      name: hBuffer
+      desc: "[in] handle of the buffer object"
+    - type: bool
+      name: blockingRead
+      desc: "[in] indicates blocking (true), non-blocking (false)"
+    - type: size_t
+      name: offset
+      desc: "[in] offset in bytes in the buffer object"
+    - type: size_t
+      name: size
+      desc: "[in] size in bytes of data being read"
+    - type: void*
+      name: dst
+      desc: "[in] pointer to host memory where data is to be read into"     
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: eventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: event
+      desc: |
+            [in,out] return an event object that identifies this particular command instance.
+            Input can not be a nullptr.
+            TODO: change to allow nullptr. 
+returns:      
+    - $X_RESULT_INVALID_QUEUE
+    - $X_RESULT_INVALID_EVENT
+    - $X_RESULT_INVALID_MEM_OBJECT
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to write into a buffer object from host memory" 
+class: $xEnqueue
+name: MemBufferWrite
+ordinal: "0"
+details: 
+    - "Input parameter blockingWrite indicates if the write is blocking or non-blocking."
+analogue:
+    - "**clEnqueueWriteBuffer**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_mem_handle_t
+      name: hBuffer
+      desc: "[in] handle of the buffer object"
+    - type: bool
+      name: blockingWrite
+      desc: "[in] indicates blocking (true), non-blocking (false)"
+    - type: size_t
+      name: offset
+      desc: "[in] offset in bytes in the buffer object"
+    - type: size_t
+      name: size
+      desc: "[in] size in bytes of data being written"
+    - type: "const void*"
+      name: src
+      desc: "[in] pointer to host memory where data is to be written from"     
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: eventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: event
+      desc: |
+            [in,out] return an event object that identifies this particular command instance.
+            Input can not be a nullptr.
+            TODO: change to allow nullptr. 
+returns:      
+    - $X_RESULT_INVALID_QUEUE
+    - $X_RESULT_INVALID_EVENT
+    - $X_RESULT_INVALID_MEM_OBJECT
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to read a 2D or 3D rectangular region from a buffer object to host memory" 
+class: $xEnqueue
+name: MemBufferReadRect
+ordinal: "0"
+details:
+    - "Input parameter blockingRead indicates if the read is blocking or non-blocking."
+    - "The buffer and host 2D or 3D rectangular regions can have different shapes."
+analogue:
+    - "**clEnqueueReadBufferRect**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_mem_handle_t
+      name: hBuffer
+      desc: "[in] handle of the buffer object"
+    - type: bool
+      name: blockingRead
+      desc: "[in] indicates blocking (true), non-blocking (false)"
+    - type: $x_rect_offset_t
+      name: bufferOffset
+      desc: "[in] 3D offset in the buffer"
+    - type: $x_rect_offset_t
+      name: hostOffset
+      desc: "[in] 3D offset in the host region"
+    - type: $x_rect_region_t
+      name: region
+      desc: "[in] 3D rectangular region descriptor: width, height, depth"
+    - type: size_t
+      name: bufferRowPitch
+      desc: "[in] length of each row in bytes in the buffer object"
+    - type: size_t
+      name: bufferSlicePitch
+      desc: "[in] length of each 2D slice in bytes in the buffer object being read"
+    - type: size_t
+      name: hostRowPitch
+      desc: "[in] length of each row in bytes in the host memory region pointed by dst"
+    - type: size_t
+      name: hostSlicePitch
+      desc: "[in] length of each 2D slice in bytes in the host memory region pointed by dst"  
+    - type: void*
+      name: dst
+      desc: "[in] pointer to host memory where data is to be read into"     
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: eventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: event
+      desc: |
+            [in,out] return an event object that identifies this particular command instance.
+            Input can not be a nullptr.
+            TODO: change to allow nullptr. 
+returns:      
+    - $X_RESULT_INVALID_QUEUE
+    - $X_RESULT_INVALID_EVENT
+    - $X_RESULT_INVALID_MEM_OBJECT
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to write a 2D or 3D rectangular region in a buffer object from host memory" 
+class: $xEnqueue
+name: MemBufferWriteRect
+ordinal: "0"
+details:
+    - "Input parameter blockingWrite indicates if the write is blocking or non-blocking."
+    - "The buffer and host 2D or 3D rectangular regions can have different shapes."
+analogue:
+    - "**clEnqueueWriteBufferRect**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_mem_handle_t
+      name: hBuffer
+      desc: "[in] handle of the buffer object"
+    - type: bool
+      name: blockingWrite
+      desc: "[in] indicates blocking (true), non-blocking (false)"
+    - type: $x_rect_offset_t
+      name: bufferOffset
+      desc: "[in] 3D offset in the buffer"
+    - type: $x_rect_offset_t
+      name: hostOffset
+      desc: "[in] 3D offset in the host region"
+    - type: $x_rect_region_t
+      name: region
+      desc: "[in] 3D rectangular region descriptor: width, height, depth"
+    - type: size_t
+      name: bufferRowPitch
+      desc: "[in] length of each row in bytes in the buffer object"
+    - type: size_t
+      name: bufferSlicePitch
+      desc: "[in] length of each 2D slice in bytes in the buffer object being written"
+    - type: size_t
+      name: hostRowPitch
+      desc: "[in] length of each row in bytes in the host memory region pointed by src"
+    - type: size_t
+      name: hostSlicePitch
+      desc: "[in] length of each 2D slice in bytes in the host memory region pointed by src"  
+    - type: void*
+      name: src
+      desc: "[in] pointer to host memory where data is to be written from"     
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: eventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] points to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: event
+      desc: |
+            [in,out] return an event object that identifies this particular command instance.
+            Input can not be a nullptr.
+            TODO: change to allow nullptr. 
+returns:      
+    - $X_RESULT_INVALID_QUEUE
+    - $X_RESULT_INVALID_EVENT
+    - $X_RESULT_INVALID_MEM_OBJECT
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to copy from a buffer object to another" 
+class: $xEnqueue
+name: MemBufferCopy
+ordinal: "0"
+details:
+    - "The source and destination 2D or 3D rectangular regions can have different shapes."
+analogue:
+    - "**clEnqueueCopyBuffer**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_mem_handle_t
+      name: hBufferSrc
+      desc: "[in] handle of the src buffer object"
+    - type: $x_mem_handle_t
+      name: hBufferDst
+      desc: "[in] handle of the dest buffer object"
+    - type: size_t
+      name: size
+      desc: "[in] size in bytes of data being copied"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: eventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: event
+      desc: |
+            [in,out] return an event object that identifies this particular command instance.
+            Input can not be a nullptr.
+            TODO: change to allow nullptr. 
+returns:      
+    - $X_RESULT_INVALID_QUEUE
+    - $X_RESULT_INVALID_EVENT
+    - $X_RESULT_INVALID_MEM_OBJECT
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to copy a 2D or 3D rectangular region from one buffer object to another" 
+class: $xEnqueue
+name: MemBufferCopyRect
+ordinal: "0"
+analogue:
+    - "**clEnqueueCopyBufferRect**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_mem_handle_t
+      name: hBufferSrc
+      desc: "[in] handle of the source buffer object"
+    - type: size_t
+      name: srcOffset
+      desc: "[in] offset in bytes in the source buffer object"
+    - type: $x_mem_handle_t
+      name: hBufferDst
+      desc: "[in] handle of the dest buffer object"
+    - type: $x_rect_offset_t
+      name: srcOrigin
+      desc: "[in] 3D offset in the source buffer"
+    - type: $x_rect_offset_t
+      name: dstOrigin
+      desc: "[in] 3D offset in the destination buffer"
+    - type: $x_rect_region_t
+      name: srcRegion
+      desc: "[in] source 3D rectangular region descriptor: width, height, depth"
+    - type: size_t
+      name: srcRowPitch
+      desc: "[in] length of each row in bytes in the source buffer object"
+    - type: size_t
+      name: srcSlicePitch
+      desc: "[in] length of each 2D slice in bytes in the source buffer object"
+    - type: size_t
+      name: dstRowPitch
+      desc: "[in] length of each row in bytes in the destination buffer object"
+    - type: size_t
+      name: dstSlicePitch
+      desc: "[in] length of each 2D slice in bytes in the destination buffer object"  
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: eventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: event
+      desc: |
+            [in,out] return an event object that identifies this particular command instance.
+            Input can not be a nullptr.
+            TODO: change to allow nullptr. 
+returns:      
+    - $X_RESULT_INVALID_QUEUE
+    - $X_RESULT_INVALID_EVENT
+    - $X_RESULT_INVALID_MEM_OBJECT
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to fill a buffer object with a pattern of a given size" 
+class: $xEnqueue
+name: MemBufferFill
+ordinal: "0"
+analogue:
+    - "**clEnqueueFillBuffer**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_mem_handle_t
+      name: hBuffer
+      desc: "[in] handle of the buffer object"
+    - type: "const void*"
+      name: pattern
+      desc: "[in] pointer to the fill pattern"
+    - type: size_t
+      name: patternSize
+      desc: "[in] size in bytes of the pattern"
+    - type: size_t
+      name: offset
+      desc: "[in] offset into the buffer"
+    - type: size_t
+      name: size
+      desc: "[in] fill size in bytes, must be a multiple of patternSize"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: eventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: event
+      desc: |
+            [in,out] return an event object that identifies this particular command instance.
+            Input can not be a nullptr.
+            TODO: change to allow nullptr. 
+returns:      
+    - $X_RESULT_INVALID_QUEUE
+    - $X_RESULT_INVALID_EVENT
+    - $X_RESULT_INVALID_MEM_OBJECT
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to read from an image or image array object to host memory" 
+class: $xEnqueue
+name: MemImageRead
+ordinal: "0"
+details:
+    - "Input parameter blockingRead indicates if the read is blocking or non-blocking."
+analogue:
+    - "**clEnqueueReadImage**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_mem_handle_t
+      name: hImage
+      desc: "[in] handle of the image object"
+    - type: bool
+      name: blockingRead
+      desc: "[in] indicates blocking (true), non-blocking (false)"
+    - type: $x_rect_offset_t
+      name: origin
+      desc: "[in] defines the (x,y,z) offset in pixels in the 1D, 2D, or 3D image"
+    - type: $x_rect_region_t
+      name: region
+      desc: "[in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D image"
+    - type: size_t
+      name: rowPitch
+      desc: "[in] length of each row in bytes"
+    - type: size_t
+      name: slicePitch
+      desc: "[in] length of each 2D slice of the 3D image"
+    - type: void*
+      name: dst
+      desc: "[in] pointer to host memory where image is to be read into"     
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: eventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: event
+      desc: |
+            [in,out] return an event object that identifies this particular command instance.
+            Input can not be a nullptr.
+            TODO: change to allow nullptr. 
+returns:      
+    - $X_RESULT_INVALID_QUEUE
+    - $X_RESULT_INVALID_EVENT
+    - $X_RESULT_INVALID_MEM_OBJECT
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to write an image or image array object from host memory" 
+class: $xEnqueue
+name: MemImageWrite
+ordinal: "0"
+details:
+    - "Input parameter blockingWrite indicates if the write is blocking or non-blocking."
+analogue:
+    - "**clEnqueueWriteImage**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_mem_handle_t
+      name: hImage
+      desc: "[in] handle of the image object"
+    - type: bool
+      name: blockingWrite
+      desc: "[in] indicates blocking (true), non-blocking (false)"
+    - type: $x_rect_offset_t
+      name: origin
+      desc: "[in] defines the (x,y,z) offset in pixels in the 1D, 2D, or 3D image"
+    - type: $x_rect_region_t
+      name: region
+      desc: "[in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D image"
+    - type: size_t
+      name: inputRowPitch
+      desc: "[in] length of each row in bytes"
+    - type: size_t
+      name: inputSlicePitch
+      desc: "[in] length of each 2D slice of the 3D image"
+    - type: void*
+      name: src
+      desc: "[in] pointer to host memory where image is to be read into"     
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: eventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: event
+      desc: |
+            [in,out] return an event object that identifies this particular command instance.
+            Input can not be a nullptr.
+            TODO: change to allow nullptr. 
+returns:      
+    - $X_RESULT_INVALID_QUEUE
+    - $X_RESULT_INVALID_EVENT
+    - $X_RESULT_INVALID_MEM_OBJECT
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to copy from an image object to another" 
+class: $xEnqueue
+name: MemImageCopy
+ordinal: "0"
+analogue:
+    - "**clEnqueueCopyImage**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_mem_handle_t
+      name: hImageSrc
+      desc: "[in] handle of the src image object"
+    - type: $x_mem_handle_t
+      name: hImageDst
+      desc: "[in] handle of the dest image object"
+    - type: $x_rect_offset_t
+      name: srcOrigin
+      desc: "[in] defines the (x,y,z) offset in pixels in the source 1D, 2D, or 3D image"
+    - type: $x_rect_offset_t
+      name: dstOrigin
+      desc: "[in] defines the (x,y,z) offset in pixels in the destination 1D, 2D, or 3D image"
+    - type: $x_rect_region_t
+      name: region
+      desc: "[in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D image"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: eventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: event
+      desc: |
+            [in,out] return an event object that identifies this particular command instance.
+            Input can not be a nullptr.
+            TODO: change to allow nullptr. 
+returns:      
+    - $X_RESULT_INVALID_QUEUE
+    - $X_RESULT_INVALID_EVENT
+    - $X_RESULT_INVALID_MEM_OBJECT
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to fill an image object with specified color" 
+class: $xEnqueue
+name: MemImageFill
+ordinal: "0"
+version: "9999.0"
+details:
+    - "Currently not implemented in Level Zero"
+    - "TODO: add a driver function in Level Zero?"
+analogue:
+    - "**clEnqueueFillImage**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_mem_handle_t
+      name: hImage
+      desc: "[in] handle of the image object"
+    - type: "const void*"
+      name: fillColor
+      desc: |
+            [in] the color used to fill the image: single floating point value if the channel order is DEPTH,
+            otherwise, a four components RGBA values of various types depending on the image channel data type.
+    - type: "const size_t*"
+      name: origin
+      desc: "[in] TODO change the type to $x_rect_offset_t"
+    - type: "const size_t*"
+      name: region
+      desc: "[in] TODO: change the type to $x_rect_region_t"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: eventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: event
+      desc: |
+            [in,out] return an event object that identifies this particular command instance.
+            Input can not be a nullptr.
+            TODO: change to allow nullptr. 
+returns:      
+    - $X_RESULT_INVALID_QUEUE
+    - $X_RESULT_INVALID_EVENT
+    - $X_RESULT_INVALID_MEM_OBJECT
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Map flags"
+class: $xDevice
+name: $x_map_flags_t
+etors:
+    - name: READ
+      desc: "Map for read access"
+      value: "$X_BIT(0)"
+    - name: WRITE      
+      desc: "Map for write access"
+      value: "$X_BIT(1)"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Map flags"
+class: $xDevice
+name: $x_usm_migration_flags_t
+etors:
+    - name: DEFAULT
+      desc: "Default migration TODO: Add more enums! "
+      value: "$X_BIT(0)"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to map a region of the buffer object into the host address space and return a pointer to the mapped region" 
+class: $xEnqueue
+name: MemBufferMap
+ordinal: "0"
+details: 
+    - "Input parameter blockingMap indicates if the map is blocking or non-blocking."
+    - "Currently, no direct support in Leverl Zero. Implemented as a shared allocation followed by copying on discrete GPU"
+    - "TODO: add a driver function in Level Zero?"
+analogue:
+    - "**clEnqueueMapBuffer**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_mem_handle_t
+      name: buffer
+      desc: "[in] handle of the buffer object"
+    - type: bool
+      name: blockingMap
+      desc: "[in] indicates blocking (true), non-blocking (false)"
+    - type: $x_map_flags_t
+      name: mapFlags
+      desc: "[in] flags for read, write, readwrite mapping"
+    - type: size_t
+      name: offset
+      desc: "[in] offset in bytes of the buffer region being mapped"
+    - type: size_t
+      name: size
+      desc: "[in] size in bytes of the buffer region being mapped"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: eventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: event
+      desc: |
+            [in,out] return an event object that identifies this particular command instance.
+            Input can not be a nullptr.
+            TODO: change to allow nullptr. 
+    - type: void**
+      name: retMap
+      desc: "[in,out] return mapped pointer.  TODO: move it before numEventsInWaitList?"
+returns:      
+    - $X_RESULT_INVALID_QUEUE
+    - $X_RESULT_INVALID_EVENT
+    - $X_RESULT_INVALID_MEM_OBJECT
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to map a region of the image object into the host address space and return a pointer to the mapped region" 
+class: $xEnqueue
+name: MemImageMap
+version: "9999.0"
+ordinal: "0"
+details:
+    - "Input parameter blockingMap indicates if the map is blocking or non-blocking."
+    - "TODO: Not implemented in PI and no direct support in Leverl Zero."
+    - "TODO: add a driver function in Level Zero?"
+analogue:
+    - "**clEnqueueMapImage**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_mem_handle_t
+      name: hImage
+      desc: "[in] handle of the image object"
+    - type: bool
+      name: blockingMap
+      desc: "[in] indicates blocking (true), non-blocking (false)"
+    - type: $x_map_flags_t
+      name: mapFlags
+      desc: "[in] flags for read, write, readwrite mapping"
+    - type: $x_rect_offset_t
+      name: origin
+      desc: "[in] defines the (x,y,z) offset in pixels in the 1D, 2D, or 3D image"
+    - type: $x_rect_region_t
+      name: region
+      desc: "[in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D image"
+    - type: size_t
+      name: imageRowPitch
+      desc: "[in] length of each row in bytes"
+    - type: size_t
+      name: imageSlicePitch
+      desc: "[in] length of each 2D slice of the 3D image"
+    - type: void**
+      name: retMap
+      desc: "[in,out] return mapped pointer"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: eventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: event
+      desc: |
+            [in,out] return an event object that identifies this particular command instance.
+            Input can not be a nullptr.
+            TODO: change to allow nullptr. 
+returns:      
+    - $X_RESULT_INVALID_QUEUE
+    - $X_RESULT_INVALID_EVENT
+    - $X_RESULT_INVALID_MEM_OBJECT
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to unmap a previously mapped region of a memory object" 
+class: $xEnqueue
+name: MemUnmap
+ordinal: "0"
+analogue:
+    - "**clEnqueueUnmapMemObject**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_mem_handle_t
+      name: hMem
+      desc: "[in] handle of the memory (buffer or image) object"
+    - type: void*
+      name: mappedPtr
+      desc: "[in] mapped host address"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: eventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: event
+      desc: |
+            [in,out] return an event object that identifies this particular command instance.
+            Input can not be a nullptr.
+            TODO: change to allow nullptr. 
+returns:      
+    - $X_RESULT_INVALID_QUEUE
+    - $X_RESULT_INVALID_EVENT
+    - $X_RESULT_INVALID_MEM_OBJECT
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to set USM memory object value" 
+class: $xEnqueue
+name: USMMemset
+ordinal: "0"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: void*
+      name: ptr
+      desc: "[in] pointer to USM memory object"
+    - type: int8_t
+      name: byteValue
+      desc: "[in] byte value to fill"
+    - type: size_t
+      name: count
+      desc: "[in] size in bytes to be set"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: eventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: event
+      desc: |
+            [in,out] return an event object that identifies this particular command instance.
+            Input can not be a nullptr.
+            TODO: change to allow nullptr. 
+returns:      
+    - $X_RESULT_INVALID_QUEUE
+    - $X_RESULT_INVALID_EVENT
+    - $X_RESULT_INVALID_MEM_OBJECT
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to copy USM memory" 
+class: $xEnqueue
+name: USMMemcpy
+ordinal: "0"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: bool
+      name: blocking
+      desc: "[in] blocking or non-blocking copy"
+    - type: void*
+      name: dstPrt
+      desc: "[in] pointer to the destination USM memory object"
+    - type: "const void*"
+      name: srcPrt
+      desc: "[in] pointer to the source USM memory object"
+    - type: size_t
+      name: size
+      desc: "[in] size in bytes to be copied"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: eventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: event
+      desc: |
+            [in,out] return an event object that identifies this particular command instance.
+            Input can not be a nullptr.
+            TODO: change to allow nullptr. 
+returns:      
+    - $X_RESULT_INVALID_QUEUE
+    - $X_RESULT_INVALID_EVENT
+    - $X_RESULT_INVALID_MEM_OBJECT
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to prefetch USM memory" 
+class: $xEnqueue
+name: USMPrefetch
+ordinal: "0"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: "const void*"
+      name: ptr
+      desc: "[in] pointer to the USM memory object"
+    - type: size_t
+      name: size
+      desc: "[in] size in bytes to be fetched"
+    - type: $x_usm_migration_flags_t
+      name: flags
+      desc: "[in] USM prefetch flags"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: eventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: event
+      desc: |
+            [in,out] return an event object that identifies this particular command instance.
+            Input can not be a nullptr.
+            TODO: change to allow nullptr. 
+returns:      
+    - $X_RESULT_INVALID_QUEUE
+    - $X_RESULT_INVALID_EVENT
+    - $X_RESULT_INVALID_MEM_OBJECT
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "USM memory advice"
+class: $xUSM
+name: $x_mem_advice_t
+etors:
+    - name: MEM_ADVICE_DEFAULT
+      desc: "The USM memory advice is default"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to set USM memory advice" 
+class: $xEnqueue
+name: USMMemAdvice
+ordinal: "0"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: "const void*"
+      name: ptr
+      desc: "[in] pointer to the USM memory object"
+    - type: size_t
+      name: size
+      desc: "[in] size in bytes to be adviced"
+    - type: $x_mem_advice_t
+      name: advice
+      desc: "[in] USM memory advice"
+    - type: $x_event_handle_t*
+      name: event
+      desc: |
+            [in,out] return an event object that identifies this particular command instance.
+            Input can not be a nullptr.
+            TODO: change to allow nullptr. 
+returns:      
+    - $X_RESULT_INVALID_QUEUE
+    - $X_RESULT_INVALID_EVENT
+    - $X_RESULT_INVALID_MEM_OBJECT
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES

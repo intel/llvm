@@ -1,0 +1,158 @@
+#
+# Copyright (C) 2022 Intel Corporation
+#
+# SPDX-License-Identifier: MIT
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Level-Zero Runtime APIs for Platform"
+ordinal: "2"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Retrieves all available platforms"
+class: $xPlatform
+name: Get
+decl: static
+ordinal: "0"
+analogue:
+    - "**clGetPlatformIDs**"
+details:
+    - "Multiple calls to this function will return identical platforms handles, in the same order."
+    - "The application may call this function from simultaneous threads, the implementation must be thread-safe"
+params:
+    - type: "uint32_t*"
+      name: pCount
+      desc: |
+            [in,out] pointer to the number of platforms.
+            if count is zero, then the call shall update the value with the total number of platforms available.
+            if count is greater than the number of platforms available, then the call shall update the value with the correct number of platforms available.
+    - type: "$x_platform_handle_t*"
+      name: phPlatforms
+      desc: |
+            [out][optional][range(0, *pCount)] array of handle of platforms.
+            if count is less than the number of platforms available, then platform shall only retrieve that number of platforms.
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Supported platform info"
+class: $xPlatform
+name: $x_platform_info_t
+etors:
+    - name: NAME
+      value: "1"
+      desc: "[char*] The string denoting name of the platform. The size of the info needs to be dynamically queried."
+    - name: VENDOR_NAME
+      value: "2"
+      desc: "[char*] The string denoting name of the vendor of the platform. The size of the info needs to be dynamically queried."
+    - name: VERSION
+      value: "3"
+      desc: "[char*] The string denoting the version of the platform. The size of the info needs to be dynamically queried."
+    - name: EXTENSIONS
+      value: "4"
+      desc: "[char*] The string denoting extensions supported by the platform. The size of the info needs to be dynamically queried."
+      todo: "document extensions names and their meaning"
+    - name: PROFILE
+      value: "5"
+      desc: "[char*] The string denoting profile of the platform. The size of the info needs to be dynamically queried."
+      todo: "currently always return FULL_PROFILE, deprecate?"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Retrieves various information about platform"
+class: $xPlatform
+name: GetInfo
+decl: static
+ordinal: "0"
+analogue:
+    - "**clGetPlatformInfo**"
+details:
+    - "The application may call this function from simultaneous threads."
+    - "The implementation of this function should be lock-free."
+params:
+    - type: $x_platform_handle_t
+      name: hPlatform
+      desc: "[in] handle of the platform"
+    - type: $x_platform_info_t
+      name: PlatformInfoType
+      desc: "[in] type of the info to retrieve"
+    - type: "size_t*"
+      name: pSize
+      desc: |
+            [in,out] pointer to the number of bytes needed to return info queried.
+            the call shall update it with the real number of bytes needed to return the info
+    - type: "void*"
+      name: pPlatformInfo
+      desc: |
+            [out][optional] array of bytes holding the info.
+            if *pSize is not equal to the real number of bytes needed to return the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pPlatformInfo is not used.
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Supported API versions"
+class: $xPlatform
+name: $x_api_version_t
+details:
+    - "API versions contain major and minor attributes, use $X_MAJOR_VERSION and $X_MINOR_VERSION"
+etors:
+    - name: "0_9"
+      value: "$X_MAKE_VERSION( 0, 9 )"
+      desc: "version 0.9"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Returns the API version supported by the specified platform"
+class: $xPlatform
+name: GetApiVersion
+ordinal: "1"
+details:
+    - "The application may call this function from simultaneous threads."
+    - "The implementation of this function should be lock-free."
+params:
+    - type: $x_platform_handle_t
+      name: hDriver
+      desc: "[in] handle of the platform"
+    - type: "$x_api_version_t*"
+      name: version
+      desc: "[out] api version"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Return platform native platform handle."
+class: $xPlatform
+name: GetNativeHandle
+decl: static
+ordinal: "0"
+details:
+    - "Retrieved native handle can be used for direct interaction with the native platform driver."
+    - "Use interoperability platform extensions to convert native handle to native type."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: "$x_platform_handle_t"
+      name: hPlatform
+      desc: |
+            [in] handle of the platform.
+    - type: $x_native_handle_t*
+      name: phNativePlatform
+      desc: |
+            [out] a pointer to the native handle of the platform.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create runtime platform object from native platform handle."
+class: $xPlatform
+name: CreateWithNativeHandle
+decl: static
+ordinal: "0"
+details:
+    - "Creates runtime platform handle from native driver platform handle."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: $x_platform_handle_t
+      name: hPlatform
+      desc: "[in] handle of the platform instance"
+    - type: $x_native_handle_t
+      name: hNativePlatform
+      desc: |
+            [in] the native handle of the platform.
+    - type: "$x_platform_handle_t*"
+      name: phPlatform
+      desc: |
+            [out] pointer to the handle of the platform object created.

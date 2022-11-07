@@ -1,0 +1,170 @@
+#
+# Copyright (C) 2021 Intel Corporation
+#
+# SPDX-License-Identifier: MIT
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Level-Zero APIs"
+ordinal: "0"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "USM memory property flags"
+class: $xUSM
+name: $x_usm_mem_flags_t
+etors:
+    - name: MEM_ALLOC_FLAGS_INTEL
+      value: "$X_BIT(0)"
+      desc: "The USM memory allocation is from Intel USM"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "USM memory allocation information type"
+class: $xUSM
+name: $x_mem_info_t
+etors:
+    - name: MEM_ALLOC_TYPE
+      desc: "Memory allocation type info"
+    - name: MEM_ALLOC_BASE_PTR
+      desc: "Memory allocation base pointer info"
+    - name: MEM_ALLOC_SIZE
+      desc: "Memory allocation size info"
+    - name: MEM_ALLOC_DEVICE
+      desc: "Memory allocation device info"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "USM allocate host memory"
+class: $xUSM
+name: HostAlloc
+ordinal: "0"
+params:
+    - type: $x_context_handle_t
+      name: context
+      desc: "[in] handle of the context object"
+    - type: $x_usm_mem_flags_t*
+      name: pUSMFlag
+      desc: "[in] USM memory allocation flags"
+    - type: "size_t"
+      name: size
+      desc: "[in] size in bytes of the USM memory object to be allocated"
+    - type: uint32_t
+      name: align      
+      desc: "[in] alignment of the USM memory object"
+    - type: void**
+      name: pptr
+      desc: "[out] pointer to USM host memory object"
+returns:      
+    - $X_RESULT_INVALID_CONTEXT
+    - $X_RESULT_INVALID_VALUE
+    - $X_RESULT_INVALID_USM_SIZE
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "USM allocate device memory"
+class: $xUSM
+name: DeviceAlloc
+ordinal: "0"
+params:
+    - type: $x_context_handle_t
+      name: context
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: device
+      desc: "[in] handle of the device object"
+    - type: $x_usm_mem_flags_t*
+      name: pUSMProp
+      desc: "[in] USM memory properties"
+    - type: "size_t"
+      name: size
+      desc: "[in] size in bytes of the USM memory object to be allocated"
+    - type: uint32_t
+      name: align      
+      desc: "[in] alignment of the USM memory object"
+    - type: void**
+      name: pptr
+      desc: "[out] pointer to USM device memory object"
+returns:      
+    - $X_RESULT_INVALID_CONTEXT
+    - $X_RESULT_INVALID_VALUE
+    - $X_RESULT_INVALID_USM_SIZE
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "USM allocate shared memory"
+class: $xUSM
+name: SharedAlloc
+ordinal: "0"
+params:
+    - type: $x_context_handle_t
+      name: context
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: device
+      desc: "[in] handle of the device object"
+    - type: $x_usm_mem_flags_t*
+      name: pUSMProp
+      desc: "[in] USM memory properties"
+    - type: "size_t"
+      name: size
+      desc: "[in] size in bytes of the USM memory object to be allocated"
+    - type: uint32_t
+      name: align      
+      desc: "[in] alignment of the USM memory object"
+    - type: void**
+      name: pptr
+      desc: "[out] pointer to USM shared memory object"
+returns:      
+    - $X_RESULT_INVALID_CONTEXT
+    - $X_RESULT_INVALID_VALUE
+    - $X_RESULT_INVALID_USM_SIZE
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Free the USM memory object"
+class: $xMem
+name: Free
+ordinal: "0"
+params:
+    - type: $x_context_handle_t
+      name: context
+      desc: "[in] handle of the context object"
+    - type: void*
+      name: ptr
+      desc: "[in] pointer to USM memory object"
+returns:
+    - $X_RESULT_INVALID_MEM_OBJECT
+    - $X_RESULT_OUT_OF_HOST_MEMORY
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Get USM memory object allocation information"
+class: $xMem
+name: GetMemAllocInfo
+ordinal: "0"
+params:
+    - type: $x_context_handle_t
+      name: context
+      desc: "[in] handle of the context object"
+    - type: "const void*"
+      name: ptr
+      desc: "[in] pointer to USM memory object"
+    - type: $x_mem_info_t
+      name: propName
+      desc: "[in] the name of the USM allocation property to query"
+    - type: size_t
+      name: propValueSize
+      desc: "[in] size in bytes of the USM allocation property value"
+    - type: void*
+      name: propValue
+      desc: "[out] value of the USM allocation property"
+    - type: size_t*
+      name: propValueSizeRet
+      desc: "[out] bytes returned in USM allocation property"
+returns:
+    - $X_RESULT_INVALID_CONTEXT
+    - $X_RESULT_INVALID_VALUE
+    - $X_RESULT_INVALID_MEM_OBJECT
+    - $X_RESULT_OUT_OF_HOST_MEMORY

@@ -1,0 +1,118 @@
+#
+# Copyright (C) 2022 Intel Corporation
+#
+# SPDX-License-Identifier: MIT
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Level-Zero Runtime APIs for Module"
+ordinal: "2"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create Module object from IL."
+class: $xModule
+name: Create
+decl: static
+ordinal: "0"
+details:
+    - "Multiple calls to this function will return identical device handles, in the same order."
+    - "The application may call this function from simultaneous threads."
+    - "The implementation of this function should be lock-free."
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context instance"
+    - type: const void*
+      name: pIL
+      desc: "[in] pointer to IL string."
+    - type: uint32_t
+      name: length
+      desc: "[in] length of IL in bytes."
+    - type: const char*
+      name: pOptions
+      desc: "[in] pointer to compiler options null-terminated string."
+    - type: void**
+      name: pfnNotify
+      desc: "[in][optional] A function pointer to a notification routine that is called when program compilation is complete."
+    - type: void*
+      name: pUserData
+      desc: "[in][optional] Passed as an argument when pfnNotify is called."
+    - type: $x_module_handle_t*
+      name: phModule
+      desc: "[out] pointer to handle of Module object created."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Get a reference to the Module object."
+class: $xModule
+name: GetReference
+decl: static
+ordinal: "0"
+details:
+    - "Get a reference to the Module object handle. Increment its reference count"
+    - "The application may call this function from simultaneous threads."
+    - "The implementation of this function should be lock-free."
+params:
+    - type: $x_module_handle_t
+      name: hModule
+      desc: "[in] handle for the Module to retain"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Release Module."
+class: $xModule
+name: Release
+decl: static
+ordinal: "0"
+details:
+    - "Decrement reference count and destroy the Module if reference count becomes zero."
+    - "The application may call this function from simultaneous threads."
+    - "The implementation of this function should be lock-free."
+params:
+    - type: $x_module_handle_t
+      name: hModule
+      desc: "[in] handle for the Module to release"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Return platform native module handle."
+class: $xModule
+name: GetNativeHandle
+decl: static
+ordinal: "0"
+details:
+    - "Retrieved native handle can be used for direct interaction with the native platform driver."
+    - "Use interoperability platform extensions to convert native handle to native type."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: "$x_module_handle_t"
+      name: hModule
+      desc: |
+            [in] handle of the module.
+    - type: $x_native_handle_t*
+      name: phNativeModule
+      desc: |
+            [out] a pointer to the native handle of the module.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create runtime module object from native module handle."
+class: $xModule
+name: CreateWithNativeHandle
+decl: static
+ordinal: "0"
+details:
+    - "Creates runtime module handle from native driver module handle."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: $x_platform_handle_t
+      name: hPlatform
+      desc: "[in] handle of the platform instance"
+    - type: $x_native_handle_t
+      name: hNativeModule
+      desc: |
+            [in] the native handle of the module.
+    - type: "$x_module_handle_t*"
+      name: phModule
+      desc: |
+            [out] pointer to the handle of the module object created.

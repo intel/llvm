@@ -1,0 +1,24 @@
+#
+# Copyright (C) 2021 Intel Corporation
+#
+# SPDX-License-Identifier: MIT
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Level-Zero APIs"
+ordinal: "0"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Tear down L0 runtime instance and release all its resources"
+class: $x
+name: TearDown
+decl: static
+ordinal: "0"
+params:
+    - type: void*
+      name: pParams
+      desc: "[in] pointer to tear down parameters"
+returns:
+    - $X_RESULT_OUT_OF_HOST_MEMORY
