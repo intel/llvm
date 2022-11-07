@@ -2340,6 +2340,7 @@ private:
 };
 
 ValueCategory MLIRScanner::EmitPromoted(Expr *E, QualType PromotionType) {
+  assert(E && "Invalid input expression.");
   E = E->IgnoreParens();
   if (auto *BO = dyn_cast<BinaryOperator>(E)) {
     switch (BO->getOpcode()) {
