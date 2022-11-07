@@ -2366,6 +2366,7 @@ bool RISCVDAGToDAGISel::selectVLOp(SDValue N, SDValue &VL) {
 bool RISCVDAGToDAGISel::selectVSplat(SDValue N, SDValue &SplatVal) {
   if (N.getOpcode() != RISCVISD::VMV_V_X_VL || !N.getOperand(0).isUndef())
     return false;
+  assert(N.getNumOperands() == 3 && "Unexpected number of operands");
   SplatVal = N.getOperand(1);
   return true;
 }
@@ -2379,6 +2380,7 @@ static bool selectVSplatSimmHelper(SDValue N, SDValue &SplatVal,
   if (N.getOpcode() != RISCVISD::VMV_V_X_VL || !N.getOperand(0).isUndef() ||
       !isa<ConstantSDNode>(N.getOperand(1)))
     return false;
+  assert(N.getNumOperands() == 3 && "Unexpected number of operands");
 
   int64_t SplatImm =
       cast<ConstantSDNode>(N.getOperand(1))->getSExtValue();
@@ -2666,6 +2668,20 @@ bool RISCVDAGToDAGISel::performCombineVMergeAndVOps(SDNode *N, bool IsTA) {
   // The last operand of unmasked intrinsic should be sew or chain.
   bool HasChainOp =
       True.getOperand(True.getNumOperands() - 1).getValueType() == MVT::Other;
+
+  if (HasChainOp) {
+    // Avoid creating cycles in the DAG. We must ensure that none of the other
+    // operands depend on True through it's Chain.
+    SmallVector<const SDNode *, 4> LoopWorklist;
+    SmallPtrSet<const SDNode *, 16> Visited;
+    LoopWorklist.push_back(False.getNode());
+    LoopWorklist.push_back(Mask.getNode());
+    LoopWorklist.push_back(VL.getNode());
+    if (SDNode *Glued = N->getGluedNode())
+      LoopWorklist.push_back(Glued);
+    if (SDNode::hasPredecessorHelper(True.getNode(), Visited, LoopWorklist))
+      return false;
+  }
 
   // Need True has same VL with N.
   unsigned TrueVLIndex = True.getNumOperands() - HasChainOp - 2;

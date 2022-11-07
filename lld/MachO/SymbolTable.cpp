@@ -45,6 +45,21 @@ std::pair<Symbol *, bool> SymbolTable::insert(StringRef name,
   return {sym, p.second};
 }
 
+namespace {
+struct DuplicateSymbolDiag {
+  // Pair containing source location and source file
+  const std::pair<std::string, std::string> src1;
+  const std::pair<std::string, std::string> src2;
+  const Symbol *sym;
+
+  DuplicateSymbolDiag(const std::pair<std::string, std::string> src1,
+                      const std::pair<std::string, std::string> src2,
+                      const Symbol *sym)
+      : src1(src1), src2(src2), sym(sym) {}
+};
+SmallVector<DuplicateSymbolDiag> dupSymDiags;
+} // namespace
+
 Defined *SymbolTable::addDefined(StringRef name, InputFile *file,
                                  InputSection *isec, uint64_t value,
                                  uint64_t size, bool isWeakDef,
@@ -80,17 +95,13 @@ Defined *SymbolTable::addDefined(StringRef name, InputFile *file,
           concatIsec->symbols.erase(llvm::find(concatIsec->symbols, defined));
         }
       } else {
-        std::string src1 = defined->getSourceLocation();
-        std::string src2 = isec ? isec->getSourceLocation(value) : "";
+        std::string srcLoc1 = defined->getSourceLocation();
+        std::string srcLoc2 = isec ? isec->getSourceLocation(value) : "";
+        std::string srcFile1 = toString(defined->getFile());
+        std::string srcFile2 = toString(file);
 
-        std::string message =
-            "duplicate symbol: " + toString(*defined) + "\n>>> defined in ";
-        if (!src1.empty())
-          message += src1 + "\n>>>            ";
-        message += toString(defined->getFile()) + "\n>>> defined in ";
-        if (!src2.empty())
-          message += src2 + "\n>>>            ";
-        error(message + toString(file));
+        dupSymDiags.push_back({make_pair(srcLoc1, srcFile1),
+                               make_pair(srcLoc2, srcFile2), defined});
       }
 
     } else if (auto *dysym = dyn_cast<DylibSymbol>(s)) {
@@ -366,52 +377,209 @@ struct UndefinedDiag {
 MapVector<const Undefined *, UndefinedDiag> undefs;
 }
 
-void macho::reportPendingUndefinedSymbols() {
-  for (const auto &undef : undefs) {
-    const UndefinedDiag &locations = undef.second;
-
-    std::string message = "undefined symbol";
-    if (config->archMultiple)
-      message += (" for arch " + getArchitectureName(config->arch())).str();
-    message += ": " + toString(*undef.first);
-
-    const size_t maxUndefinedReferences = 3;
-    size_t i = 0;
-    for (const std::string &loc : locations.otherReferences) {
-      if (i >= maxUndefinedReferences)
-        break;
-      message += "\n>>> referenced by " + loc;
-      ++i;
+void macho::reportPendingDuplicateSymbols() {
+  for (const auto &duplicate : dupSymDiags) {
+    if (!config->deadStripDuplicates || duplicate.sym->isLive()) {
+      std::string message =
+          "duplicate symbol: " + toString(*duplicate.sym) + "\n>>> defined in ";
+      if (!duplicate.src1.first.empty())
+        message += duplicate.src1.first + "\n>>>            ";
+      message += duplicate.src1.second + "\n>>> defined in ";
+      if (!duplicate.src2.first.empty())
+        message += duplicate.src2.first + "\n>>>            ";
+      error(message + duplicate.src2.second);
     }
-
-    for (const UndefinedDiag::SectionAndOffset &loc :
-         locations.codeReferences) {
-      if (i >= maxUndefinedReferences)
-        break;
-      message += "\n>>> referenced by ";
-      std::string src = loc.isec->getSourceLocation(loc.offset);
-      if (!src.empty())
-        message += src + "\n>>>               ";
-      message += loc.isec->getLocation(loc.offset);
-      ++i;
-    }
-
-    size_t totalReferences =
-        locations.otherReferences.size() + locations.codeReferences.size();
-    if (totalReferences > i)
-      message +=
-          ("\n>>> referenced " + Twine(totalReferences - i) + " more times")
-              .str();
-
-    if (config->undefinedSymbolTreatment == UndefinedSymbolTreatment::error)
-      error(message);
-    else if (config->undefinedSymbolTreatment ==
-             UndefinedSymbolTreatment::warning)
-      warn(message);
-    else
-      assert(false &&
-             "diagnostics make sense for -undefined error|warning only");
   }
+}
+
+// Check whether the definition name def is a mangled function name that matches
+// the reference name ref.
+static bool canSuggestExternCForCXX(StringRef ref, StringRef def) {
+  llvm::ItaniumPartialDemangler d;
+  std::string name = def.str();
+  if (d.partialDemangle(name.c_str()))
+    return false;
+  char *buf = d.getFunctionName(nullptr, nullptr);
+  if (!buf)
+    return false;
+  bool ret = ref == buf;
+  free(buf);
+  return ret;
+}
+
+// Suggest an alternative spelling of an "undefined symbol" diagnostic. Returns
+// the suggested symbol, which is either in the symbol table, or in the same
+// file of sym.
+static const Symbol *getAlternativeSpelling(const Undefined &sym,
+                                            std::string &pre_hint,
+                                            std::string &post_hint) {
+  DenseMap<StringRef, const Symbol *> map;
+  if (sym.getFile() && sym.getFile()->kind() == InputFile::ObjKind) {
+    // Build a map of local defined symbols.
+    for (const Symbol *s : sym.getFile()->symbols)
+      if (auto *defined = dyn_cast<Defined>(s))
+        if (!defined->isExternal())
+          map.try_emplace(s->getName(), s);
+  }
+
+  auto suggest = [&](StringRef newName) -> const Symbol * {
+    // If defined locally.
+    if (const Symbol *s = map.lookup(newName))
+      return s;
+
+    // If in the symbol table and not undefined.
+    if (const Symbol *s = symtab->find(newName))
+      if (dyn_cast<Undefined>(s) == nullptr)
+        return s;
+
+    return nullptr;
+  };
+
+  // This loop enumerates all strings of Levenshtein distance 1 as typo
+  // correction candidates and suggests the one that exists as a non-undefined
+  // symbol.
+  StringRef name = sym.getName();
+  for (size_t i = 0, e = name.size(); i != e + 1; ++i) {
+    // Insert a character before name[i].
+    std::string newName = (name.substr(0, i) + "0" + name.substr(i)).str();
+    for (char c = '0'; c <= 'z'; ++c) {
+      newName[i] = c;
+      if (const Symbol *s = suggest(newName))
+        return s;
+    }
+    if (i == e)
+      break;
+
+    // Substitute name[i].
+    newName = std::string(name);
+    for (char c = '0'; c <= 'z'; ++c) {
+      newName[i] = c;
+      if (const Symbol *s = suggest(newName))
+        return s;
+    }
+
+    // Transpose name[i] and name[i+1]. This is of edit distance 2 but it is
+    // common.
+    if (i + 1 < e) {
+      newName[i] = name[i + 1];
+      newName[i + 1] = name[i];
+      if (const Symbol *s = suggest(newName))
+        return s;
+    }
+
+    // Delete name[i].
+    newName = (name.substr(0, i) + name.substr(i + 1)).str();
+    if (const Symbol *s = suggest(newName))
+      return s;
+  }
+
+  // Case mismatch, e.g. Foo vs FOO.
+  for (auto &it : map)
+    if (name.equals_insensitive(it.first))
+      return it.second;
+  for (Symbol *sym : symtab->getSymbols())
+    if (dyn_cast<Undefined>(sym) == nullptr &&
+        name.equals_insensitive(sym->getName()))
+      return sym;
+
+  // The reference may be a mangled name while the definition is not. Suggest a
+  // missing extern "C".
+  if (name.startswith("__Z")) {
+    std::string buf = name.str();
+    llvm::ItaniumPartialDemangler d;
+    if (!d.partialDemangle(buf.c_str()))
+      if (char *buf = d.getFunctionName(nullptr, nullptr)) {
+        const Symbol *s = suggest((Twine("_") + buf).str());
+        free(buf);
+        if (s) {
+          pre_hint = ": extern \"C\" ";
+          return s;
+        }
+      }
+  } else {
+    StringRef name_without_underscore = name;
+    name_without_underscore.consume_front("_");
+    const Symbol *s = nullptr;
+    for (auto &it : map)
+      if (canSuggestExternCForCXX(name_without_underscore, it.first)) {
+        s = it.second;
+        break;
+      }
+    if (!s)
+      for (Symbol *sym : symtab->getSymbols())
+        if (canSuggestExternCForCXX(name_without_underscore, sym->getName())) {
+          s = sym;
+          break;
+        }
+    if (s) {
+      pre_hint = " to declare ";
+      post_hint = " as extern \"C\"?";
+      return s;
+    }
+  }
+
+  return nullptr;
+}
+
+static void reportUndefinedSymbol(const Undefined &sym,
+                                  const UndefinedDiag &locations,
+                                  bool correctSpelling) {
+  std::string message = "undefined symbol";
+  if (config->archMultiple)
+    message += (" for arch " + getArchitectureName(config->arch())).str();
+  message += ": " + toString(sym);
+
+  const size_t maxUndefinedReferences = 3;
+  size_t i = 0;
+  for (const std::string &loc : locations.otherReferences) {
+    if (i >= maxUndefinedReferences)
+      break;
+    message += "\n>>> referenced by " + loc;
+    ++i;
+  }
+
+  for (const UndefinedDiag::SectionAndOffset &loc : locations.codeReferences) {
+    if (i >= maxUndefinedReferences)
+      break;
+    message += "\n>>> referenced by ";
+    std::string src = loc.isec->getSourceLocation(loc.offset);
+    if (!src.empty())
+      message += src + "\n>>>               ";
+    message += loc.isec->getLocation(loc.offset);
+    ++i;
+  }
+
+  size_t totalReferences =
+      locations.otherReferences.size() + locations.codeReferences.size();
+  if (totalReferences > i)
+    message +=
+        ("\n>>> referenced " + Twine(totalReferences - i) + " more times")
+            .str();
+
+  if (correctSpelling) {
+    std::string pre_hint = ": ", post_hint;
+    if (const Symbol *corrected =
+            getAlternativeSpelling(sym, pre_hint, post_hint)) {
+      message +=
+          "\n>>> did you mean" + pre_hint + toString(*corrected) + post_hint;
+      if (corrected->getFile())
+        message += "\n>>> defined in: " + toString(corrected->getFile());
+    }
+  }
+
+  if (config->undefinedSymbolTreatment == UndefinedSymbolTreatment::error)
+    error(message);
+  else if (config->undefinedSymbolTreatment ==
+           UndefinedSymbolTreatment::warning)
+    warn(message);
+  else
+    assert(false && "diagnostics make sense for -undefined error|warning only");
+}
+
+void macho::reportPendingUndefinedSymbols() {
+  // Enable spell corrector for the first 2 diagnostics.
+  for (const auto &[i, undef] : llvm::enumerate(undefs))
+    reportUndefinedSymbol(*undef.first, undef.second, i < 2);
 
   // This function is called multiple times during execution. Clear the printed
   // diagnostics to avoid printing the same things again the next time.

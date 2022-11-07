@@ -130,9 +130,10 @@ IMPORTANT: In the current implementation, only the subgroup scope is supported.
 namespace sycl::ext::oneapi::experimental::matrix {
   template <typename Group, typename T, size_t NumRows, size_t NumCols,
           matrix_layout Layout,
-          access::address_space Space>
+          access::address_space Space,
+          access::decorated IsDecorated>
   void joint_matrix_load(Group sg, joint_matrix<T, NumRows, NumCols, Layout, Group> &res,
-		    multi_ptr<T, Space> src, size_t stride, matrix_layout MemLayout);
+		    multi_ptr<T, Space, IsDecorated> src, size_t stride, matrix_layout MemLayout);
 }
 ```
 This function loads data from memory to the 2d tiles/registers of Intel AMX/DPAS.
@@ -143,9 +144,10 @@ This function loads data from memory to the 2d tiles/registers of Intel AMX/DPAS
 namespace sycl::ext::oneapi::experimental::matrix {
   template <typename Group, typename T, size_t NumRows, size_t NumCols,
           matrix_layout L,
-          access::address_space Space>	  
+          access::address_space Space,
+          access::decorated IsDecorated>
   void joint_matrix_store(Group sg, joint_matrix<T, NumRows, NumCols, L, Group> &res,
-		     multi_ptr<T, Space> src, size_t stride, matrix_layout memL);
+		     multi_ptr<T, Space, IsDecorated> src, size_t stride, matrix_layout memL);
 }
 ```
 This function stores the data from the 2d tiles back to memory.

@@ -62,34 +62,28 @@ filter create_filter(const std::string &Input) {
     throw sycl::runtime_error(Error, PI_ERROR_INVALID_VALUE);
 
   for (const std::string &Token : Tokens) {
-    if (Token == "cpu" && !Result.HasDeviceType) {
+    if (Token == "cpu" && !Result.DeviceType) {
       Result.DeviceType = sycl::info::device_type::cpu;
-      Result.HasDeviceType = true;
-    } else if (Token == "gpu" && !Result.HasDeviceType) {
+    } else if (Token == "gpu" && !Result.DeviceType) {
       Result.DeviceType = sycl::info::device_type::gpu;
-      Result.HasDeviceType = true;
-    } else if (Token == "accelerator" && !Result.HasDeviceType) {
+    } else if (Token == "accelerator" && !Result.DeviceType) {
       Result.DeviceType = sycl::info::device_type::accelerator;
-      Result.HasDeviceType = true;
-    } else if (Token == "opencl" && !Result.HasBackend) {
+    } else if (Token == "opencl" && !Result.Backend) {
       Result.Backend = backend::opencl;
-      Result.HasBackend = true;
-    } else if (Token == "level_zero" && !Result.HasBackend) {
+    } else if (Token == "level_zero" && !Result.Backend) {
       Result.Backend = backend::ext_oneapi_level_zero;
-      Result.HasBackend = true;
-    } else if (Token == "cuda" && !Result.HasBackend) {
+    } else if (Token == "cuda" && !Result.Backend) {
       Result.Backend = backend::ext_oneapi_cuda;
-      Result.HasBackend = true;
-    } else if (Token == "hip" && !Result.HasBackend) {
+    } else if (Token == "hip" && !Result.Backend) {
       Result.Backend = backend::ext_oneapi_hip;
-      Result.HasBackend = true;
-    } else if (std::regex_match(Token, IntegerExpr) && !Result.HasDeviceNum) {
+    } else if (Token == "esimd_emulator" && !Result.Backend) {
+      Result.Backend = backend::ext_intel_esimd_emulator;
+    } else if (std::regex_match(Token, IntegerExpr) && !Result.DeviceNum) {
       try {
         Result.DeviceNum = std::stoi(Token);
       } catch (std::logic_error &) {
         throw sycl::runtime_error(Error, PI_ERROR_INVALID_VALUE);
       }
-      Result.HasDeviceNum = true;
     } else {
       throw sycl::runtime_error(Error, PI_ERROR_INVALID_VALUE);
     }
@@ -120,15 +114,15 @@ int filter_selector_impl::operator()(const device &Dev) const {
     bool DeviceTypeOK = true;
     bool DeviceNumOK = true;
 
-    if (Filter.HasBackend) {
+    if (Filter.Backend) {
       backend BE = sycl::detail::getSyclObjImpl(Dev)->getPlugin().getBackend();
       // Backend is okay if the filter BE is set 'all'.
-      if (Filter.Backend == backend::all)
+      if (Filter.Backend.value() == backend::all)
         BackendOK = true;
       else
-        BackendOK = (BE == Filter.Backend);
+        BackendOK = (BE == Filter.Backend.value());
     }
-    if (Filter.HasDeviceType) {
+    if (Filter.DeviceType) {
       sycl::info::device_type DT =
           Dev.get_info<sycl::info::device::device_type>();
       // DeviceType is okay if the filter is set 'all'.
@@ -137,11 +131,11 @@ int filter_selector_impl::operator()(const device &Dev) const {
       else
         DeviceTypeOK = (DT == Filter.DeviceType);
     }
-    if (Filter.HasDeviceNum) {
+    if (Filter.DeviceNum) {
       // Only check device number if we're good on the previous matches
       if (BackendOK && DeviceTypeOK) {
         // Do we match?
-        DeviceNumOK = (Filter.MatchesSeen == Filter.DeviceNum);
+        DeviceNumOK = (Filter.MatchesSeen == Filter.DeviceNum.value());
         // Safe to increment matches even if we find it
         Filter.MatchesSeen++;
       }

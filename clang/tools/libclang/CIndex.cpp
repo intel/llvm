@@ -1822,7 +1822,7 @@ bool CursorVisitor::VisitTypeOfExprTypeLoc(TypeOfExprTypeLoc TL) {
 }
 
 bool CursorVisitor::VisitTypeOfTypeLoc(TypeOfTypeLoc TL) {
-  if (TypeSourceInfo *TSInfo = TL.getUnderlyingTInfo())
+  if (TypeSourceInfo *TSInfo = TL.getUnmodifiedTInfo())
     return Visit(TSInfo->getTypeLoc());
 
   return false;

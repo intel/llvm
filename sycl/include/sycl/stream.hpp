@@ -739,7 +739,7 @@ inline __width_manipulator__ setw(int Width) {
 /// vector and SYCL types to the console.
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT __SYCL_SPECIAL_CLASS stream {
+class __SYCL_EXPORT __SYCL_SPECIAL_CLASS __SYCL_TYPE(stream) stream {
 public:
 #ifdef __SYCL_DEVICE_ONLY__
   // Default constructor for objects later initialized with __init member.
@@ -1030,9 +1030,11 @@ inline const stream &operator<<(const stream &Out, const half &RHS) {
 
 // Pointer
 
-template <typename ElementType, access::address_space Space>
-inline const stream &operator<<(const stream &Out,
-                                const multi_ptr<ElementType, Space> &RHS) {
+template <typename ElementType, access::address_space Space,
+          access::decorated IsDecorated>
+inline const stream &
+operator<<(const stream &Out,
+           const multi_ptr<ElementType, Space, IsDecorated> &RHS) {
   Out << RHS.get();
   return Out;
 }

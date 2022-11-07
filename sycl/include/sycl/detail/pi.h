@@ -264,6 +264,7 @@ typedef enum {
   // Intel UUID extension.
   PI_DEVICE_INFO_UUID = 0x106A,
   // These are Intel-specific extensions.
+  PI_DEVICE_INFO_DEVICE_ID = 0x4251,
   PI_DEVICE_INFO_PCI_ADDRESS = 0x10020,
   PI_DEVICE_INFO_GPU_EU_COUNT = 0x10021,
   PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH = 0x10022,
@@ -752,6 +753,9 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 #define __SYCL_PI_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS "SYCL/exported symbols"
 /// PropertySetRegistry::SYCL_DEVICE_GLOBALS defined in PropertySetIO.h
 #define __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_GLOBALS "SYCL/device globals"
+/// PropertySetRegistry::SYCL_DEVICE_REQUIREMENTS defined in PropertySetIO.h
+#define __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS                        \
+  "SYCL/device requirements"
 
 /// Program metadata tags recognized by the PI backends. For kernels the tag
 /// must appear after the kernel name.

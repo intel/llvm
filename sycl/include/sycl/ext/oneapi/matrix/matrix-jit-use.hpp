@@ -90,11 +90,11 @@ public:
 };
 
 template <typename Group, typename T, size_t NumRows, size_t NumCols, use Use,
-          access::address_space Space>
+          access::address_space Space, access::decorated IsDecorated>
 inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
     Group sg,
     joint_matrix<T, NumRows, NumCols, Use, layout::unused, Group> &res,
-    multi_ptr<T, Space> src, size_t stride, layout MemL) {
+    multi_ptr<T, Space, IsDecorated> src, size_t stride, layout MemL) {
 #ifdef __SYCL_DEVICE_ONLY__
   T *Ptr = src.get();
   switch (MemL) {
@@ -141,11 +141,11 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
 }
 
 template <typename Group, typename T, size_t NumRows, size_t NumCols, use Use,
-          access::address_space Space>
+          access::address_space Space, access::decorated IsDecorated>
 inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
     Group sg,
     joint_matrix<T, NumRows, NumCols, Use, layout::unused, Group> &src,
-    multi_ptr<T, Space> res, size_t stride, layout MemL) {
+    multi_ptr<T, Space, IsDecorated> res, size_t stride, layout MemL) {
 #ifdef __SYCL_DEVICE_ONLY__
   T *Ptr = res.get();
   switch (MemL) {

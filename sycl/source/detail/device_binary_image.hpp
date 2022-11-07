@@ -10,6 +10,7 @@
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/pi.hpp>
 
+#include <cstring>
 #include <memory>
 
 namespace sycl {
@@ -27,9 +28,34 @@ public:
   ConstIterator begin() const { return Ptr; }
   ConstIterator end() const { return Ptr + Size; }
 
+  template <typename... Ts> auto consume() {
+    if constexpr (sizeof...(Ts) == 1)
+      return consumeOneElem<Ts...>();
+    else
+      return std::tuple{consumeOneElem<Ts>()...};
+  }
+
+  void dropBytes(std::size_t Bytes) {
+    assert(Bytes <= Size && "Not enough bytes left!");
+    Ptr += Bytes;
+    Size -= Bytes;
+  }
+
+  template <typename T> void drop() { return dropBytes(sizeof(T)); }
+
+  bool empty() const { return Size == 0; }
+
 private:
+  template <typename T> T consumeOneElem() {
+    assert(sizeof(T) <= Size && "Out of bounds!");
+    T Val;
+    std::memcpy(&Val, Ptr, sizeof(T));
+    drop<T>();
+    return Val;
+  }
+
   const std::uint8_t *Ptr;
-  const std::size_t Size;
+  std::size_t Size;
 };
 
 // C++ wrapper over the _pi_device_binary_property_struct structure.
@@ -190,6 +216,9 @@ public:
   const PropertyRange &getProgramMetadata() const { return ProgramMetadata; }
   const PropertyRange &getExportedSymbols() const { return ExportedSymbols; }
   const PropertyRange &getDeviceGlobals() const { return DeviceGlobals; }
+  const PropertyRange &getDeviceRequirements() const {
+    return DeviceRequirements;
+  }
 
 protected:
   void init(pi_device_binary Bin);
@@ -207,6 +236,7 @@ protected:
   RTDeviceBinaryImage::PropertyRange ProgramMetadata;
   RTDeviceBinaryImage::PropertyRange ExportedSymbols;
   RTDeviceBinaryImage::PropertyRange DeviceGlobals;
+  RTDeviceBinaryImage::PropertyRange DeviceRequirements;
 };
 
 // Dynamically allocated device binary image, which de-allocates its binary

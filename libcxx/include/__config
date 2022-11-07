@@ -22,6 +22,16 @@
 #  pragma GCC system_header
 #endif
 
+#if defined(__apple_build_version__)
+#  define _LIBCPP_COMPILER_CLANG_BASED
+#  define _LIBCPP_APPLE_CLANG_VER (__apple_build_version__ / 10000)
+#elif defined(__clang__)
+#  define _LIBCPP_COMPILER_CLANG_BASED
+#  define _LIBCPP_CLANG_VER (__clang_major__ * 100 + __clang_minor__)
+#elif defined(__GNUC__)
+#  define _LIBCPP_COMPILER_GCC
+#endif
+
 #ifdef __cplusplus
 
 // _LIBCPP_VERSION represents the version of libc++, which matches the version of LLVM.
@@ -200,16 +210,6 @@
 
 #  ifndef __has_include
 #    define __has_include(...) 0
-#  endif
-
-#  if defined(__apple_build_version__)
-#    define _LIBCPP_COMPILER_CLANG_BASED
-#    define _LIBCPP_APPLE_CLANG_VER (__apple_build_version__ / 10000)
-#  elif defined(__clang__)
-#    define _LIBCPP_COMPILER_CLANG_BASED
-#    define _LIBCPP_CLANG_VER (__clang_major__ * 100 + __clang_minor__)
-#  elif defined(__GNUC__)
-#    define _LIBCPP_COMPILER_GCC
 #  endif
 
 #  if !defined(_LIBCPP_COMPILER_CLANG_BASED) && __cplusplus < 201103L
@@ -1198,6 +1198,17 @@ _LIBCPP_BEGIN_NAMESPACE_STD _LIBCPP_END_NAMESPACE_STD
 #      undef _LIBCPP_HAS_NO_C8RTOMB_MBRTOC8
 #    endif
 #  endif
+
+// There are a handful of standard library types that are intended to support CTAD but don't need any
+// explicit deduction guides to do so. This macro is used to mark them as such, which suppresses the
+// '-Wctad-maybe-unsupported' compiler warning when CTAD is used in user code with these classes.
+#if _LIBCPP_STD_VER >= 17
+#  define _LIBCPP_CTAD_SUPPORTED_FOR_TYPE(_ClassName)                                                                  \
+    template <class _Tag = void>                                                                                       \
+    _ClassName(typename _Tag::__allow_ctad) -> _ClassName<_Tag>
+#else
+#  define _LIBCPP_CTAD_SUPPORTED_FOR_TYPE(_ClassName) static_assert(true, "")
+#endif
 
 #endif // __cplusplus
 

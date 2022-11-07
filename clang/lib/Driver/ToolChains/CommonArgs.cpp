@@ -67,16 +67,16 @@ using namespace llvm::opt;
 
 static void renderRpassOptions(const ArgList &Args, ArgStringList &CmdArgs) {
   if (const Arg *A = Args.getLastArg(options::OPT_Rpass_EQ))
-    CmdArgs.push_back(Args.MakeArgString(Twine("--plugin-opt=-pass-remarks=") +
+    CmdArgs.push_back(Args.MakeArgString(Twine("-plugin-opt=-pass-remarks=") +
                                          A->getValue()));
 
   if (const Arg *A = Args.getLastArg(options::OPT_Rpass_missed_EQ))
     CmdArgs.push_back(Args.MakeArgString(
-        Twine("--plugin-opt=-pass-remarks-missed=") + A->getValue()));
+        Twine("-plugin-opt=-pass-remarks-missed=") + A->getValue()));
 
   if (const Arg *A = Args.getLastArg(options::OPT_Rpass_analysis_EQ))
     CmdArgs.push_back(Args.MakeArgString(
-        Twine("--plugin-opt=-pass-remarks-analysis=") + A->getValue()));
+        Twine("-plugin-opt=-pass-remarks-analysis=") + A->getValue()));
 }
 
 static void renderRemarksOptions(const ArgList &Args, ArgStringList &CmdArgs,
@@ -97,28 +97,28 @@ static void renderRemarksOptions(const ArgList &Args, ArgStringList &CmdArgs,
   assert(!F.empty() && "Cannot determine remarks output name.");
   // Append "opt.ld.<format>" to the end of the file name.
   CmdArgs.push_back(
-      Args.MakeArgString(Twine("--plugin-opt=opt-remarks-filename=") + F +
+      Args.MakeArgString(Twine("-plugin-opt=opt-remarks-filename=") + F +
                          Twine(".opt.ld.") + Format));
 
   if (const Arg *A =
           Args.getLastArg(options::OPT_foptimization_record_passes_EQ))
     CmdArgs.push_back(Args.MakeArgString(
-        Twine("--plugin-opt=opt-remarks-passes=") + A->getValue()));
+        Twine("-plugin-opt=opt-remarks-passes=") + A->getValue()));
 
   CmdArgs.push_back(Args.MakeArgString(
-      Twine("--plugin-opt=opt-remarks-format=") + Format.data()));
+      Twine("-plugin-opt=opt-remarks-format=") + Format.data()));
 }
 
 static void renderRemarksHotnessOptions(const ArgList &Args,
                                         ArgStringList &CmdArgs) {
   if (Args.hasFlag(options::OPT_fdiagnostics_show_hotness,
                    options::OPT_fno_diagnostics_show_hotness, false))
-    CmdArgs.push_back("--plugin-opt=opt-remarks-with-hotness");
+    CmdArgs.push_back("-plugin-opt=opt-remarks-with-hotness");
 
   if (const Arg *A =
           Args.getLastArg(options::OPT_fdiagnostics_hotness_threshold_EQ))
     CmdArgs.push_back(Args.MakeArgString(
-        Twine("--plugin-opt=opt-remarks-hotness-threshold=") + A->getValue()));
+        Twine("-plugin-opt=opt-remarks-hotness-threshold=") + A->getValue()));
 }
 
 void tools::addPathIfExists(const Driver &D, const Twine &Path,
@@ -634,11 +634,24 @@ void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
                                          Path));
   }
 
+  // This controls whether or not we perform JustMyCode instrumentation.
+  if (Args.hasFlag(options::OPT_fjmc, options::OPT_fno_jmc, false)) {
+    if (ToolChain.getEffectiveTriple().isOSBinFormatELF())
+      CmdArgs.push_back("-plugin-opt=-enable-jmc-instrument");
+    else
+      D.Diag(clang::diag::warn_drv_fjmc_for_elf_only);
+  }
+
   // Setup statistics file output.
   SmallString<128> StatsFile = getStatsFileName(Args, Output, Input, D);
   if (!StatsFile.empty())
     CmdArgs.push_back(
         Args.MakeArgString(Twine("-plugin-opt=stats-file=") + StatsFile));
+
+  // Setup crash diagnostics dir.
+  if (Arg *A = Args.getLastArg(options::OPT_fcrash_diagnostics_dir))
+    CmdArgs.push_back(Args.MakeArgString(
+        Twine("-plugin-opt=-crash-diagnostics-dir=") + A->getValue()));
 
   addX86AlignBranchArgs(D, Args, CmdArgs, /*IsLTO=*/true);
 
@@ -1109,6 +1122,15 @@ bool tools::areOptimizationsEnabled(const ArgList &Args) {
     return !A->getOption().matches(options::OPT_O0);
   // Defaults to -O0.
   return false;
+}
+
+bool tools::isDependentLibAdded(const ArgList &Args, StringRef Lib) {
+  // Check if given Lib is added via --dependent-lib
+  SmallString<64> DepLib("--dependent-lib=");
+  DepLib += Lib;
+  return llvm::any_of(
+      Args.getAllArgValues(options::OPT_Xclang),
+      [&DepLib](StringRef Option) { return Option.equals(DepLib); });
 }
 
 const char *tools::SplitDebugName(const JobAction &JA, const ArgList &Args,

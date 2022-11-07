@@ -29,17 +29,11 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 // Feature test macro definitions
 
 // TODO: Move these feature-test macros to compiler driver.
-#define SYCL_EXT_INTEL_DEVICE_INFO 3
+#define SYCL_EXT_INTEL_DEVICE_INFO 5
+#define SYCL_EXT_INTEL_DEVICE_ARCHITECTURE 1
 #define SYCL_EXT_ONEAPI_SUB_GROUP_MASK 1
 #define SYCL_EXT_ONEAPI_LOCAL_MEMORY 1
-// As for SYCL_EXT_ONEAPI_MATRIX:
-// 1- provides AOT initial implementation for AMX for the experimental matrix
-// extension
-// 2- provides JIT implementation (target agnostic) for the
-// experimental matrix extension
-#ifndef SYCL_EXT_ONEAPI_MATRIX
-#define SYCL_EXT_ONEAPI_MATRIX 2
-#endif
+#define SYCL_EXT_ONEAPI_MATRIX 1
 #define SYCL_EXT_ONEAPI_ASSERT 1
 #define SYCL_EXT_ONEAPI_COMPLEX_ALGORITHMS 1
 #define SYCL_EXT_ONEAPI_DISCARD_QUEUE_EVENTS 1

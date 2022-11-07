@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -30,8 +30,8 @@ struct TestTensorTransforms
   TestTensorTransforms(const TestTensorTransforms &pass) : PassWrapper(pass) {}
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<arith::ArithmeticDialect, scf::SCFDialect,
-                    linalg::LinalgDialect>();
+    registry
+        .insert<arith::ArithDialect, scf::SCFDialect, linalg::LinalgDialect>();
   }
 
   StringRef getArgument() const final {
@@ -136,8 +136,8 @@ struct RewriteExtractSliceFromCollapseShapeBase
     // Create the destination tensor using the above values.
     Type elementType = op.getSourceType().getElementType();
     SmallVector<OpFoldResult> outputShape = getAsOpFoldResult(reifiedShapes[0]);
-    Value dest = rewriter.create<linalg::InitTensorOp>(
-        op->getLoc(), outputShape, elementType);
+    Value dest = rewriter.create<tensor::EmptyOp>(op->getLoc(), outputShape,
+                                                  elementType);
 
     // Calculate the parameters for the tile loop nest.
     FailureOr<tensor::ExtractSliceFromCollapseHelper> params =

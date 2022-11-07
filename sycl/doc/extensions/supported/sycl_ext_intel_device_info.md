@@ -17,6 +17,44 @@ The Feature Test Macro SYCL\_EXT\_INTEL\_DEVICE\_INFO will be defined as one of 
 | 2     | Device UUID is supported |
 | 3     | HW threads per EU device query is supported |
 | 4     | Free device memory query is supported |
+| 5     | Device ID is supported |
+
+
+
+# Device ID #
+
+A new device descriptor will be added which will provide the device ID.
+
+If the implementation is driven primarily by a PCI device with a PCI device ID, the device ID must be that PCI device ID. Otherwise, the choice of what to return may be dictated by operating system or platform policies - but should uniquely identify both the device version and any major configuration options (for example, core count in the case of multi-core devices).
+
+## Version ##
+
+The extension supports this query in version 5 and later.
+
+## Device Information Descriptors ##
+
+| Device Descriptors | Return Type | Description |
+| ------------------ | ----------- | ----------- |
+| ext\:\:intel\:\:info\:\:device\:\:device\_id | uint32\_t| Returns the device ID.|
+
+
+## Aspects ##
+
+A new aspect, ext\_intel\_device\_id, will be added.
+
+
+## Error Condition ##
+
+An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_device\_id.
+
+## Example Usage ##
+
+The device ID can be obtained using the standard get\_info() interface.
+
+    if (dev.has(aspect::ext_intel_device_id)) {
+      auto deviceID = dev.get_info<ext::intel::info::device::device_id>();
+    }
+
 
 
 # Device UUID #

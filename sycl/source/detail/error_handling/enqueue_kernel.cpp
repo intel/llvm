@@ -83,14 +83,14 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
         NDRDesc.LocalSize[1] != CompileWGSize[1] ||
         NDRDesc.LocalSize[2] != CompileWGSize[2])
       throw sycl::nd_range_error(
-          "The specified local size {" + std::to_string(NDRDesc.LocalSize[0]) +
+          "The specified local size {" + std::to_string(NDRDesc.LocalSize[2]) +
               ", " + std::to_string(NDRDesc.LocalSize[1]) + ", " +
-              std::to_string(NDRDesc.LocalSize[2]) +
+              std::to_string(NDRDesc.LocalSize[0]) +
               "} doesn't match the required work-group size specified "
               "in the program source {" +
-              std::to_string(CompileWGSize[0]) + ", " +
+              std::to_string(CompileWGSize[2]) + ", " +
               std::to_string(CompileWGSize[1]) + ", " +
-              std::to_string(CompileWGSize[2]) + "}",
+              std::to_string(CompileWGSize[0]) + "}",
           PI_ERROR_INVALID_WORK_GROUP_SIZE);
   }
   if (IsOpenCL) {

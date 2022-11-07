@@ -153,7 +153,7 @@ class AccessorOpIndexItemFalse(AccessorOpIndex):
 
 
 class AccessorMatcher(gdb.xmethod.XMethodMatcher):
-    """Entry point for sycl::_V1::accessor"""
+    """Entry point for sycl::_V1::(local_)accessor"""
 
     def __init__(self):
         gdb.xmethod.XMethodMatcher.__init__(self, "AccessorMatcher")
@@ -162,7 +162,7 @@ class AccessorMatcher(gdb.xmethod.XMethodMatcher):
         if method_name != "operator[]":
             return None
 
-        result = re.match("^sycl::_V1::accessor<.+>$", class_type.tag)
+        result = re.match("^sycl::_V1::(?:local_)?accessor<.+>$", class_type.tag)
         if result is None:
             return None
 
@@ -249,8 +249,9 @@ class PrivateMemoryOpCall(gdb.xmethod.XMethodWorker):
             item_base = args[0]["localItem"]["MImpl"]
             item_base = self.ItemBase(item_base)
             index = item_base.get_linear_id()
-            return obj["Val"]["_M_t"]["_M_t"]["_M_head_impl"][index]
 
+            eval_string = "((" + str(obj.type) + ")" + str(obj) + ")->Val.get()"
+            return gdb.parse_and_eval(eval_string)[index]
 
 class PrivateMemoryMatcher(gdb.xmethod.XMethodMatcher):
     """Entry point for sycl::_V1::private_memory"""

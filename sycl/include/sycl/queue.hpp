@@ -108,7 +108,8 @@ public:
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is a list of properties for queue construction.
   template <typename DeviceSelector,
-            typename = detail::EnableIfDeviceSelectorInvocable<DeviceSelector>>
+            typename =
+                detail::EnableIfSYCL2020DeviceSelectorInvocable<DeviceSelector>>
   explicit queue(const DeviceSelector &deviceSelector,
                  const async_handler &AsyncHandler,
                  const property_list &PropList = {})
@@ -120,7 +121,8 @@ public:
   /// takes a device and returns an int
   /// \param PropList is a list of properties for queue construction.
   template <typename DeviceSelector,
-            typename = detail::EnableIfDeviceSelectorInvocable<DeviceSelector>>
+            typename =
+                detail::EnableIfSYCL2020DeviceSelectorInvocable<DeviceSelector>>
   explicit queue(const DeviceSelector &deviceSelector,
                  const property_list &PropList = {})
       : queue(detail::select_device(deviceSelector), async_handler{},
@@ -133,7 +135,8 @@ public:
   /// takes a device and returns an int
   /// \param PropList is a list of properties for queue construction.
   template <typename DeviceSelector,
-            typename = detail::EnableIfDeviceSelectorInvocable<DeviceSelector>>
+            typename =
+                detail::EnableIfSYCL2020DeviceSelectorInvocable<DeviceSelector>>
   explicit queue(const context &syclContext,
                  const DeviceSelector &deviceSelector,
                  const property_list &propList = {})
@@ -148,7 +151,8 @@ public:
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is a list of properties for queue construction.
   template <typename DeviceSelector,
-            typename = detail::EnableIfDeviceSelectorInvocable<DeviceSelector>>
+            typename =
+                detail::EnableIfSYCL2020DeviceSelectorInvocable<DeviceSelector>>
   explicit queue(const context &syclContext,
                  const DeviceSelector &deviceSelector,
                  const async_handler &AsyncHandler,
@@ -163,8 +167,8 @@ public:
   ///
   /// \param DeviceSelector is an instance of a SYCL 1.2.1 device_selector.
   /// \param PropList is a list of properties for queue construction.
-  __SYCL2020_DEPRECATED("Use Callable device selectors instead of deprecated "
-                        "device_selector subclasses.")
+  __SYCL2020_DEPRECATED("SYCL 1.2.1 device selectors are deprecated. Please "
+                        "use SYCL 2020 device selectors instead.")
   queue(const device_selector &DeviceSelector,
         const property_list &PropList = {})
       : queue(DeviceSelector.select_device(), async_handler{}, PropList) {}
@@ -175,8 +179,8 @@ public:
   /// \param DeviceSelector is an instance of SYCL 1.2.1 device_selector.
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is a list of properties for queue construction.
-  __SYCL2020_DEPRECATED("Use Callable device selectors instead of deprecated "
-                        "device_selector subclasses.")
+  __SYCL2020_DEPRECATED("SYCL 1.2.1 device selectors are deprecated. Please "
+                        "use SYCL 2020 device selectors instead.")
   queue(const device_selector &DeviceSelector,
         const async_handler &AsyncHandler, const property_list &PropList = {})
       : queue(DeviceSelector.select_device(), AsyncHandler, PropList) {}
@@ -203,8 +207,8 @@ public:
   /// \param SyclContext is an instance of SYCL context.
   /// \param DeviceSelector is an instance of SYCL device selector.
   /// \param PropList is a list of properties for queue construction.
-  __SYCL2020_DEPRECATED("Use Callable device selectors instead of deprecated "
-                        "device_selector subclasses.")
+  __SYCL2020_DEPRECATED("SYCL 1.2.1 device selectors are deprecated. Please "
+                        "use SYCL 2020 device selectors instead.")
   queue(const context &SyclContext, const device_selector &DeviceSelector,
         const property_list &PropList = {});
 
@@ -216,8 +220,8 @@ public:
   /// \param DeviceSelector is an instance of SYCL device selector.
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is a list of properties for queue construction.
-  __SYCL2020_DEPRECATED("Use Callable device selectors instead of deprecated "
-                        "device_selector subclasses.")
+  __SYCL2020_DEPRECATED("SYCL 1.2.1 device selectors are deprecated. Please "
+                        "use SYCL 2020 device selectors instead.")
   queue(const context &SyclContext, const device_selector &DeviceSelector,
         const async_handler &AsyncHandler, const property_list &PropList = {});
 
@@ -723,10 +727,15 @@ public:
 
   /// single_task version with a kernel represented as a lambda.
   ///
+  /// \param Properties is the kernel properties.
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
-  template <typename KernelName = detail::auto_name, typename KernelType>
-  event single_task(_KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            typename PropertiesT>
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
+  single_task(PropertiesT Properties,
+              _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     static_assert(
         (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
                                     void()>::value ||
@@ -737,7 +746,48 @@ public:
     _CODELOCARG(&CodeLoc);
     return submit(
         [&](handler &CGH) {
-          CGH.template single_task<KernelName, KernelType>(KernelFunc);
+          CGH.template single_task<KernelName, KernelType, PropertiesT>(
+              Properties, KernelFunc);
+        },
+        CodeLoc);
+  }
+
+  /// single_task version with a kernel represented as a lambda.
+  ///
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType>
+  event single_task(_KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    return single_task<KernelName, KernelType>(
+        ext::oneapi::experimental::detail::empty_properties_t{},
+        KernelFunc _CODELOCFW(CodeLoc));
+  }
+
+  /// single_task version with a kernel represented as a lambda.
+  ///
+  /// \param DepEvent is an event that specifies the kernel dependencies
+  /// \param Properties is the kernel properties.
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            typename PropertiesT>
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
+  single_task(event DepEvent, PropertiesT Properties,
+              _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    static_assert(
+        (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+                                    void()>::value ||
+         detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+                                    void(kernel_handler)>::value),
+        "sycl::queue.single_task() requires a kernel instead of command group. "
+        "Use queue.submit() instead");
+    _CODELOCARG(&CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvent);
+          CGH.template single_task<KernelName, KernelType, PropertiesT>(
+              Properties, KernelFunc);
         },
         CodeLoc);
   }
@@ -750,6 +800,24 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(event DepEvent,
                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    return single_task<KernelName, KernelType>(
+        DepEvent, ext::oneapi::experimental::detail::empty_properties_t{},
+        KernelFunc _CODELOCFW(CodeLoc));
+  }
+
+  /// single_task version with a kernel represented as a lambda.
+  ///
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies
+  /// \param Properties is the kernel properties.
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            typename PropertiesT>
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
+  single_task(const std::vector<event> &DepEvents, PropertiesT Properties,
+              _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     static_assert(
         (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
                                     void()>::value ||
@@ -760,8 +828,9 @@ public:
     _CODELOCARG(&CodeLoc);
     return submit(
         [&](handler &CGH) {
-          CGH.depends_on(DepEvent);
-          CGH.template single_task<KernelName, KernelType>(KernelFunc);
+          CGH.depends_on(DepEvents);
+          CGH.template single_task<KernelName, KernelType, PropertiesT>(
+              Properties, KernelFunc);
         },
         CodeLoc);
   }
@@ -775,20 +844,9 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(const std::vector<event> &DepEvents,
                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
-    static_assert(
-        (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
-                                    void()>::value ||
-         detail::check_fn_signature<detail::remove_reference_t<KernelType>,
-                                    void(kernel_handler)>::value),
-        "sycl::queue.single_task() requires a kernel instead of command group. "
-        "Use queue.submit() instead");
-    _CODELOCARG(&CodeLoc);
-    return submit(
-        [&](handler &CGH) {
-          CGH.depends_on(DepEvents);
-          CGH.template single_task<KernelName, KernelType>(KernelFunc);
-        },
-        CodeLoc);
+    return single_task<KernelName, KernelType>(
+        DepEvents, ext::oneapi::experimental::detail::empty_properties_t{},
+        KernelFunc _CODELOCFW(CodeLoc));
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -998,19 +1056,38 @@ public:
   /// specifies global, local sizes and offset.
   ///
   /// \param Range specifies the global and local work spaces of the kernel
+  /// \param Properties is the kernel properties.
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, int Dims,
+            typename PropertiesT, typename... RestT>
+  std::enable_if_t<
+      detail::AreAllButLastReductions<RestT...>::value &&
+          ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event>
+  parallel_for(nd_range<Dims> Range, PropertiesT Properties, RestT &&...Rest) {
+    // Actual code location needs to be captured from KernelInfo object.
+    const detail::code_location CodeLoc = {};
+    return submit(
+        [&](handler &CGH) {
+          CGH.template parallel_for<KernelName>(Range, Properties, Rest...);
+        },
+        CodeLoc);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + nd_range that
+  /// specifies global, local sizes and offset.
+  ///
+  /// \param Range specifies the global and local work spaces of the kernel
   /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, int Dims,
             typename... RestT>
   std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value, event>
   parallel_for(nd_range<Dims> Range, RestT &&...Rest) {
-    // Actual code location needs to be captured from KernelInfo object.
-    const detail::code_location CodeLoc = {};
-    return submit(
-        [&](handler &CGH) {
-          CGH.template parallel_for<KernelName>(Range, Rest...);
-        },
-        CodeLoc);
+    return parallel_for<KernelName>(
+        Range, ext::oneapi::experimental::detail::empty_properties_t{},
+        Rest...);
   }
 
   /// parallel_for version with a kernel represented as a lambda + nd_range that
@@ -1130,15 +1207,57 @@ private:
   /// specifies global size only.
   ///
   /// \param Range specifies the global work space of the kernel
+  /// \param Properties is the kernel properties.
   /// \param KernelFunc is the Kernel functor or lambda
-  template <typename KernelName, int Dims, typename... RestT>
-  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value, event>
-  parallel_for_impl(range<Dims> Range, RestT &&...Rest) {
+  template <typename KernelName, int Dims, typename PropertiesT,
+            typename... RestT>
+  std::enable_if_t<
+      detail::AreAllButLastReductions<RestT...>::value &&
+          ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event>
+  parallel_for_impl(range<Dims> Range, PropertiesT Properties,
+                    RestT &&...Rest) {
     // Actual code location needs to be captured from KernelInfo object.
     const detail::code_location CodeLoc = {};
     return submit(
         [&](handler &CGH) {
-          CGH.template parallel_for<KernelName>(Range, Rest...);
+          CGH.template parallel_for<KernelName>(Range, Properties, Rest...);
+        },
+        CodeLoc);
+  }
+
+  /// parallel_for_impl with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param Range specifies the global work space of the kernel
+  /// \param KernelFunc is the Kernel functor or lambda
+  template <typename KernelName, int Dims, typename... RestT>
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value, event>
+  parallel_for_impl(range<Dims> Range, RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(
+        Range, ext::oneapi::experimental::detail::empty_properties_t{},
+        Rest...);
+  }
+
+  /// parallel_for_impl with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param Range specifies the global work space of the kernel
+  /// \param DepEvent is an event that specifies the kernel dependencies
+  /// \param Properties is the kernel properties.
+  /// \param KernelFunc is the Kernel functor or lambda
+  template <typename KernelName, int Dims, typename PropertiesT,
+            typename... RestT>
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
+  parallel_for_impl(range<Dims> Range, event DepEvent, PropertiesT Properties,
+                    RestT &&...Rest) {
+    // Actual code location needs to be captured from KernelInfo object.
+    const detail::code_location CodeLoc = {};
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvent);
+          CGH.template parallel_for<KernelName>(Range, Properties, Rest...);
         },
         CodeLoc);
   }
@@ -1149,15 +1268,33 @@ private:
   /// \param Range specifies the global work space of the kernel
   /// \param DepEvent is an event that specifies the kernel dependencies
   /// \param KernelFunc is the Kernel functor or lambda
-  /// \param CodeLoc contains the code location of user code
   template <typename KernelName, int Dims, typename... RestT>
   event parallel_for_impl(range<Dims> Range, event DepEvent, RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(
+        Range, DepEvent,
+        ext::oneapi::experimental::detail::empty_properties_t{}, Rest...);
+  }
+
+  /// parallel_for_impl version with a kernel represented as a lambda + range
+  /// that specifies global size only.
+  ///
+  /// \param Range specifies the global work space of the kernel
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies
+  /// \param Properties is the kernel properties.
+  /// \param KernelFunc is the Kernel functor or lambda
+  template <typename KernelName, int Dims, typename PropertiesT,
+            typename... RestT>
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
+  parallel_for_impl(range<Dims> Range, const std::vector<event> &DepEvents,
+                    PropertiesT Properties, RestT &&...Rest) {
     // Actual code location needs to be captured from KernelInfo object.
     const detail::code_location CodeLoc = {};
     return submit(
         [&](handler &CGH) {
-          CGH.depends_on(DepEvent);
-          CGH.template parallel_for<KernelName>(Range, Rest...);
+          CGH.depends_on(DepEvents);
+          CGH.template parallel_for<KernelName>(Range, Properties, Rest...);
         },
         CodeLoc);
   }
@@ -1173,14 +1310,9 @@ private:
   event parallel_for_impl(range<Dims> Range,
                           const std::vector<event> &DepEvents,
                           RestT &&...Rest) {
-    // Actual code location needs to be captured from KernelInfo object.
-    const detail::code_location CodeLoc = {};
-    return submit(
-        [&](handler &CGH) {
-          CGH.depends_on(DepEvents);
-          CGH.template parallel_for<KernelName>(Range, Rest...);
-        },
-        CodeLoc);
+    return parallel_for_impl<KernelName>(
+        Range, DepEvents,
+        ext::oneapi::experimental::detail::empty_properties_t{}, Rest...);
   }
 
   buffer<detail::AssertHappened, 1> &getAssertHappenedBuffer();

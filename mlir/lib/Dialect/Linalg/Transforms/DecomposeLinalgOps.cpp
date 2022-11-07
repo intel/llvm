@@ -46,7 +46,7 @@ namespace {
 /// gets split into
 ///
 /// ```mlir
-/// %init = linalg.init_tensor ...
+/// %init = tensor.empty ...
 /// %op0:3 = linalg.generic ... ins(%arg0, %arg1, %arg2 : ...)
 ///      outs(%init0, %init1, %init : ...)
 ///    ^bb0(%b0: ... , %b1: ... , %b2: ... , %b3: ..., %b4: ..., %b5: ...):
@@ -65,7 +65,7 @@ namespace {
 /// After canonicalization this is expected to be
 ///
 /// ```mlir
-/// %init = linalg.init_tensor ...
+/// %init = tensor.empty ...
 /// %op0 = linalg.generic ... ins(%arg0, %arg1, : ...)
 ///      outs(%init : ...)
 ///    ^bb0(%b0: ... , %b1: ... , %b2: ...):
@@ -180,16 +180,16 @@ DecomposeLinalgOp::createPeeledGenericOp(GenericOp genericOp,
       OpResult result = genericOp.getResult(*resultNumber).cast<OpResult>();
       newResultTypes.push_back(result.getType());
       peeledGenericOpIndexingMaps.push_back(
-          genericOp.getTiedIndexingMapForResult(result));
+          genericOp.getIndexingMapMatchingResult(result));
       continue;
     }
 
     // Fall back path, use an `init_tensor` and identity indexing map.
     AffineMap indexingMap = rewriter.getMultiDimIdentityMap(domain.size());
-    Value initTensor = rewriter.create<linalg::InitTensorOp>(
-        loc, domain, scalarOpResult.getType());
-    newInitValues.push_back(initTensor);
-    newResultTypes.push_back(initTensor.getType());
+    Value emptyTensor =
+        rewriter.create<tensor::EmptyOp>(loc, domain, scalarOpResult.getType());
+    newInitValues.push_back(emptyTensor);
+    newResultTypes.push_back(emptyTensor.getType());
     peeledGenericOpIndexingMaps.push_back(indexingMap);
   }
 
@@ -227,15 +227,16 @@ DecomposeLinalgOp::createResidualGenericOp(GenericOp genericOp,
   /// as those used for the new results of the peeledGenericOp.
   auto indexingMaps = llvm::to_vector(
       llvm::map_range(genericOp.getInputOperands(), [&](OpOperand *operand) {
-        return genericOp.getTiedIndexingMap(operand);
+        return genericOp.getMatchingIndexingMap(operand);
       }));
   for (auto resultNum :
        llvm::seq<unsigned>(origNumResults, peeledGenericOpNumResults)) {
     OpResult result = peeledGenericOp.getResult(resultNum).cast<OpResult>();
-    indexingMaps.push_back(peeledGenericOp.getTiedIndexingMapForResult(result));
+    indexingMaps.push_back(
+        peeledGenericOp.getIndexingMapMatchingResult(result));
   }
   for (OpOperand *outOperand : genericOp.getOutputOperands())
-    indexingMaps.push_back(genericOp.getTiedIndexingMap(outOperand));
+    indexingMaps.push_back(genericOp.getMatchingIndexingMap(outOperand));
 
   auto indexingMapAttr = rewriter.getAffineMapArrayAttr(indexingMaps);
   return rewriter.create<GenericOp>(
@@ -263,7 +264,7 @@ DecomposeLinalgOp::matchAndRewrite(GenericOp genericOp,
   }
 
   if (llvm::any_of(genericOp.getOutputOperands(), [&](OpOperand *outOperand) {
-        return !genericOp.getTiedIndexingMap(outOperand).isPermutation();
+        return !genericOp.getMatchingIndexingMap(outOperand).isPermutation();
       })) {
     return rewriter.notifyMatchFailure(
         genericOp, "unhandled decomposition of generic op with out operand not "

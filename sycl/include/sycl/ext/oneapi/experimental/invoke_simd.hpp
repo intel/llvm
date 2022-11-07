@@ -139,6 +139,8 @@ struct simd2spmd<T, std::enable_if_t<std::is_arithmetic_v<T>>> {
   using type = uniform<T>;
 };
 
+template <> struct simd2spmd<void> { using type = void; };
+
 // Determine number of elements in a simd type.
 template <class T> struct simd_size {
   static constexpr int value = 1; // 1 element in any type by default

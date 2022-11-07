@@ -31,6 +31,7 @@
 #include "llvm/Support/DivisionByConstantInfo.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Target/TargetMachine.h"
+#include <cmath>
 #include <tuple>
 
 #define DEBUG_TYPE "gi-combiner"
@@ -46,11 +47,12 @@ static cl::opt<bool>
                                 "legal for the GlobalISel combiner"));
 
 CombinerHelper::CombinerHelper(GISelChangeObserver &Observer,
-                               MachineIRBuilder &B, GISelKnownBits *KB,
-                               MachineDominatorTree *MDT,
+                               MachineIRBuilder &B, bool IsPreLegalize,
+                               GISelKnownBits *KB, MachineDominatorTree *MDT,
                                const LegalizerInfo *LI)
     : Builder(B), MRI(Builder.getMF().getRegInfo()), Observer(Observer), KB(KB),
-      MDT(MDT), LI(LI), RBI(Builder.getMF().getSubtarget().getRegBankInfo()),
+      MDT(MDT), IsPreLegalize(IsPreLegalize), LI(LI),
+      RBI(Builder.getMF().getSubtarget().getRegBankInfo()),
       TRI(Builder.getMF().getSubtarget().getRegisterInfo()) {
   (void)this->KB;
 }
@@ -129,7 +131,7 @@ isBigEndian(const SmallDenseMap<int64_t, int64_t, 8> &MemOffset2Idx,
   return BigEndian;
 }
 
-bool CombinerHelper::isPreLegalize() const { return !LI; }
+bool CombinerHelper::isPreLegalize() const { return IsPreLegalize; }
 
 bool CombinerHelper::isLegal(const LegalityQuery &Query) const {
   assert(LI && "Must have LegalizerInfo to query isLegal!");
@@ -485,6 +487,24 @@ bool CombinerHelper::tryCombineExtendingLoads(MachineInstr &MI) {
   return false;
 }
 
+static unsigned getExtLoadOpcForExtend(unsigned ExtOpc) {
+  unsigned CandidateLoadOpc;
+  switch (ExtOpc) {
+  case TargetOpcode::G_ANYEXT:
+    CandidateLoadOpc = TargetOpcode::G_LOAD;
+    break;
+  case TargetOpcode::G_SEXT:
+    CandidateLoadOpc = TargetOpcode::G_SEXTLOAD;
+    break;
+  case TargetOpcode::G_ZEXT:
+    CandidateLoadOpc = TargetOpcode::G_ZEXTLOAD;
+    break;
+  default:
+    llvm_unreachable("Unexpected extend opc");
+  }
+  return CandidateLoadOpc;
+}
+
 bool CombinerHelper::matchCombineExtendingLoads(MachineInstr &MI,
                                                 PreferredTuple &Preferred) {
   // We match the loads and follow the uses to the extend instead of matching
@@ -537,9 +557,10 @@ bool CombinerHelper::matchCombineExtendingLoads(MachineInstr &MI,
       // Check for legality.
       if (LI) {
         LegalityQuery::MemDesc MMDesc(MMO);
+        unsigned CandidateLoadOpc = getExtLoadOpcForExtend(UseMI.getOpcode());
         LLT UseTy = MRI.getType(UseMI.getOperand(0).getReg());
         LLT SrcTy = MRI.getType(LoadMI->getPointerReg());
-        if (LI->getAction({LoadMI->getOpcode(), {UseTy, SrcTy}, {MMDesc}})
+        if (LI->getAction({CandidateLoadOpc, {UseTy, SrcTy}, {MMDesc}})
                 .Action != LegalizeActions::Legal)
           continue;
       }
@@ -587,12 +608,8 @@ void CombinerHelper::applyCombineExtendingLoads(MachineInstr &MI,
   };
 
   Observer.changingInstr(MI);
-  MI.setDesc(
-      Builder.getTII().get(Preferred.ExtendOpcode == TargetOpcode::G_SEXT
-                               ? TargetOpcode::G_SEXTLOAD
-                               : Preferred.ExtendOpcode == TargetOpcode::G_ZEXT
-                                     ? TargetOpcode::G_ZEXTLOAD
-                                     : TargetOpcode::G_LOAD));
+  unsigned LoadOpc = getExtLoadOpcForExtend(Preferred.ExtendOpcode);
+  MI.setDesc(Builder.getTII().get(LoadOpc));
 
   // Rewrite all the uses to fix up the types.
   auto &LoadValue = MI.getOperand(0);
@@ -4808,6 +4825,50 @@ bool CombinerHelper::matchAddEToAddO(MachineInstr &MI, BuildFnTy &MatchInfo) {
   return true;
 }
 
+bool CombinerHelper::matchSubAddSameReg(MachineInstr &MI,
+                                        BuildFnTy &MatchInfo) {
+  assert(MI.getOpcode() == TargetOpcode::G_SUB);
+  Register Dst = MI.getOperand(0).getReg();
+  // (x + y) - z -> x (if y == z)
+  // (x + y) - z -> y (if x == z)
+  Register X, Y, Z;
+  if (mi_match(Dst, MRI, m_GSub(m_GAdd(m_Reg(X), m_Reg(Y)), m_Reg(Z)))) {
+    Register ReplaceReg;
+    int64_t CstX, CstY;
+    if (Y == Z || (mi_match(Y, MRI, m_ICstOrSplat(CstY)) &&
+                   mi_match(Z, MRI, m_SpecificICstOrSplat(CstY))))
+      ReplaceReg = X;
+    else if (X == Z || (mi_match(X, MRI, m_ICstOrSplat(CstX)) &&
+                        mi_match(Z, MRI, m_SpecificICstOrSplat(CstX))))
+      ReplaceReg = Y;
+    if (ReplaceReg) {
+      MatchInfo = [=](MachineIRBuilder &B) { B.buildCopy(Dst, ReplaceReg); };
+      return true;
+    }
+  }
+
+  // x - (y + z) -> 0 - y (if x == z)
+  // x - (y + z) -> 0 - z (if x == y)
+  if (mi_match(Dst, MRI, m_GSub(m_Reg(X), m_GAdd(m_Reg(Y), m_Reg(Z))))) {
+    Register ReplaceReg;
+    int64_t CstX;
+    if (X == Z || (mi_match(X, MRI, m_ICstOrSplat(CstX)) &&
+                   mi_match(Z, MRI, m_SpecificICstOrSplat(CstX))))
+      ReplaceReg = Y;
+    else if (X == Y || (mi_match(X, MRI, m_ICstOrSplat(CstX)) &&
+                        mi_match(Y, MRI, m_SpecificICstOrSplat(CstX))))
+      ReplaceReg = Z;
+    if (ReplaceReg) {
+      MatchInfo = [=](MachineIRBuilder &B) {
+        auto Zero = B.buildConstant(MRI.getType(Dst), 0);
+        B.buildSub(Dst, Zero, ReplaceReg);
+      };
+      return true;
+    }
+  }
+  return false;
+}
+
 MachineInstr *CombinerHelper::buildUDivUsingMul(MachineInstr &MI) {
   assert(MI.getOpcode() == TargetOpcode::G_UDIV);
   auto &UDiv = cast<GenericMachineInstr>(MI);
@@ -5799,6 +5860,63 @@ bool CombinerHelper::matchAddSubSameReg(MachineInstr &MI, Register &Src) {
   return CheckFold(LHS, RHS) || CheckFold(RHS, LHS);
 }
 
+bool CombinerHelper::matchBuildVectorIdentityFold(MachineInstr &MI,
+                                                  Register &MatchInfo) {
+  // This combine folds the following patterns:
+  //
+  //  G_BUILD_VECTOR_TRUNC (G_BITCAST(x), G_LSHR(G_BITCAST(x), k))
+  //  G_BUILD_VECTOR(G_TRUNC(G_BITCAST(x)), G_TRUNC(G_LSHR(G_BITCAST(x), k)))
+  //    into
+  //      x
+  //    if
+  //      k == sizeof(VecEltTy)/2
+  //      type(x) == type(dst)
+  //
+  //  G_BUILD_VECTOR(G_TRUNC(G_BITCAST(x)), undef)
+  //    into
+  //      x
+  //    if
+  //      type(x) == type(dst)
+
+  LLT DstVecTy = MRI.getType(MI.getOperand(0).getReg());
+  LLT DstEltTy = DstVecTy.getElementType();
+
+  Register Lo, Hi;
+
+  if (mi_match(
+          MI, MRI,
+          m_GBuildVector(m_GTrunc(m_GBitcast(m_Reg(Lo))), m_GImplicitDef()))) {
+    MatchInfo = Lo;
+    return MRI.getType(MatchInfo) == DstVecTy;
+  }
+
+  Optional<ValueAndVReg> ShiftAmount;
+  const auto LoPattern = m_GBitcast(m_Reg(Lo));
+  const auto HiPattern = m_GLShr(m_GBitcast(m_Reg(Hi)), m_GCst(ShiftAmount));
+  if (mi_match(
+          MI, MRI,
+          m_any_of(m_GBuildVectorTrunc(LoPattern, HiPattern),
+                   m_GBuildVector(m_GTrunc(LoPattern), m_GTrunc(HiPattern))))) {
+    if (Lo == Hi && ShiftAmount->Value == DstEltTy.getSizeInBits()) {
+      MatchInfo = Lo;
+      return MRI.getType(MatchInfo) == DstVecTy;
+    }
+  }
+
+  return false;
+}
+
+bool CombinerHelper::matchTruncBuildVectorFold(MachineInstr &MI,
+                                               Register &MatchInfo) {
+  // Replace (G_TRUNC (G_BITCAST (G_BUILD_VECTOR x, y)) with just x
+  // if type(x) == type(G_TRUNC)
+  if (!mi_match(MI.getOperand(1).getReg(), MRI,
+                m_GBitcast(m_GBuildVector(m_Reg(MatchInfo), m_Reg()))))
+    return false;
+
+  return MRI.getType(MatchInfo) == MRI.getType(MI.getOperand(0).getReg());
+}
+
 unsigned CombinerHelper::getFPMinMaxOpcForSelect(
     CmpInst::Predicate Pred, LLT DstTy,
     SelectPatternNaNBehaviour VsNaNRetVal) const {
@@ -5867,8 +5985,7 @@ bool CombinerHelper::matchFPSelectToMinMax(Register Dst, Register Cond,
   // And turn it into fminnum/fmaxnum or fmin/fmax based off of the condition.
   LLT DstTy = MRI.getType(Dst);
   // Bail out early on pointers, since we'll never want to fold to a min/max.
-  // TODO: Handle vectors.
-  if (DstTy.isPointer() || DstTy.isVector())
+  if (DstTy.isPointer())
     return false;
   // Match a floating point compare with a less-than/greater-than predicate.
   // TODO: Allow multiple users of the compare if they are all selects.

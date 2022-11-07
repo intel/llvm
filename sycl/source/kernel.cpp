@@ -19,7 +19,12 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 kernel::kernel(cl_kernel ClKernel, const context &SyclContext)
     : impl(std::make_shared<detail::kernel_impl>(
           detail::pi::cast<detail::RT::PiKernel>(ClKernel),
-          detail::getSyclObjImpl(SyclContext), nullptr)) {}
+          detail::getSyclObjImpl(SyclContext), nullptr)) {
+  // This is a special interop constructor for OpenCL, so the kernel must be
+  // retained.
+  impl->getPlugin().call<detail::PiApiKind::piKernelRetain>(
+      detail::pi::cast<detail::RT::PiKernel>(ClKernel));
+}
 
 cl_kernel kernel::get() const { return impl->get(); }
 

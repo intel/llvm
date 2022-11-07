@@ -37,8 +37,8 @@ protected:
 
   Section &getCommonSection() {
     if (!CommonSection)
-      CommonSection =
-          &G->createSection(CommonSectionName, MemProt::Read | MemProt::Write);
+      CommonSection = &G->createSection(
+          CommonSectionName, orc::MemProt::Read | orc::MemProt::Write);
     return *CommonSection;
   }
 
@@ -310,11 +310,11 @@ template <typename ELFT> Error ELFLinkGraphBuilder<ELFT>::graphifySections() {
     });
 
     // Get the section's memory protection flags.
-    MemProt Prot;
+    orc::MemProt Prot;
     if (Sec.sh_flags & ELF::SHF_EXECINSTR)
-      Prot = MemProt::Read | MemProt::Exec;
+      Prot = orc::MemProt::Read | orc::MemProt::Exec;
     else
-      Prot = MemProt::Read | MemProt::Write;
+      Prot = orc::MemProt::Read | orc::MemProt::Write;
 
     // Look for existing sections first.
     auto *GraphSec = G->findSectionByName(*Name);
@@ -402,9 +402,10 @@ template <typename ELFT> Error ELFLinkGraphBuilder<ELFT>::graphifySymbols() {
 
     // Handle common symbols specially.
     if (Sym.isCommon()) {
-      Symbol &GSym = G->addCommonSymbol(*Name, Scope::Default,
-                                        getCommonSection(), orc::ExecutorAddr(),
-                                        Sym.st_size, Sym.getValue(), false);
+      Symbol &GSym = G->addDefinedSymbol(
+          G->createZeroFillBlock(getCommonSection(), Sym.st_size,
+                                 orc::ExecutorAddr(), Sym.getValue(), 0),
+          0, *Name, Sym.st_size, Linkage::Strong, Scope::Default, false, false);
       setGraphSymbol(SymIndex, GSym);
       continue;
     }

@@ -2001,6 +2001,8 @@ static pi_result SetKernelParamsAndLaunch(
       break;
     case kernel_param_kind_t::kind_accessor: {
       Requirement *Req = (Requirement *)(Arg.MPtr);
+      if (Req->MAccessRange == range<3>({0, 0, 0}))
+        break;
       if (getMemAllocationFunc == nullptr)
         throw sycl::exception(make_error_code(errc::kernel_argument),
                               "placeholder accessor must be bound by calling "

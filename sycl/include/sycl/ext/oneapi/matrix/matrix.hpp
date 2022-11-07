@@ -14,18 +14,18 @@
 
 #pragma once
 
-#include <sycl/feature_test.hpp>
+#ifndef SYCL_EXT_ONEAPI_MATRIX_VERSION
+#define SYCL_EXT_ONEAPI_MATRIX_VERSION 1
+#endif // SYCL_EXT_ONEAPI_MATRIX_VERSION
 
-// the default is matrix-jit-use but existing tests in llvm-test-suite won't
-// fail because we have the "unnecessary" use value
-#if (SYCL_EXT_ONEAPI_MATRIX == 1)
+#if (SYCL_EXT_ONEAPI_MATRIX_VERSION == 1)
 #include <sycl/ext/oneapi/matrix/matrix-jit.hpp>
 #include <sycl/ext/oneapi/matrix/static-query.hpp>
-#endif
-#if (SYCL_EXT_ONEAPI_MATRIX == 2)
+#endif // SYCL_EXT_ONEAPI_MATRIX_VERSION
+#if (SYCL_EXT_ONEAPI_MATRIX_VERSION == 2)
 #include <sycl/ext/oneapi/matrix/matrix-jit-use.hpp>
 #include <sycl/ext/oneapi/matrix/static-query-use.hpp>
-#endif
-#if (SYCL_EXT_ONEAPI_MATRIX == 3)
+#endif // SYCL_EXT_ONEAPI_MATRIX_VERSION
+#if (SYCL_EXT_ONEAPI_MATRIX_VERSION == 3)
 #include <sycl/ext/oneapi/matrix/matrix-tensorcore.hpp>
-#endif
+#endif // SYCL_EXT_ONEAPI_MATRIX_VERSION

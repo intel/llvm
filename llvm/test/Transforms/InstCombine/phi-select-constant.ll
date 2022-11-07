@@ -10,7 +10,7 @@ define i32 @foo(i1 %which) {
 ; CHECK:       delay:
 ; CHECK-NEXT:    br label [[FINAL]]
 ; CHECK:       final:
-; CHECK-NEXT:    [[USE2:%.*]] = phi i32 [ 1, [[ENTRY:%.*]] ], [ select (i1 icmp eq (i32* @A, i32* @B), i32 2, i32 1), [[DELAY]] ]
+; CHECK-NEXT:    [[USE2:%.*]] = phi i32 [ 1, [[ENTRY:%.*]] ], [ select (i1 icmp eq (ptr @A, ptr @B), i32 2, i32 1), [[DELAY]] ]
 ; CHECK-NEXT:    ret i32 [[USE2]]
 ;
 entry:
@@ -20,7 +20,7 @@ delay:
   br label %final
 
 final:
-  %use2 = phi i1 [ false, %entry ], [ icmp eq (i32* @A, i32* @B), %delay ]
+  %use2 = phi i1 [ false, %entry ], [ icmp eq (ptr @A, ptr @B), %delay ]
   %value = select i1 %use2, i32 2, i32 1
   ret i32 %value
 }
@@ -106,7 +106,7 @@ else:
 
 ; Don't crash on unreachable IR.
 
-define void @PR48369(i32 %a, i32* %p) {
+define void @PR48369(i32 %a, ptr %p) {
 ; CHECK-LABEL: @PR48369(
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    [[PHI_CMP:%.*]] = icmp sgt i32 [[A:%.*]], 0
@@ -114,7 +114,7 @@ define void @PR48369(i32 %a, i32* %p) {
 ; CHECK:       bb1:
 ; CHECK-NEXT:    [[CMP:%.*]] = phi i1 [ [[PHI_CMP]], [[DEADBB:%.*]] ], [ true, [[ENTRY:%.*]] ]
 ; CHECK-NEXT:    [[SHL:%.*]] = select i1 [[CMP]], i32 256, i32 0
-; CHECK-NEXT:    store i32 [[SHL]], i32* [[P:%.*]], align 4
+; CHECK-NEXT:    store i32 [[SHL]], ptr [[P:%.*]], align 4
 ; CHECK-NEXT:    br label [[END:%.*]]
 ; CHECK:       deadbb:
 ; CHECK-NEXT:    br label [[BB1]]
@@ -128,7 +128,7 @@ entry:
 bb1:
   %cmp = phi i1 [ %phi.cmp, %deadbb ], [ true, %entry ]
   %shl = select i1 %cmp, i32 256, i32 0
-  store i32 %shl, i32* %p
+  store i32 %shl, ptr %p
   br label %end
 
 deadbb:
@@ -157,4 +157,41 @@ inf_loop:
 
 unreachable:   ; No predecessors!
   ret i16 %s
+}
+
+define i32 @phi_trans(i1 %c, i1 %c2, i32 %v) {
+; CHECK-LABEL: @phi_trans(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    br i1 [[C:%.*]], label [[IF:%.*]], label [[ELSE:%.*]]
+; CHECK:       if:
+; CHECK-NEXT:    [[V2:%.*]] = add i32 [[V:%.*]], 1
+; CHECK-NEXT:    br label [[JOIN:%.*]]
+; CHECK:       else:
+; CHECK-NEXT:    [[V3:%.*]] = mul i32 [[V]], 3
+; CHECK-NEXT:    [[V5:%.*]] = lshr i32 [[V]], 1
+; CHECK-NEXT:    [[PHI_SEL:%.*]] = select i1 [[C2:%.*]], i32 [[V3]], i32 [[V5]]
+; CHECK-NEXT:    br label [[JOIN]]
+; CHECK:       join:
+; CHECK-NEXT:    [[PHI1:%.*]] = phi i32 [ [[V2]], [[IF]] ], [ [[PHI_SEL]], [[ELSE]] ]
+; CHECK-NEXT:    ret i32 [[PHI1]]
+;
+entry:
+  br i1 %c, label %if, label %else
+
+if:
+  %v2 = add i32 %v, 1
+  %v4 = shl i32 %v, 1
+  br label %join
+
+else:
+  %v3 = mul i32 %v, 3
+  %v5 = lshr i32 %v, 1
+  br label %join
+
+join:
+  %phi1 = phi i1 [ true, %if ], [ %c2, %else ]
+  %phi2 = phi i32 [ %v2, %if ], [ %v3, %else ]
+  %phi3 = phi i32 [ %v4, %if ], [ %v5, %else ]
+  %sel = select i1 %phi1, i32 %phi2, i32 %phi3
+  ret i32 %sel
 }

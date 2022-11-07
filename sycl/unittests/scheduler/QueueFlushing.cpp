@@ -30,6 +30,7 @@ static pi_result redefinedEventGetInfo(pi_event event, pi_event_info param_name,
                                        size_t param_value_size,
                                        void *param_value,
                                        size_t *param_value_size_ret) {
+  EXPECT_NE(event, nullptr);
   if (param_name == PI_EVENT_INFO_COMMAND_EXECUTION_STATUS) {
     auto *Status = reinterpret_cast<pi_event_status *>(param_value);
     *Status = EventStatus;
@@ -277,5 +278,16 @@ TEST_F(SchedulerTest, QueueFlushing) {
     detail::MapMemObject CmdC{&AllocaCmd, MockReq, &MockHostPtr, QueueImplA,
                               access::mode::read_write};
     testEventStatusCheck(&CmdC, QueueImplB, MockReq, PI_EVENT_COMPLETE);
+  }
+
+  // Check that nullptr pi_events are handled correctly.
+  {
+    resetTestCtx();
+    detail::MapMemObject CmdA{&AllocaCmd, MockReq, &MockHostPtr, QueueImplA,
+                              access::mode::read_write};
+    MockCommand DepCmd(QueueImplB);
+    (void)CmdA.addDep(detail::DepDesc{&DepCmd, &MockReq, nullptr}, ToCleanUp);
+    MockScheduler::enqueueCommand(&CmdA, Res, detail::NON_BLOCKING);
+    EXPECT_FALSE(EventStatusQueried);
   }
 }

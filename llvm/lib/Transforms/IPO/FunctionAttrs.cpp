@@ -272,16 +272,19 @@ static void addMemoryAttrs(const SCCNodeSet &SCCNodes, AARGetterT &&AARGetter,
     AttrsToRemove.addAttribute(Attribute::ArgMemOnly);
     AttrsToRemove.addAttribute(Attribute::InaccessibleMemOnly);
     AttrsToRemove.addAttribute(Attribute::InaccessibleMemOrArgMemOnly);
-    if (FMRB.onlyAccessesArgPointees() && !F->onlyAccessesArgMemory()) {
-      NumArgMemOnly++;
-      F->removeFnAttrs(AttrsToRemove);
-      F->addFnAttr(Attribute::ArgMemOnly);
-      Changed.insert(F);
-    } else if (FMRB.onlyAccessesInaccessibleMem() &&
-               !F->onlyAccessesInaccessibleMemory()) {
-      F->removeFnAttrs(AttrsToRemove);
-      F->addFnAttr(Attribute::InaccessibleMemOnly);
-      Changed.insert(F);
+    if (FMRB.onlyAccessesArgPointees()) {
+      if (!F->onlyAccessesArgMemory()) {
+        NumArgMemOnly++;
+        F->removeFnAttrs(AttrsToRemove);
+        F->addFnAttr(Attribute::ArgMemOnly);
+        Changed.insert(F);
+      }
+    } else if (FMRB.onlyAccessesInaccessibleMem()) {
+      if (!F->onlyAccessesInaccessibleMemory()) {
+        F->removeFnAttrs(AttrsToRemove);
+        F->addFnAttr(Attribute::InaccessibleMemOnly);
+        Changed.insert(F);
+      }
     } else if (FMRB.onlyAccessesInaccessibleOrArgMem() &&
                !F->onlyAccessesInaccessibleMemOrArgMem()) {
       F->removeFnAttrs(AttrsToRemove);

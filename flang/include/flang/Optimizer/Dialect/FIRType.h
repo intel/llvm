@@ -24,6 +24,26 @@ class KindMapping;
 using KindTy = unsigned;
 } // namespace fir
 
+//===----------------------------------------------------------------------===//
+// BaseBoxType
+//===----------------------------------------------------------------------===//
+
+namespace fir {
+
+/// This class provides a shared interface for box and class types.
+class BaseBoxType : public mlir::Type {
+public:
+  using mlir::Type::Type;
+
+  /// Returns the element type of this box type.
+  mlir::Type getEleTy() const;
+
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  static bool classof(mlir::Type type);
+};
+
+} // namespace fir
+
 #define GET_TYPEDEF_CLASSES
 #include "flang/Optimizer/Dialect/FIROpsTypes.h.inc"
 
@@ -67,7 +87,7 @@ inline bool isa_ref_type(mlir::Type t) {
 
 /// Is `t` a boxed type?
 inline bool isa_box_type(mlir::Type t) {
-  return t.isa<fir::BoxType, fir::BoxCharType, fir::BoxProcType>();
+  return t.isa<fir::BaseBoxType, fir::BoxCharType, fir::BoxProcType>();
 }
 
 /// Is `t` a type that is always trivially pass-by-reference? Specifically, this
@@ -282,6 +302,18 @@ bool hasAbstractResult(mlir::FunctionType ty);
 /// Convert llvm::Type::TypeID to mlir::Type
 mlir::Type fromRealTypeID(mlir::MLIRContext *context, llvm::Type::TypeID typeID,
                           fir::KindTy kind);
+
+inline bool BaseBoxType::classof(mlir::Type type) {
+  return type.isa<fir::BoxType, fir::ClassType>();
+}
+
+/// Return a fir.box<T> or fir.class<T> if the type is polymorphic.
+inline mlir::Type wrapInClassOrBoxType(mlir::Type eleTy,
+                                       bool isPolymorphic = false) {
+  if (isPolymorphic)
+    return fir::ClassType::get(eleTy);
+  return fir::BoxType::get(eleTy);
+}
 
 } // namespace fir
 

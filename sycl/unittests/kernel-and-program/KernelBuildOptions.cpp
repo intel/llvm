@@ -17,19 +17,19 @@
 
 #include <gtest/gtest.h>
 
-class TestKernel;
+class BuildOptsTestKernel;
 
 static std::string BuildOpts;
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
-template <> struct KernelInfo<TestKernel> {
+template <> struct KernelInfo<BuildOptsTestKernel> {
   static constexpr unsigned getNumParams() { return 0; }
   static const kernel_param_desc_t &getParamDesc(int) {
     static kernel_param_desc_t Dummy;
     return Dummy;
   }
-  static constexpr const char *getName() { return "TestKernel"; }
+  static constexpr const char *getName() { return "BuildOptsTestKernel"; }
   static constexpr bool isESIMD() { return true; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
@@ -91,7 +91,7 @@ static sycl::unittest::PiImage generateDefaultImage() {
   addESIMDFlag(PropSet);
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  PiArray<PiOffloadEntry> Entries = makeEmptyKernels({"TestKernel"});
+  PiArray<PiOffloadEntry> Entries = makeEmptyKernels({"BuildOptsTestKernel"});
 
   PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
@@ -118,8 +118,10 @@ TEST(KernelBuildOptions, KernelBundleBasic) {
 
   const sycl::context Ctx = Queue.get_context();
 
+  auto KernelID = sycl::get_kernel_id<BuildOptsTestKernel>();
   sycl::kernel_bundle KernelBundle =
-      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev});
+      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev},
+                                                         {KernelID});
   auto ExecBundle = sycl::build(KernelBundle);
   EXPECT_EQ(BuildOpts,
             "-compile-img -vc-codegen -disable-finalizer-msg -link-img");

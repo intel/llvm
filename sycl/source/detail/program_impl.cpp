@@ -541,23 +541,21 @@ void program_impl::flush_spec_constants(const RTDeviceBinaryImage &Img,
     const spec_constant_impl &SC = SCEntry->second;
     assert(SC.isSet() && "uninitialized spec constant");
     ByteArray Descriptors = DeviceBinaryProperty(*SCIt).asByteArray();
-    // First 8 bytes are consumed by size of the property
-    assert(Descriptors.size() > 8 && "Unexpected property size");
-    // Expected layout is vector of 3-component tuples (flattened into a vector
-    // of scalars), where each tuple consists of: ID of a scalar spec constant,
-    // (which might be a member of the composite); offset, which is used to
-    // calculate location of scalar member within the composite or zero for
-    // scalar spec constants; size of a spec constant
-    assert(((Descriptors.size() - 8) / sizeof(std::uint32_t)) % 3 == 0 &&
-           "unexpected layout of composite spec const descriptors");
-    auto *It = reinterpret_cast<const std::uint32_t *>(&Descriptors[8]);
-    auto *End = reinterpret_cast<const std::uint32_t *>(&Descriptors[0] +
-                                                        Descriptors.size());
-    while (It != End) {
+
+    // First 8 bytes are consumed by the size of the property.
+    Descriptors.dropBytes(8);
+
+    // Expected layout is vector of 3-component tuples (flattened into a
+    // vector of scalars), where each tuple consists of: ID of a scalar spec
+    // constant, (which might be a member of the composite); offset, which
+    // is used to calculate location of scalar member within the composite
+    // or zero for scalar spec constants; size of a spec constant.
+    while (!Descriptors.empty()) {
+      auto [Id, Offset, Size] =
+          Descriptors.consume<uint32_t, uint32_t, uint32_t>();
+
       Ctx->getPlugin().call<PiApiKind::piextProgramSetSpecializationConstant>(
-          NativePrg, /* ID */ It[0], /* Size */ It[2],
-          SC.getValuePtr() + /* Offset */ It[1]);
-      It += 3;
+          NativePrg, Id, Size, SC.getValuePtr() + Offset);
     }
   }
 }

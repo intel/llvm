@@ -27,6 +27,7 @@
 
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallSet.h"
@@ -58,20 +59,18 @@ TypeToAspectsMapTy getTypesThatUseAspectsFromMetadata(const Module &M) {
     return Result;
 
   LLVMContext &C = M.getContext();
-  for (const auto OperandIt : Node->operands()) {
-    const MDNode &N = *OperandIt;
-    assert(N.getNumOperands() > 1 && "intel_types_that_use_aspect metadata "
-                                     "shouldn't contain empty metadata nodes");
+  for (const MDNode *N : Node->operands()) {
+    assert(N->getNumOperands() > 1 && "intel_types_that_use_aspect metadata "
+                                      "shouldn't contain empty metadata nodes");
 
-    const auto *TypeName = cast<MDString>(N.getOperand(0));
+    const auto *TypeName = cast<MDString>(N->getOperand(0));
     const Type *T = StructType::getTypeByName(C, TypeName->getString());
     assert(T &&
            "invalid type referenced by intel_types_that_use_aspect metadata");
 
     AspectsSetTy &Aspects = Result[T];
-    for (size_t I = 1; I != N.getNumOperands(); ++I) {
-      const auto *CAM = cast<ConstantAsMetadata>(N.getOperand(I));
-      const Constant *C = CAM->getValue();
+    for (const MDOperand &Op : drop_begin(N->operands())) {
+      const Constant *C = cast<ConstantAsMetadata>(Op)->getValue();
       Aspects.insert(cast<ConstantInt>(C)->getSExtValue());
     }
   }
@@ -89,16 +88,15 @@ AspectValueToNameMapTy getAspectsFromMetadata(const Module &M) {
   if (!Node)
     return Result;
 
-  for (const auto OperandIt : Node->operands()) {
-    const MDNode &N = *OperandIt;
-    assert(N.getNumOperands() == 2 &&
+  for (const MDNode *N : Node->operands()) {
+    assert(N->getNumOperands() == 2 &&
            "Each operand of sycl_aspects must be a pair.");
 
     // The aspect's name is the first operand.
-    const auto *AspectName = cast<MDString>(N.getOperand(0));
+    const auto *AspectName = cast<MDString>(N->getOperand(0));
 
     // The aspect's integral value is the second operand.
-    const auto *AspectCAM = cast<ConstantAsMetadata>(N.getOperand(1));
+    const auto *AspectCAM = cast<ConstantAsMetadata>(N->getOperand(1));
     const Constant *AspectC = AspectCAM->getValue();
 
     Result[AspectName->getString()] =
@@ -119,6 +117,7 @@ void propagateAspectsThroughTypes(const TypesEdgesTy &Edges, const Type *Start,
   const AspectsSetTy &AspectsToPropagate = Aspects[Start];
   SmallSetVector<const Type *, 16> TypesToPropagate;
   TypesToPropagate.insert(Start);
+  // The TypesToPropagate is being updated inside the loop, so no range-for.
   for (size_t I = 0; I < TypesToPropagate.size(); ++I) {
     const Type *T = TypesToPropagate[I];
     Aspects[T].insert(AspectsToPropagate.begin(), AspectsToPropagate.end());
@@ -240,12 +239,10 @@ using FunctionToAspectsMapTy = DenseMap<Function *, AspectsSetTy>;
 using CallGraphTy = DenseMap<Function *, SmallPtrSet<Function *, 8>>;
 
 void createUsedAspectsMetadataForFunctions(FunctionToAspectsMapTy &Map) {
-  for (auto &It : Map) {
-    AspectsSetTy &Aspects = It.second;
+  for (auto &[F, Aspects] : Map) {
     if (Aspects.empty())
       continue;
 
-    Function *F = It.first;
     LLVMContext &C = F->getContext();
 
     SmallVector<Metadata *, 16> AspectsMetadata;
@@ -285,6 +282,7 @@ void propagateAspectsThroughCG(Function *F, CallGraphTy &CG,
 ///  - checks if return and argument types are using any aspects
 ///  - checks if instructions are using any aspects
 ///  - updates call graph information
+///  - checks if function has "!sycl_used_aspects" metadata
 ///
 void processFunction(Function &F, FunctionToAspectsMapTy &FunctionToAspects,
                      TypeToAspectsMapTy &TypesWithAspects, CallGraphTy &CG) {
@@ -306,6 +304,16 @@ void processFunction(Function &F, FunctionToAspectsMapTy &FunctionToAspects,
       if (!CI->isIndirectCall() && CI->getCalledFunction())
         CG[&F].insert(CI->getCalledFunction());
     }
+  }
+
+  if (F.hasMetadata("sycl_used_aspects")) {
+    const MDNode *MD = F.getMetadata("sycl_used_aspects");
+    AspectsSetTy Aspects;
+    for (const MDOperand &Op : MD->operands()) {
+      Constant *C = cast<ConstantAsMetadata>(Op.get())->getValue();
+      Aspects.insert(cast<ConstantInt>(C)->getSExtValue());
+    }
+    FunctionToAspects[&F].insert(Aspects.begin(), Aspects.end());
   }
 }
 

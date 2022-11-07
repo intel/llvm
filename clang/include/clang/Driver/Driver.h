@@ -797,6 +797,9 @@ private:
   /// targets.
   mutable llvm::StringMap<StringRef> SYCLUniqueIDList;
 
+  /// Return the typical executable name for the specified driver \p Mode.
+  static const char *getExecutableForDriverMode(DriverMode Mode);
+
 public:
   /// GetReleaseVersion - Parse (([0-9]+)(.([0-9]+)(.([0-9]+)?))?)? and
   /// return the grouped values as integers. Numbers which are not

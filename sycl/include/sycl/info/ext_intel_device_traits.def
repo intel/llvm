@@ -2,6 +2,7 @@
 #define __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF
 #define __SYCL_PARAM_TRAITS_TEMPLATE_SPEC __SYCL_PARAM_TRAITS_SPEC
 #endif
+__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, device_id, pi_uint32, PI_DEVICE_INFO_DEVICE_ID)
 __SYCL_PARAM_TRAITS_SPEC(ext::intel, device, pci_address, std::string, PI_DEVICE_INFO_PCI_ADDRESS)
 __SYCL_PARAM_TRAITS_SPEC(ext::intel, device, gpu_eu_count, pi_uint32, PI_DEVICE_INFO_GPU_EU_COUNT)
 __SYCL_PARAM_TRAITS_SPEC(ext::intel, device, gpu_eu_simd_width, pi_uint32, PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH)

@@ -61,8 +61,8 @@ public:
   /// by the DeviceSelector provided.
   ///
   /// \param DeviceSelector SYCL 1.2.1 device_selector to be used (see 4.6.1.1).
-  __SYCL2020_DEPRECATED("Use Callable device selectors instead of deprecated "
-                        "device_selector subclasses.")
+  __SYCL2020_DEPRECATED("SYCL 1.2.1 device selectors are deprecated. Please "
+                        "use SYCL 2020 device selectors instead.")
   explicit device(const device_selector &DeviceSelector);
 
 #if __cplusplus >= 201703L
@@ -71,7 +71,8 @@ public:
   /// \param DeviceSelector is SYCL 2020 Device Selector, a simple callable that
   /// takes a device and returns an int
   template <typename DeviceSelector,
-            typename = detail::EnableIfDeviceSelectorInvocable<DeviceSelector>>
+            typename =
+                detail::EnableIfSYCL2020DeviceSelectorInvocable<DeviceSelector>>
   explicit device(const DeviceSelector &deviceSelector)
       : device(detail::select_device(deviceSelector)) {}
 #endif

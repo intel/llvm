@@ -202,9 +202,9 @@ func.func @generic_with_multiple_tensor_outputs(
     %arg0: tensor<?xi32>, %arg1: tensor<?xi32>, %arg2: i32)
     -> (tensor<i32>, tensor<i32>) {
   %c0 = arith.constant 0 : index
-  %0 = linalg.init_tensor [] : tensor<i32>
+  %0 = tensor.empty() : tensor<i32>
   %1 = linalg.fill ins(%arg2 : i32) outs(%0 : tensor<i32>) -> tensor<i32>
-  %2 = linalg.init_tensor [] : tensor<i32>
+  %2 = tensor.empty() : tensor<i32>
   %3 = linalg.fill ins(%arg2 : i32) outs(%2 : tensor<i32>) -> tensor<i32>
   %4:2 = linalg.generic {
     indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> ()>, affine_map<(d0) -> ()>],
@@ -324,23 +324,8 @@ func.func @named_ops(%a3: memref<?x?x?xf32>, %b3: memref<?x?x?xf32>, %c3: memref
 
 // -----
 
-#attr = {"foo"}
-func.func @init_tensor(%arg0 : index, %arg1 : index)
-{
-  %0 = linalg.init_tensor [3, 42] : tensor<3x42xf32>
-  %1 = linalg.init_tensor [4, %arg0, %arg1, 5] : tensor<4x?x?x5xf32>
-  %2 = linalg.init_tensor [2, 2] : tensor<2x2xf32, #attr>
-  return
-}
-// CHECK-LABEL: func @init_tensor
-//       CHECK:   linalg.init_tensor [3, 42] : tensor<3x42xf32>
-//       CHECK:   linalg.init_tensor [4, %{{.*}}, %{{.*}}, 5] : tensor<4x?x?x5xf32>
-//       CHECK:   linalg.init_tensor [2, 2] : tensor<2x2xf32, {foo}>
-
-// -----
-
 func.func @fill_tensor(%arg0 : index, %arg1 : index, %arg2 : f32) -> tensor<?x?xf32> {
-  %0 = linalg.init_tensor [%arg0, %arg1] : tensor<?x?xf32>
+  %0 = tensor.empty(%arg0, %arg1) : tensor<?x?xf32>
   %1 = linalg.fill ins(%arg2 : f32) outs(%0 : tensor<?x?xf32>) -> tensor<?x?xf32>
   return %1 : tensor<?x?xf32>
 }
@@ -366,3 +351,39 @@ func.func @mixed_parallel_reduced_results(%arg0 : tensor<?x?x?xf32>,
 }
 // CHECK-LABEL: func @mixed_parallel_reduced_results
 //       CHECK:     linalg.generic
+
+// -----
+
+func.func @reduce(%input: tensor<16x32x64xf32>,
+                     %init: tensor<16x64xf32>) -> tensor<16x64xf32> {
+  %reduce = linalg.reduce
+      ins(%input:tensor<16x32x64xf32>)
+      outs(%init:tensor<16x64xf32>)
+      dimensions = [1]
+      (%in: f32, %out: f32) {
+        %0 = arith.addf %in, %out: f32
+        linalg.yield %0: f32
+      }
+  func.return %reduce : tensor<16x64xf32>
+}
+// CHECK-LABEL: func @reduce
+//       CHECK:     linalg.reduce
+
+// -----
+
+func.func @variadic_reduce(%input1: tensor<16x32x64xf32>,
+    %init1: tensor<16x64xf32>, %input2: tensor<16x32x64xi64>,
+    %init2: tensor<16x64xi64>)  -> (tensor<16x64xf32>, tensor<16x64xi64>) {
+  %reduce, %reduce2 = linalg.reduce
+      ins(%input1, %input2 : tensor<16x32x64xf32>, tensor<16x32x64xi64>)
+      outs(%init1, %init2 : tensor<16x64xf32>, tensor<16x64xi64>)
+      dimensions = [1]
+      (%in1: f32, %in2: i64, %out1: f32, %out2: i64) {
+        %0 = arith.addf %in1, %out1: f32
+        %1 = arith.addi %in2, %out2: i64
+        linalg.yield %0, %1: f32, i64
+      }
+  func.return %reduce, %reduce2 : tensor<16x64xf32>, tensor<16x64xi64>
+}
+// CHECK-LABEL: func @variadic_reduce
+//       CHECK:     linalg.reduce

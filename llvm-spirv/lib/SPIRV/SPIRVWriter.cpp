@@ -82,6 +82,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Operator.h"
+#include "llvm/IR/TypedPointerType.h"
 #include "llvm/Pass.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Support/Casting.h"
@@ -344,6 +345,10 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
                                       : T->getNonOpaquePointerElementType();
     auto AddrSpc = T->getPointerAddressSpace();
     return transPointerType(ET, AddrSpc);
+  }
+
+  if (auto *TPT = dyn_cast<TypedPointerType>(T)) {
+    return transPointerType(TPT->getElementType(), TPT->getAddressSpace());
   }
 
   if (auto *VecTy = dyn_cast<FixedVectorType>(T)) {
