@@ -147,9 +147,8 @@ private:
                        Grp> &);
 
 public:
-  joint_matrix(Group sg) {
+  joint_matrix() {
 #ifndef __SYCL_DEVICE_ONLY__
-    (void)sg;
     throw runtime_error("joint matrix is not supported on host device.",
                         PI_ERROR_INVALID_DEVICE);
 #endif // __SYCL_DEVICE_ONLY__
@@ -328,7 +327,7 @@ inline __SYCL_ALWAYS_INLINE
     joint_matrix<Tc, use::accumulator, M, N,
                  sycl::ext::oneapi::experimental::matrix::layout::dynamic,
                  Group>
-        D(sg);
+        D;
     sycl::ext::oneapi::detail::joint_matrix_mad_cuda<Ta, Tc, M, K, N, LayoutA,
                                                      LayoutB>(
         D.cuda_impl, A.cuda_impl, B.cuda_impl, C.cuda_impl);
