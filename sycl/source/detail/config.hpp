@@ -126,10 +126,6 @@ private:
   }
 };
 
-<<<<<<< HEAD
-
-=======
->>>>>>> 823f2b2cb836b3767b555bea2e922c3758a86dbe
 template <> class SYCLConfig<SYCL_PI_TRACE> {
   using BaseT = SYCLConfigBase<SYCL_PI_TRACE>;
 
@@ -300,10 +296,6 @@ public:
       FilterList = &GlobalHandler::instance().getDeviceFilterList(ValStr);
     }
 
-<<<<<<< HEAD
-
-=======
->>>>>>> 823f2b2cb836b3767b555bea2e922c3758a86dbe
     // As mentioned above, configuration parameters are processed only once.
     // If multiple threads are checking this env var at the same time,
     // they will end up setting the configration to the same value.
