@@ -19,13 +19,11 @@
 == Notice
 
 [%hardbreaks]
-Copyright (C) 2022-2022 Intel Corporation.  All rights reserved.
+Copyright (C) 2022 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
 permission by Khronos.
-
-IMPORTANT: This specification is a draft.
 
 == Contact
 
@@ -204,17 +202,19 @@ q.submit([&](sycl::handler& h) {
   h.parallel_for(sycl::nd_range<1>{N, group_size}, [=](sycl::nd_item<1> it) {
     // Create a handle that associates the group with an allocation it can use
     auto handle = sycl::ext::oneapi::experimental::group_with_scratchpad(
-        it.get_group(), sycl::span(scratch, temp_memory_size));
+        it.get_group(), sycl::span(&scratch[0], temp_memory_size));
 
     // Pass the handle as the first argument to the group algorithm
-    T sum = sycl::reduce_over_group(handle, acc[it.get_global_id(0)], 0,
-        UserDefinedSum<T>{});
+    T sum = sycl::ext::oneapi::experimental::reduce_over_group(
+          handle, acc[it.get_global_id(0)], 0, UserDefinedSum<T>{});
 
   });
 });
 ----
 
-== Possible future direction
+== Issues
 
-In future versions of this extension we may add a query function which would
+Open:  
+
+. In future versions of this extension we may add a query function which would
 help to calculate the exact amount of memory needed for doing the reduction.
