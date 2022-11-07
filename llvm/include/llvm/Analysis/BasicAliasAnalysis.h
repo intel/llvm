@@ -75,9 +75,15 @@ public:
   ModRefInfo getModRefInfo(const CallBase *Call1, const CallBase *Call2,
                            AAQueryInfo &AAQI);
 
-  /// Chases pointers until we find a (constant global) or not.
-  bool pointsToConstantMemory(const MemoryLocation &Loc, AAQueryInfo &AAQI,
-                              bool OrLocal);
+  /// Returns a bitmask that should be unconditionally applied to the ModRef
+  /// info of a memory location. This allows us to eliminate Mod and/or Ref
+  /// from the ModRef info based on the knowledge that the memory location
+  /// points to constant and/or locally-invariant memory.
+  ///
+  /// If IgnoreLocals is true, then this method returns NoModRef for memory
+  /// that points to a local alloca.
+  ModRefInfo getModRefInfoMask(const MemoryLocation &Loc, AAQueryInfo &AAQI,
+                               bool IgnoreLocals = false);
 
   /// Get the location associated with a pointer argument of a callsite.
   ModRefInfo getArgModRefInfo(const CallBase *Call, unsigned ArgIdx);
@@ -92,7 +98,7 @@ public:
 private:
   struct DecomposedGEP;
 
-  /// Tracks phi nodes we have visited.
+  /// Tracks whether the accesses may be on different cycle iterations.
   ///
   /// When interpret "Value" pointer equality as value equality we need to make
   /// sure that the "Value" is not part of a cycle. Otherwise, two uses could
@@ -106,7 +112,7 @@ private:
   ///   %addr2 = gep  %alloca2, 0, (%l + 1)
   ///      alias(%p, %addr1) -> MayAlias !
   ///   store %l, ...
-  SmallPtrSet<const BasicBlock *, 8> VisitedPhiBBs;
+  bool MayBeCrossIteration = false;
 
   /// Tracks instructions visited by pointsToConstantMemory.
   SmallPtrSet<const Value *, 16> Visited;

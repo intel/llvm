@@ -496,8 +496,11 @@ private:
         loc, fir::ReferenceType::get(typeDescGlobal.getType()),
         typeDescGlobal.getSymbol());
     mlir::func::FuncOp callee =
-        fir::runtime::getRuntimeFunc<mkRTKey(AllocatableInitDerived)>(loc,
-                                                                      builder);
+        box.isPointer()
+            ? fir::runtime::getRuntimeFunc<mkRTKey(PointerNullifyDerived)>(
+                  loc, builder)
+            : fir::runtime::getRuntimeFunc<mkRTKey(AllocatableInitDerived)>(
+                  loc, builder);
 
     llvm::ArrayRef<mlir::Type> inputTypes =
         callee.getFunctionType().getInputs();
@@ -618,6 +621,19 @@ isNonContiguousArrayPointer(const Fortran::semantics::Symbol &sym) {
          !sym.attrs().test(Fortran::semantics::Attr::CONTIGUOUS);
 }
 
+/// Is this symbol a polymorphic pointer?
+static inline bool isPolymorphicPointer(const Fortran::semantics::Symbol &sym) {
+  return Fortran::semantics::IsPointer(sym) &&
+         Fortran::semantics::IsPolymorphic(sym);
+}
+
+/// Is this symbol a polymorphic allocatable?
+static inline bool
+isPolymorphicAllocatable(const Fortran::semantics::Symbol &sym) {
+  return Fortran::semantics::IsAllocatable(sym) &&
+         Fortran::semantics::IsPolymorphic(sym);
+}
+
 /// Is this a local procedure symbol in a procedure that contains internal
 /// procedures ?
 static bool mayBeCapturedInInternalProc(const Fortran::semantics::Symbol &sym) {
@@ -662,12 +678,13 @@ createMutableProperties(Fortran::lower::AbstractConverter &converter,
       Fortran::semantics::IsFunctionResult(sym) ||
       sym.attrs().test(Fortran::semantics::Attr::VOLATILE) ||
       isNonContiguousArrayPointer(sym) || useAllocateRuntime ||
-      useDescForMutableBox || mayBeCapturedInInternalProc(sym))
+      useDescForMutableBox || mayBeCapturedInInternalProc(sym) ||
+      isPolymorphicPointer(sym) || isPolymorphicAllocatable(sym))
     return {};
   fir::MutableProperties mutableProperties;
   std::string name = converter.mangleName(sym);
   mlir::Type baseAddrTy = converter.genType(sym);
-  if (auto boxType = baseAddrTy.dyn_cast<fir::BoxType>())
+  if (auto boxType = baseAddrTy.dyn_cast<fir::BaseBoxType>())
     baseAddrTy = boxType.getEleTy();
   // Allocate and set a variable to hold the address.
   // It will be set to null in setUnallocatedStatus.
@@ -717,7 +734,8 @@ fir::MutableBoxValue Fortran::lower::createMutableBox(
   fir::MutableBoxValue box(boxAddr, nonDeferredParams, mutableProperties);
   fir::FirOpBuilder &builder = converter.getFirOpBuilder();
   if (!var.isGlobal() && !Fortran::semantics::IsDummy(var.getSymbol()))
-    fir::factory::disassociateMutableBox(builder, loc, box);
+    fir::factory::disassociateMutableBox(builder, loc, box,
+                                         /*polymorphicSetType=*/false);
   return box;
 }
 
@@ -750,6 +768,7 @@ void Fortran::lower::associateMutableBox(
   fir::ExtendedValue rhs = isArraySectionWithoutVectorSubscript(source)
                                ? converter.genExprBox(loc, source, stmtCtx)
                                : converter.genExprAddr(loc, source, stmtCtx);
+
   fir::factory::associateMutableBox(builder, loc, box, rhs, lbounds);
 }
 

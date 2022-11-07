@@ -265,6 +265,7 @@ std::string memFlagsToString(pi_mem_flags Flags) {
 
 // GlobalPlugin is a global Plugin used with Interoperability constructors that
 // use OpenCL objects to construct SYCL class objects.
+// TODO: GlobalPlugin does not seem to be needed anymore. Consider removing it!
 std::shared_ptr<plugin> GlobalPlugin;
 
 // Find the plugin at the appropriate location and return the location.
@@ -441,6 +442,14 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
       }
       continue;
     }
+    plugin &NewPlugin = Plugins.emplace_back(
+        plugin(PluginInformation, PluginNames[I].second, Library));
+    if (trace(TraceLevel::PI_TRACE_BASIC))
+      std::cerr << "SYCL_PI_TRACE[basic]: "
+                << "Plugin found and successfully loaded: "
+                << PluginNames[I].first
+                << " [ PluginVersion: " << NewPlugin.getPiPlugin().PluginVersion
+                << " ]" << std::endl;
   }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION

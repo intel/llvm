@@ -158,6 +158,8 @@ code bases.
       }
     }
 
+- The ``-fexperimental-new-pass-manager`` and ``-fno-legacy-pass-manager``
+  flags have been removed. These have been no-ops since 15.0.0.
 
 What's New in Clang |release|?
 ==============================
@@ -255,6 +257,23 @@ Bug Fixes
 - Reject non-type template arguments formed by casting a non-zero integer
   to a pointer in pre-C++17 modes, instead of treating them as null
   pointers.
+- Fix template arguments of pointer and reference not taking the type as
+  part of their identity.
+  `Issue 47136 <https://github.com/llvm/llvm-project/issues/47136>`_
+- Fix a crash when trying to form a recovery expression on a call inside a
+  constraint, which re-evaluated the same constraint.
+  `Issue 53213 <https://github.com/llvm/llvm-project/issues/53213>`_
+  `Issue 45736 <https://github.com/llvm/llvm-project/issues/45736>`_
+- Fix an issue when performing constraints partial ordering on non-template
+  functions. `Issue 56154 <https://github.com/llvm/llvm-project/issues/56154>`_
+- Fix handling of unexpanded packs in template argument expressions.
+  `Issue 58679 <https://github.com/llvm/llvm-project/issues/58679>`_
+- Fix a crash when a ``btf_type_tag`` attribute is applied to the pointee of
+  a function pointer.
+- Fix a number of recursively-instantiated constraint issues, which would possibly
+  result in a stack overflow.
+  `Issue 44304 <https://github.com/llvm/llvm-project/issues/44304>`_
+  `Issue 50891 <https://github.com/llvm/llvm-project/issues/50891>`_
 
 Improvements to Clang's diagnostics
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -328,6 +347,17 @@ Improvements to Clang's diagnostics
 - Clang now correctly points to the problematic parameter for the ``-Wnonnull``
   warning. This fixes
   `Issue 58273 <https://github.com/llvm/llvm-project/issues/58273>`_.
+- Introduced ``-Wcast-function-type-strict`` to warn about function type mismatches
+  in casts that may result in runtime indirect call `Control-Flow Integrity (CFI)
+  <https://clang.llvm.org/docs/ControlFlowIntegrity.html>`_ failures. This diagnostic
+  is grouped under ``-Wcast-function-type`` as it identifies a more strict set of
+  potentially problematic function type casts.
+- Clang will now disambiguate NTTP types when printing diagnostic that contain NTTP types.
+  Fixes `Issue 57562 <https://github.com/llvm/llvm-project/issues/57562>`_.
+- Better error recovery for pack expansion of expressions.
+  `Issue 58673 <https://github.com/llvm/llvm-project/issues/58673>`_.
+- Better diagnostics when the user has missed `auto` in a declaration.
+  `Issue 49129 <https://github.com/llvm/llvm-project/issues/49129>`_.
 
 Non-comprehensive list of changes in this release
 -------------------------------------------------
@@ -383,8 +413,26 @@ New Compiler Flags
   `::operator new(size_­t, std::aligned_val_t, nothrow_­t)` if there is
   `get_­return_­object_­on_­allocation_­failure`. We feel this is more consistent
   with the intention.
+
 - Added ``--no-default-config`` to disable automatically loading configuration
   files using default paths.
+
+- Added the new level, ``3``, to the ``-fstrict-flex-arrays=`` flag. The new
+  level is the strict, standards-conforming mode for flexible array members. It
+  recognizes only incomplete arrays as flexible array members (which is how the
+  feature is defined by the C standard).
+
+  .. code-block:: c
+
+    struct foo {
+      int a;
+      int b[]; // Flexible array member.
+    };
+
+    struct bar {
+      int a;
+      int b[0]; // NOT a flexible array member.
+    };
 
 Deprecated Compiler Flags
 -------------------------
@@ -548,9 +596,13 @@ C++20 Feature Support
 - Implemented `P0634r3 <https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2018/p0634r3.html>`_,
   which removes the requirement for the ``typename`` keyword in certain contexts.
 - Implemented The Equality Operator You Are Looking For (`P2468 <http://wg21.link/p2468r2>`_).
-
 - Implemented `P2113R0: Proposed resolution for 2019 comment CA 112 <https://wg21.link/P2113R0>`_
   ([temp.func.order]p6.2.1 is not implemented, matching GCC).
+- Implemented `P0857R0 <https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2017/p0857r0.html>`_,
+  which specifies constrained lambdas and constrained template *template-parameter*\s.
+
+- Do not hide templated base members introduced via using-decl in derived class
+  (useful specially for constrained members). Fixes `GH50886 <https://github.com/llvm/llvm-project/issues/50886>`_.
 
 C++2b Feature Support
 ^^^^^^^^^^^^^^^^^^^^^
@@ -579,6 +631,10 @@ ABI Changes in Clang
   such packing. Clang now matches the gcc behavior (except on Darwin and PS4).
   You can switch back to the old ABI behavior with the flag:
   ``-fclang-abi-compat=15.0``.
+- GCC allows POD types to have defaulted special members. Clang historically
+  classified such types as non-POD (for the purposes of Itanium ABI). Clang now
+  matches the gcc behavior (except on Darwin and PS4). You can switch back to
+  the old ABI behavior with the flag: ``-fclang-abi-compat=15.0``.
 
 OpenMP Support in Clang
 -----------------------
@@ -606,9 +662,42 @@ X86 Support in Clang
 - Support ISA of ``CMPCCXADD``.
   * Support intrinsic of ``__cmpccxadd_epi32``.
   * Support intrinsic of ``__cmpccxadd_epi64``.
+- Add support for ``RAO-INT`` instructions.
+  * Support intrinsic of ``_aadd_i32/64``
+  * Support intrinsic of ``_aand_i32/64``
+  * Support intrinsic of ``_aor_i32/64``
+  * Support intrinsic of ``_axor_i32/64``
+- Support ISA of ``AVX-IFMA``.
+  * Support intrinsic of ``_mm(256)_madd52hi_avx_epu64``.
+  * Support intrinsic of ``_mm(256)_madd52lo_avx_epu64``.
+- Support ISA of ``AVX-VNNI-INT8``.
+  * Support intrinsic of ``_mm(256)_dpbssd(s)_epi32``.
+  * Support intrinsic of ``_mm(256)_dpbsud(s)_epi32``.
+  * Support intrinsic of ``_mm(256)_dpbuud(s)_epi32``.
+- Support ISA of ``AVX-NE-CONVERT``.
+  * Support intrinsic of ``_mm(256)_bcstnebf16_ps``.
+  * Support intrinsic of ``_mm(256)_bcstnesh_ps``.
+  * Support intrinsic of ``_mm(256)_cvtneebf16_ps``.
+  * Support intrinsic of ``_mm(256)_cvtneeph_ps``.
+  * Support intrinsic of ``_mm(256)_cvtneobf16_ps``.
+  * Support intrinsic of ``_mm(256)_cvtneoph_ps``.
+  * Support intrinsic of ``_mm(256)_cvtneps_avx_pbh``.
+
+WebAssembly Support in Clang
+----------------------------
+
+The -mcpu=generic configuration now enables sign-ext and mutable-globals. These
+proposals are standardized and available in all major engines.
 
 DWARF Support in Clang
 ----------------------
+
+Previously when emitting DWARFv4 and tuning for GDB, Clang would use DWARF v2's
+``DW_AT_bit_offset`` and ``DW_AT_data_member_location``. Clang now uses DWARF v4's
+``DW_AT_data_bit_offset`` regardless of tuning.
+
+Support for ``DW_AT_data_bit_offset`` was added in GDB 8.0. For earlier versions,
+you can use the ``-gdwarf-3`` option to emit compatible DWARF.
 
 Arm and AArch64 Support in Clang
 --------------------------------
@@ -659,8 +748,11 @@ libclang
   the behavior of ``QualType::getNonReferenceType`` for ``CXType``.
 - Introduced the new function ``clang_CXXMethod_isDeleted``, which queries
   whether the method is declared ``= delete``.
-- ``clang_Cursor_getNumTemplateArguments``, ``clang_Cursor_getTemplateArgumentKind``,
-  ``clang_Cursor_getTemplateArgumentType``, ``clang_Cursor_getTemplateArgumentValue`` and
+- Introduced the new function ``clang_CXXMethod_isCopyAssignmentOperator``,
+  which identifies whether a method cursor is a copy-assignment
+  operator.
+- ``clang_Cursor_getNumTemplateArguments``, ``clang_Cursor_getTemplateArgumentKind``, 
+  ``clang_Cursor_getTemplateArgumentType``, ``clang_Cursor_getTemplateArgumentValue`` and 
   ``clang_Cursor_getTemplateArgumentUnsignedValue`` now work on struct, class,
   and partial template specialization cursors in addition to function cursors.
 

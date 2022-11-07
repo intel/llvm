@@ -139,6 +139,7 @@ inline void clearRedefinedCalls() {
   for (size_t I = 0; I < CallStackSize; ++I) {
 #define _PI_API(api)                                                           \
   CallBefore_##api[I] = nullptr;                                               \
+  CallOriginal_##api = mock_##api;                                             \
   CallAfter_##api[I] = nullptr;
 #include <sycl/detail/pi.def>
 #undef _PI_API

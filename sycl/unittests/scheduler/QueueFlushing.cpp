@@ -54,7 +54,7 @@ static void addDepAndEnqueue(detail::Command *Cmd,
 
   pi_event PIEvent = nullptr;
   pi_result CallRet = mock_piEventCreate(/*pi_context=*/0x0, &PIEvent);
-  assert(PI_SUCCESS == CallRet);
+  EXPECT_TRUE(PI_SUCCESS == CallRet);
 
   DepCmd.getEvent()->getHandleRef() = PIEvent;
   (void)Cmd->addDep(detail::DepDesc{&DepCmd, &MockReq, nullptr}, ToCleanUp);
@@ -104,7 +104,7 @@ TEST_F(SchedulerTest, QueueFlushing) {
   pi_result Ret = mock_piMemBufferCreate(/*pi_context=*/0x0,
                                          PI_MEM_FLAGS_ACCESS_RW, /*size=*/1,
                                          /*host_ptr=*/nullptr, &PIBuf);
-  assert(Ret == PI_SUCCESS);
+  EXPECT_TRUE(Ret == PI_SUCCESS);
 
   detail::AllocaCommand AllocaCmd = detail::AllocaCommand(QueueImplA, MockReq);
   AllocaCmd.MMemAllocation = PIBuf;
@@ -162,7 +162,7 @@ TEST_F(SchedulerTest, QueueFlushing) {
 
     pi_event PIEvent = nullptr;
     pi_result CallRet = mock_piEventCreate(/*pi_context=*/0x0, &PIEvent);
-    assert(PI_SUCCESS == CallRet);
+    EXPECT_TRUE(PI_SUCCESS == CallRet);
 
     DepEvent->getHandleRef() = PIEvent;
     (void)Cmd.addDep(DepEvent, ToCleanUp);
@@ -184,7 +184,7 @@ TEST_F(SchedulerTest, QueueFlushing) {
 
       pi_event PIEvent = nullptr;
       pi_result CallRet = mock_piEventCreate(/*pi_context=*/0x0, &PIEvent);
-      assert(PI_SUCCESS == CallRet);
+      EXPECT_TRUE(PI_SUCCESS == CallRet);
 
       DepEvent->getHandleRef() = PIEvent;
     }
@@ -210,7 +210,7 @@ TEST_F(SchedulerTest, QueueFlushing) {
 
     pi_event PIEvent = nullptr;
     pi_result CallRet = mock_piEventCreate(/*pi_context=*/0x0, &PIEvent);
-    assert(PI_SUCCESS == CallRet);
+    EXPECT_TRUE(PI_SUCCESS == CallRet);
 
     DepCmdA.getEvent()->getHandleRef() = PIEvent;
     (void)Cmd.addDep(detail::DepDesc{&DepCmdA, &MockReq, nullptr}, ToCleanUp);
@@ -218,7 +218,7 @@ TEST_F(SchedulerTest, QueueFlushing) {
 
     PIEvent = nullptr;
     CallRet = mock_piEventCreate(/*pi_context=*/0x0, &PIEvent);
-    assert(PI_SUCCESS == CallRet);
+    EXPECT_TRUE(PI_SUCCESS == CallRet);
 
     DepCmdB.getEvent()->getHandleRef() = PIEvent;
     (void)Cmd.addDep(detail::DepDesc{&DepCmdB, &MockReq, nullptr}, ToCleanUp);
@@ -235,7 +235,7 @@ TEST_F(SchedulerTest, QueueFlushing) {
 
     pi_event PIEvent = nullptr;
     pi_result CallRet = mock_piEventCreate(/*pi_context=*/0x0, &PIEvent);
-    assert(PI_SUCCESS == CallRet);
+    EXPECT_TRUE(PI_SUCCESS == CallRet);
 
     DepCmd.getEvent()->getHandleRef() = PIEvent;
     (void)CmdA.addDep(detail::DepDesc{&DepCmd, &MockReq, nullptr}, ToCleanUp);
