@@ -2759,8 +2759,8 @@ pi_result hip_piEnqueueKernelLaunch(
   assert(work_dim < 4);
 
   if (*global_work_size == 0) {
-    return hip_piEnqueueEventsWaitWithBarrier(command_queue, num_events_in_wait_list,
-                                       event_wait_list, event);
+    return hip_piEnqueueEventsWaitWithBarrier(
+        command_queue, num_events_in_wait_list, event_wait_list, event);
   }
 
   // Set the number of threads per block to the number of threads per warp
