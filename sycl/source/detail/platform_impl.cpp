@@ -9,11 +9,11 @@
 #include <detail/allowlist.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
+#include <detail/force_device.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/platform_info.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
-#include <sycl/detail/util.hpp>
 #include <sycl/device.hpp>
 
 #include <algorithm>
@@ -126,8 +126,10 @@ std::vector<platform> platform_impl::get_platforms() {
           // insert PiPlatform into the Plugin
           Plugin.getPlatformId(PiPlatform);
         }
-        if (!Platform.get_devices(info::device_type::all).empty())
+        // Skip platforms which do not contain requested device types
+        if (!Platform.get_devices(info::device_type::all).empty()) {
           Platforms.push_back(Platform);
+        }
       }
     }
   }
@@ -149,6 +151,9 @@ std::vector<platform> platform_impl::get_platforms() {
 // ONEAPI_DEVICE_SELECTOR This function matches devices in the order of backend,
 // device_type, and device_num. The device_filter and ods_target structs pun for
 // each other, as do device_filter_list and ods_target_list.
+// Since ONEAPI_DEVICE_SELECTOR admits negative filters, we add a specialization
+// of this function template for ONEAPI_DEVICE_SELECTOR filter type, ods_target,
+// which handles this case.
 template <typename ListT, typename FilterT>
 static int filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
                               RT::PiPlatform Platform, ListT *FilterList) {
@@ -160,7 +165,6 @@ static int filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
       });
   if (It == Plugins.end())
     return -1;
-
   plugin &Plugin = *It;
   backend Backend = Plugin.getBackend();
   int InsertIDx = 0;
@@ -194,6 +198,92 @@ static int filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
         } else if (FilterDevType == DeviceType) {
           if (!Filter.DeviceNum || DeviceNum == Filter.DeviceNum.value()) {
             PiDevices[InsertIDx++] = Device;
+            break;
+          }
+        }
+      }
+    }
+    DeviceNum++;
+  }
+  PiDevices.resize(InsertIDx);
+  // remember the last backend that has gone through this filter function
+  // to assign a unique device id number across platforms that belong to
+  // the same backend. For example, opencl:cpu:0, opencl:acc:1, opencl:gpu:2
+  Plugin.setLastDeviceId(Platform, DeviceNum);
+  return StartingNum;
+}
+
+// Explicit specialization of the function template above to handle
+// ONEAPI_DEVICE_SELECTOR filters(i.e ods_target), which can be negative.
+template <>
+int filterDeviceFilter<ods_target_list, ods_target>(std::vector<RT::PiDevice> &PiDevices,
+                       RT::PiPlatform Platform, ods_target_list *FilterList) {
+
+  // Sicne we are working with ods_target filters ,which can be negative,
+  // we sort the filters so that all the negative filters appear before
+  // all the positive filters.  This enables us to have the full list of
+  // blacklisted devices by the time we get to the positive filters
+  // so that if a positive filter matches a blacklisted device we do
+  // not add it to the list of available devices
+  std::sort(FilterList->get().begin(), FilterList->get().end(),
+            [](const ods_target &filter1, const ods_target &filter2) {
+              if (filter2.IsNegativeTarget)
+                return false;
+              return true;
+            });
+  std::vector<plugin> &Plugins = RT::initialize();
+  auto It =
+      std::find_if(Plugins.begin(), Plugins.end(), [Platform](plugin &Plugin) {
+        return Plugin.containsPiPlatform(Platform);
+      });
+  if (It == Plugins.end())
+    return -1;
+  plugin &Plugin = *It;
+  backend Backend = Plugin.getBackend();
+  int InsertIDx = 0;
+  // DeviceIds should be given consecutive numbers across platforms in the same
+  // backend
+  std::lock_guard<std::mutex> Guard(*Plugin.getPluginMutex());
+  int DeviceNum = Plugin.getStartingDeviceId(Platform);
+  int StartingNum = DeviceNum;
+  std::map<RT::PiDevice *, bool> Blacklist;
+  for (RT::PiDevice Device : PiDevices) {
+    RT::PiDeviceType PiDevType;
+    Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_TYPE,
+                                            sizeof(RT::PiDeviceType),
+                                            &PiDevType, nullptr);
+    // Assumption here is that there is 1-to-1 mapping between PiDevType and
+    // Sycl device type for GPU, CPU, and ACC.
+    info::device_type DeviceType = pi::cast<info::device_type>(PiDevType);
+
+    for (const ods_target &Filter : FilterList->get()) {
+      backend FilterBackend = Filter.Backend.value_or(backend::all);
+      // First, match the backend entry
+      if (FilterBackend == Backend || FilterBackend == backend::all) {
+        info::device_type FilterDevType =
+            Filter.DeviceType.value_or(info::device_type::all);
+        // Next, match the device_type entry
+        if (FilterDevType == info::device_type::all) {
+          // Last, match the device_num entry
+          if ((!Filter.DeviceNum || DeviceNum == Filter.DeviceNum.value()) &&
+              !Blacklist[&Device]) {
+            if (!Filter.IsNegativeTarget) {
+              PiDevices[InsertIDx++] = Device;
+            } else {
+              // Filter is negative and the device matches the filter so
+              // blacklist the device.
+              Blacklist[&Device] = true;
+            }
+            break;
+          }
+        } else if (FilterDevType == DeviceType) {
+          if ((!Filter.DeviceNum || DeviceNum == Filter.DeviceNum.value()) &&
+              !Blacklist[&Device]) {
+            if (!Filter.IsNegativeTarget) {
+              PiDevices[InsertIDx++] = Device;
+            } else {
+              Blacklist[&Device] = true;
+            }
             break;
           }
         }
@@ -251,17 +341,13 @@ static bool supportsPartitionProperty(const device &dev,
 
 static std::vector<device> amendDeviceAndSubDevices(
     backend PlatformBackend, std::vector<device> &DeviceList,
-    ods_target_list *OdsTargetList, int PlatformDeviceIndex,
-    PlatformImplPtr PlatformImpl) {
+    ods_target_list *OdsTargetList, int PlatformDeviceIndex) {
   constexpr info::partition_property partitionProperty =
       info::partition_property::partition_by_affinity_domain;
   constexpr info::partition_affinity_domain affinityDomain =
       info::partition_affinity_domain::next_partitionable;
 
   std::vector<device> FinalResult;
-  // (Only) when amending sub-devices for ONEAPI_DEVICE_SELECTOR, all
-  // sub-devices are treated as root.
-  TempAssignGuard<bool> TAG(PlatformImpl->MAlwaysRootDevice, true);
 
   for (unsigned i = 0; i < DeviceList.size(); i++) {
     // device has already been screened. The question is whether it should be a
@@ -313,8 +399,9 @@ static std::vector<device> amendDeviceAndSubDevices(
             // -- Add sub sub device.
             if (wantSubSubDevice) {
 
-              auto subDevicesToPartition =
-                  dev.create_sub_devices<partitionProperty>(affinityDomain);
+              auto subDevicesToPartition = dev.create_sub_devices<
+                  info::partition_property::partition_by_affinity_domain>(
+                  affinityDomain);
               if (target.SubDeviceNum) {
                 if (subDevicesToPartition.size() >
                     target.SubDeviceNum.value()) {
@@ -342,9 +429,9 @@ static std::vector<device> amendDeviceAndSubDevices(
                   continue;
                 }
                 // Allright, lets get them sub-sub-devices.
-                auto subSubDevices =
-                    subDev.create_sub_devices<partitionProperty>(
-                        affinityDomain);
+                auto subSubDevices = subDev.create_sub_devices<
+                    info::partition_property::partition_by_affinity_domain>(
+                    affinityDomain);
                 if (target.HasSubSubDeviceWildCard) {
                   FinalResult.insert(FinalResult.end(), subSubDevices.begin(),
                                      subSubDevices.end());
@@ -440,7 +527,6 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   // Filter out devices that are not present in the SYCL_DEVICE_ALLOWLIST
   if (SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get())
     applyAllowList(PiDevices, MPlatform, Plugin);
-
   // The first step is to filter out devices that are not compatible with
   // SYCL_DEVICE_FILTER or ONEAPI_DEVICE_SELECTOR. This is also the mechanism by
   // which top level device ids are assigned.
@@ -473,11 +559,10 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   // with subdevices.
   if (!OdsTargetList || Res.size() == 0)
     return Res;
-
   // Otherwise, our last step is to revisit the devices, possibly replacing
   // them with subdevices (which have been ignored until now)
   return amendDeviceAndSubDevices(Backend, Res, OdsTargetList,
-                                  PlatformDeviceIndex, PlatformImpl);
+                                  PlatformDeviceIndex);
 }
 
 bool platform_impl::has_extension(const std::string &ExtensionName) const {
