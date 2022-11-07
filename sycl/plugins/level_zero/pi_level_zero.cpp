@@ -6916,8 +6916,7 @@ pi_result piEnqueueMemBufferCopyRect(
 // Default to using compute engine for fill operation, but allow to
 // override this with an environment variable.
 static bool PreferCopyEngine = [] {
-  const char * Env =
-      std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_FILL");
+  const char *Env = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_FILL");
   return Env ? std::stoi(Env) != 0 : false;
 }();
 
