@@ -126,6 +126,7 @@ jobs:
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       run: |
         # TODO consider moving this to Dockerfile
+        export LLVM_SYMBOLIZER_PATH=$GITHUB_WORKSPACE/build/bin
         export LD_LIBRARY_PATH=/usr/local/cuda/compat/:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
         cmake --build $GITHUB_WORKSPACE/build --target check-sycl
     - name: check-llvm-spirv
