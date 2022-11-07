@@ -213,6 +213,7 @@ StringRef sys::detail::getHostCPUNameForARM(StringRef ProcCpuinfoContent) {
         .Case("0xd0b", "cortex-a76")
         .Case("0xd0d", "cortex-a77")
         .Case("0xd41", "cortex-a78")
+        .Case("0xd4d", "cortex-a715")
         .Case("0xd44", "cortex-x1")
         .Case("0xd4c", "cortex-x1c")
         .Case("0xd0c", "neoverse-n1")
@@ -815,6 +816,12 @@ getIntelProcessorTypeAndSubtype(unsigned Family, unsigned Model,
     // Alderlake:
     case 0x97:
     case 0x9a:
+    // Raptorlake:
+    case 0xb7:
+    // Meteorlake:
+    case 0xb5:
+    case 0xaa:
+    case 0xac:
       CPU = "alderlake";
       *Type = X86::INTEL_COREI7;
       *Subtype = X86::INTEL_COREI7_ALDERLAKE;

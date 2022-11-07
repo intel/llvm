@@ -2021,28 +2021,6 @@ void Verifier::verifyFunctionAttrs(FunctionType *FT, AttributeList Attrs,
               "' does not apply to functions!",
           V);
 
-  Check(!(Attrs.hasFnAttr(Attribute::ReadNone) &&
-          Attrs.hasFnAttr(Attribute::ReadOnly)),
-        "Attributes 'readnone and readonly' are incompatible!", V);
-
-  Check(!(Attrs.hasFnAttr(Attribute::ReadNone) &&
-          Attrs.hasFnAttr(Attribute::WriteOnly)),
-        "Attributes 'readnone and writeonly' are incompatible!", V);
-
-  Check(!(Attrs.hasFnAttr(Attribute::ReadOnly) &&
-          Attrs.hasFnAttr(Attribute::WriteOnly)),
-        "Attributes 'readonly and writeonly' are incompatible!", V);
-
-  Check(!(Attrs.hasFnAttr(Attribute::ReadNone) &&
-          Attrs.hasFnAttr(Attribute::InaccessibleMemOrArgMemOnly)),
-        "Attributes 'readnone and inaccessiblemem_or_argmemonly' are "
-        "incompatible!",
-        V);
-
-  Check(!(Attrs.hasFnAttr(Attribute::ReadNone) &&
-          Attrs.hasFnAttr(Attribute::InaccessibleMemOnly)),
-        "Attributes 'readnone and inaccessiblememonly' are incompatible!", V);
-
   Check(!(Attrs.hasFnAttr(Attribute::NoInline) &&
           Attrs.hasFnAttr(Attribute::AlwaysInline)),
         "Attributes 'noinline and alwaysinline' are incompatible!", V);
@@ -2879,6 +2857,8 @@ void Verifier::visitSwitchInst(SwitchInst &SI) {
   Type *SwitchTy = SI.getCondition()->getType();
   SmallPtrSet<ConstantInt*, 32> Constants;
   for (auto &Case : SI.cases()) {
+    Check(isa<ConstantInt>(SI.getOperand(Case.getCaseIndex() * 2 + 2)),
+          "Case value is not a constant integer.", &SI);
     Check(Case.getCaseValue()->getType() == SwitchTy,
           "Switch constants must all be same type as switch value!", &SI);
     Check(Constants.insert(Case.getCaseValue()).second,

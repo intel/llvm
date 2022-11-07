@@ -1233,6 +1233,10 @@ let EncoderMethod = "EncodeRegAsMultipleOf<2>",
   def ZZ_d_mul_r : RegisterOperand<ZPR2Mul2, "printTypedVectorList<0,'d'>"> {
     let ParserMatchClass = ZPRVectorListMul<64, 2>;
   }
+
+  def ZZ_q_mul_r : RegisterOperand<ZPR2Mul2, "printTypedVectorList<0,'q'>"> {
+    let ParserMatchClass = ZPRVectorListMul<128, 2>;
+  }
 } // end let EncoderMethod/DecoderMethod
 
 let EncoderMethod = "EncodeRegAsMultipleOf<4>",
@@ -1251,6 +1255,10 @@ let EncoderMethod = "EncodeRegAsMultipleOf<4>",
 
   def ZZZZ_d_mul_r : RegisterOperand<ZPR4Mul4, "printTypedVectorList<0,'d'>"> {
     let ParserMatchClass = ZPRVectorListMul<64, 4>;
+  }
+
+  def ZZZZ_q_mul_r : RegisterOperand<ZPR4Mul4, "printTypedVectorList<0,'q'>"> {
+    let ParserMatchClass = ZPRVectorListMul<128, 4>;
   }
 } // end let EncoderMethod/DecoderMethod
 
@@ -1390,6 +1398,8 @@ let SubRegIndices = [zasubb] in {
   def ZA : AArch64Reg<0, "za", [ZAB0]>;
 }
 
+def ZT0 : AArch64Reg<0, "zt0">;
+
 // SME Register Classes
 
 let isAllocatable = 0 in {
@@ -1416,6 +1426,10 @@ let isAllocatable = 0 in {
   }
 }
 
+def ZTR : RegisterClass<"AArch64", [untyped], 512, (add ZT0)> {
+  let Size = 512;
+  let DiagnosticType = "InvalidLookupTable";
+}
 // SME Register Operands
 // There are three types of SME matrix register operands:
 // * Tiles:
