@@ -52,7 +52,7 @@ value to determine which of the extension's APIs the implementation supports.
 [frame="none",options="header"]
 |======================
 |Value |Description
-|1     |Introduced joint_matrix_bmad and marray wi_data.
+|1     |Introduced `joint_matrix_bmad` and `get_wi_marray()`.
 |======================
 
 #### Valid `joint_matrix` types and shapes
@@ -152,9 +152,9 @@ queue q;
           sycl::sub_group sg = item.get_sub_group();
           const auto m = item.get_group().get_id()[0]; // row id of current submatrix of BIG C matrix
           const auto n = item.get_group().get_id()[1]; // column id of current submatrix of BIG C matrix
-          joint_matrix<precision::b1, use::a, M, K, layout::row_major> sub_a;
-          joint_matrix<precision::b1, use::b, K, N, layout::col_major> sub_b;
-          joint_matrix<int32_t, use::accumulator, M, N> sub_c;
+          joint_matrix<precision::b1, use::a, M, K, layout::row_major> sub_a(sg);
+          joint_matrix<precision::b1, use::b, K, N, layout::col_major> sub_b(sg);
+          joint_matrix<int32_t, use::accumulator, M, N> sub_c(sg);
           joint_matrix_load(sg, sub_c, accC.get_pointer() + (m * M) * Big_N + n * N, Big_N, layout::row_major);
           for (int k = 0; k < Sub_Tiles_K; k++) { // row/col id of current submatrix of BIG A/B matrices
             joint_matrix_load(sg, sub_a, accA.get_pointer() + (k * (K / 32)) + (m * M * (Big_K / 32)), Big_K);
@@ -165,22 +165,23 @@ queue q;
         });});
 ```
 
-#### `wi_data` as an `marray`
+#### `get_wi_marray()` : `wi_data` as an `marray`
 
-In the Nvidia® Tensor Cores case it is possible to know how many elements are owned by each WI at compile time. Due to this, in the CUDA backend we introduce an `marray` data member, `joint_matrix.wi_marray`, to the `joint_matrix` struct representing the WI portion of the `joint_matrix` owned by each local work item. This enables operations to be identically performed on every element of the `joint_matrix` without requiring a loop. In DPC++ some math functions are optimized for marrays using vectorized instructions. An example is the `fma` SYCL math function, whose usage within the context of the matrix extension is given in the following code snippet:
+In the Nvidia® Tensor Cores case the number of elements that are owned by each Work-Item (WI) is known at compile time. Due to this, in the CUDA backend we introduce a new `joint_matrix` member function, `get_wi_marray()`, that returns an `marray` reference to the WI portion of the `joint_matrix` owned by each local work-item. This enables operations to be identically performed on every element of the `joint_matrix` without requiring a loop. In DPC++ some math functions are optimized for marrays using vectorized instructions. An example is the `fma` SYCL math function, whose usage within the context of the matrix extension is given in the following code snippet:
 
 ```c++
-joint_matrix<T, use::a, M, K, layout::row_major> sub_a;
-joint_matrix<T, use::b, K, N, layout::row_major> sub_b;
-joint_matrix<T, use::accumulator, M, N> sub_c;
-joint_matrix<T, use::accumulator, M, N> sub_d;
+joint_matrix<T, use::a, M, K, layout::row_major> sub_a(sg);
+joint_matrix<T, use::b, K, N, layout::row_major> sub_b(sg);
+joint_matrix<T, use::accumulator, M, N> sub_c(sg);
+joint_matrix<T, use::accumulator, M, N> sub_d(sg);
 joint_matrix_fill(sg, sub_a, -1);
 joint_matrix_fill(sg, sub_b, -1);
 joint_matrix_fill(sg, sub_c, -1);
-sub_d.wi_marray = fma(sub_a.wi_marray, sub_b.wi_marray, sub_c.wi_marray);
+sub_d.get_wi_marray() = fma(sub_a.get_wi_marray(), sub_b.get_wi_marray(), sub_c.get_wi_marray());
 ```
 
-IMPORTANT: `wi_marray` is not available for `precision::b1`.
+IMPORTANT: `get_wi_marray()` is not available for `precision::b1`.
+IMPORTANT: `marray` math functions will not be fully optimized for the cuda backend until the 2023.3 release.
 
 
 ## Revision History
