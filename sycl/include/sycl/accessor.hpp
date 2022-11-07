@@ -1015,7 +1015,6 @@ protected:
 
     size_t Result = 0;
 
-#pragma unroll
     for (int I = 0; I < Dims; ++I) {
       Result = Result * getMemoryRange()[I] + Id[I];
       // We've already adjusted for the accessor's offset in the __init, so
@@ -1087,7 +1086,6 @@ protected:
               range<AdjustedDim> MemRange, id<AdjustedDim> Offset) {
     MData = Ptr;
 
-#pragma unroll
     for (int I = 0; I < AdjustedDim; ++I) {
 #if __cplusplus >= 201703L
       if constexpr (!(PropertyListT::template has_property<
@@ -2153,7 +2151,6 @@ private:
   size_t getTotalOffset() const {
     size_t TotalOffset = 0;
 
-#pragma unroll
     for (int I = 0; I < Dimensions; ++I) {
       TotalOffset = TotalOffset * impl.MemRange[I];
 #if __cplusplus >= 201703L
@@ -2421,7 +2418,6 @@ protected:
               range<AdjustedDim>, id<AdjustedDim>) {
     MData = Ptr;
 
-#pragma unroll
     for (int I = 0; I < AdjustedDim; ++I)
       getSize()[I] = AccessRange[I];
   }
@@ -2483,7 +2479,8 @@ public:
   local_accessor_base(handler &, const detail::code_location CodeLoc =
                                      detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
-      : impl(range<AdjustedDim>{1}){}
+      : impl(range<AdjustedDim>{1}) {
+  }
 #else
       : LocalAccessorBaseHost(range<3>{1, 1, 1}, AdjustedDim, sizeof(DataT)) {
     detail::constructorNotification(nullptr, LocalAccessorBaseHost::impl.get(),
@@ -2492,11 +2489,10 @@ public:
   }
 #endif
 
-        template <int Dims = Dimensions,
-                  typename = detail::enable_if_t<Dims == 0>>
-        local_accessor_base(handler &, const property_list &propList,
-                            const detail::code_location CodeLoc =
-                                detail::code_location::current())
+  template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 0>>
+  local_accessor_base(
+      handler &, const property_list &propList,
+      const detail::code_location CodeLoc = detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(range<AdjustedDim>{1}) {
     (void)propList;
@@ -2515,7 +2511,8 @@ public:
       range<Dimensions> AllocationSize, handler &,
       const detail::code_location CodeLoc = detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
-      : impl(AllocationSize){}
+      : impl(AllocationSize) {
+  }
 #else
       : LocalAccessorBaseHost(detail::convertToArrayOfN<3, 1>(AllocationSize),
                               AdjustedDim, sizeof(DataT)) {
@@ -2525,12 +2522,11 @@ public:
   }
 #endif
 
-        template <int Dims = Dimensions,
-                  typename = detail::enable_if_t<(Dims > 0)>>
-        local_accessor_base(range<Dimensions> AllocationSize, handler &,
-                            const property_list &propList,
-                            const detail::code_location CodeLoc =
-                                detail::code_location::current())
+  template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 0)>>
+  local_accessor_base(
+      range<Dimensions> AllocationSize, handler &,
+      const property_list &propList,
+      const detail::code_location CodeLoc = detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(AllocationSize) {
     (void)propList;
