@@ -9,11 +9,22 @@
 #ifndef CLANG_MLIR_VALUE_CATEGORY
 #define CLANG_MLIR_VALUE_CATEGORY
 
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Value.h"
 
 // Represents a rhs or lhs value.
 class ValueCategory {
+private:
+  template <typename OpTy>
+  ValueCategory Cast(mlir::OpBuilder &builder, mlir::Type PromotionType) const {
+    if (val.getType() == PromotionType)
+      return *this;
+    return {
+        builder.createOrFold<OpTy>(builder.getUnknownLoc(), PromotionType, val),
+        false};
+  }
+
 public:
   mlir::Value val;
   bool isReference;
@@ -30,6 +41,11 @@ public:
   // TODO: rename to storeVariable?
   void store(mlir::OpBuilder &builder, mlir::Value toStore) const;
   ValueCategory dereference(mlir::OpBuilder &builder) const;
+
+  ValueCategory FPTrunc(mlir::OpBuilder &builder,
+                        mlir::Type PromotionType) const;
+
+  ValueCategory FPExt(mlir::OpBuilder &builder, mlir::Type PromotionType) const;
 };
 
 #endif /* CLANG_MLIR_VALUE_CATEGORY */

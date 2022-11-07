@@ -465,7 +465,17 @@ public:
 
   ValueCategory VisitBinaryOperator(clang::BinaryOperator *BO);
   ValueCategory VisitBinAssign(clang::BinaryOperator *BO);
-  BinOpInfo EmitBinOps(clang::BinaryOperator *E);
+
+  ValueCategory EmitPromoted(clang::Expr *E, clang::QualType PromotionType);
+  ValueCategory EmitPromotedScalarExpr(clang::Expr *E,
+                                       clang::QualType PromotionType);
+  ValueCategory EmitPromotedValue(ValueCategory Result,
+                                  clang::QualType PromotionType);
+  ValueCategory EmitUnPromotedValue(ValueCategory Result,
+                                    clang::QualType PromotionType);
+
+  BinOpInfo EmitBinOps(clang::BinaryOperator *E,
+                       clang::QualType PromotionTy = clang::QualType());
 #define HANDLEBINOP(OP)                                                        \
   ValueCategory EmitBin##OP(const BinOpInfo &E);                               \
   ValueCategory VisitBin##OP(clang::BinaryOperator *E);

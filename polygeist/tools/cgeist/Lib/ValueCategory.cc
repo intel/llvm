@@ -16,6 +16,7 @@
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
 #include "polygeist/Ops.h"
+#include "llvm/Support/WithColor.h"
 
 using namespace mlir;
 using namespace mlir::arith;
@@ -271,4 +272,21 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
   } else {
     store(builder, toStore.getValue(builder));
   }
+}
+
+template <typename OpTy> inline void warnUnconstrainedCast() {
+  llvm::WithColor::warning()
+      << "Creating unconstrained " << OpTy::getOperationName() << "\n";
+}
+
+ValueCategory ValueCategory::FPTrunc(OpBuilder &Builder,
+                                     Type PromotionType) const {
+  warnUnconstrainedCast<arith::TruncFOp>();
+  return Cast<arith::TruncFOp>(Builder, PromotionType);
+}
+
+ValueCategory ValueCategory::FPExt(OpBuilder &Builder,
+                                   Type PromotionType) const {
+  warnUnconstrainedCast<arith::ExtFOp>();
+  return Cast<arith::ExtFOp>(Builder, PromotionType);
 }
