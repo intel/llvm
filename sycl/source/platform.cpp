@@ -8,7 +8,6 @@
 
 #include <detail/backend_impl.hpp>
 #include <detail/config.hpp>
-#include <detail/force_device.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
 #include <sycl/device.hpp>
