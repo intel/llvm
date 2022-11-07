@@ -41,7 +41,7 @@ static cl::opt<bool>
     MemRefFullRank("memref-fullrank", cl::init(false),
                    cl::desc("Get the full rank of the memref."));
 
-static cl::opt<bool> MemRefAbi("memref-abi", cl::init(true),
+static cl::opt<bool> MemRefABI("memref-abi", cl::init(true),
                                cl::desc("Use memrefs when possible"));
 
 static cl::opt<bool>
@@ -1247,7 +1247,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
   if (const auto *DT = dyn_cast<clang::DecayedType>(QT)) {
     bool AssumeRef = false;
     auto MLIRTy = getMLIRType(DT->getOriginalType(), &AssumeRef, AllowMerge);
-    if (MemRefAbi && AssumeRef) {
+    if (MemRefABI && AssumeRef) {
       // Constant array types like `int A[30][20]` will be converted to LLVM
       // type `[20 x i32]* %0`, which has the outermost dimension size erased,
       // and we can only recover to `memref<?x20xi32>` from there. This
@@ -1281,7 +1281,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     bool AssumeRef = false;
     auto SubType =
         getMLIRType(CT->getElementType(), &AssumeRef, /*AllowMerge*/ false);
-    if (MemRefAbi && AllowMerge) {
+    if (MemRefABI && AllowMerge) {
       assert(!AssumeRef);
       if (ImplicitRef)
         *ImplicitRef = true;
@@ -1388,7 +1388,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
       return TypeCache[RT];
     }
 
-    if (!MemRefAbi || NotAllSame || !AllowMerge || InnerLLVM || InnerSYCL)
+    if (!MemRefABI || NotAllSame || !AllowMerge || InnerLLVM || InnerSYCL)
       return LLVM::LLVMStructType::getLiteral(TheModule->getContext(), Types);
 
     if (!Types.size()) {
@@ -1432,7 +1432,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     int64_t Size = -1;
     if (const auto *CAT = dyn_cast<clang::ConstantArrayType>(AT))
       Size = CAT->getSize().getZExtValue();
-    if (MemRefAbi && SubRef) {
+    if (MemRefABI && SubRef) {
       auto MT = ET.cast<MemRefType>();
       auto Shape2 = std::vector<int64_t>(MT.getShape());
       Shape2.insert(Shape2.begin(), Size);
@@ -1442,7 +1442,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
                                    MemRefLayoutAttrInterface(),
                                    MT.getMemorySpace());
     }
-    if (!MemRefAbi || !AllowMerge ||
+    if (!MemRefABI || !AllowMerge ||
         ET.isa<LLVM::LLVMPointerType, LLVM::LLVMArrayType,
                LLVM::LLVMFunctionType, LLVM::LLVMStructType>())
       return LLVM::LLVMArrayType::get(ET, (Size == -1) ? 0 : Size);
@@ -1457,7 +1457,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     bool SubRef = false;
     auto ET = getMLIRType(AT->getElementType(), &SubRef, AllowMerge);
     int64_t Size = AT->getNumElements();
-    if (MemRefAbi && SubRef) {
+    if (MemRefABI && SubRef) {
       auto MT = ET.cast<MemRefType>();
       auto Shape2 = std::vector<int64_t>(MT.getShape());
       Shape2.insert(Shape2.begin(), Size);
@@ -1467,7 +1467,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
                                    MemRefLayoutAttrInterface(),
                                    MT.getMemorySpace());
     }
-    if (!MemRefAbi || !AllowMerge ||
+    if (!MemRefABI || !AllowMerge ||
         ET.isa<LLVM::LLVMPointerType, LLVM::LLVMArrayType,
                LLVM::LLVMFunctionType, LLVM::LLVMStructType>())
       return LLVM::LLVMFixedVectorType::get(ET, Size);
@@ -1508,7 +1508,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     bool SubRef = false;
     auto SubType = getMLIRType(PointeeType, &SubRef, /*AllowMerge*/ true);
 
-    if (!MemRefAbi ||
+    if (!MemRefABI ||
         SubType.isa<LLVM::LLVMArrayType, LLVM::LLVMStructType,
                     LLVM::LLVMPointerType, LLVM::LLVMFunctionType>()) {
       // JLE_QUEL::THOUGHTS
