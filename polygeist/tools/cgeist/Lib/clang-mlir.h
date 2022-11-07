@@ -68,17 +68,17 @@ enum class FunctionContext {
   SYCLDevice ///< SYCL Device function
 };
 
-inline llvm::raw_ostream &operator<<(llvm::raw_ostream &out,
-                                     const FunctionContext &context) {
-  switch (context) {
+inline llvm::raw_ostream &operator<<(llvm::raw_ostream &Out,
+                                     const FunctionContext &Context) {
+  switch (Context) {
   case FunctionContext::Host:
-    out << "Host";
+    Out << "Host";
     break;
   case FunctionContext::SYCLDevice:
-    out << "SYCLDevice";
+    Out << "SYCLDevice";
     break;
   }
-  return out;
+  return Out;
 }
 
 /// class encapsulating a function declaration and its context.
