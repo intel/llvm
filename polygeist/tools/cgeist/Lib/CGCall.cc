@@ -402,9 +402,8 @@ ValueCategory MLIRScanner::CallHelper(
 
   /// Try to emit SYCL operations before creating a CallOp
   mlir::Operation *op = EmitSYCLOps(expr, args);
-  if (!op) {
+  if (!op)
     op = builder.create<CallOp>(loc, tocall, args);
-  }
 
   if (isArrayReturn) {
     // TODO remedy return
@@ -412,11 +411,12 @@ ValueCategory MLIRScanner::CallHelper(
       expr->dump();
     assert(!retReference);
     return ValueCategory(alloc, /*isReference*/ true);
-  } else if (op->getNumResults()) {
+  }
+  if (op->getNumResults()) {
     return ValueCategory(op->getResult(0),
                          /*isReference*/ retReference);
-  } else
-    return nullptr;
+  }
+  return nullptr;
   llvm::errs() << "do not support indirecto call of " << tocall << "\n";
   assert(0 && "no indirect");
 }
@@ -558,11 +558,10 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
                   loc, a1.getType(), op, a1, a0,
                   std::vector<mlir::Value>({getConstantIndex(0)})),
               /*isReference*/ false);
-        else
-          return ValueCategory(
-              builder.create<LLVM::AtomicRMWOp>(loc, a1.getType(), lop, a0, a1,
-                                                LLVM::AtomicOrdering::acq_rel),
-              /*isReference*/ false);
+        return ValueCategory(
+            builder.create<LLVM::AtomicRMWOp>(loc, a1.getType(), lop, a0, a1,
+                                              LLVM::AtomicOrdering::acq_rel),
+            /*isReference*/ false);
       }
     }
 
@@ -706,19 +705,20 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       } else if (T != val.getType())
         val = builder.create<LLVM::BitcastOp>(loc, T, val);
       return ValueCategory(val, /*isRef*/ false);
-    } else {
-      assert(T.isa<MemRefType>());
-      if (val.getType().isa<MemRefType>())
-        val = builder.create<polygeist::Memref2PointerOp>(
-            loc,
-            LLVM::LLVMPointerType::get(
-                builder.getI8Type(),
-                val.getType().cast<MemRefType>().getMemorySpaceAsInt()),
-            val);
-      if (val.getType().isa<LLVM::LLVMPointerType>())
-        val = builder.create<polygeist::Pointer2MemrefOp>(loc, T, val);
-      return ValueCategory(val, /*isRef*/ false);
     }
+    assert(T.isa<MemRefType>());
+
+    if (val.getType().isa<MemRefType>())
+      val = builder.create<polygeist::Memref2PointerOp>(
+          loc,
+          LLVM::LLVMPointerType::get(
+              builder.getI8Type(),
+              val.getType().cast<MemRefType>().getMemorySpaceAsInt()),
+          val);
+    if (val.getType().isa<LLVM::LLVMPointerType>())
+      val = builder.create<polygeist::Pointer2MemrefOp>(loc, T, val);
+    return ValueCategory(val, /*isRef*/ false);
+
     expr->dump();
     llvm::errs() << " val: " << val << " T: " << T << "\n";
     assert(0 && "unhandled builtin addressof");
@@ -748,10 +748,9 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
           return ValueCategory(
               builder.create<LLVM::PowIOp>(loc, mlirType, args[0], args[1]),
               /*isReference*/ false);
-        else
-          return ValueCategory(
-              builder.create<math::PowFOp>(loc, mlirType, args[0], args[1]),
-              /*isReference*/ false);
+        return ValueCategory(
+            builder.create<math::PowFOp>(loc, mlirType, args[0], args[1]),
+            /*isReference*/ false);
       }
     }
 
