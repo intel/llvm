@@ -45,19 +45,19 @@ kernel void test_img2d(write_only image2d_t image_wo, read_write image2d_t image
 // CHECK-SPIRV: ImageWrite [[IMG2D_WO]]
 // CHECK-SPIRV: ImageWrite [[IMG2D_WO]]
 
-// CHECK-LLVM: call spir_func void @_Z12write_imagef14ocl_image2d_woDv2_iDv4_f
-// CHECK-LLVM: call spir_func void @_Z12write_imagei14ocl_image2d_woDv2_iDv4_i
-// CHECK-LLVM: call spir_func void @_Z12write_imagef14ocl_image2d_rwDv2_iDv4_f
-// CHECK-LLVM: call spir_func void @_Z12write_imagei14ocl_image2d_rwDv2_iDv4_i
-// CHECK-LLVM: call spir_func void @_Z12write_imagef14ocl_image2d_woDv2_iiDv4_f
-// CHECK-LLVM: call spir_func void @_Z12write_imagei14ocl_image2d_woDv2_iiDv4_i
+// CHECK-LLVM: call spir_func void @_Z12write_imagef14ocl_image2d_woDv2_iDv4_f(
+// CHECK-LLVM: call spir_func void @_Z12write_imagei14ocl_image2d_woDv2_iDv4_i(
+// CHECK-LLVM: call spir_func void @_Z12write_imagef14ocl_image2d_rwDv2_iDv4_f(
+// CHECK-LLVM: call spir_func void @_Z12write_imagei14ocl_image2d_rwDv2_iDv4_i(
+// CHECK-LLVM: call spir_func void @_Z12write_imagef14ocl_image2d_woDv2_iiDv4_f(
+// CHECK-LLVM: call spir_func void @_Z12write_imagei14ocl_image2d_woDv2_iiDv4_i(
 
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_0_0_0_0_0_1Dv2_iDv4_f
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_0_0_0_0_0_1Dv2_iDv4_i
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_0_0_0_0_0_2Dv2_iDv4_f
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_0_0_0_0_0_2Dv2_iDv4_i
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_0_0_0_0_0_1Dv2_iDv4_fii
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_0_0_0_0_0_1Dv2_iDv4_iii
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_0_0_0_0_0_1Dv2_iDv4_f(
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_0_0_0_0_0_1Dv2_iDv4_ii(
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_0_0_0_0_0_2Dv2_iDv4_f(
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_0_0_0_0_0_2Dv2_iDv4_ii(
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_0_0_0_0_0_1Dv2_iDv4_fii(
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_0_0_0_0_0_1Dv2_iDv4_iii(
 
 kernel void test_img2d_array(write_only image2d_array_t image_wo, read_write image2d_array_t image_rw)
 {
@@ -81,19 +81,19 @@ kernel void test_img2d_array(write_only image2d_array_t image_wo, read_write ima
 // CHECK-SPIRV: ImageWrite [[IMG2D_ARRAY_WO]]
 // CHECK-SPIRV: ImageWrite [[IMG2D_ARRAY_WO]]
 
-// CHECK-LLVM: call spir_func void @_Z12write_imagef20ocl_image2d_array_woDv4_iDv4_f
-// CHECK-LLVM: call spir_func void @_Z12write_imagei20ocl_image2d_array_woDv4_iS0_
-// CHECK-LLVM: call spir_func void @_Z12write_imagef20ocl_image2d_array_rwDv4_iDv4_f
-// CHECK-LLVM: call spir_func void @_Z12write_imagei20ocl_image2d_array_rwDv4_iS0_
-// CHECK-LLVM: call spir_func void @_Z12write_imagef20ocl_image2d_array_woDv4_iiDv4_f
-// CHECK-LLVM: call spir_func void @_Z12write_imagei20ocl_image2d_array_woDv4_iiS0_
+// CHECK-LLVM: call spir_func void @_Z12write_imagef20ocl_image2d_array_woDv4_iDv4_f(
+// CHECK-LLVM: call spir_func void @_Z12write_imagei20ocl_image2d_array_woDv4_iS0_(
+// CHECK-LLVM: call spir_func void @_Z12write_imagef20ocl_image2d_array_rwDv4_iDv4_f(
+// CHECK-LLVM: call spir_func void @_Z12write_imagei20ocl_image2d_array_rwDv4_iS0_(
+// CHECK-LLVM: call spir_func void @_Z12write_imagef20ocl_image2d_array_woDv4_iiDv4_f(
+// CHECK-LLVM: call spir_func void @_Z12write_imagei20ocl_image2d_array_woDv4_iiS0_(
 
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_0_1_0_0_0_1Dv4_iDv4_f
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_0_1_0_0_0_1Dv4_iS2_
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_0_1_0_0_0_2Dv4_iDv4_f
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_0_1_0_0_0_2Dv4_iS2_
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_0_1_0_0_0_1Dv4_iDv4_fii
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_0_1_0_0_0_1Dv4_iS2_ii
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_0_1_0_0_0_1Dv4_iDv4_f(
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_0_1_0_0_0_1Dv4_iS2_i(
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_0_1_0_0_0_2Dv4_iDv4_f(
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_0_1_0_0_0_2Dv4_iS2_i(
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_0_1_0_0_0_1Dv4_iDv4_fii(
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_0_1_0_0_0_1Dv4_iS2_ii(
 
 kernel void test_img1d(write_only image1d_t image_wo, read_write image1d_t image_rw)
 {
@@ -117,19 +117,19 @@ kernel void test_img1d(write_only image1d_t image_wo, read_write image1d_t image
 // CHECK-SPIRV: ImageWrite [[IMG1D_WO]]
 // CHECK-SPIRV: ImageWrite [[IMG1D_WO]]
 
-// CHECK-LLVM: call spir_func void @_Z12write_imagef14ocl_image1d_woiDv4_f
-// CHECK-LLVM: call spir_func void @_Z12write_imagei14ocl_image1d_woiDv4_i
-// CHECK-LLVM: call spir_func void @_Z12write_imagef14ocl_image1d_rwiDv4_f
-// CHECK-LLVM: call spir_func void @_Z12write_imagei14ocl_image1d_rwiDv4_i
-// CHECK-LLVM: call spir_func void @_Z12write_imagef14ocl_image1d_woiiDv4_f
-// CHECK-LLVM: call spir_func void @_Z12write_imagei14ocl_image1d_woiiDv4_i
+// CHECK-LLVM: call spir_func void @_Z12write_imagef14ocl_image1d_woiDv4_f(
+// CHECK-LLVM: call spir_func void @_Z12write_imagei14ocl_image1d_woiDv4_i(
+// CHECK-LLVM: call spir_func void @_Z12write_imagef14ocl_image1d_rwiDv4_f(
+// CHECK-LLVM: call spir_func void @_Z12write_imagei14ocl_image1d_rwiDv4_i(
+// CHECK-LLVM: call spir_func void @_Z12write_imagef14ocl_image1d_woiiDv4_f(
+// CHECK-LLVM: call spir_func void @_Z12write_imagei14ocl_image1d_woiiDv4_i(
 
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_0_0_0_0_0_0_1iDv4_f
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_0_0_0_0_0_0_1iDv4_i
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_0_0_0_0_0_0_2iDv4_f
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_0_0_0_0_0_0_2iDv4_i
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_0_0_0_0_0_0_1iDv4_fii
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_0_0_0_0_0_0_1iDv4_iii
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_0_0_0_0_0_0_1iDv4_f(
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_0_0_0_0_0_0_1iDv4_ii(
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_0_0_0_0_0_0_2iDv4_f(
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_0_0_0_0_0_0_2iDv4_ii(
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_0_0_0_0_0_0_1iDv4_fii(
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_0_0_0_0_0_0_1iDv4_iii(
 
 kernel void test_img1d_buffer(write_only image1d_buffer_t image_wo, read_write image1d_buffer_t image_rw)
 {
@@ -147,15 +147,15 @@ kernel void test_img1d_buffer(write_only image1d_buffer_t image_wo, read_write i
 // CHECK-SPIRV: ImageWrite [[IMG1D_BUFFER_RW]]
 // CHECK-SPIRV: ImageWrite [[IMG1D_BUFFER_RW]]
 
-// CHECK-LLVM: call spir_func void @_Z12write_imagef21ocl_image1d_buffer_woiDv4_f
-// CHECK-LLVM: call spir_func void @_Z12write_imagei21ocl_image1d_buffer_woiDv4_i
-// CHECK-LLVM: call spir_func void @_Z12write_imagef21ocl_image1d_buffer_rwiDv4_f
-// CHECK-LLVM: call spir_func void @_Z12write_imagei21ocl_image1d_buffer_rwiDv4_i
+// CHECK-LLVM: call spir_func void @_Z12write_imagef21ocl_image1d_buffer_woiDv4_f(
+// CHECK-LLVM: call spir_func void @_Z12write_imagei21ocl_image1d_buffer_woiDv4_i(
+// CHECK-LLVM: call spir_func void @_Z12write_imagef21ocl_image1d_buffer_rwiDv4_f(
+// CHECK-LLVM: call spir_func void @_Z12write_imagei21ocl_image1d_buffer_rwiDv4_i(
 
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_5_0_0_0_0_0_1iDv4_f
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_5_0_0_0_0_0_1iDv4_i
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_5_0_0_0_0_0_2iDv4_f
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_5_0_0_0_0_0_2iDv4_i
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_5_0_0_0_0_0_1iDv4_f(
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_5_0_0_0_0_0_1iDv4_ii(
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_5_0_0_0_0_0_2iDv4_f(
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_5_0_0_0_0_0_2iDv4_ii(
 
 kernel void test_img1d_array(write_only image1d_array_t image_wo, read_write image1d_array_t image_rw)
 {
@@ -179,19 +179,19 @@ kernel void test_img1d_array(write_only image1d_array_t image_wo, read_write ima
 // CHECK-SPIRV: ImageWrite [[IMG1D_ARRAY_WO]]
 // CHECK-SPIRV: ImageWrite [[IMG1D_ARRAY_WO]]
 
-// CHECK-LLVM: call spir_func void @_Z12write_imagef20ocl_image1d_array_woDv2_iDv4_f
-// CHECK-LLVM: call spir_func void @_Z12write_imagei20ocl_image1d_array_woDv2_iDv4_i
-// CHECK-LLVM: call spir_func void @_Z12write_imagef20ocl_image1d_array_rwDv2_iDv4_f
-// CHECK-LLVM: call spir_func void @_Z12write_imagei20ocl_image1d_array_rwDv2_iDv4_i
-// CHECK-LLVM: call spir_func void @_Z12write_imagef20ocl_image1d_array_woDv2_iiDv4_f
-// CHECK-LLVM: call spir_func void @_Z12write_imagei20ocl_image1d_array_woDv2_iiDv4_i
+// CHECK-LLVM: call spir_func void @_Z12write_imagef20ocl_image1d_array_woDv2_iDv4_f(
+// CHECK-LLVM: call spir_func void @_Z12write_imagei20ocl_image1d_array_woDv2_iDv4_i(
+// CHECK-LLVM: call spir_func void @_Z12write_imagef20ocl_image1d_array_rwDv2_iDv4_f(
+// CHECK-LLVM: call spir_func void @_Z12write_imagei20ocl_image1d_array_rwDv2_iDv4_i(
+// CHECK-LLVM: call spir_func void @_Z12write_imagef20ocl_image1d_array_woDv2_iiDv4_f(
+// CHECK-LLVM: call spir_func void @_Z12write_imagei20ocl_image1d_array_woDv2_iiDv4_i(
 
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_0_0_1_0_0_0_1Dv2_iDv4_f
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_0_0_1_0_0_0_1Dv2_iDv4_i
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_0_0_1_0_0_0_2Dv2_iDv4_f
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_0_0_1_0_0_0_2Dv2_iDv4_i
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_0_0_1_0_0_0_1Dv2_iDv4_fii
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_0_0_1_0_0_0_1Dv2_iDv4_iii
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_0_0_1_0_0_0_1Dv2_iDv4_f(
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_0_0_1_0_0_0_1Dv2_iDv4_ii(
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_0_0_1_0_0_0_2Dv2_iDv4_f(
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_0_0_1_0_0_0_2Dv2_iDv4_ii(
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_0_0_1_0_0_0_1Dv2_iDv4_fii(
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_0_0_1_0_0_0_1Dv2_iDv4_iii(
 
 kernel void test_img2d_depth(write_only image2d_depth_t image_wo)
 {
@@ -208,13 +208,13 @@ kernel void test_img2d_depth(write_only image2d_depth_t image_wo)
 // CHECK-SPIRV: ImageWrite [[IMG2D_DEPTH_WO]]
 // CHECK-SPIRV: ImageWrite [[IMG2D_DEPTH_WO]]
 
-// CHECK-LLVM: call spir_func void @_Z12write_imagef20ocl_image2d_depth_woDv2_if
-// CHECK-LLVM: call spir_func void @_Z12write_imagef20ocl_image2d_depth_woDv2_if
-// CHECK-LLVM: call spir_func void @_Z12write_imagef20ocl_image2d_depth_woDv2_iif
+// CHECK-LLVM: call spir_func void @_Z12write_imagef20ocl_image2d_depth_woDv2_if(
+// CHECK-LLVM: call spir_func void @_Z12write_imagef20ocl_image2d_depth_woDv2_if(
+// CHECK-LLVM: call spir_func void @_Z12write_imagef20ocl_image2d_depth_woDv2_iif(
 
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_1_0_0_0_0_1Dv2_if
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_1_0_0_0_0_1Dv2_if
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_1_0_0_0_0_1Dv2_ifii
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_1_0_0_0_0_1Dv2_if(
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_1_0_0_0_0_1Dv2_if(
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_1_0_0_0_0_1Dv2_ifii(
 
 kernel void test_img2d_array_depth(write_only image2d_array_depth_t image_wo)
 {
@@ -231,13 +231,13 @@ kernel void test_img2d_array_depth(write_only image2d_array_depth_t image_wo)
 // CHECK-SPIRV: ImageWrite [[IMG2D_ARRAY_DEPTH_WO]]
 // CHECK-SPIRV: ImageWrite [[IMG2D_ARRAY_DEPTH_WO]]
 
-// CHECK-LLVM: call spir_func void @_Z12write_imagef26ocl_image2d_array_depth_woDv4_if
-// CHECK-LLVM: call spir_func void @_Z12write_imagef26ocl_image2d_array_depth_woDv4_if
-// CHECK-LLVM: call spir_func void @_Z12write_imagef26ocl_image2d_array_depth_woDv4_iif
+// CHECK-LLVM: call spir_func void @_Z12write_imagef26ocl_image2d_array_depth_woDv4_if(
+// CHECK-LLVM: call spir_func void @_Z12write_imagef26ocl_image2d_array_depth_woDv4_if(
+// CHECK-LLVM: call spir_func void @_Z12write_imagef26ocl_image2d_array_depth_woDv4_iif(
 
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_1_1_0_0_0_1Dv4_if
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_1_1_0_0_0_1Dv4_if
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_1_1_0_0_0_1Dv4_ifii
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_1_1_0_0_0_1Dv4_if(
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_1_1_0_0_0_1Dv4_if(
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_1_1_0_0_0_1Dv4_ifii(
 
 kernel void test_img3d(write_only image3d_t image_wo, read_write image3d_t image_rw)
 {
@@ -261,16 +261,16 @@ kernel void test_img3d(write_only image3d_t image_wo, read_write image3d_t image
 // CHECK-SPIRV: ImageWrite [[IMG3D_WO]]
 // CHECK-SPIRV: ImageWrite [[IMG3D_WO]]
 
-// CHECK-LLVM: call spir_func void @_Z12write_imagef14ocl_image3d_woDv4_iDv4_f
-// CHECK-LLVM: call spir_func void @_Z12write_imagei14ocl_image3d_woDv4_iS0_
-// CHECK-LLVM: call spir_func void @_Z12write_imagef14ocl_image3d_rwDv4_iDv4_f
-// CHECK-LLVM: call spir_func void @_Z12write_imagei14ocl_image3d_rwDv4_iS0_
-// CHECK-LLVM: call spir_func void @_Z12write_imagef14ocl_image3d_woDv4_iiDv4_f
-// CHECK-LLVM: call spir_func void @_Z12write_imagei14ocl_image3d_woDv4_iiS0_
+// CHECK-LLVM: call spir_func void @_Z12write_imagef14ocl_image3d_woDv4_iDv4_f(
+// CHECK-LLVM: call spir_func void @_Z12write_imagei14ocl_image3d_woDv4_iS0_(
+// CHECK-LLVM: call spir_func void @_Z12write_imagef14ocl_image3d_rwDv4_iDv4_f(
+// CHECK-LLVM: call spir_func void @_Z12write_imagei14ocl_image3d_rwDv4_iS0_(
+// CHECK-LLVM: call spir_func void @_Z12write_imagef14ocl_image3d_woDv4_iiDv4_f(
+// CHECK-LLVM: call spir_func void @_Z12write_imagei14ocl_image3d_woDv4_iiS0_(
 
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_2_0_0_0_0_0_1Dv4_iDv4_f
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_2_0_0_0_0_0_1Dv4_iS2_
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_2_0_0_0_0_0_2Dv4_iDv4_f
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_2_0_0_0_0_0_2Dv4_iS2_
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_2_0_0_0_0_0_1Dv4_iDv4_fii
-// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_2_0_0_0_0_0_1Dv4_iS2_ii
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_2_0_0_0_0_0_1Dv4_iDv4_f(
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_2_0_0_0_0_0_1Dv4_iS2_i(
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_2_0_0_0_0_0_2Dv4_iDv4_f(
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_2_0_0_0_0_0_2Dv4_iS2_i(
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_2_0_0_0_0_0_1Dv4_iDv4_fii(
+// CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_2_0_0_0_0_0_1Dv4_iS2_ii(

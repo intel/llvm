@@ -15,6 +15,7 @@
 #include "flang/Lower/CallInterface.h"
 #include "flang/Lower/Coarray.h"
 #include "flang/Lower/ConvertExpr.h"
+#include "flang/Lower/ConvertExprToHLFIR.h"
 #include "flang/Lower/ConvertType.h"
 #include "flang/Lower/ConvertVariable.h"
 #include "flang/Lower/HostAssociations.h"
@@ -31,6 +32,8 @@
 #include "flang/Optimizer/Builder/Character.h"
 #include "flang/Optimizer/Builder/FIRBuilder.h"
 #include "flang/Optimizer/Builder/Runtime/Character.h"
+#include "flang/Optimizer/Builder/Runtime/Derived.h"
+#include "flang/Optimizer/Builder/Runtime/EnvironmentDefaults.h"
 #include "flang/Optimizer/Builder/Runtime/Ragged.h"
 #include "flang/Optimizer/Builder/Todo.h"
 #include "flang/Optimizer/Dialect/FIRAttr.h"
@@ -223,9 +226,12 @@ public:
     //  - Define module variables and OpenMP/OpenACC declarative construct so
     //    that they are available before lowering any function that may use
     //    them.
+    bool hasMainProgram = false;
     for (Fortran::lower::pft::Program::Units &u : pft.getUnits()) {
       std::visit(Fortran::common::visitors{
                      [&](Fortran::lower::pft::FunctionLikeUnit &f) {
+                       if (f.isMainProgram())
+                         hasMainProgram = true;
                        declareFunction(f);
                      },
                      [&](Fortran::lower::pft::ModuleLikeUnit &m) {
@@ -262,6 +268,22 @@ public:
     /// processed.
     createGlobalOutsideOfFunctionLowering(
         [&]() { runtimeTypeInfoConverter.createTypeInfoGlobals(*this); });
+
+    // Create the list of any environment defaults for the runtime to set. The
+    // runtime default list is only created if there is a main program to ensure
+    // it only happens once and to provide consistent results if multiple files
+    // are compiled separately.
+    if (hasMainProgram)
+      createGlobalOutsideOfFunctionLowering([&]() {
+        // FIXME: Ideally, this would create a call to a runtime function
+        // accepting the list of environment defaults. That way, we would not
+        // need to add an extern pointer to the runtime and said pointer would
+        // not need to be generated even if no defaults are specified.
+        // However, generating main or changing when the runtime reads
+        // environment variables is required to do so.
+        fir::runtime::genEnvironmentDefaults(*builder, toLocation(),
+                                             bridge.getEnvironmentDefaults());
+      });
   }
 
   /// Declare a function.
@@ -396,23 +418,87 @@ public:
     return iter->second;
   }
 
-  fir::ExtendedValue genExprAddr(const Fortran::lower::SomeExpr &expr,
-                                 Fortran::lower::StatementContext &context,
-                                 mlir::Location *loc = nullptr) override final {
-    return Fortran::lower::createSomeExtendedAddress(
-        loc ? *loc : toLocation(), *this, expr, localSymbols, context);
+  fir::ExtendedValue
+  translateToExtendedValue(mlir::Location loc, hlfir::FortranEntity entity,
+                           Fortran::lower::StatementContext &context) {
+    auto [exv, exvCleanup] =
+        hlfir::translateToExtendedValue(loc, getFirOpBuilder(), entity);
+    if (exvCleanup)
+      context.attachCleanup(*exvCleanup);
+    return exv;
   }
+
+  fir::ExtendedValue
+  genExprAddr(const Fortran::lower::SomeExpr &expr,
+              Fortran::lower::StatementContext &context,
+              mlir::Location *locPtr = nullptr) override final {
+    mlir::Location loc = locPtr ? *locPtr : toLocation();
+    if (bridge.getLoweringOptions().getLowerToHighLevelFIR()) {
+      hlfir::FortranEntity loweredExpr = Fortran::lower::convertExprToHLFIR(
+          loc, *this, expr, localSymbols, context);
+      if (fir::FortranVariableOpInterface variable =
+              loweredExpr.getIfVariable())
+        if (!variable.isBox())
+          return translateToExtendedValue(loc, loweredExpr, context);
+      TODO(loc, "lower expr that is not a scalar or explicit shape array "
+                "variable to HLFIR address");
+    }
+    return Fortran::lower::createSomeExtendedAddress(loc, *this, expr,
+                                                     localSymbols, context);
+  }
+
   fir::ExtendedValue
   genExprValue(const Fortran::lower::SomeExpr &expr,
                Fortran::lower::StatementContext &context,
-               mlir::Location *loc = nullptr) override final {
-    return Fortran::lower::createSomeExtendedExpression(
-        loc ? *loc : toLocation(), *this, expr, localSymbols, context);
+               mlir::Location *locPtr = nullptr) override final {
+    mlir::Location loc = locPtr ? *locPtr : toLocation();
+    if (bridge.getLoweringOptions().getLowerToHighLevelFIR()) {
+      hlfir::FortranEntity loweredExpr = Fortran::lower::convertExprToHLFIR(
+          loc, *this, expr, localSymbols, context);
+      fir::ExtendedValue exv =
+          translateToExtendedValue(loc, loweredExpr, context);
+      // Load scalar references to integer, logical, real, or complex value
+      // to an mlir value, dereference allocatable and pointers, and get rid
+      // of fir.box that are no needed or create a copy into contiguous memory.
+      return exv.match(
+          [&](const fir::UnboxedValue &box) -> fir::ExtendedValue {
+            if (mlir::Type elementType = fir::dyn_cast_ptrEleTy(box.getType()))
+              if (fir::isa_trivial(elementType))
+                return getFirOpBuilder().create<fir::LoadOp>(loc, box);
+            return box;
+          },
+          [&](const fir::CharBoxValue &box) -> fir::ExtendedValue {
+            return box;
+          },
+          [&](const fir::ArrayBoxValue &box) -> fir::ExtendedValue {
+            return box;
+          },
+          [&](const fir::CharArrayBoxValue &box) -> fir::ExtendedValue {
+            return box;
+          },
+          [&](const auto &) -> fir::ExtendedValue {
+            TODO(loc, "lower descriptor designator to HLFIR value");
+          });
+    }
+    return Fortran::lower::createSomeExtendedExpression(loc, *this, expr,
+                                                        localSymbols, context);
   }
 
   fir::ExtendedValue
   genExprBox(mlir::Location loc, const Fortran::lower::SomeExpr &expr,
              Fortran::lower::StatementContext &stmtCtx) override final {
+    if (bridge.getLoweringOptions().getLowerToHighLevelFIR()) {
+      hlfir::FortranEntity loweredExpr = Fortran::lower::convertExprToHLFIR(
+          loc, *this, expr, localSymbols, stmtCtx);
+      if (fir::FortranVariableOpInterface variable =
+              loweredExpr.getIfVariable())
+        if (variable.isBoxValue() || !variable.isBoxAddress()) {
+          auto exv = translateToExtendedValue(loc, loweredExpr, stmtCtx);
+          return fir::factory::createBoxValue(getFirOpBuilder(), loc, exv);
+        }
+      TODO(loc,
+           "lower expression value or pointer and allocatable to HLFIR box");
+    }
     return Fortran::lower::createBoxValue(loc, *this, expr, localSymbols,
                                           stmtCtx);
   }
@@ -516,10 +602,9 @@ public:
     return bindIfNewSymbol(sym, exv);
   }
 
-  // FIXME: Generalize this function, so that lastPrivBlock can be removed
-  void
-  copyHostAssociateVar(const Fortran::semantics::Symbol &sym,
-                       mlir::Block *lastPrivBlock = nullptr) override final {
+  void copyHostAssociateVar(
+      const Fortran::semantics::Symbol &sym,
+      mlir::OpBuilder::InsertPoint *copyAssignIP = nullptr) override final {
     // 1) Fetch the original copy of the variable.
     assert(sym.has<Fortran::semantics::HostAssocDetails>() &&
            "No host-association found");
@@ -537,13 +622,14 @@ public:
 
     // 3) Perform the assignment.
     mlir::OpBuilder::InsertPoint insPt = builder->saveInsertionPoint();
-    if (lastPrivBlock)
-      builder->setInsertionPointToStart(lastPrivBlock);
+    if (copyAssignIP && copyAssignIP->isSet())
+      builder->restoreInsertionPoint(*copyAssignIP);
     else
       builder->setInsertionPointAfter(fir::getBase(exv).getDefiningOp());
 
     fir::ExtendedValue lhs, rhs;
-    if (lastPrivBlock) {
+    if (copyAssignIP && copyAssignIP->isSet() &&
+        sym.test(Fortran::semantics::Symbol::Flag::OmpLastPrivate)) {
       // lastprivate case
       lhs = hexv;
       rhs = exv;
@@ -568,7 +654,8 @@ public:
       builder->create<fir::StoreOp>(loc, loadVal, fir::getBase(lhs));
     }
 
-    if (lastPrivBlock)
+    if (copyAssignIP && copyAssignIP->isSet() &&
+        sym.test(Fortran::semantics::Symbol::Flag::OmpLastPrivate))
       builder->restoreInsertionPoint(insPt);
   }
 
@@ -2381,9 +2468,16 @@ private:
               std::optional<Fortran::evaluate::DynamicType> rhsType =
                   assign.rhs.GetType();
               // Polymorphic lhs/rhs may need more care. See F2018 10.2.2.3.
-              if ((lhsType && lhsType->IsPolymorphic()) ||
+              // If the pointer object is not polymorphic (7.3.2.3) and the
+              // pointer target is polymorphic with dynamic type that differs
+              // from its declared type, the assignment target is the ancestor
+              // component of the pointer target that has the type of the
+              // pointer object. Otherwise, the assignment target is the pointer
+              // target.
+              if ((lhsType && !lhsType->IsPolymorphic()) &&
                   (rhsType && rhsType->IsPolymorphic()))
-                TODO(loc, "pointer assignment involving polymorphic entity");
+                TODO(loc, "non-polymorphic pointer assignment with polymorphic "
+                          "entity on rhs");
 
               llvm::SmallVector<mlir::Value> lbounds;
               for (const Fortran::evaluate::ExtentExpr &lbExpr : lbExprs)
@@ -2708,6 +2802,14 @@ private:
     addSymbol(sym, res);
   }
 
+  void mapTrivialByValue(const Fortran::semantics::Symbol &sym,
+                         mlir::Value val) {
+    mlir::Location loc = toLocation();
+    mlir::Value res = builder->create<fir::AllocaOp>(loc, val.getType());
+    builder->create<fir::StoreOp>(loc, val, res);
+    addSymbol(sym, res);
+  }
+
   /// Map mlir function block arguments to the corresponding Fortran dummy
   /// variables. When the result is passed as a hidden argument, the Fortran
   /// result is also mapped. The symbol map is used to hold this mapping.
@@ -2735,6 +2837,10 @@ private:
             if (Fortran::semantics::IsBuiltinCPtr(arg.entity->get()) &&
                 Fortran::lower::isCPtrArgByValueType(argTy)) {
               mapCPtrArgByValue(arg.entity->get(), arg.firArgument);
+              return;
+            }
+            if (fir::isa_trivial(argTy)) {
+              mapTrivialByValue(arg.entity->get(), arg.firArgument);
               return;
             }
           }
@@ -2845,12 +2951,16 @@ private:
     // is not something that fits well with equivalence lowering.
     for (const Fortran::lower::pft::Variable &altResult :
          deferredFuncResultList) {
-      if (std::optional<Fortran::lower::CalleeInterface::PassedEntity>
-              passedResult = callee.getPassedResult())
-        addSymbol(altResult.getSymbol(), resultArg.getAddr());
       Fortran::lower::StatementContext stmtCtx;
-      Fortran::lower::mapSymbolAttributes(*this, altResult, localSymbols,
-                                          stmtCtx, primaryFuncResultStorage);
+      if (std::optional<Fortran::lower::CalleeInterface::PassedEntity>
+              passedResult = callee.getPassedResult()) {
+        addSymbol(altResult.getSymbol(), resultArg.getAddr());
+        Fortran::lower::mapSymbolAttributes(*this, altResult, localSymbols,
+                                            stmtCtx);
+      } else {
+        Fortran::lower::mapSymbolAttributes(*this, altResult, localSymbols,
+                                            stmtCtx, primaryFuncResultStorage);
+      }
     }
 
     // If this is a host procedure with host associations, then create the tuple
@@ -3346,11 +3456,12 @@ Fortran::lower::LoweringBridge::LoweringBridge(
     const Fortran::evaluate::TargetCharacteristics &targetCharacteristics,
     const Fortran::parser::AllCookedSources &cooked, llvm::StringRef triple,
     fir::KindMapping &kindMap,
-    const Fortran::lower::LoweringOptions &loweringOptions)
+    const Fortran::lower::LoweringOptions &loweringOptions,
+    const std::vector<Fortran::lower::EnvironmentDefault> &envDefaults)
     : semanticsContext{semanticsContext}, defaultKinds{defaultKinds},
       intrinsics{intrinsics}, targetCharacteristics{targetCharacteristics},
       cooked{&cooked}, context{context}, kindMap{kindMap},
-      loweringOptions{loweringOptions} {
+      loweringOptions{loweringOptions}, envDefaults{envDefaults} {
   // Register the diagnostic handler.
   context.getDiagEngine().registerHandler([](mlir::Diagnostic &diag) {
     llvm::raw_ostream &os = llvm::errs();

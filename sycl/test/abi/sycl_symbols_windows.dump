@@ -760,6 +760,7 @@
 ?fill_usm@MemoryManager@detail@_V1@sycl@@SAXPEAXV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_KHV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@PEAPEAU_pi_event@@@Z
 ?finalize@handler@_V1@sycl@@AEAA?AVevent@23@XZ
 ?find_device_intersection@detail@_V1@sycl@@YA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@AEBV?$vector@V?$kernel_bundle@$00@_V1@sycl@@V?$allocator@V?$kernel_bundle@$00@_V1@sycl@@@std@@@5@@Z
+?flush@stream_impl@detail@_V1@sycl@@QEAAXAEBV?$shared_ptr@Vevent_impl@detail@_V1@sycl@@@std@@@Z
 ?flush@stream_impl@detail@_V1@sycl@@QEAAXXZ
 ?free@_V1@sycl@@YAXPEAXAEBVcontext@12@AEBUcode_location@detail@12@@Z
 ?free@_V1@sycl@@YAXPEAXAEBVqueue@12@AEBUcode_location@detail@12@@Z

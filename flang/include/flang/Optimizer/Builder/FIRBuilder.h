@@ -176,10 +176,11 @@ public:
   fir::GlobalOp createGlobal(mlir::Location loc, mlir::Type type,
                              llvm::StringRef name,
                              mlir::StringAttr linkage = {},
-                             mlir::Attribute value = {}, bool isConst = false);
+                             mlir::Attribute value = {}, bool isConst = false,
+                             bool isTarget = false);
 
   fir::GlobalOp createGlobal(mlir::Location loc, mlir::Type type,
-                             llvm::StringRef name, bool isConst,
+                             llvm::StringRef name, bool isConst, bool isTarget,
                              std::function<void(FirOpBuilder &)> bodyBuilder,
                              mlir::StringAttr linkage = {});
 
@@ -188,7 +189,8 @@ public:
                                      llvm::StringRef name,
                                      mlir::StringAttr linkage = {},
                                      mlir::Attribute value = {}) {
-    return createGlobal(loc, type, name, linkage, value, /*isConst=*/true);
+    return createGlobal(loc, type, name, linkage, value, /*isConst=*/true,
+                        /*isTarget=*/false);
   }
 
   fir::GlobalOp
@@ -196,8 +198,8 @@ public:
                        llvm::StringRef name,
                        std::function<void(FirOpBuilder &)> bodyBuilder,
                        mlir::StringAttr linkage = {}) {
-    return createGlobal(loc, type, name, /*isConst=*/true, bodyBuilder,
-                        linkage);
+    return createGlobal(loc, type, name, /*isConst=*/true, /*isTarget=*/false,
+                        bodyBuilder, linkage);
   }
 
   /// Convert a StringRef string into a fir::StringLitOp.
@@ -292,6 +294,7 @@ public:
   mlir::Value genShape(mlir::Location loc, llvm::ArrayRef<mlir::Value> shift,
                        llvm::ArrayRef<mlir::Value> exts);
   mlir::Value genShape(mlir::Location loc, llvm::ArrayRef<mlir::Value> exts);
+  mlir::Value genShift(mlir::Location loc, llvm::ArrayRef<mlir::Value> shift);
 
   /// Create one of the shape ops given an extended value. For a boxed value,
   /// this may create a `fir.shift` op.
@@ -308,7 +311,8 @@ public:
   /// a memory reference type.
   /// Array entities are boxed with a shape and possibly a shift. Character
   /// entities are boxed with a LEN parameter.
-  mlir::Value createBox(mlir::Location loc, const fir::ExtendedValue &exv);
+  mlir::Value createBox(mlir::Location loc, const fir::ExtendedValue &exv,
+                        bool isPolymorphic = false);
 
   /// Create constant i1 with value 1. if \p b is true or 0. otherwise
   mlir::Value createBool(mlir::Location loc, bool b) {
@@ -557,6 +561,14 @@ mlir::Value genMaxWithZero(fir::FirOpBuilder &builder, mlir::Location loc,
 mlir::Value genCPtrOrCFunptrAddr(fir::FirOpBuilder &builder, mlir::Location loc,
                                  mlir::Value cPtr, mlir::Type ty);
 
+/// Get the C address value.
+mlir::Value genCPtrOrCFunptrValue(fir::FirOpBuilder &builder,
+                                  mlir::Location loc, mlir::Value cPtr);
+
+/// Create a fir.box from a fir::ExtendedValue and wrap it in a fir::BoxValue
+/// to keep all the lower bound and explicit parameter information.
+fir::BoxValue createBoxValue(fir::FirOpBuilder &builder, mlir::Location loc,
+                             const fir::ExtendedValue &exv);
 } // namespace fir::factory
 
 #endif // FORTRAN_OPTIMIZER_BUILDER_FIRBUILDER_H

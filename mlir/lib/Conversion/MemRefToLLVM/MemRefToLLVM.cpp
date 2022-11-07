@@ -961,6 +961,10 @@ struct MemRefCopyOpLowering : public ConvertOpToLLVMPattern<memref::CopyOp> {
                                             ValueRange{rank, voidPtr});
     };
 
+    // Save stack position before promoting descriptors
+    auto stackSaveOp =
+        rewriter.create<LLVM::StackSaveOp>(loc, getVoidPtrType());
+
     Value unrankedSource = srcType.hasRank()
                                ? makeUnranked(adaptor.getSource(), srcType)
                                : adaptor.getSource();
@@ -990,6 +994,10 @@ struct MemRefCopyOpLowering : public ConvertOpToLLVMPattern<memref::CopyOp> {
         op->getParentOfType<ModuleOp>(), getIndexType(), sourcePtr.getType());
     rewriter.create<LLVM::CallOp>(loc, copyFn,
                                   ValueRange{elemSize, sourcePtr, targetPtr});
+
+    // Restore stack used for descriptors
+    rewriter.create<LLVM::StackRestoreOp>(loc, stackSaveOp);
+
     rewriter.eraseOp(op);
 
     return success();
@@ -1518,6 +1526,7 @@ static void fillInStridesForCollapsedMemDescriptor(
     ConversionPatternRewriter &rewriter, Location loc, Operation *op,
     TypeConverter *typeConverter, MemRefType srcType, MemRefDescriptor &srcDesc,
     MemRefDescriptor &dstDesc, ArrayRef<ReassociationIndices> reassociation) {
+  auto llvmIndexType = typeConverter->convertType(rewriter.getIndexType());
   // See comments for computeCollapsedLayoutMap for details on how the strides
   // are calculated.
   auto srcShape = srcType.getShape();
@@ -1579,8 +1588,8 @@ static void fillInStridesForCollapsedMemDescriptor(
           rewriter.create<LLVM::BrOp>(loc, srcStride, continueBlock);
           break;
         }
-        Value one = rewriter.create<LLVM::ConstantOp>(
-            loc, rewriter.getI64Type(), rewriter.getI32IntegerAttr(1));
+        Value one = rewriter.create<LLVM::ConstantOp>(loc, llvmIndexType,
+                                                      rewriter.getIndexAttr(1));
         Value predNeOne = rewriter.create<LLVM::ICmpOp>(
             loc, LLVM::ICmpPredicate::ne, srcDesc.size(rewriter, loc, srcIndex),
             one);
@@ -2089,6 +2098,50 @@ public:
   }
 };
 
+/// Materialize the MemRef descriptor represented by the results of
+/// ExtractStridedMetadataOp.
+class ExtractStridedMetadataOpLowering
+    : public ConvertOpToLLVMPattern<memref::ExtractStridedMetadataOp> {
+public:
+  using ConvertOpToLLVMPattern<
+      memref::ExtractStridedMetadataOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(memref::ExtractStridedMetadataOp extractStridedMetadataOp,
+                  OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    if (!LLVM::isCompatibleType(adaptor.getOperands().front().getType()))
+      return failure();
+
+    // Create the descriptor.
+    MemRefDescriptor sourceMemRef(adaptor.getOperands().front());
+    Location loc = extractStridedMetadataOp.getLoc();
+    Value source = extractStridedMetadataOp.getSource();
+
+    auto sourceMemRefType = source.getType().cast<MemRefType>();
+    int64_t rank = sourceMemRefType.getRank();
+    SmallVector<Value> results;
+    results.reserve(2 + rank * 2);
+
+    // Base buffer.
+    results.push_back(sourceMemRef.allocatedPtr(rewriter, loc));
+
+    // Offset.
+    results.push_back(sourceMemRef.offset(rewriter, loc));
+
+    // Sizes.
+    for (unsigned i = 0; i < rank; ++i)
+      results.push_back(sourceMemRef.size(rewriter, loc, i));
+    // Strides.
+    for (unsigned i = 0; i < rank; ++i)
+      results.push_back(sourceMemRef.stride(rewriter, loc, i));
+
+    rewriter.replaceOp(extractStridedMetadataOp, results);
+    return success();
+  }
+};
+
 } // namespace
 
 void mlir::populateMemRefToLLVMConversionPatterns(LLVMTypeConverter &converter,
@@ -2101,6 +2154,7 @@ void mlir::populateMemRefToLLVMConversionPatterns(LLVMTypeConverter &converter,
       AssumeAlignmentOpLowering,
       ConvertExtractAlignedPointerAsIndex,
       DimOpLowering,
+      ExtractStridedMetadataOpLowering,
       GenericAtomicRMWOpLowering,
       GlobalMemrefOpLowering,
       GetGlobalMemrefOpLowering,

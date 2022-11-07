@@ -180,6 +180,17 @@ static void setUpFrontendBasedOnAction(FrontendOptions &opts) {
     opts.needProvenanceRangeToCharBlockMappings = true;
 }
 
+/// Parse the argument specified for the -fconvert=<value> option
+static std::optional<const char *> parseConvertArg(const char *s) {
+  return llvm::StringSwitch<std::optional<const char *>>(s)
+      .Case("unknown", "UNKNOWN")
+      .Case("native", "NATIVE")
+      .Case("little-endian", "LITTLE_ENDIAN")
+      .Case("big-endian", "BIG_ENDIAN")
+      .Case("swap", "SWAP")
+      .Default(std::nullopt);
+}
+
 static bool parseFrontendArgs(FrontendOptions &opts, llvm::opt::ArgList &args,
                               clang::DiagnosticsEngine &diags) {
   unsigned numErrorsBefore = diags.getNumErrors();
@@ -397,6 +408,17 @@ static bool parseFrontendArgs(FrontendOptions &opts, llvm::opt::ArgList &args,
     } else {
       opts.fixedFormColumns = columns;
     }
+  }
+
+  // Set conversion based on -fconvert=<value>
+  if (const auto *arg =
+          args.getLastArg(clang::driver::options::OPT_fconvert_EQ)) {
+    const char *argValue = arg->getValue();
+    if (auto convert = parseConvertArg(argValue))
+      opts.envDefaults.push_back({"FORT_CONVERT", *convert});
+    else
+      diags.Report(clang::diag::err_drv_invalid_value)
+          << arg->getAsString(args) << argValue;
   }
 
   // -f{no-}implicit-none
@@ -636,6 +658,42 @@ static bool parseDialectArgs(CompilerInvocation &res, llvm::opt::ArgList &args,
   return diags.getNumErrors() == numErrorsBefore;
 }
 
+/// Parses all floating point related arguments and populates the
+/// CompilerInvocation accordingly.
+/// Returns false if new errors are generated.
+///
+/// \param [out] invoc Stores the processed arguments
+/// \param [in] args The compiler invocation arguments to parse
+/// \param [out] diags DiagnosticsEngine to report erros with
+static bool parseFloatingPointArgs(CompilerInvocation &invoc,
+                                   llvm::opt::ArgList &args,
+                                   clang::DiagnosticsEngine &diags) {
+  LangOptions &opts = invoc.getLangOpts();
+  const unsigned diagUnimplemented = diags.getCustomDiagID(
+      clang::DiagnosticsEngine::Warning, "%0 is not currently implemented");
+
+  if (const llvm::opt::Arg *a =
+          args.getLastArg(clang::driver::options::OPT_ffp_contract)) {
+    const llvm::StringRef val = a->getValue();
+    enum LangOptions::FPModeKind fpContractMode;
+
+    if (val == "off")
+      fpContractMode = LangOptions::FPM_Off;
+    else if (val == "fast")
+      fpContractMode = LangOptions::FPM_Fast;
+    else {
+      diags.Report(clang::diag::err_drv_unsupported_option_argument)
+          << a->getOption().getName() << val;
+      return false;
+    }
+
+    diags.Report(diagUnimplemented) << a->getOption().getName();
+    opts.setFPContractMode(fpContractMode);
+  }
+
+  return true;
+}
+
 bool CompilerInvocation::createFromArgs(
     CompilerInvocation &res, llvm::ArrayRef<const char *> commandLineArgs,
     clang::DiagnosticsEngine &diags) {
@@ -689,6 +747,8 @@ bool CompilerInvocation::createFromArgs(
 
   res.frontendOpts.mlirArgs =
       args.getAllArgValues(clang::driver::options::OPT_mmlir);
+
+  success &= parseFloatingPointArgs(res, args, diags);
 
   return success;
 }
@@ -762,6 +822,11 @@ void CompilerInvocation::setDefaultPredefinitions() {
           Fortran::common::LanguageFeature::OpenMP)) {
     fortranOptions.predefinitions.emplace_back("_OPENMP", "201511");
   }
+  llvm::Triple targetTriple{llvm::Triple(this->targetOpts.triple)};
+  if (targetTriple.getArch() == llvm::Triple::ArchType::x86_64) {
+    fortranOptions.predefinitions.emplace_back("__x86_64__", "1");
+    fortranOptions.predefinitions.emplace_back("__x86_64", "1");
+  }
 }
 
 void CompilerInvocation::setFortranOpts() {
@@ -815,7 +880,7 @@ void CompilerInvocation::setFortranOpts() {
 
 void CompilerInvocation::setSemanticsOpts(
     Fortran::parser::AllCookedSources &allCookedSources) {
-  const auto &fortranOptions = getFortranOpts();
+  auto &fortranOptions = getFortranOpts();
 
   semanticsContext = std::make_unique<semantics::SemanticsContext>(
       getDefaultKinds(), fortranOptions.features, allCookedSources);
@@ -829,8 +894,7 @@ void CompilerInvocation::setSemanticsOpts(
 
   llvm::Triple targetTriple{llvm::Triple(this->targetOpts.triple)};
   // FIXME: Handle real(3) ?
-  if (targetTriple.getArch() != llvm::Triple::ArchType::x86 &&
-      targetTriple.getArch() != llvm::Triple::ArchType::x86_64) {
+  if (targetTriple.getArch() != llvm::Triple::ArchType::x86_64) {
     semanticsContext->targetCharacteristics().DisableType(
         Fortran::common::TypeCategory::Real, /*kind=*/10);
   }

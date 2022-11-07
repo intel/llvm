@@ -100,7 +100,6 @@ public:
   Value *extendBitInstBoolArg(llvm::Instruction *OldInst);
 
   static std::string lowerLLVMIntrinsicName(llvm::IntrinsicInst *II);
-  void adaptStructTypes(llvm::StructType *ST);
   static char ID;
 
 private:

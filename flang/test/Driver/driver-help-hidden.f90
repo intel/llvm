@@ -24,12 +24,14 @@
 ! CHECK-NEXT: Enable the old style PARAMETER statement
 ! CHECK-NEXT: -fbackslash            Specify that backslash in string introduces an escape character
 ! CHECK-NEXT: -fcolor-diagnostics    Enable colors in diagnostics
+! CHECK-NEXT: -fconvert=<value>      Set endian conversion of data for unformatted files
 ! CHECK-NEXT: -fdefault-double-8     Set the default double precision kind to an 8 byte wide type
 ! CHECK-NEXT: -fdefault-integer-8    Set the default integer kind to an 8 byte wide type
 ! CHECK-NEXT: -fdefault-real-8       Set the default real kind to an 8 byte wide type
 ! CHECK-NEXT: -ffixed-form           Process source files in fixed form
 ! CHECK-NEXT: -ffixed-line-length=<value>
 ! CHECK-NEXT: Use <value> as character line width in fixed mode
+! CHECK-NEXT: -ffp-contract=<value> Form fused FP ops (e.g. FMAs)
 ! CHECK-NEXT: -ffree-form            Process source files in free form
 ! CHECK-NEXT: -fimplicit-none        No implicit typing allowed unless overridden by IMPLICIT statements
 ! CHECK-NEXT: -finput-charset=<value> Specify the default character set for source files

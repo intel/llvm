@@ -9,7 +9,6 @@
 #include <detail/backend_impl.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
-#include <detail/force_device.hpp>
 #include <sycl/detail/device_filter.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/device.hpp>
@@ -55,33 +54,19 @@ std::vector<device> device::get_devices(info::device_type deviceType) {
   detail::ods_target_list *OdsTargetList =
       detail::SYCLConfig<detail::ONEAPI_DEVICE_SELECTOR>::get();
 
-  info::device_type forced_type =
-      detail::get_forced_type(); // almost always ::all
-  // Exclude devices which do not match requested device type
-  if (detail::match_types(deviceType, forced_type)) {
-    detail::force_type(deviceType, forced_type);
-    auto thePlatforms = platform::get_platforms();
-    for (const auto &plt : thePlatforms) {
-      // If SYCL_BE is set then skip platforms which doesn't have specified
-      // backend.
-      backend *ForcedBackend = detail::SYCLConfig<detail::SYCL_BE>::get();
-      if (ForcedBackend)
-        if (!detail::getSyclObjImpl(plt)->is_host() &&
-            plt.get_backend() != *ForcedBackend)
-          continue;
-      // If SYCL_DEVICE_FILTER is set, skip platforms that is incompatible
-      // with the filter specification.
-      backend platformBackend = plt.get_backend();
-      if (FilterList && !FilterList->backendCompatible(platformBackend))
-        continue;
-      if (OdsTargetList && !OdsTargetList->backendCompatible(platformBackend))
-        continue;
+  auto thePlatforms = platform::get_platforms();
+  for (const auto &plt : thePlatforms) {
+    // If SYCL_DEVICE_FILTER is set, skip platforms that is incompatible
+    // with the filter specification.
+    backend platformBackend = plt.get_backend();
+    if (FilterList && !FilterList->backendCompatible(platformBackend))
+      continue;
+    if (OdsTargetList && !OdsTargetList->backendCompatible(platformBackend))
+      continue;
 
-      std::vector<device> found_devices(plt.get_devices(deviceType));
-      if (!found_devices.empty())
-        devices.insert(devices.end(), found_devices.begin(),
-                       found_devices.end());
-    }
+    std::vector<device> found_devices(plt.get_devices(deviceType));
+    if (!found_devices.empty())
+      devices.insert(devices.end(), found_devices.begin(), found_devices.end());
   }
 
   return devices;
@@ -142,10 +127,27 @@ device::get_info() const {
   return impl->template get_info<Param>();
 }
 
+// Explicit override. Not fulfilled by #include device_traits.def below.
+template <> device device::get_info<info::device::parent_device>() const {
+  // With ONEAPI_DEVICE_SELECTOR the impl.MRootDevice is preset and may be
+  // overridden (ie it may be nullptr on a sub-device) The PI of the sub-devices
+  // have parents, but we don't want to return them. They must pretend to be
+  // parentless root devices.
+  if (impl->isRootDevice())
+    throw invalid_object_error(
+        "No parent for device because it is not a subdevice",
+        PI_ERROR_INVALID_DEVICE);
+  else
+    return impl->template get_info<info::device::parent_device>();
+}
+
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
   template __SYCL_EXPORT ReturnT device::get_info<info::device::Desc>() const;
 
+#define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, PiCode)
+
 #include <sycl/info/device_traits.def>
+#undef __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 #define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
