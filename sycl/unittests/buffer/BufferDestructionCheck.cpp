@@ -283,16 +283,19 @@ TEST_F(BufferDestructionCheck, ReadyToReleaseLogic) {
   std::vector<sycl::detail::Command *> AuxCmds;
   sycl::detail::MemObjRecord *Rec = MockSchedulerPtr->getOrInsertMemObjRecord(
       sycl::detail::getSyclObjImpl(Q), &MockReq, AuxCmds);
+
+  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
+      sycl::detail::getSyclObjImpl(Context);
   MockCmdWithReleaseTracking *ReadCmd = nullptr;
   MockCmdWithReleaseTracking *WriteCmd = nullptr;
   ReadCmd =
       new MockCmdWithReleaseTracking(sycl::detail::getSyclObjImpl(Q), MockReq);
-  ReadCmd->getEvent()->getHandleRef() = reinterpret_cast<sycl::RT::PiEvent>(
-      0x01); // just assign to be able to use mock
+  ReadCmd->getEvent()->getHandleRef() =
+      createDummyHandle<pi_event>(); // just assign to be able to use mock
   WriteCmd =
       new MockCmdWithReleaseTracking(sycl::detail::getSyclObjImpl(Q), MockReq);
   WriteCmd->getEvent()->getHandleRef() =
-      reinterpret_cast<sycl::RT::PiEvent>(0x02);
+      createDummyHandle<pi_event>(); // just assign to be able to use mock
   ReadCmd->MEnqueueStatus = sycl::detail::EnqueueResultT::SyclEnqueueSuccess;
   WriteCmd->MEnqueueStatus = sycl::detail::EnqueueResultT::SyclEnqueueSuccess;
 
