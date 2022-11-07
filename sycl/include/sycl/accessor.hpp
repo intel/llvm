@@ -1015,7 +1015,6 @@ protected:
 
     size_t Result = 0;
 
-#pragma unroll
     for (int I = 0; I < Dims; ++I) {
       Result = Result * getMemoryRange()[I] + Id[I];
       // We've already adjusted for the accessor's offset in the __init, so
@@ -1087,7 +1086,6 @@ protected:
               range<AdjustedDim> MemRange, id<AdjustedDim> Offset) {
     MData = Ptr;
 
-#pragma unroll
     for (int I = 0; I < AdjustedDim; ++I) {
 #if __cplusplus >= 201703L
       if constexpr (!(PropertyListT::template has_property<
@@ -2153,7 +2151,6 @@ private:
   size_t getTotalOffset() const {
     size_t TotalOffset = 0;
 
-#pragma unroll
     for (int I = 0; I < Dimensions; ++I) {
       TotalOffset = TotalOffset * impl.MemRange[I];
 #if __cplusplus >= 201703L
@@ -2421,7 +2418,6 @@ protected:
               range<AdjustedDim>, id<AdjustedDim>) {
     MData = Ptr;
 
-#pragma unroll
     for (int I = 0; I < AdjustedDim; ++I)
       getSize()[I] = AccessRange[I];
   }
