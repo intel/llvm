@@ -1014,7 +1014,9 @@ protected:
   template <int Dims = Dimensions> size_t getLinearIndex(id<Dims> Id) const {
 
     size_t Result = 0;
-    detail::dim_loop<Dims>([&, this](size_t I) {
+
+#pragma unroll
+    for (int I = 0; I < Dims; ++I) {
       Result = Result * getMemoryRange()[I] + Id[I];
       // We've already adjusted for the accessor's offset in the __init, so
       // don't include it here in case of device.
@@ -1028,7 +1030,7 @@ protected:
       Result += getOffset()[I];
 #endif
 #endif // __SYCL_DEVICE_ONLY__
-    });
+    }
 
     return Result;
   }
@@ -1084,7 +1086,9 @@ protected:
   void __init(ConcreteASPtrType Ptr, range<AdjustedDim> AccessRange,
               range<AdjustedDim> MemRange, id<AdjustedDim> Offset) {
     MData = Ptr;
-    detail::dim_loop<AdjustedDim>([&, this](size_t I) {
+
+#pragma unroll
+    for (int I = 0; I < AdjustedDim; ++I) {
 #if __cplusplus >= 201703L
       if constexpr (!(PropertyListT::template has_property<
                         sycl::ext::oneapi::property::no_offset>())) {
@@ -1095,7 +1099,7 @@ protected:
 #endif
       getAccessRange()[I] = AccessRange[I];
       getMemoryRange()[I] = MemRange[I];
-    });
+    }
 
     // Adjust for offsets as that part is invariant for all invocations of
     // operator[]. Will have to re-adjust in get_pointer.
@@ -2148,7 +2152,9 @@ private:
 #ifdef __SYCL_DEVICE_ONLY__
   size_t getTotalOffset() const {
     size_t TotalOffset = 0;
-    detail::dim_loop<Dimensions>([&, this](size_t I) {
+
+#pragma unroll
+    for (int I = 0; I < Dimensions; ++I) {
       TotalOffset = TotalOffset * impl.MemRange[I];
 #if __cplusplus >= 201703L
       if constexpr (!(PropertyListT::template has_property<
@@ -2158,7 +2164,7 @@ private:
 #else
       TotalOffset += impl.Offset[I];
 #endif
-    });
+    }
 
     return TotalOffset;
   }
@@ -2414,8 +2420,10 @@ protected:
   void __init(ConcreteASPtrType Ptr, range<AdjustedDim> AccessRange,
               range<AdjustedDim>, id<AdjustedDim>) {
     MData = Ptr;
-    detail::dim_loop<AdjustedDim>(
-        [&, this](size_t I) { getSize()[I] = AccessRange[I]; });
+
+#pragma unroll
+    for (int I = 0; I < AdjustedDim; ++I)
+      getSize()[I] = AccessRange[I];
   }
 
 public:
