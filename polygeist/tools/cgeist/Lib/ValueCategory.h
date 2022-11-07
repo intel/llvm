@@ -12,7 +12,6 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Value.h"
-#include "llvm/Support/WithColor.h"
 
 // Represents a rhs or lhs value.
 class ValueCategory {

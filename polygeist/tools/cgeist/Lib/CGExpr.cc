@@ -9,6 +9,7 @@
 #include "clang-mlir.h"
 #include "utils.h"
 #include "llvm/ADT/TypeSwitch.h"
+#include "llvm/Support/WithColor.h"
 
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
