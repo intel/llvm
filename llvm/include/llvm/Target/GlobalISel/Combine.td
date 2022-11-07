@@ -736,6 +736,12 @@ def icmp_to_lhs_known_bits : GICombineRule<
          [{ return Helper.matchICmpToLHSKnownBits(*${root}, ${info}); }]),
   (apply [{ Helper.applyBuildFn(*${root}, ${info}); }])>;
 
+def redundant_binop_in_equality : GICombineRule<
+  (defs root:$root, build_fn_matchinfo:$info),
+  (match (wip_match_opcode G_ICMP):$root,
+         [{ return Helper.matchRedundantBinOpInEquality(*${root}, ${info}); }]),
+  (apply [{ Helper.applyBuildFn(*${root}, ${info}); }])>;
+
 def and_or_disjoint_mask : GICombineRule<
   (defs root:$root, build_fn_matchinfo:$info),
   (match (wip_match_opcode G_AND):$root,
@@ -950,6 +956,12 @@ def trunc_buildvector_fold : GICombineRule<
       [{ return Helper.matchTruncBuildVectorFold(*${op}, ${matchinfo}); }]),
   (apply [{ Helper.replaceSingleDefInstWithReg(*${op}, ${matchinfo}); }])>;
 
+def trunc_lshr_buildvector_fold : GICombineRule<
+  (defs root:$op, register_matchinfo:$matchinfo),
+  (match (wip_match_opcode G_TRUNC):$op,
+      [{ return Helper.matchTruncLshrBuildVectorFold(*${op}, ${matchinfo}); }]),
+  (apply [{ Helper.replaceSingleDefInstWithReg(*${op}, ${matchinfo}); }])>;
+
 // Transform:
 //   (x + y) - y -> x
 //   (x + y) - x -> y
@@ -960,6 +972,12 @@ def sub_add_reg: GICombineRule <
   (match (wip_match_opcode G_SUB):$root,
          [{ return Helper.matchSubAddSameReg(*${root}, ${matchinfo}); }]),
   (apply [{ Helper.applyBuildFn(*${root}, ${matchinfo}); }])>;
+
+def bitcast_bitcast_fold : GICombineRule<
+  (defs root:$dst),
+  (match (G_BITCAST $dst, $src1):$op, (G_BITCAST $src1, $src0),
+      [{ return MRI.getType(${src0}.getReg()) == MRI.getType(${dst}.getReg()); }]),
+  (apply [{ Helper.replaceSingleDefInstWithReg(*${op}, ${src0}.getReg()); }])>;
 
 def select_to_minmax: GICombineRule<
   (defs root:$root, build_fn_matchinfo:$info),
@@ -986,7 +1004,9 @@ def identity_combines : GICombineGroup<[select_same_val, right_identity_zero,
                                         i2p_to_p2i, anyext_trunc_fold,
                                         fneg_fneg_fold, right_identity_one,
                                         add_sub_reg, buildvector_identity_fold,
-                                        trunc_buildvector_fold]>;
+                                        trunc_buildvector_fold,
+                                        trunc_lshr_buildvector_fold,
+                                        bitcast_bitcast_fold]>;
 
 def const_combines : GICombineGroup<[constant_fp_op, const_ptradd_to_i2p,
                                      overlapping_and, mulo_by_2, mulo_by_0,
@@ -1031,7 +1051,7 @@ def all_combines : GICombineGroup<[trivial_combines, insert_vec_elt_combines,
     form_bitfield_extract, constant_fold, fabs_fneg_fold,
     intdiv_combines, mulh_combines, redundant_neg_operands,
     and_or_disjoint_mask, fma_combines, fold_binop_into_select,
-    sub_add_reg, select_to_minmax]>;
+    sub_add_reg, select_to_minmax, redundant_binop_in_equality]>;
 
 // A combine group used to for prelegalizer combiners at -O0. The combines in
 // this group have been selected based on experiments to balance code size and

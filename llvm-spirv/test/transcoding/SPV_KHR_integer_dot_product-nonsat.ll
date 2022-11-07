@@ -27,20 +27,20 @@ target triple = "spir-unknown-unknown"
 ; CHECK-LLVM: @TestNonSatPacked
 ; CHECK-SPIRV: Function
 
-; CHECK-LLVM: call spir_func i8 @_Z21__spirv_SDotKHR_Rchariii
-; CHECK-LLVM: call spir_func i16 @_Z22__spirv_SDotKHR_Rshortiii
-; CHECK-LLVM: call spir_func i32 @_Z20__spirv_SDotKHR_Rintiii
-; CHECK-LLVM: call spir_func i64 @_Z21__spirv_SDotKHR_Rlongiii
+; CHECK-LLVM: call spir_func i8 @_Z21__spirv_SDotKHR_Rchariii(
+; CHECK-LLVM: call spir_func i16 @_Z22__spirv_SDotKHR_Rshortiii(
+; CHECK-LLVM: call spir_func i32 @_Z20__spirv_SDotKHR_Rintiii(
+; CHECK-LLVM: call spir_func i64 @_Z21__spirv_SDotKHR_Rlongiii(
 
-; CHECK-LLVM: call spir_func i8 @_Z22__spirv_UDotKHR_Ruchariii
-; CHECK-LLVM: call spir_func i16 @_Z23__spirv_UDotKHR_Rushortiii
-; CHECK-LLVM: call spir_func i32 @_Z21__spirv_UDotKHR_Ruintiii
-; CHECK-LLVM: call spir_func i64 @_Z22__spirv_UDotKHR_Rulongiii
+; CHECK-LLVM: call spir_func i8 @_Z22__spirv_UDotKHR_Ruchariii(
+; CHECK-LLVM: call spir_func i16 @_Z23__spirv_UDotKHR_Rushortiii(
+; CHECK-LLVM: call spir_func i32 @_Z21__spirv_UDotKHR_Ruintiii(
+; CHECK-LLVM: call spir_func i64 @_Z22__spirv_UDotKHR_Rulongiii(
 
-; CHECK-LLVM: call spir_func i8 @_Z22__spirv_SUDotKHR_Rchariii
-; CHECK-LLVM: call spir_func i16 @_Z23__spirv_SUDotKHR_Rshortiii
-; CHECK-LLVM: call spir_func i32 @_Z21__spirv_SUDotKHR_Rintiii
-; CHECK-LLVM: call spir_func i64 @_Z22__spirv_SUDotKHR_Rlongiii
+; CHECK-LLVM: call spir_func i8 @_Z22__spirv_SUDotKHR_Rchariii(
+; CHECK-LLVM: call spir_func i16 @_Z23__spirv_SUDotKHR_Rshortiii(
+; CHECK-LLVM: call spir_func i32 @_Z21__spirv_SUDotKHR_Rintiii(
+; CHECK-LLVM: call spir_func i64 @_Z22__spirv_SUDotKHR_Rlongiii(
 
 ; CHECK-SPIRV: 6 SDotKHR [[#I8]] [[#]] [[#]] [[#]] 0
 ; CHECK-SPIRV: 6 SDotKHR [[#I16]] [[#]] [[#]] [[#]] 0
@@ -80,20 +80,20 @@ define spir_kernel void @TestNonSatPacked(i32 %0, i32 %1) #0 !kernel_arg_addr_sp
 ; CHECK-LLVM: @TestNonSatVec
 ; CHECK-SPIRV: Function
 
-; CHECK-LLVM: call spir_func i8 @_Z21__spirv_SDotKHR_RcharDv4_cS_
-; CHECK-LLVM: call spir_func i16 @_Z22__spirv_SDotKHR_RshortDv4_cS_
-; CHECK-LLVM: call spir_func i32 @_Z20__spirv_SDotKHR_RintDv4_cS_
-; CHECK-LLVM: call spir_func i64 @_Z21__spirv_SDotKHR_RlongDv4_cS_
+; CHECK-LLVM: call spir_func i8 @_Z21__spirv_SDotKHR_RcharDv4_cS_(
+; CHECK-LLVM: call spir_func i16 @_Z22__spirv_SDotKHR_RshortDv4_cS_(
+; CHECK-LLVM: call spir_func i32 @_Z20__spirv_SDotKHR_RintDv4_cS_(
+; CHECK-LLVM: call spir_func i64 @_Z21__spirv_SDotKHR_RlongDv4_cS_(
 
-; CHECK-LLVM: call spir_func i8 @_Z22__spirv_UDotKHR_RucharDv4_cS_
-; CHECK-LLVM: call spir_func i16 @_Z23__spirv_UDotKHR_RushortDv4_cS_
-; CHECK-LLVM: call spir_func i32 @_Z21__spirv_UDotKHR_RuintDv4_cS_
-; CHECK-LLVM: call spir_func i64 @_Z22__spirv_UDotKHR_RulongDv4_cS_
+; CHECK-LLVM: call spir_func i8 @_Z22__spirv_UDotKHR_RucharDv4_cS_(
+; CHECK-LLVM: call spir_func i16 @_Z23__spirv_UDotKHR_RushortDv4_cS_(
+; CHECK-LLVM: call spir_func i32 @_Z21__spirv_UDotKHR_RuintDv4_cS_(
+; CHECK-LLVM: call spir_func i64 @_Z22__spirv_UDotKHR_RulongDv4_cS_(
 
-; CHECK-LLVM: call spir_func i8 @_Z22__spirv_SUDotKHR_RcharDv4_cS_
-; CHECK-LLVM: call spir_func i16 @_Z23__spirv_SUDotKHR_RshortDv4_cS_
-; CHECK-LLVM: call spir_func i32 @_Z21__spirv_SUDotKHR_RintDv4_cS_
-; CHECK-LLVM: call spir_func i64 @_Z22__spirv_SUDotKHR_RlongDv4_cS_
+; CHECK-LLVM: call spir_func i8 @_Z22__spirv_SUDotKHR_RcharDv4_cS_(
+; CHECK-LLVM: call spir_func i16 @_Z23__spirv_SUDotKHR_RshortDv4_cS_(
+; CHECK-LLVM: call spir_func i32 @_Z21__spirv_SUDotKHR_RintDv4_cS_(
+; CHECK-LLVM: call spir_func i64 @_Z22__spirv_SUDotKHR_RlongDv4_cS_(
 
 ; CHECK-SPIRV: 5 SDotKHR [[#I8]]
 ; CHECK-SPIRV: 5 SDotKHR [[#I16]]
@@ -133,17 +133,17 @@ define spir_kernel void @TestNonSatVec(<4 x i8> %0, <4 x i8> %1) #0 !kernel_arg_
 ; CHECK-LLVM: @TestNonSatAll
 ; CHECK-SPIRV: Function
 
-; CHECK-LLVM: call spir_func i16 @_Z22__spirv_SDotKHR_RshortDv2_sS_
-; CHECK-LLVM: call spir_func i32 @_Z20__spirv_SDotKHR_RintDv2_sS_
-; CHECK-LLVM: call spir_func i64 @_Z21__spirv_SDotKHR_RlongDv2_sS_
+; CHECK-LLVM: call spir_func i16 @_Z22__spirv_SDotKHR_RshortDv2_sS_(
+; CHECK-LLVM: call spir_func i32 @_Z20__spirv_SDotKHR_RintDv2_sS_(
+; CHECK-LLVM: call spir_func i64 @_Z21__spirv_SDotKHR_RlongDv2_sS_(
 
-; CHECK-LLVM: call spir_func i16 @_Z23__spirv_UDotKHR_RushortDv2_sS_
-; CHECK-LLVM: call spir_func i32 @_Z21__spirv_UDotKHR_RuintDv2_sS_
-; CHECK-LLVM: call spir_func i64 @_Z22__spirv_UDotKHR_RulongDv2_sS_
+; CHECK-LLVM: call spir_func i16 @_Z23__spirv_UDotKHR_RushortDv2_sS_(
+; CHECK-LLVM: call spir_func i32 @_Z21__spirv_UDotKHR_RuintDv2_sS_(
+; CHECK-LLVM: call spir_func i64 @_Z22__spirv_UDotKHR_RulongDv2_sS_(
 
-; CHECK-LLVM: call spir_func i16 @_Z23__spirv_SUDotKHR_RshortDv2_sS_
-; CHECK-LLVM: call spir_func i32 @_Z21__spirv_SUDotKHR_RintDv2_sS_
-; CHECK-LLVM: call spir_func i64 @_Z22__spirv_SUDotKHR_RlongDv2_sS_
+; CHECK-LLVM: call spir_func i16 @_Z23__spirv_SUDotKHR_RshortDv2_sS_(
+; CHECK-LLVM: call spir_func i32 @_Z21__spirv_SUDotKHR_RintDv2_sS_(
+; CHECK-LLVM: call spir_func i64 @_Z22__spirv_SUDotKHR_RlongDv2_sS_(
 
 ; CHECK-SPIRV: 5 SDotKHR [[#I16]]
 ; CHECK-SPIRV: 5 SDotKHR [[#I32]]

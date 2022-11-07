@@ -85,6 +85,9 @@ module attributes {gpu.container_module} {
       %one = arith.constant 1.0 : f32
       %sum = gpu.all_reduce add %one {} : (f32) -> (f32)
 
+      // CHECK: %{{.*}} = gpu.subgroup_reduce add %{{.*}} : (f32) -> f32
+      %sum_subgroup = gpu.subgroup_reduce add %one : (f32) -> f32
+
       %width = arith.constant 7 : i32
       %offset = arith.constant 3 : i32
       // CHECK: gpu.shuffle xor %{{.*}}, %{{.*}}, %{{.*}} : f32
@@ -208,6 +211,11 @@ module attributes {gpu.container_module} {
     %m1, %t1 = gpu.alloc async [%t0] () : memref<13xf32, 1>
     // CHECK: gpu.dealloc async [%[[t1]]] %[[m1]] : memref<13xf32, 1>
     %t2 = gpu.dealloc async [%t1] %m1 : memref<13xf32, 1>
+
+    // CHECK: %[[m2:.*]] = gpu.alloc host_shared () : memref<13xf32, 1>
+    %m2 = gpu.alloc host_shared () : memref<13xf32, 1>
+    // CHECK: gpu.dealloc %[[m2]] : memref<13xf32, 1>
+    gpu.dealloc %m2 : memref<13xf32, 1>
 
     return
   }

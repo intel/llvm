@@ -37,6 +37,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Path.h"
 
 #include <queue>
@@ -44,6 +45,12 @@
 #include <unordered_set>
 
 using namespace llvm;
+
+static cl::opt<std::string> ClSyclFixedTargets(
+    "sycl-propagate-aspects-usage-fixed-targets",
+    cl::desc("Specify target device(s) all device code in the translation unit "
+             "is expected to be runnable on"),
+    cl::Hidden, cl::init(""));
 
 namespace {
 
@@ -348,19 +355,41 @@ bool isEntryPoint(const Function &F) {
   return F.hasFnAttribute("sycl-module-id") && !isSpirvSyclBuiltin(F.getName());
 }
 
+void setSyclFixedTargetsMD(const std::vector<Function *> &EntryPoints,
+                           const SmallVector<StringRef, 8> &Targets,
+                           AspectValueToNameMapTy &AspectValues) {
+  if (EntryPoints.empty())
+    return;
+
+  SmallVector<Metadata *, 8> TargetsMD;
+  LLVMContext &C = EntryPoints[0]->getContext();
+
+  for (const auto &Target : Targets) {
+    if (!Target.empty()) {
+      auto AspectIt = AspectValues.find(Target);
+      if (AspectIt != AspectValues.end()) {
+        auto ConstIntTarget =
+            ConstantInt::getSigned(Type::getInt32Ty(C), AspectIt->second);
+        TargetsMD.push_back(ConstantAsMetadata::get(ConstIntTarget));
+      }
+    }
+  }
+
+  MDNode *MDN = MDNode::get(C, TargetsMD);
+  for (Function *F : EntryPoints)
+    F->setMetadata("sycl_fixed_targets", MDN);
+}
+
 /// Returns a map of functions with corresponding used aspects.
 FunctionToAspectsMapTy
-buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects) {
+buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects,
+                           const std::vector<Function *> &EntryPoints) {
   FunctionToAspectsMapTy FunctionToAspects;
   CallGraphTy CG;
-  std::vector<Function *> EntryPoints;
+
   for (Function &F : M.functions()) {
     if (F.isDeclaration())
       continue;
-
-    if (isEntryPoint(F))
-      EntryPoints.push_back(&F);
-
     processFunction(F, FunctionToAspects, TypesWithAspects, CG);
   }
 
@@ -388,14 +417,25 @@ SYCLPropagateAspectsUsagePass::run(Module &M, ModuleAnalysisManager &MAM) {
     return PreservedAnalyses::all();
   }
 
+  if (ClSyclFixedTargets.getNumOccurrences() > 0)
+    StringRef(ClSyclFixedTargets)
+        .split(TargetFixedAspects, ',', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+
+  std::vector<Function *> EntryPoints;
+  for (Function &F : M.functions())
+    if (isEntryPoint(F))
+      EntryPoints.push_back(&F);
+
   propagateAspectsToOtherTypesInModule(M, TypesWithAspects, AspectValues);
 
   FunctionToAspectsMapTy FunctionToAspects =
-      buildFunctionsToAspectsMap(M, TypesWithAspects);
+      buildFunctionsToAspectsMap(M, TypesWithAspects, EntryPoints);
 
   createUsedAspectsMetadataForFunctions(FunctionToAspects);
   // FIXME: check and diagnose if a function uses an aspect which was not
   // declared through [[sycl::device_has()]] attribute
+
+  setSyclFixedTargetsMD(EntryPoints, TargetFixedAspects, AspectValues);
 
   return PreservedAnalyses::all();
 }

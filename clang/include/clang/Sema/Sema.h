@@ -3945,8 +3945,10 @@ public:
   // template, or just the current friend function. A 'lower' TemplateDepth in
   // the AST refers to a 'containing' template. As the constraint is
   // uninstantiated, this is relative to the 'top' of the TU.
-  bool ConstraintExpressionDependsOnEnclosingTemplate(unsigned TemplateDepth,
-                                                      const Expr *Constraint);
+  bool
+  ConstraintExpressionDependsOnEnclosingTemplate(const FunctionDecl *Friend,
+                                                 unsigned TemplateDepth,
+                                                 const Expr *Constraint);
 
   // Calculates whether the friend function depends on an enclosing template for
   // the purposes of [temp.friend] p9.
@@ -5480,15 +5482,21 @@ public:
   /// of it.
   void MarkUnusedFileScopedDecl(const DeclaratorDecl *D);
 
+  typedef llvm::function_ref<void(SourceLocation Loc, PartialDiagnostic PD)>
+      DiagReceiverTy;
+
   /// DiagnoseUnusedExprResult - If the statement passed in is an expression
   /// whose result is unused, warn.
   void DiagnoseUnusedExprResult(const Stmt *S, unsigned DiagID);
   void DiagnoseUnusedNestedTypedefs(const RecordDecl *D);
+  void DiagnoseUnusedNestedTypedefs(const RecordDecl *D,
+                                    DiagReceiverTy DiagReceiver);
   void DiagnoseUnusedDecl(const NamedDecl *ND);
+  void DiagnoseUnusedDecl(const NamedDecl *ND, DiagReceiverTy DiagReceiver);
 
   /// If VD is set but not otherwise used, diagnose, for a parameter or a
   /// variable.
-  void DiagnoseUnusedButSetDecl(const VarDecl *VD);
+  void DiagnoseUnusedButSetDecl(const VarDecl *VD, DiagReceiverTy DiagReceiver);
 
   /// Emit \p DiagID if statement located on \p StmtLoc has a suspicious null
   /// statement as a \p Body, and it is located on the same line.
@@ -5557,11 +5565,22 @@ public:
   // Expression Parsing Callbacks: SemaExpr.cpp.
 
   bool CanUseDecl(NamedDecl *D, bool TreatUnavailableAsInvalid);
+  // A version of DiagnoseUseOfDecl that should be used if overload resolution
+  // has been used to find this declaration, which means we don't have to bother
+  // checking the trailing requires clause.
+  bool DiagnoseUseOfOverloadedDecl(NamedDecl *D, SourceLocation Loc) {
+    return DiagnoseUseOfDecl(
+        D, Loc, /*UnknownObjCClass=*/nullptr, /*ObjCPropertyAccess=*/false,
+        /*AvoidPartialAvailabilityChecks=*/false, /*ClassReceiver=*/nullptr,
+        /*SkipTrailingRequiresClause=*/true);
+  }
+
   bool DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
                          const ObjCInterfaceDecl *UnknownObjCClass = nullptr,
                          bool ObjCPropertyAccess = false,
                          bool AvoidPartialAvailabilityChecks = false,
-                         ObjCInterfaceDecl *ClassReciever = nullptr);
+                         ObjCInterfaceDecl *ClassReciever = nullptr,
+                         bool SkipTrailingRequiresClause = false);
   void NoteDeletedFunction(FunctionDecl *FD);
   void NoteDeletedInheritingConstructor(CXXConstructorDecl *CD);
   bool DiagnosePropertyAccessorMismatch(ObjCPropertyDecl *PD,
@@ -6379,7 +6398,8 @@ public:
   NamedDecl *BuildUsingEnumDeclaration(Scope *S, AccessSpecifier AS,
                                        SourceLocation UsingLoc,
                                        SourceLocation EnumLoc,
-                                       SourceLocation NameLoc, EnumDecl *ED);
+                                       SourceLocation NameLoc,
+                                       TypeSourceInfo *EnumType, EnumDecl *ED);
   NamedDecl *BuildUsingPackDecl(NamedDecl *InstantiatedFrom,
                                 ArrayRef<NamedDecl *> Expansions);
 
@@ -7459,7 +7479,7 @@ private:
       FunctionDecl *FD, llvm::Optional<ArrayRef<TemplateArgument>> TemplateArgs,
       MultiLevelTemplateArgumentList MLTAL, LocalInstantiationScope &Scope);
 
-  /// Used during constraint checking, sets up the constraint template arguemnt
+  /// Used during constraint checking, sets up the constraint template argument
   /// lists, and calls SetupConstraintScope to set up the
   /// LocalInstantiationScope to have the proper set of ParVarDecls configured.
   llvm::Optional<MultiLevelTemplateArgumentList>
@@ -7899,7 +7919,8 @@ public:
   void CheckExplicitlyDefaultedFunction(Scope *S, FunctionDecl *MD);
 
   bool CheckExplicitlyDefaultedSpecialMember(CXXMethodDecl *MD,
-                                             CXXSpecialMember CSM);
+                                             CXXSpecialMember CSM,
+                                             SourceLocation DefaultLoc);
   void CheckDelayedMemberExceptionSpecs();
 
   bool CheckExplicitlyDefaultedComparison(Scope *S, FunctionDecl *MD,
@@ -8580,14 +8601,17 @@ public:
       const NamedDecl *NewInstFrom, TemplateParameterList *New,
       const NamedDecl *OldInstFrom, TemplateParameterList *Old, bool Complain,
       TemplateParameterListEqualKind Kind,
-      SourceLocation TemplateArgLoc = SourceLocation());
+      SourceLocation TemplateArgLoc = SourceLocation(),
+      bool PartialOrdering = false);
 
   bool TemplateParameterListsAreEqual(
       TemplateParameterList *New, TemplateParameterList *Old, bool Complain,
       TemplateParameterListEqualKind Kind,
-      SourceLocation TemplateArgLoc = SourceLocation()) {
+      SourceLocation TemplateArgLoc = SourceLocation(),
+      bool PartialOrdering = false) {
     return TemplateParameterListsAreEqual(nullptr, New, nullptr, Old, Complain,
-                                          Kind, TemplateArgLoc);
+                                          Kind, TemplateArgLoc,
+                                          PartialOrdering);
   }
 
   bool CheckTemplateDeclScope(Scope *S, TemplateParameterList *TemplateParams);
@@ -9272,8 +9296,7 @@ public:
   FunctionTemplateDecl *getMoreSpecializedTemplate(
       FunctionTemplateDecl *FT1, FunctionTemplateDecl *FT2, SourceLocation Loc,
       TemplatePartialOrderingContext TPOC, unsigned NumCallArguments1,
-      unsigned NumCallArguments2, bool Reversed = false,
-      bool AllowOrderingByConstraints = true);
+      unsigned NumCallArguments2, bool Reversed = false);
   UnresolvedSetIterator
   getMostSpecialized(UnresolvedSetIterator SBegin, UnresolvedSetIterator SEnd,
                      TemplateSpecCandidateSet &FailedCandidates,
@@ -9406,6 +9429,9 @@ public:
 
       // We are normalizing a constraint expression.
       ConstraintNormalization,
+
+      // Instantiating a Requires Expression parameter clause.
+      RequirementParameterInstantiation,
 
       // We are substituting into the parameter mapping of an atomic constraint
       // during normalization.
@@ -9736,6 +9762,11 @@ public:
                           concepts::NestedRequirement *Req, ConstraintsCheck,
                           SourceRange InstantiationRange = SourceRange());
 
+    /// \brief Note that we are checking a requires clause.
+    InstantiatingTemplate(Sema &SemaRef, SourceLocation PointOfInstantiation,
+                          const RequiresExpr *E,
+                          sema::TemplateDeductionInfo &DeductionInfo,
+                          SourceRange InstantiationRange);
     /// Note that we have finished instantiating this template.
     void Clear();
 
@@ -10054,6 +10085,9 @@ public:
                       SmallVectorImpl<QualType> &ParamTypes,
                       SmallVectorImpl<ParmVarDecl *> *OutParams,
                       ExtParameterInfoBuilder &ParamInfos);
+  bool SubstDefaultArgument(SourceLocation Loc, ParmVarDecl *Param,
+                            const MultiLevelTemplateArgumentList &TemplateArgs,
+                            bool ForCallExpr = false);
   ExprResult SubstExpr(Expr *E,
                        const MultiLevelTemplateArgumentList &TemplateArgs);
 
@@ -13621,7 +13655,7 @@ private:
                  bool IsMemberFunction, SourceLocation Loc, SourceRange Range,
                  VariadicCallType CallType);
 
-  void CheckSYCLKernelCall(FunctionDecl *CallerFunc, SourceRange CallLoc,
+  void CheckSYCLKernelCall(FunctionDecl *CallerFunc,
                            ArrayRef<const Expr *> Args);
 
   bool CheckObjCString(Expr *Arg);
