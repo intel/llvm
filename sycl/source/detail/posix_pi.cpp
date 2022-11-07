@@ -20,7 +20,7 @@ namespace pi {
 void *loadOsLibrary(const std::string &PluginPath) {
   // TODO: Check if the option RTLD_NOW is correct. Explore using
   // RTLD_DEEPBIND option when there are multiple plugins.
-  void *so = dlopen(PluginPath.c_str(), RTLD_NOW);
+  void *so = dlmopen(LM_ID_NEWLM, PluginPath.c_str(), RTLD_NOW | RTLD_LOCAL);
   if (!so && trace(TraceLevel::PI_TRACE_ALL)) {
     char *Error = dlerror();
     std::cerr << "SYCL_PI_TRACE[-1]: dlopen(" << PluginPath << ") failed with <"
