@@ -174,12 +174,12 @@ zer_result_t _ur_level_zero_platform::initialize() {
   uint32_t Count = 0;
   ZE_CALL(zeDriverGetExtensionProperties, (ZeDriver, &Count, nullptr));
 
-  std::vector<ze_driver_extension_properties_t> zeExtensions(Count);
+  std::vector<ze_driver_extension_properties_t> ZeExtensions(Count);
 
   ZE_CALL(zeDriverGetExtensionProperties,
-          (ZeDriver, &Count, zeExtensions.data()));
+          (ZeDriver, &Count, ZeExtensions.data()));
 
-  for (auto extension : zeExtensions) {
+  for (auto extension : ZeExtensions) {
     // Check if global offset extension is available
     if (strncmp(extension.name, ZE_GLOBAL_OFFSET_EXP_NAME,
                 strlen(ZE_GLOBAL_OFFSET_EXP_NAME) + 1) == 0) {

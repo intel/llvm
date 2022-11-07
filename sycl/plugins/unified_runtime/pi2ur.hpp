@@ -13,6 +13,12 @@
 
 // Map of UR error codes to PI error codes
 static pi_result ur2piResult(zer_result_t urResult) {
+
+  // TODO: replace "global lifetime" objects with a non-trivial d'tor with
+  // either pointers to such objects (which would be allocated and dealocated
+  // during init and teardown) or objects with trivial d'tor.
+  // E.g. for this case we could have an std::array with sorted values.
+  //
   static std::unordered_map<zer_result_t, pi_result> ErrorMapping = {
       {ZER_RESULT_SUCCESS, PI_SUCCESS},
       {ZER_RESULT_ERROR_DEVICE_LOST, PI_ERROR_DEVICE_NOT_FOUND},

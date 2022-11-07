@@ -1,8 +1,3 @@
-// NOTE: this is a copy of
-// https://github.com/intel-innersource/libraries.compute.oneapi.level-zero-unified-runtime.loader/blob/master/include/zer_api.h
-// TODO: pull it from github directly during SYCL build like we pull Level Zero
-// loader already
-
 /*
  *
  * Copyright (C) 2022 Intel Corporation
@@ -13,6 +8,12 @@
  * @version v0.5-r0.5
  *
  */
+
+// NOTE: this is a copy of
+// https://github.com/intel-innersource/libraries.compute.oneapi.level-zero-unified-runtime.loader/blob/master/include/zer_api.h
+// TODO: pull it from github directly during SYCL build like we pull Level Zero
+// loader already
+
 #ifndef _ZER_API_H
 #define _ZER_API_H
 #if defined(__cplusplus)

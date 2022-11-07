@@ -45,8 +45,8 @@
 #include <sycl/detail/iostream_proxy.hpp>
 
 // Share code between this PI L0 Plugin and UR L0 Adapter
-#include <../unified_runtime/adapters/level_zero/ur_level_zero.hpp>
-#include <../unified_runtime/pi2ur.hpp>
+#include <adapters/level_zero/ur_level_zero.hpp>
+#include <pi2ur.hpp>
 
 #include "usm_allocator.hpp"
 

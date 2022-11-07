@@ -132,6 +132,7 @@ add_custom_target(ze-api
     ${CMAKE_CURRENT_BINARY_DIR}/ze_api.def
   )
 target_include_directories(pi_level_zero PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+target_include_directories(pi_level_zero PRIVATE ${CMAKE_SOURCE_DIR}/../sycl/plugins/unified_runtime)
 add_dependencies(pi_level_zero ze-api)
 
 if (SYCL_ENABLE_XPTI_TRACING)

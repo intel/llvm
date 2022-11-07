@@ -13,10 +13,10 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../../ur.hpp"
-#include "../../zer_api.h"
 #include <level_zero/ze_api.h>
 #include <level_zero/zes_api.h>
+#include <ur.hpp>
+#include <zer_api.h>
 
 // Returns the ze_structure_type_t to use in .stype of a structured descriptor.
 // Intentionally not defined; will give an error if no proper specialization
@@ -186,14 +186,14 @@ public:
       return;
 
     // Check if USM hostptr import feature is available.
-    ze_driver_handle_t driverHandle = Platform->ZeDriver;
+    ze_driver_handle_t DriverHandle = Platform->ZeDriver;
     if (ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
-                        (driverHandle, "zexDriverImportExternalPointer",
+                        (DriverHandle, "zexDriverImportExternalPointer",
                          reinterpret_cast<void **>(
                              &zexDriverImportExternalPointer))) == 0) {
       ZE_CALL_NOCHECK(
           zeDriverGetExtensionFunctionAddress,
-          (driverHandle, "zexDriverReleaseImportedPointer",
+          (DriverHandle, "zexDriverReleaseImportedPointer",
            reinterpret_cast<void **>(&zexDriverReleaseImportedPointer)));
       // Hostptr import/release is turned on because it has been requested
       // by the env var, and this platform supports the APIs.
@@ -204,13 +204,13 @@ public:
       setEnvVar("SYCL_HOST_UNIFIED_MEMORY", "1");
     }
   }
-  void doZeUSMImport(ze_driver_handle_t driverHandle, void *HostPtr,
+  void doZeUSMImport(ze_driver_handle_t DriverHandle, void *HostPtr,
                      size_t Size) {
     ZE_CALL_NOCHECK(zexDriverImportExternalPointer,
-                    (driverHandle, HostPtr, Size));
+                    (DriverHandle, HostPtr, Size));
   }
-  void doZeUSMRelease(ze_driver_handle_t driverHandle, void *HostPtr) {
-    ZE_CALL_NOCHECK(zexDriverReleaseImportedPointer, (driverHandle, HostPtr));
+  void doZeUSMRelease(ze_driver_handle_t DriverHandle, void *HostPtr) {
+    ZE_CALL_NOCHECK(zexDriverReleaseImportedPointer, (DriverHandle, HostPtr));
   }
 };
 
