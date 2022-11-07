@@ -72,6 +72,12 @@ public:
   std::shared_ptr<detail::kernel_bundle_impl> MKernelBundle;
 
   pi_mem_advice MAdvice;
+
+  // 2D memory operation information.
+  size_t MSrcPitch;
+  size_t MDstPitch;
+  size_t MWidth;
+  size_t MHeight;
 };
 
 } // namespace detail

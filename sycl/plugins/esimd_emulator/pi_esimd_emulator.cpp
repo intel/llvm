@@ -1930,6 +1930,23 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue, const void *, size_t,
   DIE_NO_IMPLEMENTATION;
 }
 
+pi_result piextUSMEnqueueFill2D(pi_queue, void *, size_t, size_t, const void *,
+                                size_t, size_t, pi_uint32, const pi_event *,
+                                pi_event *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextUSMEnqueueMemset2D(pi_queue, void *, size_t, size_t, int, size_t,
+                                  pi_uint32, const pi_event *, pi_event *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextUSMEnqueueMemcpy2D(pi_queue, pi_bool, void *, size_t,
+                                  const void *, size_t, size_t, size_t,
+                                  pi_uint32, const pi_event *, pi_event *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
 pi_result piextUSMGetMemAllocInfo(pi_context, const void *, pi_mem_alloc_info,
                                   size_t, void *, size_t *) {
   DIE_NO_IMPLEMENTATION;

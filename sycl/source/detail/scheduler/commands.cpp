@@ -1701,6 +1701,15 @@ static std::string cgTypeToString(detail::CG::CGTYPE Type) {
   case detail::CG::CodeplayHostTask:
     return "host task";
     break;
+  case detail::CG::Copy2DUSM:
+    return "copy 2d usm";
+    break;
+  case detail::CG::Fill2DUSM:
+    return "fill 2d usm";
+    break;
+  case detail::CG::Memset2DUSM:
+    return "memset 2d usm";
+    break;
   default:
     return "unknown";
     break;
@@ -2438,6 +2447,28 @@ pi_int32 ExecCGCommand::enqueueImp() {
     MemoryManager::advise_usm(Advise->getDst(), MQueue, Advise->getLength(),
                               Advise->getAdvice(), std::move(RawEvents), Event);
 
+    return PI_SUCCESS;
+  }
+  case CG::CGTYPE::Copy2DUSM: {
+    CGCopy2DUSM *Copy = (CGCopy2DUSM *)MCommandGroup.get();
+    MemoryManager::copy_2d_usm(Copy->getSrc(), Copy->getSrcPitch(), MQueue,
+                               Copy->getDst(), Copy->getDstPitch(),
+                               Copy->getWidth(), Copy->getHeight(),
+                               std::move(RawEvents), Event);
+    return PI_SUCCESS;
+  }
+  case CG::CGTYPE::Fill2DUSM: {
+    CGFill2DUSM *Fill = (CGFill2DUSM *)MCommandGroup.get();
+    MemoryManager::fill_2d_usm(Fill->getDst(), MQueue, Fill->getPitch(),
+                               Fill->getWidth(), Fill->getHeight(),
+                               Fill->getPattern(), std::move(RawEvents), Event);
+    return PI_SUCCESS;
+  }
+  case CG::CGTYPE::Memset2DUSM: {
+    CGMemset2DUSM *Memset = (CGMemset2DUSM *)MCommandGroup.get();
+    MemoryManager::memset_2d_usm(
+        Memset->getDst(), MQueue, Memset->getPitch(), Memset->getWidth(),
+        Memset->getHeight(), Memset->getValue(), std::move(RawEvents), Event);
     return PI_SUCCESS;
   }
   case CG::CGTYPE::CodeplayInteropTask: {

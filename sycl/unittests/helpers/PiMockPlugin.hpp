@@ -1038,6 +1038,34 @@ inline pi_result mock_piextUSMGetMemAllocInfo(
   return PI_SUCCESS;
 }
 
+inline pi_result mock_piextUSMEnqueueFill2D(pi_queue queue, void *ptr,
+                                            size_t pitch, size_t pattern_size,
+                                            const void *pattern, size_t width,
+                                            size_t height,
+                                            pi_uint32 num_events_in_waitlist,
+                                            const pi_event *events_waitlist,
+                                            pi_event *event) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextUSMEnqueueMemset2D(pi_queue queue, void *ptr,
+                                              size_t pitch, int value,
+                                              size_t width, size_t height,
+                                              pi_uint32 num_events_in_waitlist,
+                                              const pi_event *events_waitlist,
+                                              pi_event *event) {
+  return PI_SUCCESS;
+}
+
+inline pi_result
+mock_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking, void *dst_ptr,
+                             size_t dst_pitch, const void *src_ptr,
+                             size_t src_pitch, size_t width, size_t height,
+                             pi_uint32 num_events_in_waitlist,
+                             const pi_event *events_waitlist, pi_event *event) {
+  return PI_SUCCESS;
+}
+
 inline pi_result mock_piextPluginGetOpaqueData(void *opaque_data_param,
                                                void **opaque_data_return) {
   return PI_SUCCESS;

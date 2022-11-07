@@ -8,6 +8,7 @@
 # UNSUPPORTED: libcxx
 
 piContextCreate
+piContextGetInfo
 piDeviceGetInfo
 piDevicesGet
 piEnqueueMemBufferMap
@@ -55,6 +56,9 @@ piextUSMEnqueueMemAdvise
 piextUSMEnqueueMemcpy
 piextUSMEnqueueMemset
 piextUSMEnqueuePrefetch
+piextUSMEnqueueFill2D
+piextUSMEnqueueMemset2D
+piextUSMEnqueueMemcpy2D
 piextUSMFree
 piextUSMGetMemAllocInfo
 piextUSMHostAlloc

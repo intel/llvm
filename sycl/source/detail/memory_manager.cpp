@@ -910,6 +910,86 @@ void MemoryManager::advise_usm(const void *Mem, QueueImplPtr Queue,
   Plugin.call<PiApiKind::piextUSMEnqueueMemAdvise>(Queue->getHandleRef(), Mem,
                                                    Length, Advice, OutEvent);
 }
+
+void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
+                                QueueImplPtr Queue, void *DstMem,
+                                size_t DstPitch, size_t Width, size_t Height,
+                                std::vector<RT::PiEvent> DepEvents,
+                                RT::PiEvent *OutEvent) {
+  assert(!Queue->getContextImplPtr()->is_host() &&
+         "Host queue not supported in copy_2d_usm.");
+
+  if (Width == 0 || Height == 0) {
+    // no-op, but ensure DepEvents will still be waited on
+    if (!DepEvents.empty()) {
+      Queue->getPlugin().call<PiApiKind::piEnqueueEventsWait>(
+          Queue->getHandleRef(), DepEvents.size(), DepEvents.data(), OutEvent);
+    }
+    return;
+  }
+
+  if (!DstMem || !SrcMem)
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "NULL pointer argument in 2D memory copy operation.");
+  const detail::plugin &Plugin = Queue->getPlugin();
+  Plugin.call<PiApiKind::piextUSMEnqueueMemcpy2D>(
+      Queue->getHandleRef(), /*blocking=*/false, DstMem, DstPitch, SrcMem,
+      SrcPitch, Width, Height, DepEvents.size(), DepEvents.data(), OutEvent);
+}
+
+void MemoryManager::fill_2d_usm(void *DstMem, QueueImplPtr Queue, size_t Pitch,
+                                size_t Width, size_t Height,
+                                const std::vector<char> &Pattern,
+                                std::vector<RT::PiEvent> DepEvents,
+                                RT::PiEvent *OutEvent) {
+  assert(!Queue->getContextImplPtr()->is_host() &&
+         "Host queue not supported in fill_2d_usm.");
+
+  if (Width == 0 || Height == 0) {
+    // no-op, but ensure DepEvents will still be waited on
+    if (!DepEvents.empty()) {
+      Queue->getPlugin().call<PiApiKind::piEnqueueEventsWait>(
+          Queue->getHandleRef(), DepEvents.size(), DepEvents.data(), OutEvent);
+    }
+    return;
+  }
+
+  if (!DstMem)
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "NULL pointer argument in 2D memory fill operation.");
+  const detail::plugin &Plugin = Queue->getPlugin();
+  Plugin.call<PiApiKind::piextUSMEnqueueFill2D>(
+      Queue->getHandleRef(), DstMem, Pitch, Pattern.size(), Pattern.data(),
+      Width, Height, DepEvents.size(), DepEvents.data(), OutEvent);
+}
+
+void MemoryManager::memset_2d_usm(void *DstMem, QueueImplPtr Queue,
+                                  size_t Pitch, size_t Width, size_t Height,
+                                  char Value,
+                                  std::vector<RT::PiEvent> DepEvents,
+                                  RT::PiEvent *OutEvent) {
+  assert(!Queue->getContextImplPtr()->is_host() &&
+         "Host queue not supported in fill_2d_usm.");
+
+  if (Width == 0 || Height == 0) {
+    // no-op, but ensure DepEvents will still be waited on
+    if (!DepEvents.empty()) {
+      Queue->getPlugin().call<PiApiKind::piEnqueueEventsWait>(
+          Queue->getHandleRef(), DepEvents.size(), DepEvents.data(), OutEvent);
+    }
+    return;
+  }
+
+  if (!DstMem)
+    throw sycl::exception(
+        sycl::make_error_code(errc::invalid),
+        "NULL pointer argument in 2D memory memset operation.");
+  const detail::plugin &Plugin = Queue->getPlugin();
+  Plugin.call<PiApiKind::piextUSMEnqueueMemset2D>(
+      Queue->getHandleRef(), DstMem, Pitch, static_cast<int>(Value), Width,
+      Height, DepEvents.size(), DepEvents.data(), OutEvent);
+}
+
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
