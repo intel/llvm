@@ -48,10 +48,10 @@ int func7(int a, int b) {
   return func6(a, b, (int)x);
 }
 
-// expected-note-re@+1 2 {{propagated from call to function 'func8(int, int)'}}
+// expected-note-re@+1 2 {{propagated from call to function '{{.*}}func8(int, int)'}}
 int func8(int a, int b) { return func6(a, b, 1); }
 
-// expected-warning-re@+1 {{function 'func9(int)' uses aspect 'cpu' not listed in its 'device_has' property}}
+// expected-warning-re@+1 {{function '{{.*}}func9(int)' uses aspect 'cpu' not listed in its 'device_has' property}}
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((device_has<aspect::fp64>)) int func9(int a) {
   return func8(a, 1);
 }
