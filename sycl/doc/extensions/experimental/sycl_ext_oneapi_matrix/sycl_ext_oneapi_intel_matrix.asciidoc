@@ -1,4 +1,4 @@
-# Additional Intel only specific about matrix extension for DPC++
+# Additional Intel-only specifics about matrix extension for DPC++
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
@@ -37,7 +37,7 @@ SYCL specification refer to that revision.
 ## Introduction
 The Intel backend implementations on both Intel AMX and DPAS  support `joint_matrix`, `joint_matrix_load`, `joint_matrix_store`, `joint_matrix_mad`, `joint_matrix_fill`, `get_wi_data`, and the query interface, as they are defined in the sycl_ext_oneapi_matrix extension. There are exra specifics about the supported layouts for extra performance and functionality that are listed in this document.
 
-% I don't think we need a specific feature test macro because there is not really additional features. 
+// I don't think we need a specific feature test macro because there is not really additional features. 
 
 ## Extra Functionality
 ### Layout argument in `joint_matrix` type
@@ -53,4 +53,4 @@ Besides store of matrix `accumulator`, the Intel implementation allows store on 
 
 
 ## Open Questions
-- Should the same class, `joint_matrix`, handle both cases where sizes are constant (GPU case) and when sizes are variable (CPU case). Note that a Intel AMX 2d tile register permits sizes up to 1024 (16rowsx64cols) bytes that can be variable. The ability to define only one interface for both would make it possible to give the user a way to make use of the flexibility introduced by the CPU but at the same time save resources on the GPU. In a previous version of the design, we used `sycl::dynamic_extent`  to differentiate between static and dynamic sizes. But since this was not implemented at all, we decided to remove it. We can revisit this design choice if this comes up as part of a customer request or if SPIRV matrix extension extends its support to dynamic sizes.
+- Should the same class, `joint_matrix`, handle both cases where sizes are constant (GPU case) and when sizes are variable (CPU case)? Note that a Intel AMX 2d tile register permits sizes up to 1024 (16rowsx64cols) bytes that can be variable. The ability to define only one interface for both would make it possible to give the user a way to make use of the flexibility introduced by the CPU but at the same time save resources on the GPU. In a previous version of the design, we used `sycl::dynamic_extent`  to differentiate between static and dynamic sizes. But since this was not implemented at all, we decided to remove it. We can revisit this design choice if this comes up as part of a customer request or if SPIRV matrix extension extends its support to dynamic sizes.
