@@ -68,6 +68,9 @@ def IsMMAMatrixTypePred : CPred<"$_self.isa<::mlir::gpu::MMAMatrixType>()">;
 def GPU_MMAMatrix : DialectType<
   GPU_Dialect, IsMMAMatrixTypePred, "MMAMatrix type">;
 
+// Memref type acceptable to gpu.subgroup_mma_{load|store}_matrix ops.
+def GPU_MMAMemRef : MemRefOf<[F16, F32, VectorOfRankAndType<[1], [F16, F32]>]>;
+
 class MMAMatrixOf<list<Type> allowedTypes> :
   ContainerType<AnyTypeOf<allowedTypes>, IsMMAMatrixTypePred,
   "$_self.cast<::mlir::gpu::MMAMatrixType>().getElementType()",
@@ -96,15 +99,16 @@ def GPU_AsyncOpInterface : OpInterface<"AsyncOpInterface"> {
       }],
       "OperandRange", "getAsyncDependencies", (ins), [{}], [{
         ConcreteOp op = cast<ConcreteOp>(this->getOperation());
-        return op.asyncDependencies();
+        return op.getAsyncDependencies();
       }]
     >,
     InterfaceMethod<[{
-        Adds a new token to the list of async dependencies.
+        Adds a new token to the list of async dependencies if it is not already there.
       }],
       "void", "addAsyncDependency", (ins "Value":$token),
       [{}], [{
-        ::mlir::gpu::addAsyncDependency(this->getOperation(), token);
+        if (!::llvm::is_contained(this->getAsyncDependencies(), token))
+          ::mlir::gpu::addAsyncDependency(this->getOperation(), token);
       }]
     >,
     InterfaceMethod<[{

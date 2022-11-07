@@ -41,12 +41,18 @@ Implemented Papers
 - P2417R2 - A more constexpr bitset
 - P2445R1 - ``std::forward_like``
 - P2273R3 - Making ``std::unique_ptr`` constexpr
+- P0591R4 - Utility functions to implement uses-allocator construction
+- P2291R3 - Add Constexpr Modifiers to Functions ``to_chars`` and
+  ``from_chars`` for Integral Types in ``<charconv>`` Header
+- P0220R1 - Adopt Library Fundamentals V1 TS Components for C++17
+- P0482R6 - char8_t: A type for UTF-8 characters and strings
 
 Improvements and New Features
 -----------------------------
 - Declarations of ``std::c8rtomb()`` and ``std::mbrtoc8()`` from P0482R6 are
   now provided when implementations in the global namespace are provided by
   the C library.
+- Implemented ``<memory_resource>`` header from C++17
 
 Deprecations and Removals
 -------------------------
@@ -76,6 +82,19 @@ Deprecations and Removals
   All known clients have been migrated to the new configuration system, but please
   reach out to the libc++ developers if you find something missing in the new
   configuration system.
+
+- The functions ``to_chars`` and ``from_chars`` for integral types are
+  available starting with C++17. Libc++ offered these functions in C++11 and
+  C++14 as an undocumented extension. This extension makes it hard to implement
+  the C++23 paper that makes these functions ``constexpr``, therefore the
+  extension has been removed.
+
+- The ``_LIBCPP_ENABLE_CXX03_FUNCTION`` macro that allowed re-enabling the now-deprecated C++03 implementation of
+  ``std::function`` has been removed. Users who need to use ``std::function`` should switch to C++11 and above.
+
+- The contents of ``<experimental/memory_resource>`` are now deprecated since libc++ ships ``<memory_resource>`` now.
+  Please migrate to ``<memory_resource>`` instead. Per libc++'s TS deprecation policy,
+  ``<experimental/memory_resource>`` will be removed in LLVM 18.
 
 Upcoming Deprecations and Removals
 ----------------------------------

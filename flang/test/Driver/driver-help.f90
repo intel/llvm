@@ -24,12 +24,14 @@
 ! HELP-NEXT: Enable the old style PARAMETER statement
 ! HELP-NEXT: -fbackslash            Specify that backslash in string introduces an escape character
 ! HELP-NEXT: -fcolor-diagnostics    Enable colors in diagnostics
+! HELP-NEXT: -fconvert=<value>      Set endian conversion of data for unformatted files
 ! HELP-NEXT: -fdefault-double-8     Set the default double precision kind to an 8 byte wide type
 ! HELP-NEXT: -fdefault-integer-8    Set the default integer kind to an 8 byte wide type
 ! HELP-NEXT: -fdefault-real-8       Set the default real kind to an 8 byte wide type
 ! HELP-NEXT: -ffixed-form           Process source files in fixed form
 ! HELP-NEXT: -ffixed-line-length=<value>
 ! HELP-NEXT: Use <value> as character line width in fixed mode
+! HELP-NEXT: -ffp-contract=<value> Form fused FP ops (e.g. FMAs)
 ! HELP-NEXT: -ffree-form            Process source files in free form
 ! HELP-NEXT: -fimplicit-none        No implicit typing allowed unless overridden by IMPLICIT statements
 ! HELP-NEXT: -finput-charset=<value> Specify the default character set for source files
@@ -79,6 +81,7 @@
 ! HELP-FC1-NEXT: Enable the old style PARAMETER statement
 ! HELP-FC1-NEXT: -fbackslash            Specify that backslash in string introduces an escape character
 ! HELP-FC1-NEXT: -fcolor-diagnostics     Enable colors in diagnostics
+! HELP-FC1-NEXT: -fconvert=<value>      Set endian conversion of data for unformatted files
 ! HELP-FC1-NEXT: -fdebug-dump-all       Dump symbols and the parse tree after the semantic checks
 ! HELP-FC1-NEXT: -fdebug-dump-parse-tree-no-sema
 ! HELP-FC1-NEXT:                        Dump the parse tree (skips the semantic checks)
@@ -103,6 +106,7 @@
 ! HELP-FC1-NEXT: -ffixed-form           Process source files in fixed form
 ! HELP-FC1-NEXT: -ffixed-line-length=<value>
 ! HELP-FC1-NEXT: Use <value> as character line width in fixed mode
+! HELP-FC1-NEXT: -ffp-contract=<value> Form fused FP ops (e.g. FMAs)
 ! HELP-FC1-NEXT: -ffree-form            Process source files in free form
 ! HELP-FC1-NEXT: -fget-definition <value> <value> <value>
 ! HELP-FC1-NEXT:                        Get the symbol definition from <line> <start-column> <end-column>

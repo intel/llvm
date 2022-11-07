@@ -60,12 +60,12 @@ static LogicalResult inlinePayload(OpBuilder &b, LinalgOp linalgOp,
   Location loc = terminator->getLoc();
   for (const auto &operand : llvm::enumerate(terminator->getOperands())) {
     Value toStore = map.lookupOrDefault(operand.value());
-    OpOperand *storeInto = linalgOp.getOutputOperand(operand.index());
+    OpOperand *storeInto = linalgOp.getDpsInitOperand(operand.index());
     auto indices = getIndicesForAccess(
         b, loc, linalgOp.getMatchingIndexingMap(storeInto), ivs);
-    b.create<memref::StoreOp>(loc, toStore,
-                              linalgOp.getOutputOperand(operand.index())->get(),
-                              indices);
+    b.create<memref::StoreOp>(
+        loc, toStore, linalgOp.getDpsInitOperand(operand.index())->get(),
+        indices);
   }
   return success();
 }
@@ -84,19 +84,12 @@ template <typename LinalgOpTy>
 struct LinalgOpTilingInterface
     : public TilingInterface::ExternalModel<LinalgOpTilingInterface<LinalgOpTy>,
                                             LinalgOpTy> {
-  /// Return the destination operands.
-  SmallVector<Value> getDestinationOperands(Operation *op, OpBuilder &b) const {
-    return cast<LinalgOp>(op).getOutputOperands();
-  }
-
   /// Return the loop iterator type.
   SmallVector<utils::IteratorType> getLoopIteratorTypes(Operation *op) const {
     LinalgOpTy concreteOp = cast<LinalgOpTy>(op);
-    return llvm::to_vector(
-        llvm::map_range(concreteOp.iterator_types(), [](Attribute strAttr) {
-          return utils::symbolizeIteratorType(
-                     strAttr.cast<StringAttr>().getValue())
-              .value();
+    return llvm::to_vector(llvm::map_range(
+        concreteOp.getIteratorTypesArray(), [](StringRef iteratorType) {
+          return utils::symbolizeIteratorType(iteratorType).value();
         }));
   }
 
@@ -127,14 +120,12 @@ struct LinalgOpTilingInterface
     // specified could lead to out of bounds accesses.
     Location loc = op->getLoc();
     LinalgOp linalgOp = cast<LinalgOp>(op);
-    SmallVector<Value> valuesToTile = linalgOp.getInputAndOutputOperands();
+    SmallVector<Value> valuesToTile = linalgOp->getOperands();
     SmallVector<Value, 4> tiledOperands = makeTiledShapes(
         b, loc, linalgOp, valuesToTile, offsets, sizes, {}, true);
 
-    SmallVector<Type> resultTensorTypes = llvm::to_vector(llvm::map_range(
-        linalgOp.getOutputTensorOperands(), [&](OpOperand *opOperand) {
-          return tiledOperands[opOperand->getOperandNumber()].getType();
-        }));
+    SmallVector<Type> resultTensorTypes =
+        getTensorOutputTypes(linalgOp, tiledOperands);
 
     Operation *tiledOp =
         linalgOp.clone(b, loc, resultTensorTypes, tiledOperands);
@@ -161,7 +152,7 @@ struct LinalgOpTilingInterface
           return makeComposedFoldedAffineApply(b, loc, d0 - 1, ofr);
         }));
 
-    OpOperand *outOperand = linalgOp.getOutputOperand(resultNumber);
+    OpOperand *outOperand = linalgOp.getDpsInitOperand(resultNumber);
     SliceParameters sliceParams = computeSliceParameters(
         b, loc, outOperand->get(), sizes,
         linalgOp.getMatchingIndexingMap(outOperand), offsets,
@@ -224,23 +215,23 @@ struct LinalgOpTilingInterface
       return op->emitOpError("expected operation to have buffer semantics");
 
     SmallVector<Value> indexedValues;
-    indexedValues.reserve(linalgOp.getNumInputsAndOutputs());
+    indexedValues.reserve(linalgOp->getNumOperands());
     Location linalgOpLoc = op->getLoc();
     /// Load the data corresponding to the block arguments that
     /// represent input operands.
-    for (OpOperand *operand : linalgOp.getInputAndOutputOperands()) {
-      if (!linalgOp.payloadUsesValueFromOperand(operand)) {
+    for (OpOperand &operand : linalgOp->getOpOperands()) {
+      if (!linalgOp.payloadUsesValueFromOperand(&operand)) {
         indexedValues.push_back(nullptr);
         continue;
       }
-      if (linalgOp.isScalar(operand)) {
-        indexedValues.push_back(operand->get());
+      if (linalgOp.isScalar(&operand)) {
+        indexedValues.push_back(operand.get());
         continue;
       }
       SmallVector<Value> indices = getIndicesForAccess(
-          builder, linalgOpLoc, linalgOp.getMatchingIndexingMap(operand), ivs);
+          builder, linalgOpLoc, linalgOp.getMatchingIndexingMap(&operand), ivs);
       Value load =
-          builder.create<memref::LoadOp>(linalgOpLoc, operand->get(), indices);
+          builder.create<memref::LoadOp>(linalgOpLoc, operand.get(), indices);
       indexedValues.push_back(load);
     }
 

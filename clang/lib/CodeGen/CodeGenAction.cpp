@@ -439,6 +439,11 @@ namespace clang {
     /// \return True if the diagnostic has been successfully reported, false
     /// otherwise.
     bool StackSizeDiagHandler(const llvm::DiagnosticInfoStackSize &D);
+    /// Specialized handler for ResourceLimit diagnostic.
+    /// \return True if the diagnostic has been successfully reported, false
+    /// otherwise.
+    bool ResourceLimitDiagHandler(const llvm::DiagnosticInfoResourceLimit &D);
+
     /// Specialized handler for unsupported backend feature diagnostic.
     void UnsupportedDiagHandler(const llvm::DiagnosticInfoUnsupported &D);
     /// Specialized handlers for optimization remarks.
@@ -458,6 +463,8 @@ namespace clang {
     /// Specialized handler for misexpect warnings.
     /// Note that misexpect remarks are emitted through ORE
     void MisExpectDiagHandler(const llvm::DiagnosticInfoMisExpect &D);
+    void
+    AspectMismatchDiagHandler(const llvm::DiagnosticInfoAspectsMismatch &D);
   };
 
   void BackendConsumer::anchor() {}
@@ -631,6 +638,20 @@ BackendConsumer::StackSizeDiagHandler(const llvm::DiagnosticInfoStackSize &D) {
   Diags.Report(*Loc, diag::warn_fe_frame_larger_than)
       << static_cast<uint32_t>(D.getStackSize())
       << static_cast<uint32_t>(D.getStackLimit())
+      << llvm::demangle(D.getFunction().getName().str());
+  return true;
+}
+
+bool BackendConsumer::ResourceLimitDiagHandler(
+    const llvm::DiagnosticInfoResourceLimit &D) {
+  auto Loc = getFunctionSourceLocation(D.getFunction());
+  if (!Loc)
+    return false;
+  unsigned DiagID = diag::err_fe_backend_resource_limit;
+  ComputeDiagID(D.getSeverity(), backend_resource_limit, DiagID);
+
+  Diags.Report(*Loc, DiagID)
+      << D.getResourceName() << D.getResourceSize() << D.getResourceLimit()
       << llvm::demangle(D.getFunction().getName().str());
   return true;
 }
@@ -839,6 +860,23 @@ void BackendConsumer::DontCallDiagHandler(const DiagnosticInfoDontCall &D) {
       << llvm::demangle(D.getFunctionName().str()) << D.getNote();
 }
 
+void BackendConsumer::AspectMismatchDiagHandler(
+    const DiagnosticInfoAspectsMismatch &D) {
+  SourceLocation LocCookie =
+      SourceLocation::getFromRawEncoding(D.getLocCookie());
+  assert(LocCookie.isValid() &&
+         "Invalid location for caller in aspect mismatch diagnostic");
+  Diags.Report(LocCookie, diag::warn_sycl_device_has_aspect_mismatch)
+      << llvm::demangle(D.getFunctionName().str()) << D.getAspect();
+  for (const std::pair<StringRef, unsigned> &CalleeInfo : D.getCallChain()) {
+    LocCookie = SourceLocation::getFromRawEncoding(CalleeInfo.second);
+    assert(LocCookie.isValid() &&
+           "Invalid location for callee in aspect mismatch diagnostic");
+    Diags.Report(LocCookie, diag::note_sycl_aspect_propagated_from_call)
+        << llvm::demangle(CalleeInfo.first.str());
+  }
+}
+
 void BackendConsumer::MisExpectDiagHandler(
     const llvm::DiagnosticInfoMisExpect &D) {
   StringRef Filename;
@@ -877,6 +915,11 @@ void BackendConsumer::DiagnosticHandlerImpl(const DiagnosticInfo &DI) {
     if (StackSizeDiagHandler(cast<DiagnosticInfoStackSize>(DI)))
       return;
     ComputeDiagID(Severity, backend_frame_larger_than, DiagID);
+    break;
+  case llvm::DK_ResourceLimit:
+    if (ResourceLimitDiagHandler(cast<DiagnosticInfoResourceLimit>(DI)))
+      return;
+    ComputeDiagID(Severity, backend_resource_limit, DiagID);
     break;
   case DK_Linker:
     ComputeDiagID(Severity, linking_module, DiagID);
@@ -934,6 +977,9 @@ void BackendConsumer::DiagnosticHandlerImpl(const DiagnosticInfo &DI) {
     return;
   case llvm::DK_MisExpect:
     MisExpectDiagHandler(cast<DiagnosticInfoMisExpect>(DI));
+    return;
+  case llvm::DK_AspectMismatch:
+    AspectMismatchDiagHandler(cast<DiagnosticInfoAspectsMismatch>(DI));
     return;
   default:
     // Plugin IDs are not bound to any value as they are set dynamically.

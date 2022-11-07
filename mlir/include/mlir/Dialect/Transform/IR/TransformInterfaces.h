@@ -12,6 +12,7 @@
 #include "mlir/IR/OpDefinition.h"
 
 #include "mlir/Interfaces/SideEffectInterfaces.h"
+#include "mlir/Support/LogicalResult.h"
 #include "llvm/ADT/ScopeExit.h"
 
 namespace mlir {
@@ -180,6 +181,99 @@ private:
 #endif // LLVM_ENABLE_ABI_BREAKING_CHECKS
 };
 
+class DiagnosedDefiniteFailure;
+
+DiagnosedDefiniteFailure emitDefiniteFailure(Location loc,
+                                             const Twine &message = {});
+
+/// A compatibility class connecting `InFlightDiagnostic` to
+/// `DiagnosedSilenceableFailure` while providing an interface similar to the
+/// former. Implicitly convertible to `DiagnosticSilenceableFailure` in definite
+/// failure state and to `LogicalResult` failure. Reports the error on
+/// conversion or on destruction. Instances of this class can be created by
+/// `emitDefiniteFailure()`.
+class DiagnosedDefiniteFailure {
+  friend DiagnosedDefiniteFailure emitDefiniteFailure(Location loc,
+                                                      const Twine &message);
+
+public:
+  /// Only move-constructible because it carries an in-flight diagnostic.
+  DiagnosedDefiniteFailure(DiagnosedDefiniteFailure &&) = default;
+
+  /// Forward the message to the diagnostic.
+  template <typename T>
+  DiagnosedDefiniteFailure &operator<<(T &&value) & {
+    diag << std::forward<T>(value);
+    return *this;
+  }
+  template <typename T>
+  DiagnosedDefiniteFailure &&operator<<(T &&value) && {
+    return std::move(this->operator<<(std::forward<T>(value)));
+  }
+
+  /// Attaches a note to the error.
+  Diagnostic &attachNote(Optional<Location> loc = llvm::None) {
+    return diag.attachNote(loc);
+  }
+
+  /// Implicit conversion to DiagnosedSilenceableFailure in the definite failure
+  /// state. Reports the error.
+  operator DiagnosedSilenceableFailure() {
+    diag.report();
+    return DiagnosedSilenceableFailure::definiteFailure();
+  }
+
+  /// Implicit conversion to LogicalResult in the failure state. Reports the
+  /// error.
+  operator LogicalResult() {
+    diag.report();
+    return failure();
+  }
+
+private:
+  /// Constructs a definite failure at the given location with the given
+  /// message.
+  explicit DiagnosedDefiniteFailure(Location loc, const Twine &message)
+      : diag(emitError(loc, message)) {}
+
+  /// Copy-construction and any assignment is disallowed to prevent repeated
+  /// error reporting.
+  DiagnosedDefiniteFailure(const DiagnosedDefiniteFailure &) = delete;
+  DiagnosedDefiniteFailure &
+  operator=(const DiagnosedDefiniteFailure &) = delete;
+  DiagnosedDefiniteFailure &operator=(DiagnosedDefiniteFailure &&) = delete;
+
+  /// The error message.
+  InFlightDiagnostic diag;
+};
+
+/// Emits a definite failure with the given message. The returned object allows
+/// for last-minute modification to the error message, such as attaching notes
+/// and completing the message. It will be reported when the object is
+/// destructed or converted.
+inline DiagnosedDefiniteFailure emitDefiniteFailure(Location loc,
+                                                    const Twine &message) {
+  return DiagnosedDefiniteFailure(loc, message);
+}
+inline DiagnosedDefiniteFailure emitDefiniteFailure(Operation *op,
+                                                    const Twine &message = {}) {
+  return emitDefiniteFailure(op->getLoc(), message);
+}
+
+/// Emits a silenceable failure with the given message. A silenceable failure
+/// must be either suppressed or converted into a definite failure and reported
+/// to the user.
+inline DiagnosedSilenceableFailure
+emitSilenceableFailure(Location loc, const Twine &message = {}) {
+  Diagnostic diag(loc, DiagnosticSeverity::Error);
+  diag << message;
+  return DiagnosedSilenceableFailure::silenceableFailure(std::move(diag));
+}
+inline DiagnosedSilenceableFailure
+emitSilenceableFailure(Operation *op, const Twine &message = {}) {
+  return emitSilenceableFailure(op->getLoc(), message);
+}
+
 namespace transform {
 
 class TransformOpInterface;
@@ -204,6 +298,16 @@ public:
 private:
   bool expensiveChecksEnabled = true;
 };
+
+/// Entry point to the Transform dialect infrastructure. Applies the
+/// transformation specified by `transform` to payload IR contained in
+/// `payloadRoot`. The `transform` operation may contain other operations that
+/// will be executed following the internal logic of the operation. It must
+/// have the `PossibleTopLevelTransformOp` trait and not have any operands.
+/// This function internally keeps track of the transformation state.
+LogicalResult
+applyTransforms(Operation *payloadRoot, TransformOpInterface transform,
+                const TransformOptions &options = TransformOptions());
 
 /// The state maintained across applications of various ops implementing the
 /// TransformOpInterface. The operations implementing this interface and the
@@ -249,15 +353,11 @@ class TransformState {
     TransformOpReverseMapping reverse;
   };
 
-public:
-  /// Creates a state for transform ops living in the given region. The parent
-  /// operation of the region. The second argument points to the root operation
-  /// in the payload IR being transformed, which may or may not contain the
-  /// region with transform ops. Additional options can be provided through the
-  /// trailing configuration object.
-  TransformState(Region &region, Operation *root,
-                 const TransformOptions &options = TransformOptions());
+  friend LogicalResult applyTransforms(Operation *payloadRoot,
+                                       TransformOpInterface transform,
+                                       const TransformOptions &options);
 
+public:
   /// Returns the op at which the transformation state is rooted. This is
   /// typically helpful for transformations that apply globally.
   Operation *getTopLevel() const;
@@ -279,13 +379,16 @@ public:
   /// list of operations in the payload IR. The arguments must be defined in
   /// blocks of the currently processed transform IR region, typically after a
   /// region scope is defined.
-  void mapBlockArguments(BlockArgument argument,
-                         ArrayRef<Operation *> operations) {
+  ///
+  /// Returns failure if the payload does not satisfy the conditions associated
+  /// with the type of the handle value.
+  LogicalResult mapBlockArguments(BlockArgument argument,
+                                  ArrayRef<Operation *> operations) {
 #if LLVM_ENABLE_ABI_BREAKING_CHECKS
     assert(argument.getParentRegion() == regionStack.back() &&
            "mapping block arguments from a region other than the active one");
 #endif // LLVM_ENABLE_ABI_BREAKING_CHECKS
-    setPayloadOps(argument, operations);
+    return setPayloadOps(argument, operations);
   }
 
   // Forward declarations to support limited visibility.
@@ -434,6 +537,13 @@ private:
   /// Identifier for storing top-level value in the `operations` mapping.
   static constexpr Value kTopLevelValue = Value();
 
+  /// Creates a state for transform ops living in the given region. The second
+  /// argument points to the root operation in the payload IR being transformed,
+  /// which may or may not contain the region with transform ops. Additional
+  /// options can be provided through the trailing configuration object.
+  TransformState(Region *region, Operation *payloadRoot,
+                 const TransformOptions &options = TransformOptions());
+
   /// Returns the mappings frame for the reigon in which the value is defined.
   const Mappings &getMapping(Value value) const {
     return const_cast<TransformState *>(this)->getMapping(value);
@@ -478,7 +588,10 @@ private:
   /// is invalid given the transformation "consumes" the handle as expressed
   /// by side effects. Practically, a transformation consuming a handle means
   /// that the associated payload operation may no longer exist.
-  void setPayloadOps(Value value, ArrayRef<Operation *> targets);
+  ///
+  /// Returns failure if the payload does not satisfy the conditions associated
+  /// with the type of the handle value.
+  LogicalResult setPayloadOps(Value value, ArrayRef<Operation *> targets);
 
   /// Forgets the payload IR ops associated with the given transform IR value.
   void removePayloadOps(Value value);
@@ -488,8 +601,12 @@ private:
   /// expected to return the modified operation or nullptr. In the latter case,
   /// the corresponding operation is no longer associated with the transform IR
   /// value.
-  void updatePayloadOps(Value value,
-                        function_ref<Operation *(Operation *)> callback);
+  ///
+  /// Returns failure if the payload does not satisfy the conditions associated
+  /// with the type of the handle value.
+  LogicalResult
+  updatePayloadOps(Value value,
+                   function_ref<Operation *(Operation *)> callback);
 
   /// If the operand is a handle consumed by the operation, i.e. has the "free"
   /// memory effect associated with it, identifies other handles that are
@@ -574,9 +691,9 @@ namespace detail {
 /// Maps the only block argument of the op with PossibleTopLevelTransformOpTrait
 /// to either the list of operations associated with its operand or the root of
 /// the payload IR, depending on what is available in the context.
-void mapPossibleTopLevelTransformOpBlockArguments(TransformState &state,
-                                                  Operation *op,
-                                                  Region &region);
+LogicalResult
+mapPossibleTopLevelTransformOpBlockArguments(TransformState &state,
+                                             Operation *op, Region &region);
 
 /// Verification hook for PossibleTopLevelTransformOpTrait.
 LogicalResult verifyPossibleTopLevelTransformOpTrait(Operation *op);
@@ -613,17 +730,17 @@ public:
   /// Sets up the mapping between the entry block of the given region of this op
   /// and the relevant list of Payload IR operations in the given state. The
   /// state is expected to be already scoped at the region of this operation.
-  void mapBlockArguments(TransformState &state, Region &region) {
+  LogicalResult mapBlockArguments(TransformState &state, Region &region) {
     assert(region.getParentOp() == this->getOperation() &&
            "op comes from the wrong region");
-    detail::mapPossibleTopLevelTransformOpBlockArguments(
+    return detail::mapPossibleTopLevelTransformOpBlockArguments(
         state, this->getOperation(), region);
   }
-  void mapBlockArguments(TransformState &state) {
+  LogicalResult mapBlockArguments(TransformState &state) {
     assert(
         this->getOperation()->getNumRegions() == 1 &&
         "must indicate the region to map if the operation has more than one");
-    mapBlockArguments(state, this->getOperation()->getRegion(0));
+    return mapBlockArguments(state, this->getOperation()->getRegion(0));
   }
 };
 
