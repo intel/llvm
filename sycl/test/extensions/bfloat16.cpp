@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl-device-only -fsycl-targets=%sycl_triple -Xsycl-target-backend=%sycl_triple "-device pvc" -S -Xclang -no-enable-noundef-analysis %s -o - | FileCheck %s
+// RUN: %clangxx -fsycl-device-only -fsycl-targets=%sycl_triple -S -Xclang -no-enable-noundef-analysis %s -o - | FileCheck %s
 
 // UNSUPPORTED: cuda || hip_amd
 
@@ -24,7 +24,7 @@ __attribute__((noinline)) float op(float a, float b) {
   // CHECK: [[A_float:%.*]] = call spir_func float @__devicelib_ConvertBF16ToFINTEL(i16 {{.*}} %value.i)
   // CHECK: [[B_float:%.*]] = call spir_func float @__devicelib_ConvertBF16ToFINTEL(i16 {{.*}} %value.i7)
   // CHECK: [[Add:%.*]] = fadd float [[A_float]], [[B_float]]
-  // CHECK: store float [[Add]], float addrspace(4)* [[Add1:%ref.tmp.ascast.i]], align 4, !tbaa !48, !noalias !55
+  // CHECK: store float [[Add]], float addrspace(4)* [[Add1:%ref.tmp.ascast.i]], align 4
   // CHECK: [[C:%.*]] = call spir_func zeroext i16 @__devicelib_ConvertFToBF16INTEL(float {{.*}} [[Add1]])
   // CHECK-NOT: uitofp
   // CHECK-NOT: fptoui
