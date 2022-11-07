@@ -273,12 +273,19 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
   }
 }
 
-#define UNCONSTRAINED_CAST(FuncName, Op)                                       \
-  ValueCategory ValueCategory::FuncName(OpBuilder &Builder,                    \
-                                        Type PromotionType) const {            \
-    llvm::WithColor::warning() << "Creating unconstrained " #Op "\n";          \
-    return Cast<arith::Op>(Builder, PromotionType);                            \
-  }
-UNCONSTRAINED_CAST(FPTrunc, TruncFOp)
-UNCONSTRAINED_CAST(FPExt, ExtFOp)
-#undef UNCONSTRAINED_CAST
+template <typename OpTy> inline void warnUnconstrainedCast() {
+  llvm::WithColor::warning()
+      << "Creating unconstrained " << OpTy::getOperationName() << "\n";
+}
+
+ValueCategory ValueCategory::FPTrunc(OpBuilder &Builder,
+                                     Type PromotionType) const {
+  warnUnconstrainedCast<arith::TruncFOp>();
+  return Cast<arith::TruncFOp>(Builder, PromotionType);
+}
+
+ValueCategory ValueCategory::FPExt(OpBuilder &Builder,
+                                   Type PromotionType) const {
+  warnUnconstrainedCast<arith::ExtFOp>();
+  return Cast<arith::ExtFOp>(Builder, PromotionType);
+}
