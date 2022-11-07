@@ -33,10 +33,10 @@ SYCL specification refer to that revision.
 
 **_NOTE:_** _This document describes the current design and API for the matrix
 extension to {dpcpp}. This is an initial experimental version to try out functionality
-and performance, and **future versions of this API may change in ways that are incompatible with this experimental version**. The current implementation provides support of the matrix interface on Intel(R) Advanced Matrix Extensions (AMX), DPAS and Nvidia(R) Tensor Cores._
+and performance, and **future versions of this API may change in ways that are incompatible with this experimental version**. The current implementation provides support of the matrix interface on Intel(R) Advanced Matrix Extensions (Intel(R) AMX), Intel(R) Xe Matrix Extensions (Intel(R) XMX) and Nvidia(R) Tensor Cores._
 
 ## Introduction
-This document presents an ongoing work towards defining a unified matrix interface. This interface is intended to unify different tensor hardware: Intel AMX in CPUs, DPAS in Intel GPUs, Habana Gaudi and Goya tensor and gemm cores, Nvidia TPUs, IBM Power MMA. All these hardware provide low-level intrinsics or assembly to access and perform matrix operations. The goal is to provide a unified interface that is portable but also benefit from the maximum performance these different hardware can offer.
+This document presents an ongoing work towards defining a unified matrix interface. This interface is intended to unify different tensor hardware: Intel AMX in CPUs, Intel XMX in Intel GPUs, Habana Gaudi and Goya tensor and gemm cores, Nvidia TPUs, IBM Power MMA. All these hardware provide low-level intrinsics or assembly to access and perform matrix operations. The goal is to provide a unified interface that is portable but also benefit from the maximum performance these different hardware can offer.
 
 ## Feature test macro
 
@@ -56,13 +56,13 @@ value to determine which of the extension's APIs the implementation supports.
 
 ## Matrix API Versions
 
-While this document presents the core API that unifies Intel AMX, DPAS, and Nvidia Tensor Cores, the implementations support slightly different versions of the API. For this reason, we introduce a new macro, namely `SYCL_EXT_ONEAPI_MATRIX_VERSION`  to distinguish between these different implementations. The goal in the next few months is to get rid of this implementation versioning macro. These are the current values for this macro.
+While this document presents the core API that unifies Intel AMX, Intel XMX, and Nvidia Tensor Cores, the implementations support slightly different versions of the API. For this reason, we introduce a new macro, namely `SYCL_EXT_ONEAPI_MATRIX_VERSION`  to distinguish between these different implementations. The goal in the next few months is to get rid of this implementation versioning macro. These are the current values for this macro.
 
 [frame="none",options="header"]
 |======================
 |Value |Description
-|1     |Initial extension JIT implementation on Intel AMX and DPAS. load, store, mad, fill, piece-wise operations, and the query interface are supported. The old API used for this implementation is detailed in [matrix extension](doc/extensions/deprecated/sycl_ext_oneapi_deprecated_matrix_no_use.asciidoc)
-|2     |JIT implementation on Intel AMX and DPAS. load, store, mad, fill, piece-wise operations, and the query interface are supported 
+|1     |Initial extension JIT implementation on Intel AMX and Intel XMX. load, store, mad, fill, piece-wise operations, and the query interface are supported. The old API used for this implementation is detailed in [matrix extension](../../deprecated/sycl_ext_oneapi_deprecated_matrix_no_use.asciidoc)
+|2     |JIT implementation on Intel AMX and Intel XMX. load, store, mad, fill, piece-wise operations, and the query interface are supported 
 |3     |Implementation on Nvidia Tensor Cores
 |======================
 
@@ -71,8 +71,7 @@ We introduce a new class called `joint_matrix`. The user needs to specify the ty
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
-template <typename T, use Use,
-          size_t Rows=sycl::dynamic_extent, size_t Cols=sycl::dynamic_extent,
+template <typename T, use Use, size_t Rows, size_t Cols,
           layout Layout = layout::dynamic, typename Group = sub_group>
 struct joint_matrix {
     joint_matrix(Group g) {}
@@ -81,11 +80,6 @@ struct joint_matrix {
 ```
 
 IMPORTANT: Matrix layout defaulting to `layout::dynamic` applies only to matrix with `use::accumulator`
-
-#### Shape
-The same class, `joint_matrix`, should handle both cases where sizes are constant (GPU case) and when sizes are variable (CPU case). Note that a Intel AMX 2d tile register permits sizes up to 1024 (16rowsx64cols) bytes. The ability to define only one interface for both makes it possible to give the user a way to make use of the flexibility introduced by the CPU but at the same time save resources on the GPU. We use `sycl::dynamic_extent`  to differentiate between static and dynamic sizes.
-
-IMPORTANT: In the current implementation, only the static extent is supported
 
 #### Use
 Specifying the usage of the matrix: matrix left (A), matrix right (B) or accumulator +(C)+ is required by backend implementations to reason about the layout of the matrix in registers.
@@ -99,6 +93,9 @@ enum class use {
 };
 }
 ```
+
+#### Shape
+Size of a `joint_matrix` that refers to its number of rows `Rows` and number of columns `Cols` must be constant.
 
 #### Layout
 Besides row major and column major layouts, `layout` is flexible enough to introduce custom layouts such as packed layout.
@@ -132,10 +129,6 @@ We define three new functions needed to perform the main and common operations o
 
 The base pointer determines the starting address of the matrix to be loaded/stored. `layout` determines whether the data is being read/written in a row (`row_major`), column major (`column_major`) fashion, or if the data has already been transformed into VNNI format (`packed`). `stride` describes the number of elements between consecutive rows for row major and packed layouts, or between columns for the column major layout. 
 
-Note that in order to get maximum performance on Intel AMX and DPAS, prepacking data in the memory is necessary. If users did not specify the packed layouts, transforms done by the implementation will be slow due to extra scatter/gather operations. Hence, we expose the `packed` layout to the user to specify that A or B have already been VNNIed. The packed or VNNI layout is introduced in the `VNNI layout` section below.
-
-IMPORTANT: In the current AMX and DPAS implementation, the layout in the load of matrix B (provided by the `layout memL` parameter below) must be `packed` or `row_major`. Automatic VNNI transform is supported on AMX. The layout in the load of matrices A and C must be `row_major`, and the layout in the store of matrix C (provided by the `layout memL` parameter below) must also be `row_major`.
-
 Since the matrix functions are group operations (as defined in Section 4.17.3 of the SYCL specification), the matrix API has to be accessed by all the work-items in the group in a convergent control flow. The `Group` template argument can be a work-group or a subgroup. These functions will be called once by each work item in the group.
 
 To be aligned with the SYCL 2020 group algorithms, an additional group argument is added to the matrix operations to designate that these functions are collective operations. The {dpcpp} syntax is the following: 
@@ -159,7 +152,7 @@ namespace sycl::ext::oneapi::experimental::matrix {
 }
 ```
 
-`joint_matrix_load` loads data from memory to the 2d tiles/registers of Intel AMX/DPAS.
+`joint_matrix_load` loads data from memory to the 2d tiles/registers of the tensor hardware.
 We define two overloads of the load function depending on whether the memory layout was declared as part of the `joint_matrix` type or not. 
 The first overload that takes memory layout as an argument is only available for a `joint_matrix` type that was declared with `layout::dynamic`.
 The second overload without a memory layout must not be used with a `joint_matrix` type that was declared with `layout::dynamic`.
@@ -228,9 +221,7 @@ Also, note that `get_wi_data` cannot return a fixed size array length because th
 
 2- SG size is not generally fixed.
 
-3- AMX has the flexibility of allowing variable sizes on the matrix (`dynamic_extent`).
-
-In the case of CUDA backend which is SYCL AOT compiled and SG size = 32 known and fixed, the additional marray capability will be provided.
+In the case of CUDA backend which is SYCL AOT compiled and SG size = 32 known and fixed, an additional `marray`-based capability is provided in [matrix Tensor Cores additional extension](sycl/doc/extensions/experimental/sycl_ext_oneapi_matrix/sycl_ext_oneapi_matrix_cuda.asciidoc).
 
 The code listing below shows a synopsis of these new APIs.
 
@@ -275,7 +266,7 @@ IMPORTANT: The WI data to joint matrix mapping coordinates information is not im
 IMPORTANT: In the Tensor Cores implementation, it is possible to know how many elements are owned by each WI at compile time. In this case, `wi_data` can be of type `marray`. An additional interface will be provided for the Tensor Cores backend.
 
 ## VNNI/Packed Layout
-Intel AMX and DPAS compute assumes that the B tile register (src1) is in the VNNI format as they need 32bit of K-data in A and B to be contiguous in memory. 
+Intel AMX and Intel XMX compute assumes that the B tile register (src1) is in the VNNI format as they need 32bit of K-data in A and B to be contiguous in memory. 
 The VNNI blocking factor is 2 in the case of 16-bit types, and it is 4 in the case of 8-bit types. While the current implementation assumes that the matrix has been already packed by the user for performance reasons, the layout information is needed to inform the implementation about this transformation.  The following example illustrates how a matrix in `row_major` layout is transformed into the `packed` layout for a 16-bit type.
 
 #### Example 1: 16-bit elements
@@ -345,7 +336,7 @@ q.parallel_for(nd_range<2>(G, L), [=](nd_item<2> item)
 ```
 
 == Query Interface
-Intel AMX, DPAS and Nvidia TPUs support different sizes and types.
+Intel AMX, Intel XMX and Nvidia TPUs support different sizes and types.
 The query interface is used to validate user code and inform them about supported types, sizes, scope, and layouts by the implementation.
 This also offers development and tuning productivity by both scientists and library developers. The query interface we are proposing here is a compile-time query, 
 so there will be no runtime errors.
@@ -355,7 +346,7 @@ The query interface proposed here consists of three functionalities:
 
 - Default values: this provides a default shape if the user does not provide a specific combination. In this case, aliases to the `joint_matrix` type can be used, namely `joint_matrix_a/b/accumulator` where no additional argument is needed. This form happens when the user specifies all template parameters except the sizes of the matrices (`tiles`) M, N, and K.
 
-- General query: the general query interface provides information  about sizes, types, static/dynamic, and scopes that are supported by a specific TPU implementation. This is needed to avoid padding by the user, for tuning, and efficient code generation if used by a library. The general query returns an array of `combinations` of `combination` type. Each combination includes the sizes and the types for the matrices A, B, and accumulator. Note that for each TPU, the query returns `max_msize, max_nsize, max_ksize` or `msize, nsize, ksize` exclusively, depending on whether the implementation supports a continuous or discrete number of sizes. For example, the Intel AMX implementation supports a continuous number of sizes, so the `max_*` variant is applied and only the maximum number is returned. The DPAS implementation, on the other hand, supports a discrete list of numbers so the  `msize, nsize, ksize` variant is applied.  This form takes place when users only specify the TPU they are interested in using.
+- General query: the general query interface provides information  about sizes, types, static/dynamic, and scopes that are supported by a specific TPU implementation. This is needed to avoid padding by the user, for tuning, and efficient code generation if used by a library. The general query returns an array of `combinations` of `combination` type. Each combination includes the sizes and the types for the matrices A, B, and accumulator. Note that for each TPU, the query returns `max_msize, max_nsize, max_ksize` or `msize, nsize, ksize` exclusively, depending on whether the implementation supports a continuous or discrete number of sizes. For example, the Intel AMX implementation supports a continuous number of sizes, so the `max_*` variant is applied and only the maximum number is returned. The Intel XMX implementation, on the other hand, supports a discrete list of numbers so the  `msize, nsize, ksize` variant is applied.  This form takes place when users only specify the TPU they are interested in using.
 
 The table below provides a description for each of the member variables and type aliases in `tpu_params` class and the forms in which  they are defined.
 
@@ -372,7 +363,7 @@ The table below provides a description for each of the member variables and type
 |`joint_matrix_b`| validation, default values| type alias for `joint_matrix` for matrix B
 |`joint_matrix_accumulator`|  validation, default values| type alias for `joint_matrix` for matrix accumulator
 |`dynamic_p`| validation, default values, general query| a boolean that indicates whether the implementation supports dynamic sizes (true) or not (false)
-|numtiles|  validation, default values, general query|indicates number of tiles in Intel AMX (does not apply to DPAS)
+|numtiles|  validation, default values, general query|indicates number of tiles in Intel AMX (does not apply to Intel XMX)
 |scope| validation, default values, general query| indicates the memory and execution scope supported by the TPU implementation
 |`combination` |  validation, default values, general query|composes the types and sizes of A, B, accumulator matrices allowed in one combination
 |`max_msize`, `max_nsize`, `max_ksize`|  validation, default values, general query| if the TPU implementation supports a continuous number of element sizes, each of these members is non-zero, and the TPU implementation supports all element sizes from 1 up to (and including) that number. By contrast, if the TPU implementation supports a discrete number of element sizes, each of these members has the value zero
@@ -532,7 +523,7 @@ struct tpu_params<tpu::amx, void, void, void, sM, sN, sK> {
 
 
 enum class tpu {
-  dpas,
+  xmx,
   amx
 };
 
@@ -568,14 +559,14 @@ enum class scope_t {
 ```c++
 // User can provide sizes besides the types and tpu_params can assert if they are supported or not
 // in this case, an assertion will happens as 16 is not a supported size for M
-using myparams = tpu_params<tpu::dpas, int8_t, int8_t, int, 16, 8, 32>;  
+using myparams = tpu_params<tpu::xmx, int8_t, int8_t, int, 16, 8, 32>;  
 size_t NDRangeM = M / myparams::M;  //Assertion would happen at this line
 size_t NDRangeN = N / myparams::N;
 ```
 
 === Default Values Example:
 ```c++
-using myparams = tpu_params_both<tpu::dpas, int8_t, int8_t, int>;
+using myparams = tpu_params_both<tpu::xmx, int8_t, int8_t, int>;
 // use this to construct the ranges on the host side
 size_t NDRangeM = M / myparams::M;
 size_t NDRangeN = N / myparams::N;
@@ -591,7 +582,7 @@ myparams::joint_matrix_accumulator sub_c(sg);
 ```c++
 constexpr int M = 1500; // with msize = 8 and msize = 4,
           // M can be broken up to 125 sequence of 8-sized ops and remaining 500 using 125 sequence of 4-sized ops
-tpu_params<tpu::dpas> params;
+tpu_params<tpu::xmx> params;
 constexpr int msize = break_dimension(params, M);
 constexpr int msize_remainder = break_dimension_remainder(params, M);
 constexpr int nsize = params.combinations[0].nsize;
@@ -640,10 +631,6 @@ for (int i = 0; i < length; ++i) {
 ## Open Questions
 - Ronan Keryell: "It would be interesting to investigate whether providing also member functions would simplify the API. Provide both so it is possible to use the best one for each use case, while waiting for https://en.wikipedia.org/wiki/Uniform_Function_Call_Syntax to land into C++?"
 
-- In the future looking APIs, `get_wi_data` (that is currently under design) returns an owned object. Should this return a view object to make sure the original matrix C is changed after its slices are modified.
-
-- `dynamic_extent` on the shape of `joint_matrix` is only available on Intel AMX. Should this be part of the API?  
-- This document still contains non-portable code between Intel AMX and DPAS, and Nvidia Tensor Cores such as: packed layout and dynamic_extent. Currently, these restrictions are explained in the spec text. But we might decide to move these to a separate Intel-specific additional matrix API document. 
 
 ## TODO List
 - Add WI data to joint matrix mapping coordinates information for piece-wise operations. This will be added as part of the query or new methods to the 'get_wi_data' class. 
@@ -660,4 +647,5 @@ for (int i = 0; i < length; ++i) {
 |2   |2021-10-05 |Dounia Khaldi |JIT implementation on both Intel AMX and DPAS
 |3   |2022-05-16 |Dounia Khaldi |Add matrix fill and piece-wise operations support
 |4   |2022-08-25 |Dounia Khaldi |Update the matrix spec by adding the new matrix use parameter and remove reference to the AOT AMX initial implementation 
+|5   |2022-11-07 |Dounia Khaldi |Update the matrix spec by moving the Intel-specifics to a separate document.  
 |======================

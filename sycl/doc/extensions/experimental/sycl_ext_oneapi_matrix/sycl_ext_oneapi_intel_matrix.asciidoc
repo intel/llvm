@@ -1,0 +1,56 @@
+# Additional Intel only specific about matrix extension for DPC++
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+:dpcpp: pass:[DPC++]
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+Copyright (c) 2021-2022 Intel Corporation.  All rights reserved.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
+trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
+used by permission by Khronos.
+
+This extension is written against the SYCL 2020 revision 5 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+**_NOTE:_** This document describes extra features and details for the implementation of `joint_matrix` extension on Intel AMX and Intel XMX.
+
+## Introduction
+The Intel backend implementations on both Intel AMX and DPAS  support `joint_matrix`, `joint_matrix_load`, `joint_matrix_store`, `joint_matrix_mad`, `joint_matrix_fill`, `get_wi_data`, and the query interface, as they are defined in the sycl_ext_oneapi_matrix extension. There are exra specifics about the supported layouts for extra performance and functionality that are listed in this document.
+
+% I don't think we need a specific feature test macro because there is not really additional features. 
+
+## Extra Functionality
+### Layout argument in `joint_matrix` type
+Layout in `joint_matrix` type is completely optional. Intel backends do not need to know about memory layout at the moment of creation of `joint_matrix`. Therefore, `layout` in `joint_matrix` type is optional, not only for matrix `accumulator` but for also Matrix `a` and `b`. In this case, the load with layout as an argument must be used. If `layout` is specified on Matrix `a` or `b`, it must then use the load without `layout` argument. 
+
+### Layout argument in `joint_matrix_load`
+In order to get maximum performance on Intel AMX and DPAS, prepacking data in the memory is necessary. If users did not specify the packed layouts, transforms done by the implementation will be slow due to extra scatter/gather operations. Hence, we expose the `packed` layout to the user to specify that A or B have already been VNNIed. The packed or VNNI layout is introduced in the `VNNI layout` section below.
+
+IMPORTANT: In the current Intel AMX and Intel XMX implementations, the layout in the load of matrix B (provided by the `layout memL` parameter below) must be `packed` or `row_major`. Automatic VNNI transform is supported on AMX. The layout in the load of matrices A and C must be `row_major`, and the layout in the store of matrix C (provided by the `layout memL` parameter below) must also be `row_major`.
+
+### Store Operation
+Besides store of matrix `accumulator`, the Intel implementation allows store on matrix `a` and `b` as well. 
+
+
+## Open Questions
+- Should the same class, `joint_matrix`, handle both cases where sizes are constant (GPU case) and when sizes are variable (CPU case). Note that a Intel AMX 2d tile register permits sizes up to 1024 (16rowsx64cols) bytes that can be variable. The ability to define only one interface for both would make it possible to give the user a way to make use of the flexibility introduced by the CPU but at the same time save resources on the GPU. In a previous version of the design, we used `sycl::dynamic_extent`  to differentiate between static and dynamic sizes. But since this was not implemented at all, we decided to remove it. We can revisit this design choice if this comes up as part of a customer request or if SPIRV matrix extension extends its support to dynamic sizes.
