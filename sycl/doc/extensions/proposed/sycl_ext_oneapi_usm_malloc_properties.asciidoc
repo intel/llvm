@@ -1,24 +1,8 @@
+:sectnums:
 
-:source-highlighter: coderay
-:coderay-linenums-mode: table
+= `sycl_ext_oneapi_usm_malloc_properties`
 
-// This section needs to be after the document title.
-:doctype: book
-:toc2:
-:toc: left
-:encoding: utf-8
-:lang: en
-
-:blank: pass:[ +]
-
-// Set the default source code type in this document to C++,
-// for syntax highlighting purposes.  This is needed because
-// docbook uses c++ and html5 uses cpp.
-:language: {basebackend@docbook:c++:cpp}
-
-// This is necessary for asciidoc, but not for asciidoctor
-:cpp: C++
-:dpcpp: DPC++
+:dpcpp: pass:[DPC++]
 
 == Notice
 
@@ -71,6 +55,7 @@ This extension introduces USM memory allocation functions with support for compi
 The USM memory allocation functions introduced by this extension take a `properties` object as a parameter, and return an `annotated_ptr`.
 This allows both runtime and compile-time-constant properties to be specified when allocating USM memory.
 Furthermore, the `annotated_ptr` returned by the USM memory allocation functions allows compile-time-constant information to propagate to the device compiler and thereby enable additional optimization of kernel code.
+
 This extension also introduces a new compile-time constant property `sycl::ext::oneapi::experimental::usm_kind`, whose single parameter is a value from the enumeration `sycl::usm::alloc`.
 
 [NOTE]
@@ -93,6 +78,7 @@ In the following examples, `bar` and `baz` are compile-time-constant properties,
 runtime property. Therefore if `bar` or `baz` is passed to a USM memory allocation function with `properties` support, it will appear on the returned `annotated_ptr`.
 However, the `foo` property will not appear on the returned `annotated_ptr` because it is a runtime property.
 
+If the USM memory allocation kind is known at compile-time, the compile-time-constant property `sycl::ext::oneapi::experimental::usm_kind` will also appear on the returned `annotated_ptr`.
 
 [source,c++]
 ----
@@ -116,26 +102,15 @@ static_assert(std::is_same_v<decltype(APtr1), decltype(APtr3)>);
 
 // APtr1 and APtr2 do not have the same properties
 static_assert(!std::is_same_v<decltype(APtr1), decltype(APtr2)>);
-----
 
-If the USM memory allocation kind is known at compile-time, the compile-time-constant property `sycl::ext::oneapi::experimental::usm_kind` will also appear on the returned `annotated_ptr`.
+// APtr4 is of type annotated_ptr<int*, decltype(properties{usm_kind<sycl::usm::alloc::host>})>
+auto APtr4 = annotated_malloc_host<int>(N, q);
 
-[source,c++]
-----
-using namespace sycl::ext::oneapi::experimental;
+// APtr5 is of type annotated_ptr<int*, decltype(properties{usm_kind<sycl::usm::alloc::shared>})>
+auto APtr5 = annotated_malloc_shared<int>(N, q);
 
-// APtr4 is of type annotated_ptr<int*, decltype(properties{usm_kind<sycl::usm::alloc::device>})>
-auto APtr4 = annotated_malloc_device<int>(N, q);
-
-// APtr5 is of type annotated_ptr<int*, decltype(properties{usm_kind<sycl::usm::alloc::host>})>
-auto APtr5 = annotated_malloc_host<int>(N, q);
-
-// APtr6 is of type annotated_ptr<int*, decltype(properties{usm_kind<sycl::usm::alloc::shared>})>
-auto APtr6 = annotated_malloc_shared<int>(N, q);
-
+// The USM kinds differ
 static_assert(!std::is_same_v<decltype(APtr4), decltype(APtr5)>);
-static_assert(!std::is_same_v<decltype(APtr4), decltype(APtr6)>);
-static_assert(!std::is_same_v<decltype(APtr5), decltype(APtr6)>);
 ----
 
 This extension also introduces USM memory allocation functions with `properties` support that allow the USM memory allocation kind to be specified at runtime.
@@ -147,12 +122,12 @@ using namespace sycl::ext::oneapi::experimental;
 
 properties P4{bar, foo{1}};
 
-// APtr7 is of type annotated_ptr<int*, decltype(properties{bar})>
-auto APtr7 = annotated_malloc<int>(N, q, sycl::usm::alloc::device, P4);
+// APtr6 is of type annotated_ptr<int*, decltype(properties{bar})>
+auto APtr6 = annotated_malloc<int>(N, q, sycl::usm::alloc::device, P4);
 
 // TODO: no properties but still returns an annotated_ptr seems odd
-// APtrNone is of type annotated_ptr<int*, decltype(properties{})>;
-auto APtrNone = annotated_malloc<int>(N, q, sycl::usm::alloc::device);
+// APtr7 is of type annotated_ptr<int*, decltype(properties{})>;
+auto APtr7 = annotated_malloc<int>(N, q, sycl::usm::alloc::device);
 ----
 
 If the USM memory allocation kind specified by a parameter to the allocation function is different than the USM memory allocation kind specified by the `sycl::ext::oneapi::experimental::usm_kind` property, the function throws a
@@ -162,10 +137,10 @@ synchronous exception with the `errc::invalid` error code.
 ----
 using namespace sycl::ext::oneapi::experimental;
 
-properties P6{usm_kind<sycl::usm::alloc::device>};
+properties P5{usm_kind<sycl::usm::alloc::device>};
 
 // Throws an exception with error code errc::invalid
-auto APtr10 = annotated_malloc<int>(N, q, sycl::usm::alloc::host, P6);
+auto APtr8 = annotated_malloc<int>(N, q, sycl::usm::alloc::host, P5);
 
 ----
 
@@ -176,9 +151,9 @@ If the `sycl::ext::oneapi::experimental::usm_kind` property specifies a differen
 ----
 using namespace sycl::ext::oneapi::experimental;
 
-properties P7{usm_kind<sycl::usm::alloc::device>};
+properties P6{usm_kind<sycl::usm::alloc::device>};
 
-auto APtr11 = annotated_malloc_host<int>(N, q, P7); // Error
+auto APtr9 = annotated_malloc_host<int>(N, q, P6); // Error, USM kinds do not agree
 ----
 
 The following example uses the compile-time-constant property `alignment`, defined in the link:../proposed/sycl_ext_oneapi_annotated_ptr.asciidoc[sycl_ext_oneapi_annotated_ptr] extension.
@@ -189,16 +164,16 @@ It also informs the runtime to allocate the memory with this alignment.
 ----
 using namespace sycl::ext::oneapi::experimental;
 
-properties P8{alignment<512>};
-// APtr12 is of type annotated_ptr<int, decltype(properties{alignment<512>, usm_kind<sycl::usm::alloc::device>})>
-// The raw pointer of APtr12 is aligned to 512 bytes
-auto APtr12 = annotated_malloc_device<int>(N, q, P8);
+properties P7{alignment<512>};
+// APtr10 is of type annotated_ptr<int, decltype(properties{alignment<512>, usm_kind<sycl::usm::alloc::device>})>
+// The raw pointer of APtr10 is aligned to 512 bytes
+auto APtr10 = annotated_malloc_device<int>(N, q, P7);
 
-properties P9{alignment<1>};
-auto APtr13 = annotated_malloc_device<int>(N, q, P9); // Error: alignment must be at least sizeof(int) bytes
+properties P8{alignment<1>};
+auto APtr11 = annotated_malloc_device<int>(N, q, P8); // Error: alignment must be at least sizeof(int) bytes
 
-properties P10{alignment<64>};
-auto APtr14 = annotated_malloc_device(512, q, P10); // Exception: alignment must be at least 512 bytes
+properties P9{alignment<64>};
+auto APtr12 = annotated_malloc_device(512, q, P9); // Exception: alignment must be at least 512 bytes
 ----
 
 This extension also introduces USM memory allocation functions with `properties` support that allow alignment to be specified at runtime, using a separate parameter of type `size_t`.
@@ -209,21 +184,21 @@ a synchronous exception will be thrown with error code `errc::invalid`.
 ----
 using namespace sycl::ext::oneapi::experimental;
 
-properties P11{alignment<64>}
+properties P10{alignment<64>}
 
 // All four of the following allocations are 64-byte aligned
 
-// APtr15 is of type annotated_ptr<int, decltype(properties{usm_kind<sycl::usm::alloc::device>})>
-auto APtr15 = annotated_aligned_alloc_device<int>(N, q, 64);
+// APtr13 is of type annotated_ptr<int, decltype(properties{usm_kind<sycl::usm::alloc::device>})>
+auto APtr13 = annotated_aligned_alloc_device<int>(N, q, 64);
 
-// APtr16 is of type annotated_ptr<int, decltype(properties{alignment<64>, usm_kind<sycl::usm::alloc::device>})>
-auto APtr16 = annotated_aligned_alloc_device<int>(N, q, 64, P11);
-
-// Exception, different alignments
-auto APtr17 = annotated_aligned_alloc_device<int>(N, q, 128, P11);
+// APtr14 is of type annotated_ptr<int, decltype(properties{alignment<64>, usm_kind<sycl::usm::alloc::device>})>
+auto APtr14 = annotated_aligned_alloc_device<int>(N, q, 64, P10);
 
 // Exception, different alignments
-auto APtr18 = annotated_aligned_alloc_device<int>(N, q, 16, P11);
+auto APtr15 = annotated_aligned_alloc_device<int>(N, q, 128, P10);
+
+// Exception, different alignments
+auto APtr16 = annotated_aligned_alloc_device<int>(N, q, 16, P10);
 ----
 
 == Specification
@@ -291,7 +266,7 @@ sycl::ext::oneapi::experimental::annotated_malloc_device(size_t numBytes,
 ----
 a@ Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory on `syclDevice` on
 success.  The allocation size is specified in bytes.  This memory is not
-accessible on the host.  Memory allocated by `sycl::ext::oneapi::experimental::annotated_malloc_device`
+accessible on the host.  Memory allocated by `annotated_malloc_device`
 must be deallocated with `sycl::free` to avoid memory leaks.
 On failure, the raw pointer of the returned `annotated_ptr` will be `nullptr`.
 
@@ -324,7 +299,7 @@ sycl::ext::oneapi::experimental::annotated_malloc_device(size_t count,
 a@  Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory on `syclDevice` on
 success.  The allocation size is specified in number of elements of type
 `T`.  This memory is not accessible on the host.  Memory allocated
-by `sycl::ext::oneapi::experimental::annotated_malloc_device` must be deallocated with
+by `annotated_malloc_device` must be deallocated with
 `sycl::free` to avoid memory leaks.
 On failure, the raw pointer of the returned `annotated_ptr` will be `nullptr`.
 
@@ -428,7 +403,7 @@ otherwise this function throws a synchronous `exception` with the
 `errc::invalid` error code.
 
 Throws a synchronous `exception` with the `errc::invalid` error code if `propList` contains an `alignment` property specifying a different
-alignment.
+alignment value than given by the `alignment` argument.
 
 Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
 
@@ -469,7 +444,7 @@ device that is contained by that context, otherwise this function throws a
 synchronous `exception` with the `errc::invalid` error code.
 
 Throws a synchronous `exception` with the `errc::invalid` error code if `propList` contains an `alignment` property specifying a different
-alignment.
+alignment value than given by the `alignment` argument.
 
 Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
 
@@ -500,7 +475,7 @@ Throws a synchronous `exception` with the
 does not have `aspect::usm_device_allocations`.
 
 Throws a synchronous `exception` with the `errc::invalid` error code if `propList` contains an `alignment` property specifying a different
-alignment.
+alignment value than given by the `alignment` argument.
 
 Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
 
@@ -530,7 +505,7 @@ Throws a synchronous `exception` with the
 does not have `aspect::usm_device_allocations`.
 
 Throws a synchronous `exception` with the `errc::invalid` error code if `propList` contains an `alignment` property specifying a different
-alignment.
+alignment value than given by the `alignment` argument.
 
 Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
 
@@ -555,7 +530,7 @@ sycl::ext::oneapi::experimental::annotated_malloc_host(size_t numBytes,
 a@ Returns an `annotated_ptr` containing a raw pointer to the newly allocated host memory on
 success. This allocation is specified in bytes. The allocation is
 accessible on the host and devices contained in the specified `context`.
-Memory allocated by `sycl::ext::oneapi::experimental::annotated_malloc_host` must be
+Memory allocated by `annotated_malloc_host` must be
 deallocated with `sycl::free` to avoid memory leaks.
 On failure, the raw pointer of the returned `annotated_ptr` will be `nullptr`.
 
@@ -584,7 +559,7 @@ a@ Returns an `annotated_ptr` containing a raw pointer to the newly allocated ho
 success. This allocation is specified in number of elements of type `T`.
 The allocation is accessible on the host and devices contained in the
 specified `context`.
-Memory allocated by `sycl::ext::oneapi::experimental::annotated_malloc_host` must be
+Memory allocated by `annotated_malloc_host` must be
 deallocated with `sycl::free` to avoid memory leaks.
 On failure, the raw pointer of the returned `annotated_ptr` will be `nullptr`.
 
@@ -661,7 +636,7 @@ success. This allocation is specified in bytes. The memory will have `alignment`
 
 The allocation is accessible on the host and devices contained
 in the specified `context`.
-Memory allocated by `sycl::ext::oneapi::experimental::annotated_aligned_malloc_host` must be
+Memory allocated by `annotated_aligned_malloc_host` must be
 deallocated with `sycl::free` to avoid memory leaks.
 On failure, the raw pointer of the returned `annotated_ptr` will be `nullptr`.
 
@@ -676,7 +651,7 @@ memory allocated by this function.  Attempting to access the memory from
 a device that does not have the aspect results in undefined behavior.
 
 Throws a synchronous `exception` with the `errc::invalid` error code if `propList` contains an `alignment` property specifying a different
-alignment.
+alignment value than given by the `alignment` argument.
 
 Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
 
@@ -694,7 +669,7 @@ a@ Returns an `annotated_ptr` containing a raw pointer to the newly allocated ho
 success. This allocation is specified in elements of type `T`. The memory will have `alignment`-byte alignment.
 The allocation is accessible on the
 host and devices contained in the specified `context`.
-Memory allocated by `sycl::ext::oneapi::experimental::annotated_aligned_malloc_host` must be
+Memory allocated by `annotated_aligned_malloc_host` must be
 deallocated with `sycl::free` to avoid memory leaks.
 On failure, the raw pointer of the returned `annotated_ptr` will be `nullptr`.
 
@@ -709,7 +684,8 @@ memory allocated by this function.  Attempting to access the memory from
 a device that does not have the aspect results in undefined behavior.
 
 Throws a synchronous `exception` with the `errc::invalid` error code if `propList` contains an `alignment` property specifying a different
-alignment.
+alignment value than given by the `alignment` argument.
+
 
 Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
 
@@ -738,7 +714,7 @@ memory allocated by this function.  Attempting to access the memory from
 a device that does not have the aspect results in undefined behavior.
 
 Throws a synchronous `exception` with the `errc::invalid` error code if `propList` contains an `alignment` property specifying a different
-alignment.
+alignment value than given by the `alignment` argument.
 
 Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
 
@@ -767,7 +743,7 @@ memory allocated by this function.  Attempting to access the memory from
 a device that does not have the aspect results in undefined behavior.
 
 Throws a synchronous `exception` with the `errc::invalid` error code if `propList` contains an `alignment` property specifying a different
-alignment.
+alignment value than given by the `alignment` argument.
 
 Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
 
@@ -930,7 +906,7 @@ otherwise this function throws a synchronous `exception` with the
 `errc::invalid` error code.
 
 Throws a synchronous `exception` with the `errc::invalid` error code if `propList` contains an `alignment` property specifying a different
-alignment.
+alignment value than given by the `alignment` argument.
 
 Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
 
@@ -970,7 +946,7 @@ otherwise this function throws a synchronous `exception` with the
 `errc::invalid` error code.
 
 Throws a synchronous `exception` with the `errc::invalid` error code if `propList` contains an `alignment` property specifying a different
-alignment.
+alignment value than given by the `alignment` argument.
 
 Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
 
@@ -1000,7 +976,7 @@ Throws a synchronous `exception` with the
 does not have `aspect::usm_shared_allocations`.
 
 Throws a synchronous `exception` with the `errc::invalid` error code if `propList` contains an `alignment` property specifying a different
-alignment.
+alignment value than given by the `alignment` argument.
 
 Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
 
@@ -1030,13 +1006,15 @@ Throws a synchronous `exception` with the
 does not have `aspect::usm_shared_allocations`.
 
 Throws a synchronous `exception` with the `errc::invalid` error code if `propList` contains an `alignment` property specifying a different
-alignment.
+alignment value than given by the `alignment` argument.
 
 Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
 
 |====
 
 ==== Parameterized allocation functions with properties support
+
+TODO: should the properties argument be non-optional here?
 
 [[table.usm.param.allocs]]
 .USM Parameterized Allocation Functions with properties Support
@@ -1190,9 +1168,9 @@ is contained by that context, otherwise this function throws a synchronous
 `exception` with the `errc::invalid` error code.
 
 Throws a synchronous `exception` with the `errc::invalid` error code if `propList` contains a `sycl::ext::oneapi::experimental::usm_kind` property specifying a different allocation kind.
-Throws a synchronous `exception` with the `errc::invalid` error code if `propList` contains an `alignment` property specifying a different
-alignment.
 
+Throws a synchronous `exception` with the `errc::invalid` error code if `propList` contains an `alignment` property specifying a different
+alignment value than given by the `alignment` argument.
 
 Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
 
@@ -1230,7 +1208,7 @@ is contained by that context, otherwise this function throws a synchronous
 
 Throws a synchronous `exception` with the `errc::invalid` error code if `propList` contains a `sycl::ext::oneapi::experimental::usm_kind` property specifying a different allocation kind.
 Throws a synchronous `exception` with the `errc::invalid` error code if `propList` contains an `alignment` property specifying a different
-alignment.
+alignment value than given by the `alignment` argument.
 
 Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
 
@@ -1259,7 +1237,7 @@ Runtime properties in `propList` will not appear as properties of the returned `
 
 Throws a synchronous `exception` with the `errc::invalid` error code if `propList` contains a `sycl::ext::oneapi::experimental::usm_kind` property specifying a different allocation kind.
 Throws a synchronous `exception` with the `errc::invalid` error code if `propList` contains an `alignment` property specifying a different
-alignment.
+alignment value than given by the `alignment` argument.
 
 Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
 
@@ -1287,7 +1265,7 @@ Runtime properties in `propList` will not appear as properties of the returned `
 
 Throws a synchronous `exception` with the `errc::invalid` error code if `propList` contains a `sycl::ext::oneapi::experimental::usm_kind` property specifying a different allocation kind.
 Throws a synchronous `exception` with the `errc::invalid` error code if `propList` contains an `alignment` property specifying a different
-alignment.
+alignment value than given by the `alignment` argument.
 
 Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
 
@@ -1342,8 +1320,8 @@ Available only if `propertyListA` and `propertyListB` are specializations of the
 a@
 [source]
 ----
-template <typename propertyListA, typename propertyListB>
-sycl::ext::oneapi::experimental::annotated_ptr<void, propertyListB>
+template <typename T, typename propertyListA, typename propertyListB>
+sycl::ext::oneapi::experimental::annotated_ptr<T, propertyListB>
 sycl::ext::oneapi::experimental::annotated_malloc(size_t count,
                                                   const device& syclDevice,
                                                   const context& syclContext,
@@ -1396,8 +1374,8 @@ Available only if `propertyListA` and `propertyListB` are specializations of the
 a@
 [source]
 ----
-template <typename propertyListA, typename propertyListB>
-sycl::ext::oneapi::experimental::annotated_ptr<void, propertyListB>
+template <typename T, typename propertyListA, typename propertyListB>
+sycl::ext::oneapi::experimental::annotated_ptr<T, propertyListB>
 sycl::ext::oneapi::experimental::annotated_malloc(size_t count,
                                                   const queue& syclQueue,
                                                   const propertyListA &propList)
@@ -1427,12 +1405,12 @@ A SYCL implementation or SYCL backend may support additional properties other th
 link:../experimental/sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties] extension.
 If unsupported properties are passed to the USM memory allocation functions with `properties` support, the compiler will issue a diagnostic error.
 
-All properties supported by `annotated_ptr` are supported by the USM memory allocation functions with `properties` support.
+All properties supported by `annotated_ptr` are supported by the USM memory allocation functions with `properties` support. These properties do not affect the behavior of the allocation functions at runtime, except where explicitly specified.
+
 
 [NOTE]
 ====
 The USM memory allocation functions with `properties` support defined in this extension support all properties supported by `annotated_ptr`, as a convenience. This allows the user to attach all desired properties to the `annotated_ptr` in a single step.
-These properties do not affect the behavior of the allocation functions at runtime, except where explicitly specified.
 ====
 
 Table <<table.usm.malloc.properties>> lists properties that affect the behavior of the allocation functions.
@@ -1445,7 +1423,6 @@ Table <<table.usm.malloc.properties>> lists properties that affect the behavior 
 a|
 alignment
 | 	
-If this property is present on an `annotated_ptr`, it indicates that the raw pointer has this alignment in bytes.
 If this property is passed to a USM memory allocation function with `properties` support, it instructs the runtime to allocate memory with this alignment in bytes.
 If the USM memory allocation function with `properties` support is templated on an allocation type `T` and the specified alignment is not suitable for an object of type `T` the compiler will issue a diagnostic error.
 If the USM memory allocation function with `properties` support is not templated on an allocation type `T`, and the specified alignment is not suitable for objects with fundamental alignment whose size is less than or equal to the requested allocation size, the USM memory allocation function with `properties` support will throw a synchronous exception with the `errc:invalid` error code.
@@ -1477,8 +1454,6 @@ and the USM memory allocation functions with `properties` support defined in thi
 
 The `sycl::ext::oneapi::experimental::usm_kind` property is a compile-time constant property with a single non-type parameter. This parameter is a value belonging to the enumeration `sycl::usm::alloc`.
 The `sycl::ext::oneapi::experimental::usm_kind` property is supported by `annotated_ptr` and the USM memory allocation functions defined in this extension.
-If a USM memory allocation kind is also specified by a parameter of type `sycl::usm::alloc`, the kind specified by the `sycl::ext::oneapi::experimental::usm_alloc` property takes precedence.
-If the USM memory allocation function with `properties` support does not have a parameter of type `sycl::usm::alloc`, and the USM memory allocation kind specified by the `sycl::ext::oneapi::experimental::usm_kind` property passed to the function is different than the kind of memory allocated by the function, the compiler will issue a diagnostic error.
 
 === Deallocation
 
@@ -1507,5 +1482,5 @@ sycl::free(APtr.get(), q);
 [options="header"]
 |========================================
 |Rev|Date|Author|Changes
-|1|2022-07-18|Jessica Davies|*Initial public working draft*
+|1|2022-11-07|Jessica Davies|*Initial public working draft*
 |========================================
