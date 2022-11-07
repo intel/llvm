@@ -2510,7 +2510,13 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
   }
 
   mlir::Type rt = getTypes().getMLIRType(FD->getType());
-  unsigned memspace = 0;
+  auto VD = dyn_cast<VarDecl>(FD);
+  if (!VD)
+    FD->dump();
+  VD = VD->getCanonicalDecl();
+  unsigned memspace = VD ? CGM.getContext().getTargetAddressSpace(
+                               CGM.GetGlobalVarAddressSpace(VD))
+                         : 0;
   bool isArray = isa<clang::ArrayType>(FD->getType());
   bool isExtVectorType =
       isa<clang::ExtVectorType>(FD->getType()->getUnqualifiedDesugaredType());
@@ -2533,11 +2539,6 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
     builder.setInsertionPointToStart(getDeviceModule(*module).getBody());
   else
     builder.setInsertionPointToStart(module->getBody());
-
-  auto VD = dyn_cast<VarDecl>(FD);
-  if (!VD)
-    FD->dump();
-  VD = VD->getCanonicalDecl();
 
   if (VD->isThisDeclarationADefinition() == VarDecl::Definition) {
     initial_value = builder.getUnitAttr();
