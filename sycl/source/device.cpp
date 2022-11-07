@@ -127,6 +127,7 @@ device::get_info() const {
   return impl->template get_info<Param>();
 }
 
+// Explicit override. Not fulfilled by #include device_traits.def below.
 template <> device device::get_info<info::device::parent_device>() const {
   // With ONEAPI_DEVICE_SELECTOR the impl.MRootDevice is preset and may be
   // overridden (ie it may be nullptr on a sub-device) The PI of the sub-devices
@@ -143,7 +144,10 @@ template <> device device::get_info<info::device::parent_device>() const {
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
   template __SYCL_EXPORT ReturnT device::get_info<info::device::Desc>() const;
 
+#define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, PiCode)
+
 #include <sycl/info/device_traits.def>
+#undef __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 #define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
