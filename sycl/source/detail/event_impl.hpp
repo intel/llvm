@@ -245,7 +245,6 @@ public:
 
   bool isCompleted();
 
-private:
   void attachEventToComplete(const EventImplPtr &Event) {
     std::lock_guard<std::mutex> Lock(MMutex);
     MPostCompleteEvents.push_back(Event);
