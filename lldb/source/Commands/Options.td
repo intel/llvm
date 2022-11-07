@@ -343,6 +343,11 @@ let Command = "disassemble" in {
     Desc<"Force disassembly of large functions.">;
 }
 
+let Command = "diagnostics dump" in {
+  def diagnostics_dump_directory : Option<"directory", "d">, Group<1>,
+    Arg<"Path">, Desc<"Dump the diagnostics to the given directory.">;
+}
+
 let Command = "expression" in {
   def expression_options_all_threads : Option<"all-threads", "a">,
     Groups<[1,2]>, Arg<"Boolean">, Desc<"Should we run all threads if the "
@@ -1091,6 +1096,19 @@ let Command = "thread plan list" in {
     "specified more than once.">;
   def thread_plan_list_unreported : Option<"unreported", "u">, Group<1>,
     Desc<"Display thread plans for unreported threads">;
+}
+
+let Command = "thread trace dump function calls" in {
+  def thread_trace_dump_function_calls_file : Option<"file", "F">, Group<1>,
+    Arg<"Filename">,
+    Desc<"Dump the function calls to a file instead of the standard output.">;
+  def thread_trace_dump_function_calls_json: Option<"json", "j">,
+    Group<1>,
+    Desc<"Dump in simple JSON format.">;
+  def thread_trace_dump_function_calls_pretty_json: Option<"pretty-json", "J">,
+    Group<1>,
+    Desc<"Dump in JSON format but pretty printing the output for easier "
+    "readability.">;
 }
 
 let Command = "thread trace dump instructions" in {

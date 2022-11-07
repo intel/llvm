@@ -1,5 +1,11 @@
 cmake_minimum_required(VERSION 3.13.4)
 
+if(NOT DEFINED LLVM_COMMON_CMAKE_UTILS)
+  set(LLVM_COMMON_CMAKE_UTILS ${CMAKE_CURRENT_SOURCE_DIR}/../cmake)
+endif()
+include(${LLVM_COMMON_CMAKE_UTILS}/Modules/CMakePolicy.cmake
+  NO_POLICY_SCOPE)
+
 # If we are not building as a part of LLVM, build Clang as an
 # standalone project, using LLVM as an external library:
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
@@ -134,15 +140,7 @@ if(CLANG_BUILT_STANDALONE)
 
     umbrella_lit_testsuite_begin(check-all)
   endif() # LLVM_INCLUDE_TESTS
-
-  set(BACKEND_PACKAGE_STRING "LLVM ${LLVM_PACKAGE_VERSION}")
-else()
-  set(BACKEND_PACKAGE_STRING "${PACKAGE_STRING}")
 endif() # standalone
-
-if(NOT DEFINED LLVM_COMMON_CMAKE_UTILS)
-  set(LLVM_COMMON_CMAKE_UTILS ${CMAKE_CURRENT_SOURCE_DIR}/../cmake)
-endif()
 
 # Make sure that our source directory is on the current cmake module path so that
 # we can include cmake files from this directory.
@@ -151,7 +149,12 @@ list(INSERT CMAKE_MODULE_PATH 0
   "${LLVM_COMMON_CMAKE_UTILS}/Modules"
   )
 
-if(LLVM_ENABLE_LIBXML2)
+# This allows disabling clang's XML dependency even if LLVM finds libxml2.
+# By default, clang depends on libxml2 if LLVM does.
+option(CLANG_ENABLE_LIBXML2 "Whether libclang may depend on libxml2"
+       ${LLVM_ENABLE_LIBXML2})
+
+if(CLANG_ENABLE_LIBXML2)
   # Don't look for libxml if we're using MSan, since uninstrumented third party
   # code may call MSan interceptors like strlen, leading to false positives.
   if(NOT LLVM_USE_SANITIZER MATCHES "Memory.*")
@@ -205,12 +208,6 @@ elseif(CLANG_ENABLE_OPAQUE_POINTERS)
 else()
   set(CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL OFF)
 endif()
-
-# TODO: verify the values against LangStandards.def?
-set(CLANG_DEFAULT_STD_C "" CACHE STRING
-  "Default standard to use for C/ObjC code (IDENT from LangStandards.def, empty for platform default)")
-set(CLANG_DEFAULT_STD_CXX "" CACHE STRING
-  "Default standard to use for C++/ObjC++ code (IDENT from LangStandards.def, empty for platform default)")
 
 set(CLANG_DEFAULT_LINKER "" CACHE STRING
   "Default linker to use (linker name or absolute path, empty for platform default)")
@@ -894,7 +891,7 @@ if (CLANG_ENABLE_BOOTSTRAP)
   endforeach()
 endif()
 
-if (CLANG_BOLT_INSTRUMENT)
+if (CLANG_BOLT_INSTRUMENT AND NOT LLVM_BUILD_INSTRUMENTED)
   set(CLANG_PATH ${LLVM_RUNTIME_OUTPUT_INTDIR}/clang)
   set(CLANGXX_PATH ${CLANG_PATH}++)
   set(CLANG_INSTRUMENTED ${CLANG_PATH}-bolt.inst)

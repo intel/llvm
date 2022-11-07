@@ -12,6 +12,7 @@
 
 #include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/Analysis/VectorUtils.h"
 #include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/CodeGenCommonISel.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
@@ -1291,25 +1292,10 @@ bool TargetLowering::SimplifyDemandedBits(
     ArrayRef<int> ShuffleMask = cast<ShuffleVectorSDNode>(Op)->getMask();
 
     // Collect demanded elements from shuffle operands..
-    APInt DemandedLHS(NumElts, 0);
-    APInt DemandedRHS(NumElts, 0);
-    for (unsigned i = 0; i != NumElts; ++i) {
-      if (!DemandedElts[i])
-        continue;
-      int M = ShuffleMask[i];
-      if (M < 0) {
-        // For UNDEF elements, we don't know anything about the common state of
-        // the shuffle result.
-        DemandedLHS.clearAllBits();
-        DemandedRHS.clearAllBits();
-        break;
-      }
-      assert(0 <= M && M < (int)(2 * NumElts) && "Shuffle index out of range");
-      if (M < (int)NumElts)
-        DemandedLHS.setBit(M);
-      else
-        DemandedRHS.setBit(M - NumElts);
-    }
+    APInt DemandedLHS, DemandedRHS;
+    if (!getShuffleDemandedElts(NumElts, ShuffleMask, DemandedElts, DemandedLHS,
+                                DemandedRHS))
+      break;
 
     if (!!DemandedLHS || !!DemandedRHS) {
       SDValue Op0 = Op.getOperand(0);
@@ -7168,8 +7154,17 @@ bool TargetLowering::expandMUL(SDNode *N, SDValue &Lo, SDValue &Hi, EVT HiLoVT,
 //   Remainder = Sum % Constant
 // This is based on "Remainder by Summing Digits" from Hacker's Delight.
 //
-// For division, we can compute the remainder, subtract it from the dividend,
-// and then multiply by the multiplicative inverse modulo (1 << (BitWidth / 2)).
+// For division, we can compute the remainder using the algorithm described
+// above, subtract it from the dividend to get an exact multiple of Constant.
+// Then multiply that extact multiply by the multiplicative inverse modulo
+// (1 << (BitWidth / 2)) to get the quotient.
+
+// If Constant is even, we can shift right the dividend and the divisor by the
+// number of trailing zeros in Constant before applying the remainder algorithm.
+// If we're after the quotient, we can subtract this value from the shifted
+// dividend and multiply by the multiplicative inverse of the shifted divisor.
+// If we want the remainder, we shift the value left by the number of trailing
+// zeros and add the bits that were shifted out of the dividend.
 bool TargetLowering::expandDIVREMByConstant(SDNode *N,
                                             SmallVectorImpl<SDValue> &Result,
                                             EVT HiLoVT, SelectionDAG &DAG,
@@ -7188,7 +7183,7 @@ bool TargetLowering::expandDIVREMByConstant(SDNode *N,
   if (!CN)
     return false;
 
-  const APInt &Divisor = CN->getAPIntValue();
+  APInt Divisor = CN->getAPIntValue();
   unsigned BitWidth = Divisor.getBitWidth();
   unsigned HBitWidth = BitWidth / 2;
   assert(VT.getScalarSizeInBits() == BitWidth &&
@@ -7209,12 +7204,20 @@ bool TargetLowering::expandDIVREMByConstant(SDNode *N,
   if (DAG.shouldOptForSize())
     return false;
 
-  // Early out for 0, 1 or even divisors.
-  if (Divisor.ule(1) || Divisor[0] == 0)
+  // Early out for 0 or 1 divisors.
+  if (Divisor.ule(1))
     return false;
+
+  // If the divisor is even, shift it until it becomes odd.
+  unsigned TrailingZeros = 0;
+  if (!Divisor[0]) {
+    TrailingZeros = Divisor.countTrailingZeros();
+    Divisor.lshrInPlace(TrailingZeros);
+  }
 
   SDLoc dl(N);
   SDValue Sum;
+  SDValue PartialRem;
 
   // If (1 << HBitWidth) % divisor == 1, we can add the two halves together and
   // then add in the carry.
@@ -7227,6 +7230,27 @@ bool TargetLowering::expandDIVREMByConstant(SDNode *N,
                        DAG.getIntPtrConstant(0, dl));
       LH = DAG.getNode(ISD::EXTRACT_ELEMENT, dl, HiLoVT, N->getOperand(0),
                        DAG.getIntPtrConstant(1, dl));
+    }
+
+    // Shift the input by the number of TrailingZeros in the divisor. The
+    // shifted out bits will be added to the remainder later.
+    if (TrailingZeros) {
+      // Save the shifted off bits if we need the remainder.
+      if (Opcode != ISD::UDIV) {
+        APInt Mask = APInt::getLowBitsSet(HBitWidth, TrailingZeros);
+        PartialRem = DAG.getNode(ISD::AND, dl, HiLoVT, LL,
+                                 DAG.getConstant(Mask, dl, HiLoVT));
+      }
+
+      LL = DAG.getNode(
+          ISD::OR, dl, HiLoVT,
+          DAG.getNode(ISD::SRL, dl, HiLoVT, LL,
+                      DAG.getShiftAmountConstant(TrailingZeros, HiLoVT, dl)),
+          DAG.getNode(ISD::SHL, dl, HiLoVT, LH,
+                      DAG.getShiftAmountConstant(HBitWidth - TrailingZeros,
+                                                 HiLoVT, dl)));
+      LH = DAG.getNode(ISD::SRL, dl, HiLoVT, LH,
+                       DAG.getShiftAmountConstant(TrailingZeros, HiLoVT, dl));
     }
 
     // Use addcarry if we can, otherwise use a compare to detect overflow.
@@ -7260,45 +7284,45 @@ bool TargetLowering::expandDIVREMByConstant(SDNode *N,
   SDValue RemL =
       DAG.getNode(ISD::UREM, dl, HiLoVT, Sum,
                   DAG.getConstant(Divisor.trunc(HBitWidth), dl, HiLoVT));
-  // High half of the remainder is 0.
   SDValue RemH = DAG.getConstant(0, dl, HiLoVT);
 
-  // If we only want remainder, we're done.
-  if (Opcode == ISD::UREM) {
-    Result.push_back(RemL);
-    Result.push_back(RemH);
-    return true;
+  if (Opcode != ISD::UREM) {
+    // Subtract the remainder from the shifted dividend.
+    SDValue Dividend = DAG.getNode(ISD::BUILD_PAIR, dl, VT, LL, LH);
+    SDValue Rem = DAG.getNode(ISD::BUILD_PAIR, dl, VT, RemL, RemH);
+
+    Dividend = DAG.getNode(ISD::SUB, dl, VT, Dividend, Rem);
+
+    // Multiply by the multiplicative inverse of the divisor modulo
+    // (1 << BitWidth).
+    APInt Mod = APInt::getSignedMinValue(BitWidth + 1);
+    APInt MulFactor = Divisor.zext(BitWidth + 1);
+    MulFactor = MulFactor.multiplicativeInverse(Mod);
+    MulFactor = MulFactor.trunc(BitWidth);
+
+    SDValue Quotient = DAG.getNode(ISD::MUL, dl, VT, Dividend,
+                                   DAG.getConstant(MulFactor, dl, VT));
+
+    // Split the quotient into low and high parts.
+    SDValue QuotL = DAG.getNode(ISD::EXTRACT_ELEMENT, dl, HiLoVT, Quotient,
+                                DAG.getIntPtrConstant(0, dl));
+    SDValue QuotH = DAG.getNode(ISD::EXTRACT_ELEMENT, dl, HiLoVT, Quotient,
+                                DAG.getIntPtrConstant(1, dl));
+    Result.push_back(QuotL);
+    Result.push_back(QuotH);
   }
 
-  // Otherwise, we need to compute the quotient.
-
-  // Join the remainder halves.
-  SDValue Rem = DAG.getNode(ISD::BUILD_PAIR, dl, VT, RemL, RemH);
-
-  // Subtract the remainder from the input.
-  SDValue In = DAG.getNode(ISD::SUB, dl, VT, N->getOperand(0), Rem);
-
-  // Multiply by the multiplicative inverse of the divisor modulo
-  // (1 << BitWidth).
-  APInt Mod = APInt::getSignedMinValue(BitWidth + 1);
-  APInt MulFactor = Divisor.zext(BitWidth + 1);
-  MulFactor = MulFactor.multiplicativeInverse(Mod);
-  MulFactor = MulFactor.trunc(BitWidth);
-
-  SDValue Quotient =
-      DAG.getNode(ISD::MUL, dl, VT, In, DAG.getConstant(MulFactor, dl, VT));
-
-  // Split the quotient into low and high parts.
-  SDValue QuotL = DAG.getNode(ISD::EXTRACT_ELEMENT, dl, HiLoVT, Quotient,
-                              DAG.getIntPtrConstant(0, dl));
-  SDValue QuotH = DAG.getNode(ISD::EXTRACT_ELEMENT, dl, HiLoVT, Quotient,
-                              DAG.getIntPtrConstant(1, dl));
-  Result.push_back(QuotL);
-  Result.push_back(QuotH);
-  // For DIVREM, also return the remainder parts.
-  if (Opcode == ISD::UDIVREM) {
+  if (Opcode != ISD::UDIV) {
+    // If we shifted the input, shift the remainder left and add the bits we
+    // shifted off the input.
+    if (TrailingZeros) {
+      APInt Mask = APInt::getLowBitsSet(HBitWidth, TrailingZeros);
+      RemL = DAG.getNode(ISD::SHL, dl, HiLoVT, RemL,
+                         DAG.getShiftAmountConstant(TrailingZeros, HiLoVT, dl));
+      RemL = DAG.getNode(ISD::ADD, dl, HiLoVT, RemL, PartialRem);
+    }
     Result.push_back(RemL);
-    Result.push_back(RemH);
+    Result.push_back(DAG.getConstant(0, dl, HiLoVT));
   }
 
   return true;
@@ -8184,15 +8208,15 @@ SDValue TargetLowering::CTTZTableLookup(SDNode *Node, SelectionDAG &DAG,
   SDValue ExtLoad = DAG.getExtLoad(ISD::ZEXTLOAD, DL, VT, DAG.getEntryNode(),
                                    DAG.getMemBasePlusOffset(CPIdx, Lookup, DL),
                                    PtrInfo, MVT::i8);
-  if (Node->getOpcode() != ISD::CTLZ_ZERO_UNDEF) {
-    EVT SetCCVT =
-        getSetCCResultType(DAG.getDataLayout(), *DAG.getContext(), VT);
-    SDValue Zero = DAG.getConstant(0, DL, VT);
-    SDValue SrcIsZero = DAG.getSetCC(DL, SetCCVT, Op, Zero, ISD::SETEQ);
-    ExtLoad = DAG.getSelect(DL, VT, SrcIsZero,
-                            DAG.getConstant(BitWidth, DL, VT), ExtLoad);
-  }
-  return ExtLoad;
+  if (Node->getOpcode() == ISD::CTTZ_ZERO_UNDEF)
+    return ExtLoad;
+
+  EVT SetCCVT =
+      getSetCCResultType(DAG.getDataLayout(), *DAG.getContext(), VT);
+  SDValue Zero = DAG.getConstant(0, DL, VT);
+  SDValue SrcIsZero = DAG.getSetCC(DL, SetCCVT, Op, Zero, ISD::SETEQ);
+  return DAG.getSelect(DL, VT, SrcIsZero,
+                       DAG.getConstant(BitWidth, DL, VT), ExtLoad);
 }
 
 SDValue TargetLowering::expandCTTZ(SDNode *Node, SelectionDAG &DAG) const {
@@ -9189,9 +9213,13 @@ SDValue TargetLowering::expandShlSat(SDNode *Node, SelectionDAG &DAG) const {
   assert(VT == RHS.getValueType() && "Expected operands to be the same type");
   assert(VT.isInteger() && "Expected operands to be integers");
 
+  if (VT.isVector() && !isOperationLegalOrCustom(ISD::VSELECT, VT))
+    return DAG.UnrollVectorOp(Node);
+
   // If LHS != (LHS << RHS) >> RHS, we have overflow and must saturate.
 
   unsigned BW = VT.getScalarSizeInBits();
+  EVT BoolVT = getSetCCResultType(DAG.getDataLayout(), *DAG.getContext(), VT);
   SDValue Result = DAG.getNode(ISD::SHL, dl, VT, LHS, RHS);
   SDValue Orig =
       DAG.getNode(IsSigned ? ISD::SRA : ISD::SRL, dl, VT, Result, RHS);
@@ -9200,14 +9228,14 @@ SDValue TargetLowering::expandShlSat(SDNode *Node, SelectionDAG &DAG) const {
   if (IsSigned) {
     SDValue SatMin = DAG.getConstant(APInt::getSignedMinValue(BW), dl, VT);
     SDValue SatMax = DAG.getConstant(APInt::getSignedMaxValue(BW), dl, VT);
-    SatVal = DAG.getSelectCC(dl, LHS, DAG.getConstant(0, dl, VT),
-                             SatMin, SatMax, ISD::SETLT);
+    SDValue Cond =
+        DAG.getSetCC(dl, BoolVT, LHS, DAG.getConstant(0, dl, VT), ISD::SETLT);
+    SatVal = DAG.getSelect(dl, VT, Cond, SatMin, SatMax);
   } else {
     SatVal = DAG.getConstant(APInt::getMaxValue(BW), dl, VT);
   }
-  Result = DAG.getSelectCC(dl, LHS, Orig, SatVal, Result, ISD::SETNE);
-
-  return Result;
+  SDValue Cond = DAG.getSetCC(dl, BoolVT, LHS, Orig, ISD::SETNE);
+  return DAG.getSelect(dl, VT, Cond, SatVal, Result);
 }
 
 SDValue

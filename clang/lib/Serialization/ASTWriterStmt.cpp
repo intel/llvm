@@ -433,16 +433,13 @@ addSubstitutionDiagnostic(
 void ASTStmtWriter::VisitConceptSpecializationExpr(
         ConceptSpecializationExpr *E) {
   VisitExpr(E);
-  ArrayRef<TemplateArgument> TemplateArgs = E->getTemplateArguments();
-  Record.push_back(TemplateArgs.size());
   Record.AddNestedNameSpecifierLoc(E->getNestedNameSpecifierLoc());
   Record.AddSourceLocation(E->getTemplateKWLoc());
   Record.AddDeclarationNameInfo(E->getConceptNameInfo());
   Record.AddDeclRef(E->getNamedConcept());
   Record.AddDeclRef(E->getFoundDecl());
+  Record.AddDeclRef(E->getSpecializationDecl());
   Record.AddASTTemplateArgumentListInfo(E->getTemplateArgsAsWritten());
-  for (const TemplateArgument &Arg : TemplateArgs)
-    Record.AddTemplateArgument(Arg);
   if (!E->isValueDependent())
     addConstraintSatisfaction(Record, E->getSatisfaction());
 
@@ -2065,8 +2062,13 @@ void ASTStmtWriter::VisitSizeOfPackExpr(SizeOfPackExpr *E) {
 void ASTStmtWriter::VisitSubstNonTypeTemplateParmExpr(
                                               SubstNonTypeTemplateParmExpr *E) {
   VisitExpr(E);
-  Record.AddDeclRef(E->getParameter());
+  Record.AddDeclRef(E->getAssociatedDecl());
   Record.push_back(E->isReferenceParameter());
+  Record.push_back(E->getIndex());
+  if (auto PackIndex = E->getPackIndex())
+    Record.push_back(*PackIndex + 1);
+  else
+    Record.push_back(0);
   Record.AddSourceLocation(E->getNameLoc());
   Record.AddStmt(E->getReplacement());
   Code = serialization::EXPR_SUBST_NON_TYPE_TEMPLATE_PARM;
@@ -2075,7 +2077,8 @@ void ASTStmtWriter::VisitSubstNonTypeTemplateParmExpr(
 void ASTStmtWriter::VisitSubstNonTypeTemplateParmPackExpr(
                                           SubstNonTypeTemplateParmPackExpr *E) {
   VisitExpr(E);
-  Record.AddDeclRef(E->getParameterPack());
+  Record.AddDeclRef(E->getAssociatedDecl());
+  Record.push_back(E->getIndex());
   Record.AddTemplateArgument(E->getArgumentPack());
   Record.AddSourceLocation(E->getParameterPackLocation());
   Code = serialization::EXPR_SUBST_NON_TYPE_TEMPLATE_PARM_PACK;

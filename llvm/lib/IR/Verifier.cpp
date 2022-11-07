@@ -2083,10 +2083,7 @@ void Verifier::verifyFunctionAttrs(FunctionType *FT, AttributeList Attrs,
           "Attribute 'jumptable' requires 'unnamed_addr'", V);
   }
 
-  if (Attrs.hasFnAttr(Attribute::AllocSize)) {
-    std::pair<unsigned, Optional<unsigned>> Args =
-        Attrs.getFnAttrs().getAllocSizeArgs();
-
+  if (auto Args = Attrs.getFnAttrs().getAllocSizeArgs()) {
     auto CheckParam = [&](StringRef Name, unsigned ParamNo) {
       if (ParamNo >= FT->getNumParams()) {
         CheckFailed("'allocsize' " + Name + " argument is out of bounds", V);
@@ -2103,10 +2100,10 @@ void Verifier::verifyFunctionAttrs(FunctionType *FT, AttributeList Attrs,
       return true;
     };
 
-    if (!CheckParam("element size", Args.first))
+    if (!CheckParam("element size", Args->first))
       return;
 
-    if (Args.second && !CheckParam("number of elements", *Args.second))
+    if (Args->second && !CheckParam("number of elements", *Args->second))
       return;
   }
 
@@ -3225,6 +3222,13 @@ void Verifier::visitCallBase(CallBase &Call) {
   Check(verifyAttributeCount(Attrs, Call.arg_size()),
         "Attribute after last parameter!", Call);
 
+  Function *Callee =
+      dyn_cast<Function>(Call.getCalledOperand()->stripPointerCasts());
+  bool IsIntrinsic = Callee && Callee->isIntrinsic();
+  if (IsIntrinsic)
+    Check(Callee->getValueType() == FTy,
+          "Intrinsic called with incompatible signature", Call);
+
   auto VerifyTypeAlign = [&](Type *Ty, const Twine &Message) {
     if (!Ty->isSized())
       return;
@@ -3234,18 +3238,13 @@ void Verifier::visitCallBase(CallBase &Call) {
           "Incorrect alignment of " + Message + " to called function!", Call);
   };
 
-  VerifyTypeAlign(FTy->getReturnType(), "return type");
-  for (unsigned i = 0, e = FTy->getNumParams(); i != e; ++i) {
-    Type *Ty = FTy->getParamType(i);
-    VerifyTypeAlign(Ty, "argument passed");
+  if (!IsIntrinsic) {
+    VerifyTypeAlign(FTy->getReturnType(), "return type");
+    for (unsigned i = 0, e = FTy->getNumParams(); i != e; ++i) {
+      Type *Ty = FTy->getParamType(i);
+      VerifyTypeAlign(Ty, "argument passed");
+    }
   }
-
-  Function *Callee =
-      dyn_cast<Function>(Call.getCalledOperand()->stripPointerCasts());
-  bool IsIntrinsic = Callee && Callee->isIntrinsic();
-  if (IsIntrinsic)
-    Check(Callee->getValueType() == FTy,
-          "Intrinsic called with incompatible signature", Call);
 
   if (Attrs.hasFnAttr(Attribute::Speculatable)) {
     // Don't allow speculatable on call sites, unless the underlying function
@@ -3469,9 +3468,11 @@ void Verifier::visitCallBase(CallBase &Call) {
   // Verify that each inlinable callsite of a debug-info-bearing function in a
   // debug-info-bearing function has a debug location attached to it. Failure to
   // do so causes assertion failures when the inliner sets up inline scope info
-  // (Interposable functions are not inlinable).
+  // (Interposable functions are not inlinable, neither are functions without
+  //  definitions.)
   if (Call.getFunction()->getSubprogram() && Call.getCalledFunction() &&
       !Call.getCalledFunction()->isInterposable() &&
+      !Call.getCalledFunction()->isDeclaration() &&
       Call.getCalledFunction()->getSubprogram())
     CheckDI(Call.getDebugLoc(),
             "inlinable function call in a function with "
@@ -5233,8 +5234,13 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
   case Intrinsic::experimental_gc_result: {
     Check(Call.getParent()->getParent()->hasGC(),
           "Enclosing function does not use GC.", Call);
+
+    auto *Statepoint = Call.getArgOperand(0);
+    if (isa<UndefValue>(Statepoint))
+      break;
+
     // Are we tied to a statepoint properly?
-    const auto *StatepointCall = dyn_cast<CallBase>(Call.getArgOperand(0));
+    const auto *StatepointCall = dyn_cast<CallBase>(Statepoint);
     const Function *StatepointFn =
         StatepointCall ? StatepointCall->getCalledFunction() : nullptr;
     Check(StatepointFn && StatepointFn->isDeclaration() &&

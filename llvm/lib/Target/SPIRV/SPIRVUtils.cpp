@@ -342,13 +342,23 @@ static bool isSPIRVBuiltinType(const StructType *SType) {
          SType->getName().startswith("spirv.");
 }
 
+const Type *getTypedPtrEltType(const Type *Ty) {
+  auto PType = dyn_cast<PointerType>(Ty);
+  if (!PType || PType->isOpaque())
+    return Ty;
+  return PType->getNonOpaquePointerElementType();
+}
+
 bool isSpecialOpaqueType(const Type *Ty) {
-  if (auto PType = dyn_cast<PointerType>(Ty)) {
-    if (!PType->isOpaque())
-      Ty = PType->getNonOpaquePointerElementType();
-  }
-  if (auto SType = dyn_cast<StructType>(Ty))
+  if (auto SType = dyn_cast<StructType>(getTypedPtrEltType(Ty)))
     return isOpenCLBuiltinType(SType) || isSPIRVBuiltinType(SType);
   return false;
+}
+
+std::string getFunctionGlobalIdentifier(const Function *F) {
+  StringRef Name = F->hasName() ? F->getName() : ".anonymous";
+  GlobalValue::LinkageTypes Linkage = F->getLinkage();
+  StringRef ModuleFileName = F->getParent()->getSourceFileName();
+  return GlobalValue::getGlobalIdentifier(Name, Linkage, ModuleFileName);
 }
 } // namespace llvm

@@ -111,6 +111,7 @@ set(x86_files
 # Intrinsics
   adxintrin.h
   ammintrin.h
+  amxfp16intrin.h
   amxintrin.h
   avx2intrin.h
   avx512bf16intrin.h
@@ -141,7 +142,10 @@ set(x86_files
   avx512vp2intersectintrin.h
   avx512vpopcntdqintrin.h
   avx512vpopcntdqvlintrin.h
+  avxifmaintrin.h
   avxintrin.h
+  avxneconvertintrin.h
+  avxvnniint8intrin.h
   avxvnniintrin.h
   bmi2intrin.h
   bmiintrin.h
@@ -150,6 +154,7 @@ set(x86_files
   clflushoptintrin.h
   clwbintrin.h
   clzerointrin.h
+  cmpccxaddintrin.h
   crc32intrin.h
   emmintrin.h
   enqcmdintrin.h
@@ -174,8 +179,10 @@ set(x86_files
   pkuintrin.h
   pmmintrin.h
   popcntintrin.h
+  prfchiintrin.h
   prfchwintrin.h
   ptwriteintrin.h
+  raointintrin.h
   rdpruintrin.h
   rdseedintrin.h
   rtmintrin.h
@@ -225,7 +232,6 @@ set(files
   ${cuda_files}
   ${hexagon_files}
   ${hip_files}
-  ${hlsl_files}
   ${mips_msa_files}
   ${opencl_files}
   ${ppc_files}
@@ -302,7 +308,7 @@ endfunction(clang_generate_header)
 
 
 # Copy header files from the source directory to the build directory
-foreach( f ${files} ${cuda_wrapper_files} ${ppc_wrapper_files} ${openmp_wrapper_files})
+foreach( f ${files} ${cuda_wrapper_files} ${ppc_wrapper_files} ${openmp_wrapper_files} ${hlsl_files})
   copy_header_to_output_dir(${CMAKE_CURRENT_SOURCE_DIR} ${f})
 endforeach( f )
 

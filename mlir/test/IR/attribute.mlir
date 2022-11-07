@@ -32,6 +32,42 @@ func.func @any_attr_of_fail() {
 // -----
 
 //===----------------------------------------------------------------------===//
+// Test float attributes
+//===----------------------------------------------------------------------===//
+
+func.func @float_attrs_pass() {
+  "test.float_attrs"() {
+    // CHECK: float_attr = 2.000000e+00 : f8E5M2
+    float_attr = 2. : f8E5M2
+  } : () -> ()
+  "test.float_attrs"() {
+    // CHECK: float_attr = 2.000000e+00 : f16
+    float_attr = 2. : f16
+  } : () -> ()
+  "test.float_attrs"() {
+    // CHECK: float_attr = 2.000000e+00 : bf16
+    float_attr = 2. : bf16
+  } : () -> ()
+  "test.float_attrs"() {
+    // CHECK: float_attr = 2.000000e+00 : f32
+    float_attr = 2. : f32
+  } : () -> ()
+  "test.float_attrs"() {
+    // CHECK: float_attr = 2.000000e+00 : f64
+    float_attr = 2. : f64
+  } : () -> ()
+  "test.float_attrs"() {
+    // CHECK: float_attr = 2.000000e+00 : f80
+    float_attr = 2. : f80
+  } : () -> ()
+  "test.float_attrs"() {
+    // CHECK: float_attr = 2.000000e+00 : f128
+    float_attr = 2. : f128
+  } : () -> ()
+  return
+}
+
+//===----------------------------------------------------------------------===//
 // Test integer attributes
 //===----------------------------------------------------------------------===//
 
@@ -597,6 +633,41 @@ func.func @dense_array_attr() attributes {
 
 // -----
 
+func.func @testConfinedDenseArrayAttr() {
+  "test.confined_dense_array_attr"() {
+    i64attr = array<i64: 0, 2, 3>,
+    i32attr = array<i32: 1>,
+    emptyattr = array<i16>
+  } : () -> ()
+  func.return
+}
+
+// -----
+
+func.func @testConfinedDenseArrayAttrDuplicateValues() {
+  // expected-error@+1{{'test.confined_dense_array_attr' op attribute 'i64attr' failed to satisfy constraint: i64 dense array attribute should be in increasing order}}
+  "test.confined_dense_array_attr"() {
+    emptyattr = array<i16>,
+    i32attr = array<i32: 1, 1>,
+    i64attr = array<i64: 0, 2, 2>
+  } : () -> ()
+  func.return
+}
+
+// -----
+
+func.func @testConfinedDenseArrayAttrDecreasingOrder() {
+  // expected-error@+1{{'test.confined_dense_array_attr' op attribute 'i32attr' failed to satisfy constraint: i32 dense array attribute should be in non-decreasing order}}
+  "test.confined_dense_array_attr"() {
+    emptyattr = array<i16>,
+    i32attr = array<i32: 1, 0>,
+    i64attr = array<i64: 0, 2, 3>
+  } : () -> ()
+  func.return
+}
+
+// -----
+
 //===----------------------------------------------------------------------===//
 // Test SymbolRefAttr
 //===----------------------------------------------------------------------===//
@@ -713,5 +784,22 @@ func.func @wrong_shape_fail() {
     matrix_i64_attr = dense<6> : tensor<4x8xi64>,
     vector_i32_attr = dense<5> : tensor<i32>
   } : () -> ()
+  return
+}
+
+// -----
+
+//===----------------------------------------------------------------------===//
+// Test DefaultValuedAttr Printing
+//===----------------------------------------------------------------------===//
+
+// CHECK-LABEL: @default_value_printing
+func.func @default_value_printing(%arg0 : i32) {
+  // The attribute SHOULD NOT be printed because it is equal to the default
+  // CHECK: test.default_value_print %arg0
+  "test.default_value_print"(%arg0) {"value_with_default" = 0 : i32} : (i32) -> ()
+  // The attribute SHOULD be printed because it is not equal to the default
+  // CHECK: test.default_value_print {value_with_default = 1 : i32} %arg0
+  "test.default_value_print"(%arg0) {"value_with_default" = 1 : i32} : (i32) -> ()
   return
 }

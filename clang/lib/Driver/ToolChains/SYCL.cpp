@@ -173,7 +173,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       StringRef InputFilename = llvm::sys::path::filename(FileName);
       if (this->getToolChain().getTriple().isNVPTX()) {
         // Linking SYCL Device libs requires libclc as well as libdevice
-        if ((InputFilename.find("nvidiacl") != InputFilename.npos ||
+        if ((InputFilename.find("libspirv") != InputFilename.npos ||
              InputFilename.find("libdevice") != InputFilename.npos))
           return true;
         LibPostfix = ".cubin";
@@ -701,7 +701,8 @@ SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
 
   // Diagnose unsupported options only once.
   // All sanitizer options are not currently supported.
-  for (auto A : Args.filtered(options::OPT_fsanitize_EQ))
+  for (auto A :
+       Args.filtered(options::OPT_fsanitize_EQ, options::OPT_fcf_protection_EQ))
     D.getDiags().Report(clang::diag::warn_drv_unsupported_option_for_target)
         << A->getAsString(Args) << getTriple().str();
 }
@@ -726,6 +727,7 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
       // compilation.
       switch ((options::ID)A->getOption().getID()) {
       case options::OPT_fsanitize_EQ:
+      case options::OPT_fcf_protection_EQ:
         break;
       default:
         DAL->append(A);

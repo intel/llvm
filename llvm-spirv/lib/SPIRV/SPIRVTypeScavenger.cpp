@@ -252,7 +252,7 @@ static bool doesNotImplyType(Value *V) {
 
 SPIRVTypeScavenger::DeducedType
 SPIRVTypeScavenger::computePointerElementType(Value *V) {
-  assert(V->getType()->isPointerTy() &&
+  assert(V->getType()->isPtrOrPtrVectorTy() &&
          "Trying to get the pointer type of a non-pointer value?");
 
   // Don't try to store null, undef, or poison in our type map. We'll call these
