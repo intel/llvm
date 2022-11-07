@@ -19,16 +19,12 @@ SYCL_EXTERNAL int rand();
 
 class Base {
    public:
-    virtual void display() {
-       return BASE;
-    }
+    virtual void display() {}
 };
 
 class Derived1 : public Base {
    public:
-    void display() {
-       return DERIVED1;
-    }
+    void display() {}
 };
 
 int main() {
