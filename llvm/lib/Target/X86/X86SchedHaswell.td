@@ -864,6 +864,7 @@ def HWWriteResGroup0 : SchedWriteRes<[HWPort23]> {
 def: InstRW<[HWWriteResGroup0], (instrs VBROADCASTSSrm)>;
 def: InstRW<[HWWriteResGroup0], (instregex "(V?)MOVSHDUPrm",
                                            "(V?)MOVSLDUPrm",
+                                           "(V?)MOVDDUPrm",
                                            "VPBROADCAST(D|Q)rm")>;
 
 def HWWriteResGroup0_1 : SchedWriteRes<[HWPort23]> {
@@ -880,15 +881,6 @@ def: InstRW<[HWWriteResGroup0_1], (instrs VBROADCASTF128,
                                           VMOVSLDUPYrm)>;
 def: InstRW<[HWWriteResGroup0_1], (instregex "LD_F(32|64|80)m",
                                              "VPBROADCAST(D|Q)Yrm")>;
-
-def HWWriteResGroup0_2 : SchedWriteRes<[HWPort23]> {
-  let Latency = 5;
-  let NumMicroOps = 1;
-  let ResourceCycles = [1];
-}
-def: InstRW<[HWWriteResGroup0_2], (instregex "MOVSX(16|32|64)rm(8|16|32)",
-                                             "MOVZX(16|32|64)rm(8|16)",
-                                             "(V?)MOVDDUPrm")>;
 
 def HWWriteResGroup1 : SchedWriteRes<[HWPort4,HWPort237]> {
   let Latency = 1;
