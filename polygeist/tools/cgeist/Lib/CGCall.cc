@@ -22,6 +22,7 @@ using namespace mlir::arith;
 using namespace mlir::func;
 using namespace mlirclang;
 
+extern llvm::cl::opt<bool> CudaLower;
 extern llvm::cl::opt<bool> GenerateAllSYCLFuncs;
 
 /******************************************************************************/
@@ -1475,4 +1476,424 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
 
   return CallHelper(ToCall, objType, args, expr->getType(),
                     expr->isLValue() || expr->isXValue(), expr, callee);
+}
+
+std::pair<ValueCategory, bool>
+MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
+  auto loc = getMLIRLocation(expr->getExprLoc());
+  if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee())) {
+    if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
+      if (sr->getDecl()->getIdentifier() &&
+          sr->getDecl()->getName() == "__syncthreads") {
+        builder.create<mlir::NVVM::Barrier0Op>(loc);
+        return std::make_pair(ValueCategory(), true);
+      }
+      if (sr->getDecl()->getIdentifier() &&
+          sr->getDecl()->getName() == "cudaFuncSetCacheConfig") {
+        llvm::errs() << " Not emitting GPU option: cudaFuncSetCacheConfig\n";
+        return std::make_pair(ValueCategory(), true);
+      }
+      // TODO move free out.
+      if (sr->getDecl()->getIdentifier() &&
+          (sr->getDecl()->getName() == "free" ||
+           sr->getDecl()->getName() == "cudaFree" ||
+           sr->getDecl()->getName() == "cudaFreeHost")) {
+
+        auto sub = expr->getArg(0);
+        while (auto BC = dyn_cast<clang::CastExpr>(sub))
+          sub = BC->getSubExpr();
+        mlir::Value arg = Visit(sub).getValue(builder);
+
+        if (arg.getType().isa<mlir::LLVM::LLVMPointerType>()) {
+          auto callee = EmitCallee(expr->getCallee());
+          auto strcmpF = Glob.GetOrCreateLLVMFunction(callee);
+          mlir::Value args[] = {builder.create<LLVM::BitcastOp>(
+              loc, LLVM::LLVMPointerType::get(builder.getIntegerType(8)), arg)};
+          builder.create<mlir::LLVM::CallOp>(loc, strcmpF, args);
+        } else {
+          builder.create<mlir::memref::DeallocOp>(loc, arg);
+        }
+        if (sr->getDecl()->getName() == "cudaFree" ||
+            sr->getDecl()->getName() == "cudaFreeHost") {
+          auto ty = Glob.getTypes().getMLIRType(expr->getType());
+          auto op = builder.create<ConstantIntOp>(loc, 0, ty);
+          return std::make_pair(ValueCategory(op, /*isReference*/ false), true);
+        }
+        // TODO remove me when the free is removed.
+        return std::make_pair(ValueCategory(), true);
+      }
+      if (sr->getDecl()->getIdentifier() &&
+          (sr->getDecl()->getName() == "cudaMalloc" ||
+           sr->getDecl()->getName() == "cudaMallocHost" ||
+           sr->getDecl()->getName() == "cudaMallocPitch")) {
+        auto sub = expr->getArg(0);
+        while (auto BC = dyn_cast<clang::CastExpr>(sub))
+          sub = BC->getSubExpr();
+        {
+          auto dst = Visit(sub).getValue(builder);
+          if (auto omt = dst.getType().dyn_cast<MemRefType>()) {
+            if (auto mt = omt.getElementType().dyn_cast<MemRefType>()) {
+              auto shape = std::vector<int64_t>(mt.getShape());
+
+              auto elemSize = getTypeSize(
+                  cast<clang::PointerType>(
+                      cast<clang::PointerType>(
+                          sub->getType()->getUnqualifiedDesugaredType())
+                          ->getPointeeType())
+                      ->getPointeeType());
+              mlir::Value allocSize;
+              if (sr->getDecl()->getName() == "cudaMallocPitch") {
+                mlir::Value width = Visit(expr->getArg(2)).getValue(builder);
+                mlir::Value height = Visit(expr->getArg(3)).getValue(builder);
+                // Not changing pitch from provided width here
+                // TODO can consider addition alignment considerations
+                Visit(expr->getArg(1))
+                    .dereference(builder)
+                    .store(builder, width);
+                allocSize = builder.create<MulIOp>(loc, width, height);
+              } else
+                allocSize = Visit(expr->getArg(1)).getValue(builder);
+              auto idxType = mlir::IndexType::get(builder.getContext());
+              mlir::Value args[1] = {builder.create<DivUIOp>(
+                  loc, builder.create<IndexCastOp>(loc, idxType, allocSize),
+                  elemSize)};
+              auto alloc = builder.create<mlir::memref::AllocOp>(
+                  loc,
+                  (sr->getDecl()->getName() != "cudaMallocHost" && !CudaLower)
+                      ? mlir::MemRefType::get(
+                            shape, mt.getElementType(),
+                            MemRefLayoutAttrInterface(),
+                            wrapIntegerMemorySpace(1, mt.getContext()))
+                      : mt,
+                  args);
+              ValueCategory(dst, /*isReference*/ true)
+                  .store(builder,
+                         builder.create<mlir::memref::CastOp>(loc, mt, alloc));
+              auto retTy = Glob.getTypes().getMLIRType(expr->getType());
+              return std::make_pair(
+                  ValueCategory(builder.create<ConstantIntOp>(loc, 0, retTy),
+                                /*isReference*/ false),
+                  true);
+            }
+          }
+        }
+      }
+    }
+
+    auto createBlockIdOp = [&](gpu::Dimension str,
+                               mlir::Type mlirType) -> mlir::Value {
+      return builder.create<IndexCastOp>(
+          loc, mlirType,
+          builder.create<mlir::gpu::BlockIdOp>(
+              loc, mlir::IndexType::get(builder.getContext()), str));
+    };
+
+    auto createBlockDimOp = [&](gpu::Dimension str,
+                                mlir::Type mlirType) -> mlir::Value {
+      return builder.create<IndexCastOp>(
+          loc, mlirType,
+          builder.create<mlir::gpu::BlockDimOp>(
+              loc, mlir::IndexType::get(builder.getContext()), str));
+    };
+
+    auto createThreadIdOp = [&](gpu::Dimension str,
+                                mlir::Type mlirType) -> mlir::Value {
+      return builder.create<IndexCastOp>(
+          loc, mlirType,
+          builder.create<mlir::gpu::ThreadIdOp>(
+              loc, mlir::IndexType::get(builder.getContext()), str));
+    };
+
+    auto createGridDimOp = [&](gpu::Dimension str,
+                               mlir::Type mlirType) -> mlir::Value {
+      return builder.create<IndexCastOp>(
+          loc, mlirType,
+          builder.create<mlir::gpu::GridDimOp>(
+              loc, mlir::IndexType::get(builder.getContext()), str));
+    };
+
+    if (auto ME = dyn_cast<MemberExpr>(ic->getSubExpr())) {
+      auto memberName = ME->getMemberDecl()->getName();
+
+      if (auto sr2 = dyn_cast<OpaqueValueExpr>(ME->getBase())) {
+        if (auto sr = dyn_cast<DeclRefExpr>(sr2->getSourceExpr())) {
+          if (sr->getDecl()->getName() == "blockIdx") {
+            auto mlirType = Glob.getTypes().getMLIRType(expr->getType());
+            if (memberName == "__fetch_builtin_x") {
+              return std::make_pair(
+                  ValueCategory(createBlockIdOp(gpu::Dimension::x, mlirType),
+                                /*isReference*/ false),
+                  true);
+            }
+            if (memberName == "__fetch_builtin_y") {
+              return std::make_pair(
+                  ValueCategory(createBlockIdOp(gpu::Dimension::y, mlirType),
+                                /*isReference*/ false),
+                  true);
+            }
+            if (memberName == "__fetch_builtin_z") {
+              return std::make_pair(
+                  ValueCategory(createBlockIdOp(gpu::Dimension::z, mlirType),
+                                /*isReference*/ false),
+                  true);
+            }
+          }
+          if (sr->getDecl()->getName() == "blockDim") {
+            auto mlirType = Glob.getTypes().getMLIRType(expr->getType());
+            if (memberName == "__fetch_builtin_x") {
+              return std::make_pair(
+                  ValueCategory(createBlockDimOp(gpu::Dimension::x, mlirType),
+                                /*isReference*/ false),
+                  true);
+            }
+            if (memberName == "__fetch_builtin_y") {
+              return std::make_pair(
+                  ValueCategory(createBlockDimOp(gpu::Dimension::y, mlirType),
+                                /*isReference*/ false),
+                  true);
+            }
+            if (memberName == "__fetch_builtin_z") {
+              return std::make_pair(
+                  ValueCategory(createBlockDimOp(gpu::Dimension::z, mlirType),
+                                /*isReference*/ false),
+                  true);
+            }
+          }
+          if (sr->getDecl()->getName() == "threadIdx") {
+            auto mlirType = Glob.getTypes().getMLIRType(expr->getType());
+            if (memberName == "__fetch_builtin_x") {
+              return std::make_pair(
+                  ValueCategory(createThreadIdOp(gpu::Dimension::x, mlirType),
+                                /*isReference*/ false),
+                  true);
+            }
+            if (memberName == "__fetch_builtin_y") {
+              return std::make_pair(
+                  ValueCategory(createThreadIdOp(gpu::Dimension::y, mlirType),
+                                /*isReference*/ false),
+                  true);
+            }
+            if (memberName == "__fetch_builtin_z") {
+              return std::make_pair(
+                  ValueCategory(createThreadIdOp(gpu::Dimension::z, mlirType),
+                                /*isReference*/ false),
+                  true);
+            }
+          }
+          if (sr->getDecl()->getName() == "gridDim") {
+            auto mlirType = Glob.getTypes().getMLIRType(expr->getType());
+            if (memberName == "__fetch_builtin_x") {
+              return std::make_pair(
+                  ValueCategory(createGridDimOp(gpu::Dimension::x, mlirType),
+                                /*isReference*/ false),
+                  true);
+            }
+            if (memberName == "__fetch_builtin_y") {
+              return std::make_pair(
+                  ValueCategory(createGridDimOp(gpu::Dimension::y, mlirType),
+                                /*isReference*/ false),
+                  true);
+            }
+            if (memberName == "__fetch_builtin_z") {
+              return std::make_pair(
+                  ValueCategory(createGridDimOp(gpu::Dimension::z, mlirType),
+                                /*isReference*/ false),
+                  true);
+            }
+          }
+        }
+      }
+    }
+  }
+  return std::make_pair(ValueCategory(), false);
+}
+
+std::pair<ValueCategory, bool>
+MLIRScanner::EmitBuiltinOps(clang::CallExpr *expr) {
+  if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
+    if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr()))
+      if (sr->getDecl()->getIdentifier() &&
+          sr->getDecl()->getName() == "__log2f") {
+        std::vector<mlir::Value> args;
+        for (auto a : expr->arguments()) {
+          args.push_back(Visit(a).getValue(builder));
+        }
+        return std::make_pair(
+            ValueCategory(builder.create<mlir::math::Log2Op>(loc, args[0]),
+                          /*isReference*/ false),
+            true);
+      }
+
+  std::vector<mlir::Value> args;
+  auto VisitArgs = [&]() {
+    assert(args.empty() && "Expecting empty args");
+    for (auto a : expr->arguments())
+      args.push_back(Visit(a).getValue(builder));
+  };
+  Optional<Value> V = None;
+  switch (expr->getBuiltinCallee()) {
+  case Builtin::BIceil: {
+    VisitArgs();
+    V = builder.create<math::CeilOp>(loc, args[0]);
+  } break;
+  case Builtin::BIcos: {
+    VisitArgs();
+    V = builder.create<mlir::math::CosOp>(loc, args[0]);
+  } break;
+  case Builtin::BIexp:
+  case Builtin::BIexpf: {
+    VisitArgs();
+    V = builder.create<mlir::math::ExpOp>(loc, args[0]);
+  } break;
+  case Builtin::BIlog: {
+    VisitArgs();
+    V = builder.create<mlir::math::LogOp>(loc, args[0]);
+  } break;
+  case Builtin::BIsin: {
+    VisitArgs();
+    V = builder.create<mlir::math::SinOp>(loc, args[0]);
+  } break;
+  case Builtin::BIsqrt:
+  case Builtin::BIsqrtf: {
+    VisitArgs();
+    V = builder.create<mlir::math::SqrtOp>(loc, args[0]);
+  } break;
+  case Builtin::BI__builtin_atanh:
+  case Builtin::BI__builtin_atanhf:
+  case Builtin::BI__builtin_atanhl: {
+    VisitArgs();
+    V = builder.create<math::AtanOp>(loc, args[0]);
+  } break;
+  case Builtin::BI__builtin_copysign:
+  case Builtin::BI__builtin_copysignf:
+  case Builtin::BI__builtin_copysignl: {
+    VisitArgs();
+    V = builder.create<LLVM::CopySignOp>(loc, args[0], args[1]);
+  } break;
+  case Builtin::BI__builtin_exp2:
+  case Builtin::BI__builtin_exp2f:
+  case Builtin::BI__builtin_exp2l: {
+    VisitArgs();
+    V = builder.create<math::Exp2Op>(loc, args[0]);
+  } break;
+  case Builtin::BI__builtin_expm1:
+  case Builtin::BI__builtin_expm1f:
+  case Builtin::BI__builtin_expm1l: {
+    VisitArgs();
+    V = builder.create<math::ExpM1Op>(loc, args[0]);
+  } break;
+  case Builtin::BI__builtin_fma:
+  case Builtin::BI__builtin_fmaf:
+  case Builtin::BI__builtin_fmal: {
+    VisitArgs();
+    V = builder.create<LLVM::FMAOp>(loc, args[0], args[1], args[2]);
+  } break;
+  case Builtin::BI__builtin_fmax:
+  case Builtin::BI__builtin_fmaxf:
+  case Builtin::BI__builtin_fmaxl: {
+    VisitArgs();
+    V = builder.create<LLVM::MaxNumOp>(loc, args[0], args[1]);
+  } break;
+  case Builtin::BI__builtin_fmin:
+  case Builtin::BI__builtin_fminf:
+  case Builtin::BI__builtin_fminl: {
+    VisitArgs();
+    V = builder.create<LLVM::MinNumOp>(loc, args[0], args[1]);
+  } break;
+  case Builtin::BI__builtin_log1p:
+  case Builtin::BI__builtin_log1pf:
+  case Builtin::BI__builtin_log1pl: {
+    VisitArgs();
+    V = builder.create<math::Log1pOp>(loc, args[0]);
+  } break;
+  case Builtin::BI__builtin_pow:
+  case Builtin::BI__builtin_powf:
+  case Builtin::BI__builtin_powl: {
+    VisitArgs();
+    V = builder.create<math::PowFOp>(loc, args[0], args[1]);
+  } break;
+  case Builtin::BI__builtin_assume: {
+    VisitArgs();
+    V = builder.create<LLVM::AssumeOp>(loc, args[0])->getResult(0);
+  } break;
+  case Builtin::BI__builtin_isgreater: {
+    VisitArgs();
+    auto postTy =
+        Glob.getTypes().getMLIRType(expr->getType()).cast<mlir::IntegerType>();
+    V = builder.create<ExtUIOp>(
+        loc, postTy,
+        builder.create<CmpFOp>(loc, CmpFPredicate::OGT, args[0], args[1]));
+  } break;
+  case Builtin::BI__builtin_isgreaterequal: {
+    VisitArgs();
+    auto postTy =
+        Glob.getTypes().getMLIRType(expr->getType()).cast<mlir::IntegerType>();
+    V = builder.create<ExtUIOp>(
+        loc, postTy,
+        builder.create<CmpFOp>(loc, CmpFPredicate::OGE, args[0], args[1]));
+  } break;
+  case Builtin::BI__builtin_isless: {
+    VisitArgs();
+    auto postTy =
+        Glob.getTypes().getMLIRType(expr->getType()).cast<mlir::IntegerType>();
+    V = builder.create<ExtUIOp>(
+        loc, postTy,
+        builder.create<CmpFOp>(loc, CmpFPredicate::OLT, args[0], args[1]));
+  } break;
+  case Builtin::BI__builtin_islessequal: {
+    VisitArgs();
+    auto postTy =
+        Glob.getTypes().getMLIRType(expr->getType()).cast<mlir::IntegerType>();
+    V = builder.create<ExtUIOp>(
+        loc, postTy,
+        builder.create<CmpFOp>(loc, CmpFPredicate::OLE, args[0], args[1]));
+  } break;
+  case Builtin::BI__builtin_islessgreater: {
+    VisitArgs();
+    auto postTy =
+        Glob.getTypes().getMLIRType(expr->getType()).cast<mlir::IntegerType>();
+    V = builder.create<ExtUIOp>(
+        loc, postTy,
+        builder.create<CmpFOp>(loc, CmpFPredicate::ONE, args[0], args[1]));
+  } break;
+  case Builtin::BI__builtin_isunordered: {
+    VisitArgs();
+    auto postTy =
+        Glob.getTypes().getMLIRType(expr->getType()).cast<mlir::IntegerType>();
+    V = builder.create<ExtUIOp>(
+        loc, postTy,
+        builder.create<CmpFOp>(loc, CmpFPredicate::UNO, args[0], args[1]));
+  } break;
+  case Builtin::BImemmove:
+  case Builtin::BI__builtin_memmove: {
+    VisitArgs();
+    builder.create<LLVM::MemmoveOp>(
+        loc, args[0], args[1], args[2],
+        /*isVolatile*/ builder.create<ConstantIntOp>(loc, false, 1));
+    V = args[0];
+  } break;
+  case Builtin::BImemset:
+  case Builtin::BI__builtin_memset: {
+    VisitArgs();
+    builder.create<LLVM::MemsetOp>(
+        loc, args[0],
+        builder.create<TruncIOp>(loc, builder.getI8Type(), args[1]), args[2],
+        /*isVolatile*/ builder.create<ConstantIntOp>(loc, false, 1));
+    V = args[0];
+  } break;
+  case Builtin::BImemcpy:
+  case Builtin::BI__builtin_memcpy: {
+    VisitArgs();
+    builder.create<LLVM::MemcpyOp>(
+        loc, args[0], args[1], args[2],
+        /*isVolatile*/ builder.create<ConstantIntOp>(loc, false, 1));
+    V = args[0];
+  } break;
+  }
+  if (V.has_value())
+    return std::make_pair(ValueCategory(V.value(),
+                                        /*isReference*/ false),
+                          true);
+
+  return std::make_pair(ValueCategory(), false);
 }

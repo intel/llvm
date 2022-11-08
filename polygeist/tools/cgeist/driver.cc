@@ -896,7 +896,8 @@ splitCommandLineOptions(int argc, char **argv,
   bool linkOnly = false;
   bool ExplicitO0 = false;
   llvm::OptimizationLevel OptimizationLevel =
-      CgeistOptions::DefaultOptimizationLevelOpt;
+      CgeistOptions::getDefaultOptimizationLevel();
+
   for (int i = 0; i < argc; i++) {
     StringRef ref(argv[i]);
     if (ref == "-Wl,--start-group")
@@ -1023,8 +1024,8 @@ static void processInputFiles(const cl::list<std::string> &inputFiles,
   }
 
   // Generate MLIR for the C/C++ files.
-  std::string fn = (!syclIsDevice) ? cfunction.getValue() : "";
-  parseMLIR(Argv0, files, fn, includeDirs, defines, module, triple, DL,
+  std::string fn = (!syclIsDevice) ? Cfunction.getValue() : "";
+  parseMLIR(Argv0, files, fn, IncludeDirs, Defines, module, triple, DL,
             commands);
 }
 
@@ -1064,7 +1065,7 @@ int main(int argc, char **argv) {
   // Parse command line options.
   llvm::cl::list<std::string> inputFileNames(
       llvm::cl::Positional, llvm::cl::OneOrMore,
-      llvm::cl::desc("<Specify input file>"), llvm::cl::cat(toolOptions));
+      llvm::cl::desc("<Specify input file>"), llvm::cl::cat(ToolOptions));
 
   llvm::cl::list<std::string> inputCommandArgs(
       "args", llvm::cl::Positional, llvm::cl::desc("<command arguments>"),

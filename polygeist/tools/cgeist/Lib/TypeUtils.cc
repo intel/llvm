@@ -30,13 +30,11 @@ bool isRecursiveStruct(Type *T, Type *Meta, SmallPtrSetImpl<Type *> &Seen) {
   Seen.insert(T);
   if (T->isVoidTy() || T->isFPOrFPVectorTy() || T->isIntOrIntVectorTy())
     return false;
-  if (T == Meta) {
+  if (T == Meta)
     return true;
-  }
   for (Type *ST : T->subtypes()) {
-    if (isRecursiveStruct(ST, Meta, Seen)) {
+    if (isRecursiveStruct(ST, Meta, Seen))
       return true;
-    }
   }
   return false;
 }
@@ -57,8 +55,8 @@ Type *anonymize(Type *T) {
   if (auto *ST = dyn_cast<StructType>(T)) {
     if (ST->isLiteral())
       return ST;
-    SmallVector<Type *, 4> V;
 
+    SmallVector<Type *, 4> V;
     for (auto *T : ST->elements()) {
       SmallPtrSet<Type *, 4> Seen;
       if (isRecursiveStruct(T, ST, Seen))
@@ -69,6 +67,13 @@ Type *anonymize(Type *T) {
     return StructType::get(ST->getContext(), V, ST->isPacked());
   }
   return T;
+}
+
+mlir::IntegerAttr wrapIntegerMemorySpace(unsigned MemorySpace,
+                                         mlir::MLIRContext *Ctx) {
+  return MemorySpace ? mlir::IntegerAttr::get(mlir::IntegerType::get(Ctx, 64),
+                                              MemorySpace)
+                     : nullptr;
 }
 
 mlir::Type getSYCLType(const clang::RecordType *RT,
