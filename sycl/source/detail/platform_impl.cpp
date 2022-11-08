@@ -239,7 +239,7 @@ static int filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
             if constexpr (std::is_same_v<std::decay_t<ListT>,
                                          ods_target_list>) {
               if (!Blacklist[&Device]) {
-                if (!Filter.IsNegativeTarget && !Blacklist[&Device]) {
+                if (!Filter.IsNegativeTarget) {
                   PiDevices[InsertIDx++] = Device;
                 } else {
                   // Filter is negative and the device matches the filter so
