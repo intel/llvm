@@ -86,6 +86,9 @@ inline auto createExceptionHandler() {
 template <class, class, bool> class TestID;
 
 template <class SpmdT, class SimdElemT, bool IsUniform> bool test(queue q) {
+  std::cout << "Testing SpmdT='" << typeid(SpmdT).name() << "', SimdElemT='"
+            << typeid(SimdElemT).name() << "', uniform=" << IsUniform << "... ";
+
   // 3 subgroups per workgroup
   unsigned GroupSize = VL * 3;
   unsigned NGroups = 7;
@@ -121,6 +124,7 @@ template <class SpmdT, class SimdElemT, bool IsUniform> bool test(queue q) {
   } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
     sycl::free(A, q);
+    std::cout << "failed\n";
     return false;
   }
   int err_cnt = 0;
@@ -141,6 +145,7 @@ template <class SpmdT, class SimdElemT, bool IsUniform> bool test(queue q) {
               << (Size - err_cnt) << "/" << Size << ")\n";
   }
   sycl::free(A, q);
+  std::cout << (err_cnt ? "failed\n" : "passed\n");
   return err_cnt == 0;
 }
 
@@ -155,15 +160,22 @@ int main(void) {
   constexpr bool UNIFORM = true;
   constexpr bool NON_UNIFORM = false;
 
+  const bool SupportsDouble = dev.has(aspect::fp64);
+
   // With uniform parameters SPMD actual argument corresponds to SIMD scalar
   // argument, and standard C++ arithmetic conversion are implicitly
   // applied by the compiler. Any aritimetic type can be implicitly coverted to
   // any other arithmetic type.
 
+#ifndef TEST_DOUBLE_TYPE
   passed &= test<int, float, UNIFORM>(q);
   passed &= test<unsigned char, uint64_t, UNIFORM>(q);
-  passed &= test<char, double, UNIFORM>(q);
-  passed &= test<double, char, UNIFORM>(q);
+#else
+  if (SupportsDouble) {
+    passed &= test<char, double, UNIFORM>(q);
+    passed &= test<double, char, UNIFORM>(q);
+  }
+#endif // TEST_DOUBLE_TYPE
 
   // With non-uniform parameters, SPMD actual argument of type T is "widened" to
   // std::simd<T, VL> and then convered to SIMD vector argument
@@ -171,10 +183,15 @@ int main(void) {
   // allow only non-narrowing conversions (e.g. int -> float is narrowing and
   // hence is prohibited).
 
+#ifndef TEST_DOUBLE_TYPE
   passed &= test<char, long, NON_UNIFORM>(q);
   passed &= test<short, short, NON_UNIFORM>(q);
-  passed &= test<float, double, NON_UNIFORM>(q);
+#else
+  if (SupportsDouble) {
+    passed &= test<float, double, NON_UNIFORM>(q);
+  }
+#endif // TEST_DOUBLE_TYPE
 
-  std::cout << (passed ? "Passed\n" : "FAILED\n");
+  std::cout << (passed ? "Test passed\n" : "TEST FAILED\n");
   return passed ? 0 : 1;
 }
