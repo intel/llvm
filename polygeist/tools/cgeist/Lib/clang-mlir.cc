@@ -2516,7 +2516,7 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
   VD = VD->getCanonicalDecl();
   unsigned memspace = VD ? CGM.getContext().getTargetAddressSpace(
                                CGM.GetGlobalVarAddressSpace(VD))
-                         : 0;
+                         : CGM.getDataLayout().getDefaultGlobalsAddressSpace();
   bool isArray = isa<clang::ArrayType>(FD->getType());
   bool isExtVectorType =
       isa<clang::ExtVectorType>(FD->getType()->getUnqualifiedDesugaredType());
