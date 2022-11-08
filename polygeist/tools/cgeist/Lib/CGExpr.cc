@@ -1435,13 +1435,11 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
 
     auto gv2 = builder.create<memref::GetGlobalOp>(loc, gv.first.getType(),
                                                    gv.first.getName());
-    bool isArray = gv.second;
+    Value V = castToMemSpace(
+        gv2, Glob.getCGM().getContext().getTargetAddressSpace(VD->getType()));
+
     // TODO check reference
-    if (isArray)
-      return ValueCategory(gv2, /*isReference*/ true);
-    else
-      return ValueCategory(gv2, /*isReference*/ true);
-    // return gv2;
+    return ValueCategory(V, /*isReference*/ true);
   }
   E->dump();
   E->getDecl()->dump();
