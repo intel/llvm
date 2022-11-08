@@ -62,8 +62,7 @@ For example, `!opencl:*` discards all devices of the opencl backend from the lis
 When one or more filters accept a device and one or more filters discard the device, the latter have priority and the device is ultimately not made available to the user. This allows the user to provide selector strings such as `*:gpu;!cuda:*` that accepts all gpu devices except those with a CUDA backend.
 Furthermore, if the value of this environment variable only has discarding filters, an accepting filter that matches all devices, but not sub-devices and sub-sub-devices, will be implicitly included in the 
 environment variable to allow the user to specify only the list of devices that must not be made available. Therefore, `!*:cpu` will accept all devices except those that are of the cpu type and `opencl:*;!*:cpu`
-will accept all devices of the opencl backend exept those that are of the opencl backend and of the cpu type. Finally, it is valid to have no accepting filter match a device but have at least one
-discarding filter match the device. In this case, the device remains unavailable as expected.
+will accept all devices of the opencl backend exept those that are of the opencl backend and of the cpu type. It is legal to have a rejection filter even if it specifies devices have already been omitted by previous filters in the selection string. Doing so has no effect; the rejected devices are still omitted.
 
 The following examples further illustrate the usage of this environment variable:
 
@@ -84,7 +83,7 @@ Notes:
 - The backend argument is always required. An error will be thrown if it is absent.
 - Additionally, the backend MUST be followed by colon ( `:` ) and at least one device specifier of some sort, else an error is thrown.
 - For sub-devices and sub-sub-devices, the parent device must support partitioning (`info::partition_property::partition_by_affinity_domain` and `info::partition_affinity_domain::next_partitionable`. See the SYCL 2020 specification for a precise definition.) For Intel GPUs, the sub-device and sub-sub-device syntax can be used to expose tiles or CCSs to the SYCL application as root devices.  The exact mapping between sub-device, sub-sub-device, tiles, and CCSs is specific to the hardware.
-- The semi-colon character ( `;` ) and the exclamation mark character ( `!`  ) are treated specially by many shells, so you may need to enclose the string in quotes if the selection string contains these character. 
+- The semi-colon character ( `;` ) and the exclamation mark character ( `!`  ) are treated specially by many shells, so you may need to enclose the string in quotes if the selection string contains these characters. 
 
 
 
