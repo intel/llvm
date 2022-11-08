@@ -11,10 +11,6 @@
 
 #include "sycl.hpp"
 
-#define BASE 1
-#define DERIVED1 2
-#define DERIVED2 3
-
 SYCL_EXTERNAL int rand();
 
 class Base {
