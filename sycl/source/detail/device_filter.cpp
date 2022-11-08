@@ -200,12 +200,14 @@ Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envStr) {
           ++negative_filters;
         } else { // positive filter
           // no need to set IsNegativeTarget=false because it is so by default.
-          // ensure that no negative filter has been seen because all 
+          // ensure that no negative filter has been seen because all
           // negative filters must come after all positive filters
           if (negative_filters > 0) {
             std::stringstream ss;
-            ss << "All negative filters must appear at the end!";
-            throw sycl::exception(sycl::make_error_code(errc::invalid), ss.str());
+            ss << "All negative(discarding) filters must appear all "
+                  "positive(accepting) filters!";
+            throw sycl::exception(sycl::make_error_code(errc::invalid),
+                                  ss.str());
           }
         }
         Parse_ODS_Device(DeviceTarget, TargetStr);
