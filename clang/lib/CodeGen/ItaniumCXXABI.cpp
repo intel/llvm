@@ -3572,10 +3572,11 @@ void ItaniumRTTIBuilder::BuildVTablePointer(const Type *Ty) {
       CGM.getLangOpts().SYCLIsDevice &&
       CGM.getLangOpts().SYCLAllowVirtualFunctions &&
       (VTableName == ClassTypeInfo || VTableName == SIClassTypeInfo);
-  auto VTableTy = GenTyInfoGVWithGlobalAS
-                      ? CGM.Int8Ty->getPointerTo(
-                            static_cast<unsigned>(LangAS::opencl_global))
-                      : CGM.Int8PtrTy;
+  auto VTableTy =
+      GenTyInfoGVWithGlobalAS
+          ? CGM.Int8Ty->getPointerTo(
+                CGM.getContext().getTargetAddressSpace(LangAS::sycl_global))
+          : CGM.Int8PtrTy;
   if (!VTable) {
     if (GenTyInfoGVWithGlobalAS) {
       VTable = CGM.getModule().getOrInsertGlobal(VTableName, VTableTy, [&] {
@@ -3585,7 +3586,7 @@ void ItaniumRTTIBuilder::BuildVTablePointer(const Type *Ty) {
             VTableName, /*InsertBefore=*/nullptr,
             llvm::GlobalValue::ThreadLocalMode::NotThreadLocal,
             llvm::Optional<unsigned>(
-                static_cast<unsigned>(LangAS::opencl_global)));
+                CGM.getContext().getTargetAddressSpace(LangAS::opencl_global)));
       });
     } else {
       VTable = CGM.getModule().getOrInsertGlobal(VTableName, VTableTy);

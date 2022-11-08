@@ -2,7 +2,7 @@
 // virtual table in the global address space (addrspace(1)) when
 // -fsycl-allow-virtual-functions is passed.
 
-// RUN: %clang_cc1 -O0 -fsycl-allow-virtual-functions -fsycl-is-device -internal-isystem %S/Inputs -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -O0 -triple spir64 -fsycl-allow-virtual-functions -fsycl-is-device -internal-isystem %S/Inputs -emit-llvm %s -o - | FileCheck %s
 
 // CHECK: @_ZTVN10__cxxabiv120__si_class_type_infoE = external addrspace(1) global ptr addrspace(1)
 // CHECK: @_ZTVN10__cxxabiv117__class_type_infoE = external addrspace(1) global ptr addrspace(1)
