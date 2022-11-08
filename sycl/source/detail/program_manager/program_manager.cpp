@@ -404,7 +404,9 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
       CompileOpts += std::string(TemporaryStr);
   }
   bool isEsimdImage = getUint32PropAsBool(Img, "isEsimdImage");
-  bool isDoubleGRF = getUint32PropAsBool(Img, "isDoubleGRF");
+  // TODO: Remove isDoubleGRF check in next ABI break
+  bool isLargeGRF = getUint32PropAsBool(Img, "isLargeGRF") ||
+                    getUint32PropAsBool(Img, "isDoubleGRF");
   // The -vc-codegen option is always preserved for ESIMD kernels, regardless
   // of the contents SYCL_PROGRAM_COMPILE_OPTIONS environment variable.
   if (isEsimdImage) {
@@ -416,7 +418,7 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
     if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() == 0)
       CompileOpts += " -disable-finalizer-msg";
   }
-  if (isDoubleGRF) {
+  if (isLargeGRF) {
     if (!CompileOpts.empty())
       CompileOpts += " ";
     // TODO: Always use -ze-opt-large-register-file once IGC VC bug ignoring it
