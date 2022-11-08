@@ -249,9 +249,9 @@ using CallGraphTy = DenseMap<Function *, SmallPtrSet<Function *, 8>>;
 // Finds the first function in a list that uses a given aspect. Returns nullptr
 // if none of the functions satisfy the criteria.
 Function *findFirstAspectUsageCallee(
-    const SmallPtrSet<Function *, 8> &Callees,
+    const SmallPtrSetImpl<Function *> &Callees,
     const FunctionToAspectsMapTy &AspectsMap, int Aspect,
-    SmallPtrSet<const Function *, 16> *Visited = nullptr) {
+    SmallPtrSetImpl<const Function *> *Visited = nullptr) {
   for (Function *Callee : Callees) {
     if (Visited && !Visited->insert(Callee).second)
       continue;
@@ -268,8 +268,8 @@ Function *findFirstAspectUsageCallee(
 void constructAspectUsageChain(const Function *F,
                                const FunctionToAspectsMapTy &AspectsMap,
                                const CallGraphTy &CG, int Aspect,
-                               SmallVector<Function *, 8> &CallChain,
-                               SmallPtrSet<const Function *, 16> &Visited) {
+                               SmallVectorImpl<Function *> &CallChain,
+                               SmallPtrSetImpl<const Function *> &Visited) {
   const auto EdgeIt = CG.find(F);
   if (EdgeIt == CG.end())
     return;
@@ -323,18 +323,15 @@ void validateUsedAspectsForFunctions(const FunctionToAspectsMapTy &Map,
       continue;
 
     Function *F = It.first;
-    bool FIsEntryPoint = std::find(EntryPoints.begin(), EntryPoints.end(), F) !=
-                         EntryPoints.end();
-
     AspectsSetTy DeviceHasAspectSet;
     bool OriginatedFromAttribute = true;
     if (const MDNode *DeviceHasMD = F->getMetadata("sycl_declared_aspects")) {
       // Entry points will have their declared aspects from their kernel call.
       // To avoid double warnings, we skip them.
-      if (FIsEntryPoint)
+      if (is_contained(EntryPoints, F))
         continue;
-      for (size_t I = 0; I != DeviceHasMD->getNumOperands(); ++I) {
-        const auto *CAM = cast<ConstantAsMetadata>(DeviceHasMD->getOperand(I));
+      for (const MDOperand &DeviceHasMDOp : DeviceHasMD->operands()) {
+        const auto *CAM = cast<ConstantAsMetadata>(DeviceHasMDOp);
         const Constant *C = CAM->getValue();
         DeviceHasAspectSet.insert(cast<ConstantInt>(C)->getSExtValue());
       }
@@ -366,7 +363,7 @@ void validateUsedAspectsForFunctions(const FunctionToAspectsMapTy &Map,
         // In this case we act like the usage came from the first callee to
         // avoid repeat warnings on the same line.
         Function *AdjustedOriginF =
-            FIsEntryPoint
+            is_contained(EntryPoints, F)
                 ? findFirstAspectUsageCallee(CG.find(F)->second, Map, Aspect)
                 : F;
         assert(AdjustedOriginF &&
