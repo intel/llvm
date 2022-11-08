@@ -466,9 +466,9 @@ private:
   void setArgsHelper(int) {}
 
   void setLocalAccessorArgHelper(int ArgIndex,
-                                 detail::LocalAccessorBaseHost *LocalAccBase) {
+                                 detail::LocalAccessorBaseHost &LocalAccBase) {
     detail::LocalAccessorImplPtr LocalAccImpl =
-        detail::getSyclObjImpl(*LocalAccBase);
+        detail::getSyclObjImpl(LocalAccBase);
     detail::LocalAccessorImplHost *Req = LocalAccImpl.get();
     MLocalAccStorage.push_back(std::move(LocalAccImpl));
     MArgs.emplace_back(detail::kernel_param_kind_t::kind_accessor, Req,
@@ -481,17 +481,17 @@ private:
   void setArgHelper(int ArgIndex,
                     accessor<DataT, Dims, AccessMode, access::target::local,
                              IsPlaceholder> &&Arg) {
-    detail::LocalAccessorBaseHost *LocalAccBase =
-        (detail::LocalAccessorBaseHost *)&Arg;
-    setLocalAccessorArgHelper(ArgIndex, LocalAccBase);
+#ifndef __SYCL_DEVICE_ONLY__
+    setLocalAccessorArgHelper(ArgIndex, Arg);
+#endif
   }
 
   // setArgHelper for local accessor argument (up to date accessor interface)
   template <typename DataT, int Dims>
   void setArgHelper(int ArgIndex, local_accessor<DataT, Dims> &&Arg) {
-    detail::LocalAccessorBaseHost *LocalAccBase =
-        (detail::LocalAccessorBaseHost *)&Arg;
-    setLocalAccessorArgHelper(ArgIndex, LocalAccBase);
+#ifndef __SYCL_DEVICE_ONLY__
+    setLocalAccessorArgHelper(ArgIndex, Arg);
+#endif
   }
 
   // setArgHelper for non local accessor argument.
