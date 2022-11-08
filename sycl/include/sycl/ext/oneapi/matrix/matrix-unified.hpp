@@ -163,8 +163,8 @@ public:
 //  intel impl: return wi_data<T, NumRows, NumCols, Use, Layout, Group>(*this);
 #endif
 #else
-  // Host version of get_wi_data required by compiler even though it will never
-  // be called because joint_matrix cannot be constructed on host.
+    // Host version of get_wi_data required by compiler even though it will never
+    // be called because joint_matrix cannot be constructed on host.
     if constexpr (std::is_same_v<T, precision::tf32>) {
       marray<float, 1> unused{};
       return wi_data<float, 1>(unused);
