@@ -2510,7 +2510,7 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
   }
 
   mlir::Type rt = getTypes().getMLIRType(FD->getType());
-  auto VD = dyn_cast<VarDecl>(FD);
+  auto *VD = dyn_cast<VarDecl>(FD);
   if (!VD)
     FD->dump();
   VD = VD->getCanonicalDecl();
