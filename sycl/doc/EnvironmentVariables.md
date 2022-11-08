@@ -56,7 +56,7 @@ Additionally, if a sub-device is chosen (via numeric index or wildcard), then an
 Lastly, a filter in the grammar can be thought of as a term in conjuction with an action that is taken on all devices that are selected by the term. The action can be an accept action or a discard action.
 The string `<term>` represents an accept action and the string `!<term>` represents a discard action. The underlying term is the same but they perform different actions on the matching devices list.
 For example, `!opencl:*` discards all devices of the opencl backend from the list of available devices. When one or more filters accept a device and one or more filters discard the device, the latter
-have priority and the device is ultimately not made available to the user. This allows the user to provide selector strings such as `*:gpu;!cuda:*` that accepts all gpu devices except those with a CUDA backend.
+have priority and the device is ultimately not made available to the user regadless of the order in which the filter appear. This allows the user to provide selector strings such as `*:gpu;!cuda:*` that accepts all gpu devices except those with a CUDA backend.
 Furthermore, if the value of this enviroment variable only has discarding filters, an accepting filter that matches all devices, but not sub-devices and sub-sub-devices, will be implicitly included in the 
 environment to allow the user to specify only the list of devices that must not be made available. Therefore, `!*:cpu` will accept all devices except those that are of the cpu type and `opencl:*;!*:cpu` 
 will accept all devices of the opencl backend exept those that are of the opencl backend and of the cpu type. Finally, it is valid to have no accepting filter match a device but have at least once
