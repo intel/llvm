@@ -3731,7 +3731,7 @@ ZER_APIEXPORT zer_result_t ZER_APICALL
 zerProgramCreate(
     zer_context_handle_t hContext,                  ///< [in] handle of the context instance
     uint32_t count,                                 ///< [in] number of module handles in module list.
-    const zer_module_handle_t** phModules,          ///< [in] pointers to array of modules.
+    const zer_module_handle_t* phModules,           ///< [in] pointer to array of modules.
     const char* pOptions,                           ///< [in][optional] pointer to linker options null-terminated string.
     zer_program_handle_t* phProgram                 ///< [out] pointer to handle of program object created.
     );
@@ -4597,7 +4597,7 @@ typedef struct _zer_program_create_params_t
 {
     zer_context_handle_t* phContext;
     uint32_t* pcount;
-    const zer_module_handle_t*** pphModules;
+    const zer_module_handle_t** pphModules;
     const char** ppOptions;
     zer_program_handle_t** pphProgram;
 } zer_program_create_params_t;
