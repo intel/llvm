@@ -21467,7 +21467,7 @@ RValue CodeGenFunction::EmitIntelFPGAMemBuiltin(const CallExpr *E) {
 
   llvm::Value *Ann = EmitAnnotationCall(F, PtrVal, AnnotStr, SourceLocation());
 
-  cast<CallBase>(Ann)->addFnAttr(llvm::Attribute::ReadNone);
+  cast<CallBase>(Ann)->setDoesNotAccessMemory();
 
   return RValue::get(Ann);
 }
