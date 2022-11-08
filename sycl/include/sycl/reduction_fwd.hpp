@@ -1,0 +1,67 @@
+#pragma once
+
+// To be included in <sycl/handler.hpp>. Not that reductions implementation need
+// complete sycl::handler type so we cannot include whole <sycl/reduction.hpp>
+// there.
+
+#include <sycl/detail/common.hpp>
+
+namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace detail {
+template <typename T, class BinaryOperation, int Dims, size_t Extent,
+          typename RedOutVar>
+class reduction_impl_algo;
+
+namespace reduction {
+enum class strategy : int {
+  auto_select,
+
+  // These three are only auto-selected for sycl::range entry point.
+  group_reduce_and_last_wg_detection,
+  local_atomic_and_atomic_cross_wg,
+  range_basic,
+
+  group_reduce_and_atomic_cross_wg,
+  local_mem_tree_and_atomic_cross_wg,
+  group_reduce_and_multiple_kernels,
+  basic,
+
+  multi,
+};
+
+// Reductions implementation need access to private members of handler. Those
+// are limited to those below.
+inline void finalizeHandler(handler &CGH);
+template <class FunctorTy> void withAuxHandler(handler &CGH, FunctorTy Func);
+} // namespace reduction
+
+template <typename KernelName, int Dims, typename PropertiesT,
+          typename KernelType, typename Reduction>
+void reduction_parallel_for(handler &CGH,
+                            std::shared_ptr<detail::queue_impl> Queue,
+                            range<Dims> Range, PropertiesT Properties,
+                            Reduction Redu, KernelType KernelFunc);
+
+template <typename KernelName,
+          reduction::strategy Strategy = reduction::strategy::auto_select,
+          int Dims, typename PropertiesT, typename KernelType,
+          typename Reduction>
+void reduction_parallel_for(handler &CGH,
+                            std::shared_ptr<detail::queue_impl> Queue,
+                            nd_range<Dims> NDRange, PropertiesT Properties,
+                            Reduction Redu, KernelType KernelFunc);
+
+template <typename KernelName, int Dims, typename PropertiesT,
+          typename... RestT>
+void reduction_parallel_for(handler &CGH,
+                            std::shared_ptr<detail::queue_impl> Queue,
+                            nd_range<Dims> NDRange, PropertiesT Properties,
+                            RestT... Rest);
+
+template <typename T> struct IsReduction;
+template <typename FirstT, typename... RestT> struct AreAllButLastReductions;
+
+} // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl
