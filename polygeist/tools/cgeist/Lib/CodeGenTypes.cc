@@ -1902,10 +1902,6 @@ bool CodeGenTypes::getCPUAndFeaturesAttributes(
   return AddedAttr;
 }
 
-CanQualType CodeGenTypes::getCanonicalType(QualType T) const {
-  return CanQualType::CreateUnsafe(T);
-}
-
 QualType CodeGenTypes::getPromotionType(QualType Ty) const {
   if (CGM.getTarget().shouldEmitFloat16WithExcessPrecision()) {
     if (Ty->isAnyComplexType()) {

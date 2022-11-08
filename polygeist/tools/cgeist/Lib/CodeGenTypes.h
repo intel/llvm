@@ -96,8 +96,6 @@ public:
                               llvm::StructType *ST);
 
   clang::QualType getPromotionType(clang::QualType Ty) const;
-  clang::CanQualType getCanonicalType(clang::QualType T) const;
-
 private:
   void getDefaultFunctionAttributes(llvm::StringRef Name, bool HasOptnone,
                                     bool AttrOnCallSite,

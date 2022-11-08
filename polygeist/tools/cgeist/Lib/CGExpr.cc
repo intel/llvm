@@ -2459,8 +2459,8 @@ ValueCategory MLIRScanner::EmitScalarConversion(ValueCategory Src,
 
   mlirclang::CodeGen::CodeGenTypes &CGTypes = Glob.getTypes();
 
-  SrcType = CGTypes.getCanonicalType(SrcType);
-  DstType = CGTypes.getCanonicalType(DstType);
+  SrcType = Glob.getCGM().getContext().getCanonicalType(SrcType);
+  DstType = Glob.getCGM().getContext().getCanonicalType(DstType);
   if (SrcType == DstType)
     return Src;
   if (DstType->isVoidType())
