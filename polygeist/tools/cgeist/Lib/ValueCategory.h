@@ -29,9 +29,6 @@ private:
   }
 
 public:
-  // TODO: Store whether an LValue is a bitfield.
-  static constexpr bool isBitField{false};
-
   mlir::Value val;
   bool isReference;
 

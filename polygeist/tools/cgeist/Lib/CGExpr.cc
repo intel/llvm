@@ -2658,11 +2658,6 @@ std::pair<ValueCategory, ValueCategory> MLIRScanner::EmitCompoundAssignLValue(
   // potentially with Implicit Conversion sanitizer check.
   Result = EmitScalarConversion(Result, PromotionTypeCR, LHSTy, Loc);
 
-  // Store the result value into the LHS lvalue. Bit-fields are handled
-  // specially because the result is altered by the store, i.e.,
-  // [C99 6.5.16p1] 'An assignment expression has the value of the left
-  // operand after the assignment...'.
-  assert(!LHSLV.isBitField && "Not handling bitfields");
   LHSLV.store(builder, Result.val);
 
   if (Glob.getCGM().getLangOpts().OpenMP) {
