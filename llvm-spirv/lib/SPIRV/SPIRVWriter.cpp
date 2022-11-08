@@ -162,7 +162,8 @@ static void translateSEVDecoration(Attribute Sev, SPIRVValue *Val) {
 }
 
 LLVMToSPIRVBase::LLVMToSPIRVBase(SPIRVModule *SMod)
-    : M(nullptr), Ctx(nullptr), BM(SMod), SrcLang(0), SrcLangVer(0) {
+    : BuiltinCallHelper(ManglingRules::None), M(nullptr), Ctx(nullptr),
+      BM(SMod), SrcLang(0), SrcLangVer(0) {
   DbgTran = std::make_unique<LLVMToSPIRVDbgTran>(nullptr, SMod, this);
 }
 
@@ -173,6 +174,7 @@ LLVMToSPIRVBase::~LLVMToSPIRVBase() {
 
 bool LLVMToSPIRVBase::runLLVMToSPIRV(Module &Mod) {
   M = &Mod;
+  initialize(Mod);
   CG = std::make_unique<CallGraph>(Mod);
   Ctx = &M->getContext();
   DbgTran->setModule(M);
@@ -533,8 +535,10 @@ SPIRVType *LLVMToSPIRVBase::transPointerType(Type *ET, unsigned AddrSpc) {
     }
     if (STName.startswith(kSPR2TypeName::ImagePrefix)) {
       assert(AddrSpc == SPIRAS_Global);
-      Type *ImageTy = adaptSPIRVImageType(M, ST);
-      return SaveType(transPointerType(ImageTy, SPIRAS_Global));
+      Type *ImageTy =
+          adjustImageType(TypedPointerType::get(ST, AddrSpc),
+                          kSPIRVTypeName::Image, kSPIRVTypeName::Image);
+      return SaveType(transType(ImageTy));
     }
     if (STName == kSPR2TypeName::Sampler)
       return SaveType(transSPIRVOpaqueType(
@@ -702,19 +706,17 @@ SPIRVType *LLVMToSPIRVBase::transSPIRVOpaqueType(StringRef STName,
     return SaveType(BM->addImageType(
         SampledT, Desc, static_cast<spv::AccessQualifier>(Ops[6])));
   } else if (TN == kSPIRVTypeName::SampledImg) {
-    return SaveType(
-        BM->addSampledImageType(static_cast<SPIRVTypeImage *>(transPointerType(
-            getSPIRVStructTypeByChangeBaseTypeName(
-                M, ST, kSPIRVTypeName::SampledImg, kSPIRVTypeName::Image),
-            SPIRAS_Global))));
+    return SaveType(BM->addSampledImageType(static_cast<SPIRVTypeImage *>(
+        transType(adjustImageType(TypedPointerType::get(ST, SPIRAS_Global),
+                                  kSPIRVTypeName::SampledImg,
+                                  kSPIRVTypeName::Image)))));
   } else if (TN == kSPIRVTypeName::VmeImageINTEL) {
     // This type is the same as SampledImageType, but consumed by Subgroup AVC
     // Intel extension instructions.
-    return SaveType(
-        BM->addVmeImageINTELType(static_cast<SPIRVTypeImage *>(transPointerType(
-            getSPIRVStructTypeByChangeBaseTypeName(
-                M, ST, kSPIRVTypeName::VmeImageINTEL, kSPIRVTypeName::Image),
-            SPIRAS_Global))));
+    return SaveType(BM->addVmeImageINTELType(static_cast<SPIRVTypeImage *>(
+        transType(adjustImageType(TypedPointerType::get(ST, SPIRAS_Global),
+                                  kSPIRVTypeName::VmeImageINTEL,
+                                  kSPIRVTypeName::Image)))));
   } else if (TN == kSPIRVTypeName::Sampler)
     return SaveType(BM->addSamplerType());
   else if (TN == kSPIRVTypeName::DeviceEvent)
@@ -739,22 +741,15 @@ SPIRVType *LLVMToSPIRVBase::transScavengedType(Value *V) {
     SPIRVType *RT = transType(F->getReturnType());
     std::vector<SPIRVType *> PT;
     for (Argument &Arg : F->args()) {
-      auto TypePair =
-          OCLTypeToSPIRVPtr->getAdaptedArgumentType(F, Arg.getArgNo());
-      Type *Ty = TypePair.first;
-      Type *PointeeTy = TypePair.second;
+      Type *Ty = OCLTypeToSPIRVPtr->getAdaptedArgumentType(F, Arg.getArgNo());
       if (!Ty) {
         Ty = Arg.getType();
         if (Ty->isPointerTy())
-          PointeeTy =
-              Scavenger->getArgumentPointerElementType(F, Arg.getArgNo());
+          Ty = TypedPointerType::get(
+              Scavenger->getArgumentPointerElementType(F, Arg.getArgNo()),
+              Ty->getPointerAddressSpace());
       }
-      SPIRVType *TransTy = nullptr;
-      if (Ty->isPointerTy())
-        TransTy = transPointerType(PointeeTy, Ty->getPointerAddressSpace());
-      else
-        TransTy = transType(Ty);
-      PT.push_back(TransTy);
+      PT.push_back(transType(Ty));
     }
 
     return getSPIRVFunctionType(RT, PT);
@@ -5059,15 +5054,13 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     // for this call, because there is no support for type corresponding to
     // OpTypeSampledImage. So, in this case, we create the required type here.
     Value *Image = CI->getArgOperand(0);
-    SmallVector<Type *, 4> ParamTys;
-    getParameterTypes(CI, ParamTys);
-    Type *ImageTy = adaptSPIRVImageType(M, ParamTys[0]);
-    Type *SampledImgTy = getSPIRVStructTypeByChangeBaseTypeName(
-        M, ImageTy, kSPIRVTypeName::Image, kSPIRVTypeName::SampledImg);
+    Type *SampledImgTy =
+        adjustImageType(getCallValueType(CI, 0), kSPIRVTypeName::Image,
+                        kSPIRVTypeName::SampledImg);
     Value *Sampler = CI->getArgOperand(1);
-    return BM->addSampledImageInst(
-        transPointerType(SampledImgTy, SPIRAS_Global), transValue(Image, BB),
-        transValue(Sampler, BB), BB);
+    return BM->addSampledImageInst(transType(SampledImgTy),
+                                   transValue(Image, BB),
+                                   transValue(Sampler, BB), BB);
   }
   case OpFixedSqrtINTEL:
   case OpFixedRecipINTEL:
