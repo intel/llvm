@@ -154,7 +154,7 @@ std::vector<platform> platform_impl::get_platforms() {
 // in the places where the functionality diverges between these two
 // environment variables.
 template <typename ListT, typename FilterT>
-int filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
+static int filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
                        RT::PiPlatform Platform, ListT *FilterList) {
 
   // There are some differences in implementation between SYCL_DEVICE_FILTER

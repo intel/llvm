@@ -165,10 +165,6 @@ static void Parse_ODS_Device(ods_target &Target,
   }
 }
 
-// Parse the ONEAPI_DEVICE_SELECTOR to produce two ods_target vectors
-// where the first one contains the device targets that can be
-// available to the user and the second one contains the targets
-// that must not be available to the user.
 std::vector<ods_target>
 Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envStr) {
   std::vector<ods_target> Result;
