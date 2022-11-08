@@ -3,7 +3,7 @@
 // account direct calls to L0 API.
 // UNSUPPORTED: ze_debug-1,ze_debug4
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
-// RUN: env SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR=1 SYCL_DEVICE_FILTER=level_zero ZE_DEBUG=1 %GPU_RUN_PLACEHOLDER %t.out 2>&1 | FileCheck %s
+// RUN: env SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR=1 ONEAPI_DEVICE_SELECTOR='level_zero:*' ZE_DEBUG=1 %GPU_RUN_PLACEHOLDER %t.out 2>&1 | FileCheck %s
 
 // Test for Level Zero buffer interop API.
 // Check the following cases:

@@ -2,10 +2,10 @@
 //
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 //
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=0 SYCL_DEVICE_FILTER=level_zero %GPU_RUN_PLACEHOLDER %t.out
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=1 SYCL_DEVICE_FILTER=level_zero %GPU_RUN_PLACEHOLDER %t.out
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=2 SYCL_DEVICE_FILTER=level_zero %GPU_RUN_PLACEHOLDER %t.out
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=3 SYCL_DEVICE_FILTER=level_zero %GPU_RUN_PLACEHOLDER %t.out
+// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=0 ONEAPI_DEVICE_SELECTOR="level_zero:*" %GPU_RUN_PLACEHOLDER %t.out
+// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=1 ONEAPI_DEVICE_SELECTOR="level_zero:*" %GPU_RUN_PLACEHOLDER %t.out
+// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=2 ONEAPI_DEVICE_SELECTOR="level_zero:*" %GPU_RUN_PLACEHOLDER %t.out
+// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=3 ONEAPI_DEVICE_SELECTOR="level_zero:*" %GPU_RUN_PLACEHOLDER %t.out
 //
 // The test checks that interleaving using copy and kernel operations are
 // performed in-order, regardless of batching. IMPORTANT NOTE: this is a

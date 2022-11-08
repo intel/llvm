@@ -1,8 +1,8 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_DEVICE_FILTER=cpu %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR='*:cpu' %t.out
 //
 // Checks if only specified device types can be acquired from select_device
-// when SYCL_DEVICE_FILTER is set
+// when ONEAPI_DEVICE_SELECTOR is set
 // Checks that no device is selected when no device of desired type is
 // available.
 //
@@ -15,10 +15,10 @@ using namespace sycl;
 using namespace std;
 
 int main() {
-  const char *envVal = std::getenv("SYCL_DEVICE_FILTER");
+  const char *envVal = std::getenv("ONEAPI_DEVICE_SELECTOR");
   std::string forcedPIs;
   if (envVal) {
-    std::cout << "SYCL_DEVICE_FILTER=" << envVal << std::endl;
+    std::cout << "ONEAPI_DEVICE_SELECTOR=" << envVal << std::endl;
     forcedPIs = envVal;
   }
   {

@@ -1,9 +1,9 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env PRINT_FULL_DEVICE_INFO=1  %t.out > %t1.conf
-// RUN: env SYCL_DEVICE_FILTER=0 env TEST_DEV_CONFIG_FILE_NAME=%t1.conf %t.out
-// RUN: env SYCL_DEVICE_FILTER=1 env TEST_DEV_CONFIG_FILE_NAME=%t1.conf %t.out
-// RUN: env SYCL_DEVICE_FILTER=2 env TEST_DEV_CONFIG_FILE_NAME=%t1.conf %t.out
-// RUN: env SYCL_DEVICE_FILTER=3 env TEST_DEV_CONFIG_FILE_NAME=%t1.conf %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:0" env TEST_DEV_CONFIG_FILE_NAME=%t1.conf %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:1" env TEST_DEV_CONFIG_FILE_NAME=%t1.conf %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:2" env TEST_DEV_CONFIG_FILE_NAME=%t1.conf %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:3" env TEST_DEV_CONFIG_FILE_NAME=%t1.conf %t.out
 
 // Temporarily disable on L0 and HIP due to fails in CI
 // UNSUPPORTED: level_zero, hip
@@ -145,10 +145,10 @@ int main() {
                                         unfilteredDevices) &&
          "Failed to parse file with initial system configuration data");
 
-  const char *envVal = std::getenv("SYCL_DEVICE_FILTER");
+  const char *envVal = std::getenv("ONEAPI_DEVICE_SELECTOR");
   int deviceNum;
-  std::cout << "SYCL_DEVICE_FILTER=" << envVal << std::endl;
-  deviceNum = std::atoi(envVal);
+  std::cout << "ONEAPI_DEVICE_SELECTOR=" << envVal << std::endl;
+  deviceNum = std::atoi(std::string(envVal).substr(2).c_str());
 
   auto devices = device::get_devices();
   std::cout << "Device count to analyze =" << devices.size() << std::endl;

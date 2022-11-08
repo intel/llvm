@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_DEVICE_FILTER=opencl %CPU_RUN_PLACEHOLDER %t.out
-// RUN: env SYCL_DEVICE_FILTER=opencl %GPU_RUN_PLACEHOLDER %t.out
-// RUN: env SYCL_DEVICE_FILTER=opencl %ACC_RUN_PLACEHOLDER %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR='opencl:*' %CPU_RUN_PLACEHOLDER %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR='opencl:*' %GPU_RUN_PLACEHOLDER %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR='opencl:*' %ACC_RUN_PLACEHOLDER %t.out
 
 //==---------- buffer_allocator.cpp - SYCL buffer allocator tests ----------==//
 //

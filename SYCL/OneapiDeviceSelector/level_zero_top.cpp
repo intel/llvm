@@ -1,7 +1,7 @@
 // REQUIRES: level_zero,gpu
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env ONEAPI_DEVICE_SELECTOR=level_zero:gpu %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR=level_zero:0 %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR='level_zero:0' %t.out
 // RUN: env ONEAPI_DEVICE_SELECTOR="level_zero:*" %t.out
 
 //  At this time, LevelZero only has one device (GPU). So this is easy to accept

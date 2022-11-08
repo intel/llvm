@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -D__SYCL_INTERNAL_API %s -o %t.out
-// RUN: env SYCL_DEVICE_FILTER=%sycl_be %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR='%sycl_be:*' %t.out
 //==--------------- platform.cpp - SYCL platform test ----------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

@@ -1,6 +1,6 @@
 // REQUIRES: gpu, cuda
 
-// RUN: env SYCL_DEVICE_FILTER=cuda sycl-ls --verbose >%t.cuda.out
+// RUN: env ONEAPI_DEVICE_SELECTOR="cuda:*" sycl-ls --verbose >%t.cuda.out
 // RUN: FileCheck %s --check-prefixes=CHECK-BUILTIN-GPU-CUDA,CHECK-CUSTOM-GPU-CUDA --input-file %t.cuda.out
 
 // CHECK-BUILTIN-GPU-CUDA: gpu_selector(){{.*}}gpu, {{.*}}CUDA

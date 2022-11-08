@@ -2,7 +2,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_PI_TRACE=-1 %t.out &> %t_trace_no_filter.txt || true
 // RUN: FileCheck --input-file=%t_trace_no_filter.txt --check-prefix=CHECK-NO-FILTER %s
-// RUN: env SYCL_PI_TRACE=-1 SYCL_DEVICE_FILTER=esimd_emulator %t.out &> %t_trace_esimd_filter.txt || true
+// RUN: env SYCL_PI_TRACE=-1 ONEAPI_DEVICE_SELECTOR='esimd_emulator:*' %t.out &> %t_trace_esimd_filter.txt || true
 // RUN: FileCheck --input-file=%t_trace_esimd_filter.txt --check-prefix=CHECK-ESIMD-FILTER %s
 // Checks pi traces on library loading
 

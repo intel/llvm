@@ -1,6 +1,6 @@
 // REQUIRES: gpu, opencl
 
-// RUN: env SYCL_DEVICE_FILTER=opencl sycl-ls --verbose >%t.opencl.out
+// RUN: env ONEAPI_DEVICE_SELECTOR="opencl:*" sycl-ls --verbose >%t.opencl.out
 // RUN: FileCheck %s --check-prefixes=CHECK-GPU-BUILTIN,CHECK-GPU-CUSTOM --input-file %t.opencl.out
 
 // CHECK-GPU-BUILTIN: gpu_selector(){{.*}}gpu, {{.*}}OpenCL

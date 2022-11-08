@@ -3,12 +3,12 @@
 // UNSUPPORTED: windows
 //
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
-// RUN: env SYCL_DEVICE_FILTER=level_zero ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out wait 2>&1 %GPU_CHECK_PLACEHOLDER
-// RUN: env SYCL_DEVICE_FILTER=level_zero ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out nowait 2>&1 %GPU_CHECK_PLACEHOLDER
+// RUN: env ONEAPI_DEVICE_SELECTOR="level_zero:*" ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out wait 2>&1 %GPU_CHECK_PLACEHOLDER
+// RUN: env ONEAPI_DEVICE_SELECTOR="level_zero:*" ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out nowait 2>&1 %GPU_CHECK_PLACEHOLDER
 //
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple %level_zero_options %s -DCHECK_INORDER -o %t.inorder.out
-// RUN: env SYCL_DEVICE_FILTER=level_zero ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.inorder.out wait 2>&1 %GPU_CHECK_PLACEHOLDER
-// RUN: env SYCL_DEVICE_FILTER=level_zero ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.inorder.out nowait 2>&1 %GPU_CHECK_PLACEHOLDER
+// RUN: env ONEAPI_DEVICE_SELECTOR="level_zero:*" ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.inorder.out wait 2>&1 %GPU_CHECK_PLACEHOLDER
+// RUN: env ONEAPI_DEVICE_SELECTOR="level_zero:*" ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.inorder.out nowait 2>&1 %GPU_CHECK_PLACEHOLDER
 //
 // CHECK-NOT: LEAK
 

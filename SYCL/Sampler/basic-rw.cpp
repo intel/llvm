@@ -11,11 +11,11 @@
 
     clang++ -fsycl -sycl-std=121 -o binx.bin basic-rw.cpp
 
-    SYCL_DEVICE_FILTER=opencl:gpu ./binx.bin
-    SYCL_DEVICE_FILTER=level_zero:gpu ./binx.bin
-    SYCL_DEVICE_FILTER=opencl:cpu ./binx.bin
+    ONEAPI_DEVICE_SELECTOR=opencl:gpu ./binx.bin
+    ONEAPI_DEVICE_SELECTOR=level_zero:gpu ./binx.bin
+    ONEAPI_DEVICE_SELECTOR=opencl:cpu ./binx.bin
 
-    SYCL_DEVICE_FILTER=opecl:acc ../binx.bin    <--  does not support image
+    ONEAPI_DEVICE_SELECTOR=opecl:acc ../binx.bin    <--  does not support image
    operations at this time.
 
 */

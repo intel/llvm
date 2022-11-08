@@ -1,6 +1,6 @@
 // REQUIRES: level_zero, level_zero_dev_kit
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
-// RUN: env SYCL_DEVICE_FILTER=level_zero %GPU_RUN_PLACEHOLDER %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR='level_zero:*' %GPU_RUN_PLACEHOLDER %t.out
 
 // Test 2D and 3D interoperability buffers for the Level Zero backend.
 

@@ -1,9 +1,9 @@
 // RUN: %clangxx -fsycl -fsycl-targets=spir64,nvptx64-nvidia-cuda %s -o %t-spir64-nvptx64.out
-// RUN: env SYCL_DEVICE_FILTER=opencl %t-spir64-nvptx64.out
-// RUN: env SYCL_DEVICE_FILTER=cuda   %t-spir64-nvptx64.out
+// RUN: env ONEAPI_DEVICE_SELECTOR="opencl:*" %t-spir64-nvptx64.out
+// RUN: env ONEAPI_DEVICE_SELECTOR="cuda:*"   %t-spir64-nvptx64.out
 // RUN: %clangxx -fsycl -fsycl-targets=nvptx64-nvidia-cuda,spir64 %s -o %t-nvptx64-spir64.out
-// RUN: env SYCL_DEVICE_FILTER=opencl %t-nvptx64-spir64.out
-// RUN: env SYCL_DEVICE_FILTER=cuda   %t-nvptx64-spir64.out
+// RUN: env ONEAPI_DEVICE_SELECTOR="opencl:*" %t-nvptx64-spir64.out
+// RUN: env ONEAPI_DEVICE_SELECTOR="cuda:*"   %t-nvptx64-spir64.out
 
 // REQUIRES: opencl, cuda
 

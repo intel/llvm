@@ -1,6 +1,7 @@
 // REQUIRES: gpu
 
-// RUN: env --unset=SYCL_DEVICE_FILTER sycl-ls --verbose >%t.default.out
+// TODO: Remove unsetting SYCL_DEVICE_FILTER when feature is dropped
+// RUN: env --unset=SYCL_DEVICE_FILTER  --unset=ONEAPI_DEVICE_SELECTOR sycl-ls --verbose >%t.default.out
 // RUN: FileCheck %s --check-prefixes=CHECK-GPU-BUILTIN,CHECK-GPU-CUSTOM --input-file %t.default.out
 
 // CHECK-GPU-BUILTIN: gpu_selector(){{.*}}gpu, {{.*}}Level-Zero

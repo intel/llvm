@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl %s -o %t.out
-// RUN: env SYCL_DEVICE_FILTER=%sycl_be %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR='%sycl_be:*' %t.out
 #include <iostream>
 #include <sycl/sycl.hpp>
 

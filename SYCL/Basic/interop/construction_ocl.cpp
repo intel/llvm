@@ -1,6 +1,6 @@
 // REQUIRES: opencl, opencl_icd
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %opencl_lib %s -o %t.ocl.out
-// RUN: env SYCL_DEVICE_FILTER="opencl" %t.ocl.out
+// RUN: env ONEAPI_DEVICE_SELECTOR="opencl:*" %t.ocl.out
 
 #include <CL/cl.h>
 #include <sycl/backend/opencl.hpp>

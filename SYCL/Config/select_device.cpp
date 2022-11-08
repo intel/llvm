@@ -170,8 +170,8 @@ static std::vector<DevDescT> getAllowListDesc(std::string allowList) {
 int main() {
   bool passed = false;
   std::string sycl_be("opencl");
-  if (getenv("SYCL_DEVICE_FILTER")) {
-    sycl_be = getenv("SYCL_DEVICE_FILTER");
+  if (getenv("ONEAPI_DEVICE_SELECTOR")) {
+    sycl_be = getenv("ONEAPI_DEVICE_SELECTOR");
   }
 
   // Test the GPU devices name and version number.

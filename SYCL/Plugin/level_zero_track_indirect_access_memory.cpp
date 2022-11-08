@@ -1,6 +1,6 @@
 // REQUIRES: level_zero, level_zero_dev_kit
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %threads_lib %s -o %t.out
-// RUN: env SYCL_PI_LEVEL_ZERO_TRACK_INDIRECT_ACCESS_MEMORY=1 SYCL_DEVICE_FILTER=level_zero %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
+// RUN: env SYCL_PI_LEVEL_ZERO_TRACK_INDIRECT_ACCESS_MEMORY=1 ONEAPI_DEVICE_SELECTOR="level_zero:*" %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
 //
 // CHECK: pass
 //

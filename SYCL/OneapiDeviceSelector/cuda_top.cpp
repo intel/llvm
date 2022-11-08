@@ -1,7 +1,7 @@
 // REQUIRES: cuda,gpu
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env ONEAPI_DEVICE_SELECTOR=cuda:gpu %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR=cuda:0 %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR='cuda:0' %t.out
 // RUN: env ONEAPI_DEVICE_SELECTOR="cuda:*" %t.out
 
 //  At this time, CUDA only has one device (GPU). So this is easy to accept CUDA
