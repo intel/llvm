@@ -630,7 +630,7 @@ for (int i = 0; i < length; ++i) {
 
 ## Open Questions
 - Ronan Keryell: "It would be interesting to investigate whether providing also member functions would simplify the API. Provide both so it is possible to use the best one for each use case, while waiting for https://en.wikipedia.org/wiki/Uniform_Function_Call_Syntax to land into C++?"
-
+- Add a second constructor to `joint_matrix` that takes no argument. The `Group` argument in the current constructor is unused in the current implementations. Having a second constructor will simplify performance code where one SG is assigned multiple joint matrices.
 
 ## TODO List
 - Add WI data to joint matrix mapping coordinates information for piece-wise operations. This will be added as part of the query or new methods to the 'get_wi_data' class. 
