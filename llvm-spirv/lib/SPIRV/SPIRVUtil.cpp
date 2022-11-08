@@ -2065,8 +2065,10 @@ bool lowerBuiltinVariableToCall(GlobalVariable *GV,
     Func = Function::Create(FT, GlobalValue::ExternalLinkage, MangledName, M);
     Func->setCallingConv(CallingConv::SPIR_FUNC);
     Func->addFnAttr(Attribute::NoUnwind);
-    Func->addFnAttr(Attribute::ReadNone);
     Func->addFnAttr(Attribute::WillReturn);
+    for (llvm::Argument &Arg : Func->args())
+      if (Arg.getType()->isPointerTy())
+        Arg.addAttr(Attribute::ReadNone);
   }
 
   // Collect instructions in these containers to remove them later.

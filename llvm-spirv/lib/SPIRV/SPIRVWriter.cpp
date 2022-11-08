@@ -849,8 +849,10 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
       BA->addAttr(FunctionParameterAttributeNoCapture);
     if (I->hasStructRetAttr())
       BA->addAttr(FunctionParameterAttributeSret);
-    if (I->onlyReadsMemory())
+    if (Attrs.hasParamAttr(ArgNo, Attribute::ReadOnly))
       BA->addAttr(FunctionParameterAttributeNoWrite);
+    if (Attrs.hasParamAttr(ArgNo, Attribute::ReadNone))
+      BA->addAttr(FunctionParameterAttributeNoReadWrite);
     if (Attrs.hasParamAttr(ArgNo, Attribute::ZExt))
       BA->addAttr(FunctionParameterAttributeZext);
     if (Attrs.hasParamAttr(ArgNo, Attribute::SExt))

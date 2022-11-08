@@ -236,6 +236,7 @@ inline void SPIRVMap<Attribute::AttrKind, SPIRVFuncParamAttrKind>::init() {
   add(Attribute::NoAlias, FunctionParameterAttributeNoAlias);
   add(Attribute::NoCapture, FunctionParameterAttributeNoCapture);
   add(Attribute::ReadOnly, FunctionParameterAttributeNoWrite);
+  add(Attribute::ReadNone, FunctionParameterAttributeNoReadWrite);
 }
 typedef SPIRVMap<Attribute::AttrKind, SPIRVFuncParamAttrKind>
     SPIRSPIRVFuncParamAttrMap;
@@ -243,8 +244,6 @@ typedef SPIRVMap<Attribute::AttrKind, SPIRVFuncParamAttrKind>
 template <>
 inline void
 SPIRVMap<Attribute::AttrKind, SPIRVFunctionControlMaskKind>::init() {
-  add(Attribute::ReadNone, FunctionControlPureMask);
-  add(Attribute::ReadOnly, FunctionControlConstMask);
   add(Attribute::AlwaysInline, FunctionControlInlineMask);
   add(Attribute::NoInline, FunctionControlDontInlineMask);
   add(Attribute::OptimizeNone, internal::FunctionControlOptNoneINTELMask);

@@ -30,11 +30,11 @@ define spir_kernel void @unreachable_simple(i32 addrspace(1)* nocapture %in, i32
   ret void
 }
 
-; Function Attrs: nounwind readnone
+; Function Attrs: nounwind
 declare spir_func i64 @_Z13get_global_idj(i32) #1
 
 attributes #0 = { nounwind }
-attributes #1 = { nounwind readnone }
+attributes #1 = { nounwind }
 
 !opencl.enable.FP_CONTRACT = !{}
 !spirv.Source = !{!6}
