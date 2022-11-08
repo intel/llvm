@@ -2399,8 +2399,9 @@ ValueCategory MLIRScanner::EmitPromotedScalarExpr(Expr *E,
 ValueCategory MLIRScanner::EmitScalarCast(ValueCategory Src, QualType SrcType,
                                           QualType DstType, mlir::Type SrcTy,
                                           mlir::Type DstTy) {
-  // The Element types determine the type of cast to perform.
-  assert(!(SrcType->isMatrixType() && DstType->isMatrixType()) &&
+  assert(!SrcType->isAnyComplexType() && !DstType->isAnyComplexType() &&
+         "Not supported in cgeist");
+  assert(!SrcType->isMatrixType() && !DstType->isMatrixType() &&
          "Not supported in cgeist");
 
   if (SrcTy.isIntOrIndex()) {
