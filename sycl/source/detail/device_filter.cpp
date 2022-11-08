@@ -196,10 +196,9 @@ Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envStr) {
         ods_target DeviceTarget(be);
         if (Entry[0] == '!') { // negative filter
           DeviceTarget.IsNegativeTarget = true;
-        }
-        else { // positive filter
+        } else { // positive filter
           // no need to set IsNegativeTarget=false because it is so by default.
-          ++positive_filters; 
+          ++positive_filters;
         }
         Parse_ODS_Device(DeviceTarget, TargetStr);
         Result.push_back(DeviceTarget);
@@ -216,9 +215,9 @@ Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envStr) {
   // contains at least one negative filter but no positive filters.
   // This means that no devices will be available at all and so its as if
   // the filter list was empty because the negative filters do not have any
-  // any effect. Hoewever, it is desirable to be able to set the 
+  // any effect. Hoewever, it is desirable to be able to set the
   // ONEAPI_DEVICE_SELECTOR=!*:gpu to consider all devices except gpu
-  // devices so that we must implicitly add an acceptall target to the 
+  // devices so that we must implicitly add an acceptall target to the
   // list of targets to make this work. So the result will be as if
   // the filter string had the *:* string in it.
   if (!Result.empty() && !positive_filters) {

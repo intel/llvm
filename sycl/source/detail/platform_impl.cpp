@@ -13,6 +13,7 @@
 #include <detail/platform_impl.hpp>
 #include <detail/platform_info.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
+#include <sycl/detail/util.hpp>
 #include <sycl/device.hpp>
 
 #include <algorithm>
@@ -125,7 +126,6 @@ std::vector<platform> platform_impl::get_platforms() {
           // insert PiPlatform into the Plugin
           Plugin.getPlatformId(PiPlatform);
         }
-        // Skip platforms which do not contain requested device types
         if (!Platform.get_devices(info::device_type::all).empty()) {
           Platforms.push_back(Platform);
         }
@@ -164,6 +164,7 @@ static int filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
       });
   if (It == Plugins.end())
     return -1;
+
   plugin &Plugin = *It;
   backend Backend = Plugin.getBackend();
   int InsertIDx = 0;
@@ -215,8 +216,9 @@ static int filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
 // Explicit specialization of the function template above to handle
 // ONEAPI_DEVICE_SELECTOR filters(i.e ods_target), which can be negative.
 template <>
-int filterDeviceFilter<ods_target_list, ods_target>(std::vector<RT::PiDevice> &PiDevices,
-                       RT::PiPlatform Platform, ods_target_list *FilterList) {
+int filterDeviceFilter<ods_target_list, ods_target>(
+    std::vector<RT::PiDevice> &PiDevices, RT::PiPlatform Platform,
+    ods_target_list *FilterList) {
 
   // Sicne we are working with ods_target filters ,which can be negative,
   // we sort the filters so that all the negative filters appear before
@@ -340,13 +342,17 @@ static bool supportsPartitionProperty(const device &dev,
 
 static std::vector<device> amendDeviceAndSubDevices(
     backend PlatformBackend, std::vector<device> &DeviceList,
-    ods_target_list *OdsTargetList, int PlatformDeviceIndex) {
+    ods_target_list *OdsTargetList, int PlatformDeviceIndex,
+    PlatformImplPtr PlatformImpl) {
   constexpr info::partition_property partitionProperty =
       info::partition_property::partition_by_affinity_domain;
   constexpr info::partition_affinity_domain affinityDomain =
       info::partition_affinity_domain::next_partitionable;
 
   std::vector<device> FinalResult;
+  // (Only) when amending sub-devices for ONEAPI_DEVICE_SELECTOR, all
+  // sub-devices are treated as root.
+  TempAssignGuard<bool> TAG(PlatformImpl->MAlwaysRootDevice, true);
 
   for (unsigned i = 0; i < DeviceList.size(); i++) {
     // device has already been screened. The question is whether it should be a
@@ -526,6 +532,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   // Filter out devices that are not present in the SYCL_DEVICE_ALLOWLIST
   if (SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get())
     applyAllowList(PiDevices, MPlatform, Plugin);
+
   // The first step is to filter out devices that are not compatible with
   // SYCL_DEVICE_FILTER or ONEAPI_DEVICE_SELECTOR. This is also the mechanism by
   // which top level device ids are assigned.
@@ -558,10 +565,11 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   // with subdevices.
   if (!OdsTargetList || Res.size() == 0)
     return Res;
+
   // Otherwise, our last step is to revisit the devices, possibly replacing
   // them with subdevices (which have been ignored until now)
   return amendDeviceAndSubDevices(Backend, Res, OdsTargetList,
-                                  PlatformDeviceIndex);
+                                  PlatformDeviceIndex, PlatformImpl);
 }
 
 bool platform_impl::has_extension(const std::string &ExtensionName) const {
