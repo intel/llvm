@@ -15,7 +15,6 @@
 
 #include "Attributes.h"
 #include "mlir/IR/OwningOpRef.h"
-#include "clang/AST/Type.h"
 #include "clang/Basic/ABI.h"
 #include <map>
 
