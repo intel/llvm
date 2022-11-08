@@ -610,6 +610,13 @@ struct pi_command_list_info_t {
   // only have last one visible to the host.
   std::vector<pi_event> EventList{};
 
+  // Used in ReuseDiscardedEvents mode only.
+  // Contains events waited by barrier inserted after switching to this command
+  // list from another command list. This events need to be cleaned up after
+  // command list reset. Such events are stored separately because we don't want
+  // such event to affect batching heuristics.
+  std::list<pi_event> StartingBarrierEvents;
+
   size_t size() const { return EventList.size(); }
   void append(pi_event Event) { EventList.push_back(Event); }
 };
@@ -918,13 +925,22 @@ struct _pi_queue : _pi_object {
   // command is enqueued.
   pi_event LastCommandEvent = nullptr;
 
+  // Holds a pointer to the last discarded event which was reset.
+  // We don't want to put discarded event to the cache as soon as it is reset to
+  // avoid using the same discarded event two times in a row. So we remember it
+  // and put to the cache for reuse only after submission of the next command
+  // with discarded event. LastCommandEvent can't be used for this purpose
+  // because references event canbe released and LastCommandEvent become
+  // nullptr. LastDiscardedEvent points to the new pi_event object created using
+  // reset native handle, so this new object can't be lost and will be used for
+  // the next command.
   pi_event LastDiscardedEvent = nullptr;
 
+  // Set LastDiscardedEvent data member. It creates new pi_event using native
+  // handle from the provided pi_event object.
   pi_result setLastDiscardedEvent(pi_event Event);
 
   // Keep track of the last command list used by in-order queue.
-  // This is needed because we need to handle the change of the command list in
-  // a specific way.
   pi_command_list_ptr_t LastCommandList = CommandListMap.end();
 
   // Caches of events for reuse.
@@ -939,17 +955,18 @@ struct _pi_queue : _pi_object {
   // Add event to the queue's cache.
   pi_result addEventToCache(pi_event Event);
 
-  // Append command to provided command list to reset the last discarded event.
-  // If we have in-order and discard_events mode we reset and reuse events in
-  // scope of the same command lists. This method allows to wait for the last
-  // discarded event, reset it.
-  pi_result resetLastDiscardedEvent(pi_command_list_ptr_t);
+  // Append command to provided command list to wait for and reset the last
+  // discarded event. If we have in-order and discard_events mode we reset and
+  // reuse discarded events in scope of the same command list. This method
+  // allows to wait for the last discarded event and reset it after command
+  // submission.
+  pi_result appendWaitAndResetLastDiscardedEvent(pi_command_list_ptr_t);
 
-  // Append command to provided command list to signal new event.
-  // While we submit commands in scope of the same command list we can reuse
-  // events but when we switch to a different command list we currently use a
-  // new event. This method is used to signal new event from the last used
-  // command list. This new event will be waited in new command list.
+  // For in-order queue append command to the command list to signal new event
+  // if the last event in the command list is discarded. While we submit
+  // commands in scope of the same command list we can reset and reuse events
+  // but when we switch to a different command list we currently need to signal
+  // new event and wait for it in the new command list using barrier.
   pi_result signalEvent(pi_command_list_ptr_t);
 
   // Kernel is not necessarily submitted for execution during
@@ -1089,7 +1106,11 @@ struct _pi_queue : _pi_object {
   pi_result insertActiveBarriers(pi_command_list_ptr_t &CmdList,
                                  bool UseCopyEngine);
 
-  pi_result insertLastCommandEventBarrier(pi_command_list_ptr_t &CmdList);
+  // Insert a barrier waiting for the last command event into the beginning of
+  // command list if queue is in-order and has discard_events property. It
+  // allows to reset and reuse event handles in scope of each command list.
+  pi_result
+  insertStartBarrierWaitingForLastEvent(pi_command_list_ptr_t &CmdList);
 
   // A collection of currently active barriers.
   // These should be inserted into a command list whenever an available command
