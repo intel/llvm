@@ -3586,7 +3586,7 @@ void ItaniumRTTIBuilder::BuildVTablePointer(const Type *Ty) {
             VTableName, /*InsertBefore=*/nullptr,
             llvm::GlobalValue::ThreadLocalMode::NotThreadLocal,
             llvm::Optional<unsigned>(
-                CGM.getContext().getTargetAddressSpace(LangAS::opencl_global)));
+                CGM.getContext().getTargetAddressSpace(LangAS::sycl_global)));
       });
     } else {
       VTable = CGM.getModule().getOrInsertGlobal(VTableName, VTableTy);
