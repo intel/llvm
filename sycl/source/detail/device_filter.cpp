@@ -233,14 +233,21 @@ ods_target_list::ods_target_list(const std::string &envStr) {
   TargetList = Parse_ONEAPI_DEVICE_SELECTOR(envStr);
 }
 
-// Backend is compatible with the SYCL_DEVICE_FILTER in the following cases.
+// Backend is compatible with the ONEAPI_DEVICE_SELECTOR in the following
+// cases.
 // 1. Filter backend is '*' which means ANY backend.
 // 2. Filter backend match exactly with the given 'Backend'
+// There is a special case for esimd_emulator where it has been decided
+// that it should be included only if the string esimd_emulator appears
+// explicitly in the ONEAPI_DEVICE_SELECTOR environment variable
 bool ods_target_list::backendCompatible(backend Backend) {
   return std::any_of(
       TargetList.begin(), TargetList.end(), [&](ods_target &Target) {
         backend TargetBackend = Target.Backend.value_or(backend::all);
-        return (TargetBackend == Backend) || (TargetBackend == backend::all);
+        return (TargetBackend == Backend) ||
+               (Backend == backend::ext_intel_esimd_emulator
+                    ? false
+                    : TargetBackend == backend::all);
       });
 }
 
