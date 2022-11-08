@@ -34,7 +34,8 @@ With no environment variables set to say otherwise, all platforms and devices pr
 The syntax of this environment variable follows this BNF grammar:
 ```
 ONEAPI_DEVICE_SELECTOR = <selector-string>
-<selector-string> ::= <term>[;<term>...]
+<selector-string> ::= <filter>[;<filter>...]
+<filter> ::= { <term> | !<term> }
 <term> ::= <backend>:<devices>
 <backend> ::= { * | level_zero | opencl | cuda | hip | esimd_emulator }  // case insensitive
 <devices> ::= <device>[,<device>...]
@@ -52,6 +53,12 @@ The device indices are zero-based and are unique only within a backend. Therefor
 
 Additionally, if a sub-device is chosen (via numeric index or wildcard), then an additional layer of partitioning can be specified. In other words, a sub-sub-device can be selected. Like sub-devices, this is done with a period ( `.` ) and a sub-sub-device specifier which is a wildcard symbol ( `*` ) or a numeric index.  Example `ONEAPI_DEVICE_SELECTOR=level_zero:0.*.*` would partition device 0 into sub-devices and then partition each of those into sub-sub-devices. The range of grandchild sub-sub-devices would be the final devices available to the app, neither device 0, nor its child partitions would be in that list. 
 
+Lastly, a filter in the grammar can be thought of as a term in conjuction with an action that is taken on all devices that are selected by the term. The action can be an accept action or a discard action.
+The string <term> represents an accept action and the string !<term> represents a discard action. The underlying term is the same but they perform different actions on the matching devices list.
+For example, `!opencl:*` discards all devices of the opencl backend from the list of available devices. When one or more filters accept a device and one or more filters discard the device, the latter
+have priority and the device is ultimately not made available to the user. This allows the user to provide selector strings such as `*:gpu;!cuda:*` that accepts all gpu devices except those with a CUDA backend.
+Furthermore, if the value of this enviroment variable only has discarding filters, an accepting filter that matches all devices, but not sub-devices and sub-sub-devices, will be implicitly included in the 
+environment to allow the user to specify only the list of devices that must not be made available. Therefore, `!*:cpu` will accept all devices except those that are of the cpu type.
 
 The following examples further illustrate the usage of this environment variable:
 

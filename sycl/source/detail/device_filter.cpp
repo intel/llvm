@@ -179,9 +179,9 @@ Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envStr) {
   }
 
   std::vector<std::string_view> Entries = tokenize(envStr, ";");
+  unsigned int positive_filters = 0;
   // Each entry: "level_zero:gpu" or "opencl:0.0,0.1" or "opencl:*" but NOT just
   // "opencl".
-  unsigned int positive_filters = 0;
   for (const auto Entry : Entries) {
     std::vector<std::string_view> Pair = tokenize(Entry, ":");
     backend be = Parse_ODS_Backend(Pair[0], Entry); // Pair[0] is backend.
@@ -219,7 +219,8 @@ Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envStr) {
   // any effect. Hoewever, it is desirable to be able to set the 
   // ONEAPI_DEVICE_SELECTOR=!*:gpu to consider all devices except gpu
   // devices so that we must implicitly add an acceptall target to the 
-  // list of targets to make this work.
+  // list of targets to make this work. So the result will be as if
+  // the filter string had the *:* string in it.
   if (!Result.empty() && !positive_filters) {
     ods_target acceptAll{backend::all};
     acceptAll.DeviceType = info::device_type::all;
