@@ -149,12 +149,38 @@ std::vector<platform> platform_impl::get_platforms() {
 // ONEAPI_DEVICE_SELECTOR This function matches devices in the order of backend,
 // device_type, and device_num. The device_filter and ods_target structs pun for
 // each other, as do device_filter_list and ods_target_list.
-// Since ONEAPI_DEVICE_SELECTOR admits negative filters, we add a specialization
-// of this function template for ONEAPI_DEVICE_SELECTOR filter type, ods_target,
-// which handles this case.
+// Since ONEAPI_DEVICE_SELECTOR admits negative filters, we use type traits
+// to distinguish the case where we are working with ONEAPI_DEVICE_SELECTOR
+// in the places where the functionality diverges between these two
+// environment variables.
 template <typename ListT, typename FilterT>
-static int filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
-                              RT::PiPlatform Platform, ListT *FilterList) {
+int filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
+                       RT::PiPlatform Platform, ListT *FilterList) {
+
+  // There are some differences in implementation between SYCL_DEVICE_FILTER
+  // and ONEAPI_DEVICE_SELECTOR so we use if constexpr to select the
+  // appropriate execution path if we are dealing with the latter variable.
+  if constexpr (std::is_same_v<std::decay_t<ListT>, ods_target_list>) {
+
+    // Since we are working with ods_target filters ,which can be negative,
+    // we sort the filters so that all the negative filters appear before
+    // all the positive filters.  This enables us to have the full list of
+    // blacklisted devices by the time we get to the positive filters
+    // so that if a positive filter matches a blacklisted device we do
+    // not add it to the list of available devices.
+    std::sort(FilterList->get().begin(), FilterList->get().end(),
+              [](const ods_target &filter1, const ods_target &filter2) {
+                if (filter2.IsNegativeTarget)
+                  return false;
+                return true;
+              });
+  }
+
+  // this map keeps track of devices discarded by negative filters, it is only
+  // used in the ONEAPI_DEVICE_SELECTOR implemenation. It cannot be placed
+  // in the if statement above because it will then be out of scope in the rest
+  // of the function
+  std::map<RT::PiDevice *, bool> Blacklist;
 
   std::vector<plugin> &Plugins = RT::initialize();
   auto It =
@@ -163,7 +189,6 @@ static int filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
       });
   if (It == Plugins.end())
     return -1;
-
   plugin &Plugin = *It;
   backend Backend = Plugin.getBackend();
   int InsertIDx = 0;
@@ -191,98 +216,39 @@ static int filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
         if (FilterDevType == info::device_type::all) {
           // Last, match the device_num entry
           if (!Filter.DeviceNum || DeviceNum == Filter.DeviceNum.value()) {
-            PiDevices[InsertIDx++] = Device;
-            break;
-          }
-        } else if (FilterDevType == DeviceType) {
-          if (!Filter.DeviceNum || DeviceNum == Filter.DeviceNum.value()) {
-            PiDevices[InsertIDx++] = Device;
-            break;
-          }
-        }
-      }
-    }
-    DeviceNum++;
-  }
-  PiDevices.resize(InsertIDx);
-  // remember the last backend that has gone through this filter function
-  // to assign a unique device id number across platforms that belong to
-  // the same backend. For example, opencl:cpu:0, opencl:acc:1, opencl:gpu:2
-  Plugin.setLastDeviceId(Platform, DeviceNum);
-  return StartingNum;
-}
-
-// Explicit specialization of the function template above to handle
-// ONEAPI_DEVICE_SELECTOR filters(i.e ods_target), which can be negative.
-template <>
-int filterDeviceFilter<ods_target_list, ods_target>(
-    std::vector<RT::PiDevice> &PiDevices, RT::PiPlatform Platform,
-    ods_target_list *FilterList) {
-
-  // Sicne we are working with ods_target filters ,which can be negative,
-  // we sort the filters so that all the negative filters appear before
-  // all the positive filters.  This enables us to have the full list of
-  // blacklisted devices by the time we get to the positive filters
-  // so that if a positive filter matches a blacklisted device we do
-  // not add it to the list of available devices
-  std::sort(FilterList->get().begin(), FilterList->get().end(),
-            [](const ods_target &filter1, const ods_target &filter2) {
-              if (filter2.IsNegativeTarget)
-                return false;
-              return true;
-            });
-  std::vector<plugin> &Plugins = RT::initialize();
-  auto It =
-      std::find_if(Plugins.begin(), Plugins.end(), [Platform](plugin &Plugin) {
-        return Plugin.containsPiPlatform(Platform);
-      });
-  if (It == Plugins.end())
-    return -1;
-  plugin &Plugin = *It;
-  backend Backend = Plugin.getBackend();
-  int InsertIDx = 0;
-  // DeviceIds should be given consecutive numbers across platforms in the same
-  // backend
-  std::lock_guard<std::mutex> Guard(*Plugin.getPluginMutex());
-  int DeviceNum = Plugin.getStartingDeviceId(Platform);
-  int StartingNum = DeviceNum;
-  std::map<RT::PiDevice *, bool> Blacklist;
-  for (RT::PiDevice Device : PiDevices) {
-    RT::PiDeviceType PiDevType;
-    Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_TYPE,
-                                            sizeof(RT::PiDeviceType),
-                                            &PiDevType, nullptr);
-    // Assumption here is that there is 1-to-1 mapping between PiDevType and
-    // Sycl device type for GPU, CPU, and ACC.
-    info::device_type DeviceType = pi::cast<info::device_type>(PiDevType);
-
-    for (const ods_target &Filter : FilterList->get()) {
-      backend FilterBackend = Filter.Backend.value_or(backend::all);
-      // First, match the backend entry
-      if (FilterBackend == Backend || FilterBackend == backend::all) {
-        info::device_type FilterDevType =
-            Filter.DeviceType.value_or(info::device_type::all);
-        // Next, match the device_type entry
-        if (FilterDevType == info::device_type::all) {
-          // Last, match the device_num entry
-          if ((!Filter.DeviceNum || DeviceNum == Filter.DeviceNum.value()) &&
-              !Blacklist[&Device]) {
-            if (!Filter.IsNegativeTarget) {
+            if constexpr (std::is_same_v<std::decay_t<ListT>,
+                                         ods_target_list>) { // dealing with
+              //  ONEAPI_DEVICE_SELECTOR
+              if (!Blacklist[&Device]) { // check if device is blacklisted
+                if (!Filter.IsNegativeTarget) { // is the filter positive?
+                  PiDevices[InsertIDx++] = Device;
+                } else {
+                  // Filter is negative and the device matches the filter so
+                  // blacklist the device.
+                  Blacklist[&Device] = true;
+                }
+              }
+            } else { // dealing with SYCL_DEVICE_FILTER
               PiDevices[InsertIDx++] = Device;
-            } else {
-              // Filter is negative and the device matches the filter so
-              // blacklist the device.
-              Blacklist[&Device] = true;
             }
             break;
           }
+
         } else if (FilterDevType == DeviceType) {
-          if ((!Filter.DeviceNum || DeviceNum == Filter.DeviceNum.value()) &&
-              !Blacklist[&Device]) {
-            if (!Filter.IsNegativeTarget) {
-              PiDevices[InsertIDx++] = Device;
+          if (!Filter.DeviceNum || DeviceNum == Filter.DeviceNum.value()) {
+            if constexpr (std::is_same_v<std::decay_t<ListT>,
+                                         ods_target_list>) {
+              if (!Blacklist[&Device]) {
+                if (!Filter.IsNegativeTarget && !Blacklist[&Device]) {
+                  PiDevices[InsertIDx++] = Device;
+                } else {
+                  // Filter is negative and the device matches the filter so
+                  // blacklist the device.
+                  Blacklist[&Device] = true;
+                }
+              }
             } else {
-              Blacklist[&Device] = true;
+              PiDevices[InsertIDx++] = Device;
             }
             break;
           }
