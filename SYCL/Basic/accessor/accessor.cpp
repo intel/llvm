@@ -60,6 +60,58 @@ template <typename Acc> struct Wrapper2 {
 
 template <typename Acc> struct Wrapper3 { Wrapper2<Acc> w2; };
 
+template <typename T> void TestAccSizeFuncs(const std::vector<T> &vec) {
+  auto test = [=](auto &Res, const auto &Acc) {
+    Res[0] = Acc.byte_size();
+    Res[1] = Acc.size();
+    Res[2] = Acc.max_size();
+    Res[3] = size_t(Acc.empty());
+  };
+  auto checkResult = [=](const std::vector<size_t> &Res, size_t MaxSize) {
+    assert(Res[0] == vec.size() * sizeof(T));
+    assert(Res[1] == vec.size());
+    assert(Res[2] == MaxSize);
+    assert(Res[3] == vec.empty());
+  };
+  std::vector<size_t> res(4); // for 4 functions results
+
+  sycl::buffer<T> bufInput(vec.data(), vec.size());
+  sycl::host_accessor accInput(bufInput);
+  test(res, accInput);
+  checkResult(res,
+              std::numeric_limits<
+                  typename sycl::host_accessor<T>::difference_type>::max());
+
+  sycl::queue q;
+  {
+    sycl::buffer<T> bufInput(vec.data(), vec.size());
+    sycl::buffer<size_t> bufRes(res.data(), res.size());
+
+    q.submit([&](sycl::handler &cgh) {
+      sycl::accessor accInput(bufInput, cgh);
+      sycl::accessor accRes(bufRes, cgh);
+      cgh.single_task([=]() { test(accRes, accInput); });
+    });
+    q.wait();
+  }
+  checkResult(
+      res,
+      std::numeric_limits<typename sycl::accessor<T>::difference_type>::max());
+
+  {
+    sycl::buffer<size_t> bufRes(res.data(), res.size());
+    q.submit([&](sycl::handler &cgh) {
+      sycl::accessor accRes(bufRes, cgh);
+      sycl::local_accessor<T, 1> locAcc(vec.size(), cgh);
+      cgh.single_task([=]() { test(accRes, locAcc); });
+    });
+    q.wait();
+  }
+  checkResult(res,
+              std::numeric_limits<
+                  typename sycl::local_accessor<T>::difference_type>::max());
+}
+
 template <typename GlobAcc, typename LocAcc>
 void testLocalAccItersImpl(sycl::handler &cgh, GlobAcc &globAcc, LocAcc &locAcc,
                            bool testConstIter) {
@@ -827,6 +879,71 @@ int main() {
     }
   }
 
+  // Test byte_size(), size(), max_size(), empty()
+  {
+    std::vector<char> vecChar(64, 'a');
+    std::vector<int> vecInt(32, 1);
+    std::vector<float> vecFloat(16, 1.0);
+    std::vector<IdxID3> vecCustom(8, {0, 0, 0});
+    TestAccSizeFuncs(vecChar);
+    TestAccSizeFuncs(vecInt);
+    TestAccSizeFuncs(vecFloat);
+    TestAccSizeFuncs(vecCustom);
+  }
+  // Test swap() on host_accessor
+  {
+    std::vector<int> vec1(8), vec2(16);
+    {
+      sycl::buffer<int> buf1(vec1.data(), vec1.size());
+      sycl::buffer<int> buf2(vec2.data(), vec2.size());
+      sycl::host_accessor acc1(buf1);
+      sycl::host_accessor acc2(buf2);
+      acc1.swap(acc2);
+      acc1[15] = 4;
+      acc2[7] = 4;
+    }
+    assert(vec1[7] == 4 && vec2[15] == 4);
+  }
+  // Test swap() on basic accessor
+  {
+    std::vector<int> vec1(8), vec2(16);
+    {
+      sycl::buffer<int> buf1(vec1.data(), vec1.size());
+      sycl::buffer<int> buf2(vec2.data(), vec2.size());
+      sycl::queue q;
+      q.submit([&](sycl::handler &cgh) {
+        sycl::accessor acc1(buf1, cgh);
+        sycl::accessor acc2(buf2, cgh);
+        acc1.swap(acc2);
+        cgh.single_task([=]() {
+          acc1[15] = 4;
+          acc2[7] = 4;
+        });
+      });
+    }
+    assert(vec1[7] == 4 && vec2[15] == 4);
+  }
+  // Test swap on local_accessor
+  {
+    size_t size1 = 0, size2 = 0;
+    {
+      sycl::buffer<size_t> buf1(&size1, 1);
+      sycl::buffer<size_t> buf2(&size2, 1);
+
+      sycl::queue q;
+      q.submit([&](sycl::handler &cgh) {
+        sycl::accessor acc1(buf1, cgh);
+        sycl::accessor acc2(buf2, cgh);
+        sycl::local_accessor<int, 1> locAcc1(8, cgh), locAcc2(16, cgh);
+        locAcc1.swap(locAcc2);
+        cgh.single_task([=]() {
+          acc1[0] = locAcc1.size();
+          acc2[0] = locAcc2.size();
+        });
+      });
+    }
+    assert(size1 == 16 && size2 == 8);
+  }
   // Test iterator methods with 1D local_accessor
   {
     std::vector<int> v(32);
