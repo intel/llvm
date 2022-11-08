@@ -204,7 +204,7 @@ Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envStr) {
           // negative filters must come after all positive filters
           if (negative_filters > 0) {
             std::stringstream ss;
-            ss << "All negative(discarding) filters must appear before all "
+            ss << "All negative(discarding) filters must appear after all "
                   "positive(accepting) filters!";
             throw sycl::exception(sycl::make_error_code(errc::invalid),
                                   ss.str());
