@@ -9,8 +9,7 @@
  *
  */
 
-// NOTE: this is a copy of
-// https://github.com/intel-innersource/libraries.compute.oneapi.level-zero-unified-runtime.loader/blob/master/include/zer_api.h
+// NOTE: this is a copy of zer_api.h
 // TODO: pull it from github directly during SYCL build like we pull Level Zero
 // loader already
 
