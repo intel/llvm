@@ -4000,11 +4000,10 @@ cc_library(
         ":GPUDialect",
         ":IR",
         ":LLVMCommonConversion",
+        ":LLVMDialect",
         ":NVGPUDialect",
         ":NVVMDialect",
         ":Pass",
-        ":Transforms",
-        "//llvm:Support",
     ],
 )
 
@@ -10188,4 +10187,10 @@ cc_binary(
         ":MlirPdllLspServerLib",
         ":Support",
     ],
+)
+
+td_library(
+    name = "DialectConversionPdllFiles",
+    srcs = ["include/mlir/Transforms/DialectConversion.pdll"],
+    includes = ["include"],
 )

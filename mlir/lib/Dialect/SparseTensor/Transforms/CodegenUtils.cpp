@@ -224,7 +224,7 @@ Operation *SparseTensorLoopEmitter::enterLoopOverTensorAtDim(
   // We can not re-enter the same level.
   assert(!coord[tid][dim]);
   // TODO: support multiple return on parallel for?
-  assert(!isParallel || reduc.empty() <= 1);
+  assert(!isParallel || reduc.size() <= 1);
 
   Value step = constantIndex(builder, loc, 1);
   auto dimType = dimTypes[tid][dim];

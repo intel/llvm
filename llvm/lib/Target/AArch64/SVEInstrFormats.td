@@ -2105,19 +2105,18 @@ class sve_fp_3op_p_zds_a<bits<2> sz, bits<2> opc, string asm, ZPRRegOp zprty>
 
   let Constraints = "$Zda = $_Zda";
   let ElementSize = zprty.ElementSize;
+  let DestructiveInstType = DestructiveTernaryCommWithRev;
 }
 
 multiclass sve_fp_3op_p_zds_a<bits<2> opc, string asm, string Ps,
                               SDPatternOperator op, string revname,
                               bit isReverseInstr=0> {
-  let DestructiveInstType = DestructiveTernaryCommWithRev in {
   def _H : sve_fp_3op_p_zds_a<0b01, opc, asm, ZPR16>,
            SVEPseudo2Instr<Ps # _H, 1>, SVEInstr2Rev<NAME # _H, revname # _H, isReverseInstr>;
   def _S : sve_fp_3op_p_zds_a<0b10, opc, asm, ZPR32>,
            SVEPseudo2Instr<Ps # _S, 1>, SVEInstr2Rev<NAME # _S, revname # _S, isReverseInstr>;
   def _D : sve_fp_3op_p_zds_a<0b11, opc, asm, ZPR64>,
            SVEPseudo2Instr<Ps # _D, 1>, SVEInstr2Rev<NAME # _D, revname # _D, isReverseInstr>;
-  }
 
   def : SVE_4_Op_Pat<nxv8f16, op, nxv8i1, nxv8f16, nxv8f16, nxv8f16, !cast<Instruction>(NAME # _H)>;
   def : SVE_4_Op_Pat<nxv4f32, op, nxv4i1, nxv4f32, nxv4f32, nxv4f32, !cast<Instruction>(NAME # _S)>;
@@ -2173,7 +2172,7 @@ multiclass sve_fp_3op_p_zds_zx {
 // SVE Floating Point Multiply-Add - Indexed Group
 //===----------------------------------------------------------------------===//
 
-class sve_fp_fma_by_indexed_elem<bits<2> sz, bit opc, string asm,
+class sve_fp_fma_by_indexed_elem<bits<2> sz, bits<2> opc, string asm,
                                  ZPRRegOp zprty1,
                                  ZPRRegOp zprty2, Operand itype>
 : I<(outs zprty1:$Zda), (ins zprty1:$_Zda, zprty1:$Zn, zprty2:$Zm, itype:$iop),
@@ -2183,8 +2182,8 @@ class sve_fp_fma_by_indexed_elem<bits<2> sz, bit opc, string asm,
   let Inst{31-24} = 0b01100100;
   let Inst{23-22} = sz;
   let Inst{21}    = 0b1;
-  let Inst{15-11} = 0;
-  let Inst{10}    = opc;
+  let Inst{15-12} = 0b0000;
+  let Inst{11-10} = opc;
   let Inst{9-5}   = Zn;
   let Inst{4-0}   = Zda;
 
@@ -2193,7 +2192,18 @@ class sve_fp_fma_by_indexed_elem<bits<2> sz, bit opc, string asm,
   let ElementSize = ElementSizeNone;
 }
 
-multiclass sve_fp_fma_by_indexed_elem<bit opc, string asm,
+multiclass sve2p1_fp_bfma_by_indexed_elem<string asm, bits<2> opc> {
+  def NAME : sve_fp_fma_by_indexed_elem<{0, ?}, opc, asm, ZPR16, ZPR3b16,
+                                         VectorIndexH32b> {
+    bits<3> Zm;
+    bits<3> iop;
+    let Inst{22} = iop{2};
+    let Inst{20-19} = iop{1-0};
+    let Inst{18-16} = Zm;
+  }
+}
+
+multiclass sve_fp_fma_by_indexed_elem<bits<2> opc, string asm,
                                       SDPatternOperator op> {
   def _H : sve_fp_fma_by_indexed_elem<{0, ?}, opc, asm, ZPR16, ZPR3b16, VectorIndexH32b> {
     bits<3> Zm;
@@ -2228,8 +2238,8 @@ multiclass sve_fp_fma_by_indexed_elem<bit opc, string asm,
 // SVE Floating Point Multiply - Indexed Group
 //===----------------------------------------------------------------------===//
 
-class sve_fp_fmul_by_indexed_elem<bits<2> sz, string asm, ZPRRegOp zprty,
-                                      ZPRRegOp zprty2, Operand itype>
+class sve_fp_fmul_by_indexed_elem<bits<2> sz, bit o2, string asm, ZPRRegOp zprty,
+                                  ZPRRegOp zprty2, Operand itype>
 : I<(outs zprty:$Zd), (ins zprty:$Zn, zprty2:$Zm, itype:$iop),
   asm, "\t$Zd, $Zn, $Zm$iop", "", []>, Sched<[]> {
   bits<5> Zd;
@@ -2237,26 +2247,38 @@ class sve_fp_fmul_by_indexed_elem<bits<2> sz, string asm, ZPRRegOp zprty,
   let Inst{31-24} = 0b01100100;
   let Inst{23-22} = sz;
   let Inst{21}    = 0b1;
-  let Inst{15-10} = 0b001000;
+  let Inst{15-12} = 0b0010;
+  let Inst{11}    = o2;
+  let Inst{10}    = 0b0;
   let Inst{9-5}   = Zn;
   let Inst{4-0}   = Zd;
 }
 
-multiclass sve_fp_fmul_by_indexed_elem<string asm, SDPatternOperator op> {
-  def _H : sve_fp_fmul_by_indexed_elem<{0, ?}, asm, ZPR16, ZPR3b16, VectorIndexH32b> {
+multiclass sve2p1_fp_bfmul_by_indexed_elem<string asm> {
+  def NAME : sve_fp_fmul_by_indexed_elem<{0, ?}, 0b1, asm, ZPR16, ZPR3b16, VectorIndexH32b> {
     bits<3> Zm;
     bits<3> iop;
     let Inst{22} = iop{2};
     let Inst{20-19} = iop{1-0};
     let Inst{18-16} = Zm;
   }
-  def _S : sve_fp_fmul_by_indexed_elem<0b10, asm, ZPR32, ZPR3b32, VectorIndexS32b> {
+}
+
+multiclass sve_fp_fmul_by_indexed_elem<string asm, SDPatternOperator op> {
+  def _H : sve_fp_fmul_by_indexed_elem<{0, ?}, 0b0, asm, ZPR16, ZPR3b16, VectorIndexH32b> {
+    bits<3> Zm;
+    bits<3> iop;
+    let Inst{22} = iop{2};
+    let Inst{20-19} = iop{1-0};
+    let Inst{18-16} = Zm;
+  }
+  def _S : sve_fp_fmul_by_indexed_elem<0b10, 0b0, asm, ZPR32, ZPR3b32, VectorIndexS32b> {
     bits<3> Zm;
     bits<2> iop;
     let Inst{20-19} = iop;
     let Inst{18-16} = Zm;
   }
-  def _D : sve_fp_fmul_by_indexed_elem<0b11, asm, ZPR64, ZPR4b64, VectorIndexD32b> {
+  def _D : sve_fp_fmul_by_indexed_elem<0b11, 0b0, asm, ZPR64, ZPR4b64, VectorIndexD32b> {
     bits<4> Zm;
     bit iop;
     let Inst{20} = iop;
@@ -9198,4 +9220,225 @@ multiclass sve_mem_sst_128b_64_unscaled<string mnemonic> {
 
   def : InstAlias<mnemonic # " $Zt, $Pg, [$Zn]",
                   (!cast<Instruction>(NAME) Z_q:$Zt, PPR3bAny:$Pg, ZPR64:$Zn, XZR), 1>;
+}
+
+
+// SVE contiguous load (quadwords, scalar plus immediate)
+class sve_mem_128b_cld_si<bits<2> dtype, string mnemonic>
+    : I<(outs Z_q:$Zt), (ins PPR3bAny:$Pg, GPR64sp:$Rn, simm4s1:$imm4),
+        mnemonic, "\t$Zt, $Pg/z, [$Rn, $imm4, mul vl]",
+        "", []>, Sched<[]> {
+  bits<5> Zt;
+  bits<5> Rn;
+  bits<3> Pg;
+  bits<4> imm4;
+  let Inst{31-25} = 0b1010010;
+  let Inst{24-23} = dtype;
+  let Inst{22-20} = 0b001;
+  let Inst{19-16} = imm4;
+  let Inst{15-13} = 0b001;
+  let Inst{12-10} = Pg;
+  let Inst{9-5}   = Rn;
+  let Inst{4-0}   = Zt;
+
+  let mayLoad = 1;
+}
+
+multiclass sve_mem_128b_cld_si<bits<2> dtype, string mnemonic> {
+  def NAME : sve_mem_128b_cld_si<dtype, mnemonic>;
+
+  def : InstAlias<mnemonic # " $Zt, $Pg/z, [$Rn]",
+                  (!cast<Instruction>(NAME) Z_q:$Zt, PPR3bAny:$Pg, GPR64sp:$Rn, 0), 1>;
+  def : InstAlias<mnemonic # " $Zt, $Pg/z, [$Rn]",
+                  (!cast<Instruction>(NAME) ZPR128:$Zt, PPR3bAny:$Pg, GPR64sp:$Rn, 0), 0>;
+  def : InstAlias<mnemonic # " $Zt, $Pg/z, [$Rn, $imm4, mul vl]",
+                  (!cast<Instruction>(NAME) ZPR128:$Zt, PPR3bAny:$Pg, GPR64sp:$Rn, simm4s1:$imm4), 0>;
+}
+
+
+// SVE contiguous load (quadwords, scalar plus scalar)
+class sve_mem_128b_cld_ss<bits<2> dtype, string mnemonic, RegisterOperand gprsh_ty>
+    : I<(outs Z_q:$Zt), (ins PPR3bAny:$Pg, GPR64sp:$Rn, gprsh_ty:$Rm),
+        mnemonic, "\t$Zt, $Pg/z, [$Rn, $Rm]", "",
+        []>, Sched<[]> {
+  bits<5> Zt;
+  bits<5> Rn;
+  bits<3> Pg;
+  bits<5> Rm;
+  let Inst{31-25} = 0b1010010;
+  let Inst{24-23} = dtype;
+  let Inst{22-21} = 0b00;
+  let Inst{20-16} = Rm;
+  let Inst{15-13} = 0b100;
+  let Inst{12-10} = Pg;
+  let Inst{9-5}   = Rn;
+  let Inst{4-0}   = Zt;
+
+  let mayLoad = 1;
+}
+
+multiclass sve_mem_128b_cld_ss<bits<2> dtype, string mnemonic, RegisterOperand gprsh_ty> {
+  def NAME : sve_mem_128b_cld_ss<dtype, mnemonic, gprsh_ty>;
+
+  def : InstAlias<mnemonic # " $Zt, $Pg/z, [$Rn, $Rm]",
+                 (!cast<Instruction>(NAME) ZPR128:$Zt, PPR3bAny:$Pg, GPR64sp:$Rn, gprsh_ty:$Rm), 0>;
+}
+
+
+// SVE floating-point recursive reduction (quadwords)
+class sve2p1_fp_reduction_q<bits<2> sz, bits<3> opc, string mnemonic,
+                            RegisterOperand zpr_ty, string vec_sfx>
+    : I<(outs V128:$Vd), (ins PPR3bAny:$Pg, zpr_ty:$Zn),
+        mnemonic, "\t$Vd." # vec_sfx # ", $Pg, $Zn",
+        "", []>, Sched<[]> {
+  bits<5> Vd;
+  bits<5> Zn;
+  bits<3> Pg;
+  let Inst{31-24} = 0b01100100;
+  let Inst{23-22} = sz;
+  let Inst{21-19} = 0b010;
+  let Inst{18-16} = opc;
+  let Inst{15-13} = 0b101;
+  let Inst{12-10} = Pg;
+  let Inst{9-5}   = Zn;
+  let Inst{4-0}   = Vd;
+}
+
+multiclass sve2p1_fp_reduction_q<bits<3> opc, string mnemonic> {
+  def _H : sve2p1_fp_reduction_q<0b01, opc, mnemonic, ZPR16, "8h">;
+  def _S : sve2p1_fp_reduction_q<0b10, opc, mnemonic, ZPR32, "4s">;
+  def _D : sve2p1_fp_reduction_q<0b11, opc, mnemonic, ZPR64, "2d">;
+}
+
+
+// SVE Permute Vector - Quadwords (DUPQ)
+class sve2p1_dupq<bits<5> ind_tsz, string mnemonic, ZPRRegOp zprty, Operand itype>
+    : I<(outs zprty:$Zd), (ins zprty:$Zn, itype:$index),
+        mnemonic, "\t$Zd, $Zn$index",
+        "", []>, Sched<[]> {
+  bits<5> Zd;
+  bits<5> Zn;
+  let Inst{31-21} = 0b00000101001;
+  let Inst{20-16} = ind_tsz;
+  let Inst{15-10} = 0b001001;
+  let Inst{9-5} = Zn;
+  let Inst{4-0} = Zd;
+}
+
+multiclass sve2p1_dupq<string mnemonic> {
+  def _B : sve2p1_dupq<{?, ?, ?, ?, 1}, mnemonic, ZPR8, VectorIndexB32b> {
+    bits<4> index;
+    let Inst{20-17} = index;
+  }
+  def _H : sve2p1_dupq<{?, ?, ?, 1, 0}, mnemonic, ZPR16, VectorIndexH32b> {
+    bits<3> index;
+    let Inst{20-18} = index;
+  }
+  def _S : sve2p1_dupq<{?, ?, 1, 0, 0}, mnemonic, ZPR32, VectorIndexS32b> {
+    bits<2> index;
+    let Inst{20-19} = index;
+  }
+  def _D : sve2p1_dupq<{?, 1, 0, 0, 0}, mnemonic, ZPR64, VectorIndexD32b> {
+    bits<1> index;
+    let Inst{20} = index;
+  }
+}
+
+
+// SVE Permute Vector - Quadwords (EXTQ)
+class sve2p1_extq<string mnemonic>
+    : I<(outs ZPR8:$Zdn), (ins ZPR8:$_Zdn, ZPR8:$Zm, imm0_15:$imm4),
+        mnemonic, "\t$Zdn, $_Zdn, $Zm, $imm4",
+        "", []>, Sched<[]> {
+  bits<5> Zdn;
+  bits<5> Zm;
+  bits<4> imm4;
+  let Inst{31-20} = 0b000001010110;
+  let Inst{19-16} = imm4;
+  let Inst{15-10} = 0b001001;
+  let Inst{9-5} = Zm;
+  let Inst{4-0} = Zdn;
+
+  let Constraints = "$Zdn = $_Zdn";
+  let DestructiveInstType = DestructiveOther;
+  let ElementSize = ZPR8.ElementSize;
+}
+
+
+// SVE move predicate from vector
+class sve2p1_vector_to_pred<bits<4> opc, string mnemonic,
+                            PPRRegOp ppr_ty, Operand itype>
+    : I<(outs ppr_ty:$Pd), (ins ZPRAny:$Zn, itype:$index),
+        mnemonic, "\t$Pd, $Zn$index",
+        "", []>, Sched<[]> {
+  bits<4> Pd;
+  bits<5> Zn;
+  let Inst{31-24} = 0b00000101;
+  let Inst{23-22} = opc{3-2};
+  let Inst{21-19} = 0b101;
+  let Inst{18-17} = opc{1-0};
+  let Inst{16-10} = 0b0001110;
+  let Inst{9-5}   = Zn;
+  let Inst{4}     = 0b0;
+  let Inst{3-0}   = Pd;
+}
+
+multiclass sve2p1_vector_to_pred<string mnemonic> {
+  def _B : sve2p1_vector_to_pred<{0, 0, 0, 1}, mnemonic, PPR8,  VectorIndex0>;
+  def _H : sve2p1_vector_to_pred<{0, 0, 1, ?}, mnemonic, PPR16, VectorIndexD32b> {
+    bits<1> index;
+    let Inst{17} = index;
+  }
+  def _S : sve2p1_vector_to_pred<{0, 1, ?, ?}, mnemonic, PPR32, VectorIndexS32b> {
+    bits<2> index;
+    let Inst{18-17} = index;
+  }
+  def _D : sve2p1_vector_to_pred<{1, ?, ?, ?}, mnemonic, PPR64, VectorIndexH32b> {
+    bits<3> index;
+    let Inst{22}    = index{2};
+    let Inst{18-17} = index{1-0};
+  }
+
+  def : InstAlias<mnemonic # "\t$Pd, $Zn",
+                 (!cast<Instruction>(NAME # _B) PPR8:$Pd, ZPRAny:$Zn, 0), 1>;
+}
+
+
+// SVE move predicate into vector
+class sve2p1_pred_to_vector<bits<4> opc, string mnemonic,
+                            PPRRegOp ppr_ty, Operand itype>
+    : I<(outs ZPRAny:$Zd), (ins ZPRAny:$_Zd, itype:$index, ppr_ty:$Pn),
+        mnemonic, "\t$Zd$index, $Pn",
+        "", []>, Sched<[]> {
+  bits<5> Zd;
+  bits<4> Pn;
+  let Inst{31-24} = 0b00000101;
+  let Inst{23-22} = opc{3-2};
+  let Inst{21-19} = 0b101;
+  let Inst{18-17} = opc{1-0};
+  let Inst{16-9}  = 0b10011100;
+  let Inst{8-5}   = Pn;
+  let Inst{4-0}   = Zd;
+
+  let Constraints = "$Zd = $_Zd";
+}
+
+multiclass sve2p1_pred_to_vector<string mnemonic> {
+  def _B : sve2p1_pred_to_vector<{0, 0, 0, 1}, mnemonic, PPR8,  VectorIndex0>;
+  def _H : sve2p1_pred_to_vector<{0, 0, 1, ?}, mnemonic, PPR16, VectorIndexD32b> {
+    bits<1> index;
+    let Inst{17} = index;
+  }
+  def _S : sve2p1_pred_to_vector<{0, 1, ?, ?}, mnemonic, PPR32, VectorIndexS32b> {
+    bits<2> index;
+    let Inst{18-17} = index;
+  }
+  def _D : sve2p1_pred_to_vector<{1, ?, ?, ?}, mnemonic, PPR64, VectorIndexH32b> {
+    bits<3> index;
+    let Inst{22}    = index{2};
+    let Inst{18-17} = index{1-0};
+  }
+
+  def : InstAlias<mnemonic # "\t$Zd, $Pn",
+                 (!cast<Instruction>(NAME # _B) ZPRAny:$Zd, 0, PPR8:$Pn), 1>;
 }

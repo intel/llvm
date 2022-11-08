@@ -853,7 +853,18 @@ bool LLParser::parseStandaloneMetadata() {
   // See if this was forward referenced, if so, handle it.
   auto FI = ForwardRefMDNodes.find(MetadataID);
   if (FI != ForwardRefMDNodes.end()) {
-    FI->second.first->replaceAllUsesWith(Init);
+    auto *ToReplace = FI->second.first.get();
+    // DIAssignID has its own special forward-reference "replacement" for
+    // attachments (the temporary attachments are never actually attached).
+    if (isa<DIAssignID>(Init)) {
+      for (auto *Inst : TempDIAssignIDAttachments[ToReplace]) {
+        assert(!Inst->getMetadata(LLVMContext::MD_DIAssignID) &&
+               "Inst unexpectedly already has DIAssignID attachment");
+        Inst->setMetadata(LLVMContext::MD_DIAssignID, Init);
+      }
+    }
+
+    ToReplace->replaceAllUsesWith(Init);
     ForwardRefMDNodes.erase(FI);
 
     assert(NumberedMetadata[MetadataID] == Init && "Tracking VH didn't work");
@@ -2082,7 +2093,11 @@ bool LLParser::parseInstructionMetadata(Instruction &Inst) {
     if (parseMetadataAttachment(MDK, N))
       return true;
 
-    Inst.setMetadata(MDK, N);
+    if (MDK == LLVMContext::MD_DIAssignID)
+      TempDIAssignIDAttachments[N].push_back(&Inst);
+    else
+      Inst.setMetadata(MDK, N);
+
     if (MDK == LLVMContext::MD_tbaa)
       InstsWithTBAATag.push_back(&Inst);
 
@@ -4678,6 +4693,24 @@ bool LLParser::parseDILocation(MDNode *&Result, bool IsDistinct) {
   Result =
       GET_OR_DISTINCT(DILocation, (Context, line.Val, column.Val, scope.Val,
                                    inlinedAt.Val, isImplicitCode.Val));
+  return false;
+}
+
+/// parseDIAssignID:
+///   ::= distinct !DIAssignID()
+bool LLParser::parseDIAssignID(MDNode *&Result, bool IsDistinct) {
+  if (!IsDistinct)
+    return Lex.Error("missing 'distinct', required for !DIAssignID()");
+
+  Lex.Lex();
+
+  // Now eat the parens.
+  if (parseToken(lltok::lparen, "expected '(' here"))
+    return true;
+  if (parseToken(lltok::rparen, "expected ')' here"))
+    return true;
+
+  Result = DIAssignID::getDistinct(Context);
   return false;
 }
 

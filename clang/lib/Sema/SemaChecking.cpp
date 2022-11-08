@@ -5701,7 +5701,7 @@ static void CheckNonNullArguments(Sema &S,
                                   SourceLocation CallSiteLoc) {
   assert((FDecl || Proto) && "Need a function declaration or prototype");
 
-  // Already checked by by constant evaluator.
+  // Already checked by constant evaluator.
   if (S.isConstantEvaluated())
     return;
   // Check the attributes attached to the method/function itself.
@@ -17885,7 +17885,7 @@ ExprResult Sema::SemaBuiltinMatrixColumnMajorLoad(CallExpr *TheCall,
   } else
     ColumnsExpr = nullptr;
 
-  // If any any part of the result matrix type is still pending, just use
+  // If any part of the result matrix type is still pending, just use
   // Context.DependentTy, until all parts are resolved.
   if ((RowsExpr && RowsExpr->isTypeDependent()) ||
       (ColumnsExpr && ColumnsExpr->isTypeDependent())) {

@@ -3167,6 +3167,14 @@ AArch64AsmParser::tryParseImmWithOptionalShift(OperandVector &Operands) {
 
   // Eat ','
   Lex();
+  StringRef VecGroup;
+  if (!parseOptionalVGOperand(Operands, VecGroup)) {
+    Operands.push_back(
+        AArch64Operand::CreateImm(Imm, S, getLoc(), getContext()));
+    Operands.push_back(
+        AArch64Operand::CreateToken(VecGroup, getLoc(), getContext()));
+    return MatchOperand_Success;
+  }
 
   // The optional operand must be "lsl #N" where N is non-negative.
   if (!getTok().is(AsmToken::Identifier) ||
@@ -3476,6 +3484,7 @@ static const struct Extension {
     {"sve2-sha3", {AArch64::FeatureSVE2SHA3}},
     {"sve2-bitperm", {AArch64::FeatureSVE2BitPerm}},
     {"sve2p1", {AArch64::FeatureSVE2p1}},
+    {"b16b16", {AArch64::FeatureB16B16}},
     {"ls64", {AArch64::FeatureLS64}},
     {"xs", {AArch64::FeatureXS}},
     {"pauth", {AArch64::FeaturePAuth}},
@@ -3485,6 +3494,7 @@ static const struct Extension {
     {"sme-f64f64", {AArch64::FeatureSMEF64F64}},
     {"sme-i16i64", {AArch64::FeatureSMEI16I64}},
     {"sme2", {AArch64::FeatureSME2}},
+    {"sme2p1", {AArch64::FeatureSME2p1}},
     {"hbc", {AArch64::FeatureHBC}},
     {"mops", {AArch64::FeatureMOPS}},
     // FIXME: Unsupported extensions
@@ -5568,6 +5578,13 @@ bool AArch64AsmParser::showMatchError(SMLoc Loc, unsigned ErrCode,
     return Error(Loc, "immediate must be an integer in range [1, 32].");
   case Match_InvalidImm1_64:
     return Error(Loc, "immediate must be an integer in range [1, 64].");
+  case Match_InvalidMemoryIndexedRange2UImm0:
+    return Error(Loc, "vector select offset must be the immediate range 0:1.");
+  case Match_InvalidMemoryIndexedRange2UImm1:
+    return Error(Loc, "vector select offset must be an immediate range of the "
+                      "form <immf>:<imml>, where the first "
+                      "immediate is a multiple of 2 in the range [0, 2], and "
+                      "the second immediate is immf + 1.");
   case Match_InvalidMemoryIndexedRange2UImm2:
   case Match_InvalidMemoryIndexedRange2UImm3:
     return Error(
@@ -5577,6 +5594,8 @@ bool AArch64AsmParser::showMatchError(SMLoc Loc, unsigned ErrCode,
         "where the first immediate is a multiple of 2 in the range [0, 6] or "
         "[0, 14] "
         "depending on the instruction, and the second immediate is immf + 1.");
+  case Match_InvalidMemoryIndexedRange4UImm0:
+    return Error(Loc, "vector select offset must be the immediate range 0:3.");
   case Match_InvalidMemoryIndexedRange4UImm1:
   case Match_InvalidMemoryIndexedRange4UImm2:
     return Error(
@@ -5792,6 +5811,10 @@ bool AArch64AsmParser::showMatchError(SMLoc Loc, unsigned ErrCode,
     return Error(Loc, "invalid matrix operand, expected za[0-7].d");
   case Match_InvalidMatrix:
     return Error(Loc, "invalid matrix operand, expected za");
+  case Match_InvalidMatrix8:
+    return Error(Loc, "invalid matrix operand, expected suffix .b");
+  case Match_InvalidMatrix16:
+    return Error(Loc, "invalid matrix operand, expected suffix .h");
   case Match_InvalidMatrix32:
     return Error(Loc, "invalid matrix operand, expected suffix .s");
   case Match_InvalidMatrix64:
@@ -6258,8 +6281,11 @@ bool AArch64AsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
   case Match_InvalidImm1_16:
   case Match_InvalidImm1_32:
   case Match_InvalidImm1_64:
+  case Match_InvalidMemoryIndexedRange2UImm0:
+  case Match_InvalidMemoryIndexedRange2UImm1:
   case Match_InvalidMemoryIndexedRange2UImm2:
   case Match_InvalidMemoryIndexedRange2UImm3:
+  case Match_InvalidMemoryIndexedRange4UImm0:
   case Match_InvalidMemoryIndexedRange4UImm1:
   case Match_InvalidMemoryIndexedRange4UImm2:
   case Match_InvalidSVEAddSubImm8:
@@ -6358,6 +6384,8 @@ bool AArch64AsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
   case Match_InvalidMatrixTile32:
   case Match_InvalidMatrixTile64:
   case Match_InvalidMatrix:
+  case Match_InvalidMatrix8:
+  case Match_InvalidMatrix16:
   case Match_InvalidMatrix32:
   case Match_InvalidMatrix64:
   case Match_InvalidMatrixTileVectorH8:

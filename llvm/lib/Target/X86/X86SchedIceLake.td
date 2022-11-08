@@ -1066,15 +1066,6 @@ def ICXWriteResGroup57 : SchedWriteRes<[ICXPort1,ICXPort6,ICXPort0156]> {
 }
 def: InstRW<[ICXWriteResGroup57], (instregex "LAR(16|32|64)rr")>;
 
-def ICXWriteResGroup58 : SchedWriteRes<[ICXPort23]> {
-  let Latency = 5;
-  let NumMicroOps = 1;
-  let ResourceCycles = [1];
-}
-def: InstRW<[ICXWriteResGroup58], (instregex "MOVSX(16|32|64)rm(8|16|32)",
-                                             "MOVZX(16|32|64)rm(8|16)",
-                                             "(V?)MOVDDUPrm")>;  // TODO: Should this be ICXWriteResGroup71?
-
 def ICXWriteResGroup61 : SchedWriteRes<[ICXPort5,ICXPort015]> {
   let Latency = 5;
   let NumMicroOps = 2;
@@ -1176,8 +1167,10 @@ def: InstRW<[ICXWriteResGroup71], (instrs VBROADCASTSSrm,
                                           VPBROADCASTQrm,
                                           VMOVSHDUPrm,
                                           VMOVSLDUPrm,
+                                          VMOVDDUPrm,
                                           MOVSHDUPrm,
-                                          MOVSLDUPrm)>;
+                                          MOVSLDUPrm,
+                                          MOVDDUPrm)>;
 
 def ICXWriteResGroup72 : SchedWriteRes<[ICXPort5]> {
   let Latency = 6;
@@ -1434,10 +1427,8 @@ def ICXWriteResGroup100 : SchedWriteRes<[ICXPort0,ICXPort5,ICXPort015]> {
   let NumMicroOps = 3;
   let ResourceCycles = [1,1,1];
 }
-def: InstRW<[ICXWriteResGroup100], (instregex "VCVTSS2USI64Zrr",
-                                              "(V?)CVTSS2SI64(Z?)rr",
-                                              "(V?)CVTTSS2SI64(Z?)rr",
-                                              "VCVTTSS2USI64Zrr")>;
+def: InstRW<[ICXWriteResGroup100], (instregex "(V?)CVT(T?)SS2SI64(Z?)rr",
+                                              "VCVT(T?)SS2USI64Zrr")>;
 
 def ICXWriteResGroup101 : SchedWriteRes<[ICXPort0,ICXPort23,ICXPort05]> {
   let Latency = 7;
@@ -2003,13 +1994,6 @@ def ICXWriteResGroup177 : SchedWriteRes<[ICXPort5,ICXPort23,ICXPort015]> {
 }
 def: InstRW<[ICXWriteResGroup177], (instregex "VCVT(T?)PS2QQZrm(b?)",
                                               "VCVT(T?)PS2UQQZrm(b?)")>;
-
-def ICXWriteResGroup179 : SchedWriteRes<[ICXPort0,ICXPort5,ICXPort23,ICXPort015]> {
-  let Latency = 12;
-  let NumMicroOps = 4;
-  let ResourceCycles = [1,1,1,1];
-}
-def: InstRW<[ICXWriteResGroup179], (instregex "CVTTSS2SI64rm")>;
 
 def ICXWriteResGroup180 : SchedWriteRes<[ICXPort5,ICXPort23]> {
   let Latency = 13;
