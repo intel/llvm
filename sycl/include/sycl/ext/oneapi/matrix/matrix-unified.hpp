@@ -154,21 +154,17 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
   }
 
-#if defined(__SYCL_DEVICE_ONLY__)
+
   inline __SYCL_ALWAYS_INLINE decltype(auto) get_wi_data() {
+#if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
     return wi_data(cuda_impl.wi_marray);
 #else
 //  intel impl: return wi_data<T, NumRows, NumCols, Use, Layout, Group>(*this);
 #endif
-  };
 #else
   // Host version of get_wi_data required by compiler even though it will never
   // be called because joint_matrix cannot be constructed on host.
-  decltype(auto) get_wi_data() {
-
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
     if constexpr (std::is_same_v<T, precision::tf32>) {
       marray<float, 1> unused{};
       return wi_data<float, 1>(unused);
@@ -176,8 +172,8 @@ public:
       marray<T, 1> unused{};
       return wi_data<T, 1>(unused);
     }
-  };
 #endif
+  };
 
   // get_wi_marray is only defined for the NVPTX backend.
 #if defined(__SYCL_DEVICE_ONLY__)
