@@ -59,7 +59,6 @@ For example, `!opencl:*` discards all devices of the opencl backend from the lis
 have priority and the device is ultimately not made available to the user regardless of the order in which the filters appear. This allows the user to provide selector strings such as `*:gpu;!cuda:*` that accepts all gpu devices except those with a CUDA backend.
 Furthermore, if the value of this environment variable only has discarding filters, an accepting filter that matches all devices, but not sub-devices and sub-sub-devices, will be implicitly included in the 
 environment variable to allow the user to specify only the list of devices that must not be made available. Therefore, `!*:cpu` will accept all devices except those that are of the cpu type and `opencl:*;!*:cpu`
-
 will accept all devices of the opencl backend exept those that are of the opencl backend and of the cpu type. Finally, it is valid to have no accepting filter match a device but have at least one
 discarding filter match the device. In this case, the device remains unavailable as expected.
 
