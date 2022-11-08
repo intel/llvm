@@ -27,9 +27,9 @@ params:
     - type: uint32_t
       name: count
       desc: "[in] number of module handles in module list."
-    - type: const $x_module_handle_t**
+    - type: const $x_module_handle_t*
       name: phModules
-      desc: "[in] pointers to array of modules."
+      desc: "[in] pointer to array of modules."
     - type: const char*
       name: pOptions
       desc: "[in][optional] pointer to linker options null-terminated string."
