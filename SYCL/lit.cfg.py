@@ -237,7 +237,7 @@ lit_config.note("Backend: {BACKEND}".format(BACKEND=config.sycl_be))
 config.substitutions.append( ('%sycl_be', config.sycl_be) )
 # Use short names for LIT rules
 config.available_features.add(config.sycl_be.replace('ext_intel_', '').replace('ext_oneapi_', ''))
-config.substitutions.append( ('%BE_RUN_PLACEHOLDER', "env SYCL_DEVICE_FILTER={SYCL_PLUGIN} ".format(SYCL_PLUGIN=config.sycl_be)) )
+config.substitutions.append( ('%BE_RUN_PLACEHOLDER', "env ONEAPI_DEVICE_SELECTOR='{SYCL_PLUGIN}:* '".format(SYCL_PLUGIN=config.sycl_be)) )
 
 if config.dump_ir_supported:
    config.available_features.add('dump_ir')
@@ -306,7 +306,7 @@ cpu_check_on_linux_substitute = ""
 if 'cpu' in config.target_devices.split(','):
     found_at_least_one_device = True
     lit_config.note("Test CPU device")
-    cpu_run_substitute = "env SYCL_DEVICE_FILTER={SYCL_PLUGIN}:cpu ".format(SYCL_PLUGIN=config.sycl_be)
+    cpu_run_substitute = "env ONEAPI_DEVICE_SELECTOR={SYCL_PLUGIN}:cpu ".format(SYCL_PLUGIN=config.sycl_be)
     cpu_check_substitute = "| FileCheck %s"
     config.available_features.add('cpu')
     if platform.system() == "Linux":
@@ -329,14 +329,14 @@ gpu_check_on_linux_substitute = ""
 if 'gpu' in config.target_devices.split(','):
     found_at_least_one_device = True
     lit_config.note("Test GPU device")
-    gpu_run_substitute = " env SYCL_DEVICE_FILTER={SYCL_PLUGIN}:gpu ".format(SYCL_PLUGIN=config.sycl_be)
+    gpu_run_substitute = " env ONEAPI_DEVICE_SELECTOR={SYCL_PLUGIN}:gpu ".format(SYCL_PLUGIN=config.sycl_be)
     gpu_check_substitute = "| FileCheck %s"
     config.available_features.add('gpu')
 
     if config.sycl_be == "ext_oneapi_level_zero":
         gpu_l0_check_substitute = "| FileCheck %s"
         if lit_config.params.get('ze_debug'):
-            gpu_run_substitute = " env ZE_DEBUG={ZE_DEBUG} SYCL_DEVICE_FILTER=level_zero:gpu ".format(ZE_DEBUG=config.ze_debug)
+            gpu_run_substitute = " env ZE_DEBUG={ZE_DEBUG} ONEAPI_DEVICE_SELECTOR=level_zero:gpu ".format(ZE_DEBUG=config.ze_debug)
             config.available_features.add('ze_debug'+config.ze_debug)
     elif config.sycl_be == "ext_intel_esimd_emulator":
         # ESIMD_EMULATOR backend uses CM_EMU library package for
@@ -347,7 +347,7 @@ if 'gpu' in config.target_devices.split(','):
             gpu_run_substitute += "CM_RT_PLATFORM=skl "
 
     if platform.system() == "Linux":
-        gpu_run_on_linux_substitute = "env SYCL_DEVICE_FILTER={SYCL_PLUGIN}:gpu ".format(SYCL_PLUGIN=config.sycl_be)
+        gpu_run_on_linux_substitute = "env ONEAPI_DEVICE_SELECTOR={SYCL_PLUGIN}:gpu ".format(SYCL_PLUGIN=config.sycl_be)
         gpu_check_on_linux_substitute = "| FileCheck %s"
 
     if config.sycl_be == "ext_oneapi_cuda":
@@ -367,7 +367,7 @@ acc_check_substitute = ""
 if 'acc' in config.target_devices.split(','):
     found_at_least_one_device = True
     lit_config.note("Tests accelerator device")
-    acc_run_substitute = " env SYCL_DEVICE_FILTER=acc "
+    acc_run_substitute = " env ONEAPI_DEVICE_SELECTOR='*:acc' "
     acc_check_substitute = "| FileCheck %s"
     config.available_features.add('accelerator')
 else:

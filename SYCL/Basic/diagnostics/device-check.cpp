@@ -1,14 +1,14 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_DEVICE_FILTER=%sycl_be SYCL_DEVICE_TYPE=cpu %t.out
-// RUN: env SYCL_DEVICE_FILTER=%sycl_be SYCL_DEVICE_TYPE=gpu %t.out
-// RUN: env SYCL_DEVICE_FILTER=%sycl_be SYCL_DEVICE_TYPE=acc %t.out
-// RUN: env SYCL_DEVICE_FILTER=%sycl_be SYCL_DEVICE_TYPE=CPU %t.out
-// RUN: env SYCL_DEVICE_FILTER=%sycl_be SYCL_DEVICE_TYPE=GPU %t.out
-// RUN: env SYCL_DEVICE_FILTER=%sycl_be SYCL_DEVICE_TYPE=ACC %t.out
-// RUN: env SYCL_DEVICE_FILTER=%sycl_be SYCL_DEVICE_TYPE=Cpu %t.out
-// RUN: env SYCL_DEVICE_FILTER=%sycl_be SYCL_DEVICE_TYPE=Gpu %t.out
-// RUN: env SYCL_DEVICE_FILTER=%sycl_be SYCL_DEVICE_TYPE=Acc %t.out
-// RUN: env SYCL_DEVICE_FILTER=%sycl_be SYCL_DEVICE_TYPE=XPU %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR='%sycl_be:*' SYCL_DEVICE_TYPE=cpu %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR='%sycl_be:*' SYCL_DEVICE_TYPE=gpu %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR='%sycl_be:*' SYCL_DEVICE_TYPE=acc %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR='%sycl_be:*' SYCL_DEVICE_TYPE=CPU %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR='%sycl_be:*' SYCL_DEVICE_TYPE=GPU %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR='%sycl_be:*' SYCL_DEVICE_TYPE=ACC %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR='%sycl_be:*' SYCL_DEVICE_TYPE=Cpu %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR='%sycl_be:*' SYCL_DEVICE_TYPE=Gpu %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR='%sycl_be:*' SYCL_DEVICE_TYPE=Acc %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR='%sycl_be:*' SYCL_DEVICE_TYPE=XPU %t.out
 
 //==------------------- device-check.cpp --------------------------==//
 // This is a diagnostic test which ensures that
