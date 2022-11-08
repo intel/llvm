@@ -2511,8 +2511,10 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
 
   mlir::Type rt = getTypes().getMLIRType(FD->getType());
   auto *VD = dyn_cast<VarDecl>(FD);
-  if (!VD)
-    FD->dump();
+  LLVM_DEBUG({
+    if (!VD)
+      FD->dump();
+  });
   VD = VD->getCanonicalDecl();
   unsigned memspace = VD ? CGM.getContext().getTargetAddressSpace(
                                CGM.GetGlobalVarAddressSpace(VD))
