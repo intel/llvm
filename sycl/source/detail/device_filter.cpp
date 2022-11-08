@@ -179,7 +179,7 @@ Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envStr) {
   }
 
   std::vector<std::string_view> Entries = tokenize(envStr, ";");
-  unsigned int positive_filters = 0;
+  unsigned int negative_filters = 0;
   // Each entry: "level_zero:gpu" or "opencl:0.0,0.1" or "opencl:*" but NOT just
   // "opencl".
   for (const auto Entry : Entries) {
@@ -197,9 +197,16 @@ Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envStr) {
         ods_target DeviceTarget(be);
         if (Entry[0] == '!') { // negative filter
           DeviceTarget.IsNegativeTarget = true;
+          ++negative_filters;
         } else { // positive filter
           // no need to set IsNegativeTarget=false because it is so by default.
-          ++positive_filters;
+          // ensure that no negative filter has been seen because all 
+          // negative filters must come after all positive filters
+          if (negative_filters > 0) {
+            std::stringstream ss;
+            ss << "All negative filters must appear at the end!";
+            throw sycl::exception(sycl::make_error_code(errc::invalid), ss.str());
+          }
         }
         Parse_ODS_Device(DeviceTarget, TargetStr);
         Result.push_back(DeviceTarget);
@@ -221,7 +228,7 @@ Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envStr) {
   // devices so that we must implicitly add an acceptall target to the
   // list of targets to make this work. So the result will be as if
   // the filter string had the *:* string in it.
-  if (!Result.empty() && !positive_filters) {
+  if (!Result.empty() && negative_filters == Result.size()) {
     ods_target acceptAll{backend::all};
     acceptAll.DeviceType = info::device_type::all;
     Result.push_back(acceptAll);
