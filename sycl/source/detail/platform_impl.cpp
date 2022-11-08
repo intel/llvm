@@ -155,7 +155,7 @@ std::vector<platform> platform_impl::get_platforms() {
 // environment variables.
 template <typename ListT, typename FilterT>
 static int filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
-                       RT::PiPlatform Platform, ListT *FilterList) {
+                              RT::PiPlatform Platform, ListT *FilterList) {
 
   // There are some differences in implementation between SYCL_DEVICE_FILTER
   // and ONEAPI_DEVICE_SELECTOR so we use if constexpr to select the
