@@ -185,6 +185,7 @@ Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envStr) {
   for (const auto Entry : Entries) {
     std::vector<std::string_view> Pair = tokenize(Entry, ":");
     backend be = Parse_ODS_Backend(Pair[0], Entry); // Pair[0] is backend.
+
     if (Pair.size() == 1) {
       std::stringstream ss;
       ss << "Incomplete selector!  Try '" << Pair[0]
