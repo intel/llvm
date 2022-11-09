@@ -54,7 +54,6 @@
 scripts/**/*.json
 
 # Generated code
-include/
 source/*.cpp
 
 # Generated docs
