@@ -77,7 +77,8 @@ The following examples further illustrate the usage of this environment variable
 | `ONEAPI_DEVICE_SELECTOR=opencl:0.*` | All the sub-devices from the OpenCL device with index 0 are exposed as SYCL root devices. No other devices are available. |
 | `ONEAPI_DEVICE_SELECTOR=opencl:0.2` | The third sub-device (2 in zero-based counting) of the OpenCL device with index 0 will be the sole device available.  |
 | `ONEAPI_DEVICE_SELECTOR=level_zero:*,*.*` | Exposes Level Zero devices to the application in two different ways. Each device (aka "card") is exposed as a SYCL root device and each sub-device is also exposed as a SYCL root device.|
-
+| `ONEAPI_DEVICE_SELECTOR="opencl:*;!opencl:0"` | All OpenCL devices except for the device with index 0 are available. |
+| `ONEAPI_DEVICE_SELECTOR="!*:cpu"` | All devices except for CPU devices are available. |
 
 Notes:
 - The backend argument is always required. An error will be thrown if it is absent.
