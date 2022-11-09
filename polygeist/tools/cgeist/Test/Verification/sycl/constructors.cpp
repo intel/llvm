@@ -9,11 +9,11 @@
 
 // Check globals referenced in device functions are created in the GPU module
 // CHECK: gpu.module @device_functions {
-// CHECK-NEXT: memref.global @__spirv_BuiltInSubgroupLocalInvocationId : memref<1xi32, 1>
-// CHECK-NEXT: memref.global @__spirv_BuiltInSubgroupId : memref<1xi32, 1>
-// CHECK-NEXT: memref.global @__spirv_BuiltInNumSubgroups : memref<1xi32, 1>
-// CHECK-NEXT: memref.global @__spirv_BuiltInSubgroupMaxSize : memref<1xi32, 1>
-// CHECK-NEXT: memref.global @__spirv_BuiltInSubgroupSize : memref<1xi32, 1>
+// CHECK-NEXT: memref.global @__spirv_BuiltInSubgroupLocalInvocationId : memref<i32, 1>
+// CHECK-NEXT: memref.global @__spirv_BuiltInSubgroupId : memref<i32, 1>
+// CHECK-NEXT: memref.global @__spirv_BuiltInNumSubgroups : memref<i32, 1>
+// CHECK-NEXT: memref.global @__spirv_BuiltInSubgroupMaxSize : memref<i32, 1>
+// CHECK-NEXT: memref.global @__spirv_BuiltInSubgroupSize : memref<i32, 1>
 // CHECK-NEXT: memref.global @__spirv_BuiltInLocalInvocationId : memref<3xi64, 1>
 // CHECK-NEXT: memref.global @__spirv_BuiltInWorkgroupId : memref<3xi64, 1>
 // CHECK-NEXT: memref.global @__spirv_BuiltInWorkgroupSize : memref<3xi64, 1>

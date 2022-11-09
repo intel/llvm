@@ -1437,6 +1437,16 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
                                                    gv.first.getName());
     Value V = castToMemSpace(
         gv2, Glob.getCGM().getContext().getTargetAddressSpace(VD->getType()));
+    MemRefType mt = V.getType().cast<MemRefType>();
+    if (mt.getShape().empty()) {
+      auto Shape = builder.create<memref::AllocaOp>(
+          loc,
+          mlir::MemRefType::get(1, mlir::IndexType::get(builder.getContext())));
+      mt = mlir::MemRefType::get(1, mt.getElementType(),
+                                 MemRefLayoutAttrInterface(),
+                                 mt.getMemorySpace());
+      V = builder.create<memref::ReshapeOp>(loc, mt, V, Shape);
+    }
 
     // TODO check reference
     return ValueCategory(V, /*isReference*/ true);

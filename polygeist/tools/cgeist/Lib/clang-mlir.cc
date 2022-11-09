@@ -694,6 +694,16 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
                                  /*tryInit*/ false);
       op = abuilder.create<memref::GetGlobalOp>(varLoc, gv.first.getType(),
                                                 gv.first.getName());
+      MemRefType mt = op.getType().cast<MemRefType>();
+      if (mt.getShape().empty()) {
+        auto Shape = builder.create<memref::AllocaOp>(
+            loc, mlir::MemRefType::get(
+                     1, mlir::IndexType::get(builder.getContext())));
+        mt = mlir::MemRefType::get(1, mt.getElementType(),
+                                   MemRefLayoutAttrInterface(),
+                                   mt.getMemorySpace());
+        op = builder.create<memref::ReshapeOp>(loc, mt, op, Shape);
+      }
     }
     params[decl] = ValueCategory(op, /*isReference*/ true);
     if (decl->getInit()) {
@@ -2525,7 +2535,7 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
 
   mlir::MemRefType mr;
   if (!isArray && !isExtVectorType) {
-    mr = mlir::MemRefType::get(1, rt, {}, memspace);
+    mr = mlir::MemRefType::get({}, rt, {}, memspace);
   } else {
     auto mt = rt.cast<mlir::MemRefType>();
     mr = mlir::MemRefType::get(
