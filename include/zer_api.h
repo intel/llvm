@@ -907,7 +907,6 @@ ZER_APIEXPORT zer_result_t ZER_APICALL
 zerEnqueueMemBufferCopyRect(
     zer_queue_handle_t hQueue,                      ///< [in] handle of the queue object
     zer_mem_handle_t hBufferSrc,                    ///< [in] handle of the source buffer object
-    size_t srcOffset,                               ///< [in] offset in bytes in the source buffer object
     zer_mem_handle_t hBufferDst,                    ///< [in] handle of the dest buffer object
     zer_rect_offset_t srcOrigin,                    ///< [in] 3D offset in the source buffer
     zer_rect_offset_t dstOrigin,                    ///< [in] 3D offset in the destination buffer
@@ -5947,7 +5946,6 @@ typedef struct _zer_enqueue_mem_buffer_copy_rect_params_t
 {
     zer_queue_handle_t* phQueue;
     zer_mem_handle_t* phBufferSrc;
-    size_t* psrcOffset;
     zer_mem_handle_t* phBufferDst;
     zer_rect_offset_t* psrcOrigin;
     zer_rect_offset_t* pdstOrigin;
