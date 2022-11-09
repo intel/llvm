@@ -2278,11 +2278,9 @@ template <> struct NDRangeReduction<reduction::strategy::auto_select> {
 
 template <typename KernelName, reduction::strategy Strategy, int Dims,
           typename PropertiesT, typename... RestT>
-void reduction_parallel_for(handler &CGH,
-                            std::shared_ptr<detail::queue_impl> Queue,
-                            nd_range<Dims> NDRange, PropertiesT Properties,
-                            RestT... Rest) {
-  NDRangeReduction<Strategy>::template run<KernelName>(CGH, Queue, NDRange,
+void reduction_parallel_for(handler &CGH, nd_range<Dims> NDRange,
+                            PropertiesT Properties, RestT... Rest) {
+  NDRangeReduction<Strategy>::template run<KernelName>(CGH, CGH.MQueue, NDRange,
                                                        Properties, Rest...);
 }
 
@@ -2291,10 +2289,9 @@ reduGetMaxNumConcurrentWorkGroups(std::shared_ptr<queue_impl> Queue);
 
 template <typename KernelName, reduction::strategy Strategy, int Dims,
           typename PropertiesT, typename KernelType, typename Reduction>
-void reduction_parallel_for(handler &CGH,
-                            std::shared_ptr<detail::queue_impl> Queue,
-                            range<Dims> Range, PropertiesT Properties,
-                            Reduction Redu, KernelType KernelFunc) {
+void reduction_parallel_for(handler &CGH, range<Dims> Range,
+                            PropertiesT Properties, Reduction Redu,
+                            KernelType KernelFunc) {
   // Before running the kernels, check that device has enough local memory
   // to hold local arrays required for the tree-reduction algorithm.
   constexpr bool IsTreeReduction =
@@ -2305,13 +2302,13 @@ void reduction_parallel_for(handler &CGH,
 #ifdef __SYCL_REDUCTION_NUM_CONCURRENT_WORKGROUPS
       __SYCL_REDUCTION_NUM_CONCURRENT_WORKGROUPS;
 #else
-      reduGetMaxNumConcurrentWorkGroups(Queue);
+      reduGetMaxNumConcurrentWorkGroups(CGH.MQueue);
 #endif
 
   // TODO: currently the preferred work group size is determined for the given
   // queue/device, while it is safer to use queries to the kernel pre-compiled
   // for the device.
-  size_t PrefWGSize = reduGetPreferredWGSize(Queue, OneElemSize);
+  size_t PrefWGSize = reduGetPreferredWGSize(CGH.MQueue, OneElemSize);
 
   size_t NWorkItems = Range.size();
   size_t WGSize = std::min(NWorkItems, PrefWGSize);
@@ -2361,8 +2358,8 @@ void reduction_parallel_for(handler &CGH,
       return reduction::strategy::range_basic;
   }();
 
-  reduction_parallel_for<KernelName, StrategyToUse>(
-      CGH, Queue, NDRange, Properties, Redu, UpdatedKernelFunc);
+  reduction_parallel_for<KernelName, StrategyToUse>(CGH, NDRange, Properties,
+                                                    Redu, UpdatedKernelFunc);
 }
 } // namespace detail
 
