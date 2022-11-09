@@ -1,8 +1,16 @@
+//==--------- reduction_fwd.hpp - SYCL reduction fwd decl -------*- C++ -*---==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+// ===--------------------------------------------------------------------=== //
+
 #pragma once
 
-// To be included in <sycl/handler.hpp>. Not that reductions implementation need
-// complete sycl::handler type so we cannot include whole <sycl/reduction.hpp>
-// there.
+// To be included in <sycl/handler.hpp>. Note that reductions implementation
+// need complete sycl::handler type so we cannot include whole
+// <sycl/reduction.hpp> there.
 
 #include <sycl/detail/common.hpp>
 
