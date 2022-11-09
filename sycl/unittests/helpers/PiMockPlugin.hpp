@@ -602,14 +602,13 @@ inline pi_result mock_piKernelGetInfo(pi_kernel kernel,
                                       void *param_value,
                                       size_t *param_value_size_ret) {
   switch (param_name) {
-    case PI_KERNEL_INFO_PROGRAM:
-      if (param_value_size_ret)
-        *param_value_size_ret = sizeof(DummyHandlePtrT);
-      if (param_value)
-        *(pi_program*)param_value = createDummyHandle<pi_program>();
+  case PI_KERNEL_INFO_PROGRAM:
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(DummyHandlePtrT);
+    if (param_value)
+      *(pi_program *)param_value = createDummyHandle<pi_program>();
     break;
-    default:
-      ;
+  default:;
   }
   return PI_SUCCESS;
 }
