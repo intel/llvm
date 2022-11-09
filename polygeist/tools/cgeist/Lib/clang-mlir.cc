@@ -694,7 +694,7 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
                                  /*tryInit*/ false);
       auto gv2 = abuilder.create<memref::GetGlobalOp>(
           varLoc, gv.first.getType(), gv.first.getName());
-      op = prepareGlobal(gv2, decl);
+      op = reshapeRanklessGlobal(gv2);
     }
     params[decl] = ValueCategory(op, /*isReference*/ true);
     if (decl->getInit()) {
@@ -2322,21 +2322,21 @@ mlir::Value MLIRScanner::GetAddressOfBaseClass(
   return value;
 }
 
-mlir::Value MLIRScanner::prepareGlobal(mlir::memref::GetGlobalOp GV,
-                                       ValueDecl *VD) {
-  mlir::Value V = castToMemSpace(
-      GV, Glob.getCGM().getContext().getTargetAddressSpace(VD->getType()));
-  MemRefType mt = V.getType().cast<MemRefType>();
-  if (mt.getShape().empty()) {
-    auto Shape = builder.create<memref::AllocaOp>(
-        loc,
-        mlir::MemRefType::get(1, mlir::IndexType::get(builder.getContext())));
-    mt =
-        mlir::MemRefType::get(1, mt.getElementType(),
-                              MemRefLayoutAttrInterface(), mt.getMemorySpace());
-    V = builder.create<memref::ReshapeOp>(loc, mt, V, Shape);
-  }
-  return V;
+mlir::Value MLIRScanner::reshapeRanklessGlobal(mlir::memref::GetGlobalOp GV) {
+  assert(GV.getType().isa<MemRefType>() &&
+         "Type of GetGlobalOp should be MemRef");
+  MemRefType MT = GV.getType().cast<MemRefType>();
+  if (!MT.getShape().empty())
+    return GV;
+
+  auto Shape = builder.create<memref::AllocaOp>(
+      loc,
+      mlir::MemRefType::get(1, mlir::IndexType::get(builder.getContext())));
+  return builder.create<memref::ReshapeOp>(
+      loc,
+      mlir::MemRefType::get(1, MT.getElementType(), MemRefLayoutAttrInterface(),
+                            MT.getMemorySpace()),
+      GV, Shape);
 }
 
 /******************************************************************************/
