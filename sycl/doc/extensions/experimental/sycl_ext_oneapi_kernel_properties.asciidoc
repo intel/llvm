@@ -8,6 +8,7 @@
 :toc: left
 :encoding: utf-8
 :lang: en
+:dpcpp: DPC++
 
 :blank: pass:[ +]
 
@@ -46,8 +47,8 @@ the following extensions:
 
 This is an experimental extension specification, intended to provide early
 access to features and gather community feedback.  Interfaces defined in this
-specification are implemented in DPC\+\+, but they are not finalized and may
-change incompatibly in future versions of DPC\+\+ without prior notice.
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
 *Shipping software products should not rely on APIs defined in this
 specification.*
 
@@ -494,7 +495,7 @@ are ill-formed, but no diagnostic is required.
 
 NOTE: Due to a restriction on attribute ordering in Clang it is only currently
 possible to use `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY` before `SYCL_EXTERNAL` in
-DPC\+\+.
+{dpcpp}.
 
 == Issues
 
