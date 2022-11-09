@@ -2834,7 +2834,11 @@ void processOptionalAnnotationInfo(Constant *Const,
       return;
     if (auto *CInt = dyn_cast<ConstantInt>(CStruct->getOperand(0))) {
       AnnotationString += ": ";
-      AnnotationString += std::to_string(CInt->getSExtValue());
+      // For boolean, emit 0/1 for ease of readability.
+      if (CInt->getType()->getIntegerBitWidth() == 1)
+        AnnotationString += std::to_string(CInt->getZExtValue());
+      else
+        AnnotationString += std::to_string(CInt->getSExtValue());
     }
     for (uint32_t I = 1; I != NumOperands; ++I) {
       if (auto *CInt = dyn_cast<ConstantInt>(CStruct->getOperand(I))) {
