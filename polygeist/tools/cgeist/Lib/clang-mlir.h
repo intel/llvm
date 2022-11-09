@@ -350,6 +350,9 @@ private:
                      llvm::Optional<mlir::Type> ReturnType,
                      llvm::StringRef MangledFunctionName);
 
+  // Reshape memref<elemTy> to memref<1 x elemTy>.
+  mlir::Value reshapeRanklessGlobal(mlir::memref::GetGlobalOp GV);
+
 public:
   MLIRScanner(MLIRASTConsumer &Glob, mlir::OwningOpRef<mlir::ModuleOp> &Module,
               LowerToInfo &LTInfo);

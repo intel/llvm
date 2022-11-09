@@ -681,14 +681,15 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
       auto gv =
           Glob.GetOrCreateGlobal(decl, (function.getName() + "@static@").str(),
                                  /*tryInit*/ false);
-      op = abuilder.create<memref::GetGlobalOp>(varLoc, gv.first.getType(),
-                                                gv.first.getName());
+      auto gv2 = abuilder.create<memref::GetGlobalOp>(
+          varLoc, gv.first.getType(), gv.first.getName());
+      op = reshapeRanklessGlobal(gv2);
     }
     params[decl] = ValueCategory(op, /*isReference*/ true);
     if (decl->getInit()) {
-      auto mr = MemRefType::get({1}, builder.getI1Type());
+      auto mr = MemRefType::get({}, builder.getI1Type());
       bool inits[1] = {true};
-      auto rtt = RankedTensorType::get({1}, builder.getI1Type());
+      auto rtt = RankedTensorType::get({}, builder.getI1Type());
       auto init_value = DenseIntElementsAttr::get(rtt, inits);
       OpBuilder gbuilder(builder.getContext());
       gbuilder.setInsertionPointToStart(module->getBody());
@@ -704,15 +705,16 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
 
       auto boolop =
           builder.create<memref::GetGlobalOp>(varLoc, mr, globalOp.getName());
+      mlir::Value V = reshapeRanklessGlobal(boolop);
       auto cond = builder.create<memref::LoadOp>(
-          varLoc, boolop, std::vector<mlir::Value>({getConstantIndex(0)}));
+          varLoc, V, std::vector<mlir::Value>({getConstantIndex(0)}));
 
       auto ifOp = builder.create<scf::IfOp>(varLoc, cond, /*hasElse*/ false);
       block = builder.getInsertionBlock();
       iter = builder.getInsertionPoint();
       builder.setInsertionPointToStart(&ifOp.getThenRegion().back());
       builder.create<memref::StoreOp>(
-          varLoc, builder.create<ConstantIntOp>(varLoc, false, 1), boolop,
+          varLoc, builder.create<ConstantIntOp>(varLoc, false, 1), V,
           std::vector<mlir::Value>({getConstantIndex(0)}));
     }
   } else
@@ -2081,6 +2083,23 @@ mlir::Value MLIRScanner::GetAddressOfBaseClass(
   return value;
 }
 
+mlir::Value MLIRScanner::reshapeRanklessGlobal(mlir::memref::GetGlobalOp GV) {
+  assert(GV.getType().isa<MemRefType>() &&
+         "Type of GetGlobalOp should be MemRef");
+  MemRefType MT = GV.getType().cast<MemRefType>();
+  if (!MT.getShape().empty())
+    return GV;
+
+  auto Shape = builder.create<memref::AllocaOp>(
+      loc,
+      mlir::MemRefType::get(1, mlir::IndexType::get(builder.getContext())));
+  return builder.create<memref::ReshapeOp>(
+      loc,
+      mlir::MemRefType::get(1, MT.getElementType(), MemRefLayoutAttrInterface(),
+                            MT.getMemorySpace()),
+      GV, Shape);
+}
+
 /******************************************************************************/
 /*                             MLIRASTConsumer                                */
 /******************************************************************************/
@@ -2285,7 +2304,7 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
 
   mlir::MemRefType mr;
   if (!isArray && !isExtVectorType) {
-    mr = mlir::MemRefType::get(1, rt, {}, memspace);
+    mr = mlir::MemRefType::get({}, rt, {}, memspace);
   } else {
     auto mt = rt.cast<mlir::MemRefType>();
     mr = mlir::MemRefType::get(

@@ -6,21 +6,26 @@ int adder(int x) {
     return cur;
 }
 
-// CHECK:   memref.global "private" @"adder@static@cur@init" : memref<1xi1> = dense<true>
-// CHECK:   memref.global "private" @"adder@static@cur" : memref<1xi32> = uninitialized
-// CHECK:   func @adder(%arg0: i32) -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-DAG:     %false = arith.constant false
-// CHECK-DAG:     %c0_i32 = arith.constant 0 : i32
-// CHECK-DAG:     %0 = memref.get_global @"adder@static@cur" : memref<1xi32>
-// CHECK-DAG:     %1 = memref.get_global @"adder@static@cur@init" : memref<1xi1>
-// CHECK-NEXT:     %2 = affine.load %1[0] : memref<1xi1>
-// CHECK-NEXT:     scf.if %2 {
-// CHECK-NEXT:       affine.store %false, %1[0] : memref<1xi1>
-// CHECK-NEXT:       affine.store %c0_i32, %0[0] : memref<1xi32>
-// CHECK-NEXT:     }
-// CHECK-NEXT:     %3 = affine.load %0[0] : memref<1xi32>
-// CHECK-NEXT:     %4 = arith.addi %3, %arg0 : i32
-// CHECK-NEXT:     affine.store %4, %0[0] : memref<1xi32>
-// CHECK-NEXT:     return %4 : i32
-// CHECK-NEXT:   }
+// CHECK-DAG:   memref.global "private" @"adder@static@cur@init" : memref<i1> = dense<true>
+// CHECK-DAG:   memref.global "private" @"adder@static@cur" : memref<i32> = uninitialized
 
+// CHECK-LABEL:   func.func @adder(
+// CHECK-SAME:                     %[[VAL_0:.*]]: i32) -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK-DAG:        %[[VAL_1:.*]] = arith.constant false
+// CHECK-DAG:        %[[VAL_2:.*]] = arith.constant 0 : i32
+// CHECK-NEXT:       %[[VAL_3:.*]] = memref.get_global @"adder@static@cur" : memref<i32>
+// CHECK-NEXT:       %[[VAL_4:.*]] = memref.alloca() : memref<1xindex>
+// CHECK-NEXT:       %[[VAL_5:.*]] = memref.reshape %[[VAL_3]](%[[VAL_4]]) : (memref<i32>, memref<1xindex>) -> memref<1xi32>
+// CHECK-NEXT:       %[[VAL_6:.*]] = memref.get_global @"adder@static@cur@init" : memref<i1>
+// CHECK-NEXT:       %[[VAL_7:.*]] = memref.alloca() : memref<1xindex>
+// CHECK-NEXT:       %[[VAL_8:.*]] = memref.reshape %[[VAL_6]](%[[VAL_7]]) : (memref<i1>, memref<1xindex>) -> memref<1xi1>
+// CHECK-NEXT:       %[[VAL_9:.*]] = affine.load %[[VAL_8]][0] : memref<1xi1>
+// CHECK-NEXT:       scf.if %[[VAL_9]] {
+// CHECK-NEXT:         affine.store %[[VAL_1]], %[[VAL_8]][0] : memref<1xi1>
+// CHECK-NEXT:         affine.store %[[VAL_2]], %[[VAL_5]][0] : memref<1xi32>
+// CHECK-NEXT:       }
+// CHECK-NEXT:       %[[VAL_10:.*]] = affine.load %[[VAL_5]][0] : memref<1xi32>
+// CHECK-NEXT:       %[[VAL_11:.*]] = arith.addi %[[VAL_10]], %[[VAL_0]] : i32
+// CHECK-NEXT:       affine.store %[[VAL_11]], %[[VAL_5]][0] : memref<1xi32>
+// CHECK-NEXT:       return %[[VAL_11]] : i32
+// CHECK-NEXT:     }
