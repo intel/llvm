@@ -11,8 +11,45 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <cstring>
 #include <sycl/detail/pi.hpp>
+
+#include <atomic>
+#include <cstring>
+
+// Helpers for dummy handles
+
+struct DummyHandleT {
+  DummyHandleT(size_t DataSize = 0)
+      : MStorage(DataSize), MData(MStorage.data()) {}
+  std::atomic<size_t> MRefCounter = 1;
+  std::vector<unsigned char> MStorage;
+  unsigned char *MData = nullptr;
+};
+
+using DummyHandlePtrT = DummyHandleT *;
+
+// Allocates a dummy handle of type T with support of reference counting.
+// Takes optional 'Size' parameter which can be used to allocate additional
+// memory. The handle has to be deallocated using 'releaseDummyHandle'.
+template <class T> inline T createDummyHandle(size_t Size = 0) {
+  DummyHandlePtrT DummyHandlePtr = new DummyHandleT(Size);
+  return reinterpret_cast<T>(DummyHandlePtr);
+}
+
+// Decrement reference counter for the handle and deallocates it if the
+// reference counter becomes zero
+template <class T> inline void releaseDummyHandle(T Handle) {
+  auto DummyHandlePtr = reinterpret_cast<DummyHandlePtrT>(Handle);
+  const size_t NewValue = --DummyHandlePtr->MRefCounter;
+  if (NewValue == 0)
+    delete DummyHandlePtr;
+}
+
+// Increment reference counter for the handle
+template <class T> inline void retainDummyHandle(T Handle) {
+  auto DummyHandlePtr = reinterpret_cast<DummyHandlePtrT>(Handle);
+  ++DummyHandlePtr->MRefCounter;
+}
 
 //
 // Platform
@@ -82,6 +119,8 @@ mock_piextPlatformGetNativeHandle(pi_platform platform,
 inline pi_result
 mock_piextPlatformCreateWithNativeHandle(pi_native_handle nativeHandle,
                                          pi_platform *platform) {
+  *platform = reinterpret_cast<pi_platform>(nativeHandle);
+  retainDummyHandle(*platform);
   return PI_SUCCESS;
 }
 
@@ -134,7 +173,7 @@ inline pi_result mock_piDeviceGetInfo(pi_device device,
   }
   case PI_DEVICE_INFO_EXTENSIONS: {
     if (param_value) {
-      assert(param_value_size == sizeof(MockSupportedExtensions));
+      assert(param_value_size >= sizeof(MockSupportedExtensions));
       std::memcpy(param_value, MockSupportedExtensions,
                   sizeof(MockSupportedExtensions));
     }
@@ -152,6 +191,20 @@ inline pi_result mock_piDeviceGetInfo(pi_device device,
       *static_cast<pi_bool *>(param_value) = PI_TRUE;
     if (param_value_size_ret)
       *param_value_size_ret = sizeof(PI_TRUE);
+    return PI_SUCCESS;
+  }
+  // This mock GPU device has no sub-devices
+  case PI_DEVICE_INFO_PARTITION_PROPERTIES: {
+    if (param_value_size_ret) {
+      *param_value_size_ret = 0;
+    }
+    return PI_SUCCESS;
+  }
+  case PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN: {
+    assert(param_value_size == sizeof(pi_device_affinity_domain));
+    if (param_value) {
+      *static_cast<pi_device_affinity_domain *>(param_value) = 0;
+    }
     return PI_SUCCESS;
   }
   default:
@@ -178,6 +231,8 @@ mock_piextDeviceGetNativeHandle(pi_device device,
 
 inline pi_result mock_piextDeviceCreateWithNativeHandle(
     pi_native_handle nativeHandle, pi_platform platform, pi_device *device) {
+  *device = reinterpret_cast<pi_device>(nativeHandle);
+  retainDummyHandle(*device);
   return PI_SUCCESS;
 }
 
@@ -205,8 +260,7 @@ inline pi_result mock_piContextCreate(
     void (*pfn_notify)(const char *errinfo, const void *private_info, size_t cb,
                        void *user_data),
     void *user_data, pi_context *ret_context) {
-  static uintptr_t NextContext = 0;
-  *ret_context = reinterpret_cast<pi_context>(++NextContext);
+  *ret_context = createDummyHandle<pi_context>();
   return PI_SUCCESS;
 }
 
@@ -228,9 +282,13 @@ inline pi_result mock_piContextGetInfo(pi_context context,
   }
 }
 
-inline pi_result mock_piContextRetain(pi_context context) { return PI_SUCCESS; }
+inline pi_result mock_piContextRetain(pi_context context) {
+  retainDummyHandle(context);
+  return PI_SUCCESS;
+}
 
 inline pi_result mock_piContextRelease(pi_context context) {
+  releaseDummyHandle(context);
   return PI_SUCCESS;
 }
 
@@ -250,6 +308,8 @@ inline pi_result mock_piextContextCreateWithNativeHandle(
     pi_native_handle nativeHandle, pi_uint32 numDevices,
     const pi_device *devices, bool pluginOwnsNativeHandle,
     pi_context *context) {
+  *context = reinterpret_cast<pi_context>(nativeHandle);
+  retainDummyHandle(*context);
   return PI_SUCCESS;
 }
 
@@ -259,8 +319,7 @@ inline pi_result mock_piextContextCreateWithNativeHandle(
 inline pi_result mock_piQueueCreate(pi_context context, pi_device device,
                                     pi_queue_properties properties,
                                     pi_queue *queue) {
-  static uintptr_t NextQueue = 0;
-  *queue = reinterpret_cast<pi_queue>(++NextQueue);
+  *queue = createDummyHandle<pi_queue>();
   return PI_SUCCESS;
 }
 
@@ -282,10 +341,12 @@ inline pi_result mock_piQueueGetInfo(pi_queue command_queue,
 }
 
 inline pi_result mock_piQueueRetain(pi_queue command_queue) {
+  retainDummyHandle(command_queue);
   return PI_SUCCESS;
 }
 
 inline pi_result mock_piQueueRelease(pi_queue command_queue) {
+  releaseDummyHandle(command_queue);
   return PI_SUCCESS;
 }
 
@@ -306,6 +367,8 @@ mock_piextQueueGetNativeHandle(pi_queue queue, pi_native_handle *nativeHandle) {
 inline pi_result mock_piextQueueCreateWithNativeHandle(
     pi_native_handle nativeHandle, pi_context context, pi_device device,
     bool pluginOwnsNativeHandle, pi_queue *queue) {
+  *queue = reinterpret_cast<pi_queue>(nativeHandle);
+  retainDummyHandle(*queue);
   return PI_SUCCESS;
 }
 
@@ -316,8 +379,7 @@ inline pi_result
 mock_piMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
                        void *host_ptr, pi_mem *ret_mem,
                        const pi_mem_properties *properties = nullptr) {
-  static uintptr_t NextMem = 0;
-  *ret_mem = reinterpret_cast<pi_mem>(++NextMem);
+  *ret_mem = createDummyHandle<pi_mem>(size);
   return PI_SUCCESS;
 }
 
@@ -325,8 +387,9 @@ inline pi_result mock_piMemImageCreate(pi_context context, pi_mem_flags flags,
                                        const pi_image_format *image_format,
                                        const pi_image_desc *image_desc,
                                        void *host_ptr, pi_mem *ret_mem) {
-  static uintptr_t NextMem = 0;
-  *ret_mem = reinterpret_cast<pi_mem>(++NextMem);
+  assert(false &&
+         "TODO: mock_piMemImageCreate handle allocation size correctly");
+  *ret_mem = createDummyHandle<pi_mem>(/*size=*/1024 * 16);
   return PI_SUCCESS;
 }
 
@@ -343,14 +406,31 @@ inline pi_result mock_piMemImageGetInfo(pi_mem image, pi_image_info param_name,
   return PI_SUCCESS;
 }
 
-inline pi_result mock_piMemRetain(pi_mem mem) { return PI_SUCCESS; }
+inline pi_result mock_piMemRetain(pi_mem mem) {
+  retainDummyHandle(mem);
+  return PI_SUCCESS;
+}
 
-inline pi_result mock_piMemRelease(pi_mem mem) { return PI_SUCCESS; }
+inline pi_result mock_piMemRelease(pi_mem mem) {
+  releaseDummyHandle(mem);
+  return PI_SUCCESS;
+}
 
 inline pi_result
 mock_piMemBufferPartition(pi_mem buffer, pi_mem_flags flags,
                           pi_buffer_create_type buffer_create_type,
                           void *buffer_create_info, pi_mem *ret_mem) {
+  // Create a sub buf without memory as we will reuse parent's one
+  *ret_mem = createDummyHandle<pi_mem>(/*size=*/0);
+
+  auto parentDummyHandle = reinterpret_cast<DummyHandlePtrT>(buffer);
+  auto childDummyHandle = reinterpret_cast<DummyHandlePtrT>(*ret_mem);
+
+  auto region = reinterpret_cast<pi_buffer_region>(buffer_create_info);
+
+  // Point the sub buf to the original buf memory
+  childDummyHandle->MData = parentDummyHandle->MData + region->origin;
+
   return PI_SUCCESS;
 }
 
@@ -364,6 +444,8 @@ inline pi_result
 mock_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
                                     pi_context context, bool ownNativeHandle,
                                     pi_mem *mem) {
+  *mem = reinterpret_cast<pi_mem>(nativeHandle);
+  retainDummyHandle(*mem);
   return PI_SUCCESS;
 }
 
@@ -373,8 +455,7 @@ mock_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
 
 inline pi_result mock_piProgramCreate(pi_context context, const void *il,
                                       size_t length, pi_program *res_program) {
-  static uintptr_t NextProgram = 0;
-  *res_program = reinterpret_cast<pi_program>(++NextProgram);
+  *res_program = createDummyHandle<pi_program>();
   return PI_SUCCESS;
 }
 
@@ -383,8 +464,7 @@ inline pi_result mock_piclProgramCreateWithSource(pi_context context,
                                                   const char **strings,
                                                   const size_t *lengths,
                                                   pi_program *ret_program) {
-  static uintptr_t NextProgram = 100;
-  *ret_program = reinterpret_cast<pi_program>(++NextProgram);
+  *ret_program = createDummyHandle<pi_program>();
   return PI_SUCCESS;
 }
 
@@ -393,8 +473,7 @@ inline pi_result mock_piProgramCreateWithBinary(
     const size_t *lengths, const unsigned char **binaries,
     size_t num_metadata_entries, const pi_device_binary_property *metadata,
     pi_int32 *binary_status, pi_program *ret_program) {
-  static uintptr_t NextProgram = 200;
-  *ret_program = reinterpret_cast<pi_program>(++NextProgram);
+  *ret_program = createDummyHandle<pi_program>();
   return PI_SUCCESS;
 }
 
@@ -421,7 +500,7 @@ inline pi_result mock_piProgramGetInfo(pi_program program,
   }
   case PI_PROGRAM_INFO_BINARIES: {
     if (param_value)
-      *static_cast<unsigned char *>(param_value) = 1;
+      **static_cast<unsigned char **>(param_value) = 1;
     if (param_value_size_ret)
       *param_value_size_ret = sizeof(unsigned char);
     return PI_SUCCESS;
@@ -443,8 +522,7 @@ mock_piProgramLink(pi_context context, pi_uint32 num_devices,
                    const pi_program *input_programs,
                    void (*pfn_notify)(pi_program program, void *user_data),
                    void *user_data, pi_program *ret_program) {
-  static uintptr_t NextProgram = 300;
-  *ret_program = reinterpret_cast<pi_program>(++NextProgram);
+  *ret_program = createDummyHandle<pi_program>();
   return PI_SUCCESS;
 }
 
@@ -470,9 +548,13 @@ inline pi_result mock_piProgramGetBuildInfo(
   return PI_SUCCESS;
 }
 
-inline pi_result mock_piProgramRetain(pi_program program) { return PI_SUCCESS; }
+inline pi_result mock_piProgramRetain(pi_program program) {
+  retainDummyHandle(program);
+  return PI_SUCCESS;
+}
 
 inline pi_result mock_piProgramRelease(pi_program program) {
+  releaseDummyHandle(program);
   return PI_SUCCESS;
 }
 
@@ -493,6 +575,8 @@ mock_piextProgramGetNativeHandle(pi_program program,
 inline pi_result mock_piextProgramCreateWithNativeHandle(
     pi_native_handle nativeHandle, pi_context context,
     bool pluginOwnsNativeHandle, pi_program *program) {
+  *program = reinterpret_cast<pi_program>(nativeHandle);
+  retainDummyHandle(*program);
   return PI_SUCCESS;
 }
 
@@ -503,8 +587,7 @@ inline pi_result mock_piextProgramCreateWithNativeHandle(
 inline pi_result mock_piKernelCreate(pi_program program,
                                      const char *kernel_name,
                                      pi_kernel *ret_kernel) {
-  static uintptr_t NextKernel = 0;
-  *ret_kernel = reinterpret_cast<pi_kernel>(++NextKernel);
+  *ret_kernel = createDummyHandle<pi_kernel>();
   return PI_SUCCESS;
 }
 
@@ -551,9 +634,15 @@ inline pi_result mock_piKernelGetSubGroupInfo(
   return PI_SUCCESS;
 }
 
-inline pi_result mock_piKernelRetain(pi_kernel kernel) { return PI_SUCCESS; }
+inline pi_result mock_piKernelRetain(pi_kernel kernel) {
+  retainDummyHandle(kernel);
+  return PI_SUCCESS;
+}
 
-inline pi_result mock_piKernelRelease(pi_kernel kernel) { return PI_SUCCESS; }
+inline pi_result mock_piKernelRelease(pi_kernel kernel) {
+  releaseDummyHandle(kernel);
+  return PI_SUCCESS;
+}
 
 inline pi_result mock_piextKernelSetArgPointer(pi_kernel kernel,
                                                pi_uint32 arg_index,
@@ -572,6 +661,9 @@ inline pi_result mock_piKernelSetExecInfo(pi_kernel kernel,
 inline pi_result mock_piextKernelCreateWithNativeHandle(
     pi_native_handle nativeHandle, pi_context context, pi_program program,
     bool pluginOwnsNativeHandle, pi_kernel *kernel) {
+
+  *kernel = reinterpret_cast<pi_kernel>(nativeHandle);
+  retainDummyHandle(*kernel);
   return PI_SUCCESS;
 }
 
@@ -586,8 +678,7 @@ mock_piextKernelGetNativeHandle(pi_kernel kernel,
 // Events
 //
 inline pi_result mock_piEventCreate(pi_context context, pi_event *ret_event) {
-  static uintptr_t NextEvent = 0;
-  *ret_event = reinterpret_cast<pi_event>(++NextEvent);
+  *ret_event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -634,9 +725,15 @@ inline pi_result mock_piEventSetStatus(pi_event event,
   return PI_SUCCESS;
 }
 
-inline pi_result mock_piEventRetain(pi_event event) { return PI_SUCCESS; }
+inline pi_result mock_piEventRetain(pi_event event) {
+  retainDummyHandle(event);
+  return PI_SUCCESS;
+}
 
-inline pi_result mock_piEventRelease(pi_event event) { return PI_SUCCESS; }
+inline pi_result mock_piEventRelease(pi_event event) {
+  releaseDummyHandle(event);
+  return PI_SUCCESS;
+}
 
 inline pi_result
 mock_piextEventGetNativeHandle(pi_event event, pi_native_handle *nativeHandle) {
@@ -648,6 +745,8 @@ inline pi_result
 mock_piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
                                       pi_context context, bool ownNativeHandle,
                                       pi_event *event) {
+  *event = reinterpret_cast<pi_event>(nativeHandle);
+  retainDummyHandle(*event);
   return PI_SUCCESS;
 }
 
@@ -658,8 +757,7 @@ inline pi_result
 mock_piSamplerCreate(pi_context context,
                      const pi_sampler_properties *sampler_properties,
                      pi_sampler *result_sampler) {
-  static uintptr_t NextSampler = 0;
-  *result_sampler = reinterpret_cast<pi_sampler>(++NextSampler);
+  *result_sampler = createDummyHandle<pi_sampler>();
   return PI_SUCCESS;
 }
 
@@ -671,9 +769,13 @@ inline pi_result mock_piSamplerGetInfo(pi_sampler sampler,
   return PI_SUCCESS;
 }
 
-inline pi_result mock_piSamplerRetain(pi_sampler sampler) { return PI_SUCCESS; }
+inline pi_result mock_piSamplerRetain(pi_sampler sampler) {
+  retainDummyHandle(sampler);
+  return PI_SUCCESS;
+}
 
 inline pi_result mock_piSamplerRelease(pi_sampler sampler) {
+  releaseDummyHandle(sampler);
   return PI_SUCCESS;
 }
 
@@ -685,8 +787,7 @@ inline pi_result mock_piEnqueueKernelLaunch(
     const size_t *global_work_offset, const size_t *global_work_size,
     const size_t *local_work_size, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event) {
-  static uintptr_t NextEvent = 1000;
-  *event = reinterpret_cast<pi_event>(++NextEvent);
+  *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -695,6 +796,7 @@ inline pi_result mock_piEnqueueNativeKernel(
     pi_uint32 num_mem_objects, const pi_mem *mem_list,
     const void **args_mem_loc, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event) {
+  *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -702,12 +804,14 @@ inline pi_result mock_piEnqueueEventsWait(pi_queue command_queue,
                                           pi_uint32 num_events_in_wait_list,
                                           const pi_event *event_wait_list,
                                           pi_event *event) {
+  *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
 inline pi_result mock_piEnqueueEventsWaitWithBarrier(
     pi_queue command_queue, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event) {
+  *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -716,6 +820,7 @@ mock_piEnqueueMemBufferRead(pi_queue queue, pi_mem buffer,
                             pi_bool blocking_read, size_t offset, size_t size,
                             void *ptr, pi_uint32 num_events_in_wait_list,
                             const pi_event *event_wait_list, pi_event *event) {
+  *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -726,6 +831,7 @@ inline pi_result mock_piEnqueueMemBufferReadRect(
     size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
     void *ptr, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event) {
+  *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -734,6 +840,7 @@ mock_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
                              pi_bool blocking_write, size_t offset, size_t size,
                              const void *ptr, pi_uint32 num_events_in_wait_list,
                              const pi_event *event_wait_list, pi_event *event) {
+  *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -744,6 +851,7 @@ inline pi_result mock_piEnqueueMemBufferWriteRect(
     size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
     const void *ptr, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event) {
+  *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -753,6 +861,7 @@ mock_piEnqueueMemBufferCopy(pi_queue command_queue, pi_mem src_buffer,
                             size_t dst_offset, size_t size,
                             pi_uint32 num_events_in_wait_list,
                             const pi_event *event_wait_list, pi_event *event) {
+  *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -763,6 +872,7 @@ inline pi_result mock_piEnqueueMemBufferCopyRect(
     size_t dst_row_pitch, size_t dst_slice_pitch,
     pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
     pi_event *event) {
+  *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -773,6 +883,7 @@ inline pi_result mock_piEnqueueMemBufferFill(pi_queue command_queue,
                                              pi_uint32 num_events_in_wait_list,
                                              const pi_event *event_wait_list,
                                              pi_event *event) {
+  *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -781,6 +892,7 @@ inline pi_result mock_piEnqueueMemImageRead(
     pi_image_offset origin, pi_image_region region, size_t row_pitch,
     size_t slice_pitch, void *ptr, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event) {
+  *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -791,6 +903,7 @@ mock_piEnqueueMemImageWrite(pi_queue command_queue, pi_mem image,
                             size_t input_slice_pitch, const void *ptr,
                             pi_uint32 num_events_in_wait_list,
                             const pi_event *event_wait_list, pi_event *event) {
+  *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -800,6 +913,7 @@ mock_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
                            pi_image_offset dst_origin, pi_image_region region,
                            pi_uint32 num_events_in_wait_list,
                            const pi_event *event_wait_list, pi_event *event) {
+  *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -809,6 +923,7 @@ mock_piEnqueueMemImageFill(pi_queue command_queue, pi_mem image,
                            const size_t *region,
                            pi_uint32 num_events_in_wait_list,
                            const pi_event *event_wait_list, pi_event *event) {
+  *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -819,6 +934,10 @@ inline pi_result mock_piEnqueueMemBufferMap(pi_queue command_queue,
                                             pi_uint32 num_events_in_wait_list,
                                             const pi_event *event_wait_list,
                                             pi_event *event, void **ret_map) {
+  *event = createDummyHandle<pi_event>();
+
+  auto parentDummyHandle = reinterpret_cast<DummyHandlePtrT>(buffer);
+  *ret_map = (void *)(parentDummyHandle->MData);
   return PI_SUCCESS;
 }
 
@@ -827,6 +946,7 @@ inline pi_result mock_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
                                         pi_uint32 num_events_in_wait_list,
                                         const pi_event *event_wait_list,
                                         pi_event *event) {
+  *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -848,7 +968,8 @@ inline pi_result mock_piextKernelSetArgSampler(pi_kernel kernel,
 inline pi_result mock_piextUSMHostAlloc(void **result_ptr, pi_context context,
                                         pi_usm_mem_properties *properties,
                                         size_t size, pi_uint32 alignment) {
-  *result_ptr = (void *)0x1;
+  assert(alignment < 16 && "TODO: mock_piextUSMHostAlloc handle alignment");
+  *result_ptr = createDummyHandle<void *>(size);
   return PI_SUCCESS;
 }
 
@@ -856,7 +977,8 @@ inline pi_result mock_piextUSMDeviceAlloc(void **result_ptr, pi_context context,
                                           pi_device device,
                                           pi_usm_mem_properties *properties,
                                           size_t size, pi_uint32 alignment) {
-  *result_ptr = (void *)0x1;
+  assert(alignment < 16 && "TODO: mock_piextUSMHostAlloc handle alignment");
+  *result_ptr = createDummyHandle<void *>(size);
   return PI_SUCCESS;
 }
 
@@ -864,7 +986,8 @@ inline pi_result mock_piextUSMSharedAlloc(void **result_ptr, pi_context context,
                                           pi_device device,
                                           pi_usm_mem_properties *properties,
                                           size_t size, pi_uint32 alignment) {
-  *result_ptr = (void *)0x1;
+  assert(alignment < 16 && "TODO: mock_piextUSMHostAlloc handle alignment");
+  *result_ptr = createDummyHandle<void *>(size);
   return PI_SUCCESS;
 }
 
@@ -877,6 +1000,7 @@ inline pi_result mock_piextUSMEnqueueMemset(pi_queue queue, void *ptr,
                                             pi_uint32 num_events_in_waitlist,
                                             const pi_event *events_waitlist,
                                             pi_event *event) {
+  *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -886,6 +1010,7 @@ inline pi_result mock_piextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking,
                                             pi_uint32 num_events_in_waitlist,
                                             const pi_event *events_waitlist,
                                             pi_event *event) {
+  *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -895,6 +1020,7 @@ inline pi_result mock_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
                                               pi_uint32 num_events_in_waitlist,
                                               const pi_event *events_waitlist,
                                               pi_event *event) {
+  *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -902,6 +1028,7 @@ inline pi_result mock_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
                                                size_t length,
                                                pi_mem_advice advice,
                                                pi_event *event) {
+  *event = createDummyHandle<pi_event>();
   return PI_SUCCESS;
 }
 
@@ -921,16 +1048,3 @@ inline pi_result mock_piTearDown(void *PluginParameter) { return PI_SUCCESS; }
 inline pi_result mock_piPluginGetLastError(char **message) {
   return PI_SUCCESS;
 }
-
-#define _PI_MOCK_PLUGIN_CONCAT(A, B) A##B
-#define PI_MOCK_PLUGIN_CONCAT(A, B) _PI_MOCK_PLUGIN_CONCAT(A, B)
-
-inline pi_plugin::FunctionPointers getMockedFunctionPointers() {
-  return {
-#define _PI_API(api) PI_MOCK_PLUGIN_CONCAT(mock_, api),
-#include <sycl/detail/pi.def>
-  };
-}
-
-#undef PI_MOCK_PLUGIN_CONCAT
-#undef _PI_MOCK_PLUGIN_CONCAT

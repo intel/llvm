@@ -371,7 +371,7 @@ struct _pi_platform {
   // Cache versions info from zeDriverGetProperties.
   std::string ZeDriverVersion;
   std::string ZeDriverApiVersion;
-  ze_api_version_t ZeApiVersion;
+  ze_api_version_t ZeApiVersion{};
 
   // Cache driver extensions
   std::unordered_map<std::string, uint32_t> zeDriverExtensionMap;
@@ -1558,7 +1558,7 @@ struct _pi_program : _pi_object {
   // In IL and Object states, this contains the SPIR-V representation of the
   // module.  In Native state, it contains the native code.
   std::unique_ptr<uint8_t[]> Code; // Array containing raw IL / native code.
-  size_t CodeLength;               // Size (bytes) of the array.
+  size_t CodeLength{0};            // Size (bytes) of the array.
 
   // Used only in IL and Object states.  Contains the SPIR-V specialization
   // constants as a map from the SPIR-V "SpecID" to a buffer that contains the

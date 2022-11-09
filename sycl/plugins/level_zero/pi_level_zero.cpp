@@ -2502,12 +2502,13 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
         ZE_CALL(zeDriverGet, (&ZeDriverCount, ZeDrivers.data()));
         for (uint32_t I = 0; I < ZeDriverCount; ++I) {
           pi_platform Platform = new _pi_platform(ZeDrivers[I]);
+          // Save a copy in the cache for future uses.
+          PiPlatformsCache->push_back(Platform);
+
           pi_result Result = Platform->initialize();
           if (Result != PI_SUCCESS) {
             return Result;
           }
-          // Save a copy in the cache for future uses.
-          PiPlatformsCache->push_back(Platform);
         }
         PiPlatformCachePopulated = true;
       }
@@ -3991,8 +3992,10 @@ pi_result piextQueueGetNativeHandle(pi_queue Queue,
   std::shared_lock<pi_shared_mutex> lock(Queue->Mutex);
 
   auto ZeQueue = pi_cast<ze_command_queue_handle_t *>(NativeHandle);
-  // Extract the Level Zero compute queue handle from the given PI queue
-  *ZeQueue = Queue->ComputeQueueGroup.ZeQueues[0];
+
+  // Extract a Level Zero compute queue handle from the given PI queue
+  uint32_t QueueGroupOrdinalUnused;
+  *ZeQueue = Queue->ComputeQueueGroup.getZeQueue(&QueueGroupOrdinalUnused);
   return PI_SUCCESS;
 }
 
@@ -4419,6 +4422,7 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
 
   try {
     auto ZePIImage = new _pi_image(Context, ZeHImage);
+    *RetImage = ZePIImage;
 
 #ifndef NDEBUG
     ZePIImage->ZeImageDesc = ZeImageDesc;
@@ -4435,8 +4439,6 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
               (Context->ZeCommandListInit, ZeHImage, HostPtr, nullptr, nullptr,
                0, nullptr));
     }
-
-    *RetImage = ZePIImage;
   } catch (const std::bad_alloc &) {
     return PI_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -6663,15 +6665,15 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     }
   }
 
-  // Insert a barrier into each unique command queue using the available
-  // command-lists.
-  std::vector<pi_event> EventWaitVector(CmdLists.size());
-  for (size_t I = 0; I < CmdLists.size(); ++I)
-    if (auto Res = insertBarrierIntoCmdList(CmdLists[I], _pi_ze_event_list_t{},
-                                            EventWaitVector[I], false))
-      return Res;
-
   if (CmdLists.size() > 1) {
+    // Insert a barrier into each unique command queue using the available
+    // command-lists.
+    std::vector<pi_event> EventWaitVector(CmdLists.size());
+    for (size_t I = 0; I < CmdLists.size(); ++I)
+      if (auto Res = insertBarrierIntoCmdList(
+              CmdLists[I], _pi_ze_event_list_t{}, EventWaitVector[I], false))
+        return Res;
+
     // If there were multiple queues we need to create a "convergence" event to
     // be our active barrier. This convergence event is signalled by a barrier
     // on all the events from the barriers we have inserted into each queue.
@@ -6695,10 +6697,13 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
                                             *Event, IsInternal))
       return Res;
   } else {
-    // If there is only a single queue we have inserted all the barriers we need
-    // and the single result event can be used as our active barrier and used as
-    // the return event.
-    *Event = EventWaitVector[0];
+    PI_ASSERT(CmdLists.size() == 1, PI_ERROR_INVALID_QUEUE);
+    // If there is only a single queue then insert a barrier and the single
+    // result event can be used as our active barrier and used as the return
+    // event. Take into account whether output event is discarded or not.
+    if (auto Res = insertBarrierIntoCmdList(CmdLists[0], _pi_ze_event_list_t{},
+                                            *Event, IsInternal))
+      return Res;
   }
 
   // Execute each command list so the barriers can be encountered.
@@ -7106,6 +7111,13 @@ pi_result piEnqueueMemBufferCopyRect(
 
 } // extern "C"
 
+// Default to using compute engine for fill operation, but allow to
+// override this with an environment variable.
+static bool PreferCopyEngine = [] {
+  const char *Env = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_FILL");
+  return Env ? std::stoi(Env) != 0 : false;
+}();
+
 // PI interfaces must have queue's and buffer's mutexes locked on entry.
 static pi_result
 enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
@@ -7118,13 +7130,6 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
             PI_ERROR_INVALID_VALUE);
 
   auto &Device = Queue->Device;
-
-  // Default to using compute engine for fill operation, but allow to
-  // override this with an environment variable.
-  const char *PreferCopyEngineEnv =
-      std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_FILL");
-  bool PreferCopyEngine =
-      PreferCopyEngineEnv ? std::stoi(PreferCopyEngineEnv) != 0 : false;
 
   // Make sure that pattern size matches the capability of the copy queues.
   // Check both main and link groups as we don't known which one will be used.

@@ -51,22 +51,114 @@ namespace unittest {
 namespace detail = sycl::detail;
 namespace RT = detail::pi;
 
-/// Overwrites the input PiPlugin's PiFunctionTable entry for the given PI API
-/// with a given function pointer.
+/// The macro below defines a proxy functions for each PI API call.
+/// This proxy function calls all the functions registered in CallBefore*
+/// function pointer array, then calls Original function, then calls functions
+/// registered in CallAfter* array.
 ///
-/// \param MPlugin is a pointer to the PiPlugin instance that will be modified.
-/// \param FuncPtr is a pointer to the function that will override the original.
-///        function table entry
+/// If a function from CallBefore* returns a non-PI_SUCCESS return code the
+/// proxy function bails out.
+
+/// Number of functions that can be registered as CallBefore and CallAfter
+inline constexpr size_t CallStackSize = 16;
 #define _PI_API(api)                                                           \
+                                                                               \
+  inline decltype(&::api) CallBefore_##api[CallStackSize] = {nullptr};         \
+  inline decltype(&::api) CallOriginal_##api = mock_##api;                     \
+  inline decltype(&::api) CallAfter_##api[CallStackSize] = {nullptr};          \
+                                                                               \
+  template <class RetT, class... ArgsT> RetT proxy_mock_##api(ArgsT... Args) { \
+    for (size_t I = 0; I < CallStackSize && CallBefore_##api[I]; ++I) {        \
+      /* If before function returns an error bail out */                       \
+      const RetT Res = CallBefore_##api[I](Args...);                           \
+      if (Res != PI_SUCCESS)                                                   \
+        return Res;                                                            \
+    }                                                                          \
+                                                                               \
+    RetT Ret = CallOriginal_##api(Args...);                                    \
+                                                                               \
+    for (size_t I = 0; I < CallStackSize && CallAfter_##api[I]; ++I)           \
+      CallAfter_##api[I](Args...);                                             \
+                                                                               \
+    return Ret;                                                                \
+  }                                                                            \
+                                                                               \
+  /* A helper function for instantiating proxy functions for a given */        \
+  /* PI API signature */                                                       \
+  template <class RetT_, class... ArgsT_>                                      \
+  int ConverterT_##api(RetT_ (*FuncArg)(ArgsT_...)) {                          \
+    [[maybe_unused]] constexpr static RetT_ (*Func)(ArgsT_...) =               \
+        proxy_mock_##api<RetT_, ArgsT_...>;                                    \
+    return 42;                                                                 \
+  }                                                                            \
+  inline int Anchor_##api = ConverterT_##api(decltype (&::api)(0x0));          \
+                                                                               \
+  /*Overrides a plugin PI function with a given one */                         \
   template <detail::PiApiKind PiApiOffset>                                     \
   inline void setFuncPtr(RT::PiPlugin *MPlugin, decltype(&::api) FuncPtr);     \
   template <>                                                                  \
   inline void setFuncPtr<detail::PiApiKind::api>(RT::PiPlugin * MPlugin,       \
                                                  decltype(&::api) FuncPtr) {   \
-    MPlugin->PiFunctionTable.api = FuncPtr;                                    \
+    CallOriginal_##api = FuncPtr;                                              \
+  }                                                                            \
+                                                                               \
+  /*Adds a function to be called before the PI function*/                      \
+  template <detail::PiApiKind PiApiOffset>                                     \
+  inline void setFuncPtrBefore(RT::PiPlugin *MPlugin,                          \
+                               decltype(&::api) FuncPtr);                      \
+  template <>                                                                  \
+  inline void setFuncPtrBefore<detail::PiApiKind::api>(                        \
+      RT::PiPlugin * MPlugin, decltype(&::api) FuncPtr) {                      \
+    /* Find free slot */                                                       \
+    size_t I = 0;                                                              \
+    for (; I < CallStackSize && CallBefore_##api[I]; ++I)                      \
+      ;                                                                        \
+    assert(I < CallStackSize && "Too many calls before");                      \
+    CallBefore_##api[I] = FuncPtr;                                             \
+  }                                                                            \
+                                                                               \
+  /*Adds a function to be called after the PI function*/                       \
+  template <detail::PiApiKind PiApiOffset>                                     \
+  inline void setFuncPtrAfter(RT::PiPlugin *MPlugin,                           \
+                              decltype(&::api) FuncPtr);                       \
+  template <>                                                                  \
+  inline void setFuncPtrAfter<detail::PiApiKind::api>(                         \
+      RT::PiPlugin * MPlugin, decltype(&::api) FuncPtr) {                      \
+    /* Find free slot */                                                       \
+    size_t I = 0;                                                              \
+    for (; I < CallStackSize && CallAfter_##api[I]; ++I)                       \
+      ;                                                                        \
+    assert(I < CallStackSize && "Too many calls after");                       \
+    CallAfter_##api[I] = FuncPtr;                                              \
   }
 #include <sycl/detail/pi.def>
 #undef _PI_API
+
+// Unregister functions set for calling before and after PI API
+inline void clearRedefinedCalls() {
+  for (size_t I = 0; I < CallStackSize; ++I) {
+#define _PI_API(api)                                                           \
+  CallBefore_##api[I] = nullptr;                                               \
+  CallOriginal_##api = mock_##api;                                             \
+  CallAfter_##api[I] = nullptr;
+#include <sycl/detail/pi.def>
+#undef _PI_API
+  }
+}
+
+#define _PI_MOCK_PLUGIN_CONCAT(A, B) A##B
+#define PI_MOCK_PLUGIN_CONCAT(A, B) _PI_MOCK_PLUGIN_CONCAT(A, B)
+
+inline pi_plugin::FunctionPointers getProxyMockedFunctionPointers() {
+  return {
+#define _PI_API(api) PI_MOCK_PLUGIN_CONCAT(proxy_mock_, api),
+#include <sycl/detail/pi.def>
+#undef _PI_API
+  };
+}
+
+#undef PI_MOCK_PLUGIN_CONCAT
+#undef _PI_MOCK_PLUGIN_CONCAT
 
 /// The PiMock class manages the mock PI plugin and wraps an instance of a SYCL
 /// platform class created from this plugin. Additionally it allows for the
@@ -86,7 +178,7 @@ namespace RT = detail::pi;
 /// pi_result redefinePiProgramRetain(pi_program program) { /*code*/ }
 /// /*...*/
 /// unittest::PiMock Mock;
-/// Mock.redefine<PiApiKind::piProgramRetain>(redefinePiProgramRetain);
+/// Mock.redefineBefore<PiApiKind::piProgramRetain>(redefinePiProgramRetain);
 /// platform &MockP = Mock.getPlatform();
 /// /*...*/
 /// ```
@@ -130,6 +222,10 @@ public:
   PiMock(const PiMock &) = delete;
   PiMock &operator=(const PiMock &) = delete;
   ~PiMock() {
+    // Since the plugin relies on the global vars to store function pointers we
+    // need to reset them for the new PiMock plugin instance
+    // TODO: Make function pointers array for each PiMock instance?
+    clearRedefinedCalls();
     if (!OrigFuncTable)
       return;
 
@@ -148,6 +244,31 @@ public:
   template <detail::PiApiKind PiApiOffset>
   using SignatureT = typename std::remove_pointer<FuncPtrT<PiApiOffset>>::type;
 
+  /// Adds a function to be called before a given PI API
+  ///
+  /// \param Replacement is a mock std::function instance to be
+  ///        called instead of the given PI API. This function must
+  ///        not have been constructed from a lambda.
+  template <detail::PiApiKind PiApiOffset>
+  void
+  redefineBefore(const std::function<SignatureT<PiApiOffset>> &Replacement) {
+    FuncPtrT<PiApiOffset> FuncPtr =
+        *Replacement.template target<FuncPtrT<PiApiOffset>>();
+    assert(FuncPtr &&
+           "Function target is empty, try passing a lambda directly");
+    setFuncPtrBefore<PiApiOffset>(MPiPluginMockPtr, *FuncPtr);
+  }
+
+  /// redefineBefore overload for function pointer/captureless lambda arguments.
+  ///
+  /// \param Replacement is a mock callable assignable to a function
+  ///        pointer (function pointer/captureless lambda).
+
+  template <detail::PiApiKind PiApiOffset, typename FunctorT>
+  void redefineBefore(const FunctorT &Replacement) {
+    // TODO: Check for matching signatures/assignability
+    setFuncPtrBefore<PiApiOffset>(MPiPluginMockPtr, Replacement);
+  }
   /// Redefines the implementation of a given PI API to the input
   /// function object.
   ///
@@ -178,6 +299,31 @@ public:
     setFuncPtr<PiApiOffset>(MPiPluginMockPtr, Replacement);
   }
 
+  /// Adds a function to be called after a given PI API
+  ///
+  /// \param Replacement is a mock std::function instance to be
+  ///        called instead of the given PI API. This function must
+  ///        not have been constructed from a lambda.
+  template <detail::PiApiKind PiApiOffset>
+  void
+  redefineAfter(const std::function<SignatureT<PiApiOffset>> &Replacement) {
+    FuncPtrT<PiApiOffset> FuncPtr =
+        *Replacement.template target<FuncPtrT<PiApiOffset>>();
+    assert(FuncPtr &&
+           "Function target is empty, try passing a lambda directly");
+    setFuncPtrAfter<PiApiOffset>(MPiPluginMockPtr, *FuncPtr);
+  }
+
+  /// redefineAfter overload for function pointer/captureless lambda arguments.
+  ///
+  /// \param Replacement is a mock callable assignable to a function
+  ///        pointer (function pointer/captureless lambda).
+  template <detail::PiApiKind PiApiOffset, typename FunctorT>
+  void redefineAfter(const FunctorT &Replacement) {
+    // TODO: Check for matching signatures/assignability
+    setFuncPtrAfter<PiApiOffset>(MPiPluginMockPtr, Replacement);
+  }
+
   /// Ensures that the mock plugin has been initialized and has been registered
   /// in the global handler. Additionally, all existing plugins will be removed
   /// and unloaded to avoid them being accidentally picked up by tests using
@@ -198,7 +344,7 @@ public:
 
     auto RTPlugin = std::make_shared<RT::PiPlugin>(
         RT::PiPlugin{"pi.ver.mock", "plugin.ver.mock", /*Targets=*/nullptr,
-                     getMockedFunctionPointers()});
+                     getProxyMockedFunctionPointers()});
 
     // FIXME: which backend to pass here? does it affect anything?
     MMockPluginPtr = std::make_unique<detail::plugin>(RTPlugin, backend::opencl,

@@ -4,7 +4,9 @@ namespace PR47043 {
   template<typename T> concept True = true;
   template<typename ...T> concept AllTrue1 = True<T>; // expected-error {{expression contains unexpanded parameter pack 'T'}}
   template<typename ...T> concept AllTrue2 = (True<T> && ...);
+  template<typename ...T> concept AllTrue3 = (bool)(True<T> & ...);
   static_assert(AllTrue2<int, float, char>);
+  static_assert(AllTrue3<int, float, char>);
 }
 
 namespace PR47025 {
@@ -59,11 +61,10 @@ namespace P0857R0 {
     x.operator()<false>(); // expected-error {{no matching member function}}
   }
 
-  // FIXME: This is valid under P0857R0.
   template<typename T> concept C = true;
-  template<template<typename T> requires C<T> typename U> struct X {}; // expected-error {{requires 'class'}} expected-error 0+{{}}
+  template<template<typename T> requires C<T> typename U> struct X {};
   template<typename T> requires C<T> struct Y {};
-  X<Y> xy; // expected-error {{no template named 'X'}}
+  X<Y> xy;
 }
 
 namespace PR50306 {
@@ -706,7 +707,7 @@ Container<4>::var_templ<int> inst;
 Container<5>::var_templ<int> inst_fail;
 // expected-error@-1{{constraints not satisfied for alias template 'var_templ'}}
 // expected-note@#CMVT_REQ{{because 'sizeof(int) == arity' (4 == 5) evaluated to false}}
-} // namespace ConstrainedMemberVarTemplate 
+} // namespace ConstrainedMemberVarTemplate
 
 // These should not diagnose, where we were unintentionally doing so before by
 // checking trailing requires clause twice, yet not having the ability to the
@@ -764,4 +765,4 @@ struct __iterator_traits_member_pointer_or_arrow_or_void<_Ip> {
 void use2() {
   __iterator_traits_member_pointer_or_arrow_or_void<counted_iterator<int>> f;
 }
-}// namespace InheritedFromPartialSpec 
+}// namespace InheritedFromPartialSpec

@@ -653,6 +653,15 @@ int main(int argc, const char **argv) {
   std::unique_ptr<llvm::Module> M =
       ExitOnErr(parseBitcodeFile(BufferPtr.get()->getMemBufferRef(), Context));
 
+  // This module is built explicitly for linking with any .bc compiled with the
+  // "nvptx64-nvidia-cuda" (CUDA) or "amdgcn-amd-amdhsa" (HIP AMD) triples.
+  // Therefore we update the module triple.
+  if (M.get()->getTargetTriple() == "nvptx64-unknown-nvidiacl") {
+    M.get()->setTargetTriple("nvptx64-nvidia-cuda");
+  }
+  else if (M.get()->getTargetTriple() == "amdgcn-unknown-amdhsa") {
+    M.get()->setTargetTriple("amdgcn-amd-amdhsa");
+  }
   std::error_code EC;
   std::unique_ptr<ToolOutputFile> Out(
       new ToolOutputFile(OutputFilename, EC, sys::fs::OF_None));
