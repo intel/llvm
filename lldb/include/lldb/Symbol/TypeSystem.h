@@ -178,8 +178,6 @@ public:
     return false;
   }
 
-  virtual bool IsBooleanType(lldb::opaque_compiler_type_t type) = 0;
-
   virtual bool IsScopedEnumerationType(lldb::opaque_compiler_type_t type) = 0;
 
   virtual bool IsPossibleDynamicType(lldb::opaque_compiler_type_t type,
@@ -208,7 +206,8 @@ public:
 
   // Accessors
 
-  virtual ConstString GetTypeName(lldb::opaque_compiler_type_t type) = 0;
+  virtual ConstString GetTypeName(lldb::opaque_compiler_type_t type,
+                                  bool BaseOnly) = 0;
 
   virtual ConstString GetDisplayTypeName(lldb::opaque_compiler_type_t type) = 0;
 

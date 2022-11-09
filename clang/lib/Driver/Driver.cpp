@@ -1263,10 +1263,24 @@ static void appendOneArg(InputArgList &Args, const Arg *Opt,
 
 bool Driver::readConfigFile(StringRef FileName,
                             llvm::cl::ExpansionContext &ExpCtx) {
+  // Try opening the given file.
+  auto Status = getVFS().status(FileName);
+  if (!Status) {
+    Diag(diag::err_drv_cannot_open_config_file)
+        << FileName << Status.getError().message();
+    return true;
+  }
+  if (Status->getType() != llvm::sys::fs::file_type::regular_file) {
+    Diag(diag::err_drv_cannot_open_config_file)
+        << FileName << "not a regular file";
+    return true;
+  }
+
   // Try reading the given file.
   SmallVector<const char *, 32> NewCfgArgs;
-  if (!ExpCtx.readConfigFile(FileName, NewCfgArgs)) {
-    Diag(diag::err_drv_cannot_read_config_file) << FileName;
+  if (llvm::Error Err = ExpCtx.readConfigFile(FileName, NewCfgArgs)) {
+    Diag(diag::err_drv_cannot_read_config_file)
+        << FileName << toString(std::move(Err));
     return true;
   }
 
@@ -1348,12 +1362,9 @@ bool Driver::loadConfigFiles() {
       if (llvm::sys::path::has_parent_path(CfgFileName)) {
         CfgFilePath.assign(CfgFileName);
         if (llvm::sys::path::is_relative(CfgFilePath)) {
-          if (getVFS().makeAbsolute(CfgFilePath))
-            return true;
-          auto Status = getVFS().status(CfgFilePath);
-          if (!Status ||
-              Status->getType() != llvm::sys::fs::file_type::regular_file) {
-            Diag(diag::err_drv_config_file_not_exist) << CfgFilePath;
+          if (getVFS().makeAbsolute(CfgFilePath)) {
+            Diag(diag::err_drv_cannot_open_config_file)
+                << CfgFilePath << "cannot get absolute path";
             return true;
           }
         }
@@ -3177,12 +3188,16 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
   }
 }
 
-static bool runBundler(const SmallVectorImpl<StringRef> &BundlerArgs,
+static bool runBundler(const SmallVectorImpl<StringRef> &InputArgs,
                        Compilation &C) {
   // Find bundler.
   StringRef ExecPath(C.getArgs().MakeArgString(C.getDriver().Dir));
   llvm::ErrorOr<std::string> BundlerBinary =
       llvm::sys::findProgramByName("clang-offload-bundler", ExecPath);
+  SmallVector<StringRef, 6> BundlerArgs;
+  BundlerArgs.push_back(BundlerBinary.getError() ? "clang-offload-bundler"
+                                                 : BundlerBinary.get().c_str());
+  BundlerArgs.append(InputArgs);
   // Since this is run in real time and not in the toolchain, output the
   // command line if requested.
   bool OutputOnly = C.getArgs().hasArg(options::OPT__HASH_HASH_HASH);
@@ -3223,8 +3238,8 @@ static bool hasFPGABinary(Compilation &C, std::string Object, types::ID Type) {
   const char *Inputs = C.getArgs().MakeArgString(Twine("-input=") + Object);
   // Always use -type=ao for aocx/aocr bundle checking.  The 'bundles' are
   // actually archives.
-  SmallVector<StringRef, 6> BundlerArgs = {"clang-offload-bundler", "-type=ao",
-                                           Targets, Inputs, "-check-section"};
+  SmallVector<StringRef, 6> BundlerArgs = {"-type=ao", Targets, Inputs,
+                                           "-check-section"};
   return runBundler(BundlerArgs, C);
 }
 
@@ -3309,8 +3324,7 @@ static bool hasSYCLDefaultSection(Compilation &C, const StringRef &File) {
   const char *Targets =
       C.getArgs().MakeArgString(Twine("-targets=sycl-") + TT.str());
   const char *Inputs = C.getArgs().MakeArgString(Twine("-input=") + File.str());
-  SmallVector<StringRef, 6> BundlerArgs = {"clang-offload-bundler",
-                                           IsArchive ? "-type=ao" : "-type=o",
+  SmallVector<StringRef, 6> BundlerArgs = {IsArchive ? "-type=ao" : "-type=o",
                                            Targets, Inputs, "-check-section"};
   return runBundler(BundlerArgs, C);
 }
@@ -3332,8 +3346,7 @@ static bool hasOffloadSections(Compilation &C, const StringRef &File,
   // of the generic host availability.
   const char *Targets = Args.MakeArgString(Twine("-targets=host-") + TT.str());
   const char *Inputs = Args.MakeArgString(Twine("-input=") + File.str());
-  SmallVector<StringRef, 6> BundlerArgs = {"clang-offload-bundler",
-                                           IsArchive ? "-type=ao" : "-type=o",
+  SmallVector<StringRef, 6> BundlerArgs = {IsArchive ? "-type=ao" : "-type=o",
                                            Targets, Inputs, "-check-section"};
   return runBundler(BundlerArgs, C);
 }
@@ -5259,9 +5272,9 @@ class OffloadingActionBuilder final {
           // Select remangled libclc variant
           std::string LibSpirvTargetName =
               (TC->getAuxTriple()->isOSWindows())
-                  ? "remangled-l32-signed_char.libspirv-nvptx64--nvidiacl."
+                  ? "remangled-l32-signed_char.libspirv-nvptx64-nvidia-cuda."
                     "bc"
-                  : "remangled-l64-signed_char.libspirv-nvptx64--nvidiacl."
+                  : "remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda."
                     "bc";
 
           for (StringRef LibraryPath : LibraryPaths) {

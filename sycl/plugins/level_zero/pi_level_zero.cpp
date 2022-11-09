@@ -3794,8 +3794,10 @@ pi_result piextQueueGetNativeHandle(pi_queue Queue,
   std::shared_lock<pi_shared_mutex> lock(Queue->Mutex);
 
   auto ZeQueue = pi_cast<ze_command_queue_handle_t *>(NativeHandle);
-  // Extract the Level Zero compute queue handle from the given PI queue
-  *ZeQueue = Queue->ComputeQueueGroup.ZeQueues[0];
+
+  // Extract a Level Zero compute queue handle from the given PI queue
+  uint32_t QueueGroupOrdinalUnused;
+  *ZeQueue = Queue->ComputeQueueGroup.getZeQueue(&QueueGroupOrdinalUnused);
   return PI_SUCCESS;
 }
 
@@ -6911,6 +6913,13 @@ pi_result piEnqueueMemBufferCopyRect(
 
 } // extern "C"
 
+// Default to using compute engine for fill operation, but allow to
+// override this with an environment variable.
+static bool PreferCopyEngine = [] {
+  const char *Env = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_FILL");
+  return Env ? std::stoi(Env) != 0 : false;
+}();
+
 // PI interfaces must have queue's and buffer's mutexes locked on entry.
 static pi_result
 enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
@@ -6923,13 +6932,6 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
             PI_ERROR_INVALID_VALUE);
 
   auto &Device = Queue->Device;
-
-  // Default to using compute engine for fill operation, but allow to
-  // override this with an environment variable.
-  const char *PreferCopyEngineEnv =
-      std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_FILL");
-  bool PreferCopyEngine =
-      PreferCopyEngineEnv ? std::stoi(PreferCopyEngineEnv) != 0 : false;
 
   // Make sure that pattern size matches the capability of the copy queues.
   // Check both main and link groups as we don't known which one will be used.

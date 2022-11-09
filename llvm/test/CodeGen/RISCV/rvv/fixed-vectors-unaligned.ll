@@ -132,8 +132,6 @@ define <2 x i64> @mgather_v2i64_align4(<2 x i64*> %ptrs, <2 x i1> %m, <2 x i64> 
 ; RV32-NEXT:    vsetivli zero, 0, e8, mf8, ta, ma
 ; RV32-NEXT:    vmv.x.s a0, v0
 ; RV32-NEXT:    andi a1, a0, 1
-; RV32-NEXT:    vsetivli zero, 2, e32, m1, ta, ma
-; RV32-NEXT:    vmv.v.i v10, 0
 ; RV32-NEXT:    bnez a1, .LBB5_3
 ; RV32-NEXT:  # %bb.1: # %else
 ; RV32-NEXT:    andi a0, a0, 2
@@ -142,26 +140,26 @@ define <2 x i64> @mgather_v2i64_align4(<2 x i64*> %ptrs, <2 x i1> %m, <2 x i64> 
 ; RV32-NEXT:    vmv1r.v v8, v9
 ; RV32-NEXT:    ret
 ; RV32-NEXT:  .LBB5_3: # %cond.load
+; RV32-NEXT:    vsetvli zero, zero, e32, mf2, ta, ma
 ; RV32-NEXT:    vmv.x.s a1, v8
-; RV32-NEXT:    lw a2, 4(a1)
-; RV32-NEXT:    lw a1, 0(a1)
-; RV32-NEXT:    vslide1up.vx v11, v10, a2
-; RV32-NEXT:    vslide1up.vx v12, v11, a1
-; RV32-NEXT:    vsetivli zero, 1, e64, m1, tu, ma
-; RV32-NEXT:    vslideup.vi v9, v12, 0
+; RV32-NEXT:    lw a2, 0(a1)
+; RV32-NEXT:    lw a1, 4(a1)
+; RV32-NEXT:    vsetivli zero, 2, e32, m1, tu, ma
+; RV32-NEXT:    vslide1down.vx v9, v9, a2
+; RV32-NEXT:    vslide1down.vx v9, v9, a1
 ; RV32-NEXT:    andi a0, a0, 2
 ; RV32-NEXT:    beqz a0, .LBB5_2
 ; RV32-NEXT:  .LBB5_4: # %cond.load1
 ; RV32-NEXT:    vsetivli zero, 1, e32, mf2, ta, ma
 ; RV32-NEXT:    vslidedown.vi v8, v8, 1
 ; RV32-NEXT:    vmv.x.s a0, v8
-; RV32-NEXT:    lw a1, 4(a0)
-; RV32-NEXT:    lw a0, 0(a0)
+; RV32-NEXT:    lw a1, 0(a0)
+; RV32-NEXT:    lw a0, 4(a0)
 ; RV32-NEXT:    vsetivli zero, 2, e32, m1, ta, ma
-; RV32-NEXT:    vslide1up.vx v8, v10, a1
-; RV32-NEXT:    vslide1up.vx v10, v8, a0
+; RV32-NEXT:    vslide1down.vx v8, v8, a1
+; RV32-NEXT:    vslide1down.vx v8, v8, a0
 ; RV32-NEXT:    vsetivli zero, 2, e64, m1, tu, ma
-; RV32-NEXT:    vslideup.vi v9, v10, 1
+; RV32-NEXT:    vslideup.vi v9, v8, 1
 ; RV32-NEXT:    vmv1r.v v8, v9
 ; RV32-NEXT:    ret
 ;
@@ -421,13 +419,13 @@ define void @masked_load_v2i32_align1(<2 x i32>* %a, <2 x i32> %m, <2 x i32>* %r
 ; RV32-NEXT:  # %bb.1: # %cond.load
 ; RV32-NEXT:    lbu a3, 1(a0)
 ; RV32-NEXT:    lbu a4, 0(a0)
-; RV32-NEXT:    lbu a5, 3(a0)
-; RV32-NEXT:    lbu a6, 2(a0)
+; RV32-NEXT:    lbu a5, 2(a0)
+; RV32-NEXT:    lbu a6, 3(a0)
 ; RV32-NEXT:    slli a3, a3, 8
 ; RV32-NEXT:    or a3, a3, a4
-; RV32-NEXT:    slli a4, a5, 8
-; RV32-NEXT:    or a4, a4, a6
-; RV32-NEXT:    slli a4, a4, 16
+; RV32-NEXT:    slli a4, a5, 16
+; RV32-NEXT:    slli a5, a6, 24
+; RV32-NEXT:    or a4, a5, a4
 ; RV32-NEXT:    or a3, a4, a3
 ; RV32-NEXT:    vsetivli zero, 2, e32, mf2, ta, ma
 ; RV32-NEXT:    vmv.v.x v8, a3
@@ -442,13 +440,13 @@ define void @masked_load_v2i32_align1(<2 x i32>* %a, <2 x i32> %m, <2 x i32>* %r
 ; RV32-NEXT:  .LBB8_3: # %cond.load1
 ; RV32-NEXT:    lbu a2, 5(a0)
 ; RV32-NEXT:    lbu a3, 4(a0)
-; RV32-NEXT:    lbu a4, 7(a0)
-; RV32-NEXT:    lbu a0, 6(a0)
+; RV32-NEXT:    lbu a4, 6(a0)
+; RV32-NEXT:    lbu a0, 7(a0)
 ; RV32-NEXT:    slli a2, a2, 8
 ; RV32-NEXT:    or a2, a2, a3
-; RV32-NEXT:    slli a3, a4, 8
-; RV32-NEXT:    or a0, a3, a0
-; RV32-NEXT:    slli a0, a0, 16
+; RV32-NEXT:    slli a3, a4, 16
+; RV32-NEXT:    slli a0, a0, 24
+; RV32-NEXT:    or a0, a0, a3
 ; RV32-NEXT:    or a0, a0, a2
 ; RV32-NEXT:    vmv.s.x v9, a0
 ; RV32-NEXT:    vsetvli zero, zero, e32, mf2, tu, ma
@@ -469,13 +467,13 @@ define void @masked_load_v2i32_align1(<2 x i32>* %a, <2 x i32> %m, <2 x i32>* %r
 ; RV64-NEXT:  # %bb.1: # %cond.load
 ; RV64-NEXT:    lbu a3, 1(a0)
 ; RV64-NEXT:    lbu a4, 0(a0)
-; RV64-NEXT:    lb a5, 3(a0)
-; RV64-NEXT:    lbu a6, 2(a0)
+; RV64-NEXT:    lbu a5, 2(a0)
+; RV64-NEXT:    lb a6, 3(a0)
 ; RV64-NEXT:    slli a3, a3, 8
 ; RV64-NEXT:    or a3, a3, a4
-; RV64-NEXT:    slli a4, a5, 8
-; RV64-NEXT:    or a4, a4, a6
-; RV64-NEXT:    slli a4, a4, 16
+; RV64-NEXT:    slli a4, a5, 16
+; RV64-NEXT:    slli a5, a6, 24
+; RV64-NEXT:    or a4, a5, a4
 ; RV64-NEXT:    or a3, a4, a3
 ; RV64-NEXT:    vsetivli zero, 2, e32, mf2, ta, ma
 ; RV64-NEXT:    vmv.v.x v8, a3
@@ -490,13 +488,13 @@ define void @masked_load_v2i32_align1(<2 x i32>* %a, <2 x i32> %m, <2 x i32>* %r
 ; RV64-NEXT:  .LBB8_3: # %cond.load1
 ; RV64-NEXT:    lbu a2, 5(a0)
 ; RV64-NEXT:    lbu a3, 4(a0)
-; RV64-NEXT:    lb a4, 7(a0)
-; RV64-NEXT:    lbu a0, 6(a0)
+; RV64-NEXT:    lbu a4, 6(a0)
+; RV64-NEXT:    lb a0, 7(a0)
 ; RV64-NEXT:    slli a2, a2, 8
 ; RV64-NEXT:    or a2, a2, a3
-; RV64-NEXT:    slli a3, a4, 8
-; RV64-NEXT:    or a0, a3, a0
-; RV64-NEXT:    slli a0, a0, 16
+; RV64-NEXT:    slli a3, a4, 16
+; RV64-NEXT:    slli a0, a0, 24
+; RV64-NEXT:    or a0, a0, a3
 ; RV64-NEXT:    or a0, a0, a2
 ; RV64-NEXT:    vmv.s.x v9, a0
 ; RV64-NEXT:    vsetvli zero, zero, e32, mf2, tu, ma

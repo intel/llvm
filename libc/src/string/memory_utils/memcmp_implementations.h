@@ -94,6 +94,8 @@ inline_memcmp_aarch64_neon_gt16(CPtr p1, CPtr p2, size_t count) {
     align_to_next_boundary<16, Arg::P1>(p1, p2, count);
     return generic::Memcmp<32>::loop_and_tail(p1, p2, count);
   }
+  if (generic::Bcmp<16>::block(p1, p2)) // [16, 16]
+    return generic::Memcmp<16>::block(p1, p2);
   if (count < 32) // [17, 31]
     return generic::Memcmp<16>::tail(p1, p2, count);
   if (generic::Bcmp<16>::block(p1 + 16, p2 + 16)) // [32, 32]
