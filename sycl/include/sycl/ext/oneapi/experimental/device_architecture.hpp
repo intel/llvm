@@ -4,7 +4,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext::intel::experimental {
+namespace ext::oneapi::experimental {
 
 enum class architecture {
   x86_64,
@@ -88,12 +88,12 @@ enum class architecture {
   intel_gpu_12_10_0 = intel_gpu_dg1,
 };
 
-} // namespace ext::intel::experimental
+} // namespace ext::oneapi::experimental
 
 namespace detail {
 
-static constexpr ext::intel::experimental::architecture max_architecture =
-    ext::intel::experimental::architecture::amd_gpu_gfx1032;
+static constexpr ext::oneapi::experimental::architecture max_architecture =
+    ext::oneapi::experimental::architecture::amd_gpu_gfx1032;
 
 #ifndef __SYCL_TARGET_INTEL_X86_64__
 #define __SYCL_TARGET_INTEL_X86_64__ 0
@@ -356,11 +356,11 @@ static constexpr bool is_allowable_aot_mode =
     (__SYCL_TARGET_AMD_GPU_GFX1032__ == 1);
 
 struct IsAOTForArchitectureClass {
-  // Allocate an array of size == size of ext::intel::experimental::architecture
+  // Allocate an array of size == size of ext::oneapi::experimental::architecture
   // enum.
   bool arr[static_cast<int>(max_architecture) + 1];
 
-  using arch = ext::intel::experimental::architecture;
+  using arch = ext::oneapi::experimental::architecture;
 
   constexpr IsAOTForArchitectureClass() : arr() {
     arr[static_cast<int>(arch::x86_64)] = __SYCL_TARGET_INTEL_X86_64__ == 1;
@@ -495,14 +495,14 @@ static constexpr IsAOTForArchitectureClass is_aot_for_architecture;
 
 // Reads the value of "is_allowable_aot_mode" via a template to defer triggering
 // static_assert() until template instantiation time.
-template <ext::intel::experimental::architecture... Archs>
+template <ext::oneapi::experimental::architecture... Archs>
 constexpr static bool allowable_aot_mode() {
   return is_allowable_aot_mode;
 }
 
 // Tells if the current device has one of the architectures in the parameter
 // pack.
-template <ext::intel::experimental::architecture... Archs>
+template <ext::oneapi::experimental::architecture... Archs>
 constexpr static bool device_architecture_is() {
   return (is_aot_for_architecture.arr[static_cast<int>(Archs)] || ...);
 }
@@ -515,7 +515,7 @@ constexpr static bool device_architecture_is() {
 // user's function.
 template <bool MakeCall> class if_architecture_helper {
 public:
-  template <ext::intel::experimental::architecture... Archs, typename T,
+  template <ext::oneapi::experimental::architecture... Archs, typename T,
             typename... Args>
   constexpr auto else_if_architecture_is(T fnTrue, Args... args) {
     if constexpr (MakeCall && device_architecture_is<Archs...>()) {
@@ -536,7 +536,7 @@ public:
 };
 } // namespace detail
 
-namespace ext::intel::experimental {
+namespace ext::oneapi::experimental {
 
 template <architecture... Archs, typename T, typename... Args>
 constexpr static auto if_architecture_is(T fnTrue, Args... args) {
@@ -553,6 +553,6 @@ constexpr static auto if_architecture_is(T fnTrue, Args... args) {
   }
 }
 
-} // namespace ext::intel::experimental
+} // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
