@@ -349,7 +349,11 @@ void tools::gnutools::Linker::constructLLVMARCommand(
     Compilation &C, const JobAction &JA, const InputInfo &Output,
     const InputInfoList &Input, const ArgList &Args) const {
   ArgStringList CmdArgs;
-  CmdArgs.push_back("cr");
+  // Use 'cqL' to create the archive.  This allows for any fat archives that
+  // are passed on the command line to be added via contents instead of the
+  // full archive.  Any usage of the generated archive will then have full
+  // access to resolve any dependencies.
+  CmdArgs.push_back("cqL");
   const char *OutputFilename = Output.getFilename();
   if (llvm::sys::fs::exists(OutputFilename)) {
     C.getDriver().Diag(clang::diag::warn_drv_existing_archive_append)
