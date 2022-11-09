@@ -868,7 +868,7 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
   args.emplace_back(std::make_pair(obj, (clang::Expr *)nullptr));
   for (auto a : cons->arguments())
     args.push_back(std::make_pair(Visit(a), a));
-  CallHelper(tocall, innerType, args,
+  callHelper(tocall, innerType, args,
              /*retType*/ Glob.getCGM().getContext().VoidTy, false, cons,
              ctorDecl);
 
@@ -1038,7 +1038,7 @@ llvm::Optional<sycl::SYCLMethodOpInterface> MLIRScanner::createSYCLMethodOp(
 }
 
 mlir::Operation *
-MLIRScanner::EmitSYCLOps(const clang::Expr *Expr,
+MLIRScanner::emitSYCLOps(const clang::Expr *Expr,
                          const llvm::SmallVectorImpl<mlir::Value> &Args) {
   mlir::Operation *Op = nullptr;
 
