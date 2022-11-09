@@ -18,9 +18,9 @@ void div_(int* sizes) {
 
 // CHECK-LABEL:   func.func @_Z4div_Pi(
 // CHECK-SAME:                         %[[VAL_0:.*]]: memref<?xi32>) attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:       %[[VAL_1:.*]] = arith.constant 1 : i32
-// CHECK-NEXT:       %[[VAL_2:.*]] = arith.constant 0 : i32
-// CHECK-NEXT:       %[[VAL_3:.*]] = arith.constant 1 : i64
+// CHECK-DAG:        %[[VAL_1:.*]] = arith.constant 1 : i32
+// CHECK-DAG:        %[[VAL_2:.*]] = arith.constant 0 : i32
+// CHECK-DAG:        %[[VAL_3:.*]] = arith.constant 1 : i64
 // CHECK-NEXT:       %[[VAL_4:.*]] = llvm.alloca %[[VAL_3]] x !llvm.array<25 x struct<(i32, f64)>> : (i64) -> !llvm.ptr<array<25 x struct<(i32, f64)>>>
 // CHECK-NEXT:       %[[VAL_5:.*]] = memref.get_global @MAX_DIMS : memref<i32>
 // CHECK-NEXT:       %[[VAL_6:.*]] = llvm.getelementptr %[[VAL_4]][0, 0] : (!llvm.ptr<array<25 x struct<(i32, f64)>>>) -> !llvm.ptr<struct<(i32, f64)>>

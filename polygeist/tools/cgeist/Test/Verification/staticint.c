@@ -11,8 +11,8 @@ int adder(int x) {
 
 // CHECK-LABEL:   func.func @adder(
 // CHECK-SAME:                     %[[VAL_0:.*]]: i32) -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:       %[[VAL_1:.*]] = arith.constant false
-// CHECK-NEXT:       %[[VAL_2:.*]] = arith.constant 0 : i32
+// CHECK-DAG:        %[[VAL_1:.*]] = arith.constant false
+// CHECK-DAG:        %[[VAL_2:.*]] = arith.constant 0 : i32
 // CHECK-NEXT:       %[[VAL_3:.*]] = memref.get_global @"adder@static@cur" : memref<i32>
 // CHECK-NEXT:       %[[VAL_4:.*]] = memref.alloca() : memref<1xindex>
 // CHECK-NEXT:       %[[VAL_5:.*]] = memref.reshape %[[VAL_3]](%[[VAL_4]]) : (memref<i32>, memref<1xindex>) -> memref<1xi32>

@@ -12,17 +12,6 @@ void kernel_deriche() {
     run(&local, &local_init, &internal, &internal_init, &external);
 }
 
-// LLVM-DAG: @local = global i32 undef
-// LLVM-DAG: @local_init = global i32 4
-// LLVM-DAG: @internal = private global i32 undef
-// LLVM-DAG: @internal_init = private global i32 5
-// LLVM-DAG: @external = external global i32
-// LLVM-LABAL: define void @kernel_deriche() {
-// LLVM:        call void @run(i32* @local, i32* @local_init, i32* @internal, i32* @internal_init, i32* @external)
-// LLVM-NEXT:   ret void
-// LLVM-NEXT: }
-// LLVM: declare void @run(i32*, i32*, i32*, i32*, i32*)
-
 // CHECK-DAG:   memref.global @external : memref<i32>
 // CHECK-DAG:   memref.global "private" @internal_init : memref<i32> = dense<5>
 // CHECK-DAG:   memref.global "private" @internal : memref<i32> = uninitialized
@@ -52,3 +41,13 @@ void kernel_deriche() {
 // CHECK-NEXT:     call @run(%cast, %cast_2, %cast_5, %cast_8, %cast_11) : (memref<?xi32>, memref<?xi32>, memref<?xi32>, memref<?xi32>, memref<?xi32>) -> ()
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
+
+// LLVM-DAG: @local = global i32 undef
+// LLVM-DAG: @local_init = global i32 4
+// LLVM-DAG: @internal = private global i32 undef
+// LLVM-DAG: @internal_init = private global i32 5
+// LLVM-DAG: @external = external global i32
+// LLVM-LABEL: define void @kernel_deriche() {
+// LLVM:        call void @run(i32* @local, i32* @local_init, i32* @internal, i32* @internal_init, i32* @external)
+// LLVM-NEXT:   ret void
+// LLVM: declare void @run(i32*, i32*, i32*, i32*, i32*)
