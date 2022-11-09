@@ -27,8 +27,10 @@ class CodeGenTypes;
 } // namespace mlirclang
 
 namespace mlir {
+class IntegerAttr;
+class MLIRContext;
 class Type;
-}
+} // namespace mlir
 
 namespace llvm {
 class Type;
@@ -37,11 +39,16 @@ class Type;
 namespace mlirclang {
 
 llvm::Type *anonymize(llvm::Type *T);
+
 bool isRecursiveStruct(llvm::Type *T, llvm::Type *Meta,
                        llvm::SmallPtrSetImpl<llvm::Type *> &Seen);
 
+mlir::IntegerAttr wrapIntegerMemorySpace(unsigned MemorySpace,
+                                         mlir::MLIRContext *Ctx);
+
 mlir::Type getSYCLType(const clang::RecordType *RT,
                        mlirclang::CodeGen::CodeGenTypes &CGT);
+
 llvm::Type *getLLVMType(clang::QualType QT, clang::CodeGen::CodeGenModule &CGM);
 
 } // namespace mlirclang

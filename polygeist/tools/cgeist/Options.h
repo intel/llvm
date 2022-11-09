@@ -65,26 +65,26 @@ public:
     return OptimizationLevel;
   }
 
+  static constexpr const llvm::OptimizationLevel &
+  getDefaultOptimizationLevel() {
+    return llvm::OptimizationLevel::O0;
+  }
+
   static constexpr bool DefaultSYCLIsDeviceOpt = false;
-  static const llvm::OptimizationLevel DefaultOptimizationLevelOpt;
 
 private:
   /// Whether to generate MLIR only for kernels.
   const bool SYCLIsDevice = DefaultSYCLIsDeviceOpt;
+
   /// Optimization level to use.
-  ///
-  /// '-O2' is used by default.
-  const llvm::OptimizationLevel OptimizationLevel = DefaultOptimizationLevelOpt;
+  const llvm::OptimizationLevel OptimizationLevel =
+      getDefaultOptimizationLevel();
 };
 
-const llvm::OptimizationLevel CgeistOptions::DefaultOptimizationLevelOpt =
-    llvm::OptimizationLevel::O0;
+static llvm::cl::OptionCategory ToolOptions("clang to mlir - tool options");
 
-static llvm::cl::OptionCategory toolOptions("clang to mlir - tool options");
-
-static llvm::cl::opt<bool>
-    CudaLower("cuda-lower", llvm::cl::init(false),
-              llvm::cl::desc("Add parallel loops around cuda"));
+llvm::cl::opt<bool> CudaLower("cuda-lower", llvm::cl::init(false),
+                              llvm::cl::desc("Add parallel loops around cuda"));
 
 static llvm::cl::opt<bool> EmitLLVM("emit-llvm", llvm::cl::init(false),
                                     llvm::cl::desc("Emit llvm"));
@@ -153,8 +153,8 @@ static llvm::cl::opt<std::string> Output("o", llvm::cl::init("-"),
                                          llvm::cl::desc("Output file"));
 
 static llvm::cl::opt<std::string>
-    cfunction("function", llvm::cl::desc("<Specify function>"),
-              llvm::cl::init("main"), llvm::cl::cat(toolOptions));
+    Cfunction("function", llvm::cl::desc("<Specify function>"),
+              llvm::cl::init("main"), llvm::cl::cat(ToolOptions));
 
 static llvm::cl::opt<bool> FOpenMP("fopenmp", llvm::cl::init(false),
                                    llvm::cl::desc("Enable OpenMP"));
@@ -180,19 +180,19 @@ static llvm::cl::opt<bool> Verbose("v", llvm::cl::init(false),
                                    llvm::cl::desc("Verbose"));
 
 static llvm::cl::list<std::string>
-    includeDirs("I", llvm::cl::desc("include search path"),
-                llvm::cl::cat(toolOptions));
+    IncludeDirs("I", llvm::cl::desc("include search path"),
+                llvm::cl::cat(ToolOptions));
 
-static llvm::cl::list<std::string> defines("D", llvm::cl::desc("defines"),
-                                           llvm::cl::cat(toolOptions));
+static llvm::cl::list<std::string> Defines("D", llvm::cl::desc("defines"),
+                                           llvm::cl::cat(ToolOptions));
 
 static llvm::cl::list<std::string>
-    Includes("include", llvm::cl::desc("includes"), llvm::cl::cat(toolOptions));
+    Includes("include", llvm::cl::desc("includes"), llvm::cl::cat(ToolOptions));
 
 static llvm::cl::opt<std::string>
     TargetTripleOpt("target", llvm::cl::init(""),
                     llvm::cl::desc("Target triple"),
-                    llvm::cl::cat(toolOptions));
+                    llvm::cl::cat(ToolOptions));
 
 static llvm::cl::opt<int> CanonicalizeIterations(
     "canonicalizeiters", llvm::cl::init(400),
@@ -200,6 +200,6 @@ static llvm::cl::opt<int> CanonicalizeIterations(
 
 static llvm::cl::opt<std::string> McpuOpt("mcpu", llvm::cl::init(""),
                                           llvm::cl::desc("Target CPU"),
-                                          llvm::cl::cat(toolOptions));
+                                          llvm::cl::cat(ToolOptions));
 
 #endif /* CGEIST_OPTIONS_H_ */
