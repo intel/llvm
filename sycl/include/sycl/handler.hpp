@@ -30,7 +30,7 @@
 #include <sycl/nd_item.hpp>
 #include <sycl/nd_range.hpp>
 #include <sycl/property_list.hpp>
-#include <sycl/reduction_fwd.hpp>
+#include <sycl/reduction_forward.hpp>
 #include <sycl/sampler.hpp>
 #include <sycl/stl.hpp>
 

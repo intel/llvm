@@ -18,7 +18,7 @@
 #include <sycl/kernel.hpp>
 #include <sycl/known_identity.hpp>
 #include <sycl/properties/reduction_properties.hpp>
-#include <sycl/reduction_fwd.hpp>
+#include <sycl/reduction_forward.hpp>
 #include <sycl/usm.hpp>
 
 #include <tuple>
