@@ -157,10 +157,12 @@ template <typename ListT, typename FilterT>
 static int filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
                               RT::PiPlatform Platform, ListT *FilterList) {
 
+  constexpr bool is_ods_target = std::is_same_v<FilterT, ods_target>;
   // There are some differences in implementation between SYCL_DEVICE_FILTER
   // and ONEAPI_DEVICE_SELECTOR so we use if constexpr to select the
   // appropriate execution path if we are dealing with the latter variable.
-  if constexpr (std::is_same_v<std::decay_t<ListT>, ods_target_list>) {
+
+  if constexpr (is_ods_target) {
 
     // Since we are working with ods_target filters ,which can be negative,
     // we sort the filters so that all the negative filters appear before
@@ -216,11 +218,9 @@ static int filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
         if (FilterDevType == info::device_type::all) {
           // Last, match the device_num entry
           if (!Filter.DeviceNum || DeviceNum == Filter.DeviceNum.value()) {
-            if constexpr (std::is_same_v<std::decay_t<ListT>,
-                                         ods_target_list>) { // dealing with
-              //  ONEAPI_DEVICE_SELECTOR
-              if (!Blacklist[&Device]) { // check if device is blacklisted
-                if (!Filter.IsNegativeTarget) { // is the filter positive?
+            if constexpr (is_ods_target) {      // dealing with ODS filters
+              if (!Blacklist[&Device]) {        // ensure it is not blacklisted
+                if (!Filter.IsNegativeTarget) { // is filter positive?
                   PiDevices[InsertIDx++] = Device;
                 } else {
                   // Filter is negative and the device matches the filter so
@@ -236,8 +236,7 @@ static int filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
 
         } else if (FilterDevType == DeviceType) {
           if (!Filter.DeviceNum || DeviceNum == Filter.DeviceNum.value()) {
-            if constexpr (std::is_same_v<std::decay_t<ListT>,
-                                         ods_target_list>) {
+            if constexpr (is_ods_target) {
               if (!Blacklist[&Device]) {
                 if (!Filter.IsNegativeTarget) {
                   PiDevices[InsertIDx++] = Device;
