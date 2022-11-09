@@ -27,19 +27,6 @@ class tf32 {
 };
 } // namespace precision
 
-template <typename type, size_t size> class wi_data {
-  marray<type, size> &data;
-  wi_data(marray<type, size> &wi_marray) : data(wi_marray){};
-  template <typename T, use Use, size_t Rows, size_t Cols, layout Layout,
-            typename Group>
-  friend struct joint_matrix;
-
-public:
-  size_t length() { return data.size(); };
-
-  type &operator[](size_t i) { return data[i]; };
-};
-
 } // namespace matrix
 } // namespace experimental
 

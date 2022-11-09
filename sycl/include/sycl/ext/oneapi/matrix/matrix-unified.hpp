@@ -77,6 +77,21 @@ inline __SYCL_ALWAYS_INLINE
                      sycl::ext::oneapi::experimental::matrix::layout::dynamic,
                      Group> &C);
 
+// This overload of wi_data is only returned by joint_matrix.get_wi_data() in
+// the the nvptx backend.
+template <typename type, size_t size> class wi_data {
+  marray<type, size> &data;
+  wi_data(marray<type, size> &wi_marray) : data(wi_marray){};
+  template <typename T, use Use, size_t Rows, size_t Cols, layout Layout,
+            typename Group>
+  friend struct joint_matrix;
+
+public:
+  size_t length() { return data.size(); };
+
+  type &operator[](size_t i) { return data[i]; };
+};
+
 template <typename T, use Use, size_t Rows, size_t Cols, layout Layout,
           typename Group>
 struct joint_matrix {
