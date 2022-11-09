@@ -101,7 +101,7 @@ TEST_F(SchedulerTest, QueueFlushing) {
   detail::Requirement MockReq = getMockRequirement(Buf);
 
   pi_mem PIBuf = nullptr;
-  pi_result Ret = mock_piMemBufferCreate(/*pi_context=*/0x0,
+  pi_result Ret = mock_piMemBufferCreate(/*pi_context=*/0x0, /*pi_device=*/0x0,
                                          PI_MEM_FLAGS_ACCESS_RW, /*size=*/1,
                                          /*host_ptr=*/nullptr, &PIBuf);
   EXPECT_TRUE(Ret == PI_SUCCESS);

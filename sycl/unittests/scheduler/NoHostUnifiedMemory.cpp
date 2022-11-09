@@ -203,7 +203,8 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
   {
     pi_mem MockInteropBuffer = nullptr;
     pi_result PIRes = mock_piMemBufferCreate(
-        /*pi_context=*/0x0, /*pi_mem_flags=*/PI_MEM_FLAGS_ACCESS_RW, /*size=*/1,
+        /*pi_context=*/0x0, /*pi_device=*/0x0,
+        /*pi_mem_flags=*/PI_MEM_FLAGS_ACCESS_RW, /*size=*/1,
         /*host_ptr=*/nullptr, &MockInteropBuffer);
     EXPECT_TRUE(PI_SUCCESS == PIRes);
 
