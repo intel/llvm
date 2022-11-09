@@ -423,10 +423,10 @@ public:
   ValueCategory VisitCallExpr(clang::CallExpr *Expr);
 
   ValueCategory
-  callHelper(mlir::func::FuncOp Tocall, clang::QualType ObjType,
+  callHelper(mlir::func::FuncOp ToCall, clang::QualType ObjType,
              clang::ArrayRef<std::pair<ValueCategory, clang::Expr *>> Arguments,
              clang::QualType RetType, bool RetReference, clang::Expr *Expr,
-             const clang::FunctionDecl *Callee);
+             const clang::FunctionDecl &Callee);
 
   std::pair<ValueCategory, bool>
   emitClangBuiltinCallExpr(clang::CallExpr *Expr);

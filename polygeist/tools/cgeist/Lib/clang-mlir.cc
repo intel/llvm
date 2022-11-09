@@ -3016,8 +3016,7 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
   using Attribute = llvm::Attribute;
 
   const FunctionDecl &FD = FTE.getDecl();
-  const clang::CodeGen::CGFunctionInfo &FI = GetOrCreateCGFunctionInfo(&FD);
-  MLIRContext *ctx = module->getContext();
+  MLIRContext *Ctx = module->getContext();
 
   bool isDeviceContext = (FTE.getContext() == FunctionContext::SYCLDevice);
   if (!isDeviceContext) {
@@ -3025,10 +3024,10 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
                << "Not in a device context - skipping setting attributes for "
                << FD.getNameAsString() << "\n");
 
-    mlirclang::AttrBuilder attrBuilder(*ctx);
+    mlirclang::AttrBuilder attrBuilder(*Ctx);
     LLVM::Linkage lnk = getMLIRLinkage(getLLVMLinkageType(FD, ShouldEmit));
     attrBuilder.addAttribute("llvm.linkage",
-                             mlir::LLVM::LinkageAttr::get(ctx, lnk));
+                             mlir::LLVM::LinkageAttr::get(Ctx, lnk));
 
     // HACK: we want to avoid setting additional attributes on non-sycl
     // functions because we do not want to adjust the test cases at this time
@@ -3044,30 +3043,37 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
 
   mlirclang::AttributeList PAL;
   {
+    const clang::CodeGen::CGFunctionInfo &FI = GetOrCreateCGFunctionInfo(&FD);
     const auto *FPT = FD.getType()->getAs<FunctionProtoType>();
     clang::CodeGen::CGCalleeInfo CalleeInfo(FPT);
 
+    unsigned CallingConv;
     getTypes().constructAttributeList(function.getName(), FI, CalleeInfo, PAL,
-                                      /*AttrOnCallSite=*/false,
+                                      CallingConv,
+                                      /*AttrOnCallSite*/ false,
                                       /*IsThunk*/ false);
 
     // Set additional function attributes that are not derivable from the
     // function declaration.
-    mlirclang::AttrBuilder attrBuilder(*ctx);
+    mlirclang::AttrBuilder attrBuilder(*Ctx);
     {
-      LLVM::Linkage lnk = getMLIRLinkage(getLLVMLinkageType(FD, ShouldEmit));
+      attrBuilder.addAttribute(
+          "llvm.cconv",
+          mlir::LLVM::CConvAttr::get(
+              Ctx, static_cast<mlir::LLVM::cconv::CConv>(CallingConv)));
+
+      LLVM::Linkage Lnk = getMLIRLinkage(getLLVMLinkageType(FD, ShouldEmit));
       attrBuilder.addAttribute("llvm.linkage",
-                               mlir::LLVM::LinkageAttr::get(ctx, lnk));
+                               mlir::LLVM::LinkageAttr::get(Ctx, Lnk));
 
       if (FD.hasAttr<SYCLKernelAttr>())
         attrBuilder.addAttribute(gpu::GPUDialect::getKernelFuncAttrName(),
-                                 UnitAttr::get(ctx));
+                                 UnitAttr::get(Ctx));
 
-      if (CGM.getLangOpts().SYCLIsDevice) {
+      if (CGM.getLangOpts().SYCLIsDevice)
         attrBuilder.addPassThroughAttribute(
             "sycl-module-id",
-            StringAttr::get(ctx, llvmMod.getModuleIdentifier()));
-      }
+            StringAttr::get(Ctx, llvmMod.getModuleIdentifier()));
 
       // If we're in C++ mode and the function name is "main", it is
       // guaranteed to be norecurse by the standard (3.6.1.3 "The function
@@ -3108,8 +3114,8 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
 
   // Set function attributes.
   mlirclang::AttributeList FnAttrs(function->getAttrDictionary(), {}, {});
-  FnAttrs.addFnAttrs(PAL.getFnAttrs(), *ctx);
-  function->setAttrs(FnAttrs.getFnAttrs().getDictionary(ctx));
+  FnAttrs.addFnAttrs(PAL.getFnAttrs(), *Ctx);
+  function->setAttrs(FnAttrs.getFnAttrs().getDictionary(Ctx));
 
   // Set parameters attributes.
   const ArrayRef<NamedAttrList> ParamAttrs = PAL.getParamAttrs();
