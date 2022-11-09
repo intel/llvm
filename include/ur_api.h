@@ -2936,13 +2936,14 @@ urDevicePartition(
 ///         + `nullptr == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `nullptr == Binaries`
+///         + `nullptr == SelectedBinary`
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceSelectBinary(
     ur_device_handle_t hDevice,                     ///< [in] handle of the device to select binary for.
+    const uint8_t** Binaries,                       ///< [in] the array of binaries to select from.
     uint32_t NumBinaries,                           ///< [in] the number of binaries passed in Binaries. Must greater or equal
                                                     ///< than zero.
-    const uint8_t** Binaries,                       ///< [in] the array of binaries to select from.
-    uint32_t SelectedBinary                         ///< [out] the index of the selected binary in the input array of binaries.
+    uint32_t* SelectedBinary                        ///< [out] the index of the selected binary in the input array of binaries.
                                                     ///< If a suitable binary was not found the function returns ${X}_INVALID_BINARY.
     );
 
@@ -6823,9 +6824,9 @@ typedef void (UR_APICALL *ur_pfnDevicePartitionCb_t)(
 typedef struct _ur_device_select_binary_params_t
 {
     ur_device_handle_t* phDevice;
-    uint32_t* pNumBinaries;
     const uint8_t*** pBinaries;
-    uint32_t* pSelectedBinary;
+    uint32_t* pNumBinaries;
+    uint32_t** pSelectedBinary;
 } ur_device_select_binary_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////

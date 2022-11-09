@@ -1804,9 +1804,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urDeviceSelectBinary
 if __use_win_types:
-    _urDeviceSelectBinary_t = WINFUNCTYPE( ur_result_t, ur_device_handle_t, c_ulong, POINTER(c_ubyte*), c_ulong )
+    _urDeviceSelectBinary_t = WINFUNCTYPE( ur_result_t, ur_device_handle_t, POINTER(c_ubyte*), c_ulong, POINTER(c_ulong) )
 else:
-    _urDeviceSelectBinary_t = CFUNCTYPE( ur_result_t, ur_device_handle_t, c_ulong, POINTER(c_ubyte*), c_ulong )
+    _urDeviceSelectBinary_t = CFUNCTYPE( ur_result_t, ur_device_handle_t, POINTER(c_ubyte*), c_ulong, POINTER(c_ulong) )
 
 ###############################################################################
 ## @brief Function-pointer for urDeviceGetNativeHandle

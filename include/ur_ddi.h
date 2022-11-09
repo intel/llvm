@@ -1352,9 +1352,9 @@ typedef ur_result_t (UR_APICALL *ur_pfnDevicePartition_t)(
 /// @brief Function-pointer for urDeviceSelectBinary 
 typedef ur_result_t (UR_APICALL *ur_pfnDeviceSelectBinary_t)(
     ur_device_handle_t,
-    uint32_t,
     const uint8_t**,
-    uint32_t
+    uint32_t,
+    uint32_t*
     );
 
 ///////////////////////////////////////////////////////////////////////////////
