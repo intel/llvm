@@ -343,7 +343,10 @@ void validateUsedAspectsForFunctions(const FunctionToAspectsMapTy &Map,
           AspectValStrs, ',', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
       for (StringRef AspectValStr : AspectValStrs) {
         int AspectVal = -1;
-        assert(!AspectValStr.getAsInteger(10, AspectVal) &&
+        bool AspectValStrConverted = !AspectValStr.getAsInteger(10, AspectVal);
+        // Avoid unused warning when asserts are disabled.
+        std::ignore = AspectValStrConverted;
+        assert(AspectValStrConverted &&
                "Aspect value in sycl-device-has is not an integer.");
         DeviceHasAspectSet.insert(AspectVal);
       }
