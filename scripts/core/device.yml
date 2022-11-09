@@ -206,8 +206,6 @@ etors:
       desc: "char[]: Device profile"
     - name: VERSION
       desc: "char[]: Device version"
-    - name: OPENCL_C_VERSION
-      desc: "char[]: OpenCL C version"
     - name: EXTENSIONS
       desc: "char[]: Return a space separated list of extension names"
     - name: PRINTF_BUFFER_SIZE
