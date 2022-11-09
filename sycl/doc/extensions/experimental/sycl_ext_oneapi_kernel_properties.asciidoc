@@ -8,7 +8,7 @@
 :toc: left
 :encoding: utf-8
 :lang: en
-:dpcpp: DPC++
+:dpcpp: pass:[DPC++]
 
 :blank: pass:[ +]
 
