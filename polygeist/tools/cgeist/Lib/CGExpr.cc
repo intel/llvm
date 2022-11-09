@@ -182,8 +182,9 @@ MLIRScanner::VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *decl) {
 
 /// Construct corresponding MLIR operations to initialize the given value by a
 /// provided InitListExpr.
-mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value toInit,
-                                                           clang::Expr *expr) {
+mlir::Attribute
+MLIRScanner::InitializeValueByInitListExpr(mlir::Value toInit,
+                                           const clang::Expr *expr) {
   // Struct initializan requires an extra 0, since the first index
   // is the pointer index, and then the struct index.
   auto PTT = expr->getType()->getUnqualifiedDesugaredType();
@@ -200,11 +201,11 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value toInit,
 
   // Recursively visit the initialization expression following the linear
   // increment of the memory address.
-  std::function<mlir::DenseElementsAttr(Expr *, mlir::Value, bool)> helper =
-      [&](Expr *expr, mlir::Value toInit,
-          bool inner) -> mlir::DenseElementsAttr {
+  std::function<mlir::DenseElementsAttr(const Expr *, mlir::Value, bool)>
+      helper = [&](const Expr *expr, mlir::Value toInit,
+                   bool inner) -> mlir::DenseElementsAttr {
     Location loc = toInit.getLoc();
-    if (InitListExpr *initListExpr = dyn_cast<InitListExpr>(expr)) {
+    if (const InitListExpr *initListExpr = dyn_cast<InitListExpr>(expr)) {
 
       if (inner) {
         if (auto mt = toInit.getType().dyn_cast<MemRefType>()) {
@@ -330,7 +331,7 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value toInit,
     } else {
       bool isArray = false;
       Glob.getTypes().getMLIRType(expr->getType(), &isArray);
-      ValueCategory sub = Visit(expr);
+      ValueCategory sub = Visit(const_cast<clang::Expr *>(expr));
       ValueCategory(toInit, /*isReference*/ true).store(builder, sub, isArray);
       if (!sub.isReference)
         if (auto mt = toInit.getType().dyn_cast<MemRefType>()) {
@@ -1237,8 +1238,8 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
     // We need to decide where to put the Global.  If we are in a device
     // module, the global should be in the gpu module (which is nested inside
     // another main module).
-    std::pair<mlir::memref::GlobalOp, bool> gv = Glob.GetOrCreateGlobal(
-        VD, /*prefix=*/"", true,
+    std::pair<mlir::memref::GlobalOp, bool> gv = Glob.getOrCreateGlobal(
+        *VD, /*prefix=*/"",
         isa<mlir::gpu::GPUModuleOp>(function->getParentOp())
             ? FunctionContext::SYCLDevice
             : FunctionContext::Host);
