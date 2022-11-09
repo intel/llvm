@@ -403,15 +403,15 @@ params:
       name: hDevice
       desc: |
             [in] handle of the device to select binary for.
-    - type: "uint32_t"
-      name: NumBinaries
-      desc: |
-            [in] the number of binaries passed in Binaries. Must greater or equal than zero.
     - type: "const uint8_t**"
       name: Binaries
       desc: |
             [in] the array of binaries to select from.
     - type: "uint32_t"
+      name: NumBinaries
+      desc: |
+            [in] the number of binaries passed in Binaries. Must greater or equal than zero.
+    - type: "uint32_t*"
       name: SelectedBinary
       desc: |
             [out] the index of the selected binary in the input array of binaries.
