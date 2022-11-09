@@ -698,9 +698,9 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
     }
     params[decl] = ValueCategory(op, /*isReference*/ true);
     if (decl->getInit()) {
-      auto mr = MemRefType::get({1}, builder.getI1Type());
+      auto mr = MemRefType::get({}, builder.getI1Type());
       bool inits[1] = {true};
-      auto rtt = RankedTensorType::get({1}, builder.getI1Type());
+      auto rtt = RankedTensorType::get({}, builder.getI1Type());
       auto init_value = DenseIntElementsAttr::get(rtt, inits);
       OpBuilder gbuilder(builder.getContext());
       gbuilder.setInsertionPointToStart(module->getBody());
@@ -716,15 +716,16 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
 
       auto boolop =
           builder.create<memref::GetGlobalOp>(varLoc, mr, globalOp.getName());
+      mlir::Value V = reshapeRanklessGlobal(boolop);
       auto cond = builder.create<memref::LoadOp>(
-          varLoc, boolop, std::vector<mlir::Value>({getConstantIndex(0)}));
+          varLoc, V, std::vector<mlir::Value>({getConstantIndex(0)}));
 
       auto ifOp = builder.create<scf::IfOp>(varLoc, cond, /*hasElse*/ false);
       block = builder.getInsertionBlock();
       iter = builder.getInsertionPoint();
       builder.setInsertionPointToStart(&ifOp.getThenRegion().back());
       builder.create<memref::StoreOp>(
-          varLoc, builder.create<ConstantIntOp>(varLoc, false, 1), boolop,
+          varLoc, builder.create<ConstantIntOp>(varLoc, false, 1), V,
           std::vector<mlir::Value>({getConstantIndex(0)}));
     }
   } else
