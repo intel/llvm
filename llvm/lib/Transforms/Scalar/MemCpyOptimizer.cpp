@@ -931,6 +931,14 @@ bool MemCpyOptPass::performCallSlotOptzn(Instruction *cpyLoad,
     return false;
   }
 
+  // Code below tries to move the lifetime marker before "C". Check the
+  // correctness of this motion.
+  if (SkippedLifetimeStart && SkippedLifetimeStart->getNumOperands() == 3) {
+    auto *LiveI = cast<Instruction>(SkippedLifetimeStart->getOperand(1));
+    if (!DT->dominates(LiveI, C))
+      return false;
+  }
+
   // Check that accessing the first srcSize bytes of dest will not cause a
   // trap.  Otherwise the transform is invalid since it might cause a trap
   // to occur earlier than it otherwise would.
