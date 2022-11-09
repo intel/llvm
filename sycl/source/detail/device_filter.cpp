@@ -237,10 +237,12 @@ ods_target_list::ods_target_list(const std::string &envStr) {
 // 1. Filter backend is '*' which means ANY backend.
 // 2. Filter backend match exactly with the given 'Backend'
 bool ods_target_list::backendCompatible(backend Backend) {
+  
+  bool isESIMD= Backend == backend::ext_intel_esimd_emulator;
   return std::any_of(
       TargetList.begin(), TargetList.end(), [&](ods_target &Target) {
         backend TargetBackend = Target.Backend.value_or(backend::all);
-        return (TargetBackend == Backend) || (TargetBackend == backend::all);
+        return isESIMD ? (TargetBackend == Backend) : (TargetBackend == Backend) || (TargetBackend == backend::all);
       });
 }
 
