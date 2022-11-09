@@ -840,10 +840,6 @@ zerEnqueueMemBufferWriteRect(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Enqueue a command to copy from a buffer object to another
 /// 
-/// @details
-///     - The source and destination 2D or 3D rectangular regions can have
-///       different shapes.
-/// 
 /// @remarks
 ///   _Analogues_
 ///     - **clEnqueueCopyBuffer**
