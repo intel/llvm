@@ -2321,13 +2321,14 @@ MLIRASTConsumer::getOrCreateGlobal(const ValueDecl &VD, std::string Prefix,
   if (DefKind == VarDecl::Definition || DefKind == VarDecl::TentativeDefinition)
     InitialVal = Builder.getUnitAttr();
 
+  const bool IsConst = VD.getType().isConstQualified();
+
   auto globalOp = Builder.create<mlir::memref::GlobalOp>(
       module->getLoc(), Name, /*sym_visibility*/ mlir::StringAttr(), VarTy,
-      InitialVal, /*constant*/ false, /*alignment*/ nullptr);
+      InitialVal, IsConst, /*alignment*/ nullptr);
 
   // Set the visibility.
-  switch (CGM.getLLVMLinkageVarDefinition(Var,
-                                          /*isConstant*/ false)) {
+  switch (CGM.getLLVMLinkageVarDefinition(Var, IsConst)) {
   case llvm::GlobalValue::LinkageTypes::InternalLinkage:
   case llvm::GlobalValue::LinkageTypes::PrivateLinkage:
     SymbolTable::setSymbolVisibility(globalOp,
