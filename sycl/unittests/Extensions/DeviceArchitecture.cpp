@@ -8,7 +8,7 @@
 
 #include <gtest/gtest.h>
 
-// define one of __SYCL_TARGET_INTEL_*** macro, e.g., the one for SKL
+// define one of __SYCL_TARGET_ macro, e.g., the one for SKL
 #define __SYCL_TARGET_INTEL_GPU_SKL__ 1
 
 #include <sycl/ext/intel/experimental/device_architecture.hpp>

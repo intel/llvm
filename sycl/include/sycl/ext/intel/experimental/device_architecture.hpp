@@ -30,6 +30,48 @@ enum class architecture {
   intel_gpu_acm_g11,
   intel_gpu_acm_g12,
   intel_gpu_pvc,
+  // NVIDIA architectures
+  nvidia_gpu_sm20,
+  nvidia_gpu_sm30,
+  nvidia_gpu_sm32,
+  nvidia_gpu_sm35,
+  nvidia_gpu_sm37,
+  nvidia_gpu_sm50,
+  nvidia_gpu_sm52,
+  nvidia_gpu_sm53,
+  nvidia_gpu_sm60,
+  nvidia_gpu_sm61,
+  nvidia_gpu_sm62,
+  nvidia_gpu_sm70,
+  nvidia_gpu_sm72,
+  nvidia_gpu_sm75,
+  nvidia_gpu_sm80,
+  nvidia_gpu_sm86,
+  nvidia_gpu_sm87,
+  nvidia_gpu_sm89,
+  nvidia_gpu_sm90,
+  // AMD architectures
+  amd_gpu_gfx700,
+  amd_gpu_gfx701,
+  amd_gpu_gfx702,
+  amd_gpu_gfx801,
+  amd_gpu_gfx802,
+  amd_gpu_gfx803,
+  amd_gpu_gfx805,
+  amd_gpu_gfx810,
+  amd_gpu_gfx900,
+  amd_gpu_gfx902,
+  amd_gpu_gfx904,
+  amd_gpu_gfx906,
+  amd_gpu_gfx908,
+  amd_gpu_gfx90a,
+  amd_gpu_gfx1010,
+  amd_gpu_gfx1011,
+  amd_gpu_gfx1012,
+  amd_gpu_gfx1013,
+  amd_gpu_gfx1030,
+  amd_gpu_gfx1031,
+  amd_gpu_gfx1032,
   // Update "detail::max_architecture" below if you add new elements here!
   intel_gpu_8_0_0 = intel_gpu_bdw,
   intel_gpu_9_0_9 = intel_gpu_skl,
@@ -51,7 +93,7 @@ enum class architecture {
 namespace detail {
 
 static constexpr ext::intel::experimental::architecture max_architecture =
-    ext::intel::experimental::architecture::intel_gpu_pvc;
+    ext::intel::experimental::architecture::amd_gpu_gfx1032;
 
 #ifndef __SYCL_TARGET_INTEL_X86_64__
 #define __SYCL_TARGET_INTEL_X86_64__ 0
@@ -122,6 +164,126 @@ static constexpr ext::intel::experimental::architecture max_architecture =
 #ifndef __SYCL_TARGET_INTEL_GPU_PVC__
 #define __SYCL_TARGET_INTEL_GPU_PVC__ 0
 #endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM20__
+#define __SYCL_TARGET_NVIDIA_GPU_SM20__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM30__
+#define __SYCL_TARGET_NVIDIA_GPU_SM30__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM32__
+#define __SYCL_TARGET_NVIDIA_GPU_SM32__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM35__
+#define __SYCL_TARGET_NVIDIA_GPU_SM35__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM37__
+#define __SYCL_TARGET_NVIDIA_GPU_SM37__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM50__
+#define __SYCL_TARGET_NVIDIA_GPU_SM50__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM52__
+#define __SYCL_TARGET_NVIDIA_GPU_SM52__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM53__
+#define __SYCL_TARGET_NVIDIA_GPU_SM53__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM60__
+#define __SYCL_TARGET_NVIDIA_GPU_SM60__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM61__
+#define __SYCL_TARGET_NVIDIA_GPU_SM61__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM62__
+#define __SYCL_TARGET_NVIDIA_GPU_SM62__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM70__
+#define __SYCL_TARGET_NVIDIA_GPU_SM70__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM72__
+#define __SYCL_TARGET_NVIDIA_GPU_SM72__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM75__
+#define __SYCL_TARGET_NVIDIA_GPU_SM75__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM80__
+#define __SYCL_TARGET_NVIDIA_GPU_SM80__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM86__
+#define __SYCL_TARGET_NVIDIA_GPU_SM86__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM87__
+#define __SYCL_TARGET_NVIDIA_GPU_SM87__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM89__
+#define __SYCL_TARGET_NVIDIA_GPU_SM89__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM90__
+#define __SYCL_TARGET_NVIDIA_GPU_SM90__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX700__
+#define __SYCL_TARGET_AMD_GPU_GFX700__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX701__
+#define __SYCL_TARGET_AMD_GPU_GFX701__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX702__
+#define __SYCL_TARGET_AMD_GPU_GFX702__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX801__
+#define __SYCL_TARGET_AMD_GPU_GFX801__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX802__
+#define __SYCL_TARGET_AMD_GPU_GFX802__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX803__
+#define __SYCL_TARGET_AMD_GPU_GFX803__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX805__
+#define __SYCL_TARGET_AMD_GPU_GFX805__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX810__
+#define __SYCL_TARGET_AMD_GPU_GFX810__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX900__
+#define __SYCL_TARGET_AMD_GPU_GFX900__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX902__
+#define __SYCL_TARGET_AMD_GPU_GFX902__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX904__
+#define __SYCL_TARGET_AMD_GPU_GFX904__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX906__
+#define __SYCL_TARGET_AMD_GPU_GFX906__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX908__
+#define __SYCL_TARGET_AMD_GPU_GFX908__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX90A__
+#define __SYCL_TARGET_AMD_GPU_GFX90A__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX1010__
+#define __SYCL_TARGET_AMD_GPU_GFX1010__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX1011__
+#define __SYCL_TARGET_AMD_GPU_GFX1011__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX1012__
+#define __SYCL_TARGET_AMD_GPU_GFX1012__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX1013__
+#define __SYCL_TARGET_AMD_GPU_GFX1013__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX1030__
+#define __SYCL_TARGET_AMD_GPU_GFX1030__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX1031__
+#define __SYCL_TARGET_AMD_GPU_GFX1031__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX1032__
+#define __SYCL_TARGET_AMD_GPU_GFX1032__ 0
+#endif
 
 // This is true when the translation unit is compiled in AOT mode with target
 // names that supports the "if_architecture_is" features.  If an unsupported
@@ -151,7 +313,47 @@ static constexpr bool is_allowable_aot_mode =
     (__SYCL_TARGET_INTEL_GPU_ACM_G10__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_ACM_G11__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_ACM_G12__ == 1) ||
-    (__SYCL_TARGET_INTEL_GPU_PVC__ == 1);
+    (__SYCL_TARGET_INTEL_GPU_PVC__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM20__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM30__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM32__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM35__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM37__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM50__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM52__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM53__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM60__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM61__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM62__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM70__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM72__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM75__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM80__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM86__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM87__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM89__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM90__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX700__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX701__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX702__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX801__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX802__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX803__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX805__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX810__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX900__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX902__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX904__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX906__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX908__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX90A__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX1010__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX1011__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX1012__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX1013__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX1030__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX1031__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX1032__ == 1);
 
 struct IsAOTForArchitectureClass {
   // Allocate an array of size == size of ext::intel::experimental::architecture
@@ -206,6 +408,84 @@ struct IsAOTForArchitectureClass {
         __SYCL_TARGET_INTEL_GPU_ACM_G12__ == 1;
     arr[static_cast<int>(arch::intel_gpu_pvc)] =
         __SYCL_TARGET_INTEL_GPU_PVC__ == 1;
+    arr[static_cast<int>(arch::nvidia_gpu_sm20)] =
+        __SYCL_TARGET_NVIDIA_GPU_SM20__ == 1;
+    arr[static_cast<int>(arch::nvidia_gpu_sm30)] =
+        __SYCL_TARGET_NVIDIA_GPU_SM30__ == 1;
+    arr[static_cast<int>(arch::nvidia_gpu_sm32)] =
+        __SYCL_TARGET_NVIDIA_GPU_SM32__ == 1;
+    arr[static_cast<int>(arch::nvidia_gpu_sm35)] =
+        __SYCL_TARGET_NVIDIA_GPU_SM35__ == 1;
+    arr[static_cast<int>(arch::nvidia_gpu_sm37)] =
+        __SYCL_TARGET_NVIDIA_GPU_SM37__ == 1;
+    arr[static_cast<int>(arch::nvidia_gpu_sm50)] =
+        __SYCL_TARGET_NVIDIA_GPU_SM50__ == 1;
+    arr[static_cast<int>(arch::nvidia_gpu_sm52)] =
+        __SYCL_TARGET_NVIDIA_GPU_SM52__ == 1;
+    arr[static_cast<int>(arch::nvidia_gpu_sm53)] =
+        __SYCL_TARGET_NVIDIA_GPU_SM53__ == 1;
+    arr[static_cast<int>(arch::nvidia_gpu_sm60)] =
+        __SYCL_TARGET_NVIDIA_GPU_SM60__ == 1;
+    arr[static_cast<int>(arch::nvidia_gpu_sm61)] =
+        __SYCL_TARGET_NVIDIA_GPU_SM61__ == 1;
+    arr[static_cast<int>(arch::nvidia_gpu_sm62)] =
+        __SYCL_TARGET_NVIDIA_GPU_SM62__ == 1;
+    arr[static_cast<int>(arch::nvidia_gpu_sm70)] =
+        __SYCL_TARGET_NVIDIA_GPU_SM70__ == 1;
+    arr[static_cast<int>(arch::nvidia_gpu_sm72)] =
+        __SYCL_TARGET_NVIDIA_GPU_SM72__ == 1;
+    arr[static_cast<int>(arch::nvidia_gpu_sm75)] =
+        __SYCL_TARGET_NVIDIA_GPU_SM75__ == 1;
+    arr[static_cast<int>(arch::nvidia_gpu_sm80)] =
+        __SYCL_TARGET_NVIDIA_GPU_SM80__ == 1;
+    arr[static_cast<int>(arch::nvidia_gpu_sm86)] =
+        __SYCL_TARGET_NVIDIA_GPU_SM86__ == 1;
+    arr[static_cast<int>(arch::nvidia_gpu_sm87)] =
+        __SYCL_TARGET_NVIDIA_GPU_SM87__ == 1;
+    arr[static_cast<int>(arch::nvidia_gpu_sm89)] =
+        __SYCL_TARGET_NVIDIA_GPU_SM89__ == 1;
+    arr[static_cast<int>(arch::nvidia_gpu_sm90)] =
+        __SYCL_TARGET_NVIDIA_GPU_SM90__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx700)] =
+        __SYCL_TARGET_AMD_GPU_GFX700__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx701)] =
+        __SYCL_TARGET_AMD_GPU_GFX701__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx702)] =
+        __SYCL_TARGET_AMD_GPU_GFX702__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx801)] =
+        __SYCL_TARGET_AMD_GPU_GFX801__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx802)] =
+        __SYCL_TARGET_AMD_GPU_GFX802__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx803)] =
+        __SYCL_TARGET_AMD_GPU_GFX803__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx805)] =
+        __SYCL_TARGET_AMD_GPU_GFX805__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx810)] =
+        __SYCL_TARGET_AMD_GPU_GFX810__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx900)] =
+        __SYCL_TARGET_AMD_GPU_GFX900__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx902)] =
+        __SYCL_TARGET_AMD_GPU_GFX902__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx904)] =
+        __SYCL_TARGET_AMD_GPU_GFX904__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx906)] =
+        __SYCL_TARGET_AMD_GPU_GFX906__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx908)] =
+        __SYCL_TARGET_AMD_GPU_GFX908__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx90a)] =
+        __SYCL_TARGET_AMD_GPU_GFX90A__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx1010)] =
+        __SYCL_TARGET_AMD_GPU_GFX1010__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx1011)] =
+        __SYCL_TARGET_AMD_GPU_GFX1011__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx1012)] =
+        __SYCL_TARGET_AMD_GPU_GFX1012__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx1030)] =
+        __SYCL_TARGET_AMD_GPU_GFX1030__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx1031)] =
+        __SYCL_TARGET_AMD_GPU_GFX1031__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx1032)] =
+        __SYCL_TARGET_AMD_GPU_GFX1032__ == 1;
   }
 };
 
@@ -263,7 +543,7 @@ constexpr static auto if_architecture_is(T fnTrue, Args... args) {
   static_assert(detail::allowable_aot_mode<Archs...>(),
                 "The if_architecture_is function may only be used when AOT "
                 "compiling with '-fsycl-targets=spir64_x86_64' or "
-                "'-fsycl-targets=intel_gpu_*'");
+                "'-fsycl-targets=*_gpu_*'");
   if constexpr (detail::device_architecture_is<Archs...>()) {
     fnTrue(args...);
     return detail::if_architecture_helper<false>{};
