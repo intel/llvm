@@ -312,6 +312,24 @@ sycl::half2 hfma2_relu(sycl::half2 x, sycl::half2 y, sycl::half2 z) {
 sycl::half habs(sycl::half x) { return sycl::fabs(x); }
 
 sycl::half2 habs2(sycl::half2 x) { return sycl::fabs(x); }
+
+sycl::half2 float22half2_rn(sycl::float2 x) {
+  return x.convert<sycl::half, sycl::rounding_mode::rte>();
+}
+
+sycl::half2 half2half2(sycl::half x) { return sycl::half2{x, x}; }
+
+sycl::half2 halves2half2(sycl::half x, sycl::half y) {
+  return sycl::half2{x, y};
+}
+
+sycl::half2 floats2half2_rn(float x, float y) {
+  return sycl::float2{x, y}.convert<sycl::half, sycl::rounding_mode::rte>();
+}
+
+sycl::float2 half22float2(sycl::half2 x) {
+  return x.convert<float, sycl::rounding_mode::automatic>();
+}
 } // namespace math
 } // namespace intel
 } // namespace ext
