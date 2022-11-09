@@ -51,10 +51,6 @@ change incompatibly in future versions of DPC\\++ without prior notice.
 *Shipping software products should not rely on APIs defined in this
 specification.*
 
-== Version
-
-Revision: 1
-
 == Contributors
 
 Jessica Davies, Intel +
@@ -528,13 +524,3 @@ would increase implementation complexity.
 //--
 //*RESOLUTION*: Not resolved.
 //--
-
-== Revision History
-
-[cols="5,15,15,70"]
-[grid="rows"]
-[options="header"]
-|========================================
-|Rev|Date|Author|Changes
-|1|2021-08-06|John Pennycook|*Initial public working draft*
-|========================================
