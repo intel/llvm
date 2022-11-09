@@ -350,6 +350,8 @@ private:
                      llvm::Optional<mlir::Type> returnType,
                      llvm::StringRef mangledFunctionName);
 
+  mlir::Value prepareGlobal(mlir::memref::GetGlobalOp GV, clang::ValueDecl *VD);
+
 public:
   MLIRScanner(MLIRASTConsumer &Glob, mlir::OwningOpRef<mlir::ModuleOp> &module,
               LowerToInfo &LTInfo);

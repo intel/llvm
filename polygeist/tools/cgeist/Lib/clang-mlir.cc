@@ -692,18 +692,9 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
       auto gv =
           Glob.GetOrCreateGlobal(decl, (function.getName() + "@static@").str(),
                                  /*tryInit*/ false);
-      op = abuilder.create<memref::GetGlobalOp>(varLoc, gv.first.getType(),
-                                                gv.first.getName());
-      MemRefType mt = op.getType().cast<MemRefType>();
-      if (mt.getShape().empty()) {
-        auto Shape = builder.create<memref::AllocaOp>(
-            loc, mlir::MemRefType::get(
-                     1, mlir::IndexType::get(builder.getContext())));
-        mt = mlir::MemRefType::get(1, mt.getElementType(),
-                                   MemRefLayoutAttrInterface(),
-                                   mt.getMemorySpace());
-        op = builder.create<memref::ReshapeOp>(loc, mt, op, Shape);
-      }
+      auto gv2 = abuilder.create<memref::GetGlobalOp>(
+          varLoc, gv.first.getType(), gv.first.getName());
+      op = prepareGlobal(gv2, decl);
     }
     params[decl] = ValueCategory(op, /*isReference*/ true);
     if (decl->getInit()) {
@@ -2329,6 +2320,23 @@ mlir::Value MLIRScanner::GetAddressOfBaseClass(
   }
 
   return value;
+}
+
+mlir::Value MLIRScanner::prepareGlobal(mlir::memref::GetGlobalOp GV,
+                                       ValueDecl *VD) {
+  mlir::Value V = castToMemSpace(
+      GV, Glob.getCGM().getContext().getTargetAddressSpace(VD->getType()));
+  MemRefType mt = V.getType().cast<MemRefType>();
+  if (mt.getShape().empty()) {
+    auto Shape = builder.create<memref::AllocaOp>(
+        loc,
+        mlir::MemRefType::get(1, mlir::IndexType::get(builder.getContext())));
+    mt =
+        mlir::MemRefType::get(1, mt.getElementType(),
+                              MemRefLayoutAttrInterface(), mt.getMemorySpace());
+    V = builder.create<memref::ReshapeOp>(loc, mt, V, Shape);
+  }
+  return V;
 }
 
 /******************************************************************************/
