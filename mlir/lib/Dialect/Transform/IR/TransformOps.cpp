@@ -10,11 +10,13 @@
 #include "mlir/Dialect/PDL/IR/PDLOps.h"
 #include "mlir/Dialect/Transform/IR/TransformDialect.h"
 #include "mlir/Dialect/Transform/IR/TransformInterfaces.h"
+#include "mlir/Dialect/Transform/IR/TransformTypes.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "mlir/Rewrite/FrozenRewritePatternSet.h"
 #include "mlir/Rewrite/PatternApplicator.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/Support/Debug.h"
 
@@ -22,16 +24,6 @@
 #define DBGS() (llvm::dbgs() << "[" DEBUG_TYPE "] ")
 
 using namespace mlir;
-
-static ParseResult parsePDLOpTypedResults(
-    OpAsmParser &parser, SmallVectorImpl<Type> &types,
-    const SmallVectorImpl<OpAsmParser::UnresolvedOperand> &handles) {
-  types.resize(handles.size(), pdl::OperationType::get(parser.getContext()));
-  return success();
-}
-
-static void printPDLOpTypedResults(OpAsmPrinter &, Operation *, TypeRange,
-                                   ValueRange) {}
 
 #define GET_OP_CLASSES
 #include "mlir/Dialect/Transform/IR/TransformOps.cpp.inc"
@@ -185,17 +177,16 @@ transform::AlternativesOp::apply(transform::TransformResults &results,
 
   for (Operation *original : originals) {
     if (original->isAncestor(getOperation())) {
-      InFlightDiagnostic diag =
-          emitError() << "scope must not contain the transforms being applied";
+      auto diag = emitDefiniteFailure()
+                  << "scope must not contain the transforms being applied";
       diag.attachNote(original->getLoc()) << "scope";
-      return DiagnosedSilenceableFailure::definiteFailure();
+      return diag;
     }
     if (!original->hasTrait<OpTrait::IsIsolatedFromAbove>()) {
-      InFlightDiagnostic diag =
-          emitError()
-          << "only isolated-from-above ops can be alternative scopes";
+      auto diag = emitDefiniteFailure()
+                  << "only isolated-from-above ops can be alternative scopes";
       diag.attachNote(original->getLoc()) << "scope";
-      return DiagnosedSilenceableFailure(std::move(diag));
+      return diag;
     }
   }
 
@@ -253,13 +244,6 @@ transform::AlternativesOp::apply(transform::TransformResults &results,
 LogicalResult transform::AlternativesOp::verify() {
   for (Region &alternative : getAlternatives()) {
     Block &block = alternative.front();
-    if (block.getNumArguments() != 1 ||
-        !block.getArgument(0).getType().isa<pdl::OperationType>()) {
-      return emitOpError()
-             << "expects region blocks to have one operand of type "
-             << pdl::OperationType::get(getContext());
-    }
-
     Operation *terminator = block.getTerminator();
     if (terminator->getOperands().getTypes() != getResults().getTypes()) {
       InFlightDiagnostic diag = emitOpError()
@@ -271,6 +255,35 @@ LogicalResult transform::AlternativesOp::verify() {
   }
 
   return success();
+}
+
+//===----------------------------------------------------------------------===//
+// ForeachOp
+//===----------------------------------------------------------------------===//
+
+DiagnosedSilenceableFailure
+transform::CastOp::applyToOne(Operation *target,
+                              SmallVectorImpl<Operation *> &results,
+                              transform::TransformState &state) {
+  results.push_back(target);
+  return DiagnosedSilenceableFailure::success();
+}
+
+void transform::CastOp::getEffects(
+    SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+  onlyReadsPayload(effects);
+  consumesHandle(getInput(), effects);
+  producesHandle(getOutput(), effects);
+}
+
+bool transform::CastOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
+  assert(inputs.size() == 1 && "expected one input");
+  assert(outputs.size() == 1 && "expected one output");
+  return llvm::all_of(
+      std::initializer_list<Type>{inputs.front(), outputs.front()},
+      [](Type ty) {
+        return ty.isa<pdl::OperationType, transform::TransformTypeInterface>();
+      });
 }
 
 //===----------------------------------------------------------------------===//
@@ -358,8 +371,9 @@ LogicalResult transform::ForeachOp::verify() {
     return emitOpError() << "expects the same number of results as the "
                             "terminator has operands";
   for (Value v : yieldOp.getOperands())
-    if (!v.getType().isa<pdl::OperationType>())
-      return yieldOp->emitOpError("expects only PDL_Operation operands");
+    if (!v.getType().isa<TransformTypeInterface>())
+      return yieldOp->emitOpError(
+          "expects operands to have types implementing TransformTypeInterface");
   return success();
 }
 
@@ -383,6 +397,36 @@ DiagnosedSilenceableFailure transform::GetClosestIsolatedParentOp::apply(
     parents.insert(parent);
   }
   results.set(getResult().cast<OpResult>(), parents.getArrayRef());
+  return DiagnosedSilenceableFailure::success();
+}
+
+//===----------------------------------------------------------------------===//
+// GetProducerOfOperand
+//===----------------------------------------------------------------------===//
+
+DiagnosedSilenceableFailure
+transform::GetProducerOfOperand::apply(transform::TransformResults &results,
+                                       transform::TransformState &state) {
+  int64_t operandNumber = getOperandNumber();
+  SmallVector<Operation *> producers;
+  for (Operation *target : state.getPayloadOps(getTarget())) {
+    Operation *producer =
+        target->getNumOperands() <= operandNumber
+            ? nullptr
+            : target->getOperand(operandNumber).getDefiningOp();
+    if (!producer) {
+      DiagnosedSilenceableFailure diag =
+          emitSilenceableError()
+          << "could not find a producer for operand number: " << operandNumber
+          << " of " << *target;
+      diag.attachNote(target->getLoc()) << "target op";
+      results.set(getResult().cast<OpResult>(),
+                  SmallVector<mlir::Operation *>{});
+      return diag;
+    }
+    producers.push_back(producer);
+  }
+  results.set(getResult().cast<OpResult>(), producers);
   return DiagnosedSilenceableFailure::success();
 }
 
@@ -425,6 +469,46 @@ OpFoldResult transform::MergeHandlesOp::fold(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
+// SplitHandlesOp
+//===----------------------------------------------------------------------===//
+
+DiagnosedSilenceableFailure
+transform::SplitHandlesOp::apply(transform::TransformResults &results,
+                                 transform::TransformState &state) {
+  int64_t numResultHandles =
+      getHandle() ? state.getPayloadOps(getHandle()).size() : 0;
+  int64_t expectedNumResultHandles = getNumResultHandles();
+  if (numResultHandles != expectedNumResultHandles) {
+    // Failing case needs to propagate gracefully for both suppress and
+    // propagate modes.
+    for (int64_t idx = 0; idx < expectedNumResultHandles; ++idx)
+      results.set(getResults()[idx].cast<OpResult>(), {});
+    // Empty input handle corner case: always propagates empty handles in both
+    // suppress and propagate modes.
+    if (numResultHandles == 0)
+      return DiagnosedSilenceableFailure::success();
+    // If the input handle was not empty and the number of result handles does
+    // not match, this is a legit silenceable error.
+    return emitSilenceableError()
+           << getHandle() << " expected to contain " << expectedNumResultHandles
+           << " operation handles but it only contains " << numResultHandles
+           << " handles";
+  }
+  // Normal successful case.
+  for (const auto &en : llvm::enumerate(state.getPayloadOps(getHandle())))
+    results.set(getResults()[en.index()].cast<OpResult>(), en.value());
+  return DiagnosedSilenceableFailure::success();
+}
+
+void transform::SplitHandlesOp::getEffects(
+    SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+  consumesHandle(getHandle(), effects);
+  producesHandle(getResults(), effects);
+  // There are no effects on the Payload IR as this is only a handle
+  // manipulation.
+}
+
+//===----------------------------------------------------------------------===//
 // PDLMatchOp
 //===----------------------------------------------------------------------===//
 
@@ -438,12 +522,19 @@ transform::PDLMatchOp::apply(transform::TransformResults &results,
   for (Operation *root : state.getPayloadOps(getRoot())) {
     if (failed(extension->findAllMatches(
             getPatternName().getLeafReference().getValue(), root, targets))) {
-      emitOpError() << "could not find pattern '" << getPatternName() << "'";
-      return DiagnosedSilenceableFailure::definiteFailure();
+      emitDefiniteFailure()
+          << "could not find pattern '" << getPatternName() << "'";
     }
   }
   results.set(getResult().cast<OpResult>(), targets);
   return DiagnosedSilenceableFailure::success();
+}
+
+void transform::PDLMatchOp::getEffects(
+    SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+  onlyReadsHandle(getRoot(), effects);
+  producesHandle(getMatched(), effects);
+  onlyReadsPayload(effects);
 }
 
 //===----------------------------------------------------------------------===//
@@ -489,8 +580,14 @@ transform::SequenceOp::apply(transform::TransformResults &results,
   for (Operation &transform : getBodyBlock()->without_terminator()) {
     DiagnosedSilenceableFailure result =
         state.applyTransform(cast<TransformOpInterface>(transform));
-    if (!result.succeeded())
+    if (result.isDefiniteFailure())
       return result;
+
+    if (result.isSilenceableFailure()) {
+      if (getFailurePropagationMode() == FailurePropagationMode::Propagate)
+        return result;
+      (void)result.silence();
+    }
   }
 
   // Forward the operation mapping for values yielded from the sequence to the
@@ -709,4 +806,38 @@ LogicalResult transform::WithPDLPatternsOp::verify() {
   }
 
   return success();
+}
+
+//===----------------------------------------------------------------------===//
+// PrintOp
+//===----------------------------------------------------------------------===//
+
+DiagnosedSilenceableFailure
+transform::PrintOp::apply(transform::TransformResults &results,
+                          transform::TransformState &state) {
+  llvm::errs() << "[[[ IR printer: ";
+  if (getName().has_value())
+    llvm::errs() << *getName() << " ";
+
+  if (!getTarget()) {
+    llvm::errs() << "top-level ]]]\n" << *state.getTopLevel() << "\n";
+    return DiagnosedSilenceableFailure::success();
+  }
+
+  llvm::errs() << "]]]\n";
+  ArrayRef<Operation *> targets = state.getPayloadOps(getTarget());
+  for (Operation *target : targets)
+    llvm::errs() << *target << "\n";
+
+  return DiagnosedSilenceableFailure::success();
+}
+
+void transform::PrintOp::getEffects(
+    SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+  onlyReadsHandle(getTarget(), effects);
+  onlyReadsPayload(effects);
+
+  // There is no resource for stderr file descriptor, so just declare print
+  // writes into the default resource.
+  effects.emplace_back(MemoryEffects::Write::get());
 }

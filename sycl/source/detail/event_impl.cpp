@@ -60,25 +60,27 @@ event_impl::~event_impl() {
 
 void event_impl::waitInternal() {
   if (!MHostEvent && MEvent) {
+    // Wait for the native event
     getPlugin().call<PiApiKind::piEventsWait>(1, &MEvent);
-    return;
-  }
-
-  if (MState == HES_Discarded)
+  } else if (MState == HES_Discarded) {
+    // Waiting for the discarded event is invalid
     throw sycl::exception(
         make_error_code(errc::invalid),
         "waitInternal method cannot be used for a discarded event.");
+  } else if (MState != HES_Complete) {
+    // Wait for the host event
+    std::unique_lock<std::mutex> lock(MMutex);
+    cv.wait(lock, [this] { return MState == HES_Complete; });
+  }
 
-  if (MState == HES_Complete)
-    return;
-
-  std::unique_lock lock(MMutex);
-  cv.wait(lock, [this] { return MState == HES_Complete; });
+  // Wait for connected events(e.g. streams prints)
+  for (const EventImplPtr &Event : MPostCompleteEvents)
+    Event->wait(Event);
 }
 
 void event_impl::setComplete() {
   if (MHostEvent || !MEvent) {
-    std::unique_lock lock(MMutex);
+    std::unique_lock<std::mutex> lock(MMutex);
 #ifndef NDEBUG
     int Expected = HES_NotComplete;
     int Desired = HES_Complete;
@@ -116,10 +118,6 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
   MContext = Context;
   MIsContextInitialized = true;
 }
-
-event_impl::event_impl(std::optional<HostEventState> State)
-    : MIsInitialized(false), MHostEvent(State), MIsFlushed(true),
-      MState(State.value_or(HES_Complete)) {}
 
 event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
     : MIsContextInitialized(true), MEvent(Event),
@@ -240,27 +238,10 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self) {
 
 void event_impl::wait_and_throw(
     std::shared_ptr<sycl::detail::event_impl> Self) {
-  Scheduler &Sched = Scheduler::getInstance();
-
-  QueueImplPtr submittedQueue = nullptr;
-  {
-    Scheduler::ReadLockT Lock(Sched.MGraphLock);
-    Command *Cmd = static_cast<Command *>(Self->getCommand());
-    if (Cmd)
-      submittedQueue = Cmd->getSubmittedQueue();
-  }
   wait(Self);
 
-  {
-    Scheduler::ReadLockT Lock(Sched.MGraphLock);
-    for (auto &EventImpl : getWaitList()) {
-      Command *Cmd = (Command *)EventImpl->getCommand();
-      if (Cmd)
-        Cmd->getSubmittedQueue()->throw_asynchronous();
-    }
-  }
-  if (submittedQueue)
-    submittedQueue->throw_asynchronous();
+  if (QueueImplPtr SubmittedQueue = MSubmittedQueue.lock())
+    SubmittedQueue->throw_asynchronous();
 }
 
 void event_impl::cleanupCommand(
@@ -346,10 +327,16 @@ event_impl::get_info<info::event::command_execution_status>() {
   if (MState == HES_Discarded)
     return info::event_command_status::ext_oneapi_unknown;
 
-  if (!MHostEvent && MEvent) {
-    return get_event_info<info::event::command_execution_status>(
-        this->getHandleRef(), this->getPlugin());
+  if (!MHostEvent) {
+    // Command is enqueued and PiEvent is ready
+    if (MEvent)
+      return get_event_info<info::event::command_execution_status>(
+          this->getHandleRef(), this->getPlugin());
+    // Command is blocked and not enqueued, PiEvent is not assigned yet
+    else if (MCommand)
+      return sycl::info::event_command_status::submitted;
   }
+
   return MHostEvent && MState.load() != HES_Complete
              ? sycl::info::event_command_status::submitted
              : info::event_command_status::complete;
@@ -400,7 +387,9 @@ std::vector<EventImplPtr> event_impl::getWaitList() {
 }
 
 void event_impl::flushIfNeeded(const QueueImplPtr &UserQueue) {
-  if (MIsFlushed)
+  // Some events might not have a native handle underneath even at this point,
+  // e.g. those produced by memset with 0 size (no PI call is made).
+  if (MIsFlushed || !MEvent)
     return;
 
   QueueImplPtr Queue = MQueue.lock();
@@ -414,7 +403,6 @@ void event_impl::flushIfNeeded(const QueueImplPtr &UserQueue) {
     return;
 
   // Check if the task for this event has already been submitted.
-  assert(MEvent != nullptr);
   pi_event_status Status = PI_EVENT_QUEUED;
   getPlugin().call<PiApiKind::piEventGetInfo>(
       MEvent, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS, sizeof(pi_int32), &Status,

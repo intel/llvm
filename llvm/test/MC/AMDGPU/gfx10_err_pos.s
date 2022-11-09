@@ -1,29 +1,6 @@
 // RUN: not llvm-mc -arch=amdgcn -mcpu=gfx1010 -mattr=+WavefrontSize32,-WavefrontSize64 %s 2>&1 | FileCheck %s --implicit-check-not=error: --strict-whitespace
 
 //==============================================================================
-// destination must be different than all sources
-
-v_mqsad_pk_u16_u8 v[0:1], v[1:2], v9, v[4:5]
-// CHECK: error: destination must be different than all sources
-// CHECK-NEXT:{{^}}v_mqsad_pk_u16_u8 v[0:1], v[1:2], v9, v[4:5]
-// CHECK-NEXT:{{^}}                          ^
-
-v_mqsad_pk_u16_u8 v[0:1], v[2:3], v0, v[4:5]
-// CHECK: error: destination must be different than all sources
-// CHECK-NEXT:{{^}}v_mqsad_pk_u16_u8 v[0:1], v[2:3], v0, v[4:5]
-// CHECK-NEXT:{{^}}                                  ^
-
-v_mqsad_pk_u16_u8 v[0:1], v[2:3], v1, v[4:5]
-// CHECK: error: destination must be different than all sources
-// CHECK-NEXT:{{^}}v_mqsad_pk_u16_u8 v[0:1], v[2:3], v1, v[4:5]
-// CHECK-NEXT:{{^}}                                  ^
-
-v_mqsad_pk_u16_u8 v[0:1], v[2:3], v9, v[0:1]
-// CHECK: error: destination must be different than all sources
-// CHECK-NEXT:{{^}}v_mqsad_pk_u16_u8 v[0:1], v[2:3], v9, v[0:1]
-// CHECK-NEXT:{{^}}                                      ^
-
-//==============================================================================
 // dim modifier is required on this GPU
 
 image_atomic_add v252, v2, s[8:15]
@@ -1037,50 +1014,50 @@ v_mov_b32 v0, v0 row_bcast:0
 // CHECK-NEXT:{{^}}                 ^
 
 //==============================================================================
-// only one literal operand is allowed
+// only one unique literal operand is allowed
 
 s_and_b32 s2, 0x12345678, 0x12345679
-// CHECK: error: only one literal operand is allowed
+// CHECK: error: only one unique literal operand is allowed
 // CHECK-NEXT:{{^}}s_and_b32 s2, 0x12345678, 0x12345679
 // CHECK-NEXT:{{^}}                          ^
 
 v_add_f64 v[0:1], 1.23456, -abs(1.2345)
-// CHECK: error: only one literal operand is allowed
+// CHECK: error: only one unique literal operand is allowed
 // CHECK-NEXT:{{^}}v_add_f64 v[0:1], 1.23456, -abs(1.2345)
 // CHECK-NEXT:{{^}}                                ^
 
 v_min3_i16 v5, 0x5678, 0x5678, 0x5679
-// CHECK: error: only one literal operand is allowed
+// CHECK: error: only one unique literal operand is allowed
 // CHECK-NEXT:{{^}}v_min3_i16 v5, 0x5678, 0x5678, 0x5679
 // CHECK-NEXT:{{^}}                               ^
 
 v_pk_add_f16 v1, 25.0, 25.1
-// CHECK: error: only one literal operand is allowed
+// CHECK: error: only one unique literal operand is allowed
 // CHECK-NEXT:{{^}}v_pk_add_f16 v1, 25.0, 25.1
 // CHECK-NEXT:{{^}}                       ^
 
 v_fma_mix_f32 v5, 0x7c, 0x7b, 1
-// CHECK: error: only one literal operand is allowed
+// CHECK: error: only one unique literal operand is allowed
 // CHECK-NEXT:{{^}}v_fma_mix_f32 v5, 0x7c, 0x7b, 1
 // CHECK-NEXT:{{^}}                        ^
 
 v_pk_add_i16 v5, 0x7c, 0x4000
-// CHECK: error: only one literal operand is allowed
+// CHECK: error: only one unique literal operand is allowed
 // CHECK-NEXT:{{^}}v_pk_add_i16 v5, 0x7c, 0x4000
 // CHECK-NEXT:{{^}}                       ^
 
 v_pk_add_i16 v5, 0x4400, 0x4000
-// CHECK: error: only one literal operand is allowed
+// CHECK: error: only one unique literal operand is allowed
 // CHECK-NEXT:{{^}}v_pk_add_i16 v5, 0x4400, 0x4000
 // CHECK-NEXT:{{^}}                         ^
 
 v_bfe_u32 v0, v2, 123, undef
-// CHECK: error: only one literal operand is allowed
+// CHECK: error: only one unique literal operand is allowed
 // CHECK-NEXT:{{^}}v_bfe_u32 v0, v2, 123, undef
 // CHECK-NEXT:{{^}}                       ^
 
 v_bfe_u32 v0, v2, undef, 123
-// CHECK: error: only one literal operand is allowed
+// CHECK: error: only one unique literal operand is allowed
 // CHECK-NEXT:{{^}}v_bfe_u32 v0, v2, undef, 123
 // CHECK-NEXT:{{^}}                         ^
 
@@ -1367,3 +1344,11 @@ ds_swizzle_b32 v8, v2 offset:0x10000
 // CHECK: error: expected a 16-bit offset
 // CHECK-NEXT:{{^}}ds_swizzle_b32 v8, v2 offset:0x10000
 // CHECK-NEXT:{{^}}                             ^
+
+//==============================================================================
+// not a valid operand
+
+v_cndmask_b32_sdwa v5, v1, sext(v2), vcc dst_sel:DWORD dst_unused:UNUSED_PRESERVE src0_sel:BYTE_0 src1_sel:WORD_0
+// CHECK: error: not a valid operand.
+// CHECK-NEXT:{{^}}v_cndmask_b32_sdwa v5, v1, sext(v2), vcc dst_sel:DWORD dst_unused:UNUSED_PRESERVE src0_sel:BYTE_0 src1_sel:WORD_0
+// CHECK-NEXT:{{^}}                           ^

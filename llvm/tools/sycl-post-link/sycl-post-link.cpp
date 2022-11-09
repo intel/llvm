@@ -17,21 +17,29 @@
 #include "DeviceGlobals.h"
 #include "ModuleSplitter.h"
 #include "SYCLDeviceLibReqMask.h"
+#include "SYCLDeviceRequirements.h"
 #include "SYCLKernelParamOptInfo.h"
 #include "SpecConstants.h"
 #include "Support.h"
 
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Analysis/AssumptionCache.h"
+#include "llvm/Analysis/ProfileSummaryInfo.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
+#include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/GenXIntrinsics/GenXSPIRVWriterAdaptor.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/IR/IRPrintingPasses.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Linker/Linker.h"
+#include "llvm/Passes/PassBuilder.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
+#include "llvm/SYCLLowerIR/LowerKernelProps.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/InitLLVM.h"
@@ -44,6 +52,9 @@
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Scalar/DCE.h"
+#include "llvm/Transforms/Scalar/EarlyCSE.h"
+#include "llvm/Transforms/Scalar/SROA.h"
 #include "llvm/Transforms/Utils/GlobalStatus.h"
 
 #include <algorithm>
@@ -353,6 +364,11 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
     std::map<StringRef, uint32_t> RMEntry = {{"DeviceLibReqMask", MRMask}};
     PropSet.add(PropSetRegTy::SYCL_DEVICELIB_REQ_MASK, RMEntry);
   }
+  {
+    std::map<StringRef, std::vector<uint32_t>> Requirements;
+    getSYCLDeviceRequirements(M, Requirements);
+    PropSet.add(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS, Requirements);
+  }
   if (MD.Props.SpecConstsMet) {
     // extract spec constant maps per each module
     SpecIDMapTy TmpSpecIDMap;
@@ -426,9 +442,8 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   if (MD.isESIMD()) {
     PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"isEsimdImage", true});
   }
-  if (MD.isDoubleGRF())
-    PropSet[PropSetRegTy::SYCL_MISC_PROP].insert(
-        {"isDoubleGRFEsimdImage", true});
+  if (MD.isLargeGRF())
+    PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"isLargeGRF", true});
   {
     std::vector<StringRef> FuncNames = getKernelNamesUsingAssert(M);
     for (const StringRef &FName : FuncNames)
@@ -489,35 +504,66 @@ template <class PassClass> bool runModulePass(Module &M) {
 // we can safely process ESIMD part.
 // TODO: support options like -debug-pass, -print-[before|after], and others
 bool lowerEsimdConstructs(module_split::ModuleDesc &MD) {
-  legacy::PassManager MPM;
-  MPM.add(createSYCLLowerESIMDPass());
+  LoopAnalysisManager LAM;
+  CGSCCAnalysisManager CGAM;
+  FunctionAnalysisManager FAM;
+  ModuleAnalysisManager MAM;
+
+  PassBuilder PB;
+  PB.registerModuleAnalyses(MAM);
+  PB.registerCGSCCAnalyses(CGAM);
+  PB.registerFunctionAnalyses(FAM);
+  PB.registerLoopAnalyses(LAM);
+  PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
+
+  ModulePassManager MPM;
+  MPM.addPass(SYCLLowerESIMDPass{});
+
   if (!OptLevelO0) {
     // Force-inline all functions marked 'alwaysinline' by the LowerESIMD pass.
-    MPM.add(createAlwaysInlinerLegacyPass());
-    MPM.add(createSROAPass());
+    MPM.addPass(AlwaysInlinerPass{});
+    FunctionPassManager FPM;
+    FPM.addPass(SROAPass{});
+    MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
   }
-  MPM.add(createESIMDLowerVecArgPass());
-  MPM.add(createESIMDLowerLoadStorePass());
+  if (!MD.getModule().getContext().supportsTypedPointers()) {
+    MPM.addPass(ESIMDOptimizeVecArgCallConvPass{});
+  } else {
+    MPM.addPass(ESIMDLowerVecArgPass{});
+  }
+  FunctionPassManager MainFPM;
+  MainFPM.addPass(ESIMDLowerLoadStorePass{});
+
   if (!OptLevelO0) {
-    MPM.add(createSROAPass());
-    MPM.add(createEarlyCSEPass(true));
-    MPM.add(createInstructionCombiningPass());
-    MPM.add(createDeadCodeEliminationPass());
+    MainFPM.addPass(SROAPass{});
+    MainFPM.addPass(EarlyCSEPass(true));
+    MainFPM.addPass(InstCombinePass{});
+    MainFPM.addPass(DCEPass{});
     // TODO: maybe remove some passes below that don't affect code quality
-    MPM.add(createSROAPass());
-    MPM.add(createEarlyCSEPass(true));
-    MPM.add(createInstructionCombiningPass());
-    MPM.add(createDeadCodeEliminationPass());
+    MainFPM.addPass(SROAPass{});
+    MainFPM.addPass(EarlyCSEPass(true));
+    MainFPM.addPass(InstCombinePass{});
+    MainFPM.addPass(DCEPass{});
   }
-  MPM.add(createGenXSPIRVWriterAdaptorPass(/*RewriteTypes=*/true));
+  MPM.addPass(createModuleToFunctionPassAdaptor(std::move(MainFPM)));
+  MPM.addPass(GenXSPIRVWriterAdaptor(/*RewriteTypes=*/true,
+                                     /*RewriteSingleElementVectorsIn*/ false));
   // GenXSPIRVWriterAdaptor pass replaced some functions with "rewritten"
   // versions so the entry point table must be rebuilt.
   // TODO Change entry point search to analysis?
   std::vector<std::string> Names;
   MD.saveEntryPointNames(Names);
-  bool IRChanged = MPM.run(MD.getModule());
+  PreservedAnalyses Res = MPM.run(MD.getModule(), MAM);
   MD.rebuildEntryPoints(Names);
-  return IRChanged;
+  return !Res.areAllPreserved();
+}
+
+// Compute the filename suffix for the module
+StringRef getModuleSuffix(const module_split::ModuleDesc &MD) {
+  if (MD.isLargeGRF()) {
+    return MD.isESIMD() ? "_esimd_large_grf" : "_large_grf";
+  }
+  return MD.isESIMD() ? "_esimd" : "";
 }
 
 // @param MD Module descriptor to save
@@ -529,8 +575,7 @@ bool lowerEsimdConstructs(module_split::ModuleDesc &MD) {
 IrPropSymFilenameTriple saveModule(module_split::ModuleDesc &MD, int I,
                                    StringRef IRFilename = "") {
   IrPropSymFilenameTriple Res;
-  StringRef Suffix =
-      MD.isDoubleGRF() ? "_esimd_x2grf" : (MD.isESIMD() ? "_esimd" : "");
+  StringRef Suffix = getModuleSuffix(MD);
 
   if (!IRFilename.empty()) {
     // don't save IR, just record the filename
@@ -627,11 +672,12 @@ static bool removeSYCLKernelsConstRefArray(Module &M) {
          "Cannot remove initializer of llvm.used global");
   Initializer->destroyConstant();
   for (auto It = IOperands.begin(); It != IOperands.end(); It++) {
-    auto Op = (*It)->getOperand(0);
+    auto Op = (*It)->stripPointerCasts();
     auto *F = dyn_cast<Function>(Op);
     if (llvm::isSafeToDestroyConstant(*It)) {
       (*It)->destroyConstant();
-    } else if (F) {
+    } else if (F && F->getCallingConv() == CallingConv::SPIR_KERNEL &&
+               !F->use_empty()) {
       // The element in "llvm.used" array has other users. That is Ok for
       // specialization constants, but is wrong for kernels.
       llvm::report_fatal_error("Unexpected usage of SYCL kernel");
@@ -665,6 +711,10 @@ processInputModule(std::unique_ptr<Module> M) {
   // if none were made.
   bool Modified = false;
 
+  // Propagate ESIMD attribute to wrapper functions to prevent
+  // spurious splits and kernel link errors.
+  Modified |= runModulePass<SYCLFixupESIMDKernelWrapperMDPass>(*M);
+
   // After linking device bitcode "llvm.used" holds references to the kernels
   // that are defined in the device image. But after splitting device image into
   // separate kernels we may end up with having references to kernel declaration
@@ -685,10 +735,10 @@ processInputModule(std::unique_ptr<Module> M) {
   }
   Modified |= InvokeSimdMet;
 
-  // Lower kernel properties setting APIs before "double GRF" splitting, as:
+  // Lower kernel properties setting APIs before "large GRF" splitting, as:
   // - the latter uses the result of the former
   // - saves processing time
-  Modified |= runModulePass<SYCLLowerESIMDKernelPropsPass>(*M);
+  Modified |= runModulePass<SYCLLowerKernelPropsPass>(*M);
 
   DUMP_ENTRY_POINTS(*M, EmitOnlyKernelsAsEntryPoints, "Input");
 
@@ -724,15 +774,15 @@ processInputModule(std::unique_ptr<Module> M) {
     module_split::ModuleDesc MDesc = ScopedSplitter->nextSplit();
     DUMP_ENTRY_POINTS(MDesc.entries(), MDesc.Name.c_str(), 1);
 
-    std::unique_ptr<module_split::ModuleSplitterBase> DoubleGRFSplitter =
-        module_split::getESIMDDoubleGRFSplitter(std::move(MDesc),
-                                                EmitOnlyKernelsAsEntryPoints);
-    const bool SplitByDoubleGRF = DoubleGRFSplitter->totalSplits() > 1;
-    Modified |= SplitByDoubleGRF;
+    std::unique_ptr<module_split::ModuleSplitterBase> LargeGRFSplitter =
+        module_split::getLargeGRFSplitter(std::move(MDesc),
+                                          EmitOnlyKernelsAsEntryPoints);
+    const bool SplitByLargeGRF = LargeGRFSplitter->totalSplits() > 1;
+    Modified |= SplitByLargeGRF;
 
-    // Now split further by "esimd-double-grf" attribute.
-    while (DoubleGRFSplitter->hasMoreSplits()) {
-      module_split::ModuleDesc MDesc1 = DoubleGRFSplitter->nextSplit();
+    // Now split further by "large-grf" attribute.
+    while (LargeGRFSplitter->hasMoreSplits()) {
+      module_split::ModuleDesc MDesc1 = LargeGRFSplitter->nextSplit();
       DUMP_ENTRY_POINTS(MDesc1.entries(), MDesc1.Name.c_str(), 2);
       MDesc1.fixupLinkageOfDirectInvokeSimdTargets();
 
@@ -771,8 +821,8 @@ processInputModule(std::unique_ptr<Module> M) {
         }
         if (!MDesc2.isSYCL() && LowerEsimd) {
           assert(MDesc2.isESIMD() && "NYI");
-          // ESIMD lowering also detects double-GRF kernels, so it must happen
-          // before double-GRF split.
+          // ESIMD lowering also detects large-GRF kernels, so it must happen
+          // before large-GRF split.
           Modified |= lowerEsimdConstructs(MDesc2);
         }
         MMs.emplace_back(std::move(MDesc2));
@@ -798,7 +848,7 @@ processInputModule(std::unique_ptr<Module> M) {
         DUMP_ENTRY_POINTS(MMs.back().entries(), MMs.back().Name.c_str(), 3);
         Modified = true;
       }
-      bool SplitOccurred = SplitByScope || SplitByDoubleGRF || SplitByESIMD;
+      bool SplitOccurred = SplitByScope || SplitByLargeGRF || SplitByESIMD;
 
       if (IROutputOnly) {
         if (SplitOccurred) {

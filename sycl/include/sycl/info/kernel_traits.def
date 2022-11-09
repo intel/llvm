@@ -3,6 +3,3 @@ __SYCL_PARAM_TRAITS_SPEC(kernel, attributes, std::string, PI_KERNEL_INFO_ATTRIBU
 __SYCL_PARAM_TRAITS_SPEC(kernel, function_name, std::string, PI_KERNEL_INFO_FUNCTION_NAME)
 __SYCL_PARAM_TRAITS_SPEC(kernel, reference_count, uint32_t, PI_KERNEL_INFO_REFERENCE_COUNT)
 __SYCL_PARAM_TRAITS_SPEC(kernel, context, sycl::context, PI_KERNEL_INFO_CONTEXT)
-#ifdef __SYCL_INTERNAL_API
-__SYCL_PARAM_TRAITS_SPEC(kernel, program, sycl::program, PI_KERNEL_INFO_ATTRIBUTES)
-#endif

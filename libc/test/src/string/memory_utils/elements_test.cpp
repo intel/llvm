@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "src/__support/CPP/ArrayRef.h"
 #include "src/__support/CPP/array.h"
+#include "src/__support/CPP/span.h"
 #include "src/string/memory_utils/elements.h"
 #include "utils/UnitTest/Test.h"
 
@@ -42,7 +42,7 @@ using FixedSizeTypes = testing::TypeList<
     builtin::_8                                             //
     >;
 
-char GetRandomChar() {
+static char GetRandomChar() {
   static constexpr const uint64_t a = 1103515245;
   static constexpr const uint64_t c = 12345;
   static constexpr const uint64_t m = 1ULL << 31;
@@ -51,7 +51,7 @@ char GetRandomChar() {
   return seed;
 }
 
-void Randomize(cpp::MutableArrayRef<char> buffer) {
+static void Randomize(cpp::span<char> buffer) {
   for (auto &current : buffer)
     current = GetRandomChar();
 }

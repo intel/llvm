@@ -57,6 +57,13 @@ option(COMPILER_RT_BUILD_GWP_ASAN "Build GWP-ASan, and link it into SCUDO" ON)
 mark_as_advanced(COMPILER_RT_BUILD_GWP_ASAN)
 option(COMPILER_RT_ENABLE_CET "Build Compiler RT with CET enabled" OFF)
 
+option(COMPILER_RT_SCUDO_STANDALONE_SYSROOT_PATH "Set custom sysroot for building SCUDO standalone" OFF)
+mark_as_advanced(COMPILER_RT_SCUDO_STANDALONE_SYSROOT_PATH)
+option(COMPILER_RT_SCUDO_STANDALONE_BUILD_SHARED "Build SCUDO standalone for shared libraries" ON)
+mark_as_advanced(COMPILER_RT_SCUDO_STANDALONE_BUILD_SHARED)
+option(COMPILER_RT_BUILD_SCUDO_STANDALONE_WITH_LLVM_LIBC "Build SCUDO standalone with LLVM's libc headers" OFF)
+mark_as_advanced(COMPILER_RT_BUILD_SCUDO_STANDALONE_WITH_LLVM_LIBC)
+
 if(FUCHSIA)
   set(COMPILER_RT_HWASAN_WITH_INTERCEPTORS_DEFAULT OFF)
 else()
@@ -68,6 +75,10 @@ set(COMPILER_RT_BAREMETAL_BUILD OFF CACHE BOOL
   "Build for a bare-metal target.")
 
 if (COMPILER_RT_STANDALONE_BUILD)
+  set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard to conform to")
+  set(CMAKE_CXX_STANDARD_REQUIRED YES)
+  set(CMAKE_CXX_EXTENSIONS NO)
+
   load_llvm_config()
   if (TARGET intrinsics_gen)
     # Loading the llvm config causes this target to be imported so place it
@@ -111,6 +122,20 @@ if ("${COMPILER_RT_DEFAULT_TARGET_TRIPLE}" MATCHES ".*hf$")
     CHECK_SYMBOL_EXISTS (__thumb__ "" COMPILER_RT_ARM_THUMB)
   endif()
 endif()
+if (${COMPILER_RT_DEFAULT_TARGET_ARCH} MATCHES "^mips")
+  CHECK_SYMBOL_EXISTS (_MIPS_ARCH_MIPS32R6 "" COMPILER_RT_MIPS32R6)
+  CHECK_SYMBOL_EXISTS (_MIPS_ARCH_MIPS64R6 "" COMPILER_RT_MIPS64R6)
+  CHECK_SYMBOL_EXISTS (__mips64 "" COMPILER_RT_MIPS_64)
+  CHECK_SYMBOL_EXISTS (__MIPSEL__ "" COMPILER_RT_MIPS_EL)
+  if ("${COMPILER_RT_MIPS_64}")
+    set(COMPILER_RT_DEFAULT_TARGET_ARCH "mips64")
+  else()
+    set(COMPILER_RT_DEFAULT_TARGET_ARCH "mips")
+  endif()
+  if ("${COMPILER_RT_MIPS_EL}")
+    set(COMPILER_RT_DEFAULT_TARGET_ARCH "${COMPILER_RT_DEFAULT_TARGET_ARCH}el")
+  endif()
+endif()
 if ("${COMPILER_RT_DEFAULT_TARGET_TRIPLE}" MATCHES ".*android.*")
   set(ANDROID 1)
   string(REGEX MATCH "-target(=| +)[^ ]+android[a-z]*([0-9]+)" ANDROID_API_LEVEL "${CMAKE_C_FLAGS}")
@@ -123,11 +148,11 @@ set(COMPILER_RT_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
 
 pythonize_bool(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR)
 
-# We support running instrumented tests when we're not cross compiling
+# We support running instrumented tests when we're not cross-compiling
 # and target a UNIX-like system or Windows.
 # We can run tests on Android even when we are cross-compiling.
-if(("${CMAKE_HOST_SYSTEM}" STREQUAL "${CMAKE_SYSTEM}" AND (UNIX OR WIN32)) OR ANDROID
-   OR COMPILER_RT_EMULATOR)
+if(("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "${CMAKE_SYSTEM_NAME}" AND (UNIX OR WIN32))
+   OR ANDROID OR COMPILER_RT_EMULATOR)
   option(COMPILER_RT_CAN_EXECUTE_TESTS "Can we execute instrumented tests" ON)
 else()
   option(COMPILER_RT_CAN_EXECUTE_TESTS "Can we execute instrumented tests" OFF)
@@ -295,8 +320,6 @@ if(COMPILER_RT_ENABLE_WERROR)
   append_string_if(COMPILER_RT_HAS_WERROR_FLAG -Werror CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
   append_string_if(COMPILER_RT_HAS_WX_FLAG /WX CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
 endif()
-
-append_string_if(COMPILER_RT_HAS_STD_CXX14_FLAG -std=c++14 CMAKE_CXX_FLAGS)
 
 # Emulate C99 and C++11's __func__ for MSVC prior to 2013 CTP.
 if(NOT COMPILER_RT_HAS_FUNC_SYMBOL)
@@ -557,7 +580,7 @@ if (COMPILER_RT_CXX_LIBRARY STREQUAL "libcxx")
   append_list_if(COMPILER_RT_HAS_NOSTDINCXX_FLAG -nostdinc++ COMPILER_RT_COMMON_CFLAGS)
   append_list_if(COMPILER_RT_HAS_NOSTDLIBXX_FLAG -nostdlib++ COMPILER_RT_COMMON_LINK_FLAGS)
   # Use the in-tree libc++ through explicit include and library paths.
-  set(COMPILER_RT_CXX_CFLAGS "$<$<TARGET_EXISTS:cxx-headers>:-isystem$<JOIN:$<TARGET_PROPERTY:cxx-headers,INTERFACE_INCLUDE_DIRECTORIES>,$<SEMICOLON>-isystem>>")
+  set(COMPILER_RT_CXX_CFLAGS "$<$<TARGET_EXISTS:cxx-headers>:$<IF:$<BOOL:${MSVC}>,/imsvc,-isystem>$<JOIN:$<TARGET_PROPERTY:cxx-headers,INTERFACE_INCLUDE_DIRECTORIES>,$<SEMICOLON>$<IF:$<BOOL:${MSVC}>,/imsvc,-isystem>>>")
   if (COMPILER_RT_STATIC_CXX_LIBRARY)
     set(COMPILER_RT_CXX_LINK_LIBS "$<TARGET_LINKER_FILE:cxx_static>")
   else()
@@ -571,31 +594,26 @@ else()
   # Nothing to be done for `default`.
 endif()
 
-macro(append_libcxx_libs var)
-  if (${var}_INTREE)
+if (SANITIZER_CXX_ABI_LIBNAME STREQUAL "libc++")
+  if (SANITIZER_CXX_ABI_INTREE)
     # TODO: We don't need to add --unwindlib=none to SANITIZER_COMMON_LINK_FLAGS
     # because we added -nodefaultlibs there earlier, and adding would result in
     # a warning, but if we switch to -nostdlib++, we would need to add it here.
     # append_list_if(CXX_SUPPORTS_UNWINDLIB_NONE_FLAG --unwindlib=none SANITIZER_COMMON_LINK_FLAGS)
-
-    if (SANITIZER_USE_STATIC_LLVM_UNWINDER AND (TARGET unwind_static OR HAVE_LIBUNWIND))
-      list(APPEND ${var}_LIBRARIES unwind_static)
-    elseif (TARGET unwind_shared OR HAVE_LIBUNWIND)
-      list(APPEND ${var}_LIBRARIES unwind_shared)
-    endif()
-
-    if (SANITIZER_USE_STATIC_CXX_ABI AND (TARGET cxxabi_static OR HAVE_LIBCXXABI))
-      list(APPEND ${var}_LIBRARIES cxxabi_static)
-    elseif (TARGET cxxabi_shared OR HAVE_LIBCXXABI)
-      list(APPEND ${var}_LIBRARIES cxxabi_shared)
+    if(SANITIZER_USE_STATIC_CXX_ABI)
+      if(TARGET libcxx-abi-static)
+        set(SANITIZER_CXX_ABI_LIBRARIES libcxx-abi-static)
+      endif()
+    else()
+      if(TARGET libcxx-abi-shared)
+        set(SANITIZER_CXX_ABI_LIBRARIES libcxx-abi-shared)
+      elseif(TARGET libcxx-abi-static)
+        set(SANITIZER_CXX_ABI_LIBRARIES libcxx-abi-static)
+      endif()
     endif()
   else()
-    append_list_if(COMPILER_RT_HAS_LIBCXX c++ ${var}_LIBRARIES)
+    append_list_if(COMPILER_RT_HAS_LIBCXX c++ SANITIZER_CXX_ABI_LIBRARIES)
   endif()
-endmacro()
-
-if (SANITIZER_CXX_ABI_LIBNAME STREQUAL "libc++")
-  append_libcxx_libs(SANITIZER_CXX_ABI)
 elseif (SANITIZER_CXX_ABI_LIBNAME STREQUAL "libcxxabi")
   list(APPEND SANITIZER_CXX_ABI_LIBRARIES "c++abi")
 elseif (SANITIZER_CXX_ABI_LIBNAME STREQUAL "libstdc++")
@@ -604,7 +622,7 @@ endif()
 
 if (SANITIZER_TEST_CXX_LIBNAME STREQUAL "libc++")
   if (SANITIZER_TEST_CXX_INTREE)
-    list(APPEND SANITIZER_TEST_CXX_CFLAGS "$<$<TARGET_EXISTS:cxx-headers>:-isystem$<JOIN:$<TARGET_PROPERTY:cxx-headers,INTERFACE_INCLUDE_DIRECTORIES>,$<SEMICOLON>-isystem>>")
+    list(APPEND SANITIZER_TEST_CXX_CFLAGS "$<$<TARGET_EXISTS:cxx-headers>:$<IF:$<BOOL:${MSVC}>,/imsvc,-isystem>$<JOIN:$<TARGET_PROPERTY:cxx-headers,INTERFACE_INCLUDE_DIRECTORIES>,$<SEMICOLON>$<IF:$<BOOL:${MSVC}>,/imsvc,-isystem>>>")
     if (SANITIZER_USE_STATIC_TEST_CXX)
       list(APPEND SANITIZER_TEST_CXX_LIBRARIES "$<TARGET_LINKER_FILE:cxx_static>")
     else()

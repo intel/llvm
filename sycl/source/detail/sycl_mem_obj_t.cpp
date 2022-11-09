@@ -11,7 +11,7 @@
 #include <detail/memory_manager.hpp>
 #include <detail/plugin.hpp>
 #include <detail/scheduler/scheduler.hpp>
-#include <sycl/detail/sycl_mem_obj_t.hpp>
+#include <detail/sycl_mem_obj_t.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {

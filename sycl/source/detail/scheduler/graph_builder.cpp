@@ -12,6 +12,7 @@
 #include <detail/memory_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/sycl_mem_obj_t.hpp>
 #include <sycl/access/access.hpp>
 #include <sycl/exception.hpp>
 
@@ -572,7 +573,7 @@ Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
 }
 
 Command *Scheduler::GraphBuilder::addCGUpdateHost(
-    std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr HostQueue,
+    std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &HostQueue,
     std::vector<Command *> &ToEnqueue) {
 
   auto UpdateHost = static_cast<CGUpdateHost *>(CommandGroup.get());
@@ -670,7 +671,8 @@ AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
       const Requirement *TmpReq = AllocaCmd->getRequirement();
       Res &= AllocaCmd->getType() == Command::CommandType::ALLOCA_SUB_BUF;
       Res &= TmpReq->MOffsetInBytes == Req->MOffsetInBytes;
-      Res &= TmpReq->MSYCLMemObj->getSize() == Req->MSYCLMemObj->getSize();
+      Res &= TmpReq->MSYCLMemObj->getSizeInBytes() ==
+             Req->MSYCLMemObj->getSizeInBytes();
       Res &= AllowConst || !AllocaCmd->MIsConst;
     }
     return Res;
@@ -699,7 +701,7 @@ static bool checkHostUnifiedMemory(const ContextImplPtr &Ctx) {
 // Note, creation of new allocation command can lead to the current context
 // (Record->MCurContext) change.
 AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
-    MemObjRecord *Record, const Requirement *Req, QueueImplPtr Queue,
+    MemObjRecord *Record, const Requirement *Req, const QueueImplPtr &Queue,
     std::vector<Command *> &ToEnqueue) {
 
   AllocaCommandBase *AllocaCmd =
@@ -711,7 +713,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
     if (IsSuitableSubReq(Req)) {
       // Get parent requirement. It's hard to get right parents' range
       // so full parent requirement has range represented in bytes
-      range<3> ParentRange{Req->MSYCLMemObj->getSize(), 1, 1};
+      range<3> ParentRange{Req->MSYCLMemObj->getSizeInBytes(), 1, 1};
       Requirement ParentRequirement(/*Offset*/ {0, 0, 0}, ParentRange,
                                     ParentRange, access::mode::read_write,
                                     Req->MSYCLMemObj, /*Dims*/ 1,
@@ -955,7 +957,7 @@ static void combineAccessModesOfReqs(std::vector<Requirement *> &Reqs) {
 
 Command *
 Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
-                               QueueImplPtr Queue,
+                               const QueueImplPtr &Queue,
                                std::vector<Command *> &ToEnqueue) {
   std::vector<Requirement *> &Reqs = CommandGroup->MRequirements;
   const std::vector<detail::EventImplPtr> &Events = CommandGroup->MEvents;
@@ -1337,7 +1339,7 @@ void Scheduler::GraphBuilder::removeRecordForMemObj(SYCLMemObjI *MemObject) {
 // requirement.
 // Optionality of Dep is set by Dep.MDepCommand equal to nullptr.
 Command *Scheduler::GraphBuilder::connectDepEvent(
-    Command *const Cmd, EventImplPtr DepEvent, const DepDesc &Dep,
+    Command *const Cmd, const EventImplPtr &DepEvent, const DepDesc &Dep,
     std::vector<Command *> &ToCleanUp) {
   assert(Cmd->getWorkerContext() != DepEvent->getContextImpl());
 

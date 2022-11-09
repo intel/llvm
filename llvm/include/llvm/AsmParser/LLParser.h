@@ -42,6 +42,7 @@ namespace llvm {
   class Comdat;
   class MDString;
   class MDNode;
+  class MemoryEffects;
   struct SlotMapping;
 
   /// ValID - Represents a reference of a definition of some sort with no type.
@@ -81,6 +82,7 @@ namespace llvm {
     }
 
     bool operator<(const ValID &RHS) const {
+      assert(Kind == RHS.Kind && "Comparing ValIDs of different kinds");
       if (Kind == t_LocalID || Kind == t_GlobalID)
         return UIntVal < RHS.UIntVal;
       assert((Kind == t_LocalName || Kind == t_GlobalName ||
@@ -130,6 +132,14 @@ namespace llvm {
     /// forward-referenced by blockaddress instructions within the same
     /// function.
     PerFunctionState *BlockAddressPFS;
+
+    // References to dso_local_equivalent. The key is the global's ValID, the
+    // value is a placeholder value that will be replaced. Note there are two
+    // maps for tracking ValIDs that are GlobalNames and ValIDs that are
+    // GlobalIDs. These are needed because "operator<" doesn't discriminate
+    // between the two.
+    std::map<ValID, GlobalValue *> ForwardRefDSOLocalEquivalentNames;
+    std::map<ValID, GlobalValue *> ForwardRefDSOLocalEquivalentIDs;
 
     // Attribute builder reference information.
     std::map<Value*, std::vector<unsigned> > ForwardRefAttrGroups;
@@ -275,6 +285,7 @@ namespace llvm {
     bool parseOptionalDerefAttrBytes(lltok::Kind AttrKind, uint64_t &Bytes);
     bool parseOptionalUWTableKind(UWTableKind &Kind);
     bool parseAllocKind(AllocFnKind &Kind);
+    Optional<MemoryEffects> parseMemoryAttr();
     bool parseScopeAndOrdering(bool IsAtomic, SyncScope::ID &SSID,
                                AtomicOrdering &Ordering);
     bool parseScope(SyncScope::ID &SSID);
@@ -506,6 +517,10 @@ namespace llvm {
 
     bool parseExceptionArgs(SmallVectorImpl<Value *> &Args,
                             PerFunctionState &PFS);
+
+    bool resolveFunctionType(Type *RetType,
+                             const SmallVector<ParamInfo, 16> &ArgList,
+                             FunctionType *&FuncTy);
 
     // Constant Parsing.
     bool parseValID(ValID &ID, PerFunctionState *PFS,

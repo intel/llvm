@@ -1,4 +1,9 @@
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${LIBC_TARGET_OS})
+  add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/${LIBC_TARGET_OS})
+endif()
+
 add_subdirectory(printf_core)
+add_subdirectory(scanf_core)
 
 add_entrypoint_object(
   fopen
@@ -97,6 +102,30 @@ add_entrypoint_object(
 )
 
 add_entrypoint_object(
+  fgetc
+  SRCS
+    fgetc.cpp
+  HDRS
+    fgetc.h
+  DEPENDS
+    libc.include.stdio
+    libc.src.__support.File.file
+    libc.src.__support.File.platform_file
+)
+
+add_entrypoint_object(
+  fgets
+  SRCS
+    fgets.cpp
+  HDRS
+    fgets.h
+  DEPENDS
+    libc.include.stdio
+    libc.src.__support.File.file
+    libc.src.__support.File.platform_file
+)
+
+add_entrypoint_object(
   fflush
   SRCS
     fflush.cpp
@@ -181,6 +210,67 @@ add_entrypoint_object(
 )
 
 add_entrypoint_object(
+  fputc
+  SRCS
+    fputc.cpp
+  HDRS
+    fputc.h
+  DEPENDS
+    libc.include.stdio
+    libc.src.__support.File.file
+    libc.src.__support.File.platform_file
+)
+
+add_entrypoint_object(
+  putc
+  SRCS
+    putc.cpp
+  HDRS
+    putc.h
+  DEPENDS
+    libc.include.stdio
+    libc.src.__support.File.file
+    libc.src.__support.File.platform_file
+)
+
+add_entrypoint_object(
+  putchar
+  SRCS
+    putchar.cpp
+  HDRS
+    putchar.h
+  DEPENDS
+    libc.include.stdio
+    libc.src.__support.File.file
+    libc.src.__support.File.platform_file
+)
+
+add_entrypoint_object(
+  fputs
+  SRCS
+    fputs.cpp
+  HDRS
+    fputs.h
+  DEPENDS
+    libc.include.stdio
+    libc.src.__support.File.file
+    libc.src.__support.File.platform_file
+)
+
+
+add_entrypoint_object(
+  puts
+  SRCS
+    puts.cpp
+  HDRS
+    puts.h
+  DEPENDS
+    libc.include.stdio
+    libc.src.__support.File.file
+    libc.src.__support.File.platform_file
+)
+
+add_entrypoint_object(
   fseek
   SRCS
     fseek.cpp
@@ -201,6 +291,18 @@ add_entrypoint_object(
   DEPENDS
     libc.include.stdio
     libc.src.__support.File.file
+)
+
+add_entrypoint_object(
+  stdin
+  SRCS
+    stdin.cpp
+  HDRS
+    stdin.h
+  DEPENDS
+    libc.include.stdio
+    libc.src.__support.File.file
+    libc.src.__support.File.platform_file
 )
 
 add_entrypoint_object(
@@ -274,4 +376,11 @@ add_entrypoint_object(
     libc.src.__support.File.platform_file
     libc.src.__support.arg_list
     libc.src.stdio.printf_core.vfprintf_internal
+)
+
+add_entrypoint_object(
+  remove
+  ALIAS
+  DEPENDS
+    .${LIBC_TARGET_OS}.remove
 )

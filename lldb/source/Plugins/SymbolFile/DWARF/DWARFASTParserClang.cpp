@@ -36,12 +36,12 @@
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/StreamString.h"
 
-#include "llvm/Demangle/Demangle.h"
-
 #include "clang/AST/CXXInheritance.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/DeclTemplate.h"
+#include "clang/AST/Type.h"
+#include "llvm/Demangle/Demangle.h"
 
 #include <map>
 #include <memory>
@@ -412,6 +412,12 @@ ParsedDWARFTypeAttributes::ParsedDWARFTypeAttributes(const DWARFDIE &die) {
     case DW_AT_export_symbols:
       exports_symbols = form_value.Boolean();
       break;
+    case DW_AT_rvalue_reference:
+      ref_qual = clang::RQ_RValue;
+      break;
+    case DW_AT_reference:
+      ref_qual = clang::RQ_LValue;
+      break;
     }
   }
 }
@@ -608,7 +614,7 @@ DWARFASTParserClang::ParseTypeModifier(const SymbolContext &sc,
     }
     // Fall through to base type below in case we can handle the type
     // there...
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
 
   case DW_TAG_base_type:
     resolve_state = Type::ResolveState::Full;
@@ -974,9 +980,10 @@ TypeSP DWARFASTParserClang::ParseSubroutine(const DWARFDIE &die,
 
   // clang_type will get the function prototype clang type after this
   // call
-  CompilerType clang_type = m_ast.CreateFunctionType(
-      return_clang_type, function_param_types.data(),
-      function_param_types.size(), is_variadic, type_quals, calling_convention);
+  CompilerType clang_type =
+      m_ast.CreateFunctionType(return_clang_type, function_param_types.data(),
+                               function_param_types.size(), is_variadic,
+                               type_quals, calling_convention, attrs.ref_qual);
 
   if (attrs.name) {
     bool type_handled = false;
@@ -1248,6 +1255,20 @@ TypeSP DWARFASTParserClang::ParseSubroutine(const DWARFDIE &die,
         lldbassert(function_decl);
 
         if (function_decl) {
+          // Attach an asm(<mangled_name>) label to the FunctionDecl.
+          // This ensures that clang::CodeGen emits function calls
+          // using symbols that are mangled according to the DW_AT_linkage_name.
+          // If we didn't do this, the external symbols wouldn't exactly
+          // match the mangled name LLDB knows about and the IRExecutionUnit
+          // would have to fall back to searching object files for
+          // approximately matching function names. The motivating
+          // example is generating calls to ABI-tagged template functions.
+          // This is done separately for member functions in
+          // AddMethodToCXXRecordType.
+          if (attrs.mangled_name)
+            function_decl->addAttr(clang::AsmLabelAttr::CreateImplicit(
+                m_ast.getASTContext(), attrs.mangled_name, /*literal=*/false));
+
           LinkDeclContextToDIE(function_decl, die);
 
           if (!function_param_decls.empty()) {
@@ -1502,6 +1523,96 @@ TypeSP DWARFASTParserClang::UpdateSymbolContextScopeForType(
   return type_sp;
 }
 
+std::string
+DWARFASTParserClang::GetTemplateParametersString(const DWARFDIE &die) {
+  if (llvm::StringRef(die.GetName()).contains("<"))
+    return std::string();
+  TypeSystemClang::TemplateParameterInfos template_param_infos;
+  if (!ParseTemplateParameterInfos(die, template_param_infos))
+    return std::string();
+  std::string all_template_names;
+  llvm::SmallVector<clang::TemplateArgument, 2> args =
+      template_param_infos.args;
+  if (template_param_infos.hasParameterPack())
+    args.append(template_param_infos.packed_args->args);
+  if (args.empty())
+    return std::string();
+  for (auto &arg : args) {
+    std::string template_name;
+    llvm::raw_string_ostream os(template_name);
+    arg.print(m_ast.getASTContext().getPrintingPolicy(), os, true);
+
+    if (!template_name.empty()) {
+      if (all_template_names.empty()) {
+        all_template_names.append("<");
+      } else {
+        all_template_names.append(", ");
+      }
+      all_template_names.append(template_name);
+    }
+  }
+  assert(!all_template_names.empty() && "no template parameters?");
+  // Spacing doesn't matter as long as we're consistent because we're only using
+  // this to deduplicate C++ symbols.
+  all_template_names.append(">");
+  return all_template_names;
+}
+
+std::string
+DWARFASTParserClang::GetCPlusPlusQualifiedName(const DWARFDIE &die) {
+  if (!die.IsValid())
+    return "";
+  const char *name = die.GetName();
+  if (!name)
+    return "";
+  std::string qualified_name;
+  DWARFDIE parent_decl_ctx_die = die.GetParentDeclContextDIE();
+  // TODO: change this to get the correct decl context parent....
+  while (parent_decl_ctx_die) {
+    // The name may not contain template parameters due to simplified template
+    // names; we must reconstruct the full name from child template parameter
+    // dies via GetTemplateParametersString().
+    const dw_tag_t parent_tag = parent_decl_ctx_die.Tag();
+    switch (parent_tag) {
+    case DW_TAG_namespace: {
+      if (const char *namespace_name = parent_decl_ctx_die.GetName()) {
+        qualified_name.insert(0, "::");
+        qualified_name.insert(0, namespace_name);
+      } else {
+        qualified_name.insert(0, "(anonymous namespace)::");
+      }
+      parent_decl_ctx_die = parent_decl_ctx_die.GetParentDeclContextDIE();
+      break;
+    }
+
+    case DW_TAG_class_type:
+    case DW_TAG_structure_type:
+    case DW_TAG_union_type: {
+      if (const char *class_union_struct_name = parent_decl_ctx_die.GetName()) {
+        qualified_name.insert(0,
+                              GetTemplateParametersString(parent_decl_ctx_die));
+        qualified_name.insert(0, "::");
+        qualified_name.insert(0, class_union_struct_name);
+      }
+      parent_decl_ctx_die = parent_decl_ctx_die.GetParentDeclContextDIE();
+      break;
+    }
+
+    default:
+      parent_decl_ctx_die.Clear();
+      break;
+    }
+  }
+
+  if (qualified_name.empty())
+    qualified_name.append("::");
+
+  qualified_name.append(name);
+  qualified_name.append(GetTemplateParametersString(die));
+
+  return qualified_name;
+}
+
 TypeSP
 DWARFASTParserClang::ParseStructureLikeDIE(const SymbolContext &sc,
                                            const DWARFDIE &die,
@@ -1527,8 +1638,8 @@ DWARFASTParserClang::ParseStructureLikeDIE(const SymbolContext &sc,
       // For C++, we rely solely upon the one definition rule that says
       // only one thing can exist at a given decl context. We ignore the
       // file and line that things are declared on.
-      std::string qualified_name;
-      if (die.GetQualifiedName(qualified_name))
+      std::string qualified_name = GetCPlusPlusQualifiedName(die);
+      if (!qualified_name.empty())
         unique_typename = ConstString(qualified_name);
       unique_decl.Clear();
     }
@@ -1702,36 +1813,36 @@ DWARFASTParserClang::ParseStructureLikeDIE(const SymbolContext &sc,
     metadata.SetUserID(die.GetID());
     metadata.SetIsDynamicCXXType(dwarf->ClassOrStructIsVirtual(die));
 
-    if (attrs.name.GetStringRef().contains('<')) {
-      TypeSystemClang::TemplateParameterInfos template_param_infos;
-      if (ParseTemplateParameterInfos(die, template_param_infos)) {
-        clang::ClassTemplateDecl *class_template_decl =
-            m_ast.ParseClassTemplateDecl(
-                decl_ctx, GetOwningClangModule(die), attrs.accessibility,
-                attrs.name.GetCString(), tag_decl_kind, template_param_infos);
-        if (!class_template_decl) {
-          if (log) {
-            dwarf->GetObjectFile()->GetModule()->LogMessage(
-                log,
-                "SymbolFileDWARF(%p) - 0x%8.8x: %s type \"%s\" "
-                "clang::ClassTemplateDecl failed to return a decl.",
-                static_cast<void *>(this), die.GetOffset(),
-                DW_TAG_value_to_name(tag), attrs.name.GetCString());
-          }
-          return TypeSP();
+    TypeSystemClang::TemplateParameterInfos template_param_infos;
+    if (ParseTemplateParameterInfos(die, template_param_infos) &&
+        (!template_param_infos.args.empty() ||
+         template_param_infos.packed_args)) {
+      clang::ClassTemplateDecl *class_template_decl =
+          m_ast.ParseClassTemplateDecl(
+              decl_ctx, GetOwningClangModule(die), attrs.accessibility,
+              attrs.name.GetCString(), tag_decl_kind, template_param_infos);
+      if (!class_template_decl) {
+        if (log) {
+          dwarf->GetObjectFile()->GetModule()->LogMessage(
+              log,
+              "SymbolFileDWARF(%p) - 0x%8.8x: %s type \"%s\" "
+              "clang::ClassTemplateDecl failed to return a decl.",
+              static_cast<void *>(this), die.GetOffset(),
+              DW_TAG_value_to_name(tag), attrs.name.GetCString());
         }
-
-        clang::ClassTemplateSpecializationDecl *class_specialization_decl =
-            m_ast.CreateClassTemplateSpecializationDecl(
-                decl_ctx, GetOwningClangModule(die), class_template_decl,
-                tag_decl_kind, template_param_infos);
-        clang_type = m_ast.CreateClassTemplateSpecializationType(
-            class_specialization_decl);
-        clang_type_was_created = true;
-
-        m_ast.SetMetadata(class_template_decl, metadata);
-        m_ast.SetMetadata(class_specialization_decl, metadata);
+        return TypeSP();
       }
+
+      clang::ClassTemplateSpecializationDecl *class_specialization_decl =
+          m_ast.CreateClassTemplateSpecializationDecl(
+              decl_ctx, GetOwningClangModule(die), class_template_decl,
+              tag_decl_kind, template_param_infos);
+      clang_type = m_ast.CreateClassTemplateSpecializationType(
+          class_specialization_decl);
+      clang_type_was_created = true;
+
+      m_ast.SetMetadata(class_template_decl, metadata);
+      m_ast.SetMetadata(class_specialization_decl, metadata);
     }
 
     if (!clang_type_was_created) {
@@ -1930,7 +2041,7 @@ bool DWARFASTParserClang::ParseTemplateDIE(
   }
   case DW_TAG_GNU_template_template_param:
     is_template_template_argument = true;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case DW_TAG_template_type_parameter:
   case DW_TAG_template_value_parameter: {
     DWARFAttributes attributes;
@@ -2280,6 +2391,39 @@ size_t DWARFASTParserClang::ParseChildEnumerators(
   return enumerators_added;
 }
 
+ConstString
+DWARFASTParserClang::ConstructDemangledNameFromDWARF(const DWARFDIE &die) {
+  bool is_static = false;
+  bool is_variadic = false;
+  bool has_template_params = false;
+  unsigned type_quals = 0;
+  std::vector<CompilerType> param_types;
+  std::vector<clang::ParmVarDecl *> param_decls;
+  StreamString sstr;
+
+  DWARFDeclContext decl_ctx = SymbolFileDWARF::GetDWARFDeclContext(die);
+  sstr << decl_ctx.GetQualifiedName();
+
+  clang::DeclContext *containing_decl_ctx =
+      GetClangDeclContextContainingDIE(die, nullptr);
+  ParseChildParameters(containing_decl_ctx, die, true, is_static, is_variadic,
+                       has_template_params, param_types, param_decls,
+                       type_quals);
+  sstr << "(";
+  for (size_t i = 0; i < param_types.size(); i++) {
+    if (i > 0)
+      sstr << ", ";
+    sstr << param_types[i].GetTypeName();
+  }
+  if (is_variadic)
+    sstr << ", ...";
+  sstr << ")";
+  if (type_quals & clang::Qualifiers::Const)
+    sstr << " const";
+
+  return ConstString(sstr.GetString());
+}
+
 Function *
 DWARFASTParserClang::ParseFunctionFromDWARF(CompileUnit &comp_unit,
                                             const DWARFDIE &die,
@@ -2317,35 +2461,7 @@ DWARFASTParserClang::ParseFunctionFromDWARF(CompileUnit &comp_unit,
       // If the mangled name is not present in the DWARF, generate the
       // demangled name using the decl context. We skip if the function is
       // "main" as its name is never mangled.
-      bool is_static = false;
-      bool is_variadic = false;
-      bool has_template_params = false;
-      unsigned type_quals = 0;
-      std::vector<CompilerType> param_types;
-      std::vector<clang::ParmVarDecl *> param_decls;
-      StreamString sstr;
-
-      DWARFDeclContext decl_ctx = SymbolFileDWARF::GetDWARFDeclContext(die);
-      sstr << decl_ctx.GetQualifiedName();
-
-      clang::DeclContext *containing_decl_ctx =
-          GetClangDeclContextContainingDIE(die, nullptr);
-      ParseChildParameters(containing_decl_ctx, die, true, is_static,
-                           is_variadic, has_template_params, param_types,
-                           param_decls, type_quals);
-      sstr << "(";
-      for (size_t i = 0; i < param_types.size(); i++) {
-        if (i > 0)
-          sstr << ", ";
-        sstr << param_types[i].GetTypeName();
-      }
-      if (is_variadic)
-        sstr << ", ...";
-      sstr << ")";
-      if (type_quals & clang::Qualifiers::Const)
-        sstr << " const";
-
-      func_name.SetValue(ConstString(sstr.GetString()), false);
+      func_name.SetValue(ConstructDemangledNameFromDWARF(die), false);
     } else
       func_name.SetValue(ConstString(name), false);
 
@@ -2694,6 +2810,7 @@ void DWARFASTParserClang::ParseSingleMember(
       // TODO: Support float/double static members as well.
       if (!attrs.const_value_form || !ct.IsIntegerOrEnumerationType(unused))
         return;
+
       llvm::Expected<llvm::APInt> const_value_or_err =
           ExtractIntFromFormValue(ct, *attrs.const_value_form);
       if (!const_value_or_err) {
@@ -2702,6 +2819,7 @@ void DWARFASTParserClang::ParseSingleMember(
                        v->getQualifiedNameAsString());
         return;
       }
+
       TypeSystemClang::SetIntegerInitializerForVariable(v, *const_value_or_err);
     }
     return;

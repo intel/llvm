@@ -32,6 +32,14 @@ set(compile_opts
   -sycl-std=2020
   )
 
+if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
+  string(APPEND sycl_targets_opt ",nvptx64-nvidia-cuda")
+  list(APPEND compile_opts
+    "-fno-sycl-libspirv"
+    "-fno-bundle-offload-arch"
+    "-nocudalib")
+endif()
+
 if (WIN32)
   list(APPEND compile_opts -D_ALLOW_RUNTIME_LIBRARY_MISMATCH)
   list(APPEND compile_opts -D_ALLOW_ITERATOR_DEBUG_LEVEL_MISMATCH)

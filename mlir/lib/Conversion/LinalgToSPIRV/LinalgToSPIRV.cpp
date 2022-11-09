@@ -70,7 +70,7 @@ SingleWorkgroupReduction::matchAsPerformingReduction(
     return llvm::None;
 
   // Make sure this is reduction with one input and one output.
-  if (genericOp.getNumInputs() != 1 || genericOp.getNumOutputs() != 1)
+  if (genericOp.getNumDpsInputs() != 1 || genericOp.getNumDpsInits() != 1)
     return llvm::None;
 
   auto originalInputType = op->getOperand(0).getType().cast<MemRefType>();
@@ -172,11 +172,11 @@ LogicalResult SingleWorkgroupReduction::matchAndRewrite(
                            zeroIndices, loc, rewriter);
 
   // Write out the final reduction result. This should be only conducted by one
-  // invocation. We use spv.GroupNonUniformElect to find the invocation with the
-  // lowest ID.
+  // invocation. We use spirv.GroupNonUniformElect to find the invocation with
+  // the lowest ID.
   //
   // ```
-  // if (spv.GroupNonUniformElect) { output = ... }
+  // if (spirv.GroupNonUniformElect) { output = ... }
   // ```
 
   Value condition = rewriter.create<spirv::GroupNonUniformElectOp>(

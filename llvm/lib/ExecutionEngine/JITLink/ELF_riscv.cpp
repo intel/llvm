@@ -82,14 +82,14 @@ public:
 private:
   Section &getGOTSection() const {
     if (!GOTSection)
-      GOTSection = &G.createSection("$__GOT", MemProt::Read);
+      GOTSection = &G.createSection("$__GOT", orc::MemProt::Read);
     return *GOTSection;
   }
 
   Section &getStubsSection() const {
     if (!StubsSection)
       StubsSection =
-          &G.createSection("$__STUBS", MemProt::Read | MemProt::Exec);
+          &G.createSection("$__STUBS", orc::MemProt::Read | orc::MemProt::Exec);
     return *StubsSection;
   }
 
@@ -482,8 +482,8 @@ private:
     using Base = ELFLinkGraphBuilder<ELFT>;
     using Self = ELFLinkGraphBuilder_riscv<ELFT>;
     for (const auto &RelSect : Base::Sections)
-      if (Error Err = Base::forEachRelocation(RelSect, this,
-                                              &Self::addSingleRelocation))
+      if (Error Err = Base::forEachRelaRelocation(RelSect, this,
+                                                  &Self::addSingleRelocation))
         return Err;
 
     return Error::success();

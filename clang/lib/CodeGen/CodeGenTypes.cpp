@@ -51,6 +51,65 @@ void CodeGenTypes::addRecordTypeName(const RecordDecl *RD,
                                      StringRef suffix) {
   SmallString<256> TypeName;
   llvm::raw_svector_ostream OS(TypeName);
+  // If RD is spirv_JointMatrixINTEL type, mangle differently.
+  if (CGM.getTriple().isSPIRV() || CGM.getTriple().isSPIR()) {
+    if (RD->getQualifiedNameAsString() == "__spv::__spirv_JointMatrixINTEL") {
+      if (auto TemplateDecl = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
+        ArrayRef<TemplateArgument> TemplateArgs =
+            TemplateDecl->getTemplateArgs().asArray();
+        OS << "spirv.JointMatrixINTEL.";
+        for (auto &TemplateArg : TemplateArgs) {
+          OS << "_";
+          if (TemplateArg.getKind() == TemplateArgument::Type) {
+            llvm::Type *TTy = ConvertType(TemplateArg.getAsType());
+            if (TTy->isIntegerTy()) {
+              switch (TTy->getIntegerBitWidth()) {
+              case 8:
+                OS << "char";
+                break;
+              case 16:
+                OS << "short";
+                break;
+              case 32:
+                OS << "int";
+                break;
+              case 64:
+                OS << "long";
+                break;
+              default:
+                OS << "i" << TTy->getIntegerBitWidth();
+                break;
+              }
+            } else if (TTy->isHalfTy()) {
+              OS << "half";
+            } else if (TTy->isFloatTy()) {
+              OS << "float";
+            } else if (TTy->isDoubleTy()) {
+              OS << "double";
+            } else if (TTy->isBFloatTy()) {
+              OS << "bfloat16";
+            } else if (TTy->isStructTy()) {
+              StringRef LlvmTyName = TTy->getStructName();
+              // Emit half/bfloat16/tf32 for sycl[::*]::{half,bfloat16,tf32}
+              if (LlvmTyName.startswith("class.sycl::") ||
+                  LlvmTyName.startswith("class.__sycl_internal::"))
+                LlvmTyName = LlvmTyName.rsplit("::").second;
+              if (LlvmTyName != "half" && LlvmTyName != "bfloat16" &&
+                  LlvmTyName != "tf32")
+                llvm_unreachable("Wrong matrix base type!");
+              OS << LlvmTyName;
+            } else {
+              llvm_unreachable("Wrong matrix base type!");
+            }
+          } else if (TemplateArg.getKind() == TemplateArgument::Integral) {
+            OS << TemplateArg.getAsIntegral();
+          }
+        }
+        Ty->setName(OS.str());
+        return;
+      }
+    }
+  }
   OS << RD->getKindName() << '.';
 
   // FIXME: We probably want to make more tweaks to the printing policy. For
@@ -67,7 +126,7 @@ void CodeGenTypes::addRecordTypeName(const RecordDecl *RD,
     if (RD->getDeclContext())
       RD->printQualifiedName(OS, Policy);
     else
-      RD->printName(OS);
+      RD->printName(OS, Policy);
   } else if (const TypedefNameDecl *TDD = RD->getTypedefNameForAnonDecl()) {
     // FIXME: We should not have to check for a null decl context here.
     // Right now we do it because the implicit Obj-C decls don't have one.
@@ -273,6 +332,10 @@ void CodeGenTypes::UpdateCompletedType(const TagDecl *TD) {
       if (!ConvertType(ED->getIntegerType())->isIntegerTy(32))
         TypeCache.clear();
     }
+    // If this is the SYCL aspect enum it is saved for later processing.
+    if (const auto *Attr = ED->getAttr<SYCLTypeAttr>())
+      if (Attr->getType() == SYCLTypeAttr::SYCLType::aspect)
+        CGM.setAspectsEnumDecl(ED);
     // If necessary, provide the full definition of a type only used with a
     // declaration so far.
     if (CGDebugInfo *DI = CGM.getModuleDebugInfo())

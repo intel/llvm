@@ -1,8 +1,8 @@
 ; REQUIRES: spirv-as
 ; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv %t.spv -r --spirv-target-env=SPV-IR -o - | llvm-dis | FileCheck %s --check-prefixes=CHECK,CHECK-SPV-IR
-; RUN: llvm-spirv %t.spv -r --spirv-target-env=CL2.0 -o - | llvm-dis | FileCheck %s --check-prefixes=CHECK,CHECK-CL20
+; RUN: llvm-spirv %t.spv -r -emit-opaque-pointers --spirv-target-env=SPV-IR -o - | llvm-dis | FileCheck %s --check-prefixes=CHECK,CHECK-SPV-IR
+; RUN: llvm-spirv %t.spv -r -emit-opaque-pointers --spirv-target-env=CL2.0 -o - | llvm-dis | FileCheck %s --check-prefixes=CHECK,CHECK-CL20
 ;
 ; CHECK-LABEL: spir_kernel void @test
 ; CHECK-SPV-IR: call spir_func float @_Z16__spirv_ocl_acosf(float

@@ -8,7 +8,6 @@
 
 #include <detail/backend_impl.hpp>
 #include <detail/config.hpp>
-#include <detail/force_device.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
 #include <sycl/device.hpp>
@@ -19,7 +18,7 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
-platform::platform() : impl(detail::platform_impl::getHostPlatformImpl()) {}
+platform::platform() : platform(default_selector_v) {}
 
 platform::platform(cl_platform_id PlatformId) {
   impl = detail::platform_impl::getOrMakePlatformImpl(
@@ -40,7 +39,12 @@ bool platform::has_extension(const std::string &ExtensionName) const {
   return impl->has_extension(ExtensionName);
 }
 
-bool platform::is_host() const { return impl->is_host(); }
+bool platform::is_host() const {
+  bool IsHost = impl->is_host();
+  assert(!IsHost &&
+         "platform::is_host should not be called in implementation.");
+  return IsHost;
+}
 
 std::vector<device> platform::get_devices(info::device_type DeviceType) const {
   return impl->get_devices(DeviceType);
@@ -79,8 +83,9 @@ context platform::ext_oneapi_get_default_context() const {
       &PlatformToDefaultContextCache =
           detail::GlobalHandler::instance().getPlatformToDefaultContextCache();
 
-  std::lock_guard Lock{detail::GlobalHandler::instance()
-                           .getPlatformToDefaultContextCacheMutex()};
+  std::lock_guard<std::mutex> Lock{
+      detail::GlobalHandler::instance()
+          .getPlatformToDefaultContextCacheMutex()};
 
   auto It = PlatformToDefaultContextCache.find(impl);
   if (PlatformToDefaultContextCache.end() == It)

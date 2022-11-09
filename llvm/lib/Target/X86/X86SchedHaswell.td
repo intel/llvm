@@ -257,7 +257,7 @@ defm : X86WriteRes<WriteFMaskedStore64Y, [HWPort0,HWPort4,HWPort237,HWPort15], 5
 defm : X86WriteRes<WriteFMove,         [HWPort5], 1, [1], 1>;
 defm : X86WriteRes<WriteFMoveX,        [HWPort5], 1, [1], 1>;
 defm : X86WriteRes<WriteFMoveY,        [HWPort5], 1, [1], 1>;
-defm : X86WriteResUnsupported<WriteFMoveZ>;
+defm : X86WriteRes<WriteFMoveZ,        [HWPort5], 1, [1], 1>; // Unsupported = 1
 defm : X86WriteRes<WriteEMMS,          [HWPort01,HWPort15,HWPort015,HWPort0156], 31, [8,1,21,1], 31>;
 
 defm : HWWriteResPair<WriteFAdd,    [HWPort1],  3, [1], 1, 5>;
@@ -326,7 +326,6 @@ defm : HWWriteResPair<WriteFMAZ,   [HWPort01], 5, [1], 1, 7>; // Unsupported = 1
 defm : HWWriteResPair<WriteDPPD,   [HWPort0,HWPort1,HWPort5],  9, [1,1,1], 3, 6>;
 defm : HWWriteResPair<WriteDPPS,   [HWPort0,HWPort1,HWPort5], 14, [2,1,1], 4, 6>;
 defm : HWWriteResPair<WriteDPPSY,  [HWPort0,HWPort1,HWPort5], 14, [2,1,1], 4, 7>;
-defm : HWWriteResPair<WriteDPPSZ,  [HWPort0,HWPort1,HWPort5], 14, [2,1,1], 4, 7>; // Unsupported = 1
 defm : HWWriteResPair<WriteFSign,  [HWPort0], 1>;
 defm : X86WriteRes<WriteFRnd,            [HWPort23],  6, [1],   1>;
 defm : X86WriteRes<WriteFRndY,           [HWPort23],  6, [1],   1>;
@@ -417,7 +416,7 @@ defm : X86WriteRes<WriteVecMaskedStore64Y, [HWPort0,HWPort4,HWPort237,HWPort15],
 defm : X86WriteRes<WriteVecMove,         [HWPort015], 1, [1], 1>;
 defm : X86WriteRes<WriteVecMoveX,        [HWPort015], 1, [1], 1>;
 defm : X86WriteRes<WriteVecMoveY,        [HWPort015], 1, [1], 1>;
-defm : X86WriteResUnsupported<WriteVecMoveZ>;
+defm : X86WriteRes<WriteVecMoveZ,        [HWPort015], 1, [1], 1>; // Unsupported = 1
 defm : X86WriteRes<WriteVecMoveToGpr,    [HWPort0], 1, [1], 1>;
 defm : X86WriteRes<WriteVecMoveFromGpr,  [HWPort5], 1, [1], 1>;
 

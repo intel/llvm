@@ -57,6 +57,7 @@
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
@@ -283,13 +284,35 @@ bool PEI::runOnMachineFunction(MachineFunction &MF) {
     assert(!Failed && "Invalid warn-stack-size fn attr value");
     (void)Failed;
   }
-  if (MF.getFunction().hasFnAttribute(Attribute::SafeStack)) {
-    StackSize += MFI.getUnsafeStackSize();
-  }
+  uint64_t UnsafeStackSize = MFI.getUnsafeStackSize();
+  if (MF.getFunction().hasFnAttribute(Attribute::SafeStack))
+    StackSize += UnsafeStackSize;
+
   if (StackSize > Threshold) {
     DiagnosticInfoStackSize DiagStackSize(F, StackSize, Threshold, DS_Warning);
     F.getContext().diagnose(DiagStackSize);
+    int64_t SpillSize = 0;
+    for (int Idx = MFI.getObjectIndexBegin(), End = MFI.getObjectIndexEnd();
+         Idx != End; ++Idx) {
+      if (MFI.isSpillSlotObjectIndex(Idx))
+        SpillSize += MFI.getObjectSize(Idx);
+    }
+
+    float SpillPct =
+        static_cast<float>(SpillSize) / static_cast<float>(StackSize);
+    float VarPct = 1.0f - SpillPct;
+    int64_t VariableSize = StackSize - SpillSize;
+    dbgs() << formatv("{0}/{1} ({3:P}) spills, {2}/{1} ({4:P}) variables",
+                      SpillSize, StackSize, VariableSize, SpillPct, VarPct);
+    if (UnsafeStackSize != 0) {
+      float UnsafePct =
+          static_cast<float>(UnsafeStackSize) / static_cast<float>(StackSize);
+      dbgs() << formatv(", {0}/{2} ({1:P}) unsafe stack", UnsafeStackSize,
+                        UnsafePct, StackSize);
+    }
+    dbgs() << "\n";
   }
+
   ORE->emit([&]() {
     return MachineOptimizationRemarkAnalysis(DEBUG_TYPE, "StackSize",
                                              MF.getFunction().getSubprogram(),
@@ -1206,6 +1229,11 @@ void PEI::insertZeroCallUsedRegs(MachineFunction &MF) {
             UsedRegs.set(Reg);
         }
 
+  // Get a list of registers that are used.
+  BitVector LiveIns(TRI.getNumRegs());
+  for (const MachineBasicBlock::RegisterMaskPair &LI : MF.front().liveins())
+    LiveIns.set(LI.PhysReg);
+
   BitVector RegsToZero(TRI.getNumRegs());
   for (MCRegister Reg : AllocatableSet.set_bits()) {
     // Skip over fixed registers.
@@ -1221,8 +1249,14 @@ void PEI::insertZeroCallUsedRegs(MachineFunction &MF) {
       continue;
 
     // Want only registers used for arguments.
-    if (OnlyArg && !TRI.isArgumentRegister(MF, Reg))
-      continue;
+    if (OnlyArg) {
+      if (OnlyUsed) {
+        if (!LiveIns[Reg])
+          continue;
+      } else if (!TRI.isArgumentRegister(MF, Reg)) {
+        continue;
+      }
+    }
 
     RegsToZero.set(Reg);
   }
@@ -1262,9 +1296,10 @@ void PEI::insertZeroCallUsedRegs(MachineFunction &MF) {
     }
   }
 
-  // Don't clear registers that are reset before exiting.
-  for (const CalleeSavedInfo &CSI : MF.getFrameInfo().getCalleeSavedInfo())
-    for (MCRegister Reg : TRI.sub_and_superregs_inclusive(CSI.getReg()))
+  // Don't clear registers that must be preserved.
+  for (const MCPhysReg *CSRegs = TRI.getCalleeSavedRegs(&MF);
+       MCPhysReg CSReg = *CSRegs; ++CSRegs)
+    for (MCRegister Reg : TRI.sub_and_superregs_inclusive(CSReg))
       RegsToZero.reset(Reg);
 
   const TargetFrameLowering &TFI = *MF.getSubtarget().getFrameLowering();

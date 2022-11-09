@@ -815,11 +815,20 @@ void CodeGenFunction::EmitIfStmt(const IfStmt &S) {
   // Prefer the PGO based weights over the likelihood attribute.
   // When the build isn't optimized the metadata isn't used, so don't generate
   // it.
+  // Also, differentiate between disabled PGO and a never executed branch with
+  // PGO. Assuming PGO is in use:
+  // - we want to ignore the [[likely]] attribute if the branch is never
+  // executed,
+  // - assuming the profile is poor, preserving the attribute may still be
+  // beneficial.
+  // As an approximation, preserve the attribute only if both the branch and the
+  // parent context were not executed.
   Stmt::Likelihood LH = Stmt::LH_None;
-  uint64_t Count = getProfileCount(S.getThen());
-  if (!Count && CGM.getCodeGenOpts().OptimizationLevel)
+  uint64_t ThenCount = getProfileCount(S.getThen());
+  if (!ThenCount && !getCurrentProfileCount() &&
+      CGM.getCodeGenOpts().OptimizationLevel)
     LH = Stmt::getLikelihood(S.getThen(), S.getElse());
-  EmitBranchOnBoolExpr(S.getCond(), ThenBlock, ElseBlock, Count, LH);
+  EmitBranchOnBoolExpr(S.getCond(), ThenBlock, ElseBlock, ThenCount, LH);
 
   // Emit the 'then' code.
   EmitBlock(ThenBlock);
@@ -1509,6 +1518,21 @@ void CodeGenFunction::EmitCaseStmt(const CaseStmt &S,
 
   llvm::ConstantInt *CaseVal =
     Builder.getInt(S.getLHS()->EvaluateKnownConstInt(getContext()));
+
+  // Emit debuginfo for the case value if it is an enum value.
+  const ConstantExpr *CE;
+  if (auto ICE = dyn_cast<ImplicitCastExpr>(S.getLHS()))
+    CE = dyn_cast<ConstantExpr>(ICE->getSubExpr());
+  else
+    CE = dyn_cast<ConstantExpr>(S.getLHS());
+  if (CE) {
+    if (auto DE = dyn_cast<DeclRefExpr>(CE->getSubExpr()))
+      if (CGDebugInfo *Dbg = getDebugInfo())
+        if (CGM.getCodeGenOpts().hasReducedDebugInfo())
+          Dbg->EmitGlobalVariable(DE->getDecl(),
+              APValue(llvm::APSInt(CaseVal->getValue())));
+  }
+
   if (SwitchLikelihood)
     SwitchLikelihood->push_back(Stmt::getLikelihood(Attrs));
 
@@ -2256,9 +2280,9 @@ static void UpdateAsmCallInst(llvm::CallBase &Result, bool HasSideEffect,
   // Attach readnone and readonly attributes.
   if (!HasSideEffect) {
     if (ReadNone)
-      Result.addFnAttr(llvm::Attribute::ReadNone);
+      Result.setDoesNotAccessMemory();
     else if (ReadOnly)
-      Result.addFnAttr(llvm::Attribute::ReadOnly);
+      Result.setOnlyReadsMemory();
   }
 
   // Add elementtype attribute for indirect constraints.

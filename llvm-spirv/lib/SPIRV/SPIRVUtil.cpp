@@ -38,6 +38,10 @@
 ///
 //===----------------------------------------------------------------------===//
 
+// This file needs to be included before anything that declares
+// llvm::PointerType to avoid a compilation bug on MSVC.
+#include "llvm/Demangle/ItaniumDemangle.h"
+
 #include "FunctionDescriptor.h"
 #include "ManglingUtils.h"
 #include "NameMangleAPI.h"
@@ -50,10 +54,10 @@
 
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
-#include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Metadata.h"
+#include "llvm/IR/TypedPointerType.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -150,7 +154,7 @@ std::string mapLLVMTypeToOCLType(const Type *Ty, bool Signed, Type *PET) {
   if (Ty->isPointerTy()) {
     assert(cast<PointerType>(const_cast<Type *>(Ty))
                ->isOpaqueOrPointeeTypeMatches(PET));
-    MangleInfo.getTypeMangleInfo(0).PointerElementType.setPointer(PET);
+    Ty = TypedPointerType::get(PET, Ty->getPointerAddressSpace());
   }
   std::string MangledName =
       mangleBuiltin("", const_cast<Type *>(Ty), &MangleInfo);
@@ -662,12 +666,191 @@ static std::string demangleBuiltinOpenCLTypeName(StringRef MangledStructName) {
   return LlvmStructName;
 }
 
-void getParameterTypes(Function *F, SmallVectorImpl<StructType *> &ArgTys) {
+/// Convert a C/C++ type name into an LLVM type, if it's a basic integer or
+/// floating point type.
+static Type *parsePrimitiveType(LLVMContext &Ctx, StringRef Name) {
+  return StringSwitch<Type *>(Name)
+      .Cases("char", "signed char", "unsigned char", Type::getInt8Ty(Ctx))
+      .Cases("short", "unsigned short", Type::getInt16Ty(Ctx))
+      .Cases("int", "unsigned int", Type::getInt32Ty(Ctx))
+      .Cases("long", "unsigned long", Type::getInt64Ty(Ctx))
+      .Cases("long long", "unsigned long long", Type::getInt64Ty(Ctx))
+      .Case("half", Type::getHalfTy(Ctx))
+      .Case("float", Type::getFloatTy(Ctx))
+      .Case("double", Type::getDoubleTy(Ctx))
+      .Case("void", Type::getInt8Ty(Ctx))
+      .Default(nullptr);
+}
+
+} // namespace SPIRV
+
+// The demangler node hierarchy doesn't use LLVM's RTTI helper functions (as it
+// also needs to live in libcxxabi). By specializing this implementation here,
+// we can add support for these functions.
+#define NODE(X)                                                                \
+  template <typename From> struct llvm::isa_impl<itanium_demangle::X, From> {  \
+    static inline bool doit(const From &Val) {                                 \
+      return Val.getKind() == itanium_demangle::Node::K##X;                    \
+    }                                                                          \
+  };
+#include "llvm/Demangle/ItaniumNodes.def"
+
+namespace SPIRV {
+
+namespace {
+// An allocator to use with the demangler API.
+class DefaultAllocator {
+  BumpPtrAllocator Alloc;
+
+public:
+  void reset() { Alloc.Reset(); }
+
+  template <typename T, typename... Args> T *makeNode(Args &&...ArgList) {
+    return new (Alloc.Allocate(sizeof(T), alignof(T)))
+        T(std::forward<Args>(ArgList)...);
+  }
+
+  void *allocateNodeArray(size_t Sz) {
+    using namespace llvm::itanium_demangle;
+    return Alloc.Allocate(sizeof(Node *) * Sz, alignof(Node *));
+  }
+};
+} // unnamed namespace
+
+static StringRef stringify(const itanium_demangle::NameType *Node) {
+  const itanium_demangle::StringView Str = Node->getName();
+  return StringRef(Str.begin(), Str.size());
+}
+
+void getParameterTypes(Function *F, SmallVectorImpl<Type *> &ArgTys,
+                       std::function<std::string(StringRef)> NameMapFn) {
+  SmallVector<TypedPointerType *, 10> PIPs;
+  getParameterTypes(F, PIPs, std::move(NameMapFn));
+  for (auto *Pair : PIPs) {
+    ArgTys.push_back(Pair ? Pair->getElementType() : nullptr);
+  }
+}
+
+template <typename FnType>
+static TypedPointerType *
+parseNode(Module *M, const llvm::itanium_demangle::Node *ParamType,
+          FnType GetStructType) {
+  using namespace llvm::itanium_demangle;
+  Type *PointeeTy = nullptr;
+  unsigned AS = 0;
+
+  if (auto *Name = dyn_cast<NameType>(ParamType)) {
+    // This corresponds to a simple class name. Since we only care about
+    // pointer element types, the only relevant names are those corresponding
+    // to the OpenCL special types (which all begin with "ocl_").
+    StringRef Arg(stringify(Name));
+    if (Arg.startswith("ocl_")) {
+      const std::string StructName = demangleBuiltinOpenCLTypeName(Arg);
+      PointeeTy = GetStructType(StructName);
+    } else if (Arg.consume_front("__spirv_")) {
+      // This is a pointer to a SPIR-V OpType* opaque struct. In general,
+      // convert __spirv_<Type>[__Suffix] to %spirv.Type[._Suffix]
+      auto NameSuffixPair = Arg.split('_');
+      std::string StructName = "spirv.";
+      StructName += NameSuffixPair.first;
+      if (!NameSuffixPair.second.empty()) {
+        StructName += ".";
+        StructName += NameSuffixPair.second;
+      }
+      PointeeTy = GetStructType(StructName);
+    } else if (Arg == "ndrange_t") {
+      PointeeTy = GetStructType(Arg);
+    }
+  } else if (auto *P = dyn_cast<itanium_demangle::PointerType>(ParamType)) {
+    const Node *Pointee = P->getPointee();
+
+    // Strip through all of the qualifiers on the pointee type.
+    while (true) {
+      if (auto *VendorTy = dyn_cast<VendorExtQualType>(Pointee)) {
+        Pointee = VendorTy->getTy();
+        StringRef Qualifier(VendorTy->getExt().begin(),
+                            VendorTy->getExt().size());
+        if (Qualifier.consume_front("AS")) {
+          Qualifier.getAsInteger(10, AS);
+        }
+      } else if (auto *Qual = dyn_cast<QualType>(Pointee)) {
+        Pointee = Qual->getChild();
+      } else {
+        break;
+      }
+    }
+
+    if (auto *Name = dyn_cast<NameType>(Pointee)) {
+      StringRef MangledStructName(stringify(Name));
+      if (MangledStructName.consume_front("__spirv_")) {
+        // This is a pointer to a SPIR-V OpType* opaque struct. In general,
+        // convert __spirv_<Type>[__Suffix] to %spirv.Type[._Suffix]
+        auto NameSuffixPair = MangledStructName.split('_');
+        std::string StructName = "spirv.";
+        StructName += NameSuffixPair.first;
+        if (!NameSuffixPair.second.empty()) {
+          StructName += ".";
+          StructName += NameSuffixPair.second;
+        }
+        PointeeTy = GetStructType(StructName);
+      } else if (MangledStructName.startswith("opencl.")) {
+        PointeeTy = GetStructType(MangledStructName);
+      } else if (MangledStructName.startswith("ocl_")) {
+        const std::string StructName =
+            demangleBuiltinOpenCLTypeName(MangledStructName);
+        PointeeTy = TypedPointerType::get(GetStructType(StructName), 0);
+      } else {
+        PointeeTy = parsePrimitiveType(M->getContext(), MangledStructName);
+      }
+    } else if (auto *BitInt = dyn_cast<BitIntType>(Pointee)) {
+      unsigned BitWidth = 0;
+      BitInt->match([&](const Node *NodeSize, bool) {
+        const StringRef SizeStr(stringify(cast<NameType>(NodeSize)));
+        SizeStr.getAsInteger(10, BitWidth);
+      });
+      PointeeTy = Type::getIntNTy(M->getContext(), BitWidth);
+    } else if (auto *Vec = dyn_cast<itanium_demangle::VectorType>(Pointee)) {
+      unsigned ElemCount = 0;
+      const StringRef ElemCountStr(
+          stringify(cast<NameType>(Vec->getDimension())));
+      ElemCountStr.getAsInteger(10, ElemCount);
+      if (auto *Name = dyn_cast<NameType>(Vec->getBaseType())) {
+        PointeeTy = parsePrimitiveType(M->getContext(), stringify(Name));
+        PointeeTy = llvm::VectorType::get(PointeeTy, ElemCount, false);
+      }
+    } else if (llvm::isa<itanium_demangle::PointerType>(Pointee)) {
+      PointeeTy = parseNode(M, Pointee, GetStructType);
+    } else {
+      // Other possible pointee types do not correspond to any of the special
+      // struct types were are looking for here.
+    }
+  } else if (auto *VendorTy = dyn_cast<VendorExtQualType>(ParamType)) {
+    // This is a block parameter. Decode the pointee type as if it were a
+    // void (*)(void) function pointer type.
+    if (VendorTy->getExt() == "block_pointer") {
+      PointeeTy =
+          llvm::FunctionType::get(Type::getVoidTy(M->getContext()), false);
+    }
+  } else {
+    // Other parameter types are not likely to be pointer types, so we can
+    // ignore these.
+  }
+  return PointeeTy ? TypedPointerType::get(PointeeTy, AS) : nullptr;
+}
+
+void getParameterTypes(Function *F, SmallVectorImpl<TypedPointerType *> &ArgTys,
+                       std::function<std::string(StringRef)> NameMapFn) {
+  using namespace llvm::itanium_demangle;
   // If there's no mangled name, we can't do anything. Also, if there's no
   // parameters, do nothing.
   StringRef Name = F->getName();
   if (!Name.startswith("_Z") || F->arg_empty())
     return;
+
+  Module *M = F->getParent();
+  auto GetStructType = [&](StringRef Name) {
+    return getOrCreateOpaqueStructType(M, NameMapFn ? NameMapFn(Name) : Name);
+  };
 
   // Start by filling in a skeleton of information we can get from the LLVM type
   // itself.
@@ -682,13 +865,15 @@ void getParameterTypes(Function *F, SmallVectorImpl<StructType *> &ArgTys) {
       assert(!HasSret && &Arg == F->getArg(0) &&
              "sret parameter should only appear on the first argument");
       HasSret = true;
-      ArgTys.push_back(dyn_cast<StructType>(Ty));
+      if (auto *STy = dyn_cast<StructType>(Ty))
+        ArgTys.push_back(
+            TypedPointerType::get(GetStructType(STy->getName()), 0));
+      else
+        ArgTys.push_back(TypedPointerType::get(Ty, 0));
     } else {
       ArgTys.push_back(nullptr);
     }
   }
-
-  Module *M = F->getParent();
 
   // Skip the first argument if it's an sret parameter--this would be an
   // implicit parameter not recognized as part of the function parameters.
@@ -702,79 +887,57 @@ void getParameterTypes(Function *F, SmallVectorImpl<StructType *> &ArgTys) {
   // "(ocl_image1d_array_wo, int __vector(2), int, int __vector(4))" (in other
   // words, the stuff between the parentheses if you ran C++ filt, including
   // the parentheses itself).
-  ItaniumPartialDemangler Demangler;
-  std::string MangledName = F->getName().str();
-  if (Demangler.partialDemangle(MangledName.c_str()))
+  const StringRef MangledName(F->getName());
+  ManglingParser<DefaultAllocator> Demangler(MangledName.begin(),
+                                             MangledName.end());
+  // We expect to see only function name encodings here. If it's not a function
+  // name encoding, bail out.
+  auto *RootNode = dyn_cast_or_null<FunctionEncoding>(Demangler.parse());
+  if (!RootNode)
     return;
-  char *Buf = nullptr;
-  size_t BufLen = 0;
-  Buf = Demangler.getFunctionParameters(Buf, &BufLen);
-  StringRef Args(Buf, BufLen);
-  // Strip parentheses from the result.
-  Args = Args.slice(1, Args.size() - 2);
 
-  if (Args.find_first_of("<(") == StringRef::npos) {
-    // Go through the function arguments using type names where possible.
-    SmallVector<StringRef, 8> ArgParams;
-    Args.split(ArgParams, ", ");
-
-    // Sanity check that the name mangling matches up to the expected number of
-    // arguments.
-    if (ArgParams.size() > (size_t)(ArgTys.end() - ArgIter)) {
-      LLVM_DEBUG(dbgs() << "[getParameterTypes] function " << F->getName()
-                        << " appears to have " << ArgParams.size()
-                        << " arguments but has " << (ArgTys.end() - ArgIter)
-                        << "\n");
-      free(Buf);
+  // Get the parameter list. If the function is a vararg function, drop the last
+  // parameter.
+  NodeArray Params = RootNode->getParams();
+  if (F->isVarArg()) {
+    bool HasVarArgParam = false;
+    if (!Params.empty()) {
+      if (auto *Name = dyn_cast<NameType>(Params[Params.size() - 1])) {
+        if (stringify(Name) == "...")
+          HasVarArgParam = true;
+      }
+    }
+    if (HasVarArgParam) {
+      Params = NodeArray(Params.begin(), Params.size() - 1);
+    } else {
+      LLVM_DEBUG(dbgs() << "[getParameterTypes] function " << MangledName
+                        << " was expected to have a varargs parameter\n");
       return;
     }
-
-    for (StringRef Arg : ArgParams) {
-      StructType *Pointee = nullptr;
-      if (Arg.endswith("*") && !Arg.endswith("**")) {
-        // Strip off address space and other qualifiers.
-        StringRef MangledStructName = Arg.split(' ').first;
-
-        if (MangledStructName.consume_front("__spirv_")) {
-          // This is a pointer to a SPIR-V OpType* opaque struct. In general,
-          // convert __spirv_<Type>[__Suffix] to %spirv.Type[._Suffix]
-          auto NameSuffixPair = MangledStructName.split('_');
-          std::string StructName = "spirv.";
-          StructName += NameSuffixPair.first;
-          if (!NameSuffixPair.second.empty()) {
-            StructName += ".";
-            StructName += NameSuffixPair.second;
-          }
-          Pointee = getOrCreateOpaqueStructType(M, StructName);
-        } else if (MangledStructName.startswith("opencl.")) {
-          Pointee = getOrCreateOpaqueStructType(M, MangledStructName);
-        }
-      } else if (!Arg.contains(' ') && Arg.startswith("ocl_")) {
-        std::string StructName = demangleBuiltinOpenCLTypeName(Arg);
-        Pointee = getOrCreateOpaqueStructType(M, StructName);
-      }
-      *ArgIter++ = Pointee;
-    }
   }
-  free(Buf);
-}
 
-// This is a transitional helper function to fill in mangling information for
-// mangleBuiltin while all the calls to mutateCallInst are being transitioned.
-static void typeMangle(BuiltinFuncMangleInfo *Mangle, ArrayRef<Value *> Args) {
-  if (!Mangle)
+  // Sanity check that the name mangling matches up to the expected number of
+  // arguments.
+  if (Params.size() != (size_t)(ArgTys.end() - ArgIter)) {
+    LLVM_DEBUG(dbgs() << "[getParameterTypes] function " << MangledName
+                      << " appears to have " << Params.size()
+                      << " arguments but has " << (ArgTys.end() - ArgIter)
+                      << "\n");
     return;
-  for (unsigned I = 0; I < Args.size(); I++)
-    if (Args[I]->getType()->isPointerTy()) {
-      auto &PointeeTy = Mangle->getTypeMangleInfo(I).PointerElementType;
-      PointeeTy.setPointer(
-          Args[I]->getType()->getNonOpaquePointerElementType());
-      if (PointeeTy.getPointer()->isPointerTy()) {
-        PointeeTy.setPointer(
-            PointeeTy.getPointer()->getNonOpaquePointerElementType());
-        PointeeTy.setInt(true);
-      }
+  }
+
+  for (auto *ParamType : Params) {
+    Type *ArgTy = F->getArg(ArgIter - ArgTys.begin())->getType();
+    TypedPointerType *PointeeTy = parseNode(M, ParamType, GetStructType);
+    if (ArgTy->isPointerTy() && PointeeTy == nullptr) {
+      PointeeTy = TypedPointerType::get(Type::getInt8Ty(ArgTy->getContext()),
+                                        ArgTy->getPointerAddressSpace());
+      LLVM_DEBUG(dbgs() << "Failed to recover type of argument "
+                        << (ArgIter - ArgTys.begin()) << " of function "
+                        << F->getName() << "\n");
     }
+    *ArgIter++ = PointeeTy;
+  }
 }
 
 CallInst *mutateCallInst(
@@ -790,7 +953,6 @@ CallInst *mutateCallInst(
     InstName = CI->getName().str();
     CI->setName(InstName + ".old");
   }
-  typeMangle(Mangle, Args);
   auto NewCI = addCallInst(M, NewName, CI->getType(), Args, Attrs, CI, Mangle,
                            InstName, TakeFuncName);
   NewCI->setDebugLoc(CI->getDebugLoc());
@@ -812,7 +974,6 @@ Instruction *mutateCallInst(
   Type *RetTy = CI->getType();
   auto NewName = ArgMutate(CI, Args, RetTy);
   StringRef InstName = CI->getName();
-  typeMangle(Mangle, Args);
   auto NewCI = addCallInst(M, NewName, RetTy, Args, Attrs, CI, Mangle, InstName,
                            TakeFuncName);
   auto NewI = RetMutate(NewCI);
@@ -853,23 +1014,6 @@ void mutateFunction(
     F->eraseFromParent();
 }
 
-CallInst *mutateCallInstSPIRV(
-    Module *M, CallInst *CI,
-    std::function<std::string(CallInst *, std::vector<Value *> &)> ArgMutate,
-    AttributeList *Attrs) {
-  BuiltinFuncMangleInfo BtnInfo;
-  return mutateCallInst(M, CI, ArgMutate, &BtnInfo, Attrs);
-}
-
-Instruction *mutateCallInstSPIRV(
-    Module *M, CallInst *CI,
-    std::function<std::string(CallInst *, std::vector<Value *> &, Type *&RetTy)>
-        ArgMutate,
-    std::function<Instruction *(CallInst *)> RetMutate, AttributeList *Attrs) {
-  BuiltinFuncMangleInfo BtnInfo;
-  return mutateCallInst(M, CI, ArgMutate, RetMutate, &BtnInfo, Attrs);
-}
-
 CallInst *addCallInst(Module *M, StringRef FuncName, Type *RetTy,
                       ArrayRef<Value *> Args, AttributeList *Attrs,
                       Instruction *Pos, BuiltinFuncMangleInfo *Mangle,
@@ -890,11 +1034,12 @@ CallInst *addCallInstSPIRV(Module *M, StringRef FuncName, Type *RetTy,
                            Instruction *Pos, StringRef InstName) {
   BuiltinFuncMangleInfo BtnInfo;
   for (unsigned I = 0; I < PointerElementTypes.size(); I++) {
-    BtnInfo.getTypeMangleInfo(I).PointerElementType.setPointer(
-        PointerElementTypes[I]);
-    if (Args[I]->getType()->isPointerTy())
+    if (Args[I]->getType()->isPointerTy()) {
       assert(cast<PointerType>(Args[I]->getType())
                  ->isOpaqueOrPointeeTypeMatches(PointerElementTypes[I]));
+      BtnInfo.getTypeMangleInfo(I).PointerTy = TypedPointerType::get(
+          PointerElementTypes[I], Args[I]->getType()->getPointerAddressSpace());
+    }
   }
   return addCallInst(M, FuncName, RetTy, Args, Attrs, Pos, &BtnInfo, InstName);
 }
@@ -923,22 +1068,6 @@ void makeVector(Instruction *InsPos, std::vector<Value *> &Ops,
   auto Vec = addVector(InsPos, Range);
   Ops.erase(Range.first, Range.second);
   Ops.push_back(Vec);
-}
-
-void expandVector(Instruction *InsPos, std::vector<Value *> &Ops,
-                  size_t VecPos) {
-  auto Vec = Ops[VecPos];
-  auto *VT = dyn_cast<FixedVectorType>(Vec->getType());
-  if (!VT)
-    return;
-  size_t N = VT->getNumElements();
-  IRBuilder<> Builder(InsPos);
-  for (size_t I = 0; I != N; ++I)
-    Ops.insert(Ops.begin() + VecPos + I,
-               Builder.CreateExtractElement(
-                   Vec, ConstantInt::get(Type::getInt32Ty(InsPos->getContext()),
-                                         I, false)));
-  Ops.erase(Ops.begin() + VecPos + N);
 }
 
 Constant *castToInt8Ptr(Constant *V, unsigned Addr = 0) {
@@ -1202,7 +1331,10 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
   if (Info.IsSampler)
     return SPIR::RefParamType(
         new SPIR::PrimitiveType(SPIR::PRIMITIVE_SAMPLER_T));
-  if (Info.IsAtomic && !Ty->isPointerTy()) {
+  if (Ty->isPointerTy())
+    Ty = TypedPointerType::get(Type::getInt8Ty(Ty->getContext()),
+                               Ty->getPointerAddressSpace());
+  if (Info.IsAtomic && !isa<TypedPointerType>(Ty)) {
     BuiltinArgTypeMangleInfo DTInfo = Info;
     DTInfo.IsAtomic = false;
     return SPIR::RefParamType(new SPIR::AtomicType(transTypeDesc(Ty, DTInfo)));
@@ -1240,9 +1372,8 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
         transTypeDesc(VecTy->getElementType(), Info), VecTy->getNumElements()));
   }
   if (Ty->isArrayTy()) {
-    BuiltinArgTypeMangleInfo DTInfo = Info;
-    DTInfo.PointerElementType.setPointer(Ty->getArrayElementType());
-    return transTypeDesc(Ty->getArrayElementType()->getPointerTo(0), DTInfo);
+    return transTypeDesc(TypedPointerType::get(Ty->getArrayElementType(), 0),
+                         Info);
   }
   if (Ty->isStructTy()) {
     auto Name = Ty->getStructName();
@@ -1269,17 +1400,8 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
     return SPIR::RefParamType(new SPIR::UserDefinedType(Name.str()));
   }
 
-  if (Ty->isPointerTy()) {
-    auto *ET = Info.PointerElementType.getPointer();
-    if (!ET)
-      ET = Type::getInt8Ty(Ty->getContext());
-    BuiltinArgTypeMangleInfo DTInfo = Info;
-    if (Info.PointerElementType.getInt()) {
-      ET = DTInfo.PointerElementType.getPointer()->getPointerTo(0);
-      DTInfo.PointerElementType.setInt(false);
-    } else {
-      DTInfo.PointerElementType.setPointer(Type::getInt8Ty(Ty->getContext()));
-    }
+  if (auto *TPT = dyn_cast<TypedPointerType>(Ty)) {
+    auto *ET = TPT->getElementType();
     SPIR::ParamType *EPT = nullptr;
     if (isa<FunctionType>(ET)) {
       assert(isVoidFuncTy(cast<FunctionType>(ET)) && "Not supported");
@@ -1333,9 +1455,9 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
 
     if (VoidPtr && ET->isIntegerTy(8))
       ET = Type::getVoidTy(ET->getContext());
-    auto *PT = new SPIR::PointerType(transTypeDesc(ET, DTInfo));
+    auto *PT = new SPIR::PointerType(transTypeDesc(ET, Info));
     PT->setAddressSpace(static_cast<SPIR::TypeAttributeEnum>(
-        Ty->getPointerAddressSpace() + (unsigned)SPIR::ATTR_ADDR_SPACE_FIRST));
+        TPT->getAddressSpace() + (unsigned)SPIR::ATTR_ADDR_SPACE_FIRST));
     for (unsigned I = SPIR::ATTR_QUALIFIER_FIRST, E = SPIR::ATTR_QUALIFIER_LAST;
          I <= E; ++I)
       PT->setQualifier(static_cast<SPIR::TypeAttributeEnum>(I), I & Attr);
@@ -1429,13 +1551,6 @@ bool isSPIRVConstantName(StringRef TyName) {
     return true;
 
   return false;
-}
-
-Type *getSPIRVTypeByChangeBaseTypeName(Module *M, Type *T, StringRef OldName,
-                                       StringRef NewName) {
-  return PointerType::get(
-      getSPIRVStructTypeByChangeBaseTypeName(M, T, OldName, NewName),
-      SPIRAS_Global);
 }
 
 Type *getSPIRVStructTypeByChangeBaseTypeName(Module *M, Type *T,
@@ -1636,6 +1751,10 @@ std::string mangleBuiltin(StringRef UniqName, ArrayRef<Type *> ArgTypes,
                                               : (unsigned)BtnInfo->getVarArg();
          I != E; ++I) {
       auto T = ArgTypes[I];
+      auto MangleInfo = BtnInfo->getTypeMangleInfo(I);
+      if (MangleInfo.PointerTy && T->isPointerTy()) {
+        T = MangleInfo.PointerTy;
+      }
       FD.Parameters.emplace_back(
           transTypeDesc(T, BtnInfo->getTypeMangleInfo(I)));
     }
@@ -1939,7 +2058,7 @@ bool lowerBuiltinVariableToCall(GlobalVariable *GV,
   if (HasIndexArg)
     ArgTy.push_back(Type::getInt32Ty(C));
   std::string MangledName;
-  mangleOpenClBuiltin(FuncName, ArgTy, {}, MangledName);
+  mangleOpenClBuiltin(FuncName, ArgTy, MangledName);
   Function *Func = M->getFunction(MangledName);
   if (!Func) {
     FunctionType *FT = FunctionType::get(ReturnTy, ArgTy, false);
@@ -2391,27 +2510,17 @@ private:
 } // namespace
 
 namespace SPIRV {
-void BuiltinFuncMangleInfo::fillPointerElementTypes(
-    ArrayRef<PointerIndirectPair> PointerElementTys) {
-  for (unsigned I = 0; I < PointerElementTys.size(); I++) {
-    getTypeMangleInfo(I).PointerElementType = PointerElementTys[I];
-  }
-}
-
-std::string
-getSPIRVFriendlyIRFunctionName(OCLExtOpKind ExtOpId, ArrayRef<Type *> ArgTys,
-                               ArrayRef<PointerIndirectPair> PointerElementTys,
-                               Type *RetTy) {
+std::string getSPIRVFriendlyIRFunctionName(OCLExtOpKind ExtOpId,
+                                           ArrayRef<Type *> ArgTys,
+                                           Type *RetTy) {
   OpenCLStdToSPIRVFriendlyIRMangleInfo MangleInfo(ExtOpId, ArgTys, RetTy);
-  MangleInfo.fillPointerElementTypes(PointerElementTys);
   return mangleBuiltin(MangleInfo.getUnmangledName(), ArgTys, &MangleInfo);
 }
 
-std::string getSPIRVFriendlyIRFunctionName(
-    const std::string &UniqName, spv::Op OC, ArrayRef<Type *> ArgTys,
-    ArrayRef<PointerIndirectPair> PointerElementTys) {
+std::string getSPIRVFriendlyIRFunctionName(const std::string &UniqName,
+                                           spv::Op OC,
+                                           ArrayRef<Type *> ArgTys) {
   SPIRVFriendlyIRMangleInfo MangleInfo(OC, ArgTys);
-  MangleInfo.fillPointerElementTypes(PointerElementTys);
   return mangleBuiltin(UniqName, ArgTys, &MangleInfo);
 }
 

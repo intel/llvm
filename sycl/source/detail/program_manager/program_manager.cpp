@@ -15,6 +15,7 @@
 #include <detail/program_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/spec_constant_impl.hpp>
+#include <sycl/aspects.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
@@ -383,7 +384,7 @@ static void appendLinkOptionsFromImage(std::string &LinkOpts,
 static bool getUint32PropAsBool(const RTDeviceBinaryImage &Img,
                                 const char *PropName) {
   pi_device_binary_property Prop = Img.getProperty(PropName);
-  return Prop && (pi::DeviceBinaryProperty(Prop).asUint32() != 0);
+  return Prop && (DeviceBinaryProperty(Prop).asUint32() != 0);
 }
 
 static void appendCompileOptionsFromImage(std::string &CompileOpts,
@@ -403,10 +404,9 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
       CompileOpts += std::string(TemporaryStr);
   }
   bool isEsimdImage = getUint32PropAsBool(Img, "isEsimdImage");
-  bool isDoubleGRFEsimdImage =
-      getUint32PropAsBool(Img, "isDoubleGRFEsimdImage");
-  assert((!isDoubleGRFEsimdImage || isEsimdImage) &&
-         "doubleGRF applies only to ESIMD binary images");
+  // TODO: Remove isDoubleGRF check in next ABI break
+  bool isLargeGRF = getUint32PropAsBool(Img, "isLargeGRF") ||
+                    getUint32PropAsBool(Img, "isDoubleGRF");
   // The -vc-codegen option is always preserved for ESIMD kernels, regardless
   // of the contents SYCL_PROGRAM_COMPILE_OPTIONS environment variable.
   if (isEsimdImage) {
@@ -418,9 +418,12 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
     if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() == 0)
       CompileOpts += " -disable-finalizer-msg";
   }
-  if (isDoubleGRFEsimdImage) {
-    assert(!CompileOpts.empty()); // -vc-codegen must be present
-    CompileOpts += " -doubleGRF";
+  if (isLargeGRF) {
+    if (!CompileOpts.empty())
+      CompileOpts += " ";
+    // TODO: Always use -ze-opt-large-register-file once IGC VC bug ignoring it
+    // is fixed
+    CompileOpts += isEsimdImage ? "-doubleGRF" : "-ze-opt-large-register-file";
   }
 }
 
@@ -543,14 +546,56 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
 
   DeviceImplPtr Dev =
       (MustBuildOnSubdevice == PI_TRUE) ? DeviceImpl : RootDevImpl;
-  auto BuildF = [this, &M, &KSId, &ContextImpl, &Dev, Prg, &CompileOpts,
-                 &LinkOpts, &JITCompilationIsRequired, SpecConsts] {
-    auto Context = createSyclObjFromImpl<context>(ContextImpl);
-    auto Device = createSyclObjFromImpl<device>(Dev);
+  auto Context = createSyclObjFromImpl<context>(ContextImpl);
+  auto Device = createSyclObjFromImpl<device>(Dev);
+  const RTDeviceBinaryImage &Img =
+      getDeviceImage(M, KSId, Context, Device, JITCompilationIsRequired);
 
-    const RTDeviceBinaryImage &Img =
-        getDeviceImage(M, KSId, Context, Device, JITCompilationIsRequired);
+  // Check that device supports all aspects used by the kernel
+  const RTDeviceBinaryImage::PropertyRange &ARange =
+      Img.getDeviceRequirements();
 
+#define __SYCL_ASPECT(ASPECT, ID)                                              \
+  case aspect::ASPECT:                                                         \
+    return #ASPECT;
+#define __SYCL_ASPECT_DEPRECATED(ASPECT, ID, MESSAGE) __SYCL_ASPECT(ASPECT, ID)
+// We don't need "case aspect::usm_allocator" here because it will duplicate
+// "case aspect::usm_system_allocations", therefore leave this macro empty
+#define __SYCL_ASPECT_DEPRECATED_ALIAS(ASPECT, ID, MESSAGE)
+  auto getAspectNameStr = [](aspect AspectNum) -> std::string {
+    switch (AspectNum) {
+#include <sycl/info/aspects.def>
+#include <sycl/info/aspects_deprecated.def>
+    }
+    throw sycl::exception(errc::kernel_not_supported,
+                          "Unknown aspect " +
+                              std::to_string(static_cast<unsigned>(AspectNum)));
+  };
+#undef __SYCL_ASPECT_DEPRECATED_ALIAS
+#undef __SYCL_ASPECT_DEPRECATED
+#undef __SYCL_ASPECT
+
+  for (RTDeviceBinaryImage::PropertyRange::ConstIterator It : ARange) {
+    using namespace std::literals;
+    if ((*It)->Name != "aspects"sv)
+      continue;
+    ByteArray Aspects = DeviceBinaryProperty(*It).asByteArray();
+    // 8 because we need to skip 64-bits of size of the byte array
+    auto *AIt = reinterpret_cast<const std::uint32_t *>(&Aspects[8]);
+    auto *AEnd =
+        reinterpret_cast<const std::uint32_t *>(&Aspects[0] + Aspects.size());
+    while (AIt != AEnd) {
+      auto Aspect = static_cast<aspect>(*AIt);
+      if (!Dev->has(Aspect))
+        throw sycl::exception(errc::kernel_not_supported,
+                              "Required aspect " + getAspectNameStr(Aspect) +
+                                  " is not supported on the device");
+      ++AIt;
+    }
+  }
+
+  auto BuildF = [this, &Img, &Context, &ContextImpl, &Device, Prg, &CompileOpts,
+                 &LinkOpts, SpecConsts] {
     applyOptionsFromImage(CompileOpts, LinkOpts, Img);
 
     const detail::plugin &Plugin = ContextImpl->getPlugin();
@@ -599,9 +644,10 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
 
   const RT::PiDevice PiDevice = Dev->getHandleRef();
 
+  uint32_t ImgId = Img.getImageID();
   auto BuildResult = getOrBuild<PiProgramT, compile_program_error>(
       Cache,
-      std::make_pair(std::make_pair(std::move(SpecConsts), KSId),
+      std::make_pair(std::make_pair(std::move(SpecConsts), ImgId),
                      std::make_pair(PiDevice, CompileOpts + LinkOpts)),
       AcquireF, GetF, BuildF);
   // getOrBuild is not supposed to return nullptr
@@ -1084,7 +1130,7 @@ ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
 }
 
 static ProgramManager::KernelArgMask
-createKernelArgMask(const pi::ByteArray &Bytes) {
+createKernelArgMask(const ByteArray &Bytes) {
   const int NBytesForSize = 8;
   const int NBitsInElement = 8;
   std::uint64_t SizeInBits = 0;
@@ -1102,7 +1148,7 @@ createKernelArgMask(const pi::ByteArray &Bytes) {
 
 void ProgramManager::cacheKernelUsesAssertInfo(OSModuleHandle M,
                                                RTDeviceBinaryImage &Img) {
-  const pi::DeviceBinaryImage::PropertyRange &AssertUsedRange =
+  const RTDeviceBinaryImage::PropertyRange &AssertUsedRange =
       Img.getAssertUsed();
   if (AssertUsedRange.isAvailable())
     for (const auto &Prop : AssertUsedRange) {
@@ -1129,14 +1175,14 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
     auto Img = make_unique_ptr<RTDeviceBinaryImage>(RawImg, M);
 
     // Fill the kernel argument mask map
-    const pi::DeviceBinaryImage::PropertyRange &KPOIRange =
+    const RTDeviceBinaryImage::PropertyRange &KPOIRange =
         Img->getKernelParamOptInfo();
     if (KPOIRange.isAvailable()) {
       KernelNameToArgMaskMap &ArgMaskMap =
           m_EliminatedKernelArgMasks[Img.get()];
       for (const auto &Info : KPOIRange)
         ArgMaskMap[Info->Name] =
-            createKernelArgMask(pi::DeviceBinaryProperty(Info).asByteArray());
+            createKernelArgMask(DeviceBinaryProperty(Info).asByteArray());
     }
 
     // Fill maps for kernel bundles
@@ -1226,19 +1272,18 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
 
         auto DeviceGlobals = Img->getDeviceGlobals();
         for (const pi_device_binary_property &DeviceGlobal : DeviceGlobals) {
-          pi::ByteArray DeviceGlobalInfo =
-              pi::DeviceBinaryProperty(DeviceGlobal).asByteArray();
+          ByteArray DeviceGlobalInfo =
+              DeviceBinaryProperty(DeviceGlobal).asByteArray();
 
           // The supplied device_global info property is expected to contain:
           // * 8 bytes - Size of the property.
           // * 4 bytes - Size of the underlying type in the device_global.
           // * 4 bytes - 0 if device_global has device_image_scope and any value
           //             otherwise.
-          assert(DeviceGlobalInfo.size() == 16 && "Unexpected property size");
-          const std::uint32_t TypeSize =
-              *reinterpret_cast<const std::uint32_t *>(&DeviceGlobalInfo[8]);
-          const std::uint32_t DeviceImageScopeDecorated =
-              *reinterpret_cast<const std::uint32_t *>(&DeviceGlobalInfo[12]);
+          DeviceGlobalInfo.dropBytes(8);
+          auto [TypeSize, DeviceImageScopeDecorated] =
+              DeviceGlobalInfo.consume<std::uint32_t, std::uint32_t>();
+          assert(DeviceGlobalInfo.empty() && "Extra data left!");
 
           auto ExistingDeviceGlobal = m_DeviceGlobals.find(DeviceGlobal->Name);
           if (ExistingDeviceGlobal != m_DeviceGlobals.end()) {
@@ -1391,10 +1436,10 @@ void ProgramManager::flushSpecConstants(const program_impl &Prg,
 // mask, sycl runtime won't know which fallback device libraries are needed. In
 // such case, the safest way is to load all fallback device libraries.
 uint32_t ProgramManager::getDeviceLibReqMask(const RTDeviceBinaryImage &Img) {
-  const pi::DeviceBinaryImage::PropertyRange &DLMRange =
+  const RTDeviceBinaryImage::PropertyRange &DLMRange =
       Img.getDeviceLibReqMask();
   if (DLMRange.isAvailable())
-    return pi::DeviceBinaryProperty(*(DLMRange.begin())).asUint32();
+    return DeviceBinaryProperty(*(DLMRange.begin())).asUint32();
   else
     return 0xFFFFFFFF;
 }
@@ -1953,13 +1998,14 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     return BuiltProgram.release();
   };
 
+  uint32_t ImgId = Img.getImageID();
   const RT::PiDevice PiDevice = getRawSyclObjImpl(Devs[0])->getHandleRef();
+  auto CacheKey =
+      std::make_pair(std::make_pair(std::move(SpecConsts), ImgId),
+                     std::make_pair(PiDevice, CompileOpts + LinkOpts));
   // TODO: Throw SYCL2020 style exception
   auto BuildResult = getOrBuild<PiProgramT, compile_program_error>(
-      Cache,
-      std::make_pair(std::make_pair(std::move(SpecConsts), (size_t)ImgPtr),
-                     std::make_pair(PiDevice, CompileOpts + LinkOpts)),
-      AcquireF, GetF, BuildF);
+      Cache, CacheKey, AcquireF, GetF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
 
@@ -1980,11 +2026,10 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     const RT::PiDevice PiDeviceAdd =
         getRawSyclObjImpl(Devs[Idx])->getHandleRef();
 
-    getOrBuild<PiProgramT, compile_program_error>(
-        Cache,
-        std::make_pair(std::make_pair(std::move(SpecConsts), (size_t)ImgPtr),
-                       std::make_pair(PiDeviceAdd, CompileOpts + LinkOpts)),
-        AcquireF, GetF, CacheOtherDevices);
+    // Change device in the cache key to reduce copying of spec const data.
+    CacheKey.second.first = PiDeviceAdd;
+    getOrBuild<PiProgramT, compile_program_error>(Cache, CacheKey, AcquireF,
+                                                  GetF, CacheOtherDevices);
     // getOrBuild is not supposed to return nullptr
     assert(BuildResult != nullptr && "Invalid build result");
   }

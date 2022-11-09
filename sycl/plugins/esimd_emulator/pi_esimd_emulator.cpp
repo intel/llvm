@@ -14,8 +14,8 @@
 
 #include <stdint.h>
 
+#include <detail/accessor_impl.hpp>
 #include <sycl/backend_types.hpp>
-#include <sycl/detail/accessor_impl.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/helpers.hpp>
@@ -634,7 +634,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     // TODO : Populate return string accordingly - e.g. cl_khr_fp16,
     // cl_khr_fp64, cl_khr_int64_base_atomics,
     // cl_khr_int64_extended_atomics
-    return ReturnValue("");
+    return ReturnValue("cl_khr_fp64");
   case PI_DEVICE_INFO_VERSION:
     return ReturnValue(Device->VersionStr.c_str());
   case PI_DEVICE_INFO_BUILD_ON_SUBDEVICE: // emulator doesn't support partition
@@ -799,6 +799,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_IL_VERSION)
 
     // Intel-specific extensions
+    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_DEVICE_ID)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_PCI_ADDRESS)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_GPU_EU_COUNT)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH)

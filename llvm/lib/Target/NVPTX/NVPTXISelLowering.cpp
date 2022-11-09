@@ -54,6 +54,7 @@
 #include "llvm/Target/TargetOptions.h"
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <cstdint>
 #include <iterator>
 #include <sstream>
@@ -132,6 +133,9 @@ static bool IsPTXVectorType(MVT VT) {
   case MVT::v2f16:
   case MVT::v4f16:
   case MVT::v8f16: // <4 x f16x2>
+  case MVT::v2bf16:
+  case MVT::v4bf16:
+  case MVT::v8bf16: // <4 x bf16x2>
   case MVT::v2f32:
   case MVT::v4f32:
   case MVT::v2f64:
@@ -189,8 +193,8 @@ static void ComputePTXValueVTs(const TargetLowering &TLI, const DataLayout &DL,
       // Vectors with an even number of f16 elements will be passed to
       // us as an array of v2f16 elements. We must match this so we
       // stay in sync with Ins/Outs.
-      if (EltVT == MVT::f16 && NumElts % 2 == 0) {
-        EltVT = MVT::v2f16;
+      if ((EltVT == MVT::f16 || EltVT == MVT::f16) && NumElts % 2 == 0) {
+        EltVT = EltVT == MVT::f16 ? MVT::v2f16 : MVT::v2bf16;
         NumElts /= 2;
       }
       for (unsigned j = 0; j != NumElts; ++j) {
@@ -399,6 +403,8 @@ NVPTXTargetLowering::NVPTXTargetLowering(const NVPTXTargetMachine &TM,
   addRegisterClass(MVT::f64, &NVPTX::Float64RegsRegClass);
   addRegisterClass(MVT::f16, &NVPTX::Float16RegsRegClass);
   addRegisterClass(MVT::v2f16, &NVPTX::Float16x2RegsRegClass);
+  addRegisterClass(MVT::bf16, &NVPTX::Float16RegsRegClass);
+  addRegisterClass(MVT::v2bf16, &NVPTX::Float16x2RegsRegClass);
 
   // Conversion to/from FP16/FP16x2 is always legal.
   setOperationAction(ISD::SINT_TO_FP, MVT::f16, Legal);
@@ -494,6 +500,7 @@ NVPTXTargetLowering::NVPTXTargetLowering(const NVPTXTargetMachine &TM,
   setOperationAction(ISD::ConstantFP, MVT::f64, Legal);
   setOperationAction(ISD::ConstantFP, MVT::f32, Legal);
   setOperationAction(ISD::ConstantFP, MVT::f16, Legal);
+  setOperationAction(ISD::ConstantFP, MVT::bf16, Legal);
 
   // TRAP can be lowered to PTX trap
   setOperationAction(ISD::TRAP, MVT::Other, Legal);
@@ -563,15 +570,19 @@ NVPTXTargetLowering::NVPTXTargetLowering(const NVPTXTargetMachine &TM,
     setFP16OperationAction(Op, MVT::v2f16, Legal, Expand);
   }
 
-  // There's no neg.f16 instruction. Expand to (0-x).
-  setOperationAction(ISD::FNEG, MVT::f16, Expand);
-  setOperationAction(ISD::FNEG, MVT::v2f16, Expand);
+  // f16/f16x2 neg was introduced in PTX 60, SM_53.
+  const bool IsFP16FP16x2NegAvailable = STI.getSmVersion() >= 53 &&
+                                        STI.getPTXVersion() >= 60 &&
+                                        STI.allowFP16Math();
+  for (const auto &VT : {MVT::f16, MVT::v2f16})
+    setOperationAction(ISD::FNEG, VT,
+                       IsFP16FP16x2NegAvailable ? Legal : Expand);
 
   // (would be) Library functions.
 
   // These map to conversion instructions for scalar FP types.
   for (const auto &Op : {ISD::FCEIL, ISD::FFLOOR, ISD::FNEARBYINT, ISD::FRINT,
-                         ISD::FTRUNC}) {
+                         ISD::FROUNDEVEN, ISD::FTRUNC}) {
     setOperationAction(Op, MVT::f16, Legal);
     setOperationAction(Op, MVT::f32, Legal);
     setOperationAction(Op, MVT::f64, Legal);
@@ -1428,22 +1439,8 @@ Align NVPTXTargetLowering::getArgumentAlignment(SDValue Callee,
       // Check if we have call alignment metadata
       if (getAlign(*CI, Idx, Alignment))
         return Align(Alignment);
-
-      const Value *CalleeV = CI->getCalledOperand();
-      // Ignore any bitcast instructions
-      while (isa<ConstantExpr>(CalleeV)) {
-        const ConstantExpr *CE = cast<ConstantExpr>(CalleeV);
-        if (!CE->isCast())
-          break;
-        // Look through the bitcast
-        CalleeV = cast<ConstantExpr>(CalleeV)->getOperand(0);
-      }
-
-      // We have now looked past all of the bitcasts.  Do we finally have a
-      // Function?
-      if (const auto *CalleeF = dyn_cast<Function>(CalleeV))
-        DirectCallee = CalleeF;
     }
+    DirectCallee = getMaybeBitcastedCallee(CB);
   }
 
   // Check for function alignment information if we found that the
@@ -1520,7 +1517,7 @@ SDValue NVPTXTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
 
       // Try to increase alignment to enhance vectorization options.
       ArgAlign = std::max(ArgAlign, getFunctionParamOptimizedAlign(
-                                        CB->getCalledFunction(), ETy, DL));
+                                        getMaybeBitcastedCallee(CB), ETy, DL));
 
       // Enforce minumum alignment of 4 to work around ptxas miscompile
       // for sm_50+. See corresponding alignment adjustment in
@@ -1891,9 +1888,8 @@ SDValue NVPTXTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     }
   }
 
-  Chain = DAG.getCALLSEQ_END(
-      Chain, DAG.getIntPtrConstant(UniqueCallSite, dl, true),
-      DAG.getIntPtrConstant(UniqueCallSite + 1, dl, true), InFlag, dl);
+  Chain =
+      DAG.getCALLSEQ_END(Chain, UniqueCallSite, UniqueCallSite + 1, InFlag, dl);
   InFlag = Chain.getValue(1);
 
   // Append ProxyReg instructions to the chain to make sure that `callseq_end`
@@ -2344,14 +2340,17 @@ NVPTXTargetLowering::LowerSTOREVector(SDValue Op, SelectionDAG &DAG) const {
     case MVT::v2i32:
     case MVT::v2i64:
     case MVT::v2f16:
+    case MVT::v2bf16:
     case MVT::v2f32:
     case MVT::v2f64:
     case MVT::v4i8:
     case MVT::v4i16:
     case MVT::v4i32:
     case MVT::v4f16:
+    case MVT::v4bf16:
     case MVT::v4f32:
     case MVT::v8f16: // <4 x f16x2>
+    case MVT::v8bf16: // <4 x bf16x2>
       // This is a "native" vector type
       break;
     }
@@ -2396,7 +2395,8 @@ NVPTXTargetLowering::LowerSTOREVector(SDValue Op, SelectionDAG &DAG) const {
       // v8f16 is a special case. PTX doesn't have st.v8.f16
       // instruction. Instead, we split the vector into v2f16 chunks and
       // store them with st.v4.b32.
-      assert(EltVT == MVT::f16 && "Wrong type for the vector.");
+      assert((EltVT == MVT::f16 || EltVT == MVT::bf16) &&
+             "Wrong type for the vector.");
       Opcode = NVPTXISD::StoreV4;
       StoreF16x2 = true;
       break;
@@ -4341,7 +4341,7 @@ Align NVPTXTargetLowering::getFunctionParamOptimizedAlign(
 
   // If a function has linkage different from internal or private, we
   // must use default ABI alignment as external users rely on it.
-  if (!F->hasLocalLinkage())
+  if (!(F && F->hasLocalLinkage()))
     return Align(ABITypeAlign);
 
   assert(!isKernelFunction(*F) && "Expect kernels to have non-local linkage");
@@ -4997,11 +4997,12 @@ static void ReplaceLoadVector(SDNode *N, SelectionDAG &DAG,
     // v8f16 is a special case. PTX doesn't have ld.v8.f16
     // instruction. Instead, we split the vector into v2f16 chunks and
     // load them with ld.v4.b32.
-    assert(EltVT == MVT::f16 && "Unsupported v8 vector type.");
+    assert((EltVT == MVT::f16 || EltVT == MVT::bf16) &&
+           "Unsupported v8 vector type.");
     LoadF16x2 = true;
     Opcode = NVPTXISD::LoadV4;
-    EVT ListVTs[] = {MVT::v2f16, MVT::v2f16, MVT::v2f16, MVT::v2f16,
-                     MVT::Other};
+    EVT VVT = (EltVT == MVT::f16) ? MVT::v2f16 : MVT::v2bf16;
+    EVT ListVTs[] = {VVT, VVT, VVT, VVT, MVT::Other};
     LdResVTs = DAG.getVTList(ListVTs);
     break;
   }

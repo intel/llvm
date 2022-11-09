@@ -123,10 +123,15 @@ bool GCNDPPCombine::isShrinkable(MachineInstr &MI) const {
     LLVM_DEBUG(dbgs() << "  Inst hasn't e32 equivalent\n");
     return false;
   }
+  // Do not shrink True16 instructions pre-RA to avoid the restriction in
+  // register allocation from only being able to use 128 VGPRs
+  if (AMDGPU::isTrue16Inst(Op))
+    return false;
   if (const auto *SDst = TII->getNamedOperand(MI, AMDGPU::OpName::sdst)) {
-    // Give up if there are any uses of the carry-out from instructions like
-    // V_ADD_CO_U32. The shrunken form of the instruction would write it to vcc
-    // instead of to a virtual register.
+    // Give up if there are any uses of the sdst in carry-out or VOPC.
+    // The shrunken form of the instruction would write it to vcc instead of to
+    // a virtual register. If we rewrote the uses the shrinking would be
+    // possible.
     if (!MRI->use_nodbg_empty(SDst->getReg()))
       return false;
   }
@@ -600,6 +605,8 @@ bool GCNDPPCombine::combineDPPMov(MachineInstr &MovMI) const {
     LLVM_DEBUG(dbgs() << "  try: " << OrigMI);
 
     auto OrigOp = OrigMI.getOpcode();
+    assert((TII->get(OrigOp).Size != 4 || !AMDGPU::isTrue16Inst(OrigOp)) &&
+           "There should not be e32 True16 instructions pre-RA");
     if (OrigOp == AMDGPU::REG_SEQUENCE) {
       Register FwdReg = OrigMI.getOperand(0).getReg();
       unsigned FwdSubReg = 0;
@@ -704,7 +711,7 @@ bool GCNDPPCombine::combineDPPMov(MachineInstr &MovMI) const {
         continue;
       }
       while (!S.second.empty())
-        S.first->getOperand(S.second.pop_back_val()).setIsUndef(true);
+        S.first->getOperand(S.second.pop_back_val()).setIsUndef();
     }
   }
 
@@ -732,7 +739,7 @@ bool GCNDPPCombine::runOnMachineFunction(MachineFunction &MF) {
           ++NumDPPMovsCombined;
         } else {
           auto Split = TII->expandMovDPP64(MI);
-          for (auto M : { Split.first, Split.second }) {
+          for (auto *M : {Split.first, Split.second}) {
             if (M && combineDPPMov(*M))
               ++NumDPPMovsCombined;
           }

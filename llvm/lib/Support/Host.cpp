@@ -218,6 +218,7 @@ StringRef sys::detail::getHostCPUNameForARM(StringRef ProcCpuinfoContent) {
         .Case("0xd0c", "neoverse-n1")
         .Case("0xd49", "neoverse-n2")
         .Case("0xd40", "neoverse-v1")
+        .Case("0xd4f", "neoverse-v2")
         .Default("generic");
   }
 
@@ -291,7 +292,7 @@ StringRef sys::detail::getHostCPUNameForARM(StringRef ProcCpuinfoContent) {
     switch (Exynos) {
     default:
       // Default by falling through to Exynos M3.
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case 0x1002:
       return "exynos-m3";
     case 0x1003:
@@ -1586,7 +1587,9 @@ int computeHostNumPhysicalCores() {
   }
   return CPU_COUNT(&Enabled);
 }
-#elif defined(__linux__) && defined(__powerpc__)
+#elif defined(__linux__) && defined(__s390x__)
+int computeHostNumPhysicalCores() { return sysconf(_SC_NPROCESSORS_ONLN); }
+#elif defined(__linux__) && !defined(__ANDROID__)
 int computeHostNumPhysicalCores() {
   cpu_set_t Affinity;
   if (sched_getaffinity(0, sizeof(Affinity), &Affinity) == 0)
@@ -1605,8 +1608,6 @@ int computeHostNumPhysicalCores() {
   }
   return -1;
 }
-#elif defined(__linux__) && defined(__s390x__)
-int computeHostNumPhysicalCores() { return sysconf(_SC_NPROCESSORS_ONLN); }
 #elif defined(__APPLE__)
 // Gets the number of *physical cores* on the machine.
 int computeHostNumPhysicalCores() {
@@ -1734,6 +1735,7 @@ bool sys::getHostCPUFeatures(StringMap<bool> &Features) {
   bool HasExtLeaf8 = MaxExtLevel >= 0x80000008 &&
                      !getX86CpuIDAndInfo(0x80000008, &EAX, &EBX, &ECX, &EDX);
   Features["clzero"]   = HasExtLeaf8 && ((EBX >> 0) & 1);
+  Features["rdpru"]    = HasExtLeaf8 && ((EBX >> 4) & 1);
   Features["wbnoinvd"] = HasExtLeaf8 && ((EBX >> 9) & 1);
 
   bool HasLeaf7 =
@@ -1803,9 +1805,16 @@ bool sys::getHostCPUFeatures(StringMap<bool> &Features) {
   Features["amx-int8"]   = HasLeaf7 && ((EDX >> 25) & 1) && HasAMXSave;
   bool HasLeaf7Subleaf1 =
       MaxLevel >= 7 && !getX86CpuIDAndInfoEx(0x7, 0x1, &EAX, &EBX, &ECX, &EDX);
+  Features["raoint"]     = HasLeaf7Subleaf1 && ((EAX >> 3) & 1);
   Features["avxvnni"]    = HasLeaf7Subleaf1 && ((EAX >> 4) & 1) && HasAVXSave;
   Features["avx512bf16"] = HasLeaf7Subleaf1 && ((EAX >> 5) & 1) && HasAVX512Save;
+  Features["amx-fp16"]   = HasLeaf7Subleaf1 && ((EAX >> 21) & 1) && HasAMXSave;
+  Features["cmpccxadd"]  = HasLeaf7Subleaf1 && ((EAX >> 7) & 1);
   Features["hreset"]     = HasLeaf7Subleaf1 && ((EAX >> 22) & 1);
+  Features["avxifma"]    = HasLeaf7Subleaf1 && ((EAX >> 23) & 1) && HasAVXSave;
+  Features["avxvnniint8"] = HasLeaf7Subleaf1 && ((EDX >> 4) & 1) && HasAVXSave;
+  Features["avxneconvert"] = HasLeaf7Subleaf1 && ((EDX >> 5) & 1) && HasAVXSave;
+  Features["prefetchi"]  = HasLeaf7Subleaf1 && ((EDX >> 14) & 1);
 
   bool HasLeafD = MaxLevel >= 0xd &&
                   !getX86CpuIDAndInfoEx(0xd, 0x1, &EAX, &EBX, &ECX, &EDX);

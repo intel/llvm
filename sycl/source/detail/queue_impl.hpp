@@ -96,11 +96,8 @@ public:
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
-        MHasDiscardEventsSupport(
-            MDiscardEvents &&
-            (MHostQueue ? true
-                        : (MIsInorder && getPlugin().getBackend() !=
-                                             backend::ext_oneapi_level_zero))) {
+        MHasDiscardEventsSupport(MDiscardEvents &&
+                                 (MHostQueue ? true : MIsInorder)) {
     if (has_property<ext::oneapi::property::queue::discard_events>() &&
         has_property<property::queue::enable_profiling>()) {
       throw sycl::exception(make_error_code(errc::invalid),
@@ -123,9 +120,7 @@ public:
     }
     if (!MHostQueue) {
       const QueueOrder QOrder =
-          MPropList.has_property<property::queue::in_order>()
-              ? QueueOrder::Ordered
-              : QueueOrder::OOO;
+          MIsInorder ? QueueOrder::Ordered : QueueOrder::OOO;
       MQueues.push_back(createQueue(QOrder));
     }
   }
@@ -144,11 +139,8 @@ public:
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
-        MHasDiscardEventsSupport(
-            MDiscardEvents &&
-            (MHostQueue ? true
-                        : (MIsInorder && getPlugin().getBackend() !=
-                                             backend::ext_oneapi_level_zero))) {
+        MHasDiscardEventsSupport(MDiscardEvents &&
+                                 (MHostQueue ? true : MIsInorder)) {
     if (has_property<ext::oneapi::property::queue::discard_events>() &&
         has_property<property::queue::enable_profiling>()) {
       throw sycl::exception(make_error_code(errc::invalid),
@@ -208,6 +200,8 @@ public:
   /// \return true if this queue has discard_events support.
   bool has_discard_events_support() const { return MHasDiscardEventsSupport; }
 
+  bool isInOrder() const { return MIsInorder; }
+
   /// Queries SYCL queue for information.
   ///
   /// The return type depends on information being queried.
@@ -236,10 +230,6 @@ public:
     try {
       return submit_impl(CGF, Self, Self, SecondQueue, Loc, PostProcess);
     } catch (...) {
-      {
-        std::lock_guard<std::mutex> Lock(MMutex);
-        MExceptions.PushBack(std::current_exception());
-      }
       return SecondQueue->submit_impl(CGF, SecondQueue, Self, SecondQueue, Loc,
                                       PostProcess);
     }
@@ -315,6 +305,12 @@ public:
     if (MPropList.has_property<
             ext::oneapi::cuda::property::queue::use_default_stream>()) {
       CreationFlags |= __SYCL_PI_CUDA_USE_DEFAULT_STREAM;
+    }
+    if (MPropList
+            .has_property<ext::oneapi::property::queue::discard_events>()) {
+      // Pass this flag to the Level Zero plugin to be able to check it from
+      // queue property.
+      CreationFlags |= PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS;
     }
     RT::PiQueue Queue{};
     RT::PiContext Context = MContext->getHandleRef();
@@ -450,6 +446,11 @@ public:
     return MAssertHappenedBuffer;
   }
 
+  void registerStreamServiceEvent(const EventImplPtr &Event) {
+    std::lock_guard<std::mutex> Lock(MMutex);
+    MStreamsServiceEvents.push_back(Event);
+  }
+
 protected:
   // template is needed for proper unit testing
   template <typename HandlerType = handler>
@@ -484,7 +485,7 @@ protected:
       EventRet = Handler.finalize();
   }
 
-private:
+protected:
   /// Helper function for checking whether a device is either a member of a
   /// context or a descendnant of its member.
   /// \return True iff the device or its parent is a member of the context.
@@ -530,7 +531,8 @@ private:
     // Host and interop tasks, however, are not submitted to low-level runtimes
     // and require separate dependency management.
     const CG::CGTYPE Type = Handler.getType();
-    event Event;
+    event Event = detail::createSyclObjFromImpl<event>(
+        std::make_shared<detail::event_impl>());
 
     if (PostProcess) {
       bool IsKernel = Type == CG::Kernel;
@@ -613,12 +615,14 @@ private:
 
   const bool MIsInorder;
 
+  std::vector<EventImplPtr> MStreamsServiceEvents;
+
 public:
   // Queue constructed with the discard_events property
   const bool MDiscardEvents;
   const bool MIsProfilingEnabled;
 
-private:
+protected:
   // This flag says if we can discard events based on a queue "setup" which will
   // be common for all operations submitted to the queue. This is a must
   // condition for discarding, but even if it's true, in some cases, we won't be

@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %RUN_ON_HOST %t.out
+// RUN: %t.out
 
 //==--------------- marray.cpp - SYCL marray test --------------------------==//
 //

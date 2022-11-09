@@ -199,6 +199,14 @@ public:
       SetCurrentDebugLocation(IP->getDebugLoc());
   }
 
+  /// This specifies that created instructions should inserted at the beginning
+  /// end of the specified function, but after already existing static alloca
+  /// instructions that are at the start.
+  void SetInsertPointPastAllocas(Function *F) {
+    BB = &F->getEntryBlock();
+    InsertPt = BB->getFirstNonPHIOrDbgOrAlloca();
+  }
+
   /// Set location information used by debugging information.
   void SetCurrentDebugLocation(DebugLoc L) {
     AddOrRemoveMetadataToCopy(LLVMContext::MD_dbg, L.getAsMDNode());
@@ -222,7 +230,7 @@ public:
 
   /// Add all entries in MetadataToCopy to \p I.
   void AddMetadataToInst(Instruction *I) const {
-    for (auto &KV : MetadataToCopy)
+    for (const auto &KV : MetadataToCopy)
       I->setMetadata(KV.first, KV.second);
   }
 
@@ -550,7 +558,8 @@ public:
     return Type::getInt8PtrTy(Context, AddrSpace);
   }
 
-  /// Fetch the type representing a pointer to an integer value.
+  /// Fetch the type of an integer with size at least as big as that of a
+  /// pointer in the given address space.
   IntegerType *getIntPtrTy(const DataLayout &DL, unsigned AddrSpace = 0) {
     return DL.getIntPtrType(Context, AddrSpace);
   }
@@ -772,6 +781,15 @@ public:
   /// Create a call to Masked Scatter intrinsic
   CallInst *CreateMaskedScatter(Value *Val, Value *Ptrs, Align Alignment,
                                 Value *Mask = nullptr);
+
+  /// Create a call to Masked Expand Load intrinsic
+  CallInst *CreateMaskedExpandLoad(Type *Ty, Value *Ptr, Value *Mask = nullptr,
+                                   Value *PassThru = nullptr,
+                                   const Twine &Name = "");
+
+  /// Create a call to Masked Compress Store intrinsic
+  CallInst *CreateMaskedCompressStore(Value *Val, Value *Ptr,
+                                      Value *Mask = nullptr);
 
   /// Create an assume intrinsic call that allows the optimizer to
   /// assume that the provided condition will be true.

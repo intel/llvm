@@ -92,43 +92,5 @@
 #define __SYCL_STRINGIFY(x) #x
 #endif // __SYCL_STRINGIFY
 
-// define __SYCL_WARNING convenience macro to report compiler warnings
-#if defined(__GNUC__)
-#define __SYCL_WARNING(msg) _Pragma(__SYCL_STRINGIFY(GCC warning msg))
-#elif defined(_MSC_VER) && !defined(__clang__)
-#define __SYCL_QUOTE1(x) #x
-#define __SYCL_QUOTE(x) __SYCL_QUOTE1(x)
-#define __SYCL_SRC_LOC __FILE__ ":" __SYCL_QUOTE(__LINE__)
-#define __SYCL_WARNING(msg) __pragma(message(__SYCL_SRC_LOC " warning: " msg))
-#else // clang et. al.
-// clang emits "warning:" in the message pragma output
-#define __SYCL_WARNING(msg) __pragma(message(msg))
-#endif // __GNUC__
-
-// Define __SYCL_UNROLL to add pragma/attribute unroll to a loop.
-#ifndef __SYCL_UNROLL
-#if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
-#define __SYCL_UNROLL(x) _Pragma(__SYCL_STRINGIFY(unroll x))
-#elif defined(__clang__)
-#define __SYCL_UNROLL(x) _Pragma(__SYCL_STRINGIFY(unroll x))
-#elif (defined(__GNUC__) && __GNUC__ >= 8) ||                                  \
-    (defined(__GNUG__) && __GNUG__ >= 8)
-#define __SYCL_UNROLL(x) _Pragma(__SYCL_STRINGIFY(GCC unroll x))
-#else
-#define __SYCL_UNROLL(x)
-#endif // compiler switch
-#endif // __SYCL_UNROLL
-
-#if !defined(SYCL_DISABLE_CPP_VERSION_CHECK_WARNING) && __cplusplus < 201703L
-
-#if defined(_MSC_VER) && !defined(__clang__)
-__SYCL_WARNING("DPCPP does not support C++ version earlier than C++17. Some "
-               "features might not be available.")
-#else
-// This is the only way to emit a warning from system headers using clang, it
-// cannot be wrapped by a macro(__pragma warning doesn't work in system
-// headers). The solution is borrowed from libcxx.
-#warning: DPCPP does not support C++ version earlier than C++17. Some features might not be available.
-#endif
-
-#endif
+static_assert(__cplusplus >= 201703L,
+              "DPCPP does not support C++ version earlier than C++17.");

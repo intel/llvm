@@ -404,6 +404,13 @@ bool DummyProcedure::IsCompatibleWith(
   return true;
 }
 
+bool DummyProcedure::CanBePassedViaImplicitInterface() const {
+  if ((attrs & Attrs{Attr::Optional, Attr::Pointer}).any()) {
+    return false; // 15.4.2.2(3)(a)
+  }
+  return true;
+}
+
 static std::string GetSeenProcs(
     const semantics::UnorderedSymbolSet &seenProcs) {
   // Sort the symbols so that they appear in the same order on all platforms
@@ -499,7 +506,9 @@ static std::optional<Procedure> CharacterizeProcedure(
               }
               return intrinsic;
             }
-            const semantics::ProcInterface &interface { proc.interface() };
+            const semantics::ProcInterface &interface {
+              proc.interface()
+            };
             if (const semantics::Symbol * interfaceSymbol{interface.symbol()}) {
               auto interface {
                 CharacterizeProcedure(*interfaceSymbol, context, seenProcs)
@@ -530,15 +539,17 @@ static std::optional<Procedure> CharacterizeProcedure(
           [&](const semantics::ProcBindingDetails &binding) {
             if (auto result{CharacterizeProcedure(
                     binding.symbol(), context, seenProcs)}) {
+              if (binding.symbol().attrs().test(semantics::Attr::INTRINSIC)) {
+                result->attrs.reset(Procedure::Attr::Elemental);
+              }
               if (!symbol.attrs().test(semantics::Attr::NOPASS)) {
                 auto passName{binding.passName()};
                 for (auto &dummy : result->dummyArguments) {
                   if (!passName || dummy.name.c_str() == *passName) {
                     dummy.pass = true;
-                    return result;
+                    break;
                   }
                 }
-                DIE("PASS argument missing");
               }
               return result;
             } else {
@@ -555,6 +566,13 @@ static std::optional<Procedure> CharacterizeProcedure(
           },
           [&](const semantics::HostAssocDetails &assoc) {
             return CharacterizeProcedure(assoc.symbol(), context, seenProcs);
+          },
+          [&](const semantics::GenericDetails &generic) {
+            if (const semantics::Symbol * specific{generic.specific()}) {
+              return CharacterizeProcedure(*specific, context, seenProcs);
+            } else {
+              return std::optional<Procedure>{};
+            }
           },
           [&](const semantics::EntityDetails &) {
             context.messages().Say(
@@ -755,6 +773,8 @@ common::Intent DummyArgument::GetIntent() const {
 bool DummyArgument::CanBePassedViaImplicitInterface() const {
   if (const auto *object{std::get_if<DummyDataObject>(&u)}) {
     return object->CanBePassedViaImplicitInterface();
+  } else if (const auto *proc{std::get_if<DummyProcedure>(&u)}) {
+    return proc->CanBePassedViaImplicitInterface();
   } else {
     return true;
   }
@@ -864,6 +884,23 @@ bool FunctionResult::CanBeReturnedViaImplicitInterface() const {
   }
 }
 
+static bool AreCompatibleFunctionResultShapes(const Shape &x, const Shape &y) {
+  int rank{GetRank(x)};
+  if (GetRank(y) != rank) {
+    return false;
+  }
+  for (int j{0}; j < rank; ++j) {
+    if (auto xDim{ToInt64(x[j])}) {
+      if (auto yDim{ToInt64(y[j])}) {
+        if (*xDim != *yDim) {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+}
+
 bool FunctionResult::IsCompatibleWith(
     const FunctionResult &actual, std::string *whyNot) const {
   Attrs actualAttrs{actual.attrs};
@@ -881,9 +918,10 @@ bool FunctionResult::IsCompatibleWith(
           *whyNot = "function results have distinct ranks";
         }
       } else if (!attrs.test(Attr::Allocatable) && !attrs.test(Attr::Pointer) &&
-          ifaceTypeShape->shape() != actualTypeShape->shape()) {
+          !AreCompatibleFunctionResultShapes(
+              ifaceTypeShape->shape(), actualTypeShape->shape())) {
         if (whyNot) {
-          *whyNot = "function results have distinct extents";
+          *whyNot = "function results have distinct constant extents";
         }
       } else if (!ifaceTypeShape->type().IsTkCompatibleWith(
                      actualTypeShape->type())) {
@@ -1268,7 +1306,7 @@ int DistinguishUtils::FindLastToDistinguishByName(
 // passed-object, and that x is TKR compatible with
 int DistinguishUtils::CountCompatibleWith(
     const DummyArgument &x, const DummyArguments &args) const {
-  return std::count_if(args.begin(), args.end(), [&](const DummyArgument &y) {
+  return llvm::count_if(args, [&](const DummyArgument &y) {
     return !y.pass && !y.IsOptional() && IsTkrCompatible(x, y);
   });
 }
@@ -1277,7 +1315,7 @@ int DistinguishUtils::CountCompatibleWith(
 // distinguishable from x and not passed-object.
 int DistinguishUtils::CountNotDistinguishableFrom(
     const DummyArgument &x, const DummyArguments &args) const {
-  return std::count_if(args.begin(), args.end(), [&](const DummyArgument &y) {
+  return llvm::count_if(args, [&](const DummyArgument &y) {
     return !y.pass && std::holds_alternative<DummyDataObject>(y.u) &&
         !Distinguishable(y, x);
   });

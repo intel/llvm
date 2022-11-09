@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 %s -triple spir -cl-std=CL1.2 -emit-llvm-bc -fdeclare-opencl-builtins -o %t.bc -no-opaque-pointers
+// RUN: %clang_cc1 %s -triple spir -cl-std=CL1.2 -emit-llvm-bc -fdeclare-opencl-builtins -o %t.bc
 // RUN: llvm-spirv %t.bc -o %t.spv
 // RUN: spirv-val %t.spv
 // RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
@@ -37,8 +37,8 @@ __kernel void test_legacy_atomics(__global int *p, int val) {
 //
 // CHECK-LLVM-LABEL: define spir_kernel void @test_legacy_atomics
 // Note: the translator generates the OpenCL C 1.1 function name exclusively!
-// CHECK-LLVM: call spir_func i32 @_Z10atomic_addPU3AS1Vii
-// CHECK-LLVM: call spir_func i32 @_Z10atomic_addPU3AS1Vii
+// CHECK-LLVM: call spir_func i32 @_Z10atomic_addPU3AS1Vii(
+// CHECK-LLVM: call spir_func i32 @_Z10atomic_addPU3AS1Vii(
 
 // References:
 // [1]: https://www.khronos.org/registry/OpenCL/specs/3.0-unified/html/OpenCL_C.html#atomic-legacy

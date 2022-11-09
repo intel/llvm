@@ -123,10 +123,15 @@ of a `simd<T, N>` type (e.g. using multiple registers rather than an array).
 We expect implementations of this ABI to build on Clang's `ext_vector_type`,
 rather than specifying the register types directly.
 
-The value of `N` for each `simd` argument to a SIMD function must be the same,
-and represents the sub-group size of the calling kernel.  If a function accepts
-`simd` arguments with multiple `N` values, it cannot be invoked from a SPMD
-kernel and the implementation must issue a diagnostic in this case.
+Each of the following must hold true for a SIMD function and its invoke_simd
+call site:
+- the value of `N` of each `simd` or `simd_mask` formal parameter corresponding to a non-uniform
+SPMD actual argument (if any) must be the same
+- if the return type of the SIMD function is `simd<T, M>` or `simd_mask<T, M>`,
+  then `M` must match `N` above
+Otherwise, the SIMD function cannot be invoked from an SPMD kernel and the
+implementation must issue a diagnostic in this case.
+The `N` value represents the sub-group size of the calling kernel.
 
 The example below shows a simple SIMD function that scales all elements of
 an 8-wide SIMD type `x` by a scalar value `n`.
@@ -244,6 +249,12 @@ rules in reverse:
   are converted to `T`, and the value in element `i` of the SIMD type is
   returned to the work-item with sub-group local ID `i`.
 
+- Return values of type `sycl::ext::oneapi::experimental::uniform<T>` are not anyhow converted,
+  and broadcast to each work-item; every work-item in the sub-group receives
+  the same value.
+  NOTE: `sycl::ext::oneapi::experimental::uniform<T>` return type is the way to return
+  a uniform value of `simd` or `simd_mask` type.
+
 - Return values of type `T` are converted to `sycl::ext::oneapi::experimental::uniform<T>`,
   and broadcast to each work-item; every work-item in the sub-group receives
   the same value.
@@ -262,6 +273,25 @@ requires access to a member variable of a SYCL class, the value of the
 variable should be passed via a dedicated argument (e.g. the value returned
 by `sub_group::get_local_id()[0]` could be passed as an integer to a
 `Callable` expecting a `sycl::ext::oneapi::experimental::simd<uint32_t, N>`).
+
+NOTE: An implementation must be able to determine the sub-group size of the SIMD
+function object to perform argument type conversion.
+The determined subgroup size must be equal to the value of the caller's `sycl::reqd_sub_group_size`
+attribute (if present) and consistent with the argument conversion rules defined
+by this specification. Otherwise, the implementation must issue a proper diagnostic.
+
+The following algorithm to determine the sub-group size may be employed:
+- If any of the actual SPMD arguments is non-uniform, the specification requires
+that the corresponding SIMD argument must have `simd<T, N>` or `simd_mask<bool, N>`
+type, and `N` must be equal to the the sub-group size. The implementation may
+iterate through the supported sub-group sizes at compile time and check whether the
+function object is invocable with given sub-group size. There must be
+exactly one such sub-group size and it must match `N` or the user program is not
+well-formed.
+- Otherwise, if the return type of the SIMD target function is `simd<T, N>` or
+`simd_mask<bool, N>`, then the sub-group size is `N`.
+- Otherwise (all arguments and the return type are uniform) the SIMD target is
+fully uniform and it can be invoked with any sub-group size.
 
 The `invoke_simd` function has the same requirements as other group functions
 (as defined in Section 4.17.3 of the SYCL 2020 specification). A call to
@@ -447,4 +477,5 @@ SYCL 2020 specification states that this only applies to inter-device transfers.
 |2|2021-03-31|John Pennycook|*Rename extension and add feature test macro*
 |3|2021-04-23|John Pennycook|*Split uniform wrapper into separate extension*
 |4|2022-01-20|John Pennycook|*Clarify interaction with SYCL_EXTERNAL*
+|5|2022-08-15|Konst Bobrovskii|*Clarify sub-group size calculation*
 |========================================

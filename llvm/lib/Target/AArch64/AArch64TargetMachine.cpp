@@ -209,6 +209,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAArch64Target() {
   initializeAArch64ConditionOptimizerPass(*PR);
   initializeAArch64DeadRegisterDefinitionsPass(*PR);
   initializeAArch64ExpandPseudoPass(*PR);
+  initializeAArch64KCFIPass(*PR);
   initializeAArch64LoadStoreOptPass(*PR);
   initializeAArch64MIPeepholeOptPass(*PR);
   initializeAArch64SIMDInstrOptPass(*PR);
@@ -223,6 +224,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAArch64Target() {
   initializeFalkorHWPFFixPass(*PR);
   initializeFalkorMarkStridedAccessesLegacyPass(*PR);
   initializeLDTLSCleanupPass(*PR);
+  initializeSMEABIPass(*PR);
   initializeSVEIntrinsicOptsPass(*PR);
   initializeAArch64SpeculationHardeningPass(*PR);
   initializeAArch64SLSHardeningPass(*PR);
@@ -386,6 +388,11 @@ AArch64TargetMachine::getSubtargetImpl(const Function &F) const {
 
   SmallString<512> Key;
 
+  bool StreamingSVEModeDisabled =
+      !F.hasFnAttribute("aarch64_pstate_sm_enabled") &&
+      !F.hasFnAttribute("aarch64_pstate_sm_compatible") &&
+      !F.hasFnAttribute("aarch64_pstate_sm_body");
+
   unsigned MinSVEVectorSize = 0;
   unsigned MaxSVEVectorSize = 0;
   Attribute VScaleRangeAttr = F.getFnAttribute(Attribute::VScaleRange);
@@ -419,6 +426,7 @@ AArch64TargetMachine::getSubtargetImpl(const Function &F) const {
   Key += std::to_string(MinSVEVectorSize);
   Key += "SVEMax";
   Key += std::to_string(MaxSVEVectorSize);
+  Key += "StreamingSVEModeDisabled=" + std::to_string(StreamingSVEModeDisabled);
   Key += CPU;
   Key += TuneCPU;
   Key += FS;
@@ -429,9 +437,9 @@ AArch64TargetMachine::getSubtargetImpl(const Function &F) const {
     // creation will depend on the TM and the code generation flags on the
     // function that reside in TargetOptions.
     resetTargetOptions(F);
-    I = std::make_unique<AArch64Subtarget>(TargetTriple, CPU, TuneCPU, FS,
-                                           *this, isLittle, MinSVEVectorSize,
-                                           MaxSVEVectorSize);
+    I = std::make_unique<AArch64Subtarget>(
+        TargetTriple, CPU, TuneCPU, FS, *this, isLittle, MinSVEVectorSize,
+        MaxSVEVectorSize, StreamingSVEModeDisabled);
   }
   return I.get();
 }
@@ -586,6 +594,11 @@ void AArch64PassConfig::addIRPasses() {
     addPass(createInterleavedLoadCombinePass());
     addPass(createInterleavedAccessPass());
   }
+
+  // Expand any functions marked with SME attributes which require special
+  // changes for the calling convention or that require the lazy-saving
+  // mechanism specified in the SME ABI.
+  addPass(createSMEABIPass());
 
   // Add Control Flow Guard checks.
   if (TM->getTargetTriple().isOSWindows())
@@ -754,6 +767,8 @@ void AArch64PassConfig::addPreSched2() {
     if (EnableLoadStoreOpt)
       addPass(createAArch64LoadStoreOptimizationPass());
   }
+  // Emit KCFI checks for indirect calls.
+  addPass(createAArch64KCFIPass());
 
   // The AArch64SpeculationHardeningPass destroys dominator tree and natural
   // loop info, which is needed for the FalkorHWPFFixPass and also later on.

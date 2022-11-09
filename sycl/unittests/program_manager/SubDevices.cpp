@@ -7,9 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/kernel_bundle_impl.hpp>
-#include <sycl/program.hpp>
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
@@ -98,27 +96,20 @@ pi_result redefinedContextCreate(const pi_context_properties *Properties,
 // FIXME: mock 3 devices (one root device + two sub-devices) within a single
 // context.
 TEST(SubDevices, DISABLED_BuildProgramForSubdevices) {
-  sycl::platform Plt{sycl::default_selector()};
-  // Host devices do not support sub-devices
-  if (Plt.is_host() || Plt.get_backend() == sycl::backend::ext_oneapi_cuda ||
-      Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    std::cerr << "Test is not supported on "
-              << Plt.get_info<sycl::info::platform::name>() << ", skipping\n";
-    GTEST_SKIP(); // test is not supported on selected platform.
-  }
-
   // Setup Mock APIs
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-  Mock.redefine<sycl::detail::PiApiKind::piDeviceGetInfo>(
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+  Mock.redefineBefore<sycl::detail::PiApiKind::piDeviceGetInfo>(
       redefinedDeviceGetInfo);
-  Mock.redefine<sycl::detail::PiApiKind::piDevicePartition>(
+  Mock.redefineBefore<sycl::detail::PiApiKind::piDevicePartition>(
       redefinedDevicePartition);
-  Mock.redefine<sycl::detail::PiApiKind::piDeviceRetain>(redefinedDeviceRetain);
-  Mock.redefine<sycl::detail::PiApiKind::piDeviceRelease>(
+  Mock.redefineBefore<sycl::detail::PiApiKind::piDeviceRetain>(
+      redefinedDeviceRetain);
+  Mock.redefineBefore<sycl::detail::PiApiKind::piDeviceRelease>(
       redefinedDeviceRelease);
-  Mock.redefine<sycl::detail::PiApiKind::piProgramBuild>(redefinedProgramBuild);
-  Mock.redefine<sycl::detail::PiApiKind::piContextCreate>(
+  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramBuild>(
+      redefinedProgramBuild);
+  Mock.redefineBefore<sycl::detail::PiApiKind::piContextCreate>(
       redefinedContextCreate);
 
   // Create 2 sub-devices and use first platform device as a root device

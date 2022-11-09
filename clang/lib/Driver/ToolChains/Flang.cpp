@@ -27,7 +27,7 @@ static void addDashXForInput(const ArgList &Args, const InputInfo &Input,
   CmdArgs.push_back(types::getTypeName(Input.getType()));
 }
 
-void Flang::AddFortranDialectOptions(const ArgList &Args,
+void Flang::addFortranDialectOptions(const ArgList &Args,
                                      ArgStringList &CmdArgs) const {
   Args.AddAllArgs(
       CmdArgs, {options::OPT_ffixed_form, options::OPT_ffree_form,
@@ -44,18 +44,65 @@ void Flang::AddFortranDialectOptions(const ArgList &Args,
                 options::OPT_fno_automatic});
 }
 
-void Flang::AddPreprocessingOptions(const ArgList &Args,
+void Flang::addPreprocessingOptions(const ArgList &Args,
                                     ArgStringList &CmdArgs) const {
   Args.AddAllArgs(CmdArgs,
                   {options::OPT_P, options::OPT_D, options::OPT_U,
                    options::OPT_I, options::OPT_cpp, options::OPT_nocpp});
 }
 
-void Flang::AddOtherOptions(const ArgList &Args, ArgStringList &CmdArgs) const {
+void Flang::forwardOptions(const ArgList &Args, ArgStringList &CmdArgs) const {
   Args.AddAllArgs(CmdArgs,
                   {options::OPT_module_dir, options::OPT_fdebug_module_writer,
                    options::OPT_fintrinsic_modules_path, options::OPT_pedantic,
-                   options::OPT_std_EQ, options::OPT_W_Joined});
+                   options::OPT_std_EQ, options::OPT_W_Joined,
+                   options::OPT_fconvert_EQ});
+}
+
+void Flang::AddPicOptions(const ArgList &Args, ArgStringList &CmdArgs) const {
+  // ParsePICArgs parses -fPIC/-fPIE and their variants and returns a tuple of
+  // (RelocationModel, PICLevel, IsPIE).
+  llvm::Reloc::Model RelocationModel;
+  unsigned PICLevel;
+  bool IsPIE;
+  std::tie(RelocationModel, PICLevel, IsPIE) =
+      ParsePICArgs(getToolChain(), Args);
+
+  if (auto *RMName = RelocationModelName(RelocationModel)) {
+    CmdArgs.push_back("-mrelocation-model");
+    CmdArgs.push_back(RMName);
+  }
+  if (PICLevel > 0) {
+    CmdArgs.push_back("-pic-level");
+    CmdArgs.push_back(PICLevel == 1 ? "1" : "2");
+    if (IsPIE)
+      CmdArgs.push_back("-pic-is-pie");
+  }
+}
+
+static void addFloatingPointOptions(const Driver &D, const ArgList &Args,
+                                    ArgStringList &CmdArgs) {
+  StringRef FPContract;
+
+  if (const Arg *A = Args.getLastArg(options::OPT_ffp_contract)) {
+    const StringRef Val = A->getValue();
+    if (Val == "fast" || Val == "off") {
+      FPContract = Val;
+    } else if (Val == "on") {
+      // Warn instead of error because users might have makefiles written for
+      // gfortran (which accepts -ffp-contract=on)
+      D.Diag(diag::warn_drv_unsupported_option_for_flang)
+          << Val << A->getOption().getName() << "off";
+      FPContract = "off";
+    } else
+      // Clang's "fast-honor-pragmas" option is not supported because it is
+      // non-standard
+      D.Diag(diag::err_drv_unsupported_option_argument)
+          << A->getOption().getName() << Val;
+  }
+
+  if (!FPContract.empty())
+    CmdArgs.push_back(Args.MakeArgString("-ffp-contract=" + FPContract));
 }
 
 void Flang::ConstructJob(Compilation &C, const JobAction &JA,
@@ -105,9 +152,9 @@ void Flang::ConstructJob(Compilation &C, const JobAction &JA,
   // Add preprocessing options like -I, -D, etc. if we are using the
   // preprocessor (i.e. skip when dealing with e.g. binary files).
   if (types::getPreprocessedType(InputType) != types::TY_INVALID)
-    AddPreprocessingOptions(Args, CmdArgs);
+    addPreprocessingOptions(Args, CmdArgs);
 
-  AddFortranDialectOptions(Args, CmdArgs);
+  addFortranDialectOptions(Args, CmdArgs);
 
   // Color diagnostics are parsed by the driver directly from argv and later
   // re-parsed to construct this job; claim any possible color diagnostic here
@@ -117,8 +164,14 @@ void Flang::ConstructJob(Compilation &C, const JobAction &JA,
   if (D.getDiags().getDiagnosticOptions().ShowColors)
     CmdArgs.push_back("-fcolor-diagnostics");
 
-  // Add other compile options
-  AddOtherOptions(Args, CmdArgs);
+  // -fPIC and related options.
+  AddPicOptions(Args, CmdArgs);
+
+  // Floating point related options
+  addFloatingPointOptions(D, Args, CmdArgs);
+
+  // Handle options which are simply forwarded to -fc1.
+  forwardOptions(Args, CmdArgs);
 
   // Forward -Xflang arguments to -fc1
   Args.AddAllArgValues(CmdArgs, options::OPT_Xflang);

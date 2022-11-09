@@ -34,18 +34,13 @@ template <class Emitter> class RecordScope;
 template <class Emitter> class VariableScope;
 template <class Emitter> class DeclScope;
 template <class Emitter> class OptionScope;
+template <class Emitter> class ArrayIndexScope;
 
 /// Compilation context for expressions.
 template <class Emitter>
 class ByteCodeExprGen : public ConstStmtVisitor<ByteCodeExprGen<Emitter>, bool>,
                         public Emitter {
 protected:
-  // Emitters for opcodes of various arities.
-  using NullaryFn = bool (ByteCodeExprGen::*)(const SourceInfo &);
-  using UnaryFn = bool (ByteCodeExprGen::*)(PrimType, const SourceInfo &);
-  using BinaryFn = bool (ByteCodeExprGen::*)(PrimType, PrimType,
-                                             const SourceInfo &);
-
   // Aliases for types defined in the emitter.
   using LabelTy = typename Emitter::LabelTy;
   using AddrTy = typename Emitter::AddrTy;
@@ -64,11 +59,33 @@ public:
   ByteCodeExprGen(Context &Ctx, Program &P, Tys &&... Args)
       : Emitter(Ctx, P, Args...), Ctx(Ctx), P(P) {}
 
-  // Expression visitors - result returned on stack.
+  // Expression visitors - result returned on interp stack.
   bool VisitCastExpr(const CastExpr *E);
   bool VisitIntegerLiteral(const IntegerLiteral *E);
   bool VisitParenExpr(const ParenExpr *E);
   bool VisitBinaryOperator(const BinaryOperator *E);
+  bool VisitCXXDefaultArgExpr(const CXXDefaultArgExpr *E);
+  bool VisitCallExpr(const CallExpr *E);
+  bool VisitCXXMemberCallExpr(const CXXMemberCallExpr *E);
+  bool VisitCXXDefaultInitExpr(const CXXDefaultInitExpr *E);
+  bool VisitCXXBoolLiteralExpr(const CXXBoolLiteralExpr *E);
+  bool VisitCXXNullPtrLiteralExpr(const CXXNullPtrLiteralExpr *E);
+  bool VisitCXXThisExpr(const CXXThisExpr *E);
+  bool VisitUnaryOperator(const UnaryOperator *E);
+  bool VisitDeclRefExpr(const DeclRefExpr *E);
+  bool VisitImplicitValueInitExpr(const ImplicitValueInitExpr *E);
+  bool VisitSubstNonTypeTemplateParmExpr(const SubstNonTypeTemplateParmExpr *E);
+  bool VisitArraySubscriptExpr(const ArraySubscriptExpr *E);
+  bool VisitInitListExpr(const InitListExpr *E);
+  bool VisitConstantExpr(const ConstantExpr *E);
+  bool VisitUnaryExprOrTypeTraitExpr(const UnaryExprOrTypeTraitExpr *E);
+  bool VisitMemberExpr(const MemberExpr *E);
+  bool VisitArrayInitIndexExpr(const ArrayInitIndexExpr *E);
+  bool VisitOpaqueValueExpr(const OpaqueValueExpr *E);
+  bool VisitAbstractConditionalOperator(const AbstractConditionalOperator *E);
+  bool VisitStringLiteral(const StringLiteral *E);
+  bool VisitCharacterLiteral(const CharacterLiteral *E);
+  bool VisitCompoundAssignOperator(const CompoundAssignOperator *E);
 
 protected:
   bool visitExpr(const Expr *E) override;
@@ -84,6 +101,10 @@ protected:
   /// Returns a record from a record or pointer type.
   Record *getRecord(QualType Ty);
   Record *getRecord(const RecordDecl *RD);
+
+  // Returns a function for the given FunctionDecl.
+  // If the function does not exist yet, it is compiled.
+  const Function *getFunction(const FunctionDecl *FD);
 
   /// Returns the size int bits of an integer.
   unsigned getIntWidth(QualType Ty) {
@@ -122,29 +143,47 @@ protected:
   bool discard(const Expr *E);
   /// Evaluates an expression and places result on stack.
   bool visit(const Expr *E);
-  /// Compiles an initializer for a local.
-  bool visitInitializer(const Expr *E, InitFnRef GenPtr);
+  /// Compiles an initializer.
+  bool visitInitializer(const Expr *E);
+  /// Compiles an array initializer.
+  bool visitArrayInitializer(const Expr *Initializer);
+  /// Compiles a record initializer.
+  bool visitRecordInitializer(const Expr *Initializer);
 
   /// Visits an expression and converts it to a boolean.
   bool visitBool(const Expr *E);
 
   /// Visits an initializer for a local.
   bool visitLocalInitializer(const Expr *Init, unsigned I) {
-    return visitInitializer(Init, [this, I, Init] {
-      return this->emitGetPtrLocal(I, Init);
-    });
+    if (!this->emitGetPtrLocal(I, Init))
+      return false;
+
+    if (!visitInitializer(Init))
+      return false;
+
+    return this->emitPopPtr(Init);
   }
 
   /// Visits an initializer for a global.
   bool visitGlobalInitializer(const Expr *Init, unsigned I) {
-    return visitInitializer(Init, [this, I, Init] {
-      return this->emitGetPtrGlobal(I, Init);
-    });
+    if (!this->emitGetPtrGlobal(I, Init))
+      return false;
+
+    if (!visitInitializer(Init))
+      return false;
+
+    return this->emitPopPtr(Init);
   }
 
   /// Visits a delegated initializer.
   bool visitThisInitializer(const Expr *I) {
-    return visitInitializer(I, [this, I] { return this->emitThis(I); });
+    if (!this->emitThis(I))
+      return false;
+
+    if (!visitInitializer(I))
+      return false;
+
+    return this->emitPopPtr(I);
   }
 
   /// Creates a local primitive value.
@@ -161,6 +200,7 @@ private:
   friend class RecordScope<Emitter>;
   friend class DeclScope<Emitter>;
   friend class OptionScope<Emitter>;
+  friend class ArrayIndexScope<Emitter>;
 
   /// Emits a zero initializer.
   bool visitZeroInitializer(PrimType T, const Expr *E);
@@ -189,27 +229,29 @@ private:
                       llvm::function_ref<bool(PrimType)> Indirect);
 
   /// Emits an APInt constant.
-  bool emitConst(PrimType T, unsigned NumBits, const llvm::APInt &Value,
-                 const Expr *E);
+  bool emitConst(PrimType T, const llvm::APInt &Value, const Expr *E);
 
   /// Emits an integer constant.
   template <typename T> bool emitConst(const Expr *E, T Value) {
     QualType Ty = E->getType();
-    unsigned NumBits = getIntWidth(Ty);
-    APInt WrappedValue(NumBits, Value, std::is_signed<T>::value);
-    return emitConst(*Ctx.classify(Ty), NumBits, WrappedValue, E);
+    APInt WrappedValue(getIntWidth(Ty), static_cast<uint64_t>(Value),
+                       std::is_signed<T>::value);
+    return emitConst(*Ctx.classify(Ty), WrappedValue, E);
   }
-
-  /// Returns a pointer to a variable declaration.
-  bool getPtrVarDecl(const VarDecl *VD, const Expr *E);
-
-  /// Returns the index of a global.
-  llvm::Optional<unsigned> getGlobalIdx(const VarDecl *VD);
 
   /// Emits the initialized pointer.
   bool emitInitFn() {
     assert(InitFn && "missing initializer");
     return (*InitFn)();
+  }
+
+  /// Returns the CXXRecordDecl for the type of the given expression,
+  /// or nullptr if no such decl exists.
+  const CXXRecordDecl *getRecordDecl(const Expr *E) const {
+    QualType T = E->getType();
+    if (const auto *RD = T->getPointeeCXXRecordDecl())
+      return RD;
+    return T->getAsCXXRecordDecl();
   }
 
 protected:
@@ -222,7 +264,7 @@ protected:
   /// Current scope.
   VariableScope<Emitter> *VarScope = nullptr;
 
-  /// Current argument index.
+  /// Current argument index. Needed to emit ArrayInitIndexExpr.
   llvm::Optional<uint64_t> ArrayIndex;
 
   /// Flag indicating if return value is to be discarded.
@@ -322,6 +364,20 @@ public:
   void addExtended(const Scope::Local &Local) override {
     this->Parent->addLocal(Local);
   }
+};
+
+template <class Emitter> class ArrayIndexScope final {
+public:
+  ArrayIndexScope(ByteCodeExprGen<Emitter> *Ctx, uint64_t Index) : Ctx(Ctx) {
+    OldArrayIndex = Ctx->ArrayIndex;
+    Ctx->ArrayIndex = Index;
+  }
+
+  ~ArrayIndexScope() { Ctx->ArrayIndex = OldArrayIndex; }
+
+private:
+  ByteCodeExprGen<Emitter> *Ctx;
+  Optional<uint64_t> OldArrayIndex;
 };
 
 } // namespace interp

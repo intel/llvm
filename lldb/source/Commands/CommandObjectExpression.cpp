@@ -461,6 +461,8 @@ bool CommandObjectExpression::EvaluateExpression(llvm::StringRef expr,
         result.SetStatus(eReturnStatusFailed);
       }
     }
+  } else {
+    error_stream.Printf("error: unknown error\n");
   }
 
   return (success != eExpressionSetupError &&
@@ -509,7 +511,7 @@ void CommandObjectExpression::GetMultilineExpression() {
                             llvm::StringRef(), // Continuation prompt
                             multiple_lines, color_prompt,
                             1, // Show line numbers starting at 1
-                            *this, nullptr));
+                            *this));
 
   StreamFileSP output_sp = io_handler_sp->GetOutputStreamFileSP();
   if (output_sp) {

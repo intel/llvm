@@ -35,4 +35,4 @@
 
 ; RUN: llvm-spirv %s -to-binary -o %t.spv
 ; Reverse translation shouldn't crash:
-; RUN: llvm-spirv -r %t.spv -o %t.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.bc

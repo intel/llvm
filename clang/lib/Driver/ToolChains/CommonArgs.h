@@ -14,6 +14,9 @@
 #include "clang/Driver/Multilib.h"
 #include "clang/Driver/Tool.h"
 #include "clang/Driver/ToolChain.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Option/Arg.h"
+#include "llvm/Option/ArgList.h"
 #include "llvm/Support/CodeGen.h"
 
 namespace clang {
@@ -93,14 +96,22 @@ void addLTOOptions(const ToolChain &ToolChain, const llvm::opt::ArgList &Args,
                    llvm::opt::ArgStringList &CmdArgs, const InputInfo &Output,
                    const InputInfo &Input, bool IsThinLTO);
 
+const char *RelocationModelName(llvm::Reloc::Model Model);
+
 std::tuple<llvm::Reloc::Model, unsigned, bool>
 ParsePICArgs(const ToolChain &ToolChain, const llvm::opt::ArgList &Args);
 
 unsigned ParseFunctionAlignment(const ToolChain &TC,
                                 const llvm::opt::ArgList &Args);
 
-unsigned ParseDebugDefaultVersion(const ToolChain &TC,
-                                  const llvm::opt::ArgList &Args);
+// Extract the integer N from a string spelled "-dwarf-N", returning 0
+// on mismatch. The StringRef input (rather than an Arg) allows
+// for use by the "-Xassembler" option parser.
+unsigned DwarfVersionNum(StringRef ArgValue);
+// Find a DWARF format version option.
+// This function is a complementary for DwarfVersionNum().
+const llvm::opt::Arg *getDwarfNArg(const llvm::opt::ArgList &Args);
+unsigned getDwarfVersion(const ToolChain &TC, const llvm::opt::ArgList &Args);
 
 void AddAssemblerKPIC(const ToolChain &ToolChain,
                       const llvm::opt::ArgList &Args,
@@ -143,6 +154,8 @@ llvm::StringRef getLTOParallelism(const llvm::opt::ArgList &Args,
                                   const Driver &D);
 
 bool areOptimizationsEnabled(const llvm::opt::ArgList &Args);
+
+bool isDependentLibAdded(const llvm::opt::ArgList &Args, StringRef Lib);
 
 bool isUseSeparateSections(const llvm::Triple &Triple);
 
@@ -188,7 +201,8 @@ void addMultilibFlag(bool Enabled, const char *const Flag,
                      Multilib::flags_list &Flags);
 
 void addX86AlignBranchArgs(const Driver &D, const llvm::opt::ArgList &Args,
-                           llvm::opt::ArgStringList &CmdArgs, bool IsLTO);
+                           llvm::opt::ArgStringList &CmdArgs, bool IsLTO,
+                           const StringRef PluginOptPrefix = "");
 
 void checkAMDGPUCodeObjectVersion(const Driver &D,
                                   const llvm::opt::ArgList &Args);
@@ -201,7 +215,8 @@ bool haveAMDGPUCodeObjectVersionArgument(const Driver &D,
 
 void addMachineOutlinerArgs(const Driver &D, const llvm::opt::ArgList &Args,
                             llvm::opt::ArgStringList &CmdArgs,
-                            const llvm::Triple &Triple, bool IsLTO);
+                            const llvm::Triple &Triple, bool IsLTO,
+                            const StringRef PluginOptPrefix = "");
 
 void addOpenMPDeviceRTL(const Driver &D, const llvm::opt::ArgList &DriverArgs,
                         llvm::opt::ArgStringList &CC1Args,

@@ -2,7 +2,7 @@
   "name": "aws-ec2",
   "description": "Start AWS EC2 spot instances with Github actions runner agent in it",
   "dependencies": {
-    "@actions/core": "1.9.0",
+    "@actions/core": "1.10.0",
     "@actions/github": "5.0.3",
     "aws-sdk": "2.1179.0"
   }

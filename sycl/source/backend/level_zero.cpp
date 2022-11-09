@@ -57,25 +57,8 @@ __SYCL_EXPORT context make_context(const std::vector<device> &DeviceList,
       NativeHandle, DeviceHandles.size(), DeviceHandles.data(), !KeepOwnership,
       &PiContext);
   // Construct the SYCL context from PI context.
-  return detail::createSyclObjFromImpl<context>(
-      std::make_shared<context_impl>(PiContext, async_handler{}, Plugin));
-}
-
-// TODO: remove this version (without ownership) when allowed to break ABI.
-__SYCL_EXPORT context make_context(const std::vector<device> &DeviceList,
-                                   pi_native_handle NativeHandle) {
-  return make_context(DeviceList, NativeHandle, false);
-}
-
-//----------------------------------------------------------------------------
-// Implementation of level_zero::make<program>
-__SYCL_EXPORT program make_program(const context &Context,
-                                   pi_native_handle NativeHandle) {
-  // Construct the SYCL program from native program.
-  // TODO: move here the code that creates PI program, and remove the
-  // native interop constructor.
-  return detail::createSyclObjFromImpl<program>(
-      std::make_shared<program_impl>(getSyclObjImpl(Context), NativeHandle));
+  return detail::createSyclObjFromImpl<context>(std::make_shared<context_impl>(
+      PiContext, detail::defaultAsyncHandler, Plugin));
 }
 
 //----------------------------------------------------------------------------
@@ -84,7 +67,7 @@ __SYCL_EXPORT queue make_queue(const context &Context,
                                pi_native_handle NativeHandle,
                                bool KeepOwnership) {
   const auto &ContextImpl = getSyclObjImpl(Context);
-  return detail::make_queue(NativeHandle, Context, KeepOwnership,
+  return detail::make_queue(NativeHandle, Context, nullptr, KeepOwnership,
                             ContextImpl->get_async_handler(),
                             backend::ext_oneapi_level_zero);
 }
@@ -93,15 +76,9 @@ __SYCL_EXPORT queue make_queue(const context &Context, const device &Device,
                                pi_native_handle NativeHandle,
                                bool KeepOwnership) {
   const auto &ContextImpl = getSyclObjImpl(Context);
-  return detail::make_queue(NativeHandle, Context, Device, KeepOwnership,
+  return detail::make_queue(NativeHandle, Context, &Device, KeepOwnership,
                             ContextImpl->get_async_handler(),
                             backend::ext_oneapi_level_zero);
-}
-
-// TODO: remove this version (without ownership) when allowed to break ABI.
-__SYCL_EXPORT queue make_queue(const context &Context,
-                               pi_native_handle NativeHandle) {
-  return make_queue(Context, NativeHandle, false);
 }
 
 //----------------------------------------------------------------------------

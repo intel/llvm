@@ -199,10 +199,8 @@ void func(int sel) {
   global_int8_ptr -= 1;              // expected-error {{arithmetic on a pointer to sizeless type}}
   global_int8_ptr - global_int8_ptr; // expected-error {{arithmetic on a pointer to sizeless type}}
 
-  +init_int8;       // expected-error {{invalid argument type 'svint8_t'}}
   ++init_int8;      // expected-error {{cannot increment value of type 'svint8_t'}}
   init_int8++;      // expected-error {{cannot increment value of type 'svint8_t'}}
-  -init_int8;       // expected-error {{invalid argument type 'svint8_t'}}
   --init_int8;      // expected-error {{cannot decrement value of type 'svint8_t'}}
   init_int8--;      // expected-error {{cannot decrement value of type 'svint8_t'}}
   !init_int8;       // expected-error {{invalid argument type 'svint8_t'}}
@@ -327,7 +325,7 @@ void template_fn_rvalue_ref(T &&) {}
 
 #if __cplusplus >= 201103L
 template <typename T>
-using array_alias = T[1]; // expected-error {{array has sizeless element type '__SVInt8_t'}}
+using array_alias = T[1]; // expected-error {{array has sizeless element type 'svint8_t' (aka '__SVInt8_t')}}
 extern array_alias<int> *array_alias_int_ptr;
 extern array_alias<svint8_t> *array_alias_int8_ptr; // expected-note {{in instantiation of template type alias 'array_alias' requested here}}
 #endif

@@ -19,6 +19,7 @@
 #include "clang/Driver/ToolChain.h"
 #include "clang/Driver/Types.h"
 #include "clang/Driver/Util.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Option/Arg.h"
@@ -28,11 +29,15 @@
 #include <list>
 #include <map>
 #include <string>
+#include <vector>
 
 namespace llvm {
 class Triple;
 namespace vfs {
 class FileSystem;
+}
+namespace cl {
+class ExpansionContext;
 }
 } // namespace llvm
 
@@ -258,8 +263,8 @@ private:
   /// Name to use when invoking gcc/g++.
   std::string CCCGenericGCCName;
 
-  /// Name of configuration file if used.
-  std::string ConfigFile;
+  /// Paths to configuration files used.
+  std::vector<std::string> ConfigFiles;
 
   /// Allocator for string saver.
   llvm::BumpPtrAllocator Alloc;
@@ -353,7 +358,9 @@ public:
   /// Name to use when invoking gcc/g++.
   const std::string &getCCCGenericGCCName() const { return CCCGenericGCCName; }
 
-  const std::string &getConfigFile() const { return ConfigFile; }
+  llvm::ArrayRef<std::string> getConfigFiles() const {
+    return ConfigFiles;
+  }
 
   const llvm::opt::OptTable &getOpts() const { return getDriverOptTable(); }
 
@@ -677,16 +684,23 @@ public:
 
 private:
 
-  /// Tries to load options from configuration file.
+  /// Tries to load options from configuration files.
   ///
   /// \returns true if error occurred.
-  bool loadConfigFile();
+  bool loadConfigFiles();
+
+  /// Tries to load options from default configuration files (deduced from
+  /// executable filename).
+  ///
+  /// \returns true if error occurred.
+  bool loadDefaultConfigFiles(llvm::cl::ExpansionContext &ExpCtx);
 
   /// Read options from the specified file.
   ///
   /// \param [in] FileName File to read.
+  /// \param [in] Search and expansion options.
   /// \returns true, if error occurred while reading.
-  bool readConfigFile(StringRef FileName);
+  bool readConfigFile(StringRef FileName, llvm::cl::ExpansionContext &ExpCtx);
 
   /// Set the driver mode (cl, gcc, etc) from the value of the `--driver-mode`
   /// option.
@@ -769,6 +783,10 @@ private:
   bool checkForOffloadStaticLib(Compilation &C,
                                 llvm::opt::DerivedArgList &Args) const;
 
+  /// Checks for any mismatch of targets and provided input binaries.
+  void checkForOffloadMismatch(Compilation &C,
+                               llvm::opt::DerivedArgList &Args) const;
+
   /// Track filename used for the FPGA dependency info.
   mutable llvm::StringMap<const std::string> FPGATempDepFiles;
 
@@ -782,6 +800,14 @@ private:
   /// unique ID, but the same ID will be used for different compilation
   /// targets.
   mutable llvm::StringMap<StringRef> SYCLUniqueIDList;
+
+  /// Vector of Macros that need to be added to the Host compilation in a
+  /// SYCL based offloading scenario.  These macros are gathered during
+  /// construction of the device compilations.
+  mutable std::vector<std::string> SYCLTargetMacroArgs;
+
+  /// Return the typical executable name for the specified driver \p Mode.
+  static const char *getExecutableForDriverMode(DriverMode Mode);
 
 public:
   /// GetReleaseVersion - Parse (([0-9]+)(.([0-9]+)(.([0-9]+)?))?)? and
@@ -849,6 +875,17 @@ public:
   /// createAppendedFooterInput - Create new source file.
   void createAppendedFooterInput(Action *&Input, Compilation &C,
                                  const llvm::opt::ArgList &Args) const;
+
+  /// addSYCLTargetMacroArg - Add the given macro to the vector of args to be
+  /// added to the host compilation step.
+  void addSYCLTargetMacroArg(const llvm::opt::ArgList &Args,
+                             StringRef Macro) const {
+    SYCLTargetMacroArgs.push_back(Args.MakeArgString(Macro));
+  }
+  /// getSYCLTargetMacroArgs - return the previously gathered macro target args.
+  llvm::ArrayRef<std::string> getSYCLTargetMacroArgs() const {
+    return SYCLTargetMacroArgs;
+  }
 
   /// setSYCLUniqueID - set the Unique ID that is used for all FE invocations
   /// when performing compilations for SYCL.

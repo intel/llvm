@@ -72,7 +72,7 @@ const std::error_category &exception::category() const noexcept {
 
 const char *exception::what() const noexcept { return MMsg->c_str(); }
 
-bool exception::has_context() const { return (MContext != nullptr); }
+bool exception::has_context() const noexcept { return (MContext != nullptr); }
 
 context exception::get_context() const {
   if (!has_context())

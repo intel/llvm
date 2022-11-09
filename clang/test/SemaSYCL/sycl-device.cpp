@@ -6,7 +6,7 @@
 
 #ifdef SYCL
 
-__attribute__((sycl_device)) // expected-warning {{'sycl_device' attribute only applies to functions}}
+__attribute__((sycl_device)) // expected-error {{'sycl_device' attribute can only be applied to 'device_global' variables}}
 int N;
 
 __attribute__((sycl_device(3))) // expected-error {{'sycl_device' attribute takes no arguments}}

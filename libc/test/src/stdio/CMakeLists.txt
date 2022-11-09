@@ -15,6 +15,7 @@ add_libc_unittest(
     libc.src.stdio.ferror
     libc.src.stdio.fflush
     libc.src.stdio.fopen
+    libc.src.stdio.fputs
     libc.src.stdio.fread
     libc.src.stdio.fseek
     libc.src.stdio.fwrite
@@ -71,6 +72,8 @@ add_libc_unittest(
     sprintf_test.cpp
   DEPENDS
     libc.src.stdio.sprintf
+    libc.src.__support.FPUtil.fp_bits
+    libc.src.__support.FPUtil.platform_defs
 )
 
 add_libc_unittest(
@@ -106,10 +109,84 @@ add_libc_unittest(
     printf_test.cpp
   DEPENDS
     libc.src.stdio.printf
-    libc.src.fenv.fesetround
-    libc.src.__support.FPUtil.fputil
+)
+
+add_libc_unittest(
+  puts_test
+  SUITE
+    libc_stdio_unittests
+  SRCS
+    puts_test.cpp
+  DEPENDS
+    libc.src.stdio.puts
+)
+
+add_libc_unittest(
+  putc_test
+  SUITE
+    libc_stdio_unittests
+  SRCS
+    putc_test.cpp
+  DEPENDS
+    libc.src.stdio.putc
+    libc.src.stdio.fclose
+    libc.src.stdio.ferror
+    libc.src.stdio.fopen
+    libc.src.stdio.fread
+)
+
+if(${LIBC_TARGET_OS} STREQUAL "linux")
+  add_libc_unittest(
+    remove_test
+    SUITE
+      libc_stdio_unittests
+    SRCS
+      remove_test.cpp
+    DEPENDS
+      libc.include.errno
+      libc.include.unistd
+      libc.src.fcntl.open
+      libc.src.stdio.remove
+      libc.src.sys.stat.mkdirat
+      libc.src.unistd.access
+      libc.src.unistd.close
+  )
+endif()
+
+add_libc_unittest(
+  fgetc_test
+  SUITE
+    libc_stdio_unittests
+  SRCS
+    fgetc_test.cpp
+  DEPENDS
+    libc.include.errno
+    libc.include.stdio
+    libc.src.stdio.fclose
+    libc.src.stdio.feof
+    libc.src.stdio.ferror
+    libc.src.stdio.fgetc
+    libc.src.stdio.fopen
+    libc.src.stdio.fwrite
+)
+
+add_libc_unittest(
+  fgets_test
+  SUITE
+    libc_stdio_unittests
+  SRCS
+    fgets_test.cpp
+  DEPENDS
+    libc.include.errno
+    libc.include.stdio
+    libc.src.stdio.fclose
+    libc.src.stdio.feof
+    libc.src.stdio.ferror
+    libc.src.stdio.fgets
+    libc.src.stdio.fopen
+    libc.src.stdio.fwrite
 )
 
 add_subdirectory(printf_core)
-
+add_subdirectory(scanf_core)
 add_subdirectory(testdata)

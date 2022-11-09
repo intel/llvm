@@ -60,7 +60,7 @@ defm check_sections: B<"check-sections",
 
 defm compress_debug_sections:
   Eq<"compress-debug-sections", "Compress DWARF debug sections">,
-  MetaVarName<"[none,zlib]">;
+  MetaVarName<"[none,zlib,zstd]">;
 
 defm defsym: Eq<"defsym", "Define a symbol alias">, MetaVarName<"<symbol>=<value>">;
 
@@ -297,6 +297,9 @@ def no_omagic: F<"no-omagic">, MetaVarName<"<magic>">,
 def no_undefined: F<"no-undefined">,
   HelpText<"Report unresolved symbols even if the linker is creating a shared library">;
 
+def no_warnings: FF<"no-warnings">, HelpText<"Suppress warnings and cancel --fatal-warnings">;
+def : Flag<["-"], "w">, Alias<no_warnings>, HelpText<"Alias for --no-warnings">;
+
 def o: JoinedOrSeparate<["-"], "o">, MetaVarName<"<path>">,
   HelpText<"Path to file to write output">;
 
@@ -503,6 +506,8 @@ def z: JoinedOrSeparate<["-"], "z">, MetaVarName<"<option>">,
 def visual_studio_diagnostics_format : FF<"vs-diagnostics">,
 HelpText<"Format diagnostics for Visual Studio compatibility">;
 
+def package_metadata: JJ<"package-metadata=">, HelpText<"Emit package metadata note">;
+
 // Aliases
 def: Separate<["-"], "f">, Alias<auxiliary>, HelpText<"Alias for --auxiliary">;
 def: F<"call_shared">, Alias<Bdynamic>, HelpText<"Alias for --Bdynamic">;
@@ -540,7 +545,7 @@ def: Flag<["-"], "t">, Alias<trace>, HelpText<"Alias for --trace">;
 def: Joined<["-", "--"], "Ttext-segment=">, Alias<Ttext_segment>;
 def: JoinedOrSeparate<["-"], "y">, Alias<trace_symbol>, HelpText<"Alias for --trace-symbol">;
 def: JoinedOrSeparate<["-"], "u">, Alias<undefined>, HelpText<"Alias for --undefined">;
-def: Flag<["-"], "V">, Alias<version>, HelpText<"Alias for --version">;
+def: Flag<["-"], "V">, Alias<v>, HelpText<"Alias for -v">;
 
 // LTO-related options.
 def lto_aa_pipeline: JJ<"lto-aa-pipeline=">,

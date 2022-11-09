@@ -73,20 +73,6 @@ inline device make_device<backend::ext_oneapi_cuda>(
   return ext::oneapi::cuda::make_device(NativeHandle);
 }
 
-template <>
-backend_return_t<backend::ext_oneapi_cuda, device>
-get_native<backend::ext_oneapi_cuda, device>(const device &Obj) {
-  // TODO use SYCL 2020 exception when implemented
-  if (Obj.get_backend() != backend::ext_oneapi_cuda) {
-    throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
-                              PI_ERROR_INVALID_OPERATION);
-  }
-  // CUDA uses a 32-bit int instead of an opaque pointer like other backends,
-  // so we need a specialization with static_cast instead of reinterpret_cast.
-  return static_cast<backend_return_t<backend::ext_oneapi_cuda, device>>(
-      Obj.getNative());
-}
-
 // CUDA event specialization
 template <>
 inline event make_event<backend::ext_oneapi_cuda>(
@@ -103,7 +89,7 @@ inline queue make_queue<backend::ext_oneapi_cuda>(
     const backend_input_t<backend::ext_oneapi_cuda, queue> &BackendObject,
     const context &TargetContext, const async_handler Handler) {
   return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
-                            TargetContext, true, Handler,
+                            TargetContext, nullptr, true, Handler,
                             /*Backend*/ backend::ext_oneapi_cuda);
 }
 

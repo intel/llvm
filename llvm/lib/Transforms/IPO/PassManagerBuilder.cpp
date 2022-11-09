@@ -249,9 +249,9 @@ void PassManagerBuilder::addExtensionsToPM(ExtensionPointTy ETy,
         std::get<1>(Ext)(*this, PM);
     }
   }
-  for (unsigned i = 0, e = Extensions.size(); i != e; ++i)
-    if (Extensions[i].first == ETy)
-      Extensions[i].second(*this, PM);
+  for (const auto &[PT, Fn] : Extensions)
+    if (PT == ETy)
+      Fn(*this, PM);
 }
 
 void PassManagerBuilder::addInitialAliasAnalysisPasses(
@@ -397,10 +397,10 @@ if (!SYCLOptimizationMode) { // broken formatting to simplify pulldown
     MPM.add(createLoopFlattenPass()); // Flatten loops
     MPM.add(createLoopSimplifyCFGPass());
   }
-  MPM.add(createLoopIdiomPass());      // Recognize idioms like memset.
-  MPM.add(createIndVarSimplifyPass()); // Canonicalize indvars
+  MPM.add(createLoopIdiomPass());             // Recognize idioms like memset.
+  MPM.add(createIndVarSimplifyPass());        // Canonicalize indvars
   addExtensionsToPM(EP_LateLoopOptimizations, MPM);
-  MPM.add(createLoopDeletionPass()); // Delete dead loops
+  MPM.add(createLoopDeletionPass());          // Delete dead loops
 
   if (EnableLoopInterchange)
     MPM.add(createLoopInterchangePass()); // Interchange loops
@@ -661,7 +661,6 @@ void PassManagerBuilder::populateModulePassManager(
   MPM.add(createGlobalsAAWrapperPass());
 
   // Start of CallGraph SCC passes.
-  MPM.add(createPruneEHPass()); // Remove dead EH info
   bool RunInliner = false;
   if (Inliner) {
     MPM.add(Inliner);
@@ -756,7 +755,7 @@ void PassManagerBuilder::populateModulePassManager(
   }
 
   addExtensionsToPM(EP_VectorizerStart, MPM);
-
+  
   if (!SYCLOptimizationMode) {
     // Re-rotate loops in all our loop nests. These may have fallout out of
     // rotated form due to GVN or other transformations, and the vectorizer relies

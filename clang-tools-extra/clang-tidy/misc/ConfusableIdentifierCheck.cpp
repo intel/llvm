@@ -68,10 +68,9 @@ std::string ConfusableIdentifierCheck::skeleton(StringRef Name) {
     }
 
     StringRef Key(Prev, Curr - Prev);
-    auto Where = std::lower_bound(std::begin(ConfusableEntries),
-                                  std::end(ConfusableEntries), CodePoint,
-                                  [](decltype(ConfusableEntries[0]) x,
-                                     UTF32 y) { return x.codepoint < y; });
+    auto Where = llvm::lower_bound(ConfusableEntries, CodePoint,
+                                   [](decltype(ConfusableEntries[0]) x,
+                                      UTF32 y) { return x.codepoint < y; });
     if (Where == std::end(ConfusableEntries) || CodePoint != Where->codepoint) {
       Skeleton.append(Prev, Curr);
     } else {
@@ -79,8 +78,7 @@ std::string ConfusableIdentifierCheck::skeleton(StringRef Name) {
       UTF8 *BufferStart = std::begin(Buffer);
       UTF8 *IBuffer = BufferStart;
       const UTF32 *ValuesStart = std::begin(Where->values);
-      const UTF32 *ValuesEnd =
-          std::find(std::begin(Where->values), std::end(Where->values), '\0');
+      const UTF32 *ValuesEnd = llvm::find(Where->values, '\0');
       if (ConvertUTF32toUTF8(&ValuesStart, ValuesEnd, &IBuffer,
                              std::end(Buffer),
                              strictConversion) != conversionOK) {

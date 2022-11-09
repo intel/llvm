@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Basic/FileManager.h"
+#include "clang/Basic/HLSLRuntime.h"
 #include "clang/Basic/MacroBuilder.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/SyncScope.h"
@@ -402,8 +403,8 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
     Builder.defineMacro("__SHADER_STAGE_LIBRARY",
                         Twine((uint32_t)ShaderStage::Library));
     // The current shader stage itself
-    uint32_t StageInteger = (uint32_t)TI.getTriple().getEnvironment() -
-                            (uint32_t)llvm::Triple::Pixel;
+    uint32_t StageInteger = static_cast<uint32_t>(
+        hlsl::getStageFromEnvironment(TI.getTriple().getEnvironment()));
 
     Builder.defineMacro("__SHADER_TARGET_STAGE", Twine(StageInteger));
     // Add target versions
@@ -685,7 +686,11 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
 
   // C++20 features.
   if (LangOpts.CPlusPlus20) {
-    //Builder.defineMacro("__cpp_aggregate_paren_init", "201902L");
+    // Builder.defineMacro("__cpp_aggregate_paren_init", "201902L");
+
+    // P0848 is implemented, but we're still waiting for other concepts
+    // issues to be addressed before bumping __cpp_concepts up to 202002L.
+    // Refer to the discussion of this at https://reviews.llvm.org/D128619.
     Builder.defineMacro("__cpp_concepts", "201907L");
     Builder.defineMacro("__cpp_conditional_explicit", "201806L");
     //Builder.defineMacro("__cpp_consteval", "201811L");
@@ -704,8 +709,15 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
     Builder.defineMacro("__cpp_if_consteval", "202106L");
     Builder.defineMacro("__cpp_multidimensional_subscript", "202110L");
   }
+
+  // We provide those C++2b features as extensions in earlier language modes, so
+  // we also define their feature test macros.
+  if (LangOpts.CPlusPlus11)
+    Builder.defineMacro("__cpp_static_call_operator", "202207L");
+  Builder.defineMacro("__cpp_named_character_escapes", "202207L");
+
   if (LangOpts.Char8)
-    Builder.defineMacro("__cpp_char8_t", "201811L");
+    Builder.defineMacro("__cpp_char8_t", "202207L");
   Builder.defineMacro("__cpp_impl_destroying_delete", "201806L");
 
   // TS features.
@@ -1323,8 +1335,7 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
 }
 
 /// InitializePreprocessor - Initialize the preprocessor getting it and the
-/// environment ready to process a single file. This returns true on error.
-///
+/// environment ready to process a single file.
 void clang::InitializePreprocessor(
     Preprocessor &PP, const PreprocessorOptions &InitOpts,
     const PCHContainerReader &PCHContainerRdr,

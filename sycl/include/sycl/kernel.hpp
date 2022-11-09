@@ -22,9 +22,6 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 // Forward declaration
-#ifdef __SYCL_INTERNAL_API
-class program;
-#endif
 class context;
 template <backend Backend> class backend_traits;
 template <bundle_state State> class kernel_bundle;
@@ -108,6 +105,8 @@ public:
   /// Check if the associated SYCL context is a SYCL host context.
   ///
   /// \return true if this SYCL kernel is a host kernel.
+  __SYCL2020_DEPRECATED(
+      "is_host() is deprecated as the host device is no longer supported.")
   bool is_host() const;
 
   /// Get the context that this kernel is defined for.
@@ -127,16 +126,6 @@ public:
   ///
   /// \return a valid kernel_bundle<bundle_state::executable>
   kernel_bundle<bundle_state::executable> get_kernel_bundle() const;
-
-  /// Get the program that this kernel is defined for.
-  ///
-  /// The value returned must be equal to that returned by
-  /// get_info<info::kernel::program>().
-  ///
-  /// \return a valid SYCL program
-#ifdef __SYCL_INTERNAL_API
-  program get_program() const;
-#endif
 
   /// Query information from the kernel object using the info::kernel_info
   /// descriptor.
@@ -162,9 +151,9 @@ public:
   /// \param WGSize is the work-group size the sub-group size is requested for.
   /// \return depends on information being queried.
   template <typename Param>
-  typename detail::is_kernel_device_specific_info_desc<
-      Param>::with_input_return_type
-  get_info(const device &Device, const range<3> &WGSize) const;
+  __SYCL2020_DEPRECATED("Use the overload without the second parameter")
+  typename detail::is_kernel_device_specific_info_desc<Param>::return_type
+      get_info(const device &Device, const range<3> &WGSize) const;
 
 private:
   /// Constructs a SYCL kernel object from a valid kernel_impl instance.

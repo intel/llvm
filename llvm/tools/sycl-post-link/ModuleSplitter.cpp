@@ -19,6 +19,7 @@
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
+#include "llvm/SYCLLowerIR/LowerKernelProps.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
 #include "llvm/Transforms/IPO/StripDeadPrototypes.h"
@@ -41,7 +42,6 @@ constexpr char ESIMD_SCOPE_NAME[] = "<ESIMD>";
 constexpr char ESIMD_MARKER_MD[] = "sycl_explicit_simd";
 
 constexpr char ATTR_SYCL_MODULE_ID[] = "sycl-module-id";
-constexpr char ATTR_DOUBLE_GRF[] = "esimd-double-grf";
 
 bool hasIndirectFunctionsOrCalls(const Module &M) {
   for (const auto &F : M.functions()) {
@@ -108,6 +108,23 @@ bool isSpirvSyclBuiltin(StringRef FName) {
   return FName.startswith("__spirv_") || FName.startswith("__sycl_");
 }
 
+// Return true if the function is a ESIMD builtin
+// The regexp for ESIMD intrinsics:
+// /^_Z(\d+)__esimd_\w+/
+bool isESIMDBuiltin(StringRef FName) {
+  if (!FName.consume_front("_Z"))
+    return false;
+  // now skip the digits
+  FName = FName.drop_while([](char C) { return std::isdigit(C); });
+
+  return FName.startswith("__esimd_");
+}
+
+// Return true if the function name starts with "__builtin_"
+bool isGenericBuiltin(StringRef FName) {
+  return FName.startswith("__builtin_");
+}
+
 bool isKernel(const Function &F) {
   return F.getCallingConv() == CallingConv::SPIR_KERNEL;
 }
@@ -128,7 +145,8 @@ bool isEntryPoint(const Function &F, bool EmitOnlyKernelsAsEntryPoints) {
     // are also considered as entry points (except __spirv_* and __sycl_*
     // functions)
     return F.hasFnAttribute(ATTR_SYCL_MODULE_ID) &&
-           !isSpirvSyclBuiltin(F.getName());
+           !isSpirvSyclBuiltin(F.getName()) && !isESIMDBuiltin(F.getName()) &&
+           !isGenericBuiltin(F.getName());
   }
 
   return false;
@@ -391,9 +409,10 @@ ModuleDesc extractSubModule(const ModuleDesc &MD,
 // The function produces a copy of input LLVM IR module M with only those entry
 // points that are specified in ModuleEntryPoints vector.
 ModuleDesc extractCallGraph(const ModuleDesc &MD,
-                            EntryPointGroup &&ModuleEntryPoints) {
+                            EntryPointGroup &&ModuleEntryPoints,
+                            const CallGraph &CG) {
   SetVector<const GlobalValue *> GVs;
-  collectFunctionsToExtract(GVs, ModuleEntryPoints, CallGraph{MD.getModule()});
+  collectFunctionsToExtract(GVs, ModuleEntryPoints, CG);
   collectGlobalVarsToExtract(GVs, MD.getModule());
 
   ModuleDesc SplitM = extractSubModule(MD, GVs, std::move(ModuleEntryPoints));
@@ -414,11 +433,15 @@ public:
 class ModuleSplitter : public ModuleSplitterBase {
 public:
   ModuleSplitter(ModuleDesc &&MD, EntryPointGroupVec &&GroupVec)
-      : ModuleSplitterBase(std::move(MD), std::move(GroupVec)) {}
+      : ModuleSplitterBase(std::move(MD), std::move(GroupVec)),
+        CG(Input.getModule()) {}
 
   ModuleDesc nextSplit() override {
-    return extractCallGraph(Input, nextGroup());
+    return extractCallGraph(Input, nextGroup(), CG);
   }
+
+private:
+  CallGraph CG;
 };
 
 } // namespace
@@ -688,8 +711,8 @@ void ModuleDesc::dump() const {
   llvm::errs() << "split_module::ModuleDesc[" << Name << "] {\n";
   llvm::errs() << "  ESIMD:" << toString(EntryPoints.Props.HasESIMD)
                << ", SpecConstMet:" << (Props.SpecConstsMet ? "YES" : "NO")
-               << ", DoubleGRF:"
-               << (EntryPoints.Props.UsesDoubleGRF ? "YES" : "NO") << "\n";
+               << ", LargeGRF:"
+               << (EntryPoints.Props.UsesLargeGRF ? "YES" : "NO") << "\n";
   dumpEntryPoints(entries(), EntryPoints.GroupId.str().c_str(), 1);
   llvm::errs() << "}\n";
 }
@@ -721,12 +744,12 @@ void EntryPointGroup::rebuildFromNames(const std::vector<std::string> &Names,
 }
 
 std::unique_ptr<ModuleSplitterBase>
-getESIMDDoubleGRFSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints) {
+getLargeGRFSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints) {
   EntryPointGroupVec Groups = groupEntryPointsByAttribute(
-      MD, ATTR_DOUBLE_GRF, EmitOnlyKernelsAsEntryPoints,
+      MD, sycl::kernel_props::ATTR_LARGE_GRF, EmitOnlyKernelsAsEntryPoints,
       [](EntryPointGroup &G) {
-        if (G.GroupId == ATTR_DOUBLE_GRF) {
-          G.Props.UsesDoubleGRF = true;
+        if (G.GroupId == sycl::kernel_props::ATTR_LARGE_GRF) {
+          G.Props.UsesLargeGRF = true;
         }
       });
   assert(!Groups.empty() && "At least one group is expected");

@@ -22,91 +22,122 @@
 #endif
 
 #ifdef __SYCL_DEVICE_ONLY__
+
+#if (SYCL_EXT_ONEAPI_MATRIX_VERSION > 1)
+#define JOINT_MATRIX_INTEL(T, R, C, L, S, U)                                   \
+  __spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U>
+#else
+#define JOINT_MATRIX_INTEL(T, R, C, L, S, U)                                   \
+  __spv::__spirv_JointMatrixINTEL<T, R, C, L, S>
+#endif // SYCL_EXT_ONEAPI_MATRIX_VERSION
+
 template <typename T, std::size_t R, std::size_t C,
+          __spv::MatrixUse U = __spv::MatrixUse::Unnecessary,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, L, S> *
+extern SYCL_EXTERNAL JOINT_MATRIX_INTEL(T, R, C, L, S, U) *
 __spirv_JointMatrixLoadINTEL(T *Ptr, std::size_t Stride,
                              __spv::MatrixLayout Layout = L,
                              __spv::Scope::Flag Sc = S, int MemOperand = 0);
 
 template <typename T, std::size_t R, std::size_t C,
+          __spv::MatrixUse U = __spv::MatrixUse::Unnecessary,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
 extern SYCL_EXTERNAL void __spirv_JointMatrixStoreINTEL(
-    T *Ptr, __spv::__spirv_JointMatrixINTEL<T, R, C, L, S> *Object,
+    T *Ptr, JOINT_MATRIX_INTEL(T, R, C, L, S, U) *Object,
     std::size_t Stride, __spv::MatrixLayout Layout = L,
     __spv::Scope::Flag Sc = S, int MemOperand = 0);
 
 template <typename T1, typename T2, std::size_t M, std::size_t K, std::size_t N,
+          __spv::MatrixUse UA = __spv::MatrixUse::Unnecessary,
+          __spv::MatrixUse UB = __spv::MatrixUse::Unnecessary,
+          __spv::MatrixUse UC = __spv::MatrixUse::Unnecessary,
           __spv::MatrixLayout LA = __spv::MatrixLayout::RowMajor,
           __spv::MatrixLayout LB = __spv::MatrixLayout::RowMajor,
           __spv::MatrixLayout LC = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T2, M, N, LC, S> *
+extern SYCL_EXTERNAL JOINT_MATRIX_INTEL(T2, M, N, LC, S, UC) *
 __spirv_JointMatrixMadINTEL(
-    __spv::__spirv_JointMatrixINTEL<T1, M, K, LA, S> *A,
-    __spv::__spirv_JointMatrixINTEL<T1, K, N, LB, S> *B,
-    __spv::__spirv_JointMatrixINTEL<T2, M, N, LC, S> *C,
+    JOINT_MATRIX_INTEL(T1, M, K, LA, S, UA) *A,
+    JOINT_MATRIX_INTEL(T1, K, N, LB, S, UB) *B,
+    JOINT_MATRIX_INTEL(T2, M, N, LC, S, UC) *C,
     __spv::Scope::Flag Sc = __spv::Scope::Flag::Subgroup);
 
 template <typename T1, typename T2, typename T3, std::size_t M, std::size_t K,
-          std::size_t N, __spv::MatrixLayout LA = __spv::MatrixLayout::RowMajor,
+          std::size_t N, __spv::MatrixUse UA = __spv::MatrixUse::Unnecessary,
+          __spv::MatrixUse UB = __spv::MatrixUse::Unnecessary,
+          __spv::MatrixUse UC = __spv::MatrixUse::Unnecessary,
+          __spv::MatrixLayout LA = __spv::MatrixLayout::RowMajor,
           __spv::MatrixLayout LB = __spv::MatrixLayout::RowMajor,
           __spv::MatrixLayout LC = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S> *
+extern SYCL_EXTERNAL JOINT_MATRIX_INTEL(T3, M, N, LC, S, UC) *
 __spirv_JointMatrixUUMadINTEL(
-    __spv::__spirv_JointMatrixINTEL<T1, M, K, LA, S> *A,
-    __spv::__spirv_JointMatrixINTEL<T2, K, N, LB, S> *B,
-    __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S> *C,
+    JOINT_MATRIX_INTEL(T1, M, K, LA, S, UA) *A,
+    JOINT_MATRIX_INTEL(T2, K, N, LB, S, UB) *B,
+    JOINT_MATRIX_INTEL(T3, M, N, LC, S, UC) *C,
     __spv::Scope::Flag Sc = __spv::Scope::Flag::Subgroup);
 
 template <typename T1, typename T2, typename T3, std::size_t M, std::size_t K,
-          std::size_t N, __spv::MatrixLayout LA = __spv::MatrixLayout::RowMajor,
+          std::size_t N, __spv::MatrixUse UA = __spv::MatrixUse::Unnecessary,
+          __spv::MatrixUse UB = __spv::MatrixUse::Unnecessary,
+          __spv::MatrixUse UC = __spv::MatrixUse::Unnecessary,
+          __spv::MatrixLayout LA = __spv::MatrixLayout::RowMajor,
           __spv::MatrixLayout LB = __spv::MatrixLayout::RowMajor,
           __spv::MatrixLayout LC = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S> *
+extern SYCL_EXTERNAL JOINT_MATRIX_INTEL(T3, M, N, LC, S, UC) *
 __spirv_JointMatrixUSMadINTEL(
-    __spv::__spirv_JointMatrixINTEL<T1, M, K, LA, S> *A,
-    __spv::__spirv_JointMatrixINTEL<T2, K, N, LB, S> *B,
-    __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S> *C,
+    JOINT_MATRIX_INTEL(T1, M, K, LA, S, UA) *A,
+    JOINT_MATRIX_INTEL(T2, K, N, LB, S, UB) *B,
+    JOINT_MATRIX_INTEL(T3, M, N, LC, S, UC) *C,
     __spv::Scope::Flag Sc = __spv::Scope::Flag::Subgroup);
 
 template <typename T1, typename T2, typename T3, std::size_t M, std::size_t K,
-          std::size_t N, __spv::MatrixLayout LA = __spv::MatrixLayout::RowMajor,
+          std::size_t N, __spv::MatrixUse UA = __spv::MatrixUse::Unnecessary,
+          __spv::MatrixUse UB = __spv::MatrixUse::Unnecessary,
+          __spv::MatrixUse UC = __spv::MatrixUse::Unnecessary,
+          __spv::MatrixLayout LA = __spv::MatrixLayout::RowMajor,
           __spv::MatrixLayout LB = __spv::MatrixLayout::RowMajor,
           __spv::MatrixLayout LC = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S> *
+extern SYCL_EXTERNAL JOINT_MATRIX_INTEL(T3, M, N, LC, S, UC) *
 __spirv_JointMatrixSUMadINTEL(
-    __spv::__spirv_JointMatrixINTEL<T1, M, K, LA, S> *A,
-    __spv::__spirv_JointMatrixINTEL<T2, K, N, LB, S> *B,
-    __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S> *C,
+    JOINT_MATRIX_INTEL(T1, M, K, LA, S, UA) *A,
+    JOINT_MATRIX_INTEL(T2, K, N, LB, S, UB) *B,
+    JOINT_MATRIX_INTEL(T3, M, N, LC, S, UC) *C,
     __spv::Scope::Flag Sc = __spv::Scope::Flag::Subgroup);
 
 template <typename T, std::size_t R, std::size_t C,
+          __spv::MatrixUse U = __spv::MatrixUse::Unnecessary,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, L, S> *
+extern SYCL_EXTERNAL JOINT_MATRIX_INTEL(T, R, C, L, S, U) *
 __spirv_CompositeConstruct(const T v);
 
-template <typename T, std::size_t R, std::size_t C, __spv::MatrixLayout U,
+template <typename T, std::size_t R, std::size_t C,
+          __spv::MatrixUse U = __spv::MatrixUse::Unnecessary,
+          __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
 extern SYCL_EXTERNAL size_t __spirv_JointMatrixWorkItemLengthINTEL(
-    __spv::__spirv_JointMatrixINTEL<T, R, C, U, S> *);
+    JOINT_MATRIX_INTEL(T, R, C, L, S, U) *);
 
-template <typename T, std::size_t R, std::size_t C, __spv::MatrixLayout U,
+template <typename T, std::size_t R, std::size_t C,
+          __spv::MatrixUse U = __spv::MatrixUse::Unnecessary,
+          __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
 extern SYCL_EXTERNAL T __spirv_VectorExtractDynamic(
-    __spv::__spirv_JointMatrixINTEL<T, R, C, U, S> *, size_t i);
+    JOINT_MATRIX_INTEL(T, R, C, L, S, U) *, size_t i);
 
-template <typename T, std::size_t R, std::size_t C, __spv::MatrixLayout U,
+template <typename T, std::size_t R, std::size_t C,
+         __spv::MatrixUse U = __spv::MatrixUse::Unnecessary,
+          __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, U, S> *
-__spirv_VectorInsertDynamic(__spv::__spirv_JointMatrixINTEL<T, R, C, U, S> *,
+extern SYCL_EXTERNAL JOINT_MATRIX_INTEL(T, R, C, L, S, U) *
+__spirv_VectorInsertDynamic(JOINT_MATRIX_INTEL(T, R, C, L, S, U) *,
                             T val, size_t i);
+#undef JOINT_MATRIX_INTEL
 
 #ifndef __SPIRV_BUILTIN_DECLARATIONS__
 #error                                                                         \
@@ -297,28 +328,76 @@ __SPIRV_ATOMICS(__SPIRV_ATOMIC_MINMAX, Max)
 #undef __SPIRV_ATOMIC_UNSIGNED
 #undef __SPIRV_ATOMIC_XOR
 
-extern SYCL_EXTERNAL __attribute__((opencl_global)) void *
-__spirv_GenericCastToPtrExplicit_ToGlobal(const void *Ptr,
-                                          __spv::StorageClass::Flag S) noexcept;
-
-extern SYCL_EXTERNAL __attribute__((opencl_local)) void *
-__spirv_GenericCastToPtrExplicit_ToLocal(const void *Ptr,
-                                         __spv::StorageClass::Flag S) noexcept;
-
 template <typename dataT>
 extern __attribute__((opencl_global)) dataT *
-__SYCL_GenericCastToPtrExplicit_ToGlobal(const void *Ptr) noexcept {
+__SYCL_GenericCastToPtrExplicit_ToGlobal(void *Ptr) noexcept {
   return (__attribute__((opencl_global)) dataT *)
       __spirv_GenericCastToPtrExplicit_ToGlobal(
           Ptr, __spv::StorageClass::CrossWorkgroup);
 }
 
 template <typename dataT>
+extern const __attribute__((opencl_global)) dataT *
+__SYCL_GenericCastToPtrExplicit_ToGlobal(const void *Ptr) noexcept {
+  return (const __attribute__((opencl_global)) dataT *)
+      __spirv_GenericCastToPtrExplicit_ToGlobal(
+          Ptr, __spv::StorageClass::CrossWorkgroup);
+}
+
+template <typename dataT>
+extern const volatile __attribute__((opencl_global)) dataT *
+__SYCL_GenericCastToPtrExplicit_ToGlobal(const volatile void *Ptr) noexcept {
+  return (const volatile __attribute__((opencl_global)) dataT *)
+      __spirv_GenericCastToPtrExplicit_ToGlobal(
+          Ptr, __spv::StorageClass::CrossWorkgroup);
+}
+
+template <typename dataT>
 extern __attribute__((opencl_local)) dataT *
-__SYCL_GenericCastToPtrExplicit_ToLocal(const void *Ptr) noexcept {
+__SYCL_GenericCastToPtrExplicit_ToLocal(void *Ptr) noexcept {
   return (__attribute__((opencl_local)) dataT *)
       __spirv_GenericCastToPtrExplicit_ToLocal(Ptr,
                                                __spv::StorageClass::Workgroup);
+}
+
+template <typename dataT>
+extern const __attribute__((opencl_local)) dataT *
+__SYCL_GenericCastToPtrExplicit_ToLocal(const void *Ptr) noexcept {
+  return (const __attribute__((opencl_local)) dataT *)
+      __spirv_GenericCastToPtrExplicit_ToLocal(Ptr,
+                                               __spv::StorageClass::Workgroup);
+}
+
+template <typename dataT>
+extern const volatile __attribute__((opencl_local)) dataT *
+__SYCL_GenericCastToPtrExplicit_ToLocal(const volatile void *Ptr) noexcept {
+  return (const volatile __attribute__((opencl_local)) dataT *)
+      __spirv_GenericCastToPtrExplicit_ToLocal(Ptr,
+                                               __spv::StorageClass::Workgroup);
+}
+
+template <typename dataT>
+extern __attribute__((opencl_private)) dataT *
+__SYCL_GenericCastToPtrExplicit_ToPrivate(void *Ptr) noexcept {
+  return (__attribute__((opencl_private)) dataT *)
+      __spirv_GenericCastToPtrExplicit_ToPrivate(Ptr,
+                                                 __spv::StorageClass::Function);
+}
+
+template <typename dataT>
+extern const __attribute__((opencl_private)) dataT *
+__SYCL_GenericCastToPtrExplicit_ToPrivate(const void *Ptr) noexcept {
+  return (const __attribute__((opencl_private)) dataT *)
+      __spirv_GenericCastToPtrExplicit_ToPrivate(Ptr,
+                                                 __spv::StorageClass::Function);
+}
+
+template <typename dataT>
+extern const volatile __attribute__((opencl_private)) dataT *
+__SYCL_GenericCastToPtrExplicit_ToPrivate(const volatile void *Ptr) noexcept {
+  return (const volatile __attribute__((opencl_private)) dataT *)
+      __spirv_GenericCastToPtrExplicit_ToPrivate(Ptr,
+                                                 __spv::StorageClass::Function);
 }
 
 template <typename dataT>

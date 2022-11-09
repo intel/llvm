@@ -13,7 +13,7 @@
                                 align 16
 
 ; Function Attrs: norecurse nounwind readonly
-define i64 @qpConv2sdw(fp128* nocapture readonly %a) {
+define i64 @qpConv2sdw(ptr nocapture readonly %a) {
 ; CHECK-LABEL: qpConv2sdw:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -37,14 +37,14 @@ define i64 @qpConv2sdw(fp128* nocapture readonly %a) {
 ; CHECK-P8-NEXT:    mtlr r0
 ; CHECK-P8-NEXT:    blr
 entry:
-  %0 = load fp128, fp128* %a, align 16
+  %0 = load fp128, ptr %a, align 16
   %conv = fptosi fp128 %0 to i64
   ret i64 %conv
 
 }
 
 ; Function Attrs: norecurse nounwind
-define void @qpConv2sdw_02(i64* nocapture %res) local_unnamed_addr #1 {
+define void @qpConv2sdw_02(ptr nocapture %res) local_unnamed_addr #1 {
 ; CHECK-LABEL: qpConv2sdw_02:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    addis r4, r2, .LC0@toc@ha
@@ -78,17 +78,17 @@ define void @qpConv2sdw_02(i64* nocapture %res) local_unnamed_addr #1 {
 ; CHECK-P8-NEXT:    mtlr r0
 ; CHECK-P8-NEXT:    blr
 entry:
-  %0 = load fp128, fp128* getelementptr inbounds
-                            ([4 x fp128], [4 x fp128]* @f128Array, i64 0,
+  %0 = load fp128, ptr getelementptr inbounds
+                            ([4 x fp128], ptr @f128Array, i64 0,
                              i64 2), align 16
   %conv = fptosi fp128 %0 to i64
-  store i64 %conv, i64* %res, align 8
+  store i64 %conv, ptr %res, align 8
   ret void
 
 }
 
 ; Function Attrs: norecurse nounwind readonly
-define i64 @qpConv2sdw_03(fp128* nocapture readonly %a) {
+define i64 @qpConv2sdw_03(ptr nocapture readonly %a) {
 ; CHECK-LABEL: qpConv2sdw_03:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -123,9 +123,9 @@ define i64 @qpConv2sdw_03(fp128* nocapture readonly %a) {
 ; CHECK-P8-NEXT:    mtlr r0
 ; CHECK-P8-NEXT:    blr
 entry:
-  %0 = load fp128, fp128* %a, align 16
-  %1 = load fp128, fp128* getelementptr inbounds
-                            ([4 x fp128], [4 x fp128]* @f128Array, i64 0,
+  %0 = load fp128, ptr %a, align 16
+  %1 = load fp128, ptr getelementptr inbounds
+                            ([4 x fp128], ptr @f128Array, i64 0,
                              i64 1), align 16
   %add = fadd fp128 %0, %1
   %conv = fptosi fp128 %add to i64
@@ -134,7 +134,7 @@ entry:
 }
 
 ; Function Attrs: norecurse nounwind
-define void @qpConv2sdw_04(fp128* nocapture readonly %a,
+define void @qpConv2sdw_04(ptr nocapture readonly %a,
 ; CHECK-LABEL: qpConv2sdw_04:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -168,19 +168,19 @@ define void @qpConv2sdw_04(fp128* nocapture readonly %a,
 ; CHECK-P8-NEXT:    ld r30, -16(r1) # 8-byte Folded Reload
 ; CHECK-P8-NEXT:    mtlr r0
 ; CHECK-P8-NEXT:    blr
-                           fp128* nocapture readonly %b, i64* nocapture %res) {
+                           ptr nocapture readonly %b, ptr nocapture %res) {
 entry:
-  %0 = load fp128, fp128* %a, align 16
-  %1 = load fp128, fp128* %b, align 16
+  %0 = load fp128, ptr %a, align 16
+  %1 = load fp128, ptr %b, align 16
   %add = fadd fp128 %0, %1
   %conv = fptosi fp128 %add to i64
-  store i64 %conv, i64* %res, align 8
+  store i64 %conv, ptr %res, align 8
   ret void
 
 }
 
 ; Function Attrs: norecurse nounwind
-define void @qpConv2sdw_testXForm(i64* nocapture %res, i32 signext %idx) {
+define void @qpConv2sdw_testXForm(ptr nocapture %res, i32 signext %idx) {
 ; CHECK-LABEL: qpConv2sdw_testXForm:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    addis r5, r2, .LC0@toc@ha
@@ -220,19 +220,19 @@ define void @qpConv2sdw_testXForm(i64* nocapture %res, i32 signext %idx) {
 ; CHECK-P8-NEXT:    mtlr r0
 ; CHECK-P8-NEXT:    blr
 entry:
-  %0 = load fp128, fp128* getelementptr inbounds
-                            ([4 x fp128], [4 x fp128]* @f128Array,
+  %0 = load fp128, ptr getelementptr inbounds
+                            ([4 x fp128], ptr @f128Array,
                              i64 0, i64 2), align 16
   %conv = fptosi fp128 %0 to i64
   %idxprom = sext i32 %idx to i64
-  %arrayidx = getelementptr inbounds i64, i64* %res, i64 %idxprom
-  store i64 %conv, i64* %arrayidx, align 8
+  %arrayidx = getelementptr inbounds i64, ptr %res, i64 %idxprom
+  store i64 %conv, ptr %arrayidx, align 8
   ret void
 
 }
 
 ; Function Attrs: norecurse nounwind readonly
-define i64 @qpConv2udw(fp128* nocapture readonly %a) {
+define i64 @qpConv2udw(ptr nocapture readonly %a) {
 ; CHECK-LABEL: qpConv2udw:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -256,14 +256,14 @@ define i64 @qpConv2udw(fp128* nocapture readonly %a) {
 ; CHECK-P8-NEXT:    mtlr r0
 ; CHECK-P8-NEXT:    blr
 entry:
-  %0 = load fp128, fp128* %a, align 16
+  %0 = load fp128, ptr %a, align 16
   %conv = fptoui fp128 %0 to i64
   ret i64 %conv
 
 }
 
 ; Function Attrs: norecurse nounwind
-define void @qpConv2udw_02(i64* nocapture %res) {
+define void @qpConv2udw_02(ptr nocapture %res) {
 ; CHECK-LABEL: qpConv2udw_02:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    addis r4, r2, .LC0@toc@ha
@@ -297,17 +297,17 @@ define void @qpConv2udw_02(i64* nocapture %res) {
 ; CHECK-P8-NEXT:    mtlr r0
 ; CHECK-P8-NEXT:    blr
 entry:
-  %0 = load fp128, fp128* getelementptr inbounds
-                            ([4 x fp128], [4 x fp128]* @f128Array, i64 0,
+  %0 = load fp128, ptr getelementptr inbounds
+                            ([4 x fp128], ptr @f128Array, i64 0,
                              i64 2), align 16
   %conv = fptoui fp128 %0 to i64
-  store i64 %conv, i64* %res, align 8
+  store i64 %conv, ptr %res, align 8
   ret void
 
 }
 
 ; Function Attrs: norecurse nounwind readonly
-define i64 @qpConv2udw_03(fp128* nocapture readonly %a) {
+define i64 @qpConv2udw_03(ptr nocapture readonly %a) {
 ; CHECK-LABEL: qpConv2udw_03:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -342,9 +342,9 @@ define i64 @qpConv2udw_03(fp128* nocapture readonly %a) {
 ; CHECK-P8-NEXT:    mtlr r0
 ; CHECK-P8-NEXT:    blr
 entry:
-  %0 = load fp128, fp128* %a, align 16
-  %1 = load fp128, fp128* getelementptr inbounds
-                            ([4 x fp128], [4 x fp128]* @f128Array, i64 0,
+  %0 = load fp128, ptr %a, align 16
+  %1 = load fp128, ptr getelementptr inbounds
+                            ([4 x fp128], ptr @f128Array, i64 0,
                              i64 1), align 16
   %add = fadd fp128 %0, %1
   %conv = fptoui fp128 %add to i64
@@ -353,7 +353,7 @@ entry:
 }
 
 ; Function Attrs: norecurse nounwind
-define void @qpConv2udw_04(fp128* nocapture readonly %a,
+define void @qpConv2udw_04(ptr nocapture readonly %a,
 ; CHECK-LABEL: qpConv2udw_04:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -387,19 +387,19 @@ define void @qpConv2udw_04(fp128* nocapture readonly %a,
 ; CHECK-P8-NEXT:    ld r30, -16(r1) # 8-byte Folded Reload
 ; CHECK-P8-NEXT:    mtlr r0
 ; CHECK-P8-NEXT:    blr
-                           fp128* nocapture readonly %b, i64* nocapture %res) {
+                           ptr nocapture readonly %b, ptr nocapture %res) {
 entry:
-  %0 = load fp128, fp128* %a, align 16
-  %1 = load fp128, fp128* %b, align 16
+  %0 = load fp128, ptr %a, align 16
+  %1 = load fp128, ptr %b, align 16
   %add = fadd fp128 %0, %1
   %conv = fptoui fp128 %add to i64
-  store i64 %conv, i64* %res, align 8
+  store i64 %conv, ptr %res, align 8
   ret void
 
 }
 
 ; Function Attrs: norecurse nounwind
-define void @qpConv2udw_testXForm(i64* nocapture %res, i32 signext %idx) {
+define void @qpConv2udw_testXForm(ptr nocapture %res, i32 signext %idx) {
 ; CHECK-LABEL: qpConv2udw_testXForm:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    addis r5, r2, .LC0@toc@ha
@@ -438,19 +438,17 @@ define void @qpConv2udw_testXForm(i64* nocapture %res, i32 signext %idx) {
 ; CHECK-P8-NEXT:    mtlr r0
 ; CHECK-P8-NEXT:    blr
 entry:
-  %0 = load fp128, fp128* getelementptr inbounds
-                            ([4 x fp128], [4 x fp128]* @f128Array,
-                             i64 0, i64 0), align 16
+  %0 = load fp128, ptr @f128Array, align 16
   %conv = fptoui fp128 %0 to i64
   %idxprom = sext i32 %idx to i64
-  %arrayidx = getelementptr inbounds i64, i64* %res, i64 %idxprom
-  store i64 %conv, i64* %arrayidx, align 8
+  %arrayidx = getelementptr inbounds i64, ptr %res, i64 %idxprom
+  store i64 %conv, ptr %arrayidx, align 8
   ret void
 
 }
 
 ; Function Attrs: norecurse nounwind readonly
-define signext i32 @qpConv2sw(fp128* nocapture readonly %a)  {
+define signext i32 @qpConv2sw(ptr nocapture readonly %a)  {
 ; CHECK-LABEL: qpConv2sw:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -476,14 +474,14 @@ define signext i32 @qpConv2sw(fp128* nocapture readonly %a)  {
 ; CHECK-P8-NEXT:    mtlr r0
 ; CHECK-P8-NEXT:    blr
 entry:
-  %0 = load fp128, fp128* %a, align 16
+  %0 = load fp128, ptr %a, align 16
   %conv = fptosi fp128 %0 to i32
   ret i32 %conv
 
 }
 
 ; Function Attrs: norecurse nounwind
-define void @qpConv2sw_02(i32* nocapture %res) {
+define void @qpConv2sw_02(ptr nocapture %res) {
 ; CHECK-LABEL: qpConv2sw_02:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    addis r4, r2, .LC0@toc@ha
@@ -517,17 +515,17 @@ define void @qpConv2sw_02(i32* nocapture %res) {
 ; CHECK-P8-NEXT:    mtlr r0
 ; CHECK-P8-NEXT:    blr
 entry:
-  %0 = load fp128, fp128* getelementptr inbounds
-                            ([4 x fp128], [4 x fp128]* @f128Array, i64 0,
+  %0 = load fp128, ptr getelementptr inbounds
+                            ([4 x fp128], ptr @f128Array, i64 0,
                              i64 2), align 16
   %conv = fptosi fp128 %0 to i32
-  store i32 %conv, i32* %res, align 4
+  store i32 %conv, ptr %res, align 4
   ret void
 
 }
 
 ; Function Attrs: norecurse nounwind readonly
-define signext i32 @qpConv2sw_03(fp128* nocapture readonly %a)  {
+define signext i32 @qpConv2sw_03(ptr nocapture readonly %a)  {
 ; CHECK-LABEL: qpConv2sw_03:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -564,9 +562,9 @@ define signext i32 @qpConv2sw_03(fp128* nocapture readonly %a)  {
 ; CHECK-P8-NEXT:    mtlr r0
 ; CHECK-P8-NEXT:    blr
 entry:
-  %0 = load fp128, fp128* %a, align 16
-  %1 = load fp128, fp128* getelementptr inbounds
-                            ([4 x fp128], [4 x fp128]* @f128Array, i64 0,
+  %0 = load fp128, ptr %a, align 16
+  %1 = load fp128, ptr getelementptr inbounds
+                            ([4 x fp128], ptr @f128Array, i64 0,
                              i64 1), align 16
   %add = fadd fp128 %0, %1
   %conv = fptosi fp128 %add to i32
@@ -575,7 +573,7 @@ entry:
 }
 
 ; Function Attrs: norecurse nounwind
-define void @qpConv2sw_04(fp128* nocapture readonly %a,
+define void @qpConv2sw_04(ptr nocapture readonly %a,
 ; CHECK-LABEL: qpConv2sw_04:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -609,25 +607,24 @@ define void @qpConv2sw_04(fp128* nocapture readonly %a,
 ; CHECK-P8-NEXT:    ld r30, -16(r1) # 8-byte Folded Reload
 ; CHECK-P8-NEXT:    mtlr r0
 ; CHECK-P8-NEXT:    blr
-                          fp128* nocapture readonly %b, i32* nocapture %res) {
+                          ptr nocapture readonly %b, ptr nocapture %res) {
 entry:
-  %0 = load fp128, fp128* %a, align 16
-  %1 = load fp128, fp128* %b, align 16
+  %0 = load fp128, ptr %a, align 16
+  %1 = load fp128, ptr %b, align 16
   %add = fadd fp128 %0, %1
   %conv = fptosi fp128 %add to i32
-  store i32 %conv, i32* %res, align 4
+  store i32 %conv, ptr %res, align 4
   ret void
 
 }
 
 ; Function Attrs: norecurse nounwind readonly
-define zeroext i32 @qpConv2uw(fp128* nocapture readonly %a)  {
+define zeroext i32 @qpConv2uw(ptr nocapture readonly %a)  {
 ; CHECK-LABEL: qpConv2uw:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
 ; CHECK-NEXT:    xscvqpuwz v2, v2
 ; CHECK-NEXT:    mfvsrwz r3, v2
-; CHECK-NEXT:    clrldi r3, r3, 32
 ; CHECK-NEXT:    blr
 ;
 ; CHECK-P8-LABEL: qpConv2uw:
@@ -646,14 +643,14 @@ define zeroext i32 @qpConv2uw(fp128* nocapture readonly %a)  {
 ; CHECK-P8-NEXT:    mtlr r0
 ; CHECK-P8-NEXT:    blr
 entry:
-  %0 = load fp128, fp128* %a, align 16
+  %0 = load fp128, ptr %a, align 16
   %conv = fptoui fp128 %0 to i32
   ret i32 %conv
 
 }
 
 ; Function Attrs: norecurse nounwind
-define void @qpConv2uw_02(i32* nocapture %res) {
+define void @qpConv2uw_02(ptr nocapture %res) {
 ; CHECK-LABEL: qpConv2uw_02:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    addis r4, r2, .LC0@toc@ha
@@ -687,17 +684,17 @@ define void @qpConv2uw_02(i32* nocapture %res) {
 ; CHECK-P8-NEXT:    mtlr r0
 ; CHECK-P8-NEXT:    blr
 entry:
-  %0 = load fp128, fp128* getelementptr inbounds
-                            ([4 x fp128], [4 x fp128]* @f128Array, i64 0,
+  %0 = load fp128, ptr getelementptr inbounds
+                            ([4 x fp128], ptr @f128Array, i64 0,
                              i64 2), align 16
   %conv = fptoui fp128 %0 to i32
-  store i32 %conv, i32* %res, align 4
+  store i32 %conv, ptr %res, align 4
   ret void
 
 }
 
 ; Function Attrs: norecurse nounwind readonly
-define zeroext i32 @qpConv2uw_03(fp128* nocapture readonly %a)  {
+define zeroext i32 @qpConv2uw_03(ptr nocapture readonly %a)  {
 ; CHECK-LABEL: qpConv2uw_03:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -707,7 +704,6 @@ define zeroext i32 @qpConv2uw_03(fp128* nocapture readonly %a)  {
 ; CHECK-NEXT:    xsaddqp v2, v2, v3
 ; CHECK-NEXT:    xscvqpuwz v2, v2
 ; CHECK-NEXT:    mfvsrwz r3, v2
-; CHECK-NEXT:    clrldi r3, r3, 32
 ; CHECK-NEXT:    blr
 ;
 ; CHECK-P8-LABEL: qpConv2uw_03:
@@ -733,9 +729,9 @@ define zeroext i32 @qpConv2uw_03(fp128* nocapture readonly %a)  {
 ; CHECK-P8-NEXT:    mtlr r0
 ; CHECK-P8-NEXT:    blr
 entry:
-  %0 = load fp128, fp128* %a, align 16
-  %1 = load fp128, fp128* getelementptr inbounds
-                            ([4 x fp128], [4 x fp128]* @f128Array, i64 0,
+  %0 = load fp128, ptr %a, align 16
+  %1 = load fp128, ptr getelementptr inbounds
+                            ([4 x fp128], ptr @f128Array, i64 0,
                              i64 1), align 16
   %add = fadd fp128 %0, %1
   %conv = fptoui fp128 %add to i32
@@ -744,7 +740,7 @@ entry:
 }
 
 ; Function Attrs: norecurse nounwind
-define void @qpConv2uw_04(fp128* nocapture readonly %a,
+define void @qpConv2uw_04(ptr nocapture readonly %a,
 ; CHECK-LABEL: qpConv2uw_04:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -778,20 +774,20 @@ define void @qpConv2uw_04(fp128* nocapture readonly %a,
 ; CHECK-P8-NEXT:    ld r30, -16(r1) # 8-byte Folded Reload
 ; CHECK-P8-NEXT:    mtlr r0
 ; CHECK-P8-NEXT:    blr
-                          fp128* nocapture readonly %b, i32* nocapture %res) {
+                          ptr nocapture readonly %b, ptr nocapture %res) {
 entry:
-  %0 = load fp128, fp128* %a, align 16
-  %1 = load fp128, fp128* %b, align 16
+  %0 = load fp128, ptr %a, align 16
+  %1 = load fp128, ptr %b, align 16
   %add = fadd fp128 %0, %1
   %conv = fptoui fp128 %add to i32
-  store i32 %conv, i32* %res, align 4
+  store i32 %conv, ptr %res, align 4
   ret void
 
 }
 
 
 ; Function Attrs: norecurse nounwind readonly
-define signext i16 @qpConv2shw(fp128* nocapture readonly %a) {
+define signext i16 @qpConv2shw(ptr nocapture readonly %a) {
 ; CHECK-LABEL: qpConv2shw:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -817,13 +813,13 @@ define signext i16 @qpConv2shw(fp128* nocapture readonly %a) {
 ; CHECK-P8-NEXT:    mtlr r0
 ; CHECK-P8-NEXT:    blr
 entry:
-  %0 = load fp128, fp128* %a, align 16
+  %0 = load fp128, ptr %a, align 16
   %conv = fptosi fp128 %0 to i16
   ret i16 %conv
 }
 
 ; Function Attrs: norecurse nounwind
-define void @qpConv2shw_02(i16* nocapture %res) {
+define void @qpConv2shw_02(ptr nocapture %res) {
 ; CHECK-LABEL: qpConv2shw_02:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    addis r4, r2, .LC0@toc@ha
@@ -857,16 +853,16 @@ define void @qpConv2shw_02(i16* nocapture %res) {
 ; CHECK-P8-NEXT:    mtlr r0
 ; CHECK-P8-NEXT:    blr
 entry:
-  %0 = load fp128, fp128* getelementptr inbounds
-                            ([4 x fp128], [4 x fp128]* @f128Array,
+  %0 = load fp128, ptr getelementptr inbounds
+                            ([4 x fp128], ptr @f128Array,
                              i64 0, i64 2), align 16
   %conv = fptosi fp128 %0 to i16
-  store i16 %conv, i16* %res, align 2
+  store i16 %conv, ptr %res, align 2
   ret void
 }
 
 ; Function Attrs: norecurse nounwind readonly
-define signext i16 @qpConv2shw_03(fp128* nocapture readonly %a) {
+define signext i16 @qpConv2shw_03(ptr nocapture readonly %a) {
 ; CHECK-LABEL: qpConv2shw_03:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -903,9 +899,9 @@ define signext i16 @qpConv2shw_03(fp128* nocapture readonly %a) {
 ; CHECK-P8-NEXT:    mtlr r0
 ; CHECK-P8-NEXT:    blr
 entry:
-  %0 = load fp128, fp128* %a, align 16
-  %1 = load fp128, fp128* getelementptr inbounds
-                            ([4 x fp128], [4 x fp128]* @f128Array,
+  %0 = load fp128, ptr %a, align 16
+  %1 = load fp128, ptr getelementptr inbounds
+                            ([4 x fp128], ptr @f128Array,
                              i64 0, i64 1), align 16
   %add = fadd fp128 %0, %1
   %conv = fptosi fp128 %add to i16
@@ -913,7 +909,7 @@ entry:
 }
 
 ; Function Attrs: norecurse nounwind
-define void @qpConv2shw_04(fp128* nocapture readonly %a,
+define void @qpConv2shw_04(ptr nocapture readonly %a,
 ; CHECK-LABEL: qpConv2shw_04:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -947,24 +943,23 @@ define void @qpConv2shw_04(fp128* nocapture readonly %a,
 ; CHECK-P8-NEXT:    ld r30, -16(r1) # 8-byte Folded Reload
 ; CHECK-P8-NEXT:    mtlr r0
 ; CHECK-P8-NEXT:    blr
-                           fp128* nocapture readonly %b, i16* nocapture %res) {
+                           ptr nocapture readonly %b, ptr nocapture %res) {
 entry:
-  %0 = load fp128, fp128* %a, align 16
-  %1 = load fp128, fp128* %b, align 16
+  %0 = load fp128, ptr %a, align 16
+  %1 = load fp128, ptr %b, align 16
   %add = fadd fp128 %0, %1
   %conv = fptosi fp128 %add to i16
-  store i16 %conv, i16* %res, align 2
+  store i16 %conv, ptr %res, align 2
   ret void
 }
 
 ; Function Attrs: norecurse nounwind readonly
-define zeroext i16 @qpConv2uhw(fp128* nocapture readonly %a) {
+define zeroext i16 @qpConv2uhw(ptr nocapture readonly %a) {
 ; CHECK-LABEL: qpConv2uhw:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
 ; CHECK-NEXT:    xscvqpswz v2, v2
 ; CHECK-NEXT:    mfvsrwz r3, v2
-; CHECK-NEXT:    clrldi r3, r3, 32
 ; CHECK-NEXT:    blr
 ;
 ; CHECK-P8-LABEL: qpConv2uhw:
@@ -983,13 +978,13 @@ define zeroext i16 @qpConv2uhw(fp128* nocapture readonly %a) {
 ; CHECK-P8-NEXT:    mtlr r0
 ; CHECK-P8-NEXT:    blr
 entry:
-  %0 = load fp128, fp128* %a, align 16
+  %0 = load fp128, ptr %a, align 16
   %conv = fptoui fp128 %0 to i16
   ret i16 %conv
 }
 
 ; Function Attrs: norecurse nounwind
-define void @qpConv2uhw_02(i16* nocapture %res) {
+define void @qpConv2uhw_02(ptr nocapture %res) {
 ; CHECK-LABEL: qpConv2uhw_02:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    addis r4, r2, .LC0@toc@ha
@@ -1023,16 +1018,16 @@ define void @qpConv2uhw_02(i16* nocapture %res) {
 ; CHECK-P8-NEXT:    mtlr r0
 ; CHECK-P8-NEXT:    blr
 entry:
-  %0 = load fp128, fp128* getelementptr inbounds
-                            ([4 x fp128], [4 x fp128]* @f128Array,
+  %0 = load fp128, ptr getelementptr inbounds
+                            ([4 x fp128], ptr @f128Array,
                              i64 0, i64 2), align 16
   %conv = fptoui fp128 %0 to i16
-  store i16 %conv, i16* %res, align 2
+  store i16 %conv, ptr %res, align 2
   ret void
 }
 
 ; Function Attrs: norecurse nounwind readonly
-define zeroext i16 @qpConv2uhw_03(fp128* nocapture readonly %a) {
+define zeroext i16 @qpConv2uhw_03(ptr nocapture readonly %a) {
 ; CHECK-LABEL: qpConv2uhw_03:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -1042,7 +1037,6 @@ define zeroext i16 @qpConv2uhw_03(fp128* nocapture readonly %a) {
 ; CHECK-NEXT:    xsaddqp v2, v2, v3
 ; CHECK-NEXT:    xscvqpswz v2, v2
 ; CHECK-NEXT:    mfvsrwz r3, v2
-; CHECK-NEXT:    clrldi r3, r3, 32
 ; CHECK-NEXT:    blr
 ;
 ; CHECK-P8-LABEL: qpConv2uhw_03:
@@ -1068,9 +1062,9 @@ define zeroext i16 @qpConv2uhw_03(fp128* nocapture readonly %a) {
 ; CHECK-P8-NEXT:    mtlr r0
 ; CHECK-P8-NEXT:    blr
 entry:
-  %0 = load fp128, fp128* %a, align 16
-  %1 = load fp128, fp128* getelementptr inbounds
-                            ([4 x fp128], [4 x fp128]* @f128Array,
+  %0 = load fp128, ptr %a, align 16
+  %1 = load fp128, ptr getelementptr inbounds
+                            ([4 x fp128], ptr @f128Array,
                              i64 0, i64 1), align 16
   %add = fadd fp128 %0, %1
   %conv = fptoui fp128 %add to i16
@@ -1078,7 +1072,7 @@ entry:
 }
 
 ; Function Attrs: norecurse nounwind
-define void @qpConv2uhw_04(fp128* nocapture readonly %a,
+define void @qpConv2uhw_04(ptr nocapture readonly %a,
 ; CHECK-LABEL: qpConv2uhw_04:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -1112,18 +1106,18 @@ define void @qpConv2uhw_04(fp128* nocapture readonly %a,
 ; CHECK-P8-NEXT:    ld r30, -16(r1) # 8-byte Folded Reload
 ; CHECK-P8-NEXT:    mtlr r0
 ; CHECK-P8-NEXT:    blr
-                           fp128* nocapture readonly %b, i16* nocapture %res) {
+                           ptr nocapture readonly %b, ptr nocapture %res) {
 entry:
-  %0 = load fp128, fp128* %a, align 16
-  %1 = load fp128, fp128* %b, align 16
+  %0 = load fp128, ptr %a, align 16
+  %1 = load fp128, ptr %b, align 16
   %add = fadd fp128 %0, %1
   %conv = fptoui fp128 %add to i16
-  store i16 %conv, i16* %res, align 2
+  store i16 %conv, ptr %res, align 2
   ret void
 }
 
 ; Function Attrs: norecurse nounwind readonly
-define signext i8 @qpConv2sb(fp128* nocapture readonly %a) {
+define signext i8 @qpConv2sb(ptr nocapture readonly %a) {
 ; CHECK-LABEL: qpConv2sb:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -1149,13 +1143,13 @@ define signext i8 @qpConv2sb(fp128* nocapture readonly %a) {
 ; CHECK-P8-NEXT:    mtlr r0
 ; CHECK-P8-NEXT:    blr
 entry:
-  %0 = load fp128, fp128* %a, align 16
+  %0 = load fp128, ptr %a, align 16
   %conv = fptosi fp128 %0 to i8
   ret i8 %conv
 }
 
 ; Function Attrs: norecurse nounwind
-define void @qpConv2sb_02(i8* nocapture %res) {
+define void @qpConv2sb_02(ptr nocapture %res) {
 ; CHECK-LABEL: qpConv2sb_02:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    addis r4, r2, .LC0@toc@ha
@@ -1189,16 +1183,16 @@ define void @qpConv2sb_02(i8* nocapture %res) {
 ; CHECK-P8-NEXT:    mtlr r0
 ; CHECK-P8-NEXT:    blr
 entry:
-  %0 = load fp128, fp128* getelementptr inbounds
-                            ([4 x fp128], [4 x fp128]* @f128Array,
+  %0 = load fp128, ptr getelementptr inbounds
+                            ([4 x fp128], ptr @f128Array,
                              i64 0, i64 2), align 16
   %conv = fptosi fp128 %0 to i8
-  store i8 %conv, i8* %res, align 1
+  store i8 %conv, ptr %res, align 1
   ret void
 }
 
 ; Function Attrs: norecurse nounwind readonly
-define signext i8 @qpConv2sb_03(fp128* nocapture readonly %a) {
+define signext i8 @qpConv2sb_03(ptr nocapture readonly %a) {
 ; CHECK-LABEL: qpConv2sb_03:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -1235,9 +1229,9 @@ define signext i8 @qpConv2sb_03(fp128* nocapture readonly %a) {
 ; CHECK-P8-NEXT:    mtlr r0
 ; CHECK-P8-NEXT:    blr
 entry:
-  %0 = load fp128, fp128* %a, align 16
-  %1 = load fp128, fp128* getelementptr inbounds
-                            ([4 x fp128], [4 x fp128]* @f128Array,
+  %0 = load fp128, ptr %a, align 16
+  %1 = load fp128, ptr getelementptr inbounds
+                            ([4 x fp128], ptr @f128Array,
                              i64 0, i64 1), align 16
   %add = fadd fp128 %0, %1
   %conv = fptosi fp128 %add to i8
@@ -1245,7 +1239,7 @@ entry:
 }
 
 ; Function Attrs: norecurse nounwind
-define void @qpConv2sb_04(fp128* nocapture readonly %a,
+define void @qpConv2sb_04(ptr nocapture readonly %a,
 ; CHECK-LABEL: qpConv2sb_04:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -1279,24 +1273,23 @@ define void @qpConv2sb_04(fp128* nocapture readonly %a,
 ; CHECK-P8-NEXT:    ld r30, -16(r1) # 8-byte Folded Reload
 ; CHECK-P8-NEXT:    mtlr r0
 ; CHECK-P8-NEXT:    blr
-                          fp128* nocapture readonly %b, i8* nocapture %res) {
+                          ptr nocapture readonly %b, ptr nocapture %res) {
 entry:
-  %0 = load fp128, fp128* %a, align 16
-  %1 = load fp128, fp128* %b, align 16
+  %0 = load fp128, ptr %a, align 16
+  %1 = load fp128, ptr %b, align 16
   %add = fadd fp128 %0, %1
   %conv = fptosi fp128 %add to i8
-  store i8 %conv, i8* %res, align 1
+  store i8 %conv, ptr %res, align 1
   ret void
 }
 
 ; Function Attrs: norecurse nounwind readonly
-define zeroext i8 @qpConv2ub(fp128* nocapture readonly %a) {
+define zeroext i8 @qpConv2ub(ptr nocapture readonly %a) {
 ; CHECK-LABEL: qpConv2ub:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
 ; CHECK-NEXT:    xscvqpswz v2, v2
 ; CHECK-NEXT:    mfvsrwz r3, v2
-; CHECK-NEXT:    clrldi r3, r3, 32
 ; CHECK-NEXT:    blr
 ;
 ; CHECK-P8-LABEL: qpConv2ub:
@@ -1315,13 +1308,13 @@ define zeroext i8 @qpConv2ub(fp128* nocapture readonly %a) {
 ; CHECK-P8-NEXT:    mtlr r0
 ; CHECK-P8-NEXT:    blr
 entry:
-  %0 = load fp128, fp128* %a, align 16
+  %0 = load fp128, ptr %a, align 16
   %conv = fptoui fp128 %0 to i8
   ret i8 %conv
 }
 
 ; Function Attrs: norecurse nounwind
-define void @qpConv2ub_02(i8* nocapture %res) {
+define void @qpConv2ub_02(ptr nocapture %res) {
 ; CHECK-LABEL: qpConv2ub_02:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    addis r4, r2, .LC0@toc@ha
@@ -1355,16 +1348,16 @@ define void @qpConv2ub_02(i8* nocapture %res) {
 ; CHECK-P8-NEXT:    mtlr r0
 ; CHECK-P8-NEXT:    blr
 entry:
-  %0 = load fp128, fp128* getelementptr inbounds
-                            ([4 x fp128], [4 x fp128]* @f128Array,
+  %0 = load fp128, ptr getelementptr inbounds
+                            ([4 x fp128], ptr @f128Array,
                              i64 0, i64 2), align 16
   %conv = fptoui fp128 %0 to i8
-  store i8 %conv, i8* %res, align 1
+  store i8 %conv, ptr %res, align 1
   ret void
 }
 
 ; Function Attrs: norecurse nounwind readonly
-define zeroext i8 @qpConv2ub_03(fp128* nocapture readonly %a) {
+define zeroext i8 @qpConv2ub_03(ptr nocapture readonly %a) {
 ; CHECK-LABEL: qpConv2ub_03:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -1374,7 +1367,6 @@ define zeroext i8 @qpConv2ub_03(fp128* nocapture readonly %a) {
 ; CHECK-NEXT:    xsaddqp v2, v2, v3
 ; CHECK-NEXT:    xscvqpswz v2, v2
 ; CHECK-NEXT:    mfvsrwz r3, v2
-; CHECK-NEXT:    clrldi r3, r3, 32
 ; CHECK-NEXT:    blr
 ;
 ; CHECK-P8-LABEL: qpConv2ub_03:
@@ -1400,9 +1392,9 @@ define zeroext i8 @qpConv2ub_03(fp128* nocapture readonly %a) {
 ; CHECK-P8-NEXT:    mtlr r0
 ; CHECK-P8-NEXT:    blr
 entry:
-  %0 = load fp128, fp128* %a, align 16
-  %1 = load fp128, fp128* getelementptr inbounds
-                            ([4 x fp128], [4 x fp128]* @f128Array,
+  %0 = load fp128, ptr %a, align 16
+  %1 = load fp128, ptr getelementptr inbounds
+                            ([4 x fp128], ptr @f128Array,
                              i64 0, i64 1), align 16
   %add = fadd fp128 %0, %1
   %conv = fptoui fp128 %add to i8
@@ -1410,7 +1402,7 @@ entry:
 }
 
 ; Function Attrs: norecurse nounwind
-define void @qpConv2ub_04(fp128* nocapture readonly %a,
+define void @qpConv2ub_04(ptr nocapture readonly %a,
 ; CHECK-LABEL: qpConv2ub_04:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    lxv v2, 0(r3)
@@ -1444,17 +1436,17 @@ define void @qpConv2ub_04(fp128* nocapture readonly %a,
 ; CHECK-P8-NEXT:    ld r30, -16(r1) # 8-byte Folded Reload
 ; CHECK-P8-NEXT:    mtlr r0
 ; CHECK-P8-NEXT:    blr
-                          fp128* nocapture readonly %b, i8* nocapture %res) {
+                          ptr nocapture readonly %b, ptr nocapture %res) {
 entry:
-  %0 = load fp128, fp128* %a, align 16
-  %1 = load fp128, fp128* %b, align 16
+  %0 = load fp128, ptr %a, align 16
+  %1 = load fp128, ptr %b, align 16
   %add = fadd fp128 %0, %1
   %conv = fptoui fp128 %add to i8
-  store i8 %conv, i8* %res, align 1
+  store i8 %conv, ptr %res, align 1
   ret void
 }
 
-define void @qpConvppcf128(fp128 %src, ppc_fp128* %dst) {
+define void @qpConvppcf128(fp128 %src, ptr %dst) {
 ; CHECK-LABEL: qpConvppcf128:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    mflr r0
@@ -1496,11 +1488,11 @@ define void @qpConvppcf128(fp128 %src, ppc_fp128* %dst) {
 ; CHECK-P8-NEXT:    blr
 entry:
   %res = call ppc_fp128 @llvm.ppc.convert.f128.to.ppcf128(fp128 %src)
-  store ppc_fp128 %res, ppc_fp128* %dst, align 16
+  store ppc_fp128 %res, ptr %dst, align 16
   ret void
 }
 
-define void @ppcf128Convqp(ppc_fp128 %src, fp128* %dst) {
+define void @ppcf128Convqp(ppc_fp128 %src, ptr %dst) {
 ; CHECK-LABEL: ppcf128Convqp:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    mflr r0
@@ -1541,7 +1533,7 @@ define void @ppcf128Convqp(ppc_fp128 %src, fp128* %dst) {
 ; CHECK-P8-NEXT:    blr
 entry:
   %res = call fp128 @llvm.ppc.convert.ppcf128.to.f128(ppc_fp128 %src)
-  store fp128 %res, fp128* %dst, align 16
+  store fp128 %res, ptr %dst, align 16
   ret void
 }
 

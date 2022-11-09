@@ -138,7 +138,7 @@ static bool isBlockValidForExtraction(const BasicBlock &BB,
       if (auto *UBB = CSI->getUnwindDest())
         if (!Result.count(UBB))
           return false;
-      for (auto *HBB : CSI->handlers())
+      for (const auto *HBB : CSI->handlers())
         if (!Result.count(const_cast<BasicBlock*>(HBB)))
           return false;
       continue;
@@ -831,6 +831,7 @@ Function *CodeExtractor::constructFunction(const ValueSet &inputs,
   std::vector<Type *> ParamTy;
   std::vector<Type *> AggParamTy;
   ValueSet StructValues;
+  const DataLayout &DL = M->getDataLayout();
 
   // Add the types of the input values to the function's argument list
   for (Value *value : inputs) {
@@ -849,7 +850,8 @@ Function *CodeExtractor::constructFunction(const ValueSet &inputs,
       AggParamTy.push_back(output->getType());
       StructValues.insert(output);
     } else
-      ParamTy.push_back(PointerType::getUnqual(output->getType()));
+      ParamTy.push_back(
+          PointerType::get(output->getType(), DL.getAllocaAddrSpace()));
   }
 
   assert(
@@ -864,7 +866,7 @@ Function *CodeExtractor::constructFunction(const ValueSet &inputs,
   StructType *StructTy = nullptr;
   if (AggregateArgs && !AggParamTy.empty()) {
     StructTy = StructType::get(M->getContext(), AggParamTy);
-    ParamTy.push_back(PointerType::getUnqual(StructTy));
+    ParamTy.push_back(PointerType::get(StructTy, DL.getAllocaAddrSpace()));
   }
 
   LLVM_DEBUG({
@@ -922,6 +924,7 @@ Function *CodeExtractor::constructFunction(const ValueSet &inputs,
       case Attribute::WriteOnly:
       case Attribute::AllocKind:
       case Attribute::PresplitCoroutine:
+      case Attribute::Memory:
         continue;
       // Those attributes should be safe to propagate to the extracted function.
       case Attribute::AlwaysInline:
@@ -963,6 +966,7 @@ Function *CodeExtractor::constructFunction(const ValueSet &inputs,
       case Attribute::NoCfCheck:
       case Attribute::MustProgress:
       case Attribute::NoProfile:
+      case Attribute::SkipProfile:
         break;
       // These attributes cannot be applied to functions.
       case Attribute::Alignment:
@@ -1258,8 +1262,8 @@ CallInst *CodeExtractor::emitCallAndSwitchStatement(Function *newFunction,
                                   codeReplacer);
     Reloads.push_back(load);
     std::vector<User *> Users(outputs[i]->user_begin(), outputs[i]->user_end());
-    for (unsigned u = 0, e = Users.size(); u != e; ++u) {
-      Instruction *inst = cast<Instruction>(Users[u]);
+    for (User *U : Users) {
+      Instruction *inst = cast<Instruction>(U);
       if (!Blocks.count(inst->getParent()))
         inst->replaceUsesOfWith(outputs[i], load);
     }

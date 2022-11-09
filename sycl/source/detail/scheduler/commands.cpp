@@ -26,7 +26,6 @@
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/kernel_desc.hpp>
-#include <sycl/program.hpp>
 #include <sycl/sampler.hpp>
 
 #include <cassert>
@@ -73,7 +72,7 @@ static std::string demangleKernelName(std::string Name) { return Name; }
 #endif
 
 static std::string deviceToString(device Device) {
-  if (Device.is_host())
+  if (getSyclObjImpl(Device)->is_host())
     return "HOST";
   else if (Device.is_cpu())
     return "CPU";
@@ -122,7 +121,7 @@ static void applyFuncOnFilteredArgs(
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 static size_t deviceToID(const device &Device) {
-  if (Device.is_host())
+  if (getSyclObjImpl(Device)->is_host())
     return 0;
   else
     return reinterpret_cast<size_t>(getSyclObjImpl(Device)->getHandleRef());
@@ -203,15 +202,34 @@ static std::string commandToName(Command::CommandType Type) {
 }
 #endif
 
-static std::vector<RT::PiEvent>
-getPiEvents(const std::vector<EventImplPtr> &EventImpls) {
+std::vector<RT::PiEvent>
+Command::getPiEvents(const std::vector<EventImplPtr> &EventImpls) const {
   std::vector<RT::PiEvent> RetPiEvents;
   for (auto &EventImpl : EventImpls) {
-    if (EventImpl->getHandleRef() != nullptr)
-      RetPiEvents.push_back(EventImpl->getHandleRef());
+    if (EventImpl->getHandleRef() == nullptr)
+      continue;
+
+    // Do not add redundant event dependencies for in-order queues.
+    // At this stage dependency is definitely pi task and need to check if
+    // current one is a host task. In this case we should not skip pi event due
+    // to different sync mechanisms for different task types on in-order queue.
+    const QueueImplPtr &WorkerQueue = getWorkerQueue();
+    // MWorkerQueue in command is always not null. So check if
+    // EventImpl->getWorkerQueue != nullptr is implicit.
+    if (EventImpl->getWorkerQueue() == WorkerQueue &&
+        WorkerQueue->isInOrder() && !isHostTask())
+      continue;
+
+    RetPiEvents.push_back(EventImpl->getHandleRef());
   }
 
   return RetPiEvents;
+}
+
+bool Command::isHostTask() const {
+  return (MType == CommandType::RUN_CG) /* host task has this type also */ &&
+         ((static_cast<const ExecCGCommand *>(this))->getCG().getType() ==
+          CG::CGTYPE::CodeplayHostTask);
 }
 
 static void flushCrossQueueDeps(const std::vector<EventImplPtr> &EventImpls,
@@ -240,7 +258,8 @@ class DispatchHostTask {
     // sophisticated waiting mechanism to allow to utilize this thread for any
     // other available job and resume once all required events are ready.
     for (auto &PluginWithEvents : RequiredEventsPerPlugin) {
-      std::vector<RT::PiEvent> RawEvents = getPiEvents(PluginWithEvents.second);
+      std::vector<RT::PiEvent> RawEvents =
+          MThisCmd->getPiEvents(PluginWithEvents.second);
       try {
         PluginWithEvents.first->call<PiApiKind::piEventsWait>(RawEvents.size(),
                                                               RawEvents.data());
@@ -306,28 +325,7 @@ public:
     EmptyCommand *EmptyCmd = MThisCmd->MEmptyCmd;
     assert(EmptyCmd && "No empty command found");
 
-    // Completing command's event along with unblocking enqueue readiness of
-    // empty command may lead to quick deallocation of MThisCmd by some cleanup
-    // process. Thus we'll copy deps prior to completing of event and unblocking
-    // of empty command.
-    // Also, it's possible to have record deallocated prior to enqueue process.
-    // Thus we employ read-lock of graph.
-    std::vector<Command *> ToCleanUp;
-    Scheduler &Sched = Scheduler::getInstance();
-    {
-      Scheduler::ReadLockT Lock(Sched.MGraphLock);
-
-      std::vector<DepDesc> Deps = MThisCmd->MDeps;
-
-      // update self-event status
-      MThisCmd->MEvent->setComplete();
-
-      EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
-
-      for (const DepDesc &Dep : Deps)
-        Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement, ToCleanUp);
-    }
-    Sched.cleanupCommands(ToCleanUp);
+    Scheduler::getInstance().NotifyHostTaskCompletion(MThisCmd, EmptyCmd);
   }
 };
 
@@ -396,7 +394,9 @@ Command::Command(CommandType Type, QueueImplPtr Queue)
       MPreparedDepsEvents(MEvent->getPreparedDepsEvents()),
       MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()),
       MType(Type) {
-  MSubmittedQueue = MQueue;
+  MWorkerQueue = MQueue;
+  MEvent->setWorkerQueue(MWorkerQueue);
+  MEvent->setSubmittedQueue(MWorkerQueue);
   MEvent->setCommand(this);
   MEvent->setContextImpl(MQueue->getContextImplPtr());
   MEvent->setStateIncomplete();
@@ -582,11 +582,12 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   const ContextImplPtr &WorkerContext = WorkerQueue->getContextImplPtr();
 
   // 1. Async work is not supported for host device.
-  // 2. Some types of commands do not produce PI events after they are enqueued
-  // (e.g. alloca). Note that we can't check the pi event to make that
-  // distinction since the command might still be unenqueued at this point.
-  bool PiEventExpected =
-      !DepEvent->is_host() || getType() == CommandType::HOST_TASK;
+  // 2. Non-host events can be ignored if they are not fully initialized.
+  // 3. Some types of commands do not produce PI events after they are enqueued
+  //    (e.g. alloca). Note that we can't check the pi event to make that
+  //    distinction since the command might still be unenqueued at this point.
+  bool PiEventExpected = (!DepEvent->is_host() && DepEvent->isInitialized()) ||
+                         getType() == CommandType::HOST_TASK;
   if (auto *DepCmd = static_cast<Command *>(DepEvent->getCommand()))
     PiEventExpected &= DepCmd->producesPiEvent();
 
@@ -598,12 +599,6 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   }
 
   Command *ConnectionCmd = nullptr;
-
-  // Do not add redundant event dependencies for in-order queues.
-  if (Dep.MDepCommand && Dep.MDepCommand->getWorkerQueue() == WorkerQueue &&
-      WorkerQueue->has_property<property::queue::in_order>() &&
-      getType() != CommandType::HOST_TASK)
-    return nullptr;
 
   ContextImplPtr DepEventContext = DepEvent->getContextImpl();
   // If contexts don't match we'll connect them using host task
@@ -620,14 +615,14 @@ const ContextImplPtr &Command::getWorkerContext() const {
   return MQueue->getContextImplPtr();
 }
 
-const QueueImplPtr &Command::getWorkerQueue() const { return MQueue; }
+const QueueImplPtr &Command::getWorkerQueue() const {
+  assert(MWorkerQueue && "MWorkerQueue must not be nullptr");
+  return MWorkerQueue;
+}
 
 bool Command::producesPiEvent() const { return true; }
 
-bool Command::supportsPostEnqueueCleanup() const {
-  // Isolated commands are cleaned up separately
-  return !MUsers.empty() || !MDeps.empty();
-}
+bool Command::supportsPostEnqueueCleanup() const { return true; }
 
 Command *Command::addDep(DepDesc NewDep, std::vector<Command *> &ToCleanUp) {
   Command *ConnectionCmd = nullptr;
@@ -1297,6 +1292,10 @@ MemCpyCommand::MemCpyCommand(Requirement SrcReq,
   if (!MSrcQueue->is_host()) {
     MEvent->setContextImpl(MSrcQueue->getContextImplPtr());
   }
+
+  MWorkerQueue = MQueue->is_host() ? MSrcQueue : MQueue;
+  MEvent->setWorkerQueue(MWorkerQueue);
+
   emitInstrumentationDataProxy();
 }
 
@@ -1332,10 +1331,6 @@ void MemCpyCommand::emitInstrumentationData() {
 
 const ContextImplPtr &MemCpyCommand::getWorkerContext() const {
   return getWorkerQueue()->getContextImplPtr();
-}
-
-const QueueImplPtr &MemCpyCommand::getWorkerQueue() const {
-  return MQueue->is_host() ? MSrcQueue : MQueue;
 }
 
 bool MemCpyCommand::producesPiEvent() const {
@@ -1480,6 +1475,9 @@ MemCpyCommandHost::MemCpyCommandHost(Requirement SrcReq,
     MEvent->setContextImpl(MSrcQueue->getContextImplPtr());
   }
 
+  MWorkerQueue = MQueue->is_host() ? MSrcQueue : MQueue;
+  MEvent->setWorkerQueue(MWorkerQueue);
+
   emitInstrumentationDataProxy();
 }
 
@@ -1515,10 +1513,6 @@ void MemCpyCommandHost::emitInstrumentationData() {
 
 const ContextImplPtr &MemCpyCommandHost::getWorkerContext() const {
   return getWorkerQueue()->getContextImplPtr();
-}
-
-const QueueImplPtr &MemCpyCommandHost::getWorkerQueue() const {
-  return MQueue->is_host() ? MSrcQueue : MQueue;
 }
 
 pi_int32 MemCpyCommandHost::enqueueImp() {
@@ -1718,8 +1712,8 @@ ExecCGCommand::ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup,
     : Command(CommandType::RUN_CG, std::move(Queue)),
       MCommandGroup(std::move(CommandGroup)) {
   if (MCommandGroup->getType() == detail::CG::CodeplayHostTask) {
-    MSubmittedQueue =
-        static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue;
+    MEvent->setSubmittedQueue(
+        static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue);
     MEvent->setNeedsCleanupAfterWait(true);
   } else if (MCommandGroup->getType() == CG::CGTYPE::Kernel &&
              (static_cast<CGExecKernel *>(MCommandGroup.get())->hasStreams() ||
@@ -1848,8 +1842,7 @@ void ExecCGCommand::emitInstrumentationData() {
                       ->getDeviceImage()
                       ->get_program_ref();
       } else if (nullptr != KernelCG->MSyclKernel) {
-        auto SyclProg = detail::getSyclObjImpl(
-            KernelCG->MSyclKernel->get_info<info::kernel::program>());
+        auto SyclProg = KernelCG->MSyclKernel->getProgramImpl();
         Program = SyclProg->getHandleRef();
       } else {
         std::tie(Kernel, KernelMutex, Program) =
@@ -1987,6 +1980,8 @@ static pi_result SetKernelParamsAndLaunch(
       break;
     case kernel_param_kind_t::kind_accessor: {
       Requirement *Req = (Requirement *)(Arg.MPtr);
+      if (Req->MAccessRange == range<3>({0, 0, 0}))
+        break;
       if (getMemAllocationFunc == nullptr)
         throw sycl::exception(make_error_code(errc::kernel_argument),
                               "placeholder accessor must be bound by calling "
@@ -2148,9 +2143,7 @@ pi_int32 enqueueImpKernel(
     assert(MSyclKernel->get_info<info::kernel::context>() ==
            Queue->get_context());
     Kernel = MSyclKernel->getHandleRef();
-
-    auto SyclProg =
-        detail::getSyclObjImpl(MSyclKernel->get_info<info::kernel::program>());
+    auto SyclProg = MSyclKernel->getProgramImpl();
     Program = SyclProg->getHandleRef();
     if (SyclProg->is_cacheable()) {
       RT::PiKernel FoundKernel = nullptr;
@@ -2533,7 +2526,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
     return PI_SUCCESS;
   }
   case CG::CGTYPE::Barrier: {
-    if (MQueue->get_device().is_host()) {
+    if (MQueue->getDeviceImplPtr()->is_host()) {
       // NOP for host device.
       return PI_SUCCESS;
     }
@@ -2547,7 +2540,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
     CGBarrier *Barrier = static_cast<CGBarrier *>(MCommandGroup.get());
     std::vector<detail::EventImplPtr> Events = Barrier->MEventsWaitWithBarrier;
     std::vector<RT::PiEvent> PiEvents = getPiEvents(Events);
-    if (MQueue->get_device().is_host() || PiEvents.empty()) {
+    if (MQueue->getDeviceImplPtr()->is_host() || PiEvents.empty()) {
       // NOP for host device.
       // If Events is empty, then the barrier has no effect.
       return PI_SUCCESS;

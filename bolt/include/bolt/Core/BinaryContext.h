@@ -104,12 +104,9 @@ inline int64_t truncateToSize(int64_t Value, unsigned Bytes) {
 /// Filter iterator.
 template <typename ItrType,
           typename PredType = std::function<bool(const ItrType &)>>
-class FilterIterator
-    : public std::iterator<std::bidirectional_iterator_tag,
-                           typename std::iterator_traits<ItrType>::value_type> {
+class FilterIterator {
+  using inner_traits = std::iterator_traits<ItrType>;
   using Iterator = FilterIterator;
-  using T = typename std::iterator_traits<ItrType>::reference;
-  using PointerT = typename std::iterator_traits<ItrType>::pointer;
 
   PredType Pred;
   ItrType Itr, End;
@@ -128,14 +125,20 @@ class FilterIterator
   }
 
 public:
+  using iterator_category = std::bidirectional_iterator_tag;
+  using value_type = typename inner_traits::value_type;
+  using difference_type = typename inner_traits::difference_type;
+  using pointer = typename inner_traits::pointer;
+  using reference = typename inner_traits::reference;
+
   Iterator &operator++() { next(); return *this; }
   Iterator &operator--() { prev(); return *this; }
   Iterator operator++(int) { auto Tmp(Itr); next(); return Tmp; }
   Iterator operator--(int) { auto Tmp(Itr); prev(); return Tmp; }
   bool operator==(const Iterator &Other) const { return Itr == Other.Itr; }
   bool operator!=(const Iterator &Other) const { return !operator==(Other); }
-  T operator*() { return *Itr; }
-  PointerT operator->() { return &operator*(); }
+  reference operator*() { return *Itr; }
+  pointer operator->() { return &operator*(); }
   FilterIterator(PredType Pred, ItrType Itr, ItrType End)
       : Pred(Pred), Itr(Itr), End(End) {
     nextMatching();
@@ -175,6 +178,10 @@ class BinaryContext {
   /// have multiple sections with the same name.
   using NameToSectionMapType = std::multimap<std::string, BinarySection *>;
   NameToSectionMapType NameToSection;
+
+  /// Map section references to BinarySection for matching sections in the
+  /// input file to internal section representation.
+  DenseMap<SectionRef, BinarySection *> SectionRefToBinarySection;
 
   /// Low level section registration.
   BinarySection &registerSection(BinarySection *Section);
@@ -220,6 +227,9 @@ class BinaryContext {
 
   /// DWARF line info for CUs.
   std::map<unsigned, DwarfLineTable> DwarfLineTablesCUMap;
+
+  /// Internal helper for removing section name from a lookup table.
+  void deregisterSectionName(const BinarySection &Section);
 
 public:
   static Expected<std::unique_ptr<BinaryContext>>
@@ -383,6 +393,8 @@ public:
   }
 
   unsigned getDWARFEncodingSize(unsigned Encoding) {
+    if (Encoding == dwarf::DW_EH_PE_omit)
+      return 0;
     switch (Encoding & 0x0f) {
     default:
       llvm_unreachable("unknown encoding");
@@ -610,6 +622,9 @@ public:
   /// Number of functions with profile information
   uint64_t NumProfiledFuncs{0};
 
+  /// Number of functions with stale profile information
+  uint64_t NumStaleProfileFuncs{0};
+
   /// Number of objects in profile whose profile was ignored.
   uint64_t NumUnusedProfiledObjects{0};
 
@@ -666,7 +681,6 @@ public:
 
   /// DWARF encoding. Available encoding types defined in BinaryFormat/Dwarf.h
   /// enum Constants, e.g. DW_EH_PE_omit.
-  unsigned TTypeEncoding = dwarf::DW_EH_PE_omit;
   unsigned LSDAEncoding = dwarf::DW_EH_PE_omit;
 
   BinaryContext(std::unique_ptr<MCContext> Ctx,
@@ -944,13 +958,13 @@ public:
   BinarySection &registerSection(SectionRef Section);
 
   /// Register a copy of /p OriginalSection under a different name.
-  BinarySection &registerSection(StringRef SectionName,
+  BinarySection &registerSection(const Twine &SectionName,
                                  const BinarySection &OriginalSection);
 
   /// Register or update the information for the section with the given
   /// /p Name.  If the section already exists, the information in the
   /// section will be updated with the new data.
-  BinarySection &registerOrUpdateSection(StringRef Name, unsigned ELFType,
+  BinarySection &registerOrUpdateSection(const Twine &Name, unsigned ELFType,
                                          unsigned ELFFlags,
                                          uint8_t *Data = nullptr,
                                          uint64_t Size = 0,
@@ -960,7 +974,7 @@ public:
   /// with the given /p Name.  If the section already exists, the
   /// information in the section will be updated with the new data.
   BinarySection &
-  registerOrUpdateNoteSection(StringRef Name, uint8_t *Data = nullptr,
+  registerOrUpdateNoteSection(const Twine &Name, uint8_t *Data = nullptr,
                               uint64_t Size = 0, unsigned Alignment = 1,
                               bool IsReadOnly = true,
                               unsigned ELFType = ELF::SHT_PROGBITS) {
@@ -969,9 +983,15 @@ public:
                                    Size, Alignment);
   }
 
+  /// Remove sections that were preregistered but never used.
+  void deregisterUnusedSections();
+
   /// Remove the given /p Section from the set of all sections.  Return
   /// true if the section was removed (and deleted), otherwise false.
   bool deregisterSection(BinarySection &Section);
+
+  /// Re-register \p Section under the \p NewName.
+  void renameSection(BinarySection &Section, const Twine &NewName);
 
   /// Iterate over all registered sections.
   iterator_range<FilteredSectionIterator> sections() {
@@ -1066,20 +1086,26 @@ public:
     return const_cast<BinaryContext *>(this)->getSectionForAddress(Address);
   }
 
+  /// Return internal section representation for a section in a file.
+  BinarySection *getSectionForSectionRef(SectionRef Section) const {
+    return SectionRefToBinarySection.lookup(Section);
+  }
+
   /// Return section(s) associated with given \p Name.
   iterator_range<NameToSectionMapType::iterator>
-  getSectionByName(StringRef Name) {
-    return make_range(NameToSection.equal_range(std::string(Name)));
+  getSectionByName(const Twine &Name) {
+    return make_range(NameToSection.equal_range(Name.str()));
   }
   iterator_range<NameToSectionMapType::const_iterator>
-  getSectionByName(StringRef Name) const {
-    return make_range(NameToSection.equal_range(std::string(Name)));
+  getSectionByName(const Twine &Name) const {
+    return make_range(NameToSection.equal_range(Name.str()));
   }
 
   /// Return the unique section associated with given \p Name.
   /// If there is more than one section with the same name, return an error
   /// object.
-  ErrorOr<BinarySection &> getUniqueSectionByName(StringRef SectionName) const {
+  ErrorOr<BinarySection &>
+  getUniqueSectionByName(const Twine &SectionName) const {
     auto Sections = getSectionByName(SectionName);
     if (Sections.begin() != Sections.end() &&
         std::next(Sections.begin()) == Sections.end())
@@ -1210,10 +1236,10 @@ public:
     return Size;
   }
 
-  /// Verify that assembling instruction \p Inst results in the same sequence of
-  /// bytes as \p Encoding.
-  bool validateEncoding(const MCInst &Instruction,
-                        ArrayRef<uint8_t> Encoding) const;
+  /// Validate that disassembling the \p Sequence of bytes into an instruction
+  /// and assembling the instruction again, results in a byte sequence identical
+  /// to the original one.
+  bool validateInstructionEncoding(ArrayRef<uint8_t> Sequence) const;
 
   /// Return a function execution count threshold for determining whether
   /// the function is 'hot'. Consider it hot if count is above the average exec

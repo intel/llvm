@@ -15,6 +15,8 @@
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/Analysis/IVDescriptors.h"
+#include "llvm/Analysis/VectorUtils.h"
+#include "llvm/IR/Intrinsics.h"
 
 using namespace llvm;
 
@@ -22,7 +24,8 @@ void VPlanTransforms::VPInstructionsToVPRecipes(
     Loop *OrigLoop, VPlanPtr &Plan,
     function_ref<const InductionDescriptor *(PHINode *)>
         GetIntOrFpInductionDescriptor,
-    SmallPtrSetImpl<Instruction *> &DeadInstructions, ScalarEvolution &SE) {
+    SmallPtrSetImpl<Instruction *> &DeadInstructions, ScalarEvolution &SE,
+    const TargetLibraryInfo &TLI) {
 
   ReversePostOrderTraversal<VPBlockRecursiveTraversalWrapper<VPBlockBase *>>
       RPOT(Plan->getEntry());
@@ -74,7 +77,8 @@ void VPlanTransforms::VPInstructionsToVPRecipes(
               GEP, Plan->mapToVPValues(GEP->operands()), OrigLoop);
         } else if (CallInst *CI = dyn_cast<CallInst>(Inst)) {
           NewRecipe =
-              new VPWidenCallRecipe(*CI, Plan->mapToVPValues(CI->args()));
+              new VPWidenCallRecipe(*CI, Plan->mapToVPValues(CI->args()),
+                                    getVectorIntrinsicIDForCall(CI, &TLI));
         } else if (SelectInst *SI = dyn_cast<SelectInst>(Inst)) {
           bool InvariantCond =
               SE.isLoopInvariant(SE.getSCEV(SI->getOperand(0)), OrigLoop);
@@ -134,8 +138,7 @@ bool VPlanTransforms::sinkScalarOperands(VPlan &Plan) {
     // All recipe users of the sink candidate must be in the same block SinkTo
     // or all users outside of SinkTo must be uniform-after-vectorization (
     // i.e., only first lane is used) . In the latter case, we need to duplicate
-    // SinkCandidate. At the moment, we identify such UAV's by looking for the
-    // address operands of widened memory recipes.
+    // SinkCandidate.
     auto CanSinkWithUser = [SinkTo, &NeedsDuplicating,
                             SinkCandidate](VPUser *U) {
       auto *UI = dyn_cast<VPRecipeBase>(U);
@@ -143,12 +146,8 @@ bool VPlanTransforms::sinkScalarOperands(VPlan &Plan) {
         return false;
       if (UI->getParent() == SinkTo)
         return true;
-      auto *WidenI = dyn_cast<VPWidenMemoryInstructionRecipe>(UI);
-      if (WidenI && WidenI->getAddr() == SinkCandidate) {
-        NeedsDuplicating = true;
-        return true;
-      }
-      return false;
+      NeedsDuplicating = UI->onlyFirstLaneUsed(SinkCandidate);
+      return NeedsDuplicating;
     };
     if (!all_of(SinkCandidate->users(), CanSinkWithUser))
       continue;

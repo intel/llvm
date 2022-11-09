@@ -12,8 +12,14 @@ typedef sycl::buffer<int> dummy_buffer;
 // CHECK-NOT: CXXRecordDecl {{.*}} definition
 // CHECK: FieldDecl {{.*}} referenced common_array
 
-// buffer must have impl field
+// buffer_plain must have impl field
+
+// CHECK: CXXRecordDecl {{.*}} class buffer_plain definition
+// CHECK-NOT: CXXRecordDecl {{.*}} definition
+// CHECK: FieldDecl {{.*}} referenced impl
+
+// Check buffer inherits from buffer_plain
 
 // CHECK: CXXRecordDecl {{.*}} class buffer definition
 // CHECK-NOT: CXXRecordDecl {{.*}} definition
-// CHECK: FieldDecl {{.*}} referenced impl
+// CHECK: detail::buffer_plain':'sycl::detail::buffer_plain

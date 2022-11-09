@@ -22,6 +22,8 @@ int main() {
            access::placeholder::true_t>
       acc3;
 
+  local_accessor<float, 2> acc4;
+
   // kernel_A parameters : int*, sycl::range<1>, sycl::range<1>, sycl::id<1>,
   // int*, sycl::range<1>, sycl::range<1>,sycl::id<1>.
   q.submit([&](handler &h) {
@@ -67,8 +69,16 @@ int main() {
   // Using local accessor as a kernel parameter.
   // kernel_arg_runtime_aligned is generated for pointers from local accessors.
   q.submit([&](handler &h) {
-    h.single_task<class localAccessor>([=]() {
+    h.single_task<class localAccessorDep>([=]() {
       acc3.use();
+    });
+  });
+
+  // Using local_accessor as a kernel parameter.
+  // kernel_arg_runtime_aligned is generated for pointers from local accessors.
+  q.submit([&](handler &h) {
+    h.single_task<class localAccessor>([=]() {
+      acc4.use();
     });
   });
 
@@ -130,8 +140,16 @@ int main() {
 // CHECK-NOT: kernel_arg_runtime_aligned
 // CHECK-NOT: kernel_arg_exclusive_ptr
 
-// CHECK: define {{.*}}spir_kernel void @{{.*}}localAccessor
+// CHECK: define {{.*}}spir_kernel void @{{.*}}localAccessorDep
 // CHECK-SAME: ptr addrspace(1) noundef align 4 [[MEM_ARG1:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: ptr noundef byval{{.*}}align 4 [[ACC_RANGE1:%[a-zA-Z0-9_]+1]],
+// CHECK-SAME: ptr noundef byval{{.*}}align 4 [[MEM_RANGE1:%[a-zA-Z0-9_]+2]],
+// CHECK-SAME: ptr noundef byval{{.*}}align 4 [[OFFSET1:%[a-zA-Z0-9_]+3]]
+// CHECK-SAME: !kernel_arg_runtime_aligned ![[#ACCESSORMD2]]
+// CHECK-SAME: !kernel_arg_exclusive_ptr ![[#ACCESSORMD2]]
+
+// CHECK: define {{.*}}spir_kernel void @{{.*}}localAccessor
+// CHECK-SAME: ptr addrspace(3) noundef align 4 [[MEM_ARG1:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[ACC_RANGE1:%[a-zA-Z0-9_]+1]],
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[MEM_RANGE1:%[a-zA-Z0-9_]+2]],
 // CHECK-SAME: ptr noundef byval{{.*}}align 4 [[OFFSET1:%[a-zA-Z0-9_]+3]]

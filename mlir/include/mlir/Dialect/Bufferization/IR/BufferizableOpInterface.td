@@ -143,6 +143,10 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
           Return the OpResult that aliases with a given OpOperand when
           bufferized in-place. This method will never be called on OpOperands
           that do not have a tensor type.
+
+          Note: This method can return multiple OpResults, indicating that a
+          given OpOperand may at runtime alias with any (or multiple) of the
+          returned OpResults.
         }],
         /*retType=*/"SmallVector<OpResult>",
         /*methodName=*/"getAliasingOpResult",
@@ -165,8 +169,9 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
           return the OpOperands that are yielded by the terminator.
 
           Note: This method can return multiple OpOperands, indicating that the
-          given OpResult may at runtime alias with any of the OpOperands. This
-          is useful for branches and for ops such as `arith.select`.
+          given OpResult may at runtime alias with any (or multiple) of the
+          returned OpOperands. This can be useful for branches and for ops such
+          as `arith.select`.
         }],
         /*retType=*/"SmallVector<OpOperand *>",
         /*methodName=*/"getAliasingOpOperand",
@@ -340,41 +345,49 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
       >,
       InterfaceMethod<
         /*desc=*/[{
-          Return the bufferized type of the given tensor block argument. The
-          block argument is guaranteed to belong to a block of this op.
+          Return the bufferized type of the given tensor value (without
+          bufferizing the IR). The value is either a BlockArgument of a block
+          that belongs to this op or an OpResult of the given op.
+
+          This method is useful when the bufferized type of value must be
+          predicted before modifying any IR.
         }],
         /*retType=*/"FailureOr<BaseMemRefType>",
         /*methodName=*/"getBufferType",
-        /*args=*/(ins "BlockArgument":$bbArg,
-                      "const BufferizationOptions &":$options),
+        /*args=*/(ins "Value":$value,
+                      "const BufferizationOptions &":$options,
+                      "const DenseMap<Value, BaseMemRefType>":$fixedTypes),
         /*methodBody=*/"",
         /*defaultImplementation=*/[{
-          assert(bbArg.getOwner()->getParentOp() == $_op &&
-                 "bbArg must belong to this op");
-          assert(bbArg.getType().isa<TensorType>() &&
-                 "expected tensor type");
-          return bufferization::getMemRefType(bbArg, options);
+          assert(getOwnerOfValue(value) == $_op.getOperation() &&
+                 "expected that value belongs to this op");
+          return bufferization::detail::defaultGetBufferType(
+              value, options, fixedTypes);
         }]
       >,
       InterfaceMethod<
         /*desc=*/[{
-          Return the memory space of the given tensor OpResult if specified on
-          this op. If not specified, return `failure`.
+          Return `true` if the given region of this op is repetitive. By default
+          this information is queried from the `RegionBranchOpInterface`. Ops
+          that do not implement this inferface can override this method to
+          declare regions as repetitive.
 
-          This method will never be called with OpResults that do not bufferize
-          to a memory allocation.
+          The RaW conflict detection of One-Shot Analysis is more strict inside
+          repetitive regions: Op dominance cannot always be used to rule out
+          certain potential conflicts (e.g., a conflicting write happening after
+          a read), because there may not be a meaningful ordering of certain ops
+          that are executed multiple times. This is described in more detail in
+          documentation of One-Shot Analysis.
         }],
-        /*retType=*/"FailureOr<unsigned>",
-        /*methodName=*/"getMemorySpace",
-        /*args=*/(ins "OpResult":$opResult),
+        /*retType=*/"bool",
+        /*methodName=*/"isRepetitiveRegion",
+        /*args=*/(ins "unsigned":$index),
         /*methodBody=*/"",
         /*defaultImplementation=*/[{
-          assert(cast<BufferizableOpInterface>($_op.getOperation())
-                     .bufferizesToAllocation(opResult)
-                 && "expected allocation");
-          return failure();
+          return mlir::bufferization::detail::defaultIsRepetitiveRegion(
+              cast<BufferizableOpInterface>($_op.getOperation()), index);
         }]
-      >,
+      >
   ];
 
   let extraClassDeclaration = [{

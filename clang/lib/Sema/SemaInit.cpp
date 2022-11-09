@@ -81,12 +81,22 @@ static StringInitFailureKind IsStringInit(Expr *Init, const ArrayType *AT,
   const QualType ElemTy =
       Context.getCanonicalType(AT->getElementType()).getUnqualifiedType();
 
+  auto IsCharOrUnsignedChar = [](const QualType &T) {
+    const BuiltinType *BT = dyn_cast<BuiltinType>(T.getTypePtr());
+    return BT && BT->isCharType() && BT->getKind() != BuiltinType::SChar;
+  };
+
   switch (SL->getKind()) {
   case StringLiteral::UTF8:
     // char8_t array can be initialized with a UTF-8 string.
-    if (ElemTy->isChar8Type())
+    // - C++20 [dcl.init.string] (DR)
+    //   Additionally, an array of char or unsigned char may be initialized
+    //   by a UTF-8 string literal.
+    if (ElemTy->isChar8Type() ||
+        (Context.getLangOpts().Char8 &&
+         IsCharOrUnsignedChar(ElemTy.getCanonicalType())))
       return SIF_None;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case StringLiteral::Ordinary:
     // char array can be initialized with a narrow string.
     // Only allow char x[] = "foo";  not char x[] = L"foo";
@@ -695,10 +705,10 @@ void InitListChecker::FillInEmptyInitForField(unsigned Init, FieldDecl *Field,
         //   member of reference type uninitialized, the program is
         //   ill-formed.
         SemaRef.Diag(Loc, diag::err_init_reference_member_uninitialized)
-          << Field->getType()
-          << ILE->getSyntacticForm()->getSourceRange();
-        SemaRef.Diag(Field->getLocation(),
-                     diag::note_uninit_reference_member);
+            << Field->getType()
+            << (ILE->isSyntacticForm() ? ILE : ILE->getSyntacticForm())
+                   ->getSourceRange();
+        SemaRef.Diag(Field->getLocation(), diag::note_uninit_reference_member);
       }
       hadError = true;
       return;
@@ -2934,7 +2944,7 @@ InitListChecker::CheckDesignatedInitializer(const InitializedEntity &Entity,
 
     // Compute the type of the integer literals.
     QualType PromotedCharTy = CharTy;
-    if (CharTy->isPromotableIntegerType())
+    if (Context.isPromotableIntegerType(CharTy))
       PromotedCharTy = Context.getPromotedIntegerType(CharTy);
     unsigned PromotedCharTyWidth = Context.getTypeSize(PromotedCharTy);
 
@@ -5978,7 +5988,7 @@ void InitializationSequence::InitializeFrom(Sema &S,
        !Context.hasSameUnqualifiedType(SourceType, DestType))) {
 
     llvm::SmallVector<Expr *> InitArgs;
-    for (auto Arg : Args) {
+    for (auto *Arg : Args) {
       if (Arg->getType()->isExtVectorType()) {
         const auto *VTy = Arg->getType()->castAs<ExtVectorType>();
         unsigned Elm = VTy->getNumElements();
@@ -7573,7 +7583,7 @@ static SourceRange nextPathEntryRange(const IndirectLocalPath &Path, unsigned I,
     case IndirectLocalPathEntry::VarInit:
       if (cast<VarDecl>(Path[I].D)->isImplicit())
         return SourceRange();
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case IndirectLocalPathEntry::DefaultInit:
       return Path[I].E->getSourceRange();
 
@@ -8054,19 +8064,29 @@ ExprResult InitializationSequence::Perform(Sema &S,
     return ExprError();
   }
   if (!ZeroInitializationFixit.empty()) {
-    unsigned DiagID = diag::err_default_init_const;
-    if (Decl *D = Entity.getDecl())
-      if (S.getLangOpts().MSVCCompat && D->hasAttr<SelectAnyAttr>())
-        DiagID = diag::ext_default_init_const;
+    const Decl *D = Entity.getDecl();
+    const auto *VD = dyn_cast_or_null<VarDecl>(D);
+    QualType DestType = Entity.getType();
 
     // The initialization would have succeeded with this fixit. Since the fixit
     // is on the error, we need to build a valid AST in this case, so this isn't
     // handled in the Failed() branch above.
-    QualType DestType = Entity.getType();
-    S.Diag(Kind.getLocation(), DiagID)
-        << DestType << (bool)DestType->getAs<RecordType>()
-        << FixItHint::CreateInsertion(ZeroInitializationFixitLoc,
-                                      ZeroInitializationFixit);
+    if (!DestType->isRecordType() && VD && VD->isConstexpr()) {
+      // Use a more useful diagnostic for constexpr variables.
+      S.Diag(Kind.getLocation(), diag::err_constexpr_var_requires_const_init)
+          << VD
+          << FixItHint::CreateInsertion(ZeroInitializationFixitLoc,
+                                        ZeroInitializationFixit);
+    } else {
+      unsigned DiagID = diag::err_default_init_const;
+      if (S.getLangOpts().MSVCCompat && D && D->hasAttr<SelectAnyAttr>())
+        DiagID = diag::ext_default_init_const;
+
+      S.Diag(Kind.getLocation(), DiagID)
+          << DestType << (bool)DestType->getAs<RecordType>()
+          << FixItHint::CreateInsertion(ZeroInitializationFixitLoc,
+                                        ZeroInitializationFixit);
+    }
   }
 
   if (getKind() == DependentSequence) {
@@ -8740,7 +8760,7 @@ ExprResult InitializationSequence::Perform(Sema &S,
         << Step->Type << CurInit.get()->getType()
         << CurInit.get()->getSourceRange();
       updateGNUCompoundLiteralRValue(CurInit.get());
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case SK_ArrayInit:
       // If the destination type is an incomplete array type, update the
       // type accordingly.
@@ -9115,9 +9135,8 @@ bool InitializationSequence::Diagnose(Sema &S,
         << FixItHint::CreateInsertion(Args.front()->getBeginLoc(), "u8");
     break;
   case FK_UTF8StringIntoPlainChar:
-    S.Diag(Kind.getLocation(),
-           diag::err_array_init_utf8_string_into_char)
-      << S.getLangOpts().CPlusPlus20;
+    S.Diag(Kind.getLocation(), diag::err_array_init_utf8_string_into_char)
+        << DestType->isSignedIntegerType() << S.getLangOpts().CPlusPlus20;
     break;
   case FK_ArrayTypeMismatch:
   case FK_NonConstantArrayInit:
@@ -9212,7 +9231,7 @@ bool InitializationSequence::Diagnose(Sema &S,
       << Args[0]->getSourceRange();
       break;
     }
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
 
   case FK_NonConstLValueReferenceBindingToUnrelated:
     S.Diag(Kind.getLocation(),
@@ -9475,6 +9494,10 @@ bool InitializationSequence::Diagnose(Sema &S,
         << Entity.getName();
       S.Diag(Entity.getDecl()->getLocation(), diag::note_previous_decl)
         << Entity.getName();
+    } else if (const auto *VD = dyn_cast_if_present<VarDecl>(Entity.getDecl());
+               VD && VD->isConstexpr()) {
+      S.Diag(Kind.getLocation(), diag::err_constexpr_var_requires_const_init)
+          << VD;
     } else {
       S.Diag(Kind.getLocation(), diag::err_default_init_const)
           << DestType << (bool)DestType->getAs<RecordType>();
@@ -9879,6 +9902,7 @@ static void DiagnoseNarrowingInInitList(Sema &S,
     SCS = &ICS.UserDefined.After;
     break;
   case ImplicitConversionSequence::AmbiguousConversion:
+  case ImplicitConversionSequence::StaticObjectArgumentConversion:
   case ImplicitConversionSequence::EllipsisConversion:
   case ImplicitConversionSequence::BadConversion:
     return;

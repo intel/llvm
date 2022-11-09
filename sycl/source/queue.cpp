@@ -74,7 +74,11 @@ context queue::get_context() const { return impl->get_context(); }
 
 device queue::get_device() const { return impl->get_device(); }
 
-bool queue::is_host() const { return impl->is_host(); }
+bool queue::is_host() const {
+  bool IsHost = impl->is_host();
+  assert(!IsHost && "queue::is_host should not be called in implementation.");
+  return IsHost;
+}
 
 void queue::throw_asynchronous() { impl->throw_asynchronous(); }
 
@@ -123,12 +127,11 @@ event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
 }
 
 event queue::discard_or_return(const event &Event) {
-  if (impl->MDiscardEvents) {
-    using detail::event_impl;
-    auto Impl = std::make_shared<event_impl>(event_impl::HES_Discarded);
-    return detail::createSyclObjFromImpl<event>(Impl);
-  }
-  return Event;
+  if (!(impl->MDiscardEvents))
+    return Event;
+  using detail::event_impl;
+  auto Impl = std::make_shared<event_impl>(event_impl::HES_Discarded);
+  return detail::createSyclObjFromImpl<event>(Impl);
 }
 
 event queue::submit_impl(std::function<void(handler &)> CGH,

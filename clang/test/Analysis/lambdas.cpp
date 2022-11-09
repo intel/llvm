@@ -3,6 +3,8 @@
 // RUN: %clang_analyze_cc1 -std=c++11 -analyzer-checker=core,debug.DumpCFG -analyzer-config inline-lambdas=true %s > %t 2>&1
 // RUN: FileCheck --input-file=%t %s
 
+#include "Inputs/system-header-simulator-cxx.h"
+
 void clang_analyzer_warnIfReached();
 void clang_analyzer_eval(int);
 

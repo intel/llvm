@@ -702,13 +702,13 @@ public:
   using EnableIfNotHostHalf = typename detail::enable_if_t<
       !std::is_same<DataT, sycl::detail::half_impl::half>::value ||
           !std::is_same<sycl::detail::half_impl::StorageT,
-                        sycl::detail::host_half_impl::half_v2>::value,
+                        sycl::detail::host_half_impl::half>::value,
       T>;
   template <typename T = void>
   using EnableIfHostHalf = typename detail::enable_if_t<
       std::is_same<DataT, sycl::detail::half_impl::half>::value &&
           std::is_same<sycl::detail::half_impl::StorageT,
-                       sycl::detail::host_half_impl::half_v2>::value,
+                       sycl::detail::host_half_impl::half>::value,
       T>;
 
   template <typename Ty = DataT>
@@ -935,16 +935,16 @@ public:
 #undef __SYCL_ACCESS_RETURN
   // End of hi/lo, even/odd, xyzw, and rgba swizzles.
 
-  template <access::address_space Space>
-  void load(size_t Offset, multi_ptr<const DataT, Space> Ptr) {
+  template <access::address_space Space, access::decorated DecorateAddress>
+  void load(size_t Offset, multi_ptr<const DataT, Space, DecorateAddress> Ptr) {
     for (int I = 0; I < NumElements; I++) {
-      setValue(I,
-               *multi_ptr<const DataT, Space>(Ptr + Offset * NumElements + I));
+      setValue(I, *multi_ptr<const DataT, Space, DecorateAddress>(
+                      Ptr + Offset * NumElements + I));
     }
   }
-  template <access::address_space Space>
-  void load(size_t Offset, multi_ptr<DataT, Space> Ptr) {
-    multi_ptr<const DataT, Space> ConstPtr(Ptr);
+  template <access::address_space Space, access::decorated DecorateAddress>
+  void load(size_t Offset, multi_ptr<DataT, Space, DecorateAddress> Ptr) {
+    multi_ptr<const DataT, Space, DecorateAddress> ConstPtr(Ptr);
     load(Offset, ConstPtr);
   }
   template <int Dimensions, access::mode Mode,
@@ -954,13 +954,17 @@ public:
   load(size_t Offset,
        accessor<DataT, Dimensions, Mode, Target, IsPlaceholder, PropertyListT>
            Acc) {
-    multi_ptr<const DataT, detail::TargetToAS<Target>::AS> MultiPtr(Acc);
+    multi_ptr<const DataT, detail::TargetToAS<Target>::AS,
+              access::decorated::yes>
+        MultiPtr(Acc);
     load(Offset, MultiPtr);
   }
-  template <access::address_space Space>
-  void store(size_t Offset, multi_ptr<DataT, Space> Ptr) const {
+  template <access::address_space Space, access::decorated DecorateAddress>
+  void store(size_t Offset,
+             multi_ptr<DataT, Space, DecorateAddress> Ptr) const {
     for (int I = 0; I < NumElements; I++) {
-      *multi_ptr<DataT, Space>(Ptr + Offset * NumElements + I) = getValue(I);
+      *multi_ptr<DataT, Space, DecorateAddress>(Ptr + Offset * NumElements +
+                                                I) = getValue(I);
     }
   }
   template <int Dimensions, access::mode Mode,
@@ -970,7 +974,8 @@ public:
   store(size_t Offset,
         accessor<DataT, Dimensions, Mode, Target, IsPlaceholder, PropertyListT>
             Acc) {
-    multi_ptr<DataT, detail::TargetToAS<Target>::AS> MultiPtr(Acc);
+    multi_ptr<DataT, detail::TargetToAS<Target>::AS, access::decorated::yes>
+        MultiPtr(Acc);
     store(Offset, MultiPtr);
   }
 
@@ -1870,8 +1875,8 @@ public:
 
   // Leave store() interface to automatic conversion to vec<>.
   // Load to vec_t and then assign to swizzle.
-  template <access::address_space Space>
-  void load(size_t offset, multi_ptr<DataT, Space> ptr) {
+  template <access::address_space Space, access::decorated DecorateAddress>
+  void load(size_t offset, multi_ptr<DataT, Space, DecorateAddress> ptr) {
     vec_t Tmp;
     Tmp.template load(offset, ptr);
     *this = Tmp;

@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/aspects.hpp>
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
@@ -69,8 +70,14 @@ inline __SYCL_CONSTEXPR_HALF uint16_t float2Half(const float &Val) {
     Frac16 = Frac32 >> 13;
     // Round the mantissa as given in OpenCL spec section : 6.1.1.1 The half
     // data type.
-    if (Frac32 >> 12 & 0x01)
+    // Round to nearest.
+    uint32_t roundBits = Frac32 & 0x1fff;
+    uint32_t halfway = 0x1000;
+    if (roundBits > halfway)
       Frac16 += 1;
+    // Tie to even.
+    else if (roundBits == halfway)
+      Frac16 += Frac16 & 1;
   } else if (__builtin_expect(Exp32Diff > -24, 0)) {
     // subnormals
     Frac16 = (Frac32 | (uint32_t(1) << 23)) >> (-Exp32Diff - 1);
@@ -133,44 +140,56 @@ inline __SYCL_CONSTEXPR_HALF float half2Float(const uint16_t &Val) {
 
 namespace host_half_impl {
 
-// This class is legacy and it is needed only to avoid breaking ABI
+// The main host half class
 class __SYCL_EXPORT half {
 public:
   half() = default;
   constexpr half(const half &) = default;
   constexpr half(half &&) = default;
 
-  half(const float &rhs);
+  __SYCL_CONSTEXPR_HALF half(const float &rhs) : Buf(float2Half(rhs)) {}
 
-  half &operator=(const half &rhs) = default;
+  constexpr half &operator=(const half &rhs) = default;
 
   // Operator +=, -=, *=, /=
-  half &operator+=(const half &rhs);
+  __SYCL_CONSTEXPR_HALF half &operator+=(const half &rhs) {
+    *this = operator float() + static_cast<float>(rhs);
+    return *this;
+  }
 
-  half &operator-=(const half &rhs);
+  __SYCL_CONSTEXPR_HALF half &operator-=(const half &rhs) {
+    *this = operator float() - static_cast<float>(rhs);
+    return *this;
+  }
 
-  half &operator*=(const half &rhs);
+  __SYCL_CONSTEXPR_HALF half &operator*=(const half &rhs) {
+    *this = operator float() * static_cast<float>(rhs);
+    return *this;
+  }
 
-  half &operator/=(const half &rhs);
+  __SYCL_CONSTEXPR_HALF half &operator/=(const half &rhs) {
+    *this = operator float() / static_cast<float>(rhs);
+    return *this;
+  }
 
   // Operator ++, --
-  half &operator++() {
+  __SYCL_CONSTEXPR_HALF half &operator++() {
     *this += 1;
     return *this;
   }
 
-  half operator++(int) {
+  __SYCL_CONSTEXPR_HALF half operator++(int) {
     half ret(*this);
     operator++();
     return ret;
   }
 
-  half &operator--() {
+  __SYCL_CONSTEXPR_HALF half &operator--() {
     *this -= 1;
     return *this;
   }
 
-  half operator--(int) {
+  __SYCL_CONSTEXPR_HALF half operator--(int) {
     half ret(*this);
     operator--();
     return ret;
@@ -183,85 +202,12 @@ public:
   }
 
   // Operator float
-  operator float() const;
-
-  template <typename Key> friend struct std::hash;
-
-  // Initialize underlying data
-  constexpr explicit half(uint16_t x) : Buf(x) {}
-
-private:
-  uint16_t Buf;
-};
-
-// The main host half class
-class __SYCL_EXPORT half_v2 {
-public:
-  half_v2() = default;
-  constexpr half_v2(const half_v2 &) = default;
-  constexpr half_v2(half_v2 &&) = default;
-
-  __SYCL_CONSTEXPR_HALF half_v2(const float &rhs) : Buf(float2Half(rhs)) {}
-
-  constexpr half_v2 &operator=(const half_v2 &rhs) = default;
-
-  // Operator +=, -=, *=, /=
-  __SYCL_CONSTEXPR_HALF half_v2 &operator+=(const half_v2 &rhs) {
-    *this = operator float() + static_cast<float>(rhs);
-    return *this;
-  }
-
-  __SYCL_CONSTEXPR_HALF half_v2 &operator-=(const half_v2 &rhs) {
-    *this = operator float() - static_cast<float>(rhs);
-    return *this;
-  }
-
-  __SYCL_CONSTEXPR_HALF half_v2 &operator*=(const half_v2 &rhs) {
-    *this = operator float() * static_cast<float>(rhs);
-    return *this;
-  }
-
-  __SYCL_CONSTEXPR_HALF half_v2 &operator/=(const half_v2 &rhs) {
-    *this = operator float() / static_cast<float>(rhs);
-    return *this;
-  }
-
-  // Operator ++, --
-  __SYCL_CONSTEXPR_HALF half_v2 &operator++() {
-    *this += 1;
-    return *this;
-  }
-
-  __SYCL_CONSTEXPR_HALF half_v2 operator++(int) {
-    half_v2 ret(*this);
-    operator++();
-    return ret;
-  }
-
-  __SYCL_CONSTEXPR_HALF half_v2 &operator--() {
-    *this -= 1;
-    return *this;
-  }
-
-  __SYCL_CONSTEXPR_HALF half_v2 operator--(int) {
-    half_v2 ret(*this);
-    operator--();
-    return ret;
-  }
-
-  // Operator neg
-  constexpr half_v2 &operator-() {
-    Buf ^= 0x8000;
-    return *this;
-  }
-
-  // Operator float
   __SYCL_CONSTEXPR_HALF operator float() const { return half2Float(Buf); }
 
   template <typename Key> friend struct std::hash;
 
   // Initialize underlying data
-  constexpr explicit half_v2(uint16_t x) : Buf(x) {}
+  constexpr explicit half(uint16_t x) : Buf(x) {}
 
   friend class sycl::ext::intel::esimd::detail::WrapperElementTypeProxy;
 
@@ -298,7 +244,7 @@ using Vec4StorageT = StorageT __attribute__((ext_vector_type(4)));
 using Vec8StorageT = StorageT __attribute__((ext_vector_type(8)));
 using Vec16StorageT = StorageT __attribute__((ext_vector_type(16)));
 #else
-using StorageT = detail::host_half_impl::half_v2;
+using StorageT = detail::host_half_impl::half;
 // No need to extract underlying data type for built-in functions operating on
 // host
 using BIsRepresentationT = half;
@@ -326,7 +272,11 @@ using Vec8StorageT = half_vec<8>;
 using Vec16StorageT = half_vec<16>;
 #endif
 
+#ifndef __SYCL_DEVICE_ONLY__
 class half {
+#else
+class [[__sycl_detail__::__uses_aspects__(aspect::fp16)]] half {
+#endif
 public:
   half() = default;
   constexpr half(const half &) = default;
@@ -339,8 +289,8 @@ public:
 #ifndef __SYCL_DEVICE_ONLY__
   // Since StorageT and BIsRepresentationT are different on host, these two
   // helpers are required for 'vec' class
-  constexpr half(const detail::host_half_impl::half_v2 &rhs) : Data(rhs) {}
-  constexpr operator detail::host_half_impl::half_v2() const { return Data; }
+  constexpr half(const detail::host_half_impl::half &rhs) : Data(rhs) {}
+  constexpr operator detail::host_half_impl::half() const { return Data; }
 #endif // __SYCL_DEVICE_ONLY__
 
   // Operator +=, -=, *=, /=
@@ -688,7 +638,7 @@ template <> struct numeric_limits<sycl::half> {
 #ifdef __SYCL_DEVICE_ONLY__
     return __builtin_huge_valf();
 #else
-    return sycl::detail::host_half_impl::half_v2(static_cast<uint16_t>(0x7C00));
+    return sycl::detail::host_half_impl::half(static_cast<uint16_t>(0x7C00));
 #endif
   }
 

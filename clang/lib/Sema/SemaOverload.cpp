@@ -12,14 +12,17 @@
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/CXXInheritance.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/DependenceFlags.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/ExprObjC.h"
+#include "clang/AST/Type.h"
 #include "clang/AST/TypeOrdering.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/DiagnosticOptions.h"
+#include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/TargetInfo.h"
@@ -34,6 +37,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/Support/Casting.h"
 #include <algorithm>
 #include <cstdlib>
 
@@ -636,7 +640,7 @@ clang::MakeDeductionFailureInfo(ASTContext &Context,
     auto *Saved = new (Context) DFIDeducedMismatchArgs;
     Saved->FirstArg = Info.FirstArg;
     Saved->SecondArg = Info.SecondArg;
-    Saved->TemplateArgs = Info.take();
+    Saved->TemplateArgs = Info.takeSugared();
     Saved->CallArgIndex = Info.CallArgIndex;
     Result.Data = Saved;
     break;
@@ -665,7 +669,7 @@ clang::MakeDeductionFailureInfo(ASTContext &Context,
   }
 
   case Sema::TDK_SubstitutionFailure:
-    Result.Data = Info.take();
+    Result.Data = Info.takeSugared();
     if (Info.hasSFINAEDiagnostic()) {
       PartialDiagnosticAt *Diag = new (Result.Diagnostic) PartialDiagnosticAt(
           SourceLocation(), PartialDiagnostic::NullDiagnostic());
@@ -676,7 +680,7 @@ clang::MakeDeductionFailureInfo(ASTContext &Context,
 
   case Sema::TDK_ConstraintsNotSatisfied: {
     CNSInfo *Saved = new (Context) CNSInfo;
-    Saved->TemplateArgs = Info.take();
+    Saved->TemplateArgs = Info.takeSugared();
     Saved->Satisfaction = Info.AssociatedConstraintsSatisfaction;
     Result.Data = Saved;
     break;
@@ -684,6 +688,7 @@ clang::MakeDeductionFailureInfo(ASTContext &Context,
 
   case Sema::TDK_Success:
   case Sema::TDK_NonDependentConversionFailure:
+  case Sema::TDK_AlreadyDiagnosed:
     llvm_unreachable("not a deduction failure");
   }
 
@@ -733,6 +738,7 @@ void DeductionFailureInfo::Destroy() {
 
   // Unhandled
   case Sema::TDK_MiscellaneousDeductionFailure:
+  case Sema::TDK_AlreadyDiagnosed:
     break;
   }
 }
@@ -770,6 +776,7 @@ TemplateParameter DeductionFailureInfo::getTemplateParameter() {
 
   // Unhandled
   case Sema::TDK_MiscellaneousDeductionFailure:
+  case Sema::TDK_AlreadyDiagnosed:
     break;
   }
 
@@ -805,6 +812,7 @@ TemplateArgumentList *DeductionFailureInfo::getTemplateArgumentList() {
 
   // Unhandled
   case Sema::TDK_MiscellaneousDeductionFailure:
+  case Sema::TDK_AlreadyDiagnosed:
     break;
   }
 
@@ -836,6 +844,7 @@ const TemplateArgument *DeductionFailureInfo::getFirstArg() {
 
   // Unhandled
   case Sema::TDK_MiscellaneousDeductionFailure:
+  case Sema::TDK_AlreadyDiagnosed:
     break;
   }
 
@@ -867,6 +876,7 @@ const TemplateArgument *DeductionFailureInfo::getSecondArg() {
 
   // Unhandled
   case Sema::TDK_MiscellaneousDeductionFailure:
+  case Sema::TDK_AlreadyDiagnosed:
     break;
   }
 
@@ -884,7 +894,77 @@ llvm::Optional<unsigned> DeductionFailureInfo::getCallArgIndex() {
   }
 }
 
-bool OverloadCandidateSet::OperatorRewriteInfo::shouldAddReversed(
+static bool FunctionsCorrespond(ASTContext &Ctx, const FunctionDecl *X,
+                                const FunctionDecl *Y) {
+  if (!X || !Y)
+    return false;
+  if (X->getNumParams() != Y->getNumParams())
+    return false;
+  for (unsigned I = 0; I < X->getNumParams(); ++I)
+    if (!Ctx.hasSameUnqualifiedType(X->getParamDecl(I)->getType(),
+                                    Y->getParamDecl(I)->getType()))
+      return false;
+  if (auto *FTX = X->getDescribedFunctionTemplate()) {
+    auto *FTY = Y->getDescribedFunctionTemplate();
+    if (!FTY)
+      return false;
+    if (!Ctx.isSameTemplateParameterList(FTX->getTemplateParameters(),
+                                         FTY->getTemplateParameters()))
+      return false;
+  }
+  return true;
+}
+
+static bool shouldAddReversedEqEq(Sema &S, SourceLocation OpLoc,
+                                  Expr *FirstOperand, FunctionDecl *EqFD) {
+  assert(EqFD->getOverloadedOperator() ==
+         OverloadedOperatorKind::OO_EqualEqual);
+  // C++2a [over.match.oper]p4:
+  // A non-template function or function template F named operator== is a
+  // rewrite target with first operand o unless a search for the name operator!=
+  // in the scope S from the instantiation context of the operator expression
+  // finds a function or function template that would correspond
+  // ([basic.scope.scope]) to F if its name were operator==, where S is the
+  // scope of the class type of o if F is a class member, and the namespace
+  // scope of which F is a member otherwise. A function template specialization
+  // named operator== is a rewrite target if its function template is a rewrite
+  // target.
+  DeclarationName NotEqOp = S.Context.DeclarationNames.getCXXOperatorName(
+      OverloadedOperatorKind::OO_ExclaimEqual);
+  if (isa<CXXMethodDecl>(EqFD)) {
+    // If F is a class member, search scope is class type of first operand.
+    QualType RHS = FirstOperand->getType();
+    auto *RHSRec = RHS->getAs<RecordType>();
+    if (!RHSRec)
+      return true;
+    LookupResult Members(S, NotEqOp, OpLoc,
+                         Sema::LookupNameKind::LookupMemberName);
+    S.LookupQualifiedName(Members, RHSRec->getDecl());
+    Members.suppressDiagnostics();
+    for (NamedDecl *Op : Members)
+      if (FunctionsCorrespond(S.Context, EqFD, Op->getAsFunction()))
+        return false;
+    return true;
+  }
+  // Otherwise the search scope is the namespace scope of which F is a member.
+  LookupResult NonMembers(S, NotEqOp, OpLoc,
+                          Sema::LookupNameKind::LookupOperatorName);
+  S.LookupName(NonMembers,
+               S.getScopeForContext(EqFD->getEnclosingNamespaceContext()));
+  NonMembers.suppressDiagnostics();
+  for (NamedDecl *Op : NonMembers) {
+    auto *FD = Op->getAsFunction();
+    if(auto* UD = dyn_cast<UsingShadowDecl>(Op))
+      FD = UD->getUnderlyingDecl()->getAsFunction();
+    if (FunctionsCorrespond(S.Context, EqFD, FD) &&
+        declaresSameEntity(cast<Decl>(EqFD->getDeclContext()),
+                           cast<Decl>(Op->getDeclContext())))
+      return false;
+  }
+  return true;
+}
+
+bool OverloadCandidateSet::OperatorRewriteInfo::allowsReversed(
     OverloadedOperatorKind Op) {
   if (!AllowRewrittenCandidates)
     return false;
@@ -892,14 +972,21 @@ bool OverloadCandidateSet::OperatorRewriteInfo::shouldAddReversed(
 }
 
 bool OverloadCandidateSet::OperatorRewriteInfo::shouldAddReversed(
-    ASTContext &Ctx, const FunctionDecl *FD) {
-  if (!shouldAddReversed(FD->getDeclName().getCXXOverloadedOperator()))
+    Sema &S, ArrayRef<Expr *> OriginalArgs, FunctionDecl *FD) {
+  auto Op = FD->getOverloadedOperator();
+  if (!allowsReversed(Op))
     return false;
+  if (Op == OverloadedOperatorKind::OO_EqualEqual) {
+    assert(OriginalArgs.size() == 2);
+    if (!shouldAddReversedEqEq(
+            S, OpLoc, /*FirstOperand in reversed args*/ OriginalArgs[1], FD))
+      return false;
+  }
   // Don't bother adding a reversed candidate that can never be a better
   // match than the non-reversed version.
   return FD->getNumParams() != 2 ||
-         !Ctx.hasSameUnqualifiedType(FD->getParamDecl(0)->getType(),
-                                     FD->getParamDecl(1)->getType()) ||
+         !S.Context.hasSameUnqualifiedType(FD->getParamDecl(0)->getType(),
+                                           FD->getParamDecl(1)->getType()) ||
          FD->hasAttr<EnableIfAttr>();
 }
 
@@ -1068,6 +1155,15 @@ Sema::CheckOverload(Scope *S, FunctionDecl *New, const LookupResult &Old,
             !shouldLinkPossiblyHiddenDecl(*I, New))
           continue;
 
+        // C++20 [temp.friend] p9: A non-template friend declaration with a
+        // requires-clause shall be a definition.  A friend function template
+        // with a constraint that depends on a template parameter from an
+        // enclosing template shall be a definition.  Such a constrained friend
+        // function or function template declaration does not declare the same
+        // function or function template as a declaration in any other scope.
+        if (Context.FriendsDifferByConstraints(OldF, New))
+          continue;
+
         Match = *I;
         return Ovl_Match;
       }
@@ -1184,26 +1280,42 @@ bool Sema::IsOverload(FunctionDecl *New, FunctionDecl *Old,
        !FunctionParamTypesAreEqual(OldType, NewType)))
     return true;
 
-  // C++ [temp.over.link]p4:
-  //   The signature of a function template consists of its function
-  //   signature, its return type and its template parameter list. The names
-  //   of the template parameters are significant only for establishing the
-  //   relationship between the template parameters and the rest of the
-  //   signature.
-  //
-  // We check the return type and template parameter lists for function
-  // templates first; the remaining checks follow.
-  //
-  // However, we don't consider either of these when deciding whether
-  // a member introduced by a shadow declaration is hidden.
-  if (!UseMemberUsingDeclRules && NewTemplate &&
-      (!TemplateParameterListsAreEqual(NewTemplate->getTemplateParameters(),
-                                       OldTemplate->getTemplateParameters(),
-                                       false, TPL_TemplateMatch) ||
-       !Context.hasSameType(Old->getDeclaredReturnType(),
-                            New->getDeclaredReturnType())))
-    return true;
-
+  if (NewTemplate) {
+    // C++ [temp.over.link]p4:
+    //   The signature of a function template consists of its function
+    //   signature, its return type and its template parameter list. The names
+    //   of the template parameters are significant only for establishing the
+    //   relationship between the template parameters and the rest of the
+    //   signature.
+    //
+    // We check the return type and template parameter lists for function
+    // templates first; the remaining checks follow.
+    bool SameTemplateParameterList = TemplateParameterListsAreEqual(
+        NewTemplate->getTemplateParameters(),
+        OldTemplate->getTemplateParameters(), false, TPL_TemplateMatch);
+    bool SameReturnType = Context.hasSameType(Old->getDeclaredReturnType(),
+                                              New->getDeclaredReturnType());
+    // FIXME(GH58571): Match template parameter list even for non-constrained
+    // template heads. This currently ensures that the code prior to C++20 is
+    // not newly broken.
+    bool ConstraintsInTemplateHead =
+        NewTemplate->getTemplateParameters()->hasAssociatedConstraints() ||
+        OldTemplate->getTemplateParameters()->hasAssociatedConstraints();
+    // C++ [namespace.udecl]p11:
+    //   The set of declarations named by a using-declarator that inhabits a
+    //   class C does not include member functions and member function
+    //   templates of a base class that "correspond" to (and thus would
+    //   conflict with) a declaration of a function or function template in
+    //   C.
+    // Comparing return types is not required for the "correspond" check to
+    // decide whether a member introduced by a shadow declaration is hidden.
+    if (UseMemberUsingDeclRules && ConstraintsInTemplateHead &&
+        !SameTemplateParameterList)
+      return true;
+    if (!UseMemberUsingDeclRules &&
+        (!SameTemplateParameterList || !SameReturnType))
+      return true;
+  }
   // If the function is a class member, its signature includes the
   // cv-qualifiers (if any) and ref-qualifier (if any) on the function itself.
   //
@@ -2089,9 +2201,9 @@ bool Sema::IsIntegralPromotion(Expr *From, QualType FromType, QualType ToType) {
   // int can represent all the values of the source type; otherwise,
   // the source rvalue can be converted to an rvalue of type unsigned
   // int (C++ 4.5p1).
-  if (FromType->isPromotableIntegerType() && !FromType->isBooleanType() &&
+  if (Context.isPromotableIntegerType(FromType) && !FromType->isBooleanType() &&
       !FromType->isEnumeralType()) {
-    if (// We can promote any signed, promotable integer type to an int
+    if ( // We can promote any signed, promotable integer type to an int
         (FromType->isSignedIntegerType() ||
          // We can promote any unsigned integer type whose size is
          // less than int to an int.
@@ -4511,15 +4623,6 @@ CompareDerivedToBaseConversions(Sema &S, SourceLocation Loc,
   return ImplicitConversionSequence::Indistinguishable;
 }
 
-/// Determine whether the given type is valid, e.g., it is not an invalid
-/// C++ class.
-static bool isTypeValid(QualType T) {
-  if (CXXRecordDecl *Record = T->getAsCXXRecordDecl())
-    return !Record->isInvalidDecl();
-
-  return true;
-}
-
 static QualType withoutUnaligned(ASTContext &Ctx, QualType T) {
   if (!T.getQualifiers().hasUnaligned())
     return T;
@@ -4569,7 +4672,6 @@ Sema::CompareReferenceRelationship(SourceLocation Loc,
   if (UnqualT1 == UnqualT2) {
     // Nothing to do.
   } else if (isCompleteType(Loc, OrigT2) &&
-             isTypeValid(UnqualT1) && isTypeValid(UnqualT2) &&
              IsDerivedFrom(Loc, UnqualT2, UnqualT1))
     Conv |= ReferenceConversions::DerivedToBase;
   else if (UnqualT1->isObjCObjectOrInterfaceType() &&
@@ -5741,7 +5843,8 @@ static ExprResult CheckConvertedConstantExpression(Sema &S, Expr *From,
     return ExprError();
 
   case ImplicitConversionSequence::EllipsisConversion:
-    llvm_unreachable("ellipsis conversion in converted constant expression");
+  case ImplicitConversionSequence::StaticObjectArgumentConversion:
+    llvm_unreachable("bad conversion in converted constant expression");
   }
 
   // Check that we would only use permitted conversions.
@@ -5776,9 +5879,9 @@ static ExprResult CheckConvertedConstantExpression(Sema &S, Expr *From,
 
   // C++2a [intro.execution]p5:
   //   A full-expression is [...] a constant-expression [...]
-  Result =
-      S.ActOnFinishFullExpr(Result.get(), From->getExprLoc(),
-                            /*DiscardedValue=*/false, /*IsConstexpr=*/true);
+  Result = S.ActOnFinishFullExpr(Result.get(), From->getExprLoc(),
+                                 /*DiscardedValue=*/false, /*IsConstexpr=*/true,
+                                 CCE == Sema::CCEKind::CCEK_TemplateArg);
   if (Result.isInvalid())
     return Result;
 
@@ -5925,6 +6028,7 @@ TryContextuallyConvertToObjCPointer(Sema &S, Expr *From) {
   case ImplicitConversionSequence::BadConversion:
   case ImplicitConversionSequence::AmbiguousConversion:
   case ImplicitConversionSequence::EllipsisConversion:
+  case ImplicitConversionSequence::StaticObjectArgumentConversion:
     break;
 
   case ImplicitConversionSequence::UserDefinedConversion:
@@ -6258,7 +6362,7 @@ ExprResult Sema::PerformContextualImplicitConversion(
                                      HadMultipleCandidates,
                                      ExplicitConversions))
         return ExprError();
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case OR_Deleted:
       // We'll complain below about a non-integral condition type.
       break;
@@ -6532,7 +6636,8 @@ void Sema::AddOverloadCandidate(
 
   if (Function->getTrailingRequiresClause()) {
     ConstraintSatisfaction Satisfaction;
-    if (CheckFunctionConstraints(Function, Satisfaction) ||
+    if (CheckFunctionConstraints(Function, Satisfaction, /*Loc*/ {},
+                                 /*ForOverloadResolution*/ true) ||
         !Satisfaction.IsSatisfied) {
       Candidate.Viable = false;
       Candidate.FailureKind = ovl_fail_constraints_not_satisfied;
@@ -7010,17 +7115,27 @@ Sema::AddMethodCandidate(CXXMethodDecl *Method, DeclAccessPair FoundDecl,
 
   Candidate.Viable = true;
 
-  if (Method->isStatic() || ObjectType.isNull())
-    // The implicit object argument is ignored.
+  unsigned FirstConvIdx = PO == OverloadCandidateParamOrder::Reversed ? 1 : 0;
+  if (ObjectType.isNull())
     Candidate.IgnoreObjectArgument = true;
-  else {
-    unsigned ConvIdx = PO == OverloadCandidateParamOrder::Reversed ? 1 : 0;
+  else if (Method->isStatic()) {
+    // [over.best.ics.general]p8
+    // When the parameter is the implicit object parameter of a static member
+    // function, the implicit conversion sequence is a standard conversion
+    // sequence that is neither better nor worse than any other standard
+    // conversion sequence.
+    //
+    // This is a rule that was introduced in C++23 to support static lambdas. We
+    // apply it retroactively because we want to support static lambdas as an
+    // extension and it doesn't hurt previous code.
+    Candidate.Conversions[FirstConvIdx].setStaticObjectArgument();
+  } else {
     // Determine the implicit conversion sequence for the object
     // parameter.
-    Candidate.Conversions[ConvIdx] = TryObjectArgumentInitialization(
+    Candidate.Conversions[FirstConvIdx] = TryObjectArgumentInitialization(
         *this, CandidateSet.getLocation(), ObjectType, ObjectClassification,
         Method, ActingContext);
-    if (Candidate.Conversions[ConvIdx].isBad()) {
+    if (Candidate.Conversions[FirstConvIdx].isBad()) {
       Candidate.Viable = false;
       Candidate.FailureKind = ovl_fail_bad_conversion;
       return;
@@ -7038,7 +7153,8 @@ Sema::AddMethodCandidate(CXXMethodDecl *Method, DeclAccessPair FoundDecl,
 
   if (Method->getTrailingRequiresClause()) {
     ConstraintSatisfaction Satisfaction;
-    if (CheckFunctionConstraints(Method, Satisfaction) ||
+    if (CheckFunctionConstraints(Method, Satisfaction, /*Loc*/ {},
+                                 /*ForOverloadResolution*/ true) ||
         !Satisfaction.IsSatisfied) {
       Candidate.Viable = false;
       Candidate.FailureKind = ovl_fail_constraints_not_satisfied;
@@ -7737,7 +7853,7 @@ void Sema::AddNonMemberOperatorCandidates(
     if (FunTmpl) {
       AddTemplateOverloadCandidate(FunTmpl, F.getPair(), ExplicitTemplateArgs,
                                    FunctionArgs, CandidateSet);
-      if (CandidateSet.getRewriteInfo().shouldAddReversed(Context, FD))
+      if (CandidateSet.getRewriteInfo().shouldAddReversed(*this, Args, FD))
         AddTemplateOverloadCandidate(
             FunTmpl, F.getPair(), ExplicitTemplateArgs,
             {FunctionArgs[1], FunctionArgs[0]}, CandidateSet, false, false,
@@ -7746,7 +7862,7 @@ void Sema::AddNonMemberOperatorCandidates(
       if (ExplicitTemplateArgs)
         continue;
       AddOverloadCandidate(FD, F.getPair(), FunctionArgs, CandidateSet);
-      if (CandidateSet.getRewriteInfo().shouldAddReversed(Context, FD))
+      if (CandidateSet.getRewriteInfo().shouldAddReversed(*this, Args, FD))
         AddOverloadCandidate(FD, F.getPair(),
                              {FunctionArgs[1], FunctionArgs[0]}, CandidateSet,
                              false, false, true, false, ADLCallKind::NotADL,
@@ -7797,12 +7913,17 @@ void Sema::AddMemberOperatorCandidates(OverloadedOperatorKind Op,
     Operators.suppressDiagnostics();
 
     for (LookupResult::iterator Oper = Operators.begin(),
-                             OperEnd = Operators.end();
-         Oper != OperEnd;
-         ++Oper)
+                                OperEnd = Operators.end();
+         Oper != OperEnd; ++Oper) {
+      if (Oper->getAsFunction() &&
+          PO == OverloadCandidateParamOrder::Reversed &&
+          !CandidateSet.getRewriteInfo().shouldAddReversed(
+              *this, {Args[1], Args[0]}, Oper->getAsFunction()))
+        continue;
       AddMethodCandidate(Oper.getPair(), Args[0]->getType(),
                          Args[0]->Classify(Context), Args.slice(1),
                          CandidateSet, /*SuppressUserConversion=*/false, PO);
+    }
   }
 }
 
@@ -9328,7 +9449,7 @@ void Sema::AddBuiltinOperatorCandidates(OverloadedOperatorKind Op,
   case OO_Plus: // '+' is either unary or binary
     if (Args.size() == 1)
       OpBuilder.addUnaryPlusPointerOverloads();
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
 
   case OO_Minus: // '-' is either unary or binary
     if (Args.size() == 1) {
@@ -9403,12 +9524,12 @@ void Sema::AddBuiltinOperatorCandidates(OverloadedOperatorKind Op,
 
   case OO_Equal:
     OpBuilder.addAssignmentMemberPointerOrEnumeralOverloads();
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
 
   case OO_PlusEqual:
   case OO_MinusEqual:
     OpBuilder.addAssignmentPointerOverloads(Op == OO_Equal);
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
 
   case OO_StarEqual:
   case OO_SlashEqual:
@@ -9498,7 +9619,7 @@ Sema::AddArgumentDependentLookupCandidates(DeclarationName Name,
           FD, FoundDecl, Args, CandidateSet, /*SuppressUserConversions=*/false,
           PartialOverloading, /*AllowExplicit=*/true,
           /*AllowExplicitConversion=*/false, ADLCallKind::UsesADL);
-      if (CandidateSet.getRewriteInfo().shouldAddReversed(Context, FD)) {
+      if (CandidateSet.getRewriteInfo().shouldAddReversed(*this, Args, FD)) {
         AddOverloadCandidate(
             FD, FoundDecl, {Args[1], Args[0]}, CandidateSet,
             /*SuppressUserConversions=*/false, PartialOverloading,
@@ -9512,7 +9633,7 @@ Sema::AddArgumentDependentLookupCandidates(DeclarationName Name,
           /*SuppressUserConversions=*/false, PartialOverloading,
           /*AllowExplicit=*/true, ADLCallKind::UsesADL);
       if (CandidateSet.getRewriteInfo().shouldAddReversed(
-              Context, FTD->getTemplatedDecl())) {
+              *this, Args, FTD->getTemplatedDecl())) {
         AddTemplateOverloadCandidate(
             FTD, FoundDecl, ExplicitTemplateArgs, {Args[1], Args[0]},
             CandidateSet, /*SuppressUserConversions=*/false, PartialOverloading,
@@ -9678,19 +9799,13 @@ static bool haveSameParameterTypes(ASTContext &Context, const FunctionDecl *F1,
 
 /// We're allowed to use constraints partial ordering only if the candidates
 /// have the same parameter types:
-/// [temp.func.order]p6.2.2 [...] or if the function parameters that
-/// positionally correspond between the two templates are not of the same type,
-/// neither template is more specialized than the other.
 /// [over.match.best]p2.6
 /// F1 and F2 are non-template functions with the same parameter-type-lists,
 /// and F1 is more constrained than F2 [...]
-static bool canCompareFunctionConstraints(Sema &S,
+static bool sameFunctionParameterTypeLists(Sema &S,
                                           const OverloadCandidate &Cand1,
                                           const OverloadCandidate &Cand2) {
-  // FIXME: Per P2113R0 we also need to compare the template parameter lists
-  // when comparing template functions. 
-  if (Cand1.Function && Cand2.Function && Cand1.Function->hasPrototype() &&
-      Cand2.Function->hasPrototype()) {
+  if (Cand1.Function && Cand2.Function) {
     auto *PT1 = cast<FunctionProtoType>(Cand1.Function->getFunctionType());
     auto *PT2 = cast<FunctionProtoType>(Cand2.Function->getFunctionType());
     if (PT1->getNumParams() == PT2->getNumParams() &&
@@ -9783,7 +9898,7 @@ bool clang::isBetterOverloadCandidate(
     }
   }
 
-  // C++ [over.match.best]p1:
+  // C++ [over.match.best]p1: (Changed in C++2b)
   //
   //   -- if F is a static member function, ICS1(F) is defined such
   //      that ICS1(F) is neither better nor worse than ICS1(G) for
@@ -9933,22 +10048,28 @@ bool clang::isBetterOverloadCandidate(
             isa<CXXConversionDecl>(Cand1.Function) ? TPOC_Conversion
                                                    : TPOC_Call,
             Cand1.ExplicitCallArguments, Cand2.ExplicitCallArguments,
-            Cand1.isReversed() ^ Cand2.isReversed(),
-            canCompareFunctionConstraints(S, Cand1, Cand2)))
+            Cand1.isReversed() ^ Cand2.isReversed()))
       return BetterTemplate == Cand1.Function->getPrimaryTemplate();
   }
 
   //   -— F1 and F2 are non-template functions with the same
   //      parameter-type-lists, and F1 is more constrained than F2 [...],
   if (!Cand1IsSpecialization && !Cand2IsSpecialization &&
-      canCompareFunctionConstraints(S, Cand1, Cand2)) {
-    Expr *RC1 = Cand1.Function->getTrailingRequiresClause();
-    Expr *RC2 = Cand2.Function->getTrailingRequiresClause();
+      sameFunctionParameterTypeLists(S, Cand1, Cand2)) {
+    FunctionDecl *Function1 = Cand1.Function;
+    FunctionDecl *Function2 = Cand2.Function;
+    if (FunctionDecl *MF = Function1->getInstantiatedFromMemberFunction())
+      Function1 = MF;
+    if (FunctionDecl *MF = Function2->getInstantiatedFromMemberFunction())
+      Function2 = MF;
+
+    const Expr *RC1 = Function1->getTrailingRequiresClause();
+    const Expr *RC2 = Function2->getTrailingRequiresClause();
     if (RC1 && RC2) {
       bool AtLeastAsConstrained1, AtLeastAsConstrained2;
-      if (S.IsAtLeastAsConstrained(Cand1.Function, {RC1}, Cand2.Function, {RC2},
+      if (S.IsAtLeastAsConstrained(Function1, RC1, Function2, RC2,
                                    AtLeastAsConstrained1) ||
-          S.IsAtLeastAsConstrained(Cand2.Function, {RC2}, Cand1.Function, {RC1},
+          S.IsAtLeastAsConstrained(Function2, RC2, Function1, RC1,
                                    AtLeastAsConstrained2))
         return false;
       if (AtLeastAsConstrained1 != AtLeastAsConstrained2)
@@ -10119,6 +10240,13 @@ void Sema::diagnoseEquivalentInternalLinkageDeclarations(
   }
 }
 
+bool OverloadCandidate::NotValidBecauseConstraintExprHasError() const {
+  return FailureKind == ovl_fail_bad_deduction &&
+         DeductionFailure.Result == Sema::TDK_ConstraintsNotSatisfied &&
+         static_cast<CNSInfo *>(DeductionFailure.Data)
+             ->Satisfaction.ContainsErrors;
+}
+
 /// Computes the best viable function (C++ 13.3.3)
 /// within an overload candidate set.
 ///
@@ -10171,10 +10299,18 @@ OverloadCandidateSet::BestViableFunction(Sema &S, SourceLocation Loc,
   Best = end();
   for (auto *Cand : Candidates) {
     Cand->Best = false;
-    if (Cand->Viable)
+    if (Cand->Viable) {
       if (Best == end() ||
           isBetterOverloadCandidate(S, *Cand, *Best, Loc, Kind))
         Best = Cand;
+    } else if (Cand->NotValidBecauseConstraintExprHasError()) {
+      // This candidate has constraint that we were unable to evaluate because
+      // it referenced an expression that contained an error. Rather than fall
+      // back onto a potentially unintended candidate (made worse by by
+      // subsuming constraints), treat this as 'no viable candidate'.
+      Best = end();
+      return OR_No_Viable_Function;
+    }
   }
 
   // If we didn't find any viable functions, abort.
@@ -11508,6 +11644,7 @@ static unsigned RankDeductionFailure(const DeductionFailureInfo &DFI) {
   switch ((Sema::TemplateDeductionResult)DFI.Result) {
   case Sema::TDK_Success:
   case Sema::TDK_NonDependentConversionFailure:
+  case Sema::TDK_AlreadyDiagnosed:
     llvm_unreachable("non-deduction failure while diagnosing bad deduction");
 
   case Sema::TDK_Invalid:
@@ -12526,20 +12663,24 @@ Sema::resolveAddressOfSingleOverloadCandidate(Expr *E, DeclAccessPair &Pair) {
   DeclAccessPair DAP;
   SmallVector<FunctionDecl *, 2> AmbiguousDecls;
 
-  auto CheckMoreConstrained =
-      [&] (FunctionDecl *FD1, FunctionDecl *FD2) -> Optional<bool> {
-        SmallVector<const Expr *, 1> AC1, AC2;
-        FD1->getAssociatedConstraints(AC1);
-        FD2->getAssociatedConstraints(AC2);
-        bool AtLeastAsConstrained1, AtLeastAsConstrained2;
-        if (IsAtLeastAsConstrained(FD1, AC1, FD2, AC2, AtLeastAsConstrained1))
-          return None;
-        if (IsAtLeastAsConstrained(FD2, AC2, FD1, AC1, AtLeastAsConstrained2))
-          return None;
-        if (AtLeastAsConstrained1 == AtLeastAsConstrained2)
-          return None;
-        return AtLeastAsConstrained1;
-      };
+  auto CheckMoreConstrained = [&](FunctionDecl *FD1,
+                                  FunctionDecl *FD2) -> Optional<bool> {
+    if (FunctionDecl *MF = FD1->getInstantiatedFromMemberFunction())
+      FD1 = MF;
+    if (FunctionDecl *MF = FD2->getInstantiatedFromMemberFunction())
+      FD2 = MF;
+    SmallVector<const Expr *, 1> AC1, AC2;
+    FD1->getAssociatedConstraints(AC1);
+    FD2->getAssociatedConstraints(AC2);
+    bool AtLeastAsConstrained1, AtLeastAsConstrained2;
+    if (IsAtLeastAsConstrained(FD1, AC1, FD2, AC2, AtLeastAsConstrained1))
+      return None;
+    if (IsAtLeastAsConstrained(FD2, AC2, FD1, AC1, AtLeastAsConstrained2))
+      return None;
+    if (AtLeastAsConstrained1 == AtLeastAsConstrained2)
+      return None;
+    return AtLeastAsConstrained1;
+  };
 
   // Don't use the AddressOfResolver because we're specifically looking for
   // cases where we have one overload candidate that lacks
@@ -13032,17 +13173,16 @@ DiagnoseTwoPhaseOperatorLookup(Sema &SemaRef, OverloadedOperatorKind Op,
 namespace {
 class BuildRecoveryCallExprRAII {
   Sema &SemaRef;
+  Sema::SatisfactionStackResetRAII SatStack;
+
 public:
-  BuildRecoveryCallExprRAII(Sema &S) : SemaRef(S) {
+  BuildRecoveryCallExprRAII(Sema &S) : SemaRef(S), SatStack(S) {
     assert(SemaRef.IsBuildingRecoveryCallExpr == false);
     SemaRef.IsBuildingRecoveryCallExpr = true;
   }
 
-  ~BuildRecoveryCallExprRAII() {
-    SemaRef.IsBuildingRecoveryCallExpr = false;
-  }
+  ~BuildRecoveryCallExprRAII() { SemaRef.IsBuildingRecoveryCallExpr = false; }
 };
-
 }
 
 /// Attempts to recover from a call where no functions were found.
@@ -13618,14 +13758,14 @@ void Sema::LookupOverloadedBinOp(OverloadCandidateSet &CandidateSet,
 
   // Add operator candidates that are member functions.
   AddMemberOperatorCandidates(Op, OpLoc, Args, CandidateSet);
-  if (CandidateSet.getRewriteInfo().shouldAddReversed(Op))
+  if (CandidateSet.getRewriteInfo().allowsReversed(Op))
     AddMemberOperatorCandidates(Op, OpLoc, {Args[1], Args[0]}, CandidateSet,
                                 OverloadCandidateParamOrder::Reversed);
 
   // In C++20, also add any rewritten member candidates.
   if (ExtraOp) {
     AddMemberOperatorCandidates(ExtraOp, OpLoc, Args, CandidateSet);
-    if (CandidateSet.getRewriteInfo().shouldAddReversed(ExtraOp))
+    if (CandidateSet.getRewriteInfo().allowsReversed(ExtraOp))
       AddMemberOperatorCandidates(ExtraOp, OpLoc, {Args[1], Args[0]},
                                   CandidateSet,
                                   OverloadCandidateParamOrder::Reversed);
@@ -13756,9 +13896,9 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
     return CreateBuiltinBinOp(OpLoc, Opc, Args[0], Args[1]);
 
   // Build the overload set.
-  OverloadCandidateSet CandidateSet(
-      OpLoc, OverloadCandidateSet::CSK_Operator,
-      OverloadCandidateSet::OperatorRewriteInfo(Op, AllowRewrittenCandidates));
+  OverloadCandidateSet CandidateSet(OpLoc, OverloadCandidateSet::CSK_Operator,
+                                    OverloadCandidateSet::OperatorRewriteInfo(
+                                        Op, OpLoc, AllowRewrittenCandidates));
   if (DefaultedFn)
     CandidateSet.exclude(DefaultedFn);
   LookupOverloadedBinOp(CandidateSet, Op, Fns, Args, PerformADL);
@@ -13833,6 +13973,22 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
             if (AmbiguousWithSelf) {
               Diag(FnDecl->getLocation(),
                    diag::note_ovl_ambiguous_oper_binary_reversed_self);
+              // Mark member== const or provide matching != to disallow reversed
+              // args. Eg. 
+              // struct S { bool operator==(const S&); }; 
+              // S()==S();
+              if (auto *MD = dyn_cast<CXXMethodDecl>(FnDecl))
+                if (Op == OverloadedOperatorKind::OO_EqualEqual &&
+                    !MD->isConst() &&
+                    Context.hasSameUnqualifiedType(
+                        MD->getThisObjectType(),
+                        MD->getParamDecl(0)->getType().getNonReferenceType()) &&
+                    Context.hasSameUnqualifiedType(MD->getThisObjectType(),
+                                                   Args[0]->getType()) &&
+                    Context.hasSameUnqualifiedType(MD->getThisObjectType(),
+                                                   Args[1]->getType()))
+                  Diag(FnDecl->getLocation(),
+                       diag::note_ovl_ambiguous_eqeq_reversed_self_non_const);
             } else {
               Diag(FnDecl->getLocation(),
                    diag::note_ovl_ambiguous_oper_binary_selected_candidate);
@@ -13956,7 +14112,7 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
 
             R = CreateOverloadedBinOp(
                 OpLoc, Opc, Fns, IsReversed ? ZeroLiteral : R.get(),
-                IsReversed ? R.get() : ZeroLiteral, PerformADL,
+                IsReversed ? R.get() : ZeroLiteral, /*PerformADL=*/true,
                 /*AllowRewrittenCandidates=*/false);
 
             popCodeSynthesisContext();
@@ -14230,7 +14386,7 @@ ExprResult Sema::CreateOverloadedArraySubscriptExpr(SourceLocation LLoc,
                                                     MultiExprArg ArgExpr) {
   SmallVector<Expr *, 2> Args;
   Args.push_back(Base);
-  for (auto e : ArgExpr) {
+  for (auto *e : ArgExpr) {
     Args.push_back(e);
   }
   DeclarationName OpName =
@@ -14559,7 +14715,7 @@ ExprResult Sema::BuildCallToMemberFunction(Scope *S, Expr *MemExprE,
       Method = cast<CXXMethodDecl>(Best->Function);
       FoundDecl = Best->FoundDecl;
       CheckUnresolvedMemberAccess(UnresExpr, Best->FoundDecl);
-      if (DiagnoseUseOfDecl(Best->FoundDecl, UnresExpr->getNameLoc()))
+      if (DiagnoseUseOfOverloadedDecl(Best->FoundDecl, UnresExpr->getNameLoc()))
         break;
       // If FoundDecl is different from Method (such as if one is a template
       // and the other a specialization), make sure DiagnoseUseOfDecl is
@@ -14568,7 +14724,7 @@ ExprResult Sema::BuildCallToMemberFunction(Scope *S, Expr *MemExprE,
       // DiagnoseUseOfDecl to accept both the FoundDecl and the decl
       // being used.
       if (Method != FoundDecl.getDecl() &&
-                      DiagnoseUseOfDecl(Method, UnresExpr->getNameLoc()))
+          DiagnoseUseOfOverloadedDecl(Method, UnresExpr->getNameLoc()))
         break;
       Succeeded = true;
       break;
@@ -14898,15 +15054,18 @@ Sema::BuildCallToObjectOfClassType(Scope *S, Expr *Obj,
 
   bool IsError = false;
 
-  // Initialize the implicit object parameter.
-  ExprResult ObjRes =
-    PerformObjectArgumentInitialization(Object.get(), /*Qualifier=*/nullptr,
-                                        Best->FoundDecl, Method);
-  if (ObjRes.isInvalid())
-    IsError = true;
-  else
-    Object = ObjRes;
-  MethodArgs.push_back(Object.get());
+  // Initialize the implicit object parameter if needed.
+  // Since C++2b, this could also be a call to a static call operator
+  // which we emit as a regular CallExpr.
+  if (Method->isInstance()) {
+    ExprResult ObjRes = PerformObjectArgumentInitialization(
+        Object.get(), /*Qualifier=*/nullptr, Best->FoundDecl, Method);
+    if (ObjRes.isInvalid())
+      IsError = true;
+    else
+      Object = ObjRes;
+    MethodArgs.push_back(Object.get());
+  }
 
   IsError |= PrepareArgumentsForCallToObjectOfClassType(
       *this, MethodArgs, Method, Args, LParenLoc);
@@ -14932,9 +15091,14 @@ Sema::BuildCallToObjectOfClassType(Scope *S, Expr *Obj,
   ExprValueKind VK = Expr::getValueKindForType(ResultTy);
   ResultTy = ResultTy.getNonLValueExprType(Context);
 
-  CXXOperatorCallExpr *TheCall = CXXOperatorCallExpr::Create(
-      Context, OO_Call, NewFn.get(), MethodArgs, ResultTy, VK, RParenLoc,
-      CurFPFeatureOverrides());
+  CallExpr *TheCall;
+  if (Method->isInstance())
+    TheCall = CXXOperatorCallExpr::Create(Context, OO_Call, NewFn.get(),
+                                          MethodArgs, ResultTy, VK, RParenLoc,
+                                          CurFPFeatureOverrides());
+  else
+    TheCall = CallExpr::Create(Context, NewFn.get(), MethodArgs, ResultTy, VK,
+                               RParenLoc, CurFPFeatureOverrides());
 
   if (CheckCallReturnType(Method->getReturnType(), LParenLoc, TheCall, Method))
     return true;

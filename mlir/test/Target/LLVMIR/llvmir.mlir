@@ -100,7 +100,7 @@ llvm.mlir.global weak @weak(42 : i32) : i32
 // CHECK: @common = common global i32 0
 llvm.mlir.global common @common(0 : i32) : i32
 // CHECK: @appending = appending global [3 x i32] [i32 1, i32 2, i32 3]
-llvm.mlir.global appending @appending(dense<[1,2,3]> : tensor<3xi32>) : !llvm.array<3xi32>
+llvm.mlir.global appending @appending(dense<[1,2,3]> : tensor<3xi32>) : !llvm.array<3 x i32>
 // CHECK: @extern_weak = extern_weak global i32
 llvm.mlir.global extern_weak @extern_weak() : i32
 // CHECK: @linkonce_odr = linkonce_odr global i32 42
@@ -993,11 +993,11 @@ llvm.func @ops(%arg0: f32, %arg1: f32, %arg2: i32, %arg3: i32) -> !llvm.struct<(
 
 // CHECK-LABEL: @gep
 llvm.func @gep(%ptr: !llvm.ptr<struct<(i32, struct<(i32, f32)>)>>, %idx: i64,
-               %ptr2: !llvm.ptr<struct<(array<10xf32>)>>) {
+               %ptr2: !llvm.ptr<struct<(array<10 x f32>)>>) {
   // CHECK: = getelementptr { i32, { i32, float } }, ptr %{{.*}}, i64 %{{.*}}, i32 1, i32 0
   llvm.getelementptr %ptr[%idx, 1, 0] : (!llvm.ptr<struct<(i32, struct<(i32, f32)>)>>, i64) -> !llvm.ptr<i32>
   // CHECK: = getelementptr { [10 x float] }, ptr %{{.*}}, i64 %{{.*}}, i32 0, i64 %{{.*}}
-  llvm.getelementptr %ptr2[%idx, 0, %idx] : (!llvm.ptr<struct<(array<10xf32>)>>, i64, i64) -> !llvm.ptr<f32>
+  llvm.getelementptr %ptr2[%idx, 0, %idx] : (!llvm.ptr<struct<(array<10 x f32>)>>, i64, i64) -> !llvm.ptr<f32>
   llvm.return
 }
 
@@ -1050,17 +1050,22 @@ llvm.func @llvm_noalias(%arg0: !llvm.ptr<f32> {llvm.noalias}) {
 }
 
 // CHECK-LABEL: define void @byvalattr(ptr byval(i32) %
-llvm.func @byvalattr(%arg0: !llvm.ptr<i32> {llvm.byval}) {
+llvm.func @byvalattr(%arg0: !llvm.ptr<i32> {llvm.byval = i32}) {
   llvm.return
 }
 
 // CHECK-LABEL: define void @sretattr(ptr sret(i32) %
-llvm.func @sretattr(%arg0: !llvm.ptr<i32> {llvm.sret}) {
+llvm.func @sretattr(%arg0: !llvm.ptr<i32> {llvm.sret = i32}) {
   llvm.return
 }
 
 // CHECK-LABEL: define void @nestattr(ptr nest %
 llvm.func @nestattr(%arg0: !llvm.ptr<i32> {llvm.nest}) {
+  llvm.return
+}
+
+// CHECK-LABEL: define void @noundefattr(i32 noundef %
+llvm.func @noundefattr(%arg0: i32 {llvm.noundef}) {
   llvm.return
 }
 
@@ -1174,7 +1179,7 @@ llvm.func @vect(%arg0: vector<4xf32>, %arg1: i32, %arg2: f32) {
   // CHECK-NEXT: shufflevector <4 x float> {{.*}}, <4 x float> {{.*}}, <5 x i32> <i32 0, i32 0, i32 0, i32 0, i32 7>
   %0 = llvm.extractelement %arg0[%arg1 : i32] : vector<4xf32>
   %1 = llvm.insertelement %arg2, %arg0[%arg1 : i32] : vector<4xf32>
-  %2 = llvm.shufflevector %arg0, %arg0 [0 : i32, 0 : i32, 0 : i32, 0 : i32, 7 : i32] : vector<4xf32>, vector<4xf32>
+  %2 = llvm.shufflevector %arg0, %arg0 [0, 0, 0, 0, 7] : vector<4xf32>
   llvm.return
 }
 
@@ -1194,7 +1199,7 @@ llvm.func @scalable_vect(%arg0: vector<[4]xf32>, %arg1: i32, %arg2: f32) {
   // CHECK-NEXT: shufflevector <vscale x 4 x float> %0, <vscale x 4 x float> %0, <vscale x 4 x i32> zeroinitializer
   %0 = llvm.extractelement %arg0[%arg1 : i32] : vector<[4]xf32>
   %1 = llvm.insertelement %arg2, %arg0[%arg1 : i32] : vector<[4]xf32>
-  %2 = llvm.shufflevector %arg0, %arg0 [0 : i32, 0 : i32, 0 : i32, 0 : i32] : vector<[4]xf32>, vector<[4]xf32>
+  %2 = llvm.shufflevector %arg0, %arg0 [0, 0, 0, 0] : vector<[4]xf32>
   llvm.return
 }
 
@@ -1506,8 +1511,8 @@ llvm.mlir.global linkonce @take_self_address() : !llvm.struct<(i32, !llvm.ptr<i3
   %0 = llvm.mlir.undef : !llvm.struct<(i32, !llvm.ptr<i32>)>
   %1 = llvm.mlir.addressof @take_self_address : !llvm.ptr<!llvm.struct<(i32, !llvm.ptr<i32>)>>
   %2 = llvm.getelementptr %1[%z32, 0] : (!llvm.ptr<!llvm.struct<(i32, !llvm.ptr<i32>)>>, i32) -> !llvm.ptr<i32>
-  %3 = llvm.insertvalue %z32, %0[0 : i32] : !llvm.struct<(i32, !llvm.ptr<i32>)>
-  %4 = llvm.insertvalue %2, %3[1 : i32] : !llvm.struct<(i32, !llvm.ptr<i32>)>
+  %3 = llvm.insertvalue %z32, %0[0] : !llvm.struct<(i32, !llvm.ptr<i32>)>
+  %4 = llvm.insertvalue %2, %3[1] : !llvm.struct<(i32, !llvm.ptr<i32>)>
   llvm.return %4 : !llvm.struct<(i32, !llvm.ptr<i32>)>
 }
 
@@ -1610,25 +1615,25 @@ llvm.func @useInlineAsm(%arg0: i32) {
   // Constraints string is checked at LLVM InlineAsm instruction construction time.
   // So we can't just use "bar" everywhere, number of in/out arguments has to match.
 
-  // CHECK-NEXT:  call void asm "foo", "r"(i32 {{.*}}), !dbg !7
+  // CHECK-NEXT:  call void asm "foo", "r"(i32 {{.*}})
   llvm.inline_asm "foo", "r" %arg0 : (i32) -> ()
 
-  // CHECK-NEXT:  call i8 asm "foo", "=r,r"(i32 {{.*}}), !dbg !9
+  // CHECK-NEXT:  call i8 asm "foo", "=r,r"(i32 {{.*}})
   %0 = llvm.inline_asm "foo", "=r,r" %arg0 : (i32) -> i8
 
-  // CHECK-NEXT:  call i8 asm "foo", "=r,r,r"(i32 {{.*}}, i32 {{.*}}), !dbg !10
+  // CHECK-NEXT:  call i8 asm "foo", "=r,r,r"(i32 {{.*}}, i32 {{.*}})
   %1 = llvm.inline_asm "foo", "=r,r,r" %arg0, %arg0 : (i32, i32) -> i8
 
-  // CHECK-NEXT:  call i8 asm sideeffect "foo", "=r,r,r"(i32 {{.*}}, i32 {{.*}}), !dbg !11
+  // CHECK-NEXT:  call i8 asm sideeffect "foo", "=r,r,r"(i32 {{.*}}, i32 {{.*}})
   %2 = llvm.inline_asm has_side_effects "foo", "=r,r,r" %arg0, %arg0 : (i32, i32) -> i8
 
-  // CHECK-NEXT:  call i8 asm alignstack "foo", "=r,r,r"(i32 {{.*}}, i32 {{.*}}), !dbg !12
+  // CHECK-NEXT:  call i8 asm alignstack "foo", "=r,r,r"(i32 {{.*}}, i32 {{.*}})
   %3 = llvm.inline_asm is_align_stack "foo", "=r,r,r" %arg0, %arg0 : (i32, i32) -> i8
 
-  // CHECK-NEXT:  call i8 asm inteldialect "foo", "=r,r,r"(i32 {{.*}}, i32 {{.*}}), !dbg !13
+  // CHECK-NEXT:  call i8 asm inteldialect "foo", "=r,r,r"(i32 {{.*}}, i32 {{.*}})
   %4 = llvm.inline_asm asm_dialect = "intel" "foo", "=r,r,r" %arg0, %arg0 : (i32, i32) -> i8
 
-  // CHECK-NEXT:  call { i8, i8 } asm "foo", "=r,=r,r"(i32 {{.*}}), !dbg !14
+  // CHECK-NEXT:  call { i8, i8 } asm "foo", "=r,=r,r"(i32 {{.*}})
   %5 = llvm.inline_asm "foo", "=r,=r,r" %arg0 : (i32) -> !llvm.struct<(i8, i8)>
 
   llvm.return
@@ -1666,7 +1671,7 @@ llvm.func @fastmathFlags(%arg0: f32) {
 // CHECK: {{.*}} = call afn float @fastmathFlagsFunc({{.*}})
 // CHECK: {{.*}} = call reassoc float @fastmathFlagsFunc({{.*}})
 // CHECK: {{.*}} = call fast float @fastmathFlagsFunc({{.*}})
-  %8 = llvm.call @fastmathFlagsFunc(%arg0) {fastmathFlags = #llvm.fastmath<>} : (f32) -> (f32)
+  %8 = llvm.call @fastmathFlagsFunc(%arg0) {fastmathFlags = #llvm.fastmath<none>} : (f32) -> (f32)
   %9 = llvm.call @fastmathFlagsFunc(%arg0) {fastmathFlags = #llvm.fastmath<nnan>} : (f32) -> (f32)
   %10 = llvm.call @fastmathFlagsFunc(%arg0) {fastmathFlags = #llvm.fastmath<ninf>} : (f32) -> (f32)
   %11 = llvm.call @fastmathFlagsFunc(%arg0) {fastmathFlags = #llvm.fastmath<nsz>} : (f32) -> (f32)
@@ -1937,3 +1942,11 @@ llvm.func @vararg_function(%arg0: i32, ...) {
   // CHECK: ret void
   llvm.return
 }
+
+// -----
+
+// Function attributes: readnone
+
+// CHECK: declare void @readnone_function() #[[ATTR:[0-9]+]]
+// CHECK: attributes #[[ATTR]] = { readnone }
+llvm.func @readnone_function() attributes {llvm.readnone}

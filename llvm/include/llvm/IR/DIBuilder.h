@@ -282,10 +282,12 @@ namespace llvm {
     /// \param LineNo      Line number.
     /// \param Context     The surrounding context for the typedef.
     /// \param AlignInBits Alignment. (optional)
+    /// \param Flags       Flags to describe inheritance attribute, e.g. private
     /// \param Annotations Annotations. (optional)
     DIDerivedType *createTypedef(DIType *Ty, StringRef Name, DIFile *File,
                                  unsigned LineNo, DIScope *Context,
                                  uint32_t AlignInBits = 0,
+                                 DINode::DIFlags Flags = DINode::FlagZero,
                                  DINodeArray Annotations = nullptr);
 
     /// Create debugging information entry for a 'friend'.
@@ -683,7 +685,7 @@ namespace llvm {
     DIGlobalVariable *createTempGlobalVariableFwdDecl(
         DIScope *Context, StringRef Name, StringRef LinkageName, DIFile *File,
         unsigned LineNo, DIType *Ty, bool IsLocalToUnit, MDNode *Decl = nullptr,
-        MDTuple *TemplateParams= nullptr, uint32_t AlignInBits = 0);
+        MDTuple *TemplateParams = nullptr, uint32_t AlignInBits = 0);
 
     /// Create a new descriptor for an auto variable.  This is a local variable
     /// that is not a subprogram parameter.

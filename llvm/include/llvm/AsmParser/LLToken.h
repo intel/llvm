@@ -141,6 +141,8 @@ enum Kind {
   kw_arm_aapcs_vfpcc,
   kw_aarch64_vector_pcs,
   kw_aarch64_sve_vector_pcs,
+  kw_aarch64_sme_preservemost_from_x0,
+  kw_aarch64_sme_preservemost_from_x2,
   kw_msp430_intrcc,
   kw_avr_intrcc,
   kw_avr_signalcc,
@@ -180,6 +182,13 @@ enum Kind {
 #define ATTRIBUTE_ENUM(ENUM_NAME, DISPLAY_NAME) \
   kw_##DISPLAY_NAME,
 #include "llvm/IR/Attributes.inc"
+
+  // Memory attribute:
+  kw_read,
+  kw_write,
+  kw_readwrite,
+  kw_argmem,
+  kw_inaccessiblemem,
 
   kw_type,
   kw_opaque,

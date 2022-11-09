@@ -111,7 +111,7 @@ private:
 static bool isOnlyUsedAsInputOfLinalgOp(tensor::PadOp padOp) {
   for (OpOperand &use : padOp.getResult().getUses()) {
     auto linalgUser = dyn_cast<linalg::LinalgOp>(use.getOwner());
-    if (!linalgUser || !linalgUser.isInputTensor(&use)) {
+    if (!linalgUser || !linalgUser.isDpsInput(&use)) {
       LLVM_DEBUG(DBGS() << "Found a use of " << *(padOp)
                         << "\nthat is not an input tensor of a LinalgOp, "
                         << "cannot hoist\n"
@@ -431,9 +431,9 @@ FailureOr<Value> mlir::linalg::hoistPaddingOnTensors(
   llvm::append_range(packedShape, transposedTensorType->getShape());
   auto packedTensorType = RankedTensorType::get(
       packedShape, transposedTensorType->getElementType());
-  Value packedTensor = b.create<linalg::InitTensorOp>(
-      loc, dynamicTensorSizes, packedTensorType.getShape(),
-      packedTensorType.getElementType());
+  Value packedTensor = b.create<tensor::EmptyOp>(
+      loc, packedTensorType.getShape(), packedTensorType.getElementType(),
+      dynamicTensorSizes);
 
   // Clone the operations involved in the backward slice, iteratively stepping
   // into the loops that we encounter.
@@ -543,11 +543,10 @@ FailureOr<Value> mlir::linalg::hoistPaddingOnTensors(
 
   // Transpose the packed tensor back to the original storage order.
   if (!transposeVector.empty()) {
-    Value initTensor =
-        b.create<InitTensorOp>(loc, ValueRange{}, paddedTensorType.getShape(),
-                               paddedTensorType.getElementType());
+    Value emptyTensor = b.create<tensor::EmptyOp>(
+        loc, paddedTensorType.getShape(), paddedTensorType.getElementType());
     transposeOps.push_back(
-        makeTransposeOp(b, loc, newResult, initTensor, transposeVector));
+        makeTransposeOp(b, loc, newResult, emptyTensor, transposeVector));
     newResult = transposeOps.back()->getResult(0);
   }
 

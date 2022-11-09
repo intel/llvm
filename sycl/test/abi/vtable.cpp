@@ -23,32 +23,6 @@ void foo(sycl::detail::HostKernelBase &HKB) {
 // CHECK-NEXT:   4 | sycl::detail::HostKernelBase::~HostKernelBase() [complete]
 // CHECK-NEXT:   5 | sycl::detail::HostKernelBase::~HostKernelBase() [deleting]
 
-void foo(sycl::detail::SYCLMemObjI &MemObj) { (void)MemObj.getType(); }
-
-// CHECK:    Vtable for 'sycl::detail::SYCLMemObjI' (11 entries).
-// CHECK-NEXT:   0 | offset_to_top (0)
-// CHECK-NEXT:   1 | sycl::detail::SYCLMemObjI RTTI
-// CHECK-NEXT:       -- (sycl::detail::SYCLMemObjI, 0) vtable address --
-// CHECK-NEXT:   2 | sycl::detail::SYCLMemObjI::~SYCLMemObjI() [complete]
-// CHECK-NEXT:   3 | sycl::detail::SYCLMemObjI::~SYCLMemObjI() [deleting]
-// CHECK-NEXT:   4 | MemObjType sycl::detail::SYCLMemObjI::getType() const [pure]
-// CHECK-NEXT:   5 | void *sycl::detail::SYCLMemObjI::allocateMem(ContextImplPtr, DeviceImplPtr, bool, void *, RT::PiEvent &) [pure]
-// CHECK-NEXT:   6 | void *sycl::detail::SYCLMemObjI::allocateHostMem() [pure]
-// CHECK-NEXT:   7 | void sycl::detail::SYCLMemObjI::releaseMem(ContextImplPtr, void *) [pure]
-// CHECK-NEXT:   8 | void sycl::detail::SYCLMemObjI::releaseHostMem(void *) [pure]
-// CHECK-NEXT:   9 | size_t sycl::detail::SYCLMemObjI::getSize() const [pure]
-// CHECK-NEXT:  10 | ContextImplPtr sycl::detail::SYCLMemObjI::getInteropContext() const [pure]
-
-void foo(sycl::detail::pi::DeviceBinaryImage &Img) { Img.print(); }
-// CHECK:    Vtable for 'sycl::detail::pi::DeviceBinaryImage' (6 entries).
-// CHECK-NEXT:   0 | offset_to_top (0)
-// CHECK-NEXT:   1 | sycl::detail::pi::DeviceBinaryImage RTTI
-// CHECK-NEXT:       -- (sycl::detail::pi::DeviceBinaryImage, 0) vtable address --
-// CHECK-NEXT:   2 | void sycl::detail::pi::DeviceBinaryImage::print() const
-// CHECK-NEXT:   3 | void sycl::detail::pi::DeviceBinaryImage::dump(std::ostream &) const
-// CHECK-NEXT:   4 | sycl::detail::pi::DeviceBinaryImage::~DeviceBinaryImage() [complete]
-// CHECK-NEXT:   5 | sycl::detail::pi::DeviceBinaryImage::~DeviceBinaryImage() [deleting]
-
 void foo(sycl::detail::CG *CG) { delete CG; }
 // CHECK:    Vtable for 'sycl::detail::CG' (4 entries).
 // CHECK-NEXT:   0 | offset_to_top (0)

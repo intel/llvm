@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "check-omp-structure.h"
+#include "definable.h"
 #include "flang/Parser/parse-tree.h"
 #include "flang/Semantics/tools.h"
 #include <algorithm>
@@ -1874,7 +1875,6 @@ CHECK_REQ_SCALAR_INT_CLAUSE(NumTeams, OMPC_num_teams)
 CHECK_REQ_SCALAR_INT_CLAUSE(NumThreads, OMPC_num_threads)
 CHECK_REQ_SCALAR_INT_CLAUSE(Priority, OMPC_priority)
 CHECK_REQ_SCALAR_INT_CLAUSE(ThreadLimit, OMPC_thread_limit)
-CHECK_REQ_SCALAR_INT_CLAUSE(Device, OMPC_device)
 
 CHECK_REQ_CONSTANT_SCALAR_INT_CLAUSE(Collapse, OMPC_collapse)
 CHECK_REQ_CONSTANT_SCALAR_INT_CLAUSE(Safelen, OMPC_safelen)
@@ -1924,13 +1924,17 @@ bool OmpStructureChecker::CheckIntrinsicOperator(
 
   switch (op) {
   case parser::DefinedOperator::IntrinsicOperator::Add:
-  case parser::DefinedOperator::IntrinsicOperator::Subtract:
   case parser::DefinedOperator::IntrinsicOperator::Multiply:
   case parser::DefinedOperator::IntrinsicOperator::AND:
   case parser::DefinedOperator::IntrinsicOperator::OR:
   case parser::DefinedOperator::IntrinsicOperator::EQV:
   case parser::DefinedOperator::IntrinsicOperator::NEQV:
     return true;
+  case parser::DefinedOperator::IntrinsicOperator::Subtract:
+    context_.Say(GetContext().clauseSource,
+        "The minus reduction operator is deprecated since OpenMP 5.2 and is not supported in the REDUCTION clause."_err_en_US,
+        ContextDirectiveAsFortran());
+    break;
   default:
     context_.Say(GetContext().clauseSource,
         "Invalid reduction operator in REDUCTION clause."_err_en_US,
@@ -1960,9 +1964,9 @@ void OmpStructureChecker::CheckIntentInPointerAndDefinable(
               "in a %s clause"_err_en_US,
               symbol->name(),
               parser::ToUpperCaseLetters(getClauseName(clause).str()));
-        }
-        if (auto msg{
-                WhyNotModifiable(*symbol, context_.FindScope(name->source))}) {
+        } else if (auto msg{WhyNotDefinable(name->source,
+                       context_.FindScope(name->source), DefinabilityFlags{},
+                       *symbol)}) {
           context_
               .Say(GetContext().clauseSource,
                   "Variable '%s' on the %s clause is not definable"_err_en_US,
@@ -2271,9 +2275,7 @@ void OmpStructureChecker::Enter(const parser::OmpClause::Linear &x) {
 void OmpStructureChecker::CheckAllowedMapTypes(
     const parser::OmpMapType::Type &type,
     const std::list<parser::OmpMapType::Type> &allowedMapTypeList) {
-  const auto found{std::find(
-      std::begin(allowedMapTypeList), std::end(allowedMapTypeList), type)};
-  if (found == std::end(allowedMapTypeList)) {
+  if (!llvm::is_contained(allowedMapTypeList, type)) {
     std::string commaSeperatedMapTypes;
     llvm::interleave(
         allowedMapTypeList.begin(), allowedMapTypeList.end(),
@@ -2369,6 +2371,14 @@ void OmpStructureChecker::Enter(const parser::OmpClause::Schedule &x) {
       }
     }
   }
+}
+
+void OmpStructureChecker::Enter(const parser::OmpClause::Device &x) {
+  CheckAllowed(llvm::omp::Clause::OMPC_device);
+  const parser::OmpDeviceClause &deviceClause = x.v;
+  const auto &device{std::get<1>(deviceClause.t)};
+  RequiresPositiveParameter(
+      llvm::omp::Clause::OMPC_device, device, "device expression");
 }
 
 void OmpStructureChecker::Enter(const parser::OmpClause::Depend &x) {
@@ -2563,7 +2573,8 @@ void OmpStructureChecker::CheckDefinableObjects(
   for (auto it{symbols.begin()}; it != symbols.end(); ++it) {
     const auto *symbol{it->first};
     const auto source{it->second};
-    if (auto msg{WhyNotModifiable(*symbol, context_.FindScope(source))}) {
+    if (auto msg{WhyNotDefinable(source, context_.FindScope(source),
+            DefinabilityFlags{}, *symbol)}) {
       context_
           .Say(source,
               "Variable '%s' on the %s clause is not definable"_err_en_US,

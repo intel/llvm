@@ -26,7 +26,7 @@ class __SYCL_DEPRECATED("interop_handler class is deprecated, use"
 
 public:
   using QueueImplPtr = std::shared_ptr<detail::queue_impl>;
-  using ReqToMem = std::pair<detail::Requirement *, pi_mem>;
+  using ReqToMem = std::pair<detail::AccessorImplHost *, pi_mem>;
 
   interop_handler(std::vector<ReqToMem> MemObjs, QueueImplPtr Queue)
       : MQueue(std::move(Queue)), MMemObjs(std::move(MemObjs)) {}
@@ -59,7 +59,8 @@ private:
   template <backend BackendName, typename DataT, int Dims,
             access::mode AccessMode, access::target AccessTarget,
             access::placeholder IsPlaceholder>
-  auto getMemImpl(detail::Requirement *Req) const -> typename detail::interop<
+  auto
+  getMemImpl(detail::AccessorImplHost *Req) const -> typename detail::interop<
       BackendName,
       accessor<DataT, Dims, AccessMode, AccessTarget, IsPlaceholder>>::type {
     return (typename detail::interop<
@@ -67,7 +68,8 @@ private:
                                   IsPlaceholder>>::type)GetNativeMem(Req);
   }
 
-  __SYCL_EXPORT pi_native_handle GetNativeMem(detail::Requirement *Req) const;
+  __SYCL_EXPORT pi_native_handle
+  GetNativeMem(detail::AccessorImplHost *Req) const;
   __SYCL_EXPORT pi_native_handle GetNativeQueue() const;
 };
 

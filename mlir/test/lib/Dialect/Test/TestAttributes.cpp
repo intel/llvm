@@ -19,7 +19,6 @@
 #include "mlir/IR/Types.h"
 #include "mlir/Support/LogicalResult.h"
 #include "llvm/ADT/Hashing.h"
-#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/ADT/bit.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -173,6 +172,23 @@ ArrayRef<uint64_t> TestExtern1DI64ElementsAttr::getElements() const {
   if (auto *blob = getHandle().getBlob())
     return blob->getDataAs<uint64_t>();
   return llvm::None;
+}
+
+//===----------------------------------------------------------------------===//
+// TestCustomAnchorAttr
+//===----------------------------------------------------------------------===//
+
+static ParseResult parseTrueFalse(AsmParser &p,
+                                  FailureOr<Optional<int>> &result) {
+  bool b;
+  if (p.parseInteger(b))
+    return failure();
+  result = Optional<int>(b);
+  return success();
+}
+
+static void printTrueFalse(AsmPrinter &p, Optional<int> result) {
+  p << (*result ? "true" : "false");
 }
 
 //===----------------------------------------------------------------------===//

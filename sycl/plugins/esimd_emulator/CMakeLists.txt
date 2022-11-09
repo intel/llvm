@@ -6,6 +6,7 @@
 include(ExternalProject)
 
 include_directories("${sycl_inc_dir}")
+include_directories("${SYCL_SOURCE_DIR}/source/")
 # FIXME/TODO: 'pi.h' is included in 'pi_esimd_emulator.cpp', and CL_*_INTEL
 # and CL_*_KHR definitions in 'pi.h' are from
 # ${OPENCL_INCLUDE}. Remove build dependency on OpenCL

@@ -15,6 +15,7 @@
 
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
+#include "llvm/SYCLLowerIR/SYCLUtils.h"
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
@@ -328,14 +329,14 @@ public:
         {"rdregion",
          {"rdregion", {a(0), t(3), t(4), t(5), a(1), t(6)}, nk(-1)}},
         {"rdindirect",
-         {"rdregion", {a(0), c32(0), t(2), c32(0), a(1), t(3)}, nk(-1)}},
+         {"rdregion", {a(0), c32(0), c32(1), c32(0), a(1), t(3)}, nk(-1)}},
         {{"wrregion"},
          {{"wrregion"},
           {a(0), a(1), t(3), t(4), t(5), a(2), t(6), ai1(3)},
           nk(-1)}},
         {{"wrindirect"},
          {{"wrregion"},
-          {a(0), a(1), c32(0), t(2), c32(0), a(2), t(3), ai1(3)},
+          {a(0), a(1), c32(0), c32(1), c32(0), a(2), t(3), ai1(3)},
           nk(-1)}},
         {"vload", {"vload", {l(0)}}},
         {"vstore", {"vstore", {a(1), a(0)}}},
@@ -502,11 +503,11 @@ public:
         {"raw_send2_noresult",
          {"raw.send2.noresult",
           {a(0), a(1), ai1(2), a(3), a(4), a(5), a(6), a(7)}}},
-        {"dpas",
-         {"dpas2", {a(0), a(1), a(2), a(3), a(4), a(5), a(6), a(7), a(8)}}},
-        {"dpas2", {"dpas.nosrc0", {a(0), a(1), a(2)}}},
-        {"dpasw", {"dpasw", {a(0), a(1), a(2), a(3)}}},
-        {"dpasw2", {"dpasw.nosrc0", {a(0), a(1), a(2)}}},
+        {"dpas2",
+         {"dpas2", {a(0), a(1), a(2), t(0), t(1), t(2), t(3), t(11), t(12)}}},
+        {"dpas_nosrc0", {"dpas.nosrc0", {a(0), a(1), t(0)}}},
+        {"dpasw", {"dpasw", {a(0), a(1), a(2), t(0)}}},
+        {"dpasw_nosrc0", {"dpasw.nosrc0", {a(0), a(1), t(0)}}},
         {"nbarrier", {"nbarrier", {a(0), a(1), a(2)}}},
         {"raw_send_nbarrier_signal",
          {"raw.send.noresult", {a(0), ai1(4), a(1), a(2), a(3)}}},
@@ -654,7 +655,8 @@ public:
         {"test_src_tmpl_arg",
          {"test.src.tmpl.arg", {t(0), t1(1), t8(2), t16(3), t32(4), c8(17)}}},
         {"slm_init", {"slm.init", {a(0)}}},
-    };
+        {"bf_cvt", {"bf.cvt", {a(0)}}},
+        {"tf32_cvt", {"tf32.cvt", {a(0)}}}};
   }
 
   const IntrinTable &getTable() { return Table; }
@@ -974,7 +976,9 @@ static void translateSLMInit(CallInst &CI) {
   assert(NewVal != 0 && "zero slm bytes being requested");
   UpdateUint64MetaDataToMaxValue SetMaxSLMSize{
       *F->getParent(), genx::KernelMDOp::SLMSize, NewVal};
-  esimd::traverseCallgraphUp(F, SetMaxSLMSize);
+  // TODO: Keep track of traversed functions (use 4-argument version of
+  // traverseCallgraphUp) to avoid repeating traversals over same function.
+  sycl::utils::traverseCallgraphUp(F, SetMaxSLMSize);
 }
 
 // This function sets/updates VCNamedBarrierCount attribute to the kernels
@@ -990,7 +994,9 @@ static void translateNbarrierInit(CallInst &CI) {
   assert(NewVal != 0 && "zero named barrier count being requested");
   UpdateUint64MetaDataToMaxValue SetMaxNBarrierCnt{
       *F->getParent(), genx::KernelMDOp::NBarrierCnt, NewVal};
-  esimd::traverseCallgraphUp(F, SetMaxNBarrierCnt);
+  // TODO: Keep track of traversed functions to avoid repeating traversals
+  // over same function.
+  sycl::utils::traverseCallgraphUp(F, SetMaxNBarrierCnt);
 }
 
 static void translatePackMask(CallInst &CI) {
@@ -1215,6 +1221,7 @@ translateSpirvGlobalUses(LoadInst *LI, StringRef SpirvGlobalName,
   // TODO: Implement support for the following intrinsics:
   // uint32_t __spirv_BuiltIn NumSubgroups;
   // uint32_t __spirv_BuiltIn SubgroupId;
+  // uint32_t __spirv_BuiltIn GlobalLinearId
 
   // Translate those loads from _scalar_ SPIRV globals that can be replaced with
   // a const value here.
@@ -1227,6 +1234,8 @@ translateSpirvGlobalUses(LoadInst *LI, StringRef SpirvGlobalName,
              SpirvGlobalName == "SubgroupMaxSize") {
     NewInst = llvm::Constant::getIntegerValue(LI->getType(),
                                               llvm::APInt(32, 1, true));
+  } else if (SpirvGlobalName == "GlobalLinearId") {
+    NewInst = llvm::Constant::getNullValue(LI->getType());
   }
   if (NewInst) {
     LI->replaceAllUsesWith(NewInst);
@@ -1685,7 +1694,11 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
         auto TmpTy = llvm::FixedVectorType::get(
             llvm::Type::getInt32Ty(DstTy->getContext()),
             cast<FixedVectorType>(DstTy)->getNumElements());
-        Src = Builder.CreateFPToSI(Src, TmpTy);
+        if (CastOpcode == llvm::Instruction::FPToUI) {
+          Src = Builder.CreateFPToUI(Src, TmpTy);
+        } else {
+          Src = Builder.CreateFPToSI(Src, TmpTy);
+        }
 
         llvm::Instruction::CastOps TruncOp = llvm::Instruction::Trunc;
         llvm::Value *NewDst = Builder.CreateCast(TruncOp, Src, DstTy);
@@ -1759,8 +1772,8 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
         ToErase.push_back(CI);
         continue;
       }
-      assert(!Name.startswith("__esimd_set_kernel_properties") &&
-             "__esimd_set_kernel_properties must have been lowered");
+      assert(!Name.startswith("__sycl_set_kernel_properties") &&
+             "__sycl_set_kernel_properties must have been lowered");
 
       if (Name.empty() || !Name.startswith(ESIMD_INTRIN_PREF1))
         continue;

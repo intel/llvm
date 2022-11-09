@@ -5,5 +5,6 @@ add_sycl_unittest(KernelAndProgramTests OBJECT
   KernelInfo.cpp
   DeviceInfo.cpp
   PersistentDeviceCodeCache.cpp
+  KernelBuildOptions.cpp
 )
 target_compile_definitions(KernelAndProgramTests PRIVATE -D__SYCL_INTERNAL_API)

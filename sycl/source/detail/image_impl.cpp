@@ -7,9 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/context_impl.hpp>
+#include <detail/image_impl.hpp>
 #include <detail/memory_manager.hpp>
-#include <sycl/detail/image_impl.hpp>
-#include <sycl/image.hpp>
 
 #include <algorithm>
 #include <vector>
@@ -261,13 +260,13 @@ static void getImageInfo(const ContextImplPtr Context, RT::PiMemImageInfo Info,
                                             nullptr);
 }
 
-template <int Dimensions>
-image_impl<Dimensions>::image_impl(
-    cl_mem MemObject, const context &SyclContext, event AvailableEvent,
-    std::unique_ptr<SYCLMemObjAllocator> Allocator)
+image_impl::image_impl(cl_mem MemObject, const context &SyclContext,
+                       event AvailableEvent,
+                       std::unique_ptr<SYCLMemObjAllocator> Allocator,
+                       uint8_t Dimensions)
     : BaseT(MemObject, SyclContext, std::move(AvailableEvent),
             std::move(Allocator)),
-      MRange(InitializedVal<Dimensions, range>::template get<0>()) {
+      MDimensions(Dimensions), MRange({0, 0, 0}) {
   RT::PiMem Mem = pi::cast<RT::PiMem>(BaseT::MInteropMemObject);
   const ContextImplPtr Context = getSyclObjImpl(SyclContext);
   const detail::plugin &Plugin = Context->getPlugin();
@@ -286,7 +285,7 @@ image_impl<Dimensions>::image_impl(
   getImageInfo(Context, PI_IMAGE_INFO_ROW_PITCH, MRowPitch, Mem);
   getImageInfo(Context, PI_IMAGE_INFO_SLICE_PITCH, MSlicePitch, Mem);
 
-  switch (Dimensions) {
+  switch (MDimensions) {
   case 3:
     getImageInfo(Context, PI_IMAGE_INFO_DEPTH, MRange[2], Mem);
     __SYCL_FALLTHROUGH;
@@ -298,11 +297,9 @@ image_impl<Dimensions>::image_impl(
   }
 }
 
-template <int Dimensions>
-void *image_impl<Dimensions>::allocateMem(ContextImplPtr Context,
-                                          DeviceImplPtr Device,
-                                          bool InitFromUserData, void *HostPtr,
-                                          RT::PiEvent &OutEventToWait) {
+void *image_impl::allocateMem(ContextImplPtr Context, DeviceImplPtr Device,
+                              bool InitFromUserData, void *HostPtr,
+                              RT::PiEvent &OutEventToWait) {
   bool HostPtrReadOnly = false;
   BaseT::determineHostPtr(Context, InitFromUserData, HostPtr, HostPtrReadOnly);
 
@@ -316,14 +313,12 @@ void *image_impl<Dimensions>::allocateMem(ContextImplPtr Context,
 
   return MemoryManager::allocateMemImage(
       std::move(Context), std::move(Device), this, HostPtr, HostPtrReadOnly,
-      BaseT::getSize(), Desc, Format, BaseT::MInteropEvent,
+      BaseT::getSizeInBytes(), Desc, Format, BaseT::MInteropEvent,
       BaseT::MInteropContext, MProps, OutEventToWait);
 }
 
-template <int Dimensions>
-bool image_impl<Dimensions>::checkImageDesc(const RT::PiMemImageDesc &Desc,
-                                            ContextImplPtr Context,
-                                            void *UserPtr) {
+bool image_impl::checkImageDesc(const RT::PiMemImageDesc &Desc,
+                                ContextImplPtr Context, void *UserPtr) {
   if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE1D, PI_MEM_TYPE_IMAGE1D_ARRAY,
                PI_MEM_TYPE_IMAGE2D_ARRAY, PI_MEM_TYPE_IMAGE2D) &&
       !checkImageValueRange<info::device::image2d_max_width>(
@@ -402,9 +397,8 @@ bool image_impl<Dimensions>::checkImageDesc(const RT::PiMemImageDesc &Desc,
   return true;
 }
 
-template <int Dimensions>
-bool image_impl<Dimensions>::checkImageFormat(
-    const RT::PiMemImageFormat &Format, ContextImplPtr Context) {
+bool image_impl::checkImageFormat(const RT::PiMemImageFormat &Format,
+                                  ContextImplPtr Context) {
   (void)Context;
   if (checkAny(Format.image_channel_order, PI_IMAGE_CHANNEL_ORDER_INTENSITY,
                PI_IMAGE_CHANNEL_ORDER_LUMINANCE) &&
@@ -447,15 +441,9 @@ bool image_impl<Dimensions>::checkImageFormat(
   return true;
 }
 
-template <int Dimensions>
-std::vector<device>
-image_impl<Dimensions>::getDevices(const ContextImplPtr Context) {
+std::vector<device> image_impl::getDevices(const ContextImplPtr Context) {
   return Context->get_info<info::context::devices>();
 }
-
-template class image_impl<1>;
-template class image_impl<2>;
-template class image_impl<3>;
 
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

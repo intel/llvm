@@ -213,7 +213,8 @@ bool SimplifyIndvar::makeIVComparisonInvariant(ICmpInst *ICmp,
   auto *PN = dyn_cast<PHINode>(IVOperand);
   if (!PN)
     return false;
-  auto LIP = SE->getLoopInvariantPredicate(Pred, S, X, L);
+
+  auto LIP = SE->getLoopInvariantPredicate(Pred, S, X, L, ICmp);
   if (!LIP)
     return false;
   ICmpInst::Predicate InvariantPredicate = LIP->Pred;
@@ -288,6 +289,7 @@ void SimplifyIndvar::eliminateIVComparison(ICmpInst *ICmp,
     Users.push_back(cast<Instruction>(U));
   const Instruction *CtxI = findCommonDominator(Users, *DT);
   if (auto Ev = SE->evaluatePredicateAt(Pred, S, X, CtxI)) {
+    SE->forgetValue(ICmp);
     ICmp->replaceAllUsesWith(ConstantInt::getBool(ICmp->getContext(), *Ev));
     DeadInsts.emplace_back(ICmp);
     LLVM_DEBUG(dbgs() << "INDVARS: Eliminated comparison: " << *ICmp << '\n');
@@ -683,7 +685,7 @@ bool SimplifyIndvar::replaceFloatIVWithIntegerIV(Instruction *UseInst) {
       UseInst->getOpcode() != CastInst::UIToFP)
     return false;
 
-  Value *IVOperand = UseInst->getOperand(0);
+  Instruction *IVOperand = cast<Instruction>(UseInst->getOperand(0));
   // Get the symbolic expression for this instruction.
   const SCEV *IV = SE->getSCEV(IVOperand);
   unsigned MaskBits;
@@ -696,17 +698,35 @@ bool SimplifyIndvar::replaceFloatIVWithIntegerIV(Instruction *UseInst) {
     for (User *U : UseInst->users()) {
       // Match for fptosi/fptoui of sitofp and with same type.
       auto *CI = dyn_cast<CastInst>(U);
-      if (!CI || IVOperand->getType() != CI->getType())
+      if (!CI)
         continue;
 
       CastInst::CastOps Opcode = CI->getOpcode();
       if (Opcode != CastInst::FPToSI && Opcode != CastInst::FPToUI)
         continue;
 
-      CI->replaceAllUsesWith(IVOperand);
+      Value *Conv = nullptr;
+      if (IVOperand->getType() != CI->getType()) {
+        IRBuilder<> Builder(CI);
+        StringRef Name = IVOperand->getName();
+        // To match InstCombine logic, we only need sext if both fptosi and
+        // sitofp are used. If one of them is unsigned, then we can use zext.
+        if (SE->getTypeSizeInBits(IVOperand->getType()) >
+            SE->getTypeSizeInBits(CI->getType())) {
+          Conv = Builder.CreateTrunc(IVOperand, CI->getType(), Name + ".trunc");
+        } else if (Opcode == CastInst::FPToUI ||
+                   UseInst->getOpcode() == CastInst::UIToFP) {
+          Conv = Builder.CreateZExt(IVOperand, CI->getType(), Name + ".zext");
+        } else {
+          Conv = Builder.CreateSExt(IVOperand, CI->getType(), Name + ".sext");
+        }
+      } else
+        Conv = IVOperand;
+
+      CI->replaceAllUsesWith(Conv);
       DeadInsts.push_back(CI);
       LLVM_DEBUG(dbgs() << "INDVARS: Replace IV user: " << *CI
-                        << " with: " << *IVOperand << '\n');
+                        << " with: " << *Conv << '\n');
 
       ++NumFoldedUser;
       Changed = true;
@@ -751,6 +771,7 @@ bool SimplifyIndvar::eliminateIdentitySCEV(Instruction *UseInst,
 
   LLVM_DEBUG(dbgs() << "INDVARS: Eliminated identity: " << *UseInst << '\n');
 
+  SE->forgetValue(UseInst);
   UseInst->replaceAllUsesWith(IVOperand);
   ++NumElimIdentity;
   Changed = true;

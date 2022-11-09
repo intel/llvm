@@ -105,6 +105,9 @@ public:
                     const char *LinkingOutput) const override;
 };
 
+StringRef resolveGenDevice(StringRef DeviceName);
+StringRef getGenDeviceMacro(StringRef DeviceName);
+
 } // end namespace gen
 
 namespace x86_64 {
@@ -146,10 +149,12 @@ public:
                          Action::OffloadKind DeviceOffloadKind) const override;
   void AddImpliedTargetArgs(const llvm::Triple &Triple,
                             const llvm::opt::ArgList &Args,
-                            llvm::opt::ArgStringList &CmdArgs) const;
+                            llvm::opt::ArgStringList &CmdArgs,
+                            const JobAction &JA) const;
   void TranslateBackendTargetArgs(const llvm::Triple &Triple,
                                   const llvm::opt::ArgList &Args,
-                                  llvm::opt::ArgStringList &CmdArgs) const;
+                                  llvm::opt::ArgStringList &CmdArgs,
+                                  StringRef Device = "") const;
   void TranslateLinkerTargetArgs(const llvm::Triple &Triple,
                                  const llvm::opt::ArgList &Args,
                                  llvm::opt::ArgStringList &CmdArgs) const;
@@ -172,9 +177,7 @@ public:
       const llvm::opt::ArgList &Args,
       llvm::opt::ArgStringList &CC1Args) const override;
 
-
   const ToolChain &HostTC;
-  const SYCLInstallationDetector SYCLInstallation;
 
 protected:
   Tool *buildBackendCompiler() const override;
@@ -182,8 +185,10 @@ protected:
 
 private:
   void TranslateTargetOpt(const llvm::opt::ArgList &Args,
-      llvm::opt::ArgStringList &CmdArgs, llvm::opt::OptSpecifier Opt,
-      llvm::opt::OptSpecifier Opt_EQ) const;
+                          llvm::opt::ArgStringList &CmdArgs,
+                          llvm::opt::OptSpecifier Opt,
+                          llvm::opt::OptSpecifier Opt_EQ,
+                          StringRef Device) const;
 };
 
 } // end namespace toolchains

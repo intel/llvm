@@ -126,6 +126,9 @@ def InReg : EnumAttr<"inreg", [ParamAttr, RetAttr]>;
 /// Build jump-instruction tables and replace refs.
 def JumpTable : EnumAttr<"jumptable", [FnAttr]>;
 
+/// Memory effects of the function.
+def Memory : IntAttr<"memory", [FnAttr]>;
+
 /// Function must be optimized for size first.
 def MinSize : EnumAttr<"minsize", [FnAttr]>;
 
@@ -185,6 +188,10 @@ def NoCfCheck : EnumAttr<"nocf_check", [FnAttr]>;
 
 /// Function should not be instrumented.
 def NoProfile : EnumAttr<"noprofile", [FnAttr]>;
+
+/// This function should not be instrumented but it is ok to inline profiled
+// functions into it.
+def SkipProfile : EnumAttr<"skipprofile", [FnAttr]>;
 
 /// Function doesn't unwind stack.
 def NoUnwind : EnumAttr<"nounwind", [FnAttr]>;

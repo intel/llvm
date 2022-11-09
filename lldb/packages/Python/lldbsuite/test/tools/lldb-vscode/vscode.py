@@ -447,6 +447,10 @@ class DebugCommunication(object):
         return self.get_scope_variables('Locals', frameIndex=frameIndex,
                                         threadId=threadId)
 
+    def get_registers(self, frameIndex=0, threadId=None):
+        return self.get_scope_variables('Registers', frameIndex=frameIndex,
+                                        threadId=threadId)
+
     def get_local_variable(self, name, frameIndex=0, threadId=None):
         locals = self.get_local_variables(frameIndex=frameIndex,
                                           threadId=threadId)
@@ -609,7 +613,7 @@ class DebugCommunication(object):
         }
         return self.send_recv(command_dict)
 
-    def request_initialize(self):
+    def request_initialize(self, sourceInitFile):
         command_dict = {
             'command': 'initialize',
             'type': 'request',
@@ -622,7 +626,8 @@ class DebugCommunication(object):
                 'pathFormat': 'path',
                 'supportsRunInTerminalRequest': True,
                 'supportsVariablePaging': True,
-                'supportsVariableType': True
+                'supportsVariableType': True,
+                'sourceInitFile': sourceInitFile
             }
         }
         response = self.send_recv(command_dict)
@@ -1000,7 +1005,7 @@ def attach_options_specified(options):
 
 
 def run_vscode(dbg, args, options):
-    dbg.request_initialize()
+    dbg.request_initialize(options.sourceInitFile)
     if attach_options_specified(options):
         response = dbg.request_attach(program=options.program,
                                       pid=options.pid,
@@ -1107,6 +1112,13 @@ def main():
         dest='debug',
         default=False,
         help='Pause waiting for a debugger to attach to the debug adaptor')
+
+    parser.add_option(
+        '--sourceInitFile',
+        action='store_true',
+        dest='sourceInitFile',
+        default=False,
+        help='Whether lldb-vscode should source .lldbinit file or not')
 
     parser.add_option(
         '--port',

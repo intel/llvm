@@ -11,6 +11,8 @@ unittest("FormatTests") {
     "//llvm/lib/Support",
   ]
   sources = [
+    "BracesInserterTest.cpp",
+    "BracesRemoverTest.cpp",
     "CleanupTest.cpp",
     "DefinitionBlockSeparatorTest.cpp",
     "FormatTest.cpp",

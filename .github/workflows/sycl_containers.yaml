@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 2
       - name: Build and Push Container
@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 2
       - name: Build and Push Container
@@ -70,18 +70,17 @@ jobs:
     needs: base_image_ubuntu2004
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 2
       - name: Get dependencies configuration
         id: deps
         run: |
           DEPS=`cat devops/dependencies.json`
-          DEPS="${DEPS//'%'/'%25'}"
-          DEPS="${DEPS//$'\n'/'%0A'}"
-          DEPS="${DEPS//$'\r'/'%0D'}"
+          DEPS="${DEPS//$'\r'/''}"
+          DEPS="${DEPS//$'\n'/' '}"
           echo $DEPS
-          echo "::set-output name=deps::$DEPS"
+          echo "deps=$DEPS" >>$GITHUB_OUTPUT
       - name: Build and Push Container
         uses: ./devops/actions/build_container
         with:
@@ -108,18 +107,17 @@ jobs:
     needs: base_image_ubuntu2004
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 2
       - name: Get dependencies configuration
         id: deps
         run: |
           DEPS=`cat devops/dependencies.json`
-          DEPS="${DEPS//'%'/'%25'}"
-          DEPS="${DEPS//$'\n'/'%0A'}"
-          DEPS="${DEPS//$'\r'/'%0D'}"
+          DEPS="${DEPS//$'\r'/''}"
+          DEPS="${DEPS//$'\n'/' '}"
           echo $DEPS
-          echo "::set-output name=deps::$DEPS"
+          echo "deps=$DEPS" >>$GITHUB_OUTPUT
       - name: Build and Push Container
         uses: ./devops/actions/build_container
         with:

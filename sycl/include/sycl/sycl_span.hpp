@@ -217,6 +217,15 @@ public:
   constexpr span(const span &) noexcept = default;
   constexpr span &operator=(const span &) noexcept = default;
 
+  template <size_t _Sz = _Extent>
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr explicit span(
+      element_type (&__arr)[_Sz])
+      : __data{__arr} {
+    (void)_Sz;
+    _SYCL_SPAN_ASSERT(_Extent == _Sz,
+                      "size mismatch in span's constructor (&_arr)[_Sz]");
+  }
+
   _SYCL_SPAN_INLINE_VISIBILITY constexpr explicit span(pointer __ptr,
                                                        size_type __count)
       : __data{__ptr} {
@@ -609,10 +618,9 @@ as_writable_bytes(span<_Tp, _Extent> __s) noexcept
 
 //  Deduction guides
 
-// array arg deduction guide. dynamic_extent arg used to select
-// the correct template. The _Sz will be used for the __size of the span.
+// array arg deduction guide
 template <class _Tp, size_t _Sz>
-span(_Tp (&)[_Sz]) -> span<_Tp, dynamic_extent>;
+span(_Tp (&)[_Sz]) -> span<_Tp, _Sz>;
 
 template <class _Tp, size_t _Sz> span(std::array<_Tp, _Sz> &) -> span<_Tp, _Sz>;
 

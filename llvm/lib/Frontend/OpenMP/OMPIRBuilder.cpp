@@ -24,6 +24,7 @@
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfoMetadata.h"
+#include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/MDBuilder.h"
@@ -1289,7 +1290,8 @@ void OpenMPIRBuilder::createTaskyield(const LocationDescription &Loc) {
 OpenMPIRBuilder::InsertPointTy
 OpenMPIRBuilder::createTask(const LocationDescription &Loc,
                             InsertPointTy AllocaIP, BodyGenCallbackTy BodyGenCB,
-                            bool Tied, Value *Final) {
+                            bool Tied, Value *Final, Value *IfCondition,
+                            ArrayRef<DependData *> Dependencies) {
   if (!updateToLocation(Loc))
     return InsertPointTy();
 
@@ -1321,7 +1323,8 @@ OpenMPIRBuilder::createTask(const LocationDescription &Loc,
   OI.EntryBB = TaskAllocaBB;
   OI.OuterAllocaBB = AllocaIP.getBlock();
   OI.ExitBB = TaskExitBB;
-  OI.PostOutlineCB = [this, Ident, Tied, Final](Function &OutlinedFn) {
+  OI.PostOutlineCB = [this, Ident, Tied, Final, IfCondition,
+                      Dependencies](Function &OutlinedFn) {
     // The input IR here looks like the following-
     // ```
     // func @current_fn() {
@@ -1431,9 +1434,102 @@ OpenMPIRBuilder::createTask(const LocationDescription &Loc,
                            TaskSize);
     }
 
-    // Emit the @__kmpc_omp_task runtime call to spawn the task
-    Function *TaskFn = getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_omp_task);
-    Builder.CreateCall(TaskFn, {Ident, ThreadID, NewTaskData});
+    Value *DepArrayPtr = nullptr;
+    if (Dependencies.size()) {
+      InsertPointTy OldIP = Builder.saveIP();
+      Builder.SetInsertPoint(
+          &OldIP.getBlock()->getParent()->getEntryBlock().back());
+
+      Type *DepArrayTy = ArrayType::get(DependInfo, Dependencies.size());
+      Value *DepArray =
+          Builder.CreateAlloca(DepArrayTy, nullptr, ".dep.arr.addr");
+
+      unsigned P = 0;
+      for (DependData *Dep : Dependencies) {
+        Value *Base =
+            Builder.CreateConstInBoundsGEP2_64(DepArrayTy, DepArray, 0, P);
+        // Store the pointer to the variable
+        Value *Addr = Builder.CreateStructGEP(
+            DependInfo, Base,
+            static_cast<unsigned int>(RTLDependInfoFields::BaseAddr));
+        Value *DepValPtr =
+            Builder.CreatePtrToInt(Dep->DepVal, Builder.getInt64Ty());
+        Builder.CreateStore(DepValPtr, Addr);
+        // Store the size of the variable
+        Value *Size = Builder.CreateStructGEP(
+            DependInfo, Base,
+            static_cast<unsigned int>(RTLDependInfoFields::Len));
+        Builder.CreateStore(Builder.getInt64(M.getDataLayout().getTypeStoreSize(
+                                Dep->DepValueType)),
+                            Size);
+        // Store the dependency kind
+        Value *Flags = Builder.CreateStructGEP(
+            DependInfo, Base,
+            static_cast<unsigned int>(RTLDependInfoFields::Flags));
+        Builder.CreateStore(
+            ConstantInt::get(Builder.getInt8Ty(),
+                             static_cast<unsigned int>(Dep->DepKind)),
+            Flags);
+        ++P;
+      }
+
+      DepArrayPtr = Builder.CreateBitCast(DepArray, Builder.getInt8PtrTy());
+      Builder.restoreIP(OldIP);
+    }
+
+    // In the presence of the `if` clause, the following IR is generated:
+    //    ...
+    //    %data = call @__kmpc_omp_task_alloc(...)
+    //    br i1 %if_condition, label %then, label %else
+    //  then:
+    //    call @__kmpc_omp_task(...)
+    //    br label %exit
+    //  else:
+    //    call @__kmpc_omp_task_begin_if0(...)
+    //    call @wrapper_fn(...)
+    //    call @__kmpc_omp_task_complete_if0(...)
+    //    br label %exit
+    //  exit:
+    //    ...
+    if (IfCondition) {
+      // `SplitBlockAndInsertIfThenElse` requires the block to have a
+      // terminator.
+      BasicBlock *NewBasicBlock =
+          splitBB(Builder, /*CreateBranch=*/true, "if.end");
+      Instruction *IfTerminator =
+          NewBasicBlock->getSinglePredecessor()->getTerminator();
+      Instruction *ThenTI = IfTerminator, *ElseTI = nullptr;
+      Builder.SetInsertPoint(IfTerminator);
+      SplitBlockAndInsertIfThenElse(IfCondition, IfTerminator, &ThenTI,
+                                    &ElseTI);
+      Builder.SetInsertPoint(ElseTI);
+      Function *TaskBeginFn =
+          getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_omp_task_begin_if0);
+      Function *TaskCompleteFn =
+          getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_omp_task_complete_if0);
+      Builder.CreateCall(TaskBeginFn, {Ident, ThreadID, NewTaskData});
+      if (HasTaskData)
+        Builder.CreateCall(WrapperFunc, {ThreadID, NewTaskData});
+      else
+        Builder.CreateCall(WrapperFunc, {ThreadID});
+      Builder.CreateCall(TaskCompleteFn, {Ident, ThreadID, NewTaskData});
+      Builder.SetInsertPoint(ThenTI);
+    }
+
+    if (Dependencies.size()) {
+      Function *TaskFn =
+          getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_omp_task_with_deps);
+      Builder.CreateCall(
+          TaskFn,
+          {Ident, ThreadID, NewTaskData, Builder.getInt32(Dependencies.size()),
+           DepArrayPtr, ConstantInt::get(Builder.getInt32Ty(), 0),
+           ConstantPointerNull::get(Type::getInt8PtrTy(M.getContext()))});
+
+    } else {
+      // Emit the @__kmpc_omp_task runtime call to spawn the task
+      Function *TaskFn = getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_omp_task);
+      Builder.CreateCall(TaskFn, {Ident, ThreadID, NewTaskData});
+    }
 
     StaleCI->eraseFromParent();
 
@@ -2293,7 +2389,7 @@ OpenMPIRBuilder::InsertPointTy OpenMPIRBuilder::applyWorkshareLoop(
   case OMPScheduleType::BaseRuntimeSimd:
     assert(!ChunkSize &&
            "schedule type does not support user-defined chunk sizes");
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case OMPScheduleType::BaseDynamicChunked:
   case OMPScheduleType::BaseGuidedChunked:
   case OMPScheduleType::BaseGuidedIterativeChunked:
@@ -2965,8 +3061,10 @@ void OpenMPIRBuilder::createIfVersion(CanonicalLoopInfo *CanonicalLoop,
   Builder.CreateBr(NewBlocks.front());
 }
 
-void OpenMPIRBuilder::applySimd(CanonicalLoopInfo *CanonicalLoop, Value *IfCond,
-                                ConstantInt *Simdlen) {
+void OpenMPIRBuilder::applySimd(CanonicalLoopInfo *CanonicalLoop,
+                                MapVector<Value *, Value *> AlignedVars,
+                                Value *IfCond, OrderKind Order,
+                                ConstantInt *Simdlen, ConstantInt *Safelen) {
   LLVMContext &Ctx = Builder.getContext();
 
   Function *F = CanonicalLoop->getFunction();
@@ -2984,6 +3082,17 @@ void OpenMPIRBuilder::applySimd(CanonicalLoopInfo *CanonicalLoop, Value *IfCond,
   LoopInfo &&LI = LIA.run(*F, FAM);
 
   Loop *L = LI.getLoopFor(CanonicalLoop->getHeader());
+  if (AlignedVars.size()) {
+    InsertPointTy IP = Builder.saveIP();
+    Builder.SetInsertPoint(CanonicalLoop->getPreheader()->getTerminator());
+    for (auto &AlignedItem : AlignedVars) {
+      Value *AlignedPtr = AlignedItem.first;
+      Value *Alignment = AlignedItem.second;
+      Builder.CreateAlignmentAssumption(F->getParent()->getDataLayout(),
+                                        AlignedPtr, Alignment);
+    }
+    Builder.restoreIP(IP);
+  }
 
   if (IfCond) {
     ValueToValueMapTy VMap;
@@ -3016,28 +3125,42 @@ void OpenMPIRBuilder::applySimd(CanonicalLoopInfo *CanonicalLoop, Value *IfCond,
     Reachable.insert(Block);
   }
 
-  // Add access group metadata to memory-access instructions.
-  MDNode *AccessGroup = MDNode::getDistinct(Ctx, {});
-  for (BasicBlock *BB : Reachable)
-    addSimdMetadata(BB, AccessGroup, LI);
+  SmallVector<Metadata *> LoopMDList;
+
+  // In presence of finite 'safelen', it may be unsafe to mark all
+  // the memory instructions parallel, because loop-carried
+  // dependences of 'safelen' iterations are possible.
+  // If clause order(concurrent) is specified then the memory instructions
+  // are marked parallel even if 'safelen' is finite.
+  if ((Safelen == nullptr) || (Order == OrderKind::OMP_ORDER_concurrent)) {
+    // Add access group metadata to memory-access instructions.
+    MDNode *AccessGroup = MDNode::getDistinct(Ctx, {});
+    for (BasicBlock *BB : Reachable)
+      addSimdMetadata(BB, AccessGroup, LI);
+    // TODO:  If the loop has existing parallel access metadata, have
+    // to combine two lists.
+    LoopMDList.push_back(MDNode::get(
+        Ctx, {MDString::get(Ctx, "llvm.loop.parallel_accesses"), AccessGroup}));
+  }
 
   // Use the above access group metadata to create loop level
   // metadata, which should be distinct for each loop.
   ConstantAsMetadata *BoolConst =
       ConstantAsMetadata::get(ConstantInt::getTrue(Type::getInt1Ty(Ctx)));
-  // TODO:  If the loop has existing parallel access metadata, have
-  // to combine two lists.
-  addLoopMetadata(
-      CanonicalLoop,
-      {MDNode::get(Ctx, {MDString::get(Ctx, "llvm.loop.parallel_accesses"),
-                         AccessGroup}),
-       MDNode::get(Ctx, {MDString::get(Ctx, "llvm.loop.vectorize.enable"),
-                         BoolConst})});
-  if (Simdlen != nullptr)
-    addLoopMetadata(
-        CanonicalLoop,
+  LoopMDList.push_back(MDNode::get(
+      Ctx, {MDString::get(Ctx, "llvm.loop.vectorize.enable"), BoolConst}));
+
+  if (Simdlen || Safelen) {
+    // If both simdlen and safelen clauses are specified, the value of the
+    // simdlen parameter must be less than or equal to the value of the safelen
+    // parameter. Therefore, use safelen only in the absence of simdlen.
+    ConstantInt *VectorizeWidth = Simdlen == nullptr ? Safelen : Simdlen;
+    LoopMDList.push_back(
         MDNode::get(Ctx, {MDString::get(Ctx, "llvm.loop.vectorize.width"),
-                          ConstantAsMetadata::get(Simdlen)}));
+                          ConstantAsMetadata::get(VectorizeWidth)}));
+  }
+
+  addLoopMetadata(CanonicalLoop, LoopMDList);
 }
 
 /// Create the TargetMachine object to query the backend for optimization
@@ -3199,7 +3322,7 @@ static int32_t computeHeuristicUnrollFactor(CanonicalLoopInfo *CLI) {
   unsigned TripMultiple = 0;
 
   bool UseUpperBound = false;
-  computeUnrollCount(L, TTI, DT, &LI, SE, EphValues, &ORE, TripCount,
+  computeUnrollCount(L, TTI, DT, &LI, &AC, SE, EphValues, &ORE, TripCount,
                      MaxTripCount, MaxOrZero, TripMultiple, LoopSize, UP, PP,
                      UseUpperBound);
   unsigned Factor = UP.Count;
@@ -3382,9 +3505,10 @@ OpenMPIRBuilder::createOrderedDepend(const LocationDescription &Loc,
                                      InsertPointTy AllocaIP, unsigned NumLoops,
                                      ArrayRef<llvm::Value *> StoreValues,
                                      const Twine &Name, bool IsDependSource) {
-  for (size_t I = 0; I < StoreValues.size(); I++)
-    assert(StoreValues[I]->getType()->isIntegerTy(64) &&
-           "OpenMP runtime requires depend vec with i64 type");
+  assert(
+      llvm::all_of(StoreValues,
+                   [](Value *SV) { return SV->getType()->isIntegerTy(64); }) &&
+      "OpenMP runtime requires depend vec with i64 type");
 
   if (!updateToLocation(Loc))
     return Loc.IP;
@@ -3932,6 +4056,64 @@ void OpenMPIRBuilder::emitMapperCall(const LocationDescription &Loc,
                      {SrcLocInfo, Builder.getInt64(DeviceID),
                       Builder.getInt32(NumOperands), ArgsBaseGEP, ArgsGEP,
                       ArgSizesGEP, MaptypesArg, MapnamesArg, NullPtr});
+}
+
+void OpenMPIRBuilder::emitOffloadingArraysArgument(IRBuilderBase &Builder,
+                                                   TargetDataRTArgs &RTArgs,
+                                                   TargetDataInfo &Info,
+                                                   bool EmitDebug,
+                                                   bool ForEndCall) {
+  assert((!ForEndCall || Info.separateBeginEndCalls()) &&
+         "expected region end call to runtime only when end call is separate");
+  auto VoidPtrTy = Type::getInt8PtrTy(M.getContext());
+  auto VoidPtrPtrTy = VoidPtrTy->getPointerTo(0);
+  auto Int64Ty = Type::getInt64Ty(M.getContext());
+  auto Int64PtrTy = Type::getInt64PtrTy(M.getContext());
+
+  if (!Info.NumberOfPtrs) {
+    RTArgs.BasePointersArray = ConstantPointerNull::get(VoidPtrPtrTy);
+    RTArgs.PointersArray = ConstantPointerNull::get(VoidPtrPtrTy);
+    RTArgs.SizesArray = ConstantPointerNull::get(Int64PtrTy);
+    RTArgs.MapTypesArray = ConstantPointerNull::get(Int64PtrTy);
+    RTArgs.MapNamesArray = ConstantPointerNull::get(VoidPtrPtrTy);
+    RTArgs.MappersArray = ConstantPointerNull::get(VoidPtrPtrTy);
+    return;
+  }
+
+  RTArgs.BasePointersArray = Builder.CreateConstInBoundsGEP2_32(
+      ArrayType::get(VoidPtrTy, Info.NumberOfPtrs),
+      Info.RTArgs.BasePointersArray,
+      /*Idx0=*/0, /*Idx1=*/0);
+  RTArgs.PointersArray = Builder.CreateConstInBoundsGEP2_32(
+      ArrayType::get(VoidPtrTy, Info.NumberOfPtrs), Info.RTArgs.PointersArray,
+      /*Idx0=*/0,
+      /*Idx1=*/0);
+  RTArgs.SizesArray = Builder.CreateConstInBoundsGEP2_32(
+      ArrayType::get(Int64Ty, Info.NumberOfPtrs), Info.RTArgs.SizesArray,
+      /*Idx0=*/0, /*Idx1=*/0);
+  RTArgs.MapTypesArray = Builder.CreateConstInBoundsGEP2_32(
+      ArrayType::get(Int64Ty, Info.NumberOfPtrs),
+      ForEndCall && Info.RTArgs.MapTypesArrayEnd ? Info.RTArgs.MapTypesArrayEnd
+                                                 : Info.RTArgs.MapTypesArray,
+      /*Idx0=*/0,
+      /*Idx1=*/0);
+
+  // Only emit the mapper information arrays if debug information is
+  // requested.
+  if (!EmitDebug)
+    RTArgs.MapNamesArray = ConstantPointerNull::get(VoidPtrPtrTy);
+  else
+    RTArgs.MapNamesArray = Builder.CreateConstInBoundsGEP2_32(
+        ArrayType::get(VoidPtrTy, Info.NumberOfPtrs), Info.RTArgs.MapNamesArray,
+        /*Idx0=*/0,
+        /*Idx1=*/0);
+  // If there is no user-defined mapper, set the mapper array to nullptr to
+  // avoid an unnecessary data privatization
+  if (!Info.HasMapper)
+    RTArgs.MappersArray = ConstantPointerNull::get(VoidPtrPtrTy);
+  else
+    RTArgs.MappersArray =
+        Builder.CreatePointerCast(Info.RTArgs.MappersArray, VoidPtrPtrTy);
 }
 
 bool OpenMPIRBuilder::checkAndEmitFlushAfterAtomic(
@@ -4508,6 +4690,128 @@ void OpenMPIRBuilder::OutlineInfo::collectBlocks(
       if (BlockSet.insert(SuccBB).second)
         Worklist.push_back(SuccBB);
   }
+}
+
+void TargetRegionEntryInfo::getTargetRegionEntryFnName(
+    SmallVectorImpl<char> &Name, StringRef ParentName, unsigned DeviceID,
+    unsigned FileID, unsigned Line) {
+  raw_svector_ostream OS(Name);
+  OS << "__omp_offloading" << llvm::format("_%x", DeviceID)
+     << llvm::format("_%x_", FileID) << ParentName << "_l" << Line;
+}
+
+void TargetRegionEntryInfo::getTargetRegionEntryFnName(
+    SmallVectorImpl<char> &Name) {
+  getTargetRegionEntryFnName(Name, ParentName, DeviceID, FileID, Line);
+}
+
+bool OffloadEntriesInfoManager::empty() const {
+  return OffloadEntriesTargetRegion.empty() &&
+         OffloadEntriesDeviceGlobalVar.empty();
+}
+
+/// Initialize target region entry.
+void OffloadEntriesInfoManager::initializeTargetRegionEntryInfo(
+    const TargetRegionEntryInfo &EntryInfo, unsigned Order) {
+  OffloadEntriesTargetRegion[EntryInfo] =
+      OffloadEntryInfoTargetRegion(Order, /*Addr=*/nullptr, /*ID=*/nullptr,
+                                   OMPTargetRegionEntryTargetRegion);
+  ++OffloadingEntriesNum;
+}
+
+void OffloadEntriesInfoManager::registerTargetRegionEntryInfo(
+    const TargetRegionEntryInfo &EntryInfo, Constant *Addr, Constant *ID,
+    OMPTargetRegionEntryKind Flags, bool IsDevice) {
+  // If we are emitting code for a target, the entry is already initialized,
+  // only has to be registered.
+  if (IsDevice) {
+    // This could happen if the device compilation is invoked standalone.
+    if (!hasTargetRegionEntryInfo(EntryInfo)) {
+      return;
+    }
+    auto &Entry = OffloadEntriesTargetRegion[EntryInfo];
+    Entry.setAddress(Addr);
+    Entry.setID(ID);
+    Entry.setFlags(Flags);
+  } else {
+    if (Flags == OffloadEntriesInfoManager::OMPTargetRegionEntryTargetRegion &&
+        hasTargetRegionEntryInfo(EntryInfo, /*IgnoreAddressId*/ true))
+      return;
+    assert(!hasTargetRegionEntryInfo(EntryInfo) &&
+           "Target region entry already registered!");
+    OffloadEntryInfoTargetRegion Entry(OffloadingEntriesNum, Addr, ID, Flags);
+    OffloadEntriesTargetRegion[EntryInfo] = Entry;
+    ++OffloadingEntriesNum;
+  }
+}
+
+bool OffloadEntriesInfoManager::hasTargetRegionEntryInfo(
+    const TargetRegionEntryInfo &EntryInfo, bool IgnoreAddressId) const {
+  auto It = OffloadEntriesTargetRegion.find(EntryInfo);
+  if (It == OffloadEntriesTargetRegion.end()) {
+    return false;
+  }
+  // Fail if this entry is already registered.
+  if (!IgnoreAddressId && (It->second.getAddress() || It->second.getID()))
+    return false;
+  return true;
+}
+
+void OffloadEntriesInfoManager::actOnTargetRegionEntriesInfo(
+    const OffloadTargetRegionEntryInfoActTy &Action) {
+  // Scan all target region entries and perform the provided action.
+  for (const auto &It : OffloadEntriesTargetRegion) {
+    Action(It.first, It.second);
+  }
+}
+
+void OffloadEntriesInfoManager::initializeDeviceGlobalVarEntryInfo(
+    StringRef Name, OMPTargetGlobalVarEntryKind Flags, unsigned Order) {
+  OffloadEntriesDeviceGlobalVar.try_emplace(Name, Order, Flags);
+  ++OffloadingEntriesNum;
+}
+
+void OffloadEntriesInfoManager::registerDeviceGlobalVarEntryInfo(
+    StringRef VarName, Constant *Addr, int64_t VarSize,
+    OMPTargetGlobalVarEntryKind Flags, GlobalValue::LinkageTypes Linkage,
+    bool IsDevice) {
+  if (IsDevice) {
+    // This could happen if the device compilation is invoked standalone.
+    if (!hasDeviceGlobalVarEntryInfo(VarName))
+      return;
+    auto &Entry = OffloadEntriesDeviceGlobalVar[VarName];
+    if (Entry.getAddress() && hasDeviceGlobalVarEntryInfo(VarName)) {
+      if (Entry.getVarSize() == 0) {
+        Entry.setVarSize(VarSize);
+        Entry.setLinkage(Linkage);
+      }
+      return;
+    }
+    Entry.setVarSize(VarSize);
+    Entry.setLinkage(Linkage);
+    Entry.setAddress(Addr);
+  } else {
+    if (hasDeviceGlobalVarEntryInfo(VarName)) {
+      auto &Entry = OffloadEntriesDeviceGlobalVar[VarName];
+      assert(Entry.isValid() && Entry.getFlags() == Flags &&
+             "Entry not initialized!");
+      if (Entry.getVarSize() == 0) {
+        Entry.setVarSize(VarSize);
+        Entry.setLinkage(Linkage);
+      }
+      return;
+    }
+    OffloadEntriesDeviceGlobalVar.try_emplace(VarName, OffloadingEntriesNum,
+                                              Addr, VarSize, Flags, Linkage);
+    ++OffloadingEntriesNum;
+  }
+}
+
+void OffloadEntriesInfoManager::actOnDeviceGlobalVarEntriesInfo(
+    const OffloadDeviceGlobalVarEntryInfoActTy &Action) {
+  // Scan all target region entries and perform the provided action.
+  for (const auto &E : OffloadEntriesDeviceGlobalVar)
+    Action(E.getKey(), E.getValue());
 }
 
 void CanonicalLoopInfo::collectControlBlocks(

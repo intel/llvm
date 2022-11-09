@@ -608,6 +608,10 @@ public: // Part of public interface to class.
   /// The precise value of "interesting" is determined for the purposes of
   /// RegionStore's internal analysis. It must always contain all regions and
   /// symbols, but may omit constants and other kinds of SVal.
+  ///
+  /// In contrast to compound values, LazyCompoundVals are also added
+  /// to the 'interesting values' list in addition to the child interesting
+  /// values.
   const SValListTy &getInterestingValues(nonloc::LazyCompoundVal LCV);
 
   //===------------------------------------------------------------------===//
@@ -1032,12 +1036,11 @@ void InvalidateRegionsWorker::VisitBinding(SVal V) {
   if (Optional<nonloc::LazyCompoundVal> LCS =
           V.getAs<nonloc::LazyCompoundVal>()) {
 
-    const RegionStoreManager::SValListTy &Vals = RM.getInterestingValues(*LCS);
-
-    for (RegionStoreManager::SValListTy::const_iterator I = Vals.begin(),
-                                                        E = Vals.end();
-         I != E; ++I)
-      VisitBinding(*I);
+    // `getInterestingValues()` returns SVals contained within LazyCompoundVals,
+    // so there is no need to visit them.
+    for (SVal V : RM.getInterestingValues(*LCS))
+      if (!isa<nonloc::LazyCompoundVal>(V))
+        VisitBinding(V);
 
     return;
   }
@@ -1290,15 +1293,10 @@ void RegionStoreManager::populateWorkList(InvalidateRegionsWorker &W,
     if (Optional<nonloc::LazyCompoundVal> LCS =
         V.getAs<nonloc::LazyCompoundVal>()) {
 
-      const SValListTy &Vals = getInterestingValues(*LCS);
-
-      for (SValListTy::const_iterator I = Vals.begin(),
-                                      E = Vals.end(); I != E; ++I) {
-        // Note: the last argument is false here because these are
-        // non-top-level regions.
-        if (const MemRegion *R = (*I).getAsRegion())
+      for (SVal S : getInterestingValues(*LCS))
+        if (const MemRegion *R = S.getAsRegion())
           W.AddToWorkList(R);
-      }
+
       continue;
     }
 
@@ -1354,11 +1352,11 @@ RegionStoreManager::invalidateRegions(Store store,
   case GFK_All:
     B = invalidateGlobalRegion(MemRegion::GlobalInternalSpaceRegionKind,
                                Ex, Count, LCtx, B, Invalidated);
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case GFK_SystemOnly:
     B = invalidateGlobalRegion(MemRegion::GlobalSystemSpaceRegionKind,
                                Ex, Count, LCtx, B, Invalidated);
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case GFK_None:
     break;
   }
@@ -1421,7 +1419,7 @@ SVal RegionStoreManager::getBinding(RegionBindingsConstRef B, Loc L, QualType T)
       if (const TypedRegion *TR = dyn_cast<TypedRegion>(MR))
         T = TR->getLocationType()->getPointeeType();
       else if (const SymbolicRegion *SR = dyn_cast<SymbolicRegion>(MR))
-        T = SR->getSymbol()->getType()->getPointeeType();
+        T = SR->getPointeeStaticType();
     }
     assert(!T.isNull() && "Unable to auto-detect binding type!");
     assert(!T->isVoidType() && "Attempting to dereference a void pointer!");
@@ -2283,11 +2281,9 @@ RegionStoreManager::getInterestingValues(nonloc::LazyCompoundVal LCV) {
     if (V.isUnknownOrUndef() || V.isConstant())
       continue;
 
-    if (Optional<nonloc::LazyCompoundVal> InnerLCV =
-            V.getAs<nonloc::LazyCompoundVal>()) {
+    if (auto InnerLCV = V.getAs<nonloc::LazyCompoundVal>()) {
       const SValListTy &InnerList = getInterestingValues(*InnerLCV);
       List.insert(List.end(), InnerList.begin(), InnerList.end());
-      continue;
     }
 
     List.push_back(V);
@@ -2390,22 +2386,21 @@ RegionStoreManager::bind(RegionBindingsConstRef B, Loc L, SVal V) {
       return bindAggregate(B, TR, V);
   }
 
-  if (const SymbolicRegion *SR = dyn_cast<SymbolicRegion>(R)) {
-    // Binding directly to a symbolic region should be treated as binding
-    // to element 0.
-    QualType T = SR->getSymbol()->getType();
-    if (T->isAnyPointerType() || T->isReferenceType())
-      T = T->getPointeeType();
-
-    R = GetElementZeroRegion(SR, T);
-  }
+  // Binding directly to a symbolic region should be treated as binding
+  // to element 0.
+  if (const SymbolicRegion *SR = dyn_cast<SymbolicRegion>(R))
+    R = GetElementZeroRegion(SR, SR->getPointeeStaticType());
 
   assert((!isa<CXXThisRegion>(R) || !B.lookup(R)) &&
          "'this' pointer is not an l-value and is not assignable");
 
   // Clear out bindings that may overlap with this binding.
   RegionBindingsRef NewB = removeSubRegionBindings(B, cast<SubRegion>(R));
-  return NewB.addBinding(BindingKey::Make(R, BindingKey::Direct), V);
+
+  // LazyCompoundVals should be always bound as 'default' bindings.
+  auto KeyKind = isa<nonloc::LazyCompoundVal>(V) ? BindingKey::Default
+                                                 : BindingKey::Direct;
+  return NewB.addBinding(BindingKey::Make(R, KeyKind), V);
 }
 
 RegionBindingsRef
@@ -2594,6 +2589,12 @@ RegionStoreManager::tryBindSmallStruct(RegionBindingsConstRef B,
       return None;
 
     QualType Ty = FD->getType();
+
+    // Zero length arrays are basically no-ops, so we also ignore them here.
+    if (Ty->isConstantArrayType() &&
+        Ctx.getConstantArrayElementCount(Ctx.getAsConstantArrayType(Ty)) == 0)
+      continue;
+
     if (!(Ty->isScalarType() || Ty->isReferenceType()))
       return None;
 
@@ -2830,16 +2831,17 @@ void RemoveDeadBindingsWorker::VisitCluster(const MemRegion *baseR,
 }
 
 void RemoveDeadBindingsWorker::VisitBinding(SVal V) {
-  // Is it a LazyCompoundVal?  All referenced regions are live as well.
-  if (Optional<nonloc::LazyCompoundVal> LCS =
-          V.getAs<nonloc::LazyCompoundVal>()) {
+  // Is it a LazyCompoundVal? All referenced regions are live as well.
+  // The LazyCompoundVal itself is not live but should be readable.
+  if (auto LCS = V.getAs<nonloc::LazyCompoundVal>()) {
+    SymReaper.markLazilyCopied(LCS->getRegion());
 
-    const RegionStoreManager::SValListTy &Vals = RM.getInterestingValues(*LCS);
-
-    for (RegionStoreManager::SValListTy::const_iterator I = Vals.begin(),
-                                                        E = Vals.end();
-         I != E; ++I)
-      VisitBinding(*I);
+    for (SVal V : RM.getInterestingValues(*LCS)) {
+      if (auto DepLCS = V.getAs<nonloc::LazyCompoundVal>())
+        SymReaper.markLazilyCopied(DepLCS->getRegion());
+      else
+        VisitBinding(V);
+    }
 
     return;
   }

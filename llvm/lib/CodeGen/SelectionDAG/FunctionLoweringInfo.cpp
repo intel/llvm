@@ -270,7 +270,7 @@ void FunctionLoweringInfo::set(const Function &fn, MachineFunction &mf,
     // be multiple MachineBasicBlocks corresponding to one BasicBlock, and only
     // the first one should be marked.
     if (BB.hasAddressTaken())
-      MBB->setHasAddressTaken();
+      MBB->setAddressTakenIRBlock(const_cast<BasicBlock *>(&BB));
 
     // Mark landing pad blocks.
     if (BB.isEHPad())
@@ -451,7 +451,7 @@ void FunctionLoweringInfo::ComputePHILiveOutRegInfo(const PHINode *PN) {
 
   Register DestReg = It->second;
   if (DestReg == 0)
-    return
+    return;
   assert(Register::isVirtualRegister(DestReg) && "Expected a virtual reg");
   LiveOutRegInfo.grow(DestReg);
   LiveOutInfo &DestLOI = LiveOutRegInfo[DestReg];

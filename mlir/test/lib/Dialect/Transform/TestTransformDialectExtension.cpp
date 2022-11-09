@@ -17,6 +17,8 @@
 #include "mlir/Dialect/Transform/IR/TransformDialect.h"
 #include "mlir/Dialect/Transform/IR/TransformInterfaces.h"
 #include "mlir/IR/OpImplementation.h"
+#include "llvm/ADT/TypeSwitch.h"
+#include "llvm/Support/Compiler.h"
 
 using namespace mlir;
 
@@ -52,12 +54,12 @@ public:
   static ParseResult parse(OpAsmParser &parser, OperationState &state) {
     StringAttr message;
     OptionalParseResult result = parser.parseOptionalAttribute(message);
-    if (!result.hasValue())
+    if (!result.has_value())
       return success();
 
-    if (result.getValue().succeeded())
+    if (result.value().succeeded())
       state.addAttribute("message", message);
-    return result.getValue();
+    return result.value();
   }
 
   void print(OpAsmPrinter &printer) {
@@ -171,9 +173,13 @@ mlir::test::TestCheckIfTestExtensionPresentOp::apply(
                             << "extension present, " << extension->getMessage();
   for (Operation *payload : state.getPayloadOps(getOperand())) {
     diag.attachNote(payload->getLoc()) << "associated payload op";
-    assert(state.getHandleForPayloadOp(payload) == getOperand() &&
+#ifndef NDEBUG
+    SmallVector<Value> handles;
+    assert(succeeded(state.getHandlesForPayloadOp(payload, handles)));
+    assert(llvm::is_contained(handles, getOperand()) &&
            "inconsistent mapping between transform IR handles and payload IR "
            "operations");
+#endif // NDEBUG
   }
 
   return DiagnosedSilenceableFailure::success();
@@ -182,10 +188,8 @@ mlir::test::TestCheckIfTestExtensionPresentOp::apply(
 DiagnosedSilenceableFailure mlir::test::TestRemapOperandPayloadToSelfOp::apply(
     transform::TransformResults &results, transform::TransformState &state) {
   auto *extension = state.getExtension<TestTransformStateExtension>();
-  if (!extension) {
-    emitError() << "TestTransformStateExtension missing";
-    return DiagnosedSilenceableFailure::definiteFailure();
-  }
+  if (!extension)
+    return emitDefiniteFailure("TestTransformStateExtension missing");
 
   if (failed(extension->updateMapping(state.getPayloadOps(getOperand()).front(),
                                       getOperation())))
@@ -232,7 +236,7 @@ DiagnosedSilenceableFailure mlir::test::TestEmitRemarkAndEraseOperandOp::apply(
     op->erase();
 
   if (getFailAfterErase())
-    return emitSilenceableError() << "silencable error";
+    return emitSilenceableError() << "silenceable error";
   return DiagnosedSilenceableFailure::success();
 }
 
@@ -288,6 +292,8 @@ mlir::test::TestMixedSuccessAndSilenceableOp::applyToOne(
 DiagnosedSilenceableFailure
 mlir::test::TestPrintNumberOfAssociatedPayloadIROps::apply(
     transform::TransformResults &results, transform::TransformState &state) {
+  if (!getHandle())
+    emitRemark() << 0;
   emitRemark() << state.getPayloadOps(getHandle()).size();
   return DiagnosedSilenceableFailure::success();
 }
@@ -295,6 +301,49 @@ mlir::test::TestPrintNumberOfAssociatedPayloadIROps::apply(
 void mlir::test::TestPrintNumberOfAssociatedPayloadIROps::getEffects(
     SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
   transform::onlyReadsHandle(getHandle(), effects);
+}
+
+DiagnosedSilenceableFailure
+mlir::test::TestCopyPayloadOp::apply(transform::TransformResults &results,
+                                     transform::TransformState &state) {
+  results.set(getCopy().cast<OpResult>(), state.getPayloadOps(getHandle()));
+  return DiagnosedSilenceableFailure::success();
+}
+
+DiagnosedSilenceableFailure mlir::transform::TestDialectOpType::checkPayload(
+    Location loc, ArrayRef<Operation *> payload) const {
+  if (payload.empty())
+    return DiagnosedSilenceableFailure::success();
+
+  for (Operation *op : payload) {
+    if (op->getName().getDialectNamespace() != "test") {
+      Diagnostic diag(loc, DiagnosticSeverity::Error);
+      diag << "expected the payload operation to belong to the 'test' dialect";
+      return DiagnosedSilenceableFailure::silenceableFailure(std::move(diag));
+    }
+  }
+
+  return DiagnosedSilenceableFailure::success();
+}
+
+void mlir::test::TestReportNumberOfTrackedHandlesNestedUnder::getEffects(
+    SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+  transform::onlyReadsHandle(getTarget(), effects);
+}
+
+DiagnosedSilenceableFailure
+mlir::test::TestReportNumberOfTrackedHandlesNestedUnder::apply(
+    transform::TransformResults &results, transform::TransformState &state) {
+  int64_t count = 0;
+  for (Operation *op : state.getPayloadOps(getTarget())) {
+    op->walk([&](Operation *nested) {
+      SmallVector<Value> handles;
+      (void)state.getHandlesForPayloadOp(nested, handles);
+      count += handles.size();
+    });
+  }
+  emitRemark() << count << " handles nested under";
+  return DiagnosedSilenceableFailure::success();
 }
 
 namespace {
@@ -314,12 +363,26 @@ public:
 #define GET_OP_LIST
 #include "TestTransformDialectExtension.cpp.inc"
                          >();
+    registerTypes<
+#define GET_TYPEDEF_LIST
+#include "TestTransformDialectExtensionTypes.cpp.inc"
+        >();
   }
 };
 } // namespace
 
 #define GET_OP_CLASSES
 #include "TestTransformDialectExtension.cpp.inc"
+
+// These are automatically generated by ODS but are not used as the Transform
+// dialect uses a different dispatch mechanism to support dialect extensions.
+LLVM_ATTRIBUTE_UNUSED static OptionalParseResult
+generatedTypeParser(AsmParser &parser, StringRef *mnemonic, Type &value);
+LLVM_ATTRIBUTE_UNUSED static LogicalResult
+generatedTypePrinter(Type def, AsmPrinter &printer);
+
+#define GET_TYPEDEF_CLASSES
+#include "TestTransformDialectExtensionTypes.cpp.inc"
 
 void ::test::registerTestTransformDialectExtension(DialectRegistry &registry) {
   registry.addExtensions<TestTransformDialectExtension>();

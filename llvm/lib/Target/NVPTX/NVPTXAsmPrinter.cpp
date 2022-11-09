@@ -895,18 +895,17 @@ bool NVPTXAsmPrinter::doFinalization(Module &M) {
 
   clearAnnotationCache(&M);
 
-  if (auto *TS = static_cast<NVPTXTargetStreamer *>(
-          OutStreamer->getTargetStreamer())) {
-    // Close the last emitted section
-    if (HasDebugInfo) {
-      TS->closeLastSection();
-      // Emit empty .debug_loc section for better support of the empty files.
-      OutStreamer->emitRawText("\t.section\t.debug_loc\t{\t}");
-    }
-
-    // Output last DWARF .file directives, if any.
-    TS->outputDwarfFileDirectives();
+  auto *TS =
+      static_cast<NVPTXTargetStreamer *>(OutStreamer->getTargetStreamer());
+  // Close the last emitted section
+  if (HasDebugInfo) {
+    TS->closeLastSection();
+    // Emit empty .debug_loc section for better support of the empty files.
+    OutStreamer->emitRawText("\t.section\t.debug_loc\t{\t}");
   }
+
+  // Output last DWARF .file directives, if any.
+  TS->outputDwarfFileDirectives();
 
   return ret;
 
@@ -1780,25 +1779,9 @@ void NVPTXAsmPrinter::printScalarConstant(const Constant *CPV, raw_ostream &O) {
     return;
   }
   if (const ConstantExpr *Cexpr = dyn_cast<ConstantExpr>(CPV)) {
-    const Value *v = Cexpr->stripPointerCasts();
-    PointerType *PTy = dyn_cast<PointerType>(Cexpr->getType());
-    bool IsNonGenericPointer = false;
-    if (PTy && PTy->getAddressSpace() != 0) {
-      IsNonGenericPointer = true;
-    }
-    if (const GlobalValue *GVar = dyn_cast<GlobalValue>(v)) {
-      if (EmitGeneric && !isa<Function>(v) && !IsNonGenericPointer) {
-        O << "generic(";
-        getSymbol(GVar)->print(O, MAI);
-        O << ")";
-      } else {
-        getSymbol(GVar)->print(O, MAI);
-      }
-      return;
-    } else {
-      lowerConstant(CPV)->print(O, MAI);
-      return;
-    }
+    const MCExpr *E = lowerConstantForGV(cast<Constant>(Cexpr), false);
+    printMCExpr(*E, O);
+    return;
   }
   llvm_unreachable("Not scalar type found in printScalarConstant()");
 }
@@ -1847,6 +1830,7 @@ void NVPTXAsmPrinter::bufferLEByte(const Constant *CPV, int Bytes,
     break;
 
   case Type::HalfTyID:
+  case Type::BFloatTyID:
   case Type::FloatTyID:
   case Type::DoubleTyID:
     AddIntToBuffer(cast<ConstantFP>(CPV)->getValueAPF().bitcastToAPInt());
@@ -2017,7 +2001,7 @@ NVPTXAsmPrinter::lowerConstantForGV(const Constant *CV, bool ProcessingGeneric) 
     // expression properly.  This is important for differences between
     // blockaddress labels.  Since the two labels are in the same function, it
     // is reasonable to treat their delta as a 32-bit value.
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case Instruction::BitCast:
     return lowerConstantForGV(CE->getOperand(0), ProcessingGeneric);
 

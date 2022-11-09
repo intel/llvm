@@ -1,3 +1,5 @@
+// The test marked as XFAIL as a specific one to the old OpenMP offloading model, which was removed.
+// XFAIL: *
 // REQUIRES: system-linux
 // REQUIRES: x86-registered-target
 // REQUIRES: amdgpu-registered-target

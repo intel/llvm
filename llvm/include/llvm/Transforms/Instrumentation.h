@@ -123,10 +123,6 @@ struct InstrProfOptions {
   InstrProfOptions() = default;
 };
 
-// Insert DataFlowSanitizer (dynamic data flow analysis) instrumentation
-ModulePass *createDataFlowSanitizerLegacyPassPass(
-    const std::vector<std::string> &ABIListFiles = std::vector<std::string>());
-
 // Options for sanitizer coverage instrumentation.
 struct SanitizerCoverageOptions {
   enum Type {
@@ -150,8 +146,16 @@ struct SanitizerCoverageOptions {
   bool StackDepth = false;
   bool TraceLoads = false;
   bool TraceStores = false;
+  bool CollectControlFlow = false;
 
   SanitizerCoverageOptions() = default;
+};
+
+/// Options for SanitizerBinaryMetadata.
+struct SanitizerBinaryMetadataOptions {
+  bool Covered = false;
+  bool Atomics = false;
+  SanitizerBinaryMetadataOptions() = default;
 };
 
 /// Calculate what to divide by to scale counts.

@@ -46,16 +46,21 @@ static const char *LegalSYCLFunctions[] = {
     "^sycl::_V1::sin<.+>",
     "^sycl::_V1::log<.+>",
     "^sycl::_V1::exp<.+>",
+    "^sycl::_V1::bit_cast<.+>",
     "^sycl::_V1::operator.+<.+>",
+    "^sycl::_V1::ext::intel::experimental::set_kernel_properties",
     "^sycl::_V1::ext::oneapi::sub_group::.+",
     "^sycl::_V1::ext::oneapi::experimental::spec_constant<.+>::.+",
-    "^sycl::_V1::ext::oneapi::experimental::this_sub_group"};
+    "^sycl::_V1::ext::oneapi::experimental::this_sub_group",
+    "^sycl::_V1::ext::oneapi::experimental::bfloat16::.+"};
 
 static const char *LegalSYCLFunctionsInStatelessMode[] = {
-    "^sycl::_V1::multi_ptr<.+>::get", "^sycl::_V1::multi_ptr<.+>::multi_ptr",
+    "^sycl::_V1::multi_ptr<.+>::get",
+    "^sycl::_V1::multi_ptr<.+>::multi_ptr",
     "^sycl::_V1::accessor<.+>::get_pointer.+",
     "^sycl::_V1::accessor<.+>::getPointerAdjusted",
-    "^sycl::_V1::accessor<.+>::getQualifiedPtr"};
+    "^sycl::_V1::accessor<.+>::getQualifiedPtr",
+    "^sycl::_V1::accessor<.+>::getTotalOffset"};
 
 namespace {
 

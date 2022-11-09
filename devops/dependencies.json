@@ -1,15 +1,15 @@
 {
   "linux": {
     "compute_runtime": {
-      "github_tag": "22.31.23852",
-      "version": "22.31.23852",
-      "url": "https://github.com/intel/compute-runtime/releases/tag/22.31.23852",
+      "github_tag": "22.38.24278",
+      "version": "22.38.24278",
+      "url": "https://github.com/intel/compute-runtime/releases/tag/22.38.24278",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "igc": {
-      "github_tag": "igc-1.0.11485",
-      "version": "1.0.11485",
-      "url": "https://github.com/intel/intel-graphics-compiler/releases/tag/igc-1.0.11485",
+      "github_tag": "igc-1.0.12149.1",
+      "version": "1.0.12149.1",
+      "url": "https://github.com/intel/intel-graphics-compiler/releases/tag/igc-1.0.12149.1",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "cm": {
