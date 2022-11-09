@@ -55,23 +55,29 @@ bool sameDev(const DeviceImplPtr &LHS, const DeviceImplPtr &RHS) {
   return LHSroot == RHSroot;
 }
 
-memory_connection getMemoryConnection(const DeviceImplPtr &Dev1, const ContextImplPtr &Ctx1, const DeviceImplPtr &Dev2, const ContextImplPtr &Ctx2){
-  if(sameCtx(Ctx1, Ctx2) && sameDev(Dev1, Dev2)){
-    return MEMORY_CONNECTION_SAME_OR_PLUGIN_MANAGED;
+pi_memory_connection getMemoryConnection(const DeviceImplPtr &Dev1,
+                                         const ContextImplPtr &Ctx1,
+                                         const DeviceImplPtr &Dev2,
+                                         const ContextImplPtr &Ctx2) {
+  if ((sameCtx(Ctx1, Ctx2) && sameDev(Dev1, Dev2)) ||
+      (Dev1->MIsHostDevice && Dev2->MIsHostDevice)) {
+    return PI_MEMORY_CONNECTION_UNIFIED;
   }
-  if(Dev1->MIsHostDevice && Dev2->MIsHostDevice){
-    return MEMORY_CONNECTION_SAME_OR_PLUGIN_MANAGED;
+
+  if (Dev1->MIsHostDevice ^ Dev2->MIsHostDevice) {
+    return PI_MEMORY_CONNECTION_NONE;
   }
-  if(Dev1->MIsHostDevice ^ Dev2->MIsHostDevice){
-    return MEMORY_CONNECTION_NONE;
-  }
+
   auto plugin1 = Dev1->getPlugin();
   auto plugin2 = Dev2->getPlugin();
-  if(plugin1.getBackend() != plugin2.getBackend()){
-    return MEMORY_CONNECTION_NONE;
+
+  if (plugin1.getBackend() != plugin2.getBackend()) {
+    return PI_MEMORY_CONNECTION_NONE;
   }
-  memory_connection conn;
-  plugin1.call<PiApiKind::piextGetMemoryConnection>(Dev1->MDevice, Ctx1->MContext, Dev2->MDevice, Ctx2->MContext, &conn);
+
+  _pi_memory_connection conn;
+  plugin1.call<PiApiKind::piextGetMemoryConnection>(
+      Dev1->MDevice, Ctx1->MContext, Dev2->MDevice, Ctx2->MContext, &conn);
   return conn;
 }
 
@@ -374,10 +380,10 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(
     // current context, need to find a parent alloca command for it (it must be
     // there)
     auto IsSuitableAlloca = [Record](AllocaCommandBase *AllocaCmd) {
-      bool Res = getMemoryConnection(AllocaCmd->getQueue()->getDeviceImplPtr(), 
-                                AllocaCmd->getQueue()->getContextImplPtr(), 
-                                Record->MCurDevice, 
-                                Record->MCurContext) == MEMORY_CONNECTION_SAME_OR_PLUGIN_MANAGED &&
+      bool Res = getMemoryConnection(AllocaCmd->getQueue()->getDeviceImplPtr(),
+                                     AllocaCmd->getQueue()->getContextImplPtr(),
+                                     Record->MCurDevice, Record->MCurContext) ==
+                     PI_MEMORY_CONNECTION_UNIFIED &&
                  // Looking for a parent buffer alloca command
                  AllocaCmd->getType() == Command::CommandType::ALLOCA;
       return Res;
@@ -626,7 +632,11 @@ std::set<Command *> Scheduler::GraphBuilder::findDepsForReq(
 
       // Going through copying memory between devices is not supported.
       if (Dep.MDepCommand)
-        CanBypassDep &= getMemoryConnection(Device, Context, Dep.MDepCommand->getQueue()->getDeviceImplPtr(), Dep.MDepCommand->getQueue()->getContextImplPtr()) == MEMORY_CONNECTION_SAME_OR_PLUGIN_MANAGED;
+        CanBypassDep &= getMemoryConnection(
+                            Device, Context,
+                            Dep.MDepCommand->getQueue()->getDeviceImplPtr(),
+                            Dep.MDepCommand->getQueue()->getContextImplPtr()) ==
+                        PI_MEMORY_CONNECTION_UNIFIED;
 
       if (!CanBypassDep) {
         RetDeps.insert(DepCmd);
@@ -666,7 +676,9 @@ AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
   auto IsSuitableAlloca = [&Device, &Context, Req,
                            AllowConst](AllocaCommandBase *AllocaCmd) {
     auto &Queue = AllocaCmd->getQueue();
-    bool Res = getMemoryConnection(Queue->getDeviceImplPtr(), Queue->getContextImplPtr(), Device, Context) == MEMORY_CONNECTION_SAME_OR_PLUGIN_MANAGED;
+    bool Res = getMemoryConnection(Queue->getDeviceImplPtr(),
+                                   Queue->getContextImplPtr(), Device,
+                                   Context) == PI_MEMORY_CONNECTION_UNIFIED;
     if (IsSuitableSubReq(Req)) {
       const Requirement *TmpReq = AllocaCmd->getRequirement();
       Res &= AllocaCmd->getType() == Command::CommandType::ALLOCA_SUB_BUF;
@@ -979,7 +991,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
     MemObjRecord *Record = nullptr;
     AllocaCommandBase *AllocaCmd = nullptr;
 
-    bool needToCopyMemory = true;
+    pi_memory_connection memoryConnection = PI_MEMORY_CONNECTION_NONE;
 
     {
       const QueueImplPtr &QueueForAlloca =
@@ -993,12 +1005,15 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
       AllocaCmd =
           getOrCreateAllocaForReq(Record, Req, QueueForAlloca, ToEnqueue);
 
-      needToCopyMemory = getMemoryConnection(QueueForAlloca->getDeviceImplPtr(), QueueForAlloca->getContextImplPtr(), Record->MCurDevice, Record->MCurContext) != MEMORY_CONNECTION_SAME_OR_PLUGIN_MANAGED;
+      memoryConnection =
+          getMemoryConnection(QueueForAlloca->getDeviceImplPtr(),
+                              QueueForAlloca->getContextImplPtr(),
+                              Record->MCurDevice, Record->MCurContext);
     }
 
     // If there is alloca command we need to check if the latest memory is in
     // required context.
-    if (!needToCopyMemory) {
+    if (memoryConnection == PI_MEMORY_CONNECTION_UNIFIED) {
       // If the memory is already in the required host context, check if the
       // required access mode is valid, remap if not.
       if (Record->MCurContext->is_host() &&
@@ -1007,14 +1022,17 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
     } else {
       // Cannot directly copy memory from OpenCL device to OpenCL device -
       // create two copies: device->host and host->device.
-      bool NeedMemMoveToHost = false;
+      bool NeedMemMoveToHost = memoryConnection == PI_MEMORY_CONNECTION_NONE;
       auto MemMoveTargetQueue = Queue;
 
       if (isInteropHostTask(NewCmd)) {
         const detail::CGHostTask &HT =
             static_cast<detail::CGHostTask &>(NewCmd->getCG());
 
-        if (getMemoryConnection(HT.MQueue->getDeviceImplPtr(), HT.MQueue->getContextImplPtr(), Record->MCurDevice, Record->MCurContext) != MEMORY_CONNECTION_SAME_OR_PLUGIN_MANAGED) {
+        if (getMemoryConnection(HT.MQueue->getDeviceImplPtr(),
+                                HT.MQueue->getContextImplPtr(),
+                                Record->MCurDevice, Record->MCurContext) !=
+            PI_MEMORY_CONNECTION_UNIFIED) {
           NeedMemMoveToHost = true;
           MemMoveTargetQueue = HT.MQueue;
         }

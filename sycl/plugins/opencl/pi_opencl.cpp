@@ -1501,13 +1501,17 @@ pi_result piextKernelGetNativeHandle(pi_kernel kernel,
   return piextGetNativeHandle(kernel, nativeHandle);
 }
 
-__SYCL_EXPORT pi_result piextGetMemoryConnection(pi_device device1, pi_context context1, pi_device device2, pi_context context2, memory_connection* res){
-  (void) device1;
-  (void) device2;
-  if(context1 == context2){
-    *res = MEMORY_CONNECTION_SAME_OR_PLUGIN_MANAGED;
-  } else{
-    *res = MEMORY_CONNECTION_NONE;
+__SYCL_EXPORT pi_result piextGetMemoryConnection(pi_device device1,
+                                                 pi_context context1,
+                                                 pi_device device2,
+                                                 pi_context context2,
+                                                 _pi_memory_connection *res) {
+  (void)device1;
+  (void)device2;
+  if (context1 == context2) {
+    *res = PI_MEMORY_CONNECTION_UNIFIED;
+  } else {
+    *res = PI_MEMORY_CONNECTION_NONE;
   }
   return PI_SUCCESS;
 }

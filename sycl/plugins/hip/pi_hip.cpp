@@ -5104,12 +5104,14 @@ pi_result hip_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
   return result;
 }
 
-__SYCL_EXPORT pi_result hip_piextGetMemoryConnection(pi_device device1, pi_context context1, pi_device device2, pi_context context2, memory_connection* res){
-  (void) device1;
-  (void) context1;
-  (void) device2;
-  (void) context2;
-  *res = MEMORY_CONNECTION_NONE;
+__SYCL_EXPORT pi_result hip_piextGetMemoryConnection(
+    pi_device device1, pi_context context1, pi_device device2,
+    pi_context context2, _pi_memory_connection *res) {
+  (void)device1;
+  (void)context1;
+  (void)device2;
+  (void)context2;
+  *res = PI_MEMORY_CONNECTION_MIGRATABLE;
   return PI_SUCCESS;
 }
 

@@ -452,8 +452,8 @@ mock_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
 
 inline pi_result mock_piextGetMemoryConnection(pi_device dev1, pi_context ctx1,
                                                pi_device dev2, pi_context ctx2,
-                                               memory_connection *res) {
-  *res = MEMORY_CONNECTION_NONE;
+                                               pi_memory_connection *res) {
+  *res = PI_MEMORY_CONNECTION_NONE;
   return PI_SUCCESS;
 }
 
