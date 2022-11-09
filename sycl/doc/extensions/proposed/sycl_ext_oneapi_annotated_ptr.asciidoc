@@ -211,7 +211,7 @@ using namespace sycl::ext::oneapi::experimental;
   auto arg_a = annotated_ptr(ptr, properties{alignment<4>});
 
   // alignment in bytes and address bus width of the pointer specified using the
-  // property 'alignment' and 'awidth'.
+  // properties 'alignment' and 'awidth'.
   // a properties object is deducted from the list the of property values
   auto arg_b = annotated_ptr(ptr, alignment<4>, awidth<32>);
 
@@ -312,7 +312,7 @@ Constructs an `annotated_ptr` object. Does not allocate new storage. The
 underlying pointer is initialized with `Ptr`.
 
 The new property set `PropertyListT` contains all properties in `P`.
-If there were duplicate property in `P`, the value of this property must be same.
+If there are duplicate properties present in the property list of `P`, the values of the duplicate properties must be the same.
 
 // --- ROW BREAK ---
 a|
@@ -325,8 +325,8 @@ annotated_ptr(T *Ptr, const PropertyValueTs... props) noexcept;
 Constructs an `annotated_ptr` object. Does not allocate new storage. The
 underlying pointer is initialized with `Ptr`.
 
-The new property set `PropertyListT` contains all properties listed in `props`.
-If there were duplicate property in the list of `props`, the value of this property must be same.
+The new property set `PropertyListT` contains all properties in `P`.
+If there are duplicate properties present in the property list of `P`, the values of the duplicate properties must be the same.
 
 // --- ROW BREAK ---
 a|

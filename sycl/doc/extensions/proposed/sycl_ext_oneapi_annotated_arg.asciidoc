@@ -192,7 +192,7 @@ class annotated_arg {
     annotated_arg() noexcept;
     annotated_arg(const T& v_, const properties<PropertyListT> &P = properties{}) noexcept;
     template<typename T, typename... PropertyValueTs>
-    annotated_arg(T *Ptr, PropertyValueTs... props) noexcept;
+    annotated_arg(const T& v_, PropertyValueTs... props) noexcept;
 
     template <typename T2, typename P> explicit annotated_arg(
       const annotated_arg<T2, P>&) noexcept;
@@ -251,7 +251,7 @@ annotated_arg(const T& v_, const properties<PropertyListT> &P = properties{}) no
 Constructs an `annotated_arg` object from the input object `v_`.
 
 The new property set `PropertyListT` contains all properties in `P`.
-If there were duplicate property in `P`, the value of this property must be same.
+If there are duplicate properties present in the property list of `P`, the values of the duplicate properties must be the same.
 
 // --- ROW BREAK ---
 a|
@@ -263,8 +263,8 @@ annotated_arg(const T& v_, const PropertyValueTs... props) noexcept;
 |
 Constructs an `annotated_arg` object from the input object `v_`. 
 
-The new property set `PropertyListT` contains all properties listed in `props`.
-If there were duplicate property in the list of `props`, the value of this property must be same.
+The new property set `PropertyListT` contains all properties in `P`.
+If there are duplicate properties present in the property list of `P`, the values of the duplicate properties must be the same.
 
 // --- ROW BREAK ---
 a|
