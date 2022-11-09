@@ -126,46 +126,6 @@ private:
   }
 };
 
-template <> class SYCLConfig<SYCL_BE> {
-  using BaseT = SYCLConfigBase<SYCL_BE>;
-
-public:
-  static backend *get() {
-    static bool Initialized = false;
-    static backend *BackendPtr = nullptr;
-
-    // Configuration parameters are processed only once, like reading a string
-    // from environment and converting it into a typed object.
-    if (Initialized)
-      return BackendPtr;
-
-    const char *ValStr = BaseT::getRawValue();
-    const std::array<std::pair<std::string, backend>, 6> SyclBeMap = {
-        {{"PI_OPENCL", backend::opencl},
-         {"PI_LEVEL_ZERO", backend::ext_oneapi_level_zero},
-         {"PI_LEVEL0", backend::ext_oneapi_level_zero}, // for backward
-                                                        // compatibility
-         {"PI_CUDA", backend::ext_oneapi_cuda},
-         {"PI_ESIMD_EMULATOR", backend::ext_intel_esimd_emulator},
-         {"PI_HIP", backend::ext_oneapi_hip}}};
-    if (ValStr) {
-      auto It = std::find_if(
-          std::begin(SyclBeMap), std::end(SyclBeMap),
-          [&ValStr](const std::pair<std::string, backend> &element) {
-            return element.first == ValStr;
-          });
-      if (It == SyclBeMap.end())
-        pi::die("Invalid backend. "
-                "Valid values are "
-                "PI_OPENCL/PI_LEVEL_ZERO/PI_CUDA/PI_ESIMD_EMULATOR/PI_HIP");
-      static backend Backend = It->second;
-      BackendPtr = &Backend;
-    }
-    Initialized = true;
-    return BackendPtr;
-  }
-};
-
 template <> class SYCLConfig<SYCL_PI_TRACE> {
   using BaseT = SYCLConfigBase<SYCL_PI_TRACE>;
 
@@ -334,18 +294,6 @@ public:
              "EnvironmentVariables.md#oneapi_device_selector\n\n";
 
       FilterList = &GlobalHandler::instance().getDeviceFilterList(ValStr);
-    }
-
-    // TODO: remove the following code when we remove the support for legacy
-    // env vars.
-    // Emit the deprecation warning message if SYCL_BE or SYCL_DEVICE_TYPE is
-    // set.
-    if (SYCLConfig<SYCL_BE>::get() || getenv("SYCL_DEVICE_TYPE")) {
-      std::cerr << "\nWARNING: The legacy environment variables SYCL_BE and "
-                   "SYCL_DEVICE_TYPE are deprecated. Please use "
-                   "SYCL_DEVICE_FILTER instead. For details, please refer to "
-                   "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
-                   "EnvironmentVariables.md\n\n";
     }
 
     // As mentioned above, configuration parameters are processed only once.
