@@ -368,9 +368,8 @@ static std::vector<device> amendDeviceAndSubDevices(
             // -- Add sub sub device.
             if (wantSubSubDevice) {
 
-              auto subDevicesToPartition = dev.create_sub_devices<
-                  info::partition_property::partition_by_affinity_domain>(
-                  affinityDomain);
+              auto subDevicesToPartition = 
+                  dev.create_sub_devices<partitionProperty>(affinityDomain);
               if (target.SubDeviceNum) {
                 if (subDevicesToPartition.size() >
                     target.SubDeviceNum.value()) {
@@ -398,9 +397,9 @@ static std::vector<device> amendDeviceAndSubDevices(
                   continue;
                 }
                 // Allright, lets get them sub-sub-devices.
-                auto subSubDevices = subDev.create_sub_devices<
-                    info::partition_property::partition_by_affinity_domain>(
-                    affinityDomain);
+                auto subSubDevices = 
+                    subDev.create_sub_devices<partitionProperty>(
+                        affinityDomain);
                 if (target.HasSubSubDeviceWildCard) {
                   FinalResult.insert(FinalResult.end(), subSubDevices.begin(),
                                      subSubDevices.end());
