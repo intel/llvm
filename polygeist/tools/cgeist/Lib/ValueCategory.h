@@ -17,11 +17,11 @@
 class ValueCategory {
 private:
   template <typename OpTy>
-  ValueCategory Cast(mlir::OpBuilder &builder, mlir::Type PromotionType) const {
+  ValueCategory Cast(mlir::OpBuilder &Builder, mlir::Type PromotionType) const {
     if (val.getType() == PromotionType)
       return *this;
     return {
-        builder.createOrFold<OpTy>(builder.getUnknownLoc(), PromotionType, val),
+        Builder.createOrFold<OpTy>(Builder.getUnknownLoc(), PromotionType, val),
         false};
   }
 
@@ -35,17 +35,27 @@ public:
   ValueCategory(mlir::Value val, bool isReference);
 
   // TODO: rename to 'loadVariable'? getValue seems to generic.
-  mlir::Value getValue(mlir::OpBuilder &builder) const;
-  void store(mlir::OpBuilder &builder, ValueCategory toStore,
+  mlir::Value getValue(mlir::OpBuilder &Builder) const;
+  void store(mlir::OpBuilder &Builder, ValueCategory toStore,
              bool isArray) const;
   // TODO: rename to storeVariable?
-  void store(mlir::OpBuilder &builder, mlir::Value toStore) const;
-  ValueCategory dereference(mlir::OpBuilder &builder) const;
+  void store(mlir::OpBuilder &Builder, mlir::Value toStore) const;
+  ValueCategory dereference(mlir::OpBuilder &Builder) const;
 
-  ValueCategory FPTrunc(mlir::OpBuilder &builder,
+  ValueCategory FPTrunc(mlir::OpBuilder &Builder,
                         mlir::Type PromotionType) const;
 
-  ValueCategory FPExt(mlir::OpBuilder &builder, mlir::Type PromotionType) const;
+  ValueCategory FPExt(mlir::OpBuilder &Builder, mlir::Type PromotionType) const;
+  ValueCategory IntCast(mlir::OpBuilder &Builder, mlir::Type PromotionType,
+                        bool IsSigned) const;
+  ValueCategory SIToFP(mlir::OpBuilder &Builder,
+                       mlir::Type PromotionType) const;
+  ValueCategory UIToFP(mlir::OpBuilder &Builder,
+                       mlir::Type PromotionType) const;
+  ValueCategory FPToUI(mlir::OpBuilder &Builder,
+                       mlir::Type PromotionType) const;
+  ValueCategory FPToSI(mlir::OpBuilder &Builder,
+                       mlir::Type PromotionType) const;
 };
 
 #endif /* CLANG_MLIR_VALUE_CATEGORY */

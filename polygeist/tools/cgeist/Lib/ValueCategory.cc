@@ -281,12 +281,102 @@ template <typename OpTy> inline void warnUnconstrainedCast() {
 
 ValueCategory ValueCategory::FPTrunc(OpBuilder &Builder,
                                      Type PromotionType) const {
+  assert(val.getType().isa<FloatType>() &&
+         "Expecting floating point source type");
+  assert(PromotionType.isa<FloatType>() &&
+         "Expecting floating point promotion type");
+  assert(val.getType().getIntOrFloatBitWidth() >=
+             PromotionType.getIntOrFloatBitWidth() &&
+         "Source type must be wider than promotion type");
+
   warnUnconstrainedCast<arith::TruncFOp>();
   return Cast<arith::TruncFOp>(Builder, PromotionType);
 }
 
 ValueCategory ValueCategory::FPExt(OpBuilder &Builder,
                                    Type PromotionType) const {
+  assert(val.getType().isa<FloatType>() &&
+         "Expecting floating point source type");
+  assert(PromotionType.isa<FloatType>() &&
+         "Expecting floating point promotion type");
+  assert(val.getType().getIntOrFloatBitWidth() <=
+             PromotionType.getIntOrFloatBitWidth() &&
+         "Source type must be narrower than promotion type");
+
   warnUnconstrainedCast<arith::ExtFOp>();
   return Cast<arith::ExtFOp>(Builder, PromotionType);
+}
+
+ValueCategory ValueCategory::SIToFP(OpBuilder &Builder,
+                                    Type PromotionType) const {
+  assert(val.getType().isa<IntegerType>() && "Expecting int source type");
+  assert(PromotionType.isa<FloatType>() &&
+         "Expecting floating point promotion type");
+
+  warnUnconstrainedCast<arith::SIToFPOp>();
+  return Cast<arith::SIToFPOp>(Builder, PromotionType);
+}
+
+ValueCategory ValueCategory::UIToFP(OpBuilder &Builder,
+                                    Type PromotionType) const {
+  assert(val.getType().isa<IntegerType>() && "Expecting int source type");
+  assert(PromotionType.isa<FloatType>() &&
+         "Expecting floating point promotion type");
+
+  warnUnconstrainedCast<arith::UIToFPOp>();
+  return Cast<arith::UIToFPOp>(Builder, PromotionType);
+}
+
+ValueCategory ValueCategory::FPToUI(OpBuilder &Builder,
+                                    Type PromotionType) const {
+  assert(val.getType().isa<FloatType>() &&
+         "Expecting floating point source type");
+  assert(PromotionType.isa<IntegerType>() &&
+         "Expecting integer promotion type");
+
+  warnUnconstrainedCast<arith::FPToUIOp>();
+  return Cast<arith::FPToUIOp>(Builder, PromotionType);
+}
+
+ValueCategory ValueCategory::FPToSI(OpBuilder &Builder,
+                                    Type PromotionType) const {
+  assert(val.getType().isa<FloatType>() &&
+         "Expecting floating point source type");
+  assert(PromotionType.isa<IntegerType>() &&
+         "Expecting integer promotion type");
+
+  warnUnconstrainedCast<arith::FPToSIOp>();
+  return Cast<arith::FPToSIOp>(Builder, PromotionType);
+}
+
+ValueCategory ValueCategory::IntCast(OpBuilder &Builder, Type PromotionType,
+                                     bool IsSigned) const {
+  assert(val.getType().isa<IntegerType>() && "Expecting integer source type");
+  assert(PromotionType.isa<IntegerType>() &&
+         "Expecting integer promotion type");
+
+  if (val.getType() == PromotionType)
+    return *this;
+
+  auto SrcIntTy = val.getType().cast<IntegerType>();
+  auto DstIntTy = PromotionType.cast<IntegerType>();
+
+  const unsigned SrcBits = SrcIntTy.getWidth();
+  const unsigned DstBits = DstIntTy.getWidth();
+
+  auto Res = [&]() -> Value {
+    if (SrcBits == DstBits)
+      return Builder.createOrFold<arith::BitcastOp>(Builder.getUnknownLoc(),
+                                                    PromotionType, val);
+    if (SrcBits > DstBits)
+      return Builder.createOrFold<arith::TruncIOp>(Builder.getUnknownLoc(),
+                                                   PromotionType, val);
+    if (IsSigned)
+      return Builder.createOrFold<arith::ExtSIOp>(Builder.getUnknownLoc(),
+                                                  PromotionType, val);
+    return Builder.createOrFold<arith::ExtUIOp>(Builder.getUnknownLoc(),
+                                                PromotionType, val);
+  }();
+
+  return {Res, /*IsReference*/ false};
 }
