@@ -1,9 +1,9 @@
 // REQUIRES: opencl, opencl_icd
 //
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s %opencl_lib -o %t.out
-// RUN: env SYCL_DEVICE_FILTER=opencl %CPU_RUN_PLACEHOLDER %t.out
-// RUN: env SYCL_DEVICE_FILTER=opencl %GPU_RUN_PLACEHOLDER %t.out
-// RUN: env SYCL_DEVICE_FILTER=opencl %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 #include <sycl/sycl.hpp>
 
