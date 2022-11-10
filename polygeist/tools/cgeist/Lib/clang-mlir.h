@@ -553,7 +553,7 @@ public:
   ValueCategory VisitCXXFunctionalCastExpr(clang::CXXFunctionalCastExpr *Expr);
 
   mlir::Attribute InitializeValueByInitListExpr(mlir::Value ToInit,
-                                                const clang::Expr *Expr);
+                                                clang::Expr *Expr);
 
   ValueCategory VisitInitListExpr(clang::InitListExpr *Expr);
 

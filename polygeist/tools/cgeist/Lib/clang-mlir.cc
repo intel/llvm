@@ -2368,7 +2368,8 @@ MLIRASTConsumer::getOrCreateGlobal(const ValueDecl &VD, std::string Prefix,
     auto Op = Builder.create<memref::AllocaOp>(module->getLoc(), VarTy);
 
     if (isa<InitListExpr>(Init)) {
-      mlir::Attribute InitValAttr = MS.InitializeValueByInitListExpr(Op, Init);
+      mlir::Attribute InitValAttr =
+          MS.InitializeValueByInitListExpr(Op, const_cast<clang::Expr *>(Init));
       globalOp.setInitialValueAttr(InitValAttr);
     } else {
       bool Initialized = false;
