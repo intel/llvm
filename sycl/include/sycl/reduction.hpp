@@ -854,6 +854,7 @@ struct NDRangeReduction<reduction::strategy::local_atomic_and_atomic_cross_wg> {
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
+    std::ignore = Queue;
     size_t NElements = Reduction::num_elements;
     auto Out = Redu.getReadWriteAccessorToInitializedMem(CGH);
     local_accessor<typename Reduction::result_type, 1> GroupSum{NElements, CGH};
@@ -904,6 +905,7 @@ struct NDRangeReduction<
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
+    std::ignore = Queue;
     size_t NElements = Reduction::num_elements;
     size_t WGSize = NDRange.get_local_range().size();
     size_t NWorkGroups = NDRange.get_group_range().size();
@@ -1003,6 +1005,7 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
+    std::ignore = Queue;
     size_t NElements = Reduction::num_elements;
     size_t WGSize = NDRange.get_local_range().size();
     size_t NWorkGroups = NDRange.get_group_range().size();
@@ -1121,6 +1124,7 @@ struct NDRangeReduction<reduction::strategy::group_reduce_and_atomic_cross_wg> {
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
+    std::ignore = Queue;
     auto Out = Redu.getReadWriteAccessorToInitializedMem(CGH);
     size_t NElements = Reduction::num_elements;
 
@@ -1158,6 +1162,7 @@ struct NDRangeReduction<
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
+    std::ignore = Queue;
     auto Out = Redu.getReadWriteAccessorToInitializedMem(CGH);
     size_t NElements = Reduction::num_elements;
     size_t WGSize = NDRange.get_local_range().size();
