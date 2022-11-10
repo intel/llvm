@@ -169,6 +169,14 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
   }
 
+  joint_matrix(Group sg) {
+#ifndef __SYCL_DEVICE_ONLY__
+    std::ignore = sg;
+    throw runtime_error("joint matrix is not supported on host device.",
+                        PI_ERROR_INVALID_DEVICE);
+#endif // __SYCL_DEVICE_ONLY__
+  }
+
   inline __SYCL_ALWAYS_INLINE decltype(auto) get_wi_data() {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
