@@ -600,30 +600,57 @@ public:
     return accessor{*MOutBufPtr, CGH};
   }
 
-  /// If reduction is initialized with read-write accessor, which does not
-  /// require initialization with identity value, then return user's read-write
-  /// accessor. Otherwise, create global buffer with 'num_elements' initialized
-  /// with identity value and return an accessor to that buffer.
-  template <bool HasFastAtomics = (has_fast_atomics || has_float64_atomics),
-            typename = std::enable_if_t<HasFastAtomics>>
-  auto getReadWriteAccessorToInitializedMem(handler &CGH) {
-    if constexpr (!is_usm) {
-      if (!base::initializeToIdentity())
-        return MRedOut;
-    }
-
-    // TODO: Move to T[] in C++20 to simplify handling here
-    // auto RWReduVal = std::make_shared<T[num_elements]>();
-    auto RWReduVal = std::make_shared<std::array<T, num_elements>>();
-    for (int i = 0; i < num_elements; ++i) {
-      (*RWReduVal)[i] = base::getIdentity();
-    }
-    CGH.addReduction(RWReduVal);
-    MOutBufPtr = std::make_shared<buffer<T, 1>>(RWReduVal.get()->data(),
+  template <typename KernelName, typename FuncTy>
+  void withInitializedMem(handler &CGH, FuncTy Func) {
+    // "Template" lambda to ensure that only one type of Func (USM/Buf) is
+    // instantiated for the code below.
+    auto DoIt = [&](auto &Out) {
+      auto RWReduVal = std::make_shared<std::array<T, num_elements>>();
+      for (int i = 0; i < num_elements; ++i) {
+        (*RWReduVal)[i] = base::getIdentity();
+      }
+      CGH.addReduction(RWReduVal);
+      auto Buf = std::make_shared<buffer<T, 1>>(RWReduVal.get()->data(),
                                                 range<1>(num_elements));
-    MOutBufPtr->set_final_data();
-    CGH.addReduction(MOutBufPtr);
-    return accessor{*MOutBufPtr, CGH};
+      Buf->set_final_data();
+      CGH.addReduction(Buf);
+      accessor Mem{*Buf, CGH};
+      Func(Mem);
+
+      reduction::withAuxHandler(CGH, [&](handler &CopyHandler) {
+        accessor Mem{*Buf, CopyHandler};
+        if constexpr (is_usm) {
+          // Can't capture whole reduction, copy into distinct variables.
+          bool IsUpdateOfUserVar = !base::initializeToIdentity();
+          auto BOp = base::getBinaryOperation();
+
+          // Due to constexpr captures with non-default host compilers.
+          size_t NElements = num_elements;
+
+          CopyHandler.single_task<KernelName>([=] {
+            for (int i = 0; i < NElements; ++i) {
+              if (IsUpdateOfUserVar)
+                Out[i] = BOp(Out[i], Mem[i]);
+              else
+                Out[i] = Mem[i];
+            }
+          });
+        } else {
+          associateWithHandler(CopyHandler, &Out, access::target::device);
+          CopyHandler.copy(Mem, Out);
+        }
+      });
+    };
+    if constexpr (is_usm) {
+      // Don't dispatch based on base::initializeToIdentity() as that would lead
+      // to two different instantiations of Func.
+      DoIt(MRedOut);
+    } else {
+      if (base::initializeToIdentity())
+        DoIt(MRedOut);
+      else
+        Func(MRedOut);
+    }
   }
 
   accessor<int, 1, access::mode::read_write, access::target::device,
@@ -855,45 +882,42 @@ struct NDRangeReduction<reduction::strategy::local_atomic_and_atomic_cross_wg> {
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
     std::ignore = Queue;
-    size_t NElements = Reduction::num_elements;
-    auto Out = Redu.getReadWriteAccessorToInitializedMem(CGH);
-    local_accessor<typename Reduction::result_type, 1> GroupSum{NElements, CGH};
+    Redu.template withInitializedMem<KernelName>(CGH, [&](auto Out) {
+      size_t NElements = Reduction::num_elements;
+      local_accessor<typename Reduction::result_type, 1> GroupSum{NElements,
+                                                                  CGH};
 
-    using Name = __sycl_reduction_kernel<
-        reduction::MainKrn, KernelName,
-        reduction::strategy::local_atomic_and_atomic_cross_wg>;
+      using Name = __sycl_reduction_kernel<
+          reduction::MainKrn, KernelName,
+          reduction::strategy::local_atomic_and_atomic_cross_wg>;
 
-    CGH.parallel_for<Name>(NDRange, Properties, [=](nd_item<1> NDId) {
-      // Call user's functions. Reducer.MValue gets initialized there.
-      typename Reduction::reducer_type Reducer;
-      KernelFunc(NDId, Reducer);
+      CGH.parallel_for<Name>(NDRange, Properties, [=](nd_item<1> NDId) {
+        // Call user's functions. Reducer.MValue gets initialized there.
+        typename Reduction::reducer_type Reducer;
+        KernelFunc(NDId, Reducer);
 
-      // Work-group cooperates to initialize multiple reduction variables
-      auto LID = NDId.get_local_id(0);
-      for (size_t E = LID; E < NElements; E += NDId.get_local_range(0)) {
-        GroupSum[E] = Reducer.getIdentity();
-      }
-      workGroupBarrier();
-
-      // Each work-item has its own reducer to combine
-      Reducer.template atomic_combine<access::address_space::local_space>(
-          &GroupSum[0]);
-
-      // Single work-item performs finalization for entire work-group
-      // TODO: Opportunity to parallelize across elements
-      workGroupBarrier();
-      if (LID == 0) {
-        for (size_t E = 0; E < NElements; ++E) {
-          Reducer.getElement(E) = GroupSum[E];
+        // Work-group cooperates to initialize multiple reduction variables
+        auto LID = NDId.get_local_id(0);
+        for (size_t E = LID; E < NElements; E += NDId.get_local_range(0)) {
+          GroupSum[E] = Reducer.getIdentity();
         }
-        Reducer.template atomic_combine(&Out[0]);
-      }
-    });
+        workGroupBarrier();
 
-    if (Reduction::is_usm || Redu.initializeToIdentity())
-      reduction::withAuxHandler(CGH, [&](handler &CopyHandler) {
-        reduSaveFinalResultToUserMem<KernelName>(CopyHandler, Redu);
+        // Each work-item has its own reducer to combine
+        Reducer.template atomic_combine<access::address_space::local_space>(
+            &GroupSum[0]);
+
+        // Single work-item performs finalization for entire work-group
+        // TODO: Opportunity to parallelize across elements
+        workGroupBarrier();
+        if (LID == 0) {
+          for (size_t E = 0; E < NElements; ++E) {
+            Reducer.getElement(E) = GroupSum[E];
+          }
+          Reducer.template atomic_combine(&Out[0]);
+        }
       });
+    });
   }
 };
 
@@ -1125,32 +1149,27 @@ struct NDRangeReduction<reduction::strategy::group_reduce_and_atomic_cross_wg> {
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
     std::ignore = Queue;
-    auto Out = Redu.getReadWriteAccessorToInitializedMem(CGH);
-    size_t NElements = Reduction::num_elements;
+    Redu.template withInitializedMem<KernelName>(CGH, [&](auto Out) {
+      size_t NElements = Reduction::num_elements;
 
-    using Name = __sycl_reduction_kernel<
-        reduction::MainKrn, KernelName,
-        reduction::strategy::group_reduce_and_atomic_cross_wg>;
+      using Name = __sycl_reduction_kernel<
+          reduction::MainKrn, KernelName,
+          reduction::strategy::group_reduce_and_atomic_cross_wg>;
 
-    CGH.parallel_for<Name>(NDRange, Properties, [=](nd_item<Dims> NDIt) {
-      // Call user's function. Reducer.MValue gets initialized there.
-      typename Reduction::reducer_type Reducer;
-      KernelFunc(NDIt, Reducer);
+      CGH.parallel_for<Name>(NDRange, Properties, [=](nd_item<Dims> NDIt) {
+        // Call user's function. Reducer.MValue gets initialized there.
+        typename Reduction::reducer_type Reducer;
+        KernelFunc(NDIt, Reducer);
 
-      typename Reduction::binary_operation BOp;
-      for (int E = 0; E < NElements; ++E) {
-        Reducer.getElement(E) =
-            reduce_over_group(NDIt.get_group(), Reducer.getElement(E), BOp);
-      }
-      if (NDIt.get_local_linear_id() == 0)
-        Reducer.atomic_combine(&Out[0]);
-    });
-
-    if (Reduction::is_usm || Redu.initializeToIdentity()) {
-      reduction::withAuxHandler(CGH, [&](handler &CopyHandler) {
-        reduSaveFinalResultToUserMem<KernelName>(CopyHandler, Redu);
+        typename Reduction::binary_operation BOp;
+        for (int E = 0; E < NElements; ++E) {
+          Reducer.getElement(E) =
+              reduce_over_group(NDIt.get_group(), Reducer.getElement(E), BOp);
+        }
+        if (NDIt.get_local_linear_id() == 0)
+          Reducer.atomic_combine(&Out[0]);
       });
-    }
+    });
   }
 };
 
@@ -1163,76 +1182,73 @@ struct NDRangeReduction<
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
     std::ignore = Queue;
-    auto Out = Redu.getReadWriteAccessorToInitializedMem(CGH);
-    size_t NElements = Reduction::num_elements;
-    size_t WGSize = NDRange.get_local_range().size();
-    bool IsPow2WG = (WGSize & (WGSize - 1)) == 0;
+    Redu.template withInitializedMem<KernelName>(CGH, [&](auto Out) {
+      size_t NElements = Reduction::num_elements;
+      size_t WGSize = NDRange.get_local_range().size();
+      bool IsPow2WG = (WGSize & (WGSize - 1)) == 0;
 
-    // Use local memory to reduce elements in work-groups into zero-th element.
-    // If WGSize is not power of two, then WGSize+1 elements are allocated.
-    // The additional last element is used to catch reduce elements that could
-    // otherwise be lost in the tree-reduction algorithm used in the kernel.
-    size_t NLocalElements = WGSize + (IsPow2WG ? 0 : 1);
-    local_accessor<typename Reduction::result_type, 1> LocalReds{NLocalElements,
-                                                                 CGH};
+      // Use local memory to reduce elements in work-groups into zero-th
+      // element. If WGSize is not power of two, then WGSize+1 elements are
+      // allocated. The additional last element is used to catch reduce elements
+      // that could otherwise be lost in the tree-reduction algorithm used in
+      // the kernel.
+      size_t NLocalElements = WGSize + (IsPow2WG ? 0 : 1);
+      local_accessor<typename Reduction::result_type, 1> LocalReds{
+          NLocalElements, CGH};
 
-    using Name = __sycl_reduction_kernel<
-        reduction::MainKrn, KernelName,
-        reduction::strategy::local_mem_tree_and_atomic_cross_wg>;
+      using Name = __sycl_reduction_kernel<
+          reduction::MainKrn, KernelName,
+          reduction::strategy::local_mem_tree_and_atomic_cross_wg>;
 
-    CGH.parallel_for<Name>(NDRange, Properties, [=](nd_item<Dims> NDIt) {
-      // Call user's functions. Reducer.MValue gets initialized there.
-      typename Reduction::reducer_type Reducer;
-      KernelFunc(NDIt, Reducer);
+      CGH.parallel_for<Name>(NDRange, Properties, [=](nd_item<Dims> NDIt) {
+        // Call user's functions. Reducer.MValue gets initialized there.
+        typename Reduction::reducer_type Reducer;
+        KernelFunc(NDIt, Reducer);
 
-      size_t WGSize = NDIt.get_local_range().size();
-      size_t LID = NDIt.get_local_linear_id();
+        size_t WGSize = NDIt.get_local_range().size();
+        size_t LID = NDIt.get_local_linear_id();
 
-      // If there are multiple values, reduce each separately
-      // This prevents local memory from scaling with elements
-      for (int E = 0; E < NElements; ++E) {
+        // If there are multiple values, reduce each separately
+        // This prevents local memory from scaling with elements
+        for (int E = 0; E < NElements; ++E) {
 
-        // Copy the element to local memory to prepare it for tree-reduction.
-        LocalReds[LID] = Reducer.getElement(E);
-        if (!IsPow2WG)
-          LocalReds[WGSize] = Reducer.getIdentity();
-        NDIt.barrier();
-
-        // Tree-reduction: reduce the local array LocalReds[:] to LocalReds[0].
-        // LocalReds[WGSize] accumulates last/odd elements when the step
-        // of tree-reduction loop is not even.
-        typename Reduction::binary_operation BOp;
-        size_t PrevStep = WGSize;
-        for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
-          if (LID < CurStep)
-            LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
-          else if (!IsPow2WG && LID == CurStep && (PrevStep & 0x1))
-            LocalReds[WGSize] = BOp(LocalReds[WGSize], LocalReds[PrevStep - 1]);
+          // Copy the element to local memory to prepare it for tree-reduction.
+          LocalReds[LID] = Reducer.getElement(E);
+          if (!IsPow2WG)
+            LocalReds[WGSize] = Reducer.getIdentity();
           NDIt.barrier();
-          PrevStep = CurStep;
+
+          // Tree-reduction: reduce the local array LocalReds[:] to
+          // LocalReds[0]. LocalReds[WGSize] accumulates last/odd elements when
+          // the step of tree-reduction loop is not even.
+          typename Reduction::binary_operation BOp;
+          size_t PrevStep = WGSize;
+          for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
+            if (LID < CurStep)
+              LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
+            else if (!IsPow2WG && LID == CurStep && (PrevStep & 0x1))
+              LocalReds[WGSize] =
+                  BOp(LocalReds[WGSize], LocalReds[PrevStep - 1]);
+            NDIt.barrier();
+            PrevStep = CurStep;
+          }
+
+          if (LID == 0) {
+            Reducer.getElement(E) =
+                IsPow2WG ? LocalReds[0] : BOp(LocalReds[0], LocalReds[WGSize]);
+          }
+
+          // Ensure item 0 is finished with LocalReds before next iteration
+          if (E != NElements - 1) {
+            NDIt.barrier();
+          }
         }
 
         if (LID == 0) {
-          Reducer.getElement(E) =
-              IsPow2WG ? LocalReds[0] : BOp(LocalReds[0], LocalReds[WGSize]);
+          Reducer.atomic_combine(&Out[0]);
         }
-
-        // Ensure item 0 is finished with LocalReds before next iteration
-        if (E != NElements - 1) {
-          NDIt.barrier();
-        }
-      }
-
-      if (LID == 0) {
-        Reducer.atomic_combine(&Out[0]);
-      }
-    });
-
-    if (Reduction::is_usm || Redu.initializeToIdentity()) {
-      reduction::withAuxHandler(CGH, [&](handler &CopyHandler) {
-        reduSaveFinalResultToUserMem<KernelName>(CopyHandler, Redu);
       });
-    }
+    });
   }
 };
 
