@@ -149,9 +149,40 @@ std::vector<platform> platform_impl::get_platforms() {
 // ONEAPI_DEVICE_SELECTOR This function matches devices in the order of backend,
 // device_type, and device_num. The device_filter and ods_target structs pun for
 // each other, as do device_filter_list and ods_target_list.
+// Since ONEAPI_DEVICE_SELECTOR admits negative filters, we use type traits
+// to distinguish the case where we are working with ONEAPI_DEVICE_SELECTOR
+// in the places where the functionality diverges between these two
+// environment variables.
 template <typename ListT, typename FilterT>
 static int filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
                               RT::PiPlatform Platform, ListT *FilterList) {
+
+  constexpr bool is_ods_target = std::is_same_v<FilterT, ods_target>;
+  // There are some differences in implementation between SYCL_DEVICE_FILTER
+  // and ONEAPI_DEVICE_SELECTOR so we use if constexpr to select the
+  // appropriate execution path if we are dealing with the latter variable.
+
+  if constexpr (is_ods_target) {
+
+    // Since we are working with ods_target filters ,which can be negative,
+    // we sort the filters so that all the negative filters appear before
+    // all the positive filters.  This enables us to have the full list of
+    // blacklisted devices by the time we get to the positive filters
+    // so that if a positive filter matches a blacklisted device we do
+    // not add it to the list of available devices.
+    std::sort(FilterList->get().begin(), FilterList->get().end(),
+              [](const ods_target &filter1, const ods_target &filter2) {
+                if (filter2.IsNegativeTarget)
+                  return false;
+                return true;
+              });
+  }
+
+  // this map keeps track of devices discarded by negative filters, it is only
+  // used in the ONEAPI_DEVICE_SELECTOR implemenation. It cannot be placed
+  // in the if statement above because it will then be out of scope in the rest
+  // of the function
+  std::map<RT::PiDevice *, bool> Blacklist;
 
   std::vector<plugin> &Plugins = RT::initialize();
   auto It =
@@ -160,7 +191,6 @@ static int filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
       });
   if (It == Plugins.end())
     return -1;
-
   plugin &Plugin = *It;
   backend Backend = Plugin.getBackend();
   int InsertIDx = 0;
@@ -188,12 +218,37 @@ static int filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
         if (FilterDevType == info::device_type::all) {
           // Last, match the device_num entry
           if (!Filter.DeviceNum || DeviceNum == Filter.DeviceNum.value()) {
-            PiDevices[InsertIDx++] = Device;
+            if constexpr (is_ods_target) {      // dealing with ODS filters
+              if (!Blacklist[&Device]) {        // ensure it is not blacklisted
+                if (!Filter.IsNegativeTarget) { // is filter positive?
+                  PiDevices[InsertIDx++] = Device;
+                } else {
+                  // Filter is negative and the device matches the filter so
+                  // blacklist the device.
+                  Blacklist[&Device] = true;
+                }
+              }
+            } else { // dealing with SYCL_DEVICE_FILTER
+              PiDevices[InsertIDx++] = Device;
+            }
             break;
           }
+
         } else if (FilterDevType == DeviceType) {
           if (!Filter.DeviceNum || DeviceNum == Filter.DeviceNum.value()) {
-            PiDevices[InsertIDx++] = Device;
+            if constexpr (is_ods_target) {
+              if (!Blacklist[&Device]) {
+                if (!Filter.IsNegativeTarget) {
+                  PiDevices[InsertIDx++] = Device;
+                } else {
+                  // Filter is negative and the device matches the filter so
+                  // blacklist the device.
+                  Blacklist[&Device] = true;
+                }
+              }
+            } else {
+              PiDevices[InsertIDx++] = Device;
+            }
             break;
           }
         }
