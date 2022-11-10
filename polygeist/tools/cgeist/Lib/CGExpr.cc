@@ -201,12 +201,10 @@ MLIRScanner::InitializeValueByInitListExpr(mlir::Value toInit,
 
   // Recursively visit the initialization expression following the linear
   // increment of the memory address.
- const auto
-      helper = [&](const Expr *expr, mlir::Value toInit,
-                   bool inner) -> mlir::DenseElementsAttr {
+  const auto helper = [&](const Expr *expr, mlir::Value toInit,
+                          bool inner) -> mlir::DenseElementsAttr {
     Location loc = toInit.getLoc();
-    if (const InitListExpr *initListExpr = dyn_cast<InitListExpr>(expr)) {
-
+    if (InitListExpr *initListExpr = dyn_cast<InitListExpr>(expr)) {
       if (inner) {
         if (auto mt = toInit.getType().dyn_cast<MemRefType>()) {
           auto shape = std::vector<int64_t>(mt.getShape());
