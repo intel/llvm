@@ -1,4 +1,7 @@
 // RUN: cgeist %s --function=* -S | FileCheck %s
+// RUN: cgeist %s --function=* -S -emit-llvm | FileCheck %s --check-prefix=LLVM
+
+#include <cstddef>
 
 typedef size_t size_t_vec __attribute__((ext_vector_type(3)));
 
@@ -12,13 +15,30 @@ size_t evt2() {
   return stv.x;
 }
 
-// CHECK:   func.func @_Z3evtv() -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:    %alloca = memref.alloca() : memref<1x3xi32>
-// CHECK-NEXT:    %0 = affine.load %alloca[0, 0] : memref<1x3xi32>
-// CHECK-NEXT:    return %0 : i32
+// CHECK:   func.func @_Z3evtv() -> i64 attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK-NEXT:    %c0_i64 = arith.constant 0 : i64
+// CHECK-NEXT:    %alloca = memref.alloca() : memref<1xvector<3xi64>>
+// CHECK-NEXT:    %0 = affine.load %alloca[0] : memref<1xvector<3xi64>>
+// CHECK-NEXT:    %1 = llvm.extractelement %0[%c0_i64 : i64] : vector<3xi64>
+// CHECK-NEXT:    return %1 : i64
 // CHECK-NEXT:    }
-// CHECK:   func.func @_Z4evt2v() -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     %0 = memref.get_global @stv : memref<3xi32>
-// CHECK-NEXT:     %1 = affine.load %0[0] : memref<3xi32>
-// CHECK-NEXT:     return %1 : i32
+// CHECK:   func.func @_Z4evt2v() -> i64 attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK-NEXT:     %c0_i64 = arith.constant 0 : i64
+// CHECK-NEXT:     %0 = memref.get_global @stv : memref<vector<3xi64>>
+// CHECK-NEXT:     %alloca = memref.alloca() : memref<1xindex>
+// CHECK-NEXT:     %reshape = memref.reshape %0(%alloca) : (memref<vector<3xi64>>, memref<1xindex>) -> memref<1xvector<3xi64>>
+// CHECK-NEXT:     %1 = affine.load %reshape[0] : memref<1xvector<3xi64>>
+// CHECK-NEXT:     %2 = llvm.extractelement %1[%c0_i64 : i64] : vector<3xi64>
+// CHECK-NEXT:     return %2 : i64
 // CHECK-NEXT:     }
+
+// LLVM:       @stv = external global <3 x i64>
+// LLVM-LABEL: define i64 @_Z3evtv() !dbg !3 {
+// LLVM-NEXT:   %1 = alloca <3 x i64>, align 32, !dbg !7
+// LLVM-NEXT:   %2 = load <3 x i64>, <3 x i64>* %1, align 32
+// LLVM-NEXT:   %3 = extractelement <3 x i64> %2, i64 0
+// LLVM-NEXT:   ret i64 %3
+// LLVM-LABEL: define i64 @_Z4evt2v() !dbg !9 {
+// LLVM-NEXT:   %1 = load <3 x i64>, <3 x i64>* @stv, align 32
+// LLVM-NEXT:   %2 = extractelement <3 x i64> %1, i64 0
+// LLVM-NEXT:   ret i64 %2

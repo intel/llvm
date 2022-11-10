@@ -14,13 +14,26 @@
 // CHECK-DAG: memref.global @__spirv_BuiltInNumSubgroups : memref<i32, 1>
 // CHECK-DAG: memref.global @__spirv_BuiltInSubgroupMaxSize : memref<i32, 1>
 // CHECK-DAG: memref.global @__spirv_BuiltInSubgroupSize : memref<i32, 1>
-// CHECK-DAG: memref.global @__spirv_BuiltInLocalInvocationId : memref<3xi64, 1>
-// CHECK-DAG: memref.global @__spirv_BuiltInWorkgroupId : memref<3xi64, 1>
-// CHECK-DAG: memref.global @__spirv_BuiltInWorkgroupSize : memref<3xi64, 1>
-// CHECK-DAG: memref.global @__spirv_BuiltInNumWorkgroups : memref<3xi64, 1>
-// CHECK-DAG: memref.global @__spirv_BuiltInGlobalOffset : memref<3xi64, 1>
-// CHECK-DAG: memref.global @__spirv_BuiltInGlobalSize : memref<3xi64, 1>
-// CHECK-DAG: memref.global @__spirv_BuiltInGlobalInvocationId : memref<3xi64, 1>
+// CHECK-DAG: memref.global @__spirv_BuiltInLocalInvocationId : memref<vector<3xi64>, 1>
+// CHECK-DAG: memref.global @__spirv_BuiltInWorkgroupId : memref<vector<3xi64>, 1>
+// CHECK-DAG: memref.global @__spirv_BuiltInWorkgroupSize : memref<vector<3xi64>, 1>
+// CHECK-DAG: memref.global @__spirv_BuiltInNumWorkgroups : memref<vector<3xi64>, 1>
+// CHECK-DAG: memref.global @__spirv_BuiltInGlobalOffset : memref<vector<3xi64>, 1>
+// CHECK-DAG: memref.global @__spirv_BuiltInGlobalSize : memref<vector<3xi64>, 1>
+// CHECK-DAG: memref.global @__spirv_BuiltInGlobalInvocationId : memref<vector<3xi64>, 1>
+
+// CHECK-LLVM-DAG: @__spirv_BuiltInSubgroupLocalInvocationId = external addrspace(1) global i32
+// CHECK-LLVM-DAG: @__spirv_BuiltInSubgroupId = external addrspace(1) global i32
+// CHECK-LLVM-DAG: @__spirv_BuiltInNumSubgroups = external addrspace(1) global i32
+// CHECK-LLVM-DAG: @__spirv_BuiltInSubgroupMaxSize = external addrspace(1) global i32
+// CHECK-LLVM-DAG: @__spirv_BuiltInSubgroupSize = external addrspace(1) global i32
+// CHECK-LLVM-DAG: @__spirv_BuiltInLocalInvocationId = external addrspace(1) global <3 x i64>
+// CHECK-LLVM-DAG: @__spirv_BuiltInWorkgroupId = external addrspace(1) global <3 x i64>
+// CHECK-LLVM-DAG: @__spirv_BuiltInWorkgroupSize = external addrspace(1) global <3 x i64>
+// CHECK-LLVM-DAG: @__spirv_BuiltInNumWorkgroups = external addrspace(1) global <3 x i64>
+// CHECK-LLVM-DAG: @__spirv_BuiltInGlobalOffset = external addrspace(1) global <3 x i64>
+// CHECK-LLVM-DAG: @__spirv_BuiltInGlobalSize = external addrspace(1) global <3 x i64>
+// CHECK-LLVM-DAG: @__spirv_BuiltInGlobalInvocationId = external addrspace(1) global <3 x i64>
 
 // Ensure the spirv functions that reference these globals are not filtered out
 // CHECK-DAG: func.func @_Z28__spirv_GlobalInvocationId_xv()

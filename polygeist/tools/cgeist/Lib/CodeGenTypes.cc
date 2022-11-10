@@ -1453,6 +1453,8 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     bool SubRef = false;
     auto ET = getMLIRType(AT->getElementType(), &SubRef, AllowMerge);
     int64_t Size = AT->getNumElements();
+    if (isa<clang::ExtVectorType>(T))
+      return mlir::VectorType::get(Size, ET);
     if (MemRefABI && SubRef) {
       auto MT = ET.cast<MemRefType>();
       auto Shape2 = std::vector<int64_t>(MT.getShape());
@@ -1530,6 +1532,10 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     }
 
     if (isa<clang::VectorType>(PTT) || isa<clang::ComplexType>(PTT)) {
+      if (auto VT = SubType.dyn_cast<mlir::VectorType>())
+        // FIXME: We should create memref of rank 0.
+        // Details: https://github.com/intel/llvm/issues/7354
+        return mlir::MemRefType::get(Outer, SubType);
       if (SubType.isa<MemRefType>()) {
         assert(SubRef);
         auto MT = SubType.cast<MemRefType>();
