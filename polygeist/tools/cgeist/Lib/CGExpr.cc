@@ -860,19 +860,20 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
     ShouldEmit = true;
 
   FunctionToEmit F(*ctorDecl, mlirclang::getInputContext(builder));
-  auto tocall = cast<func::FuncOp>(Glob.GetOrCreateMLIRFunction(F, ShouldEmit));
+  auto ToCall = cast<func::FuncOp>(Glob.GetOrCreateMLIRFunction(F, ShouldEmit));
 
-  SmallVector<std::pair<ValueCategory, clang::Expr *>> args;
-  args.emplace_back(std::make_pair(obj, (clang::Expr *)nullptr));
-  for (auto a : cons->arguments())
-    args.push_back(std::make_pair(Visit(a), a));
-  callHelper(tocall, innerType, args,
+  SmallVector<std::pair<ValueCategory, clang::Expr *>> Args{{obj, nullptr}};
+  Args.reserve(cons->getNumArgs() + 1);
+  for (auto A : cons->arguments())
+    Args.emplace_back(Visit(A), A);
+
+  callHelper(ToCall, innerType, Args,
              /*retType*/ Glob.getCGM().getContext().VoidTy, false, cons,
-             ctorDecl);
+             *ctorDecl);
 
-  if (Glob.getCGM().getContext().getAsArrayType(cons->getType())) {
+  if (Glob.getCGM().getContext().getAsArrayType(cons->getType()))
     builder.setInsertionPoint(oldblock, oldpoint);
-  }
+
   return endobj;
 }
 
@@ -1673,7 +1674,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
       }
       */
     }
-    auto prev = Visit(E->getSubExpr());
+    auto prev = EmitLValue(E->getSubExpr());
 
     bool isArray = false;
     Glob.getTypes().getMLIRType(E->getType(), &isArray);
@@ -2204,6 +2205,288 @@ ValueCategory MLIRScanner::EmitPromotedScalarExpr(Expr *E,
   return Visit(E);
 }
 
+ValueCategory MLIRScanner::EmitScalarCast(ValueCategory Src, QualType SrcType,
+                                          QualType DstType, mlir::Type SrcTy,
+                                          mlir::Type DstTy) {
+  assert(SrcTy != DstTy && "Types should be different when casting");
+  assert(!SrcType->isAnyComplexType() && !DstType->isAnyComplexType() &&
+         "Not supported in cgeist");
+  assert(!SrcType->isMatrixType() && !DstType->isMatrixType() &&
+         "Not supported in cgeist");
+
+  if (SrcTy.isIntOrIndex()) {
+    bool InputSigned = SrcType->isSignedIntegerOrEnumerationType();
+    if (SrcType->isBooleanType()) {
+      // TODO: Should check options
+      llvm::WithColor::warning() << "Treating boolean as unsigned\n";
+      InputSigned = false;
+    }
+
+    if (DstTy.isIntOrIndex())
+      return Src.IntCast(builder, DstTy, InputSigned);
+    if (InputSigned)
+      return Src.SIToFP(builder, DstTy);
+    return Src.UIToFP(builder, DstTy);
+  }
+
+  if (DstTy.isIntOrIndex()) {
+    assert(SrcTy.isa<FloatType>() && "Unknown real conversion");
+    bool IsSigned = DstType->isSignedIntegerOrEnumerationType();
+
+    // If we can't recognize overflow as undefined behavior, assume that
+    // overflow saturates. This protects against normal optimizations if we are
+    // compiling with non-standard FP semantics.
+    llvm::WithColor::warning() << "Performing strict float cast overflow\n";
+
+    if (IsSigned)
+      return Src.FPToSI(builder, DstTy);
+    return Src.FPToUI(builder, DstTy);
+  }
+
+  if (DstTy.cast<FloatType>().getWidth() < SrcTy.cast<FloatType>().getWidth())
+    return Src.FPTrunc(builder, DstTy);
+  return Src.FPExt(builder, DstTy);
+}
+
+ValueCategory MLIRScanner::EmitScalarConversion(ValueCategory Src,
+                                                QualType SrcType,
+                                                QualType DstType,
+                                                SourceLocation Loc) {
+  // TODO: By a flaw in how operators are handled, SrcType or DstType might be
+  // non-scalar types. Remove when we actually call operatorOP member functions.
+  if (!(SrcType.isNull() || SrcType.isCanonical()) ||
+      !(DstType.isNull() || DstType.isCanonical())) {
+    return Src;
+  }
+
+  // TODO: Handle fixed points here when supported.
+  // TODO: Take into account scalar conversion options.
+
+  assert(!SrcType->isFixedPointType() &&
+         "Not handling conversion from fixed point types");
+
+  assert(!DstType->isFixedPointType() &&
+         "Not handling conversion to fixed point types");
+
+  mlirclang::CodeGen::CodeGenTypes &CGTypes = Glob.getTypes();
+
+  SrcType = Glob.getCGM().getContext().getCanonicalType(SrcType);
+  DstType = Glob.getCGM().getContext().getCanonicalType(DstType);
+  if (SrcType == DstType)
+    return Src;
+  if (DstType->isVoidType())
+    return nullptr;
+
+  auto SrcTy = Src.val.getType();
+
+  if (DstType->isBooleanType()) {
+    llvm::WithColor::warning() << "Performing conversion to bool as if it were "
+                                  "a regular integer type\n";
+  }
+
+  mlir::Type DstTy = CGTypes.getMLIRType(DstType);
+
+  // Cast from half through float if half isn't a native type.
+  const auto &CGM = Glob.getCGM();
+  if (SrcType->isHalfType() && !CGM.getLangOpts().NativeHalfType) {
+    // Cast to FP using the intrinsic if the half type itself isn't supported.
+    if (DstTy.isa<FloatType>()) {
+      if (CGM.getContext().getTargetInfo().useFP16ConversionIntrinsics())
+        llvm::WithColor::warning() << "Should call convert_from_fp16 intrinsic "
+                                      "to perfom this conversion\n";
+    } else {
+      // Cast to other types through float, using either the intrinsic or FPExt,
+      // depending on whether the half type itself is supported
+      // (as opposed to operations on half, available with NativeHalfType).
+      if (CGM.getContext().getTargetInfo().useFP16ConversionIntrinsics())
+        llvm::WithColor::warning() << "Should call convert_from_fp16 intrinsic "
+                                      "to perfom this conversion\n";
+      Src = Src.FPExt(builder, builder.getF32Type());
+      SrcType = CGM.getContext().FloatTy;
+      SrcTy = builder.getF32Type();
+    }
+  }
+
+  // Ignore conversions like int -> uint.
+  if (SrcTy == DstTy) {
+    llvm::WithColor::warning()
+        << "Not emitting implicit integer sign change checks\n";
+
+    return Src;
+  }
+
+  // Handle pointer conversions next: pointers can only be converted to/from
+  // other pointers and integers. Check for pointer types in terms of LLVM, as
+  // some native types (like Obj-C id) may map to a pointer type.
+  assert(!(DstTy.isa<MemRefType>() || SrcTy.isa<MemRefType>()) &&
+         "Not implemented yet");
+
+  // A scalar can be splatted to an extended vector of the same element type
+  assert(!(DstType->isExtVectorType() && !SrcType->isVectorType()) &&
+         "Not implemented yet");
+
+  assert(!(SrcType->isMatrixType() && DstType->isMatrixType()) &&
+         "Not implemented yet");
+
+  assert(!(SrcTy.isa<mlir::VectorType>() || DstTy.isa<mlir::VectorType>()) &&
+         "Not implemented yet");
+
+  // Finally, we have the arithmetic types: real int/float.
+  mlir::Type ResTy = DstTy;
+  llvm::WithColor::warning() << "Missing overflow checks\n";
+
+  // Cast to half through float if half isn't a native type.
+  if (DstType->isHalfType() && !CGM.getContext().getLangOpts().NativeHalfType) {
+    // Make sure we cast in a single step if from another FP type.
+    if (SrcTy.isa<FloatType>()) {
+      // Use the intrinsic if the half type itself isn't supported
+      // (as opposed to operations on half, available with NativeHalfType).
+      if (CGM.getContext().getTargetInfo().useFP16ConversionIntrinsics())
+        llvm::WithColor::warning() << "Should call convert_to_fp16 intrinsic "
+                                      "to perfom this conversion\n";
+      // If the half type is supported, just use an fptrunc.
+      return Src.FPTrunc(builder, DstTy);
+    }
+    DstTy = builder.getF32Type();
+  }
+
+  ValueCategory Res = EmitScalarCast(Src, SrcType, DstType, SrcTy, DstTy);
+
+  if (DstTy != ResTy) {
+    if (CGM.getContext().getTargetInfo().useFP16ConversionIntrinsics()) {
+      assert(ResTy.isInteger(16) && "Only half FP requires extra conversion");
+      llvm::WithColor::warning() << "Should call convert_to_fp16 intrinsic to "
+                                    "perfom this conversion\n";
+    }
+    Res = Res.FPTrunc(builder, ResTy);
+  }
+
+  llvm::WithColor::warning() << "Missing truncation checks\n";
+  llvm::WithColor::warning() << "Missing integer sign change checks\n";
+
+  return Res;
+}
+
+ValueCategory
+MLIRScanner::EmitCompoundAssignmentLValue(clang::CompoundAssignOperator *E) {
+  switch (E->getOpcode()) {
+#define HANDLEBINOP(OP)                                                        \
+  case BO_##OP##Assign:                                                        \
+    return EmitCompoundAssignLValue(E, &MLIRScanner::EmitBin##OP).first;
+
+#include "Expressions.def"
+#undef HANDLEBINOP
+  case BO_PtrMemD:
+  case BO_PtrMemI:
+  case BO_Mul:
+  case BO_Div:
+  case BO_Rem:
+  case BO_Add:
+  case BO_Sub:
+  case BO_Shl:
+  case BO_Shr:
+  case BO_LT:
+  case BO_GT:
+  case BO_LE:
+  case BO_GE:
+  case BO_EQ:
+  case BO_NE:
+  case BO_Cmp:
+  case BO_And:
+  case BO_Xor:
+  case BO_Or:
+  case BO_LAnd:
+  case BO_LOr:
+  case BO_Assign:
+  case BO_Comma:
+    llvm_unreachable("Not valid compound assignment operators");
+  }
+
+  llvm_unreachable("Unhandled compound assignment operator");
+}
+
+ValueCategory MLIRScanner::EmitLValue(Expr *E) {
+  switch (E->getStmtClass()) {
+  default:
+    return Visit(E);
+
+  case Expr::CompoundAssignOperatorClass: {
+    QualType Ty = E->getType();
+    if (const AtomicType *AT = Ty->getAs<AtomicType>())
+      Ty = AT->getValueType();
+    auto *CAO = cast<CompoundAssignOperator>(E);
+    assert(!Ty->isAnyComplexType() && "Handle complex types.");
+    return EmitCompoundAssignmentLValue(CAO);
+  }
+  case Expr::ParenExprClass:
+    return EmitLValue(cast<ParenExpr>(E)->getSubExpr());
+  }
+}
+
+std::pair<ValueCategory, ValueCategory> MLIRScanner::EmitCompoundAssignLValue(
+    CompoundAssignOperator *E,
+    ValueCategory (MLIRScanner::*Func)(const BinOpInfo &)) {
+  QualType LHSTy = E->getLHS()->getType();
+
+  if (E->getComputationResultType()->isAnyComplexType())
+    llvm::WithColor::warning() << "Not handling complex types yet\n";
+
+  // Emit the RHS first.  __block variables need to have the rhs evaluated
+  // first, plus this should improve codegen a little.
+
+  QualType PromotionTypeCR =
+      Glob.getTypes().getPromotionType(E->getComputationResultType());
+  if (PromotionTypeCR.isNull())
+    PromotionTypeCR = E->getComputationResultType();
+  QualType PromotionTypeLHS =
+      Glob.getTypes().getPromotionType(E->getComputationLHSType());
+  QualType PromotionTypeRHS =
+      Glob.getTypes().getPromotionType(E->getRHS()->getType());
+  const ValueCategory RHS =
+      EmitPromotedScalarExpr(E->getRHS(), PromotionTypeRHS);
+
+  const QualType Ty = PromotionTypeCR;
+  const BinaryOperator::Opcode OpCode = E->getOpcode();
+  const SourceLocation Loc = E->getExprLoc();
+
+  // Load/convert the LHS.
+  llvm::WithColor::warning() << "Emitting unchecked LValue\n";
+  const ValueCategory LHSLV = EmitLValue(E->getLHS());
+
+  if (isa<AtomicType>(LHSTy))
+    llvm::WithColor::warning()
+        << "Not handling atomics. Should perform RMW operation here.\n";
+
+  ValueCategory LHS{LHSLV.getValue(builder), false};
+  if (!PromotionTypeLHS.isNull())
+    LHS = EmitScalarConversion(LHS, LHSTy, PromotionTypeLHS, E->getExprLoc());
+  else
+    LHS = EmitScalarConversion(LHS, LHSTy, E->getComputationLHSType(), Loc);
+
+  // Expand the binary operator.
+  ValueCategory Result = (this->*Func)({LHS, RHS, Ty, OpCode, E});
+  // Convert the result back to the LHS type,
+  // potentially with Implicit Conversion sanitizer check.
+  Result = EmitScalarConversion(Result, PromotionTypeCR, LHSTy, Loc);
+
+  LHSLV.store(builder, Result.val);
+
+  if (Glob.getCGM().getLangOpts().OpenMP) {
+    llvm::WithColor::warning() << "Should checkAndEmitLastprivateConditional, "
+                                  "but not implemented yet.\n";
+  }
+
+  return {LHSLV, Result};
+}
+
+ValueCategory MLIRScanner::EmitCompoundAssign(
+    CompoundAssignOperator *E,
+    ValueCategory (MLIRScanner::*Func)(const BinOpInfo &)) {
+  const auto &[LHS, Result] = EmitCompoundAssignLValue(E, Func);
+  // The return value is the stored value in C and the LValue in C++.
+  return Glob.getCGM().getLangOpts().CPlusPlus ? LHS : Result;
+}
+
 #define HANDLEBINOP(OP)                                                        \
   ValueCategory MLIRScanner::VisitBin##OP(BinaryOperator *E) {                 \
     LLVM_DEBUG({                                                               \
@@ -2216,6 +2499,16 @@ ValueCategory MLIRScanner::EmitPromotedScalarExpr(Expr *E,
     if (Result.val && !PromotionType.isNull())                                 \
       Result = EmitUnPromotedValue(Result, E->getType());                      \
     return Result;                                                             \
+  }                                                                            \
+                                                                               \
+  ValueCategory MLIRScanner::VisitBin##OP##Assign(BinaryOperator *E) {         \
+    LLVM_DEBUG({                                                               \
+      llvm::dbgs() << "VisitBin" #OP "Assign: ";                               \
+      E->dump();                                                               \
+      llvm::dbgs() << "\n";                                                    \
+    });                                                                        \
+    return EmitCompoundAssign(cast<CompoundAssignOperator>(E),                 \
+                              &MLIRScanner::EmitBin##OP);                      \
   }
 #include "Expressions.def"
 #undef HANDLEBINOP
@@ -2229,8 +2522,6 @@ BinOpInfo MLIRScanner::EmitBinOps(BinaryOperator *E, QualType PromotionType) {
 }
 
 ValueCategory MLIRScanner::EmitBinMul(const BinOpInfo &Info) {
-  assert(Info.getOpcode() == BinaryOperator::Opcode::BO_Mul &&
-         "Invalid binary expression");
   auto lhs_v = Info.getLHS().getValue(builder);
   auto rhs_v = Info.getRHS().getValue(builder);
   if (lhs_v.getType().isa<mlir::FloatType>()) {
@@ -2243,8 +2534,6 @@ ValueCategory MLIRScanner::EmitBinMul(const BinOpInfo &Info) {
 }
 
 ValueCategory MLIRScanner::EmitBinDiv(const BinOpInfo &Info) {
-  assert(Info.getOpcode() == BinaryOperator::Opcode::BO_Div &&
-         "Invalid binary expression");
   auto lhs_v = Info.getLHS().getValue(builder);
   auto rhs_v = Info.getRHS().getValue(builder);
   if (lhs_v.getType().isa<mlir::FloatType>()) {
@@ -2261,8 +2550,6 @@ ValueCategory MLIRScanner::EmitBinDiv(const BinOpInfo &Info) {
 }
 
 ValueCategory MLIRScanner::EmitBinRem(const BinOpInfo &Info) {
-  assert(Info.getOpcode() == BinaryOperator::Opcode::BO_Rem &&
-         "Invalid binary expression");
   auto lhs_v = Info.getLHS().getValue(builder);
   auto rhs_v = Info.getRHS().getValue(builder);
   if (lhs_v.getType().isa<mlir::FloatType>()) {
@@ -2279,8 +2566,6 @@ ValueCategory MLIRScanner::EmitBinRem(const BinOpInfo &Info) {
 }
 
 ValueCategory MLIRScanner::EmitBinAdd(const BinOpInfo &Info) {
-  assert(Info.getOpcode() == BinaryOperator::Opcode::BO_Add &&
-         "Invalid binary expression");
   auto lhs_v = Info.getLHS().getValue(builder);
   auto rhs_v = Info.getRHS().getValue(builder);
   if (lhs_v.getType().isa<mlir::FloatType>()) {
@@ -2317,8 +2602,6 @@ ValueCategory MLIRScanner::EmitBinAdd(const BinOpInfo &Info) {
 }
 
 ValueCategory MLIRScanner::EmitBinSub(const BinOpInfo &Info) {
-  assert(Info.getOpcode() == BinaryOperator::Opcode::BO_Sub &&
-         "Invalid binary expression");
   auto lhs_v = Info.getLHS().getValue(builder);
   auto rhs_v = Info.getRHS().getValue(builder);
   if (auto mt = lhs_v.getType().dyn_cast<mlir::MemRefType>()) {
@@ -2370,8 +2653,6 @@ ValueCategory MLIRScanner::EmitBinSub(const BinOpInfo &Info) {
 }
 
 ValueCategory MLIRScanner::EmitBinShl(const BinOpInfo &Info) {
-  assert(Info.getOpcode() == BinaryOperator::Opcode::BO_Shl &&
-         "Invalid binary expression");
   auto lhsv = Info.getLHS().getValue(builder);
   auto rhsv = Info.getRHS().getValue(builder);
   auto prevTy = rhsv.getType().cast<mlir::IntegerType>();
@@ -2386,8 +2667,6 @@ ValueCategory MLIRScanner::EmitBinShl(const BinOpInfo &Info) {
 }
 
 ValueCategory MLIRScanner::EmitBinShr(const BinOpInfo &Info) {
-  assert(Info.getOpcode() == BinaryOperator::Opcode::BO_Shr &&
-         "Invalid binary expression");
   auto lhsv = Info.getLHS().getValue(builder);
   auto rhsv = Info.getRHS().getValue(builder);
   auto prevTy = rhsv.getType().cast<mlir::IntegerType>();
@@ -2406,8 +2685,6 @@ ValueCategory MLIRScanner::EmitBinShr(const BinOpInfo &Info) {
 }
 
 ValueCategory MLIRScanner::EmitBinAnd(const BinOpInfo &Info) {
-  assert(Info.getOpcode() == BinaryOperator::Opcode::BO_And &&
-         "Invalid binary expression");
   return ValueCategory(builder.create<AndIOp>(loc,
                                               Info.getLHS().getValue(builder),
                                               Info.getRHS().getValue(builder)),
@@ -2415,8 +2692,6 @@ ValueCategory MLIRScanner::EmitBinAnd(const BinOpInfo &Info) {
 }
 
 ValueCategory MLIRScanner::EmitBinXor(const BinOpInfo &Info) {
-  assert(Info.getOpcode() == BinaryOperator::Opcode::BO_Xor &&
-         "Invalid binary expression");
   return ValueCategory(builder.create<XOrIOp>(loc,
                                               Info.getLHS().getValue(builder),
                                               Info.getRHS().getValue(builder)),
@@ -2424,8 +2699,6 @@ ValueCategory MLIRScanner::EmitBinXor(const BinOpInfo &Info) {
 }
 
 ValueCategory MLIRScanner::EmitBinOr(const BinOpInfo &Info) {
-  assert(Info.getOpcode() == BinaryOperator::Opcode::BO_Or &&
-         "Invalid binary expression");
   // TODO short circuit
   return ValueCategory(builder.create<OrIOp>(loc,
                                              Info.getLHS().getValue(builder),

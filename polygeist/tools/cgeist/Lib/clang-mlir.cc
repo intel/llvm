@@ -1472,211 +1472,6 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     return rhs;
   }
 
-  case clang::BinaryOperator::Opcode::BO_AddAssign: {
-    assert(lhs.isReference);
-    auto prev = lhs.getValue(builder);
-
-    mlir::Value result;
-    if (auto postTy = prev.getType().dyn_cast<mlir::FloatType>()) {
-      mlir::Value rhsV = rhs.getValue(builder);
-      auto prevTy = rhsV.getType().cast<mlir::FloatType>();
-      if (prevTy == postTy) {
-      } else if (prevTy.getWidth() < postTy.getWidth()) {
-        rhsV = builder.create<mlir::arith::ExtFOp>(loc, postTy, rhsV);
-      } else {
-        rhsV = builder.create<mlir::arith::TruncFOp>(loc, postTy, rhsV);
-      }
-      assert(rhsV.getType() == prev.getType());
-      result = builder.create<AddFOp>(loc, prev, rhsV);
-    } else if (auto pt =
-                   prev.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
-      result = builder.create<LLVM::GEPOp>(
-          loc, pt, prev, std::vector<mlir::Value>({rhs.getValue(builder)}));
-    } else if (auto postTy = prev.getType().dyn_cast<mlir::IntegerType>()) {
-      mlir::Value rhsV = rhs.getValue(builder);
-      auto prevTy = rhsV.getType().cast<mlir::IntegerType>();
-      if (prevTy == postTy) {
-      } else if (prevTy.getWidth() < postTy.getWidth()) {
-        if (signedType) {
-          rhsV = builder.create<arith::ExtSIOp>(loc, postTy, rhsV);
-        } else {
-          rhsV = builder.create<arith::ExtUIOp>(loc, postTy, rhsV);
-        }
-      } else {
-        rhsV = builder.create<arith::TruncIOp>(loc, postTy, rhsV);
-      }
-      assert(rhsV.getType() == prev.getType());
-      result = builder.create<AddIOp>(loc, prev, rhsV);
-    } else if (auto postTy = prev.getType().dyn_cast<mlir::MemRefType>()) {
-      mlir::Value rhsV = rhs.getValue(builder);
-      auto shape = std::vector<int64_t>(postTy.getShape());
-      shape[0] = -1;
-      postTy = mlir::MemRefType::get(shape, postTy.getElementType(),
-                                     MemRefLayoutAttrInterface(),
-                                     postTy.getMemorySpace());
-      auto ptradd = rhsV;
-      ptradd = castToIndex(loc, ptradd);
-      result = builder.create<polygeist::SubIndexOp>(loc, postTy, prev, ptradd);
-    } else {
-      assert(false && "Unsupported add assign type");
-    }
-    lhs.store(builder, result);
-    return lhs;
-  }
-  case clang::BinaryOperator::Opcode::BO_SubAssign: {
-    assert(lhs.isReference);
-    auto prev = lhs.getValue(builder);
-
-    mlir::Value result;
-    if (prev.getType().isa<mlir::FloatType>()) {
-      auto right = rhs.getValue(builder);
-      if (right.getType() != prev.getType()) {
-        auto prevTy = right.getType().cast<mlir::FloatType>();
-        auto postTy =
-            Glob.getTypes().getMLIRType(BO->getType()).cast<mlir::FloatType>();
-
-        if (prevTy.getWidth() < postTy.getWidth()) {
-          right = builder.create<arith::ExtFOp>(loc, postTy, right);
-        } else {
-          right = builder.create<arith::TruncFOp>(loc, postTy, right);
-        }
-      }
-      if (right.getType() != prev.getType()) {
-        BO->dump();
-        llvm::errs() << " p:" << prev << " r:" << right << "\n";
-      }
-      assert(right.getType() == prev.getType());
-      result = builder.create<SubFOp>(loc, prev, right);
-    } else {
-      result = builder.create<SubIOp>(loc, prev, rhs.getValue(builder));
-    }
-    lhs.store(builder, result);
-    return lhs;
-  }
-  case clang::BinaryOperator::Opcode::BO_MulAssign: {
-    assert(lhs.isReference);
-    auto prev = lhs.getValue(builder);
-
-    mlir::Value result;
-    if (prev.getType().isa<mlir::FloatType>()) {
-      auto right = rhs.getValue(builder);
-      if (right.getType() != prev.getType()) {
-        auto prevTy = right.getType().cast<mlir::FloatType>();
-        auto postTy =
-            Glob.getTypes().getMLIRType(BO->getType()).cast<mlir::FloatType>();
-
-        if (prevTy.getWidth() < postTy.getWidth()) {
-          right = builder.create<arith::ExtFOp>(loc, postTy, right);
-        } else {
-          right = builder.create<arith::TruncFOp>(loc, postTy, right);
-        }
-      }
-      if (right.getType() != prev.getType()) {
-        BO->dump();
-        llvm::errs() << " p:" << prev << " r:" << right << "\n";
-      }
-      assert(right.getType() == prev.getType());
-      result = builder.create<MulFOp>(loc, prev, right);
-    } else {
-      result = builder.create<MulIOp>(loc, prev, rhs.getValue(builder));
-    }
-    lhs.store(builder, result);
-    return lhs;
-  }
-  case clang::BinaryOperator::Opcode::BO_DivAssign: {
-    assert(lhs.isReference);
-    auto prev = lhs.getValue(builder);
-
-    mlir::Value result;
-    if (prev.getType().isa<mlir::FloatType>()) {
-      mlir::Value val = rhs.getValue(builder);
-      auto prevTy = val.getType().cast<mlir::FloatType>();
-      auto postTy = prev.getType().cast<mlir::FloatType>();
-
-      if (prevTy.getWidth() < postTy.getWidth()) {
-        val = builder.create<arith::ExtFOp>(loc, postTy, val);
-      } else if (prevTy.getWidth() > postTy.getWidth()) {
-        val = builder.create<arith::TruncFOp>(loc, postTy, val);
-      }
-      result = builder.create<arith::DivFOp>(loc, prev, val);
-    } else {
-      if (signedType)
-        result =
-            builder.create<arith::DivSIOp>(loc, prev, rhs.getValue(builder));
-      else
-        result =
-            builder.create<arith::DivUIOp>(loc, prev, rhs.getValue(builder));
-    }
-    lhs.store(builder, result);
-    return lhs;
-  }
-  case clang::BinaryOperator::Opcode::BO_ShrAssign: {
-    assert(lhs.isReference);
-    auto prev = lhs.getValue(builder);
-
-    mlir::Value result;
-
-    if (signedType)
-      result = builder.create<ShRSIOp>(loc, prev, rhs.getValue(builder));
-    else
-      result = builder.create<ShRUIOp>(loc, prev, rhs.getValue(builder));
-    lhs.store(builder, result);
-    return lhs;
-  }
-  case clang::BinaryOperator::Opcode::BO_ShlAssign: {
-    assert(lhs.isReference);
-    auto prev = lhs.getValue(builder);
-
-    mlir::Value result =
-        builder.create<ShLIOp>(loc, prev, rhs.getValue(builder));
-    lhs.store(builder, result);
-    return lhs;
-  }
-  case clang::BinaryOperator::Opcode::BO_RemAssign: {
-    assert(lhs.isReference);
-    auto prev = lhs.getValue(builder);
-
-    mlir::Value result;
-
-    if (prev.getType().isa<mlir::FloatType>()) {
-      result = builder.create<RemFOp>(loc, prev, rhs.getValue(builder));
-    } else {
-      if (signedType)
-        result = builder.create<RemSIOp>(loc, prev, rhs.getValue(builder));
-      else
-        result = builder.create<RemUIOp>(loc, prev, rhs.getValue(builder));
-    }
-    lhs.store(builder, result);
-    return lhs;
-  }
-  case clang::BinaryOperator::Opcode::BO_AndAssign: {
-    assert(lhs.isReference);
-    auto prev = lhs.getValue(builder);
-
-    mlir::Value result =
-        builder.create<AndIOp>(loc, prev, rhs.getValue(builder));
-    lhs.store(builder, result);
-    return lhs;
-  }
-  case clang::BinaryOperator::Opcode::BO_OrAssign: {
-    assert(lhs.isReference);
-    auto prev = lhs.getValue(builder);
-
-    mlir::Value result =
-        builder.create<OrIOp>(loc, prev, rhs.getValue(builder));
-    lhs.store(builder, result);
-    return lhs;
-  }
-  case clang::BinaryOperator::Opcode::BO_XorAssign: {
-    assert(lhs.isReference);
-    auto prev = lhs.getValue(builder);
-
-    mlir::Value result =
-        builder.create<XOrIOp>(loc, prev, rhs.getValue(builder));
-    lhs.store(builder, result);
-    return lhs;
-  }
-
   default: {
     BO->dump();
     assert(0 && "unhandled opcode");
@@ -3023,8 +2818,7 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
   using Attribute = llvm::Attribute;
 
   const FunctionDecl &FD = FTE.getDecl();
-  const clang::CodeGen::CGFunctionInfo &FI = GetOrCreateCGFunctionInfo(&FD);
-  MLIRContext *ctx = module->getContext();
+  MLIRContext *Ctx = module->getContext();
 
   bool isDeviceContext = (FTE.getContext() == FunctionContext::SYCLDevice);
   if (!isDeviceContext) {
@@ -3032,10 +2826,10 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
                << "Not in a device context - skipping setting attributes for "
                << FD.getNameAsString() << "\n");
 
-    mlirclang::AttrBuilder attrBuilder(*ctx);
+    mlirclang::AttrBuilder attrBuilder(*Ctx);
     LLVM::Linkage lnk = getMLIRLinkage(getLLVMLinkageType(FD, ShouldEmit));
     attrBuilder.addAttribute("llvm.linkage",
-                             mlir::LLVM::LinkageAttr::get(ctx, lnk));
+                             mlir::LLVM::LinkageAttr::get(Ctx, lnk));
 
     // HACK: we want to avoid setting additional attributes on non-sycl
     // functions because we do not want to adjust the test cases at this time
@@ -3051,30 +2845,37 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
 
   mlirclang::AttributeList PAL;
   {
+    const clang::CodeGen::CGFunctionInfo &FI = GetOrCreateCGFunctionInfo(&FD);
     const auto *FPT = FD.getType()->getAs<FunctionProtoType>();
     clang::CodeGen::CGCalleeInfo CalleeInfo(FPT);
 
+    unsigned CallingConv;
     getTypes().constructAttributeList(function.getName(), FI, CalleeInfo, PAL,
-                                      /*AttrOnCallSite=*/false,
+                                      CallingConv,
+                                      /*AttrOnCallSite*/ false,
                                       /*IsThunk*/ false);
 
     // Set additional function attributes that are not derivable from the
     // function declaration.
-    mlirclang::AttrBuilder attrBuilder(*ctx);
+    mlirclang::AttrBuilder attrBuilder(*Ctx);
     {
-      LLVM::Linkage lnk = getMLIRLinkage(getLLVMLinkageType(FD, ShouldEmit));
+      attrBuilder.addAttribute(
+          "llvm.cconv",
+          mlir::LLVM::CConvAttr::get(
+              Ctx, static_cast<mlir::LLVM::cconv::CConv>(CallingConv)));
+
+      LLVM::Linkage Lnk = getMLIRLinkage(getLLVMLinkageType(FD, ShouldEmit));
       attrBuilder.addAttribute("llvm.linkage",
-                               mlir::LLVM::LinkageAttr::get(ctx, lnk));
+                               mlir::LLVM::LinkageAttr::get(Ctx, Lnk));
 
       if (FD.hasAttr<SYCLKernelAttr>())
         attrBuilder.addAttribute(gpu::GPUDialect::getKernelFuncAttrName(),
-                                 UnitAttr::get(ctx));
+                                 UnitAttr::get(Ctx));
 
-      if (CGM.getLangOpts().SYCLIsDevice) {
+      if (CGM.getLangOpts().SYCLIsDevice)
         attrBuilder.addPassThroughAttribute(
             "sycl-module-id",
-            StringAttr::get(ctx, llvmMod.getModuleIdentifier()));
-      }
+            StringAttr::get(Ctx, llvmMod.getModuleIdentifier()));
 
       // If we're in C++ mode and the function name is "main", it is
       // guaranteed to be norecurse by the standard (3.6.1.3 "The function
@@ -3115,8 +2916,8 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
 
   // Set function attributes.
   mlirclang::AttributeList FnAttrs(function->getAttrDictionary(), {}, {});
-  FnAttrs.addFnAttrs(PAL.getFnAttrs(), *ctx);
-  function->setAttrs(FnAttrs.getFnAttrs().getDictionary(ctx));
+  FnAttrs.addFnAttrs(PAL.getFnAttrs(), *Ctx);
+  function->setAttrs(FnAttrs.getFnAttrs().getDictionary(Ctx));
 
   // Set parameters attributes.
   const ArrayRef<NamedAttrList> ParamAttrs = PAL.getParamAttrs();

@@ -51,9 +51,12 @@ _Float16 arith(_Float16 a,
 }
 
 // CHECK-EXTEND-LABEL:  func.func @compound_assign(%arg0: memref<?xf16>, %arg1: f16)
+// CHECK-EXTEND-NEXT:     %[[EXT1:.*]] = arith.extf %arg1 : f16 to f32
 // CHECK-EXTEND-NEXT:     %[[ORIG:.*]] = affine.load %arg0[0] : memref<?xf16>
-// CHECK-EXTEND-NEXT:     %[[ADD:.*]] = arith.addf %[[ORIG]], %arg1 : f16
-// CHECK-EXTEND-NEXT:     affine.store %[[ADD]], %arg0[0] : memref<?xf16>
+// CHECK-EXTEND-NEXT:     %[[EXTORIG:.*]] = arith.extf %[[ORIG]] : f16 to f32
+// CHECK-EXTEND-NEXT:     %[[ADD:.*]] = arith.addf %[[EXTORIG]], %[[EXT1]] : f32
+// CHECK-EXTEND-NEXT:     %[[RES:.*]] = arith.truncf %[[ADD]] : f32 to f16
+// CHECK-EXTEND-NEXT:     affine.store %[[RES]], %arg0[0] : memref<?xf16>
 // CHECK-EXTEND-NEXT:     return
 // CHECK-EXTEND-NEXT:   }
 

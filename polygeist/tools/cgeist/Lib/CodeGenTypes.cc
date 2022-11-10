@@ -646,16 +646,12 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
 void CodeGenTypes::constructAttributeList(
     StringRef Name, const clang::CodeGen::CGFunctionInfo &FI,
     clang::CodeGen::CGCalleeInfo CalleeInfo, mlirclang::AttributeList &AttrList,
-    bool AttrOnCallSite, bool IsThunk) {
+    unsigned &CallingConv, bool AttrOnCallSite, bool IsThunk) {
   MLIRContext *Ctx = TheModule->getContext();
   mlirclang::AttrBuilder FuncAttrsBuilder(*Ctx);
   mlirclang::AttrBuilder RetAttrsBuilder(*Ctx);
 
-  unsigned CC = FI.getEffectiveCallingConvention();
-  FuncAttrsBuilder.addAttribute(
-      "llvm.cconv", mlir::LLVM::CConvAttr::get(
-                        Ctx, static_cast<mlir::LLVM::cconv::CConv>(CC)));
-
+  CallingConv = FI.getEffectiveCallingConvention();
   if (FI.isNoReturn())
     FuncAttrsBuilder.addPassThroughAttribute(llvm::Attribute::NoReturn);
   if (FI.isCmseNSCall())

@@ -353,6 +353,15 @@ private:
   // Reshape memref<elemTy> to memref<1 x elemTy>.
   mlir::Value reshapeRanklessGlobal(mlir::memref::GetGlobalOp GV);
 
+  /// TODO: Add ScalarConversion options
+  ValueCategory EmitScalarCast(ValueCategory Src, clang::QualType SrcType,
+                               clang::QualType DstType, mlir::Type SrcTy,
+                               mlir::Type DstTy);
+  /// TODO: Add ScalarConversion options
+  ValueCategory EmitScalarConversion(ValueCategory Src, clang::QualType SrcType,
+                                     clang::QualType DstType,
+                                     clang::SourceLocation Loc);
+
 public:
   MLIRScanner(MLIRASTConsumer &Glob, mlir::OwningOpRef<mlir::ModuleOp> &Module,
               LowerToInfo &LTInfo);
@@ -426,10 +435,10 @@ public:
   ValueCategory VisitCallExpr(clang::CallExpr *Expr);
 
   ValueCategory
-  callHelper(mlir::func::FuncOp Tocall, clang::QualType ObjType,
+  callHelper(mlir::func::FuncOp ToCall, clang::QualType ObjType,
              clang::ArrayRef<std::pair<ValueCategory, clang::Expr *>> Arguments,
              clang::QualType RetType, bool RetReference, clang::Expr *Expr,
-             const clang::FunctionDecl *Callee);
+             const clang::FunctionDecl &Callee);
 
   std::pair<ValueCategory, bool>
   emitClangBuiltinCallExpr(clang::CallExpr *Expr);
@@ -477,11 +486,23 @@ public:
   ValueCategory EmitUnPromotedValue(ValueCategory Result,
                                     clang::QualType PromotionType);
 
+  ValueCategory EmitCompoundAssignmentLValue(clang::CompoundAssignOperator *E);
+
+  ValueCategory EmitLValue(clang::Expr *E);
+  std::pair<ValueCategory, ValueCategory>
+  EmitCompoundAssignLValue(clang::CompoundAssignOperator *E,
+                           ValueCategory (MLIRScanner::*F)(const BinOpInfo &));
+
+  ValueCategory
+  EmitCompoundAssign(clang::CompoundAssignOperator *E,
+                     ValueCategory (MLIRScanner::*F)(const BinOpInfo &));
+
   BinOpInfo EmitBinOps(clang::BinaryOperator *E,
                        clang::QualType PromotionTy = clang::QualType());
 #define HANDLEBINOP(OP)                                                        \
   ValueCategory EmitBin##OP(const BinOpInfo &E);                               \
-  ValueCategory VisitBin##OP(clang::BinaryOperator *E);
+  ValueCategory VisitBin##OP(clang::BinaryOperator *E);                        \
+  ValueCategory VisitBin##OP##Assign(clang::BinaryOperator *E);
 #include "Expressions.def"
 #undef HANDLEBINOP
 
