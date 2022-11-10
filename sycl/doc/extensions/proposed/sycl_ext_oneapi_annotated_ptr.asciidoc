@@ -210,6 +210,11 @@ using namespace sycl::ext::oneapi::experimental;
   // alignment of the pointer in bytes specified using the property 'alignment'
   auto arg_a = annotated_ptr(ptr, properties{alignment<4>});
 
+  // alignment in bytes and address bus width of the pointer specified using the
+  // properties 'alignment' and 'awidth'.
+  // a properties object is deducted from the list the of property values
+  auto arg_b = annotated_ptr(ptr, alignment<4>, awidth<32>);
+
   q.submit([=]{
     ...
     *arg_a = (*arg_a) * 2;
@@ -236,6 +241,8 @@ class annotated_ptr {
 
     annotated_ptr() noexcept;
     annotated_ptr(T *Ptr, const properties<PropertyListT> &P = properties{}) noexcept;
+    template<typename T, typename... PropertyValueTs>
+    annotated_ptr(T *Ptr, PropertyValueTs... props) noexcept;
 
     template <typename T2, typename P> explicit annotated_ptr(
       const annotated_ptr<T2, P>&) noexcept;
@@ -278,7 +285,6 @@ class annotated_ptr {
     static constexpr /*unspecified*/ get_property();
   };
 } // namespace sycl::ext::oneapi::experimental
-
 ----
 
 [frame="topbot",options="header"]
@@ -303,11 +309,24 @@ annotated_ptr(T *Ptr, const properties<PropertyListT> &P = properties{}) noexcep
 ----
 |
 Constructs an `annotated_ptr` object. Does not allocate new storage. The
-underlying pointer is initialized with `Ptr`. `P` is used to specify the
-`PropertyListT` type on the class.
+underlying pointer is initialized with `Ptr`.
 
-The new property set `PropertyListT` must contain all properties from `P`,
-and if any common property takes a value, the value must be the same.
+The new property set `PropertyListT` contains all properties in `P`.
+If there are duplicate properties present in the property list of `P`, the values of the duplicate properties must be the same.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+template<typename T, typename... PropertyValueTs>
+annotated_ptr(T *Ptr, const PropertyValueTs... props) noexcept;
+----
+|
+Constructs an `annotated_ptr` object. Does not allocate new storage. The
+underlying pointer is initialized with `Ptr`.
+
+The new property set `PropertyListT` contains all properties in `P`.
+If there are duplicate properties present in the property list of `P`, the values of the duplicate properties must be the same.
 
 // --- ROW BREAK ---
 a|

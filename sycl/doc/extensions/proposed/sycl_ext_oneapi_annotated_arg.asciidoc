@@ -189,8 +189,16 @@ namespace sycl::ext::oneapi::experimental {
 template <typename T, typename PropertyListT = properties<>>
 class annotated_arg {
   public:
-    annotated_arg();
-    annotated_arg(const T& v_);
+    annotated_arg() noexcept;
+    annotated_arg(const T& v_, const properties<PropertyListT> &P = properties{}) noexcept;
+    template<typename T, typename... PropertyValueTs>
+    annotated_arg(const T& v_, PropertyValueTs... props) noexcept;
+
+    template <typename T2, typename P> explicit annotated_arg(
+      const annotated_arg<T2, P>&) noexcept;
+    template <typename T2, typename PropertyListU, typename PropertyListV>
+    explicit annotated_arg(const annotated_arg<T2, PropertyListU>&,
+      properties<PropertyListV>) noexcept;
 
     annotated_arg(const annotated_arg&) = default;
     annotated_arg& operator=(annotated_arg&) = default;
@@ -228,7 +236,7 @@ class annotated_arg {
 a|
 [source,c++]
 ----
-annotated_arg();
+annotated_arg() noexcept;
 ----
 | Not available in device code.
 Constructs an `annotated_arg` object which is default initialized.
@@ -237,10 +245,59 @@ Constructs an `annotated_arg` object which is default initialized.
 a|
 [source,c++]
 ----
-annotated_arg(const T& v_);
+annotated_arg(const T& v_, const properties<PropertyListT> &P = properties{}) noexcept;
 ----
 | Not available in device code.
 Constructs an `annotated_arg` object from the input object `v_`.
+
+The new property set `PropertyListT` contains all properties in `P`.
+If there are duplicate properties present in the property list of `P`, the values of the duplicate properties must be the same.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+template<typename T, typename... PropertyValueTs>
+annotated_arg(const T& v_, const PropertyValueTs... props) noexcept;
+----
+|
+Constructs an `annotated_arg` object from the input object `v_`. 
+
+The new property set `PropertyListT` contains all properties in `P`.
+If there are duplicate properties present in the property list of `P`, the values of the duplicate properties must be the same.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+template <typename T2, typename P> explicit annotated_arg(
+  const annotated_arg<T2, P> &ConvertFrom);
+----
+|
+Constructs the `annotated_arg` object from the `ConvertFrom` object if
+the list of properties in `PropertyListT` is a superset of the list of
+properties in `P`.
+
+`T2` must be implicitly convertible to `T`.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+template <typename T2, typename PropertyListU, typename PropertyListV>
+explicit annotated_arg(const annotated_arg<T2, PropertyListU>& v_,
+  properties<PropertyListV> P) noexcept;
+----
+|
+Constructs the `annotated_arg` object from the input object `v_`.
+
+The new `PropertyListT` is the union of all properties contained within
+`PropertyListU` and `PropertyListV`. If there are any common properties in the
+two lists with different values, a compile-time error is triggered. Common
+properties with the same value (or no value) are allowed.
+
+`T2` must be implicitly convertible to `T`.
+
 
 // --- ROW BREAK ---
 a|
