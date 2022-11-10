@@ -42,6 +42,33 @@ def SYCL_Dialect : Dialect {
     /// first.
     llvm::Optional<llvm::StringRef> findMethod(::mlir::TypeID Type,
                                                llvm::StringRef Name) const;
+
+    /// Returns the name of the operation implementing the queried
+    /// method, if present.
+    ///
+    /// For a method to be queried, it must have been registered
+    /// first.
+    ///
+    /// This function is similar to findMethod(), but also works for
+    /// methods registered as members of classes derived from \p BaseType.
+    llvm::Optional<llvm::StringRef>
+    findMethodFromBaseClass(::mlir::TypeID BaseType,
+                            llvm::StringRef Name) const;
+
+
+    /// Add a definition for the given method to be used when lowering
+    /// SYCLMethodOpInterface instances.
+    ///
+    /// A call to this function will fail if \p MayOverride is false and we try to
+    /// override an already present definition.
+    void registerMethodDefinition(llvm::StringRef Name, mlir::func::FuncOp Func,
+                                  bool MayOverride = false);
+
+    /// Retrieve a function definition previously registered with
+    /// provideMethodDefinition().
+    llvm::Optional<mlir::func::FuncOp>
+    lookupMethodDefinition(llvm::StringRef Name,
+                           mlir::FunctionType Type) const;
   }];
 }
 
@@ -219,7 +246,7 @@ def SYCLAccessorSubscriptOp
                        SYCLAccessorSubscriptIndex:$Index,
                        TypeAttr:$BaseType,
                        FlatSymbolRefAttr:$FunctionName,
-                       FlatSymbolRefAttr:$MangledFunctionName,
+                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs AnyType:$Res);
@@ -248,7 +275,7 @@ def SYCLRangeGetOp
                        I32:$Index,
                        TypeAttr:$BaseType,
                        FlatSymbolRefAttr:$FunctionName,
-                       FlatSymbolRefAttr:$MangledFunctionName,
+                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCLGetResult:$Res);
@@ -269,7 +296,7 @@ def SYCLRangeSizeOp
   let arguments = (ins RangeMemRef:$Range,
                        TypeAttr:$BaseType,
                        FlatSymbolRefAttr:$FunctionName,
-                       FlatSymbolRefAttr:$MangledFunctionName,
+                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs I64:$Res);
@@ -290,7 +317,7 @@ def SYCLNdRangeGetGlobalRange
   let arguments = (ins NDRangeMemRef:$ND,
                        TypeAttr:$BaseType,
                        FlatSymbolRefAttr:$FunctionName,
-                       FlatSymbolRefAttr:$MangledFunctionName,
+                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCL_RangeType:$Res);
@@ -311,7 +338,7 @@ def SYCLNdRangeGetLocalRange
   let arguments = (ins NDRangeMemRef:$ND,
                        TypeAttr:$BaseType,
                        FlatSymbolRefAttr:$FunctionName,
-                       FlatSymbolRefAttr:$MangledFunctionName,
+                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCL_RangeType:$Res);
@@ -332,7 +359,7 @@ def SYCLNdRangeGetGroupRange
   let arguments = (ins NDRangeMemRef:$ND,
                        TypeAttr:$BaseType,
                        FlatSymbolRefAttr:$FunctionName,
-                       FlatSymbolRefAttr:$MangledFunctionName,
+                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCL_RangeType:$Res);
@@ -355,7 +382,7 @@ def SYCLIDGetOp
                        Optional<I32>:$Index,
                        TypeAttr:$BaseType,
                        FlatSymbolRefAttr:$FunctionName,
-                       FlatSymbolRefAttr:$MangledFunctionName,
+                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCLGetResult:$Res);
@@ -378,7 +405,7 @@ def SYCLItemGetIDOp
                        Optional<I32>:$Index,
                        TypeAttr:$BaseType,
                        FlatSymbolRefAttr:$FunctionName,
-                       FlatSymbolRefAttr:$MangledFunctionName,
+                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCLGetIDResult:$Res);
@@ -400,7 +427,7 @@ def SYCLItemGetRangeOp
                        Optional<I32>:$Index,
                        TypeAttr:$BaseType,
                        FlatSymbolRefAttr:$FunctionName,
-                       FlatSymbolRefAttr:$MangledFunctionName,
+                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCLGetRangeResult:$Res);
@@ -421,7 +448,7 @@ def SYCLItemGetLinearIDOp
   let arguments = (ins ItemMemRef:$Item,
                        TypeAttr:$BaseType,
                        FlatSymbolRefAttr:$FunctionName,
-                       FlatSymbolRefAttr:$MangledFunctionName,
+                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs I64:$Res);
@@ -443,7 +470,7 @@ def SYCLNDItemGetGlobalIDOp
                        Optional<I32>:$Index,
                        TypeAttr:$BaseType,
                        FlatSymbolRefAttr:$FunctionName,
-                       FlatSymbolRefAttr:$MangledFunctionName,
+                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCLGetIDResult:$Res);
@@ -464,7 +491,7 @@ def SYCLNDItemGetGlobalLinearIDOp
   let arguments = (ins NDItemMemRef:$NDItem,
                        TypeAttr:$BaseType,
                        FlatSymbolRefAttr:$FunctionName,
-                       FlatSymbolRefAttr:$MangledFunctionName,
+                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs I64:$Res);
@@ -486,7 +513,7 @@ def SYCLNDItemGetLocalIDOp
                        Optional<I32>:$Index,
                        TypeAttr:$BaseType,
                        FlatSymbolRefAttr:$FunctionName,
-                       FlatSymbolRefAttr:$MangledFunctionName,
+                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCLGetIDResult:$Res);
@@ -507,7 +534,7 @@ def SYCLNDItemGetLocalLinearIDOp
   let arguments = (ins NDItemMemRef:$NDItem,
                        TypeAttr:$BaseType,
                        FlatSymbolRefAttr:$FunctionName,
-                       FlatSymbolRefAttr:$MangledFunctionName,
+                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs I64:$Res);
@@ -529,7 +556,7 @@ def SYCLNDItemGetGroupOp
                        Optional<I32>:$Index,
                        TypeAttr:$BaseType,
                        FlatSymbolRefAttr:$FunctionName,
-                       FlatSymbolRefAttr:$MangledFunctionName,
+                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs AnyTypeOf<[I64, SYCL_GroupType]>:$Res);
@@ -550,7 +577,7 @@ def SYCLNDItemGetGroupLinearIDOp
   let arguments = (ins NDItemMemRef:$NDItem,
                        TypeAttr:$BaseType,
                        FlatSymbolRefAttr:$FunctionName,
-                       FlatSymbolRefAttr:$MangledFunctionName,
+                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs I64:$Res);
@@ -573,7 +600,7 @@ def SYCLNDItemGetGroupRangeOp
                        Optional<I32>:$Index,
                        TypeAttr:$BaseType,
                        FlatSymbolRefAttr:$FunctionName,
-                       FlatSymbolRefAttr:$MangledFunctionName,
+                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCLGetRangeResult:$Res);
@@ -596,7 +623,7 @@ def SYCLNDItemGetGlobalRangeOp
                        Optional<I32>:$Index,
                        TypeAttr:$BaseType,
                        FlatSymbolRefAttr:$FunctionName,
-                       FlatSymbolRefAttr:$MangledFunctionName,
+                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCLGetRangeResult:$Res);
@@ -619,7 +646,7 @@ def SYCLNDItemGetLocalRangeOp
                        Optional<I32>:$Index,
                        TypeAttr:$BaseType,
                        FlatSymbolRefAttr:$FunctionName,
-                       FlatSymbolRefAttr:$MangledFunctionName,
+                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCLGetRangeResult:$Res);
@@ -640,7 +667,7 @@ def SYCLNDItemGetNdRangeOp
   let arguments = (ins NDItemMemRef:$NDItem,
                        TypeAttr:$BaseType,
                        FlatSymbolRefAttr:$FunctionName,
-                       FlatSymbolRefAttr:$MangledFunctionName,
+                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCL_NdRangeType:$Res);
@@ -663,7 +690,7 @@ def SYCLGroupGetGroupIDOp
                        Optional<I32>:$Index,
                        TypeAttr:$BaseType,
                        FlatSymbolRefAttr:$FunctionName,
-                       FlatSymbolRefAttr:$MangledFunctionName,
+                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCLGetIDResult:$Res);
@@ -686,7 +713,7 @@ def SYCLGroupGetLocalIDOp
                        Optional<I32>:$Index,
                        TypeAttr:$BaseType,
                        FlatSymbolRefAttr:$FunctionName,
-                       FlatSymbolRefAttr:$MangledFunctionName,
+                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCLGetIDResult:$Res);
@@ -709,7 +736,7 @@ def SYCLGroupGetLocalRangeOp
                        Optional<I32>:$Index,
                        TypeAttr:$BaseType,
                        FlatSymbolRefAttr:$FunctionName,
-                       FlatSymbolRefAttr:$MangledFunctionName,
+                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCLGetRangeResult:$Res);
@@ -732,7 +759,7 @@ def SYCLGroupGetGroupRangeOp
                        Optional<I32>:$Index,
                        TypeAttr:$BaseType,
                        FlatSymbolRefAttr:$FunctionName,
-                       FlatSymbolRefAttr:$MangledFunctionName,
+                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCLGetRangeResult:$Res);
@@ -753,7 +780,7 @@ def SYCLGroupGetMaxLocalRangeOp
   let arguments = (ins GroupMemRef:$Group,
                        TypeAttr:$BaseType,
                        FlatSymbolRefAttr:$FunctionName,
-                       FlatSymbolRefAttr:$MangledFunctionName,
+                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCL_RangeType:$Res);
@@ -774,7 +801,7 @@ def SYCLGroupGetGroupLinearIDOp
   let arguments = (ins GroupMemRef:$Group,
                        TypeAttr:$BaseType,
                        FlatSymbolRefAttr:$FunctionName,
-                       FlatSymbolRefAttr:$MangledFunctionName,
+                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs I64:$Res);
@@ -795,7 +822,7 @@ def SYCLGroupGetLocalLinearIDOp
   let arguments = (ins GroupMemRef:$Group,
                        TypeAttr:$BaseType,
                        FlatSymbolRefAttr:$FunctionName,
-                       FlatSymbolRefAttr:$MangledFunctionName,
+                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs I64:$Res);
@@ -816,7 +843,7 @@ def SYCLGroupGetLocalLinearIDOp
   let arguments = (ins GroupMemRef:$Group,
                        TypeAttr:$BaseType,
                        FlatSymbolRefAttr:$FunctionName,
-                       FlatSymbolRefAttr:$MangledFunctionName,
+                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs I64:$Res);
@@ -837,7 +864,7 @@ def SYCLGroupGetLocalLinearRangeOp
   let arguments = (ins GroupMemRef:$Group,
                        TypeAttr:$BaseType,
                        FlatSymbolRefAttr:$FunctionName,
-                       FlatSymbolRefAttr:$MangledFunctionName,
+                       OptionalAttr<FlatSymbolRefAttr>:$MangledFunctionName,
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs I64:$Res);

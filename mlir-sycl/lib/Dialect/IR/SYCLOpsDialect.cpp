@@ -12,10 +12,17 @@
 
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsAlias.h"
-
+#include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
 #include "mlir/IR/DialectImplementation.h"
 
+#include "llvm/Support/Debug.h"
+#include "llvm/Support/WithColor.h"
+
+#define DEBUG_TYPE "SYCLOpsDialect"
+
 void mlir::sycl::SYCLDialect::initialize() {
+  methods.init(*getContext());
+
   mlir::sycl::SYCLDialect::addOperations<
 #define GET_OP_LIST
 #include "mlir/Dialect/SYCL/IR/SYCLOps.cpp.inc"
@@ -135,6 +142,36 @@ mlir::sycl::SYCLDialect::findMethod(mlir::TypeID BaseType,
 }
 
 llvm::Optional<llvm::StringRef>
+mlir::sycl::SYCLDialect::findMethodFromBaseClass(
+    mlir::TypeID BaseType, llvm::StringRef MethodName) const {
+  auto Method = findMethod(BaseType, MethodName);
+  if (Method)
+    return Method;
+  for (auto DerivedTy : getDerivedTypes(BaseType)) {
+    Method = findMethod(DerivedTy, MethodName);
+    if (Method)
+      return Method;
+  }
+  return llvm::None;
+}
+
+void mlir::sycl::SYCLDialect::registerMethodDefinition(llvm::StringRef Name,
+                                                       mlir::func::FuncOp Func,
+                                                       bool MayOverride) {
+  methods.registerDefinition(Name, Func, MayOverride);
+}
+
+llvm::Optional<mlir::func::FuncOp>
+mlir::sycl::SYCLDialect::lookupMethodDefinition(llvm::StringRef Name,
+                                                mlir::FunctionType Type) const {
+  return methods.lookupDefinition(Name, Type);
+}
+
+void mlir::sycl::MethodRegistry::init(mlir::MLIRContext &Ctx) {
+  Module = ModuleOp::create(mlir::UnknownLoc::get(&Ctx), ModuleName);
+}
+
+llvm::Optional<llvm::StringRef>
 mlir::sycl::MethodRegistry::lookupMethod(mlir::TypeID BaseType,
                                          llvm::StringRef MethodName) const {
   const auto Iter = methods.find({BaseType, MethodName});
@@ -166,6 +203,63 @@ addSYCLMethod(mlir::sycl::MethodRegistry &) {}
 template <typename... Args> void mlir::sycl::SYCLDialect::addOperations() {
   mlir::Dialect::addOperations<Args...>();
   (void)std::initializer_list<int>{0, (::addSYCLMethod<Args>(methods), 0)...};
+}
+
+namespace llvm {
+template <> struct DenseMapInfo<llvm::SmallString<0>> {
+  using SmallString = llvm::SmallString<0>;
+
+  static unsigned getHashValue(const SmallString &S) {
+    return llvm::hash_value(S);
+  }
+
+  static bool isEqual(const SmallString &LHS, const SmallString &RHS) {
+    return LHS == RHS;
+  }
+
+  static SmallString getEmptyKey() { return SmallString(""); }
+
+  static SmallString getTombstoneKey() { return SmallString("~"); }
+};
+} // namespace llvm
+
+void mlir::sycl::MethodRegistry::registerDefinition(llvm::StringRef Name,
+                                                    mlir::func::FuncOp Func,
+                                                    bool MayOverride) {
+  LLVM_DEBUG(llvm::dbgs() << "Inserting function \"" << Name << "\": " << Func
+                          << "\n");
+  auto Clone = Func.clone();
+  const auto FuncType = Clone.getFunctionType();
+  auto Iter =
+      definitions.insert_as<std::pair<llvm::StringRef, mlir::FunctionType>>(
+          {{Name, FuncType}, Clone}, {Name, FuncType});
+  if (!Iter.second) {
+    // Override current function.
+    assert(MayOverride && "Overriding not allowed");
+    auto &ToOverride = Iter.first->second;
+    assert(ToOverride.getName() == Func.getName() &&
+           "Functions have same mangled name");
+    ToOverride.erase();
+    ToOverride = Clone;
+  }
+  Module.push_back(Clone);
+}
+
+llvm::Optional<mlir::func::FuncOp> mlir::sycl::MethodRegistry::lookupDefinition(
+    llvm::StringRef Name, mlir::FunctionType FuncType) const {
+  LLVM_DEBUG(llvm::dbgs() << "Fetching function \"" << Name
+                          << "\" with type: " << FuncType << "\n");
+
+  const auto Iter =
+      definitions.find_as<std::pair<llvm::StringRef, mlir::FunctionType>>(
+          {Name, FuncType});
+  if (Iter == definitions.end()) {
+    llvm::WithColor::warning() << "Could not find function \"" << Name
+                               << "\" with type " << FuncType << "\n";
+    return llvm::None;
+  }
+  LLVM_DEBUG(llvm::dbgs() << "Function found: " << Iter->second << "\n");
+  return Iter->second;
 }
 
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.cpp.inc"

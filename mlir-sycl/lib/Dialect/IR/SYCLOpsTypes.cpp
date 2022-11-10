@@ -781,3 +781,13 @@ unsigned int mlir::sycl::GroupType::getDimension() const {
 llvm::ArrayRef<mlir::Type> mlir::sycl::GroupType::getBody() const {
   return getImpl()->Body;
 }
+
+llvm::SmallVector<mlir::TypeID>
+mlir::sycl::getDerivedTypes(mlir::TypeID TypeID) {
+  if (TypeID == mlir::sycl::AccessorCommonType::getTypeID())
+    return {mlir::sycl::AccessorType::getTypeID()};
+  if (TypeID == mlir::sycl::ArrayType::getTypeID())
+    return {mlir::sycl::IDType::getTypeID(),
+            mlir::sycl::RangeType::getTypeID()};
+  return {};
+}

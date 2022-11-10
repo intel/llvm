@@ -21,6 +21,7 @@ using namespace mlir;
 using namespace mlir::arith;
 
 extern llvm::cl::opt<bool> GenerateAllSYCLFuncs;
+extern llvm::cl::opt<bool> AddOptionalMangledFunctionName;
 
 ValueCategory
 MLIRScanner::VisitExtVectorElementExpr(clang::ExtVectorElementExpr *expr) {
@@ -941,8 +942,11 @@ static NamedAttrList getSYCLMethodOpAttrs(OpBuilder &builder,
             mlir::TypeAttr::get(baseType));
   attrs.set(mlir::sycl::SYCLDialect::getFunctionNameAttrName(),
             FlatSymbolRefAttr::get(builder.getStringAttr(functionName)));
-  attrs.set(mlir::sycl::SYCLDialect::getMangledFunctionNameAttrName(),
-            FlatSymbolRefAttr::get(builder.getStringAttr(mangledFunctionName)));
+  if (AddOptionalMangledFunctionName) {
+    attrs.set(
+        mlir::sycl::SYCLDialect::getMangledFunctionNameAttrName(),
+        FlatSymbolRefAttr::get(builder.getStringAttr(mangledFunctionName)));
+  }
   attrs.set(mlir::sycl::SYCLDialect::getTypeNameAttrName(),
             FlatSymbolRefAttr::get(builder.getStringAttr(typeName)));
   return attrs;

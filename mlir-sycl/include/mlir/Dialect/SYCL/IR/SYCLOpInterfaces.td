@@ -46,7 +46,7 @@ def SYCLMethodOpInterface : SYCL_OpInterface<"SYCLMethodOpInterface"> {
     }], "::mlir::Type", "getBaseType">,
     InterfaceMethod<[{
       Return the mangled name of the function implementing this operation.
-    }], "llvm::StringRef", "getMangledFunctionName">,
+    }], "llvm::Optional<llvm::StringRef>", "getMangledFunctionName">,
     InterfaceMethod<[{
       Return the name of the function implementing this operation.
     }], "llvm::StringRef", "getFunctionName">,
