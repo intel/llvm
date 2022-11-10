@@ -201,7 +201,7 @@ MLIRScanner::InitializeValueByInitListExpr(mlir::Value toInit,
 
   // Recursively visit the initialization expression following the linear
   // increment of the memory address.
-  std::function<mlir::DenseElementsAttr(const Expr *, mlir::Value, bool)>
+ const auto
       helper = [&](const Expr *expr, mlir::Value toInit,
                    bool inner) -> mlir::DenseElementsAttr {
     Location loc = toInit.getLoc();
