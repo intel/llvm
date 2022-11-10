@@ -23,6 +23,7 @@
 #include "CGVTables.h"
 #include "CodeGenFunction.h"
 #include "CodeGenModule.h"
+#include "CodeGenTypeCache.h"
 #include "TargetInfo.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Mangle.h"
@@ -3573,32 +3574,8 @@ void ItaniumRTTIBuilder::BuildVTablePointer(const Type *Ty) {
   if (CGM.getItaniumVTableContext().isRelativeLayout())
     VTable = CGM.getModule().getNamedAlias(VTableName);
 
-  // To generate valid device code global pointers should have global address
-  // space in SYCL.
-  bool GenTyInfoGVWithGlobalAS =
-      CGM.getLangOpts().SYCLIsDevice &&
-      CGM.getLangOpts().SYCLAllowVirtualFunctions &&
-      (VTableName == ClassTypeInfo || VTableName == SIClassTypeInfo);
-  auto VTableTy =
-      GenTyInfoGVWithGlobalAS
-          ? CGM.Int8Ty->getPointerTo(
-                CGM.getContext().getTargetAddressSpace(LangAS::sycl_global))
-          : CGM.Int8PtrTy;
-  if (!VTable) {
-    if (GenTyInfoGVWithGlobalAS) {
-      VTable = CGM.getModule().getOrInsertGlobal(VTableName, VTableTy, [&] {
-        return new llvm::GlobalVariable(
-            CGM.getModule(), VTableTy, /*isConstant=*/false,
-            llvm::GlobalVariable::ExternalLinkage, /*Initializer=*/nullptr,
-            VTableName, /*InsertBefore=*/nullptr,
-            llvm::GlobalValue::ThreadLocalMode::NotThreadLocal,
-            llvm::Optional<unsigned>(
-                CGM.getContext().getTargetAddressSpace(LangAS::sycl_global)));
-      });
-    } else {
-      VTable = CGM.getModule().getOrInsertGlobal(VTableName, VTableTy);
-    }
-  }
+  if (!VTable)
+    VTable = CGM.CreateRuntimeVariable(CGM.TargetInt8PtrTy, VTableName);
 
   CGM.setDSOLocal(cast<llvm::GlobalValue>(VTable->stripPointerCasts()));
 
@@ -3610,15 +3587,15 @@ void ItaniumRTTIBuilder::BuildVTablePointer(const Type *Ty) {
     // The vtable address point is 8 bytes after its start:
     // 4 for the offset to top + 4 for the relative offset to rtti.
     llvm::Constant *Eight = llvm::ConstantInt::get(CGM.Int32Ty, 8);
-    VTable = llvm::ConstantExpr::getBitCast(VTable, VTableTy);
+    VTable = llvm::ConstantExpr::getBitCast(VTable, CGM.TargetInt8PtrTy);
     VTable =
         llvm::ConstantExpr::getInBoundsGetElementPtr(CGM.Int8Ty, VTable, Eight);
   } else {
     llvm::Constant *Two = llvm::ConstantInt::get(PtrDiffTy, 2);
     VTable =
-        llvm::ConstantExpr::getInBoundsGetElementPtr(VTableTy, VTable, Two);
+        llvm::ConstantExpr::getInBoundsGetElementPtr(CGM.TargetInt8PtrTy, VTable, Two);
   }
-  VTable = llvm::ConstantExpr::getBitCast(VTable, VTableTy);
+  VTable = llvm::ConstantExpr::getBitCast(VTable, CGM.TargetInt8PtrTy);
 
   Fields.push_back(VTable);
 }
