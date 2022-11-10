@@ -69,9 +69,11 @@ pi_result after_piProgramGetInfo(pi_program program, pi_program_info param_name,
   return PI_SUCCESS;
 }
 
-pi_result redefined_piProgramGetBuildInfo(
-    pi_program program, pi_device device, _pi_program_build_info param_name,
-    size_t param_value_size, void *param_value, size_t *param_value_size_ret) {
+pi_result redefined_piProgramGetBuildInfo(pi_program program, pi_device device,
+                                          _pi_program_build_info param_name,
+                                          size_t param_value_size,
+                                          void *param_value,
+                                          size_t *param_value_size_ret) {
   switch (param_name) {
   case PI_PROGRAM_BUILD_INFO_BINARY_TYPE:
     if (param_value_size_ret)
