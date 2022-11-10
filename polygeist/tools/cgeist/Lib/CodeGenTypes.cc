@@ -1537,7 +1537,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
 
     if (isa<clang::VectorType>(PTT) || isa<clang::ComplexType>(PTT)) {
       if (auto VT = SubType.dyn_cast<mlir::VectorType>())
-        return mlir::MemRefType::get(1, SubType);
+        return mlir::MemRefType::get(Outer, SubType);
       if (SubType.isa<MemRefType>()) {
         assert(SubRef);
         auto MT = SubType.cast<MemRefType>();
