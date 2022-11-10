@@ -2087,9 +2087,7 @@ MLIRASTConsumer::getOrCreateGlobal(const ValueDecl &VD, std::string Prefix,
   const unsigned MemSpace =
       CGM.getContext().getTargetAddressSpace(CGM.GetGlobalVarAddressSpace(Var));
 
-  // Global variables have always memref type. Their should always have a memref
-  // type with rank zero, however we currently do not yet handle global with ext
-  // vector type correctly.
+  // Note: global scalar variables have always memref type with rank zero.
   auto VarTy =
       (!IsArray) ? mlir::MemRefType::get({}, MLIRType, {}, MemSpace)
                  : mlir::MemRefType::get(
@@ -2143,8 +2141,34 @@ MLIRASTConsumer::getOrCreateGlobal(const ValueDecl &VD, std::string Prefix,
     break;
   }
 
-  // Initialize the global variable.
-  if (const Expr *Init = Var->getInit()) {
+  // Initialize the global.
+  const VarDecl *InitDecl;
+  const Expr *InitExpr = Var->getAnyInitializer(InitDecl);
+
+  if (!InitExpr) {
+    if (DefKind == VarDecl::TentativeDefinition) {
+      // Tentative definitions are initialized to {0}.
+      assert(!VD.getType()->isIncompleteType() && "Unexpected incomplete type");
+
+      mlir::Attribute Zero =
+          mlir::TypeSwitch<mlir::Type, mlir::Attribute>(VarTy.getElementType())
+              .Case<mlir::IntegerType>(
+                  [](mlir::Type Ty) { return IntegerAttr::get(Ty, 0); })
+              .Case<mlir::FloatType>(
+                  [](mlir::Type Ty) { return FloatAttr::get(Ty, 0); })
+              .Default([&](mlir::Type Ty) {
+                llvm_unreachable("unimplemented");
+                return mlir::Attribute();
+              });
+      auto ZeroVal = DenseElementsAttr::get(
+          RankedTensorType::get(VarTy.getShape(), VarTy.getElementType()),
+          Zero);
+      globalOp.setInitialValueAttr(ZeroVal);
+    }
+  } else {
+    // explicit initialization.
+    assert(DefKind == VarDecl::Definition);
+
     MLIRScanner MS(*this, module, LTInfo);
     mlir::Block B;
     // In case of device function, we will put the block in the forefront of
@@ -2160,12 +2184,12 @@ MLIRASTConsumer::getOrCreateGlobal(const ValueDecl &VD, std::string Prefix,
     Builder.setInsertionPointToEnd(&B);
     auto Op = Builder.create<memref::AllocaOp>(module->getLoc(), VarTy);
 
-    if (isa<InitListExpr>(Init)) {
-      mlir::Attribute InitValAttr =
-          MS.InitializeValueByInitListExpr(Op, const_cast<clang::Expr *>(Init));
+    if (isa<InitListExpr>(InitExpr)) {
+      mlir::Attribute InitValAttr = MS.InitializeValueByInitListExpr(
+          Op, const_cast<clang::Expr *>(InitExpr));
       globalOp.setInitialValueAttr(InitValAttr);
     } else {
-      ValueCategory VC = MS.Visit(const_cast<clang::Expr *>(Init));
+      ValueCategory VC = MS.Visit(const_cast<clang::Expr *>(InitExpr));
       assert(!VC.isReference && "The initializer should not be a reference");
 
       auto Op = VC.val.getDefiningOp<arith::ConstantOp>();

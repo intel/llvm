@@ -11,7 +11,8 @@ int main() {
   return 0;
 }
 
-// CHECK:  memref.global @A : memref<64x32xf32> = uninitialized {alignment = 16 : i64}
+// CHECK:  memref.global @A : memref<64x32xf32> = dense<0.000000e+00> {alignment = 16 : i64}
+
 // CHECK:  func @main() -> i32
 // CHECK-DAG:    %cst = arith.constant 3.000000e+00 : f32
 // CHECK-DAG:    %c0_i32 = arith.constant 0 : i32
