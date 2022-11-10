@@ -39,7 +39,7 @@ SYCLFixupESIMDKernelWrapperMDPass::run(Module &M, ModuleAnalysisManager &MAM) {
               Modified = true;
             }
           },
-          false);
+          false, filterFunctionPointer);
     }
   }
   return Modified ? PreservedAnalyses::none() : PreservedAnalyses::all();

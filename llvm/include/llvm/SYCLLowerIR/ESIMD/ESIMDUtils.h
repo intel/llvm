@@ -74,6 +74,11 @@ void collectUsesLookThroughCastsAndZeroGEPs(const Value *V,
 /// in it. Returns nullptr if failed to do so.
 Type *getVectorTyOrNull(StructType *STy);
 
+/// Tracks the use of a function pointer being stored in a memory.
+/// Returns false if the function pointer is used as an argument for invoke_simd
+/// function call, true otherwise.
+bool filterFunctionPointer(Value *address);
+
 // Simplest possible implementation of an allocator for the Itanium demangler
 class SimpleAllocator {
 protected:

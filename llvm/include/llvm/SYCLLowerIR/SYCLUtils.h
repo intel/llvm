@@ -18,6 +18,7 @@ namespace llvm {
 namespace sycl {
 namespace utils {
 using CallGraphNodeAction = std::function<void(Function *)>;
+using CallGraphFunctionFilter = std::function<bool(Value *)>;
 
 // Traverses call graph starting from given function up the call chain applying
 // given action to each function met on the way. If \c ErrorOnNonCallUse
@@ -26,24 +27,33 @@ using CallGraphNodeAction = std::function<void(Function *)>;
 // call graph as if the use was a call.
 // Functions which are part of the visited set ('Visited' parameter) are not
 // traversed.
-void traverseCallgraphUp(llvm::Function *F, CallGraphNodeAction NodeF,
-                         SmallPtrSetImpl<Function *> &Visited,
-                         bool ErrorOnNonCallUse);
+void traverseCallgraphUp(
+    llvm::Function *F, CallGraphNodeAction NodeF,
+    SmallPtrSetImpl<Function *> &Visited, bool ErrorOnNonCallUse,
+    const CallGraphFunctionFilter &functionFilter = [](Value *) {
+      return true;
+    });
 
 template <class CallGraphNodeActionF>
-void traverseCallgraphUp(Function *F, CallGraphNodeActionF ActionF,
-                         SmallPtrSetImpl<Function *> &Visited,
-                         bool ErrorOnNonCallUse) {
+void traverseCallgraphUp(
+    Function *F, CallGraphNodeActionF ActionF,
+    SmallPtrSetImpl<Function *> &Visited, bool ErrorOnNonCallUse,
+    const CallGraphFunctionFilter &functionFilter = [](Value *) {
+      return true;
+    }) {
   traverseCallgraphUp(F, CallGraphNodeAction(ActionF), Visited,
-                      ErrorOnNonCallUse);
+                      ErrorOnNonCallUse, functionFilter);
 }
 
 template <class CallGraphNodeActionF>
-void traverseCallgraphUp(Function *F, CallGraphNodeActionF ActionF,
-                         bool ErrorOnNonCallUse = true) {
+void traverseCallgraphUp(
+    Function *F, CallGraphNodeActionF ActionF, bool ErrorOnNonCallUse = true,
+    const CallGraphFunctionFilter &functionFilter = [](Value *) {
+      return true;
+    }) {
   SmallPtrSet<Function *, 32> Visited;
   traverseCallgraphUp(F, CallGraphNodeAction(ActionF), Visited,
-                      ErrorOnNonCallUse);
+                      ErrorOnNonCallUse, functionFilter);
 }
 } // namespace utils
 } // namespace sycl
