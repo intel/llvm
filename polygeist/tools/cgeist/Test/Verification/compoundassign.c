@@ -191,15 +191,7 @@ bool f13(bool *a, unsigned b) {
   return *a += b;
 }
 
-// COM: Currently not working for how +operator is implemented for pointers.
-
-#if 0
-bool f14(bool *a, void *b) {
-  return *a += b;
-}
-#endif
-
-// CHECK-LABEL:   func.func @f15(
+// CHECK-LABEL:   func.func @f14(
 // CHECK-SAME:                   %[[VAL_0:.*]]: memref<?xi8>,
 // CHECK-SAME:                   %[[VAL_1:.*]]: f32) -> i8
 // CHECK:           %[[VAL_2:.*]] = arith.constant 0.000000e+00 : f32
@@ -212,11 +204,11 @@ bool f14(bool *a, void *b) {
 // CHECK:           return %[[VAL_7]] : i8
 // CHECK:         }
 
-bool f15(bool *a, float b) {
+bool f14(bool *a, float b) {
   return *a += b;
 }
 
-// CHECK-LABEL:   func.func @f16(
+// CHECK-LABEL:   func.func @f15(
 // CHECK-SAME:                   %[[VAL_0:.*]]: memref<?xi8>,
 // CHECK-SAME:                   %[[VAL_1:.*]]: f64) -> i8
 // CHECK:           %[[VAL_2:.*]] = arith.constant 0.000000e+00 : f64
@@ -229,6 +221,6 @@ bool f15(bool *a, float b) {
 // CHECK:           return %[[VAL_7]] : i8
 // CHECK:         }
 
-bool f16(bool *a, double b) {
+bool f15(bool *a, double b) {
   return *a += b;
 }
