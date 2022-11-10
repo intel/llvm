@@ -917,7 +917,7 @@ struct NDRangeReduction<
     auto &PartialSumsBuf = Redu.getTempBuffer(NWorkGroups * NElements, CGH);
     accessor PartialSums(PartialSumsBuf, CGH, sycl::read_write, sycl::no_init);
 
-    bool IsUpdateOfUserVar = !Reduction::is_usm && !Redu.initializeToIdentity();
+    bool IsUpdateOfUserVar = !Redu.initializeToIdentity();
     auto Rest = [&](auto NWorkGroupsFinished) {
       local_accessor<int, 1> DoReducePartialSumsInLastWG{1, CGH};
 
@@ -1485,8 +1485,6 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
         // group size may be not power of two. Those two cases considered
         // inefficient as they require additional code and checks in the kernel.
         bool HasUniformWG = NWorkGroups * WGSize == NWorkItems;
-        if (!Reduction::has_fast_reduce)
-          HasUniformWG = HasUniformWG && (WGSize & (WGSize - 1)) == 0;
 
         // Get read accessor to the buffer that was used as output
         // in the previous kernel.
@@ -1498,7 +1496,7 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
                                  !Redu.initializeToIdentity() &&
                                  NWorkGroups == 1;
 
-        bool UniformPow2WG = HasUniformWG;
+        bool UniformPow2WG = HasUniformWG && (WGSize & (WGSize - 1)) == 0;
         // Use local memory to reduce elements in work-groups into 0-th element.
         // If WGSize is not power of two, then WGSize+1 elements are allocated.
         // The additional last element is used to catch elements that could
