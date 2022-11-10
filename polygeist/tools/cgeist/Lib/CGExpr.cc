@@ -862,19 +862,20 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
     ShouldEmit = true;
 
   FunctionToEmit F(*ctorDecl, mlirclang::getInputContext(builder));
-  auto tocall = cast<func::FuncOp>(Glob.GetOrCreateMLIRFunction(F, ShouldEmit));
+  auto ToCall = cast<func::FuncOp>(Glob.GetOrCreateMLIRFunction(F, ShouldEmit));
 
-  SmallVector<std::pair<ValueCategory, clang::Expr *>> args;
-  args.emplace_back(std::make_pair(obj, (clang::Expr *)nullptr));
-  for (auto a : cons->arguments())
-    args.push_back(std::make_pair(Visit(a), a));
-  callHelper(tocall, innerType, args,
+  SmallVector<std::pair<ValueCategory, clang::Expr *>> Args{{obj, nullptr}};
+  Args.reserve(cons->getNumArgs() + 1);
+  for (auto A : cons->arguments())
+    Args.emplace_back(Visit(A), A);
+
+  callHelper(ToCall, innerType, Args,
              /*retType*/ Glob.getCGM().getContext().VoidTy, false, cons,
-             ctorDecl);
+             *ctorDecl);
 
-  if (Glob.getCGM().getContext().getAsArrayType(cons->getType())) {
+  if (Glob.getCGM().getContext().getAsArrayType(cons->getType()))
     builder.setInsertionPoint(oldblock, oldpoint);
-  }
+
   return endobj;
 }
 

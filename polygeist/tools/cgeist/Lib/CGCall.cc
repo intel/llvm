@@ -100,21 +100,21 @@ static void castCallerArgs(mlir::func::FuncOp Callee,
 /******************************************************************************/
 
 ValueCategory MLIRScanner::callHelper(
-    mlir::func::FuncOp Tocall, QualType ObjType,
+    mlir::func::FuncOp ToCall, QualType ObjType,
     ArrayRef<std::pair<ValueCategory, clang::Expr *>> Arguments,
     QualType RetType, bool RetReference, clang::Expr *Expr,
-    const FunctionDecl *Callee) {
+    const FunctionDecl &Callee) {
   SmallVector<mlir::Value, 4> Args;
-  auto FnType = Tocall.getFunctionType();
-  const clang::CodeGen::CGFunctionInfo &FI =
-      Glob.GetOrCreateCGFunctionInfo(Callee);
-  auto FIArgs = FI.arguments();
+  mlir::FunctionType FnType = ToCall.getFunctionType();
+  const clang::CodeGen::CGFunctionInfo &CalleeInfo =
+      Glob.GetOrCreateCGFunctionInfo(&Callee);
+  auto CalleeArgs = CalleeInfo.arguments();
 
   size_t I = 0;
   // map from declaration name to mlir::value
   std::map<std::string, mlir::Value> MapFuncOperands;
 
-  for (auto Pair : Arguments) {
+  for (const std::pair<ValueCategory, clang::Expr *> &Pair : Arguments) {
     ValueCategory Arg = std::get<0>(Pair);
     clang::Expr *A = std::get<1>(Pair);
 
@@ -134,10 +134,10 @@ ValueCategory MLIRScanner::callHelper(
     if (I >= FnType.getInputs().size() || (I != 0 && A == nullptr)) {
       LLVM_DEBUG({
         Expr->dump();
-        Tocall.dump();
+        ToCall.dump();
         FnType.dump();
-        for (auto a : Arguments)
-          std::get<1>(a)->dump();
+        for (auto A : Arguments)
+          std::get<1>(A)->dump();
       });
       assert(false && "too many arguments in calls");
     }
@@ -175,21 +175,21 @@ ValueCategory MLIRScanner::callHelper(
         });
         assert(Arg.isReference);
 
-        auto Mt =
+        auto MT =
             Glob.getTypes()
                 .getMLIRType(
                     Glob.getCGM().getContext().getLValueReferenceType(AType))
                 .cast<MemRefType>();
 
         LLVM_DEBUG({
-          llvm::dbgs() << "mt: " << Mt << "\n";
+          llvm::dbgs() << "MT: " << MT << "\n";
           llvm::dbgs() << "getLValueReferenceType(aType): "
                        << Glob.getCGM().getContext().getLValueReferenceType(
                               AType)
                        << "\n";
         });
 
-        auto Shape = std::vector<int64_t>(Mt.getShape());
+        auto Shape = std::vector<int64_t>(MT.getShape());
         assert(Shape.size() == 2);
 
         auto Pshape = Shape[0];
@@ -199,21 +199,22 @@ ValueCategory MLIRScanner::callHelper(
         OpBuilder Abuilder(builder.getContext());
         Abuilder.setInsertionPointToStart(allocationScope);
         auto Alloc = Abuilder.create<mlir::memref::AllocaOp>(
-            loc, mlir::MemRefType::get(Shape, Mt.getElementType(),
+            loc, mlir::MemRefType::get(Shape, MT.getElementType(),
                                        MemRefLayoutAttrInterface(),
-                                       Mt.getMemorySpace()));
+                                       MT.getMemorySpace()));
         ValueCategory(Alloc, /*isRef*/ true)
             .store(builder, Arg, /*isArray*/ IsArray);
         Shape[0] = Pshape;
         Val = builder.create<mlir::memref::CastOp>(
             loc,
-            mlir::MemRefType::get(Shape, Mt.getElementType(),
+            mlir::MemRefType::get(Shape, MT.getElementType(),
                                   MemRefLayoutAttrInterface(),
-                                  Mt.getMemorySpace()),
+                                  MT.getMemorySpace()),
             Alloc);
       } else {
-        if (FIArgs[I].info.getKind() == clang::CodeGen::ABIArgInfo::Indirect ||
-            FIArgs[I].info.getKind() ==
+        if (CalleeArgs[I].info.getKind() ==
+                clang::CodeGen::ABIArgInfo::Indirect ||
+            CalleeArgs[I].info.getKind() ==
                 clang::CodeGen::ABIArgInfo::IndirectAliased) {
           OpBuilder Abuilder(builder.getContext());
           Abuilder.setInsertionPointToStart(allocationScope);
@@ -226,20 +227,20 @@ ValueCategory MLIRScanner::callHelper(
             Val = Abuilder.create<mlir::memref::CastOp>(
                 loc, mlir::MemRefType::get(-1, Arg.getValue(builder).getType()),
                 Val);
-          } else {
+          } else
             Val = Abuilder.create<mlir::LLVM::AllocaOp>(
                 loc, Ty, Abuilder.create<arith::ConstantIntOp>(loc, 1, 64), 0);
-          }
+
           ValueCategory(Val, /*isRef*/ true)
               .store(builder, Arg.getValue(builder));
         } else
           Val = Arg.getValue(builder);
 
         if (Val.getType().isa<LLVM::LLVMPointerType>() &&
-            ExpectedType.isa<MemRefType>()) {
+            ExpectedType.isa<MemRefType>())
           Val = builder.create<polygeist::Pointer2MemrefOp>(loc, ExpectedType,
                                                             Val);
-        }
+
         if (auto PrevTy = Val.getType().dyn_cast<mlir::IntegerType>()) {
           auto IPostTy = ExpectedType.cast<mlir::IntegerType>();
           if (PrevTy != IPostTy)
@@ -266,7 +267,7 @@ ValueCategory MLIRScanner::callHelper(
   }
 
   // handle lowerto pragma.
-  if (LTInfo.SymbolTable.count(Tocall.getName())) {
+  if (LTInfo.SymbolTable.count(ToCall.getName())) {
     SmallVector<mlir::Value> InputOperands;
     SmallVector<mlir::Value> OutputOperands;
     for (StringRef Input : LTInfo.InputSymbol)
@@ -280,7 +281,7 @@ ValueCategory MLIRScanner::callHelper(
       InputOperands.append(Args);
 
     return ValueCategory(mlirclang::replaceFuncByOperation(
-                             Tocall, LTInfo.SymbolTable[Tocall.getName()],
+                             ToCall, LTInfo.SymbolTable[ToCall.getName()],
                              builder, InputOperands, OutputOperands)
                              ->getResult(0),
                          /*isReference=*/false);
@@ -292,13 +293,13 @@ ValueCategory MLIRScanner::callHelper(
 
   mlir::Value Alloc;
   if (IsArrayReturn) {
-    auto Mt =
+    auto MT =
         Glob.getTypes()
             .getMLIRType(
                 Glob.getCGM().getContext().getLValueReferenceType(RetType))
             .cast<MemRefType>();
 
-    auto Shape = std::vector<int64_t>(Mt.getShape());
+    auto Shape = std::vector<int64_t>(MT.getShape());
     assert(Shape.size() == 2);
 
     auto Pshape = Shape[0];
@@ -308,14 +309,14 @@ ValueCategory MLIRScanner::callHelper(
     OpBuilder Abuilder(builder.getContext());
     Abuilder.setInsertionPointToStart(allocationScope);
     Alloc = Abuilder.create<mlir::memref::AllocaOp>(
-        loc, mlir::MemRefType::get(Shape, Mt.getElementType(),
+        loc, mlir::MemRefType::get(Shape, MT.getElementType(),
                                    MemRefLayoutAttrInterface(),
-                                   Mt.getMemorySpace()));
+                                   MT.getMemorySpace()));
     Shape[0] = Pshape;
     Alloc = builder.create<mlir::memref::CastOp>(
         loc,
-        mlir::MemRefType::get(Shape, Mt.getElementType(),
-                              MemRefLayoutAttrInterface(), Mt.getMemorySpace()),
+        mlir::MemRefType::get(Shape, MT.getElementType(),
+                              MemRefLayoutAttrInterface(), MT.getMemorySpace()),
         Alloc);
     Args.push_back(Alloc);
   }
@@ -391,19 +392,19 @@ ValueCategory MLIRScanner::callHelper(
     auto Oldpoint = builder.getInsertionPoint();
     auto *Oldblock = builder.getInsertionBlock();
     builder.setInsertionPointToStart(&Op.getRegion().front());
-    builder.create<CallOp>(loc, Tocall, Args);
+    builder.create<CallOp>(loc, ToCall, Args);
     builder.create<gpu::TerminatorOp>(loc);
     builder.setInsertionPoint(Oldblock, Oldpoint);
     return nullptr;
   }
 
   // Try to rescue some mismatched types.
-  castCallerArgs(Tocall, Args, builder);
+  castCallerArgs(ToCall, Args, builder);
 
   /// Try to emit SYCL operations before creating a CallOp
   mlir::Operation *Op = emitSYCLOps(Expr, Args);
   if (!Op)
-    Op = builder.create<CallOp>(loc, Tocall, Args);
+    Op = builder.create<CallOp>(loc, ToCall, Args);
 
   if (IsArrayReturn) {
     // TODO remedy return
@@ -412,13 +413,12 @@ ValueCategory MLIRScanner::callHelper(
     assert(!RetReference);
     return ValueCategory(Alloc, /*isReference*/ true);
   }
-  if (Op->getNumResults()) {
+
+  if (Op->getNumResults())
     return ValueCategory(Op->getResult(0),
                          /*isReference*/ RetReference);
-  }
+
   return nullptr;
-  llvm::errs() << "do not support indirecto call of " << Tocall << "\n";
-  assert(0 && "no indirect");
 }
 
 std::pair<ValueCategory, bool>
@@ -445,21 +445,6 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
   });
 
   auto Loc = getMLIRLocation(Expr->getExprLoc());
-  /*
-  if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
-    if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      if (sr->getDecl()->getIdentifier() &&
-          sr->getDecl()->getName() == "__shfl_up_sync") {
-        std::vector<mlir::Value> args;
-        for (auto a : expr->arguments()) {
-          args.push_back(Visit(a).getValue(builder));
-        }
-        builder.create<gpu::ShuffleOp>(loc, );
-        assert(0 && "__shfl_up_sync unhandled");
-        return nullptr;
-      }
-    }
-  */
 
   auto ValEmitted = emitGPUCallExpr(Expr);
   if (ValEmitted.second)
@@ -498,7 +483,6 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
 
   if (auto *Oc = dyn_cast<CXXMemberCallExpr>(Expr)) {
     if (auto *LHS = dyn_cast<CXXTypeidExpr>(Oc->getImplicitObjectArgument())) {
-      Expr->getCallee()->dump();
       if (auto *Ic = dyn_cast<MemberExpr>(Expr->getCallee()))
         if (auto *Sr = dyn_cast<NamedDecl>(Ic->getMemberDecl())) {
           if (Sr->getIdentifier() && Sr->getName() == "name") {
@@ -946,8 +930,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
           (isa<CXXOperatorCallExpr>(Expr) &&
            cast<CXXOperatorCallExpr>(Expr)->getOperator() ==
                OO_GreaterGreater)) {
-        const auto *Tocall = EmitCallee(Expr->getCallee());
-        auto StrcmpF = Glob.GetOrCreateLLVMFunction(Tocall);
+        const auto *ToCall = EmitCallee(Expr->getCallee());
+        auto StrcmpF = Glob.GetOrCreateLLVMFunction(ToCall);
 
         std::vector<mlir::Value> Args;
         std::vector<std::pair<mlir::Value, mlir::Value>> Ops;
@@ -1149,17 +1133,18 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
   if (auto *CC = dyn_cast<CXXMemberCallExpr>(Expr)) {
     ValueCategory Obj = Visit(CC->getImplicitObjectArgument());
     ObjType = CC->getObjectType();
-#ifdef DEBUG
-    if (!obj.val) {
-      function.dump();
-      llvm::errs() << " objval: " << obj.val << "\n";
-      expr->dump();
-      CC->getImplicitObjectArgument()->dump();
-    }
-#endif
-    if (cast<MemberExpr>(CC->getCallee()->IgnoreParens())->isArrow()) {
+    LLVM_DEBUG({
+      if (!Obj.val) {
+        function.dump();
+        llvm::errs() << " objval: " << Obj.val << "\n";
+        Expr->dump();
+        CC->getImplicitObjectArgument()->dump();
+      }
+    });
+
+    if (cast<MemberExpr>(CC->getCallee()->IgnoreParens())->isArrow())
       Obj = Obj.dereference(builder);
-    }
+
     assert(Obj.val);
     assert(Obj.isReference);
     Args.emplace_back(std::make_pair(Obj, (clang::Expr *)nullptr));
@@ -1169,7 +1154,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
     Args.push_back(std::make_pair(Visit(A), A));
 
   return callHelper(ToCall, ObjType, Args, Expr->getType(),
-                    Expr->isLValue() || Expr->isXValue(), Expr, Callee);
+                    Expr->isLValue() || Expr->isXValue(), Expr, *Callee);
 }
 
 std::pair<ValueCategory, bool>

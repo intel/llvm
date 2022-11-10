@@ -79,7 +79,8 @@ public:
                               const clang::CodeGen::CGFunctionInfo &FI,
                               clang::CodeGen::CGCalleeInfo CalleeInfo,
                               mlirclang::AttributeList &AttrList,
-                              bool AttrOnCallSite, bool IsThunk);
+                              unsigned &CallingConv, bool AttrOnCallSite,
+                              bool IsThunk);
 
   // TODO: Possibly create a SYCLTypeCache
   mlir::Type getMLIRType(clang::QualType QT, bool *ImplicitRef = nullptr,
