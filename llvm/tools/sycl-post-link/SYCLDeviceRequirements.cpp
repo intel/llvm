@@ -18,32 +18,29 @@ using namespace llvm;
 
 void llvm::getSYCLDeviceRequirements(
     const Module &M, std::map<StringRef, std::vector<uint32_t>> &Requirements) {
-  auto ExtractIntegerFromMDNodeOperand = [=](const MDNode *N,
-                                             unsigned OpNo) -> unsigned {
-    Constant *C =
-        cast<ConstantAsMetadata>(N->getOperand(OpNo).get())->getValue();
-    return static_cast<uint32_t>(C->getUniqueInteger().getZExtValue());
+  std::set<uint32_t> Aspects;
+  auto FindAspectsByMDName = [&](const Function &F, std::string MDName) {
+    if (const MDNode *MDN = F.getMetadata(MDName))
+      for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I) {
+        Constant *C =
+            cast<ConstantAsMetadata>(MDN->getOperand(I).get())->getValue();
+        Aspects.insert(
+            static_cast<uint32_t>(C->getUniqueInteger().getZExtValue()));
+      }
   };
 
-  // { LLVM-IR metadata name , [SYCL/Device requirements] property name }, see:
-  // https://github.com/intel/llvm/blob/sycl/sycl/doc/design/OptionalDeviceFeatures.md#create-the-sycldevice-requirements-property-set
-  // Scan the module and if the metadata is present fill the corresponing
-  // property with metadata's aspects
-  constexpr std::pair<const char *, const char *> ReqdMDs[] = {
-      {"sycl_used_aspects", "aspects"}, {"sycl_fixed_targets", "fixed_target"}};
-
-  for (const auto &MD : ReqdMDs) {
-    std::set<uint32_t> Aspects;
-    for (const Function &F : M) {
-      if (const MDNode *MDN = F.getMetadata(MD.first)) {
-        for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I)
-          Aspects.insert(ExtractIntegerFromMDNodeOperand(MDN, I));
-      }
-    }
-    // We don't need the "fixed_target" property if it's empty
-    if (std::string(MD.first) == "sycl_fixed_targets" && Aspects.empty())
-      continue;
-    Requirements[MD.second] =
-        std::vector<uint32_t>(Aspects.begin(), Aspects.end());
+  for (const Function &F : M) {
+    FindAspectsByMDName(F, "sycl_used_aspects");
+    FindAspectsByMDName(F, "sycl_declared_aspects");
   }
+  Requirements["aspects"] =
+      std::vector<uint32_t>(Aspects.begin(), Aspects.end());
+
+  Aspects.clear();
+  for (const Function &F : M)
+    FindAspectsByMDName(F, "sycl_fixed_targets");
+  // We don't need the "fixed_target" property if it's empty
+  if (!Aspects.empty())
+    Requirements["fixed_target"] =
+        std::vector<uint32_t>(Aspects.begin(), Aspects.end());
 }
