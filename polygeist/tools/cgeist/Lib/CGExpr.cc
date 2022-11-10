@@ -864,10 +864,10 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
   FunctionToEmit F(*ctorDecl, mlirclang::getInputContext(builder));
   auto ToCall = cast<func::FuncOp>(Glob.GetOrCreateMLIRFunction(F, ShouldEmit));
 
-  SmallVector<std::pair<ValueCategory, clang::Expr *>> Args;
-  Args.emplace_back(std::make_pair(obj, (clang::Expr *)nullptr));
+  SmallVector<std::pair<ValueCategory, clang::Expr *>> Args{{obj, nullptr}};
+  Args.reserve(cons->getNumArgs() + 1);
   for (auto A : cons->arguments())
-    Args.push_back(std::make_pair(Visit(A), A));
+    Args.emplace_back(Visit(A), A);
 
   callHelper(ToCall, innerType, Args,
              /*retType*/ Glob.getCGM().getContext().VoidTy, false, cons,
