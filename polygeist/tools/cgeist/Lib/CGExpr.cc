@@ -2417,18 +2417,14 @@ ValueCategory MLIRScanner::EmitConversionToBool(ValueCategory Src,
                                                 QualType SrcType) {
   assert(SrcType.isCanonical() && "EmitScalarConversion strips typedefs");
   assert(!isa<MemberPointerType>(SrcType) && "Not implemented yet");
-  return TypeSwitch<mlir::Type, ValueCategory>(Src.val.getType())
-      .Case<FloatType>(
-          [this](auto Ty) { return EmitFloatToBoolConversion(Ty); })
-      .Case<IntegerType>(
-          [this](auto Ty) { return EmitIntToBoolConversion(Ty); })
-      .Case<LLVM::LLVMPointerType>(
-          [this](auto Ty) { return EmitPointerToBoolConversion(Ty); })
-      .Case<MemRefType>(
-          [this](auto Ty) { return EmitPointerToBoolConversion(Ty); })
-      .Default([](auto) -> ValueCategory {
-        llvm_unreachable("Unknown scalar type to convert");
-      });
+  const auto ValTy = Src.val.getType();
+  if (ValTy.isa<FloatType>())
+    return EmitFloatToBoolConversion(Src);
+  if (ValTy.isa<IntegerType>())
+    return EmitIntToBoolConversion(Src);
+  if (ValTy.isa<LLVM::LLVMPointerType, MemRefType>())
+    return EmitPointerToBoolConversion(Src);
+  llvm_unreachable("Unknown scalar type to convert");
 }
 
 ValueCategory
