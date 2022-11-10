@@ -2427,7 +2427,7 @@ ValueCategory MLIRScanner::EmitConversionToBool(ValueCategory Src,
           isa<MemRefType, LLVM::LLVMPointerType>(Src.val.getType())) &&
          "Unknown scalar type to convert");
 
-  if (isa<IntegerType>(Src.val.getType()))
+  if (SrcType->isIntegerType())
     return EmitIntToBoolConversion(Src);
 
   assert((isa<MemRefType, LLVM::LLVMPointerType>(Src.val.getType())));
