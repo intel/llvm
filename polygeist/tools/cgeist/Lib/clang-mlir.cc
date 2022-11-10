@@ -2295,7 +2295,7 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
   LLVM_DEBUG({
     if (!VD) {
       llvm::dbgs() << "GetOrCreateGlobal ";
-      VD->dump();
+      VD->dump(llvm::dbgs());
     }
   });
   VD = VD->getCanonicalDecl();
