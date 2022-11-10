@@ -1133,11 +1133,13 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
   if (auto *CC = dyn_cast<CXXMemberCallExpr>(Expr)) {
     ValueCategory Obj = Visit(CC->getImplicitObjectArgument());
     ObjType = CC->getObjectType();
-    LLVM_DEBUG(if (!Obj.val) {
-      function.dump();
-      llvm::errs() << " objval: " << Obj.val << "\n";
-      Expr->dump();
-      CC->getImplicitObjectArgument()->dump();
+    LLVM_DEBUG({
+      if (!Obj.val) {
+        function.dump();
+        llvm::errs() << " objval: " << Obj.val << "\n";
+        Expr->dump();
+        CC->getImplicitObjectArgument()->dump();
+      }
     });
 
     if (cast<MemberExpr>(CC->getCallee()->IgnoreParens())->isArrow())
