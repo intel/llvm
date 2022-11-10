@@ -46,6 +46,8 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
+#define DEBUG_TYPE "cgeist"
+
 using namespace clang;
 using namespace llvm;
 using namespace clang::driver;
@@ -2291,19 +2293,19 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
   mlir::Type rt = getTypes().getMLIRType(FD->getType());
   auto *VD = dyn_cast<VarDecl>(FD);
   LLVM_DEBUG({
-    if (!VD)
-      FD->dump();
+    if (!VD) {
+      llvm::dbgs() << "GetOrCreateGlobal ";
+      VD->dump();
+    }
   });
   VD = VD->getCanonicalDecl();
   unsigned memspace = VD ? CGM.getContext().getTargetAddressSpace(
                                CGM.GetGlobalVarAddressSpace(VD))
                          : CGM.getDataLayout().getDefaultGlobalsAddressSpace();
   bool isArray = isa<clang::ArrayType>(FD->getType());
-  bool isExtVectorType =
-      isa<clang::ExtVectorType>(FD->getType()->getUnqualifiedDesugaredType());
 
   mlir::MemRefType mr;
-  if (!isArray && !isExtVectorType) {
+  if (!isArray) {
     mr = mlir::MemRefType::get({}, rt, {}, memspace);
   } else {
     auto mt = rt.cast<mlir::MemRefType>();

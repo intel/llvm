@@ -14,13 +14,13 @@
 // CHECK-DAG: memref.global @__spirv_BuiltInNumSubgroups : memref<i32, 1>
 // CHECK-DAG: memref.global @__spirv_BuiltInSubgroupMaxSize : memref<i32, 1>
 // CHECK-DAG: memref.global @__spirv_BuiltInSubgroupSize : memref<i32, 1>
-// CHECK-DAG: memref.global @__spirv_BuiltInLocalInvocationId : memref<3xi64, 1>
-// CHECK-DAG: memref.global @__spirv_BuiltInWorkgroupId : memref<3xi64, 1>
-// CHECK-DAG: memref.global @__spirv_BuiltInWorkgroupSize : memref<3xi64, 1>
-// CHECK-DAG: memref.global @__spirv_BuiltInNumWorkgroups : memref<3xi64, 1>
-// CHECK-DAG: memref.global @__spirv_BuiltInGlobalOffset : memref<3xi64, 1>
-// CHECK-DAG: memref.global @__spirv_BuiltInGlobalSize : memref<3xi64, 1>
-// CHECK-DAG: memref.global @__spirv_BuiltInGlobalInvocationId : memref<3xi64, 1>
+// CHECK-DAG: memref.global @__spirv_BuiltInLocalInvocationId : memref<vector<3xi64>, 1>
+// CHECK-DAG: memref.global @__spirv_BuiltInWorkgroupId : memref<vector<3xi64>, 1>
+// CHECK-DAG: memref.global @__spirv_BuiltInWorkgroupSize : memref<vector<3xi64>, 1>
+// CHECK-DAG: memref.global @__spirv_BuiltInNumWorkgroups : memref<vector<3xi64>, 1>
+// CHECK-DAG: memref.global @__spirv_BuiltInGlobalOffset : memref<vector<3xi64>, 1>
+// CHECK-DAG: memref.global @__spirv_BuiltInGlobalSize : memref<vector<3xi64>, 1>
+// CHECK-DAG: memref.global @__spirv_BuiltInGlobalInvocationId : memref<vector<3xi64>, 1>
 
 // Ensure the spirv functions that reference these globals are not filtered out
 // CHECK-DAG: func.func @_Z28__spirv_GlobalInvocationId_xv()
