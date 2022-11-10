@@ -2399,6 +2399,7 @@ ValueCategory MLIRScanner::EmitPromotedScalarExpr(Expr *E,
 ValueCategory MLIRScanner::EmitScalarCast(ValueCategory Src, QualType SrcType,
                                           QualType DstType, mlir::Type SrcTy,
                                           mlir::Type DstTy) {
+  assert(SrcTy != DstTy && "Types should be different when casting");
   assert(!SrcType->isAnyComplexType() && !DstType->isAnyComplexType() &&
          "Not supported in cgeist");
   assert(!SrcType->isMatrixType() && !DstType->isMatrixType() &&
@@ -2515,8 +2516,8 @@ ValueCategory MLIRScanner::EmitScalarConversion(ValueCategory Src,
   assert(!(DstType->isExtVectorType() && !SrcType->isVectorType()) &&
          "Not implemented yet");
 
-  if (SrcType->isMatrixType() && DstType->isMatrixType())
-    return EmitScalarCast(Src, SrcType, DstType, SrcTy, DstTy);
+  assert(!(SrcType->isMatrixType() && DstType->isMatrixType()) &&
+         "Not implemented yet");
 
   assert(!(SrcTy.isa<mlir::VectorType>() || DstTy.isa<mlir::VectorType>()) &&
          "Not implemented yet");
