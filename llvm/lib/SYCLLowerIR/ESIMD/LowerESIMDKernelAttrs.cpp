@@ -32,28 +32,7 @@ SYCLFixupESIMDKernelWrapperMDPass::run(Module &M, ModuleAnalysisManager &MAM) {
       sycl::utils::traverseCallgraphUp(
           &F,
           [&](Function *GraphNode) {
-            if (!llvm::esimd::isESIMD(*GraphNode) &&
-                llvm::esimd::isKernel(*GraphNode)) {
-
-              // Demangle the caller name to check if the function is called
-              // from RoundedRangeKernel.
-              StringRef MangledName = GraphNode->getName();
-              llvm::itanium_demangle::ManglingParser<SimpleAllocator> Parser(
-                  MangledName.begin(), MangledName.end());
-              itanium_demangle::Node *AST = Parser.parse();
-              if (!AST ||
-                  AST->getKind() != itanium_demangle::Node::KSpecialName) {
-                return;
-              }
-
-              itanium_demangle::OutputBuffer NameBuf;
-              AST->print(NameBuf);
-              StringRef Name(NameBuf.getBuffer(), NameBuf.getCurrentPosition());
-
-              if (!Name.contains("sycl::_V1::detail::RoundedRangeKernel<")) {
-                return;
-              }
-
+            if (!llvm::esimd::isESIMD(*GraphNode)) {
               GraphNode->setMetadata(
                   llvm::esimd::ESIMD_MARKER_MD,
                   llvm::MDNode::get(GraphNode->getContext(), {}));

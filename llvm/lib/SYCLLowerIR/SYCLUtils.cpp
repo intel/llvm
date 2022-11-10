@@ -1,5 +1,4 @@
-//===------------ SYCLUtils.cpp - SYCL utility functions
-//------------------===//
+//===------------ SYCLUtils.cpp - SYCL utility functions ------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,10 +9,69 @@
 //===----------------------------------------------------------------------===//
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 
 namespace llvm {
 namespace sycl {
 namespace utils {
+
+using namespace llvm::esimd;
+bool isAddressArgumentInvokeSIMD(const CallInst *CI) {
+  constexpr char INVOKE_SIMD_PREF[] = "_Z33__regcall3____builtin_invoke_simd";
+
+  Function *F = CI->getCalledFunction();
+
+  if (F && F->getName().startswith(INVOKE_SIMD_PREF)) {
+    return true;
+  }
+  return false;
+}
+
+bool filterFunctionPointer(Value *address) {
+  if (address == nullptr) {
+    return true;
+  }
+
+  SmallPtrSet<const Use *, 4> Uses;
+  collectUsesLookThroughCasts(address, Uses);
+
+  for (const Use *U : Uses) {
+    Value *V = U->getUser();
+
+    if (auto *StI = dyn_cast<StoreInst>(V)) {
+      if (U != &StI->getOperandUse(StoreInst::getPointerOperandIndex())) {
+        // this is double indirection - not supported
+        return false;
+      }
+      V = stripCasts(StI->getPointerOperand());
+      if (!isa<AllocaInst>(V)) {
+        return false; // unsupported case of data flow through non-local memory
+      }
+
+      if (auto *LI = dyn_cast<LoadInst>(V)) {
+        // A value loaded from another address is stored at this address -
+        // recurse into the other address
+        if (!filterFunctionPointer(LI->getPointerOperand())) {
+          return false;
+        }
+      }
+    } else if (const auto *CI = dyn_cast<CallInst>(V)) {
+      // if __builtin_invoke_simd uses the pointer, do not traverse the function
+      if (isAddressArgumentInvokeSIMD(CI)) {
+        return false;
+      }
+    } else if (isa<LoadInst>(V)) {
+      if (!filterFunctionPointer(V)) {
+        return false;
+      }
+    } else {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 void traverseCallgraphUp(llvm::Function *F, CallGraphNodeAction ActionF,
                          SmallPtrSetImpl<Function *> &FunctionsVisited,
                          bool ErrorOnNonCallUse) {
@@ -43,6 +101,13 @@ void traverseCallgraphUp(llvm::Function *F, CallGraphNodeAction ActionF,
         } else {
           // ... non-call is OK - add using function to the worklist
           if (auto *I = dyn_cast<Instruction>(FCall)) {
+            if (auto *SI = dyn_cast<StoreInst>(I)) {
+              Value *addr = SI->getPointerOperand();
+              if (!filterFunctionPointer(addr)) {
+                continue;
+              }
+            }
+
             auto UseF = I->getFunction();
 
             if (FunctionsVisited.count(UseF) == 0) {
