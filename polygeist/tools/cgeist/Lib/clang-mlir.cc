@@ -2322,10 +2322,12 @@ MLIRASTConsumer::getOrCreateGlobal(const ValueDecl &VD, std::string Prefix,
     InitialVal = Builder.getUnitAttr();
 
   const bool IsConst = VD.getType().isConstQualified();
+  llvm::Align Align = CGM.getContext().getDeclAlign(&VD).getAsAlign();
 
   auto globalOp = Builder.create<mlir::memref::GlobalOp>(
       module->getLoc(), Name, /*sym_visibility*/ mlir::StringAttr(), VarTy,
-      InitialVal, IsConst, /*alignment*/ nullptr);
+      InitialVal, IsConst,
+      Builder.getIntegerAttr(Builder.getIntegerType(64), Align.value()));
 
   // Set the visibility.
   switch (CGM.getLLVMLinkageVarDefinition(Var, IsConst)) {

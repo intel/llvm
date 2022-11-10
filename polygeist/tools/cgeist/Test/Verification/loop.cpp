@@ -14,7 +14,7 @@ void div_(int* sizes) {
     }
 }
 
-// CHECK-LABEL:   memref.global @MAX_DIMS : memref<i32> = uninitialized
+// CHECK-LABEL:   memref.global @MAX_DIMS : memref<i32> = uninitialized {alignment = 4 : i64}
 
 // CHECK-LABEL:   func.func @_Z4div_Pi(
 // CHECK-SAME:                         %[[VAL_0:.*]]: memref<?xi32>) attributes {llvm.linkage = #llvm.linkage<external>} {

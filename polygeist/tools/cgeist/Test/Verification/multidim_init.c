@@ -26,7 +26,7 @@ float foo(int i, int j) {
 
   return glob_A[i][j] + A[i][j] + B[j] + sum;
 }
-// CHECK: memref.global @glob_A : memref<3x4xf32> = dense{{.*}}1.000000e+00, 2.000000e+00, 3.000000e+00, 4.000000e+00], [3.333330e+00, 3.333330e+00, 3.333330e+00, 3.333330e+00], [1.000000e-01, 2.000000e-01, 3.000000e-01, 4.000000e-01{{.*}}
+// CHECK: memref.global @glob_A : memref<3x4xf32> = dense{{.*}}1.000000e+00, 2.000000e+00, 3.000000e+00, 4.000000e+00], [3.333330e+00, 3.333330e+00, 3.333330e+00, 3.333330e+00], [1.000000e-01, 2.000000e-01, 3.000000e-01, 4.000000e-01{{.*}} {alignment = 16 : i64}
 // CHECK-LABEL: func @foo
 // CHECK-DAG: %[[CST3:.*]] = arith.constant 3.33
 // CHECK-DAG: %[[CST1_23:.*]] = arith.constant 1.23
