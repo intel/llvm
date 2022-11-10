@@ -174,8 +174,6 @@ unsigned f12(unsigned *a, unsigned b) {
   return *a ^= b;
 }
 
-// COM: This test is incorrect due to signedness detection issues.
-
 // CHECK-LABEL:   func.func @f13(
 // CHECK-SAME:                   %[[VAL_0:.*]]: memref<?xi8>,
 // CHECK-SAME:                   %[[VAL_1:.*]]: i32) -> i8
