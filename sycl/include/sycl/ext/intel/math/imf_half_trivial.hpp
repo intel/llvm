@@ -330,6 +330,30 @@ sycl::half2 floats2half2_rn(float x, float y) {
 sycl::float2 half22float2(sycl::half2 x) {
   return x.convert<float, sycl::rounding_mode::automatic>();
 }
+
+float high2float(sycl::half2 x) { return x.hi(); }
+
+sycl::half high2half(sycl::half2 x) { return x.hi(); }
+
+sycl::half2 high2half2(sycl::half2 x) { return sycl::half2{x.hi(), x.hi()}; }
+
+sycl::half2 highs2half2(sycl::half2 x, sycl::half2 y) {
+  return sycl::half2{x.hi(), y.hi()};
+}
+
+float low2float(sycl::half2 x) { return x.lo(); }
+
+sycl::half low2half(sycl::half2 x) { return x.lo(); }
+
+sycl::half2 low2half2(sycl::half2 x) { return sycl::half2{x.lo(), x.lo()}; }
+
+sycl::half2 lows2half2(sycl::half2 x, sycl::half2 y) {
+  return sycl::half2{x.lo(), y.lo()};
+}
+
+sycl::half2 lowhigh2highlow(sycl::half2 x) {
+  return sycl::half2{x.hi(), x.lo()};
+}
 } // namespace math
 } // namespace intel
 } // namespace ext
