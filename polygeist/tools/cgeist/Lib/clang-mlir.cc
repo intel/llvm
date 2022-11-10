@@ -2167,17 +2167,16 @@ MLIRASTConsumer::getOrCreateGlobal(const ValueDecl &VD, std::string Prefix,
           MS.InitializeValueByInitListExpr(Op, const_cast<clang::Expr *>(Init));
       globalOp.setInitialValueAttr(InitValAttr);
     } else {
-      bool Initialized = false;
       ValueCategory VC = MS.Visit(const_cast<clang::Expr *>(Init));
-      if (!VC.isReference)
-        if (auto Op = VC.val.getDefiningOp<arith::ConstantOp>()) {
-          auto InitialVal = SplatElementsAttr::get(
-              RankedTensorType::get(VarTy.getShape(), VarTy.getElementType()),
-              Op.getValue());
-          globalOp.setInitialValueAttr(InitialVal);
-          Initialized = true;
-        }
-      assert(Initialized);
+      assert(!VC.isReference && "The initializer should not be a reference");
+
+      auto Op = VC.val.getDefiningOp<arith::ConstantOp>();
+      assert(Op && "Could not find the initializer constant expression");
+
+      auto InitialVal = SplatElementsAttr::get(
+          RankedTensorType::get(VarTy.getShape(), VarTy.getElementType()),
+          Op.getValue());
+      globalOp.setInitialValueAttr(InitialVal);
     }
   }
 
