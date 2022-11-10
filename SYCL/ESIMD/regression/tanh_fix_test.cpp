@@ -1,7 +1,5 @@
 // REQUIRES: gpu
 // UNSUPPORTED: cuda || hip
-// TODO online compiler check fails for esimd_emulator
-// XFAIL: esimd_emulator
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
