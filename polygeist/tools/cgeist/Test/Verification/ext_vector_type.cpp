@@ -1,4 +1,5 @@
 // RUN: cgeist %s --function=* -S | FileCheck %s
+// RUN: cgeist %s --function=* -S -emit-llvm | FileCheck %s --check-prefix=LLVM
 
 #include <cstddef>
 
@@ -30,3 +31,14 @@ size_t evt2() {
 // CHECK-NEXT:     %2 = llvm.extractelement %1[%c0_i64 : i64] : vector<3xi64>
 // CHECK-NEXT:     return %2 : i64
 // CHECK-NEXT:     }
+
+// LLVM:       @stv = external global <3 x i64>
+// LLVM-LABEL: define i64 @_Z3evtv() !dbg !3 {
+// LLVM-NEXT:   %1 = alloca <3 x i64>, align 32, !dbg !7
+// LLVM-NEXT:   %2 = load <3 x i64>, <3 x i64>* %1, align 32
+// LLVM-NEXT:   %3 = extractelement <3 x i64> %2, i64 0
+// LLVM-NEXT:   ret i64 %3
+// LLVM-LABEL: define i64 @_Z4evt2v() !dbg !9 {
+// LLVM-NEXT:   %1 = load <3 x i64>, <3 x i64>* @stv, align 32
+// LLVM-NEXT:   %2 = extractelement <3 x i64> %1, i64 0
+// LLVM-NEXT:   ret i64 %2
