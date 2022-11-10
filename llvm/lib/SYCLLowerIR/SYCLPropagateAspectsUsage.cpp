@@ -246,29 +246,39 @@ AspectsSetTy getAspectsUsedByInstruction(const Instruction &I,
 using FunctionToAspectsMapTy = DenseMap<Function *, AspectsSetTy>;
 using CallGraphTy = DenseMap<Function *, SmallPtrSet<Function *, 8>>;
 
+// Finds the first function in a list that uses a given aspect. Returns nullptr
+// if none of the functions satisfy the criteria.
+Function *findFirstAspectUsageCallee(
+    const SmallPtrSetImpl<Function *> &Callees,
+    const FunctionToAspectsMapTy &AspectsMap, int Aspect,
+    SmallPtrSetImpl<const Function *> *Visited = nullptr) {
+  for (Function *Callee : Callees) {
+    if (Visited && !Visited->insert(Callee).second)
+      continue;
+
+    auto AspectIt = AspectsMap.find(Callee);
+    if (AspectIt != AspectsMap.end() && AspectIt->second.contains(Aspect))
+      return Callee;
+  }
+  return nullptr;
+}
+
 // Constructs an aspect usage chain for a given aspect from the function to the
 // last callee in the first found chain.
 void constructAspectUsageChain(const Function *F,
                                const FunctionToAspectsMapTy &AspectsMap,
                                const CallGraphTy &CG, int Aspect,
-                               SmallVector<Function *, 8> &CallChain,
-                               SmallPtrSet<const Function *, 16> &Visited) {
+                               SmallVectorImpl<Function *> &CallChain,
+                               SmallPtrSetImpl<const Function *> &Visited) {
   const auto EdgeIt = CG.find(F);
   if (EdgeIt == CG.end())
     return;
 
-  for (Function *Callee : EdgeIt->second) {
-    if (!Visited.insert(Callee).second)
-      continue;
-
-    auto AspectIt = AspectsMap.find(Callee);
-    if (AspectIt == AspectsMap.end() || !AspectIt->second.contains(Aspect))
-      continue;
-
-    CallChain.push_back(Callee);
-    constructAspectUsageChain(Callee, AspectsMap, CG, Aspect, CallChain,
-                              Visited);
-    break;
+  if (Function *AspectUsingCallee = findFirstAspectUsageCallee(
+          EdgeIt->second, AspectsMap, Aspect, &Visited)) {
+    CallChain.push_back(AspectUsingCallee);
+    constructAspectUsageChain(AspectUsingCallee, AspectsMap, CG, Aspect,
+                              CallChain, Visited);
   }
 }
 
@@ -313,22 +323,36 @@ void validateUsedAspectsForFunctions(const FunctionToAspectsMapTy &Map,
       continue;
 
     Function *F = It.first;
-
-    // Entry points will have their declared aspects from their kernel call.
-    // To avoid double warnings, we skip them.
-    if (std::find(EntryPoints.begin(), EntryPoints.end(), F) !=
-        EntryPoints.end())
-      continue;
-
-    const MDNode *DeviceHasMD = F->getMetadata("sycl_declared_aspects");
-    if (!DeviceHasMD)
-      continue;
-
     AspectsSetTy DeviceHasAspectSet;
-    for (size_t I = 0; I != DeviceHasMD->getNumOperands(); ++I) {
-      const auto *CAM = cast<ConstantAsMetadata>(DeviceHasMD->getOperand(I));
-      const Constant *C = CAM->getValue();
-      DeviceHasAspectSet.insert(cast<ConstantInt>(C)->getSExtValue());
+    bool OriginatedFromAttribute = true;
+    if (const MDNode *DeviceHasMD = F->getMetadata("sycl_declared_aspects")) {
+      // Entry points will have their declared aspects from their kernel call.
+      // To avoid double warnings, we skip them.
+      if (is_contained(EntryPoints, F))
+        continue;
+      for (const MDOperand &DeviceHasMDOp : DeviceHasMD->operands()) {
+        const auto *CAM = cast<ConstantAsMetadata>(DeviceHasMDOp);
+        const Constant *C = CAM->getValue();
+        DeviceHasAspectSet.insert(cast<ConstantInt>(C)->getSExtValue());
+      }
+      OriginatedFromAttribute = true;
+    } else if (F->hasFnAttribute("sycl-device-has")) {
+      Attribute DeviceHasAttr = F->getFnAttribute("sycl-device-has");
+      SmallVector<StringRef, 4> AspectValStrs;
+      DeviceHasAttr.getValueAsString().split(
+          AspectValStrs, ',', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+      for (StringRef AspectValStr : AspectValStrs) {
+        int AspectVal = -1;
+        bool AspectValStrConverted = !AspectValStr.getAsInteger(10, AspectVal);
+        // Avoid unused warning when asserts are disabled.
+        std::ignore = AspectValStrConverted;
+        assert(AspectValStrConverted &&
+               "Aspect value in sycl-device-has is not an integer.");
+        DeviceHasAspectSet.insert(AspectVal);
+      }
+      OriginatedFromAttribute = false;
+    } else {
+      continue;
     }
 
     for (int Aspect : Aspects) {
@@ -338,9 +362,19 @@ void validateUsedAspectsForFunctions(const FunctionToAspectsMapTy &Map,
             [=](auto AspectIt) { return Aspect == AspectIt.second; });
         assert(AspectNameIt != AspectValues.end() &&
                "Used aspect is not part of the existing aspects");
+        // We may encounter an entry point when using the device_has property.
+        // In this case we act like the usage came from the first callee to
+        // avoid repeat warnings on the same line.
+        Function *AdjustedOriginF =
+            is_contained(EntryPoints, F)
+                ? findFirstAspectUsageCallee(CG.find(F)->second, Map, Aspect)
+                : F;
+        assert(AdjustedOriginF &&
+               "Adjusted function pointer for aspect usage is null");
         SmallVector<Function *, 8> CallChain =
-            getAspectUsageChain(F, Map, CG, Aspect);
-        diagnoseAspectsMismatch(F, CallChain, AspectNameIt->first);
+            getAspectUsageChain(AdjustedOriginF, Map, CG, Aspect);
+        diagnoseAspectsMismatch(AdjustedOriginF, CallChain, AspectNameIt->first,
+                                OriginatedFromAttribute);
       }
     }
   }
