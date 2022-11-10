@@ -2294,8 +2294,8 @@ MLIRASTConsumer::getOrCreateGlobal(const ValueDecl &VD, std::string Prefix,
       CGM.getContext().getTargetAddressSpace(CGM.GetGlobalVarAddressSpace(Var));
 
   // Global variables have always memref type. Their should always have a memref
-  // type with rank zero, however we currently do not yet handle global vector
-  // or arrays correctly.
+  // type with rank zero, however we currently do not yet handle global with ext
+  // vector type correctly.
   auto VarTy =
       (!IsArray && !IsExtVectorType)
           ? mlir::MemRefType::get({}, MLIRType, {}, MemSpace)
