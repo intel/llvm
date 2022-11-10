@@ -122,6 +122,9 @@ add_sycl_plugin(level_zero
     Threads::Threads
 )
 
+add_dependencies(pi_level_zero pi_unified_runtime)
+include_directories("${UNIFIED_RUNTIME_INCLUDE_DIR}")
+
 find_package(Python3 REQUIRED)
 
 add_custom_target(ze-api

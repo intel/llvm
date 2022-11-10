@@ -10,6 +10,7 @@
 // TODO: remove when SYCL RT is changed to talk in UR directly
 
 #include <pi2ur.hpp>
+#include <ur.hpp>
 
 // Early exits on any error
 #define HANDLE_ERRORS(urCall)                                                  \

@@ -10,7 +10,7 @@
 #include <mutex>
 #include <shared_mutex>
 
-#include "zer_api.h"
+#include <zer_api.h>
 
 // Terminates the process with a catastrophic error message.
 [[noreturn]] inline void die(const char *Message) {
