@@ -62,6 +62,24 @@ pi_result after_piProgramGetInfo(pi_program program, pi_program_info param_name,
       *param_value_size_ret = sizeof(GlobalContext.deviceHandle);
     if (param_value)
       *static_cast<pi_device *>(param_value) = GlobalContext.deviceHandle;
+    break;
+  default:;
+  }
+
+  return PI_SUCCESS;
+}
+
+pi_result redefined_piProgramGetBuildInfo(
+    pi_program program, pi_device device, _pi_program_build_info param_name,
+    size_t param_value_size, void *param_value, size_t *param_value_size_ret) {
+  switch (param_name) {
+  case PI_PROGRAM_BUILD_INFO_BINARY_TYPE:
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(pi_program_binary_type);
+    if (param_value)
+      *static_cast<pi_program_binary_type *>(param_value) =
+          PI_PROGRAM_BINARY_TYPE_EXECUTABLE;
+    break;
   default:;
   }
 
@@ -115,6 +133,8 @@ TEST(HandlerSetArg, LocalAccessor) {
       after_piContextGetInfo);
   Mock.redefineAfter<sycl::detail::PiApiKind::piKernelGetInfo>(
       after_piKernelGetInfo);
+  Mock.redefine<sycl::detail::PiApiKind::piProgramGetBuildInfo>(
+      redefined_piProgramGetBuildInfo);
 
   constexpr size_t Size = 128;
   sycl::queue Q;
