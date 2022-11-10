@@ -349,11 +349,14 @@ ValueCategory ValueCategory::FPToSI(OpBuilder &Builder,
   return Cast<arith::FPToSIOp>(Builder, PromotionType);
 }
 
-ValueCategory ValueCategory::IntegerCast(OpBuilder &Builder, Type PromotionType,
-                                         bool IsSigned) const {
+ValueCategory ValueCategory::IntCast(OpBuilder &Builder, Type PromotionType,
+                                     bool IsSigned) const {
   assert(val.getType().isa<IntegerType>() && "Expecting integer source type");
   assert(PromotionType.isa<IntegerType>() &&
          "Expecting integer promotion type");
+
+  if (val.getType() == PromotionType)
+    return *this;
 
   auto SrcIntTy = val.getType().cast<IntegerType>();
   auto DstIntTy = PromotionType.cast<IntegerType>();
@@ -376,11 +379,4 @@ ValueCategory ValueCategory::IntegerCast(OpBuilder &Builder, Type PromotionType,
   }();
 
   return {Res, /*IsReference*/ false};
-}
-
-ValueCategory ValueCategory::IntCast(OpBuilder &Builder, Type PromotionType,
-                                     bool IsSigned) const {
-  if (val.getType() == PromotionType)
-    return *this;
-  return IntegerCast(Builder, PromotionType, IsSigned);
 }

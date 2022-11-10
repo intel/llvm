@@ -16,9 +16,6 @@
 // Represents a rhs or lhs value.
 class ValueCategory {
 private:
-  ValueCategory IntegerCast(mlir::OpBuilder &Builder, mlir::Type PromotionType,
-                            bool IsSigned) const;
-
   template <typename OpTy>
   ValueCategory Cast(mlir::OpBuilder &Builder, mlir::Type PromotionType) const {
     if (val.getType() == PromotionType)
