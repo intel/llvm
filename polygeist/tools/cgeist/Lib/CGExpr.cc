@@ -198,16 +198,14 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value toInit,
           bool inner) -> mlir::DenseElementsAttr {
     Location loc = toInit.getLoc();
     if (InitListExpr *initListExpr = dyn_cast<InitListExpr>(expr)) {
-
       if (inner) {
         if (auto mt = toInit.getType().dyn_cast<MemRefType>()) {
           auto shape = std::vector<int64_t>(mt.getShape());
           assert(!shape.empty());
-          if (shape.size() > 1) {
+          if (shape.size() > 1)
             shape.erase(shape.begin());
-          } else {
+          else
             shape[0] = -1;
-          }
           auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
                                            MemRefLayoutAttrInterface(),
                                            mt.getMemorySpace());
@@ -1231,8 +1229,8 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
     // We need to decide where to put the Global.  If we are in a device
     // module, the global should be in the gpu module (which is nested inside
     // another main module).
-    std::pair<mlir::memref::GlobalOp, bool> gv = Glob.GetOrCreateGlobal(
-        VD, /*prefix=*/"", true,
+    std::pair<mlir::memref::GlobalOp, bool> gv = Glob.getOrCreateGlobal(
+        *VD, /*prefix=*/"",
         isa<mlir::gpu::GPUModuleOp>(function->getParentOp())
             ? FunctionContext::SYCLDevice
             : FunctionContext::Host);

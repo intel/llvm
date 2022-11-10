@@ -681,8 +681,8 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
                       decl, (function.getName() + "@static@").str()));
     } else {
       auto gv =
-          Glob.GetOrCreateGlobal(decl, (function.getName() + "@static@").str(),
-                                 /*tryInit*/ false);
+          Glob.getOrCreateGlobal(*decl, (function.getName() + "@static@").str(),
+                                 FunctionContext::Host);
       auto gv2 = abuilder.create<memref::GetGlobalOp>(
           varLoc, gv.first.getType(), gv.first.getName());
       op = reshapeRanklessGlobal(gv2);
@@ -2075,61 +2075,59 @@ MLIRASTConsumer::GetOrCreateLLVMGlobal(const ValueDecl *FD,
 }
 
 std::pair<mlir::memref::GlobalOp, bool>
-MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
-                                   bool tryInit, FunctionContext funcContext) {
-  std::string name = prefix + CGM.getMangledName(FD).str();
+MLIRASTConsumer::getOrCreateGlobal(const ValueDecl &VD, std::string Prefix,
+                                   FunctionContext FuncContext) {
+  const std::string Name = PrefixABI + Prefix + CGM.getMangledName(&VD).str();
+  if (globals.find(Name) != globals.end())
+    return globals[Name];
 
-  name = (PrefixABI + name);
+  const bool IsArray = isa<clang::ArrayType>(VD.getType());
+  const mlir::Type MLIRType = getTypes().getMLIRType(VD.getType());
+  const clang::VarDecl *Var = cast<VarDecl>(VD).getCanonicalDecl();
+  const unsigned MemSpace =
+      CGM.getContext().getTargetAddressSpace(CGM.GetGlobalVarAddressSpace(Var));
 
-  if (globals.find(name) != globals.end()) {
-    return globals[name];
+  // Global variables have always memref type. Their should always have a memref
+  // type with rank zero, however we currently do not yet handle global with ext
+  // vector type correctly.
+  auto VarTy =
+      (!IsArray) ? mlir::MemRefType::get({}, MLIRType, {}, MemSpace)
+                 : mlir::MemRefType::get(
+                       MLIRType.cast<mlir::MemRefType>().getShape(),
+                       MLIRType.cast<mlir::MemRefType>().getElementType(),
+                       MemRefLayoutAttrInterface(),
+                       wrapIntegerMemorySpace(MemSpace, module->getContext()));
+
+  // The insertion point depends on whether the global variable is in the host
+  // or the device context.
+  mlir::OpBuilder Builder(module->getContext());
+  if (FuncContext == FunctionContext::SYCLDevice)
+    Builder.setInsertionPointToStart(getDeviceModule(*module).getBody());
+  else {
+    assert(FuncContext == FunctionContext::Host);
+    Builder.setInsertionPointToStart(module->getBody());
   }
 
-  mlir::Type rt = getTypes().getMLIRType(FD->getType());
-  auto *VD = dyn_cast<VarDecl>(FD);
-  LLVM_DEBUG({
-    if (!VD) {
-      llvm::dbgs() << "GetOrCreateGlobal ";
-      VD->dump(llvm::dbgs());
-    }
-  });
-  VD = VD->getCanonicalDecl();
-  unsigned memspace = VD ? CGM.getContext().getTargetAddressSpace(
-                               CGM.GetGlobalVarAddressSpace(VD))
-                         : CGM.getDataLayout().getDefaultGlobalsAddressSpace();
-  bool isArray = isa<clang::ArrayType>(FD->getType());
+  // Create the global.
+  VarDecl::DefinitionKind DefKind = Var->isThisDeclarationADefinition();
+  mlir::Attribute InitialVal;
+  if (DefKind == VarDecl::Definition || DefKind == VarDecl::TentativeDefinition)
+    InitialVal = Builder.getUnitAttr();
 
-  mlir::MemRefType mr;
-  if (!isArray) {
-    mr = mlir::MemRefType::get({}, rt, {}, memspace);
-  } else {
-    auto mt = rt.cast<mlir::MemRefType>();
-    mr = mlir::MemRefType::get(
-        mt.getShape(), mt.getElementType(), MemRefLayoutAttrInterface(),
-        wrapIntegerMemorySpace(memspace, mt.getContext()));
-  }
+  const bool IsConst = VD.getType().isConstQualified();
+  llvm::Align Align = CGM.getContext().getDeclAlign(&VD).getAsAlign();
 
-  mlir::SymbolTable::Visibility lnk;
-  mlir::Attribute initial_value;
+  auto globalOp = Builder.create<mlir::memref::GlobalOp>(
+      module->getLoc(), Name, /*sym_visibility*/ mlir::StringAttr(), VarTy,
+      InitialVal, IsConst,
+      Builder.getIntegerAttr(Builder.getIntegerType(64), Align.value()));
 
-  mlir::OpBuilder builder(module->getContext());
-  if (funcContext == FunctionContext::SYCLDevice)
-    builder.setInsertionPointToStart(getDeviceModule(*module).getBody());
-  else
-    builder.setInsertionPointToStart(module->getBody());
-
-  if (VD->isThisDeclarationADefinition() == VarDecl::Definition) {
-    initial_value = builder.getUnitAttr();
-  } else if (VD->isThisDeclarationADefinition() ==
-             VarDecl::TentativeDefinition) {
-    initial_value = builder.getUnitAttr();
-  }
-
-  switch (CGM.getLLVMLinkageVarDefinition(VD,
-                                          /*isConstant*/ false)) {
+  // Set the visibility.
+  switch (CGM.getLLVMLinkageVarDefinition(Var, IsConst)) {
   case llvm::GlobalValue::LinkageTypes::InternalLinkage:
   case llvm::GlobalValue::LinkageTypes::PrivateLinkage:
-    lnk = mlir::SymbolTable::Visibility::Private;
+    SymbolTable::setSymbolVisibility(globalOp,
+                                     mlir::SymbolTable::Visibility::Private);
     break;
   case llvm::GlobalValue::LinkageTypes::ExternalLinkage:
   case llvm::GlobalValue::LinkageTypes::AvailableExternallyLinkage:
@@ -2140,64 +2138,49 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
   case llvm::GlobalValue::LinkageTypes::AppendingLinkage:
   case llvm::GlobalValue::LinkageTypes::ExternalWeakLinkage:
   case llvm::GlobalValue::LinkageTypes::LinkOnceODRLinkage:
-    lnk = mlir::SymbolTable::Visibility::Public;
+    SymbolTable::setSymbolVisibility(globalOp,
+                                     mlir::SymbolTable::Visibility::Public);
     break;
   }
-  auto globalOp = builder.create<mlir::memref::GlobalOp>(
-      module->getLoc(), builder.getStringAttr(name),
-      /*sym_visibility*/ mlir::StringAttr(), mlir::TypeAttr::get(mr),
-      initial_value, mlir::UnitAttr(), /*alignment*/ nullptr);
-  SymbolTable::setSymbolVisibility(globalOp, lnk);
 
-  globals[name] = std::make_pair(globalOp, isArray);
+  // Initialize the global variable.
+  if (const Expr *Init = Var->getInit()) {
+    MLIRScanner MS(*this, module, LTInfo);
+    mlir::Block B;
+    // In case of device function, we will put the block in the forefront of
+    // the GPU module, else the block will go at the forefront of the main
+    // module.
+    if (FuncContext == FunctionContext::SYCLDevice) {
+      B.moveBefore(getDeviceModule(*module).getBody());
+      MS.getBuilder().setInsertionPointToStart(&B);
+    } else
+      MS.setEntryAndAllocBlock(&B);
 
-  if (tryInit)
-    if (auto init = VD->getInit()) {
-      MLIRScanner ms(*this, module, LTInfo);
-      mlir::Block *B = new Block();
-      // In case of device function, we will put the block in the forefront of
-      // the GPU module, else the block will go at the forefront of the main
-      // module.
-      if (funcContext == FunctionContext::SYCLDevice) {
-        B->moveBefore(getDeviceModule(*module).getBody());
-        ms.getBuilder().setInsertionPointToStart(B);
-      } else
-        ms.setEntryAndAllocBlock(B);
-      OpBuilder builder(module->getContext());
-      builder.setInsertionPointToEnd(B);
-      auto op = builder.create<memref::AllocaOp>(module->getLoc(), mr);
+    OpBuilder Builder(module->getContext());
+    Builder.setInsertionPointToEnd(&B);
+    auto Op = Builder.create<memref::AllocaOp>(module->getLoc(), VarTy);
 
-      bool initialized = false;
-      if (isa<InitListExpr>(init)) {
-        if (auto A = ms.InitializeValueByInitListExpr(
-                op, const_cast<clang::Expr *>(init))) {
-          initialized = true;
-          initial_value = A;
-        }
-      } else {
-        auto VC = ms.Visit(const_cast<clang::Expr *>(init));
-        if (!VC.isReference) {
-          if (auto cop = VC.val.getDefiningOp<arith::ConstantOp>()) {
-            initial_value = cop.getValue();
-            initial_value = SplatElementsAttr::get(
-                RankedTensorType::get(mr.getShape(), mr.getElementType()),
-                initial_value);
-            initialized = true;
-          }
-        }
-      }
+    if (isa<InitListExpr>(Init)) {
+      mlir::Attribute InitValAttr =
+          MS.InitializeValueByInitListExpr(Op, const_cast<clang::Expr *>(Init));
+      globalOp.setInitialValueAttr(InitValAttr);
+    } else {
+      ValueCategory VC = MS.Visit(const_cast<clang::Expr *>(Init));
+      assert(!VC.isReference && "The initializer should not be a reference");
 
-      if (!initialized) {
-        FD->dump();
-        init->dump();
-        llvm::errs() << " warning not initializing global: " << name << "\n";
-      } else {
-        globalOp.setInitialValueAttr(initial_value);
-      }
-      delete B;
+      auto Op = VC.val.getDefiningOp<arith::ConstantOp>();
+      assert(Op && "Could not find the initializer constant expression");
+
+      auto InitialVal = SplatElementsAttr::get(
+          RankedTensorType::get(VarTy.getShape(), VarTy.getElementType()),
+          Op.getValue());
+      globalOp.setInitialValueAttr(InitialVal);
     }
+  }
 
-  return globals[name];
+  globals[Name] = std::make_pair(globalOp, IsArray);
+
+  return globals[Name];
 }
 
 mlir::Value MLIRASTConsumer::GetOrCreateGlobalLLVMString(

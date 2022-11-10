@@ -192,10 +192,10 @@ public:
                                           mlir::OpBuilder &Builder,
                                           clang::StringRef Value);
 
+  /// Create global variable and initialize it.
   std::pair<mlir::memref::GlobalOp, bool>
-  GetOrCreateGlobal(const clang::ValueDecl *VD, std::string Prefix,
-                    bool TryInit = true,
-                    FunctionContext FuncContext = FunctionContext::Host);
+  getOrCreateGlobal(const clang::ValueDecl &VD, std::string Prefix,
+                    FunctionContext FuncContext);
 
   const clang::CodeGen::CGFunctionInfo &
   GetOrCreateCGFunctionInfo(const clang::FunctionDecl *FD);

@@ -12,11 +12,11 @@ void kernel_deriche() {
     run(&local, &local_init, &internal, &internal_init, &external);
 }
 
-// CHECK-DAG:   memref.global @external : memref<i32>
-// CHECK-DAG:   memref.global "private" @internal_init : memref<i32> = dense<5>
-// CHECK-DAG:   memref.global "private" @internal : memref<i32> = uninitialized
-// CHECK-DAG:   memref.global @local_init : memref<i32> = dense<4>
-// CHECK-DAG:   memref.global @local : memref<i32> = uninitialized
+// CHECK-DAG:   memref.global @external : memref<i32> {alignment = 4 : i64}
+// CHECK-DAG:   memref.global "private" @internal_init : memref<i32> = dense<5> {alignment = 4 : i64}
+// CHECK-DAG:   memref.global "private" @internal : memref<i32> = uninitialized {alignment = 4 : i64}
+// CHECK-DAG:   memref.global @local_init : memref<i32> = dense<4> {alignment = 4 : i64}
+// CHECK-DAG:   memref.global @local : memref<i32> = uninitialized {alignment = 4 : i64}
 // CHECK:   func @kernel_deriche()
 // CHECK-NEXT:     %0 = memref.get_global @local : memref<i32>
 // CHECK-NEXT:     %alloca = memref.alloca() : memref<1xindex>
@@ -42,11 +42,11 @@ void kernel_deriche() {
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 
-// LLVM-DAG: @local = global i32 undef
-// LLVM-DAG: @local_init = global i32 4
-// LLVM-DAG: @internal = private global i32 undef
-// LLVM-DAG: @internal_init = private global i32 5
-// LLVM-DAG: @external = external global i32
+// LLVM-DAG: @local = global i32 undef, align 4
+// LLVM-DAG: @local_init = global i32 4, align 4
+// LLVM-DAG: @internal = private global i32 undef, align 4
+// LLVM-DAG: @internal_init = private global i32 5, align 4
+// LLVM-DAG: @external = external global i32, align 4
 // LLVM-LABEL: define void @kernel_deriche() {
 // LLVM-NEXT:   call void @run(i32* @local, i32* @local_init, i32* @internal, i32* @internal_init, i32* @external)
 // LLVM-NEXT:   ret void

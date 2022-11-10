@@ -15,14 +15,18 @@ size_t evt2() {
   return stv.x;
 }
 
-// CHECK:   func.func @_Z3evtv() -> i64 attributes {llvm.linkage = #llvm.linkage<external>} {
+
+// CHECK: memref.global constant @stv : memref<vector<3xi64>> {alignment = 32 : i64}
+
+// CHECK-LABEL:   func.func @_Z3evtv() -> i64 attributes {llvm.linkage = #llvm.linkage<external>} {
 // CHECK-NEXT:    %c0_i64 = arith.constant 0 : i64
 // CHECK-NEXT:    %alloca = memref.alloca() : memref<1xvector<3xi64>>
 // CHECK-NEXT:    %0 = affine.load %alloca[0] : memref<1xvector<3xi64>>
 // CHECK-NEXT:    %1 = llvm.extractelement %0[%c0_i64 : i64] : vector<3xi64>
 // CHECK-NEXT:    return %1 : i64
 // CHECK-NEXT:    }
-// CHECK:   func.func @_Z4evt2v() -> i64 attributes {llvm.linkage = #llvm.linkage<external>} {
+
+// CHECK-LABEL:   func.func @_Z4evt2v() -> i64 attributes {llvm.linkage = #llvm.linkage<external>} {
 // CHECK-NEXT:     %c0_i64 = arith.constant 0 : i64
 // CHECK-NEXT:     %0 = memref.get_global @stv : memref<vector<3xi64>>
 // CHECK-NEXT:     %alloca = memref.alloca() : memref<1xindex>
@@ -32,12 +36,14 @@ size_t evt2() {
 // CHECK-NEXT:     return %2 : i64
 // CHECK-NEXT:     }
 
-// LLVM:       @stv = external global <3 x i64>
+// LLVM:       @stv = external constant <3 x i64>, align 32
+
 // LLVM-LABEL: define i64 @_Z3evtv() !dbg !3 {
 // LLVM-NEXT:   %1 = alloca <3 x i64>, align 32, !dbg !7
 // LLVM-NEXT:   %2 = load <3 x i64>, <3 x i64>* %1, align 32
 // LLVM-NEXT:   %3 = extractelement <3 x i64> %2, i64 0
 // LLVM-NEXT:   ret i64 %3
+
 // LLVM-LABEL: define i64 @_Z4evt2v() !dbg !9 {
 // LLVM-NEXT:   %1 = load <3 x i64>, <3 x i64>* @stv, align 32
 // LLVM-NEXT:   %2 = extractelement <3 x i64> %1, i64 0

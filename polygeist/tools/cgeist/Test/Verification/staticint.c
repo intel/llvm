@@ -7,7 +7,7 @@ int adder(int x) {
 }
 
 // CHECK-DAG:   memref.global "private" @"adder@static@cur@init" : memref<i1> = dense<true>
-// CHECK-DAG:   memref.global "private" @"adder@static@cur" : memref<i32> = uninitialized
+// CHECK-DAG:   memref.global "private" @"adder@static@cur" : memref<i32> = dense<0> {alignment = 4 : i64}
 
 // CHECK-LABEL:   func.func @adder(
 // CHECK-SAME:                     %[[VAL_0:.*]]: i32) -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
