@@ -14,4 +14,3 @@
 
 // REQUIRES: system-linux
 
-void func(){};
