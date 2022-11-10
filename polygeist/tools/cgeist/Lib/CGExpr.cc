@@ -2359,10 +2359,10 @@ ValueCategory MLIRScanner::EmitScalarConversion(ValueCategory Src,
 
 ValueCategory MLIRScanner::EmitFloatToBoolConversion(ValueCategory Src) {
   assert(Src.val.getType().isa<FloatType>() && "Expecting a float value");
-  mlir::OpBuilder subbuilder(builder.getContext());
-  subbuilder.setInsertionPointToStart(entryBlock);
+  mlir::OpBuilder SubBuilder(builder.getContext());
+  SubBuilder.setInsertionPointToStart(entryBlock);
   auto FloatTy = cast<FloatType>(Src.val.getType());
-  auto Zero = subbuilder.create<ConstantFloatOp>(
+  auto Zero = SubBuilder.create<ConstantFloatOp>(
       builder.getUnknownLoc(),
       mlir::APFloat::getZero(FloatTy.getFloatSemantics()), FloatTy);
   return Src.FCmpUNE(builder, {Zero, false});
@@ -2379,9 +2379,9 @@ ValueCategory MLIRScanner::EmitPointerToBoolConversion(ValueCategory Src) {
   }
   assert(Src.val.getType().isa<LLVM::LLVMPointerType>() &&
          "Expecting a pointer");
-  mlir::OpBuilder subbuilder(builder.getContext());
-  subbuilder.setInsertionPointToStart(entryBlock);
-  auto Zero = subbuilder.create<LLVM::NullOp>(builder.getUnknownLoc(),
+  mlir::OpBuilder SubBuilder(builder.getContext());
+  SubBuilder.setInsertionPointToStart(entryBlock);
+  auto Zero = SubBuilder.create<LLVM::NullOp>(builder.getUnknownLoc(),
                                               Src.val.getType());
   return {builder.createOrFold<LLVM::ICmpOp>(loc, LLVM::ICmpPredicate::ne,
                                              Src.val, Zero),
@@ -2405,9 +2405,9 @@ ValueCategory MLIRScanner::EmitIntToBoolConversion(ValueCategory V) {
     }
   }
 
-  mlir::OpBuilder subbuilder(builder.getContext());
-  subbuilder.setInsertionPointToStart(entryBlock);
-  auto Zero = subbuilder.create<ConstantIntOp>(
+  mlir::OpBuilder SubBuilder(builder.getContext());
+  SubBuilder.setInsertionPointToStart(entryBlock);
+  auto Zero = SubBuilder.create<ConstantIntOp>(
       builder.getUnknownLoc(), 0,
       V.val.getType().cast<IntegerType>().getWidth());
   return V.ICmpNE(builder, {Zero, false});
