@@ -14,8 +14,8 @@
 ; This module will import a() and b() which should cause the read only copy
 ; of baz from each of those modules to be imported. Check that the both are
 ; imported as local copies.
-; RUN: %clang -target x86_64-unknown-linux-gnu -O2 -o %t4.o -x ir %t.bc -c -fthinlto-index=%t.bc.thinlto.bc -save-temps=obj
-; RUN: llvm-dis %t.s.3.import.bc -o - | FileCheck --check-prefix=IMPORT %s
+; RUN: %clang -Xclang -opaque-pointers -target x86_64-unknown-linux-gnu -O2 -o %t4.o -x ir %t.bc -c -fthinlto-index=%t.bc.thinlto.bc -save-temps=obj
+; RUN: llvm-dis -opaque-pointers %t.s.3.import.bc -o - | FileCheck --check-prefix=IMPORT %s
 ; IMPORT: @baz.llvm.{{.*}} = internal global i32 10
 ; IMPORT: @baz.llvm.{{.*}} = internal global i32 10
 
