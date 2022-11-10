@@ -20,6 +20,10 @@ struct TestContext {
   // return them when program/context/kernel info is requested.
   pi_device deviceHandle;
   pi_context contextHandle;
+
+  pi_program programHandle = createDummyHandle<pi_program>();
+
+  ~TestContext() { releaseDummyHandle<pi_program>(programHandle); }
 };
 
 TestContext GlobalContext;
@@ -85,6 +89,13 @@ pi_result after_piKernelGetInfo(pi_kernel kernel, pi_kernel_info param_name,
       *param_value_size_ret = sizeof(GlobalContext.contextHandle);
     if (param_value)
       *static_cast<pi_context *>(param_value) = GlobalContext.contextHandle;
+    break;
+  case PI_KERNEL_INFO_PROGRAM:
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(GlobalContext.programHandle);
+    if (param_value)
+      *(pi_program *)param_value = GlobalContext.programHandle;
+    break;
   default:;
   }
 
