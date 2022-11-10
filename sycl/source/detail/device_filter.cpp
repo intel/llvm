@@ -242,9 +242,8 @@ bool ods_target_list::backendCompatible(backend Backend) {
   return std::any_of(
       TargetList.begin(), TargetList.end(), [&](ods_target &Target) {
         backend TargetBackend = Target.Backend.value_or(backend::all);
-        return isESIMD ? (TargetBackend == Backend)
-                       : (TargetBackend == Backend) ||
-                             (TargetBackend == backend::all);
+        return (TargetBackend == Backend) ||
+               (TargetBackend == backend::all && !isESIMD);
       });
 }
 
