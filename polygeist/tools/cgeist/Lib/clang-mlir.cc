@@ -46,6 +46,8 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
+#define DEBUG_TYPE "cgeist"
+
 using namespace clang;
 using namespace llvm;
 using namespace clang::driver;
@@ -2080,9 +2082,6 @@ MLIRASTConsumer::getOrCreateGlobal(const ValueDecl &VD, std::string Prefix,
     return globals[Name];
 
   const bool IsArray = isa<clang::ArrayType>(VD.getType());
-  const bool IsExtVectorType =
-      isa<clang::ExtVectorType>(VD.getType()->getUnqualifiedDesugaredType());
-
   const mlir::Type MLIRType = getTypes().getMLIRType(VD.getType());
   const clang::VarDecl *Var = cast<VarDecl>(VD).getCanonicalDecl();
   const unsigned MemSpace =
@@ -2092,13 +2091,12 @@ MLIRASTConsumer::getOrCreateGlobal(const ValueDecl &VD, std::string Prefix,
   // type with rank zero, however we currently do not yet handle global with ext
   // vector type correctly.
   auto VarTy =
-      (!IsArray && !IsExtVectorType)
-          ? mlir::MemRefType::get({}, MLIRType, {}, MemSpace)
-          : mlir::MemRefType::get(
-                MLIRType.cast<mlir::MemRefType>().getShape(),
-                MLIRType.cast<mlir::MemRefType>().getElementType(),
-                MemRefLayoutAttrInterface(),
-                wrapIntegerMemorySpace(MemSpace, module->getContext()));
+      (!IsArray) ? mlir::MemRefType::get({}, MLIRType, {}, MemSpace)
+                 : mlir::MemRefType::get(
+                       MLIRType.cast<mlir::MemRefType>().getShape(),
+                       MLIRType.cast<mlir::MemRefType>().getElementType(),
+                       MemRefLayoutAttrInterface(),
+                       wrapIntegerMemorySpace(MemSpace, module->getContext()));
 
   // The insertion point depends on whether the global variable is in the host
   // or the device context.

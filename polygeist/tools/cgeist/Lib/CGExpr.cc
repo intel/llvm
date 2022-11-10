@@ -29,23 +29,16 @@ MLIRScanner::VisitExtVectorElementExpr(clang::ExtVectorElementExpr *expr) {
   expr->getEncodedElementAccess(indices);
   assert(indices.size() == 1 &&
          "The support for higher dimensions to be implemented.");
-  auto idx = castToIndex(getMLIRLocation(expr->getAccessorLoc()),
-                         builder.create<ConstantIntOp>(loc, indices[0], 32));
   assert(base.isReference);
-  base.isReference = false;
-  auto mt = base.val.getType().cast<MemRefType>();
-  auto shape = std::vector<int64_t>(mt.getShape());
-  if (shape.size() == 1) {
-    shape[0] = -1;
-  } else {
-    shape.erase(shape.begin());
-  }
-  auto mt0 =
-      mlir::MemRefType::get(shape, mt.getElementType(),
-                            MemRefLayoutAttrInterface(), mt.getMemorySpace());
-  base.val = builder.create<polygeist::SubIndexOp>(loc, mt0, base.val,
-                                                   getConstantIndex(0));
-  return CommonArrayLookup(base, idx, base.isReference);
+  assert(base.val.getType().isa<MemRefType>() &&
+         "Expecting ExtVectorElementExpr to have memref type");
+  auto MT = base.val.getType().cast<MemRefType>();
+  assert(MT.getElementType().isa<mlir::VectorType>() &&
+         "Expecting ExtVectorElementExpr to have memref of vector elements");
+  auto Idx = builder.create<ConstantIntOp>(loc, indices[0], 64);
+  mlir::Value Val = base.getValue(builder);
+  return ValueCategory(builder.create<LLVM::ExtractElementOp>(loc, Val, Idx),
+                       /*IsReference*/ false);
 }
 
 ValueCategory MLIRScanner::VisitConstantExpr(clang::ConstantExpr *expr) {
@@ -1688,7 +1681,6 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
       lres.dump();
     }
 #endif
-    assert(prev.isReference);
     return ValueCategory(lres, /*isReference*/ false);
   }
   case clang::CastKind::CK_IntegralToFloating: {
