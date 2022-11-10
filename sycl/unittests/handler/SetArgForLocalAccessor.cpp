@@ -46,6 +46,7 @@ pi_result after_piContextGetInfo(pi_context context, pi_context_info param_name,
       *static_cast<pi_device *>(param_value) = GlobalContext.deviceHandle;
     if (param_value_size_ret)
       *param_value_size_ret = sizeof(GlobalContext.deviceHandle);
+    break;
   default:;
   }
 
