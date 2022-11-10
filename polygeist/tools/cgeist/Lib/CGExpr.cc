@@ -2368,8 +2368,7 @@ ValueCategory MLIRScanner::EmitFloatToBoolConversion(ValueCategory Src) {
   return Src.FCmpUNE(builder, {Zero, false});
 }
 
-ValueCategory MLIRScanner::EmitPointerToBoolConversion(ValueCategory Src,
-                                                       QualType QT) {
+ValueCategory MLIRScanner::EmitPointerToBoolConversion(ValueCategory Src) {
   if (auto MemRefTy = Src.val.getType().dyn_cast<MemRefType>()) {
     auto ElementTy = MemRefTy.getElementType();
     auto AddressSpace = MemRefTy.getMemorySpaceAsInt();
@@ -2417,19 +2416,19 @@ ValueCategory MLIRScanner::EmitIntToBoolConversion(ValueCategory V) {
 ValueCategory MLIRScanner::EmitConversionToBool(ValueCategory Src,
                                                 QualType SrcType) {
   assert(SrcType.isCanonical() && "EmitScalarConversion strips typedefs");
-
-  const auto ValTy = Src.val.getType();
-  if (ValTy.isa<FloatType>())
-    return EmitFloatToBoolConversion(Src);
-
   assert(!isa<MemberPointerType>(SrcType) && "Not implemented yet");
-
-  assert((ValTy.isa<IntegerType, MemRefType, LLVM::LLVMPointerType>()) &&
-         "Unknown scalar type to convert");
-
-  if (ValTy.isa<IntegerType>())
-    return EmitIntToBoolConversion(Src);
-  return EmitPointerToBoolConversion(Src, SrcType);
+  return TypeSwitch<mlir::Type, ValueCategory>(Src.val.getType())
+      .Case<FloatType>(
+          [this](auto Ty) { return EmitFloatToBoolConversion(Ty); })
+      .Case<IntegerType>(
+          [this](auto Ty) { return EmitIntToBoolConversion(Ty); })
+      .Case<LLVM::LLVMPointerType>(
+          [this](auto Ty) { return EmitPointerToBoolConversion(Ty); })
+      .Case<MemRefType>(
+          [this](auto Ty) { return EmitPointerToBoolConversion(Ty); })
+      .Default([](auto) -> ValueCategory {
+        llvm_unreachable("Unknown scalar type to convert");
+      });
 }
 
 ValueCategory

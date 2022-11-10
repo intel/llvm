@@ -362,8 +362,7 @@ private:
                                      clang::QualType DstType,
                                      clang::SourceLocation Loc);
 
-  ValueCategory EmitPointerToBoolConversion(ValueCategory Src,
-                                            clang::QualType SrcType);
+  ValueCategory EmitPointerToBoolConversion(ValueCategory Src);
   ValueCategory EmitIntToBoolConversion(ValueCategory Src);
   ValueCategory EmitFloatToBoolConversion(ValueCategory Src);
   ValueCategory EmitConversionToBool(ValueCategory Src,
