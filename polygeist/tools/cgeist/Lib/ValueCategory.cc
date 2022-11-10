@@ -58,13 +58,12 @@ void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
   assert(val && "expect not-null");
   if (toStore.getType().isInteger(1)) {
     // Ad-hoc extension of booleans
-    const auto GetElementType = [](auto Ty) -> Type {
-      return Ty.getElementType();
-    };
     auto ElementType =
         llvm::TypeSwitch<Type, Type>(val.getType())
-            .Case<LLVM::LLVMPointerType>(GetElementType)
-            .Case<MemRefType>(GetElementType)
+            .Case<LLVM::LLVMPointerType>(
+                [](auto Ty) -> Type { return Ty.getElementType(); })
+            .Case<MemRefType>(
+                [](auto Ty) -> Type { return Ty.getElementType(); })
             .Default([](auto) -> Type { llvm_unreachable("Unhandled type"); });
     toStore = builder.createOrFold<arith::ExtUIOp>(builder.getUnknownLoc(),
                                                    ElementType, toStore);
