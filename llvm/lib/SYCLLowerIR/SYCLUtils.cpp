@@ -16,9 +16,7 @@ namespace sycl {
 namespace utils {
 
 using namespace llvm::esimd;
-bool isAddressArgumentInvokeSIMD(const CallInst *CI) {
-  constexpr char INVOKE_SIMD_PREF[] = "_Z33__regcall3____builtin_invoke_simd";
-
+bool isInvokeSimdBuiltinCall(const CallInst *CI) {
   Function *F = CI->getCalledFunction();
 
   if (F && F->getName().startswith(INVOKE_SIMD_PREF)) {
@@ -27,6 +25,9 @@ bool isAddressArgumentInvokeSIMD(const CallInst *CI) {
   return false;
 }
 
+// Tracks the use of a function pointer being stored in a memory.
+// Returns false if the function pointer is used as an argument for invoke_simd
+// function call, true otherwise.
 bool filterFunctionPointer(Value *address) {
   if (address == nullptr) {
     return true;
@@ -57,7 +58,7 @@ bool filterFunctionPointer(Value *address) {
       }
     } else if (const auto *CI = dyn_cast<CallInst>(V)) {
       // if __builtin_invoke_simd uses the pointer, do not traverse the function
-      if (isAddressArgumentInvokeSIMD(CI)) {
+      if (isInvokeSimdBuiltinCall(CI)) {
         return false;
       }
     } else if (isa<LoadInst>(V)) {

@@ -17,6 +17,10 @@ namespace llvm {
 namespace esimd {
 
 constexpr char ESIMD_MARKER_MD[] = "sycl_explicit_simd";
+// This is the prefixes of the names generated from
+// sycl/ext/oneapi/experimental/invoke_simd.hpp::__builtin_invoke_simd
+// overloads instantiations:
+constexpr char INVOKE_SIMD_PREF[] = "_Z33__regcall3____builtin_invoke_simd";
 
 // Tells whether given function is a ESIMD kernel.
 bool isESIMDKernel(const Function &F);

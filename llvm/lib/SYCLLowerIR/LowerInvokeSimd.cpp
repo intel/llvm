@@ -39,7 +39,6 @@ using namespace llvm::esimd;
 
 namespace {
 
-constexpr char ESIMD_MARKER_MD[] = "sycl_explicit_simd";
 constexpr char REQD_SUB_GROUP_SIZE_MD[] = "intel_reqd_sub_group_size";
 
 class SYCLLowerInvokeSimdLegacyPass : public ModulePass {
@@ -73,10 +72,6 @@ ModulePass *llvm::createSYCLLowerInvokeSimdPass() {
 
 namespace {
 // TODO support lambda and functor overloads
-// This is the prefixes of the names generated from
-// sycl/ext/oneapi/experimental/invoke_simd.hpp::__builtin_invoke_simd
-// overloads instantiations:
-constexpr char INVOKE_SIMD_PREF[] = "_Z33__regcall3____builtin_invoke_simd";
 
 using ValueSetImpl = SmallPtrSetImpl<Value *>;
 using ValueSet = SmallPtrSet<Value *, 4>;
