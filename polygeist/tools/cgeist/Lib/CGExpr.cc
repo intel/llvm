@@ -2418,19 +2418,17 @@ ValueCategory MLIRScanner::EmitConversionToBool(ValueCategory Src,
                                                 QualType SrcType) {
   assert(SrcType.isCanonical() && "EmitScalarConversion strips typedefs");
 
-  if (SrcType->isRealFloatingType())
+  const auto ValTy = Src.val.getType();
+  if (ValTy.isa<FloatType>())
     return EmitFloatToBoolConversion(Src);
 
   assert(!isa<MemberPointerType>(SrcType) && "Not implemented yet");
 
-  assert((SrcType->isIntegerType() ||
-          isa<MemRefType, LLVM::LLVMPointerType>(Src.val.getType())) &&
+  assert((ValTy.isa<IntegerType, MemRefType, LLVM::LLVMPointerType>()) &&
          "Unknown scalar type to convert");
 
-  if (SrcType->isIntegerType())
+  if (ValTy.isa<IntegerType>())
     return EmitIntToBoolConversion(Src);
-
-  assert((isa<MemRefType, LLVM::LLVMPointerType>(Src.val.getType())));
   return EmitPointerToBoolConversion(Src, SrcType);
 }
 
