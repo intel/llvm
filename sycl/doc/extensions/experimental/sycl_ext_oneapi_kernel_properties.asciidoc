@@ -8,6 +8,7 @@
 :toc: left
 :encoding: utf-8
 :lang: en
+:dpcpp: pass:[DPC++]
 
 :blank: pass:[ +]
 
@@ -16,42 +17,23 @@
 // docbook uses c++ and html5 uses cpp.
 :language: {basebackend@docbook:c++:cpp}
 
-== Introduction
-IMPORTANT: This specification is a draft.
-
-NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
-trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
-used by permission by Khronos.
-
-This extension introduces a replacement for the kernel attributes defined in
-Section 5.8.1 of the SYCL 2020 specification, in the form of a property list
-accepting properties with compile-time constant values.
 
 == Notice
 
-Copyright (c) 2021-2022 Intel Corporation.  All rights reserved.
+[%hardbreaks]
+Copyright (C) 2021-2022 Intel Corporation.  All rights reserved.
 
-== Status
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
 
-Working Draft
 
-This is a proposed extension specification, intended to gather community
-feedback. Interfaces defined in this specification may not be implemented yet
-or may be in a preliminary state. The specification itself may also change in
-incompatible ways before it is finalized. Shipping software products should not
-rely on APIs defined in this specification.
+== Contact
 
-== Version
+To report problems with this extension, please open a new issue at:
 
-Revision: 1
+https://github.com/intel/llvm/issues
 
-== Contributors
-
-Jessica Davies, Intel +
-Joe Garvey, Intel +
-Greg Lueck, Intel +
-John Pennycook, Intel +
-Roland Schulz, Intel
 
 == Dependencies
 
@@ -60,21 +42,23 @@ the following extensions:
 
 - link:sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
 
-== Feature Test Macro
 
-This extension provides a feature-test macro as described in the core SYCL
-specification section 6.3.3 "Feature test macros".  Therefore, an
-implementation supporting this extension must predefine the macro
-`SYCL_EXT_ONEAPI_KERNEL_PROPERTIES` to one of the values defined in the table
-below.  Applications can test for the existence of this macro to determine if
-the implementation supports this feature, or applications can test the macro's
-value to determine which of the extension's APIs the implementation supports.
+== Status
 
-[%header,cols="1,5"]
-|===
-|Value |Description
-|1     |Initial extension version.  Base features are supported.
-|===
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+== Contributors
+
+Jessica Davies, Intel +
+Joe Garvey, Intel +
+Greg Lueck, Intel +
+John Pennycook, Intel +
+Roland Schulz, Intel
 
 == Overview
 
@@ -107,7 +91,30 @@ This extension proposes a replacement for these kernel attributes, in the form
 of a property list accepting properties with compile-time constant
 values, to address several of these issues.
 
-== Kernel Properties
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_KERNEL_PROPERTIES` to one of the values defined in the
+table below.  Applications can test for the existence of this macro to determine
+if the implementation supports this feature, or applications can test the
+macro's value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== Kernel Properties
 
 The kernel properties below correspond to kernel attributes defined in
 Section 5.8.1 of the SYCL 2020 specification.  Note that deprecated attributes
@@ -225,7 +232,7 @@ SYCL implementations may introduce additional kernel properties. If any
 combinations of kernel attributes are invalid, this must be clearly documented
 as part of the new kernel property definition.
 
-== Adding a Property List to a Kernel Launch
+=== Adding a Property List to a Kernel Launch
 
 To enable properties to be associated with kernels, this extension adds
 new overloads to each of the variants of `single_task`, `parallel_for` and
@@ -431,7 +438,7 @@ diagnostic; invalid combinations that can only be detected at run-time should
 result in an implementation throwing an `exception` with the `errc::invalid`
 error code.
 
-== Querying Properties in a Compiled Kernel
+=== Querying Properties in a Compiled Kernel
 
 Any properties embedded into a kernel type via a property list are reflected
 in the results of a call to `kernel::get_info` with the
@@ -439,7 +446,7 @@ in the results of a call to `kernel::get_info` with the
 attribute from the SYCL 2020 specification had been applied to the kernel
 function.
 
-== Device Functions
+=== Device Functions
 
 The SYCL 2020 `sycl::device_has` attribute can be applied to the declaration
 of a non-kernel device function, to assert that the device function uses a
@@ -486,6 +493,10 @@ units that declare that same function _F_ must list the same set of properties
 _P_ via the `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY` macro. Programs which fail to do this
 are ill-formed, but no diagnostic is required.
 
+NOTE: Due to a restriction on attribute ordering in Clang it is only currently
+possible to use `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY` before `SYCL_EXTERNAL` in
+{dpcpp}.
+
 == Issues
 
 . How should we handle kernels supporting more than one set of device aspects?
@@ -514,13 +525,3 @@ would increase implementation complexity.
 //--
 //*RESOLUTION*: Not resolved.
 //--
-
-== Revision History
-
-[cols="5,15,15,70"]
-[grid="rows"]
-[options="header"]
-|========================================
-|Rev|Date|Author|Changes
-|1|2021-08-06|John Pennycook|*Initial public working draft*
-|========================================
