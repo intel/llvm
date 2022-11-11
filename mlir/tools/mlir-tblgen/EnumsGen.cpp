@@ -71,7 +71,7 @@ static void emitDenseMapInfo(StringRef enumName, std::string underlyingType,
       std::string(formatv("{0}::{1}", cppNamespace, enumName));
   if (underlyingType.empty())
     underlyingType =
-        std::string(formatv("std::underlying_type<{0}>::type", qualName));
+        std::string(formatv("std::underlying_type_t<{0}>", qualName));
 
   const char *const mapInfo = R"(
 namespace llvm {
@@ -536,7 +536,7 @@ public:
 static bool emitEnumDecls(const RecordKeeper &recordKeeper, raw_ostream &os) {
   llvm::emitSourceFileHeader("Enum Utility Declarations", os);
 
-  auto defs = recordKeeper.getAllDerivedDefinitions("EnumAttrInfo");
+  auto defs = recordKeeper.getAllDerivedDefinitionsIfDefined("EnumAttrInfo");
   for (const auto *def : defs)
     emitEnumDecl(*def, os);
 
@@ -574,7 +574,7 @@ static void emitEnumDef(const Record &enumDef, raw_ostream &os) {
 static bool emitEnumDefs(const RecordKeeper &recordKeeper, raw_ostream &os) {
   llvm::emitSourceFileHeader("Enum Utility Definitions", os);
 
-  auto defs = recordKeeper.getAllDerivedDefinitions("EnumAttrInfo");
+  auto defs = recordKeeper.getAllDerivedDefinitionsIfDefined("EnumAttrInfo");
   for (const auto *def : defs)
     emitEnumDef(*def, os);
 

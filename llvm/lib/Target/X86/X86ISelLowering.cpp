@@ -16871,6 +16871,12 @@ static SDValue lowerShuffleAsLanePermuteAndPermute(
         return SDValue();
     }
 
+    // Avoid returning the same shuffle operation. For example,
+    // t7: v16i16 = vector_shuffle<8,9,10,11,4,5,6,7,0,1,2,3,12,13,14,15> t5,
+    //                             undef:v16i16
+    if (CrossLaneMask == Mask || InLaneMask == Mask)
+      return SDValue();
+
     SDValue CrossLane = DAG.getVectorShuffle(VT, DL, V1, V2, CrossLaneMask);
     return DAG.getVectorShuffle(VT, DL, CrossLane, DAG.getUNDEF(VT),
                                 InLaneMask);
@@ -17621,8 +17627,6 @@ static SDValue lowerShuffleAsRepeatedMaskAndLanePermute(
         RepeatedMask[Idx] = M + (Lane * NumLaneElts);
       }
     }
-    SDValue RepeatedShuffle =
-        DAG.getVectorShuffle(VT, DL, V1, V2, RepeatedMask);
 
     // Shuffle each source sub-lane to its destination.
     SmallVector<int, 8> SubLaneMask((unsigned)NumElts, -1);
@@ -17633,6 +17637,14 @@ static SDValue lowerShuffleAsRepeatedMaskAndLanePermute(
       for (int j = 0; j != NumSubLaneElts; ++j)
         SubLaneMask[i + j] = j + (SrcSubLane * NumSubLaneElts);
     }
+
+    // Avoid returning the same shuffle operation.
+    // v8i32 = vector_shuffle<0,1,4,5,2,3,6,7> t5, undef:v8i32
+    if (RepeatedMask == Mask || SubLaneMask == Mask)
+      return SDValue();
+
+    SDValue RepeatedShuffle =
+        DAG.getVectorShuffle(VT, DL, V1, V2, RepeatedMask);
 
     return DAG.getVectorShuffle(VT, DL, RepeatedShuffle, DAG.getUNDEF(VT),
                                 SubLaneMask);
@@ -17763,6 +17775,90 @@ static SDValue lowerShuffleAsVTRUNCAndUnpack(const SDLoc &DL, MVT VT,
                      DAG.getIntPtrConstant(0, DL));
 }
 
+// a = shuffle v1, v2, mask1    ; interleaving lower lanes of v1 and v2
+// b = shuffle v1, v2, mask2    ; interleaving higher lanes of v1 and v2
+//     =>
+// ul = unpckl v1, v2
+// uh = unpckh v1, v2
+// a = vperm ul, uh
+// b = vperm ul, uh
+//
+// Pattern-match interleave(256b v1, 256b v2) -> 512b v3 and lower it into unpck
+// and permute. We cannot directly match v3 because it is split into two
+// 256-bit vectors in earlier isel stages. Therefore, this function matches a
+// pair of 256-bit shuffles and makes sure the masks are consecutive.
+//
+// Once unpck and permute nodes are created, the permute corresponding to this
+// shuffle is returned, while the other permute replaces the other half of the
+// shuffle in the selection dag.
+static SDValue lowerShufflePairAsUNPCKAndPermute(const SDLoc &DL, MVT VT,
+                                                 SDValue V1, SDValue V2,
+                                                 ArrayRef<int> Mask,
+                                                 SelectionDAG &DAG) {
+  if (VT != MVT::v8f32 && VT != MVT::v8i32 && VT != MVT::v16i16 &&
+      VT != MVT::v32i8)
+    return SDValue();
+  // <B0, B1, B0+1, B1+1, ..., >
+  auto IsInterleavingPattern = [&](ArrayRef<int> Mask, unsigned Begin0,
+                                   unsigned Begin1) {
+    size_t Size = Mask.size();
+    assert(Size % 2 == 0 && "Expected even mask size");
+    for (unsigned I = 0; I < Size; I += 2) {
+      if (Mask[I] != (int)(Begin0 + I / 2) ||
+          Mask[I + 1] != (int)(Begin1 + I / 2))
+        return false;
+    }
+    return true;
+  };
+  // Check which half is this shuffle node
+  int NumElts = VT.getVectorNumElements();
+  size_t FirstQtr = NumElts / 2;
+  size_t ThirdQtr = NumElts + NumElts / 2;
+  bool IsFirstHalf = IsInterleavingPattern(Mask, 0, NumElts);
+  bool IsSecondHalf = IsInterleavingPattern(Mask, FirstQtr, ThirdQtr);
+  if (!IsFirstHalf && !IsSecondHalf)
+    return SDValue();
+
+  // Find the intersection between shuffle users of V1 and V2.
+  SmallVector<SDNode *, 2> Shuffles;
+  for (SDNode *User : V1->uses())
+    if (User->getOpcode() == ISD::VECTOR_SHUFFLE && User->getOperand(0) == V1 &&
+        User->getOperand(1) == V2)
+      Shuffles.push_back(User);
+  // Limit user size to two for now.
+  if (Shuffles.size() != 2)
+    return SDValue();
+  // Find out which half of the 512-bit shuffles is each smaller shuffle
+  auto *SVN1 = cast<ShuffleVectorSDNode>(Shuffles[0]);
+  auto *SVN2 = cast<ShuffleVectorSDNode>(Shuffles[1]);
+  SDNode *FirstHalf;
+  SDNode *SecondHalf;
+  if (IsInterleavingPattern(SVN1->getMask(), 0, NumElts) &&
+      IsInterleavingPattern(SVN2->getMask(), FirstQtr, ThirdQtr)) {
+    FirstHalf = Shuffles[0];
+    SecondHalf = Shuffles[1];
+  } else if (IsInterleavingPattern(SVN1->getMask(), FirstQtr, ThirdQtr) &&
+             IsInterleavingPattern(SVN2->getMask(), 0, NumElts)) {
+    FirstHalf = Shuffles[1];
+    SecondHalf = Shuffles[0];
+  } else {
+    return SDValue();
+  }
+  // Lower into unpck and perm. Return the perm of this shuffle and replace
+  // the other.
+  SDValue Unpckl = DAG.getNode(X86ISD::UNPCKL, DL, VT, V1, V2);
+  SDValue Unpckh = DAG.getNode(X86ISD::UNPCKH, DL, VT, V1, V2);
+  SDValue Perm1 = DAG.getNode(X86ISD::VPERM2X128, DL, VT, Unpckl, Unpckh,
+                              DAG.getTargetConstant(0x20, DL, MVT::i8));
+  SDValue Perm2 = DAG.getNode(X86ISD::VPERM2X128, DL, VT, Unpckl, Unpckh,
+                              DAG.getTargetConstant(0x31, DL, MVT::i8));
+  if (IsFirstHalf) {
+    DAG.ReplaceAllUsesWith(SecondHalf, &Perm2);
+    return Perm1;
+  }
+  DAG.ReplaceAllUsesWith(FirstHalf, &Perm1);
+  return Perm2;
+}
 
 /// Handle lowering of 4-lane 64-bit floating point shuffles.
 ///
@@ -18070,6 +18166,16 @@ static SDValue lowerV8F32Shuffle(const SDLoc &DL, ArrayRef<int> Mask,
                                          DAG, Subtarget))
       return V;
 
+  // Try to match an interleave of two v8f32s and lower them as unpck and
+  // permutes using ymms. This needs to go before we try to split the vectors.
+  //
+  // TODO: Expand this to AVX1. Currently v8i32 is casted to v8f32 and hits
+  // this path inadvertently.
+  if (Subtarget.hasAVX2() && !Subtarget.hasAVX512())
+    if (SDValue V = lowerShufflePairAsUNPCKAndPermute(DL, MVT::v8f32, V1, V2,
+                                                      Mask, DAG))
+      return V;
+
   // For non-AVX512 if the Mask is of 16bit elements in lane then try to split
   // since after split we get a more efficient code using vpunpcklwd and
   // vpunpckhwd instrs than vblend.
@@ -18107,6 +18213,13 @@ static SDValue lowerV8I32Shuffle(const SDLoc &DL, ArrayRef<int> Mask,
   if (SDValue ZExt = lowerShuffleAsZeroOrAnyExtend(DL, MVT::v8i32, V1, V2, Mask,
                                                    Zeroable, Subtarget, DAG))
     return ZExt;
+
+  // Try to match an interleave of two v8i32s and lower them as unpck and
+  // permutes using ymms. This needs to go before we try to split the vectors.
+  if (!Subtarget.hasAVX512())
+    if (SDValue V = lowerShufflePairAsUNPCKAndPermute(DL, MVT::v8i32, V1, V2,
+                                                      Mask, DAG))
+      return V;
 
   // For non-AVX512 if the Mask is of 16bit elements in lane then try to split
   // since after split we get a more efficient code than vblend by using
@@ -18313,6 +18426,13 @@ static SDValue lowerV16I16Shuffle(const SDLoc &DL, ArrayRef<int> Mask,
           DL, MVT::v16i16, V1, V2, Mask, DAG, Subtarget))
     return V;
 
+  // Try to match an interleave of two v16i16s and lower them as unpck and
+  // permutes using ymms.
+  if (!Subtarget.hasAVX512())
+    if (SDValue V = lowerShufflePairAsUNPCKAndPermute(DL, MVT::v16i16, V1, V2,
+                                                      Mask, DAG))
+      return V;
+
   // Otherwise fall back on generic lowering.
   return lowerShuffleAsSplitOrBlend(DL, MVT::v16i16, V1, V2, Mask,
                                     Subtarget, DAG);
@@ -18424,6 +18544,13 @@ static SDValue lowerV32I8Shuffle(const SDLoc &DL, ArrayRef<int> Mask,
   if (Subtarget.hasVLX())
     if (SDValue V = lowerShuffleAsVTRUNCAndUnpack(DL, MVT::v32i8, V1, V2,
                                                   Mask, Zeroable, DAG))
+      return V;
+
+  // Try to match an interleave of two v32i8s and lower them as unpck and
+  // permutes using ymms.
+  if (!Subtarget.hasAVX512())
+    if (SDValue V = lowerShufflePairAsUNPCKAndPermute(DL, MVT::v32i8, V1, V2,
+                                                      Mask, DAG))
       return V;
 
   // Otherwise fall back on generic lowering.
@@ -19385,6 +19512,44 @@ static bool canonicalizeShuffleMaskWithCommute(ArrayRef<int> Mask) {
   return false;
 }
 
+static bool canCombineAsMaskOperation(SDValue V1, SDValue V2,
+                                      const X86Subtarget &Subtarget) {
+  if (!Subtarget.hasAVX512())
+    return false;
+
+  MVT VT = V1.getSimpleValueType().getScalarType();
+  if ((VT == MVT::i16 || VT == MVT::i8) && !Subtarget.hasBWI())
+    return false;
+
+  // i8 is better to be widen to i16, because there is PBLENDW for vXi16
+  // when the vector bit size is 128 or 256.
+  if (VT == MVT::i8 && V1.getSimpleValueType().getSizeInBits() < 512)
+    return false;
+
+  auto HasMaskOperation = [&](SDValue V) {
+    // TODO: Currently we only check limited opcode. We probably extend
+    // it to all binary operation by checking TLI.isBinOp().
+    switch (V->getOpcode()) {
+    default:
+      return false;
+    case ISD::ADD:
+    case ISD::SUB:
+    case ISD::AND:
+    case ISD::XOR:
+      break;
+    }
+    if (!V->hasOneUse())
+      return false;
+
+    return true;
+  };
+
+  if (HasMaskOperation(V1) || HasMaskOperation(V2))
+    return true;
+
+  return false;
+}
+
 // Forward declaration.
 static SDValue canonicalizeShuffleMaskWithHorizOp(
     MutableArrayRef<SDValue> Ops, MutableArrayRef<int> Mask,
@@ -19460,6 +19625,7 @@ static SDValue lowerVECTOR_SHUFFLE(SDValue Op, const X86Subtarget &Subtarget,
   // integers to handle flipping the low and high halves of AVX 256-bit vectors.
   SmallVector<int, 16> WidenedMask;
   if (VT.getScalarSizeInBits() < 64 && !Is1BitVector &&
+      !canCombineAsMaskOperation(V1, V2, Subtarget) &&
       canWidenShuffleElements(OrigMask, Zeroable, V2IsZero, WidenedMask)) {
     // Shuffle mask widening should not interfere with a broadcast opportunity
     // by obfuscating the operands with bitcasts.
@@ -32276,6 +32442,62 @@ static SDValue LowerCVTPS2PH(SDValue Op, SelectionDAG &DAG) {
   return DAG.getNode(ISD::CONCAT_VECTORS, dl, VT, Lo, Hi);
 }
 
+static StringRef getInstrStrFromOpNo(const SmallVectorImpl<StringRef> &AsmStrs,
+                                     unsigned OpNo) {
+  const APInt Operand(32, OpNo);
+  std::string OpNoStr = llvm::toString(Operand, 10, false);
+  std::string Str(" $");
+
+  std::string OpNoStr1(Str + OpNoStr);             // e.g. " $1" (OpNo=1)
+  std::string OpNoStr2(Str + "{" + OpNoStr + ":"); // With modifier, e.g. ${1:P}
+
+  auto I = StringRef::npos;
+  for (auto &AsmStr : AsmStrs) {
+    // Match the OpNo string. We should match exactly to exclude match
+    // sub-string, e.g. "$12" contain "$1"
+    if (AsmStr.endswith(OpNoStr1))
+      I = AsmStr.size() - OpNoStr1.size();
+
+    // Get the index of operand in AsmStr.
+    if (I == StringRef::npos)
+      I = AsmStr.find(OpNoStr1 + ",");
+    if (I == StringRef::npos)
+      I = AsmStr.find(OpNoStr2);
+
+    if (I == StringRef::npos)
+      continue;
+
+    assert(I > 0 && "Unexpected inline asm string!");
+    // Remove the operand string and label (if exsit).
+    // For example:
+    // ".L__MSASMLABEL_.${:uid}__l:call dword ptr ${0:P}"
+    // ==>
+    // ".L__MSASMLABEL_.${:uid}__l:call dword ptr "
+    // ==>
+    // "call dword ptr "
+    auto TmpStr = AsmStr.substr(0, I);
+    I = TmpStr.rfind(':');
+    if (I == StringRef::npos)
+      return TmpStr;
+
+    assert(I < TmpStr.size() && "Unexpected inline asm string!");
+    auto Asm = TmpStr.drop_front(I + 1);
+    return Asm;
+  }
+
+  return StringRef();
+}
+
+bool X86TargetLowering::isInlineAsmTargetBranch(
+    const SmallVectorImpl<StringRef> &AsmStrs, unsigned OpNo) const {
+  StringRef InstrStr = getInstrStrFromOpNo(AsmStrs, OpNo);
+
+  if (InstrStr.contains("call"))
+    return true;
+
+  return false;
+}
+
 /// Provide custom lowering hooks for some operations.
 SDValue X86TargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   switch (Op.getOpcode()) {
@@ -39499,10 +39721,22 @@ static SDValue combineX86ShufflesRecursively(
       std::swap(Ops[0], Ops[1]);
     }
 
-    // Finally, try to combine into a single shuffle instruction.
-    return combineX86ShuffleChain(Ops, Root, Mask, Depth, HasVariableMask,
-                                  AllowVariableCrossLaneMask,
-                                  AllowVariablePerLaneMask, DAG, Subtarget);
+    // Try to combine into a single shuffle instruction.
+    if (SDValue Shuffle = combineX86ShuffleChain(
+            Ops, Root, Mask, Depth, HasVariableMask, AllowVariableCrossLaneMask,
+            AllowVariablePerLaneMask, DAG, Subtarget))
+      return Shuffle;
+
+    // If all the operands come from the same larger vector, fallthrough and try
+    // to use combineX86ShuffleChainWithExtract.
+    SDValue LHS = peekThroughBitcasts(Ops.front());
+    SDValue RHS = peekThroughBitcasts(Ops.back());
+    if (Ops.size() != 2 || !Subtarget.hasAVX2() || RootSizeInBits != 128 ||
+        (RootSizeInBits / Mask.size()) != 64 ||
+        LHS.getOpcode() != ISD::EXTRACT_SUBVECTOR ||
+        RHS.getOpcode() != ISD::EXTRACT_SUBVECTOR ||
+        LHS.getOperand(0) != RHS.getOperand(0))
+      return SDValue();
   }
 
   // If that failed and any input is extracted then try to combine as a

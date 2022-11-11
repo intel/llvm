@@ -3614,17 +3614,15 @@ public:
 class UsingEnumDecl : public BaseUsingDecl, public Mergeable<UsingEnumDecl> {
   /// The source location of the 'using' keyword itself.
   SourceLocation UsingLocation;
-
-  /// Location of the 'enum' keyword.
+  /// The source location of the 'enum' keyword.
   SourceLocation EnumLocation;
-
-  /// The enum
-  EnumDecl *Enum;
+  /// 'qual::SomeEnum' as an EnumType, possibly with Elaborated/Typedef sugar.
+  TypeSourceInfo *EnumType;
 
   UsingEnumDecl(DeclContext *DC, DeclarationName DN, SourceLocation UL,
-                SourceLocation EL, SourceLocation NL, EnumDecl *ED)
-      : BaseUsingDecl(UsingEnum, DC, NL, DN), UsingLocation(UL),
-        EnumLocation(EL), Enum(ED) {}
+                SourceLocation EL, SourceLocation NL, TypeSourceInfo *EnumType)
+      : BaseUsingDecl(UsingEnum, DC, NL, DN), UsingLocation(UL), EnumLocation(EL),
+        EnumType(EnumType){}
 
   void anchor() override;
 
@@ -3639,13 +3637,29 @@ public:
   /// The source location of the 'enum' keyword.
   SourceLocation getEnumLoc() const { return EnumLocation; }
   void setEnumLoc(SourceLocation L) { EnumLocation = L; }
+  NestedNameSpecifier *getQualifier() const {
+    return getQualifierLoc().getNestedNameSpecifier();
+  }
+  NestedNameSpecifierLoc getQualifierLoc() const {
+    if (auto ETL = EnumType->getTypeLoc().getAs<ElaboratedTypeLoc>())
+      return ETL.getQualifierLoc();
+    return NestedNameSpecifierLoc();
+  }
+  // Returns the "qualifier::Name" part as a TypeLoc.
+  TypeLoc getEnumTypeLoc() const {
+    return EnumType->getTypeLoc();
+  }
+  TypeSourceInfo *getEnumType() const {
+    return EnumType;
+  }
+  void setEnumType(TypeSourceInfo *TSI) { EnumType = TSI; }
 
 public:
-  EnumDecl *getEnumDecl() const { return Enum; }
+  EnumDecl *getEnumDecl() const { return cast<EnumDecl>(EnumType->getType()->getAsTagDecl()); }
 
   static UsingEnumDecl *Create(ASTContext &C, DeclContext *DC,
                                SourceLocation UsingL, SourceLocation EnumL,
-                               SourceLocation NameL, EnumDecl *ED);
+                               SourceLocation NameL, TypeSourceInfo *EnumType);
 
   static UsingEnumDecl *CreateDeserialized(ASTContext &C, unsigned ID);
 
@@ -4086,7 +4100,7 @@ public:
     return llvm::makeArrayRef(getTrailingObjects<BindingDecl *>(), NumBindings);
   }
 
-  void printName(raw_ostream &os) const override;
+  void printName(raw_ostream &OS, const PrintingPolicy &Policy) const override;
 
   static bool classof(const Decl *D) { return classofKind(D->getKind()); }
   static bool classofKind(Kind K) { return K == Decomposition; }
@@ -4199,7 +4213,8 @@ private:
 
 public:
   /// Print this UUID in a human-readable format.
-  void printName(llvm::raw_ostream &OS) const override;
+  void printName(llvm::raw_ostream &OS,
+                 const PrintingPolicy &Policy) const override;
 
   /// Get the decomposed parts of this declaration.
   Parts getParts() const { return PartVal; }
@@ -4252,7 +4267,8 @@ class UnnamedGlobalConstantDecl : public ValueDecl,
 
 public:
   /// Print this in a human-readable format.
-  void printName(llvm::raw_ostream &OS) const override;
+  void printName(llvm::raw_ostream &OS,
+                 const PrintingPolicy &Policy) const override;
 
   const APValue &getValue() const { return Value; }
 

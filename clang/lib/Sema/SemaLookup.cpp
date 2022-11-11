@@ -40,6 +40,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/TinyPtrVector.h"
 #include "llvm/ADT/edit_distance.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
 #include <algorithm>
 #include <iterator>
@@ -3667,9 +3668,10 @@ CXXMethodDecl *Sema::LookupMovingAssignment(CXXRecordDecl *Class,
 ///
 /// \returns The destructor for this class.
 CXXDestructorDecl *Sema::LookupDestructor(CXXRecordDecl *Class) {
-  return cast<CXXDestructorDecl>(LookupSpecialMember(Class, CXXDestructor,
-                                                     false, false, false,
-                                                     false, false).getMethod());
+  return cast_or_null<CXXDestructorDecl>(
+      LookupSpecialMember(Class, CXXDestructor, false, false, false, false,
+                          false)
+          .getMethod());
 }
 
 /// LookupLiteralOperator - Determine which literal operator should be used for

@@ -371,6 +371,7 @@ private:
         DeadInstructions.emplace_back(LandingPad);
 
       for (Instruction *I : DeadInstructions) {
+        SE.forgetBlockAndLoopDispositions(I);
         I->replaceAllUsesWith(PoisonValue::get(I->getType()));
         I->eraseFromParent();
       }
@@ -416,6 +417,7 @@ private:
           DTU.applyUpdates(DTUpdates);
         DTUpdates.clear();
         formLCSSARecursively(*FixLCSSALoop, DT, &LI, &SE);
+        SE.forgetBlockAndLoopDispositions();
       }
     }
 
@@ -594,6 +596,9 @@ public:
 
     LLVM_DEBUG(dbgs() << "Constant-folding " << FoldCandidates.size()
                       << " terminators in loop " << Header->getName() << "\n");
+
+    if (!DeadLoopBlocks.empty())
+      SE.forgetBlockAndLoopDispositions();
 
     // Make the actual transforms.
     handleDeadExits();

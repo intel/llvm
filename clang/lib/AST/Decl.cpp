@@ -1602,8 +1602,12 @@ Module *Decl::getOwningModuleForLinkage(bool IgnoreLinkage) const {
   llvm_unreachable("unknown module kind");
 }
 
-void NamedDecl::printName(raw_ostream &os) const {
-  os << Name;
+void NamedDecl::printName(raw_ostream &OS, const PrintingPolicy&) const {
+  OS << Name;
+}
+
+void NamedDecl::printName(raw_ostream &OS) const {
+  printName(OS, getASTContext().getPrintingPolicy());
 }
 
 std::string NamedDecl::getQualifiedNameAsString(bool WithGlobalNsPrefix) const {
@@ -1622,7 +1626,7 @@ void NamedDecl::printQualifiedName(raw_ostream &OS, const PrintingPolicy &P,
                                    bool WithGlobalNsPrefix) const {
   if (getDeclContext()->isFunctionOrMethod()) {
     // We do not print '(anonymous)' for function parameters without name.
-    printName(OS);
+    printName(OS, P);
     return;
   }
   printNestedNameSpecifier(OS, P, WithGlobalNsPrefix);
@@ -1633,7 +1637,7 @@ void NamedDecl::printQualifiedName(raw_ostream &OS, const PrintingPolicy &P,
     // fall back to "(anonymous)".
     SmallString<64> NameBuffer;
     llvm::raw_svector_ostream NameOS(NameBuffer);
-    printName(NameOS);
+    printName(NameOS, P);
     if (NameBuffer.empty())
       OS << "(anonymous)";
     else
@@ -1759,7 +1763,7 @@ void NamedDecl::getNameForDiagnostic(raw_ostream &OS,
   if (Qualified)
     printQualifiedName(OS, Policy);
   else
-    printName(OS);
+    printName(OS, Policy);
 }
 
 template<typename T> static bool isRedeclarableImpl(Redeclarable<T> *) {
@@ -2585,7 +2589,7 @@ bool VarDecl::isNonEscapingByref() const {
 
 bool VarDecl::hasDependentAlignment() const {
   QualType T = getType();
-  return T->isDependentType() || T->isUndeducedAutoType() ||
+  return T->isDependentType() || T->isUndeducedType() ||
          llvm::any_of(specific_attrs<AlignedAttr>(), [](const AlignedAttr *AA) {
            return AA->isAlignmentDependent();
          });
@@ -4472,6 +4476,23 @@ void TagDecl::setQualifierInfo(NestedNameSpecifierLoc QualifierLoc) {
         getExtInfo()->QualifierLoc = QualifierLoc;
     }
   }
+}
+
+void TagDecl::printName(raw_ostream &OS, const PrintingPolicy &Policy) const {
+  DeclarationName Name = getDeclName();
+  // If the name is supposed to have an identifier but does not have one, then
+  // the tag is anonymous and we should print it differently.
+  if (Name.isIdentifier() && !Name.getAsIdentifierInfo()) {
+    // If the caller wanted to print a qualified name, they've already printed
+    // the scope. And if the caller doesn't want that, the scope information
+    // is already printed as part of the type.
+    PrintingPolicy Copy(Policy);
+    Copy.SuppressScope = true;
+    getASTContext().getTagDeclType(this).print(OS, Copy);
+    return;
+  }
+  // Otherwise, do the normal printing.
+  Name.print(OS, Policy);
 }
 
 void TagDecl::setTemplateParameterListsInfo(

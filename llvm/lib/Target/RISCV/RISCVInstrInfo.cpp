@@ -1266,6 +1266,15 @@ bool RISCVInstrInfo::verifyInstruction(const MachineInstr &MI,
       ErrInfo = "policy operand w/o VL operand?";
       return false;
     }
+
+    // VecPolicy operands can only exist on instructions with passthru/merge
+    // arguments. Note that not all arguments with passthru have vec policy
+    // operands- some instructions have implicit policies.
+    unsigned UseOpIdx;
+    if (!MI.isRegTiedToUseOperand(0, &UseOpIdx)) {
+      ErrInfo = "policy operand w/o tied operand?";
+      return false;
+    }
   }
 
   return true;
@@ -1607,6 +1616,9 @@ bool RISCVInstrInfo::findCommutedOpIndices(const MachineInstr &MI,
     return false;
 
   switch (MI.getOpcode()) {
+  case RISCV::PseudoCCMOVGPR:
+    // Operands 4 and 5 are commutable.
+    return fixCommutedOpIndices(SrcOpIdx1, SrcOpIdx2, 4, 5);
   case CASE_VFMA_SPLATS(FMADD):
   case CASE_VFMA_SPLATS(FMSUB):
   case CASE_VFMA_SPLATS(FMACC):
@@ -1752,6 +1764,15 @@ MachineInstr *RISCVInstrInfo::commuteInstructionImpl(MachineInstr &MI,
   };
 
   switch (MI.getOpcode()) {
+  case RISCV::PseudoCCMOVGPR: {
+    // CCMOV can be commuted by inverting the condition.
+    auto CC = static_cast<RISCVCC::CondCode>(MI.getOperand(3).getImm());
+    CC = RISCVCC::getOppositeBranchCondition(CC);
+    auto &WorkingMI = cloneIfNew(MI);
+    WorkingMI.getOperand(3).setImm(CC);
+    return TargetInstrInfo::commuteInstructionImpl(WorkingMI, /*NewMI*/ false,
+                                                   OpIdx1, OpIdx2);
+  }
   case CASE_VFMA_SPLATS(FMACC):
   case CASE_VFMA_SPLATS(FMADD):
   case CASE_VFMA_SPLATS(FMSAC):

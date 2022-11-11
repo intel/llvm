@@ -1445,7 +1445,8 @@ clang::FunctionTemplateDecl *TypeSystemClang::CreateFunctionTemplateDecl(
   func_tmpl_decl->setDeclContext(decl_ctx);
   func_tmpl_decl->setLocation(func_decl->getLocation());
   func_tmpl_decl->setDeclName(func_decl->getDeclName());
-  func_tmpl_decl->init(func_decl, template_param_list);
+  func_tmpl_decl->setTemplateParameters(template_param_list);
+  func_tmpl_decl->init(func_decl);
   SetOwningModule(func_tmpl_decl, owning_module);
 
   for (size_t i = 0, template_param_decl_count = template_param_decls.size();
@@ -1622,7 +1623,8 @@ ClassTemplateDecl *TypeSystemClang::CreateClassTemplateDecl(
   // What decl context do we use here? TU? The actual decl context?
   class_template_decl->setDeclContext(decl_ctx);
   class_template_decl->setDeclName(decl_name);
-  class_template_decl->init(template_cxx_decl, template_param_list);
+  class_template_decl->setTemplateParameters(template_param_list);
+  class_template_decl->init(template_cxx_decl);
   template_cxx_decl->setDescribedClassTemplate(class_template_decl);
   SetOwningModule(class_template_decl, owning_module);
 
@@ -3222,6 +3224,20 @@ bool TypeSystemClang::IsIntegerType(lldb::opaque_compiler_type_t type,
   }
 
   return false;
+}
+
+bool TypeSystemClang::IsBooleanType(lldb::opaque_compiler_type_t type) {
+  if (!type)
+    return false;
+
+  clang::QualType qual_type(GetCanonicalQualType(type));
+  const clang::BuiltinType *builtin_type =
+      llvm::dyn_cast<clang::BuiltinType>(qual_type->getCanonicalTypeInternal());
+
+  if (!builtin_type)
+    return false;
+
+  return builtin_type->isBooleanType();
 }
 
 bool TypeSystemClang::IsEnumerationType(lldb::opaque_compiler_type_t type,
@@ -6562,6 +6578,8 @@ CompilerType TypeSystemClang::GetChildCompilerTypeAtIndex(
             child_is_base_class, tmp_child_is_deref_of_parent, valobj,
             language_flags);
       } else {
+        child_is_deref_of_parent = true;
+
         const char *parent_name =
             valobj ? valobj->GetName().GetCString() : nullptr;
         if (parent_name) {
@@ -7572,6 +7590,18 @@ clang::VarDecl *TypeSystemClang::AddVariableToRecordType(
   VerifyDecl(var_decl);
 
   return var_decl;
+}
+
+void TypeSystemClang::SetBoolInitializerForVariable(VarDecl *var, bool value) {
+  assert(!var->hasInit() && "variable already initialized");
+
+  QualType qt = var->getType();
+  assert(qt->isSpecificBuiltinType(BuiltinType::Bool) &&
+         "only boolean supported");
+
+  clang::ASTContext &ast = var->getASTContext();
+  var->setInit(CXXBoolLiteralExpr::Create(ast, value, qt.getUnqualifiedType(),
+                                          SourceLocation()));
 }
 
 void TypeSystemClang::SetIntegerInitializerForVariable(

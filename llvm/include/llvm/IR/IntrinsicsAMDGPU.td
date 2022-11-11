@@ -1930,7 +1930,7 @@ class AMDGPUGlobalLoadLDS : Intrinsic <
                                        //                                   bit 2 = dlc on gfx10+))
                                        //                                   bit 4 = scc/nt on gfx90a+))
   [IntrWillReturn, NoCapture<ArgIndex<0>>, NoCapture<ArgIndex<1>>,
-   ImmArg<ArgIndex<2>>, ImmArg<ArgIndex<2>>, ImmArg<ArgIndex<3>>, ImmArg<ArgIndex<4>>],
+   ImmArg<ArgIndex<2>>, ImmArg<ArgIndex<3>>, ImmArg<ArgIndex<4>>],
   "", [SDNPMemOperand]>;
 def int_amdgcn_global_load_lds : AMDGPUGlobalLoadLDS;
 
@@ -1991,6 +1991,7 @@ def int_amdgcn_image_bvh_intersect_ray :
 
 // llvm.amdgcn.permlane64 <src0>
 def int_amdgcn_permlane64 :
+  ClangBuiltin<"__builtin_amdgcn_permlane64">,
   Intrinsic<[llvm_i32_ty], [llvm_i32_ty],
             [IntrNoMem, IntrConvergent, IntrWillReturn]>;
 

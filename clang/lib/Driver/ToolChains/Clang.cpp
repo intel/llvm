@@ -383,6 +383,10 @@ static void getTargetFeatures(const Driver &D, const llvm::Triple &Triple,
   case llvm::Triple::csky:
     csky::getCSKYTargetFeatures(D, Triple, Args, CmdArgs, Features);
     break;
+  case llvm::Triple::loongarch32:
+  case llvm::Triple::loongarch64:
+    loongarch::getLoongArchTargetFeatures(D, Triple, Args, Features);
+    break;
   }
 
   for (auto Feature : unifyTargetFeatures(Features)) {
@@ -1764,7 +1768,7 @@ void RenderARMABI(const Driver &D, const llvm::Triple &Triple,
 
 void AddUnalignedAccessWarning(ArgStringList &CmdArgs) {
   auto StrictAlignIter =
-      std::find_if(CmdArgs.rbegin(), CmdArgs.rend(), [](StringRef Arg) {
+      llvm::find_if(llvm::reverse(CmdArgs), [](StringRef Arg) {
         return Arg == "+strict-align" || Arg == "-strict-align";
       });
   if (StrictAlignIter != CmdArgs.rend() &&
@@ -3215,7 +3219,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
 
   if (!MathErrno && AssociativeMath && ReciprocalMath && !SignedZeros &&
       ApproxFunc && !TrappingMath)
-    CmdArgs.push_back("-menable-unsafe-fp-math");
+    CmdArgs.push_back("-funsafe-math-optimizations");
 
   if (!SignedZeros)
     CmdArgs.push_back("-fno-signed-zeros");
@@ -3772,10 +3776,19 @@ bool Driver::getDefaultModuleCachePath(SmallVectorImpl<char> &Result) {
   return false;
 }
 
-static void RenderModulesOptions(Compilation &C, const Driver &D,
+static bool RenderModulesOptions(Compilation &C, const Driver &D,
                                  const ArgList &Args, const InputInfo &Input,
-                                 const InputInfo &Output,
-                                 ArgStringList &CmdArgs, bool &HaveModules) {
+                                 const InputInfo &Output, const Arg *Std,
+                                 ArgStringList &CmdArgs) {
+  bool IsCXX = types::isCXX(Input.getType());
+  // FIXME: Find a better way to determine whether the input has standard c++
+  // modules support by default.
+  bool HaveStdCXXModules =
+      IsCXX && Std &&
+      (Std->containsValue("c++2a") || Std->containsValue("c++20") ||
+       Std->containsValue("c++2b") || Std->containsValue("c++latest"));
+  bool HaveModules = HaveStdCXXModules;
+
   // -fmodules enables the use of precompiled modules (off by default).
   // Users can pass -fno-cxx-modules to turn off modules support for
   // C++/Objective-C++ programs.
@@ -3783,7 +3796,7 @@ static void RenderModulesOptions(Compilation &C, const Driver &D,
   if (Args.hasFlag(options::OPT_fmodules, options::OPT_fno_modules, false)) {
     bool AllowedInCXX = Args.hasFlag(options::OPT_fcxx_modules,
                                      options::OPT_fno_cxx_modules, true);
-    if (AllowedInCXX || !types::isCXX(Input.getType())) {
+    if (AllowedInCXX || !IsCXX) {
       CmdArgs.push_back("-fmodules");
       HaveClangModules = true;
     }
@@ -3954,6 +3967,8 @@ static void RenderModulesOptions(Compilation &C, const Driver &D,
     Args.ClaimAllArgs(options::OPT_fno_modules_validate_system_headers);
     Args.ClaimAllArgs(options::OPT_fmodules_disable_diagnostic_validation);
   }
+
+  return HaveModules;
 }
 
 static void RenderCharacterOptions(const ArgList &Args, const llvm::Triple &T,
@@ -5370,7 +5385,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-emit-llvm-uselists");
 
     if (IsUsingLTO) {
-      // Only AMDGPU supports device-side LTO.
       if (IsDeviceOffloadAction && !JA.isDeviceOffloading(Action::OFK_OpenMP) &&
           !Args.hasFlag(options::OPT_offload_new_driver,
                         options::OPT_no_offload_new_driver, false) &&
@@ -5380,6 +5394,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                                options::OPT_foffload_lto_EQ)
                    ->getAsString(Args)
             << Triple.getTriple();
+      } else if (Triple.isNVPTX() && !IsRDCMode &&
+                 JA.isDeviceOffloading(Action::OFK_Cuda)) {
+        D.Diag(diag::err_drv_unsupported_opt_for_language_mode)
+            << Args.getLastArg(options::OPT_foffload_lto,
+                               options::OPT_foffload_lto_EQ)
+                   ->getAsString(Args)
+            << "-fno-gpu-rdc";
       } else {
         assert(LTOMode == LTOK_Full || LTOMode == LTOK_Thin);
         CmdArgs.push_back(Args.MakeArgString(
@@ -6804,7 +6825,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   // Forward the new driver to change offloading code generation.
-  if (Args.hasArg(options::OPT_offload_new_driver))
+  if (Args.hasFlag(options::OPT_offload_new_driver,
+                   options::OPT_no_offload_new_driver, false))
     CmdArgs.push_back("--offload-new-driver");
 
   SanitizeArgs.addArgs(TC, Args, CmdArgs, InputType);
@@ -7256,12 +7278,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   Args.AddLastArg(CmdArgs, options::OPT_finline_max_stacksize_EQ);
 
-  // FIXME: Find a better way to determine whether the language has modules
-  // support by default, or just assume that all languages do.
   bool HaveModules =
-      Std && (Std->containsValue("c++2a") || Std->containsValue("c++20") ||
-              Std->containsValue("c++2b") || Std->containsValue("c++latest"));
-  RenderModulesOptions(C, D, Args, Input, Output, CmdArgs, HaveModules);
+      RenderModulesOptions(C, D, Args, Input, Output, Std, CmdArgs);
 
   if (Args.hasFlag(options::OPT_fpch_validate_input_files_content,
                    options::OPT_fno_pch_validate_input_files_content, false))
@@ -8575,8 +8593,6 @@ void ClangAs::ConstructJob(Compilation &C, const JobAction &JA,
 
   const llvm::Triple &Triple = getToolChain().getEffectiveTriple();
   const std::string &TripleStr = Triple.getTriple();
-  const Optional<llvm::Triple> TargetVariantTriple =
-      getToolChain().getTargetVariantTriple();
   const auto &D = getToolChain().getDriver();
 
   // Don't warn about "clang -w -c foo.s"
@@ -8594,10 +8610,8 @@ void ClangAs::ConstructJob(Compilation &C, const JobAction &JA,
   // Add the "effective" target triple.
   CmdArgs.push_back("-triple");
   CmdArgs.push_back(Args.MakeArgString(TripleStr));
-  if (TargetVariantTriple) {
-    CmdArgs.push_back("-darwin-target-variant-triple");
-    CmdArgs.push_back(Args.MakeArgString(TargetVariantTriple->getTriple()));
-  }
+
+  getToolChain().addClangCC1ASTargetOptions(Args, CmdArgs);
 
   // Set the output mode, we currently only expect to be used as a real
   // assembler.

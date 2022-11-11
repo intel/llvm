@@ -121,26 +121,6 @@ func.func @generic(%arg0: memref<?x?xvector<3x4xi4>, strided<[?, 1], offset: ?>>
 //  CHECK-SAME:     outs({{.*}} : memref<?x?x?xf32, strided<[?, ?, 1], offset: ?>>)
 //  CHECK-SAME:     {foo = 1 : i64}
 
-func.func @generic_with_tensor_input(%arg0: tensor<?x?xvector<3x4xi4>>,
-                                %arg1: memref<?x?x?xf32, strided<[?, ?, 1], offset: ?>>) {
-  %cst = arith.constant 0.0 : f32
-  linalg.generic #trait_0
-       ins(%arg0, %cst : tensor<?x?xvector<3x4xi4>>, f32)
-      outs(%arg1 : memref<?x?x?xf32, strided<[?, ?, 1], offset: ?>>)
-      attrs = {foo = 1} {
-    ^bb(%0: vector<3x4xi4>, %1: f32, %2: f32) :
-      linalg.yield %1 : f32
-  }
-  return
-}
-// CHECK-LABEL: func @generic_with_tensor_input
-//       CHECK:   linalg.generic {
-//  CHECK-SAME:     indexing_maps = [#{{.*}}, #{{.*}}], iterator_types = ["parallel", "parallel", "parallel"],
-//  CHECK-SAME:     library_call = "some_external_function_name_1"}
-//  CHECK-SAME:     ins({{.*}}, {{.*}} : tensor<?x?xvector<3x4xi4>>, f32)
-//  CHECK-SAME:     outs({{.*}} : memref<?x?x?xf32, strided<[?, ?, 1], offset: ?>>)
-//  CHECK-SAME:     {foo = 1 : i64}
-
 // -----
 
 #map0 = affine_map<(d0, d1, d2) -> (d0, d1, d2)>
@@ -300,25 +280,17 @@ func.func @generic_region(%arg0: memref<?x?xvector<3x4xi4>, strided<[?, 1], offs
 
 func.func @named_ops(%a3: memref<?x?x?xf32>, %b3: memref<?x?x?xf32>, %c3: memref<?x?x?xf32>,
                 %ta3: tensor<?x?x?xf32>, %tb3: tensor<?x?x?xf32>, %tc3: tensor<?x?x?xf32>)
-  -> (tensor<?x?x?xf32>, tensor<?x?x?xf32>)
+  -> (tensor<?x?x?xf32>)
 {
   linalg.batch_matmul ins(%a3, %b3: memref<?x?x?xf32>, memref<?x?x?xf32>)
-                     outs(%c3: memref<?x?x?xf32>)
-  linalg.batch_matmul ins(%ta3, %tb3: tensor<?x?x?xf32>, tensor<?x?x?xf32>)
                      outs(%c3: memref<?x?x?xf32>)
   %res1 = linalg.batch_matmul
                       ins(%ta3, %tb3: tensor<?x?x?xf32>, tensor<?x?x?xf32>)
                      outs(%tc3: tensor<?x?x?xf32>)
                   -> tensor<?x?x?xf32>
-  %res2 = linalg.batch_matmul
-                      ins(%ta3, %b3: tensor<?x?x?xf32>, memref<?x?x?xf32>)
-                     outs(%tc3: tensor<?x?x?xf32>)
-                  -> tensor<?x?x?xf32>
-  return %res1, %res2 : tensor<?x?x?xf32>, tensor<?x?x?xf32>
+  return %res1 : tensor<?x?x?xf32>
 }
 // CHECK-LABEL: func @named_ops
-//       CHECK:   linalg.batch_matmul
-//       CHECK:   linalg.batch_matmul
 //       CHECK:   linalg.batch_matmul
 //       CHECK:   linalg.batch_matmul
 
@@ -354,8 +326,70 @@ func.func @mixed_parallel_reduced_results(%arg0 : tensor<?x?x?xf32>,
 
 // -----
 
+func.func @map_binary(%lhs: tensor<64xf32>, %rhs: tensor<64xf32>,
+                      %init: tensor<64xf32>) -> tensor<64xf32> {
+   %add = linalg.map
+          ins(%lhs, %rhs: tensor<64xf32>, tensor<64xf32>)
+          outs(%init:tensor<64xf32>)
+          (%lhs_elem: f32, %rhs_elem: f32) {
+            %0 = arith.addf %lhs_elem, %rhs_elem: f32
+            linalg.yield %0: f32
+          }
+  func.return %add : tensor<64xf32>
+}
+// CHECK-LABEL: func @map_binary
+//       CHECK:     linalg.map
+
+// -----
+
+func.func @map_binary_memref(%lhs: memref<64xf32>, %rhs: memref<64xf32>,
+                      %init: memref<64xf32>) {
+   linalg.map
+      ins(%lhs, %rhs: memref<64xf32>, memref<64xf32>)
+      outs(%init:memref<64xf32>)
+      (%lhs_elem: f32, %rhs_elem: f32) {
+        %0 = arith.addf %lhs_elem, %rhs_elem: f32
+        linalg.yield %0: f32
+      }
+  func.return
+}
+// CHECK-LABEL: func @map_binary_memref
+//       CHECK:     linalg.map
+
+// -----
+
+func.func @map_unary(%input: tensor<64xf32>, %init: tensor<64xf32>) -> tensor<64xf32> {
+   %abs = linalg.map
+          ins(%input:tensor<64xf32>)
+          outs(%init:tensor<64xf32>)
+          (%input_elem: f32) {
+            %0 = math.absf %input_elem: f32
+            linalg.yield %0: f32
+          }
+  func.return %abs : tensor<64xf32>
+}
+// CHECK-LABEL: func @map_unary
+//       CHECK:     linalg.map
+
+// -----
+
+func.func @map_unary_memref(%input: memref<64xf32>, %init: memref<64xf32>) {
+   linalg.map
+      ins(%input:memref<64xf32>)
+      outs(%init:memref<64xf32>)
+      (%input_elem: f32) {
+        %0 = math.absf %input_elem: f32
+        linalg.yield %0: f32
+      }
+  func.return
+}
+// CHECK-LABEL: func @map_unary_memref
+//       CHECK:     linalg.map
+
+// -----
+
 func.func @reduce(%input: tensor<16x32x64xf32>,
-                     %init: tensor<16x64xf32>) -> tensor<16x64xf32> {
+                  %init: tensor<16x64xf32>) -> tensor<16x64xf32> {
   %reduce = linalg.reduce
       ins(%input:tensor<16x32x64xf32>)
       outs(%init:tensor<16x64xf32>)
@@ -367,6 +401,23 @@ func.func @reduce(%input: tensor<16x32x64xf32>,
   func.return %reduce : tensor<16x64xf32>
 }
 // CHECK-LABEL: func @reduce
+//       CHECK:     linalg.reduce
+
+// -----
+
+func.func @reduce_memref(%input: memref<16x32x64xf32>,
+                         %init: memref<16x64xf32>) {
+  linalg.reduce
+      ins(%input:memref<16x32x64xf32>)
+      outs(%init:memref<16x64xf32>)
+      dimensions = [1]
+      (%in: f32, %out: f32) {
+        %0 = arith.addf %in, %out: f32
+        linalg.yield %0: f32
+      }
+  func.return
+}
+// CHECK-LABEL: func @reduce_memref
 //       CHECK:     linalg.reduce
 
 // -----
@@ -386,4 +437,23 @@ func.func @variadic_reduce(%input1: tensor<16x32x64xf32>,
   func.return %reduce, %reduce2 : tensor<16x64xf32>, tensor<16x64xi64>
 }
 // CHECK-LABEL: func @variadic_reduce
+//       CHECK:     linalg.reduce
+
+// -----
+
+func.func @variadic_reduce_memref(%input1: memref<16x32x64xf32>,
+    %init1: memref<16x64xf32>, %input2: memref<16x32x64xi64>,
+    %init2: memref<16x64xi64>) {
+  linalg.reduce
+      ins(%input1, %input2 : memref<16x32x64xf32>, memref<16x32x64xi64>)
+      outs(%init1, %init2 : memref<16x64xf32>, memref<16x64xi64>)
+      dimensions = [1]
+      (%in1: f32, %in2: i64, %out1: f32, %out2: i64) {
+        %0 = arith.addf %in1, %out1: f32
+        %1 = arith.addi %in2, %out2: i64
+        linalg.yield %0, %1: f32, i64
+      }
+  func.return
+}
+// CHECK-LABEL: func @variadic_reduce_memref
 //       CHECK:     linalg.reduce

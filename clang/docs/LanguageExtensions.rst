@@ -1392,6 +1392,7 @@ The following type trait primitives are supported by Clang. Those traits marked
 * ``__is_array`` (C++, Embarcadero)
 * ``__is_assignable`` (C++, MSVC 2015)
 * ``__is_base_of`` (C++, GNU, Microsoft, Embarcadero)
+* ``__is_bounded_array`` (C++, GNU, Microsoft, Embarcadero)
 * ``__is_class`` (C++, GNU, Microsoft, Embarcadero)
 * ``__is_complete_type(type)`` (Embarcadero):
   Return ``true`` if ``type`` is a complete type.
@@ -1403,8 +1404,7 @@ The following type trait primitives are supported by Clang. Those traits marked
 * ``__is_convertible`` (C++, Embarcadero)
 * ``__is_convertible_to`` (Microsoft):
   Synonym for ``__is_convertible``.
-* ``__is_destructible`` (C++, MSVC 2013):
-  Only available in ``-fms-extensions`` mode.
+* ``__is_destructible`` (C++, MSVC 2013)
 * ``__is_empty`` (C++, GNU, Microsoft, Embarcadero)
 * ``__is_enum`` (C++, GNU, Microsoft, Embarcadero)
 * ``__is_final`` (C++, GNU, Microsoft)
@@ -1426,17 +1426,25 @@ The following type trait primitives are supported by Clang. Those traits marked
 * ``__is_nothrow_assignable`` (C++, MSVC 2013)
 * ``__is_nothrow_constructible`` (C++, MSVC 2013)
 * ``__is_nothrow_destructible`` (C++, MSVC 2013)
-  Only available in ``-fms-extensions`` mode.
+* ``__is_nullptr`` (C++, GNU, Microsoft, Embarcadero):
+  Returns true for ``std::nullptr_t`` and false for everything else. The
+  corresponding standard library feature is ``std::is_null_pointer``, but
+  ``__is_null_pointer`` is already in use by some implementations.
 * ``__is_object`` (C++, Embarcadero)
 * ``__is_pod`` (C++, GNU, Microsoft, Embarcadero):
   Note, the corresponding standard trait was deprecated in C++20.
 * ``__is_pointer`` (C++, Embarcadero)
 * ``__is_polymorphic`` (C++, GNU, Microsoft, Embarcadero)
 * ``__is_reference`` (C++, Embarcadero)
+* ``__is_referenceable`` (C++, GNU, Microsoft, Embarcadero):
+  Returns true if a type is referenceable, and false otherwise. A referenceable
+  type is a type that's either an object type, a reference type, or an unqualified
+  function type.
 * ``__is_rvalue_reference`` (C++, Embarcadero)
 * ``__is_same`` (C++, Embarcadero)
 * ``__is_same_as`` (GCC): Synonym for ``__is_same``.
 * ``__is_scalar`` (C++, Embarcadero)
+* ``__is_scoped_enum`` (C++, GNU, Microsoft, Embarcadero)
 * ``__is_sealed`` (Microsoft):
   Synonym for ``__is_final``.
 * ``__is_signed`` (C++, Embarcadero):
@@ -1454,6 +1462,7 @@ The following type trait primitives are supported by Clang. Those traits marked
   functionally equivalent to copying the underlying bytes and then dropping the
   source object on the floor. This is true of trivial types and types which
   were made trivially relocatable via the ``clang::trivial_abi`` attribute.
+* ``__is_unbounded_array`` (C++, GNU, Microsoft, Embarcadero)
 * ``__is_union`` (C++, GNU, Microsoft, Embarcadero)
 * ``__is_unsigned`` (C++, Embarcadero):
   Returns false for enumeration types. Note, before Clang 13, returned true for
@@ -1537,28 +1546,25 @@ Query for this feature with ``__has_extension(blocks)``.
 ASM Goto with Output Constraints
 ================================
 
-In addition to the functionality provided by `GCC's extended
-assembly <https://gcc.gnu.org/onlinedocs/gcc/Extended-Asm.html>`_, clang
-supports output constraints with the `goto` form.
+.. note::
 
-The goto form of GCC's extended assembly allows the programmer to branch to a C
-label from within an inline assembly block. Clang extends this behavior by
-allowing the programmer to use output constraints:
+  Clang's implementation of ASM goto differs from `GCC's
+  implementation <https://gcc.gnu.org/onlinedocs/gcc/Extended-Asm.html>`_ in
+  that Clang doesn't yet support outputs on the indirect branch. Use of an
+  output on the indirect branch may result in undefined behavior and should be
+  avoided. E.g., in the following `z` isn't valid when used and may have
+  different values depending on optimization levels. (Clang may not warn about
+  such constructs.)
 
-.. code-block:: c++
+  .. code-block:: c++
 
-  int foo(int x) {
-      int y;
-      asm goto("# %0 %1 %l2" : "=r"(y) : "r"(x) : : err);
+    int foo(int x) {
+      int y, z;
+      asm goto(... : "=r"(y), "=r"(z): "r"(x) : : err);
       return y;
     err:
-      return -1;
-  }
-
-It's important to note that outputs are valid only on the "fallthrough" branch.
-Using outputs on an indirect branch may result in undefined behavior. For
-example, in the function above, use of the value assigned to `y` in the `err`
-block is undefined behavior.
+      return z;
+    }
 
 When using tied-outputs (i.e. outputs that are inputs and outputs, not just
 outputs) with the `+r` constraint, there is a hidden input that's created
@@ -4266,7 +4272,7 @@ The ``__declspec`` style syntax is also supported:
 
   #pragma clang attribute pop
 
-A single push directive can contain multiple attributes, however, 
+A single push directive can contain multiple attributes, however,
 only one syntax style can be used within a single directive:
 
 .. code-block:: c++
@@ -4276,7 +4282,7 @@ only one syntax style can be used within a single directive:
   void function1(); // The function now has the [[noreturn]] and [[noinline]] attributes
 
   #pragma clang attribute pop
-  
+
   #pragma clang attribute push (__attribute((noreturn, noinline)), apply_to = function)
 
   void function2(); // The function now has the __attribute((noreturn)) and __attribute((noinline)) attributes
@@ -4681,6 +4687,8 @@ The following builtin intrinsics can be used in constant expressions:
 * ``__builtin_ffs``
 * ``__builtin_ffsl``
 * ``__builtin_ffsll``
+* ``__builtin_fmax``
+* ``__builtin_fmin``
 * ``__builtin_fpclassify``
 * ``__builtin_inf``
 * ``__builtin_isinf``

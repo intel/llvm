@@ -1119,7 +1119,8 @@ void TypePrinter::printTypedefAfter(const TypedefType *T, raw_ostream &OS) {}
 
 void TypePrinter::printTypeOfExprBefore(const TypeOfExprType *T,
                                         raw_ostream &OS) {
-  OS << (T->isUnqual() ? "typeof_unqual " : "typeof ");
+  OS << (T->getKind() == TypeOfKind::Unqualified ? "typeof_unqual "
+                                                 : "typeof ");
   if (T->getUnderlyingExpr())
     T->getUnderlyingExpr()->printPretty(OS, nullptr, Policy);
   spaceBeforePlaceHolder(OS);
@@ -1129,7 +1130,8 @@ void TypePrinter::printTypeOfExprAfter(const TypeOfExprType *T,
                                        raw_ostream &OS) {}
 
 void TypePrinter::printTypeOfBefore(const TypeOfType *T, raw_ostream &OS) {
-  OS << (T->isUnqual() ? "typeof_unqual(" : "typeof(");
+  OS << (T->getKind() == TypeOfKind::Unqualified ? "typeof_unqual("
+                                                 : "typeof(");
   print(T->getUnmodifiedType(), OS, StringRef());
   OS << ')';
   spaceBeforePlaceHolder(OS);
@@ -1471,14 +1473,27 @@ void TypePrinter::printSubstTemplateTypeParmPackBefore(
                                         const SubstTemplateTypeParmPackType *T,
                                         raw_ostream &OS) {
   IncludeStrongLifetimeRAII Strong(Policy);
-  printTemplateTypeParmBefore(T->getReplacedParameter(), OS);
+  if (const TemplateTypeParmDecl *D = T->getReplacedParameter()) {
+    if (D && D->isImplicit()) {
+      if (auto *TC = D->getTypeConstraint()) {
+        TC->print(OS, Policy);
+        OS << ' ';
+      }
+      OS << "auto";
+    } else if (IdentifierInfo *Id = D->getIdentifier())
+      OS << (Policy.CleanUglifiedParameters ? Id->deuglifiedName()
+                                            : Id->getName());
+    else
+      OS << "type-parameter-" << D->getDepth() << '-' << D->getIndex();
+
+    spaceBeforePlaceHolder(OS);
+  }
 }
 
 void TypePrinter::printSubstTemplateTypeParmPackAfter(
                                         const SubstTemplateTypeParmPackType *T,
                                         raw_ostream &OS) {
   IncludeStrongLifetimeRAII Strong(Policy);
-  printTemplateTypeParmAfter(T->getReplacedParameter(), OS);
 }
 
 void TypePrinter::printTemplateId(const TemplateSpecializationType *T,

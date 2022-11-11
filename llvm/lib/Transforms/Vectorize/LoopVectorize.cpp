@@ -6026,10 +6026,9 @@ LoopVectorizationCostModel::calculateRegisterUsage(ArrayRef<ElementCount> VFs) {
       if (VFs[j].isScalar()) {
         for (auto *Inst : OpenIntervals) {
           unsigned ClassID = TTI.getRegisterClassForType(false, Inst->getType());
-          if (RegUsage.find(ClassID) == RegUsage.end())
-            RegUsage[ClassID] = 1;
-          else
-            RegUsage[ClassID] += 1;
+          // If RegUsage[ClassID] doesn't exist, it will be default
+          // constructed as 0 before the addition
+          RegUsage[ClassID] += 1;
         }
       } else {
         collectUniformsAndScalars(VFs[j]);
@@ -6039,25 +6038,21 @@ LoopVectorizationCostModel::calculateRegisterUsage(ArrayRef<ElementCount> VFs) {
             continue;
           if (isScalarAfterVectorization(Inst, VFs[j])) {
             unsigned ClassID = TTI.getRegisterClassForType(false, Inst->getType());
-            if (RegUsage.find(ClassID) == RegUsage.end())
-              RegUsage[ClassID] = 1;
-            else
-              RegUsage[ClassID] += 1;
+            // If RegUsage[ClassID] doesn't exist, it will be default
+            // constructed as 0 before the addition
+            RegUsage[ClassID] += 1;
           } else {
             unsigned ClassID = TTI.getRegisterClassForType(true, Inst->getType());
-            if (RegUsage.find(ClassID) == RegUsage.end())
-              RegUsage[ClassID] = GetRegUsage(Inst->getType(), VFs[j]);
-            else
-              RegUsage[ClassID] += GetRegUsage(Inst->getType(), VFs[j]);
+            // If RegUsage[ClassID] doesn't exist, it will be default
+            // constructed as 0 before the addition
+            RegUsage[ClassID] += GetRegUsage(Inst->getType(), VFs[j]);
           }
         }
       }
 
       for (auto& pair : RegUsage) {
-        if (MaxUsages[j].find(pair.first) != MaxUsages[j].end())
-          MaxUsages[j][pair.first] = std::max(MaxUsages[j][pair.first], pair.second);
-        else
-          MaxUsages[j][pair.first] = pair.second;
+        auto &Entry = MaxUsages[j][pair.first];
+        Entry = std::max(Entry, pair.second);
       }
     }
 
@@ -9141,8 +9136,8 @@ VPlanPtr LoopVectorizationPlanner::buildVPlanWithVPRecipes(
   Plan->disableValue2VPValue();
 
   VPlanTransforms::optimizeInductions(*Plan, *PSE.getSE());
-  VPlanTransforms::sinkScalarOperands(*Plan);
   VPlanTransforms::removeDeadRecipes(*Plan);
+  VPlanTransforms::sinkScalarOperands(*Plan);
   VPlanTransforms::mergeReplicateRegions(*Plan);
   VPlanTransforms::removeRedundantExpandSCEVRecipes(*Plan);
 
@@ -10498,11 +10493,11 @@ bool LoopVectorizePass::processLoop(Loop *L) {
         // updated before vectorising the epilogue loop.
         for (VPRecipeBase &R : Header->phis()) {
           if (auto *ReductionPhi = dyn_cast<VPReductionPHIRecipe>(&R)) {
-            if (auto *Resume = MainILV.getReductionResumeValue(
-                    ReductionPhi->getRecurrenceDescriptor())) {
-              VPValue *StartVal = BestEpiPlan.getOrAddExternalDef(Resume);
-              ReductionPhi->setOperand(0, StartVal);
-            }
+            Value *Resume = MainILV.getReductionResumeValue(
+                ReductionPhi->getRecurrenceDescriptor());
+            assert(Resume && "Must have a resume value.");
+            VPValue *StartVal = BestEpiPlan.getOrAddExternalDef(Resume);
+            ReductionPhi->setOperand(0, StartVal);
           }
         }
 

@@ -104,8 +104,13 @@ func.func @bar(%x : !fir.class<none>)
 Assumed type is added in Fortran 2018 and it is available only for dummy
 arguments. It's mainly used for interfaces to non-Fortran code and is similar
 to C's `void`.
+An entity that is declared using the `TYPE(*)` type specifier is assumed-type
+and is an unlimited polymorphic entity. It is not declared to have a type, and
+is not considered to have the same declared type as any other entity,
+including another unlimited polymorphic entity. Its dynamic type and type
+parameters are assumed from its effective argument (7.3.2.2 - 3).
 
-Assumed-type is represented as `!fir.type<*>`.
+Assumed-type is represented in FIR as `!fir.box<none>`.
 
 ### SELECT TYPE construct
 
@@ -409,8 +414,8 @@ get_all_area = get_all_area + shapes(i)%item%get_area()
 
 **FIR**
 ```c
-%1 = fir.convert %0 : (!fir.ref<!fir.class<!fir.type<_QMgeometryTtriangle{color:i32,isFilled:!fir.logical<4>,base:f32,height:f32>>>) -> !fir.ref<!fir.box<none>>
-%2 = fir.dispatch "get_area"(%1) : (!fir.ref<!fir.box<none>>) -> f32
+%1 = fir.convert %0 : !fir.ref<!fir.class<!fir.type<_QMgeometryTtriangle{color:i32,isFilled:!fir.logical<4>,base:f32,height:f32>>>
+%2 = fir.dispatch "get_area"(%1 : !fir.class<!fir.type<_QMgeometryTtriangle{color:i32,isFilled:!fir.logical<4>,base:f32,height:f32>>) -> f32
 ```
 
 The type information is stored in the `f18Addendum` of the descriptor. The

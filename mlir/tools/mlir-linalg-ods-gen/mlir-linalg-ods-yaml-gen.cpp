@@ -553,7 +553,7 @@ def {0} : LinalgStructuredBase_Op<"{1}", !listconcat([AttrSizedOperandSegments],
 
     let extraClassDeclaration = structuredOpsBaseDecls # [{{
       // Auto-generated.
-      ArrayAttr iterator_types();
+      SmallVector<StringRef> getIteratorTypesArray();
       ArrayAttr getIndexingMaps();
       static void regionBuilder(ImplicitLocOpBuilder &b,
                                 Block &block, ArrayRef<NamedAttribute> attrs);
@@ -561,6 +561,11 @@ def {0} : LinalgStructuredBase_Op<"{1}", !listconcat([AttrSizedOperandSegments],
                                 Block &, ArrayRef<NamedAttribute>)>
       getRegionBuilder() {{
         return regionBuilder;
+      }
+
+      std::pair<int64_t, int64_t> getOutputsPositionRange() {{
+        int64_t getNumOperands = this->getNumOperands();
+        return {{getNumOperands - 1, getNumOperands};
       }
 
       // Generic methods.
@@ -587,24 +592,24 @@ static const char structuredOpBuilderFormat[] = R"FMT(
   }]>
 )FMT";
 
-// The iterator_types() method for structured ops. Parameters:
+// The getIteratorTypesArray() method for structured ops. Parameters:
 // {0}: Class name
 // {1}: Comma interleaved iterator type names.
 static const char structuredOpIteratorTypesFormat[] =
     R"FMT(
-ArrayAttr {0}::iterator_types() {{
-  return Builder(getContext()).getStrArrayAttr(SmallVector<StringRef>{{ {1} });
+SmallVector<StringRef> {0}::getIteratorTypesArray() {{
+  return SmallVector<StringRef>{{ {1} };
 }
 )FMT";
 
-// The iterator_types() method for rank polymorphic structured ops. Parameters:
+// The getIteratorTypesArray() method for rank polymorphic structured ops.
+// Parameters:
 // {0}: Class name
 static const char rankPolyStructuredOpIteratorTypesFormat[] =
     R"FMT(
-ArrayAttr {0}::iterator_types() {{
+SmallVector<StringRef> {0}::getIteratorTypesArray() {{
   int64_t rank = getRank(getOutputOperand(0));
-  return Builder(getContext()).getStrArrayAttr(
-    SmallVector<StringRef>(rank, getParallelIteratorTypeName()));
+  return SmallVector<StringRef>(rank, getParallelIteratorTypeName());
 }
 )FMT";
 
@@ -638,8 +643,8 @@ ArrayAttr {0}::getIndexingMaps() {{
   AffineMap tensorMap = AffineMap::getMultiDimIdentityMap(
     getNumParallelLoops(), context);
   SmallVector<AffineMap> indexingMaps;
-  for (OpOperand *opOperand : getInputAndOutputOperands())
-    indexingMaps.push_back(getRank(opOperand) == 0 ? scalarMap : tensorMap);
+  for (OpOperand &opOperand : getOperation()->getOpOperands())
+    indexingMaps.push_back(getRank(&opOperand) == 0 ? scalarMap : tensorMap);
   return Builder(getContext()).getAffineMapArrayAttr(indexingMaps);
 }
 )FMT";
@@ -654,10 +659,9 @@ LogicalResult {0}::fold(ArrayRef<Attribute>,
 }
 void {0}::getEffects(SmallVectorImpl<
     SideEffects::EffectInstance<MemoryEffects::Effect> >&effects) {{
-      SmallVector<Value> inputBuffers = getInputBufferOperands();
-      SmallVector<Value> outputBuffers = getOutputBufferOperands();
+      if (hasTensorSemantics()) return;
       getGenericEffectsImpl(effects,
-        getOperation()->getResults(), inputBuffers, outputBuffers);
+        getOperation()->getResults(), getInputOperands(), getOutputOperands());
 }
 )FMT";
 

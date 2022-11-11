@@ -47,7 +47,7 @@ if (current_toolchain == default_toolchain) {
     if (libcxx_abi_namespace != "") {
       values += [ "_LIBCPP_ABI_NAMESPACE=$libcxx_abi_namespace" ]
     } else {
-      values += [ "_LIBCPP_ABI_NAMESPACE=" ]
+      values += [ "_LIBCPP_ABI_NAMESPACE=__" + libcxx_abi_version ]
     }
   }
 
@@ -481,7 +481,14 @@ if (current_toolchain == default_toolchain) {
       "__memory/uninitialized_algorithms.h",
       "__memory/unique_ptr.h",
       "__memory/uses_allocator.h",
+      "__memory/uses_allocator_construction.h",
       "__memory/voidify.h",
+      "__memory_resource/memory_resource.h",
+      "__memory_resource/monotonic_buffer_resource.h",
+      "__memory_resource/polymorphic_allocator.h",
+      "__memory_resource/pool_options.h",
+      "__memory_resource/synchronized_pool_resource.h",
+      "__memory_resource/unsynchronized_pool_resource.h",
       "__mutex_base",
       "__node_handle",
       "__numeric/accumulate.h",
@@ -549,6 +556,7 @@ if (current_toolchain == default_toolchain) {
       "__ranges/enable_view.h",
       "__ranges/filter_view.h",
       "__ranges/iota_view.h",
+      "__ranges/istream_view.h",
       "__ranges/join_view.h",
       "__ranges/lazy_split_view.h",
       "__ranges/non_propagating_cache.h",
@@ -562,6 +570,7 @@ if (current_toolchain == default_toolchain) {
       "__ranges/size.h",
       "__ranges/subrange.h",
       "__ranges/take_view.h",
+      "__ranges/take_while_view.h",
       "__ranges/transform_view.h",
       "__ranges/view_interface.h",
       "__ranges/views.h",
@@ -841,6 +850,7 @@ if (current_toolchain == default_toolchain) {
       "map",
       "math.h",
       "memory",
+      "memory_resource",
       "mutex",
       "new",
       "numbers",

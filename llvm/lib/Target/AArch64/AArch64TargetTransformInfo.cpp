@@ -966,20 +966,37 @@ static Optional<Instruction *> instCombineSVEPTest(InstCombiner &IC,
   IntrinsicInst *Op1 = dyn_cast<IntrinsicInst>(II.getArgOperand(0));
   IntrinsicInst *Op2 = dyn_cast<IntrinsicInst>(II.getArgOperand(1));
 
-  if (Op1 && Op2 &&
-      Op1->getIntrinsicID() == Intrinsic::aarch64_sve_convert_to_svbool &&
+  if (!Op1 || !Op2)
+    return None;
+
+  IRBuilder<> Builder(II.getContext());
+  Builder.SetInsertPoint(&II);
+
+  if (Op1->getIntrinsicID() == Intrinsic::aarch64_sve_convert_to_svbool &&
       Op2->getIntrinsicID() == Intrinsic::aarch64_sve_convert_to_svbool &&
       Op1->getArgOperand(0)->getType() == Op2->getArgOperand(0)->getType()) {
-
-    IRBuilder<> Builder(II.getContext());
-    Builder.SetInsertPoint(&II);
-
     Value *Ops[] = {Op1->getArgOperand(0), Op2->getArgOperand(0)};
     Type *Tys[] = {Op1->getArgOperand(0)->getType()};
 
     auto *PTest = Builder.CreateIntrinsic(II.getIntrinsicID(), Tys, Ops);
 
     PTest->takeName(&II);
+    return IC.replaceInstUsesWith(II, PTest);
+  }
+
+  // Transform PTEST_ANY(X=OP(PG,...), X) -> PTEST_ANY(PG, X)).
+  // Later optimizations may rewrite sequence to use the flag-setting variant
+  // of instruction X to remove PTEST.
+  if ((Op1 == Op2) &&
+      (II.getIntrinsicID() == Intrinsic::aarch64_sve_ptest_any) &&
+      ((Op1->getIntrinsicID() == Intrinsic::aarch64_sve_brkb_z) ||
+       (Op1->getIntrinsicID() == Intrinsic::aarch64_sve_rdffr_z))) {
+    Value *Ops[] = {Op1->getArgOperand(0), Op1};
+    Type *Tys[] = {Op1->getType()};
+
+    auto *PTest = Builder.CreateIntrinsic(II.getIntrinsicID(), Tys, Ops);
+    PTest->takeName(&II);
+
     return IC.replaceInstUsesWith(II, PTest);
   }
 
@@ -1836,6 +1853,12 @@ InstructionCost AArch64TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
     { ISD::BITCAST, MVT::nxv2i16, MVT::nxv2f16, 0 },
     { ISD::BITCAST, MVT::nxv4i16, MVT::nxv4f16, 0 },
     { ISD::BITCAST, MVT::nxv2i32, MVT::nxv2f32, 0 },
+
+    // Zero extends from nxvmi1 to nxvmiN.
+    { ISD::ZERO_EXTEND, MVT::nxv2i64, MVT::nxv2i1, 1 },
+    { ISD::ZERO_EXTEND, MVT::nxv4i32, MVT::nxv4i1, 1 },
+    { ISD::ZERO_EXTEND, MVT::nxv8i16, MVT::nxv8i1, 1 },
+    { ISD::ZERO_EXTEND, MVT::nxv16i8, MVT::nxv16i1, 1 },
   };
 
   if (const auto *Entry = ConvertCostTableLookup(ConversionTbl, ISD,

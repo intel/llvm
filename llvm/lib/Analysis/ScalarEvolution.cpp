@@ -8384,9 +8384,39 @@ void ScalarEvolution::forgetValue(Value *V) {
 
 void ScalarEvolution::forgetLoopDispositions() { LoopDispositions.clear(); }
 
-void ScalarEvolution::forgetBlockAndLoopDispositions() {
-  BlockDispositions.clear();
-  LoopDispositions.clear();
+void ScalarEvolution::forgetBlockAndLoopDispositions(Value *V) {
+  // Unless a specific value is passed to invalidation, completely clear both
+  // caches.
+  if (!V) {
+    BlockDispositions.clear();
+    LoopDispositions.clear();
+    return;
+  }
+
+  if (!isSCEVable(V->getType()))
+    return;
+
+  const SCEV *S = getExistingSCEV(V);
+  if (!S)
+    return;
+
+  // Invalidate the block and loop dispositions cached for S. Dispositions of
+  // S's users may change if S's disposition changes (i.e. a user may change to
+  // loop-invariant, if S changes to loop invariant), so also invalidate
+  // dispositions of S's users recursively.
+  SmallVector<const SCEV *, 8> Worklist = {S};
+  SmallPtrSet<const SCEV *, 8> Seen = {S};
+  while (!Worklist.empty()) {
+    const SCEV *Curr = Worklist.pop_back_val();
+    if (!LoopDispositions.erase(Curr) && !BlockDispositions.erase(S))
+      continue;
+
+    auto Users = SCEVUsers.find(Curr);
+    if (Users != SCEVUsers.end())
+      for (const auto *User : Users->second)
+        if (Seen.insert(User).second)
+          Worklist.push_back(User);
+  }
 }
 
 /// Get the exact loop backedge taken count considering all loop exits. A
@@ -13987,6 +14017,22 @@ void ScalarEvolution::verify() const {
                << " is incorrect: cached "
                << loopDispositionToStr(CachedDisposition) << ", actual "
                << loopDispositionToStr(RecomputedDisposition) << "\n";
+        std::abort();
+      }
+    }
+  }
+
+  // Verify integrity of the block disposition cache.
+  for (const auto &It : BlockDispositions) {
+    const SCEV *S = It.first;
+    auto &Values = It.second;
+    for (auto &V : Values) {
+      auto CachedDisposition = V.getInt();
+      const BasicBlock *BB = V.getPointer();
+      const auto RecomputedDisposition = SE2.getBlockDisposition(S, BB);
+      if (CachedDisposition != RecomputedDisposition) {
+        dbgs() << "Cached disposition of " << *S << " for block %"
+               << BB->getName() << " is incorrect! \n";
         std::abort();
       }
     }

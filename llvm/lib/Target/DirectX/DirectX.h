@@ -14,6 +14,7 @@
 namespace llvm {
 class ModulePass;
 class PassRegistry;
+class raw_ostream;
 
 /// Initializer for dxil writer pass
 void initializeWriteDXILPassPass(PassRegistry &);
@@ -38,6 +39,16 @@ void initializeDXILTranslateMetadataPass(PassRegistry &);
 
 /// Pass to emit metadata for DXIL.
 ModulePass *createDXILTranslateMetadataPass();
+
+/// Initializer for DXILTranslateMetadata.
+void initializeDXILResourceWrapperPass(PassRegistry &);
+
+/// Pass to pretty print DXIL metadata.
+ModulePass *createDXILPrettyPrinterPass(raw_ostream &OS);
+
+/// Initializer for DXILPrettyPrinter.
+void initializeDXILPrettyPrinterPass(PassRegistry &);
+
 } // namespace llvm
 
 #endif // LLVM_LIB_TARGET_DIRECTX_DIRECTX_H

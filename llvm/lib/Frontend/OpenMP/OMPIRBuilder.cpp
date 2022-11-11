@@ -3005,7 +3005,9 @@ void OpenMPIRBuilder::createIfVersion(CanonicalLoopInfo *CanonicalLoop,
   Builder.CreateBr(NewBlocks.front());
 }
 
-void OpenMPIRBuilder::applySimd(CanonicalLoopInfo *CanonicalLoop, Value *IfCond,
+void OpenMPIRBuilder::applySimd(CanonicalLoopInfo *CanonicalLoop,
+                                MapVector<Value *, Value *> AlignedVars,
+                                Value *IfCond, OrderKind Order,
                                 ConstantInt *Simdlen, ConstantInt *Safelen) {
   LLVMContext &Ctx = Builder.getContext();
 
@@ -3024,6 +3026,17 @@ void OpenMPIRBuilder::applySimd(CanonicalLoopInfo *CanonicalLoop, Value *IfCond,
   LoopInfo &&LI = LIA.run(*F, FAM);
 
   Loop *L = LI.getLoopFor(CanonicalLoop->getHeader());
+  if (AlignedVars.size()) {
+    InsertPointTy IP = Builder.saveIP();
+    Builder.SetInsertPoint(CanonicalLoop->getPreheader()->getTerminator());
+    for (auto &AlignedItem : AlignedVars) {
+      Value *AlignedPtr = AlignedItem.first;
+      Value *Alignment = AlignedItem.second;
+      Builder.CreateAlignmentAssumption(F->getParent()->getDataLayout(),
+                                        AlignedPtr, Alignment);
+    }
+    Builder.restoreIP(IP);
+  }
 
   if (IfCond) {
     ValueToValueMapTy VMap;
@@ -3061,7 +3074,9 @@ void OpenMPIRBuilder::applySimd(CanonicalLoopInfo *CanonicalLoop, Value *IfCond,
   // In presence of finite 'safelen', it may be unsafe to mark all
   // the memory instructions parallel, because loop-carried
   // dependences of 'safelen' iterations are possible.
-  if (Safelen == nullptr) {
+  // If clause order(concurrent) is specified then the memory instructions
+  // are marked parallel even if 'safelen' is finite.
+  if ((Safelen == nullptr) || (Order == OrderKind::OMP_ORDER_concurrent)) {
     // Add access group metadata to memory-access instructions.
     MDNode *AccessGroup = MDNode::getDistinct(Ctx, {});
     for (BasicBlock *BB : Reachable)
@@ -3987,6 +4002,64 @@ void OpenMPIRBuilder::emitMapperCall(const LocationDescription &Loc,
                       ArgSizesGEP, MaptypesArg, MapnamesArg, NullPtr});
 }
 
+void OpenMPIRBuilder::emitOffloadingArraysArgument(IRBuilderBase &Builder,
+                                                   TargetDataRTArgs &RTArgs,
+                                                   TargetDataInfo &Info,
+                                                   bool EmitDebug,
+                                                   bool ForEndCall) {
+  assert((!ForEndCall || Info.separateBeginEndCalls()) &&
+         "expected region end call to runtime only when end call is separate");
+  auto VoidPtrTy = Type::getInt8PtrTy(M.getContext());
+  auto VoidPtrPtrTy = VoidPtrTy->getPointerTo(0);
+  auto Int64Ty = Type::getInt64Ty(M.getContext());
+  auto Int64PtrTy = Type::getInt64PtrTy(M.getContext());
+
+  if (!Info.NumberOfPtrs) {
+    RTArgs.BasePointersArray = ConstantPointerNull::get(VoidPtrPtrTy);
+    RTArgs.PointersArray = ConstantPointerNull::get(VoidPtrPtrTy);
+    RTArgs.SizesArray = ConstantPointerNull::get(Int64PtrTy);
+    RTArgs.MapTypesArray = ConstantPointerNull::get(Int64PtrTy);
+    RTArgs.MapNamesArray = ConstantPointerNull::get(VoidPtrPtrTy);
+    RTArgs.MappersArray = ConstantPointerNull::get(VoidPtrPtrTy);
+    return;
+  }
+
+  RTArgs.BasePointersArray = Builder.CreateConstInBoundsGEP2_32(
+      ArrayType::get(VoidPtrTy, Info.NumberOfPtrs),
+      Info.RTArgs.BasePointersArray,
+      /*Idx0=*/0, /*Idx1=*/0);
+  RTArgs.PointersArray = Builder.CreateConstInBoundsGEP2_32(
+      ArrayType::get(VoidPtrTy, Info.NumberOfPtrs), Info.RTArgs.PointersArray,
+      /*Idx0=*/0,
+      /*Idx1=*/0);
+  RTArgs.SizesArray = Builder.CreateConstInBoundsGEP2_32(
+      ArrayType::get(Int64Ty, Info.NumberOfPtrs), Info.RTArgs.SizesArray,
+      /*Idx0=*/0, /*Idx1=*/0);
+  RTArgs.MapTypesArray = Builder.CreateConstInBoundsGEP2_32(
+      ArrayType::get(Int64Ty, Info.NumberOfPtrs),
+      ForEndCall && Info.RTArgs.MapTypesArrayEnd ? Info.RTArgs.MapTypesArrayEnd
+                                                 : Info.RTArgs.MapTypesArray,
+      /*Idx0=*/0,
+      /*Idx1=*/0);
+
+  // Only emit the mapper information arrays if debug information is
+  // requested.
+  if (!EmitDebug)
+    RTArgs.MapNamesArray = ConstantPointerNull::get(VoidPtrPtrTy);
+  else
+    RTArgs.MapNamesArray = Builder.CreateConstInBoundsGEP2_32(
+        ArrayType::get(VoidPtrTy, Info.NumberOfPtrs), Info.RTArgs.MapNamesArray,
+        /*Idx0=*/0,
+        /*Idx1=*/0);
+  // If there is no user-defined mapper, set the mapper array to nullptr to
+  // avoid an unnecessary data privatization
+  if (!Info.HasMapper)
+    RTArgs.MappersArray = ConstantPointerNull::get(VoidPtrPtrTy);
+  else
+    RTArgs.MappersArray =
+        Builder.CreatePointerCast(Info.RTArgs.MappersArray, VoidPtrPtrTy);
+}
+
 bool OpenMPIRBuilder::checkAndEmitFlushAfterAtomic(
     const LocationDescription &Loc, llvm::AtomicOrdering AO, AtomicKind AK) {
   assert(!(AO == AtomicOrdering::NotAtomic ||
@@ -4561,6 +4634,130 @@ void OpenMPIRBuilder::OutlineInfo::collectBlocks(
       if (BlockSet.insert(SuccBB).second)
         Worklist.push_back(SuccBB);
   }
+}
+
+bool OffloadEntriesInfoManager::empty() const {
+  return OffloadEntriesTargetRegion.empty() &&
+         OffloadEntriesDeviceGlobalVar.empty();
+}
+
+/// Initialize target region entry.
+void OffloadEntriesInfoManager::initializeTargetRegionEntryInfo(
+    unsigned DeviceID, unsigned FileID, StringRef ParentName, unsigned LineNum,
+    unsigned Order) {
+  OffloadEntriesTargetRegion[DeviceID][FileID][ParentName][LineNum] =
+      OffloadEntryInfoTargetRegion(Order, /*Addr=*/nullptr, /*ID=*/nullptr,
+                                   OMPTargetRegionEntryTargetRegion);
+  ++OffloadingEntriesNum;
+}
+
+void OffloadEntriesInfoManager::registerTargetRegionEntryInfo(
+    unsigned DeviceID, unsigned FileID, StringRef ParentName, unsigned LineNum,
+    Constant *Addr, Constant *ID, OMPTargetRegionEntryKind Flags,
+    bool IsDevice) {
+  // If we are emitting code for a target, the entry is already initialized,
+  // only has to be registered.
+  if (IsDevice) {
+    // This could happen if the device compilation is invoked standalone.
+    if (!hasTargetRegionEntryInfo(DeviceID, FileID, ParentName, LineNum))
+      return;
+    auto &Entry =
+        OffloadEntriesTargetRegion[DeviceID][FileID][ParentName][LineNum];
+    Entry.setAddress(Addr);
+    Entry.setID(ID);
+    Entry.setFlags(Flags);
+  } else {
+    if (Flags == OffloadEntriesInfoManager::OMPTargetRegionEntryTargetRegion &&
+        hasTargetRegionEntryInfo(DeviceID, FileID, ParentName, LineNum,
+                                 /*IgnoreAddressId*/ true))
+      return;
+    assert(!hasTargetRegionEntryInfo(DeviceID, FileID, ParentName, LineNum) &&
+           "Target region entry already registered!");
+    OffloadEntryInfoTargetRegion Entry(OffloadingEntriesNum, Addr, ID, Flags);
+    OffloadEntriesTargetRegion[DeviceID][FileID][ParentName][LineNum] = Entry;
+    ++OffloadingEntriesNum;
+  }
+}
+
+bool OffloadEntriesInfoManager::hasTargetRegionEntryInfo(
+    unsigned DeviceID, unsigned FileID, StringRef ParentName, unsigned LineNum,
+    bool IgnoreAddressId) const {
+  auto PerDevice = OffloadEntriesTargetRegion.find(DeviceID);
+  if (PerDevice == OffloadEntriesTargetRegion.end())
+    return false;
+  auto PerFile = PerDevice->second.find(FileID);
+  if (PerFile == PerDevice->second.end())
+    return false;
+  auto PerParentName = PerFile->second.find(ParentName);
+  if (PerParentName == PerFile->second.end())
+    return false;
+  auto PerLine = PerParentName->second.find(LineNum);
+  if (PerLine == PerParentName->second.end())
+    return false;
+  // Fail if this entry is already registered.
+  if (!IgnoreAddressId &&
+      (PerLine->second.getAddress() || PerLine->second.getID()))
+    return false;
+  return true;
+}
+
+void OffloadEntriesInfoManager::actOnTargetRegionEntriesInfo(
+    const OffloadTargetRegionEntryInfoActTy &Action) {
+  // Scan all target region entries and perform the provided action.
+  for (const auto &D : OffloadEntriesTargetRegion)
+    for (const auto &F : D.second)
+      for (const auto &P : F.second)
+        for (const auto &L : P.second)
+          Action(D.first, F.first, P.first(), L.first, L.second);
+}
+
+void OffloadEntriesInfoManager::initializeDeviceGlobalVarEntryInfo(
+    StringRef Name, OMPTargetGlobalVarEntryKind Flags, unsigned Order) {
+  OffloadEntriesDeviceGlobalVar.try_emplace(Name, Order, Flags);
+  ++OffloadingEntriesNum;
+}
+
+void OffloadEntriesInfoManager::registerDeviceGlobalVarEntryInfo(
+    StringRef VarName, Constant *Addr, int64_t VarSize,
+    OMPTargetGlobalVarEntryKind Flags, GlobalValue::LinkageTypes Linkage,
+    bool IsDevice) {
+  if (IsDevice) {
+    // This could happen if the device compilation is invoked standalone.
+    if (!hasDeviceGlobalVarEntryInfo(VarName))
+      return;
+    auto &Entry = OffloadEntriesDeviceGlobalVar[VarName];
+    if (Entry.getAddress() && hasDeviceGlobalVarEntryInfo(VarName)) {
+      if (Entry.getVarSize() == 0) {
+        Entry.setVarSize(VarSize);
+        Entry.setLinkage(Linkage);
+      }
+      return;
+    }
+    Entry.setVarSize(VarSize);
+    Entry.setLinkage(Linkage);
+    Entry.setAddress(Addr);
+  } else {
+    if (hasDeviceGlobalVarEntryInfo(VarName)) {
+      auto &Entry = OffloadEntriesDeviceGlobalVar[VarName];
+      assert(Entry.isValid() && Entry.getFlags() == Flags &&
+             "Entry not initialized!");
+      if (Entry.getVarSize() == 0) {
+        Entry.setVarSize(VarSize);
+        Entry.setLinkage(Linkage);
+      }
+      return;
+    }
+    OffloadEntriesDeviceGlobalVar.try_emplace(VarName, OffloadingEntriesNum,
+                                              Addr, VarSize, Flags, Linkage);
+    ++OffloadingEntriesNum;
+  }
+}
+
+void OffloadEntriesInfoManager::actOnDeviceGlobalVarEntriesInfo(
+    const OffloadDeviceGlobalVarEntryInfoActTy &Action) {
+  // Scan all target region entries and perform the provided action.
+  for (const auto &E : OffloadEntriesDeviceGlobalVar)
+    Action(E.getKey(), E.getValue());
 }
 
 void CanonicalLoopInfo::collectControlBlocks(

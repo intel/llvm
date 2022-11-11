@@ -3579,22 +3579,6 @@ void AffineParallelOp::setUpperBounds(ValueRange ubOperands, AffineMap map) {
   setUpperBoundsMapAttr(AffineMapAttr::get(map));
 }
 
-void AffineParallelOp::setLowerBoundsMap(AffineMap map) {
-  AffineMap lbMap = getLowerBoundsMap();
-  assert(lbMap.getNumDims() == map.getNumDims() &&
-         lbMap.getNumSymbols() == map.getNumSymbols());
-  (void)lbMap;
-  setLowerBoundsMapAttr(AffineMapAttr::get(map));
-}
-
-void AffineParallelOp::setUpperBoundsMap(AffineMap map) {
-  AffineMap ubMap = getUpperBoundsMap();
-  assert(ubMap.getNumDims() == map.getNumDims() &&
-         ubMap.getNumSymbols() == map.getNumSymbols());
-  (void)ubMap;
-  setUpperBoundsMapAttr(AffineMapAttr::get(map));
-}
-
 void AffineParallelOp::setSteps(ArrayRef<int64_t> newSteps) {
   setStepsAttr(getBodyBuilder().getI64ArrayAttr(newSteps));
 }
@@ -3807,7 +3791,9 @@ enum class MinMaxKind { Min, Max };
 static ParseResult parseAffineMapWithMinMax(OpAsmParser &parser,
                                             OperationState &result,
                                             MinMaxKind kind) {
-  constexpr llvm::StringLiteral tmpAttrStrName = "__pseudo_bound_map";
+  // Using `const` not `constexpr` below to workaround a MSVC optimizer bug,
+  // see: https://reviews.llvm.org/D134227#3821753
+  const llvm::StringLiteral tmpAttrStrName = "__pseudo_bound_map";
 
   StringRef mapName = kind == MinMaxKind::Min
                           ? AffineParallelOp::getUpperBoundsMapAttrStrName()
