@@ -742,8 +742,7 @@ public:
   /// \param Src is a USM pointer to the source memory.
   /// \param SrcPitch is the pitch of the rows in \param Src.
   /// \param Width is the width in bytes of the 2D region to copy.
-  /// \param Height is the height in number of elements of the 2D region to
-  /// copy.
+  /// \param Height is the height in number of rows of the 2D region to copy.
   /// \return an event representing the copy operation.
   template <typename T = unsigned char,
             typename = std::enable_if_t<std::is_same_v<T, unsigned char>>>
@@ -771,8 +770,7 @@ public:
   /// \param Src is a USM pointer to the source memory.
   /// \param SrcPitch is the pitch of the rows in \param Src.
   /// \param Width is the width in bytes of the 2D region to copy.
-  /// \param Height is the height in number of elements of the 2D region to
-  /// copy.
+  /// \param Height is the height in number of rows of the 2D region to copy.
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing the copy operation.
   template <typename T = unsigned char,
@@ -802,8 +800,7 @@ public:
   /// \param Src is a USM pointer to the source memory.
   /// \param SrcPitch is the pitch of the rows in \param Src.
   /// \param Width is the width in bytes of the 2D region to copy.
-  /// \param Height is the height in number of elements of the 2D region to
-  /// copy.
+  /// \param Height is the height in number of rows of the 2D region to copy.
   /// \param DepEvents is a vector of events that specifies the kernel
   /// dependencies.
   /// \return an event representing the copy operation.
@@ -832,8 +829,7 @@ public:
   /// \param Dest is a USM pointer to the destination memory.
   /// \param DestPitch is the pitch of the rows in \param Dest.
   /// \param Width is the width in number of elements of the 2D region to copy.
-  /// \param Height is the height in number of elements of the 2D region to
-  /// copy.
+  /// \param Height is the height in number of rows of the 2D region to copy.
   /// \return an event representing the copy operation.
   template <typename T>
   event ext_oneapi_copy2d(const T *Src, size_t SrcPitch, T *Dest,
@@ -857,8 +853,7 @@ public:
   /// \param Dest is a USM pointer to the destination memory.
   /// \param DestPitch is the pitch of the rows in \param Dest.
   /// \param Width is the width in number of elements of the 2D region to copy.
-  /// \param Height is the height in number of elements of the 2D region to
-  /// copy.
+  /// \param Height is the height in number of rows of the 2D region to copy.
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing the copy operation.
   template <typename T>
@@ -884,8 +879,7 @@ public:
   /// \param Dest is a USM pointer to the destination memory.
   /// \param DestPitch is the pitch of the rows in \param Dest.
   /// \param Width is the width in number of elements of the 2D region to copy.
-  /// \param Height is the height in number of elements of the 2D region to
-  /// copy.
+  /// \param Height is the height in number of rows of the 2D region to copy.
   /// \param DepEvents is a vector of events that specifies the kernel
   /// dependencies.
   /// \return an event representing the copy operation.
@@ -914,8 +908,7 @@ public:
   /// \param Value is the value to fill into the region in \param Dest. Value is
   /// cast as an unsigned char.
   /// \param Width is the width in number of elements of the 2D region to fill.
-  /// \param Height is the height in number of elements of the 2D region to
-  /// fill.
+  /// \param Height is the height in number of rows of the 2D region to fill.
   /// \return an event representing the fill operation.
   template <typename T = unsigned char,
             typename = std::enable_if_t<std::is_same_v<T, unsigned char>>>
@@ -941,8 +934,7 @@ public:
   /// \param Value is the value to fill into the region in \param Dest. Value is
   /// cast as an unsigned char.
   /// \param Width is the width in number of elements of the 2D region to fill.
-  /// \param Height is the height in number of elements of the 2D region to
-  /// fill.
+  /// \param Height is the height in number of rows of the 2D region to fill.
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing the fill operation.
   template <typename T = unsigned char,
@@ -970,8 +962,7 @@ public:
   /// \param Value is the value to fill into the region in \param Dest. Value is
   /// cast as an unsigned char.
   /// \param Width is the width in number of elements of the 2D region to fill.
-  /// \param Height is the height in number of elements of the 2D region to
-  /// fill.
+  /// \param Height is the height in number of rows of the 2D region to fill.
   /// \param DepEvents is a vector of events that specifies the kernel
   /// dependencies.
   /// \return an event representing the fill operation.
@@ -997,8 +988,7 @@ public:
   /// \param Pattern is the pattern to fill into the memory.  T should be
   /// trivially copyable.
   /// \param Width is the width in number of elements of the 2D region to fill.
-  /// \param Height is the height in number of elements of the 2D region to
-  /// fill.
+  /// \param Height is the height in number of rows of the 2D region to fill.
   /// \return an event representing the fill operation.
   template <typename T>
   event ext_oneapi_fill2d(void *Dest, size_t DestPitch, const T &Pattern,
@@ -1019,8 +1009,7 @@ public:
   /// \param Pattern is the pattern to fill into the memory.  T should be
   /// trivially copyable.
   /// \param Width is the width in number of elements of the 2D region to fill.
-  /// \param Height is the height in number of elements of the 2D region to
-  /// fill.
+  /// \param Height is the height in number of rows of the 2D region to fill.
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing the fill operation.
   template <typename T>
@@ -1044,8 +1033,7 @@ public:
   /// \param Pattern is the pattern to fill into the memory.  T should be
   /// trivially copyable.
   /// \param Width is the width in number of elements of the 2D region to fill.
-  /// \param Height is the height in number of elements of the 2D region to
-  /// fill.
+  /// \param Height is the height in number of rows of the 2D region to fill.
   /// \param DepEvents is a vector of events that specifies the kernel
   /// dependencies.
   /// \return an event representing the fill operation.
