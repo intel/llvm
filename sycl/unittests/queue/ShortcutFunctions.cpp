@@ -20,9 +20,6 @@ using namespace sycl;
 
 namespace {
 struct TestCtx {
-  TestCtx(context &Ctx) : Ctx{Ctx} {};
-
-  context &Ctx;
   bool BufferFillCalled = false;
   bool BufferReadCalled = false;
   bool BufferWriteCalled = false;
@@ -95,7 +92,7 @@ TEST(ShortcutFunctions, ShortcutsCallCorrectPIFunctions) {
 
   // Queue.copy(accessor src, shared_ptr dest);
   {
-    TestContext.reset(new TestCtx(Ctx));
+    TestContext.reset(new TestCtx());
 
     int Data[Size];
     buffer<int> Buf(Data, Size);
@@ -115,7 +112,7 @@ TEST(ShortcutFunctions, ShortcutsCallCorrectPIFunctions) {
 
   // Queue.copy(shared_ptr src, accessor dest);
   {
-    TestContext.reset(new TestCtx(Ctx));
+    TestContext.reset(new TestCtx());
 
     int Data[Size];
     buffer<int> Buf(Data, Size);
@@ -135,7 +132,7 @@ TEST(ShortcutFunctions, ShortcutsCallCorrectPIFunctions) {
 
   // Queue.copy(accessor src, ptr* dest);
   {
-    TestContext.reset(new TestCtx(Ctx));
+    TestContext.reset(new TestCtx());
 
     int Data[Size];
     buffer<int> Buf(Data, Size);
@@ -155,7 +152,7 @@ TEST(ShortcutFunctions, ShortcutsCallCorrectPIFunctions) {
 
   // Queue.copy(ptr* src, accessor dest);
   {
-    TestContext.reset(new TestCtx(Ctx));
+    TestContext.reset(new TestCtx());
 
     int Data[Size];
     buffer<int> Buf(Data, Size);
@@ -175,7 +172,7 @@ TEST(ShortcutFunctions, ShortcutsCallCorrectPIFunctions) {
 
   // Queue.copy(accessor src, accessor dest);
   {
-    TestContext.reset(new TestCtx(Ctx));
+    TestContext.reset(new TestCtx());
 
     int SrcData[Size];
     buffer<int> SrcBuf(SrcData, Size);
@@ -201,7 +198,7 @@ TEST(ShortcutFunctions, ShortcutsCallCorrectPIFunctions) {
 
   // Queue.update_host(accessor acc);
   {
-    TestContext.reset(new TestCtx(Ctx));
+    TestContext.reset(new TestCtx());
 
     int Data[Size];
     buffer<int> Buf(Data, Size);
@@ -220,7 +217,7 @@ TEST(ShortcutFunctions, ShortcutsCallCorrectPIFunctions) {
 
   // Queue.fill<T>(accessor Dest, T src)
   {
-    TestContext.reset(new TestCtx(Ctx));
+    TestContext.reset(new TestCtx());
 
     int Data[Size];
     buffer<int> Buf(Data, Size);
