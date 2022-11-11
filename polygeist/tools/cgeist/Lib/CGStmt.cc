@@ -1138,10 +1138,10 @@ ValueCategory MLIRScanner::VisitReturnStmt(clang::ReturnStmt *stmt) {
 
       auto postTy = returnVal.getType().cast<MemRefType>().getElementType();
       if (auto prevTy = val.getType().dyn_cast<mlir::IntegerType>()) {
-        auto ipostTy = postTy.cast<mlir::IntegerType>();
-        if (prevTy != ipostTy) {
-          val = builder.create<arith::TruncIOp>(loc, ipostTy, val);
-        }
+        const auto SrcTy = stmt->getRetValue()->getType();
+        const auto IsSigned =
+            SrcTy->isBooleanType() ? false : SrcTy->isSignedIntegerType();
+        val = rv.IntCast(builder, postTy, IsSigned).val;
       } else if (val.getType().isa<MemRefType>() &&
                  postTy.isa<LLVM::LLVMPointerType>())
         val = builder.create<polygeist::Memref2PointerOp>(loc, postTy, val);

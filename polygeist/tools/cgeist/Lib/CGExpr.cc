@@ -2271,10 +2271,8 @@ ValueCategory MLIRScanner::EmitScalarConversion(ValueCategory Src,
 
   auto SrcTy = Src.val.getType();
 
-  if (DstType->isBooleanType()) {
-    llvm::WithColor::warning() << "Performing conversion to bool as if it were "
-                                  "a regular integer type\n";
-  }
+  if (DstType->isBooleanType())
+    return EmitConversionToBool(Src, SrcType);
 
   mlir::Type DstTy = CGTypes.getMLIRType(DstType);
 
@@ -2357,6 +2355,61 @@ ValueCategory MLIRScanner::EmitScalarConversion(ValueCategory Src,
   llvm::WithColor::warning() << "Missing integer sign change checks\n";
 
   return Res;
+}
+
+ValueCategory MLIRScanner::EmitFloatToBoolConversion(ValueCategory Src) {
+  assert(Src.val.getType().isa<FloatType>() && "Expecting a float value");
+  mlir::OpBuilder SubBuilder(builder.getContext());
+  SubBuilder.setInsertionPointToStart(entryBlock);
+  auto FloatTy = cast<FloatType>(Src.val.getType());
+  auto Zero = SubBuilder.create<ConstantFloatOp>(
+      builder.getUnknownLoc(),
+      mlir::APFloat::getZero(FloatTy.getFloatSemantics()), FloatTy);
+  return Src.FCmpUNE(builder, Zero);
+}
+
+ValueCategory MLIRScanner::EmitPointerToBoolConversion(ValueCategory Src) {
+  if (auto MemRefTy = Src.val.getType().dyn_cast<MemRefType>()) {
+    auto ElementTy = MemRefTy.getElementType();
+    auto AddressSpace = MemRefTy.getMemorySpaceAsInt();
+    Src = {
+        builder.create<polygeist::Memref2PointerOp>(
+            loc, LLVM::LLVMPointerType::get(ElementTy, AddressSpace), Src.val),
+        Src.isReference};
+  }
+  assert(Src.val.getType().isa<LLVM::LLVMPointerType>() &&
+         "Expecting a pointer");
+  mlir::OpBuilder SubBuilder(builder.getContext());
+  SubBuilder.setInsertionPointToStart(entryBlock);
+  auto Zero = SubBuilder.create<LLVM::NullOp>(builder.getUnknownLoc(),
+                                              Src.val.getType());
+  return {builder.createOrFold<LLVM::ICmpOp>(loc, LLVM::ICmpPredicate::ne,
+                                             Src.val, Zero),
+          false};
+}
+
+ValueCategory MLIRScanner::EmitIntToBoolConversion(ValueCategory Src) {
+  assert(Src.val.getType().isa<IntegerType>() && "Expecting an integer value");
+  mlir::OpBuilder SubBuilder(builder.getContext());
+  SubBuilder.setInsertionPointToStart(entryBlock);
+  auto Zero = SubBuilder.create<ConstantIntOp>(
+      builder.getUnknownLoc(), 0,
+      Src.val.getType().cast<IntegerType>().getWidth());
+  return Src.ICmpNE(builder, Zero);
+}
+
+ValueCategory MLIRScanner::EmitConversionToBool(ValueCategory Src,
+                                                QualType SrcType) {
+  assert(SrcType.isCanonical() && "EmitScalarConversion strips typedefs");
+  assert(!isa<MemberPointerType>(SrcType) && "Not implemented yet");
+  const auto ValTy = Src.val.getType();
+  if (ValTy.isa<FloatType>())
+    return EmitFloatToBoolConversion(Src);
+  if (ValTy.isa<IntegerType>())
+    return EmitIntToBoolConversion(Src);
+  if (ValTy.isa<LLVM::LLVMPointerType, MemRefType>())
+    return EmitPointerToBoolConversion(Src);
+  llvm_unreachable("Unknown scalar type to convert");
 }
 
 ValueCategory

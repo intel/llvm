@@ -1,5 +1,7 @@
 // RUN: cgeist %s --function=* -S -o - | FileCheck %s
 
+#include <stdbool.h>
+
 // CHECK-LABEL:   func.func @f1(
 // CHECK-SAME:                  %[[VAL_0:.*]]: memref<?xi32>,
 // CHECK-SAME:                  %[[VAL_1:.*]]: i32) -> i32
@@ -170,4 +172,55 @@ unsigned f11(unsigned *a, unsigned b) {
 
 unsigned f12(unsigned *a, unsigned b) {
   return *a ^= b;
+}
+
+// CHECK-LABEL:   func.func @f13(
+// CHECK-SAME:                   %[[VAL_0:.*]]: memref<?xi8>,
+// CHECK-SAME:                   %[[VAL_1:.*]]: i32) -> i8
+// CHECK:           %[[VAL_2:.*]] = arith.constant 0 : i32
+// CHECK:           %[[VAL_3:.*]] = affine.load %[[VAL_0]][0] : memref<?xi8>
+// CHECK:           %[[VAL_4:.*]] = arith.extui %[[VAL_3]] : i8 to i32
+// CHECK:           %[[VAL_5:.*]] = arith.addi %[[VAL_4]], %[[VAL_1]] : i32
+// CHECK:           %[[VAL_6:.*]] = arith.cmpi ne, %[[VAL_5]], %[[VAL_2]] : i32
+// CHECK:           %[[VAL_7:.*]] = arith.extui %[[VAL_6]] : i1 to i8
+// CHECK:           affine.store %[[VAL_7]], %[[VAL_0]][0] : memref<?xi8>
+// CHECK:           return %[[VAL_7]] : i8
+// CHECK:         }
+
+bool f13(bool *a, unsigned b) {
+  return *a += b;
+}
+
+// CHECK-LABEL:   func.func @f14(
+// CHECK-SAME:                   %[[VAL_0:.*]]: memref<?xi8>,
+// CHECK-SAME:                   %[[VAL_1:.*]]: f32) -> i8
+// CHECK:           %[[VAL_2:.*]] = arith.constant 0.000000e+00 : f32
+// CHECK:           %[[VAL_3:.*]] = affine.load %[[VAL_0]][0] : memref<?xi8>
+// CHECK:           %[[VAL_4:.*]] = arith.uitofp %[[VAL_3]] : i8 to f32
+// CHECK:           %[[VAL_5:.*]] = arith.addf %[[VAL_4]], %[[VAL_1]] : f32
+// CHECK:           %[[VAL_6:.*]] = arith.cmpf une, %[[VAL_5]], %[[VAL_2]] : f32
+// CHECK:           %[[VAL_7:.*]] = arith.extui %[[VAL_6]] : i1 to i8
+// CHECK:           affine.store %[[VAL_7]], %[[VAL_0]][0] : memref<?xi8>
+// CHECK:           return %[[VAL_7]] : i8
+// CHECK:         }
+
+bool f14(bool *a, float b) {
+  return *a += b;
+}
+
+// CHECK-LABEL:   func.func @f15(
+// CHECK-SAME:                   %[[VAL_0:.*]]: memref<?xi8>,
+// CHECK-SAME:                   %[[VAL_1:.*]]: f64) -> i8
+// CHECK:           %[[VAL_2:.*]] = arith.constant 0.000000e+00 : f64
+// CHECK:           %[[VAL_3:.*]] = affine.load %[[VAL_0]][0] : memref<?xi8>
+// CHECK:           %[[VAL_4:.*]] = arith.uitofp %[[VAL_3]] : i8 to f64
+// CHECK:           %[[VAL_5:.*]] = arith.addf %[[VAL_4]], %[[VAL_1]] : f64
+// CHECK:           %[[VAL_6:.*]] = arith.cmpf une, %[[VAL_5]], %[[VAL_2]] : f64
+// CHECK:           %[[VAL_7:.*]] = arith.extui %[[VAL_6]] : i1 to i8
+// CHECK:           affine.store %[[VAL_7]], %[[VAL_0]][0] : memref<?xi8>
+// CHECK:           return %[[VAL_7]] : i8
+// CHECK:         }
+
+bool f15(bool *a, double b) {
+  return *a += b;
 }
