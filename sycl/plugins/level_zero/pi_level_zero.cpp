@@ -1022,11 +1022,25 @@ _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
   }
 
   auto &EventList = CommandList->second.EventList;
-  // Remember all the events in this command list which needs to be
-  // released/cleaned up and clear event list associated with command list.
-  std::move(std::begin(EventList), std::end(EventList),
-            std::back_inserter(EventListToCleanup));
-  EventList.clear();
+  // Check if standard commandlist
+  if (CommandList->second.ZeFence != nullptr) {
+    // Remember all the events in this command list which needs to be
+    // released/cleaned up and clear event list associated with command list.
+    std::move(std::begin(EventList), std::end(EventList),
+              std::back_inserter(EventListToCleanup));
+    EventList.clear();
+  } else {
+    // For immediate commandlist reset only those events that have signalled.
+    for (auto it = EventList.begin(); it != EventList.end(); it++) {
+      std::scoped_lock<pi_shared_mutex> EventLock((*it)->Mutex);
+      ze_result_t ZeResult =
+          ZE_CALL_NOCHECK(zeEventQueryStatus, ((*it)->ZeEvent));
+      if (ZeResult == ZE_RESULT_SUCCESS) {
+        std::move(it, it, std::back_inserter(EventListToCleanup));
+        EventList.erase(it, it);
+      }
+    }
+  }
 
   // Standard commandlists move in and out of the cache as they are recycled.
   // Immediate commandlists are always available.
