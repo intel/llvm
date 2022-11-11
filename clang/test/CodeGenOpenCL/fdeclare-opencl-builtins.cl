@@ -49,6 +49,6 @@ void test_generic_optionality(float a, float *b) {
 }
 
 // CHECK: attributes [[ATTR_CONST]] =
-// CHECK-SAME: memory(none)
+// CHECK-SAME: readnone
 // CHECK: attributes [[ATTR_PURE]] =
-// CHECK-SAME: memory(read)
+// CHECK-SAME: readonly

@@ -491,35 +491,54 @@ public:
   void setPresplitCoroutine() { addFnAttr(Attribute::PresplitCoroutine); }
   void setSplittedCoroutine() { removeFnAttr(Attribute::PresplitCoroutine); }
 
-  MemoryEffects getMemoryEffects() const;
-  void setMemoryEffects(MemoryEffects ME);
-
   /// Determine if the function does not access memory.
-  bool doesNotAccessMemory() const;
-  void setDoesNotAccessMemory();
+  bool doesNotAccessMemory() const {
+    return hasFnAttribute(Attribute::ReadNone);
+  }
+  void setDoesNotAccessMemory() {
+    addFnAttr(Attribute::ReadNone);
+  }
 
   /// Determine if the function does not access or only reads memory.
-  bool onlyReadsMemory() const;
-  void setOnlyReadsMemory();
+  bool onlyReadsMemory() const {
+    return doesNotAccessMemory() || hasFnAttribute(Attribute::ReadOnly);
+  }
+  void setOnlyReadsMemory() {
+    addFnAttr(Attribute::ReadOnly);
+  }
 
   /// Determine if the function does not access or only writes memory.
-  bool onlyWritesMemory() const;
-  void setOnlyWritesMemory();
+  bool onlyWritesMemory() const {
+    return doesNotAccessMemory() || hasFnAttribute(Attribute::WriteOnly);
+  }
+  void setOnlyWritesMemory() {
+    addFnAttr(Attribute::WriteOnly);
+  }
 
   /// Determine if the call can access memmory only using pointers based
   /// on its arguments.
-  bool onlyAccessesArgMemory() const;
-  void setOnlyAccessesArgMemory();
+  bool onlyAccessesArgMemory() const {
+    return hasFnAttribute(Attribute::ArgMemOnly);
+  }
+  void setOnlyAccessesArgMemory() { addFnAttr(Attribute::ArgMemOnly); }
 
   /// Determine if the function may only access memory that is
   ///  inaccessible from the IR.
-  bool onlyAccessesInaccessibleMemory() const;
-  void setOnlyAccessesInaccessibleMemory();
+  bool onlyAccessesInaccessibleMemory() const {
+    return hasFnAttribute(Attribute::InaccessibleMemOnly);
+  }
+  void setOnlyAccessesInaccessibleMemory() {
+    addFnAttr(Attribute::InaccessibleMemOnly);
+  }
 
   /// Determine if the function may only access memory that is
   ///  either inaccessible from the IR or pointed to by its arguments.
-  bool onlyAccessesInaccessibleMemOrArgMem() const;
-  void setOnlyAccessesInaccessibleMemOrArgMem();
+  bool onlyAccessesInaccessibleMemOrArgMem() const {
+    return hasFnAttribute(Attribute::InaccessibleMemOrArgMemOnly);
+  }
+  void setOnlyAccessesInaccessibleMemOrArgMem() {
+    addFnAttr(Attribute::InaccessibleMemOrArgMemOnly);
+  }
 
   /// Determine if the function cannot return.
   bool doesNotReturn() const {

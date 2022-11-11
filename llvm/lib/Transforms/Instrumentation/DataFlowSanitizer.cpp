@@ -1234,22 +1234,19 @@ DataFlowSanitizer::buildWrapperFunction(Function *F, StringRef NewFName,
 
 // Initialize DataFlowSanitizer runtime functions and declare them in the module
 void DataFlowSanitizer::initializeRuntimeFunctions(Module &M) {
-  LLVMContext &C = M.getContext();
   {
     AttributeList AL;
-    AL = AL.addFnAttribute(C, Attribute::NoUnwind);
-    AL = AL.addFnAttribute(
-        C, Attribute::getWithMemoryEffects(C, MemoryEffects::readOnly()));
-    AL = AL.addRetAttribute(C, Attribute::ZExt);
+    AL = AL.addFnAttribute(M.getContext(), Attribute::NoUnwind);
+    AL = AL.addFnAttribute(M.getContext(), Attribute::ReadOnly);
+    AL = AL.addRetAttribute(M.getContext(), Attribute::ZExt);
     DFSanUnionLoadFn =
         Mod->getOrInsertFunction("__dfsan_union_load", DFSanUnionLoadFnTy, AL);
   }
   {
     AttributeList AL;
-    AL = AL.addFnAttribute(C, Attribute::NoUnwind);
-    AL = AL.addFnAttribute(
-        C, Attribute::getWithMemoryEffects(C, MemoryEffects::readOnly()));
-    AL = AL.addRetAttribute(C, Attribute::ZExt);
+    AL = AL.addFnAttribute(M.getContext(), Attribute::NoUnwind);
+    AL = AL.addFnAttribute(M.getContext(), Attribute::ReadOnly);
+    AL = AL.addRetAttribute(M.getContext(), Attribute::ZExt);
     DFSanLoadLabelAndOriginFn = Mod->getOrInsertFunction(
         "__dfsan_load_label_and_origin", DFSanLoadLabelAndOriginFnTy, AL);
   }
@@ -1473,8 +1470,8 @@ bool DataFlowSanitizer::runImpl(
     }
   }
 
-  // TODO: This could be more precise.
-  ReadOnlyNoneAttrs.addAttribute(Attribute::Memory);
+  ReadOnlyNoneAttrs.addAttribute(Attribute::ReadOnly)
+      .addAttribute(Attribute::ReadNone);
 
   // First, change the ABI of every function in the module.  ABI-listed
   // functions keep their original ABI and get a wrapper function.

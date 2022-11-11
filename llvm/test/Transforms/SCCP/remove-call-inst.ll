@@ -36,4 +36,4 @@ return:
 }
 
 ; CHECK: attributes #0 = { noreturn nounwind }
-; CHECK: attributes #1 = { nounwind willreturn memory(none) }
+; CHECK: attributes #1 = { nounwind readnone willreturn }

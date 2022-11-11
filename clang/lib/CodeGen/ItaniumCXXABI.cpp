@@ -1325,9 +1325,8 @@ static llvm::FunctionCallee getItaniumDynamicCastFn(CodeGenFunction &CGF) {
   llvm::FunctionType *FTy = llvm::FunctionType::get(Int8PtrTy, Args, false);
 
   // Mark the function as nounwind readonly.
-  llvm::AttrBuilder FuncAttrs(CGF.getLLVMContext());
-  FuncAttrs.addAttribute(llvm::Attribute::NoUnwind);
-  FuncAttrs.addMemoryAttr(llvm::MemoryEffects::readOnly());
+  llvm::Attribute::AttrKind FuncAttrs[] = { llvm::Attribute::NoUnwind,
+                                            llvm::Attribute::ReadOnly };
   llvm::AttributeList Attrs = llvm::AttributeList::get(
       CGF.getLLVMContext(), llvm::AttributeList::FunctionIndex, FuncAttrs);
 

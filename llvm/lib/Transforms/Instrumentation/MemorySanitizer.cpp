@@ -4074,9 +4074,12 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       // will become a non-readonly function after it is instrumented by us. To
       // prevent this code from being optimized out, mark that function
       // non-readonly in advance.
-      // TODO: We can likely do better than dropping memory() completely here.
       AttributeMask B;
-      B.addAttribute(Attribute::Memory).addAttribute(Attribute::Speculatable);
+      B.addAttribute(Attribute::ReadOnly)
+          .addAttribute(Attribute::ReadNone)
+          .addAttribute(Attribute::WriteOnly)
+          .addAttribute(Attribute::ArgMemOnly)
+          .addAttribute(Attribute::Speculatable);
 
       Call->removeFnAttrs(B);
       if (Function *Func = Call->getCalledFunction()) {
@@ -5766,9 +5769,13 @@ bool MemorySanitizer::sanitizeFunction(Function &F, TargetLibraryInfo &TLI) {
 
   MemorySanitizerVisitor Visitor(F, *this, TLI);
 
-  // Clear out memory attributes.
+  // Clear out readonly/readnone attributes.
   AttributeMask B;
-  B.addAttribute(Attribute::Memory).addAttribute(Attribute::Speculatable);
+  B.addAttribute(Attribute::ReadOnly)
+      .addAttribute(Attribute::ReadNone)
+      .addAttribute(Attribute::WriteOnly)
+      .addAttribute(Attribute::ArgMemOnly)
+      .addAttribute(Attribute::Speculatable);
   F.removeFnAttrs(B);
 
   return Visitor.runOnFunction();

@@ -190,11 +190,6 @@ enum Kind {
   kw_argmem,
   kw_inaccessiblemem,
 
-  // Legacy memory attributes:
-  kw_argmemonly,
-  kw_inaccessiblememonly,
-  kw_inaccessiblemem_or_argmemonly,
-
   kw_type,
   kw_opaque,
 
