@@ -2146,7 +2146,7 @@ MLIRASTConsumer::getOrCreateGlobal(const ValueDecl &VD, std::string Prefix,
   const Expr *InitExpr = Var->getAnyInitializer(InitDecl);
 
   if (!InitExpr) {
-    if (DefKind == VarDecl::TentativeDefinition) {
+    if (DefKind != VarDecl::DeclarationOnly) {
       // Tentative definitions are initialized to {0}.
       assert(!VD.getType()->isIncompleteType() && "Unexpected incomplete type");
 
