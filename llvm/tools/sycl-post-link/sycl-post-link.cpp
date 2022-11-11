@@ -89,6 +89,7 @@ cl::OptionCategory PostLinkCat{"sycl-post-link options"};
 // clang/lib/Driver/Driver.cpp, sycl-post-link.cpp, ClangOffloadWrapper.cpp
 constexpr char COL_CODE[] = "Code";
 constexpr char COL_SYM[] = "Symbols";
+constexpr char COL_OPTS[] = "Options";
 constexpr char COL_PROPS[] = "Properties";
 
 // InputFilename - The filename to read from.
@@ -215,10 +216,11 @@ struct GlobalBinImageProps {
   bool EmitDeviceGlobalPropSet;
 };
 
-struct IrPropSymFilenameTriple {
+struct IrPropSymFilenameQuad {
   std::string Ir;
   std::string Prop;
   std::string Sym;
+  std::string Opt;
 };
 
 void writeToFile(const std::string &Filename, const std::string &Content) {
@@ -466,6 +468,44 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   return SCFile;
 }
 
+std::string getOptString(module_split::ModuleDesc &MD) {
+  auto &M = MD.getModule();
+  // Process all properties on kernels.
+  for (Function &F : M) {
+    // Only consider kernels.
+    if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
+      continue;
+
+    SmallVector<Metadata *, 8> MDOps;
+    SmallVector<std::pair<std::string, MDNode *>, 8> NamedMDOps;
+    for (const Attribute &Attr : F.getAttributes().getFnAttrs()) {
+      // Currently, only string attributes are supported
+      if (!Attr.isStringAttribute())
+        continue;
+      StringRef AttrKindStr = Attr.getKindAsString();
+      if (AttrKindStr == "sycl-device-compile-optlevel") {
+        auto Opt = "-O" + Attr.getValueAsString();
+        llvm::errs() << "ARV: Opt is " << Opt << "\n";
+        return Opt.str();
+      }
+    }
+  }
+  return "";
+}
+
+std::string saveModuleOptions(module_split::ModuleDesc &MD,
+                                 const std::string &Opts, int I,
+                                 StringRef Suff) {
+  std::error_code EC;
+  std::string SCFile = makeResultFileName(".opt", I, Suff);
+  raw_fd_ostream SCOut(SCFile, EC);
+  checkError(EC, "error opening file '" + SCFile + "'");
+  SCOut << Opts;
+
+  return SCFile;
+}
+
+
 // Saves specified collection of symbols to a file.
 std::string saveModuleSymbolTable(const module_split::EntryPointSet &Es, int I,
                                   StringRef Suffix) {
@@ -570,11 +610,11 @@ StringRef getModuleSuffix(const module_split::ModuleDesc &MD) {
 // @param IRFilename filename of already available IR component. If not empty,
 //   IR component saving is skipped, and this file name is recorded as such in
 //   the result.
-// @return a triple of files where IR, Property and Symbols components of the
-//   Module descriptor are written respectively.
-IrPropSymFilenameTriple saveModule(module_split::ModuleDesc &MD, int I,
+// @return a quadruple of files where IR, Property, Symbols and Opts components
+//   of the Module descriptor are written respectively.
+IrPropSymFilenameQuad saveModule(module_split::ModuleDesc &MD, int I,
                                    StringRef IRFilename = "") {
-  IrPropSymFilenameTriple Res;
+  IrPropSymFilenameQuad Res;
   StringRef Suffix = getModuleSuffix(MD);
 
   if (!IRFilename.empty()) {
@@ -586,6 +626,9 @@ IrPropSymFilenameTriple saveModule(module_split::ModuleDesc &MD, int I,
   GlobalBinImageProps Props = {EmitKernelParamInfo, EmitProgramMetadata,
                                EmitExportedSymbols, DeviceGlobals};
   Res.Prop = saveModuleProperties(MD, Props, I, Suffix);
+
+  std::string Opts = getOptString(MD);
+  Res.Opt = saveModuleOptions(MD, Opts, I, Suffix);
 
   if (DoSymGen) {
     // save the names of the entry points - the symbol table
@@ -631,20 +674,37 @@ bool processSpecConstants(module_split::ModuleDesc &MD) {
   return MD.Props.SpecConstsMet;
 }
 
-constexpr int MAX_COLUMNS_IN_FILE_TABLE = 3;
+constexpr int MAX_COLUMNS_IN_FILE_TABLE = 4;
 
+#if 0
 void addTableRow(util::SimpleTable &Table,
-                 const IrPropSymFilenameTriple &RowData) {
+                 const IrPropSymFilenameQuad &RowData) {
   SmallVector<StringRef, MAX_COLUMNS_IN_FILE_TABLE> Row;
+
+  for (const std::string *S : {&RowData.Ir, &RowData.Prop, &RowData.Opt, &RowData.Sym}) {
+    if (!S->empty()) {
+      Row.push_back(StringRef(*S));
+    }
+  }
+  llvm::errs() << "ARV: " << static_cast<size_t>(Table.getNumColumns()) << "," << Row.size() <<"\n";
+  assert(static_cast<size_t>(Table.getNumColumns()) == Row.size());
+  Table.addRow(Row);
+}
+#else
+void addTableRow(util::SimpleTable &Table,
+                 const IrPropSymFilenameQuad &RowData) {
+  SmallVector<StringRef, 3> Row;
 
   for (const std::string *S : {&RowData.Ir, &RowData.Prop, &RowData.Sym}) {
     if (!S->empty()) {
       Row.push_back(StringRef(*S));
     }
   }
+  //llvm::errs() << "ARV: " << static_cast<size_t>(Table.getNumColumns()) << "," << Row.size() <<"\n";
   assert(static_cast<size_t>(Table.getNumColumns()) == Row.size());
   Table.addRow(Row);
 }
+#endif
 
 // Removes the global variable "llvm.used" and returns true on success.
 // "llvm.used" is a global constant array containing references to kernels
@@ -693,8 +753,13 @@ static bool removeSYCLKernelsConstRefArray(Module &M) {
 std::unique_ptr<util::SimpleTable>
 processInputModule(std::unique_ptr<Module> M) {
   // Construct the resulting table which will accumulate all the outputs.
+#if 0
+  SmallVector<StringRef, MAX_COLUMNS_IN_FILE_TABLE> ColumnTitles{
+      StringRef(COL_CODE), StringRef(COL_PROPS), StringRef(COL_OPTS)};
+#else
   SmallVector<StringRef, MAX_COLUMNS_IN_FILE_TABLE> ColumnTitles{
       StringRef(COL_CODE), StringRef(COL_PROPS)};
+#endif
 
   if (DoSymGen) {
     ColumnTitles.push_back(COL_SYM);
@@ -869,7 +934,7 @@ processInputModule(std::unique_ptr<Module> M) {
                   "have been made\n";
       }
       for (module_split::ModuleDesc &IrMD : MMs) {
-        IrPropSymFilenameTriple T = saveModule(IrMD, ID, OutIRFileName);
+        IrPropSymFilenameQuad T = saveModule(IrMD, ID, OutIRFileName);
         addTableRow(*Table, T);
       }
     }

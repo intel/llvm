@@ -9,6 +9,7 @@
 #pragma once
 
 #include <sycl/aspects.hpp>
+#include <sycl/compile_options.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>
 #include <sycl/ext/oneapi/properties/property_utils.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
@@ -54,6 +55,12 @@ struct device_has_key {
   template <aspect... Aspects>
   using value_t = property_value<device_has_key,
                                  std::integral_constant<aspect, Aspects>...>;
+};
+
+struct device_compile_options_key {
+  template <compile_options... CompileOptions>
+  using value_t = property_value<device_compile_options_key,
+                                 std::integral_constant<compile_options, CompileOptions>...>;
 };
 
 template <size_t Dim0, size_t... Dims>
@@ -108,6 +115,14 @@ struct property_value<device_has_key,
   static constexpr std::array<aspect, sizeof...(Aspects)> value{Aspects...};
 };
 
+template <compile_options... CompileOptions>
+struct property_value<device_compile_options_key,
+                      std::integral_constant<compile_options, CompileOptions>...> {
+  using key_t = device_compile_options_key;
+  static constexpr std::array<compile_options,
+                              sizeof...(CompileOptions)> value{CompileOptions...};
+};
+
 template <size_t Dim0, size_t... Dims>
 inline constexpr work_group_size_key::value_t<Dim0, Dims...> work_group_size;
 
@@ -121,11 +136,15 @@ inline constexpr sub_group_size_key::value_t<Size> sub_group_size;
 template <aspect... Aspects>
 inline constexpr device_has_key::value_t<Aspects...> device_has;
 
+template <compile_options... CompileOptions>
+inline constexpr device_compile_options_key::value_t<CompileOptions...> device_compile_options;
+
 template <> struct is_property_key<work_group_size_key> : std::true_type {};
 template <>
 struct is_property_key<work_group_size_hint_key> : std::true_type {};
 template <> struct is_property_key<sub_group_size_key> : std::true_type {};
 template <> struct is_property_key<device_has_key> : std::true_type {};
+template <> struct is_property_key<device_compile_options_key> : std::true_type {};
 
 namespace detail {
 template <> struct PropertyToKind<work_group_size_key> {
@@ -140,6 +159,9 @@ template <> struct PropertyToKind<sub_group_size_key> {
 template <> struct PropertyToKind<device_has_key> {
   static constexpr PropKind Kind = PropKind::DeviceHas;
 };
+template <> struct PropertyToKind<device_compile_options_key> {
+  static constexpr PropKind Kind = PropKind::DeviceCompileOptions;
+};
 
 template <>
 struct IsCompileTimeProperty<work_group_size_key> : std::true_type {};
@@ -148,6 +170,7 @@ struct IsCompileTimeProperty<work_group_size_hint_key> : std::true_type {};
 template <>
 struct IsCompileTimeProperty<sub_group_size_key> : std::true_type {};
 template <> struct IsCompileTimeProperty<device_has_key> : std::true_type {};
+template <> struct IsCompileTimeProperty<device_compile_options_key> : std::true_type {};
 
 template <size_t Dim0, size_t... Dims>
 struct PropertyMetaInfo<work_group_size_key::value_t<Dim0, Dims...>> {
@@ -169,6 +192,12 @@ struct PropertyMetaInfo<device_has_key::value_t<Aspects...>> {
   static constexpr const char *name = "sycl-device-has";
   static constexpr const char *value =
       SizeListToStr<static_cast<size_t>(Aspects)...>::value;
+};
+template <compile_options... CompileOptions>
+struct PropertyMetaInfo<device_compile_options_key::value_t<CompileOptions...>> {
+  static constexpr const char *name = "sycl-device-compile-options";
+  static constexpr const char *value =
+      SizeListToStr<static_cast<size_t>(CompileOptions)...>::value;
 };
 
 template <typename T, typename = void>

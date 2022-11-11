@@ -582,11 +582,23 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
     && !FD->hasAttr<SYCLDeviceAttr>())
     return;
 
-  // TODO Module identifier is not reliable for this purpose since two modules
-  // can have the same ID, needs improvement
-  if (getLangOpts().SYCLIsDevice)
+  
+  if (getLangOpts().SYCLIsDevice) {
+    // TODO Module identifier is not reliable for this purpose since two modules
+    // can have the same ID, needs improvement
     Fn->addFnAttr("sycl-module-id", Fn->getParent()->getModuleIdentifier());
-
+    int SYCLDeviceCompileOptLevel;
+    switch (CGM.getCodeGenOpts().OptimizationLevel) {
+    default:
+      llvm_unreachable("Invalid optimization level!");
+    case 0:
+    case 1:
+    case 2:
+    case 3:
+      SYCLDeviceCompileOptLevel = CGM.getCodeGenOpts().OptimizationLevel;
+    }
+    Fn->addFnAttr("sycl-device-compile-optlevel", std::to_string(SYCLDeviceCompileOptLevel));
+  }
   llvm::LLVMContext &Context = getLLVMContext();
 
   if (FD->hasAttr<OpenCLKernelAttr>() || FD->hasAttr<CUDAGlobalAttr>())
