@@ -1936,7 +1936,7 @@ pi_result piextUSMEnqueueFill2D(pi_queue, void *, size_t, size_t, const void *,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextUSMEnqueueMemset2D(pi_queue, void *, size_t, size_t, int, size_t,
+pi_result piextUSMEnqueueMemset2D(pi_queue, void *, size_t, int, size_t, size_t,
                                   pi_uint32, const pi_event *, pi_event *) {
   DIE_NO_IMPLEMENTATION;
 }
