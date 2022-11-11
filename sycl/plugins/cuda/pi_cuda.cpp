@@ -650,8 +650,9 @@ _pi_program::_pi_program(pi_context ctxt)
     : modules_{ctxt->get_devices().size(), nullptr},
       build_results_{ctxt->get_devices().size(), CUDA_ERROR_UNKNOWN},
       binary_{0}, binarySizeInBytes_{0}, refCount_{1}, context_{ctxt},
-      kernelReqdWorkGroupSizeMD_ {}
-{ cuda_piContextRetain(context_); }
+      kernelReqdWorkGroupSizeMD_{} {
+  cuda_piContextRetain(context_);
+}
 
 _pi_program::~_pi_program() { cuda_piContextRelease(context_); }
 
@@ -5422,11 +5423,9 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
   return result;
 }
 
-__SYCL_EXPORT pi_result cuda_piextGetMemoryConnection(pi_device device1,
-                                                      pi_context context1,
-                                                      pi_device device2,
-                                                      pi_context context2,
-                                                      _pi_memory_connection *res) {
+__SYCL_EXPORT pi_result cuda_piextGetMemoryConnection(
+    pi_device device1, pi_context context1, pi_device device2,
+    pi_context context2, _pi_memory_connection *res) {
   (void)device1;
   (void)context1;
   (void)device2;
