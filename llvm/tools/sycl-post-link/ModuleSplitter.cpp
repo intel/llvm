@@ -762,10 +762,14 @@ getDoubleGRFSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints) {
 }
 
 namespace {
-  struct KernelProperties {
-    KernelProperties() = default;
+  // Data structure, which represent a combination of all possible optional
+  // features used in a function.
+  //
+  // It has extra methods to be useable as a key in llvm::DenseMap.
+  struct UsedOptionalFeatures {
+    UsedOptionalFeatures() = default;
 
-    KernelProperties(const Function *F) {
+    UsedOptionalFeatures(const Function *F) {
       if (const MDNode *MDN = F->getMetadata("sycl_used_aspects")) {
         auto ExtractIntegerFromMDNodeOperand = [=](const MDNode *N,
                                                    unsigned OpNo) -> auto {
@@ -796,14 +800,14 @@ namespace {
     // TODO: extend this further with reqd-sub-group-size, reqd-work-group-size,
     // double-grf and other properties
 
-    static KernelProperties getTombstone() {
-      KernelProperties Ret;
+    static UsedOptionalFeatures getTombstone() {
+      UsedOptionalFeatures Ret;
       Ret.IsTombstoneKey = true;
       return Ret;
     }
 
-    static KernelProperties getEmpty() {
-      KernelProperties Ret;
+    static UsedOptionalFeatures getEmpty() {
+      UsedOptionalFeatures Ret;
       Ret.IsEmpty = true;
       return Ret;
     }
@@ -814,7 +818,7 @@ namespace {
     bool IsEmpty = false;
 
   public:
-    bool operator==(const KernelProperties &Other) const {
+    bool operator==(const UsedOptionalFeatures &Other) const {
       // Tombstone does not compare equal to any other item
       if (IsTombstoneKey || Other.IsTombstoneKey)
         return false;
@@ -836,21 +840,21 @@ namespace {
     }
   };
 
-  struct KernelPropertiesAsKeyInfo {
-    static inline KernelProperties getEmptyKey() {
-      return KernelProperties::getEmpty();
+  struct UsedOptionalFeaturesAsKeyInfo {
+    static inline UsedOptionalFeatures getEmptyKey() {
+      return UsedOptionalFeatures::getEmpty();
     }
 
-    static inline KernelProperties getTombstoneKey() {
-      return KernelProperties::getTombstone();
+    static inline UsedOptionalFeatures getTombstoneKey() {
+      return UsedOptionalFeatures::getTombstone();
     }
 
-    static unsigned getHashValue(const KernelProperties &Value) {
+    static unsigned getHashValue(const UsedOptionalFeatures &Value) {
       return Value.hash();
     }
 
-    static bool isEqual(const KernelProperties &LHS,
-                        const KernelProperties &RHS) {
+    static bool isEqual(const UsedOptionalFeatures &LHS,
+                        const UsedOptionalFeatures &RHS) {
       return LHS == RHS;
     }
   };
@@ -860,7 +864,7 @@ std::unique_ptr<ModuleSplitterBase>
 getPropertiesBasedSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints) {
   EntryPointGroupVec Groups;
 
-  DenseMap<KernelProperties, EntryPointSet, KernelPropertiesAsKeyInfo>
+  DenseMap<UsedOptionalFeatures, EntryPointSet, UsedOptionalFeaturesAsKeyInfo>
       PropertiesToFunctionsMap;
 
   Module &M = MD.getModule();
@@ -872,7 +876,7 @@ getPropertiesBasedSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints) {
       continue;
     }
 
-    auto Key = KernelProperties(&F);
+    auto Key = UsedOptionalFeatures(&F);
     PropertiesToFunctionsMap[Key].insert(&F);
   }
 
