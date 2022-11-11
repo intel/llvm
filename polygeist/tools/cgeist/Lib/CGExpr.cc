@@ -2365,7 +2365,7 @@ ValueCategory MLIRScanner::EmitFloatToBoolConversion(ValueCategory Src) {
   auto Zero = SubBuilder.create<ConstantFloatOp>(
       builder.getUnknownLoc(),
       mlir::APFloat::getZero(FloatTy.getFloatSemantics()), FloatTy);
-  return Src.FCmpUNE(builder, {Zero, false});
+  return Src.FCmpUNE(builder, Zero);
 }
 
 ValueCategory MLIRScanner::EmitPointerToBoolConversion(ValueCategory Src) {
@@ -2395,7 +2395,7 @@ ValueCategory MLIRScanner::EmitIntToBoolConversion(ValueCategory Src) {
   auto Zero = SubBuilder.create<ConstantIntOp>(
       builder.getUnknownLoc(), 0,
       Src.val.getType().cast<IntegerType>().getWidth());
-  return Src.ICmpNE(builder, {Zero, false});
+  return Src.ICmpNE(builder, Zero);
 }
 
 ValueCategory MLIRScanner::EmitConversionToBool(ValueCategory Src,

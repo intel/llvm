@@ -395,33 +395,33 @@ ValueCategory ValueCategory::IntCast(OpBuilder &Builder, Type PromotionType,
 }
 
 ValueCategory ValueCategory::ICmpNE(mlir::OpBuilder &builder,
-                                    ValueCategory RHS) const {
+                                    mlir::Value RHS) const {
   return ICmp(builder, arith::CmpIPredicate::ne, RHS);
 }
 
 ValueCategory ValueCategory::FCmpUNE(mlir::OpBuilder &builder,
-                                     ValueCategory RHS) const {
+                                     mlir::Value RHS) const {
   return FCmp(builder, arith::CmpFPredicate::UNE, RHS);
 }
 
 ValueCategory ValueCategory::ICmp(OpBuilder &builder,
                                   arith::CmpIPredicate predicate,
-                                  ValueCategory RHS) const {
-  assert(val.getType() == RHS.val.getType() &&
+                                  mlir::Value RHS) const {
+  assert(val.getType() == RHS.getType() &&
          "Cannot compare values of different types");
   assert(val.getType().isa<IntegerType>() && "Expecting integer inputs");
   return {builder.createOrFold<arith::CmpIOp>(builder.getUnknownLoc(),
-                                              predicate, val, RHS.val),
+                                              predicate, val, RHS),
           false};
 }
 
 ValueCategory ValueCategory::FCmp(OpBuilder &builder,
                                   arith::CmpFPredicate predicate,
-                                  ValueCategory RHS) const {
-  assert(val.getType() == RHS.val.getType() &&
+                                  mlir::Value RHS) const {
+  assert(val.getType() == RHS.getType() &&
          "Cannot compare values of different types");
   assert(val.getType().isa<FloatType>() && "Expecting floatint point inputs");
   return {builder.createOrFold<arith::CmpFOp>(builder.getUnknownLoc(),
-                                              predicate, val, RHS.val),
+                                              predicate, val, RHS),
           false};
 }
