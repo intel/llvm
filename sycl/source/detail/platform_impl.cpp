@@ -172,6 +172,7 @@ static int filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
     // not add it to the list of available devices.
     std::sort(FilterList->get().begin(), FilterList->get().end(),
               [](const ods_target &filter1, const ods_target &filter2) {
+                std::ignore = filter1;
                 if (filter2.IsNegativeTarget)
                   return false;
                 return true;
