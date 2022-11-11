@@ -21,20 +21,21 @@ using namespace sycl;
 static constexpr unsigned N = 16;
 static constexpr int scalar = 8;
 
-void host_stream_triad(std::array<int, N> &A, std::array<int, N> &B, std::array<int, N> &C) {
+template <typename T>
+void host_stream_triad(std::array<T, N> &A, std::array<T, N> &B, std::array<T, N> &C) {
   auto q = queue{};
   device d = q.get_device();
   std::cout << "Using " << d.get_info<info::device::name>() << "\n";
   auto range = sycl::range<1>{N};
 
   {
-    auto bufA = buffer<int, 1>{A.data(), range};
-    auto bufB = buffer<int, 1>{B.data(), range};
-    auto bufC = buffer<int, 1>{C.data(), range};
+    auto bufA = buffer<T, 1>{A.data(), range};
+    auto bufB = buffer<T, 1>{B.data(), range};
+    auto bufC = buffer<T, 1>{C.data(), range};
     q.submit([&](handler &cgh) {
-      auto A = bufA.get_access<access::mode::write>(cgh);
-      auto B = bufB.get_access<access::mode::read>(cgh);
-      auto C = bufC.get_access<access::mode::read>(cgh);
+      auto A = bufA.template get_access<access::mode::write>(cgh);
+      auto B = bufB.template get_access<access::mode::read>(cgh);
+      auto C = bufC.template get_access<access::mode::read>(cgh);
       cgh.parallel_for<class kernel_stream_triad>(range, [=](sycl::id<1> id) {
         A[id] = B[id] + C[id] * scalar;
       });
