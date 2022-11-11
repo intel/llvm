@@ -767,6 +767,10 @@ namespace {
   //
   // It has extra methods to be useable as a key in llvm::DenseMap.
   struct UsedOptionalFeatures {
+    SmallVector<int, 4> Aspects;
+    // TODO: extend this further with reqd-sub-group-size, reqd-work-group-size,
+    // double-grf and other properties
+
     UsedOptionalFeatures() = default;
 
     UsedOptionalFeatures(const Function *F) {
@@ -779,9 +783,9 @@ namespace {
         };
 
         for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I) {
-          Aspects.insert(ExtractIntegerFromMDNodeOperand(MDN, I));
+          Aspects.push_back(ExtractIntegerFromMDNodeOperand(MDN, I));
         }
-
+        llvm::sort(Aspects);
       }
 
       llvm::hash_code AspectsHash =
@@ -799,10 +803,6 @@ namespace {
       }
       return Ret;
     }
-
-    SmallSet<int, 4> Aspects;
-    // TODO: extend this further with reqd-sub-group-size, reqd-work-group-size,
-    // double-grf and other properties
 
     static UsedOptionalFeatures getTombstone() {
       UsedOptionalFeatures Ret;
@@ -831,9 +831,10 @@ namespace {
       if (Aspects.size() != Other.Aspects.size())
         return false;
 
-      if (!llvm::all_of(Other.Aspects,
-                        [&](int Aspect) { return Aspects.contains(Aspect); }))
-        return false;
+      for (size_t I = 0, E = Aspects.size(); I != E; ++I) {
+        if (Aspects[I] != Other.Aspects[I])
+          return false;
+      }
 
       return IsEmpty == Other.IsEmpty;
     }
