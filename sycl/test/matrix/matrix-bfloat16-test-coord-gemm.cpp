@@ -1,4 +1,7 @@
 // RUN: %clangxx -fsycl -O2 -DSYCL_EXT_ONEAPI_MATRIX_VERSION=2 %s -o %t.out
+// RUN: %t.out
+// XFAIL: *
+
 #include <iostream>
 #include <sycl/sycl.hpp>
 

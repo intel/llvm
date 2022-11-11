@@ -1,4 +1,6 @@
 // RUN: %clangxx -fsycl -O2 -DSYCL_EXT_ONEAPI_MATRIX_VERSION=2 %s -o %t.out
+// RUN: %t.out
+// XFAIL: *
 
 // this code calculates the sum of rows into a global array of number of rows
 // elements. First, partial reduction is computed inside each SG, then atomic
