@@ -2375,7 +2375,7 @@ ValueCategory MLIRScanner::EmitPointerToBoolConversion(ValueCategory Src) {
     Src = {
         builder.create<polygeist::Memref2PointerOp>(
             loc, LLVM::LLVMPointerType::get(ElementTy, AddressSpace), Src.val),
-        true};
+        Src.isReference};
   }
   assert(Src.val.getType().isa<LLVM::LLVMPointerType>() &&
          "Expecting a pointer");
