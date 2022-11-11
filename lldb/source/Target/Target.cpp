@@ -26,6 +26,7 @@
 #include "lldb/Core/StreamFile.h"
 #include "lldb/Core/StructuredDataImpl.h"
 #include "lldb/Core/ValueObject.h"
+#include "lldb/Core/ValueObjectConstResult.h"
 #include "lldb/Expression/DiagnosticManager.h"
 #include "lldb/Expression/ExpressionVariable.h"
 #include "lldb/Expression/REPL.h"
@@ -177,6 +178,7 @@ void Target::CleanupProcess() {
   // clean up needs some help from the process.
   m_breakpoint_list.ClearAllBreakpointSites();
   m_internal_breakpoint_list.ClearAllBreakpointSites();
+  ResetBreakpointHitCounts();
   // Disable watchpoints just on the debugger side.
   std::unique_lock<std::recursive_mutex> lock;
   this->GetWatchpointList().GetListMutex(lock);
@@ -1434,7 +1436,8 @@ void Target::SetExecutableModule(ModuleSP &executable_sp,
     if (!m_arch.GetSpec().IsValid()) {
       m_arch = executable_sp->GetArchitecture();
       LLDB_LOG(log,
-               "setting architecture to {0} ({1}) based on executable file",
+               "Target::SetExecutableModule setting architecture to {0} ({1}) "
+               "based on executable file",
                m_arch.GetSpec().GetArchitectureName(),
                m_arch.GetSpec().GetTriple().getTriple());
     }
@@ -1534,7 +1537,9 @@ bool Target::SetArchitecture(const ArchSpec &arch_spec, bool set_platform,
     // specified
     if (replace_local_arch)
       m_arch = other;
-    LLDB_LOG(log, "set architecture to {0} ({1})",
+    LLDB_LOG(log,
+             "Target::SetArchitecture merging compatible arch; arch "
+             "is now {0} ({1})",
              m_arch.GetSpec().GetArchitectureName(),
              m_arch.GetSpec().GetTriple().getTriple());
     return true;
@@ -1542,9 +1547,13 @@ bool Target::SetArchitecture(const ArchSpec &arch_spec, bool set_platform,
 
   // If we have an executable file, try to reset the executable to the desired
   // architecture
-  LLDB_LOGF(log, "Target::SetArchitecture changing architecture to %s (%s)",
-            arch_spec.GetArchitectureName(),
-            arch_spec.GetTriple().getTriple().c_str());
+  LLDB_LOGF(
+      log,
+      "Target::SetArchitecture changing architecture to %s (%s) from %s (%s)",
+      arch_spec.GetArchitectureName(),
+      arch_spec.GetTriple().getTriple().c_str(),
+      m_arch.GetSpec().GetArchitectureName(),
+      m_arch.GetSpec().GetTriple().getTriple().c_str());
   m_arch = other;
   ModuleSP executable_sp = GetExecutableModule();
 
@@ -2527,6 +2536,10 @@ ExpressionResults Target::EvaluateExpression(
     execution_results = UserExpression::Evaluate(exe_ctx, options, expr, prefix,
                                                  result_valobj_sp, error,
                                                  fixed_expression, ctx_obj);
+    // Pass up the error by wrapping it inside an error result.
+    if (error.Fail() && !result_valobj_sp)
+      result_valobj_sp = ValueObjectConstResult::Create(
+          exe_ctx.GetBestExecutionContextScope(), error);
   }
 
   if (execution_results == eExpressionCompleted)

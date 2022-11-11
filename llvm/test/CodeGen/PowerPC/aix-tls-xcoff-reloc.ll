@@ -12,15 +12,15 @@
 ; Function Attrs: nofree norecurse nounwind willreturn writeonly
 define void @storesTIUninit(i32 %Val) #0 {
 entry:
-  store i32 %Val, i32* @TIUninit, align 4
+  store i32 %Val, ptr @TIUninit, align 4
   ret void
 }
 
 ; Function Attrs: norecurse nounwind readonly willreturn
 define i32 @loadsTGInit() #1 {
 entry:
-  %0 = load i32, i32* @TGInit, align 4
-  %1 = load i32, i32* @GInit, align 4
+  %0 = load i32, ptr @TGInit, align 4
+  %1 = load i32, ptr @GInit, align 4
   %add = add nsw i32 %1, %0
   ret i32 %add
 }
@@ -640,5 +640,5 @@ entry:
 ; DIS:      00000004 (idx: 37) TIUninit[UL]:
 ; DIS-NEXT: ...
 
-attributes #0 = { nofree norecurse nounwind willreturn writeonly "frame-pointer"="none" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="pwr4" "target-features"="-altivec,-bpermd,-crypto,-direct-move,-extdiv,-float128,-htm,-mma,-paired-vector-memops,-power10-vector,-power8-vector,-power9-vector,-rop-protection,-spe,-vsx" }
-attributes #1 = { norecurse nounwind readonly willreturn "frame-pointer"="none" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="pwr4" "target-features"="-altivec,-bpermd,-crypto,-direct-move,-extdiv,-float128,-htm,-mma,-paired-vector-memops,-power10-vector,-power8-vector,-power9-vector,-rop-protection,-spe,-vsx" }
+attributes #0 = { nofree norecurse nounwind willreturn writeonly "frame-pointer"="none" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="pwr4" "target-features"="-altivec,-bpermd,-crypto,-direct-move,-extdiv,-float128,-htm,-mma,-paired-vector-memops,-power10-vector,-power8-vector,-power9-vector,-spe,-vsx" }
+attributes #1 = { norecurse nounwind readonly willreturn "frame-pointer"="none" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="pwr4" "target-features"="-altivec,-bpermd,-crypto,-direct-move,-extdiv,-float128,-htm,-mma,-paired-vector-memops,-power10-vector,-power8-vector,-power9-vector,-spe,-vsx" }

@@ -9,11 +9,11 @@
 #include <detail/allowlist.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
-#include <detail/force_device.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/platform_info.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
+#include <sycl/detail/util.hpp>
 #include <sycl/device.hpp>
 
 #include <algorithm>
@@ -99,7 +99,6 @@ static bool IsBannedPlatform(platform Platform) {
 std::vector<platform> platform_impl::get_platforms() {
   std::vector<platform> Platforms;
   std::vector<plugin> &Plugins = RT::initialize();
-  info::device_type ForcedType = detail::get_forced_type();
   for (plugin &Plugin : Plugins) {
     pi_uint32 NumPlatforms = 0;
     // Move to the next plugin if the plugin fails to initialize.
@@ -127,8 +126,7 @@ std::vector<platform> platform_impl::get_platforms() {
           // insert PiPlatform into the Plugin
           Plugin.getPlatformId(PiPlatform);
         }
-        // Skip platforms which do not contain requested device types
-        if (!Platform.get_devices(ForcedType).empty())
+        if (!Platform.get_devices(info::device_type::all).empty())
           Platforms.push_back(Platform);
       }
     }
@@ -151,9 +149,41 @@ std::vector<platform> platform_impl::get_platforms() {
 // ONEAPI_DEVICE_SELECTOR This function matches devices in the order of backend,
 // device_type, and device_num. The device_filter and ods_target structs pun for
 // each other, as do device_filter_list and ods_target_list.
+// Since ONEAPI_DEVICE_SELECTOR admits negative filters, we use type traits
+// to distinguish the case where we are working with ONEAPI_DEVICE_SELECTOR
+// in the places where the functionality diverges between these two
+// environment variables.
 template <typename ListT, typename FilterT>
 static int filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
                               RT::PiPlatform Platform, ListT *FilterList) {
+
+  constexpr bool is_ods_target = std::is_same_v<FilterT, ods_target>;
+  // There are some differences in implementation between SYCL_DEVICE_FILTER
+  // and ONEAPI_DEVICE_SELECTOR so we use if constexpr to select the
+  // appropriate execution path if we are dealing with the latter variable.
+
+  if constexpr (is_ods_target) {
+
+    // Since we are working with ods_target filters ,which can be negative,
+    // we sort the filters so that all the negative filters appear before
+    // all the positive filters.  This enables us to have the full list of
+    // blacklisted devices by the time we get to the positive filters
+    // so that if a positive filter matches a blacklisted device we do
+    // not add it to the list of available devices.
+    std::sort(FilterList->get().begin(), FilterList->get().end(),
+              [](const ods_target &filter1, const ods_target &filter2) {
+                std::ignore = filter1;
+                if (filter2.IsNegativeTarget)
+                  return false;
+                return true;
+              });
+  }
+
+  // this map keeps track of devices discarded by negative filters, it is only
+  // used in the ONEAPI_DEVICE_SELECTOR implemenation. It cannot be placed
+  // in the if statement above because it will then be out of scope in the rest
+  // of the function
+  std::map<RT::PiDevice *, bool> Blacklist;
 
   std::vector<plugin> &Plugins = RT::initialize();
   auto It =
@@ -162,7 +192,6 @@ static int filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
       });
   if (It == Plugins.end())
     return -1;
-
   plugin &Plugin = *It;
   backend Backend = Plugin.getBackend();
   int InsertIDx = 0;
@@ -190,12 +219,37 @@ static int filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
         if (FilterDevType == info::device_type::all) {
           // Last, match the device_num entry
           if (!Filter.DeviceNum || DeviceNum == Filter.DeviceNum.value()) {
-            PiDevices[InsertIDx++] = Device;
+            if constexpr (is_ods_target) {      // dealing with ODS filters
+              if (!Blacklist[&Device]) {        // ensure it is not blacklisted
+                if (!Filter.IsNegativeTarget) { // is filter positive?
+                  PiDevices[InsertIDx++] = Device;
+                } else {
+                  // Filter is negative and the device matches the filter so
+                  // blacklist the device.
+                  Blacklist[&Device] = true;
+                }
+              }
+            } else { // dealing with SYCL_DEVICE_FILTER
+              PiDevices[InsertIDx++] = Device;
+            }
             break;
           }
+
         } else if (FilterDevType == DeviceType) {
           if (!Filter.DeviceNum || DeviceNum == Filter.DeviceNum.value()) {
-            PiDevices[InsertIDx++] = Device;
+            if constexpr (is_ods_target) {
+              if (!Blacklist[&Device]) {
+                if (!Filter.IsNegativeTarget) {
+                  PiDevices[InsertIDx++] = Device;
+                } else {
+                  // Filter is negative and the device matches the filter so
+                  // blacklist the device.
+                  Blacklist[&Device] = true;
+                }
+              }
+            } else {
+              PiDevices[InsertIDx++] = Device;
+            }
             break;
           }
         }
@@ -253,13 +307,17 @@ static bool supportsPartitionProperty(const device &dev,
 
 static std::vector<device> amendDeviceAndSubDevices(
     backend PlatformBackend, std::vector<device> &DeviceList,
-    ods_target_list *OdsTargetList, int PlatformDeviceIndex) {
+    ods_target_list *OdsTargetList, int PlatformDeviceIndex,
+    PlatformImplPtr PlatformImpl) {
   constexpr info::partition_property partitionProperty =
       info::partition_property::partition_by_affinity_domain;
   constexpr info::partition_affinity_domain affinityDomain =
       info::partition_affinity_domain::next_partitionable;
 
   std::vector<device> FinalResult;
+  // (Only) when amending sub-devices for ONEAPI_DEVICE_SELECTOR, all
+  // sub-devices are treated as root.
+  TempAssignGuard<bool> TAG(PlatformImpl->MAlwaysRootDevice, true);
 
   for (unsigned i = 0; i < DeviceList.size(); i++) {
     // device has already been screened. The question is whether it should be a
@@ -311,9 +369,8 @@ static std::vector<device> amendDeviceAndSubDevices(
             // -- Add sub sub device.
             if (wantSubSubDevice) {
 
-              auto subDevicesToPartition = dev.create_sub_devices<
-                  info::partition_property::partition_by_affinity_domain>(
-                  affinityDomain);
+              auto subDevicesToPartition =
+                  dev.create_sub_devices<partitionProperty>(affinityDomain);
               if (target.SubDeviceNum) {
                 if (subDevicesToPartition.size() >
                     target.SubDeviceNum.value()) {
@@ -341,9 +398,9 @@ static std::vector<device> amendDeviceAndSubDevices(
                   continue;
                 }
                 // Allright, lets get them sub-sub-devices.
-                auto subSubDevices = subDev.create_sub_devices<
-                    info::partition_property::partition_by_affinity_domain>(
-                    affinityDomain);
+                auto subSubDevices =
+                    subDev.create_sub_devices<partitionProperty>(
+                        affinityDomain);
                 if (target.HasSubSubDeviceWildCard) {
                   FinalResult.insert(FinalResult.end(), subSubDevices.begin(),
                                      subSubDevices.end());
@@ -476,7 +533,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   // Otherwise, our last step is to revisit the devices, possibly replacing
   // them with subdevices (which have been ignored until now)
   return amendDeviceAndSubDevices(Backend, Res, OdsTargetList,
-                                  PlatformDeviceIndex);
+                                  PlatformDeviceIndex, PlatformImpl);
 }
 
 bool platform_impl::has_extension(const std::string &ExtensionName) const {

@@ -85,6 +85,8 @@ private:
   bool HasStdExtZicbom = false;
   bool HasStdExtZicboz = false;
   bool HasStdExtZicbop = false;
+  bool HasStdExtSvnapot = false;
+  bool HasStdExtSvinval = false;
   bool HasStdExtZmmul = false;
   bool HasStdExtZawrs = false;
   bool HasStdExtZtso = false;
@@ -96,6 +98,7 @@ private:
   bool EnableDefaultUnroll = true;
   bool EnableSaveRestore = false;
   bool EnableUnalignedScalarMem = false;
+  bool HasShortForwardBranchOpt = false;
   bool HasLUIADDIFusion = false;
   bool HasForcedAtomics = false;
   unsigned XLen = 32;
@@ -181,6 +184,8 @@ public:
   bool hasStdExtZicbom() const { return HasStdExtZicbom; }
   bool hasStdExtZicboz() const { return HasStdExtZicboz; }
   bool hasStdExtZicbop() const { return HasStdExtZicbop; }
+  bool hasStdExtSvnapot() const { return HasStdExtSvnapot; }
+  bool hasStdExtSvinval() const { return HasStdExtSvinval; }
   bool hasStdExtZawrs() const { return HasStdExtZawrs; }
   bool hasStdExtZmmul() const { return HasStdExtZmmul; }
   bool hasStdExtZtso() const { return HasStdExtZtso; }
@@ -190,6 +195,7 @@ public:
   bool enableRVCHintInstrs() const { return EnableRVCHintInstrs; }
   bool enableDefaultUnroll() const { return EnableDefaultUnroll; }
   bool enableSaveRestore() const { return EnableSaveRestore; }
+  bool hasShortForwardBranchOpt() const { return HasShortForwardBranchOpt; }
   bool enableUnalignedScalarMem() const { return EnableUnalignedScalarMem; }
   bool hasLUIADDIFusion() const { return HasLUIADDIFusion; }
   bool hasForcedAtomics() const { return HasForcedAtomics; }

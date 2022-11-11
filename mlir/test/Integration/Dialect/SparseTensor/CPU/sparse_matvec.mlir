@@ -5,10 +5,10 @@
 // RUN:  -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
 // RUN: FileCheck %s
 //
-// Do the same run, but now with SIMDization as well. This should not change the outcome.
+// Do the same run, but now with parallelization.
 //
 // RUN: mlir-opt %s \
-// RUN:   --sparse-compiler="vectorization-strategy=any-storage-inner-loop vl=16 enable-simd-index32" | \
+// RUN:   --sparse-compiler="parallelization-strategy=any-storage-any-loop" | \
 // RUN: TENSOR0="%mlir_src_dir/test/Integration/data/wide.mtx" \
 // RUN: mlir-cpu-runner \
 // RUN:  -e entry -entry-point-result=void  \
@@ -100,10 +100,6 @@ module {
 
     // Release the resources.
     bufferization.dealloc_tensor %a : tensor<?x?xi32, #SparseMatrix>
-
-    // TODO(springerm): auto release!
-    bufferization.dealloc_tensor %b : tensor<?xi32>
-    bufferization.dealloc_tensor %x : tensor<?xi32>
 
     return
   }

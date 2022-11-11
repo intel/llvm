@@ -97,6 +97,7 @@ def HexagonPTRUE:      SDNode<"HexagonISD::PTRUE",      SDTVecLeaf>;
 def HexagonPFALSE:     SDNode<"HexagonISD::PFALSE",     SDTVecLeaf>;
 def HexagonVALIGN:     SDNode<"HexagonISD::VALIGN",     SDTVecVecIntOp>;
 def HexagonVALIGNADDR: SDNode<"HexagonISD::VALIGNADDR", SDTIntUnaryOp>;
+def HexagonMULHUS:     SDNode<"HexagonISD::MULHUS",     SDTIntBinOp>;
 
 def SDTSaturate:
   SDTypeProfile<1, 2, [SDTCisInt<0>, SDTCisInt<1>, SDTCisVT<2, OtherVT>]>;
@@ -1365,6 +1366,10 @@ def SDTHexagonVShift
 def HexagonVASL: SDNode<"HexagonISD::VASL", SDTHexagonVShift>;
 def HexagonVASR: SDNode<"HexagonISD::VASR", SDTHexagonVShift>;
 def HexagonVLSR: SDNode<"HexagonISD::VLSR", SDTHexagonVShift>;
+
+// Funnel shifts with the shift amount module element bit width.
+def HexagonMFSHL: SDNode<"HexagonISD::MFSHL", SDTIntShiftDOp>;
+def HexagonMFSHR: SDNode<"HexagonISD::MFSHR", SDTIntShiftDOp>;
 
 def: OpR_RI_pat<S2_asl_i_vw, pf2<HexagonVASL>, v2i32, V2I32, u5_0ImmPred>;
 def: OpR_RI_pat<S2_asl_i_vh, pf2<HexagonVASL>, v4i16, V4I16, u4_0ImmPred>;

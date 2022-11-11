@@ -14,11 +14,11 @@
 kernel
 void sample() {
   int arr[10];
-  #pragma clang loop unroll(full)
+  #pragma clang loop unroll(enable)
   for (int i = 0; i < 10; i++)
     arr[i] = 0;
   int j = 0;
-  #pragma clang loop unroll(full)
+  #pragma clang loop unroll(enable)
   do {
     arr[j] = 0;
   } while (j++ < 10);

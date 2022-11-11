@@ -75,6 +75,9 @@ public:
   /// false.
   bool MergeFunctions;
 
+  /// Tuning option to override the default inliner threshold.
+  int InlinerThreshold;
+
   // Experimental option to eagerly invalidate more analyses. This has the
   // potential to decrease max memory usage in exchange for more compile time.
   // This may affect codegen due to either passes using analyses only when
@@ -373,12 +376,6 @@ public:
   /// the \p AA manager is unspecified if such an error is encountered and this
   /// returns false.
   Error parseAAPipeline(AAManager &AA, StringRef PipelineText);
-
-  /// Returns true if the pass name is the name of an alias analysis pass.
-  bool isAAPassName(StringRef PassName);
-
-  /// Returns true if the pass name is the name of a (non-alias) analysis pass.
-  bool isAnalysisPassName(StringRef PassName);
 
   /// Print pass names.
   void printPassNames(raw_ostream &OS);

@@ -912,9 +912,9 @@ static void printStateTraitWithLocationContextJson(
 
   // Try to do as much compile time checking as possible.
   // FIXME: check for invocable instead of function?
-  static_assert(std::is_function<std::remove_pointer_t<Printer>>::value,
+  static_assert(std::is_function_v<std::remove_pointer_t<Printer>>,
                 "Printer is not a function!");
-  static_assert(std::is_convertible<Printer, RequiredType>::value,
+  static_assert(std::is_convertible_v<Printer, RequiredType>,
                 "Printer doesn't have the required type!");
 
   if (LCtx && !State->get<Trait>().isEmpty()) {
@@ -1378,10 +1378,10 @@ void ExprEngine::ProcessAutomaticObjDtor(const CFGAutomaticObjDtor Dtor,
                                   "Prepare for object destruction");
   PreImplicitCall PP(DtorDecl, varDecl->getLocation(), LCtx, &PT);
   Pred = Bldr.generateNode(PP, state, Pred);
-  Bldr.takeNodes(Pred);
 
   if (!Pred)
     return;
+  Bldr.takeNodes(Pred);
 
   VisitCXXDestructor(varType, Region, Dtor.getTriggerStmt(),
                      /*IsBase=*/false, Pred, Dst, CallOpts);
@@ -1452,10 +1452,10 @@ void ExprEngine::ProcessDeleteDtor(const CFGDeleteDtor Dtor,
                                   "Prepare for object destruction");
   PreImplicitCall PP(getDtorDecl(DTy), DE->getBeginLoc(), LCtx, &PT);
   Pred = Bldr.generateNode(PP, State, Pred);
-  Bldr.takeNodes(Pred);
 
   if (!Pred)
     return;
+  Bldr.takeNodes(Pred);
 
   VisitCXXDestructor(DTy, ArgR, DE, /*IsBase=*/false, Pred, Dst, CallOpts);
 }
@@ -1528,10 +1528,10 @@ void ExprEngine::ProcessMemberDtor(const CFGMemberDtor D,
                                   "Prepare for object destruction");
   PreImplicitCall PP(DtorDecl, Member->getLocation(), LCtx, &PT);
   Pred = Bldr.generateNode(PP, State, Pred);
-  Bldr.takeNodes(Pred);
 
   if (!Pred)
     return;
+  Bldr.takeNodes(Pred);
 
   VisitCXXDestructor(T, FieldVal.getAsRegion(), CurDtor->getBody(),
                      /*IsBase=*/false, Pred, Dst, CallOpts);
@@ -1744,6 +1744,7 @@ void ExprEngine::Visit(const Stmt *S, ExplodedNode *Pred,
     case Stmt::OMPTaskyieldDirectiveClass:
     case Stmt::OMPBarrierDirectiveClass:
     case Stmt::OMPTaskwaitDirectiveClass:
+    case Stmt::OMPErrorDirectiveClass:
     case Stmt::OMPTaskgroupDirectiveClass:
     case Stmt::OMPFlushDirectiveClass:
     case Stmt::OMPDepobjDirectiveClass:
@@ -3160,6 +3161,12 @@ void ExprEngine::VisitCommonDeclRefExpr(const Expr *Ex, const NamedDecl *D,
     Bldr.generateNode(Ex, Pred, state->BindExpr(Ex, LCtx, V), nullptr,
                       ProgramPoint::PostLValueKind);
 
+    return;
+  }
+
+  if (const auto *TPO = dyn_cast<TemplateParamObjectDecl>(D)) {
+    // FIXME: We should meaningfully implement this.
+    (void)TPO;
     return;
   }
 

@@ -45,16 +45,14 @@ static constexpr const char kVolatileAttrName[] = "volatile_";
 static constexpr const char kNonTemporalAttrName[] = "nontemporal";
 static constexpr const char kElemTypeAttrName[] = "elem_type";
 
-#include "mlir/Dialect/LLVMIR/LLVMOpsEnums.cpp.inc"
 #include "mlir/Dialect/LLVMIR/LLVMOpsInterfaces.cpp.inc"
-#define GET_ATTRDEF_CLASSES
-#include "mlir/Dialect/LLVMIR/LLVMOpsAttrDefs.cpp.inc"
 
 static auto processFMFAttr(ArrayRef<NamedAttribute> attrs) {
   SmallVector<NamedAttribute, 8> filteredAttrs(
       llvm::make_filter_range(attrs, [&](NamedAttribute attr) {
         if (attr.getName() == "fastmathFlags") {
-          auto defAttr = FMFAttr::get(attr.getValue().getContext(), {});
+          auto defAttr =
+              FastmathFlagsAttr::get(attr.getValue().getContext(), {});
           return defAttr != attr.getValue();
         }
         return true;
@@ -88,28 +86,27 @@ static LogicalResult verifySymbolAttrUse(FlatSymbolRefAttr symbol,
   return success();
 }
 
+/// Returns a boolean type that has the same shape as `type`. It supports both
+/// fixed size vectors as well as scalable vectors.
+static Type getI1SameShape(Type type) {
+  Type i1Type = IntegerType::get(type.getContext(), 1);
+  if (LLVM::isCompatibleVectorType(type))
+    return LLVM::getVectorType(i1Type, LLVM::getVectorNumElements(type));
+  return i1Type;
+}
+
 //===----------------------------------------------------------------------===//
 // Printing, parsing and builder for LLVM::CmpOp.
 //===----------------------------------------------------------------------===//
 
 void ICmpOp::build(OpBuilder &builder, OperationState &result,
                    ICmpPredicate predicate, Value lhs, Value rhs) {
-  auto boolType = IntegerType::get(lhs.getType().getContext(), 1);
-  if (LLVM::isCompatibleVectorType(lhs.getType()) ||
-      LLVM::isCompatibleVectorType(rhs.getType())) {
-    int64_t numLHSElements = 1, numRHSElements = 1;
-    if (LLVM::isCompatibleVectorType(lhs.getType()))
-      numLHSElements =
-          LLVM::getVectorNumElements(lhs.getType()).getFixedValue();
-    if (LLVM::isCompatibleVectorType(rhs.getType()))
-      numRHSElements =
-          LLVM::getVectorNumElements(rhs.getType()).getFixedValue();
-    build(builder, result,
-          VectorType::get({std::max(numLHSElements, numRHSElements)}, boolType),
-          predicate, lhs, rhs);
-  } else {
-    build(builder, result, boolType, predicate, lhs, rhs);
-  }
+  build(builder, result, getI1SameShape(lhs.getType()), predicate, lhs, rhs);
+}
+
+void FCmpOp::build(OpBuilder &builder, OperationState &result,
+                   FCmpPredicate predicate, Value lhs, Value rhs) {
+  build(builder, result, getI1SameShape(lhs.getType()), predicate, lhs, rhs);
 }
 
 void ICmpOp::print(OpAsmPrinter &p) {
@@ -132,8 +129,6 @@ void FCmpOp::print(OpAsmPrinter &p) {
 //                 attribute-dict? `:` type
 template <typename CmpPredicateType>
 static ParseResult parseCmpOp(OpAsmParser &parser, OperationState &result) {
-  Builder &builder = parser.getBuilder();
-
   StringAttr predicateAttr;
   OpAsmParser::UnresolvedOperand lhs, rhs;
   Type type;
@@ -173,23 +168,10 @@ static ParseResult parseCmpOp(OpAsmParser &parser, OperationState &result) {
 
   // The result type is either i1 or a vector type <? x i1> if the inputs are
   // vectors.
-  Type resultType = IntegerType::get(builder.getContext(), 1);
   if (!isCompatibleType(type))
     return parser.emitError(trailingTypeLoc,
                             "expected LLVM dialect-compatible type");
-  if (LLVM::isCompatibleVectorType(type)) {
-    if (LLVM::isScalableVectorType(type)) {
-      resultType = LLVM::getVectorType(
-          resultType, LLVM::getVectorNumElements(type).getKnownMinValue(),
-          /*isScalable=*/true);
-    } else {
-      resultType = LLVM::getVectorType(
-          resultType, LLVM::getVectorNumElements(type).getFixedValue(),
-          /*isScalable=*/false);
-    }
-  }
-
-  result.addTypes({resultType});
+  result.addTypes(getI1SameShape(type));
   return success();
 }
 
@@ -1445,10 +1427,10 @@ OpFoldResult LLVM::ExtractValueOp::fold(ArrayRef<Attribute> operands) {
     // following example:
     // ```
     //   %1 = llvm.insertvalue %f0, %0[0, 0] :
-    //     !llvm.array<4 x !llvm.array<4xf32>>
+    //     !llvm.array<4 x !llvm.array<4 x f32>>
     //   %2 = llvm.insertvalue %arr, %1[0] :
-    //     !llvm.array<4 x !llvm.array<4xf32>>
-    //   %3 = llvm.extractvalue %2[0, 0] : !llvm.array<4 x !llvm.array<4xf32>>
+    //     !llvm.array<4 x !llvm.array<4 x f32>>
+    //   %3 = llvm.extractvalue %2[0, 0] : !llvm.array<4 x !llvm.array<4 x f32>>
     // ```
     if (getPosition().take_front(min) ==
         insertValueOp.getPosition().take_front(min))
@@ -2567,8 +2549,7 @@ OpFoldResult LLVM::GEPOp::fold(ArrayRef<Attribute> operands) {
                        dynamicIndices);
 
     getDynamicIndicesMutable().assign(dynamicIndices);
-    setRawConstantIndicesAttr(
-        DenseI32ArrayAttr::get(getContext(), rawConstantIndices));
+    setRawConstantIndices(rawConstantIndices);
     return Value{*this};
   }
 
@@ -2576,11 +2557,33 @@ OpFoldResult LLVM::GEPOp::fold(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
+// OpAsmDialectInterface
+//===----------------------------------------------------------------------===//
+
+namespace {
+struct LLVMOpAsmDialectInterface : public OpAsmDialectInterface {
+  using OpAsmDialectInterface::OpAsmDialectInterface;
+
+  AliasResult getAlias(Attribute attr, raw_ostream &os) const override {
+    return TypeSwitch<Attribute, AliasResult>(attr)
+        .Case<DIBasicTypeAttr, DICompileUnitAttr, DICompositeTypeAttr,
+              DIDerivedTypeAttr, DIFileAttr, DILexicalBlockAttr,
+              DILexicalBlockFileAttr, DILocalVariableAttr, DISubprogramAttr,
+              DISubroutineTypeAttr>([&](auto attr) {
+          os << decltype(attr)::getMnemonic();
+          return AliasResult::OverridableAlias;
+        })
+        .Default([](Attribute) { return AliasResult::NoAlias; });
+  }
+};
+} // namespace
+
+//===----------------------------------------------------------------------===//
 // LLVMDialect initialization, type parsing, and registration.
 //===----------------------------------------------------------------------===//
 
 void LLVMDialect::initialize() {
-  addAttributes<FMFAttr, LinkageAttr, CConvAttr, LoopOptionsAttr>();
+  registerAttributes();
 
   // clang-format off
   addTypes<LLVMVoidType,
@@ -2589,13 +2592,10 @@ void LLVMDialect::initialize() {
            LLVMTokenType,
            LLVMLabelType,
            LLVMMetadataType,
-           LLVMFunctionType,
-           LLVMPointerType,
-           LLVMFixedVectorType,
-           LLVMScalableVectorType,
-           LLVMArrayType,
            LLVMStructType>();
   // clang-format on
+  registerTypes();
+
   addOperations<
 #define GET_OP_LIST
 #include "mlir/Dialect/LLVMIR/LLVMOps.cpp.inc"
@@ -2606,20 +2606,14 @@ void LLVMDialect::initialize() {
 
   // Support unknown operations because not all LLVM operations are registered.
   allowUnknownOperations();
+  addInterfaces<LLVMOpAsmDialectInterface>();
 }
 
 #define GET_OP_CLASSES
 #include "mlir/Dialect/LLVMIR/LLVMOps.cpp.inc"
 
-/// Parse a type registered to this dialect.
-Type LLVMDialect::parseType(DialectAsmParser &parser) const {
-  return detail::parseType(parser);
-}
-
-/// Print a type registered to this dialect.
-void LLVMDialect::printType(Type type, DialectAsmPrinter &os) const {
-  return detail::printType(type, os);
-}
+#define GET_OP_CLASSES
+#include "mlir/Dialect/LLVMIR/LLVMIntrinsicOps.cpp.inc"
 
 LogicalResult LLVMDialect::verifyDataLayoutString(
     StringRef descr, llvm::function_ref<void(const Twine &)> reportError) {
@@ -2824,247 +2818,4 @@ Value mlir::LLVM::createGlobalString(Location loc, OpBuilder &builder,
 bool mlir::LLVM::satisfiesLLVMModule(Operation *op) {
   return op->hasTrait<OpTrait::SymbolTable>() &&
          op->hasTrait<OpTrait::IsIsolatedFromAbove>();
-}
-
-void FMFAttr::print(AsmPrinter &printer) const {
-  printer << "<";
-  printer << stringifyFastmathFlags(this->getFlags());
-  printer << ">";
-}
-
-Attribute FMFAttr::parse(AsmParser &parser, Type type) {
-  if (failed(parser.parseLess()))
-    return {};
-
-  FastmathFlags flags = {};
-  if (failed(parser.parseOptionalGreater())) {
-    auto parseFlags = [&]() -> ParseResult {
-      StringRef elemName;
-      if (failed(parser.parseKeyword(&elemName)))
-        return failure();
-
-      auto elem = symbolizeFastmathFlags(elemName);
-      if (!elem)
-        return parser.emitError(parser.getNameLoc(), "Unknown fastmath flag: ")
-               << elemName;
-
-      flags = flags | *elem;
-      return success();
-    };
-    if (failed(parser.parseCommaSeparatedList(parseFlags)) ||
-        parser.parseGreater())
-      return {};
-  }
-
-  return FMFAttr::get(parser.getContext(), flags);
-}
-
-void LinkageAttr::print(AsmPrinter &printer) const {
-  printer << "<";
-  if (static_cast<uint64_t>(getLinkage()) <= getMaxEnumValForLinkage())
-    printer << stringifyEnum(getLinkage());
-  else
-    printer << static_cast<uint64_t>(getLinkage());
-  printer << ">";
-}
-
-Attribute LinkageAttr::parse(AsmParser &parser, Type type) {
-  StringRef elemName;
-  if (parser.parseLess() || parser.parseKeyword(&elemName) ||
-      parser.parseGreater())
-    return {};
-  auto elem = linkage::symbolizeLinkage(elemName);
-  if (!elem) {
-    parser.emitError(parser.getNameLoc(), "Unknown linkage: ") << elemName;
-    return {};
-  }
-  Linkage linkage = *elem;
-  return LinkageAttr::get(parser.getContext(), linkage);
-}
-
-void CConvAttr::print(AsmPrinter &printer) const {
-  printer << "<";
-  if (static_cast<uint64_t>(getCallingConv()) <= cconv::getMaxEnumValForCConv())
-    printer << stringifyEnum(getCallingConv());
-  else
-    printer << "INVALID_cc_" << static_cast<uint64_t>(getCallingConv());
-  printer << ">";
-}
-
-Attribute CConvAttr::parse(AsmParser &parser, Type type) {
-  StringRef convName;
-
-  if (parser.parseLess() || parser.parseKeyword(&convName) ||
-      parser.parseGreater())
-    return {};
-  auto cconv = cconv::symbolizeCConv(convName);
-  if (!cconv) {
-    parser.emitError(parser.getNameLoc(), "unknown calling convention: ")
-        << convName;
-    return {};
-  }
-  CConv cconvVal = *cconv;
-  return CConvAttr::get(parser.getContext(), cconvVal);
-}
-
-LoopOptionsAttrBuilder::LoopOptionsAttrBuilder(LoopOptionsAttr attr)
-    : options(attr.getOptions().begin(), attr.getOptions().end()) {}
-
-template <typename T>
-LoopOptionsAttrBuilder &LoopOptionsAttrBuilder::setOption(LoopOptionCase tag,
-                                                          Optional<T> value) {
-  auto option = llvm::find_if(
-      options, [tag](auto option) { return option.first == tag; });
-  if (option != options.end()) {
-    if (value)
-      option->second = *value;
-    else
-      options.erase(option);
-  } else {
-    options.push_back(LoopOptionsAttr::OptionValuePair(tag, *value));
-  }
-  return *this;
-}
-
-LoopOptionsAttrBuilder &
-LoopOptionsAttrBuilder::setDisableLICM(Optional<bool> value) {
-  return setOption(LoopOptionCase::disable_licm, value);
-}
-
-/// Set the `interleave_count` option to the provided value. If no value
-/// is provided the option is deleted.
-LoopOptionsAttrBuilder &
-LoopOptionsAttrBuilder::setInterleaveCount(Optional<uint64_t> count) {
-  return setOption(LoopOptionCase::interleave_count, count);
-}
-
-/// Set the `disable_unroll` option to the provided value. If no value
-/// is provided the option is deleted.
-LoopOptionsAttrBuilder &
-LoopOptionsAttrBuilder::setDisableUnroll(Optional<bool> value) {
-  return setOption(LoopOptionCase::disable_unroll, value);
-}
-
-/// Set the `disable_pipeline` option to the provided value. If no value
-/// is provided the option is deleted.
-LoopOptionsAttrBuilder &
-LoopOptionsAttrBuilder::setDisablePipeline(Optional<bool> value) {
-  return setOption(LoopOptionCase::disable_pipeline, value);
-}
-
-/// Set the `pipeline_initiation_interval` option to the provided value.
-/// If no value is provided the option is deleted.
-LoopOptionsAttrBuilder &LoopOptionsAttrBuilder::setPipelineInitiationInterval(
-    Optional<uint64_t> count) {
-  return setOption(LoopOptionCase::pipeline_initiation_interval, count);
-}
-
-template <typename T>
-static Optional<T>
-getOption(ArrayRef<std::pair<LoopOptionCase, int64_t>> options,
-          LoopOptionCase option) {
-  auto it =
-      lower_bound(options, option, [](auto optionPair, LoopOptionCase option) {
-        return optionPair.first < option;
-      });
-  if (it == options.end())
-    return {};
-  return static_cast<T>(it->second);
-}
-
-Optional<bool> LoopOptionsAttr::disableUnroll() {
-  return getOption<bool>(getOptions(), LoopOptionCase::disable_unroll);
-}
-
-Optional<bool> LoopOptionsAttr::disableLICM() {
-  return getOption<bool>(getOptions(), LoopOptionCase::disable_licm);
-}
-
-Optional<int64_t> LoopOptionsAttr::interleaveCount() {
-  return getOption<int64_t>(getOptions(), LoopOptionCase::interleave_count);
-}
-
-/// Build the LoopOptions Attribute from a sorted array of individual options.
-LoopOptionsAttr LoopOptionsAttr::get(
-    MLIRContext *context,
-    ArrayRef<std::pair<LoopOptionCase, int64_t>> sortedOptions) {
-  assert(llvm::is_sorted(sortedOptions, llvm::less_first()) &&
-         "LoopOptionsAttr ctor expects a sorted options array");
-  return Base::get(context, sortedOptions);
-}
-
-/// Build the LoopOptions Attribute from a sorted array of individual options.
-LoopOptionsAttr LoopOptionsAttr::get(MLIRContext *context,
-                                     LoopOptionsAttrBuilder &optionBuilders) {
-  llvm::sort(optionBuilders.options, llvm::less_first());
-  return Base::get(context, optionBuilders.options);
-}
-
-void LoopOptionsAttr::print(AsmPrinter &printer) const {
-  printer << "<";
-  llvm::interleaveComma(getOptions(), printer, [&](auto option) {
-    printer << stringifyEnum(option.first) << " = ";
-    switch (option.first) {
-    case LoopOptionCase::disable_licm:
-    case LoopOptionCase::disable_unroll:
-    case LoopOptionCase::disable_pipeline:
-      printer << (option.second ? "true" : "false");
-      break;
-    case LoopOptionCase::interleave_count:
-    case LoopOptionCase::pipeline_initiation_interval:
-      printer << option.second;
-      break;
-    }
-  });
-  printer << ">";
-}
-
-Attribute LoopOptionsAttr::parse(AsmParser &parser, Type type) {
-  if (failed(parser.parseLess()))
-    return {};
-
-  SmallVector<std::pair<LoopOptionCase, int64_t>> options;
-  llvm::SmallDenseSet<LoopOptionCase> seenOptions;
-  auto parseLoopOptions = [&]() -> ParseResult {
-    StringRef optionName;
-    if (parser.parseKeyword(&optionName))
-      return failure();
-
-    auto option = symbolizeLoopOptionCase(optionName);
-    if (!option)
-      return parser.emitError(parser.getNameLoc(), "unknown loop option: ")
-             << optionName;
-    if (!seenOptions.insert(*option).second)
-      return parser.emitError(parser.getNameLoc(), "loop option present twice");
-    if (failed(parser.parseEqual()))
-      return failure();
-
-    int64_t value;
-    switch (*option) {
-    case LoopOptionCase::disable_licm:
-    case LoopOptionCase::disable_unroll:
-    case LoopOptionCase::disable_pipeline:
-      if (succeeded(parser.parseOptionalKeyword("true")))
-        value = 1;
-      else if (succeeded(parser.parseOptionalKeyword("false")))
-        value = 0;
-      else {
-        return parser.emitError(parser.getNameLoc(),
-                                "expected boolean value 'true' or 'false'");
-      }
-      break;
-    case LoopOptionCase::interleave_count:
-    case LoopOptionCase::pipeline_initiation_interval:
-      if (failed(parser.parseInteger(value)))
-        return parser.emitError(parser.getNameLoc(), "expected integer value");
-      break;
-    }
-    options.push_back(std::make_pair(*option, value));
-    return success();
-  };
-  if (parser.parseCommaSeparatedList(parseLoopOptions) || parser.parseGreater())
-    return {};
-
-  llvm::sort(options, llvm::less_first());
-  return get(parser.getContext(), options);
 }

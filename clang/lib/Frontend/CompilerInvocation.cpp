@@ -94,7 +94,9 @@
 #include <cassert>
 #include <cstddef>
 #include <cstring>
+#include <ctime>
 #include <fstream>
+#include <limits>
 #include <memory>
 #include <string>
 #include <tuple>
@@ -197,8 +199,7 @@ static void denormalizeSimpleFlag(SmallVectorImpl<const char *> &Args,
 }
 
 template <typename T> static constexpr bool is_uint64_t_convertible() {
-  return !std::is_same<T, uint64_t>::value &&
-         llvm::is_integral_or_enum<T>::value;
+  return !std::is_same_v<T, uint64_t> && llvm::is_integral_or_enum<T>::value;
 }
 
 template <typename T,
@@ -4317,6 +4318,9 @@ static void GeneratePreprocessorArgs(PreprocessorOptions &Opts,
   for (const auto &RF : Opts.RemappedFiles)
     GenerateArg(Args, OPT_remap_file, RF.first + ";" + RF.second, SA);
 
+  if (Opts.SourceDateEpoch)
+    GenerateArg(Args, OPT_source_date_epoch, Twine(*Opts.SourceDateEpoch), SA);
+
   // Don't handle LexEditorPlaceholders. It is implied by the action that is
   // generated elsewhere.
 }
@@ -4397,6 +4401,22 @@ static bool ParsePreprocessorArgs(PreprocessorOptions &Opts, ArgList &Args,
     }
 
     Opts.addRemappedFile(Split.first, Split.second);
+  }
+
+  if (const Arg *A = Args.getLastArg(OPT_source_date_epoch)) {
+    StringRef Epoch = A->getValue();
+    // SOURCE_DATE_EPOCH, if specified, must be a non-negative decimal integer.
+    // On time64 systems, pick 253402300799 (the UNIX timestamp of
+    // 9999-12-31T23:59:59Z) as the upper bound.
+    const uint64_t MaxTimestamp =
+        std::min<uint64_t>(std::numeric_limits<time_t>::max(), 253402300799);
+    uint64_t V;
+    if (Epoch.getAsInteger(10, V) || V > MaxTimestamp) {
+      Diags.Report(diag::err_fe_invalid_source_date_epoch)
+          << Epoch << MaxTimestamp;
+    } else {
+      Opts.SourceDateEpoch = V;
+    }
   }
 
   // Always avoid lexing editor placeholders when we're just running the
@@ -4641,8 +4661,10 @@ bool CompilerInvocation::CreateFromArgsImpl(
   }
 
   // Store the command-line for using in the CodeView backend.
-  Res.getCodeGenOpts().Argv0 = Argv0;
-  append_range(Res.getCodeGenOpts().CommandLineArgs, CommandLineArgs);
+  if (Res.getCodeGenOpts().CodeViewCommandLine) {
+    Res.getCodeGenOpts().Argv0 = Argv0;
+    append_range(Res.getCodeGenOpts().CommandLineArgs, CommandLineArgs);
+  }
 
   FixupInvocation(Res, Diags, Args, DashX);
 

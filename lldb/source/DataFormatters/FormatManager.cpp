@@ -11,6 +11,7 @@
 #include "lldb/Core/Debugger.h"
 #include "lldb/DataFormatters/FormattersHelpers.h"
 #include "lldb/DataFormatters/LanguageCategory.h"
+#include "lldb/Interpreter/ScriptInterpreter.h"
 #include "lldb/Target/ExecutionContext.h"
 #include "lldb/Target/Language.h"
 #include "lldb/Utility/LLDBLog.h"
@@ -178,19 +179,24 @@ void FormatManager::GetPossibleMatches(
     FormattersMatchCandidate::Flags current_flags, bool root_level) {
   compiler_type = compiler_type.GetTypeForFormatters();
   ConstString type_name(compiler_type.GetTypeName());
+  ScriptInterpreter *script_interpreter =
+      valobj.GetTargetSP()->GetDebugger().GetScriptInterpreter();
   if (valobj.GetBitfieldBitSize() > 0) {
     StreamString sstring;
     sstring.Printf("%s:%d", type_name.AsCString(), valobj.GetBitfieldBitSize());
     ConstString bitfieldname(sstring.GetString());
-    entries.push_back({bitfieldname, current_flags});
+    entries.push_back({bitfieldname, script_interpreter,
+                       TypeImpl(compiler_type), current_flags});
   }
 
   if (!compiler_type.IsMeaninglessWithoutDynamicResolution()) {
-    entries.push_back({type_name, current_flags});
+    entries.push_back({type_name, script_interpreter, TypeImpl(compiler_type),
+                       current_flags});
 
     ConstString display_type_name(compiler_type.GetTypeName());
     if (display_type_name != type_name)
-      entries.push_back({display_type_name, current_flags});
+      entries.push_back({display_type_name, script_interpreter,
+                         TypeImpl(compiler_type), current_flags});
   }
 
   for (bool is_rvalue_ref = true, j = true;
@@ -245,9 +251,9 @@ void FormatManager::GetPossibleMatches(
   for (lldb::LanguageType language_type :
        GetCandidateLanguages(valobj.GetObjectRuntimeLanguage())) {
     if (Language *language = Language::FindPlugin(language_type)) {
-      for (ConstString candidate :
+      for (const FormattersMatchCandidate& candidate :
            language->GetPossibleFormattersMatches(valobj, use_dynamic)) {
-        entries.push_back({candidate, current_flags});
+        entries.push_back(candidate);
       }
     }
   }
@@ -707,16 +713,14 @@ void FormatManager::LoadSystemFormatters() {
   lldb::TypeSummaryImplSP string_array_format(
       new StringSummaryFormat(string_array_flags, "${var%char[]}"));
 
-  RegularExpression any_size_char_arr(R"(^((un)?signed )?char ?\[[0-9]+\]$)");
-
   TypeCategoryImpl::SharedPointer sys_category_sp =
       GetCategory(m_system_category_name);
 
-  sys_category_sp->GetRegexTypeSummariesContainer()->Add(
-      RegularExpression(R"(^(unsigned )?char ?(\*|\[\])$)"), string_format);
+  sys_category_sp->AddTypeSummary(R"(^(unsigned )?char ?(\*|\[\])$)",
+                                  eFormatterMatchRegex, string_format);
 
-  sys_category_sp->GetRegexTypeSummariesContainer()->Add(
-      std::move(any_size_char_arr), string_array_format);
+  sys_category_sp->AddTypeSummary(R"(^((un)?signed )?char ?\[[0-9]+\]$)",
+                                  eFormatterMatchRegex, string_array_format);
 
   lldb::TypeSummaryImplSP ostype_summary(
       new StringSummaryFormat(TypeSummaryImpl::Flags()
@@ -729,8 +733,8 @@ void FormatManager::LoadSystemFormatters() {
                                   .SetHideItemNames(false),
                               "${var%O}"));
 
-  sys_category_sp->GetTypeSummariesContainer()->Add(ConstString("OSType"),
-                                                    ostype_summary);
+  sys_category_sp->AddTypeSummary("OSType", eFormatterMatchExact,
+                                  ostype_summary);
 
   TypeFormatImpl::Flags fourchar_flags;
   fourchar_flags.SetCascades(true).SetSkipPointers(true).SetSkipReferences(

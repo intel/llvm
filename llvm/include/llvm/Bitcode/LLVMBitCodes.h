@@ -349,7 +349,8 @@ enum MetadataCodes {
   // info.
   METADATA_COMMON_BLOCK = 44,     // [distinct, scope, name, variable,...]
   METADATA_GENERIC_SUBRANGE = 45, // [distinct, count, lo, up, stride]
-  METADATA_ARG_LIST = 46          // [n x [type num, value num]]
+  METADATA_ARG_LIST = 46,         // [n x [type num, value num]]
+  METADATA_ASSIGN_ID = 47,        // [distinct, ...]
 };
 
 // The constants block (CONSTANTS_BLOCK_ID) describes emission for each
@@ -690,6 +691,7 @@ enum AttributeKindCodes {
   ATTR_KIND_PRESPLIT_COROUTINE = 83,
   ATTR_KIND_FNRETTHUNK_EXTERN = 84,
   ATTR_KIND_SKIP_PROFILE = 85,
+  ATTR_KIND_MEMORY = 86,
 };
 
 enum ComdatSelectionKindCodes {

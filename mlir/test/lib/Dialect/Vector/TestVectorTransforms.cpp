@@ -235,39 +235,40 @@ struct TestVectorTransposeLowering
   }
 
   void runOnOperation() override {
-    RewritePatternSet patterns(&getContext());
+    func::FuncOp funcOp = getOperation();
+    MLIRContext *context = funcOp.getContext();
+    RewritePatternSet patterns(context);
 
-    // Test on one pattern in isolation.
-    // Explicitly disable shape_cast lowering.
-    LinalgVectorLoweringOptions options = LinalgVectorLoweringOptions()
-                                              .enableVectorTransposeLowering()
-                                              .enableShapeCastLowering(false);
+    vector::VectorTransformsOptions vectorTransformOptions;
     if (lowerToEltwise) {
-      options = options.setVectorTransformsOptions(
-          VectorTransformsOptions().setVectorTransposeLowering(
-              VectorTransposeLowering::EltWise));
+      vectorTransformOptions =
+          vectorTransformOptions.setVectorTransposeLowering(
+              VectorTransposeLowering::EltWise);
     }
     if (lowerToFlatTranspose) {
-      options = options.setVectorTransformsOptions(
-          VectorTransformsOptions().setVectorTransposeLowering(
-              VectorTransposeLowering::Flat));
+      vectorTransformOptions =
+          vectorTransformOptions.setVectorTransposeLowering(
+              VectorTransposeLowering::Flat);
     }
     if (lowerToShuffleTranspose) {
-      options = options.setVectorTransformsOptions(
-          VectorTransformsOptions().setVectorTransposeLowering(
-              VectorTransposeLowering::Shuffle));
+      vectorTransformOptions =
+          vectorTransformOptions.setVectorTransposeLowering(
+              VectorTransposeLowering::Shuffle);
     }
+    vector::populateVectorTransposeLoweringPatterns(patterns,
+                                                    vectorTransformOptions);
+
     if (lowerToAvx2) {
-      options = options.enableAVX2Lowering().setAVX2LoweringOptions(
+      auto avx2LoweringOptions =
           x86vector::avx2::LoweringOptions().setTransposeOptions(
               x86vector::avx2::TransposeLoweringOptions()
                   .lower4x8xf32()
-                  .lower8x8xf32()));
+                  .lower8x8xf32());
+      x86vector::avx2::populateSpecializedTransposeLoweringPatterns(
+          patterns, avx2LoweringOptions, /*benefit=*/10);
     }
 
-    OpPassManager dynamicPM("func.func");
-    dynamicPM.addPass(createLinalgStrategyLowerVectorsPass(options));
-    if (failed(runPipeline(dynamicPM, getOperation())))
+    if (failed(applyPatternsAndFoldGreedily(funcOp, std::move(patterns))))
       return signalPassFailure();
   }
 };
@@ -745,24 +746,26 @@ struct TestVectorDistribution
       }
     });
     MLIRContext *ctx = &getContext();
+    auto distributionFn = [](Value val) {
+      // Create a map (d0, d1) -> (d1) to distribute along the inner
+      // dimension. Once we support n-d distribution we can add more
+      // complex cases.
+      VectorType vecType = val.getType().dyn_cast<VectorType>();
+      int64_t vecRank = vecType ? vecType.getRank() : 0;
+      OpBuilder builder(val.getContext());
+      if (vecRank == 0)
+        return AffineMap::get(val.getContext());
+      return AffineMap::get(vecRank, 0, builder.getAffineDimExpr(vecRank - 1));
+    };
     if (distributeTransferWriteOps) {
-      auto distributionFn = [](vector::TransferWriteOp writeOp) {
-        // Create a map (d0, d1) -> (d1) to distribute along the inner
-        // dimension. Once we support n-d distribution we can add more
-        // complex cases.
-        int64_t vecRank = writeOp.getVectorType().getRank();
-        OpBuilder builder(writeOp.getContext());
-        auto map =
-            AffineMap::get(vecRank, 0, builder.getAffineDimExpr(vecRank - 1));
-        return map;
-      };
       RewritePatternSet patterns(ctx);
       populateDistributeTransferWriteOpPatterns(patterns, distributionFn);
       (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
     }
     if (propagateDistribution) {
       RewritePatternSet patterns(ctx);
-      vector::populatePropagateWarpVectorDistributionPatterns(patterns);
+      vector::populatePropagateWarpVectorDistributionPatterns(patterns,
+                                                              distributionFn);
       vector::populateDistributeReduction(patterns, warpReduction);
       (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
     }
