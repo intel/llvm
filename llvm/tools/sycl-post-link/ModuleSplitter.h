@@ -254,7 +254,8 @@ std::unique_ptr<ModuleSplitterBase>
 getLargeGRFSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints);
 
 std::unique_ptr<ModuleSplitterBase>
-getPropertiesBasedSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints);
+getSplitterByOptionalFeatures(ModuleDesc &&MD,
+                              bool EmitOnlyKernelsAsEntryPoints);
 
 #ifndef NDEBUG
 void dumpEntryPoints(const EntryPointSet &C, const char *msg = "", int Tab = 0);

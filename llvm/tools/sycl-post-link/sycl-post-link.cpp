@@ -758,7 +758,7 @@ processInputModule(std::unique_ptr<Module> M) {
                                       EmitOnlyKernelsAsEntryPoints);
 
   SmallVector<module_split::ModuleDesc, 8> TopLevelModules;
-  bool SplitByProperties = false;
+  bool SplitByOptionalFeatures = false;
 
   // FIXME: this check should be performed on all split levels
   if (DeviceGlobals)
@@ -766,25 +766,25 @@ processInputModule(std::unique_ptr<Module> M) {
 
   while (ScopedSplitter->hasMoreSplits()) {
     module_split::ModuleDesc MD = ScopedSplitter->nextSplit();
-    std::unique_ptr<module_split::ModuleSplitterBase> PropertiesSplitter =
-        module_split::getPropertiesBasedSplitter(std::move(MD),
-                                                 EmitOnlyKernelsAsEntryPoints);
+    std::unique_ptr<module_split::ModuleSplitterBase> OptionalFeaturesSplitter =
+        module_split::getSplitterByOptionalFeatures(
+            std::move(MD), EmitOnlyKernelsAsEntryPoints);
 
     // Here we perform second-level splitting based on device-specific
     // features used/declared in entry points.
     // This step is mandatory, because it is required for functional
     // correctness, i.e. to prevent speculative compilation of kernels that use
     // optional features on a HW which doesn't support them.
-    while (PropertiesSplitter->hasMoreSplits()) {
-      TopLevelModules.emplace_back(PropertiesSplitter->nextSplit());
+    while (OptionalFeaturesSplitter->hasMoreSplits()) {
+      TopLevelModules.emplace_back(OptionalFeaturesSplitter->nextSplit());
     }
 
-    SplitByProperties |= PropertiesSplitter->totalSplits() > 1;
+    SplitByOptionalFeatures |= OptionalFeaturesSplitter->totalSplits() > 1;
   }
 
   const bool SplitByScope = ScopedSplitter->totalSplits() > 1;
   Modified |= SplitByScope;
-  Modified |= SplitByProperties;
+  Modified |= SplitByOptionalFeatures;
 
   // TODO this nested splitting scheme will not scale well when other split
   // "dimensions" will be added. Some infra/"split manager" needs to be
@@ -874,8 +874,8 @@ processInputModule(std::unique_ptr<Module> M) {
         Modified = true;
       }
 
-      bool SplitOccurred =
-          SplitByScope || SplitByLargeGRF || SplitByESIMD || SplitByProperties;
+      bool SplitOccurred = SplitByScope || SplitByLargeGRF || SplitByESIMD ||
+                           SplitByOptionalFeatures;
 
       if (IROutputOnly) {
         if (SplitOccurred) {

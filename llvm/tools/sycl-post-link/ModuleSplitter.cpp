@@ -865,7 +865,8 @@ namespace {
 }
 
 std::unique_ptr<ModuleSplitterBase>
-getPropertiesBasedSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints) {
+getSplitterByOptionalFeatures(ModuleDesc &&MD,
+                              bool EmitOnlyKernelsAsEntryPoints) {
   EntryPointGroupVec Groups;
 
   DenseMap<UsedOptionalFeatures, EntryPointSet, UsedOptionalFeaturesAsKeyInfo>
