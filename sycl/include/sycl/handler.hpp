@@ -2456,8 +2456,7 @@ public:
   /// \param Src is a USM pointer to the source memory.
   /// \param SrcPitch is the pitch of the rows in \param Src.
   /// \param Width is the width in bytes of the 2D region to copy.
-  /// \param Height is the height in number of elements of the 2D region to
-  /// copy.
+  /// \param Height is the height in number of row of the 2D region to copy.
   template <typename T = unsigned char,
             typename = std::enable_if_t<std::is_same_v<T, unsigned char>>>
   void ext_oneapi_memcpy2d(void *Dest, size_t DestPitch, const void *Src,
@@ -2493,8 +2492,7 @@ public:
   /// \param Dest is a USM pointer to the destination memory.
   /// \param DestPitch is the pitch of the rows in \param Dest.
   /// \param Width is the width in number of elements of the 2D region to copy.
-  /// \param Height is the height in number of elements of the 2D region to
-  /// copy.
+  /// \param Height is the height in number of rows of the 2D region to copy.
   template <typename T>
   void ext_oneapi_copy2d(const T *Src, size_t SrcPitch, T *Dest,
                          size_t DestPitch, size_t Width, size_t Height) {
@@ -2530,8 +2528,7 @@ public:
   /// \param Value is the value to fill into the region in \param Dest. Value is
   /// cast as an unsigned char.
   /// \param Width is the width in number of elements of the 2D region to fill.
-  /// \param Height is the height in number of elements of the 2D region to
-  /// fill.
+  /// \param Height is the height in number of rows of the 2D region to fill.
   template <typename T = unsigned char,
             typename = std::enable_if_t<std::is_same_v<T, unsigned char>>>
   void ext_oneapi_memset2d(void *Dest, size_t DestPitch, int Value,
@@ -2561,8 +2558,7 @@ public:
   /// \param Pattern is the pattern to fill into the memory.  T should be
   /// trivially copyable.
   /// \param Width is the width in number of elements of the 2D region to fill.
-  /// \param Height is the height in number of elements of the 2D region to
-  /// fill.
+  /// \param Height is the height in number of rows of the 2D region to fill.
   template <typename T>
   void ext_oneapi_fill2d(void *Dest, size_t DestPitch, const T &Pattern,
                          size_t Width, size_t Height) {

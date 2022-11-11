@@ -421,12 +421,12 @@ public:
         MSrc(Src), MDst(Dst), MSrcPitch(SrcPitch), MDstPitch(DstPitch),
         MWidth(Width), MHeight(Height) {}
 
-  void *getSrc() { return MSrc; }
-  void *getDst() { return MDst; }
-  size_t getSrcPitch() { return MSrcPitch; }
-  size_t getDstPitch() { return MDstPitch; }
-  size_t getWidth() { return MWidth; }
-  size_t getHeight() { return MHeight; }
+  void *getSrc() const { return MSrc; }
+  void *getDst() const { return MDst; }
+  size_t getSrcPitch() const { return MSrcPitch; }
+  size_t getDstPitch() const { return MDstPitch; }
+  size_t getWidth() const { return MWidth; }
+  size_t getHeight() const { return MHeight; }
 };
 
 /// "Fill 2D USM" command group class.
@@ -451,11 +451,11 @@ public:
            std::move(Events), std::move(loc)),
         MPattern(std::move(Pattern)), MDst(DstPtr), MPitch(Pitch),
         MWidth(Width), MHeight(Height) {}
-  void *getDst() { return MDst; }
-  size_t getPitch() { return MPitch; }
-  size_t getWidth() { return MWidth; }
-  size_t getHeight() { return MHeight; }
-  const std::vector<char> &getPattern() { return MPattern; }
+  void *getDst() const { return MDst; }
+  size_t getPitch() const { return MPitch; }
+  size_t getWidth() const { return MWidth; }
+  size_t getHeight() const { return MHeight; }
+  const std::vector<char> &getPattern() const { return MPattern; }
 };
 
 /// "Memset 2D USM" command group class.
@@ -479,11 +479,11 @@ public:
            std::move(Events), std::move(loc)),
         MValue(Value), MDst(DstPtr), MPitch(Pitch), MWidth(Width),
         MHeight(Height) {}
-  void *getDst() { return MDst; }
-  size_t getPitch() { return MPitch; }
-  size_t getWidth() { return MWidth; }
-  size_t getHeight() { return MHeight; }
-  char getValue() { return MValue; }
+  void *getDst() const { return MDst; }
+  size_t getPitch() const { return MPitch; }
+  size_t getWidth() const { return MWidth; }
+  size_t getHeight() const { return MHeight; }
+  char getValue() const { return MValue; }
 };
 
 } // namespace detail

@@ -150,15 +150,59 @@ static sycl::unittest::PiImage generateMemopsImage() {
   return Img;
 }
 
+namespace {
 sycl::unittest::PiImage Imgs[] = {generateMemopsImage()};
 sycl::unittest::PiImageArray<1> ImgArray{Imgs};
 
 size_t LastMemopsQuery = 0;
 
+struct Fill2DStruct {
+  pi_queue queue;
+  void *ptr;
+  size_t pitch;
+  size_t pattern_size;
+  const void *pattern;
+  size_t width;
+  size_t height;
+  pi_uint32 num_events_in_waitlist;
+  const pi_event *events_waitlist;
+  pi_event *event;
+} LastFill2D;
+
+struct Memset2DStruct {
+  pi_queue queue;
+  void *ptr;
+  size_t pitch;
+  int value;
+  size_t width;
+  size_t height;
+  pi_uint32 num_events_in_waitlist;
+  const pi_event *events_waitlist;
+  pi_event *event;
+} LastMemset2D;
+
+struct Memcpy2DStruct {
+  pi_queue queue;
+  pi_bool blocking;
+  void *dst_ptr;
+  size_t dst_pitch;
+  const void *src_ptr;
+  size_t src_pitch;
+  size_t width;
+  size_t height;
+  pi_uint32 num_events_in_waitlist;
+  const pi_event *events_waitlist;
+  pi_event *event;
+} LastMemcpy2D;
+
+std::map<pi_kernel, std::string> KernelToNameMap;
+} // namespace
+
 template <bool MemfillSupported, bool MemsetSupported, bool MemcpySupported>
-pi_result after_piContextGetInfo(pi_context context, pi_context_info param_name,
-                                 size_t param_value_size, void *param_value,
-                                 size_t *param_value_size_ret) {
+inline pi_result
+after_piContextGetInfo(pi_context context, pi_context_info param_name,
+                       size_t param_value_size, void *param_value,
+                       size_t *param_value_size_ret) {
   switch (param_name) {
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT:
     LastMemopsQuery = param_name;
@@ -218,19 +262,6 @@ inline pi_result after_piDeviceGetInfo(pi_device device,
   return PI_SUCCESS;
 }
 
-struct Fill2DStruct {
-  pi_queue queue;
-  void *ptr;
-  size_t pitch;
-  size_t pattern_size;
-  const void *pattern;
-  size_t width;
-  size_t height;
-  pi_uint32 num_events_in_waitlist;
-  const pi_event *events_waitlist;
-  pi_event *event;
-} LastFill2D;
-
 inline pi_result redefine_piextUSMEnqueueFill2D(
     pi_queue queue, void *ptr, size_t pitch, size_t pattern_size,
     const void *pattern, size_t width, size_t height,
@@ -242,18 +273,6 @@ inline pi_result redefine_piextUSMEnqueueFill2D(
                    events_waitlist, event};
   return PI_SUCCESS;
 }
-
-struct Memset2DStruct {
-  pi_queue queue;
-  void *ptr;
-  size_t pitch;
-  int value;
-  size_t width;
-  size_t height;
-  pi_uint32 num_events_in_waitlist;
-  const pi_event *events_waitlist;
-  pi_event *event;
-} LastMemset2D;
 
 inline pi_result redefine_piextUSMEnqueueMemset2D(
     pi_queue queue, void *ptr, size_t pitch, int value, size_t width,
@@ -271,20 +290,6 @@ inline pi_result redefine_piextUSMEnqueueMemset2D(
   return PI_SUCCESS;
 }
 
-struct Memcpy2DStruct {
-  pi_queue queue;
-  pi_bool blocking;
-  void *dst_ptr;
-  size_t dst_pitch;
-  const void *src_ptr;
-  size_t src_pitch;
-  size_t width;
-  size_t height;
-  pi_uint32 num_events_in_waitlist;
-  const pi_event *events_waitlist;
-  pi_event *event;
-} LastMemcpy2D;
-
 inline pi_result redefine_piextUSMEnqueueMemcpy2D(
     pi_queue queue, pi_bool blocking, void *dst_ptr, size_t dst_pitch,
     const void *src_ptr, size_t src_pitch, size_t width, size_t height,
@@ -297,8 +302,6 @@ inline pi_result redefine_piextUSMEnqueueMemcpy2D(
                      events_waitlist, event};
   return PI_SUCCESS;
 }
-
-std::map<pi_kernel, std::string> KernelToNameMap;
 
 inline pi_result after_piKernelCreate(pi_program, const char *kernel_name,
                                       pi_kernel *ret_kernel) {
