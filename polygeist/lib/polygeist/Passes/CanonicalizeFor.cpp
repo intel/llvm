@@ -1571,13 +1571,13 @@ struct WhileLICM : public OpRewritePattern<WhileOp> {
       }
       // If the operation doesn't have side effects and it doesn't recursively
       // have side effects, it can always be hoisted.
-      if (!op->hasTrait<OpTrait::HasRecursiveSideEffects>())
+      if (!op->hasTrait<OpTrait::HasRecursiveMemoryEffects>())
         return true;
 
       // Otherwise, if the operation doesn't provide the memory effect interface
       // and it doesn't have recursive side effects we treat it conservatively
       // as side-effecting.
-    } else if (!op->hasTrait<OpTrait::HasRecursiveSideEffects>()) {
+    } else if (!op->hasTrait<OpTrait::HasRecursiveMemoryEffects>()) {
       return false;
     }
 

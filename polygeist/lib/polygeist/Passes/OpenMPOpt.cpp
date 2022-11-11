@@ -41,7 +41,7 @@ struct OpenMPOpt : public OpenMPOptPassBase<OpenMPOpt> {
 ///       codeB();
 ///    }
 bool isReadOnly(Operation *op) {
-  bool hasRecursiveEffects = op->hasTrait<OpTrait::HasRecursiveSideEffects>();
+  bool hasRecursiveEffects = op->hasTrait<OpTrait::HasRecursiveMemoryEffects>();
   if (hasRecursiveEffects) {
     for (Region &region : op->getRegions()) {
       for (auto &block : region) {
@@ -71,7 +71,7 @@ bool isReadOnly(Operation *op) {
 }
 
 bool mayReadFrom(Operation *op, Value val) {
-  bool hasRecursiveEffects = op->hasTrait<OpTrait::HasRecursiveSideEffects>();
+  bool hasRecursiveEffects = op->hasTrait<OpTrait::HasRecursiveMemoryEffects>();
   if (hasRecursiveEffects) {
     for (Region &region : op->getRegions()) {
       for (auto &block : region) {
@@ -107,7 +107,7 @@ bool isCaptured(Value v, Operation *potentialUser = nullptr,
                 bool *seenuse = nullptr);
 
 bool mayWriteTo(Operation *op, Value val, bool ignoreBarrier) {
-  bool hasRecursiveEffects = op->hasTrait<OpTrait::HasRecursiveSideEffects>();
+  bool hasRecursiveEffects = op->hasTrait<OpTrait::HasRecursiveMemoryEffects>();
   if (hasRecursiveEffects) {
     for (Region &region : op->getRegions()) {
       for (auto &block : region) {

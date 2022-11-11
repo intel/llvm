@@ -68,7 +68,7 @@ static bool canBeParallelHoisted(Operation *op, Operation *scope,
       if (willBeMoved.count(b))
         return false;
 
-      if (b->hasTrait<OpTrait::HasRecursiveSideEffects>()) {
+      if (b->hasTrait<OpTrait::HasRecursiveMemoryEffects>()) {
 
         for (auto &region : b->getRegions()) {
           for (auto &block : region) {
@@ -151,7 +151,7 @@ static bool canBeParallelHoisted(Operation *op, Operation *scope,
          freeResources.size()) &&
         hasConflictBefore(op))
       return false;
-  } else if (!op->hasTrait<OpTrait::HasRecursiveSideEffects>())
+  } else if (!op->hasTrait<OpTrait::HasRecursiveMemoryEffects>())
     return false;
 
   // Recurse into the regions for this op and check whether the contained ops
