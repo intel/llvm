@@ -250,19 +250,19 @@ void getFunctionTypeParameterTypes(llvm::FunctionType *FT,
 
 bool isVoidFuncTy(FunctionType *FT) { return FT->getReturnType()->isVoidTy(); }
 
-bool isOCLImageStructType(llvm::Type *Ty, StringRef *Name) {
-  if (auto *ST = dyn_cast_or_null<StructType>(Ty))
-    if (ST->isOpaque()) {
-      auto FullName = ST->getName();
-      if (FullName.find(kSPR2TypeName::ImagePrefix) == 0) {
-        if (Name)
-          *Name = FullName.drop_front(strlen(kSPR2TypeName::OCLPrefix));
-        return true;
+bool isOCLImageType(llvm::Type *Ty, StringRef *Name) {
+  if (auto *TPT = dyn_cast_or_null<TypedPointerType>(Ty))
+    if (auto *ST = dyn_cast_or_null<StructType>(TPT->getElementType()))
+      if (ST->isOpaque()) {
+        auto FullName = ST->getName();
+        if (FullName.find(kSPR2TypeName::ImagePrefix) == 0) {
+          if (Name)
+            *Name = FullName.drop_front(strlen(kSPR2TypeName::OCLPrefix));
+          return true;
+        }
       }
-    }
   return false;
 }
-
 /// \param BaseTyName is the type Name as in spirv.BaseTyName.Postfixes
 /// \param Postfix contains postfixes extracted from the SPIR-V image
 ///   type Name as spirv.BaseTyName.Postfixes.
@@ -722,15 +722,6 @@ static StringRef stringify(const itanium_demangle::NameType *Node) {
   return StringRef(Str.begin(), Str.size());
 }
 
-void getParameterTypes(Function *F, SmallVectorImpl<Type *> &ArgTys,
-                       std::function<std::string(StringRef)> NameMapFn) {
-  SmallVector<TypedPointerType *, 10> PIPs;
-  getParameterTypes(F, PIPs, std::move(NameMapFn));
-  for (auto *Pair : PIPs) {
-    ArgTys.push_back(Pair ? Pair->getElementType() : nullptr);
-  }
-}
-
 template <typename FnType>
 static TypedPointerType *
 parseNode(Module *M, const llvm::itanium_demangle::Node *ParamType,
@@ -838,14 +829,14 @@ parseNode(Module *M, const llvm::itanium_demangle::Node *ParamType,
   return PointeeTy ? TypedPointerType::get(PointeeTy, AS) : nullptr;
 }
 
-void getParameterTypes(Function *F, SmallVectorImpl<TypedPointerType *> &ArgTys,
+bool getParameterTypes(Function *F, SmallVectorImpl<Type *> &ArgTys,
                        std::function<std::string(StringRef)> NameMapFn) {
   using namespace llvm::itanium_demangle;
   // If there's no mangled name, we can't do anything. Also, if there's no
   // parameters, do nothing.
   StringRef Name = F->getName();
   if (!Name.startswith("_Z") || F->arg_empty())
-    return;
+    return Name.startswith("_Z");
 
   Module *M = F->getParent();
   auto GetStructType = [&](StringRef Name) {
@@ -860,7 +851,7 @@ void getParameterTypes(Function *F, SmallVectorImpl<TypedPointerType *> &ArgTys,
   bool HasSret = false;
   for (Argument &Arg : F->args()) {
     if (!Arg.getType()->isPointerTy())
-      ArgTys.push_back(nullptr);
+      ArgTys.push_back(Arg.getType());
     else if (Type *Ty = Arg.getParamStructRetType()) {
       assert(!HasSret && &Arg == F->getArg(0) &&
              "sret parameter should only appear on the first argument");
@@ -871,7 +862,7 @@ void getParameterTypes(Function *F, SmallVectorImpl<TypedPointerType *> &ArgTys,
       else
         ArgTys.push_back(TypedPointerType::get(Ty, 0));
     } else {
-      ArgTys.push_back(nullptr);
+      ArgTys.push_back(Arg.getType());
     }
   }
 
@@ -894,7 +885,7 @@ void getParameterTypes(Function *F, SmallVectorImpl<TypedPointerType *> &ArgTys,
   // name encoding, bail out.
   auto *RootNode = dyn_cast_or_null<FunctionEncoding>(Demangler.parse());
   if (!RootNode)
-    return;
+    return false;
 
   // Get the parameter list. If the function is a vararg function, drop the last
   // parameter.
@@ -912,7 +903,7 @@ void getParameterTypes(Function *F, SmallVectorImpl<TypedPointerType *> &ArgTys,
     } else {
       LLVM_DEBUG(dbgs() << "[getParameterTypes] function " << MangledName
                         << " was expected to have a varargs parameter\n");
-      return;
+      return false;
     }
   }
 
@@ -923,21 +914,26 @@ void getParameterTypes(Function *F, SmallVectorImpl<TypedPointerType *> &ArgTys,
                       << " appears to have " << Params.size()
                       << " arguments but has " << (ArgTys.end() - ArgIter)
                       << "\n");
-    return;
+    return false;
   }
 
+  // Overwrite the types of pointer-typed arguments with information from
+  // demangling.
+  bool DemangledSuccessfully = true;
   for (auto *ParamType : Params) {
-    Type *ArgTy = F->getArg(ArgIter - ArgTys.begin())->getType();
-    TypedPointerType *PointeeTy = parseNode(M, ParamType, GetStructType);
-    if (ArgTy->isPointerTy() && PointeeTy == nullptr) {
-      PointeeTy = TypedPointerType::get(Type::getInt8Ty(ArgTy->getContext()),
-                                        ArgTy->getPointerAddressSpace());
-      LLVM_DEBUG(dbgs() << "Failed to recover type of argument "
-                        << (ArgIter - ArgTys.begin()) << " of function "
-                        << F->getName() << "\n");
-    }
-    *ArgIter++ = PointeeTy;
+    Type *ArgTy = *ArgIter;
+    Type *DemangledTy = parseNode(M, ParamType, GetStructType);
+    if (ArgTy->isPointerTy() && DemangledTy == nullptr) {
+      DemangledTy = TypedPointerType::get(Type::getInt8Ty(ArgTy->getContext()),
+                                          ArgTy->getPointerAddressSpace());
+      LLVM_DEBUG(dbgs() << "Failed to recover type of argument " << *ArgTy
+                        << " of function " << F->getName() << "\n");
+      DemangledSuccessfully = false;
+    } else if (!DemangledTy)
+      DemangledTy = ArgTy;
+    *ArgIter++ = DemangledTy;
   }
+  return DemangledSuccessfully;
 }
 
 CallInst *mutateCallInst(
@@ -1553,17 +1549,6 @@ bool isSPIRVConstantName(StringRef TyName) {
   return false;
 }
 
-Type *getSPIRVStructTypeByChangeBaseTypeName(Module *M, Type *T,
-                                             StringRef OldName,
-                                             StringRef NewName) {
-  StringRef Postfixes;
-  if (isSPIRVStructType(T, OldName, &Postfixes))
-    return getOrCreateOpaqueStructType(M, getSPIRVTypeName(NewName, Postfixes));
-  LLVM_DEBUG(dbgs() << " Invalid SPIR-V type " << *T << '\n');
-  llvm_unreachable("Invalid SPIR-V type");
-  return nullptr;
-}
-
 std::string getSPIRVImageTypePostfixes(StringRef SampledType,
                                        SPIRVTypeImageDescriptor Desc,
                                        SPIRVAccessQualifierKind Acc) {
@@ -1663,6 +1648,13 @@ std::string mapOCLTypeNameToSPIRV(StringRef Name, StringRef Acc) {
     llvm_unreachable("Not implemented");
   }
   return getSPIRVTypeName(BaseTy, OS.str());
+}
+
+SPIRVTypeImageDescriptor getImageDescriptor(Type *Ty) {
+  StringRef TyName;
+  [[maybe_unused]] bool IsImg = isOCLImageType(Ty, &TyName);
+  assert(IsImg && "Must be an image type");
+  return map<SPIRVTypeImageDescriptor>(getImageBaseTypeName(TyName));
 }
 
 bool eraseIfNoUse(Function *F) {
@@ -1823,19 +1815,6 @@ StringRef getAccessQualifierFullName(StringRef TyName) {
       .Case(kAccessQualPostfix::ReadOnly, kAccessQualName::ReadOnly)
       .Case(kAccessQualPostfix::WriteOnly, kAccessQualName::WriteOnly)
       .Case(kAccessQualPostfix::ReadWrite, kAccessQualName::ReadWrite);
-}
-
-/// Translates OpenCL image type names to SPIR-V.
-Type *adaptSPIRVImageType(Module *M, Type *PointeeType) {
-  if (isOCLImageStructType(PointeeType)) {
-    auto ImageTypeName = PointeeType->getStructName();
-    StringRef Acc = kAccessQualName::ReadOnly;
-    if (hasAccessQualifiedName(ImageTypeName))
-      Acc = getAccessQualifierFullName(ImageTypeName);
-    return getOrCreateOpaqueStructType(
-        M, mapOCLTypeNameToSPIRV(ImageTypeName, Acc));
-  }
-  return PointeeType;
 }
 
 llvm::PointerType *getOCLClkEventType(Module *M) {
@@ -2065,8 +2044,10 @@ bool lowerBuiltinVariableToCall(GlobalVariable *GV,
     Func = Function::Create(FT, GlobalValue::ExternalLinkage, MangledName, M);
     Func->setCallingConv(CallingConv::SPIR_FUNC);
     Func->addFnAttr(Attribute::NoUnwind);
-    Func->addFnAttr(Attribute::ReadNone);
     Func->addFnAttr(Attribute::WillReturn);
+    for (llvm::Argument &Arg : Func->args())
+      if (Arg.getType()->isPointerTy())
+        Arg.addAttr(Attribute::ReadNone);
   }
 
   // Collect instructions in these containers to remove them later.

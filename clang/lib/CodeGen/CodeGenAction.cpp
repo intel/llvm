@@ -867,7 +867,8 @@ void BackendConsumer::AspectMismatchDiagHandler(
   assert(LocCookie.isValid() &&
          "Invalid location for caller in aspect mismatch diagnostic");
   Diags.Report(LocCookie, diag::warn_sycl_device_has_aspect_mismatch)
-      << llvm::demangle(D.getFunctionName().str()) << D.getAspect();
+      << llvm::demangle(D.getFunctionName().str()) << D.getAspect()
+      << D.isFromDeviceHasAttribute();
   for (const std::pair<StringRef, unsigned> &CalleeInfo : D.getCallChain()) {
     LocCookie = SourceLocation::getFromRawEncoding(CalleeInfo.second);
     assert(LocCookie.isValid() &&
@@ -1127,6 +1128,8 @@ std::unique_ptr<llvm::Module>
 CodeGenAction::loadModule(MemoryBufferRef MBRef) {
   CompilerInstance &CI = getCompilerInstance();
   SourceManager &SM = CI.getSourceManager();
+
+  VMContext->setOpaquePointers(CI.getCodeGenOpts().OpaquePointers);
 
   // For ThinLTO backend invocations, ensure that the context
   // merges types based on ODR identifiers. We also need to read

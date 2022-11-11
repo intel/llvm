@@ -283,8 +283,8 @@ def err_avx_calling_convention : Error<warn_avx_calling_convention.Text>;
 
 def warn_sycl_device_has_aspect_mismatch
     : Warning<"function '%0' uses aspect '%1' not listed in its "
-              "'sycl::device_has' attribute">, BackendInfo,
-              InGroup<SyclAspectMismatch>;
+              "%select{'device_has' property|'sycl::device_has' attribute}2">,
+              BackendInfo, InGroup<SyclAspectMismatch>;
 def note_sycl_aspect_propagated_from_call
     : Note<"propagated from call to function '%0'">, BackendInfo;
 

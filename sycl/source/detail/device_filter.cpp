@@ -179,6 +179,7 @@ Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envStr) {
   }
 
   std::vector<std::string_view> Entries = tokenize(envStr, ";");
+  unsigned int negative_filters = 0;
   // Each entry: "level_zero:gpu" or "opencl:0.0,0.1" or "opencl:*" but NOT just
   // "opencl".
   unsigned int positive_filters = 0;
@@ -196,10 +197,18 @@ Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envStr) {
         ods_target DeviceTarget(be);
         if (Entry[0] == '!') { // negative filter
           DeviceTarget.IsNegativeTarget = true;
-        }
-        else { // positive filter
+          ++negative_filters;
+        } else { // positive filter
           // no need to set IsNegativeTarget=false because it is so by default.
-          ++positive_filters; 
+          // ensure that no negative filter has been seen because all
+          // negative filters must come after all positive filters
+          if (negative_filters > 0) {
+            std::stringstream ss;
+            ss << "All negative(discarding) filters must appear after all "
+                  "positive(accepting) filters!";
+            throw sycl::exception(sycl::make_error_code(errc::invalid),
+                                  ss.str());
+          }
         }
         Parse_ODS_Device(DeviceTarget, TargetStr);
         Result.push_back(DeviceTarget);
@@ -216,11 +225,20 @@ Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envStr) {
   // contains at least one negative filter but no positive filters.
   // This means that no devices will be available at all and so its as if
   // the filter list was empty because the negative filters do not have any
+<<<<<<< HEAD
   // any effect. Hoewever, it is desirable to be able to set the 
   // ONEAPI_DEVICE_SELECTOR=!*:gpu to consider all devices except gpu
   // devices so that we must implicitly add an acceptall target to the 
   // list of targets to make this work.
   if (!Result.empty() && !positive_filters) {
+=======
+  // any effect. Hoewever, it is desirable to be able to set the
+  // ONEAPI_DEVICE_SELECTOR=!*:gpu to consider all devices except gpu
+  // devices so that we must implicitly add an acceptall target to the
+  // list of targets to make this work. So the result will be as if
+  // the filter string had the *:* string in it.
+  if (!Result.empty() && negative_filters == Result.size()) {
+>>>>>>> 98dda9df660379fcc5c892fa5f79b6c9e2065ad0
     ods_target acceptAll{backend::all};
     acceptAll.DeviceType = info::device_type::all;
     Result.push_back(acceptAll);
@@ -261,10 +279,13 @@ ods_target_list::ods_target_list(const std::string &envStr) {
 // 1. Filter backend is '*' which means ANY backend.
 // 2. Filter backend match exactly with the given 'Backend'
 bool ods_target_list::backendCompatible(backend Backend) {
+
+  bool isESIMD = Backend == backend::ext_intel_esimd_emulator;
   return std::any_of(
       TargetList.begin(), TargetList.end(), [&](ods_target &Target) {
         backend TargetBackend = Target.Backend.value_or(backend::all);
-        return (TargetBackend == Backend) || (TargetBackend == backend::all);
+        return (TargetBackend == Backend) ||
+               (TargetBackend == backend::all && !isESIMD);
       });
 }
 

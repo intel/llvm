@@ -449,7 +449,8 @@ void DiagnosticInfoDontCall::print(DiagnosticPrinter &DP) const {
 
 void llvm::diagnoseAspectsMismatch(const Function *F,
                                    const SmallVector<Function *, 8> &CallChain,
-                                   StringRef Aspect) {
+                                   StringRef Aspect,
+                                   bool FromDeviceHasAttribute) {
   unsigned LocCookie = 0;
   if (MDNode *MD = F->getMetadata("srcloc"))
     LocCookie =
@@ -466,7 +467,7 @@ void llvm::diagnoseAspectsMismatch(const Function *F,
   }
 
   DiagnosticInfoAspectsMismatch D(F->getName(), LocCookie, LoweredCallChain,
-                                  Aspect);
+                                  Aspect, FromDeviceHasAttribute);
   F->getContext().diagnose(D);
 }
 
