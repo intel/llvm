@@ -2719,17 +2719,17 @@ private:
     id<2> Iterations = (Chunk + id<2>{Height, Width} - 1) / Chunk;
     parallel_for<class __usmmemcpy2d<T>>(
         range<2>{Chunk[0], Chunk[1]}, [=](id<2> Index) {
-          T *CastedDest = static_cast<T *>(Dest);
-          const T *CastedSrc = static_cast<const T *>(Src);
-          for (uint32_t I = 0; I < Iterations[0]; ++I) {
-            for (uint32_t J = 0; J < Iterations[1]; ++J) {
-              id<2> adjustedIndex = Index + Chunk * id<2>{I, J};
-              if (adjustedIndex[0] < Height && adjustedIndex[1] < Width) {
-                CastedDest[adjustedIndex[0] * DestPitch + adjustedIndex[1]] =
-                    CastedSrc[adjustedIndex[0] * SrcPitch + adjustedIndex[1]];
-              }
-            }
+      T *CastedDest = static_cast<T *>(Dest);
+      const T *CastedSrc = static_cast<const T *>(Src);
+      for (uint32_t I = 0; I < Iterations[0]; ++I) {
+        for (uint32_t J = 0; J < Iterations[1]; ++J) {
+          id<2> adjustedIndex = Index + Chunk * id<2>{I, J};
+          if (adjustedIndex[0] < Height && adjustedIndex[1] < Width) {
+            CastedDest[adjustedIndex[0] * DestPitch + adjustedIndex[1]] =
+                CastedSrc[adjustedIndex[0] * SrcPitch + adjustedIndex[1]];
           }
+        }
+      }
         });
   }
 
@@ -2744,16 +2744,16 @@ private:
     id<2> Iterations = (Chunk + id<2>{Height, Width} - 1) / Chunk;
     parallel_for<class __usmfill2d<T>>(
         range<2>{Chunk[0], Chunk[1]}, [=](id<2> Index) {
-          T *CastedDest = static_cast<T *>(Dest);
-          for (uint32_t I = 0; I < Iterations[0]; ++I) {
-            for (uint32_t J = 0; J < Iterations[1]; ++J) {
-              id<2> adjustedIndex = Index + Chunk * id<2>{I, J};
-              if (adjustedIndex[0] < Height && adjustedIndex[1] < Width) {
-                CastedDest[adjustedIndex[0] * DestPitch + adjustedIndex[1]] =
-                    Pattern;
-              }
-            }
+      T *CastedDest = static_cast<T *>(Dest);
+      for (uint32_t I = 0; I < Iterations[0]; ++I) {
+        for (uint32_t J = 0; J < Iterations[1]; ++J) {
+          id<2> adjustedIndex = Index + Chunk * id<2>{I, J};
+          if (adjustedIndex[0] < Height && adjustedIndex[1] < Width) {
+            CastedDest[adjustedIndex[0] * DestPitch + adjustedIndex[1]] =
+                Pattern;
           }
+        }
+      }
         });
   }
 
