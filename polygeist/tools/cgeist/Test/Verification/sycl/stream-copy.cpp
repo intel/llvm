@@ -42,7 +42,6 @@ void host_stream_copy(std::array<int, N> &A, std::array<int, N> &B) {
 int main() {
   std::array<int, N> A{0};
   std::array<int, N> B{0};
-  std::array<int, N> C{0};
   for (unsigned i = 0; i < N; ++i) {
     B[i] = i;
   }
