@@ -50,7 +50,7 @@ def BarrierOp
 //===----------------------------------------------------------------------===//
 
 def SubIndexOp : Polygeist_Op<"subindex", [
-  ViewLikeOpInterface, NoSideEffect
+  ViewLikeOpInterface, Pure
 ]> {
   let summary = "memref subview operation";
 
@@ -67,7 +67,7 @@ def SubIndexOp : Polygeist_Op<"subindex", [
 
 
 def StreamToTokenOp : Polygeist_Op<"stream2token", [
-  NoSideEffect
+  Pure
 ]> {
   let summary = "Extract an async stream from a cuda stream";
 
@@ -80,7 +80,7 @@ def StreamToTokenOp : Polygeist_Op<"stream2token", [
 //===----------------------------------------------------------------------===//
 
 def Memref2PointerOp : Polygeist_Op<"memref2pointer", [
-  ViewLikeOpInterface, NoSideEffect
+  ViewLikeOpInterface, Pure
 ]> {
   let summary = "Extract and LLVM pointer from a MemRef";
 
@@ -96,7 +96,7 @@ def Memref2PointerOp : Polygeist_Op<"memref2pointer", [
 }
 
 def Pointer2MemrefOp : Polygeist_Op<"pointer2memref", [
-  ViewLikeOpInterface, NoSideEffect
+  ViewLikeOpInterface, Pure
 ]> {
   let summary = "Upgrade a pointer to a memref";
 
@@ -118,7 +118,7 @@ def TrivialUseOp : Polygeist_Op<"trivialuse"> {
 
 }
 
-def TypeSizeOp : Polygeist_Op<"typeSize", [NoSideEffect]> {
+def TypeSizeOp : Polygeist_Op<"typeSize", [Pure]> {
   let summary = "Get size of type";
   let arguments = (ins TypeAttr : $source);
   let results = (outs AnyType : $result);
@@ -126,7 +126,7 @@ def TypeSizeOp : Polygeist_Op<"typeSize", [NoSideEffect]> {
   let hasCanonicalizer = 1;
 }
 
-def TypeAlignOp : Polygeist_Op<"typeAlign", [NoSideEffect]> {
+def TypeAlignOp : Polygeist_Op<"typeAlign", [Pure]> {
   let summary = "Get alignment of type";
   let arguments = (ins TypeAttr : $source);
   let results = (outs AnyType : $result);

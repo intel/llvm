@@ -3,8 +3,12 @@
 
 #include <sycl/sycl.hpp>
 
-// CHECK-MLIR-DAG: !sycl_accessor_1_i32_read_write_global_buffer = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl.accessor_impl_device<[1], (!sycl.id<1>, !sycl.range<1>, !sycl.range<1>)>, !llvm.struct<(ptr<i32, 1>)>)>
-// CHECK-MLIR-DAG: !sycl_accessor_2_i32_read_write_global_buffer = !sycl.accessor<[2, i32, read_write, global_buffer], (!sycl.accessor_impl_device<[2], (!sycl.id<2>, !sycl.range<2>, !sycl.range<2>)>, !llvm.struct<(ptr<i32, 1>)>)>
+// CHECK-MLIR-DAG: !sycl_id_1_ = !sycl.id<1>
+// CHECK-MLIR-DAG: !sycl_id_2_ = !sycl.id<2>
+// CHECK-MLIR-DAG: !sycl_range_1_ = !sycl.range<1>
+// CHECK-MLIR-DAG: !sycl_range_2_ = !sycl.range<2>
+// CHECK-MLIR-DAG: !sycl_accessor_1_i32_read_write_global_buffer = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>, !llvm.struct<(ptr<i32, 1>)>)>
+// CHECK-MLIR-DAG: !sycl_accessor_2_i32_read_write_global_buffer = !sycl.accessor<[2, i32, read_write, global_buffer], (!sycl.accessor_impl_device<[2], (!sycl_id_2_, !sycl_range_2_, !sycl_range_2_)>, !llvm.struct<(ptr<i32, 1>)>)>
 // CHECK-MLIR-DAG: !sycl_array_1_ = !sycl.array<[1], (memref<1xi64, 4>)>
 // CHECK-MLIR-DAG: !sycl_array_2_ = !sycl.array<[2], (memref<2xi64, 4>)>
 

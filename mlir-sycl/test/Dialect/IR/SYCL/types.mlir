@@ -56,6 +56,8 @@ func.func @_Z7range_2N2cl4sycl5rangeILi2EEE(%arg0: !sycl.range<2>) attributes {l
   return
 }
 
+// -----
+
 ////////////////////////////////////////////////////////////////////////////////
 // ND_RANGE
 ////////////////////////////////////////////////////////////////////////////////
@@ -71,6 +73,8 @@ func.func @_Z10nd_range_1N4sycl3_V18nd_rangeILi1EEE(%arg0: !sycl.nd_range<[1], (
 func.func @_Z10nd_range_2N4sycl3_V18nd_rangeILi2EEE(%arg0: !sycl.nd_range<[2], (!sycl.range<2>, !sycl.range<2>, !sycl.id<2>)>) attributes {llvm.linkage = #llvm.linkage<external>} {
   return
 }
+
+// -----
 
 ////////////////////////////////////////////////////////////////////////////////
 // ARRAY
@@ -88,6 +92,8 @@ func.func @_Z5arr_2N2cl4sycl6detail5arrayILi2EEE(%arg0: !sycl.array<[2], (memref
   return
 }
 
+// -----
+
 ////////////////////////////////////////////////////////////////////////////////
 // ITEM
 ////////////////////////////////////////////////////////////////////////////////
@@ -104,6 +110,8 @@ func.func @_Z12item_2_falseN2cl4sycl4itemILi2ELb0EEE(%arg0: !sycl_item_2_0_) att
   return
 }
 
+// -----
+
 ////////////////////////////////////////////////////////////////////////////////
 // ND_ITEM 
 ////////////////////////////////////////////////////////////////////////////////
@@ -119,6 +127,8 @@ func.func @_Z9nd_item_1N2cl4sycl7nd_itemILi1EEE(%arg0: !sycl_nd_item_1_) attribu
 func.func @_Z9nd_item_2N2cl4sycl7nd_itemILi2EEE(%arg0: !sycl_nd_item_2_) attributes {llvm.linkage = #llvm.linkage<external>} {
   return
 }
+
+// -----
 
 ////////////////////////////////////////////////////////////////////////////////
 // GROUP

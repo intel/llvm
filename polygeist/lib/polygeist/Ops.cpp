@@ -68,7 +68,7 @@ bool collectEffects(Operation *op,
     llvm::append_range(effects, localEffects);
     return true;
   }
-  if (op->hasTrait<OpTrait::HasRecursiveSideEffects>()) {
+  if (op->hasTrait<OpTrait::HasRecursiveMemoryEffects>()) {
     for (auto &region : op->getRegions()) {
       for (auto &block : region) {
         for (auto &innerOp : block)
@@ -192,7 +192,7 @@ void BarrierOp::getEffects(
 }
 
 bool isReadNone(Operation *op) {
-  bool hasRecursiveEffects = op->hasTrait<OpTrait::HasRecursiveSideEffects>();
+  bool hasRecursiveEffects = op->hasTrait<OpTrait::HasRecursiveMemoryEffects>();
   if (hasRecursiveEffects) {
     for (Region &region : op->getRegions()) {
       for (Block &block : region) {
@@ -2283,7 +2283,7 @@ struct AlwaysAllocaScopeHoister : public OpRewritePattern<T> {
 static bool isOpItselfPotentialAutomaticAllocation(Operation *op) {
   // This op itself doesn't create a stack allocation,
   // the inner allocation should be handled separately.
-  if (op->hasTrait<OpTrait::HasRecursiveSideEffects>())
+  if (op->hasTrait<OpTrait::HasRecursiveMemoryEffects>())
     return false;
   MemoryEffectOpInterface interface = dyn_cast<MemoryEffectOpInterface>(op);
   if (!interface)

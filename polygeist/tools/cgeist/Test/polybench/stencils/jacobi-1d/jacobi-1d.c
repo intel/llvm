@@ -132,13 +132,13 @@ int main(int argc, char** argv)
   return 0;
 }
 
-// CHECK: #map = affine_map<()[s0] -> (s0 - 1)>
+// CHECK: [[MAP:#map.*]] = affine_map<()[s0] -> (s0 - 1)>
 // CHECK: func @kernel_jacobi_1d(%arg0: i32, %arg1: i32, %arg2: memref<?xf64>, %arg3: memref<?xf64>)
 // CHECK-NEXT:      %cst = arith.constant 3.333300e-01 : f64
 // CHECK-NEXT:      %0 = arith.index_cast %arg1 : i32 to index
 // CHECK-NEXT:      %1 = arith.index_cast %arg0 : i32 to index
 // CHECK-NEXT:      affine.for %arg4 = 0 to %1 {
-// CHECK-NEXT:        affine.for %arg5 = 1 to #map()[%0] {
+// CHECK-NEXT:        affine.for %arg5 = 1 to [[MAP]]()[%0] {
 // CHECK-NEXT:          %2 = affine.load %arg2[%arg5 - 1] : memref<?xf64>
 // CHECK-NEXT:          %3 = affine.load %arg2[%arg5] : memref<?xf64>
 // CHECK-NEXT:          %4 = arith.addf %2, %3 : f64
@@ -147,7 +147,7 @@ int main(int argc, char** argv)
 // CHECK-NEXT:          %7 = arith.mulf %6, %cst : f64
 // CHECK-NEXT:          affine.store %7, %arg3[%arg5] : memref<?xf64>
 // CHECK-NEXT:        }
-// CHECK-NEXT:        affine.for %arg5 = 1 to #map()[%0] {
+// CHECK-NEXT:        affine.for %arg5 = 1 to [[MAP]]()[%0] {
 // CHECK-NEXT:          %2 = affine.load %arg3[%arg5 - 1] : memref<?xf64>
 // CHECK-NEXT:          %3 = affine.load %arg3[%arg5] : memref<?xf64>
 // CHECK-NEXT:          %4 = arith.addf %2, %3 : f64

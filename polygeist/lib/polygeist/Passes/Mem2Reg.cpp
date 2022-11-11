@@ -1272,7 +1272,7 @@ bool Mem2Reg::forwardStoreToLoad(
       SmallVector<Operation *> capEffects;
       AI.getDefiningOp()->getParentOp()->walk([&](Operation *op) {
         bool opMayHaveEffect = false;
-        if (op->hasTrait<OpTrait::HasRecursiveSideEffects>())
+        if (op->hasTrait<OpTrait::HasRecursiveMemoryEffects>())
           return;
         if (auto callOp = dyn_cast<mlir::LLVM::CallOp>(op)) {
           if (callOp.getCallee() && (*callOp.getCallee() == "printf" ||
