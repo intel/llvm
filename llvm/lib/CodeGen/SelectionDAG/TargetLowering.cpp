@@ -12,6 +12,7 @@
 
 #include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/Analysis/VectorUtils.h"
 #include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/CodeGenCommonISel.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
@@ -1291,25 +1292,10 @@ bool TargetLowering::SimplifyDemandedBits(
     ArrayRef<int> ShuffleMask = cast<ShuffleVectorSDNode>(Op)->getMask();
 
     // Collect demanded elements from shuffle operands..
-    APInt DemandedLHS(NumElts, 0);
-    APInt DemandedRHS(NumElts, 0);
-    for (unsigned i = 0; i != NumElts; ++i) {
-      if (!DemandedElts[i])
-        continue;
-      int M = ShuffleMask[i];
-      if (M < 0) {
-        // For UNDEF elements, we don't know anything about the common state of
-        // the shuffle result.
-        DemandedLHS.clearAllBits();
-        DemandedRHS.clearAllBits();
-        break;
-      }
-      assert(0 <= M && M < (int)(2 * NumElts) && "Shuffle index out of range");
-      if (M < (int)NumElts)
-        DemandedLHS.setBit(M);
-      else
-        DemandedRHS.setBit(M - NumElts);
-    }
+    APInt DemandedLHS, DemandedRHS;
+    if (!getShuffleDemandedElts(NumElts, ShuffleMask, DemandedElts, DemandedLHS,
+                                DemandedRHS))
+      break;
 
     if (!!DemandedLHS || !!DemandedRHS) {
       SDValue Op0 = Op.getOperand(0);
@@ -9227,9 +9213,13 @@ SDValue TargetLowering::expandShlSat(SDNode *Node, SelectionDAG &DAG) const {
   assert(VT == RHS.getValueType() && "Expected operands to be the same type");
   assert(VT.isInteger() && "Expected operands to be integers");
 
+  if (VT.isVector() && !isOperationLegalOrCustom(ISD::VSELECT, VT))
+    return DAG.UnrollVectorOp(Node);
+
   // If LHS != (LHS << RHS) >> RHS, we have overflow and must saturate.
 
   unsigned BW = VT.getScalarSizeInBits();
+  EVT BoolVT = getSetCCResultType(DAG.getDataLayout(), *DAG.getContext(), VT);
   SDValue Result = DAG.getNode(ISD::SHL, dl, VT, LHS, RHS);
   SDValue Orig =
       DAG.getNode(IsSigned ? ISD::SRA : ISD::SRL, dl, VT, Result, RHS);
@@ -9238,14 +9228,14 @@ SDValue TargetLowering::expandShlSat(SDNode *Node, SelectionDAG &DAG) const {
   if (IsSigned) {
     SDValue SatMin = DAG.getConstant(APInt::getSignedMinValue(BW), dl, VT);
     SDValue SatMax = DAG.getConstant(APInt::getSignedMaxValue(BW), dl, VT);
-    SatVal = DAG.getSelectCC(dl, LHS, DAG.getConstant(0, dl, VT),
-                             SatMin, SatMax, ISD::SETLT);
+    SDValue Cond =
+        DAG.getSetCC(dl, BoolVT, LHS, DAG.getConstant(0, dl, VT), ISD::SETLT);
+    SatVal = DAG.getSelect(dl, VT, Cond, SatMin, SatMax);
   } else {
     SatVal = DAG.getConstant(APInt::getMaxValue(BW), dl, VT);
   }
-  Result = DAG.getSelectCC(dl, LHS, Orig, SatVal, Result, ISD::SETNE);
-
-  return Result;
+  SDValue Cond = DAG.getSetCC(dl, BoolVT, LHS, Orig, ISD::SETNE);
+  return DAG.getSelect(dl, VT, Cond, SatVal, Result);
 }
 
 SDValue

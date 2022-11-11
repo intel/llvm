@@ -12941,6 +12941,8 @@ Value *CodeGenFunction::EmitX86CpuIs(StringRef CPUStr) {
   .Case(ALIAS, {1u, static_cast<unsigned>(llvm::X86::ENUM)})
 #define X86_CPU_TYPE(ENUM, STR)                                                \
   .Case(STR, {1u, static_cast<unsigned>(llvm::X86::ENUM)})
+#define X86_CPU_SUBTYPE_ALIAS(ENUM, ALIAS)                                     \
+  .Case(ALIAS, {2u, static_cast<unsigned>(llvm::X86::ENUM)})
 #define X86_CPU_SUBTYPE(ENUM, STR)                                             \
   .Case(STR, {2u, static_cast<unsigned>(llvm::X86::ENUM)})
 #include "llvm/Support/X86TargetParser.def"
@@ -21310,6 +21312,25 @@ Value *CodeGenFunction::EmitHexagonBuiltinExpr(unsigned BuiltinID,
         PredAddr.getAlignment());
     return Builder.CreateExtractValue(Result, 0);
   }
+  // These are identical to the builtins above, except they don't consume
+  // input carry, only generate carry-out. Since they still produce two
+  // outputs, generate the store of the predicate, but no load.
+  case Hexagon::BI__builtin_HEXAGON_V6_vaddcarryo:
+  case Hexagon::BI__builtin_HEXAGON_V6_vaddcarryo_128B:
+  case Hexagon::BI__builtin_HEXAGON_V6_vsubcarryo:
+  case Hexagon::BI__builtin_HEXAGON_V6_vsubcarryo_128B: {
+    // Get the type from the 0-th argument.
+    llvm::Type *VecType = ConvertType(E->getArg(0)->getType());
+    Address PredAddr = Builder.CreateElementBitCast(
+        EmitPointerWithAlignment(E->getArg(2)), VecType);
+    llvm::Value *Result = Builder.CreateCall(CGM.getIntrinsic(ID),
+        {EmitScalarExpr(E->getArg(0)), EmitScalarExpr(E->getArg(1))});
+
+    llvm::Value *PredOut = Builder.CreateExtractValue(Result, 1);
+    Builder.CreateAlignedStore(Q2V(PredOut), PredAddr.getPointer(),
+        PredAddr.getAlignment());
+    return Builder.CreateExtractValue(Result, 0);
+  }
 
   case Hexagon::BI__builtin_HEXAGON_V6_vmaskedstoreq:
   case Hexagon::BI__builtin_HEXAGON_V6_vmaskedstorenq:
@@ -21446,7 +21467,7 @@ RValue CodeGenFunction::EmitIntelFPGAMemBuiltin(const CallExpr *E) {
 
   llvm::Value *Ann = EmitAnnotationCall(F, PtrVal, AnnotStr, SourceLocation());
 
-  cast<CallBase>(Ann)->addFnAttr(llvm::Attribute::ReadNone);
+  cast<CallBase>(Ann)->setDoesNotAccessMemory();
 
   return RValue::get(Ann);
 }

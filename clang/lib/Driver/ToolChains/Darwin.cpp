@@ -381,10 +381,11 @@ void darwin::Linker::AddLinkArgs(Compilation &C, const ArgList &Args,
       D.Diag(diag::err_drv_bitcode_unsupported_on_toolchain);
   }
 
-  // If GlobalISel is enabled, pass it through to LLVM.
-  if (Arg *A = Args.getLastArg(options::OPT_fglobal_isel,
-                               options::OPT_fno_global_isel)) {
-    if (A->getOption().matches(options::OPT_fglobal_isel)) {
+  // GlobalISel is enabled by default on AArch64 Darwin.
+  if (getToolChain().getArch() == llvm::Triple::aarch64) {
+    Arg *A = Args.getLastArg(options::OPT_fglobal_isel,
+                             options::OPT_fno_global_isel);
+    if (!A || !A->getOption().matches(options::OPT_fno_global_isel)) {
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-global-isel");
       // Disable abort and fall back to SDAG silently.
@@ -1353,16 +1354,11 @@ void Darwin::addProfileRTLibs(const ArgList &Args,
   // If we have a symbol export directive and we're linking in the profile
   // runtime, automatically export symbols necessary to implement some of the
   // runtime's functionality.
-  if (hasExportSymbolDirective(Args)) {
-    if (ForGCOV) {
-      addExportedSymbol(CmdArgs, "___gcov_dump");
-      addExportedSymbol(CmdArgs, "___gcov_reset");
-      addExportedSymbol(CmdArgs, "_writeout_fn_list");
-      addExportedSymbol(CmdArgs, "_reset_fn_list");
-    } else {
-      addExportedSymbol(CmdArgs, "___llvm_profile_filename");
-      addExportedSymbol(CmdArgs, "___llvm_profile_raw_version");
-    }
+  if (hasExportSymbolDirective(Args) && ForGCOV) {
+    addExportedSymbol(CmdArgs, "___gcov_dump");
+    addExportedSymbol(CmdArgs, "___gcov_reset");
+    addExportedSymbol(CmdArgs, "_writeout_fn_list");
+    addExportedSymbol(CmdArgs, "_reset_fn_list");
   }
 
   // Align __llvm_prf_{cnts,data} sections to the maximum expected page

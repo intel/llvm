@@ -25,7 +25,7 @@ struct S {
 // CHECK-NEXT:    br label [[COND_END]]
 // CHECK:       cond.end:
 // CHECK-NEXT:    [[COND_LVALUE:%.*]] = phi ptr addrspace(4) [ [[TMP1]], [[COND_TRUE]] ], [ [[RHS_ASCAST]], [[COND_FALSE]] ]
-// CHECK-NEXT:    call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 2 %agg.result, ptr addrspace(4) align 2 [[COND_LVALUE]], i64 2, i1 false), !tbaa.struct !9
+// CHECK-NEXT:    call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 2 %agg.result, ptr addrspace(4) align 2 [[COND_LVALUE]], i64 2, i1 false), !tbaa.struct !{{[0-9]+}}
 // CHECK-NEXT:    ret void
 //
 S foo(bool cond, S &lhs, S rhs) {

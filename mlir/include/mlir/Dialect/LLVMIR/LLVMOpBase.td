@@ -49,6 +49,8 @@ def LLVM_Dialect : Dialect {
     static StringRef getStructRetAttrName() { return "llvm.sret"; }
     static StringRef getInAllocaAttrName() { return "llvm.inalloca"; }
     static StringRef getNoUndefAttrName() { return "llvm.noundef"; }
+    static StringRef getSExtAttrName() { return "llvm.signext"; }
+    static StringRef getZExtAttrName() { return "llvm.zeroext"; }
 
     /// Verifies if the attribute is a well-formed value for "llvm.struct_attrs"
     static LogicalResult verifyStructAttr(
@@ -416,42 +418,6 @@ class LLVM_OneResultIntrOp<string mnem, list<int> overloadedResults = [],
                            list<int> overloadedOperands = [],
                            list<Trait> traits = []>
     : LLVM_IntrOp<mnem, overloadedResults, overloadedOperands, traits, 1>;
-
-// LLVM vector reduction over a single vector.
-class LLVM_VectorReduction<string mnem>
-    : LLVM_OneResultIntrOp<"vector.reduce." # mnem,
-                           [], [0], [Pure]>,
-      Arguments<(ins LLVM_Type)>;
-
-// LLVM vector reduction over a single vector, with an initial value,
-// and with permission to reassociate the reduction operations.
-class LLVM_VectorReductionAcc<string mnem>
-    : LLVM_OneResultIntrOp<"vector.reduce." # mnem,
-                           [], [0], [Pure]>,
-      Arguments<(ins LLVM_Type:$start_value, LLVM_Type:$input,
-                 DefaultValuedAttr<BoolAttr, "false">:$reassoc)> {
-  let llvmBuilder = [{
-    llvm::Module *module = builder.GetInsertBlock()->getModule();
-    llvm::Function *fn = llvm::Intrinsic::getDeclaration(
-        module,
-        llvm::Intrinsic::vector_reduce_}] # mnem # [{,
-        { }] # !interleave(ListIntSubst<LLVM_IntrPatterns.operand, [1]>.lst,
-                           ", ") # [{
-        });
-    auto operands = moduleTranslation.lookupValues(opInst.getOperands());
-    llvm::FastMathFlags origFM = builder.getFastMathFlags();
-    llvm::FastMathFlags tempFM = origFM;
-    tempFM.setAllowReassoc($reassoc);
-    builder.setFastMathFlags(tempFM);  // set fastmath flag
-    $res = builder.CreateCall(fn, operands);
-    builder.setFastMathFlags(origFM);  // restore fastmath flag
-  }];
-  let mlirBuilder = [{
-    bool allowReassoc = inst->getFastMathFlags().allowReassoc();
-    $res = $_builder.create<$_qualCppClassName>($_location,
-      $_resultType, $start_value, $input, allowReassoc);
-  }];
-}
 
 def LLVM_OneResultOpBuilder :
   OpBuilder<(ins "Type":$resultType, "ValueRange":$operands,

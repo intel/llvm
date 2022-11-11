@@ -1,5 +1,11 @@
 cmake_minimum_required(VERSION 3.13.4)
 
+if(NOT DEFINED LLVM_COMMON_CMAKE_UTILS)
+  set(LLVM_COMMON_CMAKE_UTILS ${CMAKE_CURRENT_SOURCE_DIR}/../cmake)
+endif()
+include(${LLVM_COMMON_CMAKE_UTILS}/Modules/CMakePolicy.cmake
+  NO_POLICY_SCOPE)
+
 # If we are not building as a part of LLVM, build Clang as an
 # standalone project, using LLVM as an external library:
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
@@ -57,6 +63,7 @@ if(CLANG_BUILT_STANDALONE)
   include(TableGen)
   include(HandleLLVMOptions)
   include(VersionFromVCS)
+  include(CheckAtomic)
   include(GetErrcMessages)
   include(LLVMDistributionSupport)
 
@@ -86,9 +93,14 @@ if(CLANG_BUILT_STANDALONE)
       set(LLVM_UTILS_PROVIDED ON)
     endif()
 
+    # Seek installed Lit.
+    find_program(LLVM_LIT
+                 NAMES llvm-lit lit.py lit
+                 PATHS "${LLVM_MAIN_SRC_DIR}/utils/lit"
+                 DOC "Path to lit.py")
+
     if(EXISTS ${LLVM_MAIN_SRC_DIR}/utils/lit/lit.py)
       # Note: path not really used, except for checking if lit was found
-      set(LLVM_LIT ${LLVM_MAIN_SRC_DIR}/utils/lit/lit.py)
       if(EXISTS ${LLVM_MAIN_SRC_DIR}/utils/llvm-lit)
         add_subdirectory(${LLVM_MAIN_SRC_DIR}/utils/llvm-lit utils/llvm-lit)
       endif()
@@ -105,12 +117,6 @@ if(CLANG_BUILT_STANDALONE)
           AND EXISTS ${UNITTEST_DIR}/CMakeLists.txt)
         add_subdirectory(${UNITTEST_DIR} utils/unittest)
       endif()
-    else()
-      # Seek installed Lit.
-      find_program(LLVM_LIT
-                   NAMES llvm-lit lit.py lit
-                   PATHS "${LLVM_MAIN_SRC_DIR}/utils/lit"
-                   DOC "Path to lit.py")
     endif()
 
     if(LLVM_LIT)
@@ -136,10 +142,6 @@ if(CLANG_BUILT_STANDALONE)
   endif() # LLVM_INCLUDE_TESTS
 endif() # standalone
 
-if(NOT DEFINED LLVM_COMMON_CMAKE_UTILS)
-  set(LLVM_COMMON_CMAKE_UTILS ${CMAKE_CURRENT_SOURCE_DIR}/../cmake)
-endif()
-
 # Make sure that our source directory is on the current cmake module path so that
 # we can include cmake files from this directory.
 list(INSERT CMAKE_MODULE_PATH 0
@@ -147,7 +149,12 @@ list(INSERT CMAKE_MODULE_PATH 0
   "${LLVM_COMMON_CMAKE_UTILS}/Modules"
   )
 
-if(LLVM_ENABLE_LIBXML2)
+# This allows disabling clang's XML dependency even if LLVM finds libxml2.
+# By default, clang depends on libxml2 if LLVM does.
+option(CLANG_ENABLE_LIBXML2 "Whether libclang may depend on libxml2"
+       ${LLVM_ENABLE_LIBXML2})
+
+if(CLANG_ENABLE_LIBXML2)
   # Don't look for libxml if we're using MSan, since uninstrumented third party
   # code may call MSan interceptors like strlen, leading to false positives.
   if(NOT LLVM_USE_SANITIZER MATCHES "Memory.*")

@@ -61,11 +61,32 @@ and there is no way to suppress this error.
 
 * GCC >= 7.1
 * Clang >= 5.0
-* Apple Clang >= 9.3
+* Apple Clang >= 10.0
 * Visual Studio 2019 >= 16.7
 
 Changes to the LLVM IR
 ----------------------
+
+* The ``readnone``, ``readonly``, ``writeonly``, ``argmemonly``,
+  ``inaccessiblememonly`` and ``inaccessiblemem_or_argmemonly`` function
+  attributes have been replaced by a single ``memory(...)`` attribute. The
+  old attributes may be mapped to the new one as follows:
+
+  * ``readnone`` -> ``memory(none)``
+  * ``readonly`` -> ``memory(read)``
+  * ``writeonly`` -> ``memory(write)``
+  * ``argmemonly`` -> ``memory(argmem: readwrite)``
+  * ``argmemonly readonly`` -> ``memory(argmem: read)``
+  * ``argmemonly writeonly`` -> ``memory(argmem: write)``
+  * ``inaccessiblememonly`` -> ``memory(inaccessiblemem: readwrite)``
+  * ``inaccessiblememonly readonly`` -> ``memory(inaccessiblemem: read)``
+  * ``inaccessiblememonly writeonly`` -> ``memory(inaccessiblemem: write)``
+  * ``inaccessiblemem_or_argmemonly`` ->
+    ``memory(argmem: readwrite, inaccessiblemem: readwrite)``
+  * ``inaccessiblemem_or_argmemonly readonly`` ->
+    ``memory(argmem: read, inaccessiblemem: read)``
+  * ``inaccessiblemem_or_argmemonly writeonly`` ->
+    ``memory(argmem: write, inaccessiblemem: write)``
 
 * The constant expression variants of the following instructions has been
   removed:
@@ -80,6 +101,8 @@ Changes to TableGen
 
 Changes to the AArch64 Backend
 ------------------------------
+
+* Added support for the Cortex-A715 CPU.
 
 Changes to the AMDGPU Backend
 -----------------------------
@@ -119,6 +142,9 @@ Changes to the RISC-V Backend
 
 * Support for the unratified Zbe, Zbf, Zbm, Zbp, Zbr, and Zbt extensions have
   been removed.
+* i32 is now a native type in the datalayout string. This enables
+  LoopStrengthReduce for loops with i32 induction variables, among other
+  optimizations.
 
 Changes to the WebAssembly Backend
 ----------------------------------
@@ -140,6 +166,10 @@ Changes to the X86 Backend
 * Add support for the ``WRMSRNS`` instruction.
 * Support ISA of ``AMX-FP16`` which contains ``tdpfp16ps`` instruction.
 * Support ISA of ``CMPCCXADD``.
+* Support ISA of ``AVX-IFMA``.
+* Support ISA of ``AVX-VNNI-INT8``.
+* Support ISA of ``AVX-NE-CONVERT``.
+* ``-mcpu=raptorlake`` and ``-mcpu=meteorlake`` are now supported.
 
 Changes to the OCaml bindings
 -----------------------------
@@ -177,7 +207,12 @@ Changes to the Metadata Info
 Changes to the Debug Info
 ---------------------------------
 
-During this release ...
+Previously when emitting DWARF v4 and tuning for GDB, llc would use DWARF v2's
+``DW_AT_bit_offset`` and ``DW_AT_data_member_location``. llc now uses DWARF v4's
+``DW_AT_data_bit_offset`` regardless of tuning.
+
+Support for ``DW_AT_data_bit_offset`` was added in GDB 8.0. For earlier versions,
+you can use llc's ``-dwarf-version=3`` option to emit compatible DWARF.
 
 Changes to the LLVM tools
 ---------------------------------
@@ -189,6 +224,9 @@ Changes to the LLVM tools
   parsed in the same way, since each object no longer has a unique key. Tools
   that consume ``llvm-readobj``'s JSON output should update their parsers
   accordingly.
+
+* ``llvm-objdump`` now uses ``--print-imm-hex`` by default, which brings its
+  default behavior closer in line with ``objdump``.
 
 Changes to LLDB
 ---------------------------------

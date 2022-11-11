@@ -834,8 +834,8 @@ static bool checkOmittedBlockReturnType(Sema &S, Declarator &declarator,
 /// Apply Objective-C type arguments to the given type.
 static QualType applyObjCTypeArgs(Sema &S, SourceLocation loc, QualType type,
                                   ArrayRef<TypeSourceInfo *> typeArgs,
-                                  SourceRange typeArgsRange,
-                                  bool failOnError = false) {
+                                  SourceRange typeArgsRange, bool failOnError,
+                                  bool rebuilding) {
   // We can only apply type arguments to an Objective-C class type.
   const auto *objcObjectType = type->getAs<ObjCObjectType>();
   if (!objcObjectType || !objcObjectType->getInterface()) {
@@ -899,7 +899,9 @@ static QualType applyObjCTypeArgs(Sema &S, SourceLocation loc, QualType type,
         }
       }
 
-      if (!diagnosed) {
+      // When rebuilding, qualifiers might have gotten here through a
+      // final substitution.
+      if (!rebuilding && !diagnosed) {
         S.Diag(qual.getBeginLoc(), diag::err_objc_type_arg_qualified)
             << typeArg << typeArg.getQualifiers().getAsString()
             << FixItHint::CreateRemoval(rangeToRemove);
@@ -1061,22 +1063,18 @@ QualType Sema::BuildObjCTypeParamType(const ObjCTypeParamDecl *Decl,
   return Result;
 }
 
-QualType Sema::BuildObjCObjectType(QualType BaseType,
-                                   SourceLocation Loc,
-                                   SourceLocation TypeArgsLAngleLoc,
-                                   ArrayRef<TypeSourceInfo *> TypeArgs,
-                                   SourceLocation TypeArgsRAngleLoc,
-                                   SourceLocation ProtocolLAngleLoc,
-                                   ArrayRef<ObjCProtocolDecl *> Protocols,
-                                   ArrayRef<SourceLocation> ProtocolLocs,
-                                   SourceLocation ProtocolRAngleLoc,
-                                   bool FailOnError) {
+QualType Sema::BuildObjCObjectType(
+    QualType BaseType, SourceLocation Loc, SourceLocation TypeArgsLAngleLoc,
+    ArrayRef<TypeSourceInfo *> TypeArgs, SourceLocation TypeArgsRAngleLoc,
+    SourceLocation ProtocolLAngleLoc, ArrayRef<ObjCProtocolDecl *> Protocols,
+    ArrayRef<SourceLocation> ProtocolLocs, SourceLocation ProtocolRAngleLoc,
+    bool FailOnError, bool Rebuilding) {
   QualType Result = BaseType;
   if (!TypeArgs.empty()) {
-    Result = applyObjCTypeArgs(*this, Loc, Result, TypeArgs,
-                               SourceRange(TypeArgsLAngleLoc,
-                                           TypeArgsRAngleLoc),
-                               FailOnError);
+    Result =
+        applyObjCTypeArgs(*this, Loc, Result, TypeArgs,
+                          SourceRange(TypeArgsLAngleLoc, TypeArgsRAngleLoc),
+                          FailOnError, Rebuilding);
     if (FailOnError && Result.isNull())
       return QualType();
   }
@@ -1175,10 +1173,11 @@ TypeResult Sema::actOnObjCTypeArgsAndProtocolQualifiers(
       T, BaseTypeInfo->getTypeLoc().getSourceRange().getBegin(),
       TypeArgsLAngleLoc, ActualTypeArgInfos, TypeArgsRAngleLoc,
       ProtocolLAngleLoc,
-      llvm::makeArrayRef((ObjCProtocolDecl * const *)Protocols.data(),
+      llvm::makeArrayRef((ObjCProtocolDecl *const *)Protocols.data(),
                          Protocols.size()),
       ProtocolLocs, ProtocolRAngleLoc,
-      /*FailOnError=*/false);
+      /*FailOnError=*/false,
+      /*Rebuilding=*/false);
 
   if (Result == T)
     return BaseType;
@@ -1528,13 +1527,9 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
     break;
   case DeclSpec::TST_half:    Result = Context.HalfTy; break;
   case DeclSpec::TST_BFloat16:
-    // Disable errors for SYCL and OpenMP device since definition of __bf16 is
-    // being moved to a shared header and it causes new errors emitted when
-    // host code is compiled with device compiler for SPIR target.
-    // FIXME: device code specific diagnostic is probably needed.
-    if (!S.Context.getTargetInfo().hasBFloat16Type() &&
-        !S.getLangOpts().SYCLIsDevice && !S.getLangOpts().OpenMPIsDevice)
-      S.Diag(DS.getTypeSpecTypeLoc(), diag::err_type_unsupported) << "__bf16";
+    if (!S.Context.getTargetInfo().hasBFloat16Type())
+      S.Diag(DS.getTypeSpecTypeLoc(), diag::err_type_unsupported)
+	<< "__bf16";
     Result = Context.BFloat16Ty;
     break;
   case DeclSpec::TST_float:   Result = Context.FloatTy; break;
@@ -2731,15 +2726,8 @@ QualType Sema::BuildVectorType(QualType CurType, Expr *SizeExpr,
   }
 
   if (!TypeSize || VectorSizeBits % TypeSize) {
-    // Disable errors for SYCL and OpenMP device since definition of __bf16 is
-    // being moved to a shared header and it causes new errors emitted when
-    // host code is compiled with device compiler for SPIR target.
-    // FIXME: device code specific diagnostic is probably needed.
-    if (!(!TypeSize &&
-          (getLangOpts().OpenMPIsDevice || getLangOpts().SYCLIsDevice))) {
       Diag(AttrLoc, diag::err_attribute_invalid_size)
           << SizeExpr->getSourceRange();
-    }
     return QualType();
   }
 
@@ -6553,6 +6541,9 @@ GetTypeSourceInfoForDeclarator(TypeProcessingState &State,
       fillAttributedTypeLoc(TL, State);
       CurrTL = TL.getNextTypeLoc().getUnqualifiedLoc();
     }
+
+    while (BTFTagAttributedTypeLoc TL = CurrTL.getAs<BTFTagAttributedTypeLoc>())
+      CurrTL = TL.getNextTypeLoc().getUnqualifiedLoc();
 
     while (DependentAddressSpaceTypeLoc TL =
                CurrTL.getAs<DependentAddressSpaceTypeLoc>()) {

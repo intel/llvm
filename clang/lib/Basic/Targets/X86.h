@@ -104,6 +104,7 @@ class LLVM_LIBRARY_VISIBILITY X86TargetInfo : public TargetInfo {
   bool HasAVX512VL = false;
   bool HasAVX512VBMI = false;
   bool HasAVX512VBMI2 = false;
+  bool HasAVXIFMA = false;
   bool HasAVX512IFMA = false;
   bool HasAVX512VP2INTERSECT = false;
   bool HasSHA = false;
@@ -139,6 +140,9 @@ class LLVM_LIBRARY_VISIBILITY X86TargetInfo : public TargetInfo {
   bool HasENQCMD = false;
   bool HasAMXFP16 = false;
   bool HasCMPCCXADD = false;
+  bool HasRAOINT = false;
+  bool HasAVXVNNIINT8 = false;
+  bool HasAVXNECONVERT = false;
   bool HasKL = false;      // For key locker
   bool HasWIDEKL = false; // For wide key locker
   bool HasHRESET = false;
@@ -237,12 +241,16 @@ public:
 
   bool
   checkCFProtectionReturnSupported(DiagnosticsEngine &Diags) const override {
-    return true;
+    if (CPU == llvm::X86::CK_None || CPU >= llvm::X86::CK_PentiumPro)
+      return true;
+    return TargetInfo::checkCFProtectionReturnSupported(Diags);
   };
 
   bool
   checkCFProtectionBranchSupported(DiagnosticsEngine &Diags) const override {
-    return true;
+    if (CPU == llvm::X86::CK_None || CPU >= llvm::X86::CK_PentiumPro)
+      return true;
+    return TargetInfo::checkCFProtectionBranchSupported(Diags);
   };
 
   virtual bool validateOperandSize(const llvm::StringMap<bool> &FeatureMap,

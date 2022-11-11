@@ -64,6 +64,7 @@ public:
   bool VisitIntegerLiteral(const IntegerLiteral *E);
   bool VisitParenExpr(const ParenExpr *E);
   bool VisitBinaryOperator(const BinaryOperator *E);
+  bool VisitPointerArithBinOp(const BinaryOperator *E);
   bool VisitCXXDefaultArgExpr(const CXXDefaultArgExpr *E);
   bool VisitCallExpr(const CallExpr *E);
   bool VisitCXXMemberCallExpr(const CXXMemberCallExpr *E);
@@ -83,6 +84,9 @@ public:
   bool VisitArrayInitIndexExpr(const ArrayInitIndexExpr *E);
   bool VisitOpaqueValueExpr(const OpaqueValueExpr *E);
   bool VisitAbstractConditionalOperator(const AbstractConditionalOperator *E);
+  bool VisitStringLiteral(const StringLiteral *E);
+  bool VisitCharacterLiteral(const CharacterLiteral *E);
+  bool VisitCompoundAssignOperator(const CompoundAssignOperator *E);
 
 protected:
   bool visitExpr(const Expr *E) override;
@@ -225,18 +229,14 @@ private:
                       DerefKind AK, llvm::function_ref<bool(PrimType)> Direct,
                       llvm::function_ref<bool(PrimType)> Indirect);
 
-  /// Emits an APInt constant.
-  bool emitConst(PrimType T, const llvm::APInt &Value, const Expr *E);
-
-  /// Emits an integer constant.
-  template <typename T> bool emitConst(const Expr *E, T Value) {
-    QualType Ty = E->getType();
-    APInt WrappedValue(getIntWidth(Ty), Value, std::is_signed<T>::value);
-    return emitConst(*Ctx.classify(Ty), WrappedValue, E);
+  /// Emits an APSInt constant.
+  bool emitConst(const APSInt &Value, const Expr *E);
+  bool emitConst(const APInt &Value, const Expr *E) {
+    return emitConst(static_cast<APSInt>(Value), E);
   }
 
-  /// Returns the index of a global.
-  llvm::Optional<unsigned> getGlobalIdx(const VarDecl *VD);
+  /// Emits an integer constant.
+  template <typename T> bool emitConst(T Value, const Expr *E);
 
   /// Emits the initialized pointer.
   bool emitInitFn() {

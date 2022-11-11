@@ -339,6 +339,13 @@ public:
     return A->second.PredInfo->getPredicateInfoFor(I);
   }
 
+  const LoopInfo &getLoopInfo(Function &F) {
+    auto A = AnalysisResults.find(&F);
+    assert(A != AnalysisResults.end() && A->second.LI &&
+           "Need LoopInfo analysis results for function.");
+    return *A->second.LI;
+  }
+
   DomTreeUpdater getDTU(Function &F) {
     auto A = AnalysisResults.find(&F);
     assert(A != AnalysisResults.end() && "Need analysis results for function.");
@@ -1035,11 +1042,8 @@ void SCCPInstVisitor::visitCmpInst(CmpInst &I) {
   auto V1State = getValueState(Op1);
   auto V2State = getValueState(Op2);
 
-  Constant *C = V1State.getCompare(I.getPredicate(), I.getType(), V2State);
+  Constant *C = V1State.getCompare(I.getPredicate(), I.getType(), V2State, DL);
   if (C) {
-    // TODO: getCompare() currently has incorrect handling for unknown/undef.
-    if (isa<UndefValue>(C))
-      return;
     ValueLatticeElement CV;
     CV.markConstant(C);
     mergeInValue(&I, CV);
@@ -1525,6 +1529,10 @@ bool SCCPSolver::markBlockExecutable(BasicBlock *BB) {
 
 const PredicateBase *SCCPSolver::getPredicateInfoFor(Instruction *I) {
   return Visitor->getPredicateInfoFor(I);
+}
+
+const LoopInfo &SCCPSolver::getLoopInfo(Function &F) {
+  return Visitor->getLoopInfo(F);
 }
 
 DomTreeUpdater SCCPSolver::getDTU(Function &F) { return Visitor->getDTU(F); }

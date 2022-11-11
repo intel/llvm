@@ -35,6 +35,11 @@ def note_fe_backend_frame_larger_than: Note<"%0">, BackendInfo;
 
 def warn_fe_backend_plugin: Warning<"%0">, BackendInfo, InGroup<BackendPlugin>;
 def err_fe_backend_plugin: Error<"%0">, BackendInfo;
+
+def warn_fe_backend_resource_limit: Warning<"%0 (%1) exceeds limit (%2) in '%3'">, BackendInfo, InGroup<BackendPlugin>;
+def err_fe_backend_resource_limit: Error<"%0 (%1) exceeds limit (%2) in '%3'">, BackendInfo;
+def note_fe_backend_resource_limit: Note<"%0 (%1) exceeds limit (%2) in '%3'">, BackendInfo;
+
 def remark_fe_backend_plugin: Remark<"%0">, BackendInfo, InGroup<RemarkBackendPlugin>;
 def note_fe_backend_plugin: Note<"%0">, BackendInfo;
 
@@ -275,6 +280,13 @@ def warn_avx_calling_convention
               "enabled changes the ABI">,
       InGroup<DiagGroup<"psabi">>;
 def err_avx_calling_convention : Error<warn_avx_calling_convention.Text>;
+
+def warn_sycl_device_has_aspect_mismatch
+    : Warning<"function '%0' uses aspect '%1' not listed in its "
+              "%select{'device_has' property|'sycl::device_has' attribute}2">,
+              BackendInfo, InGroup<SyclAspectMismatch>;
+def note_sycl_aspect_propagated_from_call
+    : Note<"propagated from call to function '%0'">, BackendInfo;
 
 def err_alias_to_undefined : Error<
   "%select{alias|ifunc}0 must point to a defined "

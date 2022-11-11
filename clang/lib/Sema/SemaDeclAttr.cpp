@@ -202,7 +202,7 @@ static unsigned getNumAttributeArgs(const ParsedAttr &AL) {
 /// A helper function to provide Attribute Location for the Attr types
 /// AND the ParsedAttr.
 template <typename AttrInfo>
-static std::enable_if_t<std::is_base_of<Attr, AttrInfo>::value, SourceLocation>
+static std::enable_if_t<std::is_base_of_v<Attr, AttrInfo>, SourceLocation>
 getAttrLoc(const AttrInfo &AL) {
   return AL.getLocation();
 }
@@ -5562,7 +5562,7 @@ void Sema::AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,
   }
 
   const auto *VD = dyn_cast<VarDecl>(D);
-  if (VD && Context.getTargetInfo().isTLSSupported()) {
+  if (VD) {
     unsigned MaxTLSAlign =
         Context.toCharUnitsFromBits(Context.getTargetInfo().getMaxTLSAlign())
             .getQuantity();
@@ -7819,7 +7819,8 @@ void Sema::CheckSYCLAddIRAttributesFunctionAttrConflicts(Decl *D) {
   for (const auto *Attr : std::vector<AttributeCommonInfo *>{
            D->getAttr<ReqdWorkGroupSizeAttr>(),
            D->getAttr<IntelReqdSubGroupSizeAttr>(),
-           D->getAttr<WorkGroupSizeHintAttr>()})
+           D->getAttr<WorkGroupSizeHintAttr>(),
+           D->getAttr<SYCLDeviceHasAttr>()})
     if (Attr)
       Diag(Attr->getLoc(), diag::warn_sycl_old_and_new_kernel_attributes)
           << Attr;

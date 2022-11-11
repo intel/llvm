@@ -61,6 +61,11 @@ class GICombineRule<dag defs, dag match, dag apply> : GICombine {
   /// combine rule.
   /// See GIApplyKind for details.
   dag Apply = apply;
+
+  /// Defines the predicates that are checked before the match function
+  /// is called. Targets can use this to, for instance, check Subtarget
+  /// features.
+  list<Predicate> Predicates = [];
 }
 
 /// The operator at the root of a GICombineRule.Defs dag.
@@ -851,6 +856,13 @@ def redundant_neg_operands: GICombineRule<
     [{ return Helper.matchRedundantNegOperands(*${root}, ${matchinfo}); }]),
   (apply [{ Helper.applyBuildFnNoErase(*${root}, ${matchinfo}); }])>;
 
+// Transform (fsub +-0.0, X) -> (fneg X)
+def fsub_to_fneg: GICombineRule<
+  (defs root:$root, register_matchinfo:$matchinfo),
+  (match (wip_match_opcode G_FSUB):$root,
+    [{ return Helper.matchFsubToFneg(*${root}, ${matchinfo}); }]),
+  (apply [{ Helper.applyFsubToFneg(*${root}, ${matchinfo}); }])>;
+
 // Transform (fadd x, (fmul y, z)) -> (fma y, z, x)
 //           (fadd x, (fmul y, z)) -> (fmad y, z, x)
 // Transform (fadd (fmul x, y), z) -> (fma x, y, z)
@@ -1051,7 +1063,8 @@ def all_combines : GICombineGroup<[trivial_combines, insert_vec_elt_combines,
     form_bitfield_extract, constant_fold, fabs_fneg_fold,
     intdiv_combines, mulh_combines, redundant_neg_operands,
     and_or_disjoint_mask, fma_combines, fold_binop_into_select,
-    sub_add_reg, select_to_minmax, redundant_binop_in_equality]>;
+    sub_add_reg, select_to_minmax, redundant_binop_in_equality,
+    fsub_to_fneg]>;
 
 // A combine group used to for prelegalizer combiners at -O0. The combines in
 // this group have been selected based on experiments to balance code size and

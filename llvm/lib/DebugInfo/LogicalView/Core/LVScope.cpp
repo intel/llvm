@@ -1192,7 +1192,8 @@ void LVScopeCompileUnit::addSize(LVScope *Scope, LVOffset Lower,
                                  LVOffset Upper) {
   LLVM_DEBUG({
     dbgs() << format(
-        "CU [0x%08x], Scope [0x%08x], Range [0x%08x:0x%08x], Size = %d\n",
+        "CU [0x%08" PRIx64 "], Scope [0x%08" PRIx64 "], Range [0x%08" PRIx64
+        ":0x%08" PRIx64 "], Size = %" PRId64 "\n",
         getOffset(), Scope->getOffset(), Lower, Upper, Upper - Lower);
   });
 
@@ -1252,18 +1253,41 @@ void LVScopeCompileUnit::processRangeLocationCoverage(
   }
 }
 
-LVLine *LVScopeCompileUnit::lineLowerBound(LVAddress Address) const {
-  LVAddressToLine::const_iterator Iter = AddressToLine.lower_bound(Address);
-  return (Iter != AddressToLine.end()) ? Iter->second : nullptr;
+void LVScopeCompileUnit::addMapping(LVLine *Line, LVSectionIndex SectionIndex) {
+  LVAddress Address = Line->getOffset();
+  SectionMappings.add(SectionIndex, Address, Line);
 }
 
-LVLine *LVScopeCompileUnit::lineUpperBound(LVAddress Address) const {
-  if (AddressToLine.empty())
+LVLine *LVScopeCompileUnit::lineLowerBound(LVAddress Address,
+                                           LVScope *Scope) const {
+  LVSectionIndex SectionIndex = getReader().getSectionIndex(Scope);
+  LVAddressToLine *Map = SectionMappings.findMap(SectionIndex);
+  if (!Map || Map->empty())
     return nullptr;
-  LVAddressToLine::const_iterator Iter = AddressToLine.upper_bound(Address);
-  if (Iter != AddressToLine.begin())
+  LVAddressToLine::const_iterator Iter = Map->lower_bound(Address);
+  return (Iter != Map->end()) ? Iter->second : nullptr;
+}
+
+LVLine *LVScopeCompileUnit::lineUpperBound(LVAddress Address,
+                                           LVScope *Scope) const {
+  LVSectionIndex SectionIndex = getReader().getSectionIndex(Scope);
+  LVAddressToLine *Map = SectionMappings.findMap(SectionIndex);
+  if (!Map || Map->empty())
+    return nullptr;
+  LVAddressToLine::const_iterator Iter = Map->upper_bound(Address);
+  if (Iter != Map->begin())
     Iter = std::prev(Iter);
   return Iter->second;
+}
+
+LVLineRange LVScopeCompileUnit::lineRange(LVLocation *Location) const {
+  // The parent of a location can be a symbol or a scope.
+  LVElement *Element = Location->getParent();
+  LVScope *Parent = Element->getIsScope() ? static_cast<LVScope *>(Element)
+                                          : Element->getParentScope();
+  LVLine *LowLine = lineLowerBound(Location->getLowerAddress(), Parent);
+  LVLine *HighLine = lineUpperBound(Location->getUpperAddress(), Parent);
+  return LVLineRange(LowLine, HighLine);
 }
 
 StringRef LVScopeCompileUnit::getFilename(size_t Index) const {
@@ -1403,6 +1427,30 @@ void LVScopeCompileUnit::printLocalNames(raw_ostream &OS, bool Full) const {
     PrintNames(Option::Directory);
   if (options().getAttributeFiles())
     PrintNames(Option::File);
+  if (options().getAttributePublics()) {
+    StringRef Kind = "Public";
+    // The public names are indexed by 'LVScope *'. We want to print
+    // them by logical element address, to show the scopes layout.
+    using OffsetSorted = std::map<LVAddress, LVPublicNames::const_iterator>;
+    OffsetSorted SortedNames;
+    for (LVPublicNames::const_iterator Iter = PublicNames.begin();
+         Iter != PublicNames.end(); ++Iter)
+      SortedNames.emplace(Iter->first->getOffset(), Iter);
+
+    LVPublicNames::const_iterator Iter;
+    for (OffsetSorted::reference Entry : SortedNames) {
+      Iter = Entry.second;
+      OS << std::string(Indentation, ' ') << formattedKind(Kind) << " "
+         << formattedName((*Iter).first->getName());
+      if (options().getAttributeOffset()) {
+        LVAddress Address = (*Iter).second.first;
+        size_t Size = (*Iter).second.second;
+        OS << " [" << hexString(Address) << ":" << hexString(Address + Size)
+           << "]";
+      }
+      OS << "\n";
+    }
+  }
 }
 
 void LVScopeCompileUnit::printWarnings(raw_ostream &OS, bool Full) const {
@@ -1501,7 +1549,7 @@ void LVScopeCompileUnit::printScopeSize(const LVScope *Scope, raw_ostream &OS) {
     // implementation-defined rounding inside printing functions.
     float Percentage =
         rint((float(Size) / CUContributionSize) * 100.0 * 100.0) / 100.0;
-    OS << format("%10d (%6.2f%%) : ", Size, Percentage);
+    OS << format("%10" PRId64 " (%6.2f%%) : ", Size, Percentage);
     Scope->print(OS);
 
     // Keep record of the total sizes at each lexical level.
@@ -1848,6 +1896,9 @@ void LVScopeFunction::printExtra(raw_ostream &OS, bool Full) const {
     if (getIsTemplateResolved())
       printEncodedArgs(OS, Full);
     printActiveRanges(OS, Full);
+    if (getLinkageNameIndex())
+      printLinkageName(OS, Full, const_cast<LVScopeFunction *>(this),
+                       const_cast<LVScopeFunction *>(this));
     if (Reference)
       Reference->printReference(OS, Full, const_cast<LVScopeFunction *>(this));
   }

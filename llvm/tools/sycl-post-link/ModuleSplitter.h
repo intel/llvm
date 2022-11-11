@@ -55,8 +55,8 @@ struct EntryPointGroup {
   struct Properties {
     // Whether all EPs are ESIMD, SYCL or there are both kinds.
     SyclEsimdSplitStatus HasESIMD = SyclEsimdSplitStatus::SYCL_AND_ESIMD;
-    // Whether any of the EPs use double GRF mode.
-    bool UsesDoubleGRF = false;
+    // Whether any of the EPs use large GRF mode.
+    bool UsesLargeGRF = false;
     // Scope represented by EPs in a group
     EntryPointsGroupScope Scope = Scope_Global;
 
@@ -65,7 +65,7 @@ struct EntryPointGroup {
       Res.HasESIMD = HasESIMD == Other.HasESIMD
                          ? HasESIMD
                          : SyclEsimdSplitStatus::SYCL_AND_ESIMD;
-      Res.UsesDoubleGRF = UsesDoubleGRF || Other.UsesDoubleGRF;
+      Res.UsesLargeGRF = UsesLargeGRF || Other.UsesLargeGRF;
       // Scope remains global
       return Res;
     }
@@ -90,8 +90,8 @@ struct EntryPointGroup {
   bool isSycl() const {
     return Props.HasESIMD == SyclEsimdSplitStatus::SYCL_ONLY;
   }
-  // Tells if some entry points use double GRF mode.
-  bool isDoubleGRF() const { return Props.UsesDoubleGRF; }
+  // Tells if some entry points use large GRF mode.
+  bool isLargeGRF() const { return Props.UsesLargeGRF; }
 
   void saveNames(std::vector<std::string> &Dest) const;
   void rebuildFromNames(const std::vector<std::string> &Names, const Module &M);
@@ -146,7 +146,7 @@ public:
 
   bool isESIMD() const { return EntryPoints.isEsimd(); }
   bool isSYCL() const { return EntryPoints.isSycl(); }
-  bool isDoubleGRF() const { return EntryPoints.isDoubleGRF(); }
+  bool isLargeGRF() const { return EntryPoints.isLargeGRF(); }
 
   const EntryPointSet &entries() const { return EntryPoints.Functions; }
   const EntryPointGroup &getEntryPointGroup() const { return EntryPoints; }
@@ -251,7 +251,7 @@ getSplitterByMode(ModuleDesc &&MD, IRSplitMode Mode,
                   bool EmitOnlyKernelsAsEntryPoints);
 
 std::unique_ptr<ModuleSplitterBase>
-getDoubleGRFSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints);
+getLargeGRFSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints);
 
 std::unique_ptr<ModuleSplitterBase>
 getPropertiesBasedSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints);

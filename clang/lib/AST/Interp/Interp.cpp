@@ -1,4 +1,4 @@
-//===--- InterpState.cpp - Interpreter for the constexpr VM -----*- C++ -*-===//
+//===------- Interpcpp - Interpreter for the constexpr VM ------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -201,8 +201,8 @@ bool CheckArray(InterpState &S, CodePtr OpPC, const Pointer &Ptr) {
 
 bool CheckLive(InterpState &S, CodePtr OpPC, const Pointer &Ptr,
                AccessKinds AK) {
-  const auto &Src = S.Current->getSource(OpPC);
   if (Ptr.isZero()) {
+    const auto &Src = S.Current->getSource(OpPC);
 
     if (Ptr.isField())
       S.FFDiag(Src, diag::note_constexpr_null_subobject) << CSK_Field;
@@ -213,6 +213,7 @@ bool CheckLive(InterpState &S, CodePtr OpPC, const Pointer &Ptr,
   }
 
   if (!Ptr.isLive()) {
+    const auto &Src = S.Current->getSource(OpPC);
     bool IsTemp = Ptr.isTemporary();
 
     S.FFDiag(Src, diag::note_constexpr_lifetime_ended, 1) << AK << !IsTemp;

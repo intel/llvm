@@ -13,9 +13,11 @@
 #ifndef VECTOR_OPS
 #define VECTOR_OPS
 
-include "mlir/Dialect/Vector/Interfaces/MaskingInterfaces.td"
+include "mlir/Dialect/Vector/Interfaces/MaskableOpInterface.td"
+include "mlir/Dialect/Vector/Interfaces/MaskingOpInterface.td"
 include "mlir/IR/EnumAttr.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
+include "mlir/Interfaces/DestinationStyleOpInterface.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/VectorInterfaces.td"
@@ -242,7 +244,7 @@ def Vector_ContractionOp :
       return getOperand(4).getType().cast<VectorType>();
     }
     Type getResultType() { return getResult().getType(); }
-    ArrayRef<StringRef> getTraitAttrNames();
+    SmallVector<StringRef> getTraitAttrNames();
     static unsigned getAccOperandIndex() { return 2; }
 
     llvm::SmallVector<::mlir::AffineMap, 4> getIndexingMapsArray() {
@@ -262,8 +264,6 @@ def Vector_ContractionOp :
 
     std::vector<std::pair<int64_t, int64_t>> getContractingDimMap();
     std::vector<std::pair<int64_t, int64_t>> getBatchDimMap();
-
-    static constexpr StringRef getKindAttrStrName() { return "kind"; }
 
     static CombiningKind getDefaultKind() {
       return CombiningKind::ADD;
@@ -1270,7 +1270,8 @@ def Vector_TransferWriteOp :
       DeclareOpInterfaceMethods<VectorUnrollOpInterface, ["getShapeForUnroll"]>,
       DeclareOpInterfaceMethods<MaskableOpInterface>,
       DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
-      AttrSizedOperandSegments
+      AttrSizedOperandSegments,
+      DestinationStyleOpInterface
   ]>,
     Arguments<(ins AnyVectorOfAnyRank:$vector,
                    AnyShaped:$source,
@@ -1393,6 +1394,10 @@ def Vector_TransferWriteOp :
     /// This method is added to maintain uniformity with load/store
     ///  ops of other dialects.
     Value getValue() { return getVector(); }
+
+    std::pair<int64_t, int64_t> getDpsInitsPositionRange() {
+      return {1, 2};  // `source` operand
+    }
   }];
 
   let hasFolder = 1;
@@ -2134,13 +2139,15 @@ def Vector_CreateMaskOp :
 }
 
 def Vector_MaskOp : Vector_Op<"mask", [
-  SingleBlockImplicitTerminator<"vector::YieldOp">, RecursiveMemoryEffects,
-  NoRegionArguments
+  SingleBlockImplicitTerminator<"vector::YieldOp">,
+  DeclareOpInterfaceMethods<MaskingOpInterface>,
+  RecursiveMemoryEffects, NoRegionArguments
 ]> {
   let summary = "Predicates a maskable vector operation";
   let description = [{
-    The `vector.mask` operation predicates the execution of another operation.
-    It takes an `i1` vector mask and an optional pass-thru vector as arguments.
+    The `vector.mask` is a `MaskingOpInterface` operation that predicates the
+    execution of another operation. It takes an `i1` vector mask and an
+    optional passthru vector as arguments.
     A `vector.yield`-terminated region encloses the operation to be masked.
     Values used within the region are captured from above. Only one *maskable*
     operation can be masked with a `vector.mask` operation at a time. An

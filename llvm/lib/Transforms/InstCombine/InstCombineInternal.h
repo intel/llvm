@@ -167,6 +167,7 @@ public:
   Instruction *visitInsertValueInst(InsertValueInst &IV);
   Instruction *visitInsertElementInst(InsertElementInst &IE);
   Instruction *visitExtractElementInst(ExtractElementInst &EI);
+  Instruction *simplifyBinOpSplats(ShuffleVectorInst &SVI);
   Instruction *visitShuffleVectorInst(ShuffleVectorInst &SVI);
   Instruction *visitExtractValueInst(ExtractValueInst &EV);
   Instruction *visitLandingPadInst(LandingPadInst &LI);
@@ -369,6 +370,7 @@ private:
   Instruction *foldExtractOfOverflowIntrinsic(ExtractValueInst &EV);
   Instruction *foldIntrinsicWithOverflowCommon(IntrinsicInst *II);
   Instruction *foldFPSignBitOps(BinaryOperator &I);
+  Instruction *foldFDivConstantDivisor(BinaryOperator &I);
 
   // Optimize one of these forms:
   //   and i1 Op, SI / select i1 Op, i1 SI, i1 false (if IsAnd = true)
@@ -544,7 +546,7 @@ public:
   /// -> "A*(B+C)") or expanding out if this results in simplifications (eg: "A
   /// & (B | C) -> (A&B) | (A&C)" if this is a win).  Returns the simplified
   /// value, or null if it didn't simplify.
-  Value *SimplifyUsingDistributiveLaws(BinaryOperator &I);
+  Value *foldUsingDistributiveLaws(BinaryOperator &I);
 
   /// Tries to simplify add operations using the definition of remainder.
   ///
@@ -560,8 +562,7 @@ public:
 
   /// This tries to simplify binary operations by factorizing out common terms
   /// (e. g. "(A*B)+(A*C)" -> "A*(B+C)").
-  Value *tryFactorization(BinaryOperator &, Instruction::BinaryOps, Value *,
-                          Value *, Value *, Value *);
+  Value *tryFactorizationFolds(BinaryOperator &I);
 
   /// Match a select chain which produces one of three values based on whether
   /// the LHS is less than, equal to, or greater than RHS respectively.
@@ -734,6 +735,7 @@ public:
   Instruction *foldICmpBitCast(ICmpInst &Cmp);
 
   // Helpers of visitSelectInst().
+  Instruction *foldSelectOfBools(SelectInst &SI);
   Instruction *foldSelectExtConst(SelectInst &Sel);
   Instruction *foldSelectOpOp(SelectInst &SI, Instruction *TI, Instruction *FI);
   Instruction *foldSelectIntoOp(SelectInst &SI, Value *, Value *);

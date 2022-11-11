@@ -228,7 +228,7 @@ struct SGPRSpillBuilder {
       auto I = BuildMI(*MBB, MI, DL, TII.get(NotOpc), ExecReg).addReg(ExecReg);
       if (!TmpVGPRLive)
         I.addReg(TmpVGPR, RegState::ImplicitDefine);
-      I->getOperand(2).setIsDead(true); // Mark SCC as dead.
+      I->getOperand(2).setIsDead(); // Mark SCC as dead.
       TRI.buildVGPRSpillLoadStore(*this, TmpVGPRIndex, 0, /*IsLoad*/ false);
     }
   }
@@ -263,7 +263,7 @@ struct SGPRSpillBuilder {
       auto I = BuildMI(*MBB, MI, DL, TII.get(NotOpc), ExecReg).addReg(ExecReg);
       if (!TmpVGPRLive)
         I.addReg(TmpVGPR, RegState::ImplicitKill);
-      I->getOperand(2).setIsDead(true); // Mark SCC as dead.
+      I->getOperand(2).setIsDead(); // Mark SCC as dead.
 
       // Restore active lanes
       if (TmpVGPRLive)
@@ -1235,10 +1235,9 @@ static unsigned getFlatScratchSpillOpcode(const SIInstrInfo *TII,
                                           unsigned LoadStoreOp,
                                           unsigned EltSize) {
   bool IsStore = TII->get(LoadStoreOp).mayStore();
-  bool HasVAddr = AMDGPU::getNamedOperandIdx(LoadStoreOp, AMDGPU::OpName::vaddr) != -1;
+  bool HasVAddr = AMDGPU::hasNamedOperand(LoadStoreOp, AMDGPU::OpName::vaddr);
   bool UseST =
-    !HasVAddr &&
-    AMDGPU::getNamedOperandIdx(LoadStoreOp, AMDGPU::OpName::saddr) < 0;
+      !HasVAddr && !AMDGPU::hasNamedOperand(LoadStoreOp, AMDGPU::OpName::saddr);
 
   switch (EltSize) {
   case 4:
@@ -2140,7 +2139,7 @@ void SIRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
           if (!Offset) {
             unsigned Opc = MI->getOpcode();
             int NewOpc = -1;
-            if (AMDGPU::getNamedOperandIdx(Opc, AMDGPU::OpName::vaddr) != -1) {
+            if (AMDGPU::hasNamedOperand(Opc, AMDGPU::OpName::vaddr)) {
               NewOpc = AMDGPU::getFlatScratchInstSVfromSVS(Opc);
             } else if (ST.hasFlatScratchSTMode()) {
               // On GFX10 we have ST mode to use no registers for an address.
@@ -2197,7 +2196,7 @@ void SIRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
 
         Register TmpReg = RS->scavengeRegister(RC, MI, 0, !UseSGPR);
         FIOp.setReg(TmpReg);
-        FIOp.setIsKill(true);
+        FIOp.setIsKill();
 
         if ((!FrameReg || !Offset) && TmpReg) {
           unsigned Opc = UseSGPR ? AMDGPU::S_MOV_B32 : AMDGPU::V_MOV_B32_e32;
@@ -2270,8 +2269,7 @@ void SIRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
                            .addImm(ST.getWavefrontSizeLog2())
                            .addReg(FrameReg);
           if (IsSALU && !LiveSCC)
-            Shift.getInstr()->getOperand(3).setIsDead(
-                true); // Mark SCC as dead.
+            Shift.getInstr()->getOperand(3).setIsDead(); // Mark SCC as dead.
           if (IsSALU && LiveSCC) {
             Register NewDest =
                 RS->scavengeRegister(&AMDGPU::SReg_32RegClass, Shift, 0);

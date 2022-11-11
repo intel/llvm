@@ -484,26 +484,15 @@ mlir::Value fir::FirOpBuilder::createBox(mlir::Location loc,
   }
   mlir::Type boxTy = fir::BoxType::get(elementType);
   mlir::Value tdesc;
-  if (isPolymorphic) {
+  if (isPolymorphic)
     boxTy = fir::ClassType::get(elementType);
-
-    // Look for the original tdesc for the new box.
-    if (auto *op = itemAddr.getDefiningOp()) {
-      if (auto coordOp = mlir::dyn_cast<fir::CoordinateOp>(op)) {
-        if (fir::isPolymorphicType(coordOp.getBaseType())) {
-          mlir::Type resultType = coordOp.getResult().getType();
-          mlir::Type tdescType =
-              fir::TypeDescType::get(fir::unwrapRefType(resultType));
-          tdesc = create<fir::BoxTypeDescOp>(loc, tdescType, coordOp.getRef());
-        }
-      }
-    }
-  }
-
   return exv.match(
       [&](const fir::ArrayBoxValue &box) -> mlir::Value {
+        mlir::Value empty;
+        mlir::ValueRange emptyRange;
         mlir::Value s = createShape(loc, exv);
-        return create<fir::EmboxOp>(loc, boxTy, itemAddr, s);
+        return create<fir::EmboxOp>(loc, boxTy, itemAddr, s, /*slice=*/empty,
+                                    /*typeparams=*/emptyRange, box.getTdesc());
       },
       [&](const fir::CharArrayBoxValue &box) -> mlir::Value {
         mlir::Value s = createShape(loc, exv);
@@ -526,6 +515,12 @@ mlir::Value fir::FirOpBuilder::createBox(mlir::Location loc,
       [&](const fir::MutableBoxValue &x) -> mlir::Value {
         return create<fir::LoadOp>(
             loc, fir::factory::getMutableIRBox(*this, loc, x));
+      },
+      [&](const fir::PolymorphicValue &p) -> mlir::Value {
+        mlir::Value empty;
+        mlir::ValueRange emptyRange;
+        return create<fir::EmboxOp>(loc, boxTy, itemAddr, empty, empty,
+                                    emptyRange, p.getTdesc());
       },
       [&](const auto &) -> mlir::Value {
         mlir::Value empty;
@@ -574,6 +569,30 @@ mlir::Value fir::FirOpBuilder::genExtentFromTriplet(mlir::Location loc,
   auto cmp = create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::sgt,
                                          div, zero);
   return create<mlir::arith::SelectOp>(loc, cmp, div, zero);
+}
+
+void fir::FirOpBuilder::setCommonAttributes(mlir::Operation *op) const {
+  auto fmi = mlir::dyn_cast<mlir::arith::ArithFastMathInterface>(*op);
+  if (!fmi)
+    return;
+  // TODO: use fmi.setFastMathFlagsAttr() after D137114 is merged.
+  //       For now set the attribute by the name.
+  llvm::StringRef arithFMFAttrName = fmi.getFastMathAttrName();
+  if (fastMathFlags != mlir::arith::FastMathFlags::none)
+    op->setAttr(arithFMFAttrName, mlir::arith::FastMathFlagsAttr::get(
+                                      op->getContext(), fastMathFlags));
+}
+
+void fir::FirOpBuilder::setFastMathFlags(
+    Fortran::common::MathOptionsBase options) {
+  mlir::arith::FastMathFlags arithFMF{};
+  if (options.getFPContractEnabled()) {
+    arithFMF = arithFMF | mlir::arith::FastMathFlags::contract;
+  }
+  if (options.getNoHonorInfs()) {
+    arithFMF = arithFMF | mlir::arith::FastMathFlags::ninf;
+  }
+  setFastMathFlags(arithFMF);
 }
 
 //===--------------------------------------------------------------------===//
@@ -925,7 +944,7 @@ fir::ExtendedValue fir::factory::componentToExtendedValue(
   auto fieldTy = component.getType();
   if (auto ty = fir::dyn_cast_ptrEleTy(fieldTy))
     fieldTy = ty;
-  if (fieldTy.isa<fir::BoxType>()) {
+  if (fieldTy.isa<fir::BaseBoxType>()) {
     llvm::SmallVector<mlir::Value> nonDeferredTypeParams;
     auto eleTy = fir::unwrapSequenceType(fir::dyn_cast_ptrOrBoxEleTy(fieldTy));
     if (auto charTy = eleTy.dyn_cast<fir::CharacterType>()) {
@@ -991,6 +1010,18 @@ fir::ExtendedValue fir::factory::arrayElementToExtendedValue(
         }
         if (box.isDerivedWithLenParameters())
           TODO(loc, "get length parameters from derived type BoxValue");
+        if (box.isPolymorphic()) {
+          mlir::Type tdescType =
+              fir::TypeDescType::get(mlir::NoneType::get(builder.getContext()));
+          mlir::Value tdesc = builder.create<fir::BoxTypeDescOp>(
+              loc, tdescType, fir::getBase(box));
+          return fir::PolymorphicValue(element, tdesc);
+        }
+        return element;
+      },
+      [&](const fir::ArrayBoxValue &box) -> fir::ExtendedValue {
+        if (box.getTdesc())
+          return fir::PolymorphicValue(element, box.getTdesc());
         return element;
       },
       [&](const auto &) -> fir::ExtendedValue { return element; });
@@ -1349,4 +1380,13 @@ fir::BoxValue fir::factory::createBoxValue(fir::FirOpBuilder &builder,
       },
       [](const auto &) {});
   return fir::BoxValue(box, lbounds, explicitTypeParams);
+}
+
+mlir::Value fir::factory::genCPtrOrCFunptrValue(fir::FirOpBuilder &builder,
+                                                mlir::Location loc,
+                                                mlir::Value cPtr) {
+  mlir::Type cPtrTy = fir::unwrapRefType(cPtr.getType());
+  mlir::Value cPtrAddr =
+      fir::factory::genCPtrOrCFunptrAddr(builder, loc, cPtr, cPtrTy);
+  return builder.create<fir::LoadOp>(loc, cPtrAddr);
 }

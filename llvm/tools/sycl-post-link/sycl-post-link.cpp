@@ -442,8 +442,8 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   if (MD.isESIMD()) {
     PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"isEsimdImage", true});
   }
-  if (MD.isDoubleGRF())
-    PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"isDoubleGRF", true});
+  if (MD.isLargeGRF())
+    PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"isLargeGRF", true});
   {
     std::vector<StringRef> FuncNames = getKernelNamesUsingAssert(M);
     for (const StringRef &FName : FuncNames)
@@ -560,8 +560,8 @@ bool lowerEsimdConstructs(module_split::ModuleDesc &MD) {
 
 // Compute the filename suffix for the module
 StringRef getModuleSuffix(const module_split::ModuleDesc &MD) {
-  if (MD.isDoubleGRF()) {
-    return MD.isESIMD() ? "_esimd_x2grf" : "_x2grf";
+  if (MD.isLargeGRF()) {
+    return MD.isESIMD() ? "_esimd_large_grf" : "_large_grf";
   }
   return MD.isESIMD() ? "_esimd" : "";
 }
@@ -735,7 +735,7 @@ processInputModule(std::unique_ptr<Module> M) {
   }
   Modified |= InvokeSimdMet;
 
-  // Lower kernel properties setting APIs before "double GRF" splitting, as:
+  // Lower kernel properties setting APIs before "large GRF" splitting, as:
   // - the latter uses the result of the former
   // - saves processing time
   Modified |= runModulePass<SYCLLowerKernelPropsPass>(*M);
@@ -799,15 +799,15 @@ processInputModule(std::unique_ptr<Module> M) {
     DUMP_ENTRY_POINTS(MDesc.entries(), MDesc.Name.c_str(), 1);
 
     // FIXME: double grf should be handled by properties splitter above
-    std::unique_ptr<module_split::ModuleSplitterBase> DoubleGRFSplitter =
-        module_split::getDoubleGRFSplitter(std::move(MDesc),
-                                           EmitOnlyKernelsAsEntryPoints);
-    const bool SplitByDoubleGRF = DoubleGRFSplitter->totalSplits() > 1;
-    Modified |= SplitByDoubleGRF;
+    std::unique_ptr<module_split::ModuleSplitterBase> LargeGRFSplitter =
+        module_split::getLargeGRFSplitter(std::move(MDesc),
+                                          EmitOnlyKernelsAsEntryPoints);
+    const bool SplitByLargeGRF = LargeGRFSplitter->totalSplits() > 1;
+    Modified |= SplitByLargeGRF;
 
-    // Now split further by "esimd-double-grf" attribute.
-    while (DoubleGRFSplitter->hasMoreSplits()) {
-      module_split::ModuleDesc MDesc1 = DoubleGRFSplitter->nextSplit();
+    // Now split further by "large-grf" attribute.
+    while (LargeGRFSplitter->hasMoreSplits()) {
+      module_split::ModuleDesc MDesc1 = LargeGRFSplitter->nextSplit();
       DUMP_ENTRY_POINTS(MDesc1.entries(), MDesc1.Name.c_str(), 2);
       MDesc1.fixupLinkageOfDirectInvokeSimdTargets();
 
@@ -846,8 +846,8 @@ processInputModule(std::unique_ptr<Module> M) {
         }
         if (!MDesc2.isSYCL() && LowerEsimd) {
           assert(MDesc2.isESIMD() && "NYI");
-          // ESIMD lowering also detects double-GRF kernels, so it must happen
-          // before double-GRF split.
+          // ESIMD lowering also detects large-GRF kernels, so it must happen
+          // before large-GRF split.
           Modified |= lowerEsimdConstructs(MDesc2);
         }
         MMs.emplace_back(std::move(MDesc2));
@@ -875,7 +875,7 @@ processInputModule(std::unique_ptr<Module> M) {
       }
 
       bool SplitOccurred =
-          SplitByScope || SplitByDoubleGRF || SplitByESIMD || SplitByProperties;
+          SplitByScope || SplitByLargeGRF || SplitByESIMD || SplitByProperties;
 
       if (IROutputOnly) {
         if (SplitOccurred) {

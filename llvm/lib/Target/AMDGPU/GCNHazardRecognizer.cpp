@@ -919,8 +919,7 @@ int GCNHazardRecognizer::checkVALUHazards(MachineInstr *VALU) {
           if (DstSel->getImm() == AMDGPU::SDWA::DWORD)
             return false;
       } else {
-        if ((AMDGPU::getNamedOperandIdx(MI.getOpcode(),
-                                        AMDGPU::OpName::op_sel) == -1) ||
+        if (!AMDGPU::hasNamedOperand(MI.getOpcode(), AMDGPU::OpName::op_sel) ||
             !(TII->getNamedOperand(MI, AMDGPU::OpName::src0_modifiers)
                   ->getImm() &
               SISrcMods::DST_OP_SEL))
@@ -1332,6 +1331,12 @@ static bool shouldRunLdsBranchVmemWARHazardFixup(const MachineFunction &MF,
   return false;
 }
 
+static bool isStoreCountWaitZero(const MachineInstr &I) {
+  return I.getOpcode() == AMDGPU::S_WAITCNT_VSCNT &&
+         I.getOperand(0).getReg() == AMDGPU::SGPR_NULL &&
+         !I.getOperand(1).getImm();
+}
+
 bool GCNHazardRecognizer::fixLdsBranchVmemWARHazard(MachineInstr *MI) {
   if (!RunLdsBranchVmemWARHazardFixup)
     return false;
@@ -1351,9 +1356,7 @@ bool GCNHazardRecognizer::fixLdsBranchVmemWARHazard(MachineInstr *MI) {
     return false;
 
   auto IsExpiredFn = [&IsHazardInst](const MachineInstr &I, int) {
-    return IsHazardInst(I) || (I.getOpcode() == AMDGPU::S_WAITCNT_VSCNT &&
-                               I.getOperand(0).getReg() == AMDGPU::SGPR_NULL &&
-                               !I.getOperand(1).getImm());
+    return IsHazardInst(I) || isStoreCountWaitZero(I);
   };
 
   auto IsHazardFn = [InstType, &IsHazardInst](const MachineInstr &I) {
@@ -1370,9 +1373,7 @@ bool GCNHazardRecognizer::fixLdsBranchVmemWARHazard(MachineInstr *MI) {
       if (InstType == InstType2)
         return true;
 
-      return I.getOpcode() == AMDGPU::S_WAITCNT_VSCNT &&
-             I.getOperand(0).getReg() == AMDGPU::SGPR_NULL &&
-             !I.getOperand(1).getImm();
+      return isStoreCountWaitZero(I);
     };
 
     return ::getWaitStatesSince(IsHazardFn, &I, IsExpiredFn) !=
@@ -1845,13 +1846,13 @@ bool GCNHazardRecognizer::fixShift64HighRegBug(MachineInstr *MI) {
   Amt->setReg(NewAmt);
   Amt->setIsKill(false);
   // We do not update liveness, so verifier may see it as undef.
-  Amt->setIsUndef(true);
+  Amt->setIsUndef();
   if (OverlappedDst)
     MI->getOperand(0).setReg(NewReg);
   if (OverlappedSrc) {
     Src1->setReg(NewReg);
     Src1->setIsKill(false);
-    Src1->setIsUndef(true);
+    Src1->setIsUndef();
   }
 
   return true;

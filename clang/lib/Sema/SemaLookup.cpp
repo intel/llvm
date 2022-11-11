@@ -992,11 +992,9 @@ bool Sema::LookupBuiltin(LookupResult &R) {
 
       // If this is a builtin on this (or all) targets, create the decl.
       if (unsigned BuiltinID = II->getBuiltinID()) {
-        // In C++, C2x, and OpenCL (spec v1.2 s6.9.f), we don't have any
-        // predefined library functions like 'malloc'. Instead, we'll just
-        // error.
-        if ((getLangOpts().CPlusPlus || getLangOpts().OpenCL ||
-             getLangOpts().C2x) &&
+        // In C++ and OpenCL (spec v1.2 s6.9.f), we don't have any predefined
+        // library functions like 'malloc'. Instead, we'll just error.
+        if ((getLangOpts().CPlusPlus || getLangOpts().OpenCL) &&
             Context.BuiltinInfo.isPredefinedLibFunction(BuiltinID))
           return false;
 
@@ -3745,11 +3743,11 @@ Sema::LookupLiteralOperator(Scope *S, LookupResult &R,
         // is a well-formed template argument for the template parameter.
         if (StringLit) {
           SFINAETrap Trap(*this);
-          SmallVector<TemplateArgument, 1> Checked;
+          SmallVector<TemplateArgument, 1> SugaredChecked, CanonicalChecked;
           TemplateArgumentLoc Arg(TemplateArgument(StringLit), StringLit);
-          if (CheckTemplateArgument(Params->getParam(0), Arg, FD,
-                                    R.getNameLoc(), R.getNameLoc(), 0,
-                                    Checked) ||
+          if (CheckTemplateArgument(
+                  Params->getParam(0), Arg, FD, R.getNameLoc(), R.getNameLoc(),
+                  0, SugaredChecked, CanonicalChecked, CTAK_Specified) ||
               Trap.hasErrorOccurred())
             IsTemplate = false;
         }
