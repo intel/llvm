@@ -106,12 +106,11 @@ bool OCLTypeToSPIRVBase::runOCLTypeToSPIRV(Module &Module) {
   return false;
 }
 
-void OCLTypeToSPIRVBase::addAdaptedType(Value *V, Type *Ty,
-                                        unsigned AddrSpace) {
+void OCLTypeToSPIRVBase::addAdaptedType(Value *V, Type *Ty) {
   LLVM_DEBUG(dbgs() << "[add adapted type] ";
              V->printAsOperand(dbgs(), true, M);
              dbgs() << " => " << *Ty << '\n');
-  AdaptedTy[V] = {Ty, AddrSpace};
+  AdaptedTy[V] = Ty;
 }
 
 void OCLTypeToSPIRVBase::addWork(Function *F) {
@@ -133,17 +132,16 @@ void OCLTypeToSPIRVBase::adaptFunction(Function *F) {
     auto Loc = AdaptedTy.find(&I);
     auto Found = (Loc != AdaptedTy.end());
     Changed |= Found;
-    ArgTys.push_back(Found ? Loc->second.first : I.getType());
+    ArgTys.push_back(Found ? Loc->second : I.getType());
 
     if (Found) {
-      auto *Ty = Loc->second.first;
-      unsigned AddrSpace = Loc->second.second;
+      Type *Ty = Loc->second;
       for (auto &U : I.uses()) {
         if (auto *CI = dyn_cast<CallInst>(U.getUser())) {
           auto ArgIndex = CI->getArgOperandNo(&U);
           auto CF = CI->getCalledFunction();
           if (AdaptedTy.count(CF) == 0) {
-            addAdaptedType(CF->getArg(ArgIndex), Ty, AddrSpace);
+            addAdaptedType(CF->getArg(ArgIndex), Ty);
             addWork(CF);
           }
         }
@@ -156,7 +154,7 @@ void OCLTypeToSPIRVBase::adaptFunction(Function *F) {
 
   auto FT = F->getFunctionType();
   FT = FunctionType::get(FT->getReturnType(), ArgTys, FT->isVarArg());
-  addAdaptedType(F, FT, 0);
+  addAdaptedType(F, TypedPointerType::get(FT, 0));
 }
 
 // Handle functions with sampler arguments that don't get called by
@@ -181,7 +179,8 @@ void OCLTypeToSPIRVBase::adaptArgumentsBySamplerUse(Module &M) {
           AdaptedTy.count(SamplerArg) != 0) // Already traced this, move on.
         continue;
 
-      addAdaptedType(SamplerArg, getSamplerStructType(&M), SPIRAS_Constant);
+      addAdaptedType(SamplerArg, TypedPointerType::get(getSamplerStructType(&M),
+                                                       SPIRAS_Constant));
       auto Caller = cast<Argument>(SamplerArg)->getParent();
       addWork(Caller);
       TraceArg(Caller, cast<Argument>(SamplerArg)->getArgNo());
@@ -209,15 +208,16 @@ void OCLTypeToSPIRVBase::adaptFunctionArguments(Function *F) {
   bool Changed = false;
   auto Arg = F->arg_begin();
   SmallVector<Type *, 4> ParamTys;
-  getParameterTypes(F, ParamTys);
 
   // If we couldn't get any information from demangling, there is nothing that
   // can be done.
-  if (ParamTys.empty())
+  if (!getParameterTypes(F, ParamTys))
     return;
 
   for (unsigned I = 0; I < F->arg_size(); ++I, ++Arg) {
-    StructType *NewTy = dyn_cast_or_null<StructType>(ParamTys[I]);
+    StructType *NewTy = nullptr;
+    if (auto *TPT = dyn_cast<TypedPointerType>(ParamTys[I]))
+      NewTy = dyn_cast_or_null<StructType>(TPT->getElementType());
     if (NewTy && NewTy->isOpaque()) {
       auto STName = NewTy->getStructName();
       if (!hasAccessQualifiedName(STName))
@@ -225,10 +225,10 @@ void OCLTypeToSPIRVBase::adaptFunctionArguments(Function *F) {
       if (STName.startswith(kSPR2TypeName::ImagePrefix)) {
         auto Ty = STName.str();
         auto AccStr = getAccessQualifierFullName(Ty);
-        addAdaptedType(
-            &*Arg,
-            getOrCreateOpaqueStructType(M, mapOCLTypeNameToSPIRV(Ty, AccStr)),
-            SPIRAS_Global);
+        addAdaptedType(&*Arg, TypedPointerType::get(
+                                  getOrCreateOpaqueStructType(
+                                      M, mapOCLTypeNameToSPIRV(Ty, AccStr)),
+                                  SPIRAS_Global));
         Changed = true;
       }
     }
@@ -249,7 +249,8 @@ void OCLTypeToSPIRVBase::adaptArgumentsByMetadata(Function *F) {
   for (unsigned I = 0, E = TypeMD->getNumOperands(); I != E; ++I, ++Arg) {
     auto OCLTyStr = getMDOperandAsString(TypeMD, I);
     if (OCLTyStr == OCL_TYPE_NAME_SAMPLER_T) {
-      addAdaptedType(&(*Arg), getSamplerStructType(M), SPIRAS_Constant);
+      addAdaptedType(&(*Arg), TypedPointerType::get(getSamplerStructType(M),
+                                                    SPIRAS_Constant));
       Changed = true;
     } else if (OCLTyStr.startswith("image") && OCLTyStr.endswith("_t")) {
       auto Ty = (Twine("opencl.") + OCLTyStr).str();
@@ -257,10 +258,10 @@ void OCLTypeToSPIRVBase::adaptArgumentsByMetadata(Function *F) {
         auto AccMD = F->getMetadata(SPIR_MD_KERNEL_ARG_ACCESS_QUAL);
         assert(AccMD && "Invalid access qualifier metadata");
         auto AccStr = getMDOperandAsString(AccMD, I);
-        addAdaptedType(
-            &(*Arg),
-            getOrCreateOpaqueStructType(M, mapOCLTypeNameToSPIRV(Ty, AccStr)),
-            SPIRAS_Global);
+        addAdaptedType(&(*Arg), TypedPointerType::get(
+                                    getOrCreateOpaqueStructType(
+                                        M, mapOCLTypeNameToSPIRV(Ty, AccStr)),
+                                    SPIRAS_Global));
         Changed = true;
       }
     }
@@ -297,15 +298,12 @@ void OCLTypeToSPIRVBase::adaptArgumentsByMetadata(Function *F) {
 // opencl data type x and access qualifier y, and use opencl.image_x.y to
 // represent image_x type with access qualifier y.
 //
-std::pair<Type *, Type *>
-OCLTypeToSPIRVBase::getAdaptedArgumentType(Function *F, unsigned ArgNo) {
+Type *OCLTypeToSPIRVBase::getAdaptedArgumentType(Function *F, unsigned ArgNo) {
   Value *Arg = F->getArg(ArgNo);
   auto Loc = AdaptedTy.find(Arg);
   if (Loc == AdaptedTy.end())
-    return {nullptr, nullptr};
-  Type *PointeeTy = Loc->second.first;
-  Type *PointerTy = PointerType::get(PointeeTy, Loc->second.second);
-  return {PointerTy, PointeeTy};
+    return nullptr;
+  return Loc->second;
 }
 
 } // namespace SPIRV

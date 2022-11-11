@@ -1120,7 +1120,7 @@ public:
 
 void diagnoseAspectsMismatch(const Function *F,
                              const SmallVector<Function *, 8> &CallChain,
-                             StringRef Aspect);
+                             StringRef Aspect, bool FromDeviceHasAttribute);
 
 // Diagnostic information for SYCL aspects usage mismatch.
 class DiagnosticInfoAspectsMismatch : public DiagnosticInfo {
@@ -1128,15 +1128,16 @@ class DiagnosticInfoAspectsMismatch : public DiagnosticInfo {
   unsigned LocCookie;
   llvm::SmallVector<std::pair<StringRef, unsigned>, 8> CallChain;
   StringRef Aspect;
+  bool FromDeviceHasAttribute;
 
 public:
   DiagnosticInfoAspectsMismatch(
       StringRef FunctionName, unsigned LocCookie,
       const llvm::SmallVector<std::pair<StringRef, unsigned>, 8> &CallChain,
-      StringRef Aspect)
+      StringRef Aspect, bool FromDeviceHasAttribute)
       : DiagnosticInfo(DK_AspectMismatch, DiagnosticSeverity::DS_Warning),
         FunctionName(FunctionName), LocCookie(LocCookie), CallChain(CallChain),
-        Aspect(Aspect) {}
+        Aspect(Aspect), FromDeviceHasAttribute(FromDeviceHasAttribute) {}
   StringRef getFunctionName() const { return FunctionName; }
   unsigned getLocCookie() const { return LocCookie; }
   const llvm::SmallVector<std::pair<StringRef, unsigned>, 8> &
@@ -1144,6 +1145,7 @@ public:
     return CallChain;
   }
   StringRef getAspect() const { return Aspect; }
+  bool isFromDeviceHasAttribute() const { return FromDeviceHasAttribute; }
   void print(DiagnosticPrinter &DP) const override;
   static bool classof(const DiagnosticInfo *DI) {
     return DI->getKind() == DK_AspectMismatch;

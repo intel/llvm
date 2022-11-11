@@ -7819,7 +7819,8 @@ void Sema::CheckSYCLAddIRAttributesFunctionAttrConflicts(Decl *D) {
   for (const auto *Attr : std::vector<AttributeCommonInfo *>{
            D->getAttr<ReqdWorkGroupSizeAttr>(),
            D->getAttr<IntelReqdSubGroupSizeAttr>(),
-           D->getAttr<WorkGroupSizeHintAttr>()})
+           D->getAttr<WorkGroupSizeHintAttr>(),
+           D->getAttr<SYCLDeviceHasAttr>()})
     if (Attr)
       Diag(Attr->getLoc(), diag::warn_sycl_old_and_new_kernel_attributes)
           << Attr;

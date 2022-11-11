@@ -30,6 +30,7 @@
 #include <sycl/nd_item.hpp>
 #include <sycl/nd_range.hpp>
 #include <sycl/property_list.hpp>
+#include <sycl/reduction_forward.hpp>
 #include <sycl/sampler.hpp>
 #include <sycl/stl.hpp>
 
@@ -268,43 +269,9 @@ private:
   KernelType KernelFunc;
 };
 
-template <typename T, class BinaryOperation, int Dims, size_t Extent,
-          typename RedOutVar>
-class reduction_impl_algo;
-
 using sycl::detail::enable_if_t;
 using sycl::detail::queue_impl;
 
-// Reductions implementation need access to private members of handler. Those
-// are limited to those below.
-namespace reduction {
-inline void finalizeHandler(handler &CGH);
-template <class FunctorTy> void withAuxHandler(handler &CGH, FunctorTy Func);
-} // namespace reduction
-
-template <typename KernelName, int Dims, typename PropertiesT,
-          typename KernelType, typename Reduction>
-void reduction_parallel_for(handler &CGH,
-                            std::shared_ptr<detail::queue_impl> Queue,
-                            range<Dims> Range, PropertiesT Properties,
-                            Reduction Redu, KernelType KernelFunc);
-
-template <typename KernelName, int Dims, typename PropertiesT,
-          typename KernelType, typename Reduction>
-void reduction_parallel_for(handler &CGH,
-                            std::shared_ptr<detail::queue_impl> Queue,
-                            nd_range<Dims> Range, PropertiesT Properties,
-                            Reduction Redu, KernelType KernelFunc);
-
-template <typename KernelName, int Dims, typename PropertiesT,
-          typename... RestT>
-void reduction_parallel_for(handler &CGH,
-                            std::shared_ptr<detail::queue_impl> Queue,
-                            nd_range<Dims> Range, PropertiesT Properties,
-                            RestT... Rest);
-
-template <typename T> struct IsReduction;
-template <typename FirstT, typename... RestT> struct AreAllButLastReductions;
 } // namespace detail
 
 /// Command group handler class.
@@ -465,20 +432,33 @@ private:
 
   void setArgsHelper(int) {}
 
-  // setArgHelper for local accessor argument.
+  void setLocalAccessorArgHelper(int ArgIndex,
+                                 detail::LocalAccessorBaseHost &LocalAccBase) {
+    detail::LocalAccessorImplPtr LocalAccImpl =
+        detail::getSyclObjImpl(LocalAccBase);
+    detail::LocalAccessorImplHost *Req = LocalAccImpl.get();
+    MLocalAccStorage.push_back(std::move(LocalAccImpl));
+    MArgs.emplace_back(detail::kernel_param_kind_t::kind_accessor, Req,
+                       static_cast<int>(access::target::local), ArgIndex);
+  }
+
+  // setArgHelper for local accessor argument (legacy accessor interface)
   template <typename DataT, int Dims, access::mode AccessMode,
             access::placeholder IsPlaceholder>
   void setArgHelper(int ArgIndex,
                     accessor<DataT, Dims, AccessMode, access::target::local,
                              IsPlaceholder> &&Arg) {
-    detail::LocalAccessorBaseHost *LocalAccBase =
-        (detail::LocalAccessorBaseHost *)&Arg;
-    detail::LocalAccessorImplPtr LocalAccImpl =
-        detail::getSyclObjImpl(*LocalAccBase);
-    detail::LocalAccessorImplHost *Req = LocalAccImpl.get();
-    MLocalAccStorage.push_back(std::move(LocalAccImpl));
-    MArgs.emplace_back(detail::kernel_param_kind_t::kind_accessor, Req,
-                       static_cast<int>(access::target::local), ArgIndex);
+#ifndef __SYCL_DEVICE_ONLY__
+    setLocalAccessorArgHelper(ArgIndex, Arg);
+#endif
+  }
+
+  // setArgHelper for local accessor argument (up to date accessor interface)
+  template <typename DataT, int Dims>
+  void setArgHelper(int ArgIndex, local_accessor<DataT, Dims> &&Arg) {
+#ifndef __SYCL_DEVICE_ONLY__
+    setLocalAccessorArgHelper(ArgIndex, Arg);
+#endif
   }
 
   // setArgHelper for non local accessor argument.
