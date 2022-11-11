@@ -1230,6 +1230,17 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       addSYCLDefaultTriple(C, UniqueSYCLTriplesVec);
     }
   }
+// -fno_sycl_libspirv flag is reserved for very unusual cases where the libspirv
+// library is not linked when using CUDA/HIP: so output appropriate warnings.
+if (C.getInputArgs().hasArg(options::OPT_fno_sycl_libspirv)) {
+  for (auto &TT : UniqueSYCLTriplesVec) {
+    if (TT.isNVPTX() || TT.isAMDGCN()) {
+      Diag(diag::warn_flag_no_sycl_libspirv) << TT.getTriple();
+    } else {
+      Diag(diag::warn_flag_no_sycl_libspirv_has_no_effect) << TT.getTriple();
+    }
+  }
+}
   // We'll need to use the SYCL and host triples as the key into
   // getOffloadingDeviceToolChain, because the device toolchains we're
   // going to create will depend on both.
