@@ -5025,7 +5025,7 @@ pi_result hip_piextUSMEnqueueFill2D(pi_queue, void *, size_t, size_t,
 
 // TODO: Implement this. Remember to return true for
 //       PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT when it is implemented.
-pi_result hip_piextUSMEnqueueMemset2D(pi_queue, void *, size_t, size_t, int,
+pi_result hip_piextUSMEnqueueMemset2D(pi_queue, void *, size_t, int, size_t,
                                       size_t, pi_uint32, const pi_event *,
                                       pi_event *) {
   sycl::detail::pi::die("hip_piextUSMEnqueueMemset2D: not implemented");
