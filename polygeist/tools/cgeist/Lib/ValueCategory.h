@@ -17,18 +17,17 @@
 class ValueCategory {
 private:
   template <typename OpTy>
-  ValueCategory Cast(mlir::OpBuilder &Builder, mlir::Type PromotionType) const {
+  ValueCategory Cast(mlir::OpBuilder &Builder, mlir::Location Loc,
+                     mlir::Type PromotionType) const {
     if (val.getType() == PromotionType)
       return *this;
-    return {
-        Builder.createOrFold<OpTy>(Builder.getUnknownLoc(), PromotionType, val),
-        false};
+    return {Builder.createOrFold<OpTy>(Loc, PromotionType, val), false};
   }
 
-  ValueCategory ICmp(mlir::OpBuilder &builder,
+  ValueCategory ICmp(mlir::OpBuilder &builder, mlir::Location Loc,
                      mlir::arith::CmpIPredicate predicate,
                      mlir::Value RHS) const;
-  ValueCategory FCmp(mlir::OpBuilder &builder,
+  ValueCategory FCmp(mlir::OpBuilder &builder, mlir::Location Loc,
                      mlir::arith::CmpFPredicate predicate,
                      mlir::Value RHS) const;
 
@@ -49,23 +48,26 @@ public:
   void store(mlir::OpBuilder &Builder, mlir::Value toStore) const;
   ValueCategory dereference(mlir::OpBuilder &Builder) const;
 
-  ValueCategory FPTrunc(mlir::OpBuilder &Builder,
+  ValueCategory FPTrunc(mlir::OpBuilder &Builder, mlir::Location Loc,
                         mlir::Type PromotionType) const;
 
-  ValueCategory FPExt(mlir::OpBuilder &Builder, mlir::Type PromotionType) const;
-  ValueCategory IntCast(mlir::OpBuilder &Builder, mlir::Type PromotionType,
-                        bool IsSigned) const;
-  ValueCategory SIToFP(mlir::OpBuilder &Builder,
+  ValueCategory FPExt(mlir::OpBuilder &Builder, mlir::Location Loc,
+                      mlir::Type PromotionType) const;
+  ValueCategory IntCast(mlir::OpBuilder &Builder, mlir::Location Loc,
+                        mlir::Type PromotionType, bool IsSigned) const;
+  ValueCategory SIToFP(mlir::OpBuilder &Builder, mlir::Location Loc,
                        mlir::Type PromotionType) const;
-  ValueCategory UIToFP(mlir::OpBuilder &Builder,
+  ValueCategory UIToFP(mlir::OpBuilder &Builder, mlir::Location Loc,
                        mlir::Type PromotionType) const;
-  ValueCategory FPToUI(mlir::OpBuilder &Builder,
+  ValueCategory FPToUI(mlir::OpBuilder &Builder, mlir::Location Loc,
                        mlir::Type PromotionType) const;
-  ValueCategory FPToSI(mlir::OpBuilder &Builder,
+  ValueCategory FPToSI(mlir::OpBuilder &Builder, mlir::Location Loc,
                        mlir::Type PromotionType) const;
 
-  ValueCategory ICmpNE(mlir::OpBuilder &builder, mlir::Value RHS) const;
-  ValueCategory FCmpUNE(mlir::OpBuilder &builder, mlir::Value RHS) const;
+  ValueCategory ICmpNE(mlir::OpBuilder &builder, mlir::Location Loc,
+                       mlir::Value RHS) const;
+  ValueCategory FCmpUNE(mlir::OpBuilder &builder, mlir::Location Loc,
+                        mlir::Value RHS) const;
 };
 
 #endif /* CLANG_MLIR_VALUE_CATEGORY */

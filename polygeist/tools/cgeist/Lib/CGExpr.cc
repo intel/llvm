@@ -2173,21 +2173,24 @@ ValueCategory MLIRScanner::EmitPromoted(Expr *E, QualType PromotionType) {
 
   const ValueCategory Res = Visit(E);
   if (Res.val) {
+    const auto Loc = getMLIRLocation(E->getExprLoc());
     if (!PromotionType.isNull())
-      return EmitPromotedValue(Res, PromotionType);
-    return EmitUnPromotedValue(Res, E->getType());
+      return EmitPromotedValue(Loc, Res, PromotionType);
+    return EmitUnPromotedValue(Loc, Res, E->getType());
   }
   return Res;
 }
 
-ValueCategory MLIRScanner::EmitPromotedValue(ValueCategory Result,
+ValueCategory MLIRScanner::EmitPromotedValue(Location Loc, ValueCategory Result,
                                              QualType PromotionType) {
-  return Result.FPExt(builder, Glob.getTypes().getMLIRType(PromotionType));
+  return Result.FPExt(builder, Loc, Glob.getTypes().getMLIRType(PromotionType));
 }
 
-ValueCategory MLIRScanner::EmitUnPromotedValue(ValueCategory Result,
+ValueCategory MLIRScanner::EmitUnPromotedValue(Location Loc,
+                                               ValueCategory Result,
                                                QualType PromotionType) {
-  return Result.FPTrunc(builder, Glob.getTypes().getMLIRType(PromotionType));
+  return Result.FPTrunc(builder, Loc,
+                        Glob.getTypes().getMLIRType(PromotionType));
 }
 
 ValueCategory MLIRScanner::EmitPromotedScalarExpr(Expr *E,
@@ -2197,9 +2200,9 @@ ValueCategory MLIRScanner::EmitPromotedScalarExpr(Expr *E,
   return Visit(E);
 }
 
-ValueCategory MLIRScanner::EmitScalarCast(ValueCategory Src, QualType SrcType,
-                                          QualType DstType, mlir::Type SrcTy,
-                                          mlir::Type DstTy) {
+ValueCategory MLIRScanner::EmitScalarCast(mlir::Location Loc, ValueCategory Src,
+                                          QualType SrcType, QualType DstType,
+                                          mlir::Type SrcTy, mlir::Type DstTy) {
   assert(SrcTy != DstTy && "Types should be different when casting");
   assert(!SrcType->isAnyComplexType() && !DstType->isAnyComplexType() &&
          "Not supported in cgeist");
@@ -2215,10 +2218,10 @@ ValueCategory MLIRScanner::EmitScalarCast(ValueCategory Src, QualType SrcType,
     }
 
     if (DstTy.isIntOrIndex())
-      return Src.IntCast(builder, DstTy, InputSigned);
+      return Src.IntCast(builder, Loc, DstTy, InputSigned);
     if (InputSigned)
-      return Src.SIToFP(builder, DstTy);
-    return Src.UIToFP(builder, DstTy);
+      return Src.SIToFP(builder, Loc, DstTy);
+    return Src.UIToFP(builder, Loc, DstTy);
   }
 
   if (DstTy.isIntOrIndex()) {
@@ -2231,13 +2234,13 @@ ValueCategory MLIRScanner::EmitScalarCast(ValueCategory Src, QualType SrcType,
     llvm::WithColor::warning() << "Performing strict float cast overflow\n";
 
     if (IsSigned)
-      return Src.FPToSI(builder, DstTy);
-    return Src.FPToUI(builder, DstTy);
+      return Src.FPToSI(builder, Loc, DstTy);
+    return Src.FPToUI(builder, Loc, DstTy);
   }
 
   if (DstTy.cast<FloatType>().getWidth() < SrcTy.cast<FloatType>().getWidth())
-    return Src.FPTrunc(builder, DstTy);
-  return Src.FPExt(builder, DstTy);
+    return Src.FPTrunc(builder, Loc, DstTy);
+  return Src.FPExt(builder, Loc, DstTy);
 }
 
 ValueCategory MLIRScanner::EmitScalarConversion(ValueCategory Src,
@@ -2271,8 +2274,9 @@ ValueCategory MLIRScanner::EmitScalarConversion(ValueCategory Src,
 
   auto SrcTy = Src.val.getType();
 
+  const auto MLIRLoc = getMLIRLocation(Loc);
   if (DstType->isBooleanType())
-    return EmitConversionToBool(Src, SrcType);
+    return EmitConversionToBool(MLIRLoc, Src, SrcType);
 
   mlir::Type DstTy = CGTypes.getMLIRType(DstType);
 
@@ -2291,7 +2295,7 @@ ValueCategory MLIRScanner::EmitScalarConversion(ValueCategory Src,
       if (CGM.getContext().getTargetInfo().useFP16ConversionIntrinsics())
         llvm::WithColor::warning() << "Should call convert_from_fp16 intrinsic "
                                       "to perfom this conversion\n";
-      Src = Src.FPExt(builder, builder.getF32Type());
+      Src = Src.FPExt(builder, MLIRLoc, builder.getF32Type());
       SrcType = CGM.getContext().FloatTy;
       SrcTy = builder.getF32Type();
     }
@@ -2335,12 +2339,13 @@ ValueCategory MLIRScanner::EmitScalarConversion(ValueCategory Src,
         llvm::WithColor::warning() << "Should call convert_to_fp16 intrinsic "
                                       "to perfom this conversion\n";
       // If the half type is supported, just use an fptrunc.
-      return Src.FPTrunc(builder, DstTy);
+      return Src.FPTrunc(builder, MLIRLoc, DstTy);
     }
     DstTy = builder.getF32Type();
   }
 
-  ValueCategory Res = EmitScalarCast(Src, SrcType, DstType, SrcTy, DstTy);
+  ValueCategory Res =
+      EmitScalarCast(MLIRLoc, Src, SrcType, DstType, SrcTy, DstTy);
 
   if (DstTy != ResTy) {
     if (CGM.getContext().getTargetInfo().useFP16ConversionIntrinsics()) {
@@ -2348,7 +2353,7 @@ ValueCategory MLIRScanner::EmitScalarConversion(ValueCategory Src,
       llvm::WithColor::warning() << "Should call convert_to_fp16 intrinsic to "
                                     "perfom this conversion\n";
     }
-    Res = Res.FPTrunc(builder, ResTy);
+    Res = Res.FPTrunc(builder, MLIRLoc, ResTy);
   }
 
   llvm::WithColor::warning() << "Missing truncation checks\n";
@@ -2357,58 +2362,58 @@ ValueCategory MLIRScanner::EmitScalarConversion(ValueCategory Src,
   return Res;
 }
 
-ValueCategory MLIRScanner::EmitFloatToBoolConversion(ValueCategory Src) {
+ValueCategory MLIRScanner::EmitFloatToBoolConversion(Location Loc,
+                                                     ValueCategory Src) {
   assert(Src.val.getType().isa<FloatType>() && "Expecting a float value");
   mlir::OpBuilder SubBuilder(builder.getContext());
   SubBuilder.setInsertionPointToStart(entryBlock);
   auto FloatTy = cast<FloatType>(Src.val.getType());
   auto Zero = SubBuilder.create<ConstantFloatOp>(
-      builder.getUnknownLoc(),
-      mlir::APFloat::getZero(FloatTy.getFloatSemantics()), FloatTy);
-  return Src.FCmpUNE(builder, Zero);
+      Loc, mlir::APFloat::getZero(FloatTy.getFloatSemantics()), FloatTy);
+  return Src.FCmpUNE(builder, Loc, Zero);
 }
 
-ValueCategory MLIRScanner::EmitPointerToBoolConversion(ValueCategory Src) {
+ValueCategory MLIRScanner::EmitPointerToBoolConversion(Location Loc,
+                                                       ValueCategory Src) {
   if (auto MemRefTy = Src.val.getType().dyn_cast<MemRefType>()) {
     auto ElementTy = MemRefTy.getElementType();
     auto AddressSpace = MemRefTy.getMemorySpaceAsInt();
     Src = {
         builder.create<polygeist::Memref2PointerOp>(
-            loc, LLVM::LLVMPointerType::get(ElementTy, AddressSpace), Src.val),
+            Loc, LLVM::LLVMPointerType::get(ElementTy, AddressSpace), Src.val),
         Src.isReference};
   }
   assert(Src.val.getType().isa<LLVM::LLVMPointerType>() &&
          "Expecting a pointer");
   mlir::OpBuilder SubBuilder(builder.getContext());
   SubBuilder.setInsertionPointToStart(entryBlock);
-  auto Zero = SubBuilder.create<LLVM::NullOp>(builder.getUnknownLoc(),
-                                              Src.val.getType());
-  return {builder.createOrFold<LLVM::ICmpOp>(loc, LLVM::ICmpPredicate::ne,
+  auto Zero = SubBuilder.create<LLVM::NullOp>(Loc, Src.val.getType());
+  return {builder.createOrFold<LLVM::ICmpOp>(Loc, LLVM::ICmpPredicate::ne,
                                              Src.val, Zero),
           false};
 }
 
-ValueCategory MLIRScanner::EmitIntToBoolConversion(ValueCategory Src) {
+ValueCategory MLIRScanner::EmitIntToBoolConversion(Location Loc,
+                                                   ValueCategory Src) {
   assert(Src.val.getType().isa<IntegerType>() && "Expecting an integer value");
   mlir::OpBuilder SubBuilder(builder.getContext());
   SubBuilder.setInsertionPointToStart(entryBlock);
   auto Zero = SubBuilder.create<ConstantIntOp>(
-      builder.getUnknownLoc(), 0,
-      Src.val.getType().cast<IntegerType>().getWidth());
-  return Src.ICmpNE(builder, Zero);
+      Loc, 0, Src.val.getType().cast<IntegerType>().getWidth());
+  return Src.ICmpNE(builder, Loc, Zero);
 }
 
-ValueCategory MLIRScanner::EmitConversionToBool(ValueCategory Src,
+ValueCategory MLIRScanner::EmitConversionToBool(Location Loc, ValueCategory Src,
                                                 QualType SrcType) {
   assert(SrcType.isCanonical() && "EmitScalarConversion strips typedefs");
   assert(!isa<MemberPointerType>(SrcType) && "Not implemented yet");
   const auto ValTy = Src.val.getType();
   if (ValTy.isa<FloatType>())
-    return EmitFloatToBoolConversion(Src);
+    return EmitFloatToBoolConversion(Loc, Src);
   if (ValTy.isa<IntegerType>())
-    return EmitIntToBoolConversion(Src);
+    return EmitIntToBoolConversion(Loc, Src);
   if (ValTy.isa<LLVM::LLVMPointerType, MemRefType>())
-    return EmitPointerToBoolConversion(Src);
+    return EmitPointerToBoolConversion(Loc, Src);
   llvm_unreachable("Unknown scalar type to convert");
 }
 
@@ -2542,7 +2547,8 @@ ValueCategory MLIRScanner::EmitCompoundAssign(
     QualType PromotionType = Glob.getTypes().getPromotionType(E->getType());   \
     ValueCategory Result = EmitBin##OP(EmitBinOps(E, PromotionType));          \
     if (Result.val && !PromotionType.isNull())                                 \
-      Result = EmitUnPromotedValue(Result, E->getType());                      \
+      Result = EmitUnPromotedValue(getMLIRLocation(E->getExprLoc()), Result,   \
+                                   E->getType());                              \
     return Result;                                                             \
   }                                                                            \
                                                                                \

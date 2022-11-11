@@ -1141,7 +1141,9 @@ ValueCategory MLIRScanner::VisitReturnStmt(clang::ReturnStmt *stmt) {
         const auto SrcTy = stmt->getRetValue()->getType();
         const auto IsSigned =
             SrcTy->isBooleanType() ? false : SrcTy->isSignedIntegerType();
-        val = rv.IntCast(builder, postTy, IsSigned).val;
+        val = rv.IntCast(builder, getMLIRLocation(stmt->getReturnLoc()), postTy,
+                         IsSigned)
+                  .val;
       } else if (val.getType().isa<MemRefType>() &&
                  postTy.isa<LLVM::LLVMPointerType>())
         val = builder.create<polygeist::Memref2PointerOp>(loc, postTy, val);
