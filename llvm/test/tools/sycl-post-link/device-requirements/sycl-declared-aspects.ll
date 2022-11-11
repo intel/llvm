@@ -56,7 +56,6 @@ entry:
 
 attributes #0 = { "sycl-module-id"="source.cpp" }
 
-
 !sycl_aspects = !{!1, !2, !3}
 
 !1 = !{!"fp16", i32 5}
