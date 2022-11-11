@@ -114,6 +114,8 @@
 ??$get_info@Umax_work_item_dimensions@device@info@_V1@sycl@@@device@_V1@sycl@@QEBAIXZ
 ??$get_info@Umax_write_image_args@device@info@_V1@sycl@@@device@_V1@sycl@@QEBAIXZ
 ??$get_info@Umem_base_addr_align@device@info@_V1@sycl@@@device@_V1@sycl@@QEBAIXZ
+??$get_info@Umemory_bus_width@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@QEBAIXZ
+??$get_info@Umemory_clock_rate@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@QEBAIXZ
 ??$get_info@Uname@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ??$get_info@Uname@platform@info@_V1@sycl@@@platform@_V1@sycl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ??$get_info@Unative_vector_width_char@device@info@_V1@sycl@@@device@_V1@sycl@@QEBAIXZ

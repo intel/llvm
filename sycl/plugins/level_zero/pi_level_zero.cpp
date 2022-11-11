@@ -3180,7 +3180,40 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     }
     return ReturnValue(FreeMemory);
   }
+  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE: {
+    // If there are no any memory modules then return 0.
+    if (Device->ZeDeviceMemoryProperties->empty())
+      return ReturnValue(pi_uint32{0});
+    ;
 
+    // If there are multiple memory modules on the device then we have to report
+    // the value of the slowest memory.
+    auto Comp = [](const ze_device_memory_properties_t &A,
+                   const ze_device_memory_properties_t &B) -> bool {
+      return A.maxClockRate < B.maxClockRate;
+    };
+    auto MinIt =
+        std::min_element(Device->ZeDeviceMemoryProperties->begin(),
+                         Device->ZeDeviceMemoryProperties->end(), Comp);
+    return ReturnValue(pi_uint32{MinIt->maxClockRate});
+  }
+  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH: {
+    // If there are no any memory modules then return 0.
+    if (Device->ZeDeviceMemoryProperties->empty())
+      return ReturnValue(pi_uint32{0});
+    ;
+
+    // If there are multiple memory modules on the device then we have to report
+    // the value of the slowest memory.
+    auto Comp = [](const ze_device_memory_properties_t &A,
+                   const ze_device_memory_properties_t &B) -> bool {
+      return A.maxBusWidth < B.maxBusWidth;
+    };
+    auto MinIt =
+        std::min_element(Device->ZeDeviceMemoryProperties->begin(),
+                         Device->ZeDeviceMemoryProperties->end(), Comp);
+    return ReturnValue(pi_uint32{MinIt->maxBusWidth});
+  }
   case PI_DEVICE_INFO_GPU_EU_COUNT: {
     pi_uint32 count = Device->ZeDeviceProperties->numEUsPerSubslice *
                       Device->ZeDeviceProperties->numSubslicesPerSlice *

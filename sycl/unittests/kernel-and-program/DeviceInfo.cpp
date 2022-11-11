@@ -20,6 +20,8 @@ struct TestCtx {
   context &Ctx;
   bool UUIDInfoCalled = false;
   bool FreeMemoryInfoCalled = false;
+  bool MemoryClockRateInfoCalled = false;
+  bool MemoryBusWidthInfoCalled = false;
 
   std::string BuiltInKernels;
 };
@@ -43,6 +45,10 @@ static pi_result redefinedDeviceGetInfo(pi_device device,
     }
   } else if (param_name == PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY) {
     TestContext->FreeMemoryInfoCalled = true;
+  } else if (param_name == PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE) {
+    TestContext->MemoryClockRateInfoCalled = true;
+  } else if (param_name == PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH) {
+    TestContext->MemoryBusWidthInfoCalled = true;
   }
 
   // This mock device has no sub-devices
@@ -119,6 +125,52 @@ TEST_F(DeviceInfoTest, GetDeviceFreeMemory) {
 
   EXPECT_EQ(sizeof(FreeMemory), sizeof(uint64_t))
       << "Expect free_memory to be of uint64_t size";
+}
+
+TEST_F(DeviceInfoTest, GetDeviceMemoryClockRate) {
+  context Ctx{Plt.get_devices()[0]};
+  TestContext.reset(new TestCtx(Ctx));
+
+  device Dev = Ctx.get_devices()[0];
+
+  if (!Dev.has(aspect::ext_intel_memory_clock_rate)) {
+    std::clog << "This test is only for the devices with "
+                 "ext_intel_memory_clock_rate extension support.\n";
+    return;
+  }
+
+  auto MemoryClockRate =
+      Dev.get_info<ext::intel::info::device::memory_clock_rate>();
+
+  EXPECT_EQ(TestContext->MemoryClockRateInfoCalled, true)
+      << "Expect piDeviceGetInfo to be "
+      << "called with PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE";
+
+  EXPECT_EQ(sizeof(MemoryClockRate), sizeof(uint32_t))
+      << "Expect memory_clock_rate to be of uint32_t size";
+}
+
+TEST_F(DeviceInfoTest, GetDeviceMemoryBusWidth) {
+  context Ctx{Plt.get_devices()[0]};
+  TestContext.reset(new TestCtx(Ctx));
+
+  device Dev = Ctx.get_devices()[0];
+
+  if (!Dev.has(aspect::ext_intel_memory_bus_width)) {
+    std::clog << "This test is only for the devices with "
+                 "ext_intel_memory_bus_width extension support.\n";
+    return;
+  }
+
+  auto MemoryBusWidth =
+      Dev.get_info<ext::intel::info::device::memory_bus_width>();
+
+  EXPECT_EQ(TestContext->MemoryBusWidthInfoCalled, true)
+      << "Expect piDeviceGetInfo to be "
+      << "called with PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH";
+
+  EXPECT_EQ(sizeof(MemoryBusWidth), sizeof(uint32_t))
+      << "Expect memory_bus_width to be of uint32_t size";
 }
 
 TEST_F(DeviceInfoTest, BuiltInKernelIDs) {
