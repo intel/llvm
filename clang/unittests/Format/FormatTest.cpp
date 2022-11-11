@@ -7259,6 +7259,59 @@ TEST_F(FormatTest, AllowAllArgumentsOnNextLineDontAlign) {
             format(Input, Style));
 }
 
+TEST_F(FormatTest, BreakBeforeInlineASMColon) {
+  FormatStyle Style = getLLVMStyle();
+  Style.BreakBeforeInlineASMColon = FormatStyle::BBIAS_Never;
+  /* Test the behaviour with long lines */
+  Style.ColumnLimit = 40;
+  verifyFormat("asm volatile(\"loooooooooooooooooooong\",\n"
+               "             : : val);",
+               Style);
+  verifyFormat("asm volatile(\"loooooooooooooooooooong\",\n"
+               "             : val1 : val2);",
+               Style);
+  verifyFormat("asm(\"movq\\t%%rbx, %%rsi\\n\\t\"\n"
+               "    \"cpuid\\n\\t\"\n"
+               "    \"xchgq\\t%%rbx %%rsi\\n\\t\",\n"
+               "    : \"=a\" : \"a\");",
+               Style);
+  Style.ColumnLimit = 80;
+  verifyFormat("asm volatile(\"string\", : : val);", Style);
+  verifyFormat("asm volatile(\"string\", : val1 : val2);", Style);
+
+  Style.BreakBeforeInlineASMColon = FormatStyle::BBIAS_Always;
+  verifyFormat("asm volatile(\"string\",\n"
+               "             :\n"
+               "             : val);",
+               Style);
+  verifyFormat("asm volatile(\"string\",\n"
+               "             : val1\n"
+               "             : val2);",
+               Style);
+  /* Test the behaviour with long lines */
+  Style.ColumnLimit = 40;
+  verifyFormat("asm(\"movq\\t%%rbx, %%rsi\\n\\t\"\n"
+               "    \"cpuid\\n\\t\"\n"
+               "    \"xchgq\\t%%rbx, %%rsi\\n\\t\"\n"
+               "    : \"=a\"(*rEAX)\n"
+               "    : \"a\"(value));",
+               Style);
+  verifyFormat("asm(\"movq\\t%%rbx, %%rsi\\n\\t\"\n"
+               "    \"cpuid\\n\\t\"\n"
+               "    \"xchgq\\t%%rbx, %%rsi\\n\\t\"\n"
+               "    :\n"
+               "    : \"a\"(value));",
+               Style);
+  verifyFormat("asm volatile(\"loooooooooooooooooooong\",\n"
+               "             :\n"
+               "             : val);",
+               Style);
+  verifyFormat("asm volatile(\"loooooooooooooooooooong\",\n"
+               "             : val1\n"
+               "             : val2);",
+               Style);
+}
+
 TEST_F(FormatTest, BreakConstructorInitializersAfterColon) {
   FormatStyle Style = getLLVMStyle();
   Style.BreakConstructorInitializers = FormatStyle::BCIS_AfterColon;
@@ -23320,7 +23373,10 @@ TEST(FormatStyle, GetStyleOfFile) {
                          llvm::MemoryBuffer::getMemBuffer(
                              "BasedOnStyle: InheritParentConfig\n"
                              "WhitespaceSensitiveMacros: ['FOO', 'BAR']")));
-  std::vector<std::string> NonDefaultWhiteSpaceMacros{"FOO", "BAR"};
+  std::vector<std::string> NonDefaultWhiteSpaceMacros =
+      Style9->WhitespaceSensitiveMacros;
+  NonDefaultWhiteSpaceMacros[0] = "FOO";
+  NonDefaultWhiteSpaceMacros[1] = "BAR";
 
   ASSERT_NE(Style9->WhitespaceSensitiveMacros, NonDefaultWhiteSpaceMacros);
   Style9 = getStyle("file", "/e/sub/sub/code.cpp", "none", "", &FS);
@@ -23376,8 +23432,8 @@ TEST(FormatStyle, GetStyleOfFile) {
   ASSERT_EQ(*Style9, SubSubStyle);
 
   // Test 9.6: use command line style with inheritance
-  Style9 = getStyle("{BasedOnStyle: InheritParentConfig}", "/e/sub/code.cpp",
-                    "none", "", &FS);
+  Style9 = getStyle("{BasedOnStyle: InheritParentConfig}",
+                    "/e/sub/sub/code.cpp", "none", "", &FS);
   ASSERT_TRUE(static_cast<bool>(Style9));
   ASSERT_EQ(*Style9, SubSubStyle);
 

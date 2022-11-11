@@ -840,6 +840,35 @@ void Instruction::applyMergedLocation(const DILocation *LocA,
   setDebugLoc(DILocation::getMergedLocation(LocA, LocB));
 }
 
+void Instruction::mergeDIAssignID(
+    ArrayRef<const Instruction *> SourceInstructions) {
+  // Replace all uses (and attachments) of all the DIAssignIDs
+  // on SourceInstructions with a single merged value.
+  assert(getFunction() && "Uninserted instruction merged");
+  // Collect up the DIAssignID tags.
+  SmallVector<DIAssignID *, 4> IDs;
+  for (const Instruction *I : SourceInstructions) {
+    if (auto *MD = I->getMetadata(LLVMContext::MD_DIAssignID))
+      IDs.push_back(cast<DIAssignID>(MD));
+    assert(getFunction() == I->getFunction() &&
+           "Merging with instruction from another function not allowed");
+  }
+
+  // Add this instruction's DIAssignID too, if it has one.
+  if (auto *MD = getMetadata(LLVMContext::MD_DIAssignID))
+    IDs.push_back(cast<DIAssignID>(MD));
+
+  if (IDs.empty())
+    return; // No DIAssignID tags to process.
+
+  DIAssignID *MergeID = IDs[0];
+  for (auto It = std::next(IDs.begin()), End = IDs.end(); It != End; ++It) {
+    if (*It != MergeID)
+      at::RAUW(*It, MergeID);
+  }
+  setMetadata(LLVMContext::MD_DIAssignID, MergeID);
+}
+
 void Instruction::updateLocationAfterHoist() { dropLocation(); }
 
 void Instruction::dropLocation() {
@@ -1762,6 +1791,7 @@ static CallInst *emitDbgAssign(AssignmentInfo Info, Value *Val, Value *Dest,
                                const VarRecord &VarRec, DIBuilder &DIB) {
   auto *ID = StoreLikeInst.getMetadata(LLVMContext::MD_DIAssignID);
   assert(ID && "Store instruction must have DIAssignID metadata");
+  (void)ID;
 
   DIExpression *Expr = DIExpression::get(StoreLikeInst.getContext(), None);
   if (!Info.StoreToWholeAlloca) {
@@ -1911,6 +1941,7 @@ void AssignmentTrackingPass::runOnFunction(Function &F) {
   for (auto &P : DbgDeclares) {
     const AllocaInst *Alloca = P.first;
     auto Markers = at::getAssignmentMarkers(Alloca);
+    (void)Markers;
     for (DbgDeclareInst *DDI : P.second) {
       // Assert that the alloca that DDI uses is now linked to a dbg.assign
       // describing the same variable (i.e. check that this dbg.declare

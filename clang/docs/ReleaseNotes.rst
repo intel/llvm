@@ -176,6 +176,11 @@ code bases.
       g(42);
     }
 
+- Clang's resource dir used to include the full clang version. It will now
+  include only the major version. The new resource directory is
+  ``$prefix/lib/clang/$CLANG_MAJOR_VERSION`` and can be queried using
+  ``clang -print-resource-dir``, just like before.
+
 What's New in Clang |release|?
 ==============================
 Some of the major new features and improvements to Clang are listed
@@ -713,6 +718,7 @@ X86 Support in Clang
   * Support intrinsic of ``_mm(256)_cvtneoph_ps``.
   * Support intrinsic of ``_mm(256)_cvtneps_avx_pbh``.
 - ``-march=raptorlake`` and ``-march=meteorlake`` are now supported.
+- ``-march=sierraforest``, ``-march=graniterapids`` and ``-march=grandridge`` are now supported.
 
 WebAssembly Support in Clang
 ----------------------------
@@ -743,11 +749,11 @@ Arm and AArch64 Support in Clang
 - ``-march`` values for targeting armv2, armv2A, armv3 and armv3M have been removed.
   Their presence gave the impression that Clang can correctly generate code for
   them, which it cannot.
-- Add driver and tuning support for Neoverse V2 via the flag ``-mcpu=neoverse-v2``.
-  Native detection is also supported via ``-mcpu=native``.
 - Support has been added for the following processors (-mcpu identifiers in parenthesis):
 
   * Arm Cortex-A715 (cortex-a715).
+  * Arm Cortex-X3 (cortex-x3).
+  * Arm Neoverse V2 (neoverse-v2)
 
 Floating Point Support in Clang
 -------------------------------
