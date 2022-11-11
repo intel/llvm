@@ -763,7 +763,7 @@ void handler::depends_on(const std::vector<event> &Events) {
 
 static bool
 checkContextSupports(const std::shared_ptr<detail::context_impl> &ContextImpl,
-                     RT::PiContextInfo InfoQuery) {
+                     detail::RT::PiContextInfo InfoQuery) {
   auto &Plugin = ContextImpl->getPlugin();
   pi_bool SupportsOp = false;
   Plugin.call<detail::PiApiKind::piContextGetInfo>(ContextImpl->getHandleRef(),
