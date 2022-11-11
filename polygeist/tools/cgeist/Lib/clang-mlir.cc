@@ -2142,8 +2142,7 @@ MLIRASTConsumer::getOrCreateGlobal(const ValueDecl &VD, std::string Prefix,
   }
 
   // Initialize the global.
-  const VarDecl *InitDecl;
-  const Expr *InitExpr = Var->getAnyInitializer(InitDecl);
+  const Expr *InitExpr = Var->getAnyInitializer();
 
   if (!InitExpr) {
     if (DefKind != VarDecl::DeclarationOnly) {
