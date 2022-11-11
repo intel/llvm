@@ -214,15 +214,15 @@ redefinedEnqueueKernelLaunchAfter(pi_queue, pi_kernel, pi_uint32,
 
 static pi_result redefinedEventsWaitPositive(pi_uint32 num_events,
                                              const pi_event *event_list) {
-  // there should be two events: one is for memory map and the other is for
-  // copier kernel
-  assert(num_events == 2);
+  std::stringstream s("Waiting for events:");
+  for (pi_uint32 i = 0; i < num_events; ++i) {
+    s << " " << reinterpret_cast<int *>(event_list[i])[0];
+  }
+  s << "\n";
 
-  int EventIdx1 = reinterpret_cast<int *>(event_list[0])[0];
-  int EventIdx2 = reinterpret_cast<int *>(event_list[1])[0];
   // This output here is to reduce amount of time requried to debug/reproduce
   // a failing test upon feature break
-  printf("Waiting for events %i, %i\n", EventIdx1, EventIdx2);
+  printf("%s", s.str().c_str());
   return PI_SUCCESS;
 }
 
