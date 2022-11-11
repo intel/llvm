@@ -20,6 +20,9 @@ using namespace sycl;
 
 namespace {
 struct TestCtx {
+  TestCtx(context &Ctx) : Ctx{Ctx} {};
+
+  context &Ctx;
   bool BufferFillCalled = false;
   bool BufferReadCalled = false;
   bool BufferWriteCalled = false;
@@ -85,13 +88,14 @@ TEST(ShortcutFunctions, ShortcutsCallCorrectPIFunctions) {
   Mock.redefine<detail::PiApiKind::piEnqueueMemBufferFill>(
       redefinedEnqueueMemBufferFill);
 
-  queue Q;
+  context Ctx(Plt);
+  queue Q{Ctx, default_selector()};
 
   constexpr std::size_t Size = 1;
 
   // Queue.copy(accessor src, shared_ptr dest);
   {
-    TestContext.reset(new TestCtx());
+    TestContext.reset(new TestCtx(Ctx));
 
     int Data[Size];
     buffer<int> Buf(Data, Size);
@@ -111,7 +115,7 @@ TEST(ShortcutFunctions, ShortcutsCallCorrectPIFunctions) {
 
   // Queue.copy(shared_ptr src, accessor dest);
   {
-    TestContext.reset(new TestCtx());
+    TestContext.reset(new TestCtx(Ctx));
 
     int Data[Size];
     buffer<int> Buf(Data, Size);
@@ -131,7 +135,7 @@ TEST(ShortcutFunctions, ShortcutsCallCorrectPIFunctions) {
 
   // Queue.copy(accessor src, ptr* dest);
   {
-    TestContext.reset(new TestCtx());
+    TestContext.reset(new TestCtx(Ctx));
 
     int Data[Size];
     buffer<int> Buf(Data, Size);
@@ -151,7 +155,7 @@ TEST(ShortcutFunctions, ShortcutsCallCorrectPIFunctions) {
 
   // Queue.copy(ptr* src, accessor dest);
   {
-    TestContext.reset(new TestCtx());
+    TestContext.reset(new TestCtx(Ctx));
 
     int Data[Size];
     buffer<int> Buf(Data, Size);
@@ -171,7 +175,7 @@ TEST(ShortcutFunctions, ShortcutsCallCorrectPIFunctions) {
 
   // Queue.copy(accessor src, accessor dest);
   {
-    TestContext.reset(new TestCtx());
+    TestContext.reset(new TestCtx(Ctx));
 
     int SrcData[Size];
     buffer<int> SrcBuf(SrcData, Size);
@@ -197,7 +201,7 @@ TEST(ShortcutFunctions, ShortcutsCallCorrectPIFunctions) {
 
   // Queue.update_host(accessor acc);
   {
-    TestContext.reset(new TestCtx());
+    TestContext.reset(new TestCtx(Ctx));
 
     int Data[Size];
     buffer<int> Buf(Data, Size);
@@ -216,7 +220,7 @@ TEST(ShortcutFunctions, ShortcutsCallCorrectPIFunctions) {
 
   // Queue.fill<T>(accessor Dest, T src)
   {
-    TestContext.reset(new TestCtx());
+    TestContext.reset(new TestCtx(Ctx));
 
     int Data[Size];
     buffer<int> Buf(Data, Size);
