@@ -2390,21 +2390,6 @@ ValueCategory MLIRScanner::EmitPointerToBoolConversion(ValueCategory Src) {
 
 ValueCategory MLIRScanner::EmitIntToBoolConversion(ValueCategory Src) {
   assert(Src.val.getType().isa<IntegerType>() && "Expecting an integer value");
-  // Because of the type rules of C, we often end up computing a
-  // logical value, then zero extending it to int, then wanting it
-  // as a logical value again.  Optimize this common case.
-  if (auto ZI = Src.val.getDefiningOp<arith::ExtUIOp>()) {
-    if (ZI->getOperand(0).getType().isInteger(/*width*/ 1)) {
-      mlir::Value Result = ZI->getOperand(0);
-      // If there aren't any more uses, zap the instruction to save space.
-      // Note that there can be more uses, for example if this
-      // is the result of an assignment.
-      if (ZI->use_empty())
-        ZI->erase();
-      return {Result, false};
-    }
-  }
-
   mlir::OpBuilder SubBuilder(builder.getContext());
   SubBuilder.setInsertionPointToStart(entryBlock);
   auto Zero = SubBuilder.create<ConstantIntOp>(
