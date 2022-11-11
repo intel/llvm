@@ -854,6 +854,7 @@ struct NDRangeReduction<reduction::strategy::local_atomic_and_atomic_cross_wg> {
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
+    std::ignore = Queue;
     size_t NElements = Reduction::num_elements;
     auto Out = Redu.getReadWriteAccessorToInitializedMem(CGH);
     local_accessor<typename Reduction::result_type, 1> GroupSum{NElements, CGH};
@@ -904,6 +905,7 @@ struct NDRangeReduction<
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
+    std::ignore = Queue;
     size_t NElements = Reduction::num_elements;
     size_t WGSize = NDRange.get_local_range().size();
     size_t NWorkGroups = NDRange.get_group_range().size();
@@ -915,7 +917,7 @@ struct NDRangeReduction<
     auto &PartialSumsBuf = Redu.getTempBuffer(NWorkGroups * NElements, CGH);
     accessor PartialSums(PartialSumsBuf, CGH, sycl::read_write, sycl::no_init);
 
-    bool IsUpdateOfUserVar = !Reduction::is_usm && !Redu.initializeToIdentity();
+    bool IsUpdateOfUserVar = !Redu.initializeToIdentity();
     auto Rest = [&](auto NWorkGroupsFinished) {
       local_accessor<int, 1> DoReducePartialSumsInLastWG{1, CGH};
 
@@ -1003,6 +1005,7 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
+    std::ignore = Queue;
     size_t NElements = Reduction::num_elements;
     size_t WGSize = NDRange.get_local_range().size();
     size_t NWorkGroups = NDRange.get_group_range().size();
@@ -1121,6 +1124,7 @@ struct NDRangeReduction<reduction::strategy::group_reduce_and_atomic_cross_wg> {
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
+    std::ignore = Queue;
     auto Out = Redu.getReadWriteAccessorToInitializedMem(CGH);
     size_t NElements = Reduction::num_elements;
 
@@ -1158,6 +1162,7 @@ struct NDRangeReduction<
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
+    std::ignore = Queue;
     auto Out = Redu.getReadWriteAccessorToInitializedMem(CGH);
     size_t NElements = Reduction::num_elements;
     size_t WGSize = NDRange.get_local_range().size();
@@ -1480,8 +1485,6 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
         // group size may be not power of two. Those two cases considered
         // inefficient as they require additional code and checks in the kernel.
         bool HasUniformWG = NWorkGroups * WGSize == NWorkItems;
-        if (!Reduction::has_fast_reduce)
-          HasUniformWG = HasUniformWG && (WGSize & (WGSize - 1)) == 0;
 
         // Get read accessor to the buffer that was used as output
         // in the previous kernel.
@@ -1493,7 +1496,7 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
                                  !Redu.initializeToIdentity() &&
                                  NWorkGroups == 1;
 
-        bool UniformPow2WG = HasUniformWG;
+        bool UniformPow2WG = HasUniformWG && (WGSize & (WGSize - 1)) == 0;
         // Use local memory to reduce elements in work-groups into 0-th element.
         // If WGSize is not power of two, then WGSize+1 elements are allocated.
         // The additional last element is used to catch elements that could

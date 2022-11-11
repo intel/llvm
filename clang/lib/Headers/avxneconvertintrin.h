@@ -25,6 +25,7 @@
   __attribute__((__always_inline__, __nodebug__, __target__("avxneconvert"),   \
                  __min_vector_width__(256)))
 
+#ifndef __SYCL_DEVICE_ONLY__
 /// Convert scalar BF16 (16-bit) floating-point element
 /// stored at memory locations starting at location \a __A to a
 /// single-precision (32-bit) floating-point, broadcast it to packed
@@ -90,6 +91,7 @@ static __inline__ __m256 __DEFAULT_FN_ATTRS256
 _mm256_bcstnebf16_ps(const void *__A) {
   return (__m256)__builtin_ia32_vbcstnebf162ps256((const __bf16 *)__A);
 }
+#endif
 
 /// Convert scalar half-precision (16-bit) floating-point element
 /// stored at memory locations starting at location \a __A to a
@@ -157,6 +159,7 @@ _mm256_bcstnesh_ps(const void *__A) {
   return (__m256)__builtin_ia32_vbcstnesh2ps256((const _Float16 *)__A);
 }
 
+#ifndef __SYCL_DEVICE_ONLY__
 /// Convert packed BF16 (16-bit) floating-point even-indexed elements
 /// stored at memory locations starting at location \a __A to packed
 /// single-precision (32-bit) floating-point elements, and store the results in
@@ -222,6 +225,7 @@ static __inline__ __m256 __DEFAULT_FN_ATTRS256
 _mm256_cvtneebf16_ps(const __m256bh *__A) {
   return (__m256)__builtin_ia32_vcvtneebf162ps256((const __v16bf *)__A);
 }
+#endif
 
 /// Convert packed half-precision (16-bit) floating-point even-indexed elements
 /// stored at memory locations starting at location \a __A to packed
@@ -289,6 +293,7 @@ _mm256_cvtneeph_ps(const __m256h *__A) {
   return (__m256)__builtin_ia32_vcvtneeph2ps256((const __v16hf *)__A);
 }
 
+#ifndef __SYCL_DEVICE_ONLY__
 /// Convert packed BF16 (16-bit) floating-point odd-indexed elements
 /// stored at memory locations starting at location \a __A to packed
 /// single-precision (32-bit) floating-point elements, and store the results in
@@ -354,6 +359,7 @@ static __inline__ __m256 __DEFAULT_FN_ATTRS256
 _mm256_cvtneobf16_ps(const __m256bh *__A) {
   return (__m256)__builtin_ia32_vcvtneobf162ps256((const __v16bf *)__A);
 }
+#endif
 
 /// Convert packed half-precision (16-bit) floating-point odd-indexed elements
 /// stored at memory locations starting at location \a __A to packed
@@ -421,6 +427,7 @@ _mm256_cvtneoph_ps(const __m256h *__A) {
   return (__m256)__builtin_ia32_vcvtneoph2ps256((const __v16hf *)__A);
 }
 
+#ifndef __SYCL_DEVICE_ONLY__
 /// Convert packed single-precision (32-bit) floating-point elements in \a __A
 /// to packed BF16 (16-bit) floating-point elements, and store the results in \a
 /// dst.
@@ -476,6 +483,7 @@ static __inline__ __m128bh __DEFAULT_FN_ATTRS256
 _mm256_cvtneps_avx_pbh(__m256 __A) {
   return (__m128bh)__builtin_ia32_vcvtneps2bf16256((__v8sf)__A);
 }
+#endif
 
 #undef __DEFAULT_FN_ATTRS128
 #undef __DEFAULT_FN_ATTRS256

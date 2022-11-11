@@ -34,7 +34,11 @@ With no environment variables set to say otherwise, all platforms and devices pr
 The syntax of this environment variable follows this BNF grammar:
 ```
 ONEAPI_DEVICE_SELECTOR = <selector-string>
-<selector-string> ::= <term>[;<term>...]
+<selector-string> ::= { <accept-filters> | <discard-filters> | <accept-filters>;<discard-filters> }
+<accept-filters> ::= <accept-filter>[;<accept-filter>...]
+<discard-filters> ::= <discard-filter>[;<discard-filter>...] 
+<accept-filter> ::= <term>
+<discard-filter> ::= !<term>
 <term> ::= <backend>:<devices>
 <backend> ::= { * | level_zero | opencl | cuda | hip | esimd_emulator }  // case insensitive
 <devices> ::= <device>[,<device>...]
@@ -52,6 +56,13 @@ The device indices are zero-based and are unique only within a backend. Therefor
 
 Additionally, if a sub-device is chosen (via numeric index or wildcard), then an additional layer of partitioning can be specified. In other words, a sub-sub-device can be selected. Like sub-devices, this is done with a period ( `.` ) and a sub-sub-device specifier which is a wildcard symbol ( `*` ) or a numeric index.  Example `ONEAPI_DEVICE_SELECTOR=level_zero:0.*.*` would partition device 0 into sub-devices and then partition each of those into sub-sub-devices. The range of grandchild sub-sub-devices would be the final devices available to the app, neither device 0, nor its child partitions would be in that list. 
 
+Lastly, a filter in the grammar can be thought of as a term in conjuction with an action that is taken on all devices that are selected by the term. The action can be an accept action or a discard action. Based on the action, a filter can be an accept filter or a discard filter.
+The string `<term>` represents an accept filter and the string `!<term>` represents a discard filter. The underlying term is the same but they perform different actions on the matching devices list.
+For example, `!opencl:*` discards all devices of the opencl backend from the list of available devices. The discarding filters, if there are any, must all appear at the end of the selector string. 
+When one or more filters accept a device and one or more filters discard the device, the latter have priority and the device is ultimately not made available to the user. This allows the user to provide selector strings such as `*:gpu;!cuda:*` that accepts all gpu devices except those with a CUDA backend.
+Furthermore, if the value of this environment variable only has discarding filters, an accepting filter that matches all devices, but not sub-devices and sub-sub-devices, will be implicitly included in the 
+environment variable to allow the user to specify only the list of devices that must not be made available. Therefore, `!*:cpu` will accept all devices except those that are of the cpu type and `opencl:*;!*:cpu`
+will accept all devices of the opencl backend exept those that are of the opencl backend and of the cpu type. It is legal to have a rejection filter even if it specifies devices have already been omitted by previous filters in the selection string. Doing so has no effect; the rejected devices are still omitted.
 
 The following examples further illustrate the usage of this environment variable:
 
@@ -66,13 +77,14 @@ The following examples further illustrate the usage of this environment variable
 | `ONEAPI_DEVICE_SELECTOR=opencl:0.*` | All the sub-devices from the OpenCL device with index 0 are exposed as SYCL root devices. No other devices are available. |
 | `ONEAPI_DEVICE_SELECTOR=opencl:0.2` | The third sub-device (2 in zero-based counting) of the OpenCL device with index 0 will be the sole device available.  |
 | `ONEAPI_DEVICE_SELECTOR=level_zero:*,*.*` | Exposes Level Zero devices to the application in two different ways. Each device (aka "card") is exposed as a SYCL root device and each sub-device is also exposed as a SYCL root device.|
-
+| `ONEAPI_DEVICE_SELECTOR="opencl:*;!opencl:0"` | All OpenCL devices except for the device with index 0 are available. |
+| `ONEAPI_DEVICE_SELECTOR="!*:cpu"` | All devices except for CPU devices are available. |
 
 Notes:
 - The backend argument is always required. An error will be thrown if it is absent.
 - Additionally, the backend MUST be followed by colon ( `:` ) and at least one device specifier of some sort, else an error is thrown.
 - For sub-devices and sub-sub-devices, the parent device must support partitioning (`info::partition_property::partition_by_affinity_domain` and `info::partition_affinity_domain::next_partitionable`. See the SYCL 2020 specification for a precise definition.) For Intel GPUs, the sub-device and sub-sub-device syntax can be used to expose tiles or CCSs to the SYCL application as root devices.  The exact mapping between sub-device, sub-sub-device, tiles, and CCSs is specific to the hardware.
-- The semi-colon character ( `;` ) is treated specially by many shells, so you may need to enclose the string in quotes if the selection string contains this character. 
+- The semi-colon character ( `;` ) and the exclamation mark character ( `!`  ) are treated specially by many shells, so you may need to enclose the string in quotes if the selection string contains these characters. 
 
 
 
