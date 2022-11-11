@@ -783,6 +783,10 @@ namespace {
         }
 
       }
+
+      llvm::hash_code AspectsHash =
+          llvm::hash_combine_range(Aspects.begin(), Aspects.end());
+      Hash = static_cast<unsigned>(llvm::hash_combine(AspectsHash));
     }
 
     std::string getName(StringRef BaseName) const {
@@ -814,6 +818,7 @@ namespace {
 
   private:
     // For DenseMap:
+    llvm::hash_code Hash = {};
     bool IsTombstoneKey = false;
     bool IsEmpty = false;
 
@@ -834,9 +839,7 @@ namespace {
     }
 
     unsigned hash() const {
-      llvm::hash_code AspectsHash =
-          llvm::hash_combine_range(Aspects.begin(), Aspects.end());
-      return static_cast<unsigned>(llvm::hash_combine(AspectsHash));
+      return static_cast<unsigned>(Hash);
     }
   };
 
