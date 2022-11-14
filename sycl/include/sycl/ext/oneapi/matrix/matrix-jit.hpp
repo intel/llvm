@@ -38,11 +38,6 @@ SPV_MATRIX_LAYOUT_TRAITS(matrix_layout::col_major,
 SPV_MATRIX_LAYOUT_TRAITS(matrix_layout::packed_a, __spv::MatrixLayout::PackedA)
 SPV_MATRIX_LAYOUT_TRAITS(matrix_layout::packed_b, __spv::MatrixLayout::PackedB)
 
-#define SPV_MATRIX_USE_TRAITS(USE, SPV_USE)                                    \
-  template <> struct spv_matrix_use_traits<USE> {                              \
-    static constexpr __spv::MatrixUse value = SPV_USE;                         \
-  };
-
 template <typename G> struct spv_scope_traits {};
 template <> struct spv_scope_traits<sycl::sub_group> {
   constexpr static auto value = __spv::Scope::Subgroup;
@@ -630,6 +625,8 @@ public:
     return wi_element<T, NumRows, NumCols, Layout, Group>(M, i);
   }
 };
+
+#undef SPV_MATRIX_LAYOUT_TRAITS
 
 } // namespace matrix
 } // namespace experimental
