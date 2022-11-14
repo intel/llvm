@@ -253,6 +253,12 @@ accessors. USM pointers also convey data dependencies, however offsets into
 system allocations (`malloc`/`new`) are not supported.
 |===
 
+==== Sub-Graph
+
+A node in a graph can take the form of a nested sub-graph. This occurs when
+a command-group submission that invokes `handler::exec_graph()` with an
+executable graph object is added to the graph as a node.
+
 === API Modifications
 
 [source, c++]
@@ -321,8 +327,22 @@ class queue {
 public:
   bool begin_recording(command_graph<graph_state::modifiable> &graph);
   bool end_recording();
-  event submit(command_graph<graph_state::executable> graph);
+
+  /* -- graph convenience shortcuts -- */
+
+  event exec_graph(command_graph<graph_state::executable> graph);
+  event exec_graph(command_graph<graph_state::executable> graph,
+                   event depEvent);
+  event exec_graph(command_graph<graph_state::executable> graph,
+                   const std::vector<event> &depEvents);
 };
+
+// New methods added to the sycl::handler class
+class handler {
+public:
+  void exec_graph(command_graph<graph_state::executable> graph);
+}
+
 }  // namespace sycl
 ----
 
@@ -788,22 +808,55 @@ state, `false` otherwise.
 [source,c++]
 ----
 using namespace ext::oneapi::experimental;
-event queue::submit(command_graph<graph_state::executable> graph)
+event queue::exec_graph(command_graph<graph_state::executable> graph)
 ----
 
-|When invoked with the queue in the `queue_state::recording` state, a graph is
-added as a subgraph node. When invoked with the queue in the default
-`queue_state::executing` state, the graph is submitted for execution. Support
-for submitting a graph for execution, before a previous execution has been
-completed is backend specific. The runtime may throw an error.
+|Queue shortcut function that is equivalent to submitting a command-group
+containing `handler::exec_graph(graph)`.
+
+|
+[source,c++]
+----
+using namespace ext::oneapi::experimental;
+event queue::exec_graph(command_graph<graph_state::executable> graph,
+                        event depEvent);
+----
+
+|Queue shortcut function that is equivalent to submitting a command-group
+containing `handler::depends_on(depEvent)` and `handler::exec_graph(graph)`.
+
+|
+[source,c++]
+----
+using namespace ext::oneapi::experimental;
+event queue::exec_graph(command_graph<graph_state::executable> graph,
+                        const std::vector<event> &depEvents);
+----
+
+|Queue shortcut function that is equivalent to submitting a command-group
+containing `handler::depends_on(depEvents)` and `handler::exec_graph(graph)`.
+|===
+
+==== New Handler Member Functions
+
+Table 10. Additional member functions of the `sycl::handler` class.
+[cols="2a,a"]
+|===
+|Member function|Description
+[source,c++]
+----
+using namespace ext::oneapi::experimental;
+void handler::exec_graph(command_graph<graph_state::executable> graph)
+----
+
+|Invokes the execution of a graph. Support for invoking an executable graph,
+before a previous execution of the same graph has been completed is backend
+specific. The runtime may throw an error.
 
 Parameters:
 
 * `graph` - Graph object to execute.
 
-When the queue is in the execution state, an `event` object used to synchronize
-graph submission with other command-groups is returned. Otherwise the queue is
-in the recording state, and a default event is returned.
 |===
 
 === Thread Safety
@@ -966,7 +1019,8 @@ int main() {
 
   auto exec = g.finalize(q.get_context());
 
-  q.submit(exec).wait();
+  // use queue shortcut for graph submission
+  q.exec_graph(exec).wait();
 
   // memory can be freed inside or outside the graph
   sycl::free(z, q.get_context());
@@ -987,7 +1041,7 @@ command-groups submitted to the queue. Once the graph is complete, recording
 finishes on the queue to put it back into the default executing state. The
 graph is then finalized so that no more nodes can be added. Lastly, the graph is
 submitted in its entirety for execution via
-`queue::submit(command_graph<graph_state::executable>)`.
+`handler::exec_graph(command_graph<graph_state::executable>)`.
 
 [source, c++]
 ----
@@ -1055,7 +1109,10 @@ submitted in its entirety for execution via
   auto exec_graph = graph.finalize(q.get_context());
 
   // Execute graph
-  q.submit(exec_graph);
+  q.submit([&](handler &cgh) {
+    cgh.exec_graph(exec_graph);
+  });
+
 ----
 
 == Issues
@@ -1082,13 +1139,6 @@ this feature in the extension.
 
 **Outcome:** Unresolved
 
-=== Graph Submission Synchronization
-
-Should we provide a mechanism for a graph submission to depend on other graph
-submission events or any arbitrary sycl event?
-
-**Outcome:** Unresolved
-
 == Revision History
 
 [cols="5,15,15,70"]
@@ -1101,4 +1151,5 @@ submission events or any arbitrary sycl event?
 |3|2022-05-25|Pablo Reble|Extend API and Example
 |4|2022-08-10|Pablo Reble|Adding USM shortcuts
 |5|2022-10-21|Ewan Crawford|Merge in Codeplay vendor extension
+|6|2022-11-14|Ewan Crawford|Change graph execution to be a function on the handler
 |========================================
