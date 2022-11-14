@@ -14,6 +14,7 @@
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/accessor_property_list.hpp>
+#include <sycl/ext/oneapi/weak_object_base.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
 #include <sycl/stl.hpp>
@@ -33,6 +34,12 @@ class host_accessor;
 
 template <typename T, int Dimensions, typename AllocatorT, typename Enable>
 class buffer;
+
+namespace ext {
+namespace oneapi {
+template <typename SYCLObjT> class weak_object;
+} // namespace oneapi
+} // namespace ext
 
 namespace detail {
 
@@ -680,6 +687,16 @@ public:
     return buffer_plain::template get_property<propertyT>();
   }
 
+  bool ext_oneapi_owner_before(
+      const ext::oneapi::detail::weak_object_base<buffer> &Other)
+      const noexcept {
+    return impl.owner_before(ext::oneapi::detail::getSyclWeakObjImpl(Other));
+  }
+
+  bool ext_oneapi_owner_before(const buffer &Other) const noexcept {
+    return impl.owner_before(Other.impl);
+  }
+
 protected:
   bool isOutOfBounds(const id<dimensions> &offset,
                      const range<dimensions> &newRange,
@@ -702,6 +719,8 @@ private:
   template <typename HT, int HDims, typename HAllocT>
   friend buffer<HT, HDims, HAllocT, void>
   detail::make_buffer_helper(pi_native_handle, const context &, event, bool);
+  template <typename SYCLObjT> friend class ext::oneapi::weak_object;
+
   range<dimensions> Range;
   // Offset field specifies the origin of the sub buffer inside the parent
   // buffer

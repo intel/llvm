@@ -15,6 +15,7 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/device_selector.hpp>
+#include <sycl/ext/oneapi/weak_object_base.hpp>
 #include <sycl/stl.hpp>
 
 // 4.6.2 Platform class
@@ -157,6 +158,26 @@ public:
   ///
   /// \return the default context
   context ext_oneapi_get_default_context() const;
+
+  /// Compares the platform against a weak object using an owner-based
+  /// implementation-defined ordering.
+  ///
+  /// \param Other is the weak object to compare ordering against.
+  /// \return true if this object precedes \param Other and false otherwise.
+  bool ext_oneapi_owner_before(
+      const ext::oneapi::detail::weak_object_base<platform> &Other)
+      const noexcept {
+    return impl.owner_before(ext::oneapi::detail::getSyclWeakObjImpl(Other));
+  }
+
+  /// Compares the platform against another platform using an owner-based
+  /// implementation-defined ordering.
+  ///
+  /// \param Other is the object to compare ordering against.
+  /// \return true if this object precedes \param Other and false otherwise.
+  bool ext_oneapi_owner_before(const platform &Other) const noexcept {
+    return impl.owner_before(Other.impl);
+  }
 
 private:
   pi_native_handle getNative() const;

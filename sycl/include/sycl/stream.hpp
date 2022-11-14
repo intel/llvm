@@ -11,6 +11,7 @@
 #include <sycl/builtins.hpp>
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/ext/oneapi/weak_object_base.hpp>
 #include <sycl/handler.hpp>
 
 namespace sycl {
@@ -771,6 +772,33 @@ public:
   template <typename propertyT> bool has_property() const noexcept;
 
   template <typename propertyT> propertyT get_property() const;
+
+#ifndef __SYCL_DEVICE_ONLY__
+  /// Compares the platform against a weak object using an owner-based
+  /// implementation-defined ordering.
+  ///
+  /// \param Other is the weak object to compare ordering against.
+  /// \return true if this object precedes \param Other and false otherwise.
+  bool ext_oneapi_owner_before(
+      const ext::oneapi::detail::weak_object_base<stream> &Other)
+      const noexcept {
+    return impl.owner_before(ext::oneapi::detail::getSyclWeakObjImpl(Other));
+  }
+
+  /// Compares the platform against another platform using an owner-based
+  /// implementation-defined ordering.
+  ///
+  /// \param Other is the object to compare ordering against.
+  /// \return true if this object precedes \param Other and false otherwise.
+  bool ext_oneapi_owner_before(const stream &Other) const noexcept {
+    return impl.owner_before(Other.impl);
+  }
+#else
+  bool ext_oneapi_owner_before(
+      const ext::oneapi::detail::weak_object_base<stream> &Other)
+      const noexcept;
+  bool ext_oneapi_owner_before(const stream &Other) const noexcept;
+#endif
 
 private:
 #ifdef __SYCL_DEVICE_ONLY__

@@ -13,6 +13,7 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/detail/pi.h>
+#include <sycl/ext/oneapi/weak_object_base.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
 #include <sycl/stl.hpp>
@@ -154,6 +155,26 @@ public:
   __SYCL2020_DEPRECATED("Use the overload without the second parameter")
   typename detail::is_kernel_device_specific_info_desc<Param>::return_type
       get_info(const device &Device, const range<3> &WGSize) const;
+
+  /// Compares the kernel against a weak object using an owner-based
+  /// implementation-defined ordering.
+  ///
+  /// \param Other is the weak object to compare ordering against.
+  /// \return true if this object precedes \param Other and false otherwise.
+  bool ext_oneapi_owner_before(
+      const ext::oneapi::detail::weak_object_base<kernel> &Other)
+      const noexcept {
+    return impl.owner_before(ext::oneapi::detail::getSyclWeakObjImpl(Other));
+  }
+
+  /// Compares the kernel against another kernel using an owner-based
+  /// implementation-defined ordering.
+  ///
+  /// \param Other is the object to compare ordering against.
+  /// \return true if this object precedes \param Other and false otherwise.
+  bool ext_oneapi_owner_before(const kernel &Other) const noexcept {
+    return impl.owner_before(Other.impl);
+  }
 
 private:
   /// Constructs a SYCL kernel object from a valid kernel_impl instance.
