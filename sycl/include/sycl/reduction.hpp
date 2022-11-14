@@ -2228,7 +2228,7 @@ template <> struct NDRangeReduction<reduction::strategy::auto_select> {
   // Some readability aliases, to increase signal/noise ratio below.
   template <reduction::strategy Strategy>
   using Impl = NDRangeReduction<Strategy>;
-  using S = reduction::strategy;
+  using Strat = reduction::strategy;
 
   template <typename KernelName, int Dims, typename PropertiesT,
             typename KernelType, typename Reduction>
@@ -2242,23 +2242,23 @@ template <> struct NDRangeReduction<reduction::strategy::auto_select> {
 
     if constexpr (Reduction::has_float64_atomics) {
       if (getDeviceFromHandler(CGH).has(aspect::atomic64))
-        return Delegate(Impl<S::group_reduce_and_atomic_cross_wg>{});
+        return Delegate(Impl<Strat::group_reduce_and_atomic_cross_wg>{});
 
       if constexpr (Reduction::has_fast_reduce)
-        return Delegate(Impl<S::group_reduce_and_multiple_kernels>{});
+        return Delegate(Impl<Strat::group_reduce_and_multiple_kernels>{});
       else
-        return Delegate(Impl<S::basic>{});
+        return Delegate(Impl<Strat::basic>{});
     } else if constexpr (Reduction::has_fast_atomics) {
       if constexpr (Reduction::has_fast_reduce) {
-        return Delegate(Impl<S::group_reduce_and_atomic_cross_wg>{});
+        return Delegate(Impl<Strat::group_reduce_and_atomic_cross_wg>{});
       } else {
-        return Delegate(Impl<S::local_mem_tree_and_atomic_cross_wg>{});
+        return Delegate(Impl<Strat::local_mem_tree_and_atomic_cross_wg>{});
       }
     } else {
       if constexpr (Reduction::has_fast_reduce)
-        return Delegate(Impl<S::group_reduce_and_multiple_kernels>{});
+        return Delegate(Impl<Strat::group_reduce_and_multiple_kernels>{});
       else
-        return Delegate(Impl<S::basic>{});
+        return Delegate(Impl<Strat::basic>{});
     }
 
     assert(false && "Must be unreachable!");
@@ -2268,8 +2268,8 @@ template <> struct NDRangeReduction<reduction::strategy::auto_select> {
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   RestT... Rest) {
-    return Impl<S::multi>::run<KernelName>(CGH, Queue, NDRange, Properties,
-                                           Rest...);
+    return Impl<Strat::multi>::run<KernelName>(CGH, Queue, NDRange, Properties,
+                                               Rest...);
   }
 };
 
