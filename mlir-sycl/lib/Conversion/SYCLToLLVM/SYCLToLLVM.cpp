@@ -236,7 +236,7 @@ private:
 
     bool producesResult = op.getNumResults() == 1;
     func::CallOp funcCall = builder.genCall(
-        op.getMangledName(),
+        op.getMangledFunctionName(),
         producesResult ? TypeRange(op.getResult().getType()) : TypeRange(),
         op.getOperands(), module);
 
@@ -344,8 +344,8 @@ private:
 
     ModuleOp module = op.getOperation()->getParentOfType<ModuleOp>();
     FuncBuilder builder(rewriter, op.getLoc());
-    func::CallOp funcCall = builder.genCall(op.getMangledName(), TypeRange(),
-                                            op.getOperands(), module);
+    func::CallOp funcCall = builder.genCall(
+        op.getMangledFunctionName(), TypeRange(), op.getOperands(), module);
     rewriter.eraseOp(op);
     (void)funcCall;
 

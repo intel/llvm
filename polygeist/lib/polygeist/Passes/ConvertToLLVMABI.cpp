@@ -169,8 +169,9 @@ public:
     LLVM_DEBUG(llvm::dbgs() << "ConvertToLLVMABIPass: SYCLConstructorLowering: "
                             << op << "\n");
 
-    auto funcCallOp = rewriter.create<func::CallOp>(
-        op.getLoc(), op.getMangledName(), TypeRange(), op.getOperands());
+    auto funcCallOp =
+        rewriter.create<func::CallOp>(op.getLoc(), op.getMangledFunctionName(),
+                                      TypeRange(), op.getOperands());
     rewriter.replaceOp(op.getOperation(), funcCallOp.getResults());
     LLVM_DEBUG(llvm::dbgs() << "  Converted to: " << funcCallOp << "\n");
 
