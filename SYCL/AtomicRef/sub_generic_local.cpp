@@ -3,8 +3,8 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-// CUDA and HIP backends have had no support for the generic address space yet.
-// XFAIL: cuda || hip
+// HIP backend have had no support for the generic address space yet.
+// XFAIL: hip
 
 #define TEST_GENERIC_IN_LOCAL 1
 #include "sub.h"
