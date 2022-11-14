@@ -215,7 +215,8 @@ struct _pi_context {
         return i;
       }
     }
-    assert(false);
+    assert(false && "No index for device");
+    return 0;
   }
 
   CUcontext get(pi_device device) {
