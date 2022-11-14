@@ -105,6 +105,34 @@ public:
                                     bool HostPtrReadOnly, const size_t Size,
                                     const sycl::property_list &PropsList);
 
+  // FIXME: Deprecated allocation methods, maintaining for ABI compatibility,
+  // to remove when the class is removed from __SYCL_EXPORT
+  static void *allocate(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
+                        bool InitFromUserData, void *HostPtr,
+                        std::vector<EventImplPtr> DepEvents,
+                        RT::PiEvent &OutEvent);
+  static void *allocateMemBuffer(ContextImplPtr TargetContext,
+                                 SYCLMemObjI *MemObj, void *UserPtr,
+                                 bool HostPtrReadOnly, size_t Size,
+                                 const EventImplPtr &InteropEvent,
+                                 const ContextImplPtr &InteropContext,
+                                 const sycl::property_list &PropsList,
+                                 RT::PiEvent &OutEventToWait);
+  static void *allocateMemImage(
+      ContextImplPtr TargetContext, SYCLMemObjI *MemObj, void *UserPtr,
+      bool HostPtrReadOnly, size_t Size, const RT::PiMemImageDesc &Desc,
+      const RT::PiMemImageFormat &Format, const EventImplPtr &InteropEvent,
+      const ContextImplPtr &InteropContext,
+      const sycl::property_list &PropsList, RT::PiEvent &OutEventToWait);
+  static void *allocateImageObject(ContextImplPtr TargetContext, void *UserPtr,
+                                   bool HostPtrReadOnly,
+                                   const RT::PiMemImageDesc &Desc,
+                                   const RT::PiMemImageFormat &Format,
+                                   const sycl::property_list &PropsList);
+  static void *allocateBufferObject(ContextImplPtr TargetContext, void *UserPtr,
+                                    bool HostPtrReadOnly, const size_t Size,
+                                    const sycl::property_list &PropsList);
+
   // Copies memory between: host and device, host and host,
   // device and device if memory objects bound to the one context.
   static void copy(SYCLMemObjI *SYCLMemObj, void *SrcMem, QueueImplPtr SrcQueue,

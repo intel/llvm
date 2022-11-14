@@ -19,6 +19,17 @@ namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 uint8_t GBufferStreamID;
 #endif
+
+// FIXME: Remove this overload when the class is removed from __SYCL_EXPORT
+void *buffer_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
+                               void *HostPtr, RT::PiEvent &InteropEvent) {
+  (void)Context;
+  (void)InitFromUserData;
+  (void)HostPtr;
+  (void)InteropEvent;
+  assert(false && "Deprecated: use the overload with the device parameter");
+}
+
 void *buffer_impl::allocateMem(ContextImplPtr Context, DeviceImplPtr Device,
                                bool InitFromUserData, void *HostPtr,
                                RT::PiEvent &OutEventToWait) {

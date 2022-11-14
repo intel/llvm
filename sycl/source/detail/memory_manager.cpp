@@ -436,6 +436,43 @@ void *MemoryManager::allocateMemSubBuffer(ContextImplPtr TargetContext,
   return NewMem;
 }
 
+// Deprecated allocation functions
+void *MemoryManager::allocate(ContextImplPtr, SYCLMemObjI *, bool, void *,
+                              std::vector<EventImplPtr>, RT::PiEvent &) {
+  assert(false && "Deprecated: use the overload with the device parameter");
+}
+
+void *MemoryManager::allocateMemBuffer(ContextImplPtr, SYCLMemObjI *, void *,
+                                       bool, size_t, const EventImplPtr &,
+                                       const ContextImplPtr &,
+                                       const sycl::property_list &,
+                                       RT::PiEvent &) {
+  assert(false && "Deprecated: use the overload with the device parameter");
+}
+
+void *MemoryManager::allocateMemImage(ContextImplPtr, SYCLMemObjI *, void *,
+                                      bool, size_t, const RT::PiMemImageDesc &,
+                                      const RT::PiMemImageFormat &,
+                                      const EventImplPtr &,
+                                      const ContextImplPtr &,
+                                      const sycl::property_list &,
+                                      RT::PiEvent &) {
+  assert(false && "Deprecated: use the overload with the device parameter");
+}
+
+void *MemoryManager::allocateImageObject(ContextImplPtr, void *, bool,
+                                         const RT::PiMemImageDesc &,
+                                         const RT::PiMemImageFormat &,
+                                         const sycl::property_list &) {
+  assert(false && "Deprecated: use the overload with the device parameter");
+}
+
+void *MemoryManager::allocateBufferObject(ContextImplPtr, void *, bool,
+                                          const size_t,
+                                          const sycl::property_list &) {
+  assert(false && "Deprecated: use the overload with the device parameter");
+}
+
 struct TermPositions {
   int XTerm;
   int YTerm;

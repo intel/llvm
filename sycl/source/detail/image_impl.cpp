@@ -297,6 +297,16 @@ image_impl::image_impl(cl_mem MemObject, const context &SyclContext,
   }
 }
 
+// FIXME: Remove this overload when the class is removed from __SYCL_EXPORT
+void *image_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
+                              void *HostPtr, RT::PiEvent &InteropEvent) {
+  (void)Context;
+  (void)InitFromUserData;
+  (void)HostPtr;
+  (void)InteropEvent;
+  assert(false && "Deprecated: use the overload with the device parameter");
+}
+
 void *image_impl::allocateMem(ContextImplPtr Context, DeviceImplPtr Device,
                               bool InitFromUserData, void *HostPtr,
                               RT::PiEvent &OutEventToWait) {

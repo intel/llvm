@@ -233,6 +233,16 @@ public:
   static size_t getBufSizeForContext(const ContextImplPtr &Context,
                                      pi_native_handle MemObject);
 
+  // FIXME: Remove this when the class is removed from __SYCL_EXPORT
+  virtual void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
+                            void *HostPtr, RT::PiEvent &InteropEvent) {
+    (void)Context;
+    (void)InitFromUserData;
+    (void)HostPtr;
+    (void)InteropEvent;
+    assert(false && "Deprecated: use the overload with the device parameter");
+  }
+
   void *allocateMem(ContextImplPtr Context, DeviceImplPtr Device,
                     bool InitFromUserData, void *HostPtr,
                     RT::PiEvent &InteropEvent) override {
