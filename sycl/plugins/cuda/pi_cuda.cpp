@@ -3922,7 +3922,7 @@ pi_result cuda_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
     CUstream cuStream = command_queue->get_next_compute_stream(
         num_events_in_wait_list, event_wait_list, guard, &stream_token);
     {
-      std::lock_guard(command_queue->barrier_mutex_);
+      std::lock_guard<std::mutex> guard(command_queue->barrier_mutex_);
       if (command_queue->barrier_event_ == nullptr) {
         PI_CHECK_ERROR(cuEventCreate(&command_queue->barrier_event_,
                                      CU_EVENT_DISABLE_TIMING));
