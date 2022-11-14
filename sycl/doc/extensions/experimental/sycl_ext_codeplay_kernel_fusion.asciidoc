@@ -404,6 +404,15 @@ This property can be passed to the `accessor` constructor, giving a more
  granular control, or to the `buffer` constructor, in which case all the
  `accessors` will inherit this property (unless overridden).
 
+|`sycl::ext::codeplay::property::force_fusion`
+
+|This property forces the SYCL runtime implementation to perform fusion if it is
+possible to do so. Implementations must not defer kernel fusion, even if they
+deemed the fusion to be non-profitable, e.g., based on some profitability
+analysis.
+
+This property can be passed to `fusion_wrapper::complete_fusion()`.
+
 |===
 
 ==== New Queue Member Functions
