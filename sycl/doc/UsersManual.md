@@ -57,6 +57,46 @@ and not recommended to use in production environment.
     * intel_gpu_kbl, intel_gpu_9_1_9 - Kaby Lake Intel graphics architecture
     * intel_gpu_skl, intel_gpu_9_0_9 - Skylake Intel graphics architecture
     * intel_gpu_bdw, intel_gpu_8_0_0 - Broadwell Intel graphics architecture
+    * nvidia_gpu_sm20 - NVIDIA Fermi architecture
+    * nvidia_gpu_sm30 - NVIDIA Kepler architecture (compute capability 3.0)
+    * nvidia_gpu_sm32 - NVIDIA Kepler architecture (compute capability 3.2)
+    * nvidia_gpu_sm35 - NVIDIA Kepler architecture (compute capability 3.5)
+    * nvidia_gpu_sm37 - NVIDIA Kepler architecture (compute capability 3.7)
+    * nvidia_gpu_sm50 - NVIDIA Maxwell architecture (compute capability 5.0)
+    * nvidia_gpu_sm52 - NVIDIA Maxwell architecture (compute capability 5.2)
+    * nvidia_gpu_sm53 - NVIDIA Maxwell architecture (compute capability 5.3)
+    * nvidia_gpu_sm60 - NVIDIA Pascal architecture (compute capability 6.0)
+    * nvidia_gpu_sm61 - NVIDIA Pascal architecture (compute capability 6.1)
+    * nvidia_gpu_sm62 - NVIDIA Pascal architecture (compute capability 6.2)
+    * nvidia_gpu_sm70 - NVIDIA Volta architecture (compute capability 7.0)
+    * nvidia_gpu_sm72 - NVIDIA Volta architecture (compute capability 7.2)
+    * nvidia_gpu_sm75 - NVIDIA Turing architecture (compute capability 7.5)
+    * nvidia_gpu_sm80 - NVIDIA Ampere architecture (compute capability 8.0)
+    * nvidia_gpu_sm86 - NVIDIA Ampere architecture (compute capability 8.6)
+    * nvidia_gpu_sm87 - NVIDIA Jetson/Drive AGX Orin architecture
+    * nvidia_gpu_sm89 - NVIDIA Ada Lovelace architecture
+    * nvidia_gpu_sm90 - NVIDIA Hopper architecture
+    * amd_gpu_gfx700 - AMD GCN GFX7 (Sea Islands (CI)) architecture
+    * amd_gpu_gfx701 - AMD GCN GFX7 (Sea Islands (CI)) architecture
+    * amd_gpu_gfx702 - AMD GCN GFX7 (Sea Islands (CI)) architecture
+    * amd_gpu_gfx801 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
+    * amd_gpu_gfx802 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
+    * amd_gpu_gfx803 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
+    * amd_gpu_gfx805 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
+    * amd_gpu_gfx810 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
+    * amd_gpu_gfx900 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx902 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx904 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx906 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx908 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx90a - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx1010 - AMD GCN GFX10.1 (RDNA 1) architecture
+    * amd_gpu_gfx1011 - AMD GCN GFX10.1 (RDNA 1) architecture
+    * amd_gpu_gfx1012 - AMD GCN GFX10.1 (RDNA 1) architecture
+    * amd_gpu_gfx1013 - AMD GCN GFX10.1 (RDNA 1) architecture
+    * amd_gpu_gfx1030 - AMD GCN GFX10.3 (RDNA 2) architecture
+    * amd_gpu_gfx1031 - GCN GFX10.3 (RDNA 2) architecture
+    * amd_gpu_gfx1032 - GCN GFX10.3 (RDNA 2) architecture
 
 ## Language options
 

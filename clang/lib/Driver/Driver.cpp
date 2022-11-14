@@ -826,6 +826,18 @@ static bool addSYCLDefaultTriple(Compilation &C,
 
 // Prefix for Intel GPU specific targets used for -fsycl-targets
 constexpr char IntelGPU[] = "intel_gpu_";
+constexpr char NvidiaGPU[] = "nvidia_gpu_";
+
+static llvm::Optional<StringRef> isGPUTarget(StringRef Target) {
+  if (Target.startswith(IntelGPU)) {
+    return tools::SYCL::gen::resolveGenDevice(
+        Target.drop_front(sizeof(IntelGPU) - 1));
+  } else if (Target.startswith(NvidiaGPU)) {
+    return tools::SYCL::gen::resolveGenDevice(
+        Target.drop_front(sizeof(NvidiaGPU) - 1));
+  }
+  return llvm::None;
+}
 
 static llvm::Optional<StringRef> isIntelGPUTarget(StringRef Target) {
   // Handle target specifications that resemble 'intel_gpu_*' here. These are
@@ -833,6 +845,16 @@ static llvm::Optional<StringRef> isIntelGPUTarget(StringRef Target) {
   if (Target.startswith(IntelGPU)) {
     return tools::SYCL::gen::resolveGenDevice(
         Target.drop_front(sizeof(IntelGPU) - 1));
+  }
+  return llvm::None;
+}
+
+static llvm::Optional<StringRef> isNvidiaGPUTarget(StringRef Target) {
+  // Handle target specifications that resemble 'nvidia_gpu_*' here. These are
+  // 'spir64_gen' based.
+  if (Target.startswith(NvidiaGPU)) {
+    return tools::SYCL::gen::resolveGenDevice(
+        Target.drop_front(sizeof(NvidiaGPU) - 1));
   }
   return llvm::None;
 }
@@ -1122,7 +1144,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
 
         for (StringRef Val : SYCLTargetsValues->getValues()) {
           StringRef UserTargetName(Val);
-          if (auto Device = isIntelGPUTarget(Val)) {
+          if (auto Device = isGPUTarget(Val)) {
             if (Device->empty()) {
               Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
               continue;
@@ -3636,7 +3658,7 @@ void Driver::checkForOffloadMismatch(Compilation &C,
   SmallVector<StringRef, 4> Targets;
   if (const Arg *A = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
     for (StringRef Val : A->getValues()) {
-      if (auto ValidDevice = isIntelGPUTarget(Val)) {
+      if (auto ValidDevice = isGPUTarget(Val)) {
         if (!ValidDevice->empty())
           Targets.push_back(Args.MakeArgString(
               C.getDriver().MakeSYCLDeviceTriple("spir64_gen").str() + "-" +
@@ -5749,7 +5771,7 @@ class OffloadingActionBuilder final {
           llvm::StringMap<StringRef> FoundNormalizedTriples;
           for (StringRef Val : SYCLTargetsValues->getValues()) {
             StringRef UserTargetName(Val);
-            if (auto ValidDevice = isIntelGPUTarget(Val)) {
+            if (auto ValidDevice = isGPUTarget(Val)) {
               if (ValidDevice->empty())
                 // Unrecognized, we have already diagnosed this earlier; skip.
                 continue;
