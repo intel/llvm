@@ -68,7 +68,7 @@ Table 1. Values of the `SYCL_EXT_ONEAPI_GROUP_SORT` macro.
 |===
 |Value |Description
 |1     |Initial extension version. Base features are supported.
-|2     |Interfaces with fixed-size arrays are supported.
+|2     |Interfaces with fixed-size arrays and key-value sorting are supported.
 |===
 
 == Sorting functions
@@ -89,37 +89,50 @@ position `i` in the ordered range.
 namespace sycl::ext::oneapi::experimental {
 
   template <typename GroupHelper, typename Ptr>
-  void joint_sort(GroupHelper exec, Ptr first, Ptr last); // (1)
+  void joint_sort(GroupHelper gh, Ptr first, Ptr last); // (1)
 
   template <typename GroupHelper, typename Ptr, typename Compare>
-  void joint_sort(GroupHelper exec, Ptr first, Ptr last, Compare comp); // (2)
+  void joint_sort(GroupHelper gh, Ptr first, Ptr last, Compare comp); // (2)
 
   template <typename Group, typename Ptr, typename Sorter>
   void joint_sort(Group g, Ptr first, Ptr last, Sorter sorter); // (3)
 
   template <typename GroupHelper, typename T>
-  T sort_over_group(GroupHelper exec, T val); // (4)
+  T sort_over_group(GroupHelper gh, T value); // (4)
 
   template <typename GroupHelper, typename T, typename Compare>
-  T sort_over_group(GroupHelper exec, T val, Compare comp); // (5)
+  T sort_over_group(GroupHelper gh, T value, Compare comp); // (5)
 
   template <typename Group, typename T, typename Sorter>
-  T sort_over_group(Group g, T val, Sorter sorter); // (6)
+  T sort_over_group(Group g, T value, Sorter sorter); // (6)
+
+  template <typename GroupHelper, typename T, typename U>
+  std::tuple<T, U>
+  sort_key_value_over_group(GroupHelper gh, T key, U value); // (7)
+
+  template <typename GroupHelper, typename T, typename U, typename Compare>
+  std::tuple<T, U>
+  sort_key_value_over_group(GroupHelper gh, T key, U value, Compare comp); // (8)
+
+  template <typename Group, typename T, typename U, typename Sorter>
+  std::tuple<T, U>
+  sort_key_value_over_group(Group g, T key, U value, Sorter sorter); // (9)
+
 }
 ----
 
-1._Preconditions_: `first`, `last` must be the same for all work-items
+(1) _Preconditions_: `first`, `last` must be the same for all work-items
 in the group.
 
 _Constraints_: Only available if `GroupHelper` was created with a
 work-group or sub-group and some associated scratch space.
 
 _Effects_: Sort the elements in the range `[first, last)`
-using the `exec` group helper object. Elements are compared by `operator<`.
+using the `gh` group helper object. Elements are compared by `operator<`.
 
 _Complexity_: Let `N` be `last - first`. `O(N*log(N)*log(N))` comparisons.
 
-2._Preconditions_: `first`, `last` must be the same for all work-items
+(2) _Preconditions_: `first`, `last` must be the same for all work-items
 in the group.
 
 _Constraints_: Only available if `GroupHelper` was created with
@@ -129,11 +142,11 @@ _Mandates_: `comp` must satisfy the requirements of `Compare` from
 the {cpp} standard.
 
 _Effects_: Sort the elements in the range `[first, last)` with respect to the
-binary comparison function object `comp` using the `exec` group helper object.
+binary comparison function object `comp` using the `gh` group helper object.
 
 _Complexity_: Let `N` be `last - first`. `O(N*log(N)*log(N))` comparisons.
 
-3._Preconditions_: `first`, `last` must be the same
+(3) _Preconditions_: `first`, `last` must be the same
 for all work-items in the group.
 
 _Constraints_: All functions are available only if `Sorter` is
@@ -141,46 +154,85 @@ a SYCL Sorter and it provides `operator()(Group, Ptr, Ptr)` overload.
 
 _Effects_: Equivalent to: `sorter(g, first, last)`.
 
-4._Constraints_: Only available if `GroupHelper` was created with
+(4) _Constraints_: Only available if `GroupHelper` was created with
 a work-group or a sub-group and some associated scratch space.
 
 _Returns_: The value returned on work-item `i` is the value in position `i`
-of the ordered range resulting from sorting `val` from all work-items
+of the ordered range resulting from sorting `value` from all work-items
 in the group. Elements are compared by `operator<`
-using the `exec` group helper object.
+using the `gh` group helper object.
 For multi-dimensional groups, the order of work-items in the group is
 determined by their linear id.
 
 _Complexity_: Let `N` be the work-group size. `O(N*log(N)*log(N))` comparisons.
 
-5._Constraints_: Only available if `GroupHelper` was created with
+(5) _Constraints_: Only available if `GroupHelper` was created with
 a work-group or a sub-group and some associated scratch space.
 
 _Mandates_: `comp` must satisfy the requirements of `Compare` from
 the {cpp} standard.
 
 _Returns_: The value returned on work-item `i` is the value in position `i`
-of the ordered range resulting from sorting `val` from all work-items in the
-`g` group with respect to the binary comparison function object `comp`
-using the `exec` group helper object.
+of the ordered range resulting from sorting `value` from all work-items in the
+group with respect to the binary comparison function object `comp`
+using the `gh` group helper object.
 For multi-dimensional groups, the order of work-items in the group is
 determined by their linear id.
 
 _Complexity_: Let `N` be the work-group or sub-group size.
 `O(N*log(N)*log(N))` comparisons.
 
-6._Constraints_: All functions are available only if `Sorter` is
+(6) _Constraints_: All functions are available only if `Sorter` is
 a SYCL Sorter and it provides `operator()(Group, T)` overload.
 
-_Effects_: Equivalent to: `return sorter(g, val)`.
+_Effects_: Equivalent to: `return sorter(g, value)`.
+
+(7) _Constraints_: Only available if `GroupHelper` was created with
+a work-group or a sub-group and some associated scratch space.
+
+_Returns_: The value returned on work-item `i` is the tuple of values
+that are in position `i`
+of the ordered range resulting from key-value sorting of `key` and `value`
+from all work-items
+in the group. Elements are compared by `operator<`
+using the `gh` group helper object.
+For multi-dimensional groups, the order of work-items in the group is
+determined by their linear id.
+
+_Complexity_: Let `N` be the work-group size. `O(N*log(N)*log(N))` comparisons.
+
+(8) _Constraints_: Only available if `GroupHelper` was created with
+a work-group or a sub-group and some associated scratch space.
+
+_Mandates_: `comp` must satisfy the requirements of `Compare` from
+the {cpp} standard.
+
+_Returns_: The value returned on work-item `i` is the tuple of values
+that are in position `i`
+of the ordered range resulting from key-value sorting of `key` and `value`
+from all work-items in the
+group with respect to the binary comparison function object `comp`
+using the `gh` group helper object.
+For multi-dimensional groups, the order of work-items in the group is
+determined by their linear id.
+
+_Complexity_: Let `N` be the work-group or sub-group size.
+`O(N*log(N)*log(N))` comparisons.
+
+(9) _Constraints_: All functions are available only if `Sorter` is
+a SYCL Sorter and it provides `operator()(Group, T, U)` overload.
+
+_Effects_: Equivalent to: `return sorter(g, key, value)`.
+
+NOTE: (7), (8), (9) functions are available starting in revision 2 of this extension.
 
 === Functions with fixed-size arrays
 
-The functions in this section are similar to sort_over_group defined above,
-except each work-item provides a fixed-size array of elements rather than
+The functions in this section are additional overloads for functions defined above,
+except one thing: each work-item provides a fixed-size array of elements rather than
 a single element.
 
-These functions are available starting in revision 2 of this extension.
+NOTE: These functions are available starting in revision 2 of this extension.
 
 [source,c++]
 ----
@@ -188,18 +240,10 @@ namespace sycl::ext::oneapi::experimental {
 
   template <typename GroupHelper, typename T,
             std::size_t ElementsPerWorkItem,
-            typename Properties =  ext::oneapi::experimental::properties<>>
+            typename Properties = ext::oneapi::experimental::properties<>>
   void sort_over_group(GroupHelper gh,
                        sycl::span<T, ElementsPerWorkItem> values,
                        Properties properties = {}); // (1)
-
-  template <typename GroupHelper, typename T, typename U,
-            std::size_t ElementsPerWorkItem,
-            typename Properties = ext::oneapi::experimental::properties<>>
-  void sort_over_group(GroupHelper gh,
-                       sycl::span<T, ElementsPerWorkItem> keys,
-                       sycl::span<U, ElementsPerWorkItem> values,
-                       Properties properties = {}); // (2)
 
   template <typename GroupHelper, typename T,
             std::size_t ElementsPerWorkItem, typename Compare,
@@ -207,16 +251,7 @@ namespace sycl::ext::oneapi::experimental {
   void sort_over_group(GroupHelper gh,
                        sycl::span<T, ElementsPerWorkItem> values,
                        Compare comp,
-                       Properties properties = {}); // (3)
-
-  template <typename GroupHelper, typename T, typename U,
-            std::size_t ElementsPerWorkItem,
-            typename Properties = ext::oneapi::experimental::properties<>>
-  void sort_over_group(GroupHelper gh,
-                       sycl::span<T, ElementsPerWorkItem> keys,
-                       sycl::span<U, ElementsPerWorkItem> values,
-                       Compare comp,
-                       Properties properties = {}); // (4)
+                       Properties properties = {}); // (2)
 
   template<typename Group, typename T, std::size_t ElementsPerWorkItem,
            typename Sorter,
@@ -224,55 +259,59 @@ namespace sycl::ext::oneapi::experimental {
   void sort_over_group(Group g,
                        sycl::span<T, ElementsPerWorkItem> values,
                        Sorter sorter,
-                       Properties properties = {}); // (5)
+                       Properties properties = {}); // (3)
+
+  template <typename GroupHelper, typename T, typename U,
+            std::size_t ElementsPerWorkItem,
+            typename Properties = ext::oneapi::experimental::properties<>>
+  void sort_key_value_over_group(GroupHelper gh,
+                                 sycl::span<T, ElementsPerWorkItem> keys,
+                                 sycl::span<U, ElementsPerWorkItem> values,
+                                 Properties properties = {}); // (4)
+
+  template <typename GroupHelper, typename T, typename U,
+            std::size_t ElementsPerWorkItem,
+            typename Compare,
+            typename Properties = ext::oneapi::experimental::properties<>>
+  void sort_key_value_over_group(GroupHelper gh,
+                                 sycl::span<T, ElementsPerWorkItem> keys,
+                                 sycl::span<U, ElementsPerWorkItem> values,
+                                 Compare comp,
+                                 Properties properties = {}); // (5)
 
   template<typename Group, typename T, typename U,
            std::size_t ElementsPerWorkItem,
            typename Sorter,
            typename Properties = ext::oneapi::experimental::properties<>>
-  void sort_over_group(Group g, sycl::span<T, ElementsPerWorkItem> keys,
-                       sycl::span<U, ElementsPerWorkItem> values,
-                       Sorter sorter,
-                       Properties properties = {}); // (6)
+  void sort_key_value_over_group(Group g,
+                                 sycl::span<T, ElementsPerWorkItem> keys,
+                                 sycl::span<U, ElementsPerWorkItem> values,
+                                 Sorter sorter,
+                                 Properties properties = {}); // (6)
 }
 ----
 
-NOTE: (2), (4), (6) functions below perform sorting
+NOTE: (4), (5), (6) functions below perform sorting
 including key-value variant.
 Key value sorting is a sorting algorithm where keys are compared,
 but keys and values are reordered both.
 
-1._Constraints_: Only available if `GroupHelper` was created with
+(1) _Constraints_: Only available if `GroupHelper` was created with
 a work-group or a sub-group and some associated scratch space and
 `sycl::ext::oneapi::is_property_list_v<std::decay_t<Properties>>` is true.
 
 _Effects_: Sort elements in the range containing of elements inside
-`values` from all work-items from the group using
-the `gh` group helper object.
+`values` from all work-items from the group.
 Result of sorting is placed into `values` with data placements
 specified by `properties`.
 Default data placements are those that are specified by the
 `group_algorithm_data_placement::blocked` property.
-Elements are compared by `operator<`.
+Elements are compared by `operator<` using
+the `gh` group helper object.
 
 _Complexity_: Let `N` be the group size. `O(N*log(N)*log(N))` comparisons.
 
-2._Constraints_: Only available if `GroupHelper` was created with
-a work-group or a sub-group and some associated scratch space and
-`sycl::ext::oneapi::is_property_list_v<std::decay_t<Properties>>` is true.
-
-_Effects_: Perform key-value sorting for elements in ranges
-containing of elements inside `keys` and `values` from all work-items
-from the group using the `gh` group helper object.
-Result of sorting is placed into `keys` and `values` with
-data placements specified by `properties`.
-Default data placements are those that are specified by the
-`group_algorithm_data_placement::blocked` property.
-Elements are compared by `operator<`.
-
-_Complexity_: Let `N` be the group size. `O(N*log(N)*log(N))` comparisons.
-
-3._Constraints_: Only available if `GroupHelper` was created with
+(2) _Constraints_: Only available if `GroupHelper` was created with
 a work-group or a sub-group and some associated scratch space and
 `sycl::ext::oneapi::is_property_list_v<std::decay_t<Properties>>` is true.
 
@@ -291,7 +330,28 @@ Default data placements are those that are specified by the
 _Complexity_: Let `N` be the work-group or sub-group size.
 `O(N*log(N)*log(N))` comparisons.
 
-4._Constraints_: Only available if `GroupHelper` was created with
+(3) _Constraints_: All functions are available only if `Sorter` is
+a SYCL Sorter and it provides `operator()(Group, sycl::span)` overload and
+`sycl::ext::oneapi::is_property_list_v<std::decay_t<Properties>>` is true.
+
+_Effects_: Equivalent to: `return sorter(g, values, properties)`.
+
+(4) _Constraints_: Only available if `GroupHelper` was created with
+a work-group or a sub-group and some associated scratch space and
+`sycl::ext::oneapi::is_property_list_v<std::decay_t<Properties>>` is true.
+
+_Effects_: Perform key-value sorting for elements in ranges
+containing of elements inside `keys` and `values` from all work-items
+from the group.
+Result of sorting is placed into `keys` and `values` with
+data placements specified by `properties`.
+Default data placements are those that are specified by the
+`group_algorithm_data_placement::blocked` property.
+Elements are compared by `operator<` using the `gh` group helper object.
+
+_Complexity_: Let `N` be the group size. `O(N*log(N)*log(N))` comparisons.
+
+(5) _Constraints_: Only available if `GroupHelper` was created with
 a work-group or a sub-group and some associated scratch space and
 `sycl::ext::oneapi::is_property_list_v<std::decay_t<Properties>>` is true.
 
@@ -311,13 +371,7 @@ Elements are compared by `operator<`.
 _Complexity_: Let `N` be the work-group or sub-group size.
 `O(N*log(N)*log(N))` comparisons.
 
-5._Constraints_: All functions are available only if `Sorter` is
-a SYCL Sorter and it provides `operator()(Group, sycl::span)` overload and
-`sycl::ext::oneapi::is_property_list_v<std::decay_t<Properties>>` is true.
-
-_Effects_: Equivalent to: `return sorter(g, values, properties)`.
-
-6._Constraints_: All functions are available only if `Sorter` is
+(6) _Constraints_: All functions are available only if `Sorter` is
 a SYCL Sorter and it provides `operator()(Group, sycl::span, sycl::span)
 overload and `sycl::ext::oneapi::is_property_list_v<std::decay_t<Properties>>`
 is true.
@@ -328,8 +382,8 @@ _Effects_: Equivalent to: `return sorter(g, keys, values, properties)`.
 
 Sorter is a special type that encapsulates a sorting algorithm.
 Sorter may contain parameters
-that help to get better performance. Data for sorting are provided to
-the `operator()`
+that help to get better performance. Data for sorting are provided
+to `operator()`
 that should contain an implementation of a sorting algorithm.
 General semantics of `operator()` is following:
 
@@ -339,7 +393,7 @@ template<typename Group, typename Ptr>
 void operator()(Group g, Ptr first, Ptr last);
 
 template<typename Group, typename T>
-T operator()(Group g, T val);
+T operator()(Group g, T value);
 
 template<typename Group, typename T, std::size_t ElementsPerWorkItem,
          typename Properties>
@@ -347,19 +401,23 @@ void operator()(Group g,
                 sycl::span<T, ElementsPerWorkItem> values,
                 Properties properties);
 
+template<typename Group, typename T, typename U>
+std::tuple<T, U> operator()(Group g, T key, U value);
+
 template<typename Group, typename T, typename U,
          std::size_t ElementsPerWorkItem,
          typename Properties>
-void operator()(Group g, sycl::span<T, ElementsPerWorkItem> keys,
+void operator()(Group g,
+                sycl::span<T, ElementsPerWorkItem> keys,
                 sycl::span<U, ElementsPerWorkItem> values,
                 Properties properties);
 ----
 
-NOTE: At least one overload for `operator()` is required.
+NOTE: At least one `operator()` overload must be presented.
 For example, if only `void operator()(Group g, Ptr first, Ptr last);`
 is defined then a Sorter can be passed to `joint_sort` function only.
 If it's passed to `sort_over_group`, it leads to a compilation
-error. If only `T operator()(Group g, T val);` is defined then a Sorter
+error. If only `T operator()(Group g, T value);` is defined then a Sorter
 can be passed to `sort_over_group` function only. If it's passed to
 `joint_sort`, it leads to a compilation error.
 
@@ -374,12 +432,19 @@ Available only if `sycl::is_group_v<std::decay_t<Group>>` is true.
 `first`, `last` must be the same for all work-items in the group.
 
 |`template<typename Group, typename T>
-T operator()(Group g, T val);`
+T operator()(Group g, T value);`
 |Implements a sorting algorithm that calls by `sort_over_group`.
 Available only if `sycl::is_group_v<std::decay_t<Group>>` is true.
 
-|`template<typename Group, typename T, std::size_t ElementsPerWorkItem, typename Properties>
-void operator()(Group g, sycl::span<T, ElementsPerWorkItem> values, Properties properties);`
+|`template<typename Group, typename T, typename U>
+std::tuple<T, U> operator()(Group g, T key, U value);`
+|Implements a sorting algorithm that calls by `sort_key_value_over_group`.
+Available only if `sycl::is_group_v<std::decay_t<Group>>` is true.
+
+|`template<typename Group, typename T,
+           std::size_t ElementsPerWorkItem, typename Properties>
+void operator()(Group g, sycl::span<T, ElementsPerWorkItem> values,
+                Properties properties);`
 |Implements a sorting algorithm that is called by `sort_over_group` and
 that accepts
 the `sycl::span` value as an input parameter.
@@ -390,9 +455,13 @@ Default data placements are those that are specified by the
 Available only if `sycl::is_group_v<std::decay_t<Group>>` is true and
 `ElementsPerWorkItem` is not equal to `sycl::dynamic_extent`.
 
-|`template<typename Group, typename T, typename U, std::size_t ElementsPerWorkItem, typename Properties>
-void operator()(Group g, sycl::span<T, ElementsPerWorkItem> keys, sycl::span<U, ElementsPerWorkItem> values, Properties properties);`
-|Implements a sorting algorithm that is called by `sort_over_group` and that
+|`template<typename Group, typename T, typename U,
+           std::size_t ElementsPerWorkItem, typename Properties>
+void operator()(Group g, sycl::span<T, ElementsPerWorkItem> keys,
+                sycl::span<U, ElementsPerWorkItem> values,
+                Properties properties);`
+|Implements a sorting algorithm that is called by
+`sort_key_value_over_group` and that
 accepts two `sycl::span` values as input parameters.
 Result of sorting is placed into `keys` and `values` with data placements
 specified by `properties`. Default data placements are those that are
@@ -430,101 +499,140 @@ SYCL provides the following predefined classes:
 
 [source,c++]
 ----
+
 namespace sycl::ext::oneapi::experimental {
 
-  template<typename Compare = std::less<>>
-  class default_sorter {
-  public:
-    template<std::size_t Extent>
-    default_sorter(sycl::span<std::byte, Extent> scratch,
-                   Compare comp = Compare());
+  namespace default_sorters {
 
-    template<typename Group, typename Ptr>
-    void operator()(Group g, Ptr first, Ptr last);
+    template<typename Compare = std::less<>>
+    class joint_sorter{
+    public:
+        template<std::size_t Extent>
+        joint_sorter(sycl::span<std::byte, Extent> scratch, Compare comp = {}); // (1)
 
-    template<typename Group, typename T>
-    T operator()(Group g, T val);
+        template<typename Group, typename Ptr>
+        void operator()(Group g, Ptr first, Ptr last); // (2)
 
-    template<typename Group, typename T,
-             std::size_t ElementsPerWorkItem,
-             typename Properties>
-    void operator()(Group g, sycl::span<T, ElementsPerWorkItem> values,
-                    Properties properties);
+        template<typename T>
+        static constexpr size_t
+        memory_required(sycl::memory_scope scope, std::size_t range_size); // (3)
+    };
 
-    template<typename Group, typename T, typename U,
-             std::size_t ElementsPerWorkItem,
-             typename Properties>
-    void operator()(Group g,sycl::span<T, ElementsPerWorkItem> keys,
-                    sycl::span<U, ElementsPerWorkItem> values,
-                    Properties properties);
+    template<typename T,
+             typename Compare = std::less<>,
+             std::size_t ElementsPerWorkItem = 1>
+    class group_sorter{
+    public:
+        template<std::size_t Extent>
+        group_sorter(sycl::span<std::byte, Extent> scratch, Compare comp = {}); // (4)
 
-    template<typename T>
-    static constexpr std::size_t
-    memory_required(sycl::memory_scope scope,
-                    sycl::device d,
-                    std::size_t range_size);
+        template<typename Group>
+        T operator()(Group g, T value); // (5)
 
-    template<typename T, std::size_t ElementsPerWorkItem = 1,
-             std::int32_t dimensions = 1>
-    static constexpr size_t
-    memory_required(sycl::memory_scope scope,
-                    sycl::device d,
-                    sycl::range<dimensions> r);
+        template<typename Group, typename Properties>
+        void operator()(Group g,
+                        sycl::span<T, ElementsPerWorkItem> values,
+                        Properties properties); // (6)
 
-    template<typename T, typename U, std::size_t ElementsPerWorkItem,
-             std::int32_t dimensions = 1>
-    static constexpr size_t
-    key_value_memory_required(sycl::memory_scope scope,
-                              sycl::device d,
-                              sycl::range<dimensions> r);
-  };
+        static constexpr size_t
+        memory_required(sycl::memory_scope scope, std::size_t range_size); // (7)
+    };
 
-  template<typename T, sorting_order Order = sorting_order::ascending,
-           unsigned int BitsPerPass = 4>
-  class radix_sorter {
-  public:
-    template<std::size_t Extent>
-    radix_sorter(sycl::span<std::byte, Extent> scratch,
-                 const std::bitset<sizeof(T) * CHAR_BIT> mask =
-                     std::bitset<sizeof(T) * CHAR_BIT>
-                     (std::numeric_limits<unsigned long long>::max()));
+    template<typename T,
+             typename U,
+             typename Compare = std::less<>,
+             std::size_t ElementsPerWorkItem = 1>
+    class group_key_value_sorter{
+    public:
+        template<std::size_t Extent>
+        group_key_value_sorter(sycl::span<std::byte, Extent> scratch,
+                               Compare comp = {}); // (8)
 
-    template<typename Group, typename Ptr>
-    void operator()(Group g, Ptr first, Ptr last);
+        template<typename Group>
+        std::tuple<T, U> operator()(Group g, T key, U value); // (9)
 
-    template<typename Group>
-    T operator()(Group g, T val);
+        template<typename Group, typename Properties>
+        void operator()(Group g,
+                        sycl::span<T, ElementsPerWorkItem> keys,
+                        sycl::span<U, ElementsPerWorkItem> values,
+                        Properties property); // (10)
 
-    template<typename Group, typename T, std::size_t ElementsPerWorkItem,
-             typename Properties>
-    void operator()(Group g, sycl::span<T, ElementsPerWorkItem> values,
-                    Properties properties);
+        static constexpr std::size_t
+        memory_required(sycl::memory_scope scope, std::size_t range_size); // (11)
+    };
+  }
 
-    template<typename Group, typename T, typename U,
-             std::size_t ElementsPerWorkItem,
-             typename Properties>
-    void operator()(Group g, sycl::span<T, ElementsPerWorkItem> keys,
-                    sycl::span<U, ElementsPerWorkItem> values,
-                    Properties properties);
+  namespace radix_sorters{
 
-    static constexpr std::size_t
-    memory_required(sycl::memory_scope scope,
-                    sycl::device d,
-                    std::size_t range_size);
+    template<typename T,
+             sorting_order Order = sorting_order::ascending,
+             unsigned int BitsPerPass = 4>
+    class joint_sorter
+    {
+    public:
+        template<std::size_t Extent>
+        joint_sorter(sycl::span<std::byte, Extent> scratch,
+                     const std::bitset<sizeof(T) * CHAR_BIT> mask =
+                       std::bitset<sizeof(T) * CHAR_BIT> (std::numeric_limits<unsigned long long>::max())); // (12)
 
-    template<std::size_t ElementsPerWorkItem = 1, std::int32_t dimensions = 1>
-    static constexpr size_t
-    memory_required(sycl::memory_scope scope,
-                    sycl::device d,
-                    sycl::range<dimensions> r);
+        template<typename Group, typename Ptr>
+        void operator()(Group g, Ptr first, Ptr last); // (13)
 
-    template<typename U, std::size_t ElementsPerWorkItem,
-             std::int32_t dimensions = 1>
-    static constexpr size_t
-    key_value_memory_required(sycl::memory_scope scope,
-                              sycl::device d,
-                              sycl::range<dimensions> r);
-  };
+        static constexpr std::size_t
+        memory_required(sycl::memory_scope scope, std::size_t range_size); // (14)
+    };
+
+    template<typename T,
+             std::size_t sorting_order Order = sorting_order::ascending,
+             ElementsPerWorkItem = 1,
+             unsigned int BitsPerPass = 4>
+    class group_sorter
+    {
+    public:
+        template<std::size_t Extent>
+        group_sorter(sycl::span<std::byte, Extent> scratch,
+                     const std::bitset<sizeof(T) * CHAR_BIT> mask =
+                       std::bitset<sizeof(T) * CHAR_BIT> (std::numeric_limits<unsigned long long>::max())); // (15)
+
+        template<typename Group>
+        T operator()(Group g, T value); // (16)
+
+        template<typename Group, typename Properties>
+        void operator()(Group g,
+                        sycl::span<T, ElementsPerWorkItem> values,
+                        Properties properties); // (17)
+
+        static constexpr std::size_t
+        memory_required(sycl::memory_scope scope, std::size_t range_size); // (18)
+    };
+
+    template<typename T,
+             typename U,
+             std::size_t sorting_order Order = sorting_order::ascending,
+             ElementsPerWorkItem = 1,
+             unsigned int BitsPerPass = 4>
+    class group_key_value_sorter
+    {
+    public:
+        template<std::size_t Extent>
+        group_key_value_sorter(sycl::span<std::byte, Extent> scratch,
+                               const std::bitset<sizeof(T) * CHAR_BIT> mask =
+                                 std::bitset<sizeof(T) * CHAR_BIT> (std::numeric_limits<unsigned long long>::max())); // (19)
+
+        template<typename Group>
+        std::tuple<T, U> operator()(Group g, T key, U value); // (20)
+
+        template<typename Group, typename Properties>
+        void operator()(Group g,
+                        sycl::span<T, ElementsPerWorkItem> keys,
+                        sycl::span<U, ElementsPerWorkItem> values,
+                        Properties properties); // (21)
+
+        static constexpr std::size_t
+        memory_required(sycl::memory_scope scope, std::size_t range_size); // (22)
+    };
+
+  }
 }
 ----
 
@@ -532,16 +640,14 @@ Table 3. Description of predefined Sorters.
 |===
 |Sorter|Description
 
-|`template<typename Compare = std::less<>>
-default_sorter`
+|default sorters
 |Use a default sorting method based on an implementation-defined heuristic
 using `Compare` as the binary comparison function object.
 The algorithm requires an additional memory that must be allocated on
 callers side.
 Size of required memory (bytes) is defined by calling `memory_required`.
 
-|`template<typename T, sorting_order Order = sorting_order::ascending, unsigned int BitsPerPass = 4>
-radix_sorter`
+|radix sorters
 |Use radix sort as a sorting method. `Order` specify the sorting order.
 Only arithmetic types as `T` can be passed to `radix_sorter`.
 `BitsPerPass` is a number of bits that values are split by.
@@ -553,146 +659,86 @@ callers side.
 Size of required memory (bytes) is defined by calling `memory_required`.
 |===
 
-Table 4. Constructors of the `default_sorter` class.
-|===
-|Constructor|Description
-
-|`template<std::size_t Extent>
-default_sorter(sycl::span<std::byte, Extent> scratch, Compare comp = Compare())`
-|Creates the `default_sorter` object using `comp`.
+(1), (4), (8) create the object using `comp`.
 Additional memory for the algorithm is provided using `scratch`.
 If `scratch.size()` is less than the value returned by
 `memory_required`, behavior of the corresponding sorting algorithm
 is undefined.
 
-|===
-
-Table 5. Member functions of the `default_sorter` class.
-|===
-|Member function|Description
-
-|`template<typename Group, typename Ptr>
-void operator()(Group g, Ptr first, Ptr last)`
-|Implements a default sorting algorithm to be called by
+(2) Implements a default sorting algorithm to be called by
 the `joint_sort` algorithm.
 
 _Complexity_: Let `N` be `last - first`. `O(N*log(N)*log(N))` comparisons.
 
-|`template<typename Group, typename T>
-T operator()(Group g, T val)`
-|Implements a default sorting algorithm to be called by
+(3) Returns size of temporary memory (in bytes) that is required by
+the default sorting algorithm defined by the sorter calling by `joint_sort`.
+`range_size` represents a range size for sorting,
+e.g. `last-first` from `operator()` arguments.
+Result depends on the `scope` parameter:
+use `sycl::memory_scope::work_group` to get memory size required
+for each work-group;
+use `sycl::memory_scope::sub_group` to get memory size required
+for each sub-group.
+If other `scope` values are passed, behavior is unspecified.
+
+(5) Implements a default sorting algorithm to be called by
 the `sort_over_group` algorithm.
 
 _Complexity_: Let `N` be the `Group` size. `O(N*log(N)*log(N))` comparisons.
 
-|`template<typename Group, typename T, std::size_t ElementsPerWorkItem, typename Properties>
-void operator()(Group g, sycl::span<T, ElementsPerWorkItem> values, Properties properties);`
-|Implements a default sorting algorithm that is called by
+(6) Implements a default sorting algorithm that is called by
 `sort_over_group` and that accepts the `sycl::span` value as
 an input parameter.
 
 _Complexity_: Let `N` be the `Group` size multiplied by `ElementsPerWorkItem`.
 `O(N*log(N)*log(N))` comparisons.
 
-|`template<typename Group, typename T, typename U, std::size_t ElementsPerWorkItem, typename Properties>
-void operator()(Group g, sycl::span<T, ElementsPerWorkItem> keys, sycl::span<U, ElementsPerWorkItem> values, Properties properties);`
-|Implements a default key-value sorting algorithm that is called
-by `sort_over_group` and that
-accepts two `sycl::span` values as input parameters.
+(7) Returns the size of temporary memory (in bytes) that is required by the default
+sorting algorithm defined by the sorter calling by `sort_over_group`.
+`ElementsPerWorkItem` is the extent parameter for `sycl::span`
+that is an input parameter for `sort_over_group`.
+If `scope == sycl::memory_scope::work_group`,
+`range_size` is the size of the local range for `sycl::nd_range`
+that was used to run the kernel;
+if `scope = sycl::memory_scope::sub_group`, `range_size` is a sub-group size.
+If other `scope` values are passed, behavior is unspecified.
+
+(9) Implements a default key-value sorting algorithm that is called
+by `sort_key_value_over_group` and that doesn't accept
+`sycl::span` values as input parameters.
 
 _Complexity_: Let `N` be the `Group` size multiplied by `ElementsPerWorkItem`.
 `O(N*log(N)*log(N))` comparisons.
 
-|`template<int dimensions = 1>
-static std::size_t memory_required(sycl::memory_scope scope, sycl::device d, std::size_t range_size)`
-|Returns size of temporary memory (in bytes) that is required by
-the default sorting algorithm defined by the sorter calling by `joint_sort`
-to run on `d`.
-`range_size` represents a range size for sorting,
-e.g. `last-first` from `operator()` arguments.
-Result depends on the `scope` parameter:
-use `sycl::memory_scope::work_group` to get memory size required
-for each work-group;
-use `sycl::memory_scope::sub_group` to get memory size required
-for each sub-group.
-If other `scope` values are passed, behavior is unspecified.
+(10) Implements a default key-value sorting algorithm that is called
+by `sort_key_value_over_group` and that
+accepts `sycl::span` values as input parameters.
 
-|`template<typename T, std::size_t ElementsPerWorkItem = 1, std::int32_t dimensions = 1>
-static std::size_t memory_required(sycl::memory_scope scope, sycl::device d, sycl::range<dimensions> local_range)`
-|Returns size of temporary memory (in bytes) that is required by the default
-sorting algorithm defined by the sorter calling by `sort_over_group`
-to run on `d`.
-`ElementsPerWorkItem` is a parameter for `sycl::span<T, ElementsPerWorkItem>`
-that is an input parameter for `sort_over_group`. The function can be used
-for `sort_over_group` without `sycl::span` as an input parameter
-if `ElementsPerWorkItem == 1`.
-If `scope = sycl::memory_scope::work_group`,
-`local_range` is a local range of `sycl::nd_range`
-that was used to run the kernel;
-if `scope = sycl::memory_scope::sub_group`, `local_range` is a sub-group size.
-If other `scope` values are passed, behavior is unspecified.
+_Complexity_: Let `N` be the `Group` size multiplied by `ElementsPerWorkItem`.
+`O(N*log(N)*log(N))` comparisons.
 
-|`template<typename T, typename U, std::size_t ElementsPerWorkItem, std::int32_t dimensions = 1>
-static constexpr size_t
-key_value_memory_required(sycl::memory_scope scope, sycl::device d, sycl::range<dimensions> r);`
-|Returns size of temporary memory (in bytes) that is required by
+(11) Returns size of temporary memory (in bytes) that is required by
 the default key-value
-sorting algorithm defined by the sorter calling by `sort_over_group`
-with `sycl::span<T, ElementsPerWorkItem>` and
-`sycl::span<U, ElementsPerWorkItem>` as input parameters to run on `d`.
-If `scope = sycl::memory_scope::work_group`,
-`local_range` is a local range of `sycl::nd_range` that
-was used to run the kernel;
-if `scope = sycl::memory_scope::sub_group`, `local_range` is a sub-group size.
+sorting algorithm defined by the sorter calling by `sort_key_value_over_group`.
+If `scope == sycl::memory_scope::work_group`,
+`range_size` is the size of the local range for `sycl::nd_range`
+that was used to run the kernel;
+if `scope = sycl::memory_scope::sub_group`, `range_size` is a sub-group size.
 If other `scope` values are passed, behavior is unspecified.
-|===
 
-Table 6. Constructors of the `radix_sorter` class.
-|===
-|Constructor|Description
-
-|`template<std::size_t Extent>
-radix_sorter(sycl::span<std::byte, Extent> scratch, const std::bitset<sizeof(T) * CHAR_BIT> mask = std::bitset<sizeof(T) * CHAR_BIT>
-(std::numeric_limits<unsigned long long>::max()))`
-|Creates the `radix_sorter` object to sort values considering only bits
+(12), (15), (19) create
+the class object to sort values considering only bits
 that corresponds to 1 in `mask`.
 Additional memory for the algorithm is provided using `scratch`.
 If `scratch.size()` is less than the value returned by `memory_required`,
 behavior of the corresponding sorting algorithm is undefined.
 
-|===
-
-Table 7. Member functions of the `radix_sorter` class.
-|===
-|Member function|Description
-
-|`template<typename Group, typename Ptr>
-void operator()(Group g, Ptr first, Ptr last)`
-|Implements the radix sorting algorithm to be called by
+(13) Implements the radix sorting algorithm to be called by
 the `joint_sort` algorithm.
 
-|`template<typename Group>
-T operator()(Group g, T val)`
-|Implements the radix sorting algorithm to be called by
-the `sort_over_group` algorithm.
-
-|`template<typename Group, typename T, std::size_t ElementsPerWorkItem, typename Properties>
-void operator()(Group g, sycl::span<T, ElementsPerWorkItem> values, Properties properties);`
-|Implements the radix sorting algorithm that is called by
-`sort_over_group` and that accepts
-the `sycl::span` value as an input parameter.
-
-|`template<typename Group, typename T, typename U, std::size_t ElementsPerWorkItem, typename Properties>
-void operator()(Group g, sycl::span<T, ElementsPerWorkItem> keys, sycl::span<U, ElementsPerWorkItem> values, Properties properties);`
-|Implements the radix key-value sorting algorithm that is called
-by `sort_over_group` and that
-accepts two `sycl::span` values as input parameters.
-
-|`static std::size_t
-memory_required(sycl::memory_scope scope, sycl::device d, std::size_t range_size)`
-|Returns size of temporary memory (in bytes) that is required by
+(14) Returns size of temporary memory (in bytes) that is required by
 the radix sort algorithm
-calling by `joint_sort` to run on `d`.
+calling by `joint_sort`.
 `range_size` represents a range size for sorting,
 e.g. `last-first` from `operator()` arguments.
 Result depends on the `scope` parameter:
@@ -702,41 +748,46 @@ use `sycl::memory_scope::sub_group` to get memory size required
 for each sub-group.
 If other `scope` values are passed, behavior is unspecified.
 
-|`template<std::size_t ElementsPerWorkItem = 1, std::int32_t dimensions = 1>
-static std::size_t memory_required(sycl::memory_scope scope, sycl::device d, sycl::range<dimensions> local_range)`
-|Returns size of temporary memory (in bytes) that is required by the radix
-sorting algorithm defined by the sorter calling by `sort_over_group`
-to run on `d`.
+(16) Implements the radix sorting algorithm to be called by
+the `sort_over_group` algorithm.
+
+(17) Implements the radix sorting algorithm that is called by
+`sort_over_group` and that accepts
+the `sycl::span` value as an input parameter.
+
+(18) Returns size of temporary memory (in bytes) that is required by the radix
+sorting algorithm defined by the sorter calling by `sort_over_group`.
 `ElementsPerWorkItem` is a parameter for `sycl::span<T, ElementsPerWorkItem>`
 that is an input parameter for `sort_over_group`, where `T` is
-a first template argument for `radix_sorter`. The function can be used
-for `sort_over_group` without `sycl::span`
-as an input parameter if `ElementsPerWorkItem == 1`.
-If `scope = sycl::memory_scope::work_group`,
-`local_range` is a local range of `sycl::nd_range` that was
-used to run the kernel;
-if `scope = sycl::memory_scope::sub_group`, `local_range` is a sub-group size.
+a first template argument for `radix_sorter`.
+If `scope == sycl::memory_scope::work_group`,
+`range_size` is the size of the local range for `sycl::nd_range`
+that was used to run the kernel;
+if `scope = sycl::memory_scope::sub_group`, `range_size` is a sub-group size.
 If other `scope` values are passed, behavior is unspecified.
 
-|`template<typename U, std::size_t ElementsPerWorkItem, std::int32_t dimensions = 1>
-static constexpr size_t
-key_value_memory_required(sycl::memory_scope scope, sycl::device d, sycl::range<dimensions> r);`
-|Returns size of temporary memory (in bytes) that is required by the radix key-value
-sorting algorithm defined by the sorter calling by `sort_over_group`
+(20) Implements the radix sorting algorithm that is called
+by `sort_key_value_over_group` and that doesn't accept
+`sycl::span` values as input parameters.
+
+(21) Implements the radix key-value sorting algorithm that is called
+by `sort_key_value_over_group` and that
+accepts `sycl::span` values as input parameters.
+
+(22) Returns size of temporary memory (in bytes) that is required by the radix key-value
+sorting algorithm defined by the sorter calling by `sort_key_value_over_group`
 with `sycl::span<T, ElementsPerWorkItem>` and
-`sycl::span<U, ElementsPerWorkItem>` as input parameters to run on `d`,
-where `T` is a first template argument for `radix_sorter`.
-If `scope = sycl::memory_scope::work_group`,
-`local_range` is a local range of `sycl::nd_range` that
-was used to run the kernel;
-if `scope = sycl::memory_scope::sub_group`, `local_range` is a sub-group size.
+`sycl::span<U, ElementsPerWorkItem>` as input parameters.
+If `scope == sycl::memory_scope::work_group`,
+`range_size` is the size of the local range for `sycl::nd_range`
+that was used to run the kernel;
+if `scope = sycl::memory_scope::sub_group`, `range_size` is a sub-group size.
 If other `scope` values are passed, behavior is unspecified.
-|===
 
 === Group Helper
 
-The overloads of `joint_sort` and `sort_over_group` that do not take
-a Sorter parameter implicitly use the default sorter.
+The overloads of `joint_sort`, `sort_over_group`, `sort_key_value_over_group`
+that do not take a Sorter parameter implicitly use the default sorter.
 Since the default sorter requires the application to allocate some
 temporary memory, the application must use a Group Helper object to
 communicate the location of this memory. A Group Helper object is an object
@@ -749,7 +800,7 @@ that has the following two public member functions:
 sycl::span<std::byte, Extent> get_memory() const
 ----
 
-Table 8. Member functions of group helpers.
+Table 4. Member functions of group helpers.
 |===
 |Member function|Description
 
@@ -794,7 +845,7 @@ namespace sycl::ext::oneapi::experimental {
 For most applications it is enough to pass an instance of
 the `group_with_scratchpad` class instead of their own classes creation.
 
-Table 9. Constructors of the `group_with_scratchpad` class.
+Table 5. Constructors of the `group_with_scratchpad` class.
 |===
 |Constructor|Description
 
@@ -808,7 +859,7 @@ object, is undefined.
 The `scratch` value must be the same for all work-items in `group`.
 |===
 
-Table 10. Member functions of the `group_with_scratchpad` class.
+Table 6. Member functions of the `group_with_scratchpad` class.
 |===
 |Member function|Description
 
@@ -848,7 +899,7 @@ there is a enum:
 
 [source,c++]
 ----
-class enum group_algorithm_data_placement{
+enum class group_algorithm_data_placement{
   blocked,
   striped
 };
@@ -946,8 +997,8 @@ It's specified that data initially in `my_span` satisfies the
 namespace my_sycl = sycl::ext::oneapi::experimental;
 // calculate required local memory size
 size_t temp_memory_size =
-    my_sycl::default_sorter<>::memory_required<T>(
-      sycl::memory_scope::work_group, q.get_device(), n);
+    my_sycl::default_sorters::joint_sorter<>::memory_required<T>(
+      sycl::memory_scope::work_group, n);
 
 q.submit([&](sycl::handler& h) {
   auto acc = sycl::accessor(buf, h);
@@ -981,11 +1032,11 @@ namespace my_sycl = sycl::ext::oneapi::experimental;
 
 sycl::range<1> local_range{256};
 // predefine radix_sorter to calculate local memory size
-using RSorter = my_sycl::radix_sorter<T, my_sycl::sorting_order::descending>;
+using RSorter =
+    my_sycl::radix_sorters::group_sorter<T, my_sycl::sorting_order::descending>;
 // calculate required local memory size
 size_t temp_memory_size =
-    RSorter::memory_required(sycl::memory_scope::work_group,
-                             q.get_device(), local_range);
+    RSorter::memory_required(sycl::memory_scope::work_group, local_range.size());
 
 q.submit([&](sycl::handler& h) {
   auto acc = sycl::accessor(buf, h);
@@ -1023,8 +1074,8 @@ using TupleType =
       typename std::iterator_traits<oneapi::dpl::zip_iterator<T*, U*>>::value_type;
 // calculate required local memory size
 size_t temp_memory_size =
-    my_sycl::default_sorter<>::memory_required<TupleType>(
-      sycl::memory_scope::work_group, q.get_device(), n);
+    my_sycl::default_sorters::joint_sorter<>::memory_required<TupleType>(
+      sycl::memory_scope::work_group, n);
 
 q.submit([&](sycl::handler& h) {
   auto keys_acc = sycl::accessor(keys_buf, h);
@@ -1054,8 +1105,7 @@ q.submit([&](sycl::handler& h) {
 ...
 ----
 
-4.Using `sort_over_group` and `radix_sorter` with fixed-size arrays
-for key-value sorting.
+4.Using `sort_key_value_over_group` and `radix_sorter` with fixed-size arrays.
 
 [source,c++]
 ----
@@ -1066,12 +1116,13 @@ sycl::range<1> local_range{256};
 constexpr std::size_t ElementsPerWorkItem = 8;
 
 // predefine radix_sorter to calculate local memory size
-using RSorter = my_sycl::radix_sorter<T, my_sycl::sorting_order::descending>;
+using RSorter =
+    my_sycl::radix_sorters::group_key_value_sorter<T, T,
+                                                   my_sycl::sorting_order::descending,
+                                                   ElementsPerWorkItem>;
 // calculate required local memory size
 size_t temp_memory_size =
-    RSorter::key_value_memory_required(sycl::memory_scope::work_group,
-                                       q.get_device(),
-                                       local_range);
+    RSorter::memory_required(sycl::memory_scope::work_group, local_range.size());
 
 q.submit([&](sycl::handler& h) {
   auto keys_acc = sycl::accessor(keys_buf, h);
@@ -1091,7 +1142,7 @@ q.submit([&](sycl::handler& h) {
         vals_private[i] = vals_acc[idx * ElementsPerWorkItem + i];
       }
 
-      my_sycl::sort_over_group(
+      my_sycl::sort_key_value_over_group(
         id.get_group(),
         sycl::span{keys_private},
         sycl::span{vals_private},
@@ -1128,12 +1179,19 @@ that allows the SoA data pattern. Interfaces without tuple highlights that
 we have parameters with different meaning: only keys are comparing,
 but keys and values are moving both. However, it can look like
 inconsistent comparing to other interfaces of sorting.
+. It can be a problem that users need to put the same `Compare` type during
+calling `memory_required` function and the `default_sorter` constructor
+because it's easy to pass different comparator types.
+. Think about reducing overloads for sorting functions. The thing is that
+overloads with `Compare` objects seems extra and overloads with sorters,
+without sorters are enough.
+. It would be better if `memory_required` methods had a `sycl::device` parameter
+because different devices can require different amount of memory.
 
 == Non-implemented features
 Please, note that following is not inplemented yet for the open-source repo:
 
 . `radix_sorter`, `radix_order`.
-. sub-groups support.
 . fixed-size arrays and properties.
 
 == Revision History
@@ -1147,5 +1205,5 @@ Please, note that following is not inplemented yet for the open-source repo:
 |2|2021-09-15|Andrey Fedorov|Changes related to additional memory providing
 |3|2021-12-16|Andrey Fedorov|Some refactoring, sections reordering,
 making the entire extension experimental
-|4|2022-09-20|Andrey Fedorov|Fixed size arrays and properties
+|4|2022-11-14|Andrey Fedorov|Fixed size arrays, key-value sorting and properties
 |========================================
