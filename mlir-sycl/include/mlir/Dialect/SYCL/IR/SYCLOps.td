@@ -55,7 +55,6 @@ def SYCL_Dialect : Dialect {
     findMethodFromBaseClass(::mlir::TypeID BaseType,
                             llvm::StringRef Name) const;
 
-
     /// Add a definition for the given method to be used when lowering
     /// SYCLMethodOpInterface instances.
     ///
@@ -65,7 +64,7 @@ def SYCL_Dialect : Dialect {
                                   bool MayOverride = false);
 
     /// Retrieve a function definition previously registered with
-    /// provideMethodDefinition().
+    /// registerMethodDefinition().
     llvm::Optional<mlir::func::FuncOp>
     lookupMethodDefinition(llvm::StringRef Name,
                            mlir::FunctionType Type) const;

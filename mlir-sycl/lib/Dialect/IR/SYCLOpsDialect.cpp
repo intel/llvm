@@ -231,7 +231,7 @@ void mlir::sycl::MethodRegistry::registerDefinition(llvm::StringRef Name,
   auto Clone = Func.clone();
   const auto FuncType = Clone.getFunctionType();
   auto Iter =
-      definitions.insert_as<std::pair<llvm::StringRef, mlir::FunctionType>>(
+      Definitions.insert_as<std::pair<llvm::StringRef, mlir::FunctionType>>(
           {{Name, FuncType}, Clone}, {Name, FuncType});
   if (!Iter.second) {
     // Override current function.
@@ -251,9 +251,9 @@ llvm::Optional<mlir::func::FuncOp> mlir::sycl::MethodRegistry::lookupDefinition(
                           << "\" with type: " << FuncType << "\n");
 
   const auto Iter =
-      definitions.find_as<std::pair<llvm::StringRef, mlir::FunctionType>>(
+      Definitions.find_as<std::pair<llvm::StringRef, mlir::FunctionType>>(
           {Name, FuncType});
-  if (Iter == definitions.end()) {
+  if (Iter == Definitions.end()) {
     llvm::WithColor::warning() << "Could not find function \"" << Name
                                << "\" with type " << FuncType << "\n";
     return llvm::None;

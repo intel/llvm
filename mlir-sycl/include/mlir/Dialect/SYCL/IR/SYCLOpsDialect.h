@@ -44,14 +44,14 @@ public:
   ///
   /// A call to this function will fail if \p MayOverride is false and we try to
   /// override an already present definition.
-  void registerDefinition(llvm::StringRef methodName,
+  void registerDefinition(llvm::StringRef MethodName,
                           mlir::func::FuncOp Definition,
                           bool MayOverride = false);
 
   /// Retrieve a function definition previously registered with
-  /// provideMethodDefinition().
+  /// registerMethodDefinition().
   llvm::Optional<mlir::func::FuncOp>
-  lookupDefinition(llvm::StringRef methodName,
+  lookupDefinition(llvm::StringRef MethodName,
                    mlir::FunctionType FunctionType) const;
 
 private:
@@ -61,7 +61,7 @@ private:
       methods;
   llvm::DenseMap<std::pair<llvm::SmallString<0>, mlir::FunctionType>,
                  mlir::func::FuncOp>
-      definitions;
+      Definitions;
   mlir::ModuleOp Module;
 };
 } // namespace sycl
