@@ -123,7 +123,7 @@ def SYCLConstructorOp : SYCL_Op<"constructor", []> {
 
   let arguments = (ins
     FlatSymbolRefAttr:$Type,
-    FlatSymbolRefAttr:$MangledName,
+    FlatSymbolRefAttr:$MangledFunctionName,
     Variadic<ConstructorArgs>:$Args
   );
   let results = (outs);
@@ -169,9 +169,9 @@ def SYCLCallOp : SYCL_Op<"call", []> {
   }];
 
   let arguments = (ins
-    OptionalAttr<FlatSymbolRefAttr>:$Type,
-    FlatSymbolRefAttr:$Function,
-    FlatSymbolRefAttr:$MangledName,
+    OptionalAttr<FlatSymbolRefAttr>:$TypeName,
+    FlatSymbolRefAttr:$FunctionName,
+    FlatSymbolRefAttr:$MangledFunctionName,
     Variadic<AnyType>:$Args
   );
   let results = (outs Optional<AnyType>:$result);
@@ -180,16 +180,16 @@ def SYCLCallOp : SYCL_Op<"call", []> {
   let builders = [
     OpBuilder<(ins
     "::llvm::Optional<::mlir::Type>":$result,
-    "::llvm::Optional<::llvm::StringRef>":$Type,
-    "::llvm::StringRef":$Function,
-    "::llvm::StringRef":$MangledName,
+    "::llvm::Optional<::llvm::StringRef>":$TypeName,
+    "::llvm::StringRef":$FunctionName,
+    "::llvm::StringRef":$MangledFunctionName,
     "::mlir::ValueRange":$Args), [{
       odsState.addOperands(Args);
-      if (Type.has_value()) {
-        odsState.addAttribute(TypeAttrName(odsState.name), ::mlir::SymbolRefAttr::get(odsBuilder.getContext(), Type.value()));
+      if (TypeName.has_value()) {
+        odsState.addAttribute(getTypeNameAttrName(odsState.name), ::mlir::SymbolRefAttr::get(odsBuilder.getContext(), TypeName.value()));
       }
-      odsState.addAttribute(getFunctionAttrName(odsState.name), ::mlir::SymbolRefAttr::get(odsBuilder.getContext(), Function));
-      odsState.addAttribute(getMangledNameAttrName(odsState.name), ::mlir::SymbolRefAttr::get(odsBuilder.getContext(), MangledName));
+      odsState.addAttribute(getFunctionNameAttrName(odsState.name), ::mlir::SymbolRefAttr::get(odsBuilder.getContext(), FunctionName));
+      odsState.addAttribute(getMangledFunctionNameAttrName(odsState.name), ::mlir::SymbolRefAttr::get(odsBuilder.getContext(), MangledFunctionName));
       if (result.has_value()) {
         odsState.addTypes(result.value());
       }
