@@ -129,7 +129,7 @@ ${"#############################################################################
 ${"##"} @brief ${n} device-driver interfaces
 class ${N}_DDI:
     def __init__(self, version : ${x}_api_version_t):
-        # load the zer_loader library
+        # load the ${x}_loader library
         if "Windows" == platform.uname()[0]:
             self.__dll = WinDLL("${x}_loader.dll")
         else:

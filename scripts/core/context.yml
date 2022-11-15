@@ -152,7 +152,7 @@ params:
     - type: $x_platform_handle_t
       name: hPlatform
       desc: "[in] handle of the platform instance"
-      todo: "Replace the platform with array of devices similar to what's in zerContextCreate"
+      todo: "Replace the platform with array of devices similar to what's in urContextCreate"
     - type: $x_native_handle_t
       name: hNativeContext
       desc: |

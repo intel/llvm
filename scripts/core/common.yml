@@ -272,7 +272,7 @@ desc: "Defines structure types"
 name: $x_structure_type_t
 etors:
     - name: IMAGE_DESC
-      desc: $zer_image_desc_t
+      desc: $x_image_desc_t
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Base for all properties types"
