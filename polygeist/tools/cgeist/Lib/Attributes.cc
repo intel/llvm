@@ -105,11 +105,11 @@ AttributeList::AttributeList(const mlir::NamedAttrList &FnAttrs,
 AttributeList &
 AttributeList::addAttrs(const AttrBuilder &FnAttrB, const AttrBuilder &RetAttrB,
                         llvm::ArrayRef<mlir::NamedAttrList> Attrs) {
-  return addFnAttrs(FnAttrB).addRetAttrs(RetAttrB).addParamAttrs(Attrs);
+  return addFnAttrs(FnAttrB).addRetAttrs(RetAttrB).addParamAttributes(Attrs);
 }
 
 AttributeList &AttributeList::addFnAttrs(const AttrBuilder &B) {
-  return addFnAttrs(B.getAttrs(), B.getContext());
+  return addFnAttrs(B.getAttributes(), B.getContext());
 }
 
 AttributeList &AttributeList::addFnAttrs(const NamedAttrList &Attrs,
@@ -137,7 +137,7 @@ AttributeList &AttributeList::addFnAttrs(const NamedAttrList &Attrs,
 }
 
 AttributeList &AttributeList::addRetAttrs(const AttrBuilder &B) {
-  return addRetAttrs(B.getAttrs(), B.getContext());
+  return addRetAttrs(B.getAttributes(), B.getContext());
 }
 
 AttributeList &AttributeList::addRetAttrs(const mlir::NamedAttrList &Attrs,
@@ -156,7 +156,7 @@ AttributeList &AttributeList::addRetAttrs(const mlir::NamedAttrList &Attrs,
 }
 
 AttributeList &
-AttributeList::addParamAttrs(llvm::ArrayRef<mlir::NamedAttrList> Attrs) {
+AttributeList::addParamAttributes(llvm::ArrayRef<mlir::NamedAttrList> Attrs) {
   ParamAttrs.reserve(Attrs.size());
   llvm::append_range(ParamAttrs, Attrs);
   return *this;
@@ -212,9 +212,9 @@ AttrBuilder &AttrBuilder::addPassThroughAttribute(StringRef AttrName,
 }
 
 AttrBuilder &AttrBuilder::removeAttribute(llvm::StringRef AttrName) {
-  bool ContainsPassThroughAttr = getAttr(PassThroughAttrName).has_value();
+  bool ContainsPassThroughAttr = getAttribute(PassThroughAttrName).has_value();
   if (ContainsPassThroughAttr) {
-    NamedAttribute PassThroughAttr = getAttr(PassThroughAttrName).value();
+    NamedAttribute PassThroughAttr = getAttribute(PassThroughAttrName).value();
     auto ArrAttr = PassThroughAttr.getValue().cast<ArrayAttr>();
     std::vector<mlir::Attribute> Vec = ArrAttr.getValue().vec();
 
@@ -247,7 +247,7 @@ AttrBuilder &AttrBuilder::removeAttribute(llvm::Attribute::AttrKind Kind) {
 bool AttrBuilder::contains(StringRef AttrName) const {
   if (containsInPassThrough(AttrName))
     return true;
-  return getAttr(AttrName).has_value();
+  return getAttribute(AttrName).has_value();
 }
 
 bool AttrBuilder::contains(llvm::Attribute::AttrKind Kind) const {
@@ -255,19 +255,19 @@ bool AttrBuilder::contains(llvm::Attribute::AttrKind Kind) const {
   return contains(AttrName);
 }
 
-Optional<NamedAttribute> AttrBuilder::getAttr(StringRef AttrName) const {
+Optional<NamedAttribute> AttrBuilder::getAttribute(StringRef AttrName) const {
   return Attrs.getNamed(AttrName);
 }
 
 Optional<NamedAttribute>
-AttrBuilder::getAttr(llvm::Attribute::AttrKind Kind) const {
+AttrBuilder::getAttribute(llvm::Attribute::AttrKind Kind) const {
   StringRef AttrName = llvm::Attribute::getNameFromAttrKind(Kind);
-  return getAttr(AttrName);
+  return getAttribute(AttrName);
 }
 
-StringAttr AttrBuilder::createStringAttr(Twine AttrName,
-                                         Optional<StringLiteral> Prefix,
-                                         MLIRContext &Ctx) {
+StringAttr AttrBuilder::createStringAttribute(Twine AttrName,
+                                              Optional<StringLiteral> Prefix,
+                                              MLIRContext &Ctx) {
   return (Prefix) ? StringAttr::get(&Ctx, *Prefix + "." + AttrName)
                   : StringAttr::get(&Ctx, AttrName);
 }
@@ -285,7 +285,7 @@ AttrBuilder &AttrBuilder::addAttributeImpl(llvm::Attribute::AttrKind Kind,
 
   OpBuilder Builder(&Ctx);
   StringRef AttrName = llvm::Attribute::getNameFromAttrKind(Kind);
-  NamedAttribute NamedAttr(createStringAttr(AttrName, Dialect, Ctx),
+  NamedAttribute NamedAttr(createStringAttribute(AttrName, Dialect, Ctx),
                            Builder.getUnitAttr());
   return Invoke(AddAttrPtr, NamedAttr);
 }
@@ -304,7 +304,7 @@ AttrBuilder &AttrBuilder::addAttributeImpl(llvm::Attribute::AttrKind Kind,
 
   OpBuilder Builder(&Ctx);
   StringRef AttrName = llvm::Attribute::getNameFromAttrKind(Kind);
-  NamedAttribute NamedAttr(createStringAttr(AttrName, Dialect, Ctx),
+  NamedAttribute NamedAttr(createStringAttribute(AttrName, Dialect, Ctx),
                            mlir::TypeAttr::get(Ty));
   return Invoke(AddAttrPtr, NamedAttr);
 }
@@ -370,8 +370,8 @@ AttrBuilder &AttrBuilder::addRawIntAttr(llvm::Attribute::AttrKind Kind,
                                         uint64_t Value) {
   OpBuilder Builder(&Ctx);
   NamedAttribute NamedAttr(
-      createStringAttr(llvm::Attribute::getNameFromAttrKind(Kind),
-                       LLVM::LLVMDialect::getDialectNamespace(), Ctx),
+      createStringAttribute(llvm::Attribute::getNameFromAttrKind(Kind),
+                            LLVM::LLVMDialect::getDialectNamespace(), Ctx),
       Builder.getIntegerAttr(Builder.getIntegerType(64), Value));
   return addAttributeImpl(NamedAttr);
 }
@@ -387,7 +387,7 @@ AttrBuilder::addPassThroughRawIntAttr(llvm::Attribute::AttrKind Kind,
 }
 
 NamedAttribute AttrBuilder::getOrCreatePassThroughAttr() const {
-  Optional<NamedAttribute> PassThroughAttr = getAttr(PassThroughAttrName);
+  Optional<NamedAttribute> PassThroughAttr = getAttribute(PassThroughAttrName);
   if (!PassThroughAttr) {
     LLVM_DEBUG(llvm::dbgs()
                << "Creating empty '" << PassThroughAttrName << "' attribute\n");
@@ -398,10 +398,10 @@ NamedAttribute AttrBuilder::getOrCreatePassThroughAttr() const {
 }
 
 bool AttrBuilder::containsInPassThrough(StringRef AttrName) const {
-  if (!getAttr(PassThroughAttrName).has_value())
+  if (!getAttribute(PassThroughAttrName).has_value())
     return false;
 
-  NamedAttribute PassThroughAttr = getAttr(PassThroughAttrName).value();
+  NamedAttribute PassThroughAttr = getAttribute(PassThroughAttrName).value();
   assert(PassThroughAttr.getValue().isa<ArrayAttr>() &&
          "passthrough attribute value should be an ArrayAttr");
 

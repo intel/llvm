@@ -1493,7 +1493,7 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
 
   auto CXRD = dyn_cast<CXXRecordDecl>(rd);
 
-  if (mlirclang::CodeGen::CodeGenTypes::IsLLVMStructABI(rd, ST)) {
+  if (mlirclang::CodeGen::CodeGenTypes::isLLVMStructABI(rd, ST)) {
     auto &layout = Glob.getCGM().getTypes().getCGRecordLayout(rd);
     fnum = layout.getLLVMFieldNo(FD);
   } else {
@@ -1705,7 +1705,7 @@ mlir::Value MLIRScanner::GetAddressOfDerivedClass(
         Glob.getCGM().getContext().getLValueReferenceType(Base->getType()));
 
     mlir::Value Offset = nullptr;
-    if (mlirclang::CodeGen::CodeGenTypes::IsLLVMStructABI(RD, /*ST*/ nullptr)) {
+    if (mlirclang::CodeGen::CodeGenTypes::isLLVMStructABI(RD, /*ST*/ nullptr)) {
       Offset = builder.create<arith::ConstantIntOp>(
           loc, -(ssize_t)Layout.getBaseClassOffset(BaseDecl).getQuantity(), 32);
     } else {
@@ -1779,7 +1779,7 @@ mlir::Value MLIRScanner::GetAddressOfBaseClass(
     size_t fnum;
     bool subIndex = true;
 
-    if (mlirclang::CodeGen::CodeGenTypes::IsLLVMStructABI(RD, /*ST*/ nullptr)) {
+    if (mlirclang::CodeGen::CodeGenTypes::isLLVMStructABI(RD, /*ST*/ nullptr)) {
       auto &layout = Glob.getCGM().getTypes().getCGRecordLayout(RD);
       if (std::get<1>(tup))
         fnum = layout.getVirtualBaseIndex(BaseDecl);
@@ -2667,7 +2667,7 @@ void MLIRASTConsumer::setMLIRFunctionAttributesForDefinition(
       B.addPassThroughAttribute(llvm::Attribute::NoInline);
 
     mlir::NamedAttrList attrs(F->getAttrDictionary());
-    attrs.append(B.getAttrs());
+    attrs.append(B.getAttributes());
     F->setAttrs(attrs.getDictionary(Ctx));
     return;
   }
@@ -2764,7 +2764,7 @@ void MLIRASTConsumer::setMLIRFunctionAttributesForDefinition(
   }
 
   NamedAttrList attrs(F->getAttrDictionary());
-  attrs.append(B.getAttrs());
+  attrs.append(B.getAttributes());
   F->setAttrs(attrs.getDictionary(Ctx));
 
   unsigned alignment = D->getMaxAlignment() / CGM.getContext().getCharWidth();
@@ -2855,7 +2855,7 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
     // functions because we do not want to adjust the test cases at this time
     // (if we did we would have merge conflicts if we ever update polygeist).
     NamedAttrList attrs(function->getAttrDictionary());
-    attrs.append(attrBuilder.getAttrs());
+    attrs.append(attrBuilder.getAttributes());
     function->setAttrs(attrs.getDictionary(module->getContext()));
     return;
   }
@@ -2936,11 +2936,11 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
 
   // Set function attributes.
   mlirclang::AttributeList FnAttrs(function->getAttrDictionary(), {}, {});
-  FnAttrs.addFnAttrs(PAL.getFnAttrs(), *Ctx);
-  function->setAttrs(FnAttrs.getFnAttrs().getDictionary(Ctx));
+  FnAttrs.addFnAttrs(PAL.getFnAttributes(), *Ctx);
+  function->setAttrs(FnAttrs.getFnAttributes().getDictionary(Ctx));
 
   // Set parameters attributes.
-  const ArrayRef<NamedAttrList> ParamAttrs = PAL.getParamAttrs();
+  const ArrayRef<NamedAttrList> ParamAttrs = PAL.getParamAttributes();
   assert(ParamAttrs.size() == function.getNumArguments());
   for (unsigned Index : llvm::seq<unsigned>(0, function.getNumArguments())) {
     for (NamedAttribute Attr : ParamAttrs[Index])
@@ -2948,7 +2948,7 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
   }
 
   // Set function result attributes.
-  for (NamedAttribute Attr : PAL.getRetAttrs())
+  for (NamedAttribute Attr : PAL.getRetAttributes())
     function.setResultAttr(0, Attr.getName(), Attr.getValue());
 }
 

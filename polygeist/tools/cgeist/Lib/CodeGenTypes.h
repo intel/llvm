@@ -92,7 +92,7 @@ public:
   const clang::CodeGen::CGFunctionInfo &
   arrangeGlobalDeclaration(clang::GlobalDecl GD);
 
-  static bool IsLLVMStructABI(const clang::RecordDecl *RD,
+  static bool isLLVMStructABI(const clang::RecordDecl *RD,
                               llvm::StructType *ST);
 
   clang::QualType getPromotionType(clang::QualType Ty) const;
