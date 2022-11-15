@@ -128,25 +128,25 @@ enum class architecture : /* unspecified */ {
   intel_gpu_acm_g12,
   intel_gpu_pvc,
 
-  nvidia_gpu_sm20,
-  nvidia_gpu_sm30,
-  nvidia_gpu_sm32,
-  nvidia_gpu_sm35,
-  nvidia_gpu_sm37,
-  nvidia_gpu_sm50,
-  nvidia_gpu_sm52,
-  nvidia_gpu_sm53,
-  nvidia_gpu_sm60,
-  nvidia_gpu_sm61,
-  nvidia_gpu_sm62,
-  nvidia_gpu_sm70,
-  nvidia_gpu_sm72,
-  nvidia_gpu_sm75,
-  nvidia_gpu_sm80,
-  nvidia_gpu_sm86,
-  nvidia_gpu_sm87,
-  nvidia_gpu_sm89,
-  nvidia_gpu_sm90,
+  nvidia_gpu_sm_20,
+  nvidia_gpu_sm_30,
+  nvidia_gpu_sm_32,
+  nvidia_gpu_sm_35,
+  nvidia_gpu_sm_37,
+  nvidia_gpu_sm_50,
+  nvidia_gpu_sm_52,
+  nvidia_gpu_sm_53,
+  nvidia_gpu_sm_60,
+  nvidia_gpu_sm_61,
+  nvidia_gpu_sm_62,
+  nvidia_gpu_sm_70,
+  nvidia_gpu_sm_72,
+  nvidia_gpu_sm_75,
+  nvidia_gpu_sm_80,
+  nvidia_gpu_sm_86,
+  nvidia_gpu_sm_87,
+  nvidia_gpu_sm_89,
+  nvidia_gpu_sm_90,
 
   amd_gpu_gfx700,
   amd_gpu_gfx701,
@@ -341,79 +341,79 @@ of these enumerators, and it provides a brief description of their meanings.
 |1
 |Alias for `intel_gpu_dg1`.
 
-|`nvidia_gpu_sm20`
+|`nvidia_gpu_sm_20`
 |2
 |NVIDIA Fermi architecture.
 
-|`nvidia_gpu_sm30`
+|`nvidia_gpu_sm_30`
 |2
 |NVIDIA Kepler architecture (compute capability 3.0).
 
-|`nvidia_gpu_sm32`
+|`nvidia_gpu_sm_32`
 |2
 |NVIDIA Kepler architecture (compute capability 3.2).
 
-|`nvidia_gpu_sm35`
+|`nvidia_gpu_sm_35`
 |2
 |NVIDIA Kepler architecture (compute capability 3.5).
 
-|`nvidia_gpu_sm37`
+|`nvidia_gpu_sm_37`
 |2
 |NVIDIA Kepler architecture (compute capability 3.7).
 
-|`nvidia_gpu_sm50`
+|`nvidia_gpu_sm_50`
 |2
 |NVIDIA Maxwell architecture (compute capability 5.0).
 
-|`nvidia_gpu_sm52`
+|`nvidia_gpu_sm_52`
 |2
 |NVIDIA Maxwell architecture (compute capability 5.2).
 
-|`nvidia_gpu_sm53`
+|`nvidia_gpu_sm_53`
 |2
 |NVIDIA Maxwell architecture (compute capability 5.3).
 
-|`nvidia_gpu_sm60`
+|`nvidia_gpu_sm_60`
 |2
 |NVIDIA Pascal architecture (compute capability 6.0).
 
-|`nvidia_gpu_sm61`
+|`nvidia_gpu_sm_61`
 |2
 |NVIDIA Pascal architecture (compute capability 6.1).
 
-|`nvidia_gpu_sm62`
+|`nvidia_gpu_sm_62`
 |2
 |NVIDIA Pascal architecture (compute capability 6.2).
 
-|`nvidia_gpu_sm70`
+|`nvidia_gpu_sm_70`
 |2
 |NVIDIA Volta architecture (compute capability 7.0).
 
-|`nvidia_gpu_sm72`
+|`nvidia_gpu_sm_72`
 |2
 |NVIDIA Volta architecture (compute capability 7.2).
 
-|`nvidia_gpu_sm75`
+|`nvidia_gpu_sm_75`
 |2
 |NVIDIA Turing architecture (compute capability 7.5).
 
-|`nvidia_gpu_sm80`
+|`nvidia_gpu_sm_80`
 |2
 |NVIDIA Ampere architecture (compute capability 8.0).
 
-|`nvidia_gpu_sm86`
+|`nvidia_gpu_sm_86`
 |2
 |NVIDIA Ampere architecture (compute capability 8.6).
 
-|`nvidia_gpu_sm87`
+|`nvidia_gpu_sm_87`
 |2
 |Jetson/Drive AGX Orin architecture.
 
-|`nvidia_gpu_sm89`
+|`nvidia_gpu_sm_89`
 |2
 |NVIDIA Ada Lovelace architecture.
 
-|`nvidia_gpu_sm90`
+|`nvidia_gpu_sm_90`
 |2
 |NVIDIA Hopper architecture.
 

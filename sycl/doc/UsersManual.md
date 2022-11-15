@@ -57,25 +57,25 @@ and not recommended to use in production environment.
     * intel_gpu_kbl, intel_gpu_9_1_9 - Kaby Lake Intel graphics architecture
     * intel_gpu_skl, intel_gpu_9_0_9 - Skylake Intel graphics architecture
     * intel_gpu_bdw, intel_gpu_8_0_0 - Broadwell Intel graphics architecture
-    * nvidia_gpu_sm20 - NVIDIA Fermi architecture
-    * nvidia_gpu_sm30 - NVIDIA Kepler architecture (compute capability 3.0)
-    * nvidia_gpu_sm32 - NVIDIA Kepler architecture (compute capability 3.2)
-    * nvidia_gpu_sm35 - NVIDIA Kepler architecture (compute capability 3.5)
-    * nvidia_gpu_sm37 - NVIDIA Kepler architecture (compute capability 3.7)
-    * nvidia_gpu_sm50 - NVIDIA Maxwell architecture (compute capability 5.0)
-    * nvidia_gpu_sm52 - NVIDIA Maxwell architecture (compute capability 5.2)
-    * nvidia_gpu_sm53 - NVIDIA Maxwell architecture (compute capability 5.3)
-    * nvidia_gpu_sm60 - NVIDIA Pascal architecture (compute capability 6.0)
-    * nvidia_gpu_sm61 - NVIDIA Pascal architecture (compute capability 6.1)
-    * nvidia_gpu_sm62 - NVIDIA Pascal architecture (compute capability 6.2)
-    * nvidia_gpu_sm70 - NVIDIA Volta architecture (compute capability 7.0)
-    * nvidia_gpu_sm72 - NVIDIA Volta architecture (compute capability 7.2)
-    * nvidia_gpu_sm75 - NVIDIA Turing architecture (compute capability 7.5)
-    * nvidia_gpu_sm80 - NVIDIA Ampere architecture (compute capability 8.0)
-    * nvidia_gpu_sm86 - NVIDIA Ampere architecture (compute capability 8.6)
-    * nvidia_gpu_sm87 - NVIDIA Jetson/Drive AGX Orin architecture
-    * nvidia_gpu_sm89 - NVIDIA Ada Lovelace architecture
-    * nvidia_gpu_sm90 - NVIDIA Hopper architecture
+    * nvidia_gpu_sm_20 - NVIDIA Fermi architecture
+    * nvidia_gpu_sm_30 - NVIDIA Kepler architecture (compute capability 3.0)
+    * nvidia_gpu_sm_32 - NVIDIA Kepler architecture (compute capability 3.2)
+    * nvidia_gpu_sm_35 - NVIDIA Kepler architecture (compute capability 3.5)
+    * nvidia_gpu_sm_37 - NVIDIA Kepler architecture (compute capability 3.7)
+    * nvidia_gpu_sm_50 - NVIDIA Maxwell architecture (compute capability 5.0)
+    * nvidia_gpu_sm_52 - NVIDIA Maxwell architecture (compute capability 5.2)
+    * nvidia_gpu_sm_53 - NVIDIA Maxwell architecture (compute capability 5.3)
+    * nvidia_gpu_sm_60 - NVIDIA Pascal architecture (compute capability 6.0)
+    * nvidia_gpu_sm_61 - NVIDIA Pascal architecture (compute capability 6.1)
+    * nvidia_gpu_sm_62 - NVIDIA Pascal architecture (compute capability 6.2)
+    * nvidia_gpu_sm_70 - NVIDIA Volta architecture (compute capability 7.0)
+    * nvidia_gpu_sm_72 - NVIDIA Volta architecture (compute capability 7.2)
+    * nvidia_gpu_sm_75 - NVIDIA Turing architecture (compute capability 7.5)
+    * nvidia_gpu_sm_80 - NVIDIA Ampere architecture (compute capability 8.0)
+    * nvidia_gpu_sm_86 - NVIDIA Ampere architecture (compute capability 8.6)
+    * nvidia_gpu_sm_87 - NVIDIA Jetson/Drive AGX Orin architecture
+    * nvidia_gpu_sm_89 - NVIDIA Ada Lovelace architecture
+    * nvidia_gpu_sm_90 - NVIDIA Hopper architecture
     * amd_gpu_gfx700 - AMD GCN GFX7 (Sea Islands (CI)) architecture
     * amd_gpu_gfx701 - AMD GCN GFX7 (Sea Islands (CI)) architecture
     * amd_gpu_gfx702 - AMD GCN GFX7 (Sea Islands (CI)) architecture

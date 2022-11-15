@@ -89,49 +89,47 @@
 
 /// Tests the behaviors of using -fsycl-targets=nvidia_gpu*
 
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm20 -### %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm20 -DMAC_STR=SM20
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm30 -### %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm30 -DMAC_STR=SM30
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm32 -### %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm32 -DMAC_STR=SM32
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm35 -### %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm35 -DMAC_STR=SM35
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm37 -### %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm37 -DMAC_STR=SM37
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm50 -### %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm50 -DMAC_STR=SM50
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm52 -### %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm52 -DMAC_STR=SM52
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm53 -### %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm53 -DMAC_STR=SM53
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm60 -### %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm60 -DMAC_STR=SM60
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm61 -### %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm61 -DMAC_STR=SM61
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm62 -### %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm62 -DMAC_STR=SM62
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm70 -### %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm70 -DMAC_STR=SM70
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm72 -### %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm72 -DMAC_STR=SM72
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm75 -### %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm75 -DMAC_STR=SM75
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm80 -### %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm80 -DMAC_STR=SM80
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm86 -### %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm86 -DMAC_STR=SM86
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm87 -### %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm87 -DMAC_STR=SM87
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm89 -### %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm89 -DMAC_STR=SM89
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm90 -### %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm90 -DMAC_STR=SM90
-
-// MACRO_NVIDIA: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"
-// MACRO_NVIDIA: "-D__SYCL_TARGET_NVIDIA_GPU_[[MAC_STR]]__"
-// DEVICE_NVIDIA: ocloc{{.*}} "-device" "[[DEV_STR]]"
-// MACRO_NVIDIA: clang{{.*}} "-fsycl-is-host"
+// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_20 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_20 -DMAC_STR=SM_20
+// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_30 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_30 -DMAC_STR=SM_30
+// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_32 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_32 -DMAC_STR=SM_32
+// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_35 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_35 -DMAC_STR=SM_35
+// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_37 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_37 -DMAC_STR=SM_37
+// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_50 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_50 -DMAC_STR=SM_50
+// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_52 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_52 -DMAC_STR=SM_52
+// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_53 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_53 -DMAC_STR=SM_53
+// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_60 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_60 -DMAC_STR=SM_60
+// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_61 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_61 -DMAC_STR=SM_61
+// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_62 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_62 -DMAC_STR=SM_62
+// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_70 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_70 -DMAC_STR=SM_70
+// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_72 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_72 -DMAC_STR=SM_72
+// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_75 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_75 -DMAC_STR=SM_75
+// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_80 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_80 -DMAC_STR=SM_80
+// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_86 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_86 -DMAC_STR=SM_86
+// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_87 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_87 -DMAC_STR=SM_87
+// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_89 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_89 -DMAC_STR=SM_89
+// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_90 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_90 -DMAC_STR=SM_90
+// MACRO_NVIDIA: clang{{.*}} "-triple" "nvptx64-nvidia-cuda"
+// DEVICE_NVIDIA: llvm-foreach{{.*}} "--gpu-name" "[[DEV_STR]]"
+// MACRO_NVIDIA: clang{{.*}} "-triple" "x86_64-unknown-linux-gnu"
 // MACRO_NVIDIA: "-D__SYCL_TARGET_NVIDIA_GPU_[[MAC_STR]]__"
 
 /// -fsycl-targets=spir64_x86_64 should set a specific macro

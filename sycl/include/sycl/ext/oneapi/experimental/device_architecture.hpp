@@ -31,25 +31,25 @@ enum class architecture {
   intel_gpu_acm_g12,
   intel_gpu_pvc,
   // NVIDIA architectures
-  nvidia_gpu_sm20,
-  nvidia_gpu_sm30,
-  nvidia_gpu_sm32,
-  nvidia_gpu_sm35,
-  nvidia_gpu_sm37,
-  nvidia_gpu_sm50,
-  nvidia_gpu_sm52,
-  nvidia_gpu_sm53,
-  nvidia_gpu_sm60,
-  nvidia_gpu_sm61,
-  nvidia_gpu_sm62,
-  nvidia_gpu_sm70,
-  nvidia_gpu_sm72,
-  nvidia_gpu_sm75,
-  nvidia_gpu_sm80,
-  nvidia_gpu_sm86,
-  nvidia_gpu_sm87,
-  nvidia_gpu_sm89,
-  nvidia_gpu_sm90,
+  nvidia_gpu_sm_20,
+  nvidia_gpu_sm_30,
+  nvidia_gpu_sm_32,
+  nvidia_gpu_sm_35,
+  nvidia_gpu_sm_37,
+  nvidia_gpu_sm_50,
+  nvidia_gpu_sm_52,
+  nvidia_gpu_sm_53,
+  nvidia_gpu_sm_60,
+  nvidia_gpu_sm_61,
+  nvidia_gpu_sm_62,
+  nvidia_gpu_sm_70,
+  nvidia_gpu_sm_72,
+  nvidia_gpu_sm_75,
+  nvidia_gpu_sm_80,
+  nvidia_gpu_sm_86,
+  nvidia_gpu_sm_87,
+  nvidia_gpu_sm_89,
+  nvidia_gpu_sm_90,
   // AMD architectures
   amd_gpu_gfx700,
   amd_gpu_gfx701,
@@ -408,43 +408,43 @@ struct IsAOTForArchitectureClass {
         __SYCL_TARGET_INTEL_GPU_ACM_G12__ == 1;
     arr[static_cast<int>(arch::intel_gpu_pvc)] =
         __SYCL_TARGET_INTEL_GPU_PVC__ == 1;
-    arr[static_cast<int>(arch::nvidia_gpu_sm20)] =
+    arr[static_cast<int>(arch::nvidia_gpu_sm_20)] =
         __SYCL_TARGET_NVIDIA_GPU_SM20__ == 1;
-    arr[static_cast<int>(arch::nvidia_gpu_sm30)] =
+    arr[static_cast<int>(arch::nvidia_gpu_sm_30)] =
         __SYCL_TARGET_NVIDIA_GPU_SM30__ == 1;
-    arr[static_cast<int>(arch::nvidia_gpu_sm32)] =
+    arr[static_cast<int>(arch::nvidia_gpu_sm_32)] =
         __SYCL_TARGET_NVIDIA_GPU_SM32__ == 1;
-    arr[static_cast<int>(arch::nvidia_gpu_sm35)] =
+    arr[static_cast<int>(arch::nvidia_gpu_sm_35)] =
         __SYCL_TARGET_NVIDIA_GPU_SM35__ == 1;
-    arr[static_cast<int>(arch::nvidia_gpu_sm37)] =
+    arr[static_cast<int>(arch::nvidia_gpu_sm_37)] =
         __SYCL_TARGET_NVIDIA_GPU_SM37__ == 1;
-    arr[static_cast<int>(arch::nvidia_gpu_sm50)] =
+    arr[static_cast<int>(arch::nvidia_gpu_sm_50)] =
         __SYCL_TARGET_NVIDIA_GPU_SM50__ == 1;
-    arr[static_cast<int>(arch::nvidia_gpu_sm52)] =
+    arr[static_cast<int>(arch::nvidia_gpu_sm_52)] =
         __SYCL_TARGET_NVIDIA_GPU_SM52__ == 1;
-    arr[static_cast<int>(arch::nvidia_gpu_sm53)] =
+    arr[static_cast<int>(arch::nvidia_gpu_sm_53)] =
         __SYCL_TARGET_NVIDIA_GPU_SM53__ == 1;
-    arr[static_cast<int>(arch::nvidia_gpu_sm60)] =
+    arr[static_cast<int>(arch::nvidia_gpu_sm_60)] =
         __SYCL_TARGET_NVIDIA_GPU_SM60__ == 1;
-    arr[static_cast<int>(arch::nvidia_gpu_sm61)] =
+    arr[static_cast<int>(arch::nvidia_gpu_sm_61)] =
         __SYCL_TARGET_NVIDIA_GPU_SM61__ == 1;
-    arr[static_cast<int>(arch::nvidia_gpu_sm62)] =
+    arr[static_cast<int>(arch::nvidia_gpu_sm_62)] =
         __SYCL_TARGET_NVIDIA_GPU_SM62__ == 1;
-    arr[static_cast<int>(arch::nvidia_gpu_sm70)] =
+    arr[static_cast<int>(arch::nvidia_gpu_sm_70)] =
         __SYCL_TARGET_NVIDIA_GPU_SM70__ == 1;
-    arr[static_cast<int>(arch::nvidia_gpu_sm72)] =
+    arr[static_cast<int>(arch::nvidia_gpu_sm_72)] =
         __SYCL_TARGET_NVIDIA_GPU_SM72__ == 1;
-    arr[static_cast<int>(arch::nvidia_gpu_sm75)] =
+    arr[static_cast<int>(arch::nvidia_gpu_sm_75)] =
         __SYCL_TARGET_NVIDIA_GPU_SM75__ == 1;
-    arr[static_cast<int>(arch::nvidia_gpu_sm80)] =
+    arr[static_cast<int>(arch::nvidia_gpu_sm_80)] =
         __SYCL_TARGET_NVIDIA_GPU_SM80__ == 1;
-    arr[static_cast<int>(arch::nvidia_gpu_sm86)] =
+    arr[static_cast<int>(arch::nvidia_gpu_sm_86)] =
         __SYCL_TARGET_NVIDIA_GPU_SM86__ == 1;
-    arr[static_cast<int>(arch::nvidia_gpu_sm87)] =
+    arr[static_cast<int>(arch::nvidia_gpu_sm_87)] =
         __SYCL_TARGET_NVIDIA_GPU_SM87__ == 1;
-    arr[static_cast<int>(arch::nvidia_gpu_sm89)] =
+    arr[static_cast<int>(arch::nvidia_gpu_sm_89)] =
         __SYCL_TARGET_NVIDIA_GPU_SM89__ == 1;
-    arr[static_cast<int>(arch::nvidia_gpu_sm90)] =
+    arr[static_cast<int>(arch::nvidia_gpu_sm_90)] =
         __SYCL_TARGET_NVIDIA_GPU_SM90__ == 1;
     arr[static_cast<int>(arch::amd_gpu_gfx700)] =
         __SYCL_TARGET_AMD_GPU_GFX700__ == 1;
