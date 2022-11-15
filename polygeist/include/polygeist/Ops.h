@@ -85,10 +85,10 @@ public:
       return failure();
 
     {
-      SmallVector<MemoryEffects::EffectInstance> beforeEffects;
+      SmallVector<mlir::MemoryEffects::EffectInstance> beforeEffects;
       getEffectsBefore(op, beforeEffects, /*stopAtBarrier*/ true);
 
-      SmallVector<MemoryEffects::EffectInstance> afterEffects;
+      SmallVector<mlir::MemoryEffects::EffectInstance> afterEffects;
       getEffectsAfter(op, afterEffects, /*stopAtBarrier*/ false);
 
       bool conflict = false;
@@ -96,8 +96,8 @@ public:
         for (auto after : afterEffects) {
           if (mayAlias(before, after)) {
             // Read, read is okay
-            if (isa<MemoryEffects::Read>(before.getEffect()) &&
-                isa<MemoryEffects::Read>(after.getEffect())) {
+            if (isa<mlir::MemoryEffects::Read>(before.getEffect()) &&
+                isa<mlir::MemoryEffects::Read>(after.getEffect())) {
               continue;
             }
 
@@ -115,10 +115,10 @@ public:
     }
 
     {
-      SmallVector<MemoryEffects::EffectInstance> beforeEffects;
+      SmallVector<mlir::MemoryEffects::EffectInstance> beforeEffects;
       getEffectsBefore(op, beforeEffects, /*stopAtBarrier*/ false);
 
-      SmallVector<MemoryEffects::EffectInstance> afterEffects;
+      SmallVector<mlir::MemoryEffects::EffectInstance> afterEffects;
       getEffectsAfter(op, afterEffects, /*stopAtBarrier*/ true);
 
       bool conflict = false;
@@ -126,8 +126,8 @@ public:
         for (auto after : afterEffects) {
           if (mayAlias(before, after)) {
             // Read, read is okay
-            if (isa<MemoryEffects::Read>(before.getEffect()) &&
-                isa<MemoryEffects::Read>(after.getEffect())) {
+            if (isa<mlir::MemoryEffects::Read>(before.getEffect()) &&
+                isa<mlir::MemoryEffects::Read>(after.getEffect())) {
               continue;
             }
             // Write, write is not okay because may be different offsets and the
