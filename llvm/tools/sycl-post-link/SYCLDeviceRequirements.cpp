@@ -29,6 +29,8 @@ void llvm::getSYCLDeviceRequirements(
       }
   };
 
+  // Scan the module and if the metadata is present fill the corresponing
+  // property with metadata's aspects
   for (const Function &F : M) {
     FindAspectsByMDName(F, "sycl_used_aspects");
     FindAspectsByMDName(F, "sycl_declared_aspects");
