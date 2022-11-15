@@ -762,107 +762,105 @@ getLargeGRFSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints) {
 }
 
 namespace {
-  // Data structure, which represent a combination of all possible optional
-  // features used in a function.
-  //
-  // It has extra methods to be useable as a key in llvm::DenseMap.
-  struct UsedOptionalFeatures {
-    SmallVector<int, 4> Aspects;
-    // TODO: extend this further with reqd-sub-group-size, reqd-work-group-size,
-    // double-grf and other properties
+// Data structure, which represent a combination of all possible optional
+// features used in a function.
+//
+// It has extra methods to be useable as a key in llvm::DenseMap.
+struct UsedOptionalFeatures {
+  SmallVector<int, 4> Aspects;
+  // TODO: extend this further with reqd-sub-group-size, reqd-work-group-size,
+  // double-grf and other properties
 
-    UsedOptionalFeatures() = default;
+  UsedOptionalFeatures() = default;
 
-    UsedOptionalFeatures(const Function *F) {
-      if (const MDNode *MDN = F->getMetadata("sycl_used_aspects")) {
-        auto ExtractIntegerFromMDNodeOperand = [=](const MDNode *N,
-                                                   unsigned OpNo) -> auto {
-          Constant *C =
-              cast<ConstantAsMetadata>(N->getOperand(OpNo).get())->getValue();
-          return C->getUniqueInteger().getSExtValue();
-        };
+  UsedOptionalFeatures(const Function *F) {
+    if (const MDNode *MDN = F->getMetadata("sycl_used_aspects")) {
+      auto ExtractIntegerFromMDNodeOperand = [=](const MDNode *N,
+                                                 unsigned OpNo) -> auto {
+        Constant *C =
+            cast<ConstantAsMetadata>(N->getOperand(OpNo).get())->getValue();
+        return C->getUniqueInteger().getSExtValue();
+      };
 
-        for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I) {
-          Aspects.push_back(ExtractIntegerFromMDNodeOperand(MDN, I));
-        }
-        llvm::sort(Aspects);
+      for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I) {
+        Aspects.push_back(ExtractIntegerFromMDNodeOperand(MDN, I));
       }
-
-      llvm::hash_code AspectsHash =
-          llvm::hash_combine_range(Aspects.begin(), Aspects.end());
-      Hash = static_cast<unsigned>(llvm::hash_combine(AspectsHash));
+      llvm::sort(Aspects);
     }
 
-    std::string getName(StringRef BaseName) const {
-      if (Aspects.empty())
-        return BaseName.str() + "-no-aspects";
+    llvm::hash_code AspectsHash =
+        llvm::hash_combine_range(Aspects.begin(), Aspects.end());
+    Hash = static_cast<unsigned>(llvm::hash_combine(AspectsHash));
+  }
 
-      std::string Ret = BaseName.str() + "-aspects";
-      for (int A : Aspects) {
-        Ret += "-" + std::to_string(A);
-      }
-      return Ret;
+  std::string getName(StringRef BaseName) const {
+    if (Aspects.empty())
+      return BaseName.str() + "-no-aspects";
+
+    std::string Ret = BaseName.str() + "-aspects";
+    for (int A : Aspects) {
+      Ret += "-" + std::to_string(A);
     }
+    return Ret;
+  }
 
-    static UsedOptionalFeatures getTombstone() {
-      UsedOptionalFeatures Ret;
-      Ret.IsTombstoneKey = true;
-      return Ret;
-    }
+  static UsedOptionalFeatures getTombstone() {
+    UsedOptionalFeatures Ret;
+    Ret.IsTombstoneKey = true;
+    return Ret;
+  }
 
-    static UsedOptionalFeatures getEmpty() {
-      UsedOptionalFeatures Ret;
-      Ret.IsEmpty = true;
-      return Ret;
-    }
+  static UsedOptionalFeatures getEmpty() {
+    UsedOptionalFeatures Ret;
+    Ret.IsEmpty = true;
+    return Ret;
+  }
 
-  private:
-    // For DenseMap:
-    llvm::hash_code Hash = {};
-    bool IsTombstoneKey = false;
-    bool IsEmpty = false;
+private:
+  // For DenseMap:
+  llvm::hash_code Hash = {};
+  bool IsTombstoneKey = false;
+  bool IsEmpty = false;
 
-  public:
-    bool operator==(const UsedOptionalFeatures &Other) const {
-      // Tombstone does not compare equal to any other item
-      if (IsTombstoneKey || Other.IsTombstoneKey)
+public:
+  bool operator==(const UsedOptionalFeatures &Other) const {
+    // Tombstone does not compare equal to any other item
+    if (IsTombstoneKey || Other.IsTombstoneKey)
+      return false;
+
+    if (Aspects.size() != Other.Aspects.size())
+      return false;
+
+    for (size_t I = 0, E = Aspects.size(); I != E; ++I) {
+      if (Aspects[I] != Other.Aspects[I])
         return false;
-
-      if (Aspects.size() != Other.Aspects.size())
-        return false;
-
-      for (size_t I = 0, E = Aspects.size(); I != E; ++I) {
-        if (Aspects[I] != Other.Aspects[I])
-          return false;
-      }
-
-      return IsEmpty == Other.IsEmpty;
     }
 
-    unsigned hash() const {
-      return static_cast<unsigned>(Hash);
-    }
-  };
+    return IsEmpty == Other.IsEmpty;
+  }
 
-  struct UsedOptionalFeaturesAsKeyInfo {
-    static inline UsedOptionalFeatures getEmptyKey() {
-      return UsedOptionalFeatures::getEmpty();
-    }
+  unsigned hash() const { return static_cast<unsigned>(Hash); }
+};
 
-    static inline UsedOptionalFeatures getTombstoneKey() {
-      return UsedOptionalFeatures::getTombstone();
-    }
+struct UsedOptionalFeaturesAsKeyInfo {
+  static inline UsedOptionalFeatures getEmptyKey() {
+    return UsedOptionalFeatures::getEmpty();
+  }
 
-    static unsigned getHashValue(const UsedOptionalFeatures &Value) {
-      return Value.hash();
-    }
+  static inline UsedOptionalFeatures getTombstoneKey() {
+    return UsedOptionalFeatures::getTombstone();
+  }
 
-    static bool isEqual(const UsedOptionalFeatures &LHS,
-                        const UsedOptionalFeatures &RHS) {
-      return LHS == RHS;
-    }
-  };
-}
+  static unsigned getHashValue(const UsedOptionalFeatures &Value) {
+    return Value.hash();
+  }
+
+  static bool isEqual(const UsedOptionalFeatures &LHS,
+                      const UsedOptionalFeatures &RHS) {
+    return LHS == RHS;
+  }
+};
+} // namespace
 
 std::unique_ptr<ModuleSplitterBase>
 getSplitterByOptionalFeatures(ModuleDesc &&MD,
