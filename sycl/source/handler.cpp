@@ -175,6 +175,11 @@ event handler::finalize() {
                 nullptr);
             Result = PI_SUCCESS;
           } else {
+            if (!MQueue->is_host() && OutEvent != nullptr) {
+              bool isVisible = true;
+              MQueue->getPlugin().call<detail::PiApiKind::piSetEventProperty>(
+                  OutEvent, IS_USER_VISIBLE, 0, &isVisible);
+            }
             Result = enqueueImpKernel(
                 MQueue, MNDRDesc, MArgs, KernelBundleImpPtr, MKernel,
                 MKernelName, MOSModuleHandle, RawEvents, OutEvent, nullptr);
