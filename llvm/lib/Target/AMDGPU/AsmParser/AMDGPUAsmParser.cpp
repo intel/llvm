@@ -1365,7 +1365,7 @@ private:
   bool updateGprCountSymbols(RegisterKind RegKind, unsigned DwordRegIndex,
                              unsigned RegWidth);
   void cvtMubufImpl(MCInst &Inst, const OperandVector &Operands,
-                    bool IsAtomic, bool IsLds = false);
+                    bool IsAtomic);
   void cvtDSImpl(MCInst &Inst, const OperandVector &Operands,
                  bool IsGdsHardcoded);
 
@@ -1690,6 +1690,7 @@ private:
   bool validateCoherencyBits(const MCInst &Inst, const OperandVector &Operands,
                              const SMLoc &IDLoc);
   bool validateExeczVcczOperands(const OperandVector &Operands);
+  bool validateTFE(const MCInst &Inst, const OperandVector &Operands);
   Optional<StringRef> validateLdsDirect(const MCInst &Inst);
   unsigned getConstantBusLimit(unsigned Opcode) const;
   bool usesConstantBus(const MCInst &Inst, unsigned OpIdx);
@@ -1760,7 +1761,6 @@ public:
 
   void cvtMubuf(MCInst &Inst, const OperandVector &Operands) { cvtMubufImpl(Inst, Operands, false); }
   void cvtMubufAtomic(MCInst &Inst, const OperandVector &Operands) { cvtMubufImpl(Inst, Operands, true); }
-  void cvtMubufLds(MCInst &Inst, const OperandVector &Operands) { cvtMubufImpl(Inst, Operands, false, true); }
   void cvtMtbuf(MCInst &Inst, const OperandVector &Operands);
 
   AMDGPUOperand::Ptr defaultCPol() const;
@@ -4596,6 +4596,21 @@ bool AMDGPUAsmParser::validateExeczVcczOperands(const OperandVector &Operands) {
   return true;
 }
 
+bool AMDGPUAsmParser::validateTFE(const MCInst &Inst,
+                                  const OperandVector &Operands) {
+  const MCInstrDesc &Desc = MII.get(Inst.getOpcode());
+  if (Desc.mayStore() &&
+      (Desc.TSFlags & (SIInstrFlags::MUBUF | SIInstrFlags::MTBUF))) {
+    SMLoc Loc = getImmLoc(AMDGPUOperand::ImmTyTFE, Operands);
+    if (Loc != getInstLoc(Operands)) {
+      Error(Loc, "TFE modifier has no meaning for store instructions");
+      return false;
+    }
+  }
+
+  return true;
+}
+
 bool AMDGPUAsmParser::validateInstruction(const MCInst &Inst,
                                           const SMLoc &IDLoc,
                                           const OperandVector &Operands) {
@@ -4711,6 +4726,9 @@ bool AMDGPUAsmParser::validateInstruction(const MCInst &Inst,
   if (!validateExeczVcczOperands(Operands)) {
     return false;
   }
+  if (!validateTFE(Inst, Operands)) {
+    return false;
+  }
 
   return true;
 }
@@ -4784,6 +4802,17 @@ bool AMDGPUAsmParser::checkUnsupportedInstruction(StringRef Mnemo,
   return Error(IDLoc, "invalid instruction" + Suggestion);
 }
 
+static bool isInvalidVOPDY(const OperandVector &Operands,
+                           uint64_t InvalidOprIdx) {
+  assert(InvalidOprIdx < Operands.size());
+  const auto &Op = ((AMDGPUOperand &)*Operands[InvalidOprIdx]);
+  if (Op.isToken() && InvalidOprIdx > 1) {
+    const auto &PrevOp = ((AMDGPUOperand &)*Operands[InvalidOprIdx - 1]);
+    return PrevOp.isToken() && PrevOp.getToken() == "::";
+  }
+  return false;
+}
+
 bool AMDGPUAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
                                               OperandVector &Operands,
                                               MCStreamer &Out,
@@ -4844,6 +4873,9 @@ bool AMDGPUAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
       ErrorLoc = ((AMDGPUOperand &)*Operands[ErrorInfo]).getStartLoc();
       if (ErrorLoc == SMLoc())
         ErrorLoc = IDLoc;
+
+      if (isInvalidVOPDY(Operands, ErrorInfo))
+        return Error(ErrorLoc, "invalid VOPDY instruction");
     }
     return Error(ErrorLoc, "invalid operand for instruction");
   }
@@ -7688,8 +7720,7 @@ AMDGPUOperand::Ptr AMDGPUAsmParser::defaultCPol() const {
 
 void AMDGPUAsmParser::cvtMubufImpl(MCInst &Inst,
                                    const OperandVector &Operands,
-                                   bool IsAtomic,
-                                   bool IsLds) {
+                                   bool IsAtomic) {
   OptionalImmIndexMap OptionalIdx;
   unsigned FirstOperandIdx = 1;
   bool IsAtomicReturn = false;
@@ -7746,10 +7777,6 @@ void AMDGPUAsmParser::cvtMubufImpl(MCInst &Inst,
 
   addOptionalImmOperand(Inst, Operands, OptionalIdx, AMDGPUOperand::ImmTyOffset);
   addOptionalImmOperand(Inst, Operands, OptionalIdx, AMDGPUOperand::ImmTyCPol, 0);
-
-  if (!IsLds) { // tfe is not legal with lds opcodes
-    addOptionalImmOperand(Inst, Operands, OptionalIdx, AMDGPUOperand::ImmTyTFE);
-  }
   addOptionalImmOperand(Inst, Operands, OptionalIdx, AMDGPUOperand::ImmTySWZ);
 }
 
@@ -7786,7 +7813,6 @@ void AMDGPUAsmParser::cvtMtbuf(MCInst &Inst, const OperandVector &Operands) {
                         AMDGPUOperand::ImmTyOffset);
   addOptionalImmOperand(Inst, Operands, OptionalIdx, AMDGPUOperand::ImmTyFORMAT);
   addOptionalImmOperand(Inst, Operands, OptionalIdx, AMDGPUOperand::ImmTyCPol, 0);
-  addOptionalImmOperand(Inst, Operands, OptionalIdx, AMDGPUOperand::ImmTyTFE);
   addOptionalImmOperand(Inst, Operands, OptionalIdx, AMDGPUOperand::ImmTySWZ);
 }
 
@@ -8460,12 +8486,13 @@ OperandMatchResultTy AMDGPUAsmParser::parseVOPD(OperandVector &Operands) {
     lex();
     lex();
     Operands.push_back(AMDGPUOperand::CreateToken(this, "::", S));
+    SMLoc OpYLoc = getLoc();
     StringRef OpYName;
     if (isToken(AsmToken::Identifier) && !Parser.parseIdentifier(OpYName)) {
-      Operands.push_back(AMDGPUOperand::CreateToken(this, OpYName, S));
+      Operands.push_back(AMDGPUOperand::CreateToken(this, OpYName, OpYLoc));
       return MatchOperand_Success;
     }
-    Error(S, "invalid VOPD :: usage");
+    Error(OpYLoc, "expected a VOPDY instruction after ::");
     return MatchOperand_ParseFail;
   }
   return MatchOperand_NoMatch;
@@ -9226,6 +9253,8 @@ unsigned AMDGPUAsmParser::validateTargetOperandClass(MCParsedAsmOperand &Op,
     return Operand.isIdxen() ? Match_Success : Match_InvalidOperand;
   case MCK_offen:
     return Operand.isOffen() ? Match_Success : Match_InvalidOperand;
+  case MCK_tfe:
+    return Operand.isTFE() ? Match_Success : Match_InvalidOperand;
   case MCK_SSrcB32:
     // When operands have expression values, they will return true for isToken,
     // because it is not possible to distinguish between a token and an
