@@ -1724,7 +1724,7 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
     StringRef Value = A->getValue();
     if (Value != "simple" && Value != "mangled")
       Diags.Report(diag::err_drv_unsupported_option_argument)
-          << A->getOption().getName() << A->getValue();
+          << A->getSpelling() << A->getValue();
     Opts.setDebugSimpleTemplateNames(
         StringRef(A->getValue()) == "simple"
             ? codegenoptions::DebugTemplateNamesKind::Simple
@@ -3891,7 +3891,7 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
     else
       Opts.LongDoubleSize = 0;
   }
-  if (Opts.FastRelaxedMath)
+  if (Opts.FastRelaxedMath || Opts.CLUnsafeMath)
     Opts.setDefaultFPContractMode(LangOptions::FPM_Fast);
 
   llvm::sort(Opts.ModuleFeatures);
