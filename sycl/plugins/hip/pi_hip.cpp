@@ -2758,6 +2758,11 @@ pi_result hip_piEnqueueKernelLaunch(
   assert(work_dim > 0);
   assert(work_dim < 4);
 
+  if (*global_work_size == 0) {
+    return hip_piEnqueueEventsWaitWithBarrier(
+        command_queue, num_events_in_wait_list, event_wait_list, event);
+  }
+
   // Set the number of threads per block to the number of threads per warp
   // by default unless user has provided a better number
   size_t threadsPerBlock[3] = {32u, 1u, 1u};
@@ -3742,7 +3747,7 @@ pi_result hip_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
     hipStream_t hipStream = command_queue->get_next_compute_stream(
         num_events_in_wait_list, event_wait_list, guard, &stream_token);
     {
-      std::lock_guard(command_queue->barrier_mutex_);
+      std::lock_guard<std::mutex> guard(command_queue->barrier_mutex_);
       if (command_queue->barrier_event_ == nullptr) {
         PI_CHECK_ERROR(hipEventCreate(&command_queue->barrier_event_));
       }

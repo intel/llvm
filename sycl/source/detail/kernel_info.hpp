@@ -28,7 +28,7 @@ typename std::enable_if<
 get_kernel_info(RT::PiKernel Kernel, const plugin &Plugin) {
   static_assert(detail::is_kernel_info_desc<Param>::value,
                 "Invalid kernel information descriptor");
-  size_t ResultSize;
+  size_t ResultSize = 0;
 
   // TODO catch an exception and put it to list of asynchronous exceptions
   Plugin.call<PiApiKind::piKernelGetInfo>(Kernel, PiInfoCode<Param>::value, 0,

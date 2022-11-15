@@ -14454,7 +14454,7 @@ AArch64TargetLowering::isDesirableToCommuteWithShift(const SDNode *N,
         if (auto *SRLC = dyn_cast<ConstantSDNode>(AndLHS.getOperand(1))) {
           if (N->getOpcode() == ISD::SHL)
             if (auto *SHLC = dyn_cast<ConstantSDNode>(N->getOperand(1)))
-              return SRLC->getAPIntValue() == SHLC->getAPIntValue();
+              return SRLC->getZExtValue() == SHLC->getZExtValue();
           return false;
         }
       }

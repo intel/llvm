@@ -748,6 +748,7 @@ void State::addInfoFor(BasicBlock &BB) {
 
 static bool checkAndReplaceCondition(CmpInst *Cmp, ConstraintInfo &Info) {
   LLVM_DEBUG(dbgs() << "Checking " << *Cmp << "\n");
+
   CmpInst::Predicate Pred = Cmp->getPredicate();
   Value *A = Cmp->getOperand(0);
   Value *B = Cmp->getOperand(1);
@@ -771,7 +772,6 @@ static bool checkAndReplaceCondition(CmpInst *Cmp, ConstraintInfo &Info) {
   });
 
   bool Changed = false;
-  LLVMContext &Ctx = Cmp->getModule()->getContext();
   if (CSToUse.isConditionImplied(R.Coefficients)) {
     if (!DebugCounter::shouldExecute(EliminatedCounter))
       return false;
@@ -780,7 +780,9 @@ static bool checkAndReplaceCondition(CmpInst *Cmp, ConstraintInfo &Info) {
       dbgs() << "Condition " << *Cmp << " implied by dominating constraints\n";
       dumpWithNames(CSToUse, Info.getValue2Index(R.IsSigned));
     });
-    Cmp->replaceUsesWithIf(ConstantInt::getTrue(Ctx), [](Use &U) {
+    Constant *TrueC =
+        ConstantInt::getTrue(CmpInst::makeCmpResultType(Cmp->getType()));
+    Cmp->replaceUsesWithIf(TrueC, [](Use &U) {
       // Conditions in an assume trivially simplify to true. Skip uses
       // in assume calls to not destroy the available information.
       auto *II = dyn_cast<IntrinsicInst>(U.getUser());
@@ -797,7 +799,9 @@ static bool checkAndReplaceCondition(CmpInst *Cmp, ConstraintInfo &Info) {
       dbgs() << "Condition !" << *Cmp << " implied by dominating constraints\n";
       dumpWithNames(CSToUse, Info.getValue2Index(R.IsSigned));
     });
-    Cmp->replaceAllUsesWith(ConstantInt::getFalse(Ctx));
+    Constant *FalseC =
+        ConstantInt::getFalse(CmpInst::makeCmpResultType(Cmp->getType()));
+    Cmp->replaceAllUsesWith(FalseC);
     NumCondsRemoved++;
     Changed = true;
   }
