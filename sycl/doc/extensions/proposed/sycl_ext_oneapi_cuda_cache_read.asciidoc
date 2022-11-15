@@ -52,7 +52,7 @@ not rely on APIs defined in this specification.*
 
 == Overview
 
-This extension exposes the https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#data-movement-and-conversion-instructions-ld-global-nc[ld-global-nc] ptx instruction so that users can load a register variable to the non-coherent read only texture cache. The texture cache is designed for random access reads and is optimized for spatially locality, such that it affords a performance boost when work-items within a sub-group read a set of addresses of texture memory that are close to one another in the cache.
+This extension exposes the https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#data-movement-and-conversion-instructions-ld-global-nc[ld-global-nc] ptx instruction so that users can load a register variable to the non-coherent read only texture cache. The texture cache is designed for random access reads and is most performant when work-items within a sub-group read a set of addresses of texture memory that are close to one another in the cache.
 
 == Specification
 
@@ -107,7 +107,7 @@ The template parameter `T` can be one of `char`, `signed char`, `short`, `int`, 
 ```
 
 
-**_NOTE:_** Data returned from `cache_read`, e.g. `cacheA` and `cacheB` in the above example, must not be written to at any point within the kernel. If they are written to at any point in the kernel the code will compile and execute, however the texture cache will not be used.
+**_NOTE:_** Data returned from `cache_read`, e.g. `cacheA` and `cacheB` in the above example, must not be written to at any point within the kernel. If such data is written to at any point in the kernel the code will compile and execute, however the texture cache will not be used.
 
 === Remaining work
 
