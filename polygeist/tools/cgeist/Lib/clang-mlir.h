@@ -354,18 +354,20 @@ private:
   mlir::Value reshapeRanklessGlobal(mlir::memref::GetGlobalOp GV);
 
   /// TODO: Add ScalarConversion options
-  ValueCategory EmitScalarCast(ValueCategory Src, clang::QualType SrcType,
-                               clang::QualType DstType, mlir::Type SrcTy,
-                               mlir::Type DstTy);
+  ValueCategory EmitScalarCast(mlir::Location Loc, ValueCategory Src,
+                               clang::QualType SrcType, clang::QualType DstType,
+                               mlir::Type SrcTy, mlir::Type DstTy);
   /// TODO: Add ScalarConversion options
   ValueCategory EmitScalarConversion(ValueCategory Src, clang::QualType SrcType,
                                      clang::QualType DstType,
                                      clang::SourceLocation Loc);
 
-  ValueCategory EmitPointerToBoolConversion(ValueCategory Src);
-  ValueCategory EmitIntToBoolConversion(ValueCategory Src);
-  ValueCategory EmitFloatToBoolConversion(ValueCategory Src);
-  ValueCategory EmitConversionToBool(ValueCategory Src,
+  ValueCategory EmitPointerToBoolConversion(mlir::Location Loc,
+                                            ValueCategory Src);
+  ValueCategory EmitIntToBoolConversion(mlir::Location Loc, ValueCategory Src);
+  ValueCategory EmitFloatToBoolConversion(mlir::Location Loc,
+                                          ValueCategory Src);
+  ValueCategory EmitConversionToBool(mlir::Location Loc, ValueCategory Src,
                                      clang::QualType SrcType);
 
 public:
@@ -487,9 +489,9 @@ public:
   ValueCategory EmitPromoted(clang::Expr *E, clang::QualType PromotionType);
   ValueCategory EmitPromotedScalarExpr(clang::Expr *E,
                                        clang::QualType PromotionType);
-  ValueCategory EmitPromotedValue(ValueCategory Result,
+  ValueCategory EmitPromotedValue(mlir::Location Loc, ValueCategory Result,
                                   clang::QualType PromotionType);
-  ValueCategory EmitUnPromotedValue(ValueCategory Result,
+  ValueCategory EmitUnPromotedValue(mlir::Location Loc, ValueCategory Result,
                                     clang::QualType PromotionType);
 
   ValueCategory EmitCompoundAssignmentLValue(clang::CompoundAssignOperator *E);

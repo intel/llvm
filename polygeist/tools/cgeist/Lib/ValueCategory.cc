@@ -292,7 +292,7 @@ template <typename OpTy> inline void warnUnconstrainedCast() {
       << "Creating unconstrained " << OpTy::getOperationName() << "\n";
 }
 
-ValueCategory ValueCategory::FPTrunc(OpBuilder &Builder,
+ValueCategory ValueCategory::FPTrunc(OpBuilder &Builder, Location Loc,
                                      Type PromotionType) const {
   assert(val.getType().isa<FloatType>() &&
          "Expecting floating point source type");
@@ -303,10 +303,10 @@ ValueCategory ValueCategory::FPTrunc(OpBuilder &Builder,
          "Source type must be wider than promotion type");
 
   warnUnconstrainedCast<arith::TruncFOp>();
-  return Cast<arith::TruncFOp>(Builder, PromotionType);
+  return Cast<arith::TruncFOp>(Builder, Loc, PromotionType);
 }
 
-ValueCategory ValueCategory::FPExt(OpBuilder &Builder,
+ValueCategory ValueCategory::FPExt(OpBuilder &Builder, Location Loc,
                                    Type PromotionType) const {
   assert(val.getType().isa<FloatType>() &&
          "Expecting floating point source type");
@@ -317,30 +317,30 @@ ValueCategory ValueCategory::FPExt(OpBuilder &Builder,
          "Source type must be narrower than promotion type");
 
   warnUnconstrainedCast<arith::ExtFOp>();
-  return Cast<arith::ExtFOp>(Builder, PromotionType);
+  return Cast<arith::ExtFOp>(Builder, Loc, PromotionType);
 }
 
-ValueCategory ValueCategory::SIToFP(OpBuilder &Builder,
+ValueCategory ValueCategory::SIToFP(OpBuilder &Builder, Location Loc,
                                     Type PromotionType) const {
   assert(val.getType().isa<IntegerType>() && "Expecting int source type");
   assert(PromotionType.isa<FloatType>() &&
          "Expecting floating point promotion type");
 
   warnUnconstrainedCast<arith::SIToFPOp>();
-  return Cast<arith::SIToFPOp>(Builder, PromotionType);
+  return Cast<arith::SIToFPOp>(Builder, Loc, PromotionType);
 }
 
-ValueCategory ValueCategory::UIToFP(OpBuilder &Builder,
+ValueCategory ValueCategory::UIToFP(OpBuilder &Builder, Location Loc,
                                     Type PromotionType) const {
   assert(val.getType().isa<IntegerType>() && "Expecting int source type");
   assert(PromotionType.isa<FloatType>() &&
          "Expecting floating point promotion type");
 
   warnUnconstrainedCast<arith::UIToFPOp>();
-  return Cast<arith::UIToFPOp>(Builder, PromotionType);
+  return Cast<arith::UIToFPOp>(Builder, Loc, PromotionType);
 }
 
-ValueCategory ValueCategory::FPToUI(OpBuilder &Builder,
+ValueCategory ValueCategory::FPToUI(OpBuilder &Builder, Location Loc,
                                     Type PromotionType) const {
   assert(val.getType().isa<FloatType>() &&
          "Expecting floating point source type");
@@ -348,10 +348,10 @@ ValueCategory ValueCategory::FPToUI(OpBuilder &Builder,
          "Expecting integer promotion type");
 
   warnUnconstrainedCast<arith::FPToUIOp>();
-  return Cast<arith::FPToUIOp>(Builder, PromotionType);
+  return Cast<arith::FPToUIOp>(Builder, Loc, PromotionType);
 }
 
-ValueCategory ValueCategory::FPToSI(OpBuilder &Builder,
+ValueCategory ValueCategory::FPToSI(OpBuilder &Builder, Location Loc,
                                     Type PromotionType) const {
   assert(val.getType().isa<FloatType>() &&
          "Expecting floating point source type");
@@ -359,11 +359,11 @@ ValueCategory ValueCategory::FPToSI(OpBuilder &Builder,
          "Expecting integer promotion type");
 
   warnUnconstrainedCast<arith::FPToSIOp>();
-  return Cast<arith::FPToSIOp>(Builder, PromotionType);
+  return Cast<arith::FPToSIOp>(Builder, Loc, PromotionType);
 }
 
-ValueCategory ValueCategory::IntCast(OpBuilder &Builder, Type PromotionType,
-                                     bool IsSigned) const {
+ValueCategory ValueCategory::IntCast(OpBuilder &Builder, Location Loc,
+                                     Type PromotionType, bool IsSigned) const {
   assert(val.getType().isa<IntegerType>() && "Expecting integer source type");
   assert(PromotionType.isa<IntegerType>() &&
          "Expecting integer promotion type");
@@ -379,49 +379,41 @@ ValueCategory ValueCategory::IntCast(OpBuilder &Builder, Type PromotionType,
 
   auto Res = [&]() -> Value {
     if (SrcBits == DstBits)
-      return Builder.createOrFold<arith::BitcastOp>(Builder.getUnknownLoc(),
-                                                    PromotionType, val);
+      return Builder.createOrFold<arith::BitcastOp>(Loc, PromotionType, val);
     if (SrcBits > DstBits)
-      return Builder.createOrFold<arith::TruncIOp>(Builder.getUnknownLoc(),
-                                                   PromotionType, val);
+      return Builder.createOrFold<arith::TruncIOp>(Loc, PromotionType, val);
     if (IsSigned)
-      return Builder.createOrFold<arith::ExtSIOp>(Builder.getUnknownLoc(),
-                                                  PromotionType, val);
-    return Builder.createOrFold<arith::ExtUIOp>(Builder.getUnknownLoc(),
-                                                PromotionType, val);
+      return Builder.createOrFold<arith::ExtSIOp>(Loc, PromotionType, val);
+    return Builder.createOrFold<arith::ExtUIOp>(Loc, PromotionType, val);
   }();
 
   return {Res, /*IsReference*/ false};
 }
 
-ValueCategory ValueCategory::ICmpNE(mlir::OpBuilder &builder,
+ValueCategory ValueCategory::ICmpNE(mlir::OpBuilder &builder, Location Loc,
                                     mlir::Value RHS) const {
-  return ICmp(builder, arith::CmpIPredicate::ne, RHS);
+  return ICmp(builder, Loc, arith::CmpIPredicate::ne, RHS);
 }
 
-ValueCategory ValueCategory::FCmpUNE(mlir::OpBuilder &builder,
+ValueCategory ValueCategory::FCmpUNE(mlir::OpBuilder &builder, Location Loc,
                                      mlir::Value RHS) const {
-  return FCmp(builder, arith::CmpFPredicate::UNE, RHS);
+  return FCmp(builder, Loc, arith::CmpFPredicate::UNE, RHS);
 }
 
-ValueCategory ValueCategory::ICmp(OpBuilder &builder,
+ValueCategory ValueCategory::ICmp(OpBuilder &builder, Location Loc,
                                   arith::CmpIPredicate predicate,
                                   mlir::Value RHS) const {
   assert(val.getType() == RHS.getType() &&
          "Cannot compare values of different types");
   assert(val.getType().isa<IntegerType>() && "Expecting integer inputs");
-  return {builder.createOrFold<arith::CmpIOp>(builder.getUnknownLoc(),
-                                              predicate, val, RHS),
-          false};
+  return {builder.createOrFold<arith::CmpIOp>(Loc, predicate, val, RHS), false};
 }
 
-ValueCategory ValueCategory::FCmp(OpBuilder &builder,
+ValueCategory ValueCategory::FCmp(OpBuilder &builder, Location Loc,
                                   arith::CmpFPredicate predicate,
                                   mlir::Value RHS) const {
   assert(val.getType() == RHS.getType() &&
          "Cannot compare values of different types");
   assert(val.getType().isa<FloatType>() && "Expecting floatint point inputs");
-  return {builder.createOrFold<arith::CmpFOp>(builder.getUnknownLoc(),
-                                              predicate, val, RHS),
-          false};
+  return {builder.createOrFold<arith::CmpFOp>(Loc, predicate, val, RHS), false};
 }
