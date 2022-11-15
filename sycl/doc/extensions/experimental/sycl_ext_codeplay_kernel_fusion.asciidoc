@@ -36,7 +36,7 @@ https://github.com/intel/llvm/issues
 
 == Dependencies
 
-This extension is written against the SYCL 2020 revision 5 specification.  All
+This extension is written against the SYCL 2020 revision 6 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
@@ -64,8 +64,7 @@ addressing the mentioned problems.
 [NOTE]
 ====
 This extension is currently being implemented in {dpcpp} only for kernels in
-SPIRV format. Attempting to use this extension in kernels using a different
-format will result in an error, following this extension's design.
+SPIRV format.
 ====
 
 == Overview
@@ -171,7 +170,8 @@ int main(){
   constexpr size_t dataSize = 512;
   int in1[dataSize], in2[dataSize], in3[dataSize], tmp[dataSize], out[dataSize];
 
-  queue q{gpu_selector{}, {ext::codeplay::property::queue::enable_fusion()}};
+  queue q{gpu_selector{}, 
+      {ext::codeplay::experimental::property::queue::enable_fusion()}};
 
   {
     ext::codeplay::experimental::fusion_wrapper w{q};
@@ -183,7 +183,7 @@ int main(){
     // Buffer bTmp will be internalized, as the promote_private property is used
     // in its construction.
     buffer<int> bTmp{tmp, range{dataSize},
-        {ext::codeplay::property::promote_private()}};
+        {ext::codeplay::experimental::property::promote_private()}};
 
     // Set the queue into "fusion mode"
     w.start_fusion();
@@ -211,7 +211,7 @@ int main(){
     // Complete the fusion: JIT-compile a fused kernel containing KernelOne and
     // KernelTwo and submit the fused kernel for execution. This call may return
     // before JIT-compilation or execution of the fused kernel is completed.
-    w.complete_fusion({ext::codeplay::property::no_barriers()});
+    w.complete_fusion({ext::codeplay::experimental::property::no_barriers()});
 
     // End of the scope - buffers go out-of-scope and are destructed. Buffer
     // destruction causes a synchronization with all outstanding commands
@@ -226,7 +226,7 @@ int main(){
 
 This extension provides a feature-test macro as described in the core SYCL
 specification.  An implementation supporting this extension must predefine the
-macro `SYCL_EXT_CODEPLAY_JIT_KERNEL_FUSION` to one of the values defined in the
+macro `SYCL_EXT_CODEPLAY_KERNEL_FUSION` to one of the values defined in the
 table below.  Applications can test for the existence of this macro to determine
 if the implementation supports this feature, or applications can test the
 macro's value to determine which of the extension's features the implementation
@@ -307,7 +307,7 @@ Table 1. Constructors and destructors of the `fusion_wrapper` class
 fusion API and manage kernel fusion on `syclQueue`. 
 
 The underlying `queue` must have property 
-`sycl::ext::codeplay::property::queue::enable_fusion`
+`sycl::ext::codeplay::experimental::property::queue::enable_fusion`
 
 |===
 
@@ -334,7 +334,7 @@ kernels submitted to the wrapped `queue` since the last call to `start_fusion`
 and submit the fused kernel for execution. Inside the fused kernel, the
 per-work-item effects are executed in the same order as the kernels were
 initially submitted, adding group barriers between each of them by default.
-Otherwise, the individuals kernels will be passed to the scheduler and executed
+Otherwise, the individual kernels will be passed to the scheduler and executed
 in the same order as they were initially submitted. Constraints on when fusion
 is possible and criteria for the implementation to perform fusion are
 implementation-defined. Calling `fusion_wrapper::complete_fusion` does therefore
@@ -376,35 +376,60 @@ Table 3. New properties for kernel fusion.
 |===
 |Property|Description
 
-|`sycl::ext::codeplay::property::queue::enable_fusion`
+|`sycl::ext::codeplay::experimental::property::queue::enable_fusion`
 |This property enables kernel fusion for the queue. If a `fusion_wrapper` object
 is constructed on a queue without this property, an `exception` with `errc::invalid`
 error code is thrown.
 
-|`sycl::ext::codeplay::property::no_barriers`
+If a `queue` is constructed with this property, but the underlying `device` of
+the queue returns `false` for the device information descriptor
+`sycl::info::device::ext_codeplay_experimental_supports_fusion`, an
+`exception` with `errc::invalid` error code is thrown.
+
+|`sycl::ext::codeplay::experimental::property::no_barriers`
 
 |If the property list passed to `fusion_wrapper::complete_fusion()` contains this
 property, no barriers are introduced between kernels in the fused kernel.
 
-|`sycl::ext::codeplay::property::promote_local`
-|This property gives a hint to the JIT compiler to try to internalize a given
- argument via promotion to local memory (see local and private internalization
- in <<internalization>>).
+|`sycl::ext::codeplay::experimental::property::promote_local`
+|This property can be passed to the `accessor` constructor, giving a more
+granular control, or to the `buffer` constructor, in which case all the
+`accessors` will inherit this property (unless overridden).
 
-This property can be passed to the `accessor` constructor, giving a more
- granular control, or to the `buffer` constructor, in which case all the
- `accessors` will inherit this property (unless overridden).
+This property is an assertion by the application that each element in the buffer
+is accessed by no more than one work-group in the kernel submitted by this
+command-group (in case the property is specified on an accessor) or in any
+kernel in the fusion set (in case the property is specified on a buffer).
+Implementations may treat this as a hint to promote the buffer elements to
+local memory (see local and private internalization in <<internalization>>).
 
-|`sycl::ext::codeplay::property::promote_private`
-|This property gives a hint to the JIT compiler to try to internalize a given
- argument via promotion to private memory (see local and private internalization
- in <<internalization>>).
+The application also asserts that the updates made to the buffer by the kernel
+submitted by this command-group (in case the property is specified on an
+accessor) or in any kernel in the fusion set (in case the property is specified
+on a buffer) may not be available for use after the fused kernel completes
+execution. Implementations may treat this as a hint to not write back the final
+result to global memory.
 
-This property can be passed to the `accessor` constructor, giving a more
- granular control, or to the `buffer` constructor, in which case all the
- `accessors` will inherit this property (unless overridden).
+|`sycl::ext::codeplay::experimental::property::promote_private`
+|This property can be passed to the `accessor` constructor, giving a more
+granular control, or to the `buffer` constructor, in which case all the
+`accessors` will inherit this property (unless overridden).
 
-|`sycl::ext::codeplay::property::force_fusion`
+This property is an assertion by the application that each element in the buffer
+is accessed by no more than one work-item in the kernel submitted by this
+command-group (in case the property is specified on an accessor) or in any
+kernel in the fusion set (in case the property is specified on a buffer).
+Implementations may treat this as a hint to promote the buffer elements to
+private memory (see local and private internalization in <<internalization>>).
+
+The application also asserts that the updates made to the buffer by the kernel
+submitted by this command-group (in case the property is specified on an
+accessor) or in any kernel in the fusion set (in case the property is specified
+on a buffer) may not be available for use after the fused kernel completes
+execution. Implementations may treat this as a hint to not write back the final
+result to global memory.
+
+|`sycl::ext::codeplay::experimental::property::force_fusion`
 
 |This property forces the SYCL runtime implementation to perform fusion if it is
 possible to do so. Implementations must not defer kernel fusion, even if they
@@ -429,7 +454,8 @@ Table 4. Added member functions of the `queue` class
 |`bool queue::ext_codeplay_supports_fusion() const`
 
 |Returns true if the SYCL `queue` was created with the `enable_fusion` property.
-Equivalent to `has_property<ext::codeplay::property::queue::enable_fusion>()`.
+Equivalent to
+`has_property<ext::codeplay::experimental::property::queue::enable_fusion>()`.
 
 |===
 
@@ -437,15 +463,15 @@ Equivalent to `has_property<ext::codeplay::property::queue::enable_fusion>()`.
 
 To support querying whether a SYCL device and the underlying platform support
 kernel fusion before constructing a queue with property
-`ext::codeplay::property::queue::enable_fusion`, the following device
-information descriptor is added as part of this extension proposal. 
+`ext::codeplay::experimental::property::queue::enable_fusion`, the following
+device information descriptor is added as part of this extension proposal. 
 
 Table 5. Added device information descriptors
 
 |===
 |Device descriptor |Return type |Description
 
-|`sycl::ext::codeplay::info::device::supports_fusion` | `bool`
+|`sycl::info::device::ext_codeplay_experimental_supports_fusion` | `bool`
 
 |Returns true if the SYCL `device` and the underlying `platform` support kernel fusion.
 
@@ -461,7 +487,7 @@ homonym in the SYCL standard].
 ====
 
 By design, the execution of a SYCL application using our proposed extension
-should produce the same visible results as if the kernels where executed
+should produce the same visible results as if the kernels were executed
 regularly. Throughout this section, synchronization rules while in fusion mode
 are described. A `queue` is said to be in fusion mode between being set into
 fusion mode through a call to `fusion_wrapper::start_fusion` on a
