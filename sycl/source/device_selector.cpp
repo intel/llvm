@@ -72,6 +72,10 @@ static void traceDeviceSelection(const device &Device, int Score, bool Chosen) {
 
 device select_device(DSelectorInvocableType DeviceSelectorInvocable,
                      std::vector<device> &Devices) {
+  if (Devices.empty()) {
+    std::cerr << "Warning: No devices satisfy the currently set filter!"
+              << std::endl;
+  }
   int score = detail::REJECT_DEVICE_SCORE;
   const device *res = nullptr;
 
