@@ -148,7 +148,8 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
       // Marking the event associated with the last command (NewCmd) as user
       // visible, in order to calculate subimission time, specifically for
       // level-zero plugin.
-      if (!Queue->is_host()) {
+      if (!Queue->is_host() &&
+          Queue->getPlugin().getBackend() == backend::ext_oneapi_level_zero) {
         bool isUserVisible = true;
         Queue->getPlugin().call<PiApiKind::piSetEventProperty>(
             &NewEvent->getHandleRef(), IS_USER_VISIBLE, 0, &isUserVisible);

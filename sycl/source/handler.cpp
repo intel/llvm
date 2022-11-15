@@ -175,7 +175,10 @@ event handler::finalize() {
                 nullptr);
             Result = PI_SUCCESS;
           } else {
-            if (!MQueue->is_host() && OutEvent != nullptr) {
+            if (!MQueue->is_host() &&
+                MQueue->getPlugin().getBackend() ==
+                    backend::ext_oneapi_level_zero &&
+                OutEvent != nullptr) {
               bool isVisible = true;
               MQueue->getPlugin().call<detail::PiApiKind::piSetEventProperty>(
                   OutEvent, IS_USER_VISIBLE, 0, &isVisible);
