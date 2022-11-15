@@ -16,6 +16,7 @@ list(APPEND MLIR_CLANG_TEST_DEPS
   split-file
   clang
   opt
+  sycl-toolchain
   )
 
 add_lit_testsuite(check-cgeist "Running the clang-to-mlir regression tests"
