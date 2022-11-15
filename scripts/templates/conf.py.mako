@@ -205,9 +205,9 @@ epub_exclude_files = ['search.html']
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True
 
-cpp_index_common_prefix = ['zer::', 'zert::']
+cpp_index_common_prefix = ['ur::', 'urt::']
 
-cpp_id_attributes = ['ZER_APIEXPORT', 'ZER_APICALL']
+cpp_id_attributes = ['UR_APIEXPORT', 'UR_APICALL']
 
 breathe_projects = { "UnifiedRuntime": "../xml" }
 breathe_default_project = "UnifiedRuntime"

@@ -166,13 +166,13 @@ class: $xClsName
 
 ```c
 /// @brief A brief description...
-typedef void* zer_name_t;
+typedef void* ur_name_t;
 ```
 </td>
 <td>
 
 ```cpp
-namespace zer {
+namespace ur {
   class ClsName
   {
     /// @brief A brief description...
@@ -184,7 +184,7 @@ namespace zer {
 
 ```python
 ## @brief A brief description...
-class zer_name_t(c_void_p):
+class ur_name_t(c_void_p):
     pass
 ```
 </td></tr>
@@ -217,13 +217,13 @@ name: $x_name_handle_t
 <td>
 
 ```c
-typedef struct _zer_name_handle_t *zer_name_handle_t;
+typedef struct _ur_name_handle_t *ur_name_handle_t;
 ```
 </td>
 <td>
 
 ```cpp
-namespace zer {
+namespace ur {
   struct _name_handle_t;
   using name_handle_t = _name_handle_t*;
 
@@ -233,7 +233,7 @@ namespace zer {
 
 ```python
 ## @brief A brief description...
-class zer_name_handle_t(c_void_p):
+class ur_name_handle_t(c_void_p):
     pass
 ```
 </td></tr>
@@ -249,13 +249,13 @@ class: $xClsName
 <td>
 
 ```c
-typedef struct _zer_name_handle_t *zer_name_handle_t;
+typedef struct _ur_name_handle_t *ur_name_handle_t;
 ```
 </td>
 <td>
 
 ```cpp
-namespace zer {
+namespace ur {
   class ClsName;
 ```
 </td>
@@ -263,7 +263,7 @@ namespace zer {
 
 ```python
 ## @brief A brief description...
-class zer_name_handle_t(c_void_p):
+class ur_name_handle_t(c_void_p):
     pass
 ```
 </td></tr>
@@ -311,17 +311,17 @@ etors:
 
 ```c
 /// @brief A brief description...
-typedef enum _zer_name_t
+typedef enum _ur_name_t
 {
     ZE_NAME_VALUE_0 = 0, ///< brief description
     ZE_NAME_VALUE_1      ///< brief description
-} zer_name_t;
+} ur_name_t;
 ```
 </td>
 <td>
 
 ```cpp
-namespace zer {
+namespace ur {
   class ClsName
   {
     /// @brief A brief description...
@@ -336,7 +336,7 @@ namespace zer {
 
 ```python
 ## @brief A brief description...
-class zer_name_v(IntEnum):
+class ur_name_v(IntEnum):
     VALUE_0 = 0,        ## brief description
     VALUE_1 = auto()    ## brief description
 
@@ -360,18 +360,18 @@ etors:
 
 ```c
 /// @brief A brief description...
-typedef uint32_t zer_name_flags_t;
-typedef enum _zer_name_flag_t
+typedef uint32_t ur_name_flags_t;
+typedef enum _ur_name_flag_t
 {
     ZE_NAME_FLAG_VALUE_0 = ZE_BIT(0), ///< brief description
     ZE_NAME_FLAG_VALUE_1 = ZE_BIT(1)  ///< brief description
-} zer_name_flag_t;
+} ur_name_flag_t;
 ```
 </td>
 <td>
 
 ```cpp
-namespace zer {
+namespace ur {
   class ClsName
   {
     /// @brief A brief description...
@@ -391,7 +391,7 @@ namespace zer {
 
 ```python
 ## @brief A brief description...
-class zer_name_flags_v(IntEnum):
+class ur_name_flags_v(IntEnum):
     VALUE_0 = 1h,   ## brief description
     VALUE_1 = 2h    ## brief description
 
@@ -453,11 +453,11 @@ members:
 
 ```c
 /// @brief A brief description...
-typedef struct _zer_name_t
+typedef struct _ur_name_t
 {
    uint32_t val0; ///< brief description
    float    val1; ///< brief description
-} zer_name_t;
+} ur_name_t;
 ```
 </td>
 <td>
@@ -478,7 +478,7 @@ namespace ze {
 
 ```python
 ## @brief A brief description...
-class zer_name_t(Structure):
+class ur_name_t(Structure):
     _fields_ = [
         ("val0", c_ulong),  ## brief description
         ("val1", c_float)   ## brief description
@@ -505,11 +505,11 @@ members:
 
 ```c
 /// @brief A brief description...
-typedef union _zer_name_t
+typedef union _ur_name_t
 {
    uint32_t val0; ///< brief description
    float    val1; ///< brief description
-} zer_name_t;
+} ur_name_t;
 ```
 </td>
 <td>
@@ -530,7 +530,7 @@ namespace ze {
 
 ```python
 ## @brief A brief description...
-class zer_name_t(Structure):
+class ur_name_t(Structure):
     _fields_ = [
         ("val0", c_ulong),  ## brief description
         ("val1", c_float)   ## brief description
@@ -625,9 +625,9 @@ params:
 ///     - ZE_RESULT_ERROR_INVALID_ARGUMENT
 ///         + `0 == value`
 ///     - ZE_RESULT_ERROR_OUT_OF_HOST_MEMORY
-__zer_api_export zer_result_t __zecall
+__ur_api_export ur_result_t __zecall
 zeClsNameFnName(
-    zer_cls_handle_t hClsName,   ///< [in] handle to class
+    ur_cls_handle_t hClsName,   ///< [in] handle to class
     uint32_t count,             ///< [in] brief description
     uint32_t* values,           ///< [in][range(0,count)] brief description
     uint32_t* result            ///< [out] result of function
@@ -659,7 +659,7 @@ namespace ze {
 
 ```python
 ## @brief A brief description...
-_zeClsNameFnName_t = CFUNCTYPE( zer_result_t, zer_cls_handle_t, c_ulong, POINTER(c_ulong), POINTER(c_ulong) )
+_urClsNameFnName_t = CFUNCTYPE( ur_result_t, ur_cls_handle_t, c_ulong, POINTER(c_ulong), POINTER(c_ulong) )
 ```
 </td></tr>
 </table>
@@ -710,11 +710,11 @@ namespace ze {
     class ClsName
     {
     protected:
-        zer_cls_handle_t m_handle;
+        ur_cls_handle_t m_handle;
 
     public:
         ClsName() = delete;
-        ClsName( zer_cls_handle_t handle );
+        ClsName( ur_cls_handle_t handle );
 
         ~ClsName( void ) = default;
 
