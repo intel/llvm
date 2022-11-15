@@ -735,7 +735,7 @@ cmake_minimum_required(VERSION 3.14)
 set(CMAKE_CXX_COMPILER "clang++")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsycl")
 
-project(simple-sycl-app)
+project(simple-sycl-app LANGUAGES CXX)
 
 add_executable(simple-sycl-app simple-sycl-app.cpp)
 ```
