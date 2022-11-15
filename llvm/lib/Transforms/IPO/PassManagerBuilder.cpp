@@ -60,9 +60,6 @@ static cl::opt<bool>
 RunLoopRerolling("reroll-loops", cl::Hidden,
                  cl::desc("Run the loop rerolling pass"));
 
-cl::opt<bool> SYCLOptimizationMode("sycl-opt", cl::init(false), cl::Hidden,
-                                   cl::desc("Enable SYCL optimization mode."));
-
 cl::opt<bool> RunNewGVN("enable-newgvn", cl::init(false), cl::Hidden,
                         cl::desc("Run the NewGVN pass"));
 
@@ -354,17 +351,12 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
           true)));                            // Merge & remove BBs
   // FIXME: re-association increases variables liveness and therefore register
   // pressure.
-  if (!SYCLOptimizationMode)
-    MPM.add(createReassociatePass()); // Reassociate expressions
+  MPM.add(createReassociatePass()); // Reassociate expressions
 
   // The matrix extension can introduce large vector operations early, which can
   // benefit from running vector-combine early on.
   if (EnableMatrix)
     MPM.add(createVectorCombinePass());
-
-// Do not run loop pass pipeline in "SYCL Optimization Mode". Loop
-// optimizations rely on TTI, which is not accurate for SPIR target.
-if (!SYCLOptimizationMode) { // broken formatting to simplify pulldown
 
   // The simple loop unswitch pass relies on separate cleanup passes. Schedule
   // them first so when we re-process a loop they run before other loop
@@ -411,8 +403,6 @@ if (!SYCLOptimizationMode) { // broken formatting to simplify pulldown
   addExtensionsToPM(EP_LoopOptimizerEnd, MPM);
   // This ends the loop pass pipelines.
 
-} // broken formatting on this line to simplify pulldown
-
   // Break up allocas that may now be splittable after loop unrolling.
   MPM.add(createSROAPass());
 
@@ -458,11 +448,8 @@ if (!SYCLOptimizationMode) { // broken formatting to simplify pulldown
     MPM.add(createLoopRerollPass());
 
   // Merge & remove BBs and sink & hoist common instructions.
-  if (SYCLOptimizationMode)
-    MPM.add(createCFGSimplificationPass());
-  else
-    MPM.add(createCFGSimplificationPass(
-        SimplifyCFGOptions().hoistCommonInsts(true).sinkCommonInsts(true)));
+  MPM.add(createCFGSimplificationPass(
+      SimplifyCFGOptions().hoistCommonInsts(true).sinkCommonInsts(true)));
 
   // Clean up after everything.
   MPM.add(createInstructionCombiningPass());
@@ -756,20 +743,18 @@ void PassManagerBuilder::populateModulePassManager(
 
   addExtensionsToPM(EP_VectorizerStart, MPM);
   
-  if (!SYCLOptimizationMode) {
-    // Re-rotate loops in all our loop nests. These may have fallout out of
-    // rotated form due to GVN or other transformations, and the vectorizer relies
-    // on the rotated form. Disable header duplication at -Oz.
-    MPM.add(createLoopRotatePass(SizeLevel == 2 ? 0 : -1, false));
+  // Re-rotate loops in all our loop nests. These may have fallout out of
+  // rotated form due to GVN or other transformations, and the vectorizer relies
+  // on the rotated form. Disable header duplication at -Oz.
+  MPM.add(createLoopRotatePass(SizeLevel == 2 ? 0 : -1, false));
 
-    // Distribute loops to allow partial vectorization.  I.e. isolate dependences
-    // into separate loop that would otherwise inhibit vectorization.  This is
-    // currently only performed for loops marked with the metadata
-    // llvm.loop.distribute=true or when -enable-loop-distribute is specified.
-    MPM.add(createLoopDistributePass());
+  // Distribute loops to allow partial vectorization.  I.e. isolate dependences
+  // into separate loop that would otherwise inhibit vectorization.  This is
+  // currently only performed for loops marked with the metadata
+  // llvm.loop.distribute=true or when -enable-loop-distribute is specified.
+  MPM.add(createLoopDistributePass());
 
-    addVectorPasses(MPM, /* IsFullLTO */ false);
-  }
+  addVectorPasses(MPM, /* IsFullLTO */ false);
 
   // FIXME: We shouldn't bother with this anymore.
   MPM.add(createStripDeadPrototypesPass()); // Get rid of dead prototypes

@@ -190,6 +190,10 @@ static cl::opt<bool> EnableGlobalAnalyses(
     "enable-global-analyses", cl::init(true), cl::Hidden,
     cl::desc("Enable inter-procedural analyses"));
 
+static cl::opt<bool>
+    SYCLOptimizationMode("sycl-opt", cl::init(false), cl::Hidden,
+                         cl::desc("Enable SYCL optimization mode."));
+
 PipelineTuningOptions::PipelineTuningOptions() {
   LoopInterleaving = true;
   LoopVectorization = true;
@@ -227,8 +231,6 @@ extern cl::opt<bool> EnableKnowledgeRetention;
 extern cl::opt<bool> EnableMatrix;
 extern cl::opt<bool> DisablePreInliner;
 extern cl::opt<int> PreInlineThreshold;
-
-extern cl::opt<bool> SYCLOptimizationMode;
 } // namespace llvm
 
 void PassBuilder::invokePeepholeEPCallbacks(FunctionPassManager &FPM,
