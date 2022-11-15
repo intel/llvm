@@ -578,10 +578,17 @@ Preconditions:
 
 Parameters:
 
-* `syclContext` - The context asscociated with the queues to which the
+* `syclContext` - The context associated with the queues to which the
   executable graph will be able to be submitted.
 
 Returns: An executable graph object which can be submitted to a queue.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if the graph contains a cycle.
+  A cycle may be introduced to the graph via a call to `make_edge()` that
+  creates a forward dependency.
+
 |===
 
 Memory that is allocated by the following functions is owned by the specific
