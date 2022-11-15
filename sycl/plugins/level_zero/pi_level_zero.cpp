@@ -96,6 +96,39 @@ static const bool DisableEventsCaching = [] {
   return std::stoi(DisableEventsCachingFlag) != 0;
 }();
 
+// Stores pointers to events that are user visible.
+// TODO: When ABI breaking changes are allowed. Pass boolean to piEnqueue
+// methods instead
+//       (piEnqueueKernelLaunch,etc) to indicate if an event is user visible.
+static std::list<pi_event *> piUserVisibleEvents{};
+// Mutex for piUserVisibleEvents
+static pi_mutex piUserVisibleEventsMutex{};
+
+/// Checks if an event is user visible by seeing if it's pointer value is
+/// present in piUserVisibleEvents
+///
+/// \param event The event to check
+bool piIsEventUserVisible(pi_event *event) {
+
+  std::unique_lock lock{piUserVisibleEventsMutex};
+  for (auto it = piUserVisibleEvents.begin(); it != piUserVisibleEvents.end();
+       it++) {
+    if (*it == event) {
+      piUserVisibleEvents.erase(it);
+      return true;
+    }
+  }
+  return false;
+}
+
+/// Marks the event as user visible
+///
+/// \param event To mark as user visible
+void piMarkEventUserVisible(pi_event *event) {
+  std::unique_lock lock{piUserVisibleEventsMutex};
+  piUserVisibleEvents.push_front(event);
+}
+
 // This class encapsulates actions taken along with a call to Level Zero API.
 class ZeCall {
 private:
@@ -5408,6 +5441,8 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   // reference count on the kernel, using the kernel saved in CommandData.
   PI_CALL(piKernelRetain(Kernel));
 
+  PI_CALL(Queue->Device->deviceTime.getSubmitTime(Event));
+
   // Add to list of kernels to be submitted
   if (IndirectAccessTrackingEnabled)
     Queue->KernelsToBeSubmitted.push_back(Kernel);
@@ -5760,9 +5795,11 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
     return ReturnValue(ContextEndTime);
   }
   case PI_PROFILING_INFO_COMMAND_QUEUED:
-  case PI_PROFILING_INFO_COMMAND_SUBMIT:
-    // TODO: Support these when Level Zero supported is added.
-    return ReturnValue(uint64_t{0});
+  case PI_PROFILING_INFO_COMMAND_SUBMIT: {
+    // No solid way of handling possible wrap around as the the event may not be
+    // signalled by device, thus no way of obtaining event start time
+    return ReturnValue(Event->submitTime);
+  }
   default:
     zePrint("piEventGetProfilingInfo: not supported ParamName\n");
     return PI_ERROR_INVALID_VALUE;
@@ -6314,6 +6351,8 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
 
     ZE_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
 
+    PI_CALL(Queue->Device->deviceTime.getSubmitTime(Event));
+
     // Execute command list asynchronously as the event will be used
     // to track down its completion.
     return Queue->executeCommandList(CommandList);
@@ -6407,6 +6446,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
             insertBarrierIntoCmdList(CmdList, TmpWaitList, *Event, IsInternal))
       return Res;
 
+    PI_CALL(Queue->Device->deviceTime.getSubmitTime(Event));
     if (auto Res = Queue->executeCommandList(CmdList, false, OkToBatch))
       return Res;
 
@@ -6678,6 +6718,7 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
   ZE_CALL(zeCommandListAppendMemoryCopy,
           (ZeCommandList, Dst, Src, Size, ZeEvent, 0, nullptr));
 
+  PI_CALL(Queue->Device->deviceTime.getSubmitTime(Event));
   if (auto Res =
           Queue->executeCommandList(CommandList, BlockingWrite, OkToBatch))
     return Res;
@@ -6780,6 +6821,7 @@ static pi_result enqueueMemCopyRectHelper(
   zePrint("calling zeCommandListAppendBarrier() with Event %#lx\n",
           pi_cast<std::uintptr_t>(ZeEvent));
 
+  PI_CALL(Queue->Device->deviceTime.getSubmitTime(Event));
   if (auto Res = Queue->executeCommandList(CommandList, Blocking, OkToBatch))
     return Res;
 
@@ -6999,6 +7041,7 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
           pi_cast<pi_uint64>(ZeEvent));
   printZeEventList(WaitList);
 
+  PI_CALL(Queue->Device->deviceTime.getSubmitTime(Event));
   // Execute command list asynchronously, as the event will be used
   // to track down its completion.
   if (auto Res = Queue->executeCommandList(CommandList, false, OkToBatch))
@@ -7054,6 +7097,8 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Mem, pi_bool BlockingMap,
   ze_event_handle_t ZeEvent = nullptr;
 
   bool UseCopyEngine = false;
+
+  PI_CALL(Queue->Device->deviceTime.getSubmitTime(Event));
   {
     // Lock automatically releases when this goes out of scope.
     std::scoped_lock<pi_shared_mutex> lock(Queue->Mutex);
@@ -7512,6 +7557,7 @@ static pi_result enqueueMemImageCommandHelper(
     return PI_ERROR_INVALID_OPERATION;
   }
 
+  PI_CALL(Queue->Device->deviceTime.getSubmitTime(Event));
   if (auto Res = Queue->executeCommandList(CommandList, IsBlocking, OkToBatch))
     return Res;
 
@@ -8417,6 +8463,8 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
   // so manually add command to signal our event.
   ZE_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
 
+  PI_CALL(Queue->Device->deviceTime.getSubmitTime(Event));
+
   if (auto Res = Queue->executeCommandList(CommandList, false))
     return Res;
 
@@ -8483,6 +8531,8 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   // TODO: Level Zero does not have a completion "event" with the advise API,
   // so manually add command to signal our event.
   ZE_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
+
+  PI_CALL(Queue->Device->deviceTime.getSubmitTime(Event));
 
   Queue->executeCommandList(CommandList, false);
 
@@ -9004,4 +9054,44 @@ pi_result _pi_buffer::free() {
   return PI_SUCCESS;
 }
 
+inline pi_result piDeviceTime::get(uint64_t *deviceTime) {
+  if (!initialized) {
+    std::unique_lock{mutex};
+    initialized = true;
+    ZeTimerResolution = device->ZeDeviceProperties->timerResolution;
+    TimestampMaxCount =
+        ((1ULL << device->ZeDeviceProperties->kernelTimestampValidBits) - 1ULL);
+  }
+  uint64_t deviceClockCount, dummy;
+  ZE_CALL(zeDeviceGetGlobalTimestamps,
+          (device->ZeDevice, &dummy, &deviceClockCount));
+  *deviceTime = (deviceClockCount & TimestampMaxCount) * ZeTimerResolution;
+  return PI_SUCCESS;
+}
+
+inline pi_result piDeviceTime::getSubmitTime(pi_event *event) {
+  if (!(*event)->isProfilingEnabled() || !piIsEventUserVisible(event)) {
+    return PI_SUCCESS;
+  }
+  return get(&((*event)->submitTime));
+}
+pi_result piSetEventProperty(pi_event *event, _pi_event_property property,
+                             size_t propertySize, void *propertyValue) {
+
+  switch (property) {
+  case IS_USER_VISIBLE: {
+    bool isHostVisible = *static_cast<bool *>(propertyValue);
+    if (isHostVisible) {
+      piMarkEventUserVisible(event);
+    } else {
+      piIsEventUserVisible(event);
+    }
+    break;
+  }
+  default: {
+    return PI_ERROR_INVALID_VALUE;
+  }
+  }
+  return PI_SUCCESS;
+}
 } // extern "C"

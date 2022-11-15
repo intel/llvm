@@ -58,6 +58,7 @@ piMemRelease
 piMemRetain
 piPlatformGetInfo
 piPlatformsGet
+piPluginGetLastError
 piPluginInit
 piProgramBuild
 piProgramCompile
@@ -78,7 +79,7 @@ piSamplerCreate
 piSamplerGetInfo
 piSamplerRelease
 piSamplerRetain
-piPluginGetLastError
+piSetEventProperty
 piTearDown
 piclProgramCreateWithSource
 piextContextCreateWithNativeHandle

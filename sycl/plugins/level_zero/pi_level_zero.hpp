@@ -20,7 +20,7 @@
 
 // This version should be incremented for any change made to this file or its
 // corresponding .cpp file.
-#define _PI_LEVEL_ZERO_PLUGIN_VERSION 1
+#define _PI_LEVEL_ZERO_PLUGIN_VERSION 2
 
 #define _PI_LEVEL_ZERO_PLUGIN_VERSION_STRING                                   \
   _PI_PLUGIN_VERSION_STRING(_PI_LEVEL_ZERO_PLUGIN_VERSION)
@@ -356,6 +356,33 @@ struct MemAllocRecord : _pi_object {
   bool OwnZeMemHandle;
 };
 
+// Struct used to fetch device wall-clock time
+struct piDeviceTime {
+private:
+  // Device to query
+  pi_device device;
+  // ZeTimerResolution is number of nanoseconds per clock step assuming
+  // stype==ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES
+  uint64_t ZeTimerResolution, TimestampMaxCount;
+  bool initialized = false;
+  pi_mutex mutex;
+
+public:
+  /// Retreives current wall-clock time from device
+  ///
+  /// \param deviceTime Variable where device time would be stored
+  inline pi_result get(uint64_t *deviceTime);
+
+  /// Checks if the passed in event is user visible.
+  /// If so then retrieves the current wall-clock time from device
+  /// and stores it in the submitTime field of the event.
+  /// Used to calculate the submission time of a commandlist
+  ///
+  /// \param event is the event to check for user visiblity
+  inline pi_result getSubmitTime(pi_event *event);
+  piDeviceTime(pi_device dev) : device(dev) {}
+};
+
 // Define the types that are opaque in pi.h in a manner suitabale for Level Zero
 // plugin
 
@@ -484,7 +511,7 @@ struct _pi_device : _pi_object {
              pi_device ParentDevice = nullptr)
       : ZeDevice{Device}, Platform{Plt}, RootDevice{ParentDevice},
         ImmCommandListsPreferred{false}, ZeDeviceProperties{},
-        ZeDeviceComputeProperties{} {
+        ZeDeviceComputeProperties{}, deviceTime(this) {
     // NOTE: one must additionally call initialize() to complete
     // PI device creation.
   }
@@ -579,6 +606,7 @@ struct _pi_device : _pi_object {
   ZeCache<ZeStruct<ze_device_memory_access_properties_t>>
       ZeDeviceMemoryAccessProperties;
   ZeCache<ZeStruct<ze_device_cache_properties_t>> ZeDeviceCacheProperties;
+  piDeviceTime deviceTime;
 };
 
 // Structure describing the specific use of a command-list in a queue.
@@ -1349,6 +1377,10 @@ struct _pi_event : _pi_object {
     return !Queue || // tentatively assume user events are profiling enabled
            (Queue->Properties & PI_QUEUE_PROFILING_ENABLE) != 0;
   }
+
+  // Keeps track of the submisison time of the commadlist associated with this
+  // event, if event is user visible
+  uint64_t submitTime = 0;
 
   // Keeps the command-queue and command associated with the event.
   // These are NULL for the user events.

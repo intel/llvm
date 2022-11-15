@@ -140,5 +140,7 @@ _PI_API(piPluginGetLastError)
 
 _PI_API(piTearDown)
 
+_PI_API(piSetEventProperty)
+
 
 #undef _PI_API
