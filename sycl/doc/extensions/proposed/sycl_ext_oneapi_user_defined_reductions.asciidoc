@@ -110,7 +110,10 @@ _Mandates_: `binary_op(*first, *first)` must return a value of type
 
 _Preconditions_: `first`, `last` and the type of `binary_op` must be the same
 for all work-items in the group. `binary_op` must be an instance of a function
-object.
+object.  
+The size of memory contained by `GroupHelper` object `g` must
+be at least `sizeof(T) * g.get_group().get_local_range().size()` bytes.
+`binary_op` must be an instance of a function object.
 
 _Returns_: The result of combining the values resulting from dereferencing all
 iterators in the range `[first, last)` using the operator `binary_op`, where the
@@ -127,17 +130,15 @@ _Mandates_: `binary_op(init, *first)` must return a value of type `T`.
 
 _Preconditions_: `first`, `last`, `init` and the type of `binary_op` must be the
 same for all work-items in the group. `binary_op` must be an instance of a
-function object.
+function object.  
+The size of memory contained by `GroupHelper` object `g` must
+be at least `sizeof(T) * g.get_group().get_local_range().size()` bytes.
+`binary_op` must be an instance of a function object.
 
 _Returns_: The result of combining the values resulting from dereferencing all
 iterators in the range `[first, last)` and the initial value `init` using the
 operator `binary_op`, where the values are combined according to the generalized
 sum defined in standard C++.
-
-NOTE: If `T` and `V` are fundamental types and `BinaryOperation` is a SYCL
-function object type, then memory attached to `GroupHelper` object `g` is not
-used and the call to this overload is equivalent to calling
-`sycl::joint_reduce(g.get_group(), first, last, init, binary_op)`.
 
 3._Constraints_: `GroupHelper` is a `group_with_scratchpad`.
 
