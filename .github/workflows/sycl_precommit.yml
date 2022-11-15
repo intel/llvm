@@ -3,7 +3,7 @@ name: SYCL
 on:
   pull_request_target:
     branches:
-    - sycl
+    - cperkins-ci-testing
     # Do not run builds if changes are only in the following locations
     paths-ignore:
     - '.github/ISSUE_TEMPLATE/**'
