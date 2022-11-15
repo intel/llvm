@@ -5250,7 +5250,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextKernelSetArgSampler, hip_piextKernelSetArgSampler)
   _PI_CL(piPluginGetLastError, hip_piPluginGetLastError)
   _PI_CL(piTearDown, hip_piTearDown)
-  _PI_CL(piSetEventProperty, cuda_piSetEventProperty)
+  _PI_CL(piSetEventProperty, hip_piSetEventProperty)
 
 #undef _PI_CL
 

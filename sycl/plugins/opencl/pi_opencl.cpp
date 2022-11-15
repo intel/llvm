@@ -1643,6 +1643,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextKernelSetArgSampler, piextKernelSetArgSampler)
   _PI_CL(piPluginGetLastError, piPluginGetLastError)
   _PI_CL(piTearDown, piTearDown)
+  _PI_CL(piSetEventProperty, piSetEventProperty)
 
 #undef _PI_CL
 
