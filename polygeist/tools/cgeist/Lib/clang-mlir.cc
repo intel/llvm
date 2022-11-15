@@ -2170,14 +2170,7 @@ MLIRASTConsumer::getOrCreateGlobal(const ValueDecl &VD, std::string Prefix,
 
     MLIRScanner MS(*this, module, LTInfo);
     mlir::Block B;
-    // In case of device function, we will put the block in the forefront of
-    // the GPU module, else the block will go at the forefront of the main
-    // module.
-    if (FuncContext == FunctionContext::SYCLDevice) {
-      B.moveBefore(getDeviceModule(*module).getBody());
-      MS.getBuilder().setInsertionPointToStart(&B);
-    } else
-      MS.setEntryAndAllocBlock(&B);
+    MS.setEntryAndAllocBlock(&B);
 
     OpBuilder Builder(module->getContext());
     Builder.setInsertionPointToEnd(&B);
