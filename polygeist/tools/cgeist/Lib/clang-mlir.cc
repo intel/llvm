@@ -61,7 +61,7 @@ using namespace mlirclang;
 cl::opt<std::string> PrefixABI("prefix-abi", cl::init(""),
                                cl::desc("Prefix for emitted symbols"));
 
-cl::opt<bool> GenerateAllSYCLFuncs("gen-all-sycl-funcs", cl::init(false),
+cl::opt<bool> GenerateAllSYCLFuncs("gen-all-sycl-funcs", cl::init(true),
                                    cl::desc("Generate all SYCL functions"));
 
 constexpr llvm::StringLiteral MLIRASTConsumer::DeviceModuleName;

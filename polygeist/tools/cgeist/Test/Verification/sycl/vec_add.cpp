@@ -16,7 +16,7 @@
 // CHECK-MLIR-NEXT: [[RESULT:%.*]] = arith.addf [[V1]], [[V2]] : f32
 // CHECK-MLIR:      affine.store [[RESULT]], {{.*}}[0] : memref<?xf32, 4>
 
-// CHECK-LLVM:       define internal spir_func void [[FUNC:@.*vec_add_device_simple.*_]]({{.*}}) #[[FUNCATTRS2:[0-9]+]]
+// CHECK-LLVM:       define internal spir_func void [[FUNC:@.*vec_add_device_simple.*_]]({ %"class.sycl::_V1::accessor.1", %"class.sycl::_V1::accessor.1", %"class.sycl::_V1::accessor.1" }{{.*}}) #[[FUNCATTRS2:[0-9]+]]
 // CHECK-LLVM-DAG:   [[V1:%.*]] = load float, float addrspace(4)* {{.*}}, align 4
 // CHECK-LLVM-DAG:   [[V2:%.*]] = load float, float addrspace(4)* {{.*}}, align 4
 // CHECK-LLVM:       [[RESULT:%.*]] = fadd float [[V1]], [[V2]]
