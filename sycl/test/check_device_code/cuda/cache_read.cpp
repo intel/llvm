@@ -19,13 +19,13 @@ int main() {
 
   auto *in_c = sycl::malloc_device<char>(1, q);
   auto *in_s = sycl::malloc_device<short>(1, q);
-  auto *in_i = sycl::malloc_device<short>(1, q);
+  auto *in_i = sycl::malloc_device<int>(1, q);
   auto *in_l = sycl::malloc_device<long>(1, q);
   auto *in_ll = sycl::malloc_device<long long>(1, q);
 
   auto *in_uc = sycl::malloc_device<unsigned char>(1, q);
   auto *in_us = sycl::malloc_device<unsigned short>(1, q);
-  auto *in_ui = sycl::malloc_device<unsigned short>(1, q);
+  auto *in_ui = sycl::malloc_device<unsigned int>(1, q);
   auto *in_ul = sycl::malloc_device<unsigned long>(1, q);
   auto *in_ull = sycl::malloc_device<unsigned long long>(1, q);
 
@@ -48,8 +48,8 @@ int main() {
       //CHECK: tail call i16 @llvm.nvvm.ldg.global.i.i16.p0i16(i16* %2, i32 2)
       //CHECK-OPAQUE: tail call i16 @llvm.nvvm.ldg.global.i.i16.p0(ptr %2, i32 2)
       auto cached_s = cache_read(&in_s[0]);
-      //CHECK: tail call i16 @llvm.nvvm.ldg.global.i.i16.p0i16(i16* %3, i32 2)
-      //CHECK-OPAQUE: tail call i16 @llvm.nvvm.ldg.global.i.i16.p0(ptr %3, i32 2)
+      //CHECK: tail call i32 @llvm.nvvm.ldg.global.i.i32.p0i32(i32* %3, i32 4)
+      //CHECK-OPAQUE: tail call i32 @llvm.nvvm.ldg.global.i.i32.p0(ptr %3, i32 4)
       auto cached_i = cache_read(&in_i[0]);
       //CHECK: tail call i64 @llvm.nvvm.ldg.global.i.i64.p0i64(i64* %4, i32 8)
       //CHECK-OPAQUE: tail call i64 @llvm.nvvm.ldg.global.i.i64.p0(ptr %4, i32 8)
@@ -63,8 +63,8 @@ int main() {
       //CHECK: tail call i16 @llvm.nvvm.ldg.global.i.i16.p0i16(i16* %7, i32 2)
       //CHECK-OPAQUE: tail call i16 @llvm.nvvm.ldg.global.i.i16.p0(ptr %7, i32 2)
       auto cached_us = cache_read(&in_us[0]);
-      //CHECK: tail call i16 @llvm.nvvm.ldg.global.i.i16.p0i16(i16* %8, i32 2)
-      //CHECK-OPAQUE: tail call i16 @llvm.nvvm.ldg.global.i.i16.p0(ptr %8, i32 2)
+      //CHECK: tail call i32 @llvm.nvvm.ldg.global.i.i32.p0i32(i32* %8, i32 4)
+      //CHECK-OPAQUE: tail call i32 @llvm.nvvm.ldg.global.i.i32.p0(ptr %8, i32 4)
       auto cached_ui = cache_read(&in_ui[0]);
       //CHECK: tail call i64 @llvm.nvvm.ldg.global.i.i64.p0i64(i64* %9, i32 8)
       //CHECK-OPAQUE: tail call i64 @llvm.nvvm.ldg.global.i.i64.p0(ptr %9, i32 8)
