@@ -818,6 +818,23 @@ static llvm::Constant *getPrologueSignature(CodeGenModule &CGM,
   return CGM.getTargetCodeGenInfo().getUBSanFunctionSignature(CGM);
 }
 
+/// Function checks whether given DeclContext contains a topmost
+/// namespace with name "sycl"
+static bool checkSYCLNamespace(const Decl *D) {
+  const DeclContext *DC = D->getDeclContext()->getEnclosingNamespaceContext();
+  const auto *ND = dyn_cast<NamespaceDecl>(DC);
+  if (!ND)
+    return false;
+
+  while (const DeclContext *Parent = ND->getParent()) {
+    if (!isa<NamespaceDecl>(Parent))
+      break;
+    ND = cast<NamespaceDecl>(Parent);
+  }
+
+  return ND && ND->getName() == "sycl";
+}
+
 void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
                                     llvm::Function *Fn,
                                     const CGFunctionInfo &FnInfo,
@@ -1115,6 +1132,10 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
     for (const auto &NameValuePair : NameValuePairs)
       FnAttrBuilder.addAttribute(NameValuePair.first, NameValuePair.second);
     Fn->addFnAttrs(FnAttrBuilder);
+  }
+
+  if (getLangOpts().SYCLIsDevice && D && checkSYCLNamespace(D)) {
+    Fn->setMetadata("sycl-framework", llvm::MDNode::get(getLLVMContext(), {}));
   }
 
   if (FD && (getLangOpts().OpenCL ||
