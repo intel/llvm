@@ -600,6 +600,14 @@ public:
     return accessor{*MOutBufPtr, CGH};
   }
 
+  /// Provide \p Func with a properly initialized memory to write the reduction
+  /// result to. It can either be original user's reduction variable or a newly
+  /// allocated memory initialized with reduction's identity. In the later case,
+  /// after the \p Func finishes, update original user's variable accordingly
+  /// (i.e., honoring initialize_to_identity property).
+  //
+  // This currently optimizes for a number of kernel instantiations instead of
+  // runtime latency. That might change in future.
   template <typename KernelName, typename FuncTy>
   void withInitializedMem(handler &CGH, FuncTy Func) {
     // "Template" lambda to ensure that only one type of Func (USM/Buf) is
@@ -624,7 +632,9 @@ public:
           bool IsUpdateOfUserVar = !base::initializeToIdentity();
           auto BOp = base::getBinaryOperation();
 
-          // Due to constexpr captures with non-default host compilers.
+          // Don't use constexpr as non-default host compilers (unlike clang)
+          // might actually create a capture resulting in binary differences
+          // between host/device in lambda captures.
           size_t NElements = num_elements;
 
           CopyHandler.single_task<KernelName>([=] {
