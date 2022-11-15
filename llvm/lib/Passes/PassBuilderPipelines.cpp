@@ -300,14 +300,8 @@ PipelineTuningOptions::PipelineTuningOptions() {
 namespace llvm {
 extern cl::opt<unsigned> MaxDevirtIterations;
 extern cl::opt<bool> EnableKnowledgeRetention;
-<<<<<<< HEAD
-extern cl::opt<bool> EnableMatrix;
-extern cl::opt<bool> DisablePreInliner;
-extern cl::opt<int> PreInlineThreshold;
 
 extern cl::opt<bool> SYCLOptimizationMode;
-=======
->>>>>>> cbcf123af293ee56876cce16dac83c3008478dae
 } // namespace llvm
 
 void PassBuilder::invokePeepholeEPCallbacks(FunctionPassManager &FPM,

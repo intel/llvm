@@ -43,134 +43,11 @@
 
 using namespace llvm;
 
-<<<<<<< HEAD
 namespace llvm {
 cl::opt<bool> SYCLOptimizationMode("sycl-opt", cl::init(false), cl::Hidden,
                                    cl::desc("Enable SYCL optimization mode."));
-cl::opt<bool> RunPartialInlining("enable-partial-inlining", cl::Hidden,
-                                 cl::desc("Run Partial inlinining pass"));
-
-static cl::opt<bool>
-UseGVNAfterVectorization("use-gvn-after-vectorization",
-  cl::init(false), cl::Hidden,
-  cl::desc("Run GVN instead of Early CSE after vectorization passes"));
-
-cl::opt<bool> ExtraVectorizerPasses(
-    "extra-vectorizer-passes", cl::init(false), cl::Hidden,
-    cl::desc("Run cleanup optimization passes after vectorization."));
-
-static cl::opt<bool>
-RunLoopRerolling("reroll-loops", cl::Hidden,
-                 cl::desc("Run the loop rerolling pass"));
-
-cl::opt<bool> RunNewGVN("enable-newgvn", cl::init(false), cl::Hidden,
-                        cl::desc("Run the NewGVN pass"));
-
-// Experimental option to use CFL-AA
-static cl::opt<::CFLAAType>
-    UseCFLAA("use-cfl-aa", cl::init(::CFLAAType::None), cl::Hidden,
-             cl::desc("Enable the new, experimental CFL alias analysis"),
-             cl::values(clEnumValN(::CFLAAType::None, "none", "Disable CFL-AA"),
-                        clEnumValN(::CFLAAType::Steensgaard, "steens",
-                                   "Enable unification-based CFL-AA"),
-                        clEnumValN(::CFLAAType::Andersen, "anders",
-                                   "Enable inclusion-based CFL-AA"),
-                        clEnumValN(::CFLAAType::Both, "both",
-                                   "Enable both variants of CFL-AA")));
-
-cl::opt<bool> EnableLoopInterchange(
-    "enable-loopinterchange", cl::init(false), cl::Hidden,
-    cl::desc("Enable the experimental LoopInterchange Pass"));
-
-cl::opt<bool> EnableUnrollAndJam("enable-unroll-and-jam", cl::init(false),
-                                 cl::Hidden,
-                                 cl::desc("Enable Unroll And Jam Pass"));
-
-cl::opt<bool> EnableLoopFlatten("enable-loop-flatten", cl::init(false),
-                                cl::Hidden,
-                                cl::desc("Enable the LoopFlatten Pass"));
-
-cl::opt<bool> EnableDFAJumpThreading("enable-dfa-jump-thread",
-                                     cl::desc("Enable DFA jump threading."),
-                                     cl::init(false), cl::Hidden);
-
-cl::opt<bool> EnableHotColdSplit("hot-cold-split",
-                                 cl::desc("Enable hot-cold splitting pass"));
-
-cl::opt<bool> EnableIROutliner("ir-outliner", cl::init(false), cl::Hidden,
-    cl::desc("Enable ir outliner pass"));
-
-static cl::opt<bool> UseLoopVersioningLICM(
-    "enable-loop-versioning-licm", cl::init(false), cl::Hidden,
-    cl::desc("Enable the experimental Loop Versioning LICM pass"));
-
-cl::opt<bool>
-    DisablePreInliner("disable-preinline", cl::init(false), cl::Hidden,
-                      cl::desc("Disable pre-instrumentation inliner"));
-
-cl::opt<int> PreInlineThreshold(
-    "preinline-threshold", cl::Hidden, cl::init(75),
-    cl::desc("Control the amount of inlining in pre-instrumentation inliner "
-             "(default = 75)"));
-
-cl::opt<bool>
-    EnableGVNHoist("enable-gvn-hoist",
-                   cl::desc("Enable the GVN hoisting pass (default = off)"));
-
-static cl::opt<bool>
-    DisableLibCallsShrinkWrap("disable-libcalls-shrinkwrap", cl::init(false),
-                              cl::Hidden,
-                              cl::desc("Disable shrink-wrap library calls"));
-
-cl::opt<bool>
-    EnableGVNSink("enable-gvn-sink",
-                  cl::desc("Enable the GVN sinking pass (default = off)"));
-
-// This option is used in simplifying testing SampleFDO optimizations for
-// profile loading.
-cl::opt<bool>
-    EnableCHR("enable-chr", cl::init(true), cl::Hidden,
-              cl::desc("Enable control height reduction optimization (CHR)"));
-
-cl::opt<bool> FlattenedProfileUsed(
-    "flattened-profile-used", cl::init(false), cl::Hidden,
-    cl::desc("Indicate the sample profile being used is flattened, i.e., "
-             "no inline hierachy exists in the profile. "));
-
-cl::opt<bool> EnableOrderFileInstrumentation(
-    "enable-order-file-instrumentation", cl::init(false), cl::Hidden,
-    cl::desc("Enable order file instrumentation (default = off)"));
-
-cl::opt<bool> EnableMatrix(
-    "enable-matrix", cl::init(false), cl::Hidden,
-    cl::desc("Enable lowering of the matrix intrinsics"));
-
-cl::opt<bool> EnableConstraintElimination(
-    "enable-constraint-elimination", cl::init(false), cl::Hidden,
-    cl::desc(
-        "Enable pass to eliminate conditions based on linear constraints."));
-
-cl::opt<bool> EnableFunctionSpecialization(
-    "enable-function-specialization", cl::init(false), cl::Hidden,
-    cl::desc("Enable Function Specialization pass"));
-
-cl::opt<AttributorRunOption> AttributorRun(
-    "attributor-enable", cl::Hidden, cl::init(AttributorRunOption::NONE),
-    cl::desc("Enable the attributor inter-procedural deduction pass."),
-    cl::values(clEnumValN(AttributorRunOption::ALL, "all",
-                          "enable all attributor runs"),
-               clEnumValN(AttributorRunOption::MODULE, "module",
-                          "enable module-wide attributor runs"),
-               clEnumValN(AttributorRunOption::CGSCC, "cgscc",
-                          "enable call graph SCC attributor runs"),
-               clEnumValN(AttributorRunOption::NONE, "none",
-                          "disable attributor runs")));
-
-extern cl::opt<bool> EnableKnowledgeRetention;
 } // namespace llvm
 
-=======
->>>>>>> cbcf123af293ee56876cce16dac83c3008478dae
 PassManagerBuilder::PassManagerBuilder() {
     OptLevel = 2;
     SizeLevel = 0;
@@ -320,17 +197,9 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
   if (!SYCLOptimizationMode)
     MPM.add(createReassociatePass()); // Reassociate expressions
 
-<<<<<<< HEAD
-  // The matrix extension can introduce large vector operations early, which can
-  // benefit from running vector-combine early on.
-  if (EnableMatrix)
-    MPM.add(createVectorCombinePass());
-
 // Do not run loop pass pipeline in "SYCL Optimization Mode". Loop
 // optimizations rely on TTI, which is not accurate for SPIR target.
 if (!SYCLOptimizationMode) { // broken formatting to simplify pulldown
-=======
->>>>>>> cbcf123af293ee56876cce16dac83c3008478dae
   // Begin the loop pass pipeline.
 
   // The simple loop unswitch pass relies on separate cleanup passes. Schedule
