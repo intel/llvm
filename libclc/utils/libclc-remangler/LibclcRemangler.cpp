@@ -455,7 +455,6 @@ private:
       const itanium_demangle::NestedName *NestedName =
           static_cast<const itanium_demangle::NestedName *>(TypeNode);
       OutputBuffer NestedNameBuff;
-      initializeOutputBuffer(nullptr, nullptr, NestedNameBuff, 1024);
       NestedName->Qual->print(NestedNameBuff);
       PossibleKinds.push_back(
           NodeKindInfo(Kind, NestedNameBuff.getBuffer(),
@@ -466,7 +465,6 @@ private:
     }
     default: {
       OutputBuffer ErrorTypeOut;
-      initializeOutputBuffer(nullptr, nullptr, ErrorTypeOut, 1024);
       ErrorTypeOut << "Unhandled type : ";
       TypeNode->print(ErrorTypeOut);
       ErrorTypeOut << "\n";
@@ -913,10 +911,10 @@ private:
     // This module is built explicitly for linking with any .bc compiled with
     // the "nvptx64-nvidia-cuda" (CUDA) or "amdgcn-amd-amdhsa" (HIP AMD)
     // triples. Therefore we update the module triple.
-    if (M.get()->getTargetTriple() == "nvptx64-unknown-nvidiacl") {
-      M.get()->setTargetTriple("nvptx64-nvidia-cuda");
-    } else if (M.get()->getTargetTriple() == "amdgcn-unknown-amdhsa") {
-      M.get()->setTargetTriple("amdgcn-amd-amdhsa");
+    if (M->getTargetTriple() == "nvptx64-unknown-nvidiacl") {
+      M->setTargetTriple("nvptx64-nvidia-cuda");
+    } else if (M->getTargetTriple() == "amdgcn-unknown-amdhsa") {
+      M->setTargetTriple("amdgcn-amd-amdhsa");
     }
 
     std::vector<Function *> FuncList;
