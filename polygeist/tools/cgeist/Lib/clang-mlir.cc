@@ -205,12 +205,9 @@ static void checkFunctionParent(const FunctionOpInterface F,
 }
 
 /// If \p FD corresponds to a function implementing a SYCL method, registers
-/// \p Func as the function implementing the corrsponding operation. \p
-/// MayOverride states whether overriding an already present function is
-/// expected.
+/// \p Func as the function implementing the corrsponding operation.
 static void tryToRegisterSYCLMethod(const FunctionDecl &FD,
-                                    FunctionOpInterface Func,
-                                    bool MayOverride = false) {
+                                    FunctionOpInterface Func) {
   if (!mlirclang::isNamespaceSYCL(FD.getEnclosingNamespaceContext()) ||
       !isa<CXXMethodDecl>(FD) ||
       isa<CXXConstructorDecl, CXXDestructorDecl>(FD) ||
@@ -232,8 +229,7 @@ static void tryToRegisterSYCLMethod(const FunctionDecl &FD,
     // Only add a definition for functions registered as SYCL methods.
     return;
   }
-  SYCLDialect->registerMethodDefinition(MethodName, cast<func::FuncOp>(Func),
-                                        MayOverride);
+  SYCLDialect->registerMethodDefinition(MethodName, cast<func::FuncOp>(Func));
 }
 
 void MLIRScanner::init(mlir::FunctionOpInterface func,
@@ -496,7 +492,7 @@ void MLIRScanner::init(mlir::FunctionOpInterface func,
   else
     builder.create<ReturnOp>(loc);
 
-  tryToRegisterSYCLMethod(*FD, function, true /*MayOverride*/);
+  tryToRegisterSYCLMethod(*FD, function);
 
   checkFunctionParent(function, FTE.getContext(), module);
 }

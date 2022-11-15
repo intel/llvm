@@ -155,10 +155,9 @@ mlir::sycl::SYCLDialect::findMethodFromBaseClass(
   return llvm::None;
 }
 
-void mlir::sycl::SYCLDialect::registerMethodDefinition(llvm::StringRef Name,
-                                                       mlir::func::FuncOp Func,
-                                                       bool MayOverride) {
-  methods.registerDefinition(Name, Func, MayOverride);
+void mlir::sycl::SYCLDialect::registerMethodDefinition(
+    llvm::StringRef Name, mlir::func::FuncOp Func) {
+  methods.registerDefinition(Name, Func);
 }
 
 llvm::Optional<mlir::func::FuncOp>
@@ -224,8 +223,7 @@ template <> struct DenseMapInfo<llvm::SmallString<0>> {
 } // namespace llvm
 
 void mlir::sycl::MethodRegistry::registerDefinition(llvm::StringRef Name,
-                                                    mlir::func::FuncOp Func,
-                                                    bool MayOverride) {
+                                                    mlir::func::FuncOp Func) {
   LLVM_DEBUG(llvm::dbgs() << "Inserting function \"" << Name << "\": " << Func
                           << "\n");
   auto Clone = Func.clone();
@@ -235,8 +233,10 @@ void mlir::sycl::MethodRegistry::registerDefinition(llvm::StringRef Name,
           {{Name, FuncType}, Clone}, {Name, FuncType});
   if (!Iter.second) {
     // Override current function.
-    assert(MayOverride && "Overriding not allowed");
     auto &ToOverride = Iter.first->second;
+    assert(ToOverride.isDeclaration() && "Only a declaration can be overriden");
+    assert(!Func.isDeclaration() &&
+           "A declaration cannot be used to override another declaration");
     assert(ToOverride.getName() == Func.getName() &&
            "Functions have same mangled name");
     ToOverride.erase();

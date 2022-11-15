@@ -57,11 +57,7 @@ def SYCL_Dialect : Dialect {
 
     /// Add a definition for the given method to be used when lowering
     /// SYCLMethodOpInterface instances.
-    ///
-    /// A call to this function will fail if \p MayOverride is false and we try to
-    /// override an already present definition.
-    void registerMethodDefinition(llvm::StringRef Name, mlir::func::FuncOp Func,
-                                  bool MayOverride = false);
+    void registerMethodDefinition(llvm::StringRef Name, mlir::func::FuncOp Func);
 
     /// Retrieve a function definition previously registered with
     /// registerMethodDefinition().
