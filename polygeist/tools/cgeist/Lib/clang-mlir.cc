@@ -211,19 +211,17 @@ static void tryToRegisterSYCLMethod(const FunctionDecl &FD,
   if (!mlirclang::isNamespaceSYCL(FD.getEnclosingNamespaceContext()) ||
       !isa<CXXMethodDecl>(FD) ||
       isa<CXXConstructorDecl, CXXDestructorDecl>(FD) ||
-      Func.getNumArguments() == 0) {
+      !cast<CXXMethodDecl>(FD).isInstance()) {
     // Only member functions in the sycl namespace need to be registered.
     return;
   }
   const auto FunctionType = Func.getFunctionType().cast<mlir::FunctionType>();
   const auto ThisArg = FunctionType.getInput(0).dyn_cast<MemRefType>();
-  if (!ThisArg) {
-    // We expect the first argument to be a reference to `this`
-    return;
-  }
+  assert(ThisArg &&
+         "The first argument is expected to be a reference to `this`");
   auto *SYCLDialect = Func.getContext()->getLoadedDialect<sycl::SYCLDialect>();
   assert(SYCLDialect && "SYCL dialect not loaded");
-  const auto MethodName = FD.getAsFunction()->getNameAsString();
+  const std::string MethodName = FD.getAsFunction()->getNameAsString();
   if (!SYCLDialect->findMethodFromBaseClass(
           ThisArg.getElementType().getTypeID(), MethodName)) {
     // Only add a definition for functions registered as SYCL methods.

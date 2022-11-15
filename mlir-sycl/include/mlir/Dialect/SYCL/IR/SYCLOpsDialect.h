@@ -54,7 +54,7 @@ private:
   static constexpr llvm::StringLiteral ModuleName{"SYCLDefs"};
 
   llvm::DenseMap<std::pair<mlir::TypeID, llvm::StringRef>, llvm::StringRef>
-      methods;
+      Methods;
   llvm::DenseMap<std::pair<llvm::SmallString<0>, mlir::FunctionType>,
                  mlir::func::FuncOp>
       Definitions;

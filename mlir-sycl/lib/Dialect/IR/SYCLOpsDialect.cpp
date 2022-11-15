@@ -144,12 +144,10 @@ mlir::sycl::SYCLDialect::findMethod(mlir::TypeID BaseType,
 llvm::Optional<llvm::StringRef>
 mlir::sycl::SYCLDialect::findMethodFromBaseClass(
     mlir::TypeID BaseType, llvm::StringRef MethodName) const {
-  auto Method = findMethod(BaseType, MethodName);
-  if (Method)
+  if (auto Method = findMethod(BaseType, MethodName))
     return Method;
   for (auto DerivedTy : getDerivedTypes(BaseType)) {
-    Method = findMethod(DerivedTy, MethodName);
-    if (Method)
+    if (auto Method = findMethod(DerivedTy, MethodName))
       return Method;
   }
   return llvm::None;
@@ -167,21 +165,22 @@ mlir::sycl::SYCLDialect::lookupMethodDefinition(llvm::StringRef Name,
 }
 
 void mlir::sycl::MethodRegistry::init(mlir::MLIRContext &Ctx) {
+  assert(!Module && "Registry already initialized");
   Module = ModuleOp::create(mlir::UnknownLoc::get(&Ctx), ModuleName);
 }
 
 llvm::Optional<llvm::StringRef>
 mlir::sycl::MethodRegistry::lookupMethod(mlir::TypeID BaseType,
                                          llvm::StringRef MethodName) const {
-  const auto Iter = methods.find({BaseType, MethodName});
-  return Iter == methods.end() ? llvm::None
+  const auto Iter = Methods.find({BaseType, MethodName});
+  return Iter == Methods.end() ? llvm::None
                                : llvm::Optional<llvm::StringRef>{Iter->second};
 }
 
 bool mlir::sycl::MethodRegistry::registerMethod(mlir::TypeID TypeID,
                                                 llvm::StringRef MethodName,
                                                 llvm::StringRef OpName) {
-  return methods.try_emplace({TypeID, MethodName}, OpName).second;
+  return Methods.try_emplace({TypeID, MethodName}, OpName).second;
 }
 
 // If the operation is a SYCL method, register it.
@@ -224,7 +223,7 @@ template <> struct DenseMapInfo<llvm::SmallString<0>> {
 
 void mlir::sycl::MethodRegistry::registerDefinition(llvm::StringRef Name,
                                                     mlir::func::FuncOp Func) {
-  LLVM_DEBUG(llvm::dbgs() << "Inserting function \"" << Name << "\": " << Func
+  LLVM_DEBUG(llvm::dbgs() << "Registering function \"" << Name << "\": " << Func
                           << "\n");
   auto Clone = Func.clone();
   const auto FuncType = Clone.getFunctionType();
@@ -238,7 +237,7 @@ void mlir::sycl::MethodRegistry::registerDefinition(llvm::StringRef Name,
     assert(!Func.isDeclaration() &&
            "A declaration cannot be used to override another declaration");
     assert(ToOverride.getName() == Func.getName() &&
-           "Functions have same mangled name");
+           "Functions must have the same mangled name");
     ToOverride.erase();
     ToOverride = Clone;
   }

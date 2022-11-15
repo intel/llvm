@@ -72,7 +72,8 @@ static LogicalResult convertMethod(SYCLMethodOpInterface method,
     return ResTys[0];
   };
 
-  auto MangledFunctionName = method.getMangledFunctionName();
+  llvm::Optional<llvm::StringRef> MangledFunctionName =
+      method.getMangledFunctionName();
   if (!MangledFunctionName) {
     // If the optional MangledFunctionName attribute is not present, we try to
     // obtain the name of the function to call from the dialect's register.
