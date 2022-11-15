@@ -38,10 +38,10 @@ int main() {
 
   q.submit([=](sycl::handler &h) {
     h.single_task<class ldg>([=] {
+
       //CHECK: tail call i16 @llvm.nvvm.ldg.global.i.i16.p0i16(i16* %14, i32 2)
       //CHECK-OPAQUE: tail call i16 @llvm.nvvm.ldg.global.i.i16.p0(ptr %0, i32 2)
       auto cached_bfloat16 = cache_read(&in_bfloat16[0]);
-
       //CHECK: tail call i8 @llvm.nvvm.ldg.global.i.i8.p0i8(i8* %1, i32 1)
       //CHECK-OPAQUE: tail call i8 @llvm.nvvm.ldg.global.i.i8.p0(ptr %1, i32 1)
       auto cached_c = cache_read(&in_c[0]);

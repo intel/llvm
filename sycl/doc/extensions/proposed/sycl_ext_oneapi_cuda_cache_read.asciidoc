@@ -52,7 +52,7 @@ not rely on APIs defined in this specification.*
 
 == Overview
 
-This extension exposes the https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#data-movement-and-conversion-instructions-ld-global-nc([ld-global-nc]) ptx instruction so that users can load a register variable to the non-coherent read only texture cache. The texture cache is designed for random access reads and is optimized for spatially locality, such that it affords a performance boost when work-items within a sub-group read a set of addresses of texture memory that are close to one another in the cache.
+This extension exposes the https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#data-movement-and-conversion-instructions-ld-global-nc[ld-global-nc] ptx instruction so that users can load a register variable to the non-coherent read only texture cache. The texture cache is designed for random access reads and is optimized for spatially locality, such that it affords a performance boost when work-items within a sub-group read a set of addresses of texture memory that are close to one another in the cache.
 
 == Specification
 
@@ -84,36 +84,34 @@ code. This function is not available in host code.
 ```
 namespace sycl::ext::oneapi::experimental::cuda {
 
-```
 template<typename T>
 T cache_read(const T* ptr);
-```
 
 } // namespace sycl::ext::oneapi::experimental::cuda
 ```
 
 `cache_read` returns the data of type T located at address `ptr`. The data is cached in the read-only texture cache.
 
-The template parameter `T` can be one of `char`, `signed char`, `short`, `int`, `long`, `long long`, `unsigned char`, `unsigned short`, `unsigned int`, `unsigned long`, `unsigned long long`, `vec<char, 2>`, `vec<char, 4>`, `vec<short, 2>`, `vec<short, 4>`, `vec<int, 2>`, `vec<int, 4>`, `vec<long long, 2>`, `vec<uchar, 2>`, `vec<uchar, 4>`, `vec<ushort, 2>`, `vec<ushort, 4>`, `vec<uint, 2>`, `vec<uint, 4>`, `vec<unsigned long long, 2>`, `float`, `vec<float, 2>`, `vec<float, 4>`, `double`, `vec<double, 2>`, `bfloat16` or `vec<bfloat16, 2>`. For devices with `aspect::fp16` T may also be `half` or `vec<half, 2>`.
+The template parameter `T` can be one of `char`, `signed char`, `short`, `int`, `long`, `long long`, `unsigned char`, `unsigned short`, `unsigned int`, `unsigned long`, `unsigned long long`, `vec<char, 2>`, `vec<char, 4>`, `vec<short, 2>`, `vec<short, 4>`, `vec<int, 2>`, `vec<int, 4>`, `vec<long long, 2>`, `vec<uchar, 2>`, `vec<uchar, 4>`, `vec<ushort, 2>`, `vec<ushort, 4>`, `vec<uint, 2>`, `vec<uint, 4>`, `vec<unsigned long long, 2>`, `float`, `vec<float, 2>`, `vec<float, 4>`, `double`, `vec<double, 2>`, `bfloat16` or `vec<bfloat16, 2>`. For devices with `aspect::fp16` `T` may also be `half` or `vec<half, 2>`.
 
 === Minimal example of usage
 
 ```
     h.parallel_for<class kernel_name>(range, [=](sycl::nd_item<1> item) {
       const int idx = item.get_global_id(0);
-      auto cacheA = sycl::ext::oneapi::experimental::cuda::cache_read(&A[idx]);
-      auto cacheB = sycl::ext::oneapi::experimental::cuda::cache_read(&B[idx]);
-      C[idx] = cacheA + cacheB;
+      auto cachedA = sycl::ext::oneapi::experimental::cuda::cache_read(&A[idx]);
+      auto cachedB = sycl::ext::oneapi::experimental::cuda::cache_read(&B[idx]);
+      C[idx] = cachedA + cachedB;
     });
     });
 ```
 
 
-**_NOTE:_** Data returned from `cache_read`, e.g. cacheA and cacheB in the above example, must not be written to at any point within the kernel for the texture cache to be used. If they are written to at any point in the kernel the code will compile and execute, however the texture cache will not be used.
+**_NOTE:_** Data returned from `cache_read`, e.g. `cacheA` and `cacheB` in the above example, must not be written to at any point within the kernel. If they are written to at any point in the kernel the code will compile and execute, however the texture cache will not be used.
 
 === Remaining work
 
 - Add vector types.
-- Consider adding an overload for double4 as in https://github.com/glotzerlab/hoomd-blue/blob/03e25a0a17913f55094b1e880d4ed74abc252c1c/hoomd/TextureTools.h([HOOMD]): not natively supported but very useful for applications with Cartesian coordinate systems that require double precision such as MD.
+- Consider adding an overload for `double4` as in https://github.com/glotzerlab/hoomd-blue/blob/03e25a0a17913f55094b1e880d4ed74abc252c1c/hoomd/TextureTools.h[HOOMD]: not natively supported but very useful for applications that require double precision such as MD.
 - Update when bfloat16 is moved out of the experimental namespace.
 - Finalize choice of name for the function currently named `cache_read`: clang cuda calls it `__ldg`.

@@ -1,4 +1,4 @@
-//==--- cache_read.hpp - SYCL_ONEAPI_CUDA_CACHE_READ  ------------------------==//
+//==--- cache_read.hpp - SYCL_ONEAPI_CUDA_CACHE_READ  ----------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -21,7 +21,8 @@ namespace cuda {
 
 using ldg_scalar_types =
     sycl::detail::type_list<sycl::detail::gtl::scalar_signed_basic_list,
-                            sycl::detail::gtl::scalar_unsigned_basic_list, sycl::ext::oneapi::experimental::bfloat16>;
+                            sycl::detail::gtl::scalar_unsigned_basic_list,
+                            sycl::ext::oneapi::experimental::bfloat16>;
 
 template <typename T>
 inline __SYCL_ALWAYS_INLINE
