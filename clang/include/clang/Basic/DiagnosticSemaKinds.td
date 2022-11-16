@@ -8282,6 +8282,9 @@ def err_typecheck_convert_incompatible_function_pointer : Error<
 def ext_typecheck_convert_incompatible_function_pointer : ExtWarn<
   err_typecheck_convert_incompatible_function_pointer.Text>,
   InGroup<IncompatibleFunctionPointerTypes>, DefaultError;
+def warn_typecheck_convert_incompatible_function_pointer_strict : Warning<
+  err_typecheck_convert_incompatible_function_pointer.Text>,
+  InGroup<DiagGroup<"incompatible-function-pointer-types-strict">>, DefaultIgnore;
 def ext_typecheck_convert_discards_qualifiers : ExtWarn<
   "%select{%diff{assigning to $ from $|assigning to different types}0,1"
   "|%diff{passing $ to parameter of type $|"
@@ -11282,6 +11285,8 @@ def err_private_module_fragment_not_module_interface : Error<
   "private module fragment in module implementation unit">;
 def note_not_module_interface_add_export : Note<
   "add 'export' here if this is intended to be a module interface unit">;
+def err_invalid_module_name : Error<
+  "%0 is %select{an invalid|a reserved}1 name for a module">;
 
 def ext_equivalent_internal_linkage_decl_in_modules : ExtWarn<
   "ambiguous use of internal linkage declaration %0 defined in multiple modules">,
