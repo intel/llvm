@@ -410,6 +410,7 @@ void propagateAspectsThroughCG(Function *F, CallGraphTy &CG,
 ///  - checks if function has "!sycl_used_aspects" metadata
 ///
 void processFunction(Function &F, FunctionToAspectsMapTy &FunctionToAspects,
+                     FunctionToAspectsMapTy &FunctionsWithDeclaredAspects,
                      TypeToAspectsMapTy &TypesWithAspects, CallGraphTy &CG) {
   const AspectsSetTy RetTyAspects =
       getAspectsFromType(F.getReturnType(), TypesWithAspects);
@@ -431,15 +432,18 @@ void processFunction(Function &F, FunctionToAspectsMapTy &FunctionToAspects,
     }
   }
 
-  if (F.hasMetadata("sycl_used_aspects")) {
-    const MDNode *MD = F.getMetadata("sycl_used_aspects");
+  auto CollectAspectsFromMD = [&F](const char* MDName, FunctionToAspectsMapTy &Map) {
+    if (const MDNode *MD = F.getMetadata(MDName)) {
     AspectsSetTy Aspects;
     for (const MDOperand &Op : MD->operands()) {
       Constant *C = cast<ConstantAsMetadata>(Op.get())->getValue();
       Aspects.insert(cast<ConstantInt>(C)->getSExtValue());
     }
-    FunctionToAspects[&F].insert(Aspects.begin(), Aspects.end());
-  }
+    Map[&F].insert(Aspects.begin(), Aspects.end());
+    }
+  };
+  CollectAspectsFromMD("sycl_used_aspects", FunctionToAspects);
+  CollectAspectsFromMD("sycl_declared_aspects", FunctionsWithDeclaredAspects);
 }
 
 // Return true if the function is a SPIRV or SYCL builtin, e.g.
@@ -504,12 +508,17 @@ buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects,
                            const AspectValueToNameMapTy &AspectValues,
                            const std::vector<Function *> &EntryPoints) {
   FunctionToAspectsMapTy FunctionToAspects;
+  // The set of spects from FunctionsWithDeclaredAspects should be merged to the set
+  // of FunctionToAspects after validateUsedAspectsForFunctions call to avoid
+  // errors during validation.
+  FunctionToAspectsMapTy FunctionsWithDeclaredAspects;
   CallGraphTy CG;
 
   for (Function &F : M.functions()) {
     if (F.isDeclaration())
       continue;
-    processFunction(F, FunctionToAspects, TypesWithAspects, CG);
+    processFunction(F, FunctionToAspects, FunctionsWithDeclaredAspects,
+                    TypesWithAspects, CG);
   }
 
   SmallPtrSet<const Function *, 16> Visited;
@@ -518,6 +527,12 @@ buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects,
 
   validateUsedAspectsForFunctions(FunctionToAspects, AspectValues, EntryPoints,
                                   CG);
+
+  Visited.clear();
+  for (Function *F : EntryPoints)
+    propagateAspectsThroughCG(F, CG, FunctionsWithDeclaredAspects, Visited);
+  for (const auto &It : FunctionsWithDeclaredAspects)
+    FunctionToAspects[It.first].insert(It.second.begin(), It.second.end());
 
   return FunctionToAspects;
 }
