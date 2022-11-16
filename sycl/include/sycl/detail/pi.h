@@ -53,9 +53,12 @@
 // 10.14 Add PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY as an extension for
 // piDeviceGetInfo.
 // 11.15 piEventCreate creates even in the signalled state now.
+// 11.16 Add PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE and
+// PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH as an extension for
+// piDeviceGetInfo.
 
 #define _PI_H_VERSION_MAJOR 11
-#define _PI_H_VERSION_MINOR 15
+#define _PI_H_VERSION_MINOR 16
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
