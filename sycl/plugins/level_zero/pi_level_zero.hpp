@@ -918,14 +918,18 @@ struct _pi_queue : _pi_object {
   // command is enqueued.
   pi_event LastCommandEvent = nullptr;
 
-  // Keep track of the last command list used by in-order queue.
+  // This data member is used only for in-order queue with discard_events property.
+  // For in-order queues with discarded events we reset and reuse events in scope of each command list but to switch between command lists we have to use new event.
+  // This data member keeps track of the last used command list and allows to handle switch of immediate command lists because immediate command lists are never closed unlike regular command lists.
   pi_command_list_ptr_t LastCommandList = CommandListMap.end();
 
-  // Caches of events for reuse.
+  // This data member is used only for in-order queue with discard_events property.
+  // It is a vector of 2 lists: for host-visible and device-scope events. They are separated to allow faster access to stored events depending on requested type of event.
+  // Each list contains events which can be reused in scope of command list. Two events are enough for reset and reuse inside each command list moreover those two events can be used for all command lists in the queue, thus those lists are going to contain two elements each at maximum.
+  // We release leftover events in the cache at the queue destruction.
   std::vector<std::list<pi_event>> EventCaches{2};
-  auto getEventCache(bool HostVisible) {
-    return HostVisible ? &EventCaches[0] : &EventCaches[1];
-  }
+
+  // The following 4 methods are used only for in-order queues with discard_events property.
 
   // Get event from the queue's cache.
   pi_event getEventFromCache(bool HostVisible);
@@ -938,14 +942,14 @@ struct _pi_queue : _pi_object {
   // reuse discarded events in scope of the same command list. This method
   // allows to wait for the last discarded event and reset it after command
   // submission.
-  pi_result appendWaitAndResetLastDiscardedEvent(pi_command_list_ptr_t);
+  pi_result appendWaitAndResetIfLastEventDiscarded(pi_command_list_ptr_t);
 
   // For in-order queue append command to the command list to signal new event
   // if the last event in the command list is discarded. While we submit
   // commands in scope of the same command list we can reset and reuse events
   // but when we switch to a different command list we currently need to signal
   // new event and wait for it in the new command list using barrier.
-  pi_result signalEvent(pi_command_list_ptr_t);
+  pi_result signalEventFromCmdListIfLastEventDiscarded(pi_command_list_ptr_t);
 
   // Kernel is not necessarily submitted for execution during
   // piEnqueueKernelLaunch, it may be batched. That's why we need to save the
@@ -1088,7 +1092,7 @@ struct _pi_queue : _pi_object {
   // command list if queue is in-order and has discard_events property. It
   // allows to reset and reuse event handles in scope of each command list.
   pi_result
-  insertStartBarrierWaitingForLastEvent(pi_command_list_ptr_t &CmdList);
+  insertStartBarrierIfDiscardEventsMode(pi_command_list_ptr_t &CmdList);
 
   // A collection of currently active barriers.
   // These should be inserted into a command list whenever an available command
