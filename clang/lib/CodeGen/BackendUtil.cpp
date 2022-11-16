@@ -45,6 +45,7 @@
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Passes/StandardInstrumentations.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDVerifier.h"
+#include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
 #include "llvm/SYCLLowerIR/MutatePrintfAddrspace.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
@@ -1011,6 +1012,11 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       MPM.addPass(AlwaysInlinerPass(false));
     MPM.addPass(SYCLLowerWGLocalMemoryPass());
   }
+
+
+  if (LangOpts.SYCLIsDevice)
+    MPM.addPass(CompileTimePropertiesPass());
+
 
   // Add a verifier pass if requested. We don't have to do this if the action
   // requires code generation because there will already be a verifier pass in
