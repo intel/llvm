@@ -41,3 +41,15 @@ func.func @main(%arg0 : index) -> memref<1000xi32> {
 // CHECK-NEXT:     %1 = "polygeist.pointer2memref"(%0) : (!llvm.ptr<i32>) -> memref<?xi32>
 // CHECK-NEXT:     return %1 : memref<?xi32>
 // CHECK-NEXT:   }
+
+func.func @memref2ptr(%arg0: memref<10xi32>) -> !llvm.ptr<i8> {
+     %c2 = arith.constant 2 : index
+     %0 = "polygeist.subindex"(%arg0, %c2) : (memref<10xi32>, index) -> memref<?xi32>
+     %1 = "polygeist.memref2pointer"(%0) : (memref<?xi32>) -> !llvm.ptr<i8>
+     return %1 : !llvm.ptr<i8>
+}
+// CHECK: func.func @memref2ptr(%arg0: memref<10xi32>) -> !llvm.ptr<i8> {
+// CHECK-NEXT: %0 = "polygeist.memref2pointer"(%arg0) : (memref<10xi32>) -> !llvm.ptr<i8>
+// CHECK-NEXT: %1 = llvm.getelementptr %0[8] : (!llvm.ptr<i8>) -> !llvm.ptr<i8>
+// CHECK-NEXT: return %1 : !llvm.ptr<i8>
+// CHECK-NEXT: }
