@@ -408,6 +408,7 @@ FUNCTION_PASS("tsan", ThreadSanitizerPass())
 FUNCTION_PASS("memprof", MemProfilerPass())
 FUNCTION_PASS("LowerWGScope", SYCLLowerWGScopePass())
 FUNCTION_PASS("ESIMDLowerLoadStore", ESIMDLowerLoadStorePass())
+FUNCTION_PASS("declare-to-assign", llvm::AssignmentTrackingPass())
 #undef FUNCTION_PASS
 
 #ifndef FUNCTION_PASS_WITH_PARAMS
