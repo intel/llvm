@@ -4,6 +4,7 @@
 #include <initializer_list>
 #include <iostream>
 #include <sycl/sycl.hpp>
+#include <type_traits>
 
 #if defined(__SPIR__)
 typedef _Float16 _iml_half_internal;
@@ -57,12 +58,21 @@ void test(sycl::queue &q, std::initializer_list<InputTy> Input,
   sycl::host_accessor Acc(OutBuf, sycl::read_only);
   for (int i = 0; i < Size; ++i) {
     auto Expected = *(std::begin(RefOutput) + i);
-    if (Expected == Acc[i])
-      continue;
-
-    std::cout << "Mismatch at line " << Line << "[" << i << "]: " << Acc[i]
-              << " != " << Expected << ", input was "
-              << *(std::begin(Input) + i) << std::endl;
+    if constexpr (std::is_same_v<OutputTy, sycl::half2>) {
+      if ((Expected.s0() == Acc[i].s0()) && (Expected.s1() == Acc[i].s1()))
+        continue;
+      std::cout << "Mismatch at line " << Line << "[" << i << "]: ("
+                << Acc[i].s0() << ", " << Acc[i].s1() << ")"
+                << " != (" << Expected.s0() << ", " << Expected.s1() << ")"
+                << ", input was (" << (*(std::begin(Input) + i)).s0() << ", "
+                << (*(std::begin(Input) + i)).s1() << ")" << std::endl;
+    } else {
+      if (Expected == Acc[i])
+        continue;
+      std::cout << "Mismatch at line " << Line << "[" << i << "]: " << Acc[i]
+                << " != " << Expected << ", input was "
+                << *(std::begin(Input) + i) << std::endl;
+    }
     assert(false);
   }
 }
@@ -100,13 +110,19 @@ void test2(sycl::queue &q, std::initializer_list<InputTy> Input1,
   sycl::host_accessor Acc(OutBuf, sycl::read_only);
   for (int i = 0; i < Size; ++i) {
     auto Expected = *(std::begin(RefOutput) + i);
-    if (Expected == Acc[i])
-      continue;
-
-    std::cout << "Mismatch at line " << Line << "[" << i << "]: " << Acc[i]
-              << " != " << Expected << ", input was "
-              << *(std::begin(Input1) + i) << ", " << *(std::begin(Input2) + i)
-              << std::endl;
+    if constexpr (std::is_same_v<OutputTy, sycl::half2>) {
+      if ((Expected.s0() == Acc[i].s0()) && (Expected.s1() == Acc[i].s1()))
+        continue;
+      std::cout << "Mismatch at line " << Line << "[" << i << "]: ("
+                << Acc[i].s0() << ", " << Acc[i].s1() << ")"
+                << " != (" << Expected.s0() << ", " << Expected.s1()
+                << "), input idx was " << i << std::endl;
+    } else {
+      if (Expected == Acc[i])
+        continue;
+      std::cout << "Mismatch at line " << Line << "[" << i << "]: " << Acc[i]
+                << " != " << Expected << ", input idx was " << i << std::endl;
+    }
     assert(false);
   }
 }
@@ -150,13 +166,22 @@ void test3(sycl::queue &q, std::initializer_list<InputTy1> Input1,
   sycl::host_accessor Acc(OutBuf, sycl::read_only);
   for (int i = 0; i < Size; ++i) {
     auto Expected = *(std::begin(RefOutput) + i);
-    if (Expected == Acc[i])
-      continue;
-
-    std::cout << "Mismatch at line " << Line << "[" << i << "]: " << Acc[i]
-              << " != " << Expected << ", input was "
-              << *(std::begin(Input1) + i) << ", " << *(std::begin(Input2) + i)
-              << ", " << *(std::begin(Input3) + i) << std::endl;
+    if constexpr (std::is_same_v<OutputTy, sycl::half2>) {
+      if ((Expected.s0() == Acc[i].s0()) && (Expected.s1() == Acc[i].s1()))
+        continue;
+      std::cout << "Mismatch at line " << Line << "[" << i << "]: ("
+                << Acc[i].s0() << ", " << Acc[i].s1() << ")"
+                << " != (" << Expected.s0() << ", " << Expected.s1()
+                << "), input idx was " << i << std::endl;
+    } else {
+      if (Expected == Acc[i])
+        continue;
+      std::cout << "Mismatch at line " << Line << "[" << i << "]: " << Acc[i]
+                << " != " << Expected << ", input was "
+                << *(std::begin(Input1) + i) << ", "
+                << *(std::begin(Input2) + i) << ", "
+                << *(std::begin(Input3) + i) << std::endl;
+    }
     assert(false);
   }
 }
