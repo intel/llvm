@@ -582,6 +582,11 @@ template <typename T> inline constexpr bool msbIsSet(const T x) {
 template <typename T>
 using common_rel_ret_t =
     conditional_t<is_vgentype<T>::value, make_singed_integer_t<T>, bool>;
+
+// TODO: Remove this when common_rel_ret_t is promoted.
+template <typename T>
+using internal_rel_ret_t =
+    conditional_t<is_vgentype<T>::value, make_singed_integer_t<T>, int>;
 #else
 // SYCL 1.2.1 4.13.7 (Relation functions), e.g.
 //
@@ -596,6 +601,7 @@ using common_rel_ret_t =
 template <typename T>
 using common_rel_ret_t =
     conditional_t<is_vgentype<T>::value, make_singed_integer_t<T>, int>;
+template <typename T> using internal_rel_ret_t = common_rel_ret_t<T>;
 #endif
 
 // forward declaration
@@ -620,7 +626,15 @@ template <typename T> struct RelationalReturnType {
 #ifdef __SYCL_DEVICE_ONLY__
   using type = Boolean<TryToGetNumElements<T>::value>;
 #else
-  using type = common_rel_ret_t<T>;
+  // After changing the return type of scalar relational operations to boolean
+  // we keep the old representation of the internal implementation of the
+  // host-side builtins to avoid ABI-breaks.
+  // TODO: Use common_rel_ret_t when ABI break is allowed and the boolean return
+  //       type for relationals are promoted out of SYCL2020_CONFORMANT_APIS.
+  //       The scalar relational builtins in
+  //       sycl/source/detail/builtins_relational.cpp should likewise be updated
+  //       to return boolean values.
+  using type = internal_rel_ret_t<T>;
 #endif
 };
 
