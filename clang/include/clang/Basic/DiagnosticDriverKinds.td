@@ -97,14 +97,9 @@ def err_drv_no_sycl_libspirv : Error<
   "cannot find '%0'; provide path to libspirv library via '-fsycl-libspirv-path', or "
   "pass '-fno-sycl-libspirv' to build without linking with libspirv">;
 def warn_flag_no_sycl_libspirv
-    : Warning<"no-sycl-libspirv option is not meant for regular application "
-              "development and severely limits the correct behavior of DPC++ "
-              "when using the '%0' triple">,
+    : Warning<"'-fno-sycl-libspirv' should not be used with target '%0'; "
+              "libspirv is required for correct behavior">,
       InGroup<NoLibspirvHipCuda>;
-def warn_flag_no_sycl_libspirv_has_no_effect
-    : Warning<"no-sycl-libspirv option has no effect when compiled with the "
-              "'%0' triple">,
-      InGroup<OptionIgnored>;
 def err_drv_mix_cuda_hip : Error<
   "mixed CUDA and HIP compilation is not supported">;
 def err_drv_bad_target_id : Error<
