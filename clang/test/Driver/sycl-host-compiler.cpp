@@ -70,7 +70,7 @@
 
 // Zc:__cplusplus, Zc:__cplusplus- check
 // RUN: %clang_cl -### -fsycl-host-compiler=cl -fsycl %s 2>&1 | FileCheck -check-prefix=CHECK-ZC-CPLUSPLUS %s
-// RUN: %clang_cl -### -fsycl-host-compiler=cl -fsycl /fsycl-host-compiler-options=/Zc:__cplusplus- %s 2>&1 | FileCheck -check-prefix=CHECK-ZC-CPLUSPLUS-MINUS %s
+// RUN: %clang_cl -### -fsycl-host-compiler=cl -fsycl -fsycl-host-compiler-options=/Zc:__cplusplus- %s 2>&1 | FileCheck -check-prefix=CHECK-ZC-CPLUSPLUS-MINUS %s
 // RUN: %clang_cl -### %s 2>&1 | FileCheck -check-prefix=CHECK-NO-ZC-CPLUSPLUS %s
 // RUN: %clang_cl -### -fsycl-host-compiler=g++ -fsycl %s 2>&1 | FileCheck -check-prefix=CHECK-NO-ZC-CPLUSPLUS %s
 // CHECK-ZC-CPLUSPLUS: "/Zc:__cplusplus"
