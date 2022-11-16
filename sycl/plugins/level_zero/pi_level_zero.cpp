@@ -2008,10 +2008,6 @@ pi_result _pi_queue::insertStartBarrierWaitingForLastEvent(
   // a barrier waiting for the last command event.
   if (ReuseDiscardedEvents && isInOrderQueue() && isDiscardEvents() &&
       CmdList != LastCommandList && LastCommandEvent) {
-    // We want this event to live long enough so increment its reference count.
-    // It will be decremented when command list is reset.
-    LastCommandEvent->RefCount.increment();
-    CmdList->second.EventList.push_back(LastCommandEvent);
     ZE_CALL(zeCommandListAppendBarrier,
             (CmdList->first, nullptr, 1, &(LastCommandEvent->ZeEvent)));
     LastCommandEvent = nullptr;
@@ -2088,12 +2084,6 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
         if (CurQueue->LastCommandList != CurQueue->CommandListMap.end() &&
             CurQueue->LastCommandList != NextImmCmdList) {
           CurQueue->signalEvent(CurQueue->LastCommandList);
-          // Mark the last command list as "closed" event though we don't really
-          // close immediate command list. It just indicates that we are
-          // switching command lists. This will be taken into account below - we
-          // don't need to add the last command event into the wait list in this
-          // case.
-          CurQueue->LastCommandList = CurQueue->CommandListMap.end();
         }
       }
     } else {
@@ -2114,16 +2104,9 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
   bool IncludeLastCommandEvent =
       CurQueue->isInOrderQueue() && CurQueue->LastCommandEvent != nullptr;
 
-  // If the last command event is not nullptr we still don't need to include
-  // last command event in the wait list in the two cases: If the last event is
-  // discarded then we already have a barrier waiting for that event. If the
-  // last command list is closed then we are going to insert a barrier at the
-  // beginning of the next command list.
-  if (ReuseDiscardedEvents && CurQueue->isDiscardEvents() &&
-      (CurQueue->LastCommandEvent->IsDiscarded ||
-       CurQueue->LastCommandList == CurQueue->CommandListMap.end())) {
+  // If the last event is discarded then we already have a barrier waiting for that event, so don't need to include the last command event into the wait list.
+  if (ReuseDiscardedEvents && CurQueue->isDiscardEvents() && CurQueue->LastCommandEvent->IsDiscarded)
     IncludeLastCommandEvent = false;
-  }
 
   try {
     if (IncludeLastCommandEvent) {
