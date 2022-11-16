@@ -191,6 +191,8 @@ void MLIRScanner::initSupportedFunctions() {
       "6access4modeE1025ELNS4_6targetE2014ELNS4_11placeholderE0ENS0_"
       "3ext6oneapi22accessor_property_listIJEEEE14getTotalOffsetEvEUlmE_"
       "EEvSt16integer_sequenceImJXspT_EEEOT0_");
+
+  supportedFuncs.insert("_ZNK4sycl3_V18nd_rangeILi2EE16get_global_rangeEv");
 }
 
 static void checkFunctionParent(const FunctionOpInterface F,
@@ -1608,7 +1610,12 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
     llvm_unreachable("not implemented");
   } else if (auto RT =
                  mt.getElementType().dyn_cast<mlir::sycl::NdRangeType>()) {
-    llvm_unreachable("not implemented");
+    assert(fnum < RT.getBody().size() && "ERROR");
+    const auto ElementType = RT.getBody()[fnum];
+    const auto ResultType = mlir::MemRefType::get(
+        shape, ElementType, MemRefLayoutAttrInterface(), mt.getMemorySpace());
+    Result = builder.create<polygeist::SubIndexOp>(loc, ResultType, val,
+                                                   getConstantIndex(fnum));
   } else if (auto RT = mt.getElementType().dyn_cast<mlir::sycl::ItemType>()) {
     assert(fnum < RT.getBody().size() && "ERROR");
 

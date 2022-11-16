@@ -118,9 +118,30 @@ SYCL_EXTERNAL void range_size(sycl::range<2> r) {
 // CHECK-MLIR:           %{{.*}}: memref<?x!sycl_nd_range_2_> {llvm.align = 8 : i64, llvm.byval = !sycl_nd_range_2_, llvm.noundef})
 // CHECK-MLIR: %{{.*}} = "sycl.nd_range.get_global_range"(%{{.*}}) {BaseType = memref<?x!sycl_nd_range_2_, 4>, FunctionName = @get_global_range, MangledFunctionName = @_ZNK4sycl3_V18nd_rangeILi2EE16get_global_rangeEv, TypeName = @nd_range} : (memref<?x!sycl_nd_range_2_, 4>) -> !sycl_range_2_
 
+// CHECK-MLIR:           func.func @_ZNK4sycl3_V18nd_rangeILi2EE16get_global_rangeEv(%[[VAL_0:.*]]: memref<?x!sycl_nd_range_2_, 4> {llvm.align = 8 : i64, llvm.dereferenceable_or_null = 48 : i64, llvm.noundef}) -> !sycl_range_2_
+// CHECK-MLIR-NEXT:             %[[VAL_1:.*]] = arith.constant 0 : index
+// CHECK-MLIR-NEXT:             %[[VAL_2:.*]] = memref.alloca() : memref<1x!sycl_range_2_>
+// CHECK-MLIR-NEXT:             %[[VAL_3:.*]] = "polygeist.subindex"(%[[VAL_0]], %[[VAL_1]]) : (memref<?x!sycl_nd_range_2_, 4>, index) -> memref<?x!sycl_range_2_, 4>
+// CHECK-MLIR-NEXT:             %[[VAL_4:.*]] = "polygeist.memref2pointer"(%[[VAL_2]]) : (memref<1x!sycl_range_2_>) -> !llvm.ptr<!sycl_range_2_>
+// CHECK-MLIR-NEXT:             %[[VAL_5:.*]] = llvm.addrspacecast %[[VAL_4]] : !llvm.ptr<!sycl_range_2_> to !llvm.ptr<!sycl_range_2_, 4>
+// CHECK-MLIR-NEXT:             %[[VAL_6:.*]] = "polygeist.pointer2memref"(%[[VAL_5]]) : (!llvm.ptr<!sycl_range_2_, 4>) -> memref<?x!sycl_range_2_, 4>
+// CHECK-MLIR-NEXT:             sycl.constructor(%[[VAL_6]], %[[VAL_3]]) {MangledFunctionName = @_ZN4sycl3_V15rangeILi2EEC1ERKS2_, Type = @range} : (memref<?x!sycl_range_2_, 4>, memref<?x!sycl_range_2_, 4>) -> ()
+// CHECK-MLIR-NEXT:             %[[VAL_7:.*]] = affine.load %[[VAL_2]][0] : memref<1x!sycl_range_2_>
+// CHECK-MLIR-NEXT:             return %[[VAL_7]] : !sycl_range_2_
+// CHECK-MLIR-NEXT:           }
+
 // CHECK-LLVM-LABEL: define spir_func void @_Z25nd_range_get_global_rangeN4sycl3_V18nd_rangeILi2EEE(
 // CHECK-LLVM:           %"class.sycl::_V1::nd_range.2"* noundef byval(%"class.sycl::_V1::nd_range.2") align 8 %0) #1  
 // CHECK-LLVM: %{{.*}} = call %"class.sycl::_V1::range.2" @_ZNK4sycl3_V18nd_rangeILi2EE16get_global_rangeEv(%"class.sycl::_V1::nd_range.2" addrspace(4)* %{{.*}})
+
+// CHECK-LLVM: define linkonce_odr spir_func %"class.sycl::_V1::range.2" @_ZNK4sycl3_V18nd_rangeILi2EE16get_global_rangeEv(%"class.sycl::_V1::nd_range.2" addrspace(4)* noundef align 8 [[VAL_0:%.*]]) #1 {
+// CHECK-LLVM-NEXT:   [[VAL_2:%.*]] = alloca %"class.sycl::_V1::range.2", align 8
+// CHECK-LLVM-NEXT:   [[VAL_3:%.*]]  = addrspacecast %"class.sycl::_V1::range.2"* [[VAL_2]] to %"class.sycl::_V1::range.2" addrspace(4)*
+// CHECK-LLVM-NEXT:   [[VAL_4:%.*]]  = bitcast %"class.sycl::_V1::nd_range.2" addrspace(4)* [[VAL_0]] to %"class.sycl::_V1::range.2" addrspace(4)*
+// CHECK-LLVM-NEXT:   call void @_ZN4sycl3_V15rangeILi2EEC1ERKS2_(%"class.sycl::_V1::range.2" addrspace(4)* [[VAL_3]], %"class.sycl::_V1::range.2" addrspace(4)* [[VAL_4]])
+// CHECK-LLVM-NEXT:   [[VAL_5:%.*]]  = load %"class.sycl::_V1::range.2", %"class.sycl::_V1::range.2"* [[VAL_2]], align 8
+// CHECK-LLVM-NEXT:   ret %"class.sycl::_V1::range.2" [[VAL_5]] 
+// CHECK-LLVM-NEXT: }
 
 SYCL_EXTERNAL void nd_range_get_global_range(sycl::nd_range<2> nd_range) {
   keep(nd_range.get_global_range());
