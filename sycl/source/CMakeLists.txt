@@ -132,7 +132,6 @@ set(SYCL_SOURCES
     "detail/error_handling/enqueue_kernel.cpp"
     "detail/event_impl.cpp"
     "detail/filter_selector_impl.cpp"
-    "detail/force_device.cpp"
     "detail/global_handler.cpp"
     "detail/helpers.cpp"
     "detail/handler_proxy.cpp"
@@ -208,6 +207,12 @@ if (MSVC)
   add_library(sycld ALIAS sycl${SYCL_MAJOR_VERSION}d)
 
   set(SYCL_EXTRA_OPTS "/MD")
+endif()
+
+check_cxx_compiler_flag(-fsemantic-interposition HAS_SEMANTIC_INTERPOSITION_FLAG)
+if (HAS_SEMANTIC_INTERPOSITION_FLAG)
+  # See https://github.com/llvm/llvm-project/issues/58295.
+  set_source_files_properties(device_selector.cpp PROPERTIES COMPILE_FLAGS -fsemantic-interposition)
 endif()
 
 if (WIN32)

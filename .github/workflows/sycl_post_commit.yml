@@ -9,6 +9,11 @@ on:
     - sycl
     paths:
     - .github/workflows/sycl_post_commit.yml
+    - .github/workflows/sycl_gen_test_matrix.yml
+    - .github/workflows/sycl_linux_build_and_test.yml
+    - .github/workflows/sycl_windows_build_and_test.yml
+    - .github/workflows/sycl_macos_build_and_test.yml
+  workflow_dispatch:
 
 jobs:
   # This job generates matrix of tests for LLVM Test Suite
@@ -44,13 +49,13 @@ jobs:
     runs-on: ubuntu-20.04
     if: github.repository == 'intel/llvm'
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         path: src
     - name: Install Ubuntu deps
       run: sudo apt install -y ninja-build ccache
     - name: Setup Cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: cache
       with:
         path: ${{ github.workspace }}/cache
@@ -104,7 +109,7 @@ jobs:
     - name: Pack
       run: tar -czvf llvm_sycl.tar.gz -C $GITHUB_WORKSPACE/build/install .
     - name: Upload artifacts
-      uses: actions/upload-artifact@v1
+      uses: actions/upload-artifact@v3
       with:
         name: sycl_linux_${{ matrix.config }}
         path: llvm_sycl.tar.gz

@@ -53,8 +53,8 @@ struct SCFTilingOptions {
   SCFTilingOptions &setTileSizes(ArrayRef<int64_t> ts);
 
   /// The interchange vector to reorder the tiled loops.
-  SmallVector<unsigned> interchangeVector = {};
-  SCFTilingOptions &setInterchange(ArrayRef<unsigned> interchange) {
+  SmallVector<int64_t> interchangeVector = {};
+  SCFTilingOptions &setInterchange(ArrayRef<int64_t> interchange) {
     interchangeVector = llvm::to_vector(interchange);
     return *this;
   }
@@ -62,8 +62,10 @@ struct SCFTilingOptions {
 
 /// Transformation information returned after tiling.
 struct SCFTilingResult {
-  /// The tiled operation generated.
-  Operation *tiledOp;
+  /// Tiled operations that are generated during tiling. The order does not
+  /// matter except the last op. The replacements are expected to be the results
+  /// of the last op.
+  SmallVector<Operation *> tiledOps;
   /// The `scf.for` operations that iterate over the tiles.
   SmallVector<scf::ForOp> loops;
   /// Values to use as replacements for the untiled op. Is the same size as the
@@ -75,7 +77,7 @@ struct SCFTilingResult {
 /// `scf.for` for iterating over the tiles.
 FailureOr<SCFTilingResult> tileUsingSCFForOp(RewriterBase &rewriter,
                                              TilingInterface op,
-                                             SCFTilingOptions options);
+                                             const SCFTilingOptions &options);
 
 /// Options used to control tile + fuse.
 struct SCFTileAndFuseOptions {
@@ -127,14 +129,54 @@ struct SCFTileAndFuseResult {
 /// }
 /// ```
 FailureOr<SCFTileAndFuseResult>
-tileConsumerAndFuseProducerGreedilyUsingSCFForOp(RewriterBase &rewriter,
-                                                 TilingInterface consumer,
-                                                 SCFTileAndFuseOptions options);
+tileConsumerAndFuseProducerGreedilyUsingSCFForOp(
+    RewriterBase &rewriter, TilingInterface consumer,
+    const SCFTileAndFuseOptions &options);
 
 /// Method to lower an `op` that implements the `TilingInterface` to
 /// loops/scalars.
 FailureOr<SmallVector<scf::ForOp>>
 lowerToLoopsUsingSCFForOp(RewriterBase &rewriter, TilingInterface op);
+
+/// Transformation information returned after reduction tiling.
+struct SCFReductionTilingResult {
+  /// The partial reduction tiled op generated.
+  Operation *parallelTiledOp;
+  /// The final reduction operation merging all the partial reductions.
+  Operation *mergeOp;
+  /// Initial op
+  Operation *initialOp;
+  /// The `scf.for` operations that iterate over the tiles.
+  SmallVector<scf::ForOp> loops;
+};
+
+/// Method to tile a reduction and generate a parallel op within a serial loop.
+/// Each of the partial reductions are calculated in parallel. Then after the
+/// loop all the partial reduction are merged into a final reduction.
+/// For example for the following sequence
+///
+/// ```mlir
+/// %0 = linalg.generic %in ["parallel", "reduction"]
+///   : tensor<7x9xf32> -> tensor<7xf32>
+/// ```
+///
+/// into:
+///
+/// ```mlir
+/// %0 = linalg.fill ... : tensor<7x4xf32>
+/// %1 = scf.for ... iter_args(%arg0 = %0)
+///   %2 = tensor.extract_slice %arg0 : tensor<7x4xf32> -> tensor<7x?xf32>
+///   %3 = tensor.extract_slice %in : tensor<7x9xf32> -> tensor<7x?xf32>
+///   %4 = linalg.generic %2, %3 ["parallel", "parallel"]
+///     : tensor<7x?xf32> -> tensor<7x?xf32>
+///   %5 = tensor.insert_slice %3, %0[0, 0] : tensor<7x4xf32>
+/// }
+/// %6 = linalg.generic %1 ["parallel", "reduction"]
+///   : tensor<7x4xf32> -> tensor<7xf32>
+/// ```
+FailureOr<scf::SCFReductionTilingResult>
+tileReductionUsingScf(PatternRewriter &b, PartialReductionOpInterface op,
+                      ArrayRef<OpFoldResult> tileSize);
 
 } // namespace scf
 } // namespace mlir

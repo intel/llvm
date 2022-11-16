@@ -914,6 +914,17 @@ void Parser::ParseOpenCLQualifiers(ParsedAttributes &Attrs) {
                ParsedAttr::AS_Keyword);
 }
 
+bool Parser::isHLSLQualifier(const Token &Tok) const {
+  return Tok.is(tok::kw_groupshared);
+}
+
+void Parser::ParseHLSLQualifiers(ParsedAttributes &Attrs) {
+  IdentifierInfo *AttrName = Tok.getIdentifierInfo();
+  SourceLocation AttrNameLoc = ConsumeToken();
+  Attrs.addNew(AttrName, AttrNameLoc, nullptr, AttrNameLoc, nullptr, 0,
+               ParsedAttr::AS_Keyword);
+}
+
 void Parser::ParseNullabilityTypeSpecifiers(ParsedAttributes &attrs) {
   // Treat these like attributes, even though they're type specifiers.
   while (true) {
@@ -2054,6 +2065,9 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
     return nullptr;
   }
 
+  if (getLangOpts().HLSL)
+    MaybeParseHLSLSemantics(D);
+
   if (Tok.is(tok::kw_requires))
     ParseTrailingRequiresClause(D);
 
@@ -2223,6 +2237,10 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
       DiagnoseAndSkipExtendedMicrosoftTypeAttributes();
 
     ParseDeclarator(D);
+
+    if (getLangOpts().HLSL)
+      MaybeParseHLSLSemantics(D);
+
     if (!D.isInvalidType()) {
       // C++2a [dcl.decl]p1
       //    init-declarator:
@@ -3689,11 +3707,18 @@ void Parser::ParseDeclarationSpecifiers(
 
       if (TemplateId->Kind == TNK_Concept_template) {
         // If we've already diagnosed that this type-constraint has invalid
-        // arguemnts, drop it and just form 'auto' or 'decltype(auto)'.
+        // arguments, drop it and just form 'auto' or 'decltype(auto)'.
         if (TemplateId->hasInvalidArgs())
           TemplateId = nullptr;
 
-        if (NextToken().is(tok::identifier)) {
+        // Any of the following tokens are likely the start of the user
+        // forgetting 'auto' or 'decltype(auto)', so diagnose.
+        // Note: if updating this list, please make sure we update
+        // isCXXDeclarationSpecifier's check for IsPlaceholderSpecifier to have
+        // a matching list.
+        if (NextToken().isOneOf(tok::identifier, tok::kw_const,
+                                tok::kw_volatile, tok::kw_restrict, tok::amp,
+                                tok::ampamp)) {
           Diag(Loc, diag::err_placeholder_expected_auto_or_decltype_auto)
               << FixItHint::CreateInsertion(NextToken().getLocation(), "auto");
           // Attempt to continue as if 'auto' was placed here.
@@ -4322,6 +4347,11 @@ void Parser::ParseDeclarationSpecifiers(
     case tok::kw___read_write:
       ParseOpenCLQualifiers(DS.getAttributes());
       break;
+
+    case tok::kw_groupshared:
+      // NOTE: ParseHLSLQualifiers will consume the qualifier token.
+      ParseHLSLQualifiers(DS.getAttributes());
+      continue;
 
     case tok::less:
       // GCC ObjC supports types like "<SomeProtocol>" as a synonym for
@@ -5346,6 +5376,8 @@ bool Parser::isTypeSpecifierQualifier() {
   case tok::kw___read_only:
   case tok::kw___read_write:
   case tok::kw___write_only:
+
+  case tok::kw_groupshared:
     return true;
 
   case tok::kw_private:
@@ -5405,6 +5437,8 @@ bool Parser::isDeclarationSpecifier(
     return isDeclarationSpecifier(AllowImplicitTypename);
 
   case tok::coloncolon:   // ::foo::bar
+    if (!getLangOpts().CPlusPlus)
+      return false;
     if (NextToken().is(tok::kw_new) ||    // ::new
         NextToken().is(tok::kw_delete))   // ::delete
       return false;
@@ -5586,6 +5620,7 @@ bool Parser::isDeclarationSpecifier(
 #define GENERIC_IMAGE_TYPE(ImgType, Id) case tok::kw_##ImgType##_t:
 #include "clang/Basic/OpenCLImageTypes.def"
 
+  case tok::kw_groupshared:
     return true;
 
   case tok::kw_private:
@@ -5812,6 +5847,11 @@ void Parser::ParseTypeQualifierListOpt(
     case tok::kw___read_write:
       ParseOpenCLQualifiers(DS.getAttributes());
       break;
+
+    case tok::kw_groupshared:
+      // NOTE: ParseHLSLQualifiers will consume the qualifier token.
+      ParseHLSLQualifiers(DS.getAttributes());
+      continue;
 
     case tok::kw___unaligned:
       isInvalid = DS.SetTypeQual(DeclSpec::TQ_unaligned, Loc, PrevSpec, DiagID,
@@ -7166,7 +7206,8 @@ void Parser::ParseParameterDeclarationClause(
 
     // Parse GNU attributes, if present.
     MaybeParseGNUAttributes(ParmDeclarator);
-    MaybeParseHLSLSemantics(DS.getAttributes());
+    if (getLangOpts().HLSL)
+      MaybeParseHLSLSemantics(DS.getAttributes());
 
     if (Tok.is(tok::kw_requires)) {
       // User tried to define a requires clause in a parameter declaration,

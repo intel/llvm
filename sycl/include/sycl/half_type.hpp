@@ -70,8 +70,14 @@ inline __SYCL_CONSTEXPR_HALF uint16_t float2Half(const float &Val) {
     Frac16 = Frac32 >> 13;
     // Round the mantissa as given in OpenCL spec section : 6.1.1.1 The half
     // data type.
-    if (Frac32 >> 12 & 0x01)
+    // Round to nearest.
+    uint32_t roundBits = Frac32 & 0x1fff;
+    uint32_t halfway = 0x1000;
+    if (roundBits > halfway)
       Frac16 += 1;
+    // Tie to even.
+    else if (roundBits == halfway)
+      Frac16 += Frac16 & 1;
   } else if (__builtin_expect(Exp32Diff > -24, 0)) {
     // subnormals
     Frac16 = (Frac32 | (uint32_t(1) << 23)) >> (-Exp32Diff - 1);

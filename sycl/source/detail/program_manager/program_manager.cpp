@@ -404,7 +404,9 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
       CompileOpts += std::string(TemporaryStr);
   }
   bool isEsimdImage = getUint32PropAsBool(Img, "isEsimdImage");
-  bool isDoubleGRF = getUint32PropAsBool(Img, "isDoubleGRF");
+  // TODO: Remove isDoubleGRF check in next ABI break
+  bool isLargeGRF = getUint32PropAsBool(Img, "isLargeGRF") ||
+                    getUint32PropAsBool(Img, "isDoubleGRF");
   // The -vc-codegen option is always preserved for ESIMD kernels, regardless
   // of the contents SYCL_PROGRAM_COMPILE_OPTIONS environment variable.
   if (isEsimdImage) {
@@ -416,10 +418,12 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
     if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() == 0)
       CompileOpts += " -disable-finalizer-msg";
   }
-  if (isDoubleGRF) {
+  if (isLargeGRF) {
     if (!CompileOpts.empty())
       CompileOpts += " ";
-    CompileOpts += "-ze-opt-large-register-file";
+    // TODO: Always use -ze-opt-large-register-file once IGC VC bug ignoring it
+    // is fixed
+    CompileOpts += isEsimdImage ? "-doubleGRF" : "-ze-opt-large-register-file";
   }
 }
 
@@ -640,9 +644,10 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
 
   const RT::PiDevice PiDevice = Dev->getHandleRef();
 
+  uint32_t ImgId = Img.getImageID();
   auto BuildResult = getOrBuild<PiProgramT, compile_program_error>(
       Cache,
-      std::make_pair(std::make_pair(std::move(SpecConsts), KSId),
+      std::make_pair(std::make_pair(std::move(SpecConsts), ImgId),
                      std::make_pair(PiDevice, CompileOpts + LinkOpts)),
       AcquireF, GetF, BuildF);
   // getOrBuild is not supposed to return nullptr
@@ -1993,13 +1998,14 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     return BuiltProgram.release();
   };
 
+  uint32_t ImgId = Img.getImageID();
   const RT::PiDevice PiDevice = getRawSyclObjImpl(Devs[0])->getHandleRef();
+  auto CacheKey =
+      std::make_pair(std::make_pair(std::move(SpecConsts), ImgId),
+                     std::make_pair(PiDevice, CompileOpts + LinkOpts));
   // TODO: Throw SYCL2020 style exception
   auto BuildResult = getOrBuild<PiProgramT, compile_program_error>(
-      Cache,
-      std::make_pair(std::make_pair(std::move(SpecConsts), (size_t)ImgPtr),
-                     std::make_pair(PiDevice, CompileOpts + LinkOpts)),
-      AcquireF, GetF, BuildF);
+      Cache, CacheKey, AcquireF, GetF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
 
@@ -2020,11 +2026,10 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     const RT::PiDevice PiDeviceAdd =
         getRawSyclObjImpl(Devs[Idx])->getHandleRef();
 
-    getOrBuild<PiProgramT, compile_program_error>(
-        Cache,
-        std::make_pair(std::make_pair(std::move(SpecConsts), (size_t)ImgPtr),
-                       std::make_pair(PiDeviceAdd, CompileOpts + LinkOpts)),
-        AcquireF, GetF, CacheOtherDevices);
+    // Change device in the cache key to reduce copying of spec const data.
+    CacheKey.second.first = PiDeviceAdd;
+    getOrBuild<PiProgramT, compile_program_error>(Cache, CacheKey, AcquireF,
+                                                  GetF, CacheOtherDevices);
     // getOrBuild is not supposed to return nullptr
     assert(BuildResult != nullptr && "Invalid build result");
   }

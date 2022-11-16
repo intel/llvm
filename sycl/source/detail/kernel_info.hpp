@@ -28,7 +28,7 @@ typename std::enable_if<
 get_kernel_info(RT::PiKernel Kernel, const plugin &Plugin) {
   static_assert(detail::is_kernel_info_desc<Param>::value,
                 "Invalid kernel information descriptor");
-  size_t ResultSize;
+  size_t ResultSize = 0;
 
   // TODO catch an exception and put it to list of asynchronous exceptions
   Plugin.call<PiApiKind::piKernelGetInfo>(Kernel, PiInfoCode<Param>::value, 0,
@@ -47,7 +47,7 @@ template <typename Param>
 typename std::enable_if<
     std::is_same<typename Param::return_type, uint32_t>::value, uint32_t>::type
 get_kernel_info(RT::PiKernel Kernel, const plugin &Plugin) {
-  uint32_t Result;
+  uint32_t Result = 0;
 
   // TODO catch an exception and put it to list of asynchronous exceptions
   Plugin.call<PiApiKind::piKernelGetInfo>(Kernel, PiInfoCode<Param>::value,
@@ -83,7 +83,7 @@ get_kernel_device_specific_info(RT::PiKernel Kernel, RT::PiDevice Device,
                                 const plugin &Plugin) {
   static_assert(is_kernel_device_specific_info_desc<Param>::value,
                 "Unexpected kernel_device_specific information descriptor");
-  typename Param::return_type Result;
+  typename Param::return_type Result = {};
   // TODO catch an exception and put it to list of asynchronous exceptions
   get_kernel_device_specific_info_helper<Param>(
       Kernel, Device, Plugin, &Result, sizeof(typename Param::return_type));
@@ -98,7 +98,7 @@ get_kernel_device_specific_info(RT::PiKernel Kernel, RT::PiDevice Device,
                                 const plugin &Plugin) {
   static_assert(is_kernel_device_specific_info_desc<Param>::value,
                 "Unexpected kernel_device_specific information descriptor");
-  size_t Result[3];
+  size_t Result[3] = {0, 0, 0};
   // TODO catch an exception and put it to list of asynchronous exceptions
   get_kernel_device_specific_info_helper<Param>(Kernel, Device, Plugin, Result,
                                                 sizeof(size_t) * 3);
@@ -121,7 +121,7 @@ uint32_t get_kernel_device_specific_info_with_input(RT::PiKernel Kernel,
                 "Unexpected kernel_device_specific information descriptor for "
                 "query with input");
   size_t Input[3] = {In[0], In[1], In[2]};
-  uint32_t Result;
+  uint32_t Result = 0;
   // TODO catch an exception and put it to list of asynchronous exceptions
   Plugin.call<PiApiKind::piKernelGetSubGroupInfo>(
       Kernel, Device, PiInfoCode<Param>::value, sizeof(size_t) * 3, Input,

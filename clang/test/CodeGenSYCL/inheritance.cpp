@@ -5,6 +5,7 @@
 class second_base {
 public:
   int *e;
+  int *arr[2];
   second_base(int *E) : e(E) {}
 };
 
@@ -43,9 +44,9 @@ int main() {
 // CHECK: %struct.base = type { i32, %class.InnerField }
 // CHECK: %class.InnerField = type { %class.InnerFieldBase, i32 }
 // CHECK: %class.InnerFieldBase = type { i32 }
-// CHECK: %class.__generated_second_base = type { ptr addrspace(1) }
+// CHECK: %class.__generated_second_base = type { ptr addrspace(1), [2 x ptr addrspace(1)] }
 // CHECK: %struct.derived = type <{ %struct.base, [4 x i8], %class.second_base, i32, [4 x i8] }>
-// CHECK: %class.second_base = type { ptr addrspace(4) }
+// CHECK: %class.second_base = type { ptr addrspace(4), [2 x ptr addrspace(4)] }
 
 // Check kernel paramters
 // CHECK: define {{.*}}spir_kernel void @{{.*}}derived
@@ -69,7 +70,7 @@ int main() {
 // First, derived-to-base cast with offset:
 // CHECK: %[[OFFSET_CALC:.*]] = getelementptr inbounds i8, ptr addrspace(4) %[[LOCAL_OBJECT]], i64 16
 // Initialize 'second_base'
-// CHECK: call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 8 %[[OFFSET_CALC]], ptr addrspace(4) align 8 %[[ARG_BASE1]], i64 8, i1 false)
+// CHECK: call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 8 %[[OFFSET_CALC]], ptr addrspace(4) align 8 %[[ARG_BASE1]], i64 24, i1 false)
 
 // Initialize field 'a'
 // CHECK: %[[GEP_A:[a-zA-Z0-9]+]] = getelementptr inbounds %struct.derived, ptr addrspace(4) %[[LOCAL_OBJECT]], i32 0, i32 3

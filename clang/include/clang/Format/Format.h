@@ -369,14 +369,86 @@ struct FormatStyle {
   /// \version 3.5
   OperandAlignmentStyle AlignOperands;
 
-  /// If ``true``, aligns trailing comments.
-  /// \code
-  ///   true:                                   false:
-  ///   int a;     // My comment a      vs.     int a; // My comment a
-  ///   int b = 2; // comment  b                int b = 2; // comment about b
+  /// Enums for AlignTrailingComments
+  enum TrailingCommentsAlignmentKinds : int8_t {
+    /// Leave trailing comments as they are.
+    /// \code
+    ///   int a;    // comment
+    ///   int ab;       // comment
+    ///
+    ///   int abc;  // comment
+    ///   int abcd;     // comment
+    /// \endcode
+    TCAS_Leave,
+    /// Align trailing comments.
+    /// \code
+    ///   int a;  // comment
+    ///   int ab; // comment
+    ///
+    ///   int abc;  // comment
+    ///   int abcd; // comment
+    /// \endcode
+    TCAS_Always,
+    /// Don't align trailing comments but other formatter applies.
+    /// \code
+    ///   int a; // comment
+    ///   int ab; // comment
+    ///
+    ///   int abc; // comment
+    ///   int abcd; // comment
+    /// \endcode
+    TCAS_Never,
+  };
+
+  /// Alignment options
+  struct TrailingCommentsAlignmentStyle {
+    /// Specifies the way to align trailing comments.
+    TrailingCommentsAlignmentKinds Kind;
+    /// How many empty lines to apply alignment.
+    /// When both ``MaxEmptyLinesToKeep`` and ``OverEmptyLines`` are set to 2,
+    /// it formats like below.
+    /// \code
+    ///   int a;      // all these
+    ///
+    ///   int ab;     // comments are
+    ///
+    ///
+    ///   int abcdef; // aligned
+    /// \endcode
+    ///
+    /// When ``MaxEmptyLinesToKeep`` is set to 2 and ``OverEmptyLines`` is set
+    /// to 1, it formats like below.
+    /// \code
+    ///   int a;  // these are
+    ///
+    ///   int ab; // aligned
+    ///
+    ///
+    ///   int abcdef; // but this isn't
+    /// \endcode
+    unsigned OverEmptyLines;
+
+    bool operator==(const TrailingCommentsAlignmentStyle &R) const {
+      return Kind == R.Kind && OverEmptyLines == R.OverEmptyLines;
+    }
+    bool operator!=(const TrailingCommentsAlignmentStyle &R) const {
+      return !(*this == R);
+    }
+  };
+
+  /// Control of trailing comments.
+  ///
+  /// NOTE: As of clang-format 16 this option is not a bool but can be set
+  /// to the options. Conventional bool options still can be parsed as before.
+  ///
+  /// \code{.yaml}
+  ///   # Example of usage:
+  ///   AlignTrailingComments:
+  ///     Kind: Always
+  ///     OverEmptyLines: 2
   /// \endcode
   /// \version 3.7
-  bool AlignTrailingComments;
+  TrailingCommentsAlignmentStyle AlignTrailingComments;
 
   /// \brief If a function call or braced initializer list doesn't fit on a
   /// line, allow putting all arguments onto the next line, even if
@@ -610,7 +682,7 @@ struct FormatStyle {
     SLS_None,
     /// Only merge empty lambdas.
     /// \code
-    ///   auto lambda = [](int a) {}
+    ///   auto lambda = [](int a) {};
     ///   auto lambda2 = [](int a) {
     ///       return a;
     ///   };
@@ -621,12 +693,12 @@ struct FormatStyle {
     ///   auto lambda = [](int a) {
     ///       return a;
     ///   };
-    ///   sort(a.begin(), a.end(), ()[] { return x < y; })
+    ///   sort(a.begin(), a.end(), []() { return x < y; });
     /// \endcode
     SLS_Inline,
     /// Merge all lambdas fitting on a single line.
     /// \code
-    ///   auto lambda = [](int a) {}
+    ///   auto lambda = [](int a) {};
     ///   auto lambda2 = [](int a) { return a; };
     /// \endcode
     SLS_All,
@@ -2617,6 +2689,7 @@ struct FormatStyle {
   bool isJson() const { return Language == LK_Json; }
   bool isJavaScript() const { return Language == LK_JavaScript; }
   bool isVerilog() const { return Language == LK_Verilog; }
+  bool isProto() const { return Language == LK_Proto; }
 
   /// Language, this format style is targeted at.
   /// \version 3.5
@@ -3055,6 +3128,23 @@ struct FormatStyle {
   /// \version 14
   bool RemoveBracesLLVM;
 
+  /// Remove semicolons after the closing brace of a non-empty function.
+  /// \warning
+  ///  Setting this option to `true` could lead to incorrect code formatting due
+  ///  to clang-format's lack of complete semantic information. As such, extra
+  ///  care should be taken to review code changes made by this option.
+  /// \endwarning
+  /// \code
+  ///   false:                                     true:
+  ///
+  ///   int max(int a, int b) {                    int max(int a, int b) {
+  ///     return a > b ? a : b;                      return a > b ? a : b;
+  ///   };                                         }
+  ///
+  /// \endcode
+  /// \version 16
+  bool RemoveSemicolon;
+
   /// \brief The possible positions for the requires clause. The
   /// ``IndentRequires`` option is only used if the ``requires`` is put on the
   /// start of a line.
@@ -3135,6 +3225,32 @@ struct FormatStyle {
   /// \brief The position of the ``requires`` clause.
   /// \version 15
   RequiresClausePositionStyle RequiresClausePosition;
+
+  /// Indentation logic for requires expression bodies.
+  enum RequiresExpressionIndentationKind : int8_t {
+    /// Align requires expression body relative to the indentation level of the
+    /// outer scope the requires expression resides in.
+    /// This is the default.
+    /// \code
+    ///    template <typename T>
+    ///    concept C = requires(T t) {
+    ///      ...
+    ///    }
+    /// \endcode
+    REI_OuterScope,
+    /// Align requires expression body relative to the `requires` keyword.
+    /// \code
+    ///    template <typename T>
+    ///    concept C = requires(T t) {
+    ///                  ...
+    ///                }
+    /// \endcode
+    REI_Keyword,
+  };
+
+  /// The indentation used for requires expression bodies.
+  /// \version 16
+  RequiresExpressionIndentationKind RequiresExpressionIndentation;
 
   /// \brief The style if definition blocks should be separated.
   enum SeparateDefinitionStyle : int8_t {
@@ -3969,7 +4085,9 @@ struct FormatStyle {
            RawStringFormats == R.RawStringFormats &&
            ReferenceAlignment == R.ReferenceAlignment &&
            RemoveBracesLLVM == R.RemoveBracesLLVM &&
+           RemoveSemicolon == R.RemoveSemicolon &&
            RequiresClausePosition == R.RequiresClausePosition &&
+           RequiresExpressionIndentation == R.RequiresExpressionIndentation &&
            SeparateDefinitionBlocks == R.SeparateDefinitionBlocks &&
            ShortNamespaceLines == R.ShortNamespaceLines &&
            SortIncludes == R.SortIncludes &&

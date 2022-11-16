@@ -19,6 +19,7 @@
 #include <__algorithm/find_if.h>
 #include <__algorithm/min.h>
 #include <__assert>
+#include <__concepts/same_as.h>
 #include <__config>
 #include <__debug>
 #include <__format/format_arg.h>
@@ -28,7 +29,6 @@
 #include <__format/unicode.h>
 #include <__variant/monostate.h>
 #include <bit>
-#include <concepts>
 #include <cstdint>
 #include <string_view>
 #include <type_traits>
@@ -54,8 +54,7 @@ __parse_arg_id(const _CharT* __begin, const _CharT* __end, auto& __parse_ctx) {
   if (__begin == __end)
     __throw_format_error("End of input while parsing format-spec arg-id");
 
-  __format::__parse_number_result<_CharT> __r =
-      __format::__parse_arg_id(__begin, __end, __parse_ctx);
+  __format::__parse_number_result __r = __format::__parse_arg_id(__begin, __end, __parse_ctx);
 
   if (__r.__ptr == __end || *__r.__ptr != _CharT('}'))
     __throw_format_error("Invalid arg-id");
@@ -163,7 +162,8 @@ enum class _LIBCPP_ENUM_VIS __type : uint8_t {
   __fixed_lower_case,
   __fixed_upper_case,
   __general_lower_case,
-  __general_upper_case
+  __general_upper_case,
+  __debug
 };
 
 struct __std {
@@ -422,7 +422,7 @@ private:
       __throw_format_error("A format-spec width field shouldn't have a leading zero");
 
     if (*__begin == _CharT('{')) {
-      __format::__parse_number_result<_CharT> __r = __format_spec::__parse_arg_id(++__begin, __end, __parse_ctx);
+      __format::__parse_number_result __r = __format_spec::__parse_arg_id(++__begin, __end, __parse_ctx);
       __width_as_arg_ = true;
       __width_ = __r.__value;
       __begin = __r.__ptr;
@@ -432,7 +432,7 @@ private:
     if (*__begin < _CharT('0') || *__begin > _CharT('9'))
       return false;
 
-    __format::__parse_number_result<_CharT> __r = __format::__parse_number(__begin, __end);
+    __format::__parse_number_result __r = __format::__parse_number(__begin, __end);
     __width_ = __r.__value;
     _LIBCPP_ASSERT(__width_ != 0, "A zero value isn't allowed and should be impossible, "
                                   "due to validations in this function");
@@ -450,7 +450,7 @@ private:
       __throw_format_error("End of input while parsing format-spec precision");
 
     if (*__begin == _CharT('{')) {
-      __format::__parse_number_result<_CharT> __arg_id = __format_spec::__parse_arg_id(++__begin, __end, __parse_ctx);
+      __format::__parse_number_result __arg_id = __format_spec::__parse_arg_id(++__begin, __end, __parse_ctx);
       __precision_as_arg_ = true;
       __precision_ = __arg_id.__value;
       __begin = __arg_id.__ptr;
@@ -460,7 +460,7 @@ private:
     if (*__begin < _CharT('0') || *__begin > _CharT('9'))
       __throw_format_error("The format-spec precision field doesn't contain a value or arg-id");
 
-    __format::__parse_number_result<_CharT> __r = __format::__parse_number(__begin, __end);
+    __format::__parse_number_result __r = __format::__parse_number(__begin, __end);
     __precision_ = __r.__value;
     __precision_as_arg_ = false;
     __begin = __r.__ptr;
@@ -534,6 +534,11 @@ private:
     case 'x':
       __type_ = __type::__hexadecimal_lower_case;
       break;
+#  if _LIBCPP_STD_VER > 20
+    case '?':
+      __type_ = __type::__debug;
+      break;
+#  endif
     default:
       return;
     }
@@ -567,6 +572,7 @@ _LIBCPP_HIDE_FROM_ABI constexpr void __process_display_type_string(__format_spec
   switch (__type) {
   case __format_spec::__type::__default:
   case __format_spec::__type::__string:
+  case __format_spec::__type::__debug:
     break;
 
   default:
@@ -620,6 +626,7 @@ _LIBCPP_HIDE_FROM_ABI constexpr void __process_parsed_char(__parser<_CharT>& __p
   switch (__parser.__type_) {
   case __format_spec::__type::__default:
   case __format_spec::__type::__char:
+  case __format_spec::__type::__debug:
     __format_spec::__process_display_type_char(__parser);
     break;
 
@@ -701,6 +708,9 @@ struct __column_width_result {
   /// This limits the original output to fit in the wanted number of columns.
   const _CharT* __last_;
 };
+
+template <class _CharT>
+__column_width_result(size_t, const _CharT*) -> __column_width_result<_CharT>;
 
 /// Since a column width can be two it's possible that the requested column
 /// width can't be achieved. Depending on the intended usage the policy can be
@@ -879,7 +889,7 @@ _LIBCPP_HIDE_FROM_ABI constexpr __column_width_result<_CharT> __estimate_column_
   }
 
   ptrdiff_t __ascii_size = __it - __str.begin();
-  __column_width_result<_CharT> __result =
+  __column_width_result __result =
       __detail::__estimate_column_width_grapheme_clustering(__it, __str.end(), __maximum, __rounding);
 
   __result.__width_ += __ascii_size;

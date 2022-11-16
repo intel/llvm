@@ -644,11 +644,15 @@ clang++ -fsycl -fsycl-targets=amdgcn-amd-amdhsa \
 The target architecture may also be specified for the CUDA backend, with 
 `-Xsycl-target-backend --cuda-gpu-arch=<arch>`. Specifying the architecture is 
 necessary if an application aims to use newer hardware features, such as
-native atomic operations or tensor core operations. 
+native atomic operations or tensor core operations.
+Moreover, it is possible to pass specific options to CUDA `ptxas` (such as
+`--maxrregcount=<n>` for limiting the register usage or `--verbose` for
+printing generation statistics) using the `-Xcuda-ptxas` flag.
 
 ```bash
 clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
   simple-sycl-app.cpp -o simple-sycl-app-cuda.exe \
+  -Xcuda-ptxas --maxrregcount=128 -Xcuda-ptxas --verbose \
   -Xsycl-target-backend --cuda-gpu-arch=sm_80
 ```
 
@@ -683,13 +687,13 @@ The `simple-sycl-app.exe` application doesn't specify SYCL device for
 execution, so SYCL runtime will use `default_selector` logic to select one
 of accelerators available in the system.
 In this case, the behavior of the `default_selector` can be altered
-using the `SYCL_BE` environment variable, setting `PI_CUDA` forces
-the usage of the CUDA backend (if available), `PI_HIP` forces
-the usage of the HIP backend (if available), `PI_OPENCL` will
+using the `ONEAPI_DEVICE_SELECTOR` environment variable, setting `cuda:*` forces
+the usage of the CUDA backend (if available), `hip:*` forces
+the usage of the HIP backend (if available), `opencl:*` will
 force the usage of the OpenCL backend.
 
 ```bash
-SYCL_BE=PI_CUDA ./simple-sycl-app-cuda.exe
+ONEAPI_DEVICE_SELECTOR=cuda:* ./simple-sycl-app-cuda.exe
 ```
 
 The default is the OpenCL backend if available.
@@ -705,11 +709,11 @@ The results are correct!
 ```
 
 **NOTE**: Currently, when the application has been built with the CUDA target,
-the CUDA backend must be selected at runtime using the `SYCL_BE` environment
+the CUDA backend must be selected at runtime using the `ONEAPI_DEVICE_SELECTOR` environment
 variable.
 
 ```bash
-SYCL_BE=PI_CUDA ./simple-sycl-app-cuda.exe
+ONEAPI_DEVICE_SELECTOR=cuda:* ./simple-sycl-app-cuda.exe
 ```
 
 **NOTE**: DPC++/SYCL developers can specify SYCL device for execution using
@@ -731,7 +735,7 @@ cmake_minimum_required(VERSION 3.14)
 set(CMAKE_CXX_COMPILER "clang++")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsycl")
 
-project(simple-sycl-app)
+project(simple-sycl-app LANGUAGES CXX)
 
 add_executable(simple-sycl-app simple-sycl-app.cpp)
 ```

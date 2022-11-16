@@ -16,6 +16,7 @@
 #ifndef FORTRAN_OPTIMIZER_BUILDER_FIRBUILDER_H
 #define FORTRAN_OPTIMIZER_BUILDER_FIRBUILDER_H
 
+#include "flang/Common/MathOptionsBase.h"
 #include "flang/Optimizer/Dialect/FIROps.h"
 #include "flang/Optimizer/Dialect/FIRType.h"
 #include "flang/Optimizer/Support/KindMapping.h"
@@ -35,13 +36,22 @@ class BoxValue;
 
 /// Extends the MLIR OpBuilder to provide methods for building common FIR
 /// patterns.
-class FirOpBuilder : public mlir::OpBuilder {
+class FirOpBuilder : public mlir::OpBuilder, public mlir::OpBuilder::Listener {
 public:
   explicit FirOpBuilder(mlir::Operation *op, const fir::KindMapping &kindMap)
-      : OpBuilder{op}, kindMap{kindMap} {}
+      : OpBuilder{op, /*listener=*/this}, kindMap{kindMap} {}
   explicit FirOpBuilder(mlir::OpBuilder &builder,
                         const fir::KindMapping &kindMap)
-      : OpBuilder{builder}, kindMap{kindMap} {}
+      : OpBuilder{builder}, kindMap{kindMap} {
+    setListener(this);
+  }
+
+  // The listener self-reference has to be updated in case of copy-construction.
+  FirOpBuilder(const FirOpBuilder &other)
+      : OpBuilder{other}, kindMap{other.kindMap}, fastMathFlags{
+                                                      other.fastMathFlags} {
+    setListener(this);
+  }
 
   /// Get the current Region of the insertion point.
   mlir::Region &getRegion() { return *getBlock()->getParent(); }
@@ -176,10 +186,11 @@ public:
   fir::GlobalOp createGlobal(mlir::Location loc, mlir::Type type,
                              llvm::StringRef name,
                              mlir::StringAttr linkage = {},
-                             mlir::Attribute value = {}, bool isConst = false);
+                             mlir::Attribute value = {}, bool isConst = false,
+                             bool isTarget = false);
 
   fir::GlobalOp createGlobal(mlir::Location loc, mlir::Type type,
-                             llvm::StringRef name, bool isConst,
+                             llvm::StringRef name, bool isConst, bool isTarget,
                              std::function<void(FirOpBuilder &)> bodyBuilder,
                              mlir::StringAttr linkage = {});
 
@@ -188,7 +199,8 @@ public:
                                      llvm::StringRef name,
                                      mlir::StringAttr linkage = {},
                                      mlir::Attribute value = {}) {
-    return createGlobal(loc, type, name, linkage, value, /*isConst=*/true);
+    return createGlobal(loc, type, name, linkage, value, /*isConst=*/true,
+                        /*isTarget=*/false);
   }
 
   fir::GlobalOp
@@ -196,8 +208,8 @@ public:
                        llvm::StringRef name,
                        std::function<void(FirOpBuilder &)> bodyBuilder,
                        mlir::StringAttr linkage = {}) {
-    return createGlobal(loc, type, name, /*isConst=*/true, bodyBuilder,
-                        linkage);
+    return createGlobal(loc, type, name, /*isConst=*/true, /*isTarget=*/false,
+                        bodyBuilder, linkage);
   }
 
   /// Convert a StringRef string into a fir::StringLitOp.
@@ -292,6 +304,7 @@ public:
   mlir::Value genShape(mlir::Location loc, llvm::ArrayRef<mlir::Value> shift,
                        llvm::ArrayRef<mlir::Value> exts);
   mlir::Value genShape(mlir::Location loc, llvm::ArrayRef<mlir::Value> exts);
+  mlir::Value genShift(mlir::Location loc, llvm::ArrayRef<mlir::Value> shift);
 
   /// Create one of the shape ops given an extended value. For a boxed value,
   /// this may create a `fir.shift` op.
@@ -308,7 +321,8 @@ public:
   /// a memory reference type.
   /// Array entities are boxed with a shape and possibly a shift. Character
   /// entities are boxed with a LEN parameter.
-  mlir::Value createBox(mlir::Location loc, const fir::ExtendedValue &exv);
+  mlir::Value createBox(mlir::Location loc, const fir::ExtendedValue &exv,
+                        bool isPolymorphic = false);
 
   /// Create constant i1 with value 1. if \p b is true or 0. otherwise
   mlir::Value createBool(mlir::Location loc, bool b) {
@@ -389,11 +403,35 @@ public:
                                    mlir::Value ub, mlir::Value step,
                                    mlir::Type type);
 
+  /// Set default FastMathFlags value for all operations
+  /// supporting mlir::arith::FastMathAttr that will be created
+  /// by this builder.
+  void setFastMathFlags(mlir::arith::FastMathFlags flags) {
+    fastMathFlags = flags;
+  }
+
+  /// Set default FastMathFlags value from the passed MathOptionsBase
+  /// config.
+  void setFastMathFlags(Fortran::common::MathOptionsBase options);
+
   /// Dump the current function. (debug)
   LLVM_DUMP_METHOD void dumpFunc();
 
 private:
+  /// Set attributes (e.g. FastMathAttr) to \p op operation
+  /// based on the current attributes setting.
+  void setCommonAttributes(mlir::Operation *op) const;
+
+  /// FirOpBuilder hook for creating new operation.
+  void notifyOperationInserted(mlir::Operation *op) override {
+    setCommonAttributes(op);
+  }
+
   const KindMapping &kindMap;
+
+  /// FastMathFlags that need to be set for operations that support
+  /// mlir::arith::FastMathAttr.
+  mlir::arith::FastMathFlags fastMathFlags{};
 };
 
 } // namespace fir
@@ -557,6 +595,14 @@ mlir::Value genMaxWithZero(fir::FirOpBuilder &builder, mlir::Location loc,
 mlir::Value genCPtrOrCFunptrAddr(fir::FirOpBuilder &builder, mlir::Location loc,
                                  mlir::Value cPtr, mlir::Type ty);
 
+/// Get the C address value.
+mlir::Value genCPtrOrCFunptrValue(fir::FirOpBuilder &builder,
+                                  mlir::Location loc, mlir::Value cPtr);
+
+/// Create a fir.box from a fir::ExtendedValue and wrap it in a fir::BoxValue
+/// to keep all the lower bound and explicit parameter information.
+fir::BoxValue createBoxValue(fir::FirOpBuilder &builder, mlir::Location loc,
+                             const fir::ExtendedValue &exv);
 } // namespace fir::factory
 
 #endif // FORTRAN_OPTIMIZER_BUILDER_FIRBUILDER_H

@@ -1336,9 +1336,12 @@ Value *unwrapSpecialTypeInitializer(Value *V) {
   return nullptr;
 }
 
-bool isSamplerStructTy(Type *Ty) {
-  auto *STy = dyn_cast_or_null<StructType>(Ty);
-  return STy && STy->hasName() && STy->getName() == kSPR2TypeName::Sampler;
+bool isSamplerTy(Type *Ty) {
+  if (auto *TPT = dyn_cast_or_null<TypedPointerType>(Ty)) {
+    auto *STy = dyn_cast_or_null<StructType>(TPT->getElementType());
+    return STy && STy->hasName() && STy->getName() == kSPR2TypeName::Sampler;
+  }
+  return false;
 }
 
 bool isPipeOrAddressSpaceCastBI(const StringRef MangledName) {

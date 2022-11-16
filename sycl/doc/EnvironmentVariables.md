@@ -8,9 +8,7 @@ compiler and runtime.
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
 | `ONEAPI_DEVICE_SELECTOR` | [See below.](#oneapi_device_selector)  | This device selection environment variable can be used to limit the choice of devices available when the SYCL-using application is run.  Useful for limiting devices to a certain type (like GPUs or accelerators) or backends (like Level Zero or OpenCL).  This device selection mechanism is replacing `SYCL_DEVICE_FILTER` .  The `ONEAPI_DEVICE_SELECTOR` syntax is shared with OpenMP and also allows sub-devices to be chosen. [See below.](#oneapi_device_selector) for a full description.   |
-| `SYCL_BE` (deprecated) | `PI_OPENCL`, `PI_LEVEL_ZERO`, `PI_CUDA` | Force SYCL RT to consider only devices of the specified backend during the device selection.  The `SYCL_BE` environment variable is deprecated and will be removed soon. Please use the new env var `ONEAPI_DEVICE_SELECTOR` instead. |
-| `SYCL_DEVICE_TYPE` (deprecated) | CPU, GPU, ACC, HOST | Force SYCL to use the specified device type. If unset, default selection rules are applied. If set to any unlisted value, this control has no effect. If the requested device type is not found, a `sycl::runtime_error` exception is thrown. If a non-default device selector is used, a device must satisfy both the selector and this control to be chosen. This control only has effect on devices created with a selector. The `SYCL_DEVICE_TYPE` environment variable is deprecated and will be removed soon. Please use the new env var `ONEAPI_DEVICE_SELECTOR` instead. |
-| `SYCL_DEVICE_FILTER` | `backend:device_type:device_num` | See Section [`SYCL_DEVICE_FILTER`](#sycl_device_filter)  below. |
+| `SYCL_DEVICE_FILTER` (deprecated) | `backend:device_type:device_num` | Please use `ONEAPI_DEVICE_SELECTOR` environment variable instead. See section [`SYCL_DEVICE_FILTER`](#sycl_device_filter) below for `SYCL_DEVICE_FILTER` description. |
 | `SYCL_DEVICE_ALLOWLIST` | See [below](#sycl_device_allowlist) | Filter out devices that do not match the pattern specified. `BackendName` accepts `host`, `opencl`, `level_zero` or `cuda`. `DeviceType` accepts `host`, `cpu`, `gpu` or `acc`. `DeviceVendorId` accepts uint32_t in hex form (`0xXYZW`). `DriverVersion`, `PlatformVersion`, `DeviceName` and `PlatformName` accept regular expression. Special characters, such as parenthesis, must be escaped. DPC++ runtime will select only those devices which satisfy provided values above and regex. More than one device can be specified using the piping symbol "\|".|
 | `SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING` | Any(\*) | Disables automatic rounding-up of `parallel_for` invocation ranges. |
 | `SYCL_CACHE_DIR` | Path | Path to persistent cache root directory. Default values are `%AppData%\libsycl_cache` for Windows and `$XDG_CACHE_HOME/libsycl_cache` on Linux, if `XDG_CACHE_HOME` is not set then `$HOME/.cache/libsycl_cache`. When none of the environment variables are set SYCL persistent cache is disabled. |
@@ -36,7 +34,11 @@ With no environment variables set to say otherwise, all platforms and devices pr
 The syntax of this environment variable follows this BNF grammar:
 ```
 ONEAPI_DEVICE_SELECTOR = <selector-string>
-<selector-string> ::= <term>[;<term>...]
+<selector-string> ::= { <accept-filters> | <discard-filters> | <accept-filters>;<discard-filters> }
+<accept-filters> ::= <accept-filter>[;<accept-filter>...]
+<discard-filters> ::= <discard-filter>[;<discard-filter>...] 
+<accept-filter> ::= <term>
+<discard-filter> ::= !<term>
 <term> ::= <backend>:<devices>
 <backend> ::= { * | level_zero | opencl | cuda | hip | esimd_emulator }  // case insensitive
 <devices> ::= <device>[,<device>...]
@@ -54,6 +56,13 @@ The device indices are zero-based and are unique only within a backend. Therefor
 
 Additionally, if a sub-device is chosen (via numeric index or wildcard), then an additional layer of partitioning can be specified. In other words, a sub-sub-device can be selected. Like sub-devices, this is done with a period ( `.` ) and a sub-sub-device specifier which is a wildcard symbol ( `*` ) or a numeric index.  Example `ONEAPI_DEVICE_SELECTOR=level_zero:0.*.*` would partition device 0 into sub-devices and then partition each of those into sub-sub-devices. The range of grandchild sub-sub-devices would be the final devices available to the app, neither device 0, nor its child partitions would be in that list. 
 
+Lastly, a filter in the grammar can be thought of as a term in conjuction with an action that is taken on all devices that are selected by the term. The action can be an accept action or a discard action. Based on the action, a filter can be an accept filter or a discard filter.
+The string `<term>` represents an accept filter and the string `!<term>` represents a discard filter. The underlying term is the same but they perform different actions on the matching devices list.
+For example, `!opencl:*` discards all devices of the opencl backend from the list of available devices. The discarding filters, if there are any, must all appear at the end of the selector string. 
+When one or more filters accept a device and one or more filters discard the device, the latter have priority and the device is ultimately not made available to the user. This allows the user to provide selector strings such as `*:gpu;!cuda:*` that accepts all gpu devices except those with a CUDA backend.
+Furthermore, if the value of this environment variable only has discarding filters, an accepting filter that matches all devices, but not sub-devices and sub-sub-devices, will be implicitly included in the 
+environment variable to allow the user to specify only the list of devices that must not be made available. Therefore, `!*:cpu` will accept all devices except those that are of the cpu type and `opencl:*;!*:cpu`
+will accept all devices of the opencl backend exept those that are of the opencl backend and of the cpu type. It is legal to have a rejection filter even if it specifies devices have already been omitted by previous filters in the selection string. Doing so has no effect; the rejected devices are still omitted.
 
 The following examples further illustrate the usage of this environment variable:
 
@@ -68,13 +77,14 @@ The following examples further illustrate the usage of this environment variable
 | `ONEAPI_DEVICE_SELECTOR=opencl:0.*` | All the sub-devices from the OpenCL device with index 0 are exposed as SYCL root devices. No other devices are available. |
 | `ONEAPI_DEVICE_SELECTOR=opencl:0.2` | The third sub-device (2 in zero-based counting) of the OpenCL device with index 0 will be the sole device available.  |
 | `ONEAPI_DEVICE_SELECTOR=level_zero:*,*.*` | Exposes Level Zero devices to the application in two different ways. Each device (aka "card") is exposed as a SYCL root device and each sub-device is also exposed as a SYCL root device.|
-
+| `ONEAPI_DEVICE_SELECTOR="opencl:*;!opencl:0"` | All OpenCL devices except for the device with index 0 are available. |
+| `ONEAPI_DEVICE_SELECTOR="!*:cpu"` | All devices except for CPU devices are available. |
 
 Notes:
 - The backend argument is always required. An error will be thrown if it is absent.
 - Additionally, the backend MUST be followed by colon ( `:` ) and at least one device specifier of some sort, else an error is thrown.
 - For sub-devices and sub-sub-devices, the parent device must support partitioning (`info::partition_property::partition_by_affinity_domain` and `info::partition_affinity_domain::next_partitionable`. See the SYCL 2020 specification for a precise definition.) For Intel GPUs, the sub-device and sub-sub-device syntax can be used to expose tiles or CCSs to the SYCL application as root devices.  The exact mapping between sub-device, sub-sub-device, tiles, and CCSs is specific to the hardware.
-- The semi-colon character ( `;` ) is treated specially by many shells, so you may need to enclose the string in quotes if the selection string contains this character. 
+- The semi-colon character ( `;` ) and the exclamation mark character ( `!`  ) are treated specially by many shells, so you may need to enclose the string in quotes if the selection string contains these characters. 
 
 
 
@@ -90,7 +100,7 @@ fixed order of properties in the pattern.
 This environment variable limits the SYCL RT to use only a subset of the system's devices. Setting this environment variable affects all of the device query functions (`platform::get_devices()` and `platform::get_platforms()`) and all of the device selectors. 
 
 The value of this environment variable is a comma separated list of filters, where each filter is a triple of the form "`backend`:`device_type`:`device_num`" (without the quotes). Each element of the triple is optional, but each filter must have at least one value. Possible values of `backend` are:
-- `host`
+- `host` (Deprecated)
 - `level_zero`
 - `opencl`
 - `cuda`
@@ -99,7 +109,7 @@ The value of this environment variable is a comma separated list of filters, whe
 - `*`
 
 Possible values of `device_type` are:
-- `host`
+- `host` (Deprecated)
 - `cpu`
 - `gpu`
 - `acc`
@@ -107,9 +117,9 @@ Possible values of `device_type` are:
 
 `device_num` is an integer that indexes the enumeration of devices from the sycl-ls utility tool, where the first device in that enumeration has index zero in each backend. For example, `SYCL_DEVICE_FILTER=2` will return all devices with index '2' from all different backends. If multiple devices satisfy this device number (e.g., GPU and CPU devices can be assigned device number '2'), then default_selector will choose the device with the highest heuristic point.  When `SYCL_DEVICE_ALLOWLIST` is set, it is applied before enumerating devices and affects `device_num` values.
 
-Assuming a filter has all three elements of the triple, it selects only those devices that come from the given backend, have the specified device type, AND have the given device index. If more than one filter is specified, the RT is restricted to the union of devices selected by all filters. The RT does not include the `host` backend and the `host` device automatically unless one of the filters explicitly specifies the `host` device type. Therefore, `SYCL_DEVICE_FILTER=host` should be set to enforce SYCL to use the `host` device only. 
+Assuming a filter has all three elements of the triple, it selects only those devices that come from the given backend, have the specified device type, AND have the given device index. If more than one filter is specified, the RT is restricted to the union of devices selected by all filters.
 
-Note that all device selectors will throw an exception if the filtered list of devices does not include a device that satisfies the selector. For instance, `SYCL_DEVICE_FILTER=cpu,level_zero` will cause `host_selector()` to throw an exception. `SYCL_DEVICE_FILTER` also limits loading only specified plugins into the SYCL RT. In particular, `SYCL_DEVICE_FILTER=level_zero` will cause the `cpu_selector` to throw an exception since SYCL RT will only load the `level_zero` backend which does not support any CPU devices at this time. When multiple devices satisfy the filter (e..g, `SYCL_DEVICE_FILTER=gpu`), only one of them will be selected.
+Note that all device selectors will throw an exception if the filtered list of devices does not include a device that satisfies the selector. For instance, `SYCL_DEVICE_FILTER=cpu` will cause `gpu_selector()` to throw an exception. `SYCL_DEVICE_FILTER` also limits loading only specified plugins into the SYCL RT. In particular, `SYCL_DEVICE_FILTER=level_zero` will cause the `cpu_selector` to throw an exception since SYCL RT will only load the `level_zero` backend which does not support any CPU devices at this time. When multiple devices satisfy the filter (e..g, `SYCL_DEVICE_FILTER=gpu`), only one of them will be selected.
 
 ## `SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE`
 
@@ -238,6 +248,7 @@ variables in production code.</span>
 | `SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS` | Integer | When set to a positive value enables use of Level Zero immediate commandlists, which means there is no batching and all commands are immediately submitted for execution. Default is 0. Note: When immediate commandlist usage is enabled it is necessary to also set SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS to either 0 or 1.  |
 | `SYCL_PI_LEVEL_ZERO_USE_MULTIPLE_COMMANDLIST_BARRIERS` | Integer | When set to a positive value enables use of multiple Level Zero commandlists when submitting barriers. Default is 1. |
 | `SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_FILL` | Integer | When set to a positive value enables use of a copy engine for memory fill operations. Default is 0. |
+| `SYCL_PI_LEVEL_ZERO_SINGLE_ROOT_DEVICE_BUFFER_MIGRATION` | Integer | When set to "0" tells to use single root-device allocation for all devices in a context where all devices have same root. Otherwise performs regular buffer migration. Default is 1. |
 
 ## Debugging variables for CUDA Plugin
 

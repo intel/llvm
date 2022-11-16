@@ -27,8 +27,8 @@ template <template <int32_t> class _Type, class... _T> struct _GetValue {
 template <template <int32_t> class _Type, class _T1, class... _T>
 struct _GetValue<_Type, _T1, _T...> {
   static constexpr auto value =
-      detail::conditional_t<_MatchType<_Type, _T1>::value, _T1,
-                            _GetValue<_Type, _T...>>::value;
+      std::conditional_t<_MatchType<_Type, _T1>::value, _T1,
+                         _GetValue<_Type, _T...>>::value;
 };
 } // namespace intel
 } // namespace ext

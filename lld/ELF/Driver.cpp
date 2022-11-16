@@ -95,6 +95,8 @@ void Ctx::reset() {
   binaryFiles.clear();
   bitcodeFiles.clear();
   lazyBitcodeFiles.clear();
+  inputSections.clear();
+  ehInputSections.clear();
   duplicates.clear();
   nonPrevailingSyms.clear();
   whyExtractRecords.clear();
@@ -114,8 +116,6 @@ bool elf::link(ArrayRef<const char *> args, llvm::raw_ostream &stdoutOS,
     elf::ctx.reset();
     symtab = SymbolTable();
 
-    inputSections.clear();
-    ehInputSections.clear();
     outputSections.clear();
     symAux.clear();
 
@@ -542,7 +542,9 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   // Interpret these flags early because error()/warn() depend on them.
   errorHandler().errorLimit = args::getInteger(args, OPT_error_limit, 20);
   errorHandler().fatalWarnings =
-      args.hasFlag(OPT_fatal_warnings, OPT_no_fatal_warnings, false);
+      args.hasFlag(OPT_fatal_warnings, OPT_no_fatal_warnings, false) &&
+      !args.hasArg(OPT_no_warnings);
+  errorHandler().suppressWarnings = args.hasArg(OPT_no_warnings);
   checkZOptions(args);
 
   // Handle -help
@@ -1247,7 +1249,7 @@ static void readConfigs(opt::InputArgList &args) {
   config->trace = args.hasArg(OPT_trace);
   config->undefined = args::getStrings(args, OPT_undefined);
   config->undefinedVersion =
-      args.hasFlag(OPT_undefined_version, OPT_no_undefined_version, true);
+      args.hasFlag(OPT_undefined_version, OPT_no_undefined_version, false);
   config->unique = args.hasArg(OPT_unique);
   config->useAndroidRelrTags = args.hasFlag(
       OPT_use_android_relr_tags, OPT_no_use_android_relr_tags, false);
@@ -2018,7 +2020,7 @@ static void replaceCommonSymbols() {
 
       auto *bss = make<BssSection>("COMMON", s->size, s->alignment);
       bss->file = s->file;
-      inputSections.push_back(bss);
+      ctx.inputSections.push_back(bss);
       Defined(s->file, StringRef(), s->binding, s->stOther, s->type,
               /*value=*/0, s->size, bss)
           .overwrite(*s);
@@ -2248,9 +2250,16 @@ static std::vector<WrappedSymbol> addWrappedSymbols(opt::InputArgList &args) {
     if (!sym)
       continue;
 
-    Symbol *real = addUnusedUndefined(saver().save("__real_" + name));
     Symbol *wrap =
         addUnusedUndefined(saver().save("__wrap_" + name), sym->binding);
+
+    // If __real_ is referenced, pull in the symbol if it is lazy. Do this after
+    // processing __wrap_ as that may have referenced __real_.
+    StringRef realName = saver().save("__real_" + name);
+    if (symtab.find(realName))
+      addUnusedUndefined(name, sym->binding);
+
+    Symbol *real = addUnusedUndefined(realName);
     v.push_back({sym, real, wrap});
 
     // We want to tell LTO not to inline symbols to be overwritten
@@ -2707,20 +2716,20 @@ void LinkerDriver::link(opt::InputArgList &args) {
         if (!s || s == &InputSection::discarded)
           continue;
         if (LLVM_UNLIKELY(isa<EhInputSection>(s)))
-          ehInputSections.push_back(cast<EhInputSection>(s));
+          ctx.ehInputSections.push_back(cast<EhInputSection>(s));
         else
-          inputSections.push_back(s);
+          ctx.inputSections.push_back(s);
       }
     }
     for (BinaryFile *f : ctx.binaryFiles)
       for (InputSectionBase *s : f->getSections())
-        inputSections.push_back(cast<InputSection>(s));
+        ctx.inputSections.push_back(cast<InputSection>(s));
   }
 
   {
     llvm::TimeTraceScope timeScope("Strip sections");
     if (ctx.hasSympart.load(std::memory_order_relaxed)) {
-      llvm::erase_if(inputSections, [](InputSectionBase *s) {
+      llvm::erase_if(ctx.inputSections, [](InputSectionBase *s) {
         if (s->type != SHT_LLVM_SYMPART)
           return false;
         invokeELFT(readSymbolPartitionSection, s);
@@ -2730,7 +2739,7 @@ void LinkerDriver::link(opt::InputArgList &args) {
     // We do not want to emit debug sections if --strip-all
     // or --strip-debug are given.
     if (config->strip != StripPolicy::None) {
-      llvm::erase_if(inputSections, [](InputSectionBase *s) {
+      llvm::erase_if(ctx.inputSections, [](InputSectionBase *s) {
         if (isDebugSection(*s))
           return true;
         if (auto *isec = dyn_cast<InputSection>(s))
@@ -2787,7 +2796,7 @@ void LinkerDriver::link(opt::InputArgList &args) {
 
   // This adds a .comment section containing a version string.
   if (!config->relocatable)
-    inputSections.push_back(createCommentSection());
+    ctx.inputSections.push_back(createCommentSection());
 
   // Split SHF_MERGE and .eh_frame sections into pieces in preparation for garbage collection.
   invokeELFT(splitSections);

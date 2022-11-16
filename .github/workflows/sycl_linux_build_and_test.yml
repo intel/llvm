@@ -161,12 +161,12 @@ jobs:
     - name: Pack LIT
       run: tar -cJf lit.tar.xz -C $GITHUB_WORKSPACE/src/llvm/utils/lit .
     - name: Upload toolchain
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: sycl_linux_${{ inputs.build_artifact_suffix }}
         path: llvm_sycl.tar.xz
     - name: Upload LIT
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: sycl_lit_${{ inputs.build_artifact_suffix }}
         path: lit.tar.xz
@@ -226,7 +226,7 @@ jobs:
           sudo -E /opt/install_drivers.sh --all
         fi
     # FIXME cached_checkout fails here, but works everywhere else
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         persist-credentials: false
         path: llvm
@@ -277,7 +277,7 @@ jobs:
         fi
     # FIXME cached_checkout fails here, but works everywhere else
     # TODO: figure out if we remove this action
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         path: llvm
     # TODO should this action be packed into container as well?

@@ -90,11 +90,10 @@ public:
 
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
           matrix_layout Layout = matrix_layout::row_major,
-          access::address_space Space>
-inline __SYCL_ALWAYS_INLINE void
-joint_matrix_load(Group sg,
-                  joint_matrix<T, NumRows, NumCols, Layout, Group> &res,
-                  multi_ptr<T, Space> src, size_t stride, matrix_layout MemL) {
+          access::address_space Space, access::decorated IsDecorated>
+inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
+    Group sg, joint_matrix<T, NumRows, NumCols, Layout, Group> &res,
+    multi_ptr<T, Space, IsDecorated> src, size_t stride, matrix_layout MemL) {
 #ifdef __SYCL_DEVICE_ONLY__
   T *Ptr = src.get();
   switch (MemL) {
@@ -146,11 +145,10 @@ joint_matrix_load(Group sg,
 
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
           matrix_layout MatL = matrix_layout::row_major,
-          access::address_space Space>
-inline __SYCL_ALWAYS_INLINE void
-joint_matrix_store(Group sg,
-                   joint_matrix<T, NumRows, NumCols, MatL, Group> &src,
-                   multi_ptr<T, Space> res, size_t stride, matrix_layout MemL) {
+          access::address_space Space, access::decorated IsDecorated>
+inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
+    Group sg, joint_matrix<T, NumRows, NumCols, MatL, Group> &src,
+    multi_ptr<T, Space, IsDecorated> res, size_t stride, matrix_layout MemL) {
 #ifdef __SYCL_DEVICE_ONLY__
   T *Ptr = res.get();
   switch (MemL) {

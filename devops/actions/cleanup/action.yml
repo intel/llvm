@@ -2,7 +2,7 @@ name: 'Cleanup'
 description: 'Cleanup work directory upon job finish'
 
 runs:
-  using: 'node12'
+  using: 'node16'
   main: 'dummy.js'
   post: 'cleanup.js'
 

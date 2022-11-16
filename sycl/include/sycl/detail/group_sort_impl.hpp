@@ -62,8 +62,9 @@ template <typename Iter> struct GetValueType {
   using type = typename std::iterator_traits<Iter>::value_type;
 };
 
-template <typename ElementType, access::address_space Space>
-struct GetValueType<sycl::multi_ptr<ElementType, Space>> {
+template <typename ElementType, access::address_space Space,
+          access::decorated IsDecorated>
+struct GetValueType<sycl::multi_ptr<ElementType, Space, IsDecorated>> {
   using type = ElementType;
 };
 
