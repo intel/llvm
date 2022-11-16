@@ -1159,7 +1159,7 @@ public:
     return success();
   }
 };
-/// Simplify pointer2memref(memref2pointer(x)) to cast(x)
+/// Simplify memref2pointer(subindex(x)) to getelementptr(memref2pointer(x))
 class Memref2PointerIndex final : public OpRewritePattern<Memref2PointerOp> {
 public:
   using OpRewritePattern<Memref2PointerOp>::OpRewritePattern;
