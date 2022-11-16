@@ -9070,7 +9070,7 @@ inline pi_result piDeviceTime::get(uint64_t *deviceTime) {
 }
 
 inline pi_result piDeviceTime::getSubmitTime(pi_event *event) {
-  if (!(*event)->isProfilingEnabled() || !piIsEventUserVisible(event)) {
+  if (!(*event)->isProfilingEnabled()) {
     return PI_SUCCESS;
   }
   return get(&((*event)->submitTime));
