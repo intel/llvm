@@ -125,15 +125,11 @@ __ESIMD_API SurfaceIndex get_surface_index(AccessorTy acc) {
 /// @return A vector of elements read. Elements in masked out lanes are
 ///   undefined.
 ///
-template <typename Tx, int N, class T = detail::__raw_t<Tx>, typename Toffset>
-__ESIMD_API std::enable_if_t<detail::isPowerOf2(N, 32) &&
-                                 (std::is_same_v<Toffset, uint32_t> ||
-                                  std::is_same_v<Toffset, uint64_t>),
-                             simd<Tx, N>>
-gather(const Tx *p, simd<Toffset, N> offsets, simd_mask<N> mask = 1) {
-  simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
+template <typename Tx, int N, class T = detail::__raw_t<Tx>>
+__ESIMD_API std::enable_if_t<detail::isPowerOf2(N, 32), simd<Tx, N>>
+gather(const Tx *p, simd<uint64_t, N> offsets, simd_mask<N> mask = 1) {
   simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
-  addrs = addrs + offsets_i;
+  addrs = addrs + offsets;
 
   if constexpr (sizeof(T) == 1) {
     auto Ret = __esimd_svm_gather<T, N, detail::ElemsPerAddrEncoding<4>(),
@@ -164,15 +160,12 @@ gather(const Tx *p, simd<Toffset, N> offsets, simd_mask<N> mask = 1) {
 /// @param vals The vector to scatter.
 /// @param mask The access mask, defaults to all 1s.
 ///
-template <typename Tx, int N, class T = detail::__raw_t<Tx>, typename Toffset>
-__ESIMD_API std::enable_if_t<detail::isPowerOf2(N, 32) &&
-                             (std::is_same_v<Toffset, uint32_t> ||
-                              std::is_same_v<Toffset, uint64_t>)>
-scatter(Tx *p, simd<Toffset, N> offsets, simd<Tx, N> vals,
+template <typename Tx, int N, class T = detail::__raw_t<Tx>>
+__ESIMD_API std::enable_if_t<detail::isPowerOf2(N, 32)>
+scatter(Tx *p, simd<uint64_t, N> offsets, simd<Tx, N> vals,
         simd_mask<N> mask = 1) {
-  simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
-  addrs = addrs + offsets_i;
+  addrs = addrs + offsets;
   if constexpr (sizeof(T) == 1) {
     simd<T, N * 4> D;
     D = __esimd_wrregion<T, N * 4, N, /*VS*/ 0, N, 4>(D.data(), vals.data(), 0);
@@ -551,15 +544,12 @@ __ESIMD_API void scalar_store(AccessorTy acc, uint32_t offset, T val) {
 /// @return Read data - up to N*4 values of type \c Tx.
 ///
 template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR, typename T,
-          int N, typename Toffset>
-__ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && sizeof(T) == 4 &&
-                                 (std::is_same_v<Toffset, uint32_t> ||
-                                  std::is_same_v<Toffset, uint64_t>),
+          int N>
+__ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && sizeof(T) == 4,
                              simd<T, N * get_num_channels_enabled(RGBAMask)>>
-gather_rgba(const T *p, simd<Toffset, N> offsets, simd_mask<N> mask = 1) {
-  simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
+gather_rgba(const T *p, simd<uint64_t, N> offsets, simd_mask<N> mask = 1) {
   simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
-  addrs = addrs + offsets_i;
+  addrs = addrs + offsets;
   return __esimd_svm_gather4_scaled<detail::__raw_t<T>, N, RGBAMask>(
       addrs.data(), mask.data());
 }
@@ -605,17 +595,14 @@ template <rgba_channel_mask M> static void validate_rgba_write_channel_mask() {
 ///   undefined.
 ///
 template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR, typename T,
-          int N, typename Toffset>
-__ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && sizeof(T) == 4 &&
-                             (std::is_same_v<Toffset, uint32_t> ||
-                              std::is_same_v<Toffset, uint64_t>)>
-scatter_rgba(T *p, simd<Toffset, N> offsets,
+          int N>
+__ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && sizeof(T) == 4>
+scatter_rgba(T *p, simd<uint64_t, N> offsets,
              simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
              simd_mask<N> mask = 1) {
   detail::validate_rgba_write_channel_mask<RGBAMask>();
-  simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
-  addrs = addrs + offsets_i;
+  addrs = addrs + offsets;
   __esimd_svm_scatter4_scaled<detail::__raw_t<T>, N, RGBAMask>(
       addrs.data(), vals.data(), mask.data());
 }
@@ -785,15 +772,12 @@ constexpr void check_atomic() {
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename Tx, int N, typename Toffset>
-__ESIMD_API std::enable_if_t<std::is_same_v<Toffset, uint32_t> ||
-                                 std::is_same_v<Toffset, uint64_t>,
-                             simd<Tx, N>>
-atomic_update(Tx *p, simd<Toffset, N> offset, simd_mask<N> mask) {
+template <atomic_op Op, typename Tx, int N>
+__ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<uint64_t, N> offset,
+                                      simd_mask<N> mask) {
   detail::check_atomic<Op, Tx, N, 0>();
-  simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
-  simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(offset);
-  vAddr += offset_i1;
+  simd<uint64_t, N> vAddr(reinterpret_cast<uint64_t>(p));
+  vAddr += offset;
   using T = typename detail::__raw_t<Tx>;
   return __esimd_svm_atomic0<Op, T, N>(vAddr.data(), mask.data());
 }
@@ -821,12 +805,9 @@ atomic_update(Tx *p, simd<Toffset, N> offset, simd_mask<N> mask) {
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename Tx, int N, typename Toffset>
-__ESIMD_API std::enable_if_t<std::is_same_v<Toffset, uint32_t> ||
-                                 std::is_same_v<Toffset, uint64_t>,
-                             simd<Tx, N>>
-atomic_update(Tx *p, simd<Toffset, N> offset, simd<Tx, N> src0,
-              simd_mask<N> mask) {
+template <atomic_op Op, typename Tx, int N>
+__ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<uint64_t, N> offset,
+                                      simd<Tx, N> src0, simd_mask<N> mask) {
   if constexpr ((Op == atomic_op::fmin) || (Op == atomic_op::fmax) ||
                 (Op == atomic_op::fadd) || (Op == atomic_op::fsub)) {
     // Auto-convert FP atomics to LSC version. Warning is given - see enum.
@@ -834,9 +815,8 @@ atomic_update(Tx *p, simd<Toffset, N> offset, simd<Tx, N> src0,
                                                                 mask);
   } else {
     detail::check_atomic<Op, Tx, N, 1>();
-    simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
-    simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(offset);
-    vAddr += offset_i1;
+    simd<uint64_t, N> vAddr(reinterpret_cast<uint64_t>(p));
+    vAddr += offset;
 
     using T = typename detail::__raw_t<Tx>;
     return __esimd_svm_atomic1<Op, T, N>(vAddr.data(), src0.data(),
@@ -863,21 +843,18 @@ atomic_update(Tx *p, simd<Toffset, N> offset, simd<Tx, N> src0,
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename Tx, int N, typename Toffset>
-__ESIMD_API std::enable_if_t<std::is_same_v<Toffset, uint32_t> ||
-                                 std::is_same_v<Toffset, uint64_t>,
-                             simd<Tx, N>>
-atomic_update(Tx *p, simd<Toffset, N> offset, simd<Tx, N> src0,
-              simd<Tx, N> src1, simd_mask<N> mask) {
+template <atomic_op Op, typename Tx, int N>
+__ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<uint64_t, N> offset,
+                                      simd<Tx, N> src0, simd<Tx, N> src1,
+                                      simd_mask<N> mask) {
   if constexpr (Op == atomic_op::fcmpwr) {
     // Auto-convert FP atomics to LSC version. Warning is given - see enum.
     return atomic_update<detail::to_lsc_atomic_op<Op>(), Tx, N>(p, offset, src0,
                                                                 src1, mask);
   } else {
     detail::check_atomic<Op, Tx, N, 2>();
-    simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
-    simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(offset);
-    vAddr += offset_i1;
+    simd<uint64_t, N> vAddr(reinterpret_cast<uint64_t>(p));
+    vAddr += offset;
     using T = typename detail::__raw_t<Tx>;
     return __esimd_svm_atomic2<Op, T, N>(vAddr.data(), src0.data(), src1.data(),
                                          mask.data());
