@@ -1159,44 +1159,6 @@ public:
     return success();
   }
 };
-/// Simplify pointer2memref(memref2pointer(x)) to cast(x)
-class Memref2PointerIndex final : public OpRewritePattern<Memref2PointerOp> {
-public:
-  using OpRewritePattern<Memref2PointerOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(Memref2PointerOp op,
-                                PatternRewriter &rewriter) const override {
-    auto src = op.getSource().getDefiningOp<SubIndexOp>();
-    if (!src)
-      return failure();
-
-    if (src.getSource().getType().cast<MemRefType>().getShape().size() != 1)
-      return failure();
-
-    auto MET = src.getSource().getType().cast<MemRefType>().getElementType();
-    if (MET.isa<LLVM::LLVMStructType>())
-      return failure();
-
-    Value idx[] = {src.getIndex()};
-    auto PET = op.getType().cast<LLVM::LLVMPointerType>().getElementType();
-    if (PET != MET) {
-      auto ps = rewriter.create<polygeist::TypeSizeOp>(
-          op.getLoc(), rewriter.getIndexType(), mlir::TypeAttr::get(PET));
-      auto ms = rewriter.create<polygeist::TypeSizeOp>(
-          op.getLoc(), rewriter.getIndexType(), mlir::TypeAttr::get(MET));
-      idx[0] = rewriter.create<MulIOp>(op.getLoc(), idx[0], ms);
-      idx[0] = rewriter.create<DivUIOp>(op.getLoc(), idx[0], ps);
-    }
-    idx[0] = rewriter.create<arith::IndexCastOp>(op.getLoc(),
-                                                 rewriter.getI64Type(), idx[0]);
-    rewriter.replaceOpWithNewOp<LLVM::GEPOp>(
-        op, op.getType(),
-        rewriter.create<Memref2PointerOp>(op.getLoc(), op.getType(),
-                                          src.getSource()),
-        idx);
-    return success();
-  }
-};
 
 /// Simplify pointer2memref(memref2pointer(x)) to cast(x)
 template <typename T>
@@ -1433,8 +1395,7 @@ OpFoldResult Memref2PointerOp::fold(ArrayRef<Attribute> operands) {
 
 void Memref2PointerOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                    MLIRContext *context) {
-  results.insert<Memref2Pointer2MemrefCast, Memref2PointerIndex,
-                 SetSimplification<LLVM::MemsetOp>,
+  results.insert<Memref2Pointer2MemrefCast, SetSimplification<LLVM::MemsetOp>,
                  CopySimplification<LLVM::MemcpyOp>,
                  CopySimplification<LLVM::MemmoveOp>>(context);
 }
