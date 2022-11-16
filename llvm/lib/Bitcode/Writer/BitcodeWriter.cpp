@@ -622,8 +622,6 @@ static uint64_t getAttrKindEncoding(Attribute::AttrKind Kind) {
     return bitc::ATTR_KIND_ALLOC_SIZE;
   case Attribute::AlwaysInline:
     return bitc::ATTR_KIND_ALWAYS_INLINE;
-  case Attribute::ArgMemOnly:
-    return bitc::ATTR_KIND_ARGMEMONLY;
   case Attribute::Builtin:
     return bitc::ATTR_KIND_BUILTIN;
   case Attribute::ByVal:
@@ -642,10 +640,6 @@ static uint64_t getAttrKindEncoding(Attribute::AttrKind Kind) {
     return bitc::ATTR_KIND_HOT;
   case Attribute::ElementType:
     return bitc::ATTR_KIND_ELEMENTTYPE;
-  case Attribute::InaccessibleMemOnly:
-    return bitc::ATTR_KIND_INACCESSIBLEMEM_ONLY;
-  case Attribute::InaccessibleMemOrArgMemOnly:
-    return bitc::ATTR_KIND_INACCESSIBLEMEM_OR_ARGMEMONLY;
   case Attribute::InlineHint:
     return bitc::ATTR_KIND_INLINE_HINT;
   case Attribute::InReg:

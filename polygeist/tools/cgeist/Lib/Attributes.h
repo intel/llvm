@@ -48,16 +48,16 @@ public:
                              mlir::MLIRContext &Ctx);
 
   /// Add parameters attributes to the list.
-  AttributeList &addParamAttrs(llvm::ArrayRef<mlir::NamedAttrList> Attrs);
+  AttributeList &addParamAttributes(llvm::ArrayRef<mlir::NamedAttrList> Attrs);
 
   /// The function attributes are returned.
-  const mlir::NamedAttrList &getFnAttrs() const { return FnAttrs; }
+  const mlir::NamedAttrList &getFnAttributes() const { return FnAttrs; }
 
   /// The attributes for the ret value are returned.
-  const mlir::NamedAttrList &getRetAttrs() const { return RetAttrs; }
+  const mlir::NamedAttrList &getRetAttributes() const { return RetAttrs; }
 
   /// The attributes for the parameters are returned.
-  const mlir::ArrayRef<mlir::NamedAttrList> getParamAttrs() const {
+  const mlir::ArrayRef<mlir::NamedAttrList> getParamAttributes() const {
     return ParamAttrs;
   }
 
@@ -128,20 +128,21 @@ public:
 
   /// Return the given attribute if the builder contains it and llvm::None
   /// otherwise.
-  llvm::Optional<mlir::NamedAttribute> getAttr(llvm::StringRef AttrName) const;
   llvm::Optional<mlir::NamedAttribute>
-  getAttr(llvm::Attribute::AttrKind Kind) const;
+  getAttribute(llvm::StringRef AttrName) const;
+  llvm::Optional<mlir::NamedAttribute>
+  getAttribute(llvm::Attribute::AttrKind Kind) const;
 
   /// Returns the attributes contained in the builder.
-  llvm::ArrayRef<mlir::NamedAttribute> getAttrs() const { return Attrs; }
+  llvm::ArrayRef<mlir::NamedAttribute> getAttributes() const { return Attrs; }
 
   mlir::MLIRContext &getContext() const { return Ctx; }
 
   /// Returns a StringAttr of the form 'prefix.AttrName'.
   static mlir::StringAttr
-  createStringAttr(llvm::Twine AttrName,
-                   llvm::Optional<llvm::StringLiteral> Prefix,
-                   mlir::MLIRContext &Ctx);
+  createStringAttribute(llvm::Twine AttrName,
+                        llvm::Optional<llvm::StringLiteral> Prefix,
+                        mlir::MLIRContext &Ctx);
 
 private:
   using AddAttrFuncPtr =

@@ -26,6 +26,7 @@
 #include "mlir/Target/LLVMIR/TypeFromLLVM.h"
 
 #include "llvm/IR/Assumptions.h"
+#include "llvm/IR/ModRef.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/WithColor.h"
@@ -672,6 +673,19 @@ void CodeGenTypes::constructAttributeList(
   // The NoBuiltinAttr attached to the target FunctionDecl.
   const NoBuiltinAttr *NBA = nullptr;
 
+  // Some ABIs may result in additional accesses to arguments that may otherwise
+  // not be present.
+  auto AddPotentialArgAccess = [&]() {
+    llvm::Optional<mlir::NamedAttribute> A =
+        FuncAttrsBuilder.getAttribute(llvm::Attribute::Memory);
+    if (A) {
+      IntegerAttr AA = A->getValue().cast<IntegerAttr>();
+      auto ME = llvm::MemoryEffects::createFromIntValue(AA.getInt()) |
+                llvm::MemoryEffects::argMemOnly();
+      FuncAttrsBuilder.addAttribute(llvm::Attribute::Memory, ME.toIntValue());
+    }
+  };
+
   // Collect function IR attributes based on declaration-specific
   // information.
   if (TargetDecl) {
@@ -717,18 +731,24 @@ void CodeGenTypes::constructAttributeList(
 
     // 'const', 'pure' and 'noalias' attributed functions are also nounwind.
     if (TargetDecl->hasAttr<ConstAttr>()) {
-      FuncAttrsBuilder.addPassThroughAttribute(llvm::Attribute::ReadNone);
+      auto ME = llvm::MemoryEffects::none();
+      FuncAttrsBuilder.addPassThroughAttribute(llvm::Attribute::Memory,
+                                               ME.toIntValue());
       FuncAttrsBuilder.addPassThroughAttribute(llvm::Attribute::NoUnwind);
       // gcc specifies that 'const' functions have greater restrictions than
       // 'pure' functions, so they also cannot have infinite loops.
       FuncAttrsBuilder.addPassThroughAttribute(llvm::Attribute::WillReturn);
     } else if (TargetDecl->hasAttr<PureAttr>()) {
-      FuncAttrsBuilder.addPassThroughAttribute(llvm::Attribute::ReadOnly);
+      auto ME = llvm::MemoryEffects::readOnly();
+      FuncAttrsBuilder.addPassThroughAttribute(llvm::Attribute::Memory,
+                                               ME.toIntValue());
       FuncAttrsBuilder.addPassThroughAttribute(llvm::Attribute::NoUnwind);
       // gcc specifies that 'pure' functions cannot have infinite loops.
       FuncAttrsBuilder.addPassThroughAttribute(llvm::Attribute::WillReturn);
     } else if (TargetDecl->hasAttr<NoAliasAttr>()) {
-      FuncAttrsBuilder.addPassThroughAttribute(llvm::Attribute::ArgMemOnly);
+      auto ME = llvm::MemoryEffects::argMemOnly();
+      FuncAttrsBuilder.addPassThroughAttribute(llvm::Attribute::Memory,
+                                               ME.toIntValue());
       FuncAttrsBuilder.addPassThroughAttribute(llvm::Attribute::NoUnwind);
     }
     if (TargetDecl->hasAttr<RestrictAttr>())
@@ -919,9 +939,7 @@ void CodeGenTypes::constructAttributeList(
 
   case clang::CodeGen::ABIArgInfo::InAlloca:
   case clang::CodeGen::ABIArgInfo::Indirect: {
-    // inalloca and sret disable readnone and readonly
-    FuncAttrsBuilder.removeAttribute(llvm::Attribute::ReadOnly)
-        .removeAttribute(llvm::Attribute::ReadNone);
+    AddPotentialArgAccess();
     break;
   }
 
@@ -965,7 +983,7 @@ void CodeGenTypes::constructAttributeList(
       SRETAttrs.addAttribute(llvm::Attribute::InReg);
     SRETAttrs.addAttribute(llvm::Attribute::Alignment,
                            RetAI.getIndirectAlign().getQuantity());
-    ArgAttrs[IRFunctionArgs.getSRetArgNo()] = SRETAttrs.getAttrs();
+    ArgAttrs[IRFunctionArgs.getSRetArgNo()] = SRETAttrs.getAttributes();
   }
 
   // Attach attributes to inalloca argument.
@@ -974,7 +992,7 @@ void CodeGenTypes::constructAttributeList(
     assert(false && "TODO");
     //    Attrs.addAttribute(llvm::Attribute::InAlloca,
     //                     getMLIRType(FI.getArgStruct()));
-    ArgAttrs[IRFunctionArgs.getInallocaArgNo()] = Attrs.getAttrs();
+    ArgAttrs[IRFunctionArgs.getInallocaArgNo()] = Attrs.getAttributes();
   }
 
   // Apply `nonnull`, `dereferencable(N)` and `align N` to the `this` argument,
@@ -1017,7 +1035,7 @@ void CodeGenTypes::constructAttributeList(
             .getAsAlign();
     ParamAttrsBuilder.addAttribute(llvm::Attribute::Alignment,
                                    Alignment.value());
-    ArgAttrs[IRArgs.first] = ParamAttrsBuilder.getAttrs();
+    ArgAttrs[IRArgs.first] = ParamAttrsBuilder.getAttributes();
   }
 
   unsigned ArgNo = 0;
@@ -1034,7 +1052,7 @@ void CodeGenTypes::constructAttributeList(
         ArgAttrs[IRFunctionArgs.getPaddingArgNo(ArgNo)] =
             mlirclang::AttrBuilder(*Ctx)
                 .addAttribute(llvm::Attribute::InReg)
-                .getAttrs();
+                .getAttributes();
       }
     }
 
@@ -1102,8 +1120,7 @@ void CodeGenTypes::constructAttributeList(
                                        Align.getQuantity());
 
       // byval disables readnone and readonly.
-      FuncAttrsBuilder.removeAttribute(llvm::Attribute::ReadOnly)
-          .removeAttribute(llvm::Attribute::ReadNone);
+      AddPotentialArgAccess();
 
       break;
     }
@@ -1120,9 +1137,7 @@ void CodeGenTypes::constructAttributeList(
       break;
 
     case clang::CodeGen::ABIArgInfo::InAlloca:
-      // inalloca disables readnone and readonly.
-      FuncAttrsBuilder.removeAttribute(llvm::Attribute::ReadOnly)
-          .removeAttribute(llvm::Attribute::ReadNone);
+      AddPotentialArgAccess();
       continue;
     }
 
@@ -1205,7 +1220,7 @@ void CodeGenTypes::constructAttributeList(
       unsigned FirstIRArg, NumIRArgs;
       std::tie(FirstIRArg, NumIRArgs) = IRFunctionArgs.getIRArgs(ArgNo);
       for (unsigned I = 0; I < NumIRArgs; I++)
-        ArgAttrs[FirstIRArg + I].append(ParamAttrsBuilder.getAttrs());
+        ArgAttrs[FirstIRArg + I].append(ParamAttrsBuilder.getAttributes());
     }
   }
   assert(ArgNo == FI.arg_size());
@@ -1334,7 +1349,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     }
 
     auto *CXRD = dyn_cast<CXXRecordDecl>(RT->getDecl());
-    if (CodeGenTypes::IsLLVMStructABI(RT->getDecl(), ST))
+    if (CodeGenTypes::isLLVMStructABI(RT->getDecl(), ST))
       return TypeTranslator.translateType(anonymize(ST));
 
     /* TODO
@@ -1625,7 +1640,7 @@ CodeGenTypes::arrangeGlobalDeclaration(clang::GlobalDecl GD) {
   return CGM.getTypes().arrangeGlobalDeclaration(GD);
 }
 
-bool CodeGenTypes::IsLLVMStructABI(const clang::RecordDecl *RD,
+bool CodeGenTypes::isLLVMStructABI(const clang::RecordDecl *RD,
                                    llvm::StructType *ST) {
   if (!CombinedStructABI || RD->isUnion())
     return true;
