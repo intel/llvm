@@ -1173,9 +1173,12 @@ public:
     if (src.getSource().getType().cast<MemRefType>().getShape().size() != 1)
       return failure();
 
+    auto MET = src.getSource().getType().cast<MemRefType>().getElementType();
+    if (MET.isa<LLVM::LLVMStructType>())
+      return failure();
+
     Value idx[] = {src.getIndex()};
     auto PET = op.getType().cast<LLVM::LLVMPointerType>().getElementType();
-    auto MET = src.getSource().getType().cast<MemRefType>().getElementType();
     if (PET != MET) {
       auto ps = rewriter.create<polygeist::TypeSizeOp>(
           op.getLoc(), rewriter.getIndexType(), mlir::TypeAttr::get(PET));
