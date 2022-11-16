@@ -16,8 +16,8 @@ namespace oneapi {
 namespace experimental {
 namespace matrix {
 
-template <typename T, use Use, size_t Rows, size_t Cols, layout Layout = layout::dynamic,
-          typename Group = sycl::sub_group>
+template <typename T, use Use, size_t Rows, size_t Cols,
+          layout Layout = layout::dynamic, typename Group = sycl::sub_group>
 struct joint_matrix {
 
 #if defined(__SYCL_DEVICE_ONLY__)
@@ -111,7 +111,8 @@ joint_matrix_fill(Group sg,
 template <
     typename Group, typename S, typename T, size_t NumRows, size_t NumCols,
     access::address_space Space, access::decorated IsDecorated,
-    std::enable_if_t<std::is_same<S, std::remove_const_t<T>>::value, bool> = true>
+    std::enable_if_t<std::is_same<S, std::remove_const_t<T>>::value, bool> =
+        true>
 inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
     Group sg,
     joint_matrix<S, use::accumulator, NumRows, NumCols,
