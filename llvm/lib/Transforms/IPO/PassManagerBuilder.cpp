@@ -742,7 +742,7 @@ void PassManagerBuilder::populateModulePassManager(
   }
 
   addExtensionsToPM(EP_VectorizerStart, MPM);
-  
+
   // Re-rotate loops in all our loop nests. These may have fallout out of
   // rotated form due to GVN or other transformations, and the vectorizer relies
   // on the rotated form. Disable header duplication at -Oz.
