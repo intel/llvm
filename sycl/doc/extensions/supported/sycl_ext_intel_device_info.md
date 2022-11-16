@@ -431,7 +431,7 @@ Then the free device memory  can be obtained using the standard get\_info() inte
 
 A new device descriptor is added which provides the maximum clock rate of device's global memory.
 
-This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
+This new device descriptor is not available for devices in the OpenCL platform, and the matching aspect is false for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
 
 ## Version ##
 
@@ -468,7 +468,7 @@ Then the memory clock rate can be obtained using the standard get\_info() interf
 
 A new device descriptor is added which provides the maximum bus width between device and memory.
 
-This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
+This new device descriptor is not available for devices in the OpenCL platform, and the matching aspect is false for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
 
 ## Version ##
 

@@ -1815,6 +1815,26 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    FreeMemory);
   }
 
+  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE: {
+    int value = 0;
+    sycl::detail::pi::assertion(
+        hipDeviceGetAttribute(&value, hipDeviceAttributeMemoryClockRate,
+                              device->get()) == hipSuccess);
+    sycl::detail::pi::assertion(value >= 0);
+    // Convert kilohertz to megahertz when returning.
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   value / 1000);
+  }
+
+  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH: {
+    int value = 0;
+    sycl::detail::pi::assertion(
+        hipDeviceGetAttribute(&value, hipDeviceAttributeMemoryBusWidth,
+                              device->get()) == hipSuccess);
+    sycl::detail::pi::assertion(value >= 0);
+    return getInfo(param_value_size, param_value, param_value_size_ret, value);
+  }
+
   // TODO: Implement.
   case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
   // TODO: Investigate if this information is available on HIP.
@@ -1829,8 +1849,6 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
   case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16:
-  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH:
-  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE:
     return PI_ERROR_INVALID_VALUE;
 
   default:

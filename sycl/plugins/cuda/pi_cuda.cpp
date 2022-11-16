@@ -1926,6 +1926,25 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    FreeMemory);
   }
+  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE: {
+    int value = 0;
+    sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&value, CU_DEVICE_ATTRIBUTE_MEMORY_CLOCK_RATE,
+                             device->get()) == CUDA_SUCCESS);
+    sycl::detail::pi::assertion(value >= 0);
+    // Convert kilohertz to megahertz when returning.
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   value / 1000);
+  }
+  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH: {
+    int value = 0;
+    sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&value,
+                             CU_DEVICE_ATTRIBUTE_GLOBAL_MEMORY_BUS_WIDTH,
+                             device->get()) == CUDA_SUCCESS);
+    sycl::detail::pi::assertion(value >= 0);
+    return getInfo(param_value_size, param_value, param_value_size_ret, value);
+  }
 
     // TODO: Investigate if this information is available on CUDA.
   case PI_DEVICE_INFO_DEVICE_ID:
@@ -1941,8 +1960,6 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     // For details about this extension, see
     // sycl/doc/extensions/supported/sycl_ext_intel_device_info.md
   case PI_DEVICE_INFO_UUID:
-  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH:
-  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE:
     return PI_ERROR_INVALID_VALUE;
 
   default:
