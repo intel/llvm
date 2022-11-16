@@ -54,15 +54,12 @@
 
 ; CHECK-M2-IR: define {{.*}} @TU0_kernel0
 ; CHECK-M2-SYMS: TU0_kernel0
-; CHECK-M2-SYMS-EMPTY:
 
 ; CHECK-M1-IR: define {{.*}} @TU0_kernel1
 ; CHECK-M1-SYMS: TU0_kernel1
-; CHECK-M1-SYMS-EMPTY:
 
 ; CHECK-M0-IR: define {{.*}} @TU1_kernel2
 ; CHECK-M0-SYMS: TU1_kernel2
-; CHECK-M0-SYMS-EMPTY:
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64-unknown-linux"
