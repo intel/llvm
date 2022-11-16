@@ -354,13 +354,11 @@ bool device_impl::has(aspect Aspect) const {
                &return_size) == PI_SUCCESS;
   case aspect::ext_intel_memory_clock_rate:
     return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE,
-               sizeof(pi_device_type), &device_type,
+               MDevice, PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE, 0, nullptr,
                &return_size) == PI_SUCCESS;
   case aspect::ext_intel_memory_bus_width:
     return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH,
-               sizeof(pi_device_type), &device_type,
+               MDevice, PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH, 0, nullptr,
                &return_size) == PI_SUCCESS;
   case aspect::ext_intel_device_info_uuid: {
     auto Result = getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
