@@ -520,6 +520,10 @@ We add a new IR phase to the device compiler which does the following:
   graph so that each function lists the aspects used by that function and by
   any functions it calls.
 
+* If a function has the `!sycl_declared_aspects` metadata, creates (or augments)
+  the function's `!sycl_used_aspects` metadata with aspects from the
+  `!sycl_declared_aspects` list.
+
 * Diagnoses a warning if any function that has `!sycl_declared_aspects` uses
   an aspect not listed in that declared set.
 
