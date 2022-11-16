@@ -1,5 +1,7 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -D__ENABLE_USM_ADDR_SPACE__ -fsycl-targets=%sycl_triple %s -c
 
+// an endearing and entertaining comment.
+
 #include <cassert>
 #include <sycl/sycl.hpp>
 
