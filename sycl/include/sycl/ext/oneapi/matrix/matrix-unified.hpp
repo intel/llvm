@@ -16,87 +16,10 @@ namespace oneapi {
 namespace experimental {
 namespace matrix {
 
-// forward declarations
-template <typename T, use Use, size_t Rows, size_t Cols,
-          layout Layout = layout::dynamic, typename Group = sycl::sub_group>
-struct joint_matrix;
-
-template <typename Group, typename T, size_t NumRows, size_t NumCols, use Use,
-          layout Layout, typename T2>
-inline __SYCL_ALWAYS_INLINE void
-joint_matrix_fill(Group sg,
-                  joint_matrix<T, Use, NumRows, NumCols, Layout, Group> &res,
-                  const T2 &v);
-
-template <
-    typename Group, typename S, typename T, use Use, size_t NumRows,
-    size_t NumCols, matrix::layout Layout, access::address_space Space,
-    access::decorated IsDecorated,
-    std::enable_if_t<std::is_same<S, std::remove_const_t<T>>::value ||
-                         (std::is_same<S, precision::tf32>::value &&
-                          std::is_same<std::remove_const_t<T>, float>::value),
-                     bool> = true>
-inline __SYCL_ALWAYS_INLINE void
-joint_matrix_load(Group sg,
-                  joint_matrix<S, Use, NumRows, NumCols, Layout, Group> &res,
-                  multi_ptr<T, Space, IsDecorated> src, size_t stride);
-
-template <
-    typename Group, typename S, typename T, size_t NumRows, size_t NumCols,
-    access::address_space Space, access::decorated IsDecorated,
-    std::enable_if_t<std::is_same<S, std::remove_const_t<T>>::value, bool> =
-        true>
-inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
-    Group sg,
-    joint_matrix<S, use::accumulator, NumRows, NumCols,
-                 sycl::ext::oneapi::experimental::matrix::layout::dynamic,
-                 Group> &res,
-    multi_ptr<T, Space, IsDecorated> src, size_t stride,
-    sycl::ext::oneapi::experimental::matrix::layout Layout);
-
-template <typename Group, typename T, size_t NumRows, size_t NumCols,
-          access::address_space Space, access::decorated IsDecorated>
-inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
-    Group sg,
-    joint_matrix<T, use::accumulator, NumRows, NumCols,
-                 sycl::ext::oneapi::experimental::matrix::layout::dynamic,
-                 Group> &src,
-    multi_ptr<T, Space, IsDecorated> dst, size_t stride,
-    sycl::ext::oneapi::experimental::matrix::layout Layout);
-
-template <typename Group, typename Ta, typename Tb, typename Tc, std::size_t M,
-          std::size_t K, std::size_t N, layout LayoutA, layout LayoutB>
-inline __SYCL_ALWAYS_INLINE
-    joint_matrix<Tc, use::accumulator, M, N,
-                 sycl::ext::oneapi::experimental::matrix::layout::dynamic,
-                 Group>
-    joint_matrix_mad(
-        Group sg, joint_matrix<Ta, use::a, M, K, LayoutA, Group> &A,
-        joint_matrix<Tb, use::b, K, N, LayoutB, Group> &B,
-        joint_matrix<Tc, use::accumulator, M, N,
-                     sycl::ext::oneapi::experimental::matrix::layout::dynamic,
-                     Group> &C);
-
-// This overload of wi_data is only returned by joint_matrix.get_wi_data() in
-// the the nvptx backend.
-template <typename type, size_t size> class wi_data {
-  marray<type, size> &data;
-  wi_data(marray<type, size> &wi_marray) : data(wi_marray){};
-  template <typename T, use Use, size_t Rows, size_t Cols, layout Layout,
-            typename Group>
-  friend struct joint_matrix;
-
-public:
-  size_t length() { return data.size(); };
-
-  type &operator[](size_t i) { return data[i]; };
-};
-
-template <typename T, use Use, size_t Rows, size_t Cols, layout Layout,
-          typename Group>
+template <typename T, use Use, size_t Rows, size_t Cols, layout Layout = layout::dynamic,
+          typename Group = sycl::sub_group>
 struct joint_matrix {
 
-private:
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
   sycl::ext::oneapi::detail::joint_matrix_cuda<T, Use, Rows, Cols, Layout,
@@ -105,63 +28,6 @@ private:
 #endif
 #endif
 
-  template <typename Grp, typename T2, size_t nRows, size_t nCols, use UseT,
-            layout LayoutT, typename Type>
-  friend inline __SYCL_ALWAYS_INLINE void
-  joint_matrix_fill(Grp, joint_matrix<T2, UseT, nRows, nCols, LayoutT, Grp> &,
-                    const Type &);
-
-  template <typename Grp, typename jmType, typename Type, use UseL,
-            size_t nRows, size_t nCols, matrix::layout LayoutT,
-            access::address_space Sp, access::decorated IsDecorated,
-            std::enable_if_t<
-                std::is_same<jmType, std::remove_const_t<Type>>::value ||
-                    (std::is_same<jmType, precision::tf32>::value &&
-                     std::is_same<std::remove_const_t<Type>, float>::value),
-                bool>>
-  friend inline __SYCL_ALWAYS_INLINE void
-  joint_matrix_load(Grp,
-                    joint_matrix<jmType, UseL, nRows, nCols, LayoutT, Grp> &,
-                    multi_ptr<Type, Sp, IsDecorated>, size_t);
-
-  template <typename Grp, typename jmType, typename Type, size_t nRows,
-            size_t nCols, access::address_space Sp,
-            access::decorated IsDecorated,
-            std::enable_if_t<
-                std::is_same<jmType, std::remove_const_t<Type>>::value, bool>>
-  friend inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
-      Grp,
-      joint_matrix<jmType, use::accumulator, nRows, nCols,
-                   sycl::ext::oneapi::experimental::matrix::layout::dynamic,
-                   Grp> &,
-      multi_ptr<Type, Sp, IsDecorated>, size_t,
-      sycl::ext::oneapi::experimental::matrix::layout);
-
-  template <typename Grp, typename Type, size_t nRows, size_t nCols,
-            access::address_space Sp, access::decorated IsDecorated>
-  friend inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
-      Grp,
-      joint_matrix<Type, use::accumulator, nRows, nCols,
-                   sycl::ext::oneapi::experimental::matrix::layout::dynamic,
-                   Grp> &,
-      multi_ptr<Type, Sp, IsDecorated>, size_t,
-      sycl::ext::oneapi::experimental::matrix::layout);
-
-  template <typename Grp, typename T_a, typename T_b, typename T_c,
-            std::size_t m, std::size_t k, std::size_t n, layout LayoutA,
-            layout LayoutB>
-  friend inline __SYCL_ALWAYS_INLINE
-      joint_matrix<T_c, use::accumulator, m, n,
-                   sycl::ext::oneapi::experimental::matrix::layout::dynamic,
-                   Grp>
-      joint_matrix_mad(
-          Grp, joint_matrix<T_a, use::a, m, k, LayoutA, Grp> &,
-          joint_matrix<T_b, use::b, k, n, LayoutB, Grp> &,
-          joint_matrix<T_c, use::accumulator, m, n,
-                       sycl::ext::oneapi::experimental::matrix::layout::dynamic,
-                       Grp> &);
-
-public:
   joint_matrix() {
 #ifndef __SYCL_DEVICE_ONLY__
     throw runtime_error("joint matrix is not supported on host device.",
@@ -182,7 +48,7 @@ public:
 #if defined(__NVPTX__)
     return wi_data(cuda_impl.wi_marray);
 #else
-//  intel impl: return wi_data<T, NumRows, NumCols, Use, Layout, Group>(*this);
+//  intel impl TODO
 #endif
 #else
     // Host version of get_wi_data required by compiler even though it will
@@ -245,7 +111,7 @@ joint_matrix_fill(Group sg,
 template <
     typename Group, typename S, typename T, size_t NumRows, size_t NumCols,
     access::address_space Space, access::decorated IsDecorated,
-    std::enable_if_t<std::is_same<S, std::remove_const_t<T>>::value, bool>>
+    std::enable_if_t<std::is_same<S, std::remove_const_t<T>>::value, bool> = true>
 inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
     Group sg,
     joint_matrix<S, use::accumulator, NumRows, NumCols,
@@ -277,7 +143,7 @@ template <
     std::enable_if_t<std::is_same<S, std::remove_const_t<T>>::value ||
                          (std::is_same<S, precision::tf32>::value &&
                           std::is_same<std::remove_const_t<T>, float>::value),
-                     bool>>
+                     bool> = true>
 inline __SYCL_ALWAYS_INLINE void
 joint_matrix_load(Group sg,
                   joint_matrix<S, Use, NumRows, NumCols, Layout, Group> &res,
