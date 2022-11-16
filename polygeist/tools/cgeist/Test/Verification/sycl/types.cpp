@@ -104,3 +104,13 @@ SYCL_EXTERNAL void group_1(sycl::group<1> group) {}
 // CHECK:          %arg0: memref<?x!sycl_group_2_> {llvm.align = 8 : i64, llvm.byval = !sycl_group_2_, llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
 SYCL_EXTERNAL void group_2(sycl::group<2> group) {}
+
+// CHECK-LABEL: func.func @_Z6atomicN4sycl3_V16atomicIiLNS0_6access13address_spaceE1EEE(
+// CHECK:          %arg0: memref<?x!sycl.atomic<(memref<?xi32, 1>)>> {llvm.align = 8 : i64, llvm.byval = !sycl.atomic<(memref<?xi32, 1>)>, llvm.noundef})
+// CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
+SYCL_EXTERNAL void atomic(sycl::atomic<int> atomic_int) {}
+
+// CHECK-LABEL: func.func @_Z9multi_ptrN4sycl3_V19multi_ptrIiLNS0_6access13address_spaceE1ELNS2_9decoratedE1EEE(
+// CHECK:          %arg0: memref<?x!sycl.multi_ptr<(memref<?xi32, 1>)>> {llvm.align = 8 : i64, llvm.byval = !sycl.multi_ptr<(memref<?xi32, 1>)>, llvm.noundef})
+// CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
+SYCL_EXTERNAL void multi_ptr(sycl::multi_ptr<int, sycl::access::address_space::global_space, sycl::access::decorated::yes> multi_ptr_int) {}

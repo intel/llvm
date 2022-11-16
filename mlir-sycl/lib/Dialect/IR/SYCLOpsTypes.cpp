@@ -781,3 +781,89 @@ unsigned int mlir::sycl::GroupType::getDimension() const {
 llvm::ArrayRef<mlir::Type> mlir::sycl::GroupType::getBody() const {
   return getImpl()->Body;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// AtomicType Operations
+////////////////////////////////////////////////////////////////////////////////
+
+mlir::sycl::AtomicType
+mlir::sycl::AtomicType::get(MLIRContext *Context, llvm::SmallVector<mlir::Type, 4> Body) {
+  return Base::get(Context, Body);
+}
+
+mlir::Type mlir::sycl::AtomicType::parseType(mlir::DialectAsmParser &Parser) {
+  if (mlir::failed(Parser.parseLess())) {
+    return nullptr;
+  }
+
+  // parse the body
+  if (mlir::failed(Parser.parseLParen())) {
+    return nullptr;
+  }
+
+  mlir::SmallVector<Type, 4> Subtypes;
+  do {
+    mlir::Type Type;
+    if (mlir::failed(Parser.parseType(Type))) {
+      return nullptr;
+    }
+    Subtypes.push_back(Type);
+  } while (succeeded(Parser.parseOptionalComma()));
+
+  if (mlir::failed(Parser.parseRParen())) {
+    return nullptr;
+  }
+
+  if (mlir::failed(Parser.parseGreater())) {
+    return nullptr;
+  }
+
+  return mlir::sycl::AtomicType::get(Parser.getContext(), Subtypes);
+}
+
+llvm::ArrayRef<mlir::Type> mlir::sycl::AtomicType::getBody() const {
+  return getImpl()->Body;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// MultiPtrType Operations
+////////////////////////////////////////////////////////////////////////////////
+
+mlir::sycl::MultiPtrType
+mlir::sycl::MultiPtrType::get(MLIRContext *Context, llvm::SmallVector<mlir::Type, 4> Body) {
+  return Base::get(Context, Body);
+}
+
+mlir::Type mlir::sycl::MultiPtrType::parseType(mlir::DialectAsmParser &Parser) {
+  if (mlir::failed(Parser.parseLess())) {
+    return nullptr;
+  }
+
+  // parse the body
+  if (mlir::failed(Parser.parseLParen())) {
+    return nullptr;
+  }
+
+  mlir::SmallVector<Type, 4> Subtypes;
+  do {
+    mlir::Type Type;
+    if (mlir::failed(Parser.parseType(Type))) {
+      return nullptr;
+    }
+    Subtypes.push_back(Type);
+  } while (succeeded(Parser.parseOptionalComma()));
+
+  if (mlir::failed(Parser.parseRParen())) {
+    return nullptr;
+  }
+
+  if (mlir::failed(Parser.parseGreater())) {
+    return nullptr;
+  }
+
+  return mlir::sycl::MultiPtrType::get(Parser.getContext(), Subtypes);
+}
+
+llvm::ArrayRef<mlir::Type> mlir::sycl::MultiPtrType::getBody() const {
+  return getImpl()->Body;
+}

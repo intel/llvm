@@ -62,6 +62,14 @@ SYCLOpAsmInterface::getAlias(mlir::Type Type, llvm::raw_ostream &OS) const {
     OS << "sycl_group_" << Group.getDimension();
     return AliasResult::FinalAlias;
   }
+  if (const auto Atomic = Type.dyn_cast<mlir::sycl::AtomicType>()) {
+    OS << "sycl_atomic_";
+    return AliasResult::FinalAlias;
+  }
+  if (const auto MultiPtr = Type.dyn_cast<mlir::sycl::MultiPtrType>()) {
+    OS << "sycl_multi_ptr_";
+    return AliasResult::FinalAlias;
+  }
 
   return AliasResult::NoAlias;
 }

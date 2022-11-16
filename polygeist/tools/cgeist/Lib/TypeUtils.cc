@@ -158,6 +158,14 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
       return mlir::sycl::GroupType::get(CGT.getModule()->getContext(), Dim,
                                         Body);
     }
+    if (CTS->getName() == "atomic") {
+      return mlir::sycl::AtomicType::get(CGT.getModule()->getContext(),
+                                        Body);
+    }
+    if (CTS->getName() == "multi_ptr") {
+      return mlir::sycl::MultiPtrType::get(CGT.getModule()->getContext(),
+                                        Body);
+    }
   }
 
   llvm_unreachable("SYCL type not handle (yet)");

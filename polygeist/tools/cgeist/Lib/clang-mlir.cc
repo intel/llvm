@@ -1646,6 +1646,12 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
 
     Result = builder.create<polygeist::SubIndexOp>(loc, ResultType, val,
                                                    getConstantIndex(fnum));
+  } else if (auto RT =
+                 mt.getElementType().dyn_cast<mlir::sycl::AtomicType>()) {
+    llvm_unreachable("not implemented");
+  } else if (auto RT =
+                 mt.getElementType().dyn_cast<mlir::sycl::MultiPtrType>()) {
+    llvm_unreachable("not implemented");
   } else {
     auto mt0 =
         mlir::MemRefType::get(shape, mt.getElementType(),

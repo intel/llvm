@@ -299,6 +299,55 @@ struct GroupTypeStorage : public TypeStorage {
   llvm::SmallVector<mlir::Type, 4> Body;
 };
 
+struct AtomicTypeStorage : public TypeStorage {
+  using KeyTy = llvm::SmallVector<mlir::Type, 4>;
+
+  AtomicTypeStorage(const KeyTy &Key)
+      : Body(Key){}
+
+  bool operator==(const KeyTy &Key) const {
+    return Key == KeyTy{Body};
+  }
+
+  static llvm::hash_code hashKey(const KeyTy &Key) {
+    return llvm::hash_combine(Key);
+  }
+
+  static KeyTy getKey(const KeyTy &Key) { return KeyTy{Key}; }
+
+  static AtomicTypeStorage *construct(TypeStorageAllocator &Allocator,
+                                     const KeyTy &Key) {
+    return new (Allocator.allocate<AtomicTypeStorage>()) AtomicTypeStorage(Key);
+  }
+
+  llvm::SmallVector<mlir::Type, 4> Body;
+};
+
+struct MultiPtrTypeStorage : public TypeStorage {
+  using KeyTy = llvm::SmallVector<mlir::Type, 4>;
+
+  MultiPtrTypeStorage(const KeyTy &Key)
+      : Body(Key){}
+
+  bool operator==(const KeyTy &Key) const {
+    return Key == KeyTy{Body};
+  }
+
+  static llvm::hash_code hashKey(const KeyTy &Key) {
+    return llvm::hash_combine(Key);
+  }
+
+  static KeyTy getKey(const KeyTy &Key) { return KeyTy{Key}; }
+
+  static MultiPtrTypeStorage *construct(TypeStorageAllocator &Allocator,
+                                     const KeyTy &Key) {
+    return new (Allocator.allocate<MultiPtrTypeStorage>()) MultiPtrTypeStorage(Key);
+  }
+
+  llvm::SmallVector<mlir::Type, 4> Body;
+};
+
+
 } // namespace detail
 } // namespace sycl
 } // namespace mlir
@@ -500,6 +549,32 @@ public:
   static mlir::Type parseType(mlir::DialectAsmParser &Parser);
 
   unsigned int getDimension() const;
+  llvm::ArrayRef<mlir::Type> getBody() const;
+};
+
+class AtomicType
+    : public Type::TypeBase<AtomicType, Type, detail::AtomicTypeStorage,
+                            mlir::MemRefElementTypeInterface::Trait,
+                            mlir::LLVM::PointerElementTypeInterface::Trait> {
+public:
+  using Base::Base;
+
+  static mlir::sycl::AtomicType get(MLIRContext *Context, llvm::SmallVector<mlir::Type, 4> Body);
+  static mlir::Type parseType(mlir::DialectAsmParser &Parser);
+
+  llvm::ArrayRef<mlir::Type> getBody() const;
+};
+
+class MultiPtrType
+    : public Type::TypeBase<MultiPtrType, Type, detail::MultiPtrTypeStorage,
+                            mlir::MemRefElementTypeInterface::Trait,
+                            mlir::LLVM::PointerElementTypeInterface::Trait> {
+public:
+  using Base::Base;
+
+  static mlir::sycl::MultiPtrType get(MLIRContext *Context, llvm::SmallVector<mlir::Type, 4> Body);
+  static mlir::Type parseType(mlir::DialectAsmParser &Parser);
+
   llvm::ArrayRef<mlir::Type> getBody() const;
 };
 

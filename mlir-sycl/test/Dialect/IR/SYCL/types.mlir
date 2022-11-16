@@ -145,3 +145,25 @@ func.func @_Z7group_1N2cl4sycl5groupILi1EEE(%arg0: !sycl_group_1_) attributes {l
 func.func @_Z7group_2N2cl4sycl5groupILi2EEE(%arg0: !sycl_group_2_) attributes {llvm.linkage = #llvm.linkage<external>} {
   return
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// ATOMIC
+////////////////////////////////////////////////////////////////////////////////
+
+!sycl_atomic_ = !sycl.atomic<(memref<?xi32, 1>)>
+
+// CHECK: func @_Z6atomicN4sycl3_V16atomicIiLNS0_6access13address_spaceE1EEE(%arg0: !sycl_atomic_)
+func.func @_Z6atomicN4sycl3_V16atomicIiLNS0_6access13address_spaceE1EEE(%arg0: !sycl_atomic_) attributes {llvm.linkage = #llvm.linkage<external>} {
+  return
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// MULTI_PTR
+////////////////////////////////////////////////////////////////////////////////
+
+!sycl_multi_ptr_ = !sycl.multi_ptr<(memref<?xi32, 1>)>
+
+// CHECK: func @_Z9multi_ptrN4sycl3_V19multi_ptrIiLNS0_6access13address_spaceE1ELNS2_9decoratedE1EEE(%arg0: !sycl_multi_ptr_)
+func.func @_Z9multi_ptrN4sycl3_V19multi_ptrIiLNS0_6access13address_spaceE1ELNS2_9decoratedE1EEE(%arg0: !sycl_multi_ptr_) attributes {llvm.linkage = #llvm.linkage<external>} {
+  return
+}

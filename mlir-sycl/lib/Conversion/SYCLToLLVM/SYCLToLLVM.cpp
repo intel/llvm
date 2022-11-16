@@ -209,6 +209,21 @@ static Optional<Type> convertNdRangeType(sycl::NdRangeType type,
                          type.getBody(), converter);
 }
 
+/// Converts SYCL atomic type to LLVM type.
+static Optional<Type> convertAtomicType(sycl::AtomicType type,
+                                       LLVMTypeConverter &converter) {
+  return convertBodyType("class.sycl::_V1::atomic",
+                         type.getBody(), converter);
+}
+
+/// Converts SYCL multi_ptr type to LLVM type.
+static Optional<Type> convertMultiPtrType(sycl::MultiPtrType type,
+                                       LLVMTypeConverter &converter) {
+  return convertBodyType("class.sycl::_V1::multi_ptr",
+                         type.getBody(), converter);
+}
+
+
 //===----------------------------------------------------------------------===//
 // CallPattern - Converts `sycl.call` to LLVM.
 //===----------------------------------------------------------------------===//
@@ -397,6 +412,12 @@ void mlir::sycl::populateSYCLToLLVMTypeConversion(
   });
   typeConverter.addConversion([&](sycl::NdRangeType type) {
     return convertNdRangeType(type, typeConverter);
+  });
+  typeConverter.addConversion([&](sycl::AtomicType type) {
+    return convertAtomicType(type, typeConverter);
+  });
+  typeConverter.addConversion([&](sycl::MultiPtrType type) {
+    return convertMultiPtrType(type, typeConverter);
   });
 }
 
