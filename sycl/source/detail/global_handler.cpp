@@ -27,6 +27,24 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
+
+// just a draft, no unification
+template <class ResourceHandler> class ObjectUsageCounter {
+public:
+  ObjectUsageCounter(std::unique_ptr<ResourceHandler> &Obj) : MObj(Obj) {
+    MCounter++;
+  }
+  ~ObjectUsageCounter() {
+    MCounter--;
+    if (!MCounter)
+      MObj->releaseResources();
+  }
+
+private:
+  std::atomic_int MCounter;
+  std::unique_ptr<ResourceHandler> &MObj;
+};
+
 using LockGuard = std::lock_guard<SpinLock>;
 
 GlobalHandler::GlobalHandler() = default;
@@ -55,7 +73,12 @@ void GlobalHandler::attachScheduler(Scheduler *Scheduler) {
   MScheduler.Inst.reset(Scheduler);
 }
 
-Scheduler &GlobalHandler::getScheduler() { return getOrCreate(MScheduler); }
+Scheduler &GlobalHandler::getScheduler() {
+  // just a draft
+  getOrCreate(MScheduler);
+  thread_local ObjectUsageCounter SchedulerCounter(MScheduler.Inst);
+  return *MScheduler.Inst;
+}
 
 ProgramManager &GlobalHandler::getProgramManager() {
   return getOrCreate(MProgramManager);
