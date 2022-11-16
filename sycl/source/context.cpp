@@ -26,6 +26,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
+
 context::context(const property_list &PropList)
     : context(default_selector().select_device(), PropList) {}
 
@@ -49,7 +50,7 @@ context::context(const platform &Platform, async_handler AsyncHandler,
 
 context::context(const std::vector<device> &DeviceList,
                  const property_list &PropList)
-    : context(DeviceList, async_handler{}, PropList) {}
+    : context(DeviceList, detail::defaultAsyncHandler, PropList) {}
 
 context::context(const std::vector<device> &DeviceList,
                  async_handler AsyncHandler, const property_list &PropList) {

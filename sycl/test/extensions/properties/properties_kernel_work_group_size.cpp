@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl-device-only -S -Xclang -emit-llvm %s -o - | FileCheck %s --check-prefix CHECK-IR
-// RUN: %clangxx -fsycl -Xclang -verify %s
+// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s
 // expected-no-diagnostics
 
 #include <sycl/sycl.hpp>
@@ -64,31 +64,31 @@ int main() {
   // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel17(){{.*}} #[[WGSizeAttr6]]
   Q.parallel_for<class WGSizeKernel17>(R3, {Ev}, Props3, [](sycl::id<3>) {});
 
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel18{{.*}}{{.*}} #[[WGSizeAttr7:[0-9]+]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel18{{.*}}{{.*}} #[[WGSizeAttr7:[0-9]+]]
   Q.parallel_for<class WGSizeKernel18>(R1, Props1, Redu1,
                                        [](sycl::id<1>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel19{{.*}}{{.*}} #[[WGSizeAttr7]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel19{{.*}}{{.*}} #[[WGSizeAttr7]]
   Q.parallel_for<class WGSizeKernel19>(R1, Ev, Props1, Redu1,
                                        [](sycl::id<1>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel20{{.*}}{{.*}} #[[WGSizeAttr7]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel20{{.*}}{{.*}} #[[WGSizeAttr7]]
   Q.parallel_for<class WGSizeKernel20>(R1, {Ev}, Props1, Redu1,
                                        [](sycl::id<1>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel21{{.*}}{{.*}} #[[WGSizeAttr8:[0-9]+]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel21{{.*}}{{.*}} #[[WGSizeAttr8:[0-9]+]]
   Q.parallel_for<class WGSizeKernel21>(R2, Props2, Redu1,
                                        [](sycl::id<2>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel22{{.*}}{{.*}} #[[WGSizeAttr8]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel22{{.*}}{{.*}} #[[WGSizeAttr8]]
   Q.parallel_for<class WGSizeKernel22>(R2, Ev, Props2, Redu1,
                                        [](sycl::id<2>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel23{{.*}}{{.*}} #[[WGSizeAttr8]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel23{{.*}}{{.*}} #[[WGSizeAttr8]]
   Q.parallel_for<class WGSizeKernel23>(R2, {Ev}, Props2, Redu1,
                                        [](sycl::id<2>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel24{{.*}}{{.*}} #[[WGSizeAttr9:[0-9]+]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel24{{.*}}{{.*}} #[[WGSizeAttr9:[0-9]+]]
   Q.parallel_for<class WGSizeKernel24>(R3, Props3, Redu1,
                                        [](sycl::id<3>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel25{{.*}}{{.*}} #[[WGSizeAttr9]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel25{{.*}}{{.*}} #[[WGSizeAttr9]]
   Q.parallel_for<class WGSizeKernel25>(R3, Ev, Props3, Redu1,
                                        [](sycl::id<3>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel26{{.*}}{{.*}} #[[WGSizeAttr9]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel26{{.*}}{{.*}} #[[WGSizeAttr9]]
   Q.parallel_for<class WGSizeKernel26>(R3, {Ev}, Props3, Redu1,
                                        [](sycl::id<3>, auto &) {});
 
@@ -117,59 +117,59 @@ int main() {
   Q.parallel_for<class WGSizeKernel35>(NDR3, {Ev}, Props3,
                                        [](sycl::nd_item<3>) {});
 
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel36{{.*}}{{.*}} #[[WGSizeAttr7]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel36{{.*}}{{.*}} #[[WGSizeAttr7]]
   Q.parallel_for<class WGSizeKernel36>(NDR1, Props1, Redu1,
                                        [](sycl::nd_item<1>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel37{{.*}}{{.*}} #[[WGSizeAttr7]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel37{{.*}}{{.*}} #[[WGSizeAttr7]]
   Q.parallel_for<class WGSizeKernel37>(NDR1, Ev, Props1, Redu1,
                                        [](sycl::nd_item<1>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel38{{.*}}{{.*}} #[[WGSizeAttr7]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel38{{.*}}{{.*}} #[[WGSizeAttr7]]
   Q.parallel_for<class WGSizeKernel38>(NDR1, {Ev}, Props1, Redu1,
                                        [](sycl::nd_item<1>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel39{{.*}}{{.*}} #[[WGSizeAttr8]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel39{{.*}}{{.*}} #[[WGSizeAttr8]]
   Q.parallel_for<class WGSizeKernel39>(NDR2, Props2, Redu1,
                                        [](sycl::nd_item<2>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel40{{.*}}{{.*}} #[[WGSizeAttr8]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel40{{.*}}{{.*}} #[[WGSizeAttr8]]
   Q.parallel_for<class WGSizeKernel40>(NDR2, Ev, Props2, Redu1,
                                        [](sycl::nd_item<2>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel41{{.*}}{{.*}} #[[WGSizeAttr8]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel41{{.*}}{{.*}} #[[WGSizeAttr8]]
   Q.parallel_for<class WGSizeKernel41>(NDR2, {Ev}, Props2, Redu1,
                                        [](sycl::nd_item<2>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel42{{.*}}{{.*}} #[[WGSizeAttr9]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel42{{.*}}{{.*}} #[[WGSizeAttr9]]
   Q.parallel_for<class WGSizeKernel42>(NDR3, Props3, Redu1,
                                        [](sycl::nd_item<3>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel43{{.*}}{{.*}} #[[WGSizeAttr9]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel43{{.*}}{{.*}} #[[WGSizeAttr9]]
   Q.parallel_for<class WGSizeKernel43>(NDR3, Ev, Props3, Redu1,
                                        [](sycl::nd_item<3>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel44{{.*}}{{.*}} #[[WGSizeAttr9]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel44{{.*}}{{.*}} #[[WGSizeAttr9]]
   Q.parallel_for<class WGSizeKernel44>(NDR3, {Ev}, Props3, Redu1,
                                        [](sycl::nd_item<3>, auto &) {});
 
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel45{{.*}}{{.*}} #[[WGSizeAttr7]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel45{{.*}}{{.*}} #[[WGSizeAttr7]]
   Q.parallel_for<class WGSizeKernel45>(NDR1, Props1, Redu1, Redu2,
                                        [](sycl::nd_item<1>, auto &, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel46{{.*}}{{.*}} #[[WGSizeAttr7]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel46{{.*}}{{.*}} #[[WGSizeAttr7]]
   Q.parallel_for<class WGSizeKernel46>(NDR1, Ev, Props1, Redu1, Redu2,
                                        [](sycl::nd_item<1>, auto &, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel47{{.*}}{{.*}} #[[WGSizeAttr7]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel47{{.*}}{{.*}} #[[WGSizeAttr7]]
   Q.parallel_for<class WGSizeKernel47>(NDR1, {Ev}, Props1, Redu1, Redu2,
                                        [](sycl::nd_item<1>, auto &, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel48{{.*}}{{.*}} #[[WGSizeAttr8]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel48{{.*}}{{.*}} #[[WGSizeAttr8]]
   Q.parallel_for<class WGSizeKernel48>(NDR2, Props2, Redu1, Redu2,
                                        [](sycl::nd_item<2>, auto &, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel49{{.*}}{{.*}} #[[WGSizeAttr8]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel49{{.*}}{{.*}} #[[WGSizeAttr8]]
   Q.parallel_for<class WGSizeKernel49>(NDR2, Ev, Props2, Redu1, Redu2,
                                        [](sycl::nd_item<2>, auto &, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel50{{.*}}{{.*}} #[[WGSizeAttr8]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel50{{.*}}{{.*}} #[[WGSizeAttr8]]
   Q.parallel_for<class WGSizeKernel50>(NDR2, {Ev}, Props2, Redu1, Redu2,
                                        [](sycl::nd_item<2>, auto &, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel51{{.*}}{{.*}} #[[WGSizeAttr9]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel51{{.*}}{{.*}} #[[WGSizeAttr9]]
   Q.parallel_for<class WGSizeKernel51>(NDR3, Props3, Redu1, Redu2,
                                        [](sycl::nd_item<3>, auto &, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel52{{.*}}{{.*}} #[[WGSizeAttr9]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel52{{.*}}{{.*}} #[[WGSizeAttr9]]
   Q.parallel_for<class WGSizeKernel52>(NDR3, Ev, Props3, Redu1, Redu2,
                                        [](sycl::nd_item<3>, auto &, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel53{{.*}}{{.*}} #[[WGSizeAttr9]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel53{{.*}}{{.*}} #[[WGSizeAttr9]]
   Q.parallel_for<class WGSizeKernel53>(NDR3, {Ev}, Props3, Redu1, Redu2,
                                        [](sycl::nd_item<3>, auto &, auto &) {});
 
@@ -199,17 +199,17 @@ int main() {
     CGH.parallel_for<class WGSizeKernel59>(R3, Props3, [](sycl::id<3>) {});
   });
 
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel60{{.*}}{{.*}} #[[WGSizeAttr7]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel60{{.*}}{{.*}} #[[WGSizeAttr7]]
   Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for<class WGSizeKernel60>(R1, Props1, Redu1,
                                            [](sycl::id<1>, auto &) {});
   });
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel61{{.*}}{{.*}} #[[WGSizeAttr8]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel61{{.*}}{{.*}} #[[WGSizeAttr8]]
   Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for<class WGSizeKernel61>(R2, Props2, Redu1,
                                            [](sycl::id<2>, auto &) {});
   });
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel62{{.*}}{{.*}} #[[WGSizeAttr9]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel62{{.*}}{{.*}} #[[WGSizeAttr9]]
   Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for<class WGSizeKernel62>(R3, Props3, Redu1,
                                            [](sycl::id<3>, auto &) {});
@@ -231,33 +231,33 @@ int main() {
                                            [](sycl::nd_item<3>) {});
   });
 
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel66{{.*}}{{.*}} #[[WGSizeAttr7]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel66{{.*}}{{.*}} #[[WGSizeAttr7]]
   Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for<class WGSizeKernel66>(NDR1, Props1, Redu1,
                                            [](sycl::nd_item<1>, auto &) {});
   });
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel67{{.*}}{{.*}} #[[WGSizeAttr8]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel67{{.*}}{{.*}} #[[WGSizeAttr8]]
   Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for<class WGSizeKernel67>(NDR2, Props2, Redu1,
                                            [](sycl::nd_item<2>, auto &) {});
   });
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel68{{.*}}{{.*}} #[[WGSizeAttr9]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel68{{.*}}{{.*}} #[[WGSizeAttr9]]
   Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for<class WGSizeKernel68>(NDR3, Props3, Redu1,
                                            [](sycl::nd_item<3>, auto &) {});
   });
 
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel69{{.*}}{{.*}} #[[WGSizeAttr7]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel69{{.*}}{{.*}} #[[WGSizeAttr7]]
   Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for<class WGSizeKernel69>(
         NDR1, Props1, Redu1, Redu2, [](sycl::nd_item<1>, auto &, auto &) {});
   });
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel70{{.*}}{{.*}} #[[WGSizeAttr8]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel70{{.*}}{{.*}} #[[WGSizeAttr8]]
   Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for<class WGSizeKernel70>(
         NDR2, Props2, Redu1, Redu2, [](sycl::nd_item<2>, auto &, auto &) {});
   });
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}WGSizeKernel71{{.*}}{{.*}} #[[WGSizeAttr9]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel71{{.*}}{{.*}} #[[WGSizeAttr9]]
   Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for<class WGSizeKernel71>(
         NDR3, Props3, Redu1, Redu2, [](sycl::nd_item<3>, auto &, auto &) {});

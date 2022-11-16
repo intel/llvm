@@ -183,6 +183,18 @@ enum Kind {
   kw_##DISPLAY_NAME,
 #include "llvm/IR/Attributes.inc"
 
+  // Memory attribute:
+  kw_read,
+  kw_write,
+  kw_readwrite,
+  kw_argmem,
+  kw_inaccessiblemem,
+
+  // Legacy memory attributes:
+  kw_argmemonly,
+  kw_inaccessiblememonly,
+  kw_inaccessiblemem_or_argmemonly,
+
   kw_type,
   kw_opaque,
 

@@ -160,8 +160,6 @@ public:
 
   const QueueImplPtr &getQueue() const { return MQueue; }
 
-  const QueueImplPtr &getSubmittedQueue() const { return MSubmittedQueue; }
-
   const EventImplPtr &getEvent() const { return MEvent; }
 
   // Methods needed to support SYCL instrumentation
@@ -228,7 +226,6 @@ public:
 
 protected:
   QueueImplPtr MQueue;
-  QueueImplPtr MSubmittedQueue;
   EventImplPtr MEvent;
   QueueImplPtr MWorkerQueue;
 

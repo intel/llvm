@@ -1767,11 +1767,13 @@ TEST_F(OpenMPIRBuilderTest, TileSingleLoopCounts) {
 
 TEST_F(OpenMPIRBuilderTest, ApplySimd) {
   OpenMPIRBuilder OMPBuilder(*M);
-
+  MapVector<Value *, Value *> AlignedVars;
   CanonicalLoopInfo *CLI = buildSingleLoopFunction(DL, OMPBuilder, 32);
 
   // Simd-ize the loop.
-  OMPBuilder.applySimd(CLI, /* IfCond */ nullptr, /* Simdlen */ nullptr,
+  OMPBuilder.applySimd(CLI, AlignedVars, /* IfCond */ nullptr,
+                       OrderKind::OMP_ORDER_unknown,
+                       /* Simdlen */ nullptr,
                        /* Safelen */ nullptr);
 
   OMPBuilder.finalize();
@@ -1797,13 +1799,76 @@ TEST_F(OpenMPIRBuilderTest, ApplySimd) {
   }));
 }
 
-TEST_F(OpenMPIRBuilderTest, ApplySimdlen) {
+TEST_F(OpenMPIRBuilderTest, ApplySimdCustomAligned) {
   OpenMPIRBuilder OMPBuilder(*M);
+  IRBuilder<> Builder(BB);
+  const int AlignmentValue = 32;
+  AllocaInst *Alloc1 =
+      Builder.CreateAlloca(Builder.getInt8PtrTy(), Builder.getInt64(1));
+  LoadInst *Load1 = Builder.CreateLoad(Alloc1->getAllocatedType(), Alloc1);
+  MapVector<Value *, Value *> AlignedVars;
+  AlignedVars.insert({Load1, Builder.getInt64(AlignmentValue)});
 
   CanonicalLoopInfo *CLI = buildSingleLoopFunction(DL, OMPBuilder, 32);
 
   // Simd-ize the loop.
-  OMPBuilder.applySimd(CLI, /* IfCond */ nullptr,
+  OMPBuilder.applySimd(CLI, AlignedVars, /* IfCond */ nullptr,
+                       OrderKind::OMP_ORDER_unknown,
+                       /* Simdlen */ nullptr,
+                       /* Safelen */ nullptr);
+
+  OMPBuilder.finalize();
+  EXPECT_FALSE(verifyModule(*M, &errs()));
+
+  PassBuilder PB;
+  FunctionAnalysisManager FAM;
+  PB.registerFunctionAnalyses(FAM);
+  LoopInfo &LI = FAM.getResult<LoopAnalysis>(*F);
+
+  const std::vector<Loop *> &TopLvl = LI.getTopLevelLoops();
+  EXPECT_EQ(TopLvl.size(), 1u);
+
+  Loop *L = TopLvl.front();
+  EXPECT_TRUE(findStringMetadataForLoop(L, "llvm.loop.parallel_accesses"));
+  EXPECT_TRUE(getBooleanLoopAttribute(L, "llvm.loop.vectorize.enable"));
+
+  // Check for llvm.access.group metadata attached to the printf
+  // function in the loop body.
+  BasicBlock *LoopBody = CLI->getBody();
+  EXPECT_TRUE(any_of(*LoopBody, [](Instruction &I) {
+    return I.getMetadata("llvm.access.group") != nullptr;
+  }));
+
+  // Check if number of assumption instructions is equal to number of aligned
+  // variables
+  BasicBlock *LoopPreheader = CLI->getPreheader();
+  size_t NumAssummptionCallsInPreheader = count_if(
+      *LoopPreheader, [](Instruction &I) { return isa<AssumeInst>(I); });
+  EXPECT_EQ(NumAssummptionCallsInPreheader, AlignedVars.size());
+
+  // Check if variables are correctly aligned
+  for (Instruction &Instr : *LoopPreheader) {
+    if (!isa<AssumeInst>(Instr))
+      continue;
+    AssumeInst *AssumeInstruction = cast<AssumeInst>(&Instr);
+    if (AssumeInstruction->getNumTotalBundleOperands()) {
+      auto Bundle = AssumeInstruction->getOperandBundleAt(0);
+      if (Bundle.getTagName() == "align") {
+        EXPECT_TRUE(isa<ConstantInt>(Bundle.Inputs[1]));
+        auto ConstIntVal = dyn_cast<ConstantInt>(Bundle.Inputs[1]);
+        EXPECT_EQ(ConstIntVal->getSExtValue(), AlignmentValue);
+      }
+    }
+  }
+}
+TEST_F(OpenMPIRBuilderTest, ApplySimdlen) {
+  OpenMPIRBuilder OMPBuilder(*M);
+  MapVector<Value *, Value *> AlignedVars;
+  CanonicalLoopInfo *CLI = buildSingleLoopFunction(DL, OMPBuilder, 32);
+
+  // Simd-ize the loop.
+  OMPBuilder.applySimd(CLI, AlignedVars,
+                       /* IfCond */ nullptr, OrderKind::OMP_ORDER_unknown,
                        ConstantInt::get(Type::getInt32Ty(Ctx), 3),
                        /* Safelen */ nullptr);
 
@@ -1831,15 +1896,52 @@ TEST_F(OpenMPIRBuilderTest, ApplySimdlen) {
   }));
 }
 
-TEST_F(OpenMPIRBuilderTest, ApplySafelen) {
+TEST_F(OpenMPIRBuilderTest, ApplySafelenOrderConcurrent) {
   OpenMPIRBuilder OMPBuilder(*M);
+  MapVector<Value *, Value *> AlignedVars;
 
   CanonicalLoopInfo *CLI = buildSingleLoopFunction(DL, OMPBuilder, 32);
 
   // Simd-ize the loop.
-  OMPBuilder.applySimd(CLI, /* IfCond */ nullptr,
-                       /* Simdlen */ nullptr,
-                       ConstantInt::get(Type::getInt32Ty(Ctx), 3));
+  OMPBuilder.applySimd(
+      CLI, AlignedVars, /* IfCond */ nullptr, OrderKind::OMP_ORDER_concurrent,
+      /* Simdlen */ nullptr, ConstantInt::get(Type::getInt32Ty(Ctx), 3));
+
+  OMPBuilder.finalize();
+  EXPECT_FALSE(verifyModule(*M, &errs()));
+
+  PassBuilder PB;
+  FunctionAnalysisManager FAM;
+  PB.registerFunctionAnalyses(FAM);
+  LoopInfo &LI = FAM.getResult<LoopAnalysis>(*F);
+
+  const std::vector<Loop *> &TopLvl = LI.getTopLevelLoops();
+  EXPECT_EQ(TopLvl.size(), 1u);
+
+  Loop *L = TopLvl.front();
+  // Parallel metadata shoudl be attached because of presence of
+  // the order(concurrent) OpenMP clause
+  EXPECT_TRUE(findStringMetadataForLoop(L, "llvm.loop.parallel_accesses"));
+  EXPECT_TRUE(getBooleanLoopAttribute(L, "llvm.loop.vectorize.enable"));
+  EXPECT_EQ(getIntLoopAttribute(L, "llvm.loop.vectorize.width"), 3);
+
+  // Check for llvm.access.group metadata attached to the printf
+  // function in the loop body.
+  BasicBlock *LoopBody = CLI->getBody();
+  EXPECT_TRUE(any_of(*LoopBody, [](Instruction &I) {
+    return I.getMetadata("llvm.access.group") != nullptr;
+  }));
+}
+
+TEST_F(OpenMPIRBuilderTest, ApplySafelen) {
+  OpenMPIRBuilder OMPBuilder(*M);
+  MapVector<Value *, Value *> AlignedVars;
+
+  CanonicalLoopInfo *CLI = buildSingleLoopFunction(DL, OMPBuilder, 32);
+
+  OMPBuilder.applySimd(
+      CLI, AlignedVars, /* IfCond */ nullptr, OrderKind::OMP_ORDER_unknown,
+      /* Simdlen */ nullptr, ConstantInt::get(Type::getInt32Ty(Ctx), 3));
 
   OMPBuilder.finalize();
   EXPECT_FALSE(verifyModule(*M, &errs()));
@@ -1867,11 +1969,12 @@ TEST_F(OpenMPIRBuilderTest, ApplySafelen) {
 
 TEST_F(OpenMPIRBuilderTest, ApplySimdlenSafelen) {
   OpenMPIRBuilder OMPBuilder(*M);
+  MapVector<Value *, Value *> AlignedVars;
 
   CanonicalLoopInfo *CLI = buildSingleLoopFunction(DL, OMPBuilder, 32);
 
-  // Simd-ize the loop.
-  OMPBuilder.applySimd(CLI, /* IfCond */ nullptr,
+  OMPBuilder.applySimd(CLI, AlignedVars, /* IfCond */ nullptr,
+                       OrderKind::OMP_ORDER_unknown,
                        ConstantInt::get(Type::getInt32Ty(Ctx), 2),
                        ConstantInt::get(Type::getInt32Ty(Ctx), 3));
 
@@ -1902,6 +2005,7 @@ TEST_F(OpenMPIRBuilderTest, ApplySimdlenSafelen) {
 TEST_F(OpenMPIRBuilderTest, ApplySimdLoopIf) {
   OpenMPIRBuilder OMPBuilder(*M);
   IRBuilder<> Builder(BB);
+  MapVector<Value *, Value *> AlignedVars;
   AllocaInst *Alloc1 = Builder.CreateAlloca(Builder.getInt32Ty());
   AllocaInst *Alloc2 = Builder.CreateAlloca(Builder.getInt32Ty());
 
@@ -1916,7 +2020,8 @@ TEST_F(OpenMPIRBuilderTest, ApplySimdLoopIf) {
   CanonicalLoopInfo *CLI = buildSingleLoopFunction(DL, OMPBuilder, 32);
 
   // Simd-ize the loop with if condition
-  OMPBuilder.applySimd(CLI, IfCmp, ConstantInt::get(Type::getInt32Ty(Ctx), 3),
+  OMPBuilder.applySimd(CLI, AlignedVars, IfCmp, OrderKind::OMP_ORDER_unknown,
+                       ConstantInt::get(Type::getInt32Ty(Ctx), 3),
                        /* Safelen */ nullptr);
 
   OMPBuilder.finalize();
@@ -4987,6 +5092,81 @@ TEST_F(OpenMPIRBuilderTest, CreateTaskUntied) {
   EXPECT_FALSE(verifyModule(*M, &errs()));
 }
 
+TEST_F(OpenMPIRBuilderTest, CreateTaskDepend) {
+  using InsertPointTy = OpenMPIRBuilder::InsertPointTy;
+  OpenMPIRBuilder OMPBuilder(*M);
+  OMPBuilder.initialize();
+  F->setName("func");
+  IRBuilder<> Builder(BB);
+  auto BodyGenCB = [&](InsertPointTy AllocaIP, InsertPointTy CodeGenIP) {};
+  BasicBlock *AllocaBB = Builder.GetInsertBlock();
+  BasicBlock *BodyBB = splitBB(Builder, /*CreateBranch=*/true, "alloca.split");
+  OpenMPIRBuilder::LocationDescription Loc(
+      InsertPointTy(BodyBB, BodyBB->getFirstInsertionPt()), DL);
+  AllocaInst *InDep = Builder.CreateAlloca(Type::getInt32Ty(M->getContext()));
+  OpenMPIRBuilder::DependData DDIn(RTLDependenceKindTy::DepIn,
+                                   Type::getInt32Ty(M->getContext()), InDep);
+  SmallVector<OpenMPIRBuilder::DependData *, 4> DDS;
+  DDS.push_back(&DDIn);
+  Builder.restoreIP(OMPBuilder.createTask(
+      Loc, InsertPointTy(AllocaBB, AllocaBB->getFirstInsertionPt()), BodyGenCB,
+      /*Tied=*/false, /*Final*/ nullptr, /*IfCondition*/ nullptr, DDS));
+  OMPBuilder.finalize();
+  Builder.CreateRetVoid();
+
+  // Check for the `NumDeps` argument
+  CallInst *TaskAllocCall = dyn_cast<CallInst>(
+      OMPBuilder
+          .getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_omp_task_with_deps)
+          ->user_back());
+  ASSERT_NE(TaskAllocCall, nullptr);
+  ConstantInt *NumDeps = dyn_cast<ConstantInt>(TaskAllocCall->getArgOperand(3));
+  ASSERT_NE(NumDeps, nullptr);
+  EXPECT_EQ(NumDeps->getZExtValue(), 1U);
+
+  // Check for the `DepInfo` array argument
+  BitCastInst *DepArrayPtr =
+      dyn_cast<BitCastInst>(TaskAllocCall->getOperand(4));
+  ASSERT_NE(DepArrayPtr, nullptr);
+  AllocaInst *DepArray = dyn_cast<AllocaInst>(DepArrayPtr->getOperand(0));
+  ASSERT_NE(DepArray, nullptr);
+  Value::user_iterator DepArrayI = DepArray->user_begin();
+  EXPECT_EQ(*DepArrayI, DepArrayPtr);
+  ++DepArrayI;
+  Value::user_iterator DepInfoI = DepArrayI->user_begin();
+  // Check for the `DependKind` flag in the `DepInfo` array
+  Value *Flag = findStoredValue<GetElementPtrInst>(*DepInfoI);
+  ASSERT_NE(Flag, nullptr);
+  ConstantInt *FlagInt = dyn_cast<ConstantInt>(Flag);
+  ASSERT_NE(FlagInt, nullptr);
+  EXPECT_EQ(FlagInt->getZExtValue(),
+            static_cast<unsigned int>(RTLDependenceKindTy::DepIn));
+  ++DepInfoI;
+  // Check for the size in the `DepInfo` array
+  Value *Size = findStoredValue<GetElementPtrInst>(*DepInfoI);
+  ASSERT_NE(Size, nullptr);
+  ConstantInt *SizeInt = dyn_cast<ConstantInt>(Size);
+  ASSERT_NE(SizeInt, nullptr);
+  EXPECT_EQ(SizeInt->getZExtValue(), 4U);
+  ++DepInfoI;
+  // Check for the variable address in the `DepInfo` array
+  Value *AddrStored = findStoredValue<GetElementPtrInst>(*DepInfoI);
+  ASSERT_NE(AddrStored, nullptr);
+  PtrToIntInst *AddrInt = dyn_cast<PtrToIntInst>(AddrStored);
+  ASSERT_NE(AddrInt, nullptr);
+  Value *Addr = AddrInt->getPointerOperand();
+  EXPECT_EQ(Addr, InDep);
+
+  ConstantInt *NumDepsNoAlias =
+      dyn_cast<ConstantInt>(TaskAllocCall->getArgOperand(5));
+  ASSERT_NE(NumDepsNoAlias, nullptr);
+  EXPECT_EQ(NumDepsNoAlias->getZExtValue(), 0U);
+  EXPECT_EQ(TaskAllocCall->getOperand(6),
+            ConstantPointerNull::get(Type::getInt8PtrTy(M->getContext())));
+
+  EXPECT_FALSE(verifyModule(*M, &errs()));
+}
+
 TEST_F(OpenMPIRBuilderTest, CreateTaskFinal) {
   using InsertPointTy = OpenMPIRBuilder::InsertPointTy;
   OpenMPIRBuilder OMPBuilder(*M);
@@ -5274,4 +5454,67 @@ TEST_F(OpenMPIRBuilderTest, CreateTaskgroupWithTasks) {
   verifyDFSOrder(F, RefOrder);
 }
 
+TEST_F(OpenMPIRBuilderTest, EmitOffloadingArraysArguments) {
+  OpenMPIRBuilder OMPBuilder(*M);
+  OMPBuilder.initialize();
+
+  IRBuilder<> Builder(BB);
+
+  OpenMPIRBuilder::TargetDataRTArgs RTArgs;
+  OpenMPIRBuilder::TargetDataInfo Info(true, false);
+
+  auto VoidPtrTy = Type::getInt8PtrTy(Builder.getContext());
+  auto VoidPtrPtrTy = VoidPtrTy->getPointerTo(0);
+  auto Int64Ty = Type::getInt64Ty(Builder.getContext());
+  auto Int64PtrTy = Type::getInt64PtrTy(Builder.getContext());
+  auto Array4VoidPtrTy = ArrayType::get(VoidPtrTy, 4);
+  auto Array4Int64PtrTy = ArrayType::get(Int64Ty, 4);
+
+  Info.RTArgs.BasePointersArray =
+      ConstantPointerNull::get(Array4VoidPtrTy->getPointerTo(0));
+  Info.RTArgs.PointersArray =
+      ConstantPointerNull::get(Array4VoidPtrTy->getPointerTo());
+  Info.RTArgs.SizesArray =
+      ConstantPointerNull::get(Array4Int64PtrTy->getPointerTo());
+  Info.RTArgs.MapTypesArray =
+      ConstantPointerNull::get(Array4Int64PtrTy->getPointerTo());
+  Info.RTArgs.MapNamesArray =
+      ConstantPointerNull::get(Array4VoidPtrTy->getPointerTo());
+  Info.RTArgs.MappersArray =
+      ConstantPointerNull::get(Array4VoidPtrTy->getPointerTo());
+  Info.NumberOfPtrs = 4;
+
+  OMPBuilder.emitOffloadingArraysArgument(Builder, RTArgs, Info, false, false);
+
+  EXPECT_NE(RTArgs.BasePointersArray, nullptr);
+  EXPECT_NE(RTArgs.PointersArray, nullptr);
+  EXPECT_NE(RTArgs.SizesArray, nullptr);
+  EXPECT_NE(RTArgs.MapTypesArray, nullptr);
+  EXPECT_NE(RTArgs.MappersArray, nullptr);
+  EXPECT_NE(RTArgs.MapNamesArray, nullptr);
+  EXPECT_EQ(RTArgs.MapTypesArrayEnd, nullptr);
+
+  EXPECT_EQ(RTArgs.BasePointersArray->getType(), VoidPtrPtrTy);
+  EXPECT_EQ(RTArgs.PointersArray->getType(), VoidPtrPtrTy);
+  EXPECT_EQ(RTArgs.SizesArray->getType(), Int64PtrTy);
+  EXPECT_EQ(RTArgs.MapTypesArray->getType(), Int64PtrTy);
+  EXPECT_EQ(RTArgs.MappersArray->getType(), VoidPtrPtrTy);
+  EXPECT_EQ(RTArgs.MapNamesArray->getType(), VoidPtrPtrTy);
+}
+
+TEST_F(OpenMPIRBuilderTest, OffloadEntriesInfoManager) {
+  OffloadEntriesInfoManager InfoManager;
+  TargetRegionEntryInfo EntryInfo("parent", 1, 2, 4, 0);
+  InfoManager.initializeTargetRegionEntryInfo(EntryInfo, 0);
+  EXPECT_TRUE(InfoManager.hasTargetRegionEntryInfo(EntryInfo, true));
+  InfoManager.initializeDeviceGlobalVarEntryInfo(
+      "gvar", OffloadEntriesInfoManager::OMPTargetGlobalVarEntryTo, 0);
+  InfoManager.registerTargetRegionEntryInfo(
+      EntryInfo, nullptr, nullptr,
+      OffloadEntriesInfoManager::OMPTargetRegionEntryTargetRegion, true);
+  InfoManager.registerDeviceGlobalVarEntryInfo(
+      "gvar", 0x0, 8, OffloadEntriesInfoManager::OMPTargetGlobalVarEntryTo,
+      GlobalValue::WeakAnyLinkage, true);
+  EXPECT_TRUE(InfoManager.hasDeviceGlobalVarEntryInfo("gvar"));
+}
 } // namespace

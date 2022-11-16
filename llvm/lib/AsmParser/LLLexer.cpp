@@ -644,6 +644,15 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(DISPLAY_NAME);
 #include "llvm/IR/Attributes.inc"
 
+  KEYWORD(read);
+  KEYWORD(write);
+  KEYWORD(readwrite);
+  KEYWORD(argmem);
+  KEYWORD(inaccessiblemem);
+  KEYWORD(argmemonly);
+  KEYWORD(inaccessiblememonly);
+  KEYWORD(inaccessiblemem_or_argmemonly);
+
   KEYWORD(type);
   KEYWORD(opaque);
 

@@ -1865,6 +1865,12 @@ static void writeDILocation(raw_ostream &Out, const DILocation *DL,
   Out << ")";
 }
 
+static void writeDIAssignID(raw_ostream &Out, const DIAssignID *DL,
+                            AsmWriterContext &WriterCtx) {
+  Out << "!DIAssignID()";
+  MDFieldPrinter Printer(Out, WriterCtx);
+}
+
 static void writeDISubrange(raw_ostream &Out, const DISubrange *N,
                             AsmWriterContext &WriterCtx) {
   Out << "!DISubrange(";
@@ -4090,8 +4096,7 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
     Out << " within ";
     writeOperand(FPI->getParentPad(), /*PrintType=*/false);
     Out << " [";
-    for (unsigned Op = 0, NumOps = FPI->getNumArgOperands(); Op < NumOps;
-         ++Op) {
+    for (unsigned Op = 0, NumOps = FPI->arg_size(); Op < NumOps; ++Op) {
       if (Op > 0)
         Out << ", ";
       writeOperand(FPI->getArgOperand(Op), /*PrintType=*/true);

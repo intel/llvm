@@ -17,6 +17,7 @@
 #include "mlir/IR/BuiltinAttributeInterfaces.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/TypeUtilities.h"
+#include "mlir/Interfaces/DestinationStyleOpInterface.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallBitVector.h"
@@ -54,9 +55,66 @@ SmallVector<OpFoldResult> tensor::getMixedSizes(OpBuilder &builder,
   return result;
 }
 
+FailureOr<Value> tensor::getOrCreateDestination(OpBuilder &b, Location loc,
+                                                OpResult opResult) {
+  auto tensorType = opResult.getType().dyn_cast<TensorType>();
+  assert(tensorType && "expected tensor type");
+
+  // If the op has a destination, it implements DestinationStyleOpInterface and
+  // we can query the destination operand from that interface.
+  auto destOp = opResult.getDefiningOp<DestinationStyleOpInterface>();
+  if (destOp)
+    return destOp.getTiedOpOperand(opResult)->get();
+
+  // Otherwise, create a new destination tensor with the same shape.
+  OpBuilder::InsertionGuard g(b);
+  b.setInsertionPoint(opResult.getDefiningOp());
+
+  // Compute sizes.
+  SmallVector<OpFoldResult> mixedSizes;
+  if (!tensorType.hasStaticShape()) {
+    // Dynamic shape: Query ReifyRankedShapedTypeOpInterface.
+    ReifiedRankedShapedTypeDims reifiedShapes;
+    ReifyRankedShapedTypeOpInterface reifyShapedTypeInterface =
+        dyn_cast<ReifyRankedShapedTypeOpInterface>(opResult.getDefiningOp());
+    if (!reifyShapedTypeInterface)
+      return failure();
+    if (failed(reifyShapedTypeInterface.reifyResultShapes(b, reifiedShapes)))
+      return failure();
+    mixedSizes = getAsOpFoldResult(reifiedShapes[opResult.getResultNumber()]);
+  } else {
+    // Static shape: Take static sizes directly.
+    for (int64_t sz : tensorType.getShape())
+      mixedSizes.push_back(b.getIndexAttr(sz));
+  }
+
+  // Create empty tensor.
+  Value emptyTensor =
+      b.create<tensor::EmptyOp>(loc, mixedSizes, tensorType.getElementType());
+  return emptyTensor;
+}
+
+LogicalResult tensor::getOrCreateDestinations(OpBuilder &b, Location loc,
+                                              Operation *op,
+                                              SmallVector<Value> &result) {
+  for (OpResult opResult : op->getResults()) {
+    if (opResult.getType().isa<TensorType>()) {
+      FailureOr<Value> destination = getOrCreateDestination(b, loc, opResult);
+      if (failed(destination))
+        return failure();
+      result.push_back(*destination);
+    }
+  }
+  return success();
+}
+
 //===----------------------------------------------------------------------===//
 // CastOp
 //===----------------------------------------------------------------------===//
+
+void CastOp::getAsmResultNames(function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "cast");
+}
 
 /// Returns true if `target` is a ranked tensor type that preserves static
 /// information available in the `source` ranked tensor type.
@@ -307,6 +365,10 @@ void CastOp::getCanonicalizationPatterns(RewritePatternSet &results,
 // DimOp
 //===----------------------------------------------------------------------===//
 
+void DimOp::getAsmResultNames(function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "dim");
+}
+
 void DimOp::build(OpBuilder &builder, OperationState &result, Value source,
                   int64_t index) {
   auto loc = result.location;
@@ -318,6 +380,20 @@ Optional<int64_t> DimOp::getConstantIndex() {
   if (auto constantOp = getIndex().getDefiningOp<arith::ConstantOp>())
     return constantOp.getValue().cast<IntegerAttr>().getInt();
   return {};
+}
+
+Speculation::Speculatability DimOp::getSpeculatability() {
+  auto constantIndex = getConstantIndex();
+  if (!constantIndex)
+    return Speculation::NotSpeculatable;
+
+  auto rankedSourceType = dyn_cast<RankedTensorType>(getSource().getType());
+  if (!rankedSourceType)
+    return Speculation::NotSpeculatable;
+
+  // The verifier rejects operations that violate this assertion.
+  assert(constantIndex < rankedSourceType.getRank());
+  return Speculation::Speculatable;
 }
 
 LogicalResult DimOp::verify() {
@@ -421,27 +497,29 @@ void DimOp::getCanonicalizationPatterns(RewritePatternSet &results,
 //===----------------------------------------------------------------------===//
 
 void EmptyOp::build(OpBuilder &builder, OperationState &result,
-                    ArrayRef<int64_t> staticShape, Type elementType) {
+                    ArrayRef<int64_t> staticShape, Type elementType,
+                    Attribute encoding) {
   assert(all_of(staticShape,
                 [](int64_t sz) { return !ShapedType::isDynamic(sz); }) &&
          "expected only static sizes");
-  build(builder, result, staticShape, elementType, {});
+  build(builder, result, staticShape, elementType, ValueRange{}, encoding);
 }
 
 void EmptyOp::build(OpBuilder &builder, OperationState &result,
                     ArrayRef<int64_t> staticShape, Type elementType,
-                    ValueRange dynamicSizes) {
-  auto tensorType = RankedTensorType::get(staticShape, elementType);
+                    ValueRange dynamicSizes, Attribute encoding) {
+  auto tensorType = RankedTensorType::get(staticShape, elementType, encoding);
   build(builder, result, tensorType, dynamicSizes);
 }
 
 void EmptyOp::build(OpBuilder &builder, OperationState &result,
-                    ArrayRef<OpFoldResult> sizes, Type elementType) {
+                    ArrayRef<OpFoldResult> sizes, Type elementType,
+                    Attribute encoding) {
   SmallVector<int64_t> staticShape;
   SmallVector<Value> dynamicSizes;
   dispatchIndexOpFoldResults(sizes, dynamicSizes, staticShape,
                              ShapedType::kDynamicSize);
-  build(builder, result, staticShape, elementType, dynamicSizes);
+  build(builder, result, staticShape, elementType, dynamicSizes, encoding);
 }
 
 LogicalResult EmptyOp::verify() {
@@ -697,12 +775,44 @@ void EmptyOp::getCanonicalizationPatterns(RewritePatternSet &results,
 // ExtractOp
 //===----------------------------------------------------------------------===//
 
+namespace {
+
+/// Canonicalizes the pattern of the form
+///
+/// %val = tensor.cast %source : : tensor<?xi32> to tensor<2xi32>
+/// %extracted_element = tensor.extract %val[%c0] : tensor<2xi32>
+///
+/// to
+///
+/// %extracted_element = tensor.extract %source[%c0] : tensor<?xi32>
+struct ExtractFromTensorCast : public OpRewritePattern<tensor::ExtractOp> {
+  using OpRewritePattern<tensor::ExtractOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(tensor::ExtractOp extract,
+                                PatternRewriter &rewriter) const final {
+    auto tensorCast = extract.getTensor().getDefiningOp<tensor::CastOp>();
+    if (!tensorCast)
+      return failure();
+    if (!tensorCast.getSource().getType().isa<RankedTensorType>())
+      return failure();
+    rewriter.replaceOpWithNewOp<tensor::ExtractOp>(
+        extract, tensorCast.getSource(), extract.getIndices());
+    return success();
+  }
+};
+
+} // namespace
+
+void ExtractOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "extracted");
+}
+
 LogicalResult ExtractOp::verify() {
   // Verify the # indices match if we have a ranked type.
-  if (auto tensorType = getTensor().getType().dyn_cast<RankedTensorType>())
-    if (tensorType.getRank() != static_cast<int64_t>(getIndices().size()))
-      return emitOpError("incorrect number of indices for extract_element");
-
+  auto tensorType = getTensor().getType().cast<RankedTensorType>();
+  if (tensorType.getRank() != static_cast<int64_t>(getIndices().size()))
+    return emitOpError("incorrect number of indices for extract_element");
   return success();
 }
 
@@ -752,9 +862,19 @@ OpFoldResult ExtractOp::fold(ArrayRef<Attribute> operands) {
   return {};
 }
 
+void ExtractOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                            MLIRContext *context) {
+  results.add<ExtractFromTensorCast>(context);
+}
+
 //===----------------------------------------------------------------------===//
 // FromElementsOp
 //===----------------------------------------------------------------------===//
+
+void FromElementsOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "from_elements");
+}
 
 void FromElementsOp::build(OpBuilder &builder, OperationState &result,
                            Type resultType, ValueRange elements) {
@@ -827,6 +947,11 @@ void FromElementsOp::getCanonicalizationPatterns(RewritePatternSet &results,
 //===----------------------------------------------------------------------===//
 // GatherOp
 //===----------------------------------------------------------------------===//
+
+void GatherOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "gather");
+}
 
 /// Return the inferred result type for a gatherOp where:
 ///   - sourceType is the type of the source tensor gathered from
@@ -911,11 +1036,16 @@ LogicalResult GatherOp::verify() {
 // InsertOp
 //===----------------------------------------------------------------------===//
 
+void InsertOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "inserted");
+}
+
 LogicalResult InsertOp::verify() {
   // Verify the # indices match if we have a ranked type.
-  if (auto destType = getDest().getType().dyn_cast<RankedTensorType>())
-    if (destType.getRank() != static_cast<int64_t>(getIndices().size()))
-      return emitOpError("incorrect number of indices");
+  auto destType = getDest().getType().cast<RankedTensorType>();
+  if (destType.getRank() != static_cast<int64_t>(getIndices().size()))
+    return emitOpError("incorrect number of indices");
   return success();
 }
 
@@ -932,6 +1062,11 @@ OpFoldResult InsertOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 // GenerateOp
 //===----------------------------------------------------------------------===//
+
+void GenerateOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "generated");
+}
 
 LogicalResult GenerateOp::reifyResultShapes(
     OpBuilder &builder, ReifiedRankedShapedTypeDims &reifiedReturnShapes) {
@@ -1080,41 +1215,21 @@ struct ExtractFromTensorGenerate : public OpRewritePattern<tensor::ExtractOp> {
   }
 };
 
-/// Canonicalizes the pattern of the form
-///
-/// %val = tensor.cast %source : : tensor<?xi32> to tensor<2xi32>
-/// %extracted_element = tensor.extract %val[%c0] : tensor<2xi32>
-///
-/// to
-///
-/// %extracted_element = tensor.extract %source[%c0] : tensor<?xi32>
-struct ExtractFromTensorCast : public OpRewritePattern<tensor::ExtractOp> {
-  using OpRewritePattern<tensor::ExtractOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(tensor::ExtractOp extract,
-                                PatternRewriter &rewriter) const final {
-    auto tensorCast = extract.getTensor().getDefiningOp<tensor::CastOp>();
-    if (!tensorCast)
-      return failure();
-
-    rewriter.replaceOpWithNewOp<tensor::ExtractOp>(
-        extract, tensorCast.getSource(), extract.getIndices());
-    return success();
-  }
-};
-
 } // namespace
 
 void GenerateOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                              MLIRContext *context) {
-  // TODO: Move extract patterns to tensor::ExtractOp.
-  results.add<ExtractFromTensorGenerate, ExtractFromTensorCast,
-              StaticTensorGenerate>(context);
+  // TODO: Move extract pattern to tensor::ExtractOp.
+  results.add<ExtractFromTensorGenerate, StaticTensorGenerate>(context);
 }
 
 //===----------------------------------------------------------------------===//
 // RankOp
 //===----------------------------------------------------------------------===//
+
+void RankOp::getAsmResultNames(function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "rank");
+}
 
 OpFoldResult RankOp::fold(ArrayRef<Attribute> operands) {
   // Constant fold rank when the rank of the operand is known.
@@ -1128,6 +1243,11 @@ OpFoldResult RankOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 // ReshapeOp
 //===----------------------------------------------------------------------===//
+
+void ReshapeOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "reshape");
+}
 
 static int64_t getNumElements(ShapedType type) {
   int64_t numElements = 1;
@@ -1169,6 +1289,16 @@ LogicalResult ReshapeOp::verify() {
 //===----------------------------------------------------------------------===//
 // Reassociative reshape ops
 //===----------------------------------------------------------------------===//
+
+void CollapseShapeOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "collapsed");
+}
+
+void ExpandShapeOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "expanded");
+}
 
 SmallVector<AffineMap, 4> CollapseShapeOp::getReassociationMaps() {
   return getSymbolLessAffineMaps(getReassociationExprs());
@@ -1368,6 +1498,11 @@ OpFoldResult CollapseShapeOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 // ExtractSliceOp
 //===----------------------------------------------------------------------===//
+
+void ExtractSliceOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "extracted_slice");
+}
 
 /// An extract_slice result type can be inferred, when it is not
 /// rank-reduced, from the source type and the static representation of
@@ -1865,6 +2000,11 @@ Value mlir::tensor::createCanonicalRankReducingExtractSliceOp(
 // InsertSliceOp
 //===----------------------------------------------------------------------===//
 
+void InsertSliceOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "inserted_slice");
+}
+
 // Build a InsertSliceOp with mixed static and dynamic entries.
 void InsertSliceOp::build(OpBuilder &b, OperationState &result, Value source,
                           Value dest, ArrayRef<OpFoldResult> offsets,
@@ -2218,6 +2358,10 @@ Value mlir::tensor::createCanonicalRankReducingInsertSliceOp(OpBuilder &b,
 // PadOp
 //===----------------------------------------------------------------------===//
 
+void PadOp::getAsmResultNames(function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "padded");
+}
+
 // TODO: Replace custom<InferType> directive with AllTypesMatch as soon as it
 // supports optional types.
 void printInferType(OpAsmPrinter &printer, Operation *op, Value optOperand,
@@ -2327,7 +2471,6 @@ void PadOp::build(OpBuilder &b, OperationState &result, Type resultType,
                   Value source, ArrayRef<OpFoldResult> low,
                   ArrayRef<OpFoldResult> high, bool nofold,
                   ArrayRef<NamedAttribute> attrs) {
-  assert(resultType.isa<RankedTensorType>());
   auto sourceType = source.getType().cast<RankedTensorType>();
   SmallVector<Value, 4> dynamicLow, dynamicHigh;
   SmallVector<int64_t, 4> staticLow, staticHigh;
@@ -2342,10 +2485,30 @@ void PadOp::build(OpBuilder &b, OperationState &result, Type resultType,
   if (!resultType) {
     resultType = PadOp::inferResultType(sourceType, staticLow, staticHigh);
   }
+  assert(resultType.isa<RankedTensorType>());
   build(b, result, resultType, source, dynamicLow, dynamicHigh,
         b.getI64ArrayAttr(staticLow), b.getI64ArrayAttr(staticHigh),
         nofold ? b.getUnitAttr() : UnitAttr());
   result.addAttributes(attrs);
+}
+
+void PadOp::build(OpBuilder &b, OperationState &result, Type resultType,
+                  Value source, ArrayRef<OpFoldResult> low,
+                  ArrayRef<OpFoldResult> high, Value constantPadValue,
+                  bool nofold, ArrayRef<NamedAttribute> attrs) {
+  build(b, result, resultType, source, low, high, nofold, attrs);
+
+  // Add a region and a block to yield the pad value.
+  Region *region = result.regions[0].get();
+  int sourceRank = source.getType().cast<RankedTensorType>().getRank();
+  SmallVector<Type> blockArgTypes(sourceRank, b.getIndexType());
+  SmallVector<Location> blockArgLocs(sourceRank, result.location);
+
+  // `builder.createBlock` changes the insertion point within the block. Create
+  // a guard to reset the insertion point of the builder after it is destroyed.
+  OpBuilder::InsertionGuard guard(b);
+  b.createBlock(region, region->end(), blockArgTypes, blockArgLocs);
+  b.create<tensor::YieldOp>(result.location, constantPadValue);
 }
 
 llvm::SmallBitVector PadOp::getPaddedDims() {
@@ -2725,6 +2888,11 @@ void ParallelInsertSliceOp::getCanonicalizationPatterns(
 // ScatterOp
 //===----------------------------------------------------------------------===//
 
+void ScatterOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "scatter");
+}
+
 LogicalResult ScatterOp::verify() {
   int64_t destRank = getDestType().getRank();
   ArrayRef<int64_t> scatterDims = getScatterDims();
@@ -2760,6 +2928,11 @@ LogicalResult ScatterOp::verify() {
 //===----------------------------------------------------------------------===//
 // SplatOp
 //===----------------------------------------------------------------------===//
+
+void SplatOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "splat");
+}
 
 OpFoldResult SplatOp::fold(ArrayRef<Attribute> operands) {
   auto constOperand = operands.front();

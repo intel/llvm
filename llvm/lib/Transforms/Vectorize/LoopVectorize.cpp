@@ -2337,7 +2337,6 @@ static void buildScalarSteps(Value *ScalarIV, Value *Step,
                              VPTransformState &State) {
   IRBuilderBase &Builder = State.Builder;
   // We shouldn't have to build scalar steps if we aren't vectorizing.
-  assert(State.VF.isVector() && "VF should be greater than one");
   // Get the value type and ensure it and the step have the same integer type.
   Type *ScalarIVTy = ScalarIV->getType()->getScalarType();
   assert(ScalarIVTy == Step->getType() &&
@@ -5507,6 +5506,11 @@ bool LoopVectorizationCostModel::isEpilogueVectorizationProfitable(
   // as register pressure, code size increase and cost of extra branches into
   // account. For now we apply a very crude heuristic and only consider loops
   // with vectorization factors larger than a certain value.
+
+  // Allow the target to opt out entirely.
+  if (!TTI.preferEpilogueVectorization())
+    return false;
+
   // We also consider epilogue vectorization unprofitable for targets that don't
   // consider interleaving beneficial (eg. MVE).
   if (TTI.getMaxInterleaveFactor(VF.getKnownMinValue()) <= 1)
@@ -6026,10 +6030,9 @@ LoopVectorizationCostModel::calculateRegisterUsage(ArrayRef<ElementCount> VFs) {
       if (VFs[j].isScalar()) {
         for (auto *Inst : OpenIntervals) {
           unsigned ClassID = TTI.getRegisterClassForType(false, Inst->getType());
-          if (RegUsage.find(ClassID) == RegUsage.end())
-            RegUsage[ClassID] = 1;
-          else
-            RegUsage[ClassID] += 1;
+          // If RegUsage[ClassID] doesn't exist, it will be default
+          // constructed as 0 before the addition
+          RegUsage[ClassID] += 1;
         }
       } else {
         collectUniformsAndScalars(VFs[j]);
@@ -6039,25 +6042,21 @@ LoopVectorizationCostModel::calculateRegisterUsage(ArrayRef<ElementCount> VFs) {
             continue;
           if (isScalarAfterVectorization(Inst, VFs[j])) {
             unsigned ClassID = TTI.getRegisterClassForType(false, Inst->getType());
-            if (RegUsage.find(ClassID) == RegUsage.end())
-              RegUsage[ClassID] = 1;
-            else
-              RegUsage[ClassID] += 1;
+            // If RegUsage[ClassID] doesn't exist, it will be default
+            // constructed as 0 before the addition
+            RegUsage[ClassID] += 1;
           } else {
             unsigned ClassID = TTI.getRegisterClassForType(true, Inst->getType());
-            if (RegUsage.find(ClassID) == RegUsage.end())
-              RegUsage[ClassID] = GetRegUsage(Inst->getType(), VFs[j]);
-            else
-              RegUsage[ClassID] += GetRegUsage(Inst->getType(), VFs[j]);
+            // If RegUsage[ClassID] doesn't exist, it will be default
+            // constructed as 0 before the addition
+            RegUsage[ClassID] += GetRegUsage(Inst->getType(), VFs[j]);
           }
         }
       }
 
       for (auto& pair : RegUsage) {
-        if (MaxUsages[j].find(pair.first) != MaxUsages[j].end())
-          MaxUsages[j][pair.first] = std::max(MaxUsages[j][pair.first], pair.second);
-        else
-          MaxUsages[j][pair.first] = pair.second;
+        auto &Entry = MaxUsages[j][pair.first];
+        Entry = std::max(Entry, pair.second);
       }
     }
 
@@ -6562,10 +6561,9 @@ Optional<InstructionCost> LoopVectorizationCostModel::getReductionPatternCost(
       return None;
     RetI = RetI->user_back();
   }
-  if (match(RetI, m_Mul(m_Value(), m_Value())) &&
+
+  if (match(RetI, m_OneUse(m_Mul(m_Value(), m_Value()))) &&
       RetI->user_back()->getOpcode() == Instruction::Add) {
-    if (!RetI->hasOneUser())
-      return None;
     RetI = RetI->user_back();
   }
 
@@ -9141,8 +9139,8 @@ VPlanPtr LoopVectorizationPlanner::buildVPlanWithVPRecipes(
   Plan->disableValue2VPValue();
 
   VPlanTransforms::optimizeInductions(*Plan, *PSE.getSE());
-  VPlanTransforms::sinkScalarOperands(*Plan);
   VPlanTransforms::removeDeadRecipes(*Plan);
+  VPlanTransforms::sinkScalarOperands(*Plan);
   VPlanTransforms::mergeReplicateRegions(*Plan);
   VPlanTransforms::removeRedundantExpandSCEVRecipes(*Plan);
 
@@ -9560,29 +9558,7 @@ void VPScalarIVStepsRecipe::execute(VPTransformState &State) {
   };
 
   Value *ScalarIV = CreateScalarIV(Step);
-  if (State.VF.isVector()) {
-    buildScalarSteps(ScalarIV, Step, IndDesc, this, State);
-    return;
-  }
-
-  for (unsigned Part = 0; Part < State.UF; ++Part) {
-    assert(!State.VF.isScalable() && "scalable vectors not yet supported.");
-    Value *EntryPart;
-    if (Step->getType()->isFloatingPointTy()) {
-      Value *StartIdx =
-          getRuntimeVFAsFloat(State.Builder, Step->getType(), State.VF * Part);
-      // Floating-point operations inherit FMF via the builder's flags.
-      Value *MulOp = State.Builder.CreateFMul(StartIdx, Step);
-      EntryPart = State.Builder.CreateBinOp(IndDesc.getInductionOpcode(),
-                                            ScalarIV, MulOp);
-    } else {
-      Value *StartIdx =
-          getRuntimeVF(State.Builder, Step->getType(), State.VF * Part);
-      EntryPart = State.Builder.CreateAdd(
-          ScalarIV, State.Builder.CreateMul(StartIdx, Step), "induction");
-    }
-    State.set(this, EntryPart, Part);
-  }
+  buildScalarSteps(ScalarIV, Step, IndDesc, this, State);
 }
 
 void VPInterleaveRecipe::execute(VPTransformState &State) {
@@ -9664,7 +9640,9 @@ void VPReplicateRecipe::execute(VPTransformState &State) {
     // If the recipe is uniform across all parts (instead of just per VF), only
     // generate a single instance.
     if ((isa<LoadInst>(UI) || isa<StoreInst>(UI)) &&
-        all_of(operands(), [](VPValue *Op) { return !Op->getDef(); })) {
+        all_of(operands(), [](VPValue *Op) {
+          return Op->isDefinedOutsideVectorRegions();
+        })) {
       State.ILV->scalarizeInstruction(UI, this, VPIteration(0, 0), IsPredicated,
                                       State);
       if (user_begin() != user_end()) {
@@ -10498,11 +10476,11 @@ bool LoopVectorizePass::processLoop(Loop *L) {
         // updated before vectorising the epilogue loop.
         for (VPRecipeBase &R : Header->phis()) {
           if (auto *ReductionPhi = dyn_cast<VPReductionPHIRecipe>(&R)) {
-            if (auto *Resume = MainILV.getReductionResumeValue(
-                    ReductionPhi->getRecurrenceDescriptor())) {
-              VPValue *StartVal = BestEpiPlan.getOrAddExternalDef(Resume);
-              ReductionPhi->setOperand(0, StartVal);
-            }
+            Value *Resume = MainILV.getReductionResumeValue(
+                ReductionPhi->getRecurrenceDescriptor());
+            assert(Resume && "Must have a resume value.");
+            VPValue *StartVal = BestEpiPlan.getOrAddExternalDef(Resume);
+            ReductionPhi->setOperand(0, StartVal);
           }
         }
 

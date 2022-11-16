@@ -1102,6 +1102,7 @@ void assertArgs(PatternRewriter &rewriter, ArrayRef<PDLValue> values,
                         verifyAsArg(errorFn, values[I], I)) &&
           ...));
 #endif
+  (void)values;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1211,6 +1212,7 @@ processArgsAndInvokeRewrite(PDLFnT &fn, PatternRewriter &rewriter,
       rewriter, results,
       fn(rewriter, (ProcessPDLValue<typename FnTraitsT::template arg_t<I + 1>>::
                         processAsArg(values[I]))...));
+  (void)values;
 }
 
 /// Build a rewrite function from the given function `RewriteFnT`. This
