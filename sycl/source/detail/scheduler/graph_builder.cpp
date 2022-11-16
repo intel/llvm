@@ -988,41 +988,63 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
   combineAccessModesOfReqs(Reqs);
   std::vector<Command *> ToCleanUp;
   for (Requirement *Req : Reqs) {
-    const QueueImplPtr &QueueForAlloca =
-        isInteropHostTask(NewCmd)
-            ? static_cast<detail::CGHostTask &>(NewCmd->getCG()).MQueue
-            : Queue;
+    MemObjRecord *Record = nullptr;
+    AllocaCommandBase *AllocaCmd = nullptr;
 
-    MemObjRecord *Record =
-        getOrInsertMemObjRecord(QueueForAlloca, Req, ToEnqueue);
-    markModifiedIfWrite(Record, Req);
+    pi_memory_connection memoryConnection = PI_MEMORY_CONNECTION_NONE;
 
-    AllocaCommandBase *AllocaCmd =
-        getOrCreateAllocaForReq(Record, Req, QueueForAlloca, ToEnqueue);
+    {
+      const QueueImplPtr &QueueForAlloca =
+          isInteropHostTask(NewCmd)
+              ? static_cast<detail::CGHostTask &>(NewCmd->getCG()).MQueue
+              : Queue;
 
-    pi_memory_connection memoryConnection = getMemoryConnection(
-        QueueForAlloca->getDeviceImplPtr(), QueueForAlloca->getContextImplPtr(),
-        Record->MCurDevice, Record->MCurContext);
+      Record = getOrInsertMemObjRecord(QueueForAlloca, Req, ToEnqueue);
+      markModifiedIfWrite(Record, Req);
 
-    // Check if the memory needs to be moved.
+      AllocaCmd =
+          getOrCreateAllocaForReq(Record, Req, QueueForAlloca, ToEnqueue);
+
+      memoryConnection =
+          getMemoryConnection(QueueForAlloca->getDeviceImplPtr(),
+                              QueueForAlloca->getContextImplPtr(),
+                              Record->MCurDevice, Record->MCurContext);
+    }
+
+    // If there is alloca command we need to check if the latest memory is in
+    // required context.
     if (memoryConnection == PI_MEMORY_CONNECTION_UNIFIED) {
-      // If the memory can be used directly, check if the required access mode
-      // is valid, remap if not.
+      // If the memory is already in the required host context, check if the
+      // required access mode is valid, remap if not.
       if (Record->MCurContext->is_host() &&
           !isAccessModeAllowed(Req->MAccessMode, Record->MHostAccess))
         remapMemoryObject(Record, Req, AllocaCmd, ToEnqueue);
     } else {
-      // If the plugin cannot migrate the memory move it to host first.
-      if (memoryConnection == PI_MEMORY_CONNECTION_NONE) {
+      // Cannot directly copy memory from OpenCL device to OpenCL device -
+      // create two copies: device->host and host->device.
+      bool NeedMemMoveToHost = memoryConnection == PI_MEMORY_CONNECTION_NONE;
+      auto MemMoveTargetQueue = Queue;
+
+      if (isInteropHostTask(NewCmd)) {
+        const detail::CGHostTask &HT =
+            static_cast<detail::CGHostTask &>(NewCmd->getCG());
+
+        if (getMemoryConnection(HT.MQueue->getDeviceImplPtr(),
+                                HT.MQueue->getContextImplPtr(),
+                                Record->MCurDevice, Record->MCurContext) !=
+            PI_MEMORY_CONNECTION_UNIFIED) {
+          NeedMemMoveToHost = true;
+          MemMoveTargetQueue = HT.MQueue;
+        }
+      } else if (!Queue->is_host() && !Record->MCurContext->is_host())
+        NeedMemMoveToHost = true;
+
+      if (NeedMemMoveToHost)
         insertMemoryMove(Record, Req,
                          Scheduler::getInstance().getDefaultHostQueue(),
                          ToEnqueue);
-      }
-
-      // Move the memory to the target queue.
-      insertMemoryMove(Record, Req, QueueForAlloca, ToEnqueue);
+      insertMemoryMove(Record, Req, MemMoveTargetQueue, ToEnqueue);
     }
-
     std::set<Command *> Deps = findDepsForReq(
         Record, Req, Queue->getContextImplPtr(), Queue->getDeviceImplPtr());
 
