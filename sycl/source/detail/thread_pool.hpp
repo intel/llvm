@@ -31,15 +31,29 @@ class ThreadPool {
   std::condition_variable MDoSmthOrStop;
   std::atomic_bool MStop;
 
+  // Drain related staff
+  std::map<std::thread::id, std::atomic_bool /*needToDrain*/> MDrainSchedule;
+  std::atomic_bool MDrain{false};
+
   void worker() {
+    GlobalHandler::instance().registerSchedulerUsage(false);
     std::unique_lock<std::mutex> Lock(MJobQueueMutex);
-
+    std::thread::id ThisThreadId = std::this_thread::get_id();
     while (true) {
-      MDoSmthOrStop.wait(
-          Lock, [this]() { return !MJobQueue.empty() || MStop.load(); });
+      MDoSmthOrStop.wait(Lock, [this, &ThisThreadId]() {
+        return !MJobQueue.empty() || MStop.load() ||
+               (MDrain.load() && MDrainSchedule[ThisThreadId].load());
+      });
 
-      if (MStop.load())
+      // lets complete enqueued tasks first
+      if (MStop.load() && MJobQueue.empty())
         break;
+
+      if (MJobQueue.empty() && MDrain.load() &&
+          MDrainSchedule[ThisThreadId].load()) {
+        assert(MDrainSchedule[ThisThreadId].exchange(false));
+        continue;
+      }
 
       std::function<void()> Job = std::move(MJobQueue.front());
       MJobQueue.pop();
@@ -61,6 +75,19 @@ class ThreadPool {
   }
 
 public:
+  void drain() {
+    for (const auto &thread : MLaunchedThreads) {
+      MDrainSchedule[thread.get_id()].store(true);
+    }
+    MDrain.store(true);
+    MDoSmthOrStop.notify_all();
+    while (std::any_of(MDrainSchedule.cbegin(), MDrainSchedule.cend(),
+                       [](const auto &state) { return state.second.load(); }))
+      std::this_thread::yield();
+
+    MDrain.store(false);
+  }
+
   ThreadPool(unsigned int ThreadCount = 1) : MThreadCount(ThreadCount) {
     start();
   }

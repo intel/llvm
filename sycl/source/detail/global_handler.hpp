@@ -54,6 +54,7 @@ public:
   GlobalHandler(const GlobalHandler &) = delete;
   GlobalHandler(GlobalHandler &&) = delete;
 
+  void registerSchedulerUsage(bool IncrementCounter = true);
   Scheduler &getScheduler();
   ProgramManager &getProgramManager();
   Sync &getSync();
@@ -74,6 +75,7 @@ public:
   static void registerDefaultContextReleaseHandler();
 
   void unloadPlugins();
+  void drainThreadPool();
 
   // For testing purposes only
   void attachScheduler(Scheduler *Scheduler);

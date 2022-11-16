@@ -27,6 +27,40 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
+
+// just a draft, no unification
+template <class ResourceHandler> class ObjectUsageCounter {
+public:
+  ObjectUsageCounter(std::unique_ptr<ResourceHandler> &Obj,
+                     bool IncrementCounter)
+      : MIncrementCounter(IncrementCounter), MObj(Obj) {
+    if (MIncrementCounter)
+      MCounter++;
+  }
+  ~ObjectUsageCounter() {
+    if (MIncrementCounter)
+      MCounter--;
+    if (!MCounter && MObj) {
+      bool ReleaseCalled = MReleaseCalled.exchange(true);
+      if (!ReleaseCalled)
+        MObj->releaseResources();
+    }
+  }
+
+private:
+  static std::atomic_uint MCounter;
+  bool MIncrementCounter;
+
+  std::unique_ptr<ResourceHandler> &MObj;
+
+  static std::atomic_bool MReleaseCalled; // test
+  // std::unique_ptr<TraceEvent> MTrace;
+};
+template <class ResourceHandler>
+std::atomic_uint ObjectUsageCounter<ResourceHandler>::MCounter{0};
+template <class ResourceHandler>
+std::atomic_bool ObjectUsageCounter<ResourceHandler>::MReleaseCalled{false};
+
 using LockGuard = std::lock_guard<SpinLock>;
 
 GlobalHandler::GlobalHandler() = default;
@@ -55,7 +89,17 @@ void GlobalHandler::attachScheduler(Scheduler *Scheduler) {
   MScheduler.Inst.reset(Scheduler);
 }
 
-Scheduler &GlobalHandler::getScheduler() { return getOrCreate(MScheduler); }
+Scheduler &GlobalHandler::getScheduler() {
+  // just a draft
+  getOrCreate(MScheduler);
+  registerSchedulerUsage();
+  return *MScheduler.Inst;
+}
+
+void GlobalHandler::registerSchedulerUsage(bool IncrementCounter) {
+  thread_local ObjectUsageCounter SchedulerCounter(MScheduler.Inst,
+                                                   IncrementCounter);
+}
 
 ProgramManager &GlobalHandler::getProgramManager() {
   return getOrCreate(MProgramManager);
@@ -149,11 +193,18 @@ void GlobalHandler::unloadPlugins() {
   GlobalHandler::instance().getPlugins().clear();
 }
 
+void GlobalHandler::drainThreadPool() {
+  if (MHostTaskThreadPool.Inst)
+    MHostTaskThreadPool.Inst->drain();
+}
+
 void shutdown() {
-  if (GlobalHandler::instance().MScheduler.Inst)
-    GlobalHandler::instance().MScheduler.Inst->releaseResources();
   // Ensure neither host task is working so that no default context is accessed
   // upon its release
+
+  if (GlobalHandler::instance().MScheduler.Inst)
+    GlobalHandler::instance().MScheduler.Inst->releaseResources();
+
   if (GlobalHandler::instance().MHostTaskThreadPool.Inst)
     GlobalHandler::instance().MHostTaskThreadPool.Inst->finishAndWait();
 
