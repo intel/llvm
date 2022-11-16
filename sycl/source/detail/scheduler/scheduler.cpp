@@ -414,21 +414,22 @@ Scheduler::~Scheduler() {
           "not all resources were released. Please be sure that all kernels "
           "have synchronization points.\n\n");
   }
-  // Please be aware that releaseResources should be called before deletion of
-  // Scheduler. Otherwise there can be the case when objects Scheduler keeps as
-  // fields may need Scheduler for their release and they work with Scheduler
-  // via GlobalHandler::getScheduler that will create new Scheduler object.
-  // Still keep it here but it should do almost nothing if releaseResources
-  // called before.
-  releaseResources();
+  DefaultHostQueue.reset();
 }
 
 void Scheduler::releaseResources() {
-  // There might be some commands scheduled for post enqueue cleanup that
-  // haven't been freed because of the graph mutex being locked at the time,
-  // clean them up now.
+  MReleaseStarted = true;
+  // TraceEvent trace("releaseResources");
+  if (DefaultHostQueue) {
+    DefaultHostQueue->wait();
+    // std::cout << "DefaultHostQueue finished" << std::endl;
+  }
+  GlobalHandler::instance().drainThreadPool();
+  // std::cout << "threads finished" << std::endl;
+  //  There might be some commands scheduled for post enqueue cleanup that
+  //  haven't been freed because of the graph mutex being locked at the time,
+  //  clean them up now.
   cleanupCommands({});
-  DefaultHostQueue.reset();
 
   // We need loop since sometimes we may need new objects to be added to
   // deferred mem objects storage during cleanup. Known example is: we cleanup
@@ -502,7 +503,7 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd, Command *BlockingCmd) {
 }
 
 void Scheduler::deferMemObjRelease(const std::shared_ptr<SYCLMemObjI> &MemObj) {
-  {
+  if (!MReleaseStarted) {
     std::lock_guard<std::mutex> Lock{MDeferredMemReleaseMutex};
     MDeferredMemObjRelease.push_back(MemObj);
   }
@@ -515,6 +516,8 @@ inline bool Scheduler::isDeferredMemObjectsEmpty() {
 }
 
 void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
+  // std::cout << "MDeferredMemObjRelease.size = " <<
+  // MDeferredMemObjRelease.size() << std::endl;
   if (isDeferredMemObjectsEmpty())
     return;
   if (Blocking == BlockingT::BLOCKING) {
@@ -547,7 +550,9 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
       }
     }
   }
-  // if any ObjsReadyToRelease found - it is leaving scope and being deleted
+  // std::cout << "MDeferredMemObjRelease after NON_BLOCKING.size = " <<
+  // MDeferredMemObjRelease.size() << std::endl;
+  //  if any ObjsReadyToRelease found - it is leaving scope and being deleted
 }
 
 } // namespace detail
