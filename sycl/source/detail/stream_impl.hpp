@@ -42,6 +42,12 @@ public:
   GlobalOffsetAccessorT accessGlobalOffset(handler &CGH);
 
   // Enqueue task to copy stream buffer to the host and print the contents
+  // The host task event is then registered for post processing in the
+  // LeadEvent as well as in queue LeadEvent associated with.
+  void flush(const EventImplPtr &LeadEvent);
+
+  // Enqueue task to copy stream buffer to the host and print the contents
+  // Remove during next ABI breaking window
   void flush();
 
   size_t get_size() const;

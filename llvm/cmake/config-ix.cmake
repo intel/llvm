@@ -71,7 +71,7 @@ if(APPLE)
   CHECK_C_SOURCE_COMPILES("
      static const char *__crashreporter_info__ = 0;
      asm(\".desc ___crashreporter_info__, 0x10\");
-     int main() { return 0; }"
+     int main(void) { return 0; }"
     HAVE_CRASHREPORTER_INFO)
 endif()
 
@@ -603,25 +603,6 @@ else()
   message(STATUS "Doxygen disabled.")
 endif()
 
-set(LLVM_BINDINGS "")
-find_program(GO_EXECUTABLE NAMES go DOC "go executable")
-if(WIN32 OR NOT LLVM_ENABLE_BINDINGS)
-  message(STATUS "Go bindings disabled.")
-else()
-  if(GO_EXECUTABLE STREQUAL "GO_EXECUTABLE-NOTFOUND")
-    message(STATUS "Go bindings disabled.")
-  else()
-    execute_process(COMMAND ${GO_EXECUTABLE} run ${PROJECT_SOURCE_DIR}/bindings/go/conftest.go
-                    RESULT_VARIABLE GO_CONFTEST)
-    if(GO_CONFTEST STREQUAL "0")
-      set(LLVM_BINDINGS "${LLVM_BINDINGS} go")
-      message(STATUS "Go bindings enabled.")
-    else()
-      message(STATUS "Go bindings disabled, need at least Go 1.2.")
-    endif()
-  endif()
-endif()
-
 find_program(GOLD_EXECUTABLE NAMES ${LLVM_DEFAULT_TARGET_TRIPLE}-ld.gold ld.gold ${LLVM_DEFAULT_TARGET_TRIPLE}-ld ld DOC "The gold linker")
 set(LLVM_BINUTILS_INCDIR "" CACHE PATH
     "PATH to binutils/include containing plugin-api.h for gold plugin.")
@@ -641,15 +622,17 @@ if(CMAKE_GENERATOR MATCHES "Ninja" AND
 endif()
 
 if(CMAKE_HOST_APPLE AND APPLE)
-  if(NOT CMAKE_XCRUN)
-    find_program(CMAKE_XCRUN NAMES xcrun)
-  endif()
-  if(CMAKE_XCRUN)
-    execute_process(COMMAND ${CMAKE_XCRUN} -find ld
-      OUTPUT_VARIABLE LD64_EXECUTABLE
-      OUTPUT_STRIP_TRAILING_WHITESPACE)
-  else()
-    find_program(LD64_EXECUTABLE NAMES ld DOC "The ld64 linker")
+  if(NOT LD64_EXECUTABLE)
+    if(NOT CMAKE_XCRUN)
+      find_program(CMAKE_XCRUN NAMES xcrun)
+    endif()
+    if(CMAKE_XCRUN)
+      execute_process(COMMAND ${CMAKE_XCRUN} -find ld
+        OUTPUT_VARIABLE LD64_EXECUTABLE
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
+    else()
+      find_program(LD64_EXECUTABLE NAMES ld DOC "The ld64 linker")
+    endif()
   endif()
 
   if(LD64_EXECUTABLE)
@@ -659,6 +642,7 @@ if(CMAKE_HOST_APPLE AND APPLE)
 endif()
 
 # Keep the version requirements in sync with bindings/ocaml/README.txt.
+set(LLVM_BINDINGS "")
 include(FindOCaml)
 include(AddOCaml)
 if(WIN32 OR NOT LLVM_ENABLE_BINDINGS)

@@ -846,14 +846,88 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**AlignTrailingComments** (``Boolean``) :versionbadge:`clang-format 3.7`
-  If ``true``, aligns trailing comments.
+**AlignTrailingComments** (``TrailingCommentsAlignmentStyle``) :versionbadge:`clang-format 3.7`
+  Control of trailing comments.
 
-  .. code-block:: c++
+  NOTE: As of clang-format 16 this option is not a bool but can be set
+  to the options. Conventional bool options still can be parsed as before.
 
-    true:                                   false:
-    int a;     // My comment a      vs.     int a; // My comment a
-    int b = 2; // comment  b                int b = 2; // comment about b
+
+  .. code-block:: yaml
+
+    # Example of usage:
+    AlignTrailingComments:
+      Kind: Always
+      OverEmptyLines: 2
+
+  Nested configuration flags:
+
+  Alignment options
+
+  * ``TrailingCommentsAlignmentKinds Kind``
+    Specifies the way to align trailing comments.
+
+    Possible values:
+
+    * ``TCAS_Leave`` (in configuration: ``Leave``)
+      Leave trailing comments as they are.
+
+      .. code-block:: c++
+
+        int a;    // comment
+        int ab;       // comment
+
+        int abc;  // comment
+        int abcd;     // comment
+
+    * ``TCAS_Always`` (in configuration: ``Always``)
+      Align trailing comments.
+
+      .. code-block:: c++
+
+        int a;  // comment
+        int ab; // comment
+
+        int abc;  // comment
+        int abcd; // comment
+
+    * ``TCAS_Never`` (in configuration: ``Never``)
+      Don't align trailing comments but other formatter applies.
+
+      .. code-block:: c++
+
+        int a; // comment
+        int ab; // comment
+
+        int abc; // comment
+        int abcd; // comment
+
+
+  * ``unsigned OverEmptyLines`` How many empty lines to apply alignment.
+    When both ``MaxEmptyLinesToKeep`` and ``OverEmptyLines`` are set to 2,
+    it formats like below.
+
+    .. code-block:: c++
+
+      int a;      // all these
+
+      int ab;     // comments are
+
+
+      int abcdef; // aligned
+
+    When ``MaxEmptyLinesToKeep`` is set to 2 and ``OverEmptyLines`` is set
+    to 1, it formats like below.
+
+    .. code-block:: c++
+
+      int a;  // these are
+
+      int ab; // aligned
+
+
+      int abcdef; // but this isn't
+
 
 **AllowAllArgumentsOnNextLine** (``Boolean``) :versionbadge:`clang-format 9`
   If a function call or braced initializer list doesn't fit on a
@@ -1111,7 +1185,7 @@ the configuration (without a prefix: ``Auto``).
 
     .. code-block:: c++
 
-      auto lambda = [](int a) {}
+      auto lambda = [](int a) {};
       auto lambda2 = [](int a) {
           return a;
       };
@@ -1124,14 +1198,14 @@ the configuration (without a prefix: ``Auto``).
       auto lambda = [](int a) {
           return a;
       };
-      sort(a.begin(), a.end(), ()[] { return x < y; })
+      sort(a.begin(), a.end(), []() { return x < y; });
 
   * ``SLS_All`` (in configuration: ``All``)
     Merge all lambdas fitting on a single line.
 
     .. code-block:: c++
 
-      auto lambda = [](int a) {}
+      auto lambda = [](int a) {};
       auto lambda2 = [](int a) { return a; };
 
 
@@ -3758,6 +3832,23 @@ the configuration (without a prefix: ``Auto``).
       }
     }
 
+**RemoveSemicolon** (``Boolean``) :versionbadge:`clang-format 16`
+  Remove semicolons after the closing brace of a non-empty function.
+
+  .. warning:: 
+
+   Setting this option to `true` could lead to incorrect code formatting due
+   to clang-format's lack of complete semantic information. As such, extra
+   care should be taken to review code changes made by this option.
+
+  .. code-block:: c++
+
+    false:                                     true:
+
+    int max(int a, int b) {                    int max(int a, int b) {
+      return a > b ? a : b;                      return a > b ? a : b;
+    };                                         }
+
 **RequiresClausePosition** (``RequiresClausePositionStyle``) :versionbadge:`clang-format 15`
   The position of the ``requires`` clause.
 
@@ -3841,6 +3932,35 @@ the configuration (without a prefix: ``Auto``).
       template <typename LongName>
       void bar(LongName ln)
           requires C<LongName> {
+
+
+
+**RequiresExpressionIndentation** (``RequiresExpressionIndentationKind``) :versionbadge:`clang-format 16`
+  The indentation used for requires expression bodies.
+
+  Possible values:
+
+  * ``REI_OuterScope`` (in configuration: ``OuterScope``)
+    Align requires expression body relative to the indentation level of the
+    outer scope the requires expression resides in.
+    This is the default.
+
+    .. code-block:: c++
+
+       template <typename T>
+       concept C = requires(T t) {
+         ...
+       }
+
+  * ``REI_Keyword`` (in configuration: ``Keyword``)
+    Align requires expression body relative to the `requires` keyword.
+
+    .. code-block:: c++
+
+       template <typename T>
+       concept C = requires(T t) {
+                     ...
+                   }
 
 
 

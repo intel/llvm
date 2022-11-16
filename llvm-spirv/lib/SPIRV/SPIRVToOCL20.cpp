@@ -174,17 +174,17 @@ CallInst *SPIRVToOCL20Base::mutateCommonAtomicArguments(CallInst *CI, Op OC) {
   auto OrderIdx = Ptr + 2;
   auto Mutator = mutateCallInst(CI, Name);
 
-  Mutator.mapArgs([=](Value *PtrArg, Type *PtrElemTy) {
-    Type *PtrArgTy = PtrArg->getType();
-    if (PtrArgTy->isPointerTy()) {
-      if (PtrArgTy->getPointerAddressSpace() != SPIRAS_Generic) {
-        Type *FixedPtr = PointerType::getWithSamePointeeType(
-            cast<PointerType>(PtrArgTy), SPIRAS_Generic);
-        PtrArg = CastInst::CreatePointerBitCastOrAddrSpaceCast(
-            PtrArg, FixedPtr, PtrArg->getName() + ".as", CI);
+  Mutator.mapArgs([=](IRBuilder<> &Builder, Value *PtrArg, Type *PtrArgTy) {
+    if (auto *TypedPtrTy = dyn_cast<TypedPointerType>(PtrArgTy)) {
+      if (TypedPtrTy->getAddressSpace() != SPIRAS_Generic) {
+        Type *ElementTy = TypedPtrTy->getElementType();
+        Type *FixedPtr = PointerType::get(ElementTy, SPIRAS_Generic);
+        PtrArg = Builder.CreateAddrSpaceCast(PtrArg, FixedPtr,
+                                             PtrArg->getName() + ".as");
+        PtrArgTy = TypedPointerType::get(ElementTy, SPIRAS_Generic);
       }
     }
-    return std::make_pair(PtrArg, PtrElemTy);
+    return std::make_pair(PtrArg, PtrArgTy);
   });
   Mutator.mapArg(ScopeIdx, [=](Value *Arg) {
     return SPIRV::transSPIRVMemoryScopeIntoOCLMemoryScope(Arg, CI);
@@ -224,7 +224,7 @@ void SPIRVToOCL20Base::visitCallSPIRVAtomicCmpExchg(CallInst *CI) {
                     cast<PointerType>(PExpected->getType()), AddrSpc);
                 Value *V = Builder.CreateAddrSpaceCast(
                     PExpected, PtrTyAS, PExpected->getName() + ".as");
-                return std::make_pair(V, MemTy);
+                return std::make_pair(V, TypedPointerType::get(MemTy, AddrSpc));
               })
       .moveArg(4, 2)
       .changeReturnType(Type::getInt1Ty(*Ctx), [=](IRBuilder<> &Builder,
@@ -264,7 +264,8 @@ void SPIRVToOCL20Base::visitCallSPIRVEnqueueKernel(CallInst *CI, Op OC) {
   Mutator.mapArg(6, [=](IRBuilder<> &Builder, Value *Invoke) {
     Value *Replace = CastInst::CreatePointerBitCastOrAddrSpaceCast(
         Invoke, Builder.getInt8PtrTy(SPIRAS_Generic), "", CI);
-    return std::pair<Value *, Type *>(Replace, Builder.getInt8Ty());
+    return std::make_pair(
+        Replace, TypedPointerType::get(Builder.getInt8Ty(), SPIRAS_Generic));
   });
 
   if (!HasVaargs) {

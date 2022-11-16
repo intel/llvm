@@ -293,6 +293,8 @@ LANGOPT(
 LANGOPT(SYCLDisableRangeRounding, 1, 0, "Disable parallel for range rounding")
 LANGOPT(SYCLEnableIntHeaderDiags, 1, 0, "Enable diagnostics that require the "
         "SYCL integration header")
+LANGOPT(SYCLAllowVirtualFunctions, 1, 0,
+        "Allow virtual functions calls in code for SYCL device")
 
 LANGOPT(HIPUseNewLaunchAPI, 1, 0, "Use new kernel launching API for HIP")
 
@@ -444,7 +446,10 @@ LANGOPT(PaddingOnUnsignedFixedPoint, 1, 0,
 LANGOPT(RegisterStaticDestructors, 1, 1, "Register C++ static destructors")
 
 LANGOPT(MatrixTypes, 1, 0, "Enable or disable the builtin matrix type")
-LANGOPT(StrictFlexArrays, 2, 0, "Rely on strict definition of flexible arrays")
+
+ENUM_LANGOPT(StrictFlexArraysLevel, StrictFlexArraysLevelKind, 2,
+             StrictFlexArraysLevelKind::Default,
+             "Rely on strict definition of flexible arrays")
 
 COMPATIBLE_VALUE_LANGOPT(MaxTokens, 32, 0, "Max number of tokens per TU or 0")
 

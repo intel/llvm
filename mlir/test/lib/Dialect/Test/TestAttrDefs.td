@@ -119,8 +119,7 @@ def TestI64ElementsAttr : Test_Attr<"TestI64Elements", [
 }
 
 def TestSubElementsAccessAttr : Test_Attr<"TestSubElementsAccess", [
-    DeclareAttrInterfaceMethods<SubElementAttrInterface,
-        ["replaceImmediateSubElements"]>
+    SubElementAttrInterface
   ]> {
   let mnemonic = "sub_elements_access";
 
@@ -290,5 +289,12 @@ def TestSimpleEnumAttr : EnumAttr<Test_Dialect, TestSimpleEnum, "simple_enum"> {
 }
 def TestArrayOfEnums : ArrayOfAttr<Test_Dialect, "ArrayOfEnums",
     "array_of_enums", "SimpleEnumAttr">;
+
+// Test custom directive as optional group anchor.
+def TestCustomAnchor : Test_Attr<"TestCustomAnchor"> {
+  let parameters = (ins "int":$a, OptionalParameter<"mlir::Optional<int>">:$b);
+  let mnemonic = "custom_anchor";
+  let assemblyFormat = "`<` $a (`>`) : (`,` ` ` custom<TrueFalse>($b)^ `>`)?";
+}
 
 #endif // TEST_ATTRDEFS

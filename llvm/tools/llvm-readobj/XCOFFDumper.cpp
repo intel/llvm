@@ -40,6 +40,7 @@ public:
   void printNeededLibraries() override;
   void printStringTable() override;
   void printExceptionSection() override;
+  void printLoaderSection(bool PrintHeader) override;
 
   ScopedPrinter &getScopedPrinter() const { return W; }
 
@@ -66,6 +67,7 @@ private:
   void printRelocations(ArrayRef<Shdr> Sections);
   void printAuxiliaryHeader(const XCOFFAuxiliaryHeader32 *AuxHeader);
   void printAuxiliaryHeader(const XCOFFAuxiliaryHeader64 *AuxHeader);
+  void printLoaderSectionHeader(uintptr_t LoaderSectAddr);
   const XCOFFObjectFile &Obj;
 };
 } // anonymous namespace
@@ -131,6 +133,56 @@ void XCOFFDumper::printSectionHeaders() {
     printSectionHeaders(Obj.sections64());
   else
     printSectionHeaders(Obj.sections32());
+}
+
+void XCOFFDumper::printLoaderSection(bool PrintHeader) {
+  DictScope DS(W, "Loader Section");
+  Expected<uintptr_t> LoaderSectionAddrOrError =
+      Obj.getSectionFileOffsetToRawData(XCOFF::STYP_LOADER);
+  if (!LoaderSectionAddrOrError) {
+    reportUniqueWarning(LoaderSectionAddrOrError.takeError());
+    return;
+  }
+  uintptr_t LoaderSectionAddr = LoaderSectionAddrOrError.get();
+
+  W.indent();
+  if (PrintHeader)
+    printLoaderSectionHeader(LoaderSectionAddr);
+  // TODO: Need to print symbol table, relocation entry of loader section later.
+  // For example:
+  //           if (PrintSymbolTable)
+  //             printLoaderSectionSymbolTable();
+  //           if (PrintRelocation)
+  //             printLoaderSectionRelocationEntry();
+  W.unindent();
+}
+
+void XCOFFDumper::printLoaderSectionHeader(uintptr_t LoaderSectionAddr) {
+  DictScope DS(W, "Loader Section Header");
+
+  auto PrintLoadSecHeaderCommon = [&](const auto *LDHeader) {
+    W.printNumber("Version", LDHeader->Version);
+    W.printNumber("NumberOfSymbolEntries", LDHeader->NumberOfSymTabEnt);
+    W.printNumber("NumberOfRelocationEntries", LDHeader->NumberOfRelTabEnt);
+    W.printNumber("LengthOfImportFileIDStringTable",
+                  LDHeader->LengthOfImpidStrTbl);
+    W.printNumber("NumberOfImportFileIDs", LDHeader->NumberOfImpid);
+    W.printHex("OffsetToImportFileIDs", LDHeader->OffsetToImpid);
+    W.printNumber("LengthOfStringTable", LDHeader->LengthOfStrTbl);
+    W.printHex("OffsetToStringTable", LDHeader->OffsetToStrTbl);
+  };
+
+  if (Obj.is64Bit()) {
+    const LoaderSectionHeader64 *LoaderSec64 =
+        reinterpret_cast<const LoaderSectionHeader64 *>(LoaderSectionAddr);
+    PrintLoadSecHeaderCommon(LoaderSec64);
+    W.printHex("OffsetToSymbolTable", LoaderSec64->OffsetToSymTbl);
+    W.printHex("OffsetToRelocationEntries", LoaderSec64->OffsetToRelEnt);
+  } else {
+    const LoaderSectionHeader32 *LoaderSec32 =
+        reinterpret_cast<const LoaderSectionHeader32 *>(LoaderSectionAddr);
+    PrintLoadSecHeaderCommon(LoaderSec32);
+  }
 }
 
 template <typename T>
@@ -564,22 +616,13 @@ void XCOFFDumper::printSymbol(const SymbolRef &S) {
   case XCOFF::C_EXT:
   case XCOFF::C_WEAKEXT:
   case XCOFF::C_HIDEXT: {
-    if (!SymbolEntRef.isFunction() && NumberOfAuxEntries > 1)
-      reportUniqueWarning("the non-function " +
-                          enumToString(static_cast<uint8_t>(SymbolClass),
-                                       makeArrayRef(SymStorageClass)) +
-                          " symbol at index " + Twine(SymbolIdx) +
-                          " should have only 1 auxiliary entry, i.e. the CSECT "
-                          "auxiliary entry");
-
     // For 32-bit objects, print the function auxiliary symbol table entry. The
     // last one must be a CSECT auxiliary entry.
     // For 64-bit objects, both a function auxiliary entry and an exception
     // auxiliary entry may appear, print them in the loop and skip printing the
     // CSECT auxiliary entry, which will be printed outside the loop.
     for (int I = 1; I <= NumberOfAuxEntries; I++) {
-      if ((I == NumberOfAuxEntries && !Obj.is64Bit()) ||
-          !SymbolEntRef.isFunction())
+      if (I == NumberOfAuxEntries && !Obj.is64Bit())
         break;
 
       uintptr_t AuxAddress = XCOFFObjectFile::getAdvancedSymbolEntryAddress(

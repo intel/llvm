@@ -160,10 +160,13 @@ def : Pat<(fcanonicalize FPR32:$fj), (FMAX_S $fj, $fj)>;
 class PatFPSetcc<CondCode cc, LAInst CmpInst, RegisterClass RegTy>
     : Pat<(any_fsetcc RegTy:$fj, RegTy:$fk, cc),
           (MOVCF2GR (CmpInst RegTy:$fj, RegTy:$fk))>;
-// SETOGT/SETOGE/SETUGT/SETUGE will expand into SETOLT/SETOLE/SETULT/SETULE.
+// SETOGT/SETOGE/SETUGT/SETUGE/SETGE/SETNE/SETGT will expand into
+// SETOLT/SETOLE/SETULT/SETULE/SETLE/SETEQ/SETLT.
 def : PatFPSetcc<SETOEQ, FCMP_CEQ_S,  FPR32>;
+def : PatFPSetcc<SETEQ,  FCMP_CEQ_S,  FPR32>;
 def : PatFPSetcc<SETOLT, FCMP_CLT_S,  FPR32>;
 def : PatFPSetcc<SETOLE, FCMP_CLE_S,  FPR32>;
+def : PatFPSetcc<SETLE,  FCMP_CLE_S,  FPR32>;
 def : PatFPSetcc<SETONE, FCMP_CNE_S,  FPR32>;
 def : PatFPSetcc<SETO,   FCMP_COR_S,  FPR32>;
 def : PatFPSetcc<SETUEQ, FCMP_CUEQ_S, FPR32>;
@@ -281,7 +284,11 @@ def : Pat<(loongarch_movgr2fr_w_la64 GPR:$src), (MOVGR2FR_W GPR:$src)>;
 def : Pat<(loongarch_movfr2gr_s_la64 FPR32:$src),
           (MOVFR2GR_S FPR32:$src)>;
 // int -> f32
-def : Pat<(f32 (sint_to_fp GPR:$src)), (FFINT_S_W (MOVGR2FR_W GPR:$src))>;
+def : Pat<(f32 (sint_to_fp (i64 (sexti32 (i64 GPR:$src))))),
+          (FFINT_S_W (MOVGR2FR_W GPR:$src))>;
+// uint -> f32
+def : Pat<(f32 (uint_to_fp (i64 (sexti32 (i64 GPR:$src))))),
+          (FFINT_S_W (MOVGR2FR_W GPR:$src))>;
 } // Predicates = [HasBasicF, IsLA64]
 
 // FP Rounding

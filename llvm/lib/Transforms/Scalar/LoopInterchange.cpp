@@ -182,20 +182,6 @@ static void interChangeDependencies(CharMatrix &DepMatrix, unsigned FromIndx,
     std::swap(DepMatrix[I][ToIndx], DepMatrix[I][FromIndx]);
 }
 
-// Checks if outermost non '=','S'or'I' dependence in the dependence matrix is
-// '>'
-static bool isOuterMostDepPositive(CharMatrix &DepMatrix, unsigned Row,
-                                   unsigned Column) {
-  for (unsigned i = 0; i <= Column; ++i) {
-    if (DepMatrix[Row][i] == '<')
-      return false;
-    if (DepMatrix[Row][i] == '>')
-      return true;
-  }
-  // All dependencies were '=','S' or 'I'
-  return false;
-}
-
 // Checks if no dependence exist in the dependency matrix in Row before Column.
 static bool containsNoDependence(CharMatrix &DepMatrix, unsigned Row,
                                  unsigned Column) {
@@ -210,9 +196,6 @@ static bool containsNoDependence(CharMatrix &DepMatrix, unsigned Row,
 static bool validDepInterchange(CharMatrix &DepMatrix, unsigned Row,
                                 unsigned OuterLoopId, char InnerDep,
                                 char OuterDep) {
-  if (isOuterMostDepPositive(DepMatrix, Row, OuterLoopId))
-    return false;
-
   if (InnerDep == OuterDep)
     return true;
 
@@ -848,18 +831,26 @@ bool LoopInterchangeLegality::currentLimitations() {
   }
 
   Inductions.clear();
-  if (!findInductionAndReductions(InnerLoop, Inductions, nullptr)) {
-    LLVM_DEBUG(
-        dbgs() << "Only inner loops with induction or reduction PHI nodes "
-               << "are supported currently.\n");
-    ORE->emit([&]() {
-      return OptimizationRemarkMissed(DEBUG_TYPE, "UnsupportedPHIInner",
-                                      InnerLoop->getStartLoc(),
-                                      InnerLoop->getHeader())
-             << "Only inner loops with induction or reduction PHI nodes can be"
-                " interchange currently.";
-    });
-    return true;
+  // For multi-level loop nests, make sure that all phi nodes for inner loops
+  // at all levels can be recognized as a induction or reduction phi. Bail out
+  // if a phi node at a certain nesting level cannot be properly recognized.
+  Loop *CurLevelLoop = OuterLoop;
+  while (!CurLevelLoop->getSubLoops().empty()) {
+    // We already made sure that the loop nest is tightly nested.
+    CurLevelLoop = CurLevelLoop->getSubLoops().front();
+    if (!findInductionAndReductions(CurLevelLoop, Inductions, nullptr)) {
+      LLVM_DEBUG(
+          dbgs() << "Only inner loops with induction or reduction PHI nodes "
+                << "are supported currently.\n");
+      ORE->emit([&]() {
+        return OptimizationRemarkMissed(DEBUG_TYPE, "UnsupportedPHIInner",
+                                        CurLevelLoop->getStartLoc(),
+                                        CurLevelLoop->getHeader())
+              << "Only inner loops with induction or reduction PHI nodes can be"
+                  " interchange currently.";
+      });
+      return true;
+    }
   }
 
   // TODO: Triangular loops are not handled for now.

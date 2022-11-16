@@ -71,9 +71,8 @@ def FuseIntoContainingOp :
   let description = [{Fuse a producer into a containing operation.}];
 
   let summary = [{
-    Fuses the `producer_op` into the `containing_op`. Only producers with a
-    single result are supported at the moment. Returns a handle to the fused
-    ops.
+    Fuses the `producer_op` into the `containing_op`.
+    Returns a handle to the fused ops.
 
     The producer is typically a slice of a tileable op (i.e., implements
     TilingInterface). In that case, this transform computes the accessed
@@ -98,8 +97,10 @@ def FuseIntoContainingOp :
     This is the case when tiling fails or when no producer op could be found
     among the remaining producers that has at least one use within the
     containing op. I.e., "producers" that are not consumed within the containing
-    op are rejected by this operation. This operation reads and frees the
-    producer handle. It reads the containing op handle.
+    op are rejected by this operation.
+
+    This operation reads and frees the producer handle.
+    This operation reads the containing op handle.
   }];
 
   let arguments = (ins Arg<PDL_Operation, "",
@@ -111,6 +112,10 @@ def FuseIntoContainingOp :
                           [TransformMappingAlloc,
                            TransformMappingWrite]>:$fused_op);
   let assemblyFormat = "$producer_op `into` $containing_op attr-dict";
+
+  let builders = [
+    OpBuilder<(ins "Value":$producerOp, "Value":$containingOp)>
+  ];
 }
 
 def GeneralizeOp : Op<Transform_Dialect, "structured.generalize",
@@ -224,6 +229,10 @@ def MatchOp : Op<Transform_Dialect, "structured.match",
                        OptionalAttr<TypeAttr>:$filter_result_type);
   // TODO: variadic results when needed.
   let results = (outs PDL_Operation:$results);
+
+  let builders = [
+    OpBuilder<(ins "Value":$target, "ArrayRef<StringRef>":$opNames)>
+  ];
 
   let assemblyFormat = [{
     (`ops` `{` $ops^ `}`)?
@@ -599,6 +608,103 @@ def SplitReductionOp : Op<Transform_Dialect, "structured.split_reduction",
 
   let assemblyFormat = "$target attr-dict";
 
+  let builders = [
+    OpBuilder<(ins "Value":$target,
+                   "int64_t":$splitFactor,
+                   "int64_t":$insertSplitDimension,
+                   CArg<"bool", "false">:$innerParallel,
+                   CArg<"bool", "false">:$useScalingAlgorithm,
+                   CArg<"bool", "false">:$useAlloc)>
+  ];
+
+  let extraClassDeclaration = [{
+    ::mlir::DiagnosedSilenceableFailure applyToOne(
+        ::mlir::linalg::LinalgOp target, 
+        ::llvm::SmallVectorImpl<::mlir::Operation *> &results, 
+        ::mlir::transform::TransformState &state);
+  }];
+}
+
+
+def TileReductionUsingScfOp : Op<Transform_Dialect, "structured.tile_reduction_using_scf",
+       [FunctionalStyleTransformOpTrait, MemoryEffectsOpInterface,
+        TransformEachOpTrait, TransformOpInterface]> {
+  let description = [{
+    Indicates that the given `target` op should be transformed with the 
+    `tileReduction` transformation with the tile size provided as attribute.
+    
+    This transformation tiles the `target` along the reduction dimensions. It
+    creates a tensor initialized with the identity value. Then it creates nested
+    loops with a parallel version of `target` op inside. The parallel op
+    dimensions are less or equal to the tile size passed by user.
+    After the loop a merge operation is created to do a final reduction with the
+    partial reductions.
+    The initial tensor always uses the tile size dimension. This may overallocate
+    if the tile size is greater than the reduction dimension.
+
+    #### Return modes
+
+    This 3 returned handles point to:
+      - the fill op used to initialize the neutral element, 
+      - the parallel tiled op and 
+      - the result-combining op.
+
+    #### Example:
+    
+    ```
+      %red = linalg.generic {indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>,
+                                              affine_map<(d0, d1) -> (d0)>],
+      iterator_types = ["parallel", "reduction"]}
+      ins(%arg0 : tensor<?x?xf32>)
+      outs(%out : tensor<?xf32>) {
+        ^bb0(%arg7: f32, %arg9: f32):
+        %1 = arith.addf %arg7, %arg9 : f32
+        linalg.yield %1 : f32
+      } -> tensor<?xf32>
+      return %red : tensor<?xf32>
+    ```
+  
+    is transformed into:
+    
+    ```
+      %0 = tensor.empty(%dim_1) : tensor<?x5xf32>
+      %1 = linalg.fill ins(%cst : f32) outs(%0 : tensor<?x5xf32>) -> tensor<?x5xf32>
+      %2 = scf.for %arg2 = %c0 to %dim_0 step %c5 iter_args(%arg3 = %1) -> (tensor<?x5xf32>) {
+        %extracted_slice = tensor.extract_slice %1[0, 0] [%dim, 5] [1, 1] : tensor<?x5xf32> to tensor<?x5xf32>
+        %extracted_slice_2 = tensor.extract_slice %arg0[0, %arg2] [%dim, 5] [1, 1] : tensor<?x?xf32> to tensor<?x5xf32>
+        %4 = linalg.generic {indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>, 
+                                              affine_map<(d0, d1) -> (d0, d1)>],
+        iterator_types = ["parallel", "parallel"]}
+        ins(%extracted_slice_2 : tensor<?x5xf32>)
+        outs(%extracted_slice : tensor<?x5xf32>) {
+        ^bb0(%in: f32, %out: f32):
+          %5 = arith.addf %in, %out : f32
+          linalg.yield %5 : f32
+        } -> tensor<?x5xf32>
+        %dim_3 = tensor.dim %1, %c0 : tensor<?x5xf32>
+        %inserted_slice = tensor.insert_slice %4 into %arg3[0, 0] [%dim_3, 5] [1, 1] : tensor<?x5xf32> into tensor<?x5xf32>
+        scf.yield %inserted_slice : tensor<?x5xf32>
+      }
+      %3 = linalg.generic {indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>,
+                                            affine_map<(d0, d1) -> (d0)>],
+      iterator_types = ["parallel", "reduction"]}
+      ins(%2 : tensor<?x5xf32>)
+      outs(%arg1 : tensor<?xf32>) {
+      ^bb0(%in: f32, %out: f32):
+        %4 = arith.addf %in, %out : f32
+        linalg.yield %4 : f32
+      } -> tensor<?xf32>
+    ```
+  }];
+
+  let arguments = (ins PDL_Operation:$target,
+                   DefaultValuedAttr<I64ArrayAttr, "{}">:$tile_sizes);
+  let results = (outs PDL_Operation:$fill_op,
+                      PDL_Operation:$split_linalg_op,
+                      PDL_Operation:$combining_linalg_op);
+
+  let assemblyFormat = "$target attr-dict";
+
   let extraClassDeclaration = [{
     ::mlir::DiagnosedSilenceableFailure applyToOne(
         ::mlir::linalg::LinalgOp target, 
@@ -729,6 +835,30 @@ def TileToForeachThreadOp :
                    OptionalAttr<I64ArrayAttr>:$thread_dim_mapping);
   let results = (outs PDL_Operation:$foreach_thread_op,
                       PDL_Operation:$tiled_op);
+
+  let builders = [
+    OpBuilder<(ins "Value":$target,
+                   "ArrayRef<int64_t>":$staticTileSizes,
+                   CArg<"::mlir::transform::TileSizesSpec", 
+                        "::mlir::transform::TileSizesSpec()">,
+                   CArg<"ArrayRef<int64_t>", "{}">:$threadDimMapping)>,
+    OpBuilder<(ins "Value":$target,
+                   "ArrayRef<OpFoldResult>":$mixedTileSizes,
+                   CArg<"::mlir::transform::TileSizesSpec", 
+                        "::mlir::transform::TileSizesSpec()">,
+                   CArg<"ArrayRef<int64_t>", "{}">:$threadDimMapping)>,
+    OpBuilder<(ins "Value":$target,
+                   "ArrayRef<int64_t>":$staticNumThreads,
+                   CArg<"::mlir::transform::NumThreadsSpec", 
+                        "::mlir::transform::NumThreadsSpec()">,
+                   CArg<"ArrayRef<int64_t>", "{}">:$threadDimMapping)>,
+    OpBuilder<(ins "Value":$target,
+                   "ArrayRef<OpFoldResult>":$mixedNumThreads,
+                   CArg<"::mlir::transform::NumThreadsSpec", 
+                        "::mlir::transform::NumThreadsSpec()">,
+                   CArg<"ArrayRef<int64_t>", "{}">:$threadDimMapping)>,
+  ];
+
   let assemblyFormat = [{
     $target oilist(
         `num_threads` custom<DynamicIndexList>($num_threads,
@@ -748,6 +878,63 @@ def TileToForeachThreadOp :
 
     ::llvm::SmallVector<::mlir::OpFoldResult> getMixedNumThreads();
     ::llvm::SmallVector<::mlir::OpFoldResult> getMixedTileSizes();
+  }];
+}
+
+def TileToScfForOp : Op<Transform_Dialect, "structured.tile_to_scf_for",
+       [DeclareOpInterfaceMethods<TransformOpInterface>,
+        DeclareOpInterfaceMethods<MemoryEffectsOpInterface>]> {
+  let description = [{
+    Indicates that the given `target` op should be tiled with the given sizes.
+    This transform generates a loop nest with a smaller ("tiled") target
+    operation in its body. The target must implement TilingInterface.
+
+    Tile sizes may be known at transformation time, in which case they are
+    expected to be provided in the `static_size` attribute, or not, in which
+    case the tile value must be computed by the payload IR and the handle to the
+    operation computing it must be provided through `dynamic_sizes`. When the
+    sizes are not known statically, the corresponding entry in the
+    `static_sizes` attribute must be set to `ShapedType::kDynamicSize`. Only
+    the dynamic sizes must be provided in `dynamic_sizes`, i.e., there should
+    be as many handles as `ShapedType::kDynamicSize` values in the
+    `static_sizes` attribute. A static size of `0` indicates that the dimension
+    should not be tiled. No loop will be generated for such dimensions. If all
+    tile sizes are `0`, this transform is effectively a no-op.
+
+    This op returns handles to the tiled op (in the generated loop nest) and the
+    generated loops. The number of loops is the number of tile sizes that are
+    statically known to be non-zero.
+
+    #### Return modes
+
+    On success, the resulting handles are associated with co-indexed lists of
+    tiled operations and loops around them.
+
+    This operation only supports TilingInterface ops and produces a silenceable
+    failure if the input contains any non-TilingInterface ops. The ops preceding
+    it in the list associated with the `target` handle will have been tiled.
+
+    This operation produces a silenceable failure if the `dynamic_sizes` handles
+    are associated with lists of payload operations of a size different than
+    that of the list associated with the `target` handle.
+
+    If the internal implementation of tiling for any of the operations fails,
+    produces a definite failure.
+  }];
+
+  let arguments = (ins PDL_Operation:$target,
+                   Variadic<PDL_Operation>:$dynamic_sizes,
+                   DefaultValuedAttr<I64ArrayAttr, "{}">:$static_sizes,
+                   DefaultValuedAttr<I64ArrayAttr, "{}">:$interchange);
+  let results = (outs PDL_Operation:$tiled_linalg_op,
+                      Variadic<PDL_Operation>:$loops);
+
+  let hasCustomAssemblyFormat = 1;
+
+  let extraClassDeclaration = [{
+    /// Returns the list of tile sizes, which may be static (Attribute) or
+    /// dynamic (Value).
+    SmallVector<OpFoldResult> getMixedSizes();
   }];
 }
 
@@ -797,6 +984,10 @@ def VectorizeOp : Op<Transform_Dialect, "structured.vectorize",
   let results = (outs PDL_Operation:$transformed);
 
   let assemblyFormat = "$target attr-dict";
+
+  let builders = [
+    OpBuilder<(ins "Value":$target, CArg<"bool", "false">:$vectorizePadding)>
+  ];
   let extraClassDeclaration = [{
     ::mlir::DiagnosedSilenceableFailure applyToOne(
         ::mlir::Operation *target, 

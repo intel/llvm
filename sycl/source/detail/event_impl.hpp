@@ -225,6 +225,15 @@ public:
     MWorkerQueue = WorkerQueue;
   };
 
+  /// Sets original queue used for submission.
+  ///
+  /// @return
+  void setSubmittedQueue(const QueueImplPtr &SubmittedQueue) {
+    MSubmittedQueue = SubmittedQueue;
+  };
+
+  QueueImplPtr getSubmittedQueue() const { return MSubmittedQueue.lock(); };
+
   /// Checks if an event is in a fully intialized state. Default-constructed
   /// events will return true only after having initialized its native event,
   /// while other events will assume that they are fully initialized at
@@ -236,7 +245,12 @@ public:
 
   bool isCompleted();
 
-private:
+  void attachEventToComplete(const EventImplPtr &Event) {
+    std::lock_guard<std::mutex> Lock(MMutex);
+    MPostCompleteEvents.push_back(Event);
+  }
+
+protected:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
   void *instrumentationProlog(std::string &Name, int32_t StreamID,
@@ -259,10 +273,13 @@ private:
   const bool MIsProfilingEnabled = false;
 
   std::weak_ptr<queue_impl> MWorkerQueue;
+  std::weak_ptr<queue_impl> MSubmittedQueue;
 
   /// Dependency events prepared for waiting by backend.
   std::vector<EventImplPtr> MPreparedDepsEvents;
   std::vector<EventImplPtr> MPreparedHostDepsEvents;
+
+  std::vector<EventImplPtr> MPostCompleteEvents;
 
   /// Indicates that the task associated with this event has been submitted by
   /// the queue to the device.

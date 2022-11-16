@@ -67,11 +67,15 @@ enum ArchExtKind : uint64_t {
   AEK_PAUTH =       1ULL << 35, // FEAT_PAuth
   AEK_FLAGM =       1ULL << 36, // FEAT_FlagM
   AEK_SME =         1ULL << 37, // FEAT_SME
-  AEK_SMEF64 =      1ULL << 38, // FEAT_SME_F64F64
-  AEK_SMEI64 =      1ULL << 39, // FEAT_SME_I16I64
+  AEK_SMEF64F64 =   1ULL << 38, // FEAT_SME_F64F64
+  AEK_SMEI16I64 =   1ULL << 39, // FEAT_SME_I16I64
   AEK_HBC =         1ULL << 40, // FEAT_HBC
   AEK_MOPS =        1ULL << 41, // FEAT_MOPS
   AEK_PERFMON =     1ULL << 42, // FEAT_PMUv3
+  AEK_SME2 =        1ULL << 43, // FEAT_SME2
+  AEK_SVE2p1 =      1ULL << 44, // FEAT_SVE2p1
+  AEK_SME2p1 =      1ULL << 45, // FEAT_SME2p1
+  AEK_B16B16 =      1ULL << 46  // FEAT_B16B16
 };
 
 enum class ArchKind {
@@ -107,6 +111,20 @@ const ARM::CpuNames<ArchKind> AArch64CPUNames[] = {
 #include "AArch64TargetParser.def"
 };
 
+const struct {
+  const char *Alias;
+  size_t AliasLength;
+  const char *Name;
+  size_t NameLength;
+
+  StringRef getAlias() const { return StringRef(Alias, AliasLength); }
+  StringRef getName() const { return StringRef(Name, NameLength); }
+} AArch64CPUAliases[] = {
+#define AARCH64_CPU_ALIAS(ALIAS,NAME)                                          \
+  {ALIAS, sizeof(ALIAS) - 1, NAME, sizeof(NAME) - 1},
+#include "AArch64TargetParser.def"
+};
+
 const ArchKind ArchKinds[] = {
 #define AARCH64_ARCH(NAME, ID, CPU_ATTR, SUB_ARCH, ARCH_ATTR, ARCH_FPU, ARCH_BASE_EXT) \
     ArchKind::ID,
@@ -136,6 +154,7 @@ StringRef getSubArch(ArchKind AK);
 StringRef getArchExtName(unsigned ArchExtKind);
 StringRef getArchExtFeature(StringRef ArchExt);
 ArchKind convertV9toV8(ArchKind AK);
+StringRef resolveCPUAlias(StringRef CPU);
 
 // Information by Name
 unsigned getDefaultFPU(StringRef CPU, ArchKind AK);

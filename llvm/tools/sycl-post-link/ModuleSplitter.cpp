@@ -711,8 +711,8 @@ void ModuleDesc::dump() const {
   llvm::errs() << "split_module::ModuleDesc[" << Name << "] {\n";
   llvm::errs() << "  ESIMD:" << toString(EntryPoints.Props.HasESIMD)
                << ", SpecConstMet:" << (Props.SpecConstsMet ? "YES" : "NO")
-               << ", DoubleGRF:"
-               << (EntryPoints.Props.UsesDoubleGRF ? "YES" : "NO") << "\n";
+               << ", LargeGRF:"
+               << (EntryPoints.Props.UsesLargeGRF ? "YES" : "NO") << "\n";
   dumpEntryPoints(entries(), EntryPoints.GroupId.str().c_str(), 1);
   llvm::errs() << "}\n";
 }
@@ -744,12 +744,12 @@ void EntryPointGroup::rebuildFromNames(const std::vector<std::string> &Names,
 }
 
 std::unique_ptr<ModuleSplitterBase>
-getDoubleGRFSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints) {
+getLargeGRFSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints) {
   EntryPointGroupVec Groups = groupEntryPointsByAttribute(
-      MD, sycl::kernel_props::ATTR_DOUBLE_GRF, EmitOnlyKernelsAsEntryPoints,
+      MD, sycl::kernel_props::ATTR_LARGE_GRF, EmitOnlyKernelsAsEntryPoints,
       [](EntryPointGroup &G) {
-        if (G.GroupId == sycl::kernel_props::ATTR_DOUBLE_GRF) {
-          G.Props.UsesDoubleGRF = true;
+        if (G.GroupId == sycl::kernel_props::ATTR_LARGE_GRF) {
+          G.Props.UsesLargeGRF = true;
         }
       });
   assert(!Groups.empty() && "At least one group is expected");
