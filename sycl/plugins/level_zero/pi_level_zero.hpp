@@ -925,21 +925,6 @@ struct _pi_queue : _pi_object {
   // command is enqueued.
   pi_event LastCommandEvent = nullptr;
 
-  // Holds a pointer to the last discarded event which was reset.
-  // We don't want to put discarded event to the cache as soon as it is reset to
-  // avoid using the same discarded event two times in a row. So we remember it
-  // and put to the cache for reuse only after submission of the next command
-  // with discarded event. LastCommandEvent can't be used for this purpose
-  // because references event canbe released and LastCommandEvent become
-  // nullptr. LastDiscardedEvent points to the new pi_event object created using
-  // reset native handle, so this new object can't be lost and will be used for
-  // the next command.
-  pi_event LastDiscardedEvent = nullptr;
-
-  // Set LastDiscardedEvent data member. It creates new pi_event using native
-  // handle from the provided pi_event object.
-  pi_result setLastDiscardedEvent(pi_event Event);
-
   // Keep track of the last command list used by in-order queue.
   pi_command_list_ptr_t LastCommandList = CommandListMap.end();
 

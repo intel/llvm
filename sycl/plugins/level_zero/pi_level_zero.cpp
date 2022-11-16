@@ -659,22 +659,6 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
   if (!(condition))                                                            \
     return error;
 
-pi_result _pi_queue::setLastDiscardedEvent(pi_event Event) {
-  try {
-    LastDiscardedEvent = new _pi_event(Event->ZeEvent, Event->ZeEventPool,
-                                       Context, PI_COMMAND_TYPE_USER, true);
-  } catch (const std::bad_alloc &) {
-    return PI_ERROR_OUT_OF_HOST_MEMORY;
-  } catch (...) {
-    return PI_ERROR_UNKNOWN;
-  }
-
-  if (Event->isHostVisible())
-    LastDiscardedEvent->HostVisibleEvent = LastDiscardedEvent;
-
-  return PI_SUCCESS;
-}
-
 pi_result _pi_queue::appendWaitAndResetLastDiscardedEvent(
     pi_command_list_ptr_t CommandList) {
   if (LastCommandEvent && LastCommandEvent->IsDiscarded) {
@@ -683,13 +667,23 @@ pi_result _pi_queue::appendWaitAndResetLastDiscardedEvent(
     ZE_CALL(zeCommandListAppendEventReset,
             (CommandList->first, LastCommandEvent->ZeEvent));
 
-    // Put previous discarded event to the cache.
-    if (LastDiscardedEvent)
-      PI_CALL(addEventToCache(LastDiscardedEvent));
-    // Update last discarded event. It will be put to the cache after submission
-    // of the next command.
-    PI_CALL(setLastDiscardedEvent(LastCommandEvent));
+    // Create copy of pi_event but with the same ze_event_handle_t. We are going to use this pi_event for the next command with discarded event.
+    pi_event PiEvent;
+    try {
+      PiEvent = new _pi_event(LastCommandEvent->ZeEvent, LastCommandEvent->ZeEventPool,
+                                        Context, PI_COMMAND_TYPE_USER, true);
+    } catch (const std::bad_alloc &) {
+      return PI_ERROR_OUT_OF_HOST_MEMORY;
+    } catch (...) {
+      return PI_ERROR_UNKNOWN;
+    }
+
+    if (LastCommandEvent->isHostVisible())
+      PiEvent->HostVisibleEvent = PiEvent;
+
+    PI_CALL(addEventToCache(PiEvent));
   }
+
   return PI_SUCCESS;
 }
 
@@ -774,7 +768,7 @@ pi_result _pi_queue::signalEvent(pi_command_list_ptr_t CommandList) {
 pi_event _pi_queue::getEventFromCache(bool HostVisible) {
   auto Cache = getEventCache(HostVisible);
 
-  if (Cache->empty())
+  if (Cache->size() < 2)
     return nullptr;
 
   auto It = Cache->begin();
@@ -3897,9 +3891,6 @@ static pi_result piQueueReleaseInternal(pi_queue Queue) {
 
   if (!Queue->RefCount.decrementAndTest())
     return PI_SUCCESS;
-
-  if (Queue->LastDiscardedEvent)
-    PI_CALL(Queue->addEventToCache(Queue->LastDiscardedEvent));
 
   for (auto Cache : Queue->EventCaches)
     for (auto Event : Cache)
