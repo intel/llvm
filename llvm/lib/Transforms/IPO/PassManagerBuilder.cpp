@@ -349,8 +349,6 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
   MPM.add(
       createCFGSimplificationPass(SimplifyCFGOptions().convertSwitchRangeToICmp(
           true)));                            // Merge & remove BBs
-  // FIXME: re-association increases variables liveness and therefore register
-  // pressure.
   MPM.add(createReassociatePass()); // Reassociate expressions
 
   // The matrix extension can introduce large vector operations early, which can
