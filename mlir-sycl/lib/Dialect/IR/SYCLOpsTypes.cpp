@@ -787,7 +787,8 @@ llvm::ArrayRef<mlir::Type> mlir::sycl::GroupType::getBody() const {
 ////////////////////////////////////////////////////////////////////////////////
 
 mlir::sycl::AtomicType
-mlir::sycl::AtomicType::get(MLIRContext *Context, llvm::SmallVector<mlir::Type, 4> Body) {
+mlir::sycl::AtomicType::get(MLIRContext *Context,
+                            llvm::SmallVector<mlir::Type, 4> Body) {
   return Base::get(Context, Body);
 }
 
@@ -830,7 +831,8 @@ llvm::ArrayRef<mlir::Type> mlir::sycl::AtomicType::getBody() const {
 ////////////////////////////////////////////////////////////////////////////////
 
 mlir::sycl::MultiPtrType
-mlir::sycl::MultiPtrType::get(MLIRContext *Context, llvm::SmallVector<mlir::Type, 4> Body) {
+mlir::sycl::MultiPtrType::get(MLIRContext *Context,
+                              llvm::SmallVector<mlir::Type, 4> Body) {
   return Base::get(Context, Body);
 }
 

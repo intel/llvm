@@ -159,12 +159,10 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
                                         Body);
     }
     if (CTS->getName() == "atomic") {
-      return mlir::sycl::AtomicType::get(CGT.getModule()->getContext(),
-                                        Body);
+      return mlir::sycl::AtomicType::get(CGT.getModule()->getContext(), Body);
     }
     if (CTS->getName() == "multi_ptr") {
-      return mlir::sycl::MultiPtrType::get(CGT.getModule()->getContext(),
-                                        Body);
+      return mlir::sycl::MultiPtrType::get(CGT.getModule()->getContext(), Body);
     }
   }
 

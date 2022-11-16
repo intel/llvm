@@ -302,12 +302,9 @@ struct GroupTypeStorage : public TypeStorage {
 struct AtomicTypeStorage : public TypeStorage {
   using KeyTy = llvm::SmallVector<mlir::Type, 4>;
 
-  AtomicTypeStorage(const KeyTy &Key)
-      : Body(Key){}
+  AtomicTypeStorage(const KeyTy &Key) : Body(Key) {}
 
-  bool operator==(const KeyTy &Key) const {
-    return Key == KeyTy{Body};
-  }
+  bool operator==(const KeyTy &Key) const { return Key == KeyTy{Body}; }
 
   static llvm::hash_code hashKey(const KeyTy &Key) {
     return llvm::hash_combine(Key);
@@ -316,7 +313,7 @@ struct AtomicTypeStorage : public TypeStorage {
   static KeyTy getKey(const KeyTy &Key) { return KeyTy{Key}; }
 
   static AtomicTypeStorage *construct(TypeStorageAllocator &Allocator,
-                                     const KeyTy &Key) {
+                                      const KeyTy &Key) {
     return new (Allocator.allocate<AtomicTypeStorage>()) AtomicTypeStorage(Key);
   }
 
@@ -326,12 +323,9 @@ struct AtomicTypeStorage : public TypeStorage {
 struct MultiPtrTypeStorage : public TypeStorage {
   using KeyTy = llvm::SmallVector<mlir::Type, 4>;
 
-  MultiPtrTypeStorage(const KeyTy &Key)
-      : Body(Key){}
+  MultiPtrTypeStorage(const KeyTy &Key) : Body(Key) {}
 
-  bool operator==(const KeyTy &Key) const {
-    return Key == KeyTy{Body};
-  }
+  bool operator==(const KeyTy &Key) const { return Key == KeyTy{Body}; }
 
   static llvm::hash_code hashKey(const KeyTy &Key) {
     return llvm::hash_combine(Key);
@@ -340,13 +334,13 @@ struct MultiPtrTypeStorage : public TypeStorage {
   static KeyTy getKey(const KeyTy &Key) { return KeyTy{Key}; }
 
   static MultiPtrTypeStorage *construct(TypeStorageAllocator &Allocator,
-                                     const KeyTy &Key) {
-    return new (Allocator.allocate<MultiPtrTypeStorage>()) MultiPtrTypeStorage(Key);
+                                        const KeyTy &Key) {
+    return new (Allocator.allocate<MultiPtrTypeStorage>())
+        MultiPtrTypeStorage(Key);
   }
 
   llvm::SmallVector<mlir::Type, 4> Body;
 };
-
 
 } // namespace detail
 } // namespace sycl
@@ -559,7 +553,8 @@ class AtomicType
 public:
   using Base::Base;
 
-  static mlir::sycl::AtomicType get(MLIRContext *Context, llvm::SmallVector<mlir::Type, 4> Body);
+  static mlir::sycl::AtomicType get(MLIRContext *Context,
+                                    llvm::SmallVector<mlir::Type, 4> Body);
   static mlir::Type parseType(mlir::DialectAsmParser &Parser);
 
   llvm::ArrayRef<mlir::Type> getBody() const;
@@ -572,7 +567,8 @@ class MultiPtrType
 public:
   using Base::Base;
 
-  static mlir::sycl::MultiPtrType get(MLIRContext *Context, llvm::SmallVector<mlir::Type, 4> Body);
+  static mlir::sycl::MultiPtrType get(MLIRContext *Context,
+                                      llvm::SmallVector<mlir::Type, 4> Body);
   static mlir::Type parseType(mlir::DialectAsmParser &Parser);
 
   llvm::ArrayRef<mlir::Type> getBody() const;

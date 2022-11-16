@@ -211,18 +211,16 @@ static Optional<Type> convertNdRangeType(sycl::NdRangeType type,
 
 /// Converts SYCL atomic type to LLVM type.
 static Optional<Type> convertAtomicType(sycl::AtomicType type,
-                                       LLVMTypeConverter &converter) {
-  return convertBodyType("class.sycl::_V1::atomic",
-                         type.getBody(), converter);
+                                        LLVMTypeConverter &converter) {
+  return convertBodyType("class.sycl::_V1::atomic", type.getBody(), converter);
 }
 
 /// Converts SYCL multi_ptr type to LLVM type.
 static Optional<Type> convertMultiPtrType(sycl::MultiPtrType type,
-                                       LLVMTypeConverter &converter) {
-  return convertBodyType("class.sycl::_V1::multi_ptr",
-                         type.getBody(), converter);
+                                          LLVMTypeConverter &converter) {
+  return convertBodyType("class.sycl::_V1::multi_ptr", type.getBody(),
+                         converter);
 }
-
 
 //===----------------------------------------------------------------------===//
 // CallPattern - Converts `sycl.call` to LLVM.

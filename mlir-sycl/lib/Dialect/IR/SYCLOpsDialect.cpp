@@ -26,7 +26,8 @@ void mlir::sycl::SYCLDialect::initialize() {
       mlir::sycl::AccessorType, mlir::sycl::RangeType, mlir::sycl::NdRangeType,
       mlir::sycl::AccessorImplDeviceType, mlir::sycl::ArrayType,
       mlir::sycl::ItemType, mlir::sycl::ItemBaseType, mlir::sycl::NdItemType,
-      mlir::sycl::GroupType, mlir::sycl::AtomicType, mlir::sycl::MultiPtrType>();
+      mlir::sycl::GroupType, mlir::sycl::AtomicType,
+      mlir::sycl::MultiPtrType>();
 
   mlir::Dialect::addInterfaces<SYCLOpAsmInterface>();
 }
@@ -77,7 +78,6 @@ mlir::sycl::SYCLDialect::parseType(mlir::DialectAsmParser &Parser) const {
   if (Keyword == "multi_ptr") {
     return mlir::sycl::MultiPtrType::parseType(Parser);
   }
-
 
   Parser.emitError(Parser.getCurrentLocation(), "unknown SYCL type: ")
       << Keyword;
@@ -134,12 +134,11 @@ void mlir::sycl::SYCLDialect::printType(
     Printer << "atomic<(";
     llvm::interleaveComma(Atomic.getBody(), Printer);
     Printer << ")>";
-  }  else if (const auto MultiPtr = Type.dyn_cast<mlir::sycl::MultiPtrType>()) {
+  } else if (const auto MultiPtr = Type.dyn_cast<mlir::sycl::MultiPtrType>()) {
     Printer << "multi_ptr<(";
     llvm::interleaveComma(MultiPtr.getBody(), Printer);
     Printer << ")>";
-  }  
-  else {
+  } else {
     assert(false && "The given type is not handled by the SYCL printer");
   }
 }
