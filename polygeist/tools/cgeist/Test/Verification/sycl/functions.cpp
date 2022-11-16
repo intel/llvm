@@ -6,7 +6,7 @@
 
 #include <sycl/sycl.hpp>
 
-// CHECK-MLIR-NO-MANGLED-FUNCTION-NAME-NOT: MangledFunctionName
+// CHECK-MLIR-NO-MANGLED-FUNCTION-NAME-NOT: {{^(sycl\.constructor|sycl\.call){,0}.*}} MangledFunctionName
 
 // CHECK-MLIR-DAG: !sycl_id_1_ = !sycl.id<1>
 // CHECK-MLIR-DAG: !sycl_id_2_ = !sycl.id<2>
