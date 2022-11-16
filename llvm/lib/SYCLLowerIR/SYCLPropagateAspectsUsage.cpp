@@ -522,12 +522,12 @@ buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects,
   for (Function *F : EntryPoints)
     propagateAspectsThroughCG(F, CG, FunctionToUsedAspects, Visited);
 
-  validateUsedAspectsForFunctions(FunctionToUsedAspects, AspectValues, EntryPoints,
-                                  CG);
+  validateUsedAspectsForFunctions(FunctionToUsedAspects, AspectValues,
+                                  EntryPoints, CG);
 
-  // The set of spects from FunctionToDeclaredAspects should be merged to the set
-  // of FunctionToUsedAspects after validateUsedAspectsForFunctions call to avoid
-  // errors during validation.
+  // The set of spects from FunctionToDeclaredAspects should be merged to the
+  // set of FunctionToUsedAspects after validateUsedAspectsForFunctions call to
+  // avoid errors during validation.
   Visited.clear();
   for (Function *F : EntryPoints)
     propagateAspectsThroughCG(F, CG, FunctionToDeclaredAspects, Visited);
