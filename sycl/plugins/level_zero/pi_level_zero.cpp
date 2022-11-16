@@ -1125,16 +1125,6 @@ _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
       }
     }
   }
-  // We may have additional events to cleanup if queue has discarded events.
-  // These events are waited by barrier inserted in the beginning of command
-  // list.
-  auto &StartingBarrierEvents = CommandList->second.StartingBarrierEvents;
-  if (!StartingBarrierEvents.empty()) {
-    std::move(std::begin(StartingBarrierEvents),
-              std::end(StartingBarrierEvents),
-              std::back_inserter(EventListToCleanup));
-    StartingBarrierEvents.clear();
-  }
 
   // Standard commandlists move in and out of the cache as they are recycled.
   // Immediate commandlists are always available.
@@ -2021,7 +2011,7 @@ pi_result _pi_queue::insertStartBarrierWaitingForLastEvent(
     // We want this event to live long enough so increment its reference count.
     // It will be decremented when command list is reset.
     LastCommandEvent->RefCount.increment();
-    CmdList->second.StartingBarrierEvents.push_back(LastCommandEvent);
+    CmdList->second.EventList.push_back(LastCommandEvent);
     ZE_CALL(zeCommandListAppendBarrier,
             (CmdList->first, nullptr, 1, &(LastCommandEvent->ZeEvent)));
     LastCommandEvent = nullptr;

@@ -610,13 +610,6 @@ struct pi_command_list_info_t {
   // only have last one visible to the host.
   std::vector<pi_event> EventList{};
 
-  // Used in ReuseDiscardedEvents mode only.
-  // Contains events waited by barrier inserted after switching to this command
-  // list from another command list. This events need to be cleaned up after
-  // command list reset. Such events are stored separately because we don't want
-  // such event to affect batching heuristics.
-  std::list<pi_event> StartingBarrierEvents;
-
   size_t size() const { return EventList.size(); }
   void append(pi_event Event) { EventList.push_back(Event); }
 };
