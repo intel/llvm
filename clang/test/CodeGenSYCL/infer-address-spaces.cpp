@@ -1,5 +1,7 @@
 // RUN:  %clang_cc1 -O1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64 -emit-llvm %s -o - | FileCheck %s
 
+// Test that address spaces are deduced correctly by compiler optimizations.
+
 #include "sycl.hpp"
 
 using namespace sycl;
