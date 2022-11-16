@@ -429,7 +429,7 @@ Then the free device memory  can be obtained using the standard get\_info() inte
 
 # Memory Clock Rate #
 
-A new device descriptor will be added which will provide the maximum clock rate of device's global memory.
+A new device descriptor is added which provides the maximum clock rate of device's global memory.
 
 This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
 
@@ -442,17 +442,17 @@ The extension supports this query in version 6 and later.
 
 | Device Descriptors | Return Type | Description |
 | ------------------ | ----------- | ----------- |
-| ext\:\:intel\:\:info\:\:device\:\:memory\_clock\_rate | uint32\_t| Returns the maximum clock rate of device's global memory in MHz.|
+| ext\:\:intel\:\:info\:\:device\:\:memory\_clock\_rate | uint32\_t| Returns the maximum clock rate of device's global memory in MHz. If device doesn't have memory then returns 0. If there are several memories on the device then the minimum of the clock rate values is returned. |
 
 
 ## Aspects ##
 
-A new aspect, ext\_intel\_memory\_clock\_rate, will be added.
+A new aspect, ext\_intel\_memory\_clock\_rate, is added.
 
 
 ## Error Condition ##
 
-An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_memory\_clock\_rate.
+An invalid object runtime error is thrown if the device does not support aspect\:\:ext\_intel\_memory\_clock\_rate.
 
 
 ## Example Usage ##
@@ -466,7 +466,7 @@ Then the memory clock rate can be obtained using the standard get\_info() interf
 
 # Memory Bus Width #
 
-A new device descriptor will be added which will provide the maximum bus width between device and memory.
+A new device descriptor is added which provides the maximum bus width between device and memory.
 
 This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
 
@@ -479,17 +479,17 @@ The extension supports this query in version 6 and later.
 
 | Device Descriptors | Return Type | Description |
 | ------------------ | ----------- | ----------- |
-| ext\:\:intel\:\:info\:\:device\:\:memory\_bus\_width | uint32\_t| Returns the maximum bus width between device and memory in bits.|
+| ext\:\:intel\:\:info\:\:device\:\:memory\_bus\_width | uint32\_t| Returns the maximum bus width between device and memory in bits. If device doesn't have memory then returns 0. If there are several memories on the device then the minimum of the bus width values is returned. |
 
 
 ## Aspects ##
 
-A new aspect, ext\_intel\_memory\_bus\_width, will be added.
+A new aspect, ext\_intel\_memory\_bus\_width, is added.
 
 
 ## Error Condition ##
 
-An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_memory\_bus\_width.
+An invalid object runtime error is thrown if the device does not support aspect\:\:ext\_intel\_memory\_bus\_width.
 
 
 ## Example Usage ##

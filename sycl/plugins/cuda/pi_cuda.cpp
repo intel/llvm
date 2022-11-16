@@ -1941,6 +1941,8 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     // For details about this extension, see
     // sycl/doc/extensions/supported/sycl_ext_intel_device_info.md
   case PI_DEVICE_INFO_UUID:
+  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH:
+  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE:
     return PI_ERROR_INVALID_VALUE;
 
   default:

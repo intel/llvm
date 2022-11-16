@@ -1829,6 +1829,8 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
   case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16:
+  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH:
+  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE:
     return PI_ERROR_INVALID_VALUE;
 
   default:

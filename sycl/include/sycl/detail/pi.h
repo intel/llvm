@@ -280,7 +280,11 @@ typedef enum {
   // Return true if sub-device should do its own program build
   PI_DEVICE_INFO_BUILD_ON_SUBDEVICE = 0x10028,
   PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY = 0x10029,
+  // Return 0 if device doesn't have any memory modules. Return the minimum of
+  // the clock rate values if there are several memory modules on the device.
   PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE = 0x10030,
+  // Return 0 if device doesn't have any memory modules. Return the minimum of
+  // the bus width values if there are several memory modules on the device.
   PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH = 0x10031,
   PI_DEVICE_INFO_ATOMIC_64 = 0x10110,
   PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 0x10111,
