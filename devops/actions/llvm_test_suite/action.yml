@@ -72,7 +72,8 @@ runs:
       echo "::group::CMake configuration"
       mkdir build
       export PATH=$PWD/toolchain/bin/:$PATH
-      cmake -GNinja -B./build -S./llvm_test_suite -DTEST_SUITE_SUBDIRS=SYCL -DCHECK_SYCL_ALL="${{ inputs.check_sycl_all }}" -DCMAKE_CXX_COMPILER="$PWD/toolchain/bin/clang++" -DTEST_SUITE_LIT="$PWD/lit/lit.py" ${{ inputs.cmake_args }}
+      ls $PWD/toolchain/
+      cmake -GNinja -B./build -S./llvm_test_suite -DTEST_SUITE_SUBDIRS=SYCL -DCHECK_SYCL_ALL="${{ inputs.check_sycl_all }}" -DCMAKE_CXX_COMPILER="$PWD/toolchain/bin/clang++" -DOpenCL_LIBRARY="$PWD/toolchain/lib" -DTEST_SUITE_LIT="$PWD/lit/lit.py" ${{ inputs.cmake_args }}
       echo "::endgroup::"
   - name: Run testing
     shell: bash
