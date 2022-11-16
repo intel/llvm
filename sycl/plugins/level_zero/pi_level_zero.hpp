@@ -918,18 +918,27 @@ struct _pi_queue : _pi_object {
   // command is enqueued.
   pi_event LastCommandEvent = nullptr;
 
-  // This data member is used only for in-order queue with discard_events property.
-  // For in-order queues with discarded events we reset and reuse events in scope of each command list but to switch between command lists we have to use new event.
-  // This data member keeps track of the last used command list and allows to handle switch of immediate command lists because immediate command lists are never closed unlike regular command lists.
+  // This data member is used only for in-order queue with discard_events
+  // property. For in-order queues with discarded events we reset and reuse
+  // events in scope of each command list but to switch between command lists we
+  // have to use new event. This data member keeps track of the last used
+  // command list and allows to handle switch of immediate command lists because
+  // immediate command lists are never closed unlike regular command lists.
   pi_command_list_ptr_t LastCommandList = CommandListMap.end();
 
-  // This data member is used only for in-order queue with discard_events property.
-  // It is a vector of 2 lists: for host-visible and device-scope events. They are separated to allow faster access to stored events depending on requested type of event.
-  // Each list contains events which can be reused in scope of command list. Two events are enough for reset and reuse inside each command list moreover those two events can be used for all command lists in the queue, thus those lists are going to contain two elements each at maximum.
-  // We release leftover events in the cache at the queue destruction.
+  // This data member is used only for in-order queue with discard_events
+  // property. It is a vector of 2 lists: for host-visible and device-scope
+  // events. They are separated to allow faster access to stored events
+  // depending on requested type of event. Each list contains events which can
+  // be reused in scope of command list. Two events are enough for reset and
+  // reuse inside each command list moreover those two events can be used for
+  // all command lists in the queue, thus those lists are going to contain two
+  // elements each at maximum. We release leftover events in the cache at the
+  // queue destruction.
   std::vector<std::list<pi_event>> EventCaches{2};
 
-  // The following 4 methods are used only for in-order queues with discard_events property.
+  // The following 4 methods are used only for in-order queues with
+  // discard_events property.
 
   // Get event from the queue's cache.
   pi_event getEventFromCache(bool HostVisible);

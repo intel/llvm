@@ -667,11 +667,13 @@ pi_result _pi_queue::appendWaitAndResetIfLastEventDiscarded(
     ZE_CALL(zeCommandListAppendEventReset,
             (CommandList->first, LastCommandEvent->ZeEvent));
 
-    // Create copy of pi_event but with the same ze_event_handle_t. We are going to use this pi_event for the next command with discarded event.
+    // Create copy of pi_event but with the same ze_event_handle_t. We are going
+    // to use this pi_event for the next command with discarded event.
     pi_event PiEvent;
     try {
-      PiEvent = new _pi_event(LastCommandEvent->ZeEvent, LastCommandEvent->ZeEventPool,
-                                        Context, PI_COMMAND_TYPE_USER, true);
+      PiEvent = new _pi_event(LastCommandEvent->ZeEvent,
+                              LastCommandEvent->ZeEventPool, Context,
+                              PI_COMMAND_TYPE_USER, true);
     } catch (const std::bad_alloc &) {
       return PI_ERROR_OUT_OF_HOST_MEMORY;
     } catch (...) {
@@ -747,7 +749,8 @@ inline static pi_result createEventAndAssociateQueue(
   return PI_SUCCESS;
 }
 
-pi_result _pi_queue::signalEventFromCmdListIfLastEventDiscarded(pi_command_list_ptr_t CommandList) {
+pi_result _pi_queue::signalEventFromCmdListIfLastEventDiscarded(
+    pi_command_list_ptr_t CommandList) {
   // We signal new event at the end of command list only if we have queue with
   // discard_events property and the last command event is discarded.
   if (!(ReuseDiscardedEvents && isInOrderQueue() && isDiscardEvents() &&
@@ -769,11 +772,13 @@ pi_event _pi_queue::getEventFromCache(bool HostVisible) {
   auto Cache = HostVisible ? &EventCaches[0] : &EventCaches[1];
 
   // If we don't have any events, return nullptr.
-  // If we have only a single event then it was used by the last command and we can't use it now because we have to enforce round robin between two events.
+  // If we have only a single event then it was used by the last command and we
+  // can't use it now because we have to enforce round robin between two events.
   if (Cache->size() < 2)
     return nullptr;
 
-  // If there are two events then return an event from the beginning of the list since event of the last command is added to the end of the list.
+  // If there are two events then return an event from the beginning of the list
+  // since event of the last command is added to the end of the list.
   auto It = Cache->begin();
   pi_event RetEvent = *It;
   Cache->erase(It);
@@ -2086,7 +2091,8 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
         auto NextImmCmdList = QueueGroup.ImmCmdLists[QueueGroup.NextIndex];
         if (CurQueue->LastCommandList != CurQueue->CommandListMap.end() &&
             CurQueue->LastCommandList != NextImmCmdList) {
-          CurQueue->signalEventFromCmdListIfLastEventDiscarded(CurQueue->LastCommandList);
+          CurQueue->signalEventFromCmdListIfLastEventDiscarded(
+              CurQueue->LastCommandList);
         }
       }
     } else {
@@ -2107,8 +2113,11 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
   bool IncludeLastCommandEvent =
       CurQueue->isInOrderQueue() && CurQueue->LastCommandEvent != nullptr;
 
-  // If the last event is discarded then we already have a barrier waiting for that event, so don't need to include the last command event into the wait list.
-  if (ReuseDiscardedEvents && CurQueue->isDiscardEvents() && CurQueue->LastCommandEvent->IsDiscarded)
+  // If the last event is discarded then we already have a barrier waiting for
+  // that event, so don't need to include the last command event into the wait
+  // list.
+  if (ReuseDiscardedEvents && CurQueue->isDiscardEvents() &&
+      CurQueue->LastCommandEvent->IsDiscarded)
     IncludeLastCommandEvent = false;
 
   try {
