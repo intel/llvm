@@ -15,11 +15,11 @@
 ; RUN: FileCheck %s -input-file=%t_2.sym --check-prefix CHECK-M2-SYMS \
 ; RUN:     --implicit-check-not kernel0 --implicit-check-not kernel3
 
-; FIXME: We expect to see exactly three modules
 ; CHECK-TABLE: Code
 ; CHECK-TABLE-NEXT: _0.sym
 ; CHECK-TABLE-NEXT: _1.sym
 ; CHECK-TABLE-NEXT: _2.sym
+; CHECK-TABLE-EMPTY:
 
 ; CHECK-M0-SYMS: kernel3
 
