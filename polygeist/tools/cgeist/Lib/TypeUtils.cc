@@ -17,6 +17,7 @@
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/IR/Types.h"
 
+#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/Support/Casting.h"
 
@@ -74,6 +75,19 @@ mlir::IntegerAttr wrapIntegerMemorySpace(unsigned MemorySpace,
   return MemorySpace ? mlir::IntegerAttr::get(mlir::IntegerType::get(Ctx, 64),
                                               MemorySpace)
                      : nullptr;
+}
+
+mlir::Type getPtrTyWithNewType(mlir::Type Orig, mlir::Type NewElementType) {
+  return llvm::TypeSwitch<mlir::Type, mlir::Type>(Orig)
+      .Case<mlir::MemRefType>([NewElementType](auto Ty) {
+        return mlir::MemRefType::get(Ty.getShape(), NewElementType,
+                                     Ty.getLayout(), Ty.getMemorySpace());
+      })
+      .Case<mlir::LLVM::LLVMPointerType>([NewElementType](auto Ty) {
+        return mlir::LLVM::LLVMPointerType::get(NewElementType,
+                                                Ty.getAddressSpace());
+      })
+      .Default([](auto) -> mlir::Type { llvm_unreachable("Invalid type"); });
 }
 
 mlir::Type getSYCLType(const clang::RecordType *RT,
@@ -175,6 +189,21 @@ llvm::Type *getLLVMType(const clang::QualType QT,
     return llvm::Type::getVoidTy(CGM.getModule().getContext());
 
   return CGM.getTypes().ConvertType(QT);
+}
+
+template <typename MLIRTy> static bool isTyOrTyVectorTy(mlir::Type Ty) {
+  if (Ty.isa<MLIRTy>())
+    return true;
+  const auto VecTy = Ty.dyn_cast<mlir::VectorType>();
+  return VecTy && VecTy.getElementType().isa<MLIRTy>();
+}
+
+bool isFPOrFPVectorTy(mlir::Type Ty) {
+  return isTyOrTyVectorTy<mlir::FloatType>(Ty);
+}
+
+bool isIntOrIntVectorTy(mlir::Type Ty) {
+  return isTyOrTyVectorTy<mlir::IntegerType>(Ty);
 }
 
 } // namespace mlirclang

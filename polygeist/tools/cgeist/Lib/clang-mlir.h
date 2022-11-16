@@ -353,6 +353,8 @@ private:
   // Reshape memref<elemTy> to memref<1 x elemTy>.
   mlir::Value reshapeRanklessGlobal(mlir::memref::GetGlobalOp GV);
 
+  ValueCategory CastToVoidPtr(ValueCategory Ptr);
+
   /// TODO: Add ScalarConversion options
   ValueCategory EmitScalarCast(mlir::Location Loc, ValueCategory Src,
                                clang::QualType SrcType, clang::QualType DstType,
@@ -504,6 +506,11 @@ public:
   ValueCategory
   EmitCompoundAssign(clang::CompoundAssignOperator *E,
                      ValueCategory (MLIRScanner::*F)(const BinOpInfo &));
+
+  ValueCategory EmitCheckedInBoundsGEP(mlir::Type ElemTy, ValueCategory Pointer,
+                                       mlir::ValueRange IdxList, bool IsSigned,
+                                       bool IsSubtraction);
+  ValueCategory EmitPointerArithmetic(const BinOpInfo &Info);
 
   BinOpInfo EmitBinOps(clang::BinaryOperator *E,
                        clang::QualType PromotionTy = clang::QualType());

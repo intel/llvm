@@ -9,6 +9,8 @@
 #ifndef MLIR_TOOLS_MLIRCLANG_TYPE_UTILS_H
 #define MLIR_TOOLS_MLIRCLANG_TYPE_UTILS_H
 
+#include "mlir/Dialect/LLVMIR/LLVMTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "llvm/ADT/SmallPtrSet.h"
 
 namespace clang {
@@ -46,10 +48,19 @@ bool isRecursiveStruct(llvm::Type *T, llvm::Type *Meta,
 mlir::IntegerAttr wrapIntegerMemorySpace(unsigned MemorySpace,
                                          mlir::MLIRContext *Ctx);
 
+mlir::Type getPtrTyWithNewType(mlir::Type Orig, mlir::Type NewElementType);
+
 mlir::Type getSYCLType(const clang::RecordType *RT,
                        mlirclang::CodeGen::CodeGenTypes &CGT);
 
 llvm::Type *getLLVMType(clang::QualType QT, clang::CodeGen::CodeGenModule &CGM);
+
+bool isFPOrFPVectorTy(mlir::Type Ty);
+bool isIntOrIntVectorTy(mlir::Type Ty);
+
+inline bool isPointerOrMemRefTy(mlir::Type Ty) {
+  return Ty.isa<mlir::MemRefType, mlir::LLVM::LLVMPointerType>();
+}
 
 } // namespace mlirclang
 
