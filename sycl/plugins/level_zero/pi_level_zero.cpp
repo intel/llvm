@@ -9082,9 +9082,9 @@ pi_result piSetEventProperty(pi_event *event, _pi_event_property property,
   case IS_USER_VISIBLE: {
     bool isHostVisible = *static_cast<bool *>(propertyValue);
     if (isHostVisible) {
-      piMarkEventUserVisible(event);
+      //piMarkEventUserVisible(event);
     } else {
-      piIsEventUserVisible(event);
+      //piIsEventUserVisible(event);
     }
     break;
   }
