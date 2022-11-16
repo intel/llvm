@@ -9,7 +9,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "ModuleSplitter.h"
-#include "DeviceGlobals.h"
 #include "Support.h"
 
 #include "llvm/ADT/SetVector.h"
@@ -18,6 +17,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
+#include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/SYCLLowerIR/LowerKernelProps.h"
 #include "llvm/Transforms/IPO.h"
