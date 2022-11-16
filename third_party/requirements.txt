@@ -10,7 +10,7 @@ docutils==0.15.2
 exhale==0.3.0
 idna==2.8
 imagesize==1.1.0
-Jinja2==2.10.3
+Jinja2==2.11.3
 lxml==4.4.2
 Mako==1.1.0
 MarkupSafe==1.1.1
@@ -33,4 +33,5 @@ sphinxcontrib-jsmath==1.0.1
 sphinxcontrib-qthelp==1.0.3
 sphinxcontrib-serializinghtml==1.1.5
 sphinxcontrib-websupport==1.2.4
+sphinx-book-theme==0.3.3
 urllib3==1.25.7
