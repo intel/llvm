@@ -260,6 +260,12 @@ access to the necessary API functions to control the fusion state of the wrapped
 queue object. The `fusion_wrapper` member functions directly modify the fusion
 state of the underlying `queue`, effectively making the queue stateful.
 
+As the fusion state is attached to the wrapped `queue` object, it is permissible
+to create two or more `fusion_wrapper` objects for the same `queue` object. The
+`fusion_wrapper` objects will manage the fusion state for the same queue. It is
+the applications responsibility to synchronize if one or multiple
+`fusion_wrapper` objects are used in a multithreaded context.
+
 The `fusion_wrapper` class is **not** an allowable type for kernel parameters
 (https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:kernel.parameter.passing[§4.12.4]
 of the SYCL 2020 specification).
@@ -328,17 +334,17 @@ If the wrapped `queue` is already in fusion mode, the function throws an
 
 |`event complete_fusion(const property_list &)` 
 
-|Complete the fusion: If the
-runtime decides to perform fusion, it will JIT-compile a fused kernel from all
-kernels submitted to the wrapped `queue` since the last call to `start_fusion`
-and submit the fused kernel for execution. Inside the fused kernel, the
-per-work-item effects are executed in the same order as the kernels were
-initially submitted, adding group barriers between each of them by default.
-Otherwise, the individual kernels will be passed to the scheduler and executed
-in the same order as they were initially submitted. Constraints on when fusion
-is possible and criteria for the implementation to perform fusion are
-implementation-defined. Calling `fusion_wrapper::complete_fusion` does therefore
-not guarantee that the kernels will be fused.
+|Complete the fusion: If the runtime decides to perform fusion, it will
+JIT-compile a fused kernel from all kernels submitted to the wrapped `queue`
+since the last call to `start_fusion` and submit the fused kernel for execution.
+Inside the fused kernel, the per-work-item effects are executed in the same
+order as the kernels were initially submitted, adding group barriers between
+each of them by default. If the runtime decides not to fuse the kernels, they
+are passed to the scheduler in the same order that they were originally
+submitted to the queue. Constraints on when fusion is possible and criteria for
+the implementation to perform fusion are implementation-defined. Calling
+`fusion_wrapper::complete_fusion` does therefore not guarantee that the kernels
+will be fused.
 
 The call is asynchronous, i.e., it may return after fusion (JIT-compilation) is
 done, but before execution of the fused kernel is completed. The returned event
@@ -383,7 +389,7 @@ error code is thrown.
 
 If a `queue` is constructed with this property, but the underlying `device` of
 the queue returns `false` for the device information descriptor
-`sycl::info::device::ext_codeplay_experimental_supports_fusion`, an
+`sycl::ext::codeplay::experimental::info::device::supports_fusion`, an
 `exception` with `errc::invalid` error code is thrown.
 
 |`sycl::ext::codeplay::experimental::property::no_barriers`
@@ -471,7 +477,7 @@ Table 5. Added device information descriptors
 |===
 |Device descriptor |Return type |Description
 
-|`sycl::info::device::ext_codeplay_experimental_supports_fusion` | `bool`
+|`sycl::ext::codeplay::experimental::info::device::supports_fusion` | `bool`
 
 |Returns true if the SYCL `device` and the underlying `platform` support kernel fusion.
 
