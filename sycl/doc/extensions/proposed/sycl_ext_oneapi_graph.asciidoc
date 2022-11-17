@@ -262,6 +262,18 @@ enum class queue_state {
   recording
 };
 
+namespace property {
+namespace node {
+
+class depends_on {
+  public:
+    template<typename... Ts>
+    depends_on(Ts... deps);
+};
+
+} // namespace node
+} // namespace property
+
 class node {};
 
 // State of a graph
@@ -280,13 +292,13 @@ public:
   command_graph(const property_list &propList = {});
   command_graph<graph_state::executable> finalize(const context &syclContext) const;
 
-  node add(const std::vector<node>& dep = {});
+  node add(const property_list& propList = {});
 
   template<typename T>
-  node add(T cgf, const std::vector<node>& dep = {});
+  node add(T cgf, const property_list& propList = {});
 
-  node add_malloc_device(void *&data, size_t numBytes, const std::vector<node>& dep = {});
-  node add_free(void *data, const std::vector<node>& dep = {});
+  node add_malloc_device(void *&data, size_t numBytes, const property_list& propList = {});
+  node add_free(void *data, const property_list& propList = {});
 
   void make_edge(node sender, node receiver);
 };
@@ -411,7 +423,7 @@ Table 6. Member functions of the `command_graph` class.
 [source,c++]
 ----
 using namespace ext::oneapi::experimental;
-node add(const std::vector<node>& dep = {});
+node add(const property_list& propList = {});
 ----
 |This creates an empty node which is associated to no task. Its intended use is
 either a connection point inside a graph between groups of nodes, and can
@@ -425,7 +437,7 @@ Preconditions:
 
 Parameters:
 
-* `dep` - Nodes the created node will be dependent on.
+* `propList` - Zero or more properties can be provided to the constructed node via an instance of property_list.
 
 Returns: The empty node which has been added to the graph.
 
@@ -439,7 +451,7 @@ Exceptions:
 ----
 using namespace ext::oneapi::experimental;
 template<typename T>
-node add(T cgf, const std::vector<node>& dep = {});
+node add(T cgf, const property_list& propList = {});
 ----
 |This function adds a command group function object to a graph. The function
 object can contain single or multiple commands such as a host task which is
@@ -455,7 +467,7 @@ Parameters:
 
 * `cgf` - Command group function object to be added as a node
 
-* `dep` - Nodes the created node will be dependent on.
+* `propList` - Zero or more properties can be provided to the constructed node via an instance of property_list.
 
 Returns: The command-group function object node which has been added to the graph.
 
@@ -532,7 +544,7 @@ Table 7. Member functions of the `command_graph` class (memory operations).
 [source,c++]
 ----
 using namespace ext::oneapi::experimental;
-node add_malloc_device(void *&data, size_t numBytes, const std::vector<node>& dep = {});
+node add_malloc_device(void *&data, size_t numBytes, const property_list& propList = {});
 ----
 |Adding a node that encapsulates a memory allocation operation.
 
@@ -547,7 +559,7 @@ Parameters:
 
 * `numBytes` - Size in bytes to allocate.
 
-* `dep` - Nodes the created node will be dependent on.
+* `propList` - Zero or more properties can be provided to the constructed node via an instance of property_list.
 
 Returns: The memory allocation node which has been added to the graph
 
@@ -560,7 +572,7 @@ Exceptions:
 [source,c++]
 ----
 using namespace ext::oneapi::experimental;
-node add_free(void *data, const std::vector<node>& dep = {});
+node add_free(void *data, const property_list& propList = {});
 ----
 |Adding a node that encapsulates a memory free operation.
 
@@ -573,7 +585,7 @@ Parameters:
 
 * `data` - Address of memory to free.
 
-* `dep` - Nodes the created node will be dependent on.
+* `propList` - Zero or more properties can be provided to the constructed node via an instance of property_list.
 
 Returns: The memory freeing node which has been added to the graph.
 
@@ -880,21 +892,21 @@ int main() {
       y[i] = 2.0f;
       z[i] = 3.0f;
     });
-  }, {node_x, node_y, node_z});
+  }, { sycl::ext::oneapi::experimental::property::node::depends_on(node_x, node_y, node_z)});
 
   auto node_a = g.add([&](sycl::handler &h) {
     h.parallel_for(sycl::range<1>{n}, [=](sycl::id<1> it) {
       const size_t i = it[0];
       x[i] = alpha * x[i] + beta * y[i];
     });
-  }, {node_i});
+  }, { sycl::ext::oneapi::experimental::property::node::depends_on(node_i)});
 
   auto node_b = g.add([&](sycl::handler &h) {
     h.parallel_for(sycl::range<1>{n}, [=](sycl::id<1> it) {
       const size_t i = it[0];
       z[i] = gamma * z[i] + beta * y[i];
     });
-  }, {node_i});
+  }, { sycl::ext::oneapi::experimental::property::node::depends_on(node_i)});
 
   auto node_c = g.add(
       [&](sycl::handler &h) {
@@ -905,10 +917,10 @@ int main() {
                          sum += x[i] * z[i];
                        });
       },
-      {node_a, node_b});
+      { sycl::ext::oneapi::experimental::property::node::depends_on(node_a, node_b)});
 
-  auto node_fx = g.add_free(x, {node_c});
-  auto node_fy = g.add_free(y, {node_b});
+  auto node_fx = g.add_free(x, {sycl::ext::oneapi::experimental::property::node::depends_on(node_c)});
+  auto node_fy = g.add_free(y, {sycl::ext::oneapi::experimental::property::node::depends_on(node_b)});
 
   auto exec = g.finalize(q.get_context());
 
