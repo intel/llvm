@@ -667,7 +667,7 @@ pi_result _pi_queue::appendWaitAndResetIfLastEventDiscarded(
     ZE_CALL(zeCommandListAppendEventReset,
             (CommandList->first, LastCommandEvent->ZeEvent));
 
-    // Create copy of pi_event but with the same ze_event_handle_t. We are going
+    // Create new pi_event but with the same ze_event_handle_t. We are going
     // to use this pi_event for the next command with discarded event.
     pi_event PiEvent;
     try {

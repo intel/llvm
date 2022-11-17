@@ -609,7 +609,6 @@ struct pi_command_list_info_t {
   // TODO: use this for optimizing events in the same command-list, e.g.
   // only have last one visible to the host.
   std::vector<pi_event> EventList{};
-
   size_t size() const { return EventList.size(); }
   void append(pi_event Event) { EventList.push_back(Event); }
 };
@@ -918,48 +917,6 @@ struct _pi_queue : _pi_object {
   // command is enqueued.
   pi_event LastCommandEvent = nullptr;
 
-  // This data member is used only for in-order queue with discard_events
-  // property. For in-order queues with discarded events we reset and reuse
-  // events in scope of each command list but to switch between command lists we
-  // have to use new event. This data member keeps track of the last used
-  // command list and allows to handle switch of immediate command lists because
-  // immediate command lists are never closed unlike regular command lists.
-  pi_command_list_ptr_t LastCommandList = CommandListMap.end();
-
-  // This data member is used only for in-order queue with discard_events
-  // property. It is a vector of 2 lists: for host-visible and device-scope
-  // events. They are separated to allow faster access to stored events
-  // depending on requested type of event. Each list contains events which can
-  // be reused in scope of command list. Two events are enough for reset and
-  // reuse inside each command list moreover those two events can be used for
-  // all command lists in the queue, thus those lists are going to contain two
-  // elements each at maximum. We release leftover events in the cache at the
-  // queue destruction.
-  std::vector<std::list<pi_event>> EventCaches{2};
-
-  // The following 4 methods are used only for in-order queues with
-  // discard_events property.
-
-  // Get event from the queue's cache.
-  pi_event getEventFromCache(bool HostVisible);
-
-  // Add event to the queue's cache.
-  pi_result addEventToCache(pi_event Event);
-
-  // Append command to provided command list to wait for and reset the last
-  // discarded event. If we have in-order and discard_events mode we reset and
-  // reuse discarded events in scope of the same command list. This method
-  // allows to wait for the last discarded event and reset it after command
-  // submission.
-  pi_result appendWaitAndResetIfLastEventDiscarded(pi_command_list_ptr_t);
-
-  // For in-order queue append command to the command list to signal new event
-  // if the last event in the command list is discarded. While we submit
-  // commands in scope of the same command list we can reset and reuse events
-  // but when we switch to a different command list we currently need to signal
-  // new event and wait for it in the new command list using barrier.
-  pi_result signalEventFromCmdListIfLastEventDiscarded(pi_command_list_ptr_t);
-
   // Kernel is not necessarily submitted for execution during
   // piEnqueueKernelLaunch, it may be batched. That's why we need to save the
   // list of kernels which is going to be submitted but have not been submitted
@@ -1097,12 +1054,6 @@ struct _pi_queue : _pi_object {
   pi_result insertActiveBarriers(pi_command_list_ptr_t &CmdList,
                                  bool UseCopyEngine);
 
-  // Insert a barrier waiting for the last command event into the beginning of
-  // command list if queue is in-order and has discard_events property. It
-  // allows to reset and reuse event handles in scope of each command list.
-  pi_result
-  insertStartBarrierIfDiscardEventsMode(pi_command_list_ptr_t &CmdList);
-
   // A collection of currently active barriers.
   // These should be inserted into a command list whenever an available command
   // list is needed for a command.
@@ -1122,6 +1073,95 @@ struct _pi_queue : _pi_object {
 
   // Indicates that the queue is healthy and all operations on it are OK.
   bool Healthy{true};
+
+  // The following data structures and methods are used only for handling
+  // in-order queue with discard_events property. Some commands in such queue
+  // may have discarded event. Which means that event is not visible outside of
+  // the plugin. It is possible to reset and reuse discarded events in the same
+  // in-order queue because of the dependency between commands. We don't have to
+  // wait event completion to do this. We use the following 2-event model to
+  // reuse events inside each command list:
+  //
+  // Operation1 = zeCommantListAppendMemoryCopy (signal ze_event1)
+  // zeCommandListAppendBarrier(wait for ze_event1)
+  // zeCommandListAppendEventReset(ze_event1)
+  // # Create new pi_event using ze_event1 and append to the cache.
+  //
+  // Operation2 = zeCommandListAppendMemoryCopy (signal ze_event2)
+  // zeCommandListAppendBarrier(wait for ze_event2)
+  // zeCommandListAppendEventReset(ze_event2)
+  // # Create new pi_event using ze_event2 and append to the cache.
+  //
+  // # Get pi_event from the beginning of the cache because there are two events
+  // # there. So it is guaranteed that we do round-robin between two events -
+  // # event from the last command is appended to the cache.
+  // Operation3 = zeCommandListAppendMemoryCopy (signal ze_event1)
+  // # The same ze_event1 is used for Operation1 and Operation3.
+  //
+  // When we switch to a different command list we need to signal new event and
+  // wait for it in the new command list using barrier.
+  // [CmdList1]
+  // Operation1 = zeCommantListAppendMemoryCopy (signal event1)
+  // zeCommandListAppendBarrier(wait for event1)
+  // zeCommandListAppendEventReset(event1)
+  // zeCommandListAppendSignalEvent(NewEvent)
+  //
+  // [CmdList2]
+  // zeCommandListAppendBarrier(wait for NewEvent)
+  //
+  // This barrier guarantees that command list execution starts only after
+  // completion of previous command list which signals aforementioned event. It
+  // allows to reset and reuse same event handles inside all command lists in
+  // scope of the queue. It means that we need 2 reusable events of each type
+  // (host-visible and device-scope) per queue at maximum.
+
+  // This data member keeps track of the last used command list and allows to
+  // handle switch of immediate command lists because immediate command lists
+  // are never closed unlike regular command lists.
+  pi_command_list_ptr_t LastCommandList = CommandListMap.end();
+
+  // Vector of 2 lists of reusable events: host-visible and device-scope.
+  // They are separated to allow faster access to stored events depending on
+  // requested type of event. Each list contains events which can be reused
+  // inside all command lists in the queue as described in the 2-event model.
+  // Leftover events in the cache are relased at the queue destruction.
+  std::vector<std::list<pi_event>> EventCaches{2};
+
+  // Get event from the queue's cache.
+  // Returns nullptr if the cache doesn't contain any reusable events or if the
+  // cache contains only one event which corresponds to the previous command and
+  // can't be used for the current command because we can't use the same event
+  // two times in a row and have to do round-robin between two events. Otherwise
+  // it picks an event from the beginning of the cache and returns it. Event
+  // from the last command is always appended to the end of the list.
+  pi_event getEventFromCache(bool HostVisible);
+
+  // Put pi_event to the cache. Provided pi_event object is not used by
+  // any command but its ZeEvent is used by many pi_event objects.
+  // Commands to wait and reset ZeEvent must be submitted to the queue before
+  // calling this method.
+  pi_result addEventToCache(pi_event Event);
+
+  // Append command to provided command list to wait and reset the last event if
+  // it is discarded and create new pi_event wrapper using the same native event
+  // and put it to the cache. We call this method after each command submission
+  // to make native event available to use by next commands.
+  pi_result appendWaitAndResetIfLastEventDiscarded(pi_command_list_ptr_t);
+
+  // Append command to the command list to signal new event if the last event in
+  // the command list is discarded. While we submit commands in scope of the
+  // same command list we can reset and reuse events but when we switch to a
+  // different command list we currently need to signal new event and wait for
+  // it in the new command list using barrier.
+  pi_result signalEventFromCmdListIfLastEventDiscarded(pi_command_list_ptr_t);
+
+  // Insert a barrier waiting for the last command event into the beginning of
+  // command list. This barrier guarantees that command list execution starts
+  // only after completion of previous command list which signals aforementioned
+  // event. It allows to reset and reuse same event handles inside all command
+  // lists in the queue.
+  pi_result
+  insertStartBarrierIfDiscardEventsMode(pi_command_list_ptr_t &CmdList);
 };
 
 struct _pi_mem : _pi_object {
