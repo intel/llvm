@@ -782,6 +782,8 @@ struct UsedOptionalFeatures {
         return C->getUniqueInteger().getSExtValue();
       };
 
+      // !sycl_used_aspects is supposed to contain unique values, no duplicates
+      // are expected here
       for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I) {
         Aspects.push_back(ExtractIntegerFromMDNodeOperand(MDN, I));
       }
@@ -880,7 +882,7 @@ getSplitterByOptionalFeatures(ModuleDesc &&MD,
     }
 
     auto Key = UsedOptionalFeatures(&F);
-    PropertiesToFunctionsMap[Key].insert(&F);
+    PropertiesToFunctionsMap[std::move(Key)].insert(&F);
   }
 
   if (!PropertiesToFunctionsMap.empty()) {
