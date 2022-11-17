@@ -685,9 +685,6 @@ pi_result _pi_queue::resetDiscardedEvent(pi_command_list_ptr_t CommandList) {
       PiEvent->HostVisibleEvent = PiEvent;
 
     PI_CALL(addEventToQueueCache(PiEvent));
-
-    // We handled dependency from last command event, so set it to nullptr.
-    LastCommandEvent = nullptr;
   }
 
   return PI_SUCCESS;
@@ -1677,8 +1674,10 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
   bool CurrentlyEmpty = !PrintPiTrace && this->LastCommandEvent == nullptr;
 
   // The list can be empty if command-list only contains signals of proxy
-  // events.
-  if (!CommandList->second.EventList.empty()) {
+  // events. We need to process the last command event only if new command was
+  // submitted to the command list.
+  if (!CommandList->second.EventList.empty() &&
+      this->LastCommandEvent != CommandList->second.EventList.back()) {
     this->LastCommandEvent = CommandList->second.EventList.back();
     if (doReuseDiscardedEvents()) {
       PI_CALL(resetDiscardedEvent(CommandList));
@@ -2124,8 +2123,18 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
     }
   }
 
+  bool IncludeLastCommandEvent =
+      CurQueue->isInOrderQueue() && CurQueue->LastCommandEvent != nullptr;
+
+  // If the last event is discarded then we already have a barrier waiting for
+  // that event, so don't need to include the last command event into the wait
+  // list.
+  if (ReuseDiscardedEvents && CurQueue->isDiscardEvents() &&
+      CurQueue->LastCommandEvent->IsDiscarded)
+    IncludeLastCommandEvent = false;
+
   try {
-    if (CurQueue->isInOrderQueue() && CurQueue->LastCommandEvent != nullptr) {
+    if (IncludeLastCommandEvent) {
       this->ZeEventList = new ze_event_handle_t[EventListLength + 1];
       this->PiEventList = new pi_event[EventListLength + 1];
     } else if (EventListLength > 0) {
@@ -2217,7 +2226,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
     // For in-order queues, every command should be executed only after the
     // previous command has finished. The event associated with the last
     // enqueued command is added into the waitlist to ensure in-order semantics.
-    if (CurQueue->isInOrderQueue() && CurQueue->LastCommandEvent != nullptr) {
+    if (IncludeLastCommandEvent) {
       std::shared_lock<pi_shared_mutex> Lock(CurQueue->LastCommandEvent->Mutex);
       this->ZeEventList[TmpListLength] = CurQueue->LastCommandEvent->ZeEvent;
       this->PiEventList[TmpListLength] = CurQueue->LastCommandEvent;
