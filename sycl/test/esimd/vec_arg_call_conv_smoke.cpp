@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -Xclang -opaque-pointers -fsycl-device-only -c -Xclang -emit-llvm -o %t.comp.ll %s
+// RUN: %clangxx -fsycl -Xclang -opaque-pointers -fsycl-device-only -Xclang -emit-llvm -o %t.comp.ll %s
 // RUN: sycl-post-link -ir-output-only -lower-esimd -S %t.comp.ll -o %t.out.ll
 // RUN: FileCheck --input-file=%t.out.ll %s
 
