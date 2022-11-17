@@ -5079,6 +5079,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
     // Forward -fsycl-default-sub-group-size if in SYCL mode.
     Args.AddLastArg(CmdArgs, options::OPT_fsycl_default_sub_group_size);
+
+    if (Args.hasArg(options::OPT_fsycl_optimize_framework)) {
+      const Arg *OArg = Args.getLastArg(options::OPT_O_Group);
+      if (!OArg || !OArg->getOption().matches(options::OPT_O0))
+        D.Diag(diag::err_drv_fsycl_wrong_optimization_options);
+
+      CmdArgs.push_back("-fsycl-optimize-framework");
+    }
   }
 
   if (IsSYCL) {
@@ -9739,6 +9747,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
       addArgs(CmdArgs, TCArgs, {"-split-esimd"});
     addArgs(CmdArgs, TCArgs, {"-lower-esimd"});
   }
+
   addArgs(CmdArgs, TCArgs,
           {StringRef(getSYCLPostLinkOptimizationLevel(TCArgs))});
   // specialization constants processing is mandatory
