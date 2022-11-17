@@ -73,12 +73,6 @@ bool Scheduler::GraphProcessor::enqueueCommand(
   if (Cmd->isSuccessfullyEnqueued())
     return handleBlockingCmd(Cmd, EnqueueResult, RootCommand, Blocking);
 
-  // Exit early if the command is blocked and the enqueue type is non-blocking
-  if (Cmd->isEnqueueBlocked() && !Blocking) {
-    EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
-    return false;
-  }
-
   // Recursively enqueue all the implicit + explicit backend level dependencies
   // first and exit immediately if any of the commands cannot be enqueued.
   for (const EventImplPtr &Event : Cmd->getPreparedDepsEvents()) {

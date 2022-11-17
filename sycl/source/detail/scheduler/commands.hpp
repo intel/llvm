@@ -142,14 +142,12 @@ public:
     return MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess;
   }
 
-  // Shows that command could not be enqueued, now it may be true for empty task
-  // only
-  bool isEnqueueBlocked() const {
-    return MIsBlockable && MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked;
-  }
-  // Shows thst command could be enqueud, but is blocking enqueue of all
-  // commands depending on it. Regular usage - host task.
-  bool isBlocking() const { return isHostTask() && !MEvent->isCompleted(); }
+  // Shows that command could be enqueued, but blocks enqueue of all
+  // commands depending on it. Regular usage - host task & host accessors.
+  bool isBlocking() const { return MIsManuallyBlocked || (isHostTask() && !MEvent->isCompleted()); }
+  enum class BlockReason : int { HostAccessor = 0, HostTask };
+  bool blockManually(const BlockReason& Reason);
+  bool unblock();
 
   void addBlockedUserUnique(const EventImplPtr &NewUser) {
     if (std::find(MBlockedUsers.begin(), MBlockedUsers.end(), NewUser) !=
@@ -277,8 +275,8 @@ public:
   std::vector<DepDesc> MDeps;
   /// Contains list of commands that depend on the command.
   std::unordered_set<Command *> MUsers;
-  /// Indicates whether the command can be blocked from enqueueing.
-  bool MIsBlockable = false;
+  /// Indicates whether the command is set as blocking for its users.
+  bool MIsManuallyBlocked = false;
   /// Counts the number of memory objects this command is a leaf for.
   unsigned MLeafCounter = 0;
 
@@ -291,9 +289,7 @@ public:
   /// Used for marking the node during graph traversal.
   Marks MMarks;
 
-  enum class BlockReason : int { HostAccessor = 0, HostTask };
-
-  // Only have reasonable value while MIsBlockable is true
+  // Only have reasonable value while MIsManuallyBlocked is true
   BlockReason MBlockReason;
 
   /// Describes the status of the command.

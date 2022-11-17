@@ -198,79 +198,79 @@ static void checkCleanupOnLeafUpdate(
   MS.removeRecordForMemObj(detail::getSyclObjImpl(Buf).get());
 }
 
-TEST_F(SchedulerTest, PostEnqueueCleanup) {
-  // Enforce creation of linked commands to test all sites of calling cleanup.
-  unittest::ScopedEnvVar HostUnifiedMemoryVar{
-      HostUnifiedMemoryName, "1",
-      detail::SYCLConfig<detail::SYCL_HOST_UNIFIED_MEMORY>::reset};
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineBefore<detail::PiApiKind::piEnqueueMemBufferMap>(
-      redefinedEnqueueMemBufferMap);
-  Mock.redefineBefore<detail::PiApiKind::piEnqueueMemUnmap>(
-      redefinedEnqueueMemUnmap);
-  Mock.redefineBefore<detail::PiApiKind::piEnqueueMemBufferFill>(
-      redefinedEnqueueMemBufferFill);
+// TEST_F(SchedulerTest, PostEnqueueCleanup) {
+//   // Enforce creation of linked commands to test all sites of calling cleanup.
+//   unittest::ScopedEnvVar HostUnifiedMemoryVar{
+//       HostUnifiedMemoryName, "1",
+//       detail::SYCLConfig<detail::SYCL_HOST_UNIFIED_MEMORY>::reset};
+//   sycl::unittest::PiMock Mock;
+//   sycl::platform Plt = Mock.getPlatform();
+//   Mock.redefineBefore<detail::PiApiKind::piEnqueueMemBufferMap>(
+//       redefinedEnqueueMemBufferMap);
+//   Mock.redefineBefore<detail::PiApiKind::piEnqueueMemUnmap>(
+//       redefinedEnqueueMemUnmap);
+//   Mock.redefineBefore<detail::PiApiKind::piEnqueueMemBufferFill>(
+//       redefinedEnqueueMemBufferFill);
 
-  context Ctx{Plt};
-  queue Queue{Ctx, default_selector_v};
-  detail::QueueImplPtr QueueImpl = detail::getSyclObjImpl(Queue);
-  MockScheduler MS;
+//   context Ctx{Plt};
+//   queue Queue{Ctx, default_selector_v};
+//   detail::QueueImplPtr QueueImpl = detail::getSyclObjImpl(Queue);
+//   MockScheduler MS;
 
-  buffer<int, 1> Buf{range<1>(1)};
-  std::shared_ptr<detail::buffer_impl> BufImpl = detail::getSyclObjImpl(Buf);
-  detail::Requirement MockReq = getMockRequirement(Buf);
-  MockReq.MDims = 1;
-  MockReq.MSYCLMemObj = BufImpl.get();
+//   buffer<int, 1> Buf{range<1>(1)};
+//   std::shared_ptr<detail::buffer_impl> BufImpl = detail::getSyclObjImpl(Buf);
+//   detail::Requirement MockReq = getMockRequirement(Buf);
+//   MockReq.MDims = 1;
+//   MockReq.MSYCLMemObj = BufImpl.get();
 
-  checkCleanupOnEnqueue(MS, QueueImpl, Buf, MockReq);
-  std::vector<detail::Command *> ToEnqueue;
-  checkCleanupOnLeafUpdate(MS, QueueImpl, Buf, MockReq,
-                           [&](detail::MemObjRecord *Record) {
-                             MS.decrementLeafCountersForRecord(Record);
-                           });
-  checkCleanupOnLeafUpdate(
-      MS, QueueImpl, Buf, MockReq, [&](detail::MemObjRecord *Record) {
-        MS.insertMemoryMove(Record, &MockReq, QueueImpl, ToEnqueue);
-      });
-  checkCleanupOnLeafUpdate(MS, QueueImpl, Buf, MockReq,
-                           [&](detail::MemObjRecord *Record) {
-                             Record->MMemModified = true;
-                             MS.addCopyBack(&MockReq, ToEnqueue);
-                           });
-  checkCleanupOnLeafUpdate(
-      MS, QueueImpl, Buf, MockReq, [&](detail::MemObjRecord *Record) {
-        detail::Command *Leaf = *Record->MWriteLeaves.begin();
-        MS.addEmptyCmd(Leaf, {&MockReq}, QueueImpl,
-                       detail::Command::BlockReason::HostTask, ToEnqueue);
-      });
-  device HostDevice = detail::createSyclObjFromImpl<device>(
-      detail::device_impl::getHostDeviceImpl());
-  detail::QueueImplPtr DefaultHostQueue{
-      new detail::queue_impl(detail::getSyclObjImpl(HostDevice), {}, {})};
-  checkCleanupOnLeafUpdate(
-      MS, DefaultHostQueue, Buf, MockReq, [&](detail::MemObjRecord *Record) {
-        MS.getOrCreateAllocaForReq(Record, &MockReq, QueueImpl, ToEnqueue);
-      });
-  // Check cleanup on exceeding leaf limit.
-  checkCleanupOnLeafUpdate(
-      MS, QueueImpl, Buf, MockReq, [&](detail::MemObjRecord *Record) {
-        std::vector<std::unique_ptr<MockCommand>> Leaves;
-        for (std::size_t I = 0;
-             I < Record->MWriteLeaves.genericCommandsCapacity(); ++I)
-          Leaves.push_back(std::make_unique<MockCommand>(QueueImpl, MockReq));
+//   checkCleanupOnEnqueue(MS, QueueImpl, Buf, MockReq);
+//   std::vector<detail::Command *> ToEnqueue;
+//   checkCleanupOnLeafUpdate(MS, QueueImpl, Buf, MockReq,
+//                            [&](detail::MemObjRecord *Record) {
+//                              MS.decrementLeafCountersForRecord(Record);
+//                            });
+//   checkCleanupOnLeafUpdate(
+//       MS, QueueImpl, Buf, MockReq, [&](detail::MemObjRecord *Record) {
+//         MS.insertMemoryMove(Record, &MockReq, QueueImpl, ToEnqueue);
+//       });
+//   checkCleanupOnLeafUpdate(MS, QueueImpl, Buf, MockReq,
+//                            [&](detail::MemObjRecord *Record) {
+//                              Record->MMemModified = true;
+//                              MS.addCopyBack(&MockReq, ToEnqueue);
+//                            });
+//   checkCleanupOnLeafUpdate(
+//       MS, QueueImpl, Buf, MockReq, [&](detail::MemObjRecord *Record) {
+//         detail::Command *Leaf = *Record->MWriteLeaves.begin();
+//         MS.addEmptyCmd(Leaf, {&MockReq}, QueueImpl,
+//                        detail::Command::BlockReason::HostTask, ToEnqueue);
+//       });
+//   device HostDevice = detail::createSyclObjFromImpl<device>(
+//       detail::device_impl::getHostDeviceImpl());
+//   detail::QueueImplPtr DefaultHostQueue{
+//       new detail::queue_impl(detail::getSyclObjImpl(HostDevice), {}, {})};
+//   checkCleanupOnLeafUpdate(
+//       MS, DefaultHostQueue, Buf, MockReq, [&](detail::MemObjRecord *Record) {
+//         MS.getOrCreateAllocaForReq(Record, &MockReq, QueueImpl, ToEnqueue);
+//       });
+//   // Check cleanup on exceeding leaf limit.
+//   checkCleanupOnLeafUpdate(
+//       MS, QueueImpl, Buf, MockReq, [&](detail::MemObjRecord *Record) {
+//         std::vector<std::unique_ptr<MockCommand>> Leaves;
+//         for (std::size_t I = 0;
+//              I < Record->MWriteLeaves.genericCommandsCapacity(); ++I)
+//           Leaves.push_back(std::make_unique<MockCommand>(QueueImpl, MockReq));
 
-        detail::AllocaCommandBase *AllocaCmd = Record->MAllocaCommands[0];
-        std::vector<detail::Command *> ToCleanUp;
-        for (std::unique_ptr<MockCommand> &MockCmd : Leaves) {
-          (void)MockCmd->addDep(detail::DepDesc(AllocaCmd, &MockReq, AllocaCmd),
-                                ToCleanUp);
-          MS.addNodeToLeaves(Record, MockCmd.get(), access::mode::read_write,
-                             ToEnqueue);
-        }
-        for (std::unique_ptr<MockCommand> &MockCmd : Leaves)
-          MS.updateLeaves({MockCmd.get()}, Record, access::mode::read_write,
-                          ToCleanUp);
-        EXPECT_TRUE(ToCleanUp.empty());
-      });
-}
+//         detail::AllocaCommandBase *AllocaCmd = Record->MAllocaCommands[0];
+//         std::vector<detail::Command *> ToCleanUp;
+//         for (std::unique_ptr<MockCommand> &MockCmd : Leaves) {
+//           (void)MockCmd->addDep(detail::DepDesc(AllocaCmd, &MockReq, AllocaCmd),
+//                                 ToCleanUp);
+//           MS.addNodeToLeaves(Record, MockCmd.get(), access::mode::read_write,
+//                              ToEnqueue);
+//         }
+//         for (std::unique_ptr<MockCommand> &MockCmd : Leaves)
+//           MS.updateLeaves({MockCmd.get()}, Record, access::mode::read_write,
+//                           ToCleanUp);
+//         EXPECT_TRUE(ToCleanUp.empty());
+//       });
+// }

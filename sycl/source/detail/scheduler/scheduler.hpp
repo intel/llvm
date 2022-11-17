@@ -626,15 +626,6 @@ protected:
                                        const Requirement *Req,
                                        const ContextImplPtr &Context);
 
-    template <typename T>
-    typename detail::enable_if_t<
-        std::is_same<typename std::remove_cv_t<T>, Requirement>::value,
-        EmptyCommand *>
-    addEmptyCmd(Command *Cmd, const std::vector<T *> &Req,
-                const QueueImplPtr &Queue, Command::BlockReason Reason,
-                std::vector<Command *> &ToEnqueue,
-                const bool AddDepsToLeaves = true);
-
   protected:
     /// Finds a command dependency corresponding to the record.
     DepDesc findDepForRecord(Command *Cmd, MemObjRecord *Record);

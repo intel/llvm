@@ -344,7 +344,7 @@ void Scheduler::releaseHostAccessor(Requirement *Req) {
 
     assert(BlockedCmd && "Can't find appropriate command to unblock");
 
-    BlockedCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+    BlockedCmd->unblock();
 
     enqueueLeavesOfReqUnlocked(Req, ToCleanUp);
   }

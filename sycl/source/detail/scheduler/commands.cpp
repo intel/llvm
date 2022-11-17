@@ -232,6 +232,22 @@ bool Command::isHostTask() const {
           CG::CGTYPE::CodeplayHostTask);
 }
 
+bool Command::blockManually(const BlockReason& Reason) {
+  if (MIsManuallyBlocked)
+    return false;
+  MIsManuallyBlocked = true;
+  MBlockReason = Reason;
+  return true;
+}
+
+bool Command::unblock()
+{
+  if (!MIsManuallyBlocked)
+    return false;
+  MIsManuallyBlocked = false;
+  return true;
+}
+
 static void flushCrossQueueDeps(const std::vector<EventImplPtr> &EventImpls,
                                 const QueueImplPtr &Queue) {
   for (auto &EventImpl : EventImpls) {
@@ -689,35 +705,35 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
     return true;
 
   // If the command is blocked from enqueueing
-  if (MIsBlockable && MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked) {
-    // Exit if enqueue type is not blocking
-    if (!Blocking) {
-      EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, this);
-      return false;
-    }
-    static bool ThrowOnBlock = getenv("SYCL_THROW_ON_BLOCK") != nullptr;
-    if (ThrowOnBlock)
-      throw sycl::runtime_error(
-          std::string("Waiting for blocked command. Block reason: ") +
-              std::string(getBlockReason()),
-          PI_ERROR_INVALID_OPERATION);
+//   if (MIsManuallyBlockable && MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked) {
+//     // Exit if enqueue type is not blocking
+//     if (!Blocking) {
+//       EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, this);
+//       return false;
+//     }
+//     static bool ThrowOnBlock = getenv("SYCL_THROW_ON_BLOCK") != nullptr;
+//     if (ThrowOnBlock)
+//       throw sycl::runtime_error(
+//           std::string("Waiting for blocked command. Block reason: ") +
+//               std::string(getBlockReason()),
+//           PI_ERROR_INVALID_OPERATION);
 
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-    // Scoped trace event notifier that emits a barrier begin and barrier end
-    // event, which models the barrier while enqueuing along with the blocked
-    // reason, as determined by the scheduler
-    std::string Info = "enqueue.barrier[";
-    Info += std::string(getBlockReason()) + "]";
-    emitInstrumentation(xpti::trace_barrier_begin, Info.c_str());
-#endif
+// #ifdef XPTI_ENABLE_INSTRUMENTATION
+//     // Scoped trace event notifier that emits a barrier begin and barrier end
+//     // event, which models the barrier while enqueuing along with the blocked
+//     // reason, as determined by the scheduler
+//     std::string Info = "enqueue.barrier[";
+//     Info += std::string(getBlockReason()) + "]";
+//     emitInstrumentation(xpti::trace_barrier_begin, Info.c_str());
+// #endif
 
-    // Wait if blocking
-    while (MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked)
-      ;
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-    emitInstrumentation(xpti::trace_barrier_end, Info.c_str());
-#endif
-  }
+//     // Wait if blocking
+//     while (MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked)
+//       ;
+// #ifdef XPTI_ENABLE_INSTRUMENTATION
+//     emitInstrumentation(xpti::trace_barrier_end, Info.c_str());
+// #endif
+//   }
 
   std::lock_guard<std::mutex> Lock(MEnqueueMtx);
 

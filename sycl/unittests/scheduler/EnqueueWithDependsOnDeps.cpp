@@ -229,8 +229,7 @@ TEST_F(DependsOnTests, EnqueueNoMemObjDoubleKernelDepHostBlocked) {
 
   detail::Command *Cmd1 = AddTaskCG(TestCGType::HOST_TASK, Events);
   EventImplPtr Cmd1Event = Cmd1->getEvent();
-  Cmd1->MIsBlockable = true;
-  Cmd1->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
+  Cmd1->blockManually(detail::Command::BlockReason::HostAccessor);
 
   // Depends on host task
   Events.push_back(Cmd1Event);
@@ -254,14 +253,13 @@ TEST_F(DependsOnTests, EnqueueNoMemObjDoubleKernelDepHostBlocked) {
   EXPECT_EQ(Result.MCmd, static_cast<detail::Command *>(Cmd1));
 
   // Preconditions for post enqueue checks
-  EXPECT_FALSE(Cmd1->isSuccessfullyEnqueued());
+  EXPECT_TRUE(Cmd1->isSuccessfullyEnqueued());
   EXPECT_FALSE(Cmd2->isSuccessfullyEnqueued());
   EXPECT_FALSE(Cmd3->isSuccessfullyEnqueued());
 
-  Cmd1->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
-
-  std::vector<detail::Command *> BlockedCommands{Cmd2, Cmd3};
-  VerifyBlockedCommandsEnqueue(Cmd1, BlockedCommands);
+  Cmd1->unblock();
+  EXPECT_TRUE(MS.enqueueCommand(Cmd2, Result, detail::BlockingT::NON_BLOCKING));
+  EXPECT_TRUE(MS.enqueueCommand(Cmd3, Result, detail::BlockingT::NON_BLOCKING));
 }
 
 TEST_F(DependsOnTests, EnqueueNoMemObjDoubleKernelDepHost) {

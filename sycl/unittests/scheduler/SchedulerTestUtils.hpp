@@ -184,15 +184,6 @@ public:
     return MGraphBuilder.insertUpdateHostReqCmd(Record, Req, Queue, ToEnqueue);
   }
 
-  sycl::detail::EmptyCommand *
-  addEmptyCmd(sycl::detail::Command *Cmd,
-              const std::vector<sycl::detail::Requirement *> &Reqs,
-              const sycl::detail::QueueImplPtr &Queue,
-              sycl::detail::Command::BlockReason Reason,
-              std::vector<sycl::detail::Command *> &ToEnqueue) {
-    return MGraphBuilder.addEmptyCmd(Cmd, Reqs, Queue, Reason, ToEnqueue);
-  }
-
   sycl::detail::Command *
   addCG(std::unique_ptr<sycl::detail::CG> CommandGroup,
         sycl::detail::QueueImplPtr Queue,

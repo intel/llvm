@@ -524,13 +524,9 @@ Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
 
   Command *UpdateHostAccCmd =
       insertUpdateHostReqCmd(Record, Req, HostQueue, ToEnqueue);
+  assert(UpdateHostAccCmd->blockManually(Command::BlockReason::HostAccessor));
 
-  // Need empty command to be blocked until host accessor is destructed
-  EmptyCommand *EmptyCmd =
-      addEmptyCmd<Requirement>(UpdateHostAccCmd, {Req}, HostQueue,
-                               Command::BlockReason::HostAccessor, ToEnqueue);
-
-  Req->MBlockedCmd = EmptyCmd;
+  Req->MBlockedCmd = UpdateHostAccCmd;
 
   if (MPrintOptionsArray[AfterAddHostAcc])
     printGraphAsDot("after_addHostAccessor");
@@ -838,53 +834,6 @@ void Scheduler::GraphBuilder::markModifiedIfWrite(MemObjRecord *Record,
   case access::mode::read:
     break;
   }
-}
-
-template <typename T>
-typename detail::enable_if_t<
-    std::is_same<typename std::remove_cv_t<T>, Requirement>::value,
-    EmptyCommand *>
-Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd, const std::vector<T *> &Reqs,
-                                     const QueueImplPtr &Queue,
-                                     Command::BlockReason Reason,
-                                     std::vector<Command *> &ToEnqueue,
-                                     const bool AddDepsToLeaves) {
-  EmptyCommand *EmptyCmd =
-      new EmptyCommand(Scheduler::getInstance().getDefaultHostQueue());
-
-  if (!EmptyCmd)
-    throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
-
-  EmptyCmd->MIsBlockable = true;
-  EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
-  EmptyCmd->MBlockReason = Reason;
-
-  for (T *Req : Reqs) {
-    MemObjRecord *Record = getOrInsertMemObjRecord(Queue, Req, ToEnqueue);
-    AllocaCommandBase *AllocaCmd =
-        getOrCreateAllocaForReq(Record, Req, Queue, ToEnqueue);
-    EmptyCmd->addRequirement(Cmd, AllocaCmd, Req);
-  }
-  // addRequirement above call addDep that already will add EmptyCmd as user for
-  // Cmd no Reqs size check here so assume it is possible to have no Reqs passed
-  if (!Reqs.size())
-    Cmd->addUser(EmptyCmd);
-
-  if (AddDepsToLeaves) {
-    const std::vector<DepDesc> &Deps = Cmd->MDeps;
-    std::vector<Command *> ToCleanUp;
-    for (const DepDesc &Dep : Deps) {
-      const Requirement *Req = Dep.MDepRequirement;
-      MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
-
-      updateLeaves({Cmd}, Record, Req->MAccessMode, ToCleanUp);
-      addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode, ToEnqueue);
-    }
-    for (Command *Cmd : ToCleanUp)
-      cleanupCommand(Cmd);
-  }
-
-  return EmptyCmd;
 }
 
 static bool isInteropHostTask(const std::unique_ptr<ExecCGCommand> &Cmd) {
