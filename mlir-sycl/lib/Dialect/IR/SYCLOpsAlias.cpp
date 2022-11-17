@@ -67,7 +67,7 @@ SYCLOpAsmInterface::getAlias(mlir::Type Type, llvm::raw_ostream &OS) const {
     return AliasResult::FinalAlias;
   }
   if (const auto MultiPtr = Type.dyn_cast<mlir::sycl::MultiPtrType>()) {
-    OS << "sycl_multi_ptr_";
+    OS << "sycl_multi_ptr";
     return AliasResult::FinalAlias;
   }
 
