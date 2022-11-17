@@ -1,6 +1,7 @@
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
 
-// Tests for IR of device_has(aspect, ...) attribute
+// Tests for IR of device_has(aspect, ...) attribute and
+// !sycl_used_aspects metadata
 #include "sycl.hpp"
 
 using namespace sycl;
