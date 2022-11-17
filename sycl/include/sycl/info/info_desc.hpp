@@ -98,7 +98,7 @@ namespace device {
 #include <sycl/info/device_traits_deprecated.def>
 #undef __SYCL_PARAM_TRAITS_DEPRECATED
 
-template <int Dimensions> struct max_work_item_sizes;
+template <int Dimensions = 3> struct max_work_item_sizes;
 #define __SYCL_PARAM_TRAITS_TEMPLATE_SPEC(DescType, Desc, ReturnT, PiCode)     \
   template <> struct Desc {                                                    \
     using return_type = ReturnT;                                               \

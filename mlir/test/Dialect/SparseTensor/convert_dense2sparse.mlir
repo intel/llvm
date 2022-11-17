@@ -104,35 +104,36 @@ func.func @sparse_convert_complex(%arg0: tensor<100xcomplex<f64>>) -> tensor<100
 //       CHECK: return %[[T]] : !llvm.ptr<i8>
 
 // CHECK-RWT-LABEL:   func.func @sparse_convert_2d(
-//  CHECK-RWT-SAME:   %[[A:.*]]: tensor<2x4xf64>) -> tensor<2x4xf64, #sparse_tensor.encoding<{ dimLevelType = [ "dense", "compressed" ] }>> {
-//  CHECK-RWT-DAG:    %[[C0:.*]] = arith.constant 0 : index
-//  CHECK-RWT-DAG:    %[[C1:.*]] = arith.constant 1 : index
-//  CHECK-RWT-DAG:    %[[C2:.*]] = arith.constant 2 : index
-//  CHECK-RWT-DAG:    %[[C4:.*]] = arith.constant 4 : index
-//  CHECK-RWT-DAG:    %[[F0:.*]] = arith.constant 0.000000e+00 : f64
-//      CHECK-RWT:    %[[COO:.*]] = bufferization.alloc_tensor()
-//      CHECK-RWT:    scf.for %[[FI:.*]] = %[[C0]] to %[[C2]] step %[[C1]] {
-//      CHECK-RWT:      scf.for %[[FJ:.*]] = %[[C0]] to %[[C4]] step %[[C1]] {
-//      CHECK-RWT:        %[[V:.*]] = tensor.extract %[[A]]{{\[}}%[[FI]], %[[FJ]]] : tensor<2x4xf64>
-//      CHECK-RWT:        %[[NZ:.*]] = arith.cmpf une, %[[V]], %[[F0]] : f64
-//      CHECK-RWT:        scf.if %[[NZ]] {
-//      CHECK-RWT:          %{{.*}} = sparse_tensor.insert %[[V]] into %[[COO]]{{\[}}%[[FI]], %[[FJ]]]
-//      CHECK-RWT:        }
-//      CHECK-RWT:      }
-//      CHECK-RWT:    }
-//      CHECK-RWT:    %[[I0:.*]] = sparse_tensor.indices %[[COO]] {dimension = 0 : index}
-//      CHECK-RWT:    %[[I1:.*]] = sparse_tensor.indices %[[COO]] {dimension = 1 : index}
-//      CHECK-RWT:    %[[NNZ:.*]] = memref.load %[[I0]]{{\[}}%[[C1]]] : memref<?xindex>
-//      CHECK-RWT:    %[[V2:.*]] = sparse_tensor.values %[[COO]]
-//      CHECK-RWT:    sparse_tensor.sort %[[NNZ]], %[[I0]], %[[I1]] jointly %[[V2]]
-//      CHECK-RWT:    %[[DST:.*]] = bufferization.alloc_tensor()
-//      CHECK-RWT:    sparse_tensor.foreach in %[[COO]]
-//      CHECK-RWT:    ^bb0(%[[FI0:.*]]: index, %[[FI1:.*]]: index, %[[FV:.*]]: f64):
-//      CHECK-RWT:      sparse_tensor.insert %[[FV]] into %[[DST]]{{\[}}%[[FI0]], %[[FI1]]]
-//      CHECK-RWT:    }
-//      CHECK-RWT:    %[[R:.*]] = sparse_tensor.convert %[[DST]]
-//      CHECK-RWT:    bufferization.dealloc_tensor %[[COO]]
-//      CHECK-RWT:    return %[[R]] : tensor<2x4xf64, #sparse_tensor.encoding<{ dimLevelType = [ "dense", "compressed" ] }>>
+//  CHECK-RWT-SAME:     %[[T0:.*]]: tensor<2x4xf64>) -> tensor<2x4xf64, #sparse_tensor.encoding<{ dimLevelType = [ "dense", "compressed" ] }>> {
+//       CHECK-RWT:     %[[T1:.*]] = bufferization.alloc_tensor()
+//       CHECK-RWT:     %[[T2:.*]] = sparse_tensor.foreach in %[[T0]] init(%[[T1]])
+//       CHECK-RWT:     ^bb0(%[[L0I0:.*]]: index, %[[L0I1:.*]]: index, %[[L0V:.*]]: f64, %[[L0T:.*]]: tensor
+//       CHECK-RWT:        %[[CMP:.*]] = arith.cmpf une, %[[L0V]]
+//       CHECK-RWT:        %[[IFR:.*]] = scf.if %[[CMP]]
+//       CHECK-RWT:          %[[L0T2:.*]] = sparse_tensor.insert %[[L0V]] into %[[L0T]]{{\[}}%[[L0I0]], %[[L0I1]]]
+//       CHECK-RWT:          scf.yield %[[L0T2]]
+//       CHECK-RWT:        } else {
+//       CHECK-RWT:          scf.yield %[[L0T]]
+//       CHECK-RWT:        }
+//       CHECK-RWT:        sparse_tensor.yield %[[IFR]]
+//       CHECK-RWT:     }
+//       CHECK-RWT:     %[[COO:.*]] = sparse_tensor.load %[[T2]] hasInserts
+//       CHECK-RWT:     %[[I0:.*]] = sparse_tensor.indices %[[COO]] {dimension = 0 : index}
+//       CHECK-RWT:     %[[I1:.*]] = sparse_tensor.indices %[[COO]] {dimension = 1 : index}
+//       CHECK-RWT:     %[[NNZ:.*]] = sparse_tensor.number_of_entries %[[COO]]
+//       CHECK-RWT:     %[[V:.*]] = sparse_tensor.values %[[COO]]
+//       CHECK-RWT:     sparse_tensor.sort %[[NNZ]], %[[I0]], %[[I1]] jointly %[[V]] : memref<?xindex>, memref<?xindex> jointly memref<?xf64>
+//       CHECK-RWT:     %[[T3:.*]] = bufferization.alloc_tensor()
+//       CHECK-RWT:     %[[T4:.*]] = sparse_tensor.foreach in %[[COO]] init(%[[T3]])
+//       CHECK-RWT:     ^bb0(%[[L1I0:.*]]: index, %[[L1I1:.*]]: index, %[[L1V:.*]]: f64, %[[L1T:.*]]: tensor
+//       CHECK-RWT:       %[[L1T2:.*]] = sparse_tensor.insert %[[L1V]] into %[[L1T]]{{\[}}%[[L1I0]], %[[L1I1]]]
+//       CHECK-RWT:       sparse_tensor.yield %[[L1T2]]
+//       CHECK-RWT:     }
+//       CHECK-RWT:     %[[T5:.*]] = sparse_tensor.load %[[T4]] hasInserts
+//       CHECK-RWT:     %[[T6:.*]] = sparse_tensor.convert %[[T5]]
+//       CHECK-RWT:     bufferization.dealloc_tensor %[[COO]]
+//       CHECK-RWT:     return %[[T6]]
+//       CHECK-RWT:   }
 func.func @sparse_convert_2d(%arg0: tensor<2x4xf64>) -> tensor<2x4xf64, #CSR> {
   %0 = sparse_tensor.convert %arg0 : tensor<2x4xf64> to tensor<2x4xf64, #CSR>
   return %0 : tensor<2x4xf64, #CSR>
@@ -156,9 +157,9 @@ func.func @sparse_convert_2d(%arg0: tensor<2x4xf64>) -> tensor<2x4xf64, #CSR> {
 //       CHECK: %[[N:.*]] = memref.cast %[[M]] : memref<2xindex> to memref<?xindex>
 //       CHECK: %[[BUF:.*]] = memref.alloca() : memref<f32>
 //       CHECK: scf.for %[[I:.*]] = %[[C0]] to %[[C2]] step %[[C1]] {
-//       CHECK-DAG:   memref.store %{{.*}}, %[[M]][%[[C0]]] : memref<2xindex>
-//       CHECK-DAG:   memref.store %{{.*}}, %[[M]][%[[C1]]] : memref<2xindex>
-//       CHECK-DAG:   %[[V:.*]] = tensor.extract %{{.*}}[%[[I]]] : tensor<2xf32>
+//   CHECK-DAG:   memref.store %{{.*}}, %[[M]][%[[C0]]] : memref<2xindex>
+//   CHECK-DAG:   memref.store %{{.*}}, %[[M]][%[[C1]]] : memref<2xindex>
+//   CHECK-DAG:   %[[V:.*]] = tensor.extract %{{.*}}[%[[I]]] : tensor<2xf32>
 //       CHECK:   memref.store %[[V]], %[[BUF]][] : memref<f32>
 //       CHECK:   call @addEltF32(%{{.*}}, %[[BUF]], %[[N]], %{{.*}})
 //       CHECK: }
@@ -166,34 +167,31 @@ func.func @sparse_convert_2d(%arg0: tensor<2x4xf64>) -> tensor<2x4xf64, #CSR> {
 //       CHECK: call @delSparseTensorCOOF32(%[[C]])
 //       CHECK: return %[[T]] : !llvm.ptr<i8>
 
-// CHECK-RWT-LABEL:  func.func @sparse_constant()
-//   CHECK-RWT-DAG:  %[[C0:.*]] = arith.constant 0 : index
-//   CHECK-RWT-DAG:  %[[C1:.*]] = arith.constant 1 : index
-//   CHECK-RWT-DAG:  %[[SI:.*]] = arith.constant dense<{{\[\[}}0, 0], [1, 6]]> : tensor<2x2xi64>
-//   CHECK-RWT-DAG:  %[[SV:.*]] = arith.constant dense<[1.000000e+00, 5.000000e+00]> : tensor<2xf32>
-//   CHECK-RWT-DAG:  %[[C2:.*]] = arith.constant 2 : index
-//       CHECK-RWT:  %[[COO:.*]] = bufferization.alloc_tensor()
-//       CHECK-RWT:  scf.for %[[FI:.*]] = %[[C0]] to %[[C2]] step %[[C1]] {
-//       CHECK-RWT:    %[[I0r:.*]] = tensor.extract %[[SI]]{{\[}}%[[FI]], %[[C0]]] : tensor<2x2xi64>
-//       CHECK-RWT:    %[[I0:.*]] = arith.index_cast %[[I0r]] : i64 to index
-//       CHECK-RWT:    %[[I1r:.*]] = tensor.extract %[[SI]]{{\[}}%[[FI]], %[[C1]]] : tensor<2x2xi64>
-//       CHECK-RWT:    %[[I1:.*]] = arith.index_cast %[[I1r]] : i64 to index
-//       CHECK-RWT:    %[[V:.*]] = tensor.extract %[[SV]]{{\[}}%[[FI]]] : tensor<2xf32>
-//       CHECK-RWT:    sparse_tensor.insert %[[V]] into %[[COO]]{{\[}}%[[I0]], %[[I1]]]
-//       CHECK-RWT:  }
-//       CHECK-RWT:  %[[TI0:.*]] = sparse_tensor.indices %[[COO]] {dimension = 0 : index}
-//       CHECK-RWT:  %[[TI1:.*]] = sparse_tensor.indices %[[COO]] {dimension = 1 : index}
-//       CHECK-RWT:  %[[NNZ:.*]] = memref.load %[[TI0]]{{\[}}%[[C1]]] : memref<?xindex>
-//       CHECK-RWT:  %[[TV:.*]] = sparse_tensor.values %[[COO]]
-//       CHECK-RWT:  sparse_tensor.sort %[[NNZ]], %[[TI0]], %[[TI1]] jointly %[[TV]]
-//       CHECK-RWT:  %[[DST:.*]] = bufferization.alloc_tensor()
-//       CHECK-RWT:  sparse_tensor.foreach in %[[COO]]
-//       CHECK-RWT:  ^bb0(%[[F2I0:.*]]: index, %[[F2I1:.*]]: index, %[[F2V:.*]]: f32):
-//       CHECK-RWT:    sparse_tensor.insert %[[F2V]] into %[[DST]]{{\[}}%[[F2I0]], %[[F2I1]]]
-//       CHECK-RWT:  }
-//       CHECK-RWT:  %[[R:.*]] = sparse_tensor.convert %[[DST]]
-//       CHECK-RWT:  bufferization.dealloc_tensor %[[COO]]
-//       CHECK-RWT:  return %[[R]] : tensor<8x7xf32, #sparse_tensor.encoding<{ dimLevelType = [ "dense", "compressed" ] }>>
+// CHECK-RWT-LABEL:   func.func @sparse_constant() -> tensor<8x7xf32, #sparse_tensor.encoding<{ dimLevelType = [ "dense", "compressed" ] }>> {
+//       CHECK-RWT:     %[[F0:.*]] = arith.constant sparse<{{\[\[}}0, 0], [1, 6]], [1.000000e+00, 5.000000e+00]> : tensor<8x7xf32>
+//       CHECK-RWT:     %[[T0:.*]] = bufferization.alloc_tensor()
+//       CHECK-RWT:     %[[T1:.*]] = sparse_tensor.foreach in %[[F0]] init(%[[T0]])
+//       CHECK-RWT:     ^bb0(%[[L0I0:.*]]: index, %[[L0I1:.*]]: index, %[[L0V:.*]]: f32, %[[L0T:.*]]: tensor
+//       CHECK-RWT:       %[[L0T2:.*]] = sparse_tensor.insert %[[L0V]] into %[[L0T]]{{\[}}%[[L0I0]], %[[L0I1]]]
+//       CHECK-RWT:       sparse_tensor.yield %[[L0T2]]
+//       CHECK-RWT:     }
+//       CHECK-RWT:     %[[COO:.*]] = sparse_tensor.load %[[T1]] hasInserts
+//       CHECK-RWT:     %[[I0:.*]] = sparse_tensor.indices %[[COO]] {dimension = 0 : index}
+//       CHECK-RWT:     %[[I1:.*]] = sparse_tensor.indices %[[COO]] {dimension = 1 : index}
+//       CHECK-RWT:     %[[NNZ:.*]] = sparse_tensor.number_of_entries %[[COO]]
+//       CHECK-RWT:     %[[V:.*]] = sparse_tensor.values %[[COO]]
+//       CHECK-RWT:     sparse_tensor.sort %[[NNZ]], %[[I0]], %[[I1]] jointly %[[V]] : memref<?xindex>, memref<?xindex> jointly memref<?xf32>
+//       CHECK-RWT:     %[[T3:.*]] = bufferization.alloc_tensor()
+//       CHECK-RWT:     %[[T4:.*]] = sparse_tensor.foreach in %[[COO]] init(%[[T3]])
+//       CHECK-RWT:     ^bb0(%[[L1I0:.*]]: index, %[[L1I1:.*]]: index, %[[L1V:.*]]: f32, %[[L1T:.*]]: tensor
+//       CHECK-RWT:       %[[L1T2:.*]] = sparse_tensor.insert %[[L1V]] into %[[L1T]]{{\[}}%[[L1I0]], %[[L1I1]]]
+//       CHECK-RWT:       sparse_tensor.yield %[[L1T2]]
+//       CHECK-RWT:     }
+//       CHECK-RWT:     %[[T5:.*]] = sparse_tensor.load %[[T4]] hasInserts
+//       CHECK-RWT:     %[[T6:.*]] = sparse_tensor.convert %[[T5]]
+//       CHECK-RWT:     bufferization.dealloc_tensor %[[COO]]
+//       CHECK-RWT:     return %[[T6]]
+//       CHECK-RWT:   }
 func.func @sparse_constant() -> tensor<8x7xf32, #CSR>{
   // Initialize a tensor.
   %0 = arith.constant sparse<[[0, 0], [1, 6]], [1.0, 5.0]> : tensor<8x7xf32>

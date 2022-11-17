@@ -70,7 +70,8 @@ enum class RegKind {
   SVEDataVector,
   SVEPredicateAsCounter,
   SVEPredicateVector,
-  Matrix
+  Matrix,
+  LookupTable
 };
 
 enum class MatrixKind { Array, Tile, Row, Col };
@@ -265,6 +266,7 @@ private:
   template <bool ParseShiftExtend,
             RegConstraintEqualityTy EqTy = RegConstraintEqualityTy::EqualsReg>
   OperandMatchResultTy tryParseGPROperand(OperandVector &Operands);
+  OperandMatchResultTy tryParseZTOperand(OperandVector &Operands);
   template <bool ParseShiftExtend, bool ParseSuffix>
   OperandMatchResultTy tryParseSVEDataVector(OperandVector &Operands);
   template <RegKind RK>
@@ -405,6 +407,7 @@ private:
   struct VectorListOp {
     unsigned RegNum;
     unsigned Count;
+    unsigned Stride;
     unsigned NumElements;
     unsigned ElementWidth;
     RegKind  RegisterKind;
@@ -682,6 +685,11 @@ public:
   unsigned getVectorListCount() const {
     assert(Kind == k_VectorList && "Invalid access!");
     return VectorList.Count;
+  }
+
+  unsigned getVectorListStride() const {
+    assert(Kind == k_VectorList && "Invalid access!");
+    return VectorList.Stride;
   }
 
   int getVectorIndex() const {
@@ -1378,7 +1386,7 @@ public:
   }
 
   template <RegKind VectorKind, unsigned NumRegs, unsigned NumElements,
-            unsigned ElementWidth>
+            unsigned ElementWidth, unsigned Stride = 1>
   bool isTypedVectorList() const {
     if (Kind != k_VectorList)
       return false;
@@ -1387,6 +1395,8 @@ public:
     if (VectorList.RegisterKind != VectorKind)
       return false;
     if (VectorList.ElementWidth != ElementWidth)
+      return false;
+    if (VectorList.Stride != Stride)
       return false;
     return VectorList.NumElements == NumElements;
   }
@@ -1401,6 +1411,20 @@ public:
     if (((VectorList.RegNum - AArch64::Z0) % NumRegs) != 0)
       return DiagnosticPredicateTy::NearMatch;
     return DiagnosticPredicateTy::Match;
+  }
+
+  template <RegKind VectorKind, unsigned NumRegs, unsigned Stride,
+            unsigned ElementWidth>
+  DiagnosticPredicate isTypedVectorListStrided() const {
+    bool Res = isTypedVectorList<VectorKind, NumRegs, /*NumElements*/ 0,
+                                 ElementWidth, Stride>();
+    if (!Res)
+      return DiagnosticPredicateTy::NoMatch;
+    if ((VectorList.RegNum < (AArch64::Z0 + Stride)) ||
+        ((VectorList.RegNum >= AArch64::Z16) &&
+         (VectorList.RegNum < (AArch64::Z16 + Stride))))
+      return DiagnosticPredicateTy::Match;
+    return DiagnosticPredicateTy::NoMatch;
   }
 
   template <int Min, int Max>
@@ -1756,6 +1780,43 @@ public:
     unsigned FirstReg = FirstRegs[(unsigned)RegTy][NumRegs];
     Inst.addOperand(MCOperand::createReg(FirstReg + getVectorListStart() -
                                          FirstRegs[(unsigned)RegTy][0]));
+  }
+
+  template <unsigned NumRegs>
+  void addStridedVectorListOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+    assert((NumRegs == 2 || NumRegs == 4) && " NumRegs must be 2 or 4");
+
+    switch (NumRegs) {
+    case 2:
+      if (getVectorListStart() < AArch64::Z16) {
+        assert((getVectorListStart() < AArch64::Z8) &&
+               (getVectorListStart() >= AArch64::Z0) && "Invalid Register");
+        Inst.addOperand(MCOperand::createReg(
+            AArch64::Z0_Z8 + getVectorListStart() - AArch64::Z0));
+      } else {
+        assert((getVectorListStart() < AArch64::Z24) &&
+               (getVectorListStart() >= AArch64::Z16) && "Invalid Register");
+        Inst.addOperand(MCOperand::createReg(
+            AArch64::Z16_Z24 + getVectorListStart() - AArch64::Z16));
+      }
+      break;
+    case 4:
+      if (getVectorListStart() < AArch64::Z16) {
+        assert((getVectorListStart() < AArch64::Z4) &&
+               (getVectorListStart() >= AArch64::Z0) && "Invalid Register");
+        Inst.addOperand(MCOperand::createReg(
+            AArch64::Z0_Z4_Z8_Z12 + getVectorListStart() - AArch64::Z0));
+      } else {
+        assert((getVectorListStart() < AArch64::Z20) &&
+               (getVectorListStart() >= AArch64::Z16) && "Invalid Register");
+        Inst.addOperand(MCOperand::createReg(
+            AArch64::Z16_Z20_Z24_Z28 + getVectorListStart() - AArch64::Z16));
+      }
+      break;
+    default:
+      llvm_unreachable("Unsupported number of registers for strided vec list");
+    }
   }
 
   void addMatrixTileListOperands(MCInst &Inst, unsigned N) const {
@@ -2118,12 +2179,13 @@ public:
   }
 
   static std::unique_ptr<AArch64Operand>
-  CreateVectorList(unsigned RegNum, unsigned Count, unsigned NumElements,
-                   unsigned ElementWidth, RegKind RegisterKind, SMLoc S, SMLoc E,
-                   MCContext &Ctx) {
+  CreateVectorList(unsigned RegNum, unsigned Count, unsigned Stride,
+                   unsigned NumElements, unsigned ElementWidth,
+                   RegKind RegisterKind, SMLoc S, SMLoc E, MCContext &Ctx) {
     auto Op = std::make_unique<AArch64Operand>(k_VectorList, Ctx);
     Op->VectorList.RegNum = RegNum;
     Op->VectorList.Count = Count;
+    Op->VectorList.Stride = Stride;
     Op->VectorList.NumElements = NumElements;
     Op->VectorList.ElementWidth = ElementWidth;
     Op->VectorList.RegisterKind = RegisterKind;
@@ -2387,7 +2449,7 @@ void AArch64Operand::print(raw_ostream &OS) const {
     OS << "<vectorlist ";
     unsigned Reg = getVectorListStart();
     for (unsigned i = 0, e = getVectorListCount(); i != e; ++i)
-      OS << Reg + i << " ";
+      OS << Reg + i * getVectorListStride() << " ";
     OS << ">";
     break;
   }
@@ -2786,9 +2848,12 @@ unsigned AArch64AsmParser::matchRegisterNameAlias(StringRef Name,
   if ((RegNum = matchMatrixRegName(Name)))
     return Kind == RegKind::Matrix ? RegNum : 0;
 
+ if (Name.equals_insensitive("zt0"))
+    return Kind == RegKind::LookupTable ? AArch64::ZT0 : 0;
+
   // The parsed register must be of RegKind Scalar
   if ((RegNum = MatchRegisterName(Name)))
-    return Kind == RegKind::Scalar ? RegNum : 0;
+    return (Kind == RegKind::Scalar) ? RegNum : 0;
 
   if (!RegNum) {
     // Handle a few common aliases of registers.
@@ -2824,6 +2889,8 @@ unsigned AArch64AsmParser::getNumRegsForRegKind(RegKind K) {
   case RegKind::SVEPredicateVector:
   case RegKind::SVEPredicateAsCounter:
     return 16;
+  case RegKind::LookupTable:
+   return 512;
   }
   llvm_unreachable("Unsupported RegKind");
 }
@@ -3160,6 +3227,14 @@ AArch64AsmParser::tryParseImmWithOptionalShift(OperandVector &Operands) {
 
   // Eat ','
   Lex();
+  StringRef VecGroup;
+  if (!parseOptionalVGOperand(Operands, VecGroup)) {
+    Operands.push_back(
+        AArch64Operand::CreateImm(Imm, S, getLoc(), getContext()));
+    Operands.push_back(
+        AArch64Operand::CreateToken(VecGroup, getLoc(), getContext()));
+    return MatchOperand_Success;
+  }
 
   // The optional operand must be "lsl #N" where N is non-negative.
   if (!getTok().is(AsmToken::Identifier) ||
@@ -3469,6 +3544,7 @@ static const struct Extension {
     {"sve2-sha3", {AArch64::FeatureSVE2SHA3}},
     {"sve2-bitperm", {AArch64::FeatureSVE2BitPerm}},
     {"sve2p1", {AArch64::FeatureSVE2p1}},
+    {"b16b16", {AArch64::FeatureB16B16}},
     {"ls64", {AArch64::FeatureLS64}},
     {"xs", {AArch64::FeatureXS}},
     {"pauth", {AArch64::FeaturePAuth}},
@@ -3476,10 +3552,13 @@ static const struct Extension {
     {"rme", {AArch64::FeatureRME}},
     {"sme", {AArch64::FeatureSME}},
     {"sme-f64f64", {AArch64::FeatureSMEF64F64}},
+    {"sme-f16f16", {AArch64::FeatureSMEF16F16}},
     {"sme-i16i64", {AArch64::FeatureSMEI16I64}},
     {"sme2", {AArch64::FeatureSME2}},
+    {"sme2p1", {AArch64::FeatureSME2p1}},
     {"hbc", {AArch64::FeatureHBC}},
     {"mops", {AArch64::FeatureMOPS}},
+    {"mec", {AArch64::FeatureMEC}},
     // FIXME: Unsupported extensions
     {"lor", {}},
     {"rdma", {}},
@@ -3966,6 +4045,9 @@ bool AArch64AsmParser::parseRegister(OperandVector &Operands) {
   if (!tryParseNeonVectorRegister(Operands))
     return false;
 
+  if (tryParseZTOperand(Operands) == MatchOperand_Success)
+    return false;
+
   // Otherwise try for a scalar register.
   if (tryParseGPROperand<false>(Operands) == MatchOperand_Success)
     return false;
@@ -4179,6 +4261,10 @@ AArch64AsmParser::tryParseVectorList(OperandVector &Operands,
       llvm_unreachable("Expected a valid vector kind");
     }
 
+    if (RegTok.is(AsmToken::Identifier) && ParseRes == MatchOperand_NoMatch &&
+        RegTok.getString().equals_insensitive("zt0"))
+      return MatchOperand_NoMatch;
+
     if (RegTok.isNot(AsmToken::Identifier) ||
         ParseRes == MatchOperand_ParseFail ||
         (ParseRes == MatchOperand_NoMatch && NoMatchIsError &&
@@ -4210,6 +4296,7 @@ AArch64AsmParser::tryParseVectorList(OperandVector &Operands,
   int64_t PrevReg = FirstReg;
   unsigned Count = 1;
 
+  int Stride = 1;
   if (parseOptionalToken(AsmToken::Minus)) {
     SMLoc Loc = getLoc();
     StringRef NextKind;
@@ -4236,6 +4323,7 @@ AArch64AsmParser::tryParseVectorList(OperandVector &Operands,
     Count += Space;
   }
   else {
+    bool HasCalculatedStride = false;
     while (parseOptionalToken(AsmToken::Comma)) {
       SMLoc Loc = getLoc();
       StringRef NextKind;
@@ -4250,11 +4338,18 @@ AArch64AsmParser::tryParseVectorList(OperandVector &Operands,
         return MatchOperand_ParseFail;
       }
 
-      // Registers must be incremental (with wraparound at 31)
-      if (getContext().getRegisterInfo()->getEncodingValue(Reg) !=
-          (getContext().getRegisterInfo()->getEncodingValue(PrevReg) + 1) %
-              NumRegs) {
-        Error(Loc, "registers must be sequential");
+      unsigned RegVal = getContext().getRegisterInfo()->getEncodingValue(Reg);
+      unsigned PrevRegVal =
+          getContext().getRegisterInfo()->getEncodingValue(PrevReg);
+      if (!HasCalculatedStride) {
+        Stride = (PrevRegVal < RegVal) ? (RegVal - PrevRegVal)
+                                       : (RegVal + NumRegs - PrevRegVal);
+        HasCalculatedStride = true;
+      }
+
+      // Register must be incremental (with a wraparound at last register).
+      if (Stride == 0 || RegVal != ((PrevRegVal + Stride) % NumRegs)) {
+        Error(Loc, "registers must have the same sequential stride");
         return MatchOperand_ParseFail;
       }
 
@@ -4279,8 +4374,8 @@ AArch64AsmParser::tryParseVectorList(OperandVector &Operands,
   }
 
   Operands.push_back(AArch64Operand::CreateVectorList(
-      FirstReg, Count, NumElements, ElementWidth, VectorKind, S, getLoc(),
-      getContext()));
+      FirstReg, Count, Stride, NumElements, ElementWidth, VectorKind, S,
+      getLoc(), getContext()));
 
   return MatchOperand_Success;
 }
@@ -4325,6 +4420,42 @@ AArch64AsmParser::tryParseGPR64sp0Operand(OperandVector &Operands) {
 
   Operands.push_back(AArch64Operand::CreateReg(
       RegNum, RegKind::Scalar, StartLoc, getLoc(), getContext()));
+  return MatchOperand_Success;
+}
+
+OperandMatchResultTy
+AArch64AsmParser::tryParseZTOperand(OperandVector &Operands) {
+  SMLoc StartLoc = getLoc();
+  const AsmToken &Tok = getTok();
+  std::string Name = Tok.getString().lower();
+
+  unsigned RegNum = matchRegisterNameAlias(Name, RegKind::LookupTable);
+
+  if (RegNum == 0)
+    return MatchOperand_NoMatch;
+
+  Operands.push_back(AArch64Operand::CreateReg(
+      RegNum, RegKind::LookupTable, StartLoc, getLoc(), getContext()));
+  Lex(); // Eat identifier token.
+
+  // Check if register is followed by an index
+  if (parseOptionalToken(AsmToken::LBrac)) {
+    const MCExpr *ImmVal;
+    if (getParser().parseExpression(ImmVal))
+      return MatchOperand_NoMatch;
+    const MCConstantExpr *MCE = dyn_cast<MCConstantExpr>(ImmVal);
+    if (!MCE) {
+      TokError("immediate value expected for vector index");
+      return MatchOperand_ParseFail;
+    }
+    if (parseToken(AsmToken::RBrac, "']' expected"))
+      return MatchOperand_ParseFail;
+
+    Operands.push_back(AArch64Operand::CreateImm(
+        MCConstantExpr::create(MCE->getValue(), getContext()), StartLoc,
+        getLoc(), getContext()));
+  }
+
   return MatchOperand_Success;
 }
 
@@ -4704,7 +4835,8 @@ bool AArch64AsmParser::areEqualRegs(const MCParsedAsmOperand &Op1,
 
   if (AOp1.isVectorList() && AOp2.isVectorList())
     return AOp1.getVectorListCount() == AOp2.getVectorListCount() &&
-           AOp1.getVectorListStart() == AOp2.getVectorListStart();
+           AOp1.getVectorListStart() == AOp2.getVectorListStart() &&
+           AOp1.getVectorListStride() == AOp2.getVectorListStride();
 
   if (!AOp1.isReg() || !AOp2.isReg())
     return false;
@@ -5434,6 +5566,8 @@ bool AArch64AsmParser::showMatchError(SMLoc Loc, unsigned ErrCode,
     return Error(Loc, "index must be a multiple of 16 in range [-1024, 1008].");
   case Match_InvalidMemoryIndexed8UImm5:
     return Error(Loc, "index must be a multiple of 8 in range [0, 248].");
+  case Match_InvalidMemoryIndexed8UImm3:
+    return Error(Loc, "index must be a multiple of 8 in range [0, 56].");
   case Match_InvalidMemoryIndexed4UImm5:
     return Error(Loc, "index must be a multiple of 4 in range [0, 124].");
   case Match_InvalidMemoryIndexed2UImm5:
@@ -5516,6 +5650,13 @@ bool AArch64AsmParser::showMatchError(SMLoc Loc, unsigned ErrCode,
     return Error(Loc, "immediate must be an integer in range [1, 32].");
   case Match_InvalidImm1_64:
     return Error(Loc, "immediate must be an integer in range [1, 64].");
+  case Match_InvalidMemoryIndexedRange2UImm0:
+    return Error(Loc, "vector select offset must be the immediate range 0:1.");
+  case Match_InvalidMemoryIndexedRange2UImm1:
+    return Error(Loc, "vector select offset must be an immediate range of the "
+                      "form <immf>:<imml>, where the first "
+                      "immediate is a multiple of 2 in the range [0, 2], and "
+                      "the second immediate is immf + 1.");
   case Match_InvalidMemoryIndexedRange2UImm2:
   case Match_InvalidMemoryIndexedRange2UImm3:
     return Error(
@@ -5525,6 +5666,8 @@ bool AArch64AsmParser::showMatchError(SMLoc Loc, unsigned ErrCode,
         "where the first immediate is a multiple of 2 in the range [0, 6] or "
         "[0, 14] "
         "depending on the instruction, and the second immediate is immf + 1.");
+  case Match_InvalidMemoryIndexedRange4UImm0:
+    return Error(Loc, "vector select offset must be the immediate range 0:3.");
   case Match_InvalidMemoryIndexedRange4UImm1:
   case Match_InvalidMemoryIndexedRange4UImm2:
     return Error(
@@ -5740,6 +5883,10 @@ bool AArch64AsmParser::showMatchError(SMLoc Loc, unsigned ErrCode,
     return Error(Loc, "invalid matrix operand, expected za[0-7].d");
   case Match_InvalidMatrix:
     return Error(Loc, "invalid matrix operand, expected za");
+  case Match_InvalidMatrix8:
+    return Error(Loc, "invalid matrix operand, expected suffix .b");
+  case Match_InvalidMatrix16:
+    return Error(Loc, "invalid matrix operand, expected suffix .h");
   case Match_InvalidMatrix32:
     return Error(Loc, "invalid matrix operand, expected suffix .s");
   case Match_InvalidMatrix64:
@@ -5762,6 +5909,26 @@ bool AArch64AsmParser::showMatchError(SMLoc Loc, unsigned ErrCode,
     return Error(Loc, "Invalid vector list, expected list with 4 consecutive "
                       "SVE vectors, where the first vector is a multiple of 4 "
                       "and with matching element types");
+  case Match_InvalidLookupTable:
+    return Error(Loc, "Invalid lookup table, expected zt0");
+  case Match_InvalidSVEVectorListStrided2x8:
+  case Match_InvalidSVEVectorListStrided2x16:
+  case Match_InvalidSVEVectorListStrided2x32:
+  case Match_InvalidSVEVectorListStrided2x64:
+    return Error(
+        Loc,
+        "Invalid vector list, expected list with each SVE vector in the list "
+        "8 registers apart, and the first register in the range [z0, z7] or "
+        "[z16, z23] and with correct element type");
+  case Match_InvalidSVEVectorListStrided4x8:
+  case Match_InvalidSVEVectorListStrided4x16:
+  case Match_InvalidSVEVectorListStrided4x32:
+  case Match_InvalidSVEVectorListStrided4x64:
+    return Error(
+        Loc,
+        "Invalid vector list, expected list with each SVE vector in the list "
+        "4 registers apart, and the first register in the range [z0, z3] or "
+        "[z16, z19] and with correct element type");
   default:
     llvm_unreachable("unexpected error code!");
   }
@@ -6176,6 +6343,7 @@ bool AArch64AsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
   case Match_InvalidMemoryIndexed8SImm7:
   case Match_InvalidMemoryIndexed16SImm7:
   case Match_InvalidMemoryIndexed8UImm5:
+  case Match_InvalidMemoryIndexed8UImm3:
   case Match_InvalidMemoryIndexed4UImm5:
   case Match_InvalidMemoryIndexed2UImm5:
   case Match_InvalidMemoryIndexed1UImm6:
@@ -6203,8 +6371,11 @@ bool AArch64AsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
   case Match_InvalidImm1_16:
   case Match_InvalidImm1_32:
   case Match_InvalidImm1_64:
+  case Match_InvalidMemoryIndexedRange2UImm0:
+  case Match_InvalidMemoryIndexedRange2UImm1:
   case Match_InvalidMemoryIndexedRange2UImm2:
   case Match_InvalidMemoryIndexedRange2UImm3:
+  case Match_InvalidMemoryIndexedRange4UImm0:
   case Match_InvalidMemoryIndexedRange4UImm1:
   case Match_InvalidMemoryIndexedRange4UImm2:
   case Match_InvalidSVEAddSubImm8:
@@ -6303,6 +6474,8 @@ bool AArch64AsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
   case Match_InvalidMatrixTile32:
   case Match_InvalidMatrixTile64:
   case Match_InvalidMatrix:
+  case Match_InvalidMatrix8:
+  case Match_InvalidMatrix16:
   case Match_InvalidMatrix32:
   case Match_InvalidMatrix64:
   case Match_InvalidMatrixTileVectorH8:
@@ -6318,6 +6491,7 @@ bool AArch64AsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
   case Match_InvalidSVCR:
   case Match_InvalidMatrixIndexGPR32_12_15:
   case Match_InvalidMatrixIndexGPR32_8_11:
+  case Match_InvalidLookupTable:
   case Match_InvalidSVEVectorListMul2x8:
   case Match_InvalidSVEVectorListMul2x16:
   case Match_InvalidSVEVectorListMul2x32:
@@ -6326,6 +6500,14 @@ bool AArch64AsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
   case Match_InvalidSVEVectorListMul4x16:
   case Match_InvalidSVEVectorListMul4x32:
   case Match_InvalidSVEVectorListMul4x64:
+  case Match_InvalidSVEVectorListStrided2x8:
+  case Match_InvalidSVEVectorListStrided2x16:
+  case Match_InvalidSVEVectorListStrided2x32:
+  case Match_InvalidSVEVectorListStrided2x64:
+  case Match_InvalidSVEVectorListStrided4x8:
+  case Match_InvalidSVEVectorListStrided4x16:
+  case Match_InvalidSVEVectorListStrided4x32:
+  case Match_InvalidSVEVectorListStrided4x64:
   case Match_MSR:
   case Match_MRS: {
     if (ErrorInfo >= Operands.size())

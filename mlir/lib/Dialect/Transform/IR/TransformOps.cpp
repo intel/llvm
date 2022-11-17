@@ -155,6 +155,12 @@ void transform::AlternativesOp::getRegionInvocationBounds(
   bounds.resize(getNumRegions(), InvocationBounds(0, 1));
 }
 
+static void forwardEmptyOperands(Block *block, transform::TransformState &state,
+                                 transform::TransformResults &results) {
+  for (const auto &res : block->getParentOp()->getOpResults())
+    results.set(res, {});
+}
+
 static void forwardTerminatorOperands(Block *block,
                                       transform::TransformState &state,
                                       transform::TransformResults &results) {
@@ -472,6 +478,16 @@ OpFoldResult transform::MergeHandlesOp::fold(ArrayRef<Attribute> operands) {
 // SplitHandlesOp
 //===----------------------------------------------------------------------===//
 
+void transform::SplitHandlesOp::build(OpBuilder &builder,
+                                      OperationState &result, Value target,
+                                      int64_t numResultHandles) {
+  result.addOperands(target);
+  result.addAttribute(SplitHandlesOp::getNumResultHandlesAttrName(result.name),
+                      builder.getI64IntegerAttr(numResultHandles));
+  auto pdlOpType = pdl::OperationType::get(builder.getContext());
+  result.addTypes(SmallVector<pdl::OperationType>(numResultHandles, pdlOpType));
+}
+
 DiagnosedSilenceableFailure
 transform::SplitHandlesOp::apply(transform::TransformResults &results,
                                  transform::TransformState &state) {
@@ -584,8 +600,11 @@ transform::SequenceOp::apply(transform::TransformResults &results,
       return result;
 
     if (result.isSilenceableFailure()) {
-      if (getFailurePropagationMode() == FailurePropagationMode::Propagate)
+      if (getFailurePropagationMode() == FailurePropagationMode::Propagate) {
+        // Propagate empty results in case of early exit.
+        forwardEmptyOperands(getBodyBlock(), state, results);
         return result;
+      }
       (void)result.silence();
     }
   }
@@ -811,6 +830,20 @@ LogicalResult transform::WithPDLPatternsOp::verify() {
 //===----------------------------------------------------------------------===//
 // PrintOp
 //===----------------------------------------------------------------------===//
+
+void transform::PrintOp::build(OpBuilder &builder, OperationState &result,
+                               StringRef name) {
+  if (!name.empty()) {
+    result.addAttribute(PrintOp::getNameAttrName(result.name),
+                        builder.getStrArrayAttr(name));
+  }
+}
+
+void transform::PrintOp::build(OpBuilder &builder, OperationState &result,
+                               Value target, StringRef name) {
+  result.addOperands({target});
+  build(builder, result, name);
+}
 
 DiagnosedSilenceableFailure
 transform::PrintOp::apply(transform::TransformResults &results,

@@ -1022,11 +1022,25 @@ _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
   }
 
   auto &EventList = CommandList->second.EventList;
-  // Remember all the events in this command list which needs to be
-  // released/cleaned up and clear event list associated with command list.
-  std::move(std::begin(EventList), std::end(EventList),
-            std::back_inserter(EventListToCleanup));
-  EventList.clear();
+  // Check if standard commandlist
+  if (CommandList->second.ZeFence != nullptr) {
+    // Remember all the events in this command list which needs to be
+    // released/cleaned up and clear event list associated with command list.
+    std::move(std::begin(EventList), std::end(EventList),
+              std::back_inserter(EventListToCleanup));
+    EventList.clear();
+  } else {
+    // For immediate commandlist reset only those events that have signalled.
+    for (auto it = EventList.begin(); it != EventList.end(); it++) {
+      std::scoped_lock<pi_shared_mutex> EventLock((*it)->Mutex);
+      ze_result_t ZeResult =
+          ZE_CALL_NOCHECK(zeEventQueryStatus, ((*it)->ZeEvent));
+      if (ZeResult == ZE_RESULT_SUCCESS) {
+        std::move(it, it, std::back_inserter(EventListToCleanup));
+        EventList.erase(it, it);
+      }
+    }
+  }
 
   // Standard commandlists move in and out of the cache as they are recycled.
   // Immediate commandlists are always available.
@@ -3166,7 +3180,38 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     }
     return ReturnValue(FreeMemory);
   }
+  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE: {
+    // If there are not any memory modules then return 0.
+    if (Device->ZeDeviceMemoryProperties->empty())
+      return ReturnValue(pi_uint32{0});
 
+    // If there are multiple memory modules on the device then we have to report
+    // the value of the slowest memory.
+    auto Comp = [](const ze_device_memory_properties_t &A,
+                   const ze_device_memory_properties_t &B) -> bool {
+      return A.maxClockRate < B.maxClockRate;
+    };
+    auto MinIt =
+        std::min_element(Device->ZeDeviceMemoryProperties->begin(),
+                         Device->ZeDeviceMemoryProperties->end(), Comp);
+    return ReturnValue(pi_uint32{MinIt->maxClockRate});
+  }
+  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH: {
+    // If there are not any memory modules then return 0.
+    if (Device->ZeDeviceMemoryProperties->empty())
+      return ReturnValue(pi_uint32{0});
+
+    // If there are multiple memory modules on the device then we have to report
+    // the value of the slowest memory.
+    auto Comp = [](const ze_device_memory_properties_t &A,
+                   const ze_device_memory_properties_t &B) -> bool {
+      return A.maxBusWidth < B.maxBusWidth;
+    };
+    auto MinIt =
+        std::min_element(Device->ZeDeviceMemoryProperties->begin(),
+                         Device->ZeDeviceMemoryProperties->end(), Comp);
+    return ReturnValue(pi_uint32{MinIt->maxBusWidth});
+  }
   case PI_DEVICE_INFO_GPU_EU_COUNT: {
     pi_uint32 count = Device->ZeDeviceProperties->numEUsPerSubslice *
                       Device->ZeDeviceProperties->numSubslicesPerSlice *
@@ -5323,9 +5368,41 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
     WG[1] = pi_cast<uint32_t>(LocalWorkSize[1]);
     WG[2] = pi_cast<uint32_t>(LocalWorkSize[2]);
   } else {
-    ZE_CALL(zeKernelSuggestGroupSize,
-            (Kernel->ZeKernel, GlobalWorkSize[0], GlobalWorkSize[1],
-             GlobalWorkSize[2], &WG[0], &WG[1], &WG[2]));
+    // We can't call to zeKernelSuggestGroupSize if 64-bit GlobalWorkSize
+    // values do not fit to 32-bit that the API only supports currently.
+    bool SuggestGroupSize = true;
+    for (int I : {0, 1, 2}) {
+      if (GlobalWorkSize[I] > UINT32_MAX) {
+        SuggestGroupSize = false;
+      }
+    }
+    if (SuggestGroupSize) {
+      ZE_CALL(zeKernelSuggestGroupSize,
+              (Kernel->ZeKernel, GlobalWorkSize[0], GlobalWorkSize[1],
+               GlobalWorkSize[2], &WG[0], &WG[1], &WG[2]));
+    } else {
+      for (int I : {0, 1, 2}) {
+        // Try to find a I-dimension WG size that the GlobalWorkSize[I] is
+        // fully divisable with. Start with the max possible size in
+        // each dimension.
+        uint32_t GroupSize[] = {
+            Queue->Device->ZeDeviceComputeProperties->maxGroupSizeX,
+            Queue->Device->ZeDeviceComputeProperties->maxGroupSizeY,
+            Queue->Device->ZeDeviceComputeProperties->maxGroupSizeZ};
+        GroupSize[I] = std::min(size_t(GroupSize[I]), GlobalWorkSize[I]);
+        while (GlobalWorkSize[I] % GroupSize[I]) {
+          --GroupSize[I];
+        }
+        if (GlobalWorkSize[I] / GroupSize[I] > UINT32_MAX) {
+          zePrint("piEnqueueKernelLaunch: can't find a WG size "
+                  "suitable for global work size > UINT32_MAX\n");
+          return PI_ERROR_INVALID_WORK_GROUP_SIZE;
+        }
+        WG[I] = GroupSize[I];
+      }
+      zePrint("piEnqueueKernelLaunch: using computed WG size = {%d, %d, %d}\n",
+              WG[0], WG[1], WG[2]);
+    }
   }
 
   // TODO: assert if sizes do not fit into 32-bit?
@@ -5357,17 +5434,20 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   }
 
   // Error handling for non-uniform group size case
-  if (GlobalWorkSize[0] != (ZeThreadGroupDimensions.groupCountX * WG[0])) {
+  if (GlobalWorkSize[0] !=
+      size_t(ZeThreadGroupDimensions.groupCountX) * WG[0]) {
     zePrint("piEnqueueKernelLaunch: invalid work_dim. The range is not a "
             "multiple of the group size in the 1st dimension\n");
     return PI_ERROR_INVALID_WORK_GROUP_SIZE;
   }
-  if (GlobalWorkSize[1] != (ZeThreadGroupDimensions.groupCountY * WG[1])) {
+  if (GlobalWorkSize[1] !=
+      size_t(ZeThreadGroupDimensions.groupCountY) * WG[1]) {
     zePrint("piEnqueueKernelLaunch: invalid work_dim. The range is not a "
             "multiple of the group size in the 2nd dimension\n");
     return PI_ERROR_INVALID_WORK_GROUP_SIZE;
   }
-  if (GlobalWorkSize[2] != (ZeThreadGroupDimensions.groupCountZ * WG[2])) {
+  if (GlobalWorkSize[2] !=
+      size_t(ZeThreadGroupDimensions.groupCountZ) * WG[2]) {
     zePrint("piEnqueueKernelLaunch: invalid work_dim. The range is not a "
             "multiple of the group size in the 3rd dimension\n");
     return PI_ERROR_INVALID_WORK_GROUP_SIZE;

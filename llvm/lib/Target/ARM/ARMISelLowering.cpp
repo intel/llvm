@@ -6855,25 +6855,25 @@ static SDValue LowerVSETCC(SDValue Op, SelectionDAG &DAG,
 
   // If one of the operands is a constant vector zero, attempt to fold the
   // comparison to a specialized compare-against-zero form.
-  SDValue SingleOp;
-  if (ISD::isBuildVectorAllZeros(Op1.getNode()))
-    SingleOp = Op0;
-  else if (ISD::isBuildVectorAllZeros(Op0.getNode())) {
+  if (ISD::isBuildVectorAllZeros(Op0.getNode()) &&
+      (Opc == ARMCC::GE || Opc == ARMCC::GT || Opc == ARMCC::EQ ||
+       Opc == ARMCC::NE)) {
     if (Opc == ARMCC::GE)
       Opc = ARMCC::LE;
     else if (Opc == ARMCC::GT)
       Opc = ARMCC::LT;
-    SingleOp = Op1;
+    std::swap(Op0, Op1);
   }
 
   SDValue Result;
-  if (SingleOp.getNode()) {
-    Result = DAG.getNode(ARMISD::VCMPZ, dl, CmpVT, SingleOp,
+  if (ISD::isBuildVectorAllZeros(Op1.getNode()) &&
+      (Opc == ARMCC::GE || Opc == ARMCC::GT || Opc == ARMCC::LE ||
+       Opc == ARMCC::LT || Opc == ARMCC::NE || Opc == ARMCC::EQ))
+    Result = DAG.getNode(ARMISD::VCMPZ, dl, CmpVT, Op0,
                          DAG.getConstant(Opc, dl, MVT::i32));
-  } else {
+  else
     Result = DAG.getNode(ARMISD::VCMP, dl, CmpVT, Op0, Op1,
                          DAG.getConstant(Opc, dl, MVT::i32));
-  }
 
   Result = DAG.getSExtOrTrunc(Result, dl, VT);
 
@@ -21832,4 +21832,98 @@ void ARMTargetLowering::insertCopiesSplitCSR(
 void ARMTargetLowering::finalizeLowering(MachineFunction &MF) const {
   MF.getFrameInfo().computeMaxCallFrameSize(MF);
   TargetLoweringBase::finalizeLowering(MF);
+}
+
+bool ARMTargetLowering::isComplexDeinterleavingSupported() const {
+  return Subtarget->hasMVEFloatOps();
+}
+
+bool ARMTargetLowering::isComplexDeinterleavingOperationSupported(
+    ComplexDeinterleavingOperation Operation, Type *Ty) const {
+  auto *VTy = dyn_cast<FixedVectorType>(Ty);
+  if (!VTy)
+    return false;
+
+  auto *ScalarTy = VTy->getScalarType();
+  unsigned NumElements = VTy->getNumElements();
+
+  unsigned VTyWidth = VTy->getScalarSizeInBits() * NumElements;
+  if (VTyWidth < 128 || !llvm::isPowerOf2_32(VTyWidth))
+    return false;
+
+  // Both VCADD and VCMUL/VCMLA support the same types, F16 and F32
+  return ScalarTy->isHalfTy() || ScalarTy->isFloatTy();
+}
+
+Value *ARMTargetLowering::createComplexDeinterleavingIR(
+    Instruction *I, ComplexDeinterleavingOperation OperationType,
+    ComplexDeinterleavingRotation Rotation, Value *InputA, Value *InputB,
+    Value *Accumulator) const {
+
+  FixedVectorType *Ty = cast<FixedVectorType>(InputA->getType());
+
+  IRBuilder<> B(I);
+
+  unsigned TyWidth = Ty->getScalarSizeInBits() * Ty->getNumElements();
+
+  assert(TyWidth >= 128 && "Width of vector type must be at least 128 bits");
+
+  if (TyWidth > 128) {
+    int Stride = Ty->getNumElements() / 2;
+    auto SplitSeq = llvm::seq<int>(0, Ty->getNumElements());
+    auto SplitSeqVec = llvm::to_vector(SplitSeq);
+    ArrayRef<int> LowerSplitMask(&SplitSeqVec[0], Stride);
+    ArrayRef<int> UpperSplitMask(&SplitSeqVec[Stride], Stride);
+
+    auto *LowerSplitA = B.CreateShuffleVector(InputA, LowerSplitMask);
+    auto *LowerSplitB = B.CreateShuffleVector(InputB, LowerSplitMask);
+    auto *UpperSplitA = B.CreateShuffleVector(InputA, UpperSplitMask);
+    auto *UpperSplitB = B.CreateShuffleVector(InputB, UpperSplitMask);
+    Value *LowerSplitAcc = nullptr;
+    Value *UpperSplitAcc = nullptr;
+
+    if (Accumulator) {
+      LowerSplitAcc = B.CreateShuffleVector(Accumulator, LowerSplitMask);
+      UpperSplitAcc = B.CreateShuffleVector(Accumulator, UpperSplitMask);
+    }
+
+    auto *LowerSplitInt = createComplexDeinterleavingIR(
+        I, OperationType, Rotation, LowerSplitA, LowerSplitB, LowerSplitAcc);
+    auto *UpperSplitInt = createComplexDeinterleavingIR(
+        I, OperationType, Rotation, UpperSplitA, UpperSplitB, UpperSplitAcc);
+
+    ArrayRef<int> JoinMask(&SplitSeqVec[0], Ty->getNumElements());
+    return B.CreateShuffleVector(LowerSplitInt, UpperSplitInt, JoinMask);
+  }
+
+  auto *IntTy = Type::getInt32Ty(B.getContext());
+
+  ConstantInt *ConstRotation = nullptr;
+  if (OperationType == ComplexDeinterleavingOperation::CMulPartial) {
+    ConstRotation = ConstantInt::get(IntTy, (int)Rotation);
+
+    if (Accumulator)
+      return B.CreateIntrinsic(Intrinsic::arm_mve_vcmlaq, Ty,
+                               {ConstRotation, Accumulator, InputB, InputA});
+    return B.CreateIntrinsic(Intrinsic::arm_mve_vcmulq, Ty,
+                             {ConstRotation, InputB, InputA});
+  }
+
+  if (OperationType == ComplexDeinterleavingOperation::CAdd) {
+    // 1 means the value is not halved.
+    auto *ConstHalving = ConstantInt::get(IntTy, 1);
+
+    if (Rotation == ComplexDeinterleavingRotation::Rotation_90)
+      ConstRotation = ConstantInt::get(IntTy, 0);
+    else if (Rotation == ComplexDeinterleavingRotation::Rotation_270)
+      ConstRotation = ConstantInt::get(IntTy, 1);
+
+    if (!ConstRotation)
+      return nullptr; // Invalid rotation for arm_mve_vcaddq
+
+    return B.CreateIntrinsic(Intrinsic::arm_mve_vcaddq, Ty,
+                             {ConstHalving, ConstRotation, InputA, InputB});
+  }
+
+  return nullptr;
 }

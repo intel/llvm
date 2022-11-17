@@ -1220,7 +1220,6 @@ static bool buildMUBUFOffsetLoadStore(const GCNSubtarget &ST,
           .add(*TII->getNamedOperand(*MI, AMDGPU::OpName::soffset))
           .addImm(Offset)
           .addImm(0) // cpol
-          .addImm(0) // tfe
           .addImm(0) // swz
           .cloneMemRefs(*MI);
 
@@ -1235,10 +1234,9 @@ static unsigned getFlatScratchSpillOpcode(const SIInstrInfo *TII,
                                           unsigned LoadStoreOp,
                                           unsigned EltSize) {
   bool IsStore = TII->get(LoadStoreOp).mayStore();
-  bool HasVAddr = AMDGPU::getNamedOperandIdx(LoadStoreOp, AMDGPU::OpName::vaddr) != -1;
+  bool HasVAddr = AMDGPU::hasNamedOperand(LoadStoreOp, AMDGPU::OpName::vaddr);
   bool UseST =
-    !HasVAddr &&
-    AMDGPU::getNamedOperandIdx(LoadStoreOp, AMDGPU::OpName::saddr) < 0;
+      !HasVAddr && !AMDGPU::hasNamedOperand(LoadStoreOp, AMDGPU::OpName::saddr);
 
   switch (EltSize) {
   case 4:
@@ -1609,8 +1607,7 @@ void SIRegisterInfo::buildSpillLoadStore(
     MIB.addImm(Offset + RegOffset)
        .addImm(0); // cpol
     if (!IsFlat)
-      MIB.addImm(0)  // tfe
-         .addImm(0); // swz
+      MIB.addImm(0); // swz
     MIB.addMemOperand(NewMMO);
 
     if (!IsAGPR && NeedSuperRegDef)
@@ -2140,7 +2137,7 @@ void SIRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
           if (!Offset) {
             unsigned Opc = MI->getOpcode();
             int NewOpc = -1;
-            if (AMDGPU::getNamedOperandIdx(Opc, AMDGPU::OpName::vaddr) != -1) {
+            if (AMDGPU::hasNamedOperand(Opc, AMDGPU::OpName::vaddr)) {
               NewOpc = AMDGPU::getFlatScratchInstSVfromSVS(Opc);
             } else if (ST.hasFlatScratchSTMode()) {
               // On GFX10 we have ST mode to use no registers for an address.
