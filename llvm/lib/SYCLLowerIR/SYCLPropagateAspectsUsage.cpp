@@ -434,12 +434,12 @@ void processFunction(Function &F, FunctionToAspectsMapTy &FunctionToUsedAspects,
 
   auto CollectAspectsFromMD = [&F](const char* MDName, FunctionToAspectsMapTy &Map) {
     if (const MDNode *MD = F.getMetadata(MDName)) {
-    AspectsSetTy Aspects;
-    for (const MDOperand &Op : MD->operands()) {
-      Constant *C = cast<ConstantAsMetadata>(Op.get())->getValue();
-      Aspects.insert(cast<ConstantInt>(C)->getSExtValue());
-    }
-    Map[&F].insert(Aspects.begin(), Aspects.end());
+      AspectsSetTy Aspects;
+      for (const MDOperand &Op : MD->operands()) {
+        Constant *C = cast<ConstantAsMetadata>(Op.get())->getValue();
+        Aspects.insert(cast<ConstantInt>(C)->getSExtValue());
+      }
+      Map[&F].insert(Aspects.begin(), Aspects.end());
     }
   };
   CollectAspectsFromMD("sycl_used_aspects", FunctionToUsedAspects);
@@ -525,7 +525,7 @@ buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects,
   validateUsedAspectsForFunctions(FunctionToUsedAspects, AspectValues,
                                   EntryPoints, CG);
 
-  // The set of spects from FunctionToDeclaredAspects should be merged to the
+  // The set of aspects from FunctionToDeclaredAspects should be merged to the
   // set of FunctionToUsedAspects after validateUsedAspectsForFunctions call to
   // avoid errors during validation.
   Visited.clear();
