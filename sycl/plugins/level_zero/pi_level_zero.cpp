@@ -1679,7 +1679,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
     }
   }
 
-  this->LastCommandList = CommandList;
+  this->LastUsedCommandList = CommandList;
 
   if (!Device->useImmediateCommandLists()) {
     // Batch if allowed to, but don't batch if we know there are no kernels
@@ -1821,7 +1821,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
 
     // Close the command list and have it ready for dispatch.
     ZE_CALL(zeCommandListClose, (CommandList->first));
-    this->LastCommandList = CommandListMap.end();
+    this->LastUsedCommandList = CommandListMap.end();
     // Offload command list to the GPU for asynchronous execution
     auto ZeCommandList = CommandList->first;
     auto ZeResult = ZE_CALL_NOCHECK(
@@ -2015,7 +2015,7 @@ pi_result _pi_queue::insertStartBarrierIfDiscardEventsMode(
   // If current command list is different from the last command list then insert
   // a barrier waiting for the last command event.
   if (ReuseDiscardedEvents && isInOrderQueue() && isDiscardEvents() &&
-      CmdList != LastCommandList && LastCommandEvent) {
+      CmdList != LastUsedCommandList && LastCommandEvent) {
     ZE_CALL(zeCommandListAppendBarrier,
             (CmdList->first, nullptr, 1, &(LastCommandEvent->ZeEvent)));
     LastCommandEvent = nullptr;
@@ -2089,10 +2089,10 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
         // to insert a barrier in the new command list waiting for that event.
         auto QueueGroup = CurQueue->getQueueGroup(UseCopyEngine);
         auto NextImmCmdList = QueueGroup.ImmCmdLists[QueueGroup.NextIndex];
-        if (CurQueue->LastCommandList != CurQueue->CommandListMap.end() &&
-            CurQueue->LastCommandList != NextImmCmdList) {
+        if (CurQueue->LastUsedCommandList != CurQueue->CommandListMap.end() &&
+            CurQueue->LastUsedCommandList != NextImmCmdList) {
           CurQueue->signalEventFromCmdListIfLastEventDiscarded(
-              CurQueue->LastCommandList);
+              CurQueue->LastUsedCommandList);
         }
       }
     } else {

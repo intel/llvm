@@ -1118,7 +1118,7 @@ struct _pi_queue : _pi_object {
   // This data member keeps track of the last used command list and allows to
   // handle switch of immediate command lists because immediate command lists
   // are never closed unlike regular command lists.
-  pi_command_list_ptr_t LastCommandList = CommandListMap.end();
+  pi_command_list_ptr_t LastUsedCommandList = CommandListMap.end();
 
   // Vector of 2 lists of reusable events: host-visible and device-scope.
   // They are separated to allow faster access to stored events depending on
