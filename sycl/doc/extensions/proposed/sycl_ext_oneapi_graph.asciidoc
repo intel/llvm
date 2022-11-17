@@ -328,10 +328,14 @@ public:
 
 === Node
 
+:crs: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:reference-semantics
+
 Node is a class that encapsulates tasks like SYCL kernel functions, device
 memory allocations/frees, or host tasks for deferred execution. A graph has to
 be created first, the structure of a graph is defined second by adding nodes and
 edges.
+
+The `node` class provides the {crs}[common reference semantics].
 
 [source,c++]
 ----
@@ -361,8 +365,6 @@ class depends_on {
 ----
 
 === Graph
-
-:crs: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:reference-semantics
 
 This extension adds a new `command_graph` object which follows the
 {crs}[common reference semantics] of other SYCL runtime objects.
