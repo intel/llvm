@@ -41,9 +41,11 @@ public:
   }
 
 private:
-  std::atomic_int MCounter;
+  static std::atomic_uint MCounter;
   std::unique_ptr<ResourceHandler> &MObj;
 };
+template <class ResourceHandler>
+std::atomic_uint ObjectUsageCounter<ResourceHandler>::MCounter{0};
 
 using LockGuard = std::lock_guard<SpinLock>;
 
