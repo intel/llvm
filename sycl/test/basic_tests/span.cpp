@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -c %s
+// RUN: %clangxx -fsycl -fsyntax-only %s
 
 //==--------------- span.cpp - SYCL span test ------------------------------==//
 //

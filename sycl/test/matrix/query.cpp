@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -o query %s
+// RUN: %clangxx -fsycl -fsyntax-only -o query %s
 #include <iostream>
 #include <sycl/sycl.hpp>
 

@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl -fsyntax-only %s -o %t.out
 //==---------------- type_list.cpp - SYCL type_list test -------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -7,7 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/types.hpp>
+#include <sycl/detail/generic_type_lists.hpp>
 
 #include <type_traits>
 

@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl %s -fsyntax-only -o %t.out
 //==-------------- type_traits.cpp - SYCL type_traits test -----------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -7,7 +7,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/half_type.hpp>
+
+#include <iostream>
+#include <type_traits>
+
 using namespace std;
 
 template <typename T1, typename T_rtn> void math_operator_helper() {
@@ -58,34 +62,7 @@ template <typename T1> void logical_operator_helper() {
       is_same_v<decltype(declval<sycl::half>() >= declval<T1>()), bool>);
 }
 
-template <typename T1, typename T_rtn>
-void check_half_math_operator_types(sycl::queue &Queue) {
-
-  // Test on host
-  math_operator_helper<T1, T_rtn>();
-
-  // Test on device
-  Queue.submit([&](sycl::handler &cgh) {
-    cgh.single_task([=] { math_operator_helper<T1, T_rtn>(); });
-  });
-}
-
-template <typename T1>
-void check_half_logical_operator_types(sycl::queue &Queue) {
-
-  // Test on host
-  logical_operator_helper<T1>();
-
-  // Test on device
-  Queue.submit([&](sycl::handler &cgh) {
-    cgh.single_task([=] { logical_operator_helper<T1>(); });
-  });
-}
-
-template <typename T1>
-void check_half_stream_operator_type(sycl::queue &Queue) {
-
-  // Host only stream test
+void check_half_stream_operator_type() {
   std::istringstream iss;
   std::ostringstream oss;
   sycl::half val;
@@ -94,20 +71,19 @@ void check_half_stream_operator_type(sycl::queue &Queue) {
 }
 
 int main() {
+  math_operator_helper<sycl::half, sycl::half>();
+  math_operator_helper<double, double>();
+  math_operator_helper<float, float>();
+  math_operator_helper<int, sycl::half>();
+  math_operator_helper<long, sycl::half>();
+  math_operator_helper<long long, sycl::half>();
 
-  sycl::queue Queue;
+  logical_operator_helper<sycl::half>();
+  logical_operator_helper<double>();
+  logical_operator_helper<float>();
+  logical_operator_helper<int>();
+  logical_operator_helper<long>();
+  logical_operator_helper<long long>();
 
-  check_half_math_operator_types<sycl::half, sycl::half>(Queue);
-  check_half_math_operator_types<double, double>(Queue);
-  check_half_math_operator_types<float, float>(Queue);
-  check_half_math_operator_types<int, sycl::half>(Queue);
-  check_half_math_operator_types<long, sycl::half>(Queue);
-  check_half_math_operator_types<long long, sycl::half>(Queue);
-
-  check_half_logical_operator_types<sycl::half>(Queue);
-  check_half_logical_operator_types<double>(Queue);
-  check_half_logical_operator_types<float>(Queue);
-  check_half_logical_operator_types<int>(Queue);
-  check_half_logical_operator_types<long>(Queue);
-  check_half_logical_operator_types<long long>(Queue);
+  check_half_stream_operator_type();
 }

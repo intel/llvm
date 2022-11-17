@@ -9,7 +9,7 @@
 //===----------------------------------------------------------------------===//
 #include <sycl/types.hpp>
 
-#include <type_traits.hpp>
+#include <type_traits>
 
 int main() {
   sycl::vec v1(1);

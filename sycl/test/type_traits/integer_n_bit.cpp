@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl -fsyntax-only %s -o %t.out
 //==---- integer_n_bit.cpp - SYCL integerNbit type traits test -------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -7,7 +7,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/generic_type_traits.hpp>
+#include <sycl/detail/type_list.hpp>
+#include <sycl/types.hpp>
 
 namespace s = sycl;
 namespace d = sycl::detail;

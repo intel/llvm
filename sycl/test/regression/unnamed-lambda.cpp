@@ -1,5 +1,5 @@
-// RUN: %clangxx -fsycl -c %s -o %t.temp
-// RUN: %clangxx -fsycl -sycl-std=1.2.1 -c %s -o %t.temp
+// RUN: %clangxx -fsycl -fsyntax-only %s -o %t.temp
+// RUN: %clangxx -fsycl -sycl-std=1.2.1 -fsyntax-only %s -o %t.temp
 
 #include "sycl.hpp"
 

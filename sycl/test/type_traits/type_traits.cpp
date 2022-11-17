@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl -fsyntax-only %s -o %t.out
 //==-------------- type_traits.cpp - SYCL type_traits test -----------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -7,7 +7,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/aliases.hpp>
+#include <sycl/detail/generic_type_traits.hpp>
+#include <sycl/detail/type_traits.hpp>
+#include <sycl/pointers.hpp>
+#include <sycl/types.hpp>
 
 #include <type_traits>
 

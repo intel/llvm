@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -c -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -fsyntax-only -o %t.out
 #include <sycl/sycl.hpp>
 
 #if !defined(SYCL_IMPLEMENTATION_ONEAPI)

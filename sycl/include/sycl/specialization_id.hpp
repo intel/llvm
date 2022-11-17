@@ -8,8 +8,12 @@
 
 #pragma once
 
+#include <sycl/detail/defines_elementary.hpp>
+
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
+
+enum class bundle_state : char;
 
 /// Declaring a specialization constant
 ///
