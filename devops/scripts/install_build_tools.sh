@@ -12,7 +12,6 @@ apt update && apt install -yqq \
       python3-pip \
       zstd \
       ocl-icd-opencl-dev \
-      intel-level-zero-gpu \
       vim \
       libffi-dev \
       libva-dev \
