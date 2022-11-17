@@ -659,8 +659,7 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
   if (!(condition))                                                            \
     return error;
 
-pi_result _pi_queue::appendWaitAndResetIfLastEventDiscarded(
-    pi_command_list_ptr_t CommandList) {
+pi_result _pi_queue::resetDiscardedEvent(pi_command_list_ptr_t CommandList) {
   if (LastCommandEvent && LastCommandEvent->IsDiscarded) {
     ZE_CALL(zeCommandListAppendBarrier,
             (CommandList->first, nullptr, 1, &(LastCommandEvent->ZeEvent)));
@@ -1675,7 +1674,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
       this->LastCommandEvent != CommandList->second.EventList.back()) {
     this->LastCommandEvent = CommandList->second.EventList.back();
     if (ReuseDiscardedEvents && isInOrderQueue() && isDiscardEvents()) {
-      PI_CALL(appendWaitAndResetIfLastEventDiscarded(CommandList));
+      PI_CALL(resetDiscardedEvent(CommandList));
     }
   }
 

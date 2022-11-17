@@ -1146,7 +1146,7 @@ struct _pi_queue : _pi_object {
   // it is discarded and create new pi_event wrapper using the same native event
   // and put it to the cache. We call this method after each command submission
   // to make native event available to use by next commands.
-  pi_result appendWaitAndResetIfLastEventDiscarded(pi_command_list_ptr_t);
+  pi_result resetDiscardedEvent(pi_command_list_ptr_t);
 
   // Append command to the command list to signal new event if the last event in
   // the command list is discarded. While we submit commands in scope of the
