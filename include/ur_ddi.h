@@ -99,8 +99,8 @@ typedef ur_result_t (UR_APICALL *ur_pfnContextCreate_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urContextGetReference 
-typedef ur_result_t (UR_APICALL *ur_pfnContextGetReference_t)(
+/// @brief Function-pointer for urContextRetain 
+typedef ur_result_t (UR_APICALL *ur_pfnContextRetain_t)(
     ur_context_handle_t
     );
 
@@ -139,7 +139,7 @@ typedef ur_result_t (UR_APICALL *ur_pfnContextCreateWithNativeHandle_t)(
 typedef struct _ur_context_dditable_t
 {
     ur_pfnContextCreate_t                                       pfnCreate;
-    ur_pfnContextGetReference_t                                 pfnGetReference;
+    ur_pfnContextRetain_t                                       pfnRetain;
     ur_pfnContextRelease_t                                      pfnRelease;
     ur_pfnContextGetInfo_t                                      pfnGetInfo;
     ur_pfnContextGetNativeHandle_t                              pfnGetNativeHandle;
@@ -203,8 +203,8 @@ typedef ur_result_t (UR_APICALL *ur_pfnEventWait_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urEventGetReference 
-typedef ur_result_t (UR_APICALL *ur_pfnEventGetReference_t)(
+/// @brief Function-pointer for urEventRetain 
+typedef ur_result_t (UR_APICALL *ur_pfnEventRetain_t)(
     ur_event_handle_t
     );
 
@@ -237,7 +237,7 @@ typedef struct _ur_event_dditable_t
     ur_pfnEventGetInfo_t                                        pfnGetInfo;
     ur_pfnEventGetProfilingInfo_t                               pfnGetProfilingInfo;
     ur_pfnEventWait_t                                           pfnWait;
-    ur_pfnEventGetReference_t                                   pfnGetReference;
+    ur_pfnEventRetain_t                                         pfnRetain;
     ur_pfnEventRelease_t                                        pfnRelease;
     ur_pfnEventGetNativeHandle_t                                pfnGetNativeHandle;
     ur_pfnEventCreateWithNativeHandle_t                         pfnCreateWithNativeHandle;
@@ -286,8 +286,8 @@ typedef ur_result_t (UR_APICALL *ur_pfnProgramCreateWithBinary_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urProgramGetReference 
-typedef ur_result_t (UR_APICALL *ur_pfnProgramGetReference_t)(
+/// @brief Function-pointer for urProgramRetain 
+typedef ur_result_t (UR_APICALL *ur_pfnProgramRetain_t)(
     ur_program_handle_t
     );
 
@@ -355,7 +355,7 @@ typedef struct _ur_program_dditable_t
 {
     ur_pfnProgramCreate_t                                       pfnCreate;
     ur_pfnProgramCreateWithBinary_t                             pfnCreateWithBinary;
-    ur_pfnProgramGetReference_t                                 pfnGetReference;
+    ur_pfnProgramRetain_t                                       pfnRetain;
     ur_pfnProgramRelease_t                                      pfnRelease;
     ur_pfnProgramGetFunctionPointer_t                           pfnGetFunctionPointer;
     ur_pfnProgramGetInfo_t                                      pfnGetInfo;
@@ -400,8 +400,8 @@ typedef ur_result_t (UR_APICALL *ur_pfnModuleCreate_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urModuleGetReference 
-typedef ur_result_t (UR_APICALL *ur_pfnModuleGetReference_t)(
+/// @brief Function-pointer for urModuleRetain 
+typedef ur_result_t (UR_APICALL *ur_pfnModuleRetain_t)(
     ur_module_handle_t
     );
 
@@ -431,7 +431,7 @@ typedef ur_result_t (UR_APICALL *ur_pfnModuleCreateWithNativeHandle_t)(
 typedef struct _ur_module_dditable_t
 {
     ur_pfnModuleCreate_t                                        pfnCreate;
-    ur_pfnModuleGetReference_t                                  pfnGetReference;
+    ur_pfnModuleRetain_t                                        pfnRetain;
     ur_pfnModuleRelease_t                                       pfnRelease;
     ur_pfnModuleGetNativeHandle_t                               pfnGetNativeHandle;
     ur_pfnModuleCreateWithNativeHandle_t                        pfnCreateWithNativeHandle;
@@ -497,8 +497,8 @@ typedef ur_result_t (UR_APICALL *ur_pfnKernelGetSubGroupInfo_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urKernelGetReference 
-typedef ur_result_t (UR_APICALL *ur_pfnKernelGetReference_t)(
+/// @brief Function-pointer for urKernelRetain 
+typedef ur_result_t (UR_APICALL *ur_pfnKernelRetain_t)(
     ur_kernel_handle_t
     );
 
@@ -574,7 +574,7 @@ typedef struct _ur_kernel_dditable_t
     ur_pfnKernelGetInfo_t                                       pfnGetInfo;
     ur_pfnKernelGetGroupInfo_t                                  pfnGetGroupInfo;
     ur_pfnKernelGetSubGroupInfo_t                               pfnGetSubGroupInfo;
-    ur_pfnKernelGetReference_t                                  pfnGetReference;
+    ur_pfnKernelRetain_t                                        pfnRetain;
     ur_pfnKernelRelease_t                                       pfnRelease;
     ur_pfnKernelGetNativeHandle_t                               pfnGetNativeHandle;
     ur_pfnKernelCreateWithNativeHandle_t                        pfnCreateWithNativeHandle;
@@ -616,8 +616,8 @@ typedef ur_result_t (UR_APICALL *ur_pfnSamplerCreate_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urSamplerGetReference 
-typedef ur_result_t (UR_APICALL *ur_pfnSamplerGetReference_t)(
+/// @brief Function-pointer for urSamplerRetain 
+typedef ur_result_t (UR_APICALL *ur_pfnSamplerRetain_t)(
     ur_sampler_handle_t
     );
 
@@ -657,7 +657,7 @@ typedef ur_result_t (UR_APICALL *ur_pfnSamplerCreateWithNativeHandle_t)(
 typedef struct _ur_sampler_dditable_t
 {
     ur_pfnSamplerCreate_t                                       pfnCreate;
-    ur_pfnSamplerGetReference_t                                 pfnGetReference;
+    ur_pfnSamplerRetain_t                                       pfnRetain;
     ur_pfnSamplerRelease_t                                      pfnRelease;
     ur_pfnSamplerGetInfo_t                                      pfnGetInfo;
     ur_pfnSamplerGetNativeHandle_t                              pfnGetNativeHandle;
@@ -708,8 +708,8 @@ typedef ur_result_t (UR_APICALL *ur_pfnMemBufferCreate_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urMemGetReference 
-typedef ur_result_t (UR_APICALL *ur_pfnMemGetReference_t)(
+/// @brief Function-pointer for urMemRetain 
+typedef ur_result_t (UR_APICALL *ur_pfnMemRetain_t)(
     ur_mem_handle_t
     );
 
@@ -768,7 +768,7 @@ typedef struct _ur_mem_dditable_t
 {
     ur_pfnMemImageCreate_t                                      pfnImageCreate;
     ur_pfnMemBufferCreate_t                                     pfnBufferCreate;
-    ur_pfnMemGetReference_t                                     pfnGetReference;
+    ur_pfnMemRetain_t                                           pfnRetain;
     ur_pfnMemRelease_t                                          pfnRelease;
     ur_pfnMemBufferPartition_t                                  pfnBufferPartition;
     ur_pfnMemGetNativeHandle_t                                  pfnGetNativeHandle;
@@ -1233,8 +1233,8 @@ typedef ur_result_t (UR_APICALL *ur_pfnQueueCreate_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urQueueGetReference 
-typedef ur_result_t (UR_APICALL *ur_pfnQueueGetReference_t)(
+/// @brief Function-pointer for urQueueRetain 
+typedef ur_result_t (UR_APICALL *ur_pfnQueueRetain_t)(
     ur_queue_handle_t
     );
 
@@ -1265,7 +1265,7 @@ typedef struct _ur_queue_dditable_t
 {
     ur_pfnQueueGetInfo_t                                        pfnGetInfo;
     ur_pfnQueueCreate_t                                         pfnCreate;
-    ur_pfnQueueGetReference_t                                   pfnGetReference;
+    ur_pfnQueueRetain_t                                         pfnRetain;
     ur_pfnQueueRelease_t                                        pfnRelease;
     ur_pfnQueueGetNativeHandle_t                                pfnGetNativeHandle;
     ur_pfnQueueCreateWithNativeHandle_t                         pfnCreateWithNativeHandle;
@@ -1312,8 +1312,8 @@ typedef ur_result_t (UR_APICALL *ur_pfnDeviceGetInfo_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urDeviceGetReference 
-typedef ur_result_t (UR_APICALL *ur_pfnDeviceGetReference_t)(
+/// @brief Function-pointer for urDeviceRetain 
+typedef ur_result_t (UR_APICALL *ur_pfnDeviceRetain_t)(
     ur_device_handle_t
     );
 
@@ -1362,7 +1362,7 @@ typedef struct _ur_device_dditable_t
 {
     ur_pfnDeviceGet_t                                           pfnGet;
     ur_pfnDeviceGetInfo_t                                       pfnGetInfo;
-    ur_pfnDeviceGetReference_t                                  pfnGetReference;
+    ur_pfnDeviceRetain_t                                        pfnRetain;
     ur_pfnDeviceRelease_t                                       pfnRelease;
     ur_pfnDevicePartition_t                                     pfnPartition;
     ur_pfnDeviceSelectBinary_t                                  pfnSelectBinary;

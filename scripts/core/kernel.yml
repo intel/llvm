@@ -190,7 +190,7 @@ params:
 type: function
 desc: "Get a reference to the Kernel object."
 class: $xKernel
-name: GetReference
+name: Retain
 decl: static
 ordinal: "0"
 analogue:

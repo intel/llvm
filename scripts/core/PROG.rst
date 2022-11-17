@@ -69,7 +69,7 @@ Initialization and Discovery
 Device handle lifetime
 ----------------------
 
-The device objects are reference-counted, and there are ${x}DeviceGetReference and ${x}DeviceRelease.
+The device objects are reference-counted, and there are ${x}DeviceRetain and ${x}DeviceRelease.
 The ref-count of a device is automatically incremented when device is obtained by ${x}DeviceGet.
 After device is no longer needed to the application it must call to ${x}DeviceRelease.
 When ref-count of the underlying device handle becomes zero then that device object is deleted.
@@ -233,7 +233,7 @@ Queue object lifetime
 
 Queue objects are reference-counted. If an application or thread needs to
 retain access to a queue created by another application or thread, it can call
-${x}QueueGetReference. An application must call ${x}QueueRelease
+${x}QueueRetain. An application must call ${x}QueueRelease
 when a queue object is no longer needed. When a queue object's reference count becomes
 zero, it is deleted by the runtime.
 
