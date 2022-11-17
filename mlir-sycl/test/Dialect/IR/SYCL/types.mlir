@@ -145,3 +145,19 @@ func.func @_Z7group_1N2cl4sycl5groupILi1EEE(%arg0: !sycl_group_1_) attributes {l
 func.func @_Z7group_2N2cl4sycl5groupILi2EEE(%arg0: !sycl_group_2_) attributes {llvm.linkage = #llvm.linkage<external>} {
   return
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// VEC
+////////////////////////////////////////////////////////////////////////////////
+
+!sycl_vec_i32_2_ = !sycl.vec<[i32, 2], (vector<2xi32>)>
+!sycl_vec_f32_4_ = !sycl.vec<[f32, 4], (vector<4xf32>)>
+
+// CHECK: func @vec_0(%arg0: !sycl_vec_i32_2_)
+func.func @vec_0(%arg0: !sycl_vec_i32_2_) attributes {llvm.linkage = #llvm.linkage<external>} {
+  return
+}
+// CHECK: func @vec_1(%arg0: !sycl_vec_f32_4_)
+func.func @vec_1(%arg0: !sycl_vec_f32_4_) attributes {llvm.linkage = #llvm.linkage<external>} {
+  return
+}

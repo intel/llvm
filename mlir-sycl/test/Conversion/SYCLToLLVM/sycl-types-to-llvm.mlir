@@ -70,4 +70,7 @@ module {
   func.func @test_nd_item(%arg0: !sycl.nd_item<[1], (!sycl.item<[1, true], (!sycl.item_base<[1, true], (!sycl.range<1>, !sycl.id<1>, !sycl.id<1>)>)>, !sycl.item<[1, false], (!sycl.item_base<[1, false], (!sycl.range<1>, !sycl.id<1>)>)>, !sycl.group<[1], (!sycl.range<1>, !sycl.range<1>, !sycl.range<1>, !sycl.id<1>)>)>) {
     return
   }
+  func.func @test_vec(%arg0: !sycl.vec<[f32, 4], (vector<4xf32>)>) {
+    return
+  }
 }

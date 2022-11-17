@@ -101,6 +101,7 @@ def SYCL_ItemType : DialectType<SYCL_Dialect, CPred<"$_self.isa<ItemType>()">, "
 def SYCL_ItemBaseType : DialectType<SYCL_Dialect, CPred<"$_self.isa<ItemBaseType>()">, "sycl::item_base type">;
 def SYCL_NdItemType : DialectType<SYCL_Dialect, CPred<"$_self.isa<NdItemType>()">, "sycl::nd_item type">;
 def SYCL_GroupType : DialectType<SYCL_Dialect, CPred<"$_self.isa<GroupType>()">, "sycl::group type">;
+def SYCL_VecType : DialectType<SYCL_Dialect, CPred<"$_self.isa<VecType>()">, "sycl::vec type">;
 
 def IDMemRef : MemRefOf<[SYCL_IDType]>;
 def AccessorCommonMemRef : MemRefOf<[SYCL_AccessorCommonType]>;
@@ -113,6 +114,7 @@ def ItemMemRef : MemRefOf<[SYCL_ItemType]>;
 def ItemBaseMemRef : MemRefOf<[SYCL_ItemBaseType]>;
 def NDItemMemRef : MemRefOf<[SYCL_NdItemType]>;
 def GroupMemRef : MemRefOf<[SYCL_GroupType]>;
+def VecMemRef : MemRefOf<[SYCL_VecType]>;
 
 def SYCLMemref : AnyTypeOf<[
   IDMemRef,
@@ -125,7 +127,8 @@ def SYCLMemref : AnyTypeOf<[
   ItemMemRef,
   ItemBaseMemRef,
   NDItemMemRef,
-  GroupMemRef
+  GroupMemRef,
+  VecMemRef,
 ]>;
 def IndexType : AnyTypeOf<[I32, I64, Index]>;
 def SYCLGetResult : AnyTypeOf<[I64, MemRefOf<[I64]>]>;

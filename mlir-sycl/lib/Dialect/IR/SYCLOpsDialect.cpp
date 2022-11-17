@@ -33,7 +33,7 @@ void mlir::sycl::SYCLDialect::initialize() {
       mlir::sycl::AccessorType, mlir::sycl::RangeType, mlir::sycl::NdRangeType,
       mlir::sycl::AccessorImplDeviceType, mlir::sycl::ArrayType,
       mlir::sycl::ItemType, mlir::sycl::ItemBaseType, mlir::sycl::NdItemType,
-      mlir::sycl::GroupType>();
+      mlir::sycl::GroupType, mlir::sycl::VecType>();
 
   mlir::Dialect::addInterfaces<SYCLOpAsmInterface>();
 }
@@ -77,6 +77,9 @@ mlir::sycl::SYCLDialect::parseType(mlir::DialectAsmParser &Parser) const {
   }
   if (Keyword == "group") {
     return mlir::sycl::GroupType::parseType(Parser);
+  }
+  if (Keyword == "vec") {
+    return mlir::sycl::VecType::parseType(Parser);
   }
 
   Parser.emitError(Parser.getCurrentLocation(), "unknown SYCL type: ")
@@ -129,6 +132,11 @@ void mlir::sycl::SYCLDialect::printType(
   } else if (const auto Group = Type.dyn_cast<mlir::sycl::GroupType>()) {
     Printer << "group<[" << Group.getDimension() << "], (";
     llvm::interleaveComma(Group.getBody(), Printer);
+    Printer << ")>";
+  } else if (const auto Vec = Type.dyn_cast<mlir::sycl::VecType>()) {
+    Printer << "vec<[" << Vec.getDataType() << ", " << Vec.getNumElements()
+            << "], (";
+    llvm::interleaveComma(Vec.getBody(), Printer);
     Printer << ")>";
   } else {
     assert(false && "The given type is not handled by the SYCL printer");

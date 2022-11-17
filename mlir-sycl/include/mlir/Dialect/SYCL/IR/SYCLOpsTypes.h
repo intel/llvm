@@ -299,6 +299,34 @@ struct GroupTypeStorage : public TypeStorage {
   llvm::SmallVector<mlir::Type, 4> Body;
 };
 
+struct VecTypeStorage : public TypeStorage {
+  using KeyTy = std::tuple<mlir::Type, int, llvm::SmallVector<mlir::Type, 4>>;
+
+  VecTypeStorage(const KeyTy &Key)
+      : DataT(std::get<0>(Key)), NumElements(std::get<1>(Key)),
+        Body(std::get<2>(Key)) {}
+
+  bool operator==(const KeyTy &Key) const {
+    return Key == KeyTy{DataT, NumElements, Body};
+  }
+
+  static llvm::hash_code hashKey(const KeyTy &Key) {
+    return llvm::hash_combine(std::get<0>(Key), std::get<1>(Key),
+                              std::get<2>(Key));
+  }
+
+  static KeyTy getKey(const KeyTy &Key) { return KeyTy{Key}; }
+
+  static VecTypeStorage *construct(TypeStorageAllocator &Allocator,
+                                   const KeyTy &Key) {
+    return new (Allocator.allocate<VecTypeStorage>()) VecTypeStorage(Key);
+  }
+
+  mlir::Type DataT;
+  int NumElements;
+  llvm::SmallVector<mlir::Type, 4> Body;
+};
+
 } // namespace detail
 } // namespace sycl
 } // namespace mlir
@@ -500,6 +528,23 @@ public:
   static mlir::Type parseType(mlir::DialectAsmParser &Parser);
 
   unsigned int getDimension() const;
+  llvm::ArrayRef<mlir::Type> getBody() const;
+};
+
+class VecType
+    : public Type::TypeBase<VecType, Type, detail::VecTypeStorage,
+                            mlir::MemRefElementTypeInterface::Trait,
+                            mlir::LLVM::PointerElementTypeInterface::Trait> {
+public:
+  using Base::Base;
+
+  static mlir::sycl::VecType get(MLIRContext *Context, mlir::Type DataT,
+                                 int NumElements,
+                                 llvm::SmallVector<mlir::Type, 4> Body);
+  static mlir::Type parseType(mlir::DialectAsmParser &Parser);
+
+  mlir::Type getDataType() const;
+  int getNumElements() const;
   llvm::ArrayRef<mlir::Type> getBody() const;
 };
 
