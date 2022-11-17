@@ -5,15 +5,20 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+//
+// This is the operation definition file for SYCL dialect operations.
+//
+//===----------------------------------------------------------------------===//
 
 #ifndef SYCL_OPS
 #define SYCL_OPS
 
 include "mlir/IR/OpBase.td"
 include "mlir/Dialect/MemRef/IR/MemRefBase.td"
+include "mlir/Interfaces/CallInterfaces.td"
 include "mlir/Interfaces/CastInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
-include "SYCLOpInterfaces.td"
+include "mlir/Dialect/SYCL/IR/SYCLOpInterfaces.td"
 
 ////////////////////////////////////////////////////////////////////////////////
 // TYPE DECLARATIONS
@@ -50,7 +55,7 @@ class SYCL_Op<string mnemonic, list<Trait> traits = []>
 
 class SYCLMethodOpInterfaceImpl<
     string mnemonic, string type, list<string> methodNames, list<Trait> traits = []>
-        : SYCL_Op<mnemonic, !listconcat(traits, [SYCLMethodOpInterface])> {
+        : SYCL_Op<mnemonic, !listconcat(traits, [SYCLMethodOpInterface, CallOpInterface])> {
   string baseType = type;
   list<string> memberFunctionNames = methodNames;
   int arrSize = !size(memberFunctionNames);
@@ -61,10 +66,25 @@ class SYCLMethodOpInterfaceImpl<
      }};
     static ::mlir::TypeID getTypeID() { return ::mlir::sycl::}] # type # [{::getTypeID(); }
     static constexpr llvm::ArrayRef<llvm::StringLiteral> getMethodNames() { return methods; }
+
+    Operation::operand_iterator arg_operand_begin() { return (*this)->operand_begin(); }
+    Operation::operand_iterator arg_operand_end() { return (*this)->operand_end(); }
+
+    /// Return the callee of the generic SYCL call operation, this is required by
+    /// the call interface.
+    CallInterfaceCallable getCallableForCallee() {
+      return (*this)->getAttrOfType<FlatSymbolRefAttr>(getMangledFunctionNameAttrName());
+    }
+
+    /// Get the argument operands to the called function, this is required by the
+    /// call interface.
+    Operation::operand_range getArgOperands() {
+      return {arg_operand_begin(), arg_operand_end()};
+    }
   }];
 
   let extraClassDefinition = [{
-  constexpr std::array<llvm::StringLiteral, }] # arrSize # [{> $cppClass::methods;
+    constexpr std::array<llvm::StringLiteral, }] # arrSize # [{> $cppClass::methods;
   }];
 }
 
@@ -161,11 +181,10 @@ def SYCLCastOp : SYCL_Op<"cast", [DeclareOpInterfaceMethods<CastOpInterface>,
 // CALL OPERATION
 ////////////////////////////////////////////////////////////////////////////////
 
-def SYCLCallOp : SYCL_Op<"call", []> {
+def SYCLCallOp : SYCL_Op<"call", [CallOpInterface]> {
   let summary = "Generic call operation";
   let description = [{
-    This operation represent the call to any function part of the sycl's
-    namespace.
+    This operation represent a call to any function part of the sycl's namespace.
   }];
 
   let arguments = (ins
@@ -195,6 +214,23 @@ def SYCLCallOp : SYCL_Op<"call", []> {
       }
     }]>
   ];
+
+  let extraClassDeclaration = [{
+    operand_iterator arg_operand_begin() { return operand_begin(); }
+    operand_iterator arg_operand_end() { return operand_end(); }
+
+    /// Return the callee of the generic SYCL call operation, this is required by
+    /// the call interface.
+    CallInterfaceCallable getCallableForCallee() {
+      return (*this)->getAttrOfType<FlatSymbolRefAttr>(getMangledFunctionNameAttrName());
+    }
+
+    /// Get the argument operands to the called function, this is required by the
+    /// call interface.
+    operand_range getArgOperands() {
+      return {arg_operand_begin(), arg_operand_end()};
+    }
+  }];    
 
   let assemblyFormat = [{
     `(` $Args `)` attr-dict `:` functional-type($Args, results)

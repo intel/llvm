@@ -113,6 +113,12 @@ struct GPUInlinerInterface : public DialectInlinerInterface {
                        BlockAndValueMapping &) const final {
     return true;
   }
+
+  /// All functions can be inlined.
+  bool isLegalToInline(Region *, Region *, bool,
+                       BlockAndValueMapping &) const final {
+    return true;
+  }
 };
 } // namespace
 
