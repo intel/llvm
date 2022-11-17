@@ -505,7 +505,7 @@ void ModuleSplitterBase::verifyNoCrossModuleDeviceGlobalUsage() {
       auto EntryPointModulesIt = EntryPointModules.find(F);
       assert(EntryPointModulesIt != EntryPointModules.end() &&
              "There is no group for an entry point");
-      if (!VarEntryPointModule.hasValue()) {
+      if (!VarEntryPointModule.has_value()) {
         VarEntryPointModule = EntryPointModulesIt->second;
         return;
       }
