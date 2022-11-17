@@ -126,7 +126,10 @@ __ESIMD_API SurfaceIndex get_surface_index(AccessorTy acc) {
 ///   undefined.
 ///
 template <typename Tx, int N, class T = detail::__raw_t<Tx>, typename Toffset>
-__ESIMD_API std::enable_if_t<detail::isPowerOf2(N, 32), simd<Tx, N>>
+__ESIMD_API std::enable_if_t<detail::isPowerOf2(N, 32) &&
+                                 (std::is_same_v<Toffset, uint32_t> ||
+                                  std::is_same_v<Toffset, uint64_t>),
+                             simd<Tx, N>>
 gather(const Tx *p, simd<Toffset, N> offsets, simd_mask<N> mask = 1) {
   simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
@@ -162,7 +165,9 @@ gather(const Tx *p, simd<Toffset, N> offsets, simd_mask<N> mask = 1) {
 /// @param mask The access mask, defaults to all 1s.
 ///
 template <typename Tx, int N, class T = detail::__raw_t<Tx>, typename Toffset>
-__ESIMD_API std::enable_if_t<detail::isPowerOf2(N, 32)>
+__ESIMD_API std::enable_if_t<detail::isPowerOf2(N, 32) &&
+                             (std::is_same_v<Toffset, uint32_t> ||
+                              std::is_same_v<Toffset, uint64_t>)>
 scatter(Tx *p, simd<Toffset, N> offsets, simd<Tx, N> vals,
         simd_mask<N> mask = 1) {
   simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
@@ -547,7 +552,9 @@ __ESIMD_API void scalar_store(AccessorTy acc, uint32_t offset, T val) {
 ///
 template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR, typename T,
           int N, typename Toffset>
-__ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && sizeof(T) == 4,
+__ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && sizeof(T) == 4 &&
+                                 (std::is_same_v<Toffset, uint32_t> ||
+                                  std::is_same_v<Toffset, uint64_t>),
                              simd<T, N * get_num_channels_enabled(RGBAMask)>>
 gather_rgba(const T *p, simd<Toffset, N> offsets, simd_mask<N> mask = 1) {
   simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
@@ -599,7 +606,9 @@ template <rgba_channel_mask M> static void validate_rgba_write_channel_mask() {
 ///
 template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR, typename T,
           int N, typename Toffset>
-__ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && sizeof(T) == 4>
+__ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && sizeof(T) == 4 &&
+                             (std::is_same_v<Toffset, uint32_t> ||
+                              std::is_same_v<Toffset, uint64_t>)>
 scatter_rgba(T *p, simd<Toffset, N> offsets,
              simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
              simd_mask<N> mask = 1) {
@@ -777,8 +786,10 @@ constexpr void check_atomic() {
 ///   update.
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset>
-__ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<Toffset, N> offset,
-                                      simd_mask<N> mask) {
+__ESIMD_API std::enable_if_t<std::is_same_v<Toffset, uint32_t> ||
+                                 std::is_same_v<Toffset, uint64_t>,
+                             simd<Tx, N>>
+atomic_update(Tx *p, simd<Toffset, N> offset, simd_mask<N> mask) {
   detail::check_atomic<Op, Tx, N, 0>();
   simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
   simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(offset);
@@ -811,8 +822,11 @@ __ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<Toffset, N> offset,
 ///   update.
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset>
-__ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<Toffset, N> offset,
-                                      simd<Tx, N> src0, simd_mask<N> mask) {
+__ESIMD_API std::enable_if_t<std::is_same_v<Toffset, uint32_t> ||
+                                 std::is_same_v<Toffset, uint64_t>,
+                             simd<Tx, N>>
+atomic_update(Tx *p, simd<Toffset, N> offset, simd<Tx, N> src0,
+              simd_mask<N> mask) {
   if constexpr ((Op == atomic_op::fmin) || (Op == atomic_op::fmax) ||
                 (Op == atomic_op::fadd) || (Op == atomic_op::fsub)) {
     // Auto-convert FP atomics to LSC version. Warning is given - see enum.
@@ -850,9 +864,11 @@ __ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<Toffset, N> offset,
 ///   update.
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset>
-__ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<Toffset, N> offset,
-                                      simd<Tx, N> src0, simd<Tx, N> src1,
-                                      simd_mask<N> mask) {
+__ESIMD_API std::enable_if_t<std::is_same_v<Toffset, uint32_t> ||
+                                 std::is_same_v<Toffset, uint64_t>,
+                             simd<Tx, N>>
+atomic_update(Tx *p, simd<Toffset, N> offset, simd<Tx, N> src0,
+              simd<Tx, N> src1, simd_mask<N> mask) {
   if constexpr (Op == atomic_op::fcmpwr) {
     // Auto-convert FP atomics to LSC version. Warning is given - see enum.
     return atomic_update<detail::to_lsc_atomic_op<Op>(), Tx, N>(p, offset, src0,
