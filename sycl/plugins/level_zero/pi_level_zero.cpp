@@ -1863,12 +1863,15 @@ bool _pi_queue::isBatchingAllowed(bool IsCopy) const {
 // Return the index of the next queue to use based on a
 // round robin strategy and the queue group ordinal.
 uint32_t _pi_queue::pi_queue_group_t::getQueueIndex(uint32_t *QueueGroupOrdinal,
-                                                    uint32_t *QueueIndex) {
-
+                                                    uint32_t *QueueIndex,
+                                                    bool QueryOnly) {
   auto CurrentIndex = NextIndex;
-  ++NextIndex;
-  if (NextIndex > UpperIndex)
-    NextIndex = LowerIndex;
+
+  if (!QueryOnly) {
+    ++NextIndex;
+    if (NextIndex > UpperIndex)
+      NextIndex = LowerIndex;
+  }
 
   // Find out the right queue group ordinal (first queue might be "main" or
   // "link")
@@ -2093,7 +2096,10 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
         // signal new event from the last immediate command list. We are going
         // to insert a barrier in the new command list waiting for that event.
         auto QueueGroup = CurQueue->getQueueGroup(UseCopyEngine);
-        auto NextImmCmdList = QueueGroup.ImmCmdLists[QueueGroup.NextIndex];
+        uint32_t *QueueGroupOrdinal, *QueueIndex;
+        auto NextIndex = QueueGroup.getQueueIndex(QueueGroupOrdinal, QueueIndex,
+                                                  /*QueryOnly */ true);
+        auto NextImmCmdList = QueueGroup.ImmCmdLists[NextIndex];
         if (CurQueue->LastUsedCommandList != CurQueue->CommandListMap.end() &&
             CurQueue->LastUsedCommandList != NextImmCmdList) {
           CurQueue->signalEventFromCmdListIfLastEventDiscarded(

@@ -863,7 +863,10 @@ struct _pi_queue : _pi_object {
 
     // Return the index of the next queue to use based on a
     // round robin strategy and the queue group ordinal.
-    uint32_t getQueueIndex(uint32_t *QueueGroupOrdinal, uint32_t *QueueIndex);
+    // If QueryOnly is true then return index values but don't update internal
+    // index data members of the queue.
+    uint32_t getQueueIndex(uint32_t *QueueGroupOrdinal, uint32_t *QueueIndex,
+                           bool QueryOnly = false);
 
     // Get the ordinal for a command queue handle.
     int32_t getCmdQueueOrdinal(ze_command_queue_handle_t CmdQueue);
