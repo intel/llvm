@@ -682,7 +682,7 @@ pi_result _pi_queue::resetDiscardedEvent(pi_command_list_ptr_t CommandList) {
     if (LastCommandEvent->isHostVisible())
       PiEvent->HostVisibleEvent = PiEvent;
 
-    PI_CALL(addEventToCache(PiEvent));
+    PI_CALL(addEventToQueueCache(PiEvent));
   }
 
   return PI_SUCCESS;
@@ -708,7 +708,7 @@ inline static pi_result createEventAndAssociateQueue(
     ForceHostVisible = DeviceEventsSetting == AllHostVisible;
 
   // If event is discarded then try to get event from the queue cache.
-  *Event = IsInternal ? Queue->getEventFromCache(ForceHostVisible) : nullptr;
+  *Event = IsInternal ? Queue->getEventFromQueueCache(ForceHostVisible) : nullptr;
 
   if (*Event == nullptr)
     PI_CALL(EventCreate(Queue->Context, Queue, ForceHostVisible, Event));
@@ -767,7 +767,7 @@ pi_result _pi_queue::signalEventFromCmdListIfLastEventDiscarded(
   return PI_SUCCESS;
 }
 
-pi_event _pi_queue::getEventFromCache(bool HostVisible) {
+pi_event _pi_queue::getEventFromQueueCache(bool HostVisible) {
   auto Cache = HostVisible ? &EventCaches[0] : &EventCaches[1];
 
   // If we don't have any events, return nullptr.
@@ -784,7 +784,7 @@ pi_event _pi_queue::getEventFromCache(bool HostVisible) {
   return RetEvent;
 }
 
-pi_result _pi_queue::addEventToCache(pi_event Event) {
+pi_result _pi_queue::addEventToQueueCache(pi_event Event) {
   auto Cache = Event->isHostVisible() ? &EventCaches[0] : &EventCaches[1];
   Cache->emplace_back(Event);
   return PI_SUCCESS;
@@ -5769,7 +5769,7 @@ pi_result _pi_event::reset() {
   return PI_SUCCESS;
 }
 
-pi_event _pi_context::getEventFromCache(bool HostVisible, bool WithProfiling) {
+pi_event _pi_context::getEventFromContextCache(bool HostVisible, bool WithProfiling) {
   std::scoped_lock<pi_mutex> Lock(EventCacheMutex);
   auto Cache = getEventCache(HostVisible, WithProfiling);
   if (Cache->empty())
@@ -5781,7 +5781,7 @@ pi_event _pi_context::getEventFromCache(bool HostVisible, bool WithProfiling) {
   return Event;
 }
 
-void _pi_context::addEventToCache(pi_event Event) {
+void _pi_context::addEventToContextCache(pi_event Event) {
   std::scoped_lock<pi_mutex> Lock(EventCacheMutex);
   auto Cache =
       getEventCache(Event->isHostVisible(), Event->isProfilingEnabled());
@@ -5800,7 +5800,7 @@ static pi_result EventCreate(pi_context Context, pi_queue Queue,
       !Queue || (Queue->Properties & PI_QUEUE_PROFILING_ENABLE) != 0;
 
   if (auto CachedEvent =
-          Context->getEventFromCache(HostVisible, ProfilingEnabled)) {
+          Context->getEventFromContextCache(HostVisible, ProfilingEnabled)) {
     *RetEvent = CachedEvent;
     return PI_SUCCESS;
   }
@@ -6257,7 +6257,7 @@ static pi_result piEventReleaseInternal(pi_event Event) {
   if (DisableEventsCaching || !Event->OwnZeEvent) {
     delete Event;
   } else {
-    Event->Context->addEventToCache(Event);
+    Event->Context->addEventToContextCache(Event);
   }
 
   // We intentionally incremented the reference counter when an event is

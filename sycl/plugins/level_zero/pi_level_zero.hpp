@@ -761,10 +761,10 @@ struct _pi_context : _pi_object {
   std::unordered_map<void *, MemAllocRecord> MemAllocs;
 
   // Get pi_event from cache.
-  pi_event getEventFromCache(bool HostVisible, bool WithProfiling);
+  pi_event getEventFromContextCache(bool HostVisible, bool WithProfiling);
 
   // Add pi_event to cache.
-  void addEventToCache(pi_event);
+  void addEventToContextCache(pi_event);
 
 private:
   // If context contains one device then return this device.
@@ -1134,13 +1134,13 @@ struct _pi_queue : _pi_object {
   // two times in a row and have to do round-robin between two events. Otherwise
   // it picks an event from the beginning of the cache and returns it. Event
   // from the last command is always appended to the end of the list.
-  pi_event getEventFromCache(bool HostVisible);
+  pi_event getEventFromQueueCache(bool HostVisible);
 
   // Put pi_event to the cache. Provided pi_event object is not used by
   // any command but its ZeEvent is used by many pi_event objects.
   // Commands to wait and reset ZeEvent must be submitted to the queue before
   // calling this method.
-  pi_result addEventToCache(pi_event Event);
+  pi_result addEventToQueueCache(pi_event Event);
 
   // Append command to provided command list to wait and reset the last event if
   // it is discarded and create new pi_event wrapper using the same native event
