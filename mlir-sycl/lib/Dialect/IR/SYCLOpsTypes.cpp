@@ -840,7 +840,6 @@ mlir::Type mlir::sycl::MultiPtrType::parseType(mlir::DialectAsmParser &Parser) {
     return nullptr;
   }
 
-  // parse the body
   if (mlir::failed(Parser.parseLParen())) {
     return nullptr;
   }
