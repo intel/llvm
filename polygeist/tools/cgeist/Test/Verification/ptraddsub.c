@@ -11,18 +11,20 @@ int* add (int* in) {
 	return &in[7];
 }
 
-// CHECK:   func @sub() -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-DAG:     %c4_i64 = arith.constant 4 : i64
-// CHECK-NEXT:     %alloca = memref.alloca() : memref<10xi32>
-// CHECK-NEXT:     %0 = "polygeist.memref2pointer"(%alloca) : (memref<10xi32>) -> !llvm.ptr<i32>
-// CHECK-NEXT:     %1 = llvm.getelementptr %0[7] : (!llvm.ptr<i32>) -> !llvm.ptr<i32>
-// CHECK-DAG:     %[[i3:.+]] = llvm.ptrtoint %0 : !llvm.ptr<i32> to i64
-// CHECK-DAG:     %[[i4:.+]] = llvm.ptrtoint %1 : !llvm.ptr<i32> to i64
-// CHECK-NEXT:     %4 = arith.subi %[[i4]], %[[i3]] : i64
-// CHECK-NEXT:     %5 = arith.divsi %4, %c4_i64 : i64
-// CHECK-NEXT:     %6 = arith.trunci %5 : i64 to i32
-// CHECK-NEXT:     return %6 : i32
-// CHECK-NEXT:   }
+// CHECK-LABEL:   func.func @sub() -> i32
+// CHECK-NEXT:      %[[VAL_0:.*]] = arith.constant 4 : i64
+// CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 7 : index
+// CHECK-NEXT:      %[[VAL_2:.*]] = memref.alloca() : memref<10xi32>
+// CHECK-NEXT:      %[[VAL_3:.*]] = "polygeist.subindex"(%[[VAL_2]], %[[VAL_1]]) : (memref<10xi32>, index) -> memref<?xi32>
+// CHECK-NEXT:      %[[VAL_4:.*]] = "polygeist.memref2pointer"(%[[VAL_3]]) : (memref<?xi32>) -> !llvm.ptr<i32>
+// CHECK-NEXT:      %[[VAL_5:.*]] = "polygeist.memref2pointer"(%[[VAL_2]]) : (memref<10xi32>) -> !llvm.ptr<i32>
+// CHECK-NEXT:      %[[VAL_6:.*]] = llvm.ptrtoint %[[VAL_5]] : !llvm.ptr<i32> to i64
+// CHECK-NEXT:      %[[VAL_7:.*]] = llvm.ptrtoint %[[VAL_4]] : !llvm.ptr<i32> to i64
+// CHECK-NEXT:      %[[VAL_8:.*]] = arith.subi %[[VAL_7]], %[[VAL_6]] : i64
+// CHECK-NEXT:      %[[VAL_9:.*]] = arith.divsi %[[VAL_8]], %[[VAL_0]] : i64
+// CHECK-NEXT:      %[[VAL_10:.*]] = arith.trunci %[[VAL_9]] : i64 to i32
+// CHECK-NEXT:      return %[[VAL_10]] : i32
+// CHECK-NEXT:    }
 
 // CHECK:   func @add(%arg0: memref<?xi32>) -> memref<?xi32> attributes {llvm.linkage = #llvm.linkage<external>} {
 // CHECK-NEXT:     %c7 = arith.constant 7 : index

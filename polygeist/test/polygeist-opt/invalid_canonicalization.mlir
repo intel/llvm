@@ -46,19 +46,3 @@ func.func @SimplifySubIndexUsers(%arg0: memref<?x!llvm.struct<(i32)>>) -> memref
 }
 
 // -----
-
-// CHECK:  func.func @Memref2PointerIndex([[A0:%.*]]: memref<?x!llvm.struct<(i32, i32)>>) -> !llvm.ptr<i32> {
-// CHECK-NEXT:    [[C1:%.*]] = arith.constant 1 : index
-// CHECK-NEXT:    [[T0:%.*]] = "polygeist.subindex"([[A0]], [[C1]]) : (memref<?x!llvm.struct<(i32, i32)>>, index) -> memref<?xi32>
-// CHECK-NEXT:    [[T1:%.*]] = "polygeist.memref2pointer"([[T0]]) : (memref<?xi32>) -> !llvm.ptr<i32>
-// CHECK-NEXT:    return [[T1]] : !llvm.ptr<i32>
-// CHECK-NEXT:  }
-
-func.func @Memref2PointerIndex(%arg0: memref<?x!llvm.struct<(i32, i32)>>) -> !llvm.ptr<i32> {
-  %c1 = arith.constant 1 : index
-  %0 = "polygeist.subindex"(%arg0, %c1) : (memref<?x!llvm.struct<(i32, i32)>>, index) -> memref<?xi32>
-  %1 = "polygeist.memref2pointer"(%0) : (memref<?xi32>) -> !llvm.ptr<i32>
-  return %1 : !llvm.ptr<i32>
-}
-
-// -----
