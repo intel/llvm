@@ -100,34 +100,34 @@ static const bool DisableEventsCaching = [] {
 // TODO: When ABI breaking changes are allowed. Pass boolean to piEnqueue
 // methods instead
 //       (piEnqueueKernelLaunch,etc) to indicate if an event is user visible.
-static std::list<pi_event *> piUserVisibleEvents{};
+//static std::list<pi_event *> piUserVisibleEvents{};
 // Mutex for piUserVisibleEvents
-static pi_mutex piUserVisibleEventsMutex{};
+//static pi_mutex piUserVisibleEventsMutex{};
 
 /// Checks if an event is user visible by seeing if it's pointer value is
 /// present in piUserVisibleEvents
 ///
 /// \param event The event to check
-bool piIsEventUserVisible(pi_event *event) {
+// bool piIsEventUserVisible(pi_event *event) {
 
-  std::unique_lock lock{piUserVisibleEventsMutex};
-  for (auto it = piUserVisibleEvents.begin(); it != piUserVisibleEvents.end();
-       it++) {
-    if (*it == event) {
-      piUserVisibleEvents.erase(it);
-      return true;
-    }
-  }
-  return false;
-}
+//   std::unique_lock lock{piUserVisibleEventsMutex};
+//   for (auto it = piUserVisibleEvents.begin(); it != piUserVisibleEvents.end();
+//        it++) {
+//     if (*it == event) {
+//       piUserVisibleEvents.erase(it);
+//       return true;
+//     }
+//   }
+//   return false;
+// }
 
 /// Marks the event as user visible
 ///
 /// \param event To mark as user visible
-void piMarkEventUserVisible(pi_event *event) {
-  std::unique_lock lock{piUserVisibleEventsMutex};
-  piUserVisibleEvents.push_front(event);
-}
+// void piMarkEventUserVisible(pi_event *event) {
+//   std::unique_lock lock{piUserVisibleEventsMutex};
+//   piUserVisibleEvents.push_front(event);
+// }
 
 // This class encapsulates actions taken along with a call to Level Zero API.
 class ZeCall {
