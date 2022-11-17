@@ -23,6 +23,10 @@ template <int Dimensions> class group;
 namespace ext {
 namespace oneapi {
 struct sub_group;
+
+namespace experimental {
+template <typename Group, std::size_t Extent> class group_with_scratchpad;
+}
 } // namespace oneapi
 } // namespace ext
 
@@ -32,6 +36,11 @@ template <typename T> struct is_group : std::false_type {};
 
 template <int Dimensions>
 struct is_group<group<Dimensions>> : std::true_type {};
+
+template <typename T> struct is_group_helper : std::false_type {};
+
+template <typename Group, std::size_t Extent>
+struct is_group_helper<ext::oneapi::experimental::group_with_scratchpad<Group, Extent>> : std::true_type {};
 
 template <typename T> struct is_sub_group : std::false_type {};
 
@@ -56,6 +65,10 @@ class multi_ptr;
 template <class T>
 __SYCL_INLINE_CONSTEXPR bool is_group_v =
     detail::is_group<T>::value || detail::is_sub_group<T>::value;
+
+template <class T>
+__SYCL_INLINE_CONSTEXPR bool is_group_helper_v =
+    detail::is_group_helper<T>::value;
 
 namespace detail {
 // Type for Intel device UUID extension.
