@@ -1655,9 +1655,16 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     // DEVICELIB_ASSERT extension is set so fallback assert
     // postprocessing is NOP. HIP 4.3 docs indicate support for
     // native asserts are in progress
-    std::string SupportedExtensions = "cl_khr_fp64 ";
+    std::string SupportedExtensions = "";
     SupportedExtensions += PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT;
     SupportedExtensions += " ";
+
+    hipDeviceProp_t props;
+    sycl::detail::pi::assertion(hipGetDeviceProperties(&props, device->get()) ==
+                                hipSuccess);
+    if (props.arch.hasDoubles) {
+      SupportedExtensions += "cl_khr_fp64 ";
+    }
 
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    SupportedExtensions.c_str());
