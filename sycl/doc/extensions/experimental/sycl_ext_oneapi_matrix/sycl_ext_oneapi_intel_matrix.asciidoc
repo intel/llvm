@@ -35,11 +35,11 @@ SYCL specification refer to that revision.
 **_NOTE:_** This document describes extra features and details for the implementation of `joint_matrix` extension on Intel AMX and Intel XMX.
 
 ## Introduction
-The Intel backend implementations on both Intel AMX and Intel XMX  support `joint_matrix`, `joint_matrix_load`, `joint_matrix_store`, `joint_matrix_mad`, `joint_matrix_fill`, `get_wi_data`, and the query interface, as they are defined in the sycl_ext_oneapi_matrix extension. There are exra specifics about the supported layouts for extra performance and functionality that are listed in this document.
+The Intel backend implementations on both Intel AMX and Intel XMX  support `joint_matrix`, `joint_matrix_load`, `joint_matrix_store`, `joint_matrix_mad`, `joint_matrix_fill`, `get_wi_data`, and the query interface, as they are defined in the sycl_ext_oneapi_matrix extension. There are additional specifics about the supported layouts that enable extra performance and functionality listed in this document.
 
 ## Extra Functionality
 ### Layout argument in `joint_matrix` type
-The layout template argument in `joint_matrix` type is completely optional. Intel backends do not need to know about memory layout at the moment of creation of `joint_matrix`. Therefore, `layout` in `joint_matrix` type is optional, not only for matrix `accumulator` but for matrices `a` and `b` as well. In this case, the `joint_matrix_load` function that takes layout as an argument must be used. Ifthe template argument `layout` is specified on `joint_matrix` type with use `a` or `b`, it must then use the `joint_matrix_load` function that does not take `layout` as an argument.  
+The layout template argument in the `joint_matrix` constructor is completely optional. Intel backends do not need to know about memory layout at the moment of creation of `joint_matrix`. Therefore,  specifying `layout` in the `joint_matrix` constructor is optional, not only for matrix `accumulator` but for matrices `a` and `b` as well. In this case, the `joint_matrix_load` function that takes layout as an argument must be used. If the template argument `layout` is specified on the `joint_matrix` type with use `a` or `b`, it must then use the `joint_matrix_load` function that does not take `layout` as an argument. 
 
 ### Layout argument in `joint_matrix_load`
 In order to get maximum performance on Intel AMX and Intel XMX, prepacking data in the memory is necessary. If users did not specify the packed layouts, transforms done by the implementation will be slow due to extra scatter/gather operations. Hence, we expose the `packed` layout to the user to specify that A or B have already been VNNIed. The packed or VNNI layout is introduced in the `VNNI layout` section below.
