@@ -766,6 +766,13 @@ processInputModule(std::unique_ptr<Module> M) {
 
   while (ScopedSplitter->hasMoreSplits()) {
     module_split::ModuleDesc MD = ScopedSplitter->nextSplit();
+
+    if (IROutputOnly || SplitMode == module_split::SPLIT_NONE) {
+      // We can't perform any kind of split
+      TopLevelModules.emplace_back(std::move(MD));
+      continue;
+    }
+
     std::unique_ptr<module_split::ModuleSplitterBase> OptionalFeaturesSplitter =
         module_split::getSplitterByOptionalFeatures(
             std::move(MD), EmitOnlyKernelsAsEntryPoints);
