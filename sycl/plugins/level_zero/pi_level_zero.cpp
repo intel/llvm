@@ -659,6 +659,8 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
   if (!(condition))                                                            \
     return error;
 
+bool _pi_queue::doReuseDiscardedEvents() { return doReuseDiscardedEvents(); }
+
 pi_result _pi_queue::resetDiscardedEvent(pi_command_list_ptr_t CommandList) {
   if (LastCommandEvent && LastCommandEvent->IsDiscarded) {
     ZE_CALL(zeCommandListAppendBarrier,
@@ -708,7 +710,8 @@ inline static pi_result createEventAndAssociateQueue(
     ForceHostVisible = DeviceEventsSetting == AllHostVisible;
 
   // If event is discarded then try to get event from the queue cache.
-  *Event = IsInternal ? Queue->getEventFromQueueCache(ForceHostVisible) : nullptr;
+  *Event =
+      IsInternal ? Queue->getEventFromQueueCache(ForceHostVisible) : nullptr;
 
   if (*Event == nullptr)
     PI_CALL(EventCreate(Queue->Context, Queue, ForceHostVisible, Event));
@@ -717,7 +720,9 @@ inline static pi_result createEventAndAssociateQueue(
   (*Event)->CommandType = CommandType;
   (*Event)->IsDiscarded = IsInternal;
   // Discarded event doesn't own ze_event, it is used by multiple pi_event
-  // objects.
+  // objects. We destroy corresponding ze_event by releasing events from the
+  // events cache at queue destruction. Event in the cache owns the Level Zero
+  // event.
   if (IsInternal)
     (*Event)->OwnZeEvent = false;
 
@@ -752,8 +757,8 @@ pi_result _pi_queue::signalEventFromCmdListIfLastEventDiscarded(
     pi_command_list_ptr_t CommandList) {
   // We signal new event at the end of command list only if we have queue with
   // discard_events property and the last command event is discarded.
-  if (!(ReuseDiscardedEvents && isInOrderQueue() && isDiscardEvents() &&
-        LastCommandEvent && LastCommandEvent->IsDiscarded))
+  if (!(doReuseDiscardedEvents() && LastCommandEvent &&
+        LastCommandEvent->IsDiscarded))
     return PI_SUCCESS;
 
   pi_event Event;
@@ -1669,11 +1674,12 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
   bool CurrentlyEmpty = !PrintPiTrace && this->LastCommandEvent == nullptr;
 
   // The list can be empty if command-list only contains signals of proxy
-  // events.
+  // events. We need to process the last command event only if new command was
+  // submitted to the command list.
   if (!CommandList->second.EventList.empty() &&
       this->LastCommandEvent != CommandList->second.EventList.back()) {
     this->LastCommandEvent = CommandList->second.EventList.back();
-    if (ReuseDiscardedEvents && isInOrderQueue() && isDiscardEvents()) {
+    if (doReuseDiscardedEvents()) {
       PI_CALL(resetDiscardedEvent(CommandList));
     }
   }
@@ -1784,7 +1790,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
         // each event in the EventList.
         PI_CALL(piEventReleaseInternal(HostVisibleEvent));
 
-        if (ReuseDiscardedEvents && isInOrderQueue() && isDiscardEvents()) {
+        if (doReuseDiscardedEvents()) {
           // If we have in-order queue with discarded events then we want to
           // treat this event as regular event. We insert a barrier in the next
           // command list to wait for this event.
@@ -1799,8 +1805,8 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
         // Finally set to signal the host-visible event at the end of the
         // command-list after a barrier that waits for all commands
         // completion.
-        if (ReuseDiscardedEvents && isInOrderQueue() && isDiscardEvents() &&
-            LastCommandEvent && LastCommandEvent->IsDiscarded) {
+        if (doReuseDiscardedEvents() && LastCommandEvent &&
+            LastCommandEvent->IsDiscarded) {
           // If we the last event is discarded then we already have a barrier
           // inserted, so just signal the event.
           ZE_CALL(zeCommandListAppendSignalEvent,
@@ -2013,8 +2019,8 @@ pi_result _pi_queue::insertStartBarrierIfDiscardEventsMode(
     pi_command_list_ptr_t &CmdList) {
   // If current command list is different from the last command list then insert
   // a barrier waiting for the last command event.
-  if (ReuseDiscardedEvents && isInOrderQueue() && isDiscardEvents() &&
-      CmdList != LastUsedCommandList && LastCommandEvent) {
+  if (doReuseDiscardedEvents() && CmdList != LastUsedCommandList &&
+      LastCommandEvent) {
     ZE_CALL(zeCommandListAppendBarrier,
             (CmdList->first, nullptr, 1, &(LastCommandEvent->ZeEvent)));
     LastCommandEvent = nullptr;
@@ -5769,7 +5775,8 @@ pi_result _pi_event::reset() {
   return PI_SUCCESS;
 }
 
-pi_event _pi_context::getEventFromContextCache(bool HostVisible, bool WithProfiling) {
+pi_event _pi_context::getEventFromContextCache(bool HostVisible,
+                                               bool WithProfiling) {
   std::scoped_lock<pi_mutex> Lock(EventCacheMutex);
   auto Cache = getEventCache(HostVisible, WithProfiling);
   if (Cache->empty())

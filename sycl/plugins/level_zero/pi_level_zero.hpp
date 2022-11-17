@@ -1162,6 +1162,10 @@ struct _pi_queue : _pi_object {
   // lists in the queue.
   pi_result
   insertStartBarrierIfDiscardEventsMode(pi_command_list_ptr_t &CmdList);
+
+  // Helper method telling whether we need to reuse discarded event in this
+  // queue.
+  bool doReuseDiscardedEvents();
 };
 
 struct _pi_mem : _pi_object {
