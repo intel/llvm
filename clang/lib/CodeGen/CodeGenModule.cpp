@@ -3568,6 +3568,8 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
       // device-side variables because the CUDA runtime needs their
       // size and host-side address in order to provide access to
       // their device-side incarnations.
+
+      // So device-only functions are the only things we skip, except for SYCL.
       if (!LangOpts.isSYCL() && isa<FunctionDecl>(Global) &&
           !Global->hasAttr<CUDAHostAttr>() &&
           Global->hasAttr<CUDADeviceAttr>()) {
