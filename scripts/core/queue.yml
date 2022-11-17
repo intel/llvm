@@ -109,7 +109,7 @@ returns:
 type: function
 desc: "Get a reference to the command queue handle. Increment the command queue's reference count"
 class: $xQueue
-name: GetReference
+name: Retain
 decl: static
 ordinal: "0"
 analogue:

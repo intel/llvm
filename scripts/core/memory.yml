@@ -240,7 +240,7 @@ returns:
 type: function
 desc: "Get a reference the memory object. Increment the memory object's reference count"
 class: $xMem
-name: GetReference
+name: Retain
 decl: static
 ordinal: "0"
 analogue:

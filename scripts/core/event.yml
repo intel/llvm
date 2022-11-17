@@ -142,7 +142,7 @@ returns:
 type: function
 desc: "Get a reference to an event handle. Increment the event object's reference count."
 class: $xEvent
-name: GetReference
+name: Retain
 ordinal: "0"
 analogue:
     - "**clRetainEvent**"

@@ -294,7 +294,7 @@ params:
 type: function
 desc: "Makes a reference of the device handle indicating it's in use until paired $xDeviceRelease is called"
 class: $xDevice
-name: GetReference
+name: Retain
 decl: static
 ordinal: "0"
 analogue:
