@@ -62,7 +62,7 @@ public:
 
     ContextImplPtr DefaultContext = detail::getSyclObjImpl(
         Device->get_platform().ext_oneapi_get_default_context());
-    if (isValidDevice(DefaultContext, Device))
+    if (DefaultContext->isDeviceValid(Device))
       return DefaultContext;
     return detail::getSyclObjImpl(
         context{createSyclObjFromImpl<device>(Device), {}, {}});
@@ -104,7 +104,7 @@ public:
                             "Queue cannot be constructed with both of "
                             "discard_events and enable_profiling.");
     }
-    if (!isValidDevice(Context, Device)) {
+    if (!Context->isDeviceValid(Device)) {
       if (!Context->is_host() &&
           Context->getPlugin().getBackend() == backend::opencl)
         throw sycl::invalid_object_error(
@@ -486,27 +486,6 @@ protected:
   }
 
 protected:
-  /// Helper function for checking whether a device is either a member of a
-  /// context or a descendnant of its member.
-  /// \return True iff the device or its parent is a member of the context.
-  static bool isValidDevice(const ContextImplPtr &Context,
-                            DeviceImplPtr Device) {
-    // OpenCL does not support creating a queue with a descendant of a device
-    // from the given context yet.
-    // TODO remove once this limitation is lifted
-    if (!Context->is_host() &&
-        Context->getPlugin().getBackend() == backend::opencl)
-      return Context->hasDevice(Device);
-
-    while (!Context->hasDevice(Device)) {
-      if (Device->isRootDevice())
-        return false;
-      Device = detail::getSyclObjImpl(
-          Device->get_info<info::device::parent_device>());
-    }
-    return true;
-  }
-
   /// Performs command group submission to the queue.
   ///
   /// \param CGF is a function object containing command group.
