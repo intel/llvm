@@ -44,28 +44,19 @@ inline void finalizeHandler(handler &CGH);
 template <class FunctorTy> void withAuxHandler(handler &CGH, FunctorTy Func);
 } // namespace reduction
 
-template <typename KernelName, int Dims, typename PropertiesT,
-          typename KernelType, typename Reduction>
-void reduction_parallel_for(handler &CGH,
-                            std::shared_ptr<detail::queue_impl> Queue,
-                            range<Dims> Range, PropertiesT Properties,
-                            Reduction Redu, KernelType KernelFunc);
-
 template <typename KernelName,
           reduction::strategy Strategy = reduction::strategy::auto_select,
           int Dims, typename PropertiesT, typename KernelType,
           typename Reduction>
-void reduction_parallel_for(handler &CGH,
-                            std::shared_ptr<detail::queue_impl> Queue,
-                            nd_range<Dims> NDRange, PropertiesT Properties,
-                            Reduction Redu, KernelType KernelFunc);
+void reduction_parallel_for(handler &CGH, range<Dims> Range,
+                            PropertiesT Properties, Reduction Redu,
+                            KernelType KernelFunc);
 
-template <typename KernelName, int Dims, typename PropertiesT,
-          typename... RestT>
-void reduction_parallel_for(handler &CGH,
-                            std::shared_ptr<detail::queue_impl> Queue,
-                            nd_range<Dims> NDRange, PropertiesT Properties,
-                            RestT... Rest);
+template <typename KernelName,
+          reduction::strategy Strategy = reduction::strategy::auto_select,
+          int Dims, typename PropertiesT, typename... RestT>
+void reduction_parallel_for(handler &CGH, nd_range<Dims> NDRange,
+                            PropertiesT Properties, RestT... Rest);
 
 template <typename T> struct IsReduction;
 template <typename FirstT, typename... RestT> struct AreAllButLastReductions;

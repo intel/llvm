@@ -1022,11 +1022,25 @@ _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
   }
 
   auto &EventList = CommandList->second.EventList;
-  // Remember all the events in this command list which needs to be
-  // released/cleaned up and clear event list associated with command list.
-  std::move(std::begin(EventList), std::end(EventList),
-            std::back_inserter(EventListToCleanup));
-  EventList.clear();
+  // Check if standard commandlist
+  if (CommandList->second.ZeFence != nullptr) {
+    // Remember all the events in this command list which needs to be
+    // released/cleaned up and clear event list associated with command list.
+    std::move(std::begin(EventList), std::end(EventList),
+              std::back_inserter(EventListToCleanup));
+    EventList.clear();
+  } else {
+    // For immediate commandlist reset only those events that have signalled.
+    for (auto it = EventList.begin(); it != EventList.end(); it++) {
+      std::scoped_lock<pi_shared_mutex> EventLock((*it)->Mutex);
+      ze_result_t ZeResult =
+          ZE_CALL_NOCHECK(zeEventQueryStatus, ((*it)->ZeEvent));
+      if (ZeResult == ZE_RESULT_SUCCESS) {
+        std::move(it, it, std::back_inserter(EventListToCleanup));
+        EventList.erase(it, it);
+      }
+    }
+  }
 
   // Standard commandlists move in and out of the cache as they are recycled.
   // Immediate commandlists are always available.
@@ -3166,7 +3180,38 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     }
     return ReturnValue(FreeMemory);
   }
+  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE: {
+    // If there are not any memory modules then return 0.
+    if (Device->ZeDeviceMemoryProperties->empty())
+      return ReturnValue(pi_uint32{0});
 
+    // If there are multiple memory modules on the device then we have to report
+    // the value of the slowest memory.
+    auto Comp = [](const ze_device_memory_properties_t &A,
+                   const ze_device_memory_properties_t &B) -> bool {
+      return A.maxClockRate < B.maxClockRate;
+    };
+    auto MinIt =
+        std::min_element(Device->ZeDeviceMemoryProperties->begin(),
+                         Device->ZeDeviceMemoryProperties->end(), Comp);
+    return ReturnValue(pi_uint32{MinIt->maxClockRate});
+  }
+  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH: {
+    // If there are not any memory modules then return 0.
+    if (Device->ZeDeviceMemoryProperties->empty())
+      return ReturnValue(pi_uint32{0});
+
+    // If there are multiple memory modules on the device then we have to report
+    // the value of the slowest memory.
+    auto Comp = [](const ze_device_memory_properties_t &A,
+                   const ze_device_memory_properties_t &B) -> bool {
+      return A.maxBusWidth < B.maxBusWidth;
+    };
+    auto MinIt =
+        std::min_element(Device->ZeDeviceMemoryProperties->begin(),
+                         Device->ZeDeviceMemoryProperties->end(), Comp);
+    return ReturnValue(pi_uint32{MinIt->maxBusWidth});
+  }
   case PI_DEVICE_INFO_GPU_EU_COUNT: {
     pi_uint32 count = Device->ZeDeviceProperties->numEUsPerSubslice *
                       Device->ZeDeviceProperties->numSubslicesPerSlice *

@@ -2038,8 +2038,8 @@ public:
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for(range<Dims> Range, PropertiesT Properties, Reduction Redu,
                _KERNELFUNCPARAM(KernelFunc)) {
-    detail::reduction_parallel_for<KernelName>(*this, MQueue, Range, Properties,
-                                               Redu, std::move(KernelFunc));
+    detail::reduction_parallel_for<KernelName>(*this, Range, Properties, Redu,
+                                               std::move(KernelFunc));
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType,
@@ -2059,7 +2059,7 @@ public:
       detail::AreAllButLastReductions<RestT...>::value &&
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for(nd_range<Dims> Range, PropertiesT Properties, RestT &&...Rest) {
-    detail::reduction_parallel_for<KernelName>(*this, MQueue, Range, Properties,
+    detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
                                                std::forward<RestT>(Rest)...);
   }
 
@@ -2658,6 +2658,19 @@ private:
   friend inline void detail::reduction::finalizeHandler(handler &CGH);
   template <class FunctorTy>
   friend void detail::reduction::withAuxHandler(handler &CGH, FunctorTy Func);
+
+  template <typename KernelName, detail::reduction::strategy Strategy, int Dims,
+            typename PropertiesT, typename KernelType, typename Reduction>
+  friend void detail::reduction_parallel_for(handler &CGH, range<Dims> Range,
+                                             PropertiesT Properties,
+                                             Reduction Redu,
+                                             KernelType KernelFunc);
+
+  template <typename KernelName, detail::reduction::strategy Strategy, int Dims,
+            typename PropertiesT, typename... RestT>
+  friend void
+  detail::reduction_parallel_for(handler &CGH, nd_range<Dims> NDRange,
+                                 PropertiesT Properties, RestT... Rest);
 
 #ifndef __SYCL_DEVICE_ONLY__
   friend void detail::associateWithHandler(handler &,
