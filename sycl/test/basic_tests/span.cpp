@@ -8,7 +8,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/sycl_span.hpp>
+
+#include <vector>
 
 int main() {
   // test the various span declarations, especially unspecialized ones.

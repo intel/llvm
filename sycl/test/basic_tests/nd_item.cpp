@@ -7,9 +7,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include <sycl/nd_item.hpp>
+
 #include <cassert>
 #include <iostream>
-#include <sycl/sycl.hpp>
 
 using namespace std;
 using sycl::detail::Builder;

@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/aliases.hpp>
 
 #include <type_traits>
 

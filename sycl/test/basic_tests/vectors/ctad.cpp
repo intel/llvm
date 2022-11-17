@@ -7,7 +7,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include <sycl/sycl.hpp>
+#include <sycl/types.hpp>
+
+#include <type_traits.hpp>
 
 int main() {
   sycl::vec v1(1);

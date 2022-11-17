@@ -9,7 +9,7 @@
 //===----------------------------------------------------------------------===//
 #include <cassert>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/range.hpp>
 
 using namespace std;
 int main() {

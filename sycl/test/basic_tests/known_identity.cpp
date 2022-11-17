@@ -5,9 +5,13 @@
 // This test performs basic checks of has_known_identity and known_identity
 // type traits.
 
+#include <sycl/functional.hpp>
+#include <sycl/known_identity.hpp>
+#include <sycl/marray.hpp>
+#include <sycl/types.hpp>
+
 #include <cassert>
 #include <cstddef>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 
