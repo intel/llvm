@@ -109,7 +109,9 @@ void releaseDefaultContexts() {
   // finished. To avoid calls to nowhere, intentionally leak platform to device
   // cache. This will prevent destructors from being called, thus no PI cleanup
   // routines will be called in the end.
-  GlobalHandler::instance().MPlatformToDefaultContextCache.Inst.release();
+  // CP
+  // GlobalHandler::instance().MPlatformToDefaultContextCache.Inst.release();
+  GlobalHandler::instance().MPlatformToDefaultContextCache.Inst.reset(nullptr);
 #endif
 }
 
