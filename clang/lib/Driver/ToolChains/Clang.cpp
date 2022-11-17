@@ -4637,6 +4637,13 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
     HostCompileArgs.push_back(TCArgs.MakeArgString(OutOpt));
     OutputAdded = true;
   };
+  // By default: pass /Zc:__cplusplus if we see a MSVC compiler.
+  // Users can disable this through
+  // -fsycl-host-compiler-options=/Zc:__cplusplus-
+  // It overrides the default option.
+  if (IsMSVCHostCompiler)
+    HostCompileArgs.push_back("/Zc:__cplusplus");
+
   // FIXME: Reuse existing toolchains which are already supported to put
   // together the options.
   // FIXME: For any potential obscure host compilers that do not use the
