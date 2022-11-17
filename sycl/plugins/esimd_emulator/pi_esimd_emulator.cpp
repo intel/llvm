@@ -932,7 +932,7 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
     return PI_ERROR_INVALID_QUEUE_PROPERTIES;
   }
 
-  cm_support::CmQueue *CmQueue;
+  cm_support::CmQueue *CmQueue = nullptr;
 
   int Result = Context->Device->CmDevicePtr->CreateQueue(CmQueue);
   if (Result != cm_support::CM_SUCCESS) {
@@ -1023,7 +1023,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
 
   char *MapBasePtr = nullptr;
   cm_surface_ptr_t CmBuf;
-  cm_support::SurfaceIndex *CmIndex;
+  cm_support::SurfaceIndex *CmIndex = nullptr;
   int Status = cm_support::CM_FAILURE;
 
   if (Flags & PI_MEM_FLAGS_HOST_PTR_USE) {
@@ -1215,7 +1215,7 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
 
   char *MapBasePtr = nullptr;
   cm_surface_ptr_t CmImg;
-  cm_support::SurfaceIndex *CmIndex;
+  cm_support::SurfaceIndex *CmIndex = nullptr;
   int Status = cm_support::CM_SUCCESS;
 
   if (Flags & PI_MEM_FLAGS_HOST_PTR_USE) {
