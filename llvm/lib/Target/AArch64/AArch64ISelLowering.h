@@ -332,6 +332,7 @@ enum NodeType : unsigned {
 
   INSR,
   PTEST,
+  PTEST_ANY,
   PTRUE,
 
   BITREVERSE_MERGE_PASSTHRU,
@@ -810,6 +811,15 @@ public:
   bool preferIncOfAddToSubOfNot(EVT VT) const override;
 
   bool shouldConvertFpToSat(unsigned Op, EVT FPVT, EVT VT) const override;
+
+  bool isComplexDeinterleavingSupported() const override;
+  bool isComplexDeinterleavingOperationSupported(
+      ComplexDeinterleavingOperation Operation, Type *Ty) const override;
+
+  Value *createComplexDeinterleavingIR(
+      Instruction *I, ComplexDeinterleavingOperation OperationType,
+      ComplexDeinterleavingRotation Rotation, Value *InputA, Value *InputB,
+      Value *Accumulator = nullptr) const override;
 
   bool hasBitPreservingFPLogic(EVT VT) const override {
     // FIXME: Is this always true? It should be true for vectors at least.

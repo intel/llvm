@@ -6310,7 +6310,7 @@ StmtResult Sema::ActOnOpenMPExecutableDirective(
     break;
   case OMPD_error:
     assert(AStmt == nullptr &&
-           "No associated statement allowed for 'omp taskyield' directive");
+           "No associated statement allowed for 'omp error' directive");
     Res = ActOnOpenMPErrorDirective(ClausesWithImplicit, StartLoc, EndLoc);
     break;
   case OMPD_barrier:
@@ -6721,6 +6721,7 @@ StmtResult Sema::ActOnOpenMPExecutableDirective(
       case OMPC_device_type:
       case OMPC_match:
       case OMPC_when:
+      case OMPC_at:
       default:
         llvm_unreachable("Unexpected clause");
       }
@@ -11030,7 +11031,21 @@ StmtResult Sema::ActOnOpenMPBarrierDirective(SourceLocation StartLoc,
 
 StmtResult Sema::ActOnOpenMPErrorDirective(ArrayRef<OMPClause *> Clauses,
                                            SourceLocation StartLoc,
-                                           SourceLocation EndLoc) {
+                                           SourceLocation EndLoc,
+                                           bool InExContext) {
+  auto AtClauses =
+      OMPExecutableDirective::getClausesOfKind<OMPAtClause>(Clauses);
+  const OMPAtClause *AtC = AtClauses.empty() ? nullptr : (*AtClauses.begin());
+
+  if (AtC && !InExContext && AtC->getAtKind() == OMPC_AT_execution) {
+    Diag(AtC->getAtKindKwLoc(), diag::err_omp_unexpected_execution_modifier);
+    return StmtError();
+  }
+  if (!AtC || AtC->getAtKind() == OMPC_AT_compilation) {
+    Diag(AtC ? AtC->getBeginLoc() : StartLoc, diag::err_diagnose_if_succeeded)
+        << "ERROR";
+    return StmtError();
+  }
   return OMPErrorDirective::Create(Context, StartLoc, EndLoc, Clauses);
 }
 
@@ -15173,6 +15188,7 @@ OMPClause *Sema::ActOnOpenMPSingleExprClause(OpenMPClauseKind Kind, Expr *Expr,
   case OMPC_match:
   case OMPC_nontemporal:
   case OMPC_order:
+  case OMPC_at:
   case OMPC_destroy:
   case OMPC_inclusive:
   case OMPC_exclusive:
@@ -16098,6 +16114,7 @@ static OpenMPDirectiveKind getOpenMPCaptureRegionForClause(
   case OMPC_match:
   case OMPC_nontemporal:
   case OMPC_order:
+  case OMPC_at:
   case OMPC_destroy:
   case OMPC_detach:
   case OMPC_inclusive:
@@ -16500,6 +16517,10 @@ OMPClause *Sema::ActOnOpenMPSimpleClause(
     Res = ActOnOpenMPBindClause(static_cast<OpenMPBindClauseKind>(Argument),
                                 ArgumentLoc, StartLoc, LParenLoc, EndLoc);
     break;
+  case OMPC_at:
+    Res = ActOnOpenMPAtClause(static_cast<OpenMPAtClauseKind>(Argument),
+                              ArgumentLoc, StartLoc, LParenLoc, EndLoc);
+    break;
   case OMPC_if:
   case OMPC_final:
   case OMPC_num_threads:
@@ -16676,6 +16697,22 @@ OMPClause *Sema::ActOnOpenMPAtomicDefaultMemOrderClause(
   }
   return new (Context) OMPAtomicDefaultMemOrderClause(Kind, KindKwLoc, StartLoc,
                                                       LParenLoc, EndLoc);
+}
+
+OMPClause *Sema::ActOnOpenMPAtClause(OpenMPAtClauseKind Kind,
+                                     SourceLocation KindKwLoc,
+                                     SourceLocation StartLoc,
+                                     SourceLocation LParenLoc,
+                                     SourceLocation EndLoc) {
+  if (Kind == OMPC_AT_unknown) {
+    Diag(KindKwLoc, diag::err_omp_unexpected_clause_value)
+        << getListOfPossibleValues(OMPC_at, /*First=*/0,
+                                   /*Last=*/OMPC_AT_unknown)
+        << getOpenMPClauseName(OMPC_at);
+    return nullptr;
+  }
+  return new (Context)
+      OMPAtClause(Kind, KindKwLoc, StartLoc, LParenLoc, EndLoc);
 }
 
 OMPClause *Sema::ActOnOpenMPOrderClause(OpenMPOrderClauseKind Kind,
@@ -16877,6 +16914,7 @@ OMPClause *Sema::ActOnOpenMPSingleExprWithArgClause(
   case OMPC_match:
   case OMPC_nontemporal:
   case OMPC_order:
+  case OMPC_at:
   case OMPC_destroy:
   case OMPC_novariants:
   case OMPC_nocontext:
@@ -17133,6 +17171,7 @@ OMPClause *Sema::ActOnOpenMPClause(OpenMPClauseKind Kind,
   case OMPC_match:
   case OMPC_nontemporal:
   case OMPC_order:
+  case OMPC_at:
   case OMPC_novariants:
   case OMPC_nocontext:
   case OMPC_detach:
@@ -17687,6 +17726,7 @@ OMPClause *Sema::ActOnOpenMPVarListClause(OpenMPClauseKind Kind,
   case OMPC_device_type:
   case OMPC_match:
   case OMPC_order:
+  case OMPC_at:
   case OMPC_destroy:
   case OMPC_novariants:
   case OMPC_nocontext:

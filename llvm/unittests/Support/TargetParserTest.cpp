@@ -12,6 +12,7 @@
 #include "llvm/ADT/Triple.h"
 #include "llvm/Support/AArch64TargetParser.h"
 #include "llvm/Support/ARMBuildAttributes.h"
+#include "llvm/Support/ARMTargetParser.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -31,10 +32,12 @@ const char *ARMArch[] = {
     "armv8a",       "armv8l",      "armv8.1-a",      "armv8.1a",    "armv8.2-a",
     "armv8.2a",     "armv8.3-a",   "armv8.3a",       "armv8.4-a",   "armv8.4a",
     "armv8.5-a",    "armv8.5a",    "armv8.6-a",      "armv8.6a",    "armv8.7-a",
-    "armv8.7a",     "armv8.8-a",   "armv8.8a",       "armv8-r",     "armv8r",
-    "armv8-m.base", "armv8m.base", "armv8-m.main",   "armv8m.main", "iwmmxt",
-    "iwmmxt2",      "xscale",      "armv8.1-m.main", "armv9-a",     "armv9",
-    "armv9a",       "armv9.1-a",   "armv9.1a",       "armv9.2-a",   "armv9.2a",
+    "armv8.7a",     "armv8.8-a",   "armv8.8a",       "armv8.9-a",   "armv8.9a",
+    "armv8-r",      "armv8r",      "armv8-m.base",   "armv8m.base", "armv8-m.main",
+    "armv8m.main",  "iwmmxt",      "iwmmxt2",        "xscale",      "armv8.1-m.main",
+    "armv9-a",      "armv9",       "armv9a",         "armv9.1-a",   "armv9.1a",
+    "armv9.2-a",    "armv9.2a",    "armv9.3-a",      "armv9.3a",    "armv9.4-a",
+    "armv9.4a",
 };
 
 template <ARM::ISAKind ISAKind>
@@ -510,6 +513,9 @@ TEST(TargetParserTest, testARMArch) {
   EXPECT_TRUE(testARMArch("armv8.8-a", "generic", "v8.8a",
                           ARMBuildAttrs::CPUArch::v8_A));
   EXPECT_TRUE(
+      testARMArch("armv8.9-a", "generic", "v8.9a",
+                          ARMBuildAttrs::CPUArch::v8_A));
+  EXPECT_TRUE(
       testARMArch("armv9-a", "generic", "v9a",
                           ARMBuildAttrs::CPUArch::v9_A));
   EXPECT_TRUE(
@@ -520,6 +526,9 @@ TEST(TargetParserTest, testARMArch) {
                           ARMBuildAttrs::CPUArch::v9_A));
   EXPECT_TRUE(
       testARMArch("armv9.3-a", "generic", "v9.3a",
+                          ARMBuildAttrs::CPUArch::v9_A));
+  EXPECT_TRUE(
+      testARMArch("armv9.4-a", "generic", "v9.4a",
                           ARMBuildAttrs::CPUArch::v9_A));
   EXPECT_TRUE(
       testARMArch("armv8-r", "cortex-r52", "v8r",
@@ -851,10 +860,12 @@ TEST(TargetParserTest, ARMparseArchProfile) {
     case ARM::ArchKind::ARMV8_6A:
     case ARM::ArchKind::ARMV8_7A:
     case ARM::ArchKind::ARMV8_8A:
+    case ARM::ArchKind::ARMV8_9A:
     case ARM::ArchKind::ARMV9A:
     case ARM::ArchKind::ARMV9_1A:
     case ARM::ArchKind::ARMV9_2A:
     case ARM::ArchKind::ARMV9_3A:
+    case ARM::ArchKind::ARMV9_4A:
       EXPECT_EQ(ARM::ProfileKind::A, ARM::parseArchProfile(ARMArch[i]));
       break;
     default:
@@ -949,11 +960,6 @@ TEST_P(AArch64CPUTestFixture, testAArch64CPU) {
       AArch64::getDefaultExtensions(params.CPUName, AK);
   EXPECT_PRED_FORMAT2(AssertSameExtensionFlags<ARM::ISAKind::AARCH64>,
                       params.ExpectedFlags, default_extensions);
-
-  unsigned FPUKind = AArch64::getDefaultFPU(params.CPUName, AK);
-  EXPECT_EQ(params.ExpectedFPU, ARM::getFPUName(FPUKind));
-
-  EXPECT_EQ(params.CPUAttr, AArch64::getCPUAttr(AK));
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -1404,10 +1410,7 @@ TEST(TargetParserTest, testAArch64CPUArchList) {
 bool testAArch64Arch(StringRef Arch, StringRef DefaultCPU, StringRef SubArch,
                      unsigned ArchAttr) {
   AArch64::ArchKind AK = AArch64::parseArch(Arch);
-  return (AK != AArch64::ArchKind::INVALID) &&
-         AArch64::getDefaultCPU(Arch).equals(DefaultCPU) &&
-         AArch64::getSubArch(AK).equals(SubArch) &&
-         (AArch64::getArchAttr(AK) == ArchAttr);
+  return AK != AArch64::ArchKind::INVALID;
 }
 
 TEST(TargetParserTest, testAArch64Arch) {
@@ -1429,11 +1432,17 @@ TEST(TargetParserTest, testAArch64Arch) {
                               ARMBuildAttrs::CPUArch::v8_A));
   EXPECT_TRUE(testAArch64Arch("armv8.8-a", "generic", "v8.8a",
                               ARMBuildAttrs::CPUArch::v8_A));
+  EXPECT_TRUE(testAArch64Arch("armv8.9-a", "generic", "v8.9a",
+                              ARMBuildAttrs::CPUArch::v8_A));
   EXPECT_TRUE(testAArch64Arch("armv9-a", "generic", "v9a",
                               ARMBuildAttrs::CPUArch::v8_A));
   EXPECT_TRUE(testAArch64Arch("armv9.1-a", "generic", "v9.1a",
                               ARMBuildAttrs::CPUArch::v8_A));
   EXPECT_TRUE(testAArch64Arch("armv9.2-a", "generic", "v9.2a",
+                              ARMBuildAttrs::CPUArch::v8_A));
+  EXPECT_TRUE(testAArch64Arch("armv9.3-a", "generic", "v9.3a",
+                              ARMBuildAttrs::CPUArch::v8_A));
+  EXPECT_TRUE(testAArch64Arch("armv9.4-a", "generic", "v9.4a",
                               ARMBuildAttrs::CPUArch::v8_A));
 }
 
