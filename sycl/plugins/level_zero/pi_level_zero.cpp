@@ -659,7 +659,9 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
   if (!(condition))                                                            \
     return error;
 
-bool _pi_queue::doReuseDiscardedEvents() { return doReuseDiscardedEvents(); }
+bool _pi_queue::doReuseDiscardedEvents() {
+  return ReuseDiscardedEvents && isInOrderQueue() && isDiscardEvents();
+}
 
 pi_result _pi_queue::resetDiscardedEvent(pi_command_list_ptr_t CommandList) {
   if (LastCommandEvent && LastCommandEvent->IsDiscarded) {
@@ -2096,9 +2098,10 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
         // signal new event from the last immediate command list. We are going
         // to insert a barrier in the new command list waiting for that event.
         auto QueueGroup = CurQueue->getQueueGroup(UseCopyEngine);
-        uint32_t *QueueGroupOrdinal, *QueueIndex;
-        auto NextIndex = QueueGroup.getQueueIndex(QueueGroupOrdinal, QueueIndex,
-                                                  /*QueryOnly */ true);
+        uint32_t QueueGroupOrdinal, QueueIndex;
+        auto NextIndex =
+            QueueGroup.getQueueIndex(&QueueGroupOrdinal, &QueueIndex,
+                                     /*QueryOnly */ true);
         auto NextImmCmdList = QueueGroup.ImmCmdLists[NextIndex];
         if (CurQueue->LastUsedCommandList != CurQueue->CommandListMap.end() &&
             CurQueue->LastUsedCommandList != NextImmCmdList) {
@@ -2130,7 +2133,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
   // that event, so don't need to include the last command event into the wait
   // list.
   if (ReuseDiscardedEvents && CurQueue->isDiscardEvents() &&
-      CurQueue->LastCommandEvent->IsDiscarded)
+      CurQueue->LastCommandEvent && CurQueue->LastCommandEvent->IsDiscarded)
     IncludeLastCommandEvent = false;
 
   try {
