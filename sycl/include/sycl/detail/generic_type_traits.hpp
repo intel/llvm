@@ -585,7 +585,7 @@ using common_rel_ret_t =
 
 // TODO: Remove this when common_rel_ret_t is promoted.
 template <typename T>
-using internal_rel_ret_t =
+using internal_host_rel_ret_t =
     conditional_t<is_vgentype<T>::value, make_singed_integer_t<T>, int>;
 #else
 // SYCL 1.2.1 4.13.7 (Relation functions), e.g.
@@ -601,7 +601,7 @@ using internal_rel_ret_t =
 template <typename T>
 using common_rel_ret_t =
     conditional_t<is_vgentype<T>::value, make_singed_integer_t<T>, int>;
-template <typename T> using internal_rel_ret_t = common_rel_ret_t<T>;
+template <typename T> using internal_host_rel_ret_t = common_rel_ret_t<T>;
 #endif
 
 // forward declaration
@@ -634,11 +634,13 @@ template <typename T> struct RelationalReturnType {
   //       The scalar relational builtins in
   //       sycl/source/detail/builtins_relational.cpp should likewise be updated
   //       to return boolean values.
-  using type = internal_rel_ret_t<T>;
+  using type = internal_host_rel_ret_t<T>;
 #endif
 };
 
-template <typename T> using rel_ret_t = typename RelationalReturnType<T>::type;
+// Type representing the internal return type of relational builtins.
+template <typename T>
+using internal_rel_ret_t = typename RelationalReturnType<T>::type;
 
 // Used for any and all built-in functions
 template <typename T> struct RelationalTestForSignBitType {
@@ -670,7 +672,7 @@ struct RelConverter<
   using ret_t = common_rel_ret_t<T>;
 #else
   using bool_t = Boolean<N>;
-  using ret_t = rel_ret_t<T>;
+  using ret_t = internal_rel_ret_t<T>;
 #endif
 
   static ret_t apply(bool_t value) {
@@ -689,7 +691,7 @@ struct RelConverter<
 template <typename T>
 struct RelConverter<
     T, typename detail::enable_if_t<!TryToGetElementType<T>::value>> {
-  using R = rel_ret_t<T>;
+  using R = internal_rel_ret_t<T>;
 #ifdef __SYCL_DEVICE_ONLY__
   using value_t = bool;
 #else

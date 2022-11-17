@@ -1116,98 +1116,101 @@ template <typename T,
           typename = detail::enable_if_t<detail::is_genfloat<T>::value, T>>
 detail::common_rel_ret_t<T> isequal(T x, T y) __NOEXC {
   return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_FOrdEqual<detail::rel_ret_t<T>>(x, y));
+      __sycl_std::__invoke_FOrdEqual<detail::internal_rel_ret_t<T>>(x, y));
 }
 
 template <typename T,
           typename = detail::enable_if_t<detail::is_genfloat<T>::value, T>>
 detail::common_rel_ret_t<T> isnotequal(T x, T y) __NOEXC {
   return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_FUnordNotEqual<detail::rel_ret_t<T>>(x, y));
+      __sycl_std::__invoke_FUnordNotEqual<detail::internal_rel_ret_t<T>>(x, y));
 }
 
 template <typename T,
           typename = detail::enable_if_t<detail::is_genfloat<T>::value, T>>
 detail::common_rel_ret_t<T> isgreater(T x, T y) __NOEXC {
   return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_FOrdGreaterThan<detail::rel_ret_t<T>>(x, y));
+      __sycl_std::__invoke_FOrdGreaterThan<detail::internal_rel_ret_t<T>>(x,
+                                                                          y));
 }
 
 template <typename T,
           typename = detail::enable_if_t<detail::is_genfloat<T>::value, T>>
 detail::common_rel_ret_t<T> isgreaterequal(T x, T y) __NOEXC {
   return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_FOrdGreaterThanEqual<detail::rel_ret_t<T>>(x, y));
+      __sycl_std::__invoke_FOrdGreaterThanEqual<detail::internal_rel_ret_t<T>>(
+          x, y));
 }
 
 template <typename T,
           typename = detail::enable_if_t<detail::is_genfloat<T>::value, T>>
 detail::common_rel_ret_t<T> isless(T x, T y) __NOEXC {
   return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_FOrdLessThan<detail::rel_ret_t<T>>(x, y));
+      __sycl_std::__invoke_FOrdLessThan<detail::internal_rel_ret_t<T>>(x, y));
 }
 
 template <typename T,
           typename = detail::enable_if_t<detail::is_genfloat<T>::value, T>>
 detail::common_rel_ret_t<T> islessequal(T x, T y) __NOEXC {
   return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_FOrdLessThanEqual<detail::rel_ret_t<T>>(x, y));
+      __sycl_std::__invoke_FOrdLessThanEqual<detail::internal_rel_ret_t<T>>(x,
+                                                                            y));
 }
 
 template <typename T,
           typename = detail::enable_if_t<detail::is_genfloat<T>::value, T>>
 detail::common_rel_ret_t<T> islessgreater(T x, T y) __NOEXC {
   return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_FOrdNotEqual<detail::rel_ret_t<T>>(x, y));
+      __sycl_std::__invoke_FOrdNotEqual<detail::internal_rel_ret_t<T>>(x, y));
 }
 
 template <typename T,
           typename = detail::enable_if_t<detail::is_genfloat<T>::value, T>>
 detail::common_rel_ret_t<T> isfinite(T x) __NOEXC {
   return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_IsFinite<detail::rel_ret_t<T>>(x));
+      __sycl_std::__invoke_IsFinite<detail::internal_rel_ret_t<T>>(x));
 }
 
 template <typename T,
           typename = detail::enable_if_t<detail::is_genfloat<T>::value, T>>
 detail::common_rel_ret_t<T> isinf(T x) __NOEXC {
   return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_IsInf<detail::rel_ret_t<T>>(x));
+      __sycl_std::__invoke_IsInf<detail::internal_rel_ret_t<T>>(x));
 }
 
 template <typename T,
           typename = detail::enable_if_t<detail::is_genfloat<T>::value, T>>
 detail::common_rel_ret_t<T> isnan(T x) __NOEXC {
   return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_IsNan<detail::rel_ret_t<T>>(x));
+      __sycl_std::__invoke_IsNan<detail::internal_rel_ret_t<T>>(x));
 }
 
 template <typename T,
           typename = detail::enable_if_t<detail::is_genfloat<T>::value, T>>
 detail::common_rel_ret_t<T> isnormal(T x) __NOEXC {
   return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_IsNormal<detail::rel_ret_t<T>>(x));
+      __sycl_std::__invoke_IsNormal<detail::internal_rel_ret_t<T>>(x));
 }
 
 template <typename T,
           typename = detail::enable_if_t<detail::is_genfloat<T>::value, T>>
 detail::common_rel_ret_t<T> isordered(T x, T y) __NOEXC {
   return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_Ordered<detail::rel_ret_t<T>>(x, y));
+      __sycl_std::__invoke_Ordered<detail::internal_rel_ret_t<T>>(x, y));
 }
 
 template <typename T,
           typename = detail::enable_if_t<detail::is_genfloat<T>::value, T>>
 detail::common_rel_ret_t<T> isunordered(T x, T y) __NOEXC {
   return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_Unordered<detail::rel_ret_t<T>>(x, y));
+      __sycl_std::__invoke_Unordered<detail::internal_rel_ret_t<T>>(x, y));
 }
 
 template <typename T,
           typename = detail::enable_if_t<detail::is_genfloat<T>::value, T>>
 detail::common_rel_ret_t<T> signbit(T x) __NOEXC {
   return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_SignBitSet<detail::rel_ret_t<T>>(x));
+      __sycl_std::__invoke_SignBitSet<detail::internal_rel_ret_t<T>>(x));
 }
 
 namespace detail {
