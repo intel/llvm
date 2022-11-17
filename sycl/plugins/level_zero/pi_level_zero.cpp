@@ -2108,7 +2108,9 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
       }
     } else {
       // Ensure LastCommandEvent's batch is submitted if it is differrent
-      // from the one this command is going to.
+      // from the one this command is going to. If we reuse discarded events
+      // then signalEventFromCmdListIfLastEventDiscarded will be called at batch
+      // close if needed.
       const auto &OpenCommandList =
           CurQueue->eventOpenCommandList(CurQueue->LastCommandEvent);
       if (OpenCommandList != CurQueue->CommandListMap.end() &&
