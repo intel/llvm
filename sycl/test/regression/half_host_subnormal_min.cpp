@@ -1,8 +1,8 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %t.out
 //
-// Checks that sycl::half on host can correctly its minimum subnormal value to
-// and from a floating point value.
+// Checks that sycl::half on host can correctly cast its minimum subnormal value
+// to and from a floating point value.
 
 #include <sycl/sycl.hpp>
 
