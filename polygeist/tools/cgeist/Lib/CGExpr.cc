@@ -2642,7 +2642,7 @@ static Optional<Value> castSubIndexOpIndex(OpBuilder &Builder, Location Loc,
                                            ValueCategory Pointer,
                                            ValueRange IdxList, bool IsSigned) {
   if (Pointer.val.getType().isa<MemRefType>()) {
-    assert(IdxList.size() == 1 && "SubIndexOP accepts just an index");
+    assert(IdxList.size() == 1 && "SubIndexOp accepts just an index");
     return ValueCategory(IdxList.front(), false)
         .IntCast(Builder, Loc, Builder.getIndexType(), IsSigned)
         .val;
@@ -2650,10 +2650,10 @@ static Optional<Value> castSubIndexOpIndex(OpBuilder &Builder, Location Loc,
   return llvm::None;
 }
 
-ValueCategory MLIRScanner::EmitCheckedInBoundsGEP(mlir::Type ElemTy,
-                                                  ValueCategory Pointer,
-                                                  ValueRange IdxList,
-                                                  bool IsSigned, bool) {
+ValueCategory MLIRScanner::EmitCheckedInBoundsPtrOffsetOp(mlir::Type ElemTy,
+                                                          ValueCategory Pointer,
+                                                          ValueRange IdxList,
+                                                          bool IsSigned, bool) {
   assert(mlirclang::isPointerOrMemRefTy(Pointer.val.getType()) &&
          "Expecting pointer or MemRef");
   assert(std::all_of(IdxList.begin(), IdxList.end(),
@@ -2681,19 +2681,16 @@ ValueCategory MLIRScanner::EmitPointerArithmetic(const BinOpInfo &Info) {
   const auto IsSubtraction =
       Opcode == clang::BO_Sub || Opcode == clang::BO_SubAssign;
 
-  // In a subtraction, the LHS is always the pointer.
-  if (!IsSubtraction &&
-      !mlirclang::isPointerOrMemRefTy(Pointer.val.getType())) {
+  assert((!IsSubtraction ||
+          mlirclang::isPointerOrMemRefTy(Pointer.val.getType())) &&
+         "The LHS is always a pointer in a subtraction");
+
+  if (!mlirclang::isPointerOrMemRefTy(Pointer.val.getType())) {
     std::swap(Pointer, Index);
     std::swap(PointerOperand, IndexOperand);
   }
 
   assert(Index.val.getType().isa<IntegerType>() && "Expecting integer type");
-
-  const auto IsSigned =
-      IndexOperand->getType()->isSignedIntegerOrEnumerationType();
-
-  const unsigned Width = Index.val.getType().getIntOrFloatBitWidth();
 
   auto PtrTy = Pointer.val.getType();
 
@@ -2727,6 +2724,9 @@ ValueCategory MLIRScanner::EmitPointerArithmetic(const BinOpInfo &Info) {
   auto &DL = CGM.getDataLayout();
   const unsigned IndexTypeSize = DL.getIndexTypeSizeInBits(
       CGM.getTypes().ConvertType(PointerOperand->getType()));
+  const auto IsSigned =
+      IndexOperand->getType()->isSignedIntegerOrEnumerationType();
+  const unsigned Width = Index.val.getType().getIntOrFloatBitWidth();
   if (Width != IndexTypeSize) {
     // Zero-extend or sign-extend the pointer value according to
     // whether the index is signed or not.
@@ -2765,8 +2765,8 @@ ValueCategory MLIRScanner::EmitPointerArithmetic(const BinOpInfo &Info) {
     return Pointer.GEPOrSubIndex(builder, loc, ElemTy, Index.val);
   }
 
-  return EmitCheckedInBoundsGEP(ElemTy, Pointer, Index.val, IsSigned,
-                                IsSubtraction);
+  return EmitCheckedInBoundsPtrOffsetOp(ElemTy, Pointer, Index.val, IsSigned,
+                                        IsSubtraction);
 }
 
 ValueCategory MLIRScanner::EmitBinAdd(const BinOpInfo &Info) {

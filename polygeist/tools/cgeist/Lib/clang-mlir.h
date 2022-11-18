@@ -507,9 +507,11 @@ public:
   EmitCompoundAssign(clang::CompoundAssignOperator *E,
                      ValueCategory (MLIRScanner::*F)(const BinOpInfo &));
 
-  ValueCategory EmitCheckedInBoundsGEP(mlir::Type ElemTy, ValueCategory Pointer,
-                                       mlir::ValueRange IdxList, bool IsSigned,
-                                       bool IsSubtraction);
+  ValueCategory EmitCheckedInBoundsPtrOffsetOp(mlir::Type ElemTy,
+                                               ValueCategory Pointer,
+                                               mlir::ValueRange IdxList,
+                                               bool IsSigned,
+                                               bool IsSubtraction);
   ValueCategory EmitPointerArithmetic(const BinOpInfo &Info);
 
   BinOpInfo EmitBinOps(clang::BinaryOperator *E,

@@ -48,6 +48,8 @@ bool isRecursiveStruct(llvm::Type *T, llvm::Type *Meta,
 mlir::IntegerAttr wrapIntegerMemorySpace(unsigned MemorySpace,
                                          mlir::MLIRContext *Ctx);
 
+/// Given a MemRefType or LLVMPointerType, change the element type, keeping the
+/// rest of the parameters.
 mlir::Type getPtrTyWithNewType(mlir::Type Orig, mlir::Type NewElementType);
 
 mlir::Type getSYCLType(const clang::RecordType *RT,
