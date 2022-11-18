@@ -225,7 +225,7 @@ static std::vector<int> filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
           // Last, match the device_num entry
           if (!Filter.DeviceNum || DeviceNum == Filter.DeviceNum.value()) {
             if constexpr (is_ods_target) {      // dealing with ODS filters
-              if (!Blacklist[DeviceNum]) {        // ensure it is not blacklisted
+              if (!Blacklist[DeviceNum]) {      // ensure it is not blacklisted
                 if (!Filter.IsNegativeTarget) { // is filter positive?
                   PiDevices[InsertIDx++] = Device;
                   original_indices.push_back(DeviceNum);
