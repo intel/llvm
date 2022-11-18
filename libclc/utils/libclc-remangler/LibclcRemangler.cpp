@@ -296,15 +296,6 @@ private:
 
     FDSpecialization->setDeclName(&ContextAST->Idents.get(KernelName));
 
-    // Used to populate all the template type param decls into.
-    NamespaceDecl *DummyNamespace = NamespaceDecl::Create(
-        *ContextAST, ContextAST->getTranslationUnitDecl(), false,
-        SourceLocation(), SourceLocation(),
-        &ContextAST->Idents.get("DummyNamespace", tok::TokenKind::identifier),
-        nullptr);
-    DummyNamespace->setImplicit(true);
-    ContextAST->getTranslationUnitDecl()->addDecl(DummyNamespace);
-
     // Will be used to build template parameter list.
     SmallVector<NamedDecl *> TemplateNamedDecls;
     // Used for setting template specialisation.
@@ -317,8 +308,9 @@ private:
                              std::to_string(TemplateIndex)};
       auto &II = ContextAST->Idents.get(Name);
       auto *TTPD = TemplateTypeParmDecl::Create(
-          *ContextAST, DummyNamespace, SourceLocation(), SourceLocation(), 0,
-          TemplateIndex, &II, /* Typenaem */ true, /*ParameterPack*/ false);
+          *ContextAST, FDSpecialization->getDeclContext(), SourceLocation(),
+          SourceLocation(), 0, TemplateIndex, &II, /* Typenaem */ true,
+          /*ParameterPack*/ false);
       TTPD->setDefaultArgument(
           ContextAST->getTrivialTypeSourceInfo(TemplateArgQT));
 
