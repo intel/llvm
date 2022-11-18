@@ -556,6 +556,8 @@ private:
       assert(false && "unhandled type name: decltype(auto)");
     else if (Name == "std::nullptr_t")
       Res = ContextAST->NullPtrTy;
+    else if (Name == "_BitInt")
+      assert(false && "unhandled type name: _BitInt");
     else {
       StringRef const N{Name.begin(), Name.size()};
       auto &II = ContextAST->Idents.get(N);
