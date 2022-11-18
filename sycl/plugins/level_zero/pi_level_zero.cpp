@@ -1676,8 +1676,10 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
   bool CurrentlyEmpty = !PrintPiTrace && this->LastCommandEvent == nullptr;
 
   // The list can be empty if command-list only contains signals of proxy
-  // events. We need to process the last command event only if new command was
-  // submitted to the command list.
+  // events. It is possible that executeCommandList is called twice for the same
+  // command list without new appended command. We don't to want process the
+  // same last command event twice that's why additionally check that new
+  // command was appended to the command list.
   if (!CommandList->second.EventList.empty() &&
       this->LastCommandEvent != CommandList->second.EventList.back()) {
     this->LastCommandEvent = CommandList->second.EventList.back();
@@ -2131,8 +2133,8 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
       CurQueue->isInOrderQueue() && CurQueue->LastCommandEvent != nullptr;
 
   // If the last event is discarded then we already have a barrier waiting for
-  // that event, so don't need to include the last command event into the wait
-  // list.
+  // that event, so must not include the last command event into the wait
+  // list because it will cause waiting for event which was reset.
   if (ReuseDiscardedEvents && CurQueue->isDiscardEvents() &&
       CurQueue->LastCommandEvent && CurQueue->LastCommandEvent->IsDiscarded)
     IncludeLastCommandEvent = false;
