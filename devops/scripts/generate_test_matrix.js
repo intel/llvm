@@ -2,7 +2,7 @@ module.exports = ({core, process}) => {
   const fs = require('fs');
   fs.readFile('./test_configs.json', 'utf8', (err, data) => {
     if (err) {
-      console.log(`Error reading file from disk: ${err}`);
+      console.error(`Error reading file from disk: ${err}`);
     } else {
       const driverNew =
           JSON.parse(fs.readFileSync('./dependencies.json', 'utf8'));
@@ -28,8 +28,11 @@ module.exports = ({core, process}) => {
 
       const ltsConfigs = inputs.lts_config.split(';');
 
-      const enabledLTSConfigs = [];
+      const enabledLTSLxConfigs = [];
+      const enabledLTSWnConfigs = [];
       const enabledLTSAWSConfigs = [];
+
+      // Process LTS (LLVM Test Suite)
 
       testConfigs.lts.forEach(v => {
         if (ltsConfigs.includes(v.config)) {
@@ -47,22 +50,33 @@ module.exports = ({core, process}) => {
           } else {
             v["env"] = {};
           }
-          enabledLTSConfigs.push(v);
+          if (v["runs-on"].includes("Windows"))
+             enabledLTSWnConfigs.push(v);
+          else if (v["runs-on"].includes("Linux"))
+             enabledLTSLxConfigs.push(v);
+          else
+             console.error("runs-on OS is not recognized");
           if (v["aws-type"]) enabledLTSAWSConfigs.push(v);
         }
       });
 
-      let ltsString = JSON.stringify(enabledLTSConfigs);
+      let ltsLxString = JSON.stringify(enabledLTSLxConfigs);
+      let ltsWnString = JSON.stringify(enabledLTSWnConfigs);
       let ltsAWSString = JSON.stringify(enabledLTSAWSConfigs);
-      console.log(ltsString);
+      console.log("Linux LTS config:")
+      console.log(ltsLxString);
+      console.log("Windows LTS config:")
+      console.log(ltsWnString);
+      console.log("Linux AWS LTS config:")
       console.log(ltsAWSString)
 
+      // drivers update is supported on Linux only
       for (let [key, value] of Object.entries(inputs)) {
-        ltsString = ltsString.replaceAll("${{ inputs." + key + " }}", value);
+        ltsLxString = ltsLxString.replaceAll("${{ inputs." + key + " }}", value);
         ltsAWSString = ltsAWSString.replaceAll("${{ inputs." + key + " }}", value);
       }
       if (needsDrivers) {
-        ltsString = ltsString.replaceAll(
+        ltsLxString = ltsLxString.replaceAll(
             "ghcr.io/intel/llvm/ubuntu2004_intel_drivers:latest",
             "ghcr.io/intel/llvm/ubuntu2004_base:latest");
         ltsAWSString = ltsAWSString.replaceAll(
@@ -70,8 +84,11 @@ module.exports = ({core, process}) => {
             "ghcr.io/intel/llvm/ubuntu2004_base:latest");
       }
 
-      core.setOutput('lts_matrix', ltsString);
+      core.setOutput('lts_lx_matrix', ltsLxString);
+      core.setOutput('lts_wn_matrix', ltsWnString);
       core.setOutput('lts_aws_matrix', ltsAWSString);
+
+      // Process CTS (Conformance Test Suite)
 
       const ctsConfigs = inputs.cts_config.split(';');
 
@@ -98,6 +115,7 @@ module.exports = ({core, process}) => {
       });
 
       let ctsString = JSON.stringify(enabledCTSConfigs);
+      console.log("CTS config:")
       console.log(ctsString);
 
       for (let [key, value] of Object.entries(inputs)) {

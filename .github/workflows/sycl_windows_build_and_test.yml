@@ -10,11 +10,31 @@ on:
       build_ref:
         type: string
         required: false
+      lts_matrix:
+        type: string
+        required: false
+        default: "[]"
+      lts_aws_matrix:
+        type: string
+        required: false
+        default: "[]"
+      lts_cmake_extra_args:
+        type: string
+        required: false
+        default: ""
+      lts_ref:
+        type: string
+        required: false
+        default: 'intel'
 
 jobs:
   build:
     name: Build + LIT
     runs-on: [Windows, build]
+    strategy:
+      matrix:
+        include: ${{ fromJSON(inputs.lts_matrix) }}
+    #runs-on: windows-latest
     # TODO use cached checkout
     steps:
     - uses: ilammy/msvc-dev-cmd@7315a94840631165970262a99c72cfb48a65d25d
@@ -50,9 +70,23 @@ jobs:
           --cmake-opt="-DCMAKE_C_COMPILER_LAUNCHER=sccache"
     - name: Build
       id: build
+      shell: cmd
+      # TODO replace utility installation with a single CMake target
       run: |
-        cmake --build build --target sycl-toolchain
-        sccache --show-stats
+        cmake --build build --target deploy-sycl-toolchain
+        cmake --build build --target utils/FileCheck/install
+        cmake --build build --target utils/count/install
+        cmake --build build --target utils/not/install
+        cmake --build build --target utils/lit/install
+        cmake --build build --target utils/llvm-lit/install
+        cmake --build build --target install-clang-format
+        cmake --build build --target install-clang-tidy
+        cmake --build build --target install-llvm-size
+        cmake --build build --target install-llvm-cov
+        cmake --build build --target install-llvm-profdata
+        cmake --build build --target install-compiler-rt
+        #Copy FileCheck to intall/bin for use by E2E tests.
+        copy %GITHUB_WORKSPACE%\build\bin\FileCheck.exe %GITHUB_WORKSPACE%\install\bin\.
     - name: check-llvm
       shell: bash
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
@@ -79,10 +113,49 @@ jobs:
       run: |
         cmake --build build --target check-xptifw
     - name: Install
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       shell: bash
-      run: cmake --build build --target deploy-sycl-toolchain
+      run: |
+        cmake --build build --target deploy-sycl-toolchain
     - name: Upload toolchain
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       uses: actions/upload-artifact@v3
       with:
         name: sycl_windows_default
-        path: install/**/*
+        path: install
+
+  llvm_test_suite:
+    needs: build
+    if: ${{ !failure() && inputs.lts_matrix != '[]' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(inputs.lts_matrix) }}
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runs-on }}
+    env: ${{ matrix.env }}
+    steps:
+    - uses: ilammy/msvc-dev-cmd@7315a94840631165970262a99c72cfb48a65d25d
+      with:
+        arch: amd64
+    - name: Set env
+      run: |
+        git config --system core.longpaths true
+        git config --global core.autocrlf false
+        echo "C:\Program Files\Git\usr\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        echo "SCCACHE_DIR=D:\github\_work\cache\${{ inputs.build_cache_suffix }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+    # TODO: use cached_checkout
+    - uses: actions/checkout@v3
+      with:
+        persist-credentials: false
+        ref: ${{ inputs.build_ref || github.ref }}
+        path: llvm
+    - name: Register cleanup after job is finished
+      uses: ./llvm/devops/actions/cleanup
+    - uses: ./llvm/devops/actions/llvm_test_suite_win
+      name: Run LLVM Test Suite
+      with:
+        sycl_artifact: sycl_windows_default
+        check_sycl_all: ${{ matrix.check_sycl_all }}
+        results_name_suffix: ${{ matrix.config }}_default
+        cmake_args: '${{ matrix.cmake_args }} ${{ inputs.lts_cmake_extra_args }}'

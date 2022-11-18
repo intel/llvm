@@ -34,21 +34,25 @@ on:
         required: false
         default: ${{ github.sha }}
     outputs:
-      lts_matrix:
-        description: "Generated Matrix"
-        value: ${{ jobs.test_matrix.outputs.lts_matrix }}
+      lts_lx_matrix:
+        description: "Generated Linux LTS Matrix"
+        value: ${{ jobs.test_matrix.outputs.lts_lx_matrix }}
+      lts_wn_matrix:
+        description: "Generated Windows LTS Matrix"
+        value: ${{ jobs.test_matrix.outputs.lts_wn_matrix }}
       cts_matrix:
         description: "Generated SYCL CTS Matrix"
         value: ${{ jobs.test_matrix.outputs.cts_matrix }}
       lts_aws_matrix:
-        description: "Generated Matrix AWS subset"
+        description: "Generated Linux AWS Matrix"
         value: ${{ jobs.test_matrix.outputs.lts_aws_matrix }}
 jobs:
   test_matrix:
     name: Generate Test Matrix
     runs-on: ubuntu-20.04
     outputs:
-      lts_matrix: ${{ steps.work.outputs.lts_matrix }}
+      lts_lx_matrix: ${{ steps.work.outputs.lts_lx_matrix }}
+      lts_wn_matrix: ${{ steps.work.outputs.lts_wn_matrix }}
       cts_matrix: ${{ steps.work.outputs.cts_matrix }}
       lts_aws_matrix: ${{ steps.work.outputs.lts_aws_matrix }}
     steps:
