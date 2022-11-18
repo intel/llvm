@@ -1800,6 +1800,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
         } else {
           // For all other queues treat this as a special event and indicate no
           // cleanup is needed.
+          // TODO: always treat this host event as a regular event.
           PI_CALL(piEventReleaseInternal(HostVisibleEvent));
           HostVisibleEvent->CleanedUp = true;
         }
