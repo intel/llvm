@@ -118,6 +118,7 @@ def NDItemMemRef : MemRefOf<[SYCL_NdItemType]>;
 def GroupMemRef : MemRefOf<[SYCL_GroupType]>;
 def VecMemRef : MemRefOf<[SYCL_VecType]>;
 
+
 def SYCLMemref : AnyTypeOf<[
   IDMemRef,
   AccessorCommonMemRef,
@@ -134,6 +135,7 @@ def SYCLMemref : AnyTypeOf<[
   VecMemRef,
 ]>;
 def IndexType : AnyTypeOf<[I32, I64, Index]>;
+def IntMemrefType : AnyTypeOf<[MemRefOf<[I32]>]>;
 def SYCLGetResult : AnyTypeOf<[I64, MemRefOf<[I64]>]>;
 def SYCLGetIDResult : AnyTypeOf<[I64, SYCL_IDType]>;
 def SYCLGetRangeResult : AnyTypeOf<[I64, SYCL_RangeType]>;
@@ -142,7 +144,7 @@ def SYCLGetRangeResult : AnyTypeOf<[I64, SYCL_RangeType]>;
 // CONSTRUCTOR OPERATION
 ////////////////////////////////////////////////////////////////////////////////
 
-def ConstructorArgs : AnyTypeOf<[SYCLMemref, IndexType, SYCL_IDType, SYCL_RangeType]>;
+def ConstructorArgs : AnyTypeOf<[SYCLMemref, IndexType, IntMemrefType, SYCL_IDType, SYCL_RangeType]>;
 def SYCLConstructorOp : SYCL_Op<"constructor", []> {
   let summary = "Generic constructor operation";
   let description = [{
