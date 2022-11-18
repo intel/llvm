@@ -192,7 +192,8 @@ public:
     nodeToQualTypes(RetTy, TemplateArgTys, ArgTys, IsVariadic);
     auto *FD = createKernelDecl(RetTy, TemplateArgTys, ArgTys, IsVariadic);
     assert(MangleContext->shouldMangleDeclName(FD) &&
-           "It should always be possibel to mangle libclcl func.");
+           "It should always be possible to mangle libclc func.");
+
 
     SmallString<256> Buffer;
     raw_svector_ostream Out(Buffer);
