@@ -20,7 +20,7 @@
 
 // This version should be incremented for any change made to this file or its
 // corresponding .cpp file.
-#define _PI_LEVEL_ZERO_PLUGIN_VERSION 2
+#define _PI_LEVEL_ZERO_PLUGIN_VERSION 1
 
 #define _PI_LEVEL_ZERO_PLUGIN_VERSION_STRING                                   \
   _PI_PLUGIN_VERSION_STRING(_PI_LEVEL_ZERO_PLUGIN_VERSION)

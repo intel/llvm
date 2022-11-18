@@ -1505,11 +1505,6 @@ pi_result piTearDown(void *PluginParameter) {
   return PI_SUCCESS;
 }
 
-pi_result piSetEventProperty(pi_event *event, _pi_event_property property,
-                             size_t propertySize, void *propertyValue) {
-  assert(0 && "Operation not supported");
-}
-
 const char SupportedVersion[] = _PI_OPENCL_PLUGIN_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
@@ -1643,7 +1638,6 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextKernelSetArgSampler, piextKernelSetArgSampler)
   _PI_CL(piPluginGetLastError, piPluginGetLastError)
   _PI_CL(piTearDown, piTearDown)
-  _PI_CL(piSetEventProperty, piSetEventProperty)
 
 #undef _PI_CL
 

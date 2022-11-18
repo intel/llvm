@@ -53,12 +53,9 @@
 // 10.14 Add PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY as an extension for
 // piDeviceGetInfo.
 // 11.15 piEventCreate creates even in the signalled state now.
-// 11.16 piSetEventProperty modifies properties of a pi_event.
-//       Currently only supports marking a to be constructed pi_event
-//       user-visible
 
 #define _PI_H_VERSION_MAJOR 11
-#define _PI_H_VERSION_MINOR 16
+#define _PI_H_VERSION_MINOR 15
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -1795,16 +1792,6 @@ __SYCL_EXPORT pi_result piTearDown(void *PluginParameter);
 /// error code indicates that plugin considers this to be a fatal error and the
 /// runtime must handle it or end the application.
 __SYCL_EXPORT pi_result piPluginGetLastError(char **message);
-
-/// Modifies property of a pi_event
-/// \param event pointer to  pi_event to modify
-/// \param property enum to event property to modify
-/// \param propertySize size of propertyValue
-/// \param propertyValue value to assign to event property
-__SYCL_EXPORT pi_result piSetEventProperty(pi_event *event,
-                                           _pi_event_property property,
-                                           size_t propertySize,
-                                           void *propertyValue);
 
 struct _pi_plugin {
   // PI version supported by host passed to the plugin. The Plugin

@@ -79,7 +79,6 @@ piSamplerCreate
 piSamplerGetInfo
 piSamplerRelease
 piSamplerRetain
-piSetEventProperty
 piTearDown
 piclProgramCreateWithSource
 piextContextCreateWithNativeHandle

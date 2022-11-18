@@ -96,38 +96,6 @@ static const bool DisableEventsCaching = [] {
   return std::stoi(DisableEventsCachingFlag) != 0;
 }();
 
-// Stores pointers to events that are user visible.
-// TODO: When ABI breaking changes are allowed. Pass boolean to piEnqueue
-// methods instead
-//       (piEnqueueKernelLaunch,etc) to indicate if an event is user visible.
-static std::list<pi_event *> piUserVisibleEvents{};
-// Mutex for piUserVisibleEvents
-static pi_mutex piUserVisibleEventsMutex{};
-
-/// Checks if an event is user visible by seeing if it's pointer value is
-/// present in piUserVisibleEvents
-///
-/// \param event The event to check
-bool piIsEventUserVisible(pi_event *event) {
-
-  std::unique_lock lock{piUserVisibleEventsMutex};
-  for (auto it = piUserVisibleEvents.begin(); it != piUserVisibleEvents.end();
-       it++) {
-    if (*it == event) {
-      piUserVisibleEvents.erase(it);
-      return true;
-    }
-  }
-  return false;
-}
-
-/// Marks the event as user visible
-///
-/// \param event To mark as user visible
-void piMarkEventUserVisible(pi_event *event) {
-  std::unique_lock lock{piUserVisibleEventsMutex};
-  piUserVisibleEvents.push_front(event);
-}
 
 // This class encapsulates actions taken along with a call to Level Zero API.
 class ZeCall {
@@ -9070,28 +9038,9 @@ inline pi_result piDeviceTime::get(uint64_t *deviceTime) {
 }
 
 inline pi_result piDeviceTime::getSubmitTime(pi_event *event) {
-  if (!(*event)->isProfilingEnabled() || !piIsEventUserVisible(event)) {
+  if (!(*event)->isProfilingEnabled()) {
     return PI_SUCCESS;
   }
   return get(&((*event)->submitTime));
-}
-pi_result piSetEventProperty(pi_event *event, _pi_event_property property,
-                             size_t propertySize, void *propertyValue) {
-
-  switch (property) {
-  case IS_USER_VISIBLE: {
-    bool isHostVisible = *static_cast<bool *>(propertyValue);
-    if (isHostVisible) {
-      piMarkEventUserVisible(event);
-    } else {
-      piIsEventUserVisible(event);
-    }
-    break;
-  }
-  default: {
-    return PI_ERROR_INVALID_VALUE;
-  }
-  }
-  return PI_SUCCESS;
 }
 } // extern "C"

@@ -5380,11 +5380,6 @@ pi_result cuda_piTearDown(void *) {
   return PI_SUCCESS;
 }
 
-pi_result cuda_piSetEventProperty(pi_event *event, _pi_event_property property,
-                                  size_t propertySize, void *propertyValue) {
-  assert(0 && "Operation not supported");
-}
-
 const char SupportedVersion[] = _PI_CUDA_PLUGIN_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
@@ -5529,7 +5524,6 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextKernelSetArgSampler, cuda_piextKernelSetArgSampler)
   _PI_CL(piPluginGetLastError, cuda_piPluginGetLastError)
   _PI_CL(piTearDown, cuda_piTearDown)
-  _PI_CL(piSetEventProperty, cuda_piSetEventProperty)
 
 #undef _PI_CL
 
