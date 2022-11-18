@@ -53,9 +53,12 @@
 // 10.14 Add PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY as an extension for
 // piDeviceGetInfo.
 // 11.15 piEventCreate creates even in the signalled state now.
+// 11.16 Add PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE and
+// PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH as an extension for
+// piDeviceGetInfo.
 
 #define _PI_H_VERSION_MAJOR 11
-#define _PI_H_VERSION_MINOR 15
+#define _PI_H_VERSION_MINOR 16
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -277,6 +280,12 @@ typedef enum {
   // Return true if sub-device should do its own program build
   PI_DEVICE_INFO_BUILD_ON_SUBDEVICE = 0x10028,
   PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY = 0x10029,
+  // Return 0 if device doesn't have any memory modules. Return the minimum of
+  // the clock rate values if there are several memory modules on the device.
+  PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE = 0x10030,
+  // Return 0 if device doesn't have any memory modules. Return the minimum of
+  // the bus width values if there are several memory modules on the device.
+  PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH = 0x10031,
   PI_DEVICE_INFO_ATOMIC_64 = 0x10110,
   PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 0x10111,
   PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 0x11000,

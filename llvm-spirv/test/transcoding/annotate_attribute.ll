@@ -22,6 +22,7 @@
 ; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 UserSemantic "annotation_with_false: 0"
 ; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 UserSemantic "annotation_mixed: 0, 1, 0"
 ; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 UserSemantic "abc: 1, 2, 3"
+; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 UserSemantic "annotation_with_true: 1"
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64-unknown-linux"
@@ -31,6 +32,7 @@ target triple = "spir64-unknown-linux"
 %struct.S = type { i32 }
 %struct.S.1 = type { i32 }
 %struct.S.2 = type { i32 }
+%struct.S.3 = type { i32 }
 %struct.MyIP = type { i32 addrspace(4)* }
 
 ; CHECK-LLVM-DAG:  [[STR:@[0-9_.]+]] = {{.*}}42
@@ -43,6 +45,7 @@ target triple = "spir64-unknown-linux"
 ; CHECK-LLVM-DAG: [[STR8:@[0-9_.]+]] = {{.*}}my_custom_annotations: 20, 60, 80
 ; CHECK-LLVM-DAG: [[STR9:@[0-9_.]+]] = {{.*}}annotation_with_zerointializer: 0, 0, 0
 ; CHECK-LLVM-DAG: [[STR10:@[0-9_.]+]] = {{.*}}annotation_with_false: 0
+; CHECK-LLVM-DAG: [[STR13:@[0-9_.]+]] = {{.*}}annotation_with_true: 1
 ; CHECK-LLVM-DAG: [[STR11:@[0-9_.]+]] = {{.*}}"annotation_mixed: 0, 1, 0
 ; CHECK-LLVM-DAG: [[STR12:@[0-9_.]+]] = {{.*}}"abc: 1, 2, 3
 @.str = private unnamed_addr constant [3 x i8] c"42\00", section "llvm.metadata"
@@ -61,7 +64,9 @@ target triple = "spir64-unknown-linux"
 @.args.2 = private unnamed_addr constant { i32, i32, i32 } zeroinitializer, section "llvm.metadata"
 @.args.3 = private unnamed_addr constant { i1 } zeroinitializer, section "llvm.metadata"
 @.args.4 = private unnamed_addr constant { i32, i32, i32 } { i32 0, i32 1, i32 0 }, section "llvm.metadata"
+@.args.5 = private unnamed_addr constant { i1 } {i1 true }, section "llvm.metadata"
 @.str.11 = private unnamed_addr constant [4 x i8] c"abc\00", section "llvm.metadata"
+@.str.12 = private unnamed_addr constant [21 x i8] c"annotation_with_true\00", section "llvm.metadata"
 @.str.1.12 = private unnamed_addr constant [9 x i8] c"test.cpp\00", section "llvm.metadata"
 @.args = private unnamed_addr constant { i32, i32, i32 } { i32 1, i32 2, i32 3 }, section "llvm.metadata"
 
@@ -228,6 +233,21 @@ define weak_odr dso_local spir_kernel void @_ZTSZ11TestKernelAvE4MyIP(i32 addrsp
   store i32 %11, i32 addrspace(4)* %9, align 4, !tbaa !19
   call void @llvm.lifetime.end.p0i8(i64 8, i8* nonnull %3) #4
   ret void
+}
+
+; Function Attrs: mustprogress noinline norecurse optnone uwtable
+define dso_local noundef i32 @with_true() #0 {
+entry:
+  %retval = alloca i32, align 4
+  %s = alloca %struct.S.3, align 4
+  store i32 0, i32* %retval, align 4
+  %a = getelementptr inbounds %struct.S.3, %struct.S.3* %s, i32 0, i32 0
+  %0 = call i32* @llvm.ptr.annotation.p0i32(i32* %a, i8* getelementptr inbounds ([21 x i8], [21 x i8]* @.str.12, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 3, i8* bitcast ({ i1 }* @.args.5 to i8*))
+  ; CHECK-LLVM: %[[FIELD8:.*]] = getelementptr inbounds %struct.S.3, ptr %{{[a-z]+}}, i32 0, i32 0
+  ; CHECK-LLVM: call ptr @llvm.ptr.annotation.p0{{.*}}%[[FIELD8]]{{.*}}[[STR13]]
+  %1 = load i32, i32* %0, align 4
+  call void @_Z3fooi(i32 noundef %1)
+  ret i32 0
 }
 
 declare dso_local void @_Z3fooi(i32 noundef)

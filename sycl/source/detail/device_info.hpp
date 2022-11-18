@@ -1575,6 +1575,22 @@ inline uint64_t get_device_info_host<ext::intel::info::device::free_memory>() {
       PI_ERROR_INVALID_DEVICE);
 }
 
+template <>
+inline uint32_t
+get_device_info_host<ext::intel::info::device::memory_clock_rate>() {
+  throw runtime_error(
+      "Obtaining the device memory clock rate is not supported on HOST device",
+      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline uint32_t
+get_device_info_host<ext::intel::info::device::memory_bus_width>() {
+  throw runtime_error(
+      "Obtaining the device memory bus width is not supported on HOST device",
+      PI_ERROR_INVALID_DEVICE);
+}
+
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

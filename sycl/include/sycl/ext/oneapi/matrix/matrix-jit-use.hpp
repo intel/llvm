@@ -39,9 +39,7 @@ SPV_MATRIX_LAYOUT_TRAITS(layout::packed_a, __spv::MatrixLayout::PackedA)
 SPV_MATRIX_LAYOUT_TRAITS(layout::packed_b, __spv::MatrixLayout::PackedB)
 SPV_MATRIX_LAYOUT_TRAITS(layout::unused, __spv::MatrixLayout::Unused)
 
-// unnecessary was introduced for backward compatibility.
-// Once the use implementation is stable, "unnecessary" value will be omitted
-enum class use { a, b, accumulator, unnecessary };
+enum class use { a, b, accumulator };
 
 template <use Use> struct spv_matrix_use_traits {
   static constexpr __spv::MatrixUse value = __spv::MatrixUse::MatrixA;
@@ -55,7 +53,6 @@ template <use Use> struct spv_matrix_use_traits {
 SPV_MATRIX_USE_TRAITS(use::a, __spv::MatrixUse::MatrixA)
 SPV_MATRIX_USE_TRAITS(use::b, __spv::MatrixUse::MatrixB)
 SPV_MATRIX_USE_TRAITS(use::accumulator, __spv::MatrixUse::Accumulator)
-SPV_MATRIX_USE_TRAITS(use::unnecessary, __spv::MatrixUse::Unnecessary)
 
 template <typename G> struct spv_scope_traits {};
 template <> struct spv_scope_traits<sycl::sub_group> {
