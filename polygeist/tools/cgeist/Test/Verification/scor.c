@@ -1,5 +1,5 @@
-// RUN: cgeist %s --function=kernel_correlation -S | FileCheck %s
-// RUN: cgeist %s --function=kernel_correlation -S --memref-fullrank | FileCheck %s --check-prefix=FULLRANK
+// RUN: cgeist %s -O2 --function=kernel_correlation -S | FileCheck %s
+// RUN: cgeist %s -O2 --function=kernel_correlation -S --memref-fullrank | FileCheck %s --check-prefix=FULLRANK
 
 #define DATA_TYPE double
 
