@@ -209,6 +209,12 @@ static Optional<Type> convertNdRangeType(sycl::NdRangeType type,
                          type.getBody(), converter);
 }
 
+/// Converts SYCL vec type to LLVM type.
+static Optional<Type> convertVecType(sycl::VecType type,
+                                     LLVMTypeConverter &converter) {
+  return convertBodyType("class.sycl::_V1::vec", type.getBody(), converter);
+}
+
 //===----------------------------------------------------------------------===//
 // CallPattern - Converts `sycl.call` to LLVM.
 //===----------------------------------------------------------------------===//
@@ -398,6 +404,8 @@ void mlir::sycl::populateSYCLToLLVMTypeConversion(
   typeConverter.addConversion([&](sycl::NdRangeType type) {
     return convertNdRangeType(type, typeConverter);
   });
+  typeConverter.addConversion(
+      [&](sycl::VecType type) { return convertVecType(type, typeConverter); });
 }
 
 void mlir::sycl::populateSYCLToLLVMConversionPatterns(

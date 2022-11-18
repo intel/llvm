@@ -62,6 +62,10 @@ SYCLOpAsmInterface::getAlias(mlir::Type Type, llvm::raw_ostream &OS) const {
     OS << "sycl_group_" << Group.getDimension();
     return AliasResult::FinalAlias;
   }
+  if (const auto Vec = Type.dyn_cast<mlir::sycl::VecType>()) {
+    OS << "sycl_vec_" << Vec.getDataType() << "_" << Vec.getNumElements();
+    return AliasResult::FinalAlias;
+  }
 
   return AliasResult::NoAlias;
 }

@@ -782,6 +782,83 @@ llvm::ArrayRef<mlir::Type> mlir::sycl::GroupType::getBody() const {
   return getImpl()->Body;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// VecType Operations
+////////////////////////////////////////////////////////////////////////////////
+
+mlir::sycl::VecType
+mlir::sycl::VecType::get(MLIRContext *Context, mlir::Type DataT,
+                         int NumElements,
+                         llvm::SmallVector<mlir::Type, 4> Body) {
+  return Base::get(Context, DataT, NumElements, Body);
+}
+
+mlir::Type mlir::sycl::VecType::parseType(mlir::DialectAsmParser &Parser) {
+  if (mlir::failed(Parser.parseLess())) {
+    return nullptr;
+  }
+
+  if (mlir::failed(Parser.parseLSquare())) {
+    return nullptr;
+  }
+
+  mlir::Type DataT;
+  if (Parser.parseType(DataT)) {
+    return nullptr;
+  }
+
+  if (mlir::failed(Parser.parseComma())) {
+    return nullptr;
+  }
+
+  int NumElements;
+  if (Parser.parseInteger<int>(NumElements)) {
+    return nullptr;
+  }
+
+  if (mlir::failed(Parser.parseRSquare())) {
+    return nullptr;
+  }
+
+  if (mlir::failed(Parser.parseComma())) {
+    return nullptr;
+  }
+
+  if (mlir::failed(Parser.parseLParen())) {
+    return nullptr;
+  }
+
+  mlir::SmallVector<Type, 4> Subtypes;
+  do {
+    mlir::Type Type;
+    if (mlir::failed(Parser.parseType(Type))) {
+      return nullptr;
+    }
+    Subtypes.push_back(Type);
+  } while (succeeded(Parser.parseOptionalComma()));
+
+  if (mlir::failed(Parser.parseRParen())) {
+    return nullptr;
+  }
+
+  if (mlir::failed(Parser.parseGreater())) {
+    return nullptr;
+  }
+
+  return mlir::sycl::VecType::get(Parser.getContext(), DataT, NumElements,
+                                  Subtypes);
+}
+
+mlir::Type mlir::sycl::VecType::getDataType() const { return getImpl()->DataT; }
+
+int mlir::sycl::VecType::getNumElements() const {
+  return getImpl()->NumElements;
+}
+
+llvm::ArrayRef<mlir::Type> mlir::sycl::VecType::getBody() const {
+  return getImpl()->Body;
+}
+
 llvm::SmallVector<mlir::TypeID>
 mlir::sycl::getDerivedTypes(mlir::TypeID TypeID) {
   if (TypeID == mlir::sycl::AccessorCommonType::getTypeID())
