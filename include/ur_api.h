@@ -492,6 +492,40 @@ urContextCreateWithNativeHandle(
     ur_context_handle_t* phContext                  ///< [out] pointer to the handle of the context object created.
     );
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Context's extended deleter callback function with user data.
+typedef void (ur_context_extended_deleter_t)(
+    void* pParams                                   ///< [in][out] pointer to data to be passed to callback
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Call extended deleter function as callback.
+/// 
+/// @details
+///     - Calls exnteded deleter, a user-defined callback to delete context on
+///       some platforms.
+///     - This is done for performance reasons.
+///     - This API might be called directly by an application instead of a
+///       runtime backend.
+///     - The application may call this function from simultaneous threads for
+///       the same context.
+///     - The implementation of this function should be thread-safe.
+/// 
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `nullptr == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `nullptr == pParams`
+UR_APIEXPORT ur_result_t UR_APICALL
+urContextSetExtendedDeleter(
+    ur_context_handle_t hContext,                   ///< [in] handle of the context.
+    ur_context_extended_deleter_t pfnDeleter,       ///< [in] Function pointer to extended deleter.
+    void* pParams                                   ///< [in][out] pointer to data to be passed to callback.
+    );
+
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
@@ -3397,6 +3431,13 @@ urKernelCreateWithNativeHandle(
 #pragma region module
 #endif
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief callback function with user data
+typedef void (ur_modulecreate_callback_t)(
+    ur_module_handle_t hModule,                     ///< [in] handle of Module object created.
+    void* pParams                                   ///< [in][out] pointer to user data to be passed to callback.
+    );
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Create Module object from IL.
 /// 
 /// @details
@@ -3417,11 +3458,11 @@ urKernelCreateWithNativeHandle(
 ///         + `nullptr == phModule`
 UR_APIEXPORT ur_result_t UR_APICALL
 urModuleCreate(
-    ur_context_handle_t hContext,                   ///< [in] handle of the context instance
+    ur_context_handle_t hContext,                   ///< [in] handle of the context instance.
     const void* pIL,                                ///< [in] pointer to IL string.
     uint32_t length,                                ///< [in] length of IL in bytes.
     const char* pOptions,                           ///< [in] pointer to compiler options null-terminated string.
-    void** pfnNotify,                               ///< [in][optional] A function pointer to a notification routine that is
+    ur_modulecreate_callback_t pfnNotify,           ///< [in][optional] A function pointer to a notification routine that is
                                                     ///< called when program compilation is complete.
     void* pUserData,                                ///< [in][optional] Passed as an argument when pfnNotify is called.
     ur_module_handle_t* phModule                    ///< [out] pointer to handle of Module object created.
@@ -4368,6 +4409,30 @@ typedef void (UR_APICALL *ur_pfnContextCreateWithNativeHandleCb_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function parameters for urContextSetExtendedDeleter 
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct _ur_context_set_extended_deleter_params_t
+{
+    ur_context_handle_t* phContext;
+    ur_context_extended_deleter_t* ppfnDeleter;
+    void** ppParams;
+} ur_context_set_extended_deleter_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function-pointer for urContextSetExtendedDeleter 
+/// @param[in] params Parameters passed to this instance
+/// @param[in] result Return value
+/// @param[in] pTracerUserData Per-Tracer user data
+/// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
+typedef void (UR_APICALL *ur_pfnContextSetExtendedDeleterCb_t)(
+    ur_context_set_extended_deleter_params_t* params,
+    ur_result_t result,
+    void* pTracerUserData,
+    void** ppTracerInstanceUserData
+    );
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Context callback functions pointers
 typedef struct _ur_context_callbacks_t
 {
@@ -4377,6 +4442,7 @@ typedef struct _ur_context_callbacks_t
     ur_pfnContextGetInfoCb_t                                        pfnGetInfoCb;
     ur_pfnContextGetNativeHandleCb_t                                pfnGetNativeHandleCb;
     ur_pfnContextCreateWithNativeHandleCb_t                         pfnCreateWithNativeHandleCb;
+    ur_pfnContextSetExtendedDeleterCb_t                             pfnSetExtendedDeleterCb;
 } ur_context_callbacks_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4852,7 +4918,7 @@ typedef struct _ur_module_create_params_t
     const void** ppIL;
     uint32_t* plength;
     const char** ppOptions;
-    void*** ppfnNotify;
+    ur_modulecreate_callback_t* ppfnNotify;
     void** ppUserData;
     ur_module_handle_t** pphModule;
 } ur_module_create_params_t;

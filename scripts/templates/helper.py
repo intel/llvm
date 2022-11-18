@@ -614,6 +614,10 @@ def get_ctype_name(namespace, tags, item):
     name = re.sub(r"double", "c_double", name)
     name = re.sub(r"\bchar", "c_char", name)
     name = re.sub(r"\bint", "c_int", name)
+    # Handle void
+    if re.match(r"void", name):
+        if not re.match(r"_void_", name): # its not c_void_p
+            name = re.sub(r"void", "None", name)
 
     if type_traits.is_pointer(name):
         name = _remove_ptr(name)
@@ -790,6 +794,8 @@ Public:
 """
 def make_func_name(namespace, tags, obj):
     cname = obj_traits.class_name(obj)
+    if cname == None: # If can't find the class name append nothing
+        cname = ''
     return subt(namespace, tags, "%s%s"%(cname, obj['name']))
 
 """

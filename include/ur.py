@@ -254,6 +254,14 @@ class ur_context_info_t(c_int):
 
 
 ###############################################################################
+## @brief Context's extended deleter callback function with user data.
+def ur_context_extended_deleter_t(user_defined_callback):
+    @CFUNCTYPE(None, c_void_p)
+    def ur_context_extended_deleter_t_wrapper(var0): 
+        return user_defined_callback(var0) 
+    return ur_context_extended_deleter_t_wrapper
+
+###############################################################################
 ## @brief Map flags
 class ur_map_flags_v(IntEnum):
     READ = UR_BIT(0)                                ## Map for read access
@@ -798,6 +806,14 @@ class ur_kernel_exec_info_t(c_int):
 
 
 ###############################################################################
+## @brief callback function with user data
+def ur_modulecreate_callback_t(user_defined_callback):
+    @CFUNCTYPE(None, ur_module_handle_t, c_void_p)
+    def ur_modulecreate_callback_t_wrapper(var0, var1): 
+        return user_defined_callback(var0, var1) 
+    return ur_modulecreate_callback_t_wrapper
+
+###############################################################################
 ## @brief Supported platform info
 class ur_platform_info_v(IntEnum):
     NAME = 1                                        ## [char*] The string denoting name of the platform. The size of the info
@@ -1003,6 +1019,13 @@ if __use_win_types:
 else:
     _urContextCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_platform_handle_t, ur_native_handle_t, POINTER(ur_context_handle_t) )
 
+###############################################################################
+## @brief Function-pointer for urContextSetExtendedDeleter
+if __use_win_types:
+    _urContextSetExtendedDeleter_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_context_extended_deleter_t, c_void_p )
+else:
+    _urContextSetExtendedDeleter_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_context_extended_deleter_t, c_void_p )
+
 
 ###############################################################################
 ## @brief Table of Context functions pointers
@@ -1013,7 +1036,8 @@ class _ur_context_dditable_t(Structure):
         ("pfnRelease", c_void_p),                                       ## _urContextRelease_t
         ("pfnGetInfo", c_void_p),                                       ## _urContextGetInfo_t
         ("pfnGetNativeHandle", c_void_p),                               ## _urContextGetNativeHandle_t
-        ("pfnCreateWithNativeHandle", c_void_p)                         ## _urContextCreateWithNativeHandle_t
+        ("pfnCreateWithNativeHandle", c_void_p),                        ## _urContextCreateWithNativeHandle_t
+        ("pfnSetExtendedDeleter", c_void_p)                             ## _urContextSetExtendedDeleter_t
     ]
 
 ###############################################################################
@@ -1177,9 +1201,9 @@ class _ur_program_dditable_t(Structure):
 ###############################################################################
 ## @brief Function-pointer for urModuleCreate
 if __use_win_types:
-    _urModuleCreate_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_ulong, c_char_p, POINTER(c_void_p), c_void_p, POINTER(ur_module_handle_t) )
+    _urModuleCreate_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_ulong, c_char_p, ur_modulecreate_callback_t, c_void_p, POINTER(ur_module_handle_t) )
 else:
-    _urModuleCreate_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_ulong, c_char_p, POINTER(c_void_p), c_void_p, POINTER(ur_module_handle_t) )
+    _urModuleCreate_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_ulong, c_char_p, ur_modulecreate_callback_t, c_void_p, POINTER(ur_module_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urModuleRetain
@@ -1864,6 +1888,7 @@ class UR_DDI:
         self.urContextGetInfo = _urContextGetInfo_t(self.__dditable.Context.pfnGetInfo)
         self.urContextGetNativeHandle = _urContextGetNativeHandle_t(self.__dditable.Context.pfnGetNativeHandle)
         self.urContextCreateWithNativeHandle = _urContextCreateWithNativeHandle_t(self.__dditable.Context.pfnCreateWithNativeHandle)
+        self.urContextSetExtendedDeleter = _urContextSetExtendedDeleter_t(self.__dditable.Context.pfnSetExtendedDeleter)
 
         # call driver to get function pointers
         _Event = _ur_event_dditable_t()
