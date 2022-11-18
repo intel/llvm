@@ -31,9 +31,9 @@ void mlir::sycl::SYCLDialect::initialize() {
   mlir::Dialect::addTypes<
       mlir::sycl::IDType, mlir::sycl::AccessorCommonType,
       mlir::sycl::AccessorType, mlir::sycl::RangeType, mlir::sycl::NdRangeType,
-      mlir::sycl::AccessorImplDeviceType, mlir::sycl::ArrayType,
-      mlir::sycl::ItemType, mlir::sycl::ItemBaseType, mlir::sycl::NdItemType,
-      mlir::sycl::GroupType, mlir::sycl::VecType>();
+      mlir::sycl::AccessorImplDeviceType, mlir::sycl::AccessorSubscriptType,
+      mlir::sycl::ArrayType, mlir::sycl::ItemType, mlir::sycl::ItemBaseType,
+      mlir::sycl::NdItemType, mlir::sycl::GroupType, mlir::sycl::VecType>();
 
   mlir::Dialect::addInterfaces<SYCLOpAsmInterface>();
 }
@@ -62,6 +62,9 @@ mlir::sycl::SYCLDialect::parseType(mlir::DialectAsmParser &Parser) const {
   }
   if (Keyword == "accessor_impl_device") {
     return mlir::sycl::AccessorImplDeviceType::parseType(Parser);
+  }
+  if (Keyword == "accessor_subscript") {
+    return mlir::sycl::AccessorSubscriptType::parseType(Parser);
   }
   if (Keyword == "array") {
     return mlir::sycl::ArrayType::parseType(Parser);
@@ -110,6 +113,11 @@ void mlir::sycl::SYCLDialect::printType(
                  Type.dyn_cast<mlir::sycl::AccessorImplDeviceType>()) {
     Printer << "accessor_impl_device<[" << AccDev.getDimension() << "], (";
     llvm::interleaveComma(AccDev.getBody(), Printer);
+    Printer << ")>";
+  } else if (const auto AccSub =
+                 Type.dyn_cast<mlir::sycl::AccessorSubscriptType>()) {
+    Printer << "accessor_subscript<[" << AccSub.getCurrentDimension() << "], (";
+    llvm::interleaveComma(AccSub.getBody(), Printer);
     Printer << ")>";
   } else if (const auto Arr = Type.dyn_cast<mlir::sycl::ArrayType>()) {
     Printer << "array<[" << Arr.getDimension() << "], (";
