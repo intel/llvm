@@ -96,7 +96,6 @@ static const bool DisableEventsCaching = [] {
   return std::stoi(DisableEventsCachingFlag) != 0;
 }();
 
-
 // This class encapsulates actions taken along with a call to Level Zero API.
 class ZeCall {
 private:
