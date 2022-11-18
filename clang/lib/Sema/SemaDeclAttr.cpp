@@ -3276,7 +3276,17 @@ static void handleWeakImportAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 // the args cannot (yet) be compared.
 enum class DupArgResult { Unknown, Same, Different };
 static DupArgResult AreArgValuesIdentical(const Expr *LHS, const Expr *RHS) {
-  // If either operand is still value dependent, we can't test anything.
+  // If both operand is nullptr they are unspecified and are considered the
+  // same.
+  if (!LHS && !RHS)
+    return DupArgResult::Same;
+
+  // Otherwise, if either operand is nullptr they are considered different.
+  if (!LHS || !RHS)
+    return DupArgResult::Different;
+
+  // Otherwise, if either operand is still value dependent, we can't test
+  // anything.
   const auto *LHSCE = dyn_cast<ConstantExpr>(LHS);
   const auto *RHSCE = dyn_cast<ConstantExpr>(RHS);
   if (!LHSCE || !RHSCE)
@@ -3286,6 +3296,29 @@ static DupArgResult AreArgValuesIdentical(const Expr *LHS, const Expr *RHS) {
   return LHSCE->getResultAsAPSInt() == RHSCE->getResultAsAPSInt()
              ? DupArgResult::Same
              : DupArgResult::Different;
+}
+
+// Returns true if any of the specified dimensions (X,Y,Z) differ between the
+// arguments.
+bool Sema::AnyWorkGroupSizesDiffer(const Expr *LHSXDim, const Expr *LHSYDim,
+                                   const Expr *LHSZDim, const Expr *RHSXDim,
+                                   const Expr *RHSYDim, const Expr *RHSZDim) {
+  DupArgResult Results[] = {AreArgValuesIdentical(LHSXDim, RHSXDim),
+                            AreArgValuesIdentical(LHSYDim, RHSYDim),
+                            AreArgValuesIdentical(LHSZDim, RHSZDim)};
+  return llvm::is_contained(Results, DupArgResult::Different);
+}
+
+// Returns true if all of the specified dimensions (X,Y,Z) are the same between
+// the arguments.
+bool Sema::AllWorkGroupSizesSame(const Expr *LHSXDim, const Expr *LHSYDim,
+                                 const Expr *LHSZDim, const Expr *RHSXDim,
+                                 const Expr *RHSYDim, const Expr *RHSZDim) {
+  DupArgResult Results[] = {AreArgValuesIdentical(LHSXDim, RHSXDim),
+                            AreArgValuesIdentical(LHSYDim, RHSYDim),
+                            AreArgValuesIdentical(LHSZDim, RHSZDim)};
+  return llvm::all_of(Results,
+                      [](DupArgResult V) { return V == DupArgResult::Same; });
 }
 
 void Sema::AddWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
@@ -3323,12 +3356,10 @@ void Sema::AddWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
   // If the attribute was already applied with different arguments, then
   // diagnose the second attribute as a duplicate and don't add it.
   if (const auto *Existing = D->getAttr<WorkGroupSizeHintAttr>()) {
-    DupArgResult Results[] = {AreArgValuesIdentical(XDim, Existing->getXDim()),
-                              AreArgValuesIdentical(YDim, Existing->getYDim()),
-                              AreArgValuesIdentical(ZDim, Existing->getZDim())};
     // If any of the results are known to be different, we can diagnose at this
     // point and drop the attribute.
-    if (llvm::is_contained(Results, DupArgResult::Different)) {
+    if (AnyWorkGroupSizesDiffer(XDim, YDim, ZDim, Existing->getXDim(),
+                                Existing->getYDim(), Existing->getZDim())) {
       Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
       Diag(Existing->getLoc(), diag::note_previous_attribute);
       return;
@@ -3336,8 +3367,8 @@ void Sema::AddWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
     // If all of the results are known to be the same, we can silently drop the
     // attribute. Otherwise, we have to add the attribute and resolve its
     // differences later.
-    if (llvm::all_of(Results,
-                     [](DupArgResult V) { return V == DupArgResult::Same; }))
+    if (AllWorkGroupSizesSame(XDim, YDim, ZDim, Existing->getXDim(),
+                              Existing->getYDim(), Existing->getZDim()))
       return;
   }
 
@@ -3349,14 +3380,11 @@ WorkGroupSizeHintAttr *
 Sema::MergeWorkGroupSizeHintAttr(Decl *D, const WorkGroupSizeHintAttr &A) {
   // Check to see if there's a duplicate attribute already applied.
   if (const auto *DeclAttr = D->getAttr<WorkGroupSizeHintAttr>()) {
-    DupArgResult Results[] = {
-        AreArgValuesIdentical(DeclAttr->getXDim(), A.getXDim()),
-        AreArgValuesIdentical(DeclAttr->getYDim(), A.getYDim()),
-        AreArgValuesIdentical(DeclAttr->getZDim(), A.getZDim())};
-
     // If any of the results are known to be different, we can diagnose at this
     // point and drop the attribute.
-    if (llvm::is_contained(Results, DupArgResult::Different)) {
+    if (AnyWorkGroupSizesDiffer(DeclAttr->getXDim(), DeclAttr->getYDim(),
+                                DeclAttr->getZDim(), A.getXDim(), A.getYDim(),
+                                A.getZDim())) {
       Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
       Diag(A.getLoc(), diag::note_previous_attribute);
       return nullptr;
@@ -3364,8 +3392,9 @@ Sema::MergeWorkGroupSizeHintAttr(Decl *D, const WorkGroupSizeHintAttr &A) {
     // If all of the results are known to be the same, we can silently drop the
     // attribute. Otherwise, we have to add the attribute and resolve its
     // differences later.
-    if (llvm::all_of(Results,
-                     [](DupArgResult V) { return V == DupArgResult::Same; }))
+    if (AllWorkGroupSizesSame(DeclAttr->getXDim(), DeclAttr->getYDim(),
+                              DeclAttr->getZDim(), A.getXDim(), A.getYDim(),
+                              A.getZDim()))
       return nullptr;
   }
   return ::new (Context)
@@ -3415,22 +3444,29 @@ static void handleWorkGroupSizeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
 // see if all arguments of 'max_work_group_size' or different spellings of
 // 'reqd_work_group_size' attribute hold value 1 in case the argument of
 // [[intel::max_global_work_dim()]] attribute value equals to 0.
-static bool InvalidWorkGroupSizeAttrs(const Expr *MGValue, const Expr *XDim,
-                                      const Expr *YDim, const Expr *ZDim) {
+static bool InvalidWorkGroupSizeAttrs(Sema &S, const Expr *MGValue,
+                                      const Expr *XDim, const Expr *YDim,
+                                      const Expr *ZDim) {
   // If any of the operand is still value dependent, we can't test anything.
   const auto *MGValueExpr = dyn_cast<ConstantExpr>(MGValue);
   const auto *XDimExpr = dyn_cast<ConstantExpr>(XDim);
-  const auto *YDimExpr = dyn_cast<ConstantExpr>(YDim);
-  const auto *ZDimExpr = dyn_cast<ConstantExpr>(ZDim);
+  const auto *YDimExpr = dyn_cast_or_null<ConstantExpr>(YDim);
+  const auto *ZDimExpr = dyn_cast_or_null<ConstantExpr>(ZDim);
 
-  if (!MGValueExpr || !XDimExpr || !YDimExpr || !ZDimExpr)
+  if (!MGValueExpr || !XDimExpr || (!YDimExpr && YDim) || (!ZDimExpr && ZDim))
+    return false;
+
+  // Y and Z are only optional for SYCL targets.
+  if (!S.getLangOpts().SYCLIsDevice && !(YDim && ZDim))
     return false;
 
   // Otherwise, check if the attribute values are equal to one.
+  // Y and Z dimensions are optional and are considered trivially 1 if
+  // unspecified.
   return (MGValueExpr->getResultAsAPSInt() == 0 &&
           (XDimExpr->getResultAsAPSInt() != 1 ||
-           YDimExpr->getResultAsAPSInt() != 1 ||
-           ZDimExpr->getResultAsAPSInt() != 1));
+           (YDimExpr && YDimExpr->getResultAsAPSInt() != 1) ||
+           (ZDimExpr && ZDimExpr->getResultAsAPSInt() != 1)));
 }
 
 // Checks correctness of mutual usage of different work_group_size attributes:
@@ -3449,39 +3485,49 @@ static bool InvalidWorkGroupSizeAttrs(const Expr *MGValue, const Expr *XDim,
 // __attribute__((reqd_work_group_size)) follows the OpenCL rules in OpenCL
 // mode. All spellings of reqd_work_group_size attribute (regardless of
 // syntax used) follow the SYCL rules when in SYCL mode.
-static bool checkMaxAllowedWorkGroupSize(
-    Sema &S, const Expr *RWGSXDim, const Expr *RWGSYDim, const Expr *RWGSZDim,
+bool Sema::CheckMaxAllowedWorkGroupSize(
+    const Expr *RWGSXDim, const Expr *RWGSYDim, const Expr *RWGSZDim,
     const Expr *MWGSXDim, const Expr *MWGSYDim, const Expr *MWGSZDim) {
   // If any of the operand is still value dependent, we can't test anything.
   const auto *RWGSXDimExpr = dyn_cast<ConstantExpr>(RWGSXDim);
-  const auto *RWGSYDimExpr = dyn_cast<ConstantExpr>(RWGSYDim);
-  const auto *RWGSZDimExpr = dyn_cast<ConstantExpr>(RWGSZDim);
+  const auto *RWGSYDimExpr = dyn_cast_or_null<ConstantExpr>(RWGSYDim);
+  const auto *RWGSZDimExpr = dyn_cast_or_null<ConstantExpr>(RWGSZDim);
   const auto *MWGSXDimExpr = dyn_cast<ConstantExpr>(MWGSXDim);
   const auto *MWGSYDimExpr = dyn_cast<ConstantExpr>(MWGSYDim);
   const auto *MWGSZDimExpr = dyn_cast<ConstantExpr>(MWGSZDim);
 
-  if (!RWGSXDimExpr || !RWGSYDimExpr || !RWGSZDimExpr || !MWGSXDimExpr ||
-      !MWGSYDimExpr || !MWGSZDimExpr)
+  if (!RWGSXDimExpr || (!RWGSYDimExpr && RWGSYDim) ||
+      (!RWGSZDimExpr && RWGSZDim) || !MWGSXDimExpr || !MWGSYDimExpr ||
+      !MWGSZDimExpr)
     return false;
 
-  // Otherwise, check if values of 'reqd_work_group_size' attribute arguments
-  // are greater than values of 'max_work_group_size' attribute arguments.
-  bool CheckFirstArgument =
-      S.getLangOpts().OpenCL
-          ? RWGSXDimExpr->getResultAsAPSInt().getZExtValue() >
-                MWGSZDimExpr->getResultAsAPSInt().getZExtValue()
-          : RWGSXDimExpr->getResultAsAPSInt().getZExtValue() >
-                MWGSXDimExpr->getResultAsAPSInt().getZExtValue();
+  // Y and Z are only optional for SYCL targets.
+  if (!getLangOpts().SYCLIsDevice && !(RWGSYDim && RWGSZDim))
+    return false;
 
-  bool CheckSecondArgument = RWGSYDimExpr->getResultAsAPSInt().getZExtValue() >
-                             MWGSYDimExpr->getResultAsAPSInt().getZExtValue();
+  // SYCL reorders arguments based on the dimensionality.
+  // If we only have the X-dimension, there is no change to the expressions,
+  // otherwise the last specified dimension acts as the first dimension in the
+  // work-group size.
+  const ConstantExpr *FirstRWGDimExpr = RWGSXDimExpr;
+  const ConstantExpr *SecondRWGDimExpr = RWGSYDimExpr;
+  const ConstantExpr *ThirdRWGDimExpr = RWGSZDimExpr;
+  if (getLangOpts().SYCLIsDevice && RWGSYDim)
+    std::swap(FirstRWGDimExpr, RWGSZDim ? ThirdRWGDimExpr : SecondRWGDimExpr);
+
+  // Check if values of 'reqd_work_group_size' attribute arguments are greater
+  // than values of 'max_work_group_size' attribute arguments.
+  bool CheckFirstArgument =
+      FirstRWGDimExpr->getResultAsAPSInt().getZExtValue() >
+      MWGSZDimExpr->getResultAsAPSInt().getZExtValue();
+
+  bool CheckSecondArgument =
+      SecondRWGDimExpr && SecondRWGDimExpr->getResultAsAPSInt().getZExtValue() >
+                              MWGSYDimExpr->getResultAsAPSInt().getZExtValue();
 
   bool CheckThirdArgument =
-      S.getLangOpts().OpenCL
-          ? RWGSZDimExpr->getResultAsAPSInt().getZExtValue() >
-                MWGSXDimExpr->getResultAsAPSInt().getZExtValue()
-          : RWGSZDimExpr->getResultAsAPSInt().getZExtValue() >
-                MWGSZDimExpr->getResultAsAPSInt().getZExtValue();
+      ThirdRWGDimExpr && ThirdRWGDimExpr->getResultAsAPSInt().getZExtValue() >
+                             MWGSXDimExpr->getResultAsAPSInt().getZExtValue();
 
   return CheckFirstArgument || CheckSecondArgument || CheckThirdArgument;
 }
@@ -3527,9 +3573,8 @@ void Sema::AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
   // We emit diagnostic if values of 'reqd_work_group_size' attribute arguments
   // are greater than values of 'max_work_group_size' attribute arguments.
   if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-    if (checkMaxAllowedWorkGroupSize(*this, DeclAttr->getXDim(),
-                                     DeclAttr->getYDim(), DeclAttr->getZDim(),
-                                     XDim, YDim, ZDim)) {
+    if (CheckMaxAllowedWorkGroupSize(DeclAttr->getXDim(), DeclAttr->getYDim(),
+                                     DeclAttr->getZDim(), XDim, YDim, ZDim)) {
       Diag(CI.getLoc(), diag::err_conflicting_sycl_function_attributes)
           << CI << DeclAttr;
       Diag(DeclAttr->getLoc(), diag::note_conflicting_attribute);
@@ -3541,7 +3586,8 @@ void Sema::AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
   // the attribute holds values equal to (1, 1, 1) in case the value of
   // SYCLIntelMaxGlobalWorkDimAttr equals to 0.
   if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
-    if (InvalidWorkGroupSizeAttrs(DeclAttr->getValue(), XDim, YDim, ZDim)) {
+    if (InvalidWorkGroupSizeAttrs(*this, DeclAttr->getValue(), XDim, YDim,
+                                  ZDim)) {
       Diag(CI.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
           << CI << DeclAttr;
       return;
@@ -3551,12 +3597,10 @@ void Sema::AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
   // If the attribute was already applied with different arguments, then
   // diagnose the second attribute as a duplicate and don't add it.
   if (const auto *Existing = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-    DupArgResult Results[] = {AreArgValuesIdentical(XDim, Existing->getXDim()),
-                              AreArgValuesIdentical(YDim, Existing->getYDim()),
-                              AreArgValuesIdentical(ZDim, Existing->getZDim())};
     // If any of the results are known to be different, we can diagnose at this
     // point and drop the attribute.
-    if (llvm::is_contained(Results, DupArgResult::Different)) {
+    if (AnyWorkGroupSizesDiffer(XDim, YDim, ZDim, Existing->getXDim(),
+                                Existing->getYDim(), Existing->getZDim())) {
       Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
       Diag(Existing->getLoc(), diag::note_previous_attribute);
       return;
@@ -3564,8 +3608,8 @@ void Sema::AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
     // If all of the results are known to be the same, we can silently drop the
     // attribute. Otherwise, we have to add the attribute and resolve its
     // differences later.
-    if (llvm::all_of(Results,
-                     [](DupArgResult V) { return V == DupArgResult::Same; }))
+    if (AllWorkGroupSizesSame(XDim, YDim, ZDim, Existing->getXDim(),
+                              Existing->getYDim(), Existing->getZDim()))
       return;
   }
 
@@ -3577,14 +3621,11 @@ SYCLIntelMaxWorkGroupSizeAttr *Sema::MergeSYCLIntelMaxWorkGroupSizeAttr(
     Decl *D, const SYCLIntelMaxWorkGroupSizeAttr &A) {
   // Check to see if there's a duplicate attribute already applied.
   if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-    DupArgResult Results[] = {
-        AreArgValuesIdentical(DeclAttr->getXDim(), A.getXDim()),
-        AreArgValuesIdentical(DeclAttr->getYDim(), A.getYDim()),
-        AreArgValuesIdentical(DeclAttr->getZDim(), A.getZDim())};
-
     // If any of the results are known to be different, we can diagnose at this
     // point and drop the attribute.
-    if (llvm::is_contained(Results, DupArgResult::Different)) {
+    if (AnyWorkGroupSizesDiffer(DeclAttr->getXDim(), DeclAttr->getYDim(),
+                                DeclAttr->getZDim(), A.getXDim(), A.getYDim(),
+                                A.getZDim())) {
       Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
       Diag(A.getLoc(), diag::note_previous_attribute);
       return nullptr;
@@ -3592,8 +3633,9 @@ SYCLIntelMaxWorkGroupSizeAttr *Sema::MergeSYCLIntelMaxWorkGroupSizeAttr(
     // If all of the results are known to be the same, we can silently drop the
     // attribute. Otherwise, we have to add the attribute and resolve its
     // differences later.
-    if (llvm::all_of(Results,
-                     [](DupArgResult V) { return V == DupArgResult::Same; }))
+    if (AllWorkGroupSizesSame(DeclAttr->getXDim(), DeclAttr->getYDim(),
+                              DeclAttr->getZDim(), A.getXDim(), A.getYDim(),
+                              A.getZDim()))
       return nullptr;
   }
 
@@ -3605,9 +3647,9 @@ SYCLIntelMaxWorkGroupSizeAttr *Sema::MergeSYCLIntelMaxWorkGroupSizeAttr(
   // We emit diagnostic if values of 'reqd_work_group_size' attribute arguments
   // are greater than values of 'max_work_group_size' attribute arguments.
   if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-    if (checkMaxAllowedWorkGroupSize(*this, DeclAttr->getXDim(),
-                                     DeclAttr->getYDim(), DeclAttr->getZDim(),
-                                     A.getXDim(), A.getYDim(), A.getZDim())) {
+    if (CheckMaxAllowedWorkGroupSize(DeclAttr->getXDim(), DeclAttr->getYDim(),
+                                     DeclAttr->getZDim(), A.getXDim(),
+                                     A.getYDim(), A.getZDim())) {
       Diag(DeclAttr->getLoc(), diag::err_conflicting_sycl_function_attributes)
           << DeclAttr << &A;
       Diag(A.getLoc(), diag::note_conflicting_attribute);
@@ -3619,7 +3661,7 @@ SYCLIntelMaxWorkGroupSizeAttr *Sema::MergeSYCLIntelMaxWorkGroupSizeAttr(
   // the attribute holds values equal to (1, 1, 1) in case the value of
   // SYCLIntelMaxGlobalWorkDimAttr equals to 0.
   if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
-    if (InvalidWorkGroupSizeAttrs(DeclAttr->getValue(), A.getXDim(),
+    if (InvalidWorkGroupSizeAttrs(*this, DeclAttr->getValue(), A.getXDim(),
                                   A.getYDim(), A.getZDim())) {
       Diag(A.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
           << &A << DeclAttr;
@@ -3653,21 +3695,30 @@ static void handleSYCLIntelMaxWorkGroupSize(Sema &S, Decl *D,
 // mode. All spellings of reqd_work_group_size attribute (regardless of
 // syntax used) follow the SYCL rules when in SYCL mode.
 static bool CheckWorkGroupSize(Sema &S, const Expr *NSWIValue,
-                               const Expr *RWGSXDim, const Expr *RWGSZDim) {
+                               const Expr *RWGSXDim, const Expr *RWGSYDim,
+                               const Expr *RWGSZDim) {
   // If any of the operand is still value dependent, we can't test anything.
   const auto *NSWIValueExpr = dyn_cast<ConstantExpr>(NSWIValue);
   const auto *RWGSXDimExpr = dyn_cast<ConstantExpr>(RWGSXDim);
-  const auto *RWGSZDimExpr = dyn_cast<ConstantExpr>(RWGSZDim);
+  const auto *RWGSYDimExpr = dyn_cast_or_null<ConstantExpr>(RWGSYDim);
+  const auto *RWGSZDimExpr = dyn_cast_or_null<ConstantExpr>(RWGSZDim);
 
-  if (!NSWIValueExpr || !RWGSXDimExpr || !RWGSZDimExpr)
+  if (!NSWIValueExpr || !RWGSXDimExpr || (!RWGSYDimExpr && RWGSYDim) ||
+      (!RWGSZDimExpr && RWGSZDim))
+    return false;
+
+  // Y and Z are only optional for SYCL targets.
+  if (!S.getLangOpts().SYCLIsDevice && !(RWGSYDim && RWGSZDim))
     return false;
 
   // Otherwise, check which argument increments the fastest
   // in OpenCL vs SYCL mode.
+  const ConstantExpr *LastRWGSDimExpr =
+      RWGSZDim ? RWGSZDimExpr : (RWGSYDim ? RWGSYDimExpr : RWGSXDimExpr);
   unsigned WorkGroupSize =
-      S.getLangOpts().OpenCL
-          ? (RWGSXDimExpr->getResultAsAPSInt()).getZExtValue()
-          : (RWGSZDimExpr->getResultAsAPSInt()).getZExtValue();
+      S.getLangOpts().SYCLIsDevice
+          ? (LastRWGSDimExpr->getResultAsAPSInt()).getZExtValue()
+          : (RWGSXDimExpr->getResultAsAPSInt()).getZExtValue();
 
   // Check if the required work group size specified by 'num_simd_work_items'
   // attribute evenly divides the index that increments fastest in the
@@ -3679,20 +3730,20 @@ void Sema::AddReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
                                     Expr *XDim, Expr *YDim, Expr *ZDim) {
   // Returns nullptr if diagnosing, otherwise returns the original expression
   // or the original expression converted to a constant expression.
-  auto CheckAndConvertArg = [&](Expr *E) -> Expr * {
+  auto CheckAndConvertArg = [&](Expr *E) -> Optional<Expr *> {
     // Check if the expression is not value dependent.
-    if (!E->isValueDependent()) {
+    if (E && !E->isValueDependent()) {
       llvm::APSInt ArgVal;
       ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
       if (Res.isInvalid())
-        return nullptr;
+        return None;
       E = Res.get();
 
       // This attribute requires a strictly positive value.
       if (ArgVal <= 0) {
         Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
             << CI << /*positive*/ 0;
-        return nullptr;
+        return None;
       }
     }
     return E;
@@ -3700,17 +3751,21 @@ void Sema::AddReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
 
   // Check all three argument values, and if any are bad, bail out. This will
   // convert the given expressions into constant expressions when possible.
-  XDim = CheckAndConvertArg(XDim);
-  YDim = CheckAndConvertArg(YDim);
-  ZDim = CheckAndConvertArg(ZDim);
-  if (!XDim || !YDim || !ZDim)
+  Optional<Expr *> XDimConvert = CheckAndConvertArg(XDim);
+  Optional<Expr *> YDimConvert = CheckAndConvertArg(YDim);
+  Optional<Expr *> ZDimConvert = CheckAndConvertArg(ZDim);
+  if (!XDimConvert || !YDimConvert || !ZDimConvert)
     return;
+  XDim = XDimConvert.value();
+  YDim = YDimConvert.value();
+  ZDim = ZDimConvert.value();
 
   // If the declaration has a ReqdWorkGroupSizeAttr, check to see if
   // the attribute holds values equal to (1, 1, 1) in case the value of
   // SYCLIntelMaxGlobalWorkDimAttr equals to 0.
   if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
-    if (InvalidWorkGroupSizeAttrs(DeclAttr->getValue(), XDim, YDim, ZDim)) {
+    if (InvalidWorkGroupSizeAttrs(*this, DeclAttr->getValue(), XDim, YDim,
+                                  ZDim)) {
       Diag(CI.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
           << CI << DeclAttr;
     }
@@ -3724,8 +3779,8 @@ void Sema::AddReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
   // We emit diagnostic if values of 'reqd_work_group_size' attribute arguments
   // are greater than values of 'max_work_group_size' attribute arguments.
   if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-    if (checkMaxAllowedWorkGroupSize(*this, XDim, YDim, ZDim,
-                                     DeclAttr->getXDim(), DeclAttr->getYDim(),
+    if (CheckMaxAllowedWorkGroupSize(XDim, YDim, ZDim, DeclAttr->getXDim(),
+                                     DeclAttr->getYDim(),
                                      DeclAttr->getZDim())) {
       Diag(CI.getLoc(), diag::err_conflicting_sycl_function_attributes)
           << CI << DeclAttr;
@@ -3739,7 +3794,7 @@ void Sema::AddReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
   // specified by 'num_simd_work_items' attribute must evenly divide the index
   // that increments fastest in the 'reqd_work_group_size' attribute.
   if (const auto *DeclAttr = D->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
-    if (CheckWorkGroupSize(*this, DeclAttr->getValue(), XDim, ZDim)) {
+    if (CheckWorkGroupSize(*this, DeclAttr->getValue(), XDim, YDim, ZDim)) {
       Diag(DeclAttr->getLoc(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
           << DeclAttr << CI;
       Diag(CI.getLoc(), diag::note_conflicting_attribute);
@@ -3750,12 +3805,10 @@ void Sema::AddReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
   // If the attribute was already applied with different arguments, then
   // diagnose the second attribute as a duplicate and don't add it.
   if (const auto *Existing = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-    DupArgResult Results[] = {AreArgValuesIdentical(XDim, Existing->getXDim()),
-                              AreArgValuesIdentical(YDim, Existing->getYDim()),
-                              AreArgValuesIdentical(ZDim, Existing->getZDim())};
     // If any of the results are known to be different, we can diagnose at this
     // point and drop the attribute.
-    if (llvm::is_contained(Results, DupArgResult::Different)) {
+    if (AnyWorkGroupSizesDiffer(XDim, YDim, ZDim, Existing->getXDim(),
+                                Existing->getYDim(), Existing->getZDim())) {
       Diag(CI.getLoc(), diag::err_duplicate_attribute) << CI;
       Diag(Existing->getLoc(), diag::note_previous_attribute);
       return;
@@ -3764,8 +3817,8 @@ void Sema::AddReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
     // If all of the results are known to be the same, we can silently drop the
     // attribute. Otherwise, we have to add the attribute and resolve its
     // differences later.
-    if (llvm::all_of(Results,
-                     [](DupArgResult V) { return V == DupArgResult::Same; }))
+    if (AllWorkGroupSizesSame(XDim, YDim, ZDim, Existing->getXDim(),
+                              Existing->getYDim(), Existing->getZDim()))
       return;
   }
 
@@ -3779,7 +3832,7 @@ Sema::MergeReqdWorkGroupSizeAttr(Decl *D, const ReqdWorkGroupSizeAttr &A) {
   // attribute holds values equal to (1, 1, 1) in case the value of
   // SYCLIntelMaxGlobalWorkDimAttr equals to 0.
   if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
-    if (InvalidWorkGroupSizeAttrs(DeclAttr->getValue(), A.getXDim(),
+    if (InvalidWorkGroupSizeAttrs(*this, DeclAttr->getValue(), A.getXDim(),
                                   A.getYDim(), A.getZDim())) {
       Diag(A.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
           << &A << DeclAttr;
@@ -3795,9 +3848,9 @@ Sema::MergeReqdWorkGroupSizeAttr(Decl *D, const ReqdWorkGroupSizeAttr &A) {
   // We emit diagnostic if values of 'reqd_work_group_size' attribute arguments
   // are greater than values of 'max_work_group_size' attribute arguments.
   if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-    if (checkMaxAllowedWorkGroupSize(
-            *this, A.getXDim(), A.getYDim(), A.getZDim(), DeclAttr->getXDim(),
-            DeclAttr->getYDim(), DeclAttr->getZDim())) {
+    if (CheckMaxAllowedWorkGroupSize(A.getXDim(), A.getYDim(), A.getZDim(),
+                                     DeclAttr->getXDim(), DeclAttr->getYDim(),
+                                     DeclAttr->getZDim())) {
       Diag(DeclAttr->getLoc(), diag::err_conflicting_sycl_function_attributes)
           << DeclAttr << &A;
       Diag(A.getLoc(), diag::note_conflicting_attribute);
@@ -3811,7 +3864,7 @@ Sema::MergeReqdWorkGroupSizeAttr(Decl *D, const ReqdWorkGroupSizeAttr &A) {
   // that increments fastest in the 'reqd_work_group_size' attribute.
   if (const auto *DeclAttr = D->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
     if (CheckWorkGroupSize(*this, DeclAttr->getValue(), A.getXDim(),
-                           A.getZDim())) {
+                           A.getYDim(), A.getZDim())) {
       Diag(DeclAttr->getLoc(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
           << DeclAttr << &A;
       Diag(A.getLoc(), diag::note_conflicting_attribute);
@@ -3821,14 +3874,11 @@ Sema::MergeReqdWorkGroupSizeAttr(Decl *D, const ReqdWorkGroupSizeAttr &A) {
 
   // Check to see if there's a duplicate attribute already applied.
   if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-    DupArgResult Results[] = {
-        AreArgValuesIdentical(DeclAttr->getXDim(), A.getXDim()),
-        AreArgValuesIdentical(DeclAttr->getYDim(), A.getYDim()),
-        AreArgValuesIdentical(DeclAttr->getZDim(), A.getZDim())};
-
     // If any of the results are known to be different, we can diagnose at this
     // point and drop the attribute.
-    if (llvm::is_contained(Results, DupArgResult::Different)) {
+    if (AnyWorkGroupSizesDiffer(DeclAttr->getXDim(), DeclAttr->getYDim(),
+                                DeclAttr->getZDim(), A.getXDim(), A.getYDim(),
+                                A.getZDim())) {
       Diag(DeclAttr->getLoc(), diag::err_duplicate_attribute) << &A;
       Diag(A.getLoc(), diag::note_previous_attribute);
       return nullptr;
@@ -3837,8 +3887,9 @@ Sema::MergeReqdWorkGroupSizeAttr(Decl *D, const ReqdWorkGroupSizeAttr &A) {
     // If all of the results are known to be the same, we can silently drop the
     // attribute. Otherwise, we have to add the attribute and resolve its
     // differences later.
-    if (llvm::all_of(Results,
-                     [](DupArgResult V) { return V == DupArgResult::Same; }))
+    if (AllWorkGroupSizesSame(DeclAttr->getXDim(), DeclAttr->getYDim(),
+                              DeclAttr->getZDim(), A.getXDim(), A.getYDim(),
+                              A.getZDim()))
       return nullptr;
   }
 
@@ -3860,23 +3911,8 @@ static void handleReqdWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
   }
 
   Expr *XDimExpr = AL.getArgAsExpr(0);
-
-  // If no attribute argument is specified, set the second and third argument
-  // to the default value 1, but only if the sycl::reqd_work_group_size
-  // spelling was used.
-  auto SetDefaultValue = [](Sema &S, const ParsedAttr &AL) {
-    assert(AL.getKind() == ParsedAttr::AT_ReqdWorkGroupSize && AL.hasScope() &&
-           AL.getScopeName()->isStr("sycl"));
-    return IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
-                                  S.Context.IntTy, AL.getLoc());
-  };
-
-  Expr *YDimExpr =
-      AL.isArgExpr(1) ? AL.getArgAsExpr(1) : SetDefaultValue(S, AL);
-
-  Expr *ZDimExpr =
-      AL.isArgExpr(2) ? AL.getArgAsExpr(2) : SetDefaultValue(S, AL);
-
+  Expr *YDimExpr = AL.isArgExpr(1) ? AL.getArgAsExpr(1) : nullptr;
+  Expr *ZDimExpr = AL.isArgExpr(2) ? AL.getArgAsExpr(2) : nullptr;
   S.AddReqdWorkGroupSizeAttr(D, AL, XDimExpr, YDimExpr, ZDimExpr);
 }
 
@@ -4029,7 +4065,7 @@ void Sema::AddSYCLIntelNumSimdWorkItemsAttr(Decl *D,
     // specified by 'num_simd_work_items' attribute must evenly divide the index
     // that increments fastest in the 'reqd_work_group_size' attribute.
     if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
-      if (CheckWorkGroupSize(*this, E, DeclAttr->getXDim(),
+      if (CheckWorkGroupSize(*this, E, DeclAttr->getXDim(), DeclAttr->getYDim(),
                              DeclAttr->getZDim())) {
         Diag(CI.getLoc(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
             << CI << DeclAttr;
@@ -4065,7 +4101,7 @@ SYCLIntelNumSimdWorkItemsAttr *Sema::MergeSYCLIntelNumSimdWorkItemsAttr(
   // that increments fastest in the 'reqd_work_group_size' attribute.
   if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
     if (CheckWorkGroupSize(*this, A.getValue(), DeclAttr->getXDim(),
-                           DeclAttr->getZDim())) {
+                           DeclAttr->getYDim(), DeclAttr->getZDim())) {
       Diag(A.getLoc(), diag::err_sycl_num_kernel_wrong_reqd_wg_size)
           << &A << DeclAttr;
       Diag(DeclAttr->getLoc(), diag::note_conflicting_attribute);
@@ -4243,6 +4279,10 @@ enum class OneArgResult { Unknown, EqualToOne, NotEqualToOne };
 static OneArgResult AreAllArgsOne(const Expr *Args[], size_t Count) {
 
   for (size_t Idx = 0; Idx < Count; ++Idx) {
+    const Expr *Arg = Args[Idx];
+    // Optional arguments are considered trivially one.
+    if (!Arg)
+      return OneArgResult::EqualToOne;
     const auto *CE = dyn_cast<ConstantExpr>(Args[Idx]);
     if (!CE)
       return OneArgResult::Unknown;

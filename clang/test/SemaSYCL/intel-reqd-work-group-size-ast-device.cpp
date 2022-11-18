@@ -65,7 +65,7 @@ int check() {
 // CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
 
-[[sycl::reqd_work_group_size(4)]] void f4x1x1() {}
+[[sycl::reqd_work_group_size(4)]] void f4() {}
 
 class Functor16 {
 public:
@@ -80,7 +80,7 @@ public:
 class Functor {
 public:
   void operator()() const {
-    f4x1x1();
+    f4();
   }
 };
 
@@ -103,12 +103,6 @@ int main() {
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 16
     // CHECK-NEXT:  IntegerLiteral{{.*}}16{{$}}
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
     Functor16 f16;
     h.single_task<class kernel_name1>(f16);
 
@@ -117,12 +111,6 @@ int main() {
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 4
     // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
     Functor f;
     h.single_task<class kernel_name2>(f);
 

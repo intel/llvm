@@ -3429,17 +3429,18 @@ def ReqdWorkGroupSize : InheritableAttr {
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let AdditionalMembers = [{
     Optional<llvm::APSInt> getXDimVal() const {
+      // X-dimension is not optional.
       if (const auto *CE = dyn_cast<ConstantExpr>(getXDim()))
         return CE->getResultAsAPSInt();
       return None;
     }
     Optional<llvm::APSInt> getYDimVal() const {
-      if (const auto *CE = dyn_cast<ConstantExpr>(getYDim()))
+      if (const auto *CE = dyn_cast_or_null<ConstantExpr>(getYDim()))
         return CE->getResultAsAPSInt();
       return None;
     }
     Optional<llvm::APSInt> getZDimVal() const {
-      if (const auto *CE = dyn_cast<ConstantExpr>(getZDim()))
+      if (const auto *CE = dyn_cast_or_null<ConstantExpr>(getZDim()))
         return CE->getResultAsAPSInt();
       return None;
     }

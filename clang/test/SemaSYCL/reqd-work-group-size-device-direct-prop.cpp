@@ -83,12 +83,6 @@ int main() {
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 16
     // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 16
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 1
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 1
     Functor16 f16;
     h.single_task<class test_kernel4>(f16);
 
@@ -100,9 +94,6 @@ int main() {
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 64
     // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 64
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 1
     Functor64 f64;
     h.single_task<class test_kernel5>(f64);
   });

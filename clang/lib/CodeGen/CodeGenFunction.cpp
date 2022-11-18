@@ -619,13 +619,29 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
   }
 
   if (const ReqdWorkGroupSizeAttr *A = FD->getAttr<ReqdWorkGroupSizeAttr>()) {
-    // Attributes arguments (first and third) are reversed on SYCLDevice.
-    llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(Builder.getInt(
-            getLangOpts().SYCLIsDevice ? *A->getZDimVal() : *A->getXDimVal())),
-        llvm::ConstantAsMetadata::get(Builder.getInt(*A->getYDimVal())),
-        llvm::ConstantAsMetadata::get(Builder.getInt(
-            getLangOpts().SYCLIsDevice ? *A->getXDimVal() : *A->getZDimVal()))};
+    llvm::Optional<llvm::APSInt> XDimVal = A->getXDimVal();
+    llvm::Optional<llvm::APSInt> YDimVal = A->getYDimVal();
+    llvm::Optional<llvm::APSInt> ZDimVal = A->getZDimVal();
+    llvm::SmallVector<llvm::Metadata *, 3> AttrMDArgs;
+    if (!getLangOpts().SYCLIsDevice) {
+      // On non-SYCL targets we add all dimensions in the order specified.
+      AttrMDArgs.push_back(
+          llvm::ConstantAsMetadata::get(Builder.getInt(*XDimVal)));
+      AttrMDArgs.push_back(
+          llvm::ConstantAsMetadata::get(Builder.getInt(*YDimVal)));
+      AttrMDArgs.push_back(
+          llvm::ConstantAsMetadata::get(Builder.getInt(*ZDimVal)));
+    } else {
+      // On SYCL target the dimensions are reversed if present.
+      if (ZDimVal)
+        AttrMDArgs.push_back(
+            llvm::ConstantAsMetadata::get(Builder.getInt(*ZDimVal)));
+      if (YDimVal)
+        AttrMDArgs.push_back(
+            llvm::ConstantAsMetadata::get(Builder.getInt(*YDimVal)));
+      AttrMDArgs.push_back(
+          llvm::ConstantAsMetadata::get(Builder.getInt(*XDimVal)));
+    }
     Fn->setMetadata("reqd_work_group_size",
                     llvm::MDNode::get(Context, AttrMDArgs));
   }

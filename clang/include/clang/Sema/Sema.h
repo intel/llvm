@@ -10975,6 +10975,12 @@ public:
 
   void AddIntelFPGABankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
                                 Expr **Exprs, unsigned Size);
+  bool AnyWorkGroupSizesDiffer(const Expr *LHSXDim, const Expr *LHSYDim,
+                               const Expr *LHSZDim, const Expr *RHSXDim,
+                               const Expr *RHSYDim, const Expr *RHSZDim);
+  bool AllWorkGroupSizesSame(const Expr *LHSXDim, const Expr *LHSYDim,
+                             const Expr *LHSZDim, const Expr *RHSXDim,
+                             const Expr *RHSYDim, const Expr *RHSZDim);
   void AddWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
                                 Expr *XDim, Expr *YDim, Expr *ZDim);
   WorkGroupSizeHintAttr *
@@ -11049,6 +11055,9 @@ public:
                                                 const SYCLUsesAspectsAttr &A);
   void AddSYCLUsesAspectsAttr(Decl *D, const AttributeCommonInfo &CI,
                               Expr **Exprs, unsigned Size);
+  bool CheckMaxAllowedWorkGroupSize(const Expr *RWGSXDim, const Expr *RWGSYDim,
+                                    const Expr *RWGSZDim, const Expr *MWGSXDim,
+                                    const Expr *MWGSYDim, const Expr *MWGSZDim);
   void AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
                                         Expr *XDim, Expr *YDim, Expr *ZDim);
   SYCLIntelMaxWorkGroupSizeAttr *

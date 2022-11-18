@@ -201,12 +201,6 @@ int main() {
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 1
     // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
     // CHECK:       SYCLIntelMaxGlobalWorkDimAttr
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 0

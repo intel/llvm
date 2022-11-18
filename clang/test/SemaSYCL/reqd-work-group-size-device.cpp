@@ -21,19 +21,17 @@ queue q;
 [[sycl::reqd_work_group_size(4, 4, 4)]] void four();
 [[sycl::reqd_work_group_size(4, 4, 4)]] void four(); // OK
 
-// Same for the default values.
-// FIXME: This turns out to be wrong as there aren't really default values
-// (that is an implementation detail we use but shouldn't expose to the user).
-// Instead, the dimensionality of the attribute needs to match that of the
-// kernel, so the one, two, and three arg forms of the attribute are actually
-// *different* attributes. This means that you should not be able to redeclare
-// the function with a different dimensionality.
+#ifdef TRIGGER_ERROR
+// Althrough optional values are effectively representing 1's, the attributes
+// should be considered different when there is a different in the arguments
+// given.
 [[sycl::reqd_work_group_size(4)]] void four_again();
-[[sycl::reqd_work_group_size(4)]] void four_again(); // OK
-[[sycl::reqd_work_group_size(4, 1)]] void four_again(); // OK
-[[sycl::reqd_work_group_size(4, 1)]] void four_again(); // OK
-[[sycl::reqd_work_group_size(4, 1, 1)]] void four_again(); // OK
-[[sycl::reqd_work_group_size(4, 1, 1)]] void four_again(); // OK
+[[sycl::reqd_work_group_size(4)]] void four_again(); // expected-note {{previous attribute is here}}
+[[sycl::reqd_work_group_size(4, 1)]] void four_again(); // expected-error {{attribute 'reqd_work_group_size' is already applied with different arguments}} expected-note {{previous attribute is here}}
+[[sycl::reqd_work_group_size(4, 1, 1)]] void four_again(); // expected-error {{attribute 'reqd_work_group_size' is already applied with different arguments}} expected-note {{previous attribute is here}}
+[[sycl::reqd_work_group_size(1, 4)]] void four_again(); // expected-error {{attribute 'reqd_work_group_size' is already applied with different arguments}} expected-note {{previous attribute is here}}
+[[sycl::reqd_work_group_size(1, 1, 4)]] void four_again(); // expected-error {{attribute 'reqd_work_group_size' is already applied with different arguments}}
+#endif
 
 // Make sure there's at least one argument passed for the SYCL spelling.
 #ifdef TRIGGER_ERROR
