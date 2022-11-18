@@ -206,6 +206,32 @@ static void checkFunctionParent(const FunctionOpInterface F,
          "New device function must be inserted into device module");
 }
 
+/// If \p FD corresponds to a function implementing a SYCL method, registers
+/// \p Func as the function implementing the corrsponding operation.
+static void tryToRegisterSYCLMethod(const FunctionDecl &FD,
+                                    FunctionOpInterface Func) {
+  if (!mlirclang::isNamespaceSYCL(FD.getEnclosingNamespaceContext()) ||
+      !isa<CXXMethodDecl>(FD) ||
+      isa<CXXConstructorDecl, CXXDestructorDecl>(FD) ||
+      !cast<CXXMethodDecl>(FD).isInstance()) {
+    // Only member functions in the sycl namespace need to be registered.
+    return;
+  }
+  const auto FunctionType = Func.getFunctionType().cast<mlir::FunctionType>();
+  const auto ThisArg = FunctionType.getInput(0).dyn_cast<MemRefType>();
+  assert(ThisArg &&
+         "The first argument is expected to be a reference to `this`");
+  auto *SYCLDialect = Func.getContext()->getLoadedDialect<sycl::SYCLDialect>();
+  assert(SYCLDialect && "SYCL dialect not loaded");
+  const std::string MethodName = FD.getAsFunction()->getNameAsString();
+  if (!SYCLDialect->findMethodFromBaseClass(
+          ThisArg.getElementType().getTypeID(), MethodName)) {
+    // Only add a definition for functions registered as SYCL methods.
+    return;
+  }
+  SYCLDialect->registerMethodDefinition(MethodName, cast<func::FuncOp>(Func));
+}
+
 void MLIRScanner::init(mlir::FunctionOpInterface func,
                        const FunctionToEmit &FTE) {
   const clang::FunctionDecl *FD = &FTE.getDecl();
@@ -465,6 +491,8 @@ void MLIRScanner::init(mlir::FunctionOpInterface func,
     builder.create<gpu::ReturnOp>(loc);
   else
     builder.create<ReturnOp>(loc);
+
+  tryToRegisterSYCLMethod(*FD, function);
 
   checkFunctionParent(function, FTE.getContext(), module);
 }
@@ -2276,6 +2304,8 @@ MLIRASTConsumer::GetOrCreateMLIRFunction(FunctionToEmit &FTE, bool ShouldEmit,
   } else if (ShouldEmit) {
     emitIfFound.insert(mangledName);
   }
+
+  tryToRegisterSYCLMethod(FD, function);
 
   return function;
 }

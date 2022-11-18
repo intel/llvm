@@ -506,6 +506,11 @@ public:
 /// Return true if the given \p Ty is a SYCL type.
 inline bool isSYCLType(Type Ty) { return isa<SYCLDialect>(Ty.getDialect()); }
 
+// TODO: Modify SYCLDialect::addType() to avoid ever having to modify this
+// function when adding new types.
+
+/// Return the list of types derived from the input type.
+llvm::SmallVector<mlir::TypeID> getDerivedTypes(mlir::TypeID TypeID);
 } // namespace sycl
 } // namespace mlir
 
