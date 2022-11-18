@@ -218,7 +218,7 @@ private:
     }
     NodeKindInfo(Node::Kind K, const char *NestedName, size_t NestedNameSize)
         : K(K) {
-      Data = 0;
+
       DataStr.assign(NestedName, NestedNameSize);
     }
     Node::Kind K;
