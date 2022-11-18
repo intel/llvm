@@ -350,7 +350,7 @@ private:
       ++Idx;
     }
     assert(NumReplaced >= TemplateTypeParamTys.size() &&
-           "Expected full specialisation.");
+           "Expected full specialization.");
     // Now that the template types have been patched up, set functions type.
     clang::QualType const TemplateFuncType =
         ContextAST->getFunctionType(RetTy, ArgTys, Info);
