@@ -40,6 +40,9 @@ public:
   ValueCategory(std::nullptr_t) : val(nullptr), isReference(false) {}
   ValueCategory(mlir::Value val, bool isReference);
 
+  static ValueCategory getNullValue(mlir::OpBuilder &Builder,
+                                    mlir::Location Loc, mlir::Type Type);
+
   // TODO: rename to 'loadVariable'? getValue seems to generic.
   mlir::Value getValue(mlir::OpBuilder &Builder) const;
   void store(mlir::OpBuilder &Builder, ValueCategory toStore,
@@ -102,6 +105,7 @@ public:
                      mlir::Value RHS, bool IsExact = false) const;
   ValueCategory ExactSDiv(mlir::OpBuilder &Builder, mlir::Location Loc,
                           mlir::Value RHS) const;
+  ValueCategory FNeg(mlir::OpBuilder &Builder, mlir::Location Loc) const;
   ValueCategory Neg(mlir::OpBuilder &Builder, mlir::Location Loc,
                     bool HasNUW = false, bool HasNSW = false) const;
   ValueCategory Add(mlir::OpBuilder &Builder, mlir::Location Loc,
