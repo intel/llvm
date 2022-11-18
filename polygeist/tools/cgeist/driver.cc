@@ -351,7 +351,7 @@ static int optimize(mlir::MLIRContext &context,
   if (DetectReduction)
     optPM.addPass(polygeist::detectReductionPass());
 
-  if (!DoNotOptimizeMLIR) {
+  if (OptimizationLevel != OptimizationLevel::O0) {
     optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
     optPM.addPass(mlir::createCSEPass());
     // Affine must be lowered to enable inlining
@@ -898,7 +898,6 @@ splitCommandLineOptions(int argc, char **argv,
                         SmallVector<const char *> &MLIRArgs) {
   bool syclIsDevice = false;
   bool linkOnly = false;
-  bool ExplicitO0 = false;
   llvm::OptimizationLevel OptimizationLevel =
       CgeistOptions::getDefaultOptimizationLevel();
 
@@ -932,7 +931,6 @@ splitCommandLineOptions(int argc, char **argv,
       } else if (ref.consume_front("-O") || ref.consume_front("--optimize")) {
         // If several flags are passed, we keep the last one.
         OptimizationLevel = ExitOnErr(parseOptimizationLevel(ref));
-        ExplicitO0 = OptimizationLevel == llvm::OptimizationLevel::O0;
         LinkageArgs.push_back(argv[i]);
       } else if (ref == "-no-opt-mlir") {
         MLIRArgs.push_back(argv[i]);
@@ -945,13 +943,6 @@ splitCommandLineOptions(int argc, char **argv,
 
     if (ref == "-Wl,--end-group")
       linkOnly = false;
-  }
-
-  if (ExplicitO0) {
-    // TODO: '-O0' (default) should always imply '-no-opt-mlir', but this would
-    // imply updating so many tests. Drop '-no-opt-mlir' and implement correct
-    // '-O0' behavior.
-    MLIRArgs.push_back("-no-opt-mlir");
   }
 
   return {syclIsDevice, OptimizationLevel};

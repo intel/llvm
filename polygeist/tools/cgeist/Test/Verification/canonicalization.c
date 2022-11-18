@@ -1,4 +1,4 @@
-// RUN: cgeist --S --function=* --memref-fullrank %s | FileCheck %s
+// RUN: cgeist --S -O2 --function=* --memref-fullrank %s | FileCheck %s
 
 // The following should be able to fully lower to memref ops without memref
 // subviews.
