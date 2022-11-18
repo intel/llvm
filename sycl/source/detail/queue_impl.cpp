@@ -10,6 +10,7 @@
 #include <detail/memory_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <sycl/context.hpp>
+#include <sycl/detail/common.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/device.hpp>
 
@@ -62,6 +63,35 @@ static event createDiscardedEvent() {
 event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
                          void *Ptr, int Value, size_t Count,
                          const std::vector<event> &DepEvents) {
+#if XPTI_ENABLE_INSTRUMENTATION
+  /// This section of code is relying on scoped objects, so they cannot be
+  /// encapsulated in a function
+  detail::tls_code_loc_t Tls;
+  auto TData = Tls.query();
+  xpti::framework::tracepoint_t TP(TData.fileName(), TData.functionName(),
+                                   TData.lineNumber(), TData.columnNumber(),
+                                   (void *)this);
+  if (xptiTraceEnabled()) {
+    TP.stream(SYCL_STREAM_NAME)
+        .trace_type(xpti::trace_point_type_t::node_create);
+    auto TEvent = const_cast<xpti::trace_event_data_t *>(TP.trace_event());
+    xpti::addMetadata(TEvent, "device_id",
+                      reinterpret_cast<size_t>(
+                          MDevice->is_host() ? 0 : MDevice->getHandleRef()));
+    xpti::addMetadata(TEvent, "memory_ptr", reinterpret_cast<size_t>(Ptr));
+    xpti::addMetadata(TEvent, "value_set", reinterpret_cast<int>(Value));
+    xpti::addMetadata(TEvent, "memory_size", reinterpret_cast<size_t>(Count));
+    /// Create an async task graph object; depends_on() or other dependencies
+    /// will be added as edges
+    TP.notify("queue.memset");
+  }
+  /// Add a scoped notification for memset begin and memset end and has
+  /// xptiTraceEnabled() check in the object
+  xpti::framework::scoped_notify Trace(
+      TP.stream_id(), (uint16_t)xpti::trace_point_type_t::task_begin, nullptr,
+      const_cast<xpti::trace_event_data_t *>(TP.trace_event()),
+      TP.instance_id(), static_cast<const void *>("queue.memcpy()"));
+#endif
   if (MHasDiscardEventsSupport) {
     MemoryManager::fill_usm(Ptr, Self, Count, Value,
                             getOrWaitEvents(DepEvents, MContext), nullptr);
@@ -104,6 +134,35 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
 event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
                          void *Dest, const void *Src, size_t Count,
                          const std::vector<event> &DepEvents) {
+#if XPTI_ENABLE_INSTRUMENTATION
+  /// This section of code is relying on scoped objects, so they cannot be
+  /// encapsulated in a function
+  detail::tls_code_loc_t Tls;
+  auto TData = Tls.query();
+  xpti::framework::tracepoint_t TP(TData.fileName(), TData.functionName(),
+                                   TData.lineNumber(), TData.columnNumber(),
+                                   (void *)this);
+  if (xptiTraceEnabled()) {
+    TP.stream(SYCL_STREAM_NAME)
+        .trace_type(xpti::trace_point_type_t::node_create);
+    auto TEvent = const_cast<xpti::trace_event_data_t *>(TP.trace_event());
+    xpti::addMetadata(TEvent, "device_id",
+                      reinterpret_cast<size_t>(
+                          MDevice->is_host() ? 0 : MDevice->getHandleRef()));
+    xpti::addMetadata(TEvent, "src_memory_ptr", reinterpret_cast<size_t>(Src));
+    xpti::addMetadata(TEvent, "dest_memory_ptr",
+                      reinterpret_cast<size_t>(Dest));
+    xpti::addMetadata(TEvent, "memory_size", reinterpret_cast<size_t>(Count));
+    /// Create an async task graph object; depends_on() or other dependencies
+    /// will be added as edges
+    TP.notify("queue.memcpy");
+  }
+  /// Add a scoped notification for copy begin and copy end
+  xpti::framework::scoped_notify Trace(
+      TP.stream_id(), (uint16_t)xpti::trace_point_type_t::task_begin, nullptr,
+      const_cast<xpti::trace_event_data_t *>(TP.trace_event()),
+      TP.instance_id(), static_cast<const void *>("queue.memcpy()"));
+#endif
   if (MHasDiscardEventsSupport) {
     MemoryManager::copy_usm(Src, Self, Count, Dest,
                             getOrWaitEvents(DepEvents, MContext), nullptr);

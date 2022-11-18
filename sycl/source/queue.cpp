@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/backend_impl.hpp>
+#include <sycl/detail/common.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/queue_impl.hpp>
 #include <sycl/event.hpp>
@@ -82,29 +83,47 @@ bool queue::is_host() const {
 
 void queue::throw_asynchronous() { impl->throw_asynchronous(); }
 
-event queue::memset(void *Ptr, int Value, size_t Count) {
+event queue::memset(void *Ptr, int Value,
+                    size_t Count _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  detail::tls_code_loc_t TlsLocCapture(CodeLoc);
   return impl->memset(impl, Ptr, Value, Count, {});
 }
 
-event queue::memset(void *Ptr, int Value, size_t Count, event DepEvent) {
+event queue::memset(void *Ptr, int Value, size_t Count,
+                    event DepEvent _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  detail::tls_code_loc_t TlsLocCapture(CodeLoc);
   return impl->memset(impl, Ptr, Value, Count, {DepEvent});
 }
 
 event queue::memset(void *Ptr, int Value, size_t Count,
-                    const std::vector<event> &DepEvents) {
+                    const std::vector<event> &DepEvents
+                        _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  detail::tls_code_loc_t TlsLocCapture(CodeLoc);
   return impl->memset(impl, Ptr, Value, Count, DepEvents);
 }
 
-event queue::memcpy(void *Dest, const void *Src, size_t Count) {
+event queue::memcpy(void *Dest, const void *Src,
+                    size_t Count _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  detail::tls_code_loc_t TlsLocCapture(CodeLoc);
   return impl->memcpy(impl, Dest, Src, Count, {});
 }
 
-event queue::memcpy(void *Dest, const void *Src, size_t Count, event DepEvent) {
+event queue::memcpy(void *Dest, const void *Src, size_t Count,
+                    event DepEvent _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  detail::tls_code_loc_t TlsLocCapture(CodeLoc);
   return impl->memcpy(impl, Dest, Src, Count, {DepEvent});
 }
 
 event queue::memcpy(void *Dest, const void *Src, size_t Count,
-                    const std::vector<event> &DepEvents) {
+                    const std::vector<event> &DepEvents
+                        _CODELOCPARAMDEF(&CodeLoc)) {
+  _CODELOCARG(&CodeLoc);
+  detail::tls_code_loc_t TlsLocCapture(CodeLoc);
   return impl->memcpy(impl, Dest, Src, Count, DepEvents);
 }
 

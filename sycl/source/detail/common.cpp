@@ -12,6 +12,11 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
+/// @brief CodeLocation information slot in thread local storage
+/// @details This structure is maintained by the SYCL runtime to manage the
+/// propagation of the code_location data down the stack without breaking ABI
+/// compatibility
+thread_local detail::code_location GCodeLocTLS = {};
 
 const char *stringifyErrorCode(pi_int32 error) {
   switch (error) {

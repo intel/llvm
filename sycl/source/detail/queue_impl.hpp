@@ -32,6 +32,11 @@
 
 #include <utility>
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+#include "xpti/xpti_trace_framework.hpp"
+#include <detail/xpti_registry.hpp>
+#endif
+
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
@@ -98,6 +103,23 @@ public:
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MHasDiscardEventsSupport(MDiscardEvents &&
                                  (MHostQueue ? true : MIsInorder)) {
+#if XPTI_ENABLE_INSTRUMENTATION
+    /// This section of code is relying on scoped objects, so they cannot be
+    /// encapsulated in a function
+    detail::tls_code_loc_t Tls;
+    auto TData = Tls.query();
+    xpti::framework::tracepoint_t TP(TData.fileName(), TData.functionName(),
+                                     TData.lineNumber(), TData.columnNumber(),
+                                     (void *)this);
+    if (xptiTraceEnabled()) {
+      TP.stream(SYCL_STREAM_NAME)
+          .trace_type(xpti::trace_point_type_t::queue_create);
+      MStreamID = TP.stream_id();
+      MTraceEvent =
+          (void *)const_cast<xpti::trace_event_data_t *>(TP.trace_event());
+      MInstanceID = TP.instance_id();
+    }
+#endif
     if (has_property<ext::oneapi::property::queue::discard_events>() &&
         has_property<property::queue::enable_profiling>()) {
       throw sycl::exception(make_error_code(errc::invalid),
@@ -122,6 +144,23 @@ public:
       const QueueOrder QOrder =
           MIsInorder ? QueueOrder::Ordered : QueueOrder::OOO;
       MQueues.push_back(createQueue(QOrder));
+#if XPTI_ENABLE_INSTRUMENTATION
+      /// This section of code is relying on scoped objects, so they cannot be
+      /// encapsulated in a function
+      if (xptiTraceEnabled()) {
+        xpti::addMetadata((xpti::trace_event_data_t *)MTraceEvent, "context",
+                          reinterpret_cast<size_t>(MContext->getHandleRef()));
+        xpti::addMetadata((xpti::trace_event_data_t *)MTraceEvent,
+                          "device_name", MDevice->getDeviceName());
+        xpti::addMetadata(
+            (xpti::trace_event_data_t *)MTraceEvent, "device_id",
+            reinterpret_cast<size_t>(
+                MDevice->is_host() ? 0 : MDevice->getHandleRef()));
+        xpti::addMetadata((xpti::trace_event_data_t *)MTraceEvent, "is_inorder",
+                          MIsInorder);
+        TP.notify(static_cast<const void *>("queue_create"));
+      }
+#endif
     }
   }
 
@@ -141,6 +180,23 @@ public:
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MHasDiscardEventsSupport(MDiscardEvents &&
                                  (MHostQueue ? true : MIsInorder)) {
+#if XPTI_ENABLE_INSTRUMENTATION
+    /// This section of code is relying on scoped objects, so they cannot be
+    /// encapsulated in a function
+    detail::tls_code_loc_t Tls;
+    auto TData = Tls.query();
+    xpti::framework::tracepoint_t TP(TData.fileName(), TData.functionName(),
+                                     TData.lineNumber(), TData.columnNumber(),
+                                     (void *)this);
+    if (xptiTraceEnabled()) {
+      TP.stream(SYCL_STREAM_NAME)
+          .trace_type(xpti::trace_point_type_t::queue_create);
+      MStreamID = TP.stream_id();
+      MTraceEvent =
+          (void *)const_cast<xpti::trace_event_data_t *>(TP.trace_event());
+      MInstanceID = TP.instance_id();
+    }
+#endif
     if (has_property<ext::oneapi::property::queue::discard_events>() &&
         has_property<property::queue::enable_profiling>()) {
       throw sycl::exception(make_error_code(errc::invalid),
@@ -156,13 +212,41 @@ public:
     Plugin.call<PiApiKind::piQueueGetInfo>(
         MQueues[0], PI_QUEUE_INFO_DEVICE, sizeof(DevicePI), &DevicePI, nullptr);
     MDevice = MContext->findMatchingDeviceImpl(DevicePI);
-    if (MDevice == nullptr)
+    if (MDevice == nullptr) {
       throw sycl::exception(
           make_error_code(errc::invalid),
           "Device provided by native Queue not found in Context.");
+    }
+#if XPTI_ENABLE_INSTRUMENTATION
+    /// This section of code is relying on scoped objects, so they cannot be
+    /// encapsulated in a function
+    if (xptiTraceEnabled()) {
+      xpti::addMetadata((xpti::trace_event_data_t *)MTraceEvent, "context",
+                        reinterpret_cast<size_t>(MContext->getHandleRef()));
+      if (MDevice) {
+        xpti::addMetadata((xpti::trace_event_data_t *)MTraceEvent,
+                          "device_name", MDevice->getDeviceName());
+        xpti::addMetadata(
+            (xpti::trace_event_data_t *)MTraceEvent, "device_id",
+            reinterpret_cast<size_t>(
+                MDevice->is_host() ? 0 : MDevice->getHandleRef()));
+      }
+      xpti::addMetadata((xpti::trace_event_data_t *)MTraceEvent, "is_inorder",
+                        MIsInorder);
+      TP.notify(static_cast<const void *>("queue_create"));
+    }
+#endif
   }
 
   ~queue_impl() {
+#if XPTI_ENABLE_INSTRUMENTATION
+    if (xptiTraceEnabled()) {
+      xptiNotifySubscribers(
+          MStreamID, (uint16_t)xpti::trace_point_type_t::queue_destroy, nullptr,
+          (xpti::trace_event_data_t *)MTraceEvent, MInstanceID,
+          static_cast<const void *>("queue_destroy"));
+    }
+#endif
     throw_asynchronous();
     if (!MHostQueue) {
       getPlugin().call<PiApiKind::piQueueRelease>(MQueues[0]);
@@ -595,6 +679,20 @@ protected:
   const bool MIsInorder;
 
   std::vector<EventImplPtr> MStreamsServiceEvents;
+
+  // All member variable defined here  are needed for the SYCL instrumentation
+  // layer. Do not guard these variables below with XPTI_ENABLE_INSTRUMENTATION
+  // to ensure we have the same object layout when the macro in the library and
+  // SYCL app are not the same.
+
+  /// The event for queue_create and queue_destroy.
+  void *MTraceEvent = nullptr;
+  /// The stream under which the traces are emitted from the queue object
+  ///
+  /// Stream ids are positive integers and we set it to an invalid value.
+  int32_t MStreamID = -1;
+  /// The instance ID of the trace event for queue object
+  uint64_t MInstanceID = 0;
 
 public:
   // Queue constructed with the discard_events property
