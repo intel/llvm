@@ -2736,6 +2736,8 @@ def fpic : Flag<["-"], "fpic">, Group<f_Group>;
 def fno_pic : Flag<["-"], "fno-pic">, Group<f_Group>;
 def fpie : Flag<["-"], "fpie">, Group<f_Group>;
 def fno_pie : Flag<["-"], "fno-pie">, Group<f_Group>;
+defm pic_data_is_text_relative : SimpleMFlag<"pic-data-is-text-relative",
+     "Assume", "Don't assume", " data segments are relative to text segment">;
 def fdirect_access_external_data : Flag<["-"], "fdirect-access-external-data">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Don't use GOT indirection to reference external data symbols">;
 def fno_direct_access_external_data : Flag<["-"], "fno-direct-access-external-data">, Group<f_Group>, Flags<[CC1Option]>,
@@ -6127,8 +6129,6 @@ def emit_module : Flag<["-"], "emit-module">,
   HelpText<"Generate pre-compiled module file from a module map">;
 def emit_module_interface : Flag<["-"], "emit-module-interface">,
   HelpText<"Generate pre-compiled module file from a C++ module interface">;
-def emit_header_module : Flag<["-"], "emit-header-module">,
-  HelpText<"Generate pre-compiled module file from a set of header files">;
 def emit_header_unit : Flag<["-"], "emit-header-unit">,
   HelpText<"Generate C++20 header units from header files">;
 def emit_pch : Flag<["-"], "emit-pch">,

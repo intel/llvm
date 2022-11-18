@@ -3331,6 +3331,11 @@ bool RecursiveASTVisitor<Derived>::VisitOMPAtClause(OMPAtClause *) {
 }
 
 template <typename Derived>
+bool RecursiveASTVisitor<Derived>::VisitOMPSeverityClause(OMPSeverityClause *) {
+  return true;
+}
+
+template <typename Derived>
 bool
 RecursiveASTVisitor<Derived>::VisitOMPScheduleClause(OMPScheduleClause *C) {
   TRY_TO(VisitOMPClauseWithPreInit(C));
