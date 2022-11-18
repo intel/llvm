@@ -21,7 +21,7 @@
 //
 // TODO: Test global memory for temporary storage
 // TODO: Consider using USM instead of buffers
-//
+// TODO: Add support for sorting over workgroup for CUDA and HIP BE
 
 #include <sycl/sycl.hpp>
 
@@ -312,11 +312,17 @@ template <class T> void RunOverType(sycl::queue &Q, size_t DataSize) {
     RunSortOVerGroup<UseGroupT::WorkGroup, 1>(Q, Data, Comparator);
     RunSortOVerGroup<UseGroupT::WorkGroup, 2>(Q, Data, Comparator);
 
-    RunSortOVerGroup<UseGroupT::SubGroup, 1>(Q, Data, Comparator);
-    RunSortOVerGroup<UseGroupT::SubGroup, 2>(Q, Data, Comparator);
-
     RunJointSort<UseGroupT::WorkGroup, 1>(Q, Data, Comparator);
     RunJointSort<UseGroupT::WorkGroup, 2>(Q, Data, Comparator);
+
+    if (Q.get_backend() == sycl::backend::ext_oneapi_cuda ||
+        Q.get_backend() == sycl::backend::ext_oneapi_hip) {
+      std::cout << "Note! Skipping sub group testing on CUDA BE" << std::endl;
+      return;
+    }
+
+    RunSortOVerGroup<UseGroupT::SubGroup, 1>(Q, Data, Comparator);
+    RunSortOVerGroup<UseGroupT::SubGroup, 2>(Q, Data, Comparator);
 
     RunJointSort<UseGroupT::SubGroup, 1>(Q, Data, Comparator);
     RunJointSort<UseGroupT::SubGroup, 2>(Q, Data, Comparator);
