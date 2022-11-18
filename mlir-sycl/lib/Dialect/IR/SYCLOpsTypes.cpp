@@ -421,7 +421,7 @@ llvm::ArrayRef<mlir::Type> mlir::sycl::AccessorImplDeviceType::getBody() const {
 
 mlir::sycl::AccessorSubscriptType
 mlir::sycl::AccessorSubscriptType::get(MLIRContext *Context,
-                                       unsigned int CurrentDimension,
+                                       int CurrentDimension,
                                        llvm::SmallVector<mlir::Type, 4> Body) {
   return Base::get(Context, CurrentDimension, Body);
 }
@@ -474,7 +474,7 @@ mlir::sycl::AccessorSubscriptType::parseType(mlir::DialectAsmParser &Parser) {
                                                 Subtypes);
 }
 
-unsigned int mlir::sycl::AccessorSubscriptType::getCurrentDimension() const {
+int mlir::sycl::AccessorSubscriptType::getCurrentDimension() const {
   return getImpl()->CurrentDimension;
 }
 

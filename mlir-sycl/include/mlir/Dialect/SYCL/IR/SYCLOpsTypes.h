@@ -196,7 +196,7 @@ struct AccessorImplDeviceStorage : public TypeStorage {
 };
 
 struct AccessorSubscriptStorage : public TypeStorage {
-  using KeyTy = std::tuple<unsigned int, llvm::SmallVector<mlir::Type, 4>>;
+  using KeyTy = std::tuple<int, llvm::SmallVector<mlir::Type, 4>>;
 
   AccessorSubscriptStorage(const KeyTy &Key)
       : CurrentDimension(std::get<0>(Key)), Body(std::get<1>(Key)) {}
@@ -217,7 +217,7 @@ struct AccessorSubscriptStorage : public TypeStorage {
         AccessorSubscriptStorage(Key);
   }
 
-  unsigned int CurrentDimension;
+  int CurrentDimension;
   llvm::SmallVector<mlir::Type, 4> Body;
 };
 
@@ -502,11 +502,11 @@ public:
   using Base::Base;
 
   static mlir::sycl::AccessorSubscriptType
-  get(MLIRContext *Context, unsigned int CurrentDimension,
+  get(MLIRContext *Context, int CurrentDimension,
       llvm::SmallVector<mlir::Type, 4> Body);
   static mlir::Type parseType(mlir::DialectAsmParser &Parser);
 
-  unsigned int getCurrentDimension() const;
+  int getCurrentDimension() const;
   llvm::ArrayRef<mlir::Type> getBody() const;
 };
 
