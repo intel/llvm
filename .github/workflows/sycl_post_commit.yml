@@ -21,7 +21,7 @@ jobs:
     name: Generate Test Matrix
     uses: ./.github/workflows/sycl_gen_test_matrix.yml
     with:
-      lts_config: "l0_gen9"
+      lts_config: "l0_gen9;win_l0_gen9"
       cts_config: "cuda"
   linux_default:
     name: Linux Default
@@ -31,7 +31,7 @@ jobs:
     with:
       build_cache_root: "/__w/llvm"
       build_artifact_suffix: "post_commit"
-      lts_matrix: ${{ needs.test_matrix.outputs.lts_matrix }}
+      lts_matrix: ${{ needs.test_matrix.outputs.lts_lx_matrix }}
       cts_matrix: ${{ needs.test_matrix.outputs.cts_matrix }}
       lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
   linux_no_assert:
@@ -116,8 +116,11 @@ jobs:
 
   windows_default:
     name: Windows
+    needs: test_matrix
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_windows_build_and_test.yml
+    with:
+      lts_matrix: ${{ needs.test_matrix.outputs.lts_wn_matrix }}
 
   macos_default:
     name: macOS
