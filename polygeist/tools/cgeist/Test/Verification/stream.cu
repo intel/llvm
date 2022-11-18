@@ -1,4 +1,4 @@
-// RUN: cgeist %s --cuda-gpu-arch=sm_60 -nocudalib -nocudainc %resourcedir --function=* -S | FileCheck %s
+// RUN: cgeist %s -O2 --cuda-gpu-arch=sm_60 -nocudalib -nocudainc %resourcedir --function=* -S | FileCheck %s
 
 #include "Inputs/cuda.h"
 

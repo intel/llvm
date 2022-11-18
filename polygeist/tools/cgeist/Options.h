@@ -102,10 +102,6 @@ static llvm::cl::opt<bool> OpenMPOpt("openmp-opt", llvm::cl::init(true),
                                      llvm::cl::desc("Turn on openmp opt"));
 
 static llvm::cl::opt<bool>
-    DoNotOptimizeMLIR("no-opt-mlir", llvm::cl::init(false),
-                      llvm::cl::desc("Do not optimize MLIR"));
-
-static llvm::cl::opt<bool>
     ParallelLICM("parallel-licm", llvm::cl::init(true),
                  llvm::cl::desc("Turn on parallel licm"));
 
