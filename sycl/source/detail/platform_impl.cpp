@@ -185,7 +185,9 @@ static std::vector<int> filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
   // used in the ONEAPI_DEVICE_SELECTOR implemenation. It cannot be placed
   // in the if statement above because it will then be out of scope in the rest
   // of the function
-  std::map<RT::PiDevice *, bool> Blacklist;
+  std::map<int, bool> Blacklist;
+  // original indices keeps track of the device numbers of the chosen
+  // devices and is whats returned by the function
   std::vector<int> original_indices;
 
   std::vector<plugin> &Plugins = RT::initialize();
@@ -223,14 +225,14 @@ static std::vector<int> filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
           // Last, match the device_num entry
           if (!Filter.DeviceNum || DeviceNum == Filter.DeviceNum.value()) {
             if constexpr (is_ods_target) {      // dealing with ODS filters
-              if (!Blacklist[&Device]) {        // ensure it is not blacklisted
+              if (!Blacklist[DeviceNum]) {        // ensure it is not blacklisted
                 if (!Filter.IsNegativeTarget) { // is filter positive?
                   PiDevices[InsertIDx++] = Device;
                   original_indices.push_back(DeviceNum);
                 } else {
                   // Filter is negative and the device matches the filter so
                   // blacklist the device.
-                  Blacklist[&Device] = true;
+                  Blacklist[DeviceNum] = true;
                 }
               }
             } else { // dealing with SYCL_DEVICE_FILTER
@@ -243,14 +245,14 @@ static std::vector<int> filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
         } else if (FilterDevType == DeviceType) {
           if (!Filter.DeviceNum || DeviceNum == Filter.DeviceNum.value()) {
             if constexpr (is_ods_target) {
-              if (!Blacklist[&Device]) {
+              if (!Blacklist[DeviceNum]) {
                 if (!Filter.IsNegativeTarget) {
                   PiDevices[InsertIDx++] = Device;
                   original_indices.push_back(DeviceNum);
                 } else {
                   // Filter is negative and the device matches the filter so
                   // blacklist the device.
-                  Blacklist[&Device] = true;
+                  Blacklist[DeviceNum] = true;
                 }
               }
             } else {
