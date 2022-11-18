@@ -43,6 +43,7 @@
 #define SPIRV_OCLTYPETOSPIRV_H
 
 #include "LLVMSPIRVLib.h"
+#include "SPIRVBuiltinHelper.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/PassManager.h"
@@ -53,7 +54,7 @@
 
 namespace SPIRV {
 
-class OCLTypeToSPIRVBase {
+class OCLTypeToSPIRVBase : protected BuiltinCallHelper {
 public:
   OCLTypeToSPIRVBase();
 

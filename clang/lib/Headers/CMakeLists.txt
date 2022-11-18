@@ -75,6 +75,10 @@ set(hlsl_files
   ${hlsl_subdir_files}
   )
 
+set(loongarch_files
+  larchintrin.h
+  )
+
 set(mips_msa_files
   msa.h
   )
@@ -233,6 +237,7 @@ set(files
   ${cuda_files}
   ${hexagon_files}
   ${hip_files}
+  ${loongarch_files}
   ${mips_msa_files}
   ${opencl_files}
   ${ppc_files}
@@ -276,7 +281,7 @@ set(openmp_wrapper_files
   openmp_wrappers/new
 )
 
-set(output_dir ${LLVM_LIBRARY_OUTPUT_INTDIR}/clang/${CLANG_VERSION}/include)
+set(output_dir ${LLVM_LIBRARY_OUTPUT_INTDIR}/clang/${CLANG_VERSION_MAJOR}/include)
 set(out_files)
 set(generated_files)
 
@@ -412,6 +417,7 @@ add_header_target("aarch64-resource-headers" "${aarch64_only_files};${aarch64_on
 add_header_target("cuda-resource-headers" "${cuda_files};${cuda_wrapper_files}")
 add_header_target("hexagon-resource-headers" "${hexagon_files}")
 add_header_target("hip-resource-headers" "${hip_files}")
+add_header_target("loongarch-resource-headers" "${loongarch_files}")
 add_header_target("mips-resource-headers" "${mips_msa_files}")
 add_header_target("ppc-resource-headers" "${ppc_files};${ppc_wrapper_files}")
 add_header_target("ppc-htm-resource-headers" "${ppc_htm_files}")
@@ -428,7 +434,7 @@ add_header_target("openmp-resource-headers" ${openmp_wrapper_files})
 add_header_target("windows-resource-headers" ${windows_only_files})
 add_header_target("utility-resource-headers" ${utility_files})
 
-set(header_install_dir lib${LLVM_LIBDIR_SUFFIX}/clang/${CLANG_VERSION}/include)
+set(header_install_dir lib${LLVM_LIBDIR_SUFFIX}/clang/${CLANG_VERSION_MAJOR}/include)
 
 #############################################################
 # Install rules for the catch-all clang-resource-headers target
@@ -501,6 +507,12 @@ install(
   DESTINATION ${header_install_dir}
   EXCLUDE_FROM_ALL
   COMPONENT hip-resource-headers)
+
+install(
+  FILES ${loongarch_files}
+  DESTINATION ${header_install_dir}
+  EXCLUDE_FROM_ALL
+  COMPONENT loongarch-resource-headers)
 
 install(
   FILES ${mips_msa_files}

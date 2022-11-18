@@ -37,7 +37,6 @@
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Metadata.h"
-#include "llvm/IR/ModRef.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/Value.h"
@@ -45,6 +44,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
+#include "llvm/Support/ModRef.h"
 #include "llvm/Support/SaveAndRestore.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
@@ -853,7 +853,18 @@ bool LLParser::parseStandaloneMetadata() {
   // See if this was forward referenced, if so, handle it.
   auto FI = ForwardRefMDNodes.find(MetadataID);
   if (FI != ForwardRefMDNodes.end()) {
-    FI->second.first->replaceAllUsesWith(Init);
+    auto *ToReplace = FI->second.first.get();
+    // DIAssignID has its own special forward-reference "replacement" for
+    // attachments (the temporary attachments are never actually attached).
+    if (isa<DIAssignID>(Init)) {
+      for (auto *Inst : TempDIAssignIDAttachments[ToReplace]) {
+        assert(!Inst->getMetadata(LLVMContext::MD_DIAssignID) &&
+               "Inst unexpectedly already has DIAssignID attachment");
+        Inst->setMetadata(LLVMContext::MD_DIAssignID, Init);
+      }
+    }
+
+    ToReplace->replaceAllUsesWith(Init);
     ForwardRefMDNodes.erase(FI);
 
     assert(NumberedMetadata[MetadataID] == Init && "Tracking VH didn't work");
@@ -2082,7 +2093,11 @@ bool LLParser::parseInstructionMetadata(Instruction &Inst) {
     if (parseMetadataAttachment(MDK, N))
       return true;
 
-    Inst.setMetadata(MDK, N);
+    if (MDK == LLVMContext::MD_DIAssignID)
+      TempDIAssignIDAttachments[N].push_back(&Inst);
+    else
+      Inst.setMetadata(MDK, N);
+
     if (MDK == LLVMContext::MD_tbaa)
       InstsWithTBAATag.push_back(&Inst);
 
