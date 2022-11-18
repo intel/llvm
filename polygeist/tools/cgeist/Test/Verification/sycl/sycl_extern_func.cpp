@@ -15,10 +15,6 @@
 // CHECK-MLIR:           sycl.constructor(%{{.*}})
 // CHECK-MLIR-NEXT:      return
 
-// CHECK-LLVM-LABEL: define internal spir_func void @_ZZZ16host_single_taskvENKUlRN4sycl3_V17handlerEE_clES2_ENKUlvE_clEv
-// CHECK-LLVM-SAME: #[[FUNCATTRS2:[0-9]+]]
-// CHECK: call void @cons_5()
-
 // CHECK-LLVM-LABEL: define spir_func void @cons_5()
 // CHECK-LLVM-SAME:  #[[FUNCATTRS1:[0-9]+]] {
 // CHECK-LLVM-NEXT:  [[ACCESSOR:%.*]] = alloca %"class.sycl::_V1::accessor.1", align 8
@@ -27,6 +23,7 @@
 
 // CHECK-LLVM-LABEL: define weak_odr spir_kernel void @_ZTSZZ16host_single_taskvENKUlRN4sycl3_V17handlerEE_clES2_E18kernel_single_task
 // CHECK-LLVM-SAME: #[[FUNCATTRS1]]
+// CHECK: call void @cons_5()
 
 extern "C" SYCL_EXTERNAL void cons_5() {
   sycl::accessor<sycl::cl_int, 1, sycl::access::mode::write> accessor;
@@ -47,4 +44,3 @@ void host_single_task() {
 
 // Keep at the end of the file.
 // CHECK-LLVM: attributes #[[FUNCATTRS1]] = { convergent mustprogress norecurse nounwind "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}/polygeist/tools/cgeist/Test/Verification/sycl/sycl_extern_func.cpp" }
-// CHECK-LLVM-NEXT: attributes #[[FUNCATTRS2]] = { alwaysinline convergent mustprogress norecurse nounwind "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}/polygeist/tools/cgeist/Test/Verification/sycl/sycl_extern_func.cpp" }
