@@ -30,11 +30,9 @@ namespace detail {
 
 static bool checkAllDevicesAreInContext(const std::vector<device> &Devices,
                                         const context &Context) {
-  const std::vector<device> &ContextDevices = Context.get_devices();
   return std::all_of(
-      Devices.begin(), Devices.end(), [&ContextDevices](const device &Dev) {
-        return ContextDevices.end() !=
-               std::find(ContextDevices.begin(), ContextDevices.end(), Dev);
+      Devices.begin(), Devices.end(), [&Context](const device &Dev) {
+        return getSyclObjImpl(Context)->isDeviceValid(getSyclObjImpl(Dev));
       });
 }
 

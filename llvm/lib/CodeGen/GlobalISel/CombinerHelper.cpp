@@ -556,7 +556,7 @@ bool CombinerHelper::matchCombineExtendingLoads(MachineInstr &MI,
       if (MMO.isAtomic() && UseMI.getOpcode() != TargetOpcode::G_ANYEXT)
         continue;
       // Check for legality.
-      if (LI) {
+      if (!isPreLegalize()) {
         LegalityQuery::MemDesc MMDesc(MMO);
         unsigned CandidateLoadOpc = getExtLoadOpcForExtend(UseMI.getOpcode());
         LLT UseTy = MRI.getType(UseMI.getOperand(0).getReg());
@@ -4551,8 +4551,10 @@ bool CombinerHelper::matchReassocConstantInnerLHS(GPtrAdd &MI,
     // doesn't happen.
     LHSPtrAdd->moveBefore(&MI);
     Register RHSReg = MI.getOffsetReg();
+    // set VReg will cause type mismatch if it comes from extend/trunc
+    auto NewCst = B.buildConstant(MRI.getType(RHSReg), LHSCstOff->Value);
     Observer.changingInstr(MI);
-    MI.getOperand(2).setReg(LHSCstOff->VReg);
+    MI.getOperand(2).setReg(NewCst.getReg(0));
     Observer.changedInstr(MI);
     Observer.changingInstr(*LHSPtrAdd);
     LHSPtrAdd->getOperand(2).setReg(RHSReg);
@@ -5253,7 +5255,7 @@ bool CombinerHelper::canCombineFMadOrFMA(MachineInstr &MI,
     return false;
 
   // Floating-point multiply-add with intermediate rounding.
-  HasFMAD = (LI && TLI.isFMADLegal(MI, DstType));
+  HasFMAD = (!isPreLegalize() && TLI.isFMADLegal(MI, DstType));
   // Floating-point multiply-add without intermediate rounding.
   bool HasFMA = TLI.isFMAFasterThanFMulAndFAdd(*MF, DstType) &&
                 isLegalOrBeforeLegalizer({TargetOpcode::G_FMA, {DstType}});
