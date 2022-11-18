@@ -664,10 +664,10 @@ def _generate_returns(obj, meta):
                 typename = type_traits.base(item['type'])
 
                 if type_traits.is_pointer(item['type']):
-                    _append(rets, "$X_RESULT_ERROR_INVALID_NULL_POINTER", "`nullptr == %s`"%item['name'])
+                    _append(rets, "$X_RESULT_ERROR_INVALID_NULL_POINTER", "`NULL == %s`"%item['name'])
 
                 elif type_traits.is_handle(item['type']) and not type_traits.is_ipc_handle(item['type']):
-                    _append(rets, "$X_RESULT_ERROR_INVALID_NULL_HANDLE", "`nullptr == %s`"%item['name'])
+                    _append(rets, "$X_RESULT_ERROR_INVALID_NULL_HANDLE", "`NULL == %s`"%item['name'])
 
                 elif type_traits.is_enum(item['type'], meta):
                     _append(rets, "$X_RESULT_ERROR_INVALID_ENUMERATION", "`%s < %s`"%(meta['enum'][typename]['max'], item['name']))
@@ -678,7 +678,9 @@ def _generate_returns(obj, meta):
                         mtypename = type_traits.base(m['type'])
 
                         if type_traits.is_pointer(m['type']) and not param_traits.is_optional({'desc': m['desc']}):
-                            _append(rets, "$X_RESULT_ERROR_INVALID_NULL_POINTER", "`nullptr == %s->%s`"%(item['name'], m['name']))
+                            _append(rets,
+                                    "$X_RESULT_ERROR_INVALID_NULL_POINTER",
+                                    "`NULL == %s->%s`"%(item['name'], m['name']))
 
                         elif type_traits.is_enum(m['type'], meta):
                             if re.match(r"stype", m['name']):
