@@ -267,8 +267,8 @@ namespace node {
 
 class depends_on {
   public:
-    template<typename... Ts>
-    depends_on(Ts... deps);
+    template<typename... NodeTN>
+    depends_on(NodeTN... nodes);
 };
 
 } // namespace node
