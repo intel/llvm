@@ -336,8 +336,8 @@ typedef struct _ur_device_partition_property_value_t ur_device_partition_propert
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == phDevices`
-///         + `nullptr == phContext`
+///         + `NULL == phDevices`
+///         + `NULL == phContext`
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -367,7 +367,7 @@ urContextCreate(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hContext`
+///         + `NULL == hContext`
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRetain(
     ur_context_handle_t hContext                    ///< [in] handle of the context to get a reference of.
@@ -401,7 +401,7 @@ typedef enum _ur_context_info_t
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hContext`
+///         + `NULL == hContext`
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRelease(
     ur_context_handle_t hContext                    ///< [in] handle of the context to release.
@@ -423,11 +423,11 @@ urContextRelease(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hContext`
+///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_CONTEXT_INFO_DEVICES < ContextInfoType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == pSize`
+///         + `NULL == pSize`
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextGetInfo(
     ur_context_handle_t hContext,                   ///< [in] handle of the context
@@ -458,9 +458,9 @@ urContextGetInfo(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hContext`
+///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == phNativeContext`
+///         + `NULL == phNativeContext`
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextGetNativeHandle(
     ur_context_handle_t hContext,                   ///< [in] handle of the context.
@@ -481,10 +481,10 @@ urContextGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hPlatform`
-///         + `nullptr == hNativeContext`
+///         + `NULL == hPlatform`
+///         + `NULL == hNativeContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == phContext`
+///         + `NULL == phContext`
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextCreateWithNativeHandle(
     ur_platform_handle_t hPlatform,                 ///< [in] handle of the platform instance
@@ -516,9 +516,9 @@ typedef void (ur_context_extended_deleter_t)(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hContext`
+///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == pParams`
+///         + `NULL == pParams`
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextSetExtendedDeleter(
     ur_context_handle_t hContext,                   ///< [in] handle of the context.
@@ -545,12 +545,12 @@ urContextSetExtendedDeleter(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hQueue`
-///         + `nullptr == hKernel`
+///         + `NULL == hQueue`
+///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == globalWorkOffset`
-///         + `nullptr == globalWorkSize`
-///         + `nullptr == event`
+///         + `NULL == globalWorkOffset`
+///         + `NULL == globalWorkSize`
+///         + `NULL == event`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_KERNEL
 ///     - ::UR_RESULT_INVALID_EVENT
@@ -604,9 +604,9 @@ urEnqueueKernelLaunch(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hQueue`
+///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == event`
+///         + `NULL == event`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_VALUE
@@ -647,9 +647,9 @@ urEnqueueEventsWait(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hQueue`
+///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == event`
+///         + `NULL == event`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_VALUE
@@ -686,11 +686,11 @@ urEnqueueEventsWaitWithBarrier(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hQueue`
-///         + `nullptr == hBuffer`
+///         + `NULL == hQueue`
+///         + `NULL == hBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == dst`
-///         + `nullptr == event`
+///         + `NULL == dst`
+///         + `NULL == event`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
@@ -731,11 +731,11 @@ urEnqueueMemBufferRead(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hQueue`
-///         + `nullptr == hBuffer`
+///         + `NULL == hQueue`
+///         + `NULL == hBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == src`
-///         + `nullptr == event`
+///         + `NULL == src`
+///         + `NULL == event`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
@@ -779,11 +779,11 @@ urEnqueueMemBufferWrite(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hQueue`
-///         + `nullptr == hBuffer`
+///         + `NULL == hQueue`
+///         + `NULL == hBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == dst`
-///         + `nullptr == event`
+///         + `NULL == dst`
+///         + `NULL == event`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
@@ -834,11 +834,11 @@ urEnqueueMemBufferReadRect(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hQueue`
-///         + `nullptr == hBuffer`
+///         + `NULL == hQueue`
+///         + `NULL == hBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == src`
-///         + `nullptr == event`
+///         + `NULL == src`
+///         + `NULL == event`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
@@ -883,11 +883,11 @@ urEnqueueMemBufferWriteRect(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hQueue`
-///         + `nullptr == hBufferSrc`
-///         + `nullptr == hBufferDst`
+///         + `NULL == hQueue`
+///         + `NULL == hBufferSrc`
+///         + `NULL == hBufferDst`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == event`
+///         + `NULL == event`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
@@ -923,11 +923,11 @@ urEnqueueMemBufferCopy(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hQueue`
-///         + `nullptr == hBufferSrc`
-///         + `nullptr == hBufferDst`
+///         + `NULL == hQueue`
+///         + `NULL == hBufferSrc`
+///         + `NULL == hBufferDst`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == event`
+///         + `NULL == event`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
@@ -969,11 +969,11 @@ urEnqueueMemBufferCopyRect(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hQueue`
-///         + `nullptr == hBuffer`
+///         + `NULL == hQueue`
+///         + `NULL == hBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == pattern`
-///         + `nullptr == event`
+///         + `NULL == pattern`
+///         + `NULL == event`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
@@ -1015,11 +1015,11 @@ urEnqueueMemBufferFill(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hQueue`
-///         + `nullptr == hImage`
+///         + `NULL == hQueue`
+///         + `NULL == hImage`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == dst`
-///         + `nullptr == event`
+///         + `NULL == dst`
+///         + `NULL == event`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
@@ -1064,11 +1064,11 @@ urEnqueueMemImageRead(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hQueue`
-///         + `nullptr == hImage`
+///         + `NULL == hQueue`
+///         + `NULL == hImage`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == src`
-///         + `nullptr == event`
+///         + `NULL == src`
+///         + `NULL == event`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
@@ -1108,11 +1108,11 @@ urEnqueueMemImageWrite(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hQueue`
-///         + `nullptr == hImageSrc`
-///         + `nullptr == hImageDst`
+///         + `NULL == hQueue`
+///         + `NULL == hImageSrc`
+///         + `NULL == hImageDst`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == event`
+///         + `NULL == event`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
@@ -1181,13 +1181,13 @@ typedef enum _ur_usm_migration_flag_t
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hQueue`
-///         + `nullptr == buffer`
+///         + `NULL == hQueue`
+///         + `NULL == buffer`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `0x3 < mapFlags`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == event`
-///         + `nullptr == retMap`
+///         + `NULL == event`
+///         + `NULL == retMap`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
@@ -1227,11 +1227,11 @@ urEnqueueMemBufferMap(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hQueue`
-///         + `nullptr == hMem`
+///         + `NULL == hQueue`
+///         + `NULL == hMem`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == mappedPtr`
-///         + `nullptr == event`
+///         + `NULL == mappedPtr`
+///         + `NULL == event`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
@@ -1261,10 +1261,10 @@ urEnqueueMemUnmap(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hQueue`
+///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == ptr`
-///         + `nullptr == event`
+///         + `NULL == ptr`
+///         + `NULL == event`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
@@ -1295,11 +1295,11 @@ urEnqueueUSMMemset(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hQueue`
+///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == dstPrt`
-///         + `nullptr == srcPrt`
-///         + `nullptr == event`
+///         + `NULL == dstPrt`
+///         + `NULL == srcPrt`
+///         + `NULL == event`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
@@ -1331,10 +1331,10 @@ urEnqueueUSMMemcpy(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hQueue`
+///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == ptr`
-///         + `nullptr == event`
+///         + `NULL == ptr`
+///         + `NULL == event`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `0x1 < flags`
 ///     - ::UR_RESULT_INVALID_QUEUE
@@ -1376,10 +1376,10 @@ typedef enum _ur_mem_advice_t
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hQueue`
+///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == ptr`
-///         + `nullptr == event`
+///         + `NULL == ptr`
+///         + `NULL == event`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_MEM_ADVICE_MEM_ADVICE_DEFAULT < advice`
 ///     - ::UR_RESULT_INVALID_QUEUE
@@ -1448,9 +1448,9 @@ typedef enum _ur_profiling_info_t
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == context`
+///         + `NULL == context`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == pEvent`
+///         + `NULL == pEvent`
 ///     - ::UR_RESULT_INVALID_CONTEXT
 ///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_OUT_OF_RESOURCES
@@ -1472,12 +1472,12 @@ urEventCreate(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == event`
+///         + `NULL == event`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_EVENT_INFO_EVENT_INFO_REFERENCE_COUNT < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == propValue`
-///         + `nullptr == propValueSizeRet`
+///         + `NULL == propValue`
+///         + `NULL == propValueSizeRet`
 ///     - ::UR_RESULT_INVALID_VALUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_OUT_OF_RESOURCES
@@ -1504,11 +1504,11 @@ urEventGetInfo(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == event`
+///         + `NULL == event`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_PROFILING_INFO_PROFILING_INFO_COMMAND_END < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == propValue`
+///         + `NULL == propValue`
 ///     - ::UR_RESULT_INVALID_VALUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_OUT_OF_RESOURCES
@@ -1534,7 +1534,7 @@ urEventGetProfilingInfo(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == eventList`
+///         + `NULL == eventList`
 ///     - ::UR_RESULT_INVALID_VALUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_CONTEXT
@@ -1560,7 +1560,7 @@ urEventWait(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == event`
+///         + `NULL == event`
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
@@ -1582,7 +1582,7 @@ urEventRetain(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == event`
+///         + `NULL == event`
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
@@ -1608,9 +1608,9 @@ urEventRelease(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hEvent`
+///         + `NULL == hEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == phNativeEvent`
+///         + `NULL == phNativeEvent`
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventGetNativeHandle(
     ur_event_handle_t hEvent,                       ///< [in] handle of the event.
@@ -1631,10 +1631,10 @@ urEventGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hPlatform`
-///         + `nullptr == hNativeEvent`
+///         + `NULL == hPlatform`
+///         + `NULL == hNativeEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == phEvent`
+///         + `NULL == phEvent`
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventCreateWithNativeHandle(
     ur_platform_handle_t hPlatform,                 ///< [in] handle of the platform instance
@@ -1765,15 +1765,15 @@ typedef struct _ur_image_desc_t
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hContext`
+///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `0x3f < flags`
 ///         + `::UR_MEM_TYPE_MEM_TYPE_IMAGE1D_BUFFER < imageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == imageFormat`
-///         + `nullptr == imageDesc`
-///         + `nullptr == hostPtr`
-///         + `nullptr == phMem`
+///         + `NULL == imageFormat`
+///         + `NULL == imageDesc`
+///         + `NULL == hostPtr`
+///         + `NULL == phMem`
 ///     - ::UR_RESULT_INVALID_CONTEXT
 ///     - ::UR_RESULT_INVALID_VALUE
 ///     - ::UR_RESULT_INVALID_IMAGE_FORMAT_DESCRIPTOR
@@ -1804,12 +1804,12 @@ urMemImageCreate(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hContext`
+///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `0x3f < flags`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == hostPtr`
-///         + `nullptr == phBuffer`
+///         + `NULL == hostPtr`
+///         + `NULL == phBuffer`
 ///     - ::UR_RESULT_INVALID_CONTEXT
 ///     - ::UR_RESULT_INVALID_VALUE
 ///     - ::UR_RESULT_INVALID_BUFFER_SIZE
@@ -1842,7 +1842,7 @@ urMemBufferCreate(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hMem`
+///         + `NULL == hMem`
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_OUT_OF_RESOURCES
@@ -1864,7 +1864,7 @@ urMemRetain(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hMem`
+///         + `NULL == hMem`
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -1902,13 +1902,13 @@ typedef enum _ur_buffer_create_type_t
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hBuffer`
+///         + `NULL == hBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `0x3f < flags`
 ///         + `::UR_BUFFER_CREATE_TYPE_BUFFER_CREATE_TYPE_REGION < bufferCreateType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == pBufferCreateInfo`
-///         + `nullptr == phMem`
+///         + `NULL == pBufferCreateInfo`
+///         + `NULL == phMem`
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_OBJECT_ALLOCATION_FAILURE
 ///     - ::UR_RESULT_INVALID_VALUE
@@ -1942,9 +1942,9 @@ urMemBufferPartition(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hMem`
+///         + `NULL == hMem`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == phNativeMem`
+///         + `NULL == phNativeMem`
 UR_APIEXPORT ur_result_t UR_APICALL
 urMemGetNativeHandle(
     ur_mem_handle_t hMem,                           ///< [in] handle of the mem.
@@ -1965,10 +1965,10 @@ urMemGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hPlatform`
-///         + `nullptr == hNativeMem`
+///         + `NULL == hPlatform`
+///         + `NULL == hNativeMem`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == phMem`
+///         + `NULL == phMem`
 UR_APIEXPORT ur_result_t UR_APICALL
 urMemCreateWithNativeHandle(
     ur_platform_handle_t hPlatform,                 ///< [in] handle of the platform instance
@@ -1991,7 +1991,7 @@ urMemCreateWithNativeHandle(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == pParams`
+///         + `NULL == pParams`
 ///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urTearDown(
@@ -2044,12 +2044,12 @@ typedef enum _ur_queue_flag_t
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hQueue`
+///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_QUEUE_INFO_SIZE < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == propValue`
-///         + `nullptr == pSize`
+///         + `NULL == propValue`
+///         + `NULL == pSize`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_VALUE
 ///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
@@ -2075,12 +2075,12 @@ urQueueGetInfo(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hContext`
-///         + `nullptr == hDevice`
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `0xf < props`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == phQueue`
+///         + `NULL == phQueue`
 ///     - ::UR_RESULT_INVALID_CONTEXT
 ///     - ::UR_RESULT_INVALID_DEVICE
 ///     - ::UR_RESULT_INVALID_VALUE
@@ -2113,7 +2113,7 @@ urQueueCreate(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hQueue`
+///         + `NULL == hQueue`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_OUT_OF_RESOURCES
@@ -2141,7 +2141,7 @@ urQueueRetain(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hQueue`
+///         + `NULL == hQueue`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_OUT_OF_RESOURCES
@@ -2167,9 +2167,9 @@ urQueueRelease(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hQueue`
+///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == phNativeQueue`
+///         + `NULL == phNativeQueue`
 UR_APIEXPORT ur_result_t UR_APICALL
 urQueueGetNativeHandle(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue.
@@ -2190,10 +2190,10 @@ urQueueGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hQueue`
-///         + `nullptr == hNativeQueue`
+///         + `NULL == hQueue`
+///         + `NULL == hNativeQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == phQueue`
+///         + `NULL == phQueue`
 UR_APIEXPORT ur_result_t UR_APICALL
 urQueueCreateWithNativeHandle(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue instance
@@ -2221,7 +2221,7 @@ urQueueCreateWithNativeHandle(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hQueue`
+///         + `NULL == hQueue`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -2248,7 +2248,7 @@ urQueueFinish(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hQueue`
+///         + `NULL == hQueue`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -2317,10 +2317,10 @@ typedef struct _ur_sampler_property_value_t
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hContext`
+///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == props`
-///         + `nullptr == phSampler`
+///         + `NULL == props`
+///         + `NULL == phSampler`
 ///     - ::UR_RESULT_INVALID_CONTEXT
 ///     - ::UR_RESULT_INVALID_VALUE
 ///     - ::UR_RESULT_INVALID_OPERATION
@@ -2347,7 +2347,7 @@ urSamplerCreate(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hSampler`
+///         + `NULL == hSampler`
 ///     - ::UR_RESULT_INVALID_SAMPLER
 ///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_OUT_OF_RESOURCES
@@ -2369,7 +2369,7 @@ urSamplerRetain(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hSampler`
+///         + `NULL == hSampler`
 ///     - ::UR_RESULT_INVALID_SAMPLER
 ///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_OUT_OF_RESOURCES
@@ -2390,12 +2390,12 @@ urSamplerRelease(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hSampler`
+///         + `NULL == hSampler`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_SAMPLER_INFO_SAMPLER_INFO_LOD_MAX < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == propValue`
-///         + `nullptr == pSize`
+///         + `NULL == propValue`
+///         + `NULL == pSize`
 ///     - ::UR_RESULT_INVALID_SAMPLER
 ///     - ::UR_RESULT_INVALID_VALUE
 ///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
@@ -2426,9 +2426,9 @@ urSamplerGetInfo(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hSampler`
+///         + `NULL == hSampler`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == phNativeSampler`
+///         + `NULL == phNativeSampler`
 UR_APIEXPORT ur_result_t UR_APICALL
 urSamplerGetNativeHandle(
     ur_sampler_handle_t hSampler,                   ///< [in] handle of the sampler.
@@ -2449,10 +2449,10 @@ urSamplerGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hSampler`
-///         + `nullptr == hNativeSampler`
+///         + `NULL == hSampler`
+///         + `NULL == hNativeSampler`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == phSampler`
+///         + `NULL == phSampler`
 UR_APIEXPORT ur_result_t UR_APICALL
 urSamplerCreateWithNativeHandle(
     ur_sampler_handle_t hSampler,                   ///< [in] handle of the sampler instance
@@ -2497,10 +2497,10 @@ typedef enum _ur_mem_info_t
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == context`
+///         + `NULL == context`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == pUSMFlag`
-///         + `nullptr == pptr`
+///         + `NULL == pUSMFlag`
+///         + `NULL == pptr`
 ///     - ::UR_RESULT_INVALID_CONTEXT
 ///     - ::UR_RESULT_INVALID_VALUE
 ///     - ::UR_RESULT_INVALID_USM_SIZE
@@ -2523,11 +2523,11 @@ urUSMHostAlloc(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == context`
-///         + `nullptr == device`
+///         + `NULL == context`
+///         + `NULL == device`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == pUSMProp`
-///         + `nullptr == pptr`
+///         + `NULL == pUSMProp`
+///         + `NULL == pptr`
 ///     - ::UR_RESULT_INVALID_CONTEXT
 ///     - ::UR_RESULT_INVALID_VALUE
 ///     - ::UR_RESULT_INVALID_USM_SIZE
@@ -2551,11 +2551,11 @@ urUSMDeviceAlloc(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == context`
-///         + `nullptr == device`
+///         + `NULL == context`
+///         + `NULL == device`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == pUSMProp`
-///         + `nullptr == pptr`
+///         + `NULL == pUSMProp`
+///         + `NULL == pptr`
 ///     - ::UR_RESULT_INVALID_CONTEXT
 ///     - ::UR_RESULT_INVALID_VALUE
 ///     - ::UR_RESULT_INVALID_USM_SIZE
@@ -2579,9 +2579,9 @@ urUSMSharedAlloc(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == context`
+///         + `NULL == context`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == ptr`
+///         + `NULL == ptr`
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -2598,11 +2598,11 @@ urMemFree(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == context`
+///         + `NULL == context`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == ptr`
-///         + `nullptr == propValue`
-///         + `nullptr == propValueSizeRet`
+///         + `NULL == ptr`
+///         + `NULL == propValue`
+///         + `NULL == propValueSizeRet`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_MEM_INFO_MEM_ALLOC_DEVICE < propName`
 ///     - ::UR_RESULT_INVALID_CONTEXT
@@ -2664,11 +2664,11 @@ typedef enum _ur_device_type_t
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hPlatform`
+///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_DEVICE_TYPE_VPU < DevicesType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == pCount`
+///         + `NULL == pCount`
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceGet(
     ur_platform_handle_t hPlatform,                 ///< [in] handle of the platform instance
@@ -2813,11 +2813,11 @@ typedef enum _ur_device_info_t
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hDevice`
+///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES < infoType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == pSize`
+///         + `NULL == pSize`
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceGetInfo(
     ur_device_handle_t hDevice,                     ///< [in] handle of the device instance
@@ -2852,7 +2852,7 @@ urDeviceGetInfo(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hDevice`
+///         + `NULL == hDevice`
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceRetain(
     ur_device_handle_t hDevice                      ///< [in] handle of the device to get a reference of.
@@ -2875,7 +2875,7 @@ urDeviceRetain(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hDevice`
+///         + `NULL == hDevice`
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceRelease(
     ur_device_handle_t hDevice                      ///< [in] handle of the device to release.
@@ -2923,10 +2923,10 @@ typedef struct _ur_device_partition_property_value_t
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hDevice`
+///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == Properties`
-///         + `nullptr == pCount`
+///         + `NULL == Properties`
+///         + `NULL == pCount`
 UR_APIEXPORT ur_result_t UR_APICALL
 urDevicePartition(
     ur_device_handle_t hDevice,                     ///< [in] handle of the device to partition.
@@ -2960,10 +2960,10 @@ urDevicePartition(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hDevice`
+///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == Binaries`
-///         + `nullptr == SelectedBinary`
+///         + `NULL == Binaries`
+///         + `NULL == SelectedBinary`
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceSelectBinary(
     ur_device_handle_t hDevice,                     ///< [in] handle of the device to select binary for.
@@ -3050,9 +3050,9 @@ typedef enum _ur_device_affinity_domain_flag_t
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hDevice`
+///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == phNativeDevice`
+///         + `NULL == phNativeDevice`
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceGetNativeHandle(
     ur_device_handle_t hDevice,                     ///< [in] handle of the device.
@@ -3073,10 +3073,10 @@ urDeviceGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hPlatform`
-///         + `nullptr == hNativeDevice`
+///         + `NULL == hPlatform`
+///         + `NULL == hNativeDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == phDevice`
+///         + `NULL == phDevice`
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceCreateWithNativeHandle(
     ur_platform_handle_t hPlatform,                 ///< [in] handle of the platform instance
@@ -3105,10 +3105,10 @@ urDeviceCreateWithNativeHandle(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hProgram`
+///         + `NULL == hProgram`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == pKernelName`
-///         + `nullptr == phKernel`
+///         + `NULL == pKernelName`
+///         + `NULL == phKernel`
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelCreate(
     ur_program_handle_t hProgram,                   ///< [in] handle of the program instance
@@ -3133,7 +3133,7 @@ urKernelCreate(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hKernel`
+///         + `NULL == hKernel`
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArg(
     ur_kernel_handle_t hKernel,                     ///< [in] handle of the kernel object
@@ -3210,11 +3210,11 @@ typedef enum _ur_kernel_exec_info_t
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hKernel`
+///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_KERNEL_INFO_ATTRIBUTES < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == propSize`
+///         + `NULL == propSize`
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelGetInfo(
     ur_kernel_handle_t hKernel,                     ///< [in] handle of the Kernel object
@@ -3240,12 +3240,12 @@ urKernelGetInfo(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hKernel`
-///         + `nullptr == hDevice`
+///         + `NULL == hKernel`
+///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == propValue`
+///         + `NULL == propValue`
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelGetGroupInfo(
     ur_kernel_handle_t hKernel,                     ///< [in] handle of the Kernel object
@@ -3263,12 +3263,12 @@ urKernelGetGroupInfo(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hKernel`
-///         + `nullptr == hDevice`
+///         + `NULL == hKernel`
+///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_KERNEL_SUB_GROUP_INFO_SUB_GROUP_SIZE_INTEL < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == propValue`
+///         + `NULL == propValue`
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelGetSubGroupInfo(
     ur_kernel_handle_t hKernel,                     ///< [in] handle of the Kernel object
@@ -3296,7 +3296,7 @@ urKernelGetSubGroupInfo(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hKernel`
+///         + `NULL == hKernel`
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelRetain(
     ur_kernel_handle_t hKernel                      ///< [in] handle for the Kernel to retain
@@ -3320,7 +3320,7 @@ urKernelRetain(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hKernel`
+///         + `NULL == hKernel`
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelRelease(
     ur_kernel_handle_t hKernel                      ///< [in] handle for the Kernel to release
@@ -3343,7 +3343,7 @@ urKernelRelease(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hKernel`
+///         + `NULL == hKernel`
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgPointer(
     ur_kernel_handle_t hKernel,                     ///< [in] handle of the kernel object
@@ -3370,11 +3370,11 @@ urKernelSetArgPointer(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hKernel`
+///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_KERNEL_EXEC_INFO_USM_PTRS < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == propValue`
+///         + `NULL == propValue`
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetExecInfo(
     ur_kernel_handle_t hKernel,                     ///< [in] handle of the kernel object
@@ -3397,8 +3397,8 @@ urKernelSetExecInfo(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hKernel`
-///         + `nullptr == pArgValue`
+///         + `NULL == hKernel`
+///         + `NULL == pArgValue`
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgSampler(
     ur_kernel_handle_t hKernel,                     ///< [in] handle of the kernel object
@@ -3419,8 +3419,8 @@ urKernelSetArgSampler(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hKernel`
-///         + `nullptr == pArgValue`
+///         + `NULL == hKernel`
+///         + `NULL == pArgValue`
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgMemObj(
     ur_kernel_handle_t hKernel,                     ///< [in] handle of the kernel object
@@ -3445,9 +3445,9 @@ urKernelSetArgMemObj(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hKernel`
+///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == phNativeKernel`
+///         + `NULL == phNativeKernel`
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelGetNativeHandle(
     ur_kernel_handle_t hKernel,                     ///< [in] handle of the kernel.
@@ -3468,10 +3468,10 @@ urKernelGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hPlatform`
-///         + `nullptr == hNativeKernel`
+///         + `NULL == hPlatform`
+///         + `NULL == hNativeKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == phKernel`
+///         + `NULL == phKernel`
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelCreateWithNativeHandle(
     ur_platform_handle_t hPlatform,                 ///< [in] handle of the platform instance
@@ -3507,11 +3507,11 @@ typedef void (ur_modulecreate_callback_t)(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hContext`
+///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == pIL`
-///         + `nullptr == pOptions`
-///         + `nullptr == phModule`
+///         + `NULL == pIL`
+///         + `NULL == pOptions`
+///         + `NULL == phModule`
 UR_APIEXPORT ur_result_t UR_APICALL
 urModuleCreate(
     ur_context_handle_t hContext,                   ///< [in] handle of the context instance.
@@ -3538,7 +3538,7 @@ urModuleCreate(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hModule`
+///         + `NULL == hModule`
 UR_APIEXPORT ur_result_t UR_APICALL
 urModuleRetain(
     ur_module_handle_t hModule                      ///< [in] handle for the Module to retain
@@ -3558,7 +3558,7 @@ urModuleRetain(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hModule`
+///         + `NULL == hModule`
 UR_APIEXPORT ur_result_t UR_APICALL
 urModuleRelease(
     ur_module_handle_t hModule                      ///< [in] handle for the Module to release
@@ -3581,9 +3581,9 @@ urModuleRelease(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hModule`
+///         + `NULL == hModule`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == phNativeModule`
+///         + `NULL == phNativeModule`
 UR_APIEXPORT ur_result_t UR_APICALL
 urModuleGetNativeHandle(
     ur_module_handle_t hModule,                     ///< [in] handle of the module.
@@ -3604,10 +3604,10 @@ urModuleGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hPlatform`
-///         + `nullptr == hNativeModule`
+///         + `NULL == hPlatform`
+///         + `NULL == hNativeModule`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == phModule`
+///         + `NULL == phModule`
 UR_APIEXPORT ur_result_t UR_APICALL
 urModuleCreateWithNativeHandle(
     ur_platform_handle_t hPlatform,                 ///< [in] handle of the platform instance
@@ -3640,7 +3640,7 @@ urModuleCreateWithNativeHandle(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == pCount`
+///         + `NULL == pCount`
 UR_APIEXPORT ur_result_t UR_APICALL
 urPlatformGet(
     uint32_t* pCount,                               ///< [in,out] pointer to the number of platforms.
@@ -3687,11 +3687,11 @@ typedef enum _ur_platform_info_t
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hPlatform`
+///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_PLATFORM_INFO_PROFILE < PlatformInfoType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == pSize`
+///         + `NULL == pSize`
 UR_APIEXPORT ur_result_t UR_APICALL
 urPlatformGetInfo(
     ur_platform_handle_t hPlatform,                 ///< [in] handle of the platform
@@ -3731,9 +3731,9 @@ typedef enum _ur_api_version_t
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hDriver`
+///         + `NULL == hDriver`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == version`
+///         + `NULL == version`
 UR_APIEXPORT ur_result_t UR_APICALL
 urPlatformGetApiVersion(
     ur_platform_handle_t hDriver,                   ///< [in] handle of the platform
@@ -3757,9 +3757,9 @@ urPlatformGetApiVersion(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hPlatform`
+///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == phNativePlatform`
+///         + `NULL == phNativePlatform`
 UR_APIEXPORT ur_result_t UR_APICALL
 urPlatformGetNativeHandle(
     ur_platform_handle_t hPlatform,                 ///< [in] handle of the platform.
@@ -3780,10 +3780,10 @@ urPlatformGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hPlatform`
-///         + `nullptr == hNativePlatform`
+///         + `NULL == hPlatform`
+///         + `NULL == hNativePlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == phPlatform`
+///         + `NULL == phPlatform`
 UR_APIEXPORT ur_result_t UR_APICALL
 urPlatformCreateWithNativeHandle(
     ur_platform_handle_t hPlatform,                 ///< [in] handle of the platform instance
@@ -3813,10 +3813,10 @@ urPlatformCreateWithNativeHandle(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hContext`
+///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == phModules`
-///         + `nullptr == phProgram`
+///         + `NULL == phModules`
+///         + `NULL == phProgram`
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramCreate(
     ur_context_handle_t hContext,                   ///< [in] handle of the context instance
@@ -3841,11 +3841,11 @@ urProgramCreate(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hContext`
-///         + `nullptr == hDevice`
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == pBinary`
-///         + `nullptr == phProgram`
+///         + `NULL == pBinary`
+///         + `NULL == phProgram`
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramCreateWithBinary(
     ur_context_handle_t hContext,                   ///< [in] handle of the context instance
@@ -3873,7 +3873,7 @@ urProgramCreateWithBinary(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hProgram`
+///         + `NULL == hProgram`
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramRetain(
     ur_program_handle_t hProgram                    ///< [in] handle for the Program to retain
@@ -3897,7 +3897,7 @@ urProgramRetain(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hProgram`
+///         + `NULL == hProgram`
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramRelease(
     ur_program_handle_t hProgram                    ///< [in] handle for the Program to release
@@ -3924,11 +3924,11 @@ urProgramRelease(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hDevice`
-///         + `nullptr == hProgram`
+///         + `NULL == hDevice`
+///         + `NULL == hProgram`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == pFunctionName`
-///         + `nullptr == pFunctionPointer`
+///         + `NULL == pFunctionName`
+///         + `NULL == pFunctionPointer`
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramGetFunctionPointer(
     ur_device_handle_t hDevice,                     ///< [in] handle of the device to retrieve pointer for.
@@ -3971,11 +3971,11 @@ typedef enum _ur_program_info_t
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hProgram`
+///         + `NULL == hProgram`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_PROGRAM_INFO_KERNEL_NAMES < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == propSize`
+///         + `NULL == propSize`
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramGetInfo(
     ur_program_handle_t hProgram,                   ///< [in] handle of the Program object
@@ -4037,12 +4037,12 @@ typedef enum _ur_program_build_info_t
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hProgram`
-///         + `nullptr == hDevice`
+///         + `NULL == hProgram`
+///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_PROGRAM_BUILD_INFO_BINARY_TYPE < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == propSize`
+///         + `NULL == propSize`
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramGetBuildInfo(
     ur_program_handle_t hProgram,                   ///< [in] handle of the Program object
@@ -4066,9 +4066,9 @@ urProgramGetBuildInfo(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hProgram`
+///         + `NULL == hProgram`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == specValue`
+///         + `NULL == specValue`
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramSetSpecializationConstant(
     ur_program_handle_t hProgram,                   ///< [in] handle of the Program object
@@ -4094,9 +4094,9 @@ urProgramSetSpecializationConstant(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hProgram`
+///         + `NULL == hProgram`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == phNativeProgram`
+///         + `NULL == phNativeProgram`
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramGetNativeHandle(
     ur_program_handle_t hProgram,                   ///< [in] handle of the program.
@@ -4117,10 +4117,10 @@ urProgramGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `nullptr == hProgram`
-///         + `nullptr == hNativeProgram`
+///         + `NULL == hProgram`
+///         + `NULL == hNativeProgram`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `nullptr == phProgram`
+///         + `NULL == phProgram`
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramCreateWithNativeHandle(
     ur_program_handle_t hProgram,                   ///< [in] handle of the program instance
