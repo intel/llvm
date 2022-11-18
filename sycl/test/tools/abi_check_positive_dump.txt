@@ -1,5 +1,3 @@
-__libc_csu_fini
-__libc_csu_init
 _start
 _Z3foov
 main
