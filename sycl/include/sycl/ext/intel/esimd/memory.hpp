@@ -15,6 +15,7 @@
 #include <sycl/ext/intel/esimd/detail/types.hpp>
 #include <sycl/ext/intel/esimd/detail/util.hpp>
 #include <sycl/ext/intel/esimd/simd.hpp>
+#include <sycl/ext/intel/esimd/simd_view.hpp>
 #include <sycl/half_type.hpp>
 
 #include <cstdint>
@@ -126,11 +127,10 @@ __ESIMD_API SurfaceIndex get_surface_index(AccessorTy acc) {
 ///   undefined.
 ///
 template <typename Tx, int N, class T = detail::__raw_t<Tx>, typename Toffset>
-__ESIMD_API std::enable_if_t<detail::isPowerOf2(N, 32) &&
-                                 (std::is_same_v<Toffset, uint32_t> ||
-                                  std::is_same_v<Toffset, uint64_t>),
-                             simd<Tx, N>>
-gather(const Tx *p, simd<Toffset, N> offsets, simd_mask<N> mask = 1) {
+__ESIMD_API simd<Tx, N> gather(const Tx *p, simd<Toffset, N> offsets,
+                               simd_mask<N> mask = 1) {
+  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
+  static_assert(detail::isPowerOf2(N, 32), "Unsupported value of N");
   simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
   addrs = addrs + offsets_i;
@@ -151,6 +151,15 @@ gather(const Tx *p, simd<Toffset, N> offsets, simd_mask<N> mask = 1) {
                                                                  mask.data());
 }
 
+template <typename Tx, int N, class T = detail::__raw_t<Tx>, typename Toffset,
+          typename RegionTy = region1d_t<Toffset, N, 1>>
+__ESIMD_API simd<Tx, N> gather(const Tx *p,
+                               simd_view<Toffset, RegionTy> offsets,
+                               simd_mask<N> mask = 1) {
+  using Ty = typename simd_view<Toffset, RegionTy>::element_type;
+  return gather<Tx, N>(p, simd<Ty, N>(offsets), mask);
+}
+
 /// Writes ("scatters") elements of the input vector to different memory
 /// locations. Each memory location is base address plus an offset - a
 /// value of the corresponding element in the input offset vector. Access to
@@ -165,11 +174,10 @@ gather(const Tx *p, simd<Toffset, N> offsets, simd_mask<N> mask = 1) {
 /// @param mask The access mask, defaults to all 1s.
 ///
 template <typename Tx, int N, class T = detail::__raw_t<Tx>, typename Toffset>
-__ESIMD_API std::enable_if_t<detail::isPowerOf2(N, 32) &&
-                             (std::is_same_v<Toffset, uint32_t> ||
-                              std::is_same_v<Toffset, uint64_t>)>
-scatter(Tx *p, simd<Toffset, N> offsets, simd<Tx, N> vals,
-        simd_mask<N> mask = 1) {
+__ESIMD_API void scatter(Tx *p, simd<Toffset, N> offsets, simd<Tx, N> vals,
+                         simd_mask<N> mask = 1) {
+  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
+  static_assert(detail::isPowerOf2(N, 32), "Unsupported value of N");
   simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
   addrs = addrs + offsets_i;
@@ -189,6 +197,14 @@ scatter(Tx *p, simd<Toffset, N> offsets, simd<Tx, N> vals,
     __esimd_svm_scatter<T, N, detail::ElemsPerAddrEncoding<1>(),
                         detail::ElemsPerAddrEncoding<1>()>(
         addrs.data(), vals.data(), mask.data());
+}
+
+template <typename Tx, int N, class T = detail::__raw_t<Tx>, typename Toffset,
+          typename RegionTy = region1d_t<Toffset, N, 1>>
+__ESIMD_API void scatter(Tx *p, simd_view<Toffset, RegionTy> offsets,
+                         simd<Tx, N> vals, simd_mask<N> mask = 1) {
+  using Ty = typename simd_view<Toffset, RegionTy>::element_type;
+  scatter<Tx, N>(p, simd<Ty, N>(offsets), vals, mask);
 }
 
 /// Loads a contiguous block of memory from given memory address and returns
@@ -552,16 +568,26 @@ __ESIMD_API void scalar_store(AccessorTy acc, uint32_t offset, T val) {
 ///
 template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR, typename T,
           int N, typename Toffset>
-__ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && sizeof(T) == 4 &&
-                                 (std::is_same_v<Toffset, uint32_t> ||
-                                  std::is_same_v<Toffset, uint64_t>),
-                             simd<T, N * get_num_channels_enabled(RGBAMask)>>
+__ESIMD_API simd<T, N * get_num_channels_enabled(RGBAMask)>
 gather_rgba(const T *p, simd<Toffset, N> offsets, simd_mask<N> mask = 1) {
+  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
+  static_assert((N == 8 || N == 16 || N == 32), "Unsupported value of N");
+  static_assert(sizeof(T) == 4, "Unsupported size of type T");
   simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
   addrs = addrs + offsets_i;
   return __esimd_svm_gather4_scaled<detail::__raw_t<T>, N, RGBAMask>(
       addrs.data(), mask.data());
+}
+
+template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR, typename T,
+          int N, typename Toffset,
+          typename RegionTy = region1d_t<Toffset, N, 1>>
+__ESIMD_API simd<T, N * get_num_channels_enabled(RGBAMask)>
+gather_rgba(const T *p, simd_view<Toffset, RegionTy> offsets,
+            simd_mask<N> mask = 1) {
+  using Ty = typename simd_view<Toffset, RegionTy>::element_type;
+  return gather_rgba<RGBAMask, T, N>(p, simd<Ty, N>(offsets), mask);
 }
 
 template <typename T, int N, rgba_channel_mask RGBAMask>
@@ -606,18 +632,30 @@ template <rgba_channel_mask M> static void validate_rgba_write_channel_mask() {
 ///
 template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR, typename T,
           int N, typename Toffset>
-__ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && sizeof(T) == 4 &&
-                             (std::is_same_v<Toffset, uint32_t> ||
-                              std::is_same_v<Toffset, uint64_t>)>
+__ESIMD_API void
 scatter_rgba(T *p, simd<Toffset, N> offsets,
              simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
              simd_mask<N> mask = 1) {
+  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
+  static_assert((N == 8 || N == 16 || N == 32), "Unsupported value of N");
+  static_assert(sizeof(T) == 4, "Unsupported size of type T");
   detail::validate_rgba_write_channel_mask<RGBAMask>();
   simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
   addrs = addrs + offsets_i;
   __esimd_svm_scatter4_scaled<detail::__raw_t<T>, N, RGBAMask>(
       addrs.data(), vals.data(), mask.data());
+}
+
+template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR, typename T,
+          int N, typename Toffset,
+          typename RegionTy = region1d_t<Toffset, N, 1>>
+__ESIMD_API void
+scatter_rgba(T *p, simd_view<Toffset, RegionTy> offsets,
+             simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
+             simd_mask<N> mask = 1) {
+  using Ty = typename simd_view<Toffset, RegionTy>::element_type;
+  scatter_rgba<RGBAMask, T, N>(p, simd<Ty, N>(offsets), vals, mask);
 }
 
 template <typename T, int N, rgba_channel_mask RGBAMask>
@@ -786,16 +824,24 @@ constexpr void check_atomic() {
 ///   update.
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset>
-__ESIMD_API std::enable_if_t<std::is_same_v<Toffset, uint32_t> ||
-                                 std::is_same_v<Toffset, uint64_t>,
-                             simd<Tx, N>>
-atomic_update(Tx *p, simd<Toffset, N> offset, simd_mask<N> mask) {
+__ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<Toffset, N> offset,
+                                      simd_mask<N> mask) {
+  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
   detail::check_atomic<Op, Tx, N, 0>();
   simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
   simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(offset);
   vAddr += offset_i1;
   using T = typename detail::__raw_t<Tx>;
   return __esimd_svm_atomic0<Op, T, N>(vAddr.data(), mask.data());
+}
+
+template <atomic_op Op, typename Tx, int N, typename Toffset,
+          typename RegionTy = region1d_t<Toffset, N, 1>>
+__ESIMD_API simd<Tx, N> atomic_update(Tx *p,
+                                      simd_view<Toffset, RegionTy> offsets,
+                                      simd_mask<N> mask = 1) {
+  using Ty = typename simd_view<Toffset, RegionTy>::element_type;
+  return atomic_update<Op, Tx, N>(p, simd<Ty, N>(offsets), mask);
 }
 
 /// @anchor usm_atomic_update1
@@ -822,11 +868,9 @@ atomic_update(Tx *p, simd<Toffset, N> offset, simd_mask<N> mask) {
 ///   update.
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset>
-__ESIMD_API std::enable_if_t<std::is_same_v<Toffset, uint32_t> ||
-                                 std::is_same_v<Toffset, uint64_t>,
-                             simd<Tx, N>>
-atomic_update(Tx *p, simd<Toffset, N> offset, simd<Tx, N> src0,
-              simd_mask<N> mask) {
+__ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<Toffset, N> offset,
+                                      simd<Tx, N> src0, simd_mask<N> mask) {
+  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
   if constexpr ((Op == atomic_op::fmin) || (Op == atomic_op::fmax) ||
                 (Op == atomic_op::fadd) || (Op == atomic_op::fsub)) {
     // Auto-convert FP atomics to LSC version. Warning is given - see enum.
@@ -842,6 +886,15 @@ atomic_update(Tx *p, simd<Toffset, N> offset, simd<Tx, N> src0,
     return __esimd_svm_atomic1<Op, T, N>(vAddr.data(), src0.data(),
                                          mask.data());
   }
+}
+
+template <atomic_op Op, typename Tx, int N, typename Toffset,
+          typename RegionTy = region1d_t<Toffset, N, 1>>
+__ESIMD_API simd<Tx, N> atomic_update(Tx *p,
+                                      simd_view<Toffset, RegionTy> offsets,
+                                      simd<Tx, N> src0, simd_mask<N> mask) {
+  using Ty = typename simd_view<Toffset, RegionTy>::element_type;
+  return atomic_update<Op, Tx, N>(p, simd<Ty, N>(offsets), src0, mask);
 }
 
 /// @anchor usm_atomic_update2
@@ -864,11 +917,10 @@ atomic_update(Tx *p, simd<Toffset, N> offset, simd<Tx, N> src0,
 ///   update.
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset>
-__ESIMD_API std::enable_if_t<std::is_same_v<Toffset, uint32_t> ||
-                                 std::is_same_v<Toffset, uint64_t>,
-                             simd<Tx, N>>
-atomic_update(Tx *p, simd<Toffset, N> offset, simd<Tx, N> src0,
-              simd<Tx, N> src1, simd_mask<N> mask) {
+__ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<Toffset, N> offset,
+                                      simd<Tx, N> src0, simd<Tx, N> src1,
+                                      simd_mask<N> mask) {
+  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
   if constexpr (Op == atomic_op::fcmpwr) {
     // Auto-convert FP atomics to LSC version. Warning is given - see enum.
     return atomic_update<detail::to_lsc_atomic_op<Op>(), Tx, N>(p, offset, src0,
@@ -882,6 +934,15 @@ atomic_update(Tx *p, simd<Toffset, N> offset, simd<Tx, N> src0,
     return __esimd_svm_atomic2<Op, T, N>(vAddr.data(), src0.data(), src1.data(),
                                          mask.data());
   }
+}
+
+template <atomic_op Op, typename Tx, int N, typename Toffset,
+          typename RegionTy = region1d_t<Toffset, N, 1>>
+__ESIMD_API simd<Tx, N>
+atomic_update(Tx *p, simd_view<Toffset, RegionTy> offsets, simd<Tx, N> src0,
+              simd<Tx, N> src1, simd_mask<N> mask) {
+  using Ty = typename simd_view<Toffset, RegionTy>::element_type;
+  return atomic_update<Op, Tx, N>(p, simd<Ty, N>(offsets), src0, src1, mask);
 }
 
 /// @} sycl_esimd_memory_atomics
