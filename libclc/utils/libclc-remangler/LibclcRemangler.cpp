@@ -224,7 +224,6 @@ private:
     Node::Kind K;
     size_t Data = 0;
     std::string DataStr;
-
   };
 
 private:
