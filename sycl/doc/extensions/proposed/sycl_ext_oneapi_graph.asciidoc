@@ -437,7 +437,8 @@ Preconditions:
 
 Parameters:
 
-* `propList` - Zero or more properties can be provided to the constructed node via an instance of property_list.
+* `propList` - Zero or more properties can be provided to the constructed node 
+  via an instance of `property_list`.
 
 Returns: The empty node which has been added to the graph.
 
@@ -467,7 +468,8 @@ Parameters:
 
 * `cgf` - Command group function object to be added as a node
 
-* `propList` - Zero or more properties can be provided to the constructed node via an instance of property_list.
+* `propList` - Zero or more properties can be provided to the constructed node 
+  via an instance of `property_list`.
 
 Returns: The command-group function object node which has been added to the graph.
 
@@ -559,7 +561,8 @@ Parameters:
 
 * `numBytes` - Size in bytes to allocate.
 
-* `propList` - Zero or more properties can be provided to the constructed node via an instance of property_list.
+* `propList` - Zero or more properties can be provided to the constructed node
+  via an instance of `property_list`.
 
 Returns: The memory allocation node which has been added to the graph
 
@@ -585,7 +588,8 @@ Parameters:
 
 * `data` - Address of memory to free.
 
-* `propList` - Zero or more properties can be provided to the constructed node via an instance of property_list.
+* `propList` - Zero or more properties can be provided to the constructed node
+  via an instance of `property_list`.
 
 Returns: The memory freeing node which has been added to the graph.
 
