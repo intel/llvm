@@ -162,83 +162,11 @@ std::string mapLLVMTypeToOCLType(const Type *Ty, bool Signed, Type *PET) {
   return MangledName.erase(0, 3);
 }
 
-std::string mapSPIRVTypeToOCLType(SPIRVType *Ty, bool Signed) {
-  if (Ty->isTypeFloat()) {
-    auto W = Ty->getBitWidth();
-    switch (W) {
-    case 16:
-      return "half";
-    case 32:
-      return "float";
-    case 64:
-      return "double";
-    default:
-      assert(0 && "Invalid floating pointer type");
-      return std::string("float") + W + "_t";
-    }
-  }
-  if (Ty->isTypeInt()) {
-    std::string SignPrefix;
-    std::string Stem;
-    if (!Signed)
-      SignPrefix = "u";
-    auto W = Ty->getBitWidth();
-    switch (W) {
-    case 8:
-      Stem = "char";
-      break;
-    case 16:
-      Stem = "short";
-      break;
-    case 32:
-      Stem = "int";
-      break;
-    case 64:
-      Stem = "long";
-      break;
-    default:
-      llvm_unreachable("Invalid integer type");
-      Stem = std::string("int") + W + "_t";
-      break;
-    }
-    return SignPrefix + Stem;
-  }
-  if (Ty->isTypeVector()) {
-    auto EleTy = Ty->getVectorComponentType();
-    auto Size = Ty->getVectorComponentCount();
-    std::stringstream Ss;
-    Ss << mapSPIRVTypeToOCLType(EleTy, Signed) << Size;
-    return Ss.str();
-  }
-  llvm_unreachable("Invalid type");
-  return "unknown_type";
-}
-
-PointerType *getOrCreateOpaquePtrType(Module *M, const std::string &Name,
-                                      unsigned AddrSpace) {
-  return PointerType::get(getOrCreateOpaqueStructType(M, Name), AddrSpace);
-}
-
 StructType *getOrCreateOpaqueStructType(Module *M, StringRef Name) {
   auto OpaqueType = StructType::getTypeByName(M->getContext(), Name);
   if (!OpaqueType)
     OpaqueType = StructType::create(M->getContext(), Name);
   return OpaqueType;
-}
-
-PointerType *getSamplerType(Module *M) {
-  return getOrCreateOpaquePtrType(M, getSPIRVTypeName(kSPIRVTypeName::Sampler),
-                                  SPIRAS_Constant);
-}
-
-Type *getSamplerStructType(Module *M) {
-  return getOrCreateOpaqueStructType(M,
-                                     getSPIRVTypeName(kSPIRVTypeName::Sampler));
-}
-
-PointerType *getSPIRVOpaquePtrType(Module *M, Op OC) {
-  std::string Name = getSPIRVTypeName(SPIRVOpaqueTypeOpCodeMap::rmap(OC));
-  return getOrCreateOpaquePtrType(M, Name, getOCLOpaqueTypeAddrSpace(OC));
 }
 
 void getFunctionTypeParameterTypes(llvm::FunctionType *FT,
@@ -1079,21 +1007,6 @@ Value *castToInt8Ptr(Value *V, Instruction *Pos) {
       V, getInt8PtrTy(cast<PointerType>(V->getType())), "", Pos);
 }
 
-CallInst *addBlockBind(Module *M, Function *InvokeFunc, Value *BlkCtx,
-                       Value *CtxLen, Value *CtxAlign, Instruction *InsPos,
-                       StringRef InstName) {
-  auto BlkTy =
-      getOrCreateOpaquePtrType(M, SPIR_TYPE_NAME_BLOCK_T, SPIRAS_Private);
-  auto &Ctx = M->getContext();
-  Value *BlkArgs[] = {
-      castToInt8Ptr(InvokeFunc),
-      CtxLen ? CtxLen : UndefValue::get(Type::getInt32Ty(Ctx)),
-      CtxAlign ? CtxAlign : UndefValue::get(Type::getInt32Ty(Ctx)),
-      BlkCtx ? BlkCtx : UndefValue::get(Type::getInt8PtrTy(Ctx))};
-  return addCallInst(M, SPIR_INTRINSIC_BLOCK_BIND, BlkTy, BlkArgs, nullptr,
-                     InsPos, nullptr, InstName);
-}
-
 IntegerType *getSizetType(Module *M) {
   return IntegerType::getIntNTy(M->getContext(),
                                 M->getDataLayout().getPointerSizeInBits(0));
@@ -1549,20 +1462,6 @@ bool isSPIRVConstantName(StringRef TyName) {
   return false;
 }
 
-std::string getSPIRVImageTypePostfixes(StringRef SampledType,
-                                       SPIRVTypeImageDescriptor Desc,
-                                       SPIRVAccessQualifierKind Acc) {
-  std::string S;
-  raw_string_ostream OS(S);
-  OS << kSPIRVTypeName::PostfixDelim << SampledType
-     << kSPIRVTypeName::PostfixDelim << Desc.Dim << kSPIRVTypeName::PostfixDelim
-     << Desc.Depth << kSPIRVTypeName::PostfixDelim << Desc.Arrayed
-     << kSPIRVTypeName::PostfixDelim << Desc.MS << kSPIRVTypeName::PostfixDelim
-     << Desc.Sampled << kSPIRVTypeName::PostfixDelim << Desc.Format
-     << kSPIRVTypeName::PostfixDelim << Acc;
-  return OS.str();
-}
-
 std::string getSPIRVImageSampledTypeName(SPIRVType *Ty) {
   switch (Ty->getOpCode()) {
   case OpTypeVoid:
@@ -1609,6 +1508,35 @@ Type *getLLVMTypeForSPIRVImageSampledTypePostfix(StringRef Postfix,
   return nullptr;
 }
 
+std::string convertTypeToPostfix(Type *Ty) {
+  if (Ty->isIntegerTy()) {
+    switch (Ty->getIntegerBitWidth()) {
+    case 8:
+      return "char";
+    case 16:
+      return "short";
+    case 32:
+      return "uint";
+    case 64:
+      return "long";
+    default:
+      return (Twine("i") + Twine(Ty->getIntegerBitWidth())).str();
+    }
+  } else if (Ty->isHalfTy()) {
+    return "half";
+  } else if (Ty->isFloatTy()) {
+    return "float";
+  } else if (Ty->isDoubleTy()) {
+    return "double";
+  } else if (Ty->isBFloatTy()) {
+    return "bfloat16";
+  } else if (Ty->isVoidTy()) {
+    return "void";
+  } else {
+    report_fatal_error("Unknown LLVM type for element type");
+  }
+}
+
 std::string getImageBaseTypeName(StringRef Name) {
 
   SmallVector<StringRef, 4> SubStrs;
@@ -1625,29 +1553,6 @@ std::string getImageBaseTypeName(StringRef Name) {
     ImageTyName.erase(ImageTyName.size() - 5, 3);
 
   return ImageTyName;
-}
-
-std::string mapOCLTypeNameToSPIRV(StringRef Name, StringRef Acc) {
-  std::string BaseTy;
-  std::string Postfixes;
-  raw_string_ostream OS(Postfixes);
-  if (Name.startswith(kSPR2TypeName::ImagePrefix)) {
-    std::string ImageTyName = getImageBaseTypeName(Name);
-    auto Desc = map<SPIRVTypeImageDescriptor>(ImageTyName);
-    LLVM_DEBUG(dbgs() << "[trans image type] " << Name << " => "
-                      << "(" << (unsigned)Desc.Dim << ", " << Desc.Depth << ", "
-                      << Desc.Arrayed << ", " << Desc.MS << ", " << Desc.Sampled
-                      << ", " << Desc.Format << ")\n");
-
-    BaseTy = kSPIRVTypeName::Image;
-    OS << getSPIRVImageTypePostfixes(
-        kSPIRVImageSampledTypeName::Void, Desc,
-        SPIRSPIRVAccessQualifierMap::map(Acc.str()));
-  } else {
-    LLVM_DEBUG(dbgs() << "Mapping of " << Name << " is not implemented\n");
-    llvm_unreachable("Not implemented");
-  }
-  return getSPIRVTypeName(BaseTy, OS.str());
 }
 
 SPIRVTypeImageDescriptor getImageDescriptor(Type *Ty) {
@@ -1788,8 +1693,13 @@ bool hasAccessQualifiedName(StringRef TyName) {
 }
 
 SPIRVAccessQualifierKind getAccessQualifier(StringRef TyName) {
-  return SPIRSPIRVAccessQualifierMap::map(
-      getAccessQualifierFullName(TyName).str());
+  assert(hasAccessQualifiedName(TyName) &&
+         "Type is not qualified with access.");
+  auto Acc = TyName.substr(TyName.size() - 5, 3);
+  return llvm::StringSwitch<SPIRVAccessQualifierKind>(Acc)
+      .Case(kAccessQualPostfix::ReadOnly, AccessQualifierReadOnly)
+      .Case(kAccessQualPostfix::WriteOnly, AccessQualifierWriteOnly)
+      .Case(kAccessQualPostfix::ReadWrite, AccessQualifierReadWrite);
 }
 
 StringRef getAccessQualifierPostfix(SPIRVAccessQualifierKind Access) {
@@ -1804,30 +1714,6 @@ StringRef getAccessQualifierPostfix(SPIRVAccessQualifierKind Access) {
     assert(false && "Unrecognized access qualifier!");
     return kAccessQualPostfix::ReadWrite;
   }
-}
-
-/// Get access qualifier from the type Name.
-StringRef getAccessQualifierFullName(StringRef TyName) {
-  assert(hasAccessQualifiedName(TyName) &&
-         "Type is not qualified with access.");
-  auto Acc = TyName.substr(TyName.size() - 5, 3);
-  return llvm::StringSwitch<StringRef>(Acc)
-      .Case(kAccessQualPostfix::ReadOnly, kAccessQualName::ReadOnly)
-      .Case(kAccessQualPostfix::WriteOnly, kAccessQualName::WriteOnly)
-      .Case(kAccessQualPostfix::ReadWrite, kAccessQualName::ReadWrite);
-}
-
-llvm::PointerType *getOCLClkEventType(Module *M) {
-  return getOrCreateOpaquePtrType(M, SPIR_TYPE_NAME_CLK_EVENT_T,
-                                  SPIRAS_Private);
-}
-
-llvm::PointerType *getOCLClkEventPtrType(Module *M) {
-  return PointerType::get(getOCLClkEventType(M), SPIRAS_Generic);
-}
-
-llvm::Constant *getOCLNullClkEventPtr(Module *M) {
-  return Constant::getNullValue(getOCLClkEventPtrType(M));
 }
 
 bool hasLoopMetadata(const Module *M) {

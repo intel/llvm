@@ -242,12 +242,17 @@ Type *BuiltinCallHelper::adjustImageType(Type *T, StringRef OldImageKind,
     Type *StructTy = TypedPtrTy->getElementType();
     // Adapt opencl.* struct type names to spirv.* struct type names.
     if (isOCLImageType(T)) {
+      if (OldImageKind != kSPIRVTypeName::Image)
+        report_fatal_error("Type was not an image type");
       auto ImageTypeName = StructTy->getStructName();
-      StringRef Acc = kAccessQualName::ReadOnly;
+      auto Desc =
+          map<SPIRVTypeImageDescriptor>(getImageBaseTypeName(ImageTypeName));
+      spv::AccessQualifier Acc = AccessQualifierReadOnly;
       if (hasAccessQualifiedName(ImageTypeName))
-        Acc = getAccessQualifierFullName(ImageTypeName);
-      StructTy = getOrCreateOpaqueStructType(
-          M, mapOCLTypeNameToSPIRV(ImageTypeName, Acc));
+        Acc = getAccessQualifier(ImageTypeName);
+      auto NewImageType = SPIRVOpaqueTypeOpCodeMap::map(NewImageKind.str());
+      return getSPIRVType(NewImageType, Type::getVoidTy(M->getContext()), Desc,
+                          Acc);
     }
 
     // Change type name (e.g., spirv.Image -> spirv.SampledImg) if necessary.
@@ -261,6 +266,53 @@ Type *BuiltinCallHelper::adjustImageType(Type *T, StringRef OldImageKind,
     return TypedPointerType::get(StructTy, TypedPtrTy->getAddressSpace());
   }
   report_fatal_error("Expected type to be a SPIRV image type");
+}
+
+Type *BuiltinCallHelper::getSPIRVType(spv::Op TypeOpcode, bool UseRealType) {
+  return getSPIRVType(TypeOpcode, "", {}, UseRealType);
+}
+
+Type *BuiltinCallHelper::getSPIRVType(spv::Op TypeOpcode,
+                                      spv::AccessQualifier Access,
+                                      bool UseRealType) {
+  return getSPIRVType(TypeOpcode, "", {(unsigned)Access}, UseRealType);
+}
+
+Type *BuiltinCallHelper::getSPIRVType(spv::Op TypeOpcode, Type *InnerType,
+                                      SPIRVTypeImageDescriptor Desc,
+                                      Optional<spv::AccessQualifier> Access,
+                                      bool UseRealType) {
+  return getSPIRVType(TypeOpcode, convertTypeToPostfix(InnerType),
+                      {(unsigned)Desc.Dim, (unsigned)Desc.Depth,
+                       (unsigned)Desc.Arrayed, (unsigned)Desc.MS,
+                       (unsigned)Desc.Sampled, (unsigned)Desc.Format,
+                       (unsigned)Access.value_or(AccessQualifierReadOnly)},
+                      UseRealType);
+}
+
+Type *BuiltinCallHelper::getSPIRVType(spv::Op TypeOpcode,
+                                      StringRef InnerTypeName,
+                                      ArrayRef<unsigned> Parameters,
+                                      bool UseRealType) {
+  std::string FullName;
+  {
+    raw_string_ostream OS(FullName);
+    OS << kSPIRVTypeName::PrefixAndDelim
+       << SPIRVOpaqueTypeOpCodeMap::rmap(TypeOpcode);
+    if (!InnerTypeName.empty() || !Parameters.empty())
+      OS << kSPIRVTypeName::Delimiter;
+    if (!InnerTypeName.empty())
+      OS << kSPIRVTypeName::PostfixDelim << InnerTypeName;
+    for (unsigned IntParam : Parameters)
+      OS << kSPIRVTypeName::PostfixDelim << IntParam;
+  }
+  auto *STy = StructType::getTypeByName(M->getContext(), FullName);
+  if (!STy)
+    STy = StructType::create(M->getContext(), FullName);
+
+  unsigned AddrSpace = getOCLOpaqueTypeAddrSpace(TypeOpcode);
+  return UseRealType ? (Type *)PointerType::get(STy, AddrSpace)
+                     : TypedPointerType::get(STy, AddrSpace);
 }
 
 BuiltinCallMutator::ValueTypePair

@@ -26,9 +26,9 @@
 #include "mlir/Target/LLVMIR/TypeFromLLVM.h"
 
 #include "llvm/IR/Assumptions.h"
-#include "llvm/IR/ModRef.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/ModRef.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 

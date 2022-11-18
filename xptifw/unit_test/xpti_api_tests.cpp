@@ -73,7 +73,7 @@ TEST_F(xptiApiTest, xptiRegisterPayloadGoodInput) {
   xpti::payload_t p("foo", "foo.cpp", 10, 0, (void *)(0xdeadbeefull));
 
   auto ID = xptiRegisterPayload(&p);
-  EXPECT_NE(ID, xpti::invalid_id);
+  EXPECT_NE(ID, xpti::invalid_uid);
   EXPECT_EQ(p.internal, ID);
   EXPECT_EQ(p.uid.hash(), ID);
 }
@@ -128,7 +128,7 @@ TEST_F(xptiApiTest, xptiMakeEventBadInput) {
       xptiMakeEvent(nullptr, &P, 0, (xpti::trace_activity_type_t)1, nullptr);
   EXPECT_EQ(Result, nullptr);
   P = xpti::payload_t("foo", "foo.cpp", 1, 0, (void *)13);
-  EXPECT_NE(P.flags, 0);
+  EXPECT_NE(P.flags, 0u);
   Result =
       xptiMakeEvent(nullptr, &P, 0, (xpti::trace_activity_type_t)1, nullptr);
   EXPECT_EQ(Result, nullptr);
@@ -142,12 +142,12 @@ TEST_F(xptiApiTest, xptiMakeEventGoodInput) {
   auto Result = xptiMakeEvent("foo", &Payload, 0,
                               (xpti::trace_activity_type_t)1, &instance);
   EXPECT_NE(Result, nullptr);
-  EXPECT_EQ(instance, 1);
+  EXPECT_EQ(instance, 1u);
   Payload = xpti::payload_t("foo", "foo.cpp", 1, 0, (void *)13);
   auto NewResult = xptiMakeEvent("foo", &Payload, 0,
                                  (xpti::trace_activity_type_t)1, &instance);
   EXPECT_EQ(Result, NewResult);
-  EXPECT_EQ(instance, 2);
+  EXPECT_EQ(instance, 2u);
 }
 
 TEST_F(xptiApiTest, xptiFindEventBadInput) {
@@ -164,7 +164,7 @@ TEST_F(xptiApiTest, xptiFindEventGoodInput) {
   auto Result = xptiMakeEvent("foo", &Payload, 0,
                               (xpti::trace_activity_type_t)1, &Instance);
   ASSERT_NE(Result, nullptr);
-  EXPECT_EQ(Instance, 1);
+  EXPECT_EQ(Instance, 1u);
   auto NewResult = xptiFindEvent(Result->unique_id);
   EXPECT_EQ(Result, NewResult);
 }
@@ -180,7 +180,7 @@ TEST_F(xptiApiTest, xptiQueryPayloadGoodInput) {
   auto Result = xptiMakeEvent("foo", &Payload, 0,
                               (xpti::trace_activity_type_t)1, &instance);
   EXPECT_NE(Result, nullptr);
-  EXPECT_EQ(instance, 1);
+  EXPECT_EQ(instance, 1u);
   auto NewResult = xptiQueryPayload(Result);
   ASSERT_NE(NewResult, nullptr);
   EXPECT_STREQ(Payload.name, NewResult->name);
@@ -195,7 +195,7 @@ TEST_F(xptiApiTest, xptiQueryPayloadByUIDGoodInput) {
   xpti::payload_t p("foo", "foo.cpp", 10, 0, (void *)(0xdeadbeefull));
 
   auto ID = xptiRegisterPayload(&p);
-  EXPECT_NE(ID, xpti::invalid_id);
+  EXPECT_NE(ID, xpti::invalid_uid);
   EXPECT_EQ(p.internal, ID);
   EXPECT_EQ(p.uid.hash(), ID);
 
@@ -559,7 +559,7 @@ TEST_F(xptiApiTest, xptiQueryMetadata) {
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
 
   char *ts;
-  EXPECT_EQ(md->size(), 1);
+  EXPECT_EQ(md->size(), 1u);
   auto MDID = (*md)[xptiRegisterString("foo1", &ts)];
   auto obj = xptiLookupObject(MDID);
   std::string str{obj.data, obj.size};

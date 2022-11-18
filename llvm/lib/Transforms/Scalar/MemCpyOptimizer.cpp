@@ -931,11 +931,14 @@ bool MemCpyOptPass::performCallSlotOptzn(Instruction *cpyLoad,
     return false;
   }
 
-  // Code below tries to move the lifetime marker before "C". Check the
-  // correctness of this motion.
-  if (SkippedLifetimeStart && SkippedLifetimeStart->getNumOperands() == 3) {
-    auto *LiveI = cast<Instruction>(SkippedLifetimeStart->getOperand(1));
-    if (!DT->dominates(LiveI, C))
+  // If we need to move a lifetime.start above the call, make sure that we can
+  // actually do so. If the argument is bitcasted for example, we would have to
+  // move the bitcast as well, which we don't handle.
+  if (SkippedLifetimeStart) {
+    auto *LifetimeArg =
+        dyn_cast<Instruction>(SkippedLifetimeStart->getOperand(1));
+    if (LifetimeArg && LifetimeArg->getParent() == C->getParent() &&
+        C->comesBefore(LifetimeArg))
       return false;
   }
 
