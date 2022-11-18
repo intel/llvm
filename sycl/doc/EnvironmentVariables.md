@@ -249,6 +249,7 @@ variables in production code.</span>
 | `SYCL_PI_LEVEL_ZERO_USE_MULTIPLE_COMMANDLIST_BARRIERS` | Integer | When set to a positive value enables use of multiple Level Zero commandlists when submitting barriers. Default is 1. |
 | `SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_FILL` | Integer | When set to a positive value enables use of a copy engine for memory fill operations. Default is 0. |
 | `SYCL_PI_LEVEL_ZERO_SINGLE_ROOT_DEVICE_BUFFER_MIGRATION` | Integer | When set to "0" tells to use single root-device allocation for all devices in a context where all devices have same root. Otherwise performs regular buffer migration. Default is 1. |
+| `SYCL_PI_LEVEL_ZERO_REUSE_DISCARDED_EVENTS` | Integer |  When set to a positive value enables the mode when discarded Level Zero events are reset and reused in scope of the same in-order queue based on the dependency chain between commands. Default is 1. |
 
 ## Debugging variables for CUDA Plugin
 
