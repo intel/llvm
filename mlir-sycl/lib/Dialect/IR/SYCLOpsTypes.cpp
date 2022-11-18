@@ -478,6 +478,14 @@ int mlir::sycl::AccessorSubscriptType::getCurrentDimension() const {
   return getImpl()->CurrentDimension;
 }
 
+mlir::sycl::AccessorType
+mlir::sycl::AccessorSubscriptType::getAccessorType() const {
+  mlir::Type Ty = getImpl()->Body[1];
+  assert(Ty.isa<AccessorType>() &&
+         "Expecting the second element to be AccessorType");
+  return Ty.cast<AccessorType>();
+}
+
 llvm::ArrayRef<mlir::Type> mlir::sycl::AccessorSubscriptType::getBody() const {
   return getImpl()->Body;
 }

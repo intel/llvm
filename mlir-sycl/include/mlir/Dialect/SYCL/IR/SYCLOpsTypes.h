@@ -507,6 +507,7 @@ public:
   static mlir::Type parseType(mlir::DialectAsmParser &Parser);
 
   int getCurrentDimension() const;
+  mlir::sycl::AccessorType getAccessorType() const;
   llvm::ArrayRef<mlir::Type> getBody() const;
 };
 
