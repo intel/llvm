@@ -144,7 +144,6 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
     if (NewCmd) {
       // TODO: Check if lazy mode.
-
       EnqueueResultT Res;
       try {
         bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res, ToCleanUp);

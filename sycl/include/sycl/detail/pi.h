@@ -526,8 +526,6 @@ typedef enum {
   PI_PROFILING_INFO_COMMAND_END = 0x1283
 } _pi_profiling_info;
 
-typedef enum { IS_USER_VISIBLE = 0x1 } _pi_event_property;
-
 // NOTE: this is made 64-bit to match the size of cl_mem_flags to
 // make the translation to OpenCL transparent.
 // TODO: populate

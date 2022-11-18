@@ -1045,11 +1045,6 @@ inline pi_result mock_piextPluginGetOpaqueData(void *opaque_data_param,
 
 inline pi_result mock_piTearDown(void *PluginParameter) { return PI_SUCCESS; }
 
-inline pi_result mock_piSetEventProperty(pi_event *event,
-                                         _pi_event_property property,
-                                         size_t size, void *propertyValue) {
-  return PI_SUCCESS;
-}
 inline pi_result mock_piPluginGetLastError(char **message) {
   return PI_SUCCESS;
 }
