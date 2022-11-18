@@ -1639,18 +1639,18 @@ typedef enum _zer_mem_flag_t
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Memory types
-typedef enum _zer_image_type_t
+typedef enum _zer_mem_type_t
 {
-    ZER_IMAGE_TYPE_MEM_TYPE_BUFFER = 0,             ///< Buffer object
-    ZER_IMAGE_TYPE_MEM_TYPE_IMAGE2D = 1,            ///< 2D image object
-    ZER_IMAGE_TYPE_MEM_TYPE_IMAGE3D = 2,            ///< 3D image object
-    ZER_IMAGE_TYPE_MEM_TYPE_IMAGE2D_ARRAY = 3,      ///< 2D image array object
-    ZER_IMAGE_TYPE_MEM_TYPE_IMAGE1D = 4,            ///< 1D image object
-    ZER_IMAGE_TYPE_MEM_TYPE_IMAGE1D_ARRAY = 5,      ///< 1D image array object
-    ZER_IMAGE_TYPE_MEM_TYPE_IMAGE1D_BUFFER = 6,     ///< 1D image buffer object
-    ZER_IMAGE_TYPE_FORCE_UINT32 = 0x7fffffff
+    ZER_MEM_TYPE_MEM_TYPE_BUFFER = 0,               ///< Buffer object
+    ZER_MEM_TYPE_MEM_TYPE_IMAGE2D = 1,              ///< 2D image object
+    ZER_MEM_TYPE_MEM_TYPE_IMAGE3D = 2,              ///< 3D image object
+    ZER_MEM_TYPE_MEM_TYPE_IMAGE2D_ARRAY = 3,        ///< 2D image array object
+    ZER_MEM_TYPE_MEM_TYPE_IMAGE1D = 4,              ///< 1D image object
+    ZER_MEM_TYPE_MEM_TYPE_IMAGE1D_ARRAY = 5,        ///< 1D image array object
+    ZER_MEM_TYPE_MEM_TYPE_IMAGE1D_BUFFER = 6,       ///< 1D image buffer object
+    ZER_MEM_TYPE_FORCE_UINT32 = 0x7fffffff
 
-} zer_image_type_t;
+} zer_mem_type_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Image channel order info: number of channels and the channel layout
@@ -1712,7 +1712,7 @@ typedef struct _zer_image_desc_t
 {
     zer_structure_type_t stype;                     ///< [in] type of this structure
     const void* pNext;                              ///< [in][optional] pointer to extension-specific structure
-    zer_image_type_t type;                          ///< [in] image type
+    zer_mem_type_t type;                            ///< [in] memory object type
     size_t width;                                   ///< [in] image width
     size_t height;                                  ///< [in] image height
     size_t depth;                                   ///< [in] image depth
@@ -1739,7 +1739,7 @@ typedef struct _zer_image_desc_t
 ///         + `nullptr == hContext`
 ///     - ::ZER_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `0x3f < flags`
-///         + `::ZER_IMAGE_TYPE_MEM_TYPE_IMAGE1D_BUFFER < imageDesc->type`
+///         + `::ZER_MEM_TYPE_MEM_TYPE_IMAGE1D_BUFFER < imageDesc->type`
 ///     - ::ZER_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `nullptr == imageFormat`
 ///         + `nullptr == imageDesc`

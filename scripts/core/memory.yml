@@ -37,7 +37,7 @@ etors:
 type: enum
 desc: "Memory types"
 class: $xMem
-name: $x_image_type_t
+name: $x_mem_type_t
 etors:
     - name: MEM_TYPE_BUFFER
       desc: "Buffer object"
@@ -142,9 +142,9 @@ class: $xMem
 name: $x_image_desc_t
 base: $x_base_desc_t
 members:
-    - type: $x_image_type_t
+    - type: $x_mem_type_t
       name: type
-      desc: "[in] image type"
+      desc: "[in] memory object type"
     - type: size_t
       name: width
       desc: "[in] image width"
