@@ -133,7 +133,7 @@ macro(add_libclc_builtin_set arch_suffix)
           --char-signedness=${signedness}
           --input-ir="$<TARGET_PROPERTY:prepare-${obj_suffix},TARGET_FILE>"
           ${dummy_in}
-          DEPENDS "${builtins_obj_path}" "prepare-${obj_suffix}" libclc-remangler )
+          DEPENDS "${builtins_obj_path}" "prepare-${obj_suffix}" libclc-remangler ${dummy_in})
         add_custom_target( "remangled-${long_width}-${signedness}_char.${obj_suffix_mangled}" ALL
           DEPENDS "${builtins_remangle_path}" "${dummy_in}")
         set_target_properties("remangled-${long_width}-${signedness}_char.${obj_suffix_mangled}"
