@@ -118,7 +118,6 @@ def NDItemMemRef : MemRefOf<[SYCL_NdItemType]>;
 def GroupMemRef : MemRefOf<[SYCL_GroupType]>;
 def VecMemRef : MemRefOf<[SYCL_VecType]>;
 
-
 def SYCLMemref : AnyTypeOf<[
   IDMemRef,
   AccessorCommonMemRef,
