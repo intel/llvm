@@ -47,6 +47,37 @@ ${th.make_macro_name(n, tags, obj)} = ${th.subt(n, tags, obj['value'])}
 %elif re.match(r"typedef", obj['type']):
 class ${th.make_type_name(n, tags, obj)}(${th.get_ctype_name(n, tags, {'type': obj['value']})}):
     pass
+## FPTR TYPEDEF ###############################################################
+%elif re.match(r"fptr_typedef", obj['type']):
+def ${th.make_type_name(n, tags, obj)}(user_defined_callback):
+    @CFUNCTYPE(${th.get_ctype_name(n, tags, {'type': obj['return']})}\
+%if 'params' in obj:
+%for param in obj['params']:
+, ${th.get_ctype_name(n, tags, {'type': param['type']})}\
+%endfor
+%endif
+)
+    def ${th.make_type_name(n, tags, obj)}_wrapper(\
+%if 'params' in obj:
+%for index, item in enumerate(obj['params']):
+${'var' + str(index)}\
+%if index < (len(obj['params']) - 1):
+, \
+%endif
+%endfor
+%endif
+): 
+        return user_defined_callback(\
+%if 'params' in obj:
+%for index, item in enumerate(obj['params']):
+${'var' + str(index)}\
+%if index < (len(obj['params']) - 1):
+, \
+%endif
+%endfor
+%endif
+) 
+    return ${th.make_type_name(n, tags, obj)}_wrapper
 ## ENUM #######################################################################
 %elif re.match(r"enum", obj['type']):
 class ${re.sub(r"(\w+)_t", r"\1_v", th.make_type_name(n, tags, obj))}(IntEnum):

@@ -135,6 +135,14 @@ typedef ur_result_t (UR_APICALL *ur_pfnContextCreateWithNativeHandle_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urContextSetExtendedDeleter 
+typedef ur_result_t (UR_APICALL *ur_pfnContextSetExtendedDeleter_t)(
+    ur_context_handle_t,
+    ur_context_extended_deleter_t,
+    void*
+    );
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Context functions pointers
 typedef struct _ur_context_dditable_t
 {
@@ -144,6 +152,7 @@ typedef struct _ur_context_dditable_t
     ur_pfnContextGetInfo_t                                      pfnGetInfo;
     ur_pfnContextGetNativeHandle_t                              pfnGetNativeHandle;
     ur_pfnContextCreateWithNativeHandle_t                       pfnCreateWithNativeHandle;
+    ur_pfnContextSetExtendedDeleter_t                           pfnSetExtendedDeleter;
 } ur_context_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -394,7 +403,7 @@ typedef ur_result_t (UR_APICALL *ur_pfnModuleCreate_t)(
     const void*,
     uint32_t,
     const char*,
-    void**,
+    ur_modulecreate_callback_t,
     void*,
     ur_module_handle_t*
     );

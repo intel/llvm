@@ -74,14 +74,14 @@ value: "0"
 
 ```cpp
 /// @brief A brief description...
-#define ZE_NAME 0
+#define UR_NAME 0
 ```
 </td>
 <td>
 
 ```python
 ## @brief A brief description...
-ZE_NAME = 0
+UR_NAME = 0
 ```
 </td></tr>
 <tr><td>
@@ -97,14 +97,14 @@ value: "P0+P1"
 
 ```cpp
 /// @brief A brief description...
-#define ZE_NAME( P0, P1 ) P0+P1
+#define UR_NAME( P0, P1 ) P0+P1
 ```
 </td>
 <td>
 
 ```python
 ## @brief A brief description...
-def ZE_NAME( P0, P1 ):
+def UR_NAME( P0, P1 ):
     return P0+P1
 ```
 </td></tr>
@@ -124,9 +124,9 @@ altvalue: "P1"
 ```cpp
 /// @brief A brief description...
 #if defined(_WIN32)
-#define ZE_NAME( P0, P1 ) P0
+#define UR_NAME( P0, P1 ) P0
 #else
-#define ZE_NAME( P0, P1 ) P1
+#define UR_NAME( P0, P1 ) P1
 #endif
 ```
 </td>
@@ -188,6 +188,49 @@ class ur_name_t(c_void_p):
     pass
 ```
 </td></tr>
+</table>
+
+#### type: fptr_typedef
+* A fptr_typedef initiates the creation of a C/C++ `typedef` of a function pointer declaration in the specification
+* A fptr_typedef requires the following scalar fields: {`desc`, `name`, `return`}
+  - `desc` will be used as the typedef's description comment
+  - `name` must be a unique ISO-C standard identifier, start with `$` tag, be snake_case and end with `_t`
+  - `return` must be an ISO-C standard data type
+* A function pointer typedef can optionally accept the following sequence of mappings: {`params`}
+  - A param requires the following scalar fields: {`desc`, `type`, `name`}
+  - `desc` will be used as param's description comment
+  - `name` must be a unique ISO-C standard identifier
+  - `type` must be ISO-C standard data type
+
+<table>
+<tr><th>YaML</th><th>C</th><th>C++</th></tr>
+<tr><td>
+
+```yml
+type: fptr_typedef
+desc: "A brief description..."
+name: $x_callback_t
+return: "void"
+params:
+    - type: void*
+      name: pParams
+      desc: "Brief description of param"
+```
+</td>
+<td>
+
+```c
+/// @brief A brief description...
+typedef void(ur_callback_t)(void* pParams);
+```
+</td>
+<td>
+
+```cpp
+std::function<void(void*)> ur_callback_t;
+```
+</td>
+</tr>
 </table>
 
 #### type: handle
@@ -313,8 +356,8 @@ etors:
 /// @brief A brief description...
 typedef enum _ur_name_t
 {
-    ZE_NAME_VALUE_0 = 0, ///< brief description
-    ZE_NAME_VALUE_1      ///< brief description
+    UR_NAME_VALUE_0 = 0, ///< brief description
+    UR_NAME_VALUE_1      ///< brief description
 } ur_name_t;
 ```
 </td>
@@ -363,8 +406,8 @@ etors:
 typedef uint32_t ur_name_flags_t;
 typedef enum _ur_name_flag_t
 {
-    ZE_NAME_FLAG_VALUE_0 = ZE_BIT(0), ///< brief description
-    ZE_NAME_FLAG_VALUE_1 = ZE_BIT(1)  ///< brief description
+    UR_NAME_FLAG_VALUE_0 = UR_BIT(0), ///< brief description
+    UR_NAME_FLAG_VALUE_1 = UR_BIT(1)  ///< brief description
 } ur_name_flag_t;
 ```
 </td>
@@ -382,8 +425,8 @@ namespace ur {
 
     enum name_flag_t
     {
-        NAME_FLAG_VALUE_0 = ZE_BIT(0), ///< brief description
-        NAME_FLAG_VALUE_1 = ZE_BIT(1)  ///< brief description
+        NAME_FLAG_VALUE_0 = UR_BIT(0), ///< brief description
+        NAME_FLAG_VALUE_1 = UR_BIT(1)  ///< brief description
     };
 ```
 </td>
@@ -463,7 +506,7 @@ typedef struct _ur_name_t
 <td>
 
 ```cpp
-namespace ze {
+namespace ur {
   class ClsName
   {
     /// @brief A brief description...
@@ -515,7 +558,7 @@ typedef union _ur_name_t
 <td>
 
 ```cpp
-namespace ze {
+namespace ur {
   class ClsName
   {
     /// @brief A brief description...
@@ -621,12 +664,12 @@ params:
 ///     _Analogues_
 ///         - another_function
 /// @returns
-///     - ZE_RESULT_SUCCESS
-///     - ZE_RESULT_ERROR_INVALID_ARGUMENT
+///     - UR_RESULT_SUCCESS
+///     - UR_RESULT_ERROR_INVALID_ARGUMENT
 ///         + `0 == value`
-///     - ZE_RESULT_ERROR_OUT_OF_HOST_MEMORY
-__ur_api_export ur_result_t __zecall
-zeClsNameFnName(
+///     - UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+__ur_api_export ur_result_t __urcall
+urClsNameFnName(
     ur_cls_handle_t hClsName,   ///< [in] handle to class
     uint32_t count,             ///< [in] brief description
     uint32_t* values,           ///< [in][range(0,count)] brief description
@@ -637,7 +680,7 @@ zeClsNameFnName(
 <td>
 
 ```cpp
-namespace ze {
+namespace ur {
   class ClsName
   {
     /// @brief A brief description...
@@ -649,7 +692,7 @@ namespace ze {
     /// @returns
     ///     - uint32_t: result of function
     /// @throws result_t
-    uint32_t __zecall FnName(
+    uint32_t __urcall FnName(
         uint32_t count,     ///< [in] brief description
         uint32_t* values    ///< [in][range(0,count)] brief description
         );
@@ -706,7 +749,7 @@ members:
 <td>
 
 ```cpp
-namespace ze {
+namespace ur {
     class ClsName
     {
     protected:
@@ -740,7 +783,7 @@ base: $xClsName
 <td>
 
 ```cpp
-namespace ze {
+namespace ur {
     class ClsName2 : public ClsName
     {
     public:

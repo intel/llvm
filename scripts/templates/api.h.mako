@@ -71,6 +71,15 @@ extern "C" {
 ## TYPEDEF ####################################################################
 %elif re.match(r"typedef", obj['type']):
 typedef ${th.subt(n, tags, obj['value'])} ${th.make_type_name(n, tags, obj)};
+## FPTR TYPEDEF ###############################################################
+%elif re.match(r"fptr_typedef", obj['type']):
+typedef ${th.subt(n, tags, obj['return'])} (${th.make_func_name(n, tags, obj)})(
+%if 'params' in obj:
+%for line in th.make_param_lines(n, tags, obj):
+    ${line}
+%endfor
+%endif
+    );
 ## ENUM #######################################################################
 %elif re.match(r"enum", obj['type']):
 %if th.type_traits.is_flags(obj['name']):

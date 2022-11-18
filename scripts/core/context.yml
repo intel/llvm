@@ -161,3 +161,37 @@ params:
       name: phContext
       desc: |
             [out] pointer to the handle of the context object created.
+--- #--------------------------------------------------------------------------
+type: fptr_typedef
+desc: "Context's extended deleter callback function with user data."
+name: $x_context_extended_deleter_t
+return: void
+params:
+    - type: void*
+      name: pParams
+      desc: "[in][out] pointer to data to be passed to callback"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Call extended deleter function as callback."
+class: $xContext
+name: SetExtendedDeleter
+decl: static
+ordinal: "0"
+details:
+    - "Calls exnteded deleter, a user-defined callback to delete context on some platforms."
+    - "This is done for performance reasons."
+    - "This API might be called directly by an application instead of a runtime backend."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: |
+            [in] handle of the context.
+    - type: $x_context_extended_deleter_t
+      name: pfnDeleter
+      desc: |
+            [in] Function pointer to extended deleter.
+    - type: void*
+      name: pParams
+      desc: "[in][out] pointer to data to be passed to callback."
