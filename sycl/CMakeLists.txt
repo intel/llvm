@@ -17,7 +17,7 @@ endif()
 # If SYCL_ENABLE_PLUGINS is undefined, we default to enabling OpenCL and Level
 # Zero plugins.
 if (NOT DEFINED SYCL_ENABLE_PLUGINS)
-  set(SYCL_ENABLE_PLUGINS "opencl;level_zero;unified_runtime")
+  set(SYCL_ENABLE_PLUGINS "opencl;unified_runtime;level_zero")
 endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")

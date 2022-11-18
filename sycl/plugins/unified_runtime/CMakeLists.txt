@@ -9,6 +9,7 @@ if (NOT DEFINED UNIFIED_RUNTIME_INCLUDE_DIR)
 
   set(UNIFIED_RUNTIME_SOURCE_VERSION main)
 
+  # TODO: Explore if FetchContent or git submodules are a better option.
   include(ExternalProject)
   ExternalProject_Add(unified-runtime
     GIT_REPOSITORY    https://github.com/oneapi-src/unified-runtime.git
@@ -17,7 +18,6 @@ if (NOT DEFINED UNIFIED_RUNTIME_INCLUDE_DIR)
     SOURCE_DIR        ${UNIFIED_RUNTIME_SOURCE_DIR}
     CMAKE_ARGS -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
                -DCMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}
-               -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
                -DCMAKE_INSTALL_LIBDIR:PATH=lib${LLVM_LIBDIR_SUFFIX}
                ${AUX_CMAKE_FLAGS}
                LOG_DOWNLOAD 1
@@ -26,14 +26,14 @@ if (NOT DEFINED UNIFIED_RUNTIME_INCLUDE_DIR)
     BUILD_COMMAND :
     INSTALL_COMMAND :
   )
+  set(UNIFIED_RUNTIME_INCLUDE_DIR ${UNIFIED_RUNTIME_SOURCE_DIR}/include/
+	  CACHE INTERNAL "Path containing Unified Runtime header files.")
+
   ExternalProject_Add_Step(unified-runtime llvminstall
-	  COMMAND ${CMAKE_COMMAND} -E copy_directory <UNIFIED_RUNTIME_INCLUDE_DIR>/include/ ${LLVM_BINARY_DIR}/include/sycl
+	  COMMAND ${CMAKE_COMMAND} -E copy_directory ${UNIFIED_RUNTIME_INCLUDE_DIR} ${LLVM_BINARY_DIR}/include/sycl
     COMMENT "Installing unified-runtime into the LLVM include directory"
     DEPENDEES install
   )
-
-  set(UNIFIED_RUNTIME_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/unified_runtime/include/
-	  CACHE INTERNAL "Path containing Unified Runtime header files.")
 else()
   add_custom_target(unified-runtime
       DEPENDS
@@ -50,9 +50,6 @@ else()
       ${UNIFIED_RUNTIME_INCLUDE_DIR}
   )
 endif()
-
-set(UNIFIED_RUNTIME_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/unified_runtime/include/
-        CACHE INTERNAL "Path containing Unified Runtime header files.")
 
 list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS unified-runtime)
 
@@ -88,6 +85,4 @@ add_sycl_plugin(unified_runtime
 SET_TARGET_PROPERTIES(pi_unified_runtime PROPERTIES LINKER_LANGUAGE C)
 target_include_directories(pi_unified_runtime PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
-if (TARGET unified-runtime)
-  add_dependencies(pi_unified_runtime unified-runtime)
-endif()
+add_dependencies(pi_unified_runtime unified-runtime)
