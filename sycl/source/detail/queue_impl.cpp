@@ -75,7 +75,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
     TP.stream(SYCL_STREAM_NAME)
         .trace_type(xpti::trace_point_type_t::node_create);
     auto TEvent = const_cast<xpti::trace_event_data_t *>(TP.trace_event());
-    xpti::addMetadata(TEvent, "device_id",
+    xpti::addMetadata(TEvent, "sycl_device",
                       reinterpret_cast<size_t>(
                           MDevice->is_host() ? 0 : MDevice->getHandleRef()));
     xpti::addMetadata(TEvent, "memory_ptr", reinterpret_cast<size_t>(Ptr));
@@ -146,7 +146,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
     TP.stream(SYCL_STREAM_NAME)
         .trace_type(xpti::trace_point_type_t::node_create);
     auto TEvent = const_cast<xpti::trace_event_data_t *>(TP.trace_event());
-    xpti::addMetadata(TEvent, "device_id",
+    xpti::addMetadata(TEvent, "sycl_device",
                       reinterpret_cast<size_t>(
                           MDevice->is_host() ? 0 : MDevice->getHandleRef()));
     xpti::addMetadata(TEvent, "src_memory_ptr", reinterpret_cast<size_t>(Src));

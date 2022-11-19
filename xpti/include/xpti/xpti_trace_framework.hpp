@@ -793,5 +793,65 @@ private:
   /// Instance number of the event
   uint64_t m_instID;
 };
+
+/// @brief Checkpoint data type helps with Universal ID propagation
+/// @details The class is a convenience class to support the propagation of
+/// universal ID. This is a scoped class and ensures that the propagation is
+/// possible withing the scope of the function that uses this service
+///
+/// Usage:-
+/// void foo() {
+/// #ifdef XPTI_TRACE_ENABLED
+///   xpti::framework::checkpoint_t t(Object->uid);
+/// #endif
+///   ...
+///   ...
+/// }
+///
+///  See also: xptiCheckPointTest in xpti_correctness_tests.cpp
+class checkpoint_t {
+public:
+  checkpoint_t(uint64_t universal_id) {
+    // If tracing is not enabled, don't do anything
+    if (!xptiTraceEnabled())
+      return;
+
+    // Let's check if TLS is currently active; if so, we will just use that
+    uint64_t uid = xptiGetUniversalId();
+    if (uid == xpti::invalid_uid) {
+      // If the payload is valid, we will have a valid UID
+      if (universal_id != xpti::invalid_uid) {
+        m_top = true;
+        m_uid = universal_id;
+        xptiSetUniversalId(m_uid); // Set TLS with the UID
+      }
+    }
+  }
+  // Payload is queries each time and returned if the universal ID is valid
+  const payload_t *payload() {
+    if (m_uid != xpti::invalid_uid)
+      return xptiQueryPayloadByUID(m_uid);
+    else
+      return nullptr;
+  }
+
+  ~checkpoint_t() {
+    // If tracing is not enabled, don't do anything
+    if (!xptiTraceEnabled())
+      return;
+
+    if (m_top) {
+      xptiSetUniversalId(xpti::invalid_uid);
+    }
+  }
+
+private:
+  /// The payload data structure that is prepared from code_location(),
+  /// caller_callee string or kernel name/codepointer based on the opt-in
+  /// flag.
+  uint64_t m_uid = xpti::invalid_uid;
+  /// Indicates if the Payload was added to TLS by current instance
+  bool m_top = false;
+};
 } // namespace framework
 } // namespace xpti
