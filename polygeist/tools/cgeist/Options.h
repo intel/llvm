@@ -175,9 +175,6 @@ static llvm::cl::opt<bool>
 static llvm::cl::opt<bool> Verbose("v", llvm::cl::init(false),
                                    llvm::cl::desc("Verbose"));
 
-static llvm::cl::opt<std::string> MLLVM("mllvm", llvm::cl::init(""),
-                                        llvm::cl::desc("mllvm"));
-
 static llvm::cl::list<std::string>
     IncludeDirs("I", llvm::cl::desc("include search path"),
                 llvm::cl::cat(ToolOptions));

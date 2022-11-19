@@ -129,31 +129,10 @@ static int ExecuteCC1Tool(SmallVectorImpl<const char *> &ArgV) {
 static int emitBinary(const char *Argv0, const char *Filename,
                       const SmallVectorImpl<const char *> &LinkArgs,
                       bool LinkOMP) {
-
   using namespace clang;
-  using namespace clang::driver;
-  using namespace std;
 
-  IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
-  // Buffer diagnostics from argument parsing so that we can output them using
-  // a well formed diagnostic object.
-  IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = new DiagnosticOptions();
-  TextDiagnosticPrinter *DiagBuffer =
-      new TextDiagnosticPrinter(llvm::errs(), &*DiagOpts);
-
-  DiagnosticsEngine Diags(DiagID, &*DiagOpts, DiagBuffer);
-  std::string TargetTriple = (TargetTripleOpt == "")
-                                 ? llvm::sys::getDefaultTargetTriple()
-                                 : TargetTripleOpt;
-
-  const char *Binary = Argv0;
-  const unique_ptr<Driver> Driver(
-      new class Driver(Binary, TargetTriple, Diags));
-  Driver->CC1Main = &ExecuteCC1Tool;
   ArgumentList Argv;
   Argv.push_back(Argv0);
-  // Argv.push_back("-x");
-  // Argv.push_back("ir");
   Argv.push_back(Filename);
   if (LinkOMP)
     Argv.push_back("-fopenmp");
@@ -174,33 +153,40 @@ static int emitBinary(const char *Argv0, const char *Filename,
   for (const auto *Arg : LinkArgs)
     Argv.push_back(Arg);
 
-#if 0
-  // This forwards '-mllvm' arguments to LLVM if present.
-  SmallVector<const char *> NewArgv = {Argv[0]};
-  for (const opt::Arg *Arg : Args.filtered(OPT_mllvm))
-    NewArgv.push_back(Arg->getValue());
-  for (const opt::Arg *Arg : Args.filtered(OPT_offload_opt_eq_minus))
-    NewArgv.push_back(Args.MakeArgString(StringRef("-") + Arg->getValue()));
-#endif
+  IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = CreateAndPopulateDiagOpts(
+      Argv.getArguments()); // new DiagnosticOptions();
+  TextDiagnosticPrinter *DiagClient =
+      new TextDiagnosticPrinter(llvm::errs(), &*DiagOpts);
 
-  const unique_ptr<Compilation> Compilation(
-      Driver->BuildCompilation(Argv.getArguments()));
+  IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
+  DiagnosticsEngine Diags(DiagID, &*DiagOpts, DiagClient);
+  const std::string TargetTriple = (TargetTripleOpt == "")
+                                       ? llvm::sys::getDefaultTargetTriple()
+                                       : TargetTripleOpt;
+
+  driver::Driver TheDriver(Argv0, TargetTriple, Diags, "cgeist LLVM compiler");
+
+  const std::unique_ptr<driver::Compilation> C(
+      TheDriver.BuildCompilation(Argv.getArguments()));
+  if (!C)
+    return 1;
 
   if (ResourceDir != "")
-    Driver->ResourceDir = ResourceDir;
+    TheDriver.ResourceDir = ResourceDir;
   if (SysRoot != "")
-    Driver->SysRoot = SysRoot;
-  SmallVector<std::pair<int, const Command *>, 4> FailingCommands;
+    TheDriver.SysRoot = SysRoot;
 
   LLVM_DEBUG({
     llvm::dbgs() << "Compilation flow:\n";
-    Driver->PrintActions(*Compilation);
+    TheDriver.PrintActions(*C);
   });
 
-  int Res = Driver->ExecuteCompilation(*Compilation, FailingCommands);
+  SmallVector<std::pair<int, const driver::Command *>, 4> FailingCommands;
+  int Res = TheDriver.ExecuteCompilation(*C, FailingCommands);
+
   for (const auto &P : FailingCommands) {
     int CommandRes = P.first;
-    const Command *FailingCommand = P.second;
+    const driver::Command *FailingCommand = P.second;
     if (!Res)
       Res = CommandRes;
 
@@ -213,7 +199,7 @@ static int emitBinary(const char *Argv0, const char *Filename,
     IsCrash |= CommandRes == 3;
 #endif
     if (IsCrash) {
-      Driver->generateCompilationDiagnostics(*Compilation, *FailingCommand);
+      TheDriver.generateCompilationDiagnostics(*C, *FailingCommand);
       break;
     }
   }
@@ -700,14 +686,9 @@ static int createAndExecutePassPipeline(
 }
 
 /// Run optimization pipeline in LLVM module.
-///
-/// Just run default pipelines for now.
 static void
 runOptimizationPipeline(llvm::Module &module,
                         const llvm::OptimizationLevel &OptimizationLevel) {
-  if (OptimizationLevel == llvm::OptimizationLevel::O0)
-    return;
-
   llvm::LoopAnalysisManager LAM;
   llvm::FunctionAnalysisManager FAM;
   llvm::CGSCCAnalysisManager CGAM;
@@ -735,7 +716,9 @@ runOptimizationPipeline(llvm::Module &module,
   PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
 
   llvm::ModulePassManager MPM =
-      PB.buildPerModuleDefaultPipeline(OptimizationLevel);
+      (OptimizationLevel == llvm::OptimizationLevel::O0)
+          ? PB.buildO0DefaultPipeline(OptimizationLevel)
+          : PB.buildPerModuleDefaultPipeline(OptimizationLevel);
 
   // Before executing passes, print the final values of the LLVM options.
   cl::PrintOptionValues();
@@ -756,7 +739,11 @@ runOptimizationPipeline(llvm::Module &module,
   });
 
   // Now that we have all of the passes ready, run them.
-  MPM.run(module, MAM);
+  {
+    PrettyStackTraceString CrashInfo("Optimizer");
+    llvm::TimeTraceScope TimeScope("Optimizer");
+    MPM.run(module, MAM);
+  }
 }
 
 // Lower the MLIR in the given module, compile the generated LLVM IR.
@@ -1076,6 +1063,25 @@ int main(int argc, char **argv) {
     return ExecuteCC1Tool(Argv);
   }
 
+  // This forwards '-mllvm' arguments to LLVM (similar to the Flang driver).
+  {
+    SmallVector<const char *> args;
+    for (int i = 0; i < argc; i++)
+      args.push_back(argv[i]);
+
+    ArrayRef<const char *> Argv = makeArrayRef(args);
+    const OptTable &OptTbl = getDriverOptTable();
+    const unsigned IncludedFlagsBitmask = options::CC1AsOption;
+    unsigned MissingArgIndex, MissingArgCount;
+    InputArgList Args = OptTbl.ParseArgs(Argv, MissingArgIndex, MissingArgCount,
+                                         IncludedFlagsBitmask);
+
+    SmallVector<const char *> NewArgv = {"clang"};
+    for (const opt::Arg *Arg : Args.filtered(driver::options::OPT_mllvm))
+      NewArgv.push_back(Arg->getValue());
+    llvm::cl::ParseCommandLineOptions(NewArgv.size(), &NewArgv[0]);
+  }
+
   // Split up the arguments into MLIR and linkage arguments.
   SmallVector<const char *> LinkageArgs, MLIRArgs;
   const CgeistOptions Options =
@@ -1083,8 +1089,10 @@ int main(int argc, char **argv) {
   assert(!MLIRArgs.empty() && "MLIRArgs should not be empty");
 
   // Register any command line options.
-  registerPassManagerCLOptions();
-  registerDefaultTimingManagerCLOptions();
+  mlir::registerMLIRContextCLOptions();
+  mlir::registerPassManagerCLOptions();
+  mlir::registerAsmPrinterCLOptions();
+  mlir::registerDefaultTimingManagerCLOptions();
 
   // Parse command line options.
   llvm::cl::list<std::string> inputFileNames(
@@ -1095,10 +1103,13 @@ int main(int argc, char **argv) {
       "args", llvm::cl::Positional, llvm::cl::desc("<command arguments>"),
       llvm::cl::ZeroOrMore, llvm::cl::PositionalEatsArgs);
 
-  int size = MLIRArgs.size();
-  const char **data = MLIRArgs.data();
-  InitLLVM y(size, data);
-  llvm::cl::ParseCommandLineOptions(size, data);
+  // Register command line options specific to cgeist.
+  {
+    int size = MLIRArgs.size();
+    const char **data = MLIRArgs.data();
+    InitLLVM y(size, data);
+    llvm::cl::ParseCommandLineOptions(size, data);
+  }
 
   // Register MLIR dialects.
   mlir::MLIRContext context;
