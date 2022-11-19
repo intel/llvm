@@ -102,10 +102,6 @@ static llvm::cl::opt<bool> OpenMPOpt("openmp-opt", llvm::cl::init(true),
                                      llvm::cl::desc("Turn on openmp opt"));
 
 static llvm::cl::opt<bool>
-    DoNotOptimizeMLIR("no-opt-mlir", llvm::cl::init(false),
-                      llvm::cl::desc("Do not optimize MLIR"));
-
-static llvm::cl::opt<bool>
     ParallelLICM("parallel-licm", llvm::cl::init(true),
                  llvm::cl::desc("Turn on parallel licm"));
 
@@ -178,6 +174,9 @@ static llvm::cl::opt<bool>
 
 static llvm::cl::opt<bool> Verbose("v", llvm::cl::init(false),
                                    llvm::cl::desc("Verbose"));
+
+static llvm::cl::opt<std::string> MLLVM("mllvm", llvm::cl::init(""),
+                                        llvm::cl::desc("mllvm"));
 
 static llvm::cl::list<std::string>
     IncludeDirs("I", llvm::cl::desc("include search path"),

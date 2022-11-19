@@ -34,10 +34,8 @@
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
-
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
 #include "mlir/Dialect/SYCL/Transforms/Passes.h"
-
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Verifier.h"
@@ -51,16 +49,18 @@
 
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/Passes/PassBuilder.h"
+#include "llvm/Passes/StandardInstrumentations.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Host.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/WithColor.h"
-#include <fstream>
 
 #include "Options.h"
 #include "polygeist/Dialect.h"
 #include "polygeist/Passes/Passes.h"
+
+#include <fstream>
 
 #define DEBUG_TYPE "cgeist"
 
@@ -126,73 +126,78 @@ static int ExecuteCC1Tool(SmallVectorImpl<const char *> &ArgV) {
   return 1;
 }
 
-static int emitBinary(const char *Argv0, const char *filename,
+static int emitBinary(const char *Argv0, const char *Filename,
                       const SmallVectorImpl<const char *> &LinkArgs,
                       bool LinkOMP) {
 
   using namespace clang;
   using namespace clang::driver;
   using namespace std;
+
   IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
-  // Buffer diagnostics from argument parsing so that we can output them using a
-  // well formed diagnostic object.
+  // Buffer diagnostics from argument parsing so that we can output them using
+  // a well formed diagnostic object.
   IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = new DiagnosticOptions();
   TextDiagnosticPrinter *DiagBuffer =
       new TextDiagnosticPrinter(llvm::errs(), &*DiagOpts);
 
   DiagnosticsEngine Diags(DiagID, &*DiagOpts, DiagBuffer);
+  std::string TargetTriple = (TargetTripleOpt == "")
+                                 ? llvm::sys::getDefaultTargetTriple()
+                                 : TargetTripleOpt;
 
-  string TargetTriple;
-  if (TargetTripleOpt == "")
-    TargetTriple = llvm::sys::getDefaultTargetTriple();
-  else
-    TargetTriple = TargetTripleOpt;
-
-  const char *binary = Argv0;
-  const unique_ptr<Driver> driver(new Driver(binary, TargetTriple, Diags));
-  driver->CC1Main = &ExecuteCC1Tool;
+  const char *Binary = Argv0;
+  const unique_ptr<Driver> Driver(
+      new class Driver(Binary, TargetTriple, Diags));
+  Driver->CC1Main = &ExecuteCC1Tool;
   ArgumentList Argv;
   Argv.push_back(Argv0);
   // Argv.push_back("-x");
   // Argv.push_back("ir");
-  Argv.push_back(filename);
+  Argv.push_back(Filename);
   if (LinkOMP)
     Argv.push_back("-fopenmp");
   if (ResourceDir != "") {
     Argv.push_back("-resource-dir");
     Argv.push_back(ResourceDir);
   }
-  if (Verbose) {
+  if (Verbose)
     Argv.push_back("-v");
-  }
-  if (CUDAGPUArch != "") {
+  if (CUDAGPUArch != "")
     Argv.emplace_back("--cuda-gpu-arch=", CUDAGPUArch);
-  }
-  if (CUDAPath != "") {
+  if (CUDAPath != "")
     Argv.emplace_back("--cuda-path=", CUDAPath);
-  }
   if (Output != "") {
     Argv.push_back("-o");
     Argv.push_back(Output);
   }
-  for (const auto *arg : LinkArgs)
-    Argv.push_back(arg);
+  for (const auto *Arg : LinkArgs)
+    Argv.push_back(Arg);
 
-  const unique_ptr<Compilation> compilation(
-      driver->BuildCompilation(Argv.getArguments()));
+#if 0
+  // This forwards '-mllvm' arguments to LLVM if present.
+  SmallVector<const char *> NewArgv = {Argv[0]};
+  for (const opt::Arg *Arg : Args.filtered(OPT_mllvm))
+    NewArgv.push_back(Arg->getValue());
+  for (const opt::Arg *Arg : Args.filtered(OPT_offload_opt_eq_minus))
+    NewArgv.push_back(Args.MakeArgString(StringRef("-") + Arg->getValue()));
+#endif
+
+  const unique_ptr<Compilation> Compilation(
+      Driver->BuildCompilation(Argv.getArguments()));
 
   if (ResourceDir != "")
-    driver->ResourceDir = ResourceDir;
+    Driver->ResourceDir = ResourceDir;
   if (SysRoot != "")
-    driver->SysRoot = SysRoot;
+    Driver->SysRoot = SysRoot;
   SmallVector<std::pair<int, const Command *>, 4> FailingCommands;
 
   LLVM_DEBUG({
-    dbgs() << "Compilation flow:\n";
-    driver->PrintActions(*compilation);
+    llvm::dbgs() << "Compilation flow:\n";
+    Driver->PrintActions(*Compilation);
   });
 
-  int Res = driver->ExecuteCompilation(*compilation, FailingCommands);
+  int Res = Driver->ExecuteCompilation(*Compilation, FailingCommands);
   for (const auto &P : FailingCommands) {
     int CommandRes = P.first;
     const Command *FailingCommand = P.second;
@@ -208,7 +213,7 @@ static int emitBinary(const char *Argv0, const char *filename,
     IsCrash |= CommandRes == 3;
 #endif
     if (IsCrash) {
-      driver->generateCompilationDiagnostics(*compilation, *FailingCommand);
+      Driver->generateCompilationDiagnostics(*Compilation, *FailingCommand);
       break;
     }
   }
@@ -349,7 +354,7 @@ static int optimize(mlir::MLIRContext &context,
   if (DetectReduction)
     optPM.addPass(polygeist::detectReductionPass());
 
-  if (!DoNotOptimizeMLIR) {
+  if (OptimizationLevel != OptimizationLevel::O0) {
     optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
     optPM.addPass(mlir::createCSEPass());
     // Affine must be lowered to enable inlining
@@ -700,18 +705,29 @@ static int createAndExecutePassPipeline(
 static void
 runOptimizationPipeline(llvm::Module &module,
                         const llvm::OptimizationLevel &OptimizationLevel) {
-  if (OptimizationLevel == llvm::OptimizationLevel::O0) {
-    // No optimizations should be run in this case.
+  if (OptimizationLevel == llvm::OptimizationLevel::O0)
     return;
-  }
 
   llvm::LoopAnalysisManager LAM;
   llvm::FunctionAnalysisManager FAM;
   llvm::CGSCCAnalysisManager CGAM;
   llvm::ModuleAnalysisManager MAM;
 
-  llvm::PassBuilder PB;
+  llvm::PassInstrumentationCallbacks PIC;
+  llvm::PrintPassOptions PrintPassOpts;
+  PrintPassOpts.Verbose = true;
+  PrintPassOpts.SkipAnalyses = true;
+  llvm::StandardInstrumentations SI(false, true /*VerifyEachPass*/,
+                                    PrintPassOpts);
+  SI.registerCallbacks(PIC, &FAM);
 
+  TargetMachine *TM = nullptr;
+  llvm::Optional<llvm::PGOOptions> P = llvm::None;
+  llvm::PipelineTuningOptions PTO;
+
+  llvm::PassBuilder PB(TM, PTO, P, &PIC);
+
+  // Register all the basic analyses with the managers.
   PB.registerModuleAnalyses(MAM);
   PB.registerCGSCCAnalyses(CGAM);
   PB.registerFunctionAnalyses(FAM);
@@ -721,6 +737,25 @@ runOptimizationPipeline(llvm::Module &module,
   llvm::ModulePassManager MPM =
       PB.buildPerModuleDefaultPipeline(OptimizationLevel);
 
+  // Before executing passes, print the final values of the LLVM options.
+  cl::PrintOptionValues();
+
+  // Print a textual, '-passes=' compatible, representation of pipeline if
+  // requested.
+  LLVM_DEBUG({
+    llvm::dbgs() << "*** Run LLVM Optimization pipeline: ***\n";
+
+    std::string Pipeline;
+    raw_string_ostream OS(Pipeline);
+
+    MPM.printPipeline(OS, [&PIC](StringRef ClassName) {
+      auto PassName = PIC.getPassNameForClassName(ClassName);
+      return PassName.empty() ? ClassName : PassName;
+    });
+    llvm::dbgs() << Pipeline << "\n";
+  });
+
+  // Now that we have all of the passes ready, run them.
   MPM.run(module, MAM);
 }
 
@@ -930,8 +965,6 @@ splitCommandLineOptions(int argc, char **argv,
         OptimizationLevel = ExitOnErr(parseOptimizationLevel(ref));
         ExplicitO0 = OptimizationLevel == llvm::OptimizationLevel::O0;
         LinkageArgs.push_back(argv[i]);
-      } else if (ref == "-no-opt-mlir") {
-        MLIRArgs.push_back(argv[i]);
       } else if (ref == "-g")
         LinkageArgs.push_back(argv[i]);
       else
@@ -941,13 +974,6 @@ splitCommandLineOptions(int argc, char **argv,
 
     if (ref == "-Wl,--end-group")
       linkOnly = false;
-  }
-
-  if (ExplicitO0) {
-    // TODO: '-O0' (default) should always imply '-no-opt-mlir', but this would
-    // imply updating so many tests. Drop '-no-opt-mlir' and implement correct
-    // '-O0' behavior.
-    MLIRArgs.push_back("-no-opt-mlir");
   }
 
   return {syclIsDevice, OptimizationLevel};
