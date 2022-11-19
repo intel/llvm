@@ -53,8 +53,8 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
         .parent_event(GSYCLGraphEvent)
         .trace_type(xpti::trace_point_type_t::node_create);
     auto TEvent = const_cast<xpti::trace_event_data_t *>(TP.trace_event());
-    xpti::addMetadata(TEvent, "device_name", std::string("Host"));
-    xpti::addMetadata(TEvent, "device_id", reinterpret_cast<int>(0));
+    xpti::addMetadata(TEvent, "sycl_device_name", std::string("Host"));
+    xpti::addMetadata(TEvent, "sycl_device", reinterpret_cast<int>(0));
     xpti::addMetadata(TEvent, "memory_size", reinterpret_cast<size_t>(Size));
     TP.notify("alignedAllocHost");
   }
@@ -147,8 +147,8 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
     // Need to determine how to get the device handle reference and device name
     // to enable metadata
 
-    // xpti::addMetadata(TEvent, "device_name",Dev.getDeviceName());
-    // xpti::addMetadata(TEvent, "device_id",
+    // xpti::addMetadata(TEvent, "sycl_device_name",Dev.getDeviceName());
+    // xpti::addMetadata(TEvent, "sycl_device",
     //                   reinterpret_cast<size_t>(Dev.getHandleRef()));
     xpti::addMetadata(TEvent, "memory_size", reinterpret_cast<size_t>(Size));
     TP.notify("alignedAlloc");
