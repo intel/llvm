@@ -190,7 +190,7 @@ public:
   /// given name, creating the string if necessary.
   mlir::Value GetOrCreateGlobalLLVMString(mlir::Location Loc,
                                           mlir::OpBuilder &Builder,
-                                          clang::StringRef value,
+                                          clang::StringRef Value,
                                           FunctionContext funcContext);
 
   /// Create global variable and initialize it.
