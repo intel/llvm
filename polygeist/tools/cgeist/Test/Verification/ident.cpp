@@ -1,4 +1,4 @@
-// RUN: cgeist %s --function=* -S | FileCheck %s
+// RUN: cgeist %s -O2 --function=* -S | FileCheck %s
 
 struct MOperandInfo {
   char device;

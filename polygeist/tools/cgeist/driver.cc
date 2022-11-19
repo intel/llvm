@@ -929,7 +929,6 @@ splitCommandLineOptions(int argc, char **argv,
                         SmallVector<const char *> &MLIRArgs) {
   bool syclIsDevice = false;
   bool linkOnly = false;
-  bool ExplicitO0 = false;
   llvm::OptimizationLevel OptimizationLevel =
       CgeistOptions::getDefaultOptimizationLevel();
 
@@ -963,7 +962,6 @@ splitCommandLineOptions(int argc, char **argv,
       } else if (ref.consume_front("-O") || ref.consume_front("--optimize")) {
         // If several flags are passed, we keep the last one.
         OptimizationLevel = ExitOnErr(parseOptimizationLevel(ref));
-        ExplicitO0 = OptimizationLevel == llvm::OptimizationLevel::O0;
         LinkageArgs.push_back(argv[i]);
       } else if (ref == "-g")
         LinkageArgs.push_back(argv[i]);
