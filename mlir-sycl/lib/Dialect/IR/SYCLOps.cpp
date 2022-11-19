@@ -42,7 +42,19 @@ bool mlir::sycl::SYCLCastOp::areCastCompatible(::mlir::TypeRange Inputs,
           .hasTrait<mlir::sycl::SYCLInheritanceTypeInterface<
               mlir::sycl::ArrayType>::Trait>();
   const bool IsArray = Output.getElementType().isa<mlir::sycl::ArrayType>();
-  return HasArrayTrait && IsArray;
+  if (HasArrayTrait && IsArray)
+    return true;
+
+  const bool HasAccessorCommonTrait =
+      Input.getElementType()
+          .hasTrait<mlir::sycl::SYCLInheritanceTypeInterface<
+              mlir::sycl::AccessorCommonType>::Trait>();
+  const bool IsAccessorCommon =
+      Output.getElementType().isa<mlir::sycl::AccessorCommonType>();
+  if (HasAccessorCommonTrait && IsAccessorCommon)
+    return true;
+
+  return false;
 }
 
 mlir::LogicalResult mlir::sycl::SYCLAccessorSubscriptOp::verify() {
