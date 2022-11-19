@@ -1121,7 +1121,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
 
   std::string MangledName =
       MLIRScanner::getMangledFuncName(*Callee, Glob.getCGM());
-  if (GenerateAllSYCLFuncs || isSupportedFunctions(MangledName))
+  if (GenerateAllSYCLFuncs || !isUnsupportedFunctions(MangledName))
     ShouldEmit = true;
 
   FunctionToEmit F(*Callee, mlirclang::getInputContext(builder));
