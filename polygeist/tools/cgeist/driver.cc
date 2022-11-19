@@ -685,10 +685,13 @@ static int createAndExecutePassPipeline(
   return 0;
 }
 
-/// Run optimization pipeline in LLVM module.
+/// Run an optimization pipeline on the LLVM module.
 static void
-runOptimizationPipeline(llvm::Module &module,
+runOptimizationPipeline(llvm::Module &Module,
                         const llvm::OptimizationLevel &OptimizationLevel) {
+  if (OptimizationLevel == OptimizationLevel::O0)
+    return;
+
   llvm::LoopAnalysisManager LAM;
   llvm::FunctionAnalysisManager FAM;
   llvm::CGSCCAnalysisManager CGAM;
@@ -716,15 +719,12 @@ runOptimizationPipeline(llvm::Module &module,
   PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
 
   llvm::ModulePassManager MPM =
-      (OptimizationLevel == llvm::OptimizationLevel::O0)
-          ? PB.buildO0DefaultPipeline(OptimizationLevel)
-          : PB.buildPerModuleDefaultPipeline(OptimizationLevel);
+      PB.buildPerModuleDefaultPipeline(OptimizationLevel);
 
   // Before executing passes, print the final values of the LLVM options.
   cl::PrintOptionValues();
 
-  // Print a textual, '-passes=' compatible, representation of pipeline if
-  // requested.
+  // Print a textual representation of pipeline ther LLVM pipeline.
   LLVM_DEBUG({
     llvm::dbgs() << "*** Run LLVM Optimization pipeline: ***\n";
 
@@ -742,7 +742,7 @@ runOptimizationPipeline(llvm::Module &module,
   {
     PrettyStackTraceString CrashInfo("Optimizer");
     llvm::TimeTraceScope TimeScope("Optimizer");
-    MPM.run(module, MAM);
+    MPM.run(Module, MAM);
   }
 }
 
@@ -1063,22 +1063,23 @@ int main(int argc, char **argv) {
     return ExecuteCC1Tool(Argv);
   }
 
-  // This forwards '-mllvm' arguments to LLVM (similar to the Flang driver).
+  // Forward '-mllvm' arguments to LLVM.
   {
-    SmallVector<const char *> args;
+    SmallVector<const char *> Args;
     for (int i = 0; i < argc; i++)
-      args.push_back(argv[i]);
+      Args.push_back(argv[i]);
 
-    ArrayRef<const char *> Argv = makeArrayRef(args);
+    ArrayRef<const char *> Argv = makeArrayRef(Args);
     const OptTable &OptTbl = getDriverOptTable();
     const unsigned IncludedFlagsBitmask = options::CC1AsOption;
     unsigned MissingArgIndex, MissingArgCount;
-    InputArgList Args = OptTbl.ParseArgs(Argv, MissingArgIndex, MissingArgCount,
-                                         IncludedFlagsBitmask);
+    InputArgList InputArgs = OptTbl.ParseArgs(
+        Argv, MissingArgIndex, MissingArgCount, IncludedFlagsBitmask);
 
-    SmallVector<const char *> NewArgv = {"clang"};
-    for (const opt::Arg *Arg : Args.filtered(driver::options::OPT_mllvm))
-      NewArgv.push_back(Arg->getValue());
+    SmallVector<const char *> NewArgv = {Argv[0]};
+    for (const opt::Arg *InputArg :
+         InputArgs.filtered(driver::options::OPT_mllvm))
+      NewArgv.push_back(InputArg->getValue());
     llvm::cl::ParseCommandLineOptions(NewArgv.size(), &NewArgv[0]);
   }
 
@@ -1095,62 +1096,61 @@ int main(int argc, char **argv) {
   mlir::registerDefaultTimingManagerCLOptions();
 
   // Parse command line options.
-  llvm::cl::list<std::string> inputFileNames(
+  llvm::cl::list<std::string> InputFileNames(
       llvm::cl::Positional, llvm::cl::OneOrMore,
       llvm::cl::desc("<Specify input file>"), llvm::cl::cat(ToolOptions));
 
-  llvm::cl::list<std::string> inputCommandArgs(
+  llvm::cl::list<std::string> InputCommandArgs(
       "args", llvm::cl::Positional, llvm::cl::desc("<command arguments>"),
       llvm::cl::ZeroOrMore, llvm::cl::PositionalEatsArgs);
 
   // Register command line options specific to cgeist.
   {
-    int size = MLIRArgs.size();
-    const char **data = MLIRArgs.data();
-    InitLLVM y(size, data);
-    llvm::cl::ParseCommandLineOptions(size, data);
+    int Size = MLIRArgs.size();
+    const char **Data = MLIRArgs.data();
+    InitLLVM Y(Size, Data);
+    llvm::cl::ParseCommandLineOptions(Size, Data);
   }
 
   // Register MLIR dialects.
-  mlir::MLIRContext context;
-  registerDialects(context, Options.syclIsDevice());
+  mlir::MLIRContext Ctx;
+  registerDialects(Ctx, Options.syclIsDevice());
 
   // Generate MLIR for the input files.
-  mlir::OpBuilder Builder(&context);
-  const auto loc = Builder.getUnknownLoc();
-  mlir::OwningOpRef<mlir::ModuleOp> module(mlir::ModuleOp::create(loc));
-  Builder.setInsertionPointToEnd(module->getBody());
-  auto deviceModule = Builder.create<mlir::gpu::GPUModuleOp>(
-      loc, MLIRASTConsumer::DeviceModuleName);
+  mlir::OpBuilder Builder(&Ctx);
+  const Location Loc = Builder.getUnknownLoc();
+  mlir::OwningOpRef<mlir::ModuleOp> Module(mlir::ModuleOp::create(Loc));
+  Builder.setInsertionPointToEnd(Module->getBody());
+  auto DeviceModule = Builder.create<mlir::gpu::GPUModuleOp>(
+      Loc, MLIRASTConsumer::DeviceModuleName);
 
   llvm::DataLayout DL("");
-  llvm::Triple triple;
-  processInputFiles(inputFileNames, inputCommandArgs, context, module, DL,
-                    triple, argv[0], Options.syclIsDevice());
+  llvm::Triple Triple;
+  processInputFiles(InputFileNames, InputCommandArgs, Ctx, Module, DL, Triple,
+                    argv[0], Options.syclIsDevice());
 
   LLVM_DEBUG({
     llvm::dbgs() << "Initial MLIR:\n";
-    module->dump();
+    Module->dump();
   });
 
   // For now, we will work on the device code if it contains any functions and
   // on the host code otherwise.
-  if (containsFunctions(deviceModule)) {
-    eraseHostCode(*module);
-    module.get()->setAttr(mlir::gpu::GPUDialect::getContainerModuleAttrName(),
+  if (containsFunctions(DeviceModule)) {
+    eraseHostCode(*Module);
+    Module.get()->setAttr(mlir::gpu::GPUDialect::getContainerModuleAttrName(),
                           Builder.getUnitAttr());
   } else
-    deviceModule.erase();
+    DeviceModule.erase();
 
   LLVM_DEBUG({
     llvm::dbgs() << "MLIR before compilation:\n";
-    module->dump();
+    Module->dump();
   });
 
   // Lower the MLIR to LLVM IR, compile the generated LLVM IR.
-  return compileModule(module,
-                       inputFileNames.size() == 1 ? inputFileNames[0]
-                                                  : "LLVMDialectModule",
-                       context, DL, triple, Options.getOptimizationLevel(),
-                       LinkageArgs, argv[0]);
+  return compileModule(
+      Module,
+      InputFileNames.size() == 1 ? InputFileNames[0] : "LLVMDialectModule", Ctx,
+      DL, Triple, Options.getOptimizationLevel(), LinkageArgs, argv[0]);
 }
