@@ -1703,10 +1703,18 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
   return ValueCategory(Result, /*isReference*/ true);
 }
 
-static bool isSyclIDorRangetoArray(mlir::Type &nt, mlir::Value &value) {
+static bool isSYCLInheritType(mlir::Type &nt, mlir::Value &value) {
   mlir::Type elemTy = value.getType().dyn_cast<MemRefType>().getElementType();
-  return ((elemTy.isa<sycl::IDType>() || elemTy.isa<sycl::RangeType>()) &&
-          nt.dyn_cast<MemRefType>().getElementType().isa<sycl::ArrayType>());
+  if ((elemTy.isa<sycl::IDType>() || elemTy.isa<sycl::RangeType>()) &&
+      nt.dyn_cast<MemRefType>().getElementType().isa<sycl::ArrayType>())
+    return true;
+  if ((elemTy.isa<sycl::AccessorType>()) &&
+      nt.dyn_cast<MemRefType>()
+          .getElementType()
+          .isa<sycl::AccessorCommonType>())
+    return true;
+
+  return false;
 }
 
 mlir::Value MLIRScanner::GetAddressOfDerivedClass(
@@ -1845,7 +1853,7 @@ mlir::Value MLIRScanner::GetAddressOfBaseClass(
         auto shape = std::vector<int64_t>(mt.getShape());
         // We do not remove dimensions for an id->array or range->array, because
         // the later cast will be incompatible due to dimension mismatch.
-        if (!isSyclIDorRangetoArray(nt, value))
+        if (!isSYCLInheritType(nt, value))
           shape.erase(shape.begin());
         auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
                                          MemRefLayoutAttrInterface(),
@@ -1901,7 +1909,7 @@ mlir::Value MLIRScanner::GetAddressOfBaseClass(
         value = builder.create<polygeist::Memref2PointerOp>(loc, pt, value);
       } else {
         if (value.getType() != nt) {
-          if (isSyclIDorRangetoArray(nt, value))
+          if (isSYCLInheritType(nt, value))
             value = builder.create<sycl::SYCLCastOp>(loc, nt, value);
           else
             value = builder.create<memref::CastOp>(loc, nt, value);
