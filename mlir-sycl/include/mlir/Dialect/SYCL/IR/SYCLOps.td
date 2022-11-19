@@ -150,7 +150,7 @@ def SYCLConstructorOp : SYCL_Op<"constructor", []> {
   }];
 
   let arguments = (ins
-    FlatSymbolRefAttr:$Type,
+    FlatSymbolRefAttr:$TypeName,
     FlatSymbolRefAttr:$MangledFunctionName,
     Variadic<ConstructorArgs>:$Args
   );
