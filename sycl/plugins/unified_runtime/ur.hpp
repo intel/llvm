@@ -31,46 +31,48 @@ static const bool SingleThreadMode = [] {
 // Class which acts like shared_mutex if SingleThreadMode variable is not set.
 // If SingleThreadMode variable is set then mutex operations are turned into
 // nop.
-class pi_shared_mutex : public std::shared_mutex {
+class pi_shared_mutex {
+    std::shared_mutex Mutex;
 public:
   void lock() {
     if (!SingleThreadMode)
-      std::shared_mutex::lock();
+      Mutex.lock();
   }
   bool try_lock() {
-    return SingleThreadMode ? true : std::shared_mutex::try_lock();
+    return SingleThreadMode ? true : Mutex.try_lock();
   }
   void unlock() {
     if (!SingleThreadMode)
-      std::shared_mutex::unlock();
+      Mutex.unlock();
   }
 
   void lock_shared() {
     if (!SingleThreadMode)
-      std::shared_mutex::lock_shared();
+      Mutex.lock_shared();
   }
   bool try_lock_shared() {
-    return SingleThreadMode ? true : std::shared_mutex::try_lock_shared();
+    return SingleThreadMode ? true : Mutex.try_lock_shared();
   }
   void unlock_shared() {
     if (!SingleThreadMode)
-      std::shared_mutex::unlock_shared();
+      Mutex.unlock_shared();
   }
 };
 
 // Class which acts like std::mutex if SingleThreadMode variable is not set.
 // If SingleThreadMode variable is set then mutex operations are turned into
 // nop.
-class pi_mutex : public std::mutex {
+class pi_mutex {
+  std::mutex Mutex;
 public:
   void lock() {
     if (!SingleThreadMode)
-      std::mutex::lock();
+      Mutex.lock();
   }
-  bool try_lock() { return SingleThreadMode ? true : std::mutex::try_lock(); }
+  bool try_lock() { return SingleThreadMode ? true : Mutex.try_lock(); }
   void unlock() {
     if (!SingleThreadMode)
-      std::mutex::unlock();
+      Mutex.unlock();
   }
 };
 
