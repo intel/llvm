@@ -157,6 +157,8 @@ def SYCLConstructorOp : SYCL_Op<"constructor", []> {
   );
   let results = (outs);
 
+  let hasVerifier = 1;
+
   let assemblyFormat = [{
     `(` $Args `)` attr-dict `:` functional-type($Args, results)
   }];

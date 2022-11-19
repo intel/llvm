@@ -57,6 +57,12 @@ bool mlir::sycl::SYCLCastOp::areCastCompatible(::mlir::TypeRange Inputs,
   return false;
 }
 
+mlir::LogicalResult mlir::sycl::SYCLConstructorOp::verify() {
+  if (!getOperand(0).getType().dyn_cast<mlir::MemRefType>()) 
+    return emitOpError("The first argument of a sycl::constructor op has to be a MemRef");
+  return success();
+}
+
 mlir::LogicalResult mlir::sycl::SYCLAccessorSubscriptOp::verify() {
   // Available only when: (Dimensions > 0)
   // reference operator[](id<Dimensions> index) const;
