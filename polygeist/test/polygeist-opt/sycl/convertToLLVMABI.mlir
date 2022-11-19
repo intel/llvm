@@ -60,7 +60,7 @@ func.func private @callee(%arg0: memref<?xi32, 1>) -> memref<?xi32, 1>
 // CHECK-NEXT:    call @constructor([[M2P]]) : (!llvm.ptr<!sycl_id_1_, 1>) -> ()
 
 func.func @constructor_caller(%arg0: memref<?x!sycl.id<1>, 1>) {
-  sycl.constructor(%arg0) {MangledFunctionName = @constructor, Type = @foo} : (memref<?x!sycl.id<1>, 1>) -> ()
+  sycl.constructor(%arg0) {MangledFunctionName = @constructor, TypeName = @foo} : (memref<?x!sycl.id<1>, 1>) -> ()
   func.return
 }
 
