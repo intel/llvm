@@ -494,7 +494,9 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
               LC = CE->getOperand(0);
             std::string Val = cast<llvm::GlobalVariable>(LC)->getName().str();
             return CommonArrayToPointer(ValueCategory(
-                Glob.GetOrCreateGlobalLLVMString(Loc, builder, Val),
+                               Glob.GetOrCreateGlobalLLVMString(loc, builder, Val, isa<mlir::gpu::GPUModuleOp>(function->getParentOp())
+                                           ? FunctionContext::SYCLDevice
+            : FunctionContext::Host),  
                 /*isReference*/ true));
           }
         }

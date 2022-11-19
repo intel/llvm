@@ -2165,12 +2165,17 @@ MLIRASTConsumer::getOrCreateGlobal(const ValueDecl &VD, std::string Prefix,
 }
 
 mlir::Value MLIRASTConsumer::GetOrCreateGlobalLLVMString(
-    mlir::Location loc, mlir::OpBuilder &builder, StringRef value) {
+mlir::Location loc, mlir::OpBuilder &builder, StringRef value, FunctionContext funcContext) {
   using namespace mlir;
   // Create the global at the entry of the module.
   if (llvmStringGlobals.find(value.str()) == llvmStringGlobals.end()) {
     OpBuilder::InsertionGuard insertGuard(builder);
-    builder.setInsertionPointToStart(module->getBody());
+
+    if (funcContext == FunctionContext::SYCLDevice)
+      builder.setInsertionPointToStart(getDeviceModule(*module).getBody());
+    else
+      builder.setInsertionPointToStart(module->getBody());
+
     auto type = LLVM::LLVMArrayType::get(
         mlir::IntegerType::get(builder.getContext(), 8), value.size() + 1);
     llvmStringGlobals[value.str()] = builder.create<LLVM::GlobalOp>(
