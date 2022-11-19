@@ -150,7 +150,7 @@ def SYCLConstructorOp : SYCL_Op<"constructor", []> {
   }];
 
   let arguments = (ins
-    FlatSymbolRefAttr:$Type,
+    FlatSymbolRefAttr:$TypeName,
     FlatSymbolRefAttr:$MangledFunctionName,
     Variadic<ConstructorArgs>:$Args
   );
@@ -165,8 +165,8 @@ def SYCLConstructorOp : SYCL_Op<"constructor", []> {
 // CAST OPERATION
 ////////////////////////////////////////////////////////////////////////////////
 
-def CastArg : AnyTypeOf<[IDMemRef, RangeMemRef]>;
-def CastRes : AnyTypeOf<[ArrayMemRef]>;
+def CastArg : AnyTypeOf<[IDMemRef, RangeMemRef, AccessorMemRef]>;
+def CastRes : AnyTypeOf<[ArrayMemRef, AccessorCommonMemRef]>;
 def SYCLCastOp : SYCL_Op<"cast", [DeclareOpInterfaceMethods<CastOpInterface>, 
   Pure, MemRefsNormalizable]
 > {
