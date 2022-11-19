@@ -11,7 +11,7 @@ func.func private @_ZN2cl4sycl8accessorIiLi1ELNS0_6access4modeE1026ELNS2_6target
 
 func.func @accessorInt1ReadWriteGlobalBufferFalseCtor(%arg0: memref<?x!sycl_accessor_1_i32_read_write_global_buffer>) {
   // CHECK: llvm.call @_ZN2cl4sycl8accessorIiLi1ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC2Ev({{.*}}) : ([[THIS_PTR_TYPE]]) -> ()
-  sycl.constructor(%arg0) {MangledFunctionName = @_ZN2cl4sycl8accessorIiLi1ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC2Ev, Type = @accessor} : (memref<?x!sycl_accessor_1_i32_read_write_global_buffer>) -> () 
+  sycl.constructor(%arg0) {MangledFunctionName = @_ZN2cl4sycl8accessorIiLi1ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC2Ev, TypeName = @accessor} : (memref<?x!sycl_accessor_1_i32_read_write_global_buffer>) -> () 
   return
 }
 
@@ -26,7 +26,7 @@ func.func private @_ZN2cl4sycl2idILi1EEC2Ev(memref<?x!sycl.id<1>>)
 
 func.func @id1Ctor(%arg0: memref<?x!sycl.id<1>>) {
   // CHECK: llvm.call @_ZN2cl4sycl2idILi1EEC2Ev({{.*}}) : ([[THIS_PTR_TYPE]]) -> ()
-  sycl.constructor(%arg0) {MangledFunctionName = @_ZN2cl4sycl2idILi1EEC2Ev, Type = @id} : (memref<?x!sycl.id<1>>) -> ()
+  sycl.constructor(%arg0) {MangledFunctionName = @_ZN2cl4sycl2idILi1EEC2Ev, TypeName = @id} : (memref<?x!sycl.id<1>>) -> ()
   return
 }
 
@@ -37,7 +37,7 @@ func.func private @_ZN2cl4sycl2idILi2EEC2Ev(memref<?x!sycl.id<2>>)
 
 func.func @id2Ctor(%arg0: memref<?x!sycl.id<2>>) {
   // CHECK: llvm.call @_ZN2cl4sycl2idILi2EEC2Ev({{.*}}) : ([[THIS_PTR_TYPE]]) -> ()
-  sycl.constructor(%arg0) {MangledFunctionName = @_ZN2cl4sycl2idILi2EEC2Ev, Type = @id} : (memref<?x!sycl.id<2>>) -> ()
+  sycl.constructor(%arg0) {MangledFunctionName = @_ZN2cl4sycl2idILi2EEC2Ev, TypeName = @id} : (memref<?x!sycl.id<2>>) -> ()
   return
 }
 
@@ -48,7 +48,7 @@ func.func private @_ZN2cl4sycl2idILi3EEC2Ev(memref<?x!sycl.id<3>>)
 
 func.func @id3Ctor(%arg0: memref<?x!sycl.id<3>>) {
   // CHECK: llvm.call @_ZN2cl4sycl2idILi3EEC2Ev({{.*}}) : ([[THIS_PTR_TYPE]]) -> ()
-  sycl.constructor(%arg0) {MangledFunctionName = @_ZN2cl4sycl2idILi3EEC2Ev, Type = @id} : (memref<?x!sycl.id<3>>) -> ()
+  sycl.constructor(%arg0) {MangledFunctionName = @_ZN2cl4sycl2idILi3EEC2Ev, TypeName = @id} : (memref<?x!sycl.id<3>>) -> ()
   return
 }
 
@@ -63,7 +63,7 @@ func.func private @_ZN2cl4sycl2idILi1EEC2ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE
 
 func.func @id1CtorSizeT(%arg0: memref<?x!sycl.id<1>>, %arg1: i64) {
   // CHECK: llvm.call @_ZN2cl4sycl2idILi1EEC2ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE({{.*}}, %arg5) : ([[THIS_PTR_TYPE]], i64) -> ()
-  sycl.constructor(%arg0, %arg1) {MangledFunctionName = @_ZN2cl4sycl2idILi1EEC2ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE, Type = @id} : (memref<?x!sycl.id<1>>, i64) -> ()
+  sycl.constructor(%arg0, %arg1) {MangledFunctionName = @_ZN2cl4sycl2idILi1EEC2ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE, TypeName = @id} : (memref<?x!sycl.id<1>>, i64) -> ()
   return
 }
 
@@ -74,7 +74,7 @@ func.func private @_ZN2cl4sycl2idILi2EEC2ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeE
 
 func.func @id2CtorSizeT(%arg0: memref<?x!sycl.id<2>>, %arg1: i64) {
   // CHECK: llvm.call @_ZN2cl4sycl2idILi2EEC2ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeE({{.*}}, %arg5) : ([[THIS_PTR_TYPE]], i64) -> ()
-  sycl.constructor(%arg0, %arg1) {MangledFunctionName = @_ZN2cl4sycl2idILi2EEC2ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeE, Type = @id} : (memref<?x!sycl.id<2>>, i64) -> ()
+  sycl.constructor(%arg0, %arg1) {MangledFunctionName = @_ZN2cl4sycl2idILi2EEC2ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeE, TypeName = @id} : (memref<?x!sycl.id<2>>, i64) -> ()
   return
 }
 
@@ -85,7 +85,7 @@ func.func private @_ZN2cl4sycl2idILi3EEC2ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeE
 
 func.func @id3CtorSizeT(%arg0: memref<?x!sycl.id<3>>, %arg1: i64) {
   // CHECK: llvm.call @_ZN2cl4sycl2idILi3EEC2ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeE({{.*}}, %arg5) : ([[THIS_PTR_TYPE]], i64) -> ()
-  sycl.constructor(%arg0, %arg1) {MangledFunctionName = @_ZN2cl4sycl2idILi3EEC2ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeE, Type = @id} : (memref<?x!sycl.id<3>>, i64) -> ()
+  sycl.constructor(%arg0, %arg1) {MangledFunctionName = @_ZN2cl4sycl2idILi3EEC2ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeE, TypeName = @id} : (memref<?x!sycl.id<3>>, i64) -> ()
   return
 }
 
@@ -100,7 +100,7 @@ func.func private @_ZN2cl4sycl2idILi1EEC2ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE
 
 func.func @id1CtorRange(%arg0: memref<?x!sycl.id<1>>, %arg1: i64, %arg2: i64) {
   // CHECK: llvm.call @_ZN2cl4sycl2idILi1EEC2ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeEm({{.*}}, %arg5, %arg6) : ([[THIS_PTR_TYPE]], i64, i64) -> ()
-  sycl.constructor(%arg0, %arg1, %arg2) {MangledFunctionName = @_ZN2cl4sycl2idILi1EEC2ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeEm, Type = @id} : (memref<?x!sycl.id<1>>, i64, i64) -> ()
+  sycl.constructor(%arg0, %arg1, %arg2) {MangledFunctionName = @_ZN2cl4sycl2idILi1EEC2ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeEm, TypeName = @id} : (memref<?x!sycl.id<1>>, i64, i64) -> ()
   return
 }
 
@@ -111,7 +111,7 @@ func.func private @_ZN2cl4sycl2idILi2EEC2ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeE
 
 func.func @id2CtorRange(%arg0: memref<?x!sycl.id<2>>, %arg1: i64, %arg2: i64) {
   // CHECK: llvm.call @_ZN2cl4sycl2idILi2EEC2ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEm({{.*}}, %arg5, %arg6) : ([[THIS_PTR_TYPE]], i64, i64) -> ()
-  sycl.constructor(%arg0, %arg1, %arg2) {MangledFunctionName = @_ZN2cl4sycl2idILi2EEC2ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEm, Type = @id} : (memref<?x!sycl.id<2>>, i64, i64) -> ()
+  sycl.constructor(%arg0, %arg1, %arg2) {MangledFunctionName = @_ZN2cl4sycl2idILi2EEC2ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEm, TypeName = @id} : (memref<?x!sycl.id<2>>, i64, i64) -> ()
   return
 }
 
@@ -122,7 +122,7 @@ func.func private @_ZN2cl4sycl2idILi3EEC2ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeE
 
 func.func @id3CtorRange(%arg0: memref<?x!sycl.id<3>>, %arg1: i64, %arg2: i64) {
   // CHECK: llvm.call @_ZN2cl4sycl2idILi3EEC2ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeEm({{.*}}, %arg5, %arg6) : ([[THIS_PTR_TYPE]], i64, i64) -> ()
-  sycl.constructor(%arg0, %arg1, %arg2) {MangledFunctionName = @_ZN2cl4sycl2idILi3EEC2ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeEm, Type = @id} : (memref<?x!sycl.id<3>>, i64, i64) -> ()
+  sycl.constructor(%arg0, %arg1, %arg2) {MangledFunctionName = @_ZN2cl4sycl2idILi3EEC2ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeEm, TypeName = @id} : (memref<?x!sycl.id<3>>, i64, i64) -> ()
   return
 }
 
@@ -137,7 +137,7 @@ func.func private @_ZN2cl4sycl2idILi1EEC2ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE
 
 func.func @id1CtorItem(%arg0: memref<?x!sycl.id<1>>, %arg1: i64, %arg2: i64, %arg3: i64) {
   // CHECK: llvm.call @_ZN2cl4sycl2idILi1EEC2ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeEmm({{.*}}, %arg5, %arg6, %arg7) : ([[THIS_PTR_TYPE]], i64, i64, i64) -> ()
-  sycl.constructor(%arg0, %arg1, %arg2, %arg3) {MangledFunctionName = @_ZN2cl4sycl2idILi1EEC2ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeEmm, Type = @id} : (memref<?x!sycl.id<1>>, i64, i64, i64) -> ()
+  sycl.constructor(%arg0, %arg1, %arg2, %arg3) {MangledFunctionName = @_ZN2cl4sycl2idILi1EEC2ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeEmm, TypeName = @id} : (memref<?x!sycl.id<1>>, i64, i64, i64) -> ()
   return
 }
 
@@ -148,7 +148,7 @@ func.func private @_ZN2cl4sycl2idILi2EEC2ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeE
 
 func.func @id2CtorItem(%arg0: memref<?x!sycl.id<2>>, %arg1: i64, %arg2: i64, %arg3: i64) {
   // CHECK: llvm.call @_ZN2cl4sycl2idILi2EEC2ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEmm({{.*}}, %arg5, %arg6, %arg7) : ([[THIS_PTR_TYPE]], i64, i64, i64) -> ()
-  sycl.constructor(%arg0, %arg1, %arg2, %arg3) {MangledFunctionName = @_ZN2cl4sycl2idILi2EEC2ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEmm, Type = @id} : (memref<?x!sycl.id<2>>, i64, i64, i64) -> ()
+  sycl.constructor(%arg0, %arg1, %arg2, %arg3) {MangledFunctionName = @_ZN2cl4sycl2idILi2EEC2ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEmm, TypeName = @id} : (memref<?x!sycl.id<2>>, i64, i64, i64) -> ()
   return
 }
 
@@ -159,7 +159,7 @@ func.func private @_ZN2cl4sycl2idILi3EEC2ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeE
 
 func.func @id3CtorItem(%arg0: memref<?x!sycl.id<3>>, %arg1: i64, %arg2: i64, %arg3: i64) {
   // CHECK: llvm.call @_ZN2cl4sycl2idILi3EEC2ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeEmm({{.*}}, %arg5, %arg6, %arg7) : ([[THIS_PTR_TYPE]], i64, i64, i64) -> ()
-  sycl.constructor(%arg0, %arg1, %arg2, %arg3) {MangledFunctionName = @_ZN2cl4sycl2idILi3EEC2ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeEmm, Type = @id} : (memref<?x!sycl.id<3>>, i64, i64, i64) -> ()
+  sycl.constructor(%arg0, %arg1, %arg2, %arg3) {MangledFunctionName = @_ZN2cl4sycl2idILi3EEC2ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeEmm, TypeName = @id} : (memref<?x!sycl.id<3>>, i64, i64, i64) -> ()
   return
 }
 
@@ -174,7 +174,7 @@ func.func private @_ZN2cl4sycl2idILi1EEC1ERKS2_(memref<?x!sycl.id<1>>, memref<?x
 
 func.func @id1CopyCtor(%arg0: memref<?x!sycl.id<1>>, %arg1: memref<?x!sycl.id<1>>) {
   // CHECK: llvm.call @_ZN2cl4sycl2idILi1EEC1ERKS2_({{.*}}, {{.*}}) : ([[THIS_PTR_TYPE]], [[THIS_PTR_TYPE]]) -> ()  
- "sycl.constructor"(%arg0, %arg1) {MangledFunctionName = @_ZN2cl4sycl2idILi1EEC1ERKS2_, Type = @id} : (memref<?x!sycl.id<1>>, memref<?x!sycl.id<1>>) -> ()
+ "sycl.constructor"(%arg0, %arg1) {MangledFunctionName = @_ZN2cl4sycl2idILi1EEC1ERKS2_, TypeName = @id} : (memref<?x!sycl.id<1>>, memref<?x!sycl.id<1>>) -> ()
   return
 }
 
@@ -185,7 +185,7 @@ func.func private @_ZN2cl4sycl2idILi2EEC1ERKS2_(memref<?x!sycl.id<2>>, memref<?x
 
 func.func @id2CopyCtor(%arg0: memref<?x!sycl.id<2>>, %arg1: memref<?x!sycl.id<2>>) {
   // CHECK: llvm.call @_ZN2cl4sycl2idILi2EEC1ERKS2_({{.*}}, {{.*}}) : ([[THIS_PTR_TYPE]], [[THIS_PTR_TYPE]]) -> ()
- "sycl.constructor"(%arg0, %arg1) {MangledFunctionName = @_ZN2cl4sycl2idILi2EEC1ERKS2_, Type = @id} : (memref<?x!sycl.id<2>>, memref<?x!sycl.id<2>>) -> ()  
+ "sycl.constructor"(%arg0, %arg1) {MangledFunctionName = @_ZN2cl4sycl2idILi2EEC1ERKS2_, TypeName = @id} : (memref<?x!sycl.id<2>>, memref<?x!sycl.id<2>>) -> ()  
   return
 }
 
@@ -196,7 +196,7 @@ func.func private @_ZN2cl4sycl2idILi3EEC1ERKS2_(memref<?x!sycl.id<3>>, memref<?x
 
 func.func @id3CopyCtor(%arg0: memref<?x!sycl.id<3>>, %arg1: memref<?x!sycl.id<3>>) {
   // CHECK: llvm.call @_ZN2cl4sycl2idILi3EEC1ERKS2_({{.*}}, {{.*}}) : ([[THIS_PTR_TYPE]], [[THIS_PTR_TYPE]]) -> ()
- "sycl.constructor"(%arg0, %arg1) {MangledFunctionName = @_ZN2cl4sycl2idILi3EEC1ERKS2_, Type = @id} : (memref<?x!sycl.id<3>>, memref<?x!sycl.id<3>>) -> ()
+ "sycl.constructor"(%arg0, %arg1) {MangledFunctionName = @_ZN2cl4sycl2idILi3EEC1ERKS2_, TypeName = @id} : (memref<?x!sycl.id<3>>, memref<?x!sycl.id<3>>) -> ()
   return
 }
 
@@ -211,7 +211,7 @@ func.func private @_ZN2cl4sycl5rangeILi1EEC2Ev(memref<?x!sycl.range<1>>)
 
 func.func @range1Ctor(%arg0: memref<?x!sycl.range<1>>) {
   // CHECK: llvm.call @_ZN2cl4sycl5rangeILi1EEC2Ev({{.*}}) : ([[THIS_PTR_TYPE]]) -> ()
-  sycl.constructor(%arg0) {MangledFunctionName = @_ZN2cl4sycl5rangeILi1EEC2Ev, Type = @range} : (memref<?x!sycl.range<1>>) -> ()
+  sycl.constructor(%arg0) {MangledFunctionName = @_ZN2cl4sycl5rangeILi1EEC2Ev, TypeName = @range} : (memref<?x!sycl.range<1>>) -> ()
   return
 }
 
@@ -222,7 +222,7 @@ func.func private @_ZN2cl4sycl5rangeILi2EEC2Ev(memref<?x!sycl.range<2>>)
 
 func.func @range2Ctor(%arg0: memref<?x!sycl.range<2>>) {
   // CHECK: llvm.call @_ZN2cl4sycl5rangeILi2EEC2Ev({{.*}}) : ([[THIS_PTR_TYPE]]) -> ()
-  sycl.constructor(%arg0) {MangledFunctionName = @_ZN2cl4sycl5rangeILi2EEC2Ev, Type = @range} : (memref<?x!sycl.range<2>>) -> ()
+  sycl.constructor(%arg0) {MangledFunctionName = @_ZN2cl4sycl5rangeILi2EEC2Ev, TypeName = @range} : (memref<?x!sycl.range<2>>) -> ()
   return
 }
 
@@ -233,7 +233,7 @@ func.func private @_ZN2cl4sycl5rangeILi3EEC2Ev(memref<?x!sycl.range<3>>)
 
 func.func @range3Ctor(%arg0: memref<?x!sycl.range<3>>) {
   // CHECK: llvm.call @_ZN2cl4sycl5rangeILi3EEC2Ev({{.*}}) : ([[THIS_PTR_TYPE]]) -> ()
-  sycl.constructor(%arg0) {MangledFunctionName = @_ZN2cl4sycl5rangeILi3EEC2Ev, Type = @range} : (memref<?x!sycl.range<3>>) -> ()
+  sycl.constructor(%arg0) {MangledFunctionName = @_ZN2cl4sycl5rangeILi3EEC2Ev, TypeName = @range} : (memref<?x!sycl.range<3>>) -> ()
   return
 }
 
@@ -248,7 +248,7 @@ func.func private @_ZN2cl4sycl5rangeILi1EEC2ILi1EEENSt9enable_ifIXeqT_Li1EEmE4ty
 
 func.func @range1CtorSizeT(%arg0: memref<?x!sycl.range<1>>, %arg1: i64) {
   // CHECK: llvm.call @_ZN2cl4sycl5rangeILi1EEC2ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE({{.*}}, %arg5) : ([[THIS_PTR_TYPE]], i64) -> ()
-  sycl.constructor(%arg0, %arg1) {MangledFunctionName = @_ZN2cl4sycl5rangeILi1EEC2ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE, Type = @range} : (memref<?x!sycl.range<1>>, i64) -> ()
+  sycl.constructor(%arg0, %arg1) {MangledFunctionName = @_ZN2cl4sycl5rangeILi1EEC2ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE, TypeName = @range} : (memref<?x!sycl.range<1>>, i64) -> ()
   return
 }
 
@@ -259,7 +259,7 @@ func.func private @_ZN2cl4sycl5rangeILi2EEC2ILi2EEENSt9enable_ifIXeqT_Li2EEmE4ty
 
 func.func @range2CtorSizeT(%arg0: memref<?x!sycl.range<2>>, %arg1: i64) {
   // CHECK: llvm.call @_ZN2cl4sycl5rangeILi2EEC2ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeE({{.*}}, %arg5) : ([[THIS_PTR_TYPE]], i64) -> ()
-  sycl.constructor(%arg0, %arg1) {MangledFunctionName = @_ZN2cl4sycl5rangeILi2EEC2ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeE, Type = @range} : (memref<?x!sycl.range<2>>, i64) -> ()
+  sycl.constructor(%arg0, %arg1) {MangledFunctionName = @_ZN2cl4sycl5rangeILi2EEC2ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeE, TypeName = @range} : (memref<?x!sycl.range<2>>, i64) -> ()
   return
 }
 
@@ -270,7 +270,7 @@ func.func private @_ZN2cl4sycl5rangeILi3EEC2ILi3EEENSt9enable_ifIXeqT_Li3EEmE4ty
 
 func.func @range3CtorSizeT(%arg0: memref<?x!sycl.range<3>>, %arg1: i64) {
   // CHECK: llvm.call @_ZN2cl4sycl5rangeILi3EEC2ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeE({{.*}}, %arg5) : ([[THIS_PTR_TYPE]], i64) -> ()
-  sycl.constructor(%arg0, %arg1) {MangledFunctionName = @_ZN2cl4sycl5rangeILi3EEC2ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeE, Type = @range} : (memref<?x!sycl.range<3>>, i64) -> ()
+  sycl.constructor(%arg0, %arg1) {MangledFunctionName = @_ZN2cl4sycl5rangeILi3EEC2ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeE, TypeName = @range} : (memref<?x!sycl.range<3>>, i64) -> ()
   return
 }
 
@@ -285,7 +285,7 @@ func.func private @_ZN2cl4sycl5rangeILi1EEC2ILi1EEENSt9enable_ifIXeqT_Li1EEmE4ty
 
 func.func @range1Ctor2SizeT(%arg0: memref<?x!sycl.range<1>>, %arg1: i64, %arg2: i64) {
   // CHECK: llvm.call @_ZN2cl4sycl5rangeILi1EEC2ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeEm({{.*}}, %arg5, %arg6) : ([[THIS_PTR_TYPE]], i64, i64) -> ()
-  sycl.constructor(%arg0, %arg1, %arg2) {MangledFunctionName = @_ZN2cl4sycl5rangeILi1EEC2ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeEm, Type = @range} : (memref<?x!sycl.range<1>>, i64, i64) -> ()
+  sycl.constructor(%arg0, %arg1, %arg2) {MangledFunctionName = @_ZN2cl4sycl5rangeILi1EEC2ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeEm, TypeName = @range} : (memref<?x!sycl.range<1>>, i64, i64) -> ()
   return
 }
 
@@ -296,7 +296,7 @@ func.func private @_ZN2cl4sycl5rangeILi2EEC2ILi2EEENSt9enable_ifIXeqT_Li2EEmE4ty
 
 func.func @range2Ctor2SizeT(%arg0: memref<?x!sycl.range<2>>, %arg1: i64, %arg2: i64) {
   // CHECK: llvm.call @_ZN2cl4sycl5rangeILi2EEC2ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEm({{.*}}, %arg5, %arg6) : ([[THIS_PTR_TYPE]], i64, i64) -> ()
-  sycl.constructor(%arg0, %arg1, %arg2) {MangledFunctionName = @_ZN2cl4sycl5rangeILi2EEC2ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEm, Type = @range} : (memref<?x!sycl.range<2>>, i64, i64) -> ()
+  sycl.constructor(%arg0, %arg1, %arg2) {MangledFunctionName = @_ZN2cl4sycl5rangeILi2EEC2ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEm, TypeName = @range} : (memref<?x!sycl.range<2>>, i64, i64) -> ()
   return
 }
 
@@ -307,7 +307,7 @@ func.func private @_ZN2cl4sycl5rangeILi3EEC2ILi3EEENSt9enable_ifIXeqT_Li3EEmE4ty
 
 func.func @range3Ctor2SizeT(%arg0: memref<?x!sycl.range<3>>, %arg1: i64, %arg2: i64) {
   // CHECK: llvm.call @_ZN2cl4sycl5rangeILi3EEC2ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeEm({{.*}}, %arg5, %arg6) : ([[THIS_PTR_TYPE]], i64, i64) -> ()
-  sycl.constructor(%arg0, %arg1, %arg2) {MangledFunctionName = @_ZN2cl4sycl5rangeILi3EEC2ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeEm, Type = @range} : (memref<?x!sycl.range<3>>, i64, i64) -> ()
+  sycl.constructor(%arg0, %arg1, %arg2) {MangledFunctionName = @_ZN2cl4sycl5rangeILi3EEC2ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeEm, TypeName = @range} : (memref<?x!sycl.range<3>>, i64, i64) -> ()
   return
 }
 
@@ -322,7 +322,7 @@ func.func private @_ZN2cl4sycl5rangeILi1EEC2ILi1EEENSt9enable_ifIXeqT_Li1EEmE4ty
 
 func.func @range1Ctor3SizeT(%arg0: memref<?x!sycl.range<1>>, %arg1: i64, %arg2: i64, %arg3: i64) {
   // CHECK: llvm.call @_ZN2cl4sycl5rangeILi1EEC2ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeEmm({{.*}}, %arg5, %arg6, %arg7) : ([[THIS_PTR_TYPE]], i64, i64, i64) -> ()
-  sycl.constructor(%arg0, %arg1, %arg2, %arg3) {MangledFunctionName = @_ZN2cl4sycl5rangeILi1EEC2ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeEmm, Type = @range} : (memref<?x!sycl.range<1>>, i64, i64, i64) -> ()
+  sycl.constructor(%arg0, %arg1, %arg2, %arg3) {MangledFunctionName = @_ZN2cl4sycl5rangeILi1EEC2ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeEmm, TypeName = @range} : (memref<?x!sycl.range<1>>, i64, i64, i64) -> ()
   return
 }
 
@@ -333,7 +333,7 @@ func.func private @_ZN2cl4sycl5rangeILi2EEC2ILi2EEENSt9enable_ifIXeqT_Li2EEmE4ty
 
 func.func @range2Ctor3SizeT(%arg0: memref<?x!sycl.range<2>>, %arg1: i64, %arg2: i64, %arg3: i64) {
   // CHECK: llvm.call @_ZN2cl4sycl5rangeILi2EEC2ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEmm({{.*}}, %arg5, %arg6, %arg7) : ([[THIS_PTR_TYPE]], i64, i64, i64) -> ()
-  sycl.constructor(%arg0, %arg1, %arg2, %arg3) {MangledFunctionName = @_ZN2cl4sycl5rangeILi2EEC2ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEmm, Type = @range} : (memref<?x!sycl.range<2>>, i64, i64, i64) -> ()
+  sycl.constructor(%arg0, %arg1, %arg2, %arg3) {MangledFunctionName = @_ZN2cl4sycl5rangeILi2EEC2ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEmm, TypeName = @range} : (memref<?x!sycl.range<2>>, i64, i64, i64) -> ()
   return
 }
 
@@ -344,7 +344,7 @@ func.func private @_ZN2cl4sycl5rangeILi3EEC2ILi3EEENSt9enable_ifIXeqT_Li3EEmE4ty
 
 func.func @range3Ctor3SizeT(%arg0: memref<?x!sycl.range<3>>, %arg1: i64, %arg2: i64, %arg3: i64) {
   // CHECK: llvm.call @_ZN2cl4sycl5rangeILi3EEC2ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeEmm({{.*}}, %arg5, %arg6, %arg7) : ([[THIS_PTR_TYPE]], i64, i64, i64) -> ()
-  sycl.constructor(%arg0, %arg1, %arg2, %arg3) {MangledFunctionName = @_ZN2cl4sycl5rangeILi3EEC2ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeEmm, Type = @range} : (memref<?x!sycl.range<3>>, i64, i64, i64) -> ()
+  sycl.constructor(%arg0, %arg1, %arg2, %arg3) {MangledFunctionName = @_ZN2cl4sycl5rangeILi3EEC2ILi3EEENSt9enable_ifIXeqT_Li3EEmE4typeEmm, TypeName = @range} : (memref<?x!sycl.range<3>>, i64, i64, i64) -> ()
   return
 }
 
@@ -359,7 +359,7 @@ func.func private @_ZN2cl4sycl5rangeILi1EEC1ERKS2_(memref<?x!sycl.range<1>>, mem
 
 func.func @range1CopyCtor(%arg0: memref<?x!sycl.range<1>>, %arg1: memref<?x!sycl.range<1>>) {
   // CHECK: llvm.call @_ZN2cl4sycl5rangeILi1EEC1ERKS2_({{.*}}, {{.*}}) : ([[THIS_PTR_TYPE]], [[THIS_PTR_TYPE]]) -> ()
- "sycl.constructor"(%arg0, %arg1) {MangledFunctionName = @_ZN2cl4sycl5rangeILi1EEC1ERKS2_, Type = @range} : (memref<?x!sycl.range<1>>, memref<?x!sycl.range<1>>) -> ()
+ "sycl.constructor"(%arg0, %arg1) {MangledFunctionName = @_ZN2cl4sycl5rangeILi1EEC1ERKS2_, TypeName = @range} : (memref<?x!sycl.range<1>>, memref<?x!sycl.range<1>>) -> ()
   return
 }
 
@@ -370,7 +370,7 @@ func.func private @_ZN2cl4sycl5rangeILi2EEC1ERKS2_(memref<?x!sycl.range<2>>, mem
 
 func.func @range2CopyCtor(%arg0: memref<?x!sycl.range<2>>, %arg1: memref<?x!sycl.range<2>>) {
   // CHECK: llvm.call @_ZN2cl4sycl5rangeILi2EEC1ERKS2_({{.*}}, {{.*}}) : ([[THIS_PTR_TYPE]], [[THIS_PTR_TYPE]]) -> ()
- "sycl.constructor"(%arg0, %arg1) {MangledFunctionName = @_ZN2cl4sycl5rangeILi2EEC1ERKS2_, Type = @range} : (memref<?x!sycl.range<2>>, memref<?x!sycl.range<2>>) -> ()
+ "sycl.constructor"(%arg0, %arg1) {MangledFunctionName = @_ZN2cl4sycl5rangeILi2EEC1ERKS2_, TypeName = @range} : (memref<?x!sycl.range<2>>, memref<?x!sycl.range<2>>) -> ()
   return
 }
 
@@ -381,6 +381,6 @@ func.func private @_ZN2cl4sycl5rangeILi3EEC1ERKS2_(memref<?x!sycl.range<3>>, mem
 
 func.func @range3CopyCtor(%arg0: memref<?x!sycl.range<3>>, %arg1: memref<?x!sycl.range<3>>) {
   // CHECK: llvm.call @_ZN2cl4sycl5rangeILi3EEC1ERKS2_({{.*}}, {{.*}}) : ([[THIS_PTR_TYPE]], [[THIS_PTR_TYPE]]) -> ()
- "sycl.constructor"(%arg0, %arg1) {MangledFunctionName = @_ZN2cl4sycl5rangeILi3EEC1ERKS2_, Type = @range} : (memref<?x!sycl.range<3>>, memref<?x!sycl.range<3>>) -> ()
+ "sycl.constructor"(%arg0, %arg1) {MangledFunctionName = @_ZN2cl4sycl5rangeILi3EEC1ERKS2_, TypeName = @range} : (memref<?x!sycl.range<3>>, memref<?x!sycl.range<3>>) -> ()
   return
 }

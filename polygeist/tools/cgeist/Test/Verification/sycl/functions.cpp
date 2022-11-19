@@ -132,7 +132,7 @@ SYCL_EXTERNAL void range_size(sycl::range<2> r) {
 // CHECK-MLIR-NEXT:             %[[VAL_4:.*]] = "polygeist.memref2pointer"(%[[VAL_2]]) : (memref<1x!sycl_range_2_>) -> !llvm.ptr<!sycl_range_2_>
 // CHECK-MLIR-NEXT:             %[[VAL_5:.*]] = llvm.addrspacecast %[[VAL_4]] : !llvm.ptr<!sycl_range_2_> to !llvm.ptr<!sycl_range_2_, 4>
 // CHECK-MLIR-NEXT:             %[[VAL_6:.*]] = "polygeist.pointer2memref"(%[[VAL_5]]) : (!llvm.ptr<!sycl_range_2_, 4>) -> memref<?x!sycl_range_2_, 4>
-// CHECK-MLIR-NEXT:             sycl.constructor(%[[VAL_6]], %[[VAL_3]]) {MangledFunctionName = @_ZN4sycl3_V15rangeILi2EEC1ERKS2_, Type = @range} : (memref<?x!sycl_range_2_, 4>, memref<?x!sycl_range_2_, 4>) -> ()
+// CHECK-MLIR-NEXT:             sycl.constructor(%[[VAL_6]], %[[VAL_3]]) {MangledFunctionName = @_ZN4sycl3_V15rangeILi2EEC1ERKS2_, TypeName = @range} : (memref<?x!sycl_range_2_, 4>, memref<?x!sycl_range_2_, 4>) -> ()
 // CHECK-MLIR-NEXT:             %[[VAL_7:.*]] = affine.load %[[VAL_2]][0] : memref<1x!sycl_range_2_>
 // CHECK-MLIR-NEXT:             return %[[VAL_7]] : !sycl_range_2_
 // CHECK-MLIR-NEXT:           }
