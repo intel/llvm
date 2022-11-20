@@ -866,7 +866,7 @@ public:
   /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename... RestT>
-  event parallel_for(range<1> Range, RestT &&... Rest) {
+  event parallel_for(range<1> Range, RestT &&...Rest) {
     return parallel_for_impl<KernelName>(Range, Rest...);
   }
 
@@ -877,7 +877,7 @@ public:
   /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename... RestT>
-  event parallel_for(range<2> Range, RestT &&... Rest) {
+  event parallel_for(range<2> Range, RestT &&...Rest) {
     return parallel_for_impl<KernelName>(Range, Rest...);
   }
 
@@ -888,7 +888,7 @@ public:
   /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename... RestT>
-  event parallel_for(range<3> Range, RestT &&... Rest) {
+  event parallel_for(range<3> Range, RestT &&...Rest) {
     return parallel_for_impl<KernelName>(Range, Rest...);
   }
 
@@ -900,7 +900,7 @@ public:
   /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename... RestT>
-  event parallel_for(range<1> Range, event DepEvent, RestT &&... Rest) {
+  event parallel_for(range<1> Range, event DepEvent, RestT &&...Rest) {
     return parallel_for_impl<KernelName>(Range, DepEvent, Rest...);
   }
 
@@ -912,7 +912,7 @@ public:
   /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename... RestT>
-  event parallel_for(range<2> Range, event DepEvent, RestT &&... Rest) {
+  event parallel_for(range<2> Range, event DepEvent, RestT &&...Rest) {
     return parallel_for_impl<KernelName>(Range, DepEvent, Rest...);
   }
 
@@ -924,7 +924,7 @@ public:
   /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename... RestT>
-  event parallel_for(range<3> Range, event DepEvent, RestT &&... Rest) {
+  event parallel_for(range<3> Range, event DepEvent, RestT &&...Rest) {
     return parallel_for_impl<KernelName>(Range, DepEvent, Rest...);
   }
 
@@ -938,7 +938,7 @@ public:
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename... RestT>
   event parallel_for(range<1> Range, const std::vector<event> &DepEvents,
-                     RestT &&... Rest) {
+                     RestT &&...Rest) {
     return parallel_for_impl<KernelName>(Range, DepEvents, Rest...);
   }
 
@@ -952,7 +952,7 @@ public:
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename... RestT>
   event parallel_for(range<2> Range, const std::vector<event> &DepEvents,
-                     RestT &&... Rest) {
+                     RestT &&...Rest) {
     return parallel_for_impl<KernelName>(Range, DepEvents, Rest...);
   }
 
@@ -966,7 +966,7 @@ public:
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename... RestT>
   event parallel_for(range<3> Range, const std::vector<event> &DepEvents,
-                     RestT &&... Rest) {
+                     RestT &&...Rest) {
     return parallel_for_impl<KernelName>(Range, DepEvents, Rest...);
   }
 
@@ -1075,7 +1075,7 @@ public:
       detail::AreAllButLastReductions<RestT...>::value &&
           ext::oneapi::experimental::is_property_list<PropertiesT>::value,
       event>
-  parallel_for(nd_range<Dims> Range, PropertiesT Properties, RestT &&... Rest) {
+  parallel_for(nd_range<Dims> Range, PropertiesT Properties, RestT &&...Rest) {
     // Actual code location needs to be captured from KernelInfo object.
     const detail::code_location CodeLoc = {};
     return submit(
@@ -1094,7 +1094,7 @@ public:
   template <typename KernelName = detail::auto_name, int Dims,
             typename... RestT>
   std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value, event>
-  parallel_for(nd_range<Dims> Range, RestT &&... Rest) {
+  parallel_for(nd_range<Dims> Range, RestT &&...Rest) {
     return parallel_for<KernelName>(
         Range, ext::oneapi::experimental::detail::empty_properties_t{},
         Rest...);
@@ -1109,7 +1109,7 @@ public:
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, int Dims,
             typename... RestT>
-  event parallel_for(nd_range<Dims> Range, event DepEvent, RestT &&... Rest) {
+  event parallel_for(nd_range<Dims> Range, event DepEvent, RestT &&...Rest) {
     // Actual code location needs to be captured from KernelInfo object.
     const detail::code_location CodeLoc = {};
     return submit(
@@ -1131,7 +1131,7 @@ public:
   template <typename KernelName = detail::auto_name, int Dims,
             typename... RestT>
   event parallel_for(nd_range<Dims> Range, const std::vector<event> &DepEvents,
-                     RestT &&... Rest) {
+                     RestT &&...Rest) {
     // Actual code location needs to be captured from KernelInfo object.
     const detail::code_location CodeLoc = {};
     return submit(
@@ -1344,7 +1344,7 @@ private:
           ext::oneapi::experimental::is_property_list<PropertiesT>::value,
       event>
   parallel_for_impl(range<Dims> Range, PropertiesT Properties,
-                    RestT &&... Rest) {
+                    RestT &&...Rest) {
     // Actual code location needs to be captured from KernelInfo object.
     const detail::code_location CodeLoc = {};
     return submit(
@@ -1361,7 +1361,7 @@ private:
   /// \param KernelFunc is the Kernel functor or lambda
   template <typename KernelName, int Dims, typename... RestT>
   std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value, event>
-  parallel_for_impl(range<Dims> Range, RestT &&... Rest) {
+  parallel_for_impl(range<Dims> Range, RestT &&...Rest) {
     return parallel_for_impl<KernelName>(
         Range, ext::oneapi::experimental::detail::empty_properties_t{},
         Rest...);
@@ -1379,7 +1379,7 @@ private:
   std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
   parallel_for_impl(range<Dims> Range, event DepEvent, PropertiesT Properties,
-                    RestT &&... Rest) {
+                    RestT &&...Rest) {
     // Actual code location needs to be captured from KernelInfo object.
     const detail::code_location CodeLoc = {};
     return submit(
@@ -1397,7 +1397,7 @@ private:
   /// \param DepEvent is an event that specifies the kernel dependencies
   /// \param KernelFunc is the Kernel functor or lambda
   template <typename KernelName, int Dims, typename... RestT>
-  event parallel_for_impl(range<Dims> Range, event DepEvent, RestT &&... Rest) {
+  event parallel_for_impl(range<Dims> Range, event DepEvent, RestT &&...Rest) {
     return parallel_for_impl<KernelName>(
         Range, DepEvent,
         ext::oneapi::experimental::detail::empty_properties_t{}, Rest...);
@@ -1416,7 +1416,7 @@ private:
   std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
   parallel_for_impl(range<Dims> Range, const std::vector<event> &DepEvents,
-                    PropertiesT Properties, RestT &&... Rest) {
+                    PropertiesT Properties, RestT &&...Rest) {
     // Actual code location needs to be captured from KernelInfo object.
     const detail::code_location CodeLoc = {};
     return submit(
@@ -1437,7 +1437,7 @@ private:
   template <typename KernelName, int Dims, typename... RestT>
   event parallel_for_impl(range<Dims> Range,
                           const std::vector<event> &DepEvents,
-                          RestT &&... Rest) {
+                          RestT &&...Rest) {
     return parallel_for_impl<KernelName>(
         Range, DepEvents,
         ext::oneapi::experimental::detail::empty_properties_t{}, Rest...);
