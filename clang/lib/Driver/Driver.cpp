@@ -824,31 +824,6 @@ static bool addSYCLDefaultTriple(Compilation &C,
   return true;
 }
 
-// Prefix for Intel GPU specific targets used for -fsycl-targets
-constexpr char IntelGPU[] = "intel_gpu_";
-constexpr char NvidiaGPU[] = "nvidia_gpu_";
-
-
-static llvm::Optional<StringRef> isIntelGPUTarget(StringRef Target) {
-  // Handle target specifications that resemble 'intel_gpu_*' here. These are
-  // 'spir64_gen' based.
-  if (Target.startswith(IntelGPU)) {
-    return tools::SYCL::gen::resolveGenDevice(
-        Target.drop_front(sizeof(IntelGPU) - 1));
-  }
-  return llvm::None;
-}
-
-static llvm::Optional<StringRef> isNvidiaGPUTarget(StringRef Target) {
-  // Handle target specifications that resemble 'nvidia_gpu_*' here. These are
-  // 'spir64_gen' based.
-  if (Target.startswith(NvidiaGPU)) {
-    return tools::SYCL::gen::resolveGenDevice(
-        Target.drop_front(sizeof(NvidiaGPU) - 1));
-  }
-  return llvm::None;
-}
-
 void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
                                               InputList &Inputs) {
 
@@ -857,6 +832,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   //
   // We need to generate a CUDA/HIP toolchain if any of the inputs has a CUDA
   // or HIP type. However, mixed CUDA/HIP compilation is not supported.
+  using namespace tools::SYCL;
   bool IsCuda =
       llvm::any_of(Inputs, [](std::pair<types::ID, const llvm::opt::Arg *> &I) {
         return types::isCuda(I.first);
@@ -1134,20 +1110,24 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
 
         for (StringRef Val : SYCLTargetsValues->getValues()) {
           StringRef UserTargetName(Val);
-          if (auto Device = isIntelGPUTarget(Val)) {
+          if (auto Device = gen::isGPUTarget<gen::IntelGPU>(Val)) {
             if (Device->empty()) {
               Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
               continue;
             }
             UserTargetName = "spir64_gen";
-          }
-
-          if (auto Device = isNvidiaGPUTarget(Val)) {
+          } else if (auto Device = gen::isGPUTarget<gen::NvidiaGPU>(Val)) {
             if (Device->empty()) {
               Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
               continue;
             }
             UserTargetName = "nvptx64-nvidia-cuda";
+          } else if (auto Device = gen::isGPUTarget<gen::AmdGPU>(Val)) {
+            if (Device->empty()) {
+              Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
+              continue;
+            }
+            UserTargetName = "amdgcn-amd-amdhsa";
           }
 
           if (!isValidSYCLTriple(MakeSYCLDeviceTriple(UserTargetName))) {
@@ -3622,6 +3602,7 @@ bool Driver::checkForOffloadStaticLib(Compilation &C,
 // archives match target expectations being performed.
 void Driver::checkForOffloadMismatch(Compilation &C,
                                      DerivedArgList &Args) const {
+  using namespace tools::SYCL;
   // Check only if enabled with -fsycl
   if (!Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false))
     return;
@@ -3656,16 +3637,22 @@ void Driver::checkForOffloadMismatch(Compilation &C,
   SmallVector<StringRef, 4> Targets;
   if (const Arg *A = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
     for (StringRef Val : A->getValues()) {
-      if (auto ValidDevice = isIntelGPUTarget(Val)) {
+      if (auto ValidDevice = gen::isGPUTarget<gen::IntelGPU>(Val)) {
         if (!ValidDevice->empty())
           Targets.push_back(Args.MakeArgString(
               C.getDriver().MakeSYCLDeviceTriple("spir64_gen").str() + "-" +
               *ValidDevice));
         continue;
-      } else if (auto ValidDevice = isNvidiaGPUTarget(Val)) {
+      } else if (auto ValidDevice = gen::isGPUTarget<gen::NvidiaGPU>(Val)) {
         if (!ValidDevice->empty())
           Targets.push_back(Args.MakeArgString(
               C.getDriver().MakeSYCLDeviceTriple("nvptx64-nvidia-cuda").str() +
+              "-" + *ValidDevice));
+        continue;
+      } else if (auto ValidDevice = gen::isGPUTarget<gen::AmdGPU>(Val)) {
+        if (!ValidDevice->empty())
+          Targets.push_back(Args.MakeArgString(
+              C.getDriver().MakeSYCLDeviceTriple("amdgcn-amd-amdhsa").str() +
               "-" + *ValidDevice));
         continue;
       }
@@ -5737,6 +5724,7 @@ class OffloadingActionBuilder final {
     }
 
     bool initialize() override {
+      using namespace tools::SYCL;
       // Get the SYCL toolchains. If we don't get any, the action builder will
       // know there is nothing to do related to SYCL offloading.
       auto SYCLTCRange = C.getOffloadToolChains<Action::OFK_SYCL>();
@@ -5776,7 +5764,7 @@ class OffloadingActionBuilder final {
           llvm::StringMap<StringRef> FoundNormalizedTriples;
           for (StringRef Val : SYCLTargetsValues->getValues()) {
             StringRef UserTargetName(Val);
-            if (auto ValidDevice = isIntelGPUTarget(Val)) {
+            if (auto ValidDevice = gen::isGPUTarget<gen::IntelGPU>(Val)) {
               if (ValidDevice->empty())
                 // Unrecognized, we have already diagnosed this earlier; skip.
                 continue;
@@ -5784,7 +5772,8 @@ class OffloadingActionBuilder final {
               GpuArchList.emplace_back(C.getDriver().MakeSYCLDeviceTriple(
                                        "spir64_gen"), ValidDevice->data());
               UserTargetName = "spir64_gen";
-            } else if (auto ValidDevice = isNvidiaGPUTarget(Val)) {
+            } else if (auto ValidDevice =
+                           gen::isGPUTarget<gen::NvidiaGPU>(Val)) {
               if (ValidDevice->empty())
                 // Unrecognized, we have already diagnosed this earlier; skip.
                 continue;
@@ -5793,6 +5782,15 @@ class OffloadingActionBuilder final {
                   C.getDriver().MakeSYCLDeviceTriple("nvptx64-nvidia-cuda"),
                   ValidDevice->data());
               UserTargetName = "nvptx64-nvidia-cuda";
+            } else if (auto ValidDevice = gen::isGPUTarget<gen::AmdGPU>(Val)) {
+              if (ValidDevice->empty())
+                // Unrecognized, we have already diagnosed this earlier; skip.
+                continue;
+              // Add the proper -device value to the list.
+              GpuArchList.emplace_back(
+                  C.getDriver().MakeSYCLDeviceTriple("amdgcn-amd-amdhsa"),
+                  ValidDevice->data());
+              UserTargetName = "amdgcn-amd-amdhsa";
             }
 
             llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple(Val));

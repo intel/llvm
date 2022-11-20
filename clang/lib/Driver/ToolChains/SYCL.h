@@ -108,6 +108,20 @@ public:
 StringRef resolveGenDevice(StringRef DeviceName);
 SmallString<64> getGenDeviceMacro(StringRef DeviceName);
 
+// // Prefix for Intel GPU specific targets used for -fsycl-targets
+constexpr char IntelGPU[] = "intel_gpu_";
+constexpr char NvidiaGPU[] = "nvidia_gpu_";
+constexpr char AmdGPU[] = "amd_gpu_";
+
+template <auto GPUArh> llvm::Optional<StringRef> isGPUTarget(StringRef Target) {
+  // Handle target specifications that resemble '(intel, nvidia, amd)_gpu_*'
+  // here.
+  if (Target.startswith(GPUArh)) {
+    return resolveGenDevice(Target.drop_front(strlen(GPUArh)));
+  }
+  return llvm::None;
+}
+
 } // end namespace gen
 
 namespace x86_64 {
@@ -189,6 +203,11 @@ private:
                           llvm::opt::OptSpecifier Opt,
                           llvm::opt::OptSpecifier Opt_EQ,
                           StringRef Device) const;
+  void TranslateAMDGPUTargetOpt(const llvm::opt::ArgList &Args,
+                                llvm::opt::ArgStringList &CmdArgs,
+                                llvm::opt::OptSpecifier Opt,
+                                llvm::opt::OptSpecifier Opt_EQ,
+                                StringRef Device) const;
 };
 
 } // end namespace toolchains

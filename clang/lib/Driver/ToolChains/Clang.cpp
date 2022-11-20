@@ -5172,12 +5172,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     // between device and host where we should be able to use the offloading
     // arch to add the macro to the host compile.
     auto addTargetMacros = [&](const llvm::Triple &Triple) {
-      if (!Triple.isSPIR() && !Triple.isNVPTX())
+      if (!Triple.isSPIR() && !Triple.isNVPTX() && !Triple.isAMDGCN())
         return;
       SmallString<64> Macro;
       if ((Triple.isSPIR() &&
            Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen) ||
-          Triple.isNVPTX()) {
+          Triple.isNVPTX() || Triple.isAMDGCN()) {
         StringRef Device = JA.getOffloadingArch();
         if (!Device.empty()) {
           Macro = "-D";

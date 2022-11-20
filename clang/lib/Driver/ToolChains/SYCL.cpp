@@ -637,6 +637,27 @@ StringRef SYCL::gen::resolveGenDevice(StringRef DeviceName) {
                .Case("sm_87", "sm_87")
                .Case("sm_89", "sm_89")
                .Case("sm_90", "sm_90")
+               .Case("gfx700", "gfx700")
+               .Case("gfx701", "gfx701")
+               .Case("gfx702", "gfx702")
+               .Case("gfx801", "gfx801")
+               .Case("gfx802", "gfx802")
+               .Case("gfx803", "gfx803")
+               .Case("gfx805", "gfx805")
+               .Case("gfx810", "gfx810")
+               .Case("gfx900", "gfx900")
+               .Case("gfx902", "gfx902")
+               .Case("gfx904", "gfx904")
+               .Case("gfx906", "gfx906")
+               .Case("gfx908", "gfx908")
+               .Case("gfx90a", "gfx90a")
+               .Case("gfx1010", "gfx1010")
+               .Case("gfx1011", "gfx1011")
+               .Case("gfx1012", "gfx1012")
+               .Case("gfx1013", "gfx1013")
+               .Case("gfx1030", "gfx1030")
+               .Case("gfx1031", "gfx1031")
+               .Case("gfx1032", "gfx1032")
                .Default("");
   return Device;
 }
@@ -685,6 +706,27 @@ SmallString<64> SYCL::gen::getGenDeviceMacro(StringRef DeviceName) {
                       .Case("sm_87", "NVIDIA_GPU_SM_87")
                       .Case("sm_89", "NVIDIA_GPU_SM_89")
                       .Case("sm_90", "NVIDIA_GPU_SM_90")
+                      .Case("gfx700", "AMD_GPU_GFX700")
+                      .Case("gfx701", "AMD_GPU_GFX701")
+                      .Case("gfx702", "AMD_GPU_GFX702")
+                      .Case("gfx801", "AMD_GPU_GFX801")
+                      .Case("gfx802", "AMD_GPU_GFX802")
+                      .Case("gfx803", "AMD_GPU_GFX803")
+                      .Case("gfx805", "AMD_GPU_GFX805")
+                      .Case("gfx810", "AMD_GPU_GFX810")
+                      .Case("gfx900", "AMD_GPU_GFX900")
+                      .Case("gfx902", "AMD_GPU_GFX902")
+                      .Case("gfx904", "AMD_GPU_GFX904")
+                      .Case("gfx906", "AMD_GPU_GFX906")
+                      .Case("gfx908", "AMD_GPU_GFX908")
+                      .Case("gfx90a", "AMD_GPU_GFX90A")
+                      .Case("gfx1010", "AMD_GPU_GFX1010")
+                      .Case("gfx1011", "AMD_GPU_GFX1011")
+                      .Case("gfx1012", "AMD_GPU_GFX1012")
+                      .Case("gfx1013", "AMD_GPU_GFX1013")
+                      .Case("gfx1030", "AMD_GPU_GFX1030")
+                      .Case("gfx1031", "AMD_GPU_GFX1031")
+                      .Case("gfx1032", "AMD_GPU_GFX1032")
                       .Default("");
   if (!Ext.empty()) {
     Macro = "__SYCL_TARGET_";
@@ -795,6 +837,27 @@ static void parseTargetOpts(StringRef ArgString, const llvm::opt::ArgList &Args,
   llvm::cl::TokenizeGNUCommandLine(ArgString, S, TargetArgs);
   for (StringRef TA : TargetArgs)
     CmdArgs.push_back(Args.MakeArgString(TA));
+}
+
+void SYCLToolChain::TranslateAMDGPUTargetOpt(const llvm::opt::ArgList &Args,
+                                             llvm::opt::ArgStringList &CmdArgs,
+                                             OptSpecifier Opt,
+                                             OptSpecifier Opt_EQ,
+                                             StringRef Device) const {
+  for (auto *A : Args) {
+    if (A->getOption().matches(Opt_EQ)) {
+      if (auto GpuDevice =
+              tools::SYCL::gen::isGPUTarget<tools::SYCL::gen::AmdGPU>(
+                  A->getValue())) {
+        StringRef ArgString;
+        SmallString<64> OffloadArch("--offload-arch=");
+        OffloadArch += GpuDevice->data();
+        ArgString = OffloadArch;
+        parseTargetOpts(ArgString, Args, CmdArgs);
+        A->claim();
+      }
+    }
+  }
 }
 
 // Expects a specific type of option (e.g. -Xsycl-target-backend) and will
@@ -952,6 +1015,8 @@ void SYCLToolChain::TranslateBackendTargetArgs(
   // Handle -Xsycl-target-backend.
   TranslateTargetOpt(Args, CmdArgs, options::OPT_Xsycl_backend,
                      options::OPT_Xsycl_backend_EQ, Device);
+  TranslateAMDGPUTargetOpt(Args, CmdArgs, options::OPT_fsycl_targets_EQ,
+                           options::OPT_fsycl_targets_EQ, Device);
 }
 
 void SYCLToolChain::TranslateLinkerTargetArgs(
