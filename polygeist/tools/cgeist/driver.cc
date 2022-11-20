@@ -700,11 +700,6 @@ static int createAndExecutePassPipeline(
 static void
 runOptimizationPipeline(llvm::Module &module,
                         const llvm::OptimizationLevel &OptimizationLevel) {
-  if (OptimizationLevel == llvm::OptimizationLevel::O0) {
-    // No optimizations should be run in this case.
-    return;
-  }
-
   llvm::LoopAnalysisManager LAM;
   llvm::FunctionAnalysisManager FAM;
   llvm::CGSCCAnalysisManager CGAM;
@@ -719,7 +714,9 @@ runOptimizationPipeline(llvm::Module &module,
   PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
 
   llvm::ModulePassManager MPM =
-      PB.buildPerModuleDefaultPipeline(OptimizationLevel);
+      (OptimizationLevel == llvm::OptimizationLevel::O0)
+          ? PB.buildO0DefaultPipeline(OptimizationLevel)
+          : PB.buildPerModuleDefaultPipeline(OptimizationLevel);
 
   MPM.run(module, MAM);
 }
