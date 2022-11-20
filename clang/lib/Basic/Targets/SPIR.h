@@ -98,6 +98,11 @@ protected:
     // Define available target features
     // These must be defined in sorted order!
     NoAsmVariants = true;
+
+    // 32-bit atomics are mandatory in OpenCL, so it should be OK here
+    MaxAtomicInlineWidth = 32;
+    // 64-bit atomics are optional, but possible
+    MaxAtomicPromoteWidth = 64;
   }
 
 public:
