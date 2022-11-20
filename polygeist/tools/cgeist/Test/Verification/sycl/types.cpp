@@ -1,4 +1,4 @@
-// RUN: clang++ -fsycl -fsycl-device-only -emit-mlir -o - %s 2> /dev/null | FileCheck %s
+// RUN: clang++ -fsycl -fsycl-device-only -O0 -emit-mlir -o - %s 2> /dev/null | FileCheck %s
 
 #include <sycl/sycl.hpp>
 
