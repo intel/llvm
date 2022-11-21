@@ -101,6 +101,16 @@ convertAccessorImplDeviceType(sycl::AccessorImplDeviceType type,
                          type.getBody(), converter);
 }
 
+/// Converts SYCL accessor subscript type to LLVM type.
+static Optional<Type>
+convertAccessorSubscriptType(sycl::AccessorSubscriptType type,
+                             LLVMTypeConverter &converter) {
+  return convertBodyType(
+      "class.sycl::_V1::detail::accessor_common.AccessorSubscript." +
+          std::to_string(type.getCurrentDimension()),
+      type.getBody(), converter);
+}
+
 /// Converts SYCL accessor common type to LLVM type.
 static Optional<Type> convertAccessorCommonType(sycl::AccessorCommonType type,
                                                 LLVMTypeConverter &converter) {
@@ -207,6 +217,12 @@ static Optional<Type> convertNdRangeType(sycl::NdRangeType type,
   return convertBodyType("class.sycl::_V1::nd_range." +
                              std::to_string(type.getDimension()),
                          type.getBody(), converter);
+}
+
+/// Converts SYCL vec type to LLVM type.
+static Optional<Type> convertVecType(sycl::VecType type,
+                                     LLVMTypeConverter &converter) {
+  return convertBodyType("class.sycl::_V1::vec", type.getBody(), converter);
 }
 
 //===----------------------------------------------------------------------===//
@@ -372,6 +388,9 @@ void mlir::sycl::populateSYCLToLLVMTypeConversion(
   typeConverter.addConversion([&](sycl::AccessorImplDeviceType type) {
     return convertAccessorImplDeviceType(type, typeConverter);
   });
+  typeConverter.addConversion([&](sycl::AccessorSubscriptType type) {
+    return convertAccessorSubscriptType(type, typeConverter);
+  });
   typeConverter.addConversion([&](sycl::AccessorType type) {
     return convertAccessorType(type, typeConverter);
   });
@@ -398,6 +417,8 @@ void mlir::sycl::populateSYCLToLLVMTypeConversion(
   typeConverter.addConversion([&](sycl::NdRangeType type) {
     return convertNdRangeType(type, typeConverter);
   });
+  typeConverter.addConversion(
+      [&](sycl::VecType type) { return convertVecType(type, typeConverter); });
 }
 
 void mlir::sycl::populateSYCLToLLVMConversionPatterns(

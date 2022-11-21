@@ -1,12 +1,12 @@
-// RUN: clang++ -fsycl -fsycl-device-only -emit-mlir %s -o - 2> /dev/null| FileCheck %s --check-prefix=CHECK-MLIR
-// RUN: clang++ -fsycl -fsycl-device-only -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: clang++ -fsycl -fsycl-device-only -O0 -emit-mlir %s -o - 2> /dev/null| FileCheck %s --check-prefix=CHECK-MLIR
+// RUN: clang++ -fsycl -fsycl-device-only -O0 -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 #include <sycl/sycl.hpp>
 
 // CHECK-MLIR-DAG: !sycl_id_1_ = !sycl.id<1>
 // CHECK-MLIR-DAG: !sycl_range_1_ = !sycl.range<1>
-// CHECK-MLIR-DAG: !sycl_accessor_1_i32_read_write_global_buffer = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>, !llvm.struct<(ptr<i32, 1>)>)>
-// CHECK-MLIR-DAG: !sycl_item_1_1_ = !sycl.item<[1, true], (!sycl.item_base<[1, true], (!sycl_range_1_, !sycl_id_1_, !sycl_id_1_)>)>
+// CHECK-MLIR-DAG: !sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>
+// CHECK-MLIR-DAG: !sycl_accessor_1_i32_read_write_global_buffer = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<i32, 1>)>)>
 
 // CHECK-LLVM-DAG: %"class.sycl::_V1::accessor.1" = type { %"class.sycl::_V1::detail::AccessorImplDevice.1", { i32 addrspace(1)* } }
 // CHECK-LLVM-DAG: %"class.sycl::_V1::detail::AccessorImplDevice.1" = type { %"class.sycl::_V1::id.1", %"class.sycl::_V1::range.1", %"class.sycl::_V1::range.1" }
@@ -26,7 +26,7 @@
 // CHECK-MLIR-NOT: gpu.func kernel
 
 // CHECK-LLVM: define weak_odr spir_kernel void @_ZTS8kernel_1(i32 addrspace(1)* {{.*}}, [[RANGE_TY:%"class.sycl::_V1::range.1"]]* noundef byval([[RANGE_TY]]) align 8 {{.*}}, [[RANGE_TY]]* noundef byval([[RANGE_TY]]) align 8 {{.*}}, 
-// CHECK-LLVM-SAME:  [[ID_TY:%"class.sycl::_V1::id.1"]]* noundef byval([[ID_TY]]) align 8 {{.*}}) #1
+// CHECK-LLVM-SAME:  [[ID_TY:%"class.sycl::_V1::id.1"]]* noundef byval([[ID_TY]]) align 8 {{.*}}) #[[FUNCATTRS:[0-9]+]]
 class kernel_1 {
  sycl::accessor<sycl::cl_int, 1, sycl::access::mode::read_write> A;
 
@@ -60,7 +60,7 @@ void host_1() {
 // CHECK-MLIR-SAME:     kernel attributes {[[CCONV]], [[LINKAGE]], {{.*}}}
 // CHECK-MLIR-NOT: gpu.func kernel
 
-// CHECK-LLVM: define weak_odr spir_kernel void @_ZTSZZ6host_2vENKUlRN4sycl3_V17handlerEE_clES2_E8kernel_2({{.*}}) #1
+// CHECK-LLVM: define weak_odr spir_kernel void @_ZTSZZ6host_2vENKUlRN4sycl3_V17handlerEE_clES2_E8kernel_2({{.*}}) #[[FUNCATTRS]]
 
 void host_2() {
   auto q = sycl::queue{};
@@ -83,4 +83,4 @@ SYCL_EXTERNAL void function_1(sycl::item<2, true> item) {
 }
 
 // Keep at the end of the file.
-// CHECK-LLVM: attributes #1 = { convergent mustprogress norecurse nounwind "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}/polygeist/tools/cgeist/Test/Verification/sycl/kernels.cpp" }
+// CHECK-LLVM: attributes #[[FUNCATTRS]] = { convergent mustprogress norecurse nounwind "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}/polygeist/tools/cgeist/Test/Verification/sycl/kernels.cpp" }

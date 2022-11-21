@@ -1,4 +1,4 @@
-// RUN: cgeist %s --function=kernel_deriche -S | FileCheck %s
+// RUN: cgeist %s -O2 --function=kernel_deriche -S | FileCheck %s
 
 void kernel_deriche(int w, int h, double alpha, double** y2) {
     int i,j;

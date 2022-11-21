@@ -102,10 +102,6 @@ static llvm::cl::opt<bool> OpenMPOpt("openmp-opt", llvm::cl::init(true),
                                      llvm::cl::desc("Turn on openmp opt"));
 
 static llvm::cl::opt<bool>
-    DoNotOptimizeMLIR("no-opt-mlir", llvm::cl::init(false),
-                      llvm::cl::desc("Do not optimize MLIR"));
-
-static llvm::cl::opt<bool>
     ParallelLICM("parallel-licm", llvm::cl::init(true),
                  llvm::cl::desc("Turn on parallel licm"));
 
@@ -201,5 +197,9 @@ static llvm::cl::opt<int> CanonicalizeIterations(
 static llvm::cl::opt<std::string> McpuOpt("mcpu", llvm::cl::init(""),
                                           llvm::cl::desc("Target CPU"),
                                           llvm::cl::cat(ToolOptions));
+
+llvm::cl::opt<bool> OmitOptionalMangledFunctionName(
+    "no-mangled-function-name", llvm::cl::init(false),
+    llvm::cl::desc("Whether to omit optional \"MangledFunctionName\" fields"));
 
 #endif /* CGEIST_OPTIONS_H_ */

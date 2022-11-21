@@ -8,6 +8,7 @@
 
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 
+#include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
 #include "mlir/IR/OpImplementation.h"
 #include "llvm/ADT/TypeSwitch.h"
 
@@ -42,7 +43,28 @@ bool mlir::sycl::SYCLCastOp::areCastCompatible(::mlir::TypeRange Inputs,
           .hasTrait<mlir::sycl::SYCLInheritanceTypeInterface<
               mlir::sycl::ArrayType>::Trait>();
   const bool IsArray = Output.getElementType().isa<mlir::sycl::ArrayType>();
-  return HasArrayTrait && IsArray;
+  if (HasArrayTrait && IsArray)
+    return true;
+
+  const bool HasAccessorCommonTrait =
+      Input.getElementType()
+          .hasTrait<mlir::sycl::SYCLInheritanceTypeInterface<
+              mlir::sycl::AccessorCommonType>::Trait>();
+  const bool IsAccessorCommon =
+      Output.getElementType().isa<mlir::sycl::AccessorCommonType>();
+  if (HasAccessorCommonTrait && IsAccessorCommon)
+    return true;
+
+  return false;
+}
+
+mlir::LogicalResult mlir::sycl::SYCLConstructorOp::verify() {
+  auto MT = getOperand(0).getType().dyn_cast<mlir::MemRefType>();
+  if (MT && isSYCLType(MT.getElementType()))
+    return success();
+
+  return emitOpError("The first argument of a sycl::constructor op has to be a "
+                     "MemRef to a SYCL type");
 }
 
 mlir::LogicalResult mlir::sycl::SYCLAccessorSubscriptOp::verify() {

@@ -26,9 +26,9 @@
 #include "mlir/Target/LLVMIR/TypeFromLLVM.h"
 
 #include "llvm/IR/Assumptions.h"
-#include "llvm/IR/ModRef.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/ModRef.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -1336,9 +1336,9 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
       if (TypeName == "range" || TypeName == "nd_range" ||
           TypeName == "array" || TypeName == "id" ||
           TypeName == "accessor_common" || TypeName == "accessor" ||
-          TypeName == "AccessorImplDevice" || TypeName == "item" ||
-          TypeName == "ItemBase" || TypeName == "nd_item" ||
-          TypeName == "group") {
+          TypeName == "AccessorImplDevice" || TypeName == "AccessorSubscript" ||
+          TypeName == "item" || TypeName == "ItemBase" ||
+          TypeName == "nd_item" || TypeName == "group") {
         return getSYCLType(RT, *this);
       }
       // No need special handling for types that don't have record declaration

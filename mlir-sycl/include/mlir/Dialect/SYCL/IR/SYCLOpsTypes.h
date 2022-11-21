@@ -195,6 +195,32 @@ struct AccessorImplDeviceStorage : public TypeStorage {
   llvm::SmallVector<mlir::Type, 4> Body;
 };
 
+struct AccessorSubscriptStorage : public TypeStorage {
+  using KeyTy = std::tuple<int, llvm::SmallVector<mlir::Type, 4>>;
+
+  AccessorSubscriptStorage(const KeyTy &Key)
+      : CurrentDimension(std::get<0>(Key)), Body(std::get<1>(Key)) {}
+
+  bool operator==(const KeyTy &Key) const {
+    return Key == KeyTy{CurrentDimension, Body};
+  }
+
+  static llvm::hash_code hashKey(const KeyTy &Key) {
+    return llvm::hash_combine(std::get<0>(Key), std::get<1>(Key));
+  }
+
+  static KeyTy getKey(const KeyTy &Key) { return KeyTy{Key}; }
+
+  static AccessorSubscriptStorage *construct(TypeStorageAllocator &Allocator,
+                                             const KeyTy &Key) {
+    return new (Allocator.allocate<AccessorSubscriptStorage>())
+        AccessorSubscriptStorage(Key);
+  }
+
+  int CurrentDimension;
+  llvm::SmallVector<mlir::Type, 4> Body;
+};
+
 struct ArrayTypeStorage : public TypeStorage {
   using KeyTy = std::tuple<unsigned int, llvm::SmallVector<mlir::Type, 4>>;
 
@@ -296,6 +322,34 @@ struct GroupTypeStorage : public TypeStorage {
   }
 
   unsigned int Dimension;
+  llvm::SmallVector<mlir::Type, 4> Body;
+};
+
+struct VecTypeStorage : public TypeStorage {
+  using KeyTy = std::tuple<mlir::Type, int, llvm::SmallVector<mlir::Type, 4>>;
+
+  VecTypeStorage(const KeyTy &Key)
+      : DataT(std::get<0>(Key)), NumElements(std::get<1>(Key)),
+        Body(std::get<2>(Key)) {}
+
+  bool operator==(const KeyTy &Key) const {
+    return Key == KeyTy{DataT, NumElements, Body};
+  }
+
+  static llvm::hash_code hashKey(const KeyTy &Key) {
+    return llvm::hash_combine(std::get<0>(Key), std::get<1>(Key),
+                              std::get<2>(Key));
+  }
+
+  static KeyTy getKey(const KeyTy &Key) { return KeyTy{Key}; }
+
+  static VecTypeStorage *construct(TypeStorageAllocator &Allocator,
+                                   const KeyTy &Key) {
+    return new (Allocator.allocate<VecTypeStorage>()) VecTypeStorage(Key);
+  }
+
+  mlir::Type DataT;
+  int NumElements;
   llvm::SmallVector<mlir::Type, 4> Body;
 };
 
@@ -439,6 +493,24 @@ public:
   llvm::ArrayRef<mlir::Type> getBody() const;
 };
 
+class AccessorSubscriptType
+    : public Type::TypeBase<AccessorSubscriptType, Type,
+                            detail::AccessorSubscriptStorage,
+                            mlir::MemRefElementTypeInterface::Trait,
+                            mlir::LLVM::PointerElementTypeInterface::Trait> {
+public:
+  using Base::Base;
+
+  static mlir::sycl::AccessorSubscriptType
+  get(MLIRContext *Context, int CurrentDimension,
+      llvm::SmallVector<mlir::Type, 4> Body);
+  static mlir::Type parseType(mlir::DialectAsmParser &Parser);
+
+  int getCurrentDimension() const;
+  mlir::sycl::AccessorType getAccessorType() const;
+  llvm::ArrayRef<mlir::Type> getBody() const;
+};
+
 class ItemType
     : public Type::TypeBase<ItemType, Type, detail::ItemTypeStorage,
                             mlir::MemRefElementTypeInterface::Trait,
@@ -458,7 +530,8 @@ public:
 
 class ItemBaseType
     : public Type::TypeBase<ItemBaseType, Type, detail::ItemTypeStorage,
-                            mlir::MemRefElementTypeInterface::Trait> {
+                            mlir::MemRefElementTypeInterface::Trait,
+                            mlir::LLVM::PointerElementTypeInterface::Trait> {
 public:
   using Base::Base;
 
@@ -503,9 +576,31 @@ public:
   llvm::ArrayRef<mlir::Type> getBody() const;
 };
 
+class VecType
+    : public Type::TypeBase<VecType, Type, detail::VecTypeStorage,
+                            mlir::MemRefElementTypeInterface::Trait,
+                            mlir::LLVM::PointerElementTypeInterface::Trait> {
+public:
+  using Base::Base;
+
+  static mlir::sycl::VecType get(MLIRContext *Context, mlir::Type DataT,
+                                 int NumElements,
+                                 llvm::SmallVector<mlir::Type, 4> Body);
+  static mlir::Type parseType(mlir::DialectAsmParser &Parser);
+
+  mlir::Type getDataType() const;
+  int getNumElements() const;
+  llvm::ArrayRef<mlir::Type> getBody() const;
+};
+
 /// Return true if the given \p Ty is a SYCL type.
 inline bool isSYCLType(Type Ty) { return isa<SYCLDialect>(Ty.getDialect()); }
 
+// TODO: Modify SYCLDialect::addType() to avoid ever having to modify this
+// function when adding new types.
+
+/// Return the list of types derived from the input type.
+llvm::SmallVector<mlir::TypeID> getDerivedTypes(mlir::TypeID TypeID);
 } // namespace sycl
 } // namespace mlir
 

@@ -1,5 +1,5 @@
-// RUN: clang++ -fsycl -fsycl-device-only -S -emit-mlir %s -o - | FileCheck %s --check-prefix=CHECK-MLIR
-// RUN: clang++ -fsycl -fsycl-device-only -fsycl-targets=spir64-unknown-unknown-syclmlir -S -emit-llvm %s -o - | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: clang++ -fsycl -fsycl-device-only -O0 -emit-mlir %s -o - | FileCheck %s --check-prefix=CHECK-MLIR
+// RUN: clang++ -fsycl -fsycl-device-only -O0 -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 #include <sycl/sycl.hpp>
 #define N 32
@@ -16,14 +16,11 @@
 // CHECK-MLIR-NEXT: [[RESULT:%.*]] = arith.addf [[V1]], [[V2]] : f32
 // CHECK-MLIR:      affine.store [[RESULT]], {{.*}}[0] : memref<?xf32, 4>
 
-// CHECK-LLVM:       define internal spir_func void [[FUNC:@.*vec_add_device_simple.*_]]({{.*}}) #2
+// CHECK-LLVM:       define weak_odr spir_kernel void @{{.*}}vec_add_simple({{.*}}) #[[FUNCATTRS1:[0-9]+]]
 // CHECK-LLVM-DAG:   [[V1:%.*]] = load float, float addrspace(4)* {{.*}}, align 4
 // CHECK-LLVM-DAG:   [[V2:%.*]] = load float, float addrspace(4)* {{.*}}, align 4
 // CHECK-LLVM:       [[RESULT:%.*]] = fadd float [[V1]], [[V2]]
 // CHECK-LLVM:       store float [[RESULT]], float addrspace(4)* {{.*}}, align 4
-
-// CHECK-LLVM:       define weak_odr spir_kernel void @{{.*}}vec_add_simple({{.*}}) #1
-// CHECK-LLVM:       call void [[FUNC]]
 
 void vec_add_device_simple(std::array<float, N> &VA, std::array<float, N> &VB,
                            std::array<float, N> &VC) {
@@ -95,5 +92,4 @@ int main() {
 }
 
 // Keep at the end of the file.
-// CHECK-LLVM: attributes #1 = { convergent mustprogress norecurse nounwind "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}/polygeist/tools/cgeist/Test/Verification/sycl/vec_add.cpp" }
-// CHECK-LLVM-NEXT: attributes #2 = { alwaysinline convergent mustprogress norecurse nounwind "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}/polygeist/tools/cgeist/Test/Verification/sycl/vec_add.cpp" }
+// CHECK-LLVM-DAG: attributes #[[FUNCATTRS1]] = { convergent mustprogress norecurse nounwind "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}/polygeist/tools/cgeist/Test/Verification/sycl/vec_add.cpp" }

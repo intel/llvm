@@ -130,6 +130,12 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
       return mlir::sycl::AccessorImplDeviceType::get(
           CGT.getModule()->getContext(), Dim, Body);
     }
+    if (CTS->getName() == "AccessorSubscript") {
+      const auto CurDim =
+          CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
+      return mlir::sycl::AccessorSubscriptType::get(
+          CGT.getModule()->getContext(), CurDim, Body);
+    }
     if (CTS->getName() == "item") {
       const auto Dim =
           CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();

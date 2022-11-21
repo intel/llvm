@@ -8539,7 +8539,7 @@ public:
                         SmallVectorImpl<TemplateArgument> &CanonicalConverted,
                         CheckTemplateArgumentKind CTAK);
 
-  /// Check that the given template arguments can be be provided to
+  /// Check that the given template arguments can be provided to
   /// the given template, converting the arguments along the way.
   ///
   /// \param Template The template to which the template arguments are being
@@ -13755,6 +13755,8 @@ private:
   bool CheckRISCVLMUL(CallExpr *TheCall, unsigned ArgNum);
   bool CheckRISCVBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
                                      CallExpr *TheCall);
+  bool CheckLoongArchBuiltinFunctionCall(const TargetInfo &TI,
+                                         unsigned BuiltinID, CallExpr *TheCall);
 
   bool CheckIntelFPGARegBuiltinFunctionCall(unsigned BuiltinID, CallExpr *Call);
   bool CheckIntelFPGAMemBuiltinFunctionCall(CallExpr *Call);

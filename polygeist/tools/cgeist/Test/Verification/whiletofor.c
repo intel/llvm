@@ -1,5 +1,5 @@
-// RUN: cgeist %s --function=whiletofor -S | FileCheck %s
-// RUN: cgeist %s --function=whiletofor -S --memref-fullrank | FileCheck %s --check-prefix=FULLRANK
+// RUN: cgeist %s -O2 --function=whiletofor -S | FileCheck %s
+// RUN: cgeist %s -O2 --function=whiletofor -S --memref-fullrank | FileCheck %s --check-prefix=FULLRANK
 
 void use(int a[100][100]);
 

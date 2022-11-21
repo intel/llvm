@@ -1,4 +1,4 @@
-// RUN: cgeist %s --function=ll -S | FileCheck %s
+// RUN: cgeist %s -O2 --function=ll -S | FileCheck %s
 
 struct alignas(2) Half {
   unsigned short x;

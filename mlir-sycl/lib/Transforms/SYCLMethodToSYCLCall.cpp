@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
 #include "mlir/Dialect/SYCL/Transforms/Passes.h"
 
 #include "PassDetail.h"
@@ -53,7 +54,7 @@ static mlir::Value castToBaseType(PatternRewriter &Rewriter, mlir::Location Loc,
 
 static LogicalResult convertMethod(SYCLMethodOpInterface method,
                                    PatternRewriter &rewriter) {
-  LLVM_DEBUG(llvm::dbgs() << "ConvertToLLVMABIPass: SYCLMethodOpLowering: ";
+  LLVM_DEBUG(llvm::dbgs() << "SYCLMethodToSYCLCallPass: SYCLMethodOpLowering: ";
              method.dump(); llvm::dbgs() << "\n");
 
   SmallVector<mlir::Value> Args(method->getOperands());
@@ -71,9 +72,44 @@ static LogicalResult convertMethod(SYCLMethodOpInterface method,
     return ResTys[0];
   };
 
+  llvm::Optional<llvm::StringRef> MangledFunctionName =
+      method.getMangledFunctionName();
+  if (!MangledFunctionName) {
+    // If the optional MangledFunctionName attribute is not present, we try to
+    // obtain the name of the function to call from the dialect's register.
+    const auto *Dialect =
+        method.getContext()->getLoadedDialect<sycl::SYCLDialect>();
+    assert(Dialect && "SYCLDialect not loaded");
+
+    auto Func = Dialect->lookupMethodDefinition(
+        method.getFunctionName(),
+        mlir::FunctionType::get(Dialect->getContext(),
+                                ValueRange(Args).getTypes(),
+                                method->getResultTypes()));
+    if (!Func) {
+      return method->emitError(
+                 "Could not obtain a valid definition for operation ")
+             << method
+             << " provide a definition using "
+                "mlir::sycl::SYCLDialect::registerMethodDefinition() or using "
+                "the MangledFunctionName field of this operation.";
+    }
+
+    SymbolTable Module(method->getParentOp()->getParentOp());
+    if (auto *Op = Module.lookup(Func->getName())) {
+      // If the function has already been cloned to this module, use that.
+      Func = cast<func::FuncOp>(Op);
+    } else {
+      // If the function has not been inserted yet, do it now.
+      Func = Func->clone();
+      Module.insert(*Func);
+    }
+    MangledFunctionName = Func->getName();
+  }
+
   auto CallOp = rewriter.replaceOpWithNewOp<sycl::SYCLCallOp>(
       method, ResTyOrNone(), method.getTypeName(), method.getFunctionName(),
-      method.getMangledFunctionName(), Args);
+      *MangledFunctionName, Args);
 
   LLVM_DEBUG(llvm::dbgs() << "  Converted to: " << CallOp << "\n");
 

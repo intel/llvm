@@ -22,6 +22,7 @@
 #include "mlir/Conversion/OpenMPToLLVM/ConvertOpenMPToLLVM.h"
 #include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
 #include "mlir/Conversion/SYCLToLLVM/SYCLToLLVM.h"
+#include "mlir/Conversion/VectorToLLVM/ConvertVectorToLLVM.h"
 #include "mlir/Dialect/Async/IR/Async.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Func/Transforms/Passes.h"
@@ -33,6 +34,7 @@
 #include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
+#include "mlir/IR/SymbolTable.h"
 #include "mlir/Transforms/RegionUtils.h"
 #include "polygeist/Ops.h"
 #include "llvm/ADT/TypeSwitch.h"
@@ -697,11 +699,38 @@ struct GPUModuleOpToModuleOpConversion
     : public ConvertOpToLLVMPattern<gpu::GPUModuleOp> {
   using ConvertOpToLLVMPattern<gpu::GPUModuleOp>::ConvertOpToLLVMPattern;
 
+  /// Remove operations already defined in the parent module.
+  static void
+  removeAlreadyDefinedFunctions(gpu::GPUModuleOp deviceModule,
+                                ConversionPatternRewriter &rewriter) {
+    auto Module = deviceModule->getParentOfType<ModuleOp>();
+    assert(Module && "Module not found");
+    const auto Operations = deviceModule.getOps();
+    SmallVector<std::reference_wrapper<Operation>> AlreadyDefined;
+    std::copy_if(
+        Operations.begin(), Operations.end(),
+        std::back_inserter(AlreadyDefined), [&](Operation &Op) -> bool {
+          if (isa<gpu::ModuleEndOp>(Op)) {
+            // Erase GPUEndOp.
+            return true;
+          }
+          // Erase operations already defined in the parent module.
+          auto *Other = Module.lookupSymbol(SymbolTable::getSymbolName(&Op));
+          return Other && Other->getParentOp() == Module;
+        });
+    for (auto Op : AlreadyDefined) {
+      rewriter.eraseOp(&Op.get());
+    }
+  }
+
   LogicalResult
   matchAndRewrite(gpu::GPUModuleOp deviceModule, gpu::GPUModuleOp::Adaptor,
                   ConversionPatternRewriter &rewriter) const override {
+    // Erase functions already present in the parent module.
+    removeAlreadyDefinedFunctions(deviceModule, rewriter);
     // Copy contents to the parent module and erase the operation.
     auto module = deviceModule->getParentOfType<ModuleOp>();
+    assert(module && "Module not found");
     rewriter.mergeBlocks(deviceModule.getBody(), module.getBody(), {});
     rewriter.eraseOp(deviceModule);
     return success();
@@ -792,6 +821,7 @@ struct ConvertPolygeistToLLVMPass
       populateMathToLLVMConversionPatterns(converter, patterns);
       populateOpenMPToLLVMConversionPatterns(converter, patterns);
       arith::populateArithToLLVMConversionPatterns(converter, patterns);
+      populateVectorToLLVMConversionPatterns(converter, patterns);
 
       converter.addConversion([&](async::TokenType type) { return type; });
 

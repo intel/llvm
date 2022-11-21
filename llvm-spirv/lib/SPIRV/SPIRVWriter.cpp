@@ -541,8 +541,7 @@ SPIRVType *LLVMToSPIRVBase::transPointerType(Type *ET, unsigned AddrSpc) {
       return SaveType(transType(ImageTy));
     }
     if (STName == kSPR2TypeName::Sampler)
-      return SaveType(transSPIRVOpaqueType(
-          getSPIRVTypeName(kSPIRVTypeName::Sampler), SPIRAS_Constant));
+      return SaveType(transType(getSPIRVType(OpTypeSampler)));
     if (STName.startswith(kSPIRVTypeName::PrefixAndDelim))
       return transSPIRVOpaqueType(STName, AddrSpc);
 
@@ -551,14 +550,8 @@ SPIRVType *LLVMToSPIRVBase::transPointerType(Type *ET, unsigned AddrSpc) {
           OCLSubgroupINTELTypeOpCodeMap::map(ST->getName().str())));
 
     if (OCLOpaqueTypeOpCodeMap::find(STName.str(), &OpCode)) {
-      switch (OpCode) {
-      default:
-        return SaveType(BM->addOpaqueGenericType(OpCode));
-      case OpTypeDeviceEvent:
-        return SaveType(BM->addDeviceEventType());
-      case OpTypeQueue:
-        return SaveType(BM->addQueueType());
-      }
+      Type *RealType = getSPIRVType(OpCode);
+      return SaveType(transType(RealType));
     }
     if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute)) {
       if (STName.startswith(kVCType::VCBufferSurface)) {
@@ -2735,9 +2728,7 @@ SPIRVValue *LLVMToSPIRVBase::oclTransSpvcCastSampler(CallInst *CI,
   assert(FT->getParamType(0)->isIntegerTy() && "Invalid sampler type");
   auto Arg = CI->getArgOperand(0);
 
-  auto *TransRT =
-      transPointerType(getOrCreateOpaqueStructType(M, kSPR2TypeName::Sampler),
-                       RT->getPointerAddressSpace());
+  auto *TransRT = transType(getSPIRVType(OpTypeSampler));
 
   auto GetSamplerConstant = [&](uint64_t SamplerValue) {
     auto AddrMode = (SamplerValue & 0xE) >> 1;
@@ -2834,7 +2825,11 @@ void processOptionalAnnotationInfo(Constant *Const,
       return;
     if (auto *CInt = dyn_cast<ConstantInt>(CStruct->getOperand(0))) {
       AnnotationString += ": ";
-      AnnotationString += std::to_string(CInt->getSExtValue());
+      // For boolean, emit 0/1 for ease of readability.
+      if (CInt->getType()->getIntegerBitWidth() == 1)
+        AnnotationString += std::to_string(CInt->getZExtValue());
+      else
+        AnnotationString += std::to_string(CInt->getSExtValue());
     }
     for (uint32_t I = 1; I != NumOperands; ++I) {
       if (auto *CInt = dyn_cast<ConstantInt>(CStruct->getOperand(I))) {
@@ -4659,7 +4654,7 @@ void LLVMToSPIRVBase::oclGetMutatedArgumentTypesByBuiltin(
   if (Demangled.find(kSPIRVName::SampledImage) == std::string::npos)
     return;
   if (FT->getParamType(1)->isIntegerTy())
-    ChangedType[1] = getSamplerType(F->getParent());
+    ChangedType[1] = getSPIRVType(OpTypeSampler, true);
 }
 
 SPIRVValue *LLVMToSPIRVBase::transBuiltinToConstant(StringRef DemangledName,
