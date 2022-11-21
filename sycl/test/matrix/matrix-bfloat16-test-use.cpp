@@ -66,8 +66,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            // the packed_b layout. By default, the layout is row_major and size
            // is (TK, TN).
            joint_matrix<bfloat16, use::b, TK, TN, layout::packed> sub_b(sg);
-           joint_matrix<float, use::accumulator, TM, TN, layout::dynamic> sub_c(
-               sg);
+           joint_matrix<float, use::accumulator, TM, TN> sub_c(sg);
 
            joint_matrix_load(sg, sub_c,
                              accC.get_pointer() + (sg_startx * TM) * N +
