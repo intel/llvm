@@ -834,24 +834,12 @@ template <class FunctorTy> void withAuxHandler(handler &CGH, FunctorTy Func) {
 // TODO: remove this method when everything is switched to general algorithm
 // implementing arbitrary number of reductions in parallel_for().
 /// Copies the final reduction result kept in read-write accessor to user's
-/// accessor. This method is not called for user's read-write accessors
-/// requiring update-write to it.
-template <typename KernelName, class Reduction>
-std::enable_if_t<!Reduction::is_usm>
-reduSaveFinalResultToUserMem(handler &CGH, Reduction &Redu) {
-  auto InAcc = Redu.getReadAccToPreviousPartialReds(CGH);
-  associateWithHandler(CGH, &Redu.getUserRedVar(), access::target::device);
-  CGH.copy(InAcc, Redu.getUserRedVar());
-}
-
-// This method is used for implementation of parallel_for accepting 1 reduction.
-// TODO: remove this method when everything is switched to general algorithm
-// implementing arbitrary number of reductions in parallel_for().
-/// Copies the final reduction result kept in read-write accessor to user's
 /// USM memory.
 template <typename KernelName, class Reduction>
-std::enable_if_t<Reduction::is_usm>
-reduSaveFinalResultToUserMem(handler &CGH, Reduction &Redu) {
+void reduSaveFinalResultToUserMem(handler &CGH, Reduction &Redu) {
+  static_assert(Reduction::is_usm,
+                "All implementations using this helper are expected to have "
+                "USM reduction, not a buffer-based one.");
   size_t NElements = Reduction::num_elements;
   auto InAcc = Redu.getReadAccToPreviousPartialReds(CGH);
   auto UserVarPtr = Redu.getUserRedVar();
@@ -1144,7 +1132,7 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
       }
     });
 
-    if (Reduction::is_usm)
+    if constexpr (Reduction::is_usm)
       reduction::withAuxHandler(CGH, [&](handler &CopyHandler) {
         reduSaveFinalResultToUserMem<KernelName>(CopyHandler, Redu);
       });
@@ -1389,7 +1377,7 @@ struct NDRangeReduction<
       });
     } // end while (NWorkItems > 1)
 
-    if (Reduction::is_usm) {
+    if constexpr (Reduction::is_usm) {
       reduction::withAuxHandler(CGH, [&](handler &CopyHandler) {
         reduSaveFinalResultToUserMem<KernelName>(CopyHandler, Redu);
       });
@@ -1589,7 +1577,7 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
       });
     } // end while (NWorkItems > 1)
 
-    if (Reduction::is_usm) {
+    if constexpr (Reduction::is_usm) {
       reduction::withAuxHandler(CGH, [&](handler &CopyHandler) {
         reduSaveFinalResultToUserMem<KernelName>(CopyHandler, Redu);
       });
