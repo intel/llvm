@@ -34,6 +34,7 @@
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
 
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
 #include "mlir/Dialect/SYCL/Transforms/Passes.h"
@@ -235,6 +236,7 @@ static void loadDialects(MLIRContext &context, const bool syclIsDevice) {
   context.getOrLoadDialect<mlir::memref::MemRefDialect>();
   context.getOrLoadDialect<mlir::linalg::LinalgDialect>();
   context.getOrLoadDialect<mlir::polygeist::PolygeistDialect>();
+  context.getOrLoadDialect<mlir::vector::VectorDialect>();
 
   if (syclIsDevice) {
     context.getOrLoadDialect<mlir::sycl::SYCLDialect>();
@@ -700,11 +702,6 @@ static int createAndExecutePassPipeline(
 static void
 runOptimizationPipeline(llvm::Module &module,
                         const llvm::OptimizationLevel &OptimizationLevel) {
-  if (OptimizationLevel == llvm::OptimizationLevel::O0) {
-    // No optimizations should be run in this case.
-    return;
-  }
-
   llvm::LoopAnalysisManager LAM;
   llvm::FunctionAnalysisManager FAM;
   llvm::CGSCCAnalysisManager CGAM;
@@ -719,7 +716,9 @@ runOptimizationPipeline(llvm::Module &module,
   PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
 
   llvm::ModulePassManager MPM =
-      PB.buildPerModuleDefaultPipeline(OptimizationLevel);
+      (OptimizationLevel == llvm::OptimizationLevel::O0)
+          ? PB.buildO0DefaultPipeline(OptimizationLevel)
+          : PB.buildPerModuleDefaultPipeline(OptimizationLevel);
 
   MPM.run(module, MAM);
 }

@@ -1,8 +1,8 @@
-// RUN: clang++ -fsycl -fsycl-device-only -emit-mlir %s -o - | FileCheck %s --check-prefix=CHECK-MLIR
-// RUN: clang++ -fsycl -fsycl-device-only -emit-mlir %s -o - -Xcgeist -no-mangled-function-name | FileCheck %s --check-prefix=CHECK-MLIR-NO-MANGLED-FUNCTION-NAME
+// RUN: clang++ -fsycl -fsycl-device-only -O0 -emit-mlir %s -o - | FileCheck %s --check-prefix=CHECK-MLIR
+// RUN: clang++ -fsycl -fsycl-device-only -O0 -emit-mlir %s -o - -Xcgeist -no-mangled-function-name | FileCheck %s --check-prefix=CHECK-MLIR-NO-MANGLED-FUNCTION-NAME
 // COM: These two should obtain the same results.
-// RUN: clang++ -fsycl -fsycl-device-only -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - | FileCheck %s --check-prefix=CHECK-LLVM
-// RUN: clang++ -fsycl -fsycl-device-only -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - -Xcgeist -no-mangled-function-name | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: clang++ -fsycl -fsycl-device-only -O0 -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: clang++ -fsycl -fsycl-device-only -O0 -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - -Xcgeist -no-mangled-function-name | FileCheck %s --check-prefix=CHECK-LLVM
 
 #include <sycl/sycl.hpp>
 
@@ -12,21 +12,24 @@
 // CHECK-MLIR-DAG: !sycl_id_2_ = !sycl.id<2>
 // CHECK-MLIR-DAG: !sycl_range_1_ = !sycl.range<1>
 // CHECK-MLIR-DAG: !sycl_range_2_ = !sycl.range<2>
-// CHECK-MLIR-DAG: !sycl_accessor_1_i32_read_write_global_buffer = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>, !llvm.struct<(ptr<i32, 1>)>)>
+// CHECK-MLIR-DAG: !sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>
+// CHECK-MLIR-DAG: !sycl_accessor_1_i32_read_write_global_buffer = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<i32, 1>)>)>
 // CHECK-MLIR-DAG: !sycl_accessor_2_i32_read_write_global_buffer = !sycl.accessor<[2, i32, read_write, global_buffer], (!sycl.accessor_impl_device<[2], (!sycl_id_2_, !sycl_range_2_, !sycl_range_2_)>, !llvm.struct<(ptr<i32, 1>)>)>
 // CHECK-MLIR-DAG: !sycl_array_1_ = !sycl.array<[1], (memref<1xi64, 4>)>
 // CHECK-MLIR-DAG: !sycl_array_2_ = !sycl.array<[2], (memref<2xi64, 4>)>
+// CHECK-MLIR-DAG: !sycl_accessor_subscript_1_ = !sycl.accessor_subscript<[1], (!sycl_id_2_, !sycl_accessor_2_i32_read_write_global_buffer)>
 
-// CHECK-LLVM-DAG: %"class.sycl::_V1::accessor.2" = type { %"class.sycl::_V1::detail::AccessorImplDevice.2", { i32 addrspace(1)* } }
-// CHECK-LLVM-DAG: %"class.sycl::_V1::detail::AccessorImplDevice.2" = type { %"class.sycl::_V1::id.2", %"class.sycl::_V1::range.2", %"class.sycl::_V1::range.2" }
-// CHECK-LLVM-DAG: %"class.sycl::_V1::range.2" = type { %"class.sycl::_V1::detail::array.2" }
-// CHECK-LLVM-DAG: %"class.sycl::_V1::id.2" = type { %"class.sycl::_V1::detail::array.2" }
-// CHECK-LLVM-DAG: %"class.sycl::_V1::detail::array.2" = type { [2 x i64] }
-// CHECK-LLVM-DAG: %"class.sycl::_V1::accessor.1" = type { %"class.sycl::_V1::detail::AccessorImplDevice.1", { i32 addrspace(1)* } }
-// CHECK-LLVM-DAG: %"class.sycl::_V1::detail::AccessorImplDevice.1" = type { %"class.sycl::_V1::id.1", %"class.sycl::_V1::range.1", %"class.sycl::_V1::range.1" }
-// CHECK-LLVM-DAG: %"class.sycl::_V1::id.1" = type { %"class.sycl::_V1::detail::array.1" }
 // CHECK-LLVM-DAG: %"class.sycl::_V1::detail::array.1" = type { [1 x i64] }
+// CHECK-LLVM-DAG: %"class.sycl::_V1::detail::array.2" = type { [2 x i64] }
+// CHECK-LLVM-DAG: %"class.sycl::_V1::id.1" = type { %"class.sycl::_V1::detail::array.1" }
+// CHECK-LLVM-DAG: %"class.sycl::_V1::id.2" = type { %"class.sycl::_V1::detail::array.2" }
 // CHECK-LLVM-DAG: %"class.sycl::_V1::range.1" = type { %"class.sycl::_V1::detail::array.1" }
+// CHECK-LLVM-DAG: %"class.sycl::_V1::range.2" = type { %"class.sycl::_V1::detail::array.2" }
+// CHECK-LLVM-DAG: %"class.sycl::_V1::detail::AccessorImplDevice.1" = type { %"class.sycl::_V1::id.1", %"class.sycl::_V1::range.1", %"class.sycl::_V1::range.1" }
+// CHECK-LLVM-DAG: %"class.sycl::_V1::detail::AccessorImplDevice.2" = type { %"class.sycl::_V1::id.2", %"class.sycl::_V1::range.2", %"class.sycl::_V1::range.2" }
+// CHECK-LLVM-DAG: %"class.sycl::_V1::accessor.1" = type { %"class.sycl::_V1::detail::AccessorImplDevice.1", { i32 addrspace(1)* } }
+// CHECK-LLVM-DAG: %"class.sycl::_V1::accessor.2" = type { %"class.sycl::_V1::detail::AccessorImplDevice.2", { i32 addrspace(1)* } }
+// CHECK-LLVM-DAG: %"class.sycl::_V1::detail::accessor_common.AccessorSubscript.1" = type { %"class.sycl::_V1::id.2", %"class.sycl::_V1::accessor.2" }
 
 template <typename T> SYCL_EXTERNAL void keep(T);
 
@@ -45,11 +48,11 @@ SYCL_EXTERNAL void accessor_subscript_operator_0(sycl::accessor<sycl::cl_int, 2>
 
 // CHECK-MLIR-LABEL: func.func @_Z29accessor_subscript_operator_1N4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEEm(
 // CHECK_MLIR:           %{{.*}}: memref<?x!sycl_accessor_2_i32_read_write_global_buffer>, %{{.*}}: i64)
-// CHECK-MLIR: %{{.*}} = sycl.accessor.subscript %{{.*}}[%{{.*}}] {BaseType = memref<?x!sycl_accessor_2_i32_read_write_global_buffer, 4>, FunctionName = @"operator[]", MangledFunctionName = @_ZNK4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEixILi2EvEEDam, TypeName = @accessor} : (memref<?x!sycl_accessor_2_i32_read_write_global_buffer, 4>, i64) -> !llvm.struct<(!sycl_id_2_, !sycl_accessor_2_i32_read_write_global_buffer)>
+// CHECK-MLIR: %{{.*}} = sycl.accessor.subscript %{{.*}}[%{{.*}}] {BaseType = memref<?x!sycl_accessor_2_i32_read_write_global_buffer, 4>, FunctionName = @"operator[]", MangledFunctionName = @_ZNK4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEixILi2EvEEDam, TypeName = @accessor} : (memref<?x!sycl_accessor_2_i32_read_write_global_buffer, 4>, i64) -> !sycl_accessor_subscript_1
 
 // CHECK-LLVM-LABEL: define spir_func void @_Z29accessor_subscript_operator_1N4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEEm(
 // CHECK-LLVM:           %"class.sycl::_V1::accessor.2"* noundef byval(%"class.sycl::_V1::accessor.2") align 8 %0, i64 noundef %1) #[[FUNCATTRS]]
-// CHECK-LLVM: %{{.*}} = call { %"class.sycl::_V1::id.2", %"class.sycl::_V1::accessor.2" } @_ZNK4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEixILi2EvEEDam(%"class.sycl::_V1::accessor.2" addrspace(4)* %{{.*}}, i64 %1)
+// CHECK-LLVM: %{{.*}} = call %"class.sycl::_V1::detail::accessor_common.AccessorSubscript.1" @_ZNK4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEixILi2EvEEDam(%"class.sycl::_V1::accessor.2" addrspace(4)* %{{.*}}, i64 %1)
 
 SYCL_EXTERNAL void accessor_subscript_operator_1(sycl::accessor<sycl::cl_int, 2> acc, size_t index) {
   keep(acc[index]);
@@ -130,7 +133,7 @@ SYCL_EXTERNAL void range_size(sycl::range<2> r) {
 // CHECK-MLIR-NEXT:             %[[VAL_4:.*]] = "polygeist.memref2pointer"(%[[VAL_2]]) : (memref<1x!sycl_range_2_>) -> !llvm.ptr<!sycl_range_2_>
 // CHECK-MLIR-NEXT:             %[[VAL_5:.*]] = llvm.addrspacecast %[[VAL_4]] : !llvm.ptr<!sycl_range_2_> to !llvm.ptr<!sycl_range_2_, 4>
 // CHECK-MLIR-NEXT:             %[[VAL_6:.*]] = "polygeist.pointer2memref"(%[[VAL_5]]) : (!llvm.ptr<!sycl_range_2_, 4>) -> memref<?x!sycl_range_2_, 4>
-// CHECK-MLIR-NEXT:             sycl.constructor(%[[VAL_6]], %[[VAL_3]]) {MangledFunctionName = @_ZN4sycl3_V15rangeILi2EEC1ERKS2_, Type = @range} : (memref<?x!sycl_range_2_, 4>, memref<?x!sycl_range_2_, 4>) -> ()
+// CHECK-MLIR-NEXT:             sycl.constructor(%[[VAL_6]], %[[VAL_3]]) {MangledFunctionName = @_ZN4sycl3_V15rangeILi2EEC1ERKS2_, TypeName = @range} : (memref<?x!sycl_range_2_, 4>, memref<?x!sycl_range_2_, 4>) -> ()
 // CHECK-MLIR-NEXT:             %[[VAL_7:.*]] = affine.load %[[VAL_2]][0] : memref<1x!sycl_range_2_>
 // CHECK-MLIR-NEXT:             return %[[VAL_7]] : !sycl_range_2_
 // CHECK-MLIR-NEXT:           }
@@ -216,10 +219,6 @@ SYCL_EXTERNAL void id_get_2(const sycl::id<1> id, int dimension) {
 // CHECK-MLIR:           %arg0: memref<?x!sycl_id_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_id_1_, llvm.noundef}
 // CHECK-MLIR: %{{.*}} = "sycl.id.get"(%{{.*}}) {BaseType = memref<?x!sycl_id_1_, 4>, FunctionName = @"operator unsigned long", MangledFunctionName = @_ZNK4sycl3_V12idILi1EEcvmEv, TypeName = @id} : (memref<?x!sycl_id_1_, 4>) -> i64
 
-// CHECK-LLVM-LABEL: define spir_func void @_Z8id_get_3N4sycl3_V12idILi1EEE(
-// CHECK-LLVM:           %"class.sycl::_V1::id.1"* noundef byval(%"class.sycl::_V1::id.1") align 8 %0) #[[FUNCATTRS]]      
-// CHECK-LLVM: %{{.*}} = call i64 @_ZNK4sycl3_V12idILi1EEcvmEv(%"class.sycl::_V1::id.1" addrspace(4)* %{{.*}})
-
 SYCL_EXTERNAL void id_get_3(sycl::id<1> id) {
   keep(static_cast<size_t>(id));
 }
@@ -240,10 +239,6 @@ SYCL_EXTERNAL void item_get_id_0(sycl::item<1> item) {
 // CHECK-MLIR:           %arg0: memref<?x!sycl_item_1_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_item_1_1_, llvm.noundef}, %arg1: i32 {llvm.noundef})
 // CHECK-MLIR: %{{.*}} = "sycl.item.get_id"(%{{.*}}, %arg1) {BaseType = memref<?x!sycl_item_1_1_, 4>, FunctionName = @get_id, MangledFunctionName = @_ZNK4sycl3_V14itemILi1ELb1EE6get_idEi, TypeName = @item} : (memref<?x!sycl_item_1_1_, 4>, i32) -> i64
 
-// CHECK-LLVM-LABEL: define spir_func void @_Z13item_get_id_1N4sycl3_V14itemILi1ELb1EEEi(
-// CHECK-LLVM:           %"class.sycl::_V1::item.1.true"* noundef byval(%"class.sycl::_V1::item.1.true") align 8 %0, i32 noundef %1) #[[FUNCATTRS]]
-// CHECK-LLVM: %{{.*}} = call i64 @_ZNK4sycl3_V14itemILi1ELb1EE6get_idEi(%"class.sycl::_V1::item.1.true" addrspace(4)* %{{.*}}, i32 %1)
-
 SYCL_EXTERNAL void item_get_id_1(sycl::item<1> item, int dimension) {
   keep(item.get_id(dimension));
 }
@@ -251,10 +246,6 @@ SYCL_EXTERNAL void item_get_id_1(sycl::item<1> item, int dimension) {
 // CHECK-MLIR-LABEL: func.func @_Z13item_get_id_2N4sycl3_V14itemILi1ELb1EEEi(
 // CHECK-MLIR:           %arg0: memref<?x!sycl_item_1_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_item_1_1_, llvm.noundef}, %arg1: i32 {llvm.noundef})
 // CHECK-MLIR: %{{.*}} = "sycl.item.get_id"(%{{.*}}, %arg1) {BaseType = memref<?x!sycl_item_1_1_, 4>, FunctionName = @"operator[]", MangledFunctionName = @_ZNK4sycl3_V14itemILi1ELb1EEixEi, TypeName = @item} : (memref<?x!sycl_item_1_1_, 4>, i32) -> i64
-
-// CHECK-LLVM-LABEL: define spir_func void @_Z13item_get_id_2N4sycl3_V14itemILi1ELb1EEEi(
-// CHECK-LLVM:           %"class.sycl::_V1::item.1.true"* noundef byval(%"class.sycl::_V1::item.1.true") align 8 %0, i32 noundef %1) #[[FUNCATTRS]]  
-// CHECK-LLVM: %{{.*}} = call i64 @_ZNK4sycl3_V14itemILi1ELb1EEixEi(%"class.sycl::_V1::item.1.true" addrspace(4)* %{{.*}}, i32 %1)
 
 SYCL_EXTERNAL void item_get_id_2(sycl::item<1> item, int dimension) {
   keep(item[dimension]);
@@ -288,10 +279,6 @@ SYCL_EXTERNAL void item_get_range_0(sycl::item<1> item) {
 // CHECK-MLIR:           %arg0: memref<?x!sycl_item_1_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_item_1_1_, llvm.noundef}, %arg1: i32 {llvm.noundef})
 // CHECK-MLIR: %{{.*}} = "sycl.item.get_range"(%{{.*}}, %arg1) {BaseType = memref<?x!sycl_item_1_1_, 4>, FunctionName = @get_range, MangledFunctionName = @_ZNK4sycl3_V14itemILi1ELb1EE9get_rangeEi, TypeName = @item} : (memref<?x!sycl_item_1_1_, 4>, i32) -> i64
 
-// CHECK-LLVM-LABEL: define spir_func void @_Z16item_get_range_1N4sycl3_V14itemILi1ELb1EEEi(
-// CHECK-LLVM:           %"class.sycl::_V1::item.1.true"* noundef byval(%"class.sycl::_V1::item.1.true") align 8 %0, i32 noundef %1) #[[FUNCATTRS]]
-// CHECK-LLVM: %{{.*}} = call i64 @_ZNK4sycl3_V14itemILi1ELb1EE9get_rangeEi(%"class.sycl::_V1::item.1.true" addrspace(4)* %{{.*}}, i32 %1)
-
 SYCL_EXTERNAL void item_get_range_1(sycl::item<1> item, int dimension) {
   keep(item.get_range(dimension));
 }
@@ -299,10 +286,6 @@ SYCL_EXTERNAL void item_get_range_1(sycl::item<1> item, int dimension) {
 // CHECK-MLIR-LABEL: func.func @_Z18item_get_linear_idN4sycl3_V14itemILi1ELb1EEE(
 // CHECK-MLIR:           %arg0: memref<?x!sycl_item_1_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_item_1_1_, llvm.noundef})
 // CHECK-MLIR: %{{.*}} = "sycl.item.get_linear_id"(%{{.*}}) {BaseType = memref<?x!sycl_item_1_1_, 4>, FunctionName = @get_linear_id, MangledFunctionName = @_ZNK4sycl3_V14itemILi1ELb1EE13get_linear_idEv, TypeName = @item} : (memref<?x!sycl_item_1_1_, 4>) -> i64
-
-// CHECK-LLVM-LABEL: define spir_func void @_Z18item_get_linear_idN4sycl3_V14itemILi1ELb1EEE(
-// CHECK-LLVM:           %"class.sycl::_V1::item.1.true"* noundef byval(%"class.sycl::_V1::item.1.true") align 8 %0) #[[FUNCATTRS]]      
-// CHECK-LLVM: %{{.*}} = call i64 @_ZNK4sycl3_V14itemILi1ELb1EE13get_linear_idEv(%"class.sycl::_V1::item.1.true" addrspace(4)* %{{.*}})
 
 SYCL_EXTERNAL void item_get_linear_id(sycl::item<1> item) {
   keep(item.get_linear_id());
@@ -324,10 +307,6 @@ SYCL_EXTERNAL void nd_item_get_global_id_0(sycl::nd_item<1> nd_item) {
 // CHECK-MLIR:           %arg0: memref<?x!sycl_nd_item_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_nd_item_1_, llvm.noundef}, %arg1: i32 {llvm.noundef})
 // CHECK-MLIR: %{{.*}} = "sycl.nd_item.get_global_id"(%{{.*}}, %arg1) {BaseType = memref<?x!sycl_nd_item_1_, 4>, FunctionName = @get_global_id, MangledFunctionName = @_ZNK4sycl3_V17nd_itemILi1EE13get_global_idEi, TypeName = @nd_item} : (memref<?x!sycl_nd_item_1_, 4>, i32) -> i64
 
-// CHECK-LLVM-LABEL: define spir_func void @_Z23nd_item_get_global_id_1N4sycl3_V17nd_itemILi1EEEi(
-// CHECK-LLVM:           %"class.sycl::_V1::nd_item.1"* noundef byval(%"class.sycl::_V1::nd_item.1") align 8 %0, i32 noundef %1) #[[FUNCATTRS]]
-// CHECK-LLVM: %{{.*}} = call i64 @_ZNK4sycl3_V17nd_itemILi1EE13get_global_idEi(%"class.sycl::_V1::nd_item.1" addrspace(4)* %{{.*}}, i32 %1)
-
 SYCL_EXTERNAL void nd_item_get_global_id_1(sycl::nd_item<1> nd_item, int dimension) {
   keep(nd_item.get_global_id(dimension));
 }
@@ -335,10 +314,6 @@ SYCL_EXTERNAL void nd_item_get_global_id_1(sycl::nd_item<1> nd_item, int dimensi
 // CHECK-MLIR-LABEL: func.func @_Z28nd_item_get_global_linear_idN4sycl3_V17nd_itemILi1EEE(
 // CHECK-MLIR:           %arg0: memref<?x!sycl_nd_item_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_nd_item_1_, llvm.noundef})
 // CHECK-MLIR: %{{.*}} = "sycl.nd_item.get_global_linear_id"(%{{.*}}) {BaseType = memref<?x!sycl_nd_item_1_, 4>, FunctionName = @get_global_linear_id, MangledFunctionName = @_ZNK4sycl3_V17nd_itemILi1EE20get_global_linear_idEv, TypeName = @nd_item} : (memref<?x!sycl_nd_item_1_, 4>) -> i64
-
-// CHECK-LLVM-LABEL: define spir_func void @_Z28nd_item_get_global_linear_idN4sycl3_V17nd_itemILi1EEE(
-// CHECK-LLVM:           %"class.sycl::_V1::nd_item.1"* noundef byval(%"class.sycl::_V1::nd_item.1") align 8 %0) #[[FUNCATTRS]]    
-// CHECK-LLVM: %{{.*}} = call i64 @_ZNK4sycl3_V17nd_itemILi1EE20get_global_linear_idEv(%"class.sycl::_V1::nd_item.1" addrspace(4)* %{{.*}})
 
 SYCL_EXTERNAL void nd_item_get_global_linear_id(sycl::nd_item<1> nd_item) {
   keep(nd_item.get_global_linear_id());
@@ -359,10 +334,6 @@ SYCL_EXTERNAL void nd_item_get_local_id_0(sycl::nd_item<1> nd_item) {
 // CHECK-MLIR-LABEL: func.func @_Z22nd_item_get_local_id_1N4sycl3_V17nd_itemILi1EEEi(
 // CHECK-MLIR:           %arg0: memref<?x!sycl_nd_item_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_nd_item_1_, llvm.noundef}, %arg1: i32 {llvm.noundef})
 // CHECK-MLIR: %{{.*}} = "sycl.nd_item.get_local_id"(%{{.*}}, %arg1) {BaseType = memref<?x!sycl_nd_item_1_, 4>, FunctionName = @get_local_id, MangledFunctionName = @_ZNK4sycl3_V17nd_itemILi1EE12get_local_idEi, TypeName = @nd_item} : (memref<?x!sycl_nd_item_1_, 4>, i32) -> i64
-
-// CHECK-LLVM-LABEL: define spir_func void @_Z22nd_item_get_local_id_1N4sycl3_V17nd_itemILi1EEEi(
-// CHECK-LLVM:           %"class.sycl::_V1::nd_item.1"* noundef byval(%"class.sycl::_V1::nd_item.1") align 8 %0, i32 noundef %1) #[[FUNCATTRS]]  
-// CHECK-LLVM: %{{.*}} = call i64 @_ZNK4sycl3_V17nd_itemILi1EE12get_local_idEi(%"class.sycl::_V1::nd_item.1" addrspace(4)* %{{.*}}, i32 %1)
 
 SYCL_EXTERNAL void nd_item_get_local_id_1(sycl::nd_item<1> nd_item, int dimension) {
   keep(nd_item.get_local_id(dimension));
@@ -396,10 +367,6 @@ SYCL_EXTERNAL void nd_item_get_group_0(sycl::nd_item<1> nd_item) {
 // CHECK-MLIR:           %arg0: memref<?x!sycl_nd_item_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_nd_item_1_, llvm.noundef}, %arg1: i32 {llvm.noundef})
 // CHECK-MLIR: %{{.*}} = "sycl.nd_item.get_group"(%{{.*}}, %arg1) {BaseType = memref<?x!sycl_nd_item_1_, 4>, FunctionName = @get_group, MangledFunctionName = @_ZNK4sycl3_V17nd_itemILi1EE9get_groupEi, TypeName = @nd_item} : (memref<?x!sycl_nd_item_1_, 4>, i32) -> i64
 
-// CHECK-LLVM-LABEL: define spir_func void @_Z19nd_item_get_group_1N4sycl3_V17nd_itemILi1EEEi(
-// CHECK-LLVM:           %"class.sycl::_V1::nd_item.1"* noundef byval(%"class.sycl::_V1::nd_item.1") align 8 %0, i32 noundef %1) #[[FUNCATTRS]]    
-// CHECK-LLVM: %{{.*}} = call i64 @_ZNK4sycl3_V17nd_itemILi1EE9get_groupEi(%"class.sycl::_V1::nd_item.1" addrspace(4)* %{{.*}}, i32 %1)
-
 SYCL_EXTERNAL void nd_item_get_group_1(sycl::nd_item<1> nd_item, int dimension) {
   keep(nd_item.get_group(dimension));
 }
@@ -407,10 +374,6 @@ SYCL_EXTERNAL void nd_item_get_group_1(sycl::nd_item<1> nd_item, int dimension) 
 // CHECK-MLIR-LABEL: func.func @_Z27nd_item_get_group_linear_idN4sycl3_V17nd_itemILi1EEE(
 // CHECK-MLIR:           %arg0: memref<?x!sycl_nd_item_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_nd_item_1_, llvm.noundef})
 // CHECK-MLIR: %{{.*}} = "sycl.nd_item.get_group_linear_id"(%{{.*}}) {BaseType = memref<?x!sycl_nd_item_1_, 4>, FunctionName = @get_group_linear_id, MangledFunctionName = @_ZNK4sycl3_V17nd_itemILi1EE19get_group_linear_idEv, TypeName = @nd_item} : (memref<?x!sycl_nd_item_1_, 4>) -> i64
-
-// CHECK-LLVM-LABEL: define spir_func void @_Z27nd_item_get_group_linear_idN4sycl3_V17nd_itemILi1EEE(
-// CHECK-LLVM:           %"class.sycl::_V1::nd_item.1"* noundef byval(%"class.sycl::_V1::nd_item.1") align 8 %0) #[[FUNCATTRS]]      
-// CHECK-LLVM: %{{.*}} = call i64 @_ZNK4sycl3_V17nd_itemILi1EE19get_group_linear_idEv(%"class.sycl::_V1::nd_item.1" addrspace(4)* %{{.*}})
 
 SYCL_EXTERNAL void nd_item_get_group_linear_id(sycl::nd_item<1> nd_item) {
   keep(nd_item.get_group_linear_id());
@@ -431,10 +394,6 @@ SYCL_EXTERNAL void nd_item_get_group_range_0(sycl::nd_item<1> nd_item) {
 // CHECK-MLIR-LABEL: func.func @_Z25nd_item_get_group_range_1N4sycl3_V17nd_itemILi1EEEi(
 // CHECK-MLIR:           %arg0: memref<?x!sycl_nd_item_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_nd_item_1_, llvm.noundef}, %arg1: i32 {llvm.noundef})
 // CHECK-MLIR: %{{.*}} = "sycl.nd_item.get_group_range"(%{{.*}}, %arg1) {BaseType = memref<?x!sycl_nd_item_1_, 4>, FunctionName = @get_group_range, MangledFunctionName = @_ZNK4sycl3_V17nd_itemILi1EE15get_group_rangeEi, TypeName = @nd_item} : (memref<?x!sycl_nd_item_1_, 4>, i32) -> i64
-
-// CHECK-LLVM-LABEL: define spir_func void @_Z25nd_item_get_group_range_1N4sycl3_V17nd_itemILi1EEEi(
-// CHECK-LLVM:           %"class.sycl::_V1::nd_item.1"* noundef byval(%"class.sycl::_V1::nd_item.1") align 8 %0, i32 noundef %1) #[[FUNCATTRS]]    
-// CHECK-LLVM: %{{.*}} = call i64 @_ZNK4sycl3_V17nd_itemILi1EE15get_group_rangeEi(%"class.sycl::_V1::nd_item.1" addrspace(4)* %{{.*}}, i32 %1)
 
 SYCL_EXTERNAL void nd_item_get_group_range_1(sycl::nd_item<1> nd_item, int dimension) {
   keep(nd_item.get_group_range(dimension));

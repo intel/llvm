@@ -96,6 +96,7 @@ def SYCL_AccessorType : DialectType<SYCL_Dialect, CPred<"$_self.isa<AccessorType
 def SYCL_RangeType : DialectType<SYCL_Dialect, CPred<"$_self.isa<RangeType>()">, "sycl::range type">;
 def SYCL_NdRangeType : DialectType<SYCL_Dialect, CPred<"$_self.isa<NdRangeType>()">, "sycl::nd_range type">;
 def SYCL_AccessorImplType : DialectType<SYCL_Dialect, CPred<"$_self.isa<AccessorImplDeviceType>()">, "sycl::accessor_impl_device type">;
+def SYCL_AccessorSubscriptType : DialectType<SYCL_Dialect, CPred<"$_self.isa<AccessorSubscriptType>()">, "sycl::accessor_subscript type">;
 def SYCL_ArrayType : DialectType<SYCL_Dialect, CPred<"$_self.isa<ArrayType>()">, "sycl::array type">;
 def SYCL_ItemType : DialectType<SYCL_Dialect, CPred<"$_self.isa<ItemType>()">, "sycl::item type">;
 def SYCL_ItemBaseType : DialectType<SYCL_Dialect, CPred<"$_self.isa<ItemBaseType>()">, "sycl::item_base type">;
@@ -109,6 +110,7 @@ def AccessorMemRef : MemRefOf<[SYCL_AccessorType]>;
 def RangeMemRef : MemRefOf<[SYCL_RangeType]>;
 def NDRangeMemRef : MemRefOf<[SYCL_NdRangeType]>;
 def AccessorImplMemRef : MemRefOf<[SYCL_AccessorImplType]>;
+def AccessorSubscriptMemRef : MemRefOf<[SYCL_AccessorSubscriptType]>;
 def ArrayMemRef : MemRefOf<[SYCL_ArrayType]>;
 def ItemMemRef : MemRefOf<[SYCL_ItemType]>;
 def ItemBaseMemRef : MemRefOf<[SYCL_ItemBaseType]>;
@@ -123,6 +125,7 @@ def SYCLMemref : AnyTypeOf<[
   RangeMemRef,
   NDRangeMemRef,
   AccessorImplMemRef,
+  AccessorSubscriptMemRef,
   ArrayMemRef,
   ItemMemRef,
   ItemBaseMemRef,
@@ -131,6 +134,7 @@ def SYCLMemref : AnyTypeOf<[
   VecMemRef,
 ]>;
 def IndexType : AnyTypeOf<[I32, I64, Index]>;
+def IntMemrefType : AnyTypeOf<[MemRefOf<[I32]>]>;
 def SYCLGetResult : AnyTypeOf<[I64, MemRefOf<[I64]>]>;
 def SYCLGetIDResult : AnyTypeOf<[I64, SYCL_IDType]>;
 def SYCLGetRangeResult : AnyTypeOf<[I64, SYCL_RangeType]>;
@@ -139,7 +143,7 @@ def SYCLGetRangeResult : AnyTypeOf<[I64, SYCL_RangeType]>;
 // CONSTRUCTOR OPERATION
 ////////////////////////////////////////////////////////////////////////////////
 
-def ConstructorArgs : AnyTypeOf<[SYCLMemref, IndexType, SYCL_IDType, SYCL_RangeType]>;
+def ConstructorArgs : AnyTypeOf<[SYCLMemref, IndexType, IntMemrefType, SYCL_IDType, SYCL_RangeType]>;
 def SYCLConstructorOp : SYCL_Op<"constructor", []> {
   let summary = "Generic constructor operation";
   let description = [{
@@ -147,11 +151,13 @@ def SYCLConstructorOp : SYCL_Op<"constructor", []> {
   }];
 
   let arguments = (ins
-    FlatSymbolRefAttr:$Type,
+    FlatSymbolRefAttr:$TypeName,
     FlatSymbolRefAttr:$MangledFunctionName,
     Variadic<ConstructorArgs>:$Args
   );
   let results = (outs);
+
+  let hasVerifier = 1;
 
   let assemblyFormat = [{
     `(` $Args `)` attr-dict `:` functional-type($Args, results)
@@ -162,8 +168,8 @@ def SYCLConstructorOp : SYCL_Op<"constructor", []> {
 // CAST OPERATION
 ////////////////////////////////////////////////////////////////////////////////
 
-def CastArg : AnyTypeOf<[IDMemRef, RangeMemRef]>;
-def CastRes : AnyTypeOf<[ArrayMemRef]>;
+def CastArg : AnyTypeOf<[IDMemRef, RangeMemRef, AccessorMemRef]>;
+def CastRes : AnyTypeOf<[ArrayMemRef, AccessorCommonMemRef]>;
 def SYCLCastOp : SYCL_Op<"cast", [DeclareOpInterfaceMethods<CastOpInterface>, 
   Pure, MemRefsNormalizable]
 > {

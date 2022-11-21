@@ -75,124 +75,43 @@ MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob,
                          LowerToInfo &LTInfo)
     : Glob(Glob), function(), module(module), builder(module->getContext()),
       loc(builder.getUnknownLoc()), entryBlock(nullptr), loops(),
-      allocationScope(nullptr), supportedFuncs(), bufs(), constants(), labels(),
-      EmittingFunctionDecl(nullptr), params(), Captures(), CaptureKinds(),
-      ThisCapture(nullptr), arrayinit(), ThisVal(), returnVal(),
+      allocationScope(nullptr), unsupportedFuncs(), bufs(), constants(),
+      labels(), EmittingFunctionDecl(nullptr), params(), Captures(),
+      CaptureKinds(), ThisCapture(nullptr), arrayinit(), ThisVal(), returnVal(),
       LTInfo(LTInfo) {}
 
-void MLIRScanner::initSupportedFunctions() {
-  // Functions needed for single_task with one dimensional write buffer.
+void MLIRScanner::initUnsupportedFunctions() {
+  // FIXME: -no-mangled-function-name: cgeist:
+  // llvm/mlir/lib/IR/SymbolTable.cpp:121:
+  // mlir::SymbolTable::SymbolTable(mlir::Operation*): Assertion
+  // `symbolTableOp->hasTrait<OpTrait::SymbolTable>() && "expected operation to
+  // have SymbolTable trait"' failed.
+  unsupportedFuncs.insert("_ZNK4sycl3_V15rangeILi2EE4sizeEv");
+  unsupportedFuncs.insert(
+      "_ZNK4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_"
+      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
+      "listIJEEEE14getLinearIndexILi2EEEmNS0_2idIXT_EEE");
 
-  // SYCL constructors:
-  supportedFuncs.insert("_ZN4sycl3_V16detail18AccessorImplDeviceILi1EEC1ENS0_"
-                        "2idILi1EEENS0_5rangeILi1EEES7_");
-  supportedFuncs.insert(
-      "_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
-      "6targetE2014ELNS2_11placeholderE0ENS0_"
-      "3ext6oneapi22accessor_property_listIJEEEEC1Ev");
-  supportedFuncs.insert("_ZN4sycl3_V16detail5arrayILi1EEC1ILi1EEENSt9enable_"
-                        "ifIXeqT_Li1EEmE4typeE");
-  supportedFuncs.insert("_ZN4sycl3_V16detail5arrayILi1EEC1ERKS3_");
-  supportedFuncs.insert("_ZN4sycl3_V12idILi1EEC1Ev");
-  supportedFuncs.insert("_ZN4sycl3_V12idILi1EEC1ERKS2_");
-  supportedFuncs.insert(
-      "_ZN4sycl3_V12idILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE");
-  supportedFuncs.insert("_ZN4sycl3_V15rangeILi1EEC1ERKS2_");
-  supportedFuncs.insert(
-      "_ZN4sycl3_V15rangeILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE");
+  // FIXME: cgeist: llvm/polygeist/tools/cgeist/Lib/clang-mlir.cc:119: void
+  // checkFunctionParent(mlir::FunctionOpInterface, FunctionContext, const
+  // mlir::OwningOpRef<mlir::ModuleOp>&): Assertion `(Context !=
+  // FunctionContext::Host || F->getParentOp() == module.get()) && "New function
+  // must be inserted into global module"' failed.
+  unsupportedFuncs.insert("_ZNK4sycl3_V14itemILi2ELb1EEeqERKS2_");
+  unsupportedFuncs.insert("_ZNK4sycl3_V14itemILi1ELb0EE13get_linear_idEv");
 
-  // Other SYCL functions:
-  supportedFuncs.insert(
-      "_ZN4sycl3_V13ext6oneapi22accessor_property_listIJEE12has_propertyINS2_"
-      "8property9no_offsetEEEbPNSt9enable_ifIXsr24is_compile_time_propertyIT_"
-      "EE5valueEvE4typeE");
-  supportedFuncs.insert(
-      "_ZNK4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
+  // FIXME: cgeist: llvm/polygeist/tools/cgeist/Lib/CGCall.cc:94: void
+  // castCallerArgs(mlir::func::FuncOp, llvm::SmallVectorImpl<mlir::Value>&,
+  // mlir::OpBuilder&): Assertion `CalleeArgType == Args[I].getType() &&
+  // "Callsite argument mismatch"' failed.
+  unsupportedFuncs.insert(
+      "_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1026ELNS2_"
       "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
-      "listIJEEEEixILi1EvEERiNS0_2idILi1EEE");
-  supportedFuncs.insert(
-      "_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
+      "listIJEEEEC1ERKSA_");
+  unsupportedFuncs.insert(
+      "_ZN4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_"
       "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
-      "listIJEEEE6__initEPU3AS1iNS0_5rangeILi1EEESE_NS0_2idILi1EEE");
-  supportedFuncs.insert(
-      "_ZZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
-      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
-      "listIJEEEE6__initEPU3AS1iNS0_5rangeILi1EEESE_NS0_2idILi1EEEENKUlmE_"
-      "clEm");
-  supportedFuncs.insert(
-      "_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
-      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
-      "listIJEEEE14getAccessRangeEv");
-  supportedFuncs.insert(
-      "_ZNK4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
-      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
-      "listIJEEEE14getLinearIndexILi1EEEmNS0_2idIXT_EEE");
-  supportedFuncs.insert(
-      "_ZZNK4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
-      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
-      "listIJEEEE14getLinearIndexILi1EEEmNS0_2idIXT_EEEENKUlmE_clEm");
-  supportedFuncs.insert(
-      "_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
-      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
-      "listIJEEEE14getMemoryRangeEv");
-  supportedFuncs.insert(
-      "_ZNK4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
-      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
-      "listIJEEEE14getMemoryRangeEv");
-  supportedFuncs.insert(
-      "_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
-      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
-      "listIJEEEE9getOffsetEv");
-  supportedFuncs.insert(
-      "_ZNK4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
-      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
-      "listIJEEEE14getTotalOffsetEv");
-  supportedFuncs.insert(
-      "_ZZNK4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
-      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
-      "listIJEEEE14getTotalOffsetEvENKUlmE_clEm");
-  supportedFuncs.insert(
-      "_ZNK4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
-      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
-      "listIJEEEE15getQualifiedPtrEv");
-  supportedFuncs.insert("_ZN4sycl3_V16detail5arrayILi1EEixEi");
-  supportedFuncs.insert("_ZNK4sycl3_V16detail5arrayILi1EEixEi");
-  supportedFuncs.insert("_ZNK4sycl3_V16detail5arrayILi1EE15check_dimensionEi");
-  supportedFuncs.insert("_ZN4sycl3_V16detail14InitializedValILi1ENS0_"
-                        "5rangeEE3getILi0EEENS3_ILi1EEEv");
-  supportedFuncs.insert(
-      "_ZN4sycl3_V16detail8dim_loopILm1EZNS0_8accessorIiLi1ELNS0_"
-      "6access4modeE1025ELNS4_6targetE2014ELNS4_11placeholderE0ENS0_"
-      "3ext6oneapi22accessor_property_listIJEEEE6__initEPU3AS1iNS0_"
-      "5rangeILi1EEESG_NS0_2idILi1EEEEUlmE_EEvOT0_");
-  supportedFuncs.insert(
-      "_ZN4sycl3_V16detail8dim_loopILm1EZNKS0_8accessorIiLi1ELNS0_"
-      "6access4modeE1025ELNS4_6targetE2014ELNS4_11placeholderE0ENS0_"
-      "3ext6oneapi22accessor_property_listIJEEEE14getLinearIndexILi1EEEmNS0_"
-      "2idIXT_EEEEUlmE_EEvOT0_");
-  supportedFuncs.insert(
-      "_ZN4sycl3_V16detail8dim_loopILm1EZNKS0_8accessorIiLi1ELNS0_"
-      "6access4modeE1025ELNS4_6targetE2014ELNS4_11placeholderE0ENS0_"
-      "3ext6oneapi22accessor_property_listIJEEEE14getTotalOffsetEvEUlmE_"
-      "EEvOT0_");
-  supportedFuncs.insert(
-      "_ZN4sycl3_V16detail13dim_loop_implIJLm0EEZNS0_8accessorIiLi1ELNS0_"
-      "6access4modeE1025ELNS4_6targetE2014ELNS4_11placeholderE0ENS0_"
-      "3ext6oneapi22accessor_property_listIJEEEE6__initEPU3AS1iNS0_"
-      "5rangeILi1EEESG_NS0_2idILi1EEEEUlmE_EEvSt16integer_sequenceImJXspT_"
-      "EEEOT0_");
-  supportedFuncs.insert(
-      "_ZN4sycl3_V16detail13dim_loop_implIJLm0EEZNKS0_8accessorIiLi1ELNS0_"
-      "6access4modeE1025ELNS4_6targetE2014ELNS4_11placeholderE0ENS0_"
-      "3ext6oneapi22accessor_property_listIJEEEE14getLinearIndexILi1EEEmNS0_"
-      "2idIXT_EEEEUlmE_EEvSt16integer_sequenceImJXspT_EEEOT0_");
-  supportedFuncs.insert(
-      "_ZN4sycl3_V16detail13dim_loop_implIJLm0EEZNKS0_8accessorIiLi1ELNS0_"
-      "6access4modeE1025ELNS4_6targetE2014ELNS4_11placeholderE0ENS0_"
-      "3ext6oneapi22accessor_property_listIJEEEE14getTotalOffsetEvEUlmE_"
-      "EEvSt16integer_sequenceImJXspT_EEEOT0_");
-
-  supportedFuncs.insert("_ZNK4sycl3_V18nd_rangeILi2EE16get_global_rangeEv");
+      "listIJEEEEC1ERKSA_");
 }
 
 static void checkFunctionParent(const FunctionOpInterface F,
@@ -244,7 +163,7 @@ void MLIRScanner::init(mlir::FunctionOpInterface func,
                  << "\tfunctionDecl:" << *FD << "\n"
                  << "function:" << function << "\n";
 
-  initSupportedFunctions();
+  initUnsupportedFunctions();
   // This is needed, as GPUFuncOps are already created with an entry block.
   setEntryAndAllocBlock(isa<gpu::GPUFuncOp>(function)
                             ? &function.getBlocks().front()
@@ -1624,6 +1543,16 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
 
     Result = builder.create<polygeist::SubIndexOp>(loc, ResultType, val,
                                                    getConstantIndex(fnum));
+  } else if (auto AT = mt.getElementType()
+                           .dyn_cast<mlir::sycl::AccessorSubscriptType>()) {
+    assert(fnum < AT.getBody().size() && "ERROR");
+
+    const auto ElementType = AT.getBody()[fnum];
+    const auto ResultType = mlir::MemRefType::get(
+        shape, ElementType, MemRefLayoutAttrInterface(), mt.getMemorySpace());
+
+    Result = builder.create<polygeist::SubIndexOp>(loc, ResultType, val,
+                                                   getConstantIndex(fnum));
   } else if (auto AT = mt.getElementType().dyn_cast<mlir::sycl::ArrayType>()) {
     assert(fnum < AT.getBody().size() && "ERROR");
     const auto elemType = AT.getBody()[fnum].cast<MemRefType>();
@@ -1703,10 +1632,18 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
   return ValueCategory(Result, /*isReference*/ true);
 }
 
-static bool isSyclIDorRangetoArray(mlir::Type &nt, mlir::Value &value) {
+static bool isSYCLInheritType(mlir::Type &nt, mlir::Value &value) {
   mlir::Type elemTy = value.getType().dyn_cast<MemRefType>().getElementType();
-  return ((elemTy.isa<sycl::IDType>() || elemTy.isa<sycl::RangeType>()) &&
-          nt.dyn_cast<MemRefType>().getElementType().isa<sycl::ArrayType>());
+  if ((elemTy.isa<sycl::IDType>() || elemTy.isa<sycl::RangeType>()) &&
+      nt.dyn_cast<MemRefType>().getElementType().isa<sycl::ArrayType>())
+    return true;
+  if ((elemTy.isa<sycl::AccessorType>()) &&
+      nt.dyn_cast<MemRefType>()
+          .getElementType()
+          .isa<sycl::AccessorCommonType>())
+    return true;
+
+  return false;
 }
 
 mlir::Value MLIRScanner::GetAddressOfDerivedClass(
@@ -1845,7 +1782,7 @@ mlir::Value MLIRScanner::GetAddressOfBaseClass(
         auto shape = std::vector<int64_t>(mt.getShape());
         // We do not remove dimensions for an id->array or range->array, because
         // the later cast will be incompatible due to dimension mismatch.
-        if (!isSyclIDorRangetoArray(nt, value))
+        if (!isSYCLInheritType(nt, value))
           shape.erase(shape.begin());
         auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
                                          MemRefLayoutAttrInterface(),
@@ -1901,7 +1838,7 @@ mlir::Value MLIRScanner::GetAddressOfBaseClass(
         value = builder.create<polygeist::Memref2PointerOp>(loc, pt, value);
       } else {
         if (value.getType() != nt) {
-          if (isSyclIDorRangetoArray(nt, value))
+          if (isSYCLInheritType(nt, value))
             value = builder.create<sycl::SYCLCastOp>(loc, nt, value);
           else
             value = builder.create<memref::CastOp>(loc, nt, value);
