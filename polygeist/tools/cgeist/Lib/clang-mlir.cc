@@ -81,12 +81,6 @@ MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob,
       LTInfo(LTInfo) {}
 
 void MLIRScanner::initUnsupportedFunctions() {
-  // FIXME: -no-mangled-function-name: cgeist:
-  // llvm/mlir/lib/IR/SymbolTable.cpp:121:
-  // mlir::SymbolTable::SymbolTable(mlir::Operation*): Assertion
-  // `symbolTableOp->hasTrait<OpTrait::SymbolTable>() && "expected operation to
-  // have SymbolTable trait"' failed.
-  unsupportedFuncs.insert("_ZNK4sycl3_V15rangeILi2EE4sizeEv");
   unsupportedFuncs.insert(
       "_ZNK4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_"
       "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
