@@ -26,7 +26,15 @@ struct sub_group;
 
 namespace experimental {
 template <typename Group, std::size_t Extent> class group_with_scratchpad;
-}
+
+namespace detail {
+template <typename T> struct is_group_helper : std::false_type {};
+
+template <typename Group, std::size_t Extent>
+struct is_group_helper<group_with_scratchpad<Group, Extent>> : std::true_type {
+};
+} // namespace detail
+} // namespace experimental
 } // namespace oneapi
 } // namespace ext
 
@@ -36,11 +44,6 @@ template <typename T> struct is_group : std::false_type {};
 
 template <int Dimensions>
 struct is_group<group<Dimensions>> : std::true_type {};
-
-template <typename T> struct is_group_helper : std::false_type {};
-
-template <typename Group, std::size_t Extent>
-struct is_group_helper<ext::oneapi::experimental::group_with_scratchpad<Group, Extent>> : std::true_type {};
 
 template <typename T> struct is_sub_group : std::false_type {};
 
@@ -66,9 +69,11 @@ template <class T>
 __SYCL_INLINE_CONSTEXPR bool is_group_v =
     detail::is_group<T>::value || detail::is_sub_group<T>::value;
 
+namespace ext::oneapi::experimental {
 template <class T>
 __SYCL_INLINE_CONSTEXPR bool is_group_helper_v =
     detail::is_group_helper<T>::value;
+} // namespace ext::oneapi::experimental
 
 namespace detail {
 // Type for Intel device UUID extension.
@@ -382,6 +387,12 @@ template <typename Ret, typename... Args> struct function_traits<Ret(Args...)> {
   using ret_type = Ret;
   using args_type = std::tuple<Args...>;
 };
+
+template <class T> struct type_identity {
+  using type = T;
+};
+
+template <class T> using type_identity_t = typename type_identity<T>::type;
 
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
