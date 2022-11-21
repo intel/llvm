@@ -190,6 +190,8 @@ class ur_result_v(IntEnum):
     INVALID_HOST_PTR = 0x78000022                   ## Invalid host pointer
     INVALID_USM_SIZE = 0x78000023                   ## Invalid USM size
     OBJECT_ALLOCATION_FAILURE = 0x78000024          ## Objection allocation failure
+    ADAPTER_SPECIFIC = 0x78000025                   ## An adapter specific warning/error has been reported and can be
+                                                    ## retrieved via the urGetLastResult entry point.
     ERROR_UNKNOWN = 0x7ffffffe                      ## Unknown or internal error
 
 class ur_result_t(c_int):
@@ -1688,6 +1690,13 @@ else:
     _urTearDown_t = CFUNCTYPE( ur_result_t, c_void_p )
 
 ###############################################################################
+## @brief Function-pointer for urGetLastResult
+if __use_win_types:
+    _urGetLastResult_t = WINFUNCTYPE( ur_result_t, POINTER(c_char_p) )
+else:
+    _urGetLastResult_t = CFUNCTYPE( ur_result_t, POINTER(c_char_p) )
+
+###############################################################################
 ## @brief Function-pointer for urInit
 if __use_win_types:
     _urInit_t = WINFUNCTYPE( ur_result_t, ur_platform_init_flags_t, ur_device_init_flags_t )
@@ -1700,6 +1709,7 @@ else:
 class _ur_global_dditable_t(Structure):
     _fields_ = [
         ("pfnTearDown", c_void_p),                                      ## _urTearDown_t
+        ("pfnGetLastResult", c_void_p),                                 ## _urGetLastResult_t
         ("pfnInit", c_void_p)                                           ## _urInit_t
     ]
 
@@ -2060,6 +2070,7 @@ class UR_DDI:
 
         # attach function interface to function address
         self.urTearDown = _urTearDown_t(self.__dditable.Global.pfnTearDown)
+        self.urGetLastResult = _urGetLastResult_t(self.__dditable.Global.pfnGetLastResult)
         self.urInit = _urInit_t(self.__dditable.Global.pfnInit)
 
         # call driver to get function pointers

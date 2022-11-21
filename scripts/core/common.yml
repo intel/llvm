@@ -263,6 +263,9 @@ etors:
       desc: "Invalid USM size"
     - name: OBJECT_ALLOCATION_FAILURE
       desc: "Objection allocation failure"
+    - name: ADAPTER_SPECIFIC
+      desc: "An adapter specific warning/error has been reported and can be retrieved
+             via the urGetLastResult entry point."
     - name: ERROR_UNKNOWN
       value: "0x7ffffffe"
       desc: "Unknown or internal error"
