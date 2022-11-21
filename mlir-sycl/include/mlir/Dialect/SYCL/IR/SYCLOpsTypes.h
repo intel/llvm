@@ -530,7 +530,8 @@ public:
 
 class ItemBaseType
     : public Type::TypeBase<ItemBaseType, Type, detail::ItemTypeStorage,
-                            mlir::MemRefElementTypeInterface::Trait> {
+                            mlir::MemRefElementTypeInterface::Trait,
+                            mlir::LLVM::PointerElementTypeInterface::Trait> {
 public:
   using Base::Base;
 

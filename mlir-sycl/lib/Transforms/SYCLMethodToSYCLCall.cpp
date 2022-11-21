@@ -54,7 +54,7 @@ static mlir::Value castToBaseType(PatternRewriter &Rewriter, mlir::Location Loc,
 
 static LogicalResult convertMethod(SYCLMethodOpInterface method,
                                    PatternRewriter &rewriter) {
-  LLVM_DEBUG(llvm::dbgs() << "ConvertToLLVMABIPass: SYCLMethodOpLowering: ";
+  LLVM_DEBUG(llvm::dbgs() << "SYCLMethodToSYCLCallPass: SYCLMethodOpLowering: ";
              method.dump(); llvm::dbgs() << "\n");
 
   SmallVector<mlir::Value> Args(method->getOperands());
