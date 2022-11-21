@@ -62,7 +62,33 @@ static mlir::Value castCallerMemRefArg(mlir::Value CallerArg,
   return CallerArg;
 }
 
-/// Typecast the caller args to match the callee's signature. Mismatches that
+/// Try to addrspacecast the caller arg of type Pointer to fit the corresponding
+/// callee arg type.
+static mlir::Value addrCastCallerPtrArg(mlir::Value CallerArg,
+                                       mlir::Type CalleeArgType,
+                                       mlir::OpBuilder &B) {
+  mlir::OpBuilder::InsertionGuard guard(B);
+  mlir::Type CallerArgType = CallerArg.getType();
+
+  if (auto DstTy = CalleeArgType.dyn_cast_or_null<LLVM::LLVMPointerType>()) {
+    auto SrcTy = CallerArgType.dyn_cast<LLVM::LLVMPointerType>();
+    if (SrcTy && DstTy.getElementType() == SrcTy.getElementType() &&
+        DstTy.getAddressSpace() != SrcTy.getAddressSpace()) {
+
+        B.setInsertionPointAfterValue(CallerArg);
+
+        return B.create<LLVM::AddrSpaceCastOp>(CallerArg.getLoc(), CalleeArgType,
+                                              CallerArg);
+    }
+  }
+
+  // Return the original value when casting fails.
+  return CallerArg;
+}
+
+
+/// Typecast  or addressspace cast the caller args to match the callee's signature. 
+//  During Typecast, mismatches that
 /// cannot be resolved by given rules won't raise exceptions, e.g., if the
 /// expected type for an arg is memref<10xi8> while the provided is
 /// memref<20xf32>, we will simply ignore the case in this function and wait for
@@ -89,8 +115,11 @@ static void castCallerArgs(mlir::func::FuncOp Callee,
     if (CalleeArgType == CallerArgType)
       continue;
 
-    if (CalleeArgType.isa<MemRefType>())
+    if (CalleeArgType.isa<MemRefType>()) {
       Args[I] = castCallerMemRefArg(Args[I], CalleeArgType, B);
+    } else if (CalleeArgType.isa<LLVM::LLVMPointerType>()) {
+      Args[I] = addrCastCallerPtrArg(Args[I], CalleeArgType, B);
+    }
     assert(CalleeArgType == Args[I].getType() && "Callsite argument mismatch");
   }
 }
@@ -255,9 +284,22 @@ ValueCategory MLIRScanner::callHelper(
 
       Val = Arg.val;
       if (Val.getType().isa<LLVM::LLVMPointerType>() &&
-          ExpectedType.isa<MemRefType>())
-        Val =
-            builder.create<polygeist::Pointer2MemrefOp>(loc, ExpectedType, Val);
+                                     ExpectedType.isa<MemRefType>()) {
+        // If there is an addressspace mismatch, the Pointer2Memref op
+        // will be illegal (due to mismatch of address spaces). 
+        auto PT = Val.getType().dyn_cast<LLVM::LLVMPointerType>();
+        auto MRT = cast<MemRefType>(ExpectedType);
+        if (MRT.getMemorySpaceAsInt() != PT.getAddressSpace()) {
+          auto CastedVal = builder.create<LLVM::AddrSpaceCastOp>(
+              loc, LLVM::LLVMPointerType::get(PT.getElementType(), MRT.getMemorySpaceAsInt()),
+              Val);
+          Val =
+              builder.create<polygeist::Pointer2MemrefOp>(loc, ExpectedType, CastedVal);
+        } else {
+          Val =
+              builder.create<polygeist::Pointer2MemrefOp>(loc, ExpectedType, Val);
+        }
+      }   
 
       Val = castToMemSpaceOfType(Val, ExpectedType);
     }
