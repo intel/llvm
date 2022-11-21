@@ -191,7 +191,7 @@ class annotated_arg {
   public:
     annotated_arg() noexcept;
     annotated_arg(const T& v_, const properties<PropertyListT> &P = properties{}) noexcept;
-    template<typename T, typename... PropertyValueTs>
+    template<typename... PropertyValueTs>
     annotated_arg(const T& v_, PropertyValueTs... props) noexcept;
 
     template <typename T2, typename P> explicit annotated_arg(
@@ -245,7 +245,7 @@ Constructs an `annotated_arg` object which is default initialized.
 a|
 [source,c++]
 ----
-annotated_arg(const T& v_, const properties<PropertyListT> &P = properties{}) noexcept;
+annotated_arg(const T& v_, const PropertyListT &P = properties{}) noexcept;
 ----
 | Not available in device code.
 Constructs an `annotated_arg` object from the input object `v_`.
@@ -257,7 +257,7 @@ If there are duplicate properties present in the property list of `P`, the value
 a|
 [source,c++]
 ----
-template<typename T, typename... PropertyValueTs>
+template<typename... PropertyValueTs>
 annotated_arg(const T& v_, const PropertyValueTs... props) noexcept;
 ----
 |

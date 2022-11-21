@@ -181,6 +181,26 @@ properties. The implementation of the class defined here should preserve the
 information provided as compile-time constant properties through all uses of the
 pointer unless noted otherwise.
 
+.Unsupported Usage Example
+[source,c++]
+----
+using sycl::ext::oneapi::experimental;
+struct MyType {
+  annotated_ptr<int, properties<PropC>> a;
+  annotated_ptr<int, properties<PropD>> b;
+};
+
+struct MyKernel {
+  MyType arg_a;
+  MyType arg_b;
+  ...
+  void operator()() const {
+    ...
+  }
+};
+----
+It is illegal to apply `annotated_ptr` to members of kernel arguments. In the
+above example, encapsulating `annotated_ptr` within `MyType` is illegal.
 
 === Representation of `annotated_ptr`
 
@@ -240,8 +260,8 @@ class annotated_ptr {
     using reference = annotated_ref<T, PropertyListT>;
 
     annotated_ptr() noexcept;
-    annotated_ptr(T *Ptr, const properties<PropertyListT> &P = properties{}) noexcept;
-    template<typename T, typename... PropertyValueTs>
+    annotated_ptr(T *Ptr, const PropertyListT &P = properties{}) noexcept;
+    template<typename... PropertyValueTs>
     annotated_ptr(T *Ptr, PropertyValueTs... props) noexcept;
 
     template <typename T2, typename P> explicit annotated_ptr(
@@ -305,7 +325,7 @@ underlying pointer is initialized to `nullptr`.
 a|
 [source,c++]
 ----
-annotated_ptr(T *Ptr, const properties<PropertyListT> &P = properties{}) noexcept;
+annotated_ptr(T *Ptr, const PropertyListT &P = properties{}) noexcept;
 ----
 |
 Constructs an `annotated_ptr` object. Does not allocate new storage. The
@@ -318,7 +338,7 @@ If there are duplicate properties present in the property list of `P`, the value
 a|
 [source,c++]
 ----
-template<typename T, typename... PropertyValueTs>
+template<typename... PropertyValueTs>
 annotated_ptr(T *Ptr, const PropertyValueTs... props) noexcept;
 ----
 |
