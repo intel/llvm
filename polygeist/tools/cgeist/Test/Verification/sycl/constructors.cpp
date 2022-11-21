@@ -4,8 +4,9 @@
 #include <sycl/sycl.hpp>
 
 // CHECK-DAG: !sycl_id_2_ = !sycl.id<2>
-// CHECK-DAG: !sycl_item_2_1_ = !sycl.item<[2, true], (!sycl.item_base<[2, true], (!sycl.range<2>, !sycl_id_2_, !sycl_id_2_)>)>
 // CHECK-DAG: !sycl_range_1_ = !sycl.range<1>
+// CHECK-DAG: !sycl_item_base_2_1_ = !sycl.item_base<[2, true], (!sycl.range<2>, !sycl_id_2_, !sycl_id_2_)>
+// CHECK-DAG: !sycl_item_2_1_ = !sycl.item<[2, true], (!sycl_item_base_2_1_)>
 
 // Check globals referenced in device functions are created in the GPU module
 // CHECK: gpu.module @device_functions {
@@ -102,10 +103,6 @@ extern "C" SYCL_EXTERNAL void cons_0(sycl::id<1> i, sycl::range<1> r) {
 // CHECK-NEXT: %4 = llvm.addrspacecast %3 : !llvm.ptr<!sycl_id_2_> to !llvm.ptr<!sycl_id_2_, 4>
 // CHECK-NEXT: %5 = "polygeist.pointer2memref"(%4) : (!llvm.ptr<!sycl_id_2_, 4>) -> memref<?x!sycl_id_2_, 4>
 // CHECK-NEXT: sycl.constructor(%5) {MangledFunctionName = @_ZN4sycl3_V12idILi2EEC1Ev, TypeName = @id} : (memref<?x!sycl_id_2_, 4>) -> ()
-
-// Ensure declaration to have external linkage.
-// CHECK-LABEL: func.func private @_ZN4sycl3_V12idILi2EEC1Ev(memref<?x!sycl_id_2_, 4> {llvm.align = 8 : i64, llvm.dereferenceable_or_null = 16 : i64, llvm.noundef})
-// CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXTERNAL]], {{.*}}}
 
 // CHECK-LLVM-LABEL: define spir_func void @cons_1()
 // CHECK-LLVM-SAME:  #[[FUNCATTRS]]

@@ -259,7 +259,7 @@ private:
   mlir::Block *entryBlock;
   std::vector<LoopContext> loops;
   mlir::Block *allocationScope;
-  llvm::SmallSet<std::string, 4> supportedFuncs;
+  llvm::SmallSet<std::string, 4> unsupportedFuncs;
   std::map<const void *, std::vector<mlir::LLVM::AllocaOp>> bufs;
   std::map<int, mlir::Value> constants;
   std::map<clang::LabelStmt *, mlir::Block *> labels;
@@ -274,11 +274,11 @@ private:
   mlir::Value returnVal;
   LowerToInfo &LTInfo;
 
-  // Initialize a whitelist of SYCL functions to emit instead just the
+  // Initialize a exclude list of SYCL functions to emit instead just the
   // declaration. Eventually, this list should be removed.
-  void initSupportedFunctions();
-  bool isSupportedFunctions(std::string Name) const {
-    return supportedFuncs.contains(Name);
+  void initUnsupportedFunctions();
+  bool isUnsupportedFunction(std::string Name) const {
+    return unsupportedFuncs.contains(Name);
   }
 
   mlir::LLVM::AllocaOp allocateBuffer(size_t i, mlir::LLVM::LLVMPointerType t) {
