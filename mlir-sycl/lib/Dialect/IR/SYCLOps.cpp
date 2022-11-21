@@ -60,9 +60,7 @@ bool mlir::sycl::SYCLCastOp::areCastCompatible(::mlir::TypeRange Inputs,
 
 mlir::LogicalResult mlir::sycl::SYCLConstructorOp::verify() {
   auto MT = getOperand(0).getType().dyn_cast<mlir::MemRefType>();
-  if (MT &&
-      isSYCLType(
-          MT.getElementType()))
+  if (MT && isSYCLType(MT.getElementType()))
     return success();
 
   return emitOpError("The first argument of a sycl::constructor op has to be a "
