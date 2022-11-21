@@ -74,7 +74,7 @@ namespace sycl::ext::oneapi::experimental::matrix {
 template <typename T, use Use, size_t Rows, size_t Cols,
           layout Layout = layout::dynamic, typename Group = sub_group>
 struct joint_matrix {
-    joint_matrix(Group g) {}
+    joint_matrix() {}
 };
 }
 ```
@@ -98,16 +98,15 @@ enum class use {
 Size of a `joint_matrix` that refers to its number of rows `Rows` and number of columns `Cols` must be constant.
 
 #### Layout
-Besides row major and column major layouts, `layout` is flexible enough to introduce custom layouts such as packed layout.
+This specifies the memory layout and it can be row major and column major layouts
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
 enum class layout {
   row_major,
   col_major,
-  packed,
   dynamic
-};
+ };
 }
 ```
 
@@ -120,14 +119,14 @@ IMPORTANT: In the current implementation, only the subgroup scope is supported
 When the group is a `sycl::sub_group`, a matrix is declared as follows:
 
 ```c++
-joint_matrix<int8_t, use::a, tM, tN, layout::row_major> tA(sg);
+joint_matrix<int8_t, use::a, tM, tN, layout::row_major> tA();
 ```
 
 
 ## Matrix Operations and their Execution Scope
 We define three new functions needed to perform the main and common operations on matrices, namely load, store, and the actual multiply and add operation. This set of functions can be easily extended if the matrix hardware implements new features.
 
-The base pointer determines the starting address of the matrix to be loaded/stored. `layout` determines whether the data is being read/written in a row (`row_major`), column major (`column_major`) fashion, or if the data has already been transformed into VNNI format (`packed`). `stride` describes the number of elements between consecutive rows for row major and packed layouts, or between columns for the column major layout. 
+The base pointer determines the starting address of the matrix to be loaded/stored. `layout` determines whether the data is being read/written in a row (`row_major`), column major (`column_major`) fashion. `stride` describes the number of elements between consecutive rows for the row major layout, or between columns for the column major layout. 
 
 Since the matrix functions are group operations (as defined in Section 4.17.3 of the SYCL specification), the matrix API has to be accessed by all the work-items in the group in a convergent control flow. The `Group` template argument can be a work-group or a subgroup. These functions will be called once by each work item in the group.
 
@@ -265,43 +264,6 @@ IMPORTANT: The WI data to joint matrix mapping coordinates information is not im
 
 IMPORTANT: In the Tensor Cores implementation, it is possible to know how many elements are owned by each WI at compile time. In this case, `wi_data` can be of type `marray`. An additional interface will be provided for the Tensor Cores backend.
 
-## VNNI/Packed Layout
-Intel AMX and Intel XMX compute assumes that the B tile register (src1) is in the VNNI format as they need 32bit of K-data in A and B to be contiguous in memory. 
-The VNNI blocking factor is 2 in the case of 16-bit types, and it is 4 in the case of 8-bit types. While the current implementation assumes that the matrix has been already packed by the user for performance reasons, the layout information is needed to inform the implementation about this transformation.  The following example illustrates how a matrix in `row_major` layout is transformed into the `packed` layout for a 16-bit type.
-
-#### Example 1: 16-bit elements
-      // Example of a 4 row x 4 column matrix using a 16-bit data element, in row-major layout.
-      // Element a1 is contiguous in memory with element b1, etc.
-      // ---------------------------------
-      // a1, b1, c1, d1
-      // a2, b2, c2, d2
-      // a3, b3, c3, d3
-      // a4, b4, c4, d4
-      // ---------------------------------
-      // The same matrix reformatted in packed layout. 
-      // Here, packing of 2 elements is needed to form 32 bits.
-      // Element a1 is contiguous in memory with element a2, etc.
-      // ---------------------------------
-      // a1, a2, b1, b2, c1, c2, d1, d2
-      // a3, a4, b3, b4, c3, c4, d3, d4
-
-#### Example 2: 8-bit elements
-
-      // Example of a 4 row x 4 column matrix using a 8-bit data element, in row-major layout.
-      // Element a1 is contiguous in memory with element b1, etc.
-      // ---------------------------------
-      // a1, b1, c1, d1
-      // a2, b2, c2, d2
-      // a3, b3, c3, d3
-      // a4, b4, c4, d4
-      // ---------------------------------
-      // The same matrix reformatted in packed layout.  
-      // Here, packing of 4 elements is needed to form 32 bits.
-      // Elements a1, a2, a3, a4 are contiguous in memory, etc.
-      // ---------------------------------
-      // a1, a2, a3, a4, b1, b2, b3, b4, c1, c2, c3, c4, d1, d2, d3, d4
-
-
 ## Example using int8_t type
 ```c++
 using namespace sycl::ext::oneapi::experimental::matrix;
@@ -319,9 +281,9 @@ q.parallel_for(nd_range<2>(G, L), [=](nd_item<2> item)
    const auto sg_startx = global_idx - item.get_local_id(0);
    const auto sg_starty = global_idy - item.get_local_id(1);
    sub_group sg = item.get_sub_group();
-   joint_matrix<int8_t, use::a, tM, tK, layout::row_major> tA(sg);
-   joint_matrix<int8_t, use::b, tK, tN, layout::row_major> tB(sg);
-   joint_matrix<int32_t, use::accumulator, tM, tN> tC(sg);
+   joint_matrix<int8_t, use::a, tM, tK, layout::row_major> tA();
+   joint_matrix<int8_t, use::b, tK, tN, layout::row_major> tB();
+   joint_matrix<int32_t, use::accumulator, tM, tN> tC();
    joint_matrix_fill(sg, tC, 0);
    for (int k = 0; k < K; k += tk) {
      joint_matrix_load(sg, tA, memA + sg_startx * tM * K + k, K);
@@ -572,9 +534,9 @@ size_t NDRangeM = M / myparams::M;
 size_t NDRangeN = N / myparams::N;
 //if M, N, K do not multiply the default sizes, padding has to be done
 // device code: the matrices are constructed using the default dimensions
-myparams::joint_matrix_a sub_a(sg);
-myparams::joint_matrix_b sub_b(sg);
-myparams::joint_matrix_accumulator sub_c(sg);
+myparams::joint_matrix_a sub_a();
+myparams::joint_matrix_b sub_b();
+myparams::joint_matrix_accumulator sub_c();
 
 ```
 
@@ -588,9 +550,9 @@ constexpr int msize_remainder = break_dimension_remainder(params, M);
 constexpr int nsize = params.combinations[0].nsize;
 constexpr int ksize = params.combinations[0].ksize;
 // device code:
-joint_matrix<int8_t, use::a, msize, ksize> sub_a(sg);
-joint_matrix<int8_t, use::b, ksize, nsize> sub_b(sg);
-joint_matrix<int, use::accumulator, msize, nsize> sub_c(sg);
+joint_matrix<int8_t, use::a, msize, ksize> sub_a();
+joint_matrix<int8_t, use::b, ksize, nsize> sub_b();
+joint_matrix<int, use::accumulator, msize, nsize> sub_c();
 //Remainder handling
 ```
 
