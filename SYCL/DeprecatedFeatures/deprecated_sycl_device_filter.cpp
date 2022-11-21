@@ -2,7 +2,7 @@
 // RUN: env SYCL_DEVICE_FILTER='*' %t.out &> %t.log
 // RUN: FileCheck %s < %t.log
 //
-// CHECK:      WARNING: The enviroment variable SYCL_DEVICE_FITLER is deprecated.
+// CHECK:      WARNING: The enviroment variable SYCL_DEVICE_FILTER is deprecated.
 // CHECK-SAME: Please use ONEAPI_DEVICE_SELECTOR instead.
 // CHECK-NEXT: For more details, please refer to:
 // CHECK-NEXT: https://github.com/intel/llvm/blob/sycl/sycl/doc/EnvironmentVariables.md#oneapi_device_selector
