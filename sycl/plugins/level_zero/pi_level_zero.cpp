@@ -5830,6 +5830,8 @@ pi_event _pi_context::getEventFromContextCache(bool HostVisible,
   auto It = Cache->begin();
   pi_event Event = *It;
   Cache->erase(It);
+  // We have to reset event before using it.
+  Event->reset();
   return Event;
 }
 
@@ -5837,7 +5839,6 @@ void _pi_context::addEventToContextCache(pi_event Event) {
   std::scoped_lock<pi_mutex> Lock(EventCacheMutex);
   auto Cache =
       getEventCache(Event->isHostVisible(), Event->isProfilingEnabled());
-  Event->reset();
   Cache->emplace_back(Event);
 }
 
