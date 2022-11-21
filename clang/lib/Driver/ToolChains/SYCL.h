@@ -117,7 +117,7 @@ template <auto GPUArh> llvm::Optional<StringRef> isGPUTarget(StringRef Target) {
   // Handle target specifications that resemble '(intel, nvidia, amd)_gpu_*'
   // here.
   if (Target.startswith(GPUArh)) {
-    return resolveGenDevice(Target.drop_front(strlen(GPUArh)));
+    return resolveGenDevice(Target);
   }
   return llvm::None;
 }

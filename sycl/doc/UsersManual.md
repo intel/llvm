@@ -57,11 +57,6 @@ and not recommended to use in production environment.
     * intel_gpu_kbl, intel_gpu_9_1_9 - Kaby Lake Intel graphics architecture
     * intel_gpu_skl, intel_gpu_9_0_9 - Skylake Intel graphics architecture
     * intel_gpu_bdw, intel_gpu_8_0_0 - Broadwell Intel graphics architecture
-    * nvidia_gpu_sm_20 - NVIDIA Fermi architecture
-    * nvidia_gpu_sm_30 - NVIDIA Kepler architecture (compute capability 3.0)
-    * nvidia_gpu_sm_32 - NVIDIA Kepler architecture (compute capability 3.2)
-    * nvidia_gpu_sm_35 - NVIDIA Kepler architecture (compute capability 3.5)
-    * nvidia_gpu_sm_37 - NVIDIA Kepler architecture (compute capability 3.7)
     * nvidia_gpu_sm_50 - NVIDIA Maxwell architecture (compute capability 5.0)
     * nvidia_gpu_sm_52 - NVIDIA Maxwell architecture (compute capability 5.2)
     * nvidia_gpu_sm_53 - NVIDIA Maxwell architecture (compute capability 5.3)

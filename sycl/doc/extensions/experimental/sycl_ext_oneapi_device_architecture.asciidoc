@@ -128,11 +128,6 @@ enum class architecture : /* unspecified */ {
   intel_gpu_acm_g12,
   intel_gpu_pvc,
 
-  nvidia_gpu_sm_20,
-  nvidia_gpu_sm_30,
-  nvidia_gpu_sm_32,
-  nvidia_gpu_sm_35,
-  nvidia_gpu_sm_37,
   nvidia_gpu_sm_50,
   nvidia_gpu_sm_52,
   nvidia_gpu_sm_53,
@@ -340,26 +335,6 @@ of these enumerators, and it provides a brief description of their meanings.
 |`intel_gpu_12_10_0`
 |1
 |Alias for `intel_gpu_dg1`.
-
-|`nvidia_gpu_sm_20`
-|2
-|NVIDIA Fermi architecture.
-
-|`nvidia_gpu_sm_30`
-|2
-|NVIDIA Kepler architecture (compute capability 3.0).
-
-|`nvidia_gpu_sm_32`
-|2
-|NVIDIA Kepler architecture (compute capability 3.2).
-
-|`nvidia_gpu_sm_35`
-|2
-|NVIDIA Kepler architecture (compute capability 3.5).
-
-|`nvidia_gpu_sm_37`
-|2
-|NVIDIA Kepler architecture (compute capability 3.7).
 
 |`nvidia_gpu_sm_50`
 |2

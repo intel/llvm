@@ -31,11 +31,6 @@ enum class architecture {
   intel_gpu_acm_g12,
   intel_gpu_pvc,
   // NVIDIA architectures
-  nvidia_gpu_sm_20,
-  nvidia_gpu_sm_30,
-  nvidia_gpu_sm_32,
-  nvidia_gpu_sm_35,
-  nvidia_gpu_sm_37,
   nvidia_gpu_sm_50,
   nvidia_gpu_sm_52,
   nvidia_gpu_sm_53,
@@ -163,21 +158,6 @@ static constexpr ext::oneapi::experimental::architecture max_architecture =
 #endif
 #ifndef __SYCL_TARGET_INTEL_GPU_PVC__
 #define __SYCL_TARGET_INTEL_GPU_PVC__ 0
-#endif
-#ifndef __SYCL_TARGET_NVIDIA_GPU_SM20__
-#define __SYCL_TARGET_NVIDIA_GPU_SM20__ 0
-#endif
-#ifndef __SYCL_TARGET_NVIDIA_GPU_SM30__
-#define __SYCL_TARGET_NVIDIA_GPU_SM30__ 0
-#endif
-#ifndef __SYCL_TARGET_NVIDIA_GPU_SM32__
-#define __SYCL_TARGET_NVIDIA_GPU_SM32__ 0
-#endif
-#ifndef __SYCL_TARGET_NVIDIA_GPU_SM35__
-#define __SYCL_TARGET_NVIDIA_GPU_SM35__ 0
-#endif
-#ifndef __SYCL_TARGET_NVIDIA_GPU_SM37__
-#define __SYCL_TARGET_NVIDIA_GPU_SM37__ 0
 #endif
 #ifndef __SYCL_TARGET_NVIDIA_GPU_SM50__
 #define __SYCL_TARGET_NVIDIA_GPU_SM50__ 0
@@ -314,11 +294,6 @@ static constexpr bool is_allowable_aot_mode =
     (__SYCL_TARGET_INTEL_GPU_ACM_G11__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_ACM_G12__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_PVC__ == 1) ||
-    (__SYCL_TARGET_NVIDIA_GPU_SM20__ == 1) ||
-    (__SYCL_TARGET_NVIDIA_GPU_SM30__ == 1) ||
-    (__SYCL_TARGET_NVIDIA_GPU_SM32__ == 1) ||
-    (__SYCL_TARGET_NVIDIA_GPU_SM35__ == 1) ||
-    (__SYCL_TARGET_NVIDIA_GPU_SM37__ == 1) ||
     (__SYCL_TARGET_NVIDIA_GPU_SM50__ == 1) ||
     (__SYCL_TARGET_NVIDIA_GPU_SM52__ == 1) ||
     (__SYCL_TARGET_NVIDIA_GPU_SM53__ == 1) ||
@@ -408,16 +383,6 @@ struct IsAOTForArchitectureClass {
         __SYCL_TARGET_INTEL_GPU_ACM_G12__ == 1;
     arr[static_cast<int>(arch::intel_gpu_pvc)] =
         __SYCL_TARGET_INTEL_GPU_PVC__ == 1;
-    arr[static_cast<int>(arch::nvidia_gpu_sm_20)] =
-        __SYCL_TARGET_NVIDIA_GPU_SM20__ == 1;
-    arr[static_cast<int>(arch::nvidia_gpu_sm_30)] =
-        __SYCL_TARGET_NVIDIA_GPU_SM30__ == 1;
-    arr[static_cast<int>(arch::nvidia_gpu_sm_32)] =
-        __SYCL_TARGET_NVIDIA_GPU_SM32__ == 1;
-    arr[static_cast<int>(arch::nvidia_gpu_sm_35)] =
-        __SYCL_TARGET_NVIDIA_GPU_SM35__ == 1;
-    arr[static_cast<int>(arch::nvidia_gpu_sm_37)] =
-        __SYCL_TARGET_NVIDIA_GPU_SM37__ == 1;
     arr[static_cast<int>(arch::nvidia_gpu_sm_50)] =
         __SYCL_TARGET_NVIDIA_GPU_SM50__ == 1;
     arr[static_cast<int>(arch::nvidia_gpu_sm_52)] =

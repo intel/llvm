@@ -73,11 +73,6 @@ recognizes:
 * `intel_gpu_11_2_0` (alias for `intel_gpu_ehl`)
 * `intel_gpu_12_0_0` (alias for `intel_gpu_tgllp`)
 * `intel_gpu_12_10_0` (alias for `intel_gpu_dg1`)
-* `nvidia_gpu_sm_20`
-* `nvidia_gpu_sm_30`
-* `nvidia_gpu_sm_32`
-* `nvidia_gpu_sm_35`
-* `nvidia_gpu_sm_37`
 * `nvidia_gpu_sm_50`
 * `nvidia_gpu_sm_52`
 * `nvidia_gpu_sm_53`
@@ -160,11 +155,6 @@ one of the following corresponding C++ macro names:
 * `__SYCL_TARGET_INTEL_GPU_ACM_G11__`
 * `__SYCL_TARGET_INTEL_GPU_ACM_G12__`
 * `__SYCL_TARGET_INTEL_GPU_PVC__`
-* `__SYCL_TARGET_NVIDIA_GPU_SM20__`
-* `__SYCL_TARGET_NVIDIA_GPU_SM30__`
-* `__SYCL_TARGET_NVIDIA_GPU_SM32__`
-* `__SYCL_TARGET_NVIDIA_GPU_SM35__`
-* `__SYCL_TARGET_NVIDIA_GPU_SM37__`
 * `__SYCL_TARGET_NVIDIA_GPU_SM50__`
 * `__SYCL_TARGET_NVIDIA_GPU_SM52__`
 * `__SYCL_TARGET_NVIDIA_GPU_SM53__`

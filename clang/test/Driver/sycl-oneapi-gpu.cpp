@@ -89,16 +89,6 @@
 
 /// Tests the behaviors of using -fsycl-targets=nvidia_gpu*
 
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_20 -### %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_20 -DMAC_STR=SM_20
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_30 -### %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_30 -DMAC_STR=SM_30
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_32 -### %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_32 -DMAC_STR=SM_32
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_35 -### %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_35 -DMAC_STR=SM_35
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_37 -### %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_37 -DMAC_STR=SM_37
 // RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_50 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_50 -DMAC_STR=SM_50
 // RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_52 -### %s 2>&1 | \
@@ -181,6 +171,11 @@
 // DEVICE_AMD: clang-offload-wrapper{{.*}} "-compile-opts=--offload-arch=[[DEV_STR]]"
 // MACRO_AMD: clang{{.*}} "-fsycl-is-host"
 // MACRO_AMD: "-D__SYCL_TARGET_AMD_GPU_[[MAC_STR]]__"
+
+/// Check whether an invalid SYCL target is specified:
+// RUN:   %clang -### -fsycl -fsycl-targets=nvidia_gpu_skl %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-INVALID-TARGET %s
+// CHK-INVALID-TARGET: error: SYCL target is invalid: 'nvidia_gpu_skl'
 
 /// -fsycl-targets=spir64_x86_64 should set a specific macro
 // RUN: %clangxx -c -fsycl -fsycl-targets=spir64_x86_64 -### %s 2>&1 | \
