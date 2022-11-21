@@ -82,8 +82,8 @@ public:
     return group<Dims>(Global, Local, Global / Local, Index);
   }
 
-  template <class ResType>
-  static ResType createSubGroupMask(uint32_t Bits, size_t BitsNum) {
+  template <class ResType, typename BitsType>
+  static ResType createSubGroupMask(BitsType Bits, size_t BitsNum) {
     return ResType(Bits, BitsNum);
   }
 
