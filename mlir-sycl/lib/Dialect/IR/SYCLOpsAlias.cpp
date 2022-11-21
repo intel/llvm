@@ -26,7 +26,8 @@ SYCLOpAsmInterface::getAlias(mlir::Type Type, llvm::raw_ostream &OS) const {
   if (const auto Acc = Type.dyn_cast<mlir::sycl::AccessorType>()) {
     OS << "sycl_accessor"
        << "_" << Acc.getDimension() << "_" << Acc.getType() << "_"
-       << Acc.getAccessModeAsString() << "_" << Acc.getTargetModeAsString();
+       << mlir::sycl::memoryAccessModeAsString(Acc.getAccessMode()) << "_"
+       << mlir::sycl::memoryTargetModeAsString(Acc.getTargetMode());
     return AliasResult::FinalAlias;
   }
   if (const auto Range = Type.dyn_cast<mlir::sycl::RangeType>()) {

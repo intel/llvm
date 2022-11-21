@@ -38,17 +38,16 @@ bool mlir::sycl::SYCLCastOp::areCastCompatible(::mlir::TypeRange Inputs,
     return false;
   }
 
-  const bool HasArrayTrait =
-      Input.getElementType()
-          .hasTrait<mlir::sycl::SYCLInheritanceTypeInterface<
-              mlir::sycl::ArrayType>::Trait>();
+  const bool HasArrayTrait = Input.getElementType()
+                                 .hasTrait<mlir::sycl::SYCLInheritanceTypeTrait<
+                                     mlir::sycl::ArrayType>::Trait>();
   const bool IsArray = Output.getElementType().isa<mlir::sycl::ArrayType>();
   if (HasArrayTrait && IsArray)
     return true;
 
   const bool HasAccessorCommonTrait =
       Input.getElementType()
-          .hasTrait<mlir::sycl::SYCLInheritanceTypeInterface<
+          .hasTrait<mlir::sycl::SYCLInheritanceTypeTrait<
               mlir::sycl::AccessorCommonType>::Trait>();
   const bool IsAccessorCommon =
       Output.getElementType().isa<mlir::sycl::AccessorCommonType>();
