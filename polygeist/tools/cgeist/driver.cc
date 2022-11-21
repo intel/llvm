@@ -723,7 +723,7 @@ runOptimizationPipeline(llvm::Module &Module,
   // Before executing passes, print the final values of the LLVM options.
   cl::PrintOptionValues();
 
-  // Print a textual representation of pipeline ther LLVM pipeline.
+  // Print a textual representation of pipeline the LLVM pipeline.
   LLVM_DEBUG({
     llvm::dbgs() << "*** Run LLVM Optimization pipeline: ***\n";
 
@@ -1104,12 +1104,10 @@ int main(int argc, char **argv) {
       llvm::cl::ZeroOrMore, llvm::cl::PositionalEatsArgs);
 
   // Register command line options specific to cgeist.
-  {
-    int Size = MLIRArgs.size();
-    const char **Data = MLIRArgs.data();
-    InitLLVM Y(Size, Data);
-    llvm::cl::ParseCommandLineOptions(Size, Data);
-  }
+  int Size = MLIRArgs.size();
+  const char **Data = MLIRArgs.data();
+  InitLLVM Y(Size, Data);
+  llvm::cl::ParseCommandLineOptions(Size, Data);
 
   // Register MLIR dialects.
   mlir::MLIRContext Ctx;
