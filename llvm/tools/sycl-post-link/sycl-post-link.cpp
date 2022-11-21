@@ -302,18 +302,17 @@ std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
 
 // Gets reqd_work_group_size information for function Func.
 std::vector<uint32_t> getKernelReqdWorkGroupSizeMetadata(const Function &Func) {
-  auto *ReqdWorkGroupSizeMD = Func.getMetadata("reqd_work_group_size");
+  MDNode *ReqdWorkGroupSizeMD = Func.getMetadata("reqd_work_group_size");
   if (!ReqdWorkGroupSizeMD)
     return {};
-  // TODO: Remove 3-operand assumption when it is relaxed.
-  assert(ReqdWorkGroupSizeMD->getNumOperands() == 3);
-  uint32_t X = mdconst::extract<ConstantInt>(ReqdWorkGroupSizeMD->getOperand(0))
-                   ->getZExtValue();
-  uint32_t Y = mdconst::extract<ConstantInt>(ReqdWorkGroupSizeMD->getOperand(1))
-                   ->getZExtValue();
-  uint32_t Z = mdconst::extract<ConstantInt>(ReqdWorkGroupSizeMD->getOperand(2))
-                   ->getZExtValue();
-  return {X, Y, Z};
+  size_t NumOperands = ReqdWorkGroupSizeMD->getNumOperands();
+  assert(NumOperands >= 1 && NumOperands <= 3 &&
+         "reqd_work_group_size does not have between 1 and 3 operands.");
+  std::vector<uint32_t> OutVals;
+  OutVals.reserve(NumOperands);
+  for (const MDOperand &MDOp : ReqdWorkGroupSizeMD->operands())
+    OutVals.push_back(mdconst::extract<ConstantInt>(MDOp)->getZExtValue());
+  return OutVals;
 }
 
 // Creates a filename based on current output filename, given extension,
