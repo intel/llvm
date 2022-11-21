@@ -6661,7 +6661,11 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
   // We use the same approach if
   // SYCL_PI_LEVEL_ZERO_USE_MULTIPLE_COMMANDLIST_BARRIERS is not set to a
   // positive value.
-  if (NumEventsInWaitList || !UseMultipleCmdlistBarriers) {
+  // We use the same approach if we have in-order queue because every command
+  // depends on previous one, so we don't need to insert barrier to multiple
+  // command lists.
+  if (NumEventsInWaitList || !UseMultipleCmdlistBarriers ||
+      Queue->isInOrderQueue()) {
     // Retain the events as they will be owned by the result event.
     _pi_ze_event_list_t TmpWaitList;
     if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
@@ -6684,7 +6688,9 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     if (auto Res = Queue->executeCommandList(CmdList, false, OkToBatch))
       return Res;
 
-    if (UseMultipleCmdlistBarriers) {
+    // Because of the dependency between commands in the in-order queue we don't
+    // need to keep track of any active barriers if we have in-order queue.
+    if (UseMultipleCmdlistBarriers && !Queue->isInOrderQueue()) {
       // Retain and save the resulting event for future commands.
       (*Event)->RefCount.increment();
       Queue->ActiveBarriers.push_back(*Event);
