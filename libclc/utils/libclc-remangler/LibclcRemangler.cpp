@@ -187,13 +187,12 @@ public:
   std::string remangle() {
     clang::QualType RetTy;
     SmallVector<clang::QualType> TemplateArgTys;
-    SmallVector<clang::QualType> ArgTys;
+    SmallVector<clang::QualType> InputArgTys;
     bool IsVariadic = false;
-    nodeToQualTypes(RetTy, TemplateArgTys, ArgTys, IsVariadic);
-    auto *FD = createKernelDecl(RetTy, TemplateArgTys, ArgTys, IsVariadic);
+    nodeToQualTypes(RetTy, TemplateArgTys, InputArgTys, IsVariadic);
+    auto *FD = createKernelDecl(RetTy, TemplateArgTys, InputArgTys, IsVariadic);
     assert(MangleContext->shouldMangleDeclName(FD) &&
            "It should always be possible to mangle libclc func.");
-
 
     SmallString<256> Buffer;
     raw_svector_ostream Out(Buffer);
@@ -229,10 +228,11 @@ private:
 
 private:
   // Construct FunctionDecl from return, argument and template types.
-  FunctionDecl *createKernelDecl(clang::QualType &RetTy,
-                                 SmallVector<clang::QualType> &TemplateArgTys,
-                                 SmallVector<clang::QualType> &ArgTys,
-                                 bool IsVariadic) {
+  FunctionDecl *createKernelDecl(
+      clang::QualType RetTy, const SmallVector<clang::QualType> &TemplateArgTys,
+      const SmallVector<clang::QualType> &InputArgTys, bool IsVariadic) {
+    // Copy in InputArgTys as this function can mutate them.
+    auto ArgTys{InputArgTys};
     // Create this with a void ret no args prototype, will be fixed up after
     // we've seen all the params.
     FunctionProtoType::ExtProtoInfo Info(CC_OpenCLKernel);
