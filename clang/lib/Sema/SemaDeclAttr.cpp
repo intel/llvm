@@ -3276,7 +3276,7 @@ static void handleWeakImportAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 // the args cannot (yet) be compared.
 enum class DupArgResult { Unknown, Same, Different };
 static DupArgResult AreArgValuesIdentical(const Expr *LHS, const Expr *RHS) {
-  // If both operand is nullptr they are unspecified and are considered the
+  // If both operands are nullptr they are unspecified and are considered the
   // same.
   if (!LHS && !RHS)
     return DupArgResult::Same;
@@ -3450,10 +3450,17 @@ static bool InvalidWorkGroupSizeAttrs(Sema &S, const Expr *MGValue,
   // If any of the operand is still value dependent, we can't test anything.
   const auto *MGValueExpr = dyn_cast<ConstantExpr>(MGValue);
   const auto *XDimExpr = dyn_cast<ConstantExpr>(XDim);
+
+  if (!MGValueExpr || !XDimExpr)
+    return false;
+
+  // Y and Z may be optional so we allow them to be null and consider them
+  // dependent if the original epxression was not null while the result of the
+  // cast is.
   const auto *YDimExpr = dyn_cast_or_null<ConstantExpr>(YDim);
   const auto *ZDimExpr = dyn_cast_or_null<ConstantExpr>(ZDim);
 
-  if (!MGValueExpr || !XDimExpr || (!YDimExpr && YDim) || (!ZDimExpr && ZDim))
+  if ((!YDimExpr && YDim) || (!ZDimExpr && ZDim))
     return false;
 
   // Y and Z are only optional for SYCL targets.
@@ -3490,15 +3497,20 @@ bool Sema::CheckMaxAllowedWorkGroupSize(
     const Expr *MWGSXDim, const Expr *MWGSYDim, const Expr *MWGSZDim) {
   // If any of the operand is still value dependent, we can't test anything.
   const auto *RWGSXDimExpr = dyn_cast<ConstantExpr>(RWGSXDim);
-  const auto *RWGSYDimExpr = dyn_cast_or_null<ConstantExpr>(RWGSYDim);
-  const auto *RWGSZDimExpr = dyn_cast_or_null<ConstantExpr>(RWGSZDim);
   const auto *MWGSXDimExpr = dyn_cast<ConstantExpr>(MWGSXDim);
   const auto *MWGSYDimExpr = dyn_cast<ConstantExpr>(MWGSYDim);
   const auto *MWGSZDimExpr = dyn_cast<ConstantExpr>(MWGSZDim);
 
-  if (!RWGSXDimExpr || (!RWGSYDimExpr && RWGSYDim) ||
-      (!RWGSZDimExpr && RWGSZDim) || !MWGSXDimExpr || !MWGSYDimExpr ||
-      !MWGSZDimExpr)
+  if (!RWGSXDimExpr || !MWGSXDimExpr || !MWGSYDimExpr || !MWGSZDimExpr)
+    return false;
+
+  // Y and Z may be optional so we allow them to be null and consider them
+  // dependent if the original epxression was not null while the result of the
+  // cast is.
+  const auto *RWGSYDimExpr = dyn_cast_or_null<ConstantExpr>(RWGSYDim);
+  const auto *RWGSZDimExpr = dyn_cast_or_null<ConstantExpr>(RWGSZDim);
+
+  if ((!RWGSYDimExpr && RWGSYDim) || (!RWGSZDimExpr && RWGSZDim))
     return false;
 
   // Y and Z are only optional for SYCL targets.
@@ -3700,11 +3712,17 @@ static bool CheckWorkGroupSize(Sema &S, const Expr *NSWIValue,
   // If any of the operand is still value dependent, we can't test anything.
   const auto *NSWIValueExpr = dyn_cast<ConstantExpr>(NSWIValue);
   const auto *RWGSXDimExpr = dyn_cast<ConstantExpr>(RWGSXDim);
+
+  if (!NSWIValueExpr || !RWGSXDimExpr)
+    return false;
+
+  // Y and Z may be optional so we allow them to be null and consider them
+  // dependent if the original epxression was not null while the result of the
+  // cast is.
   const auto *RWGSYDimExpr = dyn_cast_or_null<ConstantExpr>(RWGSYDim);
   const auto *RWGSZDimExpr = dyn_cast_or_null<ConstantExpr>(RWGSZDim);
 
-  if (!NSWIValueExpr || !RWGSXDimExpr || (!RWGSYDimExpr && RWGSYDim) ||
-      (!RWGSZDimExpr && RWGSZDim))
+  if ((!RWGSYDimExpr && RWGSYDim) || (!RWGSZDimExpr && RWGSZDim))
     return false;
 
   // Y and Z are only optional for SYCL targets.

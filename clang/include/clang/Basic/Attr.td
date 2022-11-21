@@ -3435,11 +3435,13 @@ def ReqdWorkGroupSize : InheritableAttr {
       return None;
     }
     Optional<llvm::APSInt> getYDimVal() const {
+      // Y-dimension is not optional so a nullptr value is allowed.
       if (const auto *CE = dyn_cast_or_null<ConstantExpr>(getYDim()))
         return CE->getResultAsAPSInt();
       return None;
     }
     Optional<llvm::APSInt> getZDimVal() const {
+      // Z-dimension is not optional so a nullptr value is allowed.
       if (const auto *CE = dyn_cast_or_null<ConstantExpr>(getZDim()))
         return CE->getResultAsAPSInt();
       return None;

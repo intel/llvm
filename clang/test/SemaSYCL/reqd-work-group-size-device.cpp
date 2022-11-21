@@ -18,19 +18,25 @@ queue q;
 [[sycl::reqd_work_group_size(32, 32, 32)]] void f32x32x32() {} // expected-note {{conflicting attribute is here}}
 
 // No diagnostic because the attributes are synonyms with identical behavior.
-[[sycl::reqd_work_group_size(4, 4, 4)]] void four();
-[[sycl::reqd_work_group_size(4, 4, 4)]] void four(); // OK
+[[sycl::reqd_work_group_size(4, 4, 4)]] void four1();
+[[sycl::reqd_work_group_size(4, 4, 4)]] void four1(); // OK
+[[sycl::reqd_work_group_size(4, 4)]] void four2();
+[[sycl::reqd_work_group_size(4, 4)]] void four2(); // OK
+[[sycl::reqd_work_group_size(4)]] void four3();
+[[sycl::reqd_work_group_size(4)]] void four3(); // OK
 
 #ifdef TRIGGER_ERROR
 // Althrough optional values are effectively representing 1's, the attributes
 // should be considered different when there is a different in the arguments
 // given.
-[[sycl::reqd_work_group_size(4)]] void four_again();
-[[sycl::reqd_work_group_size(4)]] void four_again(); // expected-note {{previous attribute is here}}
-[[sycl::reqd_work_group_size(4, 1)]] void four_again(); // expected-error {{attribute 'reqd_work_group_size' is already applied with different arguments}} expected-note {{previous attribute is here}}
-[[sycl::reqd_work_group_size(4, 1, 1)]] void four_again(); // expected-error {{attribute 'reqd_work_group_size' is already applied with different arguments}} expected-note {{previous attribute is here}}
-[[sycl::reqd_work_group_size(1, 4)]] void four_again(); // expected-error {{attribute 'reqd_work_group_size' is already applied with different arguments}} expected-note {{previous attribute is here}}
-[[sycl::reqd_work_group_size(1, 1, 4)]] void four_again(); // expected-error {{attribute 'reqd_work_group_size' is already applied with different arguments}}
+[[sycl::reqd_work_group_size(4)]] void four4(); // expected-note {{previous attribute is here}}
+[[sycl::reqd_work_group_size(4, 1)]] void four4(); // expected-error {{attribute 'reqd_work_group_size' is already applied with different arguments}}
+[[sycl::reqd_work_group_size(4)]] void four5(); // expected-note {{previous attribute is here}}
+[[sycl::reqd_work_group_size(4, 1, 1)]] void four5(); // expected-error {{attribute 'reqd_work_group_size' is already applied with different arguments}}
+[[sycl::reqd_work_group_size(4)]] void four6(); // expected-note {{previous attribute is here}}
+[[sycl::reqd_work_group_size(1, 4)]] void four6(); // expected-error {{attribute 'reqd_work_group_size' is already applied with different arguments}}
+[[sycl::reqd_work_group_size(4)]] void four7(); // expected-note {{previous attribute is here}}
+[[sycl::reqd_work_group_size(1, 1, 4)]] void four7(); // expected-error {{attribute 'reqd_work_group_size' is already applied with different arguments}}
 #endif
 
 // Make sure there's at least one argument passed for the SYCL spelling.
