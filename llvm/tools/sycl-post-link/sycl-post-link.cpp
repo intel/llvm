@@ -805,7 +805,7 @@ processInputModule(std::unique_ptr<Module> M) {
   for (module_split::ModuleDesc &MDesc : TopLevelModules) {
     DUMP_ENTRY_POINTS(MDesc.entries(), MDesc.Name.c_str(), 1);
 
-    // FIXME: double grf should be handled by properties splitter above
+    // FIXME: large grf should be handled by properties splitter above
     std::unique_ptr<module_split::ModuleSplitterBase> LargeGRFSplitter =
         module_split::getLargeGRFSplitter(std::move(MDesc),
                                           EmitOnlyKernelsAsEntryPoints);

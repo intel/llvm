@@ -25,17 +25,32 @@
 ; CHECK-TABLE-NEXT: _2.sym
 ; CHECK-TABLE-EMPTY:
 
-; Both @bar and @kernel0 use the same aspects and contained within the same
-; translation unit, so they should be bundled together.
+; sycl-post-link aims to achieve two goals while doing splitting:
+;   - each kernel must be self-contained, i.e. all functions called from a
+;     kernel must reside in the same device image
+;   - each entry point should be assigned to a correct device image in
+;     accordance with selected device code split mode
+;
+; In this test @bar and @foo are SYCL_EXTERNAL functions and they are treated
+; as entry points.
+;
+; @bar uses the same list of aspects as @kernel0 which calls it and therefore
+; they can be put into the same device image. There also goes @baz, because of
+; the same list of used aspects.
 ;
 ; CHECK-M0-SYMS: bar
+; CHECK-M0-SYMS: baz
 ; CHECK-M0-SYMS: kernel0
-
-; @foo is a SYCL_EXTERNAL function, it should be exported and outlined into a
-; separate translation unit because of used aspects
+;
+; List of aspects used by @foo is different from the one attached to @kernel1
+; which calls @foo (for example, @kernel1 uses an extra optional feature besides
+; ones used in @foo). As a result, @foo should be both included into the same
+; device image as @kernel1 to make it self contained, but at the same time it
+; should also present in a separate device image, because it is an entry point
+; with unique set of used aspects.
 ;
 ; CHECK-M1-SYMS: foo
-
+;
 ; CHECK-M2-SYMS: kernel1
 ;
 ; @kernel1 uses @foo and therefore @foo should be present in the same module as
@@ -55,8 +70,13 @@ define spir_func void @bar() #1 !sycl_used_aspects !2 {
   ret void
 }
 
+define spir_func void @baz() #1 !sycl_used_aspects !2 {
+  ret void
+}
+
 define spir_kernel void @kernel0() #1 !sycl_used_aspects !2 {
 entry:
+  call void @bar()
   ret void
 }
 

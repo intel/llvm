@@ -769,7 +769,7 @@ namespace {
 struct UsedOptionalFeatures {
   SmallVector<int, 4> Aspects;
   // TODO: extend this further with reqd-sub-group-size, reqd-work-group-size,
-  // double-grf and other properties
+  // large-grf and other properties
 
   UsedOptionalFeatures() = default;
 
