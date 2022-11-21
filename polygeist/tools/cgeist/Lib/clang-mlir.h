@@ -277,7 +277,7 @@ private:
   // Initialize a exclude list of SYCL functions to emit instead just the
   // declaration. Eventually, this list should be removed.
   void initUnsupportedFunctions();
-  bool isUnsupportedFunctions(std::string Name) const {
+  bool isUnsupportedFunction(std::string Name) const {
     return unsupportedFuncs.contains(Name);
   }
 

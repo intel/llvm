@@ -850,7 +850,7 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
   std::string mangledName = MLIRScanner::getMangledFuncName(
       cast<FunctionDecl>(*ctorDecl), Glob.getCGM());
   mangledName = (PrefixABI + mangledName);
-  if (GenerateAllSYCLFuncs || !isUnsupportedFunctions(mangledName))
+  if (GenerateAllSYCLFuncs || !isUnsupportedFunction(mangledName))
     ShouldEmit = true;
 
   FunctionToEmit F(*ctorDecl, mlirclang::getInputContext(builder));
