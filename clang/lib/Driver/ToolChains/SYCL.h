@@ -203,11 +203,10 @@ private:
                           llvm::opt::OptSpecifier Opt,
                           llvm::opt::OptSpecifier Opt_EQ,
                           StringRef Device) const;
-  void TranslateAMDGPUTargetOpt(const llvm::opt::ArgList &Args,
-                                llvm::opt::ArgStringList &CmdArgs,
-                                llvm::opt::OptSpecifier Opt,
-                                llvm::opt::OptSpecifier Opt_EQ,
-                                StringRef Device) const;
+  void TranslateGPUTargetOpt(const llvm::opt::ArgList &Args,
+                             llvm::opt::ArgStringList &CmdArgs,
+                             llvm::opt::OptSpecifier Opt_EQ,
+                             StringRef Device) const;
 };
 
 } // end namespace toolchains
