@@ -22,3 +22,29 @@ params:
       desc: "[in] pointer to tear down parameters"
 returns:
     - $X_RESULT_OUT_OF_HOST_MEMORY
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Retrieve string representation of the underlying adapter specific result
+       reported by the the last API that returned UR_RESULT_ADAPTER_SPECIFIC.
+       Allows for an adapter independent way to return an adapter
+       specific result."
+class: $x
+name: GetLastResult
+decl: static
+ordinal: "0"
+details:
+    - "The string returned via the ppMessage is a NULL terminated C style string."
+    - "The string returned via the ppMessage is thread local."
+    - "The entry point will return UR_RESULT_SUCCESS if the result being
+       reported is to be considered a warning. Any other result code returned
+       indicates that the adapter specific result is an error."
+    -  "The memory in the string returned via the ppMessage is owned by the
+       adapter."
+    - "The application may call this function from simultaneous
+       threads."
+    - "The implementation of this function should be lock-free."
+params:
+    - type: const char**
+      name: ppMessage
+      desc: "[out] pointer to a string containing adapter specific result
+             in string representation."

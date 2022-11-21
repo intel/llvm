@@ -1193,6 +1193,12 @@ typedef ur_result_t (UR_APICALL *ur_pfnTearDown_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urGetLastResult 
+typedef ur_result_t (UR_APICALL *ur_pfnGetLastResult_t)(
+    const char**
+    );
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urInit 
 typedef ur_result_t (UR_APICALL *ur_pfnInit_t)(
     ur_platform_init_flags_t,
@@ -1204,6 +1210,7 @@ typedef ur_result_t (UR_APICALL *ur_pfnInit_t)(
 typedef struct _ur_global_dditable_t
 {
     ur_pfnTearDown_t                                            pfnTearDown;
+    ur_pfnGetLastResult_t                                       pfnGetLastResult;
     ur_pfnInit_t                                                pfnInit;
 } ur_global_dditable_t;
 
