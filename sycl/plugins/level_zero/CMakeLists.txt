@@ -113,17 +113,12 @@ add_sycl_plugin(level_zero
     "${CMAKE_CURRENT_SOURCE_DIR}/usm_allocator.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/usm_allocator.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/tracing.cpp"
-    "${CMAKE_SOURCE_DIR}/../sycl/plugins/unified_runtime/ur.hpp"
-    "${CMAKE_SOURCE_DIR}/../sycl/plugins/unified_runtime/adapters/level_zero/ur_level_zero.hpp"
-    "${CMAKE_SOURCE_DIR}/../sycl/plugins/unified_runtime/adapters/level_zero/ur_level_zero.cpp"
     ${XPTI_PROXY_SRC}
   LIBRARIES
     "${LEVEL_ZERO_LOADER}"
     Threads::Threads
+    unified_runtime
 )
-
-add_dependencies(pi_level_zero pi_unified_runtime)
-include_directories("${UNIFIED_RUNTIME_INCLUDE_DIR}")
 
 find_package(Python3 REQUIRED)
 
@@ -135,7 +130,6 @@ add_custom_target(ze-api
     ${CMAKE_CURRENT_BINARY_DIR}/ze_api.def
   )
 target_include_directories(pi_level_zero PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
-target_include_directories(pi_level_zero PRIVATE ${CMAKE_SOURCE_DIR}/../sycl/plugins/unified_runtime)
 add_dependencies(pi_level_zero ze-api)
 
 if (SYCL_ENABLE_XPTI_TRACING)
