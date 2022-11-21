@@ -12075,12 +12075,16 @@ public:
                            SourceLocation LParenLoc = SourceLocation(),
                            Expr *NumForLoops = nullptr);
   /// Called on well-formed 'grainsize' clause.
-  OMPClause *ActOnOpenMPGrainsizeClause(Expr *Size, SourceLocation StartLoc,
+  OMPClause *ActOnOpenMPGrainsizeClause(OpenMPGrainsizeClauseModifier Modifier,
+                                        Expr *Size, SourceLocation StartLoc,
                                         SourceLocation LParenLoc,
+                                        SourceLocation ModifierLoc,
                                         SourceLocation EndLoc);
   /// Called on well-formed 'num_tasks' clause.
-  OMPClause *ActOnOpenMPNumTasksClause(Expr *NumTasks, SourceLocation StartLoc,
+  OMPClause *ActOnOpenMPNumTasksClause(OpenMPNumTasksClauseModifier Modifier,
+                                       Expr *NumTasks, SourceLocation StartLoc,
                                        SourceLocation LParenLoc,
+                                       SourceLocation ModifierLoc,
                                        SourceLocation EndLoc);
   /// Called on well-formed 'hint' clause.
   OMPClause *ActOnOpenMPHintClause(Expr *Hint, SourceLocation StartLoc,
@@ -12253,6 +12257,12 @@ public:
                                        SourceLocation StartLoc,
                                        SourceLocation LParenLoc,
                                        SourceLocation EndLoc);
+
+  /// Called on well-formed 'message' clause.
+  /// passing string for message.
+  OMPClause *ActOnOpenMPMessageClause(Expr *MS, SourceLocation StartLoc,
+                                      SourceLocation LParenLoc,
+                                      SourceLocation EndLoc);
 
   /// Data used for processing a list of variables in OpenMP clauses.
   struct OpenMPVarListDataTy final {

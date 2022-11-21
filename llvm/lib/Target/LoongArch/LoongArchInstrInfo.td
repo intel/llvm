@@ -50,6 +50,9 @@ def loongarch_call : SDNode<"LoongArchISD::CALL", SDT_LoongArchCall,
                              SDNPVariadic]>;
 def loongarch_ret : SDNode<"LoongArchISD::RET", SDTNone,
                            [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
+def loongarch_tail : SDNode<"LoongArchISD::TAIL", SDT_LoongArchCall,
+                            [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue,
+                             SDNPVariadic]>;
 def loongarch_sll_w : SDNode<"LoongArchISD::SLL_W", SDT_LoongArchIntBinOpW>;
 def loongarch_sra_w : SDNode<"LoongArchISD::SRA_W", SDT_LoongArchIntBinOpW>;
 def loongarch_srl_w : SDNode<"LoongArchISD::SRL_W", SDT_LoongArchIntBinOpW>;
@@ -232,8 +235,8 @@ def SImm26OperandBL: AsmOperandClass {
   let ParserMethod = "parseSImm26Operand";
 }
 
-// A symbol or an imm used in BL/PseudoCALL.
-def simm26_bl : Operand<GRLenVT> {
+// A symbol or an imm used in BL/PseudoCALL/PseudoTAIL.
+def simm26_symbol : Operand<GRLenVT> {
   let ParserMatchClass = SImm26OperandBL;
   let EncoderMethod = "getImmOpValueAsr2";
   let DecoderMethod = "decodeSImmOperand<26, 2>";
@@ -455,7 +458,7 @@ def BNEZ : BrCCZ_1RI21<0b010001, "bnez">;
 def B : Br_I26<0b010100, "b">;
 
 let isCall = 1, Defs=[R1] in
-def BL : FmtI26<0b010101, (outs), (ins simm26_bl:$imm26), "bl", "$imm26">;
+def BL : FmtI26<0b010101, (outs), (ins simm26_symbol:$imm26), "bl", "$imm26">;
 def JIRL : Fmt2RI16<0b010011, (outs GPR:$rd),
                     (ins GPR:$rj, simm16_lsl2:$imm16), "jirl",
                     "$rd, $rj, $imm16">;
@@ -934,7 +937,7 @@ def : Pat<(brind (add GPR:$rj, simm16_lsl2:$imm16)),
           (PseudoBRIND GPR:$rj, simm16_lsl2:$imm16)>;
 
 let isCall = 1, Defs = [R1] in
-def PseudoCALL : Pseudo<(outs), (ins simm26_bl:$func)>;
+def PseudoCALL : Pseudo<(outs), (ins simm26_symbol:$func)>;
 
 def : Pat<(loongarch_call tglobaladdr:$func), (PseudoCALL tglobaladdr:$func)>;
 def : Pat<(loongarch_call texternalsym:$func), (PseudoCALL texternalsym:$func)>;
@@ -952,6 +955,28 @@ def PseudoJIRL_CALL : Pseudo<(outs), (ins GPR:$rj, simm16_lsl2:$imm16)>,
 let isBarrier = 1, isReturn = 1, isTerminator = 1 in
 def PseudoRET : Pseudo<(outs), (ins), [(loongarch_ret)]>,
                 PseudoInstExpansion<(JIRL R0, R1, 0)>;
+
+let isCall = 1, isTerminator = 1, isReturn = 1, isBarrier = 1, Uses = [R3] in
+def PseudoTAIL : Pseudo<(outs), (ins simm26_symbol:$dst)>;
+
+def : Pat<(loongarch_tail (iPTR tglobaladdr:$dst)),
+          (PseudoTAIL tglobaladdr:$dst)>;
+def : Pat<(loongarch_tail (iPTR texternalsym:$dst)),
+          (PseudoTAIL texternalsym:$dst)>;
+
+let isCall = 1, isTerminator = 1, isReturn = 1, isBarrier = 1, Uses = [R3] in
+def PseudoTAILIndirect : Pseudo<(outs), (ins GPRT:$rj),
+                                [(loongarch_tail GPRT:$rj)]>,
+                         PseudoInstExpansion<(JIRL R0, GPR:$rj, 0)>;
+
+let isCall = 1, isTerminator = 1, isReturn = 1, isBarrier = 1, Uses = [R3] in
+def PseudoB_TAIL : Pseudo<(outs), (ins simm26_b:$imm26)>,
+                   PseudoInstExpansion<(B simm26_b:$imm26)>;
+
+let isCall = 1, isTerminator = 1, isReturn = 1, isBarrier = 1, Uses = [R3] in
+def PseudoJIRL_TAIL : Pseudo<(outs), (ins GPR:$rj, simm16_lsl2:$imm16)>,
+                      PseudoInstExpansion<(JIRL R0, GPR:$rj,
+                                           simm16_lsl2:$imm16)>;
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def PseudoLA_PCREL : Pseudo<(outs GPR:$dst), (ins grlenimm:$src)>;
@@ -1347,6 +1372,28 @@ def : InstAlias<"move $dst, $src", (OR GPR:$dst, GPR:$src, R0)>;
 // later).
 def : InstAlias<"ret", (JIRL R0, R1, 0)>;
 def : InstAlias<"jr $rj", (JIRL R0, GPR:$rj, 0)>;
+
+// Branches implemented with alias.
+// Always output the canonical mnemonic for the pseudo branch instructions.
+// The GNU tools emit the canonical mnemonic for the branch pseudo instructions
+// as well (e.g. "bgt" will be recognised by the assembler but never printed by
+// objdump). Match this behaviour by setting a zero weight.
+def : InstAlias<"bgt $rj, $rd, $imm16",
+                (BLT GPR:$rd, GPR:$rj, simm16_lsl2_br:$imm16), 0>;
+def : InstAlias<"bgtu $rj, $rd, $imm16",
+                (BLTU GPR:$rd, GPR:$rj, simm16_lsl2_br:$imm16), 0>;
+def : InstAlias<"ble $rj, $rd, $imm16",
+                (BGE GPR:$rd, GPR:$rj, simm16_lsl2_br:$imm16), 0>;
+def : InstAlias<"bleu $rj, $rd, $imm16",
+                (BGEU GPR:$rd, GPR:$rj, simm16_lsl2_br:$imm16), 0>;
+def : InstAlias<"bltz $rd, $imm16",
+                (BLT GPR:$rd, R0, simm16_lsl2_br:$imm16), 0>;
+def : InstAlias<"bgtz $rj, $imm16",
+                (BLT R0, GPR:$rj, simm16_lsl2_br:$imm16), 0>;
+def : InstAlias<"blez $rj, $imm16",
+                (BGE R0, GPR:$rj, simm16_lsl2_br:$imm16), 0>;
+def : InstAlias<"bgez $rd, $imm16",
+                (BGE GPR:$rd, R0, simm16_lsl2_br:$imm16), 0>;
 
 //===----------------------------------------------------------------------===//
 // Basic Floating-Point Instructions
