@@ -1,0 +1,29 @@
+---
+name: Build spec and check for changes
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  generate:
+    runs-on: ubuntu-20.04
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install apt package
+        run: sudo apt-get install -y doxygen
+
+      - name: Install pip packages
+        run: pip install -r third_party/requirements.txt
+
+      - name: Generate specification, check for uncommitted diff
+        run: |
+          cd scripts
+          python run.py --core
+          if [ $(git diff | wc -l) != 0 ]; then
+            git diff
+            exit 1
+          fi
