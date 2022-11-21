@@ -1,4 +1,4 @@
-//RUN: clang++ -fsycl -fsycl-device-only -emit-mlir %s -S -o - 2>&1| FileCheck %s --check-prefix=MLIR
+// RUN: clang++ -fsycl -fsycl-device-only -emit-mlir %s -S -o - 2>&1| FileCheck %s --check-prefix=MLIR
 #include <sycl/sycl.hpp>
 
 void test_global_string(sycl::device d) {
