@@ -15,6 +15,8 @@
 #include <sycl/queue.hpp>
 #include <sycl/stl.hpp>
 
+#include <sycl/ext/oneapi/experimental/graph.hpp>
+
 #include <algorithm>
 
 namespace sycl {
@@ -211,6 +213,13 @@ buffer<detail::AssertHappened, 1> &queue::getAssertHappenedBuffer() {
 bool queue::device_has(aspect Aspect) const {
   // avoid creating sycl object from impl
   return impl->getDeviceImplPtr()->has(Aspect);
+}
+
+event queue::submit(ext::oneapi::experimental::command_graph<
+             ext::oneapi::experimental::graph_state::executable>
+                 graph) {
+  graph.exec_and_wait(*this);
+  return {};
 }
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

@@ -23,6 +23,8 @@
 #include <sycl/property_list.hpp>
 #include <sycl/stl.hpp>
 
+#include <sycl/ext/oneapi/experimental/graph_defines.hpp>
+
 // Explicitly request format macros
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS 1
@@ -1067,6 +1069,14 @@ public:
   ///
   /// \return the backend associated with this queue.
   backend get_backend() const noexcept;
+
+public:
+  /// Submits an executable command_graph for execution on this queue
+  ///
+  /// \return an event representing the execution of the command_graph
+  event submit(ext::oneapi::experimental::command_graph<
+               ext::oneapi::experimental::graph_state::executable>
+                   graph);
 
 private:
   pi_native_handle getNative() const;

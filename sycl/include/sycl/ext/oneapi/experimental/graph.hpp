@@ -9,11 +9,17 @@
 #pragma once
 
 #include <sycl/detail/defines_elementary.hpp>
+#include <sycl/queue.hpp>
+
+#include "graph_defines.hpp"
 
 #include <list>
 #include <set>
 
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+class queue;
+
 namespace ext {
 namespace oneapi {
 namespace experimental {
@@ -142,8 +148,6 @@ struct node {
   void set_root() { MGraph->add_root(MNode); }
 };
 
-enum class graph_state { modifiable, executable };
-
 template <graph_state State = graph_state::modifiable> class command_graph {
 public:
   // Adding empty node with [0..n] predecessors:
@@ -219,5 +223,6 @@ void command_graph<graph_state::executable>::exec_and_wait(sycl::queue q) {
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
 
