@@ -46,9 +46,7 @@ SPV_MATRIX_LAYOUT_TRAITS(layout::col_major, __spv::MatrixLayout::ColumnMajor)
 SPV_MATRIX_LAYOUT_TRAITS(layout::packed, __spv::MatrixLayout::Packed)
 SPV_MATRIX_LAYOUT_TRAITS(layout::dynamic, __spv::MatrixLayout::Dynamic)
 
-// unnecessary was introduced for backward compatibility.
-// Once the use implementation is stable, "unnecessary" value will be omitted
-enum class use { a, b, accumulator, unnecessary };
+enum class use { a, b, accumulator };
 
 template <use Use> struct spv_matrix_use_traits {
   static constexpr __spv::MatrixUse value = __spv::MatrixUse::MatrixA;
