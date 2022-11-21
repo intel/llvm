@@ -908,6 +908,9 @@ static std::string flattenCommandLine(ArrayRef<std::string> Args,
     }
     if (Arg.startswith("-object-file-name") || Arg == MainFilename)
       continue;
+    // Skip fmessage-length for reproduciability.
+    if (Arg.startswith("-fmessage-length"))
+      continue;
     if (PrintedOneArg)
       OS << " ";
     llvm::sys::printArg(OS, Arg, /*Quote=*/true);
@@ -3362,7 +3365,7 @@ void CodeViewDebug::emitDebugInfoForGlobal(const CVGlobalVariable &CVGV) {
   // in its name so that we can reference the variable in the command line
   // of the VS debugger.
   std::string QualifiedName =
-      (moduleIsInFortran() || isa<DILocalScope>(Scope))
+      (moduleIsInFortran() || (Scope && isa<DILocalScope>(Scope)))
           ? std::string(DIGV->getName())
           : getFullyQualifiedName(Scope, DIGV->getName());
 

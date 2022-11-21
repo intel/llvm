@@ -320,6 +320,7 @@ END-SCRIPT
 #include <__format/buffer.h> // expected-error@*:* {{use of private header from outside its module: '__format/buffer.h'}}
 #include <__format/concepts.h> // expected-error@*:* {{use of private header from outside its module: '__format/concepts.h'}}
 #include <__format/enable_insertable.h> // expected-error@*:* {{use of private header from outside its module: '__format/enable_insertable.h'}}
+#include <__format/escaped_output_table.h> // expected-error@*:* {{use of private header from outside its module: '__format/escaped_output_table.h'}}
 #include <__format/extended_grapheme_cluster_table.h> // expected-error@*:* {{use of private header from outside its module: '__format/extended_grapheme_cluster_table.h'}}
 #include <__format/format_arg.h> // expected-error@*:* {{use of private header from outside its module: '__format/format_arg.h'}}
 #include <__format/format_arg_store.h> // expected-error@*:* {{use of private header from outside its module: '__format/format_arg_store.h'}}
@@ -373,8 +374,10 @@ END-SCRIPT
 #include <__fwd/array.h> // expected-error@*:* {{use of private header from outside its module: '__fwd/array.h'}}
 #include <__fwd/get.h> // expected-error@*:* {{use of private header from outside its module: '__fwd/get.h'}}
 #include <__fwd/hash.h> // expected-error@*:* {{use of private header from outside its module: '__fwd/hash.h'}}
+#include <__fwd/memory_resource.h> // expected-error@*:* {{use of private header from outside its module: '__fwd/memory_resource.h'}}
 #include <__fwd/pair.h> // expected-error@*:* {{use of private header from outside its module: '__fwd/pair.h'}}
 #include <__fwd/span.h> // expected-error@*:* {{use of private header from outside its module: '__fwd/span.h'}}
+#include <__fwd/string.h> // expected-error@*:* {{use of private header from outside its module: '__fwd/string.h'}}
 #include <__fwd/string_view.h> // expected-error@*:* {{use of private header from outside its module: '__fwd/string_view.h'}}
 #include <__fwd/tuple.h> // expected-error@*:* {{use of private header from outside its module: '__fwd/tuple.h'}}
 #include <__ios/fpos.h> // expected-error@*:* {{use of private header from outside its module: '__ios/fpos.h'}}
@@ -424,6 +427,7 @@ END-SCRIPT
 #include <__memory/allocation_guard.h> // expected-error@*:* {{use of private header from outside its module: '__memory/allocation_guard.h'}}
 #include <__memory/allocator.h> // expected-error@*:* {{use of private header from outside its module: '__memory/allocator.h'}}
 #include <__memory/allocator_arg_t.h> // expected-error@*:* {{use of private header from outside its module: '__memory/allocator_arg_t.h'}}
+#include <__memory/allocator_destructor.h> // expected-error@*:* {{use of private header from outside its module: '__memory/allocator_destructor.h'}}
 #include <__memory/allocator_traits.h> // expected-error@*:* {{use of private header from outside its module: '__memory/allocator_traits.h'}}
 #include <__memory/assume_aligned.h> // expected-error@*:* {{use of private header from outside its module: '__memory/assume_aligned.h'}}
 #include <__memory/auto_ptr.h> // expected-error@*:* {{use of private header from outside its module: '__memory/auto_ptr.h'}}
@@ -443,7 +447,14 @@ END-SCRIPT
 #include <__memory/uninitialized_algorithms.h> // expected-error@*:* {{use of private header from outside its module: '__memory/uninitialized_algorithms.h'}}
 #include <__memory/unique_ptr.h> // expected-error@*:* {{use of private header from outside its module: '__memory/unique_ptr.h'}}
 #include <__memory/uses_allocator.h> // expected-error@*:* {{use of private header from outside its module: '__memory/uses_allocator.h'}}
+#include <__memory/uses_allocator_construction.h> // expected-error@*:* {{use of private header from outside its module: '__memory/uses_allocator_construction.h'}}
 #include <__memory/voidify.h> // expected-error@*:* {{use of private header from outside its module: '__memory/voidify.h'}}
+#include <__memory_resource/memory_resource.h> // expected-error@*:* {{use of private header from outside its module: '__memory_resource/memory_resource.h'}}
+#include <__memory_resource/monotonic_buffer_resource.h> // expected-error@*:* {{use of private header from outside its module: '__memory_resource/monotonic_buffer_resource.h'}}
+#include <__memory_resource/polymorphic_allocator.h> // expected-error@*:* {{use of private header from outside its module: '__memory_resource/polymorphic_allocator.h'}}
+#include <__memory_resource/pool_options.h> // expected-error@*:* {{use of private header from outside its module: '__memory_resource/pool_options.h'}}
+#include <__memory_resource/synchronized_pool_resource.h> // expected-error@*:* {{use of private header from outside its module: '__memory_resource/synchronized_pool_resource.h'}}
+#include <__memory_resource/unsynchronized_pool_resource.h> // expected-error@*:* {{use of private header from outside its module: '__memory_resource/unsynchronized_pool_resource.h'}}
 #include <__mutex_base> // expected-error@*:* {{use of private header from outside its module: '__mutex_base'}}
 #include <__node_handle> // expected-error@*:* {{use of private header from outside its module: '__node_handle'}}
 #include <__numeric/accumulate.h> // expected-error@*:* {{use of private header from outside its module: '__numeric/accumulate.h'}}
@@ -505,12 +516,14 @@ END-SCRIPT
 #include <__ranges/dangling.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/dangling.h'}}
 #include <__ranges/data.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/data.h'}}
 #include <__ranges/drop_view.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/drop_view.h'}}
+#include <__ranges/drop_while_view.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/drop_while_view.h'}}
 #include <__ranges/empty.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/empty.h'}}
 #include <__ranges/empty_view.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/empty_view.h'}}
 #include <__ranges/enable_borrowed_range.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/enable_borrowed_range.h'}}
 #include <__ranges/enable_view.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/enable_view.h'}}
 #include <__ranges/filter_view.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/filter_view.h'}}
 #include <__ranges/iota_view.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/iota_view.h'}}
+#include <__ranges/istream_view.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/istream_view.h'}}
 #include <__ranges/join_view.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/join_view.h'}}
 #include <__ranges/lazy_split_view.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/lazy_split_view.h'}}
 #include <__ranges/non_propagating_cache.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/non_propagating_cache.h'}}
@@ -524,6 +537,7 @@ END-SCRIPT
 #include <__ranges/size.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/size.h'}}
 #include <__ranges/subrange.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/subrange.h'}}
 #include <__ranges/take_view.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/take_view.h'}}
+#include <__ranges/take_while_view.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/take_while_view.h'}}
 #include <__ranges/transform_view.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/transform_view.h'}}
 #include <__ranges/view_interface.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/view_interface.h'}}
 #include <__ranges/views.h> // expected-error@*:* {{use of private header from outside its module: '__ranges/views.h'}}

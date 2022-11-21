@@ -29,7 +29,8 @@ std::ostream &operator<<(std::ostream &os, std::optional<T> const &opt) {
 }
 
 // the ONEAPI_DEVICE_SELECTOR string gets broken down into these targets
-// will will match devices.
+// will will match devices. If the target is negative, such as !opencl:*
+// then matching devices will not be made available to the user.
 struct ods_target {
 public:
   std::optional<backend> Backend;
@@ -43,6 +44,8 @@ public:
 
   bool HasSubSubDeviceWildCard = false; // two levels of sub-devices.
   std::optional<unsigned> SubSubDeviceNum;
+
+  bool IsNegativeTarget = false; // used to represent negative filters.
 
   ods_target(backend be) { Backend = be; };
   ods_target(){};

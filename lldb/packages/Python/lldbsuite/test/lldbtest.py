@@ -282,11 +282,14 @@ class ValueCheck:
 
         test_base.assertSuccess(val.GetError())
 
+        # Python 3.6 doesn't declare a `re.Pattern` type, get the dynamic type.
+        pattern_type = type(re.compile(''))
+
         if self.expect_name:
             test_base.assertEqual(self.expect_name, val.GetName(),
                                   this_error_msg)
         if self.expect_value:
-            if isinstance(self.expect_value, re.Pattern):
+            if isinstance(self.expect_value, pattern_type):
                 test_base.assertRegex(val.GetValue(), self.expect_value,
                                       this_error_msg)
             else:
@@ -296,7 +299,7 @@ class ValueCheck:
             test_base.assertEqual(self.expect_type, val.GetDisplayTypeName(),
                                   this_error_msg)
         if self.expect_summary:
-            if isinstance(self.expect_summary, re.Pattern):
+            if isinstance(self.expect_summary, pattern_type):
                 test_base.assertRegex(val.GetSummary(), self.expect_summary,
                                       this_error_msg)
             else:
@@ -2358,7 +2361,7 @@ FileCheck output:
             start = 0
             for substr in substrs:
                 index = output[start:].find(substr)
-                start = start + index if ordered and matching else 0
+                start = start + index + len(substr) if ordered and matching else 0
                 matched = index != -1
                 log_lines.append("{} sub string: \"{}\" ({})".format(
                         expecting_str, substr, found_str(matched)))

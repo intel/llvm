@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/device_impl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <sycl/sycl.hpp>
 
@@ -458,4 +459,81 @@ TEST(KernelBundle, EmptyDevicesKernelBundleLinkException) {
   } catch (...) {
     FAIL() << "Unexpected exception was thrown in sycl::link.";
   }
+}
+
+pi_device ParentDevice = nullptr;
+pi_platform PiPlatform = nullptr;
+
+pi_result redefinedDeviceGetInfoAfter(pi_device device,
+                                      pi_device_info param_name,
+                                      size_t param_value_size,
+                                      void *param_value,
+                                      size_t *param_value_size_ret) {
+  if (param_name == PI_DEVICE_INFO_PARTITION_PROPERTIES) {
+    if (param_value) {
+      auto *Result =
+          reinterpret_cast<pi_device_partition_property *>(param_value);
+      *Result = PI_DEVICE_PARTITION_EQUALLY;
+    }
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(pi_device_partition_property);
+  } else if (param_name == PI_DEVICE_INFO_MAX_COMPUTE_UNITS) {
+    auto *Result = reinterpret_cast<pi_uint32 *>(param_value);
+    *Result = 2;
+  } else if (param_name == PI_DEVICE_INFO_PARENT_DEVICE) {
+    auto *Result = reinterpret_cast<pi_device *>(param_value);
+    *Result = (device == ParentDevice) ? nullptr : ParentDevice;
+  } else if (param_name == PI_DEVICE_INFO_PLATFORM) {
+    auto *Result = reinterpret_cast<pi_platform *>(param_value);
+    *Result = PiPlatform;
+  }
+  return PI_SUCCESS;
+}
+
+pi_result redefinedDevicePartitionAfter(
+    pi_device device, const pi_device_partition_property *properties,
+    pi_uint32 num_devices, pi_device *out_devices, pi_uint32 *out_num_devices) {
+  if (out_devices) {
+    for (size_t I = 0; I < num_devices; ++I) {
+      out_devices[I] = reinterpret_cast<pi_device>(1000 + I);
+    }
+  }
+  if (out_num_devices)
+    *out_num_devices = num_devices;
+  return PI_SUCCESS;
+}
+
+TEST(KernelBundle, DescendentDevice) {
+  // Mock a non-OpenCL plugin since use of descendent devices of context members
+  // is not supported there yet.
+  sycl::unittest::PiMock Mock(sycl::backend::level_zero);
+
+  sycl::platform Plt = Mock.getPlatform();
+
+  PiPlatform = sycl::detail::getSyclObjImpl(Plt)->getHandleRef();
+
+  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
+      redefinedDeviceGetInfoAfter);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piDevicePartition>(
+      redefinedDevicePartitionAfter);
+
+  const sycl::device Dev = Mock.getPlatform().get_devices()[0];
+  ParentDevice = sycl::detail::getSyclObjImpl(Dev)->getHandleRef();
+  sycl::context Ctx{Dev};
+  sycl::device Subdev =
+      Dev.create_sub_devices<sycl::info::partition_property::partition_equally>(
+          2)[0];
+
+  sycl::queue Queue{Ctx, Subdev};
+
+  sycl::kernel_bundle<sycl::bundle_state::executable> KernelBundle =
+      sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Subdev});
+
+  sycl::kernel Kernel =
+      KernelBundle.get_kernel(sycl::get_kernel_id<TestKernel>());
+
+  sycl::kernel_bundle<sycl::bundle_state::executable> RetKernelBundle =
+      Kernel.get_kernel_bundle();
+
+  EXPECT_EQ(KernelBundle, RetKernelBundle);
 }

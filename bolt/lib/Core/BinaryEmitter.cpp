@@ -211,8 +211,6 @@ void BinaryEmitter::emitAll(StringRef OrgSecPrefix) {
   }
 
   emitDataSections(OrgSecPrefix);
-
-  Streamer.emitLabel(BC.Ctx->getOrCreateSymbol("_end"));
 }
 
 void BinaryEmitter::emitFunctions() {
@@ -742,10 +740,12 @@ void BinaryEmitter::emitJumpTables(const BinaryFunction &BF) {
 
   for (auto &JTI : BF.jumpTables()) {
     JumpTable &JT = *JTI.second;
+    // Only emit shared jump tables once, when processing the first parent
+    if (JT.Parents.size() > 1 && JT.Parents[0] != &BF)
+      continue;
     if (opts::PrintJumpTables)
       JT.print(outs());
-    if ((opts::JumpTables == JTS_BASIC || !BF.isSimple()) &&
-        BC.HasRelocations) {
+    if (opts::JumpTables == JTS_BASIC && BC.HasRelocations) {
       JT.updateOriginal();
     } else {
       MCSection *HotSection, *ColdSection;
@@ -803,11 +803,12 @@ void BinaryEmitter::emitJumpTable(const JumpTable &JT, MCSection *HotSection,
   for (MCSymbol *Entry : JT.Entries) {
     auto LI = JT.Labels.find(Offset);
     if (LI != JT.Labels.end()) {
-      LLVM_DEBUG(dbgs() << "BOLT-DEBUG: emitting jump table "
-                        << LI->second->getName()
-                        << " (originally was at address 0x"
-                        << Twine::utohexstr(JT.getAddress() + Offset)
-                        << (Offset ? "as part of larger jump table\n" : "\n"));
+      LLVM_DEBUG({
+        dbgs() << "BOLT-DEBUG: emitting jump table " << LI->second->getName()
+               << " (originally was at address 0x"
+               << Twine::utohexstr(JT.getAddress() + Offset)
+               << (Offset ? ") as part of larger jump table\n" : ")\n");
+      });
       if (!LabelCounts.empty()) {
         LLVM_DEBUG(dbgs() << "BOLT-DEBUG: jump table count: "
                           << LabelCounts[LI->second] << '\n');
@@ -817,7 +818,25 @@ void BinaryEmitter::emitJumpTable(const JumpTable &JT, MCSection *HotSection,
           Streamer.switchSection(ColdSection);
         Streamer.emitValueToAlignment(JT.EntrySize);
       }
-      Streamer.emitLabel(LI->second);
+      // Emit all labels registered at the address of this jump table
+      // to sync with our global symbol table.  We may have two labels
+      // registered at this address if one label was created via
+      // getOrCreateGlobalSymbol() (e.g. LEA instructions referencing
+      // this location) and another via getOrCreateJumpTable().  This
+      // creates a race where the symbols created by these two
+      // functions may or may not be the same, but they are both
+      // registered in our symbol table at the same address. By
+      // emitting them all here we make sure there is no ambiguity
+      // that depends on the order that these symbols were created, so
+      // whenever this address is referenced in the binary, it is
+      // certain to point to the jump table identified at this
+      // address.
+      if (BinaryData *BD = BC.getBinaryDataByName(LI->second->getName())) {
+        for (MCSymbol *S : BD->getSymbols())
+          Streamer.emitLabel(S);
+      } else {
+        Streamer.emitLabel(LI->second);
+      }
       LastLabel = LI->second;
     }
     if (JT.Type == JumpTable::JTT_NORMAL) {
@@ -1140,14 +1159,11 @@ void BinaryEmitter::emitDebugLineInfoForUnprocessedCUs() {
 
 void BinaryEmitter::emitDataSections(StringRef OrgSecPrefix) {
   for (BinarySection &Section : BC.sections()) {
-    if (!Section.hasRelocations() || !Section.hasSectionRef())
+    if (!Section.hasRelocations())
       continue;
 
-    StringRef SectionName = Section.getName();
-    std::string EmitName = Section.isReordered()
-                               ? std::string(Section.getOutputName())
-                               : OrgSecPrefix.str() + std::string(SectionName);
-    Section.emitAsData(Streamer, EmitName);
+    StringRef Prefix = Section.hasSectionRef() ? OrgSecPrefix : "";
+    Section.emitAsData(Streamer, Prefix + Section.getName());
     Section.clearRelocations();
   }
 }

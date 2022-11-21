@@ -234,30 +234,34 @@ fir::FirOpBuilder::createTemporary(mlir::Location loc, mlir::Type type,
 
 /// Create a global variable in the (read-only) data section. A global variable
 /// must have a unique name to identify and reference it.
-fir::GlobalOp
-fir::FirOpBuilder::createGlobal(mlir::Location loc, mlir::Type type,
-                                llvm::StringRef name, mlir::StringAttr linkage,
-                                mlir::Attribute value, bool isConst) {
+fir::GlobalOp fir::FirOpBuilder::createGlobal(mlir::Location loc,
+                                              mlir::Type type,
+                                              llvm::StringRef name,
+                                              mlir::StringAttr linkage,
+                                              mlir::Attribute value,
+                                              bool isConst, bool isTarget) {
   auto module = getModule();
   auto insertPt = saveInsertionPoint();
   if (auto glob = module.lookupSymbol<fir::GlobalOp>(name))
     return glob;
   setInsertionPoint(module.getBody(), module.getBody()->end());
-  auto glob = create<fir::GlobalOp>(loc, name, isConst, type, value, linkage);
+  auto glob =
+      create<fir::GlobalOp>(loc, name, isConst, isTarget, type, value, linkage);
   restoreInsertionPoint(insertPt);
   return glob;
 }
 
 fir::GlobalOp fir::FirOpBuilder::createGlobal(
     mlir::Location loc, mlir::Type type, llvm::StringRef name, bool isConst,
-    std::function<void(FirOpBuilder &)> bodyBuilder, mlir::StringAttr linkage) {
+    bool isTarget, std::function<void(FirOpBuilder &)> bodyBuilder,
+    mlir::StringAttr linkage) {
   auto module = getModule();
   auto insertPt = saveInsertionPoint();
   if (auto glob = module.lookupSymbol<fir::GlobalOp>(name))
     return glob;
   setInsertionPoint(module.getBody(), module.getBody()->end());
-  auto glob = create<fir::GlobalOp>(loc, name, isConst, type, mlir::Attribute{},
-                                    linkage);
+  auto glob = create<fir::GlobalOp>(loc, name, isConst, isTarget, type,
+                                    mlir::Attribute{}, linkage);
   auto &region = glob.getRegion();
   region.push_back(new mlir::Block);
   auto &block = glob.getRegion().back();
@@ -321,6 +325,13 @@ fir::FirOpBuilder::convertWithSemantics(mlir::Location loc, mlir::Type toTy,
     return create<fir::BoxAddrOp>(loc, toTy, val);
   }
 
+  if (fir::isPolymorphicType(fromTy) &&
+      (fir::isAllocatableType(fromTy) || fir::isPointerType(fromTy)) &&
+      fir::isPolymorphicType(toTy)) {
+    return create<fir::ReboxOp>(loc, toTy, val, mlir::Value{},
+                                /*slice=*/mlir::Value{});
+  }
+
   return createConvert(loc, toTy, val);
 }
 
@@ -379,6 +390,12 @@ mlir::Value fir::FirOpBuilder::genShape(mlir::Location loc,
   if (arr.lboundsAllOne())
     return genShape(loc, arr.getExtents());
   return genShape(loc, arr.getLBounds(), arr.getExtents());
+}
+
+mlir::Value fir::FirOpBuilder::genShift(mlir::Location loc,
+                                        llvm::ArrayRef<mlir::Value> shift) {
+  auto shiftType = fir::ShiftType::get(getContext(), shift.size());
+  return create<fir::ShiftOp>(loc, shiftType, shift);
 }
 
 mlir::Value fir::FirOpBuilder::createShape(mlir::Location loc,
@@ -454,9 +471,10 @@ mlir::Value fir::FirOpBuilder::createSlice(mlir::Location loc,
 }
 
 mlir::Value fir::FirOpBuilder::createBox(mlir::Location loc,
-                                         const fir::ExtendedValue &exv) {
+                                         const fir::ExtendedValue &exv,
+                                         bool isPolymorphic) {
   mlir::Value itemAddr = fir::getBase(exv);
-  if (itemAddr.getType().isa<fir::BoxType>())
+  if (itemAddr.getType().isa<fir::BaseBoxType>())
     return itemAddr;
   auto elementType = fir::dyn_cast_ptrEleTy(itemAddr.getType());
   if (!elementType) {
@@ -465,10 +483,16 @@ mlir::Value fir::FirOpBuilder::createBox(mlir::Location loc,
     llvm_unreachable("not a memory reference type");
   }
   mlir::Type boxTy = fir::BoxType::get(elementType);
+  mlir::Value tdesc;
+  if (isPolymorphic)
+    boxTy = fir::ClassType::get(elementType);
   return exv.match(
       [&](const fir::ArrayBoxValue &box) -> mlir::Value {
+        mlir::Value empty;
+        mlir::ValueRange emptyRange;
         mlir::Value s = createShape(loc, exv);
-        return create<fir::EmboxOp>(loc, boxTy, itemAddr, s);
+        return create<fir::EmboxOp>(loc, boxTy, itemAddr, s, /*slice=*/empty,
+                                    /*typeparams=*/emptyRange, box.getTdesc());
       },
       [&](const fir::CharArrayBoxValue &box) -> mlir::Value {
         mlir::Value s = createShape(loc, exv);
@@ -492,8 +516,17 @@ mlir::Value fir::FirOpBuilder::createBox(mlir::Location loc,
         return create<fir::LoadOp>(
             loc, fir::factory::getMutableIRBox(*this, loc, x));
       },
+      [&](const fir::PolymorphicValue &p) -> mlir::Value {
+        mlir::Value empty;
+        mlir::ValueRange emptyRange;
+        return create<fir::EmboxOp>(loc, boxTy, itemAddr, empty, empty,
+                                    emptyRange, p.getTdesc());
+      },
       [&](const auto &) -> mlir::Value {
-        return create<fir::EmboxOp>(loc, boxTy, itemAddr);
+        mlir::Value empty;
+        mlir::ValueRange emptyRange;
+        return create<fir::EmboxOp>(loc, boxTy, itemAddr, empty, empty,
+                                    emptyRange, tdesc);
       });
 }
 
@@ -536,6 +569,45 @@ mlir::Value fir::FirOpBuilder::genExtentFromTriplet(mlir::Location loc,
   auto cmp = create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::sgt,
                                          div, zero);
   return create<mlir::arith::SelectOp>(loc, cmp, div, zero);
+}
+
+void fir::FirOpBuilder::setCommonAttributes(mlir::Operation *op) const {
+  auto fmi = mlir::dyn_cast<mlir::arith::ArithFastMathInterface>(*op);
+  if (!fmi)
+    return;
+  // TODO: use fmi.setFastMathFlagsAttr() after D137114 is merged.
+  //       For now set the attribute by the name.
+  llvm::StringRef arithFMFAttrName = fmi.getFastMathAttrName();
+  if (fastMathFlags != mlir::arith::FastMathFlags::none)
+    op->setAttr(arithFMFAttrName, mlir::arith::FastMathFlagsAttr::get(
+                                      op->getContext(), fastMathFlags));
+}
+
+void fir::FirOpBuilder::setFastMathFlags(
+    Fortran::common::MathOptionsBase options) {
+  mlir::arith::FastMathFlags arithFMF{};
+  if (options.getFPContractEnabled()) {
+    arithFMF = arithFMF | mlir::arith::FastMathFlags::contract;
+  }
+  if (options.getNoHonorInfs()) {
+    arithFMF = arithFMF | mlir::arith::FastMathFlags::ninf;
+  }
+  if (options.getNoHonorNaNs()) {
+    arithFMF = arithFMF | mlir::arith::FastMathFlags::nnan;
+  }
+  if (options.getApproxFunc()) {
+    arithFMF = arithFMF | mlir::arith::FastMathFlags::afn;
+  }
+  if (options.getNoSignedZeros()) {
+    arithFMF = arithFMF | mlir::arith::FastMathFlags::nsz;
+  }
+  if (options.getAssociativeMath()) {
+    arithFMF = arithFMF | mlir::arith::FastMathFlags::reassoc;
+  }
+  if (options.getReciprocalMath()) {
+    arithFMF = arithFMF | mlir::arith::FastMathFlags::arcp;
+  }
+  setFastMathFlags(arithFMF);
 }
 
 //===--------------------------------------------------------------------===//
@@ -737,7 +809,7 @@ static llvm::SmallVector<mlir::Value> getFromBox(mlir::Location loc,
                                                  fir::FirOpBuilder &builder,
                                                  mlir::Type valTy,
                                                  mlir::Value boxVal) {
-  if (auto boxTy = valTy.dyn_cast<fir::BoxType>()) {
+  if (auto boxTy = valTy.dyn_cast<fir::BaseBoxType>()) {
     auto eleTy = fir::unwrapAllRefAndSeqType(boxTy.getEleTy());
     if (auto recTy = eleTy.dyn_cast<fir::RecordType>()) {
       if (recTy.getNumLenParams() > 0) {
@@ -791,7 +863,7 @@ llvm::SmallVector<mlir::Value>
 fir::factory::getTypeParams(mlir::Location loc, fir::FirOpBuilder &builder,
                             fir::ArrayLoadOp load) {
   mlir::Type memTy = load.getMemref().getType();
-  if (auto boxTy = memTy.dyn_cast<fir::BoxType>())
+  if (auto boxTy = memTy.dyn_cast<fir::BaseBoxType>())
     return getFromBox(loc, builder, boxTy, load.getMemref());
   return load.getTypeparams();
 }
@@ -887,7 +959,7 @@ fir::ExtendedValue fir::factory::componentToExtendedValue(
   auto fieldTy = component.getType();
   if (auto ty = fir::dyn_cast_ptrEleTy(fieldTy))
     fieldTy = ty;
-  if (fieldTy.isa<fir::BoxType>()) {
+  if (fieldTy.isa<fir::BaseBoxType>()) {
     llvm::SmallVector<mlir::Value> nonDeferredTypeParams;
     auto eleTy = fir::unwrapSequenceType(fir::dyn_cast_ptrOrBoxEleTy(fieldTy));
     if (auto charTy = eleTy.dyn_cast<fir::CharacterType>()) {
@@ -953,6 +1025,18 @@ fir::ExtendedValue fir::factory::arrayElementToExtendedValue(
         }
         if (box.isDerivedWithLenParameters())
           TODO(loc, "get length parameters from derived type BoxValue");
+        if (box.isPolymorphic()) {
+          mlir::Type tdescType =
+              fir::TypeDescType::get(mlir::NoneType::get(builder.getContext()));
+          mlir::Value tdesc = builder.create<fir::BoxTypeDescOp>(
+              loc, tdescType, fir::getBase(box));
+          return fir::PolymorphicValue(element, tdesc);
+        }
+        return element;
+      },
+      [&](const fir::ArrayBoxValue &box) -> fir::ExtendedValue {
+        if (box.getTdesc())
+          return fir::PolymorphicValue(element, box.getTdesc());
         return element;
       },
       [&](const auto &) -> fir::ExtendedValue { return element; });
@@ -1284,4 +1368,40 @@ mlir::Value fir::factory::genCPtrOrCFunptrAddr(fir::FirOpBuilder &builder,
                                         /*typeParams=*/mlir::ValueRange{});
   return builder.create<fir::CoordinateOp>(loc, builder.getRefType(fieldTy),
                                            cPtr, field);
+}
+
+fir::BoxValue fir::factory::createBoxValue(fir::FirOpBuilder &builder,
+                                           mlir::Location loc,
+                                           const fir::ExtendedValue &exv) {
+  if (auto *boxValue = exv.getBoxOf<fir::BoxValue>())
+    return *boxValue;
+  mlir::Value box = builder.createBox(loc, exv);
+  llvm::SmallVector<mlir::Value> lbounds;
+  llvm::SmallVector<mlir::Value> explicitTypeParams;
+  exv.match(
+      [&](const fir::ArrayBoxValue &box) {
+        lbounds.append(box.getLBounds().begin(), box.getLBounds().end());
+      },
+      [&](const fir::CharArrayBoxValue &box) {
+        lbounds.append(box.getLBounds().begin(), box.getLBounds().end());
+        explicitTypeParams.emplace_back(box.getLen());
+      },
+      [&](const fir::CharBoxValue &box) {
+        explicitTypeParams.emplace_back(box.getLen());
+      },
+      [&](const fir::MutableBoxValue &x) {
+        explicitTypeParams.append(x.nonDeferredLenParams().begin(),
+                                  x.nonDeferredLenParams().end());
+      },
+      [](const auto &) {});
+  return fir::BoxValue(box, lbounds, explicitTypeParams);
+}
+
+mlir::Value fir::factory::genCPtrOrCFunptrValue(fir::FirOpBuilder &builder,
+                                                mlir::Location loc,
+                                                mlir::Value cPtr) {
+  mlir::Type cPtrTy = fir::unwrapRefType(cPtr.getType());
+  mlir::Value cPtrAddr =
+      fir::factory::genCPtrOrCFunptrAddr(builder, loc, cPtr, cPtrTy);
+  return builder.create<fir::LoadOp>(loc, cPtrAddr);
 }

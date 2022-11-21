@@ -130,7 +130,7 @@ private:
                                     MachineInstr &SCCDefInst,
                                     SetVectorType &Worklist,
                                     Register NewCond = Register()) const;
-  void addSCCDefsToVALUWorklist(MachineOperand &Op,
+  void addSCCDefsToVALUWorklist(MachineInstr *SCCUseInst,
                                 SetVectorType &Worklist) const;
 
   const TargetRegisterClass *
@@ -210,10 +210,8 @@ public:
                    bool KillSrc) const override;
 
   void materializeImmediate(MachineBasicBlock &MBB,
-                            MachineBasicBlock::iterator MI,
-                            const DebugLoc &DL,
-                            unsigned DestReg,
-                            int64_t Value) const;
+                            MachineBasicBlock::iterator MI, const DebugLoc &DL,
+                            Register DestReg, int64_t Value) const;
 
   const TargetRegisterClass *getPreferredSelectRegClass(
                                unsigned Size) const;
@@ -725,7 +723,7 @@ public:
   }
 
   /// \returns true if this is an s_store_dword* instruction. This is more
-  /// specific than than isSMEM && mayStore.
+  /// specific than isSMEM && mayStore.
   static bool isScalarStore(const MachineInstr &MI) {
     return MI.getDesc().TSFlags & SIInstrFlags::SCALAR_STORE;
   }

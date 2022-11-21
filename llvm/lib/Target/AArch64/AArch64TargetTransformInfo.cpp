@@ -106,6 +106,18 @@ cl::opt<TailFoldingKind, true, cl::parser<std::string>> SVETailFolding(
         "recurrences"),
     cl::location(TailFoldingKindLoc));
 
+// Experimental option that will only be fully functional when the
+// code-generator is changed to use SVE instead of NEON for all fixed-width
+// operations.
+static cl::opt<bool> EnableFixedwidthAutovecInStreamingMode(
+    "enable-fixedwidth-autovec-in-streaming-mode", cl::init(false), cl::Hidden);
+
+// Experimental option that will only be fully functional when the cost-model
+// and code-generator have been changed to avoid using scalable vector
+// instructions that are not legal in streaming SVE mode.
+static cl::opt<bool> EnableScalableAutovecInStreamingMode(
+    "enable-scalable-autovec-in-streaming-mode", cl::init(false), cl::Hidden);
+
 bool AArch64TTIImpl::areInlineCompatible(const Function *Caller,
                                          const Function *Callee) const {
   SMEAttrs CallerAttrs(*Caller);
@@ -963,23 +975,51 @@ instCombineSVECntElts(InstCombiner &IC, IntrinsicInst &II, unsigned NumElts) {
 
 static Optional<Instruction *> instCombineSVEPTest(InstCombiner &IC,
                                                    IntrinsicInst &II) {
-  IntrinsicInst *Op1 = dyn_cast<IntrinsicInst>(II.getArgOperand(0));
-  IntrinsicInst *Op2 = dyn_cast<IntrinsicInst>(II.getArgOperand(1));
+  IntrinsicInst *Pg = dyn_cast<IntrinsicInst>(II.getArgOperand(0));
+  IntrinsicInst *Op = dyn_cast<IntrinsicInst>(II.getArgOperand(1));
 
-  if (Op1 && Op2 &&
-      Op1->getIntrinsicID() == Intrinsic::aarch64_sve_convert_to_svbool &&
-      Op2->getIntrinsicID() == Intrinsic::aarch64_sve_convert_to_svbool &&
-      Op1->getArgOperand(0)->getType() == Op2->getArgOperand(0)->getType()) {
+  if (!Pg || !Op)
+    return None;
 
-    IRBuilder<> Builder(II.getContext());
-    Builder.SetInsertPoint(&II);
+  Intrinsic::ID OpIID = Op->getIntrinsicID();
 
-    Value *Ops[] = {Op1->getArgOperand(0), Op2->getArgOperand(0)};
-    Type *Tys[] = {Op1->getArgOperand(0)->getType()};
+  IRBuilder<> Builder(II.getContext());
+  Builder.SetInsertPoint(&II);
+
+  if (Pg->getIntrinsicID() == Intrinsic::aarch64_sve_convert_to_svbool &&
+      OpIID == Intrinsic::aarch64_sve_convert_to_svbool &&
+      Pg->getArgOperand(0)->getType() == Op->getArgOperand(0)->getType()) {
+    Value *Ops[] = {Pg->getArgOperand(0), Op->getArgOperand(0)};
+    Type *Tys[] = {Pg->getArgOperand(0)->getType()};
 
     auto *PTest = Builder.CreateIntrinsic(II.getIntrinsicID(), Tys, Ops);
 
     PTest->takeName(&II);
+    return IC.replaceInstUsesWith(II, PTest);
+  }
+
+  // Transform PTEST_ANY(X=OP(PG,...), X) -> PTEST_ANY(PG, X)).
+  // Later optimizations may rewrite sequence to use the flag-setting variant
+  // of instruction X to remove PTEST.
+  if ((Pg == Op) && (II.getIntrinsicID() == Intrinsic::aarch64_sve_ptest_any) &&
+      ((OpIID == Intrinsic::aarch64_sve_brka_z) ||
+       (OpIID == Intrinsic::aarch64_sve_brkb_z) ||
+       (OpIID == Intrinsic::aarch64_sve_brkpa_z) ||
+       (OpIID == Intrinsic::aarch64_sve_brkpb_z) ||
+       (OpIID == Intrinsic::aarch64_sve_rdffr_z) ||
+       (OpIID == Intrinsic::aarch64_sve_and_z) ||
+       (OpIID == Intrinsic::aarch64_sve_bic_z) ||
+       (OpIID == Intrinsic::aarch64_sve_eor_z) ||
+       (OpIID == Intrinsic::aarch64_sve_nand_z) ||
+       (OpIID == Intrinsic::aarch64_sve_nor_z) ||
+       (OpIID == Intrinsic::aarch64_sve_orn_z) ||
+       (OpIID == Intrinsic::aarch64_sve_orr_z))) {
+    Value *Ops[] = {Pg->getArgOperand(0), Pg};
+    Type *Tys[] = {Pg->getType()};
+
+    auto *PTest = Builder.CreateIntrinsic(II.getIntrinsicID(), Tys, Ops);
+    PTest->takeName(&II);
+
     return IC.replaceInstUsesWith(II, PTest);
   }
 
@@ -1470,6 +1510,30 @@ Optional<Value *> AArch64TTIImpl::simplifyDemandedVectorEltsIntrinsic(
   return None;
 }
 
+TypeSize
+AArch64TTIImpl::getRegisterBitWidth(TargetTransformInfo::RegisterKind K) const {
+  switch (K) {
+  case TargetTransformInfo::RGK_Scalar:
+    return TypeSize::getFixed(64);
+  case TargetTransformInfo::RGK_FixedWidthVector:
+    if (!ST->isStreamingSVEModeDisabled() &&
+        !EnableFixedwidthAutovecInStreamingMode)
+      return TypeSize::getFixed(0);
+
+    if (ST->hasSVE())
+      return TypeSize::getFixed(
+          std::max(ST->getMinSVEVectorSizeInBits(), 128u));
+
+    return TypeSize::getFixed(ST->hasNEON() ? 128 : 0);
+  case TargetTransformInfo::RGK_ScalableVector:
+    if (!ST->isStreamingSVEModeDisabled() && !EnableScalableAutovecInStreamingMode)
+      return TypeSize::getScalable(0);
+
+    return TypeSize::getScalable(ST->hasSVE() ? 128 : 0);
+  }
+  llvm_unreachable("Unsupported register kind");
+}
+
 bool AArch64TTIImpl::isWideningInstruction(Type *DstTy, unsigned Opcode,
                                            ArrayRef<const Value *> Args) {
 
@@ -1836,6 +1900,12 @@ InstructionCost AArch64TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
     { ISD::BITCAST, MVT::nxv2i16, MVT::nxv2f16, 0 },
     { ISD::BITCAST, MVT::nxv4i16, MVT::nxv4f16, 0 },
     { ISD::BITCAST, MVT::nxv2i32, MVT::nxv2f32, 0 },
+
+    // Zero extends from nxvmi1 to nxvmiN.
+    { ISD::ZERO_EXTEND, MVT::nxv2i64, MVT::nxv2i1, 1 },
+    { ISD::ZERO_EXTEND, MVT::nxv4i32, MVT::nxv4i1, 1 },
+    { ISD::ZERO_EXTEND, MVT::nxv8i16, MVT::nxv8i1, 1 },
+    { ISD::ZERO_EXTEND, MVT::nxv16i8, MVT::nxv16i1, 1 },
   };
 
   if (const auto *Entry = ConvertCostTableLookup(ConversionTbl, ISD,

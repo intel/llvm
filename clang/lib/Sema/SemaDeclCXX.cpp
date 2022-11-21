@@ -17,6 +17,7 @@
 #include "clang/AST/CXXInheritance.h"
 #include "clang/AST/CharUnits.h"
 #include "clang/AST/ComparisonCategories.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/EvaluatedExprVisitor.h"
 #include "clang/AST/ExprCXX.h"
@@ -101,24 +102,31 @@ bool CheckDefaultArgumentVisitor::VisitDeclRefExpr(const DeclRefExpr *DRE) {
       return S.Diag(DRE->getBeginLoc(),
                     diag::err_param_default_argument_references_param)
              << Param->getDeclName() << DefaultArg->getSourceRange();
-  } else if (const auto *VDecl = dyn_cast<VarDecl>(Decl)) {
-    // C++ [dcl.fct.default]p7:
-    //   Local variables shall not be used in default argument
-    //   expressions.
-    //
-    // C++17 [dcl.fct.default]p7 (by CWG 2082):
-    //   A local variable shall not appear as a potentially-evaluated
-    //   expression in a default argument.
-    //
-    // C++20 [dcl.fct.default]p7 (DR as part of P0588R1, see also CWG 2346):
-    //   Note: A local variable cannot be odr-used (6.3) in a default argument.
-    //
-    if (VDecl->isLocalVarDecl() && !DRE->isNonOdrUse())
-      return S.Diag(DRE->getBeginLoc(),
-                    diag::err_param_default_argument_references_local)
-             << VDecl->getDeclName() << DefaultArg->getSourceRange();
+  } else {
+    const VarDecl *VD = nullptr;
+    if (const auto *BD = dyn_cast<BindingDecl>(Decl))
+      VD = dyn_cast_if_present<VarDecl>(BD->getDecomposedDecl());
+    else
+      VD = dyn_cast<VarDecl>(Decl);
+    if (VD) {
+      // C++ [dcl.fct.default]p7:
+      //   Local variables shall not be used in default argument
+      //   expressions.
+      //
+      // C++17 [dcl.fct.default]p7 (by CWG 2082):
+      //   A local variable shall not appear as a potentially-evaluated
+      //   expression in a default argument.
+      //
+      // C++20 [dcl.fct.default]p7 (DR as part of P0588R1, see also CWG 2346):
+      //   Note: A local variable cannot be odr-used (6.3) in a default
+      //   argument.
+      //
+      if (VD->isLocalVarDecl() && !DRE->isNonOdrUse())
+        return S.Diag(DRE->getBeginLoc(),
+                      diag::err_param_default_argument_references_local)
+               << Decl->getDeclName() << DefaultArg->getSourceRange();
+    }
   }
-
   return false;
 }
 
@@ -148,13 +156,20 @@ bool CheckDefaultArgumentVisitor::VisitPseudoObjectExpr(
 }
 
 bool CheckDefaultArgumentVisitor::VisitLambdaExpr(const LambdaExpr *Lambda) {
-  // C++11 [expr.lambda.prim]p13:
-  //   A lambda-expression appearing in a default argument shall not
-  //   implicitly or explicitly capture any entity.
-  if (Lambda->capture_begin() == Lambda->capture_end())
-    return false;
-
-  return S.Diag(Lambda->getBeginLoc(), diag::err_lambda_capture_default_arg);
+  // [expr.prim.lambda.capture]p9
+  // a lambda-expression appearing in a default argument cannot implicitly or
+  // explicitly capture any local entity. Such a lambda-expression can still
+  // have an init-capture if any full-expression in its initializer satisfies
+  // the constraints of an expression appearing in a default argument.
+  bool Invalid = false;
+  for (const LambdaCapture &LC : Lambda->captures()) {
+    if (!Lambda->isInitCapture(&LC))
+      return S.Diag(LC.getLocation(), diag::err_lambda_capture_default_arg);
+    // Init captures are always VarDecl.
+    auto *D = cast<VarDecl>(LC.getCapturedVar());
+    Invalid |= Visit(D->getInit());
+  }
+  return Invalid;
 }
 } // namespace
 
@@ -3085,7 +3100,7 @@ void Sema::CheckOverrideControl(NamedDecl *D) {
     return;
 
   if (MD && !MD->isVirtual()) {
-    // If we have a non-virtual method, check if if hides a virtual method.
+    // If we have a non-virtual method, check if it hides a virtual method.
     // (In that case, it's most likely the method has the wrong type.)
     SmallVector<CXXMethodDecl *, 8> OverloadedMethods;
     FindHiddenVirtualMethods(MD, OverloadedMethods);
@@ -5696,7 +5711,9 @@ Sema::MarkBaseAndMemberDestructorsReferenced(SourceLocation Location,
       continue;
 
     CXXDestructorDecl *Dtor = LookupDestructor(FieldClassDecl);
-    assert(Dtor && "No dtor found for FieldClassDecl!");
+    // Dtor might still be missing, e.g because it's invalid.
+    if (!Dtor)
+      continue;
     CheckDestructorAccess(Field->getLocation(), Dtor,
                           PDiag(diag::err_access_dtor_field)
                             << Field->getDeclName()
@@ -5742,7 +5759,9 @@ Sema::MarkBaseAndMemberDestructorsReferenced(SourceLocation Location,
       continue;
 
     CXXDestructorDecl *Dtor = LookupDestructor(BaseClassDecl);
-    assert(Dtor && "No dtor found for BaseClassDecl!");
+    // Dtor might still be missing, e.g because it's invalid.
+    if (!Dtor)
+      continue;
 
     // FIXME: caret should be on the start of the class name
     CheckDestructorAccess(Base.getBeginLoc(), Dtor,
@@ -5779,7 +5798,9 @@ void Sema::MarkVirtualBaseDestructorsReferenced(
       continue;
 
     CXXDestructorDecl *Dtor = LookupDestructor(BaseClassDecl);
-    assert(Dtor && "No dtor found for BaseClassDecl!");
+    // Dtor might still be missing, e.g because it's invalid.
+    if (!Dtor)
+      continue;
     if (CheckDestructorAccess(
             ClassDecl->getLocation(), Dtor,
             PDiag(diag::err_access_dtor_vbase)
@@ -7232,6 +7253,11 @@ specialMemberIsConstexpr(Sema &S, CXXRecordDecl *ClassDecl,
                          bool ConstRHS,
                          CXXConstructorDecl *InheritedCtor = nullptr,
                          Sema::InheritedConstructorInfo *Inherited = nullptr) {
+  // Suppress duplicate constraint checking here, in case a constraint check
+  // caused us to decide to do this.  Any truely recursive checks will get
+  // caught during these checks anyway.
+  Sema::SatisfactionStackResetRAII SSRAII{S};
+
   // If we're inheriting a constructor, see if we need to call it for this base
   // class.
   if (InheritedCtor) {
@@ -7328,8 +7354,8 @@ static bool defaultedSpecialMemberIsConstexpr(
   //      class is a constexpr function, and
   for (const auto &B : ClassDecl->bases()) {
     const RecordType *BaseType = B.getType()->getAs<RecordType>();
-    if (!BaseType) continue;
-
+    if (!BaseType)
+      continue;
     CXXRecordDecl *BaseClassDecl = cast<CXXRecordDecl>(BaseType->getDecl());
     if (!specialMemberIsConstexpr(S, BaseClassDecl, CSM, 0, ConstArg,
                                   InheritedCtor, Inherited))
@@ -7456,13 +7482,15 @@ void Sema::CheckExplicitlyDefaultedFunction(Scope *S, FunctionDecl *FD) {
 
   if (DefKind.isSpecialMember()
           ? CheckExplicitlyDefaultedSpecialMember(cast<CXXMethodDecl>(FD),
-                                                  DefKind.asSpecialMember())
+                                                  DefKind.asSpecialMember(),
+                                                  FD->getDefaultLoc())
           : CheckExplicitlyDefaultedComparison(S, FD, DefKind.asComparison()))
     FD->setInvalidDecl();
 }
 
 bool Sema::CheckExplicitlyDefaultedSpecialMember(CXXMethodDecl *MD,
-                                                 CXXSpecialMember CSM) {
+                                                 CXXSpecialMember CSM,
+                                                 SourceLocation DefaultLoc) {
   CXXRecordDecl *RD = MD->getParent();
 
   assert(MD->isExplicitlyDefaulted() && CSM != CXXInvalid &&
@@ -7654,8 +7682,11 @@ bool Sema::CheckExplicitlyDefaultedSpecialMember(CXXMethodDecl *MD,
         Diag(MD->getLocation(), diag::warn_defaulted_method_deleted) << CSM;
         if (ShouldDeleteForTypeMismatch) {
           Diag(MD->getLocation(), diag::note_deleted_type_mismatch) << CSM;
-        } else {
-          ShouldDeleteSpecialMember(MD, CSM, nullptr, /*Diagnose*/true);
+        } else if (ShouldDeleteSpecialMember(MD, CSM, nullptr,
+                                             /*Diagnose*/ true) &&
+                   DefaultLoc.isValid()) {
+          Diag(DefaultLoc, diag::note_replace_equals_default_to_delete)
+              << FixItHint::CreateReplacement(DefaultLoc, "delete");
         }
       }
       if (ShouldDeleteForTypeMismatch && !HadError) {
@@ -7913,7 +7944,8 @@ private:
     OverloadCandidateSet CandidateSet(
         FD->getLocation(), OverloadCandidateSet::CSK_Operator,
         OverloadCandidateSet::OperatorRewriteInfo(
-            OO, /*AllowRewrittenCandidates=*/!SpaceshipCandidates));
+            OO, FD->getLocation(),
+            /*AllowRewrittenCandidates=*/!SpaceshipCandidates));
 
     /// C++2a [class.compare.default]p1 [P2002R0]:
     ///   [...] the defaulted function itself is never a candidate for overload
@@ -8707,10 +8739,11 @@ bool Sema::CheckExplicitlyDefaultedComparison(Scope *S, FunctionDecl *FD,
   // C++2a [class.spaceship]p2 [P2002R0]:
   //   Let R be the declared return type [...]. If R is auto, [...]. Otherwise,
   //   R shall not contain a placeholder type.
-  if (DCK == DefaultedComparisonKind::ThreeWay &&
-      FD->getDeclaredReturnType()->getContainedDeducedType() &&
-      !Context.hasSameType(FD->getDeclaredReturnType(),
-                           Context.getAutoDeductType())) {
+  if (QualType RT = FD->getDeclaredReturnType();
+      DCK == DefaultedComparisonKind::ThreeWay &&
+      RT->getContainedDeducedType() &&
+      (!Context.hasSameType(RT, Context.getAutoDeductType()) ||
+       RT->getContainedAutoType()->isConstrained())) {
     Diag(FD->getLocation(),
          diag::err_defaulted_comparison_deduced_return_type_not_auto)
         << (int)DCK << FD->getDeclaredReturnType() << Context.AutoDeductTy
@@ -8754,6 +8787,9 @@ bool Sema::CheckExplicitlyDefaultedComparison(Scope *S, FunctionDecl *FD,
       DefaultedComparisonAnalyzer(*this, RD, FD, DCK,
                                   DefaultedComparisonAnalyzer::ExplainDeleted)
           .visit();
+      if (FD->getDefaultLoc().isValid())
+        Diag(FD->getDefaultLoc(), diag::note_replace_equals_default_to_delete)
+            << FixItHint::CreateReplacement(FD->getDefaultLoc(), "delete");
     }
     return false;
   }
@@ -11554,7 +11590,7 @@ bool Sema::isStdInitializerList(QualType Ty, QualType *Element) {
                  Ty->getAs<TemplateSpecializationType>()) {
     Template = dyn_cast_or_null<ClassTemplateDecl>(
         TST->getTemplateName().getAsTemplateDecl());
-    Arguments = TST->getArgs();
+    Arguments = TST->template_arguments().begin();
   }
   if (!Template)
     return false;
@@ -11900,8 +11936,14 @@ Decl *Sema::ActOnUsingEnumDeclaration(Scope *S, AccessSpecifier AS,
                                       SourceLocation IdentLoc,
                                       IdentifierInfo &II, CXXScopeSpec *SS) {
   assert(!SS->isInvalid() && "ScopeSpec is invalid");
-  ParsedType TypeRep = getTypeName(II, IdentLoc, S, SS);
-  if (!TypeRep) {
+  TypeSourceInfo *TSI = nullptr;
+  QualType EnumTy = GetTypeFromParser(
+      getTypeName(II, IdentLoc, S, SS, /*isClassName=*/false,
+                  /*HasTrailingDot=*/false,
+                  /*ObjectType=*/nullptr, /*IsCtorOrDtorName=*/false,
+                  /*WantNontrivialTypeSourceInfo=*/true),
+      &TSI);
+  if (EnumTy.isNull()) {
     Diag(IdentLoc, SS && isDependentScopeSpecifier(*SS)
                        ? diag::err_using_enum_is_dependent
                        : diag::err_unknown_typename)
@@ -11910,17 +11952,21 @@ Decl *Sema::ActOnUsingEnumDeclaration(Scope *S, AccessSpecifier AS,
     return nullptr;
   }
 
-  auto *Enum = dyn_cast_if_present<EnumDecl>(TypeRep.get()->getAsTagDecl());
+  auto *Enum = dyn_cast_if_present<EnumDecl>(EnumTy->getAsTagDecl());
   if (!Enum) {
-    Diag(IdentLoc, diag::err_using_enum_not_enum) << TypeRep.get();
+    Diag(IdentLoc, diag::err_using_enum_not_enum) << EnumTy;
     return nullptr;
   }
 
   if (auto *Def = Enum->getDefinition())
     Enum = Def;
 
+  if (TSI == nullptr)
+    TSI = Context.getTrivialTypeSourceInfo(EnumTy, IdentLoc);
+
   auto *UD =
-      BuildUsingEnumDeclaration(S, AS, UsingLoc, EnumLoc, IdentLoc, Enum);
+      BuildUsingEnumDeclaration(S, AS, UsingLoc, EnumLoc, IdentLoc, TSI, Enum);
+
   if (UD)
     PushOnScopeChains(UD, S, /*AddToContext*/ false);
 
@@ -12612,6 +12658,7 @@ NamedDecl *Sema::BuildUsingEnumDeclaration(Scope *S, AccessSpecifier AS,
                                            SourceLocation UsingLoc,
                                            SourceLocation EnumLoc,
                                            SourceLocation NameLoc,
+                                           TypeSourceInfo *EnumType,
                                            EnumDecl *ED) {
   bool Invalid = false;
 
@@ -12638,7 +12685,7 @@ NamedDecl *Sema::BuildUsingEnumDeclaration(Scope *S, AccessSpecifier AS,
     Invalid = true;
 
   UsingEnumDecl *UD = UsingEnumDecl::Create(Context, CurContext, UsingLoc,
-                                            EnumLoc, NameLoc, ED);
+                                            EnumLoc, NameLoc, EnumType);
   UD->setAccess(AS);
   CurContext->addDecl(UD);
 
@@ -12980,7 +13027,7 @@ bool Sema::CheckUsingDeclQualifier(SourceLocation UsingLoc, bool HasTypename,
 
   // Salient point: SS doesn't have to name a base class as long as
   // lookup only finds members from base classes.  Therefore we can
-  // diagnose here only if we can prove that that can't happen,
+  // diagnose here only if we can prove that can't happen,
   // i.e. if the class hierarchies provably don't intersect.
 
   // TODO: it would be nice if "definitely valid" results were cached
@@ -14680,7 +14727,8 @@ void Sema::DefineImplicitCopyAssignment(SourceLocation CurrentLocation,
 
     MemberBuilder From(OtherRef, OtherRefType, /*IsArrow=*/false, MemberLookup);
 
-    MemberBuilder To(This, getCurrentThisType(), /*IsArrow=*/true, MemberLookup);
+    MemberBuilder To(This, getCurrentThisType(), /*IsArrow=*/!LangOpts.HLSL,
+                     MemberLookup);
 
     // Build the copy of this field.
     StmtResult Copy = buildSingleCopyAssign(*this, Loc, FieldType,
@@ -14698,9 +14746,16 @@ void Sema::DefineImplicitCopyAssignment(SourceLocation CurrentLocation,
 
   if (!Invalid) {
     // Add a "return *this;"
-    ExprResult ThisObj = CreateBuiltinUnaryOp(Loc, UO_Deref, This.build(*this, Loc));
+    Expr *ThisExpr = nullptr;
+    if (!LangOpts.HLSL) {
+      ExprResult ThisObj =
+          CreateBuiltinUnaryOp(Loc, UO_Deref, This.build(*this, Loc));
+      ThisExpr = ThisObj.get();
+    } else {
+      ThisExpr = This.build(*this, Loc);
+    }
 
-    StmtResult Return = BuildReturnStmt(Loc, ThisObj.get());
+    StmtResult Return = BuildReturnStmt(Loc, ThisExpr);
     if (Return.isInvalid())
       Invalid = true;
     else
@@ -15569,7 +15624,10 @@ Sema::BuildCXXConstructExpr(SourceLocation ConstructLoc, QualType DeclInitType,
                             SourceRange ParenRange) {
   if (auto *Shadow = dyn_cast<ConstructorUsingShadowDecl>(FoundDecl)) {
     Constructor = findInheritingConstructor(ConstructLoc, Constructor, Shadow);
-    if (DiagnoseUseOfDecl(Constructor, ConstructLoc))
+    // The only way to get here is if we did overlaod resolution to find the
+    // shadow decl, so we don't need to worry about re-checking the trailing
+    // requires clause.
+    if (DiagnoseUseOfOverloadedDecl(Constructor, ConstructLoc))
       return ExprError();
   }
 
@@ -16720,7 +16778,7 @@ static bool UsefulToPrintExpr(const Expr *E) {
     return false;
 
   // -5 is also simple to understand.
-  if (const auto *UnaryOp = dyn_cast_or_null<UnaryOperator>(E))
+  if (const auto *UnaryOp = dyn_cast<UnaryOperator>(E))
     return UsefulToPrintExpr(UnaryOp->getSubExpr());
 
   // Ignore nested binary operators. This could be a FIXME for improvements
@@ -16734,7 +16792,7 @@ static bool UsefulToPrintExpr(const Expr *E) {
 /// Try to print more useful information about a failed static_assert
 /// with expression \E
 void Sema::DiagnoseStaticAssertDetails(const Expr *E) {
-  if (const auto *Op = dyn_cast_or_null<BinaryOperator>(E)) {
+  if (const auto *Op = dyn_cast<BinaryOperator>(E)) {
     const Expr *LHS = Op->getLHS()->IgnoreParenImpCasts();
     const Expr *RHS = Op->getRHS()->IgnoreParenImpCasts();
 
@@ -16798,11 +16856,10 @@ Decl *Sema::BuildStaticAssertDeclaration(SourceLocation StaticAssertLoc,
     AllowFoldKind FoldKind = NoFold;
 
     if (!getLangOpts().CPlusPlus) {
-      // In C mode only allow folding and strip the implicit conversion
-      // to the type of the first _Static_assert argument that would
-      // otherwise suppress diagnostics for arguments that convert to int.
+      // In C mode, allow folding as an extension for better compatibility with
+      // C++ in terms of expressions like static_assert("test") or
+      // static_assert(nullptr).
       FoldKind = AllowFold;
-      BaseExpr = BaseExpr->IgnoreImpCasts();
     }
 
     if (!Failed && VerifyIntegerConstantExpression(
@@ -17576,6 +17633,7 @@ void Sema::SetDeclDefaulted(Decl *Dcl, SourceLocation DefaultLoc) {
 
   FD->setDefaulted();
   FD->setExplicitlyDefaulted();
+  FD->setDefaultLoc(DefaultLoc);
 
   // Defer checking functions that are defaulted in a dependent context.
   if (FD->isDependentContext())
@@ -17615,7 +17673,8 @@ void Sema::SetDeclDefaulted(Decl *Dcl, SourceLocation DefaultLoc) {
   } else {
     auto *MD = cast<CXXMethodDecl>(FD);
 
-    if (CheckExplicitlyDefaultedSpecialMember(MD, DefKind.asSpecialMember()))
+    if (CheckExplicitlyDefaultedSpecialMember(MD, DefKind.asSpecialMember(),
+                                              DefaultLoc))
       MD->setInvalidDecl();
     else
       DefineDefaultedFunction(*this, MD, DefaultLoc);

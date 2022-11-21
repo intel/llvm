@@ -8,7 +8,9 @@
 
 #pragma once
 
+#include <sycl/aspects.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>
+#include <sycl/ext/oneapi/properties/property_utils.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
 
 #include <array>
@@ -26,40 +28,6 @@ template <size_t... Xs> struct AllNonZero {
 template <size_t X, size_t... Xs> struct AllNonZero<X, Xs...> {
   static inline constexpr bool value = X > 0 && AllNonZero<Xs...>::value;
 };
-
-// Simple helpers for containing primitive types as template arguments.
-template <size_t... Sizes> struct SizeList {};
-template <char... Sizes> struct CharList {};
-
-// Helper for converting characters to a constexpr string.
-template <char... Chars> struct CharsToStr {
-  static inline constexpr const char value[] = {Chars..., '\0'};
-};
-
-// Helper for converting a list of size_t values to a comma-separated string
-// representation. This is done by extracting the digit one-by-one and when
-// finishing a value, the parsed result is added to a separate list of
-// "parsed" characters with the delimiter.
-template <typename List, typename ParsedList, char... Chars>
-struct SizeListToStrHelper;
-template <size_t Value, size_t... Values, char... ParsedChars, char... Chars>
-struct SizeListToStrHelper<SizeList<Value, Values...>, CharList<ParsedChars...>,
-                           Chars...>
-    : SizeListToStrHelper<SizeList<Value / 10, Values...>,
-                          CharList<ParsedChars...>, '0' + (Value % 10),
-                          Chars...> {};
-template <size_t... Values, char... ParsedChars, char... Chars>
-struct SizeListToStrHelper<SizeList<0, Values...>, CharList<ParsedChars...>,
-                           Chars...>
-    : SizeListToStrHelper<SizeList<Values...>,
-                          CharList<ParsedChars..., Chars..., ','>> {};
-template <char... ParsedChars, char... Chars>
-struct SizeListToStrHelper<SizeList<0>, CharList<ParsedChars...>, Chars...>
-    : CharsToStr<ParsedChars..., Chars...> {};
-
-// Converts size_t values to a comma-separated string representation.
-template <size_t... Sizes>
-struct SizeListToStr : SizeListToStrHelper<SizeList<Sizes...>, CharList<>> {};
 } // namespace detail
 
 struct properties_tag {};
@@ -80,6 +48,12 @@ struct sub_group_size_key {
   template <uint32_t Size>
   using value_t = property_value<sub_group_size_key,
                                  std::integral_constant<uint32_t, Size>>;
+};
+
+struct device_has_key {
+  template <aspect... Aspects>
+  using value_t = property_value<device_has_key,
+                                 std::integral_constant<aspect, Aspects>...>;
 };
 
 template <size_t Dim0, size_t... Dims>
@@ -127,6 +101,13 @@ struct property_value<sub_group_size_key,
   static constexpr uint32_t value = Size;
 };
 
+template <aspect... Aspects>
+struct property_value<device_has_key,
+                      std::integral_constant<aspect, Aspects>...> {
+  using key_t = device_has_key;
+  static constexpr std::array<aspect, sizeof...(Aspects)> value{Aspects...};
+};
+
 template <size_t Dim0, size_t... Dims>
 inline constexpr work_group_size_key::value_t<Dim0, Dims...> work_group_size;
 
@@ -137,10 +118,14 @@ inline constexpr work_group_size_hint_key::value_t<Dim0, Dims...>
 template <uint32_t Size>
 inline constexpr sub_group_size_key::value_t<Size> sub_group_size;
 
+template <aspect... Aspects>
+inline constexpr device_has_key::value_t<Aspects...> device_has;
+
 template <> struct is_property_key<work_group_size_key> : std::true_type {};
 template <>
 struct is_property_key<work_group_size_hint_key> : std::true_type {};
 template <> struct is_property_key<sub_group_size_key> : std::true_type {};
+template <> struct is_property_key<device_has_key> : std::true_type {};
 
 namespace detail {
 template <> struct PropertyToKind<work_group_size_key> {
@@ -152,6 +137,9 @@ template <> struct PropertyToKind<work_group_size_hint_key> {
 template <> struct PropertyToKind<sub_group_size_key> {
   static constexpr PropKind Kind = PropKind::SubGroupSize;
 };
+template <> struct PropertyToKind<device_has_key> {
+  static constexpr PropKind Kind = PropKind::DeviceHas;
+};
 
 template <>
 struct IsCompileTimeProperty<work_group_size_key> : std::true_type {};
@@ -159,6 +147,7 @@ template <>
 struct IsCompileTimeProperty<work_group_size_hint_key> : std::true_type {};
 template <>
 struct IsCompileTimeProperty<sub_group_size_key> : std::true_type {};
+template <> struct IsCompileTimeProperty<device_has_key> : std::true_type {};
 
 template <size_t Dim0, size_t... Dims>
 struct PropertyMetaInfo<work_group_size_key::value_t<Dim0, Dims...>> {
@@ -174,6 +163,12 @@ template <uint32_t Size>
 struct PropertyMetaInfo<sub_group_size_key::value_t<Size>> {
   static constexpr const char *name = "sycl-sub-group-size";
   static constexpr uint32_t value = Size;
+};
+template <aspect... Aspects>
+struct PropertyMetaInfo<device_has_key::value_t<Aspects...>> {
+  static constexpr const char *name = "sycl-device-has";
+  static constexpr const char *value =
+      SizeListToStr<static_cast<size_t>(Aspects)...>::value;
 };
 
 template <typename T, typename = void>
@@ -193,3 +188,15 @@ struct HasKernelPropertiesGetMethod<
 } // namespace ext
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
+
+#ifdef __SYCL_DEVICE_ONLY__
+#define SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(PROP)                                \
+  [[__sycl_detail__::add_ir_attributes_function(                               \
+      {"sycl-device-has"},                                                     \
+      sycl::ext::oneapi::experimental::detail::PropertyMetaInfo<               \
+          std::remove_cv_t<std::remove_reference_t<decltype(PROP)>>>::name,    \
+      sycl::ext::oneapi::experimental::detail::PropertyMetaInfo<               \
+          std::remove_cv_t<std::remove_reference_t<decltype(PROP)>>>::value)]]
+#else
+#define SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(PROP)
+#endif

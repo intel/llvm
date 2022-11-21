@@ -46,6 +46,7 @@
 #include "OCLTypeToSPIRV.h"
 #include "OCLUtil.h"
 #include "SPIRVBasicBlock.h"
+#include "SPIRVBuiltinHelper.h"
 #include "SPIRVEntry.h"
 #include "SPIRVEnum.h"
 #include "SPIRVFunction.h"
@@ -68,7 +69,7 @@ using namespace OCLUtil;
 
 namespace SPIRV {
 
-class LLVMToSPIRVBase {
+class LLVMToSPIRVBase : protected BuiltinCallHelper {
 public:
   LLVMToSPIRVBase(SPIRVModule *SMod);
   bool runLLVMToSPIRV(Module &Mod);
@@ -130,6 +131,9 @@ public:
   bool transExecutionMode();
   void transFPContract();
   SPIRVValue *transConstant(Value *V);
+  /// Translate a reference to a constant in a constant expression. This may
+  /// involve inserting extra bitcasts to correct type issues.
+  SPIRVValue *transConstantUse(Constant *V);
   SPIRVValue *transValue(Value *V, SPIRVBasicBlock *BB,
                          bool CreateForward = true,
                          FuncTransMode FuncTrans = FuncTransMode::Decl);

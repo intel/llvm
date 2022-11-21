@@ -161,8 +161,8 @@ bool hasOnlyScalarElementwiseOp(Region &r) {
   if (!llvm::hasSingleElement(r))
     return false;
   for (Operation &op : r.front()) {
-    if (!(isa<arith::ConstantOp, func::ConstantOp, linalg::YieldOp,
-              linalg::IndexOp>(op) ||
+    if (!(isa<arith::ConstantOp, func::ConstantOp, tensor::ExtractOp,
+              linalg::YieldOp, linalg::IndexOp>(op) ||
           OpTrait::hasElementwiseMappableTraits(&op)) ||
         llvm::any_of(op.getResultTypes(),
                      [](Type type) { return !type.isIntOrIndexOrFloat(); }))
@@ -179,32 +179,19 @@ bool isElementwise(LinalgOp op) {
     return false;
 
   // TODO: relax the restrictions on indexing map.
-  for (OpOperand *opOperand : op.getOutputOperands()) {
+  for (OpOperand *opOperand : op.getDpsInitOperands()) {
     if (!op.getMatchingIndexingMap(opOperand).isPermutation())
       return false;
   }
   return hasOnlyScalarElementwiseOp(op->getRegion(0));
 }
 
-bool isPermutation(ArrayRef<int64_t> permutation) {
-  // Count the number of appearances for all indices.
-  SmallVector<int64_t> indexCounts(permutation.size(), 0);
-  for (auto index : permutation) {
-    // Exit if the index is out-of-range.
-    if (index < 0 || index >= static_cast<int64_t>(permutation.size()))
-      return false;
-    indexCounts[index]++;
-  }
-  // Return true if all indices appear once.
-  return count(indexCounts, 1) == static_cast<int64_t>(permutation.size());
+bool isParallelIterator(utils::IteratorType iteratorType) {
+  return iteratorType == utils::IteratorType::parallel;
 }
 
-bool isParallelIterator(StringRef iteratorType) {
-  return iteratorType == getParallelIteratorTypeName();
-}
-
-bool isReductionIterator(StringRef iteratorType) {
-  return iteratorType == getReductionIteratorTypeName();
+bool isReductionIterator(utils::IteratorType iteratorType) {
+  return iteratorType == utils::IteratorType::reduction;
 }
 
 /// Helper function that creates a memref::DimOp or tensor::DimOp depending on
@@ -370,7 +357,7 @@ Value makeComposedPadHighOp(OpBuilder &b, Location loc, RankedTensorType type,
     if (!linalgOp)
       break;
     OpResult opResult = current.cast<OpResult>();
-    current = linalgOp.getOutputOperand(opResult.getResultNumber())->get();
+    current = linalgOp.getDpsInitOperand(opResult.getResultNumber())->get();
   }
   auto padOp = current ? current.getDefiningOp<tensor::PadOp>() : nullptr;
 
@@ -435,15 +422,13 @@ GenericOp makeTransposeOp(OpBuilder &b, Location loc, Value inputTensor,
           b.getContext())),
       AffineMap::getMultiDimIdentityMap(transposeVector.size(),
                                         b.getContext())};
-  SmallVector<llvm::StringRef> iteratorTypes(transposeVector.size(),
-                                             getParallelIteratorTypeName());
+  SmallVector<utils::IteratorType> iteratorTypes(transposeVector.size(),
+                                                 utils::IteratorType::parallel);
 
   // Create a GenericOp to transpose `inputTensor` into `outputTensor`.
-  auto transposeOp = b.create<GenericOp>(
-      loc, resultTensorType, inputTensor, outputTensor,
-      b.getAffineMapArrayAttr(indexingMaps), b.getStrArrayAttr(iteratorTypes),
-      /*doc=*/nullptr,
-      /*library_call=*/nullptr);
+  auto transposeOp =
+      b.create<GenericOp>(loc, resultTensorType, inputTensor, outputTensor,
+                          indexingMaps, iteratorTypes);
   Region &body = transposeOp.getRegion();
   body.push_back(new Block());
   body.front().addArguments({elementType, elementType}, {loc, loc});
@@ -465,8 +450,8 @@ GenericOp makeMemRefCopyOp(OpBuilder &b, Location loc, Value from, Value to) {
 
   AffineMap id =
       AffineMap::getMultiDimIdentityMap(memrefTypeTo.getRank(), b.getContext());
-  SmallVector<StringRef> iteratorTypes(memrefTypeTo.getRank(),
-                                       getParallelIteratorTypeName());
+  SmallVector<utils::IteratorType> iteratorTypes(memrefTypeTo.getRank(),
+                                                 utils::IteratorType::parallel);
   return b.create<linalg::GenericOp>(
       loc,
       /*inputs=*/from,
@@ -482,7 +467,7 @@ GenericOp makeMemRefCopyOp(OpBuilder &b, Location loc, Value from, Value to) {
 template <>
 void GenerateLoopNest<scf::ForOp>::doit(
     OpBuilder &b, Location loc, ArrayRef<Range> loopRanges, LinalgOp linalgOp,
-    ArrayRef<StringRef> iteratorTypes,
+    ArrayRef<utils::IteratorType> iteratorTypes,
     function_ref<scf::ValueVector(OpBuilder &, Location, ValueRange,
                                   ValueRange)>
         bodyBuilderFn,
@@ -490,19 +475,20 @@ void GenerateLoopNest<scf::ForOp>::doit(
   assert((procInfo.empty() || (procInfo.size() == loopRanges.size())) &&
          "expected as many entries for proc info as number of loops, even if "
          "they are null entries");
-  SmallVector<Value> iterArgInitValues = linalgOp.getOutputTensorOperands();
+  SmallVector<Value> iterArgInitValues = linalgOp.hasBufferSemantics()
+                                             ? SmallVector<Value>{}
+                                             : linalgOp.getDpsInitOperands();
 
   SmallVector<Value, 4> lbs, ubs, steps;
   unpackRanges(b, loc, loopRanges, lbs, ubs, steps);
   LoopNest loopNest = mlir::scf::buildLoopNest(
       b, loc, lbs, ubs, steps, iterArgInitValues,
       [&](OpBuilder &b, Location loc, ValueRange ivs, ValueRange iterArgs) {
-        assert(iterArgs.size() == linalgOp.getOutputTensorOperands().size() &&
+        assert(iterArgs.size() == iterArgInitValues.size() &&
                "expect the number of output tensors and iter args to match");
-        SmallVector<Value> operandValuesToUse =
-            linalgOp.getInputAndOutputOperands();
+        SmallVector<Value> operandValuesToUse = linalgOp->getOperands();
         if (!iterArgs.empty()) {
-          operandValuesToUse = linalgOp.getInputOperands();
+          operandValuesToUse = linalgOp.getDpsInputOperands();
           operandValuesToUse.append(iterArgs.begin(), iterArgs.end());
         }
         return bodyBuilderFn(b, loc, ivs, operandValuesToUse);
@@ -525,12 +511,14 @@ void GenerateLoopNest<scf::ForOp>::doit(
 template <>
 void GenerateLoopNest<AffineForOp>::doit(
     OpBuilder &b, Location loc, ArrayRef<Range> loopRanges, LinalgOp linalgOp,
-    ArrayRef<StringRef> iteratorTypes,
+    ArrayRef<utils::IteratorType> iteratorTypes,
     function_ref<scf::ValueVector(OpBuilder &, Location, ValueRange,
                                   ValueRange)>
         bodyBuilderFn,
     ArrayRef<linalg::ProcInfo> /*procInfo*/) {
-  SmallVector<Value> iterArgInitValues = linalgOp.getOutputTensorOperands();
+  SmallVector<Value> iterArgInitValues = linalgOp.hasBufferSemantics()
+                                             ? SmallVector<Value>{}
+                                             : linalgOp.getDpsInitOperands();
   assert(iterArgInitValues.empty() && "unexpected AffineForOp init values");
   SmallVector<Value, 4> lbs, ubs, steps;
   unpackRanges(b, loc, loopRanges, lbs, ubs, steps);
@@ -546,9 +534,8 @@ void GenerateLoopNest<AffineForOp>::doit(
 
   mlir::buildAffineLoopNest(b, loc, lbs, ubs, constantSteps,
                             [&](OpBuilder &b, Location loc, ValueRange ivs) {
-                              SmallVector<Value> operandValuesToUse =
-                                  linalgOp.getInputAndOutputOperands();
-                              bodyBuilderFn(b, loc, ivs, operandValuesToUse);
+                              bodyBuilderFn(b, loc, ivs,
+                                            linalgOp->getOperands());
                             });
 }
 
@@ -575,7 +562,7 @@ void updateBoundsForCyclicDistribution(OpBuilder &b, Location loc, Value procId,
 // exceeds 10.
 static void generateParallelLoopNest(
     OpBuilder &b, Location loc, ValueRange lbs, ValueRange ubs,
-    ValueRange steps, ArrayRef<StringRef> iteratorTypes,
+    ValueRange steps, ArrayRef<utils::IteratorType> iteratorTypes,
     ArrayRef<linalg::ProcInfo> procInfo,
     function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuilderFn,
     SmallVectorImpl<Value> &ivStorage) {
@@ -690,12 +677,14 @@ static void generateParallelLoopNest(
 template <>
 void GenerateLoopNest<scf::ParallelOp>::doit(
     OpBuilder &b, Location loc, ArrayRef<Range> loopRanges, LinalgOp linalgOp,
-    ArrayRef<StringRef> iteratorTypes,
+    ArrayRef<utils::IteratorType> iteratorTypes,
     function_ref<scf::ValueVector(OpBuilder &, Location, ValueRange,
                                   ValueRange)>
         bodyBuilderFn,
     ArrayRef<linalg::ProcInfo> procInfo) {
-  SmallVector<Value> iterArgInitValues = linalgOp.getOutputTensorOperands();
+  SmallVector<Value> iterArgInitValues = linalgOp.hasBufferSemantics()
+                                             ? SmallVector<Value>{}
+                                             : linalgOp.getDpsInitOperands();
   assert(iterArgInitValues.empty() && "unexpected ParallelOp init values");
   // This function may be passed more iterator types than ranges.
   assert(iteratorTypes.size() >= loopRanges.size() &&
@@ -725,9 +714,7 @@ void GenerateLoopNest<scf::ParallelOp>::doit(
   generateParallelLoopNest(
       b, loc, lbs, ubs, steps, iteratorTypes, procInfo,
       [&](OpBuilder &b, Location loc, ValueRange ivs) {
-        SmallVector<Value> operandValuesToUse =
-            linalgOp.getInputAndOutputOperands();
-        bodyBuilderFn(b, loc, ivs, operandValuesToUse);
+        bodyBuilderFn(b, loc, ivs, linalgOp->getOperands());
       },
       ivs);
 
@@ -905,10 +892,10 @@ SmallVector<OpFoldResult> computeTileSizes(OpBuilder &b, Location loc,
 }
 
 SmallVector<Type> getTensorOutputTypes(LinalgOp op, ValueRange operands) {
-  // TODO: use an interface/adaptor to avoid leaking position in
-  // `tiledOperands`.
+  if (op.hasBufferSemantics())
+    return {};
   return llvm::to_vector(
-      llvm::map_range(op.getOutputTensorOperands(), [&](OpOperand *opOperand) {
+      llvm::map_range(op.getDpsInitOperands(), [&](OpOperand *opOperand) {
         return operands[opOperand->getOperandNumber()].getType();
       }));
 }
@@ -916,11 +903,13 @@ SmallVector<Type> getTensorOutputTypes(LinalgOp op, ValueRange operands) {
 SmallVector<Value> insertSlicesBack(OpBuilder &builder, Location loc,
                                     LinalgOp op, ValueRange operands,
                                     ValueRange results) {
+  if (op.hasBufferSemantics())
+    return {};
   SmallVector<Value> tensorResults;
   tensorResults.reserve(results.size());
   // Insert a insert_slice for each output tensor.
   unsigned resultIdx = 0;
-  for (OpOperand *opOperand : op.getOutputTensorOperands()) {
+  for (OpOperand *opOperand : op.getDpsInitOperands()) {
     // TODO: use an interface/adaptor to avoid leaking position in
     // `tiledOperands`.
     Value outputTensor = operands[opOperand->getOperandNumber()];
@@ -957,24 +946,28 @@ computeAllSliceParameters(OpBuilder &builder, Location loc, LinalgOp linalgOp,
   SmallVector<OpFoldResult> subShapeSizes =
       computeTileSizes(builder, loc, tileSizes, sizeBounds);
 
-  assert(static_cast<int64_t>(valuesToTile.size()) ==
-             linalgOp.getNumInputsAndOutputs() &&
-         "expected one value to tile for every operand");
+  assert(static_cast<int64_t>(valuesToTile.size()) <=
+             linalgOp->getNumOperands() &&
+         "more value to tile than operands.");
   SmallVector<Optional<SliceParameters>> allSliceParams;
   allSliceParams.reserve(valuesToTile.size());
-  for (OpOperand *opOperand : linalgOp.getInputAndOutputOperands()) {
-    Value shapedOp = valuesToTile[opOperand->getOperandNumber()];
+  for (auto [opOperand, val] :
+       llvm::zip(linalgOp->getOpOperands(), valuesToTile)) {
+    Value shapedOp = val;
     LLVM_DEBUG(llvm::dbgs() << "makeTiledShapes: for operand " << shapedOp);
-    AffineMap map = linalgOp.getMatchingIndexingMap(opOperand);
+    AffineMap map = linalgOp.getMatchingIndexingMap(&opOperand);
     // Use `opOperand` as is if it is not tiled and not an output tensor. Having
     // an extract/insert slice pair for all output tensors simplifies follow up
     // transformations such as padding and bufferization since the
     // extract/insert slice pairs make the accessed iteration argument
     // subdomains explicit.
-    if (!isTiled(map, tileSizes) && !linalgOp.isOutputTensor(opOperand)) {
+
+    Type operandType = opOperand.get().getType();
+    if (!isTiled(map, tileSizes) && !(operandType.isa<RankedTensorType>() &&
+                                      linalgOp.isDpsInit(&opOperand))) {
       allSliceParams.push_back(llvm::None);
-      LLVM_DEBUG(llvm::dbgs() << ": not tiled: use shape: "
-                              << opOperand->get().getType() << "\n");
+      LLVM_DEBUG(llvm::dbgs()
+                 << ": not tiled: use shape: " << operandType << "\n");
       continue;
     }
     LLVM_DEBUG(llvm::dbgs() << ": tiled: figure out subshape...\n");
@@ -1063,6 +1056,38 @@ getReassociationMapForFoldingUnitDims(ArrayRef<OpFoldResult> mixedSizes) {
   if (!curr.empty() && !reassociation.empty())
     reassociation.back().append(curr.begin(), curr.end());
   return reassociation;
+}
+
+/// Return the identity numeric value associated to the give op.
+Optional<Attribute> getNeutralElement(Operation *op) {
+  // Builder only used as helper for attribute creation.
+  OpBuilder b(op->getContext());
+  Type resultType = op->getResult(0).getType();
+  if (auto floatType = resultType.dyn_cast<FloatType>()) {
+    const llvm::fltSemantics &semantic = floatType.getFloatSemantics();
+    if (isa<arith::AddFOp>(op))
+      return b.getFloatAttr(resultType, llvm::APFloat::getZero(semantic));
+    if (isa<arith::MulFOp>(op))
+      return b.getFloatAttr(resultType, llvm::APFloat(semantic, 1));
+    if (isa<arith::MaxFOp>(op))
+      return b.getFloatAttr(resultType,
+                            llvm::APFloat::getInf(semantic, /*Negative=*/true));
+    if (isa<arith::MinFOp>(op))
+      return b.getFloatAttr(
+          resultType, llvm::APFloat::getInf(semantic, /*Negative=*/false));
+    return Attribute();
+  }
+  if (isa<arith::AddIOp, arith::OrIOp, arith::XOrIOp>(op))
+    return b.getIntegerAttr(resultType, 0);
+  if (isa<arith::AndIOp>(op))
+    return b.getIntegerAttr(resultType, -1);
+  if (isa<arith::MaxSIOp>(op))
+    return b.getIntegerAttr(resultType, std::numeric_limits<int64_t>::min());
+  if (isa<arith::MinSIOp>(op))
+    return b.getIntegerAttr(resultType, std::numeric_limits<int64_t>::max());
+  if (isa<arith::MulIOp>(op))
+    return b.getIntegerAttr(resultType, 1);
+  return llvm::None;
 }
 
 } // namespace linalg

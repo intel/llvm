@@ -7640,7 +7640,7 @@ class OMPOrderClause final : public OMPClause {
   /// Location of '('.
   SourceLocation LParenLoc;
 
-  /// A kind of the 'default' clause.
+  /// A kind of the 'order' clause.
   OpenMPOrderClauseKind Kind = OMPC_ORDER_unknown;
 
   /// Start location of the kind in source code.
@@ -8965,9 +8965,7 @@ public:
   const CapturedStmt *
   getCapturedStmt(OpenMPDirectiveKind RegionKind,
                   ArrayRef<OpenMPDirectiveKind> CaptureRegions) const {
-    assert(llvm::any_of(
-               CaptureRegions,
-               [=](const OpenMPDirectiveKind K) { return K == RegionKind; }) &&
+    assert(llvm::is_contained(CaptureRegions, RegionKind) &&
            "RegionKind not found in OpenMP CaptureRegions.");
     auto *CS = cast<CapturedStmt>(getAssociatedStmt());
     for (auto ThisCaptureRegion : CaptureRegions) {

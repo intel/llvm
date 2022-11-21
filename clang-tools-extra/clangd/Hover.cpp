@@ -777,6 +777,17 @@ HoverInfo getDeducedTypeHoverContents(QualType QT, const syntax::Token &Tok,
   return HI;
 }
 
+HoverInfo getStringLiteralContents(const StringLiteral *SL,
+                                   const PrintingPolicy &PP) {
+  HoverInfo HI;
+
+  HI.Name = "string-literal";
+  HI.Size = (SL->getLength() + 1) * SL->getCharByteWidth();
+  HI.Type = SL->getType().getAsString(PP).c_str();
+
+  return HI;
+}
+
 bool isLiteral(const Expr *E) {
   // Unfortunately there's no common base Literal classes inherits from
   // (apart from Expr), therefore these exclusions.
@@ -785,7 +796,7 @@ bool isLiteral(const Expr *E) {
          llvm::isa<CXXNullPtrLiteralExpr>(E) ||
          llvm::isa<FixedPointLiteral>(E) || llvm::isa<FloatingLiteral>(E) ||
          llvm::isa<ImaginaryLiteral>(E) || llvm::isa<IntegerLiteral>(E) ||
-         llvm::isa<StringLiteral>(E) || llvm::isa<UserDefinedLiteral>(E);
+         llvm::isa<UserDefinedLiteral>(E);
 }
 
 llvm::StringLiteral getNameForExpr(const Expr *E) {
@@ -810,6 +821,9 @@ llvm::Optional<HoverInfo> getHoverContents(const Expr *E, ParsedAST &AST,
     return llvm::None;
 
   HoverInfo HI;
+  // Print the type and the size for string literals
+  if (const StringLiteral *SL = dyn_cast<StringLiteral>(E))
+    return getStringLiteralContents(SL, PP);
   // For `this` expr we currently generate hover with pointee type.
   if (const CXXThisExpr *CTE = dyn_cast<CXXThisExpr>(E))
     return getThisExprHoverContents(CTE, AST.getASTContext(), PP);
@@ -1017,7 +1031,7 @@ const NamedDecl *pickDeclToUse(llvm::ArrayRef<const NamedDecl *> Candidates) {
   // which isn't really useful for Hover. So use the other one,
   // which in this example would be the actual declaration of foo.
   if (Candidates.size() <= 2) {
-    if (llvm::isa<BaseUsingDecl>(Candidates.front()))
+    if (llvm::isa<UsingDecl>(Candidates.front()))
       return Candidates.back();
     return Candidates.front();
   }
@@ -1029,7 +1043,7 @@ const NamedDecl *pickDeclToUse(llvm::ArrayRef<const NamedDecl *> Candidates) {
   // we actually want to show the using declaration,
   // it's not clear which declaration to pick otherwise.
   auto BaseDecls = llvm::make_filter_range(Candidates, [](const NamedDecl *D) {
-    return llvm::isa<BaseUsingDecl>(D);
+    return llvm::isa<UsingDecl>(D);
   });
   if (std::distance(BaseDecls.begin(), BaseDecls.end()) == 1)
     return *BaseDecls.begin();
