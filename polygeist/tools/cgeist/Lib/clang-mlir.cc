@@ -2174,8 +2174,10 @@ mlir::Value MLIRASTConsumer::GetOrCreateGlobalLLVMString(
 
     if (funcContext == FunctionContext::SYCLDevice)
       builder.setInsertionPointToStart(getDeviceModule(*module).getBody());
-    else
+    else {
+      assert(FuncContext == FunctionContext::Host);
       builder.setInsertionPointToStart(module->getBody());
+    }
 
     auto type = LLVM::LLVMArrayType::get(
         mlir::IntegerType::get(builder.getContext(), 8), value.size() + 1);
