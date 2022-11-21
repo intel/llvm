@@ -65,8 +65,8 @@ static mlir::Value castCallerMemRefArg(mlir::Value CallerArg,
 /// Try to addrspacecast the caller arg of type Pointer to fit the corresponding
 /// callee arg type.
 static mlir::Value addrCastCallerPtrArg(mlir::Value CallerArg,
-                                       mlir::Type CalleeArgType,
-                                       mlir::OpBuilder &B) {
+                                        mlir::Type CalleeArgType,
+                                        mlir::OpBuilder &B) {
   mlir::OpBuilder::InsertionGuard guard(B);
   mlir::Type CallerArgType = CallerArg.getType();
 
@@ -75,10 +75,10 @@ static mlir::Value addrCastCallerPtrArg(mlir::Value CallerArg,
     if (SrcTy && DstTy.getElementType() == SrcTy.getElementType() &&
         DstTy.getAddressSpace() != SrcTy.getAddressSpace()) {
 
-        B.setInsertionPointAfterValue(CallerArg);
+      B.setInsertionPointAfterValue(CallerArg);
 
-        return B.create<LLVM::AddrSpaceCastOp>(CallerArg.getLoc(), CalleeArgType,
-                                              CallerArg);
+      return B.create<LLVM::AddrSpaceCastOp>(CallerArg.getLoc(), CalleeArgType,
+                                             CallerArg);
     }
   }
 
@@ -86,8 +86,8 @@ static mlir::Value addrCastCallerPtrArg(mlir::Value CallerArg,
   return CallerArg;
 }
 
-
-/// Typecast  or addressspace cast the caller args to match the callee's signature. 
+/// Typecast  or addressspace cast the caller args to match the callee's
+/// signature.
 //  During Typecast, mismatches that
 /// cannot be resolved by given rules won't raise exceptions, e.g., if the
 /// expected type for an arg is memref<10xi8> while the provided is
@@ -284,22 +284,24 @@ ValueCategory MLIRScanner::callHelper(
 
       Val = Arg.val;
       if (Val.getType().isa<LLVM::LLVMPointerType>() &&
-                                     ExpectedType.isa<MemRefType>()) {
+          ExpectedType.isa<MemRefType>()) {
         // If there is an addressspace mismatch, the Pointer2Memref op
-        // will be illegal (due to mismatch of address spaces). 
+        // will be illegal (due to mismatch of address spaces).
         auto PT = Val.getType().dyn_cast<LLVM::LLVMPointerType>();
         auto MRT = cast<MemRefType>(ExpectedType);
         if (MRT.getMemorySpaceAsInt() != PT.getAddressSpace()) {
           auto CastedVal = builder.create<LLVM::AddrSpaceCastOp>(
-              loc, LLVM::LLVMPointerType::get(PT.getElementType(), MRT.getMemorySpaceAsInt()),
+              loc,
+              LLVM::LLVMPointerType::get(PT.getElementType(),
+                                         MRT.getMemorySpaceAsInt()),
               Val);
-          Val =
-              builder.create<polygeist::Pointer2MemrefOp>(loc, ExpectedType, CastedVal);
+          Val = builder.create<polygeist::Pointer2MemrefOp>(loc, ExpectedType,
+                                                            CastedVal);
         } else {
-          Val =
-              builder.create<polygeist::Pointer2MemrefOp>(loc, ExpectedType, Val);
+          Val = builder.create<polygeist::Pointer2MemrefOp>(loc, ExpectedType,
+                                                            Val);
         }
-      }   
+      }
 
       Val = castToMemSpaceOfType(Val, ExpectedType);
     }
