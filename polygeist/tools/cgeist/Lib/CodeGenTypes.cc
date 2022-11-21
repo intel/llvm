@@ -38,6 +38,8 @@ using namespace clang;
 using namespace mlir;
 using namespace llvm;
 
+extern llvm::cl::opt<bool> SuppressWarnings;
+
 static cl::opt<bool>
     MemRefFullRank("memref-fullrank", cl::init(false),
                    cl::desc("Get the full rank of the memref."));
@@ -341,9 +343,10 @@ void ClangToLLVMArgMapping::construct(const clang::ASTContext &Context,
       llvm::StructType *STy = dyn_cast<llvm::StructType>(AI.getCoerceToType());
 
       if (AI.isDirect() && AI.getCanBeFlattened() && STy)
-        llvm::WithColor::warning()
-            << "struct should be flattened but MLIR codegen "
-               "cannot yet handle it. Needs to be fixed.";
+        if (!SuppressWarnings)
+          llvm::WithColor::warning()
+              << "struct should be flattened but MLIR codegen "
+                 "cannot yet handle it. Needs to be fixed.";
 
       if (AllowStructFlattening && AI.isDirect() && AI.getCanBeFlattened() &&
           STy) {
@@ -478,10 +481,11 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
   case clang::CodeGen::ABIArgInfo::Indirect:
     if (!AllowSRet) {
       // HACK: remove once we can handle function returning a struct.
-      llvm::WithColor::warning()
-          << "function should return its value indirectly "
-             "(as an extra reference parameter). This is not yet "
-             "handled by the MLIR codegen\n";
+      if (!SuppressWarnings)
+        llvm::WithColor::warning()
+            << "function should return its value indirectly "
+               "(as an extra reference parameter). This is not yet "
+               "handled by the MLIR codegen\n";
       QualType Ret = FI.getReturnType();
       ResultType = getMLIRType(Ret);
       break;
@@ -594,9 +598,10 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
       auto ST = MLIRArgTy.dyn_cast<mlir::LLVM::LLVMStructType>();
 
       if (ST && ArgInfo.isDirect() && ArgInfo.getCanBeFlattened())
-        llvm::WithColor::warning()
-            << "struct should be flattened but MLIR codegen "
-               "cannot yet handle it. Needs to be fixed.";
+        if (!SuppressWarnings)
+          llvm::WithColor::warning()
+              << "struct should be flattened but MLIR codegen "
+                 "cannot yet handle it. Needs to be fixed.";
 
       if (AllowStructFlattening && ST && ArgInfo.isDirect() &&
           ArgInfo.getCanBeFlattened()) {
@@ -1344,8 +1349,10 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
       // No need special handling for types that don't have record declaration
       // name.
       if (TypeName != "")
-        llvm::WithColor::warning() << "SYCL type '" << ST->getName()
-                                   << "' has not been converted to SYCL MLIR\n";
+        if (!SuppressWarnings)
+          llvm::WithColor::warning()
+              << "SYCL type '" << ST->getName()
+              << "' has not been converted to SYCL MLIR\n";
     }
 
     auto *CXRD = dyn_cast<CXXRecordDecl>(RT->getDecl());
@@ -1601,9 +1608,10 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
       return Builder.getF128Type();
     if (Ty->is16bitFPTy()) {
       if (CGM.getTarget().shouldEmitFloat16WithExcessPrecision()) {
-        llvm::WithColor::warning()
-            << "Experimental usage of _Float16. Code generated will be illegal "
-               "for this target. Use with caution.\n";
+        if (!SuppressWarnings)
+          llvm::WithColor::warning() << "Experimental usage of _Float16. Code "
+                                        "generated will be illegal "
+                                        "for this target. Use with caution.\n";
       }
       return Builder.getF16Type();
     }

@@ -8,17 +8,22 @@
 
 #include "IfScope.h"
 #include "clang-mlir.h"
+
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Diagnostics.h"
 
+#include "llvm/Support/WithColor.h"
+
 #define DEBUG_TYPE "CGStmt"
 
 using namespace clang;
 using namespace mlir;
 using namespace mlir::arith;
+
+extern llvm::cl::opt<bool> SuppressWarnings;
 
 static bool isTerminator(Operation *op) {
   return op->mightHaveTrait<OpTrait::IsTerminator>();
@@ -1021,7 +1026,9 @@ ValueCategory MLIRScanner::VisitDeclStmt(clang::DeclStmt *decl) {
 }
 
 ValueCategory MLIRScanner::VisitAttributedStmt(AttributedStmt *AS) {
-  emitWarning(getMLIRLocation(AS->getAttrLoc())) << "ignoring attributes\n";
+  if (!SuppressWarnings)
+    emitWarning(getMLIRLocation(AS->getAttrLoc())) << "ignoring attributes\n";
+
   return Visit(AS->getSubStmt());
 }
 
@@ -1088,8 +1095,11 @@ ValueCategory MLIRScanner::VisitGotoStmt(clang::GotoStmt *stmt) {
 }
 
 ValueCategory MLIRScanner::VisitCXXTryStmt(clang::CXXTryStmt *stmt) {
-  llvm::errs() << "warning, not performing catches for try: ";
-  stmt->dump();
+  if (!SuppressWarnings) {
+    llvm::WithColor::warning() << "not performing catches for try: ";
+    stmt->dump();
+  }
+
   return Visit(stmt->getTryBlock());
 }
 
