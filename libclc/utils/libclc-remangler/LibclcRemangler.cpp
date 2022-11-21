@@ -326,7 +326,8 @@ private:
       ++TemplateIndex;
     }
     // Fix up the template types in the original FD's arg tys and return ty.
-    auto AreQTsEqual = [&](clang::QualType &LHS, clang::QualType &RHS) -> bool {
+    auto AreQTsEqual = [&](const clang::QualType &LHS,
+                           const clang::QualType &RHS) -> bool {
       return (LHS.getBaseTypeIdentifier() && RHS.getBaseTypeIdentifier() &&
               LHS.getBaseTypeIdentifier()->isStr(
                   RHS.getBaseTypeIdentifier()->getName())) ||
