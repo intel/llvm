@@ -356,33 +356,6 @@ struct MemAllocRecord : _pi_object {
   bool OwnZeMemHandle;
 };
 
-// Struct used to fetch device wall-clock time
-struct piDeviceTime {
-private:
-  // Device to query
-  pi_device device;
-  // ZeTimerResolution is number of nanoseconds per clock step assuming
-  // stype==ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES
-  uint64_t ZeTimerResolution, TimestampMaxCount;
-  bool initialized = false;
-  pi_mutex mutex;
-
-public:
-  /// Retreives current wall-clock time from device
-  ///
-  /// \param deviceTime Variable where device time would be stored
-  inline pi_result get(uint64_t *deviceTime);
-
-  /// Checks if the passed in event is user visible.
-  /// If so then retrieves the current wall-clock time from device
-  /// and stores it in the submitTime field of the event.
-  /// Used to calculate the submission time of a commandlist
-  ///
-  /// \param event is the event to check for user visiblity
-  inline pi_result getSubmitTime(pi_event *event);
-  piDeviceTime(pi_device dev) : device(dev) {}
-};
-
 // Define the types that are opaque in pi.h in a manner suitabale for Level Zero
 // plugin
 
@@ -511,7 +484,7 @@ struct _pi_device : _pi_object {
              pi_device ParentDevice = nullptr)
       : ZeDevice{Device}, Platform{Plt}, RootDevice{ParentDevice},
         ImmCommandListsPreferred{false}, ZeDeviceProperties{},
-        ZeDeviceComputeProperties{}, deviceTime(this) {
+        ZeDeviceComputeProperties{}{
     // NOTE: one must additionally call initialize() to complete
     // PI device creation.
   }
@@ -596,6 +569,17 @@ struct _pi_device : _pi_object {
 
   bool isSubDevice() { return RootDevice != nullptr; }
 
+    /// Retreives current wall-clock time from device
+  ///
+  /// \param out Variable where device time would be stored
+  inline pi_result getDeviceTime(uint64_t *out);
+
+  /// Retrieves the current wall-clock time from device
+  /// and stores it in the submitTime field of the event.
+  ///
+  /// \param event 
+  inline pi_result getSubmitTime(pi_event event);
+
   // Cache of the immutable device properties.
   ZeCache<ZeStruct<ze_device_properties_t>> ZeDeviceProperties;
   ZeCache<ZeStruct<ze_device_compute_properties_t>> ZeDeviceComputeProperties;
@@ -606,7 +590,6 @@ struct _pi_device : _pi_object {
   ZeCache<ZeStruct<ze_device_memory_access_properties_t>>
       ZeDeviceMemoryAccessProperties;
   ZeCache<ZeStruct<ze_device_cache_properties_t>> ZeDeviceCacheProperties;
-  piDeviceTime deviceTime;
 };
 
 // Structure describing the specific use of a command-list in a queue.

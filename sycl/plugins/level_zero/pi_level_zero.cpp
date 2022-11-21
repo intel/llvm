@@ -5408,7 +5408,10 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   // reference count on the kernel, using the kernel saved in CommandData.
   PI_CALL(piKernelRetain(Kernel));
 
-  PI_CALL(Queue->Device->deviceTime.getSubmitTime(Event));
+  auto res=Queue->Device->getSubmitTime(*Event);
+  if(res != PI_SUCCESS){
+    return res;
+  }
 
   // Add to list of kernels to be submitted
   if (IndirectAccessTrackingEnabled)
@@ -6318,7 +6321,10 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
 
     ZE_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
 
-    PI_CALL(Queue->Device->deviceTime.getSubmitTime(Event));
+    auto res=Queue->Device->getSubmitTime(*Event);
+    if(res != PI_SUCCESS){
+      return res;
+    }
 
     // Execute command list asynchronously as the event will be used
     // to track down its completion.
@@ -6413,7 +6419,10 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
             insertBarrierIntoCmdList(CmdList, TmpWaitList, *Event, IsInternal))
       return Res;
 
-    PI_CALL(Queue->Device->deviceTime.getSubmitTime(Event));
+    auto res=Queue->Device->getSubmitTime(*Event);
+    if(res != PI_SUCCESS){
+      return res;
+    }
     if (auto Res = Queue->executeCommandList(CmdList, false, OkToBatch))
       return Res;
 
@@ -6685,7 +6694,10 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
   ZE_CALL(zeCommandListAppendMemoryCopy,
           (ZeCommandList, Dst, Src, Size, ZeEvent, 0, nullptr));
 
-  PI_CALL(Queue->Device->deviceTime.getSubmitTime(Event));
+    auto res=Queue->Device->getSubmitTime(*Event);
+  if(res != PI_SUCCESS){
+    return res;
+  }
   if (auto Res =
           Queue->executeCommandList(CommandList, BlockingWrite, OkToBatch))
     return Res;
@@ -6788,7 +6800,10 @@ static pi_result enqueueMemCopyRectHelper(
   zePrint("calling zeCommandListAppendBarrier() with Event %#lx\n",
           pi_cast<std::uintptr_t>(ZeEvent));
 
-  PI_CALL(Queue->Device->deviceTime.getSubmitTime(Event));
+  auto res=Queue->Device->getSubmitTime(*Event);
+  if(res != PI_SUCCESS){
+    return res;
+  }
   if (auto Res = Queue->executeCommandList(CommandList, Blocking, OkToBatch))
     return Res;
 
@@ -7008,7 +7023,10 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
           pi_cast<pi_uint64>(ZeEvent));
   printZeEventList(WaitList);
 
-  PI_CALL(Queue->Device->deviceTime.getSubmitTime(Event));
+  auto res=Queue->Device->getSubmitTime(*Event);
+  if(res != PI_SUCCESS){
+    return res;
+  }
   // Execute command list asynchronously, as the event will be used
   // to track down its completion.
   if (auto Res = Queue->executeCommandList(CommandList, false, OkToBatch))
@@ -7065,7 +7083,10 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Mem, pi_bool BlockingMap,
 
   bool UseCopyEngine = false;
 
-  PI_CALL(Queue->Device->deviceTime.getSubmitTime(Event));
+  auto res=Queue->Device->getSubmitTime(*Event);
+  if(res != PI_SUCCESS){
+    return res;
+  }
   {
     // Lock automatically releases when this goes out of scope.
     std::scoped_lock<pi_shared_mutex> lock(Queue->Mutex);
@@ -7524,7 +7545,11 @@ static pi_result enqueueMemImageCommandHelper(
     return PI_ERROR_INVALID_OPERATION;
   }
 
-  PI_CALL(Queue->Device->deviceTime.getSubmitTime(Event));
+  auto res=Queue->Device->getSubmitTime(*Event);
+  if(res != PI_SUCCESS){
+    return res;
+  }
+
   if (auto Res = Queue->executeCommandList(CommandList, IsBlocking, OkToBatch))
     return Res;
 
@@ -8430,7 +8455,10 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
   // so manually add command to signal our event.
   ZE_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
 
-  PI_CALL(Queue->Device->deviceTime.getSubmitTime(Event));
+  auto res=Queue->Device->getSubmitTime(*Event);
+  if(res != PI_SUCCESS){
+    return res;
+  }
 
   if (auto Res = Queue->executeCommandList(CommandList, false))
     return Res;
@@ -8499,7 +8527,10 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   // so manually add command to signal our event.
   ZE_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
 
-  PI_CALL(Queue->Device->deviceTime.getSubmitTime(Event));
+  auto res=Queue->Device->getSubmitTime(*Event);
+  if(res != PI_SUCCESS){
+    return res;
+  }
 
   Queue->executeCommandList(CommandList, false);
 
@@ -9021,25 +9052,22 @@ pi_result _pi_buffer::free() {
   return PI_SUCCESS;
 }
 
-inline pi_result piDeviceTime::get(uint64_t *deviceTime) {
-  if (!initialized) {
-    std::unique_lock{mutex};
-    initialized = true;
-    ZeTimerResolution = device->ZeDeviceProperties->timerResolution;
-    TimestampMaxCount =
-        ((1ULL << device->ZeDeviceProperties->kernelTimestampValidBits) - 1ULL);
-  }
+inline pi_result _pi_device::getDeviceTime(uint64_t *deviceTime) {
+  
+  uint64_t ZeTimerResolution = ZeDeviceProperties->timerResolution;
+  uint64_t TimestampMaxCount = ((1ULL << ZeDeviceProperties->kernelTimestampValidBits) - 1ULL);
   uint64_t deviceClockCount, dummy;
+  
   ZE_CALL(zeDeviceGetGlobalTimestamps,
-          (device->ZeDevice, &dummy, &deviceClockCount));
+          (ZeDevice, &dummy, &deviceClockCount));
   *deviceTime = (deviceClockCount & TimestampMaxCount) * ZeTimerResolution;
   return PI_SUCCESS;
 }
 
-inline pi_result piDeviceTime::getSubmitTime(pi_event *event) {
-  if (!(*event)->isProfilingEnabled()) {
+inline pi_result _pi_device::getSubmitTime(pi_event event) {
+  if (!event->isProfilingEnabled()) {
     return PI_SUCCESS;
   }
-  return get(&((*event)->submitTime));
+  return getDeviceTime(&(event->submitTime));
 }
 } // extern "C"
