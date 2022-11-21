@@ -8496,16 +8496,16 @@ void TCETargetCodeGenInfo::setTargetAttributes(
 
         SmallVector<llvm::Metadata *, 5> Operands;
         Operands.push_back(llvm::ConstantAsMetadata::get(F));
-        unsigned XDim = Attr->getXDimVal()->getZExtValue();
-        unsigned YDim = Attr->getYDimVal()->getZExtValue();
-        unsigned ZDim = Attr->getZDimVal()->getZExtValue();
 
-        Operands.push_back(llvm::ConstantAsMetadata::get(
-            llvm::Constant::getIntegerValue(M.Int32Ty, llvm::APInt(32, XDim))));
-        Operands.push_back(llvm::ConstantAsMetadata::get(
-            llvm::Constant::getIntegerValue(M.Int32Ty, llvm::APInt(32, YDim))));
-        Operands.push_back(llvm::ConstantAsMetadata::get(
-            llvm::Constant::getIntegerValue(M.Int32Ty, llvm::APInt(32, ZDim))));
+        Operands.push_back(
+            llvm::ConstantAsMetadata::get(llvm::Constant::getIntegerValue(
+                M.Int32Ty, llvm::APInt(32, Attr->getXDim()))));
+        Operands.push_back(
+            llvm::ConstantAsMetadata::get(llvm::Constant::getIntegerValue(
+                M.Int32Ty, llvm::APInt(32, Attr->getYDim()))));
+        Operands.push_back(
+            llvm::ConstantAsMetadata::get(llvm::Constant::getIntegerValue(
+                M.Int32Ty, llvm::APInt(32, Attr->getZDim()))));
 
         // Add a boolean constant operand for "required" (true) or "hint"
         // (false) for implementing the work_group_size_hint attr later.
@@ -9380,21 +9380,16 @@ void AMDGPUTargetCodeGenInfo::setFunctionDeclAttributes(
   if (ReqdWGS || FlatWGS) {
     unsigned Min = 0;
     unsigned Max = 0;
-    unsigned XDim = 0;
-    unsigned YDim = 0;
-    unsigned ZDim = 0;
-    ASTContext &Ctx = M.getContext();
     if (FlatWGS) {
-      Min = FlatWGS->getMin()->EvaluateKnownConstInt(Ctx).getExtValue();
-      Max = FlatWGS->getMax()->EvaluateKnownConstInt(Ctx).getExtValue();
-    }
-    if (ReqdWGS) {
-      XDim = ReqdWGS->getXDimVal()->getZExtValue();
-      YDim = ReqdWGS->getYDimVal()->getZExtValue();
-      ZDim = ReqdWGS->getZDimVal()->getZExtValue();
+      Min = FlatWGS->getMin()
+                ->EvaluateKnownConstInt(M.getContext())
+                .getExtValue();
+      Max = FlatWGS->getMax()
+                ->EvaluateKnownConstInt(M.getContext())
+                .getExtValue();
     }
     if (ReqdWGS && Min == 0 && Max == 0)
-      Min = Max = XDim * YDim * ZDim;
+      Min = Max = ReqdWGS->getXDim() * ReqdWGS->getYDim() * ReqdWGS->getZDim();
 
     if (Min != 0) {
       assert(Min <= Max && "Min must be less than or equal Max");

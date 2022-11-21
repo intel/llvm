@@ -128,7 +128,7 @@ int main() {
 }
 
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name1
-// CHECK: ReqdWorkGroupSizeAttr {{.*}}
+// CHECK: SYCLReqdWorkGroupSizeAttr {{.*}}
 // CHECK-NEXT:  ConstantExpr{{.*}}'int'
 // CHECK-NEXT:  value: Int 16
 // CHECK-NEXT:  IntegerLiteral{{.*}}16{{$}}
@@ -139,7 +139,7 @@ int main() {
 // CHECK-NEXT:  value: Int 1
 // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name2
-// CHECK: ReqdWorkGroupSizeAttr {{.*}}
+// CHECK: SYCLReqdWorkGroupSizeAttr {{.*}}
 // CHECK-NEXT:  ConstantExpr{{.*}}'int'
 // CHECK-NEXT:  value: Int 4
 // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
@@ -150,7 +150,7 @@ int main() {
 // CHECK-NEXT:  value: Int 1
 // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name3
-// CHECK: ReqdWorkGroupSizeAttr {{.*}}
+// CHECK: SYCLReqdWorkGroupSizeAttr {{.*}}
 // CHECK-NEXT:  ConstantExpr{{.*}}'int'
 // CHECK-NEXT:  value: Int 16
 // CHECK-NEXT:  IntegerLiteral{{.*}}16{{$}}
@@ -161,7 +161,7 @@ int main() {
 // CHECK-NEXT:  value: Int 16
 // CHECK-NEXT:  IntegerLiteral{{.*}}16{{$}}
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name5
-// CHECK: ReqdWorkGroupSizeAttr {{.*}}
+// CHECK: SYCLReqdWorkGroupSizeAttr {{.*}}
 // CHECK-NEXT:  ConstantExpr{{.*}}'int'
 // CHECK-NEXT:  value: Int 32
 // CHECK-NEXT:  IntegerLiteral{{.*}}32{{$}}
@@ -173,7 +173,7 @@ int main() {
 // CHECK-NEXT:  IntegerLiteral{{.*}}32{{$}}
 //
 // CHECK: FunctionDecl {{.*}}test_kernel11
-// CHECK: ReqdWorkGroupSizeAttr
+// CHECK: SYCLReqdWorkGroupSizeAttr
 // CHECK-NEXT:  ConstantExpr{{.*}}'int'
 // CHECK-NEXT:  value: Int 2
 // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
@@ -183,4 +183,4 @@ int main() {
 // CHECK-NEXT:  ConstantExpr{{.*}}'int'
 // CHECK-NEXT:  value: Int 2
 // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
-// CHECK-NOT:   ReqdWorkGroupSizeAttr
+// CHECK-NOT:   SYCLReqdWorkGroupSizeAttr

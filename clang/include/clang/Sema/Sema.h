@@ -11086,10 +11086,10 @@ public:
                                       const SYCLAddIRAnnotationsMemberAttr &A);
   void AddSYCLAddIRAnnotationsMemberAttr(Decl *D, const AttributeCommonInfo &CI,
                                          MutableArrayRef<Expr *> Args);
-  void AddReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
-                                Expr *XDim, Expr *YDim, Expr *ZDim);
-  ReqdWorkGroupSizeAttr *
-  MergeReqdWorkGroupSizeAttr(Decl *D, const ReqdWorkGroupSizeAttr &A);
+  void AddSYCLReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
+                                    Expr *XDim, Expr *YDim, Expr *ZDim);
+  SYCLReqdWorkGroupSizeAttr *
+  MergeSYCLReqdWorkGroupSizeAttr(Decl *D, const SYCLReqdWorkGroupSizeAttr &A);
 
   SYCLTypeAttr *MergeSYCLTypeAttr(Decl *D, const AttributeCommonInfo &CI,
                                   SYCLTypeAttr::SYCLType TypeName);

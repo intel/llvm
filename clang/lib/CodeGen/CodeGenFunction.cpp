@@ -619,29 +619,31 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
   }
 
   if (const ReqdWorkGroupSizeAttr *A = FD->getAttr<ReqdWorkGroupSizeAttr>()) {
+    llvm::Metadata *AttrMDArgs[] = {
+        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getXDim())),
+        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getYDim())),
+        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getZDim()))};
+    Fn->setMetadata("reqd_work_group_size",
+                    llvm::MDNode::get(Context, AttrMDArgs));
+  }
+
+  if (const SYCLReqdWorkGroupSizeAttr *A =
+          FD->getAttr<SYCLReqdWorkGroupSizeAttr>()) {
     llvm::Optional<llvm::APSInt> XDimVal = A->getXDimVal();
     llvm::Optional<llvm::APSInt> YDimVal = A->getYDimVal();
     llvm::Optional<llvm::APSInt> ZDimVal = A->getZDimVal();
     llvm::SmallVector<llvm::Metadata *, 3> AttrMDArgs;
-    if (!getLangOpts().SYCLIsDevice) {
-      // On non-SYCL targets we add all dimensions in the order specified.
-      AttrMDArgs.push_back(
-          llvm::ConstantAsMetadata::get(Builder.getInt(*XDimVal)));
-      AttrMDArgs.push_back(
-          llvm::ConstantAsMetadata::get(Builder.getInt(*YDimVal)));
+
+    // On SYCL target the dimensions are reversed if present.
+    if (ZDimVal)
       AttrMDArgs.push_back(
           llvm::ConstantAsMetadata::get(Builder.getInt(*ZDimVal)));
-    } else {
-      // On SYCL target the dimensions are reversed if present.
-      if (ZDimVal)
-        AttrMDArgs.push_back(
-            llvm::ConstantAsMetadata::get(Builder.getInt(*ZDimVal)));
-      if (YDimVal)
-        AttrMDArgs.push_back(
-            llvm::ConstantAsMetadata::get(Builder.getInt(*YDimVal)));
+    if (YDimVal)
       AttrMDArgs.push_back(
-          llvm::ConstantAsMetadata::get(Builder.getInt(*XDimVal)));
-    }
+          llvm::ConstantAsMetadata::get(Builder.getInt(*YDimVal)));
+    AttrMDArgs.push_back(
+        llvm::ConstantAsMetadata::get(Builder.getInt(*XDimVal)));
+
     Fn->setMetadata("reqd_work_group_size",
                     llvm::MDNode::get(Context, AttrMDArgs));
   }

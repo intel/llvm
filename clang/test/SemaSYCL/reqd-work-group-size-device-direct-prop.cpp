@@ -38,7 +38,7 @@ public:
 int main() {
   q.submit([&](handler &h) {
     // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name1
-    // CHECK: ReqdWorkGroupSizeAttr
+    // CHECK: SYCLReqdWorkGroupSizeAttr
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 16
     // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 16
@@ -52,7 +52,7 @@ int main() {
     h.single_task<class kernel_name1>(f16x16x16);
 
     // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name2
-    // CHECK: ReqdWorkGroupSizeAttr
+    // CHECK: SYCLReqdWorkGroupSizeAttr
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 128
     // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 128
@@ -79,7 +79,7 @@ int main() {
     h.single_task<class test_kernel3>(TRIFuncObjGood());
 
     // CHECK: FunctionDecl {{.*}} {{.*}}test_kernel4
-    // CHECK: ReqdWorkGroupSizeAttr
+    // CHECK: SYCLReqdWorkGroupSizeAttr
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 16
     // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 16
@@ -87,7 +87,7 @@ int main() {
     h.single_task<class test_kernel4>(f16);
 
     // CHECK: FunctionDecl {{.*}} {{.*}}test_kernel5
-    // CHECK: ReqdWorkGroupSizeAttr
+    // CHECK: SYCLReqdWorkGroupSizeAttr
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 64
     // CHECK-NEXT:  IntegerLiteral {{.*}} 'int' 64
