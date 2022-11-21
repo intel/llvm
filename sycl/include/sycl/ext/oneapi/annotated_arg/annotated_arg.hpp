@@ -52,6 +52,24 @@ namespace ext {
 namespace oneapi {
 namespace experimental {
 
+namespace detail {
+// Type-trait for checking if a type defines `operator->`.
+template <typename T, typename = void>
+struct HasParenthesisOperator : std::false_type {};
+template <typename T>
+struct HasParenthesisOperator<
+    T, sycl::detail::void_t<decltype(std::declval<T>().operator()())>>
+    : std::true_type {};
+
+template <typename T, typename = void>
+struct HasSubscriptOperator : std::false_type {};
+
+template <typename T>
+struct HasSubscriptOperator<
+    T, sycl::detail::void_t<decltype(std::declval<T>().operator[]())>>
+    : std::true_type {};
+
+} // namespace detail
 
 template <typename T, typename PropertyListT = detail::empty_properties_t, typename Enable = void>
 class annotated_arg {
@@ -62,10 +80,10 @@ class annotated_arg {
 
 // Partial specialization for pointer type
 template <typename T, typename... Props>
-class __SYCL_SPECIAL_CLASS annotated_arg<T, detail::properties_t<Props...>, typename std::enable_if<std::is_pointer<T>::value>::type> {
+class __SYCL_SPECIAL_CLASS __SYCL_TYPE(annotated_arg) annotated_arg<T, detail::properties_t<Props...>, typename std::enable_if<std::is_pointer<T>::value>::type> {
   using property_list_t = detail::properties_t<Props...>;
   using UnderlyingT = typename std::remove_pointer<T>::type;
-  __OPENCL_GLOBAL_AS__ UnderlyingT *ptr;
+  __OPENCL_GLOBAL_AS__ UnderlyingT *g_ptr;
 
   #ifdef __SYCL_DEVICE_ONLY__
     void __init(
@@ -73,8 +91,8 @@ class __SYCL_SPECIAL_CLASS annotated_arg<T, detail::properties_t<Props...>, type
           detail::PropertyMetaInfo<Props>::name...,
           detail::PropertyMetaInfo<Props>::value...
       )]]
-      __OPENCL_GLOBAL_AS__ UnderlyingT* _ptr) {
-        ptr = _ptr;
+      __OPENCL_GLOBAL_AS__ UnderlyingT* _g_ptr) {
+        g_ptr = _g_ptr;
     }
   #endif
 
@@ -84,17 +102,17 @@ public:
   static_assert(is_property_list<property_list_t>::value,
                 "Property list is invalid.");
 
-  annotated_arg() = default;
-  // annotated_arg(const annotated_arg&) = default;
-  annotated_arg(UnderlyingT *_ptr) : ptr((__OPENCL_GLOBAL_AS__ UnderlyingT*)_ptr) {};
+  annotated_arg() noexcept = default;
+  annotated_arg(T _ptr) 
+    : g_ptr((__OPENCL_GLOBAL_AS__ UnderlyingT*)_ptr) {};
 
-  operator T&() {
+  operator T&() noexcept {
     __SYCL_HOST_NOT_SUPPORTED("Implicit conversion of annotated_arg to T")
-    return ptr;
+    return g_ptr;
   }
-  operator const T&() const {
+  operator const T&() const noexcept {
     __SYCL_HOST_NOT_SUPPORTED("Implicit conversion of annotated_arg to T")
-    return ptr;
+    return g_ptr;
   }
 
   // template<typename RelayT = T, typename = std::enable_if_t<std::is_pointer<RelayT>::value>>
@@ -103,23 +121,9 @@ public:
   //   return ptr[idx];
   // }
 
-  // auto operator [](std::ptrdiff_t idx) {
-  //   __SYCL_HOST_NOT_SUPPORTED("operator[] on an annotated_arg")
-  //   return ptr[idx];
-  // }
-
-  // inline T& get() {
-  //   __SYCL_HOST_NOT_SUPPORTED("get()")
-  //   return ptr;
-  // }
-  // inline const T& get() const {
-  //   __SYCL_HOST_NOT_SUPPORTED("get()")
-  //   return ptr;
-  // }
-
-  inline T get() const {
-    __SYCL_HOST_NOT_SUPPORTED("get()")
-    return ptr;
+  auto operator [](std::ptrdiff_t idx) {
+    __SYCL_HOST_NOT_SUPPORTED("operator[] on an annotated_arg")
+    return g_ptr[idx];
   }
 
   template <typename PropertyT> static constexpr bool has_property() {
@@ -133,7 +137,7 @@ public:
 
 // Partial specialization for non-pointer type
 template <typename T, typename... Props>
-class __SYCL_SPECIAL_CLASS annotated_arg <T, detail::properties_t<Props...>, typename std::enable_if<!std::is_pointer<T>::value>::type> {
+class __SYCL_SPECIAL_CLASS __SYCL_TYPE(annotated_arg) annotated_arg <T, detail::properties_t<Props...>, typename std::enable_if<!std::is_pointer<T>::value>::type> {
   using property_list_t = detail::properties_t<Props...>;
 
   T obj;
@@ -158,9 +162,51 @@ public:
   static_assert(is_property_list<property_list_t>::value,
                 "Property list is invalid.");
 
-  annotated_arg() = default;
+  annotated_arg() noexcept = default;
   annotated_arg(const annotated_arg&) = default;
-  annotated_arg(const T &_obj) : obj(_obj) {};
+  annotated_arg& operator=(annotated_arg&) = default;
+
+  // annotated_arg(const T& _obj, const property_list_t &PropList = properties{}) noexcept : obj(_obj) {}
+  // template<typename T, typename... PropertyValueTs>
+  template<typename... PropertyValueTs>
+  annotated_arg(const T& _obj, PropertyValueTs... props) noexcept : obj(_obj) {
+    static_assert(
+        std::is_same<
+            // std::tuple<Props...>, 
+            // detail::MergeProperties<
+            //     std::tuple<Props...>, 
+            //     std::tuple<PropertyValueTs...>
+            // >::type
+            property_list_t,
+            detail::merged_properties_t< property_list_t, detail::properties_t<PropertyValueTs...> > >::value,
+        "The property list must contain all properties of the input of the constructor"
+    );
+  }
+
+  // // Constructs an annotated_arg object from another annotated_arg object.
+  // // The property set PropertyListT contains all properties of the input annotated_arg object.
+  // // If there are duplicate properties present in the property list of the input annotated_arg object,
+  // // the values of the duplicate properties must be the same.
+  // template <typename T2, typename PropertyList2, typename std::enable_if<std::is_convertible<T2, T>::value>::type>
+  // annotated_arg(const annotated_arg<T2, PropertyList2> &other) noexcept : obj(other.obj) {
+  //   static_assert(
+  //       std::is_same<
+  //           property_list_t,
+  //           detail::MergeProperties<property_list_t, PropertyList2>::type>::value,
+  //       "The property list must contain all properties of the input of the copy constructor");
+  // }
+
+  // template <typename T2, typename PropertyListU, typename PropertyListV,
+  //           typename std::enable_if<std::is_convertible<T2, T>::value>::type>
+  // explicit annotated_arg(const annotated_arg<T2, PropertyListU> &other,
+  //     properties<PropertyListV> proplist) noexcept {
+  //    static_assert(
+  //       std::is_same<
+  //           property_list_t,
+  //           detail::MergeProperties<PropertyListU, PropertyListV>::type>::value,
+  //       "The property list must contain all properties of the input of the copy constructor");
+  //   this->obj = other.obj;
+  // }
 
   operator T&() {
     __SYCL_HOST_NOT_SUPPORTED("Implicit conversion of annotated_arg to T")
@@ -171,14 +217,22 @@ public:
     return obj;
   }
 
-  inline T& get() {
-    __SYCL_HOST_NOT_SUPPORTED("get()")
-    return obj;
-  }
-  inline const T& get() const {
-    __SYCL_HOST_NOT_SUPPORTED("get()")
-    return obj;
-  }
+  // template<typename... Args>
+  // template <class RelayT = T>
+  // std::enable_if_t<detail::HasParenthesisOperator<RelayT>::value>
+  //     &operator()(Args... args) noexcept {
+  //   __SYCL_HOST_NOT_SUPPORTED("operator() on an annotated_arg")
+  //   return obj.operator(args);
+  // }
+
+  // inline T& get() {
+  //   __SYCL_HOST_NOT_SUPPORTED("get()")
+  //   return obj;
+  // }
+  // inline const T& get() const {
+  //   __SYCL_HOST_NOT_SUPPORTED("get()")
+  //   return obj;
+  // }
 
   template <typename PropertyT> static constexpr bool has_property() {
     return property_list_t::template has_property<PropertyT>();
