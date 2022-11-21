@@ -725,7 +725,7 @@ runOptimizationPipeline(llvm::Module &Module,
   // Before executing passes, print the final values of the LLVM options.
   cl::PrintOptionValues();
 
-  // Print a textual representation of pipeline the LLVM pipeline.
+  // Print a textual representation of the LLVM pipeline.
   LLVM_DEBUG({
     llvm::dbgs() << "*** Run LLVM Optimization pipeline: ***\n";
 
