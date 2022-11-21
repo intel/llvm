@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -O2 %s -o %t.out
+// RUN: %clangxx -fsycl -DSYCL_EXT_ONEAPI_MATRIX_VERSION=2 -O2 %s -o %t.out
 
 #include <iostream>
 #include <sycl/sycl.hpp>
@@ -67,7 +67,8 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            // the packed_b layout. By default, the layout is row_major and size
            // is (TK, TN).
            joint_matrix<int8_t, use::b, TK, TN, layout::packed> sub_b(sg);
-           joint_matrix<int32_t, use::accumulator, TM, TN, layout::dynamic> sub_c(sg);
+           joint_matrix<int32_t, use::accumulator, TM, TN, layout::dynamic>
+               sub_c(sg);
 
            // AMX: 8 register tiles : 1k byte size, SMmaxxSKmax =16x64
            // strideX = X's cols, so strideC = N, strideA = K, strideB = N*4

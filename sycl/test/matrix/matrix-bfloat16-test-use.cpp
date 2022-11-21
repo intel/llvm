@@ -60,13 +60,14 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
            sycl::ext::oneapi::sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<bfloat16, TM, TK, use::a> sub_a(sg);
+           joint_matrix<bfloat16, use::a, TM, TK, layout::row_major> sub_a(sg);
            // For B, since current implementation does not support non-packed
            // layout, users need to specify the updated VNNI sizes along with
            // the packed_b layout. By default, the layout is row_major and size
            // is (TK, TN).
-           joint_matrix<bfloat16, TK, TN, use::b> sub_b(sg);
-           joint_matrix<float, TM, TN, use::accumulator> sub_c(sg);
+           joint_matrix<bfloat16, use::b, TK, TN, layout::packed> sub_b(sg);
+           joint_matrix<float, use::accumulator, TM, TN, layout::dynamic> sub_c(
+               sg);
 
            joint_matrix_load(sg, sub_c,
                              accC.get_pointer() + (sg_startx * TM) * N +
@@ -75,12 +76,12 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            for (int k = 0; k < K / TK; k += 1) { //
              joint_matrix_load(
                  sg, sub_a, accA.get_pointer() + (sg_startx * TM) * K + k * TK,
-                 K, layout::row_major);
+                 K);
              // Assuming B data is already in VNNI format.
              joint_matrix_load(sg, sub_b,
                                accB.get_pointer() + (k * TK / 2) * (N * 2) +
                                    sg_starty / SG_SZ * TN * 2,
-                               N * 2, layout::packed_b);
+                               N * 2);
              sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
            }
            joint_matrix_store(sg, sub_c,
