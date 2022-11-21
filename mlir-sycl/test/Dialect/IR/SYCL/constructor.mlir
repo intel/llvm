@@ -10,6 +10,6 @@ func.func @AccessorImplDevice(%arg0: memref<?x!sycl.accessor_impl_device<[1], (!
 // Ensure integer pointer can be arguments of sycl.constructor.
 // CHECK-LABEL: func.func @TestConstructorII32Ptr
 func.func @TestConstructorII32Ptr(%arg0: memref<?x!sycl.id<1>, 4>, %arg1: memref<?xi32, 1>) {
-  sycl.constructor(%arg0, %arg1) {MangledFunctionName = @_ZN4sycl3_V19multi_ptrIjLNS0_6access13address_spaceE1ELNS2_9decoratedE1EEC1EPU3AS1j, Type = @multi_ptr} : (memref<?x!sycl.id<1>, 4>, memref<?xi32, 1>) -> ()
+  sycl.constructor(%arg0, %arg1) {MangledFunctionName = @_ZN4sycl3_V19multi_ptrIjLNS0_6access13address_spaceE1ELNS2_9decoratedE1EEC1EPU3AS1j, TypeName = @multi_ptr} : (memref<?x!sycl.id<1>, 4>, memref<?xi32, 1>) -> ()
   return
 }
