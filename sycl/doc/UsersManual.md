@@ -32,7 +32,7 @@ and not recommended to use in production environment.
       spir64_fpga-unknown-unknown, spir64_gen-unknown-unknown
     Available in special build configuration:
     * nvptx64-nvidia-cuda - generate code ahead of time for CUDA target;
-    Special target values specific to Intel Processor Graphics support are
+    Special target values specific to Intel, NVIDIA and AMD Processor Graphics support are
     accepted, providing a streamlined interface for AOT. Only one of these
     values at a time is supported.
     * intel_gpu_pvc - Ponte Vecchio Intel graphics architecture
