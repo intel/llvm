@@ -750,6 +750,7 @@
 ?accessGlobalFlushBuf@stream_impl@detail@_V1@sycl@@QEAA?AV?$accessor@D$00$0EAC@$0HNO@$0A@V?$accessor_property_list@$$V@oneapi@ext@_V1@sycl@@@34@AEAVhandler@34@@Z
 ?accessGlobalOffset@stream_impl@detail@_V1@sycl@@QEAA?AV?$accessor@I$00$0EAF@$0HNO@$0A@V?$accessor_property_list@$$V@oneapi@ext@_V1@sycl@@@34@AEAVhandler@34@@Z
 ?add@device_global_map@detail@_V1@sycl@@YAXPEBXPEBD@Z
+?add@host_pipe_map@detail@_V1@sycl@@YAXPEBXPEBD@Z
 ?addHostAccessorAndWait@detail@_V1@sycl@@YAXPEAVAccessorImplHost@123@@Z
 ?addInteropObject@buffer_impl@detail@_V1@sycl@@QEBAXAEAV?$vector@_KV?$allocator@_K@std@@@std@@@Z
 ?addOrReplaceAccessorProperties@SYCLMemObjT@detail@_V1@sycl@@QEAAXAEBVproperty_list@34@@Z

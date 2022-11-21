@@ -807,6 +807,8 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 /// PropertySetRegistry::SYCL_DEVICE_REQUIREMENTS defined in PropertySetIO.h
 #define __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS                        \
   "SYCL/device requirements"
+/// PropertySetRegistry::SYCL_HOST_PIPES defined in PropertySetIO.h
+#define __SYCL_PI_PROPERTY_SET_SYCL_HOST_PIPES "SYCL/host pipes"
 
 /// Program metadata tags recognized by the PI backends. For kernels the tag
 /// must appear after the kernel name.
