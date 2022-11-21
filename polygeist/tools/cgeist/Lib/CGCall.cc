@@ -24,7 +24,6 @@ using namespace mlirclang;
 
 extern llvm::cl::opt<bool> CudaLower;
 extern llvm::cl::opt<bool> GenerateAllSYCLFuncs;
-extern llvm::cl::opt<bool> SuppressWarnings;
 
 /******************************************************************************/
 /*                           Utility Functions                                */
