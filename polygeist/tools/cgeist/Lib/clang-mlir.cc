@@ -2165,31 +2165,31 @@ MLIRASTConsumer::getOrCreateGlobal(const ValueDecl &VD, std::string Prefix,
 }
 
 mlir::Value MLIRASTConsumer::GetOrCreateGlobalLLVMString(
-    mlir::Location loc, mlir::OpBuilder &builder, StringRef value,
-    FunctionContext funcContext) {
+    mlir::Location loc, mlir::OpBuilder &Builder, StringRef value,
+    FunctionContext FuncContext) {
   using namespace mlir;
   // Create the global at the entry of the module.
   if (llvmStringGlobals.find(value.str()) == llvmStringGlobals.end()) {
-    OpBuilder::InsertionGuard insertGuard(builder);
+    OpBuilder::InsertionGuard insertGuard(Builder);
 
-    if (funcContext == FunctionContext::SYCLDevice)
-      builder.setInsertionPointToStart(getDeviceModule(*module).getBody());
+    if (FuncContext == FunctionContext::SYCLDevice)
+      Builder.setInsertionPointToStart(getDeviceModule(*module).getBody());
     else {
       assert(FuncContext == FunctionContext::Host);
-      builder.setInsertionPointToStart(module->getBody());
+      Builder.setInsertionPointToStart(module->getBody());
     }
 
     auto type = LLVM::LLVMArrayType::get(
-        mlir::IntegerType::get(builder.getContext(), 8), value.size() + 1);
-    llvmStringGlobals[value.str()] = builder.create<LLVM::GlobalOp>(
+        mlir::IntegerType::get(Builder.getContext(), 8), value.size() + 1);
+    llvmStringGlobals[value.str()] = Builder.create<LLVM::GlobalOp>(
         loc, type, /*isConstant=*/true, LLVM::Linkage::Internal,
         "str" + std::to_string(llvmStringGlobals.size()),
-        builder.getStringAttr(value.str() + '\0'));
+        Builder.getStringAttr(value.str() + '\0'));
   }
 
   LLVM::GlobalOp global = llvmStringGlobals[value.str()];
   // Get the pointer to the first character in the global string.
-  mlir::Value globalPtr = builder.create<mlir::LLVM::AddressOfOp>(loc, global);
+  mlir::Value globalPtr = Builder.create<mlir::LLVM::AddressOfOp>(loc, global);
   return globalPtr;
 }
 
