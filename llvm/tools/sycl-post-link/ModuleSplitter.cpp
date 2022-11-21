@@ -775,18 +775,15 @@ struct UsedOptionalFeatures {
 
   UsedOptionalFeatures(const Function *F) {
     if (const MDNode *MDN = F->getMetadata("sycl_used_aspects")) {
-      auto ExtractIntegerFromMDNodeOperand = [=](const MDNode *N,
-                                                 unsigned OpNo) -> auto {
-        Constant *C =
-            cast<ConstantAsMetadata>(N->getOperand(OpNo).get())->getValue();
+      auto ExtractIntegerFromMDNodeOperand = [=](const MDOperand &N) {
+        Constant *C = cast<ConstantAsMetadata>(N.get())->getValue();
         return C->getUniqueInteger().getSExtValue();
       };
 
       // !sycl_used_aspects is supposed to contain unique values, no duplicates
       // are expected here
-      for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I) {
-        Aspects.push_back(ExtractIntegerFromMDNodeOperand(MDN, I));
-      }
+      llvm::transform(MDN->operands(), std::back_inserter(Aspects),
+                      ExtractIntegerFromMDNodeOperand);
       llvm::sort(Aspects);
     }
 
@@ -885,16 +882,15 @@ getSplitterByOptionalFeatures(ModuleDesc &&MD,
     PropertiesToFunctionsMap[std::move(Key)].insert(&F);
   }
 
-  if (!PropertiesToFunctionsMap.empty()) {
+  if (PropertiesToFunctionsMap.empty()) {
+    // No entry points met, record this.
+    Groups.emplace_back(GLOBAL_SCOPE_NAME, EntryPointSet{});
+  } else {
     Groups.reserve(PropertiesToFunctionsMap.size());
     for (auto &EPG : PropertiesToFunctionsMap) {
-      Groups.emplace_back(EntryPointGroup{
-          EPG.first.getName(MD.getEntryPointGroup().GroupId),
-          std::move(EPG.second), MD.getEntryPointGroup().Props});
+      Groups.emplace_back(EPG.first.getName(MD.getEntryPointGroup().GroupId),
+                          std::move(EPG.second), MD.getEntryPointGroup().Props);
     }
-  } else {
-    // No entry points met, record this.
-    Groups.push_back({GLOBAL_SCOPE_NAME, {}});
   }
 
   if (Groups.size() > 1)

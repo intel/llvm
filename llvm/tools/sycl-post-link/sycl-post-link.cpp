@@ -768,7 +768,7 @@ processInputModule(std::unique_ptr<Module> M) {
     module_split::ModuleDesc MD = ScopedSplitter->nextSplit();
 
     if (IROutputOnly || SplitMode == module_split::SPLIT_NONE) {
-      // We can't perform any kind of split
+      // We can't perform any kind of split.
       TopLevelModules.emplace_back(std::move(MD));
       continue;
     }
@@ -800,7 +800,7 @@ processInputModule(std::unique_ptr<Module> M) {
   // "leaf" ModuleDesc's resulted from splitting. Some bookkeeping is needed for
   // ESIMD splitter to link back needed modules.
 
-  // Based on results from a top-level splitting, we perform some lower-level
+  // Based on results from the top-level splitting, we perform some lower-level
   // splitting for various unique features.
   for (module_split::ModuleDesc &MDesc : TopLevelModules) {
     DUMP_ENTRY_POINTS(MDesc.entries(), MDesc.Name.c_str(), 1);
