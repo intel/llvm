@@ -10,6 +10,7 @@
 
 #include "mlir/IR/OpImplementation.h"
 #include "llvm/ADT/TypeSwitch.h"
+#include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
 
 bool mlir::sycl::SYCLCastOp::areCastCompatible(::mlir::TypeRange Inputs,
                                                ::mlir::TypeRange Outputs) {
@@ -58,10 +59,11 @@ bool mlir::sycl::SYCLCastOp::areCastCompatible(::mlir::TypeRange Inputs,
 }
 
 mlir::LogicalResult mlir::sycl::SYCLConstructorOp::verify() {
-  if (!getOperand(0).getType().dyn_cast<mlir::MemRefType>())
-    return emitOpError(
-        "The first argument of a sycl::constructor op has to be a MemRef");
-  return success();
+  if (getOperand(0).getType().dyn_cast<mlir::MemRefType>() && isSYCLType(getOperand(0).getType().cast<mlir::MemRefType>().getElementType()))
+    return success();
+    
+  return emitOpError(
+        "The first argument of a sycl::constructor op has to be a MemRef to a SYCL type");
 }
 
 mlir::LogicalResult mlir::sycl::SYCLAccessorSubscriptOp::verify() {
