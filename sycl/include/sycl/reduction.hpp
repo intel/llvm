@@ -2369,8 +2369,18 @@ void reduction_parallel_for(handler &CGH, range<Dims> Range,
     size_t Start = GroupStart + NDId.get_local_id(0);
     size_t End = GroupEnd;
     size_t Stride = NDId.get_local_range(0);
+    auto GetDelinearized = [&](size_t I) {
+      auto Id = getDelinearizedId(Range, I);
+      if constexpr (std::is_invocable_v<decltype(KernelFunc), id<Dims>,
+                                        decltype(Reducers)...>)
+        return Id;
+      else
+        // SYCL doesn't provide parallel_for accepting offset in presence of
+        // reductions, so use with_offset==false.
+        return reduction::getDelinearizedItem(Range, Id);
+    };
     for (size_t I = Start; I < End; I += Stride)
-      KernelFunc(getDelinearizedId(Range, I), Reducers...);
+      KernelFunc(GetDelinearized(I), Reducers...);
   };
   if constexpr (NumArgs == 2) {
     using Reduction = std::tuple_element_t<0, decltype(ReduTuple)>;
