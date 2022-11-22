@@ -55,10 +55,9 @@ int main() {
   // Make sure the following 3 are the same between the host and device compile.
   // Note that these are NOT the same value as eachother, they differ by the
   // signature.
-<<<<<<< HEAD
-  // CHECK: private unnamed_addr constant [17 x i8] c"_ZTSZ4mainEUlvE_\00"
-  // CHECK: private unnamed_addr constant [17 x i8] c"_ZTSZ4mainEUliE_\00"
-  // CHECK: private unnamed_addr constant [17 x i8] c"_ZTSZ4mainEUldE_\00"
+  // CHECK: private unnamed_addr [[$ADDRSPACE]]constant [17 x i8] c"_ZTSZ4mainEUlvE_\00"
+  // CHECK: private unnamed_addr [[$ADDRSPACE]]constant [17 x i8] c"_ZTSZ4mainEUliE_\00"
+  // CHECK: private unnamed_addr [[$ADDRSPACE]]constant [17 x i8] c"_ZTSZ4mainEUldE_\00"
 
   // On Windows, ensure that we haven't broken the 'lambda numbering' for thex
   // lambda itself.
@@ -66,9 +65,4 @@ int main() {
   // WIN: define internal void @"??R<lambda_2
   // WIN: define internal void @"??R<lambda_3
   // WIN: define internal void @"??R<lambda_4
-=======
-  // CHECK: private unnamed_addr [[$ADDRSPACE]]constant [17 x i8] c"_ZTSZ4mainEUlvE_\00"
-  // CHECK: private unnamed_addr [[$ADDRSPACE]]constant [17 x i8] c"_ZTSZ4mainEUliE_\00"
-  // CHECK: private unnamed_addr [[$ADDRSPACE]]constant [17 x i8] c"_ZTSZ4mainEUldE_\00"
->>>>>>> 0745b0c0354a0c8e1fefb68a3876d15db6c2e27a
 }
