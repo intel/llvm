@@ -3,12 +3,8 @@
 
 include(FetchContent)
 
-# TODO: Replace personal repo and tag sha with upstream as soon as
-#       https://github.com/oneapi-src/unified-runtime/pull/29 is merged
-
-#set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-set(UNIFIED_RUNTIME_REPO "https://github.com/pvchupin/unified-runtime.git")
-set(UNIFIED_RUNTIME_TAG bfb0c8f01deb2517057193882d506038831b4a43)
+set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+set(UNIFIED_RUNTIME_TAG fd711c920acc4434cb52ff18b078c082d9d7f44d)
 
 message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
 FetchContent_Declare(unified-runtime
