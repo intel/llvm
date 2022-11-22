@@ -42,6 +42,11 @@ enum class strategy : int {
 // are limited to those below.
 inline void finalizeHandler(handler &CGH);
 template <class FunctorTy> void withAuxHandler(handler &CGH, FunctorTy Func);
+
+template <int Dims>
+item<Dims, false> getDelinearizedItem(range<Dims> Range, id<Dims> Id) {
+  return {Range, Id};
+}
 } // namespace reduction
 
 template <typename KernelName,
