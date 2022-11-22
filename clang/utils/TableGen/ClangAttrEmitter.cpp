@@ -4062,12 +4062,10 @@ static void GenerateLangOptRequirements(const Record &R,
   // use the default handler.
   std::vector<Record *> LangOpts = R.getValueAsListOfDefs("LangOpts");
 
-  // If there are other attributes which share the same parsed attribute kind,
-  // such as target-specific attributes with a shared spelling, collapse the
-  // duplicate architectures. This is required because a shared target-specific
-  // attribute has only one ParsedAttr::Kind enumeration value, but it
-  // applies to multiple target architectures. In order for the attribute to be
-  // considered valid, all of its architectures need to be included.
+  // Attributes inheriting from LanguageOptionsSpecificAttr may share their
+  // ParseKind name with other attributes. Attributes like these are considered
+  // valid for a given language option if any of the attributes they share
+  // ParseKind with accepts it.
   if (R.isSubClassOf("LanguageOptionsSpecificAttr") &&
       !R.isValueUnset("ParseKind")) {
     const StringRef APK = R.getValueAsString("ParseKind");

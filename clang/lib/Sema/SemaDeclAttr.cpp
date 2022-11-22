@@ -3743,14 +3743,10 @@ static bool CheckWorkGroupSize(Sema &S, const Expr *NSWIValue,
   if ((!RWGSYDimExpr && RWGSYDim) || (!RWGSZDimExpr && RWGSZDim))
     return false;
 
-  // Otherwise, check which argument increments the fastest
-  // in OpenCL vs SYCL mode.
+  // Otherwise, check which argument increments the fastest.
   const ConstantExpr *LastRWGSDimExpr =
       RWGSZDim ? RWGSZDimExpr : (RWGSYDim ? RWGSYDimExpr : RWGSXDimExpr);
-  unsigned WorkGroupSize =
-      S.getLangOpts().SYCLIsDevice
-          ? (LastRWGSDimExpr->getResultAsAPSInt()).getZExtValue()
-          : (RWGSXDimExpr->getResultAsAPSInt()).getZExtValue();
+  unsigned WorkGroupSize = LastRWGSDimExpr->getResultAsAPSInt().getZExtValue();
 
   // Check if the required work group size specified by 'num_simd_work_items'
   // attribute evenly divides the index that increments fastest in the
@@ -3942,7 +3938,7 @@ static void handleSYCLReqdWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL){
     if (!AL.checkExactlyNumArgs(S, 3))
       return;
   } else if (!AL.checkAtLeastNumArgs(S, 1) || !AL.checkAtMostNumArgs(S, 3))
-      return;
+    return;
 
   size_t NumArgs = AL.getNumArgs();
   Expr *XDimExpr = NumArgs > 0 ? AL.getArgAsExpr(0) : nullptr;
