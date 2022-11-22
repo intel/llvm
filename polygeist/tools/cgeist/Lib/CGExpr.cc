@@ -1167,8 +1167,10 @@ ValueCategory MLIRScanner::VisitAtomicExpr(clang::AtomicExpr *BO) {
 
 ValueCategory MLIRScanner::VisitExprWithCleanups(ExprWithCleanups *E) {
   auto ret = Visit(E->getSubExpr());
-  for (auto &child : E->children())
-    mlirclang::warning() << "cleanup not handled for: " << child << "\n";
+  for (auto &child : E->children()) {
+    mlirclang::warning() << "cleanup not handled for: ";
+    child->dump(mlirclang::warning(), Glob.getCGM().getContext());
+  }
 
   return ret;
 }
