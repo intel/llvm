@@ -26,7 +26,7 @@ struct AffineLoopDescriptorImpl;
 
 class AffineLoopDescriptor {
 private:
-  std::unique_ptr<AffineLoopDescriptorImpl> impl;
+  std::unique_ptr<AffineLoopDescriptorImpl> Impl;
 
 public:
   AffineLoopDescriptor();
@@ -34,24 +34,24 @@ public:
   AffineLoopDescriptor(const AffineLoopDescriptor &) = delete;
 
   mlir::Value getLowerBound() const;
-  void setLowerBound(mlir::Value value);
+  void setLowerBound(mlir::Value Value);
 
   mlir::Value getUpperBound() const;
-  void setUpperBound(mlir::Value value);
+  void setUpperBound(mlir::Value Value);
 
   int getStep() const;
-  void setStep(int value);
+  void setStep(int Value);
 
   clang::VarDecl *getName() const;
-  void setName(clang::VarDecl *value);
+  void setName(clang::VarDecl *Value);
 
   mlir::Type getType() const;
-  void setType(mlir::Type type);
+  void setType(mlir::Type Type);
 
   bool getForwardMode() const;
-  void setForwardMode(bool value);
+  void setForwardMode(bool Value);
 };
 
 } // end namespace mlirclang
 
-#endif
+#endif // MLIR_CLANG_AFFINE_UTILS_H

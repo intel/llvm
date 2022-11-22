@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "pragmaHandler.h"
+
 #include "clang/AST/AST.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/Attr.h"
@@ -36,7 +37,7 @@ public:
       : PragmaHandler("lower_to"), Info(Info) {}
 
   /// Handle (x,y,z) segment.
-  bool ReadInputOrOutput(Preprocessor &PP, Token &CurrentTok,
+  bool readInputOrOutput(Preprocessor &PP, Token &CurrentTok,
                          SmallVectorImpl<StringRef> &Ids) {
     PP.Lex(CurrentTok);
     if (CurrentTok.isNot(tok::l_paren)) {
@@ -70,7 +71,7 @@ public:
   }
 
   /// Handle input(a,b,c), output(x, y, z) optional segment.
-  bool HandleOptionalInputAndOutput(Preprocessor &PP, Token &PragmaTok,
+  bool handleOptionalInputAndOutput(Preprocessor &PP, Token &PragmaTok,
                                     SmallVectorImpl<StringRef> &Inputs,
                                     SmallVectorImpl<StringRef> &Outputs) {
     Token CurrentTok;
@@ -87,10 +88,10 @@ public:
               diag::warn_pragma_expected_section_label_or_name)
           << "";
       return false;
-    } else {
-      if (!ReadInputOrOutput(PP, CurrentTok, Inputs))
-        return false;
     }
+
+    if (!readInputOrOutput(PP, CurrentTok, Inputs))
+      return false;
 
     // comma.
     if (CurrentTok.isNot(tok::comma)) {
@@ -108,10 +109,10 @@ public:
               diag::warn_pragma_expected_section_label_or_name)
           << "expect 'output' for lower to";
       return false;
-    } else {
-      if (!ReadInputOrOutput(PP, CurrentTok, Outputs))
-        return false;
     }
+
+    if (!readInputOrOutput(PP, CurrentTok, Outputs))
+      return false;
 
     if (CurrentTok.isNot(tok::eod)) {
       PP.Diag(CurrentTok.getLocation(), diag::warn_pragma_extra_tokens_at_eol)
@@ -151,13 +152,13 @@ public:
           PP.Diag(Tok.getLocation(), diag::warn_pragma_expected_rparen)
               << "lower_to";
           return;
-        } else {
-          if (!HandleOptionalInputAndOutput(PP, CurrentTok, Info.InputSymbol,
-                                            Info.OutputSymbol))
-            return;
-          else
-            break;
         }
+
+        if (!handleOptionalInputAndOutput(PP, CurrentTok, Info.InputSymbol,
+                                          Info.OutputSymbol))
+          return;
+
+        break;
       }
 
       // function identifier.
@@ -166,9 +167,8 @@ public:
           PP.Diag(Tok.getLocation(), diag::warn_pragma_expected_identifier)
               << "lower_to";
           return;
-        } else {
-          FuncId = CurrentTok.getIdentifierInfo()->getName();
         }
+        FuncId = CurrentTok.getIdentifierInfo()->getName();
       }
 
       // comma.
@@ -187,19 +187,19 @@ public:
                   diag::warn_pragma_expected_section_name)
               << "lower to";
           return;
-        } else {
-          SmallVector<Token, 1> SymbolToks;
-          SymbolToks.push_back(CurrentTok);
-          SymbolName = StringLiteralParser(SymbolToks, PP).GetString();
         }
+
+        SmallVector<Token, 1> SymbolToks;
+        SymbolToks.push_back(CurrentTok);
+        SymbolName = StringLiteralParser(SymbolToks, PP).GetString();
       }
 
       PrevTok = CurrentTok;
     }
 
     // Link SymbolName with the function.
-    auto result = Info.SymbolTable.try_emplace(FuncId, SymbolName);
-    assert(result.second &&
+    auto Result = Info.SymbolTable.try_emplace(FuncId, SymbolName);
+    assert(Result.second &&
            "Shouldn't define lower_to over the same func id more than once.");
   }
 
@@ -207,29 +207,29 @@ private:
 };
 
 struct PragmaScopHandler : public PragmaHandler {
-  ScopLocList &scops;
+  ScopLocList &Scops;
 
-  PragmaScopHandler(ScopLocList &scops) : PragmaHandler("scop"), scops(scops) {}
+  PragmaScopHandler(ScopLocList &Scops) : PragmaHandler("scop"), Scops(Scops) {}
 
   void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
-                    Token &scopTok) override {
+                    Token &ScopTok) override {
     auto &SM = PP.getSourceManager();
-    auto loc = scopTok.getLocation();
-    scops.addStart(SM, loc);
+    auto Loc = ScopTok.getLocation();
+    Scops.addStart(SM, Loc);
   }
 };
 
 struct PragmaEndScopHandler : public PragmaHandler {
-  ScopLocList &scops;
+  ScopLocList &Scops;
 
-  PragmaEndScopHandler(ScopLocList &scops)
-      : PragmaHandler("endscop"), scops(scops) {}
+  PragmaEndScopHandler(ScopLocList &Scops)
+      : PragmaHandler("endscop"), Scops(Scops) {}
 
-  void HandlePragma(Preprocessor &PP, PragmaIntroducer introducer,
-                    Token &endScopTok) override {
+  void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &EndScopTok) override {
     auto &SM = PP.getSourceManager();
-    auto loc = endScopTok.getLocation();
-    scops.addEnd(SM, loc);
+    auto Loc = EndScopTok.getLocation();
+    Scops.addEnd(SM, Loc);
   }
 };
 
@@ -239,10 +239,10 @@ void addPragmaLowerToHandlers(Preprocessor &PP, LowerToInfo &LTInfo) {
   PP.AddPragmaHandler(new PragmaLowerToHandler(LTInfo));
 }
 
-void addPragmaScopHandlers(Preprocessor &PP, ScopLocList &scopLocList) {
-  PP.AddPragmaHandler(new PragmaScopHandler(scopLocList));
+void addPragmaScopHandlers(Preprocessor &PP, ScopLocList &ScopLocList) {
+  PP.AddPragmaHandler(new PragmaScopHandler(ScopLocList));
 }
 
-void addPragmaEndScopHandlers(Preprocessor &PP, ScopLocList &scopLocList) {
-  PP.AddPragmaHandler(new PragmaEndScopHandler(scopLocList));
+void addPragmaEndScopHandlers(Preprocessor &PP, ScopLocList &ScopLocList) {
+  PP.AddPragmaHandler(new PragmaEndScopHandler(ScopLocList));
 }
