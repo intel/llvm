@@ -172,11 +172,6 @@
 // MACRO_AMD: clang{{.*}} "-fsycl-is-host"
 // MACRO_AMD: "-D__SYCL_TARGET_AMD_GPU_[[MAC_STR]]__"
 
-/// Check whether an invalid SYCL target is specified:
-// RUN:   %clang -### -fsycl -fsycl-targets=nvidia_gpu_skl %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHK-INVALID-TARGET %s
-// CHK-INVALID-TARGET: error: SYCL target is invalid: 'nvidia_gpu_skl'
-
 /// -fsycl-targets=spir64_x86_64 should set a specific macro
 // RUN: %clangxx -c -fsycl -fsycl-targets=spir64_x86_64 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=MACRO_X86_64
@@ -187,12 +182,26 @@
 // MACRO_X86_64: clang{{.*}} "-fsycl-is-host"
 // MACRO_X86_64: "-D__SYCL_TARGET_INTEL_X86_64__"
 
-/// test for invalid arch
+/// test for invalid intel arch
 // RUN: %clangxx -c -fsycl -fsycl-targets=intel_gpu_bad -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=BAD_INPUT
 // RUN: %clang_cl -c -fsycl -fsycl-targets=intel_gpu_bad -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=BAD_INPUT
 // BAD_INPUT: error: SYCL target is invalid: 'intel_gpu_bad'
+
+/// test for invalid nvidia arch
+// RUN: %clangxx -c -fsycl -fsycl-targets=nvidia_gpu_bad -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=BAD_NVIDIA_INPUT
+// RUN: %clang_cl -c -fsycl -fsycl-targets=nvidia_gpu_bad -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=BAD_NVIDIA_INPUT
+// BAD_NVIDIA_INPUT: error: SYCL target is invalid: 'nvidia_gpu_bad'
+
+/// test for invalid amd arch
+// RUN: %clangxx -c -fsycl -fsycl-targets=amd_gpu_bad -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=BAD_AMD_INPUT
+// RUN: %clang_cl -c -fsycl -fsycl-targets=amd_gpu_bad -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=BAD_AMD_INPUT
+// BAD_AMD_INPUT: error: SYCL target is invalid: 'amd_gpu_bad'
 
 /// Test for proper creation of fat object
 // RUN: %clangxx -c -fsycl -fsycl-targets=intel_gpu_skl \
@@ -200,6 +209,20 @@
 // RUN:   FileCheck %s --check-prefix=FATO
 // FATO: clang-offload-bundler{{.*}} "-type=o"
 // FATO: "-targets=sycl-spir64_gen-unknown-unknown-skl,host-x86_64-unknown-linux-gnu"
+
+/// Test for proper creation of fat object
+// RUN: %clangxx -c -fsycl -fsycl-targets=nvidia_gpu_sm_50 \
+// RUN:   -target x86_64-unknown-linux-gnu -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=NVIDIA_FATO
+// NVIDIA_FATO: clang-offload-bundler{{.*}} "-type=o"
+// NVIDIA_FATO: "-targets=sycl-nvptx64-nvidia-cuda-sm_50,host-x86_64-unknown-linux-gnu"
+
+/// Test for proper creation of fat object
+// RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx700 \
+// RUN:   -target x86_64-unknown-linux-gnu -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=AMD_FATO
+// AMD_FATO: clang-offload-bundler{{.*}} "-type=o"
+// AMD_FATO: "-targets=host-x86_64-unknown-linux,hipv4-amdgcn-amd-amdhsa--gfx700"
 
 /// Test for proper consumption of fat object
 // RUN: touch %t.o
@@ -209,6 +232,24 @@
 // CONSUME_FAT: clang-offload-bundler{{.*}} "-type=o"
 // CONSUME_FAT: "-targets=host-x86_64-unknown-linux-gnu,sycl-spir64_gen-unknown-unknown-skl"
 // CONSUME_FAT: "-unbundle" "-allow-missing-bundles"
+
+/// Test for proper consumption of fat object
+// RUN: touch %t.o
+// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_50 \
+// RUN:   -target x86_64-unknown-linux-gnu -### %t.o 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=NVIDIA_CONSUME_FAT
+// NVIDIA_CONSUME_FAT: clang-offload-bundler{{.*}} "-type=o"
+// NVIDIA_CONSUME_FAT: "-targets=host-x86_64-unknown-linux-gnu,sycl-nvptx64-nvidia-cuda-sm_50"
+// NVIDIA_CONSUME_FAT: "-unbundle" "-allow-missing-bundles"
+
+/// Test for proper consumption of fat object
+// RUN: touch %t.o
+// RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx700 \
+// RUN:   -target x86_64-unknown-linux-gnu -### %t.o 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=AMD_CONSUME_FAT
+// AMD_CONSUME_FAT: clang-offload-bundler{{.*}} "-type=o"
+// AMD_CONSUME_FAT: "-targets=host-x86_64-unknown-linux-gnu,sycl-amdgcn-amd-amdhsa-gfx700"
+// AMD_CONSUME_FAT: "-unbundle" "-allow-missing-bundles"
 
 /// Test phases, BoundArch settings used for -device target. Additional
 /// offload action used for compilation and backend compilation.
@@ -235,6 +276,33 @@
 // CHECK_PHASES: 16: file-table-tform, {12, 15}, tempfiletable, (device-sycl, skl)
 // CHECK_PHASES: 17: clang-offload-wrapper, {16}, object, (device-sycl, skl)
 // CHECK_PHASES: 18: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (spir64_gen-unknown-unknown:skl)" {17}, image
+
+/// Test phases, BoundArch settings used for -device target. Additional
+/// offload action used for compilation and backend compilation.
+// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_50 -fno-sycl-device-lib=all \
+// RUN:   -fno-sycl-instrument-device-code \
+// RUN:   -target x86_64-unknown-linux-gnu -ccc-print-phases %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=NVIDIA_CHECK_PHASES
+// NVIDIA_CHECK_PHASES: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
+// NVIDIA_CHECK_PHASES: 1: append-footer, {0}, c++, (host-sycl)
+// NVIDIA_CHECK_PHASES: 2: preprocessor, {1}, c++-cpp-output, (host-sycl)
+// NVIDIA_CHECK_PHASES: 3: input, "[[INPUT]]", c++, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 5: compiler, {4}, ir, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 6: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {5}, c++-cpp-output
+// NVIDIA_CHECK_PHASES: 7: compiler, {6}, ir, (host-sycl)
+// NVIDIA_CHECK_PHASES: 8: backend, {7}, assembler, (host-sycl)
+// NVIDIA_CHECK_PHASES: 9: assembler, {8}, object, (host-sycl)
+// NVIDIA_CHECK_PHASES: 10: linker, {9}, image, (host-sycl)
+// NVIDIA_CHECK_PHASES: 11: linker, {5}, ir, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 12: sycl-post-link, {11}, ir, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 13: file-table-tform, {12}, ir, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 14: backend, {13}, assembler, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 15: assembler, {14}, object, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: linker, {14, 15}, cuda-fatbin, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: foreach, {13, 16}, cuda-fatbin, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: file-table-tform, {12, 17}, tempfiletable, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: clang-offload-wrapper, {18}, object, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {19}, image
 
 /// Check that ocloc and macro settings only occur for the expected toolchains
 /// when mixing spir64_gen and intel_gpu
