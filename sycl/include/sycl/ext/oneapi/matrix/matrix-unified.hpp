@@ -35,14 +35,6 @@ struct joint_matrix {
 #endif // __SYCL_DEVICE_ONLY__
   }
 
-  joint_matrix(Group sg) {
-#ifndef __SYCL_DEVICE_ONLY__
-    std::ignore = sg;
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
-#endif // __SYCL_DEVICE_ONLY__
-  }
-
   inline __SYCL_ALWAYS_INLINE decltype(auto) get_wi_data() {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
@@ -62,29 +54,6 @@ struct joint_matrix {
     }
 #endif
   };
-
-  // get_wi_marray is only defined for the NVPTX backend.
-#if defined(__SYCL_DEVICE_ONLY__)
-#if defined(__NVPTX__)
-  inline __SYCL_ALWAYS_INLINE auto get_wi_marray()
-      -> decltype(cuda_impl.wi_marray) & {
-    return cuda_impl.wi_marray;
-  };
-#endif
-#else
-  // Host version of get_wi_marray required by compiler even though it will
-  // never be called because joint_matrix cannot be constructed on host.
-  decltype(auto) inline __SYCL_ALWAYS_INLINE get_wi_marray() {
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
-
-    if constexpr (std::is_same_v<T, precision::tf32>) {
-      return marray<float, 1>{};
-    } else {
-      return marray<T, 1>{};
-    }
-  };
-#endif
 };
 
 template <typename Group, typename T, size_t NumRows, size_t NumCols, use Use,
