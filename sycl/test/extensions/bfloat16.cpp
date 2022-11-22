@@ -21,29 +21,33 @@ __attribute__((noinline)) float op(float a, float b) {
   // CHECK-NOT: fptoui
 
   bfloat16 C = A + B;
-  // CHECK: [[A_float:%.*]] = call spir_func float @__devicelib_ConvertBF16ToFINTEL(i16 {{.*}} %value.i)
-  // CHECK: [[B_float:%.*]] = call spir_func float @__devicelib_ConvertBF16ToFINTEL(i16 {{.*}} %value.i7)
+  // CHECK: [[RTCASTI:%ref.tmp.ascast.i]] = addrspacecast float* [[RT:%ref.tmp.i]] to float addrspace(4)*
+  // CHECK: [[A_float:%.*]] = call spir_func float @__devicelib_ConvertBF16ToFINTEL(i16 {{.*}} %1)
+  // CHECK: [[B_float:%.*]] = call spir_func float @__devicelib_ConvertBF16ToFINTEL(i16 {{.*}} %4)
   // CHECK: [[Add:%.*]] = fadd float [[A_float]], [[B_float]]
-  // CHECK: store float [[Add]], float addrspace(4)* [[Add1:%ref.tmp.ascast.i]], align 4
-  // CHECK: [[C:%.*]] = call spir_func zeroext i16 @__devicelib_ConvertFToBF16INTEL(float {{.*}} [[Add1]])
+  // CHECK: store float [[Add]], float* [[RT]], align 4
+  // CHECK: [[C:%.*]] = call spir_func zeroext i16 @__devicelib_ConvertFToBF16INTEL(float {{.*}}) [[RTCASTI]])
+
   // CHECK-NOT: uitofp
   // CHECK-NOT: fptoui
 
   long L = bfloat16(3.14f);
   // CHECK: [[L:%.*]] = call spir_func zeroext i16 @__devicelib_ConvertFToBF16INTEL(float {{.*}} %ref.tmp1.ascast)
-  // CHECK: store i16 [[L]], i16 addrspace(4)* [[L1:%value.i9]]
-  // CHECK: [[L_float:%.*]] = call spir_func float @__devicelib_ConvertBF16ToFINTEL(i16 {{.*}} [[L1]])
+  // CHECK: [[P8:%.*]] = addrspacecast i16* [[VI9:%.*]] to i16 addrspace(4)*
+  // CHECK: store i16 [[L]], i16* [[VI9]]
+  // CHECK: [[L_float:%.*]] = call spir_func float @__devicelib_ConvertBF16ToFINTEL(i16 {{.*}} [[P8]])
   // CHECK: [[L:%.*]] = fptosi float [[L_float]] to i{{32|64}}
 
   sycl::half H = bfloat16(2.71f);
   // CHECK: [[H:%.*]] = call spir_func zeroext i16 @__devicelib_ConvertFToBF16INTEL(float {{.*}} %ref.tmp3.ascast)
-  // CHECK: store i16 [[H]], i16 addrspace(4)* [[H1:%value.i13]]
-  // CHECK: [[H_float:%.*]] = call spir_func float @__devicelib_ConvertBF16ToFINTEL(i16 {{.*}} [[H1]])
+  // CHECK: [[P11:%.*]] = addrspacecast i16* [[VI13:%.*]] to i16 addrspace(4)*
+  // CHECK: store i16 [[H]], i16* [[VI13]], align 2
+  // CHECK: [[H_float:%.*]] = call spir_func float @__devicelib_ConvertBF16ToFINTEL(i16 {{.*}} [[P11]])
   // CHECK: [[H:%.*]] = fptrunc float [[H_float]] to half
   foo(L, H);
 
   return A;
-  // CHECK: [[RetVal:%.*]] = call spir_func float @__devicelib_ConvertBF16ToFINTEL(i16 {{.*}} %value.i)
+  // CHECK: [[RetVal:%.*]] = call spir_func float @__devicelib_ConvertBF16ToFINTEL(i16 {{.*}} %2)
   // CHECK: ret float [[RetVal]]
   // CHECK-NOT: uitofp
   // CHECK-NOT: fptoui
