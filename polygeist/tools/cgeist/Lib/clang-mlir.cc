@@ -312,10 +312,9 @@ void MLIRScanner::init(mlir::FunctionOpInterface func,
     }
   }
 
-  if (auto CC = dyn_cast<CXXDestructorDecl>(FD)) {
-    CC->dump();
-    llvm::errs() << " warning, destructor not fully handled yet\n";
-  }
+  if (auto CC = dyn_cast<CXXDestructorDecl>(FD))
+    mlirclang::warning() << "destructor not fully handled yet for: " << CC
+                         << "\n";
 
   auto i1Ty = builder.getIntegerType(1);
   auto type = mlir::MemRefType::get({}, i1Ty, {}, 0);
@@ -1231,9 +1230,11 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
           loc, mlir::LLVM::ICmpPredicate::ne, cond, nullptr_llvm);
     }
     if (!cond.getType().isa<mlir::IntegerType>()) {
-      BO->dump();
-      BO->getType()->dump();
-      llvm::errs() << "cond: " << cond << "\n";
+      LLVM_DEBUG({
+        BO->dump();
+        BO->getType()->dump();
+        llvm::dbgs() << "cond: " << cond << "\n";
+      });
     }
     auto prevTy = cond.getType().cast<mlir::IntegerType>();
     if (!prevTy.isInteger(1)) {

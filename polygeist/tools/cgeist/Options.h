@@ -175,6 +175,9 @@ static llvm::cl::opt<bool>
 static llvm::cl::opt<bool> Verbose("v", llvm::cl::init(false),
                                    llvm::cl::desc("Verbose"));
 
+llvm::cl::opt<bool> SuppressWarnings("w", llvm::cl::init(false),
+                                     llvm::cl::desc("Suppress all warnings"));
+
 static llvm::cl::list<std::string>
     IncludeDirs("I", llvm::cl::desc("include search path"),
                 llvm::cl::cat(ToolOptions));
