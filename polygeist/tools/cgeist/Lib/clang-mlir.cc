@@ -74,13 +74,17 @@ MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob, OwningOpRef<ModuleOp> &Module,
       LTInfo(LTInfo) {}
 
 void MLIRScanner::initUnsupportedFunctions() {
-  // FIXME: cgeist: llvm/polygeist/tools/cgeist/Lib/clang-mlir.cc:119: void
+  // FIXME: cgeist: llvm/polygeist/tools/cgeist/Lib/clang-mlir.cc:95: void
   // checkFunctionParent(mlir::FunctionOpInterface, FunctionContext, const
   // mlir::OwningOpRef<mlir::ModuleOp>&): Assertion `(Context !=
   // FunctionContext::Host || F->getParentOp() == module.get()) && "New function
   // must be inserted into global module"' failed.
   unsupportedFuncs.insert(
       "_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1026ELNS2_"
+      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
+      "listIJEEEEC1ERKSA_");
+  unsupportedFuncs.insert(
+      "_ZN4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_"
       "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
       "listIJEEEEC1ERKSA_");
 }
