@@ -8,6 +8,8 @@
 
 #include "IfScope.h"
 #include "clang-mlir.h"
+#include "utils.h"
+
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
@@ -17,6 +19,8 @@
 #define DEBUG_TYPE "CGStmt"
 
 using namespace mlir;
+
+extern llvm::cl::opt<bool> SuppressWarnings;
 
 static bool isTerminator(Operation *Op) {
   return Op->mightHaveTrait<OpTrait::IsTerminator>();
@@ -1013,7 +1017,9 @@ ValueCategory MLIRScanner::VisitDeclStmt(clang::DeclStmt *Decl) {
 }
 
 ValueCategory MLIRScanner::VisitAttributedStmt(clang::AttributedStmt *AS) {
-  emitWarning(getMLIRLocation(AS->getAttrLoc())) << "ignoring attributes\n";
+  if (!SuppressWarnings)
+    emitWarning(getMLIRLocation(AS->getAttrLoc())) << "ignoring attributes\n";
+
   return Visit(AS->getSubStmt());
 }
 
@@ -1080,8 +1086,7 @@ ValueCategory MLIRScanner::VisitGotoStmt(clang::GotoStmt *Stmt) {
 }
 
 ValueCategory MLIRScanner::VisitCXXTryStmt(clang::CXXTryStmt *Stmt) {
-  llvm::errs() << "warning, not performing catches for try: ";
-  Stmt->dump();
+  mlirclang::warning() << "not performing catches for try stmt\n";
   return Visit(Stmt->getTryBlock());
 }
 

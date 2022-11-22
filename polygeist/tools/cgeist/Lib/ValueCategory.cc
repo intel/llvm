@@ -10,15 +10,17 @@
 
 #include "ValueCategory.h"
 #include "Lib/TypeUtils.h"
+#include "polygeist/Ops.h"
+#include "utils.h"
+
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
-#include "polygeist/Ops.h"
+
 #include "llvm/ADT/TypeSwitch.h"
-#include "llvm/Support/WithColor.h"
 
 using namespace mlir;
 using namespace mlir::arith;
@@ -87,9 +89,10 @@ void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
           if (mt.getElementType() != spt.getElementType()) {
             // llvm::errs() << " func: " <<
             // val.getDefiningOp()->getParentOfType<FuncOp>() << "\n";
-            llvm::errs() << "warning potential store type mismatch:\n";
-            llvm::errs() << "val: " << val << " tosval: " << toStore << "\n";
-            llvm::errs() << "mt: " << mt << "spt: " << spt << "\n";
+            mlirclang::warning()
+                << "potential store type mismatch:\n"
+                << "val: " << val << " tosval: " << toStore << "\n"
+                << "mt: " << mt << "spt: " << spt << "\n";
           }
           toStore =
               builder.create<polygeist::Memref2PointerOp>(loc, spt, toStore);
@@ -289,8 +292,8 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
 }
 
 template <typename OpTy> inline void warnUnconstrainedOp() {
-  llvm::WithColor::warning()
-      << "Creating unconstrained " << OpTy::getOperationName() << "\n";
+  mlirclang::warning() << "Creating unconstrained " << OpTy::getOperationName()
+                       << "\n";
 }
 
 ValueCategory ValueCategory::FPTrunc(OpBuilder &Builder, Location Loc,
@@ -525,16 +528,16 @@ static ValueCategory NUWNSWBinOp(mlir::OpBuilder &Builder, mlir::Location Loc,
                                  bool HasNSW) {
   // No way of adding these flags to MLIR.
   if (HasNUW)
-    llvm::WithColor::warning() << "Not adding NUW flag.\n";
+    mlirclang::warning() << "Not adding NUW flag.\n";
   if (HasNSW)
-    llvm::WithColor::warning() << "Not adding NSW flag.\n";
+    mlirclang::warning() << "Not adding NSW flag.\n";
   return IntBinOp<OpTy>(Builder, Loc, LHS, RHS);
 }
 
 ValueCategory ValueCategory::SDiv(OpBuilder &Builder, Location Loc, Value RHS,
                                   bool IsExact) const {
   if (IsExact)
-    llvm::WithColor::warning() << "Creating exact division is not supported\n";
+    mlirclang::warning() << "Creating exact division is not supported\n";
   return IntBinOp<arith::DivSIOp>(Builder, Loc, val, RHS);
 }
 
@@ -576,10 +579,9 @@ ValueCategory ValueCategory::SubIndex(OpBuilder &Builder, Location Loc,
   assert(val.getType().isa<MemRefType>() && "Expecting a pointer as operand");
   assert(Index.getType().isa<IndexType>() && "Expecting an index type index");
 
-  if (IsInBounds) {
-    llvm::WithColor::warning()
-        << "Cannot create an inbounds SubIndex operation\n";
-  }
+  if (IsInBounds)
+    mlirclang::warning() << "Cannot create an inbounds SubIndex operation\n";
+
   auto PtrTy = mlirclang::getPtrTyWithNewType(val.getType(), Type);
   return {Builder.createOrFold<polygeist::SubIndexOp>(Loc, PtrTy, val, Index),
           isReference};
@@ -599,7 +601,8 @@ ValueCategory ValueCategory::GEP(OpBuilder &Builder, Location Loc, Type Type,
          "Expecting integer indices");
 
   if (IsInBounds)
-    llvm::WithColor::warning() << "Cannot create an inbounds GEP operation\n";
+    mlirclang::warning() << "Cannot create an inbounds GEP operation\n";
+
   auto PtrTy = mlirclang::getPtrTyWithNewType(val.getType(), Type);
   return {Builder.createOrFold<LLVM::GEPOp>(Loc, PtrTy, val, IdxList),
           isReference};

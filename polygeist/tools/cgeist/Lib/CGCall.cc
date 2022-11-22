@@ -16,7 +16,6 @@
 
 #define DEBUG_TYPE "CGCall"
 
-// using namespace clang;
 using namespace mlir;
 
 extern llvm::cl::opt<bool> CudaLower;
