@@ -1316,6 +1316,10 @@ def CudaUnknownVersion: DiagGroup<"unknown-cuda-version">;
 // ignored by CUDA.
 def HIPOnly : DiagGroup<"hip-only">;
 
+// A warning generated when compiling SYCL applications for HIP or CUDA backends
+// without linking LIBSPIRV.
+def NoLibspirvHipCuda : DiagGroup<"no-libspirv-hip-cuda">;
+
 // Warnings which cause linking of the runtime libraries like
 // libc and the CRT to be skipped.
 def AVRRtlibLinkingQuirks : DiagGroup<"avr-rtlib-linking-quirks">;

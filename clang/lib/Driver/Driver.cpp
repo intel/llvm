@@ -1232,6 +1232,19 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       addSYCLDefaultTriple(C, UniqueSYCLTriplesVec);
     }
   }
+  // -fno-sycl-libspirv flag is reserved for very unusual cases where the
+  // libspirv library is not linked when using CUDA/HIP: so output appropriate
+  // warnings.
+  if (C.getInputArgs().hasArg(options::OPT_fno_sycl_libspirv)) {
+    for (auto &TT : UniqueSYCLTriplesVec) {
+      if (TT.isNVPTX() || TT.isAMDGCN()) {
+        Diag(diag::warn_flag_no_sycl_libspirv) << TT.getTriple();
+      } else {
+        Diag(diag::warn_drv_unsupported_option_for_target)
+            << "-fno-sycl-libspirv" << TT.getTriple();
+      }
+    }
+  }
   // We'll need to use the SYCL and host triples as the key into
   // getOffloadingDeviceToolChain, because the device toolchains we're
   // going to create will depend on both.
@@ -1732,9 +1745,6 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   // triple.
   if (checkForSYCLDefaultDevice(*C, *TranslatedArgs))
     setSYCLDefaultTriple(true);
-
-  // Check missing targets in archives/objects based on inputs from the user.
-  checkForOffloadMismatch(*C, *TranslatedArgs);
 
   // Populate the tool chains for the offloading devices, if any.
   CreateOffloadingDeviceToolChains(*C, Inputs);
@@ -3606,81 +3616,6 @@ bool Driver::checkForOffloadStaticLib(Compilation &C,
                hasFPGABinary(C, OLArg.str(), types::TY_FPGA_AOCX));
     }
   return false;
-}
-
-// Goes through all of the arguments, including inputs expected for the
-// linker directly, to determine if the targets contained in the objects and
-// archives match target expectations being performed.
-void Driver::checkForOffloadMismatch(Compilation &C,
-                                     DerivedArgList &Args) const {
-  // Check only if enabled with -fsycl
-  if (!Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false))
-    return;
-
-  SmallVector<const char *, 16> OffloadLibArgs(getLinkerArgs(C, Args, true));
-  // Gather all of the sections seen in the offload objects/archives
-  SmallVector<std::string, 4> UniqueSections;
-  for (StringRef OLArg : OffloadLibArgs) {
-    SmallVector<std::string, 4> Sections(getOffloadSections(C, OLArg));
-    for (auto Section : Sections) {
-      // We only care about sections that start with 'sycl-'.  Also remove
-      // the prefix before adding it.
-      std::string Prefix("sycl-");
-      if (Section.compare(0, Prefix.length(), Prefix) != 0)
-        continue;
-      std::string Arch = Section.substr(Prefix.length());
-      // There are a few different variants for FPGA, if we see one, just
-      // use the default FPGA triple to reduce possible match confusion.
-      if (Arch.compare(0, 4, "fpga") == 0)
-        Arch = C.getDriver().MakeSYCLDeviceTriple("spir64_fpga").str();
-      if (std::find(UniqueSections.begin(), UniqueSections.end(), Arch) ==
-          UniqueSections.end())
-        UniqueSections.push_back(Arch);
-    }
-  }
-
-  if (!UniqueSections.size())
-    return;
-
-  // Put together list of user defined and implied targets, we will diagnose
-  // each target individually.
-  SmallVector<StringRef, 4> Targets;
-  if (const Arg *A = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
-    for (StringRef Val : A->getValues()) {
-      if (auto ValidDevice = isIntelGPUTarget(Val)) {
-        if (!ValidDevice->empty())
-          Targets.push_back(Args.MakeArgString(
-              C.getDriver().MakeSYCLDeviceTriple("spir64_gen").str() + "-" +
-              *ValidDevice));
-        continue;
-      }
-      Targets.push_back(Val);
-    }
-  } else { // Implied targets
-    // No -fsycl-targets given, check based on -fintelfpga or default device
-    bool SYCLfpga = C.getInputArgs().hasArg(options::OPT_fintelfpga);
-    // -fsycl -fintelfpga implies spir64_fpga
-    Targets.push_back(SYCLfpga ? "spir64_fpga" : getDefaultSYCLArch(C));
-  }
-
-  for (auto SyclTarget : Targets) {
-    // Match found sections with user and implied targets.
-    llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple(SyclTarget));
-    // If any matching section is found, we are good.
-    if (std::find(UniqueSections.begin(), UniqueSections.end(), TT.str()) !=
-        UniqueSections.end())
-      continue;
-    // Didn't find any matches, return the full list for the diagnostic.
-    SmallString<128> ArchListStr;
-    int Cnt = 0;
-    for (std::string Section : UniqueSections) {
-      if (Cnt)
-        ArchListStr += ", ";
-      ArchListStr += Section;
-      Cnt++;
-    }
-    Diag(diag::warn_drv_sycl_target_missing) << SyclTarget << ArchListStr;
-  }
 }
 
 /// Check whether the given input tree contains any clang-offload-dependency
@@ -5806,6 +5741,68 @@ class OffloadingActionBuilder final {
       return false;
     }
 
+    // Goes through all of the arguments, including inputs expected for the
+    // linker directly, to determine if the targets contained in the objects and
+    // archives match target expectations being performed.
+    void
+    checkForOffloadMismatch(Compilation &C, DerivedArgList &Args,
+                            SmallVector<DeviceTargetInfo, 4> &Targets) const {
+      if (Targets.empty())
+        return;
+
+      SmallVector<const char *, 16> OffloadLibArgs(
+          getLinkerArgs(C, Args, true));
+      // Gather all of the sections seen in the offload objects/archives
+      SmallVector<std::string, 4> UniqueSections;
+      for (StringRef OLArg : OffloadLibArgs) {
+        SmallVector<std::string, 4> Sections(getOffloadSections(C, OLArg));
+        for (auto Section : Sections) {
+          // We only care about sections that start with 'sycl-'.  Also remove
+          // the prefix before adding it.
+          std::string Prefix("sycl-");
+          if (Section.compare(0, Prefix.length(), Prefix) != 0)
+            continue;
+
+          std::string Arch = Section.substr(Prefix.length());
+
+          // There are a few different variants for FPGA, if we see one, just
+          // use the default FPGA triple to reduce possible match confusion.
+          if (Arch.compare(0, 4, "fpga") == 0)
+            Arch = C.getDriver().MakeSYCLDeviceTriple("spir64_fpga").str();
+          if (std::find(UniqueSections.begin(), UniqueSections.end(), Arch) ==
+              UniqueSections.end())
+            UniqueSections.push_back(Arch);
+        }
+      }
+
+      if (!UniqueSections.size())
+        return;
+
+      for (auto SyclTarget : Targets) {
+        std::string SectionTriple = SyclTarget.TC->getTriple().str();
+        if (SyclTarget.BoundArch) {
+          SectionTriple += "-";
+          SectionTriple += SyclTarget.BoundArch;
+        }
+
+        // If any matching section is found, we are good.
+        if (std::find(UniqueSections.begin(), UniqueSections.end(),
+                      SectionTriple) != UniqueSections.end())
+          continue;
+        // Didn't find any matches, return the full list for the diagnostic.
+        SmallString<128> ArchListStr;
+        int Cnt = 0;
+        for (std::string Section : UniqueSections) {
+          if (Cnt)
+            ArchListStr += ", ";
+          ArchListStr += Section;
+          Cnt++;
+        }
+        C.getDriver().Diag(diag::warn_drv_sycl_target_missing)
+            << SectionTriple << ArchListStr;
+      }
+    }
+
     bool initialize() override {
       // Get the SYCL toolchains. If we don't get any, the action builder will
       // know there is nothing to do related to SYCL offloading.
@@ -6002,6 +5999,9 @@ class OffloadingActionBuilder final {
         const auto *TC = ToolChains.front();
         SYCLTargetInfoList.emplace_back(TC, nullptr);
       }
+
+      checkForOffloadMismatch(C, Args, SYCLTargetInfoList);
+
       DeviceLinkerInputs.resize(SYCLTargetInfoList.size());
       return false;
     }
