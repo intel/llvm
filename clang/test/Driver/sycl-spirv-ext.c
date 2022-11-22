@@ -36,7 +36,7 @@
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_unstructured_loop_controls,+SPV_INTEL_fpga_reg
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_blocking_pipes,+SPV_INTEL_function_pointers
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_kernel_attributes,+SPV_INTEL_io_pipes
-// CHECK-DEFAULT-SAME:,+SPV_INTEL_inline_assembly,
+// CHECK-DEFAULT-SAME:,+SPV_INTEL_inline_assembly
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_float_controls2
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_vector_compute,+SPV_INTEL_fast_composite
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_arbitrary_precision_fixed_point
@@ -60,7 +60,7 @@
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_unstructured_loop_controls,+SPV_INTEL_fpga_reg
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_blocking_pipes,+SPV_INTEL_function_pointers
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_kernel_attributes,+SPV_INTEL_io_pipes
-// CHECK-FPGA-HW-SAME:,+SPV_INTEL_inline_assembly,
+// CHECK-FPGA-HW-SAME:,+SPV_INTEL_inline_assembly
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_float_controls2
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_vector_compute,+SPV_INTEL_fast_composite
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_arbitrary_precision_fixed_point
