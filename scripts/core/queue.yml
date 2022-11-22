@@ -208,3 +208,22 @@ params:
 returns:
     - $X_RESULT_INVALID_QUEUE
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Issues all previously enqueued commands in a command queue to the device."
+class: $xQueue
+name: Flush
+decl: static
+ordinal: "0"
+analogue:
+    - "**clFlush**"
+details:
+  - "Guarantees that all enqueued commands will be issued to the appropriate device."
+  - "There is no guarantee that they will be completed after $xQueueFlush returns."
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue to be flushed."
+returns:
+    - $X_RESULT_INVALID_QUEUE
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
