@@ -109,8 +109,8 @@ static llvm::cl::opt<bool>
     InnerSerialize("inner-serialize", llvm::cl::init(false),
                    llvm::cl::desc("Turn on parallel licm"));
 
-llvm::cl::opt<bool> ShowAST("show-ast", llvm::cl::init(false),
-                            llvm::cl::desc("Show AST"));
+static llvm::cl::opt<bool> ShowAST("show-ast", llvm::cl::init(false),
+                                   llvm::cl::desc("Show AST"));
 
 static llvm::cl::opt<bool> RaiseToAffine("raise-scf-to-affine",
                                          llvm::cl::init(false),
