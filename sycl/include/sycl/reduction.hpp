@@ -2314,16 +2314,15 @@ void reduction_parallel_for(handler &CGH, range<Dims> Range,
 
   // Before running the kernels, check that device has enough local memory
   // to hold local arrays required for the tree-reduction algorithm.
-  size_t OneElemSize = [&]() {
-    if constexpr (NumArgs == 2) {
-      using Reduction = std::tuple_element_t<0, decltype(ReduTuple)>;
-      constexpr bool IsTreeReduction =
-          !Reduction::has_fast_reduce && !Reduction::has_fast_atomics;
-      return IsTreeReduction ? sizeof(typename Reduction::result_type) : 0;
-    } else {
-      return reduGetMemPerWorkItem(ReduTuple, ReduIndices);
-    }
-  }();
+  size_t OneElemSize;
+  if constexpr (NumArgs == 2) {
+    using Reduction = std::tuple_element_t<0, decltype(ReduTuple)>;
+    constexpr bool IsTreeReduction =
+        !Reduction::has_fast_reduce && !Reduction::has_fast_atomics;
+    OneElemSize = IsTreeReduction ? sizeof(typename Reduction::result_type) : 0;
+  } else {
+    OneElemSize = reduGetMemPerWorkItem(ReduTuple, ReduIndices);
+  }
 
   uint32_t NumConcurrentWorkGroups =
 #ifdef __SYCL_REDUCTION_NUM_CONCURRENT_WORKGROUPS
