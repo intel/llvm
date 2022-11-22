@@ -191,7 +191,7 @@ public:
   mlir::Value GetOrCreateGlobalLLVMString(mlir::Location Loc,
                                           mlir::OpBuilder &Builder,
                                           clang::StringRef Value,
-                                          FunctionContext funcContext);
+                                          FunctionContext FuncContext);
 
   /// Create global variable and initialize it.
   std::pair<mlir::memref::GlobalOp, bool>
