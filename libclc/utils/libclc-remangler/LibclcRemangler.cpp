@@ -150,7 +150,7 @@ private:
   static constexpr size_t AllocSize = 4096;
   static constexpr size_t UsableAllocSize = AllocSize - sizeof(BlockMeta);
 
-  alignas(long double) char InitialBuffer[AllocSize];
+  alignas(max_align_t) char InitialBuffer[AllocSize];
   BlockMeta *BlockList = nullptr;
 };
 
