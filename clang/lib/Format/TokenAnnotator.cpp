@@ -3441,7 +3441,9 @@ bool TokenAnnotator::spaceRequiredBetween(const AnnotatedLine &Line,
         return false;
       return !Style.Cpp11BracedListStyle;
     }
-    return false;
+    // Don't attempt to format operator<(), as it is handled later.
+    if (Right.isNot(TT_OverloadedOperatorLParen))
+      return false;
   }
   if (Right.is(tok::ellipsis)) {
     return Left.Tok.isLiteral() || (Left.is(tok::identifier) && Left.Previous &&
@@ -5093,8 +5095,9 @@ bool TokenAnnotator::canBreakBefore(const AnnotatedLine &Line,
 }
 
 void TokenAnnotator::printDebugInfo(const AnnotatedLine &Line) const {
-  llvm::errs() << "AnnotatedTokens(L=" << Line.Level << ", T=" << Line.Type
-               << ", C=" << Line.IsContinuation << "):\n";
+  llvm::errs() << "AnnotatedTokens(L=" << Line.Level << ", P=" << Line.PPLevel
+               << ", T=" << Line.Type << ", C=" << Line.IsContinuation
+               << "):\n";
   const FormatToken *Tok = Line.First;
   while (Tok) {
     llvm::errs() << " M=" << Tok->MustBreakBefore
