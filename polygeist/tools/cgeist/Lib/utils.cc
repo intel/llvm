@@ -11,24 +11,27 @@
 #include "utils.h"
 #include "clang-mlir.h"
 
+#include "clang/AST/Expr.h"
+
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/OperationSupport.h"
 #include "mlir/IR/Value.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
-
-#include "mlir/Dialect/Linalg/IR/Linalg.h"
-#include "mlir/Dialect/MemRef/IR/MemRef.h"
-
-#include "clang/AST/Expr.h"
+#include "llvm/Support/WithColor.h"
+#include "llvm/Support/raw_ostream.h"
 
 using namespace mlir;
 using namespace llvm;
 using namespace clang;
+
+extern llvm::cl::opt<bool> SuppressWarnings;
 
 Operation *buildLinalgOp(StringRef name, OpBuilder &b,
                          SmallVectorImpl<mlir::Value> &input,
@@ -90,4 +93,10 @@ FunctionContext mlirclang::getInputContext(const OpBuilder &Builder) {
 mlir::gpu::GPUModuleOp mlirclang::getDeviceModule(mlir::ModuleOp Module) {
   return cast<mlir::gpu::GPUModuleOp>(
       Module.lookupSymbol(MLIRASTConsumer::DeviceModuleName));
+}
+
+llvm::raw_ostream &mlirclang::warning() {
+  if (SuppressWarnings)
+    return llvm::nulls();
+  return llvm::WithColor::warning();
 }

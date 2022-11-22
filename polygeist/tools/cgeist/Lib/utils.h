@@ -1,5 +1,3 @@
-// Copyright (C) Codeplay Software Limited
-
 //===- utils.h --------------------------------------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -46,10 +44,10 @@ namespace mlirclang {
 /// operands %a and %b. The new op will be inserted at where the insertion point
 /// of the provided OpBuilder is.
 mlir::Operation *
-replaceFuncByOperation(mlir::func::FuncOp f, llvm::StringRef opName,
-                       mlir::OpBuilder &b,
-                       llvm::SmallVectorImpl<mlir::Value> &input,
-                       llvm::SmallVectorImpl<mlir::Value> &output);
+replaceFuncByOperation(mlir::func::FuncOp Func, llvm::StringRef OpName,
+                       mlir::OpBuilder &B,
+                       llvm::SmallVectorImpl<mlir::Value> &Input,
+                       llvm::SmallVectorImpl<mlir::Value> &Output);
 
 bool isNamespaceSYCL(const clang::DeclContext *DC);
 
@@ -58,6 +56,10 @@ FunctionContext getInputContext(const mlir::OpBuilder &Builder);
 
 /// Return the device module in the input module.
 mlir::gpu::GPUModuleOp getDeviceModule(mlir::ModuleOp Module);
+
+/// Emit a warning if -w is not in effect.
+llvm::raw_ostream &warning();
+
 } // namespace mlirclang
 
-#endif
+#endif // MLIR_TOOLS_MLIRCLANG_UTILS_H

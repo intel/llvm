@@ -59,8 +59,6 @@ using namespace mlir::func;
 using namespace mlir::sycl;
 using namespace mlirclang;
 
-extern llvm::cl::opt<bool> SuppressWarnings;
-
 cl::opt<std::string> PrefixABI("prefix-abi", cl::init(""),
                                cl::desc("Prefix for emitted symbols"));
 
@@ -415,12 +413,9 @@ void MLIRScanner::init(mlir::FunctionOpInterface func,
     }
   }
 
-  if (auto CC = dyn_cast<CXXDestructorDecl>(FD)) {
-    if (!SuppressWarnings) {
-      CC->dump();
-      llvm::WithColor::warning() << "destructor not fully handled yet\n";
-    }
-  }
+  if (auto CC = dyn_cast<CXXDestructorDecl>(FD))
+    mlirclang::warning() << "destructor not fully handled yet for: " << CC
+                         << "\n";
 
   auto i1Ty = builder.getIntegerType(1);
   auto type = mlir::MemRefType::get({}, i1Ty, {}, 0);
@@ -1336,11 +1331,11 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
           loc, mlir::LLVM::ICmpPredicate::ne, cond, nullptr_llvm);
     }
     if (!cond.getType().isa<mlir::IntegerType>()) {
-      if (!SuppressWarnings) {
+      LLVM_DEBUG({
         BO->dump();
         BO->getType()->dump();
-        llvm::WithColor::warning() << "cond: " << cond << "\n";
-      }
+        llvm::dbgs() << "cond: " << cond << "\n";
+      });
     }
     auto prevTy = cond.getType().cast<mlir::IntegerType>();
     if (!prevTy.isInteger(1)) {
