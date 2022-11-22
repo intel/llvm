@@ -117,6 +117,7 @@ add_sycl_plugin(level_zero
   LIBRARIES
     "${LEVEL_ZERO_LOADER}"
     Threads::Threads
+    unified_runtime
 )
 
 find_package(Python3 REQUIRED)
