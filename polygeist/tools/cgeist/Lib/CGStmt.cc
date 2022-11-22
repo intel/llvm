@@ -616,13 +616,13 @@ ValueCategory MLIRScanner::VisitOMPParallelForDirective(
   SmallVector<Value> Incs;
   for (auto *F : Fors->updates()) {
     F = cast<clang::BinaryOperator>(F)->getRHS();
-    while (auto *Ce = dyn_cast<clang::CastExpr>(F))
-      F = Ce->getSubExpr();
+    while (auto *CE = dyn_cast<clang::CastExpr>(F))
+      F = CE->getSubExpr();
     auto *BO = cast<clang::BinaryOperator>(F);
     assert(BO->getOpcode() == clang::BinaryOperator::Opcode::BO_Add);
     F = BO->getRHS();
-    while (auto *Ce = dyn_cast<clang::CastExpr>(F))
-      F = Ce->getSubExpr();
+    while (auto *CE = dyn_cast<clang::CastExpr>(F))
+      F = CE->getSubExpr();
     BO = cast<clang::BinaryOperator>(F);
     assert(BO->getOpcode() == clang::BinaryOperator::Opcode::BO_Mul);
     F = BO->getRHS();
