@@ -69,7 +69,7 @@ template <> struct hash<xpti::uid_t> {
 
 namespace xpti {
 constexpr int invalid_id = -1;
-constexpr int invalid_uid = 0;
+constexpr uint64_t invalid_uid = 0;
 constexpr uint8_t default_vendor = 0;
 
 /// @brief Flag values used by the payload_t structure to mark the information

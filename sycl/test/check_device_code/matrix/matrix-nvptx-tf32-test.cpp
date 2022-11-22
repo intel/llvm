@@ -3,21 +3,21 @@
 // RUN: %clangxx -Xclang -no-opaque-pointers -fsycl-device-only -fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend --cuda-gpu-arch=sm_80 -DSYCL_EXT_ONEAPI_MATRIX_VERSION=3 -S -Xclang -emit-llvm %s -o -| FileCheck %s
 // RUN: %clangxx -Xclang -opaque-pointers -fsycl-device-only -fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend --cuda-gpu-arch=sm_80 -DSYCL_EXT_ONEAPI_MATRIX_VERSION=3 -S -Xclang -emit-llvm %s -o -| FileCheck %s --check-prefixes=CHECK-OPAQUE
 
-// IMPORTANT: before updating sm version support beyond sm_86 read the following
+// IMPORTANT: before updating sm version support beyond sm_90 read the following
 // NOTE!
 
 // NOTE: Technically the 'wrong' ptx instruction is called by
 // joint_matrix_load/joint_matrix_store in this case: notice that the load and
 // store instructions use shape m16n16k16, rather than the correct shape
 // m16n16k8. The 'wrong' ptx instruction is used because it returns the correct
-// SASS instructions for all existing supported sm versions: sm_80 and sm_86.
-// The reason for this ptx instruction redundancy is due to the ptx naming
-// convention for the mnk shape triple; however we cannot in principle a priori
-// know that future sm versions will behave in the same way and that this
-// redundancy will continue as future architecture is released. This should be
-// validated before supporting any sm versions beyond sm_86. The reason that we
-// choose to use the m16n16k16 instruction is that it allows the significant
-// advantage of being able to use a portable interface across Intel and Nvidia
+// SASS instructions for all existing sm versions supporting tf32: sm_80, sm_86,
+// sm_87, sm_89, and sm_90. The reason for this ptx instruction redundancy is
+// due to the ptx naming convention for the mnk shape triple; however we cannot
+// in principle a priori know that future sm versions will behave in the same
+// way and that this redundancy will continue as future architecture is
+// released. This should be validated before supporting any sm versions beyond
+// sm_90. The reason that we choose to use the m16n16k16 instruction is that it
+// allows us to use a simpler portable interface across Intel and Nvidia
 // backends.
 
 #include <sycl/sycl.hpp>

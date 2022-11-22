@@ -176,7 +176,7 @@ def : WriteRes<WriteRMW, [Zn2AGU]>;
 def : WriteRes<WriteStore,   [Zn2AGU]>;
 def : WriteRes<WriteStoreNT, [Zn2AGU]>;
 def : WriteRes<WriteMove,    [Zn2ALU]>;
-def : WriteRes<WriteLoad,    [Zn2AGU]> { let Latency = 8; }
+def : WriteRes<WriteLoad,    [Zn2AGU]> { let Latency = 4; }
 
 // Model the effect of clobbering the read-write mask operand of the GATHER operation.
 // Does not cost anything by itself, only has latency, matching that of the WriteLoad,
@@ -521,10 +521,6 @@ def : SchedAlias<WriteSTMXCSR, Zn2WriteMicrocoded>;
 // MOV.
 // r16,m.
 def : InstRW<[WriteALULd, ReadAfterLd], (instregex "MOV16rm")>;
-
-// MOVSX, MOVZX.
-// r,m.
-def : InstRW<[WriteLoad], (instregex "MOV(S|Z)X32rm(8|16)")>;
 
 // XCHG.
 // r,r.
@@ -1173,9 +1169,8 @@ def : SchedAlias<WriteCvtPD2PSY, Zn2WriteCVTPD2PSYr>;
 // z,z.
 defm : X86WriteResUnsupported<WriteCvtPD2PSZ>;
 
-def Zn2WriteCVTPD2PSLd: SchedWriteRes<[Zn2AGU,Zn2FPU03]> {
+def Zn2WriteCVTPD2PSLd: SchedWriteRes<[Zn2AGU,Zn2FPU3]> {
   let Latency = 10;
-  let NumMicroOps = 2;
 }
 // x,m128.
 def : SchedAlias<WriteCvtPD2PSLd, Zn2WriteCVTPD2PSLd>;

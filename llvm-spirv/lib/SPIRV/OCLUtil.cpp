@@ -864,7 +864,7 @@ unsigned transVecTypeHint(MDNode *Node) {
 }
 
 SPIRAddressSpace getOCLOpaqueTypeAddrSpace(Op OpCode) {
-  switch (OpCode) {
+  switch ((unsigned)OpCode) {
   case OpTypeQueue:
     return SPIRV_QUEUE_T_ADDR_SPACE;
   case OpTypeEvent:
@@ -878,10 +878,13 @@ SPIRAddressSpace getOCLOpaqueTypeAddrSpace(Op OpCode) {
     return SPIRV_PIPE_ADDR_SPACE;
   case OpTypeImage:
   case OpTypeSampledImage:
+  case OpTypeVmeImageINTEL:
     return SPIRV_IMAGE_ADDR_SPACE;
   case OpConstantSampler:
   case OpTypeSampler:
     return SPIRV_SAMPLER_T_ADDR_SPACE;
+  case internal::OpTypeJointMatrixINTEL:
+    return SPIRAS_Global;
   default:
     if (isSubgroupAvcINTELTypeOpCode(OpCode))
       return SPIRV_AVC_INTEL_T_ADDR_SPACE;
@@ -1336,9 +1339,12 @@ Value *unwrapSpecialTypeInitializer(Value *V) {
   return nullptr;
 }
 
-bool isSamplerStructTy(Type *Ty) {
-  auto *STy = dyn_cast_or_null<StructType>(Ty);
-  return STy && STy->hasName() && STy->getName() == kSPR2TypeName::Sampler;
+bool isSamplerTy(Type *Ty) {
+  if (auto *TPT = dyn_cast_or_null<TypedPointerType>(Ty)) {
+    auto *STy = dyn_cast_or_null<StructType>(TPT->getElementType());
+    return STy && STy->hasName() && STy->getName() == kSPR2TypeName::Sampler;
+  }
+  return false;
 }
 
 bool isPipeOrAddressSpaceCastBI(const StringRef MangledName) {

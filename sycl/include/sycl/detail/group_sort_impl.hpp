@@ -10,8 +10,9 @@
 
 #pragma once
 
-#if __cplusplus >= 201703L
 #include <sycl/detail/helpers.hpp>
+#include <sycl/group_barrier.hpp>
+#include <sycl/multi_ptr.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
 
@@ -204,14 +205,13 @@ template <typename Group, typename Iter, typename Compare>
 void merge_sort(Group group, Iter first, const std::size_t n, Compare comp,
                 std::byte *scratch) {
   using T = typename GetValueType<Iter>::type;
-  auto id = sycl::detail::Builder::getNDItem<Group::dimensions>();
-  const std::size_t idx = id.get_local_linear_id();
+  const std::size_t idx = group.get_local_linear_id();
   const std::size_t local = group.get_local_range().size();
   const std::size_t chunk = (n - 1) / local + 1;
 
   // we need to sort within work item first
   bubble_sort(first, idx * chunk, sycl::min((idx + 1) * chunk, n), comp);
-  id.barrier();
+  sycl::group_barrier(group);
 
   T *temp = reinterpret_cast<T *>(scratch);
   bool data_in_temp = false;
@@ -231,7 +231,7 @@ void merge_sort(Group group, Iter first, const std::size_t n, Compare comp,
       merge(offset, temp, first, start_1, end_1, end_2, start_1, comp, chunk,
             /*is_first*/ false);
     }
-    id.barrier();
+    sycl::group_barrier(group);
 
     data_in_temp = !data_in_temp;
     sorted_size *= 2;
@@ -246,7 +246,7 @@ void merge_sort(Group group, Iter first, const std::size_t n, Compare comp,
         first[idx * chunk + i] = temp[idx * chunk + i];
       }
     }
-    id.barrier();
+    sycl::group_barrier(group);
   }
 }
 
@@ -254,4 +254,3 @@ void merge_sort(Group group, Iter first, const std::size_t n, Compare comp,
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
 #endif
-#endif // __cplusplus >=201703L

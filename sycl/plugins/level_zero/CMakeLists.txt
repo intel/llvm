@@ -24,7 +24,7 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
   if (WIN32)
     set(LEVEL_ZERO_LOADER_SOURCE_VERSION v1.2.3)
   else()
-    set(LEVEL_ZERO_LOADER_SOURCE_VERSION v1.4.1)
+    set(LEVEL_ZERO_LOADER_SOURCE_VERSION v1.8.8)
   endif()
 
   #TODO: Replace ExternalProject with FetchContent for better maintainance and

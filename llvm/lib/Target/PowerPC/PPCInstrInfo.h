@@ -254,8 +254,8 @@ class PPCInstrInfo : public PPCGenInstrInfo {
                                  bool &IsFwdFeederRegKilled,
                                  bool &SeenIntermediateUse) const;
   unsigned getSpillTarget() const;
-  const unsigned *getStoreOpcodesForSpillArray() const;
-  const unsigned *getLoadOpcodesForSpillArray() const;
+  ArrayRef<unsigned> getStoreOpcodesForSpillArray() const;
+  ArrayRef<unsigned> getLoadOpcodesForSpillArray() const;
   unsigned getSpillIndex(const TargetRegisterClass *RC) const;
   int16_t getFMAOpIdxInfo(unsigned Opcode) const;
   void reassociateFMA(MachineInstr &Root, MachineCombinerPattern Pattern,
@@ -471,9 +471,9 @@ public:
   /// when the register pressure is high for one BB.
   /// Return true if register pressure for \p MBB is high and ABI is supported
   /// to reduce register pressure. Otherwise return false.
-  bool
-  shouldReduceRegisterPressure(MachineBasicBlock *MBB,
-                               RegisterClassInfo *RegClassInfo) const override;
+  bool shouldReduceRegisterPressure(
+      const MachineBasicBlock *MBB,
+      const RegisterClassInfo *RegClassInfo) const override;
 
   /// Fixup the placeholders we put in genAlternativeCodeSequence() for
   /// MachineCombiner.
