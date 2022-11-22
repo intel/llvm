@@ -134,7 +134,7 @@ private:
   clang::CodeGen::CodeGenModule CGM;
   mlirclang::CodeGen::CodeGenTypes CGTypes;
   bool Error;
-  ScopLocList ScopLocList;
+  ScopLocList ScopLocs;
   LowerToInfo LTInfo;
   std::map<const clang::FunctionDecl *, const clang::CodeGen::CGFunctionInfo *>
       CGFunctionInfos;
@@ -163,9 +163,9 @@ public:
         CGM(AstContext, &SM.getFileManager().getVirtualFileSystem(),
             PP.getHeaderSearchInfo().getHeaderSearchOpts(),
             PP.getPreprocessorOpts(), Codegenops, LLVMMod, PP.getDiagnostics()),
-        CGTypes(CGM, Module), Error(false), ScopLocList(), LTInfo() {
-    addPragmaScopHandlers(PP, ScopLocList);
-    addPragmaEndScopHandlers(PP, ScopLocList);
+        CGTypes(CGM, Module), Error(false), ScopLocs(), LTInfo() {
+    addPragmaScopHandlers(PP, ScopLocs);
+    addPragmaEndScopHandlers(PP, ScopLocs);
     addPragmaLowerToHandlers(PP, LTInfo);
   }
 
@@ -174,7 +174,7 @@ public:
   std::map<std::string, mlir::func::FuncOp> &getFunctions() {
     return Functions;
   }
-  ::ScopLocList &getScopLocList() { return ScopLocList; }
+  ::ScopLocList &getScopLocList() { return ScopLocs; }
 
   mlir::FunctionOpInterface getOrCreateMLIRFunction(FunctionToEmit &FTE,
                                                     const bool ShouldEmit,
