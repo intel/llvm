@@ -20,6 +20,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/SYCLLowerIR/LowerKernelProps.h"
+#include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
 #include "llvm/Transforms/IPO/StripDeadPrototypes.h"
@@ -732,7 +733,7 @@ struct UsedOptionalFeatures {
       llvm::sort(Aspects);
     }
 
-    if (F->hasFnAttribute(sycl::kernel_props::ATTR_LARGE_GRF))
+    if (F->hasFnAttribute(::sycl::kernel_props::ATTR_LARGE_GRF))
       UsesLargeGRF = true;
 
     llvm::hash_code AspectsHash =

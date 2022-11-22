@@ -1755,6 +1755,36 @@ __ESIMD_API simd<T, N> atomic_update(T *p, simd<unsigned, N> offset,
       p, offset, src1, src0, mask);
 }
 
+/// RAII-style class used to implement "semi-dynamic" SLM allocation.
+/// SLM is allocated in the constructor and released in the destructor, that's
+/// why it is "dynamic", as opposed to fully static allocation style of
+/// 'slm_init'. Actual offset of SLM chunk allocated by the call is calculated
+/// at compile time, that's why it is "semi-". To calculate SLM usage by a
+/// kernel, compiler finds a path in a callgraph with the largest amount of SLM
+/// "locked" by slm_allocator objects live along the paths. slm_init call also
+/// participates in calculating SLM budget. It can be modelled as
+/// \c slm_allocator object declared at the very beginning of a kernel and live
+/// till its the very end.
+///
+/// Since a call graph is used, function pointers and recursion is not
+/// supported.
+class slm_allocator {
+  int offset;
+
+public:
+  /// <summary>
+  /// Allocates given amount of SLM.
+  /// </summary>
+  /// <param name="amount">The amount allocated in bytes.</param>
+  slm_allocator(int amount) { offset = __esimd_slm_alloc(amount); }
+
+  /// <returns>The allocated chunk's offset in bytes.</returns>
+  int get_offset() const { return offset; }
+
+  /// Releases the SLM chunk allocated in the constructor.
+  ~slm_allocator() { __esimd_slm_free(offset); }
+};
+
 } // namespace esimd
 } // namespace ext::intel
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

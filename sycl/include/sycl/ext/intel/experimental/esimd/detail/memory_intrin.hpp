@@ -1812,4 +1812,24 @@ __ESIMD_INTRIN void __esimd_lsc_fence(__ESIMD_DNS::simd_mask_storage_t<N> pred)
 }
 #endif // __SYCL_DEVICE_ONLY__
 
+__ESIMD_INTRIN uint32_t __esimd_slm_alloc(uint32_t size)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else  // __SYCL_DEVICE_ONLY__
+{
+  // TODO implement for the emulator
+  __ESIMD_UNSUPPORTED_ON_HOST;
+}
+#endif // __SYCL_DEVICE_ONLY__
+
+__ESIMD_INTRIN void __esimd_slm_free(uint32_t id)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else  // __SYCL_DEVICE_ONLY__
+{
+  // TODO implement for the emulator
+  __ESIMD_UNSUPPORTED_ON_HOST;
+}
+#endif // __SYCL_DEVICE_ONLY__
+
 /// @endcond ESIMD_DETAIL
