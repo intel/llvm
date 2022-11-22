@@ -13,49 +13,47 @@
 
 #include <limits>
 
+using namespace mlir;
+
 namespace mlirclang {
 
 struct AffineLoopDescriptorImpl {
-  mlir::Value upperBound = nullptr;
-  mlir::Value lowerBound = nullptr;
-  int64_t step = std::numeric_limits<int64_t>::max();
-  mlir::Type indVarType = nullptr;
-  clang::VarDecl *indVar = nullptr;
-  bool forwardMode = true;
+  Value UpperBound = nullptr;
+  Value LowerBound = nullptr;
+  int64_t Step = std::numeric_limits<int64_t>::max();
+  Type IndVarType = nullptr;
+  clang::VarDecl *IndVar = nullptr;
+  bool ForwardMode = true;
 };
 
 AffineLoopDescriptor::AffineLoopDescriptor()
-    : impl(std::make_unique<AffineLoopDescriptorImpl>()) {}
+    : Impl(std::make_unique<AffineLoopDescriptorImpl>()) {}
 AffineLoopDescriptor::~AffineLoopDescriptor() = default;
 
-mlir::Value AffineLoopDescriptor::getLowerBound() const {
-  return impl->lowerBound;
-}
-void AffineLoopDescriptor::setLowerBound(mlir::Value value) {
-  impl->lowerBound = value;
+Value AffineLoopDescriptor::getLowerBound() const { return Impl->LowerBound; }
+void AffineLoopDescriptor::setLowerBound(Value Value) {
+  Impl->LowerBound = Value;
 }
 
-mlir::Value AffineLoopDescriptor::getUpperBound() const {
-  return impl->upperBound;
-}
-void AffineLoopDescriptor::setUpperBound(mlir::Value value) {
-  impl->upperBound = value;
+Value AffineLoopDescriptor::getUpperBound() const { return Impl->UpperBound; }
+void AffineLoopDescriptor::setUpperBound(Value Value) {
+  Impl->UpperBound = Value;
 }
 
-int AffineLoopDescriptor::getStep() const { return impl->step; }
-void AffineLoopDescriptor::setStep(int value) { impl->step = value; }
+int AffineLoopDescriptor::getStep() const { return Impl->Step; }
+void AffineLoopDescriptor::setStep(int Value) { Impl->Step = Value; }
 
-clang::VarDecl *AffineLoopDescriptor::getName() const { return impl->indVar; }
-void AffineLoopDescriptor::setName(clang::VarDecl *value) {
-  impl->indVar = value;
+clang::VarDecl *AffineLoopDescriptor::getName() const { return Impl->IndVar; }
+void AffineLoopDescriptor::setName(clang::VarDecl *Value) {
+  Impl->IndVar = Value;
 }
 
-mlir::Type AffineLoopDescriptor::getType() const { return impl->indVarType; }
-void AffineLoopDescriptor::setType(mlir::Type type) { impl->indVarType = type; }
+Type AffineLoopDescriptor::getType() const { return Impl->IndVarType; }
+void AffineLoopDescriptor::setType(Type Type) { Impl->IndVarType = Type; }
 
-bool AffineLoopDescriptor::getForwardMode() const { return impl->forwardMode; }
-void AffineLoopDescriptor::setForwardMode(bool value) {
-  impl->forwardMode = value;
+bool AffineLoopDescriptor::getForwardMode() const { return Impl->ForwardMode; }
+void AffineLoopDescriptor::setForwardMode(bool Value) {
+  Impl->ForwardMode = Value;
 }
 
 } // namespace mlirclang
