@@ -411,7 +411,8 @@ public:
 class AccessorCommonType
     : public Type::TypeBase<AccessorCommonType, Type,
                             detail::AccessorCommonTypeStorage,
-                            mlir::MemRefElementTypeInterface::Trait> {
+                            mlir::MemRefElementTypeInterface::Trait,
+                            mlir::LLVM::PointerElementTypeInterface::Trait> {
 public:
   using Base::Base;
 

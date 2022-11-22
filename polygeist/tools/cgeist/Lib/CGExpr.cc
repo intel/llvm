@@ -1030,46 +1030,48 @@ MLIRScanner::emitSYCLOps(const clang::Expr *Expr,
                          const llvm::SmallVectorImpl<mlir::Value> &Args) {
   mlir::Operation *Op = nullptr;
 
+  const FunctionDecl *Func = nullptr;
   if (const auto *ConsExpr = dyn_cast<clang::CXXConstructExpr>(Expr)) {
-    const auto *Func = ConsExpr->getConstructor()->getAsFunction();
+    Func = ConsExpr->getConstructor()->getAsFunction();
 
-    if (mlirclang::isNamespaceSYCL(Func->getEnclosingNamespaceContext())) {
+    if (mlirclang::isNamespaceSYCL(Func->getEnclosingNamespaceContext()))
       if (const auto *RD = dyn_cast<clang::CXXRecordDecl>(Func->getParent())) {
         std::string Name =
             MLIRScanner::getMangledFuncName(*Func, Glob.getCGM());
-        Op = Builder.create<mlir::sycl::SYCLConstructorOp>(Loc, RD->getName(),
-                                                           Name, Args);
+        if (!RD->getName().empty()) {
+          Op = Builder.create<mlir::sycl::SYCLConstructorOp>(Loc, RD->getName(),
+                                                             Name, Args);
+          return Op;
+        }
       }
+  }
+
+  if (const auto *CallExpr = dyn_cast<clang::CallExpr>(Expr))
+    Func = CallExpr->getCalleeDecl()->getAsFunction();
+
+  if (mlirclang::isNamespaceSYCL(Func->getEnclosingNamespaceContext())) {
+    auto OptFuncType = llvm::Optional<llvm::StringRef>{llvm::None};
+    if (const auto *RD = dyn_cast<clang::CXXRecordDecl>(Func->getParent()))
+      if (!RD->getName().empty())
+        OptFuncType = RD->getName();
+
+    auto OptRetType = llvm::Optional<mlir::Type>{llvm::None};
+    const mlir::Type RetType =
+        Glob.getTypes().getMLIRType(Func->getReturnType());
+    if (!RetType.isa<mlir::NoneType>())
+      OptRetType = RetType;
+
+    std::string Name = MLIRScanner::getMangledFuncName(*Func, Glob.getCGM());
+    if (OptFuncType) {
+      // Attempt to create a SYCL method call first, if that fails create a
+      // generic SYCLCallOp.
+      Op = createSYCLMethodOp(*OptFuncType, Func->getNameAsString(), Args,
+                              OptRetType, Name)
+               .value_or(nullptr);
     }
-  } else if (const auto *CallExpr = dyn_cast<clang::CallExpr>(Expr)) {
-    const auto *Func = CallExpr->getCalleeDecl()->getAsFunction();
-
-    if (mlirclang::isNamespaceSYCL(Func->getEnclosingNamespaceContext())) {
-      auto OptFuncType = llvm::Optional<llvm::StringRef>{llvm::None};
-      if (const auto *RD = dyn_cast<clang::CXXRecordDecl>(Func->getParent()))
-        if (!RD->getName().empty())
-          OptFuncType = RD->getName();
-
-      auto OptRetType = llvm::Optional<mlir::Type>{llvm::None};
-      const mlir::Type RetType =
-          Glob.getTypes().getMLIRType(Func->getReturnType());
-      if (!RetType.isa<mlir::NoneType>()) {
-        OptRetType = RetType;
-      }
-
-      std::string Name = MLIRScanner::getMangledFuncName(*Func, Glob.getCGM());
-      if (OptFuncType) {
-        // Attempt to create a SYCL method call first, if that fails create a
-        // generic SYCLCallOp.
-        Op = createSYCLMethodOp(*OptFuncType, Func->getNameAsString(), Args,
-                                OptRetType, Name)
-                 .value_or(nullptr);
-      }
-
-      if (!Op)
-        Op = Builder.create<mlir::sycl::SYCLCallOp>(
-            Loc, OptRetType, OptFuncType, Func->getNameAsString(), Name, Args);
-    }
+    if (!Op)
+      Op = Builder.create<mlir::sycl::SYCLCallOp>(
+          Loc, OptRetType, OptFuncType, Func->getNameAsString(), Name, Args);
   }
 
   return Op;
