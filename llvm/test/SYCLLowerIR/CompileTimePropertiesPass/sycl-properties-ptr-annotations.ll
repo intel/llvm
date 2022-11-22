@@ -1,15 +1,4 @@
-; RUN: sycl-post-link --device-globals --ir-output-only -S %s -o %t.ll
-; RUN: FileCheck %s -input-file=%t.ll
-;
-; TODO: Remove --device-globals once other features start using compile-time
-;       properties.
-;
-; Tests the translation of "sycl-properties" pointer annotations to pointer
-; annotations the SPIR-V translator will produce decorations from.
-; NOTE: These use SYCL property meta-names that are currently only intended for
-;       use in attributes-to-metadata translations, but sycl-post-link does not
-;       currently make the distinction so we will use them for the purpose of
-;       testing the transformations.
+; RUN: opt -passes=compile-time-properties %s -S | FileCheck %s
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
