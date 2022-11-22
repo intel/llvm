@@ -9,6 +9,10 @@
 #include "utils.h"
 #include "clang-mlir.h"
 
+#include "clang/AST/Expr.h"
+
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/OperationSupport.h"
@@ -16,8 +20,12 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/WithColor.h"
+#include "llvm/Support/raw_ostream.h"
 
 using namespace mlir;
+
+extern llvm::cl::opt<bool> SuppressWarnings;
 
 namespace mlirclang {
 
@@ -79,6 +87,12 @@ FunctionContext getInputContext(const OpBuilder &B) {
 gpu::GPUModuleOp getDeviceModule(ModuleOp Module) {
   return cast<gpu::GPUModuleOp>(
       Module.lookupSymbol(MLIRASTConsumer::DeviceModuleName));
+}
+
+llvm::raw_ostream &warning() {
+  if (SuppressWarnings)
+    return llvm::nulls();
+  return llvm::WithColor::warning();
 }
 
 } // namespace mlirclang

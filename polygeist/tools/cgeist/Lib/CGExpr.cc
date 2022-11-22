@@ -14,7 +14,6 @@
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
 
 #include "llvm/ADT/TypeSwitch.h"
-#include "llvm/Support/WithColor.h"
 
 #define DEBUG_TYPE "CGExpr"
 
@@ -437,8 +436,9 @@ static const clang::ConstantArrayType *getCAT(const clang::Type *T) {
 
 ValueCategory MLIRScanner::VisitArrayInitLoop(clang::ArrayInitLoopExpr *Expr,
                                               ValueCategory Tostore) {
+  mlirclang::warning() << "recomputing common in arrayinitloopexpr\n";
+
   const clang::ConstantArrayType *CAT = getCAT(Expr->getType().getTypePtr());
-  llvm::errs() << "warning recomputing common in  ArrayInitloopexpr\n";
   std::vector<mlir::Value> Start = {getConstantIndex(0)};
   std::vector<mlir::Value> Sizes = {
       getConstantIndex(CAT->getSize().getLimitedValue())};
@@ -617,25 +617,23 @@ ValueCategory MLIRScanner::VisitMaterializeTemporaryExpr(
   if (IsArray)
     return V;
 
-  llvm::errs() << "cleanup of materialized not handled";
+  mlirclang::warning() << "cleanup of materialized not handled";
   auto Op =
       createAllocOp(Glob.getTypes().getMLIRType(Expr->getSubExpr()->getType()),
                     nullptr, 0, /*isArray*/ IsArray, /*LLVMABI*/ LLVMABI);
-
   ValueCategory(Op, /*isRefererence*/ true).store(Builder, V, IsArray);
   return ValueCategory(Op, /*isRefererence*/ true);
 }
 
 ValueCategory MLIRScanner::VisitCXXDeleteExpr(clang::CXXDeleteExpr *Expr) {
-  Location Loc = getMLIRLocation(Expr->getExprLoc());
-  Expr->dump();
-  llvm::errs() << "warning not calling destructor on delete\n";
+  mlirclang::warning() << "not calling destructor on delete\n";
 
+  Location Loc = getMLIRLocation(Expr->getExprLoc());
   mlir::Value ToDelete = Visit(Expr->getArgument()).getValue(Builder);
 
-  if (ToDelete.getType().isa<mlir::MemRefType>()) {
+  if (ToDelete.getType().isa<mlir::MemRefType>())
     Builder.create<mlir::memref::DeallocOp>(Loc, ToDelete);
-  } else {
+  else {
     mlir::Value Args[1] = {Builder.create<LLVM::BitcastOp>(
         Loc, LLVM::LLVMPointerType::get(Builder.getI8Type()), ToDelete)};
     Builder.create<mlir::LLVM::CallOp>(Loc, Glob.getOrCreateFreeFunction(),
@@ -1160,8 +1158,8 @@ ValueCategory MLIRScanner::VisitAtomicExpr(clang::AtomicExpr *BO) {
 ValueCategory MLIRScanner::VisitExprWithCleanups(ExprWithCleanups *E) {
   auto Ret = Visit(E->getSubExpr());
   for (auto &Child : E->children()) {
-    Child->dump();
-    llvm::errs() << "cleanup not handled\n";
+    mlirclang::warning() << "cleanup not handled for: ";
+    Child->dump(mlirclang::warning(), Glob.getCGM().getContext());
   }
   return Ret;
 }
@@ -2150,7 +2148,7 @@ ValueCategory MLIRScanner::EmitPromoted(Expr *E, QualType PromotionType) {
     case UO_Real:
     case UO_Minus:
     case UO_Plus:
-      llvm::WithColor::warning() << "Default promotion for unary operation\n";
+      mlirclang::warning() << "Default promotion for unary operation\n";
       LLVM_FALLTHROUGH;
     default:
       break;
@@ -2209,7 +2207,7 @@ ValueCategory MLIRScanner::EmitScalarCast(mlir::Location Loc, ValueCategory Src,
     bool InputSigned = SrcType->isSignedIntegerOrEnumerationType();
     if (SrcType->isBooleanType()) {
       // TODO: Should check options
-      llvm::WithColor::warning() << "Treating boolean as unsigned\n";
+      mlirclang::warning() << "Treating boolean as unsigned\n";
       InputSigned = false;
     }
 
@@ -2227,7 +2225,7 @@ ValueCategory MLIRScanner::EmitScalarCast(mlir::Location Loc, ValueCategory Src,
     // If we can't recognize overflow as undefined behavior, assume that
     // overflow saturates. This protects against normal optimizations if we are
     // compiling with non-standard FP semantics.
-    llvm::WithColor::warning() << "Performing strict float cast overflow\n";
+    mlirclang::warning() << "Performing strict float cast overflow\n";
 
     if (IsSigned)
       return Src.FPToSI(Builder, Loc, DstTy);
@@ -2282,15 +2280,16 @@ ValueCategory MLIRScanner::EmitScalarConversion(ValueCategory Src,
     // Cast to FP using the intrinsic if the half type itself isn't supported.
     if (DstTy.isa<FloatType>()) {
       if (CGM.getContext().getTargetInfo().useFP16ConversionIntrinsics())
-        llvm::WithColor::warning() << "Should call convert_from_fp16 intrinsic "
-                                      "to perfom this conversion\n";
+        mlirclang::warning() << "Should call convert_from_fp16 intrinsic "
+                                "to perfom this conversion\n";
     } else {
       // Cast to other types through float, using either the intrinsic or FPExt,
       // depending on whether the half type itself is supported
       // (as opposed to operations on half, available with NativeHalfType).
       if (CGM.getContext().getTargetInfo().useFP16ConversionIntrinsics())
-        llvm::WithColor::warning() << "Should call convert_from_fp16 intrinsic "
-                                      "to perfom this conversion\n";
+        mlirclang::warning() << "Should call convert_from_fp16 intrinsic "
+                                "to perfom this conversion\n";
+
       Src = Src.FPExt(Builder, MLIRLoc, Builder.getF32Type());
       SrcType = CGM.getContext().FloatTy;
       SrcTy = Builder.getF32Type();
@@ -2299,7 +2298,7 @@ ValueCategory MLIRScanner::EmitScalarConversion(ValueCategory Src,
 
   // Ignore conversions like int -> uint.
   if (SrcTy == DstTy) {
-    llvm::WithColor::warning()
+    mlirclang::warning()
         << "Not emitting implicit integer sign change checks\n";
 
     return Src;
@@ -2323,7 +2322,7 @@ ValueCategory MLIRScanner::EmitScalarConversion(ValueCategory Src,
 
   // Finally, we have the arithmetic types: real int/float.
   mlir::Type ResTy = DstTy;
-  llvm::WithColor::warning() << "Missing overflow checks\n";
+  mlirclang::warning() << "Missing overflow checks\n";
 
   // Cast to half through float if half isn't a native type.
   if (DstType->isHalfType() && !CGM.getContext().getLangOpts().NativeHalfType) {
@@ -2332,8 +2331,8 @@ ValueCategory MLIRScanner::EmitScalarConversion(ValueCategory Src,
       // Use the intrinsic if the half type itself isn't supported
       // (as opposed to operations on half, available with NativeHalfType).
       if (CGM.getContext().getTargetInfo().useFP16ConversionIntrinsics())
-        llvm::WithColor::warning() << "Should call convert_to_fp16 intrinsic "
-                                      "to perfom this conversion\n";
+        mlirclang::warning() << "Should call convert_to_fp16 intrinsic "
+                                "to perfom this conversion\n";
       // If the half type is supported, just use an fptrunc.
       return Src.FPTrunc(Builder, MLIRLoc, DstTy);
     }
@@ -2346,14 +2345,14 @@ ValueCategory MLIRScanner::EmitScalarConversion(ValueCategory Src,
   if (DstTy != ResTy) {
     if (CGM.getContext().getTargetInfo().useFP16ConversionIntrinsics()) {
       assert(ResTy.isInteger(16) && "Only half FP requires extra conversion");
-      llvm::WithColor::warning() << "Should call convert_to_fp16 intrinsic to "
-                                    "perfom this conversion\n";
+      mlirclang::warning() << "Should call convert_to_fp16 intrinsic to "
+                              "perfom this conversion\n";
     }
     Res = Res.FPTrunc(Builder, MLIRLoc, ResTy);
   }
 
-  llvm::WithColor::warning() << "Missing truncation checks\n";
-  llvm::WithColor::warning() << "Missing integer sign change checks\n";
+  mlirclang::warning() << "Missing truncation checks\n";
+  mlirclang::warning() << "Missing integer sign change checks\n";
 
   return Res;
 }
@@ -2475,7 +2474,7 @@ std::pair<ValueCategory, ValueCategory> MLIRScanner::EmitCompoundAssignLValue(
   QualType LHSTy = E->getLHS()->getType();
 
   if (E->getComputationResultType()->isAnyComplexType())
-    llvm::WithColor::warning() << "Not handling complex types yet\n";
+    mlirclang::warning() << "Not handling complex types yet\n";
 
   // Emit the RHS first.  __block variables need to have the rhs evaluated
   // first, plus this should improve codegen a little.
@@ -2496,11 +2495,11 @@ std::pair<ValueCategory, ValueCategory> MLIRScanner::EmitCompoundAssignLValue(
   const SourceLocation Loc = E->getExprLoc();
 
   // Load/convert the LHS.
-  llvm::WithColor::warning() << "Emitting unchecked LValue\n";
-  const ValueCategory LHSLV = EmitLValue(E->getLHS());
+  mlirclang::warning() << "Emitting unchecked LValue\n";
 
+  const ValueCategory LHSLV = EmitLValue(E->getLHS());
   if (isa<AtomicType>(LHSTy))
-    llvm::WithColor::warning()
+    mlirclang::warning()
         << "Not handling atomics. Should perform RMW operation here.\n";
 
   ValueCategory LHS{LHSLV.getValue(Builder), false};
@@ -2517,10 +2516,9 @@ std::pair<ValueCategory, ValueCategory> MLIRScanner::EmitCompoundAssignLValue(
 
   LHSLV.store(Builder, Result.val);
 
-  if (Glob.getCGM().getLangOpts().OpenMP) {
-    llvm::WithColor::warning() << "Should checkAndEmitLastprivateConditional, "
-                                  "but not implemented yet.\n";
-  }
+  if (Glob.getCGM().getLangOpts().OpenMP)
+    mlirclang::warning() << "Should checkAndEmitLastprivateConditional, "
+                            "but not implemented yet.\n";
 
   return {LHSLV, Result};
 }
