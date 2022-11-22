@@ -8,7 +8,6 @@ using namespace sycl;
 queue q;
 
 int main() {
-  int *Ptr[2];
   // expected-no-diagnostics
   q.submit([&](handler &h) {
     h.single_task<class kernelA>([=]() {
