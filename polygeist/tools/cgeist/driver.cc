@@ -55,7 +55,6 @@
 #include "llvm/Support/Host.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Program.h"
-#include "llvm/Support/WithColor.h"
 
 #include "Options.h"
 #include "polygeist/Dialect.h"
@@ -66,8 +65,6 @@
 #define DEBUG_TYPE "cgeist"
 
 using namespace llvm;
-
-extern llvm::cl::opt<bool> SuppressWarnings;
 
 class MemRefInsider
     : public mlir::MemRefElementTypeInterface::FallbackModel<MemRefInsider> {};
@@ -860,10 +857,8 @@ getOptimizationLevel(unsigned OptimizationLevel) {
     return llvm::OptimizationLevel::O3;
   default:
     // All speed levels above 2 are equivalent to '-O3'
-    if (!SuppressWarnings)
-      llvm::WithColor::warning()
-          << "optimization level '-O" << OptimizationLevel
-          << "' is not supported; using '-O3' instead\n";
+    mlirclang::warning() << "optimization level '-O" << OptimizationLevel
+                         << "' is not supported; using '-O3' instead\n";
   }
   return llvm::OptimizationLevel::O3;
 }

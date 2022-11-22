@@ -9,11 +9,11 @@
 #include "Lib/TypeUtils.h"
 #include "clang-mlir.h"
 #include "utils.h"
-#include "llvm/ADT/TypeSwitch.h"
-#include "llvm/Support/WithColor.h"
 
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
+
+#include "llvm/ADT/TypeSwitch.h"
 
 #define DEBUG_TYPE "CGExpr"
 
@@ -23,6 +23,7 @@ using namespace mlir::arith;
 
 extern llvm::cl::opt<bool> GenerateAllSYCLFuncs;
 extern llvm::cl::opt<bool> OmitOptionalMangledFunctionName;
+
 ValueCategory
 MLIRScanner::VisitExtVectorElementExpr(clang::ExtVectorElementExpr *expr) {
   auto base = Visit(expr->getBase());

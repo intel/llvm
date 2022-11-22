@@ -8,14 +8,13 @@
 
 #include "IfScope.h"
 #include "clang-mlir.h"
+#include "utils.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Diagnostics.h"
-
-#include "llvm/Support/WithColor.h"
 
 #define DEBUG_TYPE "CGStmt"
 
@@ -1095,10 +1094,7 @@ ValueCategory MLIRScanner::VisitGotoStmt(clang::GotoStmt *stmt) {
 }
 
 ValueCategory MLIRScanner::VisitCXXTryStmt(clang::CXXTryStmt *stmt) {
-  if (!SuppressWarnings) {
-    llvm::WithColor::warning() << "not performing catches for try: ";
-    stmt->dump();
-  }
+  mlirclang::warning() << "not performing catches for try stmt\n";
 
   return Visit(stmt->getTryBlock());
 }
