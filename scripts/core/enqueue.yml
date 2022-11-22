@@ -420,9 +420,6 @@ params:
     - type: $x_mem_handle_t
       name: hBufferSrc
       desc: "[in] handle of the source buffer object"
-    - type: size_t
-      name: srcOffset
-      desc: "[in] offset in bytes in the source buffer object"
     - type: $x_mem_handle_t
       name: hBufferDst
       desc: "[in] handle of the dest buffer object"
