@@ -56,8 +56,8 @@ class CodeGenTypes;
 } // namespace mlirclang
 
 struct LoopContext {
-  mlir::Value keepRunning;
-  mlir::Value noBreak;
+  mlir::Value KeepRunning;
+  mlir::Value NoBreak;
 };
 
 class BinOpInfo;
@@ -118,23 +118,23 @@ private:
 
 class MLIRASTConsumer : public clang::ASTConsumer {
 private:
-  std::set<std::string> &emitIfFound;
-  std::set<std::pair<FunctionContext, std::string>> &done;
-  std::map<std::string, mlir::LLVM::GlobalOp> &llvmStringGlobals;
-  std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> &globals;
-  std::map<std::string, mlir::func::FuncOp> &functions;
-  std::map<std::string, mlir::FunctionOpInterface> &deviceFunctions;
-  std::map<std::string, mlir::LLVM::GlobalOp> &llvmGlobals;
-  std::map<std::string, mlir::LLVM::LLVMFuncOp> &llvmFunctions;
-  std::deque<FunctionToEmit> functionsToEmit;
-  mlir::OwningOpRef<mlir::ModuleOp> &module;
+  std::set<std::string> &EmitIfFound;
+  std::set<std::pair<FunctionContext, std::string>> &Done;
+  std::map<std::string, mlir::LLVM::GlobalOp> &LLVMStringGlobals;
+  std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> &Globals;
+  std::map<std::string, mlir::func::FuncOp> &Functions;
+  std::map<std::string, mlir::FunctionOpInterface> &DeviceFunctions;
+  std::map<std::string, mlir::LLVM::GlobalOp> &LLVMGlobals;
+  std::map<std::string, mlir::LLVM::LLVMFuncOp> &LLVMFunctions;
+  std::deque<FunctionToEmit> FunctionsToEmit;
+  mlir::OwningOpRef<mlir::ModuleOp> &Module;
   clang::SourceManager &SM;
-  llvm::LLVMContext lcontext;
-  llvm::Module llvmMod;
+  llvm::LLVMContext Lcontext;
+  llvm::Module LLVMMod;
   clang::CodeGen::CodeGenModule CGM;
   mlirclang::CodeGen::CodeGenTypes CGTypes;
-  bool error;
-  ScopLocList scopLocList;
+  bool Error;
+  ScopLocList ScopLocList;
   LowerToInfo LTInfo;
   std::map<const clang::FunctionDecl *, const clang::CodeGen::CGFunctionInfo *>
       CGFunctionInfos;
@@ -145,50 +145,50 @@ public:
   MLIRASTConsumer(
       std::set<std::string> &EmitIfFound,
       std::set<std::pair<FunctionContext, std::string>> &Done,
-      std::map<std::string, mlir::LLVM::GlobalOp> &LlvmStringGlobals,
+      std::map<std::string, mlir::LLVM::GlobalOp> &LLVMStringGlobals,
       std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> &Globals,
       std::map<std::string, mlir::func::FuncOp> &Functions,
       std::map<std::string, mlir::FunctionOpInterface> &DeviceFunctions,
-      std::map<std::string, mlir::LLVM::GlobalOp> &LlvmGlobals,
-      std::map<std::string, mlir::LLVM::LLVMFuncOp> &LlvmFunctions,
+      std::map<std::string, mlir::LLVM::GlobalOp> &LLVMGlobals,
+      std::map<std::string, mlir::LLVM::LLVMFuncOp> &LLVMFunctions,
       clang::Preprocessor &PP, clang::ASTContext &AstContext,
       mlir::OwningOpRef<mlir::ModuleOp> &Module, clang::SourceManager &SM,
       clang::CodeGenOptions &Codegenops, std::string ModuleId)
-      : emitIfFound(EmitIfFound), done(Done),
-        llvmStringGlobals(LlvmStringGlobals), globals(Globals),
-        functions(Functions), deviceFunctions(DeviceFunctions),
-        llvmGlobals(LlvmGlobals), llvmFunctions(LlvmFunctions),
-        functionsToEmit(), module(Module), SM(SM), lcontext(),
-        llvmMod(ModuleId, lcontext),
+      : EmitIfFound(EmitIfFound), Done(Done),
+        LLVMStringGlobals(LLVMStringGlobals), Globals(Globals),
+        Functions(Functions), DeviceFunctions(DeviceFunctions),
+        LLVMGlobals(LLVMGlobals), LLVMFunctions(LLVMFunctions),
+        FunctionsToEmit(), Module(Module), SM(SM), Lcontext(),
+        LLVMMod(ModuleId, Lcontext),
         CGM(AstContext, &SM.getFileManager().getVirtualFileSystem(),
             PP.getHeaderSearchInfo().getHeaderSearchOpts(),
-            PP.getPreprocessorOpts(), Codegenops, llvmMod, PP.getDiagnostics()),
-        CGTypes(CGM, Module), error(false), scopLocList(), LTInfo() {
-    addPragmaScopHandlers(PP, scopLocList);
-    addPragmaEndScopHandlers(PP, scopLocList);
+            PP.getPreprocessorOpts(), Codegenops, LLVMMod, PP.getDiagnostics()),
+        CGTypes(CGM, Module), Error(false), ScopLocList(), LTInfo() {
+    addPragmaScopHandlers(PP, ScopLocList);
+    addPragmaEndScopHandlers(PP, ScopLocList);
     addPragmaLowerToHandlers(PP, LTInfo);
   }
 
   clang::CodeGen::CodeGenModule &getCGM() { return CGM; }
   mlirclang::CodeGen::CodeGenTypes &getTypes() { return CGTypes; }
   std::map<std::string, mlir::func::FuncOp> &getFunctions() {
-    return functions;
+    return Functions;
   }
-  ScopLocList &getScopLocList() { return scopLocList; }
+  ::ScopLocList &getScopLocList() { return ScopLocList; }
 
-  mlir::FunctionOpInterface GetOrCreateMLIRFunction(FunctionToEmit &FTE,
+  mlir::FunctionOpInterface getOrCreateMLIRFunction(FunctionToEmit &FTE,
                                                     const bool ShouldEmit,
                                                     bool GetDeviceStub = false);
-  mlir::LLVM::LLVMFuncOp GetOrCreateLLVMFunction(const clang::FunctionDecl *FD);
-  mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction();
-  mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction();
+  mlir::LLVM::LLVMFuncOp getOrCreateLLVMFunction(const clang::FunctionDecl *FD);
+  mlir::LLVM::LLVMFuncOp getOrCreateMallocFunction();
+  mlir::LLVM::LLVMFuncOp getOrCreateFreeFunction();
 
-  mlir::LLVM::GlobalOp GetOrCreateLLVMGlobal(const clang::ValueDecl *VD,
+  mlir::LLVM::GlobalOp getOrCreateLLVMGlobal(const clang::ValueDecl *VD,
                                              std::string Prefix = "");
 
   /// Return a value representing an access into a global string with the
   /// given name, creating the string if necessary.
-  mlir::Value GetOrCreateGlobalLLVMString(mlir::Location Loc,
+  mlir::Value getOrCreateGlobalLLVMString(mlir::Location Loc,
                                           mlir::OpBuilder &Builder,
                                           clang::StringRef Value);
 
@@ -198,7 +198,7 @@ public:
                     FunctionContext FuncContext);
 
   const clang::CodeGen::CGFunctionInfo &
-  GetOrCreateCGFunctionInfo(const clang::FunctionDecl *FD);
+  getOrCreateCGFunctionInfo(const clang::FunctionDecl *FD);
 
   void run();
 
@@ -252,45 +252,45 @@ class MLIRScanner : public clang::StmtVisitor<MLIRScanner, ValueCategory> {
 
 private:
   MLIRASTConsumer &Glob;
-  mlir::FunctionOpInterface function;
-  mlir::OwningOpRef<mlir::ModuleOp> &module;
-  mlir::OpBuilder builder;
-  mlir::Location loc;
-  mlir::Block *entryBlock;
-  std::vector<LoopContext> loops;
-  mlir::Block *allocationScope;
-  llvm::SmallSet<std::string, 4> unsupportedFuncs;
-  std::map<const void *, std::vector<mlir::LLVM::AllocaOp>> bufs;
-  std::map<int, mlir::Value> constants;
-  std::map<clang::LabelStmt *, mlir::Block *> labels;
+  mlir::FunctionOpInterface Function;
+  mlir::OwningOpRef<mlir::ModuleOp> &Module;
+  mlir::OpBuilder Builder;
+  mlir::Location Loc;
+  mlir::Block *EntryBlock;
+  std::vector<LoopContext> Loops;
+  mlir::Block *AllocationScope;
+  llvm::SmallSet<std::string, 4> UnsupportedFuncs;
+  std::map<const void *, std::vector<mlir::LLVM::AllocaOp>> Bufs;
+  std::map<int, mlir::Value> Constants;
+  std::map<clang::LabelStmt *, mlir::Block *> Labels;
   const clang::FunctionDecl *EmittingFunctionDecl;
-  std::map<const clang::ValueDecl *, ValueCategory> params;
+  std::map<const clang::ValueDecl *, ValueCategory> Params;
   llvm::DenseMap<const clang::ValueDecl *, clang::FieldDecl *> Captures;
   llvm::DenseMap<const clang::ValueDecl *, clang::LambdaCaptureKind>
       CaptureKinds;
   clang::FieldDecl *ThisCapture;
-  std::vector<mlir::Value> arrayinit;
+  std::vector<mlir::Value> ArrayInit;
   ValueCategory ThisVal;
-  mlir::Value returnVal;
+  mlir::Value ReturnVal;
   LowerToInfo &LTInfo;
 
   // Initialize a exclude list of SYCL functions to emit instead just the
   // declaration. Eventually, this list should be removed.
   void initUnsupportedFunctions();
   bool isUnsupportedFunction(std::string Name) const {
-    return unsupportedFuncs.contains(Name);
+    return UnsupportedFuncs.contains(Name);
   }
 
-  mlir::LLVM::AllocaOp allocateBuffer(size_t i, mlir::LLVM::LLVMPointerType t) {
-    auto &Vec = bufs[t.getAsOpaquePointer()];
-    if (i < Vec.size())
-      return Vec[i];
+  mlir::LLVM::AllocaOp allocateBuffer(size_t I, mlir::LLVM::LLVMPointerType T) {
+    auto &Vec = Bufs[T.getAsOpaquePointer()];
+    if (I < Vec.size())
+      return Vec[I];
 
-    mlir::OpBuilder Subbuilder(builder.getContext());
-    Subbuilder.setInsertionPointToStart(allocationScope);
+    mlir::OpBuilder Subbuilder(Builder.getContext());
+    Subbuilder.setInsertionPointToStart(AllocationScope);
 
-    auto One = Subbuilder.create<mlir::arith::ConstantIntOp>(loc, 1, 64);
-    auto Rs = Subbuilder.create<mlir::LLVM::AllocaOp>(loc, t, One, 0);
+    auto One = Subbuilder.create<mlir::arith::ConstantIntOp>(Loc, 1, 64);
+    auto Rs = Subbuilder.create<mlir::LLVM::AllocaOp>(Loc, T, One, 0);
     Vec.push_back(Rs);
     return Rs;
   }
@@ -379,13 +379,13 @@ public:
   void init(mlir::FunctionOpInterface Function, const FunctionToEmit &FTE);
 
   void setEntryAndAllocBlock(mlir::Block *B) {
-    allocationScope = entryBlock = B;
-    builder.setInsertionPointToStart(B);
+    AllocationScope = EntryBlock = B;
+    Builder.setInsertionPointToStart(B);
   }
 
-  mlir::OpBuilder &getBuilder() { return builder; };
-  std::vector<LoopContext> &getLoops() { return loops; }
-  mlir::Location getLoc() const { return loc; }
+  mlir::OpBuilder &getBuilder() { return Builder; };
+  std::vector<LoopContext> &getLoops() { return Loops; }
+  mlir::Location getLoc() const { return Loc; }
 
   mlir::Value getConstantIndex(int X);
 
