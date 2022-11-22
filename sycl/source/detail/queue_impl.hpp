@@ -451,6 +451,8 @@ public:
     MStreamsServiceEvents.push_back(Event);
   }
 
+  bool ext_oneapi_empty() const;
+
 protected:
   // template is needed for proper unit testing
   template <typename HandlerType = handler>
@@ -586,7 +588,7 @@ protected:
   // This event is employed for enhanced dependency tracking with in-order queue
   // Access to the event should be guarded with MLastEventMtx
   event MLastEvent;
-  std::mutex MLastEventMtx;
+  mutable std::mutex MLastEventMtx;
   // Used for in-order queues in pair with MLastEvent
   // Host tasks are explicitly synchronized in RT, pi tasks - implicitly by
   // backend. Using type to setup explicit sync between host and pi tasks.
