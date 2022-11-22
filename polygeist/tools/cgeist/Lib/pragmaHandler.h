@@ -29,37 +29,37 @@ struct LowerToInfo {
 /// endscop pragmas.
 /// "start_line" is the line number of the start position.
 struct ScopLoc {
-  ScopLoc() : end(0) {}
+  ScopLoc() : End(0) {}
 
-  clang::SourceLocation scop;
-  clang::SourceLocation endscop;
-  unsigned startLine;
-  unsigned start;
-  unsigned end;
+  clang::SourceLocation Scop;
+  clang::SourceLocation EndScop;
+  unsigned StartLine;
+  unsigned Start;
+  unsigned End;
 };
 
 /// Taken from pet.cc
 /// List of pairs of #pragma scop and #pragma endscop locations.
 struct ScopLocList {
-  std::vector<ScopLoc> list;
+  std::vector<ScopLoc> List;
 
   // Add a new start (#pragma scop) location to the list.
   // If the last #pragma scop did not have a matching
   // #pragma endscop then overwrite it.
   // "start" points to the location of the scop pragma.
 
-  void addStart(clang::SourceManager &SM, clang::SourceLocation start) {
-    ScopLoc loc;
+  void addStart(clang::SourceManager &SM, clang::SourceLocation Start) {
+    ScopLoc Loc;
 
-    loc.scop = start;
-    int line = SM.getExpansionLineNumber(start);
-    start = SM.translateLineCol(SM.getFileID(start), line, 1);
-    loc.startLine = line;
-    loc.start = SM.getFileOffset(start);
-    if (list.size() == 0 || list[list.size() - 1].end != 0)
-      list.push_back(loc);
+    Loc.Scop = Start;
+    int Line = SM.getExpansionLineNumber(Start);
+    Start = SM.translateLineCol(SM.getFileID(Start), Line, 1);
+    Loc.StartLine = Line;
+    Loc.Start = SM.getFileOffset(Start);
+    if (List.size() == 0 || List[List.size() - 1].End != 0)
+      List.push_back(Loc);
     else
-      list[list.size() - 1] = loc;
+      List[List.size() - 1] = Loc;
   }
 
   // Set the end location (#pragma endscop) of the last pair
@@ -68,29 +68,29 @@ struct ScopLocList {
   // is already set, then ignore the spurious #pragma endscop.
   // "end" points to the location of the endscop pragma.
 
-  void addEnd(clang::SourceManager &SM, clang::SourceLocation end) {
-    if (list.size() == 0 || list[list.size() - 1].end != 0)
+  void addEnd(clang::SourceManager &SM, clang::SourceLocation End) {
+    if (List.size() == 0 || List[List.size() - 1].End != 0)
       return;
-    list[list.size() - 1].endscop = end;
-    int line = SM.getExpansionLineNumber(end);
-    end = SM.translateLineCol(SM.getFileID(end), line + 1, 1);
-    list[list.size() - 1].end = SM.getFileOffset(end);
+    List[List.size() - 1].EndScop = End;
+    int Line = SM.getExpansionLineNumber(End);
+    End = SM.translateLineCol(SM.getFileID(End), Line + 1, 1);
+    List[List.size() - 1].End = SM.getFileOffset(End);
   }
 
   // Check if the current location is in the scop.
-  bool isInScop(clang::SourceLocation target) {
-    if (!list.size())
+  bool isInScop(clang::SourceLocation Target) {
+    if (!List.size())
       return false;
-    for (auto &scopLoc : list)
-      if ((target >= scopLoc.scop) && (target <= scopLoc.endscop))
+    for (auto &ScopLoc : List)
+      if ((Target >= ScopLoc.Scop) && (Target <= ScopLoc.EndScop))
         return true;
     return false;
   }
 };
 
 void addPragmaLowerToHandlers(clang::Preprocessor &PP, LowerToInfo &LTInfo);
-void addPragmaScopHandlers(clang::Preprocessor &PP, ScopLocList &scopLocList);
+void addPragmaScopHandlers(clang::Preprocessor &PP, ScopLocList &ScopLocList);
 void addPragmaEndScopHandlers(clang::Preprocessor &PP,
-                              ScopLocList &scopLocList);
+                              ScopLocList &ScopLocList);
 
-#endif
+#endif // MLIR_TOOLS_MLIRCLANG_LIB_PRAGMAHANDLER_H

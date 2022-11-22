@@ -14,11 +14,11 @@ class MLIRScanner;
 
 class IfScope {
 public:
-  MLIRScanner &scanner;
-  mlir::Block *prevBlock;
-  mlir::Block::iterator prevIterator;
-  IfScope(MLIRScanner &scanner);
+  MLIRScanner &Scanner;
+  mlir::Block *PrevBlock;
+  mlir::Block::iterator PrevIterator;
+  IfScope(MLIRScanner &Scanner);
   ~IfScope();
 };
 
-#endif
+#endif // IF_SCOPE_H

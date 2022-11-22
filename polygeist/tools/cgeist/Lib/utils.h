@@ -9,32 +9,32 @@
 #ifndef MLIR_TOOLS_MLIRCLANG_UTILS_H
 #define MLIR_TOOLS_MLIRCLANG_UTILS_H
 
-#include "Lib/clang-mlir.h"
-#include "mlir/Dialect/GPU/IR/GPUDialect.h"
-#include "clang/AST/DeclBase.h"
-#include "llvm/ADT/APInt.h"
-#include "llvm/ADT/ArrayRef.h"
+namespace clang {
+class DeclContext;
+}
 
 namespace mlir {
+class OpBuilder;
 class Operation;
+class ModuleOp;
+class Value;
+
 namespace func {
 class FuncOp;
 }
-class Value;
-class OpBuilder;
-class AbstractOperation;
-class Type;
+
+namespace gpu {
+class GPUModuleOp;
+}
 } // namespace mlir
 
 namespace llvm {
+class raw_ostream;
+template <typename> class SmallVectorImpl;
 class StringRef;
 } // namespace llvm
 
-namespace clang {
-class Expr;
-}
-
-class MLIRScanner;
+enum class FunctionContext;
 
 namespace mlirclang {
 
@@ -44,7 +44,7 @@ namespace mlirclang {
 /// operands %a and %b. The new op will be inserted at where the insertion point
 /// of the provided OpBuilder is.
 mlir::Operation *
-replaceFuncByOperation(mlir::func::FuncOp Func, llvm::StringRef OpName,
+replaceFuncByOperation(mlir::func::FuncOp F, llvm::StringRef OpName,
                        mlir::OpBuilder &B,
                        llvm::SmallVectorImpl<mlir::Value> &Input,
                        llvm::SmallVectorImpl<mlir::Value> &Output);
