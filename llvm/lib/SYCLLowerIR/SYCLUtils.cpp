@@ -47,11 +47,8 @@ void traverseCallgraphUp(llvm::Function *F, CallGraphNodeAction ActionF,
         } else {
           // ... non-call is OK - add using function to the worklist
           if (auto *I = dyn_cast<Instruction>(FCall)) {
-            if (auto *SI = dyn_cast<StoreInst>(I)) {
-              Value *addr = SI->getPointerOperand();
-              if (!functionFilter(addr)) {
-                continue;
-              }
+            if (!functionFilter(I)) {
+              continue;
             }
 
             auto UseF = I->getFunction();

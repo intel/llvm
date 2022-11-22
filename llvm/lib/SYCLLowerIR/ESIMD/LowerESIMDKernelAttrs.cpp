@@ -8,10 +8,6 @@
 // Finds and adds  sycl_explicit_simd attributes to wrapper functions that wrap
 // ESIMD kernel functions
 
-#include "llvm/Demangle/Demangle.h"
-#include "llvm/Demangle/ItaniumDemangle.h"
-#include "llvm/IR/Module.h"
-#include "llvm/Pass.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
@@ -19,9 +15,79 @@
 #define DEBUG_TYPE "LowerESIMDKernelAttrs"
 
 using namespace llvm;
-using namespace llvm::esimd;
 
 namespace llvm {
+
+// Checks if Call Instruction corresponds to InvokeSimd function call.
+bool isInvokeSimdBuiltinCall(const CallInst *CI) {
+  Function *F = CI->getCalledFunction();
+
+  if (F && F->getName().startswith(esimd::INVOKE_SIMD_PREF)) {
+    return true;
+  }
+  return false;
+}
+
+// Checks the use of a function address being stored in a memory.
+// Returns false if the function address is used as an argument for
+// invoke_simd function call, true otherwise.
+bool checkFunctionAddressUse(const Value *address) {
+  if (address == nullptr) {
+    return true;
+  }
+
+  SmallPtrSet<const Use *, 4> Uses;
+  llvm::esimd::collectUsesLookThroughCasts(address, Uses);
+
+  for (const Use *U : Uses) {
+    Value *V = U->getUser();
+
+    if (auto *StI = dyn_cast<StoreInst>(V)) {
+      if (U != &StI->getOperandUse(StoreInst::getPointerOperandIndex())) {
+        // this is double indirection - not supported
+        return false;
+      }
+      V = esimd::stripCasts(StI->getPointerOperand());
+      if (!isa<AllocaInst>(V)) {
+        return false; // unsupported case of data flow through non-local memory
+      }
+
+      if (auto *LI = dyn_cast<LoadInst>(V)) {
+        // A value loaded from another address is stored at this address -
+        // recurse into the other address
+        if (!checkFunctionAddressUse(LI->getPointerOperand())) {
+          return false;
+        }
+      }
+    } else if (const auto *CI = dyn_cast<CallInst>(V)) {
+      // if __builtin_invoke_simd uses the pointer, do not traverse the function
+      if (isInvokeSimdBuiltinCall(CI)) {
+        return false;
+      }
+    } else if (isa<LoadInst>(V)) {
+      if (!checkFunctionAddressUse(V)) {
+        return false;
+      }
+    } else {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+// Filter function for graph traverse to filter out cases when a function
+// is used as an argument for InvokeSimd call
+bool filterInvokeSimdUse(const Instruction *I) {
+  // if the instruction is to store address of a function, check if it is later
+  // used by InvokeSimd.
+  if (auto *SI = dyn_cast<StoreInst>(I)) {
+    const Value *addr = SI->getPointerOperand();
+    return checkFunctionAddressUse(addr);
+  }
+  return true;
+}
+
 PreservedAnalyses
 SYCLFixupESIMDKernelWrapperMDPass::run(Module &M, ModuleAnalysisManager &MAM) {
   bool Modified = false;
@@ -39,7 +105,7 @@ SYCLFixupESIMDKernelWrapperMDPass::run(Module &M, ModuleAnalysisManager &MAM) {
               Modified = true;
             }
           },
-          false, filterFunctionPointer);
+          false, filterInvokeSimdUse);
     }
   }
   return Modified ? PreservedAnalyses::none() : PreservedAnalyses::all();
