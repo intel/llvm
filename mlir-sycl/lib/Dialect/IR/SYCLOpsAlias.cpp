@@ -41,6 +41,10 @@ SYCLOpAsmInterface::getAlias(mlir::Type Type, llvm::raw_ostream &OS) const {
     OS << "sycl_accessor_impl_device_" << AccDev.getDimension();
     return AliasResult::FinalAlias;
   }
+  if (const auto AccSub = Type.dyn_cast<mlir::sycl::AccessorSubscriptType>()) {
+    OS << "sycl_accessor_subscript_" << AccSub.getCurrentDimension();
+    return AliasResult::FinalAlias;
+  }
   if (const auto Arr = Type.dyn_cast<mlir::sycl::ArrayType>()) {
     OS << "sycl_array_" << Arr.getDimension();
     return AliasResult::FinalAlias;

@@ -416,6 +416,81 @@ llvm::ArrayRef<mlir::Type> mlir::sycl::AccessorImplDeviceType::getBody() const {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// AccessorSubscriptType Operations
+////////////////////////////////////////////////////////////////////////////////
+
+mlir::sycl::AccessorSubscriptType
+mlir::sycl::AccessorSubscriptType::get(MLIRContext *Context,
+                                       int CurrentDimension,
+                                       llvm::SmallVector<mlir::Type, 4> Body) {
+  return Base::get(Context, CurrentDimension, Body);
+}
+
+mlir::Type
+mlir::sycl::AccessorSubscriptType::parseType(mlir::DialectAsmParser &Parser) {
+  if (mlir::failed(Parser.parseLess())) {
+    return nullptr;
+  }
+
+  if (mlir::failed(Parser.parseLSquare())) {
+    return nullptr;
+  }
+
+  unsigned int CurDim;
+  if (Parser.parseInteger<unsigned int>(CurDim)) {
+    return nullptr;
+  }
+
+  if (mlir::failed(Parser.parseRSquare())) {
+    return nullptr;
+  }
+
+  if (mlir::failed(Parser.parseComma())) {
+    return nullptr;
+  }
+
+  if (mlir::failed(Parser.parseLParen())) {
+    return nullptr;
+  }
+
+  mlir::SmallVector<Type, 4> Subtypes;
+  do {
+    mlir::Type Type;
+    if (mlir::failed(Parser.parseType(Type))) {
+      return nullptr;
+    }
+    Subtypes.push_back(Type);
+  } while (succeeded(Parser.parseOptionalComma()));
+
+  if (mlir::failed(Parser.parseRParen())) {
+    return nullptr;
+  }
+
+  if (mlir::failed(Parser.parseGreater())) {
+    return nullptr;
+  }
+
+  return mlir::sycl::AccessorSubscriptType::get(Parser.getContext(), CurDim,
+                                                Subtypes);
+}
+
+int mlir::sycl::AccessorSubscriptType::getCurrentDimension() const {
+  return getImpl()->CurrentDimension;
+}
+
+mlir::sycl::AccessorType
+mlir::sycl::AccessorSubscriptType::getAccessorType() const {
+  mlir::Type Ty = getImpl()->Body[1];
+  assert(Ty.isa<AccessorType>() &&
+         "Expecting the second element to be AccessorType");
+  return Ty.cast<AccessorType>();
+}
+
+llvm::ArrayRef<mlir::Type> mlir::sycl::AccessorSubscriptType::getBody() const {
+  return getImpl()->Body;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // Array Operations
 ////////////////////////////////////////////////////////////////////////////////
 

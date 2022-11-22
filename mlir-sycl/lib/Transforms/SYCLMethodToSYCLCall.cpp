@@ -54,7 +54,7 @@ static mlir::Value castToBaseType(PatternRewriter &Rewriter, mlir::Location Loc,
 
 static LogicalResult convertMethod(SYCLMethodOpInterface method,
                                    PatternRewriter &rewriter) {
-  LLVM_DEBUG(llvm::dbgs() << "ConvertToLLVMABIPass: SYCLMethodOpLowering: ";
+  LLVM_DEBUG(llvm::dbgs() << "SYCLMethodToSYCLCallPass: SYCLMethodOpLowering: ";
              method.dump(); llvm::dbgs() << "\n");
 
   SmallVector<mlir::Value> Args(method->getOperands());
@@ -95,7 +95,7 @@ static LogicalResult convertMethod(SYCLMethodOpInterface method,
                 "the MangledFunctionName field of this operation.";
     }
 
-    SymbolTable Module(method->getParentOp()->getParentOp());
+    SymbolTable Module(method->getParentWithTrait<OpTrait::SymbolTable>());
     if (auto *Op = Module.lookup(Func->getName())) {
       // If the function has already been cloned to this module, use that.
       Func = cast<func::FuncOp>(Op);

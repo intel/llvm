@@ -1,4 +1,4 @@
-// RUN: cgeist %s %stdinclude --function=alloc -S | FileCheck %s
+// RUN: cgeist %s -O2 %stdinclude --function=alloc -S | FileCheck %s
 
 #include <stdio.h>
 #include <stdlib.h>

@@ -1,5 +1,5 @@
-// RUN: clang++ -fsycl -fsycl-device-only -emit-mlir %s -o - 2> /dev/null | FileCheck %s --check-prefix=CHECK-MLIR
-// RUN: clang++ -fsycl -fsycl-device-only -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: clang++ -fsycl -fsycl-device-only -O0 -emit-mlir %s -o - 2> /dev/null | FileCheck %s --check-prefix=CHECK-MLIR
+// RUN: clang++ -fsycl -fsycl-device-only -O0 -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 #include <sycl/sycl.hpp>
 
@@ -17,12 +17,10 @@
 // CHECK-MLIR-SAME: attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<linkonce_odr>, {{.*}}
 
 // COM: StoreWrapper constructor:
-// CHECK-LLVM-DAG:      define linkonce_odr spir_func void @_ZN12StoreWrapperIiLi1ELN4sycl3_V16access4modeE1026EEclEv({{.*}}) #[[FUNCATTRS2:[0-9]+]]
 // CHECK-LLVM-DAG:      define weak_odr spir_kernel void @_ZTS8kernel_1({{.*}}) #[[FUNCATTRS1:[0-9]+]]
 // CHECK-LLVM-DAG:      define weak_odr spir_kernel void @_ZTSZZ6host_2vENKUlRN4sycl3_V17handlerEE_clES2_E8kernel_2({{.*}}) #[[FUNCATTRS1]]
 
 // CHECK-LLVM-DAG: attributes #[[FUNCATTRS1]] = { convergent mustprogress norecurse nounwind "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}/polygeist/tools/cgeist/Test/Verification/sycl/kernels_funcs.cpp" }
-// CHECK-LLVM-DAG: attributes #[[FUNCATTRS2]] = { alwaysinline convergent mustprogress norecurse nounwind "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}/polygeist/tools/cgeist/Test/Verification/sycl/kernels_funcs.cpp" }
 
 template <typename DataT,
           int Dimensions = 1,

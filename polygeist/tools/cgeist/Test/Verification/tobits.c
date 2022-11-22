@@ -1,4 +1,4 @@
-// RUN: cgeist %s --function=fp32_from_bits -S | FileCheck %s
+// RUN: cgeist %s -O2 --function=fp32_from_bits -S | FileCheck %s
 
 #include <stdint.h>
 float fp32_from_bits(uint32_t w) {
