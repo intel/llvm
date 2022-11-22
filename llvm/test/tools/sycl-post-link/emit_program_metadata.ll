@@ -9,13 +9,14 @@ target triple = "spir64-unknown-unknown"
 attributes #0 = { "sycl-work-group-size"="4,2,1" }
 
 !0 = !{i32 1, i32 2, i32 4}
+!1 = !{i64 1, i64 2, i64 4}
 
 define weak_odr spir_kernel void @SpirKernel1(float %arg1) !reqd_work_group_size !0 {
   call void @foo(float %arg1)
   ret void
 }
 
-define weak_odr spir_kernel void @SpirKernel2(float %arg1) #0 {
+define weak_odr spir_kernel void @SpirKernel2(float %arg1) #0 !reqd_work_group_size !1 {
   call void @foo(float %arg1)
   ret void
 }
