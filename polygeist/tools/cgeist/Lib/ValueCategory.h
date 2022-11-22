@@ -48,6 +48,25 @@ public:
   void store(mlir::OpBuilder &Builder, mlir::Value toStore) const;
   ValueCategory dereference(mlir::OpBuilder &Builder) const;
 
+  ValueCategory SubIndex(mlir::OpBuilder &Builder, mlir::Location Loc,
+                         mlir::Type Type, mlir::Value Index,
+                         bool IsInBounds = false) const;
+  ValueCategory InBoundsSubIndex(mlir::OpBuilder &Builder, mlir::Location Loc,
+                                 mlir::Type Type, mlir::Value Index) const;
+
+  ValueCategory GEP(mlir::OpBuilder &Builder, mlir::Location Loc,
+                    mlir::Type Type, mlir::ValueRange IdxList,
+                    bool IsInBounds = false) const;
+  ValueCategory InBoundsGEP(mlir::OpBuilder &Builder, mlir::Location Loc,
+                            mlir::Type Type, mlir::ValueRange IdxList) const;
+
+  ValueCategory GEPOrSubIndex(mlir::OpBuilder &Builder, mlir::Location Loc,
+                              mlir::Type Type, mlir::ValueRange IdxList,
+                              bool IsInBounds = false) const;
+  ValueCategory InBoundsGEPOrSubIndex(mlir::OpBuilder &Builder,
+                                      mlir::Location Loc, mlir::Type Type,
+                                      mlir::ValueRange IdxList) const;
+
   ValueCategory FPTrunc(mlir::OpBuilder &Builder, mlir::Location Loc,
                         mlir::Type PromotionType) const;
 
@@ -63,11 +82,35 @@ public:
                        mlir::Type PromotionType) const;
   ValueCategory FPToSI(mlir::OpBuilder &Builder, mlir::Location Loc,
                        mlir::Type PromotionType) const;
+  ValueCategory PtrToInt(mlir::OpBuilder &Builder, mlir::Location Loc,
+                         mlir::Type DestTy) const;
+  ValueCategory IntToPtr(mlir::OpBuilder &Builder, mlir::Location Loc,
+                         mlir::Type DestTy) const;
+  ValueCategory BitCast(mlir::OpBuilder &Builder, mlir::Location Loc,
+                        mlir::Type DestTy) const;
+  ValueCategory MemRef2Ptr(mlir::OpBuilder &Builder, mlir::Location Loc) const;
 
   ValueCategory ICmpNE(mlir::OpBuilder &builder, mlir::Location Loc,
                        mlir::Value RHS) const;
   ValueCategory FCmpUNE(mlir::OpBuilder &builder, mlir::Location Loc,
                         mlir::Value RHS) const;
+
+  ValueCategory SDiv(mlir::OpBuilder &Builder, mlir::Location Loc,
+                     mlir::Value RHS, bool IsExact = false) const;
+  ValueCategory ExactSDiv(mlir::OpBuilder &Builder, mlir::Location Loc,
+                          mlir::Value RHS) const;
+  ValueCategory Neg(mlir::OpBuilder &Builder, mlir::Location Loc,
+                    bool HasNUW = false, bool HasNSW = false) const;
+  ValueCategory Add(mlir::OpBuilder &Builder, mlir::Location Loc,
+                    mlir::Value RHS, bool HasNUW = false,
+                    bool HasNSW = false) const;
+  ValueCategory FAdd(mlir::OpBuilder &Builder, mlir::Location Loc,
+                     mlir::Value RHS) const;
+  ValueCategory Sub(mlir::OpBuilder &Builder, mlir::Location Loc,
+                    mlir::Value RHS, bool HasNUW = false,
+                    bool HasNSW = false) const;
+  ValueCategory FSub(mlir::OpBuilder &Builder, mlir::Location Loc,
+                     mlir::Value RHS) const;
 };
 
 #endif /* CLANG_MLIR_VALUE_CATEGORY */
