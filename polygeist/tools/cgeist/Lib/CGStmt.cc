@@ -172,8 +172,8 @@ void MLIRScanner::buildAffineLoopImpl(
 
   Reg.front().clear();
 
-  auto Oldpoint = builder.getInsertionPoint();
-  auto *Oldblock = builder.getInsertionBlock();
+  auto OldPoint = builder.getInsertionPoint();
+  auto *OldBlock = builder.getInsertionBlock();
 
   builder.setInsertionPointToEnd(&Reg.front());
 
@@ -200,7 +200,7 @@ void MLIRScanner::buildAffineLoopImpl(
 
   // TODO: set the value of the iteration value to the final bound at the
   // end of the loop.
-  builder.setInsertionPoint(Oldblock, Oldpoint);
+  builder.setInsertionPoint(OldBlock, OldPoint);
 }
 
 void MLIRScanner::buildAffineLoop(
@@ -233,13 +233,13 @@ ValueCategory MLIRScanner::VisitForStmt(clang::ForStmt *Fors) {
                      builder.create<memref::AllocaOp>(Loc, Type)};
     builder.create<memref::StoreOp>(Loc, Truev, Lctx.noBreak);
 
-    auto *Toadd = builder.getInsertionBlock()->getParent();
+    auto *ToAdd = builder.getInsertionBlock()->getParent();
     auto &CondB = *(new Block());
-    Toadd->getBlocks().push_back(&CondB);
+    ToAdd->getBlocks().push_back(&CondB);
     auto &BodyB = *(new Block());
-    Toadd->getBlocks().push_back(&BodyB);
+    ToAdd->getBlocks().push_back(&BodyB);
     auto &ExitB = *(new Block());
-    Toadd->getBlocks().push_back(&ExitB);
+    ToAdd->getBlocks().push_back(&ExitB);
 
     builder.create<cf::BranchOp>(Loc, &CondB);
 
@@ -317,13 +317,13 @@ ValueCategory MLIRScanner::VisitCXXForRangeStmt(clang::CXXForRangeStmt *Fors) {
                    builder.create<memref::AllocaOp>(Loc, Type)};
   builder.create<memref::StoreOp>(Loc, Truev, Lctx.noBreak);
 
-  auto *Toadd = builder.getInsertionBlock()->getParent();
+  auto *ToAdd = builder.getInsertionBlock()->getParent();
   auto &CondB = *(new Block());
-  Toadd->getBlocks().push_back(&CondB);
+  ToAdd->getBlocks().push_back(&CondB);
   auto &BodyB = *(new Block());
-  Toadd->getBlocks().push_back(&BodyB);
+  ToAdd->getBlocks().push_back(&BodyB);
   auto &ExitB = *(new Block());
-  Toadd->getBlocks().push_back(&ExitB);
+  ToAdd->getBlocks().push_back(&ExitB);
 
   builder.create<cf::BranchOp>(Loc, &CondB);
 
@@ -389,8 +389,8 @@ MLIRScanner::VisitOMPSingleDirective(clang::OMPSingleDirective *Par) {
   auto AffineOp = builder.create<omp::MasterOp>(loc);
   builder.create<omp::BarrierOp>(loc);
 
-  auto Oldpoint = builder.getInsertionPoint();
-  auto *Oldblock = builder.getInsertionBlock();
+  auto OldPoint = builder.getInsertionPoint();
+  auto *OldBlock = builder.getInsertionBlock();
 
   AffineOp.getRegion().push_back(new Block());
   builder.setInsertionPointToStart(&AffineOp.getRegion().front());
@@ -410,7 +410,7 @@ MLIRScanner::VisitOMPSingleDirective(clang::OMPSingleDirective *Par) {
 
   builder.create<scf::YieldOp>(loc);
   allocationScope = OldScope;
-  builder.setInsertionPoint(Oldblock, Oldpoint);
+  builder.setInsertionPoint(OldBlock, OldPoint);
   return nullptr;
 }
 
@@ -439,16 +439,16 @@ ValueCategory MLIRScanner::VisitOMPForDirective(clang::OMPForDirective *Fors) {
   SmallVector<Value> Incs;
   for (auto *F : Fors->updates()) {
     F = cast<clang::BinaryOperator>(F)->getRHS();
-    while (auto *Ce = dyn_cast<clang::CastExpr>(F))
-      F = Ce->getSubExpr();
-    auto *Bo = cast<clang::BinaryOperator>(F);
-    assert(Bo->getOpcode() == clang::BinaryOperator::Opcode::BO_Add);
-    F = Bo->getRHS();
-    while (auto *Ce = dyn_cast<clang::CastExpr>(F))
-      F = Ce->getSubExpr();
-    Bo = cast<clang::BinaryOperator>(F);
-    assert(Bo->getOpcode() == clang::BinaryOperator::Opcode::BO_Mul);
-    F = Bo->getRHS();
+    while (auto *CE = dyn_cast<clang::CastExpr>(F))
+      F = CE->getSubExpr();
+    auto *BO = cast<clang::BinaryOperator>(F);
+    assert(BO->getOpcode() == clang::BinaryOperator::Opcode::BO_Add);
+    F = BO->getRHS();
+    while (auto *CE = dyn_cast<clang::CastExpr>(F))
+      F = CE->getSubExpr();
+    BO = cast<clang::BinaryOperator>(F);
+    assert(BO->getOpcode() == clang::BinaryOperator::Opcode::BO_Mul);
+    F = BO->getRHS();
     Incs.push_back(builder.create<arith::IndexCastOp>(
         loc, builder.getIndexType(), Visit(F).getValue(builder)));
   }
@@ -459,8 +459,8 @@ ValueCategory MLIRScanner::VisitOMPForDirective(clang::OMPForDirective *Fors) {
     AffineOp.getRegion().front().addArgument(Init.getType(), Init.getLoc());
   auto Inds = AffineOp.getRegion().front().getArguments();
 
-  auto Oldpoint = builder.getInsertionPoint();
-  auto *Oldblock = builder.getInsertionBlock();
+  auto OldPoint = builder.getInsertionPoint();
+  auto *OldBlock = builder.getInsertionBlock();
 
   builder.setInsertionPointToStart(&AffineOp.getRegion().front());
 
@@ -497,9 +497,9 @@ ValueCategory MLIRScanner::VisitOMPForDirective(clang::OMPForDirective *Fors) {
     else
       Glob.getTypes().getMLIRType(Name->getType(), &IsArray);
 
-    auto Allocop = createAllocOp(Idx.getType(), Name, /*memtype*/ 0,
+    auto AllocOp = createAllocOp(Idx.getType(), Name, /*memtype*/ 0,
                                  /*isArray*/ IsArray, /*LLVMABI*/ LLVMABI);
-    params[Name] = ValueCategory(Allocop, true);
+    params[Name] = ValueCategory(AllocOp, true);
     params[Name].store(builder, Idx);
   }
 
@@ -512,7 +512,7 @@ ValueCategory MLIRScanner::VisitOMPForDirective(clang::OMPForDirective *Fors) {
 
   // TODO: set the value of the iteration value to the final bound at the
   // end of the loop.
-  builder.setInsertionPoint(Oldblock, Oldpoint);
+  builder.setInsertionPoint(OldBlock, OldPoint);
 
   for (auto Pair : PrevInduction)
     params[Pair.first] = Pair.second;
@@ -526,8 +526,8 @@ MLIRScanner::VisitOMPParallelDirective(clang::OMPParallelDirective *Par) {
 
   auto AffineOp = builder.create<omp::ParallelOp>(loc);
 
-  auto Oldpoint = builder.getInsertionPoint();
-  auto *Oldblock = builder.getInsertionBlock();
+  auto OldPoint = builder.getInsertionPoint();
+  auto *OldBlock = builder.getInsertionBlock();
 
   AffineOp.getRegion().push_back(new Block());
   builder.setInsertionPointToStart(&AffineOp.getRegion().front());
@@ -565,9 +565,9 @@ MLIRScanner::VisitOMPParallelDirective(clang::OMPParallelDirective *Par) {
         } else
           Ty = Glob.getTypes().getMLIRType(Name->getType(), &IsArray);
 
-        auto Allocop = createAllocOp(Ty, Name, /*memtype*/ 0,
+        auto AllocOp = createAllocOp(Ty, Name, /*memtype*/ 0,
                                      /*isArray*/ IsArray, /*LLVMABI*/ LLVMABI);
-        params[Name] = ValueCategory(Allocop, true);
+        params[Name] = ValueCategory(AllocOp, true);
         params[Name].store(builder, PrevInduction[Name], IsArray);
       }
       break;
@@ -583,7 +583,7 @@ MLIRScanner::VisitOMPParallelDirective(clang::OMPParallelDirective *Par) {
 
   builder.create<scf::YieldOp>(loc);
   allocationScope = OldScope;
-  builder.setInsertionPoint(Oldblock, Oldpoint);
+  builder.setInsertionPoint(OldBlock, OldPoint);
 
   for (auto Pair : PrevInduction)
     params[Pair.first] = Pair.second;
@@ -618,14 +618,14 @@ ValueCategory MLIRScanner::VisitOMPParallelForDirective(
     F = cast<clang::BinaryOperator>(F)->getRHS();
     while (auto *Ce = dyn_cast<clang::CastExpr>(F))
       F = Ce->getSubExpr();
-    auto *Bo = cast<clang::BinaryOperator>(F);
-    assert(Bo->getOpcode() == clang::BinaryOperator::Opcode::BO_Add);
-    F = Bo->getRHS();
+    auto *BO = cast<clang::BinaryOperator>(F);
+    assert(BO->getOpcode() == clang::BinaryOperator::Opcode::BO_Add);
+    F = BO->getRHS();
     while (auto *Ce = dyn_cast<clang::CastExpr>(F))
       F = Ce->getSubExpr();
-    Bo = cast<clang::BinaryOperator>(F);
-    assert(Bo->getOpcode() == clang::BinaryOperator::Opcode::BO_Mul);
-    F = Bo->getRHS();
+    BO = cast<clang::BinaryOperator>(F);
+    assert(BO->getOpcode() == clang::BinaryOperator::Opcode::BO_Mul);
+    F = BO->getRHS();
     Incs.push_back(builder.create<arith::IndexCastOp>(
         loc, builder.getIndexType(), Visit(F).getValue(builder)));
   }
@@ -634,8 +634,8 @@ ValueCategory MLIRScanner::VisitOMPParallelForDirective(
 
   auto Inds = AffineOp.getInductionVars();
 
-  auto Oldpoint = builder.getInsertionPoint();
-  auto *Oldblock = builder.getInsertionBlock();
+  auto OldPoint = builder.getInsertionPoint();
+  auto *OldBlock = builder.getInsertionBlock();
 
   builder.setInsertionPointToStart(&AffineOp.getRegion().front());
 
@@ -671,9 +671,9 @@ ValueCategory MLIRScanner::VisitOMPParallelForDirective(
     else
       Glob.getTypes().getMLIRType(Name->getType(), &IsArray);
 
-    auto Allocop = createAllocOp(Idx.getType(), Name, /*memtype*/ 0,
+    auto AllocOp = createAllocOp(Idx.getType(), Name, /*memtype*/ 0,
                                  /*isArray*/ IsArray, /*LLVMABI*/ LLVMABI);
-    params[Name] = ValueCategory(Allocop, true);
+    params[Name] = ValueCategory(AllocOp, true);
     params[Name].store(builder, Idx);
   }
 
@@ -686,7 +686,7 @@ ValueCategory MLIRScanner::VisitOMPParallelForDirective(
 
   // TODO: set the value of the iteration value to the final bound at the
   // end of the loop.
-  builder.setInsertionPoint(Oldblock, Oldpoint);
+  builder.setInsertionPoint(OldBlock, OldPoint);
 
   for (auto Pair : PrevInduction)
     params[Pair.first] = Pair.second;
@@ -706,13 +706,13 @@ ValueCategory MLIRScanner::VisitDoStmt(clang::DoStmt *Fors) {
                    builder.create<memref::AllocaOp>(Loc, Type)});
   builder.create<memref::StoreOp>(Loc, Truev, loops.back().noBreak);
 
-  auto *Toadd = builder.getInsertionBlock()->getParent();
+  auto *ToAdd = builder.getInsertionBlock()->getParent();
   auto &CondB = *(new Block());
-  Toadd->getBlocks().push_back(&CondB);
+  ToAdd->getBlocks().push_back(&CondB);
   auto &BodyB = *(new Block());
-  Toadd->getBlocks().push_back(&BodyB);
+  ToAdd->getBlocks().push_back(&BodyB);
   auto &ExitB = *(new Block());
-  Toadd->getBlocks().push_back(&ExitB);
+  ToAdd->getBlocks().push_back(&ExitB);
 
   builder.create<cf::BranchOp>(Loc, &BodyB);
 
@@ -767,13 +767,13 @@ ValueCategory MLIRScanner::VisitWhileStmt(clang::WhileStmt *Fors) {
                    builder.create<memref::AllocaOp>(Loc, Type)});
   builder.create<memref::StoreOp>(Loc, Truev, loops.back().noBreak);
 
-  auto *Toadd = builder.getInsertionBlock()->getParent();
+  auto *ToAdd = builder.getInsertionBlock()->getParent();
   auto &CondB = *(new Block());
-  Toadd->getBlocks().push_back(&CondB);
+  ToAdd->getBlocks().push_back(&CondB);
   auto &BodyB = *(new Block());
-  Toadd->getBlocks().push_back(&BodyB);
+  ToAdd->getBlocks().push_back(&BodyB);
   auto &ExitB = *(new Block());
-  Toadd->getBlocks().push_back(&ExitB);
+  ToAdd->getBlocks().push_back(&ExitB);
 
   builder.create<cf::BranchOp>(Loc, &CondB);
 
@@ -822,8 +822,8 @@ ValueCategory MLIRScanner::VisitIfStmt(clang::IfStmt *Stmt) {
   auto Cond = Visit(Stmt->getCond()).getValue(builder);
   assert(Cond != nullptr && "must be a non-null");
 
-  auto Oldpoint = builder.getInsertionPoint();
-  auto *Oldblock = builder.getInsertionBlock();
+  auto OldPoint = builder.getInsertionPoint();
+  auto *OldBlock = builder.getInsertionBlock();
   if (auto LT = Cond.getType().dyn_cast<MemRefType>()) {
     Cond = builder.create<polygeist::Memref2PointerOp>(
         Loc, LLVM::LLVMPointerType::get(builder.getI8Type()), Cond);
@@ -857,7 +857,7 @@ ValueCategory MLIRScanner::VisitIfStmt(clang::IfStmt *Stmt) {
     builder.create<scf::YieldOp>(Loc);
   }
 
-  builder.setInsertionPoint(Oldblock, Oldpoint);
+  builder.setInsertionPoint(OldBlock, OldPoint);
   return nullptr;
 }
 
@@ -869,8 +869,8 @@ ValueCategory MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *Stmt) {
 
   auto Er = builder.create<scf::ExecuteRegionOp>(loc, ArrayRef<Type>());
   Er.getRegion().push_back(new Block());
-  auto Oldpoint2 = builder.getInsertionPoint();
-  auto *Oldblock2 = builder.getInsertionBlock();
+  auto OldPoint2 = builder.getInsertionPoint();
+  auto *OldBlock2 = builder.getInsertionBlock();
 
   auto &ExitB = *(new Block());
   builder.setInsertionPointToStart(&ExitB);
@@ -950,7 +950,7 @@ ValueCategory MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *Stmt) {
   if (CaseVals.size() == 0) {
     delete &ExitB;
     Er.erase();
-    builder.setInsertionPoint(Oldblock2, Oldpoint2);
+    builder.setInsertionPoint(OldBlock2, OldPoint2);
     return nullptr;
   }
 
@@ -988,7 +988,7 @@ ValueCategory MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *Stmt) {
   builder.create<cf::SwitchOp>(
       loc, Cond, DefaultB, ArrayRef<Value>(), CaseValuesAttr, Blocks,
       SmallVector<ValueRange>(CaseVals.size(), ArrayRef<Value>()));
-  builder.setInsertionPoint(Oldblock2, Oldpoint2);
+  builder.setInsertionPoint(OldBlock2, OldPoint2);
   return nullptr;
 }
 
@@ -1055,7 +1055,7 @@ ValueCategory MLIRScanner::VisitContinueStmt(clang::ContinueStmt *Stmt) {
 }
 
 ValueCategory MLIRScanner::VisitLabelStmt(clang::LabelStmt *Stmt) {
-  auto *Toadd = builder.getInsertionBlock()->getParent();
+  auto *ToAdd = builder.getInsertionBlock()->getParent();
   Block *LabelB;
   auto Found = labels.find(Stmt);
   if (Found != labels.end()) {
@@ -1064,7 +1064,7 @@ ValueCategory MLIRScanner::VisitLabelStmt(clang::LabelStmt *Stmt) {
     LabelB = new Block();
     labels[Stmt] = LabelB;
   }
-  Toadd->getBlocks().push_back(LabelB);
+  ToAdd->getBlocks().push_back(LabelB);
   builder.create<cf::BranchOp>(loc, LabelB);
   builder.setInsertionPointToStart(LabelB);
   Visit(Stmt->getSubStmt());

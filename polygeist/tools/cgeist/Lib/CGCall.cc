@@ -96,7 +96,7 @@ static void castCallerArgs(mlir::func::FuncOp Callee,
 /******************************************************************************/
 
 ValueCategory MLIRScanner::callHelper(
-    mlir::func::FuncOp ToCall, clang::QualType ObjType,
+    func::FuncOp ToCall, clang::QualType ObjType,
     ArrayRef<std::pair<ValueCategory, clang::Expr *>> Arguments,
     clang::QualType RetType, bool RetReference, clang::Expr *Expr,
     const clang::FunctionDecl &Callee) {
@@ -385,12 +385,12 @@ ValueCategory MLIRScanner::callHelper(
         /*dynamic shmem size*/ nullptr,
         /*token type*/ Stream ? Stream.getType() : nullptr,
         /*dependencies*/ AsyncDependencies);
-    auto Oldpoint = builder.getInsertionPoint();
-    auto *Oldblock = builder.getInsertionBlock();
+    auto OldPoint = builder.getInsertionPoint();
+    auto *OldBlock = builder.getInsertionBlock();
     builder.setInsertionPointToStart(&Op.getRegion().front());
     builder.create<func::CallOp>(loc, ToCall, Args);
     builder.create<gpu::TerminatorOp>(loc);
-    builder.setInsertionPoint(Oldblock, Oldpoint);
+    builder.setInsertionPoint(OldBlock, OldPoint);
     return nullptr;
   }
 
