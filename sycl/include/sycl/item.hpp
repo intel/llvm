@@ -25,9 +25,12 @@ template <typename TransformedArgType, int Dims, typename KernelType>
 class RoundedRangeKernel;
 template <typename TransformedArgType, int Dims, typename KernelType>
 class RoundedRangeKernelWithKH;
+
+namespace reduction {
+template <int Dims>
+item<Dims, false> getDelinearizedItem(range<Dims> Range, id<Dims> Id);
+} // namespace reduction
 } // namespace detail
-template <int dimensions> class id;
-template <int dimensions> class range;
 
 /// Identifies an instance of the function object executing at each point
 /// in a range.
@@ -129,6 +132,10 @@ private:
   template <typename, int, typename>
   friend class detail::RoundedRangeKernelWithKH;
   void set_allowed_range(const range<dimensions> rnwi) { MImpl.MExtent = rnwi; }
+
+  template <int Dims>
+  friend item<Dims, false>
+  detail::reduction::getDelinearizedItem(range<Dims> Range, id<Dims> Id);
 
   detail::ItemBase<dimensions, with_offset> MImpl;
 };

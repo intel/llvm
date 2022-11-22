@@ -44,6 +44,10 @@
 #include <level_zero/zes_api.h>
 #include <sycl/detail/iostream_proxy.hpp>
 
+// Share code between this PI L0 Plugin and UR L0 Adapter
+#include <adapters/level_zero/ur_level_zero.hpp>
+#include <pi2ur.hpp>
+
 #include "usm_allocator.hpp"
 
 template <class To, class From> To pi_cast(From Value) {
@@ -58,191 +62,6 @@ template <> uint32_t pi_cast(uint64_t Value) {
   assert((uint64_t)CastedValue == Value);
   return CastedValue;
 }
-
-// TODO: Currently die is defined in each plugin. Probably some
-// common header file with utilities should be created.
-[[noreturn]] void die(const char *Message) {
-  std::cerr << "die: " << Message << std::endl;
-  std::terminate();
-}
-
-// Returns the ze_structure_type_t to use in .stype of a structured descriptor.
-// Intentionally not defined; will give an error if no proper specialization
-template <class T> ze_structure_type_t getZeStructureType();
-template <class T> zes_structure_type_t getZesStructureType();
-
-template <> ze_structure_type_t getZeStructureType<ze_event_pool_desc_t>() {
-  return ZE_STRUCTURE_TYPE_EVENT_POOL_DESC;
-}
-template <> ze_structure_type_t getZeStructureType<ze_fence_desc_t>() {
-  return ZE_STRUCTURE_TYPE_FENCE_DESC;
-}
-template <> ze_structure_type_t getZeStructureType<ze_command_list_desc_t>() {
-  return ZE_STRUCTURE_TYPE_COMMAND_LIST_DESC;
-}
-template <> ze_structure_type_t getZeStructureType<ze_context_desc_t>() {
-  return ZE_STRUCTURE_TYPE_CONTEXT_DESC;
-}
-template <>
-ze_structure_type_t
-getZeStructureType<ze_relaxed_allocation_limits_exp_desc_t>() {
-  return ZE_STRUCTURE_TYPE_RELAXED_ALLOCATION_LIMITS_EXP_DESC;
-}
-template <> ze_structure_type_t getZeStructureType<ze_host_mem_alloc_desc_t>() {
-  return ZE_STRUCTURE_TYPE_HOST_MEM_ALLOC_DESC;
-}
-template <>
-ze_structure_type_t getZeStructureType<ze_device_mem_alloc_desc_t>() {
-  return ZE_STRUCTURE_TYPE_DEVICE_MEM_ALLOC_DESC;
-}
-template <> ze_structure_type_t getZeStructureType<ze_command_queue_desc_t>() {
-  return ZE_STRUCTURE_TYPE_COMMAND_QUEUE_DESC;
-}
-template <> ze_structure_type_t getZeStructureType<ze_image_desc_t>() {
-  return ZE_STRUCTURE_TYPE_IMAGE_DESC;
-}
-template <> ze_structure_type_t getZeStructureType<ze_module_desc_t>() {
-  return ZE_STRUCTURE_TYPE_MODULE_DESC;
-}
-template <>
-ze_structure_type_t getZeStructureType<ze_module_program_exp_desc_t>() {
-  return ZE_STRUCTURE_TYPE_MODULE_PROGRAM_EXP_DESC;
-}
-template <> ze_structure_type_t getZeStructureType<ze_kernel_desc_t>() {
-  return ZE_STRUCTURE_TYPE_KERNEL_DESC;
-}
-template <> ze_structure_type_t getZeStructureType<ze_event_desc_t>() {
-  return ZE_STRUCTURE_TYPE_EVENT_DESC;
-}
-template <> ze_structure_type_t getZeStructureType<ze_sampler_desc_t>() {
-  return ZE_STRUCTURE_TYPE_SAMPLER_DESC;
-}
-template <> ze_structure_type_t getZeStructureType<ze_driver_properties_t>() {
-  return ZE_STRUCTURE_TYPE_DRIVER_PROPERTIES;
-}
-template <> ze_structure_type_t getZeStructureType<ze_device_properties_t>() {
-  return ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
-}
-template <>
-ze_structure_type_t getZeStructureType<ze_device_compute_properties_t>() {
-  return ZE_STRUCTURE_TYPE_DEVICE_COMPUTE_PROPERTIES;
-}
-template <>
-ze_structure_type_t getZeStructureType<ze_command_queue_group_properties_t>() {
-  return ZE_STRUCTURE_TYPE_COMMAND_QUEUE_GROUP_PROPERTIES;
-}
-template <>
-ze_structure_type_t getZeStructureType<ze_device_image_properties_t>() {
-  return ZE_STRUCTURE_TYPE_DEVICE_IMAGE_PROPERTIES;
-}
-template <>
-ze_structure_type_t getZeStructureType<ze_device_module_properties_t>() {
-  return ZE_STRUCTURE_TYPE_DEVICE_MODULE_PROPERTIES;
-}
-template <>
-ze_structure_type_t getZeStructureType<ze_device_cache_properties_t>() {
-  return ZE_STRUCTURE_TYPE_DEVICE_CACHE_PROPERTIES;
-}
-template <>
-ze_structure_type_t getZeStructureType<ze_device_memory_properties_t>() {
-  return ZE_STRUCTURE_TYPE_DEVICE_MEMORY_PROPERTIES;
-}
-template <>
-ze_structure_type_t getZeStructureType<ze_device_memory_access_properties_t>() {
-  return ZE_STRUCTURE_TYPE_DEVICE_MEMORY_ACCESS_PROPERTIES;
-}
-template <> ze_structure_type_t getZeStructureType<ze_module_properties_t>() {
-  return ZE_STRUCTURE_TYPE_MODULE_PROPERTIES;
-}
-template <> ze_structure_type_t getZeStructureType<ze_kernel_properties_t>() {
-  return ZE_STRUCTURE_TYPE_KERNEL_PROPERTIES;
-}
-template <>
-ze_structure_type_t getZeStructureType<ze_memory_allocation_properties_t>() {
-  return ZE_STRUCTURE_TYPE_MEMORY_ALLOCATION_PROPERTIES;
-}
-
-template <> zes_structure_type_t getZesStructureType<zes_pci_properties_t>() {
-  return ZES_STRUCTURE_TYPE_PCI_PROPERTIES;
-}
-
-template <> zes_structure_type_t getZesStructureType<zes_mem_state_t>() {
-  return ZES_STRUCTURE_TYPE_MEM_STATE;
-}
-
-template <> zes_structure_type_t getZesStructureType<zes_mem_properties_t>() {
-  return ZES_STRUCTURE_TYPE_MEM_PROPERTIES;
-}
-
-// The helpers to properly default initialize Level-Zero descriptor and
-// properties structures.
-template <class T> struct ZeStruct : public T {
-  ZeStruct() : T{} { // zero initializes base struct
-    this->stype = getZeStructureType<T>();
-    this->pNext = nullptr;
-  }
-};
-template <class T> struct ZesStruct : public T {
-  ZesStruct() : T{} { // zero initializes base struct
-    this->stype = getZesStructureType<T>();
-    this->pNext = nullptr;
-  }
-};
-
-// A single-threaded app has an opportunity to enable this mode to avoid
-// overhead from mutex locking. Default value is 0 which means that single
-// thread mode is disabled.
-static const bool SingleThreadMode = [] {
-  const char *Ret = std::getenv("SYCL_PI_LEVEL_ZERO_SINGLE_THREAD_MODE");
-  const bool RetVal = Ret ? std::stoi(Ret) : 0;
-  return RetVal;
-}();
-
-// Class which acts like shared_mutex if SingleThreadMode variable is not set.
-// If SingleThreadMode variable is set then mutex operations are turned into
-// nop.
-class pi_shared_mutex : public std::shared_mutex {
-public:
-  void lock() {
-    if (!SingleThreadMode)
-      std::shared_mutex::lock();
-  }
-  bool try_lock() {
-    return SingleThreadMode ? true : std::shared_mutex::try_lock();
-  }
-  void unlock() {
-    if (!SingleThreadMode)
-      std::shared_mutex::unlock();
-  }
-
-  void lock_shared() {
-    if (!SingleThreadMode)
-      std::shared_mutex::lock_shared();
-  }
-  bool try_lock_shared() {
-    return SingleThreadMode ? true : std::shared_mutex::try_lock_shared();
-  }
-  void unlock_shared() {
-    if (!SingleThreadMode)
-      std::shared_mutex::unlock_shared();
-  }
-};
-
-// Class which acts like std::mutex if SingleThreadMode variable is not set.
-// If SingleThreadMode variable is set then mutex operations are turned into
-// nop.
-class pi_mutex : public std::mutex {
-public:
-  void lock() {
-    if (!SingleThreadMode)
-      std::mutex::lock();
-  }
-  bool try_lock() { return SingleThreadMode ? true : std::mutex::try_lock(); }
-  void unlock() {
-    if (!SingleThreadMode)
-      std::mutex::unlock();
-  }
-};
 
 // The wrapper for immutable Level-Zero data.
 // The data is initialized only once at first access (via ->) with the
@@ -359,22 +178,13 @@ struct MemAllocRecord : _pi_object {
 // Define the types that are opaque in pi.h in a manner suitabale for Level Zero
 // plugin
 
-struct _pi_platform {
-  _pi_platform(ze_driver_handle_t Driver) : ZeDriver{Driver} {}
+struct _pi_platform : public _ur_level_zero_platform {
+  _pi_platform(ze_driver_handle_t Driver) : _ur_level_zero_platform{Driver} {}
+
   // Performs initialization of a newly constructed PI platform.
-  pi_result initialize();
-
-  // Level Zero lacks the notion of a platform, but there is a driver, which is
-  // a pretty good fit to keep here.
-  ze_driver_handle_t ZeDriver;
-
-  // Cache versions info from zeDriverGetProperties.
-  std::string ZeDriverVersion;
-  std::string ZeDriverApiVersion;
-  ze_api_version_t ZeApiVersion{};
-
-  // Cache driver extensions
-  std::unordered_map<std::string, uint32_t> zeDriverExtensionMap;
+  pi_result initialize() {
+    return ur2piResult(_ur_level_zero_platform::initialize());
+  }
 
   // Cache pi_devices for reuse
   std::vector<std::unique_ptr<_pi_device>> PiDevicesCache;

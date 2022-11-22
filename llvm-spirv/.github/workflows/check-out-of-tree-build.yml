@@ -50,7 +50,6 @@ jobs:
           sudo apt-get -yq --no-install-suggests --no-install-recommends install \
             clang-${{ env.LLVM_VERSION }} \
             llvm-${{ env.LLVM_VERSION }}-dev \
-            libomp-${{ env.LLVM_VERSION }}-dev \
             llvm-${{ env.LLVM_VERSION }}-tools \
             mlir-${{ env.LLVM_VERSION }}-tools \
             spirv-tools

@@ -96,6 +96,10 @@ def err_drv_cuda_host_arch : Error<
 def err_drv_no_sycl_libspirv : Error<
   "cannot find '%0'; provide path to libspirv library via '-fsycl-libspirv-path', or "
   "pass '-fno-sycl-libspirv' to build without linking with libspirv">;
+def warn_flag_no_sycl_libspirv
+    : Warning<"'-fno-sycl-libspirv' should not be used with target '%0'; "
+              "libspirv is required for correct behavior">,
+      InGroup<NoLibspirvHipCuda>;
 def err_drv_mix_cuda_hip : Error<
   "mixed CUDA and HIP compilation is not supported">;
 def err_drv_bad_target_id : Error<
