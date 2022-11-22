@@ -277,7 +277,7 @@
 // CHECK_PHASES: 17: clang-offload-wrapper, {16}, object, (device-sycl, skl)
 // CHECK_PHASES: 18: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (spir64_gen-unknown-unknown:skl)" {17}, image
 
-/// Test phases, BoundArch settings used for -device target. Additional
+/// NVIDIA Test phases, BoundArch settings used for -device target. Additional
 /// offload action used for compilation and backend compilation.
 // RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_50 -fno-sycl-device-lib=all \
 // RUN:   -fno-sycl-instrument-device-code \
@@ -303,6 +303,35 @@
 // NVIDIA_CHECK_PHASES: file-table-tform, {12, 17}, tempfiletable, (device-sycl, sm_50)
 // NVIDIA_CHECK_PHASES: clang-offload-wrapper, {18}, object, (device-sycl, sm_50)
 // NVIDIA_CHECK_PHASES: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {19}, image
+
+/// AMD Test phases, BoundArch settings used for -device target. Additional
+/// offload action used for compilation and backend compilation.
+// RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx700 -fno-sycl-device-lib=all \
+// RUN:   -fno-sycl-instrument-device-code \
+// RUN:   -target x86_64-unknown-linux-gnu -ccc-print-phases %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=AMD_CHECK_PHASES
+// AMD_CHECK_PHASES: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
+// AMD_CHECK_PHASES: 1: append-footer, {0}, c++, (host-sycl)
+// AMD_CHECK_PHASES: 2: preprocessor, {1}, c++-cpp-output, (host-sycl)
+// AMD_CHECK_PHASES: 3: input, "[[INPUT]]", c++, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 4: preprocessor, {3}, c++-cpp-output, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 5: compiler, {4}, ir, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 6: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (amdgcn-amd-amdhsa:gfx700)" {5}, c++-cpp-output
+// AMD_CHECK_PHASES: 7: compiler, {6}, ir, (host-sycl)
+// AMD_CHECK_PHASES: 8: backend, {7}, assembler, (host-sycl)
+// AMD_CHECK_PHASES: 9: assembler, {8}, object, (host-sycl)
+// AMD_CHECK_PHASES: 10: linker, {9}, image, (host-sycl)
+// AMD_CHECK_PHASES: 11: linker, {5}, ir, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 12: sycl-post-link, {11}, ir, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 13: file-table-tform, {12}, ir, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 14: backend, {13}, assembler, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 15: assembler, {14}, object, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 16: linker, {15}, image, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 17: linker, {16}, hip-fatbin, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 18: foreach, {13, 17}, hip-fatbin, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 19: file-table-tform, {12, 18}, tempfiletable, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 20: clang-offload-wrapper, {19}, object, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 21: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (amdgcn-amd-amdhsa:gfx700)" {20}, image
 
 /// Check that ocloc and macro settings only occur for the expected toolchains
 /// when mixing spir64_gen and intel_gpu
