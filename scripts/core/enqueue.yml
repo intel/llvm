@@ -368,8 +368,6 @@ desc: "Enqueue a command to copy from a buffer object to another"
 class: $xEnqueue
 name: MemBufferCopy
 ordinal: "0"
-details:
-    - "The source and destination 2D or 3D rectangular regions can have different shapes."
 analogue:
     - "**clEnqueueCopyBuffer**"
 params:
