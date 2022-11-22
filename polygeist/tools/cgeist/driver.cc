@@ -1070,15 +1070,15 @@ int main(int argc, char **argv) {
       Args.push_back(argv[i]);
 
     ArrayRef<const char *> Argv = makeArrayRef(Args);
-    const OptTable &OptTbl = getDriverOptTable();
-    const unsigned IncludedFlagsBitmask = options::CC1AsOption;
+    const llvm::opt::OptTable &OptTbl = clang::driver::getDriverOptTable();
+    const unsigned IncludedFlagsBitmask = clang::driver::options::CC1AsOption;
     unsigned MissingArgIndex, MissingArgCount;
-    InputArgList InputArgs = OptTbl.ParseArgs(
+    opt::InputArgList InputArgs = OptTbl.ParseArgs(
         Argv, MissingArgIndex, MissingArgCount, IncludedFlagsBitmask);
 
     SmallVector<const char *> NewArgv = {Argv[0]};
     for (const opt::Arg *InputArg :
-         InputArgs.filtered(driver::options::OPT_mllvm))
+         InputArgs.filtered(clang::driver::options::OPT_mllvm))
       NewArgv.push_back(InputArg->getValue());
     llvm::cl::ParseCommandLineOptions(NewArgv.size(), &NewArgv[0]);
   }
