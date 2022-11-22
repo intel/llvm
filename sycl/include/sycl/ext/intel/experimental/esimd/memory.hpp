@@ -1492,7 +1492,7 @@ lsc_atomic_update(T *p, __ESIMD_NS::simd<uint32_t, N> offsets,
   __ESIMD_NS::simd<_MsgT, N> Tmp =
       __esimd_lsc_xatomic_stateless_1<_MsgT, _Op, L1H, L3H, _AddressScale,
                                       _ImmOffset, _DS, _VS, _Transposed, N>(
-          pred.data(), addrs.data(), src0.data());
+          pred.data(), addrs.data(), convert<_MsgT>(src0).data());
   return detail::lsc_format_ret<T>(Tmp);
 }
 
@@ -1538,7 +1538,8 @@ lsc_atomic_update(T *p, __ESIMD_NS::simd<uint32_t, N> offsets,
   __ESIMD_NS::simd<_MsgT, N> Tmp =
       __esimd_lsc_xatomic_stateless_2<_MsgT, _Op, L1H, L3H, _AddressScale,
                                       _ImmOffset, _DS, _VS, _Transposed, N>(
-          pred.data(), addrs.data(), src0.data(), src1.data());
+          pred.data(), addrs.data(), convert<_MsgT>(src0).data(),
+          convert<_MsgT>(src1).data());
   return detail::lsc_format_ret<T>(Tmp);
 }
 
