@@ -10,6 +10,7 @@
 #define MLIR_TOOLS_MLIRCLANG_TYPE_UTILS_H
 
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
+#include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "llvm/ADT/SmallPtrSet.h"
 
@@ -48,6 +49,8 @@ bool isRecursiveStruct(llvm::Type *T, llvm::Type *Meta,
 mlir::IntegerAttr wrapIntegerMemorySpace(unsigned MemorySpace,
                                          mlir::MLIRContext *Ctx);
 
+unsigned getAddressSpace(mlir::Type Ty);
+
 /// Given a MemRefType or LLVMPointerType, change the element type, keeping the
 /// rest of the parameters.
 mlir::Type getPtrTyWithNewType(mlir::Type Orig, mlir::Type NewElementType);
@@ -63,6 +66,19 @@ bool isIntOrIntVectorTy(mlir::Type Ty);
 inline bool isPointerOrMemRefTy(mlir::Type Ty) {
   return Ty.isa<mlir::MemRefType, mlir::LLVM::LLVMPointerType>();
 }
+
+inline bool isFirstClassType(mlir::Type Ty) {
+  return Ty.isa<mlir::IntegerType, mlir::IndexType, mlir::FloatType,
+                mlir::VectorType, mlir::MemRefType, mlir::LLVM::LLVMPointerType,
+                mlir::LLVM::LLVMStructType>() ||
+         mlir::sycl::isSYCLType(Ty);
+}
+
+inline bool isAggregateType(mlir::Type Ty) {
+  return Ty.isa<mlir::LLVM::LLVMStructType>() || mlir::sycl::isSYCLType(Ty);
+}
+
+unsigned getPrimitiveSizeInBits(mlir::Type Ty);
 
 } // namespace mlirclang
 

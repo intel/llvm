@@ -421,6 +421,35 @@ ValueCategory ValueCategory::IntToPtr(OpBuilder &Builder, Location Loc,
 
 ValueCategory ValueCategory::BitCast(OpBuilder &Builder, Location Loc,
                                      Type DestTy) const {
+  assert(mlirclang::isFirstClassType(val.getType()) &&
+         "Expecting first class type");
+  assert(mlirclang::isFirstClassType(DestTy) && "Expecting first class type");
+  assert(!mlirclang::isAggregateType(val.getType()) &&
+         "Not expecting aggregate type");
+  assert(!mlirclang::isAggregateType(DestTy) && "Not expecting aggregate type");
+  assert((!mlirclang::isPointerOrMemRefTy(val.getType()) ||
+          mlirclang::isPointerOrMemRefTy(DestTy)) &&
+         "Cannot cast pointers to anything but pointers");
+  assert((mlirclang::isPointerOrMemRefTy(val.getType()) ||
+          mlirclang::getPrimitiveSizeInBits(val.getType()) ==
+              mlirclang::getPrimitiveSizeInBits(DestTy)) &&
+         "Expecting equal bitwidth");
+  assert((!mlirclang::isPointerOrMemRefTy(val.getType()) ||
+          mlirclang::getAddressSpace(val.getType()) ==
+              mlirclang::getAddressSpace(DestTy)) &&
+         "Expecting equal address spaces");
+  assert((!(val.getType().isa<mlir::VectorType>() &&
+            DestTy.isa<mlir::VectorType>()) ||
+          val.getType().cast<mlir::VectorType>().getNumElements() ==
+              DestTy.cast<mlir::VectorType>().getNumElements()) &&
+         "Expecting same number of elements");
+  assert((!val.getType().isa<mlir::VectorType>() ||
+          val.getType().cast<mlir::VectorType>().getNumElements() == 1) &&
+         "Expecting single-element vector");
+  assert((!DestTy.isa<mlir::VectorType>() ||
+          DestTy.cast<mlir::VectorType>().getNumElements() == 1) &&
+         "Expecting single-element vector");
+
   return Cast<LLVM::BitcastOp>(Builder, Loc, DestTy);
 }
 

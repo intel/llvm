@@ -77,6 +77,15 @@ mlir::IntegerAttr wrapIntegerMemorySpace(unsigned MemorySpace,
                      : nullptr;
 }
 
+unsigned getAddressSpace(mlir::Type Ty) {
+  return llvm::TypeSwitch<mlir::Type, unsigned>(Ty)
+      .Case<mlir::MemRefType>(
+          [](auto MemRefTy) { return MemRefTy.getMemorySpaceAsInt(); })
+      .Case<mlir::LLVM::LLVMPointerType>(
+          [](auto PtrTy) { return PtrTy.getAddressSpace(); })
+      .Default([](auto) -> unsigned { llvm_unreachable("Invalid type"); });
+}
+
 mlir::Type getPtrTyWithNewType(mlir::Type Orig, mlir::Type NewElementType) {
   return llvm::TypeSwitch<mlir::Type, mlir::Type>(Orig)
       .Case<mlir::MemRefType>([NewElementType](auto Ty) {
@@ -204,6 +213,20 @@ bool isFPOrFPVectorTy(mlir::Type Ty) {
 
 bool isIntOrIntVectorTy(mlir::Type Ty) {
   return isTyOrTyVectorTy<mlir::IntegerType>(Ty);
+}
+
+unsigned getPrimitiveSizeInBits(mlir::Type Ty) {
+  return llvm::TypeSwitch<mlir::Type, unsigned>(Ty)
+      .Case<mlir::IntegerType>([](auto IntTy) { return IntTy.getWidth(); })
+      .Case<mlir::FloatType>([](auto FloatTy) { return FloatTy.getWidth(); })
+      .Case<mlir::IndexType>(
+          [](auto) { return mlir::IndexType::kInternalStorageBitWidth; })
+      .Case<mlir::VectorType>([](auto VecTy) {
+        return VecTy.getNumElements() *
+               getPrimitiveSizeInBits(VecTy.getElementType());
+      })
+      .Default(
+          [](auto) -> unsigned { llvm_unreachable("Invalid primitive type"); });
 }
 
 } // namespace mlirclang
