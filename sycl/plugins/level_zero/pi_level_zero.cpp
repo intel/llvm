@@ -3841,6 +3841,34 @@ pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
   case PI_QUEUE_INFO_DEVICE_DEFAULT:
     die("PI_QUEUE_INFO_DEVICE_DEFAULT in piQueueGetInfo not implemented\n");
     break;
+  case PI_QUEUE_INFO_STATUS:
+    for (auto ZeQueue : Queue->ComputeQueueGroup.ZeQueues) {
+      if (!ZeQueue)
+        continue;
+      // Provide 0 as the timeout parameter to immediately get the status of the
+      // Level Zero queue.
+      ze_result_t ZeResult = ZE_CALL_NOCHECK(zeCommandQueueSynchronize,
+                                             (ZeQueue, /* timeout */ 0));
+      if (ZeResult == ZE_RESULT_NOT_READY) {
+        return ReturnValue(pi_bool{false});
+      } else if (ZeResult != ZE_RESULT_SUCCESS) {
+        return mapError(ZeResult);
+      }
+    }
+    for (auto ZeQueue : Queue->CopyQueueGroup.ZeQueues) {
+      if (!ZeQueue)
+        continue;
+      // Provide 0 as the timeout parameter to immediately get the status of the
+      // Level Zero queue.
+      ze_result_t ZeResult = ZE_CALL_NOCHECK(zeCommandQueueSynchronize,
+                                             (ZeQueue, /* timeout */ 0));
+      if (ZeResult == ZE_RESULT_NOT_READY) {
+        return ReturnValue(pi_bool{false});
+      } else if (ZeResult != ZE_RESULT_SUCCESS) {
+        return mapError(ZeResult);
+      }
+    }
+    return ReturnValue(pi_bool{true});
   default:
     zePrint("Unsupported ParamName in piQueueGetInfo: ParamName=%d(0x%x)\n",
             ParamName, ParamName);

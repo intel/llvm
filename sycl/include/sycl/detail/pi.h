@@ -56,6 +56,7 @@
 // 11.16 Add PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE and
 // PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH as an extension for
 // piDeviceGetInfo.
+// 11.17 Add new parameter name PI_QUEUE_INFO_STATUS to _pi_queue_info.
 
 #define _PI_H_VERSION_MAJOR 11
 #define _PI_H_VERSION_MINOR 16
@@ -329,7 +330,8 @@ typedef enum {
   PI_QUEUE_INFO_DEVICE_DEFAULT = 0x1095,
   PI_QUEUE_INFO_PROPERTIES = 0x1093,
   PI_QUEUE_INFO_REFERENCE_COUNT = 0x1092,
-  PI_QUEUE_INFO_SIZE = 0x1094
+  PI_QUEUE_INFO_SIZE = 0x1094,
+  PI_QUEUE_INFO_STATUS = 0x1096
 } _pi_queue_info;
 
 typedef enum {
