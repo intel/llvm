@@ -95,7 +95,7 @@ static LogicalResult convertMethod(SYCLMethodOpInterface method,
                 "the MangledFunctionName field of this operation.";
     }
 
-    SymbolTable Module(method->getParentOp()->getParentOp());
+    SymbolTable Module(method->getParentWithTrait<OpTrait::SymbolTable>());
     if (auto *Op = Module.lookup(Func->getName())) {
       // If the function has already been cloned to this module, use that.
       Func = cast<func::FuncOp>(Op);
