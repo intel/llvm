@@ -34,11 +34,9 @@
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
-#include "mlir/Dialect/Vector/IR/VectorOps.h"
-
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
 #include "mlir/Dialect/SYCL/Transforms/Passes.h"
-
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Verifier.h"
@@ -52,16 +50,18 @@
 
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/Passes/PassBuilder.h"
+#include "llvm/Passes/StandardInstrumentations.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Host.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/WithColor.h"
-#include <fstream>
 
 #include "Options.h"
 #include "polygeist/Dialect.h"
 #include "polygeist/Passes/Passes.h"
+
+#include <fstream>
 
 #define DEBUG_TYPE "cgeist"
 
@@ -129,76 +129,67 @@ static int ExecuteCC1Tool(SmallVectorImpl<const char *> &ArgV) {
   return 1;
 }
 
-static int emitBinary(const char *Argv0, const char *filename,
+static int emitBinary(const char *Argv0, const char *Filename,
                       const SmallVectorImpl<const char *> &LinkArgs,
                       bool LinkOMP) {
-
   using namespace clang;
-  using namespace clang::driver;
-  using namespace std;
-  IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
-  // Buffer diagnostics from argument parsing so that we can output them using a
-  // well formed diagnostic object.
-  IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = new DiagnosticOptions();
-  TextDiagnosticPrinter *DiagBuffer =
-      new TextDiagnosticPrinter(llvm::errs(), &*DiagOpts);
 
-  DiagnosticsEngine Diags(DiagID, &*DiagOpts, DiagBuffer);
-
-  string TargetTriple;
-  if (TargetTripleOpt == "")
-    TargetTriple = llvm::sys::getDefaultTargetTriple();
-  else
-    TargetTriple = TargetTripleOpt;
-
-  const char *binary = Argv0;
-  const unique_ptr<Driver> driver(new Driver(binary, TargetTriple, Diags));
-  driver->CC1Main = &ExecuteCC1Tool;
   ArgumentList Argv;
   Argv.push_back(Argv0);
-  // Argv.push_back("-x");
-  // Argv.push_back("ir");
-  Argv.push_back(filename);
+  Argv.push_back(Filename);
   if (LinkOMP)
     Argv.push_back("-fopenmp");
   if (ResourceDir != "") {
     Argv.push_back("-resource-dir");
     Argv.push_back(ResourceDir);
   }
-  if (Verbose) {
+  if (Verbose)
     Argv.push_back("-v");
-  }
-  if (CUDAGPUArch != "") {
+  if (CUDAGPUArch != "")
     Argv.emplace_back("--cuda-gpu-arch=", CUDAGPUArch);
-  }
-  if (CUDAPath != "") {
+  if (CUDAPath != "")
     Argv.emplace_back("--cuda-path=", CUDAPath);
-  }
   if (Output != "") {
     Argv.push_back("-o");
     Argv.push_back(Output);
   }
-  for (const auto *arg : LinkArgs)
-    Argv.push_back(arg);
+  for (const auto *Arg : LinkArgs)
+    Argv.push_back(Arg);
 
-  const unique_ptr<Compilation> compilation(
-      driver->BuildCompilation(Argv.getArguments()));
+  IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = CreateAndPopulateDiagOpts(
+      Argv.getArguments()); // new DiagnosticOptions();
+  TextDiagnosticPrinter *DiagClient =
+      new TextDiagnosticPrinter(llvm::errs(), &*DiagOpts);
+
+  IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
+  DiagnosticsEngine Diags(DiagID, &*DiagOpts, DiagClient);
+  const std::string TargetTriple = (TargetTripleOpt == "")
+                                       ? llvm::sys::getDefaultTargetTriple()
+                                       : TargetTripleOpt;
+
+  driver::Driver TheDriver(Argv0, TargetTriple, Diags, "cgeist LLVM compiler");
+
+  const std::unique_ptr<driver::Compilation> C(
+      TheDriver.BuildCompilation(Argv.getArguments()));
+  if (!C)
+    return 1;
 
   if (ResourceDir != "")
-    driver->ResourceDir = ResourceDir;
+    TheDriver.ResourceDir = ResourceDir;
   if (SysRoot != "")
-    driver->SysRoot = SysRoot;
-  SmallVector<std::pair<int, const Command *>, 4> FailingCommands;
+    TheDriver.SysRoot = SysRoot;
 
   LLVM_DEBUG({
-    dbgs() << "Compilation flow:\n";
-    driver->PrintActions(*compilation);
+    llvm::dbgs() << "Compilation flow:\n";
+    TheDriver.PrintActions(*C);
   });
 
-  int Res = driver->ExecuteCompilation(*compilation, FailingCommands);
+  SmallVector<std::pair<int, const driver::Command *>, 4> FailingCommands;
+  int Res = TheDriver.ExecuteCompilation(*C, FailingCommands);
+
   for (const auto &P : FailingCommands) {
     int CommandRes = P.first;
-    const Command *FailingCommand = P.second;
+    const driver::Command *FailingCommand = P.second;
     if (!Res)
       Res = CommandRes;
 
@@ -211,7 +202,7 @@ static int emitBinary(const char *Argv0, const char *filename,
     IsCrash |= CommandRes == 3;
 #endif
     if (IsCrash) {
-      driver->generateCompilationDiagnostics(*compilation, *FailingCommand);
+      TheDriver.generateCompilationDiagnostics(*C, *FailingCommand);
       break;
     }
   }
@@ -698,19 +689,30 @@ static int createAndExecutePassPipeline(
   return 0;
 }
 
-/// Run optimization pipeline in LLVM module.
-///
-/// Just run default pipelines for now.
+/// Run an optimization pipeline on the LLVM module.
 static void
-runOptimizationPipeline(llvm::Module &module,
+runOptimizationPipeline(llvm::Module &Module,
                         const llvm::OptimizationLevel &OptimizationLevel) {
   llvm::LoopAnalysisManager LAM;
   llvm::FunctionAnalysisManager FAM;
   llvm::CGSCCAnalysisManager CGAM;
   llvm::ModuleAnalysisManager MAM;
 
-  llvm::PassBuilder PB;
+  llvm::PassInstrumentationCallbacks PIC;
+  llvm::PrintPassOptions PrintPassOpts;
+  PrintPassOpts.Verbose = true;
+  PrintPassOpts.SkipAnalyses = true;
+  llvm::StandardInstrumentations SI(false, true /*VerifyEachPass*/,
+                                    PrintPassOpts);
+  SI.registerCallbacks(PIC, &FAM);
 
+  TargetMachine *TM = nullptr;
+  llvm::Optional<llvm::PGOOptions> P = llvm::None;
+  llvm::PipelineTuningOptions PTO;
+
+  llvm::PassBuilder PB(TM, PTO, P, &PIC);
+
+  // Register all the basic analyses with the managers.
   PB.registerModuleAnalyses(MAM);
   PB.registerCGSCCAnalyses(CGAM);
   PB.registerFunctionAnalyses(FAM);
@@ -722,7 +724,29 @@ runOptimizationPipeline(llvm::Module &module,
           ? PB.buildO0DefaultPipeline(OptimizationLevel)
           : PB.buildPerModuleDefaultPipeline(OptimizationLevel);
 
-  MPM.run(module, MAM);
+  // Before executing passes, print the final values of the LLVM options.
+  cl::PrintOptionValues();
+
+  // Print a textual representation of the LLVM pipeline.
+  LLVM_DEBUG({
+    llvm::dbgs() << "*** Run LLVM Optimization pipeline: ***\n";
+
+    std::string Pipeline;
+    raw_string_ostream OS(Pipeline);
+
+    MPM.printPipeline(OS, [&PIC](StringRef ClassName) {
+      auto PassName = PIC.getPassNameForClassName(ClassName);
+      return PassName.empty() ? ClassName : PassName;
+    });
+    llvm::dbgs() << Pipeline << "\n";
+  });
+
+  // Now that we have all of the passes ready, run them.
+  {
+    PrettyStackTraceString CrashInfo("Optimizer");
+    llvm::TimeTraceScope TimeScope("Optimizer");
+    MPM.run(Module, MAM);
+  }
 }
 
 // Lower the MLIR in the given module, compile the generated LLVM IR.
@@ -931,8 +955,6 @@ splitCommandLineOptions(int argc, char **argv,
         // If several flags are passed, we keep the last one.
         OptimizationLevel = ExitOnErr(parseOptimizationLevel(ref));
         LinkageArgs.push_back(argv[i]);
-      } else if (ref == "-no-opt-mlir") {
-        MLIRArgs.push_back(argv[i]);
       } else if (ref == "-g")
         LinkageArgs.push_back(argv[i]);
       else
@@ -1046,6 +1068,26 @@ int main(int argc, char **argv) {
     return ExecuteCC1Tool(Argv);
   }
 
+  // Forward '-mllvm' arguments to LLVM.
+  {
+    SmallVector<const char *> Args;
+    for (int i = 0; i < argc; i++)
+      Args.push_back(argv[i]);
+
+    ArrayRef<const char *> Argv = makeArrayRef(Args);
+    const OptTable &OptTbl = getDriverOptTable();
+    const unsigned IncludedFlagsBitmask = options::CC1AsOption;
+    unsigned MissingArgIndex, MissingArgCount;
+    InputArgList InputArgs = OptTbl.ParseArgs(
+        Argv, MissingArgIndex, MissingArgCount, IncludedFlagsBitmask);
+
+    SmallVector<const char *> NewArgv = {Argv[0]};
+    for (const opt::Arg *InputArg :
+         InputArgs.filtered(driver::options::OPT_mllvm))
+      NewArgv.push_back(InputArg->getValue());
+    llvm::cl::ParseCommandLineOptions(NewArgv.size(), &NewArgv[0]);
+  }
+
   // Split up the arguments into MLIR and linkage arguments.
   SmallVector<const char *> LinkageArgs, MLIRArgs;
   const CgeistOptions Options =
@@ -1053,63 +1095,65 @@ int main(int argc, char **argv) {
   assert(!MLIRArgs.empty() && "MLIRArgs should not be empty");
 
   // Register any command line options.
-  registerPassManagerCLOptions();
-  registerDefaultTimingManagerCLOptions();
+  mlir::registerMLIRContextCLOptions();
+  mlir::registerPassManagerCLOptions();
+  mlir::registerAsmPrinterCLOptions();
+  mlir::registerDefaultTimingManagerCLOptions();
 
   // Parse command line options.
-  llvm::cl::list<std::string> inputFileNames(
+  llvm::cl::list<std::string> InputFileNames(
       llvm::cl::Positional, llvm::cl::OneOrMore,
       llvm::cl::desc("<Specify input file>"), llvm::cl::cat(ToolOptions));
 
-  llvm::cl::list<std::string> inputCommandArgs(
+  llvm::cl::list<std::string> InputCommandArgs(
       "args", llvm::cl::Positional, llvm::cl::desc("<command arguments>"),
       llvm::cl::ZeroOrMore, llvm::cl::PositionalEatsArgs);
 
-  int size = MLIRArgs.size();
-  const char **data = MLIRArgs.data();
-  InitLLVM y(size, data);
-  llvm::cl::ParseCommandLineOptions(size, data);
+  // Register command line options specific to cgeist.
+  int Size = MLIRArgs.size();
+  const char **Data = MLIRArgs.data();
+  InitLLVM Y(Size, Data);
+  llvm::cl::ParseCommandLineOptions(Size, Data);
 
   // Register MLIR dialects.
-  mlir::MLIRContext context;
-  registerDialects(context, Options.syclIsDevice());
+  mlir::MLIRContext Ctx;
+  registerDialects(Ctx, Options.syclIsDevice());
 
   // Generate MLIR for the input files.
-  mlir::OpBuilder Builder(&context);
-  const auto loc = Builder.getUnknownLoc();
-  mlir::OwningOpRef<mlir::ModuleOp> module(mlir::ModuleOp::create(loc));
-  Builder.setInsertionPointToEnd(module->getBody());
-  auto deviceModule = Builder.create<mlir::gpu::GPUModuleOp>(
-      loc, MLIRASTConsumer::DeviceModuleName);
+  mlir::OpBuilder Builder(&Ctx);
+  const Location Loc = Builder.getUnknownLoc();
+  mlir::OwningOpRef<mlir::ModuleOp> Module(mlir::ModuleOp::create(Loc));
+  Builder.setInsertionPointToEnd(Module->getBody());
+  auto DeviceModule = Builder.create<mlir::gpu::GPUModuleOp>(
+      Loc, MLIRASTConsumer::DeviceModuleName);
 
   llvm::DataLayout DL("");
-  llvm::Triple triple;
-  processInputFiles(inputFileNames, inputCommandArgs, context, module, DL,
-                    triple, argv[0], Options.syclIsDevice());
+  llvm::Triple Triple;
+  processInputFiles(InputFileNames, InputCommandArgs, Ctx, Module, DL, Triple,
+                    argv[0], Options.syclIsDevice());
 
   LLVM_DEBUG({
     llvm::dbgs() << "Initial MLIR:\n";
-    module->dump();
+    Module->dump();
   });
 
   // For now, we will work on the device code if it contains any functions and
   // on the host code otherwise.
-  if (containsFunctions(deviceModule)) {
-    eraseHostCode(*module);
-    module.get()->setAttr(mlir::gpu::GPUDialect::getContainerModuleAttrName(),
+  if (containsFunctions(DeviceModule)) {
+    eraseHostCode(*Module);
+    Module.get()->setAttr(mlir::gpu::GPUDialect::getContainerModuleAttrName(),
                           Builder.getUnitAttr());
   } else
-    deviceModule.erase();
+    DeviceModule.erase();
 
   LLVM_DEBUG({
     llvm::dbgs() << "MLIR before compilation:\n";
-    module->dump();
+    Module->dump();
   });
 
   // Lower the MLIR to LLVM IR, compile the generated LLVM IR.
-  return compileModule(module,
-                       inputFileNames.size() == 1 ? inputFileNames[0]
-                                                  : "LLVMDialectModule",
-                       context, DL, triple, Options.getOptimizationLevel(),
-                       LinkageArgs, argv[0]);
+  return compileModule(
+      Module,
+      InputFileNames.size() == 1 ? InputFileNames[0] : "LLVMDialectModule", Ctx,
+      DL, Triple, Options.getOptimizationLevel(), LinkageArgs, argv[0]);
 }
