@@ -81,6 +81,7 @@
 #include "llvm/IR/Verifier.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDVerifier.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
+#include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/SYCLLowerIR/LowerKernelProps.h"
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
