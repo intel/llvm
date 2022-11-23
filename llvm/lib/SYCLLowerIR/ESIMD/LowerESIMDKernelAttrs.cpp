@@ -22,10 +22,7 @@ namespace llvm {
 bool isInvokeSimdBuiltinCall(const CallInst *CI) {
   Function *F = CI->getCalledFunction();
 
-  if (F && F->getName().startswith(esimd::INVOKE_SIMD_PREF))
-    return true;
-
-  return false;
+  return F && F->getName().startswith(esimd::INVOKE_SIMD_PREF);
 }
 
 // Checks the use of a function address being stored in a memory.
@@ -77,8 +74,8 @@ bool filterInvokeSimdUse(const Instruction *I) {
   // if the instruction is to store address of a function, check if it is later
   // used by InvokeSimd.
   if (auto *SI = dyn_cast<StoreInst>(I)) {
-    const Value *addr = SI->getPointerOperand();
-    return checkFunctionAddressUse(addr);
+    const Value *Addr = SI->getPointerOperand();
+    return checkFunctionAddressUse(Addr);
   }
   return true;
 }
