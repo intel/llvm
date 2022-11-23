@@ -71,7 +71,7 @@ parseMemoryTargetMode(mlir::DialectAsmParser &Parser,
 
 static mlir::ParseResult
 parseAccessAddressSpace(mlir::DialectAsmParser &Parser,
-                      mlir::sycl::AccessAddrSpace *AddrSpace) {
+                        mlir::sycl::AccessAddrSpace *AddrSpace) {
   int AddSpaceInt;
   if (Parser.parseInteger<int>(AddSpaceInt)) {
     return mlir::ParseResult::failure();
@@ -970,7 +970,7 @@ llvm::ArrayRef<mlir::Type> mlir::sycl::VecType::getBody() const {
 
 mlir::sycl::AtomicType
 mlir::sycl::AtomicType::get(MLIRContext *Context, mlir::Type DataT,
-                         mlir::sycl::AccessAddrSpace AddrSpace) {
+                            mlir::sycl::AccessAddrSpace AddrSpace) {
   return Base::get(Context, DataT, AddrSpace);
 }
 
@@ -1008,7 +1008,9 @@ mlir::Type mlir::sycl::AtomicType::parseType(mlir::DialectAsmParser &Parser) {
   return mlir::sycl::AtomicType::get(Parser.getContext(), DataT, AddrSpace);
 }
 
-mlir::Type mlir::sycl::AtomicType::getDataType() const { return getImpl()->DataT; }
+mlir::Type mlir::sycl::AtomicType::getDataType() const {
+  return getImpl()->DataT;
+}
 
 mlir::sycl::AccessAddrSpace mlir::sycl::AtomicType::getAddressSpace() const {
   return getImpl()->AddrSpace;
@@ -1053,7 +1055,6 @@ int mlir::sycl::AtomicType::getAddressSpaceAsInt() const {
   }
   assert(false && "unreachable");
 }
-
 
 llvm::SmallVector<mlir::TypeID>
 mlir::sycl::getDerivedTypes(mlir::TypeID TypeID) {

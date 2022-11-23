@@ -33,7 +33,8 @@ void mlir::sycl::SYCLDialect::initialize() {
       mlir::sycl::AccessorType, mlir::sycl::RangeType, mlir::sycl::NdRangeType,
       mlir::sycl::AccessorImplDeviceType, mlir::sycl::AccessorSubscriptType,
       mlir::sycl::ArrayType, mlir::sycl::ItemType, mlir::sycl::ItemBaseType,
-      mlir::sycl::NdItemType, mlir::sycl::GroupType, mlir::sycl::VecType, mlir::sycl::AtomicType>();
+      mlir::sycl::NdItemType, mlir::sycl::GroupType, mlir::sycl::VecType,
+      mlir::sycl::AtomicType>();
 
   mlir::Dialect::addInterfaces<SYCLOpAsmInterface>();
 }
@@ -150,10 +151,9 @@ void mlir::sycl::SYCLDialect::printType(
     llvm::interleaveComma(Vec.getBody(), Printer);
     Printer << ")>";
   } else if (const auto Atomic = Type.dyn_cast<mlir::sycl::AtomicType>()) {
-    Printer << "atomic<[" << Atomic.getDataType() << ", " << Atomic.getAddressSpaceAsString()
-            << "]>";
-  } 
-  else {
+    Printer << "atomic<[" << Atomic.getDataType() << ", "
+            << Atomic.getAddressSpaceAsString() << "]>";
+  } else {
     assert(false && "The given type is not handled by the SYCL printer");
   }
 }

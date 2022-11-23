@@ -100,24 +100,23 @@ mlir::Type getPtrTyWithNewType(mlir::Type Orig, mlir::Type NewElementType) {
 }
 
 mlir::sycl::AccessAddrSpace getAccAddressSpace(const int AddrSpace) {
-  switch(AddrSpace)
-  {
-    case 0:
-      return mlir::sycl::AccessAddrSpace::Private;
-    case 1:
-      return mlir::sycl::AccessAddrSpace::Global;
-    case 2:
-      return mlir::sycl::AccessAddrSpace::Constant;
-    case 3:
-      return mlir::sycl::AccessAddrSpace::Local;
-    case 4:
-      return mlir::sycl::AccessAddrSpace::ExtIntelGlobalDevice;
-    case 5:
-      return mlir::sycl::AccessAddrSpace::ExtIntelHost;
-    case 6:
-      return mlir::sycl::AccessAddrSpace::Generic;
-    default:
-      llvm_unreachable("Unknown address space for atomic");
+  switch (AddrSpace) {
+  case 0:
+    return mlir::sycl::AccessAddrSpace::Private;
+  case 1:
+    return mlir::sycl::AccessAddrSpace::Global;
+  case 2:
+    return mlir::sycl::AccessAddrSpace::Constant;
+  case 3:
+    return mlir::sycl::AccessAddrSpace::Local;
+  case 4:
+    return mlir::sycl::AccessAddrSpace::ExtIntelGlobalDevice;
+  case 5:
+    return mlir::sycl::AccessAddrSpace::ExtIntelHost;
+  case 6:
+    return mlir::sycl::AccessAddrSpace::Generic;
+  default:
+    llvm_unreachable("Unknown address space for atomic");
   }
 }
 
@@ -216,7 +215,8 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
           CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
       const int AddrSpace =
           CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
-      return mlir::sycl::AtomicType::get(CGT.getModule()->getContext(), Type, getAccAddressSpace(AddrSpace));
+      return mlir::sycl::AtomicType::get(CGT.getModule()->getContext(), Type,
+                                         getAccAddressSpace(AddrSpace));
     }
   }
 

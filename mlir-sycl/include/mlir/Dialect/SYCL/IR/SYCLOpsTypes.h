@@ -49,7 +49,7 @@ enum class AccessAddrSpace : int {
   Local = 3,
   ExtIntelGlobalDevice = 4,
   ExtIntelHost = 5,
-  Generic = 6,  
+  Generic = 6,
 };
 
 } // namespace sycl
@@ -637,7 +637,7 @@ public:
   using Base::Base;
 
   static mlir::sycl::AtomicType get(MLIRContext *Context, mlir::Type DataT,
-                                 mlir::sycl::AccessAddrSpace AddrSpace);
+                                    mlir::sycl::AccessAddrSpace AddrSpace);
   static mlir::Type parseType(mlir::DialectAsmParser &Parser);
 
   mlir::Type getDataType() const;
