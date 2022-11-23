@@ -44,7 +44,7 @@ returns:
 type: function
 desc: "Makes a reference of the context handle indicating it's in use until paired $xContextRelease is called"
 class: $xContext
-name: GetReference
+name: Retain
 decl: static
 ordinal: "0"
 analogue:

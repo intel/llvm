@@ -87,7 +87,7 @@ returns:
 type: function
 desc: "Get a reference to the sampler object handle. Increment its reference count"
 class: $xSampler
-name: GetReference
+name: Retain
 ordinal: "0"
 analogue:
     - "**clRetainSampler**"
