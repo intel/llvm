@@ -2674,37 +2674,36 @@ typedef enum _ur_device_info_t
     UR_DEVICE_INFO_DRIVER_VERSION = 65,             ///< char[]: Driver version
     UR_DEVICE_INFO_PROFILE = 66,                    ///< char[]: Device profile
     UR_DEVICE_INFO_VERSION = 67,                    ///< char[]: Device version
-    UR_DEVICE_INFO_OPENCL_C_VERSION = 68,           ///< char[]: OpenCL C version
-    UR_DEVICE_INFO_EXTENSIONS = 69,                 ///< char[]: Return a space separated list of extension names
-    UR_DEVICE_INFO_PRINTF_BUFFER_SIZE = 70,         ///< size_t: Maximum size in bytes of internal printf buffer
-    UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC = 71,///< bool: prefer user synchronization when sharing object with other API
-    UR_DEVICE_INFO_PARENT_DEVICE = 72,              ///< ::ur_device_handle_t: return parent device handle
-    UR_DEVICE_INFO_PARTITION_PROPERTIES = 73,       ///< uint32_t: return a bit-field of partition properties
+    UR_DEVICE_INFO_EXTENSIONS = 68,                 ///< char[]: Return a space separated list of extension names
+    UR_DEVICE_INFO_PRINTF_BUFFER_SIZE = 69,         ///< size_t: Maximum size in bytes of internal printf buffer
+    UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC = 70,///< bool: prefer user synchronization when sharing object with other API
+    UR_DEVICE_INFO_PARENT_DEVICE = 71,              ///< ::ur_device_handle_t: return parent device handle
+    UR_DEVICE_INFO_PARTITION_PROPERTIES = 72,       ///< uint32_t: return a bit-field of partition properties
                                                     ///< ::ur_device_partition_property_flags_t
-    UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES = 74,  ///< uint32_t: maximum number of sub-devices when the device is partitioned
-    UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN = 75,  ///< uint32_t: return a bit-field of affinity domain
+    UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES = 73,  ///< uint32_t: maximum number of sub-devices when the device is partitioned
+    UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN = 74,  ///< uint32_t: return a bit-field of affinity domain
                                                     ///< ::ur_device_affinity_domain_flags_t
-    UR_DEVICE_INFO_PARTITION_TYPE = 76,             ///< uint32_t: return a bit-field of ::ur_device_partition_property_flags_t
+    UR_DEVICE_INFO_PARTITION_TYPE = 75,             ///< uint32_t: return a bit-field of ::ur_device_partition_property_flags_t
                                                     ///< for properties specified in ::urDevicePartition
-    UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS = 77,         ///< uint32_t: max number of sub groups
-    UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS = 78, ///< bool: support sub group independent forward progress
-    UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL = 79,      ///< uint32_t[]: return an array of sub group sizes supported on Intel
+    UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS = 76,         ///< uint32_t: max number of sub groups
+    UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS = 77, ///< bool: support sub group independent forward progress
+    UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL = 78,      ///< uint32_t[]: return an array of sub group sizes supported on Intel
                                                     ///< device
-    UR_DEVICE_INFO_USM_HOST_SUPPORT = 80,           ///< bool: support USM host memory access
-    UR_DEVICE_INFO_USM_DEVICE_SUPPORT = 81,         ///< bool: support USM device memory access
-    UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT = 82,  ///< bool: support USM single device shared memory access
-    UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT = 83,   ///< bool: support USM cross device shared memory access
-    UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT = 84,  ///< bool: support USM system wide shared memory access
-    UR_DEVICE_INFO_UUID = 85,                       ///< char[]: return device UUID
-    UR_DEVICE_INFO_PCI_ADDRESS = 86,                ///< char[]: return device PCI address
-    UR_DEVICE_INFO_GPU_EU_COUNT = 87,               ///< uint32_t: return Intel GPU EU count
-    UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH = 88,          ///< uint32_t: return Intel GPU EU SIMD width
-    UR_DEVICE_INFO_GPU_EU_SLICES = 89,              ///< uint32_t: return Intel GPU number of slices
-    UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE = 90,    ///< uint32_t: return Intel GPU number of subslices per slice
-    UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH = 91,       ///< uint32_t: return max memory bandwidth in Mb/s
-    UR_DEVICE_INFO_IMAGE_SRGB = 92,                 ///< bool: image is SRGB
-    UR_DEVICE_INFO_ATOMIC_64 = 93,                  ///< bool: support 64 bit atomics
-    UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 94,   ///< uint32_t: atomics memory order capabilities
+    UR_DEVICE_INFO_USM_HOST_SUPPORT = 79,           ///< bool: support USM host memory access
+    UR_DEVICE_INFO_USM_DEVICE_SUPPORT = 80,         ///< bool: support USM device memory access
+    UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT = 81,  ///< bool: support USM single device shared memory access
+    UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT = 82,   ///< bool: support USM cross device shared memory access
+    UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT = 83,  ///< bool: support USM system wide shared memory access
+    UR_DEVICE_INFO_UUID = 84,                       ///< char[]: return device UUID
+    UR_DEVICE_INFO_PCI_ADDRESS = 85,                ///< char[]: return device PCI address
+    UR_DEVICE_INFO_GPU_EU_COUNT = 86,               ///< uint32_t: return Intel GPU EU count
+    UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH = 87,          ///< uint32_t: return Intel GPU EU SIMD width
+    UR_DEVICE_INFO_GPU_EU_SLICES = 88,              ///< uint32_t: return Intel GPU number of slices
+    UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE = 89,    ///< uint32_t: return Intel GPU number of subslices per slice
+    UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH = 90,       ///< uint32_t: return max memory bandwidth in Mb/s
+    UR_DEVICE_INFO_IMAGE_SRGB = 91,                 ///< bool: image is SRGB
+    UR_DEVICE_INFO_ATOMIC_64 = 92,                  ///< bool: support 64 bit atomics
+    UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 93,   ///< uint32_t: atomics memory order capabilities
     UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
 
 } ur_device_info_t;
