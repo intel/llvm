@@ -741,24 +741,6 @@ void EntryPointGroup::rebuildFromNames(const std::vector<std::string> &Names,
   });
 }
 
-std::unique_ptr<ModuleSplitterBase>
-getLargeGRFSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints) {
-  EntryPointGroupVec Groups = groupEntryPointsByAttribute(
-      MD, sycl::kernel_props::ATTR_LARGE_GRF, EmitOnlyKernelsAsEntryPoints,
-      [](EntryPointGroup &G) {
-        if (G.GroupId == sycl::kernel_props::ATTR_LARGE_GRF) {
-          G.Props.UsesLargeGRF = true;
-        }
-      });
-  assert(!Groups.empty() && "At least one group is expected");
-  assert(Groups.size() <= 2 && "At most 2 groups are expected");
-
-  if (Groups.size() > 1)
-    return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups));
-  else
-    return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
-}
-
 namespace {
 // Data structure, which represent a combination of all possible optional
 // features used in a function.
