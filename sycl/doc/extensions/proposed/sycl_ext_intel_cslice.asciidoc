@@ -55,11 +55,11 @@ not rely on APIs defined in this specification.*
 :multi-CCS: https://github.com/intel/compute-runtime/blob/master/level_zero/doc/experimental_extensions/MULTI_CCS_MODES.md
 
 Some Intel GPU devices can be partitioned at a granularity of "cslice" (compute
-slice), which is a smaller granularity than "tile".  At present, the GPU device
-drivers don't expose this mode by default, so this form of partitioning is
-considered an advanced feature which most applications are not expected to use.
-This extension provides a way for these advanced applications to partition a
-device by cslice when it is enabled in the device driver.
+slice), which is a smaller granularity than "tile".  This form of partitioning
+is not currently enabled by default, so it is considered an advanced feature
+which most applications are not expected to use.  This extension provides a way
+for these advanced applications to partition a device by cslice when it is
+enabled in the device driver.
 
 Unlike "tile" partitions, a cslice partition does not have any different cache
 affinity from its sibling cslice partitions.  Therefore, this extension does
@@ -68,14 +68,19 @@ not expose this type of partitioning through
 new partitioning type
 `info::partition_property::ext_intel_partition_by_cslice`.
 
-Intel GPU devices that support this type of partitioning currently support it
-only at the "tile" level.  Therefore, a device with multiple tiles (e.g. PVC)
-must first be partitioned into per-tile sub-devices via
-`partition_by_affinity_domain`, and then each of the
-resulting sub-devices can be further partitioned by
-`ext_intel_partition_by_cslice`.  Single-tile devices (e.g. ATS-M) can be
-directly partitioned by `ext_intel_partition_by_cslice` (for those ATS-M parts
-that have multiple cslice partitions).
+The only Intel GPU device that currently supports this type of partitioning is
+PVC, and this support is only available when the device driver is configured in
+{multi-CCS}[multi-CCS] mode.  See that documentation for instructions on how to
+enable this mode and for other important information.  Currently, it is only
+possible to partition a device by cslice if the driver is in "2 CCS Mode" or
+"4 CCS Mode".  When in 2 CCS Mode, a tile can be partitioned into two cslice
+sub-devices.  When in 4 CCS Mode, a tile can be partitioned into four cslice
+sub-devices.
+
+This type of partitioning is currently supported only at the "tile" level.
+Therefore, a device must first be partitioned into per-tile sub-devices via
+`partition_by_affinity_domain`, and then each of the resulting sub-devices can
+be further partitioned by `ext_intel_partition_by_cslice`.
 
 It is important to understand that the device driver virtualizes work
 submission to the cslice sub-devices.  This virtualization happens only between
@@ -91,13 +96,6 @@ submitted from the first process may run on different execution units than
 kernels submitted from the second process.  In this second case, the device
 driver binds the process's requested cslice to a physical cslice according to
 the overall system load.
-
-For information about configuring the device driver to support cslice
-partitioning, see the driver documentation on {multi-CCS}[multi-CCS] mode.
-Currently, it is only possible to partition a device by cslice if the driver is
-in "2 CCS Mode" or "4 CCS Mode".  When in 2 CCS Mode, a tile can be partitioned
-into two cslice sub-devices.  When in 4 CCS Mode, a tile can be partitioned
-into four cslice sub-devices.
 
 Note that this extension can be supported by any backend and any device.  If a
 backend or device does not support the concept of cslice partitions, it can
