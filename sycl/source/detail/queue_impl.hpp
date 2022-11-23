@@ -557,7 +557,7 @@ protected:
   void addEvent(const event &Event);
 
   /// Protects all the fields that can be changed by class' methods.
-  std::mutex MMutex;
+  mutable std::mutex MMutex;
 
   DeviceImplPtr MDevice;
   const ContextImplPtr MContext;

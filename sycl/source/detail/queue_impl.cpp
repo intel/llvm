@@ -401,21 +401,59 @@ pi_native_handle queue_impl::getNative() const {
 }
 
 bool queue_impl::ext_oneapi_empty() const {
-  if (MDiscardEvents)
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "ext_oneapi_empty() method cannot be used for queues "
-                          "with discard_events property.");
-
-  if (isInOrder()) {
+  // If we have in-order queue where events are not discarded then just check
+  // the status of the last event.
+  if (isInOrder() && !MDiscardEvents) {
     std::lock_guard<std::mutex> Lock(MLastEventMtx);
     return MLastEvent.get_info<info::event::command_execution_status>() ==
            info::event_command_status::complete;
-  } else {
-    throw sycl::exception(
-        make_error_code(errc::feature_not_supported),
-        "ext_oneapi_empty() is not supported for out-of-order queues");
   }
-  return false;
+
+  // We currently don't support this API for OpenCL backend in case of
+  // out-of-order queue or queue with discard_events property because OpenCL
+  // doesn't have API to provide a status of the queue.
+  if (getPlugin().getBackend() == backend::opencl) {
+    if (MDiscardEvents)
+      throw sycl::exception(
+          make_error_code(errc::feature_not_supported),
+          "ext_oneapi_empty() is not supported for queues with discard_events "
+          "property when OpenCL backend is used.");
+    if (!isInOrder())
+      throw sycl::exception(make_error_code(errc::feature_not_supported),
+                            "ext_oneapi_empty() is not supported for "
+                            "out-of-order queues when OpenCL backend is used.");
+  }
+
+  // Check the status of the backend queue if this is not a host queue.
+  if (!is_host()) {
+    pi_bool IsReady = false;
+    getPlugin().call<PiApiKind::piQueueGetInfo>(
+        MQueues[0], PI_QUEUE_INFO_STATUS, sizeof(pi_bool), &IsReady, nullptr);
+    if (!IsReady)
+      return false;
+  }
+
+  // We may have events like host tasks which are not submitted to the backend
+  // queue so we need to get their status separately.
+  std::lock_guard<std::mutex> Lock(MMutex);
+  for (event Event : MEventsShared)
+    if (Event.get_info<info::event::command_execution_status>() !=
+        info::event_command_status::complete)
+      return false;
+
+  for (auto EventImplWeakPtrIt = MEventsWeak.begin();
+       EventImplWeakPtrIt != MEventsWeak.end(); ++EventImplWeakPtrIt)
+    if (std::shared_ptr<event_impl> EventImplSharedPtr =
+            EventImplWeakPtrIt->lock())
+      if (EventImplSharedPtr->is_host() &&
+          EventImplSharedPtr
+                  ->get_info<info::event::command_execution_status>() !=
+              info::event_command_status::complete)
+        return false;
+
+  // If we didn't exit early above then it means that all events in the queue
+  // are completed.
+  return true;
 }
 
 } // namespace detail
