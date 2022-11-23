@@ -15,26 +15,26 @@
 using namespace mlir;
 
 IfScope::IfScope(MLIRScanner &Scanner) : Scanner(Scanner), PrevBlock(nullptr) {
-  if (Scanner.loops.size() && Scanner.loops.back().keepRunning) {
-    auto Lop = Scanner.builder.create<memref::LoadOp>(
-        Scanner.loc, Scanner.loops.back().keepRunning);
-    auto IfOp = Scanner.builder.create<scf::IfOp>(Scanner.loc, Lop,
+  if (Scanner.Loops.size() && Scanner.Loops.back().KeepRunning) {
+    auto Lop = Scanner.Builder.create<memref::LoadOp>(
+        Scanner.Loc, Scanner.Loops.back().KeepRunning);
+    auto IfOp = Scanner.Builder.create<scf::IfOp>(Scanner.Loc, Lop,
                                                   /*hasElse*/ false);
-    PrevBlock = Scanner.builder.getInsertionBlock();
-    PrevIterator = Scanner.builder.getInsertionPoint();
+    PrevBlock = Scanner.Builder.getInsertionBlock();
+    PrevIterator = Scanner.Builder.getInsertionPoint();
     IfOp.getThenRegion().back().clear();
-    Scanner.builder.setInsertionPointToStart(&IfOp.getThenRegion().back());
-    auto Er = Scanner.builder.create<scf::ExecuteRegionOp>(
-        Scanner.loc, ArrayRef<mlir::Type>());
-    Scanner.builder.create<scf::YieldOp>(Scanner.loc);
+    Scanner.Builder.setInsertionPointToStart(&IfOp.getThenRegion().back());
+    auto Er = Scanner.Builder.create<scf::ExecuteRegionOp>(
+        Scanner.Loc, ArrayRef<mlir::Type>());
+    Scanner.Builder.create<scf::YieldOp>(Scanner.Loc);
     Er.getRegion().push_back(new Block());
-    Scanner.builder.setInsertionPointToStart(&Er.getRegion().back());
+    Scanner.Builder.setInsertionPointToStart(&Er.getRegion().back());
   }
 }
 
 IfScope::~IfScope() {
-  if (Scanner.loops.size() && Scanner.loops.back().keepRunning) {
-    Scanner.builder.create<scf::YieldOp>(Scanner.loc);
-    Scanner.builder.setInsertionPoint(PrevBlock, PrevIterator);
+  if (Scanner.Loops.size() && Scanner.Loops.back().KeepRunning) {
+    Scanner.Builder.create<scf::YieldOp>(Scanner.Loc);
+    Scanner.Builder.setInsertionPoint(PrevBlock, PrevIterator);
   }
 }

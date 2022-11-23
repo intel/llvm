@@ -64,8 +64,6 @@
 
 #define DEBUG_TYPE "cgeist"
 
-using namespace llvm;
-
 class MemRefInsider
     : public mlir::MemRefElementTypeInterface::FallbackModel<MemRefInsider> {};
 
@@ -74,18 +72,18 @@ struct PtrElementModel
     : public mlir::LLVM::PointerElementTypeInterface::ExternalModel<
           PtrElementModel<T>, T> {};
 
-extern int cc1_main(ArrayRef<const char *> Argv, const char *Argv0,
+extern int cc1_main(llvm::ArrayRef<const char *> Argv, const char *Argv0,
                     void *MainAddr);
-extern int cc1as_main(ArrayRef<const char *> Argv, const char *Argv0,
+extern int cc1as_main(llvm::ArrayRef<const char *> Argv, const char *Argv0,
                       void *MainAddr);
-extern int cc1gen_reproducer_main(ArrayRef<const char *> Argv,
+extern int cc1gen_reproducer_main(llvm::ArrayRef<const char *> Argv,
                                   const char *Argv0, void *MainAddr);
 
 static llvm::ExitOnError ExitOnErr;
 
 std::string GetExecutablePath(const char *Argv0, bool CanonicalPrefixes) {
   if (!CanonicalPrefixes) {
-    SmallString<128> ExecutablePath(Argv0);
+    llvm::SmallString<128> ExecutablePath(Argv0);
     // Do a PATH lookup if Argv0 isn't a valid path.
     if (!llvm::sys::fs::exists(ExecutablePath))
       if (llvm::ErrorOr<std::string> P =
@@ -100,7 +98,7 @@ std::string GetExecutablePath(const char *Argv0, bool CanonicalPrefixes) {
   return llvm::sys::fs::getMainExecutable(Argv0, P);
 }
 
-static int ExecuteCC1Tool(SmallVectorImpl<const char *> &ArgV) {
+static int ExecuteCC1Tool(llvm::SmallVectorImpl<const char *> &ArgV) {
   // If we call the cc1 tool from the clangDriver library (through
   // Driver::CC1Main), we need to clean up the options usage count. The options
   // are currently global, and they might have been used previously by the
@@ -110,7 +108,7 @@ static int ExecuteCC1Tool(SmallVectorImpl<const char *> &ArgV) {
   llvm::BumpPtrAllocator A;
   llvm::StringSaver Saver(A);
   llvm::cl::ExpandResponseFiles(Saver, &llvm::cl::TokenizeGNUCommandLine, ArgV);
-  StringRef Tool = ArgV[1];
+  llvm::StringRef Tool = ArgV[1];
   void *GetExecutablePathVP = (void *)(intptr_t)GetExecutablePath;
   if (Tool == "-cc1")
     return cc1_main(makeArrayRef(ArgV).slice(1), ArgV[0], GetExecutablePathVP);
@@ -127,7 +125,7 @@ static int ExecuteCC1Tool(SmallVectorImpl<const char *> &ArgV) {
 }
 
 static int emitBinary(const char *Argv0, const char *Filename,
-                      const SmallVectorImpl<const char *> &LinkArgs,
+                      const llvm::SmallVectorImpl<const char *> &LinkArgs,
                       bool LinkOMP) {
   using namespace clang;
 
@@ -341,7 +339,7 @@ static int optimize(mlir::MLIRContext &context,
   if (DetectReduction)
     optPM.addPass(polygeist::detectReductionPass());
 
-  if (OptimizationLevel != OptimizationLevel::O0) {
+  if (OptimizationLevel != llvm::OptimizationLevel::O0) {
     optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
     optPM.addPass(mlir::createCSEPass());
     // Affine must be lowered to enable inlining
@@ -703,7 +701,7 @@ runOptimizationPipeline(llvm::Module &Module,
                                     PrintPassOpts);
   SI.registerCallbacks(PIC, &FAM);
 
-  TargetMachine *TM = nullptr;
+  llvm::TargetMachine *TM = nullptr;
   llvm::Optional<llvm::PGOOptions> P = llvm::None;
   llvm::PipelineTuningOptions PTO;
 
@@ -722,14 +720,14 @@ runOptimizationPipeline(llvm::Module &Module,
           : PB.buildPerModuleDefaultPipeline(OptimizationLevel);
 
   // Before executing passes, print the final values of the LLVM options.
-  cl::PrintOptionValues();
+  llvm::cl::PrintOptionValues();
 
   // Print a textual representation of the LLVM pipeline.
   LLVM_DEBUG({
     llvm::dbgs() << "*** Run LLVM Optimization pipeline: ***\n";
 
     std::string Pipeline;
-    raw_string_ostream OS(Pipeline);
+    llvm::raw_string_ostream OS(Pipeline);
 
     MPM.printPipeline(OS, [&PIC](StringRef ClassName) {
       auto PassName = PIC.getPassNameForClassName(ClassName);
@@ -740,7 +738,7 @@ runOptimizationPipeline(llvm::Module &Module,
 
   // Now that we have all of the passes ready, run them.
   {
-    PrettyStackTraceString CrashInfo("Optimizer");
+    llvm::PrettyStackTraceString CrashInfo("Optimizer");
     llvm::TimeTraceScope TimeScope("Optimizer");
     MPM.run(Module, MAM);
   }
@@ -751,7 +749,7 @@ static int compileModule(mlir::OwningOpRef<mlir::ModuleOp> &module,
                          StringRef moduleId, mlir::MLIRContext &context,
                          llvm::DataLayout &DL, llvm::Triple &triple,
                          const llvm::OptimizationLevel &OptimizationLevel,
-                         const SmallVectorImpl<const char *> &LinkArgs,
+                         const llvm::SmallVectorImpl<const char *> &LinkArgs,
                          const char *Argv0) {
   bool LinkOMP = FOpenMP;
   int rc = createAndExecutePassPipeline(context, module, DL, triple,
@@ -767,14 +765,15 @@ static int compileModule(mlir::OwningOpRef<mlir::ModuleOp> &module,
   if (emitMLIR) {
     if (Output == "-") {
       // Write the MLIR to stdout.
-      LLVM_DEBUG(dbgs() << "*** MLIR Produced ***\n");
-      module->print(outs());
+      LLVM_DEBUG(llvm::dbgs() << "*** MLIR Produced ***\n");
+      module->print(llvm::outs());
     } else {
       // Write the MLIR to a file.
       std::error_code EC;
       llvm::raw_fd_ostream out(Output, EC);
       module->print(out);
-      LLVM_DEBUG(dbgs() << "*** Dumped MLIR in file '" << Output << "' ***\n");
+      LLVM_DEBUG(llvm::dbgs()
+                 << "*** Dumped MLIR in file '" << Output << "' ***\n");
     }
   } else {
     // Generate LLVM IR.
@@ -789,7 +788,8 @@ static int compileModule(mlir::OwningOpRef<mlir::ModuleOp> &module,
 
     llvmModule->setDataLayout(DL);
     llvmModule->setTargetTriple(triple.getTriple());
-    LLVM_DEBUG(dbgs() << "*** Translated MLIR to LLVM IR successfully ***\n");
+    LLVM_DEBUG(llvm::dbgs()
+               << "*** Translated MLIR to LLVM IR successfully ***\n");
 
     if (emitBC || EmitLLVM) {
       // Not needed when emitting binary for now; will be handled by the driver.
@@ -802,20 +802,20 @@ static int compileModule(mlir::OwningOpRef<mlir::ModuleOp> &module,
       std::error_code EC;
       llvm::raw_fd_ostream out(Output, EC);
       WriteBitcodeToFile(*llvmModule, out);
-      LLVM_DEBUG(dbgs() << "*** Dumped LLVM BC in file '" << Output
-                        << "' ***\n");
+      LLVM_DEBUG(llvm::dbgs()
+                 << "*** Dumped LLVM BC in file '" << Output << "' ***\n");
     } else if (EmitLLVM) {
       if (Output == "-") {
         // Write the LLVM IR to stdout.
-        LLVM_DEBUG(dbgs() << "*** LLVM IR Produced ***\n");
+        LLVM_DEBUG(llvm::dbgs() << "*** LLVM IR Produced ***\n");
         llvm::outs() << *llvmModule << "\n";
       } else {
         // Write the LLVM IR to a file.
         std::error_code EC;
         llvm::raw_fd_ostream out(Output, EC);
         out << *llvmModule << "\n";
-        LLVM_DEBUG(dbgs() << "*** Dumped LLVM IR in file '" << Output
-                          << "' ***\n");
+        LLVM_DEBUG(llvm::dbgs()
+                   << "*** Dumped LLVM IR in file '" << Output << "' ***\n");
       }
     } else {
       // Compile the LLVM IR.
@@ -991,12 +991,12 @@ static void loadMLIR(const std::string &inputFile,
 }
 
 // Generate MLIR for the input files.
-static void processInputFiles(const cl::list<std::string> &inputFiles,
-                              const cl::list<std::string> &inputCommandArgs,
-                              mlir::MLIRContext &context,
-                              mlir::OwningOpRef<ModuleOp> &module,
-                              llvm::DataLayout &DL, llvm::Triple &triple,
-                              const char *Argv0, bool syclIsDevice) {
+static void
+processInputFiles(const llvm::cl::list<std::string> &inputFiles,
+                  const llvm::cl::list<std::string> &inputCommandArgs,
+                  mlir::MLIRContext &context,
+                  mlir::OwningOpRef<ModuleOp> &module, llvm::DataLayout &DL,
+                  llvm::Triple &triple, const char *Argv0, bool syclIsDevice) {
   assert(!inputFiles.empty() && "inputFiles should not be empty");
 
   // Ensure all input files can be opened.
@@ -1069,16 +1069,16 @@ int main(int argc, char **argv) {
     for (int i = 0; i < argc; i++)
       Args.push_back(argv[i]);
 
-    ArrayRef<const char *> Argv = makeArrayRef(Args);
-    const OptTable &OptTbl = getDriverOptTable();
-    const unsigned IncludedFlagsBitmask = options::CC1AsOption;
+    llvm::ArrayRef<const char *> Argv = makeArrayRef(Args);
+    const llvm::opt::OptTable &OptTbl = clang::driver::getDriverOptTable();
+    const unsigned IncludedFlagsBitmask = clang::driver::options::CC1AsOption;
     unsigned MissingArgIndex, MissingArgCount;
-    InputArgList InputArgs = OptTbl.ParseArgs(
+    llvm::opt::InputArgList InputArgs = OptTbl.ParseArgs(
         Argv, MissingArgIndex, MissingArgCount, IncludedFlagsBitmask);
 
     SmallVector<const char *> NewArgv = {Argv[0]};
-    for (const opt::Arg *InputArg :
-         InputArgs.filtered(driver::options::OPT_mllvm))
+    for (const llvm::opt::Arg *InputArg :
+         InputArgs.filtered(clang::driver::options::OPT_mllvm))
       NewArgv.push_back(InputArg->getValue());
     llvm::cl::ParseCommandLineOptions(NewArgv.size(), &NewArgv[0]);
   }
@@ -1107,7 +1107,7 @@ int main(int argc, char **argv) {
   // Register command line options specific to cgeist.
   int Size = MLIRArgs.size();
   const char **Data = MLIRArgs.data();
-  InitLLVM Y(Size, Data);
+  llvm::InitLLVM Y(Size, Data);
   llvm::cl::ParseCommandLineOptions(Size, Data);
 
   // Register MLIR dialects.
