@@ -296,6 +296,8 @@ std::vector<kernel_id> get_kernel_ids() {
 }
 
 bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
+  if (KernelIDs.empty())
+    return false;
   for (const auto &KernelId : KernelIDs) {
     const detail::RTDeviceBinaryImage &Img =
         detail::ProgramManager::getInstance().getDeviceImage(
