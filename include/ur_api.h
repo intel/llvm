@@ -369,7 +369,7 @@ urContextCreate(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `nullptr == hContext`
 UR_APIEXPORT ur_result_t UR_APICALL
-urContextGetReference(
+urContextRetain(
     ur_context_handle_t hContext                    ///< [in] handle of the context to get a reference of.
     );
 
@@ -1531,7 +1531,7 @@ urEventWait(
 ///     - ::UR_RESULT_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
-urEventGetReference(
+urEventRetain(
     ur_event_handle_t event                         ///< [in] handle of the event object
     );
 
@@ -1813,7 +1813,7 @@ urMemBufferCreate(
 ///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
-urMemGetReference(
+urMemRetain(
     ur_mem_handle_t hMem                            ///< [in] handle of the memory object to get access
     );
 
@@ -2084,7 +2084,7 @@ urQueueCreate(
 ///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
-urQueueGetReference(
+urQueueRetain(
     ur_queue_handle_t hQueue                        ///< [in] handle of the queue object to get access
     );
 
@@ -2263,7 +2263,7 @@ urSamplerCreate(
 ///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
-urSamplerGetReference(
+urSamplerRetain(
     ur_sampler_handle_t hSampler                    ///< [in] handle of the sampler object to get access
     );
 
@@ -2765,7 +2765,7 @@ urDeviceGetInfo(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `nullptr == hDevice`
 UR_APIEXPORT ur_result_t UR_APICALL
-urDeviceGetReference(
+urDeviceRetain(
     ur_device_handle_t hDevice                      ///< [in] handle of the device to get a reference of.
     );
 
@@ -3208,7 +3208,7 @@ urKernelGetSubGroupInfo(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `nullptr == hKernel`
 UR_APIEXPORT ur_result_t UR_APICALL
-urKernelGetReference(
+urKernelRetain(
     ur_kernel_handle_t hKernel                      ///< [in] handle for the Kernel to retain
     );
 
@@ -3443,7 +3443,7 @@ urModuleCreate(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `nullptr == hModule`
 UR_APIEXPORT ur_result_t UR_APICALL
-urModuleGetReference(
+urModuleRetain(
     ur_module_handle_t hModule                      ///< [in] handle for the Module to retain
     );
 
@@ -3778,7 +3778,7 @@ urProgramCreateWithBinary(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `nullptr == hProgram`
 UR_APIEXPORT ur_result_t UR_APICALL
-urProgramGetReference(
+urProgramRetain(
     ur_program_handle_t hProgram                    ///< [in] handle for the Program to retain
     );
 
@@ -4252,22 +4252,22 @@ typedef void (UR_APICALL *ur_pfnContextCreateCb_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function parameters for urContextGetReference 
+/// @brief Callback function parameters for urContextRetain 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_context_get_reference_params_t
+typedef struct _ur_context_retain_params_t
 {
     ur_context_handle_t* phContext;
-} ur_context_get_reference_params_t;
+} ur_context_retain_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function-pointer for urContextGetReference 
+/// @brief Callback function-pointer for urContextRetain 
 /// @param[in] params Parameters passed to this instance
 /// @param[in] result Return value
 /// @param[in] pTracerUserData Per-Tracer user data
 /// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
-typedef void (UR_APICALL *ur_pfnContextGetReferenceCb_t)(
-    ur_context_get_reference_params_t* params,
+typedef void (UR_APICALL *ur_pfnContextRetainCb_t)(
+    ur_context_retain_params_t* params,
     ur_result_t result,
     void* pTracerUserData,
     void** ppTracerInstanceUserData
@@ -4372,7 +4372,7 @@ typedef void (UR_APICALL *ur_pfnContextCreateWithNativeHandleCb_t)(
 typedef struct _ur_context_callbacks_t
 {
     ur_pfnContextCreateCb_t                                         pfnCreateCb;
-    ur_pfnContextGetReferenceCb_t                                   pfnGetReferenceCb;
+    ur_pfnContextRetainCb_t                                         pfnRetainCb;
     ur_pfnContextReleaseCb_t                                        pfnReleaseCb;
     ur_pfnContextGetInfoCb_t                                        pfnGetInfoCb;
     ur_pfnContextGetNativeHandleCb_t                                pfnGetNativeHandleCb;
@@ -4478,22 +4478,22 @@ typedef void (UR_APICALL *ur_pfnEventWaitCb_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function parameters for urEventGetReference 
+/// @brief Callback function parameters for urEventRetain 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_event_get_reference_params_t
+typedef struct _ur_event_retain_params_t
 {
     ur_event_handle_t* pevent;
-} ur_event_get_reference_params_t;
+} ur_event_retain_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function-pointer for urEventGetReference 
+/// @brief Callback function-pointer for urEventRetain 
 /// @param[in] params Parameters passed to this instance
 /// @param[in] result Return value
 /// @param[in] pTracerUserData Per-Tracer user data
 /// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
-typedef void (UR_APICALL *ur_pfnEventGetReferenceCb_t)(
-    ur_event_get_reference_params_t* params,
+typedef void (UR_APICALL *ur_pfnEventRetainCb_t)(
+    ur_event_retain_params_t* params,
     ur_result_t result,
     void* pTracerUserData,
     void** ppTracerInstanceUserData
@@ -4576,7 +4576,7 @@ typedef struct _ur_event_callbacks_t
     ur_pfnEventGetInfoCb_t                                          pfnGetInfoCb;
     ur_pfnEventGetProfilingInfoCb_t                                 pfnGetProfilingInfoCb;
     ur_pfnEventWaitCb_t                                             pfnWaitCb;
-    ur_pfnEventGetReferenceCb_t                                     pfnGetReferenceCb;
+    ur_pfnEventRetainCb_t                                           pfnRetainCb;
     ur_pfnEventReleaseCb_t                                          pfnReleaseCb;
     ur_pfnEventGetNativeHandleCb_t                                  pfnGetNativeHandleCb;
     ur_pfnEventCreateWithNativeHandleCb_t                           pfnCreateWithNativeHandleCb;
@@ -4635,22 +4635,22 @@ typedef void (UR_APICALL *ur_pfnProgramCreateWithBinaryCb_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function parameters for urProgramGetReference 
+/// @brief Callback function parameters for urProgramRetain 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_program_get_reference_params_t
+typedef struct _ur_program_retain_params_t
 {
     ur_program_handle_t* phProgram;
-} ur_program_get_reference_params_t;
+} ur_program_retain_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function-pointer for urProgramGetReference 
+/// @brief Callback function-pointer for urProgramRetain 
 /// @param[in] params Parameters passed to this instance
 /// @param[in] result Return value
 /// @param[in] pTracerUserData Per-Tracer user data
 /// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
-typedef void (UR_APICALL *ur_pfnProgramGetReferenceCb_t)(
-    ur_program_get_reference_params_t* params,
+typedef void (UR_APICALL *ur_pfnProgramRetainCb_t)(
+    ur_program_retain_params_t* params,
     ur_result_t result,
     void* pTracerUserData,
     void** ppTracerInstanceUserData
@@ -4832,7 +4832,7 @@ typedef struct _ur_program_callbacks_t
 {
     ur_pfnProgramCreateCb_t                                         pfnCreateCb;
     ur_pfnProgramCreateWithBinaryCb_t                               pfnCreateWithBinaryCb;
-    ur_pfnProgramGetReferenceCb_t                                   pfnGetReferenceCb;
+    ur_pfnProgramRetainCb_t                                         pfnRetainCb;
     ur_pfnProgramReleaseCb_t                                        pfnReleaseCb;
     ur_pfnProgramGetFunctionPointerCb_t                             pfnGetFunctionPointerCb;
     ur_pfnProgramGetInfoCb_t                                        pfnGetInfoCb;
@@ -4871,22 +4871,22 @@ typedef void (UR_APICALL *ur_pfnModuleCreateCb_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function parameters for urModuleGetReference 
+/// @brief Callback function parameters for urModuleRetain 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_module_get_reference_params_t
+typedef struct _ur_module_retain_params_t
 {
     ur_module_handle_t* phModule;
-} ur_module_get_reference_params_t;
+} ur_module_retain_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function-pointer for urModuleGetReference 
+/// @brief Callback function-pointer for urModuleRetain 
 /// @param[in] params Parameters passed to this instance
 /// @param[in] result Return value
 /// @param[in] pTracerUserData Per-Tracer user data
 /// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
-typedef void (UR_APICALL *ur_pfnModuleGetReferenceCb_t)(
-    ur_module_get_reference_params_t* params,
+typedef void (UR_APICALL *ur_pfnModuleRetainCb_t)(
+    ur_module_retain_params_t* params,
     ur_result_t result,
     void* pTracerUserData,
     void** ppTracerInstanceUserData
@@ -4966,7 +4966,7 @@ typedef void (UR_APICALL *ur_pfnModuleCreateWithNativeHandleCb_t)(
 typedef struct _ur_module_callbacks_t
 {
     ur_pfnModuleCreateCb_t                                          pfnCreateCb;
-    ur_pfnModuleGetReferenceCb_t                                    pfnGetReferenceCb;
+    ur_pfnModuleRetainCb_t                                          pfnRetainCb;
     ur_pfnModuleReleaseCb_t                                         pfnReleaseCb;
     ur_pfnModuleGetNativeHandleCb_t                                 pfnGetNativeHandleCb;
     ur_pfnModuleCreateWithNativeHandleCb_t                          pfnCreateWithNativeHandleCb;
@@ -5074,22 +5074,22 @@ typedef void (UR_APICALL *ur_pfnKernelGetSubGroupInfoCb_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function parameters for urKernelGetReference 
+/// @brief Callback function parameters for urKernelRetain 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_kernel_get_reference_params_t
+typedef struct _ur_kernel_retain_params_t
 {
     ur_kernel_handle_t* phKernel;
-} ur_kernel_get_reference_params_t;
+} ur_kernel_retain_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function-pointer for urKernelGetReference 
+/// @brief Callback function-pointer for urKernelRetain 
 /// @param[in] params Parameters passed to this instance
 /// @param[in] result Return value
 /// @param[in] pTracerUserData Per-Tracer user data
 /// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
-typedef void (UR_APICALL *ur_pfnKernelGetReferenceCb_t)(
-    ur_kernel_get_reference_params_t* params,
+typedef void (UR_APICALL *ur_pfnKernelRetainCb_t)(
+    ur_kernel_retain_params_t* params,
     ur_result_t result,
     void* pTracerUserData,
     void** ppTracerInstanceUserData
@@ -5295,7 +5295,7 @@ typedef struct _ur_kernel_callbacks_t
     ur_pfnKernelGetInfoCb_t                                         pfnGetInfoCb;
     ur_pfnKernelGetGroupInfoCb_t                                    pfnGetGroupInfoCb;
     ur_pfnKernelGetSubGroupInfoCb_t                                 pfnGetSubGroupInfoCb;
-    ur_pfnKernelGetReferenceCb_t                                    pfnGetReferenceCb;
+    ur_pfnKernelRetainCb_t                                          pfnRetainCb;
     ur_pfnKernelReleaseCb_t                                         pfnReleaseCb;
     ur_pfnKernelGetNativeHandleCb_t                                 pfnGetNativeHandleCb;
     ur_pfnKernelCreateWithNativeHandleCb_t                          pfnCreateWithNativeHandleCb;
@@ -5331,22 +5331,22 @@ typedef void (UR_APICALL *ur_pfnSamplerCreateCb_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function parameters for urSamplerGetReference 
+/// @brief Callback function parameters for urSamplerRetain 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_sampler_get_reference_params_t
+typedef struct _ur_sampler_retain_params_t
 {
     ur_sampler_handle_t* phSampler;
-} ur_sampler_get_reference_params_t;
+} ur_sampler_retain_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function-pointer for urSamplerGetReference 
+/// @brief Callback function-pointer for urSamplerRetain 
 /// @param[in] params Parameters passed to this instance
 /// @param[in] result Return value
 /// @param[in] pTracerUserData Per-Tracer user data
 /// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
-typedef void (UR_APICALL *ur_pfnSamplerGetReferenceCb_t)(
-    ur_sampler_get_reference_params_t* params,
+typedef void (UR_APICALL *ur_pfnSamplerRetainCb_t)(
+    ur_sampler_retain_params_t* params,
     ur_result_t result,
     void* pTracerUserData,
     void** ppTracerInstanceUserData
@@ -5452,7 +5452,7 @@ typedef void (UR_APICALL *ur_pfnSamplerCreateWithNativeHandleCb_t)(
 typedef struct _ur_sampler_callbacks_t
 {
     ur_pfnSamplerCreateCb_t                                         pfnCreateCb;
-    ur_pfnSamplerGetReferenceCb_t                                   pfnGetReferenceCb;
+    ur_pfnSamplerRetainCb_t                                         pfnRetainCb;
     ur_pfnSamplerReleaseCb_t                                        pfnReleaseCb;
     ur_pfnSamplerGetInfoCb_t                                        pfnGetInfoCb;
     ur_pfnSamplerGetNativeHandleCb_t                                pfnGetNativeHandleCb;
@@ -5513,22 +5513,22 @@ typedef void (UR_APICALL *ur_pfnMemBufferCreateCb_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function parameters for urMemGetReference 
+/// @brief Callback function parameters for urMemRetain 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_mem_get_reference_params_t
+typedef struct _ur_mem_retain_params_t
 {
     ur_mem_handle_t* phMem;
-} ur_mem_get_reference_params_t;
+} ur_mem_retain_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function-pointer for urMemGetReference 
+/// @brief Callback function-pointer for urMemRetain 
 /// @param[in] params Parameters passed to this instance
 /// @param[in] result Return value
 /// @param[in] pTracerUserData Per-Tracer user data
 /// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
-typedef void (UR_APICALL *ur_pfnMemGetReferenceCb_t)(
-    ur_mem_get_reference_params_t* params,
+typedef void (UR_APICALL *ur_pfnMemRetainCb_t)(
+    ur_mem_retain_params_t* params,
     ur_result_t result,
     void* pTracerUserData,
     void** ppTracerInstanceUserData
@@ -5685,7 +5685,7 @@ typedef struct _ur_mem_callbacks_t
 {
     ur_pfnMemImageCreateCb_t                                        pfnImageCreateCb;
     ur_pfnMemBufferCreateCb_t                                       pfnBufferCreateCb;
-    ur_pfnMemGetReferenceCb_t                                       pfnGetReferenceCb;
+    ur_pfnMemRetainCb_t                                             pfnRetainCb;
     ur_pfnMemReleaseCb_t                                            pfnReleaseCb;
     ur_pfnMemBufferPartitionCb_t                                    pfnBufferPartitionCb;
     ur_pfnMemGetNativeHandleCb_t                                    pfnGetNativeHandleCb;
@@ -6478,22 +6478,22 @@ typedef void (UR_APICALL *ur_pfnQueueCreateCb_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function parameters for urQueueGetReference 
+/// @brief Callback function parameters for urQueueRetain 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_queue_get_reference_params_t
+typedef struct _ur_queue_retain_params_t
 {
     ur_queue_handle_t* phQueue;
-} ur_queue_get_reference_params_t;
+} ur_queue_retain_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function-pointer for urQueueGetReference 
+/// @brief Callback function-pointer for urQueueRetain 
 /// @param[in] params Parameters passed to this instance
 /// @param[in] result Return value
 /// @param[in] pTracerUserData Per-Tracer user data
 /// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
-typedef void (UR_APICALL *ur_pfnQueueGetReferenceCb_t)(
-    ur_queue_get_reference_params_t* params,
+typedef void (UR_APICALL *ur_pfnQueueRetainCb_t)(
+    ur_queue_retain_params_t* params,
     ur_result_t result,
     void* pTracerUserData,
     void** ppTracerInstanceUserData
@@ -6574,7 +6574,7 @@ typedef struct _ur_queue_callbacks_t
 {
     ur_pfnQueueGetInfoCb_t                                          pfnGetInfoCb;
     ur_pfnQueueCreateCb_t                                           pfnCreateCb;
-    ur_pfnQueueGetReferenceCb_t                                     pfnGetReferenceCb;
+    ur_pfnQueueRetainCb_t                                           pfnRetainCb;
     ur_pfnQueueReleaseCb_t                                          pfnReleaseCb;
     ur_pfnQueueGetNativeHandleCb_t                                  pfnGetNativeHandleCb;
     ur_pfnQueueCreateWithNativeHandleCb_t                           pfnCreateWithNativeHandleCb;
@@ -6631,22 +6631,22 @@ typedef void (UR_APICALL *ur_pfnDeviceGetInfoCb_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function parameters for urDeviceGetReference 
+/// @brief Callback function parameters for urDeviceRetain 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_device_get_reference_params_t
+typedef struct _ur_device_retain_params_t
 {
     ur_device_handle_t* phDevice;
-} ur_device_get_reference_params_t;
+} ur_device_retain_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function-pointer for urDeviceGetReference 
+/// @brief Callback function-pointer for urDeviceRetain 
 /// @param[in] params Parameters passed to this instance
 /// @param[in] result Return value
 /// @param[in] pTracerUserData Per-Tracer user data
 /// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
-typedef void (UR_APICALL *ur_pfnDeviceGetReferenceCb_t)(
-    ur_device_get_reference_params_t* params,
+typedef void (UR_APICALL *ur_pfnDeviceRetainCb_t)(
+    ur_device_retain_params_t* params,
     ur_result_t result,
     void* pTracerUserData,
     void** ppTracerInstanceUserData
@@ -6777,7 +6777,7 @@ typedef struct _ur_device_callbacks_t
 {
     ur_pfnDeviceGetCb_t                                             pfnGetCb;
     ur_pfnDeviceGetInfoCb_t                                         pfnGetInfoCb;
-    ur_pfnDeviceGetReferenceCb_t                                    pfnGetReferenceCb;
+    ur_pfnDeviceRetainCb_t                                          pfnRetainCb;
     ur_pfnDeviceReleaseCb_t                                         pfnReleaseCb;
     ur_pfnDevicePartitionCb_t                                       pfnPartitionCb;
     ur_pfnDeviceSelectBinaryCb_t                                    pfnSelectBinaryCb;

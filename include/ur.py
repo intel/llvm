@@ -969,11 +969,11 @@ else:
     _urContextCreate_t = CFUNCTYPE( ur_result_t, c_ulong, POINTER(ur_device_handle_t), POINTER(ur_context_handle_t) )
 
 ###############################################################################
-## @brief Function-pointer for urContextGetReference
+## @brief Function-pointer for urContextRetain
 if __use_win_types:
-    _urContextGetReference_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t )
+    _urContextRetain_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t )
 else:
-    _urContextGetReference_t = CFUNCTYPE( ur_result_t, ur_context_handle_t )
+    _urContextRetain_t = CFUNCTYPE( ur_result_t, ur_context_handle_t )
 
 ###############################################################################
 ## @brief Function-pointer for urContextRelease
@@ -1009,7 +1009,7 @@ else:
 class _ur_context_dditable_t(Structure):
     _fields_ = [
         ("pfnCreate", c_void_p),                                        ## _urContextCreate_t
-        ("pfnGetReference", c_void_p),                                  ## _urContextGetReference_t
+        ("pfnRetain", c_void_p),                                        ## _urContextRetain_t
         ("pfnRelease", c_void_p),                                       ## _urContextRelease_t
         ("pfnGetInfo", c_void_p),                                       ## _urContextGetInfo_t
         ("pfnGetNativeHandle", c_void_p),                               ## _urContextGetNativeHandle_t
@@ -1045,11 +1045,11 @@ else:
     _urEventWait_t = CFUNCTYPE( ur_result_t, c_ulong, POINTER(ur_event_handle_t) )
 
 ###############################################################################
-## @brief Function-pointer for urEventGetReference
+## @brief Function-pointer for urEventRetain
 if __use_win_types:
-    _urEventGetReference_t = WINFUNCTYPE( ur_result_t, ur_event_handle_t )
+    _urEventRetain_t = WINFUNCTYPE( ur_result_t, ur_event_handle_t )
 else:
-    _urEventGetReference_t = CFUNCTYPE( ur_result_t, ur_event_handle_t )
+    _urEventRetain_t = CFUNCTYPE( ur_result_t, ur_event_handle_t )
 
 ###############################################################################
 ## @brief Function-pointer for urEventRelease
@@ -1081,7 +1081,7 @@ class _ur_event_dditable_t(Structure):
         ("pfnGetInfo", c_void_p),                                       ## _urEventGetInfo_t
         ("pfnGetProfilingInfo", c_void_p),                              ## _urEventGetProfilingInfo_t
         ("pfnWait", c_void_p),                                          ## _urEventWait_t
-        ("pfnGetReference", c_void_p),                                  ## _urEventGetReference_t
+        ("pfnRetain", c_void_p),                                        ## _urEventRetain_t
         ("pfnRelease", c_void_p),                                       ## _urEventRelease_t
         ("pfnGetNativeHandle", c_void_p),                               ## _urEventGetNativeHandle_t
         ("pfnCreateWithNativeHandle", c_void_p)                         ## _urEventCreateWithNativeHandle_t
@@ -1102,11 +1102,11 @@ else:
     _urProgramCreateWithBinary_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, c_ulong, POINTER(c_ubyte), POINTER(ur_program_handle_t) )
 
 ###############################################################################
-## @brief Function-pointer for urProgramGetReference
+## @brief Function-pointer for urProgramRetain
 if __use_win_types:
-    _urProgramGetReference_t = WINFUNCTYPE( ur_result_t, ur_program_handle_t )
+    _urProgramRetain_t = WINFUNCTYPE( ur_result_t, ur_program_handle_t )
 else:
-    _urProgramGetReference_t = CFUNCTYPE( ur_result_t, ur_program_handle_t )
+    _urProgramRetain_t = CFUNCTYPE( ur_result_t, ur_program_handle_t )
 
 ###############################################################################
 ## @brief Function-pointer for urProgramRelease
@@ -1164,7 +1164,7 @@ class _ur_program_dditable_t(Structure):
     _fields_ = [
         ("pfnCreate", c_void_p),                                        ## _urProgramCreate_t
         ("pfnCreateWithBinary", c_void_p),                              ## _urProgramCreateWithBinary_t
-        ("pfnGetReference", c_void_p),                                  ## _urProgramGetReference_t
+        ("pfnRetain", c_void_p),                                        ## _urProgramRetain_t
         ("pfnRelease", c_void_p),                                       ## _urProgramRelease_t
         ("pfnGetFunctionPointer", c_void_p),                            ## _urProgramGetFunctionPointer_t
         ("pfnGetInfo", c_void_p),                                       ## _urProgramGetInfo_t
@@ -1182,11 +1182,11 @@ else:
     _urModuleCreate_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_ulong, c_char_p, POINTER(c_void_p), c_void_p, POINTER(ur_module_handle_t) )
 
 ###############################################################################
-## @brief Function-pointer for urModuleGetReference
+## @brief Function-pointer for urModuleRetain
 if __use_win_types:
-    _urModuleGetReference_t = WINFUNCTYPE( ur_result_t, ur_module_handle_t )
+    _urModuleRetain_t = WINFUNCTYPE( ur_result_t, ur_module_handle_t )
 else:
-    _urModuleGetReference_t = CFUNCTYPE( ur_result_t, ur_module_handle_t )
+    _urModuleRetain_t = CFUNCTYPE( ur_result_t, ur_module_handle_t )
 
 ###############################################################################
 ## @brief Function-pointer for urModuleRelease
@@ -1215,7 +1215,7 @@ else:
 class _ur_module_dditable_t(Structure):
     _fields_ = [
         ("pfnCreate", c_void_p),                                        ## _urModuleCreate_t
-        ("pfnGetReference", c_void_p),                                  ## _urModuleGetReference_t
+        ("pfnRetain", c_void_p),                                        ## _urModuleRetain_t
         ("pfnRelease", c_void_p),                                       ## _urModuleRelease_t
         ("pfnGetNativeHandle", c_void_p),                               ## _urModuleGetNativeHandle_t
         ("pfnCreateWithNativeHandle", c_void_p)                         ## _urModuleCreateWithNativeHandle_t
@@ -1250,11 +1250,11 @@ else:
     _urKernelGetSubGroupInfo_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, ur_device_handle_t, ur_kernel_sub_group_info_t, c_size_t, c_void_p )
 
 ###############################################################################
-## @brief Function-pointer for urKernelGetReference
+## @brief Function-pointer for urKernelRetain
 if __use_win_types:
-    _urKernelGetReference_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t )
+    _urKernelRetain_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t )
 else:
-    _urKernelGetReference_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t )
+    _urKernelRetain_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t )
 
 ###############################################################################
 ## @brief Function-pointer for urKernelRelease
@@ -1321,7 +1321,7 @@ class _ur_kernel_dditable_t(Structure):
         ("pfnGetInfo", c_void_p),                                       ## _urKernelGetInfo_t
         ("pfnGetGroupInfo", c_void_p),                                  ## _urKernelGetGroupInfo_t
         ("pfnGetSubGroupInfo", c_void_p),                               ## _urKernelGetSubGroupInfo_t
-        ("pfnGetReference", c_void_p),                                  ## _urKernelGetReference_t
+        ("pfnRetain", c_void_p),                                        ## _urKernelRetain_t
         ("pfnRelease", c_void_p),                                       ## _urKernelRelease_t
         ("pfnGetNativeHandle", c_void_p),                               ## _urKernelGetNativeHandle_t
         ("pfnCreateWithNativeHandle", c_void_p),                        ## _urKernelCreateWithNativeHandle_t
@@ -1340,11 +1340,11 @@ else:
     _urSamplerCreate_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_sampler_property_value_t), POINTER(ur_sampler_handle_t) )
 
 ###############################################################################
-## @brief Function-pointer for urSamplerGetReference
+## @brief Function-pointer for urSamplerRetain
 if __use_win_types:
-    _urSamplerGetReference_t = WINFUNCTYPE( ur_result_t, ur_sampler_handle_t )
+    _urSamplerRetain_t = WINFUNCTYPE( ur_result_t, ur_sampler_handle_t )
 else:
-    _urSamplerGetReference_t = CFUNCTYPE( ur_result_t, ur_sampler_handle_t )
+    _urSamplerRetain_t = CFUNCTYPE( ur_result_t, ur_sampler_handle_t )
 
 ###############################################################################
 ## @brief Function-pointer for urSamplerRelease
@@ -1380,7 +1380,7 @@ else:
 class _ur_sampler_dditable_t(Structure):
     _fields_ = [
         ("pfnCreate", c_void_p),                                        ## _urSamplerCreate_t
-        ("pfnGetReference", c_void_p),                                  ## _urSamplerGetReference_t
+        ("pfnRetain", c_void_p),                                        ## _urSamplerRetain_t
         ("pfnRelease", c_void_p),                                       ## _urSamplerRelease_t
         ("pfnGetInfo", c_void_p),                                       ## _urSamplerGetInfo_t
         ("pfnGetNativeHandle", c_void_p),                               ## _urSamplerGetNativeHandle_t
@@ -1402,11 +1402,11 @@ else:
     _urMemBufferCreate_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_mem_flags_t, c_size_t, c_void_p, POINTER(ur_mem_handle_t) )
 
 ###############################################################################
-## @brief Function-pointer for urMemGetReference
+## @brief Function-pointer for urMemRetain
 if __use_win_types:
-    _urMemGetReference_t = WINFUNCTYPE( ur_result_t, ur_mem_handle_t )
+    _urMemRetain_t = WINFUNCTYPE( ur_result_t, ur_mem_handle_t )
 else:
-    _urMemGetReference_t = CFUNCTYPE( ur_result_t, ur_mem_handle_t )
+    _urMemRetain_t = CFUNCTYPE( ur_result_t, ur_mem_handle_t )
 
 ###############################################################################
 ## @brief Function-pointer for urMemRelease
@@ -1457,7 +1457,7 @@ class _ur_mem_dditable_t(Structure):
     _fields_ = [
         ("pfnImageCreate", c_void_p),                                   ## _urMemImageCreate_t
         ("pfnBufferCreate", c_void_p),                                  ## _urMemBufferCreate_t
-        ("pfnGetReference", c_void_p),                                  ## _urMemGetReference_t
+        ("pfnRetain", c_void_p),                                        ## _urMemRetain_t
         ("pfnRelease", c_void_p),                                       ## _urMemRelease_t
         ("pfnBufferPartition", c_void_p),                               ## _urMemBufferPartition_t
         ("pfnGetNativeHandle", c_void_p),                               ## _urMemGetNativeHandle_t
@@ -1694,11 +1694,11 @@ else:
     _urQueueCreate_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_queue_flags_t, POINTER(ur_queue_handle_t) )
 
 ###############################################################################
-## @brief Function-pointer for urQueueGetReference
+## @brief Function-pointer for urQueueRetain
 if __use_win_types:
-    _urQueueGetReference_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t )
+    _urQueueRetain_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t )
 else:
-    _urQueueGetReference_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t )
+    _urQueueRetain_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t )
 
 ###############################################################################
 ## @brief Function-pointer for urQueueRelease
@@ -1728,7 +1728,7 @@ class _ur_queue_dditable_t(Structure):
     _fields_ = [
         ("pfnGetInfo", c_void_p),                                       ## _urQueueGetInfo_t
         ("pfnCreate", c_void_p),                                        ## _urQueueCreate_t
-        ("pfnGetReference", c_void_p),                                  ## _urQueueGetReference_t
+        ("pfnRetain", c_void_p),                                        ## _urQueueRetain_t
         ("pfnRelease", c_void_p),                                       ## _urQueueRelease_t
         ("pfnGetNativeHandle", c_void_p),                               ## _urQueueGetNativeHandle_t
         ("pfnCreateWithNativeHandle", c_void_p)                         ## _urQueueCreateWithNativeHandle_t
@@ -1749,11 +1749,11 @@ else:
     _urDeviceGetInfo_t = CFUNCTYPE( ur_result_t, ur_device_handle_t, ur_device_info_t, POINTER(c_size_t), c_void_p )
 
 ###############################################################################
-## @brief Function-pointer for urDeviceGetReference
+## @brief Function-pointer for urDeviceRetain
 if __use_win_types:
-    _urDeviceGetReference_t = WINFUNCTYPE( ur_result_t, ur_device_handle_t )
+    _urDeviceRetain_t = WINFUNCTYPE( ur_result_t, ur_device_handle_t )
 else:
-    _urDeviceGetReference_t = CFUNCTYPE( ur_result_t, ur_device_handle_t )
+    _urDeviceRetain_t = CFUNCTYPE( ur_result_t, ur_device_handle_t )
 
 ###############################################################################
 ## @brief Function-pointer for urDeviceRelease
@@ -1797,7 +1797,7 @@ class _ur_device_dditable_t(Structure):
     _fields_ = [
         ("pfnGet", c_void_p),                                           ## _urDeviceGet_t
         ("pfnGetInfo", c_void_p),                                       ## _urDeviceGetInfo_t
-        ("pfnGetReference", c_void_p),                                  ## _urDeviceGetReference_t
+        ("pfnRetain", c_void_p),                                        ## _urDeviceRetain_t
         ("pfnRelease", c_void_p),                                       ## _urDeviceRelease_t
         ("pfnPartition", c_void_p),                                     ## _urDevicePartition_t
         ("pfnSelectBinary", c_void_p),                                  ## _urDeviceSelectBinary_t
@@ -1859,7 +1859,7 @@ class UR_DDI:
 
         # attach function interface to function address
         self.urContextCreate = _urContextCreate_t(self.__dditable.Context.pfnCreate)
-        self.urContextGetReference = _urContextGetReference_t(self.__dditable.Context.pfnGetReference)
+        self.urContextRetain = _urContextRetain_t(self.__dditable.Context.pfnRetain)
         self.urContextRelease = _urContextRelease_t(self.__dditable.Context.pfnRelease)
         self.urContextGetInfo = _urContextGetInfo_t(self.__dditable.Context.pfnGetInfo)
         self.urContextGetNativeHandle = _urContextGetNativeHandle_t(self.__dditable.Context.pfnGetNativeHandle)
@@ -1877,7 +1877,7 @@ class UR_DDI:
         self.urEventGetInfo = _urEventGetInfo_t(self.__dditable.Event.pfnGetInfo)
         self.urEventGetProfilingInfo = _urEventGetProfilingInfo_t(self.__dditable.Event.pfnGetProfilingInfo)
         self.urEventWait = _urEventWait_t(self.__dditable.Event.pfnWait)
-        self.urEventGetReference = _urEventGetReference_t(self.__dditable.Event.pfnGetReference)
+        self.urEventRetain = _urEventRetain_t(self.__dditable.Event.pfnRetain)
         self.urEventRelease = _urEventRelease_t(self.__dditable.Event.pfnRelease)
         self.urEventGetNativeHandle = _urEventGetNativeHandle_t(self.__dditable.Event.pfnGetNativeHandle)
         self.urEventCreateWithNativeHandle = _urEventCreateWithNativeHandle_t(self.__dditable.Event.pfnCreateWithNativeHandle)
@@ -1892,7 +1892,7 @@ class UR_DDI:
         # attach function interface to function address
         self.urProgramCreate = _urProgramCreate_t(self.__dditable.Program.pfnCreate)
         self.urProgramCreateWithBinary = _urProgramCreateWithBinary_t(self.__dditable.Program.pfnCreateWithBinary)
-        self.urProgramGetReference = _urProgramGetReference_t(self.__dditable.Program.pfnGetReference)
+        self.urProgramRetain = _urProgramRetain_t(self.__dditable.Program.pfnRetain)
         self.urProgramRelease = _urProgramRelease_t(self.__dditable.Program.pfnRelease)
         self.urProgramGetFunctionPointer = _urProgramGetFunctionPointer_t(self.__dditable.Program.pfnGetFunctionPointer)
         self.urProgramGetInfo = _urProgramGetInfo_t(self.__dditable.Program.pfnGetInfo)
@@ -1910,7 +1910,7 @@ class UR_DDI:
 
         # attach function interface to function address
         self.urModuleCreate = _urModuleCreate_t(self.__dditable.Module.pfnCreate)
-        self.urModuleGetReference = _urModuleGetReference_t(self.__dditable.Module.pfnGetReference)
+        self.urModuleRetain = _urModuleRetain_t(self.__dditable.Module.pfnRetain)
         self.urModuleRelease = _urModuleRelease_t(self.__dditable.Module.pfnRelease)
         self.urModuleGetNativeHandle = _urModuleGetNativeHandle_t(self.__dditable.Module.pfnGetNativeHandle)
         self.urModuleCreateWithNativeHandle = _urModuleCreateWithNativeHandle_t(self.__dditable.Module.pfnCreateWithNativeHandle)
@@ -1927,7 +1927,7 @@ class UR_DDI:
         self.urKernelGetInfo = _urKernelGetInfo_t(self.__dditable.Kernel.pfnGetInfo)
         self.urKernelGetGroupInfo = _urKernelGetGroupInfo_t(self.__dditable.Kernel.pfnGetGroupInfo)
         self.urKernelGetSubGroupInfo = _urKernelGetSubGroupInfo_t(self.__dditable.Kernel.pfnGetSubGroupInfo)
-        self.urKernelGetReference = _urKernelGetReference_t(self.__dditable.Kernel.pfnGetReference)
+        self.urKernelRetain = _urKernelRetain_t(self.__dditable.Kernel.pfnRetain)
         self.urKernelRelease = _urKernelRelease_t(self.__dditable.Kernel.pfnRelease)
         self.urKernelGetNativeHandle = _urKernelGetNativeHandle_t(self.__dditable.Kernel.pfnGetNativeHandle)
         self.urKernelCreateWithNativeHandle = _urKernelCreateWithNativeHandle_t(self.__dditable.Kernel.pfnCreateWithNativeHandle)
@@ -1946,7 +1946,7 @@ class UR_DDI:
 
         # attach function interface to function address
         self.urSamplerCreate = _urSamplerCreate_t(self.__dditable.Sampler.pfnCreate)
-        self.urSamplerGetReference = _urSamplerGetReference_t(self.__dditable.Sampler.pfnGetReference)
+        self.urSamplerRetain = _urSamplerRetain_t(self.__dditable.Sampler.pfnRetain)
         self.urSamplerRelease = _urSamplerRelease_t(self.__dditable.Sampler.pfnRelease)
         self.urSamplerGetInfo = _urSamplerGetInfo_t(self.__dditable.Sampler.pfnGetInfo)
         self.urSamplerGetNativeHandle = _urSamplerGetNativeHandle_t(self.__dditable.Sampler.pfnGetNativeHandle)
@@ -1962,7 +1962,7 @@ class UR_DDI:
         # attach function interface to function address
         self.urMemImageCreate = _urMemImageCreate_t(self.__dditable.Mem.pfnImageCreate)
         self.urMemBufferCreate = _urMemBufferCreate_t(self.__dditable.Mem.pfnBufferCreate)
-        self.urMemGetReference = _urMemGetReference_t(self.__dditable.Mem.pfnGetReference)
+        self.urMemRetain = _urMemRetain_t(self.__dditable.Mem.pfnRetain)
         self.urMemRelease = _urMemRelease_t(self.__dditable.Mem.pfnRelease)
         self.urMemBufferPartition = _urMemBufferPartition_t(self.__dditable.Mem.pfnBufferPartition)
         self.urMemGetNativeHandle = _urMemGetNativeHandle_t(self.__dditable.Mem.pfnGetNativeHandle)
@@ -2031,7 +2031,7 @@ class UR_DDI:
         # attach function interface to function address
         self.urQueueGetInfo = _urQueueGetInfo_t(self.__dditable.Queue.pfnGetInfo)
         self.urQueueCreate = _urQueueCreate_t(self.__dditable.Queue.pfnCreate)
-        self.urQueueGetReference = _urQueueGetReference_t(self.__dditable.Queue.pfnGetReference)
+        self.urQueueRetain = _urQueueRetain_t(self.__dditable.Queue.pfnRetain)
         self.urQueueRelease = _urQueueRelease_t(self.__dditable.Queue.pfnRelease)
         self.urQueueGetNativeHandle = _urQueueGetNativeHandle_t(self.__dditable.Queue.pfnGetNativeHandle)
         self.urQueueCreateWithNativeHandle = _urQueueCreateWithNativeHandle_t(self.__dditable.Queue.pfnCreateWithNativeHandle)
@@ -2046,7 +2046,7 @@ class UR_DDI:
         # attach function interface to function address
         self.urDeviceGet = _urDeviceGet_t(self.__dditable.Device.pfnGet)
         self.urDeviceGetInfo = _urDeviceGetInfo_t(self.__dditable.Device.pfnGetInfo)
-        self.urDeviceGetReference = _urDeviceGetReference_t(self.__dditable.Device.pfnGetReference)
+        self.urDeviceRetain = _urDeviceRetain_t(self.__dditable.Device.pfnRetain)
         self.urDeviceRelease = _urDeviceRelease_t(self.__dditable.Device.pfnRelease)
         self.urDevicePartition = _urDevicePartition_t(self.__dditable.Device.pfnPartition)
         self.urDeviceSelectBinary = _urDeviceSelectBinary_t(self.__dditable.Device.pfnSelectBinary)
