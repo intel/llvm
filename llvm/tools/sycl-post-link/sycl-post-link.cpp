@@ -806,108 +806,96 @@ processInputModule(std::unique_ptr<Module> M) {
   for (module_split::ModuleDesc &MDesc : TopLevelModules) {
     DUMP_ENTRY_POINTS(MDesc.entries(), MDesc.Name.c_str(), 1);
 
-    // FIXME: large grf should be handled by properties splitter above
-    std::unique_ptr<module_split::ModuleSplitterBase> LargeGRFSplitter =
-        module_split::getLargeGRFSplitter(std::move(MDesc),
-                                          EmitOnlyKernelsAsEntryPoints);
-    const bool SplitByLargeGRF = LargeGRFSplitter->remainingSplits() > 1;
-    Modified |= SplitByLargeGRF;
+    MDesc.fixupLinkageOfDirectInvokeSimdTargets();
 
-    // Now split further by "large-grf" attribute.
-    while (LargeGRFSplitter->hasMoreSplits()) {
-      module_split::ModuleDesc MDesc1 = LargeGRFSplitter->nextSplit();
-      DUMP_ENTRY_POINTS(MDesc1.entries(), MDesc1.Name.c_str(), 2);
-      MDesc1.fixupLinkageOfDirectInvokeSimdTargets();
+    // Do SYCL/ESIMD splitting. It happens always, as ESIMD and SYCL must
+    // undergo different set of LLVMIR passes. After this they are linked back
+    // together to form single module with disjoint SYCL and ESIMD call graphs
+    // unless -split-esimd option is specified. The graphs become disjoint
+    // when linked back because functions shared between graphs are cloned and
+    // renamed.
+    std::unique_ptr<module_split::ModuleSplitterBase> ESIMDSplitter =
+        module_split::getSplitterByKernelType(std::move(MDesc),
+                                              EmitOnlyKernelsAsEntryPoints);
+    const bool SplitByESIMD = ESIMDSplitter->remainingSplits() > 1;
+    Modified |= SplitByESIMD;
 
-      // Do SYCL/ESIMD splitting. It happens always, as ESIMD and SYCL must
-      // undergo different set of LLVMIR passes. After this they are linked back
-      // together to form single module with disjoint SYCL and ESIMD call graphs
-      // unless -split-esimd option is specified. The graphs become disjoint
-      // when linked back because functions shared between graphs are cloned and
-      // renamed.
-      std::unique_ptr<module_split::ModuleSplitterBase> ESIMDSplitter =
-          module_split::getSplitterByKernelType(std::move(MDesc1),
-                                                EmitOnlyKernelsAsEntryPoints);
-      const bool SplitByESIMD = ESIMDSplitter->remainingSplits() > 1;
-      Modified |= SplitByESIMD;
-
-      if (SplitByESIMD && SplitByScope &&
-          (SplitMode == module_split::SPLIT_PER_KERNEL) && !SplitEsimd) {
-        // Controversial state reached - SYCL and ESIMD entry points resulting
-        // from SYCL/ESIMD split (which is done always) are linked back, since
-        // -split-esimd is not specified, but per-kernel split is requested.
-        warning("SYCL and ESIMD entry points detected and split mode is "
-                "per-kernel, so " +
-                SplitEsimd.ValueStr + " must also be specified");
-      }
-      SmallVector<module_split::ModuleDesc, 2> MMs;
-
-      while (ESIMDSplitter->hasMoreSplits()) {
-        module_split::ModuleDesc MDesc2 = ESIMDSplitter->nextSplit();
-        DUMP_ENTRY_POINTS(MDesc2.entries(), MDesc2.Name.c_str(), 3);
-        Modified |= processSpecConstants(MDesc2);
-
-        // TODO: detach compile-time properties from device globals.
-        if (DeviceGlobals.getNumOccurrences() > 0) {
-          Modified |=
-              runModulePass<CompileTimePropertiesPass>(MDesc2.getModule());
-        }
-        if (!MDesc2.isSYCL() && LowerEsimd) {
-          assert(MDesc2.isESIMD() && "NYI");
-          // ESIMD lowering also detects large-GRF kernels, so it must happen
-          // before large-GRF split.
-          Modified |= lowerEsimdConstructs(MDesc2);
-        }
-        MMs.emplace_back(std::move(MDesc2));
-      }
-      if (!SplitEsimd && (MMs.size() > 1)) {
-        // SYCL/ESIMD splitting is not requested, link back into single module.
-        assert(MMs.size() == 2);
-        assert((MMs[0].isESIMD() && MMs[1].isSYCL()) ||
-               (MMs[1].isESIMD() && MMs[0].isSYCL()));
-        int ESIMDInd = MMs[0].isESIMD() ? 0 : 1;
-        int SYCLInd = MMs[0].isESIMD() ? 1 : 0;
-        // ... but before that, make sure no link conflicts will occur.
-        MMs[ESIMDInd].renameDuplicatesOf(MMs[SYCLInd].getModule(), ".esimd");
-        module_split::ModuleDesc M2 =
-            link(std::move(MMs[0]), std::move(MMs[1]));
-        M2.restoreLinkageOfDirectInvokeSimdTargets();
-        string_vector Names;
-        M2.saveEntryPointNames(Names);
-        M2.cleanup(); // may remove some entry points, need to save/rebuild
-        M2.rebuildEntryPoints(Names);
-        MMs.clear();
-        MMs.emplace_back(std::move(M2));
-        DUMP_ENTRY_POINTS(MMs.back().entries(), MMs.back().Name.c_str(), 3);
-        Modified = true;
-      }
-
-      bool SplitOccurred = SplitByScope || SplitByLargeGRF || SplitByESIMD ||
-                           SplitByOptionalFeatures;
-
-      if (IROutputOnly) {
-        if (SplitOccurred) {
-          error("some modules had to be split, '-" + IROutputOnly.ArgStr +
-                "' can't be used");
-        }
-        saveModuleIR(MMs.front().getModule(), OutputFilename);
-        return Table;
-      }
-      // Empty IR file name directs saveModule to generate one and save IR to
-      // it:
-      std::string OutIRFileName = "";
-
-      if (!Modified && (OutputFilename.getNumOccurrences() == 0)) {
-        assert(!SplitOccurred);
-        OutIRFileName = InputFilename; // ... non-empty means "skip IR writing"
-        errs() << "sycl-post-link NOTE: no modifications to the input LLVM IR "
-                  "have been made\n";
-      }
-      for (module_split::ModuleDesc &IrMD : MMs) {
-        IrPropSymFilenameTriple T = saveModule(IrMD, ID, OutIRFileName);
-        addTableRow(*Table, T);
-      }
+    if (SplitByESIMD && SplitByScope &&
+        (SplitMode == module_split::SPLIT_PER_KERNEL) && !SplitEsimd) {
+      // Controversial state reached - SYCL and ESIMD entry points resulting
+      // from SYCL/ESIMD split (which is done always) are linked back, since
+      // -split-esimd is not specified, but per-kernel split is requested.
+      warning("SYCL and ESIMD entry points detected and split mode is "
+              "per-kernel, so " +
+              SplitEsimd.ValueStr + " must also be specified");
     }
+    SmallVector<module_split::ModuleDesc, 2> MMs;
+
+    while (ESIMDSplitter->hasMoreSplits()) {
+      module_split::ModuleDesc MDesc2 = ESIMDSplitter->nextSplit();
+      DUMP_ENTRY_POINTS(MDesc2.entries(), MDesc2.Name.c_str(), 3);
+      Modified |= processSpecConstants(MDesc2);
+
+      // TODO: detach compile-time properties from device globals.
+      if (DeviceGlobals.getNumOccurrences() > 0) {
+        Modified |=
+            runModulePass<CompileTimePropertiesPass>(MDesc2.getModule());
+      }
+      if (!MDesc2.isSYCL() && LowerEsimd) {
+        assert(MDesc2.isESIMD() && "NYI");
+        // ESIMD lowering also detects large-GRF kernels, so it must happen
+        // before large-GRF split.
+        Modified |= lowerEsimdConstructs(MDesc2);
+      }
+      MMs.emplace_back(std::move(MDesc2));
+    }
+    if (!SplitEsimd && (MMs.size() > 1)) {
+      // SYCL/ESIMD splitting is not requested, link back into single module.
+      assert(MMs.size() == 2);
+      assert((MMs[0].isESIMD() && MMs[1].isSYCL()) ||
+             (MMs[1].isESIMD() && MMs[0].isSYCL()));
+      int ESIMDInd = MMs[0].isESIMD() ? 0 : 1;
+      int SYCLInd = MMs[0].isESIMD() ? 1 : 0;
+      // ... but before that, make sure no link conflicts will occur.
+      MMs[ESIMDInd].renameDuplicatesOf(MMs[SYCLInd].getModule(), ".esimd");
+      module_split::ModuleDesc M2 = link(std::move(MMs[0]), std::move(MMs[1]));
+      M2.restoreLinkageOfDirectInvokeSimdTargets();
+      string_vector Names;
+      M2.saveEntryPointNames(Names);
+      M2.cleanup(); // may remove some entry points, need to save/rebuild
+      M2.rebuildEntryPoints(Names);
+      MMs.clear();
+      MMs.emplace_back(std::move(M2));
+      DUMP_ENTRY_POINTS(MMs.back().entries(), MMs.back().Name.c_str(), 3);
+      Modified = true;
+    }
+
+    bool SplitOccurred =
+        SplitByScope || SplitByESIMD || SplitByOptionalFeatures;
+
+    if (IROutputOnly) {
+      if (SplitOccurred) {
+        error("some modules had to be split, '-" + IROutputOnly.ArgStr +
+              "' can't be used");
+      }
+      saveModuleIR(MMs.front().getModule(), OutputFilename);
+      return Table;
+    }
+    // Empty IR file name directs saveModule to generate one and save IR to
+    // it:
+    std::string OutIRFileName = "";
+
+    if (!Modified && (OutputFilename.getNumOccurrences() == 0)) {
+      assert(!SplitOccurred);
+      OutIRFileName = InputFilename; // ... non-empty means "skip IR writing"
+      errs() << "sycl-post-link NOTE: no modifications to the input LLVM IR "
+                "have been made\n";
+    }
+    for (module_split::ModuleDesc &IrMD : MMs) {
+      IrPropSymFilenameTriple T = saveModule(IrMD, ID, OutIRFileName);
+      addTableRow(*Table, T);
+    }
+
     ++ID;
   }
   return Table;
