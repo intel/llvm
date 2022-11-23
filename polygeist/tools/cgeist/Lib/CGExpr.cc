@@ -146,16 +146,16 @@ ValueCategory MLIRScanner::VisitParenExpr(clang::ParenExpr *Expr) {
 
 ValueCategory
 MLIRScanner::VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *Decl) {
-  mlir::Type MTy = Glob.getTypes().getMLIRType(Decl->getType());
+  mlir::Type MLIRTy = Glob.getTypes().getMLIRType(Decl->getType());
 
-  if (auto FT = MTy.dyn_cast<mlir::FloatType>())
+  if (auto FT = MLIRTy.dyn_cast<mlir::FloatType>())
     return ValueCategory(Builder.create<arith::ConstantFloatOp>(
                              Loc, APFloat(FT.getFloatSemantics(), "0"), FT),
                          /*isReference*/ false);
-  if (auto IT = MTy.dyn_cast<mlir::IntegerType>())
+  if (auto IT = MLIRTy.dyn_cast<mlir::IntegerType>())
     return ValueCategory(Builder.create<arith::ConstantIntOp>(Loc, 0, IT),
                          /*isReference*/ false);
-  if (auto MT = MTy.dyn_cast<mlir::MemRefType>())
+  if (auto MT = MLIRTy.dyn_cast<mlir::MemRefType>())
     return ValueCategory(
         Builder.create<polygeist::Pointer2MemrefOp>(
             Loc, MT,
@@ -163,13 +163,14 @@ MLIRScanner::VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *Decl) {
                 Loc, LLVM::LLVMPointerType::get(Builder.getI8Type(),
                                                 MT.getMemorySpaceAsInt()))),
         false);
-  if (auto PT = MTy.dyn_cast<mlir::LLVM::LLVMPointerType>())
+  if (auto PT = MLIRTy.dyn_cast<mlir::LLVM::LLVMPointerType>())
     return ValueCategory(Builder.create<mlir::LLVM::NullOp>(Loc, PT), false);
-  for (auto *Child : Decl->children()) {
+
+  for (auto *Child : Decl->children())
     Child->dump();
-  }
+
   Decl->dump();
-  llvm::errs() << " mty: " << MTy << "\n";
+  llvm::errs() << " mty: " << MLIRTy << "\n";
   assert(0 && "bad");
 }
 
@@ -312,10 +313,9 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
       }
       if (!AllSub)
         return mlir::DenseElementsAttr();
-      if (auto MT = ToInit.getType().dyn_cast<MemRefType>()) {
+      if (auto MT = ToInit.getType().dyn_cast<MemRefType>())
         return DenseElementsAttr::getFromRawBuffer(
             RankedTensorType::get(MT.getShape(), MT.getElementType()), Attrs);
-      }
       return mlir::DenseElementsAttr();
     }
 
@@ -1277,9 +1277,9 @@ ValueCategory MLIRScanner::VisitCXXTypeidExpr(clang::CXXTypeidExpr *E) {
 ValueCategory
 MLIRScanner::VisitCXXDefaultInitExpr(clang::CXXDefaultInitExpr *Expr) {
   assert(ThisVal.val);
-  auto Toset = Visit(Expr->getExpr());
+  auto ToSet = Visit(Expr->getExpr());
   assert(!ThisVal.isReference);
-  assert(Toset.val);
+  assert(ToSet.val);
 
   bool IsArray = false;
   Glob.getTypes().getMLIRType(Expr->getExpr()->getType(), &IsArray);
@@ -1288,7 +1288,7 @@ MLIRScanner::VisitCXXDefaultInitExpr(clang::CXXDefaultInitExpr *Expr) {
       cast<CXXMethodDecl>(EmittingFunctionDecl)->getThisObjectType(),
       Expr->getField(), ThisVal.val, /*isLValue*/ false);
   assert(CFL.val);
-  CFL.store(Builder, Toset, IsArray);
+  CFL.store(Builder, ToSet, IsArray);
   return CFL;
 }
 
@@ -2573,10 +2573,9 @@ static void informNoOverflowCheck(LangOptions::SignedOverflowBehaviorTy SOB,
 ValueCategory MLIRScanner::EmitBinMul(const BinOpInfo &Info) {
   auto LHSVal = Info.getLHS().getValue(Builder);
   auto RHSVal = Info.getRHS().getValue(Builder);
-  if (LHSVal.getType().isa<mlir::FloatType>()) {
+  if (LHSVal.getType().isa<mlir::FloatType>())
     return ValueCategory(Builder.create<arith::MulFOp>(Loc, LHSVal, RHSVal),
                          /*isReference*/ false);
-  }
   return ValueCategory(Builder.create<arith::MulIOp>(Loc, LHSVal, RHSVal),
                        /*isReference*/ false);
 }
@@ -2584,10 +2583,9 @@ ValueCategory MLIRScanner::EmitBinMul(const BinOpInfo &Info) {
 ValueCategory MLIRScanner::EmitBinDiv(const BinOpInfo &Info) {
   auto LHSVal = Info.getLHS().getValue(Builder);
   auto RHSVal = Info.getRHS().getValue(Builder);
-  if (LHSVal.getType().isa<mlir::FloatType>()) {
+  if (LHSVal.getType().isa<mlir::FloatType>())
     return ValueCategory(Builder.create<arith::DivFOp>(Loc, LHSVal, RHSVal),
                          /*isReference*/ false);
-  }
   if (isSigned(Info.getType()))
     return ValueCategory(Builder.create<arith::DivSIOp>(Loc, LHSVal, RHSVal),
                          /*isReference*/ false);
@@ -2598,10 +2596,9 @@ ValueCategory MLIRScanner::EmitBinDiv(const BinOpInfo &Info) {
 ValueCategory MLIRScanner::EmitBinRem(const BinOpInfo &Info) {
   auto LHSVal = Info.getLHS().getValue(Builder);
   auto RHSVal = Info.getRHS().getValue(Builder);
-  if (LHSVal.getType().isa<mlir::FloatType>()) {
+  if (LHSVal.getType().isa<mlir::FloatType>())
     return ValueCategory(Builder.create<arith::RemFOp>(Loc, LHSVal, RHSVal),
                          /*isReference*/ false);
-  }
   if (isSigned(Info.getType()))
     return ValueCategory(Builder.create<arith::RemSIOp>(Loc, LHSVal, RHSVal),
                          /*isReference*/ false);
