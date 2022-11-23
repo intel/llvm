@@ -34,11 +34,8 @@ enum class DeviceLibExt : std::uint32_t {
   cl_intel_devicelib_cstring,
   cl_intel_devicelib_imf,
   cl_intel_devicelib_imf_fp64,
-<<<<<<< HEAD
-  cl_intel_devicelib_bfloat16,
-=======
   cl_intel_devicelib_imf_bf16,
->>>>>>> ccd16396310cd2a827c68c0fac1985121fc4a8c7
+  cl_intel_devicelib_bfloat16,
 };
 
 uint32_t getSYCLDeviceLibReqMask(const Module &M);
