@@ -178,96 +178,101 @@ sycl::event operation(sycl::queue q) {
 }
 
 int main(int argc, char *argv[]) {
-  size_t count = 100;
+  try {
+    size_t count = 100;
 
-  int size = 0;
-  int rank = 0;
+    int size = 0;
+    int rank = 0;
 
-  size_t num_iters = 20;
-  size_t kernel_num = 3;
+    size_t num_iters = 20;
+    size_t kernel_num = 3;
 
-  if (argc > 1)
-    kernel_num = atoi(argv[1]);
-  if (argc > 2)
-    count = atoi(argv[2]);
-  if (argc > 3)
-    num_iters = atoi(argv[3]);
+    if (argc > 1)
+      kernel_num = atoi(argv[1]);
+    if (argc > 2)
+      count = atoi(argv[2]);
+    if (argc > 3)
+      num_iters = atoi(argv[3]);
 
-  size_t byte_count = count * 4;
+    size_t byte_count = count * 4;
 
-  sycl::property_list props{sycl::property::queue::in_order{},
-                            sycl::property::queue::enable_profiling{}};
-  sycl::queue q{props};
+    sycl::property_list props{sycl::property::queue::in_order{},
+                              sycl::property::queue::enable_profiling{}};
+    sycl::queue q{props};
 
-  init();
+    init();
 
-  // Store allocated mem ptrs to free them later
-  std::vector<std::pair<float *, float *>> ptrs(kernel_num);
-  // allocate all the buffers
-  for (size_t i = 0; i < kernel_num; i++) {
-    float *weight_buf = (float *)sycl::malloc_device(byte_count, q);
-    float *weight_allreduce_buf = (float *)sycl::malloc_device(byte_count, q);
-    ptrs[i] = {weight_buf, weight_allreduce_buf};
-  }
-
-  std::vector<std::tuple<sycl::event, sycl::event>> kernel_events(num_iters *
-                                                                  kernel_num);
-
-  std::vector<sycl::event> barrier_events;
-
-  std::thread worker_thread(worker);
-
-  for (size_t i = 0; i < num_iters; ++i) {
-    std::cout << "Running iteration " << i << std::endl;
-
-    for (size_t j = 0; j < kernel_num; j++) {
-      size_t num = i * kernel_num + j;
-      float *weight_buf = ptrs[j].first;
-      float *weight_allreduce_buf = ptrs[j].second;
-
-      // Step1: FWK kernel submission
-      sycl::event submit_event;
-      if (i == 0) {
-        submit_event = q.submit([&](auto &h) {
-          h.parallel_for(count, [=](auto id) {
-            // Initial weight in first iteration
-            weight_buf[id] = j * (rank + 1);
-          });
-        });
-      } else {
-        submit_event = q.submit([&](auto &h) {
-          h.parallel_for(count, [=](auto id) {
-            // Make weight differ in each iteration
-            weight_buf[id] = weight_buf[id] + (j * (rank + 1));
-          });
-        });
-      }
-
-      barrier_events.push_back(operation(q));
-
-      // Step3: Weight update
-      auto update_event = q.submit([&](auto &h) {
-        h.parallel_for(count, [=](auto id) {
-          // Update weight in each iteration
-          weight_buf[id] = weight_allreduce_buf[id] * 0.5;
-        });
-      });
-
-      kernel_events[num] = {submit_event, update_event};
+    // Store allocated mem ptrs to free them later
+    std::vector<std::pair<float *, float *>> ptrs(kernel_num);
+    // allocate all the buffers
+    for (size_t i = 0; i < kernel_num; i++) {
+      float *weight_buf = (float *)sycl::malloc_device(byte_count, q);
+      float *weight_allreduce_buf = (float *)sycl::malloc_device(byte_count, q);
+      ptrs[i] = {weight_buf, weight_allreduce_buf};
     }
-    q.wait();
+
+    std::vector<std::tuple<sycl::event, sycl::event>> kernel_events(num_iters *
+                                                                    kernel_num);
+
+    std::vector<sycl::event> barrier_events;
+
+    std::thread worker_thread(worker);
+
+    for (size_t i = 0; i < num_iters; ++i) {
+      std::cout << "Running iteration " << i << std::endl;
+
+      for (size_t j = 0; j < kernel_num; j++) {
+        size_t num = i * kernel_num + j;
+        float *weight_buf = ptrs[j].first;
+        float *weight_allreduce_buf = ptrs[j].second;
+
+        // Step1: FWK kernel submission
+        sycl::event submit_event;
+        if (i == 0) {
+          submit_event = q.submit([&](auto &h) {
+            h.parallel_for(count, [=](auto id) {
+              // Initial weight in first iteration
+              weight_buf[id] = j * (rank + 1);
+            });
+          });
+        } else {
+          submit_event = q.submit([&](auto &h) {
+            h.parallel_for(count, [=](auto id) {
+              // Make weight differ in each iteration
+              weight_buf[id] = weight_buf[id] + (j * (rank + 1));
+            });
+          });
+        }
+
+        barrier_events.push_back(operation(q));
+
+        // Step3: Weight update
+        auto update_event = q.submit([&](auto &h) {
+          h.parallel_for(count, [=](auto id) {
+            // Update weight in each iteration
+            weight_buf[id] = weight_allreduce_buf[id] * 0.5f;
+          });
+        });
+
+        kernel_events[num] = {submit_event, update_event};
+      }
+      q.wait();
+    }
+
+    // Make sure there is no exceptions in the queue
+    q.wait_and_throw();
+
+    for (auto p : ptrs) {
+      sycl::free(p.first, q);
+      sycl::free(p.second, q);
+    }
+
+    stop_worker = true;
+    cv.notify_all();
+    worker_thread.join();
+  } catch (std::exception &E) {
+    std::cout << E.what() << std::endl;
+    return 1;
   }
-
-  // Make sure there is no exceptions in the queue
-  q.wait_and_throw();
-
-  for (auto p : ptrs) {
-    sycl::free(p.first, q);
-    sycl::free(p.second, q);
-  }
-
-  stop_worker = true;
-  cv.notify_all();
-  worker_thread.join();
   return 0;
 }
