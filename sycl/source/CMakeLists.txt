@@ -21,10 +21,30 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   # link with for Windows Debug version
   cmake_parse_arguments(ARG "" "XPTI_LIB" "COMPILE_OPTIONS;SOURCES" ${ARGN})
 
+  if (SYCL_ENABLE_STACK_PRINTING)
+    if(NOT MSVC OR (CMAKE_BUILD_TYPE STREQUAL "Debug" AND ARG_COMPILE_OPTIONS MATCHES ".*MDd.*") OR
+        (NOT CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ARG_COMPILE_OPTIONS MATCHES ".*MDd.*"))
+        set(LINK_SUPPORT_LIB 1)
+
+        message(STATUS "Adding signal handler file")
+        list(APPEND ARG_SOURCES "SignalHandlerConstructor.cpp")
+        # message(STATUS "LInking with LLVMSupport, Options = " ${ARG_COMPILE_OPTIONS})
+        # add_dependencies(${LIB_NAME} LLVMSupport)
+        # target_link_libraries(${LIB_NAME} PRIVATE LLVMSupport)
+    endif()
+  endif()
+
   add_library(${LIB_OBJ_NAME} OBJECT ${ARG_SOURCES})
   add_library(${LIB_NAME} SHARED
               $<TARGET_OBJECTS:${LIB_OBJ_NAME}>
               ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
+
+  if(LINK_SUPPORT_LIB)
+    message(STATUS "LInking with LLVMSupport, Options = " ${ARG_COMPILE_OPTIONS})
+    add_dependencies(${LIB_NAME} LLVMSupport)
+    target_compile_definitions(${LIB_NAME} PRIVATE ENABLE_STACK_TRACE)
+    target_link_libraries(${LIB_NAME} PRIVATE LLVMSupport)
+  endif()
 
   if (SYCL_ENABLE_COVERAGE)
     target_compile_options(${LIB_OBJ_NAME} PUBLIC
@@ -36,6 +56,14 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_link_options(${LIB_NAME} PUBLIC
       -fprofile-instr-generate -fcoverage-mapping
     )
+  endif()
+
+  if (SYCL_LIB_WITH_DEBUG_SYMBOLS AND NOT MSVC)
+    message(STATUS "===================== " ${CMAKE_CXX_FLAGS_DEBUG})
+    separate_arguments(CMAKE_CXX_FLAGS_DEBUG_SEPARATED UNIX_COMMAND "${CMAKE_CXX_FLAGS_DEBUG}")
+    # target_compile_options(SpecialTarget PUBLIC ${SDL2_CFLAGS})
+    message(STATUS "===================== " ${CMAKE_CXX_FLAGS_DEBUG_SEPARATED})
+    target_compile_options(${LIB_OBJ_NAME} PRIVATE ${CMAKE_CXX_FLAGS_DEBUG_SEPARATED})
   endif()
 
   if (ARG_COMPILE_OPTIONS)

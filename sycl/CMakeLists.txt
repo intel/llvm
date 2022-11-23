@@ -298,6 +298,7 @@ add_custom_target(sycl-compiler
 add_custom_target( sycl-toolchain
   DEPENDS ${SYCL_RT_LIBS}
           sycl-compiler
+          llvm-symbolizer
           sycl-ls
           ${XPTIFW_LIBS}
   COMMENT "Building SYCL compiler toolchain..."

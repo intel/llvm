@@ -69,6 +69,9 @@ on:
         required: false
         default: 'SYCL-2020'
 
+env:
+  LLVM_SYMBOLIZER_PATH: $GITHUB_WORKSPACE/build/bin/llvm-symbolizer
+
 jobs:
   build:
     name: Build + LIT
@@ -98,6 +101,10 @@ jobs:
         ARGS: ${{ inputs.build_configure_extra_args }}
         CUDA_LIB_PATH: "/usr/local/cuda/lib64/stubs"
       run: |
+        # wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+        # sudo add-apt-repository "deb http://apt.llvm.org/focal/   llvm-toolchain-focal-13 main"
+        # sudo apt-get update
+        # sudo apt-get install -y clang-13
         mkdir -p $CACHE_ROOT/build_cache_$CACHE_SUFFIX
         mkdir -p $GITHUB_WORKSPACE/build
         cd $GITHUB_WORKSPACE/build
@@ -108,10 +115,14 @@ jobs:
           --cmake-opt="-DLLVM_CCACHE_DIR=$CACHE_ROOT/build_cache_$CACHE_SUFFIX" \
           --cmake-opt="-DLLVM_CCACHE_MAXSIZE=$CACHE_SIZE" \
           --cmake-opt="-DLLVM_INSTALL_UTILS=ON" \
+          --cmake-opt="-DSYCL_ENABLE_STACK_PRINTING=ON" \
+          --cmake-opt="-DSYCL_LIB_WITH_DEBUG_SYMBOLS=ON" \
           --cmake-opt="-DSYCL_PI_TESTS=OFF"
     - name: Compile
       id: build
-      run: cmake --build $GITHUB_WORKSPACE/build
+      run: |
+        cmake --build $GITHUB_WORKSPACE/build
+        cmake --build $GITHUB_WORKSPACE/build --target llvm-symbolizer
     # TODO allow to optionally disable in-tree checks
     - name: check-llvm
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}

@@ -168,6 +168,12 @@ void shutdown() {
   delete &GlobalHandler::instance();
 }
 
+#ifdef ENABLE_STACK_TRACE
+
+void EnableHandler();
+
+#endif
+
 #ifdef _WIN32
 extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
                                              DWORD fdwReason,
@@ -179,6 +185,8 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
       shutdown();
     break;
   case DLL_PROCESS_ATTACH:
+    EnableHandler();
+    break;
   case DLL_THREAD_ATTACH:
   case DLL_THREAD_DETACH:
     break;

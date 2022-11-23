@@ -174,6 +174,11 @@ def do_configure(args):
     if args.cmake_opt:
       cmake_cmd += args.cmake_opt
 
+    if args.ci_defaults:
+      cmake_cmd.extend([
+            "-DSYCL_ENABLE_STACK_PRINTING=ON",
+            "-DSYCL_LIB_WITH_DEBUG_SYMBOLS=ON"])
+
     # Add path to root CMakeLists.txt
     cmake_cmd.append(llvm_dir)
 

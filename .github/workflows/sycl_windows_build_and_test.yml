@@ -8,6 +8,9 @@ on:
         required: false
         default: "default"
 
+env:
+  LLVM_SYMBOLIZER_PATH: %GITHUB_WORKSPACE%\build\bin\llvm-symbolizer
+
 jobs:
   build:
     name: Build + LIT
@@ -48,6 +51,7 @@ jobs:
       id: build
       run: |
         cmake --build build --target sycl-toolchain
+        cmake --build build --target llvm-symbolizer
         sccache --show-stats
     - name: check-llvm
       shell: bash
