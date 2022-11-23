@@ -8,6 +8,7 @@
 
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_id_impl.hpp>
+#include <detail/program_manager/program_manager.hpp>
 
 #include <set>
 
@@ -292,6 +293,37 @@ std::vector<sycl::device> find_device_intersection(
 
 std::vector<kernel_id> get_kernel_ids() {
   return detail::ProgramManager::getInstance().getAllSYCLKernelIDs();
+}
+
+bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
+  for (const auto &KernelId : KernelIDs) {
+    const detail::RTDeviceBinaryImage &Img =
+        detail::ProgramManager::getInstance().getDeviceImage(
+            detail::OSUtil::ExeModuleHandle, KernelId.get_name(), context(Dev),
+            Dev);
+    const detail::RTDeviceBinaryImage::PropertyRange &ARange =
+        Img.getDeviceRequirements();
+    for (detail::RTDeviceBinaryImage::PropertyRange::ConstIterator It :
+         ARange) {
+      using namespace std::literals;
+      if ((*It)->Name != "aspects"sv)
+        continue;
+      detail::ByteArray Aspects =
+          detail::DeviceBinaryProperty(*It).asByteArray();
+      // 8 because we need to skip 64-bits of size of the byte array
+      auto *AIt = reinterpret_cast<const std::uint32_t *>(&Aspects[8]);
+      auto *AEnd =
+          reinterpret_cast<const std::uint32_t *>(&Aspects[0] + Aspects.size());
+      while (AIt != AEnd) {
+        auto Aspect = static_cast<aspect>(*AIt);
+        if (!Dev.has(Aspect))
+          return false;
+        ++AIt;
+      }
+    }
+  }
+
+  return true;
 }
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
