@@ -22,9 +22,9 @@ namespace llvm {
 bool isInvokeSimdBuiltinCall(const CallInst *CI) {
   Function *F = CI->getCalledFunction();
 
-  if (F && F->getName().startswith(esimd::INVOKE_SIMD_PREF)) {
+  if (F && F->getName().startswith(esimd::INVOKE_SIMD_PREF))
     return true;
-  }
+
   return false;
 }
 
@@ -32,9 +32,8 @@ bool isInvokeSimdBuiltinCall(const CallInst *CI) {
 // Returns false if the function address is used as an argument for
 // invoke_simd function call, true otherwise.
 bool checkFunctionAddressUse(const Value *address) {
-  if (address == nullptr) {
+  if (address == nullptr)
     return true;
-  }
 
   SmallPtrSet<const Use *, 4> Uses;
   llvm::esimd::collectUsesLookThroughCasts(address, Uses);
@@ -43,34 +42,30 @@ bool checkFunctionAddressUse(const Value *address) {
     Value *V = U->getUser();
 
     if (auto *StI = dyn_cast<StoreInst>(V)) {
-      if (U != &StI->getOperandUse(StoreInst::getPointerOperandIndex())) {
-        // this is double indirection - not supported
-        return false;
-      }
+      if (U != &StI->getOperandUse(StoreInst::getPointerOperandIndex()))
+        return false; // this is double indirection - not supported
+
       V = esimd::stripCasts(StI->getPointerOperand());
-      if (!isa<AllocaInst>(V)) {
+      if (!isa<AllocaInst>(V))
         return false; // unsupported case of data flow through non-local memory
-      }
 
       if (auto *LI = dyn_cast<LoadInst>(V)) {
         // A value loaded from another address is stored at this address -
         // recurse into the other address
-        if (!checkFunctionAddressUse(LI->getPointerOperand())) {
+        if (!checkFunctionAddressUse(LI->getPointerOperand()))
           return false;
-        }
       }
     } else if (const auto *CI = dyn_cast<CallInst>(V)) {
       // if __builtin_invoke_simd uses the pointer, do not traverse the function
-      if (isInvokeSimdBuiltinCall(CI)) {
+      if (isInvokeSimdBuiltinCall(CI))
         return false;
-      }
+
     } else if (isa<LoadInst>(V)) {
-      if (!checkFunctionAddressUse(V)) {
+      if (!checkFunctionAddressUse(V))
         return false;
-      }
-    } else {
+
+    } else
       return false;
-    }
   }
 
   return true;
