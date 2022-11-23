@@ -103,13 +103,52 @@ public:
                 "Property list is invalid.");
 
   annotated_arg() noexcept = default;
-  annotated_arg(T _ptr) 
-    : g_ptr((__OPENCL_GLOBAL_AS__ UnderlyingT*)_ptr) {};
+  annotated_arg(const annotated_arg&) = default;
+  annotated_arg& operator=(annotated_arg&) = default;
+
+  annotated_arg(const T& _ptr, const property_list_t &PropList = properties{}) noexcept
+    : g_ptr((__OPENCL_GLOBAL_AS__ UnderlyingT*)_ptr) {}
+
+  template<typename... PropertyValueTs>
+  annotated_arg(const T& _ptr, PropertyValueTs... props) noexcept : g_ptr((__OPENCL_GLOBAL_AS__ UnderlyingT*)_ptr) {
+    static_assert(
+        std::is_same<
+            property_list_t,
+            detail::merged_properties_t<property_list_t, detail::properties_t<PropertyValueTs...>>>::value,
+        "The property list must contain all properties of the input of the constructor"
+    );
+  }
+  
+  // Constructs an annotated_arg object from another annotated_arg object.
+  // The property set PropertyListT contains all properties of the input annotated_arg object.
+  // If there are duplicate properties present in the property list of the input annotated_arg object,
+  // the values of the duplicate properties must be the same.
+  template <typename T2, typename PropertyList2, typename std::enable_if<std::is_convertible<T2, T>::value>::type>
+  explicit annotated_arg(const annotated_arg<T2, PropertyList2> &other) noexcept : g_ptr(other.g_ptr) {
+    static_assert(
+        std::is_same<
+            property_list_t,
+            detail::merged_properties_t<property_list_t, PropertyList2>>::value,
+        "The property list must contain all properties of the input of the copy constructor");
+  }
+
+  template <typename T2, typename PropertyListU, typename PropertyListV,
+            typename std::enable_if<std::is_convertible<T2, T>::value>::type>
+  explicit annotated_arg(const annotated_arg<T2, PropertyListU> &other,
+      properties<PropertyListV> proplist) noexcept : g_ptr(other.g_ptr) {
+     static_assert(
+        std::is_same<
+            property_list_t,
+            detail::merged_properties_t<PropertyListU, PropertyListV>>::value,
+        "The property list must contain all properties of the input of the copy constructor");
+  }
 
   operator T&() noexcept {
     __SYCL_HOST_NOT_SUPPORTED("Implicit conversion of annotated_arg to T")
-    return g_ptr;
+    // return (T&) g_ptr;
+    return  g_ptr;
   }
+
   operator const T&() const noexcept {
     __SYCL_HOST_NOT_SUPPORTED("Implicit conversion of annotated_arg to T")
     return g_ptr;
@@ -166,8 +205,8 @@ public:
   annotated_arg(const annotated_arg&) = default;
   annotated_arg& operator=(annotated_arg&) = default;
 
-  // annotated_arg(const T& _obj, const property_list_t &PropList = properties{}) noexcept : obj(_obj) {}
-  // template<typename T, typename... PropertyValueTs>
+  annotated_arg(const T& _obj, const property_list_t &PropList = properties{}) noexcept : obj(_obj) {}
+
   template<typename... PropertyValueTs>
   annotated_arg(const T& _obj, PropertyValueTs... props) noexcept : obj(_obj) {
     static_assert(
@@ -178,35 +217,35 @@ public:
             //     std::tuple<PropertyValueTs...>
             // >::type
             property_list_t,
-            detail::merged_properties_t< property_list_t, detail::properties_t<PropertyValueTs...> > >::value,
+            detail::merged_properties_t<property_list_t, detail::properties_t<PropertyValueTs...>>>::value,
         "The property list must contain all properties of the input of the constructor"
     );
   }
 
-  // // Constructs an annotated_arg object from another annotated_arg object.
-  // // The property set PropertyListT contains all properties of the input annotated_arg object.
-  // // If there are duplicate properties present in the property list of the input annotated_arg object,
-  // // the values of the duplicate properties must be the same.
-  // template <typename T2, typename PropertyList2, typename std::enable_if<std::is_convertible<T2, T>::value>::type>
-  // annotated_arg(const annotated_arg<T2, PropertyList2> &other) noexcept : obj(other.obj) {
-  //   static_assert(
-  //       std::is_same<
-  //           property_list_t,
-  //           detail::MergeProperties<property_list_t, PropertyList2>::type>::value,
-  //       "The property list must contain all properties of the input of the copy constructor");
-  // }
+  // Constructs an annotated_arg object from another annotated_arg object.
+  // The property set PropertyListT contains all properties of the input annotated_arg object.
+  // If there are duplicate properties present in the property list of the input annotated_arg object,
+  // the values of the duplicate properties must be the same.
+  template <typename T2, typename PropertyList2, typename std::enable_if<std::is_convertible<T2, T>::value>::type>
+  explicit annotated_arg(const annotated_arg<T2, PropertyList2> &other) noexcept : obj(other.obj) {
+    static_assert(
+        std::is_same<
+            property_list_t,
+            detail::merged_properties_t<property_list_t, PropertyList2>>::value,
+        "The property list must contain all properties of the input of the copy constructor");
+  }
 
-  // template <typename T2, typename PropertyListU, typename PropertyListV,
-  //           typename std::enable_if<std::is_convertible<T2, T>::value>::type>
-  // explicit annotated_arg(const annotated_arg<T2, PropertyListU> &other,
-  //     properties<PropertyListV> proplist) noexcept {
-  //    static_assert(
-  //       std::is_same<
-  //           property_list_t,
-  //           detail::MergeProperties<PropertyListU, PropertyListV>::type>::value,
-  //       "The property list must contain all properties of the input of the copy constructor");
-  //   this->obj = other.obj;
-  // }
+  template <typename T2, typename PropertyListU, typename PropertyListV,
+            typename std::enable_if<std::is_convertible<T2, T>::value>::type>
+  explicit annotated_arg(const annotated_arg<T2, PropertyListU> &other,
+      properties<PropertyListV> proplist) noexcept {
+     static_assert(
+        std::is_same<
+            property_list_t,
+            detail::merged_properties_t<PropertyListU, PropertyListV>>::value,
+        "The property list must contain all properties of the input of the copy constructor");
+    this->obj = other.obj;
+  }
 
   operator T&() {
     __SYCL_HOST_NOT_SUPPORTED("Implicit conversion of annotated_arg to T")

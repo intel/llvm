@@ -93,12 +93,14 @@ template<int N>
 inline constexpr maxburst_key::value_t<N> maxburst;
 template<int Enable>
 inline constexpr wait_request_key::value_t<Enable> wait_request;
+inline constexpr wait_request_key::value_t<1> wait_request_requested;
+inline constexpr wait_request_key::value_t<0> wait_request_not_requested;
 
 template<read_write_mode_enum Mode>
 inline constexpr read_write_mode_key::value_t<Mode> read_write_mode;
-inline constexpr read_write_mode_key::value_t<read_write_mode_enum::read> read_only;
-inline constexpr read_write_mode_key::value_t<read_write_mode_enum::write> write_only;
-inline constexpr read_write_mode_key::value_t<read_write_mode_enum::read_write> read_write;
+inline constexpr read_write_mode_key::value_t<read_write_mode_enum::read>  read_write_mode_read;
+inline constexpr read_write_mode_key::value_t<read_write_mode_enum::write>  read_write_mode_write;
+inline constexpr read_write_mode_key::value_t<read_write_mode_enum::read_write> read_write_mode_readwrite;
 
 
 #endif // __cplusplus >= 201703L
