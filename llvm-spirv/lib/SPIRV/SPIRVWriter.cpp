@@ -1590,7 +1590,7 @@ LLVMToSPIRVBase::getLoopControl(const BranchInst *Branch,
                       const std::pair<SPIRVWord, SPIRVWord> &CompareRight) {
                      return CompareLeft.first < CompareRight.first;
                    });
-  for (auto Param : ParametersToSort)
+  for (const auto &Param : ParametersToSort)
     Parameters.push_back(Param.second);
 
   return static_cast<spv::LoopControlMask>(LoopControl);
