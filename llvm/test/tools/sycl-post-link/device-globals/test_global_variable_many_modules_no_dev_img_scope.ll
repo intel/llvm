@@ -1,7 +1,7 @@
 ; RUN: sycl-post-link --device-globals --split=source -S %s -o %t.files.table
-; RUN: FileCheck %s -input-file=%t.files_0.ll --check-prefix CHECK-MOD0
-; RUN: FileCheck %s -input-file=%t.files_1.ll --check-prefix CHECK-MOD1
-; RUN: FileCheck %s -input-file=%t.files_2.ll --check-prefix CHECK-MOD2
+; RUN: opt -passes=compile-time-properties %t.files_0.ll -S -o %t.files_0.ll && FileCheck %s -input-file=%t.files_0.ll --check-prefix CHECK-MOD0
+; RUN: opt -passes=compile-time-properties %t.files_1.ll -S -o %t.files_1.ll && FileCheck %s -input-file=%t.files_1.ll --check-prefix CHECK-MOD1
+; RUN: opt -passes=compile-time-properties %t.files_2.ll -S -o %t.files_2.ll && FileCheck %s -input-file=%t.files_2.ll --check-prefix CHECK-MOD2
 
 ; This test is intended to check that sycl-post-link generates no errors even
 ; when a single device global variable but without the 'device_image_scope'
