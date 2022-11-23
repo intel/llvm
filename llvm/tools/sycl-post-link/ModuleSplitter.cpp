@@ -895,8 +895,13 @@ getSplitterByOptionalFeatures(ModuleDesc &&MD,
   } else {
     Groups.reserve(PropertiesToFunctionsMap.size());
     for (auto &EPG : PropertiesToFunctionsMap) {
+      // Start with properties of a source module
+      auto Properties = MD.getEntryPointGroup().Props;
+      // Propagate LargeGRF flag to entry points group
+      if (EPG.first.UsesLargeGRF)
+        Properties.UsesLargeGRF = true;
       Groups.emplace_back(EPG.first.getName(MD.getEntryPointGroup().GroupId),
-                          std::move(EPG.second), MD.getEntryPointGroup().Props);
+                          std::move(EPG.second), Properties);
     }
   }
 
