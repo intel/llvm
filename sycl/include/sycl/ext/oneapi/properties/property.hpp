@@ -187,8 +187,15 @@ enum PropKind : uint32_t {
   MaxBurst = 21,
   WaitRequest = 22,
   Alignment = 23,
+  BitsPerSymbol = 24,
+  FirstSymbolInHigherOrderBit = 25,
+  MinCapacity = 26,
+  PipeProtocol = 27,
+  ReadyLatency = 28,
+  UsesReady = 29,
+  UsesValid = 30,
   // PropKindSize must always be the last value.
-  PropKindSize = 24,
+  PropKindSize = 31,
 };
 
 // This trait must be specialized for all properties and must have a unique
