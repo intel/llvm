@@ -831,8 +831,7 @@ static void parseTargetOpts(StringRef ArgString, const llvm::opt::ArgList &Args,
 
 void SYCLToolChain::TranslateGPUTargetOpt(const llvm::opt::ArgList &Args,
                                           llvm::opt::ArgStringList &CmdArgs,
-                                          OptSpecifier Opt_EQ,
-                                          StringRef Device) const {
+                                          OptSpecifier Opt_EQ) const {
   for (auto *A : Args) {
     if (A->getOption().matches(Opt_EQ)) {
       if (auto GpuDevice =
@@ -1004,7 +1003,7 @@ void SYCLToolChain::TranslateBackendTargetArgs(
   // Handle -Xsycl-target-backend.
   TranslateTargetOpt(Args, CmdArgs, options::OPT_Xsycl_backend,
                      options::OPT_Xsycl_backend_EQ, Device);
-  TranslateGPUTargetOpt(Args, CmdArgs, options::OPT_fsycl_targets_EQ, Device);
+  TranslateGPUTargetOpt(Args, CmdArgs, options::OPT_fsycl_targets_EQ);
 }
 
 void SYCLToolChain::TranslateLinkerTargetArgs(
