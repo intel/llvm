@@ -800,6 +800,7 @@ static bool loadDeviceLib(const ContextImplPtr Context, const char *Name,
   return Prog != nullptr;
 }
 
+<<<<<<< HEAD
 // For each extension, a pair of library names. The first uses native support,
 // the second emulates functionality in software.
 static const std::map<DeviceLibExt, std::pair<const char *, const char *>>
@@ -832,6 +833,31 @@ static const char *getDeviceLibFilename(DeviceLibExt Extension, bool Native) {
     throw compile_program_error("Unhandled (new?) device library extension",
                                 PI_ERROR_INVALID_OPERATION);
   return Lib;
+=======
+static const char *getDeviceLibFilename(DeviceLibExt Extension) {
+  switch (Extension) {
+  case DeviceLibExt::cl_intel_devicelib_assert:
+    return "libsycl-fallback-cassert.spv";
+  case DeviceLibExt::cl_intel_devicelib_math:
+    return "libsycl-fallback-cmath.spv";
+  case DeviceLibExt::cl_intel_devicelib_math_fp64:
+    return "libsycl-fallback-cmath-fp64.spv";
+  case DeviceLibExt::cl_intel_devicelib_complex:
+    return "libsycl-fallback-complex.spv";
+  case DeviceLibExt::cl_intel_devicelib_complex_fp64:
+    return "libsycl-fallback-complex-fp64.spv";
+  case DeviceLibExt::cl_intel_devicelib_cstring:
+    return "libsycl-fallback-cstring.spv";
+  case DeviceLibExt::cl_intel_devicelib_imf:
+    return "libsycl-fallback-imf.spv";
+  case DeviceLibExt::cl_intel_devicelib_imf_fp64:
+    return "libsycl-fallback-imf-fp64.spv";
+  case DeviceLibExt::cl_intel_devicelib_imf_bf16:
+    return "libsycl-fallback-imf-bf16.spv";
+  }
+  throw compile_program_error("Unhandled (new?) device library extension",
+                              PI_ERROR_INVALID_OPERATION);
+>>>>>>> ccd16396310cd2a827c68c0fac1985121fc4a8c7
 }
 
 // For each extension understood by the SYCL runtime, the string representation
@@ -852,11 +878,36 @@ static const std::map<DeviceLibExt, const char *> DeviceLibExtensionStrs = {
      "cl_intel_bfloat16_conversions"}};
 
 static const char *getDeviceLibExtensionStr(DeviceLibExt Extension) {
+<<<<<<< HEAD
   auto Ext = DeviceLibExtensionStrs.find(Extension);
   if (Ext == DeviceLibExtensionStrs.end())
     throw compile_program_error("Unhandled (new?) device library extension",
                                 PI_ERROR_INVALID_OPERATION);
   return Ext->second;
+=======
+  switch (Extension) {
+  case DeviceLibExt::cl_intel_devicelib_assert:
+    return "cl_intel_devicelib_assert";
+  case DeviceLibExt::cl_intel_devicelib_math:
+    return "cl_intel_devicelib_math";
+  case DeviceLibExt::cl_intel_devicelib_math_fp64:
+    return "cl_intel_devicelib_math_fp64";
+  case DeviceLibExt::cl_intel_devicelib_complex:
+    return "cl_intel_devicelib_complex";
+  case DeviceLibExt::cl_intel_devicelib_complex_fp64:
+    return "cl_intel_devicelib_complex_fp64";
+  case DeviceLibExt::cl_intel_devicelib_cstring:
+    return "cl_intel_devicelib_cstring";
+  case DeviceLibExt::cl_intel_devicelib_imf:
+    return "cl_intel_devicelib_imf";
+  case DeviceLibExt::cl_intel_devicelib_imf_fp64:
+    return "cl_intel_devicelib_imf_fp64";
+  case DeviceLibExt::cl_intel_devicelib_imf_bf16:
+    return "cl_intel_devicelib_imf_bf16";
+  }
+  throw compile_program_error("Unhandled (new?) device library extension",
+                              PI_ERROR_INVALID_OPERATION);
+>>>>>>> ccd16396310cd2a827c68c0fac1985121fc4a8c7
 }
 
 static RT::PiProgram loadDeviceLibFallback(const ContextImplPtr Context,
@@ -1020,7 +1071,11 @@ getDeviceLibPrograms(const ContextImplPtr Context, const RT::PiDevice &Device,
       {DeviceLibExt::cl_intel_devicelib_cstring, false},
       {DeviceLibExt::cl_intel_devicelib_imf, false},
       {DeviceLibExt::cl_intel_devicelib_imf_fp64, false},
+<<<<<<< HEAD
       {DeviceLibExt::cl_intel_devicelib_bfloat16, false}};
+=======
+      {DeviceLibExt::cl_intel_devicelib_imf_bf16, false}};
+>>>>>>> ccd16396310cd2a827c68c0fac1985121fc4a8c7
 
   // Disable all devicelib extensions requiring fp64 support if at least
   // one underlying device doesn't support cl_khr_fp64.
