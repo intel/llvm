@@ -12,6 +12,11 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
+
+namespace detail {
+class fusion_wrapper_impl;
+}
+
 namespace ext {
 namespace codeplay {
 namespace experimental {
@@ -84,7 +89,7 @@ public:
   event complete_fusion(const property_list &propList = {});
 
 private:
-  std::shared_ptr<detail::queue_impl> MQueue;
+  std::shared_ptr<detail::fusion_wrapper_impl> MImpl;
 };
 } // namespace experimental
 } // namespace codeplay
