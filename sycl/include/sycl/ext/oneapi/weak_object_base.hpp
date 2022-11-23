@@ -52,9 +52,9 @@ public:
   }
 
 protected:
-  typename std::invoke_result_t<decltype(
-                                    sycl::detail::getSyclObjImpl<SYCLObjT>),
-                                SYCLObjT>::weak_type MObjWeakPtr;
+  typename std::invoke_result_t<
+      decltype(sycl::detail::getSyclObjImpl<SYCLObjT>), SYCLObjT>::weak_type
+      MObjWeakPtr;
 
   template <class Obj>
   friend decltype(weak_object_base<Obj>::MObjWeakPtr)

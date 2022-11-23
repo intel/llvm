@@ -88,15 +88,15 @@ public:
         MIsSubBuffer{false} {}
   weak_object(const buffer_type &SYCLObj) noexcept
       : detail::weak_object_base<buffer_type>(SYCLObj), MRange{SYCLObj.Range},
-        MOffsetInBytes{SYCLObj.OffsetInBytes}, MIsSubBuffer{
-                                                   SYCLObj.IsSubBuffer} {}
+        MOffsetInBytes{SYCLObj.OffsetInBytes},
+        MIsSubBuffer{SYCLObj.IsSubBuffer} {}
   weak_object(const weak_object &Other) noexcept
       : detail::weak_object_base<buffer_type>(Other), MRange{Other.MRange},
         MOffsetInBytes{Other.MOffsetInBytes}, MIsSubBuffer{Other.MIsSubBuffer} {
   }
   weak_object(weak_object &&Other) noexcept
-      : detail::weak_object_base<buffer_type>(Other), MRange{std::move(
-                                                          Other.MRange)},
+      : detail::weak_object_base<buffer_type>(Other),
+        MRange{std::move(Other.MRange)},
         MOffsetInBytes{std::move(Other.MOffsetInBytes)},
         MIsSubBuffer{std::move(Other.MIsSubBuffer)} {}
 
