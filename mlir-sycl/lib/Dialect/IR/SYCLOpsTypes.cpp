@@ -69,6 +69,36 @@ parseMemoryTargetMode(mlir::DialectAsmParser &Parser,
   return mlir::ParseResult::success();
 }
 
+static mlir::ParseResult
+parseAccessAddressSpace(mlir::DialectAsmParser &Parser,
+                      mlir::sycl::AccessAddrSpace *AddrSpace) {
+  int AddSpaceInt;
+  if (Parser.parseInteger<int>(AddSpaceInt)) {
+    return mlir::ParseResult::failure();
+  }
+
+  if (AddSpaceInt == 0) {
+    *AddrSpace = mlir::sycl::AccessAddrSpace::Private;
+  } else if (AddSpaceInt == 1) {
+    *AddrSpace = mlir::sycl::AccessAddrSpace::Global;
+  } else if (AddSpaceInt == 2) {
+    *AddrSpace = mlir::sycl::AccessAddrSpace::Constant;
+  } else if (AddSpaceInt == 3) {
+    *AddrSpace = mlir::sycl::AccessAddrSpace::Local;
+  } else if (AddSpaceInt == 4) {
+    *AddrSpace = mlir::sycl::AccessAddrSpace::ExtIntelGlobalDevice;
+  } else if (AddSpaceInt == 5) {
+    *AddrSpace = mlir::sycl::AccessAddrSpace::ExtIntelHost;
+  } else if (AddSpaceInt == 6) {
+    *AddrSpace = mlir::sycl::AccessAddrSpace::Generic;
+  } else {
+    return Parser.emitError(Parser.getCurrentLocation(),
+                            "expected valid Address Space");
+  }
+
+  return mlir::ParseResult::success();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // IDType Operations
 ////////////////////////////////////////////////////////////////////////////////
@@ -933,6 +963,97 @@ int mlir::sycl::VecType::getNumElements() const {
 llvm::ArrayRef<mlir::Type> mlir::sycl::VecType::getBody() const {
   return getImpl()->Body;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// AtomicType Operations
+////////////////////////////////////////////////////////////////////////////////
+
+mlir::sycl::AtomicType
+mlir::sycl::AtomicType::get(MLIRContext *Context, mlir::Type DataT,
+                         mlir::sycl::AccessAddrSpace AddrSpace) {
+  return Base::get(Context, DataT, AddrSpace);
+}
+
+mlir::Type mlir::sycl::AtomicType::parseType(mlir::DialectAsmParser &Parser) {
+  if (mlir::failed(Parser.parseLess())) {
+    return nullptr;
+  }
+
+  if (mlir::failed(Parser.parseLSquare())) {
+    return nullptr;
+  }
+
+  mlir::Type DataT;
+  if (mlir::failed(Parser.parseType(DataT))) {
+    return nullptr;
+  }
+
+  if (mlir::failed(Parser.parseComma())) {
+    return nullptr;
+  }
+
+  mlir::sycl::AccessAddrSpace AddrSpace;
+  if (parseAccessAddressSpace(Parser, &AddrSpace)) {
+    return nullptr;
+  }
+
+  if (mlir::failed(Parser.parseRSquare())) {
+    return nullptr;
+  }
+
+  if (mlir::failed(Parser.parseGreater())) {
+    return nullptr;
+  }
+
+  return mlir::sycl::AtomicType::get(Parser.getContext(), DataT, AddrSpace);
+}
+
+mlir::Type mlir::sycl::AtomicType::getDataType() const { return getImpl()->DataT; }
+
+mlir::sycl::AccessAddrSpace mlir::sycl::AtomicType::getAddressSpace() const {
+  return getImpl()->AddrSpace;
+}
+
+mlir::StringRef mlir::sycl::AtomicType::getAddressSpaceAsString() const {
+  switch (getImpl()->AddrSpace) {
+  case AccessAddrSpace::Private:
+    return "0";
+  case AccessAddrSpace::Global:
+    return "1";
+  case AccessAddrSpace::Constant:
+    return "2";
+  case AccessAddrSpace::Local:
+    return "3";
+  case AccessAddrSpace::ExtIntelGlobalDevice:
+    return "4";
+  case AccessAddrSpace::ExtIntelHost:
+    return "5";
+  case AccessAddrSpace::Generic:
+    return "6";
+  }
+  assert(false && "unreachable");
+}
+
+int mlir::sycl::AtomicType::getAddressSpaceAsInt() const {
+  switch (getImpl()->AddrSpace) {
+  case AccessAddrSpace::Private:
+    return 0;
+  case AccessAddrSpace::Global:
+    return 1;
+  case AccessAddrSpace::Constant:
+    return 2;
+  case AccessAddrSpace::Local:
+    return 3;
+  case AccessAddrSpace::ExtIntelGlobalDevice:
+    return 4;
+  case AccessAddrSpace::ExtIntelHost:
+    return 5;
+  case AccessAddrSpace::Generic:
+    return 6;
+  }
+  assert(false && "unreachable");
+}
+
 
 llvm::SmallVector<mlir::TypeID>
 mlir::sycl::getDerivedTypes(mlir::TypeID TypeID) {

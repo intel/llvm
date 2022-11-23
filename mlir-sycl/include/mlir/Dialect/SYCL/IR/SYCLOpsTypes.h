@@ -41,6 +41,17 @@ enum class MemoryTargetMode {
   HostImage,
   ImageArray
 };
+
+enum class AccessAddrSpace : int {
+  Private = 0,
+  Global = 1,
+  Constant = 2,
+  Local = 3,
+  ExtIntelGlobalDevice = 4,
+  ExtIntelHost = 5,
+  Generic = 6,  
+};
+
 } // namespace sycl
 } // namespace mlir
 
@@ -353,6 +364,31 @@ struct VecTypeStorage : public TypeStorage {
   llvm::SmallVector<mlir::Type, 4> Body;
 };
 
+struct AtomicTypeStorage : public TypeStorage {
+  using KeyTy = std::tuple<mlir::Type, mlir::sycl::AccessAddrSpace>;
+
+  AtomicTypeStorage(const KeyTy &Key)
+      : DataT(std::get<0>(Key)), AddrSpace(std::get<1>(Key)) {}
+
+  bool operator==(const KeyTy &Key) const {
+    return Key == KeyTy{DataT, AddrSpace};
+  }
+
+  static llvm::hash_code hashKey(const KeyTy &Key) {
+    return llvm::hash_combine(std::get<0>(Key), std::get<1>(Key));
+  }
+
+  static KeyTy getKey(const KeyTy &Key) { return KeyTy{Key}; }
+
+  static AtomicTypeStorage *construct(TypeStorageAllocator &Allocator,
+                                      const KeyTy &Key) {
+    return new (Allocator.allocate<AtomicTypeStorage>()) AtomicTypeStorage(Key);
+  }
+
+  mlir::Type DataT;
+  mlir::sycl::AccessAddrSpace AddrSpace;
+};
+
 } // namespace detail
 } // namespace sycl
 } // namespace mlir
@@ -591,6 +627,23 @@ public:
   mlir::Type getDataType() const;
   int getNumElements() const;
   llvm::ArrayRef<mlir::Type> getBody() const;
+};
+
+class AtomicType
+    : public Type::TypeBase<AtomicType, Type, detail::AtomicTypeStorage,
+                            mlir::MemRefElementTypeInterface::Trait,
+                            mlir::LLVM::PointerElementTypeInterface::Trait> {
+public:
+  using Base::Base;
+
+  static mlir::sycl::AtomicType get(MLIRContext *Context, mlir::Type DataT,
+                                 mlir::sycl::AccessAddrSpace AddrSpace);
+  static mlir::Type parseType(mlir::DialectAsmParser &Parser);
+
+  mlir::Type getDataType() const;
+  mlir::sycl::AccessAddrSpace getAddressSpace() const;
+  mlir::StringRef getAddressSpaceAsString() const;
+  int getAddressSpaceAsInt() const;
 };
 
 /// Return true if the given \p Ty is a SYCL type.

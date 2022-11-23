@@ -103,6 +103,7 @@ def SYCL_ItemBaseType : DialectType<SYCL_Dialect, CPred<"$_self.isa<ItemBaseType
 def SYCL_NdItemType : DialectType<SYCL_Dialect, CPred<"$_self.isa<NdItemType>()">, "sycl::nd_item type">;
 def SYCL_GroupType : DialectType<SYCL_Dialect, CPred<"$_self.isa<GroupType>()">, "sycl::group type">;
 def SYCL_VecType : DialectType<SYCL_Dialect, CPred<"$_self.isa<VecType>()">, "sycl::vec type">;
+def SYCL_AtomicType : DialectType<SYCL_Dialect, CPred<"$_self.isa<AtomicType>()">, "sycl::atomic type">;
 
 def IDMemRef : MemRefOf<[SYCL_IDType]>;
 def AccessorCommonMemRef : MemRefOf<[SYCL_AccessorCommonType]>;
@@ -117,6 +118,7 @@ def ItemBaseMemRef : MemRefOf<[SYCL_ItemBaseType]>;
 def NDItemMemRef : MemRefOf<[SYCL_NdItemType]>;
 def GroupMemRef : MemRefOf<[SYCL_GroupType]>;
 def VecMemRef : MemRefOf<[SYCL_VecType]>;
+def AtomicMemRef : MemRefOf<[SYCL_AtomicType]>;
 
 def SYCLMemref : AnyTypeOf<[
   IDMemRef,
@@ -132,6 +134,7 @@ def SYCLMemref : AnyTypeOf<[
   NDItemMemRef,
   GroupMemRef,
   VecMemRef,
+  AtomicMemRef
 ]>;
 def IndexType : AnyTypeOf<[I32, I64, Index]>;
 def IntMemrefType : AnyTypeOf<[MemRefOf<[I32]>]>;

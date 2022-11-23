@@ -225,6 +225,21 @@ static Optional<Type> convertVecType(sycl::VecType type,
   return convertBodyType("class.sycl::_V1::vec", type.getBody(), converter);
 }
 
+/// Converts SYCL atomic type to LLVM type.
+static Optional<Type> convertAtomicType(sycl::AtomicType type,
+                                        LLVMTypeConverter &converter) {
+  // return convertBodyType("class.sycl::_V1::atomic", type.getBody(), converter);
+  auto convertedTy = LLVM::LLVMStructType::getIdentified(
+      &converter.getContext(), "class.sycl::_V1::atomic");
+      if (!convertedTy.isInitialized()) {
+    auto elementType =
+        LLVM::LLVMPointerType::get(type.getDataType(), type.getAddressSpaceAsInt());
+    if (failed(convertedTy.setBody(elementType, /*isPacked=*/false)))
+      return llvm::None;
+  }
+  return convertedTy;
+}
+
 //===----------------------------------------------------------------------===//
 // CallPattern - Converts `sycl.call` to LLVM.
 //===----------------------------------------------------------------------===//
@@ -419,6 +434,9 @@ void mlir::sycl::populateSYCLToLLVMTypeConversion(
   });
   typeConverter.addConversion(
       [&](sycl::VecType type) { return convertVecType(type, typeConverter); });
+  typeConverter.addConversion([&](sycl::AtomicType type) {
+    return convertAtomicType(type, typeConverter);
+  });
 }
 
 void mlir::sycl::populateSYCLToLLVMConversionPatterns(

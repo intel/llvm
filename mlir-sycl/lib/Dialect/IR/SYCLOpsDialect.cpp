@@ -33,7 +33,7 @@ void mlir::sycl::SYCLDialect::initialize() {
       mlir::sycl::AccessorType, mlir::sycl::RangeType, mlir::sycl::NdRangeType,
       mlir::sycl::AccessorImplDeviceType, mlir::sycl::AccessorSubscriptType,
       mlir::sycl::ArrayType, mlir::sycl::ItemType, mlir::sycl::ItemBaseType,
-      mlir::sycl::NdItemType, mlir::sycl::GroupType, mlir::sycl::VecType>();
+      mlir::sycl::NdItemType, mlir::sycl::GroupType, mlir::sycl::VecType, mlir::sycl::AtomicType>();
 
   mlir::Dialect::addInterfaces<SYCLOpAsmInterface>();
 }
@@ -83,6 +83,9 @@ mlir::sycl::SYCLDialect::parseType(mlir::DialectAsmParser &Parser) const {
   }
   if (Keyword == "vec") {
     return mlir::sycl::VecType::parseType(Parser);
+  }
+  if (Keyword == "atomic") {
+    return mlir::sycl::AtomicType::parseType(Parser);
   }
 
   Parser.emitError(Parser.getCurrentLocation(), "unknown SYCL type: ")
@@ -146,7 +149,11 @@ void mlir::sycl::SYCLDialect::printType(
             << "], (";
     llvm::interleaveComma(Vec.getBody(), Printer);
     Printer << ")>";
-  } else {
+  } else if (const auto Atomic = Type.dyn_cast<mlir::sycl::AtomicType>()) {
+    Printer << "atomic<[" << Atomic.getDataType() << ", " << Atomic.getAddressSpaceAsString()
+            << "]>";
+  } 
+  else {
     assert(false && "The given type is not handled by the SYCL printer");
   }
 }

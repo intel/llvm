@@ -163,3 +163,15 @@ func.func @vec_0(%arg0: !sycl_vec_i32_2_) attributes {llvm.linkage = #llvm.linka
 func.func @vec_1(%arg0: !sycl_vec_f32_4_) attributes {llvm.linkage = #llvm.linkage<external>} {
   return
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// ATOMIC
+////////////////////////////////////////////////////////////////////////////////
+
+!sycl_atomic_f32_3_ = !sycl.atomic<[f32, 3]> 
+!sycl_atomic_i32_1_ = !sycl.atomic<[i32, 1]> 
+
+// CHECK: func @_Z6atomicN4sycl3_V16atomicIiLNS0_6access13address_spaceE1EEE(%arg0: !sycl_atomic_f32_3_, %arg1: !sycl_atomic_i32_1_)
+func.func @_Z6atomicN4sycl3_V16atomicIiLNS0_6access13address_spaceE1EEE(%arg0: !sycl_atomic_f32_3_, %arg1: !sycl_atomic_i32_1_) attributes {llvm.linkage = #llvm.linkage<external>} {
+  return
+}
