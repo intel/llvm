@@ -2167,6 +2167,34 @@ urQueueCreateWithNativeHandle(
     ur_queue_handle_t* phQueue                      ///< [out] pointer to the handle of the queue object created.
     );
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Blocks until all previously issued commands to the command queue are
+///        finished.
+/// 
+/// @details
+///     - Blocks until all previously issued commands to the command queue are
+///       issued and completed.
+///     - ::urQueueFinish does not return until all enqueued commands have been
+///       processed and finished.
+///     - ::urQueueFinish acts as a synchronization point.
+/// 
+/// @remarks
+///   _Analogues_
+///     - **clFinish**
+/// 
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `nullptr == hQueue`
+///     - ::UR_RESULT_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+UR_APIEXPORT ur_result_t UR_APICALL
+urQueueFinish(
+    ur_queue_handle_t hQueue                        ///< [in] handle of the queue to be finished.
+    );
+
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
@@ -6570,6 +6598,28 @@ typedef void (UR_APICALL *ur_pfnQueueCreateWithNativeHandleCb_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function parameters for urQueueFinish 
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct _ur_queue_finish_params_t
+{
+    ur_queue_handle_t* phQueue;
+} ur_queue_finish_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function-pointer for urQueueFinish 
+/// @param[in] params Parameters passed to this instance
+/// @param[in] result Return value
+/// @param[in] pTracerUserData Per-Tracer user data
+/// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
+typedef void (UR_APICALL *ur_pfnQueueFinishCb_t)(
+    ur_queue_finish_params_t* params,
+    ur_result_t result,
+    void* pTracerUserData,
+    void** ppTracerInstanceUserData
+    );
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Queue callback functions pointers
 typedef struct _ur_queue_callbacks_t
 {
@@ -6579,6 +6629,7 @@ typedef struct _ur_queue_callbacks_t
     ur_pfnQueueReleaseCb_t                                          pfnReleaseCb;
     ur_pfnQueueGetNativeHandleCb_t                                  pfnGetNativeHandleCb;
     ur_pfnQueueCreateWithNativeHandleCb_t                           pfnCreateWithNativeHandleCb;
+    ur_pfnQueueFinishCb_t                                           pfnFinishCb;
 } ur_queue_callbacks_t;
 
 ///////////////////////////////////////////////////////////////////////////////
