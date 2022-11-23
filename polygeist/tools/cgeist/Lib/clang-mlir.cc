@@ -194,9 +194,9 @@ void MLIRScanner::init(FunctionOpInterface func, const FunctionToEmit &FTE) {
     if (isReference)
       Params.emplace(parm, ValueCategory(val, /*isReference*/ true));
     else {
-      Value alloc =
+      Value Alloc =
           createAllocOp(val.getType(), parm, /*memspace*/ 0, isArray, LLVMABI);
-      ValueCategory(alloc, /*isReference*/ true).store(Builder, val);
+      ValueCategory(Alloc, /*isReference*/ true).store(Builder, val);
     }
 
     i++;
@@ -400,11 +400,11 @@ Value MLIRScanner::createAllocOp(Type t, clang::VarDecl *name,
   if (!isArray) {
     if (LLVMABI) {
       if (name)
-        if (auto var = dyn_cast<clang::VariableArrayType>(
+        if (auto Var = dyn_cast<clang::VariableArrayType>(
                 name->getType()->getUnqualifiedDesugaredType())) {
-          auto len = Visit(var->getSizeExpr()).getValue(Builder);
+          auto Len = Visit(Var->getSizeExpr()).getValue(Builder);
           alloc = Builder.create<LLVM::AllocaOp>(
-              varLoc, LLVM::LLVMPointerType::get(t, memspace), len);
+              varLoc, LLVM::LLVMPointerType::get(t, memspace), Len);
           Builder.create<polygeist::TrivialUseOp>(varLoc, alloc);
           alloc = Builder.create<LLVM::BitcastOp>(
               varLoc,
@@ -456,27 +456,27 @@ Value MLIRScanner::createAllocOp(Type t, clang::VarDecl *name,
       }
     }
   } else {
-    auto mt = t.cast<MemRefType>();
-    auto shape = std::vector<int64_t>(mt.getShape());
+    auto MT = t.cast<MemRefType>();
+    auto shape = std::vector<int64_t>(MT.getShape());
     auto pshape = shape[0];
 
     if (name)
-      if (auto var = dyn_cast<clang::VariableArrayType>(
+      if (auto Var = dyn_cast<clang::VariableArrayType>(
               name->getType()->getUnqualifiedDesugaredType())) {
         assert(shape[0] == -1);
         mr = MemRefType::get(
-            shape, mt.getElementType(), MemRefLayoutAttrInterface(),
-            mlirclang::wrapIntegerMemorySpace(memspace, mt.getContext()));
-        auto len = Visit(var->getSizeExpr()).getValue(Builder);
+            shape, MT.getElementType(), MemRefLayoutAttrInterface(),
+            mlirclang::wrapIntegerMemorySpace(memspace, MT.getContext()));
+        auto len = Visit(Var->getSizeExpr()).getValue(Builder);
         len = Builder.create<arith::IndexCastOp>(varLoc, Builder.getIndexType(),
                                                  len);
         alloc = Builder.create<memref::AllocaOp>(varLoc, mr, len);
         Builder.create<polygeist::TrivialUseOp>(varLoc, alloc);
         if (memspace != 0) {
           alloc = aBuilder.create<polygeist::Pointer2MemrefOp>(
-              varLoc, MemRefType::get(shape, mt.getElementType()),
+              varLoc, MemRefType::get(shape, MT.getElementType()),
               aBuilder.create<polygeist::Memref2PointerOp>(
-                  varLoc, LLVM::LLVMPointerType::get(mt.getElementType(), 0),
+                  varLoc, LLVM::LLVMPointerType::get(MT.getElementType(), 0),
                   alloc));
         }
       }
@@ -485,19 +485,19 @@ Value MLIRScanner::createAllocOp(Type t, clang::VarDecl *name,
       if (pshape == -1)
         shape[0] = 1;
       mr = MemRefType::get(
-          shape, mt.getElementType(), MemRefLayoutAttrInterface(),
-          mlirclang::wrapIntegerMemorySpace(memspace, mt.getContext()));
+          shape, MT.getElementType(), MemRefLayoutAttrInterface(),
+          mlirclang::wrapIntegerMemorySpace(memspace, MT.getContext()));
       alloc = aBuilder.create<memref::AllocaOp>(varLoc, mr);
       if (memspace != 0) {
         alloc = aBuilder.create<polygeist::Pointer2MemrefOp>(
-            varLoc, MemRefType::get(shape, mt.getElementType()),
+            varLoc, MemRefType::get(shape, MT.getElementType()),
             aBuilder.create<polygeist::Memref2PointerOp>(
-                varLoc, LLVM::LLVMPointerType::get(mt.getElementType(), 0),
+                varLoc, LLVM::LLVMPointerType::get(MT.getElementType(), 0),
                 alloc));
       }
       shape[0] = pshape;
       alloc = aBuilder.create<memref::CastOp>(
-          varLoc, MemRefType::get(shape, mt.getElementType()), alloc);
+          varLoc, MemRefType::get(shape, MT.getElementType()), alloc);
     }
   }
   assert(alloc);
@@ -769,17 +769,17 @@ ValueCategory MLIRScanner::CommonArrayToPointer(ValueCategory scalar) {
         /*isReference*/ false);
   }
 
-  auto mt = scalar.val.getType().cast<MemRefType>();
-  auto shape = std::vector<int64_t>(mt.getShape());
+  auto MT = scalar.val.getType().cast<MemRefType>();
+  auto shape = std::vector<int64_t>(MT.getShape());
   // if (shape.size() > 1) {
   //  shape.erase(shape.begin());
   //} else {
   shape[0] = -1;
   //}
-  auto mt0 = MemRefType::get(shape, mt.getElementType(),
-                             MemRefLayoutAttrInterface(), mt.getMemorySpace());
+  auto MT0 = MemRefType::get(shape, MT.getElementType(),
+                             MemRefLayoutAttrInterface(), MT.getMemorySpace());
 
-  auto post = Builder.create<memref::CastOp>(Loc, mt0, scalar.val);
+  auto post = Builder.create<memref::CastOp>(Loc, MT0, scalar.val);
   return ValueCategory(post, /*isReference*/ false);
 }
 
@@ -807,13 +807,13 @@ ValueCategory MLIRScanner::CommonArrayLookup(ValueCategory array, Value idx,
 
   ValueCategory dref;
   {
-    auto mt = val.getType().cast<MemRefType>();
-    auto shape = std::vector<int64_t>(mt.getShape());
+    auto MT = val.getType().cast<MemRefType>();
+    auto shape = std::vector<int64_t>(MT.getShape());
     shape[0] = -1;
-    auto mt0 =
-        MemRefType::get(shape, mt.getElementType(), MemRefLayoutAttrInterface(),
-                        mt.getMemorySpace());
-    auto post = Builder.create<polygeist::SubIndexOp>(Loc, mt0, val, idx);
+    auto MT0 =
+        MemRefType::get(shape, MT.getElementType(), MemRefLayoutAttrInterface(),
+                        MT.getMemorySpace());
+    auto post = Builder.create<polygeist::SubIndexOp>(Loc, MT0, val, idx);
     // TODO sub
     dref = ValueCategory(post, /*isReference*/ true);
   }
@@ -821,16 +821,16 @@ ValueCategory MLIRScanner::CommonArrayLookup(ValueCategory array, Value idx,
   if (!removeIndex)
     return dref;
 
-  auto mt = dref.val.getType().cast<MemRefType>();
-  auto shape = std::vector<int64_t>(mt.getShape());
+  auto MT = dref.val.getType().cast<MemRefType>();
+  auto shape = std::vector<int64_t>(MT.getShape());
   if (shape.size() == 1 || (shape.size() == 2 && isImplicitRefResult)) {
     shape[0] = -1;
   } else {
     shape.erase(shape.begin());
   }
-  auto mt0 = MemRefType::get(shape, mt.getElementType(),
-                             MemRefLayoutAttrInterface(), mt.getMemorySpace());
-  auto post = Builder.create<polygeist::SubIndexOp>(Loc, mt0, dref.val,
+  auto MT0 = MemRefType::get(shape, MT.getElementType(),
+                             MemRefLayoutAttrInterface(), MT.getMemorySpace());
+  auto post = Builder.create<polygeist::SubIndexOp>(Loc, MT0, dref.val,
                                                     getConstantIndex(0));
   return ValueCategory(post, /*isReference*/ true);
 }
@@ -909,20 +909,19 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
   }
   case clang::UnaryOperator::Opcode::UO_AddrOf: {
     assert(sub.isReference);
-    if (sub.val.getType().isa<LLVM::LLVMPointerType>()) {
+    if (sub.val.getType().isa<LLVM::LLVMPointerType>())
       return ValueCategory(sub.val, /*isReference*/ false);
-    }
 
     bool isArray = false;
     Glob.getTypes().getMLIRType(U->getSubExpr()->getType(), &isArray);
-    auto mt = sub.val.getType().cast<MemRefType>();
-    auto shape = std::vector<int64_t>(mt.getShape());
+    auto MT = sub.val.getType().cast<MemRefType>();
+    auto shape = std::vector<int64_t>(MT.getShape());
     Value res;
     shape[0] = -1;
-    auto mt0 =
-        MemRefType::get(shape, mt.getElementType(), MemRefLayoutAttrInterface(),
-                        mt.getMemorySpace());
-    res = Builder.create<memref::CastOp>(Loc, mt0, sub.val);
+    auto MT0 =
+        MemRefType::get(shape, MT.getElementType(), MemRefLayoutAttrInterface(),
+                        MT.getMemorySpace());
+    res = Builder.create<memref::CastOp>(Loc, MT0, sub.val);
     return ValueCategory(res,
                          /*isReference*/ false);
   }
@@ -973,13 +972,13 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
           Loc, prev,
           Builder.create<arith::ConstantFloatOp>(
               Loc, APFloat(ft.getFloatSemantics(), "1"), ft));
-    } else if (auto mt = ty.dyn_cast<MemRefType>()) {
-      auto shape = std::vector<int64_t>(mt.getShape());
+    } else if (auto MT = ty.dyn_cast<MemRefType>()) {
+      auto shape = std::vector<int64_t>(MT.getShape());
       shape[0] = -1;
-      auto mt0 =
-          MemRefType::get(shape, mt.getElementType(),
-                          MemRefLayoutAttrInterface(), mt.getMemorySpace());
-      next = Builder.create<polygeist::SubIndexOp>(Loc, mt0, prev,
+      auto MT0 =
+          MemRefType::get(shape, MT.getElementType(),
+                          MemRefLayoutAttrInterface(), MT.getMemorySpace());
+      next = Builder.create<polygeist::SubIndexOp>(Loc, MT0, prev,
                                                    getConstantIndex(1));
     } else if (auto pt = ty.dyn_cast<LLVM::LLVMPointerType>()) {
       auto ity = IntegerType::get(Builder.getContext(), 64);
@@ -1026,13 +1025,13 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
           Loc, pt, prev,
           std::vector<Value>(
               {Builder.create<arith::ConstantIntOp>(Loc, -1, ity)}));
-    } else if (auto mt = ty.dyn_cast<MemRefType>()) {
-      auto shape = std::vector<int64_t>(mt.getShape());
+    } else if (auto MT = ty.dyn_cast<MemRefType>()) {
+      auto shape = std::vector<int64_t>(MT.getShape());
       shape[0] = -1;
-      auto mt0 =
-          MemRefType::get(shape, mt.getElementType(),
-                          MemRefLayoutAttrInterface(), mt.getMemorySpace());
-      next = Builder.create<polygeist::SubIndexOp>(Loc, mt0, prev,
+      auto MT0 =
+          MemRefType::get(shape, MT.getElementType(),
+                          MemRefLayoutAttrInterface(), MT.getMemorySpace());
+      next = Builder.create<polygeist::SubIndexOp>(Loc, MT0, prev,
                                                    getConstantIndex(-1));
     } else {
       if (!ty.isa<IntegerType>()) {
@@ -1055,14 +1054,14 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
         (U->getOpcode() == clang::UnaryOperator::Opcode::UO_Real) ? 0 : 1;
     auto lhs_v = sub.val;
     assert(sub.isReference);
-    if (auto mt = lhs_v.getType().dyn_cast<MemRefType>()) {
-      auto shape = std::vector<int64_t>(mt.getShape());
+    if (auto MT = lhs_v.getType().dyn_cast<MemRefType>()) {
+      auto shape = std::vector<int64_t>(MT.getShape());
       shape[0] = -1;
-      auto mt0 =
-          MemRefType::get(shape, mt.getElementType(),
-                          MemRefLayoutAttrInterface(), mt.getMemorySpace());
+      auto MT0 =
+          MemRefType::get(shape, MT.getElementType(),
+                          MemRefLayoutAttrInterface(), MT.getMemorySpace());
       return ValueCategory(Builder.create<polygeist::SubIndexOp>(
-                               Loc, mt0, lhs_v, getConstantIndex(fnum)),
+                               Loc, MT0, lhs_v, getConstantIndex(fnum)),
                            /*isReference*/ true);
     } else if (auto PT = lhs_v.getType().dyn_cast<LLVM::LLVMPointerType>()) {
       Type ET;
@@ -1361,18 +1360,18 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
 
     auto lhs_v = lhs.getValue(Builder);
     auto rhs_v = rhs.getValue(Builder);
-    if (auto mt = lhs_v.getType().dyn_cast<MemRefType>()) {
+    if (auto MT = lhs_v.getType().dyn_cast<MemRefType>()) {
       lhs_v = Builder.create<polygeist::Memref2PointerOp>(
           Loc,
-          LLVM::LLVMPointerType::get(mt.getElementType(),
-                                     mt.getMemorySpaceAsInt()),
+          LLVM::LLVMPointerType::get(MT.getElementType(),
+                                     MT.getMemorySpaceAsInt()),
           lhs_v);
     }
-    if (auto mt = rhs_v.getType().dyn_cast<MemRefType>()) {
+    if (auto MT = rhs_v.getType().dyn_cast<MemRefType>()) {
       rhs_v = Builder.create<polygeist::Memref2PointerOp>(
           Loc,
-          LLVM::LLVMPointerType::get(mt.getElementType(),
-                                     mt.getMemorySpaceAsInt()),
+          LLVM::LLVMPointerType::get(MT.getElementType(),
+                                     MT.getMemorySpaceAsInt()),
           rhs_v);
     }
     Value res;
@@ -1460,8 +1459,8 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
           ValueCategory(commonGEP, /*isReference*/ true).getValue(Builder);
     return ValueCategory(commonGEP, /*isReference*/ true);
   }
-  auto mt = val.getType().cast<MemRefType>();
-  auto shape = std::vector<int64_t>(mt.getShape());
+  auto MT = val.getType().cast<MemRefType>();
+  auto shape = std::vector<int64_t>(MT.getShape());
   if (shape.size() > 1) {
     shape.erase(shape.begin());
   } else {
@@ -1473,111 +1472,111 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
   // an equivalent GEP or SubIndexOp operation for each sycl types or otherwise
   // clean the redundancy
   Value Result;
-  if (auto ST = mt.getElementType().dyn_cast<LLVM::LLVMStructType>()) {
+  if (auto ST = MT.getElementType().dyn_cast<LLVM::LLVMStructType>()) {
     assert(fnum < ST.getBody().size() && "ERROR");
 
     const auto ElementType = ST.getBody()[fnum];
     const auto ResultType = MemRefType::get(
-        shape, ElementType, MemRefLayoutAttrInterface(), mt.getMemorySpace());
+        shape, ElementType, MemRefLayoutAttrInterface(), MT.getMemorySpace());
 
     Result = Builder.create<polygeist::SubIndexOp>(Loc, ResultType, val,
                                                    getConstantIndex(fnum));
-  } else if (auto AT = mt.getElementType().dyn_cast<sycl::AccessorType>()) {
+  } else if (auto AT = MT.getElementType().dyn_cast<sycl::AccessorType>()) {
     assert(fnum < AT.getBody().size() && "ERROR");
 
     const auto ElementType = AT.getBody()[fnum];
     const auto ResultType = MemRefType::get(
-        shape, ElementType, MemRefLayoutAttrInterface(), mt.getMemorySpace());
+        shape, ElementType, MemRefLayoutAttrInterface(), MT.getMemorySpace());
 
     Result = Builder.create<polygeist::SubIndexOp>(Loc, ResultType, val,
                                                    getConstantIndex(fnum));
   } else if (auto AT =
-                 mt.getElementType().dyn_cast<sycl::AccessorImplDeviceType>()) {
+                 MT.getElementType().dyn_cast<sycl::AccessorImplDeviceType>()) {
     assert(fnum < AT.getBody().size() && "ERROR");
 
     const auto ElementType = AT.getBody()[fnum];
     const auto ResultType = MemRefType::get(
-        shape, ElementType, MemRefLayoutAttrInterface(), mt.getMemorySpace());
+        shape, ElementType, MemRefLayoutAttrInterface(), MT.getMemorySpace());
 
     Result = Builder.create<polygeist::SubIndexOp>(Loc, ResultType, val,
                                                    getConstantIndex(fnum));
   } else if (auto AT =
-                 mt.getElementType().dyn_cast<sycl::AccessorSubscriptType>()) {
+                 MT.getElementType().dyn_cast<sycl::AccessorSubscriptType>()) {
     assert(fnum < AT.getBody().size() && "ERROR");
 
     const auto ElementType = AT.getBody()[fnum];
     const auto ResultType = MemRefType::get(
-        shape, ElementType, MemRefLayoutAttrInterface(), mt.getMemorySpace());
+        shape, ElementType, MemRefLayoutAttrInterface(), MT.getMemorySpace());
 
     Result = Builder.create<polygeist::SubIndexOp>(Loc, ResultType, val,
                                                    getConstantIndex(fnum));
-  } else if (auto AT = mt.getElementType().dyn_cast<sycl::ArrayType>()) {
+  } else if (auto AT = MT.getElementType().dyn_cast<sycl::ArrayType>()) {
     assert(fnum < AT.getBody().size() && "ERROR");
     const auto elemType = AT.getBody()[fnum].cast<MemRefType>();
     const auto ResultType =
         MemRefType::get(elemType.getShape(), elemType.getElementType(),
-                        MemRefLayoutAttrInterface(), mt.getMemorySpace());
+                        MemRefLayoutAttrInterface(), MT.getMemorySpace());
     Result = Builder.create<polygeist::SubIndexOp>(Loc, ResultType, val,
                                                    getConstantIndex(fnum));
-  } else if (auto IT = mt.getElementType().dyn_cast<sycl::IDType>()) {
+  } else if (auto IT = MT.getElementType().dyn_cast<sycl::IDType>()) {
     llvm_unreachable("not implemented");
-  } else if (auto RT = mt.getElementType().dyn_cast<sycl::RangeType>()) {
+  } else if (auto RT = MT.getElementType().dyn_cast<sycl::RangeType>()) {
     llvm_unreachable("not implemented");
-  } else if (auto RT = mt.getElementType().dyn_cast<sycl::NdRangeType>()) {
+  } else if (auto RT = MT.getElementType().dyn_cast<sycl::NdRangeType>()) {
     assert(fnum < RT.getBody().size() && "ERROR");
     const auto ElementType = RT.getBody()[fnum];
     const auto ResultType = MemRefType::get(
-        shape, ElementType, MemRefLayoutAttrInterface(), mt.getMemorySpace());
+        shape, ElementType, MemRefLayoutAttrInterface(), MT.getMemorySpace());
     Result = Builder.create<polygeist::SubIndexOp>(Loc, ResultType, val,
                                                    getConstantIndex(fnum));
-  } else if (auto RT = mt.getElementType().dyn_cast<sycl::ItemType>()) {
+  } else if (auto RT = MT.getElementType().dyn_cast<sycl::ItemType>()) {
     assert(fnum < RT.getBody().size() && "ERROR");
 
     const auto ElementType = RT.getBody()[fnum];
     const auto ResultType = MemRefType::get(
-        shape, ElementType, MemRefLayoutAttrInterface(), mt.getMemorySpace());
-
-    Result = Builder.create<polygeist::SubIndexOp>(Loc, ResultType, val,
-                                                   getConstantIndex(fnum));
-  } else if (auto RT = mt.getElementType().dyn_cast<sycl::ItemBaseType>()) {
-    assert(fnum < RT.getBody().size() && "ERROR");
-
-    const auto ElementType = RT.getBody()[fnum];
-    const auto ResultType = MemRefType::get(
-        shape, ElementType, MemRefLayoutAttrInterface(), mt.getMemorySpace());
+        shape, ElementType, MemRefLayoutAttrInterface(), MT.getMemorySpace());
 
     Result = Builder.create<polygeist::SubIndexOp>(Loc, ResultType, val,
                                                    getConstantIndex(fnum));
-  } else if (auto RT = mt.getElementType().dyn_cast<sycl::NdItemType>()) {
+  } else if (auto RT = MT.getElementType().dyn_cast<sycl::ItemBaseType>()) {
     assert(fnum < RT.getBody().size() && "ERROR");
 
     const auto ElementType = RT.getBody()[fnum];
     const auto ResultType = MemRefType::get(
-        shape, ElementType, MemRefLayoutAttrInterface(), mt.getMemorySpace());
+        shape, ElementType, MemRefLayoutAttrInterface(), MT.getMemorySpace());
 
     Result = Builder.create<polygeist::SubIndexOp>(Loc, ResultType, val,
                                                    getConstantIndex(fnum));
-  } else if (auto RT = mt.getElementType().dyn_cast<sycl::GroupType>()) {
+  } else if (auto RT = MT.getElementType().dyn_cast<sycl::NdItemType>()) {
     assert(fnum < RT.getBody().size() && "ERROR");
 
     const auto ElementType = RT.getBody()[fnum];
     const auto ResultType = MemRefType::get(
-        shape, ElementType, MemRefLayoutAttrInterface(), mt.getMemorySpace());
+        shape, ElementType, MemRefLayoutAttrInterface(), MT.getMemorySpace());
+
+    Result = Builder.create<polygeist::SubIndexOp>(Loc, ResultType, val,
+                                                   getConstantIndex(fnum));
+  } else if (auto RT = MT.getElementType().dyn_cast<sycl::GroupType>()) {
+    assert(fnum < RT.getBody().size() && "ERROR");
+
+    const auto ElementType = RT.getBody()[fnum];
+    const auto ResultType = MemRefType::get(
+        shape, ElementType, MemRefLayoutAttrInterface(), MT.getMemorySpace());
 
     Result = Builder.create<polygeist::SubIndexOp>(Loc, ResultType, val,
                                                    getConstantIndex(fnum));
   } else {
-    auto mt0 =
-        MemRefType::get(shape, mt.getElementType(), MemRefLayoutAttrInterface(),
-                        mt.getMemorySpace());
+    auto MT0 =
+        MemRefType::get(shape, MT.getElementType(), MemRefLayoutAttrInterface(),
+                        MT.getMemorySpace());
     shape[0] = -1;
-    auto mt1 =
-        MemRefType::get(shape, mt.getElementType(), MemRefLayoutAttrInterface(),
-                        mt.getMemorySpace());
+    auto MT1 =
+        MemRefType::get(shape, MT.getElementType(), MemRefLayoutAttrInterface(),
+                        MT.getMemorySpace());
 
-    Result = Builder.create<polygeist::SubIndexOp>(Loc, mt0, val,
+    Result = Builder.create<polygeist::SubIndexOp>(Loc, MT0, val,
                                                    getConstantIndex(0));
-    Result = Builder.create<polygeist::SubIndexOp>(Loc, mt1, Result,
+    Result = Builder.create<polygeist::SubIndexOp>(Loc, MT1, Result,
                                                    getConstantIndex(fnum));
   }
 
@@ -1733,16 +1732,16 @@ Value MLIRScanner::GetAddressOfBaseClass(
     }
 
     if (subIndex) {
-      if (auto mt = value.getType().dyn_cast<MemRefType>()) {
-        auto shape = std::vector<int64_t>(mt.getShape());
+      if (auto MT = value.getType().dyn_cast<MemRefType>()) {
+        auto shape = std::vector<int64_t>(MT.getShape());
         // We do not remove dimensions for an id->array or range->array, because
         // the later cast will be incompatible due to dimension mismatch.
         if (!isSYCLInheritType(nt, value))
           shape.erase(shape.begin());
-        auto mt0 =
-            MemRefType::get(shape, mt.getElementType(),
-                            MemRefLayoutAttrInterface(), mt.getMemorySpace());
-        value = Builder.create<polygeist::SubIndexOp>(Loc, mt0, value,
+        auto MT0 =
+            MemRefType::get(shape, MT.getElementType(),
+                            MemRefLayoutAttrInterface(), MT.getMemorySpace());
+        value = Builder.create<polygeist::SubIndexOp>(Loc, MT0, value,
                                                       getConstantIndex(fnum));
       } else {
         Value idx[] = {Builder.create<arith::ConstantIntOp>(Loc, 0, 32),
