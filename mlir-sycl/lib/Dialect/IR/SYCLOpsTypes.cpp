@@ -9,211 +9,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
-#include "mlir/IR/OpDefinition.h"
 
-static mlir::ParseResult
-parseMemoryAccessMode(mlir::DialectAsmParser &Parser,
-                      mlir::sycl::MemoryAccessMode *MemAccessMode) {
-  mlir::StringRef Keyword;
-  if (Parser.parseKeyword(&Keyword)) {
-    return mlir::ParseResult::failure();
-  }
-
-  if (Keyword == "read") {
-    *MemAccessMode = mlir::sycl::MemoryAccessMode::Read;
-  } else if (Keyword == "write") {
-    *MemAccessMode = mlir::sycl::MemoryAccessMode::Write;
-  } else if (Keyword == "read_write") {
-    *MemAccessMode = mlir::sycl::MemoryAccessMode::ReadWrite;
-  } else if (Keyword == "discard_write") {
-    *MemAccessMode = mlir::sycl::MemoryAccessMode::DiscardWrite;
-  } else if (Keyword == "discard_read_write") {
-    *MemAccessMode = mlir::sycl::MemoryAccessMode::DiscardReadWrite;
-  } else if (Keyword == "atomic") {
-    *MemAccessMode = mlir::sycl::MemoryAccessMode::Atomic;
-  } else {
-    return Parser.emitError(Parser.getCurrentLocation(),
-                            "expected valid MemoryAccessMode keyword");
-  }
-
-  return mlir::ParseResult::success();
-}
-
-static mlir::ParseResult
-parseMemoryTargetMode(mlir::DialectAsmParser &Parser,
-                      mlir::sycl::MemoryTargetMode *MemTargetMode) {
-  mlir::StringRef Keyword;
-  if (Parser.parseKeyword(&Keyword)) {
-    return mlir::ParseResult::failure();
-  }
-
-  if (Keyword == "global_buffer") {
-    *MemTargetMode = mlir::sycl::MemoryTargetMode::GlobalBuffer;
-  } else if (Keyword == "constant_buffer") {
-    *MemTargetMode = mlir::sycl::MemoryTargetMode::ConstantBuffer;
-  } else if (Keyword == "local") {
-    *MemTargetMode = mlir::sycl::MemoryTargetMode::Local;
-  } else if (Keyword == "image") {
-    *MemTargetMode = mlir::sycl::MemoryTargetMode::Image;
-  } else if (Keyword == "host_buffer") {
-    *MemTargetMode = mlir::sycl::MemoryTargetMode::HostBuffer;
-  } else if (Keyword == "host_image") {
-    *MemTargetMode = mlir::sycl::MemoryTargetMode::HostImage;
-  } else if (Keyword == "image_array") {
-    *MemTargetMode = mlir::sycl::MemoryTargetMode::ImageArray;
-  } else {
-    return Parser.emitError(Parser.getCurrentLocation(),
-                            "expected valid MemoryTargetMode keyword");
-  }
-
-  return mlir::ParseResult::success();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// IDType Operations
-////////////////////////////////////////////////////////////////////////////////
-
-mlir::sycl::IDType mlir::sycl::IDType::get(MLIRContext *Context,
-                                           unsigned int Dimension) {
-  return Base::get(Context, Dimension);
-}
-
-mlir::Type mlir::sycl::IDType::parseType(mlir::DialectAsmParser &Parser) {
-  if (mlir::failed(Parser.parseLess())) {
-    return nullptr;
-  }
-
-  unsigned int Dim;
-  if (Parser.parseInteger<unsigned int>(Dim)) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseGreater())) {
-    return nullptr;
-  }
-
-  return mlir::sycl::IDType::get(Parser.getContext(), Dim);
-}
-
-unsigned int mlir::sycl::IDType::getDimension() const {
-  return getImpl()->Dimension;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// AccessorCommonType Operations
-////////////////////////////////////////////////////////////////////////////////
-
-mlir::sycl::AccessorCommonType
-mlir::sycl::AccessorCommonType::get(MLIRContext *Context) {
-  return Base::get(Context);
-}
-
-mlir::Type
-mlir::sycl::AccessorCommonType::parseType(mlir::DialectAsmParser &Parser) {
-  return mlir::sycl::AccessorCommonType::get(Parser.getContext());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// AccessorType Operations
-////////////////////////////////////////////////////////////////////////////////
-
-mlir::sycl::AccessorType mlir::sycl::AccessorType::get(
-    MLIRContext *Context, mlir::Type Type, unsigned int Dimension,
-    MemoryAccessMode AccessMode, MemoryTargetMode TargetMode,
-    llvm::SmallVector<mlir::Type, 4> Body) {
-  return Base::get(Context, Type, Dimension, AccessMode, TargetMode, Body);
-}
-
-mlir::Type mlir::sycl::AccessorType::parseType(mlir::DialectAsmParser &Parser) {
-  if (mlir::failed(Parser.parseLess())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseLSquare())) {
-    return nullptr;
-  }
-
-  unsigned int Dim;
-  if (Parser.parseInteger<unsigned int>(Dim)) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseComma())) {
-    return nullptr;
-  }
-
-  mlir::Type ET;
-  if (Parser.parseType(ET)) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseComma())) {
-    return nullptr;
-  }
-
-  mlir::sycl::MemoryAccessMode MemAccessMode;
-  if (parseMemoryAccessMode(Parser, &MemAccessMode)) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseComma())) {
-    return nullptr;
-  }
-
-  mlir::sycl::MemoryTargetMode MemTargetMode;
-  if (parseMemoryTargetMode(Parser, &MemTargetMode)) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseRSquare())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseComma())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseLParen())) {
-    return nullptr;
-  }
-
-  mlir::SmallVector<Type, 4> Subtypes;
-  do {
-    mlir::Type Type;
-    if (mlir::failed(Parser.parseType(Type))) {
-      return nullptr;
-    }
-    Subtypes.push_back(Type);
-  } while (succeeded(Parser.parseOptionalComma()));
-
-  if (mlir::failed(Parser.parseRParen())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseGreater())) {
-    return nullptr;
-  }
-
-  return mlir::sycl::AccessorType::get(Parser.getContext(), ET, Dim,
-                                       MemAccessMode, MemTargetMode, Subtypes);
-}
-
-unsigned int mlir::sycl::AccessorType::getDimension() const {
-  return getImpl()->Dimension;
-}
-
-mlir::Type mlir::sycl::AccessorType::getType() const { return getImpl()->Type; }
-
-mlir::sycl::MemoryAccessMode mlir::sycl::AccessorType::getAccessMode() const {
-  return getImpl()->AccessMode;
-}
-
-mlir::sycl::MemoryTargetMode mlir::sycl::AccessorType::getTargetMode() const {
-  return getImpl()->TargetMode;
-}
-
-mlir::StringRef mlir::sycl::AccessorType::getAccessModeAsString() const {
-  switch (getImpl()->AccessMode) {
+llvm::StringRef mlir::sycl::memoryAccessModeAsString(
+    mlir::sycl::MemoryAccessMode MemAccessMode) {
+  switch (MemAccessMode) {
   case MemoryAccessMode::Read:
     return "read";
   case MemoryAccessMode::Write:
@@ -226,12 +25,47 @@ mlir::StringRef mlir::sycl::AccessorType::getAccessModeAsString() const {
     return "discard_read_write";
   case MemoryAccessMode::Atomic:
     return "atomic";
+  default:
+    llvm_unreachable("Invalid memory access mode");
   }
-  assert(false && "unreachable");
 }
 
-mlir::StringRef mlir::sycl::AccessorType::getTargetModeAsString() const {
-  switch (getImpl()->TargetMode) {
+mlir::LogicalResult mlir::sycl::parseMemoryAccessMode(
+    mlir::AsmParser &Parser,
+    mlir::FailureOr<mlir::sycl::MemoryAccessMode> &MemAccessMode) {
+  mlir::StringRef Keyword;
+  if (Parser.parseKeyword(&Keyword)) {
+    return mlir::ParseResult::failure();
+  }
+
+  if (Keyword == "read") {
+    MemAccessMode.emplace(mlir::sycl::MemoryAccessMode::Read);
+  } else if (Keyword == "write") {
+    MemAccessMode.emplace(mlir::sycl::MemoryAccessMode::Write);
+  } else if (Keyword == "read_write") {
+    MemAccessMode.emplace(mlir::sycl::MemoryAccessMode::ReadWrite);
+  } else if (Keyword == "discard_write") {
+    MemAccessMode.emplace(mlir::sycl::MemoryAccessMode::DiscardWrite);
+  } else if (Keyword == "discard_read_write") {
+    MemAccessMode.emplace(mlir::sycl::MemoryAccessMode::DiscardReadWrite);
+  } else if (Keyword == "atomic") {
+    MemAccessMode.emplace(mlir::sycl::MemoryAccessMode::Atomic);
+  } else {
+    return Parser.emitError(Parser.getCurrentLocation(),
+                            "expected valid MemoryAccessMode keyword");
+  }
+
+  return mlir::ParseResult::success();
+}
+
+void mlir::sycl::printMemoryAccessMode(AsmPrinter &Printer,
+                                       MemoryAccessMode MemAccessMode) {
+  Printer << memoryAccessModeAsString(MemAccessMode);
+}
+
+llvm::StringRef mlir::sycl::memoryTargetModeAsString(
+    mlir::sycl::MemoryTargetMode MemTargetMode) {
+  switch (MemTargetMode) {
   case MemoryTargetMode::GlobalBuffer:
     return "global_buffer";
   case MemoryTargetMode::ConstantBuffer:
@@ -246,692 +80,44 @@ mlir::StringRef mlir::sycl::AccessorType::getTargetModeAsString() const {
     return "host_image";
   case MemoryTargetMode::ImageArray:
     return "image_array";
+  default:
+    llvm_unreachable("Invalid memory target mode");
   }
-  assert(false && "unreachable");
 }
 
-llvm::ArrayRef<mlir::Type> mlir::sycl::AccessorType::getBody() const {
-  return getImpl()->Body;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Range Operations
-////////////////////////////////////////////////////////////////////////////////
-
-mlir::sycl::RangeType mlir::sycl::RangeType::get(MLIRContext *Context,
-                                                 unsigned int Dimension) {
-  return Base::get(Context, Dimension);
-}
-
-mlir::Type mlir::sycl::RangeType::parseType(mlir::DialectAsmParser &Parser) {
-  if (mlir::failed(Parser.parseLess())) {
-    return nullptr;
-  }
-
-  unsigned int Dim;
-  if (Parser.parseInteger<unsigned int>(Dim)) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseGreater())) {
-    return nullptr;
-  }
-
-  return mlir::sycl::RangeType::get(Parser.getContext(), Dim);
-}
-
-unsigned int mlir::sycl::RangeType::getDimension() const {
-  return getImpl()->Dimension;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// NDRange Operations
-////////////////////////////////////////////////////////////////////////////////
-
-mlir::sycl::NdRangeType
-mlir::sycl::NdRangeType::get(MLIRContext *Context, unsigned int Dimension,
-                             llvm::SmallVector<mlir::Type, 4> Body) {
-  return Base::get(Context, Dimension, Body);
-}
-
-mlir::Type mlir::sycl::NdRangeType::parseType(mlir::DialectAsmParser &Parser) {
-  if (mlir::failed(Parser.parseLess())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseLSquare())) {
-    return nullptr;
-  }
-
-  unsigned int Dim;
-  if (Parser.parseInteger<unsigned int>(Dim)) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseRSquare())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseComma())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseLParen())) {
-    return nullptr;
-  }
-
-  mlir::SmallVector<Type, 4> Subtypes;
-  do {
-    mlir::Type Type;
-    if (mlir::failed(Parser.parseType(Type))) {
-      return nullptr;
-    }
-    Subtypes.push_back(Type);
-  } while (succeeded(Parser.parseOptionalComma()));
-
-  if (mlir::failed(Parser.parseRParen())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseGreater())) {
-    return nullptr;
-  }
-
-  return mlir::sycl::NdRangeType::get(Parser.getContext(), Dim, Subtypes);
-}
-
-unsigned int mlir::sycl::NdRangeType::getDimension() const {
-  return getImpl()->Dimension;
-}
-
-llvm::ArrayRef<mlir::Type> mlir::sycl::NdRangeType::getBody() const {
-  return getImpl()->Body;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// AccessorImplDeviceType Operations
-////////////////////////////////////////////////////////////////////////////////
-
-mlir::sycl::AccessorImplDeviceType
-mlir::sycl::AccessorImplDeviceType::get(MLIRContext *Context,
-                                        unsigned int Dimension,
-                                        llvm::SmallVector<mlir::Type, 4> Body) {
-  return Base::get(Context, Dimension, Body);
-}
-
-mlir::Type
-mlir::sycl::AccessorImplDeviceType::parseType(mlir::DialectAsmParser &Parser) {
-  if (mlir::failed(Parser.parseLess())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseLSquare())) {
-    return nullptr;
-  }
-
-  unsigned int Dim;
-  if (Parser.parseInteger<unsigned int>(Dim)) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseRSquare())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseComma())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseLParen())) {
-    return nullptr;
-  }
-
-  mlir::SmallVector<Type, 4> Subtypes;
-  do {
-    mlir::Type Type;
-    if (mlir::failed(Parser.parseType(Type))) {
-      return nullptr;
-    }
-    Subtypes.push_back(Type);
-  } while (succeeded(Parser.parseOptionalComma()));
-
-  if (mlir::failed(Parser.parseRParen())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseGreater())) {
-    return nullptr;
-  }
-
-  return mlir::sycl::AccessorImplDeviceType::get(Parser.getContext(), Dim,
-                                                 Subtypes);
-}
-
-unsigned int mlir::sycl::AccessorImplDeviceType::getDimension() const {
-  return getImpl()->Dimension;
-}
-
-llvm::ArrayRef<mlir::Type> mlir::sycl::AccessorImplDeviceType::getBody() const {
-  return getImpl()->Body;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// AccessorSubscriptType Operations
-////////////////////////////////////////////////////////////////////////////////
-
-mlir::sycl::AccessorSubscriptType
-mlir::sycl::AccessorSubscriptType::get(MLIRContext *Context,
-                                       int CurrentDimension,
-                                       llvm::SmallVector<mlir::Type, 4> Body) {
-  return Base::get(Context, CurrentDimension, Body);
-}
-
-mlir::Type
-mlir::sycl::AccessorSubscriptType::parseType(mlir::DialectAsmParser &Parser) {
-  if (mlir::failed(Parser.parseLess())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseLSquare())) {
-    return nullptr;
-  }
-
-  unsigned int CurDim;
-  if (Parser.parseInteger<unsigned int>(CurDim)) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseRSquare())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseComma())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseLParen())) {
-    return nullptr;
-  }
-
-  mlir::SmallVector<Type, 4> Subtypes;
-  do {
-    mlir::Type Type;
-    if (mlir::failed(Parser.parseType(Type))) {
-      return nullptr;
-    }
-    Subtypes.push_back(Type);
-  } while (succeeded(Parser.parseOptionalComma()));
-
-  if (mlir::failed(Parser.parseRParen())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseGreater())) {
-    return nullptr;
-  }
-
-  return mlir::sycl::AccessorSubscriptType::get(Parser.getContext(), CurDim,
-                                                Subtypes);
-}
-
-int mlir::sycl::AccessorSubscriptType::getCurrentDimension() const {
-  return getImpl()->CurrentDimension;
-}
-
-mlir::sycl::AccessorType
-mlir::sycl::AccessorSubscriptType::getAccessorType() const {
-  mlir::Type Ty = getImpl()->Body[1];
-  assert(Ty.isa<AccessorType>() &&
-         "Expecting the second element to be AccessorType");
-  return Ty.cast<AccessorType>();
-}
-
-llvm::ArrayRef<mlir::Type> mlir::sycl::AccessorSubscriptType::getBody() const {
-  return getImpl()->Body;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Array Operations
-////////////////////////////////////////////////////////////////////////////////
-
-mlir::sycl::ArrayType
-mlir::sycl::ArrayType::get(MLIRContext *Context, unsigned int Dimension,
-                           llvm::SmallVector<mlir::Type, 4> Body) {
-  return Base::get(Context, Dimension, Body);
-}
-
-mlir::Type mlir::sycl::ArrayType::parseType(mlir::DialectAsmParser &Parser) {
-  if (mlir::failed(Parser.parseLess())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseLSquare())) {
-    return nullptr;
-  }
-
-  unsigned int Dim;
-  if (Parser.parseInteger<unsigned int>(Dim)) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseRSquare())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseComma())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseLParen())) {
-    return nullptr;
-  }
-
-  mlir::SmallVector<Type, 4> Subtypes;
-  do {
-    mlir::Type Type;
-    if (mlir::failed(Parser.parseType(Type))) {
-      return nullptr;
-    }
-    Subtypes.push_back(Type);
-  } while (succeeded(Parser.parseOptionalComma()));
-
-  if (mlir::failed(Parser.parseRParen())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseGreater())) {
-    return nullptr;
-  }
-
-  return mlir::sycl::ArrayType::get(Parser.getContext(), Dim, Subtypes);
-}
-
-unsigned int mlir::sycl::ArrayType::getDimension() const {
-  return getImpl()->Dimension;
-}
-
-llvm::ArrayRef<mlir::Type> mlir::sycl::ArrayType::getBody() const {
-  return getImpl()->Body;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Item Operations
-////////////////////////////////////////////////////////////////////////////////
-
-mlir::sycl::ItemType
-mlir::sycl::ItemType::get(MLIRContext *Context, unsigned int Dimension,
-                          bool WithOffset,
-                          llvm::SmallVector<mlir::Type, 4> Body) {
-  return Base::get(Context, Dimension, WithOffset, Body);
-}
-
-mlir::Type mlir::sycl::ItemType::parseType(mlir::DialectAsmParser &Parser) {
-  if (mlir::failed(Parser.parseLess())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseLSquare())) {
-    return nullptr;
-  }
-
-  unsigned int Dim;
-  if (Parser.parseInteger<unsigned int>(Dim)) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseComma())) {
-    return nullptr;
-  }
-
+mlir::LogicalResult mlir::sycl::parseMemoryTargetMode(
+    mlir::AsmParser &Parser,
+    mlir::FailureOr<mlir::sycl::MemoryTargetMode> &MemTargetMode) {
   mlir::StringRef Keyword;
-  bool Offset;
   if (Parser.parseKeyword(&Keyword)) {
-    return nullptr;
+    return mlir::ParseResult::failure();
   }
-  if (Keyword == "true") {
-    Offset = true;
-  } else if (Keyword == "false") {
-    Offset = false;
+
+  if (Keyword == "global_buffer") {
+    MemTargetMode.emplace(mlir::sycl::MemoryTargetMode::GlobalBuffer);
+  } else if (Keyword == "constant_buffer") {
+    MemTargetMode.emplace(mlir::sycl::MemoryTargetMode::ConstantBuffer);
+  } else if (Keyword == "local") {
+    MemTargetMode.emplace(mlir::sycl::MemoryTargetMode::Local);
+  } else if (Keyword == "image") {
+    MemTargetMode.emplace(mlir::sycl::MemoryTargetMode::Image);
+  } else if (Keyword == "host_buffer") {
+    MemTargetMode.emplace(mlir::sycl::MemoryTargetMode::HostBuffer);
+  } else if (Keyword == "host_image") {
+    MemTargetMode.emplace(mlir::sycl::MemoryTargetMode::HostImage);
+  } else if (Keyword == "image_array") {
+    MemTargetMode.emplace(mlir::sycl::MemoryTargetMode::ImageArray);
   } else {
-    Parser.emitError(Parser.getCurrentLocation(), "expected boolean value");
-    return nullptr;
+    return Parser.emitError(Parser.getCurrentLocation(),
+                            "expected valid MemoryTargetMode keyword");
   }
 
-  if (mlir::failed(Parser.parseRSquare())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseComma())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseLParen())) {
-    return nullptr;
-  }
-
-  mlir::SmallVector<Type, 4> Subtypes;
-  do {
-    mlir::Type Type;
-    if (mlir::failed(Parser.parseType(Type))) {
-      return nullptr;
-    }
-    Subtypes.push_back(Type);
-  } while (succeeded(Parser.parseOptionalComma()));
-
-  if (mlir::failed(Parser.parseRParen())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseGreater())) {
-    return nullptr;
-  }
-
-  return mlir::sycl::ItemType::get(Parser.getContext(), Dim, Offset, Subtypes);
+  return mlir::ParseResult::success();
 }
 
-unsigned int mlir::sycl::ItemType::getDimension() const {
-  return getImpl()->Dimension;
-}
-
-bool mlir::sycl::ItemType::getWithOffset() const {
-  return getImpl()->WithOffset;
-}
-
-llvm::ArrayRef<mlir::Type> mlir::sycl::ItemType::getBody() const {
-  return getImpl()->Body;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// ItemBase Operations
-////////////////////////////////////////////////////////////////////////////////
-
-mlir::sycl::ItemBaseType
-mlir::sycl::ItemBaseType::get(MLIRContext *Context, unsigned int Dimension,
-                              bool WithOffset,
-                              llvm::SmallVector<mlir::Type, 4> Body) {
-  return Base::get(Context, Dimension, WithOffset, Body);
-}
-
-mlir::Type mlir::sycl::ItemBaseType::parseType(mlir::DialectAsmParser &Parser) {
-  if (mlir::failed(Parser.parseLess())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseLSquare())) {
-    return nullptr;
-  }
-
-  unsigned int Dim;
-  if (Parser.parseInteger<unsigned int>(Dim)) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseComma())) {
-    return nullptr;
-  }
-
-  mlir::StringRef Keyword;
-  bool Offset;
-  if (Parser.parseKeyword(&Keyword)) {
-    return nullptr;
-  }
-  if (Keyword == "true") {
-    Offset = true;
-  } else if (Keyword == "false") {
-    Offset = false;
-  } else {
-    Parser.emitError(Parser.getCurrentLocation(), "expected boolean value");
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseRSquare())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseComma())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseLParen())) {
-    return nullptr;
-  }
-
-  mlir::SmallVector<Type, 4> Subtypes;
-  do {
-    mlir::Type Type;
-    if (mlir::failed(Parser.parseType(Type))) {
-      return nullptr;
-    }
-    Subtypes.push_back(Type);
-  } while (succeeded(Parser.parseOptionalComma()));
-
-  if (mlir::failed(Parser.parseRParen())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseGreater())) {
-    return nullptr;
-  }
-
-  return mlir::sycl::ItemBaseType::get(Parser.getContext(), Dim, Offset,
-                                       Subtypes);
-}
-
-unsigned int mlir::sycl::ItemBaseType::getDimension() const {
-  return getImpl()->Dimension;
-}
-
-bool mlir::sycl::ItemBaseType::getWithOffset() const {
-  return getImpl()->WithOffset;
-}
-
-llvm::ArrayRef<mlir::Type> mlir::sycl::ItemBaseType::getBody() const {
-  return getImpl()->Body;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// NdItem Operations
-////////////////////////////////////////////////////////////////////////////////
-
-mlir::sycl::NdItemType
-mlir::sycl::NdItemType::get(MLIRContext *Context, unsigned int Dimension,
-                            llvm::SmallVector<mlir::Type, 4> Body) {
-  return Base::get(Context, Dimension, Body);
-}
-
-mlir::Type mlir::sycl::NdItemType::parseType(mlir::DialectAsmParser &Parser) {
-  if (mlir::failed(Parser.parseLess())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseLSquare())) {
-    return nullptr;
-  }
-
-  unsigned int Dim;
-  if (Parser.parseInteger<unsigned int>(Dim)) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseRSquare())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseComma())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseLParen())) {
-    return nullptr;
-  }
-
-  mlir::SmallVector<Type, 4> Subtypes;
-  do {
-    mlir::Type Type;
-    if (mlir::failed(Parser.parseType(Type))) {
-      return nullptr;
-    }
-    Subtypes.push_back(Type);
-  } while (succeeded(Parser.parseOptionalComma()));
-
-  if (mlir::failed(Parser.parseRParen())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseGreater())) {
-    return nullptr;
-  }
-
-  return mlir::sycl::NdItemType::get(Parser.getContext(), Dim, Subtypes);
-}
-
-unsigned int mlir::sycl::NdItemType::getDimension() const {
-  return getImpl()->Dimension;
-}
-
-llvm::ArrayRef<mlir::Type> mlir::sycl::NdItemType::getBody() const {
-  return getImpl()->Body;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// GroupType Operations
-////////////////////////////////////////////////////////////////////////////////
-
-mlir::sycl::GroupType
-mlir::sycl::GroupType::get(MLIRContext *Context, unsigned int Dimension,
-                           llvm::SmallVector<mlir::Type, 4> Body) {
-  return Base::get(Context, Dimension, Body);
-}
-
-mlir::Type mlir::sycl::GroupType::parseType(mlir::DialectAsmParser &Parser) {
-  if (mlir::failed(Parser.parseLess())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseLSquare())) {
-    return nullptr;
-  }
-
-  unsigned int Dim;
-  if (Parser.parseInteger<unsigned int>(Dim)) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseRSquare())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseComma())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseLParen())) {
-    return nullptr;
-  }
-
-  mlir::SmallVector<Type, 4> Subtypes;
-  do {
-    mlir::Type Type;
-    if (mlir::failed(Parser.parseType(Type))) {
-      return nullptr;
-    }
-    Subtypes.push_back(Type);
-  } while (succeeded(Parser.parseOptionalComma()));
-
-  if (mlir::failed(Parser.parseRParen())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseGreater())) {
-    return nullptr;
-  }
-
-  return mlir::sycl::GroupType::get(Parser.getContext(), Dim, Subtypes);
-}
-
-unsigned int mlir::sycl::GroupType::getDimension() const {
-  return getImpl()->Dimension;
-}
-
-llvm::ArrayRef<mlir::Type> mlir::sycl::GroupType::getBody() const {
-  return getImpl()->Body;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// VecType Operations
-////////////////////////////////////////////////////////////////////////////////
-
-mlir::sycl::VecType
-mlir::sycl::VecType::get(MLIRContext *Context, mlir::Type DataT,
-                         int NumElements,
-                         llvm::SmallVector<mlir::Type, 4> Body) {
-  return Base::get(Context, DataT, NumElements, Body);
-}
-
-mlir::Type mlir::sycl::VecType::parseType(mlir::DialectAsmParser &Parser) {
-  if (mlir::failed(Parser.parseLess())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseLSquare())) {
-    return nullptr;
-  }
-
-  mlir::Type DataT;
-  if (Parser.parseType(DataT)) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseComma())) {
-    return nullptr;
-  }
-
-  int NumElements;
-  if (Parser.parseInteger<int>(NumElements)) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseRSquare())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseComma())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseLParen())) {
-    return nullptr;
-  }
-
-  mlir::SmallVector<Type, 4> Subtypes;
-  do {
-    mlir::Type Type;
-    if (mlir::failed(Parser.parseType(Type))) {
-      return nullptr;
-    }
-    Subtypes.push_back(Type);
-  } while (succeeded(Parser.parseOptionalComma()));
-
-  if (mlir::failed(Parser.parseRParen())) {
-    return nullptr;
-  }
-
-  if (mlir::failed(Parser.parseGreater())) {
-    return nullptr;
-  }
-
-  return mlir::sycl::VecType::get(Parser.getContext(), DataT, NumElements,
-                                  Subtypes);
-}
-
-mlir::Type mlir::sycl::VecType::getDataType() const { return getImpl()->DataT; }
-
-int mlir::sycl::VecType::getNumElements() const {
-  return getImpl()->NumElements;
-}
-
-llvm::ArrayRef<mlir::Type> mlir::sycl::VecType::getBody() const {
-  return getImpl()->Body;
+void mlir::sycl::printMemoryTargetMode(AsmPrinter &Printer,
+                                       MemoryTargetMode MemTargetMode) {
+  Printer << memoryTargetModeAsString(MemTargetMode);
 }
 
 llvm::SmallVector<mlir::TypeID>
