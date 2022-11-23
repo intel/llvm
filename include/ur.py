@@ -1745,6 +1745,13 @@ if __use_win_types:
 else:
     _urQueueCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_native_handle_t, POINTER(ur_queue_handle_t) )
 
+###############################################################################
+## @brief Function-pointer for urQueueFinish
+if __use_win_types:
+    _urQueueFinish_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t )
+else:
+    _urQueueFinish_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t )
+
 
 ###############################################################################
 ## @brief Table of Queue functions pointers
@@ -1755,7 +1762,8 @@ class _ur_queue_dditable_t(Structure):
         ("pfnRetain", c_void_p),                                        ## _urQueueRetain_t
         ("pfnRelease", c_void_p),                                       ## _urQueueRelease_t
         ("pfnGetNativeHandle", c_void_p),                               ## _urQueueGetNativeHandle_t
-        ("pfnCreateWithNativeHandle", c_void_p)                         ## _urQueueCreateWithNativeHandle_t
+        ("pfnCreateWithNativeHandle", c_void_p),                        ## _urQueueCreateWithNativeHandle_t
+        ("pfnFinish", c_void_p)                                         ## _urQueueFinish_t
     ]
 
 ###############################################################################
@@ -2060,6 +2068,7 @@ class UR_DDI:
         self.urQueueRelease = _urQueueRelease_t(self.__dditable.Queue.pfnRelease)
         self.urQueueGetNativeHandle = _urQueueGetNativeHandle_t(self.__dditable.Queue.pfnGetNativeHandle)
         self.urQueueCreateWithNativeHandle = _urQueueCreateWithNativeHandle_t(self.__dditable.Queue.pfnCreateWithNativeHandle)
+        self.urQueueFinish = _urQueueFinish_t(self.__dditable.Queue.pfnFinish)
 
         # call driver to get function pointers
         _Device = _ur_device_dditable_t()
