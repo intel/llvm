@@ -70,7 +70,7 @@ struct CodeGenTypeCache {
   };
 
   /// void* in target address space
-  llvm::PointerType *TargetInt8PtrTy;
+  llvm::PointerType *DefaultInt8PtrTy;
 
   /// void* in default globals address space
   union {
