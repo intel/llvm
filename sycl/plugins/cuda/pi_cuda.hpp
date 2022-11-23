@@ -499,6 +499,30 @@ struct _pi_queue {
     return is_last_command && !has_been_synchronized(stream_token);
   }
 
+  template <typename T> bool all_of(T &&f) {
+    {
+      std::lock_guard<std::mutex> compute_guard(compute_stream_mutex_);
+      unsigned int end =
+          std::min(static_cast<unsigned int>(compute_streams_.size()),
+                   num_compute_streams_);
+      for (unsigned int i = 0; i < end; i++) {
+        if (!f(compute_streams_[i]))
+          return false;
+      }
+    }
+    {
+      std::lock_guard<std::mutex> transfer_guard(transfer_stream_mutex_);
+      unsigned int end =
+          std::min(static_cast<unsigned int>(transfer_streams_.size()),
+                   num_transfer_streams_);
+      for (unsigned int i = 0; i < end; i++) {
+        if (!f(transfer_streams_[i]))
+          return false;
+      }
+    }
+    return true;
+  }
+
   template <typename T> void for_each_stream(T &&f) {
     {
       std::lock_guard<std::mutex> compute_guard(compute_stream_mutex_);

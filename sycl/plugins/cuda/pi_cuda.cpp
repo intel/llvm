@@ -2543,6 +2543,21 @@ pi_result cuda_piQueueGetInfo(pi_queue command_queue, pi_queue_info param_name,
   case PI_QUEUE_INFO_PROPERTIES:
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    command_queue->properties_);
+  case PI_QUEUE_INFO_STATUS: {
+    bool IsReady = command_queue->all_of([](CUstream s) -> bool {
+      const CUresult ret = cuStreamQuery(s);
+      if (ret == CUDA_SUCCESS)
+        return true;
+
+      if (ret == CUDA_ERROR_NOT_READY)
+        return false;
+
+      PI_CHECK_ERROR(ret);
+      return false;
+    });
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   IsReady);
+  }
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
