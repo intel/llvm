@@ -8,6 +8,8 @@
 
 #include "IfScope.h"
 #include "clang-mlir.h"
+#include "utils.h"
+
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
@@ -16,32 +18,32 @@
 
 #define DEBUG_TYPE "CGStmt"
 
-using namespace clang;
 using namespace mlir;
-using namespace mlir::arith;
 
-static bool isTerminator(Operation *op) {
-  return op->mightHaveTrait<OpTrait::IsTerminator>();
+extern llvm::cl::opt<bool> SuppressWarnings;
+
+static bool isTerminator(Operation *Op) {
+  return Op->mightHaveTrait<OpTrait::IsTerminator>();
 }
 
-bool MLIRScanner::getLowerBound(clang::ForStmt *fors,
-                                mlirclang::AffineLoopDescriptor &descr) {
-  auto *init = fors->getInit();
-  if (auto *declStmt = dyn_cast<DeclStmt>(init))
-    if (declStmt->isSingleDecl()) {
-      auto *decl = declStmt->getSingleDecl();
-      if (auto *varDecl = dyn_cast<VarDecl>(decl)) {
-        if (varDecl->hasInit()) {
-          mlir::Value val = VisitVarDecl(varDecl).getValue(builder);
-          descr.setName(varDecl);
-          descr.setType(val.getType());
-          LLVM_DEBUG(descr.getType().print(llvm::dbgs()));
+bool MLIRScanner::getLowerBound(clang::ForStmt *Fors,
+                                mlirclang::AffineLoopDescriptor &Descr) {
+  auto *Init = Fors->getInit();
+  if (auto *DeclStmt = dyn_cast<clang::DeclStmt>(Init))
+    if (DeclStmt->isSingleDecl()) {
+      auto *Decl = DeclStmt->getSingleDecl();
+      if (auto *VarDecl = dyn_cast<clang::VarDecl>(Decl)) {
+        if (VarDecl->hasInit()) {
+          Value Val = VisitVarDecl(VarDecl).getValue(Builder);
+          Descr.setName(VarDecl);
+          Descr.setType(Val.getType());
+          LLVM_DEBUG(Descr.getType().print(llvm::dbgs()));
 
-          if (descr.getForwardMode())
-            descr.setLowerBound(val);
+          if (Descr.getForwardMode())
+            Descr.setLowerBound(Val);
           else {
-            val = builder.create<AddIOp>(loc, val, getConstantIndex(1));
-            descr.setUpperBound(val);
+            Val = Builder.create<arith::AddIOp>(Loc, Val, getConstantIndex(1));
+            Descr.setUpperBound(Val);
           }
           return true;
         }
@@ -51,20 +53,20 @@ bool MLIRScanner::getLowerBound(clang::ForStmt *fors,
   // BinaryOperator 0x7ff7aa17e938 'int' '='
   // |-DeclRefExpr 0x7ff7aa17e8f8 'int' lvalue Var 0x7ff7aa17e758 'i' 'int'
   // -IntegerLiteral 0x7ff7aa17e918 'int' 0
-  if (auto *binOp = dyn_cast<clang::BinaryOperator>(init))
-    if (binOp->getOpcode() == clang::BinaryOperator::Opcode::BO_Assign)
-      if (auto *declRefStmt = dyn_cast<DeclRefExpr>(binOp->getLHS())) {
-        mlir::Value val = Visit(binOp->getRHS()).getValue(builder);
-        val = builder.create<IndexCastOp>(
-            loc, mlir::IndexType::get(builder.getContext()), val);
-        descr.setName(cast<VarDecl>(declRefStmt->getDecl()));
-        descr.setType(
-            Glob.getTypes().getMLIRType(declRefStmt->getDecl()->getType()));
-        if (descr.getForwardMode())
-          descr.setLowerBound(val);
+  if (auto *BinOp = dyn_cast<clang::BinaryOperator>(Init))
+    if (BinOp->getOpcode() == clang::BinaryOperator::Opcode::BO_Assign)
+      if (auto *DeclRefStmt = dyn_cast<clang::DeclRefExpr>(BinOp->getLHS())) {
+        Value Val = Visit(BinOp->getRHS()).getValue(Builder);
+        Val = Builder.create<arith::IndexCastOp>(
+            Loc, IndexType::get(Builder.getContext()), Val);
+        Descr.setName(cast<clang::VarDecl>(DeclRefStmt->getDecl()));
+        Descr.setType(
+            Glob.getTypes().getMLIRType(DeclRefStmt->getDecl()->getType()));
+        if (Descr.getForwardMode())
+          Descr.setLowerBound(Val);
         else {
-          val = builder.create<AddIOp>(loc, val, getConstantIndex(1));
-          descr.setUpperBound(val);
+          Val = Builder.create<arith::AddIOp>(Loc, Val, getConstantIndex(1));
+          Descr.setUpperBound(Val);
         }
         return true;
       }
@@ -73,83 +75,82 @@ bool MLIRScanner::getLowerBound(clang::ForStmt *fors,
 
 // Make sure that the induction variable initialized in
 // the for is the same as the one used in the condition.
-bool matchIndvar(const Expr *expr, VarDecl *indVar) {
-  while (const auto *IC = dyn_cast<ImplicitCastExpr>(expr)) {
-    expr = IC->getSubExpr();
+bool matchIndvar(const clang::Expr *Expr, clang::VarDecl *IndVar) {
+  while (const auto *IC = dyn_cast<clang::ImplicitCastExpr>(Expr)) {
+    Expr = IC->getSubExpr();
   }
-  if (const auto *declRef = dyn_cast<DeclRefExpr>(expr)) {
-    const auto *declRefName = declRef->getDecl();
-    if (declRefName == indVar)
+  if (const auto *DeclRef = dyn_cast<clang::DeclRefExpr>(Expr)) {
+    const auto *DeclRefName = DeclRef->getDecl();
+    if (DeclRefName == IndVar)
       return true;
   }
   return false;
 }
 
-bool MLIRScanner::getUpperBound(clang::ForStmt *fors,
-                                mlirclang::AffineLoopDescriptor &descr) {
-  auto *cond = fors->getCond();
-  if (auto *binaryOp = dyn_cast<clang::BinaryOperator>(cond)) {
-    auto *lhs = binaryOp->getLHS();
-    if (!matchIndvar(lhs, descr.getName()))
+bool MLIRScanner::getUpperBound(clang::ForStmt *Fors,
+                                mlirclang::AffineLoopDescriptor &Descr) {
+  auto *Cond = Fors->getCond();
+  if (auto *BinaryOp = dyn_cast<clang::BinaryOperator>(Cond)) {
+    auto *Lhs = BinaryOp->getLHS();
+    if (!matchIndvar(Lhs, Descr.getName()))
       return false;
 
-    if (descr.getForwardMode()) {
-      if (binaryOp->getOpcode() != clang::BinaryOperator::Opcode::BO_LT &&
-          binaryOp->getOpcode() != clang::BinaryOperator::Opcode::BO_LE)
+    if (Descr.getForwardMode()) {
+      if (BinaryOp->getOpcode() != clang::BinaryOperator::Opcode::BO_LT &&
+          BinaryOp->getOpcode() != clang::BinaryOperator::Opcode::BO_LE)
         return false;
 
-      auto *rhs = binaryOp->getRHS();
-      mlir::Value val = Visit(rhs).getValue(builder);
-      val = builder.create<IndexCastOp>(
-          loc, mlir::IndexType::get(val.getContext()), val);
-      if (binaryOp->getOpcode() == clang::BinaryOperator::Opcode::BO_LE)
-        val = builder.create<AddIOp>(loc, val, getConstantIndex(1));
-      descr.setUpperBound(val);
-      return true;
-    } else {
-      if (binaryOp->getOpcode() != clang::BinaryOperator::Opcode::BO_GT &&
-          binaryOp->getOpcode() != clang::BinaryOperator::Opcode::BO_GE)
-        return false;
-
-      auto *rhs = binaryOp->getRHS();
-      mlir::Value val = Visit(rhs).getValue(builder);
-      val = builder.create<IndexCastOp>(
-          loc, mlir::IndexType::get(val.getContext()), val);
-      if (binaryOp->getOpcode() == clang::BinaryOperator::Opcode::BO_GT)
-        val = builder.create<AddIOp>(loc, val, getConstantIndex(1));
-      descr.setLowerBound(val);
+      auto *Rhs = BinaryOp->getRHS();
+      Value Val = Visit(Rhs).getValue(Builder);
+      Val = Builder.create<arith::IndexCastOp>(
+          Loc, IndexType::get(Val.getContext()), Val);
+      if (BinaryOp->getOpcode() == clang::BinaryOperator::Opcode::BO_LE)
+        Val = Builder.create<arith::AddIOp>(Loc, Val, getConstantIndex(1));
+      Descr.setUpperBound(Val);
       return true;
     }
+    if (BinaryOp->getOpcode() != clang::BinaryOperator::Opcode::BO_GT &&
+        BinaryOp->getOpcode() != clang::BinaryOperator::Opcode::BO_GE)
+      return false;
+
+    auto *Rhs = BinaryOp->getRHS();
+    Value Val = Visit(Rhs).getValue(Builder);
+    Val = Builder.create<arith::IndexCastOp>(
+        Loc, IndexType::get(Val.getContext()), Val);
+    if (BinaryOp->getOpcode() == clang::BinaryOperator::Opcode::BO_GT)
+      Val = Builder.create<arith::AddIOp>(Loc, Val, getConstantIndex(1));
+    Descr.setLowerBound(Val);
+    return true;
   }
   return false;
 }
 
-bool MLIRScanner::getConstantStep(clang::ForStmt *fors,
-                                  mlirclang::AffineLoopDescriptor &descr) {
-  auto *inc = fors->getInc();
-  if (auto *unaryOp = dyn_cast<clang::UnaryOperator>(inc))
-    if (unaryOp->isPrefix() || unaryOp->isPostfix()) {
-      bool forwardLoop =
-          unaryOp->getOpcode() == clang::UnaryOperator::Opcode::UO_PostInc ||
-          unaryOp->getOpcode() == clang::UnaryOperator::Opcode::UO_PreInc;
-      descr.setStep(1);
-      descr.setForwardMode(forwardLoop);
+bool MLIRScanner::getConstantStep(clang::ForStmt *Fors,
+                                  mlirclang::AffineLoopDescriptor &Descr) {
+  auto *Inc = Fors->getInc();
+  if (auto *UnaryOp = dyn_cast<clang::UnaryOperator>(Inc))
+    if (UnaryOp->isPrefix() || UnaryOp->isPostfix()) {
+      bool ForwardLoop =
+          UnaryOp->getOpcode() == clang::UnaryOperator::Opcode::UO_PostInc ||
+          UnaryOp->getOpcode() == clang::UnaryOperator::Opcode::UO_PreInc;
+      Descr.setStep(1);
+      Descr.setForwardMode(ForwardLoop);
       return true;
     }
   return false;
 }
 
-bool MLIRScanner::isTrivialAffineLoop(clang::ForStmt *fors,
-                                      mlirclang::AffineLoopDescriptor &descr) {
-  if (!getConstantStep(fors, descr)) {
+bool MLIRScanner::isTrivialAffineLoop(clang::ForStmt *Fors,
+                                      mlirclang::AffineLoopDescriptor &Descr) {
+  if (!getConstantStep(Fors, Descr)) {
     LLVM_DEBUG(llvm::dbgs() << "getConstantStep -> false\n");
     return false;
   }
-  if (!getLowerBound(fors, descr)) {
+  if (!getLowerBound(Fors, Descr)) {
     LLVM_DEBUG(llvm::dbgs() << "getLowerBound -> false\n");
     return false;
   }
-  if (!getUpperBound(fors, descr)) {
+  if (!getUpperBound(Fors, Descr)) {
     LLVM_DEBUG(llvm::dbgs() << "getUpperBound -> false\n");
     return false;
   }
@@ -158,1018 +159,1014 @@ bool MLIRScanner::isTrivialAffineLoop(clang::ForStmt *fors,
 }
 
 void MLIRScanner::buildAffineLoopImpl(
-    clang::ForStmt *fors, mlir::Location loc, mlir::Value lb, mlir::Value ub,
-    const mlirclang::AffineLoopDescriptor &descr) {
-  auto affineOp = builder.create<AffineForOp>(
-      loc, lb, builder.getSymbolIdentityMap(), ub,
-      builder.getSymbolIdentityMap(), descr.getStep(),
+    clang::ForStmt *Fors, Location Loc, Value Lb, Value Ub,
+    const mlirclang::AffineLoopDescriptor &Descr) {
+  auto AffineOp = Builder.create<AffineForOp>(
+      Loc, Lb, Builder.getSymbolIdentityMap(), Ub,
+      Builder.getSymbolIdentityMap(), Descr.getStep(),
       /*iterArgs=*/llvm::None);
 
-  auto &reg = affineOp.getLoopBody();
+  auto &Reg = AffineOp.getLoopBody();
 
-  auto val = (mlir::Value)affineOp.getInductionVar();
+  auto Val = (Value)AffineOp.getInductionVar();
 
-  reg.front().clear();
+  Reg.front().clear();
 
-  auto oldpoint = builder.getInsertionPoint();
-  auto *oldblock = builder.getInsertionBlock();
+  auto OldPoint = Builder.getInsertionPoint();
+  auto *OldBlock = Builder.getInsertionBlock();
 
-  builder.setInsertionPointToEnd(&reg.front());
+  Builder.setInsertionPointToEnd(&Reg.front());
 
-  auto er = builder.create<scf::ExecuteRegionOp>(loc, ArrayRef<mlir::Type>());
-  er.getRegion().push_back(new Block());
-  builder.setInsertionPointToStart(&er.getRegion().back());
-  builder.create<scf::YieldOp>(loc);
-  builder.setInsertionPointToStart(&er.getRegion().back());
+  auto Er = Builder.create<scf::ExecuteRegionOp>(Loc, ArrayRef<Type>());
+  Er.getRegion().push_back(new Block());
+  Builder.setInsertionPointToStart(&Er.getRegion().back());
+  Builder.create<scf::YieldOp>(Loc);
+  Builder.setInsertionPointToStart(&Er.getRegion().back());
 
-  if (!descr.getForwardMode()) {
-    val = builder.create<SubIOp>(loc, val, lb);
-    val = builder.create<SubIOp>(
-        loc, builder.create<SubIOp>(loc, ub, getConstantIndex(1)), val);
+  if (!Descr.getForwardMode()) {
+    Val = Builder.create<arith::SubIOp>(Loc, Val, Lb);
+    Val = Builder.create<arith::SubIOp>(
+        Loc, Builder.create<arith::SubIOp>(Loc, Ub, getConstantIndex(1)), Val);
   }
-  auto idx = builder.create<IndexCastOp>(loc, descr.getType(), val);
-  assert(params.find(descr.getName()) != params.end());
-  params[descr.getName()].store(builder, idx);
+  auto Idx = Builder.create<arith::IndexCastOp>(Loc, Descr.getType(), Val);
+  assert(Params.find(Descr.getName()) != Params.end());
+  Params[Descr.getName()].store(Builder, Idx);
 
   // TODO: set loop context.
-  Visit(fors->getBody());
+  Visit(Fors->getBody());
 
-  builder.setInsertionPointToEnd(&reg.front());
-  builder.create<AffineYieldOp>(loc);
+  Builder.setInsertionPointToEnd(&Reg.front());
+  Builder.create<AffineYieldOp>(Loc);
 
   // TODO: set the value of the iteration value to the final bound at the
   // end of the loop.
-  builder.setInsertionPoint(oldblock, oldpoint);
+  Builder.setInsertionPoint(OldBlock, OldPoint);
 }
 
 void MLIRScanner::buildAffineLoop(
-    clang::ForStmt *fors, mlir::Location loc,
-    const mlirclang::AffineLoopDescriptor &descr) {
-  mlir::Value lb = descr.getLowerBound();
-  mlir::Value ub = descr.getUpperBound();
-  buildAffineLoopImpl(fors, loc, lb, ub, descr);
+    clang::ForStmt *Fors, Location Loc,
+    const mlirclang::AffineLoopDescriptor &Descr) {
+  Value LB = Descr.getLowerBound();
+  Value UB = Descr.getUpperBound();
+  buildAffineLoopImpl(Fors, Loc, LB, UB, Descr);
 }
 
-ValueCategory MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
-  IfScope scope(*this);
+ValueCategory MLIRScanner::VisitForStmt(clang::ForStmt *Fors) {
+  IfScope Scope(*this);
 
-  auto loc = getMLIRLocation(fors->getForLoc());
+  Location Loc = getMLIRLocation(Fors->getForLoc());
 
-  mlirclang::AffineLoopDescriptor affineLoopDescr;
-  if (Glob.getScopLocList().isInScop(fors->getForLoc()) &&
-      isTrivialAffineLoop(fors, affineLoopDescr)) {
-    buildAffineLoop(fors, loc, affineLoopDescr);
+  mlirclang::AffineLoopDescriptor AffineLoopDescr;
+  if (Glob.getScopLocList().isInScop(Fors->getForLoc()) &&
+      isTrivialAffineLoop(Fors, AffineLoopDescr)) {
+    buildAffineLoop(Fors, Loc, AffineLoopDescr);
   } else {
 
-    if (auto *s = fors->getInit()) {
-      Visit(s);
-    }
+    if (auto *S = Fors->getInit())
+      Visit(S);
 
-    auto i1Ty = builder.getIntegerType(1);
-    auto type = mlir::MemRefType::get({}, i1Ty, {}, 0);
-    auto truev = builder.create<ConstantIntOp>(loc, true, 1);
+    auto I1Ty = Builder.getIntegerType(1);
+    auto Type = MemRefType::get({}, I1Ty, {}, 0);
+    auto Truev = Builder.create<arith::ConstantIntOp>(Loc, true, 1);
 
-    LoopContext lctx{builder.create<mlir::memref::AllocaOp>(loc, type),
-                     builder.create<mlir::memref::AllocaOp>(loc, type)};
-    builder.create<mlir::memref::StoreOp>(loc, truev, lctx.noBreak);
+    LoopContext Lctx{Builder.create<memref::AllocaOp>(Loc, Type),
+                     Builder.create<memref::AllocaOp>(Loc, Type)};
+    Builder.create<memref::StoreOp>(Loc, Truev, Lctx.NoBreak);
 
-    auto *toadd = builder.getInsertionBlock()->getParent();
-    auto &condB = *(new Block());
-    toadd->getBlocks().push_back(&condB);
-    auto &bodyB = *(new Block());
-    toadd->getBlocks().push_back(&bodyB);
-    auto &exitB = *(new Block());
-    toadd->getBlocks().push_back(&exitB);
+    auto *ToAdd = Builder.getInsertionBlock()->getParent();
+    auto &CondB = *(new Block());
+    ToAdd->getBlocks().push_back(&CondB);
+    auto &BodyB = *(new Block());
+    ToAdd->getBlocks().push_back(&BodyB);
+    auto &ExitB = *(new Block());
+    ToAdd->getBlocks().push_back(&ExitB);
 
-    builder.create<mlir::cf::BranchOp>(loc, &condB);
+    Builder.create<cf::BranchOp>(Loc, &CondB);
 
-    builder.setInsertionPointToStart(&condB);
+    Builder.setInsertionPointToStart(&CondB);
 
-    if (auto *s = fors->getCond()) {
-      auto condRes = Visit(s);
-      auto cond = condRes.getValue(builder);
-      if (auto LT = cond.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
-        auto nullptr_llvm = builder.create<mlir::LLVM::NullOp>(loc, LT);
-        cond = builder.create<mlir::LLVM::ICmpOp>(
-            loc, mlir::LLVM::ICmpPredicate::ne, cond, nullptr_llvm);
+    if (auto *S = Fors->getCond()) {
+      auto CondRes = Visit(S);
+      auto Cond = CondRes.getValue(Builder);
+      if (auto LT = Cond.getType().dyn_cast<LLVM::LLVMPointerType>()) {
+        auto NullptrLlvm = Builder.create<LLVM::NullOp>(Loc, LT);
+        Cond = Builder.create<LLVM::ICmpOp>(Loc, LLVM::ICmpPredicate::ne, Cond,
+                                            NullptrLlvm);
       }
-      auto ty = cond.getType().cast<mlir::IntegerType>();
-      if (ty.getWidth() != 1) {
-        cond = builder.create<arith::CmpIOp>(
-            loc, CmpIPredicate::ne, cond,
-            builder.create<ConstantIntOp>(loc, 0, ty));
+      auto Ty = Cond.getType().cast<IntegerType>();
+      if (Ty.getWidth() != 1) {
+        Cond = Builder.create<arith::CmpIOp>(
+            Loc, arith::CmpIPredicate::ne, Cond,
+            Builder.create<arith::ConstantIntOp>(Loc, 0, Ty));
       }
-      auto nb = builder.create<mlir::memref::LoadOp>(
-          loc, lctx.noBreak, std::vector<mlir::Value>());
-      cond = builder.create<AndIOp>(loc, cond, nb);
-      builder.create<mlir::cf::CondBranchOp>(loc, cond, &bodyB, &exitB);
+      auto Nb = Builder.create<memref::LoadOp>(Loc, Lctx.NoBreak,
+                                               std::vector<Value>());
+      Cond = Builder.create<arith::AndIOp>(Loc, Cond, Nb);
+      Builder.create<cf::CondBranchOp>(Loc, Cond, &BodyB, &ExitB);
     } else {
-      auto cond = builder.create<mlir::memref::LoadOp>(
-          loc, lctx.noBreak, std::vector<mlir::Value>());
-      builder.create<mlir::cf::CondBranchOp>(loc, cond, &bodyB, &exitB);
+      auto Cond = Builder.create<memref::LoadOp>(Loc, Lctx.NoBreak,
+                                                 std::vector<Value>());
+      Builder.create<cf::CondBranchOp>(Loc, Cond, &BodyB, &ExitB);
     }
 
-    builder.setInsertionPointToStart(&bodyB);
-    builder.create<mlir::memref::StoreOp>(
-        loc,
-        builder.create<mlir::memref::LoadOp>(loc, lctx.noBreak,
-                                             std::vector<mlir::Value>()),
-        lctx.keepRunning, std::vector<mlir::Value>());
+    Builder.setInsertionPointToStart(&BodyB);
+    Builder.create<memref::StoreOp>(
+        Loc,
+        Builder.create<memref::LoadOp>(Loc, Lctx.NoBreak, std::vector<Value>()),
+        Lctx.KeepRunning, std::vector<Value>());
 
-    loops.push_back(lctx);
-    Visit(fors->getBody());
+    Loops.push_back(Lctx);
+    Visit(Fors->getBody());
 
-    builder.create<mlir::memref::StoreOp>(
-        loc,
-        builder.create<mlir::memref::LoadOp>(loc, lctx.noBreak,
-                                             std::vector<mlir::Value>()),
-        lctx.keepRunning, std::vector<mlir::Value>());
-    if (auto *s = fors->getInc()) {
-      IfScope scope(*this);
-      Visit(s);
+    Builder.create<memref::StoreOp>(
+        Loc,
+        Builder.create<memref::LoadOp>(Loc, Lctx.NoBreak, std::vector<Value>()),
+        Lctx.KeepRunning, std::vector<Value>());
+    if (auto *S = Fors->getInc()) {
+      IfScope Scope(*this);
+      Visit(S);
     }
-    loops.pop_back();
-    if (builder.getInsertionBlock()->empty() ||
-        !isTerminator(&builder.getInsertionBlock()->back())) {
-      builder.create<mlir::cf::BranchOp>(loc, &condB);
+    Loops.pop_back();
+    if (Builder.getInsertionBlock()->empty() ||
+        !isTerminator(&Builder.getInsertionBlock()->back())) {
+      Builder.create<cf::BranchOp>(Loc, &CondB);
     }
 
-    builder.setInsertionPointToStart(&exitB);
+    Builder.setInsertionPointToStart(&ExitB);
   }
   return nullptr;
 }
 
-ValueCategory MLIRScanner::VisitCXXForRangeStmt(clang::CXXForRangeStmt *fors) {
-  IfScope scope(*this);
+ValueCategory MLIRScanner::VisitCXXForRangeStmt(clang::CXXForRangeStmt *Fors) {
+  IfScope Scope(*this);
 
-  auto loc = getMLIRLocation(fors->getForLoc());
+  auto Loc = getMLIRLocation(Fors->getForLoc());
 
-  if (auto *s = fors->getInit()) {
-    Visit(s);
+  if (auto *S = Fors->getInit()) {
+    Visit(S);
   }
-  Visit(fors->getRangeStmt());
-  Visit(fors->getBeginStmt());
-  Visit(fors->getEndStmt());
+  Visit(Fors->getRangeStmt());
+  Visit(Fors->getBeginStmt());
+  Visit(Fors->getEndStmt());
 
-  auto i1Ty = builder.getIntegerType(1);
-  auto type = mlir::MemRefType::get({}, i1Ty, {}, 0);
-  auto truev = builder.create<ConstantIntOp>(loc, true, 1);
+  auto I1Ty = Builder.getIntegerType(1);
+  auto Type = MemRefType::get({}, I1Ty, {}, 0);
+  auto Truev = Builder.create<arith::ConstantIntOp>(Loc, true, 1);
 
-  LoopContext lctx{builder.create<mlir::memref::AllocaOp>(loc, type),
-                   builder.create<mlir::memref::AllocaOp>(loc, type)};
-  builder.create<mlir::memref::StoreOp>(loc, truev, lctx.noBreak);
+  LoopContext Lctx{Builder.create<memref::AllocaOp>(Loc, Type),
+                   Builder.create<memref::AllocaOp>(Loc, Type)};
+  Builder.create<memref::StoreOp>(Loc, Truev, Lctx.NoBreak);
 
-  auto *toadd = builder.getInsertionBlock()->getParent();
-  auto &condB = *(new Block());
-  toadd->getBlocks().push_back(&condB);
-  auto &bodyB = *(new Block());
-  toadd->getBlocks().push_back(&bodyB);
-  auto &exitB = *(new Block());
-  toadd->getBlocks().push_back(&exitB);
+  auto *ToAdd = Builder.getInsertionBlock()->getParent();
+  auto &CondB = *(new Block());
+  ToAdd->getBlocks().push_back(&CondB);
+  auto &BodyB = *(new Block());
+  ToAdd->getBlocks().push_back(&BodyB);
+  auto &ExitB = *(new Block());
+  ToAdd->getBlocks().push_back(&ExitB);
 
-  builder.create<mlir::cf::BranchOp>(loc, &condB);
+  Builder.create<cf::BranchOp>(Loc, &CondB);
 
-  builder.setInsertionPointToStart(&condB);
+  Builder.setInsertionPointToStart(&CondB);
 
-  if (auto *s = fors->getCond()) {
-    auto condRes = Visit(s);
-    auto cond = condRes.getValue(builder);
-    if (auto LT = cond.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
-      auto nullptr_llvm = builder.create<mlir::LLVM::NullOp>(loc, LT);
-      cond = builder.create<mlir::LLVM::ICmpOp>(
-          loc, mlir::LLVM::ICmpPredicate::ne, cond, nullptr_llvm);
+  if (auto *S = Fors->getCond()) {
+    auto CondRes = Visit(S);
+    auto Cond = CondRes.getValue(Builder);
+    if (auto LT = Cond.getType().dyn_cast<LLVM::LLVMPointerType>()) {
+      auto NullptrLlvm = Builder.create<LLVM::NullOp>(Loc, LT);
+      Cond = Builder.create<LLVM::ICmpOp>(Loc, LLVM::ICmpPredicate::ne, Cond,
+                                          NullptrLlvm);
     }
-    auto ty = cond.getType().cast<mlir::IntegerType>();
-    if (ty.getWidth() != 1) {
-      cond = builder.create<arith::CmpIOp>(
-          loc, CmpIPredicate::ne, cond,
-          builder.create<ConstantIntOp>(loc, 0, ty));
+    auto Ty = Cond.getType().cast<IntegerType>();
+    if (Ty.getWidth() != 1) {
+      Cond = Builder.create<arith::CmpIOp>(
+          Loc, arith::CmpIPredicate::ne, Cond,
+          Builder.create<arith::ConstantIntOp>(Loc, 0, Ty));
     }
-    auto nb = builder.create<mlir::memref::LoadOp>(loc, lctx.noBreak,
-                                                   std::vector<mlir::Value>());
-    cond = builder.create<AndIOp>(loc, cond, nb);
-    builder.create<mlir::cf::CondBranchOp>(loc, cond, &bodyB, &exitB);
+    auto Nb =
+        Builder.create<memref::LoadOp>(Loc, Lctx.NoBreak, std::vector<Value>());
+    Cond = Builder.create<arith::AndIOp>(Loc, Cond, Nb);
+    Builder.create<cf::CondBranchOp>(Loc, Cond, &BodyB, &ExitB);
   } else {
-    auto cond = builder.create<mlir::memref::LoadOp>(
-        loc, lctx.noBreak, std::vector<mlir::Value>());
-    builder.create<mlir::cf::CondBranchOp>(loc, cond, &bodyB, &exitB);
+    auto Cond =
+        Builder.create<memref::LoadOp>(Loc, Lctx.NoBreak, std::vector<Value>());
+    Builder.create<cf::CondBranchOp>(Loc, Cond, &BodyB, &ExitB);
   }
 
-  builder.setInsertionPointToStart(&bodyB);
-  builder.create<mlir::memref::StoreOp>(
-      loc,
-      builder.create<mlir::memref::LoadOp>(loc, lctx.noBreak,
-                                           std::vector<mlir::Value>()),
-      lctx.keepRunning, std::vector<mlir::Value>());
+  Builder.setInsertionPointToStart(&BodyB);
+  Builder.create<memref::StoreOp>(
+      Loc,
+      Builder.create<memref::LoadOp>(Loc, Lctx.NoBreak, std::vector<Value>()),
+      Lctx.KeepRunning, std::vector<Value>());
 
-  loops.push_back(lctx);
-  Visit(fors->getLoopVarStmt());
-  Visit(fors->getBody());
+  Loops.push_back(Lctx);
+  Visit(Fors->getLoopVarStmt());
+  Visit(Fors->getBody());
 
-  builder.create<mlir::memref::StoreOp>(
-      loc,
-      builder.create<mlir::memref::LoadOp>(loc, lctx.noBreak,
-                                           std::vector<mlir::Value>()),
-      lctx.keepRunning, std::vector<mlir::Value>());
-  if (auto *s = fors->getInc()) {
-    IfScope scope(*this);
-    Visit(s);
+  Builder.create<memref::StoreOp>(
+      Loc,
+      Builder.create<memref::LoadOp>(Loc, Lctx.NoBreak, std::vector<Value>()),
+      Lctx.KeepRunning, std::vector<Value>());
+  if (auto *S = Fors->getInc()) {
+    IfScope Scope(*this);
+    Visit(S);
   }
-  loops.pop_back();
-  if (builder.getInsertionBlock()->empty() ||
-      !isTerminator(&builder.getInsertionBlock()->back())) {
-    builder.create<mlir::cf::BranchOp>(loc, &condB);
+  Loops.pop_back();
+  if (Builder.getInsertionBlock()->empty() ||
+      !isTerminator(&Builder.getInsertionBlock()->back())) {
+    Builder.create<cf::BranchOp>(Loc, &CondB);
   }
 
-  builder.setInsertionPointToStart(&exitB);
+  Builder.setInsertionPointToStart(&ExitB);
   return nullptr;
 }
 
 ValueCategory
-MLIRScanner::VisitOMPSingleDirective(clang::OMPSingleDirective *par) {
-  IfScope scope(*this);
+MLIRScanner::VisitOMPSingleDirective(clang::OMPSingleDirective *Par) {
+  IfScope Scope(*this);
 
-  builder.create<omp::BarrierOp>(loc);
-  auto affineOp = builder.create<omp::MasterOp>(loc);
-  builder.create<omp::BarrierOp>(loc);
+  Builder.create<omp::BarrierOp>(Loc);
+  auto AffineOp = Builder.create<omp::MasterOp>(Loc);
+  Builder.create<omp::BarrierOp>(Loc);
 
-  auto oldpoint = builder.getInsertionPoint();
-  auto *oldblock = builder.getInsertionBlock();
+  auto OldPoint = Builder.getInsertionPoint();
+  auto *OldBlock = Builder.getInsertionBlock();
 
-  affineOp.getRegion().push_back(new Block());
-  builder.setInsertionPointToStart(&affineOp.getRegion().front());
+  AffineOp.getRegion().push_back(new Block());
+  Builder.setInsertionPointToStart(&AffineOp.getRegion().front());
 
-  auto executeRegion =
-      builder.create<scf::ExecuteRegionOp>(loc, ArrayRef<mlir::Type>());
-  executeRegion.getRegion().push_back(new Block());
-  builder.create<omp::TerminatorOp>(loc);
-  builder.setInsertionPointToStart(&executeRegion.getRegion().back());
+  auto ExecuteRegion =
+      Builder.create<scf::ExecuteRegionOp>(Loc, ArrayRef<Type>());
+  ExecuteRegion.getRegion().push_back(new Block());
+  Builder.create<omp::TerminatorOp>(Loc);
+  Builder.setInsertionPointToStart(&ExecuteRegion.getRegion().back());
 
-  auto *oldScope = allocationScope;
-  allocationScope = &executeRegion.getRegion().back();
+  auto *OldScope = AllocationScope;
+  AllocationScope = &ExecuteRegion.getRegion().back();
 
-  Visit(cast<CapturedStmt>(par->getAssociatedStmt())
+  Visit(cast<clang::CapturedStmt>(Par->getAssociatedStmt())
             ->getCapturedDecl()
             ->getBody());
 
-  builder.create<scf::YieldOp>(loc);
-  allocationScope = oldScope;
-  builder.setInsertionPoint(oldblock, oldpoint);
+  Builder.create<scf::YieldOp>(Loc);
+  AllocationScope = OldScope;
+  Builder.setInsertionPoint(OldBlock, OldPoint);
   return nullptr;
 }
 
-ValueCategory MLIRScanner::VisitOMPForDirective(clang::OMPForDirective *fors) {
-  IfScope scope(*this);
+ValueCategory MLIRScanner::VisitOMPForDirective(clang::OMPForDirective *Fors) {
+  IfScope Scope(*this);
 
-  if (fors->getPreInits()) {
-    Visit(fors->getPreInits());
+  if (Fors->getPreInits()) {
+    Visit(Fors->getPreInits());
   }
 
-  SmallVector<mlir::Value> inits;
-  for (auto *f : fors->inits()) {
-    assert(f);
-    f = cast<clang::BinaryOperator>(f)->getRHS();
-    inits.push_back(builder.create<IndexCastOp>(loc, builder.getIndexType(),
-                                                Visit(f).getValue(builder)));
+  SmallVector<Value> Inits;
+  for (auto *F : Fors->inits()) {
+    assert(F);
+    F = cast<clang::BinaryOperator>(F)->getRHS();
+    Inits.push_back(Builder.create<arith::IndexCastOp>(
+        Loc, Builder.getIndexType(), Visit(F).getValue(Builder)));
   }
 
-  SmallVector<mlir::Value> finals;
-  for (auto *f : fors->finals()) {
-    f = cast<clang::BinaryOperator>(f)->getRHS();
-    finals.push_back(builder.create<IndexCastOp>(loc, builder.getIndexType(),
-                                                 Visit(f).getValue(builder)));
+  SmallVector<Value> Finals;
+  for (auto *F : Fors->finals()) {
+    F = cast<clang::BinaryOperator>(F)->getRHS();
+    Finals.push_back(Builder.create<arith::IndexCastOp>(
+        Loc, Builder.getIndexType(), Visit(F).getValue(Builder)));
   }
 
-  SmallVector<mlir::Value> incs;
-  for (auto *f : fors->updates()) {
-    f = cast<clang::BinaryOperator>(f)->getRHS();
-    while (auto *ce = dyn_cast<clang::CastExpr>(f))
-      f = ce->getSubExpr();
-    auto *bo = cast<clang::BinaryOperator>(f);
-    assert(bo->getOpcode() == clang::BinaryOperator::Opcode::BO_Add);
-    f = bo->getRHS();
-    while (auto *ce = dyn_cast<clang::CastExpr>(f))
-      f = ce->getSubExpr();
-    bo = cast<clang::BinaryOperator>(f);
-    assert(bo->getOpcode() == clang::BinaryOperator::Opcode::BO_Mul);
-    f = bo->getRHS();
-    incs.push_back(builder.create<IndexCastOp>(loc, builder.getIndexType(),
-                                               Visit(f).getValue(builder)));
+  SmallVector<Value> Incs;
+  for (auto *F : Fors->updates()) {
+    F = cast<clang::BinaryOperator>(F)->getRHS();
+    while (auto *CE = dyn_cast<clang::CastExpr>(F))
+      F = CE->getSubExpr();
+    auto *BO = cast<clang::BinaryOperator>(F);
+    assert(BO->getOpcode() == clang::BinaryOperator::Opcode::BO_Add);
+    F = BO->getRHS();
+    while (auto *CE = dyn_cast<clang::CastExpr>(F))
+      F = CE->getSubExpr();
+    BO = cast<clang::BinaryOperator>(F);
+    assert(BO->getOpcode() == clang::BinaryOperator::Opcode::BO_Mul);
+    F = BO->getRHS();
+    Incs.push_back(Builder.create<arith::IndexCastOp>(
+        Loc, Builder.getIndexType(), Visit(F).getValue(Builder)));
   }
 
-  auto affineOp = builder.create<omp::WsLoopOp>(loc, inits, finals, incs);
-  affineOp.getRegion().push_back(new Block());
-  for (auto init : inits)
-    affineOp.getRegion().front().addArgument(init.getType(), init.getLoc());
-  auto inds = affineOp.getRegion().front().getArguments();
+  auto AffineOp = Builder.create<omp::WsLoopOp>(Loc, Inits, Finals, Incs);
+  AffineOp.getRegion().push_back(new Block());
+  for (auto Init : Inits)
+    AffineOp.getRegion().front().addArgument(Init.getType(), Init.getLoc());
+  auto Inds = AffineOp.getRegion().front().getArguments();
 
-  auto oldpoint = builder.getInsertionPoint();
-  auto *oldblock = builder.getInsertionBlock();
+  auto OldPoint = Builder.getInsertionPoint();
+  auto *OldBlock = Builder.getInsertionBlock();
 
-  builder.setInsertionPointToStart(&affineOp.getRegion().front());
+  Builder.setInsertionPointToStart(&AffineOp.getRegion().front());
 
-  auto executeRegion =
-      builder.create<scf::ExecuteRegionOp>(loc, ArrayRef<mlir::Type>());
-  builder.create<omp::YieldOp>(loc, ValueRange());
-  executeRegion.getRegion().push_back(new Block());
-  builder.setInsertionPointToStart(&executeRegion.getRegion().back());
+  auto ExecuteRegion =
+      Builder.create<scf::ExecuteRegionOp>(Loc, ArrayRef<Type>());
+  Builder.create<omp::YieldOp>(Loc, ValueRange());
+  ExecuteRegion.getRegion().push_back(new Block());
+  Builder.setInsertionPointToStart(&ExecuteRegion.getRegion().back());
 
-  auto *oldScope = allocationScope;
-  allocationScope = &executeRegion.getRegion().back();
+  auto *OldScope = AllocationScope;
+  AllocationScope = &ExecuteRegion.getRegion().back();
 
-  std::map<VarDecl *, ValueCategory> prevInduction;
-  for (auto zp : zip(inds, fors->counters())) {
-    auto idx = builder.create<IndexCastOp>(
-        loc,
-        Glob.getTypes().getMLIRType(fors->getIterationVariable()->getType()),
-        std::get<0>(zp));
-    VarDecl *name =
-        cast<VarDecl>(cast<DeclRefExpr>(std::get<1>(zp))->getDecl());
+  std::map<clang::VarDecl *, ValueCategory> PrevInduction;
+  for (auto Zp : zip(Inds, Fors->counters())) {
+    auto Idx = Builder.create<arith::IndexCastOp>(
+        Loc,
+        Glob.getTypes().getMLIRType(Fors->getIterationVariable()->getType()),
+        std::get<0>(Zp));
+    clang::VarDecl *Name = cast<clang::VarDecl>(
+        cast<clang::DeclRefExpr>(std::get<1>(Zp))->getDecl());
 
-    if (params.find(name) != params.end()) {
-      prevInduction[name] = params[name];
-      params.erase(name);
+    if (Params.find(Name) != Params.end()) {
+      PrevInduction[Name] = Params[Name];
+      Params.erase(Name);
     }
 
     bool LLVMABI = false;
-    bool isArray = false;
+    bool IsArray = false;
     if (Glob.getTypes()
             .getMLIRType(Glob.getCGM().getContext().getLValueReferenceType(
-                name->getType()))
-            .isa<mlir::LLVM::LLVMPointerType>())
+                Name->getType()))
+            .isa<LLVM::LLVMPointerType>())
       LLVMABI = true;
     else
-      Glob.getTypes().getMLIRType(name->getType(), &isArray);
+      Glob.getTypes().getMLIRType(Name->getType(), &IsArray);
 
-    auto allocop = createAllocOp(idx.getType(), name, /*memtype*/ 0,
-                                 /*isArray*/ isArray, /*LLVMABI*/ LLVMABI);
-    params[name] = ValueCategory(allocop, true);
-    params[name].store(builder, idx);
+    auto AllocOp = createAllocOp(Idx.getType(), Name, /*memtype*/ 0,
+                                 /*isArray*/ IsArray, /*LLVMABI*/ LLVMABI);
+    Params[Name] = ValueCategory(AllocOp, true);
+    Params[Name].store(Builder, Idx);
   }
 
   // TODO: set loop context.
-  Visit(fors->getBody());
+  Visit(Fors->getBody());
 
-  builder.create<scf::YieldOp>(loc, ValueRange());
+  Builder.create<scf::YieldOp>(Loc, ValueRange());
 
-  allocationScope = oldScope;
+  AllocationScope = OldScope;
 
   // TODO: set the value of the iteration value to the final bound at the
   // end of the loop.
-  builder.setInsertionPoint(oldblock, oldpoint);
+  Builder.setInsertionPoint(OldBlock, OldPoint);
 
-  for (auto pair : prevInduction)
-    params[pair.first] = pair.second;
+  for (auto Pair : PrevInduction)
+    Params[Pair.first] = Pair.second;
 
   return nullptr;
 }
 
 ValueCategory
-MLIRScanner::VisitOMPParallelDirective(clang::OMPParallelDirective *par) {
-  IfScope scope(*this);
+MLIRScanner::VisitOMPParallelDirective(clang::OMPParallelDirective *Par) {
+  IfScope Scope(*this);
 
-  auto affineOp = builder.create<omp::ParallelOp>(loc);
+  auto AffineOp = Builder.create<omp::ParallelOp>(Loc);
 
-  auto oldpoint = builder.getInsertionPoint();
-  auto *oldblock = builder.getInsertionBlock();
+  auto OldPoint = Builder.getInsertionPoint();
+  auto *OldBlock = Builder.getInsertionBlock();
 
-  affineOp.getRegion().push_back(new Block());
-  builder.setInsertionPointToStart(&affineOp.getRegion().front());
+  AffineOp.getRegion().push_back(new Block());
+  Builder.setInsertionPointToStart(&AffineOp.getRegion().front());
 
-  auto executeRegion =
-      builder.create<scf::ExecuteRegionOp>(loc, ArrayRef<mlir::Type>());
-  executeRegion.getRegion().push_back(new Block());
-  builder.create<omp::TerminatorOp>(loc);
-  builder.setInsertionPointToStart(&executeRegion.getRegion().back());
+  auto ExecuteRegion =
+      Builder.create<scf::ExecuteRegionOp>(Loc, ArrayRef<Type>());
+  ExecuteRegion.getRegion().push_back(new Block());
+  Builder.create<omp::TerminatorOp>(Loc);
+  Builder.setInsertionPointToStart(&ExecuteRegion.getRegion().back());
 
-  auto *oldScope = allocationScope;
-  allocationScope = &executeRegion.getRegion().back();
+  auto *OldScope = AllocationScope;
+  AllocationScope = &ExecuteRegion.getRegion().back();
 
-  std::map<VarDecl *, ValueCategory> prevInduction;
-  for (auto *f : par->clauses()) {
-    switch (f->getClauseKind()) {
+  std::map<clang::VarDecl *, ValueCategory> PrevInduction;
+  for (auto *F : Par->clauses()) {
+    switch (F->getClauseKind()) {
     case llvm::omp::OMPC_private:
-      for (auto *stmt : f->children()) {
-        VarDecl *name = cast<VarDecl>(cast<DeclRefExpr>(stmt)->getDecl());
+      for (auto *Stmt : F->children()) {
+        auto *Name =
+            cast<clang::VarDecl>(cast<clang::DeclRefExpr>(Stmt)->getDecl());
 
-        prevInduction[name] = params[name];
-        params.erase(name);
+        PrevInduction[Name] = Params[Name];
+        Params.erase(Name);
 
         bool LLVMABI = false;
-        bool isArray = false;
-        mlir::Type ty;
+        bool IsArray = false;
+        Type Ty;
         if (Glob.getTypes()
                 .getMLIRType(Glob.getCGM().getContext().getLValueReferenceType(
-                    name->getType()))
-                .isa<mlir::LLVM::LLVMPointerType>()) {
+                    Name->getType()))
+                .isa<LLVM::LLVMPointerType>()) {
           LLVMABI = true;
-          bool undef;
-          ty = Glob.getTypes().getMLIRType(name->getType(), &undef);
+          bool Undef;
+          Ty = Glob.getTypes().getMLIRType(Name->getType(), &Undef);
         } else
-          ty = Glob.getTypes().getMLIRType(name->getType(), &isArray);
+          Ty = Glob.getTypes().getMLIRType(Name->getType(), &IsArray);
 
-        auto allocop = createAllocOp(ty, name, /*memtype*/ 0,
-                                     /*isArray*/ isArray, /*LLVMABI*/ LLVMABI);
-        params[name] = ValueCategory(allocop, true);
-        params[name].store(builder, prevInduction[name], isArray);
+        auto AllocOp = createAllocOp(Ty, Name, /*memtype*/ 0,
+                                     /*isArray*/ IsArray, /*LLVMABI*/ LLVMABI);
+        Params[Name] = ValueCategory(AllocOp, true);
+        Params[Name].store(Builder, PrevInduction[Name], IsArray);
       }
       break;
     default:
-      llvm::errs() << "may not handle omp clause " << (int)f->getClauseKind()
+      llvm::errs() << "may not handle omp clause " << (int)F->getClauseKind()
                    << "\n";
     }
   }
 
-  Visit(cast<CapturedStmt>(par->getAssociatedStmt())
+  Visit(cast<clang::CapturedStmt>(Par->getAssociatedStmt())
             ->getCapturedDecl()
             ->getBody());
 
-  builder.create<scf::YieldOp>(loc);
-  allocationScope = oldScope;
-  builder.setInsertionPoint(oldblock, oldpoint);
+  Builder.create<scf::YieldOp>(Loc);
+  AllocationScope = OldScope;
+  Builder.setInsertionPoint(OldBlock, OldPoint);
 
-  for (auto pair : prevInduction)
-    params[pair.first] = pair.second;
+  for (auto Pair : PrevInduction)
+    Params[Pair.first] = Pair.second;
   return nullptr;
 }
 
 ValueCategory MLIRScanner::VisitOMPParallelForDirective(
-    clang::OMPParallelForDirective *fors) {
-  IfScope scope(*this);
+    clang::OMPParallelForDirective *Fors) {
+  IfScope Scope(*this);
 
-  if (fors->getPreInits()) {
-    Visit(fors->getPreInits());
+  if (Fors->getPreInits()) {
+    Visit(Fors->getPreInits());
   }
 
-  SmallVector<mlir::Value> inits;
-  for (auto *f : fors->inits()) {
-    assert(f);
-    f = cast<clang::BinaryOperator>(f)->getRHS();
-    inits.push_back(builder.create<IndexCastOp>(loc, builder.getIndexType(),
-                                                Visit(f).getValue(builder)));
+  SmallVector<Value> Inits;
+  for (auto *F : Fors->inits()) {
+    assert(F);
+    F = cast<clang::BinaryOperator>(F)->getRHS();
+    Inits.push_back(Builder.create<arith::IndexCastOp>(
+        Loc, Builder.getIndexType(), Visit(F).getValue(Builder)));
   }
 
-  SmallVector<mlir::Value> finals;
-  for (auto *f : fors->finals()) {
-    f = cast<clang::BinaryOperator>(f)->getRHS();
-    finals.push_back(builder.create<arith::IndexCastOp>(
-        loc, builder.getIndexType(), Visit(f).getValue(builder)));
+  SmallVector<Value> Finals;
+  for (auto *F : Fors->finals()) {
+    F = cast<clang::BinaryOperator>(F)->getRHS();
+    Finals.push_back(Builder.create<arith::IndexCastOp>(
+        Loc, Builder.getIndexType(), Visit(F).getValue(Builder)));
   }
 
-  SmallVector<mlir::Value> incs;
-  for (auto *f : fors->updates()) {
-    f = cast<clang::BinaryOperator>(f)->getRHS();
-    while (auto *ce = dyn_cast<clang::CastExpr>(f))
-      f = ce->getSubExpr();
-    auto *bo = cast<clang::BinaryOperator>(f);
-    assert(bo->getOpcode() == clang::BinaryOperator::Opcode::BO_Add);
-    f = bo->getRHS();
-    while (auto *ce = dyn_cast<clang::CastExpr>(f))
-      f = ce->getSubExpr();
-    bo = cast<clang::BinaryOperator>(f);
-    assert(bo->getOpcode() == clang::BinaryOperator::Opcode::BO_Mul);
-    f = bo->getRHS();
-    incs.push_back(builder.create<IndexCastOp>(loc, builder.getIndexType(),
-                                               Visit(f).getValue(builder)));
+  SmallVector<Value> Incs;
+  for (auto *F : Fors->updates()) {
+    F = cast<clang::BinaryOperator>(F)->getRHS();
+    while (auto *CE = dyn_cast<clang::CastExpr>(F))
+      F = CE->getSubExpr();
+    auto *BO = cast<clang::BinaryOperator>(F);
+    assert(BO->getOpcode() == clang::BinaryOperator::Opcode::BO_Add);
+    F = BO->getRHS();
+    while (auto *CE = dyn_cast<clang::CastExpr>(F))
+      F = CE->getSubExpr();
+    BO = cast<clang::BinaryOperator>(F);
+    assert(BO->getOpcode() == clang::BinaryOperator::Opcode::BO_Mul);
+    F = BO->getRHS();
+    Incs.push_back(Builder.create<arith::IndexCastOp>(
+        Loc, Builder.getIndexType(), Visit(F).getValue(Builder)));
   }
 
-  auto affineOp = builder.create<scf::ParallelOp>(loc, inits, finals, incs);
+  auto AffineOp = Builder.create<scf::ParallelOp>(Loc, Inits, Finals, Incs);
 
-  auto inds = affineOp.getInductionVars();
+  auto Inds = AffineOp.getInductionVars();
 
-  auto oldpoint = builder.getInsertionPoint();
-  auto *oldblock = builder.getInsertionBlock();
+  auto OldPoint = Builder.getInsertionPoint();
+  auto *OldBlock = Builder.getInsertionBlock();
 
-  builder.setInsertionPointToStart(&affineOp.getRegion().front());
+  Builder.setInsertionPointToStart(&AffineOp.getRegion().front());
 
-  auto executeRegion =
-      builder.create<scf::ExecuteRegionOp>(loc, ArrayRef<mlir::Type>());
-  executeRegion.getRegion().push_back(new Block());
-  builder.setInsertionPointToStart(&executeRegion.getRegion().back());
+  auto ExecuteRegion =
+      Builder.create<scf::ExecuteRegionOp>(Loc, ArrayRef<Type>());
+  ExecuteRegion.getRegion().push_back(new Block());
+  Builder.setInsertionPointToStart(&ExecuteRegion.getRegion().back());
 
-  auto *oldScope = allocationScope;
-  allocationScope = &executeRegion.getRegion().back();
+  auto *OldScope = AllocationScope;
+  AllocationScope = &ExecuteRegion.getRegion().back();
 
-  std::map<VarDecl *, ValueCategory> prevInduction;
-  for (auto zp : zip(inds, fors->counters())) {
-    auto idx = builder.create<IndexCastOp>(
-        loc,
-        Glob.getTypes().getMLIRType(fors->getIterationVariable()->getType()),
-        std::get<0>(zp));
-    VarDecl *name =
-        cast<VarDecl>(cast<DeclRefExpr>(std::get<1>(zp))->getDecl());
+  std::map<clang::VarDecl *, ValueCategory> PrevInduction;
+  for (auto Zp : zip(Inds, Fors->counters())) {
+    auto Idx = Builder.create<arith::IndexCastOp>(
+        Loc,
+        Glob.getTypes().getMLIRType(Fors->getIterationVariable()->getType()),
+        std::get<0>(Zp));
+    auto *Name = cast<clang::VarDecl>(
+        cast<clang::DeclRefExpr>(std::get<1>(Zp))->getDecl());
 
-    if (params.find(name) != params.end()) {
-      prevInduction[name] = params[name];
-      params.erase(name);
+    if (Params.find(Name) != Params.end()) {
+      PrevInduction[Name] = Params[Name];
+      Params.erase(Name);
     }
 
     bool LLVMABI = false;
-    bool isArray = false;
+    bool IsArray = false;
     if (Glob.getTypes()
             .getMLIRType(Glob.getCGM().getContext().getLValueReferenceType(
-                name->getType()))
-            .isa<mlir::LLVM::LLVMPointerType>())
+                Name->getType()))
+            .isa<LLVM::LLVMPointerType>())
       LLVMABI = true;
     else
-      Glob.getTypes().getMLIRType(name->getType(), &isArray);
+      Glob.getTypes().getMLIRType(Name->getType(), &IsArray);
 
-    auto allocop = createAllocOp(idx.getType(), name, /*memtype*/ 0,
-                                 /*isArray*/ isArray, /*LLVMABI*/ LLVMABI);
-    params[name] = ValueCategory(allocop, true);
-    params[name].store(builder, idx);
+    auto AllocOp = createAllocOp(Idx.getType(), Name, /*memtype*/ 0,
+                                 /*isArray*/ IsArray, /*LLVMABI*/ LLVMABI);
+    Params[Name] = ValueCategory(AllocOp, true);
+    Params[Name].store(Builder, Idx);
   }
 
   // TODO: set loop context.
-  Visit(fors->getBody());
+  Visit(Fors->getBody());
 
-  builder.create<scf::YieldOp>(loc);
+  Builder.create<scf::YieldOp>(Loc);
 
-  allocationScope = oldScope;
+  AllocationScope = OldScope;
 
   // TODO: set the value of the iteration value to the final bound at the
   // end of the loop.
-  builder.setInsertionPoint(oldblock, oldpoint);
+  Builder.setInsertionPoint(OldBlock, OldPoint);
 
-  for (auto pair : prevInduction)
-    params[pair.first] = pair.second;
-
-  return nullptr;
-}
-
-ValueCategory MLIRScanner::VisitDoStmt(clang::DoStmt *fors) {
-  IfScope scope(*this);
-
-  auto loc = getMLIRLocation(fors->getDoLoc());
-
-  auto i1Ty = builder.getIntegerType(1);
-  auto type = mlir::MemRefType::get({}, i1Ty, {}, 0);
-  auto truev = builder.create<ConstantIntOp>(loc, true, 1);
-  loops.push_back({builder.create<mlir::memref::AllocaOp>(loc, type),
-                   builder.create<mlir::memref::AllocaOp>(loc, type)});
-  builder.create<mlir::memref::StoreOp>(loc, truev, loops.back().noBreak);
-
-  auto *toadd = builder.getInsertionBlock()->getParent();
-  auto &condB = *(new Block());
-  toadd->getBlocks().push_back(&condB);
-  auto &bodyB = *(new Block());
-  toadd->getBlocks().push_back(&bodyB);
-  auto &exitB = *(new Block());
-  toadd->getBlocks().push_back(&exitB);
-
-  builder.create<mlir::cf::BranchOp>(loc, &bodyB);
-
-  builder.setInsertionPointToStart(&condB);
-
-  if (auto *s = fors->getCond()) {
-    auto condRes = Visit(s);
-    auto cond = condRes.getValue(builder);
-    if (auto LT = cond.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
-      auto nullptr_llvm = builder.create<mlir::LLVM::NullOp>(loc, LT);
-      cond = builder.create<mlir::LLVM::ICmpOp>(
-          loc, mlir::LLVM::ICmpPredicate::ne, cond, nullptr_llvm);
-    }
-    auto ty = cond.getType().cast<mlir::IntegerType>();
-    if (ty.getWidth() != 1) {
-      cond = builder.create<arith::CmpIOp>(
-          loc, CmpIPredicate::ne, cond,
-          builder.create<ConstantIntOp>(loc, 0, ty));
-    }
-    auto nb = builder.create<mlir::memref::LoadOp>(loc, loops.back().noBreak,
-                                                   std::vector<mlir::Value>());
-    cond = builder.create<AndIOp>(loc, cond, nb);
-    builder.create<mlir::cf::CondBranchOp>(loc, cond, &bodyB, &exitB);
-  }
-
-  builder.setInsertionPointToStart(&bodyB);
-  builder.create<mlir::memref::StoreOp>(
-      loc,
-      builder.create<mlir::memref::LoadOp>(loc, loops.back().noBreak,
-                                           std::vector<mlir::Value>()),
-      loops.back().keepRunning, std::vector<mlir::Value>());
-
-  Visit(fors->getBody());
-  loops.pop_back();
-
-  builder.create<mlir::cf::BranchOp>(loc, &condB);
-
-  builder.setInsertionPointToStart(&exitB);
+  for (auto Pair : PrevInduction)
+    Params[Pair.first] = Pair.second;
 
   return nullptr;
 }
 
-ValueCategory MLIRScanner::VisitWhileStmt(clang::WhileStmt *fors) {
-  IfScope scope(*this);
+ValueCategory MLIRScanner::VisitDoStmt(clang::DoStmt *Fors) {
+  IfScope Scope(*this);
 
-  auto loc = getMLIRLocation(fors->getLParenLoc());
+  Location Loc = getMLIRLocation(Fors->getDoLoc());
 
-  auto i1Ty = builder.getIntegerType(1);
-  auto type = mlir::MemRefType::get({}, i1Ty, {}, 0);
-  auto truev = builder.create<ConstantIntOp>(loc, true, 1);
-  loops.push_back({builder.create<mlir::memref::AllocaOp>(loc, type),
-                   builder.create<mlir::memref::AllocaOp>(loc, type)});
-  builder.create<mlir::memref::StoreOp>(loc, truev, loops.back().noBreak);
+  auto I1Ty = Builder.getIntegerType(1);
+  auto Type = MemRefType::get({}, I1Ty, {}, 0);
+  auto Truev = Builder.create<arith::ConstantIntOp>(Loc, true, 1);
+  Loops.push_back({Builder.create<memref::AllocaOp>(Loc, Type),
+                   Builder.create<memref::AllocaOp>(Loc, Type)});
+  Builder.create<memref::StoreOp>(Loc, Truev, Loops.back().NoBreak);
 
-  auto *toadd = builder.getInsertionBlock()->getParent();
-  auto &condB = *(new Block());
-  toadd->getBlocks().push_back(&condB);
-  auto &bodyB = *(new Block());
-  toadd->getBlocks().push_back(&bodyB);
-  auto &exitB = *(new Block());
-  toadd->getBlocks().push_back(&exitB);
+  auto *ToAdd = Builder.getInsertionBlock()->getParent();
+  auto &CondB = *(new Block());
+  ToAdd->getBlocks().push_back(&CondB);
+  auto &BodyB = *(new Block());
+  ToAdd->getBlocks().push_back(&BodyB);
+  auto &ExitB = *(new Block());
+  ToAdd->getBlocks().push_back(&ExitB);
 
-  builder.create<mlir::cf::BranchOp>(loc, &condB);
+  Builder.create<cf::BranchOp>(Loc, &BodyB);
 
-  builder.setInsertionPointToStart(&condB);
+  Builder.setInsertionPointToStart(&CondB);
 
-  if (auto *s = fors->getCond()) {
-    auto condRes = Visit(s);
-    auto cond = condRes.getValue(builder);
-    if (auto LT = cond.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
-      auto nullptr_llvm = builder.create<mlir::LLVM::NullOp>(loc, LT);
-      cond = builder.create<mlir::LLVM::ICmpOp>(
-          loc, mlir::LLVM::ICmpPredicate::ne, cond, nullptr_llvm);
+  if (auto *S = Fors->getCond()) {
+    auto CondRes = Visit(S);
+    auto Cond = CondRes.getValue(Builder);
+    if (auto LT = Cond.getType().dyn_cast<LLVM::LLVMPointerType>()) {
+      auto NullptrLlvm = Builder.create<LLVM::NullOp>(Loc, LT);
+      Cond = Builder.create<LLVM::ICmpOp>(Loc, LLVM::ICmpPredicate::ne, Cond,
+                                          NullptrLlvm);
     }
-    auto ty = cond.getType().cast<mlir::IntegerType>();
-    if (ty.getWidth() != 1) {
-      cond = builder.create<arith::CmpIOp>(
-          loc, CmpIPredicate::ne, cond,
-          builder.create<ConstantIntOp>(loc, 0, ty));
+    auto Ty = Cond.getType().cast<IntegerType>();
+    if (Ty.getWidth() != 1) {
+      Cond = Builder.create<arith::CmpIOp>(
+          Loc, arith::CmpIPredicate::ne, Cond,
+          Builder.create<arith::ConstantIntOp>(Loc, 0, Ty));
     }
-    auto nb = builder.create<mlir::memref::LoadOp>(loc, loops.back().noBreak,
-                                                   std::vector<mlir::Value>());
-    cond = builder.create<AndIOp>(loc, cond, nb);
-    builder.create<mlir::cf::CondBranchOp>(loc, cond, &bodyB, &exitB);
+    auto Nb = Builder.create<memref::LoadOp>(Loc, Loops.back().NoBreak,
+                                             std::vector<Value>());
+    Cond = Builder.create<arith::AndIOp>(Loc, Cond, Nb);
+    Builder.create<cf::CondBranchOp>(Loc, Cond, &BodyB, &ExitB);
   }
 
-  builder.setInsertionPointToStart(&bodyB);
-  builder.create<mlir::memref::StoreOp>(
-      loc,
-      builder.create<mlir::memref::LoadOp>(loc, loops.back().noBreak,
-                                           std::vector<mlir::Value>()),
-      loops.back().keepRunning, std::vector<mlir::Value>());
+  Builder.setInsertionPointToStart(&BodyB);
+  Builder.create<memref::StoreOp>(
+      Loc,
+      Builder.create<memref::LoadOp>(Loc, Loops.back().NoBreak,
+                                     std::vector<Value>()),
+      Loops.back().KeepRunning, std::vector<Value>());
 
-  Visit(fors->getBody());
-  loops.pop_back();
+  Visit(Fors->getBody());
+  Loops.pop_back();
 
-  builder.create<mlir::cf::BranchOp>(loc, &condB);
+  Builder.create<cf::BranchOp>(Loc, &CondB);
 
-  builder.setInsertionPointToStart(&exitB);
+  Builder.setInsertionPointToStart(&ExitB);
 
   return nullptr;
 }
 
-ValueCategory MLIRScanner::VisitIfStmt(clang::IfStmt *stmt) {
-  IfScope scope(*this);
-  auto loc = getMLIRLocation(stmt->getIfLoc());
-  auto cond = Visit(stmt->getCond()).getValue(builder);
-  assert(cond != nullptr && "must be a non-null");
+ValueCategory MLIRScanner::VisitWhileStmt(clang::WhileStmt *Fors) {
+  IfScope Scope(*this);
 
-  auto oldpoint = builder.getInsertionPoint();
-  auto *oldblock = builder.getInsertionBlock();
-  if (auto LT = cond.getType().dyn_cast<MemRefType>()) {
-    cond = builder.create<polygeist::Memref2PointerOp>(
-        loc, LLVM::LLVMPointerType::get(builder.getI8Type()), cond);
-  }
-  if (auto LT = cond.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
-    auto nullptr_llvm = builder.create<mlir::LLVM::NullOp>(loc, LT);
-    cond = builder.create<mlir::LLVM::ICmpOp>(
-        loc, mlir::LLVM::ICmpPredicate::ne, cond, nullptr_llvm);
-  }
-  if (!cond.getType().isa<mlir::IntegerType>()) {
-    stmt->dump();
-    llvm::errs() << " cond: " << cond << " ct: " << cond.getType() << "\n";
-  }
-  auto prevTy = cond.getType().cast<mlir::IntegerType>();
-  if (!prevTy.isInteger(1)) {
-    cond = builder.create<arith::CmpIOp>(
-        loc, CmpIPredicate::ne, cond,
-        builder.create<ConstantIntOp>(loc, 0, prevTy));
-  }
-  bool hasElseRegion = stmt->getElse();
-  auto ifOp = builder.create<mlir::scf::IfOp>(loc, cond, hasElseRegion);
+  Location Loc = getMLIRLocation(Fors->getLParenLoc());
 
-  ifOp.getThenRegion().back().clear();
-  builder.setInsertionPointToStart(&ifOp.getThenRegion().back());
-  Visit(stmt->getThen());
-  builder.create<scf::YieldOp>(loc);
-  if (hasElseRegion) {
-    ifOp.getElseRegion().back().clear();
-    builder.setInsertionPointToStart(&ifOp.getElseRegion().back());
-    Visit(stmt->getElse());
-    builder.create<scf::YieldOp>(loc);
+  auto I1Ty = Builder.getIntegerType(1);
+  auto Type = MemRefType::get({}, I1Ty, {}, 0);
+  auto Truev = Builder.create<arith::ConstantIntOp>(Loc, true, 1);
+  Loops.push_back({Builder.create<memref::AllocaOp>(Loc, Type),
+                   Builder.create<memref::AllocaOp>(Loc, Type)});
+  Builder.create<memref::StoreOp>(Loc, Truev, Loops.back().NoBreak);
+
+  auto *ToAdd = Builder.getInsertionBlock()->getParent();
+  auto &CondB = *(new Block());
+  ToAdd->getBlocks().push_back(&CondB);
+  auto &BodyB = *(new Block());
+  ToAdd->getBlocks().push_back(&BodyB);
+  auto &ExitB = *(new Block());
+  ToAdd->getBlocks().push_back(&ExitB);
+
+  Builder.create<cf::BranchOp>(Loc, &CondB);
+
+  Builder.setInsertionPointToStart(&CondB);
+
+  if (auto *S = Fors->getCond()) {
+    auto CondRes = Visit(S);
+    auto Cond = CondRes.getValue(Builder);
+    if (auto LT = Cond.getType().dyn_cast<LLVM::LLVMPointerType>()) {
+      auto NullptrLlvm = Builder.create<LLVM::NullOp>(Loc, LT);
+      Cond = Builder.create<LLVM::ICmpOp>(Loc, LLVM::ICmpPredicate::ne, Cond,
+                                          NullptrLlvm);
+    }
+    auto Ty = Cond.getType().cast<IntegerType>();
+    if (Ty.getWidth() != 1) {
+      Cond = Builder.create<arith::CmpIOp>(
+          Loc, arith::CmpIPredicate::ne, Cond,
+          Builder.create<arith::ConstantIntOp>(Loc, 0, Ty));
+    }
+    auto Nb = Builder.create<memref::LoadOp>(Loc, Loops.back().NoBreak,
+                                             std::vector<Value>());
+    Cond = Builder.create<arith::AndIOp>(Loc, Cond, Nb);
+    Builder.create<cf::CondBranchOp>(Loc, Cond, &BodyB, &ExitB);
   }
 
-  builder.setInsertionPoint(oldblock, oldpoint);
+  Builder.setInsertionPointToStart(&BodyB);
+  Builder.create<memref::StoreOp>(
+      Loc,
+      Builder.create<memref::LoadOp>(Loc, Loops.back().NoBreak,
+                                     std::vector<Value>()),
+      Loops.back().KeepRunning, std::vector<Value>());
+
+  Visit(Fors->getBody());
+  Loops.pop_back();
+
+  Builder.create<cf::BranchOp>(Loc, &CondB);
+
+  Builder.setInsertionPointToStart(&ExitB);
+
   return nullptr;
 }
 
-ValueCategory MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *stmt) {
-  IfScope scope(*this);
-  auto cond = Visit(stmt->getCond()).getValue(builder);
-  assert(cond != nullptr);
-  SmallVector<int64_t> caseVals;
+ValueCategory MLIRScanner::VisitIfStmt(clang::IfStmt *Stmt) {
+  IfScope Scope(*this);
+  auto Loc = getMLIRLocation(Stmt->getIfLoc());
+  auto Cond = Visit(Stmt->getCond()).getValue(Builder);
+  assert(Cond != nullptr && "must be a non-null");
 
-  auto er = builder.create<scf::ExecuteRegionOp>(loc, ArrayRef<mlir::Type>());
-  er.getRegion().push_back(new Block());
-  auto oldpoint2 = builder.getInsertionPoint();
-  auto *oldblock2 = builder.getInsertionBlock();
+  auto OldPoint = Builder.getInsertionPoint();
+  auto *OldBlock = Builder.getInsertionBlock();
+  if (auto LT = Cond.getType().dyn_cast<MemRefType>()) {
+    Cond = Builder.create<polygeist::Memref2PointerOp>(
+        Loc, LLVM::LLVMPointerType::get(Builder.getI8Type()), Cond);
+  }
+  if (auto LT = Cond.getType().dyn_cast<LLVM::LLVMPointerType>()) {
+    auto NullptrLlvm = Builder.create<LLVM::NullOp>(Loc, LT);
+    Cond = Builder.create<LLVM::ICmpOp>(Loc, LLVM::ICmpPredicate::ne, Cond,
+                                        NullptrLlvm);
+  }
+  if (!Cond.getType().isa<IntegerType>()) {
+    Stmt->dump();
+    llvm::errs() << " cond: " << Cond << " ct: " << Cond.getType() << "\n";
+  }
+  auto PrevTy = Cond.getType().cast<IntegerType>();
+  if (!PrevTy.isInteger(1)) {
+    Cond = Builder.create<arith::CmpIOp>(
+        Loc, arith::CmpIPredicate::ne, Cond,
+        Builder.create<arith::ConstantIntOp>(Loc, 0, PrevTy));
+  }
+  bool HasElseRegion = Stmt->getElse();
+  auto IfOp = Builder.create<scf::IfOp>(Loc, Cond, HasElseRegion);
 
-  auto &exitB = *(new Block());
-  builder.setInsertionPointToStart(&exitB);
-  builder.create<scf::YieldOp>(loc);
-  builder.setInsertionPointToStart(&exitB);
+  IfOp.getThenRegion().back().clear();
+  Builder.setInsertionPointToStart(&IfOp.getThenRegion().back());
+  Visit(Stmt->getThen());
+  Builder.create<scf::YieldOp>(Loc);
+  if (HasElseRegion) {
+    IfOp.getElseRegion().back().clear();
+    Builder.setInsertionPointToStart(&IfOp.getElseRegion().back());
+    Visit(Stmt->getElse());
+    Builder.create<scf::YieldOp>(Loc);
+  }
 
-  SmallVector<Block *> blocks;
-  bool inCase = false;
+  Builder.setInsertionPoint(OldBlock, OldPoint);
+  return nullptr;
+}
 
-  Block *defaultB = &exitB;
+ValueCategory MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *Stmt) {
+  IfScope Scope(*this);
+  auto Cond = Visit(Stmt->getCond()).getValue(Builder);
+  assert(Cond != nullptr);
+  SmallVector<int64_t> CaseVals;
 
-  for (auto *cse : stmt->getBody()->children()) {
-    if (auto *cses = dyn_cast<CaseStmt>(cse)) {
-      auto &condB = *(new Block());
+  auto Er = Builder.create<scf::ExecuteRegionOp>(Loc, ArrayRef<Type>());
+  Er.getRegion().push_back(new Block());
+  auto OldPoint2 = Builder.getInsertionPoint();
+  auto *OldBlock2 = Builder.getInsertionBlock();
 
-      auto cval = Visit(cses->getLHS());
-      if (!cval.val) {
-        cses->getLHS()->dump();
+  auto &ExitB = *(new Block());
+  Builder.setInsertionPointToStart(&ExitB);
+  Builder.create<scf::YieldOp>(Loc);
+  Builder.setInsertionPointToStart(&ExitB);
+
+  SmallVector<Block *> Blocks;
+  bool InCase = false;
+
+  Block *DefaultB = &ExitB;
+
+  for (auto *Cse : Stmt->getBody()->children()) {
+    if (auto *Cses = dyn_cast<clang::CaseStmt>(Cse)) {
+      auto &CondB = *(new Block());
+
+      auto Cval = Visit(Cses->getLHS());
+      if (!Cval.val) {
+        Cses->getLHS()->dump();
       }
-      assert(cval.val);
-      auto cint = cval.getValue(builder).getDefiningOp<ConstantIntOp>();
-      if (!cint) {
-        cses->getLHS()->dump();
-        llvm::errs() << "cval: " << cval.val << "\n";
+      assert(Cval.val);
+      auto Cint = Cval.getValue(Builder).getDefiningOp<arith::ConstantIntOp>();
+      if (!Cint) {
+        Cses->getLHS()->dump();
+        llvm::errs() << "cval: " << Cval.val << "\n";
       }
-      assert(cint);
-      caseVals.push_back(cint.value());
+      assert(Cint);
+      CaseVals.push_back(Cint.value());
 
-      if (inCase) {
-        auto noBreak =
-            builder.create<mlir::memref::LoadOp>(loc, loops.back().noBreak);
-        builder.create<mlir::cf::CondBranchOp>(loc, noBreak, &condB, &exitB);
-        loops.pop_back();
-      }
-
-      inCase = true;
-      er.getRegion().getBlocks().push_back(&condB);
-      blocks.push_back(&condB);
-      builder.setInsertionPointToStart(&condB);
-
-      auto i1Ty = builder.getIntegerType(1);
-      auto type = mlir::MemRefType::get({}, i1Ty, {}, 0);
-      auto truev = builder.create<ConstantIntOp>(loc, true, 1);
-      loops.push_back({builder.create<mlir::memref::AllocaOp>(loc, type),
-                       builder.create<mlir::memref::AllocaOp>(loc, type)});
-      builder.create<mlir::memref::StoreOp>(loc, truev, loops.back().noBreak);
-      builder.create<mlir::memref::StoreOp>(loc, truev,
-                                            loops.back().keepRunning);
-      Visit(cses->getSubStmt());
-    } else if (auto *cses = dyn_cast<DefaultStmt>(cse)) {
-      auto &condB = *(new Block());
-
-      if (inCase) {
-        auto noBreak =
-            builder.create<mlir::memref::LoadOp>(loc, loops.back().noBreak);
-        builder.create<mlir::cf::CondBranchOp>(loc, noBreak, &condB, &exitB);
-        loops.pop_back();
+      if (InCase) {
+        auto NoBreak =
+            Builder.create<memref::LoadOp>(Loc, Loops.back().NoBreak);
+        Builder.create<cf::CondBranchOp>(Loc, NoBreak, &CondB, &ExitB);
+        Loops.pop_back();
       }
 
-      inCase = true;
-      er.getRegion().getBlocks().push_back(&condB);
-      builder.setInsertionPointToStart(&condB);
+      InCase = true;
+      Er.getRegion().getBlocks().push_back(&CondB);
+      Blocks.push_back(&CondB);
+      Builder.setInsertionPointToStart(&CondB);
 
-      auto i1Ty = builder.getIntegerType(1);
-      auto type = mlir::MemRefType::get({}, i1Ty, {}, 0);
-      auto truev = builder.create<ConstantIntOp>(loc, true, 1);
-      loops.push_back({builder.create<mlir::memref::AllocaOp>(loc, type),
-                       builder.create<mlir::memref::AllocaOp>(loc, type)});
-      builder.create<mlir::memref::StoreOp>(loc, truev, loops.back().noBreak);
-      builder.create<mlir::memref::StoreOp>(loc, truev,
-                                            loops.back().keepRunning);
-      defaultB = &condB;
-      Visit(cses->getSubStmt());
+      auto I1Ty = Builder.getIntegerType(1);
+      auto Type = MemRefType::get({}, I1Ty, {}, 0);
+      auto Truev = Builder.create<arith::ConstantIntOp>(Loc, true, 1);
+      Loops.push_back({Builder.create<memref::AllocaOp>(Loc, Type),
+                       Builder.create<memref::AllocaOp>(Loc, Type)});
+      Builder.create<memref::StoreOp>(Loc, Truev, Loops.back().NoBreak);
+      Builder.create<memref::StoreOp>(Loc, Truev, Loops.back().KeepRunning);
+      Visit(Cses->getSubStmt());
+    } else if (auto *Cses = dyn_cast<clang::DefaultStmt>(Cse)) {
+      auto &CondB = *(new Block());
+
+      if (InCase) {
+        auto NoBreak =
+            Builder.create<memref::LoadOp>(Loc, Loops.back().NoBreak);
+        Builder.create<cf::CondBranchOp>(Loc, NoBreak, &CondB, &ExitB);
+        Loops.pop_back();
+      }
+
+      InCase = true;
+      Er.getRegion().getBlocks().push_back(&CondB);
+      Builder.setInsertionPointToStart(&CondB);
+
+      auto I1Ty = Builder.getIntegerType(1);
+      auto Type = MemRefType::get({}, I1Ty, {}, 0);
+      auto Truev = Builder.create<arith::ConstantIntOp>(Loc, true, 1);
+      Loops.push_back({Builder.create<memref::AllocaOp>(Loc, Type),
+                       Builder.create<memref::AllocaOp>(Loc, Type)});
+      Builder.create<memref::StoreOp>(Loc, Truev, Loops.back().NoBreak);
+      Builder.create<memref::StoreOp>(Loc, Truev, Loops.back().KeepRunning);
+      DefaultB = &CondB;
+      Visit(Cses->getSubStmt());
     } else {
-      Visit(cse);
+      Visit(Cse);
     }
   }
 
-  if (caseVals.size() == 0) {
-    delete &exitB;
-    er.erase();
-    builder.setInsertionPoint(oldblock2, oldpoint2);
+  if (CaseVals.size() == 0) {
+    delete &ExitB;
+    Er.erase();
+    Builder.setInsertionPoint(OldBlock2, OldPoint2);
     return nullptr;
   }
 
-  if (inCase)
-    loops.pop_back();
-  builder.create<mlir::cf::BranchOp>(loc, &exitB);
+  if (InCase)
+    Loops.pop_back();
+  Builder.create<cf::BranchOp>(Loc, &ExitB);
 
-  er.getRegion().getBlocks().push_back(&exitB);
+  Er.getRegion().getBlocks().push_back(&ExitB);
 
-  DenseIntElementsAttr caseValuesAttr;
-  ShapedType caseValueType = mlir::VectorType::get(
-      static_cast<int64_t>(caseVals.size()), cond.getType());
-  auto ity = cond.getType().cast<mlir::IntegerType>();
-  if (ity.getWidth() == 64)
-    caseValuesAttr = DenseIntElementsAttr::get(caseValueType, caseVals);
-  else if (ity.getWidth() == 32) {
-    SmallVector<int32_t> caseVals32;
-    for (auto v : caseVals)
-      caseVals32.push_back((int32_t)v);
-    caseValuesAttr = DenseIntElementsAttr::get(caseValueType, caseVals32);
-  } else if (ity.getWidth() == 16) {
-    SmallVector<int16_t> caseVals16;
-    for (auto v : caseVals)
-      caseVals16.push_back((int16_t)v);
-    caseValuesAttr = DenseIntElementsAttr::get(caseValueType, caseVals16);
+  DenseIntElementsAttr CaseValuesAttr;
+  ShapedType CaseValueType =
+      VectorType::get(static_cast<int64_t>(CaseVals.size()), Cond.getType());
+  auto Ity = Cond.getType().cast<IntegerType>();
+  if (Ity.getWidth() == 64)
+    CaseValuesAttr = DenseIntElementsAttr::get(CaseValueType, CaseVals);
+  else if (Ity.getWidth() == 32) {
+    SmallVector<int32_t> CaseVals32;
+    for (auto V : CaseVals)
+      CaseVals32.push_back((int32_t)V);
+    CaseValuesAttr = DenseIntElementsAttr::get(CaseValueType, CaseVals32);
+  } else if (Ity.getWidth() == 16) {
+    SmallVector<int16_t> CaseVals16;
+    for (auto V : CaseVals)
+      CaseVals16.push_back((int16_t)V);
+    CaseValuesAttr = DenseIntElementsAttr::get(CaseValueType, CaseVals16);
   } else {
-    assert(ity.getWidth() == 8);
-    SmallVector<int8_t> caseVals8;
-    for (auto v : caseVals)
-      caseVals8.push_back((int8_t)v);
-    caseValuesAttr = DenseIntElementsAttr::get(caseValueType, caseVals8);
+    assert(Ity.getWidth() == 8);
+    SmallVector<int8_t> CaseVals8;
+    for (auto V : CaseVals)
+      CaseVals8.push_back((int8_t)V);
+    CaseValuesAttr = DenseIntElementsAttr::get(CaseValueType, CaseVals8);
   }
 
-  builder.setInsertionPointToStart(&er.getRegion().front());
-  builder.create<mlir::cf::SwitchOp>(
-      loc, cond, defaultB, ArrayRef<mlir::Value>(), caseValuesAttr, blocks,
-      SmallVector<mlir::ValueRange>(caseVals.size(), ArrayRef<mlir::Value>()));
-  builder.setInsertionPoint(oldblock2, oldpoint2);
+  Builder.setInsertionPointToStart(&Er.getRegion().front());
+  Builder.create<cf::SwitchOp>(
+      Loc, Cond, DefaultB, ArrayRef<Value>(), CaseValuesAttr, Blocks,
+      SmallVector<ValueRange>(CaseVals.size(), ArrayRef<Value>()));
+  Builder.setInsertionPoint(OldBlock2, OldPoint2);
   return nullptr;
 }
 
-ValueCategory MLIRScanner::VisitDeclStmt(clang::DeclStmt *decl) {
+ValueCategory MLIRScanner::VisitDeclStmt(clang::DeclStmt *Decl) {
   LLVM_DEBUG({
     llvm::dbgs() << "VisitDeclStmt: ";
-    decl->dump();
+    Decl->dump();
     llvm::dbgs() << "\n";
   });
 
-  IfScope scope(*this);
-  for (auto *sub : decl->decls()) {
-    if (auto *vd = dyn_cast<VarDecl>(sub)) {
-      VisitVarDecl(vd);
-    } else if (isa<TypeAliasDecl, RecordDecl, StaticAssertDecl, TypedefDecl,
-                   UsingDecl, UsingDirectiveDecl>(sub)) {
+  IfScope Scope(*this);
+  for (auto *Sub : Decl->decls()) {
+    if (auto *Vd = dyn_cast<clang::VarDecl>(Sub)) {
+      VisitVarDecl(Vd);
+    } else if (isa<clang::TypeAliasDecl, clang::RecordDecl,
+                   clang::StaticAssertDecl, clang::TypedefDecl,
+                   clang::UsingDecl, clang::UsingDirectiveDecl>(Sub)) {
     } else {
-      emitError(getMLIRLocation(decl->getBeginLoc()))
+      emitError(getMLIRLocation(Decl->getBeginLoc()))
           << " + visiting unknonwn sub decl stmt\n";
-      sub->dump();
+      Sub->dump();
       assert(0 && "unknown sub decl");
     }
   }
   return nullptr;
 }
 
-ValueCategory MLIRScanner::VisitAttributedStmt(AttributedStmt *AS) {
-  emitWarning(getMLIRLocation(AS->getAttrLoc())) << "ignoring attributes\n";
+ValueCategory MLIRScanner::VisitAttributedStmt(clang::AttributedStmt *AS) {
+  if (!SuppressWarnings)
+    emitWarning(getMLIRLocation(AS->getAttrLoc())) << "ignoring attributes\n";
+
   return Visit(AS->getSubStmt());
 }
 
-ValueCategory MLIRScanner::VisitCompoundStmt(clang::CompoundStmt *stmt) {
-  for (auto *a : stmt->children()) {
-    IfScope scope(*this);
-    Visit(a);
+ValueCategory MLIRScanner::VisitCompoundStmt(clang::CompoundStmt *Stmt) {
+  for (auto *A : Stmt->children()) {
+    IfScope Scope(*this);
+    Visit(A);
   }
   return nullptr;
 }
 
-ValueCategory MLIRScanner::VisitBreakStmt(clang::BreakStmt *stmt) {
-  IfScope scope(*this);
-  assert(loops.size() && "must be non-empty");
-  assert(loops.back().keepRunning && "keep running false");
-  assert(loops.back().noBreak && "no break false");
-  auto vfalse =
-      builder.create<ConstantIntOp>(builder.getUnknownLoc(), false, 1);
-  builder.create<mlir::memref::StoreOp>(loc, vfalse, loops.back().keepRunning);
-  builder.create<mlir::memref::StoreOp>(loc, vfalse, loops.back().noBreak);
+ValueCategory MLIRScanner::VisitBreakStmt(clang::BreakStmt *Stmt) {
+  IfScope Scope(*this);
+  assert(Loops.size() && "must be non-empty");
+  assert(Loops.back().KeepRunning && "keep running false");
+  assert(Loops.back().NoBreak && "no break false");
+  auto Vfalse =
+      Builder.create<arith::ConstantIntOp>(Builder.getUnknownLoc(), false, 1);
+  Builder.create<memref::StoreOp>(Loc, Vfalse, Loops.back().KeepRunning);
+  Builder.create<memref::StoreOp>(Loc, Vfalse, Loops.back().NoBreak);
 
   return nullptr;
 }
 
-ValueCategory MLIRScanner::VisitContinueStmt(clang::ContinueStmt *stmt) {
-  IfScope scope(*this);
-  assert(loops.size() && "must be non-empty");
-  assert(loops.back().keepRunning && "keep running false");
-  auto vfalse =
-      builder.create<ConstantIntOp>(builder.getUnknownLoc(), false, 1);
-  builder.create<mlir::memref::StoreOp>(loc, vfalse, loops.back().keepRunning);
+ValueCategory MLIRScanner::VisitContinueStmt(clang::ContinueStmt *Stmt) {
+  IfScope Scope(*this);
+  assert(Loops.size() && "must be non-empty");
+  assert(Loops.back().KeepRunning && "keep running false");
+  auto Vfalse =
+      Builder.create<arith::ConstantIntOp>(Builder.getUnknownLoc(), false, 1);
+  Builder.create<memref::StoreOp>(Loc, Vfalse, Loops.back().KeepRunning);
   return nullptr;
 }
 
-ValueCategory MLIRScanner::VisitLabelStmt(clang::LabelStmt *stmt) {
-  auto *toadd = builder.getInsertionBlock()->getParent();
-  Block *labelB;
-  auto found = labels.find(stmt);
-  if (found != labels.end()) {
-    labelB = found->second;
+ValueCategory MLIRScanner::VisitLabelStmt(clang::LabelStmt *Stmt) {
+  auto *ToAdd = Builder.getInsertionBlock()->getParent();
+  Block *LabelB;
+  auto Found = Labels.find(Stmt);
+  if (Found != Labels.end()) {
+    LabelB = Found->second;
   } else {
-    labelB = new Block();
-    labels[stmt] = labelB;
+    LabelB = new Block();
+    Labels[Stmt] = LabelB;
   }
-  toadd->getBlocks().push_back(labelB);
-  builder.create<mlir::cf::BranchOp>(loc, labelB);
-  builder.setInsertionPointToStart(labelB);
-  Visit(stmt->getSubStmt());
+  ToAdd->getBlocks().push_back(LabelB);
+  Builder.create<cf::BranchOp>(Loc, LabelB);
+  Builder.setInsertionPointToStart(LabelB);
+  Visit(Stmt->getSubStmt());
   return nullptr;
 }
 
-ValueCategory MLIRScanner::VisitGotoStmt(clang::GotoStmt *stmt) {
-  auto *labelstmt = stmt->getLabel()->getStmt();
-  Block *labelB;
-  auto found = labels.find(labelstmt);
-  if (found != labels.end()) {
-    labelB = found->second;
+ValueCategory MLIRScanner::VisitGotoStmt(clang::GotoStmt *Stmt) {
+  auto *Labelstmt = Stmt->getLabel()->getStmt();
+  Block *LabelB;
+  auto Found = Labels.find(Labelstmt);
+  if (Found != Labels.end()) {
+    LabelB = Found->second;
   } else {
-    labelB = new Block();
-    labels[labelstmt] = labelB;
+    LabelB = new Block();
+    Labels[Labelstmt] = LabelB;
   }
-  builder.create<mlir::cf::BranchOp>(loc, labelB);
+  Builder.create<cf::BranchOp>(Loc, LabelB);
   return nullptr;
 }
 
-ValueCategory MLIRScanner::VisitCXXTryStmt(clang::CXXTryStmt *stmt) {
-  llvm::errs() << "warning, not performing catches for try: ";
-  stmt->dump();
-  return Visit(stmt->getTryBlock());
+ValueCategory MLIRScanner::VisitCXXTryStmt(clang::CXXTryStmt *Stmt) {
+  mlirclang::warning() << "not performing catches for try stmt\n";
+  return Visit(Stmt->getTryBlock());
 }
 
-ValueCategory MLIRScanner::VisitReturnStmt(clang::ReturnStmt *stmt) {
-  IfScope scope(*this);
-  bool isArrayReturn = false;
+ValueCategory MLIRScanner::VisitReturnStmt(clang::ReturnStmt *Stmt) {
+  IfScope Scope(*this);
+  bool IsArrayReturn = false;
   Glob.getTypes().getMLIRType(EmittingFunctionDecl->getReturnType(),
-                              &isArrayReturn);
+                              &IsArrayReturn);
 
-  if (isArrayReturn) {
-    auto rv = Visit(stmt->getRetValue());
-    assert(rv.val && "expect right value to be valid");
-    assert(rv.isReference && "right value must be a reference");
-    auto op = function.getArgument(function.getNumArguments() - 1);
-    assert(rv.val.getType().cast<MemRefType>().getElementType() ==
-               op.getType().cast<MemRefType>().getElementType() &&
+  if (IsArrayReturn) {
+    auto Rv = Visit(Stmt->getRetValue());
+    assert(Rv.val && "expect right value to be valid");
+    assert(Rv.isReference && "right value must be a reference");
+    auto Op = Function.getArgument(Function.getNumArguments() - 1);
+    assert(Rv.val.getType().cast<MemRefType>().getElementType() ==
+               Op.getType().cast<MemRefType>().getElementType() &&
            "type mismatch");
-    assert(op.getType().cast<MemRefType>().getShape().size() == 2 &&
+    assert(Op.getType().cast<MemRefType>().getShape().size() == 2 &&
            "expect 2d memref");
-    assert(rv.val.getType().cast<MemRefType>().getShape().size() == 2 &&
+    assert(Rv.val.getType().cast<MemRefType>().getShape().size() == 2 &&
            "expect 2d memref");
-    assert(rv.val.getType().cast<MemRefType>().getShape()[1] ==
-           op.getType().cast<MemRefType>().getShape()[1]);
+    assert(Rv.val.getType().cast<MemRefType>().getShape()[1] ==
+           Op.getType().cast<MemRefType>().getShape()[1]);
 
-    for (int i = 0; i < op.getType().cast<MemRefType>().getShape()[1]; i++) {
-      std::vector<mlir::Value> idx = {getConstantIndex(0), getConstantIndex(i)};
-      assert(rv.val.getType().cast<MemRefType>().getShape().size() == 2);
-      builder.create<mlir::memref::StoreOp>(
-          loc, builder.create<mlir::memref::LoadOp>(loc, rv.val, idx), op, idx);
+    for (int I = 0; I < Op.getType().cast<MemRefType>().getShape()[1]; I++) {
+      std::vector<Value> Idx = {getConstantIndex(0), getConstantIndex(I)};
+      assert(Rv.val.getType().cast<MemRefType>().getShape().size() == 2);
+      Builder.create<memref::StoreOp>(
+          Loc, Builder.create<memref::LoadOp>(Loc, Rv.val, Idx), Op, Idx);
     }
-  } else if (stmt->getRetValue()) {
-    auto rv = Visit(stmt->getRetValue());
-    if (!stmt->getRetValue()->getType()->isVoidType()) {
-      if (!rv.val) {
-        stmt->dump();
-      }
-      assert(rv.val && "expect right value to be valid");
+  } else if (Stmt->getRetValue()) {
+    auto Rv = Visit(Stmt->getRetValue());
+    if (!Stmt->getRetValue()->getType()->isVoidType()) {
+      if (!Rv.val)
+        Stmt->dump();
 
-      mlir::Value val;
-      if (stmt->getRetValue()->isLValue() || stmt->getRetValue()->isXValue()) {
-        assert(rv.isReference);
-        val = rv.val;
+      assert(Rv.val && "expect right value to be valid");
+
+      Value Val;
+      if (Stmt->getRetValue()->isLValue() || Stmt->getRetValue()->isXValue()) {
+        assert(Rv.isReference);
+        Val = Rv.val;
       } else {
-        val = rv.getValue(builder);
+        Val = Rv.getValue(Builder);
       }
 
-      auto postTy = returnVal.getType().cast<MemRefType>().getElementType();
-      if (auto prevTy = val.getType().dyn_cast<mlir::IntegerType>()) {
-        const auto SrcTy = stmt->getRetValue()->getType();
+      auto PostTy = ReturnVal.getType().cast<MemRefType>().getElementType();
+      if (auto PrevTy = Val.getType().dyn_cast<IntegerType>()) {
+        const auto SrcTy = Stmt->getRetValue()->getType();
         const auto IsSigned =
             SrcTy->isBooleanType() ? false : SrcTy->isSignedIntegerType();
-        val = rv.IntCast(builder, getMLIRLocation(stmt->getReturnLoc()), postTy,
+        Val = Rv.IntCast(Builder, getMLIRLocation(Stmt->getReturnLoc()), PostTy,
                          IsSigned)
                   .val;
-      } else if (val.getType().isa<MemRefType>() &&
-                 postTy.isa<LLVM::LLVMPointerType>())
-        val = builder.create<polygeist::Memref2PointerOp>(loc, postTy, val);
-      else if (val.getType().isa<LLVM::LLVMPointerType>() &&
-               postTy.isa<MemRefType>())
-        val = builder.create<polygeist::Pointer2MemrefOp>(loc, postTy, val);
-      if (postTy != val.getType()) {
-        stmt->dump();
-        llvm::errs() << " val: " << val << " postTy: " << postTy
-                     << " rv.val: " << rv.val << " rv.isRef"
-                     << (int)rv.isReference << " mm: "
-                     << (int)(stmt->getRetValue()->isLValue() ||
-                              stmt->getRetValue()->isXValue())
+      } else if (Val.getType().isa<MemRefType>() &&
+                 PostTy.isa<LLVM::LLVMPointerType>())
+        Val = Builder.create<polygeist::Memref2PointerOp>(Loc, PostTy, Val);
+      else if (Val.getType().isa<LLVM::LLVMPointerType>() &&
+               PostTy.isa<MemRefType>())
+        Val = Builder.create<polygeist::Pointer2MemrefOp>(Loc, PostTy, Val);
+      if (PostTy != Val.getType()) {
+        Stmt->dump();
+        llvm::errs() << " val: " << Val << " postTy: " << PostTy
+                     << " rv.val: " << Rv.val << " rv.isRef"
+                     << (int)Rv.isReference << " mm: "
+                     << (int)(Stmt->getRetValue()->isLValue() ||
+                              Stmt->getRetValue()->isXValue())
                      << "\n";
       }
-      assert(postTy == val.getType());
-      builder.create<mlir::memref::StoreOp>(loc, val, returnVal);
+      assert(PostTy == Val.getType());
+      Builder.create<memref::StoreOp>(Loc, Val, ReturnVal);
     }
   }
 
-  assert(loops.size() && "must be non-empty");
-  auto vfalse =
-      builder.create<ConstantIntOp>(builder.getUnknownLoc(), false, 1);
-  for (auto l : loops) {
-    builder.create<mlir::memref::StoreOp>(loc, vfalse, l.keepRunning);
-    builder.create<mlir::memref::StoreOp>(loc, vfalse, l.noBreak);
+  assert(Loops.size() && "must be non-empty");
+  auto Vfalse =
+      Builder.create<arith::ConstantIntOp>(Builder.getUnknownLoc(), false, 1);
+  for (auto L : Loops) {
+    Builder.create<memref::StoreOp>(Loc, Vfalse, L.KeepRunning);
+    Builder.create<memref::StoreOp>(Loc, Vfalse, L.NoBreak);
   }
 
   return nullptr;

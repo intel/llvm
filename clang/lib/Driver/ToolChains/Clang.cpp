@@ -10078,6 +10078,9 @@ void Cgeist::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-emit-llvm");
   }
 
+  if (TCArgs.hasArg(options::OPT_w))
+    CmdArgs.push_back("-w");
+
   TCArgs.AddAllArgValues(CmdArgs, options::OPT_Xcgeist);
 
   for (const InputInfo &I : Inputs) {

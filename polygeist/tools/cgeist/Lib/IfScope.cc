@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 #include "IfScope.h"
 #include "clang-mlir.h"
 
@@ -13,27 +14,27 @@
 
 using namespace mlir;
 
-IfScope::IfScope(MLIRScanner &scanner) : scanner(scanner), prevBlock(nullptr) {
-  if (scanner.loops.size() && scanner.loops.back().keepRunning) {
-    auto lop = scanner.builder.create<memref::LoadOp>(
-        scanner.loc, scanner.loops.back().keepRunning);
-    auto ifOp = scanner.builder.create<scf::IfOp>(scanner.loc, lop,
+IfScope::IfScope(MLIRScanner &Scanner) : Scanner(Scanner), PrevBlock(nullptr) {
+  if (Scanner.Loops.size() && Scanner.Loops.back().KeepRunning) {
+    auto Lop = Scanner.Builder.create<memref::LoadOp>(
+        Scanner.Loc, Scanner.Loops.back().KeepRunning);
+    auto IfOp = Scanner.Builder.create<scf::IfOp>(Scanner.Loc, Lop,
                                                   /*hasElse*/ false);
-    prevBlock = scanner.builder.getInsertionBlock();
-    prevIterator = scanner.builder.getInsertionPoint();
-    ifOp.getThenRegion().back().clear();
-    scanner.builder.setInsertionPointToStart(&ifOp.getThenRegion().back());
-    auto er = scanner.builder.create<scf::ExecuteRegionOp>(
-        scanner.loc, ArrayRef<mlir::Type>());
-    scanner.builder.create<scf::YieldOp>(scanner.loc);
-    er.getRegion().push_back(new Block());
-    scanner.builder.setInsertionPointToStart(&er.getRegion().back());
+    PrevBlock = Scanner.Builder.getInsertionBlock();
+    PrevIterator = Scanner.Builder.getInsertionPoint();
+    IfOp.getThenRegion().back().clear();
+    Scanner.Builder.setInsertionPointToStart(&IfOp.getThenRegion().back());
+    auto Er = Scanner.Builder.create<scf::ExecuteRegionOp>(
+        Scanner.Loc, ArrayRef<mlir::Type>());
+    Scanner.Builder.create<scf::YieldOp>(Scanner.Loc);
+    Er.getRegion().push_back(new Block());
+    Scanner.Builder.setInsertionPointToStart(&Er.getRegion().back());
   }
 }
 
 IfScope::~IfScope() {
-  if (scanner.loops.size() && scanner.loops.back().keepRunning) {
-    scanner.builder.create<scf::YieldOp>(scanner.loc);
-    scanner.builder.setInsertionPoint(prevBlock, prevIterator);
+  if (Scanner.Loops.size() && Scanner.Loops.back().KeepRunning) {
+    Scanner.Builder.create<scf::YieldOp>(Scanner.Loc);
+    Scanner.Builder.setInsertionPoint(PrevBlock, PrevIterator);
   }
 }
