@@ -73,20 +73,7 @@ MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob, OwningOpRef<ModuleOp> &Module,
       CaptureKinds(), ThisCapture(nullptr), ArrayInit(), ThisVal(), ReturnVal(),
       LTInfo(LTInfo) {}
 
-void MLIRScanner::initUnsupportedFunctions() {
-  // FIXME: cgeist: llvm/polygeist/tools/cgeist/Lib/CGCall.cc:94: void
-  // castCallerArgs(func::FuncOp, llvm::SmallVectorImpl<Value>&,
-  // OpBuilder&): Assertion `CalleeArgType == Args[I].getType() &&
-  // "Callsite argument mismatch"' failed.
-  UnsupportedFuncs.insert(
-      "_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1026ELNS2_"
-      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
-      "listIJEEEEC1ERKSA_");
-  UnsupportedFuncs.insert(
-      "_ZN4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_"
-      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
-      "listIJEEEEC1ERKSA_");
-}
+void MLIRScanner::initUnsupportedFunctions() {}
 
 static void checkFunctionParent(const FunctionOpInterface F,
                                 FunctionContext Context,
@@ -2215,7 +2202,7 @@ MLIRASTConsumer::getOrCreateCGFunctionInfo(const clang::FunctionDecl *FD) {
 
 void MLIRASTConsumer::run() {
   while (FunctionsToEmit.size()) {
-    FunctionToEmit &FTE = FunctionsToEmit.front();
+    FunctionToEmit FTE = FunctionsToEmit.front();
     FunctionsToEmit.pop_front();
 
     const clang::FunctionDecl &FD = FTE.getDecl();

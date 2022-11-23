@@ -250,6 +250,10 @@ ValueCategory MLIRScanner::callHelper(
           ExpectedType.isa<MemRefType>())
         Val =
             Builder.create<polygeist::Pointer2MemrefOp>(Loc, ExpectedType, Val);
+      else if (Val.getType().isa<MemRefType>() &&
+               ExpectedType.isa<LLVM::LLVMPointerType>())
+        Val =
+            Builder.create<polygeist::Memref2PointerOp>(Loc, ExpectedType, Val);
 
       Val = castToMemSpaceOfType(Val, ExpectedType);
     }
