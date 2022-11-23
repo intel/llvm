@@ -11,6 +11,8 @@
 // CHECK: llvm.func @test_accessor_common(%arg0: !llvm.[[ACCESSOR_COMMON:struct<"class.sycl::_V1::detail::accessor_common", \(i8\)>]])
 // CHECK: llvm.func @test_accessor.1(%arg0: !llvm.[[ACCESSOR_1:struct<"class.sycl::_V1::accessor.*", \(]][[ACCESSORIMPLDEVICE_1]][[ID_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]], struct<(ptr<i32, 1>)>[[SUFFIX]])
 // CHECK: llvm.func @test_accessor.2(%arg0: !llvm.[[ACCESSOR_2:struct<"class.sycl::_V1::accessor.*", \(]][[ACCESSORIMPLDEVICE_2:struct<"class.sycl::_V1::detail::AccessorImplDevice.*", \(]][[ID_2]][[ARRAY_2]][[SUFFIX]], [[RANGE_2]][[ARRAY_2]][[SUFFIX]], [[RANGE_2]][[ARRAY_2]][[SUFFIX]][[SUFFIX]], struct<(ptr<i32, 1>)>[[SUFFIX]])
+// CHECK: llvm.func @test_accessor.3(%arg0: !llvm.[[ACCESSOR_3:struct<"class.sycl::_V1::accessor.*", \(]][[ACCESSORIMPLDEVICE_1]][[ID_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]], struct<(ptr<f32, 1>)>[[SUFFIX]])
+// CHECK: llvm.func @test_accessor.4(%arg0: !llvm.[[ACCESSOR_4:struct<"class.sycl::_V1::accessor.*", \(]][[ACCESSORIMPLDEVICE_2]][[ID_2]][[ARRAY_2]][[SUFFIX]], [[RANGE_2]][[ARRAY_2]][[SUFFIX]], [[RANGE_2]][[ARRAY_2]][[SUFFIX]][[SUFFIX]], struct<(ptr<f32, 1>)>[[SUFFIX]])
 // CHECK: llvm.func @test_accessorSubscript(%arg0: !llvm.[[ACCESSORSUBSCRIPT_1:struct<"class.sycl::_V1::detail::accessor_common.AccessorSubscript.*", \(]][[ID_2]][[ARRAY_2]][[SUFFIX]], [[ACCESSOR_2]][[ACCESSORIMPLDEVICE_2]][[ID_2]][[ARRAY_2]][[SUFFIX]], [[RANGE_2]][[ARRAY_2]][[SUFFIX]], [[RANGE_2]][[ARRAY_2]][[SUFFIX]][[SUFFIX]], struct<(ptr<i32, 1>)>[[SUFFIX]]) 
 // CHECK: llvm.func @test_itemBase.true(%arg0: !llvm.[[ITEM_BASE_1_TRUE:struct<"struct.sycl::_V1::detail::ItemBase.*", \(]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]])
 // CHECK: llvm.func @test_itemBase.false(%arg0: !llvm.[[ITEM_BASE_1_FALSE:struct<"struct.sycl::_V1::detail::ItemBase.*", \(]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]])
@@ -26,9 +28,11 @@
 !sycl_nd_range_2 = !sycl.nd_range<[2], (!sycl.range<2>, !sycl.range<2>, !sycl.id<2>)>
 !sycl_accessor_impl_device_1 = !sycl.accessor_impl_device<[1], (!sycl.id<1>, !sycl.range<1>, !sycl.range<1>)>
 !sycl_accessor_impl_device_2 = !sycl.accessor_impl_device<[2], (!sycl.id<2>, !sycl.range<2>, !sycl.range<2>)>
-!sycl_accessor_1 = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl_accessor_impl_device_1, !llvm.struct<(ptr<i32, 1>)>)>
-!sycl_accessor_2 = !sycl.accessor<[2, i32, read_write, global_buffer], (!sycl_accessor_impl_device_2, !llvm.struct<(ptr<i32, 1>)>)>
-!sycl_accessor_subscript_1 = !sycl.accessor_subscript<[1], (!sycl.id<2>, !sycl_accessor_2)>
+!sycl_accessor_1_i32 = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl_accessor_impl_device_1, !llvm.struct<(ptr<i32, 1>)>)>
+!sycl_accessor_2_i32 = !sycl.accessor<[2, i32, read_write, global_buffer], (!sycl_accessor_impl_device_2, !llvm.struct<(ptr<i32, 1>)>)>
+!sycl_accessor_1_f32 = !sycl.accessor<[1, f32, read_write, global_buffer], (!sycl_accessor_impl_device_1, !llvm.struct<(ptr<f32, 1>)>)>
+!sycl_accessor_2_f32 = !sycl.accessor<[2, f32, read_write, global_buffer], (!sycl_accessor_impl_device_2, !llvm.struct<(ptr<f32, 1>)>)>
+!sycl_accessor_subscript_1 = !sycl.accessor_subscript<[1], (!sycl.id<2>, !sycl_accessor_2_i32)>
 !sycl_item_base_1_true = !sycl.item_base<[1, true], (!sycl.range<1>, !sycl.id<1>, !sycl.id<1>)>
 !sycl_item_base_1_false = !sycl.item_base<[1, false], (!sycl.range<1>, !sycl.id<1>)>
 !sycl_item_1_true = !sycl.item<[1, true], (!sycl_item_base_1_true)>
@@ -64,10 +68,16 @@ module {
   func.func @test_accessor_common(%arg0: !sycl.accessor_common) {
     return
   }
-  func.func @test_accessor.1(%arg0: !sycl_accessor_1) {
+  func.func @test_accessor.1(%arg0: !sycl_accessor_1_i32) {
     return
   }
-  func.func @test_accessor.2(%arg0: !sycl_accessor_2) {
+  func.func @test_accessor.2(%arg0: !sycl_accessor_2_i32) {
+    return
+  }
+  func.func @test_accessor.3(%arg0: !sycl_accessor_1_f32) {
+    return
+  }
+  func.func @test_accessor.4(%arg0: !sycl_accessor_2_f32) {
     return
   }
   func.func @test_accessorSubscript(%arg0: !sycl_accessor_subscript_1) {
