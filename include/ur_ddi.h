@@ -1260,6 +1260,12 @@ typedef ur_result_t (UR_APICALL *ur_pfnQueueCreateWithNativeHandle_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urQueueFinish 
+typedef ur_result_t (UR_APICALL *ur_pfnQueueFinish_t)(
+    ur_queue_handle_t
+    );
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Queue functions pointers
 typedef struct _ur_queue_dditable_t
 {
@@ -1269,6 +1275,7 @@ typedef struct _ur_queue_dditable_t
     ur_pfnQueueRelease_t                                        pfnRelease;
     ur_pfnQueueGetNativeHandle_t                                pfnGetNativeHandle;
     ur_pfnQueueCreateWithNativeHandle_t                         pfnCreateWithNativeHandle;
+    ur_pfnQueueFinish_t                                         pfnFinish;
 } ur_queue_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////

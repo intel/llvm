@@ -188,3 +188,23 @@ params:
       name: phQueue
       desc: |
             [out] pointer to the handle of the queue object created.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Blocks until all previously issued commands to the command queue are finished."
+class: $xQueue
+name: Finish
+decl: static
+ordinal: "0"
+analogue:
+    - "**clFinish**"
+details:
+    - "Blocks until all previously issued commands to the command queue are issued and completed."
+    - "$xQueueFinish does not return until all enqueued commands have been processed and finished."
+    - "$xQueueFinish acts as a synchronization point."
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue to be finished."
+returns:
+    - $X_RESULT_INVALID_QUEUE
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
