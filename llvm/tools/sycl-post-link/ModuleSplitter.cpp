@@ -261,42 +261,6 @@ EntryPointGroupVec groupEntryPointsByScope(ModuleDesc &MD,
   return EntryPointGroups;
 }
 
-template <class EntryPoinGroupFunc>
-EntryPointGroupVec
-groupEntryPointsByAttribute(ModuleDesc &MD, StringRef AttrName,
-                            bool EmitOnlyKernelsAsEntryPoints,
-                            EntryPoinGroupFunc F) {
-  EntryPointGroupVec EntryPointGroups{};
-  std::map<StringRef, EntryPointSet> EntryPointMap;
-  Module &M = MD.getModule();
-
-  // Only process module entry points:
-  for (auto &F : M.functions()) {
-    if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints) ||
-        !MD.isEntryPointCandidate(F)) {
-      continue;
-    }
-    if (F.hasFnAttribute(AttrName)) {
-      EntryPointMap[AttrName].insert(&F);
-    } else {
-      EntryPointMap[""].insert(&F);
-    }
-  }
-  if (!EntryPointMap.empty()) {
-    EntryPointGroups.reserve(EntryPointMap.size());
-    for (auto &EPG : EntryPointMap) {
-      EntryPointGroups.emplace_back(EPG.first, std::move(EPG.second),
-                                    MD.getEntryPointGroup().Props);
-      F(EntryPointGroups.back());
-    }
-  } else {
-    // No entry points met, record this.
-    EntryPointGroups.emplace_back(GLOBAL_SCOPE_NAME, EntryPointSet{});
-    F(EntryPointGroups.back());
-  }
-  return EntryPointGroups;
-}
-
 // Represents a call graph between functions in a module. Nodes are functions,
 // edges are "calls" relation.
 class CallGraph {
