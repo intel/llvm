@@ -68,7 +68,7 @@ void printMemoryTargetMode(AsmPrinter &Printer, MemoryTargetMode MemTargetMode);
 llvm::StringRef
 accAddressModeModeAsString(mlir::sycl::AccessAddrSpace AccAddress);
 LogicalResult parseAccessAddrSpace(AsmParser &Parser,
-                                    FailureOr<AccessAddrSpace> &AccAddress);
+                                   FailureOr<AccessAddrSpace> &AccAddress);
 void printAccessAddrSpace(AsmPrinter &Printer, AccessAddrSpace AccAddress);
 
 template <typename Parameter> class SYCLInheritanceTypeTrait {

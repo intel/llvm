@@ -120,7 +120,8 @@ void mlir::sycl::printMemoryTargetMode(AsmPrinter &Printer,
   Printer << memoryTargetModeAsString(MemTargetMode);
 }
 
-llvm::StringRef mlir::sycl::accAddressModeModeAsString(mlir::sycl::AccessAddrSpace AccAddress) {
+llvm::StringRef
+mlir::sycl::accAddressModeModeAsString(mlir::sycl::AccessAddrSpace AccAddress) {
   switch (AccAddress) {
   case AccessAddrSpace::Private:
     return "0";
@@ -141,8 +142,9 @@ llvm::StringRef mlir::sycl::accAddressModeModeAsString(mlir::sycl::AccessAddrSpa
   }
 }
 
-mlir::LogicalResult mlir::sycl::parseAccessAddrSpace(mlir::AsmParser &Parser,
-                                    mlir::FailureOr<mlir::sycl::AccessAddrSpace> &AccAddress) {
+mlir::LogicalResult mlir::sycl::parseAccessAddrSpace(
+    mlir::AsmParser &Parser,
+    mlir::FailureOr<mlir::sycl::AccessAddrSpace> &AccAddress) {
   int AddSpaceInt;
   if (Parser.parseInteger<int>(AddSpaceInt)) {
     return mlir::ParseResult::failure();
@@ -171,7 +173,7 @@ mlir::LogicalResult mlir::sycl::parseAccessAddrSpace(mlir::AsmParser &Parser,
 }
 
 void mlir::sycl::printAccessAddrSpace(AsmPrinter &Printer,
-                                       AccessAddrSpace AccAddress) {
+                                      AccessAddrSpace AccAddress) {
   Printer << accAddressModeModeAsString(AccAddress);
 }
 
