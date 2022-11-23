@@ -6524,14 +6524,21 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
       for (ze_command_queue_handle_t ZeQueue : QueueGroup.ZeQueues) {
         pi_command_list_ptr_t CmdList;
         if (auto Res = Queue->Context->getAvailableCommandList(
-                Queue, CmdList, UseCopyEngine, OkToBatch, &ZeQueue))
+                Queue, CmdList, UseCopyEngine, OkToBatch,
+                ZeQueue ? &ZeQueue : nullptr))
           return Res;
         CmdLists.push_back(CmdList);
       }
     }
   }
 
-  if (CmdLists.size() > 1) {
+  if (CmdLists.size() == 0) {
+    // When using immediate commandlists, no activity on a queue would cause a
+    // situation where there are no commandlists. This cannot happen for
+    // standard commandlists.
+    PI_ASSERT(Queue->Device->useImmediateCommandLists(),
+              PI_ERROR_INVALID_QUEUE);
+  } else if (CmdLists.size() > 1) {
     // Insert a barrier into each unique command queue using the available
     // command-lists.
     std::vector<pi_event> EventWaitVector(CmdLists.size());
@@ -6577,9 +6584,13 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     if (auto Res = Queue->executeCommandList(CmdList, false, OkToBatch))
       return Res;
 
-  // We must keep the event internally to use if new command lists are created.
-  (*Event)->RefCount.increment();
-  Queue->ActiveBarriers.push_back(*Event);
+  if (*Event) {
+    // We must keep the event internally to use if new command lists are
+    // created.
+    (*Event)->RefCount.increment();
+    Queue->ActiveBarriers.push_back(*Event);
+  }
+
   return PI_SUCCESS;
 }
 
