@@ -134,19 +134,16 @@ namespace oneapi {
             constexpr marray(marray<DataT, NumElements> &&rhs);
 
             // Additional constructors
-            template <class T, std::size_t NumElements>
             constexpr marray(const marray<T, NumElements> &real, const marray<T, NumElements> &imag);
 
-            template <class T, std::size_t NumElements>
             constexpr marray(const marray<T, NumElements> &real, T imag);
 
-            template <class T, std::size_t NumElements>
             constexpr marray(T real, const marray<T, NumElements> &imag);
 
-            template <class T, std::size_t NumElements, std::size_t... I>
+            template <std::size_t... I>
             constexpr marray(const marray<T, NumElements> &real, const marray<T, NumElements> &imag, std::integer_sequence<std::size_t, I...> int_seq);
 
-            template <class T, std::size_t NumElements, std::size_t... I>
+            template <std::size_t... I>
             constexpr marray(const marray &cmplx, std::integer_sequence<std::size_t, I...> int_seq);
 
             // Available only when: NumElements == 1
@@ -155,28 +152,22 @@ namespace oneapi {
             static constexpr std::size_t size() noexcept;
 
             // real and imag
-            template <class T, std::size_t NumElements>
             constexpr marray<T, NumElements> real() const;
 
-            template <class T, std::size_t NumElements>
             constexpr marray<T, NumElements> imag() const;
 
-            template <class T, std::size_t NumElements, std::size_t... I>
-            marray<T, int_seq::size()> real(std::integer_sequence<std::size_t, I...> int_seq);
+            template <std::size_t... I>
+            constexpr auto real(std::integer_sequence<std::size_t, I...> int_seq) const;
 
-            template <class T, std::size_t NumElements, std::size_t... I>
-            marray<T, int_seq::size()> imag(std::integer_sequence<std::size_t, I...> int_seq);
+            template <std::size_t... I>
+            constexpr auto imag(std::integer_sequence<std::size_t, I...> int_seq) const;
 
-            template <class T, std::size_t NumElements>
             void real(const marray<T, NumElements> &values);
 
-            template <class T, std::size_t NumElements>
             void imag(const marray<T, NumElements> &values);
 
-            template <class T, std::size_t NumElements>
             void real(T value);
 
-            template <class T, std::size_t NumElements>
             void imag(T value);
 
             // subscript operator
@@ -271,7 +262,7 @@ namespace oneapi {
             friend marray<bool, NumElements> operatorOP(const DataT &lhs, const marray &rhs) { /* ... */ }
 
             friend marray<bool, NumElements> operator!(const marray &v) { /* ... */ }
-    }
+    };
 
 } // namespace oneapi
 } // namespace ext
