@@ -37,42 +37,29 @@ find_package(Threads REQUIRED)
 # So what we really build is the Unified Runtime with Level Zero Adapter
 # together.
 #
-# TODO: begin
-#       Unified Runtime today is not a plugin yet. It's experimental static
-#       library that's linked into level_zero plugin. As soon as it's ready to
-#       become a plugin code below should be replaced with the following:
-#add_sycl_plugin(unified_runtime
-#  SOURCES
-#    "${sycl_inc_dir}/sycl/detail/pi.h"
-#    "${CMAKE_CURRENT_SOURCE_DIR}/pi2ur.cpp"
-#    "${CMAKE_CURRENT_SOURCE_DIR}/pi2ur.hpp"
-#    "${CMAKE_CURRENT_SOURCE_DIR}/ur.hpp"
-#    "${CMAKE_CURRENT_SOURCE_DIR}/adapters/level_zero/ur_level_zero.hpp"
-#    "${CMAKE_CURRENT_SOURCE_DIR}/adapters/level_zero/ur_level_zero.cpp"
-#   LIBRARIES
-#    Threads::Threads
-#    UnifiedRuntime-Headers
-#    LevelZeroLoader-Headers
-#)
-
-add_library(unified_runtime STATIC
-  "${sycl_inc_dir}/sycl/detail/pi.h"
-  "${CMAKE_CURRENT_SOURCE_DIR}/ur.hpp"
-  "${CMAKE_CURRENT_SOURCE_DIR}/adapters/level_zero/ur_level_zero.hpp"
-  "${CMAKE_CURRENT_SOURCE_DIR}/adapters/level_zero/ur_level_zero.cpp"
+add_sycl_plugin(unified_runtime
+  SOURCES
+    "${sycl_inc_dir}/sycl/detail/pi.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/pi2ur.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/pi2ur.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/ur.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/adapters/level_zero/ur_level_zero.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/adapters/level_zero/ur_level_zero.cpp"
+   LIBRARIES
+    Threads::Threads
+    UnifiedRuntime-Headers
+    LevelZeroLoader-Headers
+    LevelZeroLoader
 )
 
-target_include_directories(unified_runtime INTERFACE
+target_include_directories(pi_unified_runtime INTERFACE
   "${UNIFIED_RUNTIME_INCLUDE_DIR}"
   "${CMAKE_CURRENT_SOURCE_DIR}"
 )
 
-target_link_libraries(unified_runtime PRIVATE
+target_link_libraries(pi_unified_runtime PRIVATE
   UnifiedRuntime-Headers
   LevelZeroLoader-Headers
 )
 
-# TODO: end
-
-add_dependencies(unified_runtime ze-api)
-
+add_dependencies(pi_unified_runtime ze-api)
