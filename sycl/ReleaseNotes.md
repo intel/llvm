@@ -232,7 +232,7 @@ Release notes for commit range [`4043dda3..0f579bae`](https://github.com/intel/l
 # Known issues
 
 - This release is not backwards compatible with previous releases, which means
-  that existing SYCL applications won't work with the never runtime without
+  that existing SYCL applications won't work with the newer runtime without
   re-compilation.
 - Having MESA OpenCL implementation which provides no devices on a
   system may cause incorrect device discovery. As a workaround such an OpenCL
