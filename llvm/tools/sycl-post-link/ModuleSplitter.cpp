@@ -766,8 +766,9 @@ namespace {
 // It has extra methods to be useable as a key in llvm::DenseMap.
 struct UsedOptionalFeatures {
   SmallVector<int, 4> Aspects;
-  // TODO: extend this further with reqd-sub-group-size, reqd-work-group-size,
-  // large-grf and other properties
+  bool UsesLargeGRF = false;
+  // TODO: extend this further with reqd-sub-group-size, reqd-work-group-size
+  // and other properties
 
   UsedOptionalFeatures() = default;
 
@@ -785,9 +786,13 @@ struct UsedOptionalFeatures {
       llvm::sort(Aspects);
     }
 
+    if (F->hasFnAttribute(sycl::kernel_props::ATTR_LARGE_GRF))
+      UsesLargeGRF = true;
+
     llvm::hash_code AspectsHash =
         llvm::hash_combine_range(Aspects.begin(), Aspects.end());
-    Hash = static_cast<unsigned>(llvm::hash_combine(AspectsHash));
+    llvm::hash_code LargeGRFHash = llvm::hash_value(UsesLargeGRF);
+    Hash = static_cast<unsigned>(llvm::hash_combine(AspectsHash, LargeGRFHash));
   }
 
   std::string getName(StringRef BaseName) const {
@@ -798,6 +803,10 @@ struct UsedOptionalFeatures {
     for (int A : Aspects) {
       Ret += "-" + std::to_string(A);
     }
+
+    if (UsesLargeGRF)
+      Ret += "-large-grf";
+
     return Ret;
   }
 
@@ -833,7 +842,7 @@ public:
         return false;
     }
 
-    return IsEmpty == Other.IsEmpty;
+    return IsEmpty == Other.IsEmpty && UsesLargeGRF == Other.UsesLargeGRF;
   }
 
   unsigned hash() const { return static_cast<unsigned>(Hash); }
