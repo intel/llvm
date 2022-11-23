@@ -229,6 +229,47 @@ static Optional<Type> convertVecType(sycl::VecType type,
   return convertBodyType("class.sycl::_V1::vec", type.getBody(), converter);
 }
 
+int getAddressSpaceAsInt(mlir::sycl::AccessAddrSpace AddrSpace){
+  switch (AddrSpace) {
+  case AccessAddrSpace::Private:
+    return 0;
+  case AccessAddrSpace::Global:
+    return 1;
+  case AccessAddrSpace::Constant:
+    return 2;
+  case AccessAddrSpace::Local:
+    return 3;
+  case AccessAddrSpace::ExtIntelGlobalDevice:
+    return 4;
+  case AccessAddrSpace::ExtIntelHost:
+    return 5;
+  case AccessAddrSpace::Generic:
+    return 6;
+  default:
+    llvm_unreachable("Unknown address mode");
+  }
+}
+
+/// Converts SYCL atomic type to LLVM type.
+static Optional<Type> convertAtomicType(sycl::AtomicType type,
+                                        LLVMTypeConverter &converter) {
+  // return convertBodyType("class.sycl::_V1::atomic", type.getBody(),
+  // converter);
+  auto convertedTy = LLVM::LLVMStructType::getIdentified(
+      &converter.getContext(), "class.sycl::_V1::atomic");
+  auto elementType = LLVM::LLVMPointerType::get(type.getDataType(),
+                                                  getAddressSpaceAsInt(type.getAddrSpace()));
+  if (!convertedTy.isInitialized()) {
+    if (failed(convertedTy.setBody(elementType, /*isPacked=*/false)))
+      return llvm::None;
+  } else if (elementType != convertedTy.getBody()[0]) {
+    // If the name is already in use, create a new type.
+    convertedTy = LLVM::LLVMStructType::getNewIdentified(
+        &converter.getContext(), "class.sycl::_V1::atomic", elementType, /*isPacked=*/false);
+  }
+  return convertedTy;
+}
+
 //===----------------------------------------------------------------------===//
 // CallPattern - Converts `sycl.call` to LLVM.
 //===----------------------------------------------------------------------===//
@@ -423,6 +464,9 @@ void mlir::sycl::populateSYCLToLLVMTypeConversion(
   });
   typeConverter.addConversion(
       [&](sycl::VecType type) { return convertVecType(type, typeConverter); });
+  typeConverter.addConversion([&](sycl::AtomicType type) {
+    return convertAtomicType(type, typeConverter);
+  });
 }
 
 void mlir::sycl::populateSYCLToLLVMConversionPatterns(

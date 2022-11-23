@@ -43,6 +43,16 @@ enum class MemoryTargetMode {
   ImageArray
 };
 
+enum class AccessAddrSpace : int {
+  Private = 0,
+  Global = 1,
+  Constant = 2,
+  Local = 3,
+  ExtIntelGlobalDevice = 4,
+  ExtIntelHost = 5,
+  Generic = 6,
+};
+
 llvm::StringRef
 memoryAccessModeAsString(mlir::sycl::MemoryAccessMode MemAccessMode);
 LogicalResult parseMemoryAccessMode(AsmParser &Parser,
@@ -54,6 +64,12 @@ memoryTargetModeAsString(mlir::sycl::MemoryTargetMode MemTargetMode);
 LogicalResult parseMemoryTargetMode(AsmParser &Parser,
                                     FailureOr<MemoryTargetMode> &MemTargetMode);
 void printMemoryTargetMode(AsmPrinter &Printer, MemoryTargetMode MemTargetMode);
+
+llvm::StringRef
+accAddressModeModeAsString(mlir::sycl::AccessAddrSpace AccAddress);
+LogicalResult parseAccessAddrSpace(AsmParser &Parser,
+                                    FailureOr<AccessAddrSpace> &AccAddress);
+void printAccessAddrSpace(AsmPrinter &Printer, AccessAddrSpace AccAddress);
 
 template <typename Parameter> class SYCLInheritanceTypeTrait {
 public:

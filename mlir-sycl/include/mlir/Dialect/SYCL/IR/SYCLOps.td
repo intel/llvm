@@ -195,6 +195,12 @@ def SYCL_VecType : SYCL_Type<"Vec", "vec"> {
   let assemblyFormat = "`<` `[` $dataType `,` $numElements `]` `,` `(` $body `)` `>`";
 }
 
+def SYCL_AtomicType : SYCL_Type<"Atomic", "atomic"> {
+  let parameters = (ins "::mlir::Type":$dataType,
+                        "mlir::sycl::AccessAddrSpace":$addrSpace);
+  let assemblyFormat = "`<` `[` $dataType `,` custom<AccessAddrSpace>($addrSpace) `]` `>`";
+}
+
 def IDMemRef : MemRefOf<[SYCL_IDType]>;
 def AccessorCommonMemRef : MemRefOf<[SYCL_AccessorCommonType]>;
 def AccessorMemRef : MemRefOf<[SYCL_AccessorType]>;
@@ -208,6 +214,7 @@ def ItemBaseMemRef : MemRefOf<[SYCL_ItemBaseType]>;
 def NDItemMemRef : MemRefOf<[SYCL_NdItemType]>;
 def GroupMemRef : MemRefOf<[SYCL_GroupType]>;
 def VecMemRef : MemRefOf<[SYCL_VecType]>;
+def AtomicMemRef : MemRefOf<[SYCL_AtomicType]>;
 
 def SYCLMemref : AnyTypeOf<[
   IDMemRef,
@@ -223,6 +230,7 @@ def SYCLMemref : AnyTypeOf<[
   NDItemMemRef,
   GroupMemRef,
   VecMemRef,
+  AtomicMemRef
 ]>;
 def IndexType : AnyTypeOf<[I32, I64, Index]>;
 def IntMemrefType : AnyTypeOf<[MemRefOf<[I32]>]>;

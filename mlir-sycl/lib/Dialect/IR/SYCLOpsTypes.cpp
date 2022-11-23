@@ -120,6 +120,61 @@ void mlir::sycl::printMemoryTargetMode(AsmPrinter &Printer,
   Printer << memoryTargetModeAsString(MemTargetMode);
 }
 
+llvm::StringRef mlir::sycl::accAddressModeModeAsString(mlir::sycl::AccessAddrSpace AccAddress) {
+  switch (AccAddress) {
+  case AccessAddrSpace::Private:
+    return "0";
+  case AccessAddrSpace::Global:
+    return "1";
+  case AccessAddrSpace::Constant:
+    return "2";
+  case AccessAddrSpace::Local:
+    return "3";
+  case AccessAddrSpace::ExtIntelGlobalDevice:
+    return "4";
+  case AccessAddrSpace::ExtIntelHost:
+    return "5";
+  case AccessAddrSpace::Generic:
+    return "6";
+  default:
+    llvm_unreachable("Invalid address space");
+  }
+}
+
+mlir::LogicalResult mlir::sycl::parseAccessAddrSpace(mlir::AsmParser &Parser,
+                                    mlir::FailureOr<mlir::sycl::AccessAddrSpace> &AccAddress) {
+  int AddSpaceInt;
+  if (Parser.parseInteger<int>(AddSpaceInt)) {
+    return mlir::ParseResult::failure();
+  }
+
+  if (AddSpaceInt == 0) {
+    AccAddress.emplace(mlir::sycl::AccessAddrSpace::Private);
+  } else if (AddSpaceInt == 1) {
+    AccAddress.emplace(mlir::sycl::AccessAddrSpace::Global);
+  } else if (AddSpaceInt == 2) {
+    AccAddress.emplace(mlir::sycl::AccessAddrSpace::Constant);
+  } else if (AddSpaceInt == 3) {
+    AccAddress.emplace(mlir::sycl::AccessAddrSpace::Local);
+  } else if (AddSpaceInt == 4) {
+    AccAddress.emplace(mlir::sycl::AccessAddrSpace::ExtIntelGlobalDevice);
+  } else if (AddSpaceInt == 5) {
+    AccAddress.emplace(mlir::sycl::AccessAddrSpace::ExtIntelHost);
+  } else if (AddSpaceInt == 6) {
+    AccAddress.emplace(mlir::sycl::AccessAddrSpace::Generic);
+  } else {
+    return Parser.emitError(Parser.getCurrentLocation(),
+                            "expected valid Address Space");
+  }
+
+  return mlir::ParseResult::success();
+}
+
+void mlir::sycl::printAccessAddrSpace(AsmPrinter &Printer,
+                                       AccessAddrSpace AccAddress) {
+  Printer << accAddressModeModeAsString(AccAddress);
+}
+
 llvm::SmallVector<mlir::TypeID>
 mlir::sycl::getDerivedTypes(mlir::TypeID TypeID) {
   if (TypeID == mlir::sycl::AccessorCommonType::getTypeID())

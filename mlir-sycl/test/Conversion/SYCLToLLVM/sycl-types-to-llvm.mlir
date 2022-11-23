@@ -21,6 +21,8 @@
 // CHECK: llvm.func @test_group(%arg0: !llvm.[[GROUP_1:struct<"class.sycl::_V1::group.*", \(]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]])
 // CHECK: llvm.func @test_nd_item(%arg0: !llvm.[[ND_ITEM_1:struct<"class.sycl::_V1::nd_item.*", \(]][[ITEM_1_TRUE]][[ITEM_BASE_1_TRUE]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]][[SUFFIX]], [[ITEM_1_FALSE]][[ITEM_BASE_1_FALSE]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]][[SUFFIX]], [[GROUP_1]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]][[SUFFIX]])
 // CHECK: llvm.func @test_vec(%arg0: !llvm.[[VEC:struct<"class.sycl::_V1::vec", \(vector<4xf32>\)>]])
+// CHECK: llvm.func @test_atomic(%arg0: !llvm.[[ATOMIC1:struct<"class.sycl::_V1::atomic", \(ptr<f32, 1>\)>]], %arg1: !llvm.[[ATOMIC2:struct<"class.sycl::_V1::atomic.1", \(ptr<i32, 3>\)>]])
+
 
 !sycl_array_1 = !sycl.array<[1], (memref<1xi64>)>
 !sycl_array_2 = !sycl.array<[2], (memref<2xi64>)>
@@ -39,6 +41,8 @@
 !sycl_item_1_false = !sycl.item<[1, false], (!sycl_item_base_1_false)>
 !sycl_group_1 = !sycl.group<[1], (!sycl.range<1>, !sycl.range<1>, !sycl.range<1>, !sycl.id<1>)>
 !sycl_nd_item_1 = !sycl.nd_item<[1], (!sycl_item_1_true, !sycl_item_1_false, !sycl_group_1)>
+!sycl_atomic_f32_1_ = !sycl.atomic<[f32, 1]> 
+!sycl_atomic_i32_3_ = !sycl.atomic<[i32, 3]> 
 
 module {
   func.func @test_array.1(%arg0: !sycl_array_1) {
@@ -102,6 +106,9 @@ module {
     return
   }
   func.func @test_vec(%arg0: !sycl.vec<[f32, 4], (vector<4xf32>)>) {
+    return
+  }
+  func.func @test_atomic(%arg0: !sycl_atomic_f32_1_, %arg1: !sycl_atomic_i32_3_) {
     return
   }
 }
