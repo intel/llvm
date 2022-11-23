@@ -178,8 +178,8 @@ groupEntryPointsByKernelType(ModuleDesc &MD,
 
   if (!EntryPointMap.empty()) {
     for (auto &EPG : EntryPointMap) {
-      EntryPointGroups.emplace_back(EntryPointGroup{
-          EPG.first, std::move(EPG.second), MD.getEntryPointGroup().Props});
+      EntryPointGroups.emplace_back(EPG.first, std::move(EPG.second),
+                                    MD.getEntryPointGroup().Props);
       EntryPointGroup &G = EntryPointGroups.back();
 
       if (G.GroupId == ESIMD_SCOPE_NAME) {
@@ -191,8 +191,7 @@ groupEntryPointsByKernelType(ModuleDesc &MD,
     }
   } else {
     // No entry points met, record this.
-    EntryPointGroups.emplace_back(
-        EntryPointGroup{SYCL_SCOPE_NAME, EntryPointSet{}});
+    EntryPointGroups.emplace_back(SYCL_SCOPE_NAME, EntryPointSet{});
     EntryPointGroup &G = EntryPointGroups.back();
     G.Props.HasESIMD = SyclEsimdSplitStatus::SYCL_ONLY;
   }
@@ -250,15 +249,14 @@ EntryPointGroupVec groupEntryPointsByScope(ModuleDesc &MD,
   if (!EntryPointMap.empty()) {
     EntryPointGroups.reserve(EntryPointMap.size());
     for (auto &EPG : EntryPointMap) {
-      EntryPointGroups.emplace_back(EntryPointGroup{
-          EPG.first, std::move(EPG.second), MD.getEntryPointGroup().Props});
+      EntryPointGroups.emplace_back(EPG.first, std::move(EPG.second),
+                                    MD.getEntryPointGroup().Props);
       EntryPointGroup &G = EntryPointGroups.back();
       G.Props.Scope = EntryScope;
     }
   } else {
     // No entry points met, record this.
-    EntryPointGroups.emplace_back(
-        EntryPointGroup{GLOBAL_SCOPE_NAME, EntryPointSet{}});
+    EntryPointGroups.emplace_back(GLOBAL_SCOPE_NAME, EntryPointSet{});
   }
   return EntryPointGroups;
 }
@@ -287,13 +285,13 @@ groupEntryPointsByAttribute(ModuleDesc &MD, StringRef AttrName,
   if (!EntryPointMap.empty()) {
     EntryPointGroups.reserve(EntryPointMap.size());
     for (auto &EPG : EntryPointMap) {
-      EntryPointGroups.emplace_back(EntryPointGroup{
-          EPG.first, std::move(EPG.second), MD.getEntryPointGroup().Props});
+      EntryPointGroups.emplace_back(EPG.first, std::move(EPG.second),
+                                    MD.getEntryPointGroup().Props);
       F(EntryPointGroups.back());
     }
   } else {
     // No entry points met, record this.
-    EntryPointGroups.push_back({GLOBAL_SCOPE_NAME, {}});
+    EntryPointGroups.emplace_back(GLOBAL_SCOPE_NAME, EntryPointSet{});
     F(EntryPointGroups.back());
   }
   return EntryPointGroups;
@@ -505,7 +503,7 @@ void ModuleSplitterBase::verifyNoCrossModuleDeviceGlobalUsage() {
       auto EntryPointModulesIt = EntryPointModules.find(F);
       assert(EntryPointModulesIt != EntryPointModules.end() &&
              "There is no group for an entry point");
-      if (!VarEntryPointModule.hasValue()) {
+      if (!VarEntryPointModule.has_value()) {
         VarEntryPointModule = EntryPointModulesIt->second;
         return;
       }
@@ -754,6 +752,144 @@ getLargeGRFSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints) {
       });
   assert(!Groups.empty() && "At least one group is expected");
   assert(Groups.size() <= 2 && "At most 2 groups are expected");
+
+  if (Groups.size() > 1)
+    return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups));
+  else
+    return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
+}
+
+namespace {
+// Data structure, which represent a combination of all possible optional
+// features used in a function.
+//
+// It has extra methods to be useable as a key in llvm::DenseMap.
+struct UsedOptionalFeatures {
+  SmallVector<int, 4> Aspects;
+  // TODO: extend this further with reqd-sub-group-size, reqd-work-group-size,
+  // large-grf and other properties
+
+  UsedOptionalFeatures() = default;
+
+  UsedOptionalFeatures(const Function *F) {
+    if (const MDNode *MDN = F->getMetadata("sycl_used_aspects")) {
+      auto ExtractIntegerFromMDNodeOperand = [=](const MDOperand &N) {
+        Constant *C = cast<ConstantAsMetadata>(N.get())->getValue();
+        return C->getUniqueInteger().getSExtValue();
+      };
+
+      // !sycl_used_aspects is supposed to contain unique values, no duplicates
+      // are expected here
+      llvm::transform(MDN->operands(), std::back_inserter(Aspects),
+                      ExtractIntegerFromMDNodeOperand);
+      llvm::sort(Aspects);
+    }
+
+    llvm::hash_code AspectsHash =
+        llvm::hash_combine_range(Aspects.begin(), Aspects.end());
+    Hash = static_cast<unsigned>(llvm::hash_combine(AspectsHash));
+  }
+
+  std::string getName(StringRef BaseName) const {
+    if (Aspects.empty())
+      return BaseName.str() + "-no-aspects";
+
+    std::string Ret = BaseName.str() + "-aspects";
+    for (int A : Aspects) {
+      Ret += "-" + std::to_string(A);
+    }
+    return Ret;
+  }
+
+  static UsedOptionalFeatures getTombstone() {
+    UsedOptionalFeatures Ret;
+    Ret.IsTombstoneKey = true;
+    return Ret;
+  }
+
+  static UsedOptionalFeatures getEmpty() {
+    UsedOptionalFeatures Ret;
+    Ret.IsEmpty = true;
+    return Ret;
+  }
+
+private:
+  // For DenseMap:
+  llvm::hash_code Hash = {};
+  bool IsTombstoneKey = false;
+  bool IsEmpty = false;
+
+public:
+  bool operator==(const UsedOptionalFeatures &Other) const {
+    // Tombstone does not compare equal to any other item
+    if (IsTombstoneKey || Other.IsTombstoneKey)
+      return false;
+
+    if (Aspects.size() != Other.Aspects.size())
+      return false;
+
+    for (size_t I = 0, E = Aspects.size(); I != E; ++I) {
+      if (Aspects[I] != Other.Aspects[I])
+        return false;
+    }
+
+    return IsEmpty == Other.IsEmpty;
+  }
+
+  unsigned hash() const { return static_cast<unsigned>(Hash); }
+};
+
+struct UsedOptionalFeaturesAsKeyInfo {
+  static inline UsedOptionalFeatures getEmptyKey() {
+    return UsedOptionalFeatures::getEmpty();
+  }
+
+  static inline UsedOptionalFeatures getTombstoneKey() {
+    return UsedOptionalFeatures::getTombstone();
+  }
+
+  static unsigned getHashValue(const UsedOptionalFeatures &Value) {
+    return Value.hash();
+  }
+
+  static bool isEqual(const UsedOptionalFeatures &LHS,
+                      const UsedOptionalFeatures &RHS) {
+    return LHS == RHS;
+  }
+};
+} // namespace
+
+std::unique_ptr<ModuleSplitterBase>
+getSplitterByOptionalFeatures(ModuleDesc &&MD,
+                              bool EmitOnlyKernelsAsEntryPoints) {
+  EntryPointGroupVec Groups;
+
+  DenseMap<UsedOptionalFeatures, EntryPointSet, UsedOptionalFeaturesAsKeyInfo>
+      PropertiesToFunctionsMap;
+
+  Module &M = MD.getModule();
+
+  // Only process module entry points:
+  for (auto &F : M.functions()) {
+    if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints) ||
+        !MD.isEntryPointCandidate(F)) {
+      continue;
+    }
+
+    auto Key = UsedOptionalFeatures(&F);
+    PropertiesToFunctionsMap[std::move(Key)].insert(&F);
+  }
+
+  if (PropertiesToFunctionsMap.empty()) {
+    // No entry points met, record this.
+    Groups.emplace_back(GLOBAL_SCOPE_NAME, EntryPointSet{});
+  } else {
+    Groups.reserve(PropertiesToFunctionsMap.size());
+    for (auto &EPG : PropertiesToFunctionsMap) {
+      Groups.emplace_back(EPG.first.getName(MD.getEntryPointGroup().GroupId),
+                          std::move(EPG.second), MD.getEntryPointGroup().Props);
+    }
+  }
 
   if (Groups.size() > 1)
     return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups));

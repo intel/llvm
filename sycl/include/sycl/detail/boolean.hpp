@@ -110,7 +110,8 @@ template <> struct Boolean<1> {
 
   // Cast to a signed interger type
   template <typename T> operator T() const {
-    static_assert(is_sgeninteger<T>::value, "Invalid conversion");
+    static_assert(std::is_same<T, bool>::value || is_sgeninteger<T>::value,
+                  "Invalid conversion");
     return value;
   }
 
