@@ -68,12 +68,23 @@ set( LIBCLC_TARGETS_TO_BUILD "all"
 option( ENABLE_RUNTIME_SUBNORMAL "Enable runtime linking of subnormal support."
 OFF )
 
+<<<<<<< HEAD
 option( LIBCLC_GENERATE_REMANGLED_VARIANTS
 				"Generate remangled variants of enabled libclc targets."
 				OFF )
+=======
+find_package(LLVM REQUIRED HINTS "${LLVM_CMAKE_DIR}")
+include(AddLLVM)
+
+message( "LLVM version: ${LLVM_PACKAGE_VERSION}" )
+
+if( ${LLVM_PACKAGE_VERSION} VERSION_LESS ${LIBCLC_MIN_LLVM} )
+	message( FATAL_ERROR "libclc needs at least LLVM ${LIBCLC_MIN_LLVM}" )
+endif()
+>>>>>>> b264787453fd93e55154b98d18739ecb383d9b4c
 
 # mesa3d environment is only available since LLVM 4.0
-if( ${LLVM_VERSION} VERSION_GREATER "3.9.0" )
+if( ${LLVM_PACKAGE_VERSION} VERSION_GREATER "3.9.0" )
 	set( LIBCLC_TARGETS_ALL ${LIBCLC_TARGETS_ALL} amdgcn-mesa-mesa3d )
 endif()
 
@@ -81,6 +92,7 @@ if( LIBCLC_TARGETS_TO_BUILD STREQUAL "all" )
 	set( LIBCLC_TARGETS_TO_BUILD ${LIBCLC_TARGETS_ALL} )
 endif()
 
+<<<<<<< HEAD
 
 set(LIBCLC_TARGET_TO_TEST)
 
@@ -128,6 +140,13 @@ find_program( LLVM_OPT opt PATHS ${LLVM_BINDIR} NO_DEFAULT_PATH )
 find_program( LLVM_SPIRV llvm-spirv PATHS ${LLVM_BINDIR} NO_DEFAULT_PATH )
 find_program( LIBCLC_REMANGLER libclc-remangler PATHS ${LLVM_BINDIR}
 							NO_DEFAULT_PATH )
+=======
+find_program( LLVM_CLANG clang PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
+find_program( LLVM_AS llvm-as PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
+find_program( LLVM_LINK llvm-link PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
+find_program( LLVM_OPT opt PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
+find_program( LLVM_SPIRV llvm-spirv PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
+>>>>>>> b264787453fd93e55154b98d18739ecb383d9b4c
 
 # Print toolchain
 message( "clang: ${LLVM_CLANG}" )
@@ -156,16 +175,39 @@ set( CMAKE_LLAsm_PREPROCESSOR ${LLVM_CLANG} )
 set( CMAKE_LLAsm_COMPILER ${LLVM_AS} )
 set( CMAKE_LLAsm_ARCHIVE ${LLVM_LINK} )
 
+<<<<<<< HEAD
+=======
+# Construct LLVM version define
+set( LLVM_VERSION_DEFINE "-DHAVE_LLVM=0x${LLVM_VERSION_MAJOR}0${LLVM_VERSION_MINOR}" )
+
+
+>>>>>>> b264787453fd93e55154b98d18739ecb383d9b4c
 # LLVM 13 enables standard includes by default
-if( ${LLVM_VERSION} VERSION_GREATER "12.99.99" )
+if( ${LLVM_PACKAGE_VERSION} VERSION_GREATER "12.99.99" )
 				set( CMAKE_LLAsm_FLAGS "${CMAKE_LLAsm_FLAGS} -cl-no-stdinc")
 				set( CMAKE_CLC_FLAGS "${CMAKE_CLC_FLAGS} -cl-no-stdinc")
 endif()
 
 enable_language( CLC LLAsm )
+<<<<<<< HEAD
 
 # Configure prepare_builtins
 add_subdirectory(utils)
+=======
+# This needs to be set before any target that needs it
+include_directories( ${LLVM_INCLUDE_DIR} )
+
+# Setup prepare_builtins tools
+set(LLVM_LINK_COMPONENTS
+  BitReader
+  BitWriter
+  Core
+)
+add_llvm_executable( prepare_builtins utils/prepare-builtins.cpp )
+target_compile_definitions( prepare_builtins PRIVATE ${LLVM_VERSION_DEFINE} )
+# These were not properly reported in early LLVM and we don't need them
+target_compile_options( prepare_builtins PRIVATE -fno-rtti -fno-exceptions )
+>>>>>>> b264787453fd93e55154b98d18739ecb383d9b4c
 
 # Setup arch devices
 set( r600--_devices cedar cypress barts cayman )
@@ -190,12 +232,12 @@ set( tahiti_aliases pitcairn verde oland hainan bonaire kabini kaveri hawaii
 	mullins tonga iceland carrizo fiji stoney polaris10 polaris11 )
 
 # Support for gfx9 was added in LLVM 5.0 (r295554)
-if( ${LLVM_VERSION} VERSION_GREATER "4.99.99" )
+if( ${LLVM_PACKAGE_VERSION} VERSION_GREATER "4.99.99" )
 	set( tahiti_aliases ${tahiti_aliases} gfx900 gfx902 )
 endif()
 
 # Support for Vega12 and Vega20 was added in LLVM 7 (r331215)
-if( ${LLVM_VERSION} VERSION_GREATER "6.99.99" )
+if( ${LLVM_PACKAGE_VERSION} VERSION_GREATER "6.99.99" )
 	set( tahiti_aliases ${tahiti_aliases} gfx904 gfx906 )
 endif()
 
@@ -372,6 +414,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 			set( opt_flags -O3 )
 		endif()
 
+<<<<<<< HEAD
                 # Enable SPIR-V builtin function declarations, so they don't
                 # have to be explicity declared in the soruce.
                 list( APPEND flags -Xclang -fdeclare-spirv-builtins)
@@ -396,6 +439,79 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 			ALIASES ${${d}_aliases}
 			GENERATE_TARGET "generate_convert_clc.cl"
 			PARENT_TARGET libclc-builtins)
+=======
+		add_library( builtins.link.${arch_suffix} STATIC ${rel_files} )
+		# Make sure we depend on the pseudo target to prevent
+		# multiple invocations
+		add_dependencies( builtins.link.${arch_suffix}
+			generate_convert.cl )
+		# CMake will turn this include into absolute path
+		target_include_directories( builtins.link.${arch_suffix} PRIVATE
+			"generic/include" )
+		target_compile_definitions( builtins.link.${arch_suffix} PRIVATE
+			"__CLC_INTERNAL" )
+		string( TOUPPER "-DCLC_${ARCH}" CLC_TARGET_DEFINE )
+		target_compile_definitions( builtins.link.${arch_suffix} PRIVATE
+			${CLC_TARGET_DEFINE} )
+		target_compile_options( builtins.link.${arch_suffix} PRIVATE  -target
+			${t} ${mcpu} -fno-builtin -nostdlib ${build_flags} )
+		set_target_properties( builtins.link.${arch_suffix} PROPERTIES
+			LINKER_LANGUAGE CLC )
+
+		set( obj_suffix ${arch_suffix}.bc )
+
+		# Add opt target
+		add_custom_command( OUTPUT "builtins.opt.${obj_suffix}"
+				    COMMAND ${LLVM_OPT} ${opt_flags} -o
+				    "builtins.opt.${obj_suffix}"
+				    "builtins.link.${obj_suffix}"
+				    DEPENDS "builtins.link.${arch_suffix}" )
+		add_custom_target( "opt.${obj_suffix}" ALL
+		                   DEPENDS "builtins.opt.${obj_suffix}" )
+
+		if( ${ARCH} STREQUAL "spirv" OR ${ARCH} STREQUAL "spirv64" )
+			set( spv_suffix ${arch_suffix}.spv )
+			add_custom_command( OUTPUT "${spv_suffix}"
+					    COMMAND ${LLVM_SPIRV} ${spvflags}
+					    -o "${spv_suffix}"
+					    "builtins.link.${obj_suffix}"
+					    DEPENDS "builtins.link.${arch_suffix}" )
+			add_custom_target( "prepare-${spv_suffix}" ALL
+			                   DEPENDS "${spv_suffix}" )
+			install( FILES ${CMAKE_CURRENT_BINARY_DIR}/${spv_suffix}
+				 DESTINATION "${CMAKE_INSTALL_DATADIR}/clc" )
+		else()
+
+			# Add prepare target
+			add_custom_command( OUTPUT "${obj_suffix}"
+				            COMMAND prepare_builtins -o
+					    "${obj_suffix}"
+					    "builtins.opt.${obj_suffix}"
+					    DEPENDS "opt.${obj_suffix}"
+					            "builtins.opt.${obj_suffix}"
+					            prepare_builtins )
+			add_custom_target( "prepare-${obj_suffix}" ALL
+					   DEPENDS "${obj_suffix}" )
+
+			# nvptx-- targets don't include workitem builtins
+			if( NOT ${t} MATCHES ".*ptx.*--$" )
+				add_test( NAME external-calls-${obj_suffix}
+   					  COMMAND ./check_external_calls.sh ${CMAKE_CURRENT_BINARY_DIR}/${obj_suffix} ${LLVM_TOOLS_BINARY_DIR}
+					  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR} )
+			endif()
+
+			install( FILES ${CMAKE_CURRENT_BINARY_DIR}/${obj_suffix} DESTINATION "${CMAKE_INSTALL_DATADIR}/clc" )
+			foreach( a ${${d}_aliases} )
+				set( alias_suffix "${a}-${t}.bc" )
+				add_custom_target( ${alias_suffix} ALL
+						   COMMAND ${CMAKE_COMMAND} -E
+						   create_symlink ${obj_suffix}
+						   ${alias_suffix}
+				                   DEPENDS "prepare-${obj_suffix}" )
+				install( FILES ${CMAKE_CURRENT_BINARY_DIR}/${alias_suffix} DESTINATION "${CMAKE_INSTALL_DATADIR}/clc" )
+			endforeach( a )
+		endif()
+>>>>>>> b264787453fd93e55154b98d18739ecb383d9b4c
 	endforeach( d )
 endforeach( t )
 
