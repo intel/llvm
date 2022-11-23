@@ -12,7 +12,7 @@
 ; RUN: FileCheck %s -input-file=%t_large_grf_1.ll --check-prefixes CHECK-LARGE-GRF-IR
 ; RUN: FileCheck %s -input-file=%t_large_grf_1.prop --check-prefixes CHECK-LARGE-GRF-PROP
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-SYCL-SYM
-; RUN: FileCheck %s -input-file=%t_large_grf_0.sym --check-prefixes CHECK-LARGE-GRF-SYM
+; RUN: FileCheck %s -input-file=%t_large_grf_1.sym --check-prefixes CHECK-LARGE-GRF-SYM
 
 ; CHECK: [Code|Properties|Symbols]
 ; CHECK: {{.*}}_0.ll|{{.*}}_0.prop|{{.*}}_0.sym
