@@ -23,9 +23,9 @@ _Float16 type(_Float16 arg) {
 // CHECK-EXTEND-NEXT:     %[[EXT1:.*]] = arith.extf %arg1 : f16 to f32
 // CHECK-EXTEND-NEXT:     %[[ADD:.*]] = arith.addf %[[EXT0]], %[[EXT1]] : f32
 // CHECK-EXTEND-NEXT:     %[[EXT2:.*]] = arith.extf %arg2 : f16 to f32
-// CHECK-EXTEND-NEXT:     %[[NEG:.*]] = arith.negf %arg3 : f16
-// CHECK-EXTEND-NEXT:     %[[EXTNEG:.*]] = arith.extf %[[NEG]] : f16 to f32
-// CHECK-EXTEND-NEXT:     %[[MUL:.*]] = arith.mulf %[[EXT2]], %[[EXTNEG]] : f32
+// CHECK-EXTEND-NEXT:     %[[EXT3:.*]] = arith.extf %arg3 : f16 to f32
+// CHECK-EXTEND-NEXT:     %[[NEG:.*]] = arith.negf %[[EXT3]] : f32
+// CHECK-EXTEND-NEXT:     %[[MUL:.*]] = arith.mulf %[[EXT2]], %[[NEG]] : f32
 // CHECK-EXTEND-NEXT:     %[[EXT4:.*]] = arith.extf %arg4 : f16 to f32
 // CHECK-EXTEND-NEXT:     %[[DIV:.*]] = arith.divf %[[MUL]], %[[EXT4]] : f32
 // CHECK-EXTEND-NEXT:     %[[SUB:.*]] = arith.subf %[[ADD]], %[[DIV]] : f32

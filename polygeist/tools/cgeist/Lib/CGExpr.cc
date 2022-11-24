@@ -2113,21 +2113,21 @@ static bool isSigned(QualType Ty) {
 class BinOpInfo {
 public:
   BinOpInfo(ValueCategory LHS, ValueCategory RHS, QualType Ty,
-            BinaryOperator::Opcode Opcode, const BinaryOperator *Expr)
-      : LHS(LHS), RHS(RHS), Ty(Ty), Opcode(Opcode), Expr(Expr) {}
+            BinaryOperator::Opcode Opcode, const Expr *Expr)
+      : LHS(LHS), RHS(RHS), Ty(Ty), Opcode(Opcode), E(Expr) {}
 
   ValueCategory getLHS() const { return LHS; }
   ValueCategory getRHS() const { return RHS; }
   constexpr QualType getType() const { return Ty; }
   constexpr BinaryOperator::Opcode getOpcode() const { return Opcode; }
-  constexpr const BinaryOperator *getExpr() const { return Expr; }
+  constexpr const Expr *getExpr() const { return E; }
 
 private:
   const ValueCategory LHS;
   const ValueCategory RHS;
   const QualType Ty;                   // Computation Type.
   const BinaryOperator::Opcode Opcode; // Opcode of BinOp to perform
-  const BinaryOperator *Expr;
+  const Expr *E;
 };
 
 ValueCategory MLIRScanner::EmitPromoted(Expr *E, QualType PromotionType) {
@@ -2149,12 +2149,13 @@ ValueCategory MLIRScanner::EmitPromoted(Expr *E, QualType PromotionType) {
     }
   } else if (auto *UO = dyn_cast<UnaryOperator>(E)) {
     switch (UO->getOpcode()) {
-    case UO_Imag:
-    case UO_Real:
-    case UO_Minus:
-    case UO_Plus:
-      mlirclang::warning() << "Default promotion for unary operation\n";
-      LLVM_FALLTHROUGH;
+#define HANDLEUNARYOP(OP)                                                      \
+  case UO_##OP:                                                                \
+    return Visit##OP(UO, PromotionType);
+
+#include "Expressions.def"
+#undef HANDLEUNARYOP
+
     default:
       break;
     }
@@ -2798,8 +2799,10 @@ ValueCategory MLIRScanner::EmitBinSub(const BinOpInfo &Info) {
   const auto DiffInChars = LHS.Sub(Builder, Loc, RHS.val);
 
   // Okay, figure out the element size.
-  const QualType ElementType =
-      Info.getExpr()->getLHS()->getType()->getPointeeType();
+  const QualType ElementType = cast<BinaryOperator>(Info.getExpr())
+                                   ->getLHS()
+                                   ->getType()
+                                   ->getPointeeType();
 
   assert(!Glob.getCGM().getContext().getAsVariableArrayType(ElementType) &&
          "Not implemented yet");
@@ -2869,4 +2872,80 @@ ValueCategory MLIRScanner::EmitBinOr(const BinOpInfo &Info) {
       Builder.create<arith::OrIOp>(Loc, Info.getLHS().getValue(Builder),
                                    Info.getRHS().getValue(Builder)),
       /*isReference*/ false);
+}
+
+#define HANDLEUNARYOP(OP)                                                      \
+  ValueCategory MLIRScanner::VisitUnary##OP(UnaryOperator *E,                  \
+                                            QualType PromotionType) {          \
+    LLVM_DEBUG({                                                               \
+      llvm::dbgs() << "VisitUnary" #OP ": ";                                   \
+      E->dump();                                                               \
+      llvm::dbgs() << "\n";                                                    \
+    });                                                                        \
+    QualType promotionTy =                                                     \
+        PromotionType.isNull()                                                 \
+            ? Glob.getTypes().getPromotionType(E->getSubExpr()->getType())     \
+            : PromotionType;                                                   \
+    ValueCategory result = Visit##OP(E, promotionTy);                          \
+    if (result.val && !promotionTy.isNull())                                   \
+      result = EmitUnPromotedValue(getMLIRLocation(E->getExprLoc()), result,   \
+                                   E->getType());                              \
+    return result;                                                             \
+  }
+#include "Expressions.def"
+#undef HANDLEUNARYOP
+
+ValueCategory MLIRScanner::VisitPlus(UnaryOperator *E, QualType PromotionType) {
+  if (!PromotionType.isNull())
+    return EmitPromotedScalarExpr(E->getSubExpr(), PromotionType);
+  return Visit(E->getSubExpr());
+}
+
+ValueCategory MLIRScanner::VisitMinus(UnaryOperator *E,
+                                      QualType PromotionType) {
+  const Location Loc = getMLIRLocation(E->getExprLoc());
+  ValueCategory Op;
+  if (!PromotionType.isNull())
+    Op = EmitPromotedScalarExpr(E->getSubExpr(), PromotionType);
+  else
+    Op = Visit(E->getSubExpr());
+
+  // Generate a unary FNeg for FP ops.
+  if (mlirclang::isFPOrFPVectorTy(Op.val.getType()))
+    return Op.FNeg(Builder, Loc);
+
+  // Emit unary minus with EmitBinSub so we handle overflow cases etc.
+  const ValueCategory Zero =
+      ValueCategory::getNullValue(Builder, Loc, Op.val.getType());
+  return EmitBinSub(
+      BinOpInfo{Zero, Op, E->getType(), BinaryOperator::Opcode::BO_Sub, E});
+}
+
+ValueCategory MLIRScanner::VisitImag(UnaryOperator *E, QualType PromotionType) {
+  Expr *Op = E->getSubExpr();
+
+  assert(!Op->getType()->isAnyComplexType() && "Unsupported");
+
+  // __imag on a scalar returns zero.  Emit the subexpr to ensure side
+  // effects are evaluated, but not the actual value.
+  if (Op->isGLValue())
+    EmitLValue(Op);
+  else if (!PromotionType.isNull())
+    EmitPromotedScalarExpr(Op, PromotionType);
+  else
+    Visit(Op);
+  auto ResTy = Glob.getTypes().getMLIRType(
+      !PromotionType.isNull() ? PromotionType : E->getType());
+  return ValueCategory::getNullValue(Builder, getMLIRLocation(E->getExprLoc()),
+                                     ResTy);
+}
+
+ValueCategory MLIRScanner::VisitReal(UnaryOperator *E, QualType PromotionType) {
+  Expr *Op = E->getSubExpr();
+
+  assert(!Op->getType()->isAnyComplexType() && "Unsupported");
+
+  if (!PromotionType.isNull())
+    return EmitPromotedScalarExpr(Op, PromotionType);
+  return Visit(Op);
 }

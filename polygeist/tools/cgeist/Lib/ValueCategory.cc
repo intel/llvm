@@ -18,6 +18,7 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
 
@@ -55,6 +56,31 @@ mlir::Value ValueCategory::getValue(mlir::OpBuilder &builder) const {
                                           std::vector<mlir::Value>({c0}));
   }
   llvm_unreachable("type must be LLVMPointer or MemRef");
+}
+
+ValueCategory ValueCategory::getNullValue(OpBuilder &Builder, Location Loc,
+                                          Type Type) {
+  const auto ZeroVal =
+      llvm::TypeSwitch<mlir::Type, mlir::Value>(Type)
+          .Case<mlir::IntegerType>([&](auto Ty) {
+            return Builder.createOrFold<arith::ConstantIntOp>(Loc, 0, Ty);
+          })
+          .Case<mlir::IndexType>([&](auto) {
+            return Builder.createOrFold<arith::ConstantIndexOp>(Loc, 0);
+          })
+          .Case<mlir::FloatType>([&](auto Ty) {
+            return Builder.createOrFold<arith::ConstantFloatOp>(
+                Loc, llvm::APFloat::getZero(Ty.getFloatSemantics()), Ty);
+          })
+          .Case<mlir::VectorType>([&](auto VecTy) {
+            const auto Element = ValueCategory::getNullValue(
+                                     Builder, Loc, VecTy.getElementType())
+                                     .val;
+            return Builder.createOrFold<vector::SplatOp>(Loc, Element, Type);
+          })
+          .Default(
+              [](auto) -> mlir::Value { llvm_unreachable("Invalid type"); });
+  return {ZeroVal, false};
 }
 
 void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
@@ -643,4 +669,16 @@ ValueCategory ValueCategory::InBoundsGEPOrSubIndex(OpBuilder &Builder,
                                                    Location Loc, Type Type,
                                                    ValueRange IdxList) const {
   return GEPOrSubIndex(Builder, Loc, Type, IdxList, /*IsInBounds*/ true);
+}
+
+template <typename OpTy>
+ValueCategory FPUnaryOp(OpBuilder &Builder, Location Loc, Value Val) {
+  assert(mlirclang::isFPOrFPVectorTy(Val.getType()) &&
+         "Expecting FP or FP vector operand type");
+  warnUnconstrainedOp<arith::NegFOp>();
+  return {Builder.createOrFold<OpTy>(Loc, Val), false};
+}
+
+ValueCategory ValueCategory::FNeg(OpBuilder &Builder, Location Loc) const {
+  return FPUnaryOp<arith::NegFOp>(Builder, Loc, val);
 }

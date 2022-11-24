@@ -523,6 +523,14 @@ public:
 #include "Expressions.def"
 #undef HANDLEBINOP
 
+#define HANDLEUNARYOP(OP)                                                      \
+  ValueCategory VisitUnary##OP(clang::UnaryOperator *E,                        \
+                               clang::QualType PromotionTy =                   \
+                                   clang::QualType());                         \
+  ValueCategory Visit##OP(clang::UnaryOperator *E, clang::QualType PromotionTy);
+#include "Expressions.def"
+#undef HANDLEUNARYOP
+
   ValueCategory VisitCXXNoexceptExpr(clang::CXXNoexceptExpr *AS);
 
   ValueCategory VisitAttributedStmt(clang::AttributedStmt *AS);
