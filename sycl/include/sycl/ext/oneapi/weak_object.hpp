@@ -29,6 +29,11 @@ template <int Dims> static range<Dims> createDummyRange() {
 }
 } // namespace detail
 
+// The weak_object class.
+// Since we use std::shared_ptr to implementations as a way to handle common
+// reference semantics in SYCL classes, the implementation of the weak_object
+// class holds a weak_ptr to the implementations. The weak_ptr is in the
+// weak_object_base class.
 template <typename SYCLObjT>
 class weak_object : public detail::weak_object_base<SYCLObjT> {
 public:
@@ -138,6 +143,7 @@ public:
   }
 
 private:
+  // Additional members required for recreating buffers.
   range<Dimensions> MRange;
   size_t MOffsetInBytes;
   bool MIsSubBuffer;

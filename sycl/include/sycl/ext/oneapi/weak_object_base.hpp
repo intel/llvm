@@ -52,6 +52,7 @@ public:
   }
 
 protected:
+  // Store a weak variant of the impl in the SYCLObjT.
   typename std::invoke_result_t<
       decltype(sycl::detail::getSyclObjImpl<SYCLObjT>), SYCLObjT>::weak_type
       MObjWeakPtr;
