@@ -331,8 +331,8 @@ static constexpr bool is_allowable_aot_mode =
     (__SYCL_TARGET_AMD_GPU_GFX1032__ == 1);
 
 struct IsAOTForArchitectureClass {
-  // Allocate an array of size == size of ext::oneapi::experimental::architecture
-  // enum.
+  // Allocate an array of size == size of
+  // ext::oneapi::experimental::architecture enum.
   bool arr[static_cast<int>(max_architecture) + 1];
 
   using arch = ext::oneapi::experimental::architecture;
