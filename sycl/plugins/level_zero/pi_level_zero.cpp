@@ -1027,16 +1027,19 @@ _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
               std::back_inserter(EventListToCleanup));
     EventList.clear();
   } else {
-    // For immediate commandlist reset only those events that have signalled.
+    std::vector<pi_event> UnsetEventsList{};
     for (auto it = EventList.begin(); it != EventList.end(); it++) {
       std::scoped_lock<pi_shared_mutex> EventLock((*it)->Mutex);
       ze_result_t ZeResult =
           ZE_CALL_NOCHECK(zeEventQueryStatus, ((*it)->ZeEvent));
       if (ZeResult == ZE_RESULT_SUCCESS) {
-        std::move(it, it, std::back_inserter(EventListToCleanup));
-        EventList.erase(it, it);
+        EventListToCleanup.push_back(std::move((*it)));
+      } else {
+        UnsetEventsList.push_back(std::move((*it)));
       }
     }
+    EventList.clear();
+    EventList = std::move(UnsetEventsList);
   }
 
   // Standard commandlists move in and out of the cache as they are recycled.
@@ -6500,15 +6503,6 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     for (auto It = Queue->CommandListMap.begin();
          It != Queue->CommandListMap.end(); ++It)
       CmdLists.push_back(It);
-  } else if (Queue->ComputeQueueGroup.ZeQueues.empty() &&
-             Queue->CopyQueueGroup.ZeQueues.empty()) {
-    // If there are no queues, we get any available command list.
-    pi_command_list_ptr_t CmdList;
-    if (auto Res = Queue->Context->getAvailableCommandList(
-            Queue, CmdList,
-            /*UseCopyEngine=*/false, OkToBatch))
-      return Res;
-    CmdLists.push_back(CmdList);
   } else {
     size_t NumQueues = Queue->ComputeQueueGroup.ZeQueues.size() +
                        Queue->CopyQueueGroup.ZeQueues.size();
@@ -6522,22 +6516,19 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     for (auto QueueGroup : {Queue->ComputeQueueGroup, Queue->CopyQueueGroup}) {
       bool UseCopyEngine = QueueGroup.Type != _pi_queue::queue_type::Compute;
       for (ze_command_queue_handle_t ZeQueue : QueueGroup.ZeQueues) {
-        pi_command_list_ptr_t CmdList;
-        if (auto Res = Queue->Context->getAvailableCommandList(
-                Queue, CmdList, UseCopyEngine, OkToBatch,
-                ZeQueue ? &ZeQueue : nullptr))
-          return Res;
-        CmdLists.push_back(CmdList);
+        if (ZeQueue) {
+          pi_command_list_ptr_t CmdList;
+          if (auto Res = Queue->Context->getAvailableCommandList(
+                  Queue, CmdList, UseCopyEngine, OkToBatch, &ZeQueue))
+            return Res;
+          CmdLists.push_back(CmdList);
+        }
       }
     }
   }
 
   if (CmdLists.size() == 0) {
-    // When using immediate commandlists, no activity on a queue would cause a
-    // situation where there are no commandlists. This cannot happen for
-    // standard commandlists.
-    PI_ASSERT(Queue->Device->useImmediateCommandLists(),
-              PI_ERROR_INVALID_QUEUE);
+    // Nothing to do.
   } else if (CmdLists.size() > 1) {
     // Insert a barrier into each unique command queue using the available
     // command-lists.
