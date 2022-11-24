@@ -32,10 +32,8 @@ int main() {
       sycl::ext::oneapi::property::queue::lazy_execution{}
     };
 
-    sycl::gpu_selector device_selector;
-    
-    sycl::queue q{device_selector, properties};
-    
+    sycl::queue q{sycl::gpu_selector_v, properties};
+
     sycl::ext::oneapi::experimental::command_graph g;
     
     float *dotp = sycl::malloc_shared<float>(1, q);
@@ -80,7 +78,11 @@ int main() {
     auto exec_graph = g.finalize(q.get_context());
     
     exec_graph.exec_and_wait(q);
-    
+
+    if (*dotp != host_gold_result()) {
+      std::cout << "Error unexpected result!\n";
+    }
+
     sycl::free(dotp, q);
     sycl::free(x, q);
     sycl::free(y, q);
