@@ -391,7 +391,7 @@ ValueCategory MLIRScanner::VisitInitListExpr(clang::InitListExpr *E) {
   int64_t ResElts = VType.getNumElements();
 
   int64_t CurIdx = 0;
-  ValueCategory V{Builder.createOrFold<LLVM::UndefOp>(Loc, VType), false};
+  auto V = ValueCategory::getNullValue(Builder, Loc, VType);
   for (auto *IE : E->children()) {
     ValueCategory Init = Visit(IE);
     SmallVector<int64_t> Args;
@@ -433,14 +433,6 @@ ValueCategory MLIRScanner::VisitInitListExpr(clang::InitListExpr *E) {
       std::swap(V, Init);
     V = V.Shuffle(Builder, Loc, Init.val, Args);
     CurIdx += InitElts;
-  }
-
-  // Emit remaining default initializers
-  mlir::Type EltTy = VType.getElementType();
-  mlir::Value Init;
-  for (; CurIdx < ResElts; ++CurIdx) {
-    Init = Init ? Init : ValueCategory::getNullValue(Builder, Loc, EltTy).val;
-    V = V.Insert(Builder, Loc, Init, CurIdx);
   }
 
   return V;

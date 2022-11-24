@@ -12,7 +12,7 @@ typedef float float8 __attribute__((ext_vector_type(8)));
 // CHECK-NEXT:      %[[VAL_5:.*]] = arith.constant 5.000000e+00 : f32
 // CHECK-NEXT:      %[[VAL_6:.*]] = arith.constant 6.000000e+00 : f32
 // CHECK-NEXT:      %[[VAL_7:.*]] = arith.constant 7.000000e+00 : f32
-// CHECK-NEXT:      %[[VAL_8:.*]] = llvm.mlir.undef : vector<8xf32>
+// CHECK-NEXT:      %[[VAL_8:.*]] = arith.constant dense<0.000000e+00> : vector<8xf32>
 // CHECK-NEXT:      %[[VAL_9:.*]] = vector.insert %[[VAL_0]], %[[VAL_8]] [0] : f32 into vector<8xf32>
 // CHECK-NEXT:      %[[VAL_10:.*]] = vector.insert %[[VAL_1]], %[[VAL_9]] [1] : f32 into vector<8xf32>
 // CHECK-NEXT:      %[[VAL_11:.*]] = vector.insert %[[VAL_2]], %[[VAL_10]] [2] : f32 into vector<8xf32>
@@ -29,7 +29,7 @@ float8 test_constant() {
 
 // CHECK-LABEL:   func.func @_Z9test_eachffffffff(
 // CHECK-SAME:                                    %[[VAL_0:.*]]: f32, %[[VAL_1:.*]]: f32, %[[VAL_2:.*]]: f32, %[[VAL_3:.*]]: f32, %[[VAL_4:.*]]: f32, %[[VAL_5:.*]]: f32, %[[VAL_6:.*]]: f32, %[[VAL_7:.*]]: f32) -> vector<8xf32>
-// CHECK-NEXT:      %[[VAL_8:.*]] = llvm.mlir.undef : vector<8xf32>
+// CHECK-NEXT:      %[[VAL_8:.*]] = arith.constant dense<0.000000e+00> : vector<8xf32>
 // CHECK-NEXT:      %[[VAL_9:.*]] = vector.insert %[[VAL_0]], %[[VAL_8]] [0] : f32 into vector<8xf32>
 // CHECK-NEXT:      %[[VAL_10:.*]] = vector.insert %[[VAL_1]], %[[VAL_9]] [1] : f32 into vector<8xf32>
 // CHECK-NEXT:      %[[VAL_11:.*]] = vector.insert %[[VAL_2]], %[[VAL_10]] [2] : f32 into vector<8xf32>
@@ -57,7 +57,7 @@ float8 test_copy(float8 Arg0) {
 // CHECK-LABEL:   func.func @_Z9test_fillffff(
 // CHECK-SAME:                                %[[VAL_0:.*]]: f32, %[[VAL_1:.*]]: f32, %[[VAL_2:.*]]: f32, %[[VAL_3:.*]]: f32) -> vector<8xf32>
 // CHECK-NEXT:      %[[VAL_4:.*]] = arith.constant 0.000000e+00 : f32
-// CHECK-NEXT:      %[[VAL_5:.*]] = llvm.mlir.undef : vector<8xf32>
+// CHECK-NEXT:      %[[VAL_5:.*]] = arith.constant dense<0.000000e+00> : vector<8xf32>
 // CHECK-NEXT:      %[[VAL_6:.*]] = vector.insert %[[VAL_0]], %[[VAL_5]] [0] : f32 into vector<8xf32>
 // CHECK-NEXT:      %[[VAL_7:.*]] = vector.insert %[[VAL_1]], %[[VAL_6]] [1] : f32 into vector<8xf32>
 // CHECK-NEXT:      %[[VAL_8:.*]] = vector.insert %[[VAL_2]], %[[VAL_7]] [2] : f32 into vector<8xf32>
@@ -74,7 +74,7 @@ float8 test_fill(float A, float B, float C, float D) {
 
 // CHECK-LABEL:   func.func @_Z11test_concatDv4_fS_(
 // CHECK-SAME:                                      %[[VAL_0:.*]]: vector<4xf32>, %[[VAL_1:.*]]: vector<4xf32>) -> vector<8xf32>
-// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.mlir.undef : vector<8xf32>
+// CHECK-NEXT:      %[[VAL_2:.*]] = arith.constant dense<0.000000e+00> : vector<8xf32>
 // CHECK-NEXT:      %[[VAL_3:.*]] = vector.extract %[[VAL_0]][0] : vector<4xf32>
 // CHECK-NEXT:      %[[VAL_4:.*]] = vector.insert %[[VAL_3]], %[[VAL_2]] [0] : f32 into vector<8xf32>
 // CHECK-NEXT:      %[[VAL_5:.*]] = vector.extract %[[VAL_0]][1] : vector<4xf32>
@@ -100,7 +100,7 @@ float8 test_concat(float4 A, float4 B) {
 // CHECK-LABEL:   func.func @_Z11test_expandDv4_f(
 // CHECK-SAME:                                    %[[VAL_0:.*]]: vector<4xf32>) -> vector<8xf32>
 // CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 0.000000e+00 : f32
-// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.mlir.undef : vector<8xf32>
+// CHECK-NEXT:      %[[VAL_2:.*]] = arith.constant dense<0.000000e+00> : vector<8xf32>
 // CHECK-NEXT:      %[[VAL_3:.*]] = vector.extract %[[VAL_0]][0] : vector<4xf32>
 // CHECK-NEXT:      %[[VAL_4:.*]] = vector.insert %[[VAL_3]], %[[VAL_2]] [0] : f32 into vector<8xf32>
 // CHECK-NEXT:      %[[VAL_5:.*]] = vector.extract %[[VAL_0]][1] : vector<4xf32>
