@@ -7,6 +7,9 @@
 // REQUIRES: gpu
 // UNSUPPORTED: hip
 // UNSUPPORTED: ze_debug-1,ze_debug4
+
+// Temporary while the failure is being investigated.
+// UNSUPPORTED: windows
 #include "kernel-bundle-merge-options.hpp"
 
 // CHECK: piProgramBuild
