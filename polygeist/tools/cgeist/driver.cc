@@ -347,7 +347,6 @@ static int optimize(mlir::MLIRContext &context,
       optPM.addPass(mlir::createLowerAffinePass());
     optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
     pm.addPass(sycl::createAlwaysInlinePass());
-    //    pm.addPass(mlir::createInlinerPass());
 
     mlir::OpPassManager &optPM2 = pm.nestAny();
     optPM2.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
@@ -408,7 +407,7 @@ static int optimizeCUDA(mlir::MLIRContext &context,
   noptPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
   noptPM.addPass(polygeist::createMem2RegPass());
   noptPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-  pm.addPass(mlir::createInlinerPass());
+
   mlir::OpPassManager &noptPM2 = pm.nestAny();
   noptPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
   noptPM2.addPass(polygeist::createMem2RegPass());
