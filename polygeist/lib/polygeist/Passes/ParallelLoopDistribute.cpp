@@ -1247,9 +1247,9 @@ static void moveBodiesIf(PatternRewriter &rewriter, T op, IfType ifOp,
     insertRecomputables(rewriter, op, newParallel, ifOp);
   }
 
+  rewriter.finalizeRootUpdate(op);
   rewriter.eraseOp(ifOp);
   rewriter.eraseOp(op);
-  rewriter.finalizeRootUpdate(op);
 }
 
 mlir::OperandRange getLowerBounds(scf::ParallelOp op,

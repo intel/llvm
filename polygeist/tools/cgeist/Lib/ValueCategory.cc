@@ -112,7 +112,7 @@ void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
                         .getElementType()
                         .dyn_cast<mlir::MemRefType>()) {
         assert(MT.getShape().size() == 1);
-        assert(MT.getShape()[0] == -1);
+        assert(MT.getShape()[0] == ShapedType::kDynamicSize);
         assert(MT.getElementType() == PT.getElementType());
         toStore = builder.create<polygeist::Pointer2MemrefOp>(loc, MT, toStore);
       }
@@ -164,7 +164,7 @@ ValueCategory ValueCategory::dereference(mlir::OpBuilder &builder) const {
             builder.create<polygeist::SubIndexOp>(loc, mt0, val, c0),
             /*isReference*/ true);
       } else {
-        // shape[0] = -1;
+        // shape[0] = ShapedType::kDynamicSize;
         return ValueCategory(builder.create<mlir::memref::LoadOp>(
                                  loc, val, std::vector<mlir::Value>({c0})),
                              /*isReference*/ true);
