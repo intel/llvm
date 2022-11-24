@@ -236,8 +236,8 @@ static Optional<Type> convertAtomicType(sycl::AtomicType type,
   // converter);
   auto convertedTy = LLVM::LLVMStructType::getIdentified(
       &converter.getContext(), "class.sycl::_V1::atomic");
-  auto elementType = LLVM::LLVMPointerType::get(
-      type.getDataType(), (int)(type.getAddrSpace()));
+  auto elementType = LLVM::LLVMPointerType::get(type.getDataType(),
+                                                (int)(type.getAddrSpace()));
 
   if (!convertedTy.isInitialized()) {
     if (failed(convertedTy.setBody(elementType, /*isPacked=*/false)))

@@ -120,8 +120,9 @@ void mlir::sycl::printMemoryTargetMode(AsmPrinter &Printer,
   Printer << memoryTargetModeAsString(MemTargetMode);
 }
 
-std::string mlir::sycl::accAddressModeAsString(mlir::sycl::AccessAddrSpace AccAddress) {
-  return std::to_string((int) AccAddress); 
+std::string
+mlir::sycl::accAddressModeAsString(mlir::sycl::AccessAddrSpace AccAddress) {
+  return std::to_string((int)AccAddress);
 }
 
 mlir::LogicalResult mlir::sycl::parseAccessAddrSpace(
