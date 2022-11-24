@@ -36,7 +36,6 @@ attributes #2 = { convergent norecurse "frame-pointer"="all" "min-legal-vector-w
 !3 = !{i32 1, !"wchar_size", i32 4}
 !4 = !{i32 7, !"frame-pointer", i32 2}
 
-; Note that work-group sizes are padded with 1's after being reversed.
 ; CHECK-IR-DAG: ![[SGSizeMD0]] = !{i32 3}
 ; CHECK-IR-DAG: ![[WGSizeMD0]] = !{i{{[0-9]+}} 1}
 ; CHECK-IR-DAG: ![[WGSizeHintMD0]] = !{i{{[0-9]+}} 2}
