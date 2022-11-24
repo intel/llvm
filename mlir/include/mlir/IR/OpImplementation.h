@@ -577,9 +577,6 @@ public:
   /// Parse a quoted string token if present.
   virtual ParseResult parseOptionalString(std::string *string) = 0;
 
-  /// Parses a Base64 encoded string of bytes.
-  virtual ParseResult parseBase64Bytes(std::vector<char> *bytes) = 0;
-
   /// Parse a `(` token.
   virtual ParseResult parseLParen() = 0;
 
