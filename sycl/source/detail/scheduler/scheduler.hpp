@@ -184,6 +184,11 @@ using EventImplPtr = std::shared_ptr<detail::event_impl>;
 using QueueImplPtr = std::shared_ptr<detail::queue_impl>;
 using StreamImplPtr = std::shared_ptr<detail::stream_impl>;
 
+using QueueIdT = std::hash<std::shared_ptr<detail::queue_impl>>::result_type;
+using CommandPtr = std::unique_ptr<Command>;
+using FusionList = std::unique_ptr<KernelFusionCommand>;
+using FusionMap = std::unordered_map<QueueIdT, FusionList>;
+
 /// Memory Object Record
 ///
 /// The MemObjRecord is used in command groups (todo better desc).
@@ -434,6 +439,14 @@ public:
   static MemObjRecord *getMemObjRecord(const Requirement *const Req);
 
   void deferMemObjRelease(const std::shared_ptr<detail::SYCLMemObjI> &MemObj);
+  
+  void startFusion(QueueImplPtr Queue);
+
+  void cancelFusion(QueueImplPtr Queue);
+
+  EventImplPtr completeFusion(QueueImplPtr Queue, const property_list &);
+
+  bool isInFusionMode(QueueIdT Queue);
 
   Scheduler();
   ~Scheduler();
@@ -472,15 +485,28 @@ protected:
 
   void NotifyHostTaskCompletion(Command *Cmd);
 
+  void enqueueCommandForCG(EventImplPtr NewEvent,
+                           std::vector<Command *> &AuxilaryCmds);
+
   static void enqueueLeavesOfReqUnlocked(const Requirement *const Req,
+                                         ReadLockT &GraphReadLock,
                                          std::vector<Command *> &ToCleanUp);
 
   static void
   enqueueUnblockedCommands(const std::vector<EventImplPtr> &CmdsToEnqueue,
+                           ReadLockT &GraphReadLock,
                            std::vector<Command *> &ToCleanUp);
 
   // May lock graph with read and write modes during execution.
   void cleanupDeferredMemObjects(BlockingT Blocking);
+  
+  // POD struct to convey some additional information from GraphBuilder::addCG
+  // to the Scheduler to support kernel fusion.
+  struct GraphBuildResult {
+    Command *NewCmd;
+    EventImplPtr NewEvent;
+    bool ShouldEnqueue;
+  };
 
   void registerAuxiliaryResources(
       EventImplPtr &Event, std::vector<std::shared_ptr<const void>> Resources);
@@ -500,10 +526,12 @@ protected:
     ///
     /// \sa queue::submit, Scheduler::addCG
     ///
-    /// \return a command that represents command group execution.
-    Command *addCG(std::unique_ptr<detail::CG> CommandGroup,
-                   const QueueImplPtr &Queue,
-                   std::vector<Command *> &ToEnqueue);
+    /// \return a command that represents command group execution and a bool
+    /// indicating whether this command should be enqueued to the graph
+    /// processor right away or not.
+    GraphBuildResult addCG(std::unique_ptr<detail::CG> CommandGroup,
+                           const QueueImplPtr &Queue,
+                           std::vector<Command *> &ToEnqueue);
 
     /// Registers a \ref CG "command group" that updates host memory to the
     /// latest state.
@@ -531,7 +559,7 @@ protected:
     /// with Event passed and its dependencies.
     void optimize(const EventImplPtr &Event);
 
-    void cleanupCommand(Command *Cmd);
+    void cleanupCommand(Command *Cmd, bool AllowUnsubmitted = false);
 
     /// Reschedules the command passed using Queue provided.
     ///
@@ -583,6 +611,16 @@ protected:
                              const DepDesc &Dep,
                              std::vector<Command *> &ToCleanUp);
 
+    void startFusion(QueueImplPtr Queue);
+
+    void cancelFusion(QueueImplPtr Queue, std::vector<Command *> &ToEnqueue);
+
+    EventImplPtr completeFusion(QueueImplPtr Queue,
+                                std::vector<Command *> &ToEnqueue,
+                                const property_list &);
+
+    bool isInFusionMode(QueueIdT queue);
+
     std::vector<SYCLMemObjI *> MMemObjs;
 
   private:
@@ -624,6 +662,12 @@ protected:
                 std::vector<Command *> &ToEnqueue,
                 const bool AddDepsToLeaves = true);
 
+    void createGraphForCommand(Command *NewCmd, CG &CG, bool isInteropTask,
+                               std::vector<Requirement *> &Reqs,
+                               const std::vector<detail::EventImplPtr> &Events,
+                               QueueImplPtr Queue,
+                               std::vector<Command *> &ToEnqueue);
+
   protected:
     /// Finds a command dependency corresponding to the record.
     DepDesc findDepForRecord(Command *Cmd, MemObjRecord *Record);
@@ -649,10 +693,22 @@ protected:
 
     void markModifiedIfWrite(MemObjRecord *Record, Requirement *Req);
 
-    /// Used to track commands that need to be visited during graph traversal.
+    FusionMap::iterator findFusionList(QueueIdT Id) {
+      return MFusionMap.find(Id);
+    }
+
+    void removeNodeFromGraph(Command *Node, std::vector<Command *> &ToEnqueue);
+
+    /// Used to track commands that need to be visited during graph
+    /// traversal.
     std::queue<Command *> MCmdsToVisit;
     /// Used to track commands that have been visited during graph traversal.
     std::vector<Command *> MVisitedCmds;
+
+    /// Used to track queues that are in fusion mode and the
+    /// command-groups/kernels submitted for fusion.
+    FusionMap MFusionMap;
+
     /// Prints contents of graph to text file in DOT format
     ///
     /// \param ModeName is a stringified printing mode name to be used
@@ -665,6 +721,8 @@ protected:
       AfterAddCopyBack,
       BeforeAddHostAcc,
       AfterAddHostAcc,
+      AfterFusionComplete,
+      AfterFusionCancel,
       Size
     };
     std::array<bool, PrintOptions::Size> MPrintOptionsArray{false};
@@ -765,7 +823,8 @@ protected:
     ///
     /// The function may unlock and lock GraphReadLock as needed. Upon return
     /// the lock is left in locked state.
-    static bool enqueueCommand(Command *Cmd, EnqueueResultT &EnqueueResult,
+    static bool enqueueCommand(Command *Cmd, ReadLockT &GraphReadLock,
+                               EnqueueResultT &EnqueueResult,
                                std::vector<Command *> &ToCleanUp,
                                Command *RootCommand,
                                BlockingT Blocking = NON_BLOCKING);
@@ -832,6 +891,11 @@ protected:
   friend class queue_impl;
   friend class event_impl;
   friend class ::MockScheduler;
+
+private:
+  static void printFusionWarning(const std::string &Message);
+
+  static KernelFusionCommand *isPartOfActiveFusion(Command *Cmd);
 };
 
 } // namespace detail
