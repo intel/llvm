@@ -556,7 +556,7 @@ bool CombinerHelper::matchCombineExtendingLoads(MachineInstr &MI,
       if (MMO.isAtomic() && UseMI.getOpcode() != TargetOpcode::G_ANYEXT)
         continue;
       // Check for legality.
-      if (LI) {
+      if (!isPreLegalize()) {
         LegalityQuery::MemDesc MMDesc(MMO);
         unsigned CandidateLoadOpc = getExtLoadOpcForExtend(UseMI.getOpcode());
         LLT UseTy = MRI.getType(UseMI.getOperand(0).getReg());
@@ -1598,6 +1598,13 @@ void CombinerHelper::applyShiftOfShiftedLogic(MachineInstr &MI,
   Register Shift1 =
       Builder.buildInstr(Opcode, {DestType}, {Shift1Base, Const}).getReg(0);
 
+  // If LogicNonShiftReg is the same to Shift1Base, and shift1 const is the same
+  // to MatchInfo.Shift2 const, CSEMIRBuilder will reuse the old shift1 when
+  // build shift2. So, if we erase MatchInfo.Shift2 at the end, actually we
+  // remove old shift1. And it will cause crash later. So erase it earlier to
+  // avoid the crash.
+  MatchInfo.Shift2->eraseFromParent();
+
   Register Shift2Const = MI.getOperand(2).getReg();
   Register Shift2 = Builder
                         .buildInstr(Opcode, {DestType},
@@ -1607,8 +1614,7 @@ void CombinerHelper::applyShiftOfShiftedLogic(MachineInstr &MI,
   Register Dest = MI.getOperand(0).getReg();
   Builder.buildInstr(MatchInfo.Logic->getOpcode(), {Dest}, {Shift1, Shift2});
 
-  // These were one use so it's safe to remove them.
-  MatchInfo.Shift2->eraseFromParent();
+  // This was one use so it's safe to remove it.
   MatchInfo.Logic->eraseFromParent();
 
   MI.eraseFromParent();
@@ -3527,7 +3533,7 @@ bool CombinerHelper::matchLoadOrCombine(
   // Load must be allowed and fast on the target.
   LLVMContext &C = MF.getFunction().getContext();
   auto &DL = MF.getDataLayout();
-  bool Fast = false;
+  unsigned Fast = 0;
   if (!getTargetLowering().allowsMemoryAccess(C, DL, Ty, *NewMMO, &Fast) ||
       !Fast)
     return false;
@@ -3732,7 +3738,7 @@ bool CombinerHelper::matchTruncStoreMerge(MachineInstr &MI,
   const auto &DL = LastStore.getMF()->getDataLayout();
   auto &C = LastStore.getMF()->getFunction().getContext();
   // Check that a store of the wide type is both allowed and fast on the target
-  bool Fast = false;
+  unsigned Fast = 0;
   bool Allowed = getTargetLowering().allowsMemoryAccess(
       C, DL, WideStoreTy, LowestIdxStore->getMMO(), &Fast);
   if (!Allowed || !Fast)
@@ -4551,8 +4557,10 @@ bool CombinerHelper::matchReassocConstantInnerLHS(GPtrAdd &MI,
     // doesn't happen.
     LHSPtrAdd->moveBefore(&MI);
     Register RHSReg = MI.getOffsetReg();
+    // set VReg will cause type mismatch if it comes from extend/trunc
+    auto NewCst = B.buildConstant(MRI.getType(RHSReg), LHSCstOff->Value);
     Observer.changingInstr(MI);
-    MI.getOperand(2).setReg(LHSCstOff->VReg);
+    MI.getOperand(2).setReg(NewCst.getReg(0));
     Observer.changedInstr(MI);
     Observer.changingInstr(*LHSPtrAdd);
     LHSPtrAdd->getOperand(2).setReg(RHSReg);
@@ -5190,6 +5198,38 @@ bool CombinerHelper::matchRedundantNegOperands(MachineInstr &MI,
   return true;
 }
 
+bool CombinerHelper::matchFsubToFneg(MachineInstr &MI, Register &MatchInfo) {
+  assert(MI.getOpcode() == TargetOpcode::G_FSUB);
+
+  Register LHS = MI.getOperand(1).getReg();
+  MatchInfo = MI.getOperand(2).getReg();
+  LLT Ty = MRI.getType(MI.getOperand(0).getReg());
+
+  const auto LHSCst = Ty.isVector()
+                          ? getFConstantSplat(LHS, MRI, /* allowUndef */ true)
+                          : getFConstantVRegValWithLookThrough(LHS, MRI);
+  if (!LHSCst)
+    return false;
+
+  // -0.0 is always allowed
+  if (LHSCst->Value.isNegZero())
+    return true;
+
+  // +0.0 is only allowed if nsz is set.
+  if (LHSCst->Value.isPosZero())
+    return MI.getFlag(MachineInstr::FmNsz);
+
+  return false;
+}
+
+void CombinerHelper::applyFsubToFneg(MachineInstr &MI, Register &MatchInfo) {
+  Builder.setInstrAndDebugLoc(MI);
+  Register Dst = MI.getOperand(0).getReg();
+  Builder.buildFNeg(
+      Dst, Builder.buildFCanonicalize(MRI.getType(Dst), MatchInfo).getReg(0));
+  eraseInst(MI);
+}
+
 /// Checks if \p MI is TargetOpcode::G_FMUL and contractable either
 /// due to global flags or MachineInstr flags.
 static bool isContractableFMul(MachineInstr &MI, bool AllowFusionGlobally) {
@@ -5221,7 +5261,7 @@ bool CombinerHelper::canCombineFMadOrFMA(MachineInstr &MI,
     return false;
 
   // Floating-point multiply-add with intermediate rounding.
-  HasFMAD = (LI && TLI.isFMADLegal(MI, DstType));
+  HasFMAD = (!isPreLegalize() && TLI.isFMADLegal(MI, DstType));
   // Floating-point multiply-add without intermediate rounding.
   bool HasFMA = TLI.isFMAFasterThanFMulAndFAdd(*MF, DstType) &&
                 isLegalOrBeforeLegalizer({TargetOpcode::G_FMA, {DstType}});

@@ -404,7 +404,9 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
       CompileOpts += std::string(TemporaryStr);
   }
   bool isEsimdImage = getUint32PropAsBool(Img, "isEsimdImage");
-  bool isDoubleGRF = getUint32PropAsBool(Img, "isDoubleGRF");
+  // TODO: Remove isDoubleGRF check in next ABI break
+  bool isLargeGRF = getUint32PropAsBool(Img, "isLargeGRF") ||
+                    getUint32PropAsBool(Img, "isDoubleGRF");
   // The -vc-codegen option is always preserved for ESIMD kernels, regardless
   // of the contents SYCL_PROGRAM_COMPILE_OPTIONS environment variable.
   if (isEsimdImage) {
@@ -416,7 +418,7 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
     if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() == 0)
       CompileOpts += " -disable-finalizer-msg";
   }
-  if (isDoubleGRF) {
+  if (isLargeGRF) {
     if (!CompileOpts.empty())
       CompileOpts += " ";
     // TODO: Always use -ze-opt-large-register-file once IGC VC bug ignoring it
@@ -816,6 +818,8 @@ static const char *getDeviceLibFilename(DeviceLibExt Extension) {
     return "libsycl-fallback-imf.spv";
   case DeviceLibExt::cl_intel_devicelib_imf_fp64:
     return "libsycl-fallback-imf-fp64.spv";
+  case DeviceLibExt::cl_intel_devicelib_imf_bf16:
+    return "libsycl-fallback-imf-bf16.spv";
   }
   throw compile_program_error("Unhandled (new?) device library extension",
                               PI_ERROR_INVALID_OPERATION);
@@ -839,6 +843,8 @@ static const char *getDeviceLibExtensionStr(DeviceLibExt Extension) {
     return "cl_intel_devicelib_imf";
   case DeviceLibExt::cl_intel_devicelib_imf_fp64:
     return "cl_intel_devicelib_imf_fp64";
+  case DeviceLibExt::cl_intel_devicelib_imf_bf16:
+    return "cl_intel_devicelib_imf_bf16";
   }
   throw compile_program_error("Unhandled (new?) device library extension",
                               PI_ERROR_INVALID_OPERATION);
@@ -1003,7 +1009,8 @@ getDeviceLibPrograms(const ContextImplPtr Context, const RT::PiDevice &Device,
       {DeviceLibExt::cl_intel_devicelib_complex_fp64, false},
       {DeviceLibExt::cl_intel_devicelib_cstring, false},
       {DeviceLibExt::cl_intel_devicelib_imf, false},
-      {DeviceLibExt::cl_intel_devicelib_imf_fp64, false}};
+      {DeviceLibExt::cl_intel_devicelib_imf_fp64, false},
+      {DeviceLibExt::cl_intel_devicelib_imf_bf16, false}};
 
   // Disable all devicelib extensions requiring fp64 support if at least
   // one underlying device doesn't support cl_khr_fp64.

@@ -274,6 +274,15 @@ SymbolFileOnDemand::ResolveSymbolContext(const Address &so_addr,
   return m_sym_file_impl->ResolveSymbolContext(so_addr, resolve_scope, sc);
 }
 
+Status SymbolFileOnDemand::CalculateFrameVariableError(StackFrame &frame) {
+  if (!m_debug_info_enabled) {
+    LLDB_LOG(GetLog(), "[{0}] {1} is skipped", GetSymbolFileName(),
+             __FUNCTION__);
+    return Status();
+  }
+  return m_sym_file_impl->CalculateFrameVariableError(frame);
+}
+
 uint32_t SymbolFileOnDemand::ResolveSymbolContext(
     const SourceLocationSpec &src_location_spec,
     SymbolContextItem resolve_scope, SymbolContextList &sc_list) {
@@ -458,7 +467,7 @@ void SymbolFileOnDemand::GetTypes(SymbolContextScope *sc_scope,
   return m_sym_file_impl->GetTypes(sc_scope, type_mask, type_list);
 }
 
-llvm::Expected<TypeSystem &>
+llvm::Expected<lldb::TypeSystemSP>
 SymbolFileOnDemand::GetTypeSystemForLanguage(LanguageType language) {
   if (!m_debug_info_enabled) {
     Log *log = GetLog();

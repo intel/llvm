@@ -214,6 +214,8 @@ StringRef ARMTargetInfo::getCPUAttr() const {
     return "8_7A";
   case llvm::ARM::ArchKind::ARMV8_8A:
     return "8_8A";
+  case llvm::ARM::ArchKind::ARMV8_9A:
+    return "8_9A";
   case llvm::ARM::ArchKind::ARMV9A:
     return "9A";
   case llvm::ARM::ArchKind::ARMV9_1A:
@@ -222,6 +224,8 @@ StringRef ARMTargetInfo::getCPUAttr() const {
     return "9_2A";
   case llvm::ARM::ArchKind::ARMV9_3A:
     return "9_3A";
+  case llvm::ARM::ArchKind::ARMV9_4A:
+    return "9_4A";
   case llvm::ARM::ArchKind::ARMV8MBaseline:
     return "8M_BASE";
   case llvm::ARM::ArchKind::ARMV8MMainline:
@@ -705,8 +709,11 @@ void ARMTargetInfo::getTargetDefines(const LangOptions &Opts,
   // For bare-metal none-eabi.
   if (getTriple().getOS() == llvm::Triple::UnknownOS &&
       (getTriple().getEnvironment() == llvm::Triple::EABI ||
-       getTriple().getEnvironment() == llvm::Triple::EABIHF))
+       getTriple().getEnvironment() == llvm::Triple::EABIHF)) {
     Builder.defineMacro("__ELF__");
+    if (Opts.CPlusPlus)
+      Builder.defineMacro("_GNU_SOURCE");
+  }
 
   // Target properties.
   Builder.defineMacro("__REGISTER_PREFIX__", "");
@@ -973,10 +980,12 @@ void ARMTargetInfo::getTargetDefines(const LangOptions &Opts,
   case llvm::ARM::ArchKind::ARMV8_6A:
   case llvm::ARM::ArchKind::ARMV8_7A:
   case llvm::ARM::ArchKind::ARMV8_8A:
+  case llvm::ARM::ArchKind::ARMV8_9A:
   case llvm::ARM::ArchKind::ARMV9A:
   case llvm::ARM::ArchKind::ARMV9_1A:
   case llvm::ARM::ArchKind::ARMV9_2A:
   case llvm::ARM::ArchKind::ARMV9_3A:
+  case llvm::ARM::ArchKind::ARMV9_4A:
     getTargetDefinesARMV83A(Opts, Builder);
     break;
   }

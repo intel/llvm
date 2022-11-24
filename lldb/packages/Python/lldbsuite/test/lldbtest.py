@@ -246,7 +246,7 @@ def which(program):
 
 class ValueCheck:
     def __init__(self, name=None, value=None, type=None, summary=None,
-                 children=None):
+                 children=None, dereference=None):
         """
         :param name: The name that the SBValue should have. None if the summary
                      should not be checked.
@@ -261,12 +261,15 @@ class ValueCheck:
                          The order of checks is the order of the checks in the
                          list. The number of checks has to match the number of
                          children.
+        :param dereference: A ValueCheck for the SBValue returned by the
+                            `Dereference` function.
         """
         self.expect_name = name
         self.expect_value = value
         self.expect_type = type
         self.expect_summary = summary
         self.children = children
+        self.dereference = dereference
 
     def check_value(self, test_base, val, error_msg=None):
         """
@@ -282,11 +285,14 @@ class ValueCheck:
 
         test_base.assertSuccess(val.GetError())
 
+        # Python 3.6 doesn't declare a `re.Pattern` type, get the dynamic type.
+        pattern_type = type(re.compile(''))
+
         if self.expect_name:
             test_base.assertEqual(self.expect_name, val.GetName(),
                                   this_error_msg)
         if self.expect_value:
-            if isinstance(self.expect_value, re.Pattern):
+            if isinstance(self.expect_value, pattern_type):
                 test_base.assertRegex(val.GetValue(), self.expect_value,
                                       this_error_msg)
             else:
@@ -296,7 +302,7 @@ class ValueCheck:
             test_base.assertEqual(self.expect_type, val.GetDisplayTypeName(),
                                   this_error_msg)
         if self.expect_summary:
-            if isinstance(self.expect_summary, re.Pattern):
+            if isinstance(self.expect_summary, pattern_type):
                 test_base.assertRegex(val.GetSummary(), self.expect_summary,
                                       this_error_msg)
             else:
@@ -304,6 +310,9 @@ class ValueCheck:
                                       this_error_msg)
         if self.children is not None:
             self.check_value_children(test_base, val, error_msg)
+
+        if self.dereference is not None:
+            self.dereference.check_value(test_base, val.Dereference(), error_msg)
 
     def check_value_children(self, test_base, val, error_msg=None):
         """

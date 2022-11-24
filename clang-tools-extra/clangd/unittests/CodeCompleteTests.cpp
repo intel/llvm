@@ -505,6 +505,63 @@ TEST(CompletionTest, Snippets) {
                      snippetSuffix("(${1:int i}, ${2:const float f})")));
 }
 
+TEST(CompletionTest, HeuristicsForMemberFunctionCompletion) {
+  clangd::CodeCompleteOptions Opts;
+  Opts.EnableSnippets = true;
+
+  Annotations Code(R"cpp(
+      struct Foo {
+        static int staticMethod();
+        int method() const;
+        Foo() {
+          this->$keepSnippet^
+          $keepSnippet^
+          Foo::$keepSnippet^
+        }
+      };
+
+      struct Derived : Foo {
+        Derived() {
+          Foo::$keepSnippet^
+        }
+      };
+
+      struct OtherClass {
+        OtherClass() {
+          Foo f;
+          f.$keepSnippet^
+          &Foo::$noSnippet^
+        }
+      };
+
+      int main() {
+        Foo f;
+        f.$keepSnippet^
+        &Foo::$noSnippet^
+      }
+      )cpp");
+  auto TU = TestTU::withCode(Code.code());
+
+  for (const auto &P : Code.points("noSnippet")) {
+    auto Results = completions(TU, P, /*IndexSymbols*/ {}, Opts);
+    EXPECT_THAT(Results.Completions,
+                Contains(AllOf(named("method"), snippetSuffix(""))));
+  }
+
+  for (const auto &P : Code.points("keepSnippet")) {
+    auto Results = completions(TU, P, /*IndexSymbols*/ {}, Opts);
+    EXPECT_THAT(Results.Completions,
+                Contains(AllOf(named("method"), snippetSuffix("()"))));
+  }
+
+  // static method will always keep the snippet
+  for (const auto &P : Code.points()) {
+    auto Results = completions(TU, P, /*IndexSymbols*/ {}, Opts);
+    EXPECT_THAT(Results.Completions,
+                Contains(AllOf(named("staticMethod"), snippetSuffix("()"))));
+  }
+}
+
 TEST(CompletionTest, NoSnippetsInUsings) {
   clangd::CodeCompleteOptions Opts;
   Opts.EnableSnippets = true;
@@ -2967,14 +3024,20 @@ TEST(CompletionTest, AllScopesCompletion) {
     }
   )cpp",
       {cls("nx::Clangd1"), cls("ny::Clangd2"), cls("Clangd3"),
-       cls("na::nb::Clangd4")},
+       cls("na::nb::Clangd4"), enmConstant("na::C::Clangd5")},
       Opts);
   EXPECT_THAT(
       Results.Completions,
-      UnorderedElementsAre(AllOf(qualifier("nx::"), named("Clangd1")),
-                           AllOf(qualifier("ny::"), named("Clangd2")),
-                           AllOf(qualifier(""), scope(""), named("Clangd3")),
-                           AllOf(qualifier("nb::"), named("Clangd4"))));
+      UnorderedElementsAre(AllOf(qualifier("nx::"), named("Clangd1"),
+                                 kind(CompletionItemKind::Class)),
+                           AllOf(qualifier("ny::"), named("Clangd2"),
+                                 kind(CompletionItemKind::Class)),
+                           AllOf(qualifier(""), scope(""), named("Clangd3"),
+                                 kind(CompletionItemKind::Class)),
+                           AllOf(qualifier("nb::"), named("Clangd4"),
+                                 kind(CompletionItemKind::Class)),
+                           AllOf(qualifier("C::"), named("Clangd5"),
+                                 kind(CompletionItemKind::EnumMember))));
 }
 
 TEST(CompletionTest, NoQualifierIfShadowed) {
@@ -3356,6 +3419,33 @@ TEST(CompletionTest, UsingDecl) {
   EXPECT_THAT(R.Completions,
               ElementsAre(AllOf(scope("std::"), named("foo"),
                                 kind(CompletionItemKind::Reference))));
+}
+
+TEST(CompletionTest, Enums) {
+  const char *Header(R"cpp(
+    namespace ns {
+      enum Unscoped { Clangd1 };
+      class C {
+      enum Unscoped { Clangd2 };
+      };
+      enum class Scoped { Clangd3 };
+    })cpp");
+  const char *Source(R"cpp(
+    void bar() {
+      Clangd^
+    })cpp");
+  auto Index = TestTU::withHeaderCode(Header).index();
+  clangd::CodeCompleteOptions Opts;
+  Opts.Index = Index.get();
+  Opts.AllScopes = true;
+  auto R = completions(Source, {}, Opts);
+  EXPECT_THAT(R.Completions, UnorderedElementsAre(
+                                 AllOf(scope("ns::"), named("Clangd1"),
+                                       kind(CompletionItemKind::EnumMember)),
+                                 AllOf(scope("ns::C::"), named("Clangd2"),
+                                       kind(CompletionItemKind::EnumMember)),
+                                 AllOf(scope("ns::Scoped::"), named("Clangd3"),
+                                       kind(CompletionItemKind::EnumMember))));
 }
 
 TEST(CompletionTest, ScopeIsUnresolved) {

@@ -46,6 +46,7 @@ Implemented Papers
   ``from_chars`` for Integral Types in ``<charconv>`` Header
 - P0220R1 - Adopt Library Fundamentals V1 TS Components for C++17
 - P0482R6 - char8_t: A type for UTF-8 characters and strings
+- P2438R2 - ``std::string::substr() &&``
 
 Improvements and New Features
 -----------------------------
@@ -95,6 +96,9 @@ Deprecations and Removals
 - The contents of ``<experimental/memory_resource>`` are now deprecated since libc++ ships ``<memory_resource>`` now.
   Please migrate to ``<memory_resource>`` instead. Per libc++'s TS deprecation policy,
   ``<experimental/memory_resource>`` will be removed in LLVM 18.
+
+- The ``_LIBCPP_DEBUG`` macro is not honored anymore, and it is an error to try to use it. Please migrate to
+  ``_LIBCPP_ENABLE_DEBUG_MODE`` instead.
 
 Upcoming Deprecations and Removals
 ----------------------------------

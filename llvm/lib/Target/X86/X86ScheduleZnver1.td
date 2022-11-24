@@ -177,7 +177,7 @@ def : WriteRes<WriteRMW, [ZnAGU]>;
 def : WriteRes<WriteStore,   [ZnAGU]>;
 def : WriteRes<WriteStoreNT, [ZnAGU]>;
 def : WriteRes<WriteMove,    [ZnALU]>;
-def : WriteRes<WriteLoad,    [ZnAGU]> { let Latency = 8; }
+def : WriteRes<WriteLoad,    [ZnAGU]> { let Latency = 4; }
 
 // Model the effect of clobbering the read-write mask operand of the GATHER operation.
 // Does not cost anything by itself, only has latency, matching that of the WriteLoad,
@@ -523,10 +523,6 @@ def : SchedAlias<WriteSTMXCSR, ZnWriteMicrocoded>;
 // r16,m.
 def : InstRW<[WriteALULd, ReadAfterLd], (instrs MOV16rm)>;
 
-// MOVSX, MOVZX.
-// r,m.
-def : InstRW<[WriteLoad], (instregex "MOV(S|Z)X32rm(8|16)")>;
-
 // XCHG.
 // r,m.
 def ZnWriteXCHGrm : SchedWriteRes<[ZnAGU, ZnALU]> {
@@ -716,9 +712,6 @@ def : SchedAlias<WriteBLS, ZnWriteALULat2>;
 // r,m.
 def : SchedAlias<WriteBLSLd, ZnWriteALULat2Ld>;
 
-// CLD STD.
-def : InstRW<[WriteALU], (instrs STD, CLD)>;
-
 // PDEP PEXT.
 // r,r,r.
 def : InstRW<[WriteMicrocoded], (instregex "PDEP(32|64)rr", "PEXT(32|64)rr")>;
@@ -762,36 +755,8 @@ def : InstRW<[ZnWriteLEAVE], (instregex "LEAVE")>;
 // PAUSE.
 def : InstRW<[WriteMicrocoded], (instrs PAUSE)>;
 
-// RDTSC.
-def : InstRW<[WriteMicrocoded], (instregex "RDTSC")>;
-
-// RDPMC.
-def : InstRW<[WriteMicrocoded], (instrs RDPMC)>;
-
 // RDRAND.
 def : InstRW<[WriteMicrocoded], (instrs RDRAND16r, RDRAND32r, RDRAND64r)>;
-
-// XGETBV.
-def : InstRW<[WriteMicrocoded], (instrs XGETBV)>;
-
-//-- String instructions --//
-// CMPS.
-def : InstRW<[WriteMicrocoded], (instregex "CMPS(B|L|Q|W)")>;
-
-// LODSB/W.
-def : InstRW<[WriteMicrocoded], (instregex "LODS(B|W)")>;
-
-// LODSD/Q.
-def : InstRW<[WriteMicrocoded], (instregex "LODS(L|Q)")>;
-
-// MOVS.
-def : InstRW<[WriteMicrocoded], (instregex "MOVS(B|L|Q|W)")>;
-
-// SCAS.
-def : InstRW<[WriteMicrocoded], (instregex "SCAS(B|W|L|Q)")>;
-
-// STOS
-def : InstRW<[WriteMicrocoded], (instregex "STOS(B|L|Q|W)")>;
 
 // XADD.
 def ZnXADD : SchedWriteRes<[ZnALU]>;
@@ -1148,6 +1113,8 @@ def ZnWriteCVTPD2PSr: SchedWriteRes<[ZnFPU3]> {
 }
 def ZnWriteCVTPD2PSYr: SchedWriteRes<[ZnFPU3]> {
   let Latency = 5;
+  let NumMicroOps = 2;
+  let ResourceCycles = [2];
 }
 
 // CVTPD2PS.
@@ -1158,10 +1125,8 @@ def : SchedAlias<WriteCvtPD2PSY, ZnWriteCVTPD2PSYr>;
 // z,z.
 defm : X86WriteResUnsupported<WriteCvtPD2PSZ>;
 
-def ZnWriteCVTPD2PSLd: SchedWriteRes<[ZnAGU,ZnFPU03]> {
+def ZnWriteCVTPD2PSLd: SchedWriteRes<[ZnAGU,ZnFPU3]> {
   let Latency = 11;
-  let NumMicroOps = 2;
-  let ResourceCycles = [1,2];
 }
 // x,m128.
 def : SchedAlias<WriteCvtPD2PSLd, ZnWriteCVTPD2PSLd>;
@@ -1169,6 +1134,8 @@ def : SchedAlias<WriteCvtPD2PSLd, ZnWriteCVTPD2PSLd>;
 // x,m256.
 def ZnWriteCVTPD2PSYLd : SchedWriteRes<[ZnAGU, ZnFPU3]> {
   let Latency = 11;
+  let NumMicroOps = 2;
+  let ResourceCycles = [1,2];
 }
 def : SchedAlias<WriteCvtPD2PSYLd, ZnWriteCVTPD2PSYLd>;
 // z,m512
@@ -1237,7 +1204,7 @@ def ZnWriteCVTPD2DQr: SchedWriteRes<[ZnFPU12, ZnFPU3]> {
 }
 // CVT(T)PD2DQ.
 // x,x.
-def : InstRW<[ZnWriteCVTDQ2PDr], (instregex "(V?)CVT(T?)PD2DQrr")>;
+def : InstRW<[ZnWriteCVTPD2DQr], (instregex "(V?)CVT(T?)PD2DQrr")>;
 
 def ZnWriteCVTPD2DQLd: SchedWriteRes<[ZnAGU,ZnFPU12,ZnFPU3]> {
   let Latency = 12;

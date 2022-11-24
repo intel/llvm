@@ -197,6 +197,7 @@ public:
     PreBlockLine = std::move(Parser.Line);
     Parser.Line = std::make_unique<UnwrappedLine>();
     Parser.Line->Level = PreBlockLine->Level;
+    Parser.Line->PPLevel = PreBlockLine->PPLevel;
     Parser.Line->InPPDirective = PreBlockLine->InPPDirective;
     Parser.Line->InMacroBody = PreBlockLine->InMacroBody;
   }
@@ -833,6 +834,9 @@ bool UnwrappedLineParser::mightFitOnOneLine(
     delete SavedToken.Tok;
   }
 
+  // If these change PPLevel needs to be used for get correct indentation.
+  assert(!Line.InMacroBody);
+  assert(!Line.InPPDirective);
   return Line.Level * Style.IndentWidth + Length <= ColumnLimit;
 }
 
@@ -1108,12 +1112,10 @@ void UnwrappedLineParser::parsePPDirective() {
     parsePPIf(/*IfDef=*/true);
     break;
   case tok::pp_else:
-    parsePPElse();
-    break;
   case tok::pp_elifdef:
   case tok::pp_elifndef:
   case tok::pp_elif:
-    parsePPElIf();
+    parsePPElse();
     break;
   case tok::pp_endif:
     parsePPEndIf();
@@ -1144,12 +1146,10 @@ void UnwrappedLineParser::conditionalCompilationStart(bool Unreachable) {
   ++PPBranchLevel;
   assert(PPBranchLevel >= 0 && PPBranchLevel <= (int)PPLevelBranchIndex.size());
   if (PPBranchLevel == (int)PPLevelBranchIndex.size()) {
-    // If the first branch is unreachable, set the BranchIndex to 1.  This way
-    // the next branch will be parsed if there is one.
-    PPLevelBranchIndex.push_back(Unreachable ? 1 : 0);
+    PPLevelBranchIndex.push_back(0);
     PPLevelBranchCount.push_back(0);
   }
-  PPChainBranchIndex.push(0);
+  PPChainBranchIndex.push(Unreachable ? -1 : 0);
   bool Skip = PPLevelBranchIndex[PPBranchLevel] > 0;
   conditionalCompilationCondition(Unreachable || Skip);
 }
@@ -1225,8 +1225,6 @@ void UnwrappedLineParser::parsePPElse() {
   ++PPBranchLevel;
 }
 
-void UnwrappedLineParser::parsePPElIf() { parsePPElse(); }
-
 void UnwrappedLineParser::parsePPEndIf() {
   conditionalCompilationEnd();
   parsePPUnknown();
@@ -1276,6 +1274,9 @@ void UnwrappedLineParser::parsePPDefine() {
     Line->Level += PPBranchLevel + 1;
   addUnwrappedLine();
   ++Line->Level;
+
+  Line->PPLevel = PPBranchLevel + (IncludeGuard == IG_Defined ? 0 : 1);
+  assert((int)Line->PPLevel >= 0);
   Line->InMacroBody = true;
 
   // Errors during a preprocessor directive can only affect the layout of the

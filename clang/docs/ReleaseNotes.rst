@@ -161,6 +161,26 @@ code bases.
 - The ``-fexperimental-new-pass-manager`` and ``-fno-legacy-pass-manager``
   flags have been removed. These have been no-ops since 15.0.0.
 
+- As a side effect of implementing DR692/DR1395/DR1432, Clang now rejects some
+  overloaded function templates as ambiguous when one of the candidates has a
+  trailing parameter pack.
+
+  .. code-block:: c++
+
+    template <typename T> void g(T, T = T());
+    template <typename T, typename... U> void g(T, U...);
+    void h() {
+      // This is rejected due to ambiguity between the pack and the
+      // default argument. Only parameters with arguments are considered during
+      // partial ordering of function templates.
+      g(42);
+    }
+
+- Clang's resource dir used to include the full clang version. It will now
+  include only the major version. The new resource directory is
+  ``$prefix/lib/clang/$CLANG_MAJOR_VERSION`` and can be queried using
+  ``clang -print-resource-dir``, just like before.
+
 What's New in Clang |release|?
 ==============================
 Some of the major new features and improvements to Clang are listed
@@ -274,6 +294,10 @@ Bug Fixes
   result in a stack overflow.
   `Issue 44304 <https://github.com/llvm/llvm-project/issues/44304>`_
   `Issue 50891 <https://github.com/llvm/llvm-project/issues/50891>`_
+- Clang 14 predeclared some builtin POSIX library functions in ``gnu2x`` mode,
+  and Clang 15 accidentally stopped predeclaring those functions in that
+  language mode. Clang 16 now predeclares those functions again. This fixes
+  `Issue 56607 <https://github.com/llvm/llvm-project/issues/56607>`_.
 
 Improvements to Clang's diagnostics
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -347,17 +371,30 @@ Improvements to Clang's diagnostics
 - Clang now correctly points to the problematic parameter for the ``-Wnonnull``
   warning. This fixes
   `Issue 58273 <https://github.com/llvm/llvm-project/issues/58273>`_.
-- Introduced ``-Wcast-function-type-strict`` to warn about function type mismatches
-  in casts that may result in runtime indirect call `Control-Flow Integrity (CFI)
-  <https://clang.llvm.org/docs/ControlFlowIntegrity.html>`_ failures. This diagnostic
-  is grouped under ``-Wcast-function-type`` as it identifies a more strict set of
-  potentially problematic function type casts.
+- Introduced ``-Wcast-function-type-strict`` and
+  ``-Wincompatible-function-pointer-types-strict`` to warn about function type
+  mismatches in casts and assignments that may result in runtime indirect call
+  `Control-Flow Integrity (CFI)
+  <https://clang.llvm.org/docs/ControlFlowIntegrity.html>`_ failures. The
+  ``-Wcast-function-type-strict`` diagnostic is grouped under
+  ``-Wcast-function-type`` as it identifies a more strict set of potentially
+  problematic function type casts.
 - Clang will now disambiguate NTTP types when printing diagnostic that contain NTTP types.
   Fixes `Issue 57562 <https://github.com/llvm/llvm-project/issues/57562>`_.
 - Better error recovery for pack expansion of expressions.
   `Issue 58673 <https://github.com/llvm/llvm-project/issues/58673>`_.
 - Better diagnostics when the user has missed `auto` in a declaration.
   `Issue 49129 <https://github.com/llvm/llvm-project/issues/49129>`_.
+- Clang now diagnoses use of invalid or reserved module names in a module
+  export declaration. Both are diagnosed as an error, but the diagnostic is
+  suppressed for use of reserved names in a system header.
+- ``-Winteger-overflow`` will diagnose overflow in more cases. This fixes
+  `Issue 58944 <https://github.com/llvm/llvm-project/issues/58944>`_.
+- Clang has an internal limit of 2GB of preprocessed source code per
+  compilation, including source reachable through imported AST files such as
+  PCH or modules. When Clang hits this limit, it now produces notes mentioning
+  which header and source files are consuming large amounts of this space.
+  ``#pragma clang __debug sloc_usage`` can also be used to request this report.
 
 Non-comprehensive list of changes in this release
 -------------------------------------------------
@@ -482,6 +519,8 @@ Windows Support
   ``/guard:cf,nochecks`` in clang-cl) for enabling Control Flow Guard checks
   and generation of address-taken function table.
 
+- Switched from SHA1 to BLAKE3 for PDB type hashing / ``-gcodeview-ghash``
+
 AIX Support
 -----------
 * When using ``-shared``, the clang driver now invokes llvm-nm to create an
@@ -547,14 +586,15 @@ C2x Feature Support
 
 C++ Language Changes in Clang
 -----------------------------
-- Implemented DR692, DR1395 and DR1432. Use the ``-fclang-abi-compat=15`` option
-  to get the old partial ordering behavior regarding packs. Note that the fix for
-  DR1432 is speculative that there is no wording or even resolution for this issue.
-  A speculative fix for DR1432 is needed because it fixes regressions caused by DR692.
+- Implemented `DR692 <https://wg21.link/cwg692>`_, `DR1395 <https://wg21.link/cwg1395>`_,
+  and `DR1432 <https://wg21.link/cwg1432>`_. The fix for DR1432 is speculative since the
+  issue is still open and has no proposed resolution at this time. A speculative fix
+  for DR1432 is needed to prevent regressions that would otherwise occur due to DR692.
 - Clang's default C++/ObjC++ standard is now ``gnu++17`` instead of ``gnu++14``.
   This means Clang will by default accept code using features from C++17 and
   conforming GNU extensions. Projects incompatible with C++17 can add
   ``-std=gnu++14`` to their build settings to restore the previous behaviour.
+- Implemented DR2358 allowing init captures in lambdas in default arguments.
 
 C++20 Feature Support
 ^^^^^^^^^^^^^^^^^^^^^
@@ -615,6 +655,9 @@ C++2b Feature Support
 CUDA/HIP Language Changes in Clang
 ----------------------------------
 
+ - Allow the use of ``__noinline__`` as a keyword (instead of ``__attribute__((noinline))``)
+   in lambda declarations.
+
 Objective-C Language Changes in Clang
 -------------------------------------
 
@@ -651,6 +694,7 @@ RISC-V Support in Clang
 -----------------------
 - ``sifive-7-rv32`` and ``sifive-7-rv64`` are no longer supported for ``-mcpu``.
   Use ``sifive-e76``, ``sifive-s76``, or ``sifive-u74`` instead.
+- Native detections via ``-mcpu=native`` and ``-mtune=native`` are supported.
 
 X86 Support in Clang
 --------------------
@@ -682,6 +726,8 @@ X86 Support in Clang
   * Support intrinsic of ``_mm(256)_cvtneobf16_ps``.
   * Support intrinsic of ``_mm(256)_cvtneoph_ps``.
   * Support intrinsic of ``_mm(256)_cvtneps_avx_pbh``.
+- ``-march=raptorlake`` and ``-march=meteorlake`` are now supported.
+- ``-march=sierraforest``, ``-march=graniterapids`` and ``-march=grandridge`` are now supported.
 
 WebAssembly Support in Clang
 ----------------------------
@@ -712,14 +758,18 @@ Arm and AArch64 Support in Clang
 - ``-march`` values for targeting armv2, armv2A, armv3 and armv3M have been removed.
   Their presence gave the impression that Clang can correctly generate code for
   them, which it cannot.
-- Add driver and tuning support for Neoverse V2 via the flag ``-mcpu=neoverse-v2``.
-  Native detection is also supported via ``-mcpu=native``.
+- Support has been added for the following processors (-mcpu identifiers in parenthesis):
+
+  * Arm Cortex-A715 (cortex-a715).
+  * Arm Cortex-X3 (cortex-x3).
+  * Arm Neoverse V2 (neoverse-v2)
 
 Floating Point Support in Clang
 -------------------------------
 - The driver option ``-menable-unsafe-fp-math`` has been removed. To enable
   unsafe floating-point optimizations use ``-funsafe-math-optimizations`` or
   ``-ffast-math`` instead.
+- Add ``__builtin_elementwise_sin`` and ``__builtin_elementwise_cos`` builtins for floating point types only.
 
 Internal API Changes
 --------------------
@@ -750,6 +800,9 @@ libclang
   whether the method is declared ``= delete``.
 - Introduced the new function ``clang_CXXMethod_isCopyAssignmentOperator``,
   which identifies whether a method cursor is a copy-assignment
+  operator.
+- Introduced the new function ``clang_CXXMethod_isMoveAssignmentOperator``,
+  which identifies whether a method cursor is a move-assignment
   operator.
 - ``clang_Cursor_getNumTemplateArguments``, ``clang_Cursor_getTemplateArgumentKind``, 
   ``clang_Cursor_getTemplateArgumentType``, ``clang_Cursor_getTemplateArgumentValue`` and 

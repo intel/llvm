@@ -985,7 +985,10 @@ configuration file:
 Files included by ``@file`` directives in configuration files are resolved
 relative to the including file. For example, if a configuration file
 ``~/.llvm/target.cfg`` contains the directive ``@os/linux.opts``, the file
-``linux.opts`` is searched for in the directory ``~/.llvm/os``.
+``linux.opts`` is searched for in the directory ``~/.llvm/os``. Another way to
+include a file content is using the command line option ``--config=``. It works
+similarly but the included file is searched for using the rules for configuration
+files.
 
 To generate paths relative to the configuration file, the ``<CFGDIR>`` token may
 be used. This will expand to the absolute path of the directory containing the
@@ -2241,6 +2244,15 @@ usual build cycle when using sample profilers for optimization:
 
      $ clang++ -O2 -gline-tables-only -fprofile-sample-use=code.prof code.cc -o code
 
+  [OPTIONAL] Sampling-based profiles can have inaccuracies or missing block/
+  edge counters. The profile inference algorithm (profi) can be used to infer
+  missing blocks and edge counts, and improve the quality of profile data.
+  Enable it with ``-fsample-profile-use-profi``.
+
+  .. code-block:: console
+
+    $ clang++ -O2 -gline-tables-only -fprofile-sample-use=code.prof \
+      -fsample-profile-use-profi code.cc -o code
 
 Sample Profile Formats
 """"""""""""""""""""""

@@ -114,14 +114,10 @@ bool PPCCTRLoops::isCTRClobber(MachineInstr *MI, bool CheckReads) const {
     // CTR defination inside the callee of a call instruction will not impact
     // the defination of MTCTRloop, so we can use definesRegister() for the
     // check, no need to check the regmask.
-    return (MI->definesRegister(PPC::CTR) &&
-            !MI->registerDefIsDead(PPC::CTR)) ||
-           (MI->definesRegister(PPC::CTR8) &&
-            !MI->registerDefIsDead(PPC::CTR8));
+    return MI->definesRegister(PPC::CTR) || MI->definesRegister(PPC::CTR8);
   }
 
-  if ((MI->modifiesRegister(PPC::CTR) && !MI->registerDefIsDead(PPC::CTR)) ||
-      (MI->modifiesRegister(PPC::CTR8) && !MI->registerDefIsDead(PPC::CTR8)))
+  if (MI->modifiesRegister(PPC::CTR) || MI->modifiesRegister(PPC::CTR8))
     return true;
 
   if (MI->getDesc().isCall())
@@ -275,13 +271,9 @@ void PPCCTRLoops::expandNormalLoops(MachineLoop *ML, MachineInstr *Start,
     // merge the two-predecessor loop header with its successor. If the
     // successor happens to be a header of nest loop, then we will have a header
     // which has more than 2 predecessors.
-    assert(std::find(ML->getHeader()->predecessors().begin(),
-                     ML->getHeader()->predecessors().end(),
-                     Exiting) != ML->getHeader()->predecessors().end() &&
+    assert(llvm::is_contained(ML->getHeader()->predecessors(), Exiting) &&
            "Loop latch is not loop header predecessor!");
-    assert(std::find(ML->getHeader()->predecessors().begin(),
-                     ML->getHeader()->predecessors().end(),
-                     Preheader) != ML->getHeader()->predecessors().end() &&
+    assert(llvm::is_contained(ML->getHeader()->predecessors(), Preheader) &&
            "Loop preheader is not loop header predecessor!");
 
     PHIMIB.addReg(ADDIDef).addMBB(Exiting);

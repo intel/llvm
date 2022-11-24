@@ -84,7 +84,7 @@ void tools::gcc::Common::ConstructJob(Compilation &C, const JobAction &JA,
 
   RenderExtraToolArgs(JA, CmdArgs);
 
-  // If using a driver driver, force the arch.
+  // If using a driver, force the arch.
   if (getToolChain().getTriple().isOSDarwin()) {
     CmdArgs.push_back("-arch");
     CmdArgs.push_back(
@@ -349,7 +349,11 @@ void tools::gnutools::Linker::constructLLVMARCommand(
     Compilation &C, const JobAction &JA, const InputInfo &Output,
     const InputInfoList &Input, const ArgList &Args) const {
   ArgStringList CmdArgs;
-  CmdArgs.push_back("cr");
+  // Use 'cqL' to create the archive.  This allows for any fat archives that
+  // are passed on the command line to be added via contents instead of the
+  // full archive.  Any usage of the generated archive will then have full
+  // access to resolve any dependencies.
+  CmdArgs.push_back("cqL");
   const char *OutputFilename = Output.getFilename();
   if (llvm::sys::fs::exists(OutputFilename)) {
     C.getDriver().Diag(clang::diag::warn_drv_existing_archive_append)
@@ -847,7 +851,7 @@ void tools::gnutools::Assembler::ConstructJob(Compilation &C,
             Args.MakeArgString("--compress-debug-sections=" + Twine(Value)));
       } else {
         D.Diag(diag::err_drv_unsupported_option_argument)
-            << A->getOption().getName() << Value;
+            << A->getSpelling() << Value;
       }
     }
   }

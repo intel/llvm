@@ -30,10 +30,12 @@
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineLoopInfo.h"
 #include "llvm/IR/DiagnosticInfo.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/IntrinsicsAMDGPU.h"
 #include "llvm/IR/IntrinsicsR600.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/ModRef.h"
 #include "llvm/Support/KnownBits.h"
 
 using namespace llvm;
@@ -958,7 +960,8 @@ bool SITargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
           AMDGPU::lookupRsrcIntrinsic(IntrID)) {
     AttributeList Attr = Intrinsic::getAttributes(CI.getContext(),
                                                   (Intrinsic::ID)IntrID);
-    if (Attr.hasFnAttr(Attribute::ReadNone))
+    MemoryEffects ME = Attr.getMemoryEffects();
+    if (ME.doesNotAccessMemory())
       return false;
 
     SIMachineFunctionInfo *MFI = MF.getInfo<SIMachineFunctionInfo>();
@@ -974,7 +977,7 @@ bool SITargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     }
 
     Info.flags |= MachineMemOperand::MODereferenceable;
-    if (Attr.hasFnAttr(Attribute::ReadOnly)) {
+    if (ME.onlyReadsMemory()) {
       unsigned DMaskLanes = 4;
 
       if (RsrcIntr->IsImage) {
@@ -998,7 +1001,7 @@ bool SITargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
       // FIXME: What does alignment mean for an image?
       Info.opc = ISD::INTRINSIC_W_CHAIN;
       Info.flags |= MachineMemOperand::MOLoad;
-    } else if (Attr.hasFnAttr(Attribute::WriteOnly)) {
+    } else if (ME.onlyWritesMemory()) {
       Info.opc = ISD::INTRINSIC_VOID;
 
       Type *DataTy = CI.getArgOperand(0)->getType();
@@ -1383,9 +1386,9 @@ bool SITargetLowering::canMergeStoresTo(unsigned AS, EVT MemVT,
 
 bool SITargetLowering::allowsMisalignedMemoryAccessesImpl(
     unsigned Size, unsigned AddrSpace, Align Alignment,
-    MachineMemOperand::Flags Flags, bool *IsFast) const {
+    MachineMemOperand::Flags Flags, unsigned *IsFast) const {
   if (IsFast)
-    *IsFast = false;
+    *IsFast = 0;
 
   if (AddrSpace == AMDGPUAS::LOCAL_ADDRESS ||
       AddrSpace == AMDGPUAS::REGION_ADDRESS) {
@@ -1424,7 +1427,7 @@ bool SITargetLowering::allowsMisalignedMemoryAccessesImpl(
         // ds_write2_b32 depending on the alignment. In either case with either
         // alignment there is no faster way of doing this.
         if (IsFast)
-          *IsFast = true;
+          *IsFast = 1;
         return true;
       }
 
@@ -1464,7 +1467,7 @@ bool SITargetLowering::allowsMisalignedMemoryAccessesImpl(
         // will be more of them, so overall we will pay less penalty issuing a
         // single instruction.
         if (IsFast)
-          *IsFast = Alignment >= RequiredAlignment || Alignment < Align(4);
+          *IsFast= Alignment >= RequiredAlignment || Alignment < Align(4);
         return true;
       }
 
@@ -1527,14 +1530,14 @@ bool SITargetLowering::allowsMisalignedMemoryAccessesImpl(
   // byte-address are ignored, thus forcing Dword alignment.
   // This applies to private, global, and constant memory.
   if (IsFast)
-    *IsFast = true;
+    *IsFast = 1;
 
   return Size >= 32 && Alignment >= Align(4);
 }
 
 bool SITargetLowering::allowsMisalignedMemoryAccesses(
     EVT VT, unsigned AddrSpace, Align Alignment, MachineMemOperand::Flags Flags,
-    bool *IsFast) const {
+    unsigned *IsFast) const {
   bool Allow = allowsMisalignedMemoryAccessesImpl(VT.getSizeInBits(), AddrSpace,
                                                   Alignment, Flags, IsFast);
 
@@ -1547,7 +1550,7 @@ bool SITargetLowering::allowsMisalignedMemoryAccesses(
     // which would be equally misaligned.
     // This is only used by the common passes, selection always calls the
     // allowsMisalignedMemoryAccessesImpl version.
-    *IsFast = true;
+    *IsFast= 1;
   }
 
   return Allow;
@@ -8752,7 +8755,7 @@ SDValue SITargetLowering::LowerLOAD(SDValue Op, SelectionDAG &DAG) const {
       llvm_unreachable("unsupported private_element_size");
     }
   } else if (AS == AMDGPUAS::LOCAL_ADDRESS || AS == AMDGPUAS::REGION_ADDRESS) {
-    bool Fast = false;
+    unsigned Fast = 0;
     auto Flags = Load->getMemOperand()->getFlags();
     if (allowsMisalignedMemoryAccessesImpl(MemVT.getSizeInBits(), AS,
                                            Load->getAlign(), Flags, &Fast) &&
@@ -9251,7 +9254,7 @@ SDValue SITargetLowering::LowerSTORE(SDValue Op, SelectionDAG &DAG) const {
       llvm_unreachable("unsupported private_element_size");
     }
   } else if (AS == AMDGPUAS::LOCAL_ADDRESS || AS == AMDGPUAS::REGION_ADDRESS) {
-    bool Fast = false;
+    unsigned Fast = 0;
     auto Flags = Store->getMemOperand()->getFlags();
     if (allowsMisalignedMemoryAccessesImpl(VT.getSizeInBits(), AS,
                                            Store->getAlign(), Flags, &Fast) &&
@@ -9988,8 +9991,11 @@ SDValue SITargetLowering::performRcpCombine(SDNode *N,
   EVT VT = N->getValueType(0);
   SDValue N0 = N->getOperand(0);
 
-  if (N0.isUndef())
-    return N0;
+  if (N0.isUndef()) {
+    return DCI.DAG.getConstantFP(
+        APFloat::getQNaN(SelectionDAG::EVTToAPFloatSemantics(VT)), SDLoc(N),
+        VT);
+  }
 
   if (VT == MVT::f32 && (N0.getOpcode() == ISD::UINT_TO_FP ||
                          N0.getOpcode() == ISD::SINT_TO_FP)) {
@@ -10278,8 +10284,10 @@ bool SITargetLowering::isCanonicalized(Register Reg, MachineFunction &MF,
 SDValue SITargetLowering::getCanonicalConstantFP(
   SelectionDAG &DAG, const SDLoc &SL, EVT VT, const APFloat &C) const {
   // Flush denormals to 0 if not enabled.
-  if (C.isDenormal() && !denormalsEnabledForType(DAG, VT))
-    return DAG.getConstantFP(0.0, SL, VT);
+  if (C.isDenormal() && !denormalsEnabledForType(DAG, VT)) {
+    return DAG.getConstantFP(APFloat::getZero(C.getSemantics(),
+                                              C.isNegative()), SL, VT);
+  }
 
   if (C.isNaN()) {
     APFloat CanonicalQNaN = APFloat::getQNaN(C.getSemantics());
@@ -10375,7 +10383,7 @@ SDValue SITargetLowering::performFCanonicalizeCombine(
   // If it's free to do so, push canonicalizes further up the source, which may
   // find a canonical source.
   //
-  // TODO: More opcodes. Note this is unsafe for the the _ieee minnum/maxnum for
+  // TODO: More opcodes. Note this is unsafe for the _ieee minnum/maxnum for
   // sNaNs.
   if (SrcOpc == ISD::FMINNUM || SrcOpc == ISD::FMAXNUM) {
     auto *CRHS = dyn_cast<ConstantFPSDNode>(N0.getOperand(1));
@@ -11865,7 +11873,7 @@ SDNode *SITargetLowering::PostISelFolding(MachineSDNode *Node,
 
   if (TII->isMIMG(Opcode) && !TII->get(Opcode).mayStore() &&
       !TII->isGather4(Opcode) &&
-      AMDGPU::getNamedOperandIdx(Opcode, AMDGPU::OpName::dmask) != -1) {
+      AMDGPU::hasNamedOperand(Opcode, AMDGPU::OpName::dmask)) {
     return adjustWritemask(Node, DAG);
   }
 
@@ -12821,10 +12829,8 @@ SITargetLowering::shouldExpandAtomicRMWInIR(AtomicRMWInst *RMW) const {
   case AtomicRMWInst::FAdd: {
     Type *Ty = RMW->getType();
 
-    // We don't have a way to support 16-bit atomics now, so just leave them
-    // as-is.
     if (Ty->isHalfTy())
-      return AtomicExpansionKind::None;
+      return AtomicExpansionKind::CmpXChg;
 
     if (!Ty->isFloatTy() && (!Subtarget->hasGFX90AInsts() || !Ty->isDoubleTy()))
       return AtomicExpansionKind::CmpXChg;
@@ -12863,6 +12869,19 @@ SITargetLowering::shouldExpandAtomicRMWInIR(AtomicRMWInst *RMW) const {
       // global and flat atomic fadd f64: gfx90a, gfx940.
       if (Ty->isDoubleTy() && Subtarget->hasGFX90AInsts())
         return ReportUnsafeHWInst(AtomicExpansionKind::None);
+
+      // If it is in flat address space, and the type is float, we will try to
+      // expand it, if the target supports global and lds atomic fadd. The
+      // reason we need that is, in the expansion, we emit the check of address
+      // space. If it is in global address space, we emit the global atomic
+      // fadd; if it is in shared address space, we emit the LDS atomic fadd.
+      if (AS == AMDGPUAS::FLAT_ADDRESS && Ty->isFloatTy() &&
+          Subtarget->hasLDSFPAtomicAdd()) {
+        if (RMW->use_empty() && Subtarget->hasAtomicFaddNoRtnInsts())
+          return AtomicExpansionKind::Expand;
+        if (!RMW->use_empty() && Subtarget->hasAtomicFaddRtnInsts())
+          return AtomicExpansionKind::Expand;
+      }
 
       return AtomicExpansionKind::CmpXChg;
     }
@@ -13063,4 +13082,141 @@ bool SITargetLowering::checkForPhysRegDependency(
     return true;
   }
   return false;
+}
+
+void SITargetLowering::emitExpandAtomicRMW(AtomicRMWInst *AI) const {
+  assert(Subtarget->hasAtomicFaddInsts() &&
+         "target should have atomic fadd instructions");
+  assert(AI->getType()->isFloatTy() &&
+         AI->getPointerAddressSpace() == AMDGPUAS::FLAT_ADDRESS &&
+         "generic atomicrmw expansion only supports FP32 operand in flat "
+         "address space");
+  assert(AI->getOperation() == AtomicRMWInst::FAdd &&
+         "only fadd is supported for now");
+
+  // Given: atomicrmw fadd float* %addr, float %val ordering
+  //
+  // With this expansion we produce the following code:
+  //   [...]
+  //   %int8ptr = bitcast float* %addr to i8*
+  //   br label %atomicrmw.check.shared
+  //
+  // atomicrmw.check.shared:
+  //   %is.shared = call i1 @llvm.amdgcn.is.shared(i8* %int8ptr)
+  //   br i1 %is.shared, label %atomicrmw.shared, label %atomicrmw.check.private
+  //
+  // atomicrmw.shared:
+  //   %cast.shared = addrspacecast float* %addr to float addrspace(3)*
+  //   %loaded.shared = atomicrmw fadd float addrspace(3)* %cast.shared,
+  //                                   float %val ordering
+  //   br label %atomicrmw.phi
+  //
+  // atomicrmw.check.private:
+  //   %is.private = call i1 @llvm.amdgcn.is.private(i8* %int8ptr)
+  //   br i1 %is.private, label %atomicrmw.private, label %atomicrmw.global
+  //
+  // atomicrmw.private:
+  //   %cast.private = addrspacecast float* %addr to float addrspace(5)*
+  //   %loaded.private = load float, float addrspace(5)* %cast.private
+  //   %val.new = fadd float %loaded.private, %val
+  //   store float %val.new, float addrspace(5)* %cast.private
+  //   br label %atomicrmw.phi
+  //
+  // atomicrmw.global:
+  //   %cast.global = addrspacecast float* %addr to float addrspace(1)*
+  //   %loaded.global = atomicrmw fadd float addrspace(1)* %cast.global,
+  //                                   float %val ordering
+  //   br label %atomicrmw.phi
+  //
+  // atomicrmw.phi:
+  //   %loaded.phi = phi float [ %loaded.shared, %atomicrmw.shared ],
+  //                           [ %loaded.private, %atomicrmw.private ],
+  //                           [ %loaded.global, %atomicrmw.global ]
+  //   br label %atomicrmw.end
+  //
+  // atomicrmw.end:
+  //    [...]
+
+  IRBuilder<> Builder(AI);
+  LLVMContext &Ctx = Builder.getContext();
+
+  BasicBlock *BB = Builder.GetInsertBlock();
+  Function *F = BB->getParent();
+  BasicBlock *ExitBB =
+      BB->splitBasicBlock(Builder.GetInsertPoint(), "atomicrmw.end");
+  BasicBlock *CheckSharedBB =
+      BasicBlock::Create(Ctx, "atomicrmw.check.shared", F, ExitBB);
+  BasicBlock *SharedBB = BasicBlock::Create(Ctx, "atomicrmw.shared", F, ExitBB);
+  BasicBlock *CheckPrivateBB =
+      BasicBlock::Create(Ctx, "atomicrmw.check.private", F, ExitBB);
+  BasicBlock *PrivateBB =
+      BasicBlock::Create(Ctx, "atomicrmw.private", F, ExitBB);
+  BasicBlock *GlobalBB = BasicBlock::Create(Ctx, "atomicrmw.global", F, ExitBB);
+  BasicBlock *PhiBB = BasicBlock::Create(Ctx, "atomicrmw.phi", F, ExitBB);
+
+  Value *Val = AI->getValOperand();
+  Type *ValTy = Val->getType();
+  Value *Addr = AI->getPointerOperand();
+  PointerType *PtrTy = cast<PointerType>(Addr->getType());
+
+  auto CreateNewAtomicRMW = [AI](IRBuilder<> &Builder, Value *Addr,
+                                 Value *Val) -> Value * {
+    AtomicRMWInst *OldVal =
+        Builder.CreateAtomicRMW(AI->getOperation(), Addr, Val, AI->getAlign(),
+                                AI->getOrdering(), AI->getSyncScopeID());
+    SmallVector<std::pair<unsigned, MDNode *>> MDs;
+    AI->getAllMetadata(MDs);
+    for (auto &P : MDs)
+      OldVal->setMetadata(P.first, P.second);
+    return OldVal;
+  };
+
+  std::prev(BB->end())->eraseFromParent();
+  Builder.SetInsertPoint(BB);
+  Value *Int8Ptr = Builder.CreateBitCast(Addr, Builder.getInt8PtrTy());
+  Builder.CreateBr(CheckSharedBB);
+
+  Builder.SetInsertPoint(CheckSharedBB);
+  CallInst *IsShared = Builder.CreateIntrinsic(Intrinsic::amdgcn_is_shared, {},
+                                               {Int8Ptr}, nullptr, "is.shared");
+  Builder.CreateCondBr(IsShared, SharedBB, CheckPrivateBB);
+
+  Builder.SetInsertPoint(SharedBB);
+  Value *CastToLocal = Builder.CreateAddrSpaceCast(
+      Addr,
+      PointerType::getWithSamePointeeType(PtrTy, AMDGPUAS::LOCAL_ADDRESS));
+  Value *LoadedShared = CreateNewAtomicRMW(Builder, CastToLocal, Val);
+  Builder.CreateBr(PhiBB);
+
+  Builder.SetInsertPoint(CheckPrivateBB);
+  CallInst *IsPrivate = Builder.CreateIntrinsic(
+      Intrinsic::amdgcn_is_private, {}, {Int8Ptr}, nullptr, "is.private");
+  Builder.CreateCondBr(IsPrivate, PrivateBB, GlobalBB);
+
+  Builder.SetInsertPoint(PrivateBB);
+  Value *CastToPrivate = Builder.CreateAddrSpaceCast(
+      Addr,
+      PointerType::getWithSamePointeeType(PtrTy, AMDGPUAS::PRIVATE_ADDRESS));
+  Value *LoadedPrivate =
+      Builder.CreateLoad(ValTy, CastToPrivate, "loaded.private");
+  Value *NewVal = Builder.CreateFAdd(LoadedPrivate, Val, "val.new");
+  Builder.CreateStore(NewVal, CastToPrivate);
+  Builder.CreateBr(PhiBB);
+
+  Builder.SetInsertPoint(GlobalBB);
+  Value *CastToGlobal = Builder.CreateAddrSpaceCast(
+      Addr,
+      PointerType::getWithSamePointeeType(PtrTy, AMDGPUAS::GLOBAL_ADDRESS));
+  Value *LoadedGlobal = CreateNewAtomicRMW(Builder, CastToGlobal, Val);
+  Builder.CreateBr(PhiBB);
+
+  Builder.SetInsertPoint(PhiBB);
+  PHINode *Loaded = Builder.CreatePHI(ValTy, 3, "loaded.phi");
+  Loaded->addIncoming(LoadedShared, SharedBB);
+  Loaded->addIncoming(LoadedPrivate, PrivateBB);
+  Loaded->addIncoming(LoadedGlobal, GlobalBB);
+  Builder.CreateBr(ExitBB);
+
+  AI->replaceAllUsesWith(Loaded);
+  AI->eraseFromParent();
 }

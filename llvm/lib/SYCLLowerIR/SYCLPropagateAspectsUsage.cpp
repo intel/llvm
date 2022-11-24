@@ -246,29 +246,39 @@ AspectsSetTy getAspectsUsedByInstruction(const Instruction &I,
 using FunctionToAspectsMapTy = DenseMap<Function *, AspectsSetTy>;
 using CallGraphTy = DenseMap<Function *, SmallPtrSet<Function *, 8>>;
 
+// Finds the first function in a list that uses a given aspect. Returns nullptr
+// if none of the functions satisfy the criteria.
+Function *findFirstAspectUsageCallee(
+    const SmallPtrSetImpl<Function *> &Callees,
+    const FunctionToAspectsMapTy &AspectsMap, int Aspect,
+    SmallPtrSetImpl<const Function *> *Visited = nullptr) {
+  for (Function *Callee : Callees) {
+    if (Visited && !Visited->insert(Callee).second)
+      continue;
+
+    auto AspectIt = AspectsMap.find(Callee);
+    if (AspectIt != AspectsMap.end() && AspectIt->second.contains(Aspect))
+      return Callee;
+  }
+  return nullptr;
+}
+
 // Constructs an aspect usage chain for a given aspect from the function to the
 // last callee in the first found chain.
 void constructAspectUsageChain(const Function *F,
                                const FunctionToAspectsMapTy &AspectsMap,
                                const CallGraphTy &CG, int Aspect,
-                               SmallVector<Function *, 8> &CallChain,
-                               SmallPtrSet<const Function *, 16> &Visited) {
+                               SmallVectorImpl<Function *> &CallChain,
+                               SmallPtrSetImpl<const Function *> &Visited) {
   const auto EdgeIt = CG.find(F);
   if (EdgeIt == CG.end())
     return;
 
-  for (Function *Callee : EdgeIt->second) {
-    if (!Visited.insert(Callee).second)
-      continue;
-
-    auto AspectIt = AspectsMap.find(Callee);
-    if (AspectIt == AspectsMap.end() || !AspectIt->second.contains(Aspect))
-      continue;
-
-    CallChain.push_back(Callee);
-    constructAspectUsageChain(Callee, AspectsMap, CG, Aspect, CallChain,
-                              Visited);
-    break;
+  if (Function *AspectUsingCallee = findFirstAspectUsageCallee(
+          EdgeIt->second, AspectsMap, Aspect, &Visited)) {
+    CallChain.push_back(AspectUsingCallee);
+    constructAspectUsageChain(AspectUsingCallee, AspectsMap, CG, Aspect,
+                              CallChain, Visited);
   }
 }
 
@@ -313,22 +323,36 @@ void validateUsedAspectsForFunctions(const FunctionToAspectsMapTy &Map,
       continue;
 
     Function *F = It.first;
-
-    // Entry points will have their declared aspects from their kernel call.
-    // To avoid double warnings, we skip them.
-    if (std::find(EntryPoints.begin(), EntryPoints.end(), F) !=
-        EntryPoints.end())
-      continue;
-
-    const MDNode *DeviceHasMD = F->getMetadata("sycl_declared_aspects");
-    if (!DeviceHasMD)
-      continue;
-
     AspectsSetTy DeviceHasAspectSet;
-    for (size_t I = 0; I != DeviceHasMD->getNumOperands(); ++I) {
-      const auto *CAM = cast<ConstantAsMetadata>(DeviceHasMD->getOperand(I));
-      const Constant *C = CAM->getValue();
-      DeviceHasAspectSet.insert(cast<ConstantInt>(C)->getSExtValue());
+    bool OriginatedFromAttribute = true;
+    if (const MDNode *DeviceHasMD = F->getMetadata("sycl_declared_aspects")) {
+      // Entry points will have their declared aspects from their kernel call.
+      // To avoid double warnings, we skip them.
+      if (is_contained(EntryPoints, F))
+        continue;
+      for (const MDOperand &DeviceHasMDOp : DeviceHasMD->operands()) {
+        const auto *CAM = cast<ConstantAsMetadata>(DeviceHasMDOp);
+        const Constant *C = CAM->getValue();
+        DeviceHasAspectSet.insert(cast<ConstantInt>(C)->getSExtValue());
+      }
+      OriginatedFromAttribute = true;
+    } else if (F->hasFnAttribute("sycl-device-has")) {
+      Attribute DeviceHasAttr = F->getFnAttribute("sycl-device-has");
+      SmallVector<StringRef, 4> AspectValStrs;
+      DeviceHasAttr.getValueAsString().split(
+          AspectValStrs, ',', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+      for (StringRef AspectValStr : AspectValStrs) {
+        int AspectVal = -1;
+        bool AspectValStrConverted = !AspectValStr.getAsInteger(10, AspectVal);
+        // Avoid unused warning when asserts are disabled.
+        std::ignore = AspectValStrConverted;
+        assert(AspectValStrConverted &&
+               "Aspect value in sycl-device-has is not an integer.");
+        DeviceHasAspectSet.insert(AspectVal);
+      }
+      OriginatedFromAttribute = false;
+    } else {
+      continue;
     }
 
     for (int Aspect : Aspects) {
@@ -338,9 +362,19 @@ void validateUsedAspectsForFunctions(const FunctionToAspectsMapTy &Map,
             [=](auto AspectIt) { return Aspect == AspectIt.second; });
         assert(AspectNameIt != AspectValues.end() &&
                "Used aspect is not part of the existing aspects");
+        // We may encounter an entry point when using the device_has property.
+        // In this case we act like the usage came from the first callee to
+        // avoid repeat warnings on the same line.
+        Function *AdjustedOriginF =
+            is_contained(EntryPoints, F)
+                ? findFirstAspectUsageCallee(CG.find(F)->second, Map, Aspect)
+                : F;
+        assert(AdjustedOriginF &&
+               "Adjusted function pointer for aspect usage is null");
         SmallVector<Function *, 8> CallChain =
-            getAspectUsageChain(F, Map, CG, Aspect);
-        diagnoseAspectsMismatch(F, CallChain, AspectNameIt->first);
+            getAspectUsageChain(AdjustedOriginF, Map, CG, Aspect);
+        diagnoseAspectsMismatch(AdjustedOriginF, CallChain, AspectNameIt->first,
+                                OriginatedFromAttribute);
       }
     }
   }
@@ -373,23 +407,24 @@ void propagateAspectsThroughCG(Function *F, CallGraphTy &CG,
 ///  - checks if return and argument types are using any aspects
 ///  - checks if instructions are using any aspects
 ///  - updates call graph information
-///  - checks if function has "!sycl_used_aspects" metadata
-///
-void processFunction(Function &F, FunctionToAspectsMapTy &FunctionToAspects,
+///  - checks if function has "!sycl_used_aspects" and "!sycl_declared_aspects"
+/// metadata and if so collects aspects from this metadata
+void processFunction(Function &F, FunctionToAspectsMapTy &FunctionToUsedAspects,
+                     FunctionToAspectsMapTy &FunctionToDeclaredAspects,
                      TypeToAspectsMapTy &TypesWithAspects, CallGraphTy &CG) {
   const AspectsSetTy RetTyAspects =
       getAspectsFromType(F.getReturnType(), TypesWithAspects);
-  FunctionToAspects[&F].insert(RetTyAspects.begin(), RetTyAspects.end());
+  FunctionToUsedAspects[&F].insert(RetTyAspects.begin(), RetTyAspects.end());
   for (Argument &Arg : F.args()) {
     const AspectsSetTy ArgAspects =
         getAspectsFromType(Arg.getType(), TypesWithAspects);
-    FunctionToAspects[&F].insert(ArgAspects.begin(), ArgAspects.end());
+    FunctionToUsedAspects[&F].insert(ArgAspects.begin(), ArgAspects.end());
   }
 
   for (Instruction &I : instructions(F)) {
     const AspectsSetTy Aspects =
         getAspectsUsedByInstruction(I, TypesWithAspects);
-    FunctionToAspects[&F].insert(Aspects.begin(), Aspects.end());
+    FunctionToUsedAspects[&F].insert(Aspects.begin(), Aspects.end());
 
     if (const auto *CI = dyn_cast<CallInst>(&I)) {
       if (!CI->isIndirectCall() && CI->getCalledFunction())
@@ -397,15 +432,18 @@ void processFunction(Function &F, FunctionToAspectsMapTy &FunctionToAspects,
     }
   }
 
-  if (F.hasMetadata("sycl_used_aspects")) {
-    const MDNode *MD = F.getMetadata("sycl_used_aspects");
-    AspectsSetTy Aspects;
-    for (const MDOperand &Op : MD->operands()) {
-      Constant *C = cast<ConstantAsMetadata>(Op.get())->getValue();
-      Aspects.insert(cast<ConstantInt>(C)->getSExtValue());
+  auto CollectAspectsFromMD = [&F](const char* MDName, FunctionToAspectsMapTy &Map) {
+    if (const MDNode *MD = F.getMetadata(MDName)) {
+      AspectsSetTy Aspects;
+      for (const MDOperand &Op : MD->operands()) {
+        Constant *C = cast<ConstantAsMetadata>(Op.get())->getValue();
+        Aspects.insert(cast<ConstantInt>(C)->getSExtValue());
+      }
+      Map[&F].insert(Aspects.begin(), Aspects.end());
     }
-    FunctionToAspects[&F].insert(Aspects.begin(), Aspects.end());
-  }
+  };
+  CollectAspectsFromMD("sycl_used_aspects", FunctionToUsedAspects);
+  CollectAspectsFromMD("sycl_declared_aspects", FunctionToDeclaredAspects);
 }
 
 // Return true if the function is a SPIRV or SYCL builtin, e.g.
@@ -469,23 +507,34 @@ FunctionToAspectsMapTy
 buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects,
                            const AspectValueToNameMapTy &AspectValues,
                            const std::vector<Function *> &EntryPoints) {
-  FunctionToAspectsMapTy FunctionToAspects;
+  FunctionToAspectsMapTy FunctionToUsedAspects;
+  FunctionToAspectsMapTy FunctionToDeclaredAspects;
   CallGraphTy CG;
 
   for (Function &F : M.functions()) {
     if (F.isDeclaration())
       continue;
-    processFunction(F, FunctionToAspects, TypesWithAspects, CG);
+    processFunction(F, FunctionToUsedAspects, FunctionToDeclaredAspects,
+                    TypesWithAspects, CG);
   }
 
   SmallPtrSet<const Function *, 16> Visited;
   for (Function *F : EntryPoints)
-    propagateAspectsThroughCG(F, CG, FunctionToAspects, Visited);
+    propagateAspectsThroughCG(F, CG, FunctionToUsedAspects, Visited);
 
-  validateUsedAspectsForFunctions(FunctionToAspects, AspectValues, EntryPoints,
-                                  CG);
+  validateUsedAspectsForFunctions(FunctionToUsedAspects, AspectValues,
+                                  EntryPoints, CG);
 
-  return FunctionToAspects;
+  // The set of aspects from FunctionToDeclaredAspects should be merged to the
+  // set of FunctionToUsedAspects after validateUsedAspectsForFunctions call to
+  // avoid errors during validation.
+  Visited.clear();
+  for (Function *F : EntryPoints)
+    propagateAspectsThroughCG(F, CG, FunctionToDeclaredAspects, Visited);
+  for (const auto &It : FunctionToDeclaredAspects)
+    FunctionToUsedAspects[It.first].insert(It.second.begin(), It.second.end());
+
+  return FunctionToUsedAspects;
 }
 
 } // anonymous namespace
@@ -516,10 +565,10 @@ SYCLPropagateAspectsUsagePass::run(Module &M, ModuleAnalysisManager &MAM) {
 
   propagateAspectsToOtherTypesInModule(M, TypesWithAspects, AspectValues);
 
-  FunctionToAspectsMapTy FunctionToAspects = buildFunctionsToAspectsMap(
+  FunctionToAspectsMapTy FunctionToUsedAspects = buildFunctionsToAspectsMap(
       M, TypesWithAspects, AspectValues, EntryPoints);
 
-  createUsedAspectsMetadataForFunctions(FunctionToAspects);
+  createUsedAspectsMetadataForFunctions(FunctionToUsedAspects);
 
   setSyclFixedTargetsMD(EntryPoints, TargetFixedAspects, AspectValues);
 

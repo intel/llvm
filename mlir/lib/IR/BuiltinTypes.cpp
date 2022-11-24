@@ -88,7 +88,7 @@ IntegerType IntegerType::scaleElementBitwidth(unsigned scale) {
 //===----------------------------------------------------------------------===//
 
 unsigned FloatType::getWidth() {
-  if (isa<Float8E5M2Type>())
+  if (isa<Float8E5M2Type, Float8E4M3FNType>())
     return 8;
   if (isa<Float16Type, BFloat16Type>())
     return 16;
@@ -107,6 +107,8 @@ unsigned FloatType::getWidth() {
 const llvm::fltSemantics &FloatType::getFloatSemantics() {
   if (isa<Float8E5M2Type>())
     return APFloat::Float8E5M2();
+  if (isa<Float8E4M3FNType>())
+    return APFloat::Float8E4M3FN();
   if (isa<BFloat16Type>())
     return APFloat::BFloat();
   if (isa<Float16Type>())
@@ -187,20 +189,6 @@ FunctionType::getWithoutArgsAndResults(const BitVector &argIndices,
   return clone(newArgTypes, newResultTypes);
 }
 
-void FunctionType::walkImmediateSubElements(
-    function_ref<void(Attribute)> walkAttrsFn,
-    function_ref<void(Type)> walkTypesFn) const {
-  for (Type type : llvm::concat<const Type>(getInputs(), getResults()))
-    walkTypesFn(type);
-}
-
-Type FunctionType::replaceImmediateSubElements(ArrayRef<Attribute> replAttrs,
-                                               ArrayRef<Type> replTypes) const {
-  unsigned numInputs = getNumInputs();
-  return get(getContext(), replTypes.take_front(numInputs),
-             replTypes.drop_front(numInputs));
-}
-
 //===----------------------------------------------------------------------===//
 // OpaqueType
 //===----------------------------------------------------------------------===//
@@ -256,17 +244,6 @@ VectorType VectorType::scaleElementBitwidth(unsigned scale) {
     if (auto scaledEt = et.scaleElementBitwidth(scale))
       return VectorType::get(getShape(), scaledEt, getNumScalableDims());
   return VectorType();
-}
-
-void VectorType::walkImmediateSubElements(
-    function_ref<void(Attribute)> walkAttrsFn,
-    function_ref<void(Type)> walkTypesFn) const {
-  walkTypesFn(getElementType());
-}
-
-Type VectorType::replaceImmediateSubElements(ArrayRef<Attribute> replAttrs,
-                                             ArrayRef<Type> replTypes) const {
-  return get(getShape(), replTypes.front(), getNumScalableDims());
 }
 
 VectorType VectorType::cloneWith(Optional<ArrayRef<int64_t>> shape,
@@ -343,20 +320,6 @@ RankedTensorType::verify(function_ref<InFlightDiagnostic()> emitError,
   return checkTensorElementType(emitError, elementType);
 }
 
-void RankedTensorType::walkImmediateSubElements(
-    function_ref<void(Attribute)> walkAttrsFn,
-    function_ref<void(Type)> walkTypesFn) const {
-  walkTypesFn(getElementType());
-  if (Attribute encoding = getEncoding())
-    walkAttrsFn(encoding);
-}
-
-Type RankedTensorType::replaceImmediateSubElements(
-    ArrayRef<Attribute> replAttrs, ArrayRef<Type> replTypes) const {
-  return get(getShape(), replTypes.front(),
-             replAttrs.empty() ? Attribute() : replAttrs.back());
-}
-
 //===----------------------------------------------------------------------===//
 // UnrankedTensorType
 //===----------------------------------------------------------------------===//
@@ -365,17 +328,6 @@ LogicalResult
 UnrankedTensorType::verify(function_ref<InFlightDiagnostic()> emitError,
                            Type elementType) {
   return checkTensorElementType(emitError, elementType);
-}
-
-void UnrankedTensorType::walkImmediateSubElements(
-    function_ref<void(Attribute)> walkAttrsFn,
-    function_ref<void(Type)> walkTypesFn) const {
-  walkTypesFn(getElementType());
-}
-
-Type UnrankedTensorType::replaceImmediateSubElements(
-    ArrayRef<Attribute> replAttrs, ArrayRef<Type> replTypes) const {
-  return get(replTypes.front());
 }
 
 //===----------------------------------------------------------------------===//
@@ -671,24 +623,6 @@ LogicalResult MemRefType::verify(function_ref<InFlightDiagnostic()> emitError,
   return success();
 }
 
-void MemRefType::walkImmediateSubElements(
-    function_ref<void(Attribute)> walkAttrsFn,
-    function_ref<void(Type)> walkTypesFn) const {
-  walkTypesFn(getElementType());
-  if (!getLayout().isIdentity())
-    walkAttrsFn(getLayout());
-  walkAttrsFn(getMemorySpace());
-}
-
-Type MemRefType::replaceImmediateSubElements(ArrayRef<Attribute> replAttrs,
-                                             ArrayRef<Type> replTypes) const {
-  bool hasLayout = replAttrs.size() > 1;
-  return get(getShape(), replTypes[0],
-             hasLayout ? replAttrs[0].dyn_cast<MemRefLayoutAttrInterface>()
-                       : MemRefLayoutAttrInterface(),
-             hasLayout ? replAttrs[1] : replAttrs[0]);
-}
-
 //===----------------------------------------------------------------------===//
 // UnrankedMemRefType
 //===----------------------------------------------------------------------===//
@@ -870,18 +804,6 @@ LogicalResult mlir::getStridesAndOffset(MemRefType t,
   return success();
 }
 
-void UnrankedMemRefType::walkImmediateSubElements(
-    function_ref<void(Attribute)> walkAttrsFn,
-    function_ref<void(Type)> walkTypesFn) const {
-  walkTypesFn(getElementType());
-  walkAttrsFn(getMemorySpace());
-}
-
-Type UnrankedMemRefType::replaceImmediateSubElements(
-    ArrayRef<Attribute> replAttrs, ArrayRef<Type> replTypes) const {
-  return get(replTypes.front(), replAttrs.front());
-}
-
 //===----------------------------------------------------------------------===//
 /// TupleType
 //===----------------------------------------------------------------------===//
@@ -904,18 +826,6 @@ void TupleType::getFlattenedTypes(SmallVectorImpl<Type> &types) {
 
 /// Return the number of element types.
 size_t TupleType::size() const { return getImpl()->size(); }
-
-void TupleType::walkImmediateSubElements(
-    function_ref<void(Attribute)> walkAttrsFn,
-    function_ref<void(Type)> walkTypesFn) const {
-  for (Type type : getTypes())
-    walkTypesFn(type);
-}
-
-Type TupleType::replaceImmediateSubElements(ArrayRef<Attribute> replAttrs,
-                                            ArrayRef<Type> replTypes) const {
-  return get(getContext(), replTypes);
-}
 
 //===----------------------------------------------------------------------===//
 // Type Utilities

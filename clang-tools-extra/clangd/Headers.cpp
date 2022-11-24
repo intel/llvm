@@ -15,6 +15,7 @@
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/PPCallbacks.h"
 #include "clang/Lex/Preprocessor.h"
+#include "clang/Tooling/Inclusions/HeaderAnalysis.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Path.h"
 #include <cstring>
@@ -121,12 +122,10 @@ public:
         // isSelfContainedHeader only returns true once the full header-guard
         // structure has been seen, i.e. when exiting the *outer* copy of the
         // file. So last result wins.
-        if (isSelfContainedHeader(FE, PrevFID, SM, HeaderInfo))
-          Out->NonSelfContained.erase(
-              *Out->getID(SM.getFileEntryForID(PrevFID)));
+        if (tooling::isSelfContainedHeader(FE, SM, HeaderInfo))
+          Out->NonSelfContained.erase(*Out->getID(FE));
         else
-          Out->NonSelfContained.insert(
-              *Out->getID(SM.getFileEntryForID(PrevFID)));
+          Out->NonSelfContained.insert(*Out->getID(FE));
       }
       break;
     }
@@ -164,7 +163,7 @@ public:
       LastPragmaKeepInMainFileLine =
           SM.getLineNumber(SM.getMainFileID(), Offset) - 1;
     } else {
-      // Memorize headers that that have export pragmas in them. Include Cleaner
+      // Memorize headers that have export pragmas in them. Include Cleaner
       // does not support them properly yet, so they will be not marked as
       // unused.
       // FIXME: Once IncludeCleaner supports export pragmas, remove this.

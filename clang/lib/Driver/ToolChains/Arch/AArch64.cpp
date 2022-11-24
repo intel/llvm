@@ -107,9 +107,11 @@ static bool DecodeAArch64Features(const Driver &D, StringRef text,
     if ((ArchKind == llvm::AArch64::ArchKind::ARMV8_6A ||
          ArchKind == llvm::AArch64::ArchKind::ARMV8_7A ||
          ArchKind == llvm::AArch64::ArchKind::ARMV8_8A ||
+         ArchKind == llvm::AArch64::ArchKind::ARMV8_9A ||
          ArchKind == llvm::AArch64::ArchKind::ARMV9_1A ||
          ArchKind == llvm::AArch64::ArchKind::ARMV9_2A ||
-         ArchKind == llvm::AArch64::ArchKind::ARMV9_3A) &&
+         ArchKind == llvm::AArch64::ArchKind::ARMV9_3A ||
+         ArchKind == llvm::AArch64::ArchKind::ARMV9_4A) &&
         Feature == "sve")
       Features.push_back("+f32mm");
   }
@@ -274,9 +276,9 @@ void aarch64::getAArch64TargetFeatures(const Driver &D,
     // If "-Wa,-march=" is used, 'WaMArch' will contain the argument's value,
     // while 'A' is uninitialized. Only dereference 'A' in the other case.
     if (!WaMArch.empty())
-      Diag << "march=" << WaMArch;
+      Diag << "-march=" << WaMArch;
     else
-      Diag << A->getOption().getName() << A->getValue();
+      Diag << A->getSpelling() << A->getValue();
   }
 
   if (Args.getLastArg(options::OPT_mgeneral_regs_only)) {
@@ -330,7 +332,7 @@ void aarch64::getAArch64TargetFeatures(const Driver &D,
           continue;
         }
         D.Diag(diag::err_drv_unsupported_option_argument)
-            << A->getOption().getName() << Scope;
+            << A->getSpelling() << Scope;
         break;
       }
     }

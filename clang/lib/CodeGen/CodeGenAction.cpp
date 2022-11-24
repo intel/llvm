@@ -634,10 +634,9 @@ BackendConsumer::StackSizeDiagHandler(const llvm::DiagnosticInfoStackSize &D) {
   if (!Loc)
     return false;
 
-  // FIXME: Shouldn't need to truncate to uint32_t
   Diags.Report(*Loc, diag::warn_fe_frame_larger_than)
-      << static_cast<uint32_t>(D.getStackSize())
-      << static_cast<uint32_t>(D.getStackLimit())
+      << D.getStackSize()
+      << D.getStackLimit()
       << llvm::demangle(D.getFunction().getName().str());
   return true;
 }
@@ -867,7 +866,8 @@ void BackendConsumer::AspectMismatchDiagHandler(
   assert(LocCookie.isValid() &&
          "Invalid location for caller in aspect mismatch diagnostic");
   Diags.Report(LocCookie, diag::warn_sycl_device_has_aspect_mismatch)
-      << llvm::demangle(D.getFunctionName().str()) << D.getAspect();
+      << llvm::demangle(D.getFunctionName().str()) << D.getAspect()
+      << D.isFromDeviceHasAttribute();
   for (const std::pair<StringRef, unsigned> &CalleeInfo : D.getCallChain()) {
     LocCookie = SourceLocation::getFromRawEncoding(CalleeInfo.second);
     assert(LocCookie.isValid() &&
@@ -1127,6 +1127,8 @@ std::unique_ptr<llvm::Module>
 CodeGenAction::loadModule(MemoryBufferRef MBRef) {
   CompilerInstance &CI = getCompilerInstance();
   SourceManager &SM = CI.getSourceManager();
+
+  VMContext->setOpaquePointers(CI.getCodeGenOpts().OpaquePointers);
 
   // For ThinLTO backend invocations, ensure that the context
   // merges types based on ODR identifiers. We also need to read

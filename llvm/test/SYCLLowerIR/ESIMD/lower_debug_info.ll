@@ -4,6 +4,11 @@
 ; This test checks that debug info is preserved during lowering
 ; ESIMD specific constructs.
 
+; Disable test until GenXIntrinsics is updated to reflect recent community
+; changes;
+; XFAIL:*
+
+
 @__spirv_BuiltInGlobalInvocationId = external dso_local local_unnamed_addr addrspace(1) constant <3 x i64>, align 32
 
 declare spir_func <16 x float> @_Z26__esimd_oword_ld_unalignedIfLi16EjLi0EEN2cl4sycl3ext5intel12experimental5esimd6detail11vector_typeIT_XT0_EE4typeET1_j(i32, i32)

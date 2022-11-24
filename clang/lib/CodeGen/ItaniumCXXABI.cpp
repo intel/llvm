@@ -1325,8 +1325,9 @@ static llvm::FunctionCallee getItaniumDynamicCastFn(CodeGenFunction &CGF) {
   llvm::FunctionType *FTy = llvm::FunctionType::get(Int8PtrTy, Args, false);
 
   // Mark the function as nounwind readonly.
-  llvm::Attribute::AttrKind FuncAttrs[] = { llvm::Attribute::NoUnwind,
-                                            llvm::Attribute::ReadOnly };
+  llvm::AttrBuilder FuncAttrs(CGF.getLLVMContext());
+  FuncAttrs.addAttribute(llvm::Attribute::NoUnwind);
+  FuncAttrs.addMemoryAttr(llvm::MemoryEffects::readOnly());
   llvm::AttributeList Attrs = llvm::AttributeList::get(
       CGF.getLLVMContext(), llvm::AttributeList::FunctionIndex, FuncAttrs);
 
@@ -2484,6 +2485,21 @@ void ItaniumCXXABI::EmitGuardedInit(CodeGenFunction &CGF,
     CGF.EmitBlock(InitCheckBlock);
   }
 
+  // The semantics of dynamic initialization of variables with static or thread
+  // storage duration depends on whether they are declared at block-scope. The
+  // initialization of such variables at block-scope can be aborted with an
+  // exception and later retried (per C++20 [stmt.dcl]p4), and recursive entry
+  // to their initialization has undefined behavior (also per C++20
+  // [stmt.dcl]p4). For such variables declared at non-block scope, exceptions
+  // lead to termination (per C++20 [except.terminate]p1), and recursive
+  // references to the variables are governed only by the lifetime rules (per
+  // C++20 [class.cdtor]p2), which means such references are perfectly fine as
+  // long as they avoid touching memory. As a result, block-scope variables must
+  // not be marked as initialized until after initialization completes (unless
+  // the mark is reverted following an exception), but non-block-scope variables
+  // must be marked prior to initialization so that recursive accesses during
+  // initialization do not restart initialization.
+
   // Variables used when coping with thread-safe statics and exceptions.
   if (threadsafe) {
     // Call __cxa_guard_acquire.
@@ -2499,6 +2515,12 @@ void ItaniumCXXABI::EmitGuardedInit(CodeGenFunction &CGF,
     CGF.EHStack.pushCleanup<CallGuardAbort>(EHCleanup, guard);
 
     CGF.EmitBlock(InitBlock);
+  } else if (!D.isLocalVarDecl()) {
+    // For non-local variables, store 1 into the first byte of the guard
+    // variable before the object initialization begins so that references
+    // to the variable during initialization don't restart initialization.
+    Builder.CreateStore(llvm::ConstantInt::get(CGM.Int8Ty, 1),
+                        Builder.CreateElementBitCast(guardAddr, CGM.Int8Ty));
   }
 
   // Emit the initializer and add a global destructor if appropriate.
@@ -2511,9 +2533,10 @@ void ItaniumCXXABI::EmitGuardedInit(CodeGenFunction &CGF,
     // Call __cxa_guard_release.  This cannot throw.
     CGF.EmitNounwindRuntimeCall(getGuardReleaseFn(CGM, guardPtrTy),
                                 guardAddr.getPointer());
-  } else {
-    // Store 1 into the first byte of the guard variable after initialization is
-    // complete.
+  } else if (D.isLocalVarDecl()) {
+    // For local variables, store 1 into the first byte of the guard variable
+    // after the object initialization completes so that initialization is
+    // retried if initialization is interrupted by an exception.
     Builder.CreateStore(llvm::ConstantInt::get(CGM.Int8Ty, 1),
                         Builder.CreateElementBitCast(guardAddr, CGM.Int8Ty));
   }
@@ -3572,8 +3595,33 @@ void ItaniumRTTIBuilder::BuildVTablePointer(const Type *Ty) {
   // Check if the alias exists. If it doesn't, then get or create the global.
   if (CGM.getItaniumVTableContext().isRelativeLayout())
     VTable = CGM.getModule().getNamedAlias(VTableName);
-  if (!VTable)
-    VTable = CGM.getModule().getOrInsertGlobal(VTableName, CGM.Int8PtrTy);
+
+  // To generate valid device code global pointers should have global address
+  // space in SYCL.
+  bool GenTyInfoGVWithGlobalAS =
+      CGM.getLangOpts().SYCLIsDevice &&
+      CGM.getLangOpts().SYCLAllowVirtualFunctions &&
+      (VTableName == ClassTypeInfo || VTableName == SIClassTypeInfo);
+  auto VTableTy =
+      GenTyInfoGVWithGlobalAS
+          ? CGM.Int8Ty->getPointerTo(
+                CGM.getContext().getTargetAddressSpace(LangAS::sycl_global))
+          : CGM.Int8PtrTy;
+  if (!VTable) {
+    if (GenTyInfoGVWithGlobalAS) {
+      VTable = CGM.getModule().getOrInsertGlobal(VTableName, VTableTy, [&] {
+        return new llvm::GlobalVariable(
+            CGM.getModule(), VTableTy, /*isConstant=*/false,
+            llvm::GlobalVariable::ExternalLinkage, /*Initializer=*/nullptr,
+            VTableName, /*InsertBefore=*/nullptr,
+            llvm::GlobalValue::ThreadLocalMode::NotThreadLocal,
+            llvm::Optional<unsigned>(
+                CGM.getContext().getTargetAddressSpace(LangAS::sycl_global)));
+      });
+    } else {
+      VTable = CGM.getModule().getOrInsertGlobal(VTableName, VTableTy);
+    }
+  }
 
   CGM.setDSOLocal(cast<llvm::GlobalValue>(VTable->stripPointerCasts()));
 
@@ -3585,15 +3633,15 @@ void ItaniumRTTIBuilder::BuildVTablePointer(const Type *Ty) {
     // The vtable address point is 8 bytes after its start:
     // 4 for the offset to top + 4 for the relative offset to rtti.
     llvm::Constant *Eight = llvm::ConstantInt::get(CGM.Int32Ty, 8);
-    VTable = llvm::ConstantExpr::getBitCast(VTable, CGM.Int8PtrTy);
+    VTable = llvm::ConstantExpr::getBitCast(VTable, VTableTy);
     VTable =
         llvm::ConstantExpr::getInBoundsGetElementPtr(CGM.Int8Ty, VTable, Eight);
   } else {
     llvm::Constant *Two = llvm::ConstantInt::get(PtrDiffTy, 2);
-    VTable = llvm::ConstantExpr::getInBoundsGetElementPtr(CGM.Int8PtrTy, VTable,
-                                                          Two);
+    VTable =
+        llvm::ConstantExpr::getInBoundsGetElementPtr(VTableTy, VTable, Two);
   }
-  VTable = llvm::ConstantExpr::getBitCast(VTable, CGM.Int8PtrTy);
+  VTable = llvm::ConstantExpr::getBitCast(VTable, VTableTy);
 
   Fields.push_back(VTable);
 }

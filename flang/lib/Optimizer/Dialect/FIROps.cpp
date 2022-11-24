@@ -655,8 +655,18 @@ void fir::CallOp::print(mlir::OpAsmPrinter &p) {
   else
     p << getOperand(0);
   p << '(' << (*this)->getOperands().drop_front(isDirect ? 0 : 1) << ')';
-  p.printOptionalAttrDict((*this)->getAttrs(),
-                          {fir::CallOp::getCalleeAttrNameStr()});
+
+  // Print 'fastmath<...>' (if it has non-default value) before
+  // any other attributes.
+  mlir::arith::FastMathFlagsAttr fmfAttr = getFastmathAttr();
+  if (fmfAttr.getValue() != mlir::arith::FastMathFlags::none) {
+    p << ' ' << mlir::arith::FastMathFlagsAttr::getMnemonic();
+    p.printStrippedAttrOrType(fmfAttr);
+  }
+
+  p.printOptionalAttrDict(
+      (*this)->getAttrs(),
+      {fir::CallOp::getCalleeAttrNameStr(), getFastmathAttrName()});
   auto resultTypes{getResultTypes()};
   llvm::SmallVector<mlir::Type> argTypes(
       llvm::drop_begin(getOperandTypes(), isDirect ? 0 : 1));
@@ -678,8 +688,18 @@ mlir::ParseResult fir::CallOp::parse(mlir::OpAsmParser &parser,
       return mlir::failure();
 
   mlir::Type type;
-  if (parser.parseOperandList(operands, mlir::OpAsmParser::Delimiter::Paren) ||
-      parser.parseOptionalAttrDict(attrs) || parser.parseColon() ||
+  if (parser.parseOperandList(operands, mlir::OpAsmParser::Delimiter::Paren))
+    return mlir::failure();
+
+  // Parse 'fastmath<...>', if present.
+  mlir::arith::FastMathFlagsAttr fmfAttr;
+  llvm::StringRef fmfAttrName = getFastmathAttrName(result.name);
+  if (mlir::succeeded(parser.parseOptionalKeyword(fmfAttrName)))
+    if (parser.parseCustomAttributeWithFallback(fmfAttr, mlir::Type{},
+                                                fmfAttrName, attrs))
+      return mlir::failure();
+
+  if (parser.parseOptionalAttrDict(attrs) || parser.parseColon() ||
       parser.parseType(type))
     return mlir::failure();
 
@@ -1063,23 +1083,22 @@ mlir::FunctionType fir::DispatchOp::getFunctionType() {
 // DispatchTableOp
 //===----------------------------------------------------------------------===//
 
-void fir::DispatchTableOp::appendTableEntry(mlir::Operation *op) {
-  assert(mlir::isa<fir::DTEntryOp>(*op) && "operation must be a DTEntryOp");
-  auto &block = getBlock();
-  block.getOperations().insert(block.end(), op);
-}
-
 mlir::ParseResult fir::DispatchTableOp::parse(mlir::OpAsmParser &parser,
                                               mlir::OperationState &result) {
   // Parse the name as a symbol reference attribute.
-  mlir::SymbolRefAttr nameAttr;
-  if (parser.parseAttribute(nameAttr, mlir::SymbolTable::getSymbolAttrName(),
-                            result.attributes))
+  mlir::StringAttr nameAttr;
+  if (parser.parseSymbolName(nameAttr, mlir::SymbolTable::getSymbolAttrName(),
+                             result.attributes))
     return mlir::failure();
 
-  // Convert the parsed name attr into a string attr.
-  result.attributes.set(mlir::SymbolTable::getSymbolAttrName(),
-                        nameAttr.getRootReference());
+  if (!failed(parser.parseOptionalKeyword(getExtendsKeyword()))) {
+    mlir::StringAttr parent;
+    if (parser.parseLParen() ||
+        parser.parseAttribute(parent, getParentAttrNameStr(),
+                              result.attributes) ||
+        parser.parseRParen())
+      return mlir::failure();
+  }
 
   // Parse the optional table body.
   mlir::Region *body = result.addRegion();
@@ -1093,11 +1112,11 @@ mlir::ParseResult fir::DispatchTableOp::parse(mlir::OpAsmParser &parser,
 }
 
 void fir::DispatchTableOp::print(mlir::OpAsmPrinter &p) {
-  auto tableName = getOperation()
-                       ->getAttrOfType<mlir::StringAttr>(
-                           mlir::SymbolTable::getSymbolAttrName())
-                       .getValue();
-  p << " @" << tableName;
+  p << ' ';
+  p.printSymbolName(getSymName());
+  if (getParent())
+    p << ' ' << getExtendsKeyword() << '('
+      << (*this)->getAttr(getParentAttrNameStr()) << ')';
 
   mlir::Region &body = getOperation()->getRegion(0);
   if (!body.empty()) {
@@ -1108,10 +1127,27 @@ void fir::DispatchTableOp::print(mlir::OpAsmPrinter &p) {
 }
 
 mlir::LogicalResult fir::DispatchTableOp::verify() {
+  if (getRegion().empty())
+    return mlir::success();
   for (auto &op : getBlock())
     if (!mlir::isa<fir::DTEntryOp, fir::FirEndOp>(op))
       return op.emitOpError("dispatch table must contain dt_entry");
   return mlir::success();
+}
+
+void fir::DispatchTableOp::build(mlir::OpBuilder &builder,
+                                 mlir::OperationState &result,
+                                 llvm::StringRef name, mlir::Type type,
+                                 llvm::StringRef parent,
+                                 llvm::ArrayRef<mlir::NamedAttribute> attrs) {
+  result.addRegion();
+  result.addAttribute(mlir::SymbolTable::getSymbolAttrName(),
+                      builder.getStringAttr(name));
+  if (!parent.empty())
+    result.addAttribute(getParentAttrNameStr(), builder.getStringAttr(parent));
+  // result.addAttribute(getSymbolAttrNameStr(),
+  //                     mlir::SymbolRefAttr::get(builder.getContext(), name));
+  result.addAttributes(attrs);
 }
 
 //===----------------------------------------------------------------------===//
@@ -2970,8 +3006,11 @@ void fir::SelectTypeOp::print(mlir::OpAsmPrinter &p) {
 }
 
 mlir::LogicalResult fir::SelectTypeOp::verify() {
-  if (!(getSelector().getType().isa<fir::BoxType>()))
-    return emitOpError("must be a boxed type");
+  if (!(getSelector().getType().isa<fir::BaseBoxType>()))
+    return emitOpError("must be a fir.class or fir.box type");
+  if (auto boxType = getSelector().getType().dyn_cast<fir::BoxType>())
+    if (!boxType.getEleTy().isa<mlir::NoneType>())
+      return emitOpError("selector must be polymorphic");
   auto cases =
       getOperation()->getAttrOfType<mlir::ArrayAttr>(getCasesAttr()).getValue();
   auto count = getNumDest();
@@ -3552,6 +3591,12 @@ mlir::Type fir::applyPathToType(mlir::Type eleTy, mlir::ValueRange path) {
                 .Default([&](const auto &) { return mlir::Type{}; });
   }
   return eleTy;
+}
+
+mlir::LogicalResult fir::DeclareOp::verify() {
+  auto fortranVar =
+      mlir::cast<fir::FortranVariableOpInterface>(this->getOperation());
+  return fortranVar.verifyDeclareLikeOpImpl(getMemref());
 }
 
 // Tablegen operators

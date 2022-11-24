@@ -5,50 +5,50 @@
 
 #include "sycl.hpp"
 
-// expected-note@+1 4 {{propagated from call to function 'Struct1::Struct1()'}}
+// expected-note-re@+1 4 {{propagated from call to function '{{.*}}Struct1::Struct1({{.*}})'}}
 struct [[__sycl_detail__::__uses_aspects__(sycl::aspect::fp16)]] Struct1 {
   int a = 0;
 };
 
-// expected-note@+1 4 {{propagated from call to function 'func5(int)'}}
+// expected-note-re@+1 4 {{propagated from call to function '{{.*}}func5(int)'}}
 [[__sycl_detail__::__uses_aspects__(sycl::aspect::cpu)]] int func5(int a) {
   return 0;
 }
 
-// expected-note@+1 4 {{propagated from call to function 'func3(int, int, int)'}}
+// expected-note-re@+1 4 {{propagated from call to function '{{.*}}func3(int, int, int)'}}
 int func3(int a, int b, int c) {
   Struct1 s;
   s.a = 1;
   return s.a;
 }
 
-// expected-note@+1 4 {{propagated from call to function 'func4(int, int)'}}
+// expected-note-re@+1 4 {{propagated from call to function '{{.*}}func4(int, int)'}}
 int func4(int a, int b) {
   double x = 3.0;
   return func3(a, b, (int)x);
 }
 
-// expected-note@+1 2 {{propagated from call to function 'func2(int, int)'}}
+// expected-note-re@+1 2 {{propagated from call to function '{{.*}}func2(int, int)'}}
 int func2(int a, int b) { return func3(a, b, 1); }
 
-// expected-warning@+1 {{function 'func1(int)' uses aspect 'fp16' not listed in its 'sycl::device_has' attribute}}
+// expected-warning-re@+1 {{function '{{.*}}func1(int)' uses aspect 'fp16' not listed in its 'sycl::device_has' attribute}}
 [[sycl::device_has(sycl::aspect::fp64)]] int func1(int a) { return func2(a, 1); }
 
-// expected-note@+1 4 {{propagated from call to function 'func6(int, int, int)'}}
+// expected-note-re@+1 4 {{propagated from call to function '{{.*}}func6(int, int, int)'}}
 int func6(int a, int b, int c) {
   return func5(a);
 }
 
-// expected-note@+1 4 {{propagated from call to function 'func7(int, int)'}}
+// expected-note-re@+1 4 {{propagated from call to function '{{.*}}func7(int, int)'}}
 int func7(int a, int b) {
   double x = 3.0;
   return func6(a, b, (int)x);
 }
 
-// expected-note@+1 2 {{propagated from call to function 'func8(int, int)'}}
+// expected-note-re@+1 2 {{propagated from call to function '{{.*}}func8(int, int)'}}
 int func8(int a, int b) { return func6(a, b, 1); }
 
-// expected-warning@+1 {{function 'func9(int)' uses aspect 'cpu' not listed in its 'sycl::device_has' attribute}}
+// expected-warning-re@+1 {{function '{{.*}}func9(int)' uses aspect 'cpu' not listed in its 'sycl::device_has' attribute}}
 [[sycl::device_has(sycl::aspect::fp64)]] int func9(int a) { return func8(a, 1); }
 
 int main() {

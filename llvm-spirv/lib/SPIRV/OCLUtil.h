@@ -444,7 +444,7 @@ std::tuple<unsigned short, unsigned char, unsigned char>
 decodeOCLVer(unsigned Ver);
 
 /// Decode a MDNode assuming it contains three integer constants.
-void decodeMDNode(MDNode *N, unsigned &X, unsigned &Y, unsigned &Z);
+SmallVector<unsigned, 3> decodeMDNode(MDNode *N);
 
 /// Get full path from debug info metadata
 /// Return empty string if the path is not available.
@@ -499,7 +499,7 @@ bool isEnqueueKernelBI(const StringRef MangledName);
 bool isKernelQueryBI(const StringRef MangledName);
 
 /// Check that the type is the sampler_t
-bool isSamplerStructTy(Type *Ty);
+bool isSamplerTy(Type *Ty);
 
 // Checks if the binary operator is an unfused fmul + fadd instruction.
 bool isUnfusedMulAdd(BinaryOperator *B);

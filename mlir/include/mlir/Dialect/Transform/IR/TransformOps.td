@@ -253,6 +253,11 @@ def SplitHandlesOp : TransformDialectOp<"split_handles",
   let arguments = (ins TransformTypeInterface:$handle,
                        I64Attr:$num_result_handles);
   let results = (outs Variadic<TransformTypeInterface>:$results);
+
+  let builders = [
+    OpBuilder<(ins "Value":$handle, "int64_t":$numResultHandles)>
+  ];
+
   let assemblyFormat = [{
     $handle `in` `[` $num_result_handles `]` 
     attr-dict `:` functional-type(operands, results)
@@ -305,6 +310,12 @@ def PrintOp : TransformDialectOp<"print",
   let arguments = (ins Optional<TransformTypeInterface>:$target,
                        OptionalAttr<StrAttr>:$name);
   let results = (outs);
+
+  let builders = [
+    OpBuilder<(ins CArg<"StringRef", "StringRef()">:$name)>,
+    OpBuilder<(ins "Value":$target, CArg<"StringRef", "StringRef()">:$name)>
+  ];
+
   let assemblyFormat = "$target attr-dict (`:` type($target)^)?";
 }
 
@@ -378,6 +389,10 @@ def SequenceOp : TransformDialectOp<"sequence",
     IR, typically the root operation of the pass interpreting the transform
     dialect. Operand omission is only allowed for sequences not contained in
     another sequence.
+
+    The body of the sequence terminates with an implicit or explicit
+    `transform.yield` op. The operands of the terminator are returned as the
+    results of the sequence op.
   }];
 
   let arguments = (ins FailurePropagationMode:$failure_propagation_mode,
@@ -388,6 +403,20 @@ def SequenceOp : TransformDialectOp<"sequence",
   let assemblyFormat =
     "($root^ `:` type($root))? (`->` type($results)^)? `failures` `(` "
     "$failure_propagation_mode `)` attr-dict-with-keyword regions";
+
+  let builders = [
+    // Build a sequence with a root.
+    OpBuilder<(ins
+        "::mlir::TypeRange":$resultTypes,
+        "::mlir::transform::FailurePropagationMode":$failure_propagation_mode,
+        "::mlir::Value":$root, "SequenceBodyBuilderFn":$bodyBuilder)>,
+
+    // Build a sequence without a root but a certain bbArg type.
+    OpBuilder<(ins
+        "::mlir::TypeRange":$resultTypes,
+        "::mlir::transform::FailurePropagationMode":$failure_propagation_mode,
+        "::mlir::Type":$bbArgType, "SequenceBodyBuilderFn":$bodyBuilder)>
+  ];
 
   let extraClassDeclaration = [{
     /// Allow the dialect prefix to be omitted.
