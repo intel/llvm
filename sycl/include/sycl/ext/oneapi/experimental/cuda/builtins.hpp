@@ -9,11 +9,9 @@
 #define SYCL_EXT_ONEAPI_CUDA_TEX_CACHE_READ 1
 
 #if defined(_WIN32) || defined(_WIN64)
-#define ATTRIBUTE_EXT_VEC_TYPE(N)                                              \
-  __declspec(ext_vector_type(N))
+#define ATTRIBUTE_EXT_VEC_TYPE(N) __declspec(ext_vector_type(N))
 #else
-#define ATTRIBUTE_EXT_VEC_TYPE(N)                                              \
-  __attribute__((ext_vector_type(N)))
+#define ATTRIBUTE_EXT_VEC_TYPE(N) __attribute__((ext_vector_type(N)))
 #endif
 
 namespace sycl {
@@ -25,7 +23,7 @@ namespace cuda {
 
 namespace detail {
 using ldg_types = sycl::detail::type_list<float, double, sycl::float2,
-    sycl::float4, sycl::double2>;
+                                          sycl::float4, sycl::double2>;
 } // namespace detail
 
 template <typename T>
