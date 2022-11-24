@@ -145,30 +145,15 @@ mlir::sycl::accAddressModeModeAsString(mlir::sycl::AccessAddrSpace AccAddress) {
 mlir::LogicalResult mlir::sycl::parseAccessAddrSpace(
     mlir::AsmParser &Parser,
     mlir::FailureOr<mlir::sycl::AccessAddrSpace> &AccAddress) {
+  
   int AddSpaceInt;
   if (Parser.parseInteger<int>(AddSpaceInt)) {
     return mlir::ParseResult::failure();
   }
 
-  if (AddSpaceInt == 0) {
-    AccAddress.emplace(mlir::sycl::AccessAddrSpace::Private);
-  } else if (AddSpaceInt == 1) {
-    AccAddress.emplace(mlir::sycl::AccessAddrSpace::Global);
-  } else if (AddSpaceInt == 2) {
-    AccAddress.emplace(mlir::sycl::AccessAddrSpace::Constant);
-  } else if (AddSpaceInt == 3) {
-    AccAddress.emplace(mlir::sycl::AccessAddrSpace::Local);
-  } else if (AddSpaceInt == 4) {
-    AccAddress.emplace(mlir::sycl::AccessAddrSpace::ExtIntelGlobalDevice);
-  } else if (AddSpaceInt == 5) {
-    AccAddress.emplace(mlir::sycl::AccessAddrSpace::ExtIntelHost);
-  } else if (AddSpaceInt == 6) {
-    AccAddress.emplace(mlir::sycl::AccessAddrSpace::Generic);
-  } else {
-    return Parser.emitError(Parser.getCurrentLocation(),
-                            "expected valid Address Space");
-  }
+  assert((0 <= AddSpaceInt <= 6) && "Expecting address space value between 0 and 6 (inclusive)");
 
+  AccAddress.emplace(static_cast<mlir::sycl::AccessAddrSpace>(AddSpaceInt));
   return mlir::ParseResult::success();
 }
 

@@ -229,7 +229,7 @@ static Optional<Type> convertVecType(sycl::VecType type,
   return convertBodyType("class.sycl::_V1::vec", type.getBody(), converter);
 }
 
-int getAddressSpaceAsInt(mlir::sycl::AccessAddrSpace AddrSpace) {
+int convertToLLVMAddressSpace(mlir::sycl::AccessAddrSpace AddrSpace) {
   switch (AddrSpace) {
   case AccessAddrSpace::Private:
     return 0;
@@ -258,7 +258,7 @@ static Optional<Type> convertAtomicType(sycl::AtomicType type,
   auto convertedTy = LLVM::LLVMStructType::getIdentified(
       &converter.getContext(), "class.sycl::_V1::atomic");
   auto elementType = LLVM::LLVMPointerType::get(
-      type.getDataType(), getAddressSpaceAsInt(type.getAddrSpace()));
+      type.getDataType(), convertToLLVMAddressSpace(type.getAddrSpace()));
   if (!convertedTy.isInitialized()) {
     if (failed(convertedTy.setBody(elementType, /*isPacked=*/false)))
       return llvm::None;
