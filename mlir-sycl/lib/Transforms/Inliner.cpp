@@ -39,7 +39,7 @@ using namespace mlir;
 
 /// This function implements the default inliner optimization pipeline.
 static void defaultInlinerOptPipeline(OpPassManager &PM) {
-  PM.addPass(mlir::createCanonicalizerPass());
+  PM.addPass(createCanonicalizerPass());
 }
 
 namespace {
@@ -84,11 +84,19 @@ inline llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
             [&](Operation *) { assert(false && "Unhandled operation kind"); });
   };
 
-  if (!RC.SrcNode->isExternal())
+  if (!RC.SrcNode->isExternal()) {
+    OS << "SrcNode: ";
     PrintCallable(RC.SrcNode->getCallableRegion()->getParentOp());
-  if (!RC.TgtNode->isExternal())
-    PrintCallable(RC.TgtNode->getCallableRegion()->getParentOp());
+    OS << "\n";
+  }
 
+  if (!RC.TgtNode->isExternal()) {
+    OS << "TgtNode: ";
+    PrintCallable(RC.TgtNode->getCallableRegion()->getParentOp());
+    OS << "\n";
+  }
+
+  OS << "Call: ";
   PrintCallable(ResolvedCall::getCalledFunction(RC.Call));
   OS << "\n";
 
@@ -127,22 +135,25 @@ private:
 
 inline llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
                                      const CallGraphSCC &SCC) {
+  auto PrintCallable = [&](Operation *Op) {
+    llvm::TypeSwitch<Operation *>(Op)
+        .Case<func::FuncOp>([&](func::FuncOp Op) { OS << Op.getSymName(); })
+        .Case<gpu::GPUFuncOp>([&](gpu::GPUFuncOp Op) { Op.print(OS); })
+        .Default(
+            [&](Operation *) { assert(false && "Unhandled operation kind"); });
+  };
+
   OS << "{ ";
   llvm::interleaveComma(SCC.Nodes, OS, [&](const CallGraphNode *CGN) {
     if (!CGN->isExternal())
       if (Region *Callable = CGN->getCallableRegion())
-        llvm::TypeSwitch<Operation *>(Callable->getParentOp())
-            .Case<func::FuncOp>([&](func::FuncOp Op) { OS << Op.getSymName(); })
-            .Case<gpu::GPUFuncOp>([&](gpu::GPUFuncOp Op) { Op.print(OS); })
-            .Default([&](Operation *) {
-              assert(false && "Unhandled operation kind");
-            });
+        PrintCallable(Callable->getParentOp());
   });
   OS << " }";
   return OS;
 }
 
-/// Inlines sycl.call operations.
+/// Generic SCC Inliner.
 class Inliner : public InlinerInterface {
 public:
   Inliner(MLIRContext *Ctx, CallGraph &CG, SymbolTableCollection &SymTable)
@@ -167,6 +178,7 @@ public:
                                  MLIRContext *Ctx);
 
 protected:
+  /// Attempt to inline calls within the given SCC.
   static void inlineCallsInSCC(Inliner &Inliner, CallGraphSCC &SCC);
 
   /// Collect all of the callable operations within the given range of blocks.
@@ -178,6 +190,7 @@ protected:
                              SmallVectorImpl<ResolvedCall> &Calls,
                              bool TraverseNestedCgNodes);
 
+  /// Returns true if the given call should be inlined.
   virtual bool shouldInline(ResolvedCall &ResolvedCall) const = 0;
 
 private:
@@ -191,8 +204,7 @@ private:
   SymbolTableCollection &SymbolTable;
 };
 
-/// Inlines sycl.call operations if the callee has the 'always_inline'
-/// attribute.
+/// Inlines sycl.call operations if the callee has the 'alwaysinline' attribute.
 class AlwaysInliner : public Inliner {
 public:
   AlwaysInliner(MLIRContext *Ctx, CallGraph &CG,
@@ -200,11 +212,12 @@ public:
       : Inliner(Ctx, CG, SymTable) {}
 
 protected:
+  /// Returns true if the given call should be inlined.
   bool shouldInline(ResolvedCall &ResolvedCall) const final;
 };
 
 /// A pass that inlines sycl.call operations if the callee has the
-/// 'always_inline' attribute.
+/// 'alwaysinline' attribute.
 class AlwaysInlinerPass : public impl::InlinerBase<AlwaysInlinerPass> {
 public:
   AlwaysInlinerPass();
@@ -217,7 +230,7 @@ public:
   llvm::StringRef getArgument() const final { return "always-inline"; }
 
   llvm::StringRef getDescription() const final {
-    return "Inline function calls with the 'always-inline' attribute";
+    return "Inline function calls with the 'alwaysinline' attribute";
   }
 
   llvm::StringRef getName() const final { return "AlwaysInliner"; }
@@ -296,7 +309,6 @@ void Inliner::inlineCallsInSCC(Inliner &Inliner, CallGraphSCC &SCC) {
 
   // Try to inline each of the call operations. Don't cache the end iterator
   // here as more calls may be added during inlining.
-  bool InlinedAnyCalls = false;
   for (unsigned I = 0; I < Inliner.getCalls().size(); ++I) {
     ResolvedCall It = Inliner.getCall(I);
     CallOpInterface Call = It.Call;
@@ -308,9 +320,7 @@ void Inliner::inlineCallsInSCC(Inliner &Inliner, CallGraphSCC &SCC) {
     if (!DoInline)
       continue;
 
-    unsigned PrevSize = Inliner.getCalls().size();
     Region *TgtRegion = It.TgtNode->getCallableRegion();
-
     LogicalResult InlineRes = inlineCall(
         Inliner, Call, cast<CallableOpInterface>(TgtRegion->getParentOp()),
         TgtRegion, /*shouldCloneInlinedRegion=*/true);
@@ -362,8 +372,8 @@ void Inliner::collectCallOps(iterator_range<Region::iterator> Blocks,
       }
 
       // If this is not a call, traverse the nested regions. If
-      // `traverseNestedCGNodes` is false, then don't traverse nested call
-      // graph regions.
+      // `TraverseNestedCGNodes` is false, then don't traverse nested call graph
+      // regions.
       for (auto &NestedRegion : Op.getRegions()) {
         CallGraphNode *NestedNode = CG.lookupNode(&NestedRegion);
         if (TraverseNestedCgNodes || !NestedNode)
@@ -455,6 +465,6 @@ void AlwaysInlinerPass::runOnOperation() {
     return signalPassFailure();
 }
 
-std::unique_ptr<Pass> mlir::sycl::createAlwaysInlinePass() {
+std::unique_ptr<Pass> sycl::createAlwaysInlinePass() {
   return std::make_unique<AlwaysInlinerPass>();
 }
