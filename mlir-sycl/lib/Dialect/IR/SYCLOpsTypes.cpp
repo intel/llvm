@@ -120,26 +120,8 @@ void mlir::sycl::printMemoryTargetMode(AsmPrinter &Printer,
   Printer << memoryTargetModeAsString(MemTargetMode);
 }
 
-llvm::StringRef
-mlir::sycl::accAddressModeAsString(mlir::sycl::AccessAddrSpace AccAddress) {
-  switch (AccAddress) {
-  case AccessAddrSpace::Private:
-    return "0";
-  case AccessAddrSpace::Global:
-    return "1";
-  case AccessAddrSpace::Constant:
-    return "2";
-  case AccessAddrSpace::Local:
-    return "3";
-  case AccessAddrSpace::ExtIntelGlobalDevice:
-    return "4";
-  case AccessAddrSpace::ExtIntelHost:
-    return "5";
-  case AccessAddrSpace::Generic:
-    return "6";
-  default:
-    llvm_unreachable("Invalid address space");
-  }
+std::string mlir::sycl::accAddressModeAsString(mlir::sycl::AccessAddrSpace AccAddress) {
+  return std::to_string((int) AccAddress); 
 }
 
 mlir::LogicalResult mlir::sycl::parseAccessAddrSpace(

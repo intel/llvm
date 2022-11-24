@@ -48,9 +48,9 @@ enum class AccessAddrSpace : int {
   Global = 1,
   Constant = 2,
   Local = 3,
-  ExtIntelGlobalDevice = 4,
-  ExtIntelHost = 5,
-  Generic = 6,
+  ExtIntelGlobalDevice = 5,
+  ExtIntelHost = 6,
+  Generic = 4,
 };
 
 llvm::StringRef
@@ -65,7 +65,7 @@ LogicalResult parseMemoryTargetMode(AsmParser &Parser,
                                     FailureOr<MemoryTargetMode> &MemTargetMode);
 void printMemoryTargetMode(AsmPrinter &Printer, MemoryTargetMode MemTargetMode);
 
-llvm::StringRef
+std::string
 accAddressModeAsString(mlir::sycl::AccessAddrSpace AccAddress);
 LogicalResult parseAccessAddrSpace(AsmParser &Parser,
                                    FailureOr<AccessAddrSpace> &AccAddress);

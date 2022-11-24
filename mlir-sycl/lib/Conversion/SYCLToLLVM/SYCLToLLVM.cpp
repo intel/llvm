@@ -229,27 +229,6 @@ static Optional<Type> convertVecType(sycl::VecType type,
   return convertBodyType("class.sycl::_V1::vec", type.getBody(), converter);
 }
 
-int convertToLLVMAddressSpace(mlir::sycl::AccessAddrSpace AddrSpace) {
-  switch (AddrSpace) {
-  case AccessAddrSpace::Private:
-    return 0;
-  case AccessAddrSpace::Global:
-    return 1;
-  case AccessAddrSpace::Constant:
-    return 2;
-  case AccessAddrSpace::Local:
-    return 3;
-  case AccessAddrSpace::ExtIntelGlobalDevice:
-    return 4;
-  case AccessAddrSpace::ExtIntelHost:
-    return 5;
-  case AccessAddrSpace::Generic:
-    return 6;
-  default:
-    llvm_unreachable("Unknown address mode");
-  }
-}
-
 /// Converts SYCL atomic type to LLVM type.
 static Optional<Type> convertAtomicType(sycl::AtomicType type,
                                         LLVMTypeConverter &converter) {
@@ -258,7 +237,8 @@ static Optional<Type> convertAtomicType(sycl::AtomicType type,
   auto convertedTy = LLVM::LLVMStructType::getIdentified(
       &converter.getContext(), "class.sycl::_V1::atomic");
   auto elementType = LLVM::LLVMPointerType::get(
-      type.getDataType(), convertToLLVMAddressSpace(type.getAddrSpace()));
+      type.getDataType(), (int)(type.getAddrSpace()));
+
   if (!convertedTy.isInitialized()) {
     if (failed(convertedTy.setBody(elementType, /*isPacked=*/false)))
       return llvm::None;
