@@ -741,7 +741,7 @@ struct UsedOptionalFeatures {
     Hash = static_cast<unsigned>(llvm::hash_combine(AspectsHash, LargeGRFHash));
   }
 
-  std::string getName(StringRef BaseName) const {
+  std::string generateModuleName(StringRef BaseName) const {
     if (Aspects.empty())
       return BaseName.str() + "-no-aspects";
 
@@ -840,14 +840,18 @@ getSplitterByOptionalFeatures(ModuleDesc &&MD,
     Groups.emplace_back(GLOBAL_SCOPE_NAME, EntryPointSet{});
   } else {
     Groups.reserve(PropertiesToFunctionsMap.size());
-    for (auto &EPG : PropertiesToFunctionsMap) {
+    for (auto &It : PropertiesToFunctionsMap) {
+      const UsedOptionalFeatures &Features = It.first;
+      EntryPointSet &EntryPoints = It.second;
+
       // Start with properties of a source module
-      auto Properties = MD.getEntryPointGroup().Props;
+      EntryPointGroup::Properties MDProps = MD.getEntryPointGroup().Props;
       // Propagate LargeGRF flag to entry points group
-      if (EPG.first.UsesLargeGRF)
-        Properties.UsesLargeGRF = true;
-      Groups.emplace_back(EPG.first.getName(MD.getEntryPointGroup().GroupId),
-                          std::move(EPG.second), Properties);
+      if (Features.UsesLargeGRF)
+        MDProps.UsesLargeGRF = true;
+      Groups.emplace_back(
+          Features.generateModuleName(MD.getEntryPointGroup().GroupId),
+          std::move(EntryPoints), MDProps);
     }
   }
 
