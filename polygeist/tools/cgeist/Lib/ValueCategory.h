@@ -90,9 +90,6 @@ public:
                         mlir::Type DestTy) const;
   ValueCategory MemRef2Ptr(mlir::OpBuilder &Builder, mlir::Location Loc) const;
 
-  ValueCategory Splat(mlir::OpBuilder &Builder, mlir::Location Loc,
-                      mlir::Type VecTy) const;
-
   ValueCategory ICmpNE(mlir::OpBuilder &builder, mlir::Location Loc,
                        mlir::Value RHS) const;
   ValueCategory FCmpUNE(mlir::OpBuilder &builder, mlir::Location Loc,

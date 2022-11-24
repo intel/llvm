@@ -10,7 +10,6 @@
 
 #include "ValueCategory.h"
 #include "Lib/TypeUtils.h"
-#include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "polygeist/Ops.h"
 #include "utils.h"
 
@@ -470,14 +469,6 @@ ValueCategory ValueCategory::MemRef2Ptr(OpBuilder &Builder,
       LLVM::LLVMPointerType::get(Ty.getElementType(), Ty.getMemorySpaceAsInt());
   return {Builder.createOrFold<polygeist::Memref2PointerOp>(Loc, DestTy, val),
           isReference};
-}
-
-ValueCategory ValueCategory::Splat(OpBuilder &Builder, Location Loc,
-                                   mlir::Type VecTy) const {
-  assert(VecTy.isa<mlir::VectorType>() && "Expecting vector type for cast");
-  assert(VecTy.cast<mlir::VectorType>().getElementType() == val.getType() &&
-         "Cannot splat to a vector of different element type");
-  return {Builder.createOrFold<vector::SplatOp>(Loc, val, VecTy), false};
 }
 
 ValueCategory ValueCategory::ICmpNE(mlir::OpBuilder &builder, Location Loc,
