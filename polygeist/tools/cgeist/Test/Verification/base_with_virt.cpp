@@ -43,6 +43,7 @@ void a() {
 // CHECK:   func @_ZN16mbasic_stringbufC1Ev(%arg0: !llvm.ptr<struct<(struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>, struct<(ptr<i8>)>)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
 // CHECK-NEXT:     %0 = llvm.getelementptr %arg0[0, 0] : (!llvm.ptr<struct<(struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>, struct<(ptr<i8>)>)>>) -> !llvm.ptr<struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>>
 // CHECK-NEXT:     call @_ZN1AC1Ev(%0) : (!llvm.ptr<struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>>) -> ()
+// CHECK:          call @_ZN12_Alloc_hiderC1Ev
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 // CHECK:   func @_ZN1AC1Ev(%arg0: !llvm.ptr<struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
