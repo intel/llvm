@@ -160,7 +160,37 @@ private:
 /// Convenience wrapper for pi_device_binary_property_set.
 class PiPropertySet {
 public:
-  PiPropertySet() = default;
+  PiPropertySet() {
+    // Most of unit-tests are statically linked with SYCL RT. On Linux and Mac
+    // systems that causes incorrect RT installation directory detection, which
+    // prevents proper loading of fallback libraries. See intel/llvm#6945
+    //
+    // Fallback libraries are automatically loaded and linked into device image
+    // unless there is a special property attached to it or special env variable
+    // is set which forces RT to skip fallback libraries.
+    //
+    // Setting this property here so unit-tests can be launched under any
+    // environment.
+
+    std::vector<char> Data(/* eight elements */8, /* each element is zero */0);
+    // Name doesn't matter here, it is not used by RT
+    // Value must be an all-zero 32-bit mask, which would mean that no fallback
+    // libraries are needed to be loaded.
+    PiProperty DeviceLibReqMask("", Data, PI_PROPERTY_TYPE_UINT32);
+    insert(__SYCL_PI_PROPERTY_SET_DEVICELIB_REQ_MASK, PiArray{DeviceLibReqMask});
+  }
+
+  /// Drops all properties from the set.
+  ///
+  /// Default constructor of PiPropertySet initializes it with some most widely
+  /// used properties. However, it could be the case that those defaults are
+  /// not suitable for some tests. This method allows to reset property set
+  /// so it is absolutely empty.
+  void resetAllProps() {
+    MNames.clear();
+    MMockProperties.clear();
+    MProperties.clear();
+  }
 
   /// Adds a new array of properties to the set.
   ///

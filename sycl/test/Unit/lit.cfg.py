@@ -9,6 +9,8 @@ import subprocess
 import lit.formats
 import lit.util
 
+from lit.llvm import llvm_config
+
 # name: The name of this test suite.
 config.name = 'SYCL-Unit'
 
@@ -39,11 +41,7 @@ else:
     # force it load the default configuration.
     config.environment['SYCL_CONFIG_FILE_NAME'] = "null.cfg"
 
-if 'SYCL_DEVICELIB_NO_FALLBACK' in os.environ:
-    config.environment['SYCL_DEVICELIB_NO_FALLBACK'] = os.environ['SYCL_DEVICELIB_NO_FALLBACK']
-else:
-    # Disable device library fallback for unit tests by default.
-    config.environment['SYCL_DEVICELIB_NO_FALLBACK'] = "1"
+llvm_config.with_system_environment(['SYCL_DEVICELIB_NO_FALLBACK'])
 
 # Propagate path to symbolizer for ASan/MSan.
 for symbolizer in ['ASAN_SYMBOLIZER_PATH', 'MSAN_SYMBOLIZER_PATH']:
