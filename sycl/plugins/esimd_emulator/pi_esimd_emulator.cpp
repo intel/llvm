@@ -1968,6 +1968,7 @@ pi_result piextPluginGetOpaqueData(void *, void **OpaqueDataReturn) {
   return PI_SUCCESS;
 }
 
+
 pi_result piTearDown(void *) {
   delete reinterpret_cast<sycl::detail::ESIMDEmuPluginOpaqueData *>(
       PiESimdDeviceAccess->data);

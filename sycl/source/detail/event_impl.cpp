@@ -271,9 +271,13 @@ uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
   if (!MHostEvent) {
-    if (MEvent)
+    if(getPlugin().getBackend() == backend::ext_oneapi_level_zero){
+      return submitTime;
+    }
+    if (MEvent){
       return get_event_profiling_info<info::event_profiling::command_submit>(
           this->getHandleRef(), this->getPlugin());
+     }
     return 0;
   }
   if (!MHostProfilingInfo)
@@ -428,6 +432,13 @@ void event_impl::cleanDepEventsThroughOneLevel() {
     Event->cleanupDependencyEvents();
   }
 }
+
+void event_impl::setSubmissionTime(uint64_t time){
+  submitTime=time;
+}
+ uint64_t event_imp::getSubmissionTime(){
+  return submitTime;
+ }
 
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

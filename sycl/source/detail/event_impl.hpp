@@ -232,6 +232,10 @@ public:
     MSubmittedQueue = SubmittedQueue;
   };
 
+  void setSubmissionTime(uint64_t time);
+
+  uint64_t getSubmissionTime();
+  
   QueueImplPtr getSubmittedQueue() const { return MSubmittedQueue.lock(); };
 
   /// Checks if an event is in a fully intialized state. Default-constructed
@@ -263,6 +267,7 @@ protected:
   bool MIsInitialized = true;
   bool MIsContextInitialized = false;
   RT::PiEvent MEvent = nullptr;
+  uint64_t submitTime = 0; //Only used for level-zero plugin
   ContextImplPtr MContext;
   bool MHostEvent = true;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
