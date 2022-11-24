@@ -624,7 +624,7 @@ protected:
   /// Complete the loop skeleton by adding debug MDs, creating appropriate
   /// conditional branches in the middle block, preparing the builder and
   /// running the verifier. Return the preheader of the completed vector loop.
-  BasicBlock *completeLoopSkeleton(MDNode *OrigLoopID);
+  BasicBlock *completeLoopSkeleton();
 
   /// Collect poison-generating recipes that may generate a poison value that is
   /// used after vectorization, even when their operands are not poison. Those
@@ -1050,8 +1050,8 @@ void InnerLoopVectorizer::collectPoisonGeneratingRecipes(
 
       // Add new definitions to the worklist.
       for (VPValue *operand : CurRec->operands())
-        if (VPDef *OpDef = operand->getDef())
-          Worklist.push_back(cast<VPRecipeBase>(OpDef));
+        if (VPRecipeBase *OpDef = operand->getDefiningRecipe())
+          Worklist.push_back(OpDef);
     }
   });
 
@@ -1064,13 +1064,12 @@ void InnerLoopVectorizer::collectPoisonGeneratingRecipes(
     for (VPRecipeBase &Recipe : *VPBB) {
       if (auto *WidenRec = dyn_cast<VPWidenMemoryInstructionRecipe>(&Recipe)) {
         Instruction &UnderlyingInstr = WidenRec->getIngredient();
-        VPDef *AddrDef = WidenRec->getAddr()->getDef();
+        VPRecipeBase *AddrDef = WidenRec->getAddr()->getDefiningRecipe();
         if (AddrDef && WidenRec->isConsecutive() &&
             Legal->blockNeedsPredication(UnderlyingInstr.getParent()))
-          collectPoisonGeneratingInstrsInBackwardSlice(
-              cast<VPRecipeBase>(AddrDef));
+          collectPoisonGeneratingInstrsInBackwardSlice(AddrDef);
       } else if (auto *InterleaveRec = dyn_cast<VPInterleaveRecipe>(&Recipe)) {
-        VPDef *AddrDef = InterleaveRec->getAddr()->getDef();
+        VPRecipeBase *AddrDef = InterleaveRec->getAddr()->getDefiningRecipe();
         if (AddrDef) {
           // Check if any member of the interleave group needs predication.
           const InterleaveGroup<Instruction> *InterGroup =
@@ -1085,8 +1084,7 @@ void InnerLoopVectorizer::collectPoisonGeneratingRecipes(
           }
 
           if (NeedPredication)
-            collectPoisonGeneratingInstrsInBackwardSlice(
-                cast<VPRecipeBase>(AddrDef));
+            collectPoisonGeneratingInstrsInBackwardSlice(AddrDef);
         }
       }
     }
@@ -3200,7 +3198,7 @@ void InnerLoopVectorizer::createInductionResumeValues(
   }
 }
 
-BasicBlock *InnerLoopVectorizer::completeLoopSkeleton(MDNode *OrigLoopID) {
+BasicBlock *InnerLoopVectorizer::completeLoopSkeleton() {
   // The trip counts should be cached by now.
   Value *Count = getOrCreateTripCount(LoopVectorPreHeader);
   Value *VectorTripCount = getOrCreateVectorTripCount(LoopVectorPreHeader);
@@ -3269,9 +3267,6 @@ InnerLoopVectorizer::createVectorizedLoopSkeleton() {
    ...
    */
 
-  // Get the metadata of the original loop before it gets modified.
-  MDNode *OrigLoopID = OrigLoop->getLoopID();
-
   // Workaround!  Compute the trip count of the original loop and cache it
   // before we start modifying the CFG.  This code has a systemic problem
   // wherein it tries to run analysis over partially constructed IR; this is
@@ -3304,7 +3299,7 @@ InnerLoopVectorizer::createVectorizedLoopSkeleton() {
   // Emit phis for the new starting index of the scalar loop.
   createInductionResumeValues();
 
-  return {completeLoopSkeleton(OrigLoopID), nullptr};
+  return {completeLoopSkeleton(), nullptr};
 }
 
 // Fix up external users of the induction variable. At this point, we are
@@ -5956,8 +5951,9 @@ LoopVectorizationCostModel::calculateRegisterUsage(ArrayRef<ElementCount> VFs) {
   IntervalMap EndPoint;
   // Saves the list of instruction indices that are used in the loop.
   SmallPtrSet<Instruction *, 8> Ends;
-  // Saves the list of values that are used in the loop but are
-  // defined outside the loop, such as arguments and constants.
+  // Saves the list of values that are used in the loop but are defined outside
+  // the loop (not including non-instruction values such as arguments and
+  // constants).
   SmallPtrSet<Value *, 8> LoopInvariants;
 
   for (BasicBlock *BB : make_range(DFS.beginRPO(), DFS.endRPO())) {
@@ -5969,6 +5965,9 @@ LoopVectorizationCostModel::calculateRegisterUsage(ArrayRef<ElementCount> VFs) {
         auto *Instr = dyn_cast<Instruction>(U);
 
         // Ignore non-instruction values such as arguments, constants, etc.
+        // FIXME: Might need some motivation why these values are ignored. If
+        // for example an argument is used inside the loop it will increase the
+        // register pressure (so shouldn't we add it to LoopInvariants).
         if (!Instr)
           continue;
 
@@ -6024,14 +6023,19 @@ LoopVectorizationCostModel::calculateRegisterUsage(ArrayRef<ElementCount> VFs) {
 
     // For each VF find the maximum usage of registers.
     for (unsigned j = 0, e = VFs.size(); j < e; ++j) {
-      // Count the number of live intervals.
+      // Count the number of registers used, per register class, given all open
+      // intervals.
+      // Note that elements in this SmallMapVector will be default constructed
+      // as 0. So we can use "RegUsage[ClassID] += n" in the code below even if
+      // there is no previous entry for ClassID.
       SmallMapVector<unsigned, unsigned, 4> RegUsage;
 
       if (VFs[j].isScalar()) {
         for (auto *Inst : OpenIntervals) {
-          unsigned ClassID = TTI.getRegisterClassForType(false, Inst->getType());
-          // If RegUsage[ClassID] doesn't exist, it will be default
-          // constructed as 0 before the addition
+          unsigned ClassID =
+              TTI.getRegisterClassForType(false, Inst->getType());
+          // FIXME: The target might use more than one register for the type
+          // even in the scalar case.
           RegUsage[ClassID] += 1;
         }
       } else {
@@ -6041,14 +6045,14 @@ LoopVectorizationCostModel::calculateRegisterUsage(ArrayRef<ElementCount> VFs) {
           if (VecValuesToIgnore.count(Inst))
             continue;
           if (isScalarAfterVectorization(Inst, VFs[j])) {
-            unsigned ClassID = TTI.getRegisterClassForType(false, Inst->getType());
-            // If RegUsage[ClassID] doesn't exist, it will be default
-            // constructed as 0 before the addition
+            unsigned ClassID =
+                TTI.getRegisterClassForType(false, Inst->getType());
+            // FIXME: The target might use more than one register for the type
+            // even in the scalar case.
             RegUsage[ClassID] += 1;
           } else {
-            unsigned ClassID = TTI.getRegisterClassForType(true, Inst->getType());
-            // If RegUsage[ClassID] doesn't exist, it will be default
-            // constructed as 0 before the addition
+            unsigned ClassID =
+                TTI.getRegisterClassForType(true, Inst->getType());
             RegUsage[ClassID] += GetRegUsage(Inst->getType(), VFs[j]);
           }
         }
@@ -6068,17 +6072,19 @@ LoopVectorizationCostModel::calculateRegisterUsage(ArrayRef<ElementCount> VFs) {
   }
 
   for (unsigned i = 0, e = VFs.size(); i < e; ++i) {
+    // Note that elements in this SmallMapVector will be default constructed
+    // as 0. So we can use "Invariant[ClassID] += n" in the code below even if
+    // there is no previous entry for ClassID.
     SmallMapVector<unsigned, unsigned, 4> Invariant;
 
     for (auto *Inst : LoopInvariants) {
+      // FIXME: The target might use more than one register for the type
+      // even in the scalar case.
       unsigned Usage =
           VFs[i].isScalar() ? 1 : GetRegUsage(Inst->getType(), VFs[i]);
       unsigned ClassID =
           TTI.getRegisterClassForType(VFs[i].isVector(), Inst->getType());
-      if (Invariant.find(ClassID) == Invariant.end())
-        Invariant[ClassID] = Usage;
-      else
-        Invariant[ClassID] += Usage;
+      Invariant[ClassID] += Usage;
     }
 
     LLVM_DEBUG({
@@ -7711,8 +7717,6 @@ Value *InnerLoopUnroller::getBroadcastInstrs(Value *V) { return V; }
 /// depicted in https://llvm.org/docs/Vectorizers.html#epilogue-vectorization.
 std::pair<BasicBlock *, Value *>
 EpilogueVectorizerMainLoop::createEpilogueVectorizedLoopSkeleton() {
-  MDNode *OrigLoopID = OrigLoop->getLoopID();
-
   // Workaround!  Compute the trip count of the original loop and cache it
   // before we start modifying the CFG.  This code has a systemic problem
   // wherein it tries to run analysis over partially constructed IR; this is
@@ -7755,7 +7759,7 @@ EpilogueVectorizerMainLoop::createEpilogueVectorizedLoopSkeleton() {
   // because the vplan in the second pass still contains the inductions from the
   // original loop.
 
-  return {completeLoopSkeleton(OrigLoopID), nullptr};
+  return {completeLoopSkeleton(), nullptr};
 }
 
 void EpilogueVectorizerMainLoop::printDebugTracesAtStart() {
@@ -7839,7 +7843,6 @@ EpilogueVectorizerMainLoop::emitIterationCountCheck(BasicBlock *Bypass,
 /// depicted in https://llvm.org/docs/Vectorizers.html#epilogue-vectorization.
 std::pair<BasicBlock *, Value *>
 EpilogueVectorizerEpilogueLoop::createEpilogueVectorizedLoopSkeleton() {
-  MDNode *OrigLoopID = OrigLoop->getLoopID();
   createVectorLoopSkeleton("vec.epilog.");
 
   // Now, compare the remaining count and if there aren't enough iterations to
@@ -7931,7 +7934,7 @@ EpilogueVectorizerEpilogueLoop::createEpilogueVectorizedLoopSkeleton() {
   createInductionResumeValues({VecEpilogueIterationCountCheck,
                                EPI.VectorTripCount} /* AdditionalBypass */);
 
-  return {completeLoopSkeleton(OrigLoopID), EPResumeVal};
+  return {completeLoopSkeleton(), EPResumeVal};
 }
 
 BasicBlock *
@@ -8487,11 +8490,12 @@ VPBasicBlock *VPRecipeBuilder::handleReplication(
   // value. Avoid hoisting the insert-element which packs the scalar value into
   // a vector value, as that happens iff all users use the vector value.
   for (VPValue *Op : Recipe->operands()) {
-    auto *PredR = dyn_cast_or_null<VPPredInstPHIRecipe>(Op->getDef());
+    auto *PredR =
+        dyn_cast_or_null<VPPredInstPHIRecipe>(Op->getDefiningRecipe());
     if (!PredR)
       continue;
-    auto *RepR =
-        cast_or_null<VPReplicateRecipe>(PredR->getOperand(0)->getDef());
+    auto *RepR = cast<VPReplicateRecipe>(
+        PredR->getOperand(0)->getDefiningRecipe());
     assert(RepR->isPredicated() &&
            "expected Replicate recipe to be predicated");
     RepR->setAlsoPack(false);
@@ -8917,7 +8921,7 @@ VPlanPtr LoopVectorizationPlanner::buildVPlanWithVPRecipes(
           Plan->addVPValue(Instr, VPV);
           // If the re-used value is a recipe, register the recipe for the
           // instruction, in case the recipe for Instr needs to be recorded.
-          if (auto *R = dyn_cast_or_null<VPRecipeBase>(VPV->getDef()))
+          if (VPRecipeBase *R = VPV->getDefiningRecipe())
             RecipeBuilder.setRecipe(Instr, R);
           continue;
         }
@@ -9061,12 +9065,12 @@ VPlanPtr LoopVectorizationPlanner::buildVPlanWithVPRecipes(
     if (!RecurPhi)
       continue;
 
-    VPRecipeBase *PrevRecipe = RecurPhi->getBackedgeRecipe();
+    VPRecipeBase *PrevRecipe = &RecurPhi->getBackedgeRecipe();
     // Fixed-order recurrences do not contain cycles, so this loop is guaranteed
     // to terminate.
     while (auto *PrevPhi =
                dyn_cast<VPFirstOrderRecurrencePHIRecipe>(PrevRecipe))
-      PrevRecipe = PrevPhi->getBackedgeRecipe();
+      PrevRecipe = &PrevPhi->getBackedgeRecipe();
     VPBasicBlock *InsertBlock = PrevRecipe->getParent();
     auto *Region = GetReplicateRegion(PrevRecipe);
     if (Region)
@@ -9289,7 +9293,7 @@ void LoopVectorizationPlanner::adjustRecipesForReductions(
       VPValue *Cond =
           RecipeBuilder.createBlockInMask(OrigLoop->getHeader(), Plan);
       VPValue *Red = PhiR->getBackedgeValue();
-      assert(cast<VPRecipeBase>(Red->getDef())->getParent() != LatchVPBB &&
+      assert(Red->getDefiningRecipe()->getParent() != LatchVPBB &&
              "reduction recipe must be defined before latch");
       Builder.createNaryOp(Instruction::Select, {Cond, Red, PhiR});
     }
@@ -9663,7 +9667,7 @@ void VPReplicateRecipe::execute(VPTransformState &State) {
 
   // A store of a loop varying value to a loop invariant address only
   // needs only the last copy of the store.
-  if (isa<StoreInst>(UI) && !getOperand(1)->getDef()) {
+  if (isa<StoreInst>(UI) && !getOperand(1)->hasDefiningRecipe()) {
     auto Lane = VPLane::getLastLaneForVF(State.VF);
     State.ILV->scalarizeInstruction(UI, this, VPIteration(State.UF - 1, Lane), IsPredicated,
                                     State);
@@ -9880,9 +9884,9 @@ Value *VPTransformState::get(VPValue *Def, unsigned Part) {
   unsigned LastLane = IsUniform ? 0 : VF.getKnownMinValue() - 1;
   // Check if there is a scalar value for the selected lane.
   if (!hasScalarValue(Def, {Part, LastLane})) {
-    // At the moment, VPWidenIntOrFpInductionRecipes can also be uniform.
-    assert((isa<VPWidenIntOrFpInductionRecipe>(Def->getDef()) ||
-            isa<VPScalarIVStepsRecipe>(Def->getDef())) &&
+    // At the moment, VPWidenIntOrFpInductionRecipes and VPScalarIVStepsRecipes can also be uniform.
+    assert((isa<VPWidenIntOrFpInductionRecipe>(Def->getDefiningRecipe()) ||
+            isa<VPScalarIVStepsRecipe>(Def->getDefiningRecipe())) &&
            "unexpected recipe found to be invariant");
     IsUniform = true;
     LastLane = 0;

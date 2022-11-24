@@ -1768,7 +1768,7 @@ MachineInstr *X86InstrInfo::convertToThreeAddress(MachineInstr &MI,
   if (LV) {  // Update live variables
     for (unsigned I = 0; I < NumRegOperands; ++I) {
       MachineOperand &Op = MI.getOperand(I);
-      if (Op.isDead() || Op.isKill())
+      if (Op.isReg() && (Op.isDead() || Op.isKill()))
         LV->replaceKillInstruction(Op.getReg(), MI, *NewMI);
     }
   }
@@ -6133,6 +6133,11 @@ MachineInstr *X86InstrInfo::foldMemoryOperandImpl(
   if (MOs.size() == X86::AddrNumOperands &&
       MOs[X86::AddrDisp].getTargetFlags() == X86II::MO_GOTTPOFF &&
       MI.getOpcode() != X86::ADD64rr)
+    return nullptr;
+
+  // Don't fold loads into indirect calls that need a KCFI check as we'll
+  // have to unfold these in X86KCFIPass anyway.
+  if (MI.isCall() && MI.getCFIType())
     return nullptr;
 
   MachineInstr *NewMI = nullptr;

@@ -29,6 +29,8 @@ enum NodeType : unsigned {
   // TODO: add more LoongArchISDs
   CALL,
   RET,
+  TAIL,
+
   // 32-bit shifts, directly matching the semantics of the named LoongArch
   // instructions.
   SLL_W,
@@ -56,6 +58,15 @@ enum NodeType : unsigned {
   REVB_2W,
   BITREV_4B,
   BITREV_W,
+
+  // Intrinsic operations
+  BREAK,
+  DBAR,
+  IBAR,
+  SYSCALL,
+
+  // CRC check operations
+  CRC_W_D_W
 };
 } // end namespace LoongArchISD
 
@@ -134,6 +145,9 @@ public:
     return ISD::SIGN_EXTEND;
   }
 
+  Register getRegisterByName(const char *RegName, LLT VT,
+                             const MachineFunction &MF) const override;
+
 private:
   /// Target-specific function used to lower LoongArch calling conventions.
   typedef bool LoongArchCCAssignFn(const DataLayout &DL, LoongArchABI::ABI ABI,
@@ -174,6 +188,8 @@ private:
   SDValue lowerSINT_TO_FP(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerVASTART(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerINTRINSIC_WO_CHAIN(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerINTRINSIC_W_CHAIN(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerINTRINSIC_VOID(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerFRAMEADDR(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerRETURNADDR(SDValue Op, SelectionDAG &DAG) const;
 
@@ -193,6 +209,10 @@ private:
   void LowerAsmOperandForConstraint(SDValue Op, std::string &Constraint,
                                     std::vector<SDValue> &Ops,
                                     SelectionDAG &DAG) const override;
+
+  bool isEligibleForTailCallOptimization(
+      CCState &CCInfo, CallLoweringInfo &CLI, MachineFunction &MF,
+      const SmallVectorImpl<CCValAssign> &ArgLocs) const;
 };
 
 } // end namespace llvm

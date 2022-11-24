@@ -285,7 +285,7 @@ std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
   auto TraverseResult =
       traverseCGToFindSPIRKernels(DevicelibAssertFailFunction);
 
-  if (TraverseResult.hasValue())
+  if (TraverseResult.has_value())
     return std::move(*TraverseResult);
 
   // Here we reached "referenced-indirectly", so we need to find all kernels and
@@ -755,11 +755,43 @@ processInputModule(std::unique_ptr<Module> M) {
       module_split::getSplitterByMode(module_split::ModuleDesc{std::move(M)},
                                       SplitMode, IROutputOnly,
                                       EmitOnlyKernelsAsEntryPoints);
-  const bool SplitByScope = ScopedSplitter->totalSplits() > 1;
-  Modified |= SplitByScope;
 
+  SmallVector<module_split::ModuleDesc, 8> TopLevelModules;
+
+  // FIXME: this check should be performed on all split levels
   if (DeviceGlobals)
     ScopedSplitter->verifyNoCrossModuleDeviceGlobalUsage();
+
+  const bool SplitByScope = ScopedSplitter->remainingSplits() > 1;
+  bool SplitByOptionalFeatures = false;
+
+  while (ScopedSplitter->hasMoreSplits()) {
+    module_split::ModuleDesc MD = ScopedSplitter->nextSplit();
+
+    if (IROutputOnly || SplitMode == module_split::SPLIT_NONE) {
+      // We can't perform any kind of split.
+      TopLevelModules.emplace_back(std::move(MD));
+      continue;
+    }
+
+    std::unique_ptr<module_split::ModuleSplitterBase> OptionalFeaturesSplitter =
+        module_split::getSplitterByOptionalFeatures(
+            std::move(MD), EmitOnlyKernelsAsEntryPoints);
+
+    // Here we perform second-level splitting based on device-specific
+    // features used/declared in entry points.
+    // This step is mandatory, because it is required for functional
+    // correctness, i.e. to prevent speculative compilation of kernels that use
+    // optional features on a HW which doesn't support them.
+    SplitByOptionalFeatures |= OptionalFeaturesSplitter->remainingSplits() > 1;
+
+    while (OptionalFeaturesSplitter->hasMoreSplits()) {
+      TopLevelModules.emplace_back(OptionalFeaturesSplitter->nextSplit());
+    }
+  }
+
+  Modified |= SplitByScope;
+  Modified |= SplitByOptionalFeatures;
 
   // TODO this nested splitting scheme will not scale well when other split
   // "dimensions" will be added. Some infra/"split manager" needs to be
@@ -768,15 +800,16 @@ processInputModule(std::unique_ptr<Module> M) {
   // "leaf" ModuleDesc's resulted from splitting. Some bookkeeping is needed for
   // ESIMD splitter to link back needed modules.
 
-  // Proceed with top-level splitting.
-  while (ScopedSplitter->hasMoreSplits()) {
-    module_split::ModuleDesc MDesc = ScopedSplitter->nextSplit();
+  // Based on results from the top-level splitting, we perform some lower-level
+  // splitting for various unique features.
+  for (module_split::ModuleDesc &MDesc : TopLevelModules) {
     DUMP_ENTRY_POINTS(MDesc.entries(), MDesc.Name.c_str(), 1);
 
+    // FIXME: large grf should be handled by properties splitter above
     std::unique_ptr<module_split::ModuleSplitterBase> LargeGRFSplitter =
         module_split::getLargeGRFSplitter(std::move(MDesc),
                                           EmitOnlyKernelsAsEntryPoints);
-    const bool SplitByLargeGRF = LargeGRFSplitter->totalSplits() > 1;
+    const bool SplitByLargeGRF = LargeGRFSplitter->remainingSplits() > 1;
     Modified |= SplitByLargeGRF;
 
     // Now split further by "large-grf" attribute.
@@ -794,7 +827,7 @@ processInputModule(std::unique_ptr<Module> M) {
       std::unique_ptr<module_split::ModuleSplitterBase> ESIMDSplitter =
           module_split::getSplitterByKernelType(std::move(MDesc1),
                                                 EmitOnlyKernelsAsEntryPoints);
-      const bool SplitByESIMD = ESIMDSplitter->totalSplits() > 1;
+      const bool SplitByESIMD = ESIMDSplitter->remainingSplits() > 1;
       Modified |= SplitByESIMD;
 
       if (SplitByESIMD && SplitByScope &&
@@ -842,7 +875,9 @@ processInputModule(std::unique_ptr<Module> M) {
         DUMP_ENTRY_POINTS(MMs.back().entries(), MMs.back().Name.c_str(), 3);
         Modified = true;
       }
-      bool SplitOccurred = SplitByScope || SplitByLargeGRF || SplitByESIMD;
+
+      bool SplitOccurred = SplitByScope || SplitByLargeGRF || SplitByESIMD ||
+                           SplitByOptionalFeatures;
 
       if (IROutputOnly) {
         if (SplitOccurred) {

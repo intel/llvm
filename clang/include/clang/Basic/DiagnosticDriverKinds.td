@@ -19,7 +19,7 @@ def err_drv_unsupported_opt_for_target : Error<
 def err_drv_unsupported_opt_for_language_mode : Error<
   "unsupported option '%0' for language mode '%1'">;
 def err_drv_unsupported_option_argument : Error<
-  "unsupported argument '%1' to option '-%0'">;
+  "unsupported argument '%1' to option '%0'">;
 def err_drv_unknown_stdin_type : Error<
   "-E or -x required when input is from standard input">;
 def err_drv_unknown_stdin_type_clang_cl : Error<
@@ -96,6 +96,10 @@ def err_drv_cuda_host_arch : Error<
 def err_drv_no_sycl_libspirv : Error<
   "cannot find '%0'; provide path to libspirv library via '-fsycl-libspirv-path', or "
   "pass '-fno-sycl-libspirv' to build without linking with libspirv">;
+def warn_flag_no_sycl_libspirv
+    : Warning<"'-fno-sycl-libspirv' should not be used with target '%0'; "
+              "libspirv is required for correct behavior">,
+      InGroup<NoLibspirvHipCuda>;
 def err_drv_mix_cuda_hip : Error<
   "mixed CUDA and HIP compilation is not supported">;
 def err_drv_bad_target_id : Error<
@@ -240,8 +244,6 @@ def note_drv_config_file_searched_in : Note<
   "was searched for in the directory: %0">;
 def err_drv_cannot_read_config_file : Error<
   "cannot read configuration file '%0': %1">;
-def err_drv_nested_config_file: Error<
-  "option '--config' is not allowed inside configuration file">;
 def err_drv_arg_requires_bitcode_input: Error<
   "option '%0' requires input to be LLVM bitcode">;
 
@@ -733,4 +735,7 @@ def warn_drv_sarif_format_unstable : Warning<
 
 def err_drv_riscv_unsupported_with_linker_relaxation : Error<
   "%0 is unsupported with RISC-V linker relaxation (-mrelax)">;
+
+def err_drv_loongarch_invalid_mfpu_EQ : Error<
+  "invalid argument '%0' to -mfpu=; must be one of: 64, 32, none, 0 (alias for none)">;
 }

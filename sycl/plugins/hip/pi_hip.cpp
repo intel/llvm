@@ -1659,6 +1659,13 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     SupportedExtensions += PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT;
     SupportedExtensions += " ";
 
+    hipDeviceProp_t props;
+    sycl::detail::pi::assertion(hipGetDeviceProperties(&props, device->get()) ==
+                                hipSuccess);
+    if (props.arch.hasDoubles) {
+      SupportedExtensions += "cl_khr_fp64 ";
+    }
+
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    SupportedExtensions.c_str());
   }
@@ -1813,6 +1820,26 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                                 "failed hipMemGetInfo() API.");
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    FreeMemory);
+  }
+
+  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE: {
+    int value = 0;
+    sycl::detail::pi::assertion(
+        hipDeviceGetAttribute(&value, hipDeviceAttributeMemoryClockRate,
+                              device->get()) == hipSuccess);
+    sycl::detail::pi::assertion(value >= 0);
+    // Convert kilohertz to megahertz when returning.
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   value / 1000);
+  }
+
+  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH: {
+    int value = 0;
+    sycl::detail::pi::assertion(
+        hipDeviceGetAttribute(&value, hipDeviceAttributeMemoryBusWidth,
+                              device->get()) == hipSuccess);
+    sycl::detail::pi::assertion(value >= 0);
+    return getInfo(param_value_size, param_value, param_value_size_ret, value);
   }
 
   // TODO: Implement.
