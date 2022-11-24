@@ -11,12 +11,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
-
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsAlias.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/Transforms/InliningUtils.h"
+
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 
 //===----------------------------------------------------------------------===//
@@ -25,7 +26,7 @@
 
 namespace {
 
-/// This class defines the interface for handling inlining SYCL operations.
+/// This class defines the interface for inlining SYCL operations.
 class SYCLInlinerInterface : public mlir::DialectInlinerInterface {
 public:
   using DialectInlinerInterface::DialectInlinerInterface;
@@ -43,6 +44,7 @@ public:
     DEBUG_WITH_TYPE("inlining", {
       if (!IsSYCLCall)
         llvm::dbgs() << "Cannot yet inline " << *Call << "\n";
+      llvm::dbgs() << "Is legal to inline " << *Call << "\n";
     });
 
     return IsSYCLCall;
@@ -53,6 +55,11 @@ public:
   bool isLegalToInline(mlir::Operation *Op, mlir::Region *Dest,
                        bool WouldBeCloned,
                        mlir::BlockAndValueMapping &ValueMapping) const final {
+    DEBUG_WITH_TYPE("inlining", {
+      llvm::dbgs() << "Is legal to inline " << *Op << " into region rooted by "
+                   << *Dest->getParentOp() << "\n";
+    });
+
     return true;
   }
 
@@ -60,18 +67,23 @@ public:
   // Transformation Hooks
   //===--------------------------------------------------------------------===//
 
-#if 0
   /// Attempts to materialize a conversion for a type mismatch between a call
   /// from the SYCL dialect, and a callable region. This method should generate
   /// an operation that takes \p Input as the only operand, and produces a
   /// single result of \p ResultType. If a conversion can not be generated,
   /// nullptr should be returned.
-  Operation *materializeCallConversion(OpBuilder &Builder, Value Input,
-                                       Type ResultType,
-                                       Location ConversionLoc) const final {
-    return Builder.create<SYCLCastOp>(ConversionLoc, ResultType, Input);
+  mlir::Operation *
+  materializeCallConversion(mlir::OpBuilder &Builder, mlir::Value Input,
+                            mlir::Type ResultType,
+                            mlir::Location ConversionLoc) const final {
+    DEBUG_WITH_TYPE("inlining", {
+      llvm::dbgs() << "Injecting cast for " << Input << ", casting to "
+                   << ResultType << "\n";
+    });
+
+    return Builder.create<mlir::sycl::SYCLCastOp>(ConversionLoc, ResultType,
+                                                  Input);
   }
-#endif
 };
 
 } // namespace
