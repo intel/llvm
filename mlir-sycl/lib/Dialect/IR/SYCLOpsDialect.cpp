@@ -92,10 +92,14 @@ public:
 // SYCL Dialect
 //===----------------------------------------------------------------------===//
 
+#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/WithColor.h"
 
 #define DEBUG_TYPE "SYCLOpsDialect"
+
+#define GET_TYPEDEF_CLASSES
+#include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.cpp.inc"
 
 void mlir::sycl::SYCLDialect::initialize() {
   methods.init(*getContext());
@@ -106,127 +110,12 @@ void mlir::sycl::SYCLDialect::initialize() {
       >();
 
   mlir::Dialect::addTypes<
-      mlir::sycl::IDType, mlir::sycl::AccessorCommonType,
-      mlir::sycl::AccessorType, mlir::sycl::RangeType, mlir::sycl::NdRangeType,
-      mlir::sycl::AccessorImplDeviceType, mlir::sycl::AccessorSubscriptType,
-      mlir::sycl::ArrayType, mlir::sycl::ItemType, mlir::sycl::ItemBaseType,
-      mlir::sycl::NdItemType, mlir::sycl::GroupType, mlir::sycl::VecType>();
+#define GET_TYPEDEF_LIST
+#include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.cpp.inc"
+      >();
 
   mlir::Dialect::addInterfaces<SYCLOpAsmInterface>();
   mlir::Dialect::addInterfaces<SYCLInlinerInterface>();
-}
-
-mlir::Type
-mlir::sycl::SYCLDialect::parseType(mlir::DialectAsmParser &Parser) const {
-  mlir::StringRef Keyword;
-  if (mlir::failed(Parser.parseKeyword(&Keyword))) {
-    return nullptr;
-  }
-
-  if (Keyword == "id") {
-    return mlir::sycl::IDType::parseType(Parser);
-  }
-  if (Keyword == "accessor_common") {
-    return mlir::sycl::AccessorCommonType::parseType(Parser);
-  }
-  if (Keyword == "accessor") {
-    return mlir::sycl::AccessorType::parseType(Parser);
-  }
-  if (Keyword == "range") {
-    return mlir::sycl::RangeType::parseType(Parser);
-  }
-  if (Keyword == "nd_range") {
-    return mlir::sycl::NdRangeType::parseType(Parser);
-  }
-  if (Keyword == "accessor_impl_device") {
-    return mlir::sycl::AccessorImplDeviceType::parseType(Parser);
-  }
-  if (Keyword == "accessor_subscript") {
-    return mlir::sycl::AccessorSubscriptType::parseType(Parser);
-  }
-  if (Keyword == "array") {
-    return mlir::sycl::ArrayType::parseType(Parser);
-  }
-  if (Keyword == "item") {
-    return mlir::sycl::ItemType::parseType(Parser);
-  }
-  if (Keyword == "item_base") {
-    return mlir::sycl::ItemBaseType::parseType(Parser);
-  }
-  if (Keyword == "nd_item") {
-    return mlir::sycl::NdItemType::parseType(Parser);
-  }
-  if (Keyword == "group") {
-    return mlir::sycl::GroupType::parseType(Parser);
-  }
-  if (Keyword == "vec") {
-    return mlir::sycl::VecType::parseType(Parser);
-  }
-
-  Parser.emitError(Parser.getCurrentLocation(), "unknown SYCL type: ")
-      << Keyword;
-  return nullptr;
-}
-
-void mlir::sycl::SYCLDialect::printType(
-    mlir::Type Type, mlir::DialectAsmPrinter &Printer) const {
-  if (const auto ID = Type.dyn_cast<mlir::sycl::IDType>()) {
-    Printer << "id<" << ID.getDimension() << ">";
-  } else if (const auto AccCommon =
-                 Type.dyn_cast<mlir::sycl::AccessorCommonType>()) {
-    Printer << "accessor_common";
-  } else if (const auto Acc = Type.dyn_cast<mlir::sycl::AccessorType>()) {
-    Printer << "accessor<[" << Acc.getDimension() << ", " << Acc.getType()
-            << ", " << Acc.getAccessModeAsString() << ", "
-            << Acc.getTargetModeAsString() << "], (";
-    llvm::interleaveComma(Acc.getBody(), Printer);
-    Printer << ")>";
-  } else if (const auto Range = Type.dyn_cast<mlir::sycl::RangeType>()) {
-    Printer << "range<" << Range.getDimension() << ">";
-  } else if (const auto NdRange = Type.dyn_cast<mlir::sycl::NdRangeType>()) {
-    Printer << "nd_range<[" << NdRange.getDimension() << "], (";
-    llvm::interleaveComma(NdRange.getBody(), Printer);
-    Printer << ")>";
-  } else if (const auto AccDev =
-                 Type.dyn_cast<mlir::sycl::AccessorImplDeviceType>()) {
-    Printer << "accessor_impl_device<[" << AccDev.getDimension() << "], (";
-    llvm::interleaveComma(AccDev.getBody(), Printer);
-    Printer << ")>";
-  } else if (const auto AccSub =
-                 Type.dyn_cast<mlir::sycl::AccessorSubscriptType>()) {
-    Printer << "accessor_subscript<[" << AccSub.getCurrentDimension() << "], (";
-    llvm::interleaveComma(AccSub.getBody(), Printer);
-    Printer << ")>";
-  } else if (const auto Arr = Type.dyn_cast<mlir::sycl::ArrayType>()) {
-    Printer << "array<[" << Arr.getDimension() << "], (";
-    llvm::interleaveComma(Arr.getBody(), Printer);
-    Printer << ")>";
-  } else if (const auto Item = Type.dyn_cast<mlir::sycl::ItemType>()) {
-    Printer << "item<[" << Item.getDimension() << ", "
-            << static_cast<bool>(Item.getWithOffset()) << "], (";
-    llvm::interleaveComma(Item.getBody(), Printer);
-    Printer << ")>";
-  } else if (const auto ItemBase = Type.dyn_cast<mlir::sycl::ItemBaseType>()) {
-    Printer << "item_base<[" << ItemBase.getDimension() << ", "
-            << static_cast<bool>(ItemBase.getWithOffset()) << "], (";
-    llvm::interleaveComma(ItemBase.getBody(), Printer);
-    Printer << ")>";
-  } else if (const auto NDItem = Type.dyn_cast<mlir::sycl::NdItemType>()) {
-    Printer << "nd_item<[" << NDItem.getDimension() << "], (";
-    llvm::interleaveComma(NDItem.getBody(), Printer);
-    Printer << ")>";
-  } else if (const auto Group = Type.dyn_cast<mlir::sycl::GroupType>()) {
-    Printer << "group<[" << Group.getDimension() << "], (";
-    llvm::interleaveComma(Group.getBody(), Printer);
-    Printer << ")>";
-  } else if (const auto Vec = Type.dyn_cast<mlir::sycl::VecType>()) {
-    Printer << "vec<[" << Vec.getDataType() << ", " << Vec.getNumElements()
-            << "], (";
-    llvm::interleaveComma(Vec.getBody(), Printer);
-    Printer << ")>";
-  } else {
-    assert(false && "The given type is not handled by the SYCL printer");
-  }
 }
 
 llvm::Optional<llvm::StringRef>

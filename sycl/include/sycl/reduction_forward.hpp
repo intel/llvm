@@ -42,15 +42,18 @@ enum class strategy : int {
 // are limited to those below.
 inline void finalizeHandler(handler &CGH);
 template <class FunctorTy> void withAuxHandler(handler &CGH, FunctorTy Func);
+
+template <int Dims>
+item<Dims, false> getDelinearizedItem(range<Dims> Range, id<Dims> Id) {
+  return {Range, Id};
+}
 } // namespace reduction
 
 template <typename KernelName,
           reduction::strategy Strategy = reduction::strategy::auto_select,
-          int Dims, typename PropertiesT, typename KernelType,
-          typename Reduction>
-void reduction_parallel_for(handler &CGH, range<Dims> Range,
-                            PropertiesT Properties, Reduction Redu,
-                            KernelType KernelFunc);
+          int Dims, typename PropertiesT, typename... RestT>
+void reduction_parallel_for(handler &CGH, range<Dims> NDRange,
+                            PropertiesT Properties, RestT... Rest);
 
 template <typename KernelName,
           reduction::strategy Strategy = reduction::strategy::auto_select,

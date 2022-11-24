@@ -73,20 +73,7 @@ MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob, OwningOpRef<ModuleOp> &Module,
       CaptureKinds(), ThisCapture(nullptr), ArrayInit(), ThisVal(), ReturnVal(),
       LTInfo(LTInfo) {}
 
-void MLIRScanner::initUnsupportedFunctions() {
-  // FIXME: cgeist: llvm/polygeist/tools/cgeist/Lib/CGCall.cc:94: void
-  // castCallerArgs(func::FuncOp, llvm::SmallVectorImpl<Value>&,
-  // OpBuilder&): Assertion `CalleeArgType == Args[I].getType() &&
-  // "Callsite argument mismatch"' failed.
-  UnsupportedFuncs.insert(
-      "_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1026ELNS2_"
-      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
-      "listIJEEEEC1ERKSA_");
-  UnsupportedFuncs.insert(
-      "_ZN4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_"
-      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
-      "listIJEEEEC1ERKSA_");
-}
+void MLIRScanner::initUnsupportedFunctions() {}
 
 static void checkFunctionParent(const FunctionOpInterface F,
                                 FunctionContext Context,
@@ -439,10 +426,11 @@ Value MLIRScanner::createAllocOp(Type t, clang::VarDecl *name,
         auto memRefToPtr = aBuilder.create<polygeist::Memref2PointerOp>(
             varLoc, LLVM::LLVMPointerType::get(t, 0), alloc);
         alloc = aBuilder.create<polygeist::Pointer2MemrefOp>(
-            varLoc, MemRefType::get(-1, t, {}, memspace), memRefToPtr);
+            varLoc, MemRefType::get(ShapedType::kDynamicSize, t, {}, memspace),
+            memRefToPtr);
       }
       alloc = aBuilder.create<memref::CastOp>(
-          varLoc, MemRefType::get(-1, t, {}, 0), alloc);
+          varLoc, MemRefType::get(ShapedType::kDynamicSize, t, {}, 0), alloc);
       LLVM_DEBUG({
         llvm::dbgs() << "MLIRScanner::createAllocOp: created: ";
         alloc.dump();
@@ -463,7 +451,7 @@ Value MLIRScanner::createAllocOp(Type t, clang::VarDecl *name,
     if (name)
       if (auto Var = dyn_cast<clang::VariableArrayType>(
               name->getType()->getUnqualifiedDesugaredType())) {
-        assert(shape[0] == -1);
+        assert(shape[0] == ShapedType::kDynamicSize);
         mr = MemRefType::get(
             shape, MT.getElementType(), MemRefLayoutAttrInterface(),
             mlirclang::wrapIntegerMemorySpace(memspace, MT.getContext()));
@@ -482,7 +470,7 @@ Value MLIRScanner::createAllocOp(Type t, clang::VarDecl *name,
       }
 
     if (!alloc) {
-      if (pshape == -1)
+      if (pshape == ShapedType::kDynamicSize)
         shape[0] = 1;
       mr = MemRefType::get(
           shape, MT.getElementType(), MemRefLayoutAttrInterface(),
@@ -774,7 +762,7 @@ ValueCategory MLIRScanner::CommonArrayToPointer(ValueCategory scalar) {
   // if (shape.size() > 1) {
   //  shape.erase(shape.begin());
   //} else {
-  shape[0] = -1;
+  shape[0] = ShapedType::kDynamicSize;
   //}
   auto MT0 = MemRefType::get(shape, MT.getElementType(),
                              MemRefLayoutAttrInterface(), MT.getMemorySpace());
@@ -809,7 +797,7 @@ ValueCategory MLIRScanner::CommonArrayLookup(ValueCategory array, Value idx,
   {
     auto MT = val.getType().cast<MemRefType>();
     auto shape = std::vector<int64_t>(MT.getShape());
-    shape[0] = -1;
+    shape[0] = ShapedType::kDynamicSize;
     auto MT0 =
         MemRefType::get(shape, MT.getElementType(), MemRefLayoutAttrInterface(),
                         MT.getMemorySpace());
@@ -824,7 +812,7 @@ ValueCategory MLIRScanner::CommonArrayLookup(ValueCategory array, Value idx,
   auto MT = dref.val.getType().cast<MemRefType>();
   auto shape = std::vector<int64_t>(MT.getShape());
   if (shape.size() == 1 || (shape.size() == 2 && isImplicitRefResult)) {
-    shape[0] = -1;
+    shape[0] = ShapedType::kDynamicSize;
   } else {
     shape.erase(shape.begin());
   }
@@ -917,43 +905,13 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
     auto MT = sub.val.getType().cast<MemRefType>();
     auto shape = std::vector<int64_t>(MT.getShape());
     Value res;
-    shape[0] = -1;
+    shape[0] = ShapedType::kDynamicSize;
     auto MT0 =
         MemRefType::get(shape, MT.getElementType(), MemRefLayoutAttrInterface(),
                         MT.getMemorySpace());
     res = Builder.create<memref::CastOp>(Loc, MT0, sub.val);
     return ValueCategory(res,
                          /*isReference*/ false);
-  }
-  case clang::UnaryOperator::Opcode::UO_Plus: {
-    return sub;
-  }
-  case clang::UnaryOperator::Opcode::UO_Minus: {
-    Value val = sub.getValue(Builder);
-    auto ty = val.getType();
-    if (auto ft = ty.dyn_cast<FloatType>()) {
-      if (auto CI = val.getDefiningOp<arith::ConstantFloatOp>()) {
-        auto api = CI.getValue().cast<FloatAttr>().getValue();
-        return ValueCategory(Builder.create<arith::ConstantOp>(
-                                 Loc, ty, FloatAttr::get(ty, -api)),
-                             /*isReference*/ false);
-      }
-      return ValueCategory(Builder.create<arith::NegFOp>(Loc, val),
-                           /*isReference*/ false);
-    } else {
-      if (auto CI = val.getDefiningOp<arith::ConstantIntOp>()) {
-        auto api = CI.getValue().cast<IntegerAttr>().getValue();
-        return ValueCategory(Builder.create<arith::ConstantOp>(
-                                 Loc, ty, IntegerAttr::get(ty, -api)),
-                             /*isReference*/ false);
-      }
-      return ValueCategory(
-          Builder.create<arith::SubIOp>(Loc,
-                                        Builder.create<arith::ConstantIntOp>(
-                                            Loc, 0, ty.cast<IntegerType>()),
-                                        val),
-          /*isReference*/ false);
-    }
   }
   case clang::UnaryOperator::Opcode::UO_PreInc:
   case clang::UnaryOperator::Opcode::UO_PostInc: {
@@ -974,7 +932,7 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
               Loc, APFloat(ft.getFloatSemantics(), "1"), ft));
     } else if (auto MT = ty.dyn_cast<MemRefType>()) {
       auto shape = std::vector<int64_t>(MT.getShape());
-      shape[0] = -1;
+      shape[0] = ShapedType::kDynamicSize;
       auto MT0 =
           MemRefType::get(shape, MT.getElementType(),
                           MemRefLayoutAttrInterface(), MT.getMemorySpace());
@@ -1027,7 +985,7 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
               {Builder.create<arith::ConstantIntOp>(Loc, -1, ity)}));
     } else if (auto MT = ty.dyn_cast<MemRefType>()) {
       auto shape = std::vector<int64_t>(MT.getShape());
-      shape[0] = -1;
+      shape[0] = ShapedType::kDynamicSize;
       auto MT0 =
           MemRefType::get(shape, MT.getElementType(),
                           MemRefLayoutAttrInterface(), MT.getMemorySpace());
@@ -1047,41 +1005,6 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
         (U->getOpcode() == clang::UnaryOperator::Opcode::UO_PostInc) ? prev
                                                                      : next,
         /*isReference*/ false);
-  }
-  case clang::UnaryOperator::Opcode::UO_Real:
-  case clang::UnaryOperator::Opcode::UO_Imag: {
-    int fnum =
-        (U->getOpcode() == clang::UnaryOperator::Opcode::UO_Real) ? 0 : 1;
-    auto lhs_v = sub.val;
-    assert(sub.isReference);
-    if (auto MT = lhs_v.getType().dyn_cast<MemRefType>()) {
-      auto shape = std::vector<int64_t>(MT.getShape());
-      shape[0] = -1;
-      auto MT0 =
-          MemRefType::get(shape, MT.getElementType(),
-                          MemRefLayoutAttrInterface(), MT.getMemorySpace());
-      return ValueCategory(Builder.create<polygeist::SubIndexOp>(
-                               Loc, MT0, lhs_v, getConstantIndex(fnum)),
-                           /*isReference*/ true);
-    } else if (auto PT = lhs_v.getType().dyn_cast<LLVM::LLVMPointerType>()) {
-      Type ET;
-      if (auto ST = PT.getElementType().dyn_cast<LLVM::LLVMStructType>()) {
-        ET = ST.getBody()[fnum];
-      } else {
-        ET = PT.getElementType().cast<LLVM::LLVMArrayType>().getElementType();
-      }
-      Value vec[2] = {Builder.create<arith::ConstantIntOp>(Loc, 0, 32),
-                      Builder.create<arith::ConstantIntOp>(Loc, fnum, 32)};
-      return ValueCategory(
-          Builder.create<LLVM::GEPOp>(
-              Loc, LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()), lhs_v,
-              vec),
-          /*isReference*/ true);
-    }
-
-    llvm::errs() << "lhs_v: " << lhs_v << "\n";
-    U->dump();
-    assert(0 && "unhandled real");
   }
   default: {
     U->dump();
@@ -1464,7 +1387,7 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
   if (shape.size() > 1) {
     shape.erase(shape.begin());
   } else {
-    shape[0] = -1;
+    shape[0] = ShapedType::kDynamicSize;
   }
 
   // JLE_QUEL::THOUGHTS
@@ -1569,7 +1492,7 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
     auto MT0 =
         MemRefType::get(shape, MT.getElementType(), MemRefLayoutAttrInterface(),
                         MT.getMemorySpace());
-    shape[0] = -1;
+    shape[0] = ShapedType::kDynamicSize;
     auto MT1 =
         MemRefType::get(shape, MT.getElementType(), MemRefLayoutAttrInterface(),
                         MT.getMemorySpace());
@@ -2215,7 +2138,7 @@ MLIRASTConsumer::getOrCreateCGFunctionInfo(const clang::FunctionDecl *FD) {
 
 void MLIRASTConsumer::run() {
   while (FunctionsToEmit.size()) {
-    FunctionToEmit &FTE = FunctionsToEmit.front();
+    FunctionToEmit FTE = FunctionsToEmit.front();
     FunctionsToEmit.pop_front();
 
     const clang::FunctionDecl &FD = FTE.getDecl();

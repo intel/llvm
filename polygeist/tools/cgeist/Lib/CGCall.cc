@@ -27,8 +27,8 @@ extern llvm::cl::opt<bool> GenerateAllSYCLFuncs;
 
 /// Try to typecast the caller arg of type MemRef to fit the corresponding
 /// callee arg type. We only deal with the cast where src and dst have the same
-/// shape size and elem type, and just the first shape differs: src has -1 and
-/// dst has a constant integer.
+/// shape size and elem type, and just the first shape differs: src has
+/// ShapedType::kDynamicSize and dst has a constant integer.
 static Value castCallerMemRefArg(Value CallerArg, Type CalleeArgType,
                                  OpBuilder &B) {
   OpBuilder::InsertionGuard Guard(B);
@@ -42,7 +42,7 @@ static Value castCallerMemRefArg(Value CallerArg, Type CalleeArgType,
       auto DstShape = DstTy.getShape();
 
       if (SrcShape.size() == DstShape.size() && !SrcShape.empty() &&
-          SrcShape[0] == -1 &&
+          SrcShape[0] == ShapedType::kDynamicSize &&
           std::equal(std::next(SrcShape.begin()), SrcShape.end(),
                      std::next(DstShape.begin()))) {
         B.setInsertionPointAfterValue(CallerArg);
@@ -187,7 +187,7 @@ ValueCategory MLIRScanner::callHelper(
         assert(Shape.size() == 2);
 
         auto Pshape = Shape[0];
-        if (Pshape == -1)
+        if (Pshape == ShapedType::kDynamicSize)
           Shape[0] = 1;
 
         OpBuilder ABuilder(Builder.getContext());
@@ -218,7 +218,10 @@ ValueCategory MLIRScanner::callHelper(
           if (auto MemRefTy = Ty.dyn_cast<MemRefType>()) {
             Val = ABuilder.create<memref::AllocaOp>(Loc, MemRefTy);
             Val = ABuilder.create<memref::CastOp>(
-                Loc, MemRefType::get(-1, Arg.getValue(Builder).getType()), Val);
+                Loc,
+                MemRefType::get(ShapedType::kDynamicSize,
+                                Arg.getValue(Builder).getType()),
+                Val);
           } else
             Val = ABuilder.create<LLVM::AllocaOp>(
                 Loc, Ty, ABuilder.create<arith::ConstantIntOp>(Loc, 1, 64), 0);
@@ -250,6 +253,10 @@ ValueCategory MLIRScanner::callHelper(
           ExpectedType.isa<MemRefType>())
         Val =
             Builder.create<polygeist::Pointer2MemrefOp>(Loc, ExpectedType, Val);
+      else if (Val.getType().isa<MemRefType>() &&
+               ExpectedType.isa<LLVM::LLVMPointerType>())
+        Val =
+            Builder.create<polygeist::Memref2PointerOp>(Loc, ExpectedType, Val);
 
       Val = castToMemSpaceOfType(Val, ExpectedType);
     }
@@ -295,7 +302,7 @@ ValueCategory MLIRScanner::callHelper(
     assert(Shape.size() == 2);
 
     auto Pshape = Shape[0];
-    if (Pshape == -1)
+    if (Pshape == ShapedType::kDynamicSize)
       Shape[0] = 1;
 
     OpBuilder ABuilder(Builder.getContext());

@@ -10,6 +10,7 @@
 
 #include "ValueCategory.h"
 #include "Lib/TypeUtils.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "polygeist/Ops.h"
 #include "utils.h"
 
@@ -17,6 +18,7 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
 
@@ -54,6 +56,31 @@ mlir::Value ValueCategory::getValue(mlir::OpBuilder &builder) const {
                                           std::vector<mlir::Value>({c0}));
   }
   llvm_unreachable("type must be LLVMPointer or MemRef");
+}
+
+ValueCategory ValueCategory::getNullValue(OpBuilder &Builder, Location Loc,
+                                          Type Type) {
+  const auto ZeroVal =
+      llvm::TypeSwitch<mlir::Type, mlir::Value>(Type)
+          .Case<mlir::IntegerType>([&](auto Ty) {
+            return Builder.createOrFold<arith::ConstantIntOp>(Loc, 0, Ty);
+          })
+          .Case<mlir::IndexType>([&](auto) {
+            return Builder.createOrFold<arith::ConstantIndexOp>(Loc, 0);
+          })
+          .Case<mlir::FloatType>([&](auto Ty) {
+            return Builder.createOrFold<arith::ConstantFloatOp>(
+                Loc, llvm::APFloat::getZero(Ty.getFloatSemantics()), Ty);
+          })
+          .Case<mlir::VectorType>([&](auto VecTy) {
+            const auto Element = ValueCategory::getNullValue(
+                                     Builder, Loc, VecTy.getElementType())
+                                     .val;
+            return Builder.createOrFold<vector::SplatOp>(Loc, Element, Type);
+          })
+          .Default(
+              [](auto) -> mlir::Value { llvm_unreachable("Invalid type"); });
+  return {ZeroVal, false};
 }
 
 void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
@@ -112,7 +139,7 @@ void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
                         .getElementType()
                         .dyn_cast<mlir::MemRefType>()) {
         assert(MT.getShape().size() == 1);
-        assert(MT.getShape()[0] == -1);
+        assert(MT.getShape()[0] == ShapedType::kDynamicSize);
         assert(MT.getElementType() == PT.getElementType());
         toStore = builder.create<polygeist::Pointer2MemrefOp>(loc, MT, toStore);
       }
@@ -164,7 +191,7 @@ ValueCategory ValueCategory::dereference(mlir::OpBuilder &builder) const {
             builder.create<polygeist::SubIndexOp>(loc, mt0, val, c0),
             /*isReference*/ true);
       } else {
-        // shape[0] = -1;
+        // shape[0] = ShapedType::kDynamicSize;
         return ValueCategory(builder.create<mlir::memref::LoadOp>(
                                  loc, val, std::vector<mlir::Value>({c0})),
                              /*isReference*/ true);
@@ -294,6 +321,13 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
 template <typename OpTy> inline void warnUnconstrainedOp() {
   mlirclang::warning() << "Creating unconstrained " << OpTy::getOperationName()
                        << "\n";
+}
+
+template <typename OpTy> inline void warnNonExactOp(bool IsExact) {
+  if (!IsExact)
+    return;
+  mlirclang::warning() << "Creating exact " << OpTy::getOperationName()
+                       << " is not suported.\n";
 }
 
 ValueCategory ValueCategory::FPTrunc(OpBuilder &Builder, Location Loc,
@@ -471,6 +505,14 @@ ValueCategory ValueCategory::MemRef2Ptr(OpBuilder &Builder,
           isReference};
 }
 
+ValueCategory ValueCategory::Splat(OpBuilder &Builder, Location Loc,
+                                   mlir::Type VecTy) const {
+  assert(VecTy.isa<mlir::VectorType>() && "Expecting vector type for cast");
+  assert(VecTy.cast<mlir::VectorType>().getElementType() == val.getType() &&
+         "Cannot splat to a vector of different element type");
+  return {Builder.createOrFold<vector::SplatOp>(Loc, val, VecTy), false};
+}
+
 ValueCategory ValueCategory::ICmpNE(mlir::OpBuilder &builder, Location Loc,
                                     mlir::Value RHS) const {
   return ICmp(builder, Loc, arith::CmpIPredicate::ne, RHS);
@@ -534,16 +576,53 @@ static ValueCategory NUWNSWBinOp(mlir::OpBuilder &Builder, mlir::Location Loc,
   return IntBinOp<OpTy>(Builder, Loc, LHS, RHS);
 }
 
+ValueCategory ValueCategory::Mul(OpBuilder &Builder, Location Loc, Value RHS,
+                                 bool HasNUW, bool HasNSW) const {
+  return NUWNSWBinOp<arith::MulIOp>(Builder, Loc, val, RHS, HasNUW, HasNSW);
+}
+
+ValueCategory ValueCategory::FMul(OpBuilder &Builder, Location Loc,
+                                  Value RHS) const {
+  warnUnconstrainedOp<arith::DivFOp>();
+  return FPBinOp<arith::MulFOp>(Builder, Loc, val, RHS);
+}
+
+ValueCategory ValueCategory::FDiv(OpBuilder &Builder, Location Loc,
+                                  Value RHS) const {
+  warnUnconstrainedOp<arith::DivFOp>();
+  return FPBinOp<arith::DivFOp>(Builder, Loc, val, RHS);
+}
+
+ValueCategory ValueCategory::UDiv(OpBuilder &Builder, Location Loc, Value RHS,
+                                  bool IsExact) const {
+  warnNonExactOp<arith::DivUIOp>(IsExact);
+  return IntBinOp<arith::DivUIOp>(Builder, Loc, val, RHS);
+}
+
+ValueCategory ValueCategory::ExactUDiv(OpBuilder &Builder, Location Loc,
+                                       Value RHS) const {
+  return UDiv(Builder, Loc, RHS, /*IsExact*/ true);
+}
+
 ValueCategory ValueCategory::SDiv(OpBuilder &Builder, Location Loc, Value RHS,
                                   bool IsExact) const {
-  if (IsExact)
-    mlirclang::warning() << "Creating exact division is not supported\n";
+  warnNonExactOp<arith::DivSIOp>(IsExact);
   return IntBinOp<arith::DivSIOp>(Builder, Loc, val, RHS);
 }
 
 ValueCategory ValueCategory::ExactSDiv(OpBuilder &Builder, Location Loc,
                                        Value RHS) const {
   return SDiv(Builder, Loc, RHS, /*IsExact*/ true);
+}
+
+ValueCategory ValueCategory::URem(OpBuilder &Builder, Location Loc,
+                                  Value RHS) const {
+  return IntBinOp<arith::RemUIOp>(Builder, Loc, val, RHS);
+}
+
+ValueCategory ValueCategory::SRem(OpBuilder &Builder, Location Loc,
+                                  Value RHS) const {
+  return IntBinOp<arith::RemSIOp>(Builder, Loc, val, RHS);
 }
 
 ValueCategory ValueCategory::Neg(OpBuilder &Builder, Location Loc, bool HasNUW,
@@ -634,4 +713,48 @@ ValueCategory ValueCategory::InBoundsGEPOrSubIndex(OpBuilder &Builder,
                                                    Location Loc, Type Type,
                                                    ValueRange IdxList) const {
   return GEPOrSubIndex(Builder, Loc, Type, IdxList, /*IsInBounds*/ true);
+}
+
+template <typename OpTy>
+ValueCategory FPUnaryOp(OpBuilder &Builder, Location Loc, Value Val) {
+  assert(mlirclang::isFPOrFPVectorTy(Val.getType()) &&
+         "Expecting FP or FP vector operand type");
+  warnUnconstrainedOp<arith::NegFOp>();
+  return {Builder.createOrFold<OpTy>(Loc, Val), false};
+}
+
+ValueCategory ValueCategory::FNeg(OpBuilder &Builder, Location Loc) const {
+  return FPUnaryOp<arith::NegFOp>(Builder, Loc, val);
+}
+
+ValueCategory ValueCategory::Shl(OpBuilder &Builder, Location Loc, Value RHS,
+                                 bool HasNUW, bool HasNSW) const {
+  return NUWNSWBinOp<arith::ShLIOp>(Builder, Loc, val, RHS, HasNUW, HasNSW);
+}
+
+ValueCategory ValueCategory::AShr(OpBuilder &Builder, Location Loc, Value RHS,
+                                  bool IsExact) const {
+  warnNonExactOp<arith::ShRSIOp>(IsExact);
+  return IntBinOp<arith::ShRSIOp>(Builder, Loc, val, RHS);
+}
+
+ValueCategory ValueCategory::LShr(OpBuilder &Builder, Location Loc, Value RHS,
+                                  bool IsExact) const {
+  warnNonExactOp<arith::ShRUIOp>(IsExact);
+  return IntBinOp<arith::ShRUIOp>(Builder, Loc, val, RHS);
+}
+
+ValueCategory ValueCategory::And(mlir::OpBuilder &Builder, mlir::Location Loc,
+                                 mlir::Value RHS) const {
+  return IntBinOp<arith::AndIOp>(Builder, Loc, val, RHS);
+}
+
+ValueCategory ValueCategory::Or(mlir::OpBuilder &Builder, mlir::Location Loc,
+                                mlir::Value RHS) const {
+  return IntBinOp<arith::OrIOp>(Builder, Loc, val, RHS);
+}
+
+ValueCategory ValueCategory::Xor(mlir::OpBuilder &Builder, mlir::Location Loc,
+                                 mlir::Value RHS) const {
+  return IntBinOp<arith::XOrIOp>(Builder, Loc, val, RHS);
 }

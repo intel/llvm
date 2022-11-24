@@ -1,12 +1,12 @@
-// RUN: clang++ -fsycl -fsycl-device-only -O0 -emit-mlir %s -o - 2> /dev/null | FileCheck %s --check-prefixes=CHECK
-// RUN: clang++ -fsycl -fsycl-device-only -O0 -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - | FileCheck %s --check-prefixes=CHECK-LLVM
+// RUN: clang++ -fsycl -fsycl-device-only -O0 -w -emit-mlir %s -o - | FileCheck %s --check-prefixes=CHECK
+// RUN: clang++ -fsycl -fsycl-device-only -O0 -w -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - | FileCheck %s --check-prefixes=CHECK-LLVM
 
 #include <sycl/sycl.hpp>
 
 // CHECK-DAG: !sycl_id_2_ = !sycl.id<2>
 // CHECK-DAG: !sycl_range_1_ = !sycl.range<1>
-// CHECK-DAG: !sycl_item_base_2_1_ = !sycl.item_base<[2, true], (!sycl.range<2>, !sycl_id_2_, !sycl_id_2_)>
-// CHECK-DAG: !sycl_item_2_1_ = !sycl.item<[2, true], (!sycl_item_base_2_1_)>
+// CHECK-DAG: !sycl_item_base_2_1_ = !sycl.item_base<[2, true], (!sycl.range<2>, !sycl.id<2>, !sycl.id<2>)>
+// CHECK-DAG: !sycl_item_2_1_ = !sycl.item<[2, true], (!sycl.item_base<[2, true], (!sycl.range<2>, !sycl.id<2>, !sycl.id<2>)>)>
 
 // Check globals referenced in device functions are created in the GPU module
 // CHECK: gpu.module @device_functions {

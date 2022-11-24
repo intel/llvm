@@ -40,6 +40,9 @@ public:
   ValueCategory(std::nullptr_t) : val(nullptr), isReference(false) {}
   ValueCategory(mlir::Value val, bool isReference);
 
+  static ValueCategory getNullValue(mlir::OpBuilder &Builder,
+                                    mlir::Location Loc, mlir::Type Type);
+
   // TODO: rename to 'loadVariable'? getValue seems to generic.
   mlir::Value getValue(mlir::OpBuilder &Builder) const;
   void store(mlir::OpBuilder &Builder, ValueCategory toStore,
@@ -90,15 +93,46 @@ public:
                         mlir::Type DestTy) const;
   ValueCategory MemRef2Ptr(mlir::OpBuilder &Builder, mlir::Location Loc) const;
 
+  ValueCategory Splat(mlir::OpBuilder &Builder, mlir::Location Loc,
+                      mlir::Type VecTy) const;
+
   ValueCategory ICmpNE(mlir::OpBuilder &builder, mlir::Location Loc,
                        mlir::Value RHS) const;
   ValueCategory FCmpUNE(mlir::OpBuilder &builder, mlir::Location Loc,
                         mlir::Value RHS) const;
 
+  ValueCategory Mul(mlir::OpBuilder &Builder, mlir::Location Loc,
+                    mlir::Value RHS, bool HasNUW = false,
+                    bool HasNSW = false) const;
+  ValueCategory FMul(mlir::OpBuilder &Builder, mlir::Location Loc,
+                     mlir::Value RHS) const;
+
+  ValueCategory UDiv(mlir::OpBuilder &Builder, mlir::Location Loc,
+                     mlir::Value RHS, bool IsExact = false) const;
   ValueCategory SDiv(mlir::OpBuilder &Builder, mlir::Location Loc,
                      mlir::Value RHS, bool IsExact = false) const;
   ValueCategory ExactSDiv(mlir::OpBuilder &Builder, mlir::Location Loc,
                           mlir::Value RHS) const;
+
+  ValueCategory ExactUDiv(mlir::OpBuilder &Builder, mlir::Location Loc,
+                          mlir::Value RHS) const;
+  ValueCategory FDiv(mlir::OpBuilder &Builder, mlir::Location Loc,
+                     mlir::Value RHS) const;
+
+  ValueCategory URem(mlir::OpBuilder &Builder, mlir::Location Loc,
+                     mlir::Value RHS) const;
+  ValueCategory SRem(mlir::OpBuilder &Builder, mlir::Location Loc,
+                     mlir::Value RHS) const;
+
+  ValueCategory LShr(mlir::OpBuilder &Builder, mlir::Location Loc,
+                     mlir::Value RHS, bool IsExact = false) const;
+  ValueCategory AShr(mlir::OpBuilder &Builder, mlir::Location Loc,
+                     mlir::Value RHS, bool IsExact = false) const;
+  ValueCategory Shl(mlir::OpBuilder &Builder, mlir::Location Loc,
+                    mlir::Value RHS, bool HasNUW = false,
+                    bool HasNSW = false) const;
+
+  ValueCategory FNeg(mlir::OpBuilder &Builder, mlir::Location Loc) const;
   ValueCategory Neg(mlir::OpBuilder &Builder, mlir::Location Loc,
                     bool HasNUW = false, bool HasNSW = false) const;
   ValueCategory Add(mlir::OpBuilder &Builder, mlir::Location Loc,
@@ -111,6 +145,13 @@ public:
                     bool HasNSW = false) const;
   ValueCategory FSub(mlir::OpBuilder &Builder, mlir::Location Loc,
                      mlir::Value RHS) const;
+
+  ValueCategory And(mlir::OpBuilder &Builder, mlir::Location Loc,
+                    mlir::Value RHS) const;
+  ValueCategory Or(mlir::OpBuilder &Builder, mlir::Location Loc,
+                   mlir::Value RHS) const;
+  ValueCategory Xor(mlir::OpBuilder &Builder, mlir::Location Loc,
+                    mlir::Value RHS) const;
 };
 
 #endif /* CLANG_MLIR_VALUE_CATEGORY */

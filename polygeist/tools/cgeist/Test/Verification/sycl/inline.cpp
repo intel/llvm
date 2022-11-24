@@ -1,4 +1,4 @@
-// RUN: clang++ %s -O0 -fsycl -fsycl-device-only -fsycl-targets=spir64-unknown-unknown-syclmlir -mllvm -print-changed 2>&1 | FileCheck  %s
+// RUN: clang++ %s -fsycl -fsycl-device-only -O0 -w -fsycl-targets=spir64-unknown-unknown-syclmlir -mllvm -print-changed 2>&1 | FileCheck  %s
 
 // COM: Ensure the 'always inline' pass trace is emitted.
 // CHECK: *** IR Dump After AlwaysInlinerPass on [module] ***

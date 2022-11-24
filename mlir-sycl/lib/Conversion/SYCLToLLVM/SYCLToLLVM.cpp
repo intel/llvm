@@ -78,15 +78,19 @@ static Optional<Type> getArrayTy(MLIRContext &context, unsigned dimNum,
 static Optional<Type> convertBodyType(StringRef name,
                                       llvm::ArrayRef<mlir::Type> body,
                                       LLVMTypeConverter &converter) {
+  SmallVector<Type> convertedElemTypes;
+  convertedElemTypes.reserve(body.size());
+  if (failed(converter.convertTypes(body, convertedElemTypes)))
+    return llvm::None;
   auto convertedTy =
       LLVM::LLVMStructType::getIdentified(&converter.getContext(), name);
   if (!convertedTy.isInitialized()) {
-    SmallVector<Type> convertedElemTypes;
-    convertedElemTypes.reserve(body.size());
-    if (failed(converter.convertTypes(body, convertedElemTypes)))
-      return llvm::None;
     if (failed(convertedTy.setBody(convertedElemTypes, /*isPacked=*/false)))
       return llvm::None;
+  } else if (convertedElemTypes != convertedTy.getBody()) {
+    // If the name is already in use, create a new type.
+    convertedTy = LLVM::LLVMStructType::getNewIdentified(
+        &converter.getContext(), name, convertedElemTypes, /*isPacked=*/false);
   }
 
   return convertedTy;

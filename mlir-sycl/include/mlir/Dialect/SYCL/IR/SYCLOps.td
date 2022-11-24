@@ -14,11 +14,15 @@
 #define SYCL_OPS
 
 include "mlir/IR/OpBase.td"
+include "mlir/IR/AttrTypeBase.td"
+
+include "mlir/Dialect/SYCL/IR/SYCLOpInterfaces.td"
+include "mlir/Dialect/LLVMIR/LLVMOpsInterfaces.td"
 include "mlir/Dialect/MemRef/IR/MemRefBase.td"
+include "mlir/IR/BuiltinTypeInterfaces.td"
 include "mlir/Interfaces/CallInterfaces.td"
 include "mlir/Interfaces/CastInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
-include "mlir/Dialect/SYCL/IR/SYCLOpInterfaces.td"
 
 ////////////////////////////////////////////////////////////////////////////////
 // TYPE DECLARATIONS
@@ -110,19 +114,105 @@ class SYCLMethodOpInterfaceImpl<
   }];
 }
 
-def SYCL_IDType : DialectType<SYCL_Dialect, CPred<"$_self.isa<IDType>()">, "sycl::id type">;
-def SYCL_AccessorCommonType : DialectType<SYCL_Dialect, CPred<"$_self.isa<AccessorCommonType>()">, "sycl::accessor_common type">;
-def SYCL_AccessorType : DialectType<SYCL_Dialect, CPred<"$_self.isa<AccessorType>()">, "sycl::accessor type">;
-def SYCL_RangeType : DialectType<SYCL_Dialect, CPred<"$_self.isa<RangeType>()">, "sycl::range type">;
-def SYCL_NdRangeType : DialectType<SYCL_Dialect, CPred<"$_self.isa<NdRangeType>()">, "sycl::nd_range type">;
-def SYCL_AccessorImplType : DialectType<SYCL_Dialect, CPred<"$_self.isa<AccessorImplDeviceType>()">, "sycl::accessor_impl_device type">;
-def SYCL_AccessorSubscriptType : DialectType<SYCL_Dialect, CPred<"$_self.isa<AccessorSubscriptType>()">, "sycl::accessor_subscript type">;
-def SYCL_ArrayType : DialectType<SYCL_Dialect, CPred<"$_self.isa<ArrayType>()">, "sycl::array type">;
-def SYCL_ItemType : DialectType<SYCL_Dialect, CPred<"$_self.isa<ItemType>()">, "sycl::item type">;
-def SYCL_ItemBaseType : DialectType<SYCL_Dialect, CPred<"$_self.isa<ItemBaseType>()">, "sycl::item_base type">;
-def SYCL_NdItemType : DialectType<SYCL_Dialect, CPred<"$_self.isa<NdItemType>()">, "sycl::nd_item type">;
-def SYCL_GroupType : DialectType<SYCL_Dialect, CPred<"$_self.isa<GroupType>()">, "sycl::group type">;
-def SYCL_VecType : DialectType<SYCL_Dialect, CPred<"$_self.isa<VecType>()">, "sycl::vec type">;
+class SYCL_Type<string name, string typeMnemonic, list<Trait> traits = []>
+    : TypeDef<SYCL_Dialect, name,
+              !listconcat([MemRefElementTypeInterface,
+                           LLVM_PointerElementTypeInterface],
+                               traits)> {
+  let mnemonic = typeMnemonic;
+}
+
+class SYCLInheritanceTypeTrait<string ParentClass>
+    : NativeTypeTrait<"SYCLInheritanceTypeTrait<" # ParentClass # ">::Trait"> {
+  let cppNamespace = "::mlir::sycl";
+}
+
+def SYCL_IDType
+    : SYCL_Type<"ID", "id", [SYCLInheritanceTypeTrait<"ArrayType">]> {
+  let parameters = (ins "unsigned":$dimension);
+  let assemblyFormat = "`<` $dimension `>`";
+}
+
+def SYCL_AccessorCommonType : SYCL_Type<"AccessorCommon", "accessor_common"> {
+  let assemblyFormat = "";
+}
+
+def SYCL_AccessorType
+    : SYCL_Type<"Accessor", "accessor",
+        [SYCLInheritanceTypeTrait<"AccessorCommonType">]> {
+  let parameters = (ins "::mlir::Type":$type,
+                        "unsigned":$dimension,
+                        "mlir::sycl::MemoryAccessMode":$accessMode,
+                        "mlir::sycl::MemoryTargetMode":$targetMode,
+                        "llvm::SmallVector<mlir::Type, 4>":$body);
+  let assemblyFormat =
+      "`<` `[` $dimension `,` $type `,` ` ` custom<MemoryAccessMode>($accessMode) `,` ` ` custom<MemoryTargetMode>($targetMode) `]` `,` `(` $body `)` `>`";
+}
+
+def SYCL_RangeType
+    : SYCL_Type<"Range", "range", [SYCLInheritanceTypeTrait<"ArrayType">]> {
+  let parameters = (ins "unsigned":$dimension);
+  let assemblyFormat = "`<` $dimension `>`";
+}
+
+def SYCL_NdRangeType : SYCL_Type<"NdRange", "nd_range"> {
+  let parameters = (ins "unsigned":$dimension,
+                        "llvm::SmallVector<mlir::Type, 4>":$body);
+  let assemblyFormat = "`<` `[` $dimension `]` `,` `(` $body `)` `>`";
+}
+
+def SYCL_AccessorImplType :
+    SYCL_Type<"AccessorImplDevice", "accessor_impl_device"> {
+  let parameters = (ins "unsigned":$dimension,
+                        "llvm::SmallVector<mlir::Type, 4>":$body);
+  let assemblyFormat = "`<` `[` $dimension `]` `,` `(` $body `)` `>`";
+}
+
+def SYCL_AccessorSubscriptType :
+    SYCL_Type<"AccessorSubscript", "accessor_subscript"> {
+  let parameters = (ins "int":$currentDimension,
+                        "llvm::SmallVector<mlir::Type, 4>":$body);
+  let assemblyFormat = "`<` `[` $currentDimension `]` `,` `(` $body `)` `>`";
+}
+
+def SYCL_ArrayType : SYCL_Type<"Array", "array"> {
+  let parameters = (ins "unsigned":$dimension,
+                        "llvm::SmallVector<mlir::Type, 4>":$body);
+  let assemblyFormat = "`<` `[` $dimension `]` `,` `(` $body `)` `>`";
+}
+
+def SYCL_ItemType : SYCL_Type<"Item", "item"> {
+  let parameters = (ins "unsigned":$dimension,
+                        "bool":$withOffset,
+                        "llvm::SmallVector<mlir::Type, 4>":$body);
+  let assemblyFormat = "`<` `[` $dimension `,` $withOffset `]` `,` `(` $body `)` `>`";
+}
+
+def SYCL_ItemBaseType : SYCL_Type<"ItemBase", "item_base"> {
+  let parameters = (ins "unsigned":$dimension,
+                        "bool":$withOffset,
+                        "llvm::SmallVector<mlir::Type, 4>":$body);
+  let assemblyFormat = "`<` `[` $dimension `,` $withOffset `]` `,` `(` $body `)` `>`";
+}
+
+def SYCL_NdItemType : SYCL_Type<"NdItem", "nd_item"> {
+  let parameters = (ins "unsigned":$dimension,
+                        "llvm::SmallVector<mlir::Type, 4>":$body);
+  let assemblyFormat = "`<` `[` $dimension `]` `,` `(` $body `)` `>`";
+}
+
+def SYCL_GroupType : SYCL_Type<"Group", "group"> {
+  let parameters = (ins "unsigned":$dimension,
+                        "llvm::SmallVector<mlir::Type, 4>":$body);
+  let assemblyFormat = "`<` `[` $dimension `]` `,` `(` $body `)` `>`";
+}
+
+def SYCL_VecType : SYCL_Type<"Vec", "vec"> {
+  let parameters = (ins "::mlir::Type":$dataType,
+                        "int":$numElements,
+                        "llvm::SmallVector<mlir::Type, 4>":$body);
+  let assemblyFormat = "`<` `[` $dataType `,` $numElements `]` `,` `(` $body `)` `>`";
+}
 
 def IDMemRef : MemRefOf<[SYCL_IDType]>;
 def AccessorCommonMemRef : MemRefOf<[SYCL_AccessorCommonType]>;
