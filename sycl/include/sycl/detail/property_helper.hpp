@@ -35,8 +35,13 @@ enum DataLessPropKind {
   UseDefaultStream = 8,
   DiscardEvents = 9,
   DeviceReadOnly = 10,
+  FusionPromotePrivate = 11,
+  FusionPromoteLocal = 12,
+  FusionNoBarrier = 13,
+  FusionEnable = 14,
+  FusionForce = 15,
   // Indicates the last known dataless property.
-  LastKnownDataLessPropKind = 10,
+  LastKnownDataLessPropKind = 15,
   // Exceeding 32 may cause ABI breaking change on some of OSes.
   DataLessPropKindSize = 32
 };
