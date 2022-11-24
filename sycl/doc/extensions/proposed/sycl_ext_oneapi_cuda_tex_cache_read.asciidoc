@@ -1,0 +1,109 @@
+= sycl_ext_oneapi_cuda_tex_cache_read
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2022-2022 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 5 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+
+== Overview
+
+This extension exposes the https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#data-movement-and-conversion-instructions-ld-global-nc[ld-global-nc] ptx instruction so that users can load a register variable to the non-coherent read only texture cache. The texture cache is designed for random access reads and is most performant when work-items within a sub-group read a set of addresses of texture memory that are close to one another in the cache.
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `sycl_ext_oneapi_cuda_tex_cache_read` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== `__ldg` free function
+
+This extension adds a single templated free function which may be called from device
+code. This function is not available in host code.
+
+```
+namespace sycl::ext::oneapi::experimental::cuda {
+
+template<typename T>
+T __ldg(const T* ptr);
+
+} // namespace sycl::ext::oneapi::experimental::cuda
+```
+
+`__ldg` returns the data of type `T` located at address `ptr`. The data is cached in the read-only texture cache.
+
+The template parameter `T` can be one of `float`, `vec<float, 2>`, `vec<float, 4>`, `double`, or `vec<double, 2>`.
+
+=== Example of usage
+
+```
+    h.parallel_for<class kernel_name>(range, [=](sycl::nd_item<1> item) {
+      const int idx = item.get_global_id(0);
+      auto cachedA = sycl::ext::oneapi::experimental::cuda::__ldg(&A[idx]);
+      auto cachedB = sycl::ext::oneapi::experimental::cuda::__ldg(&B[idx]);
+      C[idx] = cachedA + cachedB;
+    });
+    });
+```
+
+**_NOTE:_** Data returned from `__ldg`, e.g. `cacheA` and `cacheB` in the above example, must not be written to at any point within the kernel. If such data is written to at any point in the kernel, the code will compile and execute, however the texture cache will not be used. Sometimes the compiler may not be sure that the read-only condition is satisfied. In such cases users can mark the declaration of the pointer used as the argument to `__ldg` with both the `const` and `__restrict__` qualifiers, which may aid the compiler in detecting the read-only condition.
