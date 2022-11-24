@@ -2098,18 +2098,6 @@ ValueCategory MLIRScanner::VisitBinAssign(BinaryOperator *E) {
   return RHS;
 }
 
-static bool isSigned(QualType Ty) {
-  // TODO note assumptions made here about unsigned / unordered
-  bool SignedType = true;
-  if (const auto *Bit = dyn_cast<clang::BuiltinType>(Ty)) {
-    if (Bit->isUnsignedInteger())
-      SignedType = false;
-    if (Bit->isSignedInteger())
-      SignedType = true;
-  }
-  return SignedType;
-}
-
 class BinOpInfo {
 public:
   BinOpInfo(ValueCategory LHS, ValueCategory RHS, QualType Ty,
@@ -2577,39 +2565,62 @@ static void informNoOverflowCheck(LangOptions::SignedOverflowBehaviorTy SOB,
 }
 
 ValueCategory MLIRScanner::EmitBinMul(const BinOpInfo &Info) {
-  auto LHSVal = Info.getLHS().getValue(Builder);
-  auto RHSVal = Info.getRHS().getValue(Builder);
-  if (LHSVal.getType().isa<mlir::FloatType>())
-    return ValueCategory(Builder.create<arith::MulFOp>(Loc, LHSVal, RHSVal),
-                         /*isReference*/ false);
-  return ValueCategory(Builder.create<arith::MulIOp>(Loc, LHSVal, RHSVal),
-                       /*isReference*/ false);
+  const auto Loc = getMLIRLocation(Info.getExpr()->getExprLoc());
+  const auto LHS = Info.getLHS();
+  const auto RHS = Info.getRHS().val;
+
+  if (Info.getType()->isSignedIntegerOrEnumerationType()) {
+    informNoOverflowCheck(
+        Glob.getCGM().getLangOpts().getSignedOverflowBehavior(), "mul");
+    return LHS.Mul(Builder, Loc, RHS);
+  }
+
+  assert(!Info.getType()->isConstantMatrixType() && "Not yet implemented");
+
+  if (mlirclang::isFPOrFPVectorTy(LHS.val.getType()))
+    return LHS.FMul(Builder, Loc, RHS);
+  return LHS.Mul(Builder, Loc, RHS);
 }
 
 ValueCategory MLIRScanner::EmitBinDiv(const BinOpInfo &Info) {
-  auto LHSVal = Info.getLHS().getValue(Builder);
-  auto RHSVal = Info.getRHS().getValue(Builder);
-  if (LHSVal.getType().isa<mlir::FloatType>())
-    return ValueCategory(Builder.create<arith::DivFOp>(Loc, LHSVal, RHSVal),
-                         /*isReference*/ false);
-  if (isSigned(Info.getType()))
-    return ValueCategory(Builder.create<arith::DivSIOp>(Loc, LHSVal, RHSVal),
-                         /*isReference*/ false);
-  return ValueCategory(Builder.create<arith::DivUIOp>(Loc, LHSVal, RHSVal),
-                       /*isReference*/ false);
+  mlirclang::warning()
+      << "Not checking division by zero nor signed integer overflow.\n";
+
+  assert(!Info.getType()->isConstantMatrixType() && "Not implemented");
+
+  const auto Loc = getMLIRLocation(Info.getExpr()->getExprLoc());
+  const auto LHS = Info.getLHS();
+  const auto RHS = Info.getRHS().val;
+  if (mlirclang::isFPOrFPVectorTy(LHS.val.getType())) {
+    const auto &LangOpts = Glob.getCGM().getLangOpts();
+    const auto &CodeGenOpts = Glob.getCGM().getCodeGenOpts();
+    if ((LangOpts.OpenCL && !CodeGenOpts.OpenCLCorrectlyRoundedDivSqrt) ||
+        (LangOpts.HIP && LangOpts.CUDAIsDevice &&
+         !CodeGenOpts.HIPCorrectlyRoundedDivSqrt)) {
+      // OpenCL v1.1 s7.4: minimum accuracy of single precision / is 2.5ulp
+      // OpenCL v1.2 s5.6.4.2: The -cl-fp32-correctly-rounded-divide-sqrt
+      // build option allows an application to specify that single precision
+      // floating-point divide (x/y and 1/x) and sqrt used in the program
+      // source are correctly rounded.
+      mlirclang::warning() << "Not applying OpenCL/HIP precision options.\n";
+    }
+    return LHS.FDiv(Builder, Loc, RHS);
+  }
+  if (Info.getType()->hasUnsignedIntegerRepresentation())
+    return LHS.UDiv(Builder, Loc, RHS);
+  return LHS.SDiv(Builder, Loc, RHS);
 }
 
 ValueCategory MLIRScanner::EmitBinRem(const BinOpInfo &Info) {
-  auto LHSVal = Info.getLHS().getValue(Builder);
-  auto RHSVal = Info.getRHS().getValue(Builder);
-  if (LHSVal.getType().isa<mlir::FloatType>())
-    return ValueCategory(Builder.create<arith::RemFOp>(Loc, LHSVal, RHSVal),
-                         /*isReference*/ false);
-  if (isSigned(Info.getType()))
-    return ValueCategory(Builder.create<arith::RemSIOp>(Loc, LHSVal, RHSVal),
-                         /*isReference*/ false);
-  return ValueCategory(Builder.create<arith::RemUIOp>(Loc, LHSVal, RHSVal),
-                       /*isReference*/ false);
+  mlirclang::warning()
+      << "Not checking division by zero nor signed integer overflow.\n";
+
+  const auto Loc = getMLIRLocation(Info.getExpr()->getExprLoc());
+  const auto LHS = Info.getLHS();
+  const auto RHS = Info.getRHS().val;
+  if (Info.getType()->hasUnsignedIntegerRepresentation())
+    return LHS.URem(Builder, Loc, RHS);
+  return LHS.SRem(Builder, Loc, RHS);
 }
 
 /// Casts index of subindex operation conditionally.
@@ -2821,57 +2832,102 @@ ValueCategory MLIRScanner::EmitBinSub(const BinOpInfo &Info) {
   return DiffInChars.ExactSDiv(Builder, Loc, Divisor);
 }
 
+static mlir::Value GetWidthMinusOneValue(mlir::OpBuilder &Builder,
+                                         mlir::Location Loc, mlir::Value LHS,
+                                         mlir::Value RHS) {
+  auto Ty = LHS.getType();
+  IntegerType IntTy;
+  if (auto VT = Ty.dyn_cast<mlir::VectorType>())
+    IntTy = VT.getElementType().cast<IntegerType>();
+  else
+    IntTy = Ty.cast<IntegerType>();
+
+  const auto WidthMinusOne = IntTy.getWidth() - 1;
+  ValueCategory Val{
+      Builder.createOrFold<arith::ConstantIntOp>(Loc, WidthMinusOne, IntTy),
+      false};
+  if (auto VT = Ty.dyn_cast<mlir::VectorType>())
+    Val = Val.Splat(Builder, Loc, VT);
+  return Val.val;
+}
+
+ValueCategory MLIRScanner::ConstrainShiftValue(ValueCategory LHS,
+                                               ValueCategory RHS) {
+  IntegerType Ty;
+  if (auto VT = LHS.val.getType().dyn_cast<mlir::VectorType>())
+    Ty = VT.getElementType().cast<IntegerType>();
+  else
+    Ty = LHS.val.getType().cast<IntegerType>();
+
+  if (llvm::isPowerOf2_64(Ty.getWidth()))
+    return RHS.And(Builder, Loc,
+                   GetWidthMinusOneValue(Builder, Loc, LHS.val, RHS.val));
+  return RHS.URem(Builder, Loc,
+                  Builder.createOrFold<arith::ConstantIntOp>(
+                      Loc, Ty.getWidth(), RHS.val.getType()));
+}
+
 ValueCategory MLIRScanner::EmitBinShl(const BinOpInfo &Info) {
-  auto LHSVal = Info.getLHS().getValue(Builder);
-  auto RHSVal = Info.getRHS().getValue(Builder);
-  auto PrevTy = RHSVal.getType().cast<mlir::IntegerType>();
-  auto PostTy = LHSVal.getType().cast<mlir::IntegerType>();
-  if (PrevTy.getWidth() < PostTy.getWidth())
-    RHSVal = Builder.create<arith::ExtUIOp>(Loc, PostTy, RHSVal);
-  if (PrevTy.getWidth() > PostTy.getWidth())
-    RHSVal = Builder.create<arith::TruncIOp>(Loc, PostTy, RHSVal);
-  assert(LHSVal.getType() == RHSVal.getType());
-  return ValueCategory(Builder.create<arith::ShLIOp>(Loc, LHSVal, RHSVal),
-                       /*isReference*/ false);
+  const auto Loc = getMLIRLocation(Info.getExpr()->getExprLoc());
+  auto LHS = Info.getLHS();
+  auto RHS = Info.getRHS();
+
+  // LLVM requires the LHS and RHS to be the same type: promote or truncate the
+  // RHS to the same size as the LHS.
+  if (LHS.val.getType() != RHS.val.getType())
+    RHS = RHS.IntCast(Builder, Loc, LHS.val.getType(), /*IsSigned*/ false);
+
+  if (Glob.getCGM().getLangOpts().OpenCL) {
+    this->Loc = Loc;
+    RHS = ConstrainShiftValue(LHS, RHS);
+  } else {
+    mlirclang::warning() << "Not performing SHL checks\n";
+  }
+
+  return LHS.Shl(Builder, Loc, RHS.val);
 }
 
 ValueCategory MLIRScanner::EmitBinShr(const BinOpInfo &Info) {
-  auto LHSVal = Info.getLHS().getValue(Builder);
-  auto RHSVal = Info.getRHS().getValue(Builder);
-  auto PrevTy = RHSVal.getType().cast<mlir::IntegerType>();
-  auto PostTy = LHSVal.getType().cast<mlir::IntegerType>();
-  if (PrevTy.getWidth() < PostTy.getWidth())
-    RHSVal = Builder.create<mlir::arith::ExtUIOp>(Loc, PostTy, RHSVal);
-  if (PrevTy.getWidth() > PostTy.getWidth())
-    RHSVal = Builder.create<mlir::arith::TruncIOp>(Loc, PostTy, RHSVal);
-  assert(LHSVal.getType() == RHSVal.getType());
-  if (isSigned(Info.getExpr()->getType()))
-    return ValueCategory(Builder.create<arith::ShRSIOp>(Loc, LHSVal, RHSVal),
-                         /*isReference*/ false);
-  return ValueCategory(Builder.create<arith::ShRUIOp>(Loc, LHSVal, RHSVal),
-                       /*isReference*/ false);
+  const auto Loc = getMLIRLocation(Info.getExpr()->getExprLoc());
+  auto LHS = Info.getLHS();
+  auto RHS = Info.getRHS();
+
+  // LLVM requires the LHS and RHS to be the same type: promote or truncate the
+  // RHS to the same size as the LHS.
+  if (LHS.val.getType() != RHS.val.getType())
+    RHS = RHS.IntCast(Builder, Loc, LHS.val.getType(), /*IsSigned*/ false);
+
+  if (Glob.getCGM().getLangOpts().OpenCL) {
+    this->Loc = Loc;
+    RHS = ConstrainShiftValue(LHS, RHS);
+  } else {
+    mlirclang::warning() << "Not performing SHL checks\n";
+  }
+
+  if (Info.getType()->hasUnsignedIntegerRepresentation())
+    return LHS.LShr(Builder, Loc, RHS.val);
+  return LHS.AShr(Builder, Loc, RHS.val);
 }
 
 ValueCategory MLIRScanner::EmitBinAnd(const BinOpInfo &Info) {
-  return ValueCategory(
-      Builder.create<arith::AndIOp>(Loc, Info.getLHS().getValue(Builder),
-                                    Info.getRHS().getValue(Builder)),
-      /*isReference*/ false);
+  const auto Loc = getMLIRLocation(Info.getExpr()->getExprLoc());
+  auto LHS = Info.getLHS();
+  auto RHS = Info.getRHS();
+  return LHS.And(Builder, Loc, RHS.val);
 }
 
 ValueCategory MLIRScanner::EmitBinXor(const BinOpInfo &Info) {
-  return ValueCategory(
-      Builder.create<arith::XOrIOp>(Loc, Info.getLHS().getValue(Builder),
-                                    Info.getRHS().getValue(Builder)),
-      /*isReference*/ false);
+  const auto Loc = getMLIRLocation(Info.getExpr()->getExprLoc());
+  auto LHS = Info.getLHS();
+  auto RHS = Info.getRHS();
+  return LHS.Xor(Builder, Loc, RHS.val);
 }
 
 ValueCategory MLIRScanner::EmitBinOr(const BinOpInfo &Info) {
-  // TODO short circuit
-  return ValueCategory(
-      Builder.create<arith::OrIOp>(Loc, Info.getLHS().getValue(Builder),
-                                   Info.getRHS().getValue(Builder)),
-      /*isReference*/ false);
+  const auto Loc = getMLIRLocation(Info.getExpr()->getExprLoc());
+  auto LHS = Info.getLHS();
+  auto RHS = Info.getRHS();
+  return LHS.Or(Builder, Loc, RHS.val);
 }
 
 #define HANDLEUNARYOP(OP)                                                      \

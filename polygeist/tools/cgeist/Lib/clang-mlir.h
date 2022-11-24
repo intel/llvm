@@ -531,6 +531,8 @@ public:
 #include "Expressions.def"
 #undef HANDLEUNARYOP
 
+  ValueCategory ConstrainShiftValue(ValueCategory LHS, ValueCategory RHS);
+
   ValueCategory VisitCXXNoexceptExpr(clang::CXXNoexceptExpr *AS);
 
   ValueCategory VisitAttributedStmt(clang::AttributedStmt *AS);

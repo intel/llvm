@@ -323,6 +323,13 @@ template <typename OpTy> inline void warnUnconstrainedOp() {
                        << "\n";
 }
 
+template <typename OpTy> inline void warnNonExactOp(bool IsExact) {
+  if (!IsExact)
+    return;
+  mlirclang::warning() << "Creating exact " << OpTy::getOperationName()
+                       << " is not suported.\n";
+}
+
 ValueCategory ValueCategory::FPTrunc(OpBuilder &Builder, Location Loc,
                                      Type PromotionType) const {
   assert(val.getType().isa<FloatType>() &&
@@ -569,16 +576,53 @@ static ValueCategory NUWNSWBinOp(mlir::OpBuilder &Builder, mlir::Location Loc,
   return IntBinOp<OpTy>(Builder, Loc, LHS, RHS);
 }
 
+ValueCategory ValueCategory::Mul(OpBuilder &Builder, Location Loc, Value RHS,
+                                 bool HasNUW, bool HasNSW) const {
+  return NUWNSWBinOp<arith::MulIOp>(Builder, Loc, val, RHS, HasNUW, HasNSW);
+}
+
+ValueCategory ValueCategory::FMul(OpBuilder &Builder, Location Loc,
+                                  Value RHS) const {
+  warnUnconstrainedOp<arith::DivFOp>();
+  return FPBinOp<arith::MulFOp>(Builder, Loc, val, RHS);
+}
+
+ValueCategory ValueCategory::FDiv(OpBuilder &Builder, Location Loc,
+                                  Value RHS) const {
+  warnUnconstrainedOp<arith::DivFOp>();
+  return FPBinOp<arith::DivFOp>(Builder, Loc, val, RHS);
+}
+
+ValueCategory ValueCategory::UDiv(OpBuilder &Builder, Location Loc, Value RHS,
+                                  bool IsExact) const {
+  warnNonExactOp<arith::DivUIOp>(IsExact);
+  return IntBinOp<arith::DivUIOp>(Builder, Loc, val, RHS);
+}
+
+ValueCategory ValueCategory::ExactUDiv(OpBuilder &Builder, Location Loc,
+                                       Value RHS) const {
+  return UDiv(Builder, Loc, RHS, /*IsExact*/ true);
+}
+
 ValueCategory ValueCategory::SDiv(OpBuilder &Builder, Location Loc, Value RHS,
                                   bool IsExact) const {
-  if (IsExact)
-    mlirclang::warning() << "Creating exact division is not supported\n";
+  warnNonExactOp<arith::DivSIOp>(IsExact);
   return IntBinOp<arith::DivSIOp>(Builder, Loc, val, RHS);
 }
 
 ValueCategory ValueCategory::ExactSDiv(OpBuilder &Builder, Location Loc,
                                        Value RHS) const {
   return SDiv(Builder, Loc, RHS, /*IsExact*/ true);
+}
+
+ValueCategory ValueCategory::URem(OpBuilder &Builder, Location Loc,
+                                  Value RHS) const {
+  return IntBinOp<arith::RemUIOp>(Builder, Loc, val, RHS);
+}
+
+ValueCategory ValueCategory::SRem(OpBuilder &Builder, Location Loc,
+                                  Value RHS) const {
+  return IntBinOp<arith::RemSIOp>(Builder, Loc, val, RHS);
 }
 
 ValueCategory ValueCategory::Neg(OpBuilder &Builder, Location Loc, bool HasNUW,
@@ -681,4 +725,36 @@ ValueCategory FPUnaryOp(OpBuilder &Builder, Location Loc, Value Val) {
 
 ValueCategory ValueCategory::FNeg(OpBuilder &Builder, Location Loc) const {
   return FPUnaryOp<arith::NegFOp>(Builder, Loc, val);
+}
+
+ValueCategory ValueCategory::Shl(OpBuilder &Builder, Location Loc, Value RHS,
+                                 bool HasNUW, bool HasNSW) const {
+  return NUWNSWBinOp<arith::ShLIOp>(Builder, Loc, val, RHS, HasNUW, HasNSW);
+}
+
+ValueCategory ValueCategory::AShr(OpBuilder &Builder, Location Loc, Value RHS,
+                                  bool IsExact) const {
+  warnNonExactOp<arith::ShRSIOp>(IsExact);
+  return IntBinOp<arith::ShRSIOp>(Builder, Loc, val, RHS);
+}
+
+ValueCategory ValueCategory::LShr(OpBuilder &Builder, Location Loc, Value RHS,
+                                  bool IsExact) const {
+  warnNonExactOp<arith::ShRUIOp>(IsExact);
+  return IntBinOp<arith::ShRUIOp>(Builder, Loc, val, RHS);
+}
+
+ValueCategory ValueCategory::And(mlir::OpBuilder &Builder, mlir::Location Loc,
+                                 mlir::Value RHS) const {
+  return IntBinOp<arith::AndIOp>(Builder, Loc, val, RHS);
+}
+
+ValueCategory ValueCategory::Or(mlir::OpBuilder &Builder, mlir::Location Loc,
+                                mlir::Value RHS) const {
+  return IntBinOp<arith::OrIOp>(Builder, Loc, val, RHS);
+}
+
+ValueCategory ValueCategory::Xor(mlir::OpBuilder &Builder, mlir::Location Loc,
+                                 mlir::Value RHS) const {
+  return IntBinOp<arith::XOrIOp>(Builder, Loc, val, RHS);
 }
