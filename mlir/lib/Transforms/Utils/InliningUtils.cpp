@@ -354,15 +354,12 @@ LogicalResult mlir::inlineCall(InlinerInterface &interface,
 
   // Functor used to cleanup generated state on failure.
   auto cleanupState = [&] {
-    llvm::dbgs() << "at line " << __LINE__ << "\n";
     for (auto *op : castOps) {
       op->getResult(0).replaceAllUsesWith(op->getOperand(0));
       op->erase();
     }
     return failure();
   };
-
-  llvm::dbgs() << "at line " << __LINE__ << "\n";
 
   // Builder used for any conversion operations that need to be materialized.
   OpBuilder castBuilder(call);
@@ -386,8 +383,6 @@ LogicalResult mlir::inlineCall(InlinerInterface &interface,
     mapper.map(regionArg, operand);
   }
 
-  llvm::dbgs() << "at line " << __LINE__ << "\n";
-
   // Ensure that the resultant values of the call match the callable.
   castBuilder.setInsertionPointAfter(call);
   for (unsigned i = 0, e = callResults.size(); i != e; ++i) {
@@ -406,13 +401,9 @@ LogicalResult mlir::inlineCall(InlinerInterface &interface,
     castResult.getDefiningOp()->replaceUsesOfWith(castResult, callResult);
   }
 
-  llvm::dbgs() << "at line " << __LINE__ << "\n";
-
   // Check that it is legal to inline the callable into the call.
   if (!interface.isLegalToInline(call, callable, shouldCloneInlinedRegion))
     return cleanupState();
-
-  llvm::dbgs() << "at line " << __LINE__ << "\n";
 
   // Attempt to inline the call.
   if (failed(inlineRegionImpl(interface, src, call->getBlock(),
