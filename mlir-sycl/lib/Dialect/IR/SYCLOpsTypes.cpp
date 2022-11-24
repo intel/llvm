@@ -121,7 +121,7 @@ void mlir::sycl::printMemoryTargetMode(AsmPrinter &Printer,
 }
 
 llvm::StringRef
-mlir::sycl::accAddressModeModeAsString(mlir::sycl::AccessAddrSpace AccAddress) {
+mlir::sycl::accAddressModeAsString(mlir::sycl::AccessAddrSpace AccAddress) {
   switch (AccAddress) {
   case AccessAddrSpace::Private:
     return "0";
@@ -160,7 +160,7 @@ mlir::LogicalResult mlir::sycl::parseAccessAddrSpace(
 
 void mlir::sycl::printAccessAddrSpace(AsmPrinter &Printer,
                                       AccessAddrSpace AccAddress) {
-  Printer << accAddressModeModeAsString(AccAddress);
+  Printer << accAddressModeAsString(AccAddress);
 }
 
 llvm::SmallVector<mlir::TypeID>
