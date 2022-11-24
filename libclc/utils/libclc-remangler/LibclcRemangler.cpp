@@ -651,7 +651,7 @@ private:
         break;
       }
       default: {
-        assert(false && "Unexpected Node Kind.");
+        llvm_unreachable("Unexpected Node Kind.");
       }
       }
     }
