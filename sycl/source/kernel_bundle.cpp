@@ -12,8 +12,6 @@
 
 #include <set>
 
-#include <iostream>
-
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
