@@ -1934,7 +1934,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
   case clang::CastKind::CK_VectorSplat: {
     const auto DstTy = Glob.getTypes().getMLIRType(E->getType());
     const auto Elt = Visit(E->getSubExpr());
-    return Elt.Splat(builder, loc, DstTy);
+    return Elt.Splat(Builder, Loc, DstTy);
   }
   case clang::CastKind::CK_IntegralToPointer: {
     auto Vc = Visit(E->getSubExpr());
