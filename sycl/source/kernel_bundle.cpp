@@ -12,6 +12,8 @@
 
 #include <set>
 
+#include <iostream>
+
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
@@ -296,8 +298,6 @@ std::vector<kernel_id> get_kernel_ids() {
 }
 
 bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
-  if (KernelIDs.empty())
-    return false;
   for (const auto &KernelId : KernelIDs) {
     const detail::RTDeviceBinaryImage &Img =
         detail::ProgramManager::getInstance().getDeviceImage(
@@ -312,15 +312,12 @@ bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
         continue;
       detail::ByteArray Aspects =
           detail::DeviceBinaryProperty(*It).asByteArray();
-      // 8 because we need to skip 64-bits of size of the byte array
-      auto *AIt = reinterpret_cast<const std::uint32_t *>(&Aspects[8]);
-      auto *AEnd =
-          reinterpret_cast<const std::uint32_t *>(&Aspects[0] + Aspects.size());
-      while (AIt != AEnd) {
-        auto Aspect = static_cast<aspect>(*AIt);
+      // Drop 8 bytes describing the size of the byte array
+      Aspects.dropBytes(8);
+      while (!Aspects.empty()) {
+        aspect Aspect = Aspects.consume<aspect>();
         if (!Dev.has(Aspect))
           return false;
-        ++AIt;
       }
     }
   }
