@@ -80,7 +80,7 @@ int main() {
 
   auto exec_graph = g.finalize(q.get_context());
 
-  exec_graph.exec_and_wait(q);
+  q.submit(exec_graph).wait();
 
   if (*dotp != host_gold_result()) {
     std::cout << "Error unexpected result!\n";

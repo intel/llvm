@@ -8,14 +8,13 @@
 
 #include <detail/backend_impl.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/graph_impl.hpp>
 #include <detail/queue_impl.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception_list.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/queue.hpp>
 #include <sycl/stl.hpp>
-
-#include <sycl/ext/oneapi/experimental/graph.hpp>
 
 #include <algorithm>
 
@@ -216,9 +215,10 @@ bool queue::device_has(aspect Aspect) const {
 }
 
 event queue::submit(ext::oneapi::experimental::command_graph<
-             ext::oneapi::experimental::graph_state::executable>
-                 graph) {
-  graph.exec_and_wait(*this);
+                    ext::oneapi::experimental::graph_state::executable>
+                        Graph) {
+  auto GraphImpl = detail::getSyclObjImpl(Graph);
+  GraphImpl->exec_and_wait(this->impl);
   return {};
 }
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

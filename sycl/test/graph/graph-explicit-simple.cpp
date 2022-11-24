@@ -30,7 +30,7 @@ int main() {
 
   auto result_before_exec2 = arr[0];
 
-  exec_graph.exec_and_wait(q);
+  q.submit(exec_graph).wait();
 
   auto result = arr[0];
 

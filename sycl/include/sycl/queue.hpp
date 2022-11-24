@@ -23,7 +23,7 @@
 #include <sycl/property_list.hpp>
 #include <sycl/stl.hpp>
 
-#include <sycl/ext/oneapi/experimental/graph_defines.hpp>
+#include <sycl/ext/oneapi/experimental/graph.hpp>
 
 // Explicitly request format macros
 #ifndef __STDC_FORMAT_MACROS

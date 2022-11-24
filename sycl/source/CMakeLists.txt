@@ -132,6 +132,7 @@ set(SYCL_SOURCES
     "detail/filter_selector_impl.cpp"
     "detail/force_device.cpp"
     "detail/global_handler.cpp"
+    "detail/graph_impl.cpp"
     "detail/helpers.cpp"
     "detail/handler_proxy.cpp"
     "detail/image_accessor_util.cpp"
