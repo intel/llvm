@@ -153,7 +153,7 @@ void ScudoCombinedTest<Config>::BasicTest(scudo::uptr SizeLog) {
   for (scudo::uptr AlignLog = MinAlignLog; AlignLog <= 16U; AlignLog++) {
     const scudo::uptr Align = 1U << AlignLog;
     for (scudo::sptr Delta = -32; Delta <= 32; Delta++) {
-      if (static_cast<scudo::sptr>(1U << SizeLog) + Delta <= 0)
+      if (static_cast<scudo::sptr>(1U << SizeLog) + Delta < 0)
         continue;
       const scudo::uptr Size = (1U << SizeLog) + Delta;
       void *P = Allocator->allocate(Size, Origin, Align);
@@ -390,6 +390,27 @@ SCUDO_TYPED_TEST(ScudoCombinedDeathTest, UseAfterFree) {
           void *P = Allocator->allocate(Size, Origin);
           Allocator->deallocate(P, Origin);
           reinterpret_cast<char *>(P)[Size - 1] = 0xaa;
+        },
+        "");
+  }
+}
+
+SCUDO_TYPED_TEST(ScudoCombinedDeathTest, FreeWithTagMismatch) {
+  auto *Allocator = this->Allocator.get();
+
+  if (!Allocator->useMemoryTaggingTestOnly())
+    return;
+
+  // Check that double free is detected.
+  for (scudo::uptr SizeLog = 0U; SizeLog <= 20U; SizeLog++) {
+    const scudo::uptr Size = 1U << SizeLog;
+    EXPECT_DEATH(
+        {
+          disableDebuggerdMaybe();
+          void *P = Allocator->allocate(Size, Origin);
+          scudo::uptr NewTag = (scudo::extractTag(reinterpret_cast<scudo::uptr>(P)) + 1) % 16;
+          void *Q = scudo::addFixedTag(scudo::untagPointer(P), NewTag);
+          Allocator->deallocate(Q, Origin);
         },
         "");
   }

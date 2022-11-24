@@ -6445,7 +6445,11 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
   // We use the same approach if
   // SYCL_PI_LEVEL_ZERO_USE_MULTIPLE_COMMANDLIST_BARRIERS is not set to a
   // positive value.
-  if (NumEventsInWaitList || !UseMultipleCmdlistBarriers) {
+  // We use the same approach if we have in-order queue because every command
+  // depends on previous one, so we don't need to insert barrier to multiple
+  // command lists.
+  if (NumEventsInWaitList || !UseMultipleCmdlistBarriers ||
+      Queue->isInOrderQueue()) {
     // Retain the events as they will be owned by the result event.
     _pi_ze_event_list_t TmpWaitList;
     if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
@@ -6468,7 +6472,9 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     if (auto Res = Queue->executeCommandList(CmdList, false, OkToBatch))
       return Res;
 
-    if (UseMultipleCmdlistBarriers) {
+    // Because of the dependency between commands in the in-order queue we don't
+    // need to keep track of any active barriers if we have in-order queue.
+    if (UseMultipleCmdlistBarriers && !Queue->isInOrderQueue()) {
       // Retain and save the resulting event for future commands.
       (*Event)->RefCount.increment();
       Queue->ActiveBarriers.push_back(*Event);
@@ -7860,7 +7866,6 @@ static pi_result USMSharedAllocImpl(void **ResultPtr, pi_context Context,
                                     pi_device Device,
                                     pi_usm_mem_properties *Properties,
                                     size_t Size, pi_uint32 Alignment) {
-  (void)Properties;
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
@@ -7884,6 +7889,31 @@ static pi_result USMSharedAllocImpl(void **ResultPtr, pi_context Context,
   PI_ASSERT(Alignment == 0 ||
                 reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
             PI_ERROR_INVALID_VALUE);
+
+  // See if the memory is going to be read-only on the device.
+  bool DeviceReadOnly = false;
+  // Check that incorrect bits are not set in the properties.
+  if (Properties && *Properties != 0) {
+    PI_ASSERT(*(Properties) == PI_MEM_ALLOC_FLAGS && *(Properties + 2) == 0,
+              PI_ERROR_INVALID_VALUE);
+    DeviceReadOnly = *(Properties + 1) & PI_MEM_ALLOC_DEVICE_READ_ONLY;
+  }
+  if (!DeviceReadOnly)
+    return PI_SUCCESS;
+
+  // For read-only memory, let L0 know about that by using advises.
+
+  // zeCommandListAppendMemAdvise must not be called from simultaneous threads
+  // with the same command list handle.
+  std::scoped_lock<pi_mutex> Lock(Context->ImmediateCommandListMutex);
+
+  ZE_CALL(zeCommandListAppendMemAdvise,
+          (Context->ZeCommandListInit, Device->ZeDevice, *ResultPtr, Size,
+           ZE_MEMORY_ADVICE_SET_READ_MOSTLY));
+
+  ZE_CALL(zeCommandListAppendMemAdvise,
+          (Context->ZeCommandListInit, Device->ZeDevice, *ResultPtr, Size,
+           ZE_MEMORY_ADVICE_SET_PREFERRED_LOCATION));
 
   return PI_SUCCESS;
 }
@@ -7936,7 +7966,9 @@ pi_result USMSharedMemoryAlloc::allocateImpl(void **ResultPtr, size_t Size,
 pi_result USMSharedReadOnlyMemoryAlloc::allocateImpl(void **ResultPtr,
                                                      size_t Size,
                                                      pi_uint32 Alignment) {
-  return USMSharedAllocImpl(ResultPtr, Context, Device, nullptr, Size,
+  pi_usm_mem_properties Props[] = {PI_MEM_ALLOC_FLAGS,
+                                   PI_MEM_ALLOC_DEVICE_READ_ONLY, 0};
+  return USMSharedAllocImpl(ResultPtr, Context, Device, Props, Size,
                             Alignment);
 }
 
