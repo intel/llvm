@@ -109,10 +109,10 @@ getConstantArrayShapeAndElemType(const clang::QualType &Ty,
   ElemTy = CurTy;
 }
 
-static constexpr unsigned AllocSizeNumElemsNotPresent = -1;
+static constexpr int AllocSizeNumElemsNotPresent = -1;
 
 static uint64_t packAllocSizeArgs(unsigned ElemSizeArg,
-                                  const Optional<unsigned> &NumElemsArg) {
+                                  const Optional<int> &NumElemsArg) {
   assert((!NumElemsArg || *NumElemsArg != AllocSizeNumElemsNotPresent) &&
          "Attempting to pack a reserved value");
 
@@ -762,7 +762,7 @@ void CodeGenTypes::constructAttributeList(
 
     HasOptnone = TargetDecl->hasAttr<OptimizeNoneAttr>();
     if (auto *AllocSize = TargetDecl->getAttr<AllocSizeAttr>()) {
-      Optional<unsigned> NumElemsParam;
+      Optional<int> NumElemsParam;
       if (AllocSize->getNumElemsParam().isValid())
         NumElemsParam = AllocSize->getNumElemsParam().getLLVMIndex();
       uint64_t RawArgs = packAllocSizeArgs(
@@ -1276,7 +1276,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
       // If -memref-fullrank is unset or it cannot be fulfilled.
       auto MT = MLIRTy.dyn_cast<MemRefType>();
       auto Shape2 = std::vector<int64_t>(MT.getShape());
-      Shape2[0] = -1;
+      Shape2[0] = ShapedType::kDynamicSize;
       return mlir::MemRefType::get(Shape2, MT.getElementType(),
                                    MemRefLayoutAttrInterface(),
                                    MT.getMemorySpace());
@@ -1436,7 +1436,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     }
     bool SubRef = false;
     auto ET = getMLIRType(AT->getElementType(), &SubRef, AllowMerge);
-    int64_t Size = -1;
+    int64_t Size = ShapedType::kDynamicSize;
     if (const auto *CAT = dyn_cast<clang::ConstantArrayType>(AT))
       Size = CAT->getSize().getZExtValue();
     if (MemRefABI && SubRef) {
@@ -1452,7 +1452,8 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     if (!MemRefABI || !AllowMerge ||
         ET.isa<LLVM::LLVMPointerType, LLVM::LLVMArrayType,
                LLVM::LLVMFunctionType, LLVM::LLVMStructType>())
-      return LLVM::LLVMArrayType::get(ET, (Size == -1) ? 0 : Size);
+      return LLVM::LLVMArrayType::get(
+          ET, (Size == ShapedType::kDynamicSize) ? 0 : Size);
     if (ImplicitRef)
       *ImplicitRef = true;
     return mlir::MemRefType::get(
@@ -1504,7 +1505,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
   }
 
   if (isa<clang::PointerType, clang::ReferenceType>(T)) {
-    int64_t Outer = -1;
+    int64_t Outer = ShapedType::kDynamicSize;
     auto PointeeType = isa<clang::PointerType>(T)
                            ? cast<clang::PointerType>(T)->getPointeeType()
                            : cast<clang::ReferenceType>(T)->getPointeeType();
@@ -1626,7 +1627,8 @@ mlir::Type CodeGenTypes::getPointerOrMemRefType(mlir::Type Ty,
     IsSYCLType |= any_of(ST.getBody(), mlir::sycl::isSYCLType);
 
   if (!ST || IsSYCLType)
-    return mlir::MemRefType::get(IsAlloc ? 1 : -1, Ty, {}, AddressSpace);
+    return mlir::MemRefType::get(IsAlloc ? 1 : ShapedType::kDynamicSize, Ty, {},
+                                 AddressSpace);
 
   return LLVM::LLVMPointerType::get(Ty, AddressSpace);
 }

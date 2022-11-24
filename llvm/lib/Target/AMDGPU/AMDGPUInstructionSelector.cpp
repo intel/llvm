@@ -465,7 +465,7 @@ bool AMDGPUInstructionSelector::selectG_AMDGPU_MAD_64_32(
   const bool IsUnsigned = I.getOpcode() == AMDGPU::G_AMDGPU_MAD_U64_U32;
 
   unsigned Opc;
-  if (Subtarget->getGeneration() == AMDGPUSubtarget::GFX11)
+  if (Subtarget->hasMADIntraFwdBug())
     Opc = IsUnsigned ? AMDGPU::V_MAD_U64_U32_gfx11_e64
                      : AMDGPU::V_MAD_I64_I32_gfx11_e64;
   else
@@ -560,11 +560,11 @@ bool AMDGPUInstructionSelector::selectG_FMA_FMAD(MachineInstr &I) const {
   MachineInstr *MixInst =
       BuildMI(*I.getParent(), I, I.getDebugLoc(), TII.get(OpC), Dst)
           .addImm(Src0Mods)
-          .addReg(Src0)
+          .addReg(copyToVGPRIfSrcFolded(Src0, Src0Mods, I.getOperand(1), &I))
           .addImm(Src1Mods)
-          .addReg(Src1)
+          .addReg(copyToVGPRIfSrcFolded(Src1, Src1Mods, I.getOperand(2), &I))
           .addImm(Src2Mods)
-          .addReg(Src2)
+          .addReg(copyToVGPRIfSrcFolded(Src2, Src2Mods, I.getOperand(3), &I))
           .addImm(0)
           .addImm(0)
           .addImm(0);
@@ -2267,6 +2267,29 @@ bool AMDGPUInstructionSelector::selectG_SZA_EXT(MachineInstr &I) const {
       return RBI.constrainGenericRegister(DstReg, AMDGPU::SReg_32RegClass, *MRI);
     }
 
+    // Using a single 32-bit SALU to calculate the high half is smaller than
+    // S_BFE with a literal constant operand.
+    if (DstSize > 32 && SrcSize == 32) {
+      Register HiReg = MRI->createVirtualRegister(&AMDGPU::SReg_32RegClass);
+      unsigned SubReg = InReg ? AMDGPU::sub0 : AMDGPU::NoSubRegister;
+      if (Signed) {
+        BuildMI(MBB, I, DL, TII.get(AMDGPU::S_ASHR_I32), HiReg)
+          .addReg(SrcReg, 0, SubReg)
+          .addImm(31);
+      } else {
+        BuildMI(MBB, I, DL, TII.get(AMDGPU::S_MOV_B32), HiReg)
+          .addImm(0);
+      }
+      BuildMI(MBB, I, DL, TII.get(AMDGPU::REG_SEQUENCE), DstReg)
+        .addReg(SrcReg, 0, SubReg)
+        .addImm(AMDGPU::sub0)
+        .addReg(HiReg)
+        .addImm(AMDGPU::sub1);
+      I.eraseFromParent();
+      return RBI.constrainGenericRegister(DstReg, AMDGPU::SReg_64RegClass,
+                                          *MRI);
+    }
+
     const unsigned BFE64 = Signed ? AMDGPU::S_BFE_I64 : AMDGPU::S_BFE_U64;
     const unsigned BFE32 = Signed ? AMDGPU::S_BFE_I32 : AMDGPU::S_BFE_U32;
 
@@ -2275,7 +2298,7 @@ bool AMDGPUInstructionSelector::selectG_SZA_EXT(MachineInstr &I) const {
       // We need a 64-bit register source, but the high bits don't matter.
       Register ExtReg = MRI->createVirtualRegister(&AMDGPU::SReg_64RegClass);
       Register UndefReg = MRI->createVirtualRegister(&AMDGPU::SReg_32RegClass);
-      unsigned SubReg = InReg ? AMDGPU::sub0 : 0;
+      unsigned SubReg = InReg ? AMDGPU::sub0 : AMDGPU::NoSubRegister;
 
       BuildMI(MBB, I, DL, TII.get(AMDGPU::IMPLICIT_DEF), UndefReg);
       BuildMI(MBB, I, DL, TII.get(AMDGPU::REG_SEQUENCE), ExtReg)
@@ -3387,9 +3410,8 @@ AMDGPUInstructionSelector::selectVCSRC(MachineOperand &Root) const {
 }
 
 std::pair<Register, unsigned> AMDGPUInstructionSelector::selectVOP3ModsImpl(
-    MachineOperand &Root, bool AllowAbs, bool OpSel, bool ForceVGPR) const {
+    MachineOperand &Root, bool AllowAbs, bool OpSel) const {
   Register Src = Root.getReg();
-  Register OrigSrc = Src;
   unsigned Mods = 0;
   MachineInstr *MI = getDefIgnoringCopies(Src, *MRI);
 
@@ -3407,21 +3429,26 @@ std::pair<Register, unsigned> AMDGPUInstructionSelector::selectVOP3ModsImpl(
   if (OpSel)
     Mods |= SISrcMods::OP_SEL_0;
 
+  return std::make_pair(Src, Mods);
+}
+
+Register AMDGPUInstructionSelector::copyToVGPRIfSrcFolded(
+    Register Src, unsigned Mods, MachineOperand Root, MachineInstr *InsertPt,
+    bool ForceVGPR) const {
   if ((Mods != 0 || ForceVGPR) &&
       RBI.getRegBank(Src, *MRI, TRI)->getID() != AMDGPU::VGPRRegBankID) {
-    MachineInstr *UseMI = Root.getParent();
 
     // If we looked through copies to find source modifiers on an SGPR operand,
     // we now have an SGPR register source. To avoid potentially violating the
     // constant bus restriction, we need to insert a copy to a VGPR.
-    Register VGPRSrc = MRI->cloneVirtualRegister(OrigSrc);
-    BuildMI(*UseMI->getParent(), UseMI, UseMI->getDebugLoc(),
+    Register VGPRSrc = MRI->cloneVirtualRegister(Root.getReg());
+    BuildMI(*InsertPt->getParent(), InsertPt, InsertPt->getDebugLoc(),
             TII.get(AMDGPU::COPY), VGPRSrc)
-      .addReg(Src);
+        .addReg(Src);
     Src = VGPRSrc;
   }
 
-  return std::make_pair(Src, Mods);
+  return Src;
 }
 
 ///
@@ -3441,7 +3468,9 @@ AMDGPUInstructionSelector::selectVOP3Mods0(MachineOperand &Root) const {
   std::tie(Src, Mods) = selectVOP3ModsImpl(Root);
 
   return {{
-      [=](MachineInstrBuilder &MIB) { MIB.addReg(Src); },
+      [=](MachineInstrBuilder &MIB) {
+        MIB.addReg(copyToVGPRIfSrcFolded(Src, Mods, Root, MIB));
+      },
       [=](MachineInstrBuilder &MIB) { MIB.addImm(Mods); }, // src0_mods
       [=](MachineInstrBuilder &MIB) { MIB.addImm(0); },    // clamp
       [=](MachineInstrBuilder &MIB) { MIB.addImm(0); }     // omod
@@ -3455,7 +3484,9 @@ AMDGPUInstructionSelector::selectVOP3BMods0(MachineOperand &Root) const {
   std::tie(Src, Mods) = selectVOP3ModsImpl(Root, /* AllowAbs */ false);
 
   return {{
-      [=](MachineInstrBuilder &MIB) { MIB.addReg(Src); },
+      [=](MachineInstrBuilder &MIB) {
+        MIB.addReg(copyToVGPRIfSrcFolded(Src, Mods, Root, MIB));
+      },
       [=](MachineInstrBuilder &MIB) { MIB.addImm(Mods); }, // src0_mods
       [=](MachineInstrBuilder &MIB) { MIB.addImm(0); },    // clamp
       [=](MachineInstrBuilder &MIB) { MIB.addImm(0); }     // omod
@@ -3478,8 +3509,10 @@ AMDGPUInstructionSelector::selectVOP3Mods(MachineOperand &Root) const {
   std::tie(Src, Mods) = selectVOP3ModsImpl(Root);
 
   return {{
-      [=](MachineInstrBuilder &MIB) { MIB.addReg(Src); },
-      [=](MachineInstrBuilder &MIB) { MIB.addImm(Mods); }  // src_mods
+      [=](MachineInstrBuilder &MIB) {
+        MIB.addReg(copyToVGPRIfSrcFolded(Src, Mods, Root, MIB));
+      },
+      [=](MachineInstrBuilder &MIB) { MIB.addImm(Mods); } // src_mods
   }};
 }
 
@@ -3490,7 +3523,9 @@ AMDGPUInstructionSelector::selectVOP3BMods(MachineOperand &Root) const {
   std::tie(Src, Mods) = selectVOP3ModsImpl(Root, /* AllowAbs */ false);
 
   return {{
-      [=](MachineInstrBuilder &MIB) { MIB.addReg(Src); },
+      [=](MachineInstrBuilder &MIB) {
+        MIB.addReg(copyToVGPRIfSrcFolded(Src, Mods, Root, MIB));
+      },
       [=](MachineInstrBuilder &MIB) { MIB.addImm(Mods); } // src_mods
   }};
 }
@@ -3598,17 +3633,23 @@ AMDGPUInstructionSelector::selectVOP3Mods_nnan(MachineOperand &Root) const {
     return None;
 
   return {{
-      [=](MachineInstrBuilder &MIB) { MIB.addReg(Src); },
-      [=](MachineInstrBuilder &MIB) { MIB.addImm(Mods); }  // src_mods
+      [=](MachineInstrBuilder &MIB) {
+        MIB.addReg(copyToVGPRIfSrcFolded(Src, Mods, Root, MIB));
+      },
+      [=](MachineInstrBuilder &MIB) { MIB.addImm(Mods); } // src_mods
   }};
 }
 
 InstructionSelector::ComplexRendererFns
 AMDGPUInstructionSelector::selectVOP3OpSelMods(MachineOperand &Root) const {
+  Register Src;
+  unsigned Mods;
+  std::tie(Src, Mods) = selectVOP3ModsImpl(Root);
+
   // FIXME: Handle op_sel
   return {{
-      [=](MachineInstrBuilder &MIB) { MIB.addReg(Root.getReg()); },
-      [=](MachineInstrBuilder &MIB) { MIB.addImm(0); } // src_mods
+      [=](MachineInstrBuilder &MIB) { MIB.addReg(Src); },
+      [=](MachineInstrBuilder &MIB) { MIB.addImm(Mods); } // src_mods
   }};
 }
 
@@ -3618,11 +3659,13 @@ AMDGPUInstructionSelector::selectVINTERPMods(MachineOperand &Root) const {
   unsigned Mods;
   std::tie(Src, Mods) = selectVOP3ModsImpl(Root,
                                            /* AllowAbs */ false,
-                                           /* OpSel */ false,
-                                           /* ForceVGPR */ true);
+                                           /* OpSel */ false);
 
   return {{
-      [=](MachineInstrBuilder &MIB) { MIB.addReg(Src); },
+      [=](MachineInstrBuilder &MIB) {
+        MIB.addReg(
+            copyToVGPRIfSrcFolded(Src, Mods, Root, MIB, /* ForceVGPR */ true));
+      },
       [=](MachineInstrBuilder &MIB) { MIB.addImm(Mods); }, // src0_mods
   }};
 }
@@ -3633,11 +3676,13 @@ AMDGPUInstructionSelector::selectVINTERPModsHi(MachineOperand &Root) const {
   unsigned Mods;
   std::tie(Src, Mods) = selectVOP3ModsImpl(Root,
                                            /* AllowAbs */ false,
-                                           /* OpSel */ true,
-                                           /* ForceVGPR */ true);
+                                           /* OpSel */ true);
 
   return {{
-      [=](MachineInstrBuilder &MIB) { MIB.addReg(Src); },
+      [=](MachineInstrBuilder &MIB) {
+        MIB.addReg(
+            copyToVGPRIfSrcFolded(Src, Mods, Root, MIB, /* ForceVGPR */ true));
+      },
       [=](MachineInstrBuilder &MIB) { MIB.addImm(Mods); }, // src0_mods
   }};
 }

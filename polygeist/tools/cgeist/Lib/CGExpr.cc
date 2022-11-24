@@ -205,7 +205,7 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
           if (Shape.size() > 1)
             Shape.erase(Shape.begin());
           else
-            Shape[0] = -1;
+            Shape[0] = ShapedType::kDynamicSize;
           auto MT0 = mlir::MemRefType::get(Shape, MT.getElementType(),
                                            MemRefLayoutAttrInterface(),
                                            MT.getMemorySpace());
@@ -219,7 +219,7 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
         if (auto MT = ToInit.getType().dyn_cast<MemRefType>()) {
           auto Shape = MT.getShape();
           assert(Shape.size() > 0);
-          assert(Shape[0] != -1);
+          assert(Shape[0] != ShapedType::kDynamicSize);
           Num = Shape[0];
         } else if (auto PT =
                        ToInit.getType().dyn_cast<LLVM::LLVMPointerType>()) {
@@ -248,7 +248,7 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
         if (auto MT = ToInit.getType().dyn_cast<MemRefType>()) {
           auto Shape = std::vector<int64_t>(MT.getShape());
           assert(!Shape.empty());
-          Shape[0] = -1;
+          Shape[0] = ShapedType::kDynamicSize;
 
           if (MT.getElementType()
                   .isa<mlir::sycl::AccessorType,
@@ -578,7 +578,7 @@ ValueCategory MLIRScanner::VisitLambdaExpr(clang::LambdaExpr *Expr) {
 
       if (auto MT = Val.getType().dyn_cast<MemRefType>()) {
         auto Shape = std::vector<int64_t>(MT.getShape());
-        Shape[0] = -1;
+        Shape[0] = ShapedType::kDynamicSize;
         Val = Builder.create<memref::CastOp>(
             Loc,
             MemRefType::get(Shape, MT.getElementType(),
@@ -1818,7 +1818,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
       //nex.dump();
       assert(0);
     }
-    shape2[0] = -1;
+    shape2[0] = ShapedType::kDynamicSize;
     auto nex = mlir::MemRefType::get(shape2, mt.getElementType(),
                                      mt.getLayout(), mt.getMemorySpace());
     auto cst = Builder.create<mlir::MemRefCastOp>(Loc, Scalar.val, nex);
