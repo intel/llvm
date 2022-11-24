@@ -96,7 +96,6 @@ static Type getI1SameShape(Type type) {
   return i1Type;
 }
 
-#if 0
 namespace {
 
 class LLVMInlinerInterface : public DialectInlinerInterface {
@@ -111,7 +110,6 @@ public:
 };
 
 } // namespace
-#endif
 
 //===----------------------------------------------------------------------===//
 // Printing, parsing and builder for LLVM::CmpOp.
@@ -2617,9 +2615,7 @@ void LLVMDialect::initialize() {
   // Support unknown operations because not all LLVM operations are registered.
   allowUnknownOperations();
   addInterfaces<LLVMOpAsmDialectInterface>();
-#if 0
   addInterfaces<LLVMInlinerInterface>();
-#endif
 }
 
 #define GET_OP_CLASSES

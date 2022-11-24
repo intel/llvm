@@ -17,9 +17,6 @@
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/Transforms/InliningUtils.h"
 
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Debug.h"
-
 //===----------------------------------------------------------------------===//
 // SYCL Dialect Interfaces
 //===----------------------------------------------------------------------===//
@@ -40,14 +37,7 @@ public:
   /// allow inlining only SYCLCallOp operations.
   bool isLegalToInline(mlir::Operation *Call, mlir::Operation *Callable,
                        bool WouldBeCloned) const final {
-    bool IsSYCLCall = mlir::isa<mlir::sycl::SYCLCallOp>(Call);
-    DEBUG_WITH_TYPE("inlining", {
-      if (!IsSYCLCall)
-        llvm::dbgs() << "Cannot yet inline " << *Call << "\n";
-      llvm::dbgs() << "Is legal to inline " << *Call << "\n";
-    });
-
-    return IsSYCLCall;
+    return mlir::isa<mlir::sycl::SYCLCallOp>(Call);
   }
 
   /// This hook checks whether is legal to inline the \p Op operation into the
@@ -55,11 +45,6 @@ public:
   bool isLegalToInline(mlir::Operation *Op, mlir::Region *Dest,
                        bool WouldBeCloned,
                        mlir::BlockAndValueMapping &ValueMapping) const final {
-    DEBUG_WITH_TYPE("inlining", {
-      llvm::dbgs() << "Is legal to inline " << *Op << " into region rooted by "
-                   << *Dest->getParentOp() << "\n";
-    });
-
     return true;
   }
 
@@ -76,11 +61,6 @@ public:
   materializeCallConversion(mlir::OpBuilder &Builder, mlir::Value Input,
                             mlir::Type ResultType,
                             mlir::Location ConversionLoc) const final {
-    DEBUG_WITH_TYPE("inlining", {
-      llvm::dbgs() << "Injecting cast for " << Input << ", casting to "
-                   << ResultType << "\n";
-    });
-
     return Builder.create<mlir::sycl::SYCLCastOp>(ConversionLoc, ResultType,
                                                   Input);
   }
