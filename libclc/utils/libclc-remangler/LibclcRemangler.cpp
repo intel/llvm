@@ -309,7 +309,7 @@ private:
       auto &II = ContextAST->Idents.get(Name);
       auto *TTPD = TemplateTypeParmDecl::Create(
           *ContextAST, FDSpecialization->getDeclContext(), SourceLocation(),
-          SourceLocation(), 0, TemplateIndex, &II, /* Typenaem */ true,
+          SourceLocation(), 0, TemplateIndex, &II, /* Typename */ true,
           /*ParameterPack*/ false);
       TTPD->setDefaultArgument(
           ContextAST->getTrivialTypeSourceInfo(TemplateArgQT));
