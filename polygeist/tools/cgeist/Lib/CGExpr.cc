@@ -2648,9 +2648,10 @@ ValueCategory MLIRScanner::EmitCheckedInBoundsPtrOffsetOp(mlir::Type ElemTy,
                      }) &&
          "Expecting indices list");
 
-  if (Optional<Value> NewValue =
-          castSubIndexOpIndex(Builder, Loc, Pointer, IdxList, IsSigned))
-    IdxList = *NewValue;
+  Optional<Value> NewValue =
+      castSubIndexOpIndex(Builder, Loc, Pointer, IdxList, IsSigned);
+  if (NewValue.has_value())
+    IdxList = NewValue.value();
 
   return Pointer.InBoundsGEPOrSubIndex(Builder, Loc, ElemTy, IdxList);
 }
