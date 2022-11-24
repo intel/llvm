@@ -145,13 +145,14 @@ mlir::sycl::accAddressModeModeAsString(mlir::sycl::AccessAddrSpace AccAddress) {
 mlir::LogicalResult mlir::sycl::parseAccessAddrSpace(
     mlir::AsmParser &Parser,
     mlir::FailureOr<mlir::sycl::AccessAddrSpace> &AccAddress) {
-  
+
   int AddSpaceInt;
   if (Parser.parseInteger<int>(AddSpaceInt)) {
     return mlir::ParseResult::failure();
   }
 
-  assert((0 <= AddSpaceInt <= 6) && "Expecting address space value between 0 and 6 (inclusive)");
+  assert((0 <= AddSpaceInt <= 6) &&
+         "Expecting address space value between 0 and 6 (inclusive)");
 
   AccAddress.emplace(static_cast<mlir::sycl::AccessAddrSpace>(AddSpaceInt));
   return mlir::ParseResult::success();
