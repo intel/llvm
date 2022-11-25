@@ -121,7 +121,7 @@ void mlir::sycl::printMemoryTargetMode(AsmPrinter &Printer,
 }
 
 std::string
-mlir::sycl::accAddressModeAsString(mlir::sycl::AccessAddrSpace AccAddress) {
+mlir::sycl::accessAddressSpaceAsString(mlir::sycl::AccessAddrSpace AccAddress) {
   return std::to_string((int)AccAddress);
 }
 
@@ -143,7 +143,7 @@ mlir::LogicalResult mlir::sycl::parseAccessAddrSpace(
 
 void mlir::sycl::printAccessAddrSpace(AsmPrinter &Printer,
                                       AccessAddrSpace AccAddress) {
-  Printer << accAddressModeAsString(AccAddress);
+  Printer << accessAddressSpaceAsString(AccAddress);
 }
 
 llvm::SmallVector<mlir::TypeID>

@@ -65,7 +65,7 @@ LogicalResult parseMemoryTargetMode(AsmParser &Parser,
                                     FailureOr<MemoryTargetMode> &MemTargetMode);
 void printMemoryTargetMode(AsmPrinter &Printer, MemoryTargetMode MemTargetMode);
 
-std::string accAddressModeAsString(mlir::sycl::AccessAddrSpace AccAddress);
+std::string accessAddressSpaceAsString(mlir::sycl::AccessAddrSpace AccAddress);
 LogicalResult parseAccessAddrSpace(AsmParser &Parser,
                                    FailureOr<AccessAddrSpace> &AccAddress);
 void printAccessAddrSpace(AsmPrinter &Printer, AccessAddrSpace AccAddress);
