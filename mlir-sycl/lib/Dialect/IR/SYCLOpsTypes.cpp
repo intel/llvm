@@ -134,7 +134,7 @@ mlir::LogicalResult mlir::sycl::parseAccessAddrSpace(
     return mlir::ParseResult::failure();
   }
 
-  assert((0 <= AddSpaceInt <= 6) &&
+  assert(0 <= AddSpaceInt && AddSpaceInt <= 6 &&
          "Expecting address space value between 0 and 6 (inclusive)");
 
   AccAddress.emplace(static_cast<mlir::sycl::AccessAddrSpace>(AddSpaceInt));
