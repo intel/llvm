@@ -927,6 +927,26 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *Cons,
 
 ValueCategory
 MLIRScanner::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *Expr) {
+  LLVM_DEBUG({
+    llvm::dbgs() << "VisitArraySubscriptExpr: ";
+    Expr->dump();
+    llvm::dbgs() << "\n";
+  });
+
+  assert(!Expr->getBase()->getType()->isVLSTBuiltinType() &&
+         "Not supported yet");
+
+  if (Expr->getBase()->getType()->isVectorType()) {
+    // Handle the vector case.
+    ValueCategory Base{Visit(Expr->getBase()).getValue(Builder), false};
+    auto Idx = Visit(Expr->getIdx());
+
+    mlirclang::warning() << "Not emitting bounds check\n";
+
+    return Base.ExtractElement(Builder, getMLIRLocation(Expr->getExprLoc()),
+                               Idx.val);
+  }
+
   auto Moo = Visit(Expr->getLHS());
 
   auto RHS = Visit(Expr->getRHS()).getValue(Builder);

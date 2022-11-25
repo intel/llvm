@@ -781,6 +781,14 @@ ValueCategory ValueCategory::Extract(OpBuilder &Builder, Location Loc,
   return {Builder.createOrFold<vector::ExtractOp>(Loc, val, Indices), false};
 }
 
+ValueCategory ValueCategory::ExtractElement(OpBuilder &Builder, Location Loc,
+                                            Value Idx) const {
+  assert(Idx.getType().isa<IntegerType>() && "Index must be an integer");
+  assert(val.getType().isa<VectorType>() && "Expecting vector type");
+
+  return {Builder.createOrFold<vector::ExtractElementOp>(Loc, val, Idx), false};
+}
+
 ValueCategory ValueCategory::Shuffle(OpBuilder &Builder, Location Loc, Value V2,
                                      llvm::ArrayRef<int64_t> Indices) const {
   assert(val.getType().isa<VectorType>() && "Expecting vector type");
