@@ -353,89 +353,88 @@ ValueCategory MLIRScanner::VisitPredefinedExpr(clang::PredefinedExpr *Expr) {
   return VisitStringLiteral(Expr->getFunctionName());
 }
 
-ValueCategory MLIRScanner::VisitInitListExpr(clang::InitListExpr *E) {
+ValueCategory MLIRScanner::VisitInitListExpr(clang::InitListExpr *Expr) {
   LLVM_DEBUG({
     llvm::dbgs() << "VisitInitListExpr: ";
-    E->dump();
+    Expr->dump();
     llvm::dbgs() << "\n";
   });
 
-  assert(!E->hadArrayRangeDesignator() && "Unsupported");
+  assert(!Expr->hadArrayRangeDesignator() && "Unsupported");
 
-  const auto Loc = getMLIRLocation(E->getExprLoc());
+  const auto Loc = getMLIRLocation(Expr->getExprLoc());
 
-  auto VType =
-      Glob.getTypes().getMLIRType(E->getType()).dyn_cast<mlir::VectorType>();
-  if (!VType) {
-    mlir::Type SubType = Glob.getTypes().getMLIRType(E->getType());
-    bool IsArray = false;
-    bool LLVMABI = false;
+  if (auto VType = Glob.getTypes()
+                       .getMLIRType(Expr->getType())
+                       .dyn_cast<mlir::VectorType>()) {
+    int64_t ResElts = VType.getNumElements();
 
-    if (Glob.getTypes()
-            .getMLIRType(
-                Glob.getCGM().getContext().getLValueReferenceType(E->getType()))
-            .isa<mlir::LLVM::LLVMPointerType>()) {
-      LLVMABI = true;
-    } else {
-      Glob.getTypes().getMLIRType(E->getType(), &IsArray);
-      if (IsArray)
-        SubType = Glob.getTypes().getMLIRType(
-            Glob.getCGM().getContext().getLValueReferenceType(E->getType()));
+    int64_t CurIdx = 0;
+    auto V = ValueCategory::getNullValue(Builder, Loc, VType);
+    for (auto *IE : Expr->children()) {
+      ValueCategory Init = Visit(IE);
+      SmallVector<int64_t> Args;
+
+      auto VVT = Init.val.getType().dyn_cast<mlir::VectorType>();
+
+      // Handle scalar elements.
+      if (!VVT) {
+        V = V.Insert(Builder, Loc, Init.val, CurIdx);
+        ++CurIdx;
+        continue;
+      }
+
+      int64_t InitElts = VVT.getNumElements();
+
+      int64_t Offset = (CurIdx == 0) ? 0 : ResElts;
+
+      // Extend init to result vector length, and then shuffle its contribution
+      // to the vector initializer into V.
+      if (Args.empty()) {
+        for (int64_t J = 0; J != InitElts; ++J)
+          Args.push_back(J);
+        Args.resize(ResElts, -1);
+        Init = Init.Shuffle(
+            Builder, Loc,
+            Builder.createOrFold<LLVM::UndefOp>(Loc, Init.val.getType()), Args);
+
+        Args.clear();
+        for (int64_t J = 0; J != CurIdx; ++J)
+          Args.push_back(J);
+        for (int64_t J = 0; J != InitElts; ++J)
+          Args.push_back(J + Offset);
+        Args.resize(ResElts, -1);
+      }
+
+      // If V is undef, make sure it ends up on the RHS of the shuffle to aid
+      // merging subsequent shuffles into this one.
+      if (CurIdx == 0)
+        std::swap(V, Init);
+      V = V.Shuffle(Builder, Loc, Init.val, Args);
+      CurIdx += InitElts;
     }
 
-    auto Op = createAllocOp(SubType, nullptr, /*memtype*/ 0, IsArray, LLVMABI);
-    InitializeValueByInitListExpr(Op, E);
-    return ValueCategory(Op, true);
+    return V;
   }
 
-  int64_t ResElts = VType.getNumElements();
+  mlir::Type SubType = Glob.getTypes().getMLIRType(Expr->getType());
+  bool IsArray = false;
+  bool LLVMABI = false;
 
-  int64_t CurIdx = 0;
-  auto V = ValueCategory::getNullValue(Builder, Loc, VType);
-  for (auto *IE : E->children()) {
-    ValueCategory Init = Visit(IE);
-    SmallVector<int64_t> Args;
-
-    auto VVT = Init.val.getType().dyn_cast<mlir::VectorType>();
-
-    // Handle scalar elements.
-    if (!VVT) {
-      V = V.Insert(Builder, Loc, Init.val, CurIdx);
-      ++CurIdx;
-      continue;
-    }
-
-    int64_t InitElts = VVT.getNumElements();
-
-    int64_t Offset = (CurIdx == 0) ? 0 : ResElts;
-
-    // Extend init to result vector length, and then shuffle its contribution
-    // to the vector initializer into V.
-    if (Args.empty()) {
-      for (int64_t J = 0; J != InitElts; ++J)
-        Args.push_back(J);
-      Args.resize(ResElts, -1);
-      Init = Init.Shuffle(
-          Builder, Loc,
-          Builder.createOrFold<LLVM::UndefOp>(Loc, Init.val.getType()), Args);
-
-      Args.clear();
-      for (int64_t J = 0; J != CurIdx; ++J)
-        Args.push_back(J);
-      for (int64_t J = 0; J != InitElts; ++J)
-        Args.push_back(J + Offset);
-      Args.resize(ResElts, -1);
-    }
-
-    // If V is undef, make sure it ends up on the RHS of the shuffle to aid
-    // merging subsequent shuffles into this one.
-    if (CurIdx == 0)
-      std::swap(V, Init);
-    V = V.Shuffle(Builder, Loc, Init.val, Args);
-    CurIdx += InitElts;
+  if (Glob.getTypes()
+          .getMLIRType(Glob.getCGM().getContext().getLValueReferenceType(
+              Expr->getType()))
+          .isa<mlir::LLVM::LLVMPointerType>())
+    LLVMABI = true;
+  else {
+    Glob.getTypes().getMLIRType(Expr->getType(), &IsArray);
+    if (IsArray)
+      SubType = Glob.getTypes().getMLIRType(
+          Glob.getCGM().getContext().getLValueReferenceType(Expr->getType()));
   }
-
-  return V;
+  auto Op = createAllocOp(SubType, nullptr, /*memtype*/ 0, IsArray, LLVMABI);
+  InitializeValueByInitListExpr(Op, Expr);
+  return ValueCategory(Op, true);
 }
 
 ValueCategory MLIRScanner::VisitCXXStdInitializerListExpr(
