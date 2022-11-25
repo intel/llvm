@@ -269,43 +269,6 @@ typedef struct _ur_rect_region_t
 
 } ur_rect_region_t;
 
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Forward-declare ur_base_properties_t
-typedef struct _ur_base_properties_t ur_base_properties_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Forward-declare ur_base_desc_t
-typedef struct _ur_base_desc_t ur_base_desc_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Forward-declare ur_rect_offset_t
-typedef struct _ur_rect_offset_t ur_rect_offset_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Forward-declare ur_rect_region_t
-typedef struct _ur_rect_region_t ur_rect_region_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Forward-declare ur_image_format_t
-typedef struct _ur_image_format_t ur_image_format_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Forward-declare ur_image_desc_t
-typedef struct _ur_image_desc_t ur_image_desc_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Forward-declare ur_buffer_region_t
-typedef struct _ur_buffer_region_t ur_buffer_region_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Forward-declare ur_sampler_property_value_t
-typedef struct _ur_sampler_property_value_t ur_sampler_property_value_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Forward-declare ur_device_partition_property_value_t
-typedef struct _ur_device_partition_property_value_t ur_device_partition_property_value_t;
-
-
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
