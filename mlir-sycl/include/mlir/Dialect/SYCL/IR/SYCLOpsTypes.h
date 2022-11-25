@@ -48,9 +48,9 @@ enum class AccessAddrSpace : int {
   Global = 1,
   Constant = 2,
   Local = 3,
-  ExtIntelGlobalDevice = 5,
-  ExtIntelHost = 6,
   Generic = 4,
+  ExtIntelGlobalDevice = 5,
+  ExtIntelHost = 6
 };
 
 llvm::StringRef

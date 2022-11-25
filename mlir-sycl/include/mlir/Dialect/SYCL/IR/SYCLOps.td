@@ -197,8 +197,9 @@ def SYCL_VecType : SYCL_Type<"Vec", "vec"> {
 
 def SYCL_AtomicType : SYCL_Type<"Atomic", "atomic"> {
   let parameters = (ins "::mlir::Type":$dataType,
-                        "mlir::sycl::AccessAddrSpace":$addrSpace);
-  let assemblyFormat = "`<` `[` $dataType `,` custom<AccessAddrSpace>($addrSpace) `]` `>`";
+                        "mlir::sycl::AccessAddrSpace":$addrSpace,
+                        "llvm::SmallVector<mlir::Type, 4>":$body);
+  let assemblyFormat = "`<` `[` $dataType `,` custom<AccessAddrSpace>($addrSpace) `]` `,` `(` $body `)` `>`";
 }
 
 def IDMemRef : MemRefOf<[SYCL_IDType]>;
