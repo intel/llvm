@@ -5,12 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// TODO: This pass is only necessary because the main inlining pass
-// has not abstracted away the call+callee relationship. When the inlining
-// interface has this support, this pass should be removed.
-//
-//===----------------------------------------------------------------------===//
 
 #include "mlir/Analysis/CallGraph.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -37,11 +31,6 @@ namespace mlir {
 
 using namespace mlir;
 
-/// This function implements the default inliner optimization pipeline.
-static void defaultInlinerOptPipeline(OpPassManager &PM) {
-  PM.addPass(createCanonicalizerPass());
-}
-
 namespace {
 
 /// This struct represents a resolved call to a given call graph node. Given
@@ -53,8 +42,8 @@ class ResolvedCall {
                                        const ResolvedCall &);
 
 public:
-  ResolvedCall(CallOpInterface Call, CallGraphNode *SrcNode,
-               CallGraphNode *TgtNode)
+  ResolvedCall(CallOpInterface Call, const CallGraphNode *SrcNode,
+               const CallGraphNode *TgtNode)
       : Call(Call), SrcNode(SrcNode), TgtNode(TgtNode) {
     assert(SrcNode && "Expecting valid source node");
     assert(TgtNode && "Expecting valid target node");
@@ -71,7 +60,7 @@ public:
   }
 
   CallOpInterface Call;
-  CallGraphNode *SrcNode, *TgtNode;
+  const CallGraphNode *SrcNode, *TgtNode;
 };
 
 inline llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
@@ -181,14 +170,10 @@ protected:
   /// Attempt to inline calls within the given SCC.
   static void inlineCallsInSCC(Inliner &Inliner, CallGraphSCC &SCC);
 
-  /// Collect all of the callable operations within the given range of blocks.
-  /// If `traverseNestedCGNodes` is true, this will also collect call operations
-  /// inside of nested call graph nodes.
-  static void collectCallOps(iterator_range<Region::iterator> Blocks,
-                             CallGraphNode *SrcNode, CallGraph &CG,
+  /// Collect all of the callable operations within the given \p SrcNode.
+  static void collectCallOps(const CallGraphNode &SrcNode, const CallGraph &CG,
                              SymbolTableCollection &SymTable,
-                             SmallVectorImpl<ResolvedCall> &Calls,
-                             bool TraverseNestedCgNodes);
+                             SmallVectorImpl<ResolvedCall> &Calls);
 
   /// Returns true if the given call should be inlined.
   virtual bool shouldInline(ResolvedCall &ResolvedCall) const = 0;
@@ -220,11 +205,8 @@ protected:
 /// 'alwaysinline' attribute.
 class AlwaysInlinerPass : public impl::InlinerBase<AlwaysInlinerPass> {
 public:
-  AlwaysInlinerPass();
+  AlwaysInlinerPass() = default;
   AlwaysInlinerPass(const AlwaysInlinerPass &) = default;
-  AlwaysInlinerPass(std::function<void(OpPassManager &)> DefaultPipeline);
-  AlwaysInlinerPass(std::function<void(OpPassManager &)> DefaultPipeline,
-                    llvm::StringMap<OpPassManager> OpPipelines);
 
   /// Returns the command-line argument attached to this pass.
   llvm::StringRef getArgument() const final { return "always-inline"; }
@@ -240,17 +222,6 @@ public:
   }
 
   void runOnOperation() final;
-
-private:
-  /// An optional function that constructs a default optimization pipeline
-  /// for a given operation.
-  std::function<void(OpPassManager &)> DefaultPipeline;
-
-  /// A map of operation names to pass pipelines to use when optimizing
-  /// callable operations of these types. This provides a specialized
-  /// pipeline instead of the default. The vector size is the number of
-  /// threads used during optimization.
-  SmallVector<llvm::StringMap<OpPassManager>, 8> OpPipelines;
 };
 
 } // namespace
@@ -290,10 +261,8 @@ void Inliner::inlineCallsInSCC(Inliner &Inliner, CallGraphSCC &SCC) {
     if (SrcNode->isExternal())
       continue;
 
-    Inliner::collectCallOps(*SrcNode->getCallableRegion(), SrcNode,
-                            Inliner.getCG(), Inliner.getSymbolTable(),
-                            Inliner.getCalls(),
-                            /*traverseNestedCGNodes=*/false);
+    Inliner::collectCallOps(*SrcNode, Inliner.getCG(), Inliner.getSymbolTable(),
+                            Inliner.getCalls());
   }
 
   if (Inliner.getCalls().empty())
@@ -339,48 +308,23 @@ void Inliner::inlineCallsInSCC(Inliner &Inliner, CallGraphSCC &SCC) {
   Inliner.clear();
 }
 
-void Inliner::collectCallOps(iterator_range<Region::iterator> Blocks,
-                             CallGraphNode *SrcNode, CallGraph &CG,
+void Inliner::collectCallOps(const CallGraphNode &SrcNode, const CallGraph &CG,
                              SymbolTableCollection &SymTable,
-                             SmallVectorImpl<ResolvedCall> &Calls,
-                             bool TraverseNestedCgNodes) {
-  SmallVector<std::pair<Block *, CallGraphNode *>, 8> WorkList;
-  auto AddToWorkList = [&](CallGraphNode *CGN,
-                           iterator_range<Region::iterator> Blocks) {
-    for (Block &B : Blocks)
-      WorkList.emplace_back(&B, CGN);
-  };
-
-  AddToWorkList(SrcNode, Blocks);
-
-  while (!WorkList.empty()) {
-    Block *B;
-    std::tie(B, SrcNode) = WorkList.pop_back_val();
-
-    for (Operation &Op : *B) {
-      if (auto Call = dyn_cast<CallOpInterface>(Op)) {
-        CallInterfaceCallable Callable = Call.getCallableForCallee();
-        if (SymbolRefAttr SymRef = dyn_cast<SymbolRefAttr>(Callable)) {
-          if (!SymRef.isa<FlatSymbolRefAttr>())
-            continue;
-        }
-
-        CallGraphNode *TgtNode = CG.resolveCallable(Call, SymTable);
-        if (!TgtNode->isExternal())
-          Calls.emplace_back(Call, SrcNode, TgtNode);
-        continue;
+                             SmallVectorImpl<ResolvedCall> &Calls) {
+  SrcNode.getCallableRegion()->walk([&](Operation *Op) {
+    if (auto Call = dyn_cast<CallOpInterface>(Op)) {
+      CallInterfaceCallable Callable = Call.getCallableForCallee();
+      if (SymbolRefAttr SymRef = dyn_cast<SymbolRefAttr>(Callable)) {
+        if (!SymRef.isa<FlatSymbolRefAttr>())
+          return WalkResult::advance();
       }
 
-      // If this is not a call, traverse the nested regions. If
-      // `TraverseNestedCGNodes` is false, then don't traverse nested call graph
-      // regions.
-      for (auto &NestedRegion : Op.getRegions()) {
-        CallGraphNode *NestedNode = CG.lookupNode(&NestedRegion);
-        if (TraverseNestedCgNodes || !NestedNode)
-          AddToWorkList(NestedNode ? NestedNode : SrcNode, NestedRegion);
-      }
+      CallGraphNode *TgtNode = CG.resolveCallable(Call, SymTable);
+      if (!TgtNode->isExternal())
+        Calls.emplace_back(Call, &SrcNode, TgtNode);
     }
-  }
+    return WalkResult::advance();
+  });
 }
 
 //===----------------------------------------------------------------------===//
@@ -389,11 +333,6 @@ void Inliner::collectCallOps(iterator_range<Region::iterator> Blocks,
 
 /// Returns true if the given call should be inlined.
 bool AlwaysInliner::shouldInline(ResolvedCall &ResolvedCall) const {
-  // Don't allow inlining terminator calls. We currently don't support this
-  // case.
-  if (ResolvedCall.Call->hasTrait<OpTrait::IsTerminator>())
-    return false;
-
   // Don't allow inlining if the target is an ancestor of the call. This
   // prevents inlining recursively.
   if (ResolvedCall.TgtNode->getCallableRegion()->isAncestor(
@@ -420,34 +359,12 @@ bool AlwaysInliner::shouldInline(ResolvedCall &ResolvedCall) const {
 // AlwaysInlinerPass
 //===----------------------------------------------------------------------===//
 
-AlwaysInlinerPass::AlwaysInlinerPass()
-    : AlwaysInlinerPass(defaultInlinerOptPipeline) {}
-
-AlwaysInlinerPass::AlwaysInlinerPass(
-    std::function<void(OpPassManager &)> DefaultPipelineArg)
-    : DefaultPipeline(std::move(DefaultPipelineArg)) {
-  OpPipelines.push_back({});
-}
-
-AlwaysInlinerPass::AlwaysInlinerPass(
-    std::function<void(OpPassManager &)> DefaultPipeline,
-    llvm::StringMap<OpPassManager> OpPipelines)
-    : AlwaysInlinerPass(std::move(DefaultPipeline)) {
-  if (OpPipelines.empty())
-    return;
-
-  // Update the option for the op specific optimization pipelines.
-  for (auto &It : OpPipelines)
-    opPipelineList.addValue(It.second);
-  this->OpPipelines.emplace_back(std::move(OpPipelines));
-}
-
 void AlwaysInlinerPass::runOnOperation() {
   CallGraph &CG = getAnalysis<CallGraph>();
   auto *Ctx = &getContext();
 
   // The inliner should only be run on operations that define a symbol table,
-  // as the call graph  will need to resolve references.
+  // as the call graph will need to resolve references.
   Operation *Op = getOperation();
   if (!Op->hasTrait<OpTrait::SymbolTable>()) {
     Op->emitOpError() << " was scheduled to run under the inliner, but does "
