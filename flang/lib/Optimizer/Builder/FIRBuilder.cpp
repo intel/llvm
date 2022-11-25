@@ -271,6 +271,18 @@ fir::GlobalOp fir::FirOpBuilder::createGlobal(
   return glob;
 }
 
+fir::DispatchTableOp fir::FirOpBuilder::createDispatchTableOp(
+    mlir::Location loc, llvm::StringRef name, llvm::StringRef parentName) {
+  auto module = getModule();
+  auto insertPt = saveInsertionPoint();
+  if (auto dt = module.lookupSymbol<fir::DispatchTableOp>(name))
+    return dt;
+  setInsertionPoint(module.getBody(), module.getBody()->end());
+  auto dt = create<fir::DispatchTableOp>(loc, name, mlir::Type{}, parentName);
+  restoreInsertionPoint(insertPt);
+  return dt;
+}
+
 mlir::Value
 fir::FirOpBuilder::convertWithSemantics(mlir::Location loc, mlir::Type toTy,
                                         mlir::Value val,
@@ -591,6 +603,21 @@ void fir::FirOpBuilder::setFastMathFlags(
   }
   if (options.getNoHonorInfs()) {
     arithFMF = arithFMF | mlir::arith::FastMathFlags::ninf;
+  }
+  if (options.getNoHonorNaNs()) {
+    arithFMF = arithFMF | mlir::arith::FastMathFlags::nnan;
+  }
+  if (options.getApproxFunc()) {
+    arithFMF = arithFMF | mlir::arith::FastMathFlags::afn;
+  }
+  if (options.getNoSignedZeros()) {
+    arithFMF = arithFMF | mlir::arith::FastMathFlags::nsz;
+  }
+  if (options.getAssociativeMath()) {
+    arithFMF = arithFMF | mlir::arith::FastMathFlags::reassoc;
+  }
+  if (options.getReciprocalMath()) {
+    arithFMF = arithFMF | mlir::arith::FastMathFlags::arcp;
   }
   setFastMathFlags(arithFMF);
 }

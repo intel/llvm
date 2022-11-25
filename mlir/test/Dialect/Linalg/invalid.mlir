@@ -96,7 +96,7 @@ func.func @generic_wrong_dim_in_map(%arg0: memref<1xi32>) {
 // -----
 
 func.func @generic_wrong_iterator(%arg0: memref<1xi32>) {
-  // expected-error @+1 {{op unexpected iterator_type (random)}}
+  // expected-error @+4 {{unexpected iterator_type (random)}}
   linalg.generic {
     indexing_maps =  [ affine_map<(i) -> (i)> ],
     iterator_types = ["random"]}
@@ -724,19 +724,6 @@ func.func @broadcast_mapped_dim_mismatch(
       outs(%init:tensor<5x8x16xf32>)
       dimensions = [0, 2]
   func.return %bcast : tensor<5x8x16xf32>
-}
-
-// -----
-
-func.func @broadcast_added_dynamic_mismatch(
-    %input: tensor<4x16xf32>, %init: tensor<4x?x16xf32>)
-    -> tensor<4x?x16xf32> {
-  // expected-error @+1 {{'linalg.broadcast' op init dim 1 can't be dynamic, because it's not matched to input}}
-  %bcast = linalg.broadcast
-      ins(%input:tensor<4x16xf32>)
-      outs(%init:tensor<4x?x16xf32>)
-      dimensions = [0, 2]
-  func.return %bcast : tensor<4x?x16xf32>
 }
 
 // -----

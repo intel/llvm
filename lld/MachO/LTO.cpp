@@ -35,6 +35,8 @@ static lto::Config createConfig() {
   lto::Config c;
   c.Options = initTargetOptionsFromCodeGenFlags();
   c.Options.EmitAddrsig = config->icfLevel == ICFLevel::safe;
+  for (StringRef C : config->mllvmOpts)
+    c.MllvmArgs.emplace_back(C.str());
   c.CodeModel = getCodeModelFromCMModel();
   c.CPU = getCPUStr();
   c.MAttrs = getMAttrs();
@@ -141,7 +143,7 @@ std::vector<ObjFile *> BitcodeCompiler::compile() {
       cache));
 
   if (!config->thinLTOCacheDir.empty())
-    pruneCache(config->thinLTOCacheDir, config->thinLTOCachePolicy);
+    pruneCache(config->thinLTOCacheDir, config->thinLTOCachePolicy, files);
 
   // In ThinLTO mode, Clang passes a temporary directory in -object_path_lto,
   // while the argument is a single file in FullLTO mode.

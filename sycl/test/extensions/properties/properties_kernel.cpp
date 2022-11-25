@@ -26,7 +26,9 @@ using device_has_all =
              aspect::ext_oneapi_native_assert, aspect::host_debuggable,
              aspect::ext_intel_gpu_hw_threads_per_eu,
              aspect::ext_oneapi_cuda_async_barrier, aspect::ext_oneapi_bfloat16,
-             aspect::ext_intel_free_memory, aspect::ext_intel_device_id>);
+             aspect::ext_intel_free_memory, aspect::ext_intel_device_id,
+             aspect::ext_intel_memory_clock_rate,
+             aspect::ext_intel_memory_bus_width>);
 
 template <aspect Aspect> inline void singleAspectDeviceHasChecks() {
   static_assert(is_property_value<decltype(device_has<Aspect>)>::value);
@@ -120,6 +122,8 @@ int main() {
   singleAspectDeviceHasChecks<aspect::ext_oneapi_bfloat16>();
   singleAspectDeviceHasChecks<aspect::ext_intel_free_memory>();
   singleAspectDeviceHasChecks<aspect::ext_intel_device_id>();
+  singleAspectDeviceHasChecks<aspect::ext_intel_memory_clock_rate>();
+  singleAspectDeviceHasChecks<aspect::ext_intel_memory_bus_width>();
 
   static_assert(is_property_value<decltype(device_has<>)>::value);
   static_assert(std::is_same_v<device_has_key, decltype(device_has<>)::key_t>);
@@ -127,7 +131,7 @@ int main() {
 
   static_assert(is_property_value<device_has_all>::value);
   static_assert(std::is_same_v<device_has_key, device_has_all::key_t>);
-  static_assert(device_has_all::value.size() == 36);
+  static_assert(device_has_all::value.size() == 38);
   static_assert(device_has_all::value[0] == aspect::host);
   static_assert(device_has_all::value[1] == aspect::cpu);
   static_assert(device_has_all::value[2] == aspect::gpu);
@@ -174,6 +178,9 @@ int main() {
   static_assert(device_has_all::value[33] == aspect::ext_oneapi_bfloat16);
   static_assert(device_has_all::value[34] == aspect::ext_intel_free_memory);
   static_assert(device_has_all::value[35] == aspect::ext_intel_device_id);
-
+  static_assert(device_has_all::value[36] ==
+                aspect::ext_intel_memory_clock_rate);
+  static_assert(device_has_all::value[37] ==
+                aspect::ext_intel_memory_bus_width);
   return 0;
 }

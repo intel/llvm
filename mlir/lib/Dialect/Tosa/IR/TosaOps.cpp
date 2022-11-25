@@ -590,6 +590,12 @@ LogicalResult tosa::PadOp::inferReturnTypeComponents(
   return success();
 }
 
+static SmallVector<int64_t> convertToMlirShape(ArrayRef<int64_t> shape) {
+  return to_vector(llvm::map_range(shape, [](int64_t dim) {
+    return dim == -1 ? ShapedType::kDynamicSize : dim;
+  }));
+}
+
 LogicalResult tosa::SliceOp::inferReturnTypeComponents(
     MLIRContext *context, ::llvm::Optional<Location> location,
     ValueShapeRange operands, DictionaryAttr attributes, RegionRange regions,
@@ -601,7 +607,8 @@ LogicalResult tosa::SliceOp::inferReturnTypeComponents(
     outputShape.push_back(val.cast<IntegerAttr>().getValue().getSExtValue());
   }
 
-  inferredReturnShapes.push_back(ShapedTypeComponents(outputShape));
+  inferredReturnShapes.push_back(ShapedTypeComponents(
+    convertToMlirShape(outputShape)));
   return success();
 }
 
@@ -655,11 +662,6 @@ LogicalResult tosa::TileOp::inferReturnTypeComponents(
   return success();
 }
 
-static SmallVector<int64_t> ConvertToMlirShape(ArrayRef<int64_t> shape) {
-  return to_vector(llvm::map_range(shape, [](int64_t dim) {
-    return dim == -1 ? ShapedType::kDynamicSize : dim;
-  }));
-}
 
 LogicalResult tosa::ReshapeOp::inferReturnTypeComponents(
     MLIRContext *context, ::llvm::Optional<Location> location,
@@ -671,7 +673,7 @@ LogicalResult tosa::ReshapeOp::inferReturnTypeComponents(
   ArrayAttr newShape = adaptor.getNewShape();
   llvm::SmallVector<int64_t> newShapeValue;
   getI64Values(newShape, newShapeValue);
-  newShapeValue = ConvertToMlirShape(newShapeValue);
+  newShapeValue = convertToMlirShape(newShapeValue);
 
   // We cannot infer from the total number of elements so we must take the
   // shape attribute as exact.
@@ -1250,7 +1252,7 @@ LogicalResult TransposeConv2DOp::inferReturnTypeComponents(
   TransposeConv2DOp::Adaptor adaptor(operands.getValues(), attributes);
   llvm::SmallVector<int64_t> outputShape;
   getI64Values(adaptor.getOutShape(), outputShape);
-  outputShape = ConvertToMlirShape(outputShape);
+  outputShape = convertToMlirShape(outputShape);
 
   int64_t inputWidth = ShapedType::kDynamicSize;
   int64_t inputHeight = ShapedType::kDynamicSize;

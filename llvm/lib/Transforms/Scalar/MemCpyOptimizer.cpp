@@ -515,6 +515,8 @@ Instruction *MemCpyOptPass::tryMergingIntoMemset(Instruction *StartInst,
 
     AMemSet = Builder.CreateMemSet(StartPtr, ByteVal, Range.End - Range.Start,
                                    Range.Alignment);
+    AMemSet->mergeDIAssignID(Range.TheStores);
+
     LLVM_DEBUG(dbgs() << "Replace stores:\n"; for (Instruction *SI
                                                    : Range.TheStores) dbgs()
                                               << *SI << '\n';
@@ -752,6 +754,7 @@ bool MemCpyOptPass::processStore(StoreInst *SI, BasicBlock::iterator &BBI) {
             M = Builder.CreateMemCpy(
                 SI->getPointerOperand(), SI->getAlign(),
                 LI->getPointerOperand(), LI->getAlign(), Size);
+          M->copyMetadata(*SI, LLVMContext::MD_DIAssignID);
 
           LLVM_DEBUG(dbgs() << "Promoting " << *LI << " to " << *SI << " => "
                             << *M << "\n");
@@ -827,6 +830,7 @@ bool MemCpyOptPass::processStore(StoreInst *SI, BasicBlock::iterator &BBI) {
       IRBuilder<> Builder(SI);
       auto *M = Builder.CreateMemSet(SI->getPointerOperand(), ByteVal, Size,
                                      SI->getAlign());
+      M->copyMetadata(*SI, LLVMContext::MD_DIAssignID);
 
       LLVM_DEBUG(dbgs() << "Promoting " << *SI << " to " << *M << "\n");
 
@@ -931,11 +935,14 @@ bool MemCpyOptPass::performCallSlotOptzn(Instruction *cpyLoad,
     return false;
   }
 
-  // Code below tries to move the lifetime marker before "C". Check the
-  // correctness of this motion.
-  if (SkippedLifetimeStart && SkippedLifetimeStart->getNumOperands() == 3) {
-    auto *LiveI = cast<Instruction>(SkippedLifetimeStart->getOperand(1));
-    if (!DT->dominates(LiveI, C))
+  // If we need to move a lifetime.start above the call, make sure that we can
+  // actually do so. If the argument is bitcasted for example, we would have to
+  // move the bitcast as well, which we don't handle.
+  if (SkippedLifetimeStart) {
+    auto *LifetimeArg =
+        dyn_cast<Instruction>(SkippedLifetimeStart->getOperand(1));
+    if (LifetimeArg && LifetimeArg->getParent() == C->getParent() &&
+        C->comesBefore(LifetimeArg))
       return false;
   }
 
@@ -1208,6 +1215,7 @@ bool MemCpyOptPass::processMemCpyMemCpyDependence(MemCpyInst *M,
     NewM = Builder.CreateMemCpy(M->getRawDest(), M->getDestAlign(),
                                 MDep->getRawSource(), MDep->getSourceAlign(),
                                 M->getLength(), M->isVolatile());
+  NewM->copyMetadata(*M, LLVMContext::MD_DIAssignID);
 
   assert(isa<MemoryDef>(MSSAU->getMemorySSA()->getMemoryAccess(M)));
   auto *LastDef = cast<MemoryDef>(MSSAU->getMemorySSA()->getMemoryAccess(M));

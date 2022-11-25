@@ -560,7 +560,7 @@ private:
   /// metadata.
   void loadOffloadInfoMetadata();
 
-  /// Start scanning from statement \a S and and emit all target regions
+  /// Start scanning from statement \a S and emit all target regions
   /// found along the way.
   /// \param S Starting statement.
   /// \param ParentName Name of the function declaration that is being scanned.
@@ -600,16 +600,6 @@ private:
   /// \param VD Threadprivate variable.
   /// \return Cache variable for the specified threadprivate.
   llvm::Constant *getOrCreateThreadPrivateCache(const VarDecl *VD);
-
-  /// Gets (if variable with the given name already exist) or creates
-  /// internal global variable with the specified Name. The created variable has
-  /// linkage CommonLinkage by default and is initialized by null value.
-  /// \param Ty Type of the global variable. If it is exist already the type
-  /// must be the same.
-  /// \param Name Name of the variable.
-  llvm::GlobalVariable *getOrCreateInternalVariable(llvm::Type *Ty,
-                                                    const llvm::Twine &Name,
-                                                    unsigned AddressSpace = 0);
 
   /// Set of threadprivate variables with the generated initializer.
   llvm::StringSet<> ThreadPrivateWithDefinition;
