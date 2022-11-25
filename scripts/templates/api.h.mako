@@ -132,16 +132,6 @@ typedef struct _${th.subt(n, tags, obj['name'])} *${th.subt(n, tags, obj['name']
 
 %endif  # not re.match(r"class", obj['type'])
 %endfor # obj in spec['objects']
-## FORWARD-DECLARE STRUCTS ####################################################
-%if re.match(r"common", spec['name']):
-%for obj in th.extract_objs(specs, 'struct'):
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Forward-declare ${th.make_type_name(n, tags, obj)}
-typedef struct _${th.make_type_name(n, tags, obj)} ${th.make_type_name(n, tags, obj)};
-
-%endfor
-
-%endif
 %if len(spec['objects']):
 #if !defined(__GNUC__)
 #pragma endregion
