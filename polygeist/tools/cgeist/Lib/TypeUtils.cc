@@ -192,8 +192,9 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
           CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
       const int AddrSpace =
           CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
-      return mlir::sycl::AtomicType::get(CGT.getModule()->getContext(), Type,
-                                         static_cast<mlir::sycl::AccessAddrSpace>(AddrSpace));
+      return mlir::sycl::AtomicType::get(
+          CGT.getModule()->getContext(), Type,
+          static_cast<mlir::sycl::AccessAddrSpace>(AddrSpace));
     }
   }
 
