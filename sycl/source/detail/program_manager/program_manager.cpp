@@ -850,6 +850,7 @@ static const std::map<DeviceLibExt, const char *> DeviceLibExtensionStrs = {
     {DeviceLibExt::cl_intel_devicelib_cstring, "cl_intel_devicelib_cstring"},
     {DeviceLibExt::cl_intel_devicelib_imf, "cl_intel_devicelib_imf"},
     {DeviceLibExt::cl_intel_devicelib_imf_fp64, "cl_intel_devicelib_imf_fp64"},
+    {DeviceLibExt::cl_intel_devicelib_imf_bf16, "cl_intel_devicelib_imf_bf16"},
     {DeviceLibExt::cl_intel_devicelib_bfloat16,
      "cl_intel_bfloat16_conversions"}};
 
