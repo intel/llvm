@@ -65,9 +65,14 @@ void lt_kernel_cuda(MTensorIterator& iter) {
 // CHECK-NEXT:     return %2 : i8
 // CHECK-NEXT:   }
 // CHECK:   func private @_ZZ14lt_kernel_cudaENK3$_0clEv(%arg0: !llvm.ptr<!llvm.struct<(!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>)>>) attributes {llvm.linkage = #llvm.linkage<internal>} {
-// CHECK-NEXT:     %0 = llvm.getelementptr %arg0[0, 0] : (!llvm.ptr<!llvm.struct<(!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>)>>) -> !llvm.ptr<!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>>
-// CHECK-NEXT:     %1 = llvm.load %0 : !llvm.ptr<!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>>
-// CHECK-NEXT:     %2 = call @_ZNK15MTensorIterator6deviceEv(%1) : (!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>) -> i8
+// CHECK-NEXT:     %c1_i64 = arith.constant 1 : i64
+// CHECK-NEXT:     %0 = llvm.alloca %c1_i64 x !llvm.struct<(i8)> : (i64) -> !llvm.ptr<struct<(i8)>>
+// CHECK-NEXT:     %1 = llvm.alloca %c1_i64 x !llvm.struct<(i8)> : (i64) -> !llvm.ptr<struct<(i8)>>
+// CHECK-NEXT:     %2 = llvm.getelementptr %arg0[0, 0] : (!llvm.ptr<!llvm.struct<(!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>)>>) -> !llvm.ptr<!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>>
+// CHECK-NEXT:     %3 = llvm.load %2 : !llvm.ptr<!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>>
+// CHECK-NEXT:     %4 = llvm.load %1 : !llvm.ptr<struct<(i8)>>
+// CHECK-NEXT:     llvm.store %4, %0 : !llvm.ptr<struct<(i8)>>
+// CHECK-NEXT:     call @_Z11igpu_kernelIZZ14lt_kernel_cudaENK3$_0clEvEUlvE_EvR15MTensorIteratorRKT_(%3, %0) : (!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>, !llvm.ptr<struct<(i8)>>) -> ()
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 // CHECK:   func @_ZNK12MSmallVectorI12MOperandInfoEixEi(%arg0: memref<?x1xmemref<?x2xi8>>, %arg1: i32) -> memref<?x2xi8> attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
@@ -76,6 +81,10 @@ void lt_kernel_cuda(MTensorIterator& iter) {
 // CHECK-NEXT:     %2 = "polygeist.subindex"(%0, %1) : (memref<?x2xi8>, index) -> memref<?x2xi8>
 // CHECK-NEXT:     return %2 : memref<?x2xi8>
 // CHECK-NEXT:   }
+// CHECK:  func.func private @_Z11igpu_kernelIZZ14lt_kernel_cudaENK3$_0clEvEUlvE_EvR15MTensorIteratorRKT_(%arg0: !llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>, %arg1: !llvm.ptr<struct<(i8)>>) attributes {llvm.linkage = #llvm.linkage<internal>} {
+// CHECK-NEXT:    %0 = call @_ZNK15MTensorIterator6deviceEv(%arg0) : (!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>) -> i8
+// CHECK-NEXT:    return
+// CHECK-NEXT:  }
 // CHECK-NEXT:   func @_ZNK15MTensorIterator6deviceEv(%arg0: !llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>) -> i8 attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
 // CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
 // CHECK-NEXT:     %0 = "polygeist.pointer2memref"(%arg0) : (!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>) -> memref<?x1xmemref<?x2xi8>>
@@ -83,4 +92,3 @@ void lt_kernel_cuda(MTensorIterator& iter) {
 // CHECK-NEXT:     %2 = affine.load %1[0, 0] : memref<?x2xi8>
 // CHECK-NEXT:     return %2 : i8
 // CHECK-NEXT:   }
-
