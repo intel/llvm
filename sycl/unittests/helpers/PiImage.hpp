@@ -172,12 +172,14 @@ public:
     // Setting this property here so unit-tests can be launched under any
     // environment.
 
-    std::vector<char> Data(/* eight elements */8, /* each element is zero */0);
+    std::vector<char> Data(/* eight elements */ 8,
+                           /* each element is zero */ 0);
     // Name doesn't matter here, it is not used by RT
     // Value must be an all-zero 32-bit mask, which would mean that no fallback
     // libraries are needed to be loaded.
     PiProperty DeviceLibReqMask("", Data, PI_PROPERTY_TYPE_UINT32);
-    insert(__SYCL_PI_PROPERTY_SET_DEVICELIB_REQ_MASK, PiArray{DeviceLibReqMask});
+    insert(__SYCL_PI_PROPERTY_SET_DEVICELIB_REQ_MASK,
+           PiArray{DeviceLibReqMask});
   }
 
   /// Drops all properties from the set.
