@@ -232,8 +232,6 @@ static Optional<Type> convertVecType(sycl::VecType type,
 /// Converts SYCL atomic type to LLVM type.
 static Optional<Type> convertAtomicType(sycl::AtomicType type,
                                         LLVMTypeConverter &converter) {
-  // return convertBodyType("class.sycl::_V1::atomic", type.getBody(),
-  // converter);
   auto convertedTy = LLVM::LLVMStructType::getIdentified(
       &converter.getContext(), "class.sycl::_V1::atomic");
   auto elementType = LLVM::LLVMPointerType::get(type.getDataType(),
