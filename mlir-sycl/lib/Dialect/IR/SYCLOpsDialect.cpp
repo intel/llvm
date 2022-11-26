@@ -55,7 +55,7 @@ public:
   /// Attempts to materialize a conversion for a type mismatch between a call
   /// from the SYCL dialect, and a callable region. This method should generate
   /// an operation that takes \p Input as the only operand, and produces a
-  /// single result of \p ResultType. If a conversion can not be generated,
+  /// single result of \p ResultType. If a conversion cannot be generated,
   /// nullptr should be returned.
   mlir::Operation *
   materializeCallConversion(mlir::OpBuilder &Builder, mlir::Value Input,
