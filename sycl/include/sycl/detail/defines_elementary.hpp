@@ -39,7 +39,7 @@
 #ifndef __SYCL_DEPRECATED
 // The deprecated attribute is not supported in some situations(e.g. namespace)
 // in C++14 mode
-#if !defined(SYCL2020_DISABLE_DEPRECATION_WARNINGS) && __cplusplus >= 201703L
+#if !defined(SYCL_DISABLE_DEPRECATION_WARNINGS) && __cplusplus >= 201703L
 #define __SYCL_DEPRECATED(message) [[deprecated(message)]]
 #else // SYCL_DISABLE_DEPRECATION_WARNINGS
 #define __SYCL_DEPRECATED(message)
