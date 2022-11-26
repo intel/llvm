@@ -14,7 +14,7 @@ include "mlir/Pass/PassBase.td"
 def AlwaysInlinePass : Pass<"always-inline"> {
   let summary = "Inline SYCL calls to functions marked 'always_inline'";
   let description = [{
-    Replace a sylc.call operation with the body of the callee if the callee has 
+    Replace a sycl.call operation with the body of the callee if the callee has 
     the 'always_inline' attribute. 
   }];  
   let constructor = "mlir::sycl::createAlwaysInlinePass()";
