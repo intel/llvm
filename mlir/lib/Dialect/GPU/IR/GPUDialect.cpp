@@ -126,10 +126,10 @@ struct GPUInlinerInterface : public DialectInlinerInterface {
     return true;
   }
 
-  /// All functions can be inlined.
-  bool isLegalToInline(Region *, Region *, bool,
-                       BlockAndValueMapping &) const final {
-    return true;
+  /// Allows inlining any region (other than a gpu.func) in a gpu.func region.
+  bool isLegalToInline(Region *dest, Region *src, bool wouldBeCloned,
+                       BlockAndValueMapping &valueMapping) const final {
+    return !isa<gpu::GPUFuncOp>(src->getParentOp());
   }
 };
 } // namespace
