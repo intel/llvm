@@ -31,6 +31,26 @@ namespace mlir {
 
 using namespace mlir;
 
+//===----------------------------------------------------------------------===//
+// Helper Functions
+//===----------------------------------------------------------------------===//
+
+/// Return the function corresponding to \p CGN.
+static FunctionOpInterface getFunction(const CallGraphNode &CGN) {
+  if (CGN.isExternal())
+    return nullptr;
+  return CGN.getCallableRegion()->getParentOp();
+}
+
+/// Return the function called by \p Call.
+static FunctionOpInterface getCalledFunction(const CallOpInterface &Call) {
+  if (SymbolRefAttr SymAttr = const_cast<CallOpInterface &>(Call)
+                                  .getCallableForCallee()
+                                  .dyn_cast<SymbolRefAttr>())
+    return SymbolTable::lookupNearestSymbolFrom(Call, SymAttr);
+  return nullptr;
+}
+
 namespace {
 
 /// This struct represents a resolved call to a given call graph node. Given
@@ -49,46 +69,17 @@ public:
     assert(TgtNode && "Expecting valid target node");
   }
 
-  /// Return the func::FuncOp called by `callOp`.
-  static FunctionOpInterface getCalledFunction(const CallOpInterface &Call) {
-    if (SymbolRefAttr SymAttr = const_cast<CallOpInterface &>(Call)
-                                    .getCallableForCallee()
-                                    .dyn_cast<SymbolRefAttr>())
-      return SymbolTable::lookupNearestSymbolFrom(Call, SymAttr);
-
-    return nullptr;
-  }
-
   CallOpInterface Call;
   const CallGraphNode *SrcNode, *TgtNode;
 };
 
 inline llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
                                      const ResolvedCall &RC) {
-  auto PrintCallable = [&](Operation *Op) {
-    llvm::TypeSwitch<Operation *>(Op)
-        .Case<func::FuncOp>([&](func::FuncOp Op) { OS << Op.getSymName(); })
-        .Case<gpu::GPUFuncOp>([&](gpu::GPUFuncOp Op) { Op.print(OS); })
-        .Default(
-            [&](Operation *) { assert(false && "Unhandled operation kind"); });
-  };
-
-  if (!RC.SrcNode->isExternal()) {
-    OS << "SrcNode: ";
-    PrintCallable(RC.SrcNode->getCallableRegion()->getParentOp());
-    OS << "\n";
-  }
-
-  if (!RC.TgtNode->isExternal()) {
-    OS << "TgtNode: ";
-    PrintCallable(RC.TgtNode->getCallableRegion()->getParentOp());
-    OS << "\n";
-  }
-
-  OS << "Call: ";
-  PrintCallable(ResolvedCall::getCalledFunction(RC.Call));
-  OS << "\n";
-
+  if (!RC.SrcNode->isExternal())
+    OS << "SrcNode: " << getFunction(*RC.SrcNode) << "\n";
+  if (!RC.TgtNode->isExternal())
+    OS << "TgtNode: " << getFunction(*RC.TgtNode) << "\n";
+  OS << "Call: " << getCalledFunction(RC.Call).getName() << "\n";
   return OS;
 }
 
@@ -124,19 +115,10 @@ private:
 
 inline llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
                                      const CallGraphSCC &SCC) {
-  auto PrintCallable = [&](Operation *Op) {
-    llvm::TypeSwitch<Operation *>(Op)
-        .Case<func::FuncOp>([&](func::FuncOp Op) { OS << Op.getSymName(); })
-        .Case<gpu::GPUFuncOp>([&](gpu::GPUFuncOp Op) { Op.print(OS); })
-        .Default(
-            [&](Operation *) { assert(false && "Unhandled operation kind"); });
-  };
-
   OS << "{ ";
   llvm::interleaveComma(SCC.Nodes, OS, [&](const CallGraphNode *CGN) {
     if (!CGN->isExternal())
-      if (Region *Callable = CGN->getCallableRegion())
-        PrintCallable(Callable->getParentOp());
+      OS << getFunction(*CGN).getName() << "\n";
   });
   OS << " }";
   return OS;
@@ -339,11 +321,8 @@ bool AlwaysInliner::shouldInline(ResolvedCall &ResolvedCall) const {
           ResolvedCall.Call->getParentRegion()))
     return false;
 
-  FunctionOpInterface Callee =
-      ResolvedCall::getCalledFunction(ResolvedCall.Call);
-
+  FunctionOpInterface Callee = getCalledFunction(ResolvedCall.Call);
   NamedAttrList FnAttrs(Callee->getAttrDictionary());
-
   Optional<NamedAttribute> PassThroughAttr = FnAttrs.getNamed("passthrough");
   if (!PassThroughAttr)
     return false;
