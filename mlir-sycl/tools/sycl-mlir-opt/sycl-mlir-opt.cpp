@@ -31,6 +31,7 @@ int main(int argc, char **argv) {
   mlir::DialectRegistry registry;
   registry.insert<mlir::AffineDialect>();
   registry.insert<mlir::scf::SCFDialect>();
+  registry.insert<mlir::gpu::GPUDialect>();
   registry.insert<mlir::func::FuncDialect>();
   registry.insert<mlir::LLVM::LLVMDialect>();
   registry.insert<mlir::memref::MemRefDialect>();
