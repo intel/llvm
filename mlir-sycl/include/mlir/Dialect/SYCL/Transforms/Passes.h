@@ -25,6 +25,7 @@ namespace sycl {
 //===----------------------------------------------------------------------===//
 
 std::unique_ptr<Pass> createAlwaysInlinePass();
+std::unique_ptr<Pass> createInlinePass();
 std::unique_ptr<Pass> createSYCLMethodToSYCLCallPass();
 
 //===----------------------------------------------------------------------===//

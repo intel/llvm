@@ -1,4 +1,4 @@
-// RUN: sycl-mlir-opt -always-inline -split-input-file -verify-diagnostics %s | FileCheck %s
+// RUN: sycl-mlir-opt -sycl-always-inline -split-input-file -verify-diagnostics %s | FileCheck %s
 
 // CHECK-LABEL: func.func @caller() -> i32 {
 // CHECK-NEXT:    %c1_i32 = arith.constant 1 : i32  

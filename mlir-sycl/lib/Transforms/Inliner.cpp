@@ -124,10 +124,10 @@ inline llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
   return OS;
 }
 
-/// Generic SCC Inliner.
-class Inliner : public InlinerInterface {
+/// Virtual base class for all inliners.
+class InlinerBase : public InlinerInterface {
 public:
-  Inliner(MLIRContext *Ctx, CallGraph &CG, SymbolTableCollection &SymTable)
+  InlinerBase(MLIRContext *Ctx, CallGraph &CG, SymbolTableCollection &SymTable)
       : InlinerInterface(Ctx), CG(CG), SymbolTable(SymTable) {}
 
   ResolvedCall &getCall(unsigned Index) {
@@ -141,24 +141,34 @@ public:
 
   SymbolTableCollection &getSymbolTable() const { return SymbolTable; }
 
+  /// Run a given transformation over the SCCs of the call graph in a bottom up
+  /// traversal.
+  static LogicalResult runTransformOnSCCs(
+      const CallGraph &CG,
+      function_ref<LogicalResult(CallGraphSCC &)> SCCTransformer);
+
   /// Attempt to inline calls within the given scc, and run simplifications,
   /// until a fixed point is reached. This allows for the inlining of newly
   /// devirtualized calls. Returns failure if there was a fatal error during
   /// inlining.
-  static LogicalResult inlineSCC(Inliner &Inliner, CallGraphSCC &SCC,
+  static LogicalResult inlineSCC(InlinerBase &Inliner, CallGraphSCC &SCC,
                                  MLIRContext *Ctx);
 
 protected:
   /// Attempt to inline calls within the given SCC.
-  static void inlineCallsInSCC(Inliner &Inliner, CallGraphSCC &SCC);
+  static void inlineCallsInSCC(InlinerBase &Inliner, CallGraphSCC &SCC);
 
   /// Collect all of the callable operations within the given \p SrcNode.
   static void collectCallOps(const CallGraphNode &SrcNode, const CallGraph &CG,
                              SymbolTableCollection &SymTable,
                              SmallVectorImpl<ResolvedCall> &Calls);
 
-  /// Returns true if the given call should be inlined.
+  /// Returns true if the given call should be inlined. Derived class must
+  /// provide an implementation.
   virtual bool shouldInline(ResolvedCall &ResolvedCall) const = 0;
+
+  // Returns true if the target is an ancestor of the call and false otherwise.
+  bool isRecursiveCall(const ResolvedCall &ResolvedCall) const;
 
 private:
   /// The current set of call instructions to consider for inlining.
@@ -172,47 +182,87 @@ private:
 };
 
 /// Inlines sycl.call operations if the callee has the 'alwaysinline' attribute.
-class AlwaysInliner : public Inliner {
+class AlwaysInliner : public InlinerBase {
 public:
   AlwaysInliner(MLIRContext *Ctx, CallGraph &CG,
                 SymbolTableCollection &SymTable)
-      : Inliner(Ctx, CG, SymTable) {}
+      : InlinerBase(Ctx, CG, SymTable) {}
 
 protected:
-  /// Returns true if the given call should be inlined.
   bool shouldInline(ResolvedCall &ResolvedCall) const final;
 };
 
-/// A pass that inlines sycl.call operations if the callee has the
-/// 'alwaysinline' attribute.
-class AlwaysInlinerPass : public impl::InlinerBase<AlwaysInlinerPass> {
+/// Inlines sycl.call operations using simple heuristics.
+class Inliner : public InlinerBase {
 public:
-  AlwaysInlinerPass() = default;
-  AlwaysInlinerPass(const AlwaysInlinerPass &) = default;
+  Inliner(MLIRContext *Ctx, CallGraph &CG, SymbolTableCollection &SymTable)
+      : InlinerBase(Ctx, CG, SymTable) {}
+
+protected:
+  bool shouldInline(ResolvedCall &ResolvedCall) const final;
+};
+
+/// Base class for all inliner passes.
+template <typename InlinerPass>
+class InlinePassBase : public impl::InlinerBase<InlinerPass> {
+public:
+  InlinePassBase(std::string PassName, std::string FlagName,
+                 std::string PassDescription)
+      : PassName(PassName), FlagName(FlagName),
+        PassDescription(PassDescription) {}
+
+  InlinePassBase(const InlinePassBase &) = default;
 
   /// Returns the command-line argument attached to this pass.
-  llvm::StringRef getArgument() const final { return "always-inline"; }
+  llvm::StringRef getArgument() const final { return FlagName; }
+  llvm::StringRef getName() const final { return PassName; }
+  llvm::StringRef getDescription() const final { return PassDescription; }
 
-  llvm::StringRef getDescription() const final {
-    return "Inline function calls with the 'alwaysinline' attribute";
-  }
+protected:
+  /// Inline function calls in the given call graph \p CG (on each SCC in bottom
+  /// up order) using the given \p Inliner .
+  LogicalResult runOnCG(InlinerBase &Inliner, CallGraph &CG, MLIRContext *Ctx);
 
-  llvm::StringRef getName() const final { return "AlwaysInliner"; }
+  /// Ensures that the inliner is run on operations that define a symbol table.
+  bool checkForSymbolTable(Operation &Op);
 
-  static constexpr llvm::StringLiteral getPassName() {
-    return llvm::StringLiteral("AlwaysInliner");
-  }
+private:
+  const std::string PassName, FlagName, PassDescription;
+};
+
+/// A pass that inlines sycl.call operations iff the callee has the
+/// 'alwaysinline' attribute.
+class AlwaysInlinePass : public InlinePassBase<AlwaysInlinePass> {
+public:
+  AlwaysInlinePass()
+      : InlinePassBase(
+            "AlwaysInliner", "sycl-always-inline",
+            "Inline SYCL function calls with the 'alwaysinline' attribute") {}
+  AlwaysInlinePass(const AlwaysInlinePass &) = default;
+
+  void runOnOperation() final;
+};
+
+/// A pass that inlines sycl.call operations.
+class InlinePass : public InlinePassBase<InlinePass> {
+public:
+  InlinePass()
+      : InlinePassBase("Inliner", "sycl-inline",
+                       "Inline SYCL function  calls") {}
+  InlinePass(const InlinePass &) = default;
 
   void runOnOperation() final;
 };
 
 } // namespace
 
-/// Run a given transformation over the SCCs of the call graph in a bottom up
-/// traversal.
-static LogicalResult
-runTransformOnSCCs(const CallGraph &CG,
-                   function_ref<LogicalResult(CallGraphSCC &)> SCCTransformer) {
+//===----------------------------------------------------------------------===//
+// InlinerBase
+//===----------------------------------------------------------------------===//
+
+LogicalResult InlinerBase::runTransformOnSCCs(
+    const CallGraph &CG,
+    function_ref<LogicalResult(CallGraphSCC &)> SCCTransformer) {
   llvm::scc_iterator<const CallGraph *> CGI = llvm::scc_begin(&CG);
   CallGraphSCC SCC(CGI);
   while (!CGI.isAtEnd()) {
@@ -226,25 +276,19 @@ runTransformOnSCCs(const CallGraph &CG,
   return success();
 }
 
-//===----------------------------------------------------------------------===//
-// Inliner
-//===----------------------------------------------------------------------===//
-
-LogicalResult Inliner::inlineSCC(Inliner &Inliner, CallGraphSCC &SCC,
-                                 MLIRContext *Ctx) {
-  Inliner::inlineCallsInSCC(Inliner, SCC);
+LogicalResult InlinerBase::inlineSCC(InlinerBase &Inliner, CallGraphSCC &SCC,
+                                     MLIRContext *Ctx) {
+  inlineCallsInSCC(Inliner, SCC);
   return success();
 }
 
-/// Attempt to inline calls within the given scc. This function returns
-/// success if any calls were inlined, failure otherwise.
-void Inliner::inlineCallsInSCC(Inliner &Inliner, CallGraphSCC &SCC) {
+void InlinerBase::inlineCallsInSCC(InlinerBase &Inliner, CallGraphSCC &SCC) {
   for (CallGraphNode *SrcNode : SCC) {
     if (SrcNode->isExternal())
       continue;
 
-    Inliner::collectCallOps(*SrcNode, Inliner.getCG(), Inliner.getSymbolTable(),
-                            Inliner.getCalls());
+    InlinerBase::collectCallOps(*SrcNode, Inliner.getCG(),
+                                Inliner.getSymbolTable(), Inliner.getCalls());
   }
 
   if (Inliner.getCalls().empty())
@@ -290,9 +334,10 @@ void Inliner::inlineCallsInSCC(Inliner &Inliner, CallGraphSCC &SCC) {
   Inliner.clear();
 }
 
-void Inliner::collectCallOps(const CallGraphNode &SrcNode, const CallGraph &CG,
-                             SymbolTableCollection &SymTable,
-                             SmallVectorImpl<ResolvedCall> &Calls) {
+void InlinerBase::collectCallOps(const CallGraphNode &SrcNode,
+                                 const CallGraph &CG,
+                                 SymbolTableCollection &SymTable,
+                                 SmallVectorImpl<ResolvedCall> &Calls) {
   SrcNode.getCallableRegion()->walk([&](Operation *Op) {
     if (auto Call = dyn_cast<CallOpInterface>(Op)) {
       CallInterfaceCallable Callable = Call.getCallableForCallee();
@@ -309,16 +354,17 @@ void Inliner::collectCallOps(const CallGraphNode &SrcNode, const CallGraph &CG,
   });
 }
 
+bool InlinerBase::isRecursiveCall(const ResolvedCall &ResolvedCall) const {
+  return ResolvedCall.TgtNode->getCallableRegion()->isAncestor(
+      ResolvedCall.Call->getParentRegion());
+}
+
 //===----------------------------------------------------------------------===//
 // AlwaysInliner
 //===----------------------------------------------------------------------===//
 
-/// Returns true if the given call should be inlined.
 bool AlwaysInliner::shouldInline(ResolvedCall &ResolvedCall) const {
-  // Don't allow inlining if the target is an ancestor of the call. This
-  // prevents inlining recursively.
-  if (ResolvedCall.TgtNode->getCallableRegion()->isAncestor(
-          ResolvedCall.Call->getParentRegion()))
+  if (isRecursiveCall(ResolvedCall))
     return false;
 
   FunctionOpInterface Callee = getCalledFunction(ResolvedCall.Call);
@@ -335,32 +381,95 @@ bool AlwaysInliner::shouldInline(ResolvedCall &ResolvedCall) const {
 }
 
 //===----------------------------------------------------------------------===//
+// Inliner
+//===----------------------------------------------------------------------===//
+
+bool Inliner::shouldInline(ResolvedCall &ResolvedCall) const {
+  if (isRecursiveCall(ResolvedCall))
+    return false;
+
+  FunctionOpInterface Callee = getCalledFunction(ResolvedCall.Call);
+  NamedAttrList FnAttrs(Callee->getAttrDictionary());
+  Optional<NamedAttribute> PassThroughAttr = FnAttrs.getNamed("passthrough");
+  if (!PassThroughAttr)
+    return false;
+
+  // TODO: simple heuristics
+  // - Inline functions that have the 'inlinehint' attribute
+  // - Inline a callee if inlining it would make it dead.
+  //    - consider case where there are more than one call hedge in the same
+  //    caller ?
+  //  - what about inlining in loops (Should allow inlining in inner loop)
+  //  - pass flags to make inliner 'aggressive'?
+  //     + is inliner is aggressive then inline in inner loop as long as callee
+  //     is not too big
+
+  return false;
+}
+
+//===----------------------------------------------------------------------===//
+// InlinerPassBase
+//===----------------------------------------------------------------------===//
+
+template <typename InlinerKind>
+LogicalResult InlinePassBase<InlinerKind>::runOnCG(InlinerBase &Inliner,
+                                                   CallGraph &CG,
+                                                   MLIRContext *Ctx) {
+  return InlinerBase::runTransformOnSCCs(CG, [&](CallGraphSCC &SCC) {
+    return InlinerBase::inlineSCC(Inliner, SCC, Ctx);
+  });
+}
+
+template <typename InlinerKind>
+bool InlinePassBase<InlinerKind>::checkForSymbolTable(Operation &Op) {
+  // The inliner should only be run on operations that define a symbol table,
+  // as the call graph will need to resolve references.
+  if (!Op.hasTrait<OpTrait::SymbolTable>()) {
+    Op.emitOpError() << " was scheduled to run under the inliner, but does "
+                        "not define a symbol table";
+    return false;
+  }
+  return true;
+}
+
+//===----------------------------------------------------------------------===//
 // AlwaysInlinerPass
 //===----------------------------------------------------------------------===//
 
-void AlwaysInlinerPass::runOnOperation() {
-  CallGraph &CG = getAnalysis<CallGraph>();
-  auto *Ctx = &getContext();
-
-  // The inliner should only be run on operations that define a symbol table,
-  // as the call graph will need to resolve references.
-  Operation *Op = getOperation();
-  if (!Op->hasTrait<OpTrait::SymbolTable>()) {
-    Op->emitOpError() << " was scheduled to run under the inliner, but does "
-                         "not define a symbol table";
+void AlwaysInlinePass::runOnOperation() {
+  if (!checkForSymbolTable(*getOperation()))
     return signalPassFailure();
-  }
 
+  MLIRContext *Ctx = &getContext();
+  CallGraph &CG = getAnalysis<CallGraph>();
   SymbolTableCollection SymTable;
   AlwaysInliner Inliner(Ctx, CG, SymTable);
-  LogicalResult Res = runTransformOnSCCs(CG, [&](CallGraphSCC &SCC) {
-    return Inliner::inlineSCC(Inliner, SCC, Ctx);
-  });
 
-  if (failed(Res))
+  if (failed(runOnCG(Inliner, CG, Ctx)))
     return signalPassFailure();
 }
 
 std::unique_ptr<Pass> sycl::createAlwaysInlinePass() {
-  return std::make_unique<AlwaysInlinerPass>();
+  return std::make_unique<AlwaysInlinePass>();
+}
+
+//===----------------------------------------------------------------------===//
+// InlinerPass
+//===----------------------------------------------------------------------===//
+
+void InlinePass::runOnOperation() {
+  if (!checkForSymbolTable(*getOperation()))
+    return signalPassFailure();
+
+  MLIRContext *Ctx = &getContext();
+  CallGraph &CG = getAnalysis<CallGraph>();
+  SymbolTableCollection SymTable;
+  Inliner Inliner(Ctx, CG, SymTable);
+
+  if (failed(runOnCG(Inliner, CG, Ctx)))
+    return signalPassFailure();
+}
+
+std::unique_ptr<Pass> sycl::createInlinePass() {
+  return std::make_unique<InlinePass>();
 }
