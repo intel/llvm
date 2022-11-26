@@ -64,33 +64,24 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
                          void *Ptr, int Value, size_t Count,
                          const std::vector<event> &DepEvents) {
 #if XPTI_ENABLE_INSTRUMENTATION
-  /// This section of code is relying on scoped objects, so they cannot be
-  /// encapsulated in a function
-  detail::tls_code_loc_t Tls;
-  auto TData = Tls.query();
-  xpti::framework::tracepoint_t TP(TData.fileName(), TData.functionName(),
-                                   TData.lineNumber(), TData.columnNumber(),
-                                   (void *)this);
-  if (xptiTraceEnabled()) {
-    TP.stream(SYCL_STREAM_NAME)
-        .trace_type(xpti::trace_point_type_t::node_create);
-    auto TEvent = const_cast<xpti::trace_event_data_t *>(TP.trace_event());
+  // We need a code pointer value and we use the object ptr; if code location
+  // information is available, we will have function name and source file
+  // information
+  XPTIScope PrepareNotify((void *)this,
+                          (uint16_t)xpti::trace_point_type_t::node_create,
+                          SYCL_MEM_ALLOC_STREAM_NAME, "queue.memset()");
+  PrepareNotify.addMetadata([&](auto TEvent) {
     xpti::addMetadata(TEvent, "sycl_device",
                       reinterpret_cast<size_t>(
                           MDevice->is_host() ? 0 : MDevice->getHandleRef()));
     xpti::addMetadata(TEvent, "memory_ptr", reinterpret_cast<size_t>(Ptr));
     xpti::addMetadata(TEvent, "value_set", reinterpret_cast<int>(Value));
     xpti::addMetadata(TEvent, "memory_size", reinterpret_cast<size_t>(Count));
-    /// Create an async task graph object; depends_on() or other dependencies
-    /// will be added as edges
-    TP.notify("queue.memset");
-  }
-  /// Add a scoped notification for memset begin and memset end and has
-  /// xptiTraceEnabled() check in the object
-  xpti::framework::scoped_notify Trace(
-      TP.stream_id(), (uint16_t)xpti::trace_point_type_t::task_begin, nullptr,
-      const_cast<xpti::trace_event_data_t *>(TP.trace_event()),
-      TP.instance_id(), static_cast<const void *>("queue.memcpy()"));
+  });
+  // Notify XPTI about the memset submission
+  PrepareNotify.notify();
+  // Emit a begin/end scope for this call
+  PrepareNotify.scopedNotify((uint16_t)xpti::trace_point_type_t::task_begin);
 #endif
   if (MHasDiscardEventsSupport) {
     MemoryManager::fill_usm(Ptr, Self, Count, Value,
@@ -135,17 +126,13 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
                          void *Dest, const void *Src, size_t Count,
                          const std::vector<event> &DepEvents) {
 #if XPTI_ENABLE_INSTRUMENTATION
-  /// This section of code is relying on scoped objects, so they cannot be
-  /// encapsulated in a function
-  detail::tls_code_loc_t Tls;
-  auto TData = Tls.query();
-  xpti::framework::tracepoint_t TP(TData.fileName(), TData.functionName(),
-                                   TData.lineNumber(), TData.columnNumber(),
-                                   (void *)this);
-  if (xptiTraceEnabled()) {
-    TP.stream(SYCL_STREAM_NAME)
-        .trace_type(xpti::trace_point_type_t::node_create);
-    auto TEvent = const_cast<xpti::trace_event_data_t *>(TP.trace_event());
+  // We need a code pointer value and we duse the object ptr; If code location
+  // is available, we use the source file information along with the object
+  // pointer.
+  XPTIScope PrepareNotify((void *)this,
+                          (uint16_t)xpti::trace_point_type_t::node_create,
+                          SYCL_MEM_ALLOC_STREAM_NAME, "queue.memcpy()");
+  PrepareNotify.addMetadata([&](auto TEvent) {
     xpti::addMetadata(TEvent, "sycl_device",
                       reinterpret_cast<size_t>(
                           MDevice->is_host() ? 0 : MDevice->getHandleRef()));
@@ -153,15 +140,11 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
     xpti::addMetadata(TEvent, "dest_memory_ptr",
                       reinterpret_cast<size_t>(Dest));
     xpti::addMetadata(TEvent, "memory_size", reinterpret_cast<size_t>(Count));
-    /// Create an async task graph object; depends_on() or other dependencies
-    /// will be added as edges
-    TP.notify("queue.memcpy");
-  }
-  /// Add a scoped notification for copy begin and copy end
-  xpti::framework::scoped_notify Trace(
-      TP.stream_id(), (uint16_t)xpti::trace_point_type_t::task_begin, nullptr,
-      const_cast<xpti::trace_event_data_t *>(TP.trace_event()),
-      TP.instance_id(), static_cast<const void *>("queue.memcpy()"));
+  });
+  // Notify XPTI about the memset submission
+  PrepareNotify.notify();
+  // Emit a begin/end scope for this call
+  PrepareNotify.scopedNotify((uint16_t)xpti::trace_point_type_t::task_begin);
 #endif
   if (MHasDiscardEventsSupport) {
     MemoryManager::copy_usm(Src, Self, Count, Dest,

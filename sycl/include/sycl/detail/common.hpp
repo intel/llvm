@@ -119,70 +119,56 @@ private:
 #define _CODELOCFW(a)
 #endif
 
-/// @brief The TLS variable into which Code Locations will be stashed
-extern thread_local detail::code_location GCodeLocTLS;
-
 /// @brief Data type that manages the code_location information in TLS
 /// @details As new SYCL features are added, they all enable the propagation of
 /// the code location information where the SYCL API was called by the
 /// application layer. In order to facilitate this, the tls_code_loc_t object
-/// assists in managing the data in TLS : (1) Populate the information when you
-/// at the top level function in the call chain and (2) to remove the
-/// information when the object goes out scope in the top level function.
+/// assists in managing the data in TLS :
+///   (1) Populate the information when you at the top level function in the
+///   call chain. This is usually the end-user entry point function into SYCL.
+///   (2) Remove the information when the object goes out scope in top level
+///   function.
 ///
 /// Usage:-
-/// void bar() {
-///   tls_code_loc_t p;
-///   // Print the source information of where foo() was called in main()
-///   std::cout << p.query().fileName() << ":" << p.query().lineNumber() <<
-///   std::endl;
-/// }
-/// void bar1() {bar();}
-/// void foo(const code_location &loc) {
-///   tls_code_loc_t tp(loc);
-///   bar1();
-/// }
-/// void main() {
-///   foo(const code_location &loc = code_location::current());
-/// }
-class tls_code_loc_t {
+///   void bar() {
+///     tls_code_loc_t p;
+///     // Print the source information of where foo() was called in main()
+///     std::cout << p.query().fileName() << ":" << p.query().lineNumber() <<
+///     std::endl;
+///   }
+///
+///   void bar1() {bar();}
+///
+///   // Foo() is equivalent to a SYCL end user entry point such as
+///   // queue.memcpy() or queue.copy()
+///   void foo(const code_location &loc) {
+///     tls_code_loc_t tp(loc);
+///     bar1();
+///   }
+///
+///   void main() {
+///     foo(const code_location &loc = code_location::current());
+///   }
+class __SYCL_EXPORT tls_code_loc_t {
 public:
-  tls_code_loc_t() {
-    printf("Code Loc TLS Retrieve\n");
-    // Check TLS to see if a previously stashed code_location object is
-    // available
-    if (GCodeLocTLS.fileName() && GCodeLocTLS.functionName()) {
-      MTopScope = false;
-    }
-  }
-
-  tls_code_loc_t(const detail::code_location &CodeLoc) {
-    printf("Code Loc TLS Setup\n");
-    if (GCodeLocTLS.fileName() && GCodeLocTLS.functionName()) {
-      // Check TLS to see if a previously stashed code_location object is
-      // available; if so, then don't overwrite the previous information as we
-      // are still in scope of the instrumented function
-      MTopScope = false;
-    } else {
-      // Update the TLS information with the code_location information until the
-      // destructor purges the information
-      GCodeLocTLS = CodeLoc;
-      MTopScope = true;
-    }
-  }
-
-  ~tls_code_loc_t() {
-    // Only reset the TLS data if the top level function is going out of scope
-    if (MTopScope) {
-      GCodeLocTLS = {};
-    }
-  }
-
-  const detail::code_location &query() { return GCodeLocTLS; }
+  /// @brief Consructor that chcks to see if a TLS entry already exists
+  /// @details If a previous populated TLS entry exists, this constructor will
+  /// capture the informationa and allow you query the information
+  tls_code_loc_t();
+  /// @brief Iniitializes TLS with CodeLoc if a TLS entry not present
+  /// @param CodeLoc The code location information to set up the TLS slot with
+  tls_code_loc_t(const detail::code_location &CodeLoc);
+  /// If the code location is set up by this instance, reset it
+  ~tls_code_loc_t();
+  /// @brief  Query the information in the TLS slot
+  /// @return The code location information saved in the TLS slot. If not TLS
+  /// entry has been set up, a default coe location is returned.
+  const detail::code_location &query();
 
 private:
-  // The flag that is used to determine if the object is at the top of the
-  bool MTopScope = false;
+  // The flag that is used to determine if the object is in a local scope or in
+  // the top level scope
+  bool MLocalScope = true;
 };
 
 } // namespace detail

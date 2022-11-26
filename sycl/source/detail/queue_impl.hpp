@@ -103,31 +103,35 @@ public:
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MHasDiscardEventsSupport(MDiscardEvents &&
                                  (MHostQueue ? true : MIsInorder)) {
-    // The following commented section provides a guideline on how to use the
-    // TLS enabled mechanism to create a tracepoint and notify using XPTI. This
-    // is the prolog section and the epilog section will initiate the
-    // notification.
-    // #if XPTI_ENABLE_INSTRUMENTATION
-    //     /// This section of code is relying on scoped objects, so they cannot
-    //     be
-    //     /// encapsulated in a function
-    //     detail::tls_code_loc_t Tls;
-    //     auto TData = Tls.query();
-    //     xpti::framework::tracepoint_t TP(TData.fileName(),
-    //     TData.functionName(),
-    //                                      TData.lineNumber(),
-    //                                      TData.columnNumber    (), (void
-    //                                      *)this);
-    //     if (xptiTraceEnabled()) {
-    //       TP.stream(SYCL_STREAM_NAME)
-    //           .trace_type(xpti::trace_point_type_t::queue_create);
-    //       // If the member variables in the class are uncommented or breaking
-    //       binary
-    //       // compatibility is allowed, then TP.stream_id(), TP.trace_event()
-    //       and
-    //       // TP.instance_id() can be cached in the member variables
-    //     }
-    // #endif
+    // We enable XPTI tracing events using the TLS mechanism; if the code
+    // location data is available, then the tracing data will be rich.
+#if XPTI_ENABLE_INSTRUMENTATION
+    /// This section of code is relying on scoped objects, so they cannot be
+    /// encapsulated in a function
+    XPTIScope PrepareNotify((void *)this,
+                            (uint16_t)xpti::trace_point_type_t::queue_create,
+                            SYCL_STREAM_NAME, "queue_create");
+    // Cache the trace event, stream id and instance IDs for the destructor
+    if (xptiTraceEnabled()) {
+      MTraceEvent = (void *)PrepareNotify.traceEvent();
+      MStreamID = PrepareNotify.streamID();
+      MInstanceID = PrepareNotify.instanceID();
+    }
+    // Add the function to capture meta data for the XPTI trace event
+    PrepareNotify.addMetadata([&](auto TEvent) {
+      xpti::addMetadata(TEvent, "sycl_context",
+                        reinterpret_cast<size_t>(MContext->getHandleRef()));
+      if (MDevice) {
+        xpti::addMetadata(TEvent, "sycl_device_name", MDevice->getDeviceName());
+        xpti::addMetadata(
+            TEvent, "sycl_device",
+            reinterpret_cast<size_t>(
+                MDevice->is_host() ? 0 : MDevice->getHandleRef()));
+      }
+      xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
+    });
+    PrepareNotify.notify();
+#endif
     if (has_property<ext::oneapi::property::queue::discard_events>() &&
         has_property<property::queue::enable_profiling>()) {
       throw sycl::exception(make_error_code(errc::invalid),
@@ -154,29 +158,6 @@ public:
       MQueues.push_back(createQueue(QOrder));
       // This section is the second part of the instrumentation that uses the
       // tracepoint information and notifies
-      // #if XPTI_ENABLE_INSTRUMENTATION
-      //   /// This section of code is relying on scoped objects, so they
-      //   cannot     be
-      //   /// encapsulated in a function
-      //   if (xptiTraceEnabled()) {
-      //     auto TEvent = const_cast<xpti::trace_event_data_t
-      //     *>(TP.trace_event());
-      //     xpti::addMetadata(TEvent,
-      //     "sycl_context",
-      //              reinterpret_cast<size_t>(MContext->getHandleRef
-      //                       ()));
-      //     if (MDevice) {
-      //       xpti::addMetadata(TEvent, "sycl_device_name",
-      //                         MDevice->getDeviceName());
-      //       xpti::addMetadata(
-      //           TEvent, "sycl_device",
-      //           reinterpret_cast<size_t>(
-      //               MDevice->is_host() ? 0 : MDevice->getHandleRef()));
-      //     }
-      //     xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
-      //     TP.notify(static_cast<const void *>("queue_create"));
-      //   }
-      // #endif
     }
   }
 
@@ -196,7 +177,37 @@ public:
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MHasDiscardEventsSupport(MDiscardEvents &&
                                  (MHostQueue ? true : MIsInorder)) {
-    // Please see previous constructor for instrumentation hints
+    // The following commented section provides a guideline on how to use the
+    // TLS enabled mechanism to create a tracepoint and notify using XPTI. This
+    // is the prolog section and the epilog section will initiate the
+    // notification.
+#if XPTI_ENABLE_INSTRUMENTATION
+    /// This section of code is relying on scoped objects, so they cannot be
+    /// encapsulated in a function
+    XPTIScope PrepareNotify((void *)this,
+                            (uint16_t)xpti::trace_point_type_t::queue_create,
+                            SYCL_STREAM_NAME, "queue_create");
+    if (xptiTraceEnabled()) {
+      // Cache the trace event, stream id and instance IDs for the destructor
+      MTraceEvent = (void *)PrepareNotify.traceEvent();
+      MStreamID = PrepareNotify.streamID();
+      MInstanceID = PrepareNotify.instanceID();
+    }
+    // Add the function to capture meta data for the XPTI trace event
+    PrepareNotify.addMetadata([&](auto TEvent) {
+      xpti::addMetadata(TEvent, "sycl_context",
+                        reinterpret_cast<size_t>(MContext->getHandleRef()));
+      if (MDevice) {
+        xpti::addMetadata(TEvent, "sycl_device_name", MDevice->getDeviceName());
+        xpti::addMetadata(
+            TEvent, "sycl_device",
+            reinterpret_cast<size_t>(
+                MDevice->is_host() ? 0 : MDevice->getHandleRef()));
+      }
+      xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
+    });
+    PrepareNotify.notify();
+#endif
     if (has_property<ext::oneapi::property::queue::discard_events>() &&
         has_property<property::queue::enable_profiling>()) {
       throw sycl::exception(make_error_code(errc::invalid),
@@ -223,17 +234,15 @@ public:
     // The trace event created in the constructor should be active through the
     // lifetime of the queue object as member variables when ABI breakage is
     // allowed. This example shows MTraceEvent as a member variable.
-    // #if XPTI_ENABLE_INSTRUMENTATION
-    //     if (xptiTraceEnabled()) {
-    //       auto StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
-    //       uint16_t TraceType =
-    //       (uint16_t)xpti::trace_point_type_t::queue_destroy;
-    //       xptiNotifySubscribers(
-    //           StreamID, TraceType, nullptr, (xpti::trace_event_data_t *)
-    //           MTraceEvent, MInstanceID, static_cast<const void
-    //           *>("queue_destroy"));
-    //     }
-    // #endif
+#if XPTI_ENABLE_INSTRUMENTATION
+    if (xptiTraceEnabled()) {
+      // Used cached information in member variables
+      xptiNotifySubscribers(
+          MStreamID, (uint16_t)xpti::trace_point_type_t::queue_destroy, nullptr,
+          (xpti::trace_event_data_t *)MTraceEvent, MInstanceID,
+          static_cast<const void *>("queue_destroy"));
+    }
+#endif
     throw_asynchronous();
     if (!MHostQueue) {
       getPlugin().call<PiApiKind::piQueueRelease>(MQueues[0]);
@@ -676,14 +685,12 @@ protected:
   // variables that are commented will have to be enabled. This allows the
   // UniversalID for the queue object to be available through the lifetime of
   // the object. Adding the variables here will break ABI compatibility.
-  // /// The event for queue_create and queue_destroy.
-  // void *MTraceEvent = nullptr;
-  // /// The stream under which the traces are emitted from the queue object
-  // ///
-  // /// Stream ids are positive integers and we set it to an invalid value.
-  // int32_t MStreamID = -1;
-  // /// The instance ID of the trace event for queue object
-  // uint64_t MInstanceID = 0;
+  /// The event for queue_create and queue_destroy.
+  void *MTraceEvent = nullptr;
+  /// The stream under which the traces are emitted from the queue object
+  uint8_t MStreamID;
+  /// The instance ID of the trace event for queue object
+  uint64_t MInstanceID = 0;
 
 public:
   // Queue constructed with the discard_events property

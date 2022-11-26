@@ -526,9 +526,8 @@ public:
   /// \param Ptr is a USM pointer to the memory to fill.
   /// \param Value is a value to be set. Value is cast as an unsigned char.
   /// \param Count is a number of bytes to fill.
-  /// \param CodeLoc contains the code location of user code
   /// \return an event representing fill operation.
-  event memset(void *Ptr, int Value, size_t Count _CODELOCPARAM(&CodeLoc));
+  event memset(void *Ptr, int Value, size_t Count);
 
   /// Fills the memory pointed by a USM pointer with the value specified.
   /// No operations is done if \param Count is zero. An exception is thrown
@@ -539,10 +538,8 @@ public:
   /// \param Value is a value to be set. Value is cast as an unsigned char.
   /// \param Count is a number of bytes to fill.
   /// \param DepEvent is an event that specifies the kernel dependencies.
-  /// \param CodeLoc contains the code location of user code
   /// \return an event representing fill operation.
-  event memset(void *Ptr, int Value, size_t Count,
-               event DepEvent _CODELOCPARAM(&CodeLoc));
+  event memset(void *Ptr, int Value, size_t Count, event DepEvent);
 
   /// Fills the memory pointed by a USM pointer with the value specified.
   /// No operations is done if \param Count is zero. An exception is thrown
@@ -554,10 +551,9 @@ public:
   /// \param Count is a number of bytes to fill.
   /// \param DepEvents is a vector of events that specifies the kernel
   /// dependencies.
-  /// \param CodeLoc contains the code location of user code
   /// \return an event representing fill operation.
   event memset(void *Ptr, int Value, size_t Count,
-               const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc));
+               const std::vector<event> &DepEvents);
 
   /// Copies data from one memory region to another, both pointed by
   /// USM pointers.
@@ -568,10 +564,8 @@ public:
   /// \param Dest is a USM pointer to the destination memory.
   /// \param Src is a USM pointer to the source memory.
   /// \param Count is a number of bytes to copy.
-  /// \param CodeLoc contains the code location of user code
   /// \return an event representing copy operation.
-  event memcpy(void *Dest, const void *Src,
-               size_t Count _CODELOCPARAM(&CodeLoc));
+  event memcpy(void *Dest, const void *Src, size_t Count);
 
   /// Copies data from one memory region to another, both pointed by
   /// USM pointers.
@@ -583,10 +577,8 @@ public:
   /// \param Src is a USM pointer to the source memory.
   /// \param Count is a number of bytes to copy.
   /// \param DepEvent is an event that specifies the kernel dependencies.
-  /// \param CodeLoc contains the code location of user code
   /// \return an event representing copy operation.
-  event memcpy(void *Dest, const void *Src, size_t Count,
-               event DepEvent _CODELOCPARAM(&CodeLoc));
+  event memcpy(void *Dest, const void *Src, size_t Count, event DepEvent);
 
   /// Copies data from one memory region to another, both pointed by
   /// USM pointers.
@@ -599,10 +591,9 @@ public:
   /// \param Count is a number of bytes to copy.
   /// \param DepEvents is a vector of events that specifies the kernel
   /// dependencies.
-  /// \param CodeLoc contains the code location of user code
   /// \return an event representing copy operation.
   event memcpy(void *Dest, const void *Src, size_t Count,
-               const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc));
+               const std::vector<event> &DepEvents);
 
   /// Copies data from one memory region to another, both pointed by
   /// USM pointers.
@@ -614,7 +605,10 @@ public:
   /// \param Dest is a USM pointer to the destination memory.
   /// \param Count is a number of elements of type T to copy.
   /// \return an event representing copy operation.
-  template <typename T> event copy(const T *Src, T *Dest, size_t Count) {
+  template <typename T>
+  event copy(const T *Src, T *Dest, size_t Count _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(T));
   }
 
@@ -630,7 +624,10 @@ public:
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing copy operation.
   template <typename T>
-  event copy(const T *Src, T *Dest, size_t Count, event DepEvent) {
+  event copy(const T *Src, T *Dest, size_t Count,
+             event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(T), DepEvent);
   }
 
@@ -647,7 +644,9 @@ public:
   /// \return an event representing copy operation.
   template <typename T>
   event copy(const T *Src, T *Dest, size_t Count,
-             const std::vector<event> &DepEvents) {
+             const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(T), DepEvents);
   }
 

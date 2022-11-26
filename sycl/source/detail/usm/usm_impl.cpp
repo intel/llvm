@@ -41,28 +41,21 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
                        alloc Kind, const property_list &PropList,
                        const detail::code_location &CodeLoc) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  // This section of the code cann be encapsulated in a function as it is a
-  // scoped object that sets the Universal ID in TLS and removes it when the
-  // object goes out of scope.
-  xpti::framework::tracepoint_t TP(CodeLoc.fileName(), CodeLoc.functionName(),
-                                   CodeLoc.lineNumber(), CodeLoc.columnNumber(),
-                                   nullptr);
-  // Create a node object indicating the allocation
-  if (xptiTraceEnabled()) {
-    TP.stream(SYCL_MEM_ALLOC_STREAM_NAME)
-        .parent_event(GSYCLGraphEvent)
-        .trace_type(xpti::trace_point_type_t::node_create);
-    auto TEvent = const_cast<xpti::trace_event_data_t *>(TP.trace_event());
+  // Stash the code location information and propagate
+  detail::tls_code_loc_t CL(CodeLoc);
+  XPTIScope PrepareNotify((void *)alignedAllocHost,
+                          (uint16_t)xpti::trace_point_type_t::node_create,
+                          SYCL_MEM_ALLOC_STREAM_NAME, "malloc_host");
+  PrepareNotify.addMetadata([&](auto TEvent) {
     xpti::addMetadata(TEvent, "sycl_device_name", std::string("Host"));
     xpti::addMetadata(TEvent, "sycl_device", reinterpret_cast<int>(0));
     xpti::addMetadata(TEvent, "memory_size", reinterpret_cast<size_t>(Size));
-    TP.notify("alignedAllocHost");
-  }
-  /// Add a scoped notification for memset begin and memset end
-  xpti::framework::scoped_notify Trace(
-      TP.stream_id(), (uint16_t)xpti::trace_point_type_t::mem_alloc_begin,
-      nullptr, const_cast<xpti::trace_event_data_t *>(TP.trace_event()),
-      TP.instance_id(), static_cast<const void *>("usm::alignedAllocHost"));
+  });
+  // Notify XPTI about the memset submission
+  PrepareNotify.notify();
+  // Emit a begin/end scope for this call
+  PrepareNotify.scopedNotify(
+      (uint16_t)xpti::trace_point_type_t::mem_alloc_begin);
 #endif
   void *RetVal = nullptr;
   if (Size == 0)
@@ -132,18 +125,12 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
                    const device &Dev, alloc Kind, const property_list &PropList,
                    const detail::code_location &CodeLoc) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  // This section of the code cann be encapsulated in a function as it is a
-  // scoped object that sets the Universal ID in TLS and removes it when the
-  // object goes out of scope.
-  xpti::framework::tracepoint_t TP(CodeLoc.fileName(), CodeLoc.functionName(),
-                                   CodeLoc.lineNumber(), CodeLoc.columnNumber(),
-                                   nullptr);
-  // Create a node object indicating the allocation
-  if (xptiTraceEnabled()) {
-    TP.stream(SYCL_MEM_ALLOC_STREAM_NAME)
-        .parent_event(GSYCLGraphEvent)
-        .trace_type(xpti::trace_point_type_t::node_create);
-    auto TEvent = const_cast<xpti::trace_event_data_t *>(TP.trace_event());
+  // Stash the code location information and propagate
+  detail::tls_code_loc_t CL(CodeLoc);
+  XPTIScope PrepareNotify((void *)alignedAlloc,
+                          (uint16_t)xpti::trace_point_type_t::node_create,
+                          SYCL_MEM_ALLOC_STREAM_NAME, "usm::alignedAlloc");
+  PrepareNotify.addMetadata([&](auto TEvent) {
     // Need to determine how to get the device handle reference and device name
     // to enable metadata
 
@@ -151,13 +138,12 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
     // xpti::addMetadata(TEvent, "sycl_device",
     //                   reinterpret_cast<size_t>(Dev.getHandleRef()));
     xpti::addMetadata(TEvent, "memory_size", reinterpret_cast<size_t>(Size));
-    TP.notify("alignedAlloc");
-  }
-  /// Add a scoped notification for memset begin and memset end
-  xpti::framework::scoped_notify Trace(
-      TP.stream_id(), (uint16_t)xpti::trace_point_type_t::mem_alloc_begin,
-      nullptr, const_cast<xpti::trace_event_data_t *>(TP.trace_event()),
-      TP.instance_id(), static_cast<const void *>("usm::alignedAlloc"));
+  });
+  // Notify XPTI about the memset submission
+  PrepareNotify.notify();
+  // Emit a begin/end scope for this call
+  PrepareNotify.scopedNotify(
+      (uint16_t)xpti::trace_point_type_t::mem_alloc_begin);
 #endif
   void *RetVal = nullptr;
   if (Size == 0)
@@ -262,26 +248,19 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
 void free(void *Ptr, const context &Ctxt,
           const detail::code_location &CodeLoc) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  // This section of the code cann be encapsulated in a function as it is a
-  // scoped object that sets the Universal ID in TLS and removes it when the
-  // object goes out of scope.
-  xpti::framework::tracepoint_t TP(CodeLoc.fileName(), CodeLoc.functionName(),
-                                   CodeLoc.lineNumber(), CodeLoc.columnNumber(),
-                                   nullptr);
-  // Create a node object indicating the destruction of the memory object
-  if (xptiTraceEnabled()) {
-    TP.stream(SYCL_MEM_ALLOC_STREAM_NAME)
-        .parent_event(GSYCLGraphEvent)
-        .trace_type(xpti::trace_point_type_t::node_create);
-    auto TEvent = const_cast<xpti::trace_event_data_t *>(TP.trace_event());
+  // Stash the code location information and propagate
+  detail::tls_code_loc_t CL(CodeLoc);
+  XPTIScope PrepareNotify((void *)free,
+                          (uint16_t)xpti::trace_point_type_t::node_create,
+                          SYCL_MEM_ALLOC_STREAM_NAME, "usm::free");
+  PrepareNotify.addMetadata([&](auto TEvent) {
     xpti::addMetadata(TEvent, "memory_ptr", reinterpret_cast<size_t>(Ptr));
-    TP.notify("usm::free");
-  }
-  /// Add a scoped notification for memset begin and memset end
-  xpti::framework::scoped_notify Trace(
-      TP.stream_id(), (uint16_t)xpti::trace_point_type_t::mem_release_begin,
-      nullptr, const_cast<xpti::trace_event_data_t *>(TP.trace_event()),
-      TP.instance_id(), static_cast<const void *>("usm::free"));
+  });
+  // Notify XPTI about the memset submission
+  PrepareNotify.notify();
+  // Emit a begin/end scope for this call
+  PrepareNotify.scopedNotify(
+      (uint16_t)xpti::trace_point_type_t::mem_release_begin);
 #endif
   if (Ptr == nullptr)
     return;
