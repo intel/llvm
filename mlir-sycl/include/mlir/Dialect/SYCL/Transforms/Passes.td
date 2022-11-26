@@ -11,8 +11,8 @@
 
 include "mlir/Pass/PassBase.td"
 
-def AlwaysInlinePass : Pass<"always-inline"> {
-  let summary = "Inline SYCL calls to functions marked 'always_inline'";
+def AlwaysInlinePass : Pass<"sycl-always-inline"> {
+  let summary = "Inline SYCL calls to functions marked 'alwaysinline'";
   let description = [{
     Replace a sycl.call operation with the body of the callee if the callee has 
     the 'always_inline' attribute. 

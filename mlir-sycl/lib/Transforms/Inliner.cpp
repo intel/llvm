@@ -191,7 +191,7 @@ public:
   AlwaysInlinerPass(const AlwaysInlinerPass &) = default;
 
   /// Returns the command-line argument attached to this pass.
-  llvm::StringRef getArgument() const final { return "always-inline"; }
+  llvm::StringRef getArgument() const final { return "sycl-always-inline"; }
 
   llvm::StringRef getDescription() const final {
     return "Inline function calls with the 'alwaysinline' attribute";
