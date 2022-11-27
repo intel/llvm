@@ -161,7 +161,8 @@ public:
 
   uint64_t instanceID() { return MTP ? MTP->instance_id() : 0; }
 
-  XPTIScope &addMetadata(auto Callback) {
+  XPTIScope &
+  addMetadata(const std::function<void(xpti::trace_event_data_t *)> &Callback) {
 #if XPTI_ENABLE_INSTRUMENTATION
     if (xptiTraceEnabled() && MTP) {
       auto TEvent = const_cast<xpti::trace_event_data_t *>(MTP->trace_event());
