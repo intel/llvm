@@ -1028,19 +1028,15 @@ _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
     EventList.clear();
   } else {
     // For immediate commandlist reset only those events that have signalled.
-    std::vector<pi_event> UnsetEventsList{};
     for (auto it = EventList.begin(); it != EventList.end(); it++) {
       std::scoped_lock<pi_shared_mutex> EventLock((*it)->Mutex);
       ze_result_t ZeResult =
           ZE_CALL_NOCHECK(zeEventQueryStatus, ((*it)->ZeEvent));
       if (ZeResult == ZE_RESULT_SUCCESS) {
-        EventListToCleanup.push_back(std::move((*it)));
-      } else {
-        UnsetEventsList.push_back(std::move((*it)));
+        std::move(it, it, std::back_inserter(EventListToCleanup));
+        EventList.erase(it, it);
       }
     }
-    EventList.clear();
-    EventList = std::move(UnsetEventsList);
   }
 
   // Standard commandlists move in and out of the cache as they are recycled.
@@ -6497,27 +6493,42 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
 
   // Get command lists for each command queue.
   std::vector<pi_command_list_ptr_t> CmdLists;
-  if (Queue->Device->useImmediateCommandLists()) {
-    // If immediate command lists are being used, each will act as their own
-    // queue, so we must insert a barrier into each.
-    CmdLists.reserve(Queue->CommandListMap.size());
-    for (auto It = Queue->CommandListMap.begin();
-         It != Queue->CommandListMap.end(); ++It)
-      CmdLists.push_back(It);
+  // Check if there has been no activity on the queue.
+  if ((Queue->Device->useImmediateCommandLists() &&
+       Queue->CommandListMap.size() == 0) ||
+      (Queue->ComputeQueueGroup.ZeQueues.empty() &&
+       Queue->CopyQueueGroup.ZeQueues.empty())) {
+    // Get any available command list.
+    pi_command_list_ptr_t CmdList;
+    if (auto Res = Queue->Context->getAvailableCommandList(
+            Queue, CmdList,
+            /*UseCopyEngine=*/false, OkToBatch))
+      return Res;
+    CmdLists.push_back(CmdList);
   } else {
-    size_t NumQueues = Queue->ComputeQueueGroup.ZeQueues.size() +
-                       Queue->CopyQueueGroup.ZeQueues.size();
-    // Only allow batching if there is only a single queue as otherwise the
-    // following availability command list lookups will prematurely push
-    // open batch command lists out.
-    OkToBatch = NumQueues == 1;
-    // Get an available command list tied to each command queue. We need these
-    // so a queue-wide barrier can be inserted into each command queue.
-    CmdLists.reserve(NumQueues);
-    for (auto QueueGroup : {Queue->ComputeQueueGroup, Queue->CopyQueueGroup}) {
-      bool UseCopyEngine = QueueGroup.Type != _pi_queue::queue_type::Compute;
-      for (ze_command_queue_handle_t ZeQueue : QueueGroup.ZeQueues) {
-        if (ZeQueue) {
+    // Queues has been used.
+    if (Queue->Device->useImmediateCommandLists()) {
+      // If immediate command lists are being used, each will act as their own
+      // queue, so we must insert a barrier into each.
+      CmdLists.reserve(Queue->CommandListMap.size());
+      for (auto It = Queue->CommandListMap.begin();
+           It != Queue->CommandListMap.end(); ++It)
+        CmdLists.push_back(It);
+    } else {
+      size_t NumQueues = Queue->ComputeQueueGroup.ZeQueues.size() +
+                         Queue->CopyQueueGroup.ZeQueues.size();
+      // Only allow batching if there is only a single queue as otherwise the
+      // following availability command list lookups will prematurely push
+      // open batch command lists out.
+      OkToBatch = NumQueues == 1;
+      // Get an available command list tied to each command queue. We need
+      // these so a queue-wide barrier can be inserted into each command
+      // queue.
+      CmdLists.reserve(NumQueues);
+      for (auto QueueGroup :
+           {Queue->ComputeQueueGroup, Queue->CopyQueueGroup}) {
+        bool UseCopyEngine = QueueGroup.Type != _pi_queue::queue_type::Compute;
+        for (ze_command_queue_handle_t ZeQueue : QueueGroup.ZeQueues) {
           pi_command_list_ptr_t CmdList;
           if (auto Res = Queue->Context->getAvailableCommandList(
                   Queue, CmdList, UseCopyEngine, OkToBatch, &ZeQueue))
@@ -6528,9 +6539,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     }
   }
 
-  if (CmdLists.size() == 0) {
-    // Nothing to do.
-  } else if (CmdLists.size() > 1) {
+  if (CmdLists.size() > 1) {
     // Insert a barrier into each unique command queue using the available
     // command-lists.
     std::vector<pi_event> EventWaitVector(CmdLists.size());
@@ -6576,13 +6585,9 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     if (auto Res = Queue->executeCommandList(CmdList, false, OkToBatch))
       return Res;
 
-  if (*Event) {
-    // We must keep the event internally to use if new command lists are
-    // created.
-    (*Event)->RefCount.increment();
-    Queue->ActiveBarriers.push_back(*Event);
-  }
-
+  // We must keep the event internally to use if new command lists are created.
+  (*Event)->RefCount.increment();
+  Queue->ActiveBarriers.push_back(*Event);
   return PI_SUCCESS;
 }
 
