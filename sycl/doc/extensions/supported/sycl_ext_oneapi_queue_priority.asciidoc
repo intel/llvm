@@ -1,0 +1,97 @@
+= sycl_ext_oneapi_queue_priority
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2022-2022 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 4 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+== Status
+
+This extension is implemented and fully supported by {dpcpp}.
+
+== Overview
+
+Introduce SYCL queue property specifying desired priority of the queue.
+This priority is a hint and may be ignored if not supported by
+underlying backends. 
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine
+the macro `SYCL_EXT_ONEAPI_QUEUE_PRIORITY` to one of the values defined
+in the table below.  Applications can test for the existence of this macro
+to determine if the implementation supports this feature, or applications
+can test the macro's value to determine which of the extension's features
+the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+=== API of the extension
+
+This extension adds support for a new property for SYCL queue constructors
+taking properties list:
+
+```c++
+namespace sycl::ext::oneapi::property::queue {
+
+  class use_priority {
+  public:
+    using priority_type = enum {
+      normal = 0, // default
+      low = 1,
+      high = 2
+    };
+    use_priority(priority_type);
+  };
+
+} // namespace
+```
+The new property hints the SYCL runtime that the queue gets the specified
+priority for execution if supported by underlying target runtimes. This
+property is a hint and may safely be ignored by an implementation. In the
+initial version (`SYCL_EXT_ONEAPI_QUEUE_PRIORITY` equals to `1`) it is
+supported by Level Zero backend only.
