@@ -6491,8 +6491,9 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     PI_CALL(piEventReleaseInternal(E));
   Queue->ActiveBarriers.clear();
 
-  // Get command lists for each command queue.
+  // Command list(s) for putting barriers.
   std::vector<pi_command_list_ptr_t> CmdLists;
+
   // Check if there has been no activity on the queue.
   if ((Queue->Device->useImmediateCommandLists() &&
        Queue->CommandListMap.size() == 0) ||
@@ -6506,7 +6507,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
       return Res;
     CmdLists.push_back(CmdList);
   } else {
-    // Queues has been used.
+    // Queue has been used.
     if (Queue->Device->useImmediateCommandLists()) {
       // If immediate command lists are being used, each will act as their own
       // queue, so we must insert a barrier into each.
