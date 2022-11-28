@@ -697,7 +697,7 @@ pi_result _pi_program::set_metadata(const pi_device_binary_property *metadata,
           reinterpret_cast<const char *>(metadataElement->ValAddr) +
           sizeof(std::uint64_t);
       // Read values and pad with 1's for values not present.
-      const std::uint32_t reqdWorkGroupElements[] = {1, 1, 1};
+      std::uint32_t reqdWorkGroupElements[] = {1, 1, 1};
       std::memcpy(reqdWorkGroupElements, ValuePtr, MDElemsSize);
       kernelReqdWorkGroupSizeMD_[kernelName] =
           std::make_tuple(reqdWorkGroupElements[0], reqdWorkGroupElements[1],
