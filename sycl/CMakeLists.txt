@@ -334,6 +334,9 @@ add_subdirectory( plugins )
 
 add_subdirectory(tools)
 
+add_subdirectory(win_unload)
+target_link_libraries(sycl-toolchain PUBLIC win_unload)
+
 if(SYCL_INCLUDE_TESTS)
   if(NOT LLVM_INCLUDE_TESTS)
       message(FATAL_ERROR
