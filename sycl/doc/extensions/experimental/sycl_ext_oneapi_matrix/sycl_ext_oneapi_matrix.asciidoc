@@ -324,9 +324,8 @@ The table below provides a description for each of the member variables and type
 |`joint_matrix_a`|  validation, default values|type alias for `joint_matrix` for matrix A
 |`joint_matrix_b`| validation, default values| type alias for `joint_matrix` for matrix B
 |`joint_matrix_accumulator`|  validation, default values| type alias for `joint_matrix` for matrix accumulator
-|`dynamic_p`| validation, default values, general query| a boolean that indicates whether the implementation supports dynamic sizes (true) or not (false)
 |numtiles|  validation, default values, general query|indicates number of tiles in Intel AMX (does not apply to Intel XMX)
-|scope| validation, default values, general query| indicates the memory and execution scope supported by the TPU implementation
+|scopes| validation, default values, general query| indicates the memory and execution scopes supported by the TPU implementation
 |`combination` |  validation, default values, general query|composes the types and sizes of A, B, accumulator matrices allowed in one combination
 |`max_msize`, `max_nsize`, `max_ksize`|  validation, default values, general query| if the TPU implementation supports a continuous number of element sizes, each of these members is non-zero, and the TPU implementation supports all element sizes from 1 up to (and including) that number. By contrast, if the TPU implementation supports a discrete number of element sizes, each of these members has the value zero
 |`msize`, `nsize`, `ksize`|  validation, default values, general query| if the TPU implementation supports a discrete number of element sizes, each of these members is non-zero, and the value tells one of the supported element sizes. By contrast, if the TPU supports a continuous number of element sizes, each of these members has the value zero
@@ -334,9 +333,6 @@ The table below provides a description for each of the member variables and type
 |`combinations`    | validation, default values, general query| tells the set of supported matrix sizes and types according to the template parameters that are provided. In the "general query" form, the user provides only the TPU type, so the combinations array contains all supported tile sizes and element types for that TPU. In the "default values" form, the user provides the TPU type and element types, so the combinations array contains only those supported matrix sizes and element types that match those element types on that TPU. In the "validation" form, the user provides the TPU type, element types, and element sizes so only this specific combination is returned in the combinations array. 
 |`num_combinations`|  validation, default values, general query|indicates number of combinations supported by the TPU implementation which corresponds to the size of the `combinations` array
 |======================
-
-
-
 
 
 
@@ -380,10 +376,9 @@ struct tpu_params<
   template <layout Layout, typename Group = sub_group>
   using joint_matrix_accumulator = joint_matrix<Tc, use::accumulator, defaultM, defaultN, Layout, Group>;
 
-  static constexpr bool dynamic_p = false; // should be true in future implementations
-                          // because Intel AMX hardware supports dynamic sizes
   static constexpr uint32_t numtiles = 8;
-  static constexpr scope_t scope = scope_t::sub_group;
+  static constexpr scope_t scopes[] = {scope_t::sub_group};
+  static constexpr int num_scopes = sizeof(scopes) / sizeof(scope_t);
   struct combination {
     uint32_t max_msize;
     uint32_t max_nsize;
@@ -430,10 +425,9 @@ struct tpu_params<tpu::amx, Ta, Tb, Tc, 0, 0, 0,
   template <layout Layout, typename Group = sub_group>
   using joint_matrix_accumulator = joint_matrix<Tc, use::accumulator, M, N, Layout, Group>;
 
-  static constexpr bool dynamic_p = false; // should be true in future implementations because
-                          // Intel AMX hardware supports dynamic sizes
   static constexpr uint32_t numtiles = 8;
-  static constexpr scope_t scope = scope_t::sub_group;
+  static constexpr scope_t scopes[] = {scope_t::sub_group};
+  static constexpr int num_scopes = sizeof(scopes) / sizeof(scope_t);
   struct combination {
     uint32_t max_msize;
     uint32_t max_nsize;
@@ -457,10 +451,9 @@ struct tpu_params<tpu::amx, Ta, Tb, Tc, 0, 0, 0,
 // types are not given, no default sizes and no implicit matrix construction
 template <int sM, int sN, int sK>
 struct tpu_params<tpu::amx, void, void, void, sM, sN, sK> {
-  static constexpr bool dynamic_p = false; // should be true in future implementations because
-                          // Intel AMX hardware supports dynamic sizes
   static constexpr uint32_t numtiles = 8;
-  static constexpr scope_t scope = scope_t::sub_group;
+  static constexpr scope_t scopes[] = {scope_t::sub_group};
+  static constexpr int num_scopes = sizeof(scopes) / sizeof(scope_t);
   struct combination {
     uint32_t max_msize;
     uint32_t max_nsize;
@@ -485,14 +478,15 @@ struct tpu_params<tpu::amx, void, void, void, sM, sN, sK> {
 
 
 enum class tpu {
-  xmx,
+  xmx8,
+  xmx16,
   amx
 };
 
 enum class matrix_type {
   bf16,
   fp16,
-  fp19,  // tfloat32
+  tf32,
   fp32,
   fp64,
   sint2,
@@ -521,14 +515,14 @@ enum class scope_t {
 ```c++
 // User can provide sizes besides the types and tpu_params can assert if they are supported or not
 // in this case, an assertion will happens as 16 is not a supported size for M
-using myparams = tpu_params<tpu::xmx, int8_t, int8_t, int, 16, 8, 32>;  
+using myparams = tpu_params<tpu::xmx16, int8_t, int8_t, int, 16, 16, 32>;  
 size_t NDRangeM = M / myparams::M;  //Assertion would happen at this line
 size_t NDRangeN = N / myparams::N;
 ```
 
 === Default Values Example:
 ```c++
-using myparams = tpu_params_both<tpu::xmx, int8_t, int8_t, int>;
+using myparams = tpu_params_both<tpu::xmx16, int8_t, int8_t, int>;
 // use this to construct the ranges on the host side
 size_t NDRangeM = M / myparams::M;
 size_t NDRangeN = N / myparams::N;
@@ -544,7 +538,7 @@ myparams::joint_matrix_accumulator sub_c();
 ```c++
 constexpr int M = 1500; // with msize = 8 and msize = 4,
           // M can be broken up to 125 sequence of 8-sized ops and remaining 500 using 125 sequence of 4-sized ops
-tpu_params<tpu::xmx> params;
+tpu_params<tpu::xmx16> params;
 constexpr int msize = break_dimension(params, M);
 constexpr int msize_remainder = break_dimension_remainder(params, M);
 constexpr int nsize = params.combinations[0].nsize;
@@ -592,12 +586,10 @@ for (int i = 0; i < length; ++i) {
 
 ## Open Questions
 - Ronan Keryell: "It would be interesting to investigate whether providing also member functions would simplify the API. Provide both so it is possible to use the best one for each use case, while waiting for https://en.wikipedia.org/wiki/Uniform_Function_Call_Syntax to land into C++?"
-- Add a second constructor to `joint_matrix` that takes no argument. The `Group` argument in the current constructor is unused in the current implementations. Having a second constructor will simplify performance code where one SG is assigned multiple joint matrices.
 
 ## TODO List
 - Add WI data to joint matrix mapping coordinates information for piece-wise operations. This will be added as part of the query or new methods to the 'get_wi_data' class. 
-- Change the type of `scope` in the query interface to be able to return more than one value. This will be useful in the event we support other scopes like workgroup besides subgroups
-- Add a more realistic and complete example that shows the value of the general query
+- Add a more realistic and complete example that shows the value of the general query. 
 
 
 ## Revision History
@@ -609,5 +601,5 @@ for (int i = 0; i < length; ++i) {
 |2   |2021-10-05 |Dounia Khaldi |JIT implementation on both Intel AMX and DPAS
 |3   |2022-05-16 |Dounia Khaldi |Add matrix fill and piece-wise operations support
 |4   |2022-08-25 |Dounia Khaldi |Update the matrix spec by adding the new matrix use parameter and remove reference to the AOT AMX initial implementation 
-|5   |2022-11-07 |Dounia Khaldi |Update the matrix spec by moving the Intel-specifics to a separate document.  
+|5   |2022-11-07 |Dounia Khaldi |Update the matrix spec by moving the Intel-specifics to a separate extension document.  
 |======================
