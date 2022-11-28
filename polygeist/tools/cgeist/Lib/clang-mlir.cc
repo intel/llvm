@@ -97,7 +97,7 @@ void MLIRScanner::initUnsupportedFunctions() {
   UnsupportedFuncs.insert(
       "_ZN4sycl3_V13vecIlLi16EE8setValueILi16EivEEvNSt9enable_ifILb1ET0_"
       "E4typeERKli");
-  // FIXME: Imlement init list vector support:
+  // FIXME: Implement init list vector support:
   // #8 0x000056218bb30872 ValueCategory::store(mlir::OpBuilder&, mlir::Value)
   // const
   // #9 0x000056218bb314d2 ValueCategory::store(mlir::OpBuilder&, ValueCategory,
