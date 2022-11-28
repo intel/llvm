@@ -352,6 +352,8 @@ def warn_drv_sycl_offload_target_duplicate : Warning<
 def warn_drv_sycl_target_missing : Warning<
   "linked binaries do not contain expected '%0' target; found targets: '%1'">,
   InGroup<SyclTarget>;
+def err_no_rdc_drv_sycl_target_missing : Error<
+  "linked binaries do not contain expected '%0' target; found targets: '%1', this is not supported with -fno-sycl-rdc">;
 def err_drv_multiple_target_with_forced_target : Error<
   "multiple target usage with '%0' is not supported with '%1'">;
 def err_drv_failed_to_deduce_target_from_arch : Error<

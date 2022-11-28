@@ -5799,8 +5799,14 @@ class OffloadingActionBuilder final {
           ArchListStr += Section;
           Cnt++;
         }
-        C.getDriver().Diag(diag::warn_drv_sycl_target_missing)
-            << SectionTriple << ArchListStr;
+        if (tools::SYCL::shouldDoPerObjectFileLinking(C)) {
+          C.getDriver().Diag(diag::err_no_rdc_drv_sycl_target_missing)
+              << SectionTriple << ArchListStr;
+          C.setContainsError();
+        } else {
+          C.getDriver().Diag(diag::warn_drv_sycl_target_missing)
+              << SectionTriple << ArchListStr;
+        }       
       }
     }
 
