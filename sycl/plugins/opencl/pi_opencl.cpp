@@ -330,6 +330,11 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
         out[2] = Max;
       return PI_SUCCESS;
     }
+  case PI_EXT_INTEL_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES: {
+    pi_int32 result = 1;
+    std::memcpy(paramValue, &result, sizeof(pi_int32));
+    return PI_SUCCESS;
+  }
 
   default:
     cl_int result = clGetDeviceInfo(

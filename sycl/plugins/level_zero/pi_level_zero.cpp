@@ -3183,6 +3183,9 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
                          Device->ZeDeviceMemoryProperties->end(), Comp);
     return ReturnValue(pi_uint32{MinIt->maxBusWidth});
   }
+  case PI_EXT_INTEL_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES: {
+    return ReturnValue(pi_int32{1});
+  }
   case PI_DEVICE_INFO_GPU_EU_COUNT: {
     pi_uint32 count = Device->ZeDeviceProperties->numEUsPerSubslice *
                       Device->ZeDeviceProperties->numSubslicesPerSlice *

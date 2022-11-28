@@ -286,6 +286,9 @@ typedef enum {
   // Return 0 if device doesn't have any memory modules. Return the minimum of
   // the bus width values if there are several memory modules on the device.
   PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH = 0x10031,
+  // Return 1 if the device doesn't have a notion of a "queue index". Otherwise,
+  // return the number of queue indices that are available for this device.
+  PI_EXT_INTEL_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES = 0x10032,
   PI_DEVICE_INFO_ATOMIC_64 = 0x10110,
   PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 0x10111,
   PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 0x11000,
