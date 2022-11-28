@@ -60,6 +60,102 @@ _iml_bf16_internal __imf_float2bfloat16_rz(float f) {
 }
 
 DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_bfloat162uint_rd(_iml_bf16_internal);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_bfloat162uint_rd(_iml_bf16_internal b) {
+  return __devicelib_imf_bfloat162uint_rd(b);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_bfloat162uint_rn(_iml_bf16_internal);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_bfloat162uint_rn(_iml_bf16_internal b) {
+  return __devicelib_imf_bfloat162uint_rn(b);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_bfloat162uint_ru(_iml_bf16_internal);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_bfloat162uint_ru(_iml_bf16_internal b) {
+  return __devicelib_imf_bfloat162uint_ru(b);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_bfloat162uint_rz(_iml_bf16_internal);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_bfloat162uint_rz(_iml_bf16_internal b) {
+  return __devicelib_imf_bfloat162uint_rz(b);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned short __devicelib_imf_bfloat162ushort_rd(_iml_bf16_internal);
+
+DEVICE_EXTERN_C_INLINE
+unsigned short __imf_bfloat162ushort_rd(_iml_bf16_internal b) {
+  return __devicelib_imf_bfloat162ushort_rd(b);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned short __devicelib_imf_bfloat162ushort_rn(_iml_bf16_internal);
+
+DEVICE_EXTERN_C_INLINE
+unsigned short __imf_bfloat162ushort_rn(_iml_bf16_internal b) {
+  return __devicelib_imf_bfloat162ushort_rn(b);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned short __devicelib_imf_bfloat162ushort_ru(_iml_bf16_internal);
+
+DEVICE_EXTERN_C_INLINE
+unsigned short __imf_bfloat162ushort_ru(_iml_bf16_internal b) {
+  return __devicelib_imf_bfloat162ushort_ru(b);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned short __devicelib_imf_bfloat162ushort_rz(_iml_bf16_internal);
+
+DEVICE_EXTERN_C_INLINE
+unsigned short __imf_bfloat162ushort_rz(_iml_bf16_internal b) {
+  return __devicelib_imf_bfloat162ushort_rz(b);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned long long __devicelib_imf_bfloat162ull_rd(_iml_bf16_internal);
+
+DEVICE_EXTERN_C_INLINE
+unsigned long long __imf_bfloat162ull_rd(_iml_bf16_internal b) {
+  return __devicelib_imf_bfloat162ull_rd(b);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned long long __devicelib_imf_bfloat162ull_rn(_iml_bf16_internal);
+
+DEVICE_EXTERN_C_INLINE
+unsigned long long __imf_bfloat162ull_rn(_iml_bf16_internal b) {
+  return __devicelib_imf_bfloat162ull_rn(b);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned long long __devicelib_imf_bfloat162ull_ru(_iml_bf16_internal);
+
+DEVICE_EXTERN_C_INLINE
+unsigned long long __imf_bfloat162ull_ru(_iml_bf16_internal b) {
+  return __devicelib_imf_bfloat162ull_ru(b);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned long long __devicelib_imf_bfloat162ull_rz(_iml_bf16_internal);
+
+DEVICE_EXTERN_C_INLINE
+unsigned long long __imf_bfloat162ull_rz(_iml_bf16_internal b) {
+  return __devicelib_imf_bfloat162ull_rz(b);
+}
+
+DEVICE_EXTERN_C_INLINE
 _iml_bf16_internal __devicelib_imf_fmabf16(_iml_bf16_internal,
                                            _iml_bf16_internal,
                                            _iml_bf16_internal);

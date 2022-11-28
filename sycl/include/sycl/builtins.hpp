@@ -1844,6 +1844,22 @@ extern SYCL_EXTERNAL _Float16 __imf_fminf16(_Float16 x, _Float16 y);
 extern SYCL_EXTERNAL _Float16 __imf_copysignf16(_Float16 x, _Float16 y);
 extern SYCL_EXTERNAL float __imf_half2float(_Float16 x);
 extern SYCL_EXTERNAL float __imf_bfloat162float(uint16_t x);
+extern SYCL_EXTERNAL unsigned int __imf_bfloat162uint_rd(uint16_t x);
+extern SYCL_EXTERNAL unsigned int __imf_bfloat162uint_rn(uint16_t x);
+extern SYCL_EXTERNAL unsigned int __imf_bfloat162uint_ru(uint16_t x);
+extern SYCL_EXTERNAL unsigned int __imf_bfloat162uint_rz(uint16_t x);
+extern SYCL_EXTERNAL unsigned short __imf_bfloat162ushort_rd(uint16_t x);
+extern SYCL_EXTERNAL unsigned short __imf_bfloat162ushort_rn(uint16_t x);
+extern SYCL_EXTERNAL unsigned short __imf_bfloat162ushort_ru(uint16_t x);
+extern SYCL_EXTERNAL unsigned short __imf_bfloat162ushort_rz(uint16_t x);
+extern SYCL_EXTERNAL unsigned long long
+__imf_bfloat162ull_rd(unsigned long long x);
+extern SYCL_EXTERNAL unsigned long long
+__imf_bfloat162ull_rn(unsigned long long x);
+extern SYCL_EXTERNAL unsigned long long
+__imf_bfloat162ull_ru(unsigned long long x);
+extern SYCL_EXTERNAL unsigned long long
+__imf_bfloat162ull_rz(unsigned long long x);
 extern SYCL_EXTERNAL uint16_t __imf_float2bfloat16(float x);
 extern SYCL_EXTERNAL uint16_t __imf_float2bfloat16_rd(float x);
 extern SYCL_EXTERNAL uint16_t __imf_float2bfloat16_rn(float x);

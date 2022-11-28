@@ -11,6 +11,8 @@
 
 #include "device.h"
 #include <cstdint>
+#include <limits>
+#include <type_traits>
 
 // Currently, we use uint16_t to emulate BFloat16 for all device.
 typedef uint16_t _iml_bf16_internal;
@@ -77,6 +79,68 @@ __float2bfloat16(float f, __iml_rounding_mode rounding_mode) {
   }
 
   return (bf16_sign << 15) | (bf16_exp << 7) | bf16_mant;
+}
+
+template <typename Ty>
+static Ty __iml_bfloat162integral_u(uint16_t b,
+                                    __iml_rounding_mode rounding_mode) {
+  static_assert(
+      std::is_unsigned<Ty>::value && std::is_integral<Ty>::value,
+      "__iml_bfloat162integral_u only accepts unsigned integral type.");
+  uint16_t b_sign = b >> 15;
+  // return 0 for all negative bfloat16 when converting them to unsigned
+  // integral type.
+  if (b_sign)
+    return 0;
+  uint16_t b_exp = b >> 7;
+  uint16_t b_mant = b & 0x7F;
+  uint16_t b_exp1 = b_exp - 127;
+
+  if (!b_exp)
+    return (b_mant && (__IML_RTP == rounding_mode)) ? 1 : 0;
+
+  // return 0 for NAN value and convert infinity to max.
+  if (b_exp == 0xFF)
+    return b_mant ? 0 : std::numeric_limits<Ty>::max();
+
+  // Normalized value can be represented as 1.signifcand * 2^b_exp1
+  // and is equivalent to 1.signifcand * 2^7 * 2^(b_exp1 - 7).
+  // -133 <= b_exp1 - 7 <= 120
+  Ty x_val = b_mant;
+  Ty x_discard;
+  x_val |= (0x1 << 7);
+  b_exp1 -= 7;
+  if (b_exp1 >= 0 && b_exp1 <= (sizeof(Ty) * 8 - 8))
+    return (x_val <<= b_exp1);
+  if (b_exp1 > (sizeof(Ty) * 8 - 8))
+    return std::numeric_limits<Ty>::max();
+
+  // if b_exp1 < 0, we need to right shift and discard some bits, when
+  // -b_exp1 > 8, the  value will be less than 0.5 and we don't need to
+  // take special care for RTE.
+  if (-b_exp1 > 8)
+    return (__IML_RTP == rounding_mode) ? 1 : 0;
+
+  x_discard = x_val & ((static_cast<Ty>(1) << -b_exp1) - 1);
+  Ty mid = 1 << (-b_exp1 - 1);
+  x_val >>= -b_exp1;
+  if (!x_discard)
+    return x_val;
+  switch (rounding_mode) {
+  case __IML_RTE:
+    if ((x_discard > mid) || ((x_discard == mid) && ((x_val & 0x1) == 0x1)))
+      x_val++;
+    break;
+  case __IML_RTN:
+    break;
+  case __IML_RTP:
+    x_val++;
+    break;
+  case __IML_RTZ:
+    break;
+  }
+
+  return x_val;
 }
 
 // We convert bf16 to fp32 and do all arithmetic operations, then convert back.
