@@ -7990,7 +7990,7 @@ static void CollectForEachInputs(
     InputInfoList &InputInfos, const Action *SourceAction, const ToolChain *TC,
     StringRef BoundArch, Action::OffloadKind TargetDeviceOffloadKind,
     const std::map<std::pair<const Action *, std::string>, InputInfoList>
-        &CachedResults) {
+    &CachedResults, const ForEachWrappingAction *FEA) {
   for (const Action *Input : SourceAction->getInputs()) {
     // Search for the Input, if not in the cache assume actions were collapsed
     // so recurse.
@@ -7998,10 +7998,12 @@ static void CollectForEachInputs(
         {Input,
          GetTriplePlusArchString(TC, BoundArch, TargetDeviceOffloadKind)});
     if (Lookup != CachedResults.end()) {
-      InputInfos.append(Lookup->second);
+      if (!FEA->getSerialActions().count(Input)) {
+        InputInfos.append(Lookup->second);
+      }
     } else {
       CollectForEachInputs(InputInfos, Input, TC, BoundArch,
-                           TargetDeviceOffloadKind, CachedResults);
+                           TargetDeviceOffloadKind, CachedResults, FEA);
     }
   }
 }
@@ -8172,13 +8174,16 @@ InputInfoList Driver::BuildJobsForActionNoCache(
          llvm::make_range(std::make_move_iterator(JobsToWrap.begin()),
                           std::make_move_iterator(JobsToWrap.end()))) {
       const JobAction *SourceAction = cast<JobAction>(&Cmd->getSource());
-
+      if (FEA->getSerialActions().count(SourceAction)) {
+        C.addCommand(std::move(Cmd));
+        continue;
+      }
       ActionResult = CachedResults.at(
           {SourceAction,
            GetTriplePlusArchString(TC, BoundArch, TargetDeviceOffloadKind)}).front();
       InputInfoList InputInfos;
       CollectForEachInputs(InputInfos, SourceAction, TC, BoundArch,
-                           TargetDeviceOffloadKind, CachedResults);
+                           TargetDeviceOffloadKind, CachedResults, FEA);
       const Tool *Creator = &Cmd->getCreator();
 
       tools::SYCL::constructLLVMForeachCommand(

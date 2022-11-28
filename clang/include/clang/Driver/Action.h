@@ -13,6 +13,7 @@
 #include "clang/Driver/Types.h"
 #include "clang/Driver/Util.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -942,6 +943,13 @@ public:
   static bool classof(const Action *A) {
     return A->getKind() == ForEachWrappingClass;
   }
+
+  void addSerialAction(const Action *A) { SerialActions.insert(A); }
+  const llvm::SmallSetVector<const Action *, 2> &getSerialActions() const {
+    return SerialActions;
+  }
+private:
+  llvm::SmallSetVector<const Action *, 2> SerialActions;
 };
 
 } // namespace driver
