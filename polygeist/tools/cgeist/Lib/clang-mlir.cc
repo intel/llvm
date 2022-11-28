@@ -74,7 +74,49 @@ MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob, OwningOpRef<ModuleOp> &Module,
       CaptureKinds(), ThisCapture(nullptr), ArrayInit(), ThisVal(), ReturnVal(),
       LTInfo(LTInfo) {}
 
-void MLIRScanner::initUnsupportedFunctions() {}
+void MLIRScanner::initUnsupportedFunctions() {
+  // FIXME: Implement Array subscript expression for vectors (rvalue).
+  // #3 0x000056079c19f88a MLIRScanner::CommonArrayLookup(ValueCategory,
+  // mlir::Value, bool, bool)
+  // #4 0x000056079c20e68b
+  // MLIRScanner::VisitArraySubscriptExpr(clang::ArraySubscriptExpr*)
+  UnsupportedFuncs.insert(
+      "_ZNK4sycl3_V13vecIlLi2EE8getValueILi2EivEElNSt9enable_ifILb1ET0_"
+      "E4typeEi");
+  UnsupportedFuncs.insert(
+      "_ZNK4sycl3_V13vecIlLi4EE8getValueILi4EivEElNSt9enable_ifILb1ET0_"
+      "E4typeEi");
+  UnsupportedFuncs.insert(
+      "_ZNK4sycl3_V13vecIlLi8EE8getValueILi8EivEElNSt9enable_ifILb1ET0_"
+      "E4typeEi");
+  // FIXME: Implement Array subscript expression for vectors (lvalue).
+  // #3 0x000055d43215b80a MLIRScanner::CommonArrayLookup(ValueCategory,
+  // mlir::Value, bool, bool)
+  // #4 0x000055d4321ca6bb
+  // MLIRScanner::VisitArraySubscriptExpr(clang::ArraySubscriptExpr*)
+  UnsupportedFuncs.insert(
+      "_ZN4sycl3_V13vecIlLi16EE8setValueILi16EivEEvNSt9enable_ifILb1ET0_"
+      "E4typeERKli");
+  // FIXME: Imlement init list vector support:
+  // #8 0x000056218bb30872 ValueCategory::store(mlir::OpBuilder&, mlir::Value)
+  // const
+  // #9 0x000056218bb314d2 ValueCategory::store(mlir::OpBuilder&, ValueCategory,
+  // bool)
+  // const #10 0x000056218baf4239
+  // MLIRScanner::InitializeValueByInitListExpr(mlir::Value,
+  // clang::Expr*)::'lambda'(clang::Expr*, mlir::Value,
+  // bool)::operator()(clang::Expr*, mlir::Value, bool) const
+  // #11 0x000056218baf39e1
+  // MLIRScanner::InitializeValueByInitListExpr(mlir::Value,
+  // clang::Expr*)::'lambda'(clang::Expr*, mlir::Value,
+  // bool)::operator()(clang::Expr*, mlir::Value, bool) const
+  // #12 0x000056218baf4f3d
+  // MLIRScanner::InitializeValueByInitListExpr(mlir::Value, clang::Expr*)
+  // #13 0x000056218baf5190 MLIRScanner::VisitInitListExpr(clang::InitListExpr*)
+  UnsupportedFuncs.insert(
+      "_ZN4sycl3_V13vecIfLi4EEC1IfEENSt9enable_ifIXaasr3std14is_convertibleIT_"
+      "fEE5valueeqLi4ELi4EEfE4typeENS4_ILb1ES5_E4typeEfS5_");
+}
 
 static void checkFunctionParent(const FunctionOpInterface F,
                                 FunctionContext Context,
@@ -1441,11 +1483,10 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
             .Case<sycl::AccessorType, sycl::AccessorImplDeviceType,
                   sycl::AccessorSubscriptType, sycl::AtomicType,
                   sycl::GetScalarOpType, sycl::GroupType, sycl::ItemBaseType,
-                  sycl::ItemType, sycl::NdItemType, sycl::NdRangeType>(
-                [&](auto ElemTy) {
-                  return SYCLCommonFieldLookup<decltype(ElemTy)>(Val, FNum,
-                                                                 Shape);
-                })
+                  sycl::ItemType, sycl::NdItemType, sycl::NdRangeType,
+                  sycl::VecType>([&](auto ElemTy) {
+              return SYCLCommonFieldLookup<decltype(ElemTy)>(Val, FNum, Shape);
+            })
             .Default([&Val](Type T) {
               llvm_unreachable("not implemented");
               return Val;

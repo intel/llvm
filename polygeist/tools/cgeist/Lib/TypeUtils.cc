@@ -206,6 +206,14 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
           CGT.getModule()->getContext(), Type,
           static_cast<mlir::sycl::AccessAddrSpace>(AddrSpace), Body);
     }
+    if (CTS->getName() == "vec") {
+      const auto ElemType =
+          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
+      const auto NumElems =
+          CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
+      return mlir::sycl::VecType::get(CGT.getModule()->getContext(), ElemType,
+                                      NumElems, Body);
+    }
   }
 
   llvm_unreachable("SYCL type not handle (yet)");
