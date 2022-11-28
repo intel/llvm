@@ -8185,10 +8185,14 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       CollectForEachInputs(InputInfos, SourceAction, TC, BoundArch,
                            TargetDeviceOffloadKind, CachedResults, FEA);
       const Tool *Creator = &Cmd->getCreator();
-
+      StringRef ParallelJobs;
+      if (TargetDeviceOffloadKind == Action::OFK_SYCL) 
+        ParallelJobs = C.getArgs().getLastArgValue(
+            options::OPT_fsycl_max_parallel_jobs_EQ);
+      
       tools::SYCL::constructLLVMForeachCommand(
           C, *SourceAction, std::move(Cmd), InputInfos, ActionResult, Creator,
-          "", types::getTypeTempSuffix(ActionResult.getType()));
+          "", types::getTypeTempSuffix(ActionResult.getType()), ParallelJobs);
     }
     return { ActionResult };
   }
