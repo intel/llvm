@@ -104,6 +104,18 @@ public:
                             "Queue cannot be constructed with both of "
                             "discard_events and enable_profiling.");
     }
+    if (has_property<ext::intel::property::queue::compute_index>()) {
+      int Idx = get_property<ext::intel::property::queue::compute_index>()
+                    .get_index();
+      int NumIndices =
+          createSyclObjFromImpl<device>(Device)
+              .get_info<ext::intel::info::device::max_compute_queue_indices>();
+      if (Idx < 0 || Idx >= NumIndices)
+        throw sycl::exception(
+            make_error_code(errc::invalid),
+            "Queue compute index must be a non-negative number less than "
+            "device's number of available compute queue indices.");
+    }
     if (!Context->isDeviceValid(Device)) {
       if (!Context->is_host() &&
           Context->getPlugin().getBackend() == backend::opencl)
