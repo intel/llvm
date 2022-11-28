@@ -146,6 +146,13 @@ private:
   bool run_verification(sycl::queue &queue, SrcT ref_value,
                         const std::string &src_data_type,
                         const std::string &dst_data_type) {
+    bool passed = true;
+
+    auto device = queue.get_device();
+    if (should_skip_test_with<SrcT>(device) ||
+        should_skip_test_with<DstT>(device))
+      return passed;
+
     shared_vector<DstT> result(NumElems, shared_allocator<DstT>(queue));
     shared_vector<SrcT> shared_ref_data(1, shared_allocator<SrcT>(queue));
     shared_ref_data[0] = ref_value;
@@ -164,7 +171,6 @@ private:
     queue.wait_and_throw();
 
     const DstT expected = static_cast<DstT>(ref_value);
-    bool passed = true;
     for (size_t i = 0; i < result.size(); ++i) {
       const DstT &retrieved = result[i];
 
