@@ -27,23 +27,6 @@ FetchContent_GetProperties(level-zero-loader)
 
 set(LEVEL_ZERO_INCLUDE_DIR
   ${level-zero-loader_SOURCE_DIR}/include CACHE PATH "Path to Level Zero Headers")
-set(LEVEL_ZERO_LOADER_LIBRARY ${level-zero-loader_TARGET_LOADER_NAME})
-
-#ExternalProject_Add_Step(level-zero-loader llvminstall
-#COMMAND ${CMAKE_COMMAND} -E copy_directory <INSTALL_DIR>/lib/ ${LLVM_BINARY_DIR}/lib
-#COMMAND ${CMAKE_COMMAND} -E copy_directory <INSTALL_DIR>/include/ ${LLVM_BINARY_DIR}/include/sycl
-#COMMENT "Installing level-zero-loader into the LLVM binary directory"
-#DEPENDEES install
-#)
-
-list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS level-zero-loader level-zero-headers)
-
-include_directories("${LEVEL_ZERO_INCLUDE_DIR}")
-
-add_library (LevelZeroLoader INTERFACE)
-target_link_libraries(LevelZeroLoader
-  INTERFACE ${LEVEL_ZERO_LOADER_LIBRARY}
-)
 
 add_library (LevelZeroLoader-Headers INTERFACE)
 add_library (LevelZeroLoader::Headers ALIAS LevelZeroLoader-Headers)
@@ -67,7 +50,10 @@ add_sycl_plugin(level_zero
     "${CMAKE_CURRENT_SOURCE_DIR}/tracing.cpp"
     ${XPTI_PROXY_SRC}
   LIBRARIES
-    ${LEVEL_ZERO_LOADER_LIBRARY}
+#    ${LEVEL_ZERO_LOADER_LIBRARY}
+    LevelZeroLoader-Headers
+    UnifiedRuntime-Headers
+    ze_loader
     Threads::Threads
     pi_unified_runtime
 )

@@ -24,7 +24,7 @@
 #include <thread>
 #include <utility>
 
-#include <level_zero/zet_api.h>
+#include <zet_api.h>
 
 #include "usm_allocator.hpp"
 
