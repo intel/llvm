@@ -219,7 +219,8 @@ def SYCL_GetScalarOpType : SYCL_Type<"GetScalarOp", "get_scalar_op"> {
   let assemblyFormat = "`<` `[` $dataType `]` `,` `(` $body `)` `>`";
 }
 
-def VectorEltTy : AnyTypeOf<[I8, I16, I32, I64, F16, F32, F64]>;
+def VectorEltTy : AnyTypeOf<[I1, I8, I16, I32, I64, F16, F32, F64]>;
+
 def VectorSplatArg : MemRefOf<[VectorEltTy]>;
 
 def SYCL_VecType : SYCL_Type<"Vec", "vec"> {
