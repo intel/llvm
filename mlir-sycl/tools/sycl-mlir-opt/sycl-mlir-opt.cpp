@@ -24,36 +24,22 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
 
+using namespace llvm;
+using namespace mlir;
+
 int main(int argc, char **argv) {
-  llvm::InitLLVM y(argc, argv);
+  InitLLVM y(argc, argv);
+
+  DialectRegistry registry;
+  registerAllDialects(registry);
+  registry.insert<sycl::SYCLDialect>();
 
   // Register passes.
-  mlir::DialectRegistry registry;
-  registry.insert<mlir::AffineDialect>();
-  registry.insert<mlir::scf::SCFDialect>();
-  registry.insert<mlir::gpu::GPUDialect>();
-  registry.insert<mlir::func::FuncDialect>();
-  registry.insert<mlir::LLVM::LLVMDialect>();
-  registry.insert<mlir::memref::MemRefDialect>();
-  registry.insert<mlir::sycl::SYCLDialect>();
-
-  mlir::registerAffinePasses();
-  mlir::registerSCFPasses();
-  mlir::registerTransformsPasses();
-  mlir::func::registerFuncPasses();
-  mlir::LLVM::registerLLVMPasses();
-  mlir::memref::registerMemRefPasses();
-  mlir::sycl::registerSYCLPasses();
-  mlir::sycl::registerConvertSYCLToLLVMPass();
-  mlir::sycl::registerSYCLMethodToSYCLCallPass();
-
-  // Register command line options.
-  mlir::registerAsmPrinterCLOptions();
-  mlir::registerMLIRContextCLOptions();
-  mlir::registerPassManagerCLOptions();
-  mlir::registerDefaultTimingManagerCLOptions();
+  registerAllPasses();
+  sycl::registerSYCLPasses();
+  sycl::registerConvertSYCLToLLVMPass();
 
   return mlir::asMainReturnCode(
       mlir::MlirOptMain(argc, argv, "SYCL MLIR optimizer driver\n", registry,
-                        /*preloadDialectsInContext=*/true));
+                        /*preloadDialectsInContext=*/false));
 }

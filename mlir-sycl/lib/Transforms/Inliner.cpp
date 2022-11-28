@@ -53,7 +53,7 @@ static FunctionOpInterface getCalledFunction(const CallOpInterface &Call) {
 
 namespace {
 
-/// This struct represents a resolved call to a given callgraph node. Given
+/// This struct represents a resolved call to a given call graph node. Given
 /// that the call does not actually contain a direct reference to the
 /// Region(CallGraphNode) that it is dispatching to, we need to resolve them
 /// explicitly.
@@ -83,7 +83,7 @@ inline llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
   return OS;
 }
 
-/// This class represents a specific callgraph SCC.
+/// This class represents a specific call graph SCC.
 class CallGraphSCC {
   friend llvm::raw_ostream &operator<<(llvm::raw_ostream &,
                                        const CallGraphSCC &);
@@ -235,7 +235,7 @@ private:
   /// The current set of call instructions to consider for inlining.
   SmallVector<ResolvedCall, 8> Calls;
 
-  /// The callgraph being operated on.
+  /// The call graph being operated on.
   CallGraph &CG;
 
   /// A symbol table to use when resolving call lookups.
@@ -396,6 +396,28 @@ bool CGUseList::isDead(CallGraphNode *CGN) const {
   // Otherwise, check the number of symbol uses.
   auto SymbolIt = DiscardableSymNodeUses.find(CGN);
   return SymbolIt != DiscardableSymNodeUses.end() && SymbolIt->second == 0;
+}
+
+void CGUseList::recomputeUses(CallGraphNode *CGN, CallGraph &cg) {
+  Operation *ParentOp = CGN->getCallableRegion()->getParentOp();
+  CGUser &Uses = NodeUses[CGN];
+  decrementDiscardableUses(Uses);
+
+  // Collect the new discardable uses within this node.
+  Uses = CGUser();
+  DenseMap<Attribute, CallGraphNode *> ResolvedRefs;
+  auto WalkFn = [&](CallGraphNode *RefNode, Operation *User) {
+    auto DiscardSymIt = DiscardableSymNodeUses.find(RefNode);
+    if (DiscardSymIt == DiscardableSymNodeUses.end())
+      return;
+
+    if (User != ParentOp)
+      ++Uses.InnerUses[RefNode];
+    else if (!Uses.TopLevelUses.insert(RefNode).second)
+      return;
+    ++DiscardSymIt->second;
+  };
+  walkReferencedSymbolNodes(ParentOp, cg, SymbolTable, ResolvedRefs, WalkFn);
 }
 
 //===----------------------------------------------------------------------===//
