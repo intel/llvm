@@ -35,4 +35,6 @@ int main() {
   } catch (...) {
     // Ignore all exceptions
   }
+
+  return 0;
 }
