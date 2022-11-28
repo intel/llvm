@@ -128,23 +128,18 @@ public:
   }
 };
 
-// If the operation is a method, add the SYCLMethod pattern for that
-// operation.
 template <typename T>
-static typename std::enable_if_t<mlir::sycl::isSYCLMethod<T>::value>
-addSYCLMethodPattern(RewritePatternSet &patterns) {
-  patterns.add<SYCLMethodToSYCLCallPattern<T>>(patterns.getContext());
+static void addSYCLMethodPattern(RewritePatternSet &patterns) {
+  if constexpr (mlir::sycl::isSYCLMethod<T>::value) {
+    // If the operation is a method, add the SYCLMethod pattern for that
+    // operation.
+    patterns.add<SYCLMethodToSYCLCallPattern<T>>(patterns.getContext());
+  }
 }
-
-// If the operation is not a method, do nothing.
-template <typename T>
-static typename std::enable_if_t<!mlir::sycl::isSYCLMethod<T>::value>
-addSYCLMethodPattern(RewritePatternSet &) {}
 
 template <typename... Args>
 static void addSYCLMethodPatterns(RewritePatternSet &patterns) {
-  (void)std::initializer_list<int>{
-      0, (addSYCLMethodPattern<Args>(patterns), 0)...};
+  (addSYCLMethodPattern<Args>(patterns), ...);
 }
 
 static void addSYCLMethodPatterns(RewritePatternSet &patterns) {
