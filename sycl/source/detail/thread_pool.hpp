@@ -76,6 +76,7 @@ class ThreadPool {
 
 public:
   void drain() {
+    std::cout << "drain begin" << std::endl;
     for (const auto &thread : MLaunchedThreads) {
       MDrainSchedule[thread.get_id()].store(true);
     }
@@ -86,6 +87,7 @@ public:
       std::this_thread::yield();
 
     MDrain.store(false);
+    std::cout << "drain end" << std::endl;
   }
 
   ThreadPool(unsigned int ThreadCount = 1) : MThreadCount(ThreadCount) {
