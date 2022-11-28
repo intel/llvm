@@ -21475,7 +21475,7 @@ RValue CodeGenFunction::EmitIntelFPGAMemBuiltin(const CallExpr *E) {
         (E->getNumArgs() > NumOfArg)
             ? E->getArg(NumOfArg)->getIntegerConstantExpr(Ctx)
             : APSInt::get(DefaultValue);
-    assert(IntVal.hasValue() && "Constant arg isn't actually constant?");
+    assert(IntVal.has_value() && "Constant arg isn't actually constant?");
     Out << "{" << StringToAdd << ":" << toString(*IntVal, 10) << "}";
   };
 
