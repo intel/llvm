@@ -1486,12 +1486,14 @@ namespace  {
 
 /// An input file.
 struct InputFileEntry {
-  const FileEntry *File;
+  FileEntryRef File;
   bool IsSystemFile;
   bool IsTransient;
   bool BufferOverridden;
   bool IsTopLevelModuleMap;
   uint32_t ContentHash[2];
+
+  InputFileEntry(FileEntryRef File) : File(File) {}
 };
 
 } // namespace
@@ -1541,8 +1543,7 @@ void ASTWriter::WriteInputFiles(SourceManager &SourceMgr,
     if (!IsSLocAffecting[I])
       continue;
 
-    InputFileEntry Entry;
-    Entry.File = Cache->OrigEntry;
+    InputFileEntry Entry(*Cache->OrigEntry);
     Entry.IsSystemFile = isSystem(File.getFileCharacteristic());
     Entry.IsTransient = Cache->IsTransient;
     Entry.BufferOverridden = Cache->BufferOverridden;
@@ -1557,9 +1558,8 @@ void ASTWriter::WriteInputFiles(SourceManager &SourceMgr,
       if (MemBuff)
         ContentHash = hash_value(MemBuff->getBuffer());
       else
-        // FIXME: The path should be taken from the FileEntryRef.
         PP->Diag(SourceLocation(), diag::err_module_unable_to_hash_content)
-            << Entry.File->getName();
+            << Entry.File.getName();
     }
     auto CH = llvm::APInt(64, ContentHash);
     Entry.ContentHash[0] =
@@ -1599,14 +1599,13 @@ void ASTWriter::WriteInputFiles(SourceManager &SourceMgr,
       RecordData::value_type Record[] = {
           INPUT_FILE,
           InputFileOffsets.size(),
-          (uint64_t)Entry.File->getSize(),
+          (uint64_t)Entry.File.getSize(),
           (uint64_t)getTimestampForOutput(Entry.File),
           Entry.BufferOverridden,
           Entry.IsTransient,
           Entry.IsTopLevelModuleMap};
 
-      // FIXME: The path should be taken from the FileEntryRef.
-      EmitRecordWithPath(IFAbbrevCode, Record, Entry.File->getName());
+      EmitRecordWithPath(IFAbbrevCode, Record, Entry.File.getName());
     }
 
     // Emit content hash for this file.
@@ -2319,11 +2318,14 @@ void ASTWriter::WritePreprocessor(const Preprocessor &PP, bool IsModule) {
   // Construct the list of identifiers with macro directives that need to be
   // serialized.
   SmallVector<const IdentifierInfo *, 128> MacroIdentifiers;
-  for (auto &Id : PP.getIdentifierTable())
-    if (Id.second->hadMacroDefinition() &&
-        (!Id.second->isFromAST() ||
-         Id.second->hasChangedSinceDeserialization()))
-      MacroIdentifiers.push_back(Id.second);
+  // It is meaningless to emit macros for named modules. It only wastes times
+  // and spaces.
+  if (!isWritingStdCXXNamedModules())
+    for (auto &Id : PP.getIdentifierTable())
+      if (Id.second->hadMacroDefinition() &&
+          (!Id.second->isFromAST() ||
+          Id.second->hasChangedSinceDeserialization()))
+        MacroIdentifiers.push_back(Id.second);
   // Sort the set of macro definitions that need to be serialized by the
   // name of the macro, to provide a stable ordering.
   llvm::sort(MacroIdentifiers, llvm::deref<std::less<>>());
@@ -6788,13 +6790,17 @@ void OMPClauseWriter::VisitOMPPriorityClause(OMPPriorityClause *C) {
 
 void OMPClauseWriter::VisitOMPGrainsizeClause(OMPGrainsizeClause *C) {
   VisitOMPClauseWithPreInit(C);
+  Record.writeEnum(C->getModifier());
   Record.AddStmt(C->getGrainsize());
+  Record.AddSourceLocation(C->getModifierLoc());
   Record.AddSourceLocation(C->getLParenLoc());
 }
 
 void OMPClauseWriter::VisitOMPNumTasksClause(OMPNumTasksClause *C) {
   VisitOMPClauseWithPreInit(C);
+  Record.writeEnum(C->getModifier());
   Record.AddStmt(C->getNumTasks());
+  Record.AddSourceLocation(C->getModifierLoc());
   Record.AddSourceLocation(C->getLParenLoc());
 }
 
@@ -6980,6 +6986,23 @@ void OMPClauseWriter::VisitOMPAtomicDefaultMemOrderClause(
   Record.push_back(C->getAtomicDefaultMemOrderKind());
   Record.AddSourceLocation(C->getLParenLoc());
   Record.AddSourceLocation(C->getAtomicDefaultMemOrderKindKwLoc());
+}
+
+void OMPClauseWriter::VisitOMPAtClause(OMPAtClause *C) {
+  Record.push_back(C->getAtKind());
+  Record.AddSourceLocation(C->getLParenLoc());
+  Record.AddSourceLocation(C->getAtKindKwLoc());
+}
+
+void OMPClauseWriter::VisitOMPSeverityClause(OMPSeverityClause *C) {
+  Record.push_back(C->getSeverityKind());
+  Record.AddSourceLocation(C->getLParenLoc());
+  Record.AddSourceLocation(C->getSeverityKindKwLoc());
+}
+
+void OMPClauseWriter::VisitOMPMessageClause(OMPMessageClause *C) {
+  Record.AddStmt(C->getMessageString());
+  Record.AddSourceLocation(C->getLParenLoc());
 }
 
 void OMPClauseWriter::VisitOMPNontemporalClause(OMPNontemporalClause *C) {

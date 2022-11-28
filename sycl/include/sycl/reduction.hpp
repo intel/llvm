@@ -2302,16 +2302,30 @@ __SYCL_EXPORT uint32_t
 reduGetMaxNumConcurrentWorkGroups(std::shared_ptr<queue_impl> Queue);
 
 template <typename KernelName, reduction::strategy Strategy, int Dims,
-          typename PropertiesT, typename KernelType, typename Reduction>
+          typename PropertiesT, typename... RestT>
 void reduction_parallel_for(handler &CGH, range<Dims> Range,
-                            PropertiesT Properties, Reduction Redu,
-                            KernelType KernelFunc) {
+                            PropertiesT Properties, RestT... Rest) {
+  std::tuple<RestT...> ArgsTuple(Rest...);
+  constexpr size_t NumArgs = sizeof...(RestT);
+  static_assert(NumArgs > 1, "No reduction!");
+  auto KernelFunc = std::get<NumArgs - 1>(ArgsTuple);
+  auto ReduIndices = std::make_index_sequence<NumArgs - 1>();
+  auto ReduTuple = detail::tuple_select_elements(ArgsTuple, ReduIndices);
+
   // Before running the kernels, check that device has enough local memory
   // to hold local arrays required for the tree-reduction algorithm.
-  constexpr bool IsTreeReduction =
-      !Reduction::has_fast_reduce && !Reduction::has_fast_atomics;
-  size_t OneElemSize =
-      IsTreeReduction ? sizeof(typename Reduction::result_type) : 0;
+  size_t OneElemSize = [&]() {
+    // Can't use outlined NumArgs due to a bug in gcc 8.4.
+    if constexpr (sizeof...(RestT) == 2) {
+      using Reduction = std::tuple_element_t<0, decltype(ReduTuple)>;
+      constexpr bool IsTreeReduction =
+          !Reduction::has_fast_reduce && !Reduction::has_fast_atomics;
+      return IsTreeReduction ? sizeof(typename Reduction::result_type) : 0;
+    } else {
+      return reduGetMemPerWorkItem(ReduTuple, ReduIndices);
+    }
+  }();
+
   uint32_t NumConcurrentWorkGroups =
 #ifdef __SYCL_REDUCTION_NUM_CONCURRENT_WORKGROUPS
       __SYCL_REDUCTION_NUM_CONCURRENT_WORKGROUPS;
@@ -2341,7 +2355,7 @@ void reduction_parallel_for(handler &CGH, range<Dims> Range,
   // stride equal to 1. For each of the index the given the original KernelFunc
   // is called and the reduction value hold in \p Reducer is accumulated in
   // those calls.
-  auto UpdatedKernelFunc = [=](auto NDId, auto &Reducer) {
+  auto UpdatedKernelFunc = [=](auto NDId, auto &...Reducers) {
     // Divide into contiguous chunks and assign each chunk to a Group
     // Rely on precomputed division to avoid repeating expensive operations
     // TODO: Some devices may prefer alternative remainder handling
@@ -2356,24 +2370,45 @@ void reduction_parallel_for(handler &CGH, range<Dims> Range,
     size_t Start = GroupStart + NDId.get_local_id(0);
     size_t End = GroupEnd;
     size_t Stride = NDId.get_local_range(0);
+    auto GetDelinearized = [&](size_t I) {
+      auto Id = getDelinearizedId(Range, I);
+      if constexpr (std::is_invocable_v<decltype(KernelFunc), id<Dims>,
+                                        decltype(Reducers)...>)
+        return Id;
+      else
+        // SYCL doesn't provide parallel_for accepting offset in presence of
+        // reductions, so use with_offset==false.
+        return reduction::getDelinearizedItem(Range, Id);
+    };
     for (size_t I = Start; I < End; I += Stride)
-      KernelFunc(getDelinearizedId(Range, I), Reducer);
+      KernelFunc(GetDelinearized(I), Reducers...);
   };
+  if constexpr (NumArgs == 2) {
+    using Reduction = std::tuple_element_t<0, decltype(ReduTuple)>;
+    auto &Redu = std::get<0>(ReduTuple);
 
-  constexpr auto StrategyToUse = [&]() {
-    if constexpr (Strategy != reduction::strategy::auto_select)
-      return Strategy;
+    constexpr auto StrategyToUse = [&]() {
+      if constexpr (Strategy != reduction::strategy::auto_select)
+        return Strategy;
 
-    if constexpr (Reduction::has_fast_reduce)
-      return reduction::strategy::group_reduce_and_last_wg_detection;
-    else if constexpr (Reduction::has_fast_atomics)
-      return reduction::strategy::local_atomic_and_atomic_cross_wg;
-    else
-      return reduction::strategy::range_basic;
-  }();
+      if constexpr (Reduction::has_fast_reduce)
+        return reduction::strategy::group_reduce_and_last_wg_detection;
+      else if constexpr (Reduction::has_fast_atomics)
+        return reduction::strategy::local_atomic_and_atomic_cross_wg;
+      else
+        return reduction::strategy::range_basic;
+    }();
 
-  reduction_parallel_for<KernelName, StrategyToUse>(CGH, NDRange, Properties,
-                                                    Redu, UpdatedKernelFunc);
+    reduction_parallel_for<KernelName, StrategyToUse>(CGH, NDRange, Properties,
+                                                      Redu, UpdatedKernelFunc);
+  } else {
+    return std::apply(
+        [&](auto &...Reds) {
+          return reduction_parallel_for<KernelName, Strategy>(
+              CGH, NDRange, Properties, Reds..., UpdatedKernelFunc);
+        },
+        ReduTuple);
+  }
 }
 } // namespace detail
 

@@ -144,6 +144,9 @@ install(DIRECTORY ${OpenCL_INCLUDE_DIR}/CL
         DESTINATION ${SYCL_INCLUDE_DIR}/sycl
         COMPONENT OpenCL-Headers)
 
+# Option to enable online kernel fusion via a JIT compiler
+option(SYCL_ENABLE_KERNEL_FUSION "Enable kernel fusion via JIT compiler" OFF)
+
 # Needed for feature_test.hpp
 if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
   set(SYCL_BUILD_PI_CUDA ON)
@@ -336,7 +339,7 @@ if(SYCL_INCLUDE_TESTS)
       message(FATAL_ERROR
         "Can't build SYCL tests without LLVM_INCLUDE_TESTS enabled.")
   endif()
-  if(EXISTS ${LLVM_MAIN_SRC_DIR}/utils/unittest/googletest/include/gtest/gtest.h)
+  if(EXISTS ${LLVM_THIRD_PARTY_DIR}/unittest/googletest/include/gtest/gtest.h)
     add_subdirectory(unittests)
     list(APPEND SYCL_TEST_DEPS SYCLUnitTests)
   endif()

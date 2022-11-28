@@ -12,6 +12,7 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception_list.hpp>
+#include <sycl/ext/codeplay/experimental/fusion_properties.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/queue.hpp>
 #include <sycl/stl.hpp>
@@ -213,5 +214,11 @@ bool queue::device_has(aspect Aspect) const {
   // avoid creating sycl object from impl
   return impl->getDeviceImplPtr()->has(Aspect);
 }
+
+bool queue::ext_codeplay_supports_fusion() const {
+  return impl->has_property<
+      ext::codeplay::experimental::property::queue::enable_fusion>();
+}
+
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
