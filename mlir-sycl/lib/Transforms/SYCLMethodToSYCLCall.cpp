@@ -143,8 +143,7 @@ addSYCLMethodPattern(RewritePatternSet &) {}
 
 template <typename... Args>
 static void addSYCLMethodPatterns(RewritePatternSet &patterns) {
-  (void)std::initializer_list<int>{
-      0, (addSYCLMethodPattern<Args>(patterns), 0)...};
+  (addSYCLMethodPattern<Args>(patterns), ...);
 }
 
 static void addSYCLMethodPatterns(RewritePatternSet &patterns) {

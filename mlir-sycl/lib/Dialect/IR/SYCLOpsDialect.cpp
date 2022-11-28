@@ -104,7 +104,7 @@ addSYCLMethod(mlir::sycl::MethodRegistry &) {}
 
 template <typename... Args> void mlir::sycl::SYCLDialect::addOperations() {
   mlir::Dialect::addOperations<Args...>();
-  (void)std::initializer_list<int>{0, (::addSYCLMethod<Args>(methods), 0)...};
+  (addSYCLMethod<Args>(methods), ...);
 }
 
 namespace llvm {
