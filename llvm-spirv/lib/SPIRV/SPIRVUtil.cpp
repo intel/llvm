@@ -2023,6 +2023,12 @@ bool lowerBuiltinVariableToCall(GlobalVariable *GV,
           llvm_unreachable("Unexpected pattern!");
         }
       }
+    } else if (auto *GEP = dyn_cast<GetElementPtrInst>(UI)) {
+      GEPs.push_back(GEP);
+      for (auto *GEPUser : GEP->users()) {
+        if (!ReplaceIfLoad(GEPUser))
+          llvm_unreachable("Unexpected pattern!");
+      }
     } else if (!ReplaceIfLoad(UI)) {
       llvm_unreachable("Unexpected pattern!");
     }
