@@ -159,6 +159,8 @@ public:
                         llvm::ArrayRef<int64_t> Indices) const;
   ValueCategory Shuffle(mlir::OpBuilder &Builder, mlir::Location Loc,
                         mlir::Value V2, llvm::ArrayRef<int64_t> Indices) const;
+  ValueCategory Reshape(mlir::OpBuilder &Builder, mlir::Location Loc,
+                        llvm::ArrayRef<int64_t> Shape) const;
 };
 
 #endif /* CLANG_MLIR_VALUE_CATEGORY */

@@ -790,3 +790,21 @@ ValueCategory ValueCategory::Shuffle(OpBuilder &Builder, Location Loc, Value V2,
   return {Builder.createOrFold<vector::ShuffleOp>(Loc, val, V2, Indices),
           false};
 }
+
+ValueCategory ValueCategory::Reshape(OpBuilder &Builder, Location Loc,
+                                     llvm::ArrayRef<int64_t> Shape) const {
+  assert(val.getType().isa<VectorType>() && "Expecting input vector");
+  assert(Shape.size() == 1 && "We only support 1-D vectors for now");
+  const auto CurrTy = val.getType().cast<VectorType>();
+  assert(CurrTy.getNumScalableDims() == 0 && "Scalable vectors not supported");
+  const auto NewTy = VectorType::get(Shape, CurrTy.getElementType());
+  if (CurrTy == NewTy)
+    return *this;
+  return {Builder.createOrFold<vector::ReshapeOp>(
+              Loc, NewTy, val,
+              Builder.createOrFold<arith::ConstantIndexOp>(
+                  Loc, CurrTy.getShape()[0]),
+              Builder.createOrFold<arith::ConstantIndexOp>(Loc, Shape[0]),
+              Builder.getArrayAttr({})),
+          false};
+}

@@ -6,8 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TypeUtils.h"
 #include "clang-mlir.h"
+
+#include <numeric>
+
+#include "TypeUtils.h"
 #include "utils.h"
 
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
@@ -367,13 +370,13 @@ ValueCategory MLIRScanner::VisitInitListExpr(clang::InitListExpr *Expr) {
   if (auto VType = Glob.getTypes()
                        .getMLIRType(Expr->getType())
                        .dyn_cast<mlir::VectorType>()) {
-    int64_t ResElts = VType.getNumElements();
+    const int64_t ResElts = VType.getNumElements();
 
     int64_t CurIdx = 0;
     auto V = ValueCategory::getNullValue(Builder, Loc, VType);
+    SmallVector<int64_t> ShuffleMask(ResElts);
     for (auto *IE : Expr->children()) {
       ValueCategory Init = Visit(IE);
-      SmallVector<int64_t> Args;
 
       auto VVT = Init.val.getType().dyn_cast<mlir::VectorType>();
 
@@ -384,33 +387,23 @@ ValueCategory MLIRScanner::VisitInitListExpr(clang::InitListExpr *Expr) {
         continue;
       }
 
-      int64_t InitElts = VVT.getNumElements();
-
-      int64_t Offset = (CurIdx == 0) ? 0 : ResElts;
-
       // Extend init to result vector length, and then shuffle its contribution
       // to the vector initializer into V.
-      if (Args.empty()) {
-        for (int64_t J = 0; J != InitElts; ++J)
-          Args.push_back(J);
-        Args.resize(ResElts, -1);
-        Init = Init.Shuffle(
-            Builder, Loc,
-            Builder.createOrFold<LLVM::UndefOp>(Loc, Init.val.getType()), Args);
+      Init = Init.Reshape(Builder, Loc, VType.getShape());
 
-        Args.clear();
-        for (int64_t J = 0; J != CurIdx; ++J)
-          Args.push_back(J);
-        for (int64_t J = 0; J != InitElts; ++J)
-          Args.push_back(J + Offset);
-        Args.resize(ResElts, -1);
-      }
+      const int64_t InitElts = VVT.getNumElements();
 
-      // If V is undef, make sure it ends up on the RHS of the shuffle to aid
-      // merging subsequent shuffles into this one.
-      if (CurIdx == 0)
-        std::swap(V, Init);
-      V = V.Shuffle(Builder, Loc, Init.val, Args);
+      auto *const Begin = ShuffleMask.begin();
+      auto *const EndMask0 = Begin + CurIdx;
+      auto *const EndMask1 = EndMask0 + InitElts;
+      // Keep the current contents
+      std::iota(Begin, EndMask0, 0);
+      // Concat the input vector
+      std::iota(EndMask0, EndMask1, ResElts);
+      // Fill the rest with 0s from the current vector
+      std::fill(EndMask1, ShuffleMask.end(), CurIdx);
+
+      V = V.Shuffle(Builder, Loc, Init.val, ShuffleMask);
       CurIdx += InitElts;
     }
 
