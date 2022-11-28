@@ -160,6 +160,8 @@ set(SYCL_SOURCES
     "detail/error_handling/enqueue_kernel.cpp"
     "detail/event_impl.cpp"
     "detail/filter_selector_impl.cpp"
+    "detail/fusion/fusion_wrapper.cpp"
+    "detail/fusion/fusion_wrapper_impl.cpp"
     "detail/global_handler.cpp"
     "detail/helpers.cpp"
     "detail/handler_proxy.cpp"
