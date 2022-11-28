@@ -53,7 +53,7 @@ static FunctionOpInterface getCalledFunction(const CallOpInterface &Call) {
 
 namespace {
 
-/// This struct represents a resolved call to a given call graph node. Given
+/// This struct represents a resolved call to a given callgraph node. Given
 /// that the call does not actually contain a direct reference to the
 /// Region(CallGraphNode) that it is dispatching to, we need to resolve them
 /// explicitly.
@@ -62,15 +62,15 @@ class ResolvedCall {
                                        const ResolvedCall &);
 
 public:
-  ResolvedCall(CallOpInterface Call, const CallGraphNode *SrcNode,
-               const CallGraphNode *TgtNode)
+  ResolvedCall(CallOpInterface Call, CallGraphNode *SrcNode,
+               CallGraphNode *TgtNode)
       : Call(Call), SrcNode(SrcNode), TgtNode(TgtNode) {
     assert(SrcNode && "Expecting valid source node");
     assert(TgtNode && "Expecting valid target node");
   }
 
   CallOpInterface Call;
-  const CallGraphNode *SrcNode, *TgtNode;
+  CallGraphNode *SrcNode, *TgtNode;
 };
 
 inline llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
@@ -83,7 +83,7 @@ inline llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
   return OS;
 }
 
-/// This class represents a specific call graph SCC.
+/// This class represents a specific callgraph SCC.
 class CallGraphSCC {
   friend llvm::raw_ostream &operator<<(llvm::raw_ostream &,
                                        const CallGraphSCC &);
@@ -124,6 +124,66 @@ inline llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
   return OS;
 }
 
+/// Tracks the uses of callgraph nodes that can be dropped when no longer
+/// referenced.
+class CGUseList {
+public:
+  /// This struct tracks the uses of callgraph nodes within a specific
+  /// operation.
+  struct CGUser {
+    /// Any nodes referenced in the top-level attribute list of this user. We
+    /// use a set here because the number of references does not matter.
+    DenseSet<CallGraphNode *> TopLevelUses;
+
+    /// Uses of nodes referenced by nested operations.
+    DenseMap<CallGraphNode *, int> InnerUses;
+  };
+
+  CGUseList(Operation *Op, CallGraph &CG, SymbolTableCollection &SymbolTable);
+
+  /// Drop uses of nodes referred to by the given \p Call operation that resides
+  /// within \p CGN.
+  void dropCallUses(CallGraphNode *CGN, Operation *Call, CallGraph &CG);
+
+  /// Remove the given node from the use list.
+  void eraseNode(CallGraphNode *CGN);
+
+  /// Returns true if the given callgraph node has no uses and can be pruned.
+  bool isDead(CallGraphNode *CGN) const;
+
+  /// Returns true if the given callgraph node has a single use and can be
+  /// discarded.
+  bool hasOneUseAndDiscardable(CallGraphNode *CGN) const;
+
+  /// Recompute the uses held by the given callgraph node.
+  void recomputeUses(CallGraphNode *CGN, CallGraph &CG);
+
+  /// Merge the uses of 'LHS' with the uses of the 'RHS' after inlining a copy
+  /// of 'LHS' into 'RHS'.
+  void mergeUsesAfterInlining(CallGraphNode *LHS, CallGraphNode *RHS);
+
+private:
+  /// Decrement the uses of discardable nodes referenced by the given user.
+  void decrementDiscardableUses(CGUser &Uses);
+
+  /// Walk all of the used symbol callgraph nodes referenced with the given op.
+  void walkReferencedSymbolNodes(
+      Operation *Op, CallGraph &CG, SymbolTableCollection &SymbolTable,
+      DenseMap<Attribute, CallGraphNode *> &ResolvedRefs,
+      function_ref<void(CallGraphNode *, Operation *)> Callback);
+
+  /// A mapping between a discardable callgraph node (that is a symbol) and the
+  /// number of uses for this node.
+  DenseMap<CallGraphNode *, int> DiscardableSymNodeUses;
+
+  /// A mapping between a callgraph node and the symbol callgraph nodes that it
+  /// uses.
+  DenseMap<CallGraphNode *, CGUser> NodeUses;
+
+  /// A symbol table to use when resolving call lookups.
+  SymbolTableCollection &SymbolTable;
+};
+
 /// Virtual base class for all inliners.
 class InlinerBase : public InlinerInterface {
 public:
@@ -141,7 +201,7 @@ public:
 
   SymbolTableCollection &getSymbolTable() const { return SymbolTable; }
 
-  /// Run a given transformation over the SCCs of the call graph in a bottom up
+  /// Run a given transformation over the SCCs of the callgraph in a bottom up
   /// traversal.
   static LogicalResult runTransformOnSCCs(
       const CallGraph &CG,
@@ -151,15 +211,16 @@ public:
   /// until a fixed point is reached. This allows for the inlining of newly
   /// devirtualized calls. Returns failure if there was a fatal error during
   /// inlining.
-  static LogicalResult inlineSCC(InlinerBase &Inliner, CallGraphSCC &SCC,
-                                 MLIRContext *Ctx);
+  static LogicalResult inlineSCC(InlinerBase &Inliner, CGUseList &UseList,
+                                 CallGraphSCC &SCC, MLIRContext *Ctx);
 
 protected:
   /// Attempt to inline calls within the given SCC.
-  static void inlineCallsInSCC(InlinerBase &Inliner, CallGraphSCC &SCC);
+  static void inlineCallsInSCC(InlinerBase &Inliner, CGUseList &UseList,
+                               CallGraphSCC &SCC);
 
   /// Collect all of the callable operations within the given \p SrcNode.
-  static void collectCallOps(const CallGraphNode &SrcNode, const CallGraph &CG,
+  static void collectCallOps(CallGraphNode &SrcNode, CallGraph &CG,
                              SymbolTableCollection &SymTable,
                              SmallVectorImpl<ResolvedCall> &Calls);
 
@@ -174,7 +235,7 @@ private:
   /// The current set of call instructions to consider for inlining.
   SmallVector<ResolvedCall, 8> Calls;
 
-  /// The call graph being operated on.
+  /// The callgraph being operated on.
   CallGraph &CG;
 
   /// A symbol table to use when resolving call lookups.
@@ -219,9 +280,10 @@ public:
   llvm::StringRef getDescription() const final { return PassDescription; }
 
 protected:
-  /// Inline function calls in the given call graph \p CG (on each SCC in bottom
+  /// Inline function calls in the given callgraph \p CG (on each SCC in bottom
   /// up order) using the given \p Inliner .
-  LogicalResult runOnCG(InlinerBase &Inliner, CallGraph &CG, MLIRContext *Ctx);
+  LogicalResult runOnCG(InlinerBase &Inliner, CGUseList &UseList, CallGraph &CG,
+                        MLIRContext *Ctx);
 
   /// Ensures that the inliner is run on operations that define a symbol table.
   bool checkForSymbolTable(Operation &Op);
@@ -257,6 +319,86 @@ public:
 } // namespace
 
 //===----------------------------------------------------------------------===//
+// CGUseList
+//===----------------------------------------------------------------------===//
+
+CGUseList::CGUseList(Operation *Op, CallGraph &CG,
+                     SymbolTableCollection &SymbolTable)
+    : SymbolTable(SymbolTable) {
+  /// A set of callgraph nodes that are always known to be live during inlining.
+  DenseMap<Attribute, CallGraphNode *> AlwaysLiveNodes;
+
+  // Walk each of the symbol tables looking for discardable callgraph nodes.
+  auto WalkFn = [&](Operation *SymbolTableOp, bool AllUsesVisible) {
+    for (Operation &Op : SymbolTableOp->getRegion(0).getOps()) {
+      // If this is a callgraph operation, check to see if it is discardable.
+      if (auto Callable = dyn_cast<CallableOpInterface>(&Op)) {
+        if (auto *Node = CG.lookupNode(Callable.getCallableRegion())) {
+          SymbolOpInterface Symbol = dyn_cast<SymbolOpInterface>(&Op);
+          if (Symbol && (AllUsesVisible || Symbol.isPrivate()) &&
+              Symbol.canDiscardOnUseEmpty()) {
+            DiscardableSymNodeUses.try_emplace(Node, 0);
+          }
+          continue;
+        }
+      }
+      // Otherwise, check for any referenced nodes. These will be always-live.
+      walkReferencedSymbolNodes(&Op, CG, SymbolTable, AlwaysLiveNodes,
+                                [](CallGraphNode *, Operation *) {});
+    }
+  };
+
+  SymbolTable::walkSymbolTables(Op, /*allSymUsesVisible=*/!Op->getBlock(),
+                                WalkFn);
+
+  // Drop the use information for any discardable nodes that are always live.
+  for (auto &It : AlwaysLiveNodes)
+    DiscardableSymNodeUses.erase(It.second);
+
+  // Compute the uses for each of the callable nodes in the graph.
+  for (CallGraphNode *CGN : CG)
+    recomputeUses(CGN, CG);
+}
+
+void CGUseList::walkReferencedSymbolNodes(
+    Operation *Op, CallGraph &CG, SymbolTableCollection &SymbolTable,
+    DenseMap<Attribute, CallGraphNode *> &ResolvedRefs,
+    function_ref<void(CallGraphNode *, Operation *)> Callback) {
+  auto SymbolUses = SymbolTable::getSymbolUses(Op);
+  assert(SymbolUses && "expected uses to be valid");
+
+  Operation *SymbolTableOp = Op->getParentOp();
+  for (const SymbolTable::SymbolUse &Use : *SymbolUses) {
+    auto RefIt = ResolvedRefs.insert({Use.getSymbolRef(), nullptr});
+    CallGraphNode *&CGN = RefIt.first->second;
+
+    // If this is the first instance of this reference, try to resolve a
+    // callgraph node for it.
+    if (RefIt.second) {
+      auto *SymbolOp = SymbolTable.lookupNearestSymbolFrom(SymbolTableOp,
+                                                           Use.getSymbolRef());
+      auto CallableOp = dyn_cast_or_null<CallableOpInterface>(SymbolOp);
+      if (!CallableOp)
+        continue;
+      CGN = CG.lookupNode(CallableOp.getCallableRegion());
+    }
+    if (CGN)
+      Callback(CGN, Use.getUser());
+  }
+}
+
+bool CGUseList::isDead(CallGraphNode *CGN) const {
+  // If the parent operation isn't a symbol, simply check normal SSA deadness.
+  Operation *Op = CGN->getCallableRegion()->getParentOp();
+  if (!isa<SymbolOpInterface>(Op))
+    return isMemoryEffectFree(Op) && Op->use_empty();
+
+  // Otherwise, check the number of symbol uses.
+  auto SymbolIt = DiscardableSymNodeUses.find(CGN);
+  return SymbolIt != DiscardableSymNodeUses.end() && SymbolIt->second == 0;
+}
+
+//===----------------------------------------------------------------------===//
 // InlinerBase
 //===----------------------------------------------------------------------===//
 
@@ -276,16 +418,24 @@ LogicalResult InlinerBase::runTransformOnSCCs(
   return success();
 }
 
-LogicalResult InlinerBase::inlineSCC(InlinerBase &Inliner, CallGraphSCC &SCC,
-                                     MLIRContext *Ctx) {
-  inlineCallsInSCC(Inliner, SCC);
+LogicalResult InlinerBase::inlineSCC(InlinerBase &Inliner, CGUseList &UseList,
+                                     CallGraphSCC &SCC, MLIRContext *Ctx) {
+  inlineCallsInSCC(Inliner, UseList, SCC);
   return success();
 }
 
-void InlinerBase::inlineCallsInSCC(InlinerBase &Inliner, CallGraphSCC &SCC) {
+void InlinerBase::inlineCallsInSCC(InlinerBase &Inliner, CGUseList &UseList,
+                                   CallGraphSCC &SCC) {
+  llvm::SmallSetVector<CallGraphNode *, 1> DeadNodes;
+
   for (CallGraphNode *SrcNode : SCC) {
     if (SrcNode->isExternal())
       continue;
+
+    if (UseList.isDead(SrcNode)) {
+      DeadNodes.insert(SrcNode);
+      continue;
+    }
 
     InlinerBase::collectCallOps(*SrcNode, Inliner.getCG(),
                                 Inliner.getSymbolTable(), Inliner.getCalls());
@@ -327,15 +477,18 @@ void InlinerBase::inlineCallsInSCC(InlinerBase &Inliner, CallGraphSCC &SCC) {
 
     LLVM_DEBUG(llvm::dbgs() << "** Inline succeeded\n");
 
-    // then erase the call.
+    // Merge the new uses into the source node.
+    UseList.dropCallUses(It.SrcNode, Call.getOperation(), Inliner.getCG());
+    UseList.mergeUsesAfterInlining(It.TgtNode, It.SrcNode);
+
+    // Erase the call.
     Call.erase();
   }
 
   Inliner.clear();
 }
 
-void InlinerBase::collectCallOps(const CallGraphNode &SrcNode,
-                                 const CallGraph &CG,
+void InlinerBase::collectCallOps(CallGraphNode &SrcNode, CallGraph &CG,
                                  SymbolTableCollection &SymTable,
                                  SmallVectorImpl<ResolvedCall> &Calls) {
   SrcNode.getCallableRegion()->walk([&](Operation *Op) {
@@ -391,11 +544,19 @@ bool Inliner::shouldInline(ResolvedCall &ResolvedCall) const {
   FunctionOpInterface Callee = getCalledFunction(ResolvedCall.Call);
   NamedAttrList FnAttrs(Callee->getAttrDictionary());
   Optional<NamedAttribute> PassThroughAttr = FnAttrs.getNamed("passthrough");
-  if (!PassThroughAttr)
-    return false;
+
+  // Inline functions that have the 'inlinehint' attribute.
+  if (PassThroughAttr) {
+    bool HasInlineHint = llvm::any_of(
+        PassThroughAttr->getValue().cast<ArrayAttr>(), [](Attribute Attr) {
+          return Attr.isa<StringAttr>() &&
+                 (Attr.cast<StringAttr>() == "inlinehint");
+        });
+    if (HasInlineHint)
+      return true;
+  }
 
   // TODO: simple heuristics
-  // - Inline functions that have the 'inlinehint' attribute
   // - Inline a callee if inlining it would make it dead.
   //    - consider case where there are more than one call hedge in the same
   //    caller ?
@@ -412,18 +573,18 @@ bool Inliner::shouldInline(ResolvedCall &ResolvedCall) const {
 //===----------------------------------------------------------------------===//
 
 template <typename InlinerKind>
-LogicalResult InlinePassBase<InlinerKind>::runOnCG(InlinerBase &Inliner,
-                                                   CallGraph &CG,
-                                                   MLIRContext *Ctx) {
+LogicalResult
+InlinePassBase<InlinerKind>::runOnCG(InlinerBase &Inliner, CGUseList &UseList,
+                                     CallGraph &CG, MLIRContext *Ctx) {
   return InlinerBase::runTransformOnSCCs(CG, [&](CallGraphSCC &SCC) {
-    return InlinerBase::inlineSCC(Inliner, SCC, Ctx);
+    return InlinerBase::inlineSCC(Inliner, UseList, SCC, Ctx);
   });
 }
 
 template <typename InlinerKind>
 bool InlinePassBase<InlinerKind>::checkForSymbolTable(Operation &Op) {
   // The inliner should only be run on operations that define a symbol table,
-  // as the call graph will need to resolve references.
+  // as the callgraph will need to resolve references.
   if (!Op.hasTrait<OpTrait::SymbolTable>()) {
     Op.emitOpError() << " was scheduled to run under the inliner, but does "
                         "not define a symbol table";
@@ -443,9 +604,10 @@ void AlwaysInlinePass::runOnOperation() {
   MLIRContext *Ctx = &getContext();
   CallGraph &CG = getAnalysis<CallGraph>();
   SymbolTableCollection SymTable;
+  CGUseList UseList(getOperation(), CG, SymTable);
   AlwaysInliner Inliner(Ctx, CG, SymTable);
 
-  if (failed(runOnCG(Inliner, CG, Ctx)))
+  if (failed(runOnCG(Inliner, UseList, CG, Ctx)))
     return signalPassFailure();
 }
 
@@ -464,9 +626,10 @@ void InlinePass::runOnOperation() {
   MLIRContext *Ctx = &getContext();
   CallGraph &CG = getAnalysis<CallGraph>();
   SymbolTableCollection SymTable;
+  CGUseList UseList(getOperation(), CG, SymTable);
   Inliner Inliner(Ctx, CG, SymTable);
 
-  if (failed(runOnCG(Inliner, CG, Ctx)))
+  if (failed(runOnCG(Inliner, UseList, CG, Ctx)))
     return signalPassFailure();
 }
 
