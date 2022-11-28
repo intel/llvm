@@ -948,6 +948,7 @@
 ?isValidModeForSourceAccessor@handler@_V1@sycl@@CA_NW4mode@access@23@@Z
 ?isValidTargetForExplicitOp@handler@_V1@sycl@@CA_NW4target@access@23@@Z
 ?is_accelerator@device@_V1@sycl@@QEBA_NXZ
+?is_compatible@_V1@sycl@@YA_NAEBV?$vector@Vkernel_id@_V1@sycl@@V?$allocator@Vkernel_id@_V1@sycl@@@std@@@std@@AEBVdevice@12@@Z
 ?is_cpu@device@_V1@sycl@@QEBA_NXZ
 ?is_gpu@device@_V1@sycl@@QEBA_NXZ
 ?is_host@context@_V1@sycl@@QEBA_NXZ
