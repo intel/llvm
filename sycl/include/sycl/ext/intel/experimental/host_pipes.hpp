@@ -51,15 +51,17 @@ class
                                    is_property_list_v<_propertiesT>>> {
 
   struct
-#ifdef __SYCL_DEVICE_ONLY__
-      [[__sycl_detail__::add_ir_global_variable_attributes(
-          "sycl-host-pipe",
-          nullptr)]] [[__sycl_detail__::
-                           host_pipe]] [[__sycl_detail__::
-                                             global_variable_allowed]] // may
-                                                                       // not be
-                                                                       // needed
-#endif
+// Commented out since the host_pipe attribute is not introduced by the front end yet.
+// Confirm with Rob
+// #ifdef __SYCL_DEVICE_ONLY__
+//       [[__sycl_detail__::add_ir_attributes_global_variable(
+//           "sycl-host-pipe",
+//           nullptr)]] [[__sycl_detail__::
+//                            host_pipe]] [[__sycl_detail__::
+//                                              global_variable_allowed]] // may
+//                                                                        // not be
+//                                                                        // needed
+// #endif
                                                                        __pipeType {
     const char __p;
   };
