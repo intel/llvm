@@ -1,6 +1,7 @@
 // RUN: clang++ -fsycl -fsycl-device-only -O0 -w -emit-mlir %s -o - | FileCheck %s --check-prefixes=CHECK
 // RUN: clang++ -fsycl -fsycl-device-only -O0 -w -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - | FileCheck %s --check-prefixes=CHECK-LLVM
 
+#include "sycl/detail/defines_elementary.hpp"
 #include <sycl/aliases.hpp>
 #include <sycl/sycl.hpp>
 
@@ -195,7 +196,7 @@ extern "C" SYCL_EXTERNAL void cons_5() {
 // CHECK-LABEL: func.func @cons_6(
 // CHECK-SAME:    %{{.*}}: i32
 // CHECK:       sycl.constructor({{.*}}, {{.*}}) {MangledFunctionName = @[[VEC_SPLAT_CTR:.*]], TypeName = @vec} : (memref<?x!sycl_vec_i32_8_, 4>, memref<?xi32, 4>) -> ()
-// CHECK:       func.func @[[VEC_SPLAT_CTR]](%{{.*}}: memref<?x!sycl_vec_i32_8_, 4> {llvm.align = 32 : i64, llvm.dereferenceable_or_null = 32 : i64, llvm.noundef}, %{{.*}}: memref<?xi32, 4> {llvm.align = 4 : i64, llvm.dereferenceable = 4 : i64, llvm.noundef}) attributes {[[SPIR_FUNCCC]], [[LINKONCE]], {{.*}}}
+// CHECK:       func.func @[[VEC_SPLAT_CTR]](%{{.*}}: memref<?x!sycl_vec_i32_8_, 4> {{{.*}}}, %{{.*}}: memref<?xi32, 4> {{{.*}}}) attributes {[[SPIR_FUNCCC]], [[LINKONCE]], {{.*}}}
 // CHECK:       vector.splat %{{.*}} : vector<8xi32>
 
 // CHECK-LLVM-LABEL: define spir_func void @cons_6(
@@ -241,12 +242,22 @@ extern "C" SYCL_EXTERNAL void cons_8(const sycl::vec<sycl::cl_double, 16> &Other
 // CHECK:       func.func @[[VEC_NATIVE_CTR]](%{{.*}}: memref<?x!sycl_vec_i8_3_, 4> {{{.*}}}, %{{.*}}: vector<3xi8> {{{.*}}}) attributes {[[SPIR_FUNCCC]], [[LINKONCE]], {{.*}}}
 
 // CHECK-LLVM-LABEL:  define spir_func void @cons_9(
-// CHECK-LLVM-SAME:     <3 x i8> noundef %[[ARG0:.*]]) #1 {
-// CHECK-LLVM:        call void @_ZN4sycl3_V13vecIaLi3EEC1IDv3_avEES4_(%"class.sycl::_V1::vec.3" addrspace(4)* %{{.*}}, <3 x i8> %[[ARG0]])
-// CHECK-LLVM:        define linkonce_odr spir_func void @_ZN4sycl3_V13vecIaLi3EEC1IDv3_avEES4_(%"class.sycl::_V1::vec.3" addrspace(4)* noundef align 4 %{{.*}}, <3 x i8> noundef %{{.*}}) #[[FUNCATTRS]] {
+// CHECK-LLVM-SAME:     <3 x i8> noundef %[[ARG0:.*]]) #[[FUNCATTRS]] {
+// CHECK-LLVM:        call void @[[VEC_NATIVE_CTR:.*]](%"class.sycl::_V1::vec.3" addrspace(4)* %{{.*}}, <3 x i8> %[[ARG0]])
+// CHECK-LLVM:        define linkonce_odr spir_func void @[[VEC_NATIVE_CTR]](%"class.sycl::_V1::vec.3" addrspace(4)* noundef align 4 %{{.*}}, <3 x i8> noundef %{{.*}}) #[[FUNCATTRS]] {
 extern "C" SYCL_EXTERNAL void cons_9(const sycl::vec<sycl::cl_char, 3>::vector_t Native) {
   auto vec = sycl::vec<sycl::cl_char, 3>{Native};
 }
+
+// CHECK-LABEL: func.func @cons_10(
+// CHECK-SAME:                     %[[ARG0:.*]]: memref<?x!sycl_vec_i64_8_, 4> {{{.*}}}, %[[ARG1:.*]]: memref<?x!sycl_vec_i64_4_, 4> {{{.*}}}, %[[ARG2:.*]]: memref<?x!sycl_vec_i64_2_, 4> {{{.*}}}, %{{.*}}: i64 {{{.*}}}, %{{.*}}: i64 {{{.*}}}) attributes {[[SPIR_FUNCCC]], [[LINKEXTERNAL]], {{.*}}}
+// CHECK:       sycl.constructor(%3, %[[ARG0]], %[[ARG1]], %[[ARG2]], %6, %9) {MangledFunctionName = @[[VEC_INITLIST_VEC_CTR:.*]], TypeName = @vec} : (memref<?x!sycl_vec_i64_16_, 4>, memref<?x!sycl_vec_i64_8_, 4>, memref<?x!sycl_vec_i64_4_, 4>, memref<?x!sycl_vec_i64_2_, 4>, memref<?xi64, 4>, memref<?xi64, 4>) -> ()
+// CHECK:       func.func @[[VEC_INITLIST_VEC_CTR]](%{{.*}}: memref<?x!sycl_vec_i64_16_, 4> {{{.*}}}, %{{.*}}: memref<?x!sycl_vec_i64_8_, 4> {{{.*}}}, %{{.*}}: memref<?x!sycl_vec_i64_4_, 4> {{{.*}}}, %{{.*}}: memref<?x!sycl_vec_i64_2_, 4> {{{.*}}}, %{{.*}}: memref<?xi64, 4> {{{.*}}}, %{{.*}}: memref<?xi64, 4> {{{.*}}}) attributes {[[SPIR_FUNCCC]], [[LINKONCE]], {{.*}}}
+
+// CHECK-LLVM-LABEL: define spir_func void @cons_10(
+// CHECK-LLVM-SAME:                                 %"class.sycl::_V1::vec.5" addrspace(4)* noundef align 64 %[[ARG0:.*]], %"class.sycl::_V1::vec.6" addrspace(4)* noundef align 32 %[[ARG1:.*]], %"class.sycl::_V1::vec.7" addrspace(4)* noundef align 16 %[[ARG2:.*]], i64 noundef %{{.*}}, i64 noundef %{{.*}}) #1 {
+// CHECK-LLVM:       call void @[[VEC_INITLIST_VEC_CTR:.*]](%"class.sycl::_V1::vec.4" addrspace(4)* %{{.*}}, %"class.sycl::_V1::vec.5" addrspace(4)* %[[ARG0]], %"class.sycl::_V1::vec.6" addrspace(4)* %[[ARG1]], %"class.sycl::_V1::vec.7" addrspace(4)* %[[ARG2]], i64 addrspace(4)* %{{.*}}, i64 addrspace(4)* %{{.*}})
+// CHECK-LLVM:       define linkonce_odr spir_func void @[[VEC_INITLIST_VEC_CTR]](%"class.sycl::_V1::vec.4" addrspace(4)* noundef align 128 %{{.*}}, %"class.sycl::_V1::vec.5" addrspace(4)* noundef align 64 %{{.*}}, %"class.sycl::_V1::vec.6" addrspace(4)* noundef align 32 %{{.*}}, %"class.sycl::_V1::vec.7" addrspace(4)* noundef align 16 %{{.*}}, i64 addrspace(4)* noundef align 8 %{{.*}}, i64 addrspace(4)* noundef align 8 %{{.*}}) #[[FUNCATTRS]] {
 
 extern "C" SYCL_EXTERNAL void cons_10(const sycl::long8 &A,
 				      const sycl::long4 &B,
@@ -254,6 +265,26 @@ extern "C" SYCL_EXTERNAL void cons_10(const sycl::long8 &A,
 				      sycl::cl_long D,
 				      sycl::cl_long E) {
   auto vec = sycl::long16{A, B, C, D, E};
+}
+
+// CHECK-LABEL: func.func @cons_11()
+// CHECK-SAME:                       attributes {[[SPIR_FUNCCC]], [[LINKEXTERNAL]], {{.*}}}
+// CHECK-DAG:   %[[FALSE:.*]] = arith.constant false
+// CHECK-DAG:   %[[C0_I8:.*]] = arith.constant 0 : i8
+// CHECK-NEXT:  %[[ALLOCA:.*]] = memref.alloca() : memref<1x!sycl_vec_i32_4_>
+// CHECK-NEXT:  %[[VAL0:.*]] = "polygeist.memref2pointer"(%[[ALLOCA]]) : (memref<1x!sycl_vec_i32_4_>) -> !llvm.ptr<i8>
+// CHECK-NEXT:  %[[VAL1:.*]] = "polygeist.typeSize"() {source = !sycl_vec_i32_4_} : () -> index
+// CHECK-NEXT:  %[[VAL2:.*]] = arith.index_cast %[[VAL1]] : index to i64
+// CHECK-NEXT:  "llvm.intr.memset"(%[[VAL0]], %[[C0_I8]], %[[VAL2]], %[[FALSE]]) : (!llvm.ptr<i8>, i8, i64, i1) -> ()
+
+// CHECK-LLVM-LABEL:  define spir_func void @cons_11()
+// CHECK-LLVM-SAME:                                    #[[FUNCATTRS]] {
+// CHECK-LLVM:        %[[VAL1:.*]] = alloca %"class.sycl::_V1::vec.8", align 16
+// CHECK-LLVM:        %[[VAL2:.*]] = bitcast %"class.sycl::_V1::vec.8"* %[[VAL1]] to i8*
+// CHECK-LLVM:        call void @llvm.memset.p0i8.i64(i8* %[[VAL2]], i8 0, i64 16, i1 false)
+
+extern "C" SYCL_EXTERNAL void cons_11() {
+  auto vec = sycl::vec<sycl::cl_int, 4>{};
 }
 
 // Keep at the end.
