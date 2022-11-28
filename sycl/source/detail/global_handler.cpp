@@ -6,6 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifdef ENABLE_STACK_TRACE
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Signals.h"
+#endif
+
+
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
@@ -47,7 +53,12 @@ T &GlobalHandler::getOrCreate(InstWithLock<T> &IWL, Types... Args) {
   return *IWL.Inst;
 }
 
-Scheduler &GlobalHandler::getScheduler() { return getOrCreate(MScheduler); }
+Scheduler &GlobalHandler::getScheduler() {
+#ifdef ENABLE_STACK_TRACE
+  llvm::sys::PrintStackTraceOnErrorSignal(llvm::StringRef());
+#endif
+  return getOrCreate(MScheduler);
+}
 
 ProgramManager &GlobalHandler::getProgramManager() {
   return getOrCreate(MProgramManager);
@@ -168,12 +179,6 @@ void shutdown() {
   delete &GlobalHandler::instance();
 }
 
-#ifdef ENABLE_STACK_TRACE
-
-void EnableHandler();
-
-#endif
-
 #ifdef _WIN32
 extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
                                              DWORD fdwReason,
@@ -185,8 +190,6 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
       shutdown();
     break;
   case DLL_PROCESS_ATTACH:
-    EnableHandler();
-    break;
   case DLL_THREAD_ATTACH:
   case DLL_THREAD_DETACH:
     break;
