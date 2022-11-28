@@ -1,18 +1,76 @@
-// Copyright (C) Codeplay Software Limited
-
-//===--- SYCLOpsDialect.cpp -----------------------------------------------===//
+//===--- SYCLOpsDialect.cpp - SYCL Dialect registration in MLIR -----------===//
 //
 // MLIR-SYCL is under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+//
+// This file implements the dialect for the SYCL IR.
+//
+//===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
-
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsAlias.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
+#include "mlir/IR/DialectImplementation.h"
+#include "mlir/Transforms/InliningUtils.h"
+
+//===----------------------------------------------------------------------===//
+// SYCL Dialect Interfaces
+//===----------------------------------------------------------------------===//
+
+namespace {
+
+/// This class defines the interface for inlining SYCL operations.
+class SYCLInlinerInterface : public mlir::DialectInlinerInterface {
+public:
+  using DialectInlinerInterface::DialectInlinerInterface;
+
+  //===--------------------------------------------------------------------===//
+  // Analysis Hooks
+  //===--------------------------------------------------------------------===//
+
+  /// This hook checks whether is legal to inline the \p Callable operation and
+  /// replace the \p Call operation with it. For the SYCL dialect we want to
+  /// allow inlining only SYCLCallOp operations.
+  bool isLegalToInline(mlir::Operation *Call, mlir::Operation *Callable,
+                       bool WouldBeCloned) const final {
+    return mlir::isa<mlir::sycl::SYCLCallOp>(Call);
+  }
+
+  /// This hook checks whether is legal to inline the \p Op operation into the
+  /// \p Dest region. All operations in the SYCL dialect are legal to inline.
+  bool isLegalToInline(mlir::Operation *Op, mlir::Region *Dest,
+                       bool WouldBeCloned,
+                       mlir::BlockAndValueMapping &ValueMapping) const final {
+    return true;
+  }
+
+  //===--------------------------------------------------------------------===//
+  // Transformation Hooks
+  //===--------------------------------------------------------------------===//
+
+  /// Attempts to materialize a conversion for a type mismatch between a call
+  /// from the SYCL dialect, and a callable region. This method should generate
+  /// an operation that takes \p Input as the only operand, and produces a
+  /// single result of \p ResultType. If a conversion cannot be generated,
+  /// nullptr should be returned.
+  mlir::Operation *
+  materializeCallConversion(mlir::OpBuilder &Builder, mlir::Value Input,
+                            mlir::Type ResultType,
+                            mlir::Location ConversionLoc) const final {
+    return Builder.create<mlir::sycl::SYCLCastOp>(ConversionLoc, ResultType,
+                                                  Input);
+  }
+};
+
+} // namespace
+
+//===----------------------------------------------------------------------===//
+// SYCL Dialect
+//===----------------------------------------------------------------------===//
 
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
@@ -37,6 +95,7 @@ void mlir::sycl::SYCLDialect::initialize() {
       >();
 
   mlir::Dialect::addInterfaces<SYCLOpAsmInterface>();
+  mlir::Dialect::addInterfaces<SYCLInlinerInterface>();
 }
 
 llvm::Optional<llvm::StringRef>

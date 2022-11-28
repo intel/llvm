@@ -1,4 +1,5 @@
 add_mlir_library(MLIRSYCLTransforms
+  Inliner.cpp
   SYCLMethodToSYCLCall.cpp
 
   ADDITIONAL_HEADER_DIRS
@@ -9,6 +10,9 @@ add_mlir_library(MLIRSYCLTransforms
 
   LINK_LIBS PUBLIC
   MLIRPass
+  MLIRTransforms  
   MLIRTransformUtils
   MLIRSYCLDialect
+  MLIRFuncDialect
+  MLIRGPUOps
   )

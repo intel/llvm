@@ -20,6 +20,7 @@
 #include "mlir/IR/FunctionImplementation.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Matchers.h"
+#include "mlir/Transforms/InliningUtils.h"
 
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/AsmParser/Parser.h"
@@ -94,6 +95,21 @@ static Type getI1SameShape(Type type) {
     return LLVM::getVectorType(i1Type, LLVM::getVectorNumElements(type));
   return i1Type;
 }
+
+namespace {
+
+class LLVMInlinerInterface : public DialectInlinerInterface {
+public:
+  using DialectInlinerInterface::DialectInlinerInterface;
+
+  /// All operations in the LLVM dialect are legal to inline.
+  bool isLegalToInline(Operation *, Region *, bool,
+                       BlockAndValueMapping &) const final {
+    return true;
+  }
+};
+
+} // namespace
 
 //===----------------------------------------------------------------------===//
 // Printing, parsing and builder for LLVM::CmpOp.
@@ -2599,6 +2615,7 @@ void LLVMDialect::initialize() {
   // Support unknown operations because not all LLVM operations are registered.
   allowUnknownOperations();
   addInterfaces<LLVMOpAsmDialectInterface>();
+  addInterfaces<LLVMInlinerInterface>();
 }
 
 #define GET_OP_CLASSES

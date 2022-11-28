@@ -346,6 +346,7 @@ static int optimize(mlir::MLIRContext &context,
     if (RaiseToAffine)
       optPM.addPass(mlir::createLowerAffinePass());
     optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+    pm.addPass(sycl::createAlwaysInlinePass());
 
     mlir::OpPassManager &optPM2 = pm.nestAny();
     optPM2.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
@@ -354,9 +355,8 @@ static int optimize(mlir::MLIRContext &context,
     optPM2.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
     optPM2.addPass(mlir::createCSEPass());
     optPM2.addPass(polygeist::createCanonicalizeForPass());
-    if (RaiseToAffine) {
+    if (RaiseToAffine)
       optPM2.addPass(polygeist::createRaiseSCFToAffinePass());
-    }
     optPM2.addPass(polygeist::replaceAffineCFGPass());
     optPM2.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
     optPM2.addPass(mlir::createCSEPass());
