@@ -106,16 +106,20 @@ params:
     - type: $x_context_info_t
       name: ContextInfoType
       desc: "[in] type of the info to retrieve"
-    - type: "size_t*"
-      name: pSize
+    - type: "size_t"
+      name: propSize
       desc: |
-            [in,out] pointer to the number of bytes needed to return info queried.
-            the call shall update it with the real number of bytes needed to return the info
+            [in] the number of bytes of memory pointed to by pContextInfo.
     - type: "void*"
       name: pContextInfo
       desc: |
             [out][optional] array of bytes holding the info.
-            if *pSize is not equal to the real number of bytes needed to return the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pContextInfo is not used.
+            if propSize is not equal to or greater than the real number of bytes needed to return 
+            the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pContextInfo is not used.
+    - type: "size_t*"
+      name: pPropSizeRet
+      desc: |
+            [out][optional] pointer to the actual size in bytes of data queried by ContextInfoType.
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Return platform native context handle."

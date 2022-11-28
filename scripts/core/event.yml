@@ -107,10 +107,10 @@ params:
       desc: "[in] size in bytes of the profiling property value"
     - type: void*
       name: propValue
-      desc: "[out] value of the profiling property"
-    - type: size_t
+      desc: "[out][optional] value of the profiling property"
+    - type: size_t*
       name: propValueSizeRet
-      desc: "[out] bytes returned in profiling property"
+      desc: "[out][optional] pointer to the actual size in bytes returned in propValue"
 returns:
     - $X_RESULT_INVALID_VALUE
     - $X_RESULT_INVALID_EVENT
