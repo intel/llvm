@@ -29,20 +29,11 @@ namespace queue {
 class discard_events
     : public ::sycl::detail::DataLessProperty<::sycl::detail::DiscardEvents> {};
 
-class use_priority : public sycl::detail::PropertyWithData<
-                         sycl::detail::PropWithDataKind::QueuePriority> {
-public:
-  using priority_type = enum {
-    normal = 0, // default
-    low = 1,
-    high = 2
-  };
-  use_priority(priority_type Priority) : MPriority(Priority) {}
-  priority_type get_priority() const { return MPriority; }
-
-private:
-  priority_type MPriority;
-};
+class priority_low : public sycl::detail::DataLessProperty<
+                         sycl::detail::QueuePriorityLow> {};
+class priority_high : public sycl::detail::DataLessProperty<
+                         sycl::detail::QueuePriorityHigh> {};
+                         
 } // namespace queue
 } // namespace property
 
@@ -82,7 +73,10 @@ template <>
 struct is_property_of<ext::oneapi::property::queue::discard_events, queue>
     : std::true_type {};
 template <>
-struct is_property_of<ext::oneapi::property::queue::use_priority, queue>
+struct is_property_of<ext::oneapi::property::queue::priority_low, queue>
+    : std::true_type {};
+template <>
+struct is_property_of<ext::oneapi::property::queue::priority_high, queue>
     : std::true_type {};
 template <>
 struct is_property_of<property::queue::cuda::use_default_stream, queue>

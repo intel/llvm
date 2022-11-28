@@ -74,24 +74,27 @@ the implementation supports.
 
 === API of the extension
 
-This extension adds support for a new property for SYCL queue constructors
+This extension adds support for new properties for SYCL queue constructors
 taking properties list:
 
 ```c++
 namespace sycl::ext::oneapi::property::queue {
 
-  class use_priority {
+  class priority_low {
   public:
-    using priority_type = enum {
-      normal = 0, // default
-      low = 1,
-      high = 2
-    };
-    use_priority(priority_type);
+    priority_low() = default;
+  };
+  class priority_high {
+  public:
+    priority_high() = default;
   };
 
 } // namespace
 ```
-The new property hints the SYCL runtime that the queue gets the specified
-priority for execution if supported by underlying target runtimes. This
-property is a hint and may safely be ignored by an implementation.
+The new properties hint the SYCL runtime that the queue gets the specified
+priority for execution if supported by underlying target runtimes. These
+properties are hints and may safely be ignored by an implementation.
+
+It is illegal to specify both `priority_low` ans `priority_high` hints
+for the same queue, and would result in `invalid` exception thrown by
+SYCL runtime.

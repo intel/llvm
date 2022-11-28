@@ -14,4 +14,5 @@ __SYCL_PARAM_TRAITS_SPEC(
     sycl::ext::oneapi::cuda::property::context::use_primary_context)
 __SYCL_PARAM_TRAITS_SPEC(sycl::property::queue::in_order)
 __SYCL_PARAM_TRAITS_SPEC(sycl::property::reduction::initialize_to_identity)
-__SYCL_PARAM_TRAITS_SPEC(sycl::ext::oneapi::property::queue::use_priority)
+__SYCL_PARAM_TRAITS_SPEC(sycl::ext::oneapi::property::queue::priority_low)
+__SYCL_PARAM_TRAITS_SPEC(sycl::ext::oneapi::property::queue::priority_high)

@@ -312,14 +312,16 @@ public:
       // queue property.
       CreationFlags |= PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS;
     }
-    if (MPropList.has_property<ext::oneapi::property::queue::use_priority>()) {
-      auto Priority =
-          MPropList.get_property<ext::oneapi::property::queue::use_priority>()
-              .get_priority();
-      if (Priority == ext::oneapi::property::queue::use_priority::high)
-        CreationFlags |= PI_EXT_ONEAPI_QUEUE_PRIORITY_HIGH;
-      else if (Priority == ext::oneapi::property::queue::use_priority::low)
-        CreationFlags |= PI_EXT_ONEAPI_QUEUE_PRIORITY_LOW;
+    if (MPropList.has_property<ext::oneapi::property::queue::priority_low>()) {
+      CreationFlags |= PI_EXT_ONEAPI_QUEUE_PRIORITY_LOW;
+    }
+    if (MPropList.has_property<ext::oneapi::property::queue::priority_high>()) {
+      if (MPropList.has_property<ext::oneapi::property::queue::priority_low>()) {
+        throw sycl::exception(make_error_code(errc::invalid),
+            "Queue cannot be constructed with both of "
+            "priority_low and priority_high.");
+      }
+      CreationFlags |= PI_EXT_ONEAPI_QUEUE_PRIORITY_HIGH;
     }
     RT::PiQueue Queue{};
     RT::PiContext Context = MContext->getHandleRef();

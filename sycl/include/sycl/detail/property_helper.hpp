@@ -40,8 +40,10 @@ enum DataLessPropKind {
   FusionNoBarrier = 13,
   FusionEnable = 14,
   FusionForce = 15,
+  QueuePriorityLow = 16,
+  QueuePriorityHigh = 17,
   // Indicates the last known dataless property.
-  LastKnownDataLessPropKind = 15,
+  LastKnownDataLessPropKind = 17,
   // Exceeding 32 may cause ABI breaking change on some of OSes.
   DataLessPropKindSize = 32
 };
@@ -54,8 +56,7 @@ enum PropWithDataKind {
   ImageContextBound = 3,
   BufferMemChannel = 4,
   AccPropBufferLocation = 5,
-  QueuePriority = 6,
-  PropWithDataKindSize = 7,
+  PropWithDataKindSize = 6,
 };
 
 // Base class for dataless properties, needed to check that the type of an
