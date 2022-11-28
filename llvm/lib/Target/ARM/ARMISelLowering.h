@@ -445,7 +445,7 @@ class VectorType;
     bool allowsMisalignedMemoryAccesses(EVT VT, unsigned AddrSpace,
                                         Align Alignment,
                                         MachineMemOperand::Flags Flags,
-                                        bool *Fast) const override;
+                                        unsigned *Fast) const override;
 
     EVT getOptimalMemOpType(const MemOp &Op,
                             const AttributeList &FuncAttributes) const override;
@@ -735,6 +735,15 @@ class VectorType;
     bool preferIncOfAddToSubOfNot(EVT VT) const override;
 
     bool shouldConvertFpToSat(unsigned Op, EVT FPVT, EVT VT) const override;
+
+    bool isComplexDeinterleavingSupported() const override;
+    bool isComplexDeinterleavingOperationSupported(
+        ComplexDeinterleavingOperation Operation, Type *Ty) const override;
+
+    Value *createComplexDeinterleavingIR(
+        Instruction *I, ComplexDeinterleavingOperation OperationType,
+        ComplexDeinterleavingRotation Rotation, Value *InputA, Value *InputB,
+        Value *Accumulator = nullptr) const override;
 
   protected:
     std::pair<const TargetRegisterClass *, uint8_t>

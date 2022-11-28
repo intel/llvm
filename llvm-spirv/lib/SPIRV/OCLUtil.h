@@ -444,7 +444,7 @@ std::tuple<unsigned short, unsigned char, unsigned char>
 decodeOCLVer(unsigned Ver);
 
 /// Decode a MDNode assuming it contains three integer constants.
-void decodeMDNode(MDNode *N, unsigned &X, unsigned &Y, unsigned &Z);
+SmallVector<unsigned, 3> decodeMDNode(MDNode *N);
 
 /// Get full path from debug info metadata
 /// Return empty string if the path is not available.

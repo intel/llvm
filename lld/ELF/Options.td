@@ -443,7 +443,7 @@ defm unresolved_symbols:
   Eq<"unresolved-symbols", "Determine how to handle unresolved symbols">;
 
 defm undefined_version: B<"undefined-version",
-  "Allow unused version in version script (disabled by default)",
+  "Allow unused version in version script (default)",
   "Report version scripts that refer undefined symbols">;
 
 defm rsp_quoting: EEq<"rsp-quoting", "Quoting style for response files">,
@@ -698,7 +698,6 @@ def: J<"plugin-opt=-pass-through=">;
 def plugin_opt_eq : J<"plugin-opt=">;
 
 // Options listed below are silently ignored for now for compatibility.
-def: F<"detect-odr-violations">;
 def: Flag<["-"], "d">;
 def: Flag<["-"], "g">;
 def: F<"long-plt">;

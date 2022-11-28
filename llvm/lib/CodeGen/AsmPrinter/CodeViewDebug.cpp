@@ -760,7 +760,7 @@ void CodeViewDebug::emitTypeGlobalHashes() {
   OS.AddComment("Section Version");
   OS.emitInt16(0);
   OS.AddComment("Hash Algorithm");
-  OS.emitInt16(uint16_t(GlobalTypeHashAlg::SHA1_8));
+  OS.emitInt16(uint16_t(GlobalTypeHashAlg::BLAKE3));
 
   TypeIndex TI(TypeIndex::FirstNonSimpleIndex);
   for (const auto &GHR : TypeTable.hashes()) {
@@ -907,6 +907,9 @@ static std::string flattenCommandLine(ArrayRef<std::string> Args,
       continue;
     }
     if (Arg.startswith("-object-file-name") || Arg == MainFilename)
+      continue;
+    // Skip fmessage-length for reproduciability.
+    if (Arg.startswith("-fmessage-length"))
       continue;
     if (PrintedOneArg)
       OS << " ";

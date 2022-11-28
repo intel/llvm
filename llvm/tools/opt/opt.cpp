@@ -52,8 +52,6 @@
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Target/TargetMachine.h"
-#include "llvm/Transforms/IPO/AlwaysInliner.h"
-#include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/Transforms/IPO/WholeProgramDevirt.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Debugify.h"
@@ -324,40 +322,6 @@ static inline void addPass(legacy::PassManagerBase &PM, Pass *P) {
     PM.add(createVerifierPass());
 }
 
-/// This routine adds optimization passes based on selected optimization level,
-/// OptLevel.
-///
-/// OptLevel - Optimization Level
-static void AddOptimizationPasses(legacy::PassManagerBase &MPM,
-                                  legacy::FunctionPassManager &FPM,
-                                  TargetMachine *TM, unsigned OptLevel,
-                                  unsigned SizeLevel) {
-  if (!NoVerify || VerifyEach)
-    FPM.add(createVerifierPass()); // Verify that input is correct
-
-  PassManagerBuilder Builder;
-  Builder.OptLevel = OptLevel;
-  Builder.SizeLevel = SizeLevel;
-
-  if (OptLevel > 1) {
-    Builder.Inliner = createFunctionInliningPass(OptLevel, SizeLevel, false);
-  } else {
-    Builder.Inliner = createAlwaysInlinerLegacyPass();
-  }
-  Builder.DisableUnrollLoops = (DisableLoopUnrolling.getNumOccurrences() > 0) ?
-                               DisableLoopUnrolling : OptLevel == 0;
-
-  Builder.LoopVectorize = OptLevel > 1 && SizeLevel < 2;
-
-  Builder.SLPVectorize = OptLevel > 1 && SizeLevel < 2;
-
-  if (TM)
-    TM->adjustPassManager(Builder);
-
-  Builder.populateFunctionPassManager(FPM);
-  Builder.populateModulePassManager(MPM);
-}
-
 //===----------------------------------------------------------------------===//
 // CodeGen-related helper functions.
 //
@@ -503,7 +467,6 @@ int main(int argc, char **argv) {
   initializeAnalysis(Registry);
   initializeTransformUtils(Registry);
   initializeInstCombine(Registry);
-  initializeAggressiveInstCombine(Registry);
   initializeTarget(Registry);
   // For codegen passes, only passes that do IR to IR transformation are
   // supported.
@@ -760,6 +723,13 @@ int main(int argc, char **argv) {
                 "-passes='default<O#>,other-pass'\n";
       return 1;
     }
+    if (!PassList.empty()) {
+      errs() << "The `opt -passname` syntax for the new pass manager is "
+                "deprecated, please use `opt -passes=<pipeline>` (or the `-p` "
+                "alias for a more concise version).\n";
+      errs() << "See https://llvm.org/docs/NewPassManager.html#invoking-opt "
+                "for more details on the pass pipeline syntax.\n\n";
+    }
     std::string Pipeline = PassPipeline;
 
     SmallVector<StringRef, 4> Passes;
@@ -802,6 +772,12 @@ int main(int argc, char **argv) {
                : 1;
   }
 
+  if (OptLevelO0 || OptLevelO1 || OptLevelO2 || OptLevelOs || OptLevelOz ||
+      OptLevelO3) {
+    errs() << "Cannot use -O# with legacy PM.\n";
+    return 1;
+  }
+
   // Create a PassManager to hold and optimize the collection of passes we are
   // about to build. If the -debugify-each option is set, wrap each pass with
   // the (-check)-debugify passes.
@@ -841,12 +817,6 @@ int main(int argc, char **argv) {
   }
 
   std::unique_ptr<legacy::FunctionPassManager> FPasses;
-  if (OptLevelO0 || OptLevelO1 || OptLevelO2 || OptLevelOs || OptLevelOz ||
-      OptLevelO3) {
-    FPasses.reset(new legacy::FunctionPassManager(M.get()));
-    FPasses->add(createTargetTransformInfoWrapperPass(
-        TM ? TM->getTargetIRAnalysis() : TargetIRAnalysis()));
-  }
 
   if (PrintBreakpoints) {
     // Default to standard output.
@@ -875,36 +845,6 @@ int main(int argc, char **argv) {
 
   // Create a new optimization pass for each one specified on the command line
   for (unsigned i = 0; i < PassList.size(); ++i) {
-    if (OptLevelO0 && OptLevelO0.getPosition() < PassList.getPosition(i)) {
-      AddOptimizationPasses(Passes, *FPasses, TM.get(), 0, 0);
-      OptLevelO0 = false;
-    }
-
-    if (OptLevelO1 && OptLevelO1.getPosition() < PassList.getPosition(i)) {
-      AddOptimizationPasses(Passes, *FPasses, TM.get(), 1, 0);
-      OptLevelO1 = false;
-    }
-
-    if (OptLevelO2 && OptLevelO2.getPosition() < PassList.getPosition(i)) {
-      AddOptimizationPasses(Passes, *FPasses, TM.get(), 2, 0);
-      OptLevelO2 = false;
-    }
-
-    if (OptLevelOs && OptLevelOs.getPosition() < PassList.getPosition(i)) {
-      AddOptimizationPasses(Passes, *FPasses, TM.get(), 2, 1);
-      OptLevelOs = false;
-    }
-
-    if (OptLevelOz && OptLevelOz.getPosition() < PassList.getPosition(i)) {
-      AddOptimizationPasses(Passes, *FPasses, TM.get(), 2, 2);
-      OptLevelOz = false;
-    }
-
-    if (OptLevelO3 && OptLevelO3.getPosition() < PassList.getPosition(i)) {
-      AddOptimizationPasses(Passes, *FPasses, TM.get(), 3, 0);
-      OptLevelO3 = false;
-    }
-
     const PassInfo *PassInf = PassList[i];
     Pass *P = nullptr;
     if (PassInf->getNormalCtor())
@@ -915,24 +855,6 @@ int main(int argc, char **argv) {
     if (P)
       addPass(Passes, P);
   }
-
-  if (OptLevelO0)
-    AddOptimizationPasses(Passes, *FPasses, TM.get(), 0, 0);
-
-  if (OptLevelO1)
-    AddOptimizationPasses(Passes, *FPasses, TM.get(), 1, 0);
-
-  if (OptLevelO2)
-    AddOptimizationPasses(Passes, *FPasses, TM.get(), 2, 0);
-
-  if (OptLevelOs)
-    AddOptimizationPasses(Passes, *FPasses, TM.get(), 2, 1);
-
-  if (OptLevelOz)
-    AddOptimizationPasses(Passes, *FPasses, TM.get(), 2, 2);
-
-  if (OptLevelO3)
-    AddOptimizationPasses(Passes, *FPasses, TM.get(), 3, 0);
 
   if (FPasses) {
     FPasses->doInitialization();

@@ -15,7 +15,6 @@
 #define LLVM_SUPPORT_AARCH64TARGETPARSER_H
 
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Support/ARMTargetParser.h"
 #include <vector>
 
 // FIXME:This should be made into class design,to avoid dupplication.
@@ -75,59 +74,72 @@ enum ArchExtKind : uint64_t {
   AEK_SME2 =        1ULL << 43, // FEAT_SME2
   AEK_SVE2p1 =      1ULL << 44, // FEAT_SVE2p1
   AEK_SME2p1 =      1ULL << 45, // FEAT_SME2p1
-  AEK_B16B16 =      1ULL << 46  // FEAT_B16B16
+  AEK_B16B16 =      1ULL << 46, // FEAT_B16B16
+  AEK_SMEF16F16 =   1ULL << 47  // FEAT_SMEF16F16
 };
 
 enum class ArchKind {
-#define AARCH64_ARCH(NAME, ID, CPU_ATTR, SUB_ARCH, ARCH_ATTR, ARCH_FPU, ARCH_BASE_EXT) ID,
+#define AARCH64_ARCH(NAME, ID, ARCH_FEATURE, ARCH_BASE_EXT) ID,
 #include "AArch64TargetParser.def"
 };
 
-const ARM::ArchNames<ArchKind> AArch64ARCHNames[] = {
-#define AARCH64_ARCH(NAME, ID, CPU_ATTR, SUB_ARCH, ARCH_ATTR, ARCH_FPU,        \
-                     ARCH_BASE_EXT)                                            \
-  {NAME,                                                                       \
-   sizeof(NAME) - 1,                                                           \
-   CPU_ATTR,                                                                   \
-   sizeof(CPU_ATTR) - 1,                                                       \
-   "+" SUB_ARCH,                                                               \
-   sizeof(SUB_ARCH),                                                           \
-   ARM::FPUKind::ARCH_FPU,                                                     \
-   ARCH_BASE_EXT,                                                              \
-   AArch64::ArchKind::ID,                                                      \
-   ARCH_ATTR},
+struct ArchNames {
+  StringRef Name;
+  StringRef ArchFeature;
+  uint64_t ArchBaseExtensions;
+  ArchKind ID;
+
+  // Return ArchFeature without the leading "+".
+  StringRef getSubArch() const { return ArchFeature.substr(1); }
+};
+
+const ArchNames AArch64ARCHNames[] = {
+#define AARCH64_ARCH(NAME, ID, ARCH_FEATURE, ARCH_BASE_EXT)                    \
+  {NAME, ARCH_FEATURE, ARCH_BASE_EXT, AArch64::ArchKind::ID},
 #include "AArch64TargetParser.def"
 };
 
-const ARM::ExtName AArch64ARCHExtNames[] = {
+// List of Arch Extension names.
+struct ExtName {
+  StringRef Name;
+  uint64_t ID;
+  StringRef Feature;
+  StringRef NegFeature;
+};
+
+const ExtName AArch64ARCHExtNames[] = {
 #define AARCH64_ARCH_EXT_NAME(NAME, ID, FEATURE, NEGFEATURE)                   \
-  {NAME, sizeof(NAME) - 1, ID, FEATURE, NEGFEATURE},
+  {NAME, ID, FEATURE, NEGFEATURE},
 #include "AArch64TargetParser.def"
 };
 
-const ARM::CpuNames<ArchKind> AArch64CPUNames[] = {
+// List of CPU names and their arches.
+// The same CPU can have multiple arches and can be default on multiple arches.
+// When finding the Arch for a CPU, first-found prevails. Sort them accordingly.
+// When this becomes table-generated, we'd probably need two tables.
+struct CpuNames {
+  StringRef Name;
+  ArchKind ArchID;
+  bool Default; // is $Name the default CPU for $ArchID ?
+  uint64_t DefaultExtensions;
+};
+
+const CpuNames AArch64CPUNames[] = {
 #define AARCH64_CPU_NAME(NAME, ID, DEFAULT_FPU, IS_DEFAULT, DEFAULT_EXT)       \
-  {NAME, sizeof(NAME) - 1, AArch64::ArchKind::ID, IS_DEFAULT, DEFAULT_EXT},
+  {NAME, AArch64::ArchKind::ID, IS_DEFAULT, DEFAULT_EXT},
 #include "AArch64TargetParser.def"
 };
 
 const struct {
-  const char *Alias;
-  size_t AliasLength;
-  const char *Name;
-  size_t NameLength;
-
-  StringRef getAlias() const { return StringRef(Alias, AliasLength); }
-  StringRef getName() const { return StringRef(Name, NameLength); }
+  StringRef Alias;
+  StringRef Name;
 } AArch64CPUAliases[] = {
-#define AARCH64_CPU_ALIAS(ALIAS,NAME)                                          \
-  {ALIAS, sizeof(ALIAS) - 1, NAME, sizeof(NAME) - 1},
+#define AARCH64_CPU_ALIAS(ALIAS, NAME) {ALIAS, NAME},
 #include "AArch64TargetParser.def"
 };
 
 const ArchKind ArchKinds[] = {
-#define AARCH64_ARCH(NAME, ID, CPU_ATTR, SUB_ARCH, ARCH_ATTR, ARCH_FPU, ARCH_BASE_EXT) \
-    ArchKind::ID,
+#define AARCH64_ARCH(NAME, ID, ARCH_FEATURE, ARCH_BASE_EXT) ArchKind::ID,
 #include "AArch64TargetParser.def"
 };
 
@@ -142,14 +154,11 @@ inline ArchKind &operator--(ArchKind &Kind) {
   return Kind;
 }
 
-// FIXME: These should be moved to TargetTuple once it exists
 bool getExtensionFeatures(uint64_t Extensions,
                           std::vector<StringRef> &Features);
 bool getArchFeatures(ArchKind AK, std::vector<StringRef> &Features);
 
 StringRef getArchName(ArchKind AK);
-unsigned getArchAttr(ArchKind AK);
-StringRef getCPUAttr(ArchKind AK);
 StringRef getSubArch(ArchKind AK);
 StringRef getArchExtName(unsigned ArchExtKind);
 StringRef getArchExtFeature(StringRef ArchExt);
@@ -157,9 +166,7 @@ ArchKind convertV9toV8(ArchKind AK);
 StringRef resolveCPUAlias(StringRef CPU);
 
 // Information by Name
-unsigned getDefaultFPU(StringRef CPU, ArchKind AK);
 uint64_t getDefaultExtensions(StringRef CPU, ArchKind AK);
-StringRef getDefaultCPU(StringRef Arch);
 ArchKind getCPUArchKind(StringRef CPU);
 ArchKind getSubArchArchKind(StringRef SubArch);
 

@@ -406,7 +406,7 @@ static bool shouldWidenLoad(const GCNSubtarget &ST, LLT MemoryTy,
 
   // Do not widen if it would introduce a slow unaligned load.
   const SITargetLowering *TLI = ST.getTargetLowering();
-  bool Fast = false;
+  unsigned Fast = 0;
   return TLI->allowsMisalignedMemoryAccessesImpl(
              RoundedSize, AddrSpace, Align(AlignInBits / 8),
              MachineMemOperand::MOLoad, &Fast) &&
@@ -656,12 +656,11 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
     .widenScalarToNextPow2(0)
     .scalarize(0);
 
-  getActionDefinitionsBuilder({G_UADDO, G_USUBO,
-                               G_UADDE, G_SADDE, G_USUBE, G_SSUBE})
-    .legalFor({{S32, S1}, {S32, S32}})
-    .minScalar(0, S32)
-    .scalarize(0)
-    .lower();
+  getActionDefinitionsBuilder(
+      {G_UADDO, G_USUBO, G_UADDE, G_SADDE, G_USUBE, G_SSUBE})
+      .legalFor({{S32, S1}, {S32, S32}})
+      .clampScalar(0, S32, S32)
+      .scalarize(0);
 
   getActionDefinitionsBuilder(G_BITCAST)
     // Don't worry about the size constraint.
@@ -703,7 +702,8 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
   getActionDefinitionsBuilder(G_BLOCK_ADDR).legalFor({CodePtr});
 
   auto &FPOpActions = getActionDefinitionsBuilder(
-    { G_FADD, G_FMUL, G_FMA, G_FCANONICALIZE})
+    { G_FADD, G_FMUL, G_FMA, G_FCANONICALIZE,
+      G_STRICT_FADD, G_STRICT_FMUL, G_STRICT_FMA})
     .legalFor({S32, S64});
   auto &TrigActions = getActionDefinitionsBuilder({G_FSIN, G_FCOS})
     .customFor({S32, S64});
@@ -795,7 +795,7 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
     .narrowScalarFor({{S64, S16}}, changeTo(0, S32))
     .scalarize(0);
 
-  auto &FSubActions = getActionDefinitionsBuilder(G_FSUB);
+  auto &FSubActions = getActionDefinitionsBuilder({G_FSUB, G_STRICT_FSUB});
   if (ST.has16BitInsts()) {
     FSubActions
       // Use actual fsub instruction

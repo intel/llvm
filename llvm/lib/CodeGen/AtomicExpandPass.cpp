@@ -577,10 +577,6 @@ bool AtomicExpand::tryExpandAtomicRMW(AtomicRMWInst *AI) {
     unsigned MinCASSize = TLI->getMinCmpXchgSizeInBits() / 8;
     unsigned ValueSize = getAtomicOpSize(AI);
     if (ValueSize < MinCASSize) {
-      // TODO: Handle atomicrmw fadd/fsub
-      if (AI->getType()->isFloatingPointTy())
-        return false;
-
       expandPartwordAtomicRMW(AI,
                               TargetLoweringBase::AtomicExpansionKind::CmpXChg);
     } else {
@@ -608,6 +604,10 @@ bool AtomicExpand::tryExpandAtomicRMW(AtomicRMWInst *AI) {
     TLI->emitBitTestAtomicRMWIntrinsic(AI);
     return true;
   }
+  case TargetLoweringBase::AtomicExpansionKind::CmpArithIntrinsic: {
+    TLI->emitCmpArithAtomicRMWIntrinsic(AI);
+    return true;
+  }
   case TargetLoweringBase::AtomicExpansionKind::NotAtomic:
     return lowerAtomicRMWInst(AI);
   case TargetLoweringBase::AtomicExpansionKind::Expand:
@@ -624,6 +624,7 @@ struct PartwordMaskValues {
   // These three fields are guaranteed to be set by createMaskInstrs.
   Type *WordType = nullptr;
   Type *ValueType = nullptr;
+  Type *IntValueType = nullptr;
   Value *AlignedAddr = nullptr;
   Align AlignedAddrAlignment;
   // The remaining fields can be null.
@@ -688,7 +689,11 @@ static PartwordMaskValues createMaskInstrs(IRBuilderBase &Builder,
   const DataLayout &DL = M->getDataLayout();
   unsigned ValueSize = DL.getTypeStoreSize(ValueType);
 
-  PMV.ValueType = ValueType;
+  PMV.ValueType = PMV.IntValueType = ValueType;
+  if (PMV.ValueType->isFloatingPointTy())
+    PMV.IntValueType =
+        Type::getIntNTy(Ctx, ValueType->getPrimitiveSizeInBits());
+
   PMV.WordType = MinWordSize > ValueSize ? Type::getIntNTy(Ctx, MinWordSize * 8)
                                          : ValueType;
   if (PMV.ValueType == PMV.WordType) {
@@ -752,8 +757,8 @@ static Value *extractMaskedValue(IRBuilderBase &Builder, Value *WideWord,
     return WideWord;
 
   Value *Shift = Builder.CreateLShr(WideWord, PMV.ShiftAmt, "shifted");
-  Value *Trunc = Builder.CreateTrunc(Shift, PMV.ValueType, "extracted");
-  return Trunc;
+  Value *Trunc = Builder.CreateTrunc(Shift, PMV.IntValueType, "extracted");
+  return Builder.CreateBitCast(Trunc, PMV.ValueType);
 }
 
 static Value *insertMaskedValue(IRBuilderBase &Builder, Value *WideWord,
@@ -762,6 +767,8 @@ static Value *insertMaskedValue(IRBuilderBase &Builder, Value *WideWord,
   assert(Updated->getType() == PMV.ValueType && "Value type mismatch");
   if (PMV.WordType == PMV.ValueType)
     return Updated;
+
+  Updated = Builder.CreateBitCast(Updated, PMV.IntValueType);
 
   Value *ZExt = Builder.CreateZExt(Updated, PMV.WordType, "extended");
   Value *Shift =
@@ -804,10 +811,14 @@ static Value *performMaskedAtomicOp(AtomicRMWInst::BinOp Op,
   case AtomicRMWInst::Max:
   case AtomicRMWInst::Min:
   case AtomicRMWInst::UMax:
-  case AtomicRMWInst::UMin: {
-    // Finally, comparison ops will operate on the full value, so
-    // truncate down to the original size, and expand out again after
-    // doing the operation.
+  case AtomicRMWInst::UMin:
+  case AtomicRMWInst::FAdd:
+  case AtomicRMWInst::FSub:
+  case AtomicRMWInst::FMin:
+  case AtomicRMWInst::FMax: {
+    // Finally, other ops will operate on the full value, so truncate down to
+    // the original size, and expand out again after doing the
+    // operation. Bitcasts will be inserted for FP values.
     Value *Loaded_Extract = extractMaskedValue(Builder, Loaded, PMV);
     Value *NewVal = buildAtomicRMWValue(Op, Builder, Loaded_Extract, Inc);
     Value *FinalVal = insertMaskedValue(Builder, Loaded, NewVal, PMV);
