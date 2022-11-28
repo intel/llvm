@@ -316,10 +316,11 @@ public:
       CreationFlags |= PI_EXT_ONEAPI_QUEUE_PRIORITY_LOW;
     }
     if (MPropList.has_property<ext::oneapi::property::queue::priority_high>()) {
-      if (MPropList.has_property<ext::oneapi::property::queue::priority_low>()) {
+      if (MPropList
+              .has_property<ext::oneapi::property::queue::priority_low>()) {
         throw sycl::exception(make_error_code(errc::invalid),
-            "Queue cannot be constructed with both of "
-            "priority_low and priority_high.");
+                              "Queue cannot be constructed with both of "
+                              "priority_low and priority_high.");
       }
       CreationFlags |= PI_EXT_ONEAPI_QUEUE_PRIORITY_HIGH;
     }

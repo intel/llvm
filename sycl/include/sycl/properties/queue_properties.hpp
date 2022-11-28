@@ -29,11 +29,11 @@ namespace queue {
 class discard_events
     : public ::sycl::detail::DataLessProperty<::sycl::detail::DiscardEvents> {};
 
-class priority_low : public sycl::detail::DataLessProperty<
-                         sycl::detail::QueuePriorityLow> {};
-class priority_high : public sycl::detail::DataLessProperty<
-                         sycl::detail::QueuePriorityHigh> {};
-                         
+class priority_low
+    : public sycl::detail::DataLessProperty<sycl::detail::QueuePriorityLow> {};
+class priority_high
+    : public sycl::detail::DataLessProperty<sycl::detail::QueuePriorityHigh> {};
+
 } // namespace queue
 } // namespace property
 
