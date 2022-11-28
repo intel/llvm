@@ -55,7 +55,11 @@ T &GlobalHandler::getOrCreate(InstWithLock<T> &IWL, Types... Args) {
 
 Scheduler &GlobalHandler::getScheduler() {
 #ifdef ENABLE_STACK_TRACE
-  llvm::sys::PrintStackTraceOnErrorSignal(llvm::StringRef());
+  static bool Dummy = []() {
+    llvm::sys::PrintStackTraceOnErrorSignal(llvm::StringRef());
+    return true;
+  }();
+  (void)Dummy;
 #endif
   return getOrCreate(MScheduler);
 }

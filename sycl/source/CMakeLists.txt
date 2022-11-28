@@ -21,7 +21,9 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   # link with for Windows Debug version
   cmake_parse_arguments(ARG "" "XPTI_LIB" "COMPILE_OPTIONS;SOURCES" ${ARGN})
 
+  message(STATUS "SYCL_ENABLE_STACK_PRINTING = " ${SYCL_ENABLE_STACK_PRINTING})
   if (SYCL_ENABLE_STACK_PRINTING)
+
     if(NOT MSVC OR (CMAKE_BUILD_TYPE STREQUAL "Debug" AND ARG_COMPILE_OPTIONS MATCHES ".*MDd.*") OR
         (NOT CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ARG_COMPILE_OPTIONS MATCHES ".*MDd.*"))
         set(LINK_SUPPORT_LIB 1)
@@ -39,10 +41,11 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
               $<TARGET_OBJECTS:${LIB_OBJ_NAME}>
               ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
 
+  message(STATUS "LINK_SUPPORT_LIB = " ${LINK_SUPPORT_LIB})
   if(LINK_SUPPORT_LIB)
-    message(STATUS "LInking with LLVMSupport, Options = " ${ARG_COMPILE_OPTIONS})
+    message(STATUS "LInking with LLVMSupport 2, Options = " ${ARG_COMPILE_OPTIONS})
     add_dependencies(${LIB_NAME} LLVMSupport)
-    target_compile_definitions(${LIB_NAME} PRIVATE ENABLE_STACK_TRACE)
+    target_compile_definitions(${LIB_OBJ_NAME} PUBLIC ENABLE_STACK_TRACE)
     target_link_libraries(${LIB_NAME} PRIVATE LLVMSupport)
   endif()
 
