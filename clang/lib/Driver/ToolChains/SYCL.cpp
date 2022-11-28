@@ -168,12 +168,25 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
   // an actual object/archive.  Take that list and pass those to the linker
   // instead of the original object.
   if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
-    auto isSYCLDeviceLib = [&C, this](const InputInfo &II) {
+    bool IsRDC = !shouldDoPerObjectFileLinking(C);
+    auto isNoRDCDeviceCodeLink = [&](const InputInfo &II) {
+      if (IsRDC)
+        return false;
+      if (II.getType() != clang::driver::types::TY_LLVM_BC)
+        return false;
+      if (InputFiles.size() != 2)
+        return false;
+      return &II == &InputFiles[1];
+    };
+    auto isSYCLDeviceLib = [&](const InputInfo &II) {
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
       StringRef LibPostfix = ".o";
       if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
           C.getDriver().IsCLMode())
         LibPostfix = ".obj";
+      else if (isNoRDCDeviceCodeLink(II))
+        LibPostfix = ".bc";
+
       std::string FileName = this->getToolChain().getInputFilename(II);
       StringRef InputFilename = llvm::sys::path::filename(FileName);
       if (this->getToolChain().getTriple().isNVPTX()) {
@@ -188,9 +201,21 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
           !InputFilename.endswith(LibPostfix) || (InputFilename.count('-') < 2))
         return false;
       // Skip the prefix "libsycl-"
-      StringRef PureLibName = InputFilename.substr(LibSyclPrefix.size());
+      std::string PureLibName =
+          InputFilename.substr(LibSyclPrefix.size()).str();
+      if (isNoRDCDeviceCodeLink(II)) {
+        // Skip the final - until the . because we linked all device libs into a
+        // single BC in a previous action so we have a temp file name.
+        auto FinalDashPos = PureLibName.find_last_of('-');
+        auto DotPos = PureLibName.find_last_of('.');
+        assert((FinalDashPos != std::string::npos &&
+                DotPos != std::string::npos) &&
+               "Unexpected filename");
+        PureLibName =
+            PureLibName.substr(0, FinalDashPos) + PureLibName.substr(DotPos);
+      }
       for (const auto &L : SYCLDeviceLibList) {
-        if (PureLibName.startswith(L))
+        if (StringRef(PureLibName).startswith(L))
           return true;
       }
       return false;
@@ -208,8 +233,17 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     for (const auto &II : InputFiles) {
       std::string FileName = getToolChain().getInputFilename(II);
       if (II.getType() == types::TY_Tempfilelist) {
-        // Pass the unbundled list with '@' to be processed.
-        Libs.push_back(C.getArgs().MakeArgString("@" + FileName));
+        if (IsRDC) {
+          // Pass the unbundled list with '@' to be processed.
+          Libs.push_back(C.getArgs().MakeArgString("@" + FileName));
+        } else {
+          assert(InputFiles.size() == 2 &&
+                 "Unexpected inputs for no-RDC with temp file list");
+          // If we're in no-RDC mode and the input is a temp file list,
+          // we want to link multiple object files each against device libs,
+          // so we should consider this input as an object and not pass '@'.
+          Objs.push_back(C.getArgs().MakeArgString(FileName));
+        }
       } else if (II.getType() == types::TY_Archive && !LinkSYCLDeviceLibs) {
         Libs.push_back(C.getArgs().MakeArgString(FileName));
       } else
