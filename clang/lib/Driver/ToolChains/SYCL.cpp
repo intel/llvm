@@ -127,6 +127,11 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
   C.addCommand(std::move(Cmd));
 }
 
+bool SYCL::shouldDoPerObjectFileLinking(const Compilation &C) {
+  return !C.getArgs().hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc,
+                              /*default=*/true);
+}
+
 // The list should match pre-built SYCL device library files located in
 // compiler package. Once we add or remove any SYCL device library files,
 // the list should be updated accordingly.
