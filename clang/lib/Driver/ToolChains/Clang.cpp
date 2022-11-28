@@ -5001,9 +5001,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-fdeclare-spirv-builtins");
 
     // Default value for FPGA is false, for all other targets is true.
-    if (!Args.hasFlag(options::OPT_fsycl_early_optimizations,
-                      options::OPT_fno_sycl_early_optimizations,
-                      !IsFPGASYCLOffloadDevice))
+    if (!Args.hasArg(options::OPT_fno_sycl_early_optimizations) || !IsFPGASYCLOffloadDevice)
       CmdArgs.push_back("-fno-sycl-early-optimizations");
     else if (RawTriple.isSPIR()) {
       // Set `sycl-opt` option to configure LLVM passes for SPIR target

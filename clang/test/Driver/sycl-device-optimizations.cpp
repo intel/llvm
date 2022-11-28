@@ -7,9 +7,9 @@
 // RUN:   | FileCheck -check-prefix=CHECK-DEFAULT %s
 // RUN:   %clang_cl -### -fsycl -fsycl-device-only %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-DEFAULT %s
-// RUN:   %clang -### -fsycl -fintelfpga -fsycl-early-optimizations %s 2>&1 \
+// RUN:   %clang -### -fsycl -fintelfpga %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-DEFAULT %s
-// RUN:   %clang_cl -### -fsycl -fintelfpga -fsycl-early-optimizations %s 2>&1 \
+// RUN:   %clang_cl -### -fsycl -fintelfpga %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-DEFAULT %s
 // CHECK-DEFAULT-NOT: "-fno-sycl-early-optimizations"
 // CHECK-DEFAULT-NOT: "-disable-llvm-passes"
