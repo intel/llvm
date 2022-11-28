@@ -80,6 +80,10 @@ taking properties list:
 ```c++
 namespace sycl::ext::oneapi::property::queue {
 
+  class priority_normal {
+  public:
+    priority_normal() = default;
+  };
   class priority_low {
   public:
     priority_low() = default;
@@ -95,6 +99,5 @@ The new properties hint the SYCL runtime that the queue gets the specified
 priority for execution if supported by underlying target runtimes. These
 properties are hints and may safely be ignored by an implementation.
 
-It is illegal to specify both `priority_low` ans `priority_high` hints
-for the same queue, and would result in `invalid` exception thrown by
-SYCL runtime.
+It is illegal to specify multiple differrent priority hints for the same queue,
+and would result in `invalid` exception thrown by SYCL runtime.

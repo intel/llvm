@@ -29,6 +29,9 @@ namespace queue {
 class discard_events
     : public ::sycl::detail::DataLessProperty<::sycl::detail::DiscardEvents> {};
 
+class priority_normal
+    : public sycl::detail::DataLessProperty<sycl::detail::QueuePriorityNormal> {
+};
 class priority_low
     : public sycl::detail::DataLessProperty<sycl::detail::QueuePriorityLow> {};
 class priority_high
@@ -71,6 +74,9 @@ struct is_property_of<property::queue::enable_profiling, queue>
     : std::true_type {};
 template <>
 struct is_property_of<ext::oneapi::property::queue::discard_events, queue>
+    : std::true_type {};
+template <>
+struct is_property_of<ext::oneapi::property::queue::priority_normal, queue>
     : std::true_type {};
 template <>
 struct is_property_of<ext::oneapi::property::queue::priority_low, queue>
