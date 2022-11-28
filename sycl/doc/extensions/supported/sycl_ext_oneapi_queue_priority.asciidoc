@@ -42,6 +42,8 @@ SYCL specification refer to that revision.
 == Status
 
 This extension is implemented and fully supported by {dpcpp}.
+Although {dpcpp} supports this extension on all backends, it is currently used
+only on Level Zero. Other backends ignore this new property.
 
 == Overview
 
@@ -92,6 +94,4 @@ namespace sycl::ext::oneapi::property::queue {
 ```
 The new property hints the SYCL runtime that the queue gets the specified
 priority for execution if supported by underlying target runtimes. This
-property is a hint and may safely be ignored by an implementation. In the
-initial version (`SYCL_EXT_ONEAPI_QUEUE_PRIORITY` equals to `1`) it is
-supported by Level Zero backend only.
+property is a hint and may safely be ignored by an implementation.
