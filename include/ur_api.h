@@ -389,19 +389,17 @@ urContextRelease(
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_CONTEXT_INFO_DEVICES < ContextInfoType`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pSize`
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextGetInfo(
     ur_context_handle_t hContext,                   ///< [in] handle of the context
     ur_context_info_t ContextInfoType,              ///< [in] type of the info to retrieve
-    size_t* pSize,                                  ///< [in,out] pointer to the number of bytes needed to return info queried.
-                                                    ///< the call shall update it with the real number of bytes needed to
-                                                    ///< return the info
-    void* pContextInfo                              ///< [out][optional] array of bytes holding the info.
-                                                    ///< if *pSize is not equal to the real number of bytes needed to return
+    size_t propSize,                                ///< [in] the number of bytes of memory pointed to by pContextInfo.
+    void* pContextInfo,                             ///< [out][optional] array of bytes holding the info.
+                                                    ///< if propSize is not equal to or greater than the real number of bytes
+                                                    ///< needed to return 
                                                     ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
                                                     ///< pContextInfo is not used.
+    size_t* pPropSizeRet                            ///< [out][optional] pointer to the actual size in bytes of data queried by ContextInfoType.
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1470,8 +1468,6 @@ urEventGetInfo(
 ///         + `NULL == event`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_PROFILING_INFO_PROFILING_INFO_COMMAND_END < propName`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == propValue`
 ///     - ::UR_RESULT_INVALID_VALUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_OUT_OF_RESOURCES
@@ -1481,8 +1477,9 @@ urEventGetProfilingInfo(
     ur_event_handle_t event,                        ///< [in] handle of the event object
     ur_profiling_info_t propName,                   ///< [in] the name of the profiling property to query
     size_t propValueSize,                           ///< [in] size in bytes of the profiling property value
-    void* propValue,                                ///< [out] value of the profiling property
-    size_t propValueSizeRet                         ///< [out] bytes returned in profiling property
+    void* propValue,                                ///< [out][optional] value of the profiling property
+    size_t* propValueSizeRet                        ///< [out][optional] pointer to the actual size in bytes returned in
+                                                    ///< propValue
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2629,21 +2626,18 @@ typedef enum _ur_device_type_t
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_TYPE_VPU < DevicesType`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pCount`
+///         + `::UR_DEVICE_TYPE_VPU < DeviceType`
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceGet(
     ur_platform_handle_t hPlatform,                 ///< [in] handle of the platform instance
-    ur_device_type_t DevicesType,                   ///< [in] the type of the devices.
-    uint32_t* pCount,                               ///< [in,out] pointer to the number of devices.
-                                                    ///< If count is zero, then the call shall update the value with the total
-                                                    ///< number of devices available.
-                                                    ///< If count is greater than the number of devices available, then the
-                                                    ///< call shall update the value with the correct number of devices available.
-    ur_device_handle_t* phDevices                   ///< [out][optional][range(0, *pCount)] array of handle of devices.
-                                                    ///< If count is less than the number of devices available, then platform
-                                                    ///< shall only retrieve that number of devices.
+    ur_device_type_t DeviceType,                    ///< [in] the type of the devices.
+    uint32_t NumEntries,                            ///< [in] the number of devices to be added to phDevices.
+                                                    ///< If phDevices in not NULL then NumEntries should be greater than zero.
+    ur_device_handle_t* phDevices,                  ///< [out][optional][range(0, NumEntries)] array of handle of devices.
+                                                    ///< If NumEntries is less than the number of devices available, then
+                                                    ///< platform shall only retrieve that number of devices.
+    uint32_t* pNumDevices                           ///< [out][optional] pointer to the number of devices.
+                                                    ///< pNumDevices will be updated with the total number of devices available.
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2779,20 +2773,17 @@ typedef enum _ur_device_info_t
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES < infoType`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pSize`
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceGetInfo(
     ur_device_handle_t hDevice,                     ///< [in] handle of the device instance
     ur_device_info_t infoType,                      ///< [in] type of the info to retrieve
-    size_t* pSize,                                  ///< [in,out] pointer to the number of bytes needed to return info queried.
-                                                    ///< The call shall update it with the real number of bytes needed to
-                                                    ///< return the info
-    void* pDeviceInfo                               ///< [out][optional] array of bytes holding the info.
-                                                    ///< If *pSize input is not 0 and not equal to the real number of bytes
+    size_t propSize,                                ///< [in] the number of bytes pointed to by pDeviceInfo.
+    void* pDeviceInfo,                              ///< [out][optional] array of bytes holding the info.
+                                                    ///< If propSize is not equal to or greater than the real number of bytes
                                                     ///< needed to return the info
                                                     ///< then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
                                                     ///< pDeviceInfo is not used.
+    size_t* pPropSizeRet                            ///< [out][optional] pointer to the actual size in bytes of the queried infoType.
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2889,19 +2880,16 @@ typedef struct _ur_device_partition_property_value_t
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == Properties`
-///         + `NULL == pCount`
 UR_APIEXPORT ur_result_t UR_APICALL
 urDevicePartition(
     ur_device_handle_t hDevice,                     ///< [in] handle of the device to partition.
     ur_device_partition_property_value_t* Properties,   ///< [in] null-terminated array of <property, value> pair of the requested partitioning.
-    uint32_t* pCount,                               ///< [in,out] pointer to the number of sub-devices.
-                                                    ///< If count is zero, then the function shall update the value with the
-                                                    ///< total number of sub-devices available.
-                                                    ///< If count is greater than the number of sub-devices available, then the
-                                                    ///< function shall update the value with the correct number of sub-devices available.
-    ur_device_handle_t* phSubDevices                ///< [out][optional][range(0, *pCount)] array of handle of devices.
-                                                    ///< If count is less than the number of sub-devices available, then the
-                                                    ///< function shall only retrieve that number of sub-devices.
+    uint32_t NumDevices,                            ///< [in] the number of sub-devices.
+    ur_device_handle_t* phSubDevices,               ///< [out][optional][range(0, NumDevices)] array of handle of devices.
+                                                    ///< If NumDevices is less than the number of sub-devices available, then
+                                                    ///< the function shall only retrieve that number of sub-devices.
+    uint32_t* pNumDevicesRet                        ///< [out][optional] pointer to the number of sub-devices the device can be
+                                                    ///< partitioned into according to the partitioning property.
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3176,19 +3164,18 @@ typedef enum _ur_kernel_exec_info_t
 ///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_KERNEL_INFO_ATTRIBUTES < propName`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == propSize`
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelGetInfo(
     ur_kernel_handle_t hKernel,                     ///< [in] handle of the Kernel object
     ur_kernel_info_t propName,                      ///< [in] name of the Kernel property to query
-    size_t* propSize,                               ///< [in,out] pointer to the size of the Kernel property value
-                                                    ///< If *propSize is 0 or greater than the number of bytes of the Kernel property,
-                                                    ///< the call shall update the value with actual number of bytes of the
-                                                    ///< Kernel property.            
-    void* propValue                                 ///< [in,out][optional][range(0, *propSize)] value of the Kernel property.
-                                                    ///< If *propSize is less than the number of bytes for the Kernel property,
-                                                    ///< only the first *propSize bytes will be returned.
+    size_t propSize,                                ///< [in] the size of the Kernel property value.           
+    void* pKernelInfo,                              ///< [in,out][optional] array of bytes holding the kernel info property.
+                                                    ///< If propSize is not equal to or greater than the real number of bytes
+                                                    ///< needed to return 
+                                                    ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
+                                                    ///< pKernelInfo is not used.
+    size_t* pPropSizeRet                            ///< [out][optional] pointer to the actual size in bytes of data being
+                                                    ///< queried by propName.
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3207,15 +3194,16 @@ urKernelGetInfo(
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE < propName`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == propValue`
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelGetGroupInfo(
     ur_kernel_handle_t hKernel,                     ///< [in] handle of the Kernel object
     ur_device_handle_t hDevice,                     ///< [in] handle of the Device object
     ur_kernel_group_info_t propName,                ///< [in] name of the work Group property to query
     size_t propSize,                                ///< [in] size of the Kernel Work Group property value
-    void* propValue                                 ///< [in,out][range(0, propSize)] value of the Kernel Work Group property.
+    void* propValue,                                ///< [in,out][optional][range(0, propSize)] value of the Kernel Work Group
+                                                    ///< property.
+    size_t* pPropSizeRet                            ///< [out][optional] pointer to the actual size in bytes of data being
+                                                    ///< queried by propName.
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3230,15 +3218,16 @@ urKernelGetGroupInfo(
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_KERNEL_SUB_GROUP_INFO_SUB_GROUP_SIZE_INTEL < propName`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == propValue`
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelGetSubGroupInfo(
     ur_kernel_handle_t hKernel,                     ///< [in] handle of the Kernel object
     ur_device_handle_t hDevice,                     ///< [in] handle of the Device object
     ur_kernel_sub_group_info_t propName,            ///< [in] name of the SubGroup property to query
     size_t propSize,                                ///< [in] size of the Kernel SubGroup property value
-    void* propValue                                 ///< [in,out][range(0, propSize)] value of the Kernel SubGroup property.
+    void* propValue,                                ///< [in,out][range(0, propSize)][optional] value of the Kernel SubGroup
+                                                    ///< property.
+    size_t* pPropSizeRet                            ///< [out][optional] pointer to the actual size in bytes of data being
+                                                    ///< queried by propName.
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3602,18 +3591,14 @@ urModuleCreateWithNativeHandle(
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pCount`
 UR_APIEXPORT ur_result_t UR_APICALL
 urPlatformGet(
-    uint32_t* pCount,                               ///< [in,out] pointer to the number of platforms.
-                                                    ///< if count is zero, then the call shall update the value with the total
-                                                    ///< number of platforms available.
-                                                    ///< if count is greater than the number of platforms available, then the
-                                                    ///< call shall update the value with the correct number of platforms available.
-    ur_platform_handle_t* phPlatforms               ///< [out][optional][range(0, *pCount)] array of handle of platforms.
-                                                    ///< if count is less than the number of platforms available, then platform
-                                                    ///< shall only retrieve that number of platforms.
+    uint32_t NumEntries,                            ///< [in] the number of platforms to be added to phPlatforms. 
+                                                    ///< If phPlatforms is not NULL, then NumEntries but be greater than zero.
+    ur_platform_handle_t* phPlatforms,              ///< [out][optional][range(0, NumEntries)] array of handle of platforms.
+                                                    ///< If NumEntries is less than the number of platforms available, then
+                                                    ///< ::urPlatform shall only retrieve that number of platforms.
+    uint32_t* pNumPlatforms                         ///< [out][optional] returns the total number of platforms available. 
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3653,19 +3638,16 @@ typedef enum _ur_platform_info_t
 ///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_PLATFORM_INFO_PROFILE < PlatformInfoType`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pSize`
 UR_APIEXPORT ur_result_t UR_APICALL
 urPlatformGetInfo(
     ur_platform_handle_t hPlatform,                 ///< [in] handle of the platform
     ur_platform_info_t PlatformInfoType,            ///< [in] type of the info to retrieve
-    size_t* pSize,                                  ///< [in,out] pointer to the number of bytes needed to return info queried.
-                                                    ///< the call shall update it with the real number of bytes needed to
-                                                    ///< return the info
-    void* pPlatformInfo                             ///< [out][optional] array of bytes holding the info.
-                                                    ///< if *pSize is not equal to the real number of bytes needed to return
-                                                    ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
-                                                    ///< pPlatformInfo is not used.
+    size_t Size,                                    ///< [in] the number of bytes pointed to by pPlatformInfo.
+    void* pPlatformInfo,                            ///< [out][optional] array of bytes holding the info.
+                                                    ///< If Size is not equal to or greater to the real number of bytes needed
+                                                    ///< to return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
+                                                    ///< returned and pPlatformInfo is not used.
+    size_t* pSizeRet                                ///< [out][optional] pointer to the actual number of bytes being queried by pPlatformInfo.
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3937,19 +3919,17 @@ typedef enum _ur_program_info_t
 ///         + `NULL == hProgram`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_PROGRAM_INFO_KERNEL_NAMES < propName`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == propSize`
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramGetInfo(
     ur_program_handle_t hProgram,                   ///< [in] handle of the Program object
     ur_program_info_t propName,                     ///< [in] name of the Program property to query
-    size_t* propSize,                               ///< [in,out] pointer to the size of the Program property.
-                                                    ///< If *propSize is 0 or greater than the number of bytes of the Program property,
-                                                    ///< the call shall update the value with actual number of bytes of the
-                                                    ///< Program property.
-    void* propValue                                 ///< [in,out][optional][range(0, *propSize)] value of the Program property.
-                                                    ///< If *propSize is less than the number of bytes for the Program property,
-                                                    ///< only the first *propSize bytes will be returned.
+    size_t propSize,                                ///< [in] the size of the Program property.
+    void* pProgramInfo,                             ///< [in,out][optional] array of bytes of holding the program info property.
+                                                    ///< If propSize is not equal to or greater than the real number of bytes
+                                                    ///< needed to return 
+                                                    ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
+                                                    ///< pProgramInfo is not used.
+    size_t* pPropSizeRet                            ///< [out][optional] pointer to the actual size in bytes of data copied to propName.
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4164,8 +4144,9 @@ urInit(
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct _ur_platform_get_params_t
 {
-    uint32_t** ppCount;
+    uint32_t* pNumEntries;
     ur_platform_handle_t** pphPlatforms;
+    uint32_t** ppNumPlatforms;
 } ur_platform_get_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4189,8 +4170,9 @@ typedef struct _ur_platform_get_info_params_t
 {
     ur_platform_handle_t* phPlatform;
     ur_platform_info_t* pPlatformInfoType;
-    size_t** ppSize;
+    size_t* pSize;
     void** ppPlatformInfo;
+    size_t** ppSizeRet;
 } ur_platform_get_info_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4363,8 +4345,9 @@ typedef struct _ur_context_get_info_params_t
 {
     ur_context_handle_t* phContext;
     ur_context_info_t* pContextInfoType;
-    size_t** ppSize;
+    size_t* ppropSize;
     void** ppContextInfo;
+    size_t** ppPropSizeRet;
 } ur_context_get_info_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4523,7 +4506,7 @@ typedef struct _ur_event_get_profiling_info_params_t
     ur_profiling_info_t* ppropName;
     size_t* ppropValueSize;
     void** ppropValue;
-    size_t* ppropValueSizeRet;
+    size_t** ppropValueSizeRet;
 } ur_event_get_profiling_info_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4796,8 +4779,9 @@ typedef struct _ur_program_get_info_params_t
 {
     ur_program_handle_t* phProgram;
     ur_program_info_t* ppropName;
-    size_t** ppropSize;
-    void** ppropValue;
+    size_t* ppropSize;
+    void** ppProgramInfo;
+    size_t** ppPropSizeRet;
 } ur_program_get_info_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5089,8 +5073,9 @@ typedef struct _ur_kernel_get_info_params_t
 {
     ur_kernel_handle_t* phKernel;
     ur_kernel_info_t* ppropName;
-    size_t** ppropSize;
-    void** ppropValue;
+    size_t* ppropSize;
+    void** ppKernelInfo;
+    size_t** ppPropSizeRet;
 } ur_kernel_get_info_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5117,6 +5102,7 @@ typedef struct _ur_kernel_get_group_info_params_t
     ur_kernel_group_info_t* ppropName;
     size_t* ppropSize;
     void** ppropValue;
+    size_t** ppPropSizeRet;
 } ur_kernel_get_group_info_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5143,6 +5129,7 @@ typedef struct _ur_kernel_get_sub_group_info_params_t
     ur_kernel_sub_group_info_t* ppropName;
     size_t* ppropSize;
     void** ppropValue;
+    size_t** ppPropSizeRet;
 } ur_kernel_get_sub_group_info_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6718,9 +6705,10 @@ typedef struct _ur_queue_callbacks_t
 typedef struct _ur_device_get_params_t
 {
     ur_platform_handle_t* phPlatform;
-    ur_device_type_t* pDevicesType;
-    uint32_t** ppCount;
+    ur_device_type_t* pDeviceType;
+    uint32_t* pNumEntries;
     ur_device_handle_t** pphDevices;
+    uint32_t** ppNumDevices;
 } ur_device_get_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6744,8 +6732,9 @@ typedef struct _ur_device_get_info_params_t
 {
     ur_device_handle_t* phDevice;
     ur_device_info_t* pinfoType;
-    size_t** ppSize;
+    size_t* ppropSize;
     void** ppDeviceInfo;
+    size_t** ppPropSizeRet;
 } ur_device_get_info_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6813,8 +6802,9 @@ typedef struct _ur_device_partition_params_t
 {
     ur_device_handle_t* phDevice;
     ur_device_partition_property_value_t** pProperties;
-    uint32_t** ppCount;
+    uint32_t* pNumDevices;
     ur_device_handle_t** pphSubDevices;
+    uint32_t** ppNumDevicesRet;
 } ur_device_partition_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////

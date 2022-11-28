@@ -933,16 +933,16 @@ __use_win_types = "Windows" == platform.uname()[0]
 ###############################################################################
 ## @brief Function-pointer for urPlatformGet
 if __use_win_types:
-    _urPlatformGet_t = WINFUNCTYPE( ur_result_t, POINTER(c_ulong), POINTER(ur_platform_handle_t) )
+    _urPlatformGet_t = WINFUNCTYPE( ur_result_t, c_ulong, POINTER(ur_platform_handle_t), POINTER(c_ulong) )
 else:
-    _urPlatformGet_t = CFUNCTYPE( ur_result_t, POINTER(c_ulong), POINTER(ur_platform_handle_t) )
+    _urPlatformGet_t = CFUNCTYPE( ur_result_t, c_ulong, POINTER(ur_platform_handle_t), POINTER(c_ulong) )
 
 ###############################################################################
 ## @brief Function-pointer for urPlatformGetInfo
 if __use_win_types:
-    _urPlatformGetInfo_t = WINFUNCTYPE( ur_result_t, ur_platform_handle_t, ur_platform_info_t, POINTER(c_size_t), c_void_p )
+    _urPlatformGetInfo_t = WINFUNCTYPE( ur_result_t, ur_platform_handle_t, ur_platform_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
 else:
-    _urPlatformGetInfo_t = CFUNCTYPE( ur_result_t, ur_platform_handle_t, ur_platform_info_t, POINTER(c_size_t), c_void_p )
+    _urPlatformGetInfo_t = CFUNCTYPE( ur_result_t, ur_platform_handle_t, ur_platform_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urPlatformGetNativeHandle
@@ -1001,9 +1001,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urContextGetInfo
 if __use_win_types:
-    _urContextGetInfo_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_context_info_t, POINTER(c_size_t), c_void_p )
+    _urContextGetInfo_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_context_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
 else:
-    _urContextGetInfo_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_context_info_t, POINTER(c_size_t), c_void_p )
+    _urContextGetInfo_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_context_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urContextGetNativeHandle
@@ -1057,9 +1057,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urEventGetProfilingInfo
 if __use_win_types:
-    _urEventGetProfilingInfo_t = WINFUNCTYPE( ur_result_t, ur_event_handle_t, ur_profiling_info_t, c_size_t, c_void_p, c_size_t )
+    _urEventGetProfilingInfo_t = WINFUNCTYPE( ur_result_t, ur_event_handle_t, ur_profiling_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
 else:
-    _urEventGetProfilingInfo_t = CFUNCTYPE( ur_result_t, ur_event_handle_t, ur_profiling_info_t, c_size_t, c_void_p, c_size_t )
+    _urEventGetProfilingInfo_t = CFUNCTYPE( ur_result_t, ur_event_handle_t, ur_profiling_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urEventWait
@@ -1149,9 +1149,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urProgramGetInfo
 if __use_win_types:
-    _urProgramGetInfo_t = WINFUNCTYPE( ur_result_t, ur_program_handle_t, ur_program_info_t, POINTER(c_size_t), c_void_p )
+    _urProgramGetInfo_t = WINFUNCTYPE( ur_result_t, ur_program_handle_t, ur_program_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
 else:
-    _urProgramGetInfo_t = CFUNCTYPE( ur_result_t, ur_program_handle_t, ur_program_info_t, POINTER(c_size_t), c_void_p )
+    _urProgramGetInfo_t = CFUNCTYPE( ur_result_t, ur_program_handle_t, ur_program_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urProgramGetBuildInfo
@@ -1255,23 +1255,23 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urKernelGetInfo
 if __use_win_types:
-    _urKernelGetInfo_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, ur_kernel_info_t, POINTER(c_size_t), c_void_p )
+    _urKernelGetInfo_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, ur_kernel_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
 else:
-    _urKernelGetInfo_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, ur_kernel_info_t, POINTER(c_size_t), c_void_p )
+    _urKernelGetInfo_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, ur_kernel_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urKernelGetGroupInfo
 if __use_win_types:
-    _urKernelGetGroupInfo_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, ur_device_handle_t, ur_kernel_group_info_t, c_size_t, c_void_p )
+    _urKernelGetGroupInfo_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, ur_device_handle_t, ur_kernel_group_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
 else:
-    _urKernelGetGroupInfo_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, ur_device_handle_t, ur_kernel_group_info_t, c_size_t, c_void_p )
+    _urKernelGetGroupInfo_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, ur_device_handle_t, ur_kernel_group_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urKernelGetSubGroupInfo
 if __use_win_types:
-    _urKernelGetSubGroupInfo_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, ur_device_handle_t, ur_kernel_sub_group_info_t, c_size_t, c_void_p )
+    _urKernelGetSubGroupInfo_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, ur_device_handle_t, ur_kernel_sub_group_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
 else:
-    _urKernelGetSubGroupInfo_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, ur_device_handle_t, ur_kernel_sub_group_info_t, c_size_t, c_void_p )
+    _urKernelGetSubGroupInfo_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, ur_device_handle_t, ur_kernel_sub_group_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urKernelRetain
@@ -1777,16 +1777,16 @@ class _ur_queue_dditable_t(Structure):
 ###############################################################################
 ## @brief Function-pointer for urDeviceGet
 if __use_win_types:
-    _urDeviceGet_t = WINFUNCTYPE( ur_result_t, ur_platform_handle_t, ur_device_type_t, POINTER(c_ulong), POINTER(ur_device_handle_t) )
+    _urDeviceGet_t = WINFUNCTYPE( ur_result_t, ur_platform_handle_t, ur_device_type_t, c_ulong, POINTER(ur_device_handle_t), POINTER(c_ulong) )
 else:
-    _urDeviceGet_t = CFUNCTYPE( ur_result_t, ur_platform_handle_t, ur_device_type_t, POINTER(c_ulong), POINTER(ur_device_handle_t) )
+    _urDeviceGet_t = CFUNCTYPE( ur_result_t, ur_platform_handle_t, ur_device_type_t, c_ulong, POINTER(ur_device_handle_t), POINTER(c_ulong) )
 
 ###############################################################################
 ## @brief Function-pointer for urDeviceGetInfo
 if __use_win_types:
-    _urDeviceGetInfo_t = WINFUNCTYPE( ur_result_t, ur_device_handle_t, ur_device_info_t, POINTER(c_size_t), c_void_p )
+    _urDeviceGetInfo_t = WINFUNCTYPE( ur_result_t, ur_device_handle_t, ur_device_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
 else:
-    _urDeviceGetInfo_t = CFUNCTYPE( ur_result_t, ur_device_handle_t, ur_device_info_t, POINTER(c_size_t), c_void_p )
+    _urDeviceGetInfo_t = CFUNCTYPE( ur_result_t, ur_device_handle_t, ur_device_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urDeviceRetain
@@ -1805,9 +1805,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urDevicePartition
 if __use_win_types:
-    _urDevicePartition_t = WINFUNCTYPE( ur_result_t, ur_device_handle_t, POINTER(ur_device_partition_property_value_t), POINTER(c_ulong), POINTER(ur_device_handle_t) )
+    _urDevicePartition_t = WINFUNCTYPE( ur_result_t, ur_device_handle_t, POINTER(ur_device_partition_property_value_t), c_ulong, POINTER(ur_device_handle_t), POINTER(c_ulong) )
 else:
-    _urDevicePartition_t = CFUNCTYPE( ur_result_t, ur_device_handle_t, POINTER(ur_device_partition_property_value_t), POINTER(c_ulong), POINTER(ur_device_handle_t) )
+    _urDevicePartition_t = CFUNCTYPE( ur_result_t, ur_device_handle_t, POINTER(ur_device_partition_property_value_t), c_ulong, POINTER(ur_device_handle_t), POINTER(c_ulong) )
 
 ###############################################################################
 ## @brief Function-pointer for urDeviceSelectBinary
