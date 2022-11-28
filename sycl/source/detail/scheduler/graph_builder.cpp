@@ -1050,7 +1050,6 @@ void Scheduler::GraphBuilder::decrementLeafCountersForRecord(
 
 void Scheduler::GraphBuilder::cleanupCommandsForRecord(
     MemObjRecord *Record,
-    std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate,
     std::vector<std::shared_ptr<const void>> &AuxResourcesToDeallocate) {
   std::vector<AllocaCommandBase *> &AllocaCommands = Record->MAllocaCommands;
   if (AllocaCommands.empty())
@@ -1100,15 +1099,8 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(
     if (!markNodeAsVisited(Cmd, MVisitedCmds))
       continue;
 
-    // Collect stream objects for a visited command.
     if (Cmd->getType() == Command::CommandType::RUN_CG) {
       auto ExecCmd = static_cast<ExecCGCommand *>(Cmd);
-
-      // Transfer ownership of stream implementations.
-      std::vector<std::shared_ptr<stream_impl>> Streams = ExecCmd->getStreams();
-      ExecCmd->clearStreams();
-      StreamsToDeallocate.insert(StreamsToDeallocate.end(), Streams.begin(),
-                                 Streams.end());
 
       // Transfer ownership of auxiliary resources.
       std::vector<std::shared_ptr<const void>> AuxResources =
@@ -1174,7 +1166,6 @@ void Scheduler::GraphBuilder::cleanupCommand(Command *Cmd) {
     auto *ExecCGCmd = static_cast<ExecCGCommand *>(Cmd);
     if (ExecCGCmd->getCG().getType() == CG::CGTYPE::Kernel) {
       auto *ExecKernelCG = static_cast<CGExecKernel *>(&ExecCGCmd->getCG());
-      assert(!ExecKernelCG->hasStreams());
       assert(!ExecKernelCG->hasAuxiliaryResources());
     }
   }
@@ -1207,7 +1198,6 @@ void Scheduler::GraphBuilder::cleanupCommand(Command *Cmd) {
 
 void Scheduler::GraphBuilder::cleanupFinishedCommands(
     Command *FinishedCmd,
-    std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate,
     std::vector<std::shared_ptr<const void>> &AuxResourcesToDeallocate) {
   assert(MCmdsToVisit.empty());
   MCmdsToVisit.push(FinishedCmd);
@@ -1221,15 +1211,8 @@ void Scheduler::GraphBuilder::cleanupFinishedCommands(
     if (!markNodeAsVisited(Cmd, MVisitedCmds))
       continue;
 
-    // Collect stream objects for a visited command.
     if (Cmd->getType() == Command::CommandType::RUN_CG) {
       auto ExecCmd = static_cast<ExecCGCommand *>(Cmd);
-
-      // Transfer ownership of stream implementations.
-      std::vector<std::shared_ptr<stream_impl>> Streams = ExecCmd->getStreams();
-      ExecCmd->clearStreams();
-      StreamsToDeallocate.insert(StreamsToDeallocate.end(), Streams.begin(),
-                                 Streams.end());
 
       // Transfer ownership of auxiliary resources.
       std::vector<std::shared_ptr<const void>> AuxResources =

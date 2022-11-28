@@ -179,9 +179,10 @@ class event_impl;
 class context_impl;
 class DispatchHostTask;
 
-using QueueImplPtr = std::shared_ptr<detail::queue_impl>;
-using EventImplPtr = std::shared_ptr<detail::event_impl>;
 using ContextImplPtr = std::shared_ptr<detail::context_impl>;
+using EventImplPtr = std::shared_ptr<detail::event_impl>;
+using QueueImplPtr = std::shared_ptr<detail::queue_impl>;
+using StreamImplPtr = std::shared_ptr<detail::stream_impl>;
 
 /// Memory Object Record
 ///
@@ -433,18 +434,6 @@ public:
   /// \return an instance of the scheduler object.
   static Scheduler &getInstance();
 
-  /// Allocate buffers in the pool for a provided stream
-  ///
-  /// \param Impl to the stream object
-  /// \param StreamBufferSize of the stream buffer
-  /// \param FlushBufferSize of the flush buffer for a single work item
-  void allocateStreamBuffers(stream_impl *, size_t, size_t);
-
-  /// Deallocate all stream buffers in the pool
-  ///
-  /// \param Impl to the stream object
-  void deallocateStreamBuffers(stream_impl *);
-
   QueueImplPtr getDefaultHostQueue() { return DefaultHostQueue; }
 
   const QueueImplPtr &getDefaultHostQueue() const { return DefaultHostQueue; }
@@ -545,10 +534,8 @@ protected:
 
     /// Removes finished non-leaf non-alloca commands from the subgraph
     /// (assuming that all its commands have been waited for).
-    void cleanupFinishedCommands(
-        Command *FinishedCmd,
-        std::vector<std::shared_ptr<sycl::detail::stream_impl>> &,
-        std::vector<std::shared_ptr<const void>> &);
+    void cleanupFinishedCommands(Command *FinishedCmd,
+                                 std::vector<std::shared_ptr<const void>> &);
 
     /// Reschedules the command passed using Queue provided.
     ///
@@ -572,10 +559,8 @@ protected:
     void decrementLeafCountersForRecord(MemObjRecord *Record);
 
     /// Removes commands that use the given MemObjRecord from the graph.
-    void cleanupCommandsForRecord(
-        MemObjRecord *Record,
-        std::vector<std::shared_ptr<sycl::detail::stream_impl>> &,
-        std::vector<std::shared_ptr<const void>> &);
+    void cleanupCommandsForRecord(MemObjRecord *Record,
+                                  std::vector<std::shared_ptr<const void>> &);
 
     /// Removes the MemObjRecord for the memory object passed.
     void removeRecordForMemObj(SYCLMemObjI *MemObject);
@@ -815,52 +800,6 @@ protected:
   friend class DispatchHostTask;
   friend class queue_impl;
   friend class event_impl;
-
-  /// Stream buffers structure.
-  ///
-  /// The structure contains all buffers for a stream object.
-  struct StreamBuffers {
-    StreamBuffers(size_t StreamBufferSize, size_t FlushBufferSize)
-        // Initialize stream buffer with zeros, this is needed for two reasons:
-        // 1. We don't need to care about end of line when printing out
-        // streamed data.
-        // 2. Offset is properly initialized.
-        : Data(StreamBufferSize, 0),
-          Buf(Data.data(), range<1>(StreamBufferSize),
-              {property::buffer::use_host_ptr()}),
-          FlushBuf(range<1>(FlushBufferSize)) {
-      // Disable copy back on buffer destruction. Copy is scheduled as a host
-      // task which fires up as soon as kernel has completed exectuion.
-      Buf.set_write_back(false);
-      FlushBuf.set_write_back(false);
-    }
-
-    // Vector on the host side which is used to initialize the stream
-    // buffer
-    std::vector<char> Data;
-
-    // Stream buffer
-    buffer<char, 1> Buf;
-
-    // Global flush buffer
-    buffer<char, 1> FlushBuf;
-  };
-
-  friend class stream_impl;
-  friend void initStream(StreamImplPtr, QueueImplPtr);
-
-  // Protects stream buffers pool
-  std::recursive_mutex StreamBuffersPoolMutex;
-
-  // We need to store a pointer to the structure with stream buffers because we
-  // want to avoid a situation when buffers are destructed during destruction of
-  // the scheduler. Scheduler is a global object and it can be destructed after
-  // all device runtimes are unloaded. Destruction of the buffers at this stage
-  // will lead to a faliure. In the correct program there will be sync points
-  // for all kernels and all allocated resources will be released by the
-  // scheduler. If program is not correct and doesn't have necessary sync point
-  // then warning will be issued.
-  std::unordered_map<stream_impl *, StreamBuffers *> StreamBuffersPool;
 };
 
 } // namespace detail
