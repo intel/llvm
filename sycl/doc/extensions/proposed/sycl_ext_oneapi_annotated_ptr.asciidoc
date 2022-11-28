@@ -304,6 +304,15 @@ class annotated_ptr {
     template<typename propertyT>
     static constexpr /*unspecified*/ get_property();
   };
+
+//Deduction guides
+template <typename T, typename... Args>
+annotated_ptr(T, Args... args) -> annotated_ptr<T, detail::properties_t<Args...>>;
+
+template <typename T, typename oldProp, typename otherProp>
+annotated_ptr(annotated_arg<T, oldProp>, otherProp other)
+   -> annotated_ptr<T, detail::merged_properties_t<oldProp, otherProp>>;
+
 } // namespace sycl::ext::oneapi::experimental
 ----
 
