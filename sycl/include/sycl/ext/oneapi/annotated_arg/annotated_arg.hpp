@@ -71,6 +71,24 @@ struct HasSubscriptOperator<
 
 } // namespace detail
 
+// template <typename T, typename... Args>
+// annotated_arg(T, Args... args) -> annotated_arg<T, decltype(properties{args...})>;
+
+// template <typename T, typename old, typename ArgT, typename Enable>
+// annotated_arg(annotated_arg<T, old, Enable>, ArgT newp) -> annotated_arg<T, detail::merged_properties_t<old, ArgT>, Enable>;
+
+template <typename T, typename... Args, typename isptr = typename std::enable_if<std::is_pointer<T>::value>::type>
+annotated_arg(T, Args... args) -> annotated_arg<T, Args..., isptr>;
+
+template <typename T, typename... Args, typename isNotPtr = typename std::enable_if<!std::is_pointer<T>::value>::type>
+annotated_arg(T, Args... args) -> annotated_arg<T, Args..., isNotPtr>;
+
+// template <typename T, typename... Args>
+// annotated_arg(T, Args... args) -> annotated_arg<T, decltype(properties{args...}), typename std::enable_if<!std::is_pointer<T>::value>::type>;
+
+template <typename T, typename old, typename ArgT, typename Enable>
+annotated_arg(annotated_arg<T, old, Enable>, ArgT newp) -> annotated_arg<T, detail::merged_properties_t<old, ArgT>, Enable>;
+
 template <typename T, typename PropertyListT = detail::empty_properties_t, typename Enable = void>
 class annotated_arg {
   // This should always fail when instantiating the unspecialized version.
@@ -84,6 +102,13 @@ class __SYCL_SPECIAL_CLASS __SYCL_TYPE(annotated_arg) annotated_arg<T, detail::p
   using property_list_t = detail::properties_t<Props...>;
   using UnderlyingT = typename std::remove_pointer<T>::type;
   __OPENCL_GLOBAL_AS__ UnderlyingT *g_ptr;
+
+  using base_t = annotated_arg<T, property_list_t, typename std::enable_if<std::is_pointer<T>::value>::type>;
+
+  using IsPtr = typename std::enable_if<std::is_pointer<T>::value>::type;
+
+  template<typename T2, typename PropertyListT, typename OtherIsPtr>
+  friend class annotated_arg;
 
   #ifdef __SYCL_DEVICE_ONLY__
     void __init(
@@ -106,17 +131,23 @@ public:
   annotated_arg(const annotated_arg&) = default;
   annotated_arg& operator=(annotated_arg&) = default;
 
-  annotated_arg(const T& _ptr, const property_list_t &PropList = properties{}) noexcept
+  explicit annotated_arg(const T& _ptr, const property_list_t &PropList = properties{}) noexcept
     : g_ptr((__OPENCL_GLOBAL_AS__ UnderlyingT*)_ptr) {}
 
   template<typename... PropertyValueTs>
-  annotated_arg(const T& _ptr, PropertyValueTs... props) noexcept : g_ptr((__OPENCL_GLOBAL_AS__ UnderlyingT*)_ptr) {
+  explicit annotated_arg(const T& _ptr, PropertyValueTs... props) noexcept : g_ptr((__OPENCL_GLOBAL_AS__ UnderlyingT*)_ptr) {
     static_assert(
         std::is_same<
             property_list_t,
             detail::merged_properties_t<property_list_t, detail::properties_t<PropertyValueTs...>>>::value,
         "The property list must contain all properties of the input of the constructor"
     );
+    // static_assert(
+    //     std::is_same<
+    //         property_list_t,
+    //         typename detail::merged_properties<Props..., PropertyValueTs...>::type>::value,
+    //     "The property list must contain all properties of the input of the constructor"
+    // );
   }
   
   // Constructs an annotated_arg object from another annotated_arg object.
@@ -132,10 +163,20 @@ public:
         "The property list must contain all properties of the input of the copy constructor");
   }
 
-  template <typename T2, typename PropertyListU, typename PropertyListV,
-            typename std::enable_if<std::is_convertible<T2, T>::value>::type>
-  explicit annotated_arg(const annotated_arg<T2, PropertyListU> &other,
-      properties<PropertyListV> proplist) noexcept : g_ptr(other.g_ptr) {
+  // template <typename T2, typename PropertyListU, typename PropertyListV,
+  //           typename std::enable_if<std::is_convertible<T2, T>::value>::type>
+  // explicit annotated_arg(const annotated_arg<T2, PropertyListU> &other,
+  //     properties<PropertyListV> proplist) noexcept : g_ptr(other.g_ptr) {
+  //    static_assert(
+  //       std::is_same<
+  //           property_list_t,
+  //           detail::merged_properties_t<PropertyListU, PropertyListV>>::value,
+  //       "The property list must contain all properties of the input of the copy constructor");
+  // }
+
+  template <typename T2, typename PropertyListU, typename PropertyListV, typename OtherIsPtr>
+  explicit annotated_arg(const annotated_arg<T2, PropertyListU, OtherIsPtr> &other,
+      const PropertyListV& proplist) noexcept : g_ptr(other.g_ptr) {
      static_assert(
         std::is_same<
             property_list_t,
@@ -143,13 +184,13 @@ public:
         "The property list must contain all properties of the input of the copy constructor");
   }
 
-  operator T&() noexcept {
+  explicit operator T&() noexcept {
     __SYCL_HOST_NOT_SUPPORTED("Implicit conversion of annotated_arg to T")
     // return (T&) g_ptr;
     return  g_ptr;
   }
 
-  operator const T&() const noexcept {
+  explicit operator const T&() const noexcept {
     __SYCL_HOST_NOT_SUPPORTED("Implicit conversion of annotated_arg to T")
     return g_ptr;
   }
