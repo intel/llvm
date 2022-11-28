@@ -12,5 +12,4 @@ static bool InitSignalHandler = []() {
 void EnableHandler() {
   llvm::sys::PrintStackTraceOnErrorSignal(llvm::StringRef());
   printf("Enabling signal handler");
-
 }
