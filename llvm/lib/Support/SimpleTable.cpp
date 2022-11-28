@@ -251,5 +251,19 @@ Expected<SimpleTable::UPtrTy> SimpleTable::read(const Twine &FileName,
   return read(MemBuf->get(), ColSep);
 }
 
+Error SimpleTable::merge(const SimpleTable &Other) {
+  if (getNumColumns() != Other.getNumColumns())
+    return makeError("different number of columns");
+  if (ColumnNames != Other.ColumnNames)
+    return makeError("different column names");
+  for (unsigned I = 0; I < Other.Rows.size(); I++) {
+    const auto &OtherRow = Other[I];
+    SmallVector<StringRef, 3> NewRow(OtherRow.Cells.begin(),
+                                     OtherRow.Cells.end());
+    addRow(std::move(NewRow));
+  }
+  return Error::success();
+}
+
 } // namespace util
 } // namespace llvm
