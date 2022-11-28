@@ -1,0 +1,182 @@
+= sycl_ext_oneapi_bfloat16_math_functions
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+// This is necessary for asciidoc, but not for asciidoctor
+:cpp: C++
+
+== Notice
+
+Copyright © 2022-2022 Intel Corporation. All rights reserved.
+
+Khronos® is a registered trademark and SYCL™ and SPIR™ are trademarks of
+The Khronos Group Inc. OpenCL™ is a trademark of Apple Inc. used by permission
+by Khronos.
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 5 specification.
+All references below to the "core SYCL specification" or to section
+numbers in the SYCL specification refer to that revision.
+
+This extension depends on the following other SYCL extension:
+
+* sycl_ext_oneapi_bfloat16
+
+== Status
+
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback. Interfaces defined in this
+specification are implemented in DPC\++ but they are not finalized and may
+change incompatibly in future versions of DPC++ without prior notice.
+Shipping software products should not rely on APIs defined in this
+specification.
+
+== Overview
+
+This extension adds `bfloat16` support to the `fma`, `fmin`, `fmax` and
+`fabs` SYCL floating point math functions. These functions can be used as
+element wise operations on matrices, supplementing the `bfloat16` support
+in the sycl_ext_oneapi_matrix extension.
+
+The descriptions of the `fma`, `fmin`, `fmax` and `fabs` SYCL floating point
+math functions can be found in the SYCL specification:
+https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#_math_functions.
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros". Therefore, an implementation
+supporting this extension must predefine the macro 
+`SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS` to one of the values defined in the
+table below. Applications can test for the existence of this macro to determine
+if the implementation supports this feature, or applications can test the
+macro's value to determine which of the extension's APIs the implementation
+supports.
+ 
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version. Base features are supported.
+|===   
+
+=== Extension to `enum class aspect`
+
+[source]
+----
+namespace sycl {
+enum class aspect {
+  ...
+  sycl_ext_oneapi_bfloat16_math_functions
+}
+}
+----
+
+If a SYCL device has the `sycl_ext_oneapi_bfloat16_math_functions` aspect,
+then it supports the `bfloat16` math functions described in the next section.
+
+=== Math Functions
+
+The following functions are only available when `T` is `bfloat16` or
+`sycl::marray<bfloat16, {N}>`, where `{N}` means any positive value of
+`size_t` type.
+
+==== fma
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+
+template <typename T>
+T fma(T a, T b, T c);
+} // namespace sycl::ext::oneapi::experimental
+```
+
+===== Description
+
+Returns the correctly rounded floating-point representation of the
+sum of `c` with the infinitely precise product of `a` and `b`.
+Rounding of intermediate products shall not occur. The mantissa
+LSB rounds to the nearest even. Subnormal numbers are supported.
+
+==== fmax
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+template <typename T>
+T fmax(T x, T y);
+} // namespace sycl::ext::oneapi::experimental
+```
+
+===== Description
+
+Returns `y` if
+`x < y`, otherwise it
+returns `x`. If one argument is a
+NaN, `fmax()` returns the other
+argument. If both arguments are
+NaNs, `fmax()` returns a NaN.
+
+==== fmin
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+template <typename T>
+T fmin(T x, T y);
+} // namespace sycl::ext::oneapi::experimental
+```
+
+===== Description
+
+Returns `y` if
+`y < x`, otherwise it
+returns `x`. If one argument is a
+NaN, `fmax()` returns the other
+argument. If both arguments are
+NaNs, `fmax()` returns a NaN.
+
+==== fabs
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+template <typename T>
+T fabs(T x);
+} // namespace sycl::ext::oneapi::experimental
+```
+
+===== Description
+
+Compute absolute value of a `bfloat16`.
+
+== Issues
+
+1. The CUDA backend does not have a use case that would necessitate support
+of the `vec` class in bfloat16 math functions, and `marray` would always be
+preferred over `vec` if `vec` support were to be added in the CUDA backend.
+For portability reasons, support for the `vec` class can be easily added if
+other backends require it.
+
+2. We should decide on a roadmap to extend support of `bfloat16` to other
+SYCL 2020 math functions.
