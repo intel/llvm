@@ -1,7 +1,7 @@
 // RUN: sycl-mlir-opt -split-input-file -convert-sycl-to-llvm -verify-diagnostics %s | FileCheck %s
 
-!sycl_array1 = !sycl.array<[1], (memref<1xi64>)>
-func.func @test1(%arg0: memref<?x!sycl.range<1>>) -> memref<?x!sycl_array1> {
+!sycl_array_1_ = !sycl.array<[1], (memref<1xi64>)>
+func.func @test1(%arg0: memref<?x!sycl.range<1>>) -> memref<?x!sycl_array_1_> {
   // CHECK: llvm.func @test1
   // CHECK: [[SRC:%.*]] = llvm.mlir.undef : !llvm.struct<(ptr<struct<"class.sycl::_V1::range.1"
   // CHECK-DAG: [[SRC_IV0:%.*]] = llvm.insertvalue %arg0, [[SRC]][0]
@@ -27,14 +27,14 @@ func.func @test1(%arg0: memref<?x!sycl.range<1>>) -> memref<?x!sycl_array1> {
 
   // CHECK: llvm.return [[RES_IV2]] : !llvm.struct<(ptr<struct<"class.sycl::_V1::detail::array.1"  
 
-  %0 = "sycl.cast"(%arg0) : (memref<?x!sycl.range<1>>) -> memref<?x!sycl_array1>
-  func.return %0 : memref<?x!sycl_array1>
+  %0 = "sycl.cast"(%arg0) : (memref<?x!sycl.range<1>>) -> memref<?x!sycl_array_1_>
+  func.return %0 : memref<?x!sycl_array_1_>
 }
 
 // -----
 
-!sycl_array1 = !sycl.array<[1], (memref<1xi64>)>
-func.func @test2(%arg0: memref<?x!sycl.id<1>>) -> memref<?x!sycl_array1> {
+!sycl_array_1_ = !sycl.array<[1], (memref<1xi64>)>
+func.func @test2(%arg0: memref<?x!sycl.id<1>>) -> memref<?x!sycl_array_1_> {
   // CHECK: llvm.func @test2
   // CHECK: [[SRC:%.*]] = llvm.mlir.undef : !llvm.struct<(ptr<struct<"class.sycl::_V1::id.1"
   // CHECK-DAG: [[SRC_IV0:%.*]] = llvm.insertvalue %arg0, [[SRC]][0]
@@ -60,15 +60,14 @@ func.func @test2(%arg0: memref<?x!sycl.id<1>>) -> memref<?x!sycl_array1> {
 
   // CHECK: llvm.return [[RES_IV2]] : !llvm.struct<(ptr<struct<"class.sycl::_V1::detail::array.1"  
 
-  %0 = "sycl.cast"(%arg0) : (memref<?x!sycl.id<1>>) -> memref<?x!sycl_array1>
-  func.return %0: memref<?x!sycl_array1>
+  %0 = "sycl.cast"(%arg0) : (memref<?x!sycl.id<1>>) -> memref<?x!sycl_array_1_>
+  func.return %0: memref<?x!sycl_array_1_>
 }
 
 // -----
 
-!sycl_accessor_impl_device = !sycl.accessor_impl_device<[1], (!sycl.id<1>, !sycl.range<1>, !sycl.range<1>)>
-!sycl_accessor = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl_accessor_impl_device, !llvm.struct<(ptr<i32, 1>)>)>
-func.func @test3(%arg0: memref<?x!sycl_accessor>) -> memref<?x!sycl.accessor_common> {
+!sycl_accessor_1_i32_rw_gb = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl.accessor_impl_device<[1], (!sycl.id<1>, !sycl.range<1>, !sycl.range<1>)>, !llvm.struct<(ptr<i32, 1>)>)>
+func.func @test3(%arg0: memref<?x!sycl_accessor_1_i32_rw_gb>) -> memref<?x!sycl.accessor_common> {
   // CHECK-LABEL: llvm.func @test3
   // CHECK: [[SRC:%.*]] = llvm.mlir.undef : !llvm.struct<(ptr<struct<"class.sycl::_V1::accessor.1"
   // CHECK-DAG: [[SRC_IV0:%.*]] = llvm.insertvalue %arg0, [[SRC]][0]
@@ -94,6 +93,6 @@ func.func @test3(%arg0: memref<?x!sycl_accessor>) -> memref<?x!sycl.accessor_com
 
   // CHECK: llvm.return [[RES_IV2]] : !llvm.struct<(ptr<struct<"class.sycl::_V1::detail::accessor_common"  
 
-  %0 = "sycl.cast"(%arg0) : (memref<?x!sycl_accessor>) -> memref<?x!sycl.accessor_common>
+  %0 = "sycl.cast"(%arg0) : (memref<?x!sycl_accessor_1_i32_rw_gb>) -> memref<?x!sycl.accessor_common>
   func.return %0: memref<?x!sycl.accessor_common>
 }

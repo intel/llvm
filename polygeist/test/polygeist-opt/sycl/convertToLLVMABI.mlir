@@ -1,6 +1,6 @@
 // RUN: polygeist-opt --convert-to-llvm-abi --split-input-file %s | FileCheck %s
 
-// CHECK: gpu.func @kernel([[A0:%.*]]: !llvm.ptr<i32, 1>, %arg1: !sycl_range_1_, %arg2: !sycl_range_1_, %arg3: !sycl_id_1_) 
+// CHECK: gpu.func @kernel([[A0:%.*]]: !llvm.ptr<i32, 1>, %arg1: !sycl.range<1>, %arg2: !sycl.range<1>, %arg3: !sycl.id<1>)
 // CHECK-SAME: kernel attributes {llvm.cconv = #llvm.cconv<spir_kernelcc>, llvm.linkage = #llvm.linkage<weak_odr>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]} {
 // CHECK-NEXT:      [[P2M:%.*]] = "polygeist.pointer2memref"([[A0]]) : (!llvm.ptr<i32, 1>) -> memref<?xi32, 1>
 // CHECK-NEXT:      [[M2P:%.*]] = "polygeist.memref2pointer"([[P2M]]) : (memref<?xi32, 1>) -> !llvm.ptr<i32, 1>
@@ -53,16 +53,15 @@ func.func private @callee(%arg0: memref<?xi32, 1>) -> memref<?xi32, 1>
 
 // -----
 
-// CHECK: !sycl_id_1_ = !sycl.id<1>
-// CHECK: func.func @constructor_caller([[A0:%.*]]: !llvm.ptr<!sycl_id_1_, 1>) {
-// CHECK-NEXT:    [[P2M:%.*]] = "polygeist.pointer2memref"([[A0]]) : (!llvm.ptr<!sycl_id_1_, 1>) -> memref<?x!sycl_id_1_, 1>
-// CHECK-NEXT:    [[M2P:%.*]] = "polygeist.memref2pointer"([[P2M]]) : (memref<?x!sycl_id_1_, 1>) -> !llvm.ptr<!sycl_id_1_, 1>
-// CHECK-NEXT:    call @constructor([[M2P]]) : (!llvm.ptr<!sycl_id_1_, 1>) -> ()
+// CHECK: func.func @constructor_caller([[A0:%.*]]: !llvm.ptr<!sycl.id<1>, 1>) {
+// CHECK-NEXT:    [[P2M:%.*]] = "polygeist.pointer2memref"([[A0]]) : (!llvm.ptr<!sycl.id<1>, 1>) -> memref<?x!sycl.id<1>, 1>
+// CHECK-NEXT:    [[M2P:%.*]] = "polygeist.memref2pointer"([[P2M]]) : (memref<?x!sycl.id<1>, 1>) -> !llvm.ptr<!sycl.id<1>, 1>
+// CHECK-NEXT:    call @constructor([[M2P]]) : (!llvm.ptr<!sycl.id<1>, 1>) -> ()
 
 func.func @constructor_caller(%arg0: memref<?x!sycl.id<1>, 1>) {
   sycl.constructor(%arg0) {MangledFunctionName = @constructor, TypeName = @foo} : (memref<?x!sycl.id<1>, 1>) -> ()
   func.return
 }
 
-// CHECK: func.func private @constructor(!llvm.ptr<!sycl_id_1_, 1>)
+// CHECK: func.func private @constructor(!llvm.ptr<!sycl.id<1>, 1>)
 func.func private @constructor(%arg0: memref<?x!sycl.id<1>, 1>)
