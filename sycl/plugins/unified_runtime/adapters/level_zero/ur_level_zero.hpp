@@ -14,8 +14,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include <level_zero/ze_api.h>
-#include <level_zero/zes_api.h>
+#include <ze_api.h>
+#include <zes_api.h>
 #include <ur.hpp>
 #include <zer_api.h>
 

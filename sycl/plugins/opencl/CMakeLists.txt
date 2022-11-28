@@ -14,6 +14,8 @@ add_sycl_plugin(opencl
   SOURCES
     "${sycl_inc_dir}/sycl/detail/pi.h"
     "pi_opencl.cpp"
+  INCLUDE_DIRS
+    "."
   LIBRARIES
     OpenCL-ICD
 )

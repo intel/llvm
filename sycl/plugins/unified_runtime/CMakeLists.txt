@@ -20,12 +20,11 @@ set(UNIFIED_RUNTIME_SOURCE_DIR
 set(UNIFIED_RUNTIME_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/include")
 
 
-#include_directories("${LEVEL_ZERO_INCLUDE_DIR}")
-include_directories("${UNIFIED_RUNTIME_INCLUDE_DIR}")
-
 add_library (UnifiedRuntime-Headers INTERFACE)
 target_include_directories(UnifiedRuntime-Headers
-  INTERFACE "${UNIFIED_RUNTIME_INCLUDE_DIR}"
+  INTERFACE
+    "${UNIFIED_RUNTIME_INCLUDE_DIR}"
+    "${CMAKE_CURRENT_SOURCE_DIR}"
 )
 
 list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS unified-runtime)
@@ -40,26 +39,17 @@ find_package(Threads REQUIRED)
 add_sycl_plugin(unified_runtime
   SOURCES
     "${sycl_inc_dir}/sycl/detail/pi.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/pi2ur.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/pi2ur.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/ur.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/adapters/level_zero/ur_level_zero.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/adapters/level_zero/ur_level_zero.cpp"
-   LIBRARIES
+    "pi2ur.cpp"
+    "pi2ur.hpp"
+    "ur.hpp"
+    "adapters/level_zero/ur_level_zero.hpp"
+    "adapters/level_zero/ur_level_zero.cpp"
+  INCLUDE_DIRS
+    "."
+    "${UNIFIED_RUNTIME_INCLUDE_DIR}"
+  LIBRARIES
     Threads::Threads
     UnifiedRuntime-Headers
     LevelZeroLoader-Headers
-    LevelZeroLoader
+#    ze_loader
 )
-
-target_include_directories(pi_unified_runtime INTERFACE
-  "${UNIFIED_RUNTIME_INCLUDE_DIR}"
-  "${CMAKE_CURRENT_SOURCE_DIR}"
-)
-
-target_link_libraries(pi_unified_runtime PRIVATE
-  UnifiedRuntime-Headers
-  LevelZeroLoader-Headers
-)
-
-add_dependencies(pi_unified_runtime ze-api)

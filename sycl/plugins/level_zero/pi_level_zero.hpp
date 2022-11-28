@@ -40,8 +40,8 @@
 #include <unordered_set>
 #include <vector>
 
-#include <level_zero/ze_api.h>
-#include <level_zero/zes_api.h>
+#include <ze_api.h>
+#include <zes_api.h>
 #include <sycl/detail/iostream_proxy.hpp>
 
 // Share code between this PI L0 Plugin and UR L0 Adapter
