@@ -12,13 +12,4 @@
 
 #include "bfloat16_type.hpp"
 
-int main() {
-  bool has_bfloat16_aspect = false;
-  for (const auto &plt : sycl::platform::get_platforms()) {
-    if (plt.has(aspect::ext_oneapi_bfloat16))
-      has_bfloat16_aspect = true;
-  }
-
-  if (has_bfloat16_aspect)
-    return run_tests();
-}
+int main() { return run_tests(); }

@@ -18,7 +18,7 @@
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
-using bfloat16 = sycl::ext::oneapi::experimental::bfloat16;
+using bfloat16 = sycl::ext::oneapi::bfloat16;
 
 #define SG_SZ 16
 
@@ -144,13 +144,13 @@ int main() {
     for (int j = 0; j < MATRIX_K; j++) {
       // bfloat16 is created using unsigned short since conversion from float to
       // bfloat16 is not supported on the host side yet
-      A[i][j] = bfloat16::from_bits(make_bf16(1.0f * (i + j)));
+      A[i][j] = make_bf16(1.0f * (i + j));
       Aref[i][j] = make_bf16(1.0f * (i + j));
     }
   }
   for (int i = 0; i < MATRIX_K / 2; i++) {
     for (int j = 0; j < MATRIX_N * 2; j++) {
-      B[i][j] = bfloat16::from_bits((make_bf16(2.0f * i + 3.0f * j)));
+      B[i][j] = make_bf16(2.0f * i + 3.0f * j);
       Bref[i][j] = make_bf16(2.0f * i + 3.0f * j);
     }
   }

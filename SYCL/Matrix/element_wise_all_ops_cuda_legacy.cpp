@@ -14,7 +14,7 @@
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
-using sycl::ext::oneapi::experimental::bfloat16;
+using sycl::ext::oneapi::bfloat16;
 
 #define SG_SZ 32
 constexpr size_t nWGperDim = 2;

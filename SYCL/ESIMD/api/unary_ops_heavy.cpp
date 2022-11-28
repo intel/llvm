@@ -30,7 +30,7 @@
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
-using bfloat16 = sycl::ext::oneapi::experimental::bfloat16;
+using bfloat16 = sycl::ext::oneapi::bfloat16;
 
 template <class T, int VL, class Ops> class TestID;
 

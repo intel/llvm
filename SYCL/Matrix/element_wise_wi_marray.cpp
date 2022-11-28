@@ -14,7 +14,7 @@
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
-using namespace sycl::ext::oneapi::experimental;
+using namespace sycl::ext::oneapi;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
 #define SG_SZ 32

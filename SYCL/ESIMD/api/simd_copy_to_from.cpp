@@ -38,7 +38,7 @@
 using namespace sycl;
 using namespace sycl::ext::intel;
 using namespace sycl::ext::intel::esimd;
-using bfloat16 = sycl::ext::oneapi::experimental::bfloat16;
+using bfloat16 = sycl::ext::oneapi::bfloat16;
 using tfloat32 = sycl::ext::intel::experimental::esimd::tfloat32;
 
 template <typename T, int N, typename Flags>

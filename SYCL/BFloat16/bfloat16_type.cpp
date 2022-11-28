@@ -1,10 +1,11 @@
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// TODO currently the feature isn't supported on most of the devices
-//      need to enable the test when the aspect and device_if feature are
-//      introduced
-// RUNx: %CPU_RUN_PLACEHOLDER %t.out
-// RUNx: %GPU_RUN_PLACEHOLDER %t.out
+// UNSUPPORTED: hip
+// RUN: %if cuda %{%clangxx -fsycl -fsycl-targets=%sycl_triple -Xsycl-target-backend --cuda-gpu-arch=sm_80 %s -o %t.out %}
+// TODO enable the below when CI supports >=sm_80
+// RUNx: %if cuda %{%GPU_RUN_PLACEHOLDER %t.out %}
+// RUN: %clangxx -fsycl %s -o %t.out
+// TODO currently the feature isn't supported on FPGA.
+// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUNx: %ACC_RUN_PLACEHOLDER %t.out
 
 //==----------- bfloat16_type.cpp - SYCL bfloat16 type test ----------------==//

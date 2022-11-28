@@ -16,7 +16,7 @@ using get_uint_type_of_size = typename std::conditional_t<
         std::conditional_t<Size == 4, uint32_t,
                            std::conditional_t<Size == 8, uint64_t, void>>>>;
 
-using bfloat16 = sycl::ext::oneapi::experimental::bfloat16;
+using bfloat16 = sycl::ext::oneapi::bfloat16;
 using Bfloat16StorageT = get_uint_type_of_size<sizeof(bfloat16)>;
 
 bool test(float Val, Bfloat16StorageT Bits) {
