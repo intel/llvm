@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <detail/device_binary_image.hpp>
 #include <cstdint>
 #include <unordered_map>
 
@@ -21,6 +22,8 @@ struct HostPipeMapEntry {
   const void *MHostPipePtr;
   // Size of the underlying type in the host_pipe.
   std::uint32_t MHostPipeTSize;
+  // The device image that pipe is associated with
+  const RTDeviceBinaryImage *mDeviceImage;
 
   // Constructor only initializes with the pointer and ID.
   // Other members will be initialized later
@@ -42,6 +45,10 @@ struct HostPipeMapEntry {
   void initialize(const void *HostPipePtr) {
     assert(!MHostPipePtr && "Host pipe pointer has already been initialized.");
     MHostPipePtr = HostPipePtr;
+  }
+
+  void initialize(const RTDeviceBinaryImage *DeviceImage) {
+    mDeviceImage = DeviceImage;
   }
 };
 

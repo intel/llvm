@@ -89,7 +89,7 @@ private:
 
 #ifdef __SYCL_DEVICE_ONLY__
   static constexpr struct ConstantPipeStorage m_Storage = {m_Size, m_Alignment,
-                                                           min_capacity};
+                                                           min_cap};
 #endif // __SYCL_DEVICE_ONLY__
 };
 

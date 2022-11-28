@@ -1335,12 +1335,14 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
           if (ExistingHostPipe != m_HostPipes.end()) {
             // If it has already been registered we update the information.
             ExistingHostPipe->second->initialize(TypeSize);
+            ExistingHostPipe->second->initialize(Img.get());
           } else {
             // If it has not already been registered we create a new entry.
             // Note: Pointer to the host pipe is not available here, so it
             //       cannot be set until registration happens.
             auto EntryUPtr =
                 std::make_unique<HostPipeMapEntry>(HostPipe->Name, TypeSize);
+            EntryUPtr->initialize(Img.get());
             m_HostPipes.emplace(HostPipe->Name, std::move(EntryUPtr));
           }
         }
