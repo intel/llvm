@@ -341,9 +341,13 @@ convertOperationImpl(Operation &opInst, llvm::IRBuilderBase &builder,
   auto convertCall = [&](Operation &op) -> llvm::Value * {
     auto operands = moduleTranslation.lookupValues(op.getOperands());
     ArrayRef<llvm::Value *> operandsRef(operands);
-    if (auto attr = op.getAttrOfType<FlatSymbolRefAttr>("callee"))
-      return builder.CreateCall(
-          moduleTranslation.lookupFunction(attr.getValue()), operandsRef);
+    if (auto attr = op.getAttrOfType<FlatSymbolRefAttr>("callee")) {
+      llvm::Function *callee =
+          moduleTranslation.lookupFunction(attr.getValue());
+      llvm::CallInst *call = builder.CreateCall(callee, operandsRef);
+      call->setCallingConv(callee->getCallingConv());
+      return call;
+    }
     auto calleeType =
         op.getOperands().front().getType().cast<LLVMPointerType>();
     auto *calleeFunctionType = cast<llvm::FunctionType>(

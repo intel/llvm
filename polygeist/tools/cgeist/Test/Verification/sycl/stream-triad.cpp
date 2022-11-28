@@ -1,16 +1,28 @@
-// RUN: clang++ -fsycl -fsycl-targets=spir64-unknown-unknown-syclmlir -O0 -w %s -o %t.out 2>&1 | FileCheck %s --allow-empty --implicit-check-not="{{error|Error}}:"
+// RUN: clang++ -fsycl -fsycl-targets=spir64-unknown-unknown-syclmlir -O0 -w %s -o %t.O0.out 2>&1 | FileCheck %s --allow-empty --implicit-check-not="{{error|Error}}:"
+// RUN: clang++ -fsycl -fsycl-targets=spir64-unknown-unknown-syclmlir -O1 -w %s -o %t.O1.out 2>&1 | FileCheck %s --allow-empty --implicit-check-not="{{error|Error}}:"
+// RUN: clang++ -fsycl -fsycl-targets=spir64-unknown-unknown-syclmlir -O2 -w %s -o %t.O2.out 2>&1 | FileCheck %s --allow-empty --implicit-check-not="{{error|Error}}:"
 
-// RUN: clang++ -fsycl -fsycl-device-only -O0 -w -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o %t.bc
+// RUN: clang++ -fsycl -fsycl-device-only -O0 -w -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o %t.O0.bc
+// RUN: clang++ -fsycl -fsycl-device-only -O1 -w -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o %t.O1.bc
+// RUN: clang++ -fsycl -fsycl-device-only -O2 -w -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o %t.O2.bc
 
 // Test that the LLVMIR generated is verifiable.
-// RUN: opt -verify -disable-output < %t.bc
+// RUN: opt -verify -disable-output < %t.O0.bc
+// RUN: opt -verify -disable-output < %t.O1.bc
+// RUN: opt -verify -disable-output < %t.O2.bc
 
 // Verify that LLVMIR generated is translatable to SPIRV.
-// RUN: llvm-spirv %t.bc
+// RUN: llvm-spirv %t.O0.bc
+// RUN: llvm-spirv %t.O1.bc
+// RUN: llvm-spirv %t.O2.bc
 
 // Test that all referenced sycl header functions are generated.
-// RUN: llvm-dis %t.bc
-// RUN: cat %t.ll | FileCheck %s --check-prefix=LLVM --implicit-check-not="declare{{.*}}spir_func"
+// RUN: llvm-dis %t.O0.bc
+// RUN: llvm-dis %t.O1.bc
+// RUN: llvm-dis %t.O2.bc
+// RUN: cat %t.O0.ll | FileCheck %s --check-prefix=LLVM --implicit-check-not="declare{{.*}}spir_func"
+// RUN: cat %t.O1.ll | FileCheck %s --check-prefix=LLVM --implicit-check-not="declare{{.*}}spir_func"
+// RUN: cat %t.O2.ll | FileCheck %s --check-prefix=LLVM --implicit-check-not="declare{{.*}}spir_func"
 
 // Test that the kernel named `kernel_stream_triad` is generated with the correct signature.
 // LLVM: define weak_odr spir_kernel void {{.*}}kernel_stream_triad(
