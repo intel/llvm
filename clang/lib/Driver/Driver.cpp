@@ -101,6 +101,8 @@
 #include <cstdlib> // ::getenv
 #include <map>
 #include <memory>
+#include <regex>
+#include <sstream>
 #include <utility>
 #if LLVM_ON_UNIX
 #include <unistd.h> // getpid
@@ -224,7 +226,11 @@ Driver::Driver(StringRef ClangExecutable, StringRef TargetTriple,
   SystemConfigDir = CLANG_CONFIG_FILE_SYSTEM_DIR;
 #endif
 #if defined(CLANG_CONFIG_FILE_USER_DIR)
-  UserConfigDir = CLANG_CONFIG_FILE_USER_DIR;
+  {
+    SmallString<128> P;
+    llvm::sys::fs::expand_tilde(CLANG_CONFIG_FILE_USER_DIR, P);
+    UserConfigDir = static_cast<std::string>(P);
+  }
 #endif
 
   // Compute the path to the resource directory.
@@ -1306,11 +1312,6 @@ bool Driver::readConfigFile(StringRef FileName,
   if (ContainErrors)
     return true;
 
-  if (NewOptions->hasArg(options::OPT_config)) {
-    Diag(diag::err_drv_nested_config_file);
-    return true;
-  }
-
   // Claim all arguments that come from a configuration file so that the driver
   // does not warn on any that is unused.
   for (Arg *A : *NewOptions)
@@ -1349,8 +1350,8 @@ bool Driver::loadConfigFiles() {
     }
     if (CLOptions->hasArg(options::OPT_config_user_dir_EQ)) {
       SmallString<128> CfgDir;
-      CfgDir.append(
-          CLOptions->getLastArgValue(options::OPT_config_user_dir_EQ));
+      llvm::sys::fs::expand_tilde(
+          CLOptions->getLastArgValue(options::OPT_config_user_dir_EQ), CfgDir);
       if (CfgDir.empty() || getVFS().makeAbsolute(CfgDir))
         UserConfigDir.clear();
       else
@@ -5065,6 +5066,76 @@ class OffloadingActionBuilder final {
       }
     }
 
+    // Return whether to use native bfloat16 library.
+    bool selectBfloatLibs(const ToolChain *TC, bool &useNative) {
+      const OptTable &Opts = C.getDriver().getOpts();
+      const char *TargetOpt = nullptr;
+      const char *DeviceOpt = nullptr;
+      bool needLibs = false;
+      for (auto *A : Args) {
+        llvm::Triple *TargetBE = nullptr;
+
+        auto GetTripleIt = [&, this](llvm::StringRef Triple) {
+          llvm::Triple TargetTriple{Triple};
+          auto TripleIt = llvm::find_if(SYCLTripleList, [&](auto &SYCLTriple) {
+            return SYCLTriple == TargetTriple;
+          });
+          return TripleIt != SYCLTripleList.end() ? &*TripleIt : nullptr;
+        };
+
+        if (A->getOption().matches(options::OPT_fsycl_targets_EQ)) {
+          // spir64 target is actually JIT compilation, so we defer selection of
+          // bfloat16 libraries to runtime. For AOT we need libraries.
+          needLibs = TC->getTriple().getSubArch() != llvm::Triple::NoSubArch;
+          TargetBE = GetTripleIt(A->getValue(0));
+          if (TargetBE)
+            TargetOpt = A->getValue(0);
+          else
+            continue;
+        } else if (A->getOption().matches(options::OPT_Xsycl_backend_EQ)) {
+          // Passing device args: -Xsycl-target-backend=<triple> <opt>
+          TargetBE = GetTripleIt(A->getValue(0));
+          if (TargetBE)
+            DeviceOpt = A->getValue(1);
+          else
+            continue;
+        } else if (A->getOption().matches(options::OPT_Xsycl_backend)) {
+          // Passing device args: -Xsycl-target-backend <opt>
+          TargetBE = &SYCLTripleList.front();
+          DeviceOpt = A->getValue(0);
+        } else if (A->getOption().matches(options::OPT_Xs_separate)) {
+          // Passing device args: -Xs <opt>
+          DeviceOpt = A->getValue(0);
+        } else {
+          continue;
+        };
+      }
+      useNative = false;
+      if (needLibs)
+        if (TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen &&
+            TargetOpt && DeviceOpt) {
+
+          auto checkBF = [=](std::string &Dev) {
+            static const std::regex BFFs("pvc.*|ats.*");
+            return std::regex_match(Dev, BFFs);
+          };
+
+          needLibs = true;
+          std::string Params{DeviceOpt};
+          size_t DevicesPos = Params.find("-device ");
+          useNative = false;
+          if (DevicesPos != std::string::npos) {
+            useNative = true;
+            std::istringstream Devices(Params.substr(DevicesPos + 8));
+            for (std::string S; std::getline(Devices, S, ',');) {
+              useNative &= checkBF(S);
+            }
+          }
+        }
+
+      return needLibs;
+    }
+
     bool addSYCLDeviceLibs(const ToolChain *TC, ActionList &DeviceLinkObjects,
                            bool isSpirvAOT, bool isMSVCEnv) {
       struct DeviceLibOptInfo {
@@ -5078,7 +5149,8 @@ class OffloadingActionBuilder final {
       // of "internal" libraries cannot be affected via -fno-sycl-device-lib.
       llvm::StringMap<bool> devicelib_link_info = {
           {"libc", true},        {"libm-fp32", true},   {"libm-fp64", true},
-          {"libimf-fp32", true}, {"libimf-fp64", true}, {"internal", true}};
+          {"libimf-fp32", true}, {"libimf-fp64", true}, {"libimf-bf16", true},
+          {"internal", true}};
       if (Arg *A = Args.getLastArg(options::OPT_fsycl_device_lib_EQ,
                                    options::OPT_fno_sycl_device_lib_EQ)) {
         if (A->getValues().size() == 0)
@@ -5124,7 +5196,8 @@ class OffloadingActionBuilder final {
         {"libsycl-msvc-math", "libm-fp32"},
 #endif
         {"libsycl-imf", "libimf-fp32"},
-        {"libsycl-imf-fp64", "libimf-fp64"}
+        {"libsycl-imf-fp64", "libimf-fp64"},
+        {"libsycl-imf-bf16", "libimf-bf16"},
       };
       // For AOT compilation, we need to link sycl_device_fallback_libs as
       // default too.
@@ -5136,7 +5209,12 @@ class OffloadingActionBuilder final {
           {"libsycl-fallback-cmath", "libm-fp32"},
           {"libsycl-fallback-cmath-fp64", "libm-fp64"},
           {"libsycl-fallback-imf", "libimf-fp32"},
-          {"libsycl-fallback-imf-fp64", "libimf-fp64"}};
+          {"libsycl-fallback-imf-fp64", "libimf-fp64"},
+          {"libsycl-fallback-imf-bf16", "libimf-bf16"}};
+      const SYCLDeviceLibsList sycl_device_bfloat16_fallback_lib = {
+          {"libsycl-fallback-bfloat16", "libm-bfloat16"}};
+      const SYCLDeviceLibsList sycl_device_bfloat16_native_lib = {
+          {"libsycl-native-bfloat16", "libm-bfloat16"}};
       // ITT annotation libraries are linked in separately whenever the device
       // code instrumentation is enabled.
       const SYCLDeviceLibsList sycl_device_annotation_libs = {
@@ -5186,6 +5264,17 @@ class OffloadingActionBuilder final {
       addInputs(sycl_device_wrapper_libs);
       if (isSpirvAOT || TC->getTriple().isNVPTX())
         addInputs(sycl_device_fallback_libs);
+
+      bool nativeBfloatLibs;
+      bool needBfloatLibs = selectBfloatLibs(TC, nativeBfloatLibs);
+      if (needBfloatLibs) {
+        // Add native or fallback bfloat16 library.
+        if (nativeBfloatLibs)
+          addInputs(sycl_device_bfloat16_native_lib);
+        else
+          addInputs(sycl_device_bfloat16_fallback_lib);
+      }
+
       if (Args.hasFlag(options::OPT_fsycl_instrument_device_code,
                        options::OPT_fno_sycl_instrument_device_code, true))
         addInputs(sycl_device_annotation_libs);
@@ -6672,7 +6761,6 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
           : nullptr;
 
   // Construct the actions to perform.
-  HeaderModulePrecompileJobAction *HeaderModuleAction = nullptr;
   ExtractAPIJobAction *ExtractAPIAction = nullptr;
   ActionList LinkerInputs;
   ActionList MergerInputs;
@@ -6728,16 +6816,6 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
         break;
       }
 
-      // Each precompiled header file after a module file action is a module
-      // header of that same module file, rather than being compiled to a
-      // separate PCH.
-      if (Phase == phases::Precompile && HeaderModuleAction &&
-          getPrecompiledType(InputType) == types::TY_PCH) {
-        HeaderModuleAction->addModuleHeaderInput(Current);
-        Current = nullptr;
-        break;
-      }
-
       // When performing -fsycl based compilations and generating dependency
       // information, perform a specific dependency generation compilation which
       // is not based on the source + footer compilation.
@@ -6769,9 +6847,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       if (NewCurrent == Current)
         continue;
 
-      if (auto *HMA = dyn_cast<HeaderModulePrecompileJobAction>(NewCurrent))
-        HeaderModuleAction = HMA;
-      else if (auto *EAA = dyn_cast<ExtractAPIJobAction>(NewCurrent))
+      if (auto *EAA = dyn_cast<ExtractAPIJobAction>(NewCurrent))
         ExtractAPIAction = EAA;
 
       Current = NewCurrent;
@@ -7329,9 +7405,6 @@ Action *Driver::ConstructPhaseAction(
       OutputTy = types::TY_Nothing;
     }
 
-    if (ModName)
-      return C.MakeAction<HeaderModulePrecompileJobAction>(Input, OutputTy,
-                                                           ModName);
     return C.MakeAction<PrecompileJobAction>(Input, OutputTy);
   }
   case phases::Compile: {
@@ -8188,10 +8261,6 @@ InputInfoList Driver::BuildJobsForActionNoCache(
   // input.
   if (JA->getType() == types::TY_dSYM)
     BaseInput = InputInfos[0].getFilename();
-
-  // ... and in header module compilations, which use the module name.
-  if (auto *ModuleJA = dyn_cast<HeaderModulePrecompileJobAction>(JA))
-    BaseInput = ModuleJA->getModuleName();
 
   // Append outputs of offload device jobs to the input list
   if (!OffloadDependencesInputInfo.empty())

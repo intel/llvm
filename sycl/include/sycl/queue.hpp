@@ -1251,6 +1251,14 @@ public:
     } _CODELOCFW(CodeLoc));
   }
 
+  /// @brief Returns true if the queue was created with the
+  /// ext::codeplay::experimental::property::queue::enable_fusion property.
+  ///
+  /// Equivalent to
+  /// `has_property<ext::codeplay::experimental::property::queue::enable_fusion>()`.
+  ///
+  bool ext_codeplay_supports_fusion() const;
+
 // Clean KERNELFUNC macros.
 #undef _KERNELFUNCPARAM
 

@@ -53,11 +53,15 @@ enum Reduction { kNoReduc, kSum, kProduct, kAnd, kOr, kXor, kCustom };
 
 // Code generation.
 struct CodeGen {
-  CodeGen(SparsificationOptions o, ValueRange tensors, unsigned numTensors,
-          unsigned numLoops, OpOperand *op, unsigned nest,
+  CodeGen(SparsificationOptions o, MLIRContext *context, ValueRange tensors,
+          unsigned numTensors, unsigned numLoops, OpOperand *op, unsigned nest,
           std::vector<unsigned> &ts)
-      : options(o), loopEmitter(tensors, /*hasOutput=*/true,
-                                /*isSparseOut=*/op != nullptr),
+      : options(o),
+        loopEmitter(
+            tensors,
+            StringAttr::get(context, linalg::GenericOp::getOperationName()),
+            /*hasOutput=*/true,
+            /*isSparseOut=*/op != nullptr, ts),
         sparseOut(op), outerParNest(nest), topSort(ts) {
     if (op)
       insChain = op->get();
@@ -108,11 +112,11 @@ static AffineMap permute(MLIRContext *context, AffineMap m,
   assert(m.getNumResults() == sz && "TopoSort/AffineMap size mismatch");
   // Construct the inverse of `m`; to avoid the asymptotic complexity
   // of calling `m.getPermutedPosition` repeatedly.
-  SmallVector<unsigned, 4> inv(sz);
+  SmallVector<unsigned> inv(sz);
   for (unsigned i = 0; i < sz; i++)
     inv[i] = m.getDimPosition(i);
   // Construct the permutation.
-  SmallVector<unsigned, 4> perm(sz);
+  SmallVector<unsigned> perm(sz);
   for (unsigned i = 0; i < sz; i++)
     perm[i] = inv[topSort[i]];
   return AffineMap::getPermutationMap(perm, context);
@@ -417,7 +421,7 @@ static Optional<Operation *> genLoopBoundary(
     CodeGen &codegen, Merger &merger,
     function_ref<Optional<Operation *>(MutableArrayRef<Value> reduc)>
         callback) {
-  SmallVector<Value, 4> reduc;
+  SmallVector<Value> reduc;
   if (codegen.redVal)
     reduc.push_back(codegen.redVal);
   if (codegen.expValues)
@@ -481,38 +485,6 @@ static void genBuffers(Merger &merger, CodeGen &codegen, OpBuilder &builder,
       });
 }
 
-/// Generates an affine expression.
-//
-// TODO: generalize for sparse tensor subscripts
-//
-static Value genAffine(CodeGen &codegen, OpBuilder &builder, AffineExpr a,
-                       Location loc) {
-  switch (a.getKind()) {
-  case AffineExprKind::DimId: {
-    unsigned idx = a.cast<AffineDimExpr>().getPosition();
-    return codegen.getLoopIdxValue(idx); // universal dense index
-  }
-  case AffineExprKind::Add: {
-    auto binOp = a.cast<AffineBinaryOpExpr>();
-    return builder.create<arith::AddIOp>(
-        loc, genAffine(codegen, builder, binOp.getLHS(), loc),
-        genAffine(codegen, builder, binOp.getRHS(), loc));
-  }
-  case AffineExprKind::Mul: {
-    auto binOp = a.cast<AffineBinaryOpExpr>();
-    return builder.create<arith::MulIOp>(
-        loc, genAffine(codegen, builder, binOp.getLHS(), loc),
-        genAffine(codegen, builder, binOp.getRHS(), loc));
-  }
-  case AffineExprKind::Constant: {
-    int64_t c = a.cast<AffineConstantExpr>().getValue();
-    return constantIndex(builder, loc, c);
-  }
-  default:
-    llvm_unreachable("unexpected affine subscript");
-  }
-}
-
 /// Generates index for load/store on sparse tensor.
 static Value genIndex(CodeGen &codegen, linalg::GenericOp op, OpOperand *t) {
   auto map = op.getMatchingIndexingMap(t);
@@ -526,7 +498,7 @@ static Value genIndex(CodeGen &codegen, linalg::GenericOp op, OpOperand *t) {
 /// Generates subscript for load/store on a dense or sparse tensor.
 static Value genSubscript(CodeGen &codegen, OpBuilder &builder,
                           linalg::GenericOp op, OpOperand *t,
-                          SmallVector<Value, 4> &args) {
+                          SmallVectorImpl<Value> &args) {
   unsigned tensor = t->getOperandNumber();
   auto map = op.getMatchingIndexingMap(t);
   auto enc = getSparseTensorEncoding(t->get().getType());
@@ -542,7 +514,7 @@ static Value genSubscript(CodeGen &codegen, OpBuilder &builder,
   } else {
     for (unsigned d = 0; d < rank; d++) {
       AffineExpr a = map.getResult(d);
-      args.push_back(genAffine(codegen, builder, a, op.getLoc()));
+      args.push_back(codegen.loopEmitter.genAffine(builder, a, op.getLoc()));
     }
   }
   return codegen.loopEmitter.getValBuffer()[tensor];
@@ -588,7 +560,7 @@ static void genInsertionStore(CodeGen &codegen, OpBuilder &builder,
   // Direct insertion in lexicographic index order.
   if (!codegen.expValues) {
     unsigned rank = op.getRank(t);
-    SmallVector<Value, 4> indices;
+    SmallVector<Value> indices;
     for (unsigned i = 0; i < rank; i++) {
       assert(codegen.loopEmitter.getLoopIV(i));
       indices.push_back(codegen.loopEmitter.getLoopIV(i));
@@ -645,7 +617,7 @@ static Value genTensorLoad(Merger &merger, CodeGen &codegen, OpBuilder &builder,
     return genInsertionLoad(codegen, builder, op, &t);
   }
   // Actual load.
-  SmallVector<Value, 4> args;
+  SmallVector<Value> args;
   Value ptr = genSubscript(codegen, builder, op, &t, args);
   return builder.create<memref::LoadOp>(op.getLoc(), ptr, args);
 }
@@ -670,10 +642,8 @@ static void genTensorStore(Merger &merger, CodeGen &codegen, OpBuilder &builder,
       // Select operation insertion.
       Value insChain = codegen.insChain;
       assert(insChain);
-      SmallVector<Type, 1> types;
-      types.push_back(codegen.insChain.getType());
-      scf::IfOp ifOp =
-          builder.create<scf::IfOp>(loc, types, rhs, /*else=*/true);
+      scf::IfOp ifOp = builder.create<scf::IfOp>(loc, insChain.getType(), rhs,
+                                                 /*else=*/true);
       builder.setInsertionPointToStart(&ifOp.getThenRegion().front());
       // Existing value was preserved to be used here.
       assert(merger.exp(exp).val);
@@ -694,7 +664,7 @@ static void genTensorStore(Merger &merger, CodeGen &codegen, OpBuilder &builder,
     return;
   }
   // Actual store.
-  SmallVector<Value, 4> args;
+  SmallVector<Value> args;
   Value ptr = genSubscript(codegen, builder, op, t, args);
   builder.create<memref::StoreOp>(loc, rhs, ptr, args);
 }
@@ -882,7 +852,7 @@ static void genExpansion(Merger &merger, CodeGen &codegen, OpBuilder &builder,
     codegen.expCount = res.getResult(3);
   } else {
     assert(codegen.expValues);
-    SmallVector<Value, 4> indices;
+    SmallVector<Value> indices;
     for (unsigned i = 0; i < at; i++) {
       assert(codegen.loopEmitter.getLoopIV(i));
       indices.push_back(codegen.loopEmitter.getLoopIV(i));
@@ -991,7 +961,7 @@ static void finalizeWhileOp(Merger &merger, CodeGen &codegen,
     while (auto ifOp = dyn_cast_or_null<scf::IfOp>(
                builder.getInsertionBlock()->getParentOp())) {
       unsigned y = 0;
-      SmallVector<Value, 4> yields;
+      SmallVector<Value> yields;
       if (codegen.redVal) {
         yields.push_back(codegen.redVal);
         updateReduc(merger, codegen, ifOp.getResult(y++));
@@ -1017,7 +987,7 @@ static scf::IfOp genIf(Merger &merger, CodeGen &codegen, OpBuilder &builder,
                        linalg::GenericOp op, unsigned idx,
                        BitVector &conditions) {
   Location loc = op.getLoc();
-  SmallVector<Type, 4> types;
+  SmallVector<Type> types;
   Value cond;
   for (unsigned b = 0, be = conditions.size(); b < be; b++) {
     if (!conditions[b])
@@ -1054,7 +1024,7 @@ static scf::IfOp genIf(Merger &merger, CodeGen &codegen, OpBuilder &builder,
 static void endIf(Merger &merger, CodeGen &codegen, OpBuilder &builder,
                   linalg::GenericOp op, scf::IfOp ifOp, Operation *loop,
                   Value redInput, Value cntInput, Value insInput) {
-  SmallVector<Value, 4> operands;
+  SmallVector<Value> operands;
   if (codegen.redVal) {
     operands.push_back(codegen.redVal);
     updateReduc(merger, codegen, redInput);
@@ -1172,10 +1142,10 @@ static Operation *startLoop(Merger &merger, CodeGen &codegen,
                             OpBuilder &builder, linalg::GenericOp op,
                             unsigned at, unsigned li, bool needsUniv) {
   // The set of tensors + dims to generate loops on
-  SmallVector<size_t, 4> condTids, condDims;
+  SmallVector<size_t> condTids, condDims;
   // The set of (dense) tensors that is optimized from condition, yet still
   // need extra locals to iterate on them.
-  SmallVector<size_t, 4> extraTids, extraDims;
+  SmallVector<size_t> extraTids, extraDims;
 
   translateBitsToTidDimPairs(merger, codegen, li, codegen.topSort[at], condTids,
                              condDims, extraTids, extraDims);
@@ -1369,13 +1339,13 @@ public:
 
     merger.setHasSparseOut(sparseOut != nullptr);
 
-    SmallVector<Value, 4> tensors;
+    SmallVector<Value> tensors;
     for (OpOperand &t : op->getOpOperands())
       tensors.push_back(t.get());
 
     // Recursively generates code if admissible.
-    CodeGen codegen(options, tensors, numTensors, numLoops, sparseOut,
-                    outerParNest, topSort);
+    CodeGen codegen(options, op.getContext(), tensors, numTensors, numLoops,
+                    sparseOut, outerParNest, topSort);
     genBuffers(merger, codegen, rewriter, op);
     genStmt(merger, codegen, rewriter, op, exp, 0);
     genResult(merger, codegen, rewriter, op);

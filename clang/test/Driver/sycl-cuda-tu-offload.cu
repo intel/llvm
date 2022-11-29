@@ -93,15 +93,21 @@
 // DEFAULT-PHASES2:|           |     +- 69: input, "{{.*}}", object
 // DEFAULT-PHASES2:|           |  +- 70: clang-offload-unbundler, {69}, object
 // DEFAULT-PHASES2:|           |- 71: offload, " (nvptx64-nvidia-cuda)" {70}, object
-// DEFAULT-PHASES2:|           |- 72: input, "{{.*}}nvidiacl{{.*}}", ir, (device-sycl, sm_80)
-// DEFAULT-PHASES2:|           |- 73: input, "{{.*}}libdevice{{.*}}", ir, (device-sycl, sm_80)
-// DEFAULT-PHASES2:|        +- 74: linker, {17, 20, 23, 26, 29, 32, 35, 38, 41, 44, 47, 50, 53, 56, 59, 62, 65, 68, 71, 72, 73}, ir, (device-sycl, sm_80)
-// DEFAULT-PHASES2:|     +- 75: sycl-post-link, {74}, ir, (device-sycl, sm_80)
-// DEFAULT-PHASES2:|     |  +- 76: file-table-tform, {75}, ir, (device-sycl, sm_80)
-// DEFAULT-PHASES2:|     |  |  +- 77: backend, {76}, assembler, (device-sycl, sm_80)
-// DEFAULT-PHASES2:|     |  |  |- 78: assembler, {77}, object, (device-sycl, sm_80)
-// DEFAULT-PHASES2:|     |  |- 79: linker, {77, 78}, cuda-fatbin, (device-sycl, sm_80)
-// DEFAULT-PHASES2:|     |- 80: foreach, {76, 79}, cuda-fatbin, (device-sycl, sm_80)
-// DEFAULT-PHASES2:|  +- 81: file-table-tform, {75, 80}, tempfiletable, (device-sycl, sm_80)
-// DEFAULT-PHASES2:|- 82: clang-offload-wrapper, {81}, object, (device-sycl, sm_80)
-// DEFAULT-PHASES2:83: offload, "host-cuda-sycl (x86_64-unknown-linux-gnu)" {15}, "device-sycl (nvptx64-nvidia-cuda:sm_80)" {82}, image
+// DEFAULT-PHASES2:|           |     +- 72: input, "{{.*}}", object
+// DEFAULT-PHASES2:|           |  +- 73: clang-offload-unbundler, {72}, object
+// DEFAULT-PHASES2:|           |- 74: offload, " (nvptx64-nvidia-cuda)" {73}, object
+// DEFAULT-PHASES2:|           |     +- 75: input, "{{.*}}", object
+// DEFAULT-PHASES2:|           |  +- 76: clang-offload-unbundler, {75}, object
+// DEFAULT-PHASES2:|           |- 77: offload, " (nvptx64-nvidia-cuda)" {76}, object
+// DEFAULT-PHASES2:|           |- 78: input, "{{.*}}nvidiacl{{.*}}", ir, (device-sycl, sm_80)
+// DEFAULT-PHASES2:|           |- 79: input, "{{.*}}libdevice{{.*}}", ir, (device-sycl, sm_80)
+// DEFAULT-PHASES2:|        +- 80: linker, {17, 20, 23, 26, 29, 32, 35, 38, 41, 44, 47, 50, 53, 56, 59, 62, 65, 68, 71, 74, 77, 78, 79}, ir, (device-sycl, sm_80)
+// DEFAULT-PHASES2:|     +- 81: sycl-post-link, {80}, ir, (device-sycl, sm_80)
+// DEFAULT-PHASES2:|     |  +- 82: file-table-tform, {81}, ir, (device-sycl, sm_80)
+// DEFAULT-PHASES2:|     |  |  +- 83: backend, {82}, assembler, (device-sycl, sm_80)
+// DEFAULT-PHASES2:|     |  |  |- 84: assembler, {83}, object, (device-sycl, sm_80)
+// DEFAULT-PHASES2:|     |  |- 85: linker, {83, 84}, cuda-fatbin, (device-sycl, sm_80)
+// DEFAULT-PHASES2:|     |- 86: foreach, {82, 85}, cuda-fatbin, (device-sycl, sm_80)
+// DEFAULT-PHASES2:|  +- 87: file-table-tform, {81, 86}, tempfiletable, (device-sycl, sm_80)
+// DEFAULT-PHASES2:|- 88: clang-offload-wrapper, {87}, object, (device-sycl, sm_80)
+// DEFAULT-PHASES2:89: offload, "host-cuda-sycl (x86_64-unknown-linux-gnu)" {15}, "device-sycl (nvptx64-nvidia-cuda:sm_80)" {88}, image

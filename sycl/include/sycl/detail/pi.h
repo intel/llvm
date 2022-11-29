@@ -56,7 +56,9 @@
 // 11.16 Add PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE and
 // PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH as an extension for
 // piDeviceGetInfo.
-// 11.17 Add new parameter name PI_QUEUE_INFO_STATUS to _pi_queue_info.
+// 11.17 Added new PI_EXT_ONEAPI_QUEUE_PRIORITY_LOW and
+// PI_EXT_ONEAPI_QUEUE_PRIORITY_HIGH queue properties.
+// 11.18 Add new parameter name PI_QUEUE_INFO_STATUS to _pi_queue_info.
 
 #define _PI_H_VERSION_MAJOR 11
 #define _PI_H_VERSION_MINOR 16
@@ -292,8 +294,8 @@ typedef enum {
   PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 0x11000,
   PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU = 0x10112,
   PI_DEVICE_INFO_BACKEND_VERSION = 0x10113,
-  // Return true if bfloat16 data type is supported by device
-  PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16 = 0x1FFFF,
+  // Return whether bfloat16 math functions are supported by device
+  PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS = 0x1FFFF,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS = 0x20000,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_1D = 0x20001,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D = 0x20002,
@@ -582,6 +584,8 @@ constexpr pi_queue_properties PI_QUEUE_PROFILING_ENABLE = (1 << 1);
 constexpr pi_queue_properties PI_QUEUE_ON_DEVICE = (1 << 2);
 constexpr pi_queue_properties PI_QUEUE_ON_DEVICE_DEFAULT = (1 << 3);
 constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS = (1 << 4);
+constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_PRIORITY_LOW = (1 << 5);
+constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_PRIORITY_HIGH = (1 << 6);
 
 using pi_result = _pi_result;
 using pi_platform_info = _pi_platform_info;

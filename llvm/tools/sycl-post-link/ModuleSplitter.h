@@ -236,10 +236,12 @@ public:
   // submodule containing these entry points and their dependencies.
   virtual ModuleDesc nextSplit() = 0;
 
-  size_t totalSplits() const { return Groups.size(); }
+  // Returns a number of remaining modules, which can be split out using this
+  // splitter. The value is reduced by 1 each time nextSplit is called.
+  size_t remainingSplits() const { return Groups.size(); }
 
   // Check that there are still submodules to split.
-  bool hasMoreSplits() const { return totalSplits() > 0; }
+  bool hasMoreSplits() const { return remainingSplits() > 0; }
 };
 
 std::unique_ptr<ModuleSplitterBase>
@@ -251,7 +253,8 @@ getSplitterByMode(ModuleDesc &&MD, IRSplitMode Mode,
                   bool EmitOnlyKernelsAsEntryPoints);
 
 std::unique_ptr<ModuleSplitterBase>
-getLargeGRFSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints);
+getSplitterByOptionalFeatures(ModuleDesc &&MD,
+                              bool EmitOnlyKernelsAsEntryPoints);
 
 #ifndef NDEBUG
 void dumpEntryPoints(const EntryPointSet &C, const char *msg = "", int Tab = 0);
