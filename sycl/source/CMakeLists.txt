@@ -61,7 +61,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     )
   endif()
 
-  if (SYCL_LIB_WITH_DEBUG_SYMBOLS AND NOT MSVC)
+  if (SYCL_LIB_WITH_DEBUG_SYMBOLS)
     message(STATUS "===================== " ${CMAKE_CXX_FLAGS_DEBUG})
     separate_arguments(CMAKE_CXX_FLAGS_DEBUG_SEPARATED UNIX_COMMAND "${CMAKE_CXX_FLAGS_DEBUG}")
     # target_compile_options(SpecialTarget PUBLIC ${SDL2_CFLAGS})
