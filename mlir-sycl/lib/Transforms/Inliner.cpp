@@ -150,7 +150,7 @@ public:
 
   /// Returns true if the given callgraph node has a single use and can be
   /// discarded.
-  bool hasOneUse(CallGraphNode *CGN) const;
+  bool hasOneUseAndDiscardable(CallGraphNode *CGN) const;
 
   /// Recompute the uses held by the given callgraph node.
   void recomputeUses(CallGraphNode *CGN, CallGraph &CG);
@@ -260,7 +260,7 @@ protected:
   /// Returns true if the given call should be inlined. Derived class must
   /// provide an implementation.
   virtual bool shouldInline(ResolvedCall &ResolvedCall,
-                            Optional<CGUseList> Uses) const = 0;
+                            const CGUseList &Uses) const = 0;
 
   // Returns true if the target is an ancestor of the call and false otherwise.
   bool isRecursiveCall(const ResolvedCall &ResolvedCall) const;
@@ -291,7 +291,7 @@ public:
 
 protected:
   bool shouldInline(ResolvedCall &ResolvedCall,
-                    Optional<CGUseList> Uses) const final;
+                    const CGUseList &Uses) const final;
 };
 
 /// Inlines sycl.call operations using simple heuristics.
@@ -302,7 +302,7 @@ public:
 
 protected:
   bool shouldInline(ResolvedCall &ResolvedCall,
-                    Optional<CGUseList> Uses) const final;
+                    const CGUseList &Uses) const final;
 };
 
 class InlinePass : public sycl::impl::InlinePassBase<InlinePass> {
@@ -407,7 +407,7 @@ bool CGUseList::isDead(CallGraphNode *CGN) const {
   return SymbolIt != DiscardableSymNodeUses.end() && SymbolIt->second == 0;
 }
 
-bool CGUseList::hasOneUse(CallGraphNode *CGN) const {
+bool CGUseList::hasOneUseAndDiscardable(CallGraphNode *CGN) const {
   // If this isn't a symbol node, check for side-effects and SSA use count.
   Operation *Op = CGN->getCallableRegion()->getParentOp();
   if (!isa<SymbolOpInterface>(Op))
@@ -636,7 +636,7 @@ bool InlinerBase::isRecursiveCall(const ResolvedCall &ResolvedCall) const {
 //===----------------------------------------------------------------------===//
 
 bool AlwaysInliner::shouldInline(ResolvedCall &ResolvedCall,
-                                 Optional<CGUseList> Uses) const {
+                                 const CGUseList &Uses) const {
   if (isRecursiveCall(ResolvedCall))
     return false;
 
@@ -658,7 +658,7 @@ bool AlwaysInliner::shouldInline(ResolvedCall &ResolvedCall,
 //===----------------------------------------------------------------------===//
 
 bool Inliner::shouldInline(ResolvedCall &ResolvedCall,
-                           Optional<CGUseList> Uses) const {
+                           const CGUseList &Uses) const {
   if (isRecursiveCall(ResolvedCall))
     return false;
 
@@ -680,10 +680,7 @@ bool Inliner::shouldInline(ResolvedCall &ResolvedCall,
   }
 
   // Inline a function if inlining makes it dead.
-  if (Uses.has_value())
-    return Uses->hasOneUse(ResolvedCall.TgtNode);
-
-  return false;
+  return Uses.hasOneUseAndDiscardable(ResolvedCall.TgtNode);
 }
 
 //===----------------------------------------------------------------------===//
