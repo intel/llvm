@@ -40,13 +40,13 @@ int test_store(int_vec *v, int idx, int el) {
 // CHECK-SAME:                        %[[VAL_0:.*]]: memref<?xvector<3xi32>>,
 // CHECK-SAME:                        %[[VAL_1:.*]]: i32,
 // CHECK-SAME:                        %[[VAL_2:.*]]: i32) -> i32
-// CHECK:           %[[VAL_3:.*]] = affine.load %[[VAL_0]][0] : memref<?xvector<3xi32>>
-// CHECK:           %[[VAL_4:.*]] = vector.extractelement %[[VAL_3]]{{\[}}%[[VAL_1]] : i32] : vector<3xi32>
-// CHECK:           %[[VAL_5:.*]] = arith.addi %[[VAL_4]], %[[VAL_2]] : i32
-// CHECK:           %[[VAL_6:.*]] = vector.insertelement %[[VAL_5]], %[[VAL_3]]{{\[}}%[[VAL_1]] : i32] : vector<3xi32>
-// CHECK:           affine.store %[[VAL_6]], %[[VAL_0]][0] : memref<?xvector<3xi32>>
-// CHECK:           return %[[VAL_5]] : i32
-// CHECK:         }
+// CHECK-NEXT:      %[[VAL_3:.*]] = affine.load %[[VAL_0]][0] : memref<?xvector<3xi32>>
+// CHECK-NEXT:      %[[VAL_4:.*]] = vector.extractelement %[[VAL_3]]{{\[}}%[[VAL_1]] : i32] : vector<3xi32>
+// CHECK-NEXT:      %[[VAL_5:.*]] = arith.addi %[[VAL_4]], %[[VAL_2]] : i32
+// CHECK-NEXT:      %[[VAL_6:.*]] = vector.insertelement %[[VAL_5]], %[[VAL_3]]{{\[}}%[[VAL_1]] : i32] : vector<3xi32>
+// CHECK-NEXT:      affine.store %[[VAL_6]], %[[VAL_0]][0] : memref<?xvector<3xi32>>
+// CHECK-NEXT:      return %[[VAL_5]] : i32
+// CHECK-NEXT:    }
 
 int test_inc(int_vec *v, int idx, int el) {
   return (*v)[idx] += el;
