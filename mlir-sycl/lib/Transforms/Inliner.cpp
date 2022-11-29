@@ -246,8 +246,9 @@ public:
   }
 
 protected:
-  /// Attempt to inline calls within the given SCC.
-  static void inlineCallsInSCC(InlinerBase &Inliner, CGUseList &UseList,
+  /// Attempt to inline calls within the given SCC. Returns true if at least a
+  /// call was inlined in the SCC and false otherwise.
+  static bool inlineCallsInSCC(InlinerBase &Inliner, CGUseList &UseList,
                                CallGraphSCC &SCC,
                                Pass::Statistic &NumInlinedCalls);
 
@@ -511,11 +512,16 @@ LogicalResult InlinerBase::runTransformOnSCCs(
 LogicalResult InlinerBase::inlineSCC(InlinerBase &Inliner, CGUseList &UseList,
                                      CallGraphSCC &SCC,
                                      Pass::Statistic &NumInlinedCalls) {
-  inlineCallsInSCC(Inliner, UseList, SCC, NumInlinedCalls);
+  unsigned IterationCount = 0;
+  unsigned const constexpr MaxIterationCount = 5;
+  bool DidSomething = false;
+  do {
+    DidSomething |= inlineCallsInSCC(Inliner, UseList, SCC, NumInlinedCalls);
+  } while (DidSomething && ++IterationCount < MaxIterationCount);
   return success();
 }
 
-void InlinerBase::inlineCallsInSCC(InlinerBase &Inliner, CGUseList &UseList,
+bool InlinerBase::inlineCallsInSCC(InlinerBase &Inliner, CGUseList &UseList,
                                    CallGraphSCC &SCC,
                                    Pass::Statistic &NumInlinedCalls) {
   llvm::SmallSetVector<CallGraphNode *, 1> DeadNodes;
@@ -534,7 +540,7 @@ void InlinerBase::inlineCallsInSCC(InlinerBase &Inliner, CGUseList &UseList,
   }
 
   if (Inliner.getCalls().empty())
-    return;
+    return false;
 
   LLVM_DEBUG({
     llvm::dbgs() << "* Inliner: SCC: " << SCC << "\n";
@@ -546,6 +552,7 @@ void InlinerBase::inlineCallsInSCC(InlinerBase &Inliner, CGUseList &UseList,
 
   // Try to inline each of the call operations. Don't cache the end iterator
   // here as more calls may be added during inlining.
+  bool DidSomething = false;
   for (unsigned I = 0; I < Inliner.getCalls().size(); ++I) {
     ResolvedCall ResolvedCall = Inliner.getCall(I);
     bool DoInline = Inliner.shouldInline(ResolvedCall, UseList);
@@ -567,6 +574,7 @@ void InlinerBase::inlineCallsInSCC(InlinerBase &Inliner, CGUseList &UseList,
     }
     LLVM_DEBUG(llvm::dbgs() << "** Inline succeeded\n");
 
+    DidSomething = true;
     NumInlinedCalls++;
 
     // Merge the new uses into the source node.
@@ -595,6 +603,8 @@ void InlinerBase::inlineCallsInSCC(InlinerBase &Inliner, CGUseList &UseList,
   }
 
   Inliner.clearCalls();
+
+  return DidSomething;
 }
 
 void InlinerBase::collectCallOps(CallGraphNode &SrcNode, CallGraph &CG,

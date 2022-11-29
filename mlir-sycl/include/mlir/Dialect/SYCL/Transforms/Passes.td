@@ -27,7 +27,7 @@ def InlinePass : Pass<"inliner"> {
           "\"simple\", \"Inline callees using simple heuristics\"), "
         "clEnumValN(mlir::sycl::InlineMode::Aggressive, "
           "\"aggressive\", \"Inline callees using aggressive heuristics\"))">,
-    Option<"RemoveDeadCallees", "remove-dead-callees", "bool", /*default=*/"false",
+    Option<"RemoveDeadCallees", "remove-dead-callees", "bool", /*default=*/"true",
            "Remove callees that become unreachable after inlining them">,
   ];
 
