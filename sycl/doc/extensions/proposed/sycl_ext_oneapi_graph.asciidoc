@@ -38,6 +38,7 @@ Pablo Reble, Intel +
 Julian Miller, Intel +
 John Pennycook, Intel +
 Guo Yejun, Intel +
+Dan Holmes, Intel +
 Ewan Crawford, Codeplay +
 Ben Tracy, Codeplay +
 Duncan McBain, Codeplay +
@@ -65,21 +66,23 @@ as a command group object defines a set of requisites (edges) which must be
 satisfied for kernels (nodes) to be executed. However, because command-group
 submission is tied to execution on the queue, without having a prior
 construction step before starting execution, optimization opportunities are
-missed from the runtime not knowing the complete dependency graph ahead of
-execution.
+missed from the runtime not being made aware of a defined dependency graph ahead
+of execution.
 
 The following benefits would become possible if the user could define a
 dependency graph to the SYCL runtime prior to execution:
 
 * Reduction in runtime overhead by only submitting a single graph object, rather
-  than many individual commands.
+  than many individual command groups.
 
-* Enable more work to be done offline, in particular producing a graph ahead of
-  time allows for improved performance at runtime from reduced overhead.
+* Enable more work to be done ahead of time to improve runtime performance. This
+  early work could be done in a setup phase of the program prior to repeated
+  executions of the graph. Alternately, a future offline AOT compiler in a different
+  process could run be prior to the execution of the application.
 
 * Unlock DMA hardware features through graph analysis by the runtime.
 
-* Whole graph optimizations become available, including but not limited to:
+* Graph optimizations become available, including but not limited to:
 ** Kernel fusion/fission.
 ** Inter-node memory reuse from data staying resident on device.
 ** Identification of the peak intermediate output memory requirement, used for
@@ -111,7 +114,7 @@ requirements were considered:
 7. Ability to record a graph with commands submitted to different devices in the
    same context.
 8. Capability to serialize graphs to a binary format which can then be
-   de-serialized and executed. This is helpful for offline cases where a graph
+   de-serialized and executed. This is helpful for AOT cases where a graph
    can be created by an offline tool to be loaded and run without the end-user
    incurring the overheads of graph creation.
 9. Backend interoperability, the ability to retrieve a native graph object from
@@ -234,13 +237,14 @@ Table 4. Recorded Graph Definition.
 | Nodes in a queue recorded graph represent each of the command group
 submissions of the program. Each submission encompasses either one or both of
 a.) some data movement, b.) a single asynchronous kernel launch. Nodes cannot
-define forward edges, only backwards (i.e. kernels can only create dependencies
-on things that have already happened). This means that transparently a node can
-depend on a previously recorded graph (sub-graph), which works by creating edges
-to the individual nodes in the old graph. Explicit memory operations without
-kernels, such as a memory copy, are still classed as nodes under this
-definition, as the {explicit-memory-ops}[SYCL 2020 specification states] that
-these can be seen as specialized kernels executing on the device.
+define forward edges, only backwards. This is, kernels can only create
+dependencies on command-groups that have already been submitted. This means that
+transparently a node can depend on a previously recorded graph (sub-graph),
+which works by creating edges to the individual nodes in the old graph. Explicit
+memory operations without kernels, such as a memory copy, are still classed as
+nodes under this definition, as the
+{explicit-memory-ops}[SYCL 2020 specification states] that these can be seen as
+specialized kernels executing on the device.
 
 | Edge
 | An edge in a queue recorded graph represents a data dependency between two
@@ -336,6 +340,26 @@ namespace sycl::ext::oneapi::experimental {
 }
 ----
 
+==== Depends-On Property
+
+The API for explicitly adding nodes to a `command_graph` includes a
+`property_list` parameter. This extension defines the `depends_on` property to
+be passed here. `depends_on` defines any `node` objects for the created node to
+be dependent on, and therefore form an edge with. These nodes are in addition to
+the dependent nodes identified from the command-group requisites of the created
+node.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental::property::node
+class depends_on {
+  public:
+    template<typename... NodeTN>
+    depends_on(NodeTN... nodes);
+};
+}
+----
+
 === Graph
 
 :crs: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:reference-semantics
@@ -409,8 +433,8 @@ Preconditions:
 
 Parameters:
 
-* `propList` - Optional parameter for passing properties. No new properties are
-  defined by this extension.
+* `propList` - Optional parameter for passing properties. No `command_graph`
+  constructor properties are defined by this extension.
 
 |===
 
@@ -437,7 +461,7 @@ Preconditions:
 
 Parameters:
 
-* `propList` - Zero or more properties can be provided to the constructed node 
+* `propList` - Zero or more properties can be provided to the constructed node
   via an instance of `property_list`.
 
 Returns: The empty node which has been added to the graph.
@@ -455,9 +479,11 @@ template<typename T>
 node add(T cgf, const property_list& propList = {});
 ----
 |This function adds a command group function object to a graph. The function
-object can contain single or multiple commands such as a host task which is
-scheduled by the SYCL runtime or a SYCL function for invoking kernels with all
-restrictions that apply as described in the core specification.
+object statically contains a group of commands, of which a single command is
+executed at runtime. A function object can be a host task which is scheduled by
+the SYCL runtime, or a SYCL function for invoking kernels with all restrictions
+that apply as described in the core specification. The requisites of `cgf` will
+be used to identify any dependent nodes in the graph to form edges with.
 
 Preconditions:
 
@@ -466,9 +492,9 @@ Preconditions:
 
 Parameters:
 
-* `cgf` - Command group function object to be added as a node
+* `cgf` - Command group function object to be added as a node.
 
-* `propList` - Zero or more properties can be provided to the constructed node 
+* `propList` - Zero or more properties can be provided to the constructed node
   via an instance of `property_list`.
 
 Returns: The command-group function object node which has been added to the graph.
@@ -615,7 +641,8 @@ void command_graph<graph_state::executable> update(const command_graph<graph_sta
 |Updates the executable graph node inputs & outputs from a topologically
 identical modifiable graph. The effects of the update will be visible
 on the next submission of the executable graph without the need for additional
-user synchronization.
+user synchronization. No changes to commands themselves will occur, such as to
+updating kernel or host task code to match that of the modifiable graph.
 
 Preconditions:
 
@@ -836,7 +863,8 @@ required by the graph (such as after being replaced through executable graph upd
 A {host-task}[host task] is a native C++ callable, scheduled according to SYCL
 dependency rules. It is valid to record a host task as part of graph, though it
 may lead to sub-optimal graph performance because a host task node may prevent
-the SYCL runtime from submitting the whole graph to the device at once.
+the SYCL runtime from submitting the entire executable `command_graph` to the
+device at once.
 
 Host tasks can be updated as part of <<executable-graph-update, executable graph update>>
 by replacing the whole node with the new callable.
@@ -849,6 +877,9 @@ The examples below demonstrate intended usage of the extension, but may not be
 compatible with the proof-of-concept implementation, as the proof-of-concept
 implementation is currently under development.
 ====
+
+Examples for demonstrative purposes only, and may leave out details such as how
+input data is set.
 
 === Dot Product
 
@@ -950,7 +981,7 @@ recording state, which allows a `command_graph` object to be populated by the
 command-groups submitted to the queue. Once the graph is complete, recording
 finishes on the queue to put it back into the default executing state. The
 graph is then finalized so that no more nodes can be added. Lastly, the graph is
-submitted as a whole for execution via
+submitted in its entirety for execution via
 `queue::submit(command_graph<graph_state::executable>)`.
 
 [source, c++]
