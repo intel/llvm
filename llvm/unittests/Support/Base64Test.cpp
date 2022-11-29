@@ -24,6 +24,19 @@ void TestBase64(StringRef Input, StringRef Final) {
   EXPECT_EQ(Res, Final);
 }
 
+void TestBase64Decode(StringRef Input, StringRef Expected,
+                      StringRef ExpectedErrorMessage = {}) {
+  std::vector<char> DecodedBytes;
+  if (ExpectedErrorMessage.empty()) {
+    ASSERT_THAT_ERROR(decodeBase64(Input, DecodedBytes), Succeeded());
+    EXPECT_EQ(llvm::ArrayRef<char>(DecodedBytes),
+              llvm::ArrayRef<char>(Expected.data(), Expected.size()));
+  } else {
+    ASSERT_THAT_ERROR(decodeBase64(Input, DecodedBytes),
+                      FailedWithMessage(ExpectedErrorMessage));
+  }
+}
+
 char NonPrintableVector[] = {0x00, 0x00, 0x00,       0x46,
                              0x00, 0x08, (char)0xff, (char)0xee};
 
@@ -51,6 +64,42 @@ TEST(Base64Test, Base64) {
   // Large test case
   TestBase64({LargeVector, sizeof(LargeVector)},
              "VGhlIHF1aWNrIGJyb3duIGZveCBqdW1wcyBvdmVyIDEzIGxhenkgZG9ncy4=");
+}
+
+TEST(Base64Test, DecodeBase64) {
+  std::vector<llvm::StringRef> Outputs = {"",     "f",     "fo",    "foo",
+                                          "foob", "fooba", "foobar"};
+  Outputs.push_back(
+      llvm::StringRef(NonPrintableVector, sizeof(NonPrintableVector)));
+
+  Outputs.push_back(llvm::StringRef(LargeVector, sizeof(LargeVector)));
+  // Make sure we can encode and decode any byte.
+  std::vector<char> AllChars;
+  for (int Ch = INT8_MIN; Ch <= INT8_MAX; ++Ch)
+    AllChars.push_back(Ch);
+  Outputs.push_back(llvm::StringRef(AllChars.data(), AllChars.size()));
+
+  for (const auto &Output : Outputs) {
+    // We trust that encoding is working after running the Base64Test::Base64()
+    // test function above, so we can use it to encode the string and verify we
+    // can decode it correctly.
+    auto Input = encodeBase64(Output);
+    TestBase64Decode(Input, Output);
+  }
+  struct ErrorInfo {
+    llvm::StringRef Input;
+    llvm::StringRef ErrorMessage;
+  };
+  std::vector<ErrorInfo> ErrorInfos = {
+      {"f", "Base64 encoded strings must be a multiple of 4 bytes in length"},
+      {"=abc", "Invalid Base64 character 0x3d at index 0"},
+      {"a=bc", "Invalid Base64 character 0x3d at index 1"},
+      {"ab=c", "Invalid Base64 character 0x3d at index 2"},
+      {"fun!", "Invalid Base64 character 0x21 at index 3"},
+  };
+
+  for (const auto &EI : ErrorInfos)
+    TestBase64Decode(EI.Input, "", EI.ErrorMessage);
 }
 
 TEST(Base64Test, RoundTrip) {
