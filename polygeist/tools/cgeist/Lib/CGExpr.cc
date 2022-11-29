@@ -1634,10 +1634,8 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
             }
         }
     auto SE = Visit(E->getSubExpr());
-#ifdef DEBUG
     if (!SE.val)
       E->dump();
-#endif
     auto Scalar = SE.getValue(Builder);
     if (auto SPT = Scalar.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
       mlir::Type NT = Glob.getTypes().getMLIRType(E->getType());
@@ -1741,12 +1739,14 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
       return Prev;
 
     auto Lres = Prev.getValue(Builder);
-#ifdef DEBUG
-    if (!prev.isReference) {
-      E->dump();
-      lres.dump();
-    }
-#endif
+    LLVM_DEBUG({
+      if (!Prev.isReference) {
+        llvm::dbgs() << "LValueToRValue cast performed on an RValue: ";
+        E->dump(llvm::dbgs(), Glob.getCGM().getContext());
+        Lres.print(llvm::dbgs());
+        llvm::dbgs() << "\n";
+      }
+    });
     return ValueCategory(Lres, /*isReference*/ false);
   }
   case clang::CastKind::CK_IntegralToFloating: {
@@ -2018,10 +2018,8 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
   }
   case clang::CastKind::CK_IntegralToPointer: {
     auto Vc = Visit(E->getSubExpr());
-#ifdef DEBUG
-    if (!vc.val)
+    if (!Vc.val)
       E->dump();
-#endif
     assert(Vc.val);
     auto Res = Vc.getValue(Builder);
     mlir::Type PostTy = Glob.getTypes().getMLIRType(E->getType());
