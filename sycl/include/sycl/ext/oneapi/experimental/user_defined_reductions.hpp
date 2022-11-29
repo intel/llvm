@@ -89,9 +89,8 @@ joint_reduce(GroupHelper group_helper, Ptr first, Ptr last,
 
 template <typename GroupHelper, typename Ptr, typename T,
           typename BinaryOperation>
-sycl::detail::enable_if_t<(is_group_helper_v<GroupHelper> &&
-                           sycl::detail::is_pointer<Ptr>::value),
-                          T>
+sycl::detail::enable_if_t<
+    (is_group_helper_v<GroupHelper> && sycl::detail::is_pointer<Ptr>::value), T>
 joint_reduce(GroupHelper group_helper, Ptr first, Ptr last, T init,
              BinaryOperation binary_op) {
 #ifdef __SYCL_DEVICE_ONLY__
