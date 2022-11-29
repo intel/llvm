@@ -72,7 +72,7 @@ __SYCL_INLINE_CONSTEXPR bool is_group_v =
 namespace ext::oneapi::experimental {
 template <class T>
 __SYCL_INLINE_CONSTEXPR bool is_group_helper_v =
-    detail::is_group_helper<T>::value;
+    detail::is_group_helper<std::decay_t<T>>::value;
 } // namespace ext::oneapi::experimental
 
 namespace detail {
