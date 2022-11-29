@@ -1142,9 +1142,11 @@ static uint64_t getIndexFromExtract(ExtractElementInst *EEI) {
 /// right before the given extract element instruction \p EEI using the result
 /// of vector load. The parameter \p IsVectorCall tells what version of GenX
 /// intrinsic (scalar or vector) to use to lower the load from SPIRV global.
-static Instruction *generateGenXCall(ExtractElementInst *EEI,
-                                     StringRef IntrinName, bool IsVectorCall) {
-  uint64_t IndexValue = getIndexFromExtract(EEI);
+static Instruction *generateGenXCall(Instruction *EEI, StringRef IntrinName,
+                                     bool IsVectorCall) {
+  uint64_t IndexValue = isa<ExtractElementInst>(EEI)
+                            ? getIndexFromExtract(cast<ExtractElementInst>(EEI))
+                            : 0;
   std::string Suffix =
       IsVectorCall
           ? ".v3i32"
@@ -1244,12 +1246,15 @@ translateSpirvGlobalUses(LoadInst *LI, StringRef SpirvGlobalName,
   }
 
   // Only loads from _vector_ SPIRV globals reach here now. Their users are
-  // expected to be ExtractElementInst only, and they are replaced in this loop.
-  // When loads from _scalar_ SPIRV globals are handled here as well, the users
-  // will not be replaced by new instructions, but the GenX call replacing the
-  // original load 'LI' should be inserted before each user.
+  // expected to be ExtractElementInst or TruncInst only, and they are replaced
+  // in this loop. When loads from _scalar_ SPIRV globals are handled here as
+  // well, the users will not be replaced by new instructions, but the GenX call
+  // replacing the original load 'LI' should be inserted before each user.
   for (User *LU : LI->users()) {
-    ExtractElementInst *EEI = cast<ExtractElementInst>(LU);
+    assert(
+        (isa<ExtractElementInst>(LU) || isa<TruncInst>(LU)) &&
+        "SPIRV global users should be either ExtractElementInst or TruncInst");
+    Instruction *EEI = cast<Instruction>(LU);
     NewInst = nullptr;
 
     if (SpirvGlobalName == "WorkgroupSize") {
@@ -1786,10 +1791,10 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
     if (LI) {
       Value *LoadPtrOp = LI->getPointerOperand();
       Value *SpirvGlobal = nullptr;
-      // Look through casts to find SPIRV builtin globals
+      // Look through constant expressions to find SPIRV builtin globals
+      // It may come with or without cast.
       auto *CE = dyn_cast<ConstantExpr>(LoadPtrOp);
       if (CE) {
-        assert(CE->isCast() && "ConstExpr should be a cast");
         SpirvGlobal = CE->getOperand(0);
       } else {
         SpirvGlobal = LoadPtrOp;
