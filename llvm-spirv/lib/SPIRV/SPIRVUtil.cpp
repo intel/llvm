@@ -1933,9 +1933,7 @@ bool lowerBuiltinVariableToCall(GlobalVariable *GV,
     Func->setCallingConv(CallingConv::SPIR_FUNC);
     Func->addFnAttr(Attribute::NoUnwind);
     Func->addFnAttr(Attribute::WillReturn);
-    for (llvm::Argument &Arg : Func->args())
-      if (Arg.getType()->isPointerTy())
-        Arg.addAttr(Attribute::ReadNone);
+    Func->setDoesNotAccessMemory();
   }
 
   // Collect instructions in these containers to remove them later.
