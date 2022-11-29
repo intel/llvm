@@ -1602,6 +1602,56 @@ urEventCreateWithNativeHandle(
     ur_event_handle_t* phEvent                      ///< [out] pointer to the handle of the event object created.
     );
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Event states for all events.
+typedef enum _ur_execution_info_t
+{
+    UR_EXECUTION_INFO_EXECUTION_INFO_SUBMITTED = 0, ///< Indicates that the event has been submitted by the host to the device,
+                                                    ///< this is the inital state of events
+    UR_EXECUTION_INFO_EXECUTION_INFO_RUNNING = 1,   ///< Indicates that the device has started processing this event
+    UR_EXECUTION_INFO_EXECUTION_INFO_COMPLETE = 2,  ///< Indicates that the event has completed
+    UR_EXECUTION_INFO_FORCE_UINT32 = 0x7fffffff
+
+} ur_execution_info_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Event callback function that can be registered by the application.
+typedef void (ur_event_callback_t)(
+    ur_event_handle_t hEvent,                       ///< [in] handle to event
+    ur_execution_info_t execStatus,                 ///< [in] execution status of the event
+    void* pParams                                   ///< [in][out] pointer to data to be passed to callback
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Register a user callback function for a specific command execution
+///        status.
+/// 
+/// @details
+///     - The registered callback function will be called when the execution
+///       status of command associated with event changes to an execution status
+///       equal to or past the status specified by command_exec_status.
+///     - The application may call this function from simultaneous threads for
+///       the same context.
+///     - The implementation of this function should be thread-safe.
+/// 
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hEvent`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXECUTION_INFO_EXECUTION_INFO_COMPLETE < execStatus`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pParams`
+UR_APIEXPORT ur_result_t UR_APICALL
+urEventSetCallback(
+    ur_event_handle_t hEvent,                       ///< [in] handle of the event object
+    ur_execution_info_t execStatus,                 ///< [in] execution status of the event
+    ur_event_callback_t pfnNotify,                  ///< [in] execution status of the event
+    void* pParams                                   ///< [in][out] pointer to data to be passed to callback.
+    );
+
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
@@ -4748,6 +4798,31 @@ typedef void (UR_APICALL *ur_pfnEventCreateWithNativeHandleCb_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function parameters for urEventSetCallback 
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct _ur_event_set_callback_params_t
+{
+    ur_event_handle_t* phEvent;
+    ur_execution_info_t* pexecStatus;
+    ur_event_callback_t* ppfnNotify;
+    void** ppParams;
+} ur_event_set_callback_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function-pointer for urEventSetCallback 
+/// @param[in] params Parameters passed to this instance
+/// @param[in] result Return value
+/// @param[in] pTracerUserData Per-Tracer user data
+/// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
+typedef void (UR_APICALL *ur_pfnEventSetCallbackCb_t)(
+    ur_event_set_callback_params_t* params,
+    ur_result_t result,
+    void* pTracerUserData,
+    void** ppTracerInstanceUserData
+    );
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Event callback functions pointers
 typedef struct ur_event_callbacks_t
 {
@@ -4759,6 +4834,7 @@ typedef struct ur_event_callbacks_t
     ur_pfnEventReleaseCb_t                                          pfnReleaseCb;
     ur_pfnEventGetNativeHandleCb_t                                  pfnGetNativeHandleCb;
     ur_pfnEventCreateWithNativeHandleCb_t                           pfnCreateWithNativeHandleCb;
+    ur_pfnEventSetCallbackCb_t                                      pfnSetCallbackCb;
 } ur_event_callbacks_t;
 
 ///////////////////////////////////////////////////////////////////////////////

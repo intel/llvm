@@ -259,8 +259,8 @@ class ur_context_info_t(c_int):
 ## @brief Context's extended deleter callback function with user data.
 def ur_context_extended_deleter_t(user_defined_callback):
     @CFUNCTYPE(None, c_void_p)
-    def ur_context_extended_deleter_t_wrapper(var0): 
-        return user_defined_callback(var0) 
+    def ur_context_extended_deleter_t_wrapper(var0):
+        return user_defined_callback(var0)
     return ur_context_extended_deleter_t_wrapper
 
 ###############################################################################
@@ -324,6 +324,27 @@ class ur_profiling_info_t(c_int):
     def __str__(self):
         return str(ur_profiling_info_v(self.value))
 
+
+###############################################################################
+## @brief Event states for all events.
+class ur_execution_info_v(IntEnum):
+    EXECUTION_INFO_SUBMITTED = 0                    ## Indicates that the event has been submitted by the host to the device,
+                                                    ## this is the inital state of events
+    EXECUTION_INFO_RUNNING = 1                      ## Indicates that the device has started processing this event
+    EXECUTION_INFO_COMPLETE = 2                     ## Indicates that the event has completed
+
+class ur_execution_info_t(c_int):
+    def __str__(self):
+        return str(ur_execution_info_v(self.value))
+
+
+###############################################################################
+## @brief Event callback function that can be registered by the application.
+def ur_event_callback_t(user_defined_callback):
+    @CFUNCTYPE(None, ur_event_handle_t, ur_execution_info_t, c_void_p)
+    def ur_event_callback_t_wrapper(var0, var1, var2):
+        return user_defined_callback(var0, var1, var2)
+    return ur_event_callback_t_wrapper
 
 ###############################################################################
 ## @brief Memory flags
@@ -838,8 +859,8 @@ class ur_kernel_exec_info_t(c_int):
 ## @brief callback function for urModuleCreate
 def ur_modulecreate_callback_t(user_defined_callback):
     @CFUNCTYPE(None, ur_module_handle_t, c_void_p)
-    def ur_modulecreate_callback_t_wrapper(var0, var1): 
-        return user_defined_callback(var0, var1) 
+    def ur_modulecreate_callback_t_wrapper(var0, var1):
+        return user_defined_callback(var0, var1)
     return ur_modulecreate_callback_t_wrapper
 
 ###############################################################################
@@ -1125,6 +1146,13 @@ if __use_win_types:
 else:
     _urEventCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_event_handle_t) )
 
+###############################################################################
+## @brief Function-pointer for urEventSetCallback
+if __use_win_types:
+    _urEventSetCallback_t = WINFUNCTYPE( ur_result_t, ur_event_handle_t, ur_execution_info_t, ur_event_callback_t, c_void_p )
+else:
+    _urEventSetCallback_t = CFUNCTYPE( ur_result_t, ur_event_handle_t, ur_execution_info_t, ur_event_callback_t, c_void_p )
+
 
 ###############################################################################
 ## @brief Table of Event functions pointers
@@ -1137,7 +1165,8 @@ class ur_event_dditable_t(Structure):
         ("pfnRetain", c_void_p),                                        ## _urEventRetain_t
         ("pfnRelease", c_void_p),                                       ## _urEventRelease_t
         ("pfnGetNativeHandle", c_void_p),                               ## _urEventGetNativeHandle_t
-        ("pfnCreateWithNativeHandle", c_void_p)                         ## _urEventCreateWithNativeHandle_t
+        ("pfnCreateWithNativeHandle", c_void_p),                        ## _urEventCreateWithNativeHandle_t
+        ("pfnSetCallback", c_void_p)                                    ## _urEventSetCallback_t
     ]
 
 ###############################################################################
@@ -1975,6 +2004,7 @@ class UR_DDI:
         self.urEventRelease = _urEventRelease_t(self.__dditable.Event.pfnRelease)
         self.urEventGetNativeHandle = _urEventGetNativeHandle_t(self.__dditable.Event.pfnGetNativeHandle)
         self.urEventCreateWithNativeHandle = _urEventCreateWithNativeHandle_t(self.__dditable.Event.pfnCreateWithNativeHandle)
+        self.urEventSetCallback = _urEventSetCallback_t(self.__dditable.Event.pfnSetCallback)
 
         # call driver to get function pointers
         Program = ur_program_dditable_t()
