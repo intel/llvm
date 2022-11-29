@@ -11,7 +11,6 @@
 #include "mlir/Dialect/SYCL/Transforms/Passes.h"
 #include "mlir/Transforms/InliningUtils.h"
 #include "llvm/ADT/SCCIterator.h"
-
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
@@ -484,8 +483,8 @@ void CGUseList::decrementDiscardableUses(CGUser &Uses) {
 
   for (CallGraphNode *CGN : Uses.TopLevelUses) {
     Operation *ParentOp = CGN->getCallableRegion()->getParentOp();
-    llvm::dbgs() << ParentOp->getName() << " has "
-                 << DiscardableSymNodeUses[CGN] << " uses\n";
+    LLVM_DEBUG(llvm::dbgs() << ParentOp->getName() << " has "
+                            << DiscardableSymNodeUses[CGN] << " uses\n");
   }
 }
 
@@ -674,15 +673,6 @@ bool Inliner::shouldInline(ResolvedCall &ResolvedCall,
   if (Uses.has_value())
     return Uses->hasOneUse(ResolvedCall.TgtNode);
 
-  // TODO: extend simple heuristics
-  // - Inline a callee if inlining it would make it dead.
-  //    - consider case where there are more than one call hedge in the same
-  //    caller ?
-  //  - what about inlining in loops (Should allow inlining in inner loop)
-  //  - pass flags to make inliner 'aggressive'?
-  //     + is inliner is aggressive then inline in inner loop as long as
-  //     callee is not too big
-
   return false;
 }
 
@@ -708,7 +698,7 @@ void InlinePass::runOnOperation() {
     Inliner = std::make_unique<class Inliner>(Ctx, CG, SymTable);
     break;
   case sycl::InlineMode::Aggressive:
-    assert(false && "TODO");
+    llvm_unreachable("TODO");
     break;
   }
 

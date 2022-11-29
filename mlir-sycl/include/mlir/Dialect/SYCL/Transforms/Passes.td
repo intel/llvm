@@ -11,10 +11,10 @@
 
 include "mlir/Pass/PassBase.td"
 
-def InlinePass : Pass<"sycl-inline"> {
-  let summary = "Inline SYCL calls";
+def InlinePass : Pass<"inliner"> {
+  let summary = "Inline function calls";
   let description = [{
-    Replace a sylc.call operation with the body of the callee.
+    Replace a function call operation with the body of the callee.
   }];
   let constructor = "mlir::sycl::createInlinePass()";
   let options = [
