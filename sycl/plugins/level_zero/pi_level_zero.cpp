@@ -3639,6 +3639,7 @@ pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
 
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
 
+  std::shared_lock<pi_shared_mutex> Lock(Queue->Mutex);
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
   // TODO: consider support for queue properties and size
   switch (ParamName) {
@@ -3658,37 +3659,31 @@ pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
     die("PI_QUEUE_INFO_DEVICE_DEFAULT in piQueueGetInfo not implemented\n");
     break;
   case PI_QUEUE_INFO_STATUS: {
-    // If there are open command lists then submit them for execution.
-    {
-      std::unique_lock<pi_shared_mutex> Lock(Queue->Mutex);
-      PI_CALL(Queue->executeAllOpenCommandLists());
+    // If we have any open command list which is not empty then return false
+    // because it means that there are commands which are not even submitted for
+    // execution yet.
+    for (auto CommandList : {Queue->CopyCommandBatch.OpenCommandList,
+                             Queue->ComputeCommandBatch.OpenCommandList}) {
+      if (CommandList == Queue->CommandListMap.end())
+        continue;
+
+      if (!CommandList->second.EventList.empty())
+        return ReturnValue(pi_bool{false});
     }
 
-    std::shared_lock<pi_shared_mutex> Lock(Queue->Mutex);
-    for (auto ZeQueue : Queue->ComputeQueueGroup.ZeQueues) {
-      if (!ZeQueue)
-        continue;
-      // Provide 0 as the timeout parameter to immediately get the status of the
-      // Level Zero queue.
-      ze_result_t ZeResult = ZE_CALL_NOCHECK(zeCommandQueueSynchronize,
-                                             (ZeQueue, /* timeout */ 0));
-      if (ZeResult == ZE_RESULT_NOT_READY) {
-        return ReturnValue(pi_bool{false});
-      } else if (ZeResult != ZE_RESULT_SUCCESS) {
-        return mapError(ZeResult);
-      }
-    }
-    for (auto ZeQueue : Queue->CopyQueueGroup.ZeQueues) {
-      if (!ZeQueue)
-        continue;
-      // Provide 0 as the timeout parameter to immediately get the status of the
-      // Level Zero queue.
-      ze_result_t ZeResult = ZE_CALL_NOCHECK(zeCommandQueueSynchronize,
-                                             (ZeQueue, /* timeout */ 0));
-      if (ZeResult == ZE_RESULT_NOT_READY) {
-        return ReturnValue(pi_bool{false});
-      } else if (ZeResult != ZE_RESULT_SUCCESS) {
-        return mapError(ZeResult);
+    for (auto QueueGroup : {Queue->ComputeQueueGroup, Queue->CopyQueueGroup}) {
+      for (auto ZeQueue : QueueGroup.ZeQueues) {
+        if (!ZeQueue)
+          continue;
+        // Provide 0 as the timeout parameter to immediately get the status of
+        // the Level Zero queue.
+        ze_result_t ZeResult = ZE_CALL_NOCHECK(zeCommandQueueSynchronize,
+                                               (ZeQueue, /* timeout */ 0));
+        if (ZeResult == ZE_RESULT_NOT_READY) {
+          return ReturnValue(pi_bool{false});
+        } else if (ZeResult != ZE_RESULT_SUCCESS) {
+          return mapError(ZeResult);
+        }
       }
     }
     return ReturnValue(pi_bool{true});
