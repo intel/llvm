@@ -102,7 +102,7 @@ template <dpas_argument_type T> struct DpasNaturalOperandType {
           std::conditional_t<
               is_fp16, sycl::half,
               std::conditional_t<
-                  is_bf16, sycl::ext::oneapi::experimental::bfloat16,
+                  is_bf16, sycl::ext::oneapi::bfloat16,
                   std::conditional_t<
                       is_tf32, sycl::ext::intel::experimental::esimd::tfloat32,
                       void>>>>>;

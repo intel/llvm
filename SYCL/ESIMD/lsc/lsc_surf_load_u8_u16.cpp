@@ -29,7 +29,7 @@ int main(void) {
 
   passed &= tests<0, uint8_t>();
   passed &= tests<3, uint16_t>();
-  passed &= tests<6, sycl::ext::oneapi::experimental::bfloat16>();
+  passed &= tests<6, sycl::ext::oneapi::bfloat16>();
   passed &= tests<9, half>();
 
   std::cout << (passed ? "Passed\n" : "FAILED\n");
