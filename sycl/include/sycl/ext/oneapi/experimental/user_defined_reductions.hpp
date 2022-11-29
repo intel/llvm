@@ -74,6 +74,9 @@ joint_reduce(GroupHelper group_helper, Ptr first, Ptr last,
     return sycl::joint_reduce(group_helper.get_group(), first, last, binary_op);
   }
 #ifdef __SYCL_DEVICE_ONLY__
+  // TODO: the complexity is linear and not logarithmic. Something like
+  // https://github.com/intel/llvm/blob/8ebd912679f27943d8ef6c33a9775347dce6b80d/sycl/include/sycl/reduction.hpp#L1810-L1818
+  // might be applicable here
   using T = typename std::remove_pointer<Ptr>::type;
   auto g = group_helper.get_group();
   T partial = *(first + g.get_local_linear_id());
