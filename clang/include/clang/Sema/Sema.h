@@ -14254,7 +14254,8 @@ public:
     KernelCallDllimportFunction,
     KernelCallVariadicFunction,
     KernelCallUndefinedFunction,
-    KernelConstStaticVariable
+    KernelConstStaticVariable,
+    KernelCallExternalFunctionInNoRDCMode
   };
 
   bool isDeclAllowedInSYCLDeviceCode(const Decl *D);

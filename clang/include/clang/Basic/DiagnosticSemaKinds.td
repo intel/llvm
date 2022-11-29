@@ -11787,6 +11787,7 @@ def err_sycl_restrict : Error<
   "|call an undefined function without SYCL_EXTERNAL attribute"
   "|use a const static or global variable that is neither zero-initialized "
   "nor constant-initialized"
+  "|call a SYCL_EXTERNAL function in a seperate compilation unit without relocatable device code"
   "}0">;
 def err_sycl_external_global : Error<
   "invalid reference to 'device_global' variable; external 'device_global'"

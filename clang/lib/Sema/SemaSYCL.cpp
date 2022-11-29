@@ -4641,16 +4641,31 @@ void Sema::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
       !isFDReachableFromSyclDevice(Callee, Caller))
     return;
 
+  auto isUndefinedFunction = [&](const FunctionDecl *Callee) {
+    return !Callee->isDefined() && !Callee->getBuiltinID() &&
+           !Callee->isReplaceableGlobalAllocationFunction() &&
+           !isSYCLUndefinedAllowed(Callee, getSourceManager());
+  };
+  bool HasSYCLAttr =
+      Callee->hasAttr<SYCLDeviceAttr>() || Callee->hasAttr<SYCLKernelAttr>();
+
+  // Throw diagnostic if relocatable device code mode is disabled
+  // and an undefined function is called since compilation happens on a
+  // per-object file basis, so cross-object dependencies are not supported.
+  if (!getLangOpts().GPURelocatableDeviceCode && HasSYCLAttr &&
+      isUndefinedFunction(Callee) &&
+      !getSourceManager().isInSystemHeader(Callee->getLocation()))
+    Diag(Loc, diag::err_sycl_restrict)
+        << Sema::KernelCallExternalFunctionInNoRDCMode;
+
   // If Callee has a SYCL attribute, no diagnostic needed.
-  if (Callee->hasAttr<SYCLDeviceAttr>() || Callee->hasAttr<SYCLKernelAttr>())
+  if (HasSYCLAttr)
     return;
 
   // Diagnose if this is an undefined function and it is not a builtin.
   // Currently, there is an exception of "__failed_assertion" in libstdc++-11,
   // this undefined function is used to trigger a compiling error.
-  if (!Callee->isDefined() && !Callee->getBuiltinID() &&
-      !Callee->isReplaceableGlobalAllocationFunction() &&
-      !isSYCLUndefinedAllowed(Callee, getSourceManager())) {
+  if (isUndefinedFunction(Callee)) {
     Diag(Loc, diag::err_sycl_restrict) << Sema::KernelCallUndefinedFunction;
     Diag(Callee->getLocation(), diag::note_previous_decl) << Callee;
     Diag(Caller->getLocation(), diag::note_called_by) << Caller;
