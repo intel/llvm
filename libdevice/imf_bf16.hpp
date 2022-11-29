@@ -94,7 +94,7 @@ static Ty __iml_bfloat162integral_u(uint16_t b,
     return 0;
   uint16_t b_exp = b >> 7;
   uint16_t b_mant = b & 0x7F;
-  uint16_t b_exp1 = b_exp - 127;
+  int16_t b_exp1 = static_cast<int16_t>(b_exp) - 127;
 
   if (!b_exp)
     return (b_mant && (__IML_RTP == rounding_mode)) ? 1 : 0;
@@ -110,9 +110,9 @@ static Ty __iml_bfloat162integral_u(uint16_t b,
   Ty x_discard;
   x_val |= (0x1 << 7);
   b_exp1 -= 7;
-  if (b_exp1 >= 0 && b_exp1 <= (sizeof(Ty) * 8 - 8))
+  if (b_exp1 >= 0 && b_exp1 <= static_cast<int16_t>(sizeof(Ty) * 8 - 8))
     return (x_val <<= b_exp1);
-  if (b_exp1 > (sizeof(Ty) * 8 - 8))
+  if (b_exp1 > static_cast<int16_t>(sizeof(Ty) * 8 - 8))
     return std::numeric_limits<Ty>::max();
 
   // if b_exp1 < 0, we need to right shift and discard some bits, when
