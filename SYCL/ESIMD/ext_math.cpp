@@ -15,9 +15,6 @@
 // - math function - sin, cos, ..., div_ieee, pow
 // - SYCL vs ESIMD APIs
 
-// Temporarily disable while the failure is being investigated.
-// UNSUPPORTED: windows
-
 #include "esimd_test_utils.hpp"
 
 #include <sycl/builtins_esimd.hpp>
@@ -468,6 +465,14 @@ int main(void) {
   std::cout << "Running on " << Dev.get_info<sycl::info::device::name>()
             << "\n";
   bool Pass = true;
+#ifdef TEST_IEEE_DIV_REM
+  Pass &= testESIMDSqrtIEEE<float, 16>(Q);
+  Pass &= testESIMDDivIEEE<float, 8>(Q);
+  if (Dev.has(sycl::aspect::fp64)) {
+    Pass &= testESIMDSqrtIEEE<double, 32>(Q);
+    Pass &= testESIMDDivIEEE<double, 32>(Q);
+  }
+#else  // !TEST_IEEE_DIV_REM
   Pass &= testESIMD<half, 8>(Q);
   Pass &= testESIMD<float, 16>(Q);
   Pass &= testESIMD<float, 32>(Q);
@@ -476,14 +481,9 @@ int main(void) {
     Pass &= testSYCL<float, 8>(Q);
     Pass &= testSYCL<float, 32>(Q);
   }
-  Pass &= testESIMDSqrtIEEE<float, 16>(Q);
-  if (Dev.has(sycl::aspect::fp64)) {
-    Pass &= testESIMDSqrtIEEE<double, 32>(Q);
-    Pass &= testESIMDDivIEEE<double, 32>(Q);
-  }
-  Pass &= testESIMDDivIEEE<float, 8>(Q);
   Pass &= testESIMDPow<float, 8>(Q);
   Pass &= testESIMDPow<half, 32>(Q);
+#endif // !TEST_IEEE_DIV_REM
   std::cout << (Pass ? "Test Passed\n" : "Test FAILED\n");
   return Pass ? 0 : 1;
 }
