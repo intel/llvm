@@ -126,8 +126,8 @@ private:
 /// assists in managing the data in TLS :
 ///   (1) Populate the information when you at the top level function in the
 ///   call chain. This is usually the end-user entry point function into SYCL.
-///   (2) Remove the information when the object goes out scope in top level
-///   function.
+///   (2) Remove the information when the object goes out of scope in the top
+///   level function.
 ///
 /// Usage:-
 ///   void bar() {
@@ -136,7 +136,7 @@ private:
 ///     std::cout << p.query().fileName() << ":" << p.query().lineNumber() <<
 ///     std::endl;
 ///   }
-///
+///   // Will work for arbitrary call chain lengths.
 ///   void bar1() {bar();}
 ///
 ///   // Foo() is equivalent to a SYCL end user entry point such as
@@ -151,14 +151,14 @@ private:
 ///   }
 class __SYCL_EXPORT tls_code_loc_t {
 public:
-  /// @brief Consructor that chcks to see if a TLS entry already exists
+  /// @brief Consructor that checks to see if a TLS entry already exists
   /// @details If a previous populated TLS entry exists, this constructor will
-  /// capture the informationa and allow you query the information
+  /// capture the informationa and allow you to query the information later.
   tls_code_loc_t();
   /// @brief Iniitializes TLS with CodeLoc if a TLS entry not present
-  /// @param CodeLoc The code location information to set up the TLS slot with
+  /// @param CodeLoc The code location information to set up the TLS slot with.
   tls_code_loc_t(const detail::code_location &CodeLoc);
-  /// If the code location is set up by this instance, reset it
+  /// If the code location is set up by this instance, reset it.
   ~tls_code_loc_t();
   /// @brief  Query the information in the TLS slot
   /// @return The code location information saved in the TLS slot. If not TLS
@@ -167,7 +167,7 @@ public:
 
 private:
   // The flag that is used to determine if the object is in a local scope or in
-  // the top level scope
+  // the top level scope.
   bool MLocalScope = true;
 };
 

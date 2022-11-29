@@ -48,8 +48,8 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
                           SYCL_MEM_ALLOC_STREAM_NAME, "malloc_host");
   PrepareNotify.addMetadata([&](auto TEvent) {
     xpti::addMetadata(TEvent, "sycl_device_name", std::string("Host"));
-    xpti::addMetadata(TEvent, "sycl_device", reinterpret_cast<int>(0));
-    xpti::addMetadata(TEvent, "memory_size", reinterpret_cast<size_t>(Size));
+    xpti::addMetadata(TEvent, "sycl_device", 0);
+    xpti::addMetadata(TEvent, "memory_size", Size);
   });
   // Notify XPTI about the memset submission
   PrepareNotify.notify();
@@ -137,7 +137,7 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
     // xpti::addMetadata(TEvent, "sycl_device_name",Dev.getDeviceName());
     // xpti::addMetadata(TEvent, "sycl_device",
     //                   reinterpret_cast<size_t>(Dev.getHandleRef()));
-    xpti::addMetadata(TEvent, "memory_size", reinterpret_cast<size_t>(Size));
+    xpti::addMetadata(TEvent, "memory_size", Size);
   });
   // Notify XPTI about the memset submission
   PrepareNotify.notify();

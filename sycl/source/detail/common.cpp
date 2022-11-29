@@ -30,8 +30,8 @@ tls_code_loc_t::tls_code_loc_t() {
 
 /// @brief Constructor to use at the top level of the calling stack
 /// @details This is usually a SYCL entry point used by the end user in their
-/// application code. In this case, we still checl to see if another code
-/// location has been stached in the TLS at a higher level. If not, we have the
+/// application code. In this case, we still check to see if another code
+/// location has been stashed in the TLS at a higher level. If not, we have the
 /// code location information that must be active for the current calling scope.
 tls_code_loc_t::tls_code_loc_t(const detail::code_location &CodeLoc) {
   // Check TLS to see if a previously stashed code_location object is

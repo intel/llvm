@@ -497,27 +497,27 @@ public:
                 const void *user_data = nullptr)
       : m_object(object), m_parent(parent), m_stream_id(stream_id),
         m_trace_type(trace_type), m_user_data(user_data), m_instance(instance) {
-    if (xptiTraceEnabled()) {
-      uint16_t open = m_trace_type & 0xfffe;
-      xptiNotifySubscribers(m_stream_id, open, parent, object, instance,
-                            m_user_data);
-    }
+    if (!xptiTraceEnabled())
+      return;
+    uint16_t open = m_trace_type & 0xfffe;
+    xptiNotifySubscribers(m_stream_id, open, parent, object, instance,
+                          m_user_data);
   }
 
   ~scoped_notify() {
-    if (xptiTraceEnabled()) {
-      switch (m_trace_type) {
-      case signal:
-      case graph_create:
-      case node_create:
-      case edge_create:
-        break;
-      default: {
-        uint16_t close = m_trace_type | 1;
-        xptiNotifySubscribers(m_stream_id, close, m_parent, m_object,
-                              m_instance, m_user_data);
-      } break;
-      }
+    if (xptiTraceEnabled())
+      return;
+    switch (m_trace_type) {
+    case signal:
+    case graph_create:
+    case node_create:
+    case edge_create:
+      break;
+    default: {
+      uint16_t close = m_trace_type | 1;
+      xptiNotifySubscribers(m_stream_id, close, m_parent, m_object, m_instance,
+                            m_user_data);
+    } break;
     }
   }
 

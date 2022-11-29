@@ -219,7 +219,7 @@ private:
   const char *MUserData = nullptr;
   // The stream on which the notifications occur
   uint8_t MStreamID;
-  // The instance ID for the trace event; if ity is called in a look, then the
+  // The instance ID for the trace event; if it is called in a loop, then the
   // trace event ID will remain the same, but the instance ID will increment
   uint64_t MInstanceID;
   // If scoped notifcation is requested, this tracks the request

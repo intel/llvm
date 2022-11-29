@@ -378,28 +378,28 @@ enum class trace_point_type_t : uint16_t {
   /// Used to trace function call end.
   function_with_args_end = XPTI_TRACE_POINT_END(14),
   /// Used to notify that a new memory allocation is about to start.
-  mem_alloc_begin = XPTI_TRACE_POINT_BEGIN(15),
+  mem_alloc_begin = XPTI_TRACE_POINT_BEGIN(16),
   /// Used to notify that a memory allocation took place.
-  mem_alloc_end = XPTI_TRACE_POINT_END(15),
+  mem_alloc_end = XPTI_TRACE_POINT_END(17),
   /// Used to notify that memory chunk will be released.
-  mem_release_begin = XPTI_TRACE_POINT_BEGIN(16),
+  mem_release_begin = XPTI_TRACE_POINT_BEGIN(18),
   /// Used to notify that memory has been released.
-  mem_release_end = XPTI_TRACE_POINT_END(16),
+  mem_release_end = XPTI_TRACE_POINT_END(19),
   /// Used to notify that offload buffer will be created
-  offload_alloc_construct = XPTI_TRACE_POINT_BEGIN(17),
-  /// Used to notify that offload buffer will be destructed
-  offload_alloc_destruct = XPTI_TRACE_POINT_END(17),
+  offload_alloc_construct = XPTI_TRACE_POINT_BEGIN(20),
   /// Used to notify about association between user and internal
   /// handle of the offload buffer
-  offload_alloc_associate = XPTI_TRACE_POINT_BEGIN(18),
+  offload_alloc_associate = XPTI_TRACE_POINT_BEGIN(21),
+  /// Used to notify that offload buffer will be destructed
+  offload_alloc_destruct = XPTI_TRACE_POINT_BEGIN(22),
   /// Used to notify about releasing internal handle for offload buffer
-  offload_alloc_release = XPTI_TRACE_POINT_BEGIN(19),
+  offload_alloc_release = XPTI_TRACE_POINT_BEGIN(23),
   /// Used to notify about creation accessor for offload buffer
-  offload_alloc_accessor = XPTI_TRACE_POINT_BEGIN(20),
+  offload_alloc_accessor = XPTI_TRACE_POINT_BEGIN(24),
   /// User to notify when a queue has been created
-  queue_create = XPTI_TRACE_POINT_BEGIN(21),
+  queue_create = XPTI_TRACE_POINT_BEGIN(25),
   /// User to notify when a queue has been destroyed
-  queue_destroy = XPTI_TRACE_POINT_END(21),
+  queue_destroy = XPTI_TRACE_POINT_END(25),
   /// Used to notify error/informational messages and no action to take
   diagnostics = XPTI_TRACE_POINT_BEGIN(63),
   /// Indicates that the trace point is user defined and only the tool defined
