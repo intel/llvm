@@ -304,7 +304,7 @@ public:
   node add_malloc_device(void *&data, size_t numBytes, const property_list& propList = {});
   node add_free(void *data, const property_list& propList = {});
 
-  void make_edge(node sender, node receiver);
+  void make_edge(node src, node dest);
 };
 
 template<>
@@ -510,7 +510,7 @@ Exceptions:
 [source,c++]
 ----
 using namespace ext::oneapi::experimental;
-void make_edge(node sender, node receiver);
+void make_edge(node src, node dest);
 ----
 
 |Creates a dependency between two nodes representing a happens-before relationship.
@@ -522,17 +522,20 @@ Preconditions:
 
 Parameters:
 
-* `sender` - Node which will be a dependency of `receiver`.
+* `src` - Node which will be a dependency of `dest`.
 
-* `receiver` - Node which will be dependent on `sender`.
+* `dest` - Node which will be dependent on `src`.
 
 Exceptions:
 
 * Throws synchronously with error code `invalid` if a queue is recording
-  commands to the graph.
+  commands to the graph object.
 
-* Throws synchronously with error code `invalid` if `sender` or `receiver`
-  are not valid nodes created from the graph.
+* Throws synchronously with error code `invalid` if `src` or `dest`
+  are not valid nodes assigned to the graph object.
+
+* Throws synchronously with error code `invalid` if `src` and `dest`
+  are the same node.
 
 |
 [source,c++]
