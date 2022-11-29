@@ -29,6 +29,8 @@ def InlinePass : Pass<"inliner"> {
           "\"aggressive\", \"Inline callees using aggressive heuristics\"))">,
     Option<"RemoveDeadCallees", "remove-dead-callees", "bool", /*default=*/"true",
            "Remove callees that become unreachable after inlining them">,
+    Option<"MaxIterationCount", "max-num-iters", "bool", /*default=*/"3",
+           "Maximum number of inlining iterations for each SCC">,
   ];
 
   let statistics = [
