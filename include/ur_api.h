@@ -3784,7 +3784,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urProgramCreate(
     ur_context_handle_t hContext,                   ///< [in] handle of the context instance
     uint32_t count,                                 ///< [in] number of module handles in module list.
-    const ur_module_handle_t* phModules,            ///< [in] pointer to array of modules.
+    const ur_module_handle_t* phModules,            ///< [in][range(0, count)] pointer to array of modules.
     const char* pOptions,                           ///< [in][optional] pointer to linker options null-terminated string.
     ur_program_handle_t* phProgram                  ///< [out] pointer to handle of program object created.
     );
