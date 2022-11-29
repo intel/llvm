@@ -35,7 +35,8 @@ uint32_t to_uint32_t(sycl::marray<bfloat16, N> x, size_t start) {
 template <typename T>
 std::enable_if_t<std::is_same<T, bfloat16>::value, T> fabs(T x) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  return bfloat16::from_bits(__clc_fabs(x.raw()));
+  oneapi::detail::Bfloat16StorageT XBits = oneapi::detail::bfloat16ToBits(x);
+  return oneapi::detail::bitsToBfloat16(__clc_fabs(XBits));
 #else
   std::ignore = x;
   throw runtime_error("bfloat16 is not currently supported on the host device.",
@@ -54,7 +55,9 @@ sycl::marray<bfloat16, N> fabs(sycl::marray<bfloat16, N> x) {
   }
 
   if (N % 2) {
-    res[N - 1] = bfloat16::from_bits(__clc_fabs(x[N - 1].raw()));
+    oneapi::detail::Bfloat16StorageT XBits =
+        oneapi::detail::bfloat16ToBits(x[N - 1]);
+    res[N - 1] = oneapi::detail::bitsToBfloat16(__clc_fabs(XBits));
   }
   return res;
 #else
@@ -67,7 +70,9 @@ sycl::marray<bfloat16, N> fabs(sycl::marray<bfloat16, N> x) {
 template <typename T>
 std::enable_if_t<std::is_same<T, bfloat16>::value, T> fmin(T x, T y) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  return bfloat16::from_bits(__clc_fmin(x.raw(), y.raw()));
+  oneapi::detail::Bfloat16StorageT XBits = oneapi::detail::bfloat16ToBits(x);
+  oneapi::detail::Bfloat16StorageT YBits = oneapi::detail::bfloat16ToBits(y);
+  return oneapi::detail::bitsToBfloat16(__clc_fmin(XBits, YBits));
 #else
   std::ignore = x;
   std::ignore = y;
@@ -89,8 +94,11 @@ sycl::marray<bfloat16, N> fmin(sycl::marray<bfloat16, N> x,
   }
 
   if (N % 2) {
-    res[N - 1] =
-        bfloat16::from_bits(__clc_fmin(x[N - 1].raw(), y[N - 1].raw()));
+    oneapi::detail::Bfloat16StorageT XBits =
+        oneapi::detail::bfloat16ToBits(x[N - 1]);
+    oneapi::detail::Bfloat16StorageT YBits =
+        oneapi::detail::bfloat16ToBits(y[N - 1]);
+    res[N - 1] = oneapi::detail::bitsToBfloat16(__clc_fmin(XBits, YBits));
   }
 
   return res;
@@ -105,7 +113,9 @@ sycl::marray<bfloat16, N> fmin(sycl::marray<bfloat16, N> x,
 template <typename T>
 std::enable_if_t<std::is_same<T, bfloat16>::value, T> fmax(T x, T y) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  return bfloat16::from_bits(__clc_fmax(x.raw(), y.raw()));
+  oneapi::detail::Bfloat16StorageT XBits = oneapi::detail::bfloat16ToBits(x);
+  oneapi::detail::Bfloat16StorageT YBits = oneapi::detail::bfloat16ToBits(y);
+  return oneapi::detail::bitsToBfloat16(__clc_fmax(XBits, YBits));
 #else
   std::ignore = x;
   std::ignore = y;
@@ -127,8 +137,11 @@ sycl::marray<bfloat16, N> fmax(sycl::marray<bfloat16, N> x,
   }
 
   if (N % 2) {
-    res[N - 1] =
-        bfloat16::from_bits(__clc_fmax(x[N - 1].raw(), y[N - 1].raw()));
+    oneapi::detail::Bfloat16StorageT XBits =
+        oneapi::detail::bfloat16ToBits(x[N - 1]);
+    oneapi::detail::Bfloat16StorageT YBits =
+        oneapi::detail::bfloat16ToBits(y[N - 1]);
+    res[N - 1] = oneapi::detail::bitsToBfloat16(__clc_fmax(XBits, YBits));
   }
   return res;
 #else
@@ -142,7 +155,10 @@ sycl::marray<bfloat16, N> fmax(sycl::marray<bfloat16, N> x,
 template <typename T>
 std::enable_if_t<std::is_same<T, bfloat16>::value, T> fma(T x, T y, T z) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  return bfloat16::from_bits(__clc_fma(x.raw(), y.raw(), z.raw()));
+  oneapi::detail::Bfloat16StorageT XBits = oneapi::detail::bfloat16ToBits(x);
+  oneapi::detail::Bfloat16StorageT YBits = oneapi::detail::bfloat16ToBits(y);
+  oneapi::detail::Bfloat16StorageT ZBits = oneapi::detail::bfloat16ToBits(z);
+  return oneapi::detail::bitsToBfloat16(__clc_fma(XBits, YBits, ZBits));
 #else
   std::ignore = x;
   std::ignore = y;
@@ -167,8 +183,13 @@ sycl::marray<bfloat16, N> fma(sycl::marray<bfloat16, N> x,
   }
 
   if (N % 2) {
-    res[N - 1] = bfloat16::from_bits(
-        __clc_fma(x[N - 1].raw(), y[N - 1].raw(), z[N - 1].raw()));
+    oneapi::detail::Bfloat16StorageT XBits =
+        oneapi::detail::bfloat16ToBits(x[N - 1]);
+    oneapi::detail::Bfloat16StorageT YBits =
+        oneapi::detail::bfloat16ToBits(y[N - 1]);
+    oneapi::detail::Bfloat16StorageT ZBits =
+        oneapi::detail::bfloat16ToBits(z[N - 1]);
+    res[N - 1] = oneapi::detail::bitsToBfloat16(__clc_fma(XBits, YBits, ZBits));
   }
   return res;
 #else

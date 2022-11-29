@@ -24,10 +24,22 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace oneapi {
+  
+class bfloat16;
+
+namespace detail {
+using Bfloat16StorageT = uint16_t;
+Bfloat16StorageT bfloat16ToBits(const bfloat16 &Value);
+bfloat16 bitsToBfloat16(const Bfloat16StorageT Value);
+} // namespace detail
 
 class bfloat16 {
-  using storage_t = uint16_t;
-  storage_t value;
+  detail::Bfloat16StorageT value;
+
+  friend inline detail::Bfloat16StorageT
+  detail::bfloat16ToBits(const bfloat16 &Value);
+  friend inline bfloat16
+  detail::bitsToBfloat16(const detail::Bfloat16StorageT Value);
 
 public:
   bfloat16() = default;
@@ -36,7 +48,7 @@ public:
 
 private:
   // Explicit conversion functions
-  static storage_t from_float(const float &a) {
+  static detail::Bfloat16StorageT from_float(const float &a) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
 #if (__CUDA_ARCH__ >= 800)
@@ -72,7 +84,7 @@ private:
 #endif
   }
 
-  static float to_float(const storage_t &a) {
+  static float to_float(const detail::Bfloat16StorageT &a) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
     return __devicelib_ConvertBF16ToFINTEL(a);
 #else
@@ -83,12 +95,6 @@ private:
     intStorage = a << 16;
     return floatValue;
 #endif
-  }
-
-  static bfloat16 from_bits(const storage_t &a) {
-    bfloat16 res;
-    res.value = a;
-    return res;
   }
 
 public:
@@ -122,7 +128,7 @@ public:
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
 #if (__CUDA_ARCH__ >= 800)
-    return from_bits(__nvvm_neg_bf16(lhs.value));
+    return detail::bitsToBfloat16(__nvvm_neg_bf16(lhs.value));
 #else
     return -to_float(lhs.value);
 #endif
@@ -202,6 +208,23 @@ public:
   // Bitwise(|,&,~,^), modulo(%) and shift(<<,>>) operations are not supported
   // for floating-point types.
 };
+
+namespace detail {
+
+// Helper function for getting the internal representation of a bfloat16.
+inline Bfloat16StorageT bfloat16ToBits(const bfloat16 &Value) {
+  return Value.value;
+}
+
+// Helper function for creating a float16 from a value with the same type as the
+// internal representation.
+inline bfloat16 bitsToBfloat16(const Bfloat16StorageT Value) {
+  bfloat16 res;
+  res.value = Value;
+  return res;
+}
+
+} // namespace detail
 
 } // namespace oneapi
 } // namespace ext
