@@ -264,8 +264,9 @@ The first process selects cslice #0 while the second selects cslice #1.  This
 does have the effect that each process is constrained to a single cslice (which
 is not the {dpcpp} default).  However, the actual cslice number is irrelevant.
 Because of cslice virtualization, the device driver will choose some available
-cslice for each process, ignoring the value requested in the environment
-variable.  As a result, the following example has exactly the same effect:
+cslice for each process instead of honoring the value requested in the
+environment variable.  As a result, the following example has exactly the same
+effect:
 
 ```
 $ ONEAPI_DEVICE_SELECTOR=level_zero:0.1.0 ZEX_NUMBER_OF_CCS=0:2 ./foo
