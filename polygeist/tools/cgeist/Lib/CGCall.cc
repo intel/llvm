@@ -1167,7 +1167,8 @@ MLIRScanner::emitGPUCallExpr(clang::CallExpr *Expr) {
       }
       if (Sr->getDecl()->getIdentifier() &&
           Sr->getDecl()->getName() == "cudaFuncSetCacheConfig") {
-        llvm::errs() << " Not emitting GPU option: cudaFuncSetCacheConfig\n";
+        mlirclang::warning()
+            << " Not emitting GPU option: cudaFuncSetCacheConfig\n";
         return std::make_pair(ValueCategory(), true);
       }
       // TODO move free out.

@@ -341,7 +341,7 @@ void ClangToLLVMArgMapping::construct(const clang::ASTContext &Context,
 
       if (AI.isDirect() && AI.getCanBeFlattened() && STy)
         mlirclang::warning() << "struct should be flattened but MLIR codegen "
-                                "cannot yet handle it. Needs to be fixed.";
+                                "cannot yet handle it. Needs to be fixed.\n";
 
       if (AllowStructFlattening && AI.isDirect() && AI.getCanBeFlattened() &&
           STy) {
@@ -592,7 +592,7 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
 
       if (ST && ArgInfo.isDirect() && ArgInfo.getCanBeFlattened())
         mlirclang::warning() << "struct should be flattened but MLIR codegen "
-                                "cannot yet handle it. Needs to be fixed.";
+                                "cannot yet handle it. Needs to be fixed.\n";
 
       if (AllowStructFlattening && ST && ArgInfo.isDirect() &&
           ArgInfo.getCanBeFlattened()) {
