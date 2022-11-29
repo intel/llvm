@@ -11,7 +11,6 @@
 #include "llvm/Support/Signals.h"
 #endif
 
-
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
