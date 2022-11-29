@@ -948,7 +948,7 @@ MLIRScanner::EmitArraySubscriptExpr(clang::ArraySubscriptExpr *E) {
     return Visit(E);
   }
 
-  auto LHS = Visit(E->getBase());
+  auto LHS = EmitLValue(E->getBase());
   auto Idx = Visit(E->getIdx());
   return {LHS.val, Idx.val};
 }
