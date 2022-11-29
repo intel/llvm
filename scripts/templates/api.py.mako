@@ -66,7 +66,7 @@ ${'var' + str(index)}\
 %endif
 %endfor
 %endif
-): 
+):
         return user_defined_callback(\
 %if 'params' in obj:
 %for index, item in enumerate(obj['params']):
@@ -76,7 +76,7 @@ ${'var' + str(index)}\
 %endif
 %endfor
 %endif
-) 
+)
     return ${th.make_type_name(n, tags, obj)}_wrapper
 ## ENUM #######################################################################
 %elif re.match(r"enum", obj['type']):
