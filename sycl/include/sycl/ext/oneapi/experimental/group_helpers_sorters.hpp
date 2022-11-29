@@ -29,6 +29,11 @@ public:
   sycl::span<std::byte, Extent> get_memory() const { return scratch; }
 };
 
+// Deduction guides
+template <typename Group, std::size_t Extent>
+group_with_scratchpad(Group, sycl::span<std::byte, Extent>)
+    -> group_with_scratchpad<Group, Extent>;
+
 // ---- sorters
 template <typename Compare = std::less<>> class default_sorter {
   Compare comp;
