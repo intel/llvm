@@ -1,4 +1,4 @@
-// RUN: sycl-mlir-opt -split-input-file -inliner="mode=alwaysinline remove-dead-callees=true" -verify-diagnostics -mlir-pass-statistics %s 2>&1 | FileCheck --check-prefix=ALWAYS-INLINE %s
+// RUN: sycl-mlir-opt -split-input-file -inliner="mode=alwaysinline remove-dead-callees=false" -verify-diagnostics -mlir-pass-statistics %s 2>&1 | FileCheck --check-prefix=ALWAYS-INLINE %s
 // RUN: sycl-mlir-opt -split-input-file -inliner="mode=simple remove-dead-callees=true" -verify-diagnostics -mlir-pass-statistics %s 2>&1 | FileCheck --check-prefix=INLINE %s
 
 // COM: Ensure a func.func can be inlined in a func.func caller iff the callee is 'alwaysinline'.

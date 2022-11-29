@@ -587,13 +587,13 @@ bool Inliner::inlineCallsInSCC(Inliner &Inliner, CGUseList &UseList,
   if (Inliner.getCalls().empty())
     return false;
 
-  if (1) {
+  LLVM_DEBUG({
     llvm::dbgs() << "* Inliner: SCC: " << SCC << "\n";
     llvm::dbgs() << "* Inliner: Initial calls in SCC are: {\n";
     for (unsigned i = 0, e = Inliner.getCalls().size(); i < e; ++i)
       llvm::dbgs() << "  " << i << ". " << Inliner.getCall(i).Call << ",\n";
     llvm::dbgs() << "}\n";
-  }
+  });
 
   // Try to inline each of the call operations. Don't cache the end iterator
   // here as more calls may be added during inlining.
@@ -604,10 +604,8 @@ bool Inliner::inlineCallsInSCC(Inliner &Inliner, CGUseList &UseList,
     if (!DoInline)
       continue;
 
-    //    LLVM_DEBUG(
-    llvm::dbgs() << "* Inlining call: " << I << ". " << ResolvedCall.Call
-                 << "\n";
-    //);
+    LLVM_DEBUG(llvm::dbgs() << "* Inlining call: " << I << ". "
+                            << ResolvedCall.Call << "\n");
 
     Region *TgtRegion = ResolvedCall.TgtNode->getCallableRegion();
     LogicalResult InlineRes =
@@ -619,9 +617,7 @@ bool Inliner::inlineCallsInSCC(Inliner &Inliner, CGUseList &UseList,
       LLVM_DEBUG(llvm::dbgs() << "** Failed to inline\n");
       continue;
     }
-    //    LLVM_DEBUG(
-    llvm::dbgs() << "** Inline succeeded\n";
-    //);
+    LLVM_DEBUG(llvm::dbgs() << "** Inline succeeded\n");
 
     DidSomething = true;
     ++NumInlinedCalls;

@@ -371,6 +371,9 @@ private:
                                           ValueCategory Src);
   ValueCategory EmitConversionToBool(mlir::Location Loc, ValueCategory Src,
                                      clang::QualType SrcType);
+  ValueCategory EmitVectorInitList(clang::InitListExpr *Expr,
+                                   mlir::VectorType VType);
+  ValueCategory EmitVectorSubscript(clang::ArraySubscriptExpr *Expr);
 
 public:
   MLIRScanner(MLIRASTConsumer &Glob, mlir::OwningOpRef<mlir::ModuleOp> &Module,

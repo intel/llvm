@@ -791,12 +791,15 @@ unsigned getOCLVersion(Module *M, bool AllowMulti) {
   return encodeOCLVer(Ver.first, Ver.second, 0);
 }
 
-void decodeMDNode(MDNode *N, unsigned &X, unsigned &Y, unsigned &Z) {
+SmallVector<unsigned, 3> decodeMDNode(MDNode *N) {
   if (N == NULL)
-    return;
-  X = getMDOperandAsInt(N, 0);
-  Y = getMDOperandAsInt(N, 1);
-  Z = getMDOperandAsInt(N, 2);
+    return {};
+  size_t NumOperands = N->getNumOperands();
+  SmallVector<unsigned, 3> ReadVals;
+  ReadVals.reserve(NumOperands);
+  for (unsigned I = 0; I < NumOperands; ++I)
+    ReadVals.push_back(getMDOperandAsInt(N, I));
+  return ReadVals;
 }
 
 /// Encode LLVM type by SPIR-V execution mode VecTypeHint

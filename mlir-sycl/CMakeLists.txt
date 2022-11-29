@@ -23,7 +23,7 @@ set(MLIR_BINARY_DIR ${CMAKE_BINARY_DIR})
 if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   project(sycl-dialect LANGUAGES CXX C)
 
-  set(CMAKE_CXX_STANDARD 14 CACHE STRING "C++ standard to conform to")
+  set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard to conform to")
 
   find_package(MLIR REQUIRED CONFIG)
 
