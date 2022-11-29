@@ -1,6 +1,6 @@
 ; RUN: opt -module-summary %s -o %t1.bc
 ; RUN: opt -module-summary %p/Inputs/dot-dumper.ll -o %t2.bc
-; RUN: llvm-lto2 run -save-temps %t1.bc %t2.bc -o %t3 \
+; RUN: llvm-lto2 run -opaque-pointers -save-temps %t1.bc %t2.bc -o %t3 \
 ; RUN:  -r=%t1.bc,main,px \
 ; RUN:  -r=%t1.bc,A, \
 ; RUN:  -r=%t2.bc,foo,p \
@@ -20,7 +20,7 @@ target triple = "x86_64-unknown-linux-gnu"
 @A = external global i32
 
 define i32 @main() {
-  %v = load i32, i32* @A
+  %v = load i32, ptr @A
   ret i32 %v
 }
 

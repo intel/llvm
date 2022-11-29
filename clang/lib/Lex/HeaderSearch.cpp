@@ -1930,7 +1930,11 @@ std::string HeaderSearch::suggestPathToFileForDiagnostics(
   using namespace llvm::sys;
   
   llvm::SmallString<32> FilePath = File;
+  // remove_dots switches to backslashes on windows as a side-effect!
+  // We always want to suggest forward slashes for includes.
+  // (not remove_dots(..., posix) as that misparses windows paths).
   path::remove_dots(FilePath, /*remove_dot_dot=*/true);
+  path::native(FilePath, path::Style::posix);
   File = FilePath;
 
   unsigned BestPrefixLength = 0;

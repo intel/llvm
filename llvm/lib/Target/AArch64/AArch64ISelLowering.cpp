@@ -11961,6 +11961,11 @@ SDValue AArch64TargetLowering::LowerBUILD_VECTOR(SDValue Op,
 
   // Try to build a simple constant vector.
   Op = NormalizeBuildVector(Op, DAG);
+  // Thought this might return a non-BUILD_VECTOR (e.g. CONCAT_VECTORS), if so,
+  // abort.
+  if (Op.getOpcode() != ISD::BUILD_VECTOR)
+    return SDValue();
+
   if (VT.isInteger()) {
     // Certain vector constants, used to express things like logical NOT and
     // arithmetic NEG, are passed through unmodified.  This allows special
@@ -16933,7 +16938,7 @@ static bool isCMP(SDValue Op) {
 
 // (CSEL 1 0 CC Cond) => CC
 // (CSEL 0 1 CC Cond) => !CC
-static Optional<AArch64CC::CondCode> getCSETCondCode(SDValue Op) {
+static std::optional<AArch64CC::CondCode> getCSETCondCode(SDValue Op) {
   if (Op.getOpcode() != AArch64ISD::CSEL)
     return None;
   auto CC = static_cast<AArch64CC::CondCode>(Op.getConstantOperandVal(2));

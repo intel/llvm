@@ -1,10 +1,10 @@
 ; Do setup work for all below tests: generate bitcode and combined index
 ; RUN: opt -module-summary %s -o %t.bc
 ; RUN: opt -module-summary %p/Inputs/llvm.used.ll -o %t2.bc
-; RUN: llvm-lto -thinlto-action=thinlink -o %t3.bc %t.bc %t2.bc
+; RUN: llvm-lto -thinlto-action=thinlink -opaque-pointers -o %t3.bc %t.bc %t2.bc
 
 
-; RUN: llvm-lto -thinlto-action=import %t2.bc -thinlto-index=%t3.bc -o - | llvm-dis -o - | FileCheck %s
+; RUN: llvm-lto -thinlto-action=import -opaque-pointers %t2.bc -thinlto-index=%t3.bc -o - | llvm-dis -o - | FileCheck %s
 ; CHECK: define available_externally void @globalfunc
 
 
@@ -16,7 +16,7 @@ target triple = "x86_64-apple-macosx10.11.0"
 define internal void @_ZN12_GLOBAL__N_16Module4dumpEv() {
     ret void
 }
-@llvm.used = appending global [1 x i8*] [i8* bitcast (void ()* @_ZN12_GLOBAL__N_16Module4dumpEv to i8*)], section "llvm.metadata"
+@llvm.used = appending global [1 x ptr] [ptr @_ZN12_GLOBAL__N_16Module4dumpEv], section "llvm.metadata"
 
 
 define void @globalfunc() #0 {
