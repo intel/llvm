@@ -75,6 +75,8 @@
 // -fsycl-force-inline-kernel-lambda
 // RUN: %clangxx -### -fsycl-device-only -fno-sycl-force-inline-kernel-lambda  %s 2>&1 | FileCheck %s --check-prefix=CHECK-NOT-INLINE
 // RUN: %clang_cl -### -fsycl-device-only -fno-sycl-force-inline-kernel-lambda  %s 2>&1 | FileCheck %s --check-prefix=CHECK-NOT-INLINE
+// RUN: %clangxx -### -fsycl-device-only -O0 %s 2>&1 | FileCheck %s --check-prefix=CHECK-NOT-INLINE
+// RUN: %clang_cl -### -fsycl-device-only -Od %s 2>&1 | FileCheck %s --check-prefix=CHECK-NOT-INLINE
 // CHECK-NOT-INLINE: "-fno-sycl-force-inline-kernel-lambda"
 
 /// -fsycl-device-only triple checks

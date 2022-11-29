@@ -5095,8 +5095,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-sycl-std=2020");
     }
 
+    bool DisableSYCLForceInlineKernelLambda = false;
+    if (Arg *A = Args.getLastArg(options::OPT_O_Group))
+      DisableSYCLForceInlineKernelLambda =  A->getOption().matches(
+                                                options::OPT_O0);
+    // At -O0, disable the inlining for debugging purposes.
     if (!Args.hasFlag(options::OPT_fsycl_force_inline_kernel_lambda,
-                      options::OPT_fno_sycl_force_inline_kernel_lambda, true))
+                      options::OPT_fno_sycl_force_inline_kernel_lambda,
+                      !DisableSYCLForceInlineKernelLambda))
       CmdArgs.push_back("-fno-sycl-force-inline-kernel-lambda");
 
     if (!Args.hasFlag(options::OPT_fsycl_unnamed_lambda,
