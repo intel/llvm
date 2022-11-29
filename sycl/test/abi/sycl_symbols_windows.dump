@@ -58,7 +58,7 @@
 ??$get_info@Uext_intel_max_mem_bandwidth@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_KXZ
 ??$get_info@Uext_intel_mem_channel@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
 ??$get_info@Uext_intel_pci_address@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
-??$get_info@Uext_oneapi_bfloat16@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
+??$get_info@Uext_oneapi_bfloat16_math_functions@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
 ??$get_info@Uext_oneapi_max_global_work_groups@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_KXZ
 ??$get_info@Uext_oneapi_max_work_groups_1d@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$id@$00@12@XZ
 ??$get_info@Uext_oneapi_max_work_groups_2d@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$id@$01@12@XZ
