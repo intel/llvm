@@ -1,7 +1,10 @@
-// RUN: clang++ -fsycl -fsycl-targets=spir64-unknown-unknown-syclmlir -O0 -w %s -o %t.out 2>&1 | FileCheck %s --allow-empty --implicit-check-not="{{error|Error}}:"
+// RUN: clang++ -fsycl -fsycl-targets=spir64-unknown-unknown-syclmlir -O0 -w %s -o %t.00.out 2>&1 | FileCheck %s --allow-empty --implicit-check-not="{{error|Error}}:"
+// RUN: clang++ -fsycl -fsycl-targets=spir64-unknown-unknown-syclmlir -O1 -w %s -o %t.01.out 2>&1 | FileCheck %s --allow-empty --implicit-check-not="{{error|Error}}:"
+// RUN: clang++ -fsycl -fsycl-targets=spir64-unknown-unknown-syclmlir -O2 -w %s -o %t.02.out 2>&1 | FileCheck %s --allow-empty --implicit-check-not="{{error|Error}}:"
+// RUN: clang++ -fsycl -fsycl-targets=spir64-unknown-unknown-syclmlir -O3 -w %s -o %t.03.out 2>&1 | FileCheck %s --allow-empty --implicit-check-not="{{error|Error}}:"
+// RUN: clang++ -fsycl -fsycl-targets=spir64-unknown-unknown-syclmlir -Ofast -w %s -o %t.0fast.out 2>&1 | FileCheck %s --allow-empty --implicit-check-not="{{error|Error}}:"
 
 // RUN: clang++ -fsycl -fsycl-device-only -O0 -w -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o %t.bc
-
 
 // Test that the LLVMIR generated is verifiable.
 // RUN: opt -verify -disable-output < %t.bc
