@@ -98,7 +98,7 @@ std::string GetExecutablePath(const char *Argv0, bool CanonicalPrefixes) {
   return llvm::sys::fs::getMainExecutable(Argv0, P);
 }
 
-static int ExecuteCC1Tool(llvm::SmallVectorImpl<const char *> &ArgV) {
+static int executeCC1Tool(llvm::SmallVectorImpl<const char *> &ArgV) {
   // If we call the cc1 tool from the clangDriver library (through
   // Driver::CC1Main), we need to clean up the options usage count. The options
   // are currently global, and they might have been used previously by the
@@ -209,449 +209,449 @@ static int emitBinary(const char *Argv0, const char *Filename,
 #include "Lib/clang-mlir.cc"
 
 // Load MLIR Dialects.
-static void loadDialects(MLIRContext &context, const bool syclIsDevice) {
-  context.disableMultithreading();
-  context.getOrLoadDialect<mlir::AffineDialect>();
-  context.getOrLoadDialect<func::FuncDialect>();
-  context.getOrLoadDialect<mlir::DLTIDialect>();
-  context.getOrLoadDialect<mlir::scf::SCFDialect>();
-  context.getOrLoadDialect<mlir::async::AsyncDialect>();
-  context.getOrLoadDialect<mlir::LLVM::LLVMDialect>();
-  context.getOrLoadDialect<mlir::NVVM::NVVMDialect>();
-  context.getOrLoadDialect<mlir::gpu::GPUDialect>();
-  context.getOrLoadDialect<mlir::omp::OpenMPDialect>();
-  context.getOrLoadDialect<mlir::math::MathDialect>();
-  context.getOrLoadDialect<mlir::memref::MemRefDialect>();
-  context.getOrLoadDialect<mlir::linalg::LinalgDialect>();
-  context.getOrLoadDialect<mlir::polygeist::PolygeistDialect>();
-  context.getOrLoadDialect<mlir::vector::VectorDialect>();
+static void loadDialects(MLIRContext &Ctx, const bool SYCLIsDevice) {
+  Ctx.disableMultithreading();
+  Ctx.getOrLoadDialect<mlir::AffineDialect>();
+  Ctx.getOrLoadDialect<func::FuncDialect>();
+  Ctx.getOrLoadDialect<mlir::DLTIDialect>();
+  Ctx.getOrLoadDialect<mlir::scf::SCFDialect>();
+  Ctx.getOrLoadDialect<mlir::async::AsyncDialect>();
+  Ctx.getOrLoadDialect<mlir::LLVM::LLVMDialect>();
+  Ctx.getOrLoadDialect<mlir::NVVM::NVVMDialect>();
+  Ctx.getOrLoadDialect<mlir::gpu::GPUDialect>();
+  Ctx.getOrLoadDialect<mlir::omp::OpenMPDialect>();
+  Ctx.getOrLoadDialect<mlir::math::MathDialect>();
+  Ctx.getOrLoadDialect<mlir::memref::MemRefDialect>();
+  Ctx.getOrLoadDialect<mlir::linalg::LinalgDialect>();
+  Ctx.getOrLoadDialect<mlir::polygeist::PolygeistDialect>();
+  Ctx.getOrLoadDialect<mlir::vector::VectorDialect>();
 
-  if (syclIsDevice) {
-    context.getOrLoadDialect<mlir::sycl::SYCLDialect>();
+  if (SYCLIsDevice) {
+    Ctx.getOrLoadDialect<mlir::sycl::SYCLDialect>();
   }
 
-  LLVM::LLVMPointerType::attachInterface<MemRefInsider>(context);
-  LLVM::LLVMStructType::attachInterface<MemRefInsider>(context);
-  MemRefType::attachInterface<PtrElementModel<MemRefType>>(context);
-  IndexType::attachInterface<PtrElementModel<IndexType>>(context);
+  LLVM::LLVMPointerType::attachInterface<MemRefInsider>(Ctx);
+  LLVM::LLVMStructType::attachInterface<MemRefInsider>(Ctx);
+  MemRefType::attachInterface<PtrElementModel<MemRefType>>(Ctx);
+  IndexType::attachInterface<PtrElementModel<IndexType>>(Ctx);
   LLVM::LLVMStructType::attachInterface<PtrElementModel<LLVM::LLVMStructType>>(
-      context);
+      Ctx);
   LLVM::LLVMPointerType::attachInterface<
-      PtrElementModel<LLVM::LLVMPointerType>>(context);
+      PtrElementModel<LLVM::LLVMPointerType>>(Ctx);
   LLVM::LLVMArrayType::attachInterface<PtrElementModel<LLVM::LLVMArrayType>>(
-      context);
+      Ctx);
 }
 
 // Register MLIR Dialects.
-static void registerDialects(MLIRContext &context, const bool syclIsDevice) {
-  mlir::DialectRegistry registry;
-  mlir::registerOpenMPDialectTranslation(registry);
-  mlir::registerLLVMDialectTranslation(registry);
-  context.appendDialectRegistry(registry);
-  loadDialects(context, syclIsDevice);
+static void registerDialects(MLIRContext &Ctx, const bool SYCLIsDevice) {
+  mlir::DialectRegistry Registry;
+  mlir::registerOpenMPDialectTranslation(Registry);
+  mlir::registerLLVMDialectTranslation(Registry);
+  Ctx.appendDialectRegistry(Registry);
+  loadDialects(Ctx, SYCLIsDevice);
 }
 
 // Enable various options for the passmanager
-static void enableOptionsPM(mlir::PassManager &pm) {
-  DefaultTimingManager tm;
-  applyDefaultTimingManagerCLOptions(tm);
-  TimingScope timing = tm.getRootScope();
+static void enableOptionsPM(mlir::PassManager &PM) {
+  DefaultTimingManager TM;
+  applyDefaultTimingManagerCLOptions(TM);
+  TimingScope Timing = TM.getRootScope();
 
-  pm.enableVerifier(EarlyVerifier);
-  applyPassManagerCLOptions(pm);
-  pm.enableTiming(timing);
+  PM.enableVerifier(EarlyVerifier);
+  applyPassManagerCLOptions(PM);
+  PM.enableTiming(Timing);
 }
 
 // MLIR canonicalization & cleanup.
-static int canonicalize(mlir::MLIRContext &context,
-                        mlir::OwningOpRef<mlir::ModuleOp> &module) {
-  mlir::PassManager pm(&context);
-  enableOptionsPM(pm);
+static int canonicalize(mlir::MLIRContext &Ctx,
+                        mlir::OwningOpRef<mlir::ModuleOp> &Module) {
+  mlir::PassManager PM(&Ctx);
+  enableOptionsPM(PM);
 
-  mlir::OpPassManager &optPM = pm.nestAny();
-  GreedyRewriteConfig canonicalizerConfig;
-  canonicalizerConfig.maxIterations = CanonicalizeIterations;
+  mlir::OpPassManager &OptPM = PM.nestAny();
+  GreedyRewriteConfig CanonicalizerConfig;
+  CanonicalizerConfig.maxIterations = CanonicalizeIterations;
 
-  optPM.addPass(mlir::createCSEPass());
-  optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-  optPM.addPass(polygeist::createMem2RegPass());
-  optPM.addPass(mlir::createCSEPass());
-  optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-  optPM.addPass(polygeist::createMem2RegPass());
-  optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-  optPM.addPass(polygeist::createRemoveTrivialUsePass());
-  optPM.addPass(polygeist::createMem2RegPass());
-  optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-  optPM.addPass(polygeist::createLoopRestructurePass());
-  optPM.addPass(polygeist::replaceAffineCFGPass());
-  optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+  OptPM.addPass(mlir::createCSEPass());
+  OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
+  OptPM.addPass(polygeist::createMem2RegPass());
+  OptPM.addPass(mlir::createCSEPass());
+  OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
+  OptPM.addPass(polygeist::createMem2RegPass());
+  OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
+  OptPM.addPass(polygeist::createRemoveTrivialUsePass());
+  OptPM.addPass(polygeist::createMem2RegPass());
+  OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
+  OptPM.addPass(polygeist::createLoopRestructurePass());
+  OptPM.addPass(polygeist::replaceAffineCFGPass());
+  OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
   if (ScalarReplacement)
-    pm.addNestedPass<func::FuncOp>(mlir::createAffineScalarReplacementPass());
+    PM.addNestedPass<func::FuncOp>(mlir::createAffineScalarReplacementPass());
   if (ParallelLICM)
-    optPM.addPass(polygeist::createParallelLICMPass());
+    OptPM.addPass(polygeist::createParallelLICMPass());
   else
-    optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
-  optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-  optPM.addPass(polygeist::createCanonicalizeForPass());
-  optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+    OptPM.addPass(mlir::createLoopInvariantCodeMotionPass());
+  OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
+  OptPM.addPass(polygeist::createCanonicalizeForPass());
+  OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
   if (RaiseToAffine) {
-    optPM.addPass(polygeist::createCanonicalizeForPass());
-    optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+    OptPM.addPass(polygeist::createCanonicalizeForPass());
+    OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (ParallelLICM)
-      optPM.addPass(polygeist::createParallelLICMPass());
+      OptPM.addPass(polygeist::createParallelLICMPass());
     else
-      optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
-    optPM.addPass(polygeist::createRaiseSCFToAffinePass());
-    optPM.addPass(polygeist::replaceAffineCFGPass());
+      OptPM.addPass(mlir::createLoopInvariantCodeMotionPass());
+    OptPM.addPass(polygeist::createRaiseSCFToAffinePass());
+    OptPM.addPass(polygeist::replaceAffineCFGPass());
     if (ScalarReplacement)
-      pm.addNestedPass<func::FuncOp>(mlir::createAffineScalarReplacementPass());
+      PM.addNestedPass<func::FuncOp>(mlir::createAffineScalarReplacementPass());
   }
-  if (mlir::failed(pm.run(module.get()))) {
+  if (mlir::failed(PM.run(Module.get()))) {
     llvm::errs() << "*** Canonicalization failed. Module: ***\n";
-    module->dump();
+    Module->dump();
     return 4;
   }
-  if (mlir::failed(mlir::verify(module.get()))) {
+  if (mlir::failed(mlir::verify(Module.get()))) {
     llvm::errs()
         << "*** Verification after canonicalization failed. Module: ***\n";
-    module->dump();
+    Module->dump();
     return 5;
   }
   LLVM_DEBUG({
     llvm::dbgs() << "*** Module after canonicalize ***\n";
-    module->dump();
+    Module->dump();
   });
 
   return 0;
 }
 
 // Optimize the MLIR.
-static int optimize(mlir::MLIRContext &context,
+static int optimize(mlir::MLIRContext &Ctx,
                     const llvm::OptimizationLevel &OptimizationLevel,
-                    mlir::OwningOpRef<mlir::ModuleOp> &module) {
-  mlir::PassManager pm(&context);
-  enableOptionsPM(pm);
+                    mlir::OwningOpRef<mlir::ModuleOp> &Module) {
+  mlir::PassManager PM(&Ctx);
+  enableOptionsPM(PM);
 
-  mlir::OpPassManager &optPM = pm.nestAny();
-  GreedyRewriteConfig canonicalizerConfig;
-  canonicalizerConfig.maxIterations = CanonicalizeIterations;
+  mlir::OpPassManager &OptPM = PM.nestAny();
+  GreedyRewriteConfig CanonicalizerConfig;
+  CanonicalizerConfig.maxIterations = CanonicalizeIterations;
 
   if (DetectReduction)
-    optPM.addPass(polygeist::detectReductionPass());
+    OptPM.addPass(polygeist::detectReductionPass());
 
   if (OptimizationLevel != llvm::OptimizationLevel::O0) {
-    optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-    optPM.addPass(mlir::createCSEPass());
+    OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
+    OptPM.addPass(mlir::createCSEPass());
     // Note: affine dialects must be lowered to allow callees containing affine
     // operations to be inlined.
     if (RaiseToAffine)
-      optPM.addPass(mlir::createLowerAffinePass());
-    pm.addPass(sycl::createInlinePass(sycl::InlineMode::Simple,
+      OptPM.addPass(mlir::createLowerAffinePass());
+    PM.addPass(sycl::createInlinePass(sycl::InlineMode::Simple,
                                       /* RemoveDeadCallees */ false));
 
-    mlir::OpPassManager &optPM2 = pm.nestAny();
-    optPM2.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-    optPM2.addPass(mlir::createCSEPass());
-    optPM2.addPass(polygeist::createMem2RegPass());
-    optPM2.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-    optPM2.addPass(mlir::createCSEPass());
-    optPM2.addPass(polygeist::createCanonicalizeForPass());
+    mlir::OpPassManager &OptPM2 = PM.nestAny();
+    OptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
+    OptPM2.addPass(mlir::createCSEPass());
+    OptPM2.addPass(polygeist::createMem2RegPass());
+    OptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
+    OptPM2.addPass(mlir::createCSEPass());
+    OptPM2.addPass(polygeist::createCanonicalizeForPass());
     if (RaiseToAffine)
-      optPM2.addPass(polygeist::createRaiseSCFToAffinePass());
-    optPM2.addPass(polygeist::replaceAffineCFGPass());
-    optPM2.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-    optPM2.addPass(mlir::createCSEPass());
+      OptPM2.addPass(polygeist::createRaiseSCFToAffinePass());
+    OptPM2.addPass(polygeist::replaceAffineCFGPass());
+    OptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
+    OptPM2.addPass(mlir::createCSEPass());
     if (ParallelLICM)
-      optPM2.addPass(polygeist::createParallelLICMPass());
+      OptPM2.addPass(polygeist::createParallelLICMPass());
     else
-      optPM2.addPass(mlir::createLoopInvariantCodeMotionPass());
-    optPM2.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+      OptPM2.addPass(mlir::createLoopInvariantCodeMotionPass());
+    OptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
   }
 
-  if (mlir::failed(pm.run(module.get()))) {
+  if (mlir::failed(PM.run(Module.get()))) {
     llvm::errs() << "*** Optimize failed. Module: ***\n";
-    module->dump();
+    Module->dump();
     return 6;
   }
-  if (mlir::failed(mlir::verify(module.get()))) {
+  if (mlir::failed(mlir::verify(Module.get()))) {
     llvm::errs() << "** Verification after optimization failed. Module: ***\n";
-    module->dump();
+    Module->dump();
     return 7;
   }
   LLVM_DEBUG({
     llvm::dbgs() << "*** Module after optimize ***\n";
-    module->dump();
+    Module->dump();
   });
 
   return 0;
 }
 
 // CUDA specific optimization (add parallel loops around CUDA).
-static int optimizeCUDA(mlir::MLIRContext &context,
-                        mlir::OwningOpRef<mlir::ModuleOp> &module) {
+static int optimizeCUDA(mlir::MLIRContext &Ctx,
+                        mlir::OwningOpRef<mlir::ModuleOp> &Module) {
   if (!CudaLower)
     return 0;
 
-  constexpr int unrollSize = 32;
-  GreedyRewriteConfig canonicalizerConfig;
-  canonicalizerConfig.maxIterations = CanonicalizeIterations;
+  constexpr int UnrollSize = 32;
+  GreedyRewriteConfig CanonicalizerConfig;
+  CanonicalizerConfig.maxIterations = CanonicalizeIterations;
 
-  mlir::PassManager pm(&context);
-  enableOptionsPM(pm);
+  mlir::PassManager PM(&Ctx);
+  enableOptionsPM(PM);
 
-  mlir::OpPassManager &optPM = pm.nestAny();
-  optPM.addPass(mlir::createLowerAffinePass());
-  optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-  pm.addPass(polygeist::createParallelLowerPass());
-  pm.addPass(mlir::createSymbolDCEPass());
-  mlir::OpPassManager &noptPM = pm.nestAny();
-  noptPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-  noptPM.addPass(polygeist::createMem2RegPass());
-  noptPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+  mlir::OpPassManager &OptPM = PM.nestAny();
+  OptPM.addPass(mlir::createLowerAffinePass());
+  OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
+  PM.addPass(polygeist::createParallelLowerPass());
+  PM.addPass(mlir::createSymbolDCEPass());
+  mlir::OpPassManager &NOptPM = PM.nestAny();
+  NOptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
+  NOptPM.addPass(polygeist::createMem2RegPass());
+  NOptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
 
-  mlir::OpPassManager &noptPM2 = pm.nestAny();
-  noptPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-  noptPM2.addPass(polygeist::createMem2RegPass());
-  noptPM2.addPass(polygeist::createCanonicalizeForPass());
-  noptPM2.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-  noptPM2.addPass(mlir::createCSEPass());
+  mlir::OpPassManager &NOptPM2 = PM.nestAny();
+  NOptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
+  NOptPM2.addPass(polygeist::createMem2RegPass());
+  NOptPM2.addPass(polygeist::createCanonicalizeForPass());
+  NOptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
+  NOptPM2.addPass(mlir::createCSEPass());
   if (ParallelLICM)
-    noptPM2.addPass(polygeist::createParallelLICMPass());
+    NOptPM2.addPass(polygeist::createParallelLICMPass());
   else
-    noptPM2.addPass(mlir::createLoopInvariantCodeMotionPass());
-  noptPM2.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+    NOptPM2.addPass(mlir::createLoopInvariantCodeMotionPass());
+  NOptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
   if (RaiseToAffine) {
-    noptPM2.addPass(polygeist::createCanonicalizeForPass());
-    noptPM2.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+    NOptPM2.addPass(polygeist::createCanonicalizeForPass());
+    NOptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (ParallelLICM)
-      noptPM2.addPass(polygeist::createParallelLICMPass());
+      NOptPM2.addPass(polygeist::createParallelLICMPass());
     else
-      noptPM2.addPass(mlir::createLoopInvariantCodeMotionPass());
-    noptPM2.addPass(polygeist::createRaiseSCFToAffinePass());
-    noptPM2.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-    noptPM2.addPass(polygeist::replaceAffineCFGPass());
-    noptPM2.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+      NOptPM2.addPass(mlir::createLoopInvariantCodeMotionPass());
+    NOptPM2.addPass(polygeist::createRaiseSCFToAffinePass());
+    NOptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
+    NOptPM2.addPass(polygeist::replaceAffineCFGPass());
+    NOptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (LoopUnroll)
-      noptPM2.addPass(mlir::createLoopUnrollPass(unrollSize, false, true));
-    noptPM2.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-    noptPM2.addPass(mlir::createCSEPass());
-    noptPM2.addPass(polygeist::createMem2RegPass());
-    noptPM2.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+      NOptPM2.addPass(mlir::createLoopUnrollPass(UnrollSize, false, true));
+    NOptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
+    NOptPM2.addPass(mlir::createCSEPass());
+    NOptPM2.addPass(polygeist::createMem2RegPass());
+    NOptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (ParallelLICM)
-      noptPM2.addPass(polygeist::createParallelLICMPass());
+      NOptPM2.addPass(polygeist::createParallelLICMPass());
     else
-      noptPM2.addPass(mlir::createLoopInvariantCodeMotionPass());
-    noptPM2.addPass(polygeist::createRaiseSCFToAffinePass());
-    noptPM2.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-    noptPM2.addPass(polygeist::replaceAffineCFGPass());
-    noptPM2.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+      NOptPM2.addPass(mlir::createLoopInvariantCodeMotionPass());
+    NOptPM2.addPass(polygeist::createRaiseSCFToAffinePass());
+    NOptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
+    NOptPM2.addPass(polygeist::replaceAffineCFGPass());
+    NOptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (ScalarReplacement)
-      pm.addNestedPass<func::FuncOp>(mlir::createAffineScalarReplacementPass());
+      PM.addNestedPass<func::FuncOp>(mlir::createAffineScalarReplacementPass());
   }
-  if (mlir::failed(pm.run(module.get()))) {
+  if (mlir::failed(PM.run(Module.get()))) {
     llvm::errs() << "*** Optimize CUDA failed. Module: ***\n";
-    module->dump();
+    Module->dump();
     return 8;
   }
-  if (mlir::failed(mlir::verify(module.get()))) {
+  if (mlir::failed(mlir::verify(Module.get()))) {
     llvm::errs()
         << "*** Verification after CUDA optimization failed. Module: ***\n";
-    module->dump();
+    Module->dump();
     return 9;
   }
   LLVM_DEBUG({
     llvm::dbgs() << "*** Module after optimize CUDA ***\n";
-    module->dump();
+    Module->dump();
   });
 
   return 0;
 }
 
-static void finalizeCUDA(mlir::PassManager &pm) {
+static void finalizeCUDA(mlir::PassManager &PM) {
   if (!CudaLower)
     return;
 
-  mlir::OpPassManager &optPM = pm.nestAny();
+  mlir::OpPassManager &OptPM = PM.nestAny();
 
-  constexpr int unrollSize = 32;
-  GreedyRewriteConfig canonicalizerConfig;
-  canonicalizerConfig.maxIterations = CanonicalizeIterations;
+  constexpr int UnrollSize = 32;
+  GreedyRewriteConfig CanonicalizerConfig;
+  CanonicalizerConfig.maxIterations = CanonicalizeIterations;
 
-  optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-  optPM.addPass(mlir::createCSEPass());
-  optPM.addPass(polygeist::createMem2RegPass());
-  optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-  optPM.addPass(mlir::createCSEPass());
-  optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-  optPM.addPass(polygeist::createCanonicalizeForPass());
-  optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+  OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
+  OptPM.addPass(mlir::createCSEPass());
+  OptPM.addPass(polygeist::createMem2RegPass());
+  OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
+  OptPM.addPass(mlir::createCSEPass());
+  OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
+  OptPM.addPass(polygeist::createCanonicalizeForPass());
+  OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
 
   if (RaiseToAffine) {
-    optPM.addPass(polygeist::createCanonicalizeForPass());
-    optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+    OptPM.addPass(polygeist::createCanonicalizeForPass());
+    OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (ParallelLICM)
-      optPM.addPass(polygeist::createParallelLICMPass());
+      OptPM.addPass(polygeist::createParallelLICMPass());
     else
-      optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
-    optPM.addPass(polygeist::createRaiseSCFToAffinePass());
-    optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-    optPM.addPass(polygeist::replaceAffineCFGPass());
-    optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+      OptPM.addPass(mlir::createLoopInvariantCodeMotionPass());
+    OptPM.addPass(polygeist::createRaiseSCFToAffinePass());
+    OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
+    OptPM.addPass(polygeist::replaceAffineCFGPass());
+    OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (ScalarReplacement)
-      pm.addNestedPass<func::FuncOp>(mlir::createAffineScalarReplacementPass());
+      PM.addNestedPass<func::FuncOp>(mlir::createAffineScalarReplacementPass());
   }
   if (ToCPU == "continuation") {
-    optPM.addPass(polygeist::createBarrierRemovalContinuation());
-    // pm.nest<mlir::FuncOp>().addPass(mlir::createCanonicalizerPass());
+    OptPM.addPass(polygeist::createBarrierRemovalContinuation());
+    // PM.nest<mlir::FuncOp>().addPass(mlir::createCanonicalizerPass());
   } else if (ToCPU.size() != 0) {
-    optPM.addPass(polygeist::createCPUifyPass(ToCPU));
+    OptPM.addPass(polygeist::createCPUifyPass(ToCPU));
   }
-  optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-  optPM.addPass(mlir::createCSEPass());
-  optPM.addPass(polygeist::createMem2RegPass());
-  optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-  optPM.addPass(mlir::createCSEPass());
+  OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
+  OptPM.addPass(mlir::createCSEPass());
+  OptPM.addPass(polygeist::createMem2RegPass());
+  OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
+  OptPM.addPass(mlir::createCSEPass());
   if (RaiseToAffine) {
-    optPM.addPass(polygeist::createCanonicalizeForPass());
-    optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+    OptPM.addPass(polygeist::createCanonicalizeForPass());
+    OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (ParallelLICM)
-      optPM.addPass(polygeist::createParallelLICMPass());
+      OptPM.addPass(polygeist::createParallelLICMPass());
     else
-      optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
-    optPM.addPass(polygeist::createRaiseSCFToAffinePass());
-    optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-    optPM.addPass(polygeist::replaceAffineCFGPass());
-    optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+      OptPM.addPass(mlir::createLoopInvariantCodeMotionPass());
+    OptPM.addPass(polygeist::createRaiseSCFToAffinePass());
+    OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
+    OptPM.addPass(polygeist::replaceAffineCFGPass());
+    OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (LoopUnroll)
-      optPM.addPass(mlir::createLoopUnrollPass(unrollSize, false, true));
-    optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-    optPM.addPass(mlir::createCSEPass());
-    optPM.addPass(polygeist::createMem2RegPass());
-    optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+      OptPM.addPass(mlir::createLoopUnrollPass(UnrollSize, false, true));
+    OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
+    OptPM.addPass(mlir::createCSEPass());
+    OptPM.addPass(polygeist::createMem2RegPass());
+    OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (ParallelLICM)
-      optPM.addPass(polygeist::createParallelLICMPass());
+      OptPM.addPass(polygeist::createParallelLICMPass());
     else
-      optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
-    optPM.addPass(polygeist::createRaiseSCFToAffinePass());
-    optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-    optPM.addPass(polygeist::replaceAffineCFGPass());
-    optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+      OptPM.addPass(mlir::createLoopInvariantCodeMotionPass());
+    OptPM.addPass(polygeist::createRaiseSCFToAffinePass());
+    OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
+    OptPM.addPass(polygeist::replaceAffineCFGPass());
+    OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (ScalarReplacement)
-      pm.addNestedPass<func::FuncOp>(mlir::createAffineScalarReplacementPass());
+      PM.addNestedPass<func::FuncOp>(mlir::createAffineScalarReplacementPass());
   }
 }
 
-static int finalize(mlir::MLIRContext &context,
-                    mlir::OwningOpRef<mlir::ModuleOp> &module,
+static int finalize(mlir::MLIRContext &Ctx,
+                    mlir::OwningOpRef<mlir::ModuleOp> &Module,
                     llvm::DataLayout &DL, bool &LinkOMP) {
-  mlir::PassManager pm(&context);
-  enableOptionsPM(pm);
+  mlir::PassManager PM(&Ctx);
+  enableOptionsPM(PM);
 
-  GreedyRewriteConfig canonicalizerConfig;
-  canonicalizerConfig.maxIterations = CanonicalizeIterations;
+  GreedyRewriteConfig CanonicalizerConfig;
+  CanonicalizerConfig.maxIterations = CanonicalizeIterations;
 
-  finalizeCUDA(pm);
+  finalizeCUDA(PM);
 
-  pm.addPass(mlir::createSymbolDCEPass());
+  PM.addPass(mlir::createSymbolDCEPass());
 
   if (EmitLLVM || !EmitAssembly || EmitOpenMPIR) {
-    pm.addPass(mlir::createLowerAffinePass());
+    PM.addPass(mlir::createLowerAffinePass());
     if (InnerSerialize)
-      pm.addPass(polygeist::createInnerSerializationPass());
+      PM.addPass(polygeist::createInnerSerializationPass());
 
-    // pm.nest<mlir::FuncOp>().addPass(mlir::createConvertMathToLLVMPass());
-    if (mlir::failed(pm.run(module.get()))) {
+    // PM.nest<mlir::FuncOp>().addPass(mlir::createConvertMathToLLVMPass());
+    if (mlir::failed(PM.run(Module.get()))) {
       llvm::errs() << "*** Finalize failed (phase 1). Module: ***\n";
-      module->dump();
+      Module->dump();
       return 10;
     }
-    if (mlir::failed(mlir::verify(module.get()))) {
+    if (mlir::failed(mlir::verify(Module.get()))) {
       llvm::errs() << "*** Verification after finalization failed (phase 1). "
                       "Module: ***\n";
-      module->dump();
+      Module->dump();
       return 11;
     }
     LLVM_DEBUG({
       llvm::dbgs() << "*** Module after finalize (phase 1) ***\n";
-      module->dump();
+      Module->dump();
     });
 
-    mlir::PassManager pm2(&context);
+    mlir::PassManager PM2(&Ctx);
     if (SCFOpenMP) {
-      pm2.addPass(createConvertSCFToOpenMPPass());
+      PM2.addPass(createConvertSCFToOpenMPPass());
     }
-    pm2.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+    PM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (OpenMPOpt) {
-      pm2.addPass(polygeist::createOpenMPOptPass());
-      pm2.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+      PM2.addPass(polygeist::createOpenMPOptPass());
+      PM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     }
-    pm2.addPass(polygeist::createMem2RegPass());
-    pm2.addPass(mlir::createCSEPass());
-    pm2.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-    if (mlir::failed(pm2.run(module.get()))) {
+    PM2.addPass(polygeist::createMem2RegPass());
+    PM2.addPass(mlir::createCSEPass());
+    PM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
+    if (mlir::failed(PM2.run(Module.get()))) {
       llvm::errs() << "*** Finalize failed (phase 2). Module: ***\n";
-      module->dump();
+      Module->dump();
       return 12;
     }
-    if (mlir::failed(mlir::verify(module.get()))) {
+    if (mlir::failed(mlir::verify(Module.get()))) {
       llvm::errs() << "*** Verification after finalization failed (phase 2). "
                       "Module: ***\n";
-      module->dump();
+      Module->dump();
       return 13;
     }
     LLVM_DEBUG({
       llvm::dbgs() << "*** Module after finalize (phase 2) ***\n";
-      module->dump();
+      Module->dump();
     });
 
     if (!EmitOpenMPIR) {
-      module->walk([&](mlir::omp::ParallelOp) { LinkOMP = true; });
-      mlir::PassManager pm3(&context);
-      pm3.addPass(mlir::sycl::createSYCLMethodToSYCLCallPass());
-      pm3.addPass(polygeist::createConvertToLLVMABIPass());
-      LowerToLLVMOptions options(&context);
-      options.dataLayout = DL;
+      Module->walk([&](mlir::omp::ParallelOp) { LinkOMP = true; });
+      mlir::PassManager PM3(&Ctx);
+      PM3.addPass(mlir::sycl::createSYCLMethodToSYCLCallPass());
+      PM3.addPass(polygeist::createConvertToLLVMABIPass());
+      LowerToLLVMOptions Options(&Ctx);
+      Options.dataLayout = DL;
       // invalid for gemm.c init array
       // options.useBarePtrCallConv = true;
-      pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(options));
-      // pm3.addPass(mlir::createLowerFuncToLLVMPass(options));
-      pm3.addPass(polygeist::createLegalizeForSPIRVPass());
+      PM3.addPass(polygeist::createConvertPolygeistToLLVMPass(Options));
+      // PM3.addPass(mlir::createLowerFuncToLLVMPass(options));
+      PM3.addPass(polygeist::createLegalizeForSPIRVPass());
 
       // Needed because SYCLMethodOps lowering might introduce redundant
       // operations.
-      pm3.addPass(mlir::createCSEPass());
-      pm3.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-      if (mlir::failed(pm3.run(module.get()))) {
+      PM3.addPass(mlir::createCSEPass());
+      PM3.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
+      if (mlir::failed(PM3.run(Module.get()))) {
         llvm::errs() << "*** Finalize failed (phase 3). Module: ***\n";
-        module->dump();
+        Module->dump();
         return 14;
       }
-      if (mlir::failed(mlir::verify(module.get()))) {
+      if (mlir::failed(mlir::verify(Module.get()))) {
         llvm::errs() << "Verification after finalization failed (phase 3). "
                         "Module: ***\n";
-        module->dump();
+        Module->dump();
         return 15;
       }
       LLVM_DEBUG({
         llvm::dbgs() << "*** Module after finalize (phase 3) ***\n";
-        module->dump();
+        Module->dump();
       });
     }
   } else {
-    if (mlir::failed(pm.run(module.get()))) {
+    if (mlir::failed(PM.run(Module.get()))) {
       llvm::errs() << "*** Finalize failed. Module: ***\n";
-      module->dump();
+      Module->dump();
       return 16;
     }
-    if (mlir::failed(mlir::verify(module.get()))) {
+    if (mlir::failed(mlir::verify(Module.get()))) {
       llvm::errs() << "*** Verification after finalization failed. "
                       "Module: ***\n";
-      module->dump();
+      Module->dump();
       return 17;
     }
     LLVM_DEBUG({
       llvm::dbgs() << "*** Module after finalize ***\n";
-      module->dump();
+      Module->dump();
     });
   }
 
@@ -660,27 +660,27 @@ static int finalize(mlir::MLIRContext &context,
 
 // Create and execute the MLIR transformations pipeline.
 static int createAndExecutePassPipeline(
-    mlir::MLIRContext &context, mlir::OwningOpRef<mlir::ModuleOp> &module,
-    llvm::DataLayout &DL, llvm::Triple &triple,
+    mlir::MLIRContext &Ctx, mlir::OwningOpRef<mlir::ModuleOp> &Module,
+    llvm::DataLayout &DL, llvm::Triple &Triple,
     const llvm::OptimizationLevel &OptimizationLevel, bool &LinkOMP) {
   // MLIR canonicalization & cleanup.
-  int rc = canonicalize(context, module);
-  if (rc != 0)
-    return rc;
+  int RC = canonicalize(Ctx, Module);
+  if (RC != 0)
+    return RC;
 
   // MLIR optimizations.
-  rc = optimize(context, OptimizationLevel, module);
-  if (rc != 0)
-    return rc;
+  RC = optimize(Ctx, OptimizationLevel, Module);
+  if (RC != 0)
+    return RC;
 
   // CUDA specific MLIR optimizations.
-  rc = optimizeCUDA(context, module);
-  if (rc != 0)
-    return rc;
+  RC = optimizeCUDA(Ctx, Module);
+  if (RC != 0)
+    return RC;
 
-  rc = finalize(context, module, DL, LinkOMP);
-  if (rc != 0)
-    return rc;
+  RC = finalize(Ctx, Module, DL, LinkOMP);
+  if (RC != 0)
+    return RC;
 
   return 0;
 }
@@ -746,99 +746,99 @@ runOptimizationPipeline(llvm::Module &Module,
 }
 
 // Lower the MLIR in the given module, compile the generated LLVM IR.
-static int compileModule(mlir::OwningOpRef<mlir::ModuleOp> &module,
-                         StringRef moduleId, mlir::MLIRContext &context,
-                         llvm::DataLayout &DL, llvm::Triple &triple,
+static int compileModule(mlir::OwningOpRef<mlir::ModuleOp> &Module,
+                         StringRef ModuleId, mlir::MLIRContext &Ctx,
+                         llvm::DataLayout &DL, llvm::Triple &Triple,
                          const llvm::OptimizationLevel &OptimizationLevel,
                          const llvm::SmallVectorImpl<const char *> &LinkArgs,
                          const char *Argv0) {
   bool LinkOMP = FOpenMP;
-  int rc = createAndExecutePassPipeline(context, module, DL, triple,
+  int RC = createAndExecutePassPipeline(Ctx, Module, DL, Triple,
                                         OptimizationLevel, LinkOMP);
-  if (rc != 0) {
-    llvm::errs() << "Failed to execute pass pipeline correctly, rc = " << rc
+  if (RC != 0) {
+    llvm::errs() << "Failed to execute pass pipeline correctly, RC = " << RC
                  << ".\n";
-    return rc;
+    return RC;
   }
 
-  bool emitBC = EmitLLVM && !EmitAssembly;
-  bool emitMLIR = EmitAssembly && !EmitLLVM;
-  if (emitMLIR) {
+  bool EmitBC = EmitLLVM && !EmitAssembly;
+  bool EmitMLIR = EmitAssembly && !EmitLLVM;
+  if (EmitMLIR) {
     if (Output == "-") {
       // Write the MLIR to stdout.
       LLVM_DEBUG(llvm::dbgs() << "*** MLIR Produced ***\n");
-      module->print(llvm::outs());
+      Module->print(llvm::outs());
     } else {
       // Write the MLIR to a file.
       std::error_code EC;
       llvm::raw_fd_ostream out(Output, EC);
-      module->print(out);
+      Module->print(out);
       LLVM_DEBUG(llvm::dbgs()
                  << "*** Dumped MLIR in file '" << Output << "' ***\n");
     }
   } else {
     // Generate LLVM IR.
-    llvm::LLVMContext llvmContext;
-    auto llvmModule =
-        mlir::translateModuleToLLVMIR(module.get(), llvmContext, moduleId);
-    if (!llvmModule) {
-      module->dump();
+    llvm::LLVMContext LLVMCtx;
+    auto LLVMModule =
+        mlir::translateModuleToLLVMIR(Module.get(), LLVMCtx, ModuleId);
+    if (!LLVMModule) {
+      Module->dump();
       llvm::errs() << "Failed to emit LLVM IR\n";
       return -1;
     }
 
-    llvmModule->setDataLayout(DL);
-    llvmModule->setTargetTriple(triple.getTriple());
+    LLVMModule->setDataLayout(DL);
+    LLVMModule->setTargetTriple(Triple.getTriple());
     LLVM_DEBUG(llvm::dbgs()
                << "*** Translated MLIR to LLVM IR successfully ***\n");
 
-    if (emitBC || EmitLLVM) {
+    if (EmitBC || EmitLLVM) {
       // Not needed when emitting binary for now; will be handled by the driver.
-      runOptimizationPipeline(*llvmModule, OptimizationLevel);
+      runOptimizationPipeline(*LLVMModule, OptimizationLevel);
     }
 
-    if (emitBC) {
+    if (EmitBC) {
       assert(Output != "-" && "Expecting output file");
       // Write the LLVM BC to a file.
       std::error_code EC;
-      llvm::raw_fd_ostream out(Output, EC);
-      WriteBitcodeToFile(*llvmModule, out);
+      llvm::raw_fd_ostream Out(Output, EC);
+      WriteBitcodeToFile(*LLVMModule, Out);
       LLVM_DEBUG(llvm::dbgs()
                  << "*** Dumped LLVM BC in file '" << Output << "' ***\n");
     } else if (EmitLLVM) {
       if (Output == "-") {
         // Write the LLVM IR to stdout.
         LLVM_DEBUG(llvm::dbgs() << "*** LLVM IR Produced ***\n");
-        llvm::outs() << *llvmModule << "\n";
+        llvm::outs() << *LLVMModule << "\n";
       } else {
         // Write the LLVM IR to a file.
         std::error_code EC;
-        llvm::raw_fd_ostream out(Output, EC);
-        out << *llvmModule << "\n";
+        llvm::raw_fd_ostream Out(Output, EC);
+        Out << *LLVMModule << "\n";
         LLVM_DEBUG(llvm::dbgs()
                    << "*** Dumped LLVM IR in file '" << Output << "' ***\n");
       }
     } else {
       // Compile the LLVM IR.
-      auto tmpFile =
+      auto TmpFile =
           llvm::sys::fs::TempFile::create("/tmp/intermediate%%%%%%%.ll");
-      if (!tmpFile) {
-        llvm::errs() << "Failed to create " << tmpFile->TmpName << "\n";
+      if (!TmpFile) {
+        llvm::errs() << "Failed to create " << TmpFile->TmpName << "\n";
         return -1;
       }
-      llvm::raw_fd_ostream out(tmpFile->FD, /*shouldClose*/ false);
-      out << *llvmModule << "\n";
-      out.flush();
+      llvm::raw_fd_ostream Out(TmpFile->FD, /*shouldClose*/ false);
+      Out << *LLVMModule << "\n";
+      Out.flush();
 
-      int res = emitBinary(Argv0, tmpFile->TmpName.c_str(), LinkArgs, LinkOMP);
-      if (res != 0)
+      int Res = emitBinary(Argv0, TmpFile->TmpName.c_str(), LinkArgs, LinkOMP);
+      if (Res != 0)
         llvm::errs() << "Compilation failed\n";
 
-      if (tmpFile->discard()) {
-        llvm::errs() << "Failed to erase " << tmpFile->TmpName << "\n";
+      if (TmpFile->discard()) {
+        llvm::errs() << "Failed to erase " << TmpFile->TmpName << "\n";
         return -1;
       }
-      return res;
+      return Res;
     }
   }
 
@@ -915,160 +915,160 @@ static CgeistOptions
 splitCommandLineOptions(int argc, char **argv,
                         SmallVector<const char *> &LinkageArgs,
                         SmallVector<const char *> &MLIRArgs) {
-  bool syclIsDevice = false;
-  bool linkOnly = false;
+  bool SYCLIsDevice = false;
+  bool LinkOnly = false;
   llvm::OptimizationLevel OptimizationLevel =
       CgeistOptions::getDefaultOptimizationLevel();
 
-  for (int i = 0; i < argc; i++) {
-    StringRef ref(argv[i]);
-    if (ref == "-Wl,--start-group")
-      linkOnly = true;
-    if (!linkOnly) {
-      if (ref == "-fPIC" || ref == "-c" || ref.startswith("-fsanitize"))
-        LinkageArgs.push_back(argv[i]);
-      else if (ref == "-L" || ref == "-l") {
-        LinkageArgs.push_back(argv[i]);
-        i++;
-        LinkageArgs.push_back(argv[i]);
-      } else if (ref.startswith("-L") || ref.startswith("-l") ||
-                 ref.startswith("-Wl"))
-        LinkageArgs.push_back(argv[i]);
-      else if (ref == "-D" || ref == "-I") {
-        MLIRArgs.push_back(argv[i]);
-        i++;
-        MLIRArgs.push_back(argv[i]);
-      } else if (ref.startswith("-D")) {
+  for (int I = 0; I < argc; I++) {
+    StringRef Ref(argv[I]);
+    if (Ref == "-Wl,--start-group")
+      LinkOnly = true;
+    if (!LinkOnly) {
+      if (Ref == "-fPIC" || Ref == "-c" || Ref.startswith("-fsanitize"))
+        LinkageArgs.push_back(argv[I]);
+      else if (Ref == "-L" || Ref == "-l") {
+        LinkageArgs.push_back(argv[I]);
+        I++;
+        LinkageArgs.push_back(argv[I]);
+      } else if (Ref.startswith("-L") || Ref.startswith("-l") ||
+                 Ref.startswith("-Wl"))
+        LinkageArgs.push_back(argv[I]);
+      else if (Ref == "-D" || Ref == "-I") {
+        MLIRArgs.push_back(argv[I]);
+        I++;
+        MLIRArgs.push_back(argv[I]);
+      } else if (Ref.startswith("-D")) {
         MLIRArgs.push_back("-D");
-        MLIRArgs.push_back(&argv[i][2]);
-      } else if (ref.startswith("-I")) {
+        MLIRArgs.push_back(&argv[I][2]);
+      } else if (Ref.startswith("-I")) {
         MLIRArgs.push_back("-I");
-        MLIRArgs.push_back(&argv[i][2]);
-      } else if (ref == "-fsycl-is-device") {
-        syclIsDevice = true;
-        MLIRArgs.push_back(argv[i]);
-      } else if (ref.consume_front("-O") || ref.consume_front("--optimize")) {
+        MLIRArgs.push_back(&argv[I][2]);
+      } else if (Ref == "-fsycl-is-device") {
+        SYCLIsDevice = true;
+        MLIRArgs.push_back(argv[I]);
+      } else if (Ref.consume_front("-O") || Ref.consume_front("--optimize")) {
         // If several flags are passed, we keep the last one.
-        OptimizationLevel = ExitOnErr(parseOptimizationLevel(ref));
-        LinkageArgs.push_back(argv[i]);
-      } else if (ref == "-g")
-        LinkageArgs.push_back(argv[i]);
+        OptimizationLevel = ExitOnErr(parseOptimizationLevel(Ref));
+        LinkageArgs.push_back(argv[I]);
+      } else if (Ref == "-g")
+        LinkageArgs.push_back(argv[I]);
       else
-        MLIRArgs.push_back(argv[i]);
+        MLIRArgs.push_back(argv[I]);
     } else
-      LinkageArgs.push_back(argv[i]);
+      LinkageArgs.push_back(argv[I]);
 
-    if (ref == "-Wl,--end-group")
-      linkOnly = false;
+    if (Ref == "-Wl,--end-group")
+      LinkOnly = false;
   }
 
-  return {syclIsDevice, OptimizationLevel};
+  return {SYCLIsDevice, OptimizationLevel};
 }
 
 // Fill the module with the MLIR in the inputFile.
-static void loadMLIR(const std::string &inputFile,
-                     mlir::OwningOpRef<ModuleOp> &module,
-                     mlir::MLIRContext &context) {
-  assert(inputFile.substr(inputFile.find_last_of(".") + 1) == "mlir" &&
+static void loadMLIR(const std::string &InputFile,
+                     mlir::OwningOpRef<ModuleOp> &Module,
+                     mlir::MLIRContext &Ctx) {
+  assert(InputFile.substr(InputFile.find_last_of(".") + 1) == "mlir" &&
          "Input file has incorrect extension");
 
-  std::string errorMsg;
-  std::unique_ptr<llvm::MemoryBuffer> input =
-      mlir::openInputFile(inputFile, &errorMsg);
-  if (!input) {
-    llvm::errs() << errorMsg << "\n";
+  std::string ErrorMsg;
+  std::unique_ptr<llvm::MemoryBuffer> Input =
+      mlir::openInputFile(InputFile, &ErrorMsg);
+  if (!Input) {
+    llvm::errs() << ErrorMsg << "\n";
     exit(1);
   }
 
   // Parse the input mlir.
-  llvm::SourceMgr sourceMgr;
-  SourceMgrDiagnosticHandler sourceMgrHandler(sourceMgr, &context);
-  sourceMgr.AddNewSourceBuffer(std::move(input), llvm::SMLoc());
-  module = mlir::parseSourceFile<ModuleOp>(sourceMgr, &context);
-  if (!module) {
-    llvm::errs() << "Error can't load file " << inputFile << "\n";
+  llvm::SourceMgr SourceMgr;
+  SourceMgrDiagnosticHandler SourceMgrHandler(SourceMgr, &Ctx);
+  SourceMgr.AddNewSourceBuffer(std::move(Input), llvm::SMLoc());
+  Module = mlir::parseSourceFile<ModuleOp>(SourceMgr, &Ctx);
+  if (!Module) {
+    llvm::errs() << "Error can't load file " << InputFile << "\n";
     exit(1);
   }
 }
 
 // Generate MLIR for the input files.
 static void
-processInputFiles(const llvm::cl::list<std::string> &inputFiles,
-                  const llvm::cl::list<std::string> &inputCommandArgs,
-                  mlir::MLIRContext &context,
-                  mlir::OwningOpRef<ModuleOp> &module, llvm::DataLayout &DL,
-                  llvm::Triple &triple, const char *Argv0, bool syclIsDevice) {
-  assert(!inputFiles.empty() && "inputFiles should not be empty");
+processInputFiles(const llvm::cl::list<std::string> &InputFiles,
+                  const llvm::cl::list<std::string> &InputCommandArgs,
+                  mlir::MLIRContext &Ctx, mlir::OwningOpRef<ModuleOp> &Module,
+                  llvm::DataLayout &DL, llvm::Triple &Triple, const char *Argv0,
+                  bool SYCLIsDevice) {
+  assert(!InputFiles.empty() && "inputFiles should not be empty");
 
   // Ensure all input files can be opened.
-  std::vector<std::string> files;
-  for (auto inputFile : inputFiles) {
-    std::ifstream ifs(inputFile);
-    if (!ifs.good()) {
-      llvm::errs() << "Not able to open file: " << inputFile << "\n";
+  std::vector<std::string> Files;
+  for (auto InputFile : InputFiles) {
+    std::ifstream Ifs(InputFile);
+    if (!Ifs.good()) {
+      llvm::errs() << "Not able to open file: " << InputFile << "\n";
       exit(-1);
     }
-    files.push_back(inputFile);
+    Files.push_back(InputFile);
   }
 
-  std::vector<std::string> commands;
-  for (auto cmd : inputCommandArgs)
-    commands.push_back(cmd);
+  std::vector<std::string> Commands;
+  for (auto Cmd : InputCommandArgs)
+    Commands.push_back(Cmd);
 
   // Count the number of MLIR input files we might have.
-  int numMLIRFiles =
-      llvm::count_if(inputFiles, [](const std::string &inputFile) {
-        std::string extension =
-            inputFile.substr(inputFile.find_last_of(".") + 1);
-        return (extension == "mlir");
+  int NumMlirFiles =
+      llvm::count_if(InputFiles, [](const std::string &InputFile) {
+        std::string Extension =
+            InputFile.substr(InputFile.find_last_of(".") + 1);
+        return (Extension == "mlir");
       });
 
   // Early exit if we have a input file with a '.mlir' extension.
-  if (numMLIRFiles > 0) {
-    if (files.size() != 1) {
+  if (NumMlirFiles > 0) {
+    if (Files.size() != 1) {
       llvm::errs()
           << "More than one input file has been provided. Only a single "
              "input MLIR file can be processed\n";
       exit(-1);
     }
-    loadMLIR(files[0], module, context);
+    loadMLIR(Files[0], Module, Ctx);
     return;
   }
 
   // Generate MLIR for the C/C++ files.
-  std::string fn = (!syclIsDevice) ? Cfunction.getValue() : "";
-  parseMLIR(Argv0, files, fn, IncludeDirs, Defines, module, triple, DL,
-            commands);
+  std::string Fn = (!SYCLIsDevice) ? Cfunction.getValue() : "";
+  parseMLIR(Argv0, Files, Fn, IncludeDirs, Defines, Module, Triple, DL,
+            Commands);
 }
 
-static bool containsFunctions(mlir::gpu::GPUModuleOp deviceModule) {
-  Region &rgn = deviceModule.getRegion();
-  return !rgn.getOps<mlir::gpu::GPUFuncOp>().empty() ||
-         !rgn.getOps<mlir::func::FuncOp>().empty();
+static bool containsFunctions(mlir::gpu::GPUModuleOp DeviceModule) {
+  Region &Rgn = DeviceModule.getRegion();
+  return !Rgn.getOps<mlir::gpu::GPUFuncOp>().empty() ||
+         !Rgn.getOps<mlir::func::FuncOp>().empty();
 }
 
-static void eraseHostCode(mlir::ModuleOp module) {
+static void eraseHostCode(mlir::ModuleOp Module) {
   LLVM_DEBUG(llvm::dbgs() << "Erasing host code\n");
-  SmallVector<std::reference_wrapper<Operation>> toRemove;
-  std::copy_if(module.begin(), module.end(), std::back_inserter(toRemove),
-               [](Operation &op) { return !isa<mlir::gpu::GPUModuleOp>(op); });
-  for (auto op : toRemove)
-    op.get().erase();
+  SmallVector<std::reference_wrapper<Operation>> ToRemove;
+  std::copy_if(Module.begin(), Module.end(), std::back_inserter(ToRemove),
+               [](Operation &Op) { return !isa<mlir::gpu::GPUModuleOp>(Op); });
+  for (auto Op : ToRemove)
+    Op.get().erase();
 }
 
 int main(int argc, char **argv) {
   if (argc >= 1 && std::string(argv[1]) == "-cc1") {
     SmallVector<const char *> Argv;
-    for (int i = 0; i < argc; i++)
-      Argv.push_back(argv[i]);
-    return ExecuteCC1Tool(Argv);
+    for (int I = 0; I < argc; I++)
+      Argv.push_back(argv[I]);
+    return executeCC1Tool(Argv);
   }
 
   // Forward '-mllvm' arguments to LLVM.
   {
     SmallVector<const char *> Args;
-    for (int i = 0; i < argc; i++)
-      Args.push_back(argv[i]);
+    for (int I = 0; I < argc; I++)
+      Args.push_back(argv[I]);
 
     llvm::ArrayRef<const char *> Argv = makeArrayRef(Args);
     const llvm::opt::OptTable &OptTbl = clang::driver::getDriverOptTable();
