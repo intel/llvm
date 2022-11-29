@@ -10,6 +10,7 @@
 #define __LIBDEVICE_BF16_EMUL_H__
 
 #include "device.h"
+#include "imf_impl_utils.hpp"
 #include <cstdint>
 #include <limits>
 #include <type_traits>
@@ -141,6 +142,91 @@ static Ty __iml_bfloat162integral_u(uint16_t b,
   }
 
   return x_val;
+}
+
+template <typename Ty>
+static Ty __iml_bfloat162integral_s(uint16_t b,
+                                    __iml_rounding_mode rounding_mode) {
+  static_assert(std::is_signed<Ty>::value && std::is_integral<Ty>::value,
+                "__iml_bfloat162integral_s only accepts signed integral type.");
+  typedef typename __iml_get_unsigned<Ty>::utype UTy;
+  uint16_t b_sign = b >> 15;
+  uint16_t b_exp = b >> 7;
+  uint16_t b_mant = b & 0x7F;
+  int16_t b_exp1 = static_cast<int16_t>(b_exp) - 127;
+
+  if (!b_exp) {
+    if (!b_mant)
+      return 0;
+    else if (b_sign && (__IML_RTN == rounding_mode))
+      return -1;
+    else if (!b_sign && (__IML_RTP == rounding_mode))
+      return 1;
+    else
+      return 0;
+  }
+
+  // return 0 for NAN value and convert infinity to max or min.
+  if (b_exp == 0xFF) {
+    // return b_mant ? 0 : std::numeric_limits<Ty>::max();
+    if (b_mant)
+      return 0;
+    else
+      return b_sign ? std::numeric_limits<Ty>::min()
+                    : std::numeric_limits<Ty>::max();
+  }
+
+  // Normalized value can be represented as 1.signifcand * 2^b_exp1
+  // and is equivalent to 1.signifcand * 2^7 * 2^(b_exp1 - 7).
+  // -133 <= b_exp1 - 7 <= 120
+  UTy x_val = b_mant;
+  UTy x_discard;
+  x_val |= (0x1 << 7);
+  b_exp1 -= 7;
+  // Overflow happens
+  if (b_exp1 >= static_cast<int16_t>((sizeof(Ty) * 8) - 8)) {
+    return b_sign ? std::numeric_limits<Ty>::min()
+                  : std::numeric_limits<Ty>::max();
+  }
+
+  if (b_exp1 >= 0) {
+    x_val <<= b_exp1;
+    return !b_sign ? x_val : (~x_val + 1);
+  }
+
+  // b_exp1 < 0, need right shift  -b_exp1 bits, if -b_exp1 > 8, the value
+  // is less than 0.5, so don't need to take special care for RTE
+  if (-b_exp1 > 8) {
+    if (b_sign && (__IML_RTN == rounding_mode))
+      return -1;
+    if (!b_sign && (__IML_RTP == rounding_mode))
+      return 1;
+    return 0;
+  }
+
+  x_discard = x_val & ((static_cast<UTy>(1) << -b_exp1) - 1);
+  UTy mid = static_cast<UTy>(1) << (-b_exp1 - 1);
+  x_val >>= -b_exp1;
+  if (!x_discard)
+    return x_val;
+  switch (rounding_mode) {
+  case __IML_RTE:
+    if ((x_discard > mid) || ((x_discard == mid) && ((x_val & 0x1) == 0x1)))
+      x_val++;
+    break;
+  case __IML_RTN:
+    if (b_sign)
+      x_val++;
+    break;
+  case __IML_RTP:
+    if (!b_sign)
+      x_val++;
+    break;
+  case __IML_RTZ:
+    break;
+  }
+
+  return !b_sign ? x_val : (~x_val + 1);
 }
 
 // We convert bf16 to fp32 and do all arithmetic operations, then convert back.
