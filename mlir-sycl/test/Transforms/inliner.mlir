@@ -97,6 +97,7 @@ gpu.func @gpu_func_callee() -> i32 attributes {passthrough = ["alwaysinline"]} {
 // ALWAYS-INLINE-NEXT:    gpu.return %3 : i32
 // ALWAYS-INLINE-NEXT:  }
 
+// COM: Ensure a func.func can be inlined in a gpu.func caller. 
 // INLINE-LABEL: gpu.func @caller() -> i32 {
 // INLINE-NEXT:    %c1_i32 = arith.constant 1 : i32  
 // INLINE-NEXT:    %0 = sycl.call() {FunctionName = @callee_, MangledFunctionName = @callee, TypeName = @A} : () -> i32
