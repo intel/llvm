@@ -154,7 +154,7 @@ public:
 
   /// Returns true if the given callgraph node has a single use and can be
   /// discarded.
-  bool hasOneUse(CallGraphNode *CGN) const;
+  bool hasOneUseAndDiscardable(CallGraphNode *CGN) const;
 
   /// Recompute the uses held by the given callgraph node.
   void recomputeUses(CallGraphNode *CGN, CallGraph &CG);
@@ -254,7 +254,7 @@ public:
   /// devirtualized calls. Returns failure if there was a fatal error during
   /// inlining.
   static LogicalResult inlineSCC(Inliner &Inliner, CGUseList &UseList,
-                                 CallGraphSCC &SCC,
+                                 CallGraphSCC &SCC, unsigned MaxIterationCount,
                                  Pass::Statistic &NumInlinedCalls);
 
   /// This method properly disposes of callables that became dead during
@@ -401,7 +401,7 @@ bool CGUseList::isDead(CallGraphNode *CGN) const {
   return SymbolIt != DiscardableSymNodeUses.end() && SymbolIt->second == 0;
 }
 
-bool CGUseList::hasOneUse(CallGraphNode *CGN) const {
+bool CGUseList::hasOneUseAndDiscardable(CallGraphNode *CGN) const {
   // If this isn't a symbol node, check for side-effects and SSA use count.
   Operation *Op = CGN->getCallableRegion()->getParentOp();
   if (!isa<SymbolOpInterface>(Op))
@@ -512,7 +512,7 @@ bool InlineHeuristic::shouldInline(ResolvedCall &ResolvedCall,
 
     // Inline a function if inlining makes it dead.
     if (!ShouldInline)
-      ShouldInline |= Uses.hasOneUse(ResolvedCall.TgtNode);
+      ShouldInline |= Uses.hasOneUseAndDiscardable(ResolvedCall.TgtNode);
 
     [[fallthrough]];
   case sycl::InlineMode::AlwaysInline:
@@ -555,10 +555,9 @@ LogicalResult Inliner::runTransformOnSCCs(
 }
 
 LogicalResult Inliner::inlineSCC(Inliner &Inliner, CGUseList &UseList,
-                                 CallGraphSCC &SCC,
+                                 CallGraphSCC &SCC, unsigned MaxIterationCount,
                                  Pass::Statistic &NumInlinedCalls) {
   unsigned IterationCount = 0;
-  unsigned const constexpr MaxIterationCount = 5;
   bool DidSomething = false;
   do {
     DidSomething = inlineCallsInSCC(Inliner, UseList, SCC, NumInlinedCalls);
@@ -694,7 +693,8 @@ LogicalResult InlinePass::runOnCG(Inliner &Inliner, CGUseList &UseList,
                                   CallGraph &CG,
                                   Pass::Statistic &NumInlinedCalls) {
   LogicalResult Res = Inliner::runTransformOnSCCs(CG, [&](CallGraphSCC &SCC) {
-    return Inliner::inlineSCC(Inliner, UseList, SCC, NumInlinedCalls);
+    return Inliner::inlineSCC(Inliner, UseList, SCC,
+                              MaxIterationCount.getValue(), NumInlinedCalls);
   });
 
   // After inlining, make sure to erase any callables proven to be dead.
