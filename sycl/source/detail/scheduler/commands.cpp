@@ -304,7 +304,7 @@ public:
       HostTask.MHostTask.reset();
       return;
     }
-
+    std::cout << "Host task job execution begin " << std::endl;
     try {
       // we're ready to call the user-defined lambda now
       if (HostTask.MHostTask->isInteropTask()) {
@@ -318,6 +318,7 @@ public:
     } catch (...) {
       HostTask.MQueue->reportAsyncException(std::current_exception());
     }
+    std::cout << "Host task job execution end " << std::endl;
 
     HostTask.MHostTask.reset();
 

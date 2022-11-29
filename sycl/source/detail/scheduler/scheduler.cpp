@@ -420,9 +420,10 @@ Scheduler::~Scheduler() {
 void Scheduler::releaseResources() {
   MReleaseStarted = true;
   // TraceEvent trace("releaseResources");
+  std::cout << "releaseResources begin " << std::endl;
   if (DefaultHostQueue) {
     DefaultHostQueue->wait();
-    // std::cout << "DefaultHostQueue finished" << std::endl;
+    std::cout << "DefaultHostQueue wait finished" << std::endl;
   }
   GlobalHandler::instance().drainThreadPool();
   // std::cout << "threads finished" << std::endl;
@@ -438,8 +439,12 @@ void Scheduler::releaseResources() {
   // queue_impl, ~queue_impl is called and buffer for assert (which is created
   // with size only so all confitions for deferred release are satisfied) is
   // added to deferred mem obj storage. So we may end up with leak.
+  std::cout << "cleanupDeferredMemObjects(BlockingT::BLOCKING); begin "
+            << std::endl;
   while (!isDeferredMemObjectsEmpty())
     cleanupDeferredMemObjects(BlockingT::BLOCKING);
+  std::cout << "cleanupDeferredMemObjects(BlockingT::BLOCKING); end "
+            << std::endl;
 }
 
 MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
