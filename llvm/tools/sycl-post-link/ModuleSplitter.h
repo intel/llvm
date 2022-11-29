@@ -253,9 +253,6 @@ getSplitterByMode(ModuleDesc &&MD, IRSplitMode Mode,
                   bool EmitOnlyKernelsAsEntryPoints);
 
 std::unique_ptr<ModuleSplitterBase>
-getLargeGRFSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints);
-
-std::unique_ptr<ModuleSplitterBase>
 getSplitterByOptionalFeatures(ModuleDesc &&MD,
                               bool EmitOnlyKernelsAsEntryPoints);
 

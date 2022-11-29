@@ -803,61 +803,74 @@ static bool loadDeviceLib(const ContextImplPtr Context, const char *Name,
   return Prog != nullptr;
 }
 
-static const char *getDeviceLibFilename(DeviceLibExt Extension) {
-  switch (Extension) {
-  case DeviceLibExt::cl_intel_devicelib_assert:
-    return "libsycl-fallback-cassert.spv";
-  case DeviceLibExt::cl_intel_devicelib_math:
-    return "libsycl-fallback-cmath.spv";
-  case DeviceLibExt::cl_intel_devicelib_math_fp64:
-    return "libsycl-fallback-cmath-fp64.spv";
-  case DeviceLibExt::cl_intel_devicelib_complex:
-    return "libsycl-fallback-complex.spv";
-  case DeviceLibExt::cl_intel_devicelib_complex_fp64:
-    return "libsycl-fallback-complex-fp64.spv";
-  case DeviceLibExt::cl_intel_devicelib_cstring:
-    return "libsycl-fallback-cstring.spv";
-  case DeviceLibExt::cl_intel_devicelib_imf:
-    return "libsycl-fallback-imf.spv";
-  case DeviceLibExt::cl_intel_devicelib_imf_fp64:
-    return "libsycl-fallback-imf-fp64.spv";
-  case DeviceLibExt::cl_intel_devicelib_imf_bf16:
-    return "libsycl-fallback-imf-bf16.spv";
-  }
-  throw compile_program_error("Unhandled (new?) device library extension",
-                              PI_ERROR_INVALID_OPERATION);
+// For each extension, a pair of library names. The first uses native support,
+// the second emulates functionality in software.
+static const std::map<DeviceLibExt, std::pair<const char *, const char *>>
+    DeviceLibNames = {
+        {DeviceLibExt::cl_intel_devicelib_assert,
+         {nullptr, "libsycl-fallback-cassert.spv"}},
+        {DeviceLibExt::cl_intel_devicelib_math,
+         {nullptr, "libsycl-fallback-cmath.spv"}},
+        {DeviceLibExt::cl_intel_devicelib_math_fp64,
+         {nullptr, "libsycl-fallback-cmath-fp64.spv"}},
+        {DeviceLibExt::cl_intel_devicelib_complex,
+         {nullptr, "libsycl-fallback-complex.spv"}},
+        {DeviceLibExt::cl_intel_devicelib_complex_fp64,
+         {nullptr, "libsycl-fallback-complex-fp64.spv"}},
+        {DeviceLibExt::cl_intel_devicelib_cstring,
+         {nullptr, "libsycl-fallback-cstring.spv"}},
+        {DeviceLibExt::cl_intel_devicelib_imf,
+         {nullptr, "libsycl-fallback-imf.spv"}},
+        {DeviceLibExt::cl_intel_devicelib_imf_fp64,
+         {nullptr, "libsycl-fallback-imf-fp64.spv"}},
+        {DeviceLibExt::cl_intel_devicelib_imf_bf16,
+         {nullptr, "libsycl-fallback-imf-bf16.spv"}},
+        {DeviceLibExt::cl_intel_devicelib_bfloat16,
+         {"libsycl-native-bfloat16.spv", "libsycl-fallback-bfloat16.spv"}}};
+
+static const char *getDeviceLibFilename(DeviceLibExt Extension, bool Native) {
+  auto LibPair = DeviceLibNames.find(Extension);
+  const char *Lib = nullptr;
+  if (LibPair != DeviceLibNames.end())
+    Lib = Native ? LibPair->second.first : LibPair->second.second;
+  if (Lib == nullptr)
+    throw compile_program_error("Unhandled (new?) device library extension",
+                                PI_ERROR_INVALID_OPERATION);
+  return Lib;
 }
 
+// For each extension understood by the SYCL runtime, the string representation
+// of its name. Names with devicelib in them are internal to the runtime. Others
+// are actual OpenCL extensions.
+static const std::map<DeviceLibExt, const char *> DeviceLibExtensionStrs = {
+    {DeviceLibExt::cl_intel_devicelib_assert, "cl_intel_devicelib_assert"},
+    {DeviceLibExt::cl_intel_devicelib_math, "cl_intel_devicelib_math"},
+    {DeviceLibExt::cl_intel_devicelib_math_fp64,
+     "cl_intel_devicelib_math_fp64"},
+    {DeviceLibExt::cl_intel_devicelib_complex, "cl_intel_devicelib_complex"},
+    {DeviceLibExt::cl_intel_devicelib_complex_fp64,
+     "cl_intel_devicelib_complex_fp64"},
+    {DeviceLibExt::cl_intel_devicelib_cstring, "cl_intel_devicelib_cstring"},
+    {DeviceLibExt::cl_intel_devicelib_imf, "cl_intel_devicelib_imf"},
+    {DeviceLibExt::cl_intel_devicelib_imf_fp64, "cl_intel_devicelib_imf_fp64"},
+    {DeviceLibExt::cl_intel_devicelib_imf_bf16, "cl_intel_devicelib_imf_bf16"},
+    {DeviceLibExt::cl_intel_devicelib_bfloat16,
+     "cl_intel_bfloat16_conversions"}};
+
 static const char *getDeviceLibExtensionStr(DeviceLibExt Extension) {
-  switch (Extension) {
-  case DeviceLibExt::cl_intel_devicelib_assert:
-    return "cl_intel_devicelib_assert";
-  case DeviceLibExt::cl_intel_devicelib_math:
-    return "cl_intel_devicelib_math";
-  case DeviceLibExt::cl_intel_devicelib_math_fp64:
-    return "cl_intel_devicelib_math_fp64";
-  case DeviceLibExt::cl_intel_devicelib_complex:
-    return "cl_intel_devicelib_complex";
-  case DeviceLibExt::cl_intel_devicelib_complex_fp64:
-    return "cl_intel_devicelib_complex_fp64";
-  case DeviceLibExt::cl_intel_devicelib_cstring:
-    return "cl_intel_devicelib_cstring";
-  case DeviceLibExt::cl_intel_devicelib_imf:
-    return "cl_intel_devicelib_imf";
-  case DeviceLibExt::cl_intel_devicelib_imf_fp64:
-    return "cl_intel_devicelib_imf_fp64";
-  case DeviceLibExt::cl_intel_devicelib_imf_bf16:
-    return "cl_intel_devicelib_imf_bf16";
-  }
-  throw compile_program_error("Unhandled (new?) device library extension",
-                              PI_ERROR_INVALID_OPERATION);
+  auto Ext = DeviceLibExtensionStrs.find(Extension);
+  if (Ext == DeviceLibExtensionStrs.end())
+    throw compile_program_error("Unhandled (new?) device library extension",
+                                PI_ERROR_INVALID_OPERATION);
+  return Ext->second;
 }
 
 static RT::PiProgram loadDeviceLibFallback(const ContextImplPtr Context,
                                            DeviceLibExt Extension,
-                                           const RT::PiDevice &Device) {
+                                           const RT::PiDevice &Device,
+                                           bool UseNativeLib) {
 
-  const char *LibFileName = getDeviceLibFilename(Extension);
+  auto LibFileName = getDeviceLibFilename(Extension, UseNativeLib);
 
   auto LockedCache = Context->acquireCachedLibPrograms();
   auto CachedLibPrograms = LockedCache.get();
@@ -1013,7 +1026,8 @@ getDeviceLibPrograms(const ContextImplPtr Context, const RT::PiDevice &Device,
       {DeviceLibExt::cl_intel_devicelib_cstring, false},
       {DeviceLibExt::cl_intel_devicelib_imf, false},
       {DeviceLibExt::cl_intel_devicelib_imf_fp64, false},
-      {DeviceLibExt::cl_intel_devicelib_imf_bf16, false}};
+      {DeviceLibExt::cl_intel_devicelib_imf_bf16, false},
+      {DeviceLibExt::cl_intel_devicelib_bfloat16, false}};
 
   // Disable all devicelib extensions requiring fp64 support if at least
   // one underlying device doesn't support cl_khr_fp64.
@@ -1041,18 +1055,25 @@ getDeviceLibPrograms(const ContextImplPtr Context, const RT::PiDevice &Device,
       continue;
     }
 
-    const char *ExtStr = getDeviceLibExtensionStr(Ext);
+    auto ExtName = getDeviceLibExtensionStr(Ext);
 
     bool InhibitNativeImpl = false;
     if (const char *Env = getenv("SYCL_DEVICELIB_INHIBIT_NATIVE")) {
-      InhibitNativeImpl = strstr(Env, ExtStr) != nullptr;
+      InhibitNativeImpl = strstr(Env, ExtName) != nullptr;
     }
 
-    bool DeviceSupports = DevExtList.npos != DevExtList.find(ExtStr);
-
+    bool DeviceSupports = DevExtList.npos != DevExtList.find(ExtName);
     if (!DeviceSupports || InhibitNativeImpl) {
-      Programs.push_back(loadDeviceLibFallback(Context, Ext, Device));
+      Programs.push_back(
+          loadDeviceLibFallback(Context, Ext, Device, /*UseNativeLib=*/false));
       FallbackIsLoaded = true;
+    } else {
+      // bfloat16 needs native library if device supports it
+      if (Ext == DeviceLibExt::cl_intel_devicelib_bfloat16) {
+        Programs.push_back(
+            loadDeviceLibFallback(Context, Ext, Device, /*UseNativeLib=*/true));
+        FallbackIsLoaded = true;
+      }
     }
   }
   return Programs;
@@ -1252,10 +1273,6 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
       StrToKSIdMap &KSIdMap = m_KernelSets[M];
       auto KSIdIt = KSIdMap.find(EntriesB->name);
       if (KSIdIt != KSIdMap.end()) {
-        for (_pi_offload_entry EntriesIt = EntriesB + 1; EntriesIt != EntriesE;
-             ++EntriesIt)
-          assert(KSIdMap[EntriesIt->name] == KSIdIt->second &&
-                 "Kernel sets are not disjoint");
         auto &Imgs = m_DeviceImages[KSIdIt->second];
         assert(Imgs && "Device image vector should have been already created");
 
