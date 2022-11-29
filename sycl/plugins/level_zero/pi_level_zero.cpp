@@ -3822,7 +3822,6 @@ pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
 
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
 
-  std::shared_lock<pi_shared_mutex> Lock(Queue->Mutex);
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
   // TODO: consider support for queue properties and size
   switch (ParamName) {
@@ -3841,7 +3840,14 @@ pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
   case PI_QUEUE_INFO_DEVICE_DEFAULT:
     die("PI_QUEUE_INFO_DEVICE_DEFAULT in piQueueGetInfo not implemented\n");
     break;
-  case PI_QUEUE_INFO_STATUS:
+  case PI_QUEUE_INFO_STATUS: {
+    // If there are open command lists then submit them for execution.
+    {
+      std::unique_lock<pi_shared_mutex> Lock(Queue->Mutex);
+      PI_CALL(Queue->executeAllOpenCommandLists());
+    }
+
+    std::shared_lock<pi_shared_mutex> Lock(Queue->Mutex);
     for (auto ZeQueue : Queue->ComputeQueueGroup.ZeQueues) {
       if (!ZeQueue)
         continue;
@@ -3869,6 +3875,7 @@ pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
       }
     }
     return ReturnValue(pi_bool{true});
+  }
   default:
     zePrint("Unsupported ParamName in piQueueGetInfo: ParamName=%d(0x%x)\n",
             ParamName, ParamName);
