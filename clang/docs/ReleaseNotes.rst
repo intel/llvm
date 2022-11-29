@@ -401,6 +401,8 @@ Improvements to Clang's diagnostics
   PCH or modules. When Clang hits this limit, it now produces notes mentioning
   which header and source files are consuming large amounts of this space.
   ``#pragma clang __debug sloc_usage`` can also be used to request this report.
+- Clang no longer permits the keyword 'bool' in a concept declaration as a
+  concepts-ts compatibility extension.
 
 Non-comprehensive list of changes in this release
 -------------------------------------------------
@@ -648,6 +650,8 @@ C++20 Feature Support
   ([temp.func.order]p6.2.1 is not implemented, matching GCC).
 - Implemented `P0857R0 <https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2017/p0857r0.html>`_,
   which specifies constrained lambdas and constrained template *template-parameter*\s.
+- Required parameter pack to be provided at the end of the concept parameter list. This
+  fixes `Issue 48182 <https://github.com/llvm/llvm-project/issues/48182>`_.
 
 - Do not hide templated base members introduced via using-decl in derived class
   (useful specially for constrained members). Fixes `GH50886 <https://github.com/llvm/llvm-project/issues/50886>`_.

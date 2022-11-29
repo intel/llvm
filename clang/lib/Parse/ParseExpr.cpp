@@ -3389,7 +3389,7 @@ ExprResult Parser::ParseGenericSelectionExpression() {
   }
 
   SourceLocation DefaultLoc;
-  TypeVector Types;
+  SmallVector<ParsedType, 12> Types;
   ExprVector Exprs;
   do {
     ParsedType Ty;
