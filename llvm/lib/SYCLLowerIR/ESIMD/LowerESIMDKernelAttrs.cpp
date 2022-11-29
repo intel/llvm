@@ -25,8 +25,8 @@ bool isInvokeSimdBuiltinCall(const CallInst *CI) {
   return F && F->getName().startswith(esimd::INVOKE_SIMD_PREF);
 }
 
-// Checks the use of a function address being stored in a memory.
-// Returns false if the function address is used as an argument for
+// Checks the use of a function.
+// Returns false if the function is used as an argument for
 // invoke_simd function call, true otherwise.
 bool checkFunctionAddressUse(const Value *address) {
   if (address == nullptr)
@@ -70,7 +70,7 @@ bool checkFunctionAddressUse(const Value *address) {
 
 // Filter function for graph traverse to filter out cases when a function
 // is used as an argument for InvokeSimd call
-bool filterInvokeSimdUse(const Instruction *I) {
+bool filterInvokeSimdUse(const Instruction *I, const Function *F) {
   // if the instruction is to store address of a function, check if it is later
   // used by InvokeSimd.
   if (auto *SI = dyn_cast<StoreInst>(I)) {

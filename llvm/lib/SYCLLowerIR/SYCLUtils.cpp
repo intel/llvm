@@ -47,7 +47,7 @@ void traverseCallgraphUp(llvm::Function *F, CallGraphNodeAction ActionF,
         } else {
           // ... non-call is OK - add using function to the worklist
           if (auto *I = dyn_cast<Instruction>(FCall)) {
-            if (!functionFilter(I)) {
+            if (!functionFilter(I, CurF)) {
               continue;
             }
 

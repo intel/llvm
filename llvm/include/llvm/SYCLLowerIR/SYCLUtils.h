@@ -18,7 +18,8 @@ namespace llvm {
 namespace sycl {
 namespace utils {
 using CallGraphNodeAction = std::function<void(Function *)>;
-using CallGraphFunctionFilter = std::function<bool(const Instruction *)>;
+using CallGraphFunctionFilter =
+    std::function<bool(const Instruction *, const Function *)>;
 
 // Traverses call graph starting from given function up the call chain applying
 // given action to each function met on the way. If \c ErrorOnNonCallUse
@@ -35,17 +36,15 @@ using CallGraphFunctionFilter = std::function<bool(const Instruction *)>;
 void traverseCallgraphUp(
     llvm::Function *F, CallGraphNodeAction NodeF,
     SmallPtrSetImpl<Function *> &Visited, bool ErrorOnNonCallUse,
-    const CallGraphFunctionFilter &functionFilter = [](const Instruction *) {
-      return true;
-    });
+    const CallGraphFunctionFilter &functionFilter =
+        [](const Instruction *, const Function *) { return true; });
 
 template <class CallGraphNodeActionF>
 void traverseCallgraphUp(
     Function *F, CallGraphNodeActionF ActionF,
     SmallPtrSetImpl<Function *> &Visited, bool ErrorOnNonCallUse,
-    const CallGraphFunctionFilter &functionFilter = [](const Instruction *) {
-      return true;
-    }) {
+    const CallGraphFunctionFilter &functionFilter =
+        [](const Instruction *, const Function *) { return true; }) {
   traverseCallgraphUp(F, CallGraphNodeAction(ActionF), Visited,
                       ErrorOnNonCallUse, functionFilter);
 }
@@ -53,9 +52,8 @@ void traverseCallgraphUp(
 template <class CallGraphNodeActionF>
 void traverseCallgraphUp(
     Function *F, CallGraphNodeActionF ActionF, bool ErrorOnNonCallUse = true,
-    const CallGraphFunctionFilter &functionFilter = [](const Instruction *) {
-      return true;
-    }) {
+    const CallGraphFunctionFilter &functionFilter =
+        [](const Instruction *, const Function *) { return true; }) {
   SmallPtrSet<Function *, 32> Visited;
   traverseCallgraphUp(F, CallGraphNodeAction(ActionF), Visited,
                       ErrorOnNonCallUse, functionFilter);
