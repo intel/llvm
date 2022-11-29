@@ -205,8 +205,7 @@ struct sub_group {
 
   template <typename T>
   using EnableIfIsScalarArithmetic =
-      std::enable_if_t<sycl::detail::is_scalar_arithmetic<T>::value,
-                                T>;
+      std::enable_if_t<sycl::detail::is_scalar_arithmetic<T>::value, T>;
 
   /* --- one-input shuffles --- */
   /* indices in [0 , sub_group size) */
