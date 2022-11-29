@@ -232,9 +232,9 @@ static Optional<Type> convertVecType(sycl::VecType type,
 /// Converts SYCL atomic type to LLVM type.
 static Optional<Type> convertAtomicType(sycl::AtomicType type,
                                         LLVMTypeConverter &converter) {
-  //FIXME: Make sure that we have llvm.ptr as the body, not memref, through
+  // FIXME: Make sure that we have llvm.ptr as the body, not memref, through
   // the conversion done in ConvertTOLLVMABI pass
-  return convertBodyType("class.sycl::_V1::atomic", type.getBody(), converter); 
+  return convertBodyType("class.sycl::_V1::atomic", type.getBody(), converter);
 }
 
 //===----------------------------------------------------------------------===//
