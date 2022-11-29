@@ -29,7 +29,7 @@ params:
       desc: "[in] number of module handles in module list."
     - type: const $x_module_handle_t*
       name: phModules
-      desc: "[in] pointer to array of modules."
+      desc: "[in][range(0, count)] pointer to array of modules."
     - type: const char*
       name: pOptions
       desc: "[in][optional] pointer to linker options null-terminated string."
@@ -268,7 +268,7 @@ params:
       desc: "[in] specification constant Id"
     - type: "size_t"
       name: specSize
-      desc: "[in] size of the specialization constant value" 
+      desc: "[in] size of the specialization constant value"
     - type: "const void*"
       name: specValue
       desc: "[in] pointer to the specialization value bytes"
