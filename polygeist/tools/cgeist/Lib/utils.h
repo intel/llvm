@@ -66,9 +66,6 @@ FunctionContext getInputContext(const mlir::OpBuilder &Builder);
 /// Return the device module in the input module.
 mlir::gpu::GPUModuleOp getDeviceModule(mlir::ModuleOp Module);
 
-/// Emit a warning if -w is not in effect.
-llvm::raw_ostream &warning();
-
 } // namespace mlirclang
 
 #endif // MLIR_TOOLS_MLIRCLANG_UTILS_H

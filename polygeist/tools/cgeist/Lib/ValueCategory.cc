@@ -23,6 +23,7 @@
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
 
 #include "llvm/ADT/TypeSwitch.h"
+#include "llvm/Support/WithColor.h"
 
 using namespace mlir;
 using namespace mlir::arith;
@@ -117,7 +118,7 @@ void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
             if (mt.getElementType() != spt.getElementType()) {
               // llvm::errs() << " func: " <<
               // val.getDefiningOp()->getParentOfType<FuncOp>() << "\n";
-              mlirclang::warning()
+              llvm::WithColor::warning()
                   << "potential store type mismatch:\n"
                   << "val: " << val << " tosval: " << toStore << "\n"
                   << "mt: " << mt << "spt: " << spt << "\n";
@@ -321,15 +322,15 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
 }
 
 template <typename OpTy> inline void warnUnconstrainedOp() {
-  mlirclang::warning() << "Creating unconstrained " << OpTy::getOperationName()
-                       << "\n";
+  llvm::WithColor::warning()
+      << "Creating unconstrained " << OpTy::getOperationName() << "\n";
 }
 
 template <typename OpTy> inline void warnNonExactOp(bool IsExact) {
   if (!IsExact)
     return;
-  mlirclang::warning() << "Creating exact " << OpTy::getOperationName()
-                       << " is not suported.\n";
+  llvm::WithColor::warning()
+      << "Creating exact " << OpTy::getOperationName() << " is not suported.\n";
 }
 
 ValueCategory ValueCategory::FPTrunc(OpBuilder &Builder, Location Loc,
@@ -573,9 +574,9 @@ static ValueCategory NUWNSWBinOp(mlir::OpBuilder &Builder, mlir::Location Loc,
   // No way of adding these flags to MLIR.
   CGEIST_WARNING({
     if (HasNUW)
-      mlirclang::warning() << "Not adding NUW flag.\n";
+      llvm::WithColor::warning() << "Not adding NUW flag.\n";
     if (HasNSW)
-      mlirclang::warning() << "Not adding NSW flag.\n";
+      llvm::WithColor::warning() << "Not adding NSW flag.\n";
   })
   return IntBinOp<OpTy>(Builder, Loc, LHS, RHS);
 }
@@ -664,7 +665,8 @@ ValueCategory ValueCategory::SubIndex(OpBuilder &Builder, Location Loc,
 
   CGEIST_WARNING({
     if (IsInBounds)
-      mlirclang::warning() << "Cannot create an inbounds SubIndex operation\n";
+      llvm::WithColor::warning()
+          << "Cannot create an inbounds SubIndex operation\n";
   });
 
   auto PtrTy = mlirclang::getPtrTyWithNewType(val.getType(), Type);
@@ -687,7 +689,7 @@ ValueCategory ValueCategory::GEP(OpBuilder &Builder, Location Loc, Type Type,
 
   CGEIST_WARNING({
     if (IsInBounds)
-      mlirclang::warning() << "Cannot create an inbounds GEP operation\n";
+      llvm::WithColor::warning() << "Cannot create an inbounds GEP operation\n";
   });
 
   auto PtrTy = mlirclang::getPtrTyWithNewType(val.getType(), Type);

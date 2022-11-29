@@ -20,8 +20,6 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/Support/WithColor.h"
-#include "llvm/Support/raw_ostream.h"
 
 using namespace mlir;
 
@@ -86,7 +84,5 @@ gpu::GPUModuleOp getDeviceModule(ModuleOp Module) {
   return cast<gpu::GPUModuleOp>(
       Module.lookupSymbol(MLIRASTConsumer::DeviceModuleName));
 }
-
-llvm::raw_ostream &warning() { return llvm::WithColor::warning(); }
 
 } // namespace mlirclang

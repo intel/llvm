@@ -44,6 +44,7 @@
 
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "cgeist"
@@ -295,8 +296,8 @@ void MLIRScanner::init(FunctionOpInterface func, const FunctionToEmit &FTE) {
 
   CGEIST_WARNING({
     if (auto CC = dyn_cast<clang::CXXDestructorDecl>(FD))
-      mlirclang::warning() << "destructor not fully handled yet for: " << CC
-                           << "\n";
+      llvm::WithColor::warning()
+          << "destructor not fully handled yet for: " << CC << "\n";
   });
 
   auto i1Ty = Builder.getIntegerType(1);

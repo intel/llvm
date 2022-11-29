@@ -15,6 +15,7 @@
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Diagnostics.h"
+#include "llvm/Support/WithColor.h"
 
 #define DEBUG_TYPE "CGStmt"
 
@@ -1086,7 +1087,7 @@ ValueCategory MLIRScanner::VisitGotoStmt(clang::GotoStmt *Stmt) {
 }
 
 ValueCategory MLIRScanner::VisitCXXTryStmt(clang::CXXTryStmt *Stmt) {
-  CGEIST_WARNING(mlirclang::warning()
+  CGEIST_WARNING(llvm::WithColor::warning()
                  << "not performing catches for try stmt\n");
   return Visit(Stmt->getTryBlock());
 }

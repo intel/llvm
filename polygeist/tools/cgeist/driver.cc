@@ -55,6 +55,7 @@
 #include "llvm/Support/Host.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Program.h"
+#include "llvm/Support/WithColor.h"
 
 #include "Options.h"
 #include "polygeist/Dialect.h"
@@ -858,7 +859,7 @@ getOptimizationLevel(unsigned OptimizationLevel) {
     return llvm::OptimizationLevel::O3;
   default:
     // All speed levels above 2 are equivalent to '-O3'
-    CGEIST_WARNING(mlirclang::warning()
+    CGEIST_WARNING(llvm::WithColor::warning()
                    << "optimization level '-O" << OptimizationLevel
                    << "' is not supported; using '-O3' instead\n");
   }
