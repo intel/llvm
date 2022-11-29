@@ -25,7 +25,7 @@ bool isInvokeSimdBuiltinCall(const CallInst *CI) {
   return F && F->getName().startswith(esimd::INVOKE_SIMD_PREF);
 }
 
-// Checks the use of a function.
+// Checks the use of a function being traversed during traverseCallgraphUp.
 // Returns false if the function is used as an argument for
 // invoke_simd function call, true otherwise.
 bool checkFunctionAddressUse(const Value *address) {
