@@ -39,7 +39,7 @@ params:
     - type: const void*
       name: pIL
       desc: "[in] pointer to IL string."
-    - type: uint32_t
+    - type: size_t
       name: length
       desc: "[in] length of IL in bytes."
     - type: const char*
