@@ -126,6 +126,7 @@
 #include <map>
 #include <memory>
 #include <numeric>
+#include <optional>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -219,6 +220,11 @@ static cl::opt<unsigned>
     HugeExprThreshold("scalar-evolution-huge-expr-threshold", cl::Hidden,
                   cl::desc("Size of the expression which is considered huge"),
                   cl::init(4096));
+
+static cl::opt<unsigned> RangeIterThreshold(
+    "scev-range-iter-threshold", cl::Hidden,
+    cl::desc("Threshold for switching to iteratively computing SCEV ranges"),
+    cl::init(32));
 
 static cl::opt<bool>
 ClassifyExpressions("scalar-evolution-classify-expressions",
@@ -708,7 +714,7 @@ CompareValueComplexity(EquivalenceClasses<const Value *> &EqCacheValue,
 // more efficient.
 // If the max analysis depth was reached, return None, assuming we do not know
 // if they are equivalent for sure.
-static Optional<int>
+static std::optional<int>
 CompareSCEVComplexity(EquivalenceClasses<const SCEV *> &EqCacheSCEV,
                       EquivalenceClasses<const Value *> &EqCacheValue,
                       const LoopInfo *const LI, const SCEV *LHS,
@@ -5121,7 +5127,7 @@ struct BinaryOp {
 } // end anonymous namespace
 
 /// Try to map \p V into a BinaryOp, and return \c None on failure.
-static Optional<BinaryOp> MatchBinaryOp(Value *V, DominatorTree &DT) {
+static std::optional<BinaryOp> MatchBinaryOp(Value *V, DominatorTree &DT) {
   auto *Op = dyn_cast<Operator>(V);
   if (!Op)
     return None;
@@ -6425,18 +6431,78 @@ getRangeForUnknownRecurrence(const SCEVUnknown *U) {
   return FullSet;
 }
 
+const ConstantRange &
+ScalarEvolution::getRangeRefIter(const SCEV *S,
+                                 ScalarEvolution::RangeSignHint SignHint) {
+  DenseMap<const SCEV *, ConstantRange> &Cache =
+      SignHint == ScalarEvolution::HINT_RANGE_UNSIGNED ? UnsignedRanges
+                                                       : SignedRanges;
+  SmallVector<const SCEV *> WorkList;
+  SmallPtrSet<const SCEV *, 8> Seen;
+
+  // Add Expr to the worklist, if Expr is either an N-ary expression or a
+  // SCEVUnknown PHI node.
+  auto AddToWorklist = [&WorkList, &Seen, &Cache](const SCEV *Expr) {
+    if (!Seen.insert(Expr).second)
+      return;
+    if (Cache.find(Expr) != Cache.end())
+      return;
+    if (isa<SCEVNAryExpr>(Expr) || isa<SCEVUDivExpr>(Expr))
+      WorkList.push_back(Expr);
+    else if (auto *UnknownS = dyn_cast<SCEVUnknown>(Expr))
+      if (isa<PHINode>(UnknownS->getValue()))
+        WorkList.push_back(Expr);
+  };
+  AddToWorklist(S);
+
+  // Build worklist by queuing operands of N-ary expressions and phi nodes.
+  for (unsigned I = 0; I != WorkList.size(); ++I) {
+    const SCEV *P = WorkList[I];
+    if (auto *NaryS = dyn_cast<SCEVNAryExpr>(P)) {
+      for (const SCEV *Op : NaryS->operands())
+        AddToWorklist(Op);
+    } else if (auto *UDiv = dyn_cast<SCEVUDivExpr>(P)) {
+      AddToWorklist(UDiv->getLHS());
+      AddToWorklist(UDiv->getRHS());
+    } else {
+      auto *UnknownS = cast<SCEVUnknown>(P);
+      if (const PHINode *P = dyn_cast<PHINode>(UnknownS->getValue())) {
+        if (!PendingPhiRangesIter.insert(P).second)
+          continue;
+        for (auto &Op : reverse(P->operands()))
+          AddToWorklist(getSCEV(Op));
+      }
+    }
+  }
+
+  if (!WorkList.empty()) {
+    // Use getRangeRef to compute ranges for items in the worklist in reverse
+    // order. This will force ranges for earlier operands to be computed before
+    // their users in most cases.
+    for (const SCEV *P :
+         reverse(make_range(WorkList.begin() + 1, WorkList.end()))) {
+      getRangeRef(P, SignHint);
+
+      if (auto *UnknownS = dyn_cast<SCEVUnknown>(P))
+        if (const PHINode *P = dyn_cast<PHINode>(UnknownS->getValue()))
+          PendingPhiRangesIter.erase(P);
+    }
+  }
+
+  return getRangeRef(S, SignHint, 0);
+}
+
 /// Determine the range for a particular SCEV.  If SignHint is
 /// HINT_RANGE_UNSIGNED (resp. HINT_RANGE_SIGNED) then getRange prefers ranges
 /// with a "cleaner" unsigned (resp. signed) representation.
-const ConstantRange &
-ScalarEvolution::getRangeRef(const SCEV *S,
-                             ScalarEvolution::RangeSignHint SignHint) {
+const ConstantRange &ScalarEvolution::getRangeRef(
+    const SCEV *S, ScalarEvolution::RangeSignHint SignHint, unsigned Depth) {
   DenseMap<const SCEV *, ConstantRange> &Cache =
       SignHint == ScalarEvolution::HINT_RANGE_UNSIGNED ? UnsignedRanges
                                                        : SignedRanges;
   ConstantRange::PreferredRangeType RangeType =
-      SignHint == ScalarEvolution::HINT_RANGE_UNSIGNED
-          ? ConstantRange::Unsigned : ConstantRange::Signed;
+      SignHint == ScalarEvolution::HINT_RANGE_UNSIGNED ? ConstantRange::Unsigned
+                                                       : ConstantRange::Signed;
 
   // See if we've computed this range already.
   DenseMap<const SCEV *, ConstantRange>::iterator I = Cache.find(S);
@@ -6445,6 +6511,11 @@ ScalarEvolution::getRangeRef(const SCEV *S,
 
   if (const SCEVConstant *C = dyn_cast<SCEVConstant>(S))
     return setRange(C, SignHint, ConstantRange(C->getAPInt()));
+
+  // Switch to iteratively computing the range for S, if it is part of a deeply
+  // nested expression.
+  if (Depth > RangeIterThreshold)
+    return getRangeRefIter(S, SignHint);
 
   unsigned BitWidth = getTypeSizeInBits(S->getType());
   ConstantRange ConservativeResult(BitWidth, /*isFullSet=*/true);
@@ -6465,23 +6536,23 @@ ScalarEvolution::getRangeRef(const SCEV *S,
   }
 
   if (const SCEVAddExpr *Add = dyn_cast<SCEVAddExpr>(S)) {
-    ConstantRange X = getRangeRef(Add->getOperand(0), SignHint);
+    ConstantRange X = getRangeRef(Add->getOperand(0), SignHint, Depth + 1);
     unsigned WrapType = OBO::AnyWrap;
     if (Add->hasNoSignedWrap())
       WrapType |= OBO::NoSignedWrap;
     if (Add->hasNoUnsignedWrap())
       WrapType |= OBO::NoUnsignedWrap;
     for (unsigned i = 1, e = Add->getNumOperands(); i != e; ++i)
-      X = X.addWithNoWrap(getRangeRef(Add->getOperand(i), SignHint),
+      X = X.addWithNoWrap(getRangeRef(Add->getOperand(i), SignHint, Depth + 1),
                           WrapType, RangeType);
     return setRange(Add, SignHint,
                     ConservativeResult.intersectWith(X, RangeType));
   }
 
   if (const SCEVMulExpr *Mul = dyn_cast<SCEVMulExpr>(S)) {
-    ConstantRange X = getRangeRef(Mul->getOperand(0), SignHint);
+    ConstantRange X = getRangeRef(Mul->getOperand(0), SignHint, Depth + 1);
     for (unsigned i = 1, e = Mul->getNumOperands(); i != e; ++i)
-      X = X.multiply(getRangeRef(Mul->getOperand(i), SignHint));
+      X = X.multiply(getRangeRef(Mul->getOperand(i), SignHint, Depth + 1));
     return setRange(Mul, SignHint,
                     ConservativeResult.intersectWith(X, RangeType));
   }
@@ -6507,41 +6578,42 @@ ScalarEvolution::getRangeRef(const SCEV *S,
     }
 
     const auto *NAry = cast<SCEVNAryExpr>(S);
-    ConstantRange X = getRangeRef(NAry->getOperand(0), SignHint);
+    ConstantRange X = getRangeRef(NAry->getOperand(0), SignHint, Depth + 1);
     for (unsigned i = 1, e = NAry->getNumOperands(); i != e; ++i)
-      X = X.intrinsic(ID, {X, getRangeRef(NAry->getOperand(i), SignHint)});
+      X = X.intrinsic(
+          ID, {X, getRangeRef(NAry->getOperand(i), SignHint, Depth + 1)});
     return setRange(S, SignHint,
                     ConservativeResult.intersectWith(X, RangeType));
   }
 
   if (const SCEVUDivExpr *UDiv = dyn_cast<SCEVUDivExpr>(S)) {
-    ConstantRange X = getRangeRef(UDiv->getLHS(), SignHint);
-    ConstantRange Y = getRangeRef(UDiv->getRHS(), SignHint);
+    ConstantRange X = getRangeRef(UDiv->getLHS(), SignHint, Depth + 1);
+    ConstantRange Y = getRangeRef(UDiv->getRHS(), SignHint, Depth + 1);
     return setRange(UDiv, SignHint,
                     ConservativeResult.intersectWith(X.udiv(Y), RangeType));
   }
 
   if (const SCEVZeroExtendExpr *ZExt = dyn_cast<SCEVZeroExtendExpr>(S)) {
-    ConstantRange X = getRangeRef(ZExt->getOperand(), SignHint);
+    ConstantRange X = getRangeRef(ZExt->getOperand(), SignHint, Depth + 1);
     return setRange(ZExt, SignHint,
                     ConservativeResult.intersectWith(X.zeroExtend(BitWidth),
                                                      RangeType));
   }
 
   if (const SCEVSignExtendExpr *SExt = dyn_cast<SCEVSignExtendExpr>(S)) {
-    ConstantRange X = getRangeRef(SExt->getOperand(), SignHint);
+    ConstantRange X = getRangeRef(SExt->getOperand(), SignHint, Depth + 1);
     return setRange(SExt, SignHint,
                     ConservativeResult.intersectWith(X.signExtend(BitWidth),
                                                      RangeType));
   }
 
   if (const SCEVPtrToIntExpr *PtrToInt = dyn_cast<SCEVPtrToIntExpr>(S)) {
-    ConstantRange X = getRangeRef(PtrToInt->getOperand(), SignHint);
+    ConstantRange X = getRangeRef(PtrToInt->getOperand(), SignHint, Depth + 1);
     return setRange(PtrToInt, SignHint, X);
   }
 
   if (const SCEVTruncateExpr *Trunc = dyn_cast<SCEVTruncateExpr>(S)) {
-    ConstantRange X = getRangeRef(Trunc->getOperand(), SignHint);
+    ConstantRange X = getRangeRef(Trunc->getOperand(), SignHint, Depth + 1);
     return setRange(Trunc, SignHint,
                     ConservativeResult.intersectWith(X.truncate(BitWidth),
                                                      RangeType));
@@ -6671,12 +6743,13 @@ ScalarEvolution::getRangeRef(const SCEV *S,
           RangeType);
 
     // A range of Phi is a subset of union of all ranges of its input.
-    if (const PHINode *Phi = dyn_cast<PHINode>(U->getValue())) {
+    if (PHINode *Phi = dyn_cast<PHINode>(U->getValue())) {
       // Make sure that we do not run over cycled Phis.
       if (PendingPhiRanges.insert(Phi).second) {
         ConstantRange RangeFromOps(BitWidth, /*isFullSet=*/false);
+
         for (const auto &Op : Phi->operands()) {
-          auto OpRange = getRangeRef(getSCEV(Op), SignHint);
+          auto OpRange = getRangeRef(getSCEV(Op), SignHint, Depth + 1);
           RangeFromOps = RangeFromOps.unionWith(OpRange);
           // No point to continue if we already have a full set.
           if (RangeFromOps.isFullSet())
@@ -6882,7 +6955,7 @@ ConstantRange ScalarEvolution::getRangeViaFactoring(const SCEV *Start,
 
     explicit SelectPattern(ScalarEvolution &SE, unsigned BitWidth,
                            const SCEV *S) {
-      Optional<unsigned> CastOp;
+      std::optional<unsigned> CastOp;
       APInt Offset(BitWidth, 0);
 
       assert(SE.getTypeSizeInBits(S->getType()) == BitWidth &&
@@ -8086,7 +8159,7 @@ unsigned ScalarEvolution::getSmallConstantTripMultiple(const Loop *L) {
   SmallVector<BasicBlock *, 8> ExitingBlocks;
   L->getExitingBlocks(ExitingBlocks);
 
-  Optional<unsigned> Res;
+  std::optional<unsigned> Res;
   for (auto *ExitingBB : ExitingBlocks) {
     unsigned Multiple = getSmallConstantTripMultiple(L, ExitingBB);
     if (!Res)
@@ -8151,8 +8224,9 @@ const SCEV *ScalarEvolution::getExitCount(const Loop *L,
                                           ExitCountKind Kind) {
   switch (Kind) {
   case Exact:
-  case SymbolicMaximum:
     return getBackedgeTakenInfo(L).getExact(ExitingBlock, this);
+  case SymbolicMaximum:
+    return getBackedgeTakenInfo(L).getSymbolicMax(ExitingBlock, this);
   case ConstantMaximum:
     return getBackedgeTakenInfo(L).getConstantMax(ExitingBlock, this);
   };
@@ -8479,7 +8553,16 @@ const SCEV *ScalarEvolution::BackedgeTakenInfo::getConstantMax(
     const BasicBlock *ExitingBlock, ScalarEvolution *SE) const {
   for (const auto &ENT : ExitNotTaken)
     if (ENT.ExitingBlock == ExitingBlock && ENT.hasAlwaysTruePredicate())
-      return ENT.MaxNotTaken;
+      return ENT.ConstantMaxNotTaken;
+
+  return SE->getCouldNotCompute();
+}
+
+const SCEV *ScalarEvolution::BackedgeTakenInfo::getSymbolicMax(
+    const BasicBlock *ExitingBlock, ScalarEvolution *SE) const {
+  for (const auto &ENT : ExitNotTaken)
+    if (ENT.ExitingBlock == ExitingBlock && ENT.hasAlwaysTruePredicate())
+      return ENT.SymbolicMaxNotTaken;
 
   return SE->getCouldNotCompute();
 }
@@ -8521,40 +8604,43 @@ ScalarEvolution::ExitLimit::ExitLimit(const SCEV *E)
 }
 
 ScalarEvolution::ExitLimit::ExitLimit(
-    const SCEV *E, const SCEV *M, bool MaxOrZero,
+    const SCEV *E, const SCEV *ConstantMaxNotTaken, bool MaxOrZero,
     ArrayRef<const SmallPtrSetImpl<const SCEVPredicate *> *> PredSetList)
-    : ExactNotTaken(E), MaxNotTaken(M), MaxOrZero(MaxOrZero) {
+    : ExactNotTaken(E), ConstantMaxNotTaken(ConstantMaxNotTaken),
+      MaxOrZero(MaxOrZero) {
   // If we prove the max count is zero, so is the symbolic bound.  This happens
   // in practice due to differences in a) how context sensitive we've chosen
-  // to be and b) how we reason about bounds impied by UB.
-  if (MaxNotTaken->isZero())
-    ExactNotTaken = MaxNotTaken;
+  // to be and b) how we reason about bounds implied by UB.
+  if (ConstantMaxNotTaken->isZero())
+    ExactNotTaken = ConstantMaxNotTaken;
+
+  // FIXME: For now, SymbolicMaxNotTaken is either exact (if available) or
+  // constant max. In the future, we are planning to make it more powerful.
+  if (isa<SCEVCouldNotCompute>(ExactNotTaken))
+    SymbolicMaxNotTaken = ConstantMaxNotTaken;
+  else
+    SymbolicMaxNotTaken = ExactNotTaken;
 
   assert((isa<SCEVCouldNotCompute>(ExactNotTaken) ||
-          !isa<SCEVCouldNotCompute>(MaxNotTaken)) &&
+          !isa<SCEVCouldNotCompute>(ConstantMaxNotTaken)) &&
          "Exact is not allowed to be less precise than Max");
-  assert((isa<SCEVCouldNotCompute>(MaxNotTaken) ||
-          isa<SCEVConstant>(MaxNotTaken)) &&
+  assert((isa<SCEVCouldNotCompute>(ConstantMaxNotTaken) ||
+          isa<SCEVConstant>(ConstantMaxNotTaken)) &&
          "No point in having a non-constant max backedge taken count!");
   for (const auto *PredSet : PredSetList)
     for (const auto *P : *PredSet)
       addPredicate(P);
   assert((isa<SCEVCouldNotCompute>(E) || !E->getType()->isPointerTy()) &&
          "Backedge count should be int");
-  assert((isa<SCEVCouldNotCompute>(M) || !M->getType()->isPointerTy()) &&
+  assert((isa<SCEVCouldNotCompute>(ConstantMaxNotTaken) ||
+          !ConstantMaxNotTaken->getType()->isPointerTy()) &&
          "Max backedge count should be int");
 }
 
 ScalarEvolution::ExitLimit::ExitLimit(
-    const SCEV *E, const SCEV *M, bool MaxOrZero,
+    const SCEV *E, const SCEV *ConstantMaxNotTaken, bool MaxOrZero,
     const SmallPtrSetImpl<const SCEVPredicate *> &PredSet)
-    : ExitLimit(E, M, MaxOrZero, {&PredSet}) {
-}
-
-ScalarEvolution::ExitLimit::ExitLimit(const SCEV *E, const SCEV *M,
-                                      bool MaxOrZero)
-    : ExitLimit(E, M, MaxOrZero, None) {
-}
+    : ExitLimit(E, ConstantMaxNotTaken, MaxOrZero, { &PredSet }) {}
 
 /// Allocate memory for BackedgeTakenInfo and copy the not-taken count of each
 /// computable exit into a persistent ExitNotTakenInfo array.
@@ -8565,14 +8651,15 @@ ScalarEvolution::BackedgeTakenInfo::BackedgeTakenInfo(
   using EdgeExitInfo = ScalarEvolution::BackedgeTakenInfo::EdgeExitInfo;
 
   ExitNotTaken.reserve(ExitCounts.size());
-  std::transform(
-      ExitCounts.begin(), ExitCounts.end(), std::back_inserter(ExitNotTaken),
-      [&](const EdgeExitInfo &EEI) {
+  std::transform(ExitCounts.begin(), ExitCounts.end(),
+                 std::back_inserter(ExitNotTaken),
+                 [&](const EdgeExitInfo &EEI) {
         BasicBlock *ExitBB = EEI.first;
         const ExitLimit &EL = EEI.second;
-        return ExitNotTakenInfo(ExitBB, EL.ExactNotTaken, EL.MaxNotTaken,
+        return ExitNotTakenInfo(ExitBB, EL.ExactNotTaken,
+                                EL.ConstantMaxNotTaken, EL.SymbolicMaxNotTaken,
                                 EL.Predicates);
-      });
+  });
   assert((isa<SCEVCouldNotCompute>(ConstantMax) ||
           isa<SCEVConstant>(ConstantMax)) &&
          "No point in having a non-constant max backedge taken count!");
@@ -8630,25 +8717,26 @@ ScalarEvolution::computeBackedgeTakenCount(const Loop *L,
     //
     // If the exit dominates the loop latch, it is a LoopMustExit otherwise it
     // is a LoopMayExit.  If any computable LoopMustExit is found, then
-    // MaxBECount is the minimum EL.MaxNotTaken of computable
+    // MaxBECount is the minimum EL.ConstantMaxNotTaken of computable
     // LoopMustExits. Otherwise, MaxBECount is conservatively the maximum
-    // EL.MaxNotTaken, where CouldNotCompute is considered greater than any
-    // computable EL.MaxNotTaken.
-    if (EL.MaxNotTaken != getCouldNotCompute() && Latch &&
+    // EL.ConstantMaxNotTaken, where CouldNotCompute is considered greater than
+    // any
+    // computable EL.ConstantMaxNotTaken.
+    if (EL.ConstantMaxNotTaken != getCouldNotCompute() && Latch &&
         DT.dominates(ExitBB, Latch)) {
       if (!MustExitMaxBECount) {
-        MustExitMaxBECount = EL.MaxNotTaken;
+        MustExitMaxBECount = EL.ConstantMaxNotTaken;
         MustExitMaxOrZero = EL.MaxOrZero;
       } else {
-        MustExitMaxBECount =
-            getUMinFromMismatchedTypes(MustExitMaxBECount, EL.MaxNotTaken);
+        MustExitMaxBECount = getUMinFromMismatchedTypes(MustExitMaxBECount,
+                                                        EL.ConstantMaxNotTaken);
       }
     } else if (MayExitMaxBECount != getCouldNotCompute()) {
-      if (!MayExitMaxBECount || EL.MaxNotTaken == getCouldNotCompute())
-        MayExitMaxBECount = EL.MaxNotTaken;
+      if (!MayExitMaxBECount || EL.ConstantMaxNotTaken == getCouldNotCompute())
+        MayExitMaxBECount = EL.ConstantMaxNotTaken;
       else {
-        MayExitMaxBECount =
-            getUMaxFromMismatchedTypes(MayExitMaxBECount, EL.MaxNotTaken);
+        MayExitMaxBECount = getUMaxFromMismatchedTypes(MayExitMaxBECount,
+                                                       EL.ConstantMaxNotTaken);
       }
     }
   }
@@ -8659,7 +8747,8 @@ ScalarEvolution::computeBackedgeTakenCount(const Loop *L,
   bool MaxOrZero = (MustExitMaxOrZero && ExitingBlocks.size() == 1);
 
   // Remember which SCEVs are used in exit limits for invalidation purposes.
-  // We only care about non-constant SCEVs here, so we can ignore EL.MaxNotTaken
+  // We only care about non-constant SCEVs here, so we can ignore
+  // EL.ConstantMaxNotTaken
   // and MaxBECount, which must be SCEVConstant.
   for (const auto &Pair : ExitCounts)
     if (!isa<SCEVConstant>(Pair.second.ExactNotTaken))
@@ -8866,12 +8955,13 @@ ScalarEvolution::computeExitLimitFromCondFromBinOp(
           EL0.ExactNotTaken, EL1.ExactNotTaken,
           /*Sequential=*/!isa<BinaryOperator>(ExitCond));
     }
-    if (EL0.MaxNotTaken == getCouldNotCompute())
-      MaxBECount = EL1.MaxNotTaken;
-    else if (EL1.MaxNotTaken == getCouldNotCompute())
-      MaxBECount = EL0.MaxNotTaken;
+    if (EL0.ConstantMaxNotTaken == getCouldNotCompute())
+      MaxBECount = EL1.ConstantMaxNotTaken;
+    else if (EL1.ConstantMaxNotTaken == getCouldNotCompute())
+      MaxBECount = EL0.ConstantMaxNotTaken;
     else
-      MaxBECount = getUMinFromMismatchedTypes(EL0.MaxNotTaken, EL1.MaxNotTaken);
+      MaxBECount = getUMinFromMismatchedTypes(EL0.ConstantMaxNotTaken,
+                                              EL1.ConstantMaxNotTaken);
   } else {
     // Both conditions must be same at the same time for the loop to exit.
     // For now, be conservative.
@@ -8882,8 +8972,8 @@ ScalarEvolution::computeExitLimitFromCondFromBinOp(
   // There are cases (e.g. PR26207) where computeExitLimitFromCond is able
   // to be more aggressive when computing BECount than when computing
   // MaxBECount.  In these cases it is possible for EL0.ExactNotTaken and
-  // EL1.ExactNotTaken to match, but for EL0.MaxNotTaken and EL1.MaxNotTaken
-  // to not.
+  // EL1.ExactNotTaken to match, but for EL0.ConstantMaxNotTaken and
+  // EL1.ConstantMaxNotTaken to not.
   if (isa<SCEVCouldNotCompute>(MaxBECount) &&
       !isa<SCEVCouldNotCompute>(BECount))
     MaxBECount = getConstant(getUnsignedRangeMax(BECount));
@@ -9121,7 +9211,7 @@ ScalarEvolution::ExitLimit ScalarEvolution::computeShiftCompareExitLimit(
   // above) in PNOut and the opcode of the shift operation in OpCodeOut.
   auto MatchShiftRecurrence =
       [&](Value *V, PHINode *&PNOut, Instruction::BinaryOps &OpCodeOut) {
-    Optional<Instruction::BinaryOps> PostShiftOpCode;
+    std::optional<Instruction::BinaryOps> PostShiftOpCode;
 
     {
       Instruction::BinaryOps OpC;
@@ -9918,7 +10008,7 @@ static const SCEV *SolveLinEquationWithOverflow(const APInt &A, const SCEV *B,
 /// coefficients.
 /// This function returns None if the addrec coefficients are not compile-
 /// time constants.
-static Optional<std::tuple<APInt, APInt, APInt, APInt, unsigned>>
+static std::optional<std::tuple<APInt, APInt, APInt, APInt, unsigned>>
 GetQuadraticEquation(const SCEVAddRecExpr *AddRec) {
   assert(AddRec->getNumOperands() == 3 && "This is not a quadratic chrec!");
   const SCEVConstant *LC = dyn_cast<SCEVConstant>(AddRec->getOperand(0));
@@ -13286,16 +13376,38 @@ static void PrintLoopInfo(raw_ostream &OS, ScalarEvolution *SE,
   L->getHeader()->printAsOperand(OS, /*PrintType=*/false);
   OS << ": ";
 
-  if (!isa<SCEVCouldNotCompute>(SE->getConstantMaxBackedgeTakenCount(L))) {
-    OS << "max backedge-taken count is " << *SE->getConstantMaxBackedgeTakenCount(L);
+  auto *ConstantBTC = SE->getConstantMaxBackedgeTakenCount(L);
+  if (!isa<SCEVCouldNotCompute>(ConstantBTC)) {
+    OS << "constant max backedge-taken count is " << *ConstantBTC;
     if (SE->isBackedgeTakenCountMaxOrZero(L))
       OS << ", actual taken count either this or zero.";
   } else {
-    OS << "Unpredictable max backedge-taken count. ";
+    OS << "Unpredictable constant max backedge-taken count. ";
   }
 
   OS << "\n"
         "Loop ";
+  L->getHeader()->printAsOperand(OS, /*PrintType=*/false);
+  OS << ": ";
+
+  auto *SymbolicBTC = SE->getSymbolicMaxBackedgeTakenCount(L);
+  if (!isa<SCEVCouldNotCompute>(SymbolicBTC)) {
+    OS << "symbolic max backedge-taken count is " << *SymbolicBTC;
+    if (SE->isBackedgeTakenCountMaxOrZero(L))
+      OS << ", actual taken count either this or zero.";
+  } else {
+    OS << "Unpredictable symbolic max backedge-taken count. ";
+  }
+
+  OS << "\n";
+  if (ExitingBlocks.size() > 1)
+    for (BasicBlock *ExitingBlock : ExitingBlocks) {
+      OS << "  symbolic max exit count for " << ExitingBlock->getName() << ": "
+         << *SE->getExitCount(L, ExitingBlock, ScalarEvolution::SymbolicMaximum)
+         << "\n";
+    }
+
+  OS << "Loop ";
   L->getHeader()->printAsOperand(OS, /*PrintType=*/false);
   OS << ": ";
 
@@ -14649,10 +14761,8 @@ ScalarEvolution::computeSymbolicMaxBackedgeTakenCount(const Loop *L) {
   // getConstantMaxBackedgeTakenCount which isn't restricted to just constants.
   SmallVector<const SCEV*, 4> ExitCounts;
   for (BasicBlock *ExitingBB : ExitingBlocks) {
-    const SCEV *ExitCount = getExitCount(L, ExitingBB);
-    if (isa<SCEVCouldNotCompute>(ExitCount))
-      ExitCount = getExitCount(L, ExitingBB,
-                                  ScalarEvolution::ConstantMaximum);
+    const SCEV *ExitCount =
+        getExitCount(L, ExitingBB, ScalarEvolution::SymbolicMaximum);
     if (!isa<SCEVCouldNotCompute>(ExitCount)) {
       assert(DT.dominates(ExitingBB, L->getLoopLatch()) &&
              "We should only have known counts for exiting blocks that "

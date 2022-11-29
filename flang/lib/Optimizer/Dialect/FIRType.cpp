@@ -308,6 +308,17 @@ bool isUnlimitedPolymorphicType(mlir::Type ty) {
   return isAssumedType(ty);
 }
 
+mlir::Type unwrapInnerType(mlir::Type ty) {
+  return llvm::TypeSwitch<mlir::Type, mlir::Type>(ty)
+      .Case<fir::PointerType, fir::HeapType, fir::SequenceType>([](auto t) {
+        mlir::Type eleTy = t.getEleTy();
+        if (auto seqTy = eleTy.dyn_cast<fir::SequenceType>())
+          return seqTy.getEleTy();
+        return eleTy;
+      })
+      .Default([](mlir::Type) { return mlir::Type{}; });
+}
+
 bool isRecordWithAllocatableMember(mlir::Type ty) {
   if (auto recTy = ty.dyn_cast<fir::RecordType>())
     for (auto [field, memTy] : recTy.getTypeList()) {
@@ -486,7 +497,8 @@ mlir::LogicalResult
 fir::ClassType::verify(llvm::function_ref<mlir::InFlightDiagnostic()> emitError,
                        mlir::Type eleTy) {
   if (eleTy.isa<fir::RecordType, fir::SequenceType, fir::HeapType,
-                fir::PointerType, mlir::NoneType>())
+                fir::PointerType, mlir::NoneType, mlir::IntegerType,
+                mlir::FloatType>())
     return mlir::success();
   return emitError() << "invalid element type\n";
 }
@@ -948,7 +960,7 @@ bool fir::hasAbstractResult(mlir::FunctionType ty) {
   if (ty.getNumResults() == 0)
     return false;
   auto resultType = ty.getResult(0);
-  return resultType.isa<fir::SequenceType, fir::BoxType, fir::RecordType>();
+  return resultType.isa<fir::SequenceType, fir::BaseBoxType, fir::RecordType>();
 }
 
 /// Convert llvm::Type::TypeID to mlir::Type. \p kind is provided for error
@@ -986,14 +998,7 @@ mlir::Type BaseBoxType::getEleTy() const {
 }
 
 mlir::Type BaseBoxType::unwrapInnerType() const {
-  return llvm::TypeSwitch<mlir::Type, mlir::Type>(getEleTy())
-      .Case<fir::PointerType, fir::HeapType, fir::SequenceType>([](auto ty) {
-        mlir::Type eleTy = ty.getEleTy();
-        if (auto seqTy = eleTy.dyn_cast<fir::SequenceType>())
-          return seqTy.getEleTy();
-        return eleTy;
-      })
-      .Default([](mlir::Type) { return mlir::Type{}; });
+  return fir::unwrapInnerType(getEleTy());
 }
 
 //===----------------------------------------------------------------------===//

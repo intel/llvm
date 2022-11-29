@@ -337,12 +337,12 @@ fir::FirOpBuilder::convertWithSemantics(mlir::Location loc, mlir::Type toTy,
     return create<fir::BoxAddrOp>(loc, toTy, val);
   }
 
-  if (fir::isPolymorphicType(fromTy) &&
-      (fir::isAllocatableType(fromTy) || fir::isPointerType(fromTy)) &&
-      fir::isPolymorphicType(toTy)) {
+  if ((fir::isPolymorphicType(fromTy) &&
+       (fir::isAllocatableType(fromTy) || fir::isPointerType(fromTy)) &&
+       fir::isPolymorphicType(toTy)) ||
+      (fir::isPolymorphicType(fromTy) && toTy.isa<fir::BoxType>()))
     return create<fir::ReboxOp>(loc, toTy, val, mlir::Value{},
                                 /*slice=*/mlir::Value{});
-  }
 
   return createConvert(loc, toTy, val);
 }
@@ -504,7 +504,8 @@ mlir::Value fir::FirOpBuilder::createBox(mlir::Location loc,
         mlir::ValueRange emptyRange;
         mlir::Value s = createShape(loc, exv);
         return create<fir::EmboxOp>(loc, boxTy, itemAddr, s, /*slice=*/empty,
-                                    /*typeparams=*/emptyRange, box.getTdesc());
+                                    /*typeparams=*/emptyRange,
+                                    isPolymorphic ? box.getTdesc() : tdesc);
       },
       [&](const fir::CharArrayBoxValue &box) -> mlir::Value {
         mlir::Value s = createShape(loc, exv);
@@ -532,7 +533,8 @@ mlir::Value fir::FirOpBuilder::createBox(mlir::Location loc,
         mlir::Value empty;
         mlir::ValueRange emptyRange;
         return create<fir::EmboxOp>(loc, boxTy, itemAddr, empty, empty,
-                                    emptyRange, p.getTdesc());
+                                    emptyRange,
+                                    isPolymorphic ? p.getTdesc() : tdesc);
       },
       [&](const auto &) -> mlir::Value {
         mlir::Value empty;

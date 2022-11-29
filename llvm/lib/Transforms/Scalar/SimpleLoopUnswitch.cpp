@@ -63,6 +63,7 @@
 #include <cassert>
 #include <iterator>
 #include <numeric>
+#include <optional>
 #include <utility>
 
 #define DEBUG_TYPE "simple-loop-unswitch"
@@ -2988,7 +2989,7 @@ static NonTrivialUnswitchCandidate findBestNonTrivialUnswitchCandidate(
     return (LoopCost - Cost) * (SuccessorsCount - 1);
   };
 
-  Optional<NonTrivialUnswitchCandidate> Best;
+  std::optional<NonTrivialUnswitchCandidate> Best;
   for (auto &Candidate : UnswitchCandidates) {
     Instruction &TI = *Candidate.TI;
     ArrayRef<Value *> Invariants = Candidate.Invariants;
@@ -3210,15 +3211,15 @@ PreservedAnalyses SimpleLoopUnswitchPass::run(Loop &L, LoopAnalysisManager &AM,
     U.markLoopAsDeleted(L, Name);
   };
 
-  Optional<MemorySSAUpdater> MSSAU;
+  std::optional<MemorySSAUpdater> MSSAU;
   if (AR.MSSA) {
     MSSAU = MemorySSAUpdater(AR.MSSA);
     if (VerifyMemorySSA)
       AR.MSSA->verifyMemorySSA();
   }
   if (!unswitchLoop(L, AR.DT, AR.LI, AR.AC, AR.AA, AR.TTI, Trivial, NonTrivial,
-                    UnswitchCB, &AR.SE, MSSAU ? MSSAU.getPointer() : nullptr,
-                    PSI, AR.BFI, DestroyLoopCB))
+                    UnswitchCB, &AR.SE, MSSAU ? &*MSSAU : nullptr, PSI, AR.BFI,
+                    DestroyLoopCB))
     return PreservedAnalyses::all();
 
   if (AR.MSSA && VerifyMemorySSA)

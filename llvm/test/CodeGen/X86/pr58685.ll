@@ -118,3 +118,121 @@ define i1 @lock_xor_sets(ptr %0, i32 %1) nounwind {
   %5 = icmp slt i32 %4, 0
   ret i1 %5
 }
+
+define i1 @lock_add_setne(ptr %0, i32 %1) nounwind {
+; CHECK-LABEL: lock_add_setne:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    lock addl %esi, (%rdi)
+; CHECK-NEXT:    setne %al
+; CHECK-NEXT:    retq
+  %3 = atomicrmw add ptr %0, i32 %1 seq_cst, align 4
+  %4 = sub i32 0, %1
+  %5 = icmp ne i32 %3, %4
+  ret i1 %5
+}
+
+define i1 @lock_add_setns(ptr %0, i32 %1) nounwind {
+; CHECK-LABEL: lock_add_setns:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    lock addl %esi, (%rdi)
+; CHECK-NEXT:    setns %al
+; CHECK-NEXT:    retq
+  %3 = atomicrmw add ptr %0, i32 %1 seq_cst, align 4
+  %4 = add i32 %3, %1
+  %5 = icmp sgt i32 %4, -1
+  ret i1 %5
+}
+
+define i1 @lock_sub_setne(ptr %0, i32 %1) nounwind {
+; CHECK-LABEL: lock_sub_setne:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    lock subl %esi, (%rdi)
+; CHECK-NEXT:    setne %al
+; CHECK-NEXT:    retq
+  %3 = atomicrmw sub ptr %0, i32 %1 seq_cst, align 4
+  %4 = icmp ne i32 %3, %1
+  ret i1 %4
+}
+
+define i1 @lock_sub_setns(ptr %0, i32 %1) nounwind {
+; CHECK-LABEL: lock_sub_setns:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    lock subl %esi, (%rdi)
+; CHECK-NEXT:    setns %al
+; CHECK-NEXT:    retq
+  %3 = atomicrmw sub ptr %0, i32 %1 seq_cst, align 4
+  %4 = sub i32 %3, %1
+  %5 = icmp sgt i32 %4, -1
+  ret i1 %5
+}
+
+define i1 @lock_or_setne(ptr %0, i32 %1) nounwind {
+; CHECK-LABEL: lock_or_setne:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    lock orl %esi, (%rdi)
+; CHECK-NEXT:    setne %al
+; CHECK-NEXT:    retq
+  %3 = atomicrmw or ptr %0, i32 %1 seq_cst, align 4
+  %4 = or i32 %3, %1
+  %5 = icmp ne i32 %4, 0
+  ret i1 %5
+}
+
+define i1 @lock_or_setns(ptr %0, i32 %1) nounwind {
+; CHECK-LABEL: lock_or_setns:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    lock orl %esi, (%rdi)
+; CHECK-NEXT:    setns %al
+; CHECK-NEXT:    retq
+  %3 = atomicrmw or ptr %0, i32 %1 seq_cst, align 4
+  %4 = or i32 %3, %1
+  %5 = icmp sgt i32 %4, -1
+  ret i1 %5
+}
+
+define i1 @lock_and_setne(ptr %0, i32 %1) nounwind {
+; CHECK-LABEL: lock_and_setne:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    lock andl %esi, (%rdi)
+; CHECK-NEXT:    setne %al
+; CHECK-NEXT:    retq
+  %3 = atomicrmw and ptr %0, i32 %1 seq_cst, align 4
+  %4 = and i32 %3, %1
+  %5 = icmp ne i32 %4, 0
+  ret i1 %5
+}
+
+define i1 @lock_and_setns(ptr %0, i32 %1) nounwind {
+; CHECK-LABEL: lock_and_setns:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    lock andl %esi, (%rdi)
+; CHECK-NEXT:    setns %al
+; CHECK-NEXT:    retq
+  %3 = atomicrmw and ptr %0, i32 %1 seq_cst, align 4
+  %4 = and i32 %3, %1
+  %5 = icmp sgt i32 %4, -1
+  ret i1 %5
+}
+
+define i1 @lock_xor_setne(ptr %0, i32 %1) nounwind {
+; CHECK-LABEL: lock_xor_setne:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    lock xorl %esi, (%rdi)
+; CHECK-NEXT:    setne %al
+; CHECK-NEXT:    retq
+  %3 = atomicrmw xor ptr %0, i32 %1 seq_cst, align 4
+  %4 = icmp ne i32 %3, %1
+  ret i1 %4
+}
+
+define i1 @lock_xor_setns(ptr %0, i32 %1) nounwind {
+; CHECK-LABEL: lock_xor_setns:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    lock xorl %esi, (%rdi)
+; CHECK-NEXT:    setns %al
+; CHECK-NEXT:    retq
+  %3 = atomicrmw xor ptr %0, i32 %1 seq_cst, align 4
+  %4 = xor i32 %3, %1
+  %5 = icmp sgt i32 %4, -1
+  ret i1 %5
+}

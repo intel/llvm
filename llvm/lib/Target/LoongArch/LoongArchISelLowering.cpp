@@ -93,6 +93,8 @@ LoongArchTargetLowering::LoongArchTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::CTLZ, MVT::i32, Custom);
     setOperationAction(ISD::INTRINSIC_VOID, MVT::i32, Custom);
     setOperationAction(ISD::INTRINSIC_W_CHAIN, MVT::i32, Custom);
+    setOperationAction(ISD::READ_REGISTER, MVT::i32, Custom);
+    setOperationAction(ISD::WRITE_REGISTER, MVT::i32, Custom);
     if (Subtarget.hasBasicF() && !Subtarget.hasBasicD())
       setOperationAction(ISD::FP_TO_UINT, MVT::i32, Custom);
     if (Subtarget.hasBasicF())
@@ -118,6 +120,8 @@ LoongArchTargetLowering::LoongArchTargetLowering(const TargetMachine &TM,
   } else {
     setOperationAction(ISD::BITREVERSE, MVT::i32, Legal);
     setOperationAction(ISD::INTRINSIC_W_CHAIN, MVT::i64, Custom);
+    setOperationAction(ISD::READ_REGISTER, MVT::i64, Custom);
+    setOperationAction(ISD::WRITE_REGISTER, MVT::i64, Custom);
   }
 
   static const ISD::CondCode FPCCToExpand[] = {
@@ -244,8 +248,28 @@ SDValue LoongArchTargetLowering::LowerOperation(SDValue Op,
     return lowerFRAMEADDR(Op, DAG);
   case ISD::RETURNADDR:
     return lowerRETURNADDR(Op, DAG);
+  case ISD::WRITE_REGISTER:
+    return lowerWRITE_REGISTER(Op, DAG);
   }
   return SDValue();
+}
+
+SDValue LoongArchTargetLowering::lowerWRITE_REGISTER(SDValue Op,
+                                                     SelectionDAG &DAG) const {
+
+  if (Subtarget.is64Bit() && Op.getOperand(2).getValueType() == MVT::i32) {
+    DAG.getContext()->emitError(
+        "On LA64, only 64-bit registers can be written.");
+    return Op.getOperand(0);
+  }
+
+  if (!Subtarget.is64Bit() && Op.getOperand(2).getValueType() == MVT::i64) {
+    DAG.getContext()->emitError(
+        "On LA32, only 32-bit registers can be written.");
+    return Op.getOperand(0);
+  }
+
+  return Op;
 }
 
 SDValue LoongArchTargetLowering::lowerFRAMEADDR(SDValue Op,
@@ -256,19 +280,23 @@ SDValue LoongArchTargetLowering::lowerFRAMEADDR(SDValue Op,
     return SDValue();
   }
 
-  // Currently only support lowering frame address for current frame.
-  if (cast<ConstantSDNode>(Op.getOperand(0))->getZExtValue() != 0) {
-    DAG.getContext()->emitError(
-        "frame address can only be determined for the current frame");
-    return SDValue();
-  }
-
   MachineFunction &MF = DAG.getMachineFunction();
   MF.getFrameInfo().setFrameAddressIsTaken(true);
+  Register FrameReg = Subtarget.getRegisterInfo()->getFrameRegister(MF);
+  EVT VT = Op.getValueType();
+  SDLoc DL(Op);
+  SDValue FrameAddr = DAG.getCopyFromReg(DAG.getEntryNode(), DL, FrameReg, VT);
+  unsigned Depth = cast<ConstantSDNode>(Op.getOperand(0))->getZExtValue();
+  int GRLenInBytes = Subtarget.getGRLen() / 8;
 
-  return DAG.getCopyFromReg(DAG.getEntryNode(), SDLoc(Op),
-                            Subtarget.getRegisterInfo()->getFrameRegister(MF),
-                            Op.getValueType());
+  while (Depth--) {
+    int Offset = -(GRLenInBytes * 2);
+    SDValue Ptr = DAG.getNode(ISD::ADD, DL, VT, FrameAddr,
+                              DAG.getIntPtrConstant(Offset, DL));
+    FrameAddr =
+        DAG.getLoad(VT, DL, DAG.getEntryNode(), Ptr, MachinePointerInfo());
+  }
+  return FrameAddr;
 }
 
 SDValue LoongArchTargetLowering::lowerRETURNADDR(SDValue Op,
@@ -921,6 +949,17 @@ void LoongArchTargetLowering::ReplaceNodeResults(
       break;
     }
     }
+    break;
+  }
+  case ISD::READ_REGISTER: {
+    if (Subtarget.is64Bit())
+      DAG.getContext()->emitError(
+          "On LA64, only 64-bit registers can be read.");
+    else
+      DAG.getContext()->emitError(
+          "On LA32, only 32-bit registers can be read.");
+    Results.push_back(DAG.getUNDEF(N->getValueType(0)));
+    Results.push_back(N->getOperand(0));
     break;
   }
   }
