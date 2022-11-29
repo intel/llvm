@@ -112,7 +112,8 @@ and not recommended to use in production environment.
   Enables/Disables inlining of the kernel lambda operator into the compiler
   generated entry point function. This flag does not apply to ESIMD
   kernels.
-  Enabled by default.
+  Enabled by default; disabled when optimizations are disabled (-O0 or
+  equivalent).
 
 **`-fgpu-inline-threshold=<n>`**
 
