@@ -20,12 +20,20 @@
 namespace mlir {
 namespace sycl {
 
+/// Inline mode to attempt.
+enum InlineMode { AlwaysInline, Simple, Aggressive };
+
+#define GEN_PASS_DECL
+#include "mlir/Dialect/SYCL/Transforms/Passes.h.inc"
+
 //===----------------------------------------------------------------------===//
 // Passes
 //===----------------------------------------------------------------------===//
 
-std::unique_ptr<Pass> createAlwaysInlinePass();
 std::unique_ptr<Pass> createInlinePass();
+std::unique_ptr<Pass> createInlinePass(enum InlineMode InlineMode,
+                                       bool RemoveDeadCallees);
+
 std::unique_ptr<Pass> createSYCLMethodToSYCLCallPass();
 
 //===----------------------------------------------------------------------===//

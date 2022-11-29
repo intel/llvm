@@ -346,10 +346,6 @@ static int optimize(mlir::MLIRContext &context,
     // operations to be inlined.
     if (RaiseToAffine)
       optPM.addPass(mlir::createLowerAffinePass());
-    optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-    pm.addPass(sycl::createAlwaysInlinePass());
-
-    pm.addPass(sycl::createAlwaysInlinePass());
     pm.addPass(sycl::createInlinePass());
 
     mlir::OpPassManager &optPM2 = pm.nestAny();

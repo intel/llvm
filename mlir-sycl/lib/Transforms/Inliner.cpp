@@ -7,24 +7,20 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Analysis/CallGraph.h"
-#include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Dialect/GPU/IR/GPUDialect.h"
-#include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
 #include "mlir/Dialect/SYCL/Transforms/Passes.h"
-#include "mlir/Pass/Pass.h"
-#include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/InliningUtils.h"
-#include "mlir/Transforms/Passes.h"
-
 #include "llvm/ADT/SCCIterator.h"
+
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
 
 namespace mlir {
-#define GEN_PASS_DEF_INLINER
-#include "mlir/Transforms/Passes.h.inc"
+namespace sycl {
+#define GEN_PASS_DEF_INLINEPASS
+#include "mlir/Dialect/SYCL/Transforms/Passes.h.inc"
+} // namespace sycl
 } // namespace mlir
 
 #define DEBUG_TYPE "inlining"
@@ -73,8 +69,8 @@ public:
   CallGraphNode *SrcNode, *TgtNode;
 };
 
-inline llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
-                                     const ResolvedCall &RC) {
+[[maybe_unused]] inline llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
+                                                      const ResolvedCall &RC) {
   if (!RC.SrcNode->isExternal())
     OS << "SrcNode: " << getFunction(*RC.SrcNode) << "\n";
   if (!RC.TgtNode->isExternal())
@@ -113,8 +109,8 @@ private:
   llvm::scc_iterator<const CallGraph *> &ParentIterator;
 };
 
-inline llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
-                                     const CallGraphSCC &SCC) {
+[[maybe_unused]] inline llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
+                                                      const CallGraphSCC &SCC) {
   OS << "{ ";
   llvm::interleaveComma(SCC.Nodes, OS, [&](const CallGraphNode *CGN) {
     if (!CGN->isExternal())
@@ -127,6 +123,8 @@ inline llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
 /// Tracks the uses of callgraph nodes that can be dropped when no longer
 /// referenced.
 class CGUseList {
+  friend llvm::raw_ostream &operator<<(llvm::raw_ostream &, const CGUseList &);
+
 public:
   /// This struct tracks the uses of callgraph nodes within a specific
   /// operation.
@@ -153,7 +151,7 @@ public:
 
   /// Returns true if the given callgraph node has a single use and can be
   /// discarded.
-  bool hasOneUseAndDiscardable(CallGraphNode *CGN) const;
+  bool hasOneUse(CallGraphNode *CGN) const;
 
   /// Recompute the uses held by the given callgraph node.
   void recomputeUses(CallGraphNode *CGN, CallGraph &CG);
@@ -184,6 +182,29 @@ private:
   SymbolTableCollection &SymbolTable;
 };
 
+[[maybe_unused]] inline llvm::raw_ostream &
+operator<<(llvm::raw_ostream &OS, const CGUseList &UseList) {
+  for (auto &Use : UseList.NodeUses) {
+    CallGraphNode *CGN = Use.first;
+    CGUseList::CGUser Uses = Use.second;
+
+    OS << "Func: " << getFunction(*CGN).getName() << "\n";
+
+    OS.indent(2) << "TopLevelUses:\n";
+    for (CallGraphNode *CGN : Uses.TopLevelUses)
+      OS.indent(4) << "Op: " << getFunction(*CGN).getName() << "\n";
+
+    OS.indent(2) << "InnerUses:\n";
+    for (auto &It : Uses.InnerUses) {
+      CallGraphNode *CGN = It.first;
+      OS.indent(4) << "Op: " << getFunction(*CGN).getName() << "\n";
+      OS.indent(4) << "It.second: " << It.second << "\n";
+    }
+  }
+
+  return OS;
+}
+
 /// Virtual base class for all inliners.
 class InlinerBase : public InlinerInterface {
 public:
@@ -195,7 +216,7 @@ public:
     return Calls[Index];
   }
   SmallVectorImpl<ResolvedCall> &getCalls() { return Calls; }
-  void clear() { Calls.clear(); }
+  void clearCalls() { Calls.clear(); }
 
   CallGraph &getCG() const { return CG; }
 
@@ -214,6 +235,16 @@ public:
   static LogicalResult inlineSCC(InlinerBase &Inliner, CGUseList &UseList,
                                  CallGraphSCC &SCC, MLIRContext *Ctx);
 
+  /// This method properly disposes of callables that became dead during
+  /// inlining. This should not be called while iterating over the SCCs.
+  void eraseDeadCallables() const {
+    for (CallGraphNode *CGN : DeadNodes) {
+      getFunction(*CGN)->erase();
+      LLVM_DEBUG(llvm::dbgs() << "Removed dead callable: "
+                              << getFunction(*CGN).getName() << "\n");
+    }
+  }
+
 protected:
   /// Attempt to inline calls within the given SCC.
   static void inlineCallsInSCC(InlinerBase &Inliner, CGUseList &UseList,
@@ -226,12 +257,19 @@ protected:
 
   /// Returns true if the given call should be inlined. Derived class must
   /// provide an implementation.
-  virtual bool shouldInline(ResolvedCall &ResolvedCall) const = 0;
+  virtual bool shouldInline(ResolvedCall &ResolvedCall,
+                            Optional<CGUseList> Uses) const = 0;
 
   // Returns true if the target is an ancestor of the call and false otherwise.
   bool isRecursiveCall(const ResolvedCall &ResolvedCall) const;
 
+  /// Mark the given callgraph node for deletion.
+  void markForDeletion(CallGraphNode *CGN) { DeadNodes.insert(CGN); }
+
 private:
+  /// The set of callables known to be dead.
+  SmallPtrSet<CallGraphNode *, 8> DeadNodes;
+
   /// The current set of call instructions to consider for inlining.
   SmallVector<ResolvedCall, 8> Calls;
 
@@ -250,7 +288,8 @@ public:
       : InlinerBase(Ctx, CG, SymTable) {}
 
 protected:
-  bool shouldInline(ResolvedCall &ResolvedCall) const final;
+  bool shouldInline(ResolvedCall &ResolvedCall,
+                    Optional<CGUseList> Uses) const final;
 };
 
 /// Inlines sycl.call operations using simple heuristics.
@@ -260,26 +299,19 @@ public:
       : InlinerBase(Ctx, CG, SymTable) {}
 
 protected:
-  bool shouldInline(ResolvedCall &ResolvedCall) const final;
+  bool shouldInline(ResolvedCall &ResolvedCall,
+                    Optional<CGUseList> Uses) const final;
 };
 
-/// Base class for all inliner passes.
-template <typename InlinerPass>
-class InlinePassBase : public impl::InlinerBase<InlinerPass> {
+class InlinePass : public sycl::impl::InlinePassBase<InlinePass> {
 public:
-  InlinePassBase(std::string PassName, std::string FlagName,
-                 std::string PassDescription)
-      : PassName(PassName), FlagName(FlagName),
-        PassDescription(PassDescription) {}
+  InlinePass(const sycl::InlinePassOptions &Options)
+      : sycl::impl::InlinePassBase<InlinePass>(Options) {}
+  InlinePass(const InlinePass &) = default;
 
-  InlinePassBase(const InlinePassBase &) = default;
+  void runOnOperation() final;
 
-  /// Returns the command-line argument attached to this pass.
-  llvm::StringRef getArgument() const final { return FlagName; }
-  llvm::StringRef getName() const final { return PassName; }
-  llvm::StringRef getDescription() const final { return PassDescription; }
-
-protected:
+private:
   /// Inline function calls in the given callgraph \p CG (on each SCC in bottom
   /// up order) using the given \p Inliner .
   LogicalResult runOnCG(InlinerBase &Inliner, CGUseList &UseList, CallGraph &CG,
@@ -290,30 +322,6 @@ protected:
 
 private:
   const std::string PassName, FlagName, PassDescription;
-};
-
-/// A pass that inlines sycl.call operations iff the callee has the
-/// 'alwaysinline' attribute.
-class AlwaysInlinePass : public InlinePassBase<AlwaysInlinePass> {
-public:
-  AlwaysInlinePass()
-      : InlinePassBase(
-            "AlwaysInliner", "sycl-always-inline",
-            "Inline SYCL function calls with the 'alwaysinline' attribute") {}
-  AlwaysInlinePass(const AlwaysInlinePass &) = default;
-
-  void runOnOperation() final;
-};
-
-/// A pass that inlines sycl.call operations.
-class InlinePass : public InlinePassBase<InlinePass> {
-public:
-  InlinePass()
-      : InlinePassBase("Inliner", "sycl-inline",
-                       "Inline SYCL function  calls") {}
-  InlinePass(const InlinePass &) = default;
-
-  void runOnOperation() final;
 };
 
 } // namespace
@@ -336,9 +344,8 @@ CGUseList::CGUseList(Operation *Op, CallGraph &CG,
         if (auto *Node = CG.lookupNode(Callable.getCallableRegion())) {
           SymbolOpInterface Symbol = dyn_cast<SymbolOpInterface>(&Op);
           if (Symbol && (AllUsesVisible || Symbol.isPrivate()) &&
-              Symbol.canDiscardOnUseEmpty()) {
+              Symbol.canDiscardOnUseEmpty())
             DiscardableSymNodeUses.try_emplace(Node, 0);
-          }
           continue;
         }
       }
@@ -398,7 +405,46 @@ bool CGUseList::isDead(CallGraphNode *CGN) const {
   return SymbolIt != DiscardableSymNodeUses.end() && SymbolIt->second == 0;
 }
 
-void CGUseList::recomputeUses(CallGraphNode *CGN, CallGraph &cg) {
+bool CGUseList::hasOneUse(CallGraphNode *CGN) const {
+  // If this isn't a symbol node, check for side-effects and SSA use count.
+  Operation *Op = CGN->getCallableRegion()->getParentOp();
+  if (!isa<SymbolOpInterface>(Op))
+    return isMemoryEffectFree(Op) && Op->hasOneUse();
+
+  // Otherwise, check the number of symbol uses.
+  auto SymbolIt = DiscardableSymNodeUses.find(CGN);
+  return SymbolIt != DiscardableSymNodeUses.end() && SymbolIt->second == 1;
+}
+
+void CGUseList::dropCallUses(CallGraphNode *UserNode, Operation *CallOp,
+                             CallGraph &CG) {
+  auto &UserRefs = NodeUses[UserNode].InnerUses;
+  auto WalkFn = [&](CallGraphNode *Node, Operation *User) {
+    auto ParentIt = UserRefs.find(Node);
+    if (ParentIt == UserRefs.end())
+      return;
+    --ParentIt->second;
+    --DiscardableSymNodeUses[Node];
+  };
+  DenseMap<Attribute, CallGraphNode *> ResolvedRefs;
+  walkReferencedSymbolNodes(CallOp, CG, SymbolTable, ResolvedRefs, WalkFn);
+}
+
+void CGUseList::eraseNode(CallGraphNode *CGN) {
+  // Drop all child nodes.
+  for (const CallGraphNode::Edge &Edge : *CGN)
+    if (Edge.isChild())
+      eraseNode(Edge.getTarget());
+
+  // Drop the uses held by this node and erase it.
+  auto UseIt = NodeUses.find(CGN);
+  assert(UseIt != NodeUses.end() && "expected node to be valid");
+  decrementDiscardableUses(UseIt->getSecond());
+  NodeUses.erase(UseIt);
+  DiscardableSymNodeUses.erase(CGN);
+}
+
+void CGUseList::recomputeUses(CallGraphNode *CGN, CallGraph &CG) {
   Operation *ParentOp = CGN->getCallableRegion()->getParentOp();
   CGUser &Uses = NodeUses[CGN];
   decrementDiscardableUses(Uses);
@@ -417,7 +463,28 @@ void CGUseList::recomputeUses(CallGraphNode *CGN, CallGraph &cg) {
       return;
     ++DiscardSymIt->second;
   };
-  walkReferencedSymbolNodes(ParentOp, cg, SymbolTable, ResolvedRefs, WalkFn);
+  walkReferencedSymbolNodes(ParentOp, CG, SymbolTable, ResolvedRefs, WalkFn);
+}
+
+void CGUseList::mergeUsesAfterInlining(CallGraphNode *LHS, CallGraphNode *RHS) {
+  auto &LHSUses = NodeUses[LHS], &RHSUses = NodeUses[RHS];
+  for (auto &UseIt : LHSUses.InnerUses) {
+    RHSUses.InnerUses[UseIt.first] += UseIt.second;
+    DiscardableSymNodeUses[UseIt.first] += UseIt.second;
+  }
+}
+
+void CGUseList::decrementDiscardableUses(CGUser &Uses) {
+  for (CallGraphNode *CGN : Uses.TopLevelUses)
+    --DiscardableSymNodeUses[CGN];
+  for (auto &It : Uses.InnerUses)
+    DiscardableSymNodeUses[It.first] -= It.second;
+
+  for (CallGraphNode *CGN : Uses.TopLevelUses) {
+    Operation *ParentOp = CGN->getCallableRegion()->getParentOp();
+    llvm::dbgs() << ParentOp->getName() << " has "
+                 << DiscardableSymNodeUses[CGN] << " uses\n";
+  }
 }
 
 //===----------------------------------------------------------------------===//
@@ -477,20 +544,19 @@ void InlinerBase::inlineCallsInSCC(InlinerBase &Inliner, CGUseList &UseList,
   // Try to inline each of the call operations. Don't cache the end iterator
   // here as more calls may be added during inlining.
   for (unsigned I = 0; I < Inliner.getCalls().size(); ++I) {
-    ResolvedCall It = Inliner.getCall(I);
-    CallOpInterface Call = It.Call;
-
-    bool DoInline = Inliner.shouldInline(It);
-    LLVM_DEBUG(llvm::dbgs() << ((DoInline) ? "* Inlining call: "
-                                           : "* Not inlining call: ")
-                            << I << ". " << Call << "\n";);
+    ResolvedCall ResolvedCall = Inliner.getCall(I);
+    bool DoInline = Inliner.shouldInline(ResolvedCall, UseList);
     if (!DoInline)
       continue;
 
-    Region *TgtRegion = It.TgtNode->getCallableRegion();
-    LogicalResult InlineRes = inlineCall(
-        Inliner, Call, cast<CallableOpInterface>(TgtRegion->getParentOp()),
-        TgtRegion, /*shouldCloneInlinedRegion=*/true);
+    LLVM_DEBUG(llvm::dbgs() << "* Inlining call: " << I << ". "
+                            << ResolvedCall.Call << "\n";);
+
+    Region *TgtRegion = ResolvedCall.TgtNode->getCallableRegion();
+    LogicalResult InlineRes =
+        inlineCall(Inliner, ResolvedCall.Call,
+                   cast<CallableOpInterface>(TgtRegion->getParentOp()),
+                   TgtRegion, /*shouldCloneInlinedRegion=*/true);
 
     if (failed(InlineRes)) {
       LLVM_DEBUG(llvm::dbgs() << "** Failed to inline\n");
@@ -500,14 +566,31 @@ void InlinerBase::inlineCallsInSCC(InlinerBase &Inliner, CGUseList &UseList,
     LLVM_DEBUG(llvm::dbgs() << "** Inline succeeded\n");
 
     // Merge the new uses into the source node.
-    UseList.dropCallUses(It.SrcNode, Call.getOperation(), Inliner.getCG());
-    UseList.mergeUsesAfterInlining(It.TgtNode, It.SrcNode);
+    UseList.dropCallUses(ResolvedCall.SrcNode, ResolvedCall.Call.getOperation(),
+                         Inliner.getCG());
+    UseList.mergeUsesAfterInlining(ResolvedCall.TgtNode, ResolvedCall.SrcNode);
 
     // Erase the call.
-    Call.erase();
+    ResolvedCall.Call.erase();
+
+    // If the last call to the target node was inlined, mark the callee for
+    // deletion.
+    if (UseList.isDead(ResolvedCall.TgtNode)) {
+      UseList.eraseNode(ResolvedCall.TgtNode);
+      DeadNodes.insert(ResolvedCall.TgtNode);
+    }
   }
 
-  Inliner.clear();
+  for (CallGraphNode *CGN : DeadNodes) {
+    LLVM_DEBUG(llvm::dbgs()
+               << "** Marking "
+               << CGN->getCallableRegion()->getParentOp()->getName()
+               << " dead\n");
+    SCC.remove(CGN);
+    Inliner.markForDeletion(CGN);
+  }
+
+  Inliner.clearCalls();
 }
 
 void InlinerBase::collectCallOps(CallGraphNode &SrcNode, CallGraph &CG,
@@ -538,7 +621,8 @@ bool InlinerBase::isRecursiveCall(const ResolvedCall &ResolvedCall) const {
 // AlwaysInliner
 //===----------------------------------------------------------------------===//
 
-bool AlwaysInliner::shouldInline(ResolvedCall &ResolvedCall) const {
+bool AlwaysInliner::shouldInline(ResolvedCall &ResolvedCall,
+                                 Optional<CGUseList> Uses) const {
   if (isRecursiveCall(ResolvedCall))
     return false;
 
@@ -559,7 +643,8 @@ bool AlwaysInliner::shouldInline(ResolvedCall &ResolvedCall) const {
 // Inliner
 //===----------------------------------------------------------------------===//
 
-bool Inliner::shouldInline(ResolvedCall &ResolvedCall) const {
+bool Inliner::shouldInline(ResolvedCall &ResolvedCall,
+                           Optional<CGUseList> Uses) const {
   if (isRecursiveCall(ResolvedCall))
     return false;
 
@@ -567,78 +652,37 @@ bool Inliner::shouldInline(ResolvedCall &ResolvedCall) const {
   NamedAttrList FnAttrs(Callee->getAttrDictionary());
   Optional<NamedAttribute> PassThroughAttr = FnAttrs.getNamed("passthrough");
 
-  // Inline functions that have the 'inlinehint' attribute.
+  // Inline a function if it has an attribute suggesting that inlining is
+  // desirable.
   if (PassThroughAttr) {
-    bool HasInlineHint = llvm::any_of(
+    bool ShouldInline = llvm::any_of(
         PassThroughAttr->getValue().cast<ArrayAttr>(), [](Attribute Attr) {
           return Attr.isa<StringAttr>() &&
-                 (Attr.cast<StringAttr>() == "inlinehint");
+                 ((Attr.cast<StringAttr>() == "alwaysinline") ||
+                  (Attr.cast<StringAttr>() == "inlinehint"));
         });
-    if (HasInlineHint)
+    if (ShouldInline)
       return true;
   }
 
-  // TODO: simple heuristics
+  // Inline a function if inlining makes it dead.
+  if (Uses.has_value())
+    return Uses->hasOneUse(ResolvedCall.TgtNode);
+
+  // TODO: extend simple heuristics
   // - Inline a callee if inlining it would make it dead.
   //    - consider case where there are more than one call hedge in the same
   //    caller ?
   //  - what about inlining in loops (Should allow inlining in inner loop)
   //  - pass flags to make inliner 'aggressive'?
-  //     + is inliner is aggressive then inline in inner loop as long as callee
-  //     is not too big
+  //     + is inliner is aggressive then inline in inner loop as long as
+  //     callee is not too big
 
   return false;
 }
 
 //===----------------------------------------------------------------------===//
-// InlinerPassBase
-//===----------------------------------------------------------------------===//
-
-template <typename InlinerKind>
-LogicalResult
-InlinePassBase<InlinerKind>::runOnCG(InlinerBase &Inliner, CGUseList &UseList,
-                                     CallGraph &CG, MLIRContext *Ctx) {
-  return InlinerBase::runTransformOnSCCs(CG, [&](CallGraphSCC &SCC) {
-    return InlinerBase::inlineSCC(Inliner, UseList, SCC, Ctx);
-  });
-}
-
-template <typename InlinerKind>
-bool InlinePassBase<InlinerKind>::checkForSymbolTable(Operation &Op) {
-  // The inliner should only be run on operations that define a symbol table,
-  // as the callgraph will need to resolve references.
-  if (!Op.hasTrait<OpTrait::SymbolTable>()) {
-    Op.emitOpError() << " was scheduled to run under the inliner, but does "
-                        "not define a symbol table";
-    return false;
-  }
-  return true;
-}
-
-//===----------------------------------------------------------------------===//
-// AlwaysInlinerPass
-//===----------------------------------------------------------------------===//
-
-void AlwaysInlinePass::runOnOperation() {
-  if (!checkForSymbolTable(*getOperation()))
-    return signalPassFailure();
-
-  MLIRContext *Ctx = &getContext();
-  CallGraph &CG = getAnalysis<CallGraph>();
-  SymbolTableCollection SymTable;
-  CGUseList UseList(getOperation(), CG, SymTable);
-  AlwaysInliner Inliner(Ctx, CG, SymTable);
-
-  if (failed(runOnCG(Inliner, UseList, CG, Ctx)))
-    return signalPassFailure();
-}
-
-std::unique_ptr<Pass> sycl::createAlwaysInlinePass() {
-  return std::make_unique<AlwaysInlinePass>();
-}
-
-//===----------------------------------------------------------------------===//
-// InlinerPass
+// InlinePass
 //===----------------------------------------------------------------------===//
 
 void InlinePass::runOnOperation() {
@@ -649,12 +693,57 @@ void InlinePass::runOnOperation() {
   CallGraph &CG = getAnalysis<CallGraph>();
   SymbolTableCollection SymTable;
   CGUseList UseList(getOperation(), CG, SymTable);
-  Inliner Inliner(Ctx, CG, SymTable);
 
-  if (failed(runOnCG(Inliner, UseList, CG, Ctx)))
+  std::unique_ptr<InlinerBase> Inliner = nullptr;
+  switch (InlineMode) {
+  case sycl::InlineMode::AlwaysInline:
+    Inliner = std::make_unique<class AlwaysInliner>(Ctx, CG, SymTable);
+    break;
+  case sycl::InlineMode::Simple:
+    Inliner = std::make_unique<class Inliner>(Ctx, CG, SymTable);
+    break;
+  case sycl::InlineMode::Aggressive:
+    assert(false && "TODO");
+    break;
+  }
+
+  if (failed(runOnCG(*Inliner, UseList, CG, Ctx)))
     return signalPassFailure();
 }
 
+LogicalResult InlinePass::runOnCG(InlinerBase &Inliner, CGUseList &UseList,
+                                  CallGraph &CG, MLIRContext *Ctx) {
+  LogicalResult Res =
+      InlinerBase::runTransformOnSCCs(CG, [&](CallGraphSCC &SCC) {
+        return InlinerBase::inlineSCC(Inliner, UseList, SCC, Ctx);
+      });
+
+  // After inlining, make sure to erase any callables proven to be dead.
+  if (succeeded(Res) && RemoveDeadCallees)
+    Inliner.eraseDeadCallables();
+
+  return Res;
+}
+
+bool InlinePass::checkForSymbolTable(Operation &Op) {
+  // The inliner should only be run on operations that define a symbol table,
+  // as the callgraph will need to resolve references.
+  if (!Op.hasTrait<OpTrait::SymbolTable>()) {
+    Op.emitOpError() << " was scheduled to run under the inliner, but does "
+                        "not define a symbol table";
+    return false;
+  }
+  return true;
+}
+
 std::unique_ptr<Pass> sycl::createInlinePass() {
-  return std::make_unique<InlinePass>();
+  const sycl::InlinePassOptions &Options = {InlineMode::Simple,
+                                            /* RemoveDeadCallees */ false};
+  return std::make_unique<InlinePass>(Options);
+}
+
+std::unique_ptr<Pass> sycl::createInlinePass(enum InlineMode InlineMode,
+                                             bool RemoveDeadCallees) {
+  const sycl::InlinePassOptions &Options = {InlineMode, RemoveDeadCallees};
+  return std::make_unique<InlinePass>(Options);
 }
