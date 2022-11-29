@@ -42,23 +42,15 @@ public:
   constexpr weak_object() noexcept : detail::weak_object_base<SYCLObjT>() {}
   weak_object(const SYCLObjT &SYCLObj) noexcept
       : detail::weak_object_base<SYCLObjT>(SYCLObj) {}
-  weak_object(const weak_object &Other) noexcept
-      : detail::weak_object_base<SYCLObjT>(Other) {}
-  weak_object(weak_object &&Other) noexcept
-      : detail::weak_object_base<SYCLObjT>(Other) {}
+  weak_object(const weak_object &Other) noexcept = default;
+  weak_object(weak_object &&Other) noexcept = default;
 
   weak_object &operator=(const SYCLObjT &SYCLObj) noexcept {
     this->MObjWeakPtr = sycl::detail::getSyclObjImpl(SYCLObj);
     return *this;
   }
-  weak_object &operator=(const weak_object &Other) noexcept {
-    this->MObjWeakPtr = Other.MObjWeakPtr;
-    return *this;
-  }
-  weak_object &operator=(weak_object &&Other) noexcept {
-    this->MObjWeakPtr = std::move(Other.MObjWeakPtr);
-    return *this;
-  }
+  weak_object &operator=(const weak_object &Other) noexcept = default;
+  weak_object &operator=(weak_object &&Other) noexcept = default;
 
   std::optional<SYCLObjT> try_lock() const noexcept {
     auto MObjImplPtr = this->MObjWeakPtr.lock();
@@ -95,15 +87,8 @@ public:
       : detail::weak_object_base<buffer_type>(SYCLObj), MRange{SYCLObj.Range},
         MOffsetInBytes{SYCLObj.OffsetInBytes},
         MIsSubBuffer{SYCLObj.IsSubBuffer} {}
-  weak_object(const weak_object &Other) noexcept
-      : detail::weak_object_base<buffer_type>(Other), MRange{Other.MRange},
-        MOffsetInBytes{Other.MOffsetInBytes}, MIsSubBuffer{Other.MIsSubBuffer} {
-  }
-  weak_object(weak_object &&Other) noexcept
-      : detail::weak_object_base<buffer_type>(Other),
-        MRange{std::move(Other.MRange)},
-        MOffsetInBytes{std::move(Other.MOffsetInBytes)},
-        MIsSubBuffer{std::move(Other.MIsSubBuffer)} {}
+  weak_object(const weak_object &Other) noexcept = default;
+  weak_object(weak_object &&Other) noexcept = default;
 
   weak_object &operator=(const buffer_type &SYCLObj) noexcept {
     this->MObjWeakPtr = sycl::detail::getSyclObjImpl(SYCLObj);
@@ -112,20 +97,8 @@ public:
     this->MIsSubBuffer = SYCLObj.IsSubBuffer;
     return *this;
   }
-  weak_object &operator=(const weak_object &Other) noexcept {
-    this->MObjWeakPtr = Other.MObjWeakPtr;
-    this->MRange = Other.MRange;
-    this->MOffsetInBytes = Other.MOffsetInBytes;
-    this->MIsSubBuffer = Other.MIsSubBuffer;
-    return *this;
-  }
-  weak_object &operator=(weak_object &&Other) noexcept {
-    this->MObjWeakPtr = std::move(Other.MObjWeakPtr);
-    this->MRange = std::move(Other.MRange);
-    this->MOffsetInBytes = std::move(Other.MOffsetInBytes);
-    this->MIsSubBuffer = std::move(Other.MIsSubBuffer);
-    return *this;
-  }
+  weak_object &operator=(const weak_object &Other) noexcept = default;
+  weak_object &operator=(weak_object &&Other) noexcept = default;
 
   std::optional<buffer_type> try_lock() const noexcept {
     auto MObjImplPtr = this->MObjWeakPtr.lock();

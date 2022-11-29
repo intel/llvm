@@ -32,10 +32,8 @@ public:
   constexpr weak_object_base() noexcept : MObjWeakPtr() {}
   weak_object_base(const SYCLObjT &SYCLObj) noexcept
       : MObjWeakPtr(sycl::detail::getSyclObjImpl(SYCLObj)) {}
-  weak_object_base(const weak_object_base &Other) noexcept
-      : MObjWeakPtr(Other.MObjWeakPtr) {}
-  weak_object_base(weak_object_base &&Other) noexcept
-      : MObjWeakPtr(std::move(Other.MObjWeakPtr)) {}
+  weak_object_base(const weak_object_base &Other) noexcept = default;
+  weak_object_base(weak_object_base &&Other) noexcept = default;
 
   void reset() noexcept { MObjWeakPtr.reset(); }
   void swap(weak_object_base &Other) noexcept {
