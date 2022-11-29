@@ -905,6 +905,7 @@ TEST(CloneFunction, CloneFunctionToDifferentModule) {
 class CloneModule : public ::testing::Test {
 protected:
   void SetUp() override {
+    C.setOpaquePointers(true);
     SetupModule();
     CreateOldModule();
     CreateNewModule();

@@ -18,6 +18,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/PrettyPrinter.h"
 #include "clang/Basic/SourceManager.h"
+#include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/Lexer.h"
 #include "clang/Tooling/Inclusions/StandardLibrary.h"
 #include "llvm/Support/ScopedPrinter.h"
@@ -29,7 +30,7 @@ namespace {
 constexpr llvm::StringLiteral CSS = R"css(
   body { margin: 0; }
   pre { line-height: 1.5em; counter-reset: line; margin: 0; }
-  pre .line { counter-increment: line; }
+  pre .line:not(.added) { counter-increment: line; }
   pre .line::before {
     content: counter(line);
     display: inline-block;
@@ -37,7 +38,8 @@ constexpr llvm::StringLiteral CSS = R"css(
     text-align: right;
     width: 3em; padding-right: 0.5em; margin-right: 0.5em;
   }
-  .ref { text-decoration: underline; color: #008; }
+  pre .line.added::before { content: '+' }
+  .ref, .inc { text-decoration: underline; color: #008; }
   .sel { position: relative; cursor: pointer; }
   .ref.implicit { background-color: #ff8; }
   #hover {
@@ -49,15 +51,19 @@ constexpr llvm::StringLiteral CSS = R"css(
     padding: 0.5em;
   }
   #hover p, #hover pre { margin: 0; }
-  #hover .target.implicit { background-color: #bbb; }
-  #hover .target.ambiguous { background-color: #caf; }
+  #hover .target.implicit, .provides .implicit { background-color: #bbb; }
+  #hover .target.ambiguous, .provides .ambiguous { background-color: #caf; }
   .missing, .unused { background-color: #faa !important; }
+  .inserted { background-color: #bea !important; }
+  .semiused { background-color: #888 !important; }
   #hover th { color: #008; text-align: right; padding-right: 0.5em; }
   #hover .target:not(:first-child) {
     margin-top: 1em;
     padding-top: 1em;
     border-top: 1px solid #444;
   }
+  .ref.missing #hover .insert { font-weight: bold; }
+  .ref:not(.missing) #hover .insert { font-style: italic; }
 )css";
 
 constexpr llvm::StringLiteral JS = R"js(
@@ -95,6 +101,22 @@ llvm::StringRef describeSymbol(const Symbol &Sym) {
   llvm_unreachable("unhandled symbol kind");
 }
 
+// Return detailed symbol description (declaration), if we have any.
+std::string printDetails(const Symbol &Sym) {
+  std::string S;
+  if (Sym.kind() == Symbol::Declaration) {
+    // Print the declaration of the symbol, e.g. to disambiguate overloads.
+    const auto &D = Sym.declaration();
+    PrintingPolicy PP = D.getASTContext().getPrintingPolicy();
+    PP.FullyQualifiedName = true;
+    PP.TerseOutput = true;
+    PP.SuppressInitializers = true;
+    llvm::raw_string_ostream SS(S);
+    D.print(SS, PP);
+  }
+  return S;
+}
+
 llvm::StringRef refType(RefType T) {
   switch (T) {
   case RefType::Explicit:
@@ -111,6 +133,7 @@ class Reporter {
   llvm::raw_ostream &OS;
   const ASTContext &Ctx;
   const SourceManager &SM;
+  HeaderSearch &HS;
   const RecordedPP::RecordedIncludes &Includes;
   const PragmaIncludes *PI;
   FileID MainFile;
@@ -125,6 +148,7 @@ class Reporter {
     SmallVector<Header> Headers;
     SmallVector<const Include *> Includes;
     bool Satisfied = false; // Is the include present?
+    std::string Insert;     // If we had no includes, what would we insert?
   };
   std::vector<Target> Targets;
   // Points within the main file that reference a Target.
@@ -139,9 +163,38 @@ class Reporter {
     }
   };
   std::vector<Ref> Refs;
+  llvm::DenseMap<const Include *, std::vector<unsigned>> IncludeRefs;
+  llvm::StringMap<std::vector</*RefIndex*/unsigned>> Insertion;
+
+  llvm::StringRef includeType(const Include *I) {
+    auto &List = IncludeRefs[I];
+    if (List.empty())
+      return "unused";
+    if (llvm::any_of(List, [&](unsigned I) {
+          return Targets[Refs[I].TargetIndex].Type == RefType::Explicit;
+        }))
+      return "used";
+    return "semiused";
+  }
+
+  std::string spellHeader(const Header &H) {
+    switch (H.kind()) {
+    case Header::Physical: {
+      bool IsSystem = false;
+      std::string Path = HS.suggestPathToFileForDiagnostics(
+          H.physical(), MainFE->tryGetRealPathName(), &IsSystem);
+      return IsSystem ? "<" + Path + ">" : "\"" + Path + "\"";
+    }
+    case Header::Standard:
+      return H.standard().name().str();
+    case Header::Verbatim:
+      return H.verbatim().str();
+    }
+    llvm_unreachable("Unknown Header kind");
+  }
 
   Target makeTarget(const SymbolReference &SR) {
-    Target T{SR.Target, SR.RT, {}, {}, {}};
+    Target T{SR.Target, SR.RT, {}, {}, {}, {}, {}};
 
     // Duplicates logic from walkUsed(), which doesn't expose SymbolLocations.
     // FIXME: use locateDecl and friends once implemented.
@@ -171,16 +224,21 @@ class Reporter {
     llvm::sort(T.Includes);
     T.Includes.erase(std::unique(T.Includes.begin(), T.Includes.end()),
                      T.Includes.end());
+    
+    if (!T.Headers.empty())
+      // FIXME: library should tell us which header to use.
+      T.Insert = spellHeader(T.Headers.front());
 
     return T;
   }
 
 public:
-  Reporter(llvm::raw_ostream &OS, ASTContext &Ctx,
+  Reporter(llvm::raw_ostream &OS, ASTContext &Ctx, HeaderSearch &HS,
            const RecordedPP::RecordedIncludes &Includes,
            const PragmaIncludes *PI, FileID MainFile)
-      : OS(OS), Ctx(Ctx), SM(Ctx.getSourceManager()), Includes(Includes),
-        PI(PI), MainFile(MainFile), MainFE(SM.getFileEntryForID(MainFile)) {}
+      : OS(OS), Ctx(Ctx), SM(Ctx.getSourceManager()), HS(HS),
+        Includes(Includes), PI(PI), MainFile(MainFile),
+        MainFE(SM.getFileEntryForID(MainFile)) {}
 
   void addRef(const SymbolReference &SR) {
     auto [File, Offset] = SM.getDecomposedLoc(SM.getFileLoc(SR.RefLocation));
@@ -194,6 +252,11 @@ public:
 
     Refs.push_back({Offset, SR.RT == RefType::Implicit, Targets.size()});
     Targets.push_back(makeTarget(SR));
+    for (const auto *I : Targets.back().Includes)
+      IncludeRefs[I].push_back(Targets.size() - 1);
+    if (Targets.back().Type == RefType::Explicit && !Targets.back().Satisfied &&
+        !Targets.back().Insert.empty())
+      Insertion[Targets.back().Insert].push_back(Targets.size() - 1);
   }
 
   void write() {
@@ -202,6 +265,18 @@ public:
     OS << "<head>\n";
     OS << "<style>" << CSS << "</style>\n";
     OS << "<script>" << JS << "</script>\n";
+    for (const auto &Ins : Insertion) {
+      OS << "<template id='i";
+      escapeString(Ins.first());
+      OS << "'>";
+      writeInsertion(Ins.first(), Ins.second);
+      OS << "</template>\n";
+    }
+    for (auto &Inc : Includes.all()) {
+      OS << "<template id='i" << Inc.Line << "'>";
+      writeInclude(Inc);
+      OS << "</template>\n";
+    }
     for (unsigned I = 0; I < Targets.size(); ++I) {
       OS << "<template id='t" << I << "'>";
       writeTarget(Targets[I]);
@@ -259,6 +334,57 @@ private:
     printFilename(SM.getSpellingLoc(Loc).printToString(SM));
     OS << ">";
   }
+  
+  // Write "Provides: " rows of an include or include-insertion table.
+  // These describe the symbols the header provides, referenced by RefIndices.
+  void writeProvides(llvm::ArrayRef<unsigned> RefIndices) {
+    // We show one ref for each symbol: first by (RefType != Explicit, Sequence)
+    llvm::DenseMap<Symbol, /*RefIndex*/ unsigned> FirstRef;
+    for (unsigned RefIndex : RefIndices) {
+      const Target &T = Targets[Refs[RefIndex].TargetIndex];
+      auto I = FirstRef.try_emplace(T.Sym, RefIndex);
+      if (!I.second && T.Type == RefType::Explicit &&
+          Targets[Refs[I.first->second].TargetIndex].Type != RefType::Explicit)
+        I.first->second = RefIndex;
+    }
+    std::vector<std::pair<Symbol, unsigned>> Sorted = {FirstRef.begin(),
+                                                       FirstRef.end()};
+    llvm::stable_sort(Sorted, llvm::less_second{});
+    for (auto &[S, RefIndex] : Sorted) {
+      auto &T = Targets[Refs[RefIndex].TargetIndex];
+      OS << "<tr class='provides'><th>Provides</td><td>";
+      std::string Details = printDetails(S);
+      if (!Details.empty()) {
+        OS << "<span class='" << refType(T.Type) << "' title='";
+        escapeString(Details);
+        OS << "'>";
+      }
+      escapeString(llvm::to_string(S));
+      if (!Details.empty())
+        OS << "</span>";
+      
+      unsigned Line = SM.getLineNumber(MainFile, Refs[RefIndex].Offset);
+      OS << ", <a href='#line" << Line << "'>line " << Line << "</a>";
+      OS << "</td></tr>";
+    }
+  }
+
+  void writeInclude(const Include &Inc) {
+    OS << "<table class='include'>";
+    if (Inc.Resolved) {
+      OS << "<tr><th>Resolved</td><td>";
+      escapeString(Inc.Resolved->getName());
+      OS << "</td></tr>\n";
+      writeProvides(IncludeRefs[&Inc]);
+    }
+    OS << "</table>";
+  }
+  
+  void writeInsertion(llvm::StringRef Text, llvm::ArrayRef<unsigned> Refs) {
+    OS << "<table class='insertion'>";
+    writeProvides(Refs);
+    OS << "</table>";
+  }
 
   void writeTarget(const Target &T) {
     OS << "<table class='target " << refType(T.Type) << "'>";
@@ -268,19 +394,10 @@ private:
     escapeString(llvm::to_string(T.Sym));
     OS << "</code></td></tr>\n";
 
-    if (T.Sym.kind() == Symbol::Declaration) {
-      // Print the declaration of the symbol, e.g. to disambiguate overloads.
-      const auto &D = T.Sym.declaration();
-      PrintingPolicy PP = D.getASTContext().getPrintingPolicy();
-      PP.FullyQualifiedName = true;
-      PP.TerseOutput = true;
-      PP.SuppressInitializers = true;
-      std::string S;
-      llvm::raw_string_ostream SS(S);
-      D.print(SS, PP);
-
+    std::string Details = printDetails(T.Sym);
+    if (!Details.empty()) {
       OS << "<tr><td></td><td><code>";
-      escapeString(S);
+      escapeString(Details);
       OS << "</code></td></tr>\n";
     }
 
@@ -316,6 +433,12 @@ private:
       OS << ", <a href='#line" << I->Line << "'>line " << I->Line << "</a>";
       OS << "</td></tr>";
     }
+    
+    if (!T.Insert.empty()) {
+      OS << "<tr><th>Insert</th><td class='insert'>";
+      escapeString(T.Insert);
+      OS << "</td></tr>";
+    }
 
     OS << "</table>";
   }
@@ -325,10 +448,38 @@ private:
     llvm::StringRef Code = SM.getBufferData(MainFile);
 
     OS << "<pre onclick='select(event)' class='code'>";
-    OS << "<code class='line' id='line1'>";
-    unsigned LineNum = 1;
+
+    std::vector<llvm::StringRef> Insertions{Insertion.keys().begin(),
+                                            Insertion.keys().end()};
+    llvm::sort(Insertions);
+    for (llvm::StringRef Insertion : Insertions) {
+      OS << "<code class='line added'>"
+          << "<span class='inc sel inserted' data-hover='i";
+      escapeString(Insertion);
+      OS << "'>#include ";
+      escapeString(Insertion);
+      OS << "</span></code>\n";
+    }
+
+    const Include *Inc = nullptr;
+    unsigned LineNum = 0;
+    // Lines are <code>, include lines have an inner <span>.
+    auto StartLine = [&] {
+      ++LineNum;
+      OS << "<code class='line' id='line" << LineNum << "'>";
+      if ((Inc = Includes.atLine(LineNum)))
+        OS << "<span class='inc sel " << includeType(Inc) << "' data-hover='i"
+           << Inc->Line << "'>";
+    };
+    auto EndLine = [&] {
+      if (Inc)
+        OS << "</span>";
+      OS << "</code>\n";
+    };
+
     auto Rest = llvm::makeArrayRef(Refs);
     unsigned End = 0;
+    StartLine();
     for (unsigned I = 0; I < Code.size(); ++I) {
       // Finish refs early at EOL to avoid dealing with splitting the span.
       if (End && (End == I || Code[I] == '\n')) {
@@ -339,8 +490,8 @@ private:
       while (!Rest.empty() && Rest.front().Offset == I &&
              Rest.front().Implicit) {
         const Ref &R = Rest.front();
-        OS << "<span class='ref sel implicit"
-           << (Targets[R.TargetIndex].Satisfied ? "" : " missing")
+        OS << "<span class='ref sel implicit "
+           << (Targets[R.TargetIndex].Satisfied ? "satisfied" : "missing")
            << "' data-hover='t" << R.TargetIndex << "'>&loz;</span>";
         Rest = Rest.drop_front();
       };
@@ -364,12 +515,14 @@ private:
         End = I + Lexer::MeasureTokenLength(SM.getComposedLoc(MainFile, I), SM,
                                             Ctx.getLangOpts());
       }
-      if (Code[I] == '\n')
-        OS << "</code>\n<code class='line' id='line" << (++LineNum) << "'>";
-      else
+      if (Code[I] == '\n') {
+        EndLine();
+        StartLine();
+      } else
         escapeChar(Code[I]);
     }
-    OS << "</code></pre>\n";
+    EndLine();
+    OS << "</pre>\n";
   }
 };
 
@@ -378,8 +531,9 @@ private:
 void writeHTMLReport(FileID File, const RecordedPP::RecordedIncludes &Includes,
                      llvm::ArrayRef<Decl *> Roots,
                      llvm::ArrayRef<SymbolReference> MacroRefs, ASTContext &Ctx,
-                     PragmaIncludes *PI, llvm::raw_ostream &OS) {
-  Reporter R(OS, Ctx, Includes, PI, File);
+                     HeaderSearch &HS, PragmaIncludes *PI,
+                     llvm::raw_ostream &OS) {
+  Reporter R(OS, Ctx, HS, Includes, PI, File);
   for (Decl *Root : Roots)
     walkAST(*Root, [&](SourceLocation Loc, const NamedDecl &D, RefType T) {
       R.addRef(SymbolReference{Loc, D, T});
