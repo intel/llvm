@@ -153,6 +153,25 @@ following semantics.
 |===
 
 
+== Example usage
+
+The following code snippet shows how to create a SYCL queue using a specific
+queue index.
+
+```
+#include <sycl/sycl.hpp>
+
+using sycl;
+using sycl::ext::intel;
+
+void foo(device d) {
+  int max_index = d.get_info<info::device::max_compute_queue_indices>();
+  int index = /* choose value between 0 and max_index-1 */;
+  queue q{d, property::queue::compute_index{index}};
+}
+```
+
+
 == Behavior on Intel GPU devices
 
 :multi-CCS: https://github.com/intel/compute-runtime/blob/master/level_zero/doc/experimental_extensions/MULTI_CCS_MODES.md
