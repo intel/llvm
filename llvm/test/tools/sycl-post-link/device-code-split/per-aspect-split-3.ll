@@ -14,7 +14,7 @@
 ; RUN:     --implicit-check-not kernel0 --implicit-check-not foo \
 ; RUN:     --implicit-check-not bar
 ;
-; RUN: FileCheck %s -input-file=%t_2.ll --check-prefix CHECK-M2-IR \
+; RUN: FileCheck %s -input-file=%t_1.ll --check-prefix CHECK-M1-IR \
 ; RUN:     --implicit-check-not kernel0 --implicit-check-not bar
 
 ; We expect to see 3 modules generated:
@@ -49,14 +49,14 @@
 ; should also present in a separate device image, because it is an entry point
 ; with unique set of used aspects.
 ;
-; CHECK-M1-SYMS: foo
+; CHECK-M1-SYMS: kernel1
 ;
-; CHECK-M2-SYMS: kernel1
+; CHECK-M2-SYMS: foo
 ;
 ; @kernel1 uses @foo and therefore @foo should be present in the same module as
 ; @kernel1 as well
-; CHECK-M2-IR-DAG: define spir_func void @foo
-; CHECK-M2-IR-DAG: define spir_kernel void @kernel1
+; CHECK-M1-IR-DAG: define spir_func void @foo
+; CHECK-M1-IR-DAG: define spir_kernel void @kernel1
 
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
