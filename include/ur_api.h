@@ -1948,6 +1948,37 @@ urMemCreateWithNativeHandle(
     ur_mem_handle_t* phMem                          ///< [out] pointer to the handle of the mem object created.
     );
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Retrieve information about a memory object.
+/// 
+/// @details
+///     - Query information that is common to all memory objects.
+/// 
+/// @remarks
+///   _Analogues_
+///     - **clGetMemObjectInfo**
+/// 
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hMemory`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_MEM_INFO_CONTEXT < MemInfoType`
+UR_APIEXPORT ur_result_t UR_APICALL
+urMemGetInfo(
+    ur_mem_handle_t hMemory,                        ///< [in] handle to the memory object being queried.
+    ur_mem_info_t MemInfoType,                      ///< [in] type of the info to retrieve.
+    size_t propSize,                                ///< [in] the number of bytes of memory pointed to by pMemInfo.
+    void* pMemInfo,                                 ///< [out][optional] array of bytes holding the info.
+                                                    ///< If propSize is less than the real number of bytes needed to return 
+                                                    ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
+                                                    ///< pMemInfo is not used.
+    size_t* pPropSizeRet                            ///< [out][optional] pointer to the actual size in bytes of data queried by
+                                                    ///< pMemInfo.  
+    );
+
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
@@ -5744,6 +5775,32 @@ typedef void (UR_APICALL *ur_pfnMemCreateWithNativeHandleCb_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function parameters for urMemGetInfo 
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct _ur_mem_get_info_params_t
+{
+    ur_mem_handle_t* phMemory;
+    ur_mem_info_t* pMemInfoType;
+    size_t* ppropSize;
+    void** ppMemInfo;
+    size_t** ppPropSizeRet;
+} ur_mem_get_info_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function-pointer for urMemGetInfo 
+/// @param[in] params Parameters passed to this instance
+/// @param[in] result Return value
+/// @param[in] pTracerUserData Per-Tracer user data
+/// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
+typedef void (UR_APICALL *ur_pfnMemGetInfoCb_t)(
+    ur_mem_get_info_params_t* params,
+    ur_result_t result,
+    void* pTracerUserData,
+    void** ppTracerInstanceUserData
+    );
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Callback function parameters for urMemFree 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -5804,6 +5861,7 @@ typedef struct _ur_mem_callbacks_t
     ur_pfnMemBufferPartitionCb_t                                    pfnBufferPartitionCb;
     ur_pfnMemGetNativeHandleCb_t                                    pfnGetNativeHandleCb;
     ur_pfnMemCreateWithNativeHandleCb_t                             pfnCreateWithNativeHandleCb;
+    ur_pfnMemGetInfoCb_t                                            pfnGetInfoCb;
     ur_pfnMemFreeCb_t                                               pfnFreeCb;
     ur_pfnMemGetMemAllocInfoCb_t                                    pfnGetMemAllocInfoCb;
 } ur_mem_callbacks_t;
