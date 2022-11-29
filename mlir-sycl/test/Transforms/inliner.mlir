@@ -1,8 +1,12 @@
-// RUN: sycl-mlir-opt -split-input-file -sycl-inline="mode=alwaysinline" -verify-diagnostics %s | FileCheck --check-prefix=ALWAYS-INLINE %s
-// RUN: sycl-mlir-opt -split-input-file -sycl-inline="mode=simple remove-dead-callees=true" -verify-diagnostics %s | FileCheck --check-prefix=INLINE %s
+// RUN: sycl-mlir-opt -split-input-file -sycl-inline="mode=alwaysinline" -verify-diagnostics -mlir-pass-statistics %s 2>&1 | FileCheck --check-prefix=ALWAYS-INLINE %s
+// RUN: sycl-mlir-opt -split-input-file -sycl-inline="mode=simple remove-dead-callees=true" -verify-diagnostics -mlir-pass-statistics %s 2>&1 | FileCheck --check-prefix=INLINE %s
 
 // COM: Ensure a func.func can be inlined in a func.func caller iff the callee is 'alwaysinline'.
 // COM: Ensure a gpu.func cannot be inlined in a func.func caller (even if it has the 'alwaysinline' attribute).
+
+// ALWAYS-INLINE-LABEL: InlinePass
+// ALWAYS-INLINE-LABEL:  (S) 1 num-inlined-calls - Number of inlined calls
+
 // ALWAYS-INLINE-LABEL: func.func @caller() -> i32 {
 // ALWAYS-INLINE-NEXT:    %c1_i32 = arith.constant 1 : i32
 // ALWAYS-INLINE-NEXT:    %0 = sycl.call() {FunctionName = @inline_hint_callee_, MangledFunctionName = @inline_hint_callee, TypeName = @A} : () -> i32
@@ -24,6 +28,10 @@
 
 // COM: Ensure a func.func can be inlined in a func.func caller iff the callee is 'alwaysinline'.
 // COM: Ensure a gpu.func cannot be inlined in a func.func caller (even if it has the 'alwaysinline' attribute).
+
+// INLINE-LABEL: InlinePass
+// INLINE-LABEL:  (S) 3 num-inlined-calls - Number of inlined calls
+
 // INLINE-LABEL: func.func @caller() -> i32 {
 // INLINE-NEXT:    %c1_i32 = arith.constant 1 : i32
 // INLINE-NEXT:    %c2_i32 = arith.constant 2 : i32

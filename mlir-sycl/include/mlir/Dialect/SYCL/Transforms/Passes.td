@@ -30,6 +30,10 @@ def InlinePass : Pass<"sycl-inline"> {
     Option<"RemoveDeadCallees", "remove-dead-callees", "bool", /*default=*/"false",
            "Remove callees that become unreachable after inlining them">,
   ];
+
+  let statistics = [
+    Statistic<"NumInlinedCalls", "num-inlined-calls", "Number of inlined calls">
+  ];
 }
 
 def SYCLMethodToSYCLCall : Pass<"sycl-method-to-sycl-call", "ModuleOp"> {

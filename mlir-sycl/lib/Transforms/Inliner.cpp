@@ -233,7 +233,8 @@ public:
   /// devirtualized calls. Returns failure if there was a fatal error during
   /// inlining.
   static LogicalResult inlineSCC(InlinerBase &Inliner, CGUseList &UseList,
-                                 CallGraphSCC &SCC, MLIRContext *Ctx);
+                                 CallGraphSCC &SCC,
+                                 Pass::Statistic &NumInlinedCalls);
 
   /// This method properly disposes of callables that became dead during
   /// inlining. This should not be called while iterating over the SCCs.
@@ -248,7 +249,8 @@ public:
 protected:
   /// Attempt to inline calls within the given SCC.
   static void inlineCallsInSCC(InlinerBase &Inliner, CGUseList &UseList,
-                               CallGraphSCC &SCC);
+                               CallGraphSCC &SCC,
+                               Pass::Statistic &NumInlinedCalls);
 
   /// Collect all of the callable operations within the given \p SrcNode.
   static void collectCallOps(CallGraphNode &SrcNode, CallGraph &CG,
@@ -315,7 +317,7 @@ private:
   /// Inline function calls in the given callgraph \p CG (on each SCC in bottom
   /// up order) using the given \p Inliner .
   LogicalResult runOnCG(InlinerBase &Inliner, CGUseList &UseList, CallGraph &CG,
-                        MLIRContext *Ctx);
+                        Pass::Statistic &NumInlinedCalls);
 
   /// Ensures that the inliner is run on operations that define a symbol table.
   bool checkForSymbolTable(Operation &Op);
@@ -508,13 +510,15 @@ LogicalResult InlinerBase::runTransformOnSCCs(
 }
 
 LogicalResult InlinerBase::inlineSCC(InlinerBase &Inliner, CGUseList &UseList,
-                                     CallGraphSCC &SCC, MLIRContext *Ctx) {
-  inlineCallsInSCC(Inliner, UseList, SCC);
+                                     CallGraphSCC &SCC,
+                                     Pass::Statistic &NumInlinedCalls) {
+  inlineCallsInSCC(Inliner, UseList, SCC, NumInlinedCalls);
   return success();
 }
 
 void InlinerBase::inlineCallsInSCC(InlinerBase &Inliner, CGUseList &UseList,
-                                   CallGraphSCC &SCC) {
+                                   CallGraphSCC &SCC,
+                                   Pass::Statistic &NumInlinedCalls) {
   llvm::SmallSetVector<CallGraphNode *, 1> DeadNodes;
 
   for (CallGraphNode *SrcNode : SCC) {
@@ -562,8 +566,9 @@ void InlinerBase::inlineCallsInSCC(InlinerBase &Inliner, CGUseList &UseList,
       LLVM_DEBUG(llvm::dbgs() << "** Failed to inline\n");
       continue;
     }
-
     LLVM_DEBUG(llvm::dbgs() << "** Inline succeeded\n");
+
+    NumInlinedCalls++;
 
     // Merge the new uses into the source node.
     UseList.dropCallUses(ResolvedCall.SrcNode, ResolvedCall.Call.getOperation(),
@@ -707,15 +712,16 @@ void InlinePass::runOnOperation() {
     break;
   }
 
-  if (failed(runOnCG(*Inliner, UseList, CG, Ctx)))
+  if (failed(runOnCG(*Inliner, UseList, CG, NumInlinedCalls)))
     return signalPassFailure();
 }
 
 LogicalResult InlinePass::runOnCG(InlinerBase &Inliner, CGUseList &UseList,
-                                  CallGraph &CG, MLIRContext *Ctx) {
+                                  CallGraph &CG,
+                                  Pass::Statistic &NumInlinedCalls) {
   LogicalResult Res =
       InlinerBase::runTransformOnSCCs(CG, [&](CallGraphSCC &SCC) {
-        return InlinerBase::inlineSCC(Inliner, UseList, SCC, Ctx);
+        return InlinerBase::inlineSCC(Inliner, UseList, SCC, NumInlinedCalls);
       });
 
   // After inlining, make sure to erase any callables proven to be dead.
