@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl-device-only -S -Xclang -emit-llvm %s -o - | FileCheck %s --check-prefix CHECK-IR
-// RUN: %clangxx -fsycl -Xclang -verify %s
+// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s
 // expected-no-diagnostics
 
 #include <sycl/sycl.hpp>
@@ -48,31 +48,31 @@ int main() {
   // CHECK-IR: spir_kernel void @{{.*}}SGSizeKernel17(){{.*}} #[[SGSizeAttr2]]
   Q.parallel_for<class SGSizeKernel17>(R3, {Ev}, Props, [](sycl::id<3>) {});
 
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel18{{.*}}{{.*}} #[[SGSizeAttr3:[0-9]+]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel18{{.*}}{{.*}} #[[SGSizeAttr3:[0-9]+]]
   Q.parallel_for<class SGSizeKernel18>(R1, Props, Redu1,
                                        [](sycl::id<1>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel19{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel19{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.parallel_for<class SGSizeKernel19>(R1, Ev, Props, Redu1,
                                        [](sycl::id<1>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel20{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel20{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.parallel_for<class SGSizeKernel20>(R1, {Ev}, Props, Redu1,
                                        [](sycl::id<1>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel21{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel21{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.parallel_for<class SGSizeKernel21>(R2, Props, Redu1,
                                        [](sycl::id<2>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel22{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel22{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.parallel_for<class SGSizeKernel22>(R2, Ev, Props, Redu1,
                                        [](sycl::id<2>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel23{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel23{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.parallel_for<class SGSizeKernel23>(R2, {Ev}, Props, Redu1,
                                        [](sycl::id<2>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel24{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel24{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.parallel_for<class SGSizeKernel24>(R3, Props, Redu1,
                                        [](sycl::id<3>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel25{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel25{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.parallel_for<class SGSizeKernel25>(R3, Ev, Props, Redu1,
                                        [](sycl::id<3>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel26{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel26{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.parallel_for<class SGSizeKernel26>(R3, {Ev}, Props, Redu1,
                                        [](sycl::id<3>, auto &) {});
 
@@ -101,59 +101,59 @@ int main() {
   Q.parallel_for<class SGSizeKernel35>(NDR3, {Ev}, Props,
                                        [](sycl::nd_item<3>) {});
 
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel36{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel36{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.parallel_for<class SGSizeKernel36>(NDR1, Props, Redu1,
                                        [](sycl::nd_item<1>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel37{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel37{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.parallel_for<class SGSizeKernel37>(NDR1, Ev, Props, Redu1,
                                        [](sycl::nd_item<1>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel38{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel38{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.parallel_for<class SGSizeKernel38>(NDR1, {Ev}, Props, Redu1,
                                        [](sycl::nd_item<1>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel39{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel39{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.parallel_for<class SGSizeKernel39>(NDR2, Props, Redu1,
                                        [](sycl::nd_item<2>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel40{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel40{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.parallel_for<class SGSizeKernel40>(NDR2, Ev, Props, Redu1,
                                        [](sycl::nd_item<2>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel41{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel41{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.parallel_for<class SGSizeKernel41>(NDR2, {Ev}, Props, Redu1,
                                        [](sycl::nd_item<2>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel42{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel42{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.parallel_for<class SGSizeKernel42>(NDR3, Props, Redu1,
                                        [](sycl::nd_item<3>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel43{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel43{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.parallel_for<class SGSizeKernel43>(NDR3, Ev, Props, Redu1,
                                        [](sycl::nd_item<3>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel44{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel44{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.parallel_for<class SGSizeKernel44>(NDR3, {Ev}, Props, Redu1,
                                        [](sycl::nd_item<3>, auto &) {});
 
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel45{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel45{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.parallel_for<class SGSizeKernel45>(NDR1, Props, Redu1, Redu2,
                                        [](sycl::nd_item<1>, auto &, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel46{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel46{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.parallel_for<class SGSizeKernel46>(NDR1, Ev, Props, Redu1, Redu2,
                                        [](sycl::nd_item<1>, auto &, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel47{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel47{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.parallel_for<class SGSizeKernel47>(NDR1, {Ev}, Props, Redu1, Redu2,
                                        [](sycl::nd_item<1>, auto &, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel48{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel48{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.parallel_for<class SGSizeKernel48>(NDR2, Props, Redu1, Redu2,
                                        [](sycl::nd_item<2>, auto &, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel49{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel49{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.parallel_for<class SGSizeKernel49>(NDR2, Ev, Props, Redu1, Redu2,
                                        [](sycl::nd_item<2>, auto &, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel50{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel50{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.parallel_for<class SGSizeKernel50>(NDR2, {Ev}, Props, Redu1, Redu2,
                                        [](sycl::nd_item<2>, auto &, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel51{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel51{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.parallel_for<class SGSizeKernel51>(NDR3, Props, Redu1, Redu2,
                                        [](sycl::nd_item<3>, auto &, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel52{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel52{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.parallel_for<class SGSizeKernel52>(NDR3, Ev, Props, Redu1, Redu2,
                                        [](sycl::nd_item<3>, auto &, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel53{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel53{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.parallel_for<class SGSizeKernel53>(NDR3, {Ev}, Props, Redu1, Redu2,
                                        [](sycl::nd_item<3>, auto &, auto &) {});
 
@@ -183,17 +183,17 @@ int main() {
     CGH.parallel_for<class SGSizeKernel59>(R3, Props, [](sycl::id<3>) {});
   });
 
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel60{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel60{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for<class SGSizeKernel60>(R1, Props, Redu1,
                                            [](sycl::id<1>, auto &) {});
   });
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel61{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel61{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for<class SGSizeKernel61>(R2, Props, Redu1,
                                            [](sycl::id<2>, auto &) {});
   });
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel62{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel62{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for<class SGSizeKernel62>(R3, Props, Redu1,
                                            [](sycl::id<3>, auto &) {});
@@ -215,33 +215,33 @@ int main() {
                                            [](sycl::nd_item<3>) {});
   });
 
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel66{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel66{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for<class SGSizeKernel66>(NDR1, Props, Redu1,
                                            [](sycl::nd_item<1>, auto &) {});
   });
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel67{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel67{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for<class SGSizeKernel67>(NDR2, Props, Redu1,
                                            [](sycl::nd_item<2>, auto &) {});
   });
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel68{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel68{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for<class SGSizeKernel68>(NDR3, Props, Redu1,
                                            [](sycl::nd_item<3>, auto &) {});
   });
 
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel69{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel69{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for<class SGSizeKernel69>(
         NDR1, Props, Redu1, Redu2, [](sycl::nd_item<1>, auto &, auto &) {});
   });
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel70{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel70{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for<class SGSizeKernel70>(
         NDR2, Props, Redu1, Redu2, [](sycl::nd_item<2>, auto &, auto &) {});
   });
-  // CHECK-IR: spir_kernel void @{{.*}}main_krn{{.*}}SGSizeKernel71{{.*}}{{.*}} #[[SGSizeAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}SGSizeKernel71{{.*}}{{.*}} #[[SGSizeAttr3]]
   Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for<class SGSizeKernel71>(
         NDR3, Props, Redu1, Redu2, [](sycl::nd_item<3>, auto &, auto &) {});

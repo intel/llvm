@@ -35,6 +35,11 @@ def note_fe_backend_frame_larger_than: Note<"%0">, BackendInfo;
 
 def warn_fe_backend_plugin: Warning<"%0">, BackendInfo, InGroup<BackendPlugin>;
 def err_fe_backend_plugin: Error<"%0">, BackendInfo;
+
+def warn_fe_backend_resource_limit: Warning<"%0 (%1) exceeds limit (%2) in '%3'">, BackendInfo, InGroup<BackendPlugin>;
+def err_fe_backend_resource_limit: Error<"%0 (%1) exceeds limit (%2) in '%3'">, BackendInfo;
+def note_fe_backend_resource_limit: Note<"%0 (%1) exceeds limit (%2) in '%3'">, BackendInfo;
+
 def remark_fe_backend_plugin: Remark<"%0">, BackendInfo, InGroup<RemarkBackendPlugin>;
 def note_fe_backend_plugin: Note<"%0">, BackendInfo;
 
@@ -81,9 +86,9 @@ def err_fe_backend_unsupported : Error<"%0">, BackendInfo;
 def warn_fe_backend_unsupported : Warning<"%0">, BackendInfo;
 
 def err_fe_backend_error_attr :
-  Error<"call to %0 declared with 'error' attribute: %1">, BackendInfo;
+  Error<"call to '%0' declared with 'error' attribute: %1">, BackendInfo;
 def warn_fe_backend_warning_attr :
-  Warning<"call to %0 declared with 'warning' attribute: %1">, BackendInfo,
+  Warning<"call to '%0' declared with 'warning' attribute: %1">, BackendInfo,
   InGroup<BackendWarningAttributes>;
 
 def err_fe_invalid_code_complete_file : Error<
@@ -130,6 +135,8 @@ def err_fe_invalid_exception_model
 def warn_fe_concepts_ts_flag : Warning<
   "-fconcepts-ts is deprecated - use '-std=c++20' for Concepts support">,
   InGroup<Deprecated>;
+def err_fe_invalid_source_date_epoch : Error<
+    "environment variable 'SOURCE_DATE_EPOCH' ('%0') must be a non-negative decimal integer <= %1">;
 
 def err_fe_unable_to_load_basic_block_sections_file : Error<
     "unable to load basic block sections function list: '%0'">;
@@ -274,6 +281,13 @@ def warn_avx_calling_convention
       InGroup<DiagGroup<"psabi">>;
 def err_avx_calling_convention : Error<warn_avx_calling_convention.Text>;
 
+def warn_sycl_device_has_aspect_mismatch
+    : Warning<"function '%0' uses aspect '%1' not listed in its "
+              "%select{'device_has' property|'sycl::device_has' attribute}2">,
+              BackendInfo, InGroup<SyclAspectMismatch>;
+def note_sycl_aspect_propagated_from_call
+    : Note<"propagated from call to function '%0'">, BackendInfo;
+
 def err_alias_to_undefined : Error<
   "%select{alias|ifunc}0 must point to a defined "
   "%select{variable or |}1function">;
@@ -328,5 +342,8 @@ def warn_profile_data_misexpect : Warning<
   BackendInfo,
   InGroup<MisExpect>;
 } // end of instrumentation issue category
+
+def err_extract_api_ignores_file_not_found :
+  Error<"file '%0' specified by '--extract-api-ignores=' not found">, DefaultFatal;
 
 }

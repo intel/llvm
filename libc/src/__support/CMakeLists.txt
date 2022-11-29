@@ -10,6 +10,8 @@ add_header_library(
   builtin_wrappers
   HDRS
     builtin_wrappers.h
+  DEPENDS
+    libc.src.__support.CPP.type_traits
 )
 
 add_header_library(
@@ -48,6 +50,17 @@ add_header_library(
     libc.src.__support.CPP.type_traits
 )
 
+
+add_header_library(
+  float_to_string
+  HDRS
+    float_to_string.h
+    ryu_constants.h
+  DEPENDS
+    libc.src.__support.CPP.type_traits
+    libc.src.__support.FPUtil.fp_bits
+)
+
 add_header_library(
   high_precision_decimal
   HDRS
@@ -72,18 +85,6 @@ add_header_library(
     libc.src.errno.errno
 )
 
-
-add_object_library(
-  error_to_string
-  HDRS
-    error_to_string.h
-  SRCS
-    error_to_string.cpp
-  DEPENDS
-  libc.include.errno
-  libc.src.__support.CPP.string_view
-  libc.src.__support.CPP.stringstream
-)
 
 add_header_library(
   integer_operations
@@ -123,6 +124,7 @@ add_header_library(
 
 add_subdirectory(FPUtil)
 add_subdirectory(OSUtil)
+add_subdirectory(StringUtil)
 
 # Thread support is used by other "File". So, we add the "threads"
 # before "File".

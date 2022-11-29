@@ -84,9 +84,6 @@ write_lit_config("lit_site_cfg") {
     "LLVM_BINDINGS=",
     "LLVM_BYE_LINK_INTO_TOOLS=0",
 
-    "GO_EXECUTABLE=",
-    "LLVM_INCLUDE_GO_TESTS=0",
-
     "HAVE_OCAMLOPT=0",
     "OCAMLFIND=OCAMLFIND-NOTFOUND",
     "OCAMLFLAGS=",
@@ -258,6 +255,7 @@ group("test") {
     "//llvm/tools/llvm-cxxdump",
     "//llvm/tools/llvm-cxxfilt",
     "//llvm/tools/llvm-cxxmap",
+    "//llvm/tools/llvm-debuginfo-analyzer",
     "//llvm/tools/llvm-debuginfod:symlinks",
     "//llvm/tools/llvm-debuginfod-find:symlinks",
     "//llvm/tools/llvm-diff",
@@ -321,11 +319,11 @@ group("test") {
     "//llvm/utils/llvm-locstats",
     "//llvm/utils/not",
     "//llvm/utils/split-file",
+    "//llvm/utils/yaml-bench",
 
     # llvm-config wants libgtest_main.a to exist at runtime when run as in
     # its tests, but nothing in the tree depends on them.
-    "//llvm/utils/unittest/UnitTestMain:gtest_main",
-    "//llvm/utils/yaml-bench",
+    "//third-party/unittest/UnitTestMain:gtest_main",
   ]
   if (host_os != "win") {
     # loadable_modules don't work on Windows.

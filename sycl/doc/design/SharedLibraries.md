@@ -31,8 +31,8 @@ SYCL_EXTERNAL int LibDeviceFunc(int i) {
 
 ```bash
 ; Commands
-clang++ -fsycl lib.cpp -shared -o helpers.so
-clang++ -fsycl app.cpp -lhelpers -o a.out
+clang++ -fsycl lib.cpp -shared -o libhelpers.so
+clang++ -fsycl app.cpp -L. -lhelpers -o a.out
 ./a.out
 Output: 0 2 4 6 ...
 ```

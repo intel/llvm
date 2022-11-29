@@ -238,6 +238,8 @@ const static char Clamp[] = "clamp";
 const static char ConvertPrefix[] = "convert_";
 const static char Dot[] = "dot";
 const static char DotAccSat[] = "dot_acc_sat";
+const static char Dot4x8PackedPrefix[] = "dot_4x8packed_";
+const static char DotAccSat4x8PackedPrefix[] = "dot_acc_sat_4x8packed_";
 const static char EnqueueKernel[] = "enqueue_kernel";
 const static char FixedSqrtINTEL[] = "intel_arbitrary_fixed_sqrt";
 const static char FixedRecipINTEL[] = "intel_arbitrary_fixed_recip";
@@ -497,7 +499,7 @@ bool isEnqueueKernelBI(const StringRef MangledName);
 bool isKernelQueryBI(const StringRef MangledName);
 
 /// Check that the type is the sampler_t
-bool isSamplerStructTy(Type *Ty);
+bool isSamplerTy(Type *Ty);
 
 // Checks if the binary operator is an unfused fmul + fadd instruction.
 bool isUnfusedMulAdd(BinaryOperator *B);

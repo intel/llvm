@@ -301,7 +301,8 @@ static void thinLTOCreateEmptyIndexFiles() {
       continue;
     if (linkedBitCodeFiles.contains(f->getName()))
       continue;
-    std::string path = replaceThinLTOSuffix(getThinLTOOutputFile(f->getName()));
+    std::string path =
+        replaceThinLTOSuffix(getThinLTOOutputFile(f->obj->getName()));
     std::unique_ptr<raw_fd_ostream> os = openFile(path + ".thinlto.bc");
     if (!os)
       continue;
@@ -366,7 +367,7 @@ std::vector<InputFile *> BitcodeCompiler::compile() {
   }
 
   if (!config->thinLTOCacheDir.empty())
-    pruneCache(config->thinLTOCacheDir, config->thinLTOCachePolicy);
+    pruneCache(config->thinLTOCacheDir, config->thinLTOCachePolicy, files);
 
   if (!config->ltoObjPath.empty()) {
     saveBuffer(buf[0], config->ltoObjPath);

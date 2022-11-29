@@ -463,6 +463,9 @@ static void addFramework(StringRef name, bool isNeeded, bool isWeak,
 // flags. This directly parses the flags instead of using the standard argument
 // parser to improve performance.
 void macho::parseLCLinkerOption(InputFile *f, unsigned argc, StringRef data) {
+  if (config->ignoreAutoLink)
+    return;
+
   SmallVector<StringRef, 4> argv;
   size_t offset = 0;
   for (unsigned i = 0; i < argc && offset < data.size(); ++i) {
@@ -475,11 +478,15 @@ void macho::parseLCLinkerOption(InputFile *f, unsigned argc, StringRef data) {
   unsigned i = 0;
   StringRef arg = argv[i];
   if (arg.consume_front("-l")) {
+    if (config->ignoreAutoLinkOptions.contains(arg))
+      return;
     addLibrary(arg, /*isNeeded=*/false, /*isWeak=*/false,
                /*isReexport=*/false, /*isHidden=*/false, /*isExplicit=*/false,
                LoadType::LCLinkerOption);
   } else if (arg == "-framework") {
     StringRef name = argv[++i];
+    if (config->ignoreAutoLinkOptions.contains(name))
+      return;
     addFramework(name, /*isNeeded=*/false, /*isWeak=*/false,
                  /*isReexport=*/false, /*isExplicit=*/false,
                  LoadType::LCLinkerOption);
@@ -570,7 +577,7 @@ static void replaceCommonSymbols() {
     // FIXME: CommonSymbol should store isReferencedDynamically, noDeadStrip
     // and pass them on here.
     replaceSymbol<Defined>(
-        sym, sym->getName(), common->getFile(), isec, /*value=*/0, /*size=*/0,
+        sym, sym->getName(), common->getFile(), isec, /*value=*/0, common->size,
         /*isWeakDef=*/false, /*isExternal=*/true, common->privateExtern,
         /*includeInSymtab=*/true, /*isThumb=*/false,
         /*isReferencedDynamically=*/false, /*noDeadStrip=*/false);
@@ -1241,7 +1248,8 @@ static void createAliases() {
   for (const auto &pair : config->aliasedSymbols) {
     if (const auto &sym = symtab->find(pair.first)) {
       if (const auto &defined = dyn_cast<Defined>(sym)) {
-        symtab->aliasDefined(defined, pair.second, defined->getFile());
+        symtab->aliasDefined(defined, pair.second, defined->getFile())
+            ->noDeadStrip = true;
       } else {
         error("TODO: support aliasing to symbols of kind " +
               Twine(sym->kind()));
@@ -1375,11 +1383,11 @@ bool macho::link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
     uint64_t pagezeroSize = args::getHex(args, OPT_pagezero_size, 0);
 
     // ld64 does something really weird. It attempts to realign the value to the
-    // page size, but assumes the the page size is 4K. This doesn't work with
-    // most of Apple's ARM64 devices, which use a page size of 16K. This means
-    // that it will first 4K align it by rounding down, then round up to 16K.
-    // This probably only happened because no one using this arg with anything
-    // other then 0, so no one checked if it did what is what it says it does.
+    // page size, but assumes the page size is 4K. This doesn't work with most
+    // of Apple's ARM64 devices, which use a page size of 16K. This means that
+    // it will first 4K align it by rounding down, then round up to 16K.  This
+    // probably only happened because no one using this arg with anything other
+    // then 0, so no one checked if it did what is what it says it does.
 
     // So we are not copying this weird behavior and doing the it in a logical
     // way, by always rounding down to page size.
@@ -1538,6 +1546,9 @@ bool macho::link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
   config->forceExactCpuSubtypeMatch =
       getenv("LD_DYLIB_CPU_SUBTYPES_MUST_MATCH");
   config->objcStubsMode = getObjCStubsMode(args);
+  config->ignoreAutoLink = args.hasArg(OPT_ignore_auto_link);
+  for (const Arg *arg : args.filtered(OPT_ignore_auto_link_option))
+    config->ignoreAutoLinkOptions.insert(arg->getValue());
 
   for (const Arg *arg : args.filtered(OPT_alias)) {
     config->aliasedSymbols.push_back(
@@ -1545,7 +1556,8 @@ bool macho::link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
   }
 
   // FIXME: Add a commandline flag for this too.
-  config->zeroModTime = getenv("ZERO_AR_DATE");
+  if (const char *zero = getenv("ZERO_AR_DATE"))
+    config->zeroModTime = strcmp(zero, "0") != 0;
 
   std::array<PlatformType, 3> encryptablePlatforms{
       PLATFORM_IOS, PLATFORM_WATCHOS, PLATFORM_TVOS};

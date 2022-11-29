@@ -1926,6 +1926,25 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    FreeMemory);
   }
+  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE: {
+    int value = 0;
+    sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&value, CU_DEVICE_ATTRIBUTE_MEMORY_CLOCK_RATE,
+                             device->get()) == CUDA_SUCCESS);
+    sycl::detail::pi::assertion(value >= 0);
+    // Convert kilohertz to megahertz when returning.
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   value / 1000);
+  }
+  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH: {
+    int value = 0;
+    sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&value,
+                             CU_DEVICE_ATTRIBUTE_GLOBAL_MEMORY_BUS_WIDTH,
+                             device->get()) == CUDA_SUCCESS);
+    sycl::detail::pi::assertion(value >= 0);
+    return getInfo(param_value_size, param_value, param_value_size_ret, value);
+  }
 
     // TODO: Investigate if this information is available on CUDA.
   case PI_DEVICE_INFO_DEVICE_ID:
@@ -2988,6 +3007,11 @@ pi_result cuda_piEnqueueKernelLaunch(
   assert(work_dim > 0);
   assert(work_dim < 4);
 
+  if (*global_work_size == 0) {
+    return cuda_piEnqueueEventsWaitWithBarrier(
+        command_queue, num_events_in_wait_list, event_wait_list, event);
+  }
+
   // Set the number of threads per block to the number of threads per warp
   // by default unless user has provided a better number
   size_t threadsPerBlock[3] = {32u, 1u, 1u};
@@ -3917,7 +3941,7 @@ pi_result cuda_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
     CUstream cuStream = command_queue->get_next_compute_stream(
         num_events_in_wait_list, event_wait_list, guard, &stream_token);
     {
-      std::lock_guard(command_queue->barrier_mutex_);
+      std::lock_guard<std::mutex> guard(command_queue->barrier_mutex_);
       if (command_queue->barrier_event_ == nullptr) {
         PI_CHECK_ERROR(cuEventCreate(&command_queue->barrier_event_,
                                      CU_EVENT_DISABLE_TIMING));

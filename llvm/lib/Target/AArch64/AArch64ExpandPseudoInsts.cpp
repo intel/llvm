@@ -89,6 +89,8 @@ private:
   bool expandCALL_BTI(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI);
   bool expandStoreSwiftAsyncContext(MachineBasicBlock &MBB,
                                     MachineBasicBlock::iterator MBBI);
+  MachineBasicBlock *expandRestoreZA(MachineBasicBlock &MBB,
+                                     MachineBasicBlock::iterator MBBI);
   MachineBasicBlock *expandCondSMToggle(MachineBasicBlock &MBB,
                                         MachineBasicBlock::iterator MBBI);
 };
@@ -445,15 +447,11 @@ bool AArch64ExpandPseudo::expand_DestructiveOp(
   uint64_t DType = TII->get(Opcode).TSFlags & AArch64::DestructiveInstTypeMask;
   uint64_t FalseLanes = MI.getDesc().TSFlags & AArch64::FalseLanesMask;
   bool FalseZero = FalseLanes == AArch64::FalseLanesZero;
-
   Register DstReg = MI.getOperand(0).getReg();
   bool DstIsDead = MI.getOperand(0).isDead();
-
-  if (DType == AArch64::DestructiveBinary)
-    assert(DstReg != MI.getOperand(3).getReg());
-
   bool UseRev = false;
   unsigned PredIdx, DOPIdx, SrcIdx, Src2Idx;
+
   switch (DType) {
   case AArch64::DestructiveBinaryComm:
   case AArch64::DestructiveBinaryCommWithRev:
@@ -487,12 +485,14 @@ bool AArch64ExpandPseudo::expand_DestructiveOp(
     llvm_unreachable("Unsupported Destructive Operand type");
   }
 
-#ifndef NDEBUG
   // MOVPRFX can only be used if the destination operand
   // is the destructive operand, not as any other operand,
   // so the Destructive Operand must be unique.
   bool DOPRegIsUnique = false;
   switch (DType) {
+  case AArch64::DestructiveBinary:
+    DOPRegIsUnique = DstReg != MI.getOperand(SrcIdx).getReg();
+    break;
   case AArch64::DestructiveBinaryComm:
   case AArch64::DestructiveBinaryCommWithRev:
     DOPRegIsUnique =
@@ -510,7 +510,6 @@ bool AArch64ExpandPseudo::expand_DestructiveOp(
          MI.getOperand(DOPIdx).getReg() != MI.getOperand(Src2Idx).getReg());
     break;
   }
-#endif
 
   // Resolve the reverse opcode
   if (UseRev) {
@@ -525,23 +524,27 @@ bool AArch64ExpandPseudo::expand_DestructiveOp(
 
   // Get the right MOVPRFX
   uint64_t ElementSize = TII->getElementSizeForOpcode(Opcode);
-  unsigned MovPrfx, MovPrfxZero;
+  unsigned MovPrfx, LSLZero, MovPrfxZero;
   switch (ElementSize) {
   case AArch64::ElementSizeNone:
   case AArch64::ElementSizeB:
     MovPrfx = AArch64::MOVPRFX_ZZ;
+    LSLZero = AArch64::LSL_ZPmI_B;
     MovPrfxZero = AArch64::MOVPRFX_ZPzZ_B;
     break;
   case AArch64::ElementSizeH:
     MovPrfx = AArch64::MOVPRFX_ZZ;
+    LSLZero = AArch64::LSL_ZPmI_H;
     MovPrfxZero = AArch64::MOVPRFX_ZPzZ_H;
     break;
   case AArch64::ElementSizeS:
     MovPrfx = AArch64::MOVPRFX_ZZ;
+    LSLZero = AArch64::LSL_ZPmI_S;
     MovPrfxZero = AArch64::MOVPRFX_ZPzZ_S;
     break;
   case AArch64::ElementSizeD:
     MovPrfx = AArch64::MOVPRFX_ZZ;
+    LSLZero = AArch64::LSL_ZPmI_D;
     MovPrfxZero = AArch64::MOVPRFX_ZPzZ_D;
     break;
   default:
@@ -553,9 +556,10 @@ bool AArch64ExpandPseudo::expand_DestructiveOp(
   //
   MachineInstrBuilder PRFX, DOP;
   if (FalseZero) {
-#ifndef NDEBUG
-    assert(DOPRegIsUnique && "The destructive operand should be unique");
-#endif
+    // If we cannot prefix the requested instruction we'll instead emit a
+    // prefixed_zeroing_mov for DestructiveBinary.
+    assert((DOPRegIsUnique || AArch64::DestructiveBinary == DType) &&
+           "The destructive operand should be unique");
     assert(ElementSize != AArch64::ElementSizeNone &&
            "This instruction is unpredicated");
 
@@ -567,10 +571,19 @@ bool AArch64ExpandPseudo::expand_DestructiveOp(
 
     // After the movprfx, the destructive operand is same as Dst
     DOPIdx = 0;
+
+    // Create the additional LSL to zero the lanes when the DstReg is not
+    // unique. Zeros the lanes in z0 that aren't active in p0 with sequence
+    // movprfx z0.b, p0/z, z0.b; lsl z0.b, p0/m, z0.b, #0;
+    if (DType == AArch64::DestructiveBinary && !DOPRegIsUnique) {
+      BuildMI(MBB, MBBI, MI.getDebugLoc(), TII->get(LSLZero))
+          .addReg(DstReg, RegState::Define)
+          .add(MI.getOperand(PredIdx))
+          .addReg(DstReg)
+          .addImm(0);
+    }
   } else if (DstReg != MI.getOperand(DOPIdx).getReg()) {
-#ifndef NDEBUG
     assert(DOPRegIsUnique && "The destructive operand should be unique");
-#endif
     PRFX = BuildMI(MBB, MBBI, MI.getDebugLoc(), TII->get(MovPrfx))
                .addReg(DstReg, RegState::Define)
                .addReg(MI.getOperand(DOPIdx).getReg());
@@ -589,6 +602,7 @@ bool AArch64ExpandPseudo::expand_DestructiveOp(
         .add(MI.getOperand(PredIdx))
         .add(MI.getOperand(SrcIdx));
     break;
+  case AArch64::DestructiveBinary:
   case AArch64::DestructiveBinaryImm:
   case AArch64::DestructiveBinaryComm:
   case AArch64::DestructiveBinaryCommWithRev:
@@ -849,6 +863,48 @@ bool AArch64ExpandPseudo::expandStoreSwiftAsyncContext(
 
   MBBI->eraseFromParent();
   return true;
+}
+
+MachineBasicBlock *
+AArch64ExpandPseudo::expandRestoreZA(MachineBasicBlock &MBB,
+                                     MachineBasicBlock::iterator MBBI) {
+  MachineInstr &MI = *MBBI;
+  assert((std::next(MBBI) != MBB.end() ||
+          MI.getParent()->successors().begin() !=
+              MI.getParent()->successors().end()) &&
+         "Unexpected unreachable in block that restores ZA");
+
+  // Compare TPIDR2_EL0 value against 0.
+  DebugLoc DL = MI.getDebugLoc();
+  MachineInstrBuilder Cbz = BuildMI(MBB, MBBI, DL, TII->get(AArch64::CBZX))
+                                .add(MI.getOperand(0));
+
+  // Split MBB and create two new blocks:
+  //  - MBB now contains all instructions before RestoreZAPseudo.
+  //  - SMBB contains the RestoreZAPseudo instruction only.
+  //  - EndBB contains all instructions after RestoreZAPseudo.
+  MachineInstr &PrevMI = *std::prev(MBBI);
+  MachineBasicBlock *SMBB = MBB.splitAt(PrevMI, /*UpdateLiveIns*/ true);
+  MachineBasicBlock *EndBB = std::next(MI.getIterator()) == SMBB->end()
+                                 ? *SMBB->successors().begin()
+                                 : SMBB->splitAt(MI, /*UpdateLiveIns*/ true);
+
+  // Add the SMBB label to the TB[N]Z instruction & create a branch to EndBB.
+  Cbz.addMBB(SMBB);
+  BuildMI(&MBB, DL, TII->get(AArch64::B))
+      .addMBB(EndBB);
+  MBB.addSuccessor(EndBB);
+
+  // Replace the pseudo with a call (BL).
+  MachineInstrBuilder MIB =
+      BuildMI(*SMBB, SMBB->end(), DL, TII->get(AArch64::BL));
+  MIB.addReg(MI.getOperand(1).getReg(), RegState::Implicit);
+  for (unsigned I = 2; I < MI.getNumOperands(); ++I)
+    MIB.add(MI.getOperand(I));
+  BuildMI(SMBB, DL, TII->get(AArch64::B)).addMBB(EndBB);
+
+  MI.eraseFromParent();
+  return EndBB;
 }
 
 MachineBasicBlock *
@@ -1371,10 +1427,27 @@ bool AArch64ExpandPseudo::expandMI(MachineBasicBlock &MBB,
      return expandCALL_BTI(MBB, MBBI);
    case AArch64::StoreSwiftAsyncContext:
      return expandStoreSwiftAsyncContext(MBB, MBBI);
+   case AArch64::RestoreZAPseudo: {
+     auto *NewMBB = expandRestoreZA(MBB, MBBI);
+     if (NewMBB != &MBB)
+       NextMBBI = MBB.end(); // The NextMBBI iterator is invalidated.
+     return true;
+   }
    case AArch64::MSRpstatePseudo: {
      auto *NewMBB = expandCondSMToggle(MBB, MBBI);
      if (NewMBB != &MBB)
        NextMBBI = MBB.end(); // The NextMBBI iterator is invalidated.
+     return true;
+   }
+   case AArch64::OBSCURE_COPY: {
+     if (MI.getOperand(0).getReg() != MI.getOperand(1).getReg()) {
+       BuildMI(MBB, MBBI, MI.getDebugLoc(), TII->get(AArch64::ORRXrs))
+           .add(MI.getOperand(0))
+           .addReg(AArch64::XZR)
+           .add(MI.getOperand(1))
+           .addImm(0);
+     }
+     MI.eraseFromParent();
      return true;
    }
   }

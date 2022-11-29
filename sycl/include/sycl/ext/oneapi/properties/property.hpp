@@ -172,8 +172,9 @@ enum PropKind : uint32_t {
   WorkGroupSize = 6,
   WorkGroupSizeHint = 7,
   SubGroupSize = 8,
+  DeviceHas = 9,
   // PropKindSize must always be the last value.
-  PropKindSize = 9,
+  PropKindSize = 10,
 };
 
 // This trait must be specialized for all properties and must have a unique

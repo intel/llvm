@@ -184,6 +184,10 @@ class AArch64FunctionInfo final : public MachineFunctionInfo {
   /// or return type
   bool IsSVECC = false;
 
+  /// The frame-index for the TPIDR2 object used for lazy saves.
+  Register LazySaveTPIDR2Obj = 0;
+
+
   /// True if the function need unwind information.
   mutable Optional<bool> NeedsDwarfUnwindInfo;
 
@@ -200,6 +204,9 @@ public:
 
   bool isSVECC() const { return IsSVECC; };
   void setIsSVECC(bool s) { IsSVECC = s; };
+
+  unsigned getLazySaveTPIDR2Obj() const { return LazySaveTPIDR2Obj; }
+  void setLazySaveTPIDR2Obj(unsigned Reg) { LazySaveTPIDR2Obj = Reg; }
 
   void initializeBaseYamlFields(const yaml::AArch64FunctionInfo &YamlMFI);
 

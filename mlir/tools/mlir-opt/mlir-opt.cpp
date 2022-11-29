@@ -76,6 +76,7 @@ void registerTestDataLayoutQuery();
 void registerTestDeadCodeAnalysisPass();
 void registerTestDecomposeCallGraphTypes();
 void registerTestDiagnosticsPass();
+void registerTestDialectConversionPasses();
 void registerTestDominancePass();
 void registerTestDynamicPipelinePass();
 void registerTestExpandMathPass();
@@ -114,6 +115,7 @@ void registerTestSliceAnalysisPass();
 void registerTestTensorTransforms();
 void registerTestTilingInterface();
 void registerTestTopologicalSortAnalysisPass();
+void registerTestTransformDialectEraseSchedulePass();
 void registerTestTransformDialectInterpreterPass();
 void registerTestVectorLowerings();
 void registerTestNvgpuLowerings();
@@ -169,6 +171,7 @@ void registerTestPasses() {
   mlir::test::registerTestConstantFold();
   mlir::test::registerTestControlFlowSink();
   mlir::test::registerTestDiagnosticsPass();
+  mlir::test::registerTestDialectConversionPasses();
 #if MLIR_CUDA_CONVERSIONS_ENABLED
   mlir::test::registerTestGpuSerializeToCubinPass();
 #endif
@@ -214,6 +217,7 @@ void registerTestPasses() {
   mlir::test::registerTestTensorTransforms();
   mlir::test::registerTestTilingInterface();
   mlir::test::registerTestTopologicalSortAnalysisPass();
+  mlir::test::registerTestTransformDialectEraseSchedulePass();
   mlir::test::registerTestTransformDialectInterpreterPass();
   mlir::test::registerTestVectorLowerings();
   mlir::test::registerTestNvgpuLowerings();

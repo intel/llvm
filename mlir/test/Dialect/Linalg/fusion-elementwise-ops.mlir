@@ -663,7 +663,7 @@ func.func @generic_index_op2(%arg0: tensor<1x8xf64>, %arg1: tensor<1x8xi32>) -> 
   } -> tensor<1x8xf64>
 
   // CHECK-NEXT:   %[[R:.*]]:2 = linalg.generic
-  //      CHECK:     bb0(%[[BBA:[0-9a-z]*]]: f64, %[[BBB:[0-9a-z]*]]: i32):
+  //      CHECK:     bb0(%[[BBA:[0-9a-zA-Z_]*]]: f64, %[[BBB:[0-9a-zA-Z_]*]]: i32):
   // CHECK-NEXT:       %[[A:.*]] = func.call @compute1(%[[BBA]]) : (f64) -> f64
   // CHECK-NEXT:       %[[B:.*]] = func.call @compute2(%[[A]], %[[BBB]]) : (f64, i32) -> i32
   // CHECK-NEXT:       linalg.yield %[[A]], %[[B]] : f64, i32
@@ -1017,6 +1017,30 @@ func.func @fold_fill_generic_basic(%arg0: tensor<?xf32>) -> (tensor<?xf32>) {
 
 // -----
 
+// CHECK-LABEL: func @fold_fill_generic_different_dtype
+//  CHECK-SAME: (%[[ARG0:.*]]: tensor<?xf16>) -> tensor<?xf16> { 
+//   CHECK-NOT: linalg.fill
+//       CHECK: %[[GENERIC_OP:.*]] = linalg.generic
+//  CHECK-SAME: ins(%[[ARG0]] : tensor<?xf16>)
+//  CHECK-SAME: outs({{.*}} : tensor<?xf16>) {
+#map0 = affine_map<(d0) -> (d0)>
+func.func @fold_fill_generic_different_dtype(%arg0: tensor<?xf16>) -> (tensor<?xf16>) {
+  %c0 = arith.constant 0 : index
+  %cst = arith.constant 7.0 : f32
+  %0 = tensor.dim %arg0, %c0 : tensor<?xf16>
+  %1 = tensor.empty(%0) : tensor<?xf16>
+  %2 = linalg.fill ins(%cst : f32) outs(%1 : tensor<?xf16>) -> tensor<?xf16>
+  %3 = tensor.empty(%0) : tensor<?xf16>
+  %4 = linalg.generic {indexing_maps = [#map0, #map0, #map0], iterator_types=["parallel"]} ins(%arg0, %2 : tensor<?xf16>, tensor<?xf16>) outs (%3:tensor<?xf16>) {
+  ^bb0(%arg1: f16, %arg2: f16, %arg3: f16):
+    %5 = arith.addf  %arg1, %arg2 : f16
+        linalg.yield %5 : f16
+  } -> tensor<?xf16>
+  return %4 : tensor<?xf16>
+}
+
+// -----
+
 // CHECK-LABEL: func @fold_fill_generic_mixedaccess
 //   CHECK-NOT: linalg.fill
 //       CHECK: %[[GENERIC_OP:.*]] = linalg.generic
@@ -1071,15 +1095,15 @@ module {
   }
 }
 // CHECK-LABEL: func.func @fuse_multi_result_producer
-//  CHECK-SAME:     %[[ARG0:[a-zA-Z0-9]+]]: tensor<f32>
-//  CHECK-SAME:     %[[ARG1:[a-zA-Z0-9]+]]: tensor<f32>
+//  CHECK-SAME:     %[[ARG0:[a-zA-Z0-9_]+]]: tensor<f32>
+//  CHECK-SAME:     %[[ARG1:[a-zA-Z0-9_]+]]: tensor<f32>
 //       CHECK:   %[[INIT:.+]] = tensor.empty
 //       CHECK:   %[[GENERIC:.+]] = linalg.generic
 //  CHECK-SAME:       ins(%[[ARG0]], %[[ARG1]] :
 //  CHECK-SAME:       outs(%[[INIT]] :
 //  CHECK-NEXT:     ^bb0
-//  CHECK-SAME:         %[[B0:[a-zA-Z0-9]+]]: f32
-//  CHECK-SAME:         %[[B1:[a-zA-Z0-9]+]]: f32
+//  CHECK-SAME:         %[[B0:[a-zA-Z0-9_]+]]: f32
+//  CHECK-SAME:         %[[B1:[a-zA-Z0-9_]+]]: f32
 //   CHECK-DAG:     %[[T0:.+]] = arith.addf %[[B0]], %[[B1]]
 //   CHECK-DAG:     %[[T1:.+]] = arith.addf %[[T0]], %[[B1]]
 //   CHECK-DAG:     %[[T2:.+]] = arith.addf %[[T1]], %[[B1]]

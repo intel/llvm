@@ -14,6 +14,7 @@ include "mlir/Dialect/MemRef/IR/MemRefBase.td"
 include "mlir/Interfaces/CastInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/CopyOpInterface.td"
+include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/ShapedOpInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/ViewLikeInterface.td"
@@ -327,7 +328,7 @@ def MemRef_AllocaScopeOp : MemRef_Op<"alloca_scope",
       [AutomaticAllocationScope,
        DeclareOpInterfaceMethods<RegionBranchOpInterface>,
        SingleBlockImplicitTerminator<"AllocaScopeReturnOp">,
-       RecursiveSideEffects,
+       RecursiveMemoryEffects,
        NoRegionArguments]> {
   let summary = "explicitly delimited scope for stack allocation";
   let description = [{
@@ -375,7 +376,7 @@ def MemRef_AllocaScopeOp : MemRef_Op<"alloca_scope",
 
 def MemRef_AllocaScopeReturnOp : MemRef_Op<"alloca_scope.return",
       [HasParent<"AllocaScopeOp">,
-       NoSideEffect,
+       Pure,
        ReturnLike,
        Terminator]> {
   let summary = "terminator for alloca_scope operation";
@@ -404,7 +405,7 @@ def MemRef_CastOp : MemRef_Op<"cast", [
       DeclareOpInterfaceMethods<CastOpInterface>,
       DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
       MemRefsNormalizable,
-      NoSideEffect,
+      Pure,
       SameOperandsAndResultShape,
       ViewLikeOpInterface
     ]> {
@@ -482,7 +483,7 @@ def MemRef_CastOp : MemRef_Op<"cast", [
 // CopyOp
 //===----------------------------------------------------------------------===//
 
-def CopyOp : MemRef_Op<"copy", [CopyOpInterface, SameOperandsElementType, 
+def CopyOp : MemRef_Op<"copy", [CopyOpInterface, SameOperandsElementType,
     SameOperandsShape]> {
 
   let description = [{
@@ -544,7 +545,7 @@ def MemRef_DeallocOp : MemRef_Op<"dealloc", [MemRefsNormalizable]> {
 def MemRef_DimOp : MemRef_Op<"dim", [
     DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
     MemRefsNormalizable,
-    NoSideEffect,
+    ConditionallySpeculatable, NoMemoryEffect,
     ShapedDimOpInterface]> {
   let summary = "dimension index operation";
   let description = [{
@@ -581,7 +582,6 @@ def MemRef_DimOp : MemRef_Op<"dim", [
 
   let builders = [
     OpBuilder<(ins "Value":$source, "int64_t":$index)>,
-    OpBuilder<(ins "Value":$source, "Value":$index)>
   ];
 
   let extraClassDeclaration = [{
@@ -593,6 +593,9 @@ def MemRef_DimOp : MemRef_Op<"dim", [
 
     /// Interface method of ShapedDimOpInterface: Return the dimension.
     OpFoldResult getDimension() { return getIndex(); }
+
+    /// Interface method for ConditionallySpeculatable.
+    Speculation::Speculatability getSpeculatability();
   }];
 
   let hasCanonicalizer = 1;
@@ -806,10 +809,10 @@ def MemRef_DmaWaitOp : MemRef_Op<"dma_wait"> {
 // ExtractAlignedPointerAsIndexOp
 //===----------------------------------------------------------------------===//
 
-def MemRef_ExtractAlignedPointerAsIndexOp : 
+def MemRef_ExtractAlignedPointerAsIndexOp :
   MemRef_Op<"extract_aligned_pointer_as_index", [
     DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
-    NoSideEffect, 
+    Pure,
     SameVariadicResultSize]> {
   let summary = "Extracts a memref's underlying aligned pointer as an index";
   let description = [{
@@ -849,8 +852,9 @@ def MemRef_ExtractAlignedPointerAsIndexOp :
 
 def MemRef_ExtractStridedMetadataOp : MemRef_Op<"extract_strided_metadata", [
     DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
-    NoSideEffect, 
-    SameVariadicResultSize]> {
+    Pure,
+    SameVariadicResultSize,
+    DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
   let summary = "Extracts a buffer base with offset and strides";
   let description = [{
     Extracts a base buffer, offset and strides. This op allows additional layers
@@ -862,18 +866,18 @@ def MemRef_ExtractStridedMetadataOp : MemRef_Op<"extract_strided_metadata", [
 
     This operation is also useful for completeness to the existing memref.dim op.
     While accessing strides, offsets and the base pointer independently is not
-    available, this is useful for composing with its natural complement op: 
+    available, this is useful for composing with its natural complement op:
     `memref.reinterpret_cast`.
 
     Intended Use Cases:
 
     The main use case is to expose the logic for manipulate memref metadata at a
-    higher level than the LLVM dialect. 
+    higher level than the LLVM dialect.
     This makes lowering more progressive and brings the following benefits:
       - not all users of MLIR want to lower to LLVM and the information to e.g.
         lower to library calls---like libxsmm---or to SPIR-V was not available.
-      - foldings and canonicalizations can happen at a higher level in MLIR: 
-        before this op existed, lowering to LLVM would create large amounts of 
+      - foldings and canonicalizations can happen at a higher level in MLIR:
+        before this op existed, lowering to LLVM would create large amounts of
         LLVMIR. Even when LLVM does a good job at folding the low-level IR from
         a performance perspective, it is unnecessarily opaque and inefficient to
         send unkempt IR to LLVM.
@@ -881,11 +885,11 @@ def MemRef_ExtractStridedMetadataOp : MemRef_Op<"extract_strided_metadata", [
     Example:
 
     ```mlir
-      %base, %offset, %sizes:2, %strides:2 = 
-        memref.extract_strided_metadata %memref : 
+      %base, %offset, %sizes:2, %strides:2 =
+        memref.extract_strided_metadata %memref :
           memref<10x?xf32>, index, index, index, index, index
 
-      // After folding, the type of %m2 can be memref<10x?xf32> and further 
+      // After folding, the type of %m2 can be memref<10x?xf32> and further
       // folded to %memref.
       %m2 = memref.reinterpret_cast %base to
           offset: [%offset],
@@ -908,6 +912,8 @@ def MemRef_ExtractStridedMetadataOp : MemRef_Op<"extract_strided_metadata", [
   let assemblyFormat = [{
     $source `:` type($source) `->` type(results) attr-dict
   }];
+
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -974,7 +980,7 @@ def GenericAtomicRMWOp : MemRef_Op<"generic_atomic_rmw", [
 
 def AtomicYieldOp : MemRef_Op<"atomic_yield", [
       HasParent<"GenericAtomicRMWOp">,
-      NoSideEffect,
+      Pure,
       Terminator
     ]> {
   let summary = "yield operation for GenericAtomicRMWOp";
@@ -993,7 +999,7 @@ def AtomicYieldOp : MemRef_Op<"atomic_yield", [
 //===----------------------------------------------------------------------===//
 
 def MemRef_GetGlobalOp : MemRef_Op<"get_global",
-    [NoSideEffect, DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
+    [Pure, DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
   let summary = "get the memref pointing to a global variable";
   let description = [{
      The `memref.get_global` operation retrieves the memref pointing to a
@@ -1207,10 +1213,10 @@ def MemRef_PrefetchOp : MemRef_Op<"prefetch"> {
 def MemRef_ReinterpretCastOp
   : MemRef_OpWithOffsetSizesAndStrides<"reinterpret_cast", [
       DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
-      AttrSizedOperandSegments, 
+      AttrSizedOperandSegments,
       MemRefsNormalizable,
-      NoSideEffect, 
-      OffsetSizeAndStrideOpInterface, 
+      Pure,
+      OffsetSizeAndStrideOpInterface,
       ViewLikeOpInterface
     ]> {
   let summary = "memref reinterpret cast operation";
@@ -1305,7 +1311,7 @@ def MemRef_ReinterpretCastOp
 // RankOp
 //===----------------------------------------------------------------------===//
 
-def MemRef_RankOp : MemRef_Op<"rank", [NoSideEffect]> {
+def MemRef_RankOp : MemRef_Op<"rank", [Pure]> {
   let summary = "rank operation";
   let description = [{
     The `memref.rank` operation takes a memref operand and returns its rank.
@@ -1331,7 +1337,7 @@ def MemRef_RankOp : MemRef_Op<"rank", [NoSideEffect]> {
 
 def MemRef_ReshapeOp: MemRef_Op<"reshape", [
     DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
-    NoSideEffect,
+    Pure,
     ViewLikeOpInterface]>  {
   let summary = "memref reshape operation";
   let description = [{
@@ -1396,7 +1402,7 @@ def MemRef_ReshapeOp: MemRef_Op<"reshape", [
 
 class MemRef_ReassociativeReshapeOp<string mnemonic, list<Trait> traits = []> :
     MemRef_Op<mnemonic, !listconcat(traits,
-      [NoSideEffect, ViewLikeOpInterface])>,
+      [Pure, ViewLikeOpInterface])>,
     Arguments<(ins AnyStridedMemRef:$src, IndexListArrayAttr:$reassociation)>,
     Results<(outs AnyStridedMemRef:$result)>{
 
@@ -1681,7 +1687,7 @@ def SubViewOp : MemRef_OpWithOffsetSizesAndStrides<"subview", [
     DeclareOpInterfaceMethods<ViewLikeOpInterface>,
     AttrSizedOperandSegments,
     OffsetSizeAndStrideOpInterface,
-    NoSideEffect
+    Pure
   ]> {
   let summary = "memref subview operation";
   let description = [{
@@ -1966,7 +1972,7 @@ def TensorStoreOp : MemRef_Op<"tensor_store",
 
 def MemRef_TransposeOp : MemRef_Op<"transpose", [
     DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
-    NoSideEffect]>,
+    Pure]>,
     Arguments<(ins AnyStridedMemRef:$in, AffineMapAttr:$permutation)>,
     Results<(outs AnyStridedMemRef)> {
   let summary = "`transpose` produces a new strided memref (metadata-only)";
@@ -2002,8 +2008,8 @@ def MemRef_TransposeOp : MemRef_Op<"transpose", [
 
 def MemRef_ViewOp : MemRef_Op<"view", [
     DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
-    DeclareOpInterfaceMethods<ViewLikeOpInterface>, 
-    NoSideEffect]> {
+    DeclareOpInterfaceMethods<ViewLikeOpInterface>,
+    Pure]> {
   let summary = "memref view operation";
   let description = [{
     The "view" operation extracts an N-D contiguous memref with empty layout map

@@ -371,7 +371,7 @@ struct _pi_platform {
   // Cache versions info from zeDriverGetProperties.
   std::string ZeDriverVersion;
   std::string ZeDriverApiVersion;
-  ze_api_version_t ZeApiVersion;
+  ze_api_version_t ZeApiVersion{};
 
   // Cache driver extensions
   std::unordered_map<std::string, uint32_t> zeDriverExtensionMap;
@@ -761,10 +761,10 @@ struct _pi_context : _pi_object {
   std::unordered_map<void *, MemAllocRecord> MemAllocs;
 
   // Get pi_event from cache.
-  pi_event getEventFromCache(bool HostVisible, bool WithProfiling);
+  pi_event getEventFromContextCache(bool HostVisible, bool WithProfiling);
 
   // Add pi_event to cache.
-  void addEventToCache(pi_event);
+  void addEventToContextCache(pi_event);
 
 private:
   // If context contains one device then return this device.
@@ -863,7 +863,10 @@ struct _pi_queue : _pi_object {
 
     // Return the index of the next queue to use based on a
     // round robin strategy and the queue group ordinal.
-    uint32_t getQueueIndex(uint32_t *QueueGroupOrdinal, uint32_t *QueueIndex);
+    // If QueryOnly is true then return index values but don't update internal
+    // index data members of the queue.
+    uint32_t getQueueIndex(uint32_t *QueueGroupOrdinal, uint32_t *QueueIndex,
+                           bool QueryOnly = false);
 
     // Get the ordinal for a command queue handle.
     int32_t getCmdQueueOrdinal(ze_command_queue_handle_t CmdQueue);
@@ -1073,6 +1076,99 @@ struct _pi_queue : _pi_object {
 
   // Indicates that the queue is healthy and all operations on it are OK.
   bool Healthy{true};
+
+  // The following data structures and methods are used only for handling
+  // in-order queue with discard_events property. Some commands in such queue
+  // may have discarded event. Which means that event is not visible outside of
+  // the plugin. It is possible to reset and reuse discarded events in the same
+  // in-order queue because of the dependency between commands. We don't have to
+  // wait event completion to do this. We use the following 2-event model to
+  // reuse events inside each command list:
+  //
+  // Operation1 = zeCommantListAppendMemoryCopy (signal ze_event1)
+  // zeCommandListAppendBarrier(wait for ze_event1)
+  // zeCommandListAppendEventReset(ze_event1)
+  // # Create new pi_event using ze_event1 and append to the cache.
+  //
+  // Operation2 = zeCommandListAppendMemoryCopy (signal ze_event2)
+  // zeCommandListAppendBarrier(wait for ze_event2)
+  // zeCommandListAppendEventReset(ze_event2)
+  // # Create new pi_event using ze_event2 and append to the cache.
+  //
+  // # Get pi_event from the beginning of the cache because there are two events
+  // # there. So it is guaranteed that we do round-robin between two events -
+  // # event from the last command is appended to the cache.
+  // Operation3 = zeCommandListAppendMemoryCopy (signal ze_event1)
+  // # The same ze_event1 is used for Operation1 and Operation3.
+  //
+  // When we switch to a different command list we need to signal new event and
+  // wait for it in the new command list using barrier.
+  // [CmdList1]
+  // Operation1 = zeCommantListAppendMemoryCopy (signal event1)
+  // zeCommandListAppendBarrier(wait for event1)
+  // zeCommandListAppendEventReset(event1)
+  // zeCommandListAppendSignalEvent(NewEvent)
+  //
+  // [CmdList2]
+  // zeCommandListAppendBarrier(wait for NewEvent)
+  //
+  // This barrier guarantees that command list execution starts only after
+  // completion of previous command list which signals aforementioned event. It
+  // allows to reset and reuse same event handles inside all command lists in
+  // scope of the queue. It means that we need 2 reusable events of each type
+  // (host-visible and device-scope) per queue at maximum.
+
+  // This data member keeps track of the last used command list and allows to
+  // handle switch of immediate command lists because immediate command lists
+  // are never closed unlike regular command lists.
+  pi_command_list_ptr_t LastUsedCommandList = CommandListMap.end();
+
+  // Vector of 2 lists of reusable events: host-visible and device-scope.
+  // They are separated to allow faster access to stored events depending on
+  // requested type of event. Each list contains events which can be reused
+  // inside all command lists in the queue as described in the 2-event model.
+  // Leftover events in the cache are relased at the queue destruction.
+  std::vector<std::list<pi_event>> EventCaches{2};
+
+  // Get event from the queue's cache.
+  // Returns nullptr if the cache doesn't contain any reusable events or if the
+  // cache contains only one event which corresponds to the previous command and
+  // can't be used for the current command because we can't use the same event
+  // two times in a row and have to do round-robin between two events. Otherwise
+  // it picks an event from the beginning of the cache and returns it. Event
+  // from the last command is always appended to the end of the list.
+  pi_event getEventFromQueueCache(bool HostVisible);
+
+  // Put pi_event to the cache. Provided pi_event object is not used by
+  // any command but its ZeEvent is used by many pi_event objects.
+  // Commands to wait and reset ZeEvent must be submitted to the queue before
+  // calling this method.
+  pi_result addEventToQueueCache(pi_event Event);
+
+  // Append command to provided command list to wait and reset the last event if
+  // it is discarded and create new pi_event wrapper using the same native event
+  // and put it to the cache. We call this method after each command submission
+  // to make native event available to use by next commands.
+  pi_result resetDiscardedEvent(pi_command_list_ptr_t);
+
+  // Append command to the command list to signal new event if the last event in
+  // the command list is discarded. While we submit commands in scope of the
+  // same command list we can reset and reuse events but when we switch to a
+  // different command list we currently need to signal new event and wait for
+  // it in the new command list using barrier.
+  pi_result signalEventFromCmdListIfLastEventDiscarded(pi_command_list_ptr_t);
+
+  // Insert a barrier waiting for the last command event into the beginning of
+  // command list. This barrier guarantees that command list execution starts
+  // only after completion of previous command list which signals aforementioned
+  // event. It allows to reset and reuse same event handles inside all command
+  // lists in the queue.
+  pi_result
+  insertStartBarrierIfDiscardEventsMode(pi_command_list_ptr_t &CmdList);
+
+  // Helper method telling whether we need to reuse discarded event in this
+  // queue.
+  bool doReuseDiscardedEvents();
 };
 
 struct _pi_mem : _pi_object {
@@ -1131,12 +1227,8 @@ struct _pi_buffer final : _pi_mem {
       }
     }
 
-    // Make first device in the context be the master. Mark that
-    // allocation (yet to be made) having "valid" data. And real
-    // allocation and initialization should follow the buffer
-    // construction with a "write_only" access copy.
-    LastDeviceWithValidAllocation = Context->Devices[0];
-    Allocations[LastDeviceWithValidAllocation].Valid = true;
+    // This initialization does not end up with any valid allocation yet.
+    LastDeviceWithValidAllocation = nullptr;
   }
 
   // Sub-buffer constructor
@@ -1384,6 +1476,10 @@ struct _pi_event : _pi_object {
   // being visible to the host at all.
   bool Completed = {false};
 
+  // Indicates that this event is discarded, i.e. it is not visible outside of
+  // plugin.
+  bool IsDiscarded = {false};
+
   // Besides each PI object keeping a total reference count in
   // _pi_object::RefCount we keep special track of the event *external*
   // references. This way we are able to tell when the event is not referenced
@@ -1500,7 +1596,7 @@ struct _pi_program : _pi_object {
   // In IL and Object states, this contains the SPIR-V representation of the
   // module.  In Native state, it contains the native code.
   std::unique_ptr<uint8_t[]> Code; // Array containing raw IL / native code.
-  size_t CodeLength;               // Size (bytes) of the array.
+  size_t CodeLength{0};            // Size (bytes) of the array.
 
   // Used only in IL and Object states.  Contains the SPIR-V specialization
   // constants as a map from the SPIR-V "SpecID" to a buffer that contains the

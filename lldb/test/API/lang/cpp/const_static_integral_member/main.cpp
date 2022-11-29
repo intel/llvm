@@ -5,6 +5,11 @@ enum Enum {
   enum_case2 = 2,
 };
 
+enum EnumBool : bool {
+  enum_bool_case1 = false,
+  enum_bool_case2 = true,
+};
+
 enum class ScopedEnum {
   scoped_enum_case1 = 1,
   scoped_enum_case2 = 2,
@@ -26,7 +31,8 @@ struct A {
   const static int int_val_with_address = 2;
   const static bool bool_val = true;
 
-  const static auto char_max = std::numeric_limits<signed char>::max();
+  const static auto char_max = std::numeric_limits<char>::max();
+  const static auto schar_max = std::numeric_limits<signed char>::max();
   const static auto uchar_max = std::numeric_limits<unsigned char>::max();
   const static auto int_max = std::numeric_limits<int>::max();
   const static auto uint_max = std::numeric_limits<unsigned>::max();
@@ -35,8 +41,10 @@ struct A {
   const static auto longlong_max = std::numeric_limits<long long>::max();
   const static auto ulonglong_max =
       std::numeric_limits<unsigned long long>::max();
+  const static auto wchar_max = std::numeric_limits<wchar_t>::max();
 
   const static auto char_min = std::numeric_limits<char>::min();
+  const static auto schar_min = std::numeric_limits<signed char>::min();
   const static auto uchar_min = std::numeric_limits<unsigned char>::min();
   const static auto int_min = std::numeric_limits<int>::min();
   const static auto uint_min = std::numeric_limits<unsigned>::min();
@@ -45,8 +53,10 @@ struct A {
   const static auto longlong_min = std::numeric_limits<long long>::min();
   const static auto ulonglong_min =
       std::numeric_limits<unsigned long long>::min();
+  const static auto wchar_min = std::numeric_limits<wchar_t>::min();
 
   const static Enum enum_val = enum_case2;
+  const static EnumBool enum_bool_val = enum_bool_case1;
   const static ScopedEnum scoped_enum_val = ScopedEnum::scoped_enum_case2;
   const static ScopedEnum not_enumerator_scoped_enum_val = static_cast<ScopedEnum>(5);
   const static ScopedEnum not_enumerator_scoped_enum_val_2 =
@@ -83,6 +93,7 @@ int main() {
   A a;
 
   auto char_max = A::char_max;
+  auto schar_max = A::schar_max;
   auto uchar_max = A::uchar_max;
   auto int_max = A::int_max;
   auto uint_max = A::uint_max;
@@ -90,8 +101,10 @@ int main() {
   auto ulong_max = A::ulong_max;
   auto longlong_max = A::longlong_max;
   auto ulonglong_max = A::ulonglong_max;
+  auto wchar_max = A::wchar_max;
 
   auto char_min = A::char_min;
+  auto schar_min = A::schar_min;
   auto uchar_min = A::uchar_min;
   auto int_min = A::int_min;
   auto uint_min = A::uint_min;
@@ -99,6 +112,7 @@ int main() {
   auto ulong_min = A::ulong_min;
   auto longlong_min = A::longlong_min;
   auto ulonglong_min = A::ulonglong_min;
+  auto wchar_min = A::wchar_min;
 
   int member_copy = ClassWithOnlyConstStatic::member;
 

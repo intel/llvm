@@ -114,6 +114,8 @@
 ??$get_info@Umax_work_item_dimensions@device@info@_V1@sycl@@@device@_V1@sycl@@QEBAIXZ
 ??$get_info@Umax_write_image_args@device@info@_V1@sycl@@@device@_V1@sycl@@QEBAIXZ
 ??$get_info@Umem_base_addr_align@device@info@_V1@sycl@@@device@_V1@sycl@@QEBAIXZ
+??$get_info@Umemory_bus_width@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@QEBAIXZ
+??$get_info@Umemory_clock_rate@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@QEBAIXZ
 ??$get_info@Uname@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ??$get_info@Uname@platform@info@_V1@sycl@@@platform@_V1@sycl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ??$get_info@Unative_vector_width_char@device@info@_V1@sycl@@@device@_V1@sycl@@QEBAIXZ
@@ -760,6 +762,7 @@
 ?fill_usm@MemoryManager@detail@_V1@sycl@@SAXPEAXV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_KHV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@PEAPEAU_pi_event@@@Z
 ?finalize@handler@_V1@sycl@@AEAA?AVevent@23@XZ
 ?find_device_intersection@detail@_V1@sycl@@YA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@AEBV?$vector@V?$kernel_bundle@$00@_V1@sycl@@V?$allocator@V?$kernel_bundle@$00@_V1@sycl@@@std@@@5@@Z
+?flush@stream_impl@detail@_V1@sycl@@QEAAXAEBV?$shared_ptr@Vevent_impl@detail@_V1@sycl@@@std@@@Z
 ?flush@stream_impl@detail@_V1@sycl@@QEAAXXZ
 ?free@_V1@sycl@@YAXPEAXAEBVcontext@12@AEBUcode_location@detail@12@@Z
 ?free@_V1@sycl@@YAXPEAXAEBVqueue@12@AEBUcode_location@detail@12@@Z
@@ -1036,6 +1039,7 @@
 ?setArgsHelper@handler@_V1@sycl@@AEAAXH@Z
 ?setHandlerKernelBundle@handler@_V1@sycl@@AEAAXAEBV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@@Z
 ?setHandlerKernelBundle@handler@_V1@sycl@@AEAAXVkernel@23@@Z
+?setLocalAccessorArgHelper@handler@_V1@sycl@@AEAAXHAEAVLocalAccessorBaseHost@detail@23@@Z
 ?setPitches@image_impl@detail@_V1@sycl@@AEAAXAEBV?$range@$01@34@@Z
 ?setPitches@image_impl@detail@_V1@sycl@@AEAAXXZ
 ?setStateExplicitKernelBundle@handler@_V1@sycl@@AEAAXXZ

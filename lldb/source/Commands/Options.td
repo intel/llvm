@@ -343,6 +343,11 @@ let Command = "disassemble" in {
     Desc<"Force disassembly of large functions.">;
 }
 
+let Command = "diagnostics dump" in {
+  def diagnostics_dump_directory : Option<"directory", "d">, Group<1>,
+    Arg<"Path">, Desc<"Dump the diagnostics to the given directory.">;
+}
+
 let Command = "expression" in {
   def expression_options_all_threads : Option<"all-threads", "a">,
     Groups<[1,2]>, Arg<"Boolean">, Desc<"Should we run all threads if the "
@@ -1093,6 +1098,19 @@ let Command = "thread plan list" in {
     Desc<"Display thread plans for unreported threads">;
 }
 
+let Command = "thread trace dump function calls" in {
+  def thread_trace_dump_function_calls_file : Option<"file", "F">, Group<1>,
+    Arg<"Filename">,
+    Desc<"Dump the function calls to a file instead of the standard output.">;
+  def thread_trace_dump_function_calls_json: Option<"json", "j">,
+    Group<1>,
+    Desc<"Dump in simple JSON format.">;
+  def thread_trace_dump_function_calls_pretty_json: Option<"pretty-json", "J">,
+    Group<1>,
+    Desc<"Dump in JSON format but pretty printing the output for easier "
+    "readability.">;
+}
+
 let Command = "thread trace dump instructions" in {
   def thread_trace_dump_instructions_forwards: Option<"forwards", "f">,
     Group<1>,
@@ -1171,6 +1189,11 @@ let Command = "type summary add" in {
     Desc<"Don't use this format for references-to-type objects.">;
   def type_summary_add_regex : Option<"regex", "x">,
     Desc<"Type names are actually regular expressions.">;
+  def type_summary_add_recognizer_function :
+    Option<"recognizer-function", "\\x01">,
+    Desc<"The names in the argument list are actually the names of python "
+    "functions that decide whether to use this summary for any given type. "
+    "Cannot be specified at the same time as --regex (-x).">;
   def type_summary_add_inline_children : Option<"inline-children", "c">,
     Group<1>, Required,
     Desc<"If true, inline all child values into summary string.">;
@@ -1212,6 +1235,11 @@ let Command = "type synth add" in {
     "children.">;
   def type_synth_add_regex : Option<"regex", "x">,
     Desc<"Type names are actually regular expressions.">;
+  def type_synth_add_recognizer_function :
+    Option<"recognizer-function", "\\x01">,
+    Desc<"The names in the argument list are actually the names of python "
+    "functions that decide whether to use this summary for any given type. "
+    "Cannot be specified at the same time as --regex (-x).">;
 }
 
 let Command = "type format add" in {

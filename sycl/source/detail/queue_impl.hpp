@@ -62,7 +62,7 @@ public:
 
     ContextImplPtr DefaultContext = detail::getSyclObjImpl(
         Device->get_platform().ext_oneapi_get_default_context());
-    if (isValidDevice(DefaultContext, Device))
+    if (DefaultContext->isDeviceValid(Device))
       return DefaultContext;
     return detail::getSyclObjImpl(
         context{createSyclObjFromImpl<device>(Device), {}, {}});
@@ -104,7 +104,7 @@ public:
                             "Queue cannot be constructed with both of "
                             "discard_events and enable_profiling.");
     }
-    if (!isValidDevice(Context, Device)) {
+    if (!Context->isDeviceValid(Device)) {
       if (!Context->is_host() &&
           Context->getPlugin().getBackend() == backend::opencl)
         throw sycl::invalid_object_error(
@@ -230,10 +230,6 @@ public:
     try {
       return submit_impl(CGF, Self, Self, SecondQueue, Loc, PostProcess);
     } catch (...) {
-      {
-        std::lock_guard<std::mutex> Lock(MMutex);
-        MExceptions.PushBack(std::current_exception());
-      }
       return SecondQueue->submit_impl(CGF, SecondQueue, Self, SecondQueue, Loc,
                                       PostProcess);
     }
@@ -450,6 +446,11 @@ public:
     return MAssertHappenedBuffer;
   }
 
+  void registerStreamServiceEvent(const EventImplPtr &Event) {
+    std::lock_guard<std::mutex> Lock(MMutex);
+    MStreamsServiceEvents.push_back(Event);
+  }
+
 protected:
   // template is needed for proper unit testing
   template <typename HandlerType = handler>
@@ -484,28 +485,7 @@ protected:
       EventRet = Handler.finalize();
   }
 
-private:
-  /// Helper function for checking whether a device is either a member of a
-  /// context or a descendnant of its member.
-  /// \return True iff the device or its parent is a member of the context.
-  static bool isValidDevice(const ContextImplPtr &Context,
-                            DeviceImplPtr Device) {
-    // OpenCL does not support creating a queue with a descendant of a device
-    // from the given context yet.
-    // TODO remove once this limitation is lifted
-    if (!Context->is_host() &&
-        Context->getPlugin().getBackend() == backend::opencl)
-      return Context->hasDevice(Device);
-
-    while (!Context->hasDevice(Device)) {
-      if (Device->isRootDevice())
-        return false;
-      Device = detail::getSyclObjImpl(
-          Device->get_info<info::device::parent_device>());
-    }
-    return true;
-  }
-
+protected:
   /// Performs command group submission to the queue.
   ///
   /// \param CGF is a function object containing command group.
@@ -614,12 +594,14 @@ private:
 
   const bool MIsInorder;
 
+  std::vector<EventImplPtr> MStreamsServiceEvents;
+
 public:
   // Queue constructed with the discard_events property
   const bool MDiscardEvents;
   const bool MIsProfilingEnabled;
 
-private:
+protected:
   // This flag says if we can discard events based on a queue "setup" which will
   // be common for all operations submitted to the queue. This is a must
   // condition for discarding, but even if it's true, in some cases, we won't be

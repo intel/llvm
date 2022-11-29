@@ -27,6 +27,7 @@
 #include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/CodeGen/TargetOpcodes.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/InstrTypes.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/DivisionByConstantInfo.h"
 #include "llvm/Support/MathExtras.h"
@@ -555,7 +556,7 @@ bool CombinerHelper::matchCombineExtendingLoads(MachineInstr &MI,
       if (MMO.isAtomic() && UseMI.getOpcode() != TargetOpcode::G_ANYEXT)
         continue;
       // Check for legality.
-      if (LI) {
+      if (!isPreLegalize()) {
         LegalityQuery::MemDesc MMDesc(MMO);
         unsigned CandidateLoadOpc = getExtLoadOpcForExtend(UseMI.getOpcode());
         LLT UseTy = MRI.getType(UseMI.getOperand(0).getReg());
@@ -2749,9 +2750,9 @@ bool CombinerHelper::matchAshrShlToSextInreg(
   assert(MI.getOpcode() == TargetOpcode::G_ASHR);
   int64_t ShlCst, AshrCst;
   Register Src;
-  // FIXME: detect splat constant vectors.
   if (!mi_match(MI.getOperand(0).getReg(), MRI,
-                m_GAShr(m_GShl(m_Reg(Src), m_ICst(ShlCst)), m_ICst(AshrCst))))
+                m_GAShr(m_GShl(m_Reg(Src), m_ICstOrSplat(ShlCst)),
+                        m_ICstOrSplat(AshrCst))))
     return false;
   if (ShlCst != AshrCst)
     return false;
@@ -2823,12 +2824,6 @@ bool CombinerHelper::matchRedundantAnd(MachineInstr &MI,
     return false;
 
   Register AndDst = MI.getOperand(0).getReg();
-  LLT DstTy = MRI.getType(AndDst);
-
-  // FIXME: This should be removed once GISelKnownBits supports vectors.
-  if (DstTy.isVector())
-    return false;
-
   Register LHS = MI.getOperand(1).getReg();
   Register RHS = MI.getOperand(2).getReg();
   KnownBits LHSBits = KB->getKnownBits(LHS);
@@ -2869,12 +2864,6 @@ bool CombinerHelper::matchRedundantOr(MachineInstr &MI, Register &Replacement) {
     return false;
 
   Register OrDst = MI.getOperand(0).getReg();
-  LLT DstTy = MRI.getType(OrDst);
-
-  // FIXME: This should be removed once GISelKnownBits supports vectors.
-  if (DstTy.isVector())
-    return false;
-
   Register LHS = MI.getOperand(1).getReg();
   Register RHS = MI.getOperand(2).getReg();
   KnownBits LHSBits = KB->getKnownBits(LHS);
@@ -3928,33 +3917,30 @@ bool CombinerHelper::matchExtractVecEltBuildVec(MachineInstr &MI,
   // and find the source register that the index maps to.
   Register SrcVec = MI.getOperand(1).getReg();
   LLT SrcTy = MRI.getType(SrcVec);
-  if (!isLegalOrBeforeLegalizer(
-          {TargetOpcode::G_BUILD_VECTOR, {SrcTy, SrcTy.getElementType()}}))
-    return false;
 
   auto Cst = getIConstantVRegValWithLookThrough(MI.getOperand(2).getReg(), MRI);
   if (!Cst || Cst->Value.getZExtValue() >= SrcTy.getNumElements())
     return false;
 
   unsigned VecIdx = Cst->Value.getZExtValue();
-  MachineInstr *BuildVecMI =
-      getOpcodeDef(TargetOpcode::G_BUILD_VECTOR, SrcVec, MRI);
-  if (!BuildVecMI) {
-    BuildVecMI = getOpcodeDef(TargetOpcode::G_BUILD_VECTOR_TRUNC, SrcVec, MRI);
-    if (!BuildVecMI)
-      return false;
-    LLT ScalarTy = MRI.getType(BuildVecMI->getOperand(1).getReg());
-    if (!isLegalOrBeforeLegalizer(
-            {TargetOpcode::G_BUILD_VECTOR_TRUNC, {SrcTy, ScalarTy}}))
-      return false;
+
+  // Check if we have a build_vector or build_vector_trunc with an optional
+  // trunc in front.
+  MachineInstr *SrcVecMI = MRI.getVRegDef(SrcVec);
+  if (SrcVecMI->getOpcode() == TargetOpcode::G_TRUNC) {
+    SrcVecMI = MRI.getVRegDef(SrcVecMI->getOperand(1).getReg());
   }
+
+  if (SrcVecMI->getOpcode() != TargetOpcode::G_BUILD_VECTOR &&
+      SrcVecMI->getOpcode() != TargetOpcode::G_BUILD_VECTOR_TRUNC)
+    return false;
 
   EVT Ty(getMVTForLLT(SrcTy));
   if (!MRI.hasOneNonDBGUse(SrcVec) &&
       !getTargetLowering().aggressivelyPreferBuildVectorSources(Ty))
     return false;
 
-  Reg = BuildVecMI->getOperand(VecIdx + 1).getReg();
+  Reg = SrcVecMI->getOperand(VecIdx + 1).getReg();
   return true;
 }
 
@@ -4565,8 +4551,10 @@ bool CombinerHelper::matchReassocConstantInnerLHS(GPtrAdd &MI,
     // doesn't happen.
     LHSPtrAdd->moveBefore(&MI);
     Register RHSReg = MI.getOffsetReg();
+    // set VReg will cause type mismatch if it comes from extend/trunc
+    auto NewCst = B.buildConstant(MRI.getType(RHSReg), LHSCstOff->Value);
     Observer.changingInstr(MI);
-    MI.getOperand(2).setReg(LHSCstOff->VReg);
+    MI.getOperand(2).setReg(NewCst.getReg(0));
     Observer.changedInstr(MI);
     Observer.changingInstr(*LHSPtrAdd);
     LHSPtrAdd->getOperand(2).setReg(RHSReg);
@@ -5204,6 +5192,38 @@ bool CombinerHelper::matchRedundantNegOperands(MachineInstr &MI,
   return true;
 }
 
+bool CombinerHelper::matchFsubToFneg(MachineInstr &MI, Register &MatchInfo) {
+  assert(MI.getOpcode() == TargetOpcode::G_FSUB);
+
+  Register LHS = MI.getOperand(1).getReg();
+  MatchInfo = MI.getOperand(2).getReg();
+  LLT Ty = MRI.getType(MI.getOperand(0).getReg());
+
+  const auto LHSCst = Ty.isVector()
+                          ? getFConstantSplat(LHS, MRI, /* allowUndef */ true)
+                          : getFConstantVRegValWithLookThrough(LHS, MRI);
+  if (!LHSCst)
+    return false;
+
+  // -0.0 is always allowed
+  if (LHSCst->Value.isNegZero())
+    return true;
+
+  // +0.0 is only allowed if nsz is set.
+  if (LHSCst->Value.isPosZero())
+    return MI.getFlag(MachineInstr::FmNsz);
+
+  return false;
+}
+
+void CombinerHelper::applyFsubToFneg(MachineInstr &MI, Register &MatchInfo) {
+  Builder.setInstrAndDebugLoc(MI);
+  Register Dst = MI.getOperand(0).getReg();
+  Builder.buildFNeg(
+      Dst, Builder.buildFCanonicalize(MRI.getType(Dst), MatchInfo).getReg(0));
+  eraseInst(MI);
+}
+
 /// Checks if \p MI is TargetOpcode::G_FMUL and contractable either
 /// due to global flags or MachineInstr flags.
 static bool isContractableFMul(MachineInstr &MI, bool AllowFusionGlobally) {
@@ -5235,7 +5255,7 @@ bool CombinerHelper::canCombineFMadOrFMA(MachineInstr &MI,
     return false;
 
   // Floating-point multiply-add with intermediate rounding.
-  HasFMAD = (LI && TLI.isFMADLegal(MI, DstType));
+  HasFMAD = (!isPreLegalize() && TLI.isFMADLegal(MI, DstType));
   // Floating-point multiply-add without intermediate rounding.
   bool HasFMA = TLI.isFMAFasterThanFMulAndFAdd(*MF, DstType) &&
                 isLegalOrBeforeLegalizer({TargetOpcode::G_FMA, {DstType}});
@@ -5917,6 +5937,21 @@ bool CombinerHelper::matchTruncBuildVectorFold(MachineInstr &MI,
   return MRI.getType(MatchInfo) == MRI.getType(MI.getOperand(0).getReg());
 }
 
+bool CombinerHelper::matchTruncLshrBuildVectorFold(MachineInstr &MI,
+                                                   Register &MatchInfo) {
+  // Replace (G_TRUNC (G_LSHR (G_BITCAST (G_BUILD_VECTOR x, y)), K)) with
+  //    y if K == size of vector element type
+  Optional<ValueAndVReg> ShiftAmt;
+  if (!mi_match(MI.getOperand(1).getReg(), MRI,
+                m_GLShr(m_GBitcast(m_GBuildVector(m_Reg(), m_Reg(MatchInfo))),
+                        m_GCst(ShiftAmt))))
+    return false;
+
+  LLT MatchTy = MRI.getType(MatchInfo);
+  return ShiftAmt->Value.getZExtValue() == MatchTy.getSizeInBits() &&
+         MatchTy == MRI.getType(MI.getOperand(0).getReg());
+}
+
 unsigned CombinerHelper::getFPMinMaxOpcForSelect(
     CmpInst::Predicate Pred, LLT DstTy,
     SelectPatternNaNBehaviour VsNaNRetVal) const {
@@ -6046,6 +6081,38 @@ bool CombinerHelper::matchSimplifySelectToMinMax(MachineInstr &MI,
   Register TrueVal = MI.getOperand(2).getReg();
   Register FalseVal = MI.getOperand(3).getReg();
   return matchFPSelectToMinMax(Dst, Cond, TrueVal, FalseVal, MatchInfo);
+}
+
+bool CombinerHelper::matchRedundantBinOpInEquality(MachineInstr &MI,
+                                                   BuildFnTy &MatchInfo) {
+  assert(MI.getOpcode() == TargetOpcode::G_ICMP);
+  // (X + Y) == X --> Y == 0
+  // (X + Y) != X --> Y != 0
+  // (X - Y) == X --> Y == 0
+  // (X - Y) != X --> Y != 0
+  // (X ^ Y) == X --> Y == 0
+  // (X ^ Y) != X --> Y != 0
+  Register Dst = MI.getOperand(0).getReg();
+  CmpInst::Predicate Pred;
+  Register X, Y, OpLHS, OpRHS;
+  bool MatchedSub = mi_match(
+      Dst, MRI,
+      m_c_GICmp(m_Pred(Pred), m_Reg(X), m_GSub(m_Reg(OpLHS), m_Reg(Y))));
+  if (MatchedSub && X != OpLHS)
+    return false;
+  if (!MatchedSub) {
+    if (!mi_match(Dst, MRI,
+                  m_c_GICmp(m_Pred(Pred), m_Reg(X),
+                            m_any_of(m_GAdd(m_Reg(OpLHS), m_Reg(OpRHS)),
+                                     m_GXor(m_Reg(OpLHS), m_Reg(OpRHS))))))
+      return false;
+    Y = X == OpLHS ? OpRHS : X == OpRHS ? OpLHS : Register();
+  }
+  MatchInfo = [=](MachineIRBuilder &B) {
+    auto Zero = B.buildConstant(MRI.getType(Y), 0);
+    B.buildICmp(Pred, Dst, Y, Zero);
+  };
+  return CmpInst::isEquality(Pred) && Y.isValid();
 }
 
 bool CombinerHelper::tryCombine(MachineInstr &MI) {

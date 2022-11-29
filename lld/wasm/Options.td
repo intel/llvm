@@ -189,7 +189,15 @@ def global_base: JJ<"global-base=">,
   HelpText<"Where to start to place global data">;
 
 def import_memory: FF<"import-memory">,
-  HelpText<"Import memory from the environment">;
+  HelpText<"Import the module's memory from the default module of \"env\" with the name \"memory\".">;
+def import_memory_with_name: JJ<"import-memory=">,
+  HelpText<"Import the module's memory from the passed module with the passed name.">,
+  MetaVarName<"<module>,<name>">;
+
+def export_memory: FF<"export-memory">,
+  HelpText<"Export the module's memory with the default name of \"memory\"">;
+def export_memory_with_name: JJ<"export-memory=">,
+  HelpText<"Export the module's memory with the passed name">;
 
 def shared_memory: FF<"shared-memory">,
   HelpText<"Use shared linear memory">;
@@ -219,6 +227,9 @@ defm check_features: BB<"check-features",
 
 def features: CommaJoined<["--", "-"], "features=">,
   HelpText<"Comma-separated used features, inferred from input objects by default.">;
+
+def extra_features: CommaJoined<["--", "-"], "extra-features=">,
+  HelpText<"Comma-separated list of features to add to the default set of features inferred from input objects.">;
 
 // Aliases
 def: JoinedOrSeparate<["-"], "e">, Alias<entry>;

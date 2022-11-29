@@ -579,9 +579,37 @@ class IsVectorOfRankPred<list<int> allowedRanks> :
                            == }]
                          # allowedlength>)>]>;
 
+// Whether the number of elements of a fixed-length vector is from the given
+// `allowedRanks` list
+class IsFixedVectorOfRankPred<list<int> allowedRanks> :
+  And<[IsFixedVectorTypePred,
+       Or<!foreach(allowedlength, allowedRanks,
+                   CPred<[{$_self.cast<::mlir::VectorType>().getRank()
+                           == }]
+                         # allowedlength>)>]>;
+
+// Whether the number of elements of a scalable vector is from the given
+// `allowedRanks` list
+class IsScalableVectorOfRankPred<list<int> allowedRanks> :
+  And<[IsScalableVectorTypePred,
+       Or<!foreach(allowedlength, allowedRanks,
+                   CPred<[{$_self.cast<::mlir::VectorType>().getRank()
+                           == }]
+                         # allowedlength>)>]>;
+
 // Any vector where the rank is from the given `allowedRanks` list
 class VectorOfRank<list<int> allowedRanks> : Type<
   IsVectorOfRankPred<allowedRanks>,
+  " of ranks " # !interleave(allowedRanks, "/"), "::mlir::VectorType">;
+
+// Any fixed-length vector where the rank is from the given `allowedRanks` list
+class FixedVectorOfRank<list<int> allowedRanks> : Type<
+  IsFixedVectorOfRankPred<allowedRanks>,
+  " of ranks " # !interleave(allowedRanks, "/"), "::mlir::VectorType">;
+
+// Any scalable vector where the rank is from the given `allowedRanks` list
+class ScalableVectorOfRank<list<int> allowedRanks> : Type<
+  IsScalableVectorOfRankPred<allowedRanks>,
   " of ranks " # !interleave(allowedRanks, "/"), "::mlir::VectorType">;
 
 // Any vector where the rank is from the given `allowedRanks` list and the type
@@ -1246,9 +1274,10 @@ class TypeAttrOf<Type ty>
 // "true" if the attribute is present and "false" otherwise.
 def UnitAttr : Attr<CPred<"$_self.isa<::mlir::UnitAttr>()">, "unit attribute"> {
   let storageType = [{ ::mlir::UnitAttr }];
-  let constBuilderCall = "$_builder.getUnitAttr()";
+  let constBuilderCall = "(($0) ? $_builder.getUnitAttr() : nullptr)";
   let convertFromStorage = "$_self != nullptr";
   let returnType = "bool";
+  let defaultValue = "false";
   let valueType = NoneType;
   let isOptional = 1;
 }
@@ -1575,7 +1604,7 @@ class ConstantAttr<Attr attribute, string val> : AttrConstraint<
 class ConstF32Attr<string val> : ConstantAttr<F32Attr, val>;
 def ConstBoolAttrFalse : ConstantAttr<BoolAttr, "false">;
 def ConstBoolAttrTrue : ConstantAttr<BoolAttr, "true">;
-def ConstUnitAttr : ConstantAttr<UnitAttr, "unit">;
+def ConstUnitAttr : ConstantAttr<UnitAttr, "true">;
 
 // Constant string-based attribute. Wraps the desired string in escaped quotes.
 class ConstantStrAttr<Attr attribute, string val>
@@ -1635,6 +1664,21 @@ class ArrayMinCount<int n> : AttrConstraint<
 class ArrayCount<int n> : AttrConstraint<
     CPred<"$_self.cast<::mlir::ArrayAttr>().size() == " #n>,
     "with exactly " # n # " elements">;
+
+class DenseArraySorted<DenseArrayAttrBase arrayType> : AttrConstraint<
+    CPred<"llvm::is_sorted($_self.cast<" # arrayType # ">().asArrayRef())">,
+    "should be in non-decreasing order">;
+
+class DenseArrayStrictlySorted<DenseArrayAttrBase arrayType> : AttrConstraint<
+    And<[
+      CPred<"llvm::is_sorted($_self.cast<" # arrayType # ">().asArrayRef())">,
+      // Check that no two adjacent elements are the same.
+      CPred<"[](" # arrayType.returnType # " a) {\n"
+        "return std::adjacent_find(std::begin(a), std::end(a)) == "
+        "std::end(a);\n"
+        "}($_self.cast<" # arrayType # ">().asArrayRef())"
+      >]>,
+    "should be in increasing order">;
 
 class IntArrayNthElemEq<int index, int value> : AttrConstraint<
     And<[

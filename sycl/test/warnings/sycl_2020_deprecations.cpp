@@ -167,7 +167,7 @@ int main() {
   auto LevelZeroBackend = sycl::backend::level_zero;
   (void)LevelZeroBackend;
 
-  // expected-warning@+1{{'esimd_cpu' is deprecated: use 'ext_oneapi_esimd_emulator' instead}}
+  // expected-warning@+1{{'esimd_cpu' is deprecated: use 'ext_intel_esimd_emulator' instead}}
   auto ESIMDCPUBackend = sycl::backend::esimd_cpu;
   (void)ESIMDCPUBackend;
 

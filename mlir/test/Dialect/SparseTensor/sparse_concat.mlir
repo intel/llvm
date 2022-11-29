@@ -14,7 +14,7 @@
 // CHECK-DAG:     %[[TMP_c6_i32:.*]] = arith.constant 6 : i32
 // CHECK-DAG:     %[[TMP_c1_i32:.*]] = arith.constant 1 : i32
 // CHECK-DAG:     %[[TMP_c0_i32:.*]] = arith.constant 0 : i32
-// CHECK-DAG:     %[[TMP_c1_i8:.*]] = arith.constant 1 : i8
+// CHECK-DAG:     %[[TMP_c8_i8:.*]] = arith.constant 8 : i8
 // CHECK-DAG:     %[[TMP_c3:.*]] = arith.constant 3 : index
 // CHECK-DAG:     %[[TMP_c1:.*]] = arith.constant 1 : index
 // CHECK-DAG:     %[[TMP_cst:.*]] = arith.constant 0.000000e+00 : f64
@@ -33,8 +33,8 @@
 // CHECK:         }
 // CHECK:         %[[TMP_1:.*]] = memref.alloca() : memref<2xi8>
 // CHECK:         %[[TMP_2:.*]] = memref.cast %[[TMP_1]] : memref<2xi8> to memref<?xi8>
-// CHECK:         memref.store %[[TMP_c1_i8]], %[[TMP_1]][%[[TMP_c0]]] : memref<2xi8>
-// CHECK:         memref.store %[[TMP_c1_i8]], %[[TMP_1]][%[[TMP_c1]]] : memref<2xi8>
+// CHECK:         memref.store %[[TMP_c8_i8]], %[[TMP_1]][%[[TMP_c0]]] : memref<2xi8>
+// CHECK:         memref.store %[[TMP_c8_i8]], %[[TMP_1]][%[[TMP_c1]]] : memref<2xi8>
 // CHECK:         %[[TMP_3:.*]] = memref.alloca() : memref<2xindex>
 // CHECK:         %[[TMP_4:.*]] = memref.cast %[[TMP_3]] : memref<2xindex> to memref<?xindex>
 // CHECK:         memref.store %[[TMP_c3]], %[[TMP_3]][%[[TMP_c0]]] : memref<2xindex>
@@ -58,7 +58,7 @@
 // CHECK:           memref.store %[[TMP_15]], %[[TMP_0]][%[[TMP_13]], %[[TMP_14]]] : memref<5x4xf64>
 // CHECK:           scf.yield
 // CHECK:         }
-// CHECK:         call @delSparseTensorCOOF64(%[[TMP_7]]) : (!llvm.ptr<i8>) -> ()
+// CHECK:         call @delSparseTensorIteratorF64(%[[TMP_7]]) : (!llvm.ptr<i8>) -> ()
 // CHECK:         %[[TMP_11:.*]] = bufferization.to_tensor %[[TMP_0]] : memref<5x4xf64>
 // CHECK:         return %[[TMP_11]] : tensor<5x4xf64>
 // CHECK:       }
@@ -83,11 +83,11 @@ func.func @concat_mix_dense(%arg0: tensor<2x4xf64>, %arg1: tensor<3x4xf64, #Spar
 // CHECK-DAG:     %[[TMP_c0:.*]] = arith.constant 0 : index
 // CHECK-DAG:     %[[TMP_c5:.*]] = arith.constant 5 : index
 // CHECK-DAG:     %[[TMP_c4:.*]] = arith.constant 4 : index
-// CHECK-DAG:     %[[TMP_c1_i8:.*]] = arith.constant 1 : i8
+// CHECK-DAG:     %[[TMP_c8_i8:.*]] = arith.constant 8 : i8
 // CHECK:         %[[TMP_0:.*]] = memref.alloca() : memref<2xi8>
 // CHECK:         %[[TMP_1:.*]] = memref.cast %[[TMP_0]] : memref<2xi8> to memref<?xi8>
-// CHECK:         memref.store %[[TMP_c1_i8]], %[[TMP_0]][%[[TMP_c0]]] : memref<2xi8>
-// CHECK:         memref.store %[[TMP_c1_i8]], %[[TMP_0]][%[[TMP_c1]]] : memref<2xi8>
+// CHECK:         memref.store %[[TMP_c8_i8]], %[[TMP_0]][%[[TMP_c0]]] : memref<2xi8>
+// CHECK:         memref.store %[[TMP_c8_i8]], %[[TMP_0]][%[[TMP_c1]]] : memref<2xi8>
 // CHECK:         %[[TMP_2:.*]] = memref.alloca() : memref<2xindex>
 // CHECK:         %[[TMP_3:.*]] = memref.cast %[[TMP_2]] : memref<2xindex> to memref<?xindex>
 // CHECK:         memref.store %[[TMP_c5]], %[[TMP_2]][%[[TMP_c0]]] : memref<2xindex>
@@ -115,8 +115,8 @@ func.func @concat_mix_dense(%arg0: tensor<2x4xf64>, %arg1: tensor<3x4xf64, #Spar
 // CHECK:         }
 // CHECK:         %[[TMP_11:.*]] = memref.alloca() : memref<2xi8>
 // CHECK:         %[[TMP_12:.*]] = memref.cast %[[TMP_11]] : memref<2xi8> to memref<?xi8>
-// CHECK:         memref.store %[[TMP_c1_i8]], %[[TMP_11]][%[[TMP_c0]]] : memref<2xi8>
-// CHECK:         memref.store %[[TMP_c1_i8]], %[[TMP_11]][%[[TMP_c1]]] : memref<2xi8>
+// CHECK:         memref.store %[[TMP_c8_i8]], %[[TMP_11]][%[[TMP_c0]]] : memref<2xi8>
+// CHECK:         memref.store %[[TMP_c8_i8]], %[[TMP_11]][%[[TMP_c1]]] : memref<2xi8>
 // CHECK:         %[[TMP_13:.*]] = memref.alloca() : memref<2xindex>
 // CHECK:         %[[TMP_14:.*]] = memref.cast %[[TMP_13]] : memref<2xindex> to memref<?xindex>
 // CHECK:         memref.store %[[TMP_c3]], %[[TMP_13]][%[[TMP_c0]]] : memref<2xindex>
@@ -141,7 +141,7 @@ func.func @concat_mix_dense(%arg0: tensor<2x4xf64>, %arg1: tensor<3x4xf64, #Spar
 // CHECK:           %[[TMP_25:.*]] = func.call @addEltF64(%[[TMP_7]], %[[TMP_20]], %[[TMP_10]], %[[TMP_5]]) : (!llvm.ptr<i8>, memref<f64>, memref<?xindex>, memref<?xindex>) -> !llvm.ptr<i8>
 // CHECK:           scf.yield
 // CHECK:         }
-// CHECK:         call @delSparseTensorCOOF64(%[[TMP_17]]) : (!llvm.ptr<i8>) -> ()
+// CHECK:         call @delSparseTensorIteratorF64(%[[TMP_17]]) : (!llvm.ptr<i8>) -> ()
 // CHECK:         %[[TMP_21:.*]] = call @newSparseTensor(%[[TMP_1]], %[[TMP_3]], %[[TMP_5]], %[[TMP_c0_i32]], %[[TMP_c0_i32]], %[[TMP_c1_i32]], %[[TMP_c2_i32]], %[[TMP_7]]) : (memref<?xi8>, memref<?xindex>, memref<?xindex>, i32, i32, i32, i32, !llvm.ptr<i8>) -> !llvm.ptr<i8>
 // CHECK:         call @delSparseTensorCOOF64(%[[TMP_7]]) : (!llvm.ptr<i8>) -> ()
 // CHECK:         return %[[TMP_21]] : !llvm.ptr<i8>
@@ -167,11 +167,11 @@ func.func @concat_mix_sparse(%arg0: tensor<2x4xf64>, %arg1: tensor<3x4xf64, #Spa
 // CHECK-DAG:     %[[TMP_c0:.*]] = arith.constant 0 : index
 // CHECK-DAG:     %[[TMP_c4:.*]] = arith.constant 4 : index
 // CHECK-DAG:     %[[TMP_c5:.*]] = arith.constant 5 : index
-// CHECK-DAG:     %[[TMP_c1_i8:.*]] = arith.constant 1 : i8
+// CHECK-DAG:     %[[TMP_c8_i8:.*]] = arith.constant 8 : i8
 // CHECK:         %[[TMP_0:.*]] = memref.alloca() : memref<2xi8>
 // CHECK:         %[[TMP_1:.*]] = memref.cast %[[TMP_0]] : memref<2xi8> to memref<?xi8>
-// CHECK:         memref.store %[[TMP_c1_i8]], %[[TMP_0]][%[[TMP_c0]]] : memref<2xi8>
-// CHECK:         memref.store %[[TMP_c1_i8]], %[[TMP_0]][%[[TMP_c1]]] : memref<2xi8>
+// CHECK:         memref.store %[[TMP_c8_i8]], %[[TMP_0]][%[[TMP_c0]]] : memref<2xi8>
+// CHECK:         memref.store %[[TMP_c8_i8]], %[[TMP_0]][%[[TMP_c1]]] : memref<2xi8>
 // CHECK:         %[[TMP_2:.*]] = memref.alloca() : memref<2xindex>
 // CHECK:         %[[TMP_3:.*]] = memref.cast %[[TMP_2]] : memref<2xindex> to memref<?xindex>
 // CHECK:         memref.store %[[TMP_c4]], %[[TMP_2]][%[[TMP_c0]]] : memref<2xindex>
@@ -199,8 +199,8 @@ func.func @concat_mix_sparse(%arg0: tensor<2x4xf64>, %arg1: tensor<3x4xf64, #Spa
 // CHECK:         }
 // CHECK:         %[[TMP_11:.*]] = memref.alloca() : memref<2xi8>
 // CHECK:         %[[TMP_12:.*]] = memref.cast %[[TMP_11]] : memref<2xi8> to memref<?xi8>
-// CHECK:         memref.store %[[TMP_c1_i8]], %[[TMP_11]][%[[TMP_c0]]] : memref<2xi8>
-// CHECK:         memref.store %[[TMP_c1_i8]], %[[TMP_11]][%[[TMP_c1]]] : memref<2xi8>
+// CHECK:         memref.store %[[TMP_c8_i8]], %[[TMP_11]][%[[TMP_c0]]] : memref<2xi8>
+// CHECK:         memref.store %[[TMP_c8_i8]], %[[TMP_11]][%[[TMP_c1]]] : memref<2xi8>
 // CHECK:         %[[TMP_13:.*]] = memref.alloca() : memref<2xindex>
 // CHECK:         %[[TMP_14:.*]] = memref.cast %[[TMP_13]] : memref<2xindex> to memref<?xindex>
 // CHECK:         memref.store %[[TMP_c4]], %[[TMP_13]][%[[TMP_c0]]] : memref<2xindex>
@@ -225,7 +225,7 @@ func.func @concat_mix_sparse(%arg0: tensor<2x4xf64>, %arg1: tensor<3x4xf64, #Spa
 // CHECK:           %[[TMP_25:.*]] = func.call @addEltF64(%[[TMP_7]], %[[TMP_20]], %[[TMP_10]], %[[TMP_5]]) : (!llvm.ptr<i8>, memref<f64>, memref<?xindex>, memref<?xindex>) -> !llvm.ptr<i8>
 // CHECK:           scf.yield
 // CHECK:         }
-// CHECK:         call @delSparseTensorCOOF64(%[[TMP_17]]) : (!llvm.ptr<i8>) -> ()
+// CHECK:         call @delSparseTensorIteratorF64(%[[TMP_17]]) : (!llvm.ptr<i8>) -> ()
 // CHECK:         %[[TMP_21:.*]] = call @newSparseTensor(%[[TMP_1]], %[[TMP_3]], %[[TMP_5]], %[[TMP_c0_i32]], %[[TMP_c0_i32]], %[[TMP_c1_i32]], %[[TMP_c2_i32]], %[[TMP_7]]) : (memref<?xi8>, memref<?xindex>, memref<?xindex>, i32, i32, i32, i32, !llvm.ptr<i8>) -> !llvm.ptr<i8>
 // CHECK:         call @delSparseTensorCOOF64(%[[TMP_7]]) : (!llvm.ptr<i8>) -> ()
 // CHECK:         return %[[TMP_21]] : !llvm.ptr<i8>
@@ -243,7 +243,7 @@ func.func @concat_mix_sparse_perm_dim1(%arg0: tensor<4x2xf64>, %arg1: tensor<4x3
 // CHECK-DAG:         %[[TMP_c6_i32:.*]] = arith.constant 6 : i32
 // CHECK-DAG:         %[[TMP_c1_i32:.*]] = arith.constant 1 : i32
 // CHECK-DAG:         %[[TMP_c0_i32:.*]] = arith.constant 0 : i32
-// CHECK-DAG:         %[[TMP_c1_i8:.*]] = arith.constant 1 : i8
+// CHECK-DAG:         %[[TMP_c8_i8:.*]] = arith.constant 8 : i8
 // CHECK-DAG:         %[[TMP_c3:.*]] = arith.constant 3 : index
 // CHECK-DAG:         %[[TMP_c1:.*]] = arith.constant 1 : index
 // CHECK-DAG:         %[[TMP_cst:.*]] = arith.constant 0.000000e+00 : f64
@@ -262,8 +262,8 @@ func.func @concat_mix_sparse_perm_dim1(%arg0: tensor<4x2xf64>, %arg1: tensor<4x3
 // CHECK:         }
 // CHECK:         %[[TMP_1:.*]] = memref.alloca() : memref<2xi8>
 // CHECK:         %[[TMP_2:.*]] = memref.cast %[[TMP_1]] : memref<2xi8> to memref<?xi8>
-// CHECK:         memref.store %[[TMP_c1_i8]], %[[TMP_1]][%[[TMP_c0]]] : memref<2xi8>
-// CHECK:         memref.store %[[TMP_c1_i8]], %[[TMP_1]][%[[TMP_c1]]] : memref<2xi8>
+// CHECK:         memref.store %[[TMP_c8_i8]], %[[TMP_1]][%[[TMP_c0]]] : memref<2xi8>
+// CHECK:         memref.store %[[TMP_c8_i8]], %[[TMP_1]][%[[TMP_c1]]] : memref<2xi8>
 // CHECK:         %[[TMP_3:.*]] = memref.alloca() : memref<2xindex>
 // CHECK:         %[[TMP_4:.*]] = memref.cast %[[TMP_3]] : memref<2xindex> to memref<?xindex>
 // CHECK:         memref.store %[[TMP_c4]], %[[TMP_3]][%[[TMP_c0]]] : memref<2xindex>
@@ -287,7 +287,7 @@ func.func @concat_mix_sparse_perm_dim1(%arg0: tensor<4x2xf64>, %arg1: tensor<4x3
 // CHECK:           memref.store %[[TMP_15]], %[[TMP_0]][%[[TMP_12]], %[[TMP_14]]] : memref<4x5xf64>
 // CHECK:           scf.yield
 // CHECK:         }
-// CHECK:         call @delSparseTensorCOOF64(%[[TMP_7]]) : (!llvm.ptr<i8>) -> ()
+// CHECK:         call @delSparseTensorIteratorF64(%[[TMP_7]]) : (!llvm.ptr<i8>) -> ()
 // CHECK:         %[[TMP_11:.*]] = bufferization.to_tensor %[[TMP_0]] : memref<4x5xf64>
 // CHECK:         return %[[TMP_11]] : tensor<4x5xf64>
 // CHECK:       }
@@ -304,7 +304,7 @@ func.func @concat_mix_dense_perm_dim1(%arg0: tensor<4x2xf64>, %arg1: tensor<4x3x
 // CHECK-DAG:       %[[TMP_c6_i32:.*]] = arith.constant 6 : i32
 // CHECK-DAG:       %[[TMP_c1_i32:.*]] = arith.constant 1 : i32
 // CHECK-DAG:       %[[TMP_c0_i32:.*]] = arith.constant 0 : i32
-// CHECK-DAG:       %[[TMP_c1_i8:.*]] = arith.constant 1 : i8
+// CHECK-DAG:       %[[TMP_c8_i8:.*]] = arith.constant 8 : i8
 // CHECK-DAG:       %[[TMP_cst:.*]] = arith.constant 0.000000e+00 : f64
 // CHECK-DAG:       %[[TMP_c0:.*]] = arith.constant 0 : index
 // CHECK-DAG:       %[[TMP_c3:.*]] = arith.constant 3 : index
@@ -323,8 +323,8 @@ func.func @concat_mix_dense_perm_dim1(%arg0: tensor<4x2xf64>, %arg1: tensor<4x3x
 // CHECK:           }
 // CHECK:           %[[TMP_2:.*]] = memref.alloca() : memref<2xi8>
 // CHECK:           %[[TMP_3:.*]] = memref.cast %[[TMP_2]] : memref<2xi8> to memref<?xi8>
-// CHECK:           memref.store %[[TMP_c1_i8]], %[[TMP_2]][%[[TMP_c0]]] : memref<2xi8>
-// CHECK:           memref.store %[[TMP_c1_i8]], %[[TMP_2]][%[[TMP_c1]]] : memref<2xi8>
+// CHECK:           memref.store %[[TMP_c8_i8]], %[[TMP_2]][%[[TMP_c0]]] : memref<2xi8>
+// CHECK:           memref.store %[[TMP_c8_i8]], %[[TMP_2]][%[[TMP_c1]]] : memref<2xi8>
 // CHECK:           %[[TMP_4:.*]] = memref.alloca() : memref<2xindex>
 // CHECK:           %[[TMP_5:.*]] = memref.cast %[[TMP_4]] : memref<2xindex> to memref<?xindex>
 // CHECK:           memref.store %[[TMP_c3]], %[[TMP_4]][%[[TMP_c0]]] : memref<2xindex>
@@ -348,7 +348,7 @@ func.func @concat_mix_dense_perm_dim1(%arg0: tensor<4x2xf64>, %arg1: tensor<4x3x
 // CHECK:             memref.store %[[TMP_16]], %[[TMP_0]][%[[TMP_13]], %[[TMP_15]]] : memref<3x5xf64>
 // CHECK:             scf.yield
 // CHECK:           }
-// CHECK:           call @delSparseTensorCOOF64(%[[TMP_8]]) : (!llvm.ptr<i8>) -> ()
+// CHECK:           call @delSparseTensorIteratorF64(%[[TMP_8]]) : (!llvm.ptr<i8>) -> ()
 // CHECK:           %[[TMP_12:.*]] = bufferization.to_tensor %[[TMP_1]] : memref<?x?xf64>
 // CHECK:           return %[[TMP_12]] : tensor<?x?xf64>
 // CHECK:         }

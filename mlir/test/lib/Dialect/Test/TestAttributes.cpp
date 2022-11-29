@@ -150,20 +150,6 @@ void TestSubElementsAccessAttr::print(::mlir::AsmPrinter &printer) const {
           << ">";
 }
 
-void TestSubElementsAccessAttr::walkImmediateSubElements(
-    llvm::function_ref<void(mlir::Attribute)> walkAttrsFn,
-    llvm::function_ref<void(mlir::Type)> walkTypesFn) const {
-  walkAttrsFn(getFirst());
-  walkAttrsFn(getSecond());
-  walkAttrsFn(getThird());
-}
-
-Attribute TestSubElementsAccessAttr::replaceImmediateSubElements(
-    ArrayRef<Attribute> replAttrs, ArrayRef<Type> replTypes) const {
-  assert(replAttrs.size() == 3 && "invalid number of replacement attributes");
-  return get(getContext(), replAttrs[0], replAttrs[1], replAttrs[2]);
-}
-
 //===----------------------------------------------------------------------===//
 // TestExtern1DI64ElementsAttr
 //===----------------------------------------------------------------------===//
@@ -172,6 +158,23 @@ ArrayRef<uint64_t> TestExtern1DI64ElementsAttr::getElements() const {
   if (auto *blob = getHandle().getBlob())
     return blob->getDataAs<uint64_t>();
   return llvm::None;
+}
+
+//===----------------------------------------------------------------------===//
+// TestCustomAnchorAttr
+//===----------------------------------------------------------------------===//
+
+static ParseResult parseTrueFalse(AsmParser &p,
+                                  FailureOr<Optional<int>> &result) {
+  bool b;
+  if (p.parseInteger(b))
+    return failure();
+  result = Optional<int>(b);
+  return success();
+}
+
+static void printTrueFalse(AsmPrinter &p, Optional<int> result) {
+  p << (*result ? "true" : "false");
 }
 
 //===----------------------------------------------------------------------===//

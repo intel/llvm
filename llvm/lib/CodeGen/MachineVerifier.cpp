@@ -73,6 +73,7 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/LowLevelTypeImpl.h"
 #include "llvm/Support/MathExtras.h"
+#include "llvm/Support/ModRef.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include <algorithm>
@@ -294,6 +295,7 @@ namespace {
 
     void getAnalysisUsage(AnalysisUsage &AU) const override {
       AU.addUsedIfAvailable<LiveStacks>();
+      AU.addUsedIfAvailable<LiveVariables>();
       AU.setPreservesAll();
       MachineFunctionPass::getAnalysisUsage(AU);
     }
@@ -1473,10 +1475,9 @@ void MachineVerifier::verifyPreISelGenericInstruction(const MachineInstr *MI) {
     bool NoSideEffects = MI->getOpcode() == TargetOpcode::G_INTRINSIC;
     unsigned IntrID = IntrIDOp.getIntrinsicID();
     if (IntrID != 0 && IntrID < Intrinsic::num_intrinsics) {
-      AttributeList Attrs
-        = Intrinsic::getAttributes(MF->getFunction().getContext(),
-                                   static_cast<Intrinsic::ID>(IntrID));
-      bool DeclHasSideEffects = !Attrs.hasFnAttr(Attribute::ReadNone);
+      AttributeList Attrs = Intrinsic::getAttributes(
+          MF->getFunction().getContext(), static_cast<Intrinsic::ID>(IntrID));
+      bool DeclHasSideEffects = !Attrs.getMemoryEffects().doesNotAccessMemory();
       if (NoSideEffects && DeclHasSideEffects) {
         report("G_INTRINSIC used with intrinsic that accesses memory", MI);
         break;
