@@ -465,6 +465,40 @@ public:
   }
 };
 
+// CRTP class supplying a common definition of owner-before ordering for
+// accessors.
+template <class AccessorT> class AccessorOwnerLessBase {
+public:
+#ifndef __SYCL_DEVICE_ONLY__
+  /// Compares the accessor against a weak object using an owner-based
+  /// implementation-defined ordering.
+  ///
+  /// \param Other is the weak object to compare ordering against.
+  /// \return true if this object precedes \param Other and false otherwise.
+  bool ext_oneapi_owner_before(
+      const ext::oneapi::detail::weak_object_base<AccessorT> &Other)
+      const noexcept {
+    return static_cast<const AccessorT *>(this)->impl.owner_before(
+        ext::oneapi::detail::getSyclWeakObjImpl(Other));
+  }
+
+  /// Compares the accessor against another accessor using an owner-based
+  /// implementation-defined ordering.
+  ///
+  /// \param Other is the object to compare ordering against.
+  /// \return true if this object precedes \param Other and false otherwise.
+  bool ext_oneapi_owner_before(const AccessorT &Other) const noexcept {
+    return static_cast<const AccessorT *>(this)->impl.owner_before(Other.impl);
+  }
+#else
+  bool ext_oneapi_owner_before(
+      const ext::oneapi::detail::weak_object_base<AccessorT> &Other)
+      const noexcept;
+
+  bool ext_oneapi_owner_before(const AccessorT &Other) const noexcept;
+#endif
+};
+
 class AccessorImplHost;
 
 void __SYCL_EXPORT addHostAccessorAndWait(AccessorImplHost *Req);
@@ -542,6 +576,8 @@ protected:
 
   template <class Obj>
   friend Obj detail::createSyclObjFromImpl(decltype(Obj::impl) ImplObj);
+
+  template <class AccessorT> friend class AccessorOwnerLessBase;
 
   LocalAccessorImplPtr impl;
 };
@@ -988,7 +1024,10 @@ class __SYCL_SPECIAL_CLASS __SYCL_TYPE(accessor) accessor :
     public detail::AccessorBaseHost,
 #endif
     public detail::accessor_common<DataT, Dimensions, AccessMode, AccessTarget,
-                                   IsPlaceholder, PropertyListT> {
+                                   IsPlaceholder, PropertyListT>,
+    public detail::AccessorOwnerLessBase<
+        accessor<DataT, Dimensions, AccessMode, AccessTarget, IsPlaceholder,
+                 PropertyListT>> {
 protected:
   static_assert((AccessTarget == access::target::global_buffer ||
                  AccessTarget == access::target::constant_buffer ||
@@ -2145,34 +2184,6 @@ public:
   bool operator==(const accessor &Rhs) const { return impl == Rhs.impl; }
   bool operator!=(const accessor &Rhs) const { return !(*this == Rhs); }
 
-#ifndef __SYCL_DEVICE_ONLY__
-  /// Compares the accessor against a weak object using an owner-based
-  /// implementation-defined ordering.
-  ///
-  /// \param Other is the weak object to compare ordering against.
-  /// \return true if this object precedes \param Other and false otherwise.
-  bool ext_oneapi_owner_before(
-      const ext::oneapi::detail::weak_object_base<accessor> &Other)
-      const noexcept {
-    return impl.owner_before(ext::oneapi::detail::getSyclWeakObjImpl(Other));
-  }
-
-  /// Compares the accessor against another accessor using an owner-based
-  /// implementation-defined ordering.
-  ///
-  /// \param Other is the object to compare ordering against.
-  /// \return true if this object precedes \param Other and false otherwise.
-  bool ext_oneapi_owner_before(const accessor &Other) const noexcept {
-    return impl.owner_before(Other.impl);
-  }
-#else
-  bool ext_oneapi_owner_before(
-      const ext::oneapi::detail::weak_object_base<accessor> &Other)
-      const noexcept;
-
-  bool ext_oneapi_owner_before(const accessor &Other) const noexcept;
-#endif
-
   iterator begin() const noexcept {
     return iterator::getBegin(
         get_pointer(),
@@ -2678,7 +2689,10 @@ template <typename DataT, int Dimensions, access::mode AccessMode,
           access::placeholder IsPlaceholder>
 class __SYCL_SPECIAL_CLASS accessor<DataT, Dimensions, AccessMode,
                                     access::target::local, IsPlaceholder>
-    : public local_accessor_base<DataT, Dimensions, AccessMode, IsPlaceholder> {
+    : public local_accessor_base<DataT, Dimensions, AccessMode, IsPlaceholder>,
+      public detail::AccessorOwnerLessBase<
+          accessor<DataT, Dimensions, AccessMode, access::target::local,
+                   IsPlaceholder>> {
 
   using local_acc =
       local_accessor_base<DataT, Dimensions, AccessMode, IsPlaceholder>;
@@ -2704,44 +2718,17 @@ public:
                                              range>::template get<0>();
   }
 
-  bool ext_oneapi_owner_before(
-      const ext::oneapi::detail::weak_object_base<accessor> &Other)
-      const noexcept;
-  bool ext_oneapi_owner_before(const accessor &Other) const noexcept;
-
 #else
 private:
   accessor(const detail::AccessorImplPtr &Impl) : local_acc{Impl} {}
-
-public:
-  /// Compares the accessor against a weak object using an owner-based
-  /// implementation-defined ordering.
-  ///
-  /// \param Other is the weak object to compare ordering against.
-  /// \return true if this object precedes \param Other and false otherwise.
-  bool ext_oneapi_owner_before(
-      const ext::oneapi::detail::weak_object_base<accessor> &Other)
-      const noexcept {
-    return local_acc::impl.owner_before(
-        ext::oneapi::detail::getSyclWeakObjImpl(Other));
-  }
-
-  /// Compares the accessor against another accessor using an owner-based
-  /// implementation-defined ordering.
-  ///
-  /// \param Other is the object to compare ordering against.
-  /// \return true if this object precedes \param Other and false otherwise.
-  bool ext_oneapi_owner_before(const accessor &Other) const noexcept {
-    return local_acc::impl.owner_before(Other.impl);
-  }
-
 #endif
 };
 
 template <typename DataT, int Dimensions = 1>
 class __SYCL_SPECIAL_CLASS __SYCL_TYPE(local_accessor) local_accessor
     : public local_accessor_base<DataT, Dimensions, access::mode::read_write,
-                                 access::placeholder::false_t> {
+                                 access::placeholder::false_t>,
+      public detail::AccessorOwnerLessBase<local_accessor<DataT, Dimensions>> {
 
   using local_acc =
       local_accessor_base<DataT, Dimensions, access::mode::read_write,
@@ -2768,35 +2755,8 @@ public:
                                              range>::template get<0>();
   }
 
-  bool ext_oneapi_owner_before(
-      const ext::oneapi::detail::weak_object_base<local_accessor> &Other)
-      const noexcept;
-  bool ext_oneapi_owner_before(const local_accessor &Other) const noexcept;
-
 #else
   local_accessor(const detail::AccessorImplPtr &Impl) : local_acc{Impl} {}
-
-public:
-  /// Compares the local_accessor against a weak object using an owner-based
-  /// implementation-defined ordering.
-  ///
-  /// \param Other is the weak object to compare ordering against.
-  /// \return true if this object precedes \param Other and false otherwise.
-  bool ext_oneapi_owner_before(
-      const ext::oneapi::detail::weak_object_base<local_accessor> &Other)
-      const noexcept {
-    return local_acc::impl.owner_before(
-        ext::oneapi::detail::getSyclWeakObjImpl(Other));
-  }
-
-  /// Compares the local_accessor against another local_accessor using an
-  /// owner-based implementation-defined ordering.
-  ///
-  /// \param Other is the object to compare ordering against.
-  /// \return true if this object precedes \param Other and false otherwise.
-  bool ext_oneapi_owner_before(const local_accessor &Other) const noexcept {
-    return local_acc::impl.owner_before(Other.impl);
-  }
 #endif
 
 public:
@@ -2864,7 +2824,10 @@ class __SYCL_SPECIAL_CLASS
 __SYCL_TYPE(accessor) accessor<DataT, Dimensions, AccessMode,
                                access::target::image, IsPlaceholder>
     : public detail::image_accessor<DataT, Dimensions, AccessMode,
-                                    access::target::image, IsPlaceholder> {
+                                    access::target::image, IsPlaceholder>,
+      public detail::AccessorOwnerLessBase<
+          accessor<DataT, Dimensions, AccessMode, access::target::image,
+                   IsPlaceholder>> {
 private:
   accessor(const detail::AccessorImplPtr &Impl)
       : detail::image_accessor<DataT, Dimensions, AccessMode,
@@ -2911,34 +2874,6 @@ private:
 public:
   // Default constructor for objects later initialized with __init member.
   accessor() = default;
-
-  bool ext_oneapi_owner_before(
-      const ext::oneapi::detail::weak_object_base<accessor> &Other)
-      const noexcept;
-  bool ext_oneapi_owner_before(const accessor &Other) const noexcept;
-#else
-public:
-  /// Compares the accessor against a weak object using an owner-based
-  /// implementation-defined ordering.
-  ///
-  /// \param Other is the weak object to compare ordering against.
-  /// \return true if this object precedes \param Other and false otherwise.
-  bool ext_oneapi_owner_before(
-      const ext::oneapi::detail::weak_object_base<accessor> &Other)
-      const noexcept {
-    return detail::AccessorBaseHost::impl.owner_before(
-        ext::oneapi::detail::getSyclWeakObjImpl(Other));
-  }
-
-  /// Compares the accessor against another accessor using an
-  /// owner-based implementation-defined ordering.
-  ///
-  /// \param Other is the object to compare ordering against.
-  /// \return true if this object precedes \param Other and false otherwise.
-  bool ext_oneapi_owner_before(const accessor &Other) const noexcept {
-    return detail::AccessorBaseHost::impl.owner_before(Other.impl);
-  }
-
 #endif
 };
 
@@ -2954,7 +2889,10 @@ template <typename DataT, int Dimensions, access::mode AccessMode,
 class accessor<DataT, Dimensions, AccessMode, access::target::host_image,
                IsPlaceholder>
     : public detail::image_accessor<DataT, Dimensions, AccessMode,
-                                    access::target::host_image, IsPlaceholder> {
+                                    access::target::host_image, IsPlaceholder>,
+      public detail::AccessorOwnerLessBase<
+          accessor<DataT, Dimensions, AccessMode, access::target::host_image,
+                   IsPlaceholder>> {
 public:
   template <typename AllocatorT>
   accessor(sycl::image<Dimensions, AllocatorT> &Image)
@@ -2970,34 +2908,6 @@ public:
             Image, Image.getElementSize()) {
     (void)propList;
   }
-
-#ifndef __SYCL_DEVICE_ONLY__
-  /// Compares the accessor against a weak object using an owner-based
-  /// implementation-defined ordering.
-  ///
-  /// \param Other is the weak object to compare ordering against.
-  /// \return true if this object precedes \param Other and false otherwise.
-  bool ext_oneapi_owner_before(
-      const ext::oneapi::detail::weak_object_base<accessor> &Other)
-      const noexcept {
-    return detail::AccessorBaseHost::impl.owner_before(
-        ext::oneapi::detail::getSyclWeakObjImpl(Other));
-  }
-
-  /// Compares the accessor against another accessor using an
-  /// owner-based implementation-defined ordering.
-  ///
-  /// \param Other is the object to compare ordering against.
-  /// \return true if this object precedes \param Other and false otherwise.
-  bool ext_oneapi_owner_before(const accessor &Other) const noexcept {
-    return detail::AccessorBaseHost::impl.owner_before(Other.impl);
-  }
-#else
-  bool ext_oneapi_owner_before(
-      const ext::oneapi::detail::weak_object_base<accessor> &Other)
-      const noexcept;
-  bool ext_oneapi_owner_before(const accessor &Other) const noexcept;
-#endif
 };
 
 /// Image array accessor.
@@ -3014,7 +2924,10 @@ class __SYCL_SPECIAL_CLASS
 __SYCL_TYPE(accessor) accessor<DataT, Dimensions, AccessMode,
                                access::target::image_array, IsPlaceholder>
     : public detail::image_accessor<DataT, Dimensions + 1, AccessMode,
-                                    access::target::image, IsPlaceholder> {
+                                    access::target::image, IsPlaceholder>,
+      public detail::AccessorOwnerLessBase<
+          accessor<DataT, Dimensions, AccessMode, access::target::image_array,
+                   IsPlaceholder>> {
 #ifdef __SYCL_DEVICE_ONLY__
 private:
   using OCLImageTy =
@@ -3063,41 +2976,15 @@ public:
     return detail::__image_array_slice__<DataT, Dimensions, AccessMode,
                                          IsPlaceholder>(*this, Index);
   }
-
-#ifndef __SYCL_DEVICE_ONLY__
-  /// Compares the accessor against a weak object using an owner-based
-  /// implementation-defined ordering.
-  ///
-  /// \param Other is the weak object to compare ordering against.
-  /// \return true if this object precedes \param Other and false otherwise.
-  bool ext_oneapi_owner_before(
-      const ext::oneapi::detail::weak_object_base<accessor> &Other)
-      const noexcept {
-    return detail::AccessorBaseHost::impl.owner_before(
-        ext::oneapi::detail::getSyclWeakObjImpl(Other));
-  }
-
-  /// Compares the accessor against another accessor using an
-  /// owner-based implementation-defined ordering.
-  ///
-  /// \param Other is the object to compare ordering against.
-  /// \return true if this object precedes \param Other and false otherwise.
-  bool ext_oneapi_owner_before(const accessor &Other) const noexcept {
-    return detail::AccessorBaseHost::impl.owner_before(Other.impl);
-  }
-#else
-  bool ext_oneapi_owner_before(
-      const ext::oneapi::detail::weak_object_base<accessor> &Other)
-      const noexcept;
-  bool ext_oneapi_owner_before(const accessor &Other) const noexcept;
-#endif
 };
 
 template <typename DataT, int Dimensions = 1,
           access_mode AccessMode = access_mode::read_write>
 class host_accessor
     : public accessor<DataT, Dimensions, AccessMode, target::host_buffer,
-                      access::placeholder::false_t> {
+                      access::placeholder::false_t>,
+      public detail::AccessorOwnerLessBase<
+          host_accessor<DataT, Dimensions, AccessMode>> {
 protected:
   using AccessorT = accessor<DataT, Dimensions, AccessMode, target::host_buffer,
                              access::placeholder::false_t>;
@@ -3293,27 +3180,6 @@ public:
                       PropertyList, CodeLoc) {}
 
 #endif
-
-  /// Compares the host_accessor against a weak object using an owner-based
-  /// implementation-defined ordering.
-  ///
-  /// \param Other is the weak object to compare ordering against.
-  /// \return true if this object precedes \param Other and false otherwise.
-  bool ext_oneapi_owner_before(
-      const ext::oneapi::detail::weak_object_base<host_accessor> &Other)
-      const noexcept {
-    return detail::AccessorBaseHost::impl.owner_before(
-        ext::oneapi::detail::getSyclWeakObjImpl(Other));
-  }
-
-  /// Compares the host_accessor against another host_accessor using an
-  /// owner-based implementation-defined ordering.
-  ///
-  /// \param Other is the object to compare ordering against.
-  /// \return true if this object precedes \param Other and false otherwise.
-  bool ext_oneapi_owner_before(const host_accessor &Other) const noexcept {
-    return detail::AccessorBaseHost::impl.owner_before(Other.impl);
-  }
 };
 
 #if __cplusplus >= 201703L
