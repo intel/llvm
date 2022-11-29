@@ -516,7 +516,7 @@ LogicalResult InlinerBase::inlineSCC(InlinerBase &Inliner, CGUseList &UseList,
   unsigned const constexpr MaxIterationCount = 5;
   bool DidSomething = false;
   do {
-    DidSomething |= inlineCallsInSCC(Inliner, UseList, SCC, NumInlinedCalls);
+    DidSomething = inlineCallsInSCC(Inliner, UseList, SCC, NumInlinedCalls);
   } while (DidSomething && ++IterationCount < MaxIterationCount);
   return success();
 }
