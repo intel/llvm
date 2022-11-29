@@ -1322,7 +1322,7 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
 
 template <typename T>
 Value MLIRScanner::SYCLCommonFieldLookup(Value V, size_t FNum,
-                                         std::vector<int64_t> shape) {
+                                         const std::vector<int64_t> &Shape) {
   auto MT = V.getType().cast<MemRefType>();
   Type ElemTy = MT.getElementType();
   assert(ElemTy.isa<T>() && "Expecting element type to be the templated type");
@@ -1331,7 +1331,7 @@ Value MLIRScanner::SYCLCommonFieldLookup(Value V, size_t FNum,
 
   const auto ElementType = SYCLElemTy.getBody()[FNum];
   const auto ResultType = MemRefType::get(
-      shape, ElementType, MemRefLayoutAttrInterface(), MT.getMemorySpace());
+      Shape, ElementType, MemRefLayoutAttrInterface(), MT.getMemorySpace());
 
   return Builder.create<polygeist::SubIndexOp>(Loc, ResultType, V,
                                                getConstantIndex(FNum));
