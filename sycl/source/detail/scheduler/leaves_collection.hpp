@@ -38,7 +38,7 @@ struct MemObjRecord;
 class LeavesCollection {
 public:
   using GenericCommandsT = CircularBuffer<Command *>;
-  using HostAccessorCommandsT = std::list<EmptyCommand *>;
+  using HostAccessorCommandsT = std::list<Command *>;
   using EnqueueListT = std::vector<Command *>;
 
   // Make first command depend on the second
@@ -117,7 +117,7 @@ private:
   using HostAccessorCommandSingleXRefT =
       typename HostAccessorCommandsT::iterator;
   using HostAccessorCommandsXRefT =
-      std::unordered_map<EmptyCommand *, HostAccessorCommandSingleXRefT>;
+      std::unordered_map<Command *, HostAccessorCommandSingleXRefT>;
 
   MemObjRecord *MRecord;
   GenericCommandsT MGenericCommands;
@@ -127,12 +127,12 @@ private:
   AllocateDependencyF MAllocateDependency;
 
   bool addGenericCommand(value_type Cmd, EnqueueListT &ToEnqueue);
-  bool addHostAccessorCommand(EmptyCommand *Cmd, EnqueueListT &ToEnqueue);
+  bool addHostAccessorCommand(Command *Cmd, EnqueueListT &ToEnqueue);
 
   // inserts a command to the end of list for its mem object
-  void insertHostAccessorCommand(EmptyCommand *Cmd);
+  void insertHostAccessorCommand(Command *Cmd);
   // returns number of removed elements
-  size_t eraseHostAccessorCommand(EmptyCommand *Cmd);
+  size_t eraseHostAccessorCommand(Command *Cmd);
 
   typename Iterator<false, HostAccessorCommandsT>::type beginHostAccessor() {
     return MHostAccessorCommands.begin();

@@ -50,11 +50,22 @@ bool Scheduler::GraphProcessor::handleBlockingCmd(Command *Cmd,
                                                   EnqueueResultT &EnqueueResult,
                                                   Command *RootCommand,
                                                   BlockingT Blocking) {
-  if (Cmd == RootCommand || Blocking)
+ 
+  static bool ThrowOnBlock = getenv("SYCL_THROW_ON_BLOCK") != nullptr;
+  // No error to be returned for root command.
+  // Blocking && !ThrowOnBlock means that we will wait for task in parent command enqueue if it is blocking and do not report it to user.
+  if ((Cmd == RootCommand) || (Blocking && !ThrowOnBlock))
     return true;
+
   {
     std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
     if (Cmd->isBlocking()) {
+      if (Blocking && ThrowOnBlock)
+        // Means that we are going to wait on Blocking command
+        throw sycl::runtime_error(
+          std::string("Waiting for blocked command. Block reason: ") +
+              std::string(Cmd->getBlockReason()),
+          PI_ERROR_INVALID_OPERATION);
       const EventImplPtr &RootCmdEvent = RootCommand->getEvent();
       Cmd->addBlockedUserUnique(RootCmdEvent);
       EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);

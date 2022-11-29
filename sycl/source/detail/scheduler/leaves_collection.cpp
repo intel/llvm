@@ -31,8 +31,7 @@ static inline bool doOverlap(const Requirement *LHS, const Requirement *RHS) {
 }
 
 static inline bool isHostAccessorCmd(Command *Cmd) {
-  return Cmd->getType() == Command::EMPTY_TASK &&
-         Cmd->MBlockReason == Command::BlockReason::HostAccessor;
+  return Cmd->getType() == Command::UPDATE_REQUIREMENT;
 }
 
 size_t LeavesCollection::remove(value_type Cmd) {
@@ -46,15 +45,14 @@ size_t LeavesCollection::remove(value_type Cmd) {
   }
 
   // host accessor commands part
-  return eraseHostAccessorCommand(static_cast<EmptyCommand *>(Cmd));
+  return eraseHostAccessorCommand(Cmd);
 }
 
 bool LeavesCollection::push_back(value_type Cmd, EnqueueListT &ToEnqueue) {
   bool Result = false;
 
   if (isHostAccessorCmd(Cmd))
-    Result =
-        addHostAccessorCommand(static_cast<EmptyCommand *>(Cmd), ToEnqueue);
+    Result = addHostAccessorCommand(Cmd, ToEnqueue);
   else
     Result = addGenericCommand(Cmd, ToEnqueue);
 
@@ -67,13 +65,13 @@ std::vector<LeavesCollection::value_type> LeavesCollection::toVector() const {
 
   Result.insert(Result.end(), MGenericCommands.begin(), MGenericCommands.end());
 
-  for (EmptyCommand *Cmd : MHostAccessorCommands)
+  for (Command *Cmd : MHostAccessorCommands)
     Result.push_back(Cmd);
 
   return Result;
 }
 
-bool LeavesCollection::addHostAccessorCommand(EmptyCommand *Cmd,
+bool LeavesCollection::addHostAccessorCommand(Command *Cmd,
                                               EnqueueListT &ToEnqueue) {
   // 1. find the oldest command with doOverlap() = true amongst the List
   //      => OldCmd
@@ -86,7 +84,7 @@ bool LeavesCollection::addHostAccessorCommand(EmptyCommand *Cmd,
   else
     OldCmdIt = std::find_if(
         MHostAccessorCommands.begin(), MHostAccessorCommands.end(),
-        [&](const EmptyCommand *Test) -> bool {
+        [&](const Command *Test) -> bool {
           return doOverlap(Test->getRequirement(), Cmd->getRequirement());
         });
 
@@ -102,7 +100,7 @@ bool LeavesCollection::addHostAccessorCommand(EmptyCommand *Cmd,
     MAllocateDependency(Cmd, *OldCmdIt, MRecord, ToEnqueue);
 
     // erase the old cmd as it's tracked via dependency now
-    eraseHostAccessorCommand(static_cast<EmptyCommand *>(*OldCmdIt));
+    eraseHostAccessorCommand(*OldCmdIt);
   }
 
   // 2.2  If OldCmd == null:
@@ -128,12 +126,12 @@ bool LeavesCollection::addGenericCommand(Command *Cmd,
   return true;
 }
 
-void LeavesCollection::insertHostAccessorCommand(EmptyCommand *Cmd) {
+void LeavesCollection::insertHostAccessorCommand(Command *Cmd) {
   MHostAccessorCommandsXRef[Cmd] =
       MHostAccessorCommands.insert(MHostAccessorCommands.end(), Cmd);
 }
 
-size_t LeavesCollection::eraseHostAccessorCommand(EmptyCommand *Cmd) {
+size_t LeavesCollection::eraseHostAccessorCommand(Command *Cmd) {
   auto XRefIt = MHostAccessorCommandsXRef.find(Cmd);
 
   if (XRefIt == MHostAccessorCommandsXRef.end())

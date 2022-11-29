@@ -166,8 +166,6 @@ static std::string commandToNodeType(Command::CommandType Type) {
     return "memory_transfer_node";
   case Command::CommandType::UPDATE_REQUIREMENT:
     return "host_acc_create_buffer_lock_node";
-  case Command::CommandType::EMPTY_TASK:
-    return "host_acc_destroy_buffer_release_node";
   default:
     return "unknown_node";
   }
@@ -194,8 +192,6 @@ static std::string commandToName(Command::CommandType Type) {
     return "Memory Transfer (Unmap)";
   case Command::CommandType::UPDATE_REQUIREMENT:
     return "Host Accessor Creation/Buffer Lock";
-  case Command::CommandType::EMPTY_TASK:
-    return "Host Accessor Destruction/Buffer Lock Release";
   default:
     return "Unknown Action";
   }
@@ -232,7 +228,7 @@ bool Command::isHostTask() const {
           CG::CGTYPE::CodeplayHostTask);
 }
 
-bool Command::blockManually(const BlockReason& Reason) {
+bool Command::blockManually(const BlockReason &Reason) {
   if (MIsManuallyBlocked)
     return false;
   MIsManuallyBlocked = true;
@@ -240,8 +236,7 @@ bool Command::blockManually(const BlockReason& Reason) {
   return true;
 }
 
-bool Command::unblock()
-{
+bool Command::unblock() {
   if (!MIsManuallyBlocked)
     return false;
   MIsManuallyBlocked = false;
@@ -643,7 +638,7 @@ Command *Command::addDep(DepDesc NewDep, std::vector<Command *> &ToCleanUp) {
         processDepEvent(NewDep.MDepCommand->getEvent(), NewDep, ToCleanUp);
   }
   // ConnectionCmd insertion builds the following dependency structure:
-  // this -> emptyCmd (for ConnectionCmd) -> ConnectionCmd -> NewDep
+  // this -> ConnectionCmd -> NewDep
   // that means that this and NewDep are already dependent
   if (!ConnectionCmd) {
     MDeps.push_back(NewDep);
@@ -705,35 +700,38 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
     return true;
 
   // If the command is blocked from enqueueing
-//   if (MIsManuallyBlockable && MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked) {
-//     // Exit if enqueue type is not blocking
-//     if (!Blocking) {
-//       EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, this);
-//       return false;
-//     }
-//     static bool ThrowOnBlock = getenv("SYCL_THROW_ON_BLOCK") != nullptr;
-//     if (ThrowOnBlock)
-//       throw sycl::runtime_error(
-//           std::string("Waiting for blocked command. Block reason: ") +
-//               std::string(getBlockReason()),
-//           PI_ERROR_INVALID_OPERATION);
+  //   if (MIsManuallyBlockable && MEnqueueStatus ==
+  //   EnqueueResultT::SyclEnqueueBlocked) {
+  //     // Exit if enqueue type is not blocking
+  //     if (!Blocking) {
+  //       EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked,
+  //       this); return false;
+  //     }
+  //     static bool ThrowOnBlock = getenv("SYCL_THROW_ON_BLOCK") != nullptr;
+  //     if (ThrowOnBlock)
+  //       throw sycl::runtime_error(
+  //           std::string("Waiting for blocked command. Block reason: ") +
+  //               std::string(getBlockReason()),
+  //           PI_ERROR_INVALID_OPERATION);
 
-// #ifdef XPTI_ENABLE_INSTRUMENTATION
-//     // Scoped trace event notifier that emits a barrier begin and barrier end
-//     // event, which models the barrier while enqueuing along with the blocked
-//     // reason, as determined by the scheduler
-//     std::string Info = "enqueue.barrier[";
-//     Info += std::string(getBlockReason()) + "]";
-//     emitInstrumentation(xpti::trace_barrier_begin, Info.c_str());
-// #endif
+  // #ifdef XPTI_ENABLE_INSTRUMENTATION
+  //     // Scoped trace event notifier that emits a barrier begin and barrier
+  //     end
+  //     // event, which models the barrier while enqueuing along with the
+  //     blocked
+  //     // reason, as determined by the scheduler
+  //     std::string Info = "enqueue.barrier[";
+  //     Info += std::string(getBlockReason()) + "]";
+  //     emitInstrumentation(xpti::trace_barrier_begin, Info.c_str());
+  // #endif
 
-//     // Wait if blocking
-//     while (MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked)
-//       ;
-// #ifdef XPTI_ENABLE_INSTRUMENTATION
-//     emitInstrumentation(xpti::trace_barrier_end, Info.c_str());
-// #endif
-//   }
+  //     // Wait if blocking
+  //     while (MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked)
+  //       ;
+  // #ifdef XPTI_ENABLE_INSTRUMENTATION
+  //     emitInstrumentation(xpti::trace_barrier_end, Info.c_str());
+  // #endif
+  //   }
 
   std::lock_guard<std::mutex> Lock(MEnqueueMtx);
 
@@ -1555,83 +1553,6 @@ pi_int32 MemCpyCommandHost::enqueueImp() {
   return PI_SUCCESS;
 }
 
-EmptyCommand::EmptyCommand(QueueImplPtr Queue)
-    : Command(CommandType::EMPTY_TASK, std::move(Queue)) {
-  emitInstrumentationDataProxy();
-}
-
-pi_int32 EmptyCommand::enqueueImp() {
-  waitForPreparedHostEvents();
-  waitForEvents(MQueue, MPreparedDepsEvents, MEvent->getHandleRef());
-
-  return PI_SUCCESS;
-}
-
-void EmptyCommand::addRequirement(Command *DepCmd, AllocaCommandBase *AllocaCmd,
-                                  const Requirement *Req) {
-  const Requirement &ReqRef = *Req;
-  MRequirements.emplace_back(ReqRef);
-  const Requirement *const StoredReq = &MRequirements.back();
-
-  // EmptyCommand is always host one, so we believe that result of addDep is
-  // nil
-  std::vector<Command *> ToCleanUp;
-  Command *Cmd = addDep(DepDesc{DepCmd, StoredReq, AllocaCmd}, ToCleanUp);
-  assert(Cmd == nullptr && "Conection command should be null for EmptyCommand");
-  assert(ToCleanUp.empty() && "addDep should add a command for cleanup only if "
-                              "there's a connection command");
-  (void)Cmd;
-}
-
-void EmptyCommand::emitInstrumentationData() {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!xptiTraceEnabled())
-    return;
-  // Create a payload with the command name and an event using this payload to
-  // emit a node_create
-  if (MRequirements.empty())
-    return;
-
-  Requirement &Req = *MRequirements.begin();
-
-  MAddress = Req.MSYCLMemObj;
-  makeTraceEventProlog(MAddress);
-
-  if (MFirstInstance) {
-    xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
-    xpti::addMetadata(CmdTraceEvent, "sycl_device",
-                      deviceToID(MQueue->get_device()));
-    xpti::addMetadata(CmdTraceEvent, "sycl_device_type",
-                      deviceToString(MQueue->get_device()));
-    xpti::addMetadata(CmdTraceEvent, "sycl_device_name",
-                      getSyclObjImpl(MQueue->get_device())->getDeviceName());
-    xpti::addMetadata(CmdTraceEvent, "memory_object",
-                      reinterpret_cast<size_t>(MAddress));
-    makeTraceEventEpilog();
-  }
-#endif
-}
-
-void EmptyCommand::printDot(std::ostream &Stream) const {
-  Stream << "\"" << this << "\" [style=filled, fillcolor=\"#8d8f29\", label=\"";
-
-  Stream << "ID = " << this << "\\n";
-  Stream << "EMPTY NODE"
-         << "\\n";
-
-  Stream << "\"];" << std::endl;
-
-  for (const auto &Dep : MDeps) {
-    Stream << "  \"" << this << "\" -> \"" << Dep.MDepCommand << "\""
-           << " [ label = \"Access mode: "
-           << accessModeToString(Dep.MDepRequirement->MAccessMode) << "\\n"
-           << "MemObj: " << Dep.MDepRequirement->MSYCLMemObj << " \" ]"
-           << std::endl;
-  }
-}
-
-bool EmptyCommand::producesPiEvent() const { return false; }
-
 void MemCpyCommandHost::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#B6A2EB\", label=\"";
 
@@ -1680,6 +1601,10 @@ void UpdateHostRequirementCommand::emitInstrumentationData() {
     makeTraceEventEpilog();
   }
 #endif
+}
+
+bool UpdateHostRequirementCommand::supportsPostEnqueueCleanup() const {
+  return !isBlocking(); // to think, may be moved to Command?
 }
 
 static std::string cgTypeToString(detail::CG::CGTYPE Type) {

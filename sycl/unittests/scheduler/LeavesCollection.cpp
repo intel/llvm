@@ -37,11 +37,11 @@ createGenericCommand(const std::shared_ptr<queue_impl> &Q) {
 }
 
 std::shared_ptr<Command>
-createEmptyCommand(const std::shared_ptr<queue_impl> &Q,
-                   const Requirement &Req) {
-  EmptyCommand *Cmd = new EmptyCommand(Q);
-  Cmd->addRequirement(/* DepCmd = */ nullptr, /* AllocaCmd = */ nullptr, &Req);
-  Cmd->MBlockReason = Command::BlockReason::HostAccessor;
+createHostAccCommand(const std::shared_ptr<queue_impl> &Q,
+                     const Requirement &Req) {
+  Command *Cmd = new UpdateHostRequirementCommand(
+      Q, Req, /*SrcAllocaCmd*/ nullptr, /*DstPtr*/ nullptr);
+  Cmd->blockManually(Command::BlockReason::HostAccessor);
   return std::shared_ptr<Command>{Cmd};
 }
 
@@ -83,7 +83,7 @@ TEST_F(LeavesCollectionTest, PushBack) {
         << "Host accessor commands container isn't empty, but it should be.";
   }
 
-  // add mix of generic and empty commands
+  // add mix of generic and host acc commands
   {
     sycl::buffer<int, 1> Buf(sycl::range<1>(1));
 
@@ -97,7 +97,7 @@ TEST_F(LeavesCollectionTest, PushBack) {
 
     for (size_t Idx = 0; Idx < GenericCmdsCapacity * 4; ++Idx) {
       auto Cmd = Idx % 2 ? createGenericCommand(getSyclObjImpl(Q))
-                         : createEmptyCommand(getSyclObjImpl(Q), MockReq);
+                         : createHostAccCommand(getSyclObjImpl(Q), MockReq);
       Cmds.push_back(Cmd);
 
       LE.push_back(Cmds.back().get(), ToEnqueue);
@@ -137,7 +137,7 @@ TEST_F(LeavesCollectionTest, Remove) {
 
     for (size_t Idx = 0; Idx < GenericCmdsCapacity * 4; ++Idx) {
       auto Cmd = Idx % 2 ? createGenericCommand(getSyclObjImpl(Q))
-                         : createEmptyCommand(getSyclObjImpl(Q), MockReq);
+                         : createHostAccCommand(getSyclObjImpl(Q), MockReq);
       Cmds.push_back(Cmd);
 
       if (LE.push_back(Cmds.back().get(), ToEnqueue))

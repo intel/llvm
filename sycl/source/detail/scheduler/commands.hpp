@@ -42,7 +42,6 @@ class AllocaCommand;
 class AllocaCommandBase;
 class ReleaseCommand;
 class ExecCGCommand;
-class EmptyCommand;
 
 enum BlockingT { NON_BLOCKING = 0, BLOCKING };
 
@@ -103,7 +102,6 @@ public:
     MAP_MEM_OBJ,
     UNMAP_MEM_OBJ,
     UPDATE_REQUIREMENT,
-    EMPTY_TASK,
     HOST_TASK
   };
 
@@ -144,9 +142,11 @@ public:
 
   // Shows that command could be enqueued, but blocks enqueue of all
   // commands depending on it. Regular usage - host task & host accessors.
-  bool isBlocking() const { return MIsManuallyBlocked || (isHostTask() && !MEvent->isCompleted()); }
+  bool isBlocking() const {
+    return MIsManuallyBlocked || (isHostTask() && !MEvent->isCompleted());
+  }
   enum class BlockReason : int { HostAccessor = 0, HostTask };
-  bool blockManually(const BlockReason& Reason);
+  bool blockManually(const BlockReason &Reason);
   bool unblock();
 
   void addBlockedUserUnique(const EventImplPtr &NewUser) {
@@ -341,30 +341,6 @@ public:
   /// intersect with command enqueue.
   std::vector<EventImplPtr> MBlockedUsers;
   std::mutex MBlockedUsersMutex;
-};
-
-/// The empty command does nothing during enqueue. The task can be used to
-/// implement lock in the graph, or to merge several nodes into one.
-class EmptyCommand : public Command {
-public:
-  EmptyCommand(QueueImplPtr Queue);
-
-  void printDot(std::ostream &Stream) const final;
-  const Requirement *getRequirement() const final { return &MRequirements[0]; }
-  void addRequirement(Command *DepCmd, AllocaCommandBase *AllocaCmd,
-                      const Requirement *Req);
-
-  void emitInstrumentationData() override;
-
-  bool producesPiEvent() const final;
-
-private:
-  pi_int32 enqueueImp() final;
-
-  // Employing deque here as it allows to push_back/emplace_back without
-  // invalidation of pointer or reference to stored data item regardless of
-  // iterator invalidation.
-  std::deque<Requirement> MRequirements;
 };
 
 /// The release command enqueues release of a memory object instance allocated
@@ -599,6 +575,7 @@ public:
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() final;
+  bool supportsPostEnqueueCleanup() const final;
 
 private:
   pi_int32 enqueueImp() final;

@@ -258,7 +258,7 @@ TEST_F(DependsOnTests, EnqueueNoMemObjDoubleKernelDepHostBlocked) {
   EXPECT_FALSE(Cmd3->isSuccessfullyEnqueued());
 
   Cmd1->unblock();
-  EXPECT_TRUE(MS.enqueueCommand(Cmd2, Result, detail::BlockingT::NON_BLOCKING));
+  EXPECT_TRUE(MS.enqueueCommand(Cmd2, Result, detail::BlockingT::BLOCKING));
   EXPECT_TRUE(MS.enqueueCommand(Cmd3, Result, detail::BlockingT::NON_BLOCKING));
 }
 
