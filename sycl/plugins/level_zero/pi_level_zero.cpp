@@ -3519,14 +3519,24 @@ pi_result piContextRelease(pi_context Context) {
   return ContextReleaseHelper(Context);
 }
 
+pi_result piQueueCreateEx(pi_context Context, pi_device Device,
+                          pi_queue_properties *Properties, pi_queue *Queue) {
+  PI_ASSERT(Properties, PI_ERROR_INVALID_VALUE);
+  // Expect flags amsk to be passed first.
+  PI_ASSERT(Properties[0] == PI_QUEUE_FLAGS, PI_ERROR_INVALID_VALUE);
+  pi_queue_properties Flags = Properties[1];
+  // Extra data isn't supported yet.
+  PI_ASSERT(Properties[2] == 0, PI_ERROR_INVALID_VALUE)
+  return piQueueCreate(Context, Device, Flags, Queue);
+}
 pi_result piQueueCreate(pi_context Context, pi_device Device,
-                        pi_queue_properties Properties, pi_queue *Queue) {
+                        pi_queue_properties Flags, pi_queue *Queue) {
 
   // Check that unexpected bits are not set.
-  PI_ASSERT(!(Properties & ~(PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE |
-                             PI_QUEUE_PROFILING_ENABLE | PI_QUEUE_ON_DEVICE |
-                             PI_QUEUE_ON_DEVICE_DEFAULT |
-                             PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS)),
+  PI_ASSERT(!(Flags & ~(PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE |
+                        PI_QUEUE_PROFILING_ENABLE | PI_QUEUE_ON_DEVICE |
+                        PI_QUEUE_ON_DEVICE_DEFAULT |
+                        PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS)),
             PI_ERROR_INVALID_VALUE);
 
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
@@ -3557,7 +3567,7 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
 
   try {
     *Queue = new _pi_queue(ZeComputeCommandQueues, ZeCopyCommandQueues, Context,
-                           Device, true, Properties);
+                           Device, true, Flags);
   } catch (const std::bad_alloc &) {
     return PI_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {

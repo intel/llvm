@@ -462,6 +462,16 @@ pi_result piextDeviceCreateWithNativeHandle(pi_native_handle nativeHandle,
   return PI_SUCCESS;
 }
 
+pi_result piQueueCreateEx(pi_context Context, pi_device Device,
+                          pi_queue_properties *Properties, pi_queue *Queue) {
+  assert(Properties);
+  // Expect flags amsk to be passed first.
+  assert(Properties[0] == PI_QUEUE_FLAGS);
+  pi_queue_properties Flags = Properties[1];
+  // Extra data isn't supported yet.
+  assert(Properties[2] == 0);
+  return piQueueCreate(Context, Device, Flags, Queue);
+}
 pi_result piQueueCreate(pi_context context, pi_device device,
                         pi_queue_properties properties, pi_queue *queue) {
   assert(queue && "piQueueCreate failed, queue argument is null");

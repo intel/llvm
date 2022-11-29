@@ -2528,6 +2528,16 @@ pi_result cuda_piQueueCreate(pi_context context, pi_device device,
     return PI_ERROR_OUT_OF_RESOURCES;
   }
 }
+pi_result cuda_piQueueCreateEx(pi_context Context, pi_device Device,
+                          pi_queue_properties *Properties, pi_queue *Queue) {
+  PI_ASSERT(Properties, PI_ERROR_INVALID_VALUE);
+  // Expect flags amsk to be passed first.
+  PI_ASSERT(Properties[0] == PI_QUEUE_FLAGS, PI_ERROR_INVALID_VALUE);
+  pi_queue_properties Flags = Properties[1];
+  // Extra data isn't supported yet.
+  PI_ASSERT(Properties[2] == 0, PI_ERROR_INVALID_VALUE)
+  return cuda_piQueueCreate(Context, Device, Flags, Queue);
+}
 
 pi_result cuda_piQueueGetInfo(pi_queue command_queue, pi_queue_info param_name,
                               size_t param_value_size, void *param_value,
@@ -5456,6 +5466,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
          cuda_piextContextCreateWithNativeHandle)
   // Queue
   _PI_CL(piQueueCreate, cuda_piQueueCreate)
+  _PI_CL(piQueueCreateEx, cuda_piQueueCreateEx)
   _PI_CL(piQueueGetInfo, cuda_piQueueGetInfo)
   _PI_CL(piQueueFinish, cuda_piQueueFinish)
   _PI_CL(piQueueFlush, cuda_piQueueFlush)

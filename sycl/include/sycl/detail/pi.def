@@ -43,6 +43,7 @@ _PI_API(piextContextGetNativeHandle)
 _PI_API(piextContextCreateWithNativeHandle)
 // Queue
 _PI_API(piQueueCreate)
+_PI_API(piQueueCreateEx)
 _PI_API(piQueueGetInfo)
 _PI_API(piQueueFinish)
 _PI_API(piQueueFlush)

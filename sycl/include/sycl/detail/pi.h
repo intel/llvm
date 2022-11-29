@@ -578,6 +578,7 @@ constexpr pi_usm_mem_properties PI_MEM_USM_ALLOC_BUFFER_LOCATION = 0x419E;
 // NOTE: queue properties are implemented this way to better support bit
 // manipulations
 using pi_queue_properties = pi_bitfield;
+constexpr pi_queue_properties PI_QUEUE_FLAGS = -1;
 constexpr pi_queue_properties PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE = (1 << 0);
 constexpr pi_queue_properties PI_QUEUE_PROFILING_ENABLE = (1 << 1);
 constexpr pi_queue_properties PI_QUEUE_ON_DEVICE = (1 << 2);
@@ -1112,9 +1113,14 @@ __SYCL_EXPORT pi_result piextContextCreateWithNativeHandle(
 //
 // Queue
 //
+
+// TODO: Remove during next ABI break.
 __SYCL_EXPORT pi_result piQueueCreate(pi_context context, pi_device device,
                                       pi_queue_properties properties,
                                       pi_queue *queue);
+__SYCL_EXPORT pi_result piQueueCreateEx(pi_context context, pi_device device,
+                                        pi_queue_properties *properties,
+                                        pi_queue *queue);
 
 __SYCL_EXPORT pi_result piQueueGetInfo(pi_queue command_queue,
                                        pi_queue_info param_name,
