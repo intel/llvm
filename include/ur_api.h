@@ -3450,7 +3450,7 @@ urKernelCreateWithNativeHandle(
 #pragma region module
 #endif
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief callback function with user data
+/// @brief callback function for urModuleCreate
 typedef void (ur_modulecreate_callback_t)(
     ur_module_handle_t hModule,                     ///< [in] handle of Module object created.
     void* pParams                                   ///< [in][out] pointer to user data to be passed to callback.

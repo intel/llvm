@@ -806,7 +806,7 @@ class ur_kernel_exec_info_t(c_int):
 
 
 ###############################################################################
-## @brief callback function with user data
+## @brief callback function for urModuleCreate
 def ur_modulecreate_callback_t(user_defined_callback):
     @CFUNCTYPE(None, ur_module_handle_t, c_void_p)
     def ur_modulecreate_callback_t_wrapper(var0, var1): 

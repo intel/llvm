@@ -11,7 +11,7 @@ desc: "Intel $OneApi Level-Zero Runtime APIs for Module"
 ordinal: "2"
 --- #--------------------------------------------------------------------------
 type: fptr_typedef
-desc: "callback function with user data"
+desc: "callback function for urModuleCreate"
 name: $x_modulecreate_callback_t
 return: void
 params:
