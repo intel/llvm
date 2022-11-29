@@ -530,7 +530,7 @@ TEST(USMMemcpy2DTest, USMMemsetSupportedOnly) {
 }
 
 // Tests that the right paths are taken when the backend only supports native
-// USM memset.
+// USM memcpy.
 TEST(USMMemcpy2DTest, USMMemcpySupportedOnly) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
@@ -588,8 +588,8 @@ TEST(USMMemcpy2DTest, USMMemcpySupportedOnly) {
   EXPECT_NE(LastEnqueuedKernel, USMMemcpyHelperKernelNameLong);
 }
 
-// Tests that the right paths are taken when the backend only supports native
-// USM memset.
+// Negative tests for cases where USM 2D memory operations are expected to throw
+// exceptions.
 TEST(USMMemcpy2DTest, NegativeUSM2DOps) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
