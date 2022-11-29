@@ -1326,6 +1326,7 @@ Value MLIRScanner::SYCLCommonFieldLookup(Value V, size_t FNum,
   auto MT = V.getType().cast<MemRefType>();
   Type ElemTy = MT.getElementType();
   assert(ElemTy.isa<T>() && "Expecting element type to be the templated type");
+  assert(sycl::isSYCLType(ElemTy) && "Expecting SYCL element type");
   auto SYCLElemTy = ElemTy.cast<T>();
   assert(FNum < SYCLElemTy.getBody().size() && "ERROR");
 
@@ -1339,46 +1340,46 @@ Value MLIRScanner::SYCLCommonFieldLookup(Value V, size_t FNum,
 
 ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
                                              const clang::FieldDecl *FD,
-                                             Value val, bool isLValue) {
+                                             Value Val, bool isLValue) {
   assert(FD && "Attempting to lookup field of nullptr");
   auto rd = FD->getParent();
 
   auto ST = cast<llvm::StructType>(mlirclang::getLLVMType(CT, Glob.getCGM()));
 
-  size_t fnum = 0;
+  size_t FNum = 0;
 
   auto CXRD = dyn_cast<clang::CXXRecordDecl>(rd);
 
   if (mlirclang::CodeGen::CodeGenTypes::isLLVMStructABI(rd, ST)) {
     auto &layout = Glob.getCGM().getTypes().getCGRecordLayout(rd);
-    fnum = layout.getLLVMFieldNo(FD);
+    FNum = layout.getLLVMFieldNo(FD);
   } else {
-    fnum = 0;
+    FNum = 0;
     if (CXRD)
-      fnum += CXRD->getDefinition()->getNumBases();
+      FNum += CXRD->getDefinition()->getNumBases();
     for (auto field : rd->fields()) {
       if (field == FD)
         break;
 
-      fnum++;
+      ++FNum;
     }
   }
 
-  if (auto PT = val.getType().dyn_cast<LLVM::LLVMPointerType>()) {
+  if (auto PT = Val.getType().dyn_cast<LLVM::LLVMPointerType>()) {
     Value vec[] = {Builder.create<arith::ConstantIntOp>(Loc, 0, 32),
-                   Builder.create<arith::ConstantIntOp>(Loc, fnum, 32)};
+                   Builder.create<arith::ConstantIntOp>(Loc, FNum, 32)};
     if (!PT.getElementType().isa<LLVM::LLVMStructType, LLVM::LLVMArrayType>()) {
       llvm::errs() << "Function: " << Function << "\n";
       // rd->dump();
       FD->dump();
       FD->getType()->dump();
-      llvm::errs() << " val: " << val << " - pt: " << PT << " fn: " << fnum
+      llvm::errs() << " val: " << Val << " - pt: " << PT << " fn: " << FNum
                    << " ST: " << *ST << "\n";
     }
     Type ET =
         TypeSwitch<Type, Type>(PT.getElementType())
             .Case<LLVM::LLVMStructType>(
-                [fnum](LLVM::LLVMStructType ST) { return ST.getBody()[fnum]; })
+                [FNum](LLVM::LLVMStructType ST) { return ST.getBody()[FNum]; })
             .Case<LLVM::LLVMArrayType>(
                 [](LLVM::LLVMArrayType AT) { return AT.getElementType(); })
             .Case<MemRefType>([](MemRefType MT) { return MT.getElementType(); })
@@ -1388,7 +1389,7 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
             });
 
     Value commonGEP = Builder.create<LLVM::GEPOp>(
-        Loc, LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()), val, vec);
+        Loc, LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()), Val, vec);
     if (rd->isUnion()) {
       LLVM::TypeFromLLVMIRTranslator typeTranslator(*Module->getContext());
       auto subType = typeTranslator.translateType(
@@ -1402,12 +1403,12 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
           ValueCategory(commonGEP, /*isReference*/ true).getValue(Builder);
     return ValueCategory(commonGEP, /*isReference*/ true);
   }
-  auto MT = val.getType().cast<MemRefType>();
-  auto shape = std::vector<int64_t>(MT.getShape());
-  if (shape.size() > 1) {
-    shape.erase(shape.begin());
+  auto MT = Val.getType().cast<MemRefType>();
+  auto Shape = std::vector<int64_t>(MT.getShape());
+  if (Shape.size() > 1) {
+    Shape.erase(Shape.begin());
   } else {
-    shape[0] = ShapedType::kDynamicSize;
+    Shape[0] = ShapedType::kDynamicSize;
   }
 
   // JLE_QUEL::THOUGHTS
@@ -1416,61 +1417,61 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
   // clean the redundancy
   Value Result;
   if (auto ST = MT.getElementType().dyn_cast<LLVM::LLVMStructType>()) {
-    assert(fnum < ST.getBody().size() && "ERROR");
+    assert(FNum < ST.getBody().size() && "ERROR");
 
-    const auto ElementType = ST.getBody()[fnum];
+    const auto ElementType = ST.getBody()[FNum];
     const auto ResultType = MemRefType::get(
-        shape, ElementType, MemRefLayoutAttrInterface(), MT.getMemorySpace());
+        Shape, ElementType, MemRefLayoutAttrInterface(), MT.getMemorySpace());
 
-    Result = Builder.create<polygeist::SubIndexOp>(Loc, ResultType, val,
-                                                   getConstantIndex(fnum));
+    Result = Builder.create<polygeist::SubIndexOp>(Loc, ResultType, Val,
+                                                   getConstantIndex(FNum));
   } else if (sycl::isSYCLType(MT.getElementType())) {
     Type ElemTy = MT.getElementType();
     if (auto AT = ElemTy.dyn_cast<sycl::ArrayType>()) {
-      assert(fnum < AT.getBody().size() && "ERROR");
-      const auto ElemType = AT.getBody()[fnum].cast<MemRefType>();
+      assert(FNum < AT.getBody().size() && "ERROR");
+      const auto ElemType = AT.getBody()[FNum].cast<MemRefType>();
       const auto ResultType =
           MemRefType::get(ElemType.getShape(), ElemType.getElementType(),
                           MemRefLayoutAttrInterface(), MT.getMemorySpace());
-      Result = Builder.create<polygeist::SubIndexOp>(Loc, ResultType, val,
-                                                     getConstantIndex(fnum));
+      Result = Builder.create<polygeist::SubIndexOp>(Loc, ResultType, Val,
+                                                     getConstantIndex(FNum));
     } else if (ElemTy.isa<sycl::AccessorType>())
-      Result = SYCLCommonFieldLookup<sycl::AccessorType>(val, fnum, shape);
+      Result = SYCLCommonFieldLookup<sycl::AccessorType>(Val, FNum, Shape);
     else if (ElemTy.isa<sycl::AccessorImplDeviceType>())
       Result =
-          SYCLCommonFieldLookup<sycl::AccessorImplDeviceType>(val, fnum, shape);
+          SYCLCommonFieldLookup<sycl::AccessorImplDeviceType>(Val, FNum, Shape);
     else if (ElemTy.isa<sycl::AccessorSubscriptType>())
       Result =
-          SYCLCommonFieldLookup<sycl::AccessorSubscriptType>(val, fnum, shape);
+          SYCLCommonFieldLookup<sycl::AccessorSubscriptType>(Val, FNum, Shape);
     else if (ElemTy.isa<sycl::NdRangeType>())
-      Result = SYCLCommonFieldLookup<sycl::NdRangeType>(val, fnum, shape);
+      Result = SYCLCommonFieldLookup<sycl::NdRangeType>(Val, FNum, Shape);
     else if (ElemTy.isa<sycl::ItemType>())
-      Result = SYCLCommonFieldLookup<sycl::ItemType>(val, fnum, shape);
+      Result = SYCLCommonFieldLookup<sycl::ItemType>(Val, FNum, Shape);
     else if (ElemTy.isa<sycl::ItemBaseType>())
-      Result = SYCLCommonFieldLookup<sycl::ItemBaseType>(val, fnum, shape);
+      Result = SYCLCommonFieldLookup<sycl::ItemBaseType>(Val, FNum, Shape);
     else if (ElemTy.isa<sycl::NdItemType>())
-      Result = SYCLCommonFieldLookup<sycl::NdItemType>(val, fnum, shape);
+      Result = SYCLCommonFieldLookup<sycl::NdItemType>(Val, FNum, Shape);
     else if (ElemTy.isa<sycl::GroupType>())
-      Result = SYCLCommonFieldLookup<sycl::GroupType>(val, fnum, shape);
-    else if (ElemTy.isa<sycl::GetScalarOpType>>())
-      Result = SYCLCommonFieldLookup<sycl::GetScalarOpType>>(val, fnum, shape);
+      Result = SYCLCommonFieldLookup<sycl::GroupType>(Val, FNum, Shape);
+    else if (ElemTy.isa<sycl::GetScalarOpType>())
+      Result = SYCLCommonFieldLookup<sycl::GetScalarOpType>(Val, FNum, Shape);
     else if (ElemTy.isa<sycl::AtomicType>())
-      Result = SYCLCommonFieldLookup<sycl::AtomicType>(val, fnum, shape);
+      Result = SYCLCommonFieldLookup<sycl::AtomicType>(Val, FNum, Shape);
     else
       llvm_unreachable("not implemented");
   } else {
     auto MT0 =
-        MemRefType::get(shape, MT.getElementType(), MemRefLayoutAttrInterface(),
+        MemRefType::get(Shape, MT.getElementType(), MemRefLayoutAttrInterface(),
                         MT.getMemorySpace());
-    shape[0] = ShapedType::kDynamicSize;
+    Shape[0] = ShapedType::kDynamicSize;
     auto MT1 =
-        MemRefType::get(shape, MT.getElementType(), MemRefLayoutAttrInterface(),
+        MemRefType::get(Shape, MT.getElementType(), MemRefLayoutAttrInterface(),
                         MT.getMemorySpace());
 
-    Result = Builder.create<polygeist::SubIndexOp>(Loc, MT0, val,
+    Result = Builder.create<polygeist::SubIndexOp>(Loc, MT0, Val,
                                                    getConstantIndex(0));
     Result = Builder.create<polygeist::SubIndexOp>(Loc, MT1, Result,
-                                                   getConstantIndex(fnum));
+                                                   getConstantIndex(FNum));
   }
 
   if (isLValue) {
