@@ -97,12 +97,12 @@ kernels submitted from the second process.  In this second case, the device
 driver binds the process's requested cslice to a physical cslice according to
 the overall system load.
 
-Note that this extension can be supported by any backend and any device.  If a
-backend or device does not support the concept of cslice partitions, it can
+Note that this extension can be supported by any implementation.  If an implementation supports a
+backend or device without the concept of cslice partitions it can
 still conform to this extension by declaring the new enumerator and member
 functions specified below.  If the info descriptor query
 `info::device::partition_properties` does not report
-`ext_intel_partition_by_cslice`, then the implementation need not support
+`ext_intel_partition_by_cslice`, then the backend or device does not support
 the creation of cslice partitions.
 
 
