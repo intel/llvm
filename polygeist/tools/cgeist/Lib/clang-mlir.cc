@@ -293,9 +293,11 @@ void MLIRScanner::init(FunctionOpInterface func, const FunctionToEmit &FTE) {
     }
   }
 
-  if (auto CC = dyn_cast<clang::CXXDestructorDecl>(FD))
-    mlirclang::warning() << "destructor not fully handled yet for: " << CC
-                         << "\n";
+  CGEIST_WARNING({
+    if (auto CC = dyn_cast<clang::CXXDestructorDecl>(FD))
+      mlirclang::warning() << "destructor not fully handled yet for: " << CC
+                           << "\n";
+  });
 
   auto i1Ty = Builder.getIntegerType(1);
   auto type = MemRefType::get({}, i1Ty, {}, 0);

@@ -339,9 +339,11 @@ void ClangToLLVMArgMapping::construct(const clang::ASTContext &Context,
       // FIXME: handle sseregparm someday...
       llvm::StructType *STy = dyn_cast<llvm::StructType>(AI.getCoerceToType());
 
-      if (AI.isDirect() && AI.getCanBeFlattened() && STy)
-        mlirclang::warning() << "struct should be flattened but MLIR codegen "
-                                "cannot yet handle it. Needs to be fixed.\n";
+      CGEIST_WARNING({
+        if (AI.isDirect() && AI.getCanBeFlattened() && STy)
+          mlirclang::warning() << "struct should be flattened but MLIR codegen "
+                                  "cannot yet handle it. Needs to be fixed.\n";
+      });
 
       if (AllowStructFlattening && AI.isDirect() && AI.getCanBeFlattened() &&
           STy) {
@@ -476,9 +478,10 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
   case clang::CodeGen::ABIArgInfo::Indirect:
     if (!AllowSRet) {
       // HACK: remove once we can handle function returning a struct.
-      mlirclang::warning() << "function should return its value indirectly (as "
-                              "an extra reference parameter). This is not yet "
-                              "handled by the MLIR codegen\n";
+      CGEIST_WARNING(mlirclang::warning()
+                     << "function should return its value indirectly (as "
+                        "an extra reference parameter). This is not yet "
+                        "handled by the MLIR codegen\n");
       QualType Ret = FI.getReturnType();
       ResultType = getMLIRType(Ret);
       break;
@@ -590,9 +593,11 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
       // do for this argument.
       auto ST = MLIRArgTy.dyn_cast<mlir::LLVM::LLVMStructType>();
 
-      if (ST && ArgInfo.isDirect() && ArgInfo.getCanBeFlattened())
-        mlirclang::warning() << "struct should be flattened but MLIR codegen "
-                                "cannot yet handle it. Needs to be fixed.\n";
+      CGEIST_WARNING({
+        if (ST && ArgInfo.isDirect() && ArgInfo.getCanBeFlattened())
+          mlirclang::warning() << "struct should be flattened but MLIR codegen "
+                                  "cannot yet handle it. Needs to be fixed.\n";
+      });
 
       if (AllowStructFlattening && ST && ArgInfo.isDirect() &&
           ArgInfo.getCanBeFlattened()) {
@@ -1339,9 +1344,11 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
       }
       // No need special handling for types that don't have record declaration
       // name.
-      if (TypeName != "")
-        mlirclang::warning() << "SYCL type '" << ST->getName()
-                             << "' has not been converted to SYCL MLIR\n";
+      CGEIST_WARNING({
+        if (TypeName != "")
+          mlirclang::warning() << "SYCL type '" << ST->getName()
+                               << "' has not been converted to SYCL MLIR\n";
+      });
     }
 
     auto *CXRD = dyn_cast<CXXRecordDecl>(RT->getDecl());
@@ -1597,11 +1604,13 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     if (Ty->isFP128Ty())
       return Builder.getF128Type();
     if (Ty->is16bitFPTy()) {
-      if (CGM.getTarget().shouldEmitFloat16WithExcessPrecision()) {
-        mlirclang::warning()
-            << "Experimental usage of _Float16. Code generated will be illegal "
-               "for this target. Use with caution.\n";
-      }
+      CGEIST_WARNING({
+        if (CGM.getTarget().shouldEmitFloat16WithExcessPrecision()) {
+          mlirclang::warning() << "Experimental usage of _Float16. Code "
+                                  "generated will be illegal "
+                                  "for this target. Use with caution.\n";
+        }
+      });
       return Builder.getF16Type();
     }
 

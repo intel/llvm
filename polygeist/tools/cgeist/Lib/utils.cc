@@ -25,8 +25,6 @@
 
 using namespace mlir;
 
-extern llvm::cl::opt<bool> SuppressWarnings;
-
 namespace mlirclang {
 
 Operation *buildLinalgOp(llvm::StringRef Name, OpBuilder &B,
@@ -89,10 +87,6 @@ gpu::GPUModuleOp getDeviceModule(ModuleOp Module) {
       Module.lookupSymbol(MLIRASTConsumer::DeviceModuleName));
 }
 
-llvm::raw_ostream &warning() {
-  if (SuppressWarnings)
-    return llvm::nulls();
-  return llvm::WithColor::warning();
-}
+llvm::raw_ostream &warning() { return llvm::WithColor::warning(); }
 
 } // namespace mlirclang

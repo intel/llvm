@@ -9,6 +9,15 @@
 #ifndef MLIR_TOOLS_MLIRCLANG_UTILS_H
 #define MLIR_TOOLS_MLIRCLANG_UTILS_H
 
+#include "llvm/Support/CommandLine.h"
+
+extern llvm::cl::opt<bool> SuppressWarnings;
+
+#define CGEIST_WARNING(X)                                                      \
+  if (!SuppressWarnings) {                                                     \
+    X;                                                                         \
+  }
+
 namespace clang {
 class DeclContext;
 }

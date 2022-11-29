@@ -858,8 +858,9 @@ getOptimizationLevel(unsigned OptimizationLevel) {
     return llvm::OptimizationLevel::O3;
   default:
     // All speed levels above 2 are equivalent to '-O3'
-    mlirclang::warning() << "optimization level '-O" << OptimizationLevel
-                         << "' is not supported; using '-O3' instead\n";
+    CGEIST_WARNING(mlirclang::warning()
+                   << "optimization level '-O" << OptimizationLevel
+                   << "' is not supported; using '-O3' instead\n");
   }
   return llvm::OptimizationLevel::O3;
 }

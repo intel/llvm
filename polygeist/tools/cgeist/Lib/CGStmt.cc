@@ -1086,7 +1086,8 @@ ValueCategory MLIRScanner::VisitGotoStmt(clang::GotoStmt *Stmt) {
 }
 
 ValueCategory MLIRScanner::VisitCXXTryStmt(clang::CXXTryStmt *Stmt) {
-  mlirclang::warning() << "not performing catches for try stmt\n";
+  CGEIST_WARNING(mlirclang::warning()
+                 << "not performing catches for try stmt\n");
   return Visit(Stmt->getTryBlock());
 }
 

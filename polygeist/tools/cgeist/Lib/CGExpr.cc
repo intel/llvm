@@ -492,7 +492,8 @@ static const clang::ConstantArrayType *getCAT(const clang::Type *T) {
 
 ValueCategory MLIRScanner::VisitArrayInitLoop(clang::ArrayInitLoopExpr *Expr,
                                               ValueCategory ToStore) {
-  mlirclang::warning() << "recomputing common in arrayinitloopexpr\n";
+  CGEIST_WARNING(mlirclang::warning()
+                 << "recomputing common in arrayinitloopexpr\n");
 
   const clang::ConstantArrayType *CAT = getCAT(Expr->getType().getTypePtr());
   std::vector<mlir::Value> Start = {getConstantIndex(0)};
@@ -673,7 +674,7 @@ ValueCategory MLIRScanner::VisitMaterializeTemporaryExpr(
   if (IsArray)
     return V;
 
-  mlirclang::warning() << "cleanup of materialized not handled\n";
+  CGEIST_WARNING(mlirclang::warning() << "cleanup of materialized not handled");
   auto Op =
       createAllocOp(Glob.getTypes().getMLIRType(Expr->getSubExpr()->getType()),
                     nullptr, 0, /*isArray*/ IsArray, /*LLVMABI*/ LLVMABI);
@@ -682,7 +683,7 @@ ValueCategory MLIRScanner::VisitMaterializeTemporaryExpr(
 }
 
 ValueCategory MLIRScanner::VisitCXXDeleteExpr(clang::CXXDeleteExpr *Expr) {
-  mlirclang::warning() << "not calling destructor on delete\n";
+  CGEIST_WARNING(mlirclang::warning() << "not calling destructor on delete\n");
 
   Location Loc = getMLIRLocation(Expr->getExprLoc());
   mlir::Value ToDelete = Visit(Expr->getArgument()).getValue(Builder);
@@ -1238,10 +1239,12 @@ ValueCategory MLIRScanner::VisitAtomicExpr(clang::AtomicExpr *BO) {
 
 ValueCategory MLIRScanner::VisitExprWithCleanups(ExprWithCleanups *E) {
   auto Ret = Visit(E->getSubExpr());
-  for (auto &Child : E->children()) {
-    mlirclang::warning() << "cleanup not handled for: ";
-    Child->dump(mlirclang::warning(), Glob.getCGM().getContext());
-  }
+  CGEIST_WARNING({
+    for (auto &Child : E->children()) {
+      mlirclang::warning() << "cleanup not handled for: ";
+      Child->dump(mlirclang::warning(), Glob.getCGM().getContext());
+    }
+  });
   return Ret;
 }
 
@@ -2285,7 +2288,7 @@ ValueCategory MLIRScanner::EmitScalarCast(mlir::Location Loc, ValueCategory Src,
     bool InputSigned = SrcQT->isSignedIntegerOrEnumerationType();
     if (SrcQT->isBooleanType()) {
       // TODO: Should check options
-      mlirclang::warning() << "Treating boolean as unsigned\n";
+      CGEIST_WARNING(mlirclang::warning() << "Treating boolean as unsigned\n");
       InputSigned = false;
     }
 
@@ -2303,7 +2306,8 @@ ValueCategory MLIRScanner::EmitScalarCast(mlir::Location Loc, ValueCategory Src,
     // If we can't recognize overflow as undefined behavior, assume that
     // overflow saturates. This protects against normal optimizations if we are
     // compiling with non-standard FP semantics.
-    mlirclang::warning() << "Performing strict float cast overflow\n";
+    CGEIST_WARNING(mlirclang::warning()
+                   << "Performing strict float cast overflow\n");
 
     if (IsSigned)
       return Src.FPToSI(Builder, Loc, DstTy);
@@ -2356,16 +2360,20 @@ ValueCategory MLIRScanner::EmitScalarConversion(ValueCategory Src,
   if (SrcQT->isHalfType() && !CGM.getLangOpts().NativeHalfType) {
     // Cast to FP using the intrinsic if the half type itself isn't supported.
     if (DstTy.isa<FloatType>()) {
-      if (CGM.getContext().getTargetInfo().useFP16ConversionIntrinsics())
-        mlirclang::warning() << "Should call convert_from_fp16 intrinsic "
-                                "to perfom this conversion\n";
+      CGEIST_WARNING({
+        if (CGM.getContext().getTargetInfo().useFP16ConversionIntrinsics())
+          mlirclang::warning() << "Should call convert_from_fp16 intrinsic "
+                                  "to perfom this conversion\n";
+      });
     } else {
       // Cast to other types through float, using either the intrinsic or FPExt,
       // depending on whether the half type itself is supported
       // (as opposed to operations on half, available with NativeHalfType).
-      if (CGM.getContext().getTargetInfo().useFP16ConversionIntrinsics())
-        mlirclang::warning() << "Should call convert_from_fp16 intrinsic "
-                                "to perfom this conversion\n";
+      CGEIST_WARNING({
+        if (CGM.getContext().getTargetInfo().useFP16ConversionIntrinsics())
+          mlirclang::warning() << "Should call convert_from_fp16 intrinsic "
+                                  "to perfom this conversion\n";
+      });
 
       Src = Src.FPExt(Builder, MLIRLoc, Builder.getF32Type());
       SrcQT = CGM.getContext().FloatTy;
@@ -2375,8 +2383,8 @@ ValueCategory MLIRScanner::EmitScalarConversion(ValueCategory Src,
 
   // Ignore conversions like int -> uint.
   if (SrcTy == DstTy) {
-    mlirclang::warning()
-        << "Not emitting implicit integer sign change checks\n";
+    CGEIST_WARNING(mlirclang::warning()
+                   << "Not emitting implicit integer sign change checks\n");
 
     return Src;
   }
@@ -2399,7 +2407,7 @@ ValueCategory MLIRScanner::EmitScalarConversion(ValueCategory Src,
 
   // Finally, we have the arithmetic types: real int/float.
   mlir::Type ResTy = DstTy;
-  mlirclang::warning() << "Missing overflow checks\n";
+  CGEIST_WARNING(mlirclang::warning() << "Missing overflow checks\n");
 
   // Cast to half through float if half isn't a native type.
   if (DstQT->isHalfType() && !CGM.getContext().getLangOpts().NativeHalfType) {
@@ -2407,9 +2415,11 @@ ValueCategory MLIRScanner::EmitScalarConversion(ValueCategory Src,
     if (SrcTy.isa<FloatType>()) {
       // Use the intrinsic if the half type itself isn't supported
       // (as opposed to operations on half, available with NativeHalfType).
-      if (CGM.getContext().getTargetInfo().useFP16ConversionIntrinsics())
-        mlirclang::warning() << "Should call convert_to_fp16 intrinsic "
-                                "to perfom this conversion\n";
+      CGEIST_WARNING({
+        if (CGM.getContext().getTargetInfo().useFP16ConversionIntrinsics())
+          mlirclang::warning() << "Should call convert_to_fp16 intrinsic "
+                                  "to perfom this conversion\n";
+      });
       // If the half type is supported, just use an fptrunc.
       return Src.FPTrunc(Builder, MLIRLoc, DstTy);
     }
@@ -2421,14 +2431,17 @@ ValueCategory MLIRScanner::EmitScalarConversion(ValueCategory Src,
   if (DstTy != ResTy) {
     if (CGM.getContext().getTargetInfo().useFP16ConversionIntrinsics()) {
       assert(ResTy.isInteger(16) && "Only half FP requires extra conversion");
-      mlirclang::warning() << "Should call convert_to_fp16 intrinsic to "
-                              "perfom this conversion\n";
+      CGEIST_WARNING(mlirclang::warning()
+                     << "Should call convert_to_fp16 intrinsic to "
+                        "perfom this conversion\n");
     }
     Res = Res.FPTrunc(Builder, MLIRLoc, ResTy);
   }
 
-  mlirclang::warning() << "Missing truncation checks\n";
-  mlirclang::warning() << "Missing integer sign change checks\n";
+  CGEIST_WARNING({
+    mlirclang::warning() << "Missing truncation checks\n";
+    mlirclang::warning() << "Missing integer sign change checks\n";
+  });
 
   return Res;
 }
@@ -2549,8 +2562,10 @@ std::pair<ValueCategory, ValueCategory> MLIRScanner::EmitCompoundAssignLValue(
     ValueCategory (MLIRScanner::*Func)(const BinOpInfo &)) {
   QualType LHSTy = E->getLHS()->getType();
 
-  if (E->getComputationResultType()->isAnyComplexType())
-    mlirclang::warning() << "Not handling complex types yet\n";
+  CGEIST_WARNING({
+    if (E->getComputationResultType()->isAnyComplexType())
+      mlirclang::warning() << "Not handling complex types yet\n";
+  });
 
   // Emit the RHS first.  __block variables need to have the rhs evaluated
   // first, plus this should improve codegen a little.
@@ -2571,12 +2586,15 @@ std::pair<ValueCategory, ValueCategory> MLIRScanner::EmitCompoundAssignLValue(
   const SourceLocation Loc = E->getExprLoc();
 
   // Load/convert the LHS.
-  mlirclang::warning() << "Emitting unchecked LValue\n";
+  CGEIST_WARNING(mlirclang::warning() << "Emitting unchecked LValue\n");
 
   const ValueCategory LHSLV = EmitLValue(E->getLHS());
-  if (isa<AtomicType>(LHSTy))
-    mlirclang::warning()
-        << "Not handling atomics. Should perform RMW operation here.\n";
+  CGEIST_WARNING(
+      {
+        if (isa<AtomicType>(LHSTy))
+          mlirclang::warning()
+              << "Not handling atomics. Should perform RMW operation here.\n";
+      });
 
   ValueCategory LHS{LHSLV.getValue(Builder), false};
   if (!PromotionTypeLHS.isNull())
@@ -2592,9 +2610,11 @@ std::pair<ValueCategory, ValueCategory> MLIRScanner::EmitCompoundAssignLValue(
 
   LHSLV.store(Builder, Result.val);
 
-  if (Glob.getCGM().getLangOpts().OpenMP)
-    mlirclang::warning() << "Should checkAndEmitLastprivateConditional, "
-                            "but not implemented yet.\n";
+  CGEIST_WARNING({
+    if (Glob.getCGM().getLangOpts().OpenMP)
+      mlirclang::warning() << "Should checkAndEmitLastprivateConditional, "
+                              "but not implemented yet.\n";
+  });
 
   return {LHSLV, Result};
 }
@@ -2667,8 +2687,9 @@ ValueCategory MLIRScanner::EmitBinMul(const BinOpInfo &Info) {
 }
 
 ValueCategory MLIRScanner::EmitBinDiv(const BinOpInfo &Info) {
-  mlirclang::warning()
-      << "Not checking division by zero nor signed integer overflow.\n";
+  CGEIST_WARNING(
+      mlirclang::warning()
+      << "Not checking division by zero nor signed integer overflow.\n");
 
   assert(!Info.getType()->isConstantMatrixType() && "Not implemented");
 
@@ -2678,16 +2699,18 @@ ValueCategory MLIRScanner::EmitBinDiv(const BinOpInfo &Info) {
   if (mlirclang::isFPOrFPVectorTy(LHS.val.getType())) {
     const auto &LangOpts = Glob.getCGM().getLangOpts();
     const auto &CodeGenOpts = Glob.getCGM().getCodeGenOpts();
-    if ((LangOpts.OpenCL && !CodeGenOpts.OpenCLCorrectlyRoundedDivSqrt) ||
-        (LangOpts.HIP && LangOpts.CUDAIsDevice &&
-         !CodeGenOpts.HIPCorrectlyRoundedDivSqrt)) {
-      // OpenCL v1.1 s7.4: minimum accuracy of single precision / is 2.5ulp
-      // OpenCL v1.2 s5.6.4.2: The -cl-fp32-correctly-rounded-divide-sqrt
-      // build option allows an application to specify that single precision
-      // floating-point divide (x/y and 1/x) and sqrt used in the program
-      // source are correctly rounded.
-      mlirclang::warning() << "Not applying OpenCL/HIP precision options.\n";
-    }
+    CGEIST_WARNING({
+      if ((LangOpts.OpenCL && !CodeGenOpts.OpenCLCorrectlyRoundedDivSqrt) ||
+          (LangOpts.HIP && LangOpts.CUDAIsDevice &&
+           !CodeGenOpts.HIPCorrectlyRoundedDivSqrt)) {
+        // OpenCL v1.1 s7.4: minimum accuracy of single precision / is 2.5ulp
+        // OpenCL v1.2 s5.6.4.2: The -cl-fp32-correctly-rounded-divide-sqrt
+        // build option allows an application to specify that single precision
+        // floating-point divide (x/y and 1/x) and sqrt used in the program
+        // source are correctly rounded.
+        mlirclang::warning() << "Not applying OpenCL/HIP precision options.\n";
+      }
+    });
     return LHS.FDiv(Builder, Loc, RHS);
   }
   if (Info.getType()->hasUnsignedIntegerRepresentation())
@@ -2696,8 +2719,9 @@ ValueCategory MLIRScanner::EmitBinDiv(const BinOpInfo &Info) {
 }
 
 ValueCategory MLIRScanner::EmitBinRem(const BinOpInfo &Info) {
-  mlirclang::warning()
-      << "Not checking division by zero nor signed integer overflow.\n";
+  CGEIST_WARNING(
+      mlirclang::warning()
+      << "Not checking division by zero nor signed integer overflow.\n");
 
   const auto Loc = getMLIRLocation(Info.getExpr()->getExprLoc());
   const auto LHS = Info.getLHS();
@@ -2966,7 +2990,7 @@ ValueCategory MLIRScanner::EmitBinShl(const BinOpInfo &Info) {
     this->Loc = Loc;
     RHS = ConstrainShiftValue(LHS, RHS);
   } else {
-    mlirclang::warning() << "Not performing SHL checks\n";
+    CGEIST_WARNING(mlirclang::warning() << "Not performing SHL checks\n");
   }
 
   return LHS.Shl(Builder, Loc, RHS.val);
@@ -2986,7 +3010,7 @@ ValueCategory MLIRScanner::EmitBinShr(const BinOpInfo &Info) {
     this->Loc = Loc;
     RHS = ConstrainShiftValue(LHS, RHS);
   } else {
-    mlirclang::warning() << "Not performing SHL checks\n";
+    CGEIST_WARNING(mlirclang::warning() << "Not performing SHR checks\n");
   }
 
   if (Info.getType()->hasUnsignedIntegerRepresentation())

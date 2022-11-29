@@ -113,14 +113,16 @@ void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
       if (auto mt = toStore.getType().dyn_cast<MemRefType>()) {
         if (auto spt =
                 pt.getElementType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
-          if (mt.getElementType() != spt.getElementType()) {
-            // llvm::errs() << " func: " <<
-            // val.getDefiningOp()->getParentOfType<FuncOp>() << "\n";
-            mlirclang::warning()
-                << "potential store type mismatch:\n"
-                << "val: " << val << " tosval: " << toStore << "\n"
-                << "mt: " << mt << "spt: " << spt << "\n";
-          }
+          CGEIST_WARNING({
+            if (mt.getElementType() != spt.getElementType()) {
+              // llvm::errs() << " func: " <<
+              // val.getDefiningOp()->getParentOfType<FuncOp>() << "\n";
+              mlirclang::warning()
+                  << "potential store type mismatch:\n"
+                  << "val: " << val << " tosval: " << toStore << "\n"
+                  << "mt: " << mt << "spt: " << spt << "\n";
+            }
+          });
           toStore =
               builder.create<polygeist::Memref2PointerOp>(loc, spt, toStore);
         }
@@ -340,7 +342,7 @@ ValueCategory ValueCategory::FPTrunc(OpBuilder &Builder, Location Loc,
              PromotionType.getIntOrFloatBitWidth() &&
          "Source type must be wider than promotion type");
 
-  warnUnconstrainedOp<arith::TruncFOp>();
+  CGEIST_WARNING(warnUnconstrainedOp<arith::TruncFOp>());
   return Cast<arith::TruncFOp>(Builder, Loc, PromotionType);
 }
 
@@ -354,7 +356,7 @@ ValueCategory ValueCategory::FPExt(OpBuilder &Builder, Location Loc,
              PromotionType.getIntOrFloatBitWidth() &&
          "Source type must be narrower than promotion type");
 
-  warnUnconstrainedOp<arith::ExtFOp>();
+  CGEIST_WARNING(warnUnconstrainedOp<arith::ExtFOp>());
   return Cast<arith::ExtFOp>(Builder, Loc, PromotionType);
 }
 
@@ -364,7 +366,7 @@ ValueCategory ValueCategory::SIToFP(OpBuilder &Builder, Location Loc,
   assert(PromotionType.isa<FloatType>() &&
          "Expecting floating point promotion type");
 
-  warnUnconstrainedOp<arith::SIToFPOp>();
+  CGEIST_WARNING(warnUnconstrainedOp<arith::SIToFPOp>());
   return Cast<arith::SIToFPOp>(Builder, Loc, PromotionType);
 }
 
@@ -374,7 +376,7 @@ ValueCategory ValueCategory::UIToFP(OpBuilder &Builder, Location Loc,
   assert(PromotionType.isa<FloatType>() &&
          "Expecting floating point promotion type");
 
-  warnUnconstrainedOp<arith::UIToFPOp>();
+  CGEIST_WARNING(warnUnconstrainedOp<arith::UIToFPOp>());
   return Cast<arith::UIToFPOp>(Builder, Loc, PromotionType);
 }
 
@@ -385,7 +387,7 @@ ValueCategory ValueCategory::FPToUI(OpBuilder &Builder, Location Loc,
   assert(PromotionType.isa<IntegerType>() &&
          "Expecting integer promotion type");
 
-  warnUnconstrainedOp<arith::FPToUIOp>();
+  CGEIST_WARNING(warnUnconstrainedOp<arith::FPToUIOp>());
   return Cast<arith::FPToUIOp>(Builder, Loc, PromotionType);
 }
 
@@ -396,7 +398,7 @@ ValueCategory ValueCategory::FPToSI(OpBuilder &Builder, Location Loc,
   assert(PromotionType.isa<IntegerType>() &&
          "Expecting integer promotion type");
 
-  warnUnconstrainedOp<arith::FPToSIOp>();
+  CGEIST_WARNING(warnUnconstrainedOp<arith::FPToSIOp>());
   return Cast<arith::FPToSIOp>(Builder, Loc, PromotionType);
 }
 
@@ -559,7 +561,7 @@ static ValueCategory FPBinOp(mlir::OpBuilder &Builder, mlir::Location Loc,
   assert(mlirclang::isFPOrFPVectorTy(LHS.getType()) &&
          "Expecting integers or integer vectors as inputs");
 
-  warnUnconstrainedOp<arith::DivFOp>();
+  CGEIST_WARNING(warnUnconstrainedOp<arith::DivFOp>());
 
   return {Builder.createOrFold<OpTy>(Loc, LHS, RHS), false};
 }
@@ -569,10 +571,12 @@ static ValueCategory NUWNSWBinOp(mlir::OpBuilder &Builder, mlir::Location Loc,
                                  mlir::Value LHS, mlir::Value RHS, bool HasNUW,
                                  bool HasNSW) {
   // No way of adding these flags to MLIR.
-  if (HasNUW)
-    mlirclang::warning() << "Not adding NUW flag.\n";
-  if (HasNSW)
-    mlirclang::warning() << "Not adding NSW flag.\n";
+  CGEIST_WARNING({
+    if (HasNUW)
+      mlirclang::warning() << "Not adding NUW flag.\n";
+    if (HasNSW)
+      mlirclang::warning() << "Not adding NSW flag.\n";
+  })
   return IntBinOp<OpTy>(Builder, Loc, LHS, RHS);
 }
 
@@ -583,19 +587,19 @@ ValueCategory ValueCategory::Mul(OpBuilder &Builder, Location Loc, Value RHS,
 
 ValueCategory ValueCategory::FMul(OpBuilder &Builder, Location Loc,
                                   Value RHS) const {
-  warnUnconstrainedOp<arith::DivFOp>();
+  CGEIST_WARNING(warnUnconstrainedOp<arith::DivFOp>());
   return FPBinOp<arith::MulFOp>(Builder, Loc, val, RHS);
 }
 
 ValueCategory ValueCategory::FDiv(OpBuilder &Builder, Location Loc,
                                   Value RHS) const {
-  warnUnconstrainedOp<arith::DivFOp>();
+  CGEIST_WARNING(warnUnconstrainedOp<arith::DivFOp>());
   return FPBinOp<arith::DivFOp>(Builder, Loc, val, RHS);
 }
 
 ValueCategory ValueCategory::UDiv(OpBuilder &Builder, Location Loc, Value RHS,
                                   bool IsExact) const {
-  warnNonExactOp<arith::DivUIOp>(IsExact);
+  CGEIST_WARNING(warnNonExactOp<arith::DivUIOp>(IsExact));
   return IntBinOp<arith::DivUIOp>(Builder, Loc, val, RHS);
 }
 
@@ -606,7 +610,7 @@ ValueCategory ValueCategory::ExactUDiv(OpBuilder &Builder, Location Loc,
 
 ValueCategory ValueCategory::SDiv(OpBuilder &Builder, Location Loc, Value RHS,
                                   bool IsExact) const {
-  warnNonExactOp<arith::DivSIOp>(IsExact);
+  CGEIST_WARNING(warnNonExactOp<arith::DivSIOp>(IsExact));
   return IntBinOp<arith::DivSIOp>(Builder, Loc, val, RHS);
 }
 
@@ -658,8 +662,10 @@ ValueCategory ValueCategory::SubIndex(OpBuilder &Builder, Location Loc,
   assert(val.getType().isa<MemRefType>() && "Expecting a pointer as operand");
   assert(Index.getType().isa<IndexType>() && "Expecting an index type index");
 
-  if (IsInBounds)
-    mlirclang::warning() << "Cannot create an inbounds SubIndex operation\n";
+  CGEIST_WARNING({
+    if (IsInBounds)
+      mlirclang::warning() << "Cannot create an inbounds SubIndex operation\n";
+  });
 
   auto PtrTy = mlirclang::getPtrTyWithNewType(val.getType(), Type);
   return {Builder.createOrFold<polygeist::SubIndexOp>(Loc, PtrTy, val, Index),
@@ -679,8 +685,10 @@ ValueCategory ValueCategory::GEP(OpBuilder &Builder, Location Loc, Type Type,
                      [](mlir::Type Ty) { return Ty.isa<IntegerType>(); }) &&
          "Expecting integer indices");
 
-  if (IsInBounds)
-    mlirclang::warning() << "Cannot create an inbounds GEP operation\n";
+  CGEIST_WARNING({
+    if (IsInBounds)
+      mlirclang::warning() << "Cannot create an inbounds GEP operation\n";
+  });
 
   auto PtrTy = mlirclang::getPtrTyWithNewType(val.getType(), Type);
   return {Builder.createOrFold<LLVM::GEPOp>(Loc, PtrTy, val, IdxList),
@@ -719,7 +727,7 @@ template <typename OpTy>
 ValueCategory FPUnaryOp(OpBuilder &Builder, Location Loc, Value Val) {
   assert(mlirclang::isFPOrFPVectorTy(Val.getType()) &&
          "Expecting FP or FP vector operand type");
-  warnUnconstrainedOp<arith::NegFOp>();
+  CGEIST_WARNING(warnUnconstrainedOp<arith::NegFOp>());
   return {Builder.createOrFold<OpTy>(Loc, Val), false};
 }
 
@@ -734,13 +742,13 @@ ValueCategory ValueCategory::Shl(OpBuilder &Builder, Location Loc, Value RHS,
 
 ValueCategory ValueCategory::AShr(OpBuilder &Builder, Location Loc, Value RHS,
                                   bool IsExact) const {
-  warnNonExactOp<arith::ShRSIOp>(IsExact);
+  CGEIST_WARNING(warnNonExactOp<arith::ShRSIOp>(IsExact));
   return IntBinOp<arith::ShRSIOp>(Builder, Loc, val, RHS);
 }
 
 ValueCategory ValueCategory::LShr(OpBuilder &Builder, Location Loc, Value RHS,
                                   bool IsExact) const {
-  warnNonExactOp<arith::ShRUIOp>(IsExact);
+  CGEIST_WARNING(warnNonExactOp<arith::ShRUIOp>(IsExact));
   return IntBinOp<arith::ShRUIOp>(Builder, Loc, val, RHS);
 }
 
