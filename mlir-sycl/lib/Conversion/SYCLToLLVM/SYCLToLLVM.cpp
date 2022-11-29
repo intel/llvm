@@ -232,25 +232,9 @@ static Optional<Type> convertVecType(sycl::VecType type,
 /// Converts SYCL atomic type to LLVM type.
 static Optional<Type> convertAtomicType(sycl::AtomicType type,
                                         LLVMTypeConverter &converter) {
-  // Please note that we cannot simply use the convertBodyType here, as the body
-  // type is a memref<?xT, AS>, which is converted to something like:
-  // !llvm.struct<(ptr<T, AS>, ptr<T, AS>, i64, array<1 x i64>, array<1 x i64>)>
-  // which does not match clang's generated type e.g. !llvm.struct<(ptr<T, AS>)
-  auto convertedTy = LLVM::LLVMStructType::getIdentified(
-      &converter.getContext(), "class.sycl::_V1::atomic");
-  auto elementType = LLVM::LLVMPointerType::get(type.getDataType(),
-                                                (int)(type.getAddrSpace()));
-
-  if (!convertedTy.isInitialized()) {
-    if (failed(convertedTy.setBody(elementType, /*isPacked=*/false)))
-      return llvm::None;
-  } else if (elementType != convertedTy.getBody()[0]) {
-    // If the name is already in use, create a new type.
-    convertedTy = LLVM::LLVMStructType::getNewIdentified(
-        &converter.getContext(), "class.sycl::_V1::atomic", elementType,
-        /*isPacked=*/false);
-  }
-  return convertedTy;
+  //FIXME: Make sure that we have llvm.ptr as the body, not memref, through
+  // the conversion done in ConvertTOLLVMABI pass
+  return convertBodyType("class.sycl::_V1::atomic", type.getBody(), converter); 
 }
 
 //===----------------------------------------------------------------------===//

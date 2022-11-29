@@ -133,7 +133,7 @@ mlir::LogicalResult mlir::sycl::parseAccessAddrSpace(
   if (Parser.parseInteger<int>(AddSpaceInt)) {
     return mlir::ParseResult::failure();
   }
-  // TODO: Make sure we check that we are following SPIRV address spaces here.
+  // FIXME: The current implementation of AccessAddrSpace only works for SPIRV target. 
   assert(0 <= AddSpaceInt && AddSpaceInt <= 6 &&
          "Expecting address space value between 0 and 6 (inclusive)");
 
