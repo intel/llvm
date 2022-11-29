@@ -187,6 +187,14 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
       return mlir::sycl::GroupType::get(CGT.getModule()->getContext(), Dim,
                                         Body);
     }
+    if (CTS->getName() == "GetOp")
+      return mlir::sycl::GetOpType::get(CGT.getModule()->getContext());
+    if (CTS->getName() == "GetScalarOp") {
+      const auto Type =
+          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
+      return mlir::sycl::GetScalarOpType::get(CGT.getModule()->getContext(),
+                                              Type, Body);
+    }
     if (CTS->getName() == "atomic") {
       const auto Type =
           CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());

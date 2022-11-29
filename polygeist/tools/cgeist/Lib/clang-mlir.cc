@@ -1491,7 +1491,16 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
 
     Result = Builder.create<polygeist::SubIndexOp>(Loc, ResultType, val,
                                                    getConstantIndex(fnum));
-  } else if (auto AT = MT.getElementType().dyn_cast<mlir::sycl::AtomicType>()) {
+  } else if (auto RT = MT.getElementType().dyn_cast<sycl::GetScalarOpType>()) {
+    assert(fnum < RT.getBody().size() && "ERROR");
+
+    const auto ElementType = RT.getBody()[fnum];
+    const auto ResultType = MemRefType::get(
+        shape, ElementType, MemRefLayoutAttrInterface(), MT.getMemorySpace());
+
+    Result = Builder.create<polygeist::SubIndexOp>(Loc, ResultType, val,
+                                                   getConstantIndex(fnum));
+  } else if (auto AT = MT.getElementType().dyn_cast<sycl::AtomicType>()) {
     assert(fnum < AT.getBody().size() && "ERROR");
 
     const auto ElementType = AT.getBody()[fnum];
