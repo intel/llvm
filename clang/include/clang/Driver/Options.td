@@ -1005,8 +1005,9 @@ def fno_cuda_flush_denormals_to_zero : Flag<["-"], "fno-cuda-flush-denormals-to-
   Alias<fno_gpu_flush_denormals_to_zero>;
 defm gpu_rdc : BoolFOption<"gpu-rdc",
   LangOpts<"GPURelocatableDeviceCode">, DefaultFalse,
-  PosFlag<SetTrue, [CC1Option], "Generate relocatable device code, also known as separate compilation mode">,
-  NegFlag<SetFalse>>;
+  PosFlag<SetTrue, [], "Generate relocatable device code, also known as separate compilation mode">,
+  NegFlag<SetFalse, []>,
+  BothFlags<[CC1Option]>>;
 def : Flag<["-"], "fcuda-rdc">, Alias<fgpu_rdc>;
 def : Flag<["-"], "fno-cuda-rdc">, Alias<fno_gpu_rdc>;
 defm cuda_short_ptr : BoolFOption<"cuda-short-ptr",

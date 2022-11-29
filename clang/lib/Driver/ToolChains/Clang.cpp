@@ -4869,7 +4869,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                     options::OPT_no_offload_new_driver, false));
 
   bool IsRDCMode =
-      Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc, false);
+      Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc, IsSYCL);
   bool IsUsingLTO = D.isUsingLTO(IsDeviceOffloadAction);
   auto LTOMode = D.getLTOMode(IsDeviceOffloadAction);
   bool IsFPGASYCLOffloadDevice =
@@ -6993,9 +6993,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                       options::OPT_fno_hip_kernel_arg_name);
   }
 
-  if (IsCuda || IsHIP) {
+  if (IsCuda || IsHIP || IsSYCL) {
     if (IsRDCMode)
       CmdArgs.push_back("-fgpu-rdc");
+    else 
+      CmdArgs.push_back("-fno-gpu-rdc");
+  }
+  if (IsCuda || IsHIP) {
     if (Args.hasFlag(options::OPT_fgpu_defer_diag,
                      options::OPT_fno_gpu_defer_diag, false))
       CmdArgs.push_back("-fgpu-defer-diag");
