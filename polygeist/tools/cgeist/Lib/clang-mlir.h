@@ -373,6 +373,7 @@ private:
                                      clang::QualType SrcType);
   ValueCategory EmitVectorInitList(clang::InitListExpr *Expr,
                                    mlir::VectorType VType);
+  ValueCategory EmitVectorSubscript(clang::ArraySubscriptExpr *Expr);
 
 public:
   MLIRScanner(MLIRASTConsumer &Glob, mlir::OwningOpRef<mlir::ModuleOp> &Module,
