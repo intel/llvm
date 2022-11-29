@@ -35,20 +35,23 @@ https://github.com/intel/llvm/issues
 
 == Dependencies
 
-This extension is written against the SYCL 2020 revision 4 specification.  All
+This extension is written against the SYCL 2020 revision 6 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
 == Status
 
 This extension is implemented and fully supported by {dpcpp}.
+[NOTE]
+====
 Although {dpcpp} supports this extension on all backends, it is currently used
-only on Level Zero. Other backends ignore this new property.
+only on Level Zero. Other backends ignore the properties defined in this specification.
+====
 
 == Overview
 
-Introduce SYCL queue property specifying desired priority of the queue.
-This priority is a hint and may be ignored if not supported by
+Introduce SYCL queue properties specifying the desired priority of a queue.
+These priorities are a hint and may be ignored if not supported by
 underlying backends. 
 
 == Specification
@@ -99,5 +102,6 @@ The new properties hint the SYCL runtime that the queue gets the specified
 priority for execution if supported by underlying target runtimes. These
 properties are hints and may safely be ignored by an implementation.
 
-It is illegal to specify multiple differrent priority hints for the same queue,
-and would result in `invalid` exception thrown by SYCL runtime.
+It is illegal to specify multiple differrent priority hints for the same queue.
+Doing so causes the `queue` constructor to throw a synchronous `exception` with
+the `errc::invalid` error code.
