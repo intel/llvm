@@ -6,8 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TypeUtils.h"
 #include "clang-mlir.h"
+
+#include <numeric>
+
+#include "TypeUtils.h"
 #include "utils.h"
 
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
@@ -36,10 +39,8 @@ MLIRScanner::VisitExtVectorElementExpr(clang::ExtVectorElementExpr *Expr) {
   auto MT = Base.val.getType().cast<MemRefType>();
   assert(MT.getElementType().isa<mlir::VectorType>() &&
          "Expecting ExtVectorElementExpr to have memref of vector elements");
-  auto Idx = Builder.create<arith::ConstantIntOp>(Loc, Indices[0], 64);
-  mlir::Value Val = Base.getValue(Builder);
-  return ValueCategory(Builder.create<LLVM::ExtractElementOp>(Loc, Val, Idx),
-                       /*IsReference*/ false);
+  ValueCategory Val{Base.getValue(Builder), false};
+  return Val.Extract(Builder, Loc, Indices[0]);
 }
 
 ValueCategory MLIRScanner::VisitConstantExpr(clang::ConstantExpr *Expr) {
@@ -355,7 +356,63 @@ ValueCategory MLIRScanner::VisitPredefinedExpr(clang::PredefinedExpr *Expr) {
   return VisitStringLiteral(Expr->getFunctionName());
 }
 
+ValueCategory MLIRScanner::EmitVectorInitList(InitListExpr *Expr,
+                                              mlir::VectorType VType) {
+  const auto Loc = getMLIRLocation(Expr->getExprLoc());
+  const int64_t ResElts = VType.getNumElements();
+
+  int64_t CurIdx = 0;
+  auto V = ValueCategory::getNullValue(Builder, Loc, VType);
+  SmallVector<int64_t> ShuffleMask(ResElts);
+  for (auto *IE : Expr->children()) {
+    ValueCategory Init = Visit(IE);
+
+    auto VVT = Init.val.getType().dyn_cast<mlir::VectorType>();
+
+    // Handle scalar elements.
+    if (!VVT) {
+      V = V.Insert(Builder, Loc, Init.val, CurIdx);
+      ++CurIdx;
+      continue;
+    }
+
+    // Extend init to result vector length, and then shuffle its contribution
+    // to the vector initializer into V.
+    Init = Init.Reshape(Builder, Loc, VType.getShape());
+
+    const int64_t InitElts = VVT.getNumElements();
+
+    auto *const Begin = ShuffleMask.begin();
+    auto *const EndMask0 = Begin + CurIdx;
+    auto *const EndMask1 = EndMask0 + InitElts;
+    // Keep the current contents
+    std::iota(Begin, EndMask0, 0);
+    // Concat the input vector
+    std::iota(EndMask0, EndMask1, ResElts);
+    // Fill the rest with 0s from the current vector
+    std::fill(EndMask1, ShuffleMask.end(), CurIdx);
+
+    V = V.Shuffle(Builder, Loc, Init.val, ShuffleMask);
+    CurIdx += InitElts;
+  }
+  return V;
+}
+
 ValueCategory MLIRScanner::VisitInitListExpr(clang::InitListExpr *Expr) {
+  LLVM_DEBUG({
+    llvm::dbgs() << "VisitInitListExpr: ";
+    Expr->dump();
+    llvm::dbgs() << "\n";
+  });
+
+  assert(!Expr->hadArrayRangeDesignator() && "Unsupported");
+
+  if (auto VType = Glob.getTypes()
+                       .getMLIRType(Expr->getType())
+                       .dyn_cast<mlir::VectorType>()) {
+    return EmitVectorInitList(Expr, VType);
+  }
+
   mlir::Type SubType = Glob.getTypes().getMLIRType(Expr->getType());
   bool IsArray = false;
   bool LLVMABI = false;
