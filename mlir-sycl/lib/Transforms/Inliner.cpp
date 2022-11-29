@@ -575,7 +575,7 @@ bool InlinerBase::inlineCallsInSCC(InlinerBase &Inliner, CGUseList &UseList,
     LLVM_DEBUG(llvm::dbgs() << "** Inline succeeded\n");
 
     DidSomething = true;
-    NumInlinedCalls++;
+    ++NumInlinedCalls;
 
     // Merge the new uses into the source node.
     UseList.dropCallUses(ResolvedCall.SrcNode, ResolvedCall.Call.getOperation(),
