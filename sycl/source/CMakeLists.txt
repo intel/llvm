@@ -16,6 +16,9 @@ if (SYCL_ENABLE_XPTI_TRACING)
   include_directories(${LLVM_EXTERNAL_XPTI_SOURCE_DIR}/include)
 endif()
 
+# win_unload
+include_directories(${LLVM_EXTERNAL_SYCL_SOURCE_DIR}/win_unload)
+
 function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   # Add an optional argument so we can get the library name to
   # link with for Windows Debug version
@@ -52,6 +55,9 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_compile_definitions(${LIB_OBJ_NAME} PRIVATE XPTI_ENABLE_INSTRUMENTATION XPTI_STATIC_LIBRARY)
     target_link_libraries(${LIB_NAME} PRIVATE ${ARG_XPTI_LIB})
   endif()
+
+  # win_unload
+  target_link_libraries(${LIB_NAME} PRIVATE win_unload)
 
   target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_INTERNAL_API )
 

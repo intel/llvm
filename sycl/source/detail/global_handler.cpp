@@ -18,6 +18,8 @@
 #include <sycl/detail/pi.hpp>
 #include <sycl/detail/spinlock.hpp>
 
+#include "win_unload.hpp"
+
 #ifdef _WIN32
 #include <windows.h>
 #endif
