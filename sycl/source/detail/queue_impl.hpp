@@ -330,8 +330,9 @@ public:
     const detail::plugin &Plugin = getPlugin();
 
     assert(Plugin.getBackend() == MDevice->getPlugin().getBackend());
-    RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piQueueCreate>(
-        Context, Device, CreationFlags, &Queue);
+    RT::PiQueueProperties Properties[] = {PI_QUEUE_FLAGS, CreationFlags, 0};
+    RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piQueueCreateEx>(
+        Context, Device, Properties, &Queue);
 
     // If creating out-of-order queue failed and this property is not
     // supported (for example, on FPGA), it will return
