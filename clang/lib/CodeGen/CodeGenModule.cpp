@@ -2907,9 +2907,8 @@ void CodeGenModule::EmitDeferred() {
       if (lookupRepresentativeDecl(getMangledName(D), OtherD) &&
           (D.getCanonicalDecl().getDecl() !=
            OtherD.getCanonicalDecl().getDecl()) &&
-          D.getCanonicalDecl().getDecl()->hasAttr<CUDADeviceAttr>()) {
+          D.getCanonicalDecl().getDecl()->hasAttr<CUDADeviceAttr>())
         continue;
-      }
     }
     // Emit a dummy __host__ function if a legit one is not already present in
     // case of SYCL compilation of CUDA sources.
@@ -2918,9 +2917,8 @@ void CodeGenModule::EmitDeferred() {
       if (lookupRepresentativeDecl(getMangledName(D), OtherD) &&
           (D.getCanonicalDecl().getDecl() !=
            OtherD.getCanonicalDecl().getDecl()) &&
-          D.getCanonicalDecl().getDecl()->hasAttr<CUDAHostAttr>()) {
+          D.getCanonicalDecl().getDecl()->hasAttr<CUDAHostAttr>())
         continue;
-      }
     }
     const ValueDecl *VD = cast<ValueDecl>(D.getDecl());
     // If emitting for SYCL device, emit the deferred alias
@@ -3571,10 +3569,9 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
 
       // So device-only functions are the only things we skip, except for SYCL.
       if (!LangOpts.isSYCL() && isa<FunctionDecl>(Global) &&
-          !Global->hasAttr<CUDAHostAttr>() &&
-          Global->hasAttr<CUDADeviceAttr>()) {
+          !Global->hasAttr<CUDAHostAttr>() && Global->hasAttr<CUDADeviceAttr>())
         return;
-      }
+
       assert((isa<FunctionDecl>(Global) || isa<VarDecl>(Global)) &&
              "Expected Variable or Function");
     }
@@ -3712,15 +3709,13 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
         if (Global->hasAttr<CUDAHostAttr>()) {
           // remove already present __device__ function.
           auto DDI = DeferredDecls.find(MangledName);
-          if (DDI != DeferredDecls.end()) {
+          if (DDI != DeferredDecls.end())
             DeferredDecls.erase(DDI);
-          }
         } else if (Global->hasAttr<CUDADeviceAttr>()) {
           // do not insert a __device__ function if a __host__ one is present.
           auto DDI = DeferredDecls.find(MangledName);
-          if (DDI != DeferredDecls.end()) {
+          if (DDI != DeferredDecls.end())
             return;
-          }
         }
       }
       // in case of SYCL-CUDA-device,
@@ -3728,15 +3723,13 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
         if (Global->hasAttr<CUDADeviceAttr>()) {
           // remove already present __host__ function.
           auto DDI = DeferredDecls.find(MangledName);
-          if (DDI != DeferredDecls.end()) {
+          if (DDI != DeferredDecls.end())
             DeferredDecls.erase(DDI);
-          }
         } else if (Global->hasAttr<CUDAHostAttr>()) {
           // do not insert a __host__ function if a __device__ one is present.
           auto DDI = DeferredDecls.find(MangledName);
-          if (DDI != DeferredDecls.end()) {
+          if (DDI != DeferredDecls.end())
             return;
-          }
         }
       }
     }
