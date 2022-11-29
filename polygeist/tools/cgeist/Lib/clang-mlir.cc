@@ -97,25 +97,6 @@ void MLIRScanner::initUnsupportedFunctions() {
   UnsupportedFuncs.insert(
       "_ZN4sycl3_V13vecIlLi16EE8setValueILi16EivEEvNSt9enable_ifILb1ET0_"
       "E4typeERKli");
-  // FIXME: Implement init list vector support:
-  // #8 0x000056218bb30872 ValueCategory::store(mlir::OpBuilder&, mlir::Value)
-  // const
-  // #9 0x000056218bb314d2 ValueCategory::store(mlir::OpBuilder&, ValueCategory,
-  // bool)
-  // const #10 0x000056218baf4239
-  // MLIRScanner::InitializeValueByInitListExpr(mlir::Value,
-  // clang::Expr*)::'lambda'(clang::Expr*, mlir::Value,
-  // bool)::operator()(clang::Expr*, mlir::Value, bool) const
-  // #11 0x000056218baf39e1
-  // MLIRScanner::InitializeValueByInitListExpr(mlir::Value,
-  // clang::Expr*)::'lambda'(clang::Expr*, mlir::Value,
-  // bool)::operator()(clang::Expr*, mlir::Value, bool) const
-  // #12 0x000056218baf4f3d
-  // MLIRScanner::InitializeValueByInitListExpr(mlir::Value, clang::Expr*)
-  // #13 0x000056218baf5190 MLIRScanner::VisitInitListExpr(clang::InitListExpr*)
-  UnsupportedFuncs.insert(
-      "_ZN4sycl3_V13vecIfLi4EEC1IfEENSt9enable_ifIXaasr3std14is_convertibleIT_"
-      "fEE5valueeqLi4ELi4EEfE4typeENS4_ILb1ES5_E4typeEfS5_");
 }
 
 static void checkFunctionParent(const FunctionOpInterface F,
