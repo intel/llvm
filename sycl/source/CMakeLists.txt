@@ -16,8 +16,6 @@ if (SYCL_ENABLE_XPTI_TRACING)
   include_directories(${LLVM_EXTERNAL_XPTI_SOURCE_DIR}/include)
 endif()
 
-# win_unload
-include_directories(${LLVM_EXTERNAL_SYCL_SOURCE_DIR}/win_unload)
 
 function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   # Add an optional argument so we can get the library name to
@@ -57,6 +55,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   endif()
 
   # win_unload
+  include_directories(${LLVM_EXTERNAL_SYCL_SOURCE_DIR}/win_unload)
   target_link_libraries(${LIB_NAME} PRIVATE win_unload)
 
   target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_INTERNAL_API )
