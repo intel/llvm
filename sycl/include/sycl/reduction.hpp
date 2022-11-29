@@ -821,7 +821,7 @@ auto make_reduction(RedOutVar RedVar, RestTy &&...Rest) {
 namespace reduction {
 inline void finalizeHandler(handler &CGH) { CGH.finalize(); }
 template <class FunctorTy> void withAuxHandler(handler &CGH, FunctorTy Func) {
-  auto E = CGH.finalize();
+  event E = CGH.finalize();
   handler AuxHandler(CGH.MQueue, CGH.MIsHost);
   AuxHandler.depends_on(E);
   AuxHandler.saveCodeLoc(CGH.MCodeLoc);
