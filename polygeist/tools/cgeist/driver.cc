@@ -342,11 +342,12 @@ static int optimize(mlir::MLIRContext &context,
   if (OptimizationLevel != llvm::OptimizationLevel::O0) {
     optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
     optPM.addPass(mlir::createCSEPass());
-    // Affine must be lowered to enable inlining
+    // Note: affine dialects must be lowered to allow callees containing affine
+    // operations to be inlined.
     if (RaiseToAffine)
       optPM.addPass(mlir::createLowerAffinePass());
-    optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-    pm.addPass(sycl::createAlwaysInlinePass());
+    pm.addPass(sycl::createInlinePass(sycl::InlineMode::Simple,
+                                      /* RemoveDeadCallees */ false));
 
     mlir::OpPassManager &optPM2 = pm.nestAny();
     optPM2.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));

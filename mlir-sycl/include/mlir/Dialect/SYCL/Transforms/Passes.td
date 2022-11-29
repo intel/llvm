@@ -11,13 +11,29 @@
 
 include "mlir/Pass/PassBase.td"
 
-def AlwaysInlinePass : Pass<"sycl-always-inline"> {
-  let summary = "Inline SYCL calls to functions marked 'alwaysinline'";
+def InlinePass : Pass<"inliner"> {
+  let summary = "Inline function calls";
   let description = [{
-    Replace a sycl.call operation with the body of the callee if the callee has 
-    the 'always_inline' attribute. 
-  }];  
-  let constructor = "mlir::sycl::createAlwaysInlinePass()";
+    Replace a function call operation with the body of the callee.
+  }];
+  let constructor = "mlir::sycl::createInlinePass()";
+  let options = [
+    Option<"InlineMode", "mode", "enum InlineMode", 
+      "mlir::sycl::InlineMode::Simple", "Inline mode to attempt", 
+      "llvm::cl::values("
+        "clEnumValN(mlir::sycl::InlineMode::AlwaysInline, "
+          "\"alwaysinline\", \"Inline callees with 'alwaysinline' attribute\"), "
+        "clEnumValN(mlir::sycl::InlineMode::Simple, "
+          "\"simple\", \"Inline callees using simple heuristics\"), "
+        "clEnumValN(mlir::sycl::InlineMode::Aggressive, "
+          "\"aggressive\", \"Inline callees using aggressive heuristics\"))">,
+    Option<"RemoveDeadCallees", "remove-dead-callees", "bool", /*default=*/"true",
+           "Remove callees that become unreachable after inlining them">,
+  ];
+
+  let statistics = [
+    Statistic<"NumInlinedCalls", "num-inlined-calls", "Number of inlined calls">
+  ];
 }
 
 def SYCLMethodToSYCLCall : Pass<"sycl-method-to-sycl-call", "ModuleOp"> {
