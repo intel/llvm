@@ -131,7 +131,7 @@ public:
   struct CGUser {
     /// Any nodes referenced in the top-level attribute list of this user. We
     /// use a set here because the number of references does not matter.
-    DenseSet<CallGraphNode *> TopLevelUses;
+    SmallPtrSet<CallGraphNode *, 16> TopLevelUses;
 
     /// Uses of nodes referenced by nested operations.
     DenseMap<CallGraphNode *, int> InnerUses;
