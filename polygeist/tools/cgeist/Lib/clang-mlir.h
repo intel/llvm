@@ -281,6 +281,11 @@ private:
     return UnsupportedFuncs.contains(Name);
   }
 
+  // Get the \p fnum field of Value \p V of element type T.
+  template <typename T>
+  mlir::Value SYCLCommonFieldLookup(mlir::Value V, size_t FNum,
+                                    std::vector<int64_t>);
+
   mlir::LLVM::AllocaOp allocateBuffer(size_t I, mlir::LLVM::LLVMPointerType T) {
     auto &Vec = Bufs[T.getAsOpaquePointer()];
     if (I < Vec.size())

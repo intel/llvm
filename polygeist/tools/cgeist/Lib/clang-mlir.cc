@@ -1320,6 +1320,23 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
   }
 }
 
+template <typename T>
+Value MLIRScanner::SYCLCommonFieldLookup(Value V, size_t FNum,
+                                         std::vector<int64_t> shape) {
+  auto MT = V.getType().cast<MemRefType>();
+  Type ElemTy = MT.getElementType();
+  assert(ElemTy.isa<T>() && "Expecting element type to be the templated type");
+  auto SYCLElemTy = ElemTy.cast<T>();
+  assert(FNum < SYCLElemTy.getBody().size() && "ERROR");
+
+  const auto ElementType = SYCLElemTy.getBody()[FNum];
+  const auto ResultType = MemRefType::get(
+      shape, ElementType, MemRefLayoutAttrInterface(), MT.getMemorySpace());
+
+  return Builder.create<polygeist::SubIndexOp>(Loc, ResultType, V,
+                                               getConstantIndex(FNum));
+}
+
 ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
                                              const clang::FieldDecl *FD,
                                              Value val, bool isLValue) {
@@ -1407,108 +1424,40 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
 
     Result = Builder.create<polygeist::SubIndexOp>(Loc, ResultType, val,
                                                    getConstantIndex(fnum));
-  } else if (auto AT = MT.getElementType().dyn_cast<sycl::AccessorType>()) {
-    assert(fnum < AT.getBody().size() && "ERROR");
-
-    const auto ElementType = AT.getBody()[fnum];
-    const auto ResultType = MemRefType::get(
-        shape, ElementType, MemRefLayoutAttrInterface(), MT.getMemorySpace());
-
-    Result = Builder.create<polygeist::SubIndexOp>(Loc, ResultType, val,
-                                                   getConstantIndex(fnum));
-  } else if (auto AT =
-                 MT.getElementType().dyn_cast<sycl::AccessorImplDeviceType>()) {
-    assert(fnum < AT.getBody().size() && "ERROR");
-
-    const auto ElementType = AT.getBody()[fnum];
-    const auto ResultType = MemRefType::get(
-        shape, ElementType, MemRefLayoutAttrInterface(), MT.getMemorySpace());
-
-    Result = Builder.create<polygeist::SubIndexOp>(Loc, ResultType, val,
-                                                   getConstantIndex(fnum));
-  } else if (auto AT =
-                 MT.getElementType().dyn_cast<sycl::AccessorSubscriptType>()) {
-    assert(fnum < AT.getBody().size() && "ERROR");
-
-    const auto ElementType = AT.getBody()[fnum];
-    const auto ResultType = MemRefType::get(
-        shape, ElementType, MemRefLayoutAttrInterface(), MT.getMemorySpace());
-
-    Result = Builder.create<polygeist::SubIndexOp>(Loc, ResultType, val,
-                                                   getConstantIndex(fnum));
-  } else if (auto AT = MT.getElementType().dyn_cast<sycl::ArrayType>()) {
-    assert(fnum < AT.getBody().size() && "ERROR");
-    const auto elemType = AT.getBody()[fnum].cast<MemRefType>();
-    const auto ResultType =
-        MemRefType::get(elemType.getShape(), elemType.getElementType(),
-                        MemRefLayoutAttrInterface(), MT.getMemorySpace());
-    Result = Builder.create<polygeist::SubIndexOp>(Loc, ResultType, val,
-                                                   getConstantIndex(fnum));
-  } else if (auto IT = MT.getElementType().dyn_cast<sycl::IDType>()) {
-    llvm_unreachable("not implemented");
-  } else if (auto RT = MT.getElementType().dyn_cast<sycl::RangeType>()) {
-    llvm_unreachable("not implemented");
-  } else if (auto RT = MT.getElementType().dyn_cast<sycl::NdRangeType>()) {
-    assert(fnum < RT.getBody().size() && "ERROR");
-    const auto ElementType = RT.getBody()[fnum];
-    const auto ResultType = MemRefType::get(
-        shape, ElementType, MemRefLayoutAttrInterface(), MT.getMemorySpace());
-    Result = Builder.create<polygeist::SubIndexOp>(Loc, ResultType, val,
-                                                   getConstantIndex(fnum));
-  } else if (auto RT = MT.getElementType().dyn_cast<sycl::ItemType>()) {
-    assert(fnum < RT.getBody().size() && "ERROR");
-
-    const auto ElementType = RT.getBody()[fnum];
-    const auto ResultType = MemRefType::get(
-        shape, ElementType, MemRefLayoutAttrInterface(), MT.getMemorySpace());
-
-    Result = Builder.create<polygeist::SubIndexOp>(Loc, ResultType, val,
-                                                   getConstantIndex(fnum));
-  } else if (auto RT = MT.getElementType().dyn_cast<sycl::ItemBaseType>()) {
-    assert(fnum < RT.getBody().size() && "ERROR");
-
-    const auto ElementType = RT.getBody()[fnum];
-    const auto ResultType = MemRefType::get(
-        shape, ElementType, MemRefLayoutAttrInterface(), MT.getMemorySpace());
-
-    Result = Builder.create<polygeist::SubIndexOp>(Loc, ResultType, val,
-                                                   getConstantIndex(fnum));
-  } else if (auto RT = MT.getElementType().dyn_cast<sycl::NdItemType>()) {
-    assert(fnum < RT.getBody().size() && "ERROR");
-
-    const auto ElementType = RT.getBody()[fnum];
-    const auto ResultType = MemRefType::get(
-        shape, ElementType, MemRefLayoutAttrInterface(), MT.getMemorySpace());
-
-    Result = Builder.create<polygeist::SubIndexOp>(Loc, ResultType, val,
-                                                   getConstantIndex(fnum));
-  } else if (auto RT = MT.getElementType().dyn_cast<sycl::GroupType>()) {
-    assert(fnum < RT.getBody().size() && "ERROR");
-
-    const auto ElementType = RT.getBody()[fnum];
-    const auto ResultType = MemRefType::get(
-        shape, ElementType, MemRefLayoutAttrInterface(), MT.getMemorySpace());
-
-    Result = Builder.create<polygeist::SubIndexOp>(Loc, ResultType, val,
-                                                   getConstantIndex(fnum));
-  } else if (auto RT = MT.getElementType().dyn_cast<sycl::GetScalarOpType>()) {
-    assert(fnum < RT.getBody().size() && "ERROR");
-
-    const auto ElementType = RT.getBody()[fnum];
-    const auto ResultType = MemRefType::get(
-        shape, ElementType, MemRefLayoutAttrInterface(), MT.getMemorySpace());
-
-    Result = Builder.create<polygeist::SubIndexOp>(Loc, ResultType, val,
-                                                   getConstantIndex(fnum));
-  } else if (auto AT = MT.getElementType().dyn_cast<sycl::AtomicType>()) {
-    assert(fnum < AT.getBody().size() && "ERROR");
-
-    const auto ElementType = AT.getBody()[fnum];
-    const auto ResultType = MemRefType::get(
-        shape, ElementType, MemRefLayoutAttrInterface(), MT.getMemorySpace());
-
-    Result = Builder.create<polygeist::SubIndexOp>(Loc, ResultType, val,
-                                                   getConstantIndex(fnum));
+  } else if (sycl::isSYCLType(MT.getElementType())) {
+    Type ElemTy = MT.getElementType();
+    if (auto AT = ElemTy.dyn_cast<sycl::ArrayType>()) {
+      assert(fnum < AT.getBody().size() && "ERROR");
+      const auto ElemType = AT.getBody()[fnum].cast<MemRefType>();
+      const auto ResultType =
+          MemRefType::get(ElemType.getShape(), ElemType.getElementType(),
+                          MemRefLayoutAttrInterface(), MT.getMemorySpace());
+      Result = Builder.create<polygeist::SubIndexOp>(Loc, ResultType, val,
+                                                     getConstantIndex(fnum));
+    } else if (ElemTy.isa<sycl::AccessorType>())
+      Result = SYCLCommonFieldLookup<sycl::AccessorType>(val, fnum, shape);
+    else if (ElemTy.isa<sycl::AccessorImplDeviceType>())
+      Result =
+          SYCLCommonFieldLookup<sycl::AccessorImplDeviceType>(val, fnum, shape);
+    else if (ElemTy.isa<sycl::AccessorSubscriptType>())
+      Result =
+          SYCLCommonFieldLookup<sycl::AccessorSubscriptType>(val, fnum, shape);
+    else if (ElemTy.isa<sycl::NdRangeType>())
+      Result = SYCLCommonFieldLookup<sycl::NdRangeType>(val, fnum, shape);
+    else if (ElemTy.isa<sycl::ItemType>())
+      Result = SYCLCommonFieldLookup<sycl::ItemType>(val, fnum, shape);
+    else if (ElemTy.isa<sycl::ItemBaseType>())
+      Result = SYCLCommonFieldLookup<sycl::ItemBaseType>(val, fnum, shape);
+    else if (ElemTy.isa<sycl::NdItemType>())
+      Result = SYCLCommonFieldLookup<sycl::NdItemType>(val, fnum, shape);
+    else if (ElemTy.isa<sycl::GroupType>())
+      Result = SYCLCommonFieldLookup<sycl::GroupType>(val, fnum, shape);
+    else if (ElemTy.isa<sycl::GetScalarOpType>>())
+      Result = SYCLCommonFieldLookup<sycl::GetScalarOpType>>(val, fnum, shape);
+    else if (ElemTy.isa<sycl::AtomicType>())
+      Result = SYCLCommonFieldLookup<sycl::AtomicType>(val, fnum, shape);
+    else
+      llvm_unreachable("not implemented");
   } else {
     auto MT0 =
         MemRefType::get(shape, MT.getElementType(), MemRefLayoutAttrInterface(),
