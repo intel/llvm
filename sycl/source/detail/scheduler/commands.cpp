@@ -292,9 +292,11 @@ public:
     assert(MThisCmd->getCG().getType() == CG::CGTYPE::CodeplayHostTask);
 
     CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
-
+    std::cout << "Host task waitForEvents begin " << std::endl;
     pi_result WaitResult = waitForEvents();
     if (WaitResult != PI_SUCCESS) {
+      std::cout << "Host task waitForEvents WaitResult != success "
+                << std::endl;
       std::exception_ptr EPtr = std::make_exception_ptr(sycl::runtime_error(
           std::string("Couldn't wait for host-task's dependencies"),
           WaitResult));

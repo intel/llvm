@@ -34,9 +34,11 @@ void AccessorImplHost::resize(size_t GlobalSize) {
 }
 
 void addHostAccessorAndWait(Requirement *Req) {
+  std::cout << "addHostAccessorAndWait begin" << std::endl;
   detail::EventImplPtr Event =
       detail::Scheduler::getInstance().addHostAccessor(Req);
   Event->wait(Event);
+  std::cout << "addHostAccessorAndWait end" << std::endl;
 }
 
 void constructorNotification(void *BufferObj, void *AccessorObj,
