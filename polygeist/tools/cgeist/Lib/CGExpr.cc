@@ -356,6 +356,48 @@ ValueCategory MLIRScanner::VisitPredefinedExpr(clang::PredefinedExpr *Expr) {
   return VisitStringLiteral(Expr->getFunctionName());
 }
 
+ValueCategory MLIRScanner::EmitVectorInitList(InitListExpr *Expr,
+                                              mlir::VectorType VType) {
+  const auto Loc = getMLIRLocation(Expr->getExprLoc());
+  const int64_t ResElts = VType.getNumElements();
+
+  int64_t CurIdx = 0;
+  auto V = ValueCategory::getNullValue(Builder, Loc, VType);
+  SmallVector<int64_t> ShuffleMask(ResElts);
+  for (auto *IE : Expr->children()) {
+    ValueCategory Init = Visit(IE);
+
+    auto VVT = Init.val.getType().dyn_cast<mlir::VectorType>();
+
+    // Handle scalar elements.
+    if (!VVT) {
+      V = V.Insert(Builder, Loc, Init.val, CurIdx);
+      ++CurIdx;
+      continue;
+    }
+
+    // Extend init to result vector length, and then shuffle its contribution
+    // to the vector initializer into V.
+    Init = Init.Reshape(Builder, Loc, VType.getShape());
+
+    const int64_t InitElts = VVT.getNumElements();
+
+    auto *const Begin = ShuffleMask.begin();
+    auto *const EndMask0 = Begin + CurIdx;
+    auto *const EndMask1 = EndMask0 + InitElts;
+    // Keep the current contents
+    std::iota(Begin, EndMask0, 0);
+    // Concat the input vector
+    std::iota(EndMask0, EndMask1, ResElts);
+    // Fill the rest with 0s from the current vector
+    std::fill(EndMask1, ShuffleMask.end(), CurIdx);
+
+    V = V.Shuffle(Builder, Loc, Init.val, ShuffleMask);
+    CurIdx += InitElts;
+  }
+  return V;
+}
+
 ValueCategory MLIRScanner::VisitInitListExpr(clang::InitListExpr *Expr) {
   LLVM_DEBUG({
     llvm::dbgs() << "VisitInitListExpr: ";
@@ -365,49 +407,10 @@ ValueCategory MLIRScanner::VisitInitListExpr(clang::InitListExpr *Expr) {
 
   assert(!Expr->hadArrayRangeDesignator() && "Unsupported");
 
-  const auto Loc = getMLIRLocation(Expr->getExprLoc());
-
   if (auto VType = Glob.getTypes()
                        .getMLIRType(Expr->getType())
                        .dyn_cast<mlir::VectorType>()) {
-    const int64_t ResElts = VType.getNumElements();
-
-    int64_t CurIdx = 0;
-    auto V = ValueCategory::getNullValue(Builder, Loc, VType);
-    SmallVector<int64_t> ShuffleMask(ResElts);
-    for (auto *IE : Expr->children()) {
-      ValueCategory Init = Visit(IE);
-
-      auto VVT = Init.val.getType().dyn_cast<mlir::VectorType>();
-
-      // Handle scalar elements.
-      if (!VVT) {
-        V = V.Insert(Builder, Loc, Init.val, CurIdx);
-        ++CurIdx;
-        continue;
-      }
-
-      // Extend init to result vector length, and then shuffle its contribution
-      // to the vector initializer into V.
-      Init = Init.Reshape(Builder, Loc, VType.getShape());
-
-      const int64_t InitElts = VVT.getNumElements();
-
-      auto *const Begin = ShuffleMask.begin();
-      auto *const EndMask0 = Begin + CurIdx;
-      auto *const EndMask1 = EndMask0 + InitElts;
-      // Keep the current contents
-      std::iota(Begin, EndMask0, 0);
-      // Concat the input vector
-      std::iota(EndMask0, EndMask1, ResElts);
-      // Fill the rest with 0s from the current vector
-      std::fill(EndMask1, ShuffleMask.end(), CurIdx);
-
-      V = V.Shuffle(Builder, Loc, Init.val, ShuffleMask);
-      CurIdx += InitElts;
-    }
-
-    return V;
+    return EmitVectorInitList(Expr, VType);
   }
 
   mlir::Type SubType = Glob.getTypes().getMLIRType(Expr->getType());
