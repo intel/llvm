@@ -117,7 +117,7 @@ private:
   OS << "{ ";
   llvm::interleaveComma(SCC.Nodes, OS, [&](const CallGraphNode *CGN) {
     if (!CGN->isExternal())
-      OS << getFunction(*CGN).getName() << "\n";
+      OS << getFunction(*CGN).getName();
   });
   OS << " }";
   return OS;
@@ -500,7 +500,6 @@ bool InlineHeuristic::shouldInline(ResolvedCall &ResolvedCall,
   switch (InlineMode) {
   case sycl::InlineMode::Aggressive:
     llvm_unreachable("TODO");
-    [[fallthrough]];
   case sycl::InlineMode::Simple:
     // Inline a function if it has an attribute suggesting that inlining is
     // desirable.
@@ -512,7 +511,8 @@ bool InlineHeuristic::shouldInline(ResolvedCall &ResolvedCall,
           });
 
     // Inline a function if inlining makes it dead.
-    ShouldInline |= Uses.hasOneUse(ResolvedCall.TgtNode);
+    if (!ShouldInline)
+      ShouldInline |= Uses.hasOneUse(ResolvedCall.TgtNode);
 
     [[fallthrough]];
   case sycl::InlineMode::AlwaysInline:
@@ -587,13 +587,13 @@ bool Inliner::inlineCallsInSCC(Inliner &Inliner, CGUseList &UseList,
   if (Inliner.getCalls().empty())
     return false;
 
-  LLVM_DEBUG({
+  if (1) {
     llvm::dbgs() << "* Inliner: SCC: " << SCC << "\n";
     llvm::dbgs() << "* Inliner: Initial calls in SCC are: {\n";
     for (unsigned i = 0, e = Inliner.getCalls().size(); i < e; ++i)
       llvm::dbgs() << "  " << i << ". " << Inliner.getCall(i).Call << ",\n";
     llvm::dbgs() << "}\n";
-  });
+  }
 
   // Try to inline each of the call operations. Don't cache the end iterator
   // here as more calls may be added during inlining.
@@ -604,8 +604,10 @@ bool Inliner::inlineCallsInSCC(Inliner &Inliner, CGUseList &UseList,
     if (!DoInline)
       continue;
 
-    LLVM_DEBUG(llvm::dbgs() << "* Inlining call: " << I << ". "
-                            << ResolvedCall.Call << "\n";);
+    //    LLVM_DEBUG(
+    llvm::dbgs() << "* Inlining call: " << I << ". " << ResolvedCall.Call
+                 << "\n";
+    //);
 
     Region *TgtRegion = ResolvedCall.TgtNode->getCallableRegion();
     LogicalResult InlineRes =
@@ -617,7 +619,9 @@ bool Inliner::inlineCallsInSCC(Inliner &Inliner, CGUseList &UseList,
       LLVM_DEBUG(llvm::dbgs() << "** Failed to inline\n");
       continue;
     }
-    LLVM_DEBUG(llvm::dbgs() << "** Inline succeeded\n");
+    //    LLVM_DEBUG(
+    llvm::dbgs() << "** Inline succeeded\n";
+    //);
 
     DidSomething = true;
     ++NumInlinedCalls;
