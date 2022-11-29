@@ -54,7 +54,7 @@ params:
     - type: $x_device_handle_t
       name: hDevice
       desc: "[in] handle to device associated with binary."
-    - type: uint32_t
+    - type: size_t
       name: size
       desc: "[in] size in bytes."
     - type: const uint8_t*
