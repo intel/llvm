@@ -207,6 +207,17 @@ def SYCL_GroupType : SYCL_Type<"Group", "group"> {
   let assemblyFormat = "`<` `[` $dimension `]` `,` `(` $body `)` `>`";
 }
 
+def SYCL_GetOpType : SYCL_Type<"GetOp", "get_op"> {
+  let parameters = (ins "::mlir::Type":$dataType);
+  let assemblyFormat = "`<` $dataType `>`";
+}
+
+def SYCL_GetScalarOpType : SYCL_Type<"GetScalarOp", "get_scalar_op"> {
+  let parameters = (ins "::mlir::Type":$dataType,
+                        "llvm::SmallVector<mlir::Type, 4>":$body);
+  let assemblyFormat = "`<` `[` $dataType `]` `,` `(` $body `)` `>`";
+}
+
 def SYCL_VecType : SYCL_Type<"Vec", "vec"> {
   let parameters = (ins "::mlir::Type":$dataType,
                         "int":$numElements,

@@ -157,6 +157,25 @@ static Optional<Type> convertGroupType(sycl::GroupType type,
                          type.getBody(), converter);
 }
 
+/// Converts SYCL GetOp type to LLVM type.
+static Optional<Type> convertGetOpType(sycl::GetOpType type,
+                                       LLVMTypeConverter &converter) {
+  auto convertedTy = LLVM::LLVMStructType::getIdentified(
+      &converter.getContext(), "class.sycl::_V1::detail::GetOp");
+  if (!convertedTy.isInitialized())
+    if (failed(convertedTy.setBody(IntegerType::get(&converter.getContext(), 8),
+                                   /*isPacked=*/false)))
+      return llvm::None;
+  return convertedTy;
+}
+
+/// Converts SYCL GetScalarOp type to LLVM type.
+static Optional<Type> convertGetScalarOpType(sycl::GetScalarOpType type,
+                                             LLVMTypeConverter &converter) {
+  return convertBodyType("class.sycl::_V1::detail::GetScalarOp", type.getBody(),
+                         converter);
+}
+
 /// Converts SYCL range or id type to LLVM type, given \p dimNum - number of
 /// dimensions, \p name - the expected LLVM type name, \p converter - LLVM type
 /// converter.
@@ -411,6 +430,12 @@ void mlir::sycl::populateSYCLToLLVMTypeConversion(
   });
   typeConverter.addConversion([&](sycl::GroupType type) {
     return convertGroupType(type, typeConverter);
+  });
+  typeConverter.addConversion([&](sycl::GetOpType type) {
+    return convertGetOpType(type, typeConverter);
+  });
+  typeConverter.addConversion([&](sycl::GetScalarOpType type) {
+    return convertGetScalarOpType(type, typeConverter);
   });
   typeConverter.addConversion(
       [&](sycl::IDType type) { return convertIDType(type, typeConverter); });

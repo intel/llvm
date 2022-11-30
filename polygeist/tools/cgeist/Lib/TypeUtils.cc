@@ -131,9 +131,8 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
           CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
       return mlir::sycl::IDType::get(CGT.getModule()->getContext(), Dim);
     }
-    if (CTS->getName() == "accessor_common") {
+    if (CTS->getName() == "accessor_common")
       return mlir::sycl::AccessorCommonType::get(CGT.getModule()->getContext());
-    }
     if (CTS->getName() == "accessor") {
       const auto Type =
           CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
@@ -186,6 +185,17 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
           CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
       return mlir::sycl::GroupType::get(CGT.getModule()->getContext(), Dim,
                                         Body);
+    }
+    if (CTS->getName() == "GetOp") {
+      const auto Type =
+          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
+      return mlir::sycl::GetOpType::get(CGT.getModule()->getContext(), Type);
+    }
+    if (CTS->getName() == "GetScalarOp") {
+      const auto Type =
+          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
+      return mlir::sycl::GetScalarOpType::get(CGT.getModule()->getContext(),
+                                              Type, Body);
     }
     if (CTS->getName() == "atomic") {
       const auto Type =
