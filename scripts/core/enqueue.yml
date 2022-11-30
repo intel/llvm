@@ -28,13 +28,13 @@ params:
       name: workDim
       desc: "[in] number of dimensions, from 1 to 3, to specify the global and work-group work-items"
     - type: "const size_t*"
-      name: globalWorkOffset
+      name: pGlobalWorkOffset
       desc: "[in] pointer to an array of workDim unsigned values that specify the offset used to calculate the global ID of a work-item"
     - type: "const size_t*"
-      name: globalWorkSize      
+      name: pGlobalWorkSize      
       desc: "[in] pointer to an array of workDim unsigned values that specify the number of global work-items in workDim that will execute the kernel function"
     - type: "const size_t*"
-      name: localWorkSize
+      name: pLocalWorkSize
       desc: |
             [in][optional] pointer to an array of workDim unsigned values that specify the number of local work-items forming a work-group that will execute the kernel function.
             If nullptr, the runtime implementation will choose the work-group size. 
@@ -42,12 +42,12 @@ params:
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
     - type: "const $x_event_handle_t*"
-      name: eventWaitList
+      name: phEventWaitList
       desc: |
             [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
             If nullptr, the numEventsInWaitList must be 0, indicating that no wait event. 
     - type: $x_event_handle_t*
-      name: event
+      name: phEvent
       desc: |
             [in,out] return an event object that identifies this particular kernel execution instance.
             Contrary to clEnqueueNDRangeKernel, its input can not be a nullptr. 
@@ -80,13 +80,13 @@ params:
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
     - type: "const $x_event_handle_t*"
-      name: eventWaitList
+      name: phEventWaitList
       desc: |
             [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
             If nullptr, the numEventsInWaitList must be 0, indicating that all previously enqueued commands
             must be complete. 
     - type: $x_event_handle_t*
-      name: event
+      name: phEvent
       desc: |
             [in,out] return an event object that identifies this particular command instance.
             Input can not be a nullptr.
@@ -117,13 +117,13 @@ params:
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
     - type: "const $x_event_handle_t*"
-      name: eventWaitList
+      name: phEventWaitList
       desc: |
             [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
             If nullptr, the numEventsInWaitList must be 0, indicating that all previously enqueued commands
             must be complete. 
     - type: $x_event_handle_t*
-      name: event
+      name: phEvent
       desc: |
             [in,out] return an event object that identifies this particular command instance.
             Input can not be a nullptr.
@@ -161,18 +161,18 @@ params:
       name: size
       desc: "[in] size in bytes of data being read"
     - type: void*
-      name: dst
+      name: pDst
       desc: "[in] pointer to host memory where data is to be read into"     
     - type: uint32_t
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
     - type: "const $x_event_handle_t*"
-      name: eventWaitList
+      name: phEventWaitList
       desc: |
             [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
             If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
     - type: $x_event_handle_t*
-      name: event
+      name: phEvent
       desc: |
             [in,out] return an event object that identifies this particular command instance.
             Input can not be a nullptr.
@@ -210,18 +210,18 @@ params:
       name: size
       desc: "[in] size in bytes of data being written"
     - type: "const void*"
-      name: src
+      name: pSrc
       desc: "[in] pointer to host memory where data is to be written from"     
     - type: uint32_t
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
     - type: "const $x_event_handle_t*"
-      name: eventWaitList
+      name: phEventWaitList
       desc: |
             [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
             If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
     - type: $x_event_handle_t*
-      name: event
+      name: phEvent
       desc: |
             [in,out] return an event object that identifies this particular command instance.
             Input can not be a nullptr.
@@ -275,18 +275,18 @@ params:
       name: hostSlicePitch
       desc: "[in] length of each 2D slice in bytes in the host memory region pointed by dst"  
     - type: void*
-      name: dst
+      name: pDst
       desc: "[in] pointer to host memory where data is to be read into"     
     - type: uint32_t
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
     - type: "const $x_event_handle_t*"
-      name: eventWaitList
+      name: phEventWaitList
       desc: |
             [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
             If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
     - type: $x_event_handle_t*
-      name: event
+      name: phEvent
       desc: |
             [in,out] return an event object that identifies this particular command instance.
             Input can not be a nullptr.
@@ -340,18 +340,18 @@ params:
       name: hostSlicePitch
       desc: "[in] length of each 2D slice in bytes in the host memory region pointed by src"  
     - type: void*
-      name: src
+      name: pSrc
       desc: "[in] pointer to host memory where data is to be written from"     
     - type: uint32_t
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
     - type: "const $x_event_handle_t*"
-      name: eventWaitList
+      name: phEventWaitList
       desc: |
             [in][optional][range(0, numEventsInWaitList)] points to a list of events that must be complete before this command can be executed.
             If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
     - type: $x_event_handle_t*
-      name: event
+      name: phEvent
       desc: |
             [in,out] return an event object that identifies this particular command instance.
             Input can not be a nullptr.
@@ -387,12 +387,12 @@ params:
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
     - type: "const $x_event_handle_t*"
-      name: eventWaitList
+      name: phEventWaitList
       desc: |
             [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
             If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
     - type: $x_event_handle_t*
-      name: event
+      name: phEvent
       desc: |
             [in,out] return an event object that identifies this particular command instance.
             Input can not be a nullptr.
@@ -446,12 +446,12 @@ params:
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
     - type: "const $x_event_handle_t*"
-      name: eventWaitList
+      name: phEventWaitList
       desc: |
             [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
             If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
     - type: $x_event_handle_t*
-      name: event
+      name: phEvent
       desc: |
             [in,out] return an event object that identifies this particular command instance.
             Input can not be a nullptr.
@@ -478,7 +478,7 @@ params:
       name: hBuffer
       desc: "[in] handle of the buffer object"
     - type: "const void*"
-      name: pattern
+      name: pPattern
       desc: "[in] pointer to the fill pattern"
     - type: size_t
       name: patternSize
@@ -493,12 +493,12 @@ params:
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
     - type: "const $x_event_handle_t*"
-      name: eventWaitList
+      name: phEventWaitList
       desc: |
             [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
             If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
     - type: $x_event_handle_t*
-      name: event
+      name: phEvent
       desc: |
             [in,out] return an event object that identifies this particular command instance.
             Input can not be a nullptr.
@@ -542,18 +542,18 @@ params:
       name: slicePitch
       desc: "[in] length of each 2D slice of the 3D image"
     - type: void*
-      name: dst
+      name: pDst
       desc: "[in] pointer to host memory where image is to be read into"     
     - type: uint32_t
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
     - type: "const $x_event_handle_t*"
-      name: eventWaitList
+      name: phEventWaitList
       desc: |
             [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
             If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
     - type: $x_event_handle_t*
-      name: event
+      name: phEvent
       desc: |
             [in,out] return an event object that identifies this particular command instance.
             Input can not be a nullptr.
@@ -597,18 +597,18 @@ params:
       name: inputSlicePitch
       desc: "[in] length of each 2D slice of the 3D image"
     - type: void*
-      name: src
+      name: pSrc
       desc: "[in] pointer to host memory where image is to be read into"     
     - type: uint32_t
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
     - type: "const $x_event_handle_t*"
-      name: eventWaitList
+      name: phEventWaitList
       desc: |
             [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
             If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
     - type: $x_event_handle_t*
-      name: event
+      name: phEvent
       desc: |
             [in,out] return an event object that identifies this particular command instance.
             Input can not be a nullptr.
@@ -650,12 +650,12 @@ params:
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
     - type: "const $x_event_handle_t*"
-      name: eventWaitList
+      name: phEventWaitList
       desc: |
             [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
             If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
     - type: $x_event_handle_t*
-      name: event
+      name: phEvent
       desc: |
             [in,out] return an event object that identifies this particular command instance.
             Input can not be a nullptr.
@@ -686,26 +686,26 @@ params:
       name: hImage
       desc: "[in] handle of the image object"
     - type: "const void*"
-      name: fillColor
+      name: pFillColor
       desc: |
             [in] the color used to fill the image: single floating point value if the channel order is DEPTH,
             otherwise, a four components RGBA values of various types depending on the image channel data type.
     - type: "const size_t*"
-      name: origin
+      name: pOrigin
       desc: "[in] TODO change the type to $x_rect_offset_t"
     - type: "const size_t*"
-      name: region
+      name: pRegion
       desc: "[in] TODO: change the type to $x_rect_region_t"
     - type: uint32_t
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
     - type: "const $x_event_handle_t*"
-      name: eventWaitList
+      name: phEventWaitList
       desc: |
             [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
             If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
     - type: $x_event_handle_t*
-      name: event
+      name: phEvent
       desc: |
             [in,out] return an event object that identifies this particular command instance.
             Input can not be a nullptr.
@@ -754,7 +754,7 @@ params:
       name: hQueue
       desc: "[in] handle of the queue object"
     - type: $x_mem_handle_t
-      name: buffer
+      name: hBuffer
       desc: "[in] handle of the buffer object"
     - type: bool
       name: blockingMap
@@ -772,18 +772,18 @@ params:
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
     - type: "const $x_event_handle_t*"
-      name: eventWaitList
+      name: phEventWaitList
       desc: |
             [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
             If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
     - type: $x_event_handle_t*
-      name: event
+      name: phEvent
       desc: |
             [in,out] return an event object that identifies this particular command instance.
             Input can not be a nullptr.
             TODO: change to allow nullptr. 
     - type: void**
-      name: retMap
+      name: ppRetMap
       desc: "[in,out] return mapped pointer.  TODO: move it before numEventsInWaitList?"
 returns:      
     - $X_RESULT_INVALID_QUEUE
@@ -830,18 +830,18 @@ params:
       name: imageSlicePitch
       desc: "[in] length of each 2D slice of the 3D image"
     - type: void**
-      name: retMap
+      name: ppRetMap
       desc: "[in,out] return mapped pointer"
     - type: uint32_t
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
     - type: "const $x_event_handle_t*"
-      name: eventWaitList
+      name: phEventWaitList
       desc: |
             [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
             If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
     - type: $x_event_handle_t*
-      name: event
+      name: phEvent
       desc: |
             [in,out] return an event object that identifies this particular command instance.
             Input can not be a nullptr.
@@ -868,18 +868,18 @@ params:
       name: hMem
       desc: "[in] handle of the memory (buffer or image) object"
     - type: void*
-      name: mappedPtr
+      name: pMappedPtr
       desc: "[in] mapped host address"
     - type: uint32_t
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
     - type: "const $x_event_handle_t*"
-      name: eventWaitList
+      name: phEventWaitList
       desc: |
             [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
             If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
     - type: $x_event_handle_t*
-      name: event
+      name: phEvent
       desc: |
             [in,out] return an event object that identifies this particular command instance.
             Input can not be a nullptr.
@@ -913,12 +913,12 @@ params:
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
     - type: "const $x_event_handle_t*"
-      name: eventWaitList
+      name: phEventWaitList
       desc: |
             [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
             If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
     - type: $x_event_handle_t*
-      name: event
+      name: phEvent
       desc: |
             [in,out] return an event object that identifies this particular command instance.
             Input can not be a nullptr.
@@ -943,10 +943,10 @@ params:
       name: blocking
       desc: "[in] blocking or non-blocking copy"
     - type: void*
-      name: dstPrt
+      name: pDst
       desc: "[in] pointer to the destination USM memory object"
     - type: "const void*"
-      name: srcPrt
+      name: pSrc
       desc: "[in] pointer to the source USM memory object"
     - type: size_t
       name: size
@@ -955,12 +955,12 @@ params:
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
     - type: "const $x_event_handle_t*"
-      name: eventWaitList
+      name: phEventWaitList
       desc: |
             [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
             If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
     - type: $x_event_handle_t*
-      name: event
+      name: phEvent
       desc: |
             [in,out] return an event object that identifies this particular command instance.
             Input can not be a nullptr.
@@ -982,7 +982,7 @@ params:
       name: hQueue
       desc: "[in] handle of the queue object"
     - type: "const void*"
-      name: ptr
+      name: pMem
       desc: "[in] pointer to the USM memory object"
     - type: size_t
       name: size
@@ -994,12 +994,12 @@ params:
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
     - type: "const $x_event_handle_t*"
-      name: eventWaitList
+      name: phEventWaitList
       desc: |
             [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
             If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
     - type: $x_event_handle_t*
-      name: event
+      name: phEvent
       desc: |
             [in,out] return an event object that identifies this particular command instance.
             Input can not be a nullptr.
@@ -1029,7 +1029,7 @@ params:
       name: hQueue
       desc: "[in] handle of the queue object"
     - type: "const void*"
-      name: ptr
+      name: pMem
       desc: "[in] pointer to the USM memory object"
     - type: size_t
       name: size
@@ -1038,7 +1038,7 @@ params:
       name: advice
       desc: "[in] USM memory advice"
     - type: $x_event_handle_t*
-      name: event
+      name: phEvent
       desc: |
             [in,out] return an event object that identifies this particular command instance.
             Input can not be a nullptr.

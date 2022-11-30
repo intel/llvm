@@ -64,10 +64,10 @@ params:
       name: propValueSize
       desc: "[in] size in bytes of the queue property value provided"
     - type: "void*"
-      name: propValue
+      name: pPropValue
       desc: "[out] value of the queue property"
     - type: "size_t*"
-      name: pSize
+      name: pPropSizeRet
       desc: "[out] size in bytes returned in queue property value"
 returns:
     - $X_RESULT_INVALID_QUEUE
