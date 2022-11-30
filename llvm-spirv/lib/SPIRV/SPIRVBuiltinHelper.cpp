@@ -208,6 +208,7 @@ BuiltinCallMutator BuiltinCallHelper::mutateCallInst(CallInst *CI,
 
 BuiltinCallMutator BuiltinCallHelper::mutateCallInst(CallInst *CI,
                                                      std::string FuncName) {
+  assert(CI->getCalledFunction() && "Can only mutate direct function calls.");
   return BuiltinCallMutator(CI, std::move(FuncName), Rules, NameMapFn);
 }
 
