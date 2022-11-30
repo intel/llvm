@@ -15,31 +15,62 @@
 #include <cmath>
 #endif
 
+extern "C" SYCL_EXTERNAL uint16_t
+__devicelib_ConvertFToBF16INTEL(const float &) noexcept;
+extern "C" SYCL_EXTERNAL float
+__devicelib_ConvertBF16ToFINTEL(const uint16_t &) noexcept;
+
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace oneapi {
-namespace experimental {
+
+class bfloat16;
+
+namespace detail {
+using Bfloat16StorageT = uint16_t;
+Bfloat16StorageT bfloat16ToBits(const bfloat16 &Value);
+bfloat16 bitsToBfloat16(const Bfloat16StorageT Value);
+} // namespace detail
 
 class bfloat16 {
-  using storage_t = uint16_t;
-  storage_t value;
+  detail::Bfloat16StorageT value;
+
+  friend inline detail::Bfloat16StorageT
+  detail::bfloat16ToBits(const bfloat16 &Value);
+  friend inline bfloat16
+  detail::bitsToBfloat16(const detail::Bfloat16StorageT Value);
 
 public:
   bfloat16() = default;
   bfloat16(const bfloat16 &) = default;
   ~bfloat16() = default;
 
+private:
   // Explicit conversion functions
-  static storage_t from_float(const float &a) {
+  static detail::Bfloat16StorageT from_float(const float &a) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
+#if (__CUDA_ARCH__ >= 800)
     return __nvvm_f2bf16_rn(a);
 #else
-    return __spirv_ConvertFToBF16INTEL(a);
+    // TODO find a better way to check for NaN
+    if (a != a)
+      return 0xffc1;
+    union {
+      uint32_t intStorage;
+      float floatValue;
+    };
+    floatValue = a;
+    // Do RNE and truncate
+    uint32_t roundingBias = ((intStorage >> 16) & 0x1) + 0x00007FFF;
+    return static_cast<uint16_t>((intStorage + roundingBias) >> 16);
 #endif
 #else
-    // In case of float value is nan - propagate bfloat16's qnan
+    return __devicelib_ConvertFToBF16INTEL(a);
+#endif
+#else
+    // In case float value is nan - propagate bfloat16's qnan
     if (std::isnan(a))
       return 0xffc1;
     union {
@@ -52,29 +83,21 @@ public:
     return static_cast<uint16_t>((intStorage + roundingBias) >> 16);
 #endif
   }
-  static float to_float(const storage_t &a) {
-#if defined(__SYCL_DEVICE_ONLY__)
-#if defined(__NVPTX__)
-    uint32_t y = a;
-    y = y << 16;
-    float *res = reinterpret_cast<float *>(&y);
-    return *res;
+
+  static float to_float(const detail::Bfloat16StorageT &a) {
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
+    return __devicelib_ConvertBF16ToFINTEL(a);
 #else
-    return __spirv_ConvertBF16ToFINTEL(a);
-#endif
-#else
-    uint32_t bits = a;
-    bits <<= 16;
-    return sycl::bit_cast<float>(bits);
+    union {
+      uint32_t intStorage;
+      float floatValue;
+    };
+    intStorage = a << 16;
+    return floatValue;
 #endif
   }
 
-  static bfloat16 from_bits(const storage_t &a) {
-    bfloat16 res;
-    res.value = a;
-    return res;
-  }
-
+public:
   // Implicit conversion from float to bfloat16
   bfloat16(const float &a) { value = from_float(a); }
 
@@ -83,12 +106,19 @@ public:
     return *this;
   }
 
+  // Implicit conversion from sycl::half to bfloat16
+  bfloat16(const sycl::half &a) { value = from_float(a); }
+
+  bfloat16 &operator=(const sycl::half &rhs) {
+    value = from_float(rhs);
+    return *this;
+  }
+
   // Implicit conversion from bfloat16 to float
   operator float() const { return to_float(value); }
-  operator sycl::half() const { return to_float(value); }
 
-  // Get raw bits representation of bfloat16
-  storage_t raw() const { return value; }
+  // Implicit conversion from bfloat16 to sycl::half
+  operator sycl::half() const { return to_float(value); }
 
   // Logical operators (!,||,&&) are covered if we can cast to bool
   explicit operator bool() { return to_float(value) != 0.0f; }
@@ -97,14 +127,16 @@ public:
   friend bfloat16 operator-(bfloat16 &lhs) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
-    return from_bits(__nvvm_neg_bf16(lhs.value));
+#if (__CUDA_ARCH__ >= 800)
+    return detail::bitsToBfloat16(__nvvm_neg_bf16(lhs.value));
 #else
-    return bfloat16{-__spirv_ConvertBF16ToFINTEL(lhs.value)};
+    return -to_float(lhs.value);
 #endif
 #else
-    (void)lhs;
-    throw exception{errc::feature_not_supported,
-                    "Bfloat16 unary minus is not supported on host device"};
+    return bfloat16{-__devicelib_ConvertBF16ToFINTEL(lhs.value)};
+#endif
+#else
+    return -to_float(lhs.value);
 #endif
   }
 
@@ -177,7 +209,23 @@ public:
   // for floating-point types.
 };
 
-} // namespace experimental
+namespace detail {
+
+// Helper function for getting the internal representation of a bfloat16.
+inline Bfloat16StorageT bfloat16ToBits(const bfloat16 &Value) {
+  return Value.value;
+}
+
+// Helper function for creating a float16 from a value with the same type as the
+// internal representation.
+inline bfloat16 bitsToBfloat16(const Bfloat16StorageT Value) {
+  bfloat16 res;
+  res.value = Value;
+  return res;
+}
+
+} // namespace detail
+
 } // namespace oneapi
 } // namespace ext
 

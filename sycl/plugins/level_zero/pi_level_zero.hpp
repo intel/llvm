@@ -432,9 +432,9 @@ using pi_command_list_ptr_t = pi_command_list_map_t::iterator;
 struct _pi_context : _pi_object {
   _pi_context(ze_context_handle_t ZeContext, pi_uint32 NumDevices,
               const pi_device *Devs, bool OwnZeContext)
-      : ZeContext{ZeContext},
-        OwnZeContext{OwnZeContext}, Devices{Devs, Devs + NumDevices},
-        SingleRootDevice(getRootDevice()), ZeCommandListInit{nullptr} {
+      : ZeContext{ZeContext}, OwnZeContext{OwnZeContext},
+        Devices{Devs, Devs + NumDevices}, SingleRootDevice(getRootDevice()),
+        ZeCommandListInit{nullptr} {
     // NOTE: one must additionally call initialize() to complete
     // PI context creation.
   }
@@ -787,6 +787,10 @@ struct _pi_queue : _pi_object {
 
   // Returns true if the queue has discard events property.
   bool isDiscardEvents() const;
+
+  // Returns true if the queue has explicit priority set by user.
+  bool isPriorityLow() const;
+  bool isPriorityHigh() const;
 
   // adjust the queue's batch size, knowing that the current command list
   // is being closed with a full batch.
@@ -1366,9 +1370,9 @@ struct _pi_program : _pi_object {
 
   // Construct a program in IL or Native state.
   _pi_program(state St, pi_context Context, const void *Input, size_t Length)
-      : Context{Context},
-        OwnZeModule{true}, State{St}, Code{new uint8_t[Length]},
-        CodeLength{Length}, ZeModule{nullptr}, ZeBuildLog{nullptr} {
+      : Context{Context}, OwnZeModule{true}, State{St},
+        Code{new uint8_t[Length]}, CodeLength{Length}, ZeModule{nullptr},
+        ZeBuildLog{nullptr} {
     std::memcpy(Code.get(), Input, Length);
   }
 
