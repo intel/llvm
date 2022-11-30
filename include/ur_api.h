@@ -456,7 +456,7 @@ urContextCreateWithNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Context's extended deleter callback function with user data.
 typedef void (ur_context_extended_deleter_t)(
-    void* pParams                                   ///< [in][out] pointer to data to be passed to callback
+    void* pUserData                                 ///< [in][out] pointer to data to be passed to callback
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -479,12 +479,12 @@ typedef void (ur_context_extended_deleter_t)(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pParams`
+///         + `NULL == pUserData`
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextSetExtendedDeleter(
     ur_context_handle_t hContext,                   ///< [in] handle of the context.
     ur_context_extended_deleter_t pfnDeleter,       ///< [in] Function pointer to extended deleter.
-    void* pParams                                   ///< [in][out] pointer to data to be passed to callback.
+    void* pUserData                                 ///< [in][out] pointer to data to be passed to callback.
     );
 
 #if !defined(__GNUC__)
@@ -1619,7 +1619,7 @@ typedef enum _ur_execution_info_t
 typedef void (ur_event_callback_t)(
     ur_event_handle_t hEvent,                       ///< [in] handle to event
     ur_execution_info_t execStatus,                 ///< [in] execution status of the event
-    void* pParams                                   ///< [in][out] pointer to data to be passed to callback
+    void* pUserData                                 ///< [in][out] pointer to data to be passed to callback
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1642,14 +1642,12 @@ typedef void (ur_event_callback_t)(
 ///         + `NULL == hEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_EXECUTION_INFO_EXECUTION_INFO_COMPLETE < execStatus`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pParams`
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventSetCallback(
     ur_event_handle_t hEvent,                       ///< [in] handle of the event object
     ur_execution_info_t execStatus,                 ///< [in] execution status of the event
     ur_event_callback_t pfnNotify,                  ///< [in] execution status of the event
-    void* pParams                                   ///< [in][out] pointer to data to be passed to callback.
+    void* pUserData                                 ///< [in][out][optional] pointer to data to be passed to callback.
     );
 
 #if !defined(__GNUC__)
@@ -4579,7 +4577,7 @@ typedef struct ur_context_set_extended_deleter_params_t
 {
     ur_context_handle_t* phContext;
     ur_context_extended_deleter_t* ppfnDeleter;
-    void** ppParams;
+    void** ppUserData;
 } ur_context_set_extended_deleter_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4806,7 +4804,7 @@ typedef struct _ur_event_set_callback_params_t
     ur_event_handle_t* phEvent;
     ur_execution_info_t* pexecStatus;
     ur_event_callback_t* ppfnNotify;
-    void** ppParams;
+    void** ppUserData;
 } ur_event_set_callback_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////

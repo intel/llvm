@@ -168,7 +168,7 @@ name: $x_context_extended_deleter_t
 return: void
 params:
     - type: void*
-      name: pParams
+      name: pUserData
       desc: "[in][out] pointer to data to be passed to callback"
 --- #--------------------------------------------------------------------------
 type: function
@@ -193,5 +193,5 @@ params:
       desc: |
             [in] Function pointer to extended deleter.
     - type: void*
-      name: pParams
+      name: pUserData
       desc: "[in][out] pointer to data to be passed to callback."
