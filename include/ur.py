@@ -404,6 +404,22 @@ class ur_image_channel_type_t(c_int):
 
 
 ###############################################################################
+## @brief Image information types
+class ur_image_info_v(IntEnum):
+    FORMAT = 0                                      ## ::ur_image_format_t: image format
+    ELEMENT_SIZE = 1                                ## size_t: element size
+    ROW_PITCH = 2                                   ## size_t: row pitch
+    SLICE_PITCH = 3                                 ## size_t: slice pitch
+    WIDTH = 4                                       ## size_t: image width
+    HEIGHT = 5                                      ## size_t: image height
+    DEPTH = 6                                       ## size_t: image depth
+
+class ur_image_info_t(c_int):
+    def __str__(self):
+        return str(ur_image_info_v(self.value))
+
+
+###############################################################################
 ## @brief Image format including channel layout and data type
 class ur_image_format_t(Structure):
     _fields_ = [
