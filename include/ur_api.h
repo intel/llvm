@@ -1687,6 +1687,21 @@ typedef enum _ur_image_channel_type_t
 } ur_image_channel_type_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Image information types
+typedef enum _ur_image_info_t
+{
+    UR_IMAGE_INFO_FORMAT = 0,                       ///< ::ur_image_format_t: image format
+    UR_IMAGE_INFO_ELEMENT_SIZE = 1,                 ///< size_t: element size
+    UR_IMAGE_INFO_ROW_PITCH = 2,                    ///< size_t: row pitch
+    UR_IMAGE_INFO_SLICE_PITCH = 3,                  ///< size_t: slice pitch
+    UR_IMAGE_INFO_WIDTH = 4,                        ///< size_t: image width
+    UR_IMAGE_INFO_HEIGHT = 5,                       ///< size_t: image height
+    UR_IMAGE_INFO_DEPTH = 6,                        ///< size_t: image depth
+    UR_IMAGE_INFO_FORCE_UINT32 = 0x7fffffff
+
+} ur_image_info_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Image format including channel layout and data type
 typedef struct _ur_image_format_t
 {

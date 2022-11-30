@@ -124,6 +124,26 @@ etors:
     - name: CHANNEL_TYPE_FLOAT
       desc: "channel type float"
 --- #--------------------------------------------------------------------------
+type: enum
+desc: "Image information types"
+class: $xMem
+name: $x_image_info_t
+etors:
+  - name: FORMAT
+    desc: "$x_image_format_t: image format"
+  - name: ELEMENT_SIZE
+    desc: "size_t: element size"
+  - name: ROW_PITCH
+    desc: "size_t: row pitch"
+  - name: SLICE_PITCH
+    desc: "size_t: slice pitch"
+  - name: WIDTH
+    desc: "size_t: image width"
+  - name: HEIGHT
+    desc: "size_t: image height"
+  - name: DEPTH
+    desc: "size_t: image depth"
+--- #--------------------------------------------------------------------------
 type: struct
 desc: "Image format including channel layout and data type"
 class: $xMem
