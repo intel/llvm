@@ -169,18 +169,20 @@ params:
     - type: "$x_program_info_t"
       name: propName
       desc: "[in] name of the Program property to query"
-    - type: "size_t*"
+    - type: "size_t"
       name: propSize
       desc: |
-            [in,out] pointer to the size of the Program property.
-            If *propSize is 0 or greater than the number of bytes of the Program property,
-            the call shall update the value with actual number of bytes of the Program property.
+            [in] the size of the Program property.
     - type: "void*"
-      name: propValue
+      name: pProgramInfo
       desc: |
-            [in,out][optional][range(0, *propSize)] value of the Program property.
-            If *propSize is less than the number of bytes for the Program property,
-            only the first *propSize bytes will be returned.
+            [in,out][optional] array of bytes of holding the program info property.
+            If propSize is not equal to or greater than the real number of bytes needed to return 
+            the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pProgramInfo is not used.
+    - type: "size_t*"
+      name: "pPropSizeRet"
+      desc: |
+            [out][optional] pointer to the actual size in bytes of data copied to propName.
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Program object build status"

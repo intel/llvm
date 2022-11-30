@@ -22,8 +22,9 @@ extern "C" {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urPlatformGet 
 typedef ur_result_t (UR_APICALL *ur_pfnPlatformGet_t)(
-    uint32_t*,
-    ur_platform_handle_t*
+    uint32_t,
+    ur_platform_handle_t*,
+    uint32_t*
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -31,8 +32,9 @@ typedef ur_result_t (UR_APICALL *ur_pfnPlatformGet_t)(
 typedef ur_result_t (UR_APICALL *ur_pfnPlatformGetInfo_t)(
     ur_platform_handle_t,
     ur_platform_info_t,
-    size_t*,
-    void*
+    size_t,
+    void*,
+    size_t*
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -115,8 +117,9 @@ typedef ur_result_t (UR_APICALL *ur_pfnContextRelease_t)(
 typedef ur_result_t (UR_APICALL *ur_pfnContextGetInfo_t)(
     ur_context_handle_t,
     ur_context_info_t,
-    size_t*,
-    void*
+    size_t,
+    void*,
+    size_t*
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -201,7 +204,7 @@ typedef ur_result_t (UR_APICALL *ur_pfnEventGetProfilingInfo_t)(
     ur_profiling_info_t,
     size_t,
     void*,
-    size_t
+    size_t*
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -320,8 +323,9 @@ typedef ur_result_t (UR_APICALL *ur_pfnProgramGetFunctionPointer_t)(
 typedef ur_result_t (UR_APICALL *ur_pfnProgramGetInfo_t)(
     ur_program_handle_t,
     ur_program_info_t,
-    size_t*,
-    void*
+    size_t,
+    void*,
+    size_t*
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -481,8 +485,9 @@ typedef ur_result_t (UR_APICALL *ur_pfnKernelCreate_t)(
 typedef ur_result_t (UR_APICALL *ur_pfnKernelGetInfo_t)(
     ur_kernel_handle_t,
     ur_kernel_info_t,
-    size_t*,
-    void*
+    size_t,
+    void*,
+    size_t*
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -492,7 +497,8 @@ typedef ur_result_t (UR_APICALL *ur_pfnKernelGetGroupInfo_t)(
     ur_device_handle_t,
     ur_kernel_group_info_t,
     size_t,
-    void*
+    void*,
+    size_t*
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -502,7 +508,8 @@ typedef ur_result_t (UR_APICALL *ur_pfnKernelGetSubGroupInfo_t)(
     ur_device_handle_t,
     ur_kernel_sub_group_info_t,
     size_t,
-    void*
+    void*,
+    size_t*
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1321,8 +1328,9 @@ typedef ur_result_t (UR_APICALL *ur_pfnGetQueueProcAddrTable_t)(
 typedef ur_result_t (UR_APICALL *ur_pfnDeviceGet_t)(
     ur_platform_handle_t,
     ur_device_type_t,
-    uint32_t*,
-    ur_device_handle_t*
+    uint32_t,
+    ur_device_handle_t*,
+    uint32_t*
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1330,8 +1338,9 @@ typedef ur_result_t (UR_APICALL *ur_pfnDeviceGet_t)(
 typedef ur_result_t (UR_APICALL *ur_pfnDeviceGetInfo_t)(
     ur_device_handle_t,
     ur_device_info_t,
-    size_t*,
-    void*
+    size_t,
+    void*,
+    size_t*
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1351,8 +1360,9 @@ typedef ur_result_t (UR_APICALL *ur_pfnDeviceRelease_t)(
 typedef ur_result_t (UR_APICALL *ur_pfnDevicePartition_t)(
     ur_device_handle_t,
     ur_device_partition_property_value_t*,
-    uint32_t*,
-    ur_device_handle_t*
+    uint32_t,
+    ur_device_handle_t*,
+    uint32_t*
     );
 
 ///////////////////////////////////////////////////////////////////////////////
