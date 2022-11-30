@@ -3544,7 +3544,7 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
 pi_result piQueueCreateEx(pi_context Context, pi_device Device,
                           pi_queue_properties *Properties, pi_queue *Queue) {
   PI_ASSERT(Properties, PI_ERROR_INVALID_VALUE);
-  // Expect flags amsk to be passed first.
+  // Expect flags mask to be passed first.
   PI_ASSERT(Properties[0] == PI_QUEUE_FLAGS, PI_ERROR_INVALID_VALUE);
   pi_queue_properties Flags = Properties[1];
 
