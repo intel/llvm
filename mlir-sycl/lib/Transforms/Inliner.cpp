@@ -218,7 +218,7 @@ public:
 
 private:
   /// Returns true if the target is an ancestor of the call and false otherwise.
-  bool isRecursiveCall(const ResolvedCall &ResolvedCall) const;
+  static bool isRecursiveCall(const ResolvedCall &ResolvedCall);
 
   /// Inlining mode (alwaysinline, simple, ...)
   const sycl::InlineMode InlineMode;
@@ -504,15 +504,14 @@ bool InlineHeuristic::shouldInline(ResolvedCall &ResolvedCall,
     // Inline a function if it has an attribute suggesting that inlining is
     // desirable.
     if (PassThroughAttr)
-      ShouldInline |= llvm::any_of(
+      ShouldInline = llvm::any_of(
           PassThroughAttr->getValue().cast<ArrayAttr>(), [](Attribute Attr) {
             return Attr.isa<StringAttr>() &&
                    Attr.cast<StringAttr>() == "inlinehint";
           });
 
     // Inline a function if inlining makes it dead.
-    if (!ShouldInline)
-      ShouldInline |= Uses.hasOneUseAndDiscardable(ResolvedCall.TgtNode);
+    ShouldInline |= Uses.hasOneUseAndDiscardable(ResolvedCall.TgtNode);
 
     [[fallthrough]];
   case sycl::InlineMode::AlwaysInline:
@@ -529,7 +528,7 @@ bool InlineHeuristic::shouldInline(ResolvedCall &ResolvedCall,
   return ShouldInline;
 }
 
-bool InlineHeuristic::isRecursiveCall(const ResolvedCall &ResolvedCall) const {
+bool InlineHeuristic::isRecursiveCall(const ResolvedCall &ResolvedCall) {
   return ResolvedCall.TgtNode->getCallableRegion()->isAncestor(
       ResolvedCall.Call->getParentRegion());
 }
