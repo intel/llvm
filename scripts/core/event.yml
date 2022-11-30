@@ -239,7 +239,7 @@ params:
       name: execStatus
       desc: "[in] execution status of the event"
     - type: void*
-      name: pParams
+      name: pUserData
       desc: "[in][out] pointer to data to be passed to callback"
 --- #--------------------------------------------------------------------------
 type: function
@@ -263,5 +263,5 @@ params:
       name: pfnNotify
       desc: "[in] execution status of the event"
     - type: void*
-      name: pParams
-      desc: "[in][out] pointer to data to be passed to callback."
+      name: pUserData
+      desc: "[in][out][optional] pointer to data to be passed to callback."

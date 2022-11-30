@@ -259,8 +259,8 @@ class ur_context_info_t(c_int):
 ## @brief Context's extended deleter callback function with user data.
 def ur_context_extended_deleter_t(user_defined_callback):
     @CFUNCTYPE(None, c_void_p)
-    def ur_context_extended_deleter_t_wrapper(var0):
-        return user_defined_callback(var0)
+    def ur_context_extended_deleter_t_wrapper(pUserData):
+        return user_defined_callback(pUserData)
     return ur_context_extended_deleter_t_wrapper
 
 ###############################################################################
@@ -342,8 +342,8 @@ class ur_execution_info_t(c_int):
 ## @brief Event callback function that can be registered by the application.
 def ur_event_callback_t(user_defined_callback):
     @CFUNCTYPE(None, ur_event_handle_t, ur_execution_info_t, c_void_p)
-    def ur_event_callback_t_wrapper(var0, var1, var2):
-        return user_defined_callback(var0, var1, var2)
+    def ur_event_callback_t_wrapper(hEvent, execStatus, pUserData):
+        return user_defined_callback(hEvent, execStatus, pUserData)
     return ur_event_callback_t_wrapper
 
 ###############################################################################
@@ -859,8 +859,8 @@ class ur_kernel_exec_info_t(c_int):
 ## @brief callback function for urModuleCreate
 def ur_modulecreate_callback_t(user_defined_callback):
     @CFUNCTYPE(None, ur_module_handle_t, c_void_p)
-    def ur_modulecreate_callback_t_wrapper(var0, var1):
-        return user_defined_callback(var0, var1)
+    def ur_modulecreate_callback_t_wrapper(hModule, pParams):
+        return user_defined_callback(hModule, pParams)
     return ur_modulecreate_callback_t_wrapper
 
 ###############################################################################

@@ -60,7 +60,7 @@ def ${th.make_type_name(n, tags, obj)}(user_defined_callback):
     def ${th.make_type_name(n, tags, obj)}_wrapper(\
 %if 'params' in obj:
 %for index, item in enumerate(obj['params']):
-${'var' + str(index)}\
+${item['name']}\
 %if index < (len(obj['params']) - 1):
 , \
 %endif
@@ -70,7 +70,7 @@ ${'var' + str(index)}\
         return user_defined_callback(\
 %if 'params' in obj:
 %for index, item in enumerate(obj['params']):
-${'var' + str(index)}\
+${item['name']}\
 %if index < (len(obj['params']) - 1):
 , \
 %endif
