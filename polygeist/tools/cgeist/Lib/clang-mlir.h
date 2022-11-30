@@ -285,7 +285,7 @@ private:
   // the shape of the result MemRef.
   template <typename T>
   mlir::Value SYCLCommonFieldLookup(mlir::Value V, size_t FNum,
-                                    const std::vector<int64_t> &Shape);
+                                    llvm::ArrayRef<int64_t> Shape);
 
   mlir::LLVM::AllocaOp allocateBuffer(size_t I, mlir::LLVM::LLVMPointerType T) {
     auto &Vec = Bufs[T.getAsOpaquePointer()];

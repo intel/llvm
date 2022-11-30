@@ -1322,7 +1322,7 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
 
 template <typename T>
 Value MLIRScanner::SYCLCommonFieldLookup(Value V, size_t FNum,
-                                         const std::vector<int64_t> &Shape) {
+                                         llvm::ArrayRef<int64_t> Shape) {
   auto MT = V.getType().cast<MemRefType>();
   Type ElemTy = MT.getElementType();
   assert(ElemTy.isa<T>() && "Expecting element type to be the templated type");
@@ -1404,7 +1404,7 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
     return ValueCategory(commonGEP, /*isReference*/ true);
   }
   auto MT = Val.getType().cast<MemRefType>();
-  auto Shape = std::vector<int64_t>(MT.getShape());
+  llvm::SmallVector<int64_t> Shape(MT.getShape());
   if (Shape.size() > 1) {
     Shape.erase(Shape.begin());
   } else {
