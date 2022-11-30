@@ -821,9 +821,10 @@ const char *Command::getBlockReason() const {
     return "A Buffer is locked by the host accessor";
   case BlockReason::HostTask:
     return "Blocked by host task";
-  }
 
-  return "Unknown block reason";
+  default:
+    return "Unknown block reason";
+  }
 }
 
 AllocaCommandBase::AllocaCommandBase(CommandType Type, QueueImplPtr Queue,

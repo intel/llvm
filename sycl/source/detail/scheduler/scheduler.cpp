@@ -73,6 +73,16 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
   }
 }
 
+static void deallocateStreams(
+    std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate) {
+  // Deallocate buffers for stream objects of the finished commands. Iterate in
+  // reverse order because it is the order of commands execution.
+  for (auto StreamImplPtr = StreamsToDeallocate.rbegin();
+       StreamImplPtr != StreamsToDeallocate.rend(); ++StreamImplPtr)
+    detail::Scheduler::getInstance().deallocateStreamBuffers(
+        StreamImplPtr->get());
+}
+
 EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
                               const QueueImplPtr &Queue) {
   EventImplPtr NewEvent = nullptr;
@@ -125,7 +135,7 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
       Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
         throw runtime_error("Auxiliary enqueue process failed.",
-                            PI_INVALID_OPERATION);
+                            PI_ERROR_INVALID_OPERATION);
     }
 
     if (NewCmd) {
@@ -133,16 +143,16 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
       EnqueueResultT Res;
       bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res, ToCleanUp);
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-        throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+        throw runtime_error("Enqueue process failed.",
+                            PI_ERROR_INVALID_OPERATION);
 
       // If there are no memory dependencies decouple and free the command.
+
+      /// NOT sure if this comment is still true
       // Though, dismiss ownership of native kernel command group as it's
       // resources may be in use by backend and synchronization point here is
       // at native kernel execution finish.
       if (NewCmd && (NewCmd->MDeps.size() == 0 && NewCmd->MUsers.size() == 0)) {
-        if (Type == CG::RunOnHostIntel)
-          static_cast<ExecCGCommand *>(NewCmd)->releaseCG();
-
         NewEvent->setCommand(nullptr);
         delete NewCmd;
       }
@@ -217,16 +227,6 @@ void Scheduler::waitForEvent(const EventImplPtr &Event) {
   GraphProcessor::waitForEvent(std::move(Event), Lock, ToCleanUp,
                                /*LockTheLock=*/false);
   cleanupCommands(ToCleanUp);
-}
-
-static void deallocateStreams(
-    std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate) {
-  // Deallocate buffers for stream objects of the finished commands. Iterate in
-  // reverse order because it is the order of commands execution.
-  for (auto StreamImplPtr = StreamsToDeallocate.rbegin();
-       StreamImplPtr != StreamsToDeallocate.rend(); ++StreamImplPtr)
-    detail::Scheduler::getInstance().deallocateStreamBuffers(
-        StreamImplPtr->get());
 }
 
 void Scheduler::cleanupFinishedCommands(const EventImplPtr &FinishedEvent) {
