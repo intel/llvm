@@ -72,7 +72,7 @@ The extended APIs provides the following features:
 
 * specify data placement type via properties (1) or group_memory_helper (*naming is TBD) class (5)
 
-* extra options such as setting boundry values or limiting numbers of work items can be also specified via group_memory_helper
+* extra options such as setting boundary values or limiting numbers of work items can be also specified via group_memory_helper
 
 [source,c++]
 ----
