@@ -3658,18 +3658,14 @@ pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
   case PI_QUEUE_INFO_DEVICE_DEFAULT:
     die("PI_QUEUE_INFO_DEVICE_DEFAULT in piQueueGetInfo not implemented\n");
     break;
-  case PI_QUEUE_INFO_STATUS: {
+  case PI_EXT_ONEAPI_QUEUE_INFO_STATUS: {
     // If we have any open command list which is not empty then return false
     // because it means that there are commands which are not even submitted for
     // execution yet.
-    for (auto CommandList : {Queue->CopyCommandBatch.OpenCommandList,
-                             Queue->ComputeCommandBatch.OpenCommandList}) {
-      if (CommandList == Queue->CommandListMap.end())
-        continue;
-
-      if (!CommandList->second.EventList.empty())
-        return ReturnValue(pi_bool{false});
-    }
+    using IsCopy = bool;
+    if (Queue->hasOpenCommandList(IsCopy{true}) ||
+        Queue->hasOpenCommandList(IsCopy{false}))
+      return ReturnValue(pi_bool{false});
 
     for (auto QueueGroup : {Queue->ComputeQueueGroup, Queue->CopyQueueGroup}) {
       for (auto ZeQueue : QueueGroup.ZeQueues) {

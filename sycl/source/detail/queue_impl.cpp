@@ -428,7 +428,8 @@ bool queue_impl::ext_oneapi_empty() const {
   if (!is_host()) {
     pi_bool IsReady = false;
     getPlugin().call<PiApiKind::piQueueGetInfo>(
-        MQueues[0], PI_QUEUE_INFO_STATUS, sizeof(pi_bool), &IsReady, nullptr);
+        MQueues[0], PI_EXT_ONEAPI_QUEUE_INFO_STATUS, sizeof(pi_bool), &IsReady,
+        nullptr);
     if (!IsReady)
       return false;
   }
