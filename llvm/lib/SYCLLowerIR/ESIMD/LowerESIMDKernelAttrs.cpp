@@ -70,8 +70,17 @@ bool checkFunctionAddressUse(const Value *address) {
   return true;
 }
 
-// Filter function for graph traverse to filter out cases when a function
-// is used as an argument for InvokeSimd call
+// Filter function for graph traversal when propagating ESIMD attribute. It's
+// goal is to stop traversal at `invoke_simd` call boundary even in complex
+// case when function pointer is passed indirectly to `invoke_simd`
+// (pseudo code):
+//   store %addr,  @foo
+//   %val = load %addr
+//   invoke_simd(..., %val,...)
+//
+// TODO this algorithm is not reliable an will fail on more complex data flow.
+// However, the source C++ code is fixed library code, which generates the
+// above IR in -O0 mode, so should be safe enough.
 bool filterInvokeSimdUse(const Instruction *I, const Function *F) {
   // if the instruction is to store address of a function, check if it is later
   // used by InvokeSimd.
