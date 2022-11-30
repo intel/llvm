@@ -75,12 +75,11 @@ struct HasSubscriptOperator<
 template <typename T, typename... Args>
 annotated_arg(T, Args... args) -> annotated_arg<T, detail::properties_t<Args...>, std::is_pointer<T>::value>;
 
-// template <typename T, typename PropsT, bool IsPtr>
-// annotated_arg(annotated_arg<T, PropsT, IsPtr>) -> annotated_arg<T, PropsT, IsPtr>;
+// template <typename T, typename... Args>
+// annotated_arg(T, properties<std::tuple<Args...>>) -> annotated_arg<T, detail::properties_t<Args...>, std::is_pointer<T>::value>;
 
 template <typename T, typename old, typename ArgT, bool IsPtr>
 annotated_arg(annotated_arg<T, old, IsPtr>, ArgT newp) -> annotated_arg<T, detail::merged_properties_t<old, ArgT>, IsPtr>;
-
 
 template <typename T, typename PropertyListT = detail::empty_properties_t, bool IsPtr = std::is_pointer<T>::value>
 class annotated_arg {
@@ -113,15 +112,17 @@ class __SYCL_SPECIAL_CLASS __SYCL_TYPE(annotated_arg) annotated_arg<T, detail::p
 public:
   static_assert(std::is_trivially_destructible<T>::value,
                 "Type T must be trivially destructible.");
-  static_assert(is_property_list<property_list_t>::value,
-                "Property list is invalid.");
+  // static_assert(is_property_list<property_list_t>::value,
+                // "Property list is invalid.");
+  static_assert(check_property_list<T, Props...>::value,
+                "The property list contains invalid property.");
 
   annotated_arg() noexcept = default;
   annotated_arg(const annotated_arg&) = default;
   annotated_arg& operator=(annotated_arg&) = default;
 
-  explicit annotated_arg(const T& _ptr, const property_list_t &PropList = properties{}) noexcept
-    : obj((__OPENCL_GLOBAL_AS__ UnderlyingT*)_ptr) {}
+  // explicit annotated_arg(const T& _ptr, const property_list_t &PropList = properties{}) noexcept
+  //   : obj((__OPENCL_GLOBAL_AS__ UnderlyingT*)_ptr) {}
 
   template<typename... PropertyValueTs>
   explicit annotated_arg(const T& _ptr, PropertyValueTs... props) noexcept : obj((__OPENCL_GLOBAL_AS__ UnderlyingT*)_ptr) {
@@ -139,7 +140,6 @@ public:
   // the values of the duplicate properties must be the same.
   template <typename T2, typename PropertyList2>
   explicit annotated_arg(const annotated_arg<T2, PropertyList2> &other) noexcept : obj(other.obj) {
-
     static_assert(std::is_convertible<T2, T>::value, 
       "The underlying data type of the input annotated_arg is not compatible");
 
@@ -153,7 +153,6 @@ public:
   template <typename T2, typename PropertyListU, typename PropertyListV>
   explicit annotated_arg(const annotated_arg<T2, PropertyListU> &other,
       const PropertyListV& proplist) noexcept : obj(other.obj) {
-
     static_assert(std::is_convertible<T2, T>::value, 
       "The underlying data type of the input annotated_arg is not compatible");
 
@@ -164,18 +163,15 @@ public:
         "The property list of constructed annotated_arg type must be the union of the input property lists");
   }
 
-  explicit operator T() noexcept {
-    __SYCL_HOST_NOT_SUPPORTED("Implicit conversion of annotated_arg to T")
+  operator T() noexcept {
     return  obj;
   }
 
-  explicit operator const T() const noexcept {
-    __SYCL_HOST_NOT_SUPPORTED("Implicit conversion of annotated_arg to T")
+  operator const T() const noexcept {
     return obj;
   }
 
   UnderlyingT& operator [](std::ptrdiff_t idx) const noexcept {
-    __SYCL_HOST_NOT_SUPPORTED("operator[] on an annotated_arg")
     return obj[idx];
   }
 
@@ -212,21 +208,25 @@ class __SYCL_SPECIAL_CLASS __SYCL_TYPE(annotated_arg) annotated_arg <T, detail::
 
 public:
   // T should be trivially copy constructible to be device copyable
-  static_assert(std::is_trivially_copy_constructible<T>::value,
-                "Type T must be trivially copy constructable.");
+  static_assert(std::is_trivially_copyable<T>::value,
+                "Type T must be trivially copyable.");
+  // static_assert(std::is_trivially_copy_constructible<T>::value,
+  //               "Type T must be trivially copy constructable.");
   static_assert(std::is_trivially_destructible<T>::value,
                 "Type T must be trivially destructible.");
   static_assert(is_property_list<property_list_t>::value,
                 "Property list is invalid.");
+  static_assert(check_property_list<T, Props...>::value,
+                "The property list contains invalid property.");
 
   annotated_arg() noexcept = default;
   annotated_arg(const annotated_arg&) = default;
   annotated_arg& operator=(annotated_arg&) = default;
 
-  annotated_arg(const T& _obj, const property_list_t &PropList = properties{}) noexcept : obj(_obj) {}
+  explicit annotated_arg(const T& _obj, const property_list_t &PropList = properties{}) noexcept : obj(_obj) {}
 
   template<typename... PropertyValueTs>
-  annotated_arg(const T& _obj, PropertyValueTs... props) noexcept : obj(_obj) {
+  explicit annotated_arg(const T& _obj, PropertyValueTs... props) noexcept : obj(_obj) {
     static_assert(
         std::is_same<
             property_list_t,
@@ -239,34 +239,35 @@ public:
   // The property set PropertyListT contains all properties of the input annotated_arg object.
   // If there are duplicate properties present in the property list of the input annotated_arg object,
   // the values of the duplicate properties must be the same.
-  // template <typename T2, typename PropertyList2, typename std::enable_if<std::is_convertible<T2, T>::value>::type>
   template <typename T2, typename PropertyList2>
   explicit annotated_arg(const annotated_arg<T2, PropertyList2> &other) noexcept : obj(other.obj) {
+    static_assert(std::is_convertible<T2, T>::value,
+      "The underlying data type of the input annotated_arg is not compatible");
+
     static_assert(
         std::is_same<
             property_list_t,
             detail::merged_properties_t<property_list_t, PropertyList2>>::value,
-        "The property list must contain all properties of the input of the copy constructor");
+        "The constructed annotated_arg type must contain all the properties of the input annotated_arg");
   }
 
-  template <typename T2, typename PropertyListU, typename PropertyListV,
-            typename std::enable_if<std::is_convertible<T2, T>::value>::type>
+  template <typename T2, typename PropertyListU, typename PropertyListV>
   explicit annotated_arg(const annotated_arg<T2, PropertyListU> &other,
-      properties<PropertyListV> proplist) noexcept {
+      const PropertyListV& proplist) noexcept : obj(other.obj) {
+    static_assert(std::is_convertible<T2, T>::value,
+      "The underlying data type of the input annotated_arg is not compatible");
+
      static_assert(
         std::is_same<
             property_list_t,
             detail::merged_properties_t<PropertyListU, PropertyListV>>::value,
-        "The property list must contain all properties of the input of the copy constructor");
-    this->obj = other.obj;
+        "The property list of constructed annotated_arg type must be the union of the input property lists");
   }
 
-  operator T&() {
-    __SYCL_HOST_NOT_SUPPORTED("Implicit conversion of annotated_arg to T")
+  operator T() noexcept {
     return obj;
   }
-  operator const T&() const {
-    __SYCL_HOST_NOT_SUPPORTED("Implicit conversion of annotated_arg to T")
+  operator const T() const noexcept {
     return obj;
   }
 

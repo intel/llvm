@@ -262,52 +262,54 @@ struct PropertyMetaInfo<read_write_mode_key::value_t<Mode>> {
 
 // 'buffer_location' and mmhost properties are pointers-only
 template<typename T, typename PropertyValueT>
-struct is_property_compatible : std::false_type {};
+struct is_valid_property : std::false_type {};
 
 template<typename T, int N>
-struct is_property_compatible<T, buffer_location_key::value_t<N>> 
+struct is_valid_property<T, buffer_location_key::value_t<N>>
     : std::bool_constant<std::is_pointer<T>::value> {};
 
 template<typename T, int W>
-struct is_property_compatible<T, awidth_key::value_t<W>> 
+struct is_valid_property<T, awidth_key::value_t<W>>
     : std::bool_constant<std::is_pointer<T>::value> {};
 
 template<typename T, int W>
-struct is_property_compatible<T, dwidth_key::value_t<W>> 
+struct is_valid_property<T, dwidth_key::value_t<W>>
     : std::bool_constant<std::is_pointer<T>::value> {};
 
 template<typename T, int N>
-struct is_property_compatible<T, latency_key::value_t<N>> 
+struct is_valid_property<T, latency_key::value_t<N>>
     : std::bool_constant<std::is_pointer<T>::value> {};
 
 template<typename T, read_write_mode_enum Mode>
-struct is_property_compatible<T, read_write_mode_key::value_t<Mode>> 
+struct is_valid_property<T, read_write_mode_key::value_t<Mode>>
     : std::bool_constant<std::is_pointer<T>::value> {};
 
 template<typename T, int N>
-struct is_property_compatible<T, maxburst_key::value_t<N>> 
+struct is_valid_property<T, maxburst_key::value_t<N>>
     : std::bool_constant<std::is_pointer<T>::value> {};
 
 template<typename T, int Enable>
-struct is_property_compatible<T, wait_request_key::value_t<Enable>> 
+struct is_valid_property<T, wait_request_key::value_t<Enable>>
     : std::bool_constant<std::is_pointer<T>::value> {};
 
 // 'register_map',  'conduit',  'stable' are common properties for pointers 
 // and non pointers; 
 template<typename T>
-struct is_property_compatible<T, register_map_key::value_t> : std::true_type {};
+struct is_valid_property<T, register_map_key::value_t> : std::true_type {};
 template<typename T>
-struct is_property_compatible<T, conduit_key::value_t> : std::true_type {};
+struct is_valid_property<T, conduit_key::value_t> : std::true_type {};
 template<typename T>
-struct is_property_compatible<T, stable_key::value_t> : std::true_type {};
+struct is_valid_property<T, stable_key::value_t> : std::true_type {};
 
 template<typename T, typename... Props> 
 struct check_property_list : std::true_type {};
 template<typename T, typename Prop, typename... Props>
 struct check_property_list<T, Prop, Props...> 
-    : std::conditional_t<is_property_compatible<T, Prop>::value,
+    : std::conditional_t<is_valid_property<T, Prop>::value,
                       check_property_list<T, Props...>,
-                      std::false_type> {};
+                      std::false_type> {
+  static_assert(is_valid_property<T, Prop>::value, "Property is invalid for the given type.");
+};
 
 } // namespace experimental
 } // namespace oneapi
