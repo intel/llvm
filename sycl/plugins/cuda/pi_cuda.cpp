@@ -2529,7 +2529,8 @@ pi_result cuda_piQueueCreate(pi_context context, pi_device device,
   }
 }
 pi_result cuda_piQueueCreateEx(pi_context Context, pi_device Device,
-                          pi_queue_properties *Properties, pi_queue *Queue) {
+                               pi_queue_properties *Properties,
+                               pi_queue *Queue) {
   PI_ASSERT(Properties, PI_ERROR_INVALID_VALUE);
   // Expect flags mask to be passed first.
   PI_ASSERT(Properties[0] == PI_QUEUE_FLAGS, PI_ERROR_INVALID_VALUE);
