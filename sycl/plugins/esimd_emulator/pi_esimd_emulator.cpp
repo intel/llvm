@@ -927,12 +927,12 @@ bool _pi_context::checkSurfaceArgument(pi_mem_flags Flags, void *HostPtr) {
 
 pi_result piQueueCreateEx(pi_context Context, pi_device Device,
                           pi_queue_properties *Properties, pi_queue *Queue) {
-  PI_ASSERT(Properties, PI_ERROR_INVALID_VALUE);
+  assert(Properties);
   // Expect flags mask to be passed first.
-  PI_ASSERT(Properties[0] == PI_QUEUE_FLAGS, PI_ERROR_INVALID_VALUE);
+  assert(Properties[0] == PI_QUEUE_FLAGS);
   pi_queue_properties Flags = Properties[1];
   // Extra data isn't supported yet.
-  PI_ASSERT(Properties[2] == 0, PI_ERROR_INVALID_VALUE)
+  assert(Properties[2] == 0);
   return piQueueCreate(Context, Device, Flags, Queue);
 }
 pi_result piQueueCreate(pi_context Context, pi_device Device,
