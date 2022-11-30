@@ -3675,12 +3675,16 @@ pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
       if (!Queue->LastCommandEvent)
         return ReturnValue(pi_bool{true});
 
-      // We can check status of the event only if it isn't discarded otherwise it may be reset (because we are free to reuse such events) and zeEventQueryStatus will hang.
+      // We can check status of the event only if it isn't discarded otherwise
+      // it may be reset (because we are free to reuse such events) and
+      // zeEventQueryStatus will hang.
       if (!Queue->LastCommandEvent->IsDiscarded)
         return CheckEventStatus(Queue->LastCommandEvent);
 
-      // For immediate command lists we have to check status of the event because immediate command lists are
-      // not associated with level zero queue. Conservatively return false in this case because last event is discarded and we can't check its status.
+      // For immediate command lists we have to check status of the event
+      // because immediate command lists are not associated with level zero
+      // queue. Conservatively return false in this case because last event is
+      // discarded and we can't check its status.
       if (Queue->Device->useImmediateCommandLists())
         return ReturnValue(pi_bool{false});
     }
@@ -6781,6 +6785,8 @@ pi_result _pi_queue::synchronize() {
       if (ZeQueue)
         ZE_CALL(zeHostSynchronize, (ZeQueue));
   }
+
+  LastCommandEvent = nullptr;
 
   // With the entire queue synchronized, the active barriers must be done so we
   // can remove them.

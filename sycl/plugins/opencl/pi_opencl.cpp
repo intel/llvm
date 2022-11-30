@@ -516,9 +516,9 @@ pi_result piQueueGetInfo(pi_queue queue, pi_queue_info param_name,
   case PI_EXT_ONEAPI_QUEUE_INFO_STATUS:
     return PI_ERROR_INVALID_VALUE;
   default:
-    cl_int CLErr =
-        clGetCommandQueueInfo(cast<cl_command_queue>(queue), cast<cl_command_queue_info>(param_name), param_value_size,
-        param_value, param_value_size_ret);
+    cl_int CLErr = clGetCommandQueueInfo(
+        cast<cl_command_queue>(queue), cast<cl_command_queue_info>(param_name),
+        param_value_size, param_value, param_value_size_ret);
     if (CLErr != CL_SUCCESS) {
       return cast<pi_result>(CLErr);
     }
