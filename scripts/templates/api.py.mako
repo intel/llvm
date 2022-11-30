@@ -130,7 +130,7 @@ else:
 
 ${"###############################################################################"}
 ${"##"} @brief Table of ${tbl['name']} functions pointers
-class _${tbl['type']}(Structure):
+class ${tbl['type']}(Structure):
     _fields_ = [
         %for obj in tbl['functions']:
         %if 'condition' not in obj:
@@ -145,13 +145,13 @@ class _${tbl['type']}(Structure):
 
 %endfor # tables
 ${"###############################################################################"}
-class _${n}_dditable_t(Structure):
+class ${n}_dditable_t(Structure):
     _fields_ = [
         %for tbl in tables:
         %if loop.index < len(tables)-1:
-        ("${tbl['name']}", _${tbl['type']}),
+        ("${tbl['name']}", ${tbl['type']}),
         %else:
-        ("${tbl['name']}", _${tbl['type']})
+        ("${tbl['name']}", ${tbl['type']})
         %endif
         %endfor
     ]
@@ -167,15 +167,15 @@ class ${N}_DDI:
             self.__dll = CDLL("${x}_loader.so")
 
         # fill the ddi tables
-        self.__dditable = _${n}_dditable_t()
+        self.__dditable = ${n}_dditable_t()
 
         %for tbl in tables:
         # call driver to get function pointers
-        _${tbl['name']} = _${tbl['type']}()
+        ${tbl['name']} = ${tbl['type']}()
         r = ${x}_result_v(self.__dll.${tbl['export']['name']}(version, byref(_${tbl['name']})))
         if r != ${x}_result_v.SUCCESS:
             raise Exception(r)
-        self.__dditable.${tbl['name']} = _${tbl['name']}
+        self.__dditable.${tbl['name']} = ${tbl['name']}
 
         # attach function interface to function address
         %for obj in tbl['functions']:

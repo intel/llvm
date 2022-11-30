@@ -997,7 +997,7 @@ else:
 
 ###############################################################################
 ## @brief Table of Platform functions pointers
-class _ur_platform_dditable_t(Structure):
+class ur_platform_dditable_t(Structure):
     _fields_ = [
         ("pfnGet", c_void_p),                                           ## _urPlatformGet_t
         ("pfnGetInfo", c_void_p),                                       ## _urPlatformGetInfo_t
@@ -1058,7 +1058,7 @@ else:
 
 ###############################################################################
 ## @brief Table of Context functions pointers
-class _ur_context_dditable_t(Structure):
+class ur_context_dditable_t(Structure):
     _fields_ = [
         ("pfnCreate", c_void_p),                                        ## _urContextCreate_t
         ("pfnRetain", c_void_p),                                        ## _urContextRetain_t
@@ -1128,7 +1128,7 @@ else:
 
 ###############################################################################
 ## @brief Table of Event functions pointers
-class _ur_event_dditable_t(Structure):
+class ur_event_dditable_t(Structure):
     _fields_ = [
         ("pfnCreate", c_void_p),                                        ## _urEventCreate_t
         ("pfnGetInfo", c_void_p),                                       ## _urEventGetInfo_t
@@ -1213,7 +1213,7 @@ else:
 
 ###############################################################################
 ## @brief Table of Program functions pointers
-class _ur_program_dditable_t(Structure):
+class ur_program_dditable_t(Structure):
     _fields_ = [
         ("pfnCreate", c_void_p),                                        ## _urProgramCreate_t
         ("pfnCreateWithBinary", c_void_p),                              ## _urProgramCreateWithBinary_t
@@ -1265,7 +1265,7 @@ else:
 
 ###############################################################################
 ## @brief Table of Module functions pointers
-class _ur_module_dditable_t(Structure):
+class ur_module_dditable_t(Structure):
     _fields_ = [
         ("pfnCreate", c_void_p),                                        ## _urModuleCreate_t
         ("pfnRetain", c_void_p),                                        ## _urModuleRetain_t
@@ -1368,7 +1368,7 @@ else:
 
 ###############################################################################
 ## @brief Table of Kernel functions pointers
-class _ur_kernel_dditable_t(Structure):
+class ur_kernel_dditable_t(Structure):
     _fields_ = [
         ("pfnCreate", c_void_p),                                        ## _urKernelCreate_t
         ("pfnGetInfo", c_void_p),                                       ## _urKernelGetInfo_t
@@ -1430,7 +1430,7 @@ else:
 
 ###############################################################################
 ## @brief Table of Sampler functions pointers
-class _ur_sampler_dditable_t(Structure):
+class ur_sampler_dditable_t(Structure):
     _fields_ = [
         ("pfnCreate", c_void_p),                                        ## _urSamplerCreate_t
         ("pfnRetain", c_void_p),                                        ## _urSamplerRetain_t
@@ -1513,7 +1513,7 @@ else:
 
 ###############################################################################
 ## @brief Table of Mem functions pointers
-class _ur_mem_dditable_t(Structure):
+class ur_mem_dditable_t(Structure):
     _fields_ = [
         ("pfnImageCreate", c_void_p),                                   ## _urMemImageCreate_t
         ("pfnBufferCreate", c_void_p),                                  ## _urMemBufferCreate_t
@@ -1663,7 +1663,7 @@ else:
 
 ###############################################################################
 ## @brief Table of Enqueue functions pointers
-class _ur_enqueue_dditable_t(Structure):
+class ur_enqueue_dditable_t(Structure):
     _fields_ = [
         ("pfnKernelLaunch", c_void_p),                                  ## _urEnqueueKernelLaunch_t
         ("pfnEventsWait", c_void_p),                                    ## _urEnqueueEventsWait_t
@@ -1710,7 +1710,7 @@ else:
 
 ###############################################################################
 ## @brief Table of USM functions pointers
-class _ur_usm_dditable_t(Structure):
+class ur_usm_dditable_t(Structure):
     _fields_ = [
         ("pfnHostAlloc", c_void_p),                                     ## _urUSMHostAlloc_t
         ("pfnDeviceAlloc", c_void_p),                                   ## _urUSMDeviceAlloc_t
@@ -1741,7 +1741,7 @@ else:
 
 ###############################################################################
 ## @brief Table of Global functions pointers
-class _ur_global_dditable_t(Structure):
+class ur_global_dditable_t(Structure):
     _fields_ = [
         ("pfnTearDown", c_void_p),                                      ## _urTearDown_t
         ("pfnGetLastResult", c_void_p),                                 ## _urGetLastResult_t
@@ -1807,7 +1807,7 @@ else:
 
 ###############################################################################
 ## @brief Table of Queue functions pointers
-class _ur_queue_dditable_t(Structure):
+class ur_queue_dditable_t(Structure):
     _fields_ = [
         ("pfnGetInfo", c_void_p),                                       ## _urQueueGetInfo_t
         ("pfnCreate", c_void_p),                                        ## _urQueueCreate_t
@@ -1878,7 +1878,7 @@ else:
 
 ###############################################################################
 ## @brief Table of Device functions pointers
-class _ur_device_dditable_t(Structure):
+class ur_device_dditable_t(Structure):
     _fields_ = [
         ("pfnGet", c_void_p),                                           ## _urDeviceGet_t
         ("pfnGetInfo", c_void_p),                                       ## _urDeviceGetInfo_t
@@ -1891,21 +1891,21 @@ class _ur_device_dditable_t(Structure):
     ]
 
 ###############################################################################
-class _ur_dditable_t(Structure):
+class ur_dditable_t(Structure):
     _fields_ = [
-        ("Platform", _ur_platform_dditable_t),
-        ("Context", _ur_context_dditable_t),
-        ("Event", _ur_event_dditable_t),
-        ("Program", _ur_program_dditable_t),
-        ("Module", _ur_module_dditable_t),
-        ("Kernel", _ur_kernel_dditable_t),
-        ("Sampler", _ur_sampler_dditable_t),
-        ("Mem", _ur_mem_dditable_t),
-        ("Enqueue", _ur_enqueue_dditable_t),
-        ("USM", _ur_usm_dditable_t),
-        ("Global", _ur_global_dditable_t),
-        ("Queue", _ur_queue_dditable_t),
-        ("Device", _ur_device_dditable_t)
+        ("Platform", ur_platform_dditable_t),
+        ("Context", ur_context_dditable_t),
+        ("Event", ur_event_dditable_t),
+        ("Program", ur_program_dditable_t),
+        ("Module", ur_module_dditable_t),
+        ("Kernel", ur_kernel_dditable_t),
+        ("Sampler", ur_sampler_dditable_t),
+        ("Mem", ur_mem_dditable_t),
+        ("Enqueue", ur_enqueue_dditable_t),
+        ("USM", ur_usm_dditable_t),
+        ("Global", ur_global_dditable_t),
+        ("Queue", ur_queue_dditable_t),
+        ("Device", ur_device_dditable_t)
     ]
 
 ###############################################################################
@@ -1919,14 +1919,14 @@ class UR_DDI:
             self.__dll = CDLL("ur_loader.so")
 
         # fill the ddi tables
-        self.__dditable = _ur_dditable_t()
+        self.__dditable = ur_dditable_t()
 
         # call driver to get function pointers
-        _Platform = _ur_platform_dditable_t()
+        Platform = ur_platform_dditable_t()
         r = ur_result_v(self.__dll.urGetPlatformProcAddrTable(version, byref(_Platform)))
         if r != ur_result_v.SUCCESS:
             raise Exception(r)
-        self.__dditable.Platform = _Platform
+        self.__dditable.Platform = Platform
 
         # attach function interface to function address
         self.urPlatformGet = _urPlatformGet_t(self.__dditable.Platform.pfnGet)
@@ -1936,11 +1936,11 @@ class UR_DDI:
         self.urPlatformGetApiVersion = _urPlatformGetApiVersion_t(self.__dditable.Platform.pfnGetApiVersion)
 
         # call driver to get function pointers
-        _Context = _ur_context_dditable_t()
+        Context = ur_context_dditable_t()
         r = ur_result_v(self.__dll.urGetContextProcAddrTable(version, byref(_Context)))
         if r != ur_result_v.SUCCESS:
             raise Exception(r)
-        self.__dditable.Context = _Context
+        self.__dditable.Context = Context
 
         # attach function interface to function address
         self.urContextCreate = _urContextCreate_t(self.__dditable.Context.pfnCreate)
@@ -1952,11 +1952,11 @@ class UR_DDI:
         self.urContextSetExtendedDeleter = _urContextSetExtendedDeleter_t(self.__dditable.Context.pfnSetExtendedDeleter)
 
         # call driver to get function pointers
-        _Event = _ur_event_dditable_t()
+        Event = ur_event_dditable_t()
         r = ur_result_v(self.__dll.urGetEventProcAddrTable(version, byref(_Event)))
         if r != ur_result_v.SUCCESS:
             raise Exception(r)
-        self.__dditable.Event = _Event
+        self.__dditable.Event = Event
 
         # attach function interface to function address
         self.urEventCreate = _urEventCreate_t(self.__dditable.Event.pfnCreate)
@@ -1969,11 +1969,11 @@ class UR_DDI:
         self.urEventCreateWithNativeHandle = _urEventCreateWithNativeHandle_t(self.__dditable.Event.pfnCreateWithNativeHandle)
 
         # call driver to get function pointers
-        _Program = _ur_program_dditable_t()
+        Program = ur_program_dditable_t()
         r = ur_result_v(self.__dll.urGetProgramProcAddrTable(version, byref(_Program)))
         if r != ur_result_v.SUCCESS:
             raise Exception(r)
-        self.__dditable.Program = _Program
+        self.__dditable.Program = Program
 
         # attach function interface to function address
         self.urProgramCreate = _urProgramCreate_t(self.__dditable.Program.pfnCreate)
@@ -1988,11 +1988,11 @@ class UR_DDI:
         self.urProgramCreateWithNativeHandle = _urProgramCreateWithNativeHandle_t(self.__dditable.Program.pfnCreateWithNativeHandle)
 
         # call driver to get function pointers
-        _Module = _ur_module_dditable_t()
+        Module = ur_module_dditable_t()
         r = ur_result_v(self.__dll.urGetModuleProcAddrTable(version, byref(_Module)))
         if r != ur_result_v.SUCCESS:
             raise Exception(r)
-        self.__dditable.Module = _Module
+        self.__dditable.Module = Module
 
         # attach function interface to function address
         self.urModuleCreate = _urModuleCreate_t(self.__dditable.Module.pfnCreate)
@@ -2002,11 +2002,11 @@ class UR_DDI:
         self.urModuleCreateWithNativeHandle = _urModuleCreateWithNativeHandle_t(self.__dditable.Module.pfnCreateWithNativeHandle)
 
         # call driver to get function pointers
-        _Kernel = _ur_kernel_dditable_t()
+        Kernel = ur_kernel_dditable_t()
         r = ur_result_v(self.__dll.urGetKernelProcAddrTable(version, byref(_Kernel)))
         if r != ur_result_v.SUCCESS:
             raise Exception(r)
-        self.__dditable.Kernel = _Kernel
+        self.__dditable.Kernel = Kernel
 
         # attach function interface to function address
         self.urKernelCreate = _urKernelCreate_t(self.__dditable.Kernel.pfnCreate)
@@ -2024,11 +2024,11 @@ class UR_DDI:
         self.urKernelSetArgMemObj = _urKernelSetArgMemObj_t(self.__dditable.Kernel.pfnSetArgMemObj)
 
         # call driver to get function pointers
-        _Sampler = _ur_sampler_dditable_t()
+        Sampler = ur_sampler_dditable_t()
         r = ur_result_v(self.__dll.urGetSamplerProcAddrTable(version, byref(_Sampler)))
         if r != ur_result_v.SUCCESS:
             raise Exception(r)
-        self.__dditable.Sampler = _Sampler
+        self.__dditable.Sampler = Sampler
 
         # attach function interface to function address
         self.urSamplerCreate = _urSamplerCreate_t(self.__dditable.Sampler.pfnCreate)
@@ -2039,11 +2039,11 @@ class UR_DDI:
         self.urSamplerCreateWithNativeHandle = _urSamplerCreateWithNativeHandle_t(self.__dditable.Sampler.pfnCreateWithNativeHandle)
 
         # call driver to get function pointers
-        _Mem = _ur_mem_dditable_t()
+        Mem = ur_mem_dditable_t()
         r = ur_result_v(self.__dll.urGetMemProcAddrTable(version, byref(_Mem)))
         if r != ur_result_v.SUCCESS:
             raise Exception(r)
-        self.__dditable.Mem = _Mem
+        self.__dditable.Mem = Mem
 
         # attach function interface to function address
         self.urMemImageCreate = _urMemImageCreate_t(self.__dditable.Mem.pfnImageCreate)
@@ -2058,11 +2058,11 @@ class UR_DDI:
         self.urMemGetMemAllocInfo = _urMemGetMemAllocInfo_t(self.__dditable.Mem.pfnGetMemAllocInfo)
 
         # call driver to get function pointers
-        _Enqueue = _ur_enqueue_dditable_t()
+        Enqueue = ur_enqueue_dditable_t()
         r = ur_result_v(self.__dll.urGetEnqueueProcAddrTable(version, byref(_Enqueue)))
         if r != ur_result_v.SUCCESS:
             raise Exception(r)
-        self.__dditable.Enqueue = _Enqueue
+        self.__dditable.Enqueue = Enqueue
 
         # attach function interface to function address
         self.urEnqueueKernelLaunch = _urEnqueueKernelLaunch_t(self.__dditable.Enqueue.pfnKernelLaunch)
@@ -2086,11 +2086,11 @@ class UR_DDI:
         self.urEnqueueUSMMemAdvice = _urEnqueueUSMMemAdvice_t(self.__dditable.Enqueue.pfnUSMMemAdvice)
 
         # call driver to get function pointers
-        _USM = _ur_usm_dditable_t()
+        USM = ur_usm_dditable_t()
         r = ur_result_v(self.__dll.urGetUSMProcAddrTable(version, byref(_USM)))
         if r != ur_result_v.SUCCESS:
             raise Exception(r)
-        self.__dditable.USM = _USM
+        self.__dditable.USM = USM
 
         # attach function interface to function address
         self.urUSMHostAlloc = _urUSMHostAlloc_t(self.__dditable.USM.pfnHostAlloc)
@@ -2098,11 +2098,11 @@ class UR_DDI:
         self.urUSMSharedAlloc = _urUSMSharedAlloc_t(self.__dditable.USM.pfnSharedAlloc)
 
         # call driver to get function pointers
-        _Global = _ur_global_dditable_t()
+        Global = ur_global_dditable_t()
         r = ur_result_v(self.__dll.urGetGlobalProcAddrTable(version, byref(_Global)))
         if r != ur_result_v.SUCCESS:
             raise Exception(r)
-        self.__dditable.Global = _Global
+        self.__dditable.Global = Global
 
         # attach function interface to function address
         self.urTearDown = _urTearDown_t(self.__dditable.Global.pfnTearDown)
@@ -2110,11 +2110,11 @@ class UR_DDI:
         self.urInit = _urInit_t(self.__dditable.Global.pfnInit)
 
         # call driver to get function pointers
-        _Queue = _ur_queue_dditable_t()
+        Queue = ur_queue_dditable_t()
         r = ur_result_v(self.__dll.urGetQueueProcAddrTable(version, byref(_Queue)))
         if r != ur_result_v.SUCCESS:
             raise Exception(r)
-        self.__dditable.Queue = _Queue
+        self.__dditable.Queue = Queue
 
         # attach function interface to function address
         self.urQueueGetInfo = _urQueueGetInfo_t(self.__dditable.Queue.pfnGetInfo)
@@ -2127,11 +2127,11 @@ class UR_DDI:
         self.urQueueFlush = _urQueueFlush_t(self.__dditable.Queue.pfnFlush)
 
         # call driver to get function pointers
-        _Device = _ur_device_dditable_t()
+        Device = ur_device_dditable_t()
         r = ur_result_v(self.__dll.urGetDeviceProcAddrTable(version, byref(_Device)))
         if r != ur_result_v.SUCCESS:
             raise Exception(r)
-        self.__dditable.Device = _Device
+        self.__dditable.Device = Device
 
         # attach function interface to function address
         self.urDeviceGet = _urDeviceGet_t(self.__dditable.Device.pfnGet)

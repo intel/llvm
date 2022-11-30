@@ -17,8 +17,8 @@ from templates import helper as th
  * @version v${ver}-r${rev}
  *
  */
-#ifndef _${N}_DDI_H
-#define _${N}_DDI_H
+#ifndef ${N}_DDI_H_INCLUDED
+#define ${N}_DDI_H_INCLUDED
 #if defined(__cplusplus)
 #pragma once
 #endif
@@ -47,7 +47,7 @@ typedef ${x}_result_t (${X}_APICALL *${th.make_pfn_type(n, tags, obj)})(
 %endfor
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of ${tbl['name']} functions pointers
-typedef struct _${tbl['type']}
+typedef struct ${tbl['type']}
 {
     %for obj in tbl['functions']:
     %if 'condition' in obj:
@@ -89,7 +89,7 @@ typedef ${x}_result_t (${X}_APICALL *${tbl['pfn']})(
 %endfor
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Container for all DDI tables
-typedef struct _${n}_dditable_t
+typedef struct ${n}_dditable_t
 {
 %for tbl in th.get_pfntables(specs, meta, n, tags):
     ${th.append_ws(tbl['type'], 35)} ${tbl['name']};
@@ -100,4 +100,4 @@ typedef struct _${n}_dditable_t
 } // extern "C"
 #endif
 
-#endif // _${N}_DDI_H
+#endif // ${N}_DDI_H_INCLUDED

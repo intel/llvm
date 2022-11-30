@@ -8,8 +8,8 @@
  * @version v0.5-r0.5
  *
  */
-#ifndef _UR_DDI_H
-#define _UR_DDI_H
+#ifndef UR_DDI_H_INCLUDED
+#define UR_DDI_H_INCLUDED
 #if defined(__cplusplus)
 #pragma once
 #endif
@@ -61,7 +61,7 @@ typedef ur_result_t (UR_APICALL *ur_pfnPlatformGetApiVersion_t)(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Platform functions pointers
-typedef struct _ur_platform_dditable_t
+typedef struct ur_platform_dditable_t
 {
     ur_pfnPlatformGet_t                                         pfnGet;
     ur_pfnPlatformGetInfo_t                                     pfnGetInfo;
@@ -147,7 +147,7 @@ typedef ur_result_t (UR_APICALL *ur_pfnContextSetExtendedDeleter_t)(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Context functions pointers
-typedef struct _ur_context_dditable_t
+typedef struct ur_context_dditable_t
 {
     ur_pfnContextCreate_t                                       pfnCreate;
     ur_pfnContextRetain_t                                       pfnRetain;
@@ -243,7 +243,7 @@ typedef ur_result_t (UR_APICALL *ur_pfnEventCreateWithNativeHandle_t)(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Event functions pointers
-typedef struct _ur_event_dditable_t
+typedef struct ur_event_dditable_t
 {
     ur_pfnEventCreate_t                                         pfnCreate;
     ur_pfnEventGetInfo_t                                        pfnGetInfo;
@@ -364,7 +364,7 @@ typedef ur_result_t (UR_APICALL *ur_pfnProgramCreateWithNativeHandle_t)(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Program functions pointers
-typedef struct _ur_program_dditable_t
+typedef struct ur_program_dditable_t
 {
     ur_pfnProgramCreate_t                                       pfnCreate;
     ur_pfnProgramCreateWithBinary_t                             pfnCreateWithBinary;
@@ -441,7 +441,7 @@ typedef ur_result_t (UR_APICALL *ur_pfnModuleCreateWithNativeHandle_t)(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Module functions pointers
-typedef struct _ur_module_dditable_t
+typedef struct ur_module_dditable_t
 {
     ur_pfnModuleCreate_t                                        pfnCreate;
     ur_pfnModuleRetain_t                                        pfnRetain;
@@ -584,7 +584,7 @@ typedef ur_result_t (UR_APICALL *ur_pfnKernelSetArgMemObj_t)(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Kernel functions pointers
-typedef struct _ur_kernel_dditable_t
+typedef struct ur_kernel_dditable_t
 {
     ur_pfnKernelCreate_t                                        pfnCreate;
     ur_pfnKernelGetInfo_t                                       pfnGetInfo;
@@ -670,7 +670,7 @@ typedef ur_result_t (UR_APICALL *ur_pfnSamplerCreateWithNativeHandle_t)(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Sampler functions pointers
-typedef struct _ur_sampler_dditable_t
+typedef struct ur_sampler_dditable_t
 {
     ur_pfnSamplerCreate_t                                       pfnCreate;
     ur_pfnSamplerRetain_t                                       pfnRetain;
@@ -790,7 +790,7 @@ typedef ur_result_t (UR_APICALL *ur_pfnMemGetMemAllocInfo_t)(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Mem functions pointers
-typedef struct _ur_mem_dditable_t
+typedef struct ur_mem_dditable_t
 {
     ur_pfnMemImageCreate_t                                      pfnImageCreate;
     ur_pfnMemBufferCreate_t                                     pfnBufferCreate;
@@ -1089,7 +1089,7 @@ typedef ur_result_t (UR_APICALL *ur_pfnEnqueueUSMMemAdvice_t)(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Enqueue functions pointers
-typedef struct _ur_enqueue_dditable_t
+typedef struct ur_enqueue_dditable_t
 {
     ur_pfnEnqueueKernelLaunch_t                                 pfnKernelLaunch;
     ur_pfnEnqueueEventsWait_t                                   pfnEventsWait;
@@ -1168,7 +1168,7 @@ typedef ur_result_t (UR_APICALL *ur_pfnUSMSharedAlloc_t)(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of USM functions pointers
-typedef struct _ur_usm_dditable_t
+typedef struct ur_usm_dditable_t
 {
     ur_pfnUSMHostAlloc_t                                        pfnHostAlloc;
     ur_pfnUSMDeviceAlloc_t                                      pfnDeviceAlloc;
@@ -1218,7 +1218,7 @@ typedef ur_result_t (UR_APICALL *ur_pfnInit_t)(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Global functions pointers
-typedef struct _ur_global_dditable_t
+typedef struct ur_global_dditable_t
 {
     ur_pfnTearDown_t                                            pfnTearDown;
     ur_pfnGetLastResult_t                                       pfnGetLastResult;
@@ -1307,7 +1307,7 @@ typedef ur_result_t (UR_APICALL *ur_pfnQueueFlush_t)(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Queue functions pointers
-typedef struct _ur_queue_dditable_t
+typedef struct ur_queue_dditable_t
 {
     ur_pfnQueueGetInfo_t                                        pfnGetInfo;
     ur_pfnQueueCreate_t                                         pfnCreate;
@@ -1409,7 +1409,7 @@ typedef ur_result_t (UR_APICALL *ur_pfnDeviceCreateWithNativeHandle_t)(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Device functions pointers
-typedef struct _ur_device_dditable_t
+typedef struct ur_device_dditable_t
 {
     ur_pfnDeviceGet_t                                           pfnGet;
     ur_pfnDeviceGetInfo_t                                       pfnGetInfo;
@@ -1445,7 +1445,7 @@ typedef ur_result_t (UR_APICALL *ur_pfnGetDeviceProcAddrTable_t)(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Container for all DDI tables
-typedef struct _ur_dditable_t
+typedef struct ur_dditable_t
 {
     ur_platform_dditable_t              Platform;
     ur_context_dditable_t               Context;
@@ -1466,4 +1466,4 @@ typedef struct _ur_dditable_t
 } // extern "C"
 #endif
 
-#endif // _UR_DDI_H
+#endif // UR_DDI_H_INCLUDED
