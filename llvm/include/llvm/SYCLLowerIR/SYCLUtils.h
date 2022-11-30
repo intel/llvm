@@ -29,7 +29,7 @@ using CallGraphFunctionFilter =
 // The 'functionFilter' parameter is a callback function that can be used to
 // control which functions will be added to a call graph.
 //
-// The callback is/ invoked/ whenever a function being traversed is used
+// The callback is invoked whenever a function being traversed is used
 // by some instruction which is not a call to this instruction (e.g. storing
 // function pointer to memory) - the first parameter is the using instructions,
 // the second - the function being traversed. The parent function of the
