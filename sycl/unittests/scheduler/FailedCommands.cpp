@@ -51,7 +51,8 @@ pi_result redefinedFailingEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
                                               const pi_event *, pi_event *) {
   throw sycl::runtime_error(
       "Exception from redefinedFailingEnqueueKernelLaunch.",
-      PI_INVALID_OPERATION);
+      PI_ERROR_INVALID_OPERATION);
+  return PI_SUCCESS;
 }
 
 size_t MemBufRefCount = 0u;
@@ -82,20 +83,8 @@ pi_result redefinedMemRelease(pi_mem) {
 }
 
 TEST_F(SchedulerTest, FailedCommandAccessorCleanup) {
-  default_selector Selector;
-  platform Plt{default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Not run due to host-only environment\n";
-    return;
-  }
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda ||
-      Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    std::cout << "CUDA and HIP backends do not currently support this test\n";
-    return;
-  }
-
-  unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  unittest::PiMock Mock;
+  platform Plt = Mock.getPlatform();
   MemBufRefCount = 0u;
   Mock.redefine<detail::PiApiKind::piEnqueueKernelLaunch>(
       redefinedFailingEnqueueKernelLaunch);
@@ -105,7 +94,7 @@ TEST_F(SchedulerTest, FailedCommandAccessorCleanup) {
 
   {
     context Ctx{Plt};
-    queue Q{Ctx, Selector};
+    queue Q{Ctx, default_selector_v};
 
     kernel_bundle KernelBundle =
         sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx);
@@ -117,7 +106,7 @@ TEST_F(SchedulerTest, FailedCommandAccessorCleanup) {
       Q.submit([&](sycl::handler &CGH) {
         auto Acc = Buff.get_access<sycl::access::mode::read_write>(CGH);
         CGH.use_kernel_bundle(ExecBundle);
-        CGH.single_task<TestKernel>([=] {});
+        CGH.single_task<TestKernel<>>([=] {});
       });
       FAIL() << "No exception was thrown.";
     } catch (...) {
@@ -128,20 +117,8 @@ TEST_F(SchedulerTest, FailedCommandAccessorCleanup) {
 }
 
 TEST_F(SchedulerTest, FailedCommandStreamCleanup) {
-  default_selector Selector;
-  platform Plt{default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Not run due to host-only environment\n";
-    return;
-  }
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda ||
-      Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    std::cout << "CUDA and HIP backends do not currently support this test\n";
-    return;
-  }
-
-  unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  unittest::PiMock Mock;
+  platform Plt = Mock.getPlatform();
   MemBufRefCount = 0u;
   Mock.redefine<detail::PiApiKind::piEnqueueKernelLaunch>(
       redefinedFailingEnqueueKernelLaunch);
@@ -163,7 +140,7 @@ TEST_F(SchedulerTest, FailedCommandStreamCleanup) {
       Q.submit([&](sycl::handler &CGH) {
         sycl::stream KernelStream(108 * 64 + 128, 64, CGH);
         CGH.use_kernel_bundle(ExecBundle);
-        CGH.single_task<TestKernel>([=] {});
+        CGH.single_task<TestKernel<>>([=] {});
       });
       FAIL() << "No exception was thrown.";
     } catch (...) {
