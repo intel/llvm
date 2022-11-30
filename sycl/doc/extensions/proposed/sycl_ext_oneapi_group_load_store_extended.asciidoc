@@ -54,7 +54,7 @@ void joint_load(Group gh, InputIteratorT in_ptr,
 
 // Store API
 template<typename Group, typename InputT,
-         typename OutputIterator, typename Properties = properties<>>
+         typename OutputIteratorT, typename Properties = properties<>>
 void joint_store(Group gh, InputT in,
                       OutputIteratorT out_ptr, Properties = {});
 ----
