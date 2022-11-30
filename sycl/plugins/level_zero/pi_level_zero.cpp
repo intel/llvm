@@ -1002,6 +1002,14 @@ bool _pi_queue::isDiscardEvents() const {
   return ((this->Properties & PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS) != 0);
 }
 
+bool _pi_queue::isPriorityLow() const {
+  return ((this->Properties & PI_EXT_ONEAPI_QUEUE_PRIORITY_LOW) != 0);
+}
+
+bool _pi_queue::isPriorityHigh() const {
+  return ((this->Properties & PI_EXT_ONEAPI_QUEUE_PRIORITY_HIGH) != 0);
+}
+
 pi_result
 _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
                             bool MakeAvailable,
@@ -1829,6 +1837,14 @@ _pi_queue::pi_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
   ZeCommandQueueDesc.ordinal = *QueueGroupOrdinal;
   ZeCommandQueueDesc.index = QueueIndex;
   ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS;
+  const char *Priority = "Normal";
+  if (Queue->isPriorityLow()) {
+    ZeCommandQueueDesc.priority = ZE_COMMAND_QUEUE_PRIORITY_PRIORITY_LOW;
+    Priority = "Low";
+  } else if (Queue->isPriorityHigh()) {
+    ZeCommandQueueDesc.priority = ZE_COMMAND_QUEUE_PRIORITY_PRIORITY_HIGH;
+    Priority = "High";
+  }
 
   // Evaluate performance of explicit usage for "0" index.
   if (QueueIndex != 0) {
@@ -1836,9 +1852,9 @@ _pi_queue::pi_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
   }
 
   zePrint("[getZeQueue]: create queue ordinal = %d, index = %d "
-          "(round robin in [%d, %d])\n",
+          "(round robin in [%d, %d]) priority = %s\n",
           ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index, LowerIndex,
-          UpperIndex);
+          UpperIndex, Priority);
 
   auto ZeResult = ZE_CALL_NOCHECK(
       zeCommandQueueCreate, (Queue->Context->ZeContext, Queue->Device->ZeDevice,
@@ -1864,6 +1880,14 @@ pi_command_list_ptr_t &_pi_queue::pi_queue_group_t::getImmCmdList() {
   ZeCommandQueueDesc.ordinal = QueueOrdinal;
   ZeCommandQueueDesc.index = QueueIndex;
   ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS;
+  const char *Priority = "Normal";
+  if (Queue->isPriorityLow()) {
+    ZeCommandQueueDesc.priority = ZE_COMMAND_QUEUE_PRIORITY_PRIORITY_LOW;
+    Priority = "Low";
+  } else if (Queue->isPriorityHigh()) {
+    ZeCommandQueueDesc.priority = ZE_COMMAND_QUEUE_PRIORITY_PRIORITY_HIGH;
+    Priority = "High";
+  }
 
   // Evaluate performance of explicit usage for "0" index.
   if (QueueIndex != 0) {
@@ -1871,9 +1895,9 @@ pi_command_list_ptr_t &_pi_queue::pi_queue_group_t::getImmCmdList() {
   }
 
   zePrint("[getZeQueue]: create queue ordinal = %d, index = %d "
-          "(round robin in [%d, %d])\n",
+          "(round robin in [%d, %d]) priority = %s\n",
           ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index, LowerIndex,
-          UpperIndex);
+          UpperIndex, Priority);
 
   ze_command_list_handle_t ZeCommandList;
   ZE_CALL_NOCHECK(zeCommandListCreateImmediate,
@@ -3532,7 +3556,9 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
   PI_ASSERT(!(Properties & ~(PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE |
                              PI_QUEUE_PROFILING_ENABLE | PI_QUEUE_ON_DEVICE |
                              PI_QUEUE_ON_DEVICE_DEFAULT |
-                             PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS)),
+                             PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS |
+                             PI_EXT_ONEAPI_QUEUE_PRIORITY_LOW |
+                             PI_EXT_ONEAPI_QUEUE_PRIORITY_HIGH)),
             PI_ERROR_INVALID_VALUE);
 
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);

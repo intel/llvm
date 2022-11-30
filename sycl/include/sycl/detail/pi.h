@@ -56,6 +56,8 @@
 // 11.16 Add PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE and
 // PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH as an extension for
 // piDeviceGetInfo.
+// 11.17 Added new PI_EXT_ONEAPI_QUEUE_PRIORITY_LOW and
+// PI_EXT_ONEAPI_QUEUE_PRIORITY_HIGH queue properties.
 
 #define _PI_H_VERSION_MAJOR 11
 #define _PI_H_VERSION_MINOR 16
@@ -580,6 +582,8 @@ constexpr pi_queue_properties PI_QUEUE_PROFILING_ENABLE = (1 << 1);
 constexpr pi_queue_properties PI_QUEUE_ON_DEVICE = (1 << 2);
 constexpr pi_queue_properties PI_QUEUE_ON_DEVICE_DEFAULT = (1 << 3);
 constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS = (1 << 4);
+constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_PRIORITY_LOW = (1 << 5);
+constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_PRIORITY_HIGH = (1 << 6);
 
 using pi_result = _pi_result;
 using pi_platform_info = _pi_platform_info;

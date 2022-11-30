@@ -69,6 +69,13 @@ interop_handle::get_native_context<backend::ext_oneapi_cuda>() const {
 template <>
 inline device make_device<backend::ext_oneapi_cuda>(
     const backend_input_t<backend::ext_oneapi_cuda, device> &BackendObject) {
+  auto devs = device::get_devices(info::device_type::gpu);
+  for (auto &dev : devs) {
+    if (dev.get_backend() == backend::ext_oneapi_cuda &&
+        BackendObject == get_native<backend::ext_oneapi_cuda>(dev)) {
+      return dev;
+    }
+  }
   pi_native_handle NativeHandle = static_cast<pi_native_handle>(BackendObject);
   return ext::oneapi::cuda::make_device(NativeHandle);
 }
