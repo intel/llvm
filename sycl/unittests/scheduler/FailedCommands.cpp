@@ -130,7 +130,7 @@ TEST_F(SchedulerTest, FailedCommandStreamCleanup) {
 
   {
     context Ctx{Plt};
-    queue Q{Ctx, Selector};
+    queue Q{Ctx, default_selector_v};
 
     kernel_bundle KernelBundle =
         sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx);
