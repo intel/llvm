@@ -673,7 +673,7 @@ ValueCategory MLIRScanner::VisitMaterializeTemporaryExpr(
   if (IsArray)
     return V;
 
-  mlirclang::warning() << "cleanup of materialized not handled";
+  mlirclang::warning() << "cleanup of materialized not handled\n";
   auto Op =
       createAllocOp(Glob.getTypes().getMLIRType(Expr->getSubExpr()->getType()),
                     nullptr, 0, /*isArray*/ IsArray, /*LLVMABI*/ LLVMABI);
@@ -801,7 +801,7 @@ MLIRScanner::VisitCXXScalarValueInitExpr(clang::CXXScalarValueInitExpr *Expr) {
 ValueCategory MLIRScanner::VisitCXXPseudoDestructorExpr(
     clang::CXXPseudoDestructorExpr *Expr) {
   Visit(Expr->getBase());
-  llvm::errs() << "not running pseudo destructor\n";
+  mlirclang::warning() << "not running pseudo destructor\n";
   return nullptr;
 }
 
@@ -1383,18 +1383,20 @@ ValueCategory MLIRScanner::VisitCXXNoexceptExpr(CXXNoexceptExpr *Expr) {
 }
 
 ValueCategory MLIRScanner::VisitMemberExpr(MemberExpr *ME) {
-  if (auto *Sr2 = dyn_cast<OpaqueValueExpr>(ME->getBase())) {
-    if (auto *SR = dyn_cast<DeclRefExpr>(Sr2->getSourceExpr())) {
-      if (SR->getDecl()->getName() == "blockIdx")
-        llvm::errs() << "known block index";
-      if (SR->getDecl()->getName() == "blockDim")
-        llvm::errs() << "known block dim";
-      if (SR->getDecl()->getName() == "threadIdx")
-        llvm::errs() << "known thread index";
-      if (SR->getDecl()->getName() == "gridDim")
-        llvm::errs() << "known grid index";
+  LLVM_DEBUG({
+    if (auto *Sr2 = dyn_cast<OpaqueValueExpr>(ME->getBase())) {
+      if (auto *SR = dyn_cast<DeclRefExpr>(Sr2->getSourceExpr())) {
+        if (SR->getDecl()->getName() == "blockIdx")
+          llvm::dbgs() << "known block index";
+        else if (SR->getDecl()->getName() == "blockDim")
+          llvm::dbgs() << "known block dim";
+        else if (SR->getDecl()->getName() == "threadIdx")
+          llvm::dbgs() << "known thread index";
+        else if (SR->getDecl()->getName() == "gridDim")
+          llvm::dbgs() << "known grid index";
+      }
     }
-  }
+  });
   auto Base = Visit(ME->getBase());
   clang::QualType OT = ME->getBase()->getType();
   if (ME->isArrow()) {
@@ -1632,10 +1634,10 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
             }
         }
     auto SE = Visit(E->getSubExpr());
-#ifdef DEBUG
-    if (!SE.val)
-      E->dump();
-#endif
+    LLVM_DEBUG({
+      if (!SE.val)
+        E->dump();
+    });
     auto Scalar = SE.getValue(Builder);
     if (auto SPT = Scalar.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
       mlir::Type NT = Glob.getTypes().getMLIRType(E->getType());
@@ -1651,13 +1653,13 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
       return ValueCategory(Nval, /*isReference*/ false);
     }
 
-#ifdef DEBUG
-    if (!Scalar.getType().isa<mlir::MemRefType>()) {
-      E->dump();
-      E->getType()->dump();
-      llvm::errs() << "Scalar: " << Scalar << "\n";
-    }
-#endif
+    LLVM_DEBUG({
+      if (!Scalar.getType().isa<mlir::MemRefType>()) {
+        E->dump();
+        E->getType()->dump();
+        llvm::errs() << "Scalar: " << Scalar << "\n";
+      }
+    });
 
     assert(Scalar.getType().isa<mlir::MemRefType>() &&
            "Expecting 'Scalar' to have MemRefType");
@@ -1699,12 +1701,11 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
       return ValueCategory(Builder.create<memref::CastOp>(Loc, Ty, Scalar),
                            /*isReference*/ false);
     }
-
-#ifdef DEBUG
-    E->dump();
-    E->getType()->dump();
-    llvm::errs() << " Scalar: " << Scalar << " MLIRTy: " << MLIRTy << "\n";
-#endif
+    LLVM_DEBUG({
+      E->dump();
+      E->getType()->dump();
+      llvm::errs() << " Scalar: " << Scalar << " MLIRTy: " << MLIRTy << "\n";
+    });
     llvm_unreachable("illegal type for cast");
   } break;
   case clang::CastKind::CK_LValueToRValue: {
@@ -1742,12 +1743,14 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
       return Prev;
 
     auto Lres = Prev.getValue(Builder);
-#ifdef DEBUG
-    if (!prev.isReference) {
-      E->dump();
-      lres.dump();
-    }
-#endif
+    LLVM_DEBUG({
+      if (!Prev.isReference) {
+        llvm::dbgs() << "LValueToRValue cast performed on an RValue: ";
+        E->dump(llvm::dbgs(), Glob.getCGM().getContext());
+        Lres.print(llvm::dbgs());
+        llvm::dbgs() << "\n";
+      }
+    });
     return ValueCategory(Lres, /*isReference*/ false);
   }
   case clang::CastKind::CK_IntegralToFloating: {
@@ -1800,12 +1803,12 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
         PostTy.isa<mlir::IndexType>())
       return ValueCategory(
           Builder.create<arith::IndexCastOp>(Loc, PostTy, Scalar), false);
-#ifdef DEBUG
-    if (!Scalar.getType().isa<mlir::IntegerType>()) {
-      E->dump();
-      llvm::errs() << " Scalar: " << Scalar << "\n";
-    }
-#endif
+    LLVM_DEBUG({
+      if (!Scalar.getType().isa<mlir::IntegerType>()) {
+        E->dump();
+        llvm::errs() << " Scalar: " << Scalar << "\n";
+      }
+    });
     auto PrevTy = Scalar.getType().cast<mlir::IntegerType>();
     bool SignedType = true;
     if (const auto *Bit =
@@ -1860,12 +1863,12 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
   }
   case clang::CastKind::CK_FloatingCast: {
     auto Scalar = Visit(E->getSubExpr()).getValue(Builder);
-#ifdef DEBUG
-    if (!Scalar.getType().isa<mlir::FloatType>()) {
-      E->dump();
-      llvm::errs() << "Scalar: " << Scalar << "\n";
-    }
-#endif
+    LLVM_DEBUG({
+      if (!Scalar.getType().isa<mlir::FloatType>()) {
+        E->dump();
+        llvm::errs() << "Scalar: " << Scalar << "\n";
+      }
+    });
     auto PrevTy = Scalar.getType().cast<mlir::FloatType>();
     auto PostTy =
         Glob.getTypes().getMLIRType(E->getType()).cast<mlir::FloatType>();
@@ -1958,11 +1961,11 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
       auto Val = Builder.create<mlir::LLVM::PtrToIntOp>(Loc, MLIRTy, Scalar);
       return ValueCategory(Val, /*isReference*/ false);
     }
-#ifdef DEBUG
-    function.dump();
-    llvm::errs() << "Scalar: " << Scalar << "\n";
-    E->dump();
-#endif
+    LLVM_DEBUG({
+      Function.dump();
+      llvm::errs() << "Scalar: " << Scalar << "\n";
+      E->dump();
+    });
     llvm_unreachable("unhandled ptrtoint cast");
   } break;
   case clang::CastKind::CK_IntegralToBoolean: {
@@ -2019,10 +2022,10 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
   }
   case clang::CastKind::CK_IntegralToPointer: {
     auto Vc = Visit(E->getSubExpr());
-#ifdef DEBUG
-    if (!vc.val)
-      E->dump();
-#endif
+    LLVM_DEBUG({
+      if (!Vc.val)
+        E->dump();
+    });
     assert(Vc.val);
     auto Res = Vc.getValue(Builder);
     mlir::Type PostTy = Glob.getTypes().getMLIRType(E->getType());
@@ -2642,7 +2645,7 @@ BinOpInfo MLIRScanner::EmitBinOps(BinaryOperator *E, QualType PromotionType) {
 static void informNoOverflowCheck(LangOptions::SignedOverflowBehaviorTy SOB,
                                   llvm::StringRef OpName) {
   if (SOB != clang::LangOptions::SOB_Defined)
-    llvm::errs() << "Not emitting overflow-checked " << OpName << "\n";
+    mlirclang::warning() << "Not emitting overflow-checked " << OpName << "\n";
 }
 
 ValueCategory MLIRScanner::EmitBinMul(const BinOpInfo &Info) {

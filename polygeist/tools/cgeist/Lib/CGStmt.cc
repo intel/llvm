@@ -572,8 +572,8 @@ MLIRScanner::VisitOMPParallelDirective(clang::OMPParallelDirective *Par) {
       }
       break;
     default:
-      llvm::errs() << "may not handle omp clause " << (int)F->getClauseKind()
-                   << "\n";
+      mlirclang::warning() << "may not handle omp clause "
+                           << (int)F->getClauseKind() << "\n";
     }
   }
 
