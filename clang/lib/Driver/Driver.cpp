@@ -1095,10 +1095,17 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     Diag(clang::diag::err_drv_invalid_argument_to_option)
         << ArgValue << A->getOption().getName();
   };
+  Arg* DeviceCodeSplit = C.getInputArgs().getLastArg(options::OPT_fsycl_device_code_split_EQ);
   checkSingleArgValidity(SYCLLink, {"early", "image"});
   checkSingleArgValidity(
-      C.getInputArgs().getLastArg(options::OPT_fsycl_device_code_split_EQ),
+      DeviceCodeSplit,
       {"per_kernel", "per_source", "auto", "off"});
+
+  Arg* NoRDC = C.getInputArgs().getLastArg(options::OPT_fno_gpu_rdc);
+  if(NoRDC &&
+     (!DeviceCodeSplit ||
+      (DeviceCodeSplit->getValue() != StringRef("per_source") && DeviceCodeSplit->getValue() != StringRef("per_kernel")))) 
+    Diag(clang::diag::err_no_rdc_unsupported_device_code_split) << (NoRDC->getAlias() ? NoRDC->getAlias()->getSpelling() : NoRDC->getSpelling());
 
   Arg *SYCLForceTarget =
       getArgRequiringSYCLRuntime(options::OPT_fsycl_force_target_EQ);
