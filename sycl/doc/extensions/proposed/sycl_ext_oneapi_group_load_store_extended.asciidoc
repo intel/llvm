@@ -1,4 +1,4 @@
-= sycl_ext_oneapi_group_load_store_extended
+= sycl_ext_oneapi_group_load_store
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
@@ -28,7 +28,7 @@ permission by Khronos.
 
 == Dependencies
 
-This extension is written against the SYCL 2020 specification, Revision 5. All references below to the "core SYCL specification" or to section numbers in the SYCL specification refer to that revision.
+This extension is written against the SYCL 2020 specification, Revision 6. All references below to the "core SYCL specification" or to section numbers in the SYCL specification refer to that revision.
 
 This extension also depends on the following other SYCL extensions:
 
