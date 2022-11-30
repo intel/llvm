@@ -5097,8 +5097,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
     bool DisableSYCLForceInlineKernelLambda = false;
     if (Arg *A = Args.getLastArg(options::OPT_O_Group))
-      DisableSYCLForceInlineKernelLambda =  A->getOption().matches(
-                                                options::OPT_O0);
+      DisableSYCLForceInlineKernelLambda =
+          A->getOption().matches(options::OPT_O0);
     // At -O0, disable the inlining for debugging purposes.
     if (!Args.hasFlag(options::OPT_fsycl_force_inline_kernel_lambda,
                       options::OPT_fno_sycl_force_inline_kernel_lambda,
