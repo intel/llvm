@@ -3667,18 +3667,41 @@ pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
         Queue->hasOpenCommandList(IsCopy{false}))
       return ReturnValue(pi_bool{false});
 
-    for (auto QueueGroup : {Queue->ComputeQueueGroup, Queue->CopyQueueGroup}) {
-      for (auto ZeQueue : QueueGroup.ZeQueues) {
-        if (!ZeQueue)
-          continue;
-        // Provide 0 as the timeout parameter to immediately get the status of
-        // the Level Zero queue.
-        ze_result_t ZeResult = ZE_CALL_NOCHECK(zeCommandQueueSynchronize,
-                                               (ZeQueue, /* timeout */ 0));
-        if (ZeResult == ZE_RESULT_NOT_READY) {
-          return ReturnValue(pi_bool{false});
-        } else if (ZeResult != ZE_RESULT_SUCCESS) {
-          return mapError(ZeResult);
+    for (const auto &QueueGroup :
+         {Queue->ComputeQueueGroup, Queue->CopyQueueGroup}) {
+      if (Queue->Device->useImmediateCommandLists()) {
+        // Immediate command lists are not associated with any Level Zero queue,
+        // that's why we have to check status of events in each immediate
+        // command list. Start checking from the end and exit early if some
+        // event is not completed.
+        for (const auto &ImmCmdList : QueueGroup.ImmCmdLists) {
+          if (ImmCmdList == Queue->CommandListMap.end())
+            continue;
+
+          auto EventList = ImmCmdList->second.EventList;
+          for (auto It = EventList.crbegin(); It != EventList.crend(); It++) {
+            ze_result_t ZeResult =
+                ZE_CALL_NOCHECK(zeEventQueryStatus, ((*It)->ZeEvent));
+            if (ZeResult == ZE_RESULT_NOT_READY) {
+              return ReturnValue(pi_bool{false});
+            } else if (ZeResult != ZE_RESULT_SUCCESS) {
+              return mapError(ZeResult);
+            }
+          }
+        }
+      } else {
+        for (const auto &ZeQueue : QueueGroup.ZeQueues) {
+          if (!ZeQueue)
+            continue;
+          // Provide 0 as the timeout parameter to immediately get the status of
+          // the Level Zero queue.
+          ze_result_t ZeResult = ZE_CALL_NOCHECK(zeCommandQueueSynchronize,
+                                                 (ZeQueue, /* timeout */ 0));
+          if (ZeResult == ZE_RESULT_NOT_READY) {
+            return ReturnValue(pi_bool{false});
+          } else if (ZeResult != ZE_RESULT_SUCCESS) {
+            return mapError(ZeResult);
+          }
         }
       }
     }
