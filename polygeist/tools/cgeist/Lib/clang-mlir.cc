@@ -44,6 +44,7 @@
 
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "cgeist"
@@ -238,7 +239,7 @@ void MLIRScanner::init(FunctionOpInterface func, const FunctionToEmit &FTE) {
 
           clang::Expr *init = expr->getInit();
           if (auto clean = dyn_cast<clang::ExprWithCleanups>(init)) {
-            mlirclang::warning() << "TODO: cleanup\n";
+            CGEIST_WARNING(llvm::WithColor::warning() << "TODO: cleanup\n");
             init = clean->getSubExpr();
           }
 
@@ -250,7 +251,7 @@ void MLIRScanner::init(FunctionOpInterface func, const FunctionToEmit &FTE) {
         if (expr->isDelegatingInitializer()) {
           clang::Expr *init = expr->getInit();
           if (auto clean = dyn_cast<clang::ExprWithCleanups>(init)) {
-            mlirclang::warning() << "TODO: cleanup\n";
+            CGEIST_WARNING(llvm::WithColor::warning() << "TODO: cleanup\n");
             init = clean->getSubExpr();
           }
 
@@ -293,9 +294,11 @@ void MLIRScanner::init(FunctionOpInterface func, const FunctionToEmit &FTE) {
     }
   }
 
-  if (auto CC = dyn_cast<clang::CXXDestructorDecl>(FD))
-    mlirclang::warning() << "destructor not fully handled yet for: " << CC
-                         << "\n";
+  CGEIST_WARNING({
+    if (auto CC = dyn_cast<clang::CXXDestructorDecl>(FD))
+      llvm::WithColor::warning()
+          << "destructor not fully handled yet for: " << CC << "\n";
+  });
 
   auto i1Ty = Builder.getIntegerType(1);
   auto type = MemRefType::get({}, i1Ty, {}, 0);

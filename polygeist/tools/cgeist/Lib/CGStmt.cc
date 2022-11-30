@@ -15,6 +15,7 @@
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Diagnostics.h"
+#include "llvm/Support/WithColor.h"
 
 #define DEBUG_TYPE "CGStmt"
 
@@ -572,8 +573,9 @@ MLIRScanner::VisitOMPParallelDirective(clang::OMPParallelDirective *Par) {
       }
       break;
     default:
-      mlirclang::warning() << "may not handle omp clause "
-                           << (int)F->getClauseKind() << "\n";
+      CGEIST_WARNING(llvm::WithColor::warning()
+                     << "may not handle omp clause " << (int)F->getClauseKind()
+                     << "\n");
     }
   }
 
@@ -1086,7 +1088,8 @@ ValueCategory MLIRScanner::VisitGotoStmt(clang::GotoStmt *Stmt) {
 }
 
 ValueCategory MLIRScanner::VisitCXXTryStmt(clang::CXXTryStmt *Stmt) {
-  mlirclang::warning() << "not performing catches for try stmt\n";
+  CGEIST_WARNING(llvm::WithColor::warning()
+                 << "not performing catches for try stmt\n");
   return Visit(Stmt->getTryBlock());
 }
 

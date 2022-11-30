@@ -9,6 +9,15 @@
 #ifndef MLIR_TOOLS_MLIRCLANG_UTILS_H
 #define MLIR_TOOLS_MLIRCLANG_UTILS_H
 
+#include "llvm/Support/CommandLine.h"
+
+extern llvm::cl::opt<bool> SuppressWarnings;
+
+#define CGEIST_WARNING(X)                                                      \
+  if (!SuppressWarnings) {                                                     \
+    X;                                                                         \
+  }
+
 namespace clang {
 class DeclContext;
 }
@@ -56,9 +65,6 @@ FunctionContext getInputContext(const mlir::OpBuilder &Builder);
 
 /// Return the device module in the input module.
 mlir::gpu::GPUModuleOp getDeviceModule(mlir::ModuleOp Module);
-
-/// Emit a warning if -w is not in effect.
-llvm::raw_ostream &warning();
 
 } // namespace mlirclang
 

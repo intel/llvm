@@ -13,6 +13,7 @@
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Target/LLVMIR/TypeFromLLVM.h"
+#include "llvm/Support/WithColor.h"
 
 #define DEBUG_TYPE "CGCall"
 
@@ -1167,8 +1168,8 @@ MLIRScanner::emitGPUCallExpr(clang::CallExpr *Expr) {
       }
       if (Sr->getDecl()->getIdentifier() &&
           Sr->getDecl()->getName() == "cudaFuncSetCacheConfig") {
-        mlirclang::warning()
-            << " Not emitting GPU option: cudaFuncSetCacheConfig\n";
+        CGEIST_WARNING(llvm::WithColor::warning()
+                       << " Not emitting GPU option: cudaFuncSetCacheConfig\n");
         return std::make_pair(ValueCategory(), true);
       }
       // TODO move free out.

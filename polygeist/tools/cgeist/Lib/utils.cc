@@ -20,12 +20,8 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/Support/WithColor.h"
-#include "llvm/Support/raw_ostream.h"
 
 using namespace mlir;
-
-extern llvm::cl::opt<bool> SuppressWarnings;
 
 namespace mlirclang {
 
@@ -87,12 +83,6 @@ FunctionContext getInputContext(const OpBuilder &B) {
 gpu::GPUModuleOp getDeviceModule(ModuleOp Module) {
   return cast<gpu::GPUModuleOp>(
       Module.lookupSymbol(MLIRASTConsumer::DeviceModuleName));
-}
-
-llvm::raw_ostream &warning() {
-  if (SuppressWarnings)
-    return llvm::nulls();
-  return llvm::WithColor::warning();
 }
 
 } // namespace mlirclang
