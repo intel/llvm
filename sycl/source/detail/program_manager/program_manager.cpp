@@ -177,9 +177,6 @@ getOrBuild(KernelProgramCache &KPCache, KeyT &&CacheKey, AcquireFT &&Acquire,
     BuildResult = &Inserted.first->second;
   }
 
-  int *P = nullptr;
-  *P = 43;
-
   // no insertion took place, thus some other thread has already inserted smth
   // in the cache
   if (!InsertionTookPlace) {
