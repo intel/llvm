@@ -21,11 +21,20 @@ static Command *getCommand(const EventImplPtr &Event) {
   return (Command *)Event->getCommand();
 }
 
+class IDGenerator {
+public:
+  unsigned int next() { return _id++; }
+  std::atomic_uint _id{0};
+};
+static IDGenerator Gen;
+
 void Scheduler::GraphProcessor::waitForEvent(const EventImplPtr &Event,
                                              ReadLockT &GraphReadLock,
                                              std::vector<Command *> &ToCleanUp,
                                              bool LockTheLock) {
-  std::cout << "waitForEvent begin " << std::endl;
+  auto id = Gen.next();
+  std::cout << std::this_thread::get_id() << " waitForEvent begin " << id
+            << std::endl;
   Command *Cmd = getCommand(Event);
   // Command can be nullptr if user creates sycl::event explicitly or the
   // event has been waited on by another thread
@@ -41,12 +50,15 @@ void Scheduler::GraphProcessor::waitForEvent(const EventImplPtr &Event,
   assert(Cmd->getEvent() == Event);
 
   GraphReadLock.unlock();
-  std::cout << "waitForEvent waitInternal begin " << std::endl;
+  std::cout << std::this_thread::get_id() << " waitForEvent waitInternal begin "
+            << id << std::endl;
   Event->waitInternal();
-  std::cout << "waitForEvent waitInternal end " << std::endl;
+  std::cout << std::this_thread::get_id() << " waitForEvent waitInternal end "
+            << id << std::endl;
   if (LockTheLock)
     GraphReadLock.lock();
-  std::cout << "waitForEvent after lock " << std::endl;
+  std::cout << std::this_thread::get_id() << " waitForEvent after lock " << id
+            << std::endl;
 }
 
 bool Scheduler::GraphProcessor::enqueueCommand(
@@ -80,22 +92,21 @@ bool Scheduler::GraphProcessor::enqueueCommand(
       if (!enqueueCommand(DepCmd, EnqueueResult, ToCleanUp, Blocking))
         return false;
   }
-  m
 
-      // Only graph read lock is to be held here.
-      // Enqueue process of a command may last quite a time. Having graph locked
-      // can introduce some thread starving (i.e. when the other thread attempts
-      // to acquire write lock and add a command to graph). Releasing read lock
-      // without other safety measures isn't an option here as the other thread
-      // could go into graph cleanup process (due to some event complete) and
-      // remove some dependencies from dependencies of the user of this command.
-      // An example: command A depends on commands B and C. This thread wants to
-      // enqueue A. Hence, it needs to enqueue B and C. So this thread gets into
-      // dependency list and starts enqueueing B right away. The other thread
-      // waits on completion of C and starts cleanup process. This thread is
-      // still in the middle of enqueue of B. The other thread modifies
-      // dependency list of A by removing C out of it. Iterators become invalid.
-      return Cmd->enqueue(EnqueueResult, Blocking, ToCleanUp);
+  // Only graph read lock is to be held here.
+  // Enqueue process of a command may last quite a time. Having graph locked
+  // can introduce some thread starving (i.e. when the other thread attempts
+  // to acquire write lock and add a command to graph). Releasing read lock
+  // without other safety measures isn't an option here as the other thread
+  // could go into graph cleanup process (due to some event complete) and
+  // remove some dependencies from dependencies of the user of this command.
+  // An example: command A depends on commands B and C. This thread wants to
+  // enqueue A. Hence, it needs to enqueue B and C. So this thread gets into
+  // dependency list and starts enqueueing B right away. The other thread
+  // waits on completion of C and starts cleanup process. This thread is
+  // still in the middle of enqueue of B. The other thread modifies
+  // dependency list of A by removing C out of it. Iterators become invalid.
+  return Cmd->enqueue(EnqueueResult, Blocking, ToCleanUp);
 }
 
 } // namespace detail

@@ -489,7 +489,7 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd, Command *BlockingCmd) {
   // of empty command.
   // Also, it's possible to have record deallocated prior to enqueue process.
   // Thus we employ read-lock of graph.
-
+  std::cout << "NotifyHostTaskCompletion begin " << std::endl;
   std::vector<Command *> ToCleanUp;
   {
     ReadLockT Lock = acquireReadLock();
@@ -505,6 +505,7 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd, Command *BlockingCmd) {
       Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement, ToCleanUp);
   }
   cleanupCommands(ToCleanUp);
+  std::cout << "NotifyHostTaskCompletion end " << std::endl;
 }
 
 void Scheduler::deferMemObjRelease(const std::shared_ptr<SYCLMemObjI> &MemObj) {

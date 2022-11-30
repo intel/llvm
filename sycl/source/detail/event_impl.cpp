@@ -60,10 +60,12 @@ event_impl::~event_impl() {
 
 void event_impl::waitInternal() {
   if (!MHostEvent && MEvent) {
-    std::cout << "waitInternal piEventsWait begin" << std::endl;
+    std::cout << std::this_thread::get_id()
+              << " waitInternal piEventsWait begin" << std::endl;
     // Wait for the native event
     getPlugin().call<PiApiKind::piEventsWait>(1, &MEvent);
-    std::cout << "waitInternal piEventsWait end" << std::endl;
+    std::cout << std::this_thread::get_id() << " waitInternal piEventsWait end"
+              << std::endl;
   } else if (MState == HES_Discarded) {
     // Waiting for the discarded event is invalid
     throw sycl::exception(
@@ -71,16 +73,20 @@ void event_impl::waitInternal() {
         "waitInternal method cannot be used for a discarded event.");
   } else if (MState != HES_Complete) {
     // Wait for the host event
-    std::cout << "waitInternal  cv.wait begin" << std::endl;
+    std::cout << std::this_thread::get_id() << " waitInternal  cv.wait begin"
+              << std::endl;
     std::unique_lock<std::mutex> lock(MMutex);
     cv.wait(lock, [this] { return MState == HES_Complete; });
-    std::cout << "waitInternal  cv.wait end" << std::endl;
+    std::cout << std::this_thread::get_id() << " waitInternal  cv.wait end"
+              << std::endl;
   }
-  std::cout << "waitInternal  MPostCompleteEvents.wait begin" << std::endl;
+  std::cout << std::this_thread::get_id()
+            << " waitInternal  MPostCompleteEvents.wait begin" << std::endl;
   // Wait for connected events(e.g. streams prints)
   for (const EventImplPtr &Event : MPostCompleteEvents)
     Event->wait(Event);
-  std::cout << "waitInternal  MPostCompleteEvents.wait end" << std::endl;
+  std::cout << std::this_thread::get_id()
+            << " waitInternal  MPostCompleteEvents.wait end" << std::endl;
 }
 
 void event_impl::setComplete() {

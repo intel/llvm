@@ -329,6 +329,7 @@ public:
     assert(EmptyCmd && "No empty command found");
 
     Scheduler::getInstance().NotifyHostTaskCompletion(MThisCmd, EmptyCmd);
+    std::cout << "Host task operator end " << std::endl;
   }
 };
 
