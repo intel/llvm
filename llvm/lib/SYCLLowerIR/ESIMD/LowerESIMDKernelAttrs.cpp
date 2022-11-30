@@ -84,7 +84,8 @@ bool checkFunctionAddressUse(const Value *address) {
 bool filterInvokeSimdUse(const Instruction *I, const Function *F) {
   // if the instruction is to store address of a function, check if it is later
   // used by InvokeSimd.
-  if (auto *SI = dyn_cast<StoreInst>(I)) {
+  auto *SI = dyn_cast<StoreInst>(I);
+  if (SI && (SI->getValueOperand() == F)) {
     const Value *Addr = SI->getPointerOperand();
     return checkFunctionAddressUse(Addr);
   }
