@@ -363,7 +363,11 @@ void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req,
   auto EnqueueLeaves = [&ToCleanUp](LeavesCollection &Leaves) {
     for (Command *Cmd : Leaves) {
       EnqueueResultT Res;
+      std::cout << "enqueueLeavesOfReqUnlocked enqueueCommand begin  " << Cmd
+                << std::endl;
       bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
+      std::cout << "enqueueLeavesOfReqUnlocked enqueueCommand end  " << Cmd
+                << std::endl;
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
         throw runtime_error("Enqueue process failed.",
                             PI_ERROR_INVALID_OPERATION);
@@ -497,7 +501,11 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd, Command *BlockingCmd) {
     std::vector<DepDesc> Deps = Cmd->MDeps;
 
     // update self-event status
+    std::cout << "NotifyHostTaskCompletion Cmd->getEvent()->setComplete begin "
+              << std::endl;
     Cmd->getEvent()->setComplete();
+    std::cout << "NotifyHostTaskCompletion Cmd->getEvent()->setComplete end "
+              << std::endl;
 
     BlockingCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
