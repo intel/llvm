@@ -239,7 +239,7 @@ void MLIRScanner::init(FunctionOpInterface func, const FunctionToEmit &FTE) {
 
           clang::Expr *init = expr->getInit();
           if (auto clean = dyn_cast<clang::ExprWithCleanups>(init)) {
-            mlirclang::warning() << "TODO: cleanup\n";
+            CGEIST_WARNING(llvm::WithColor::warning() << "TODO: cleanup\n");
             init = clean->getSubExpr();
           }
 
@@ -251,7 +251,7 @@ void MLIRScanner::init(FunctionOpInterface func, const FunctionToEmit &FTE) {
         if (expr->isDelegatingInitializer()) {
           clang::Expr *init = expr->getInit();
           if (auto clean = dyn_cast<clang::ExprWithCleanups>(init)) {
-            mlirclang::warning() << "TODO: cleanup\n";
+            CGEIST_WARNING(llvm::WithColor::warning() << "TODO: cleanup\n");
             init = clean->getSubExpr();
           }
 

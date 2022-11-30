@@ -805,7 +805,8 @@ MLIRScanner::VisitCXXScalarValueInitExpr(clang::CXXScalarValueInitExpr *Expr) {
 ValueCategory MLIRScanner::VisitCXXPseudoDestructorExpr(
     clang::CXXPseudoDestructorExpr *Expr) {
   Visit(Expr->getBase());
-  mlirclang::warning() << "not running pseudo destructor\n";
+  CGEIST_WARNING(llvm::WithColor::warning()
+                 << "not running pseudo destructor\n");
   return nullptr;
 }
 
@@ -2671,7 +2672,8 @@ BinOpInfo MLIRScanner::EmitBinOps(BinaryOperator *E, QualType PromotionType) {
 static void informNoOverflowCheck(LangOptions::SignedOverflowBehaviorTy SOB,
                                   llvm::StringRef OpName) {
   if (SOB != clang::LangOptions::SOB_Defined)
-    mlirclang::warning() << "Not emitting overflow-checked " << OpName << "\n";
+    llvm::WithColor::warning()
+        << "Not emitting overflow-checked " << OpName << "\n";
 }
 
 ValueCategory MLIRScanner::EmitBinMul(const BinOpInfo &Info) {
@@ -2680,8 +2682,8 @@ ValueCategory MLIRScanner::EmitBinMul(const BinOpInfo &Info) {
   const auto RHS = Info.getRHS().val;
 
   if (Info.getType()->isSignedIntegerOrEnumerationType()) {
-    informNoOverflowCheck(
-        Glob.getCGM().getLangOpts().getSignedOverflowBehavior(), "mul");
+    CGEIST_WARNING(informNoOverflowCheck(
+        Glob.getCGM().getLangOpts().getSignedOverflowBehavior(), "mul"));
     return LHS.Mul(Builder, Loc, RHS);
   }
 
@@ -2880,8 +2882,8 @@ ValueCategory MLIRScanner::EmitBinAdd(const BinOpInfo &Info) {
     return EmitPointerArithmetic(Info);
 
   if (Info.getType()->isSignedIntegerOrEnumerationType()) {
-    informNoOverflowCheck(
-        Glob.getCGM().getLangOpts().getSignedOverflowBehavior(), "add");
+    CGEIST_WARNING(informNoOverflowCheck(
+        Glob.getCGM().getLangOpts().getSignedOverflowBehavior(), "add"));
     return LHS.Add(Builder, Loc, RHS);
   }
 
@@ -2901,8 +2903,8 @@ ValueCategory MLIRScanner::EmitBinSub(const BinOpInfo &Info) {
   // The LHS is always a pointer if either side is.
   if (!mlirclang::isPointerOrMemRefTy(LHS.val.getType())) {
     if (Info.getType()->isSignedIntegerOrEnumerationType()) {
-      informNoOverflowCheck(
-          Glob.getCGM().getLangOpts().getSignedOverflowBehavior(), "sub");
+      CGEIST_WARNING(informNoOverflowCheck(
+          Glob.getCGM().getLangOpts().getSignedOverflowBehavior(), "sub"));
       return LHS.Sub(Builder, Loc, RHS.val);
     }
     assert(!Info.getType()->isConstantMatrixType() && "Not yet implemented");

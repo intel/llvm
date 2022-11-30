@@ -573,8 +573,9 @@ MLIRScanner::VisitOMPParallelDirective(clang::OMPParallelDirective *Par) {
       }
       break;
     default:
-      mlirclang::warning() << "may not handle omp clause "
-                           << (int)F->getClauseKind() << "\n";
+      CGEIST_WARNING(llvm::WithColor::warning()
+                     << "may not handle omp clause " << (int)F->getClauseKind()
+                     << "\n");
     }
   }
 
