@@ -78,6 +78,7 @@ The extended APIs provides the following features:
 ----
 namespace sycl::ext::oneapi::experimental {
 
+// Load API
 template<typename GroupHelper, typename InputIterator, typename OutputT,
         std::size_t ElementsPerWorkItem, typename Properties = properties<>>
 void load_over_group(GroupHelper gh, InputIteratorT in_ptr,
@@ -89,6 +90,7 @@ void load_over_group(GroupHelper gh, InputIteratorT in_ptr,
                       sycl::span<OutputT, ItemsPerWorkItem> out,
                       GroupMemoryHelper<typename InputIterator::value_type, ItemsPerWorkItem> memory_helper = {}); (2)
 
+// Store API
 template<typename GroupHelper, typename OutputIterator, typename InputT,
         std::size_t ElementsPerWorkItem, typename Properties = properties<>>
 void store_over_group(GroupHelper gh, OutputIterator out_ptr,
@@ -132,6 +134,7 @@ work-group or sub-group and some associated scratch space.
 _Effects_: Loads `ItemsPerWorkItem` elements from `in_ptr` to `out`
 using the `gh` group helper object. Properties can specify data placement.
 
+
 (2) _Preconditions_: `in_ptr` must be the same for all work-items
 in the group.
 
@@ -141,6 +144,7 @@ work-group or sub-group and some associated scratch space.
 _Effects_: Loads `ItemsPerWorkItem` elements from `in_ptr` to `out`
 using the `gh` group helper object. `GroupMemoryHelper` specifies data placement properties and also can work with extra options such as specifying out-of-boundry value and limited work-items number to work with.
 
+
 (3) _Preconditions_: `out_ptr` must be the same for all work-items
 in the group.
 
@@ -149,6 +153,7 @@ work-group or sub-group and some associated scratch space.
 
 _Effects_: Stores `ItemsPerWorkItem` elements from `in` span to `out_ptr`
 using the `gh` group helper object. Properties can specify data placement.
+
 
 (4) _Preconditions_: `out_ptr` must be the same for all work-items
 in the group.
