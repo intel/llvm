@@ -66,13 +66,8 @@ T2 matrix_ref_mn(const int &m, const int &n, T1 *A, T1 *B, T2 *C) {
   if constexpr (std::is_same<T1, uint16_t>::value) {
     for (int k = 0; k < Big_K; k++)
       res += make_fp32(A[m * Big_K + k]) * make_fp32(B[k * Big_N + n]);
-  } else if constexpr (std::is_same<T1, bfloat16>::value) {
-    for (int k = 0; k < Big_K; k++)
-      res +=
-          make_fp32(A[m * Big_K + k].raw()) * make_fp32(B[k * Big_N + n].raw());
   } else {
     for (int k = 0; k < Big_K; k++)
-
       res +=
           static_cast<T2>(A[m * Big_K + k]) * static_cast<T2>(B[k * Big_N + n]);
   }
