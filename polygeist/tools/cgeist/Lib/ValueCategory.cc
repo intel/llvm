@@ -63,10 +63,9 @@ mlir::Value ValueCategory::getValue(mlir::OpBuilder &builder) const {
     auto c0 = builder.create<ConstantIndexOp>(loc, 0);
     Value Loaded = builder.create<memref::LoadOp>(
         loc, val, std::vector<mlir::Value>({c0}));
-    if (Index) {
+    if (Index)
       Loaded =
           ValueCategory{Loaded, false}.ExtractElement(builder, loc, *Index).val;
-    }
     return Loaded;
   }
   llvm_unreachable("type must be LLVMPointer or MemRef");

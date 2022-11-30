@@ -944,9 +944,8 @@ MLIRScanner::EmitVectorSubscript(clang::ArraySubscriptExpr *Expr) {
 
 ValueCategory
 MLIRScanner::EmitArraySubscriptExpr(clang::ArraySubscriptExpr *E) {
-  if (!E->getBase()->getType()->isVectorType()) {
+  if (!E->getBase()->getType()->isVectorType())
     return Visit(E);
-  }
 
   auto LHS = EmitLValue(E->getBase());
   auto Idx = Visit(E->getIdx());
