@@ -1121,9 +1121,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urProgramCreateWithBinary
 if __use_win_types:
-    _urProgramCreateWithBinary_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, c_ulong, POINTER(c_ubyte), POINTER(ur_program_handle_t) )
+    _urProgramCreateWithBinary_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, c_size_t, POINTER(c_ubyte), POINTER(ur_program_handle_t) )
 else:
-    _urProgramCreateWithBinary_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, c_ulong, POINTER(c_ubyte), POINTER(ur_program_handle_t) )
+    _urProgramCreateWithBinary_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, c_size_t, POINTER(c_ubyte), POINTER(ur_program_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urProgramRetain
@@ -1201,9 +1201,9 @@ class _ur_program_dditable_t(Structure):
 ###############################################################################
 ## @brief Function-pointer for urModuleCreate
 if __use_win_types:
-    _urModuleCreate_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_ulong, c_char_p, ur_modulecreate_callback_t, c_void_p, POINTER(ur_module_handle_t) )
+    _urModuleCreate_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_size_t, c_char_p, ur_modulecreate_callback_t, c_void_p, POINTER(ur_module_handle_t) )
 else:
-    _urModuleCreate_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_ulong, c_char_p, ur_modulecreate_callback_t, c_void_p, POINTER(ur_module_handle_t) )
+    _urModuleCreate_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_size_t, c_char_p, ur_modulecreate_callback_t, c_void_p, POINTER(ur_module_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urModuleRetain

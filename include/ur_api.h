@@ -3479,7 +3479,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urModuleCreate(
     ur_context_handle_t hContext,                   ///< [in] handle of the context instance.
     const void* pIL,                                ///< [in] pointer to IL string.
-    uint32_t length,                                ///< [in] length of IL in bytes.
+    size_t length,                                  ///< [in] length of IL in bytes.
     const char* pOptions,                           ///< [in] pointer to compiler options null-terminated string.
     ur_modulecreate_callback_t pfnNotify,           ///< [in][optional] A function pointer to a notification routine that is
                                                     ///< called when program compilation is complete.
@@ -3813,7 +3813,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urProgramCreateWithBinary(
     ur_context_handle_t hContext,                   ///< [in] handle of the context instance
     ur_device_handle_t hDevice,                     ///< [in] handle to device associated with binary.
-    uint32_t size,                                  ///< [in] size in bytes.
+    size_t size,                                    ///< [in] size in bytes.
     const uint8_t* pBinary,                         ///< [in] pointer to binary.
     ur_program_handle_t* phProgram                  ///< [out] pointer to handle of Program object created.
     );
@@ -4701,7 +4701,7 @@ typedef struct _ur_program_create_with_binary_params_t
 {
     ur_context_handle_t* phContext;
     ur_device_handle_t* phDevice;
-    uint32_t* psize;
+    size_t* psize;
     const uint8_t** ppBinary;
     ur_program_handle_t** pphProgram;
 } ur_program_create_with_binary_params_t;
@@ -4935,7 +4935,7 @@ typedef struct _ur_module_create_params_t
 {
     ur_context_handle_t* phContext;
     const void** ppIL;
-    uint32_t* plength;
+    size_t* plength;
     const char** ppOptions;
     ur_modulecreate_callback_t* ppfnNotify;
     void** ppUserData;

@@ -289,7 +289,7 @@ typedef ur_result_t (UR_APICALL *ur_pfnProgramCreate_t)(
 typedef ur_result_t (UR_APICALL *ur_pfnProgramCreateWithBinary_t)(
     ur_context_handle_t,
     ur_device_handle_t,
-    uint32_t,
+    size_t,
     const uint8_t*,
     ur_program_handle_t*
     );
@@ -401,7 +401,7 @@ typedef ur_result_t (UR_APICALL *ur_pfnGetProgramProcAddrTable_t)(
 typedef ur_result_t (UR_APICALL *ur_pfnModuleCreate_t)(
     ur_context_handle_t,
     const void*,
-    uint32_t,
+    size_t,
     const char*,
     ur_modulecreate_callback_t,
     void*,
