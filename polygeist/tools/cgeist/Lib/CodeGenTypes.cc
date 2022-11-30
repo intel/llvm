@@ -1342,7 +1342,8 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
           TypeName == "accessor_common" || TypeName == "accessor" ||
           TypeName == "AccessorImplDevice" || TypeName == "AccessorSubscript" ||
           TypeName == "item" || TypeName == "ItemBase" ||
-          TypeName == "nd_item" || TypeName == "group") {
+          TypeName == "nd_item" || TypeName == "group" ||
+          TypeName == "atomic") {
         return getSYCLType(RT, *this);
       }
       // No need special handling for types that don't have record declaration

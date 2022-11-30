@@ -71,6 +71,11 @@ SYCLOpAsmInterface::getAlias(mlir::Type Type, llvm::raw_ostream &OS) const {
     OS << "sycl_vec_" << Vec.getDataType() << "_" << Vec.getNumElements();
     return AliasResult::FinalAlias;
   }
+  if (const auto Atomic = Type.dyn_cast<mlir::sycl::AtomicType>()) {
+    OS << "sycl_atomic_" << Atomic.getDataType() << "_"
+       << mlir::sycl::accessAddressSpaceAsString(Atomic.getAddrSpace());
+    return AliasResult::FinalAlias;
+  }
 
   return AliasResult::NoAlias;
 }

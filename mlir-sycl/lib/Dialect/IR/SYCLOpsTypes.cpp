@@ -120,6 +120,33 @@ void mlir::sycl::printMemoryTargetMode(AsmPrinter &Printer,
   Printer << memoryTargetModeAsString(MemTargetMode);
 }
 
+std::string
+mlir::sycl::accessAddressSpaceAsString(mlir::sycl::AccessAddrSpace AccAddress) {
+  return std::to_string(static_cast<int>(AccAddress));
+}
+
+mlir::LogicalResult mlir::sycl::parseAccessAddrSpace(
+    mlir::AsmParser &Parser,
+    mlir::FailureOr<mlir::sycl::AccessAddrSpace> &AccAddress) {
+
+  int AddSpaceInt;
+  if (Parser.parseInteger<int>(AddSpaceInt)) {
+    return mlir::ParseResult::failure();
+  }
+  // FIXME: The current implementation of AccessAddrSpace only works for SPIRV
+  // target.
+  assert(0 <= AddSpaceInt && AddSpaceInt <= 6 &&
+         "Expecting address space value between 0 and 6 (inclusive)");
+
+  AccAddress.emplace(static_cast<mlir::sycl::AccessAddrSpace>(AddSpaceInt));
+  return mlir::ParseResult::success();
+}
+
+void mlir::sycl::printAccessAddrSpace(AsmPrinter &Printer,
+                                      AccessAddrSpace AccAddress) {
+  Printer << accessAddressSpaceAsString(AccAddress);
+}
+
 llvm::SmallVector<mlir::TypeID>
 mlir::sycl::getDerivedTypes(mlir::TypeID TypeID) {
   if (TypeID == mlir::sycl::AccessorCommonType::getTypeID())

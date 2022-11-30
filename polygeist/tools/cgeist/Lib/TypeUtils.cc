@@ -187,6 +187,15 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
       return mlir::sycl::GroupType::get(CGT.getModule()->getContext(), Dim,
                                         Body);
     }
+    if (CTS->getName() == "atomic") {
+      const auto Type =
+          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
+      const int AddrSpace =
+          CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
+      return mlir::sycl::AtomicType::get(
+          CGT.getModule()->getContext(), Type,
+          static_cast<mlir::sycl::AccessAddrSpace>(AddrSpace), Body);
+    }
   }
 
   llvm_unreachable("SYCL type not handle (yet)");

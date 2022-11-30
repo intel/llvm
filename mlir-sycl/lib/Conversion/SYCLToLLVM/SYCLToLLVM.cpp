@@ -229,6 +229,14 @@ static Optional<Type> convertVecType(sycl::VecType type,
   return convertBodyType("class.sycl::_V1::vec", type.getBody(), converter);
 }
 
+/// Converts SYCL atomic type to LLVM type.
+static Optional<Type> convertAtomicType(sycl::AtomicType type,
+                                        LLVMTypeConverter &converter) {
+  // FIXME: Make sure that we have llvm.ptr as the body, not memref, through
+  // the conversion done in ConvertTOLLVMABI pass
+  return convertBodyType("class.sycl::_V1::atomic", type.getBody(), converter);
+}
+
 //===----------------------------------------------------------------------===//
 // CallPattern - Converts `sycl.call` to LLVM.
 //===----------------------------------------------------------------------===//
@@ -423,6 +431,9 @@ void mlir::sycl::populateSYCLToLLVMTypeConversion(
   });
   typeConverter.addConversion(
       [&](sycl::VecType type) { return convertVecType(type, typeConverter); });
+  typeConverter.addConversion([&](sycl::AtomicType type) {
+    return convertAtomicType(type, typeConverter);
+  });
 }
 
 void mlir::sycl::populateSYCLToLLVMConversionPatterns(
