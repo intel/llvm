@@ -22,17 +22,20 @@ details:
     - "Multiple calls to this function will return identical platforms handles, in the same order."
     - "The application may call this function from simultaneous threads, the implementation must be thread-safe"
 params:
-    - type: "uint32_t*"
-      name: pCount
+    - type: "uint32_t"
+      name: NumEntries
       desc: |
-            [in,out] pointer to the number of platforms.
-            if count is zero, then the call shall update the value with the total number of platforms available.
-            if count is greater than the number of platforms available, then the call shall update the value with the correct number of platforms available.
+            [in] the number of platforms to be added to phPlatforms. 
+            If phPlatforms is not NULL, then NumEntries but be greater than zero.
     - type: "$x_platform_handle_t*"
       name: phPlatforms
       desc: |
-            [out][optional][range(0, *pCount)] array of handle of platforms.
-            if count is less than the number of platforms available, then platform shall only retrieve that number of platforms.
+            [out][optional][range(0, NumEntries)] array of handle of platforms.
+            If NumEntries is less than the number of platforms available, then $xPlatform shall only retrieve that number of platforms.
+    - type: "uint32_t*"
+      name: "pNumPlatforms"
+      desc: |
+            [out][optional] returns the total number of platforms available. 
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Supported platform info"
@@ -75,16 +78,19 @@ params:
     - type: $x_platform_info_t
       name: PlatformInfoType
       desc: "[in] type of the info to retrieve"
-    - type: "size_t*"
-      name: pSize
+    - type: "size_t"
+      name: Size
       desc: |
-            [in,out] pointer to the number of bytes needed to return info queried.
-            the call shall update it with the real number of bytes needed to return the info
+            [in] the number of bytes pointed to by pPlatformInfo.
     - type: "void*"
       name: pPlatformInfo
       desc: |
             [out][optional] array of bytes holding the info.
-            if *pSize is not equal to the real number of bytes needed to return the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pPlatformInfo is not used.
+            If Size is not equal to or greater to the real number of bytes needed to return the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pPlatformInfo is not used.
+    - type: "size_t*"
+      name: pSizeRet
+      desc: |
+            [out][optional] pointer to the actual number of bytes being queried by pPlatformInfo.
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Supported API versions"

@@ -128,18 +128,20 @@ params:
     - type: $x_kernel_info_t
       name: propName
       desc: "[in] name of the Kernel property to query"
-    - type: "size_t*"
+    - type: "size_t"
       name: propSize
       desc: |
-            [in,out] pointer to the size of the Kernel property value
-            If *propSize is 0 or greater than the number of bytes of the Kernel property,
-            the call shall update the value with actual number of bytes of the Kernel property.            
+            [in] the size of the Kernel property value.           
     - type: "void*"
-      name: propValue
+      name: pKernelInfo
       desc: |
-            [in,out][optional][range(0, *propSize)] value of the Kernel property.
-            If *propSize is less than the number of bytes for the Kernel property,
-            only the first *propSize bytes will be returned.
+            [in,out][optional] array of bytes holding the kernel info property.
+            If propSize is not equal to or greater than the real number of bytes needed to return 
+            the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pKernelInfo is not used.
+    - type: "size_t*"
+      name: "pPropSizeRet"
+      desc: |
+            [out][optional] pointer to the actual size in bytes of data being queried by propName.
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Query work Group information about a Kernel object"
@@ -163,7 +165,10 @@ params:
       desc: "[in] size of the Kernel Work Group property value"
     - type: "void*"
       name: propValue
-      desc: "[in,out][range(0, propSize)] value of the Kernel Work Group property."
+      desc: "[in,out][optional][range(0, propSize)] value of the Kernel Work Group property."
+    - type: "size_t*"
+      name: "pPropSizeRet"
+      desc: "[out][optional] pointer to the actual size in bytes of data being queried by propName."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Query SubGroup information about a Kernel object"
@@ -185,7 +190,11 @@ params:
       desc: "[in] size of the Kernel SubGroup property value"
     - type: "void*"
       name: propValue
-      desc: "[in,out][range(0, propSize)] value of the Kernel SubGroup property."      
+      desc: "[in,out][range(0, propSize)][optional] value of the Kernel SubGroup property."
+    - type: "size_t*"
+      name: pPropSizeRet
+      desc: |
+            [out][optional] pointer to the actual size in bytes of data being queried by propName.
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Get a reference to the Kernel object."

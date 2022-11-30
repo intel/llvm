@@ -50,20 +50,24 @@ params:
       name: hPlatform
       desc: "[in] handle of the platform instance"
     - type: "$x_device_type_t"
-      name: DevicesType
+      name: DeviceType
       desc: |
             [in] the type of the devices.
-    - type: "uint32_t*"
-      name: pCount
+    - type: "uint32_t"
+      name: NumEntries
       desc: |
-            [in,out] pointer to the number of devices.
-            If count is zero, then the call shall update the value with the total number of devices available.
-            If count is greater than the number of devices available, then the call shall update the value with the correct number of devices available.
+            [in] the number of devices to be added to phDevices.
+            If phDevices in not NULL then NumEntries should be greater than zero.
     - type: "$x_device_handle_t*"
       name: phDevices
       desc: |
-            [out][optional][range(0, *pCount)] array of handle of devices.
-            If count is less than the number of devices available, then platform shall only retrieve that number of devices.
+            [out][optional][range(0, NumEntries)] array of handle of devices.
+            If NumEntries is less than the number of devices available, then platform shall only retrieve that number of devices.
+    - type: "uint32_t*"
+      name: pNumDevices
+      desc: |
+            [out][optional] pointer to the number of devices.
+            pNumDevices will be updated with the total number of devices available.
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Supported device info"
@@ -277,17 +281,20 @@ params:
     - type: $x_device_info_t
       name: infoType
       desc: "[in] type of the info to retrieve"
-    - type: "size_t*"
-      name: pSize
+    - type: "size_t"
+      name: propSize
       desc: |
-            [in,out] pointer to the number of bytes needed to return info queried.
-            The call shall update it with the real number of bytes needed to return the info
+            [in] the number of bytes pointed to by pDeviceInfo.
     - type: "void*"
       name: pDeviceInfo
       desc: |
             [out][optional] array of bytes holding the info.
-            If *pSize input is not 0 and not equal to the real number of bytes needed to return the info
+            If propSize is not equal to or greater than the real number of bytes needed to return the info
             then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pDeviceInfo is not used.
+    - type: "size_t*"
+      name: pPropSizeRet
+      desc: |
+            [out][optional] pointer to the actual size in bytes of the queried infoType.
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Makes a reference of the device handle indicating it's in use until paired $xDeviceRelease is called"
@@ -374,17 +381,19 @@ params:
       name: Properties
       desc: |
             [in] null-terminated array of <property, value> pair of the requested partitioning.
-    - type: "uint32_t*"
-      name: pCount
+    - type: "uint32_t"
+      name: NumDevices
       desc: |
-            [in,out] pointer to the number of sub-devices.
-            If count is zero, then the function shall update the value with the total number of sub-devices available.
-            If count is greater than the number of sub-devices available, then the function shall update the value with the correct number of sub-devices available.
+            [in] the number of sub-devices.
     - type: "$x_device_handle_t*"
       name: phSubDevices
       desc: |
-            [out][optional][range(0, *pCount)] array of handle of devices.
-            If count is less than the number of sub-devices available, then the function shall only retrieve that number of sub-devices.
+            [out][optional][range(0, NumDevices)] array of handle of devices.
+            If NumDevices is less than the number of sub-devices available, then the function shall only retrieve that number of sub-devices.
+    - type: "uint32_t*"
+      name: pNumDevicesRet
+      desc: |
+            [out][optional] pointer to the number of sub-devices the device can be partitioned into according to the partitioning property.
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Selects the most appropriate device binary based on runtime information and the IR characteristics."
