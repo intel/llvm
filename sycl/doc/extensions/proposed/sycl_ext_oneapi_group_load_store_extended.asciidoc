@@ -32,75 +32,60 @@ This extension is written against the SYCL 2020 specification, Revision 5. All r
 
 This extension also depends on the following other SYCL extensions:
 
-* link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/supported/sycl_ext_oneapi_local_memory.asciidoc[
-  sycl_ext_oneapi_local_memory].
-
 * link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_group_sort.asciidoc[
-  sycl_ext_oneapi_group_sort].
+  sycl_ext_oneapi_group_sort] (`group_with_scratchpad` class used as GroupHelper).
 
 * link:../experimental/sycl_ext_oneapi_properties.asciidoc[
   sycl_ext_oneapi_properties].
 
-== Current State
+== Overview
 
-This proposal extends existing one for group load/store: link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_group_load_store.asciidoc[sycl_ext_oneapi_group_load_store]. Existing APIs are focused on single value/sycl::vec shown below:
+This extention defines free functions for load/store operations within work group scope.
+
+== Single Value Functions
 
 [source,c++]
 ----
 // Load API
-template <typename T, access::address_space Space, access::decorated IsDecorated>
-T load(const multi_ptr<T, Space, IsDecorated>* src);
-
-template <int N, typename T, access::address_space Space, access::decorated IsDecorated>
-vec<T, N> load(const multi_ptr<T, Space, IsDecorated> src);
+template<typename Group, typename InputIteratorT,
+         typename OutputT, typename Properties = properties<>>
+void joint_load(Group gh, InputIteratorT in_ptr,
+                      OutputT& out, Properties = {});
 
 // Store API
-template <typename T, access::address_space Space, access::decorated IsDecorated>
-void store(multi_ptr<T, Space, IsDecorated> dst, const T& x);
-
-template <typename T, access::address_space Space, access::decorated IsDecorated>
-void store(multi_ptr<T, Space, IsDecorated> dst, const vec<T, N>& x);
+template<typename Group, typename InputT,
+         typename OutputIterator, typename Properties = properties<>>
+void joint_store(Group gh, InputT in,
+                      OutputIteratorT out_ptr, Properties = {});
 ----
 
-== Extended Proposal
+== Funtions with fixed-size arrays
 
-The extended APIs provides the following features:
+This APIs provides the following features:
 
 * load/store with temporary memory buffer, which can be passed via GroupHelper such as `group_with_scratchpad` link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_group_sort.asciidoc#group-helper[group_with_scratchpad description from sort over group proposal]
 
 * load/store flexible amount of elements per work item as sycl::span
 
-* specify data placement type via properties (1) or group_memory_helper (*naming is TBD) class (5)
-
-* extra options such as setting boundry values or limiting numbers of work items can be also specified via group_memory_helper
+* specify data placement type via properties (1) or extra options such as setting boundary values or limiting numbers of work items
 
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
 
 // Load API
-template<typename GroupHelper, typename InputIterator, typename OutputT,
+template<typename GroupHelper, typename InputIteratorT, typename OutputT,
         std::size_t ElementsPerWorkItem, typename Properties = properties<>>
-void load_over_group(GroupHelper gh, InputIteratorT in_ptr,
+void joint_load(GroupHelper gh, InputIteratorT in_ptr,
                       sycl::span<OutputT, ItemsPerWorkItem> out, Properties = {}); (1)
 
-template<typename GroupHelper, typename InputIterator, typename OutputT,
-        std::size_t ElementsPerWorkItem, typename GroupMemoryHelper>
-void load_over_group(GroupHelper gh, InputIteratorT in_ptr,
-                      sycl::span<OutputT, ItemsPerWorkItem> out,
-                      GroupMemoryHelper<typename InputIterator::value_type, ItemsPerWorkItem> memory_helper = {}); (2)
 
 // Store API
-template<typename GroupHelper, typename OutputIterator, typename InputT,
+template<typename GroupHelper, typename OutputIteratorT, typename InputT,
         std::size_t ElementsPerWorkItem, typename Properties = properties<>>
-void store_over_group(GroupHelper gh, OutputIterator out_ptr,
-                      sycl::span<InputT, ItemsPerWorkItem> in, Properties = {}); (3)
+void joint_store(GroupHelper gh, OutputIteratorT out_ptr,
+                      sycl::span<InputT, ItemsPerWorkItem> in, Properties = {}); (2)
 
-template<typename GroupHelper, typename OutputIterator, typename InputT,
-                  std::size_t ElementsPerWorkItem, typename GroupMemoryHelper>
-void store_over_group(GroupHelper gh, OutputIterator out_ptr,
-                      sycl::span<InputT, ItemsPerWorkItem> in,
-                      GroupMemoryHelper<InputT, ItemsPerWorkItem> memory_helper = {}); (4)
 
 // Properties:
 enum class group_algorithm_data_placement {
@@ -108,25 +93,18 @@ enum class group_algorithm_data_placement {
   striped
 };
 
-// Group Memory Helper (aka Loader/Storer) TBD:
+// TO DO: add extra properties for setting boundary values
+
+// Support memory function to define the needed amount of temporary memory needed (name TBD)
+
 template<typename T, std::size_t ElementsPerWorkItem>
-class group_memory_helper {
-public:
-  template<typename Properties>
-  group_memory_helper(Properties properties = {});
-
-  void set_valid_items_num(std::size_t valid_items);
-
-  void set_out_of_boundry_value(T oob_default);
-
-  static constexpr std::size_t memory_required(sycl::memory_scope scope, std::size_t block_size);
-}; (5)
+constexpr std::size_t memory_required(sycl::memory_scope scope, std::size_t block_size); (3)
 
 }
 ----
 
 (1) _Preconditions_: `in_ptr` must be the same for all work-items
-in the group.
+in the group. `out` is a sycl::span made from a pointer of private memory space.
 
 _Constraints_: Only available if `GroupHelper` was created with a
 work-group or sub-group and some associated scratch space.
@@ -135,18 +113,8 @@ _Effects_: Loads `ItemsPerWorkItem` elements from `in_ptr` to `out`
 using the `gh` group helper object. Properties can specify data placement.
 
 
-(2) _Preconditions_: `in_ptr` must be the same for all work-items
-in the group.
-
-_Constraints_: Only available if `GroupHelper` was created with a
-work-group or sub-group and some associated scratch space.
-
-_Effects_: Loads `ItemsPerWorkItem` elements from `in_ptr` to `out`
-using the `gh` group helper object. `GroupMemoryHelper` specifies data placement properties and also can work with extra options such as specifying out-of-boundry value and limited work-items number to work with.
-
-
-(3) _Preconditions_: `out_ptr` must be the same for all work-items
-in the group.
+(2) _Preconditions_: `out_ptr` must be the same for all work-items
+in the group. `in` is a sycl::span made from a pointer of private memory space.
 
 _Constraints_: Only available if `GroupHelper` was created with a
 work-group or sub-group and some associated scratch space.
@@ -154,63 +122,54 @@ work-group or sub-group and some associated scratch space.
 _Effects_: Stores `ItemsPerWorkItem` elements from `in` span to `out_ptr`
 using the `gh` group helper object. Properties can specify data placement.
 
-
-(4) _Preconditions_: `out_ptr` must be the same for all work-items
-in the group.
-
-_Constraints_: Only available if `GroupHelper` was created with a
-work-group or sub-group and some associated scratch space.
-
-_Effects_: Stores `ItemsPerWorkItem` elements from `in` to `out_ptr`
-using the `gh` group helper object. `GroupMemoryHelper` specifies data placement properties and also can work with extra options such as specifying out-of-boundry value and limited work-items number to work with.
-
 == Usage Examples
 
 1.Example shows the simple case of block load of global memory from `input` to the private array `data` and store it back to `output`
-The temporary memory is queried from `group_memory_helper` and allocated via `sycl::local_accessor`
+The temporary memory is allocated via `sycl::local_accessor`
 
 [source,c++]
 ----
+namespace sycl_exp = sycl::ext::oneapi::experimental;
 
 queue.submit([&](sycl::handler &cgh) {
-  constexpr auto temp_memory_size =
-    sycl_ext::group_memory_helper<T, items_per_thread>::memory_required(sycl::memory_scope::work_group, block_size);
+  constexpr auto temp_memory_size = sycl_exp::memory_required<T, items_per_thread>(sycl::memory_scope::work_group, block_size);
   sycl::local_accessor<std::byte> buffer(temp_memory_size, cgh);
   cgh.parallel_for(sycl::nd_range<1>(global_size, local_size), [=](sycl::nd_item<1> item) {
       T data[items_per_thread];
-      sycl_ext::group_with_scratchpad gh{item.get_group(),
+      sycl_exp::group_with_scratchpad gh{item.get_group(),
                                         sycl::span{buffer.get_pointer().get(), temp_memory_size}};
-      sycl_ext::load_over_group(gh, input, sycl::span{data});
+      sycl_exp::joint_load(gh, input, sycl::span{data});
 
       // Work with data...
       
-      sycl_ext::store_over_group(gh, output, sycl::span{data});
+      sycl_exp::joint_store(gh, output, sycl::span{data});
   });
 });
 ----
 
 
 2.Example shows the case of striped block load of global memory from `input` to the private array `data` and store it back to `output`
-The temporary memory is allocated via `group_local_memory` API
+The temporary memory is allocated via `group_local_memory` API, described in  link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/supported/sycl_ext_oneapi_local_memory.asciidoc[sycl_ext_oneapi_local_memory]
 
 [source,c++]
 ----
+namespace sycl_exp = sycl::ext::oneapi::experimental;
+
 queue.submit([&](sycl::handler &cgh) {
-  constexpr auto temp_memory_size =
-    sycl_ext::block_loader<T, items_per_thread>::memory_required(sycl::memory_scope::work_group, block_size);
+  constexpr auto temp_memory_size = sycl_exp::memory_required<T, items_per_thread>(sycl::memory_scope::work_group, block_size);
   
   cgh.parallel_for(sycl::nd_range<1>(global_size, local_size), [=](sycl::nd_item<1> item) {
       T data[items_per_thread];
 
       auto scratch = sycl::ext::oneapi::group_local_memory<std::byte[temp_memory_size]>(item.get_group());
 
-      sycl_ext::group_with_scratchpad gh{item.get_group(), sycl::span{scratch.get(), temp_memory_size}};
+      sycl_exp::group_with_scratchpad gh{item.get_group(), sycl::span{scratch.get(), temp_memory_size}};
       
-      sycl_ext::load_over_group(gh, input, sycl::span{data}, properties<data_placement<striped>>{});
+      sycl_exp::joint_load(gh, input, sycl::span{data}, properties<data_placement<striped>>{});
 
       // Work with data...
       
-      sycl_ext::store_over_group(gh, output, sycl::span{data}, properties<data_placement<striped>>{});
+      sycl_exp::joint_store(gh, output, sycl::span{data}, properties<data_placement<striped>>{});
   });
 });
 ----
