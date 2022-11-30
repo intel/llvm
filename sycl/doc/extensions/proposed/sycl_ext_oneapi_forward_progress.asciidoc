@@ -1,0 +1,543 @@
+= sycl_ext_oneapi_forward_progress
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2022-2022 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 6 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+This extension also depends on the following other SYCL extensions:
+
+* link:../proposed/sycl_ext_oneapi_kernel_properties.asciidoc[
+  sycl_ext_oneapi_kernel_properties]
+
+[NOTE]
+====
+This extension uses the concept of a "root group" to represent the set of all
+work-items in a kernel, in keeping with the
+link:../proposed/sycl_ext_oneapi_root_group.asciidoc[sycl_ext_oneapi_root_group]
+extension. However, there is no dependency on functionality introduced by that
+extension.
+====
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+
+== Overview
+
+SYCL does not define any way to query the hardware and software mapping
+selected by an implementation, and thus no way for application developers to
+reason about forward progress guarantees. Developers must therefore choose
+between writing highly performant code that makes unsafe assumptions and may
+fail when moved to other implementations/backends/devices, or writing highly
+portable code that does not make such assumptions but fails to take full
+advantage of hardware capabilities.
+
+This extension strengthens the forward progress guarantees provided by a SYCL
+implementation, and exposes the guarantees of particular
+implementations/backends/devices via new device queries and kernel properties.
+
+Note that when the phrases below appear in this extension, their meaning is
+identical to their meaning in the {cpp} core language specification:
+
+- _Makes progress_
+- _Thread of execution_
+- _Concurrent forward progress guarantees_
+- _Parallel forward progress guarantees_
+- _Weakly parallel forward progress guarantees_
+- _Block with forward progress guarantee delegation_
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_FORWARD_PROGRESS` to one of the values defined in the
+table below.  Applications can test for the existence of this macro to
+determine if the implementation supports this feature, or applications can test
+the macro's value to determine which of the extension's features the
+implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+
+=== Execution model
+
+The work-items in a SYCL ND-range kernel are arranged into a hierarchy of
+groups and associated scopes. Work-items can query their position within each
+group, and can coordinate with other members of the same group using group
+functions and group algorithms.
+
+The execution model for work-items in an ND-range kernel behaves as if the
+work-items are invoked in the following hypothetical implementation:
+
+- Execution of the entire ND-range kernel starts with a single root-group
+thread of execution.
+- The root-group thread of execution logically spawns one additional thread of
+execution for each work-group, and blocks with forward progress guarantee
+delegation upon those threads of execution.
+- Each of the work-group threads of execution logically spawns one additional
+thread of execution for each sub-group, and then the work-group thread of
+execution blocks with forward progress guarantee delegation upon
+those sub-group threads of execution.
+- Each of the sub-group threads of execution logically spawns an additional
+thread of execution for each work-item, and then the sub-group thread of
+execution blocks with forward progress guarantee delegation upon those
+work-item threads of execution.
+- Finally, each work-item thread of execution executes one instance of the
+kernel function.
+
+```mermaid
+graph TD;
+    subgraph root-group
+    root(Thread);
+    end
+    subgraph work-groups
+    root-->wg1(Thread);
+    root-->wg2(...);
+    end
+    subgraph sub-groups
+    wg1-->sg1(Thread);
+    wg1-->sg2(...);
+    end
+    subgraph work-items
+    sg1-->wi1(Thread);
+    sg1-->wi2(Thread);
+    sg1-->wi3(Thread);
+    sg1-->wi4(Thread);
+    sg1-->wi5(Thread);
+    sg1-->wi6(Thread);
+    sg1-->wi7(Thread);
+    sg1-->wi8(Thread);
+    end
+```
+
+[NOTE]
+====
+Blocking with forward progress guarantee delegation ensures that the forward
+progress guarantees provided by at least one thread of execution in a group
+are at least as strong as the forward progress guarantees provided by that
+group.
+====
+
+Safe coordination of work-items via memory requires careful attention to this
+hierarchy, since the ability of work-items to make progress depends on a
+combination of the forward progress guarantees provided by the work-item
+threads of execution and the forward progress guarantees provided by the
+sub-group, work-group and root-group threads of execution. Often, correct
+execution of a kernel requires knowledge of the forward progress guarantees
+of a certain subset of these threads of execution.
+
+To facilitate reasoning about work-item coordination, the forward progress
+guarantees of threads of execution in SYCL can be qualified by a _coordination
+scope_. This extension defines the following coordination scopes:
+
+- All work-item threads of execution spawned directly or indirectly from the
+ND-range kernel's initial root thread of execution are considered part of the
+same root-group scope.
+- All work-item threads of execution spawned directly or indirectly from the
+same work-group thread of execution are considered part of the same work-group
+scope.
+- All work-item threads of execution spawned from the same sub-group thread of
+execution are considered part of the same sub-group scope.
+- Each individual work-item thread of execution is the sole member of its own
+work-item scope.
+
+[NOTE]
+====
+Qualifying a thread of execution's forward progress guarantees with a coordination
+scope can be thought of as a shorthand for combining the forward progress
+guarantees provided by each thread of execution in the hierarchy.
+For example, consider a hypothetical implementation that creates a separate
+`std::thread` (providing concurrent forward progress guarantees) to execute
+each sub-group, but which permits an unbounded number of work-groups executed
+as tasks (providing parallel forward progress guarantees). With work-group
+coordination scope, each sub-group provides concurrent forward progress
+guarantees: this reflects the guarantees associated with each `std::thread`
+upon creation. With root-group coordination scope, each sub-group provides
+only parallel forward progress guarantees: each sub-group's progress guarantees
+are weakened to reflect that the creation of a sub-group depends upon a
+specific work-group (task) being scheduled and making progress.
+====
+
+
+=== Forward progress guarantees
+
+The `forward_progress_guarantee` `enum` is used to represent the three classes
+of forward progress guarantee defined in the {cpp} core language specification.
+
+[source,c++]
+----
+namespace ext::oneapi::experimental::sycl {
+
+enum class forward_progress_guarantee {
+  concurrent,
+  parallel,
+  weakly_parallel
+};
+
+}
+----
+
+[NOTE]
+====
+This `enum` is defined similarly to the one defined in
+https://wg21.link/p2300[P2300: `std::execution`].
+====
+
+
+=== Execution scopes
+
+The `execution_scope` `enum` is used to represent the hierarchy of threads of
+execution within a SYCL implementation.
+
+[source,c++]
+----
+namespace ext::oneapi::experimental::sycl {
+
+enum class execution_scope {
+  work_item,
+  sub_group,
+  work_group,
+  root_group,
+};
+
+}
+----
+
+[NOTE]
+====
+The existing `memory_scope` `enum` is not used here to provide greater
+flexibility in modifying the forward progress extension in future.
+`memory_scope` is lacking values required by this extension (i.e. `root_group`)
+and has additional values that are not required here (e.g. `system`).
+====
+
+
+=== Device queries
+
+New device queries are introduced to allow developers to reason about the
+progress guarantees that can be provided by each device.
+
+The results of these queries represent the strongest forward progress
+guarantees that a device can satisfy, and therefore the strongest forward
+progress guarantees that can be requested by a kernel's <<properties,
+properties>>.
+
+The queries are expressed in terms of a _target_ execution scope and a
+_coordination scope_, as described previously. Note that these queries
+cannot be used to reason about the thread of execution associated with
+the root-group, because it is always the top of the hierarchy; when the
+target execution scope is `root_group`, it is not possible to specify
+a broader coordination scope.
+
+[NOTE]
+====
+Explicitly specifying both the target and coordination scope ensures that the
+interpretation of forward progress queries is fixed and independent of the
+number of execution scopes in the hierarchy. This extension therefore does
+not prevent SYCL or other extensions from introducing new execution scopes.
+====
+
+
+[%header,cols="1,5,5"]
+|===
+|Device Descriptor
+|Return Type
+|Description
+
+|`template <execution_scope Scope, execution_scope CoordinationScope>
+ info::device::ext_oneapi_forward_progress_guarantee`
+|`forward_progress_guarantee`
+|Return the strongest forward progress guarantee that this device can support
+ for threads of execution with the specified combination of scope and
+ coordination scope.
+
+|===
+
+
+=== Kernel properties [[properties]]
+
+New kernel properties are introduced to allow developers to declare that a
+given kernel requires specific forward progress guarantees for correctness.
+If a kernel is submitted to a device that cannot satisfy the request for
+specific progress guarantees, the implementation must throw an `exception`
+with the `errc::feature_not_supported` error code.
+
+Each property must appear in a property list at most once, and it is therefore
+not possible to specify different guarantees and/or coordination scopes for the
+same execution scope directly. However, it remains possible for requests with
+different execution scopes to have overlapping coordination scopes
+(e.g. a request for work-items to provide concurrent forward progress
+guarantees at root-group coordination scope implicitly requests for sub-groups
+and work-groups to also provide concurrent forward progress guarantees). In
+such a case, an implementation must satisfy the strongest request(s).
+
+Devices may not be able to provide the requested forward progress guarantees
+for all launch configurations.  The <<launch, launch queries>> defined in a
+later section allow developers to identify valid launch configurations for
+specific combinations of properties.
+
+[NOTE]
+====
+The mechanism used to provide specific forward progress guarantees is
+implementation-defined.
+====
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+struct work_group_progress_key {
+  template <forward_progress_guarantee Guarantee, execution_scope CoordinationScope>
+  using value_t = property_value<work_group_progress_key, std::integral_constant<forward_progress_guarantee, Guarantee>, std::integral_constant<execution_scope, CoordinationScope>>;
+};
+
+struct sub_group_progress_key {
+  template <forward_progress_guarantee Guarantee, execution_scope CoordinationScope>
+  using value_t = property_value<sub_group_progress_key, std::integral_constant<forward_progress_guarantee, Guarantee>, std::integral_constant<execution_scope, CoordinationScope>>;
+};
+
+struct work_item_progress_key {
+  template <forward_progress_guarantee Guarantee, execution_scope CoordinationScope>
+  using value_t = property_value<work_item_progress_key, std::integral_constant<forward_progress_guarantee, Guarantee>, std::integral_constant<execution_scope, CoordinationScope>>;
+};
+
+template <forward_progress_guarantee Guarantee, execution_scope CoordinationScope>
+inline constexpr work_group_progress_key::value_t<Guarantee, CoordinationScope> work_group_progress;
+
+template <forward_progress_guarantee Guarantee, execution_scope CoordinationScope>
+inline constexpr sub_group_progress_key::value_t<Guarantee, CoordinationScope> sub_group_progress;
+
+template <forward_progress_guarantee Guarantee, execution_scope CoordinationScope>
+inline constexpr work_item_progress_key::value_t<Guarantee, CoordinationScope> work_item_progress;
+
+template <> struct is_property_key<work_group_progress_key> : std::true_type {};
+template <> struct is_property_key<sub_group_progress_key> : std::true_type {};
+template <> struct is_property_key<work_item_progress_key> : std::true_type {};
+
+}
+----
+
+|===
+|Property|Description
+
+|`work_group_progress`
+|The `work_group_progress` property adds the requirement that the kernel must be
+ launched with the specified forward progress guarantees for threads of execution
+ created at `execution_scope::work_group` scope, with the specified
+ coordination scope.
+
+|`sub_group_progress`
+|The `sub_group_progress` property adds the requirement that the kernel must be
+ launched with the specified forward progress guarantees for threads of execution
+ created at `execution_scope::sub_group` scope, with the specified coordination
+ scope.
+
+|`work_item_progress`
+|The `work_item_progress` property adds the requirement that the kernel must be
+ launched with the specified forward progress guarantees for threads of execution
+ created at `execution_scope::work_item` scope, with the specified coordination
+ scope.
+
+|===
+
+
+=== Launch queries [[launch]]
+
+An implementation's ability to satisify requests for specific forward progress
+guarantees for a kernel may be dependent upon: the kernel itself, and the
+features that it uses; the queue (and underlying device) to which the kernel is
+submitted; and the kernel's launch configuration.
+
+It is a user's responsibility to ensure that a kernel requesting specific
+forward progress guarantees uses a compatible launch configuration, using the
+`ext_oneapi_get_info` function and descriptors from the
+`info::kernel_queue_specific` namespace.
+
+[source,c++]
+----
+namespace sycl {
+
+class kernel {
+ public:
+  template <typename Param>
+  typename Param::return_type ext_oneapi_get_info(const queue &q) const;
+};
+
+}
+----
+
+NOTE: These queries are queue- and not device-specific because it is
+anticipated that implementations will introduce finer-grained queue
+controls that impact the scheduling of kernels.
+
+[source,c++]
+----
+template <typename Param>
+typename Param::return_type ext_oneapi_get_info(const queue &q) const;
+----
+_Preconditions_: `Param` must be one of the `info::kernel_queue_specific`
+descriptors defined in this extension, and the type alias `Param::return_type`
+must be defined in accordance with the table below.
+
+_Returns_: Information about the kernel that applies when the kernel is
+submitted to the queue specified by _q_.
+
+This extension adds several new queries to this interface, many of which
+already have equivalents in the `kernel_device_specific` or `device`
+namespaces.
+
+[NOTE]
+====
+In a future version of this extension, the `kernel_device_specific`,
+`kernel_queue_specific` and `device` namespaces may be combined, to avoid
+duplication.
+====
+
+[source, c++]
+----
+namespace ext::oneapi::experimental::info::kernel_queue_specific {
+
+template <uint32_t Dimensions>
+struct max_work_item_sizes;
+
+struct max_work_group_size;
+struct max_num_work_groups; // also defined in sycl_ext_oneapi_root_group
+
+struct max_sub_group_size;
+struct max_num_sub_groups;
+
+}
+----
+
+[%header,cols="1,5,5"]
+|===
+|Kernel Descriptor
+|Return Type
+|Description
+
+|`template <uint32_t Dimensions>
+ max_work_item_sizes`
+|`id<Dimensions>`
+|Returns the maximum number of work-items that are permitted in each dimension
+ of a work-group.
+
+|`max_work_group_size`
+|`size_t`
+|Returns the maximum number of work-items that are permitted in a work-group.
+
+|`max_num_work_groups`
+|`size_t`
+|Returns the maximum number of work-groups.
+
+|`max_sub_group_size`
+|`uint32_t`
+|Returns the maximum sub-group size.
+
+|`max_num_sub_groups`
+|`uint32_t`
+|Returns the maximum number of sub-groups per work-group.
+
+|===
+
+
+== Implementation notes
+
+This non-normative section provides information about one possible
+implementation of this extension.  It is not part of the specification of the
+extension's API.
+
+The simplest valid implementation of this extension returns `weakly_parallel`
+for all queries, and throws an exception upon submission for any kernel
+requesting stronger guarantees.  Such an implementation is compatible with
+any backend currently capable of supporting SYCL 2020.
+
+Exposing stronger guarantees requires an understanding of both a device's
+capabilities and the functionality exposed by specific backends. For example,
+it may only be possible to provide `concurrent` forward progress guarantees
+for backends that submit kernels eagerly and which support some notion of a
+"cooperative" kernel launch.
+
+The table below shows the expected mapping for CPUs and GPUs using the current
+OpenCL and Level Zero backends, respectively.
+
+[%header,cols="1,5,5,5"]
+|===
+|Scope
+|Coordination Scope
+|CPU & OpenCL
+|GPU & Level Zero
+
+|`work_group`
+|`root_group`
+|`parallel`
+|`concurrent`
+
+|`sub_group`
+|`work_group`
+|`weakly_parallel`
+|`concurrent`
+
+|`work_item`
+|`sub_group`
+|`weakly_parallel`
+|`weakly_parallel`
+
+|===
+
+== Issues
+
+None.
+
