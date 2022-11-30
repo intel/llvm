@@ -1119,7 +1119,8 @@ __SYCL_EXPORT pi_result piextContextCreateWithNativeHandle(
 // Queue
 //
 
-// TODO: Remove during next ABI break.
+// TODO: Remove during next ABI break and rename piQueueCreateEx to
+// piQueueCreate.
 __SYCL_EXPORT pi_result piQueueCreate(pi_context context, pi_device device,
                                       pi_queue_properties properties,
                                       pi_queue *queue);
