@@ -1,4 +1,4 @@
-; RUN: sycl-post-link -split-esimd -lower-esimd -O2 -S %t -o %t.table
+; RUN: sycl-post-link -split-esimd -lower-esimd -O2 -S %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_esimd_0.ll
 ; This test checks that IR code below can be successfully processed by
 ; sycl-post-link. In this IR no extractelement instruction and no casting are used
