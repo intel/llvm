@@ -1438,40 +1438,14 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
               return Builder.create<polygeist::SubIndexOp>(
                   Loc, ResultType, Val, getConstantIndex(FNum));
             })
-            .Case<sycl::AccessorType>([&](auto ElemTy) {
-              return SYCLCommonFieldLookup<sycl::AccessorType>(Val, FNum,
-                                                               Shape);
-            })
-            .Case<sycl::AccessorImplDeviceType>([&](auto ElemTy) {
-              return SYCLCommonFieldLookup<sycl::AccessorImplDeviceType>(
-                  Val, FNum, Shape);
-            })
-            .Case<sycl::AccessorSubscriptType>([&](auto ElemTy) {
-              return SYCLCommonFieldLookup<sycl::AccessorSubscriptType>(
-                  Val, FNum, Shape);
-            })
-            .Case<sycl::AtomicType>([&](auto ElemTy) {
-              return SYCLCommonFieldLookup<sycl::AtomicType>(Val, FNum, Shape);
-            })
-            .Case<sycl::GetScalarOpType>([&](auto ElemTy) {
-              return SYCLCommonFieldLookup<sycl::GetScalarOpType>(Val, FNum, Shape);
-            })
-            .Case<sycl::GroupType>([&](auto ElemTy) {
-              return SYCLCommonFieldLookup<sycl::GroupType>(Val, FNum, Shape);
-            })
-            .Case<sycl::ItemBaseType>([&](auto ElemTy) {
-              return SYCLCommonFieldLookup<sycl::ItemBaseType>(Val, FNum,
-                                                               Shape);
-            })
-            .Case<sycl::ItemType>([&](auto ElemTy) {
-              return SYCLCommonFieldLookup<sycl::ItemType>(Val, FNum, Shape);
-            })
-            .Case<sycl::NdItemType>([&](auto ElemTy) {
-              return SYCLCommonFieldLookup<sycl::NdItemType>(Val, FNum, Shape);
-            })
-            .Case<sycl::NdRangeType>([&](auto ElemTy) {
-              return SYCLCommonFieldLookup<sycl::NdRangeType>(Val, FNum, Shape);
-            })
+            .Case<sycl::AccessorType, sycl::AccessorImplDeviceType,
+                  sycl::AccessorSubscriptType, sycl::AtomicType,
+                  sycl::GetScalarOpType, sycl::GroupType, sycl::ItemBaseType,
+                  sycl::ItemType, sycl::NdItemType, sycl::NdRangeType>(
+                [&](auto ElemTy) {
+                  return SYCLCommonFieldLookup<decltype(ElemTy)>(Val, FNum,
+                                                                 Shape);
+                })
             .Default([&Val](Type T) {
               llvm_unreachable("not implemented");
               return Val;
