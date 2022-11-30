@@ -409,21 +409,6 @@ bool queue_impl::ext_oneapi_empty() const {
            info::event_command_status::complete;
   }
 
-  // We currently don't support this API for OpenCL backend in case of
-  // out-of-order queue or queue with discard_events property because OpenCL
-  // doesn't have API to provide a status of the queue.
-  if (getPlugin().getBackend() == backend::opencl) {
-    if (MDiscardEvents)
-      throw sycl::exception(
-          make_error_code(errc::feature_not_supported),
-          "ext_oneapi_empty() is not supported for queues with discard_events "
-          "property when OpenCL backend is used.");
-    if (!isInOrder())
-      throw sycl::exception(make_error_code(errc::feature_not_supported),
-                            "ext_oneapi_empty() is not supported for "
-                            "out-of-order queues when OpenCL backend is used.");
-  }
-
   // Check the status of the backend queue if this is not a host queue.
   if (!is_host()) {
     pi_bool IsReady = false;

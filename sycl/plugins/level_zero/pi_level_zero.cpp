@@ -3659,6 +3659,32 @@ pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
     die("PI_QUEUE_INFO_DEVICE_DEFAULT in piQueueGetInfo not implemented\n");
     break;
   case PI_EXT_ONEAPI_QUEUE_INFO_STATUS: {
+    auto CheckEventStatus = [&](pi_event Event) -> pi_result {
+      ze_result_t ZeResult =
+          ZE_CALL_NOCHECK(zeEventQueryStatus, (Event->ZeEvent));
+      if (ZeResult == ZE_RESULT_NOT_READY) {
+        return ReturnValue(pi_bool{false});
+      } else if (ZeResult != ZE_RESULT_SUCCESS) {
+        return mapError(ZeResult);
+      }
+      return PI_SUCCESS;
+    };
+
+    // We can exit early if we have in-order queue.
+    if (Queue->isInOrderQueue()) {
+      if (!Queue->LastCommandEvent)
+        return ReturnValue(pi_bool{true});
+
+      // We can check status of the event only if it isn't discarded otherwise it may be reset (because we are free to reuse such events) and zeEventQueryStatus will hang.
+      if (!Queue->LastCommandEvent->IsDiscarded)
+        return CheckEventStatus(Queue->LastCommandEvent);
+
+      // For immediate command lists we have to check status of the event because immediate command lists are
+      // not associated with level zero queue. Conservatively return false in this case because last event is discarded and we can't check its status.
+      if (Queue->Device->useImmediateCommandLists())
+        return ReturnValue(pi_bool{false});
+    }
+
     // If we have any open command list which is not empty then return false
     // because it means that there are commands which are not even submitted for
     // execution yet.
@@ -3679,15 +3705,8 @@ pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
             continue;
 
           auto EventList = ImmCmdList->second.EventList;
-          for (auto It = EventList.crbegin(); It != EventList.crend(); It++) {
-            ze_result_t ZeResult =
-                ZE_CALL_NOCHECK(zeEventQueryStatus, ((*It)->ZeEvent));
-            if (ZeResult == ZE_RESULT_NOT_READY) {
-              return ReturnValue(pi_bool{false});
-            } else if (ZeResult != ZE_RESULT_SUCCESS) {
-              return mapError(ZeResult);
-            }
-          }
+          for (auto It = EventList.crbegin(); It != EventList.crend(); It++)
+            return CheckEventStatus(*It);
         }
       } else {
         for (const auto &ZeQueue : QueueGroup.ZeQueues) {
