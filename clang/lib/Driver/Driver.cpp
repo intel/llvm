@@ -1095,17 +1095,19 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     Diag(clang::diag::err_drv_invalid_argument_to_option)
         << ArgValue << A->getOption().getName();
   };
-  Arg* DeviceCodeSplit = C.getInputArgs().getLastArg(options::OPT_fsycl_device_code_split_EQ);
+  Arg *DeviceCodeSplit =
+      C.getInputArgs().getLastArg(options::OPT_fsycl_device_code_split_EQ);
   checkSingleArgValidity(SYCLLink, {"early", "image"});
-  checkSingleArgValidity(
-      DeviceCodeSplit,
-      {"per_kernel", "per_source", "auto", "off"});
+  checkSingleArgValidity(DeviceCodeSplit,
+                         {"per_kernel", "per_source", "auto", "off"});
 
-  Arg* NoRDC = C.getInputArgs().getLastArg(options::OPT_fno_gpu_rdc);
-  if(NoRDC &&
-     (!DeviceCodeSplit ||
-      (DeviceCodeSplit->getValue() != StringRef("per_source") && DeviceCodeSplit->getValue() != StringRef("per_kernel")))) 
-    Diag(clang::diag::err_no_rdc_unsupported_device_code_split) << (NoRDC->getAlias() ? NoRDC->getAlias()->getSpelling() : NoRDC->getSpelling());
+  Arg *NoRDC = C.getInputArgs().getLastArg(options::OPT_fno_gpu_rdc);
+  if (NoRDC && (!DeviceCodeSplit ||
+                (DeviceCodeSplit->getValue() != StringRef("per_source") &&
+                 DeviceCodeSplit->getValue() != StringRef("per_kernel"))))
+    Diag(clang::diag::err_no_rdc_unsupported_device_code_split)
+        << (NoRDC->getAlias() ? NoRDC->getAlias()->getSpelling()
+                              : NoRDC->getSpelling());
 
   Arg *SYCLForceTarget =
       getArgRequiringSYCLRuntime(options::OPT_fsycl_force_target_EQ);
@@ -5943,7 +5945,7 @@ class OffloadingActionBuilder final {
         } else {
           C.getDriver().Diag(diag::warn_drv_sycl_target_missing)
               << SectionTriple << ArchListStr;
-        }       
+        }
       }
     }
 
@@ -8133,7 +8135,8 @@ static void CollectForEachInputs(
     InputInfoList &InputInfos, const Action *SourceAction, const ToolChain *TC,
     StringRef BoundArch, Action::OffloadKind TargetDeviceOffloadKind,
     const std::map<std::pair<const Action *, std::string>, InputInfoList>
-    &CachedResults, const ForEachWrappingAction *FEA) {
+        &CachedResults,
+    const ForEachWrappingAction *FEA) {
   for (const Action *Input : SourceAction->getInputs()) {
     // Search for the Input, if not in the cache assume actions were collapsed
     // so recurse.
@@ -8329,10 +8332,10 @@ InputInfoList Driver::BuildJobsForActionNoCache(
                            TargetDeviceOffloadKind, CachedResults, FEA);
       const Tool *Creator = &Cmd->getCreator();
       StringRef ParallelJobs;
-      if (TargetDeviceOffloadKind == Action::OFK_SYCL) 
+      if (TargetDeviceOffloadKind == Action::OFK_SYCL)
         ParallelJobs = C.getArgs().getLastArgValue(
             options::OPT_fsycl_max_parallel_jobs_EQ);
-      
+
       tools::SYCL::constructLLVMForeachCommand(
           C, *SourceAction, std::move(Cmd), InputInfos, ActionResult, Creator,
           "", types::getTypeTempSuffix(ActionResult.getType()), ParallelJobs);

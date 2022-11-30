@@ -4205,8 +4205,9 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
 
   // GPURelocatableDeviceCode should be true for SYCL if not specified.
   if (Args.hasArg(OPT_fsycl_is_device) || Args.hasArg(OPT_fsycl_is_host))
-      Opts.GPURelocatableDeviceCode = Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc, /*default=*/true);
-  
+    Opts.GPURelocatableDeviceCode = Args.hasFlag(
+        options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc, /*default=*/true);
+
   return Diags.getNumErrors() == NumErrorsBefore;
 }
 

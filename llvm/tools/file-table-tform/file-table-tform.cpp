@@ -351,7 +351,7 @@ struct TformCmd {
 
               if (EC)
                 return createFileError(Output, EC);
-              
+
               (*OutputTable)->write(Out, (*OutputTable)->getNumColumns() > 1);
 
               if (Out.has_error())

@@ -6996,7 +6996,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (IsCuda || IsHIP || IsSYCL) {
     if (IsRDCMode)
       CmdArgs.push_back("-fgpu-rdc");
-    else 
+    else
       CmdArgs.push_back("-fno-gpu-rdc");
   }
   if (IsCuda || IsHIP) {
