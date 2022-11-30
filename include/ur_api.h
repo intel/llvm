@@ -8,8 +8,8 @@
  * @version v0.5-r0.5
  *
  */
-#ifndef _UR_API_H
-#define _UR_API_H
+#ifndef UR_API_H_INCLUDED
+#define UR_API_H_INCLUDED
 #if defined(__cplusplus)
 #pragma once
 #endif
@@ -88,47 +88,47 @@ typedef uint8_t ur_bool_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Handle of a platform instance
-typedef struct _ur_platform_handle_t *ur_platform_handle_t;
+typedef struct ur_platform_handle_t_ *ur_platform_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Handle of platform's device object
-typedef struct _ur_device_handle_t *ur_device_handle_t;
+typedef struct ur_device_handle_t_ *ur_device_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Handle of context object
-typedef struct _ur_context_handle_t *ur_context_handle_t;
+typedef struct ur_context_handle_t_ *ur_context_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Handle of event object
-typedef struct _ur_event_handle_t *ur_event_handle_t;
+typedef struct ur_event_handle_t_ *ur_event_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Handle of Program object
-typedef struct _ur_program_handle_t *ur_program_handle_t;
+typedef struct ur_program_handle_t_ *ur_program_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Handle of Module object
-typedef struct _ur_module_handle_t *ur_module_handle_t;
+typedef struct ur_module_handle_t_ *ur_module_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Handle of module's Kernel object
-typedef struct _ur_kernel_handle_t *ur_kernel_handle_t;
+typedef struct ur_kernel_handle_t_ *ur_kernel_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Handle of a queue object
-typedef struct _ur_queue_handle_t *ur_queue_handle_t;
+typedef struct ur_queue_handle_t_ *ur_queue_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Handle of a native object
-typedef struct _ur_native_handle_t *ur_native_handle_t;
+typedef struct ur_native_handle_t_ *ur_native_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Handle of a Sampler object
-typedef struct _ur_sampler_handle_t *ur_sampler_handle_t;
+typedef struct ur_sampler_handle_t_ *ur_sampler_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Handle of memory object which can either be buffer or image
-typedef struct _ur_mem_handle_t *ur_mem_handle_t;
+typedef struct ur_mem_handle_t_ *ur_mem_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 #ifndef UR_BIT
@@ -138,7 +138,7 @@ typedef struct _ur_mem_handle_t *ur_mem_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Defines Return/Error codes
-typedef enum _ur_result_t
+typedef enum ur_result_t
 {
     UR_RESULT_SUCCESS = 0,                          ///< Success
     UR_RESULT_INVALID_KERNEL_NAME = 1,              ///< Invalid kernel name
@@ -226,7 +226,7 @@ typedef enum _ur_result_t
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Defines structure types
-typedef enum _ur_structure_type_t
+typedef enum ur_structure_type_t
 {
     UR_STRUCTURE_TYPE_IMAGE_DESC = 0,               ///< ::ur_image_desc_t
     UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
@@ -235,7 +235,7 @@ typedef enum _ur_structure_type_t
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Base for all properties types
-typedef struct _ur_base_properties_t
+typedef struct ur_base_properties_t
 {
     ur_structure_type_t stype;                      ///< [in] type of this structure
     void* pNext;                                    ///< [in,out][optional] pointer to extension-specific structure
@@ -244,7 +244,7 @@ typedef struct _ur_base_properties_t
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Base for all descriptor types
-typedef struct _ur_base_desc_t
+typedef struct ur_base_desc_t
 {
     ur_structure_type_t stype;                      ///< [in] type of this structure
     const void* pNext;                              ///< [in][optional] pointer to extension-specific structure
@@ -253,7 +253,7 @@ typedef struct _ur_base_desc_t
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief 3D offset argument passed to buffer rect operations
-typedef struct _ur_rect_offset_t
+typedef struct ur_rect_offset_t
 {
     uint64_t x;                                     ///< [in] x offset (bytes)
     uint64_t y;                                     ///< [in] y offset (scalar)
@@ -263,7 +263,7 @@ typedef struct _ur_rect_offset_t
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief 3D region argument passed to buffer rect operations
-typedef struct _ur_rect_region_t
+typedef struct ur_rect_region_t
 {
     uint64_t width;                                 ///< [in] width (bytes)
     uint64_t height;                                ///< [in] height (scalar)
@@ -340,7 +340,7 @@ urContextRetain(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Supported context info
-typedef enum _ur_context_info_t
+typedef enum ur_context_info_t
 {
     UR_CONTEXT_INFO_NUM_DEVICES = 1,                ///< [uint32_t] The number of the devices in the context
     UR_CONTEXT_INFO_DEVICES = 2,                    ///< [::ur_context_handle_t...] The array of the device handles in the
@@ -1106,7 +1106,7 @@ urEnqueueMemImageCopy(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Map flags
 typedef uint32_t ur_map_flags_t;
-typedef enum _ur_map_flag_t
+typedef enum ur_map_flag_t
 {
     UR_MAP_FLAG_READ = UR_BIT(0),                   ///< Map for read access
     UR_MAP_FLAG_WRITE = UR_BIT(1),                  ///< Map for write access
@@ -1117,7 +1117,7 @@ typedef enum _ur_map_flag_t
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Map flags
 typedef uint32_t ur_usm_migration_flags_t;
-typedef enum _ur_usm_migration_flag_t
+typedef enum ur_usm_migration_flag_t
 {
     UR_USM_MIGRATION_FLAG_DEFAULT = UR_BIT(0),      ///< Default migration TODO: Add more enums! 
     UR_USM_MIGRATION_FLAG_FORCE_UINT32 = 0x7fffffff
@@ -1324,7 +1324,7 @@ urEnqueueUSMPrefetch(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM memory advice
-typedef enum _ur_mem_advice_t
+typedef enum ur_mem_advice_t
 {
     UR_MEM_ADVICE_MEM_ADVICE_DEFAULT = 0,           ///< The USM memory advice is default
     UR_MEM_ADVICE_FORCE_UINT32 = 0x7fffffff
@@ -1371,7 +1371,7 @@ urEnqueueUSMMemAdvice(
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Event query information type
-typedef enum _ur_event_info_t
+typedef enum ur_event_info_t
 {
     UR_EVENT_INFO_EVENT_INFO_COMMAND_QUEUE = 0,     ///< Command queue information of an event object
     UR_EVENT_INFO_EVENT_INFO_CONTEXT = 1,           ///< Context information of an event object
@@ -1384,7 +1384,7 @@ typedef enum _ur_event_info_t
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Profiling query information type
-typedef enum _ur_profiling_info_t
+typedef enum ur_profiling_info_t
 {
     UR_PROFILING_INFO_PROFILING_INFO_COMMAND_QUEUED = 0,///< A 64-bit value of current device counter in nanoseconds when the event
                                                     ///< is enqueued
@@ -1614,7 +1614,7 @@ urEventCreateWithNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Memory flags
 typedef uint32_t ur_mem_flags_t;
-typedef enum _ur_mem_flag_t
+typedef enum ur_mem_flag_t
 {
     UR_MEM_FLAG_MEM_READ_WRITE = UR_BIT(0),         ///< The memory object will be read and written by a kernel. This is the
                                                     ///< default
@@ -1630,7 +1630,7 @@ typedef enum _ur_mem_flag_t
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Memory types
-typedef enum _ur_mem_type_t
+typedef enum ur_mem_type_t
 {
     UR_MEM_TYPE_MEM_TYPE_BUFFER = 0,                ///< Buffer object
     UR_MEM_TYPE_MEM_TYPE_IMAGE2D = 1,               ///< 2D image object
@@ -1645,7 +1645,7 @@ typedef enum _ur_mem_type_t
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Memory Information type
-typedef enum _ur_mem_info_t
+typedef enum ur_mem_info_t
 {
     UR_MEM_INFO_SIZE = 0,                           ///< size_t: actual size of of memory object in bytes
     UR_MEM_INFO_CONTEXT = 1,                        ///< ::ur_context_handle_t: context in which the memory object was created
@@ -1655,7 +1655,7 @@ typedef enum _ur_mem_info_t
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Image channel order info: number of channels and the channel layout
-typedef enum _ur_image_channel_order_t
+typedef enum ur_image_channel_order_t
 {
     UR_IMAGE_CHANNEL_ORDER_CHANNEL_ORDER_A = 0,     ///< channel order A
     UR_IMAGE_CHANNEL_ORDER_CHANNEL_ORDER_R = 1,     ///< channel order R
@@ -1677,7 +1677,7 @@ typedef enum _ur_image_channel_order_t
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Image channel type info: describe the size of the channel data type
-typedef enum _ur_image_channel_type_t
+typedef enum ur_image_channel_type_t
 {
     UR_IMAGE_CHANNEL_TYPE_CHANNEL_TYPE_SNORM_INT8 = 0,  ///< channel type snorm int8
     UR_IMAGE_CHANNEL_TYPE_CHANNEL_TYPE_SNORM_INT16 = 1, ///< channel type snorm int16
@@ -1700,7 +1700,7 @@ typedef enum _ur_image_channel_type_t
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Image information types
-typedef enum _ur_image_info_t
+typedef enum ur_image_info_t
 {
     UR_IMAGE_INFO_FORMAT = 0,                       ///< ::ur_image_format_t: image format
     UR_IMAGE_INFO_ELEMENT_SIZE = 1,                 ///< size_t: element size
@@ -1715,7 +1715,7 @@ typedef enum _ur_image_info_t
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Image format including channel layout and data type
-typedef struct _ur_image_format_t
+typedef struct ur_image_format_t
 {
     ur_image_channel_order_t channelOrder;          ///< [in] image channel order
     ur_image_channel_type_t channelType;            ///< [in] image channel type
@@ -1724,7 +1724,7 @@ typedef struct _ur_image_format_t
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Image descriptor type.
-typedef struct _ur_image_desc_t
+typedef struct ur_image_desc_t
 {
     ur_structure_type_t stype;                      ///< [in] type of this structure
     const void* pNext;                              ///< [in][optional] pointer to extension-specific structure
@@ -1861,7 +1861,7 @@ urMemRelease(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Buffer region type, used to describe a sub buffer
-typedef struct _ur_buffer_region_t
+typedef struct ur_buffer_region_t
 {
     size_t origin;                                  ///< [in] buffer origin offset
     size_t size;                                    ///< [in] size of the buffer region
@@ -1870,7 +1870,7 @@ typedef struct _ur_buffer_region_t
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Buffer creation type
-typedef enum _ur_buffer_create_type_t
+typedef enum ur_buffer_create_type_t
 {
     UR_BUFFER_CREATE_TYPE_BUFFER_CREATE_TYPE_REGION = 0,///< buffer create type is region
     UR_BUFFER_CREATE_TYPE_FORCE_UINT32 = 0x7fffffff
@@ -2055,7 +2055,7 @@ urGetLastResult(
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Query queue info
-typedef enum _ur_queue_info_t
+typedef enum ur_queue_info_t
 {
     UR_QUEUE_INFO_CONTEXT = 0,                      ///< Queue context info
     UR_QUEUE_INFO_DEVICE = 1,                       ///< Queue device info
@@ -2070,7 +2070,7 @@ typedef enum _ur_queue_info_t
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Queue properties
 typedef uint32_t ur_queue_flags_t;
-typedef enum _ur_queue_flag_t
+typedef enum ur_queue_flag_t
 {
     UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE = UR_BIT(0),///< Enable/disable out of order execution
     UR_QUEUE_FLAG_PROFILING_ENABLE = UR_BIT(1),     ///< Enable/disable profiling
@@ -2313,7 +2313,7 @@ urQueueFlush(
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Get sample object information
-typedef enum _ur_sampler_info_t
+typedef enum ur_sampler_info_t
 {
     UR_SAMPLER_INFO_SAMPLER_INFO_REFERENCE_COUNT = 0,   ///< Sampler reference count info
     UR_SAMPLER_INFO_SAMPLER_INFO_CONTEXT = 1,       ///< Sampler context info
@@ -2329,7 +2329,7 @@ typedef enum _ur_sampler_info_t
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Sampler properties
-typedef enum _ur_sampler_properties_t
+typedef enum ur_sampler_properties_t
 {
     UR_SAMPLER_PROPERTIES_SAMPLER_PROPERTIES_NORMALIZED_COORDS = 0, ///< Sampler normalized coordinates
     UR_SAMPLER_PROPERTIES_SAMPLER_PROPERTIES_ADDRESSING_MODE = 1,   ///< Sampler addressing mode
@@ -2340,7 +2340,7 @@ typedef enum _ur_sampler_properties_t
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Sampler properties <name, value> pair
-typedef struct _ur_sampler_property_value_t
+typedef struct ur_sampler_property_value_t
 {
     ur_sampler_properties_t propName;               ///< [in] Sampler property
     uint32_t propValue;                             ///< [in] Sampler property value
@@ -2518,7 +2518,7 @@ urSamplerCreateWithNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM memory property flags
 typedef uint32_t ur_usm_mem_flags_t;
-typedef enum _ur_usm_mem_flag_t
+typedef enum ur_usm_mem_flag_t
 {
     UR_USM_MEM_FLAG_MEM_ALLOC_FLAGS_INTEL = UR_BIT(0),  ///< The USM memory allocation is from Intel USM
     UR_USM_MEM_FLAG_FORCE_UINT32 = 0x7fffffff
@@ -2527,7 +2527,7 @@ typedef enum _ur_usm_mem_flag_t
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM memory allocation information type
-typedef enum _ur_mem_alloc_info_t
+typedef enum ur_mem_alloc_info_t
 {
     UR_MEM_ALLOC_INFO_MEM_ALLOC_TYPE = 0,           ///< Memory allocation type info
     UR_MEM_ALLOC_INFO_MEM_ALLOC_BASE_PTR = 1,       ///< Memory allocation base pointer info
@@ -2676,7 +2676,7 @@ urMemGetMemAllocInfo(
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Supported device types
-typedef enum _ur_device_type_t
+typedef enum ur_device_type_t
 {
     UR_DEVICE_TYPE_DEFAULT = 1,                     ///< The default device type as preferred by the runtime
     UR_DEVICE_TYPE_ALL = 2,                         ///< Devices of all types
@@ -2730,7 +2730,7 @@ urDeviceGet(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Supported device info
-typedef enum _ur_device_info_t
+typedef enum ur_device_info_t
 {
     UR_DEVICE_INFO_TYPE = 0,                        ///< ::ur_device_type_t: type of the device
     UR_DEVICE_INFO_VENDOR_ID = 1,                   ///< uint32_t: vendor Id of the device
@@ -2926,7 +2926,7 @@ urDeviceRelease(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Device partition property
 typedef uint32_t ur_device_partition_property_flags_t;
-typedef enum _ur_device_partition_property_flag_t
+typedef enum ur_device_partition_property_flag_t
 {
     UR_DEVICE_PARTITION_PROPERTY_FLAG_EQUALLY = UR_BIT(0),  ///< Support equal partition
     UR_DEVICE_PARTITION_PROPERTY_FLAG_BY_COUNTS = UR_BIT(1),///< Support partition by count
@@ -2937,7 +2937,7 @@ typedef enum _ur_device_partition_property_flag_t
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Partition property value
-typedef struct _ur_device_partition_property_value_t
+typedef struct ur_device_partition_property_value_t
 {
     ur_device_partition_property_flags_t property;  ///< [in] device partition property flags
     uint32_t value;                                 ///< [in] partition value
@@ -3016,7 +3016,7 @@ urDeviceSelectBinary(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief FP capabilities
 typedef uint32_t ur_fp_capability_flags_t;
-typedef enum _ur_fp_capability_flag_t
+typedef enum ur_fp_capability_flag_t
 {
     UR_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT = UR_BIT(0),///< Support correctly rounded divide and sqrt
     UR_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST = UR_BIT(1), ///< Support round to nearest
@@ -3031,7 +3031,7 @@ typedef enum _ur_fp_capability_flag_t
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Device memory cache type
-typedef enum _ur_device_mem_cache_type_t
+typedef enum ur_device_mem_cache_type_t
 {
     UR_DEVICE_MEM_CACHE_TYPE_NONE = 0,              ///< Has none cache
     UR_DEVICE_MEM_CACHE_TYPE_READ_ONLY_CACHE = 1,   ///< Has read only cache
@@ -3042,7 +3042,7 @@ typedef enum _ur_device_mem_cache_type_t
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Device local memory type
-typedef enum _ur_device_local_mem_type_t
+typedef enum ur_device_local_mem_type_t
 {
     UR_DEVICE_LOCAL_MEM_TYPE_LOCAL = 0,             ///< Dedicated local memory
     UR_DEVICE_LOCAL_MEM_TYPE_GLOBAL = 1,            ///< Global memory
@@ -3053,7 +3053,7 @@ typedef enum _ur_device_local_mem_type_t
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Device kernel execution capability
 typedef uint32_t ur_device_exec_capability_flags_t;
-typedef enum _ur_device_exec_capability_flag_t
+typedef enum ur_device_exec_capability_flag_t
 {
     UR_DEVICE_EXEC_CAPABILITY_FLAG_KERNEL = UR_BIT(0),  ///< Support kernel execution
     UR_DEVICE_EXEC_CAPABILITY_FLAG_NATIVE_KERNEL = UR_BIT(1),   ///< Support native kernel execution
@@ -3064,7 +3064,7 @@ typedef enum _ur_device_exec_capability_flag_t
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Device affinity domain
 typedef uint32_t ur_device_affinity_domain_flags_t;
-typedef enum _ur_device_affinity_domain_flag_t
+typedef enum ur_device_affinity_domain_flag_t
 {
     UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA = UR_BIT(0),///< By NUMA
     UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE = UR_BIT(1),  ///< BY next partitionable
@@ -3184,7 +3184,7 @@ urKernelSetArg(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Get Kernel object information
-typedef enum _ur_kernel_info_t
+typedef enum ur_kernel_info_t
 {
     UR_KERNEL_INFO_FUNCTION_NAME = 0,               ///< Return Kernel function name, return type char[]
     UR_KERNEL_INFO_NUM_ARGS = 1,                    ///< Return Kernel number of arguments
@@ -3198,7 +3198,7 @@ typedef enum _ur_kernel_info_t
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Get Kernel Work Group information
-typedef enum _ur_kernel_group_info_t
+typedef enum ur_kernel_group_info_t
 {
     UR_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE = 0,      ///< Return Work Group maximum global size, return type size_t[3]
     UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE = 1,       ///< Return maximum Work Group size, return type size_t
@@ -3215,7 +3215,7 @@ typedef enum _ur_kernel_group_info_t
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Get Kernel SubGroup information
-typedef enum _ur_kernel_sub_group_info_t
+typedef enum ur_kernel_sub_group_info_t
 {
     UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE = 0,///< Return maximum SubGroup size, return type uint32_t
     UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS = 1,///< Return maximum number of SubGroup, return type uint32_t
@@ -3228,7 +3228,7 @@ typedef enum _ur_kernel_sub_group_info_t
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Set additional Kernel execution information
-typedef enum _ur_kernel_exec_info_t
+typedef enum ur_kernel_exec_info_t
 {
     UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS = 0,    ///< Kernel might access data through USM pointer, type bool_t*
     UR_KERNEL_EXEC_INFO_USM_PTRS = 1,               ///< Provide an explicit list of USM pointers that the kernel will access,
@@ -3691,7 +3691,7 @@ urPlatformGet(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Supported platform info
-typedef enum _ur_platform_info_t
+typedef enum ur_platform_info_t
 {
     UR_PLATFORM_INFO_NAME = 1,                      ///< [char*] The string denoting name of the platform. The size of the info
                                                     ///< needs to be dynamically queried.
@@ -3744,7 +3744,7 @@ urPlatformGetInfo(
 /// @details
 ///     - API versions contain major and minor attributes, use
 ///       ::UR_MAJOR_VERSION and ::UR_MINOR_VERSION
-typedef enum _ur_api_version_t
+typedef enum ur_api_version_t
 {
     UR_API_VERSION_0_9 = UR_MAKE_VERSION( 0, 9 ),   ///< version 0.9
     UR_API_VERSION_CURRENT = UR_MAKE_VERSION( 0, 9 ),   ///< latest known version
@@ -3974,7 +3974,7 @@ urProgramGetFunctionPointer(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Get Program object information
-typedef enum _ur_program_info_t
+typedef enum ur_program_info_t
 {
     UR_PROGRAM_INFO_REFERENCE_COUNT = 0,            ///< Program reference count info
     UR_PROGRAM_INFO_CONTEXT = 1,                    ///< Program context info
@@ -4022,7 +4022,7 @@ urProgramGetInfo(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Program object build status
-typedef enum _ur_program_build_status_t
+typedef enum ur_program_build_status_t
 {
     UR_PROGRAM_BUILD_STATUS_NONE = 0,               ///< Program build status none
     UR_PROGRAM_BUILD_STATUS_ERROR = 1,              ///< Program build error
@@ -4034,7 +4034,7 @@ typedef enum _ur_program_build_status_t
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Program object binary type
-typedef enum _ur_program_binary_type_t
+typedef enum ur_program_binary_type_t
 {
     UR_PROGRAM_BINARY_TYPE_NONE = 0,                ///< No program binary is associated with device
     UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT = 1,     ///< Program binary is compiled object
@@ -4046,7 +4046,7 @@ typedef enum _ur_program_binary_type_t
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Get Program object build information
-typedef enum _ur_program_build_info_t
+typedef enum ur_program_build_info_t
 {
     UR_PROGRAM_BUILD_INFO_STATUS = 0,               ///< Program build status, return type ::ur_program_build_status_t
     UR_PROGRAM_BUILD_INFO_OPTIONS = 1,              ///< Program build options, return type char[]
@@ -4169,7 +4169,7 @@ urProgramCreateWithNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Supported platform initialization flags
 typedef uint32_t ur_platform_init_flags_t;
-typedef enum _ur_platform_init_flag_t
+typedef enum ur_platform_init_flag_t
 {
     UR_PLATFORM_INIT_FLAG_LEVEL_ZERO = UR_BIT(0),   ///< initialize Unified Runtime platform drivers
     UR_PLATFORM_INIT_FLAG_FORCE_UINT32 = 0x7fffffff
@@ -4179,7 +4179,7 @@ typedef enum _ur_platform_init_flag_t
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Supported device initialization flags
 typedef uint32_t ur_device_init_flags_t;
-typedef enum _ur_device_init_flag_t
+typedef enum ur_device_init_flag_t
 {
     UR_DEVICE_INIT_FLAG_GPU = UR_BIT(0),            ///< initialize GPU device drivers
     UR_DEVICE_INIT_FLAG_FORCE_UINT32 = 0x7fffffff
@@ -4230,7 +4230,7 @@ urInit(
 /// @brief Callback function parameters for urPlatformGet 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_platform_get_params_t
+typedef struct ur_platform_get_params_t
 {
     uint32_t* pNumEntries;
     ur_platform_handle_t** pphPlatforms;
@@ -4254,7 +4254,7 @@ typedef void (UR_APICALL *ur_pfnPlatformGetCb_t)(
 /// @brief Callback function parameters for urPlatformGetInfo 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_platform_get_info_params_t
+typedef struct ur_platform_get_info_params_t
 {
     ur_platform_handle_t* phPlatform;
     ur_platform_info_t* pPlatformInfoType;
@@ -4280,7 +4280,7 @@ typedef void (UR_APICALL *ur_pfnPlatformGetInfoCb_t)(
 /// @brief Callback function parameters for urPlatformGetNativeHandle 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_platform_get_native_handle_params_t
+typedef struct ur_platform_get_native_handle_params_t
 {
     ur_platform_handle_t* phPlatform;
     ur_native_handle_t** pphNativePlatform;
@@ -4303,7 +4303,7 @@ typedef void (UR_APICALL *ur_pfnPlatformGetNativeHandleCb_t)(
 /// @brief Callback function parameters for urPlatformCreateWithNativeHandle 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_platform_create_with_native_handle_params_t
+typedef struct ur_platform_create_with_native_handle_params_t
 {
     ur_platform_handle_t* phPlatform;
     ur_native_handle_t* phNativePlatform;
@@ -4327,7 +4327,7 @@ typedef void (UR_APICALL *ur_pfnPlatformCreateWithNativeHandleCb_t)(
 /// @brief Callback function parameters for urPlatformGetApiVersion 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_platform_get_api_version_params_t
+typedef struct ur_platform_get_api_version_params_t
 {
     ur_platform_handle_t* phDriver;
     ur_api_version_t** ppVersion;
@@ -4348,7 +4348,7 @@ typedef void (UR_APICALL *ur_pfnPlatformGetApiVersionCb_t)(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Platform callback functions pointers
-typedef struct _ur_platform_callbacks_t
+typedef struct ur_platform_callbacks_t
 {
     ur_pfnPlatformGetCb_t                                           pfnGetCb;
     ur_pfnPlatformGetInfoCb_t                                       pfnGetInfoCb;
@@ -4361,7 +4361,7 @@ typedef struct _ur_platform_callbacks_t
 /// @brief Callback function parameters for urContextCreate 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_context_create_params_t
+typedef struct ur_context_create_params_t
 {
     uint32_t* pDeviceCount;
     ur_device_handle_t** pphDevices;
@@ -4385,7 +4385,7 @@ typedef void (UR_APICALL *ur_pfnContextCreateCb_t)(
 /// @brief Callback function parameters for urContextRetain 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_context_retain_params_t
+typedef struct ur_context_retain_params_t
 {
     ur_context_handle_t* phContext;
 } ur_context_retain_params_t;
@@ -4407,7 +4407,7 @@ typedef void (UR_APICALL *ur_pfnContextRetainCb_t)(
 /// @brief Callback function parameters for urContextRelease 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_context_release_params_t
+typedef struct ur_context_release_params_t
 {
     ur_context_handle_t* phContext;
 } ur_context_release_params_t;
@@ -4429,7 +4429,7 @@ typedef void (UR_APICALL *ur_pfnContextReleaseCb_t)(
 /// @brief Callback function parameters for urContextGetInfo 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_context_get_info_params_t
+typedef struct ur_context_get_info_params_t
 {
     ur_context_handle_t* phContext;
     ur_context_info_t* pContextInfoType;
@@ -4455,7 +4455,7 @@ typedef void (UR_APICALL *ur_pfnContextGetInfoCb_t)(
 /// @brief Callback function parameters for urContextGetNativeHandle 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_context_get_native_handle_params_t
+typedef struct ur_context_get_native_handle_params_t
 {
     ur_context_handle_t* phContext;
     ur_native_handle_t** pphNativeContext;
@@ -4478,7 +4478,7 @@ typedef void (UR_APICALL *ur_pfnContextGetNativeHandleCb_t)(
 /// @brief Callback function parameters for urContextCreateWithNativeHandle 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_context_create_with_native_handle_params_t
+typedef struct ur_context_create_with_native_handle_params_t
 {
     ur_platform_handle_t* phPlatform;
     ur_native_handle_t* phNativeContext;
@@ -4502,7 +4502,7 @@ typedef void (UR_APICALL *ur_pfnContextCreateWithNativeHandleCb_t)(
 /// @brief Callback function parameters for urContextSetExtendedDeleter 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_context_set_extended_deleter_params_t
+typedef struct ur_context_set_extended_deleter_params_t
 {
     ur_context_handle_t* phContext;
     ur_context_extended_deleter_t* ppfnDeleter;
@@ -4524,7 +4524,7 @@ typedef void (UR_APICALL *ur_pfnContextSetExtendedDeleterCb_t)(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Context callback functions pointers
-typedef struct _ur_context_callbacks_t
+typedef struct ur_context_callbacks_t
 {
     ur_pfnContextCreateCb_t                                         pfnCreateCb;
     ur_pfnContextRetainCb_t                                         pfnRetainCb;
@@ -4539,7 +4539,7 @@ typedef struct _ur_context_callbacks_t
 /// @brief Callback function parameters for urEventCreate 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_event_create_params_t
+typedef struct ur_event_create_params_t
 {
     ur_context_handle_t* phContext;
     ur_event_handle_t** pphEvent;
@@ -4562,7 +4562,7 @@ typedef void (UR_APICALL *ur_pfnEventCreateCb_t)(
 /// @brief Callback function parameters for urEventGetInfo 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_event_get_info_params_t
+typedef struct ur_event_get_info_params_t
 {
     ur_event_handle_t* phEvent;
     ur_event_info_t* ppropName;
@@ -4588,7 +4588,7 @@ typedef void (UR_APICALL *ur_pfnEventGetInfoCb_t)(
 /// @brief Callback function parameters for urEventGetProfilingInfo 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_event_get_profiling_info_params_t
+typedef struct ur_event_get_profiling_info_params_t
 {
     ur_event_handle_t* phEvent;
     ur_profiling_info_t* ppropName;
@@ -4614,7 +4614,7 @@ typedef void (UR_APICALL *ur_pfnEventGetProfilingInfoCb_t)(
 /// @brief Callback function parameters for urEventWait 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_event_wait_params_t
+typedef struct ur_event_wait_params_t
 {
     uint32_t* pnumEvents;
     const ur_event_handle_t** pphEventWaitList;
@@ -4637,7 +4637,7 @@ typedef void (UR_APICALL *ur_pfnEventWaitCb_t)(
 /// @brief Callback function parameters for urEventRetain 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_event_retain_params_t
+typedef struct ur_event_retain_params_t
 {
     ur_event_handle_t* phEvent;
 } ur_event_retain_params_t;
@@ -4659,7 +4659,7 @@ typedef void (UR_APICALL *ur_pfnEventRetainCb_t)(
 /// @brief Callback function parameters for urEventRelease 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_event_release_params_t
+typedef struct ur_event_release_params_t
 {
     ur_event_handle_t* phEvent;
 } ur_event_release_params_t;
@@ -4681,7 +4681,7 @@ typedef void (UR_APICALL *ur_pfnEventReleaseCb_t)(
 /// @brief Callback function parameters for urEventGetNativeHandle 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_event_get_native_handle_params_t
+typedef struct ur_event_get_native_handle_params_t
 {
     ur_event_handle_t* phEvent;
     ur_native_handle_t** pphNativeEvent;
@@ -4704,7 +4704,7 @@ typedef void (UR_APICALL *ur_pfnEventGetNativeHandleCb_t)(
 /// @brief Callback function parameters for urEventCreateWithNativeHandle 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_event_create_with_native_handle_params_t
+typedef struct ur_event_create_with_native_handle_params_t
 {
     ur_platform_handle_t* phPlatform;
     ur_native_handle_t* phNativeEvent;
@@ -4726,7 +4726,7 @@ typedef void (UR_APICALL *ur_pfnEventCreateWithNativeHandleCb_t)(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Event callback functions pointers
-typedef struct _ur_event_callbacks_t
+typedef struct ur_event_callbacks_t
 {
     ur_pfnEventCreateCb_t                                           pfnCreateCb;
     ur_pfnEventGetInfoCb_t                                          pfnGetInfoCb;
@@ -4742,7 +4742,7 @@ typedef struct _ur_event_callbacks_t
 /// @brief Callback function parameters for urProgramCreate 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_program_create_params_t
+typedef struct ur_program_create_params_t
 {
     ur_context_handle_t* phContext;
     uint32_t* pcount;
@@ -4768,7 +4768,7 @@ typedef void (UR_APICALL *ur_pfnProgramCreateCb_t)(
 /// @brief Callback function parameters for urProgramCreateWithBinary 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_program_create_with_binary_params_t
+typedef struct ur_program_create_with_binary_params_t
 {
     ur_context_handle_t* phContext;
     ur_device_handle_t* phDevice;
@@ -4794,7 +4794,7 @@ typedef void (UR_APICALL *ur_pfnProgramCreateWithBinaryCb_t)(
 /// @brief Callback function parameters for urProgramRetain 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_program_retain_params_t
+typedef struct ur_program_retain_params_t
 {
     ur_program_handle_t* phProgram;
 } ur_program_retain_params_t;
@@ -4816,7 +4816,7 @@ typedef void (UR_APICALL *ur_pfnProgramRetainCb_t)(
 /// @brief Callback function parameters for urProgramRelease 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_program_release_params_t
+typedef struct ur_program_release_params_t
 {
     ur_program_handle_t* phProgram;
 } ur_program_release_params_t;
@@ -4838,7 +4838,7 @@ typedef void (UR_APICALL *ur_pfnProgramReleaseCb_t)(
 /// @brief Callback function parameters for urProgramGetFunctionPointer 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_program_get_function_pointer_params_t
+typedef struct ur_program_get_function_pointer_params_t
 {
     ur_device_handle_t* phDevice;
     ur_program_handle_t* phProgram;
@@ -4863,7 +4863,7 @@ typedef void (UR_APICALL *ur_pfnProgramGetFunctionPointerCb_t)(
 /// @brief Callback function parameters for urProgramGetInfo 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_program_get_info_params_t
+typedef struct ur_program_get_info_params_t
 {
     ur_program_handle_t* phProgram;
     ur_program_info_t* ppropName;
@@ -4889,7 +4889,7 @@ typedef void (UR_APICALL *ur_pfnProgramGetInfoCb_t)(
 /// @brief Callback function parameters for urProgramGetBuildInfo 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_program_get_build_info_params_t
+typedef struct ur_program_get_build_info_params_t
 {
     ur_program_handle_t* phProgram;
     ur_device_handle_t* phDevice;
@@ -4915,7 +4915,7 @@ typedef void (UR_APICALL *ur_pfnProgramGetBuildInfoCb_t)(
 /// @brief Callback function parameters for urProgramSetSpecializationConstant 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_program_set_specialization_constant_params_t
+typedef struct ur_program_set_specialization_constant_params_t
 {
     ur_program_handle_t* phProgram;
     uint32_t* pspecId;
@@ -4940,7 +4940,7 @@ typedef void (UR_APICALL *ur_pfnProgramSetSpecializationConstantCb_t)(
 /// @brief Callback function parameters for urProgramGetNativeHandle 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_program_get_native_handle_params_t
+typedef struct ur_program_get_native_handle_params_t
 {
     ur_program_handle_t* phProgram;
     ur_native_handle_t** pphNativeProgram;
@@ -4963,7 +4963,7 @@ typedef void (UR_APICALL *ur_pfnProgramGetNativeHandleCb_t)(
 /// @brief Callback function parameters for urProgramCreateWithNativeHandle 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_program_create_with_native_handle_params_t
+typedef struct ur_program_create_with_native_handle_params_t
 {
     ur_program_handle_t* phProgram;
     ur_native_handle_t* phNativeProgram;
@@ -4985,7 +4985,7 @@ typedef void (UR_APICALL *ur_pfnProgramCreateWithNativeHandleCb_t)(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Program callback functions pointers
-typedef struct _ur_program_callbacks_t
+typedef struct ur_program_callbacks_t
 {
     ur_pfnProgramCreateCb_t                                         pfnCreateCb;
     ur_pfnProgramCreateWithBinaryCb_t                               pfnCreateWithBinaryCb;
@@ -5003,7 +5003,7 @@ typedef struct _ur_program_callbacks_t
 /// @brief Callback function parameters for urModuleCreate 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_module_create_params_t
+typedef struct ur_module_create_params_t
 {
     ur_context_handle_t* phContext;
     const void** ppIL;
@@ -5031,7 +5031,7 @@ typedef void (UR_APICALL *ur_pfnModuleCreateCb_t)(
 /// @brief Callback function parameters for urModuleRetain 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_module_retain_params_t
+typedef struct ur_module_retain_params_t
 {
     ur_module_handle_t* phModule;
 } ur_module_retain_params_t;
@@ -5053,7 +5053,7 @@ typedef void (UR_APICALL *ur_pfnModuleRetainCb_t)(
 /// @brief Callback function parameters for urModuleRelease 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_module_release_params_t
+typedef struct ur_module_release_params_t
 {
     ur_module_handle_t* phModule;
 } ur_module_release_params_t;
@@ -5075,7 +5075,7 @@ typedef void (UR_APICALL *ur_pfnModuleReleaseCb_t)(
 /// @brief Callback function parameters for urModuleGetNativeHandle 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_module_get_native_handle_params_t
+typedef struct ur_module_get_native_handle_params_t
 {
     ur_module_handle_t* phModule;
     ur_native_handle_t** pphNativeModule;
@@ -5098,7 +5098,7 @@ typedef void (UR_APICALL *ur_pfnModuleGetNativeHandleCb_t)(
 /// @brief Callback function parameters for urModuleCreateWithNativeHandle 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_module_create_with_native_handle_params_t
+typedef struct ur_module_create_with_native_handle_params_t
 {
     ur_platform_handle_t* phPlatform;
     ur_native_handle_t* phNativeModule;
@@ -5120,7 +5120,7 @@ typedef void (UR_APICALL *ur_pfnModuleCreateWithNativeHandleCb_t)(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Module callback functions pointers
-typedef struct _ur_module_callbacks_t
+typedef struct ur_module_callbacks_t
 {
     ur_pfnModuleCreateCb_t                                          pfnCreateCb;
     ur_pfnModuleRetainCb_t                                          pfnRetainCb;
@@ -5133,7 +5133,7 @@ typedef struct _ur_module_callbacks_t
 /// @brief Callback function parameters for urKernelCreate 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_kernel_create_params_t
+typedef struct ur_kernel_create_params_t
 {
     ur_program_handle_t* phProgram;
     const char** ppKernelName;
@@ -5157,7 +5157,7 @@ typedef void (UR_APICALL *ur_pfnKernelCreateCb_t)(
 /// @brief Callback function parameters for urKernelGetInfo 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_kernel_get_info_params_t
+typedef struct ur_kernel_get_info_params_t
 {
     ur_kernel_handle_t* phKernel;
     ur_kernel_info_t* ppropName;
@@ -5183,7 +5183,7 @@ typedef void (UR_APICALL *ur_pfnKernelGetInfoCb_t)(
 /// @brief Callback function parameters for urKernelGetGroupInfo 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_kernel_get_group_info_params_t
+typedef struct ur_kernel_get_group_info_params_t
 {
     ur_kernel_handle_t* phKernel;
     ur_device_handle_t* phDevice;
@@ -5210,7 +5210,7 @@ typedef void (UR_APICALL *ur_pfnKernelGetGroupInfoCb_t)(
 /// @brief Callback function parameters for urKernelGetSubGroupInfo 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_kernel_get_sub_group_info_params_t
+typedef struct ur_kernel_get_sub_group_info_params_t
 {
     ur_kernel_handle_t* phKernel;
     ur_device_handle_t* phDevice;
@@ -5237,7 +5237,7 @@ typedef void (UR_APICALL *ur_pfnKernelGetSubGroupInfoCb_t)(
 /// @brief Callback function parameters for urKernelRetain 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_kernel_retain_params_t
+typedef struct ur_kernel_retain_params_t
 {
     ur_kernel_handle_t* phKernel;
 } ur_kernel_retain_params_t;
@@ -5259,7 +5259,7 @@ typedef void (UR_APICALL *ur_pfnKernelRetainCb_t)(
 /// @brief Callback function parameters for urKernelRelease 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_kernel_release_params_t
+typedef struct ur_kernel_release_params_t
 {
     ur_kernel_handle_t* phKernel;
 } ur_kernel_release_params_t;
@@ -5281,7 +5281,7 @@ typedef void (UR_APICALL *ur_pfnKernelReleaseCb_t)(
 /// @brief Callback function parameters for urKernelGetNativeHandle 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_kernel_get_native_handle_params_t
+typedef struct ur_kernel_get_native_handle_params_t
 {
     ur_kernel_handle_t* phKernel;
     ur_native_handle_t** pphNativeKernel;
@@ -5304,7 +5304,7 @@ typedef void (UR_APICALL *ur_pfnKernelGetNativeHandleCb_t)(
 /// @brief Callback function parameters for urKernelCreateWithNativeHandle 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_kernel_create_with_native_handle_params_t
+typedef struct ur_kernel_create_with_native_handle_params_t
 {
     ur_platform_handle_t* phPlatform;
     ur_native_handle_t* phNativeKernel;
@@ -5328,7 +5328,7 @@ typedef void (UR_APICALL *ur_pfnKernelCreateWithNativeHandleCb_t)(
 /// @brief Callback function parameters for urKernelSetArg 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_kernel_set_arg_params_t
+typedef struct ur_kernel_set_arg_params_t
 {
     ur_kernel_handle_t* phKernel;
     uint32_t* pargIndex;
@@ -5353,7 +5353,7 @@ typedef void (UR_APICALL *ur_pfnKernelSetArgCb_t)(
 /// @brief Callback function parameters for urKernelSetArgPointer 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_kernel_set_arg_pointer_params_t
+typedef struct ur_kernel_set_arg_pointer_params_t
 {
     ur_kernel_handle_t* phKernel;
     uint32_t* pargIndex;
@@ -5378,7 +5378,7 @@ typedef void (UR_APICALL *ur_pfnKernelSetArgPointerCb_t)(
 /// @brief Callback function parameters for urKernelSetExecInfo 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_kernel_set_exec_info_params_t
+typedef struct ur_kernel_set_exec_info_params_t
 {
     ur_kernel_handle_t* phKernel;
     ur_kernel_exec_info_t* ppropName;
@@ -5403,7 +5403,7 @@ typedef void (UR_APICALL *ur_pfnKernelSetExecInfoCb_t)(
 /// @brief Callback function parameters for urKernelSetArgSampler 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_kernel_set_arg_sampler_params_t
+typedef struct ur_kernel_set_arg_sampler_params_t
 {
     ur_kernel_handle_t* phKernel;
     uint32_t* pargIndex;
@@ -5427,7 +5427,7 @@ typedef void (UR_APICALL *ur_pfnKernelSetArgSamplerCb_t)(
 /// @brief Callback function parameters for urKernelSetArgMemObj 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_kernel_set_arg_mem_obj_params_t
+typedef struct ur_kernel_set_arg_mem_obj_params_t
 {
     ur_kernel_handle_t* phKernel;
     uint32_t* pargIndex;
@@ -5449,7 +5449,7 @@ typedef void (UR_APICALL *ur_pfnKernelSetArgMemObjCb_t)(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Kernel callback functions pointers
-typedef struct _ur_kernel_callbacks_t
+typedef struct ur_kernel_callbacks_t
 {
     ur_pfnKernelCreateCb_t                                          pfnCreateCb;
     ur_pfnKernelGetInfoCb_t                                         pfnGetInfoCb;
@@ -5470,7 +5470,7 @@ typedef struct _ur_kernel_callbacks_t
 /// @brief Callback function parameters for urSamplerCreate 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_sampler_create_params_t
+typedef struct ur_sampler_create_params_t
 {
     ur_context_handle_t* phContext;
     const ur_sampler_property_value_t** ppProps;
@@ -5494,7 +5494,7 @@ typedef void (UR_APICALL *ur_pfnSamplerCreateCb_t)(
 /// @brief Callback function parameters for urSamplerRetain 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_sampler_retain_params_t
+typedef struct ur_sampler_retain_params_t
 {
     ur_sampler_handle_t* phSampler;
 } ur_sampler_retain_params_t;
@@ -5516,7 +5516,7 @@ typedef void (UR_APICALL *ur_pfnSamplerRetainCb_t)(
 /// @brief Callback function parameters for urSamplerRelease 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_sampler_release_params_t
+typedef struct ur_sampler_release_params_t
 {
     ur_sampler_handle_t* phSampler;
 } ur_sampler_release_params_t;
@@ -5538,7 +5538,7 @@ typedef void (UR_APICALL *ur_pfnSamplerReleaseCb_t)(
 /// @brief Callback function parameters for urSamplerGetInfo 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_sampler_get_info_params_t
+typedef struct ur_sampler_get_info_params_t
 {
     ur_sampler_handle_t* phSampler;
     ur_sampler_info_t* ppropName;
@@ -5564,7 +5564,7 @@ typedef void (UR_APICALL *ur_pfnSamplerGetInfoCb_t)(
 /// @brief Callback function parameters for urSamplerGetNativeHandle 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_sampler_get_native_handle_params_t
+typedef struct ur_sampler_get_native_handle_params_t
 {
     ur_sampler_handle_t* phSampler;
     ur_native_handle_t** pphNativeSampler;
@@ -5587,7 +5587,7 @@ typedef void (UR_APICALL *ur_pfnSamplerGetNativeHandleCb_t)(
 /// @brief Callback function parameters for urSamplerCreateWithNativeHandle 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_sampler_create_with_native_handle_params_t
+typedef struct ur_sampler_create_with_native_handle_params_t
 {
     ur_sampler_handle_t* phSampler;
     ur_native_handle_t* phNativeSampler;
@@ -5609,7 +5609,7 @@ typedef void (UR_APICALL *ur_pfnSamplerCreateWithNativeHandleCb_t)(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Sampler callback functions pointers
-typedef struct _ur_sampler_callbacks_t
+typedef struct ur_sampler_callbacks_t
 {
     ur_pfnSamplerCreateCb_t                                         pfnCreateCb;
     ur_pfnSamplerRetainCb_t                                         pfnRetainCb;
@@ -5623,7 +5623,7 @@ typedef struct _ur_sampler_callbacks_t
 /// @brief Callback function parameters for urMemImageCreate 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_mem_image_create_params_t
+typedef struct ur_mem_image_create_params_t
 {
     ur_context_handle_t* phContext;
     ur_mem_flags_t* pflags;
@@ -5650,7 +5650,7 @@ typedef void (UR_APICALL *ur_pfnMemImageCreateCb_t)(
 /// @brief Callback function parameters for urMemBufferCreate 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_mem_buffer_create_params_t
+typedef struct ur_mem_buffer_create_params_t
 {
     ur_context_handle_t* phContext;
     ur_mem_flags_t* pflags;
@@ -5676,7 +5676,7 @@ typedef void (UR_APICALL *ur_pfnMemBufferCreateCb_t)(
 /// @brief Callback function parameters for urMemRetain 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_mem_retain_params_t
+typedef struct ur_mem_retain_params_t
 {
     ur_mem_handle_t* phMem;
 } ur_mem_retain_params_t;
@@ -5698,7 +5698,7 @@ typedef void (UR_APICALL *ur_pfnMemRetainCb_t)(
 /// @brief Callback function parameters for urMemRelease 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_mem_release_params_t
+typedef struct ur_mem_release_params_t
 {
     ur_mem_handle_t* phMem;
 } ur_mem_release_params_t;
@@ -5720,7 +5720,7 @@ typedef void (UR_APICALL *ur_pfnMemReleaseCb_t)(
 /// @brief Callback function parameters for urMemBufferPartition 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_mem_buffer_partition_params_t
+typedef struct ur_mem_buffer_partition_params_t
 {
     ur_mem_handle_t* phBuffer;
     ur_mem_flags_t* pflags;
@@ -5746,7 +5746,7 @@ typedef void (UR_APICALL *ur_pfnMemBufferPartitionCb_t)(
 /// @brief Callback function parameters for urMemGetNativeHandle 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_mem_get_native_handle_params_t
+typedef struct ur_mem_get_native_handle_params_t
 {
     ur_mem_handle_t* phMem;
     ur_native_handle_t** pphNativeMem;
@@ -5769,7 +5769,7 @@ typedef void (UR_APICALL *ur_pfnMemGetNativeHandleCb_t)(
 /// @brief Callback function parameters for urMemCreateWithNativeHandle 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_mem_create_with_native_handle_params_t
+typedef struct ur_mem_create_with_native_handle_params_t
 {
     ur_platform_handle_t* phPlatform;
     ur_native_handle_t* phNativeMem;
@@ -5793,7 +5793,7 @@ typedef void (UR_APICALL *ur_pfnMemCreateWithNativeHandleCb_t)(
 /// @brief Callback function parameters for urMemGetInfo 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_mem_get_info_params_t
+typedef struct ur_mem_get_info_params_t
 {
     ur_mem_handle_t* phMemory;
     ur_mem_info_t* pMemInfoType;
@@ -5819,7 +5819,7 @@ typedef void (UR_APICALL *ur_pfnMemGetInfoCb_t)(
 /// @brief Callback function parameters for urMemFree 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_mem_free_params_t
+typedef struct ur_mem_free_params_t
 {
     ur_context_handle_t* phContext;
     void** ppMem;
@@ -5842,7 +5842,7 @@ typedef void (UR_APICALL *ur_pfnMemFreeCb_t)(
 /// @brief Callback function parameters for urMemGetMemAllocInfo 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_mem_get_mem_alloc_info_params_t
+typedef struct ur_mem_get_mem_alloc_info_params_t
 {
     ur_context_handle_t* phContext;
     const void** ppMem;
@@ -5867,7 +5867,7 @@ typedef void (UR_APICALL *ur_pfnMemGetMemAllocInfoCb_t)(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Mem callback functions pointers
-typedef struct _ur_mem_callbacks_t
+typedef struct ur_mem_callbacks_t
 {
     ur_pfnMemImageCreateCb_t                                        pfnImageCreateCb;
     ur_pfnMemBufferCreateCb_t                                       pfnBufferCreateCb;
@@ -5885,7 +5885,7 @@ typedef struct _ur_mem_callbacks_t
 /// @brief Callback function parameters for urEnqueueKernelLaunch 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_enqueue_kernel_launch_params_t
+typedef struct ur_enqueue_kernel_launch_params_t
 {
     ur_queue_handle_t* phQueue;
     ur_kernel_handle_t* phKernel;
@@ -5915,7 +5915,7 @@ typedef void (UR_APICALL *ur_pfnEnqueueKernelLaunchCb_t)(
 /// @brief Callback function parameters for urEnqueueEventsWait 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_enqueue_events_wait_params_t
+typedef struct ur_enqueue_events_wait_params_t
 {
     ur_queue_handle_t* phQueue;
     uint32_t* pnumEventsInWaitList;
@@ -5940,7 +5940,7 @@ typedef void (UR_APICALL *ur_pfnEnqueueEventsWaitCb_t)(
 /// @brief Callback function parameters for urEnqueueEventsWaitWithBarrier 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_enqueue_events_wait_with_barrier_params_t
+typedef struct ur_enqueue_events_wait_with_barrier_params_t
 {
     ur_queue_handle_t* phQueue;
     uint32_t* pnumEventsInWaitList;
@@ -5965,7 +5965,7 @@ typedef void (UR_APICALL *ur_pfnEnqueueEventsWaitWithBarrierCb_t)(
 /// @brief Callback function parameters for urEnqueueMemBufferRead 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_enqueue_mem_buffer_read_params_t
+typedef struct ur_enqueue_mem_buffer_read_params_t
 {
     ur_queue_handle_t* phQueue;
     ur_mem_handle_t* phBuffer;
@@ -5995,7 +5995,7 @@ typedef void (UR_APICALL *ur_pfnEnqueueMemBufferReadCb_t)(
 /// @brief Callback function parameters for urEnqueueMemBufferWrite 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_enqueue_mem_buffer_write_params_t
+typedef struct ur_enqueue_mem_buffer_write_params_t
 {
     ur_queue_handle_t* phQueue;
     ur_mem_handle_t* phBuffer;
@@ -6025,7 +6025,7 @@ typedef void (UR_APICALL *ur_pfnEnqueueMemBufferWriteCb_t)(
 /// @brief Callback function parameters for urEnqueueMemBufferReadRect 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_enqueue_mem_buffer_read_rect_params_t
+typedef struct ur_enqueue_mem_buffer_read_rect_params_t
 {
     ur_queue_handle_t* phQueue;
     ur_mem_handle_t* phBuffer;
@@ -6060,7 +6060,7 @@ typedef void (UR_APICALL *ur_pfnEnqueueMemBufferReadRectCb_t)(
 /// @brief Callback function parameters for urEnqueueMemBufferWriteRect 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_enqueue_mem_buffer_write_rect_params_t
+typedef struct ur_enqueue_mem_buffer_write_rect_params_t
 {
     ur_queue_handle_t* phQueue;
     ur_mem_handle_t* phBuffer;
@@ -6095,7 +6095,7 @@ typedef void (UR_APICALL *ur_pfnEnqueueMemBufferWriteRectCb_t)(
 /// @brief Callback function parameters for urEnqueueMemBufferCopy 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_enqueue_mem_buffer_copy_params_t
+typedef struct ur_enqueue_mem_buffer_copy_params_t
 {
     ur_queue_handle_t* phQueue;
     ur_mem_handle_t* phBufferSrc;
@@ -6123,7 +6123,7 @@ typedef void (UR_APICALL *ur_pfnEnqueueMemBufferCopyCb_t)(
 /// @brief Callback function parameters for urEnqueueMemBufferCopyRect 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_enqueue_mem_buffer_copy_rect_params_t
+typedef struct ur_enqueue_mem_buffer_copy_rect_params_t
 {
     ur_queue_handle_t* phQueue;
     ur_mem_handle_t* phBufferSrc;
@@ -6157,7 +6157,7 @@ typedef void (UR_APICALL *ur_pfnEnqueueMemBufferCopyRectCb_t)(
 /// @brief Callback function parameters for urEnqueueMemBufferFill 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_enqueue_mem_buffer_fill_params_t
+typedef struct ur_enqueue_mem_buffer_fill_params_t
 {
     ur_queue_handle_t* phQueue;
     ur_mem_handle_t* phBuffer;
@@ -6187,7 +6187,7 @@ typedef void (UR_APICALL *ur_pfnEnqueueMemBufferFillCb_t)(
 /// @brief Callback function parameters for urEnqueueMemImageRead 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_enqueue_mem_image_read_params_t
+typedef struct ur_enqueue_mem_image_read_params_t
 {
     ur_queue_handle_t* phQueue;
     ur_mem_handle_t* phImage;
@@ -6219,7 +6219,7 @@ typedef void (UR_APICALL *ur_pfnEnqueueMemImageReadCb_t)(
 /// @brief Callback function parameters for urEnqueueMemImageWrite 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_enqueue_mem_image_write_params_t
+typedef struct ur_enqueue_mem_image_write_params_t
 {
     ur_queue_handle_t* phQueue;
     ur_mem_handle_t* phImage;
@@ -6251,7 +6251,7 @@ typedef void (UR_APICALL *ur_pfnEnqueueMemImageWriteCb_t)(
 /// @brief Callback function parameters for urEnqueueMemImageCopy 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_enqueue_mem_image_copy_params_t
+typedef struct ur_enqueue_mem_image_copy_params_t
 {
     ur_queue_handle_t* phQueue;
     ur_mem_handle_t* phImageSrc;
@@ -6281,7 +6281,7 @@ typedef void (UR_APICALL *ur_pfnEnqueueMemImageCopyCb_t)(
 /// @brief Callback function parameters for urEnqueueMemBufferMap 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_enqueue_mem_buffer_map_params_t
+typedef struct ur_enqueue_mem_buffer_map_params_t
 {
     ur_queue_handle_t* phQueue;
     ur_mem_handle_t* phBuffer;
@@ -6312,7 +6312,7 @@ typedef void (UR_APICALL *ur_pfnEnqueueMemBufferMapCb_t)(
 /// @brief Callback function parameters for urEnqueueMemUnmap 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_enqueue_mem_unmap_params_t
+typedef struct ur_enqueue_mem_unmap_params_t
 {
     ur_queue_handle_t* phQueue;
     ur_mem_handle_t* phMem;
@@ -6339,7 +6339,7 @@ typedef void (UR_APICALL *ur_pfnEnqueueMemUnmapCb_t)(
 /// @brief Callback function parameters for urEnqueueUSMMemset 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_enqueue_usm_memset_params_t
+typedef struct ur_enqueue_usm_memset_params_t
 {
     ur_queue_handle_t* phQueue;
     void** pptr;
@@ -6367,7 +6367,7 @@ typedef void (UR_APICALL *ur_pfnEnqueueUSMMemsetCb_t)(
 /// @brief Callback function parameters for urEnqueueUSMMemcpy 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_enqueue_usm_memcpy_params_t
+typedef struct ur_enqueue_usm_memcpy_params_t
 {
     ur_queue_handle_t* phQueue;
     bool* pblocking;
@@ -6396,7 +6396,7 @@ typedef void (UR_APICALL *ur_pfnEnqueueUSMMemcpyCb_t)(
 /// @brief Callback function parameters for urEnqueueUSMPrefetch 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_enqueue_usm_prefetch_params_t
+typedef struct ur_enqueue_usm_prefetch_params_t
 {
     ur_queue_handle_t* phQueue;
     const void** ppMem;
@@ -6424,7 +6424,7 @@ typedef void (UR_APICALL *ur_pfnEnqueueUSMPrefetchCb_t)(
 /// @brief Callback function parameters for urEnqueueUSMMemAdvice 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_enqueue_usm_mem_advice_params_t
+typedef struct ur_enqueue_usm_mem_advice_params_t
 {
     ur_queue_handle_t* phQueue;
     const void** ppMem;
@@ -6448,7 +6448,7 @@ typedef void (UR_APICALL *ur_pfnEnqueueUSMMemAdviceCb_t)(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Enqueue callback functions pointers
-typedef struct _ur_enqueue_callbacks_t
+typedef struct ur_enqueue_callbacks_t
 {
     ur_pfnEnqueueKernelLaunchCb_t                                   pfnKernelLaunchCb;
     ur_pfnEnqueueEventsWaitCb_t                                     pfnEventsWaitCb;
@@ -6475,7 +6475,7 @@ typedef struct _ur_enqueue_callbacks_t
 /// @brief Callback function parameters for urUSMHostAlloc 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_usm_host_alloc_params_t
+typedef struct ur_usm_host_alloc_params_t
 {
     ur_context_handle_t* phContext;
     ur_usm_mem_flags_t** ppUSMFlag;
@@ -6501,7 +6501,7 @@ typedef void (UR_APICALL *ur_pfnUSMHostAllocCb_t)(
 /// @brief Callback function parameters for urUSMDeviceAlloc 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_usm_device_alloc_params_t
+typedef struct ur_usm_device_alloc_params_t
 {
     ur_context_handle_t* phContext;
     ur_device_handle_t* phDevice;
@@ -6528,7 +6528,7 @@ typedef void (UR_APICALL *ur_pfnUSMDeviceAllocCb_t)(
 /// @brief Callback function parameters for urUSMSharedAlloc 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_usm_shared_alloc_params_t
+typedef struct ur_usm_shared_alloc_params_t
 {
     ur_context_handle_t* phContext;
     ur_device_handle_t* phDevice;
@@ -6553,7 +6553,7 @@ typedef void (UR_APICALL *ur_pfnUSMSharedAllocCb_t)(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of USM callback functions pointers
-typedef struct _ur_usm_callbacks_t
+typedef struct ur_usm_callbacks_t
 {
     ur_pfnUSMHostAllocCb_t                                          pfnHostAllocCb;
     ur_pfnUSMDeviceAllocCb_t                                        pfnDeviceAllocCb;
@@ -6564,7 +6564,7 @@ typedef struct _ur_usm_callbacks_t
 /// @brief Callback function parameters for urTearDown 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_tear_down_params_t
+typedef struct ur_tear_down_params_t
 {
     void** ppParams;
 } ur_tear_down_params_t;
@@ -6586,7 +6586,7 @@ typedef void (UR_APICALL *ur_pfnTearDownCb_t)(
 /// @brief Callback function parameters for urGetLastResult 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_get_last_result_params_t
+typedef struct ur_get_last_result_params_t
 {
     const char*** pppMessage;
 } ur_get_last_result_params_t;
@@ -6608,7 +6608,7 @@ typedef void (UR_APICALL *ur_pfnGetLastResultCb_t)(
 /// @brief Callback function parameters for urInit 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_init_params_t
+typedef struct ur_init_params_t
 {
     ur_platform_init_flags_t* pplatform_flags;
     ur_device_init_flags_t* pdevice_flags;
@@ -6629,7 +6629,7 @@ typedef void (UR_APICALL *ur_pfnInitCb_t)(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Global callback functions pointers
-typedef struct _ur_global_callbacks_t
+typedef struct ur_global_callbacks_t
 {
     ur_pfnTearDownCb_t                                              pfnTearDownCb;
     ur_pfnGetLastResultCb_t                                         pfnGetLastResultCb;
@@ -6640,7 +6640,7 @@ typedef struct _ur_global_callbacks_t
 /// @brief Callback function parameters for urQueueGetInfo 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_queue_get_info_params_t
+typedef struct ur_queue_get_info_params_t
 {
     ur_queue_handle_t* phQueue;
     ur_queue_info_t* ppropName;
@@ -6666,7 +6666,7 @@ typedef void (UR_APICALL *ur_pfnQueueGetInfoCb_t)(
 /// @brief Callback function parameters for urQueueCreate 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_queue_create_params_t
+typedef struct ur_queue_create_params_t
 {
     ur_context_handle_t* phContext;
     ur_device_handle_t* phDevice;
@@ -6691,7 +6691,7 @@ typedef void (UR_APICALL *ur_pfnQueueCreateCb_t)(
 /// @brief Callback function parameters for urQueueRetain 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_queue_retain_params_t
+typedef struct ur_queue_retain_params_t
 {
     ur_queue_handle_t* phQueue;
 } ur_queue_retain_params_t;
@@ -6713,7 +6713,7 @@ typedef void (UR_APICALL *ur_pfnQueueRetainCb_t)(
 /// @brief Callback function parameters for urQueueRelease 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_queue_release_params_t
+typedef struct ur_queue_release_params_t
 {
     ur_queue_handle_t* phQueue;
 } ur_queue_release_params_t;
@@ -6735,7 +6735,7 @@ typedef void (UR_APICALL *ur_pfnQueueReleaseCb_t)(
 /// @brief Callback function parameters for urQueueGetNativeHandle 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_queue_get_native_handle_params_t
+typedef struct ur_queue_get_native_handle_params_t
 {
     ur_queue_handle_t* phQueue;
     ur_native_handle_t** pphNativeQueue;
@@ -6758,7 +6758,7 @@ typedef void (UR_APICALL *ur_pfnQueueGetNativeHandleCb_t)(
 /// @brief Callback function parameters for urQueueCreateWithNativeHandle 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_queue_create_with_native_handle_params_t
+typedef struct ur_queue_create_with_native_handle_params_t
 {
     ur_queue_handle_t* phQueue;
     ur_native_handle_t* phNativeQueue;
@@ -6782,7 +6782,7 @@ typedef void (UR_APICALL *ur_pfnQueueCreateWithNativeHandleCb_t)(
 /// @brief Callback function parameters for urQueueFinish 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_queue_finish_params_t
+typedef struct ur_queue_finish_params_t
 {
     ur_queue_handle_t* phQueue;
 } ur_queue_finish_params_t;
@@ -6804,7 +6804,7 @@ typedef void (UR_APICALL *ur_pfnQueueFinishCb_t)(
 /// @brief Callback function parameters for urQueueFlush 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_queue_flush_params_t
+typedef struct ur_queue_flush_params_t
 {
     ur_queue_handle_t* phQueue;
 } ur_queue_flush_params_t;
@@ -6824,7 +6824,7 @@ typedef void (UR_APICALL *ur_pfnQueueFlushCb_t)(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Queue callback functions pointers
-typedef struct _ur_queue_callbacks_t
+typedef struct ur_queue_callbacks_t
 {
     ur_pfnQueueGetInfoCb_t                                          pfnGetInfoCb;
     ur_pfnQueueCreateCb_t                                           pfnCreateCb;
@@ -6840,7 +6840,7 @@ typedef struct _ur_queue_callbacks_t
 /// @brief Callback function parameters for urDeviceGet 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_device_get_params_t
+typedef struct ur_device_get_params_t
 {
     ur_platform_handle_t* phPlatform;
     ur_device_type_t* pDeviceType;
@@ -6866,7 +6866,7 @@ typedef void (UR_APICALL *ur_pfnDeviceGetCb_t)(
 /// @brief Callback function parameters for urDeviceGetInfo 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_device_get_info_params_t
+typedef struct ur_device_get_info_params_t
 {
     ur_device_handle_t* phDevice;
     ur_device_info_t* pinfoType;
@@ -6892,7 +6892,7 @@ typedef void (UR_APICALL *ur_pfnDeviceGetInfoCb_t)(
 /// @brief Callback function parameters for urDeviceRetain 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_device_retain_params_t
+typedef struct ur_device_retain_params_t
 {
     ur_device_handle_t* phDevice;
 } ur_device_retain_params_t;
@@ -6914,7 +6914,7 @@ typedef void (UR_APICALL *ur_pfnDeviceRetainCb_t)(
 /// @brief Callback function parameters for urDeviceRelease 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_device_release_params_t
+typedef struct ur_device_release_params_t
 {
     ur_device_handle_t* phDevice;
 } ur_device_release_params_t;
@@ -6936,7 +6936,7 @@ typedef void (UR_APICALL *ur_pfnDeviceReleaseCb_t)(
 /// @brief Callback function parameters for urDevicePartition 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_device_partition_params_t
+typedef struct ur_device_partition_params_t
 {
     ur_device_handle_t* phDevice;
     ur_device_partition_property_value_t** pProperties;
@@ -6962,7 +6962,7 @@ typedef void (UR_APICALL *ur_pfnDevicePartitionCb_t)(
 /// @brief Callback function parameters for urDeviceSelectBinary 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_device_select_binary_params_t
+typedef struct ur_device_select_binary_params_t
 {
     ur_device_handle_t* phDevice;
     const uint8_t*** pppBinaries;
@@ -6987,7 +6987,7 @@ typedef void (UR_APICALL *ur_pfnDeviceSelectBinaryCb_t)(
 /// @brief Callback function parameters for urDeviceGetNativeHandle 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_device_get_native_handle_params_t
+typedef struct ur_device_get_native_handle_params_t
 {
     ur_device_handle_t* phDevice;
     ur_native_handle_t** pphNativeDevice;
@@ -7010,7 +7010,7 @@ typedef void (UR_APICALL *ur_pfnDeviceGetNativeHandleCb_t)(
 /// @brief Callback function parameters for urDeviceCreateWithNativeHandle 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_device_create_with_native_handle_params_t
+typedef struct ur_device_create_with_native_handle_params_t
 {
     ur_platform_handle_t* phPlatform;
     ur_native_handle_t* phNativeDevice;
@@ -7032,7 +7032,7 @@ typedef void (UR_APICALL *ur_pfnDeviceCreateWithNativeHandleCb_t)(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Device callback functions pointers
-typedef struct _ur_device_callbacks_t
+typedef struct ur_device_callbacks_t
 {
     ur_pfnDeviceGetCb_t                                             pfnGetCb;
     ur_pfnDeviceGetInfoCb_t                                         pfnGetInfoCb;
@@ -7046,7 +7046,7 @@ typedef struct _ur_device_callbacks_t
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Container for all callbacks
-typedef struct _ur_callbacks_t
+typedef struct ur_callbacks_t
 {
     ur_platform_callbacks_t             Platform;
     ur_context_callbacks_t              Context;
@@ -7071,4 +7071,4 @@ typedef struct _ur_callbacks_t
 } // extern "C"
 #endif
 
-#endif // _UR_API_H
+#endif // UR_API_H_INCLUDED

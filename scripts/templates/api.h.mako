@@ -17,8 +17,8 @@ from templates import helper as th
  * @version v${ver}-r${rev}
  *
  */
-#ifndef _${N}_API_H
-#define _${N}_API_H
+#ifndef ${N}_API_H_INCLUDED
+#define ${N}_API_H_INCLUDED
 #if defined(__cplusplus)
 #pragma once
 #endif
@@ -85,7 +85,7 @@ typedef ${th.subt(n, tags, obj['return'])} (${th.make_func_name(n, tags, obj)})(
 %if th.type_traits.is_flags(obj['name']):
 typedef uint32_t ${th.make_type_name(n, tags, obj)};
 %endif
-typedef enum _${th.make_enum_name(n, tags, obj)}
+typedef enum ${th.make_enum_name(n, tags, obj)}
 {
     %for line in th.make_etor_lines(n, tags, obj):
     ${line}
@@ -94,7 +94,7 @@ typedef enum _${th.make_enum_name(n, tags, obj)}
 } ${th.make_enum_name(n, tags, obj)};
 ## STRUCT/UNION ###############################################################
 %elif re.match(r"struct|union", obj['type']):
-typedef ${obj['type']} _${th.make_type_name(n, tags, obj)}
+typedef ${obj['type']} ${th.make_type_name(n, tags, obj)}
 {
     %for line in th.make_member_lines(n, tags, obj):
     ${line}
@@ -118,7 +118,7 @@ ${th.make_func_name(n, tags, obj)}(
 %if 'alias' in obj:
 typedef ${th.subt(n, tags, obj['alias'])} ${th.subt(n, tags, obj['name'])};
 %else:
-typedef struct _${th.subt(n, tags, obj['name'])} *${th.subt(n, tags, obj['name'])};
+typedef struct ${th.subt(n, tags, obj['name'])}_ *${th.subt(n, tags, obj['name'])};
 %endif
 %endif
 ## CONDITION-END ##############################################################
@@ -152,7 +152,7 @@ typedef struct _${th.subt(n, tags, obj['name'])} *${th.subt(n, tags, obj['name']
 %if 'condition' in obj:
 #if ${th.subt(n, tags, obj['condition'])}
 %endif
-typedef struct _${th.make_pfncb_param_type(n, tags, obj)}
+typedef struct ${th.make_pfncb_param_type(n, tags, obj)}
 {
     %for line in th.make_param_lines(n, tags, obj, format=["type*", "name"]):
     ${line};
@@ -184,7 +184,7 @@ typedef void (${X}_APICALL *${th.make_pfncb_type(n, tags, obj)})(
 %endfor
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of ${tbl['name']} callback functions pointers
-typedef struct _${tbl['type']}
+typedef struct ${tbl['type']}
 {
     %for obj in tbl['functions']:
     %if 'condition' in obj:
@@ -202,7 +202,7 @@ typedef struct _${tbl['type']}
 %endfor
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Container for all callbacks
-typedef struct _${n}_callbacks_t
+typedef struct ${n}_callbacks_t
 {
 %for tbl in th.get_pfncbtables(specs, meta, n, tags):
     ${th.append_ws(tbl['type'], 35)} ${tbl['name']};
@@ -218,4 +218,4 @@ typedef struct _${n}_callbacks_t
 } // extern "C"
 #endif
 
-#endif // _${N}_API_H
+#endif // ${N}_API_H_INCLUDED
