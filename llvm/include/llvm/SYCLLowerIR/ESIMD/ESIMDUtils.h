@@ -74,7 +74,6 @@ void collectUsesLookThroughCastsAndZeroGEPs(const Value *V,
 /// in it. Returns nullptr if failed to do so.
 Type *getVectorTyOrNull(StructType *STy);
 
-
 // Simplest possible implementation of an allocator for the Itanium demangler
 class SimpleAllocator {
 protected:
