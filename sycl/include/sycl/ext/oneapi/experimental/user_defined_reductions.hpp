@@ -65,19 +65,19 @@ reduce_over_group(GroupHelper group_helper, V x, T init,
 template <typename GroupHelper, typename Ptr, typename BinaryOperation>
 sycl::detail::enable_if_t<(is_group_helper_v<GroupHelper> &&
                            sycl::detail::is_pointer<Ptr>::value),
-                          typename sycl::detail::remove_pointer<Ptr>::type>
+                          typename std::iterator_traits<Ptr>::value_type>
 joint_reduce(GroupHelper group_helper, Ptr first, Ptr last,
              BinaryOperation binary_op) {
   if constexpr (sycl::detail::is_native_op<
-                    typename sycl::detail::remove_pointer<Ptr>::type,
+                    typename std::iterator_traits<Ptr>::value_type,
                     BinaryOperation>::value) {
     return sycl::joint_reduce(group_helper.get_group(), first, last, binary_op);
   }
 #ifdef __SYCL_DEVICE_ONLY__
   // TODO: the complexity is linear and not logarithmic. Something like
   // https://github.com/intel/llvm/blob/8ebd912679f27943d8ef6c33a9775347dce6b80d/sycl/include/sycl/reduction.hpp#L1810-L1818
-  // might be applicable here
-  using T = typename std::remove_pointer<Ptr>::type;
+  // might be applicable here.
+  using T = typename std::iterator_traits<Ptr>::value_type;
   auto g = group_helper.get_group();
   T partial = *(first + g.get_local_linear_id());
   Ptr second = first + g.get_local_linear_range();

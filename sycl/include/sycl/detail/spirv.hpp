@@ -176,7 +176,7 @@ EnableIfBitcastBroadcast<T, IdT> GroupBroadcast(T x, IdT local_id) {
 }
 template <typename Group, typename T, typename IdT>
 EnableIfGenericBroadcast<T, IdT> GroupBroadcast(T x, IdT local_id) {
-  // assign x to support type T without default constructor
+  // Initialize with x to support type T without default constructor
   T Result = x;
   char *XBytes = reinterpret_cast<char *>(&x);
   char *ResultBytes = reinterpret_cast<char *>(&Result);
@@ -220,7 +220,7 @@ EnableIfGenericBroadcast<T> GroupBroadcast(T x, id<Dimensions> local_id) {
   if (Dimensions == 1) {
     return GroupBroadcast<Group>(x, local_id[0]);
   }
-  // assign x to support type T without default constructor
+  // Initialize with x to support type T without default constructor
   T Result = x;
   char *XBytes = reinterpret_cast<char *>(&x);
   char *ResultBytes = reinterpret_cast<char *>(&Result);
