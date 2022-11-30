@@ -281,6 +281,12 @@ private:
     return UnsupportedFuncs.contains(Name);
   }
 
+  // Get the \p FNum field of MemRef Value \p V of element type T. \p Shape is
+  // the shape of the result MemRef.
+  template <typename T>
+  mlir::Value SYCLCommonFieldLookup(mlir::Value V, size_t FNum,
+                                    llvm::ArrayRef<int64_t> Shape);
+
   mlir::LLVM::AllocaOp allocateBuffer(size_t I, mlir::LLVM::LLVMPointerType T) {
     auto &Vec = Bufs[T.getAsOpaquePointer()];
     if (I < Vec.size())
