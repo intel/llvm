@@ -106,7 +106,7 @@ module {
   func.func @test_group(%arg0: !sycl_group_1_) {
     return
   }
-  func.func @test_get_op(%arg0: !sycl.get_op) {
+  func.func @test_get_op(%arg0: !sycl.get_op<i32>) {
     return
   }
   func.func @test_get_scalar_op(%arg0: !sycl_get_scalar_op_i32_) {

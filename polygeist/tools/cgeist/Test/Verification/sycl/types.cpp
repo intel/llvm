@@ -109,7 +109,7 @@ SYCL_EXTERNAL void group_1(sycl::group<1> group) {}
 SYCL_EXTERNAL void group_2(sycl::group<2> group) {}
 
 // CHECK-LABEL: func.func @_Z6get_opN4sycl3_V16detail5GetOpIiEE(
-// CHECK:          %arg0: memref<?x!sycl.get_op> {llvm.align = 1 : i64, llvm.byval = !sycl.get_op, llvm.noundef})
+// CHECK:          %arg0: memref<?x!sycl.get_op<i32>> {llvm.align = 1 : i64, llvm.byval = !sycl.get_op<i32>, llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
 SYCL_EXTERNAL void get_op(sycl::detail::GetOp<int> get_op) {}
 

@@ -152,8 +152,8 @@ func.func @_Z7group_2N2cl4sycl5groupILi2EEE(%arg0: !sycl_group_2_) attributes {l
 // GET_OP
 ////////////////////////////////////////////////////////////////////////////////
 
-// CHECK: func @get_op(%arg0: !sycl.get_op)
-func.func @get_op(%arg0: !sycl.get_op) attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK: func @get_op(%arg0: !sycl.get_op<i32>)
+func.func @get_op(%arg0: !sycl.get_op<i32>) attributes {llvm.linkage = #llvm.linkage<external>} {
   return
 }
 

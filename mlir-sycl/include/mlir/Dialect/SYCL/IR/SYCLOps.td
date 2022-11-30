@@ -208,7 +208,8 @@ def SYCL_GroupType : SYCL_Type<"Group", "group"> {
 }
 
 def SYCL_GetOpType : SYCL_Type<"GetOp", "get_op"> {
-  let assemblyFormat = "";
+  let parameters = (ins "::mlir::Type":$dataType);
+  let assemblyFormat = "`<` $dataType `>`";
 }
 
 def SYCL_GetScalarOpType : SYCL_Type<"GetScalarOp", "get_scalar_op"> {
