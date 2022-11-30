@@ -330,7 +330,14 @@ public:
     const detail::plugin &Plugin = getPlugin();
 
     assert(Plugin.getBackend() == MDevice->getPlugin().getBackend());
-    RT::PiQueueProperties Properties[] = {PI_QUEUE_FLAGS, CreationFlags, 0};
+    RT::PiQueueProperties Properties[] = {PI_QUEUE_FLAGS, CreationFlags, 0, 0,
+                                          0};
+    if (has_property<ext::intel::property::queue::compute_index>()) {
+      int Idx = get_property<ext::intel::property::queue::compute_index>()
+                    .get_index();
+      Properties[2] = PI_QUEUE_COMPUTE_INDEX;
+      Properties[3] = static_cast<RT::PiQueueProperties>(Idx);
+    }
     RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piQueueCreateEx>(
         Context, Device, Properties, &Queue);
 

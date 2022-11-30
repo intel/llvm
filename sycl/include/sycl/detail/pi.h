@@ -579,6 +579,7 @@ constexpr pi_usm_mem_properties PI_MEM_USM_ALLOC_BUFFER_LOCATION = 0x419E;
 // manipulations
 using pi_queue_properties = pi_bitfield;
 constexpr pi_queue_properties PI_QUEUE_FLAGS = -1;
+constexpr pi_queue_properties PI_QUEUE_COMPUTE_INDEX = -2;
 constexpr pi_queue_properties PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE = (1 << 0);
 constexpr pi_queue_properties PI_QUEUE_PROFILING_ENABLE = (1 << 1);
 constexpr pi_queue_properties PI_QUEUE_ON_DEVICE = (1 << 2);

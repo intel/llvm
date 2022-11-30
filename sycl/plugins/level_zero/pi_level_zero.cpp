@@ -1182,7 +1182,8 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
                      std::vector<ze_command_queue_handle_t> &CopyQueues,
                      pi_context Context, pi_device Device,
                      bool OwnZeCommandQueue,
-                     pi_queue_properties PiQueueProperties)
+                     pi_queue_properties PiQueueProperties,
+                     int ForceComputeIndex)
     : Context{Context}, Device{Device}, OwnZeCommandQueue{OwnZeCommandQueue},
       Properties(PiQueueProperties) {
 
@@ -1192,9 +1193,19 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
   auto &ComputeQueueGroupInfo = Device->QueueGroup[queue_type::Compute];
   ComputeQueueGroup.ZeQueues = ComputeQueues;
   if (ComputeQueueGroupInfo.ZeIndex >= 0) {
+    // Sub-sub-device
+
+    // sycl::ext::intel::property::queue::compute_index works with any
+    // backend/device by allowing single zero index if multiple compute CCSes
+    // are not supported. Sub-sub-device falls into the same bucket.
+    assert(ForceComputeIndex <= 0);
     ComputeQueueGroup.LowerIndex = ComputeQueueGroupInfo.ZeIndex;
     ComputeQueueGroup.UpperIndex = ComputeQueueGroupInfo.ZeIndex;
     ComputeQueueGroup.NextIndex = ComputeQueueGroupInfo.ZeIndex;
+  } else if (ForceComputeIndex >= 0) {
+    ComputeQueueGroup.LowerIndex = ForceComputeIndex;
+    ComputeQueueGroup.UpperIndex = ForceComputeIndex;
+    ComputeQueueGroup.NextIndex = ForceComputeIndex;
   } else {
     // Set-up to round-robin across allowed range of engines.
     uint32_t FilterLowerIndex = getRangeOfAllowedComputeEngines().first;
@@ -3184,7 +3195,13 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     return ReturnValue(pi_uint32{MinIt->maxBusWidth});
   }
   case PI_EXT_INTEL_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES: {
-    return ReturnValue(pi_int32{1});
+    if (Device->QueueGroup[_pi_queue::queue_type::Compute].ZeIndex >= 0)
+      // Sub-sub-device represents a particular compute index already.
+      return ReturnValue(pi_int32{1});
+
+    auto ZeDeviceNumIndices = Device->QueueGroup[_pi_queue::queue_type::Compute]
+                                  .ZeProperties.numQueues;
+    return ReturnValue(pi_cast<pi_int32>(ZeDeviceNumIndices));
   }
   case PI_DEVICE_INFO_GPU_EU_COUNT: {
     pi_uint32 count = Device->ZeDeviceProperties->numEUsPerSubslice *
@@ -3519,18 +3536,24 @@ pi_result piContextRelease(pi_context Context) {
   return ContextReleaseHelper(Context);
 }
 
+pi_result piQueueCreate(pi_context Context, pi_device Device,
+                        pi_queue_properties Flags, pi_queue *Queue) {
+  pi_queue_properties Properties[] = {PI_QUEUE_FLAGS, Flags, 0};
+  return piQueueCreateEx(Context, Device, Properties, Queue);
+}
 pi_result piQueueCreateEx(pi_context Context, pi_device Device,
                           pi_queue_properties *Properties, pi_queue *Queue) {
   PI_ASSERT(Properties, PI_ERROR_INVALID_VALUE);
   // Expect flags amsk to be passed first.
   PI_ASSERT(Properties[0] == PI_QUEUE_FLAGS, PI_ERROR_INVALID_VALUE);
   pi_queue_properties Flags = Properties[1];
-  // Extra data isn't supported yet.
-  PI_ASSERT(Properties[2] == 0, PI_ERROR_INVALID_VALUE)
-  return piQueueCreate(Context, Device, Flags, Queue);
-}
-pi_result piQueueCreate(pi_context Context, pi_device Device,
-                        pi_queue_properties Flags, pi_queue *Queue) {
+
+  PI_ASSERT(Properties[2] == 0 ||
+                (Properties[2] == PI_QUEUE_COMPUTE_INDEX && Properties[4] == 0),
+            PI_ERROR_INVALID_VALUE);
+  auto ForceComputeIndex = Properties[2] == PI_QUEUE_COMPUTE_INDEX
+                               ? static_cast<int>(Properties[3])
+                               : -1; // Use default/round-robin.
 
   // Check that unexpected bits are not set.
   PI_ASSERT(!(Flags & ~(PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE |
@@ -3567,7 +3590,7 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
 
   try {
     *Queue = new _pi_queue(ZeComputeCommandQueues, ZeCopyCommandQueues, Context,
-                           Device, true, Flags);
+                           Device, true, Flags, ForceComputeIndex);
   } catch (const std::bad_alloc &) {
     return PI_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
