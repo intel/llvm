@@ -65,6 +65,7 @@ void store(multi_ptr<T, Space, IsDecorated> dst, const vec<T, N>& x);
 == Extended Proposal
 
 The extended APIs provides the following features:
+
 * load/store with temporary memory buffer, which can be passed via GroupHelper such as `group_with_scratchpad` link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_group_sort.asciidoc#group-helper[group_with_scratchpad description from sort over group proposal]
 
 * load/store flexible amount of elements per work item as sycl::span
@@ -160,7 +161,7 @@ using the `gh` group helper object. `GroupMemoryHelper` specifies data placement
 
 == Usage Examples
 
-1. Example shows the simple case of block load of global memory from `input` to the private array `data` and store it back to `output`
+1.Example shows the simple case of block load of global memory from `input` to the private array `data` and store it back to `output`
 The temporary memory is queried from `group_memory_helper` and allocated via `sycl::local_accessor`
 
 [source,c++]
@@ -184,7 +185,7 @@ queue.submit([&](sycl::handler &cgh) {
 ----
 
 
-2. Example shows the case of striped block load of global memory from `input` to the private array `data` and store it back to `output`
+2.Example shows the case of striped block load of global memory from `input` to the private array `data` and store it back to `output`
 The temporary memory is allocated via `group_local_memory` API
 
 [source,c++]
