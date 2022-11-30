@@ -328,10 +328,12 @@ class ur_profiling_info_t(c_int):
 ###############################################################################
 ## @brief Event states for all events.
 class ur_execution_info_v(IntEnum):
-    EXECUTION_INFO_SUBMITTED = 0                    ## Indicates that the event has been submitted by the host to the device,
-                                                    ## this is the inital state of events
+    EXECUTION_INFO_COMPLETE = 0                     ## Indicates that the event has completed
     EXECUTION_INFO_RUNNING = 1                      ## Indicates that the device has started processing this event
-    EXECUTION_INFO_COMPLETE = 2                     ## Indicates that the event has completed
+    EXECUTION_INFO_SUBMITTED = 2                    ## Indicates that the event has been submitted by the host to the device,
+                                                    ## this is the inital state of user events
+    EXECUTION_INFO_QUEUED = 3                       ## Indicates that the event has been queued, this is the initial state of
+                                                    ## all events except user events.
 
 class ur_execution_info_t(c_int):
     def __str__(self):

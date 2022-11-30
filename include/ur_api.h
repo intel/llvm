@@ -1606,10 +1606,12 @@ urEventCreateWithNativeHandle(
 /// @brief Event states for all events.
 typedef enum _ur_execution_info_t
 {
-    UR_EXECUTION_INFO_EXECUTION_INFO_SUBMITTED = 0, ///< Indicates that the event has been submitted by the host to the device,
-                                                    ///< this is the inital state of events
+    UR_EXECUTION_INFO_EXECUTION_INFO_COMPLETE = 0,  ///< Indicates that the event has completed
     UR_EXECUTION_INFO_EXECUTION_INFO_RUNNING = 1,   ///< Indicates that the device has started processing this event
-    UR_EXECUTION_INFO_EXECUTION_INFO_COMPLETE = 2,  ///< Indicates that the event has completed
+    UR_EXECUTION_INFO_EXECUTION_INFO_SUBMITTED = 2, ///< Indicates that the event has been submitted by the host to the device,
+                                                    ///< this is the inital state of user events
+    UR_EXECUTION_INFO_EXECUTION_INFO_QUEUED = 3,    ///< Indicates that the event has been queued, this is the initial state of
+                                                    ///< all events except user events.
     UR_EXECUTION_INFO_FORCE_UINT32 = 0x7fffffff
 
 } ur_execution_info_t;
@@ -1641,7 +1643,7 @@ typedef void (ur_event_callback_t)(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXECUTION_INFO_EXECUTION_INFO_COMPLETE < execStatus`
+///         + `::UR_EXECUTION_INFO_EXECUTION_INFO_QUEUED < execStatus`
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventSetCallback(
     ur_event_handle_t hEvent,                       ///< [in] handle of the event object

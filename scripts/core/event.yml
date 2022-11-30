@@ -220,12 +220,14 @@ desc: "Event states for all events."
 class: $xEvent
 name: $x_execution_info_t
 etors:
-    - name: EXECUTION_INFO_SUBMITTED
-      desc: "Indicates that the event has been submitted by the host to the device, this is the inital state of events"
-    - name: EXECUTION_INFO_RUNNING
-      desc: "Indicates that the device has started processing this event"
     - name: EXECUTION_INFO_COMPLETE
       desc: "Indicates that the event has completed"
+    - name: EXECUTION_INFO_RUNNING
+      desc: "Indicates that the device has started processing this event"
+    - name: EXECUTION_INFO_SUBMITTED
+      desc: "Indicates that the event has been submitted by the host to the device, this is the inital state of user events"
+    - name: EXECUTION_INFO_QUEUED
+      desc: "Indicates that the event has been queued, this is the initial state of all events except user events."
 --- #--------------------------------------------------------------------------
 type: fptr_typedef
 desc: "Event callback function that can be registered by the application."
