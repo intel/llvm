@@ -27,7 +27,7 @@ using CallGraphFunctionFilter =
 // Otherwise, any function where use of the current one happened is added to the
 // call graph as if the use was a call.
 // The 'functionFilter' parameter is a callback function that can be used to
-// control which functions will be added to a call graph. 
+// control which functions will be added to a call graph.
 //
 // The callback is/ invoked/ whenever a function being traversed is used
 // by some instruction which is not a call to this instruction (e.g. storing
