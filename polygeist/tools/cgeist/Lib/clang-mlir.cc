@@ -1427,38 +1427,55 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
                                                    getConstantIndex(FNum));
   } else if (sycl::isSYCLType(MT.getElementType())) {
     Type ElemTy = MT.getElementType();
-    if (auto AT = ElemTy.dyn_cast<sycl::ArrayType>()) {
-      assert(FNum < AT.getBody().size() && "ERROR");
-      const auto ElemType = AT.getBody()[FNum].cast<MemRefType>();
-      const auto ResultType =
-          MemRefType::get(ElemType.getShape(), ElemType.getElementType(),
-                          MemRefLayoutAttrInterface(), MT.getMemorySpace());
-      Result = Builder.create<polygeist::SubIndexOp>(Loc, ResultType, Val,
-                                                     getConstantIndex(FNum));
-    } else if (ElemTy.isa<sycl::AccessorType>())
-      Result = SYCLCommonFieldLookup<sycl::AccessorType>(Val, FNum, Shape);
-    else if (ElemTy.isa<sycl::AccessorImplDeviceType>())
-      Result =
-          SYCLCommonFieldLookup<sycl::AccessorImplDeviceType>(Val, FNum, Shape);
-    else if (ElemTy.isa<sycl::AccessorSubscriptType>())
-      Result =
-          SYCLCommonFieldLookup<sycl::AccessorSubscriptType>(Val, FNum, Shape);
-    else if (ElemTy.isa<sycl::NdRangeType>())
-      Result = SYCLCommonFieldLookup<sycl::NdRangeType>(Val, FNum, Shape);
-    else if (ElemTy.isa<sycl::ItemType>())
-      Result = SYCLCommonFieldLookup<sycl::ItemType>(Val, FNum, Shape);
-    else if (ElemTy.isa<sycl::ItemBaseType>())
-      Result = SYCLCommonFieldLookup<sycl::ItemBaseType>(Val, FNum, Shape);
-    else if (ElemTy.isa<sycl::NdItemType>())
-      Result = SYCLCommonFieldLookup<sycl::NdItemType>(Val, FNum, Shape);
-    else if (ElemTy.isa<sycl::GroupType>())
-      Result = SYCLCommonFieldLookup<sycl::GroupType>(Val, FNum, Shape);
-    else if (ElemTy.isa<sycl::GetScalarOpType>())
-      Result = SYCLCommonFieldLookup<sycl::GetScalarOpType>(Val, FNum, Shape);
-    else if (ElemTy.isa<sycl::AtomicType>())
-      Result = SYCLCommonFieldLookup<sycl::AtomicType>(Val, FNum, Shape);
-    else
-      llvm_unreachable("not implemented");
+    Result =
+        TypeSwitch<Type, Value>(ElemTy)
+            .Case<sycl::ArrayType>([&](sycl::ArrayType AT) {
+              assert(FNum < AT.getBody().size() && "ERROR");
+              const auto ElemType = AT.getBody()[FNum].cast<MemRefType>();
+              const auto ResultType = MemRefType::get(
+                  ElemType.getShape(), ElemType.getElementType(),
+                  MemRefLayoutAttrInterface(), MT.getMemorySpace());
+              return Builder.create<polygeist::SubIndexOp>(
+                  Loc, ResultType, Val, getConstantIndex(FNum));
+            })
+            .Case<sycl::AccessorType>([&](auto ElemTy) {
+              return SYCLCommonFieldLookup<sycl::AccessorType>(Val, FNum,
+                                                               Shape);
+            })
+            .Case<sycl::AccessorImplDeviceType>([&](auto ElemTy) {
+              return SYCLCommonFieldLookup<sycl::AccessorImplDeviceType>(
+                  Val, FNum, Shape);
+            })
+            .Case<sycl::AccessorSubscriptType>([&](auto ElemTy) {
+              return SYCLCommonFieldLookup<sycl::AccessorSubscriptType>(
+                  Val, FNum, Shape);
+            })
+            .Case<sycl::AtomicType>([&](auto ElemTy) {
+              return SYCLCommonFieldLookup<sycl::AtomicType>(Val, FNum, Shape);
+            })
+            .Case<sycl::GetScalarOpType>([&](auto ElemTy) {
+              return SYCLCommonFieldLookup<sycl::GetScalarOpType>(Val, FNum, Shape);
+            })
+            .Case<sycl::GroupType>([&](auto ElemTy) {
+              return SYCLCommonFieldLookup<sycl::GroupType>(Val, FNum, Shape);
+            })
+            .Case<sycl::ItemBaseType>([&](auto ElemTy) {
+              return SYCLCommonFieldLookup<sycl::ItemBaseType>(Val, FNum,
+                                                               Shape);
+            })
+            .Case<sycl::ItemType>([&](auto ElemTy) {
+              return SYCLCommonFieldLookup<sycl::ItemType>(Val, FNum, Shape);
+            })
+            .Case<sycl::NdItemType>([&](auto ElemTy) {
+              return SYCLCommonFieldLookup<sycl::NdItemType>(Val, FNum, Shape);
+            })
+            .Case<sycl::NdRangeType>([&](auto ElemTy) {
+              return SYCLCommonFieldLookup<sycl::NdRangeType>(Val, FNum, Shape);
+            })
+            .Default([&Val](Type T) {
+              llvm_unreachable("not implemented");
+              return Val;
+            });
   } else {
     auto MT0 =
         MemRefType::get(Shape, MT.getElementType(), MemRefLayoutAttrInterface(),
