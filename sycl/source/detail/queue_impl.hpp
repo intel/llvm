@@ -680,12 +680,6 @@ protected:
   // layer. Do not guard these variables below with XPTI_ENABLE_INSTRUMENTATION
   // to ensure we have the same object layout when the macro in the library and
   // SYCL app are not the same.
-  //
-  // When the queue constructors are ready to be instrumented, the following
-  // variables that are commented will have to be enabled. This allows the
-  // UniversalID for the queue object to be available through the lifetime of
-  // the object. Adding the variables here will break ABI compatibility.
-  /// The event for queue_create and queue_destroy.
   void *MTraceEvent = nullptr;
   /// The stream under which the traces are emitted from the queue object
   uint8_t MStreamID;

@@ -131,12 +131,10 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
                           (uint16_t)xpti::trace_point_type_t::node_create,
                           SYCL_MEM_ALLOC_STREAM_NAME, "usm::alignedAlloc");
   PrepareNotify.addMetadata([&](auto TEvent) {
-    // Need to determine how to get the device handle reference and device name
-    // to enable metadata
-
-    // xpti::addMetadata(TEvent, "sycl_device_name",Dev.getDeviceName());
-    // xpti::addMetadata(TEvent, "sycl_device",
-    //                   reinterpret_cast<size_t>(Dev.getHandleRef()));
+    xpti::addMetadata(TEvent, "sycl_device_name",
+                      Dev.get_info<info::device::name>());
+    // Need to determine how to get the device handle reference
+    // xpti::addMetadata(TEvent, "sycl_device", Dev.getHandleRef()));
     xpti::addMetadata(TEvent, "memory_size", Size);
   });
   // Notify XPTI about the memset submission
