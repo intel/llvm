@@ -2277,31 +2277,31 @@ public:
   /// Same as above, but constructs the AddressSpace index if not provided.
   QualType BuildAddressSpaceAttr(QualType &T, Expr *AddrSpace,
                                  SourceLocation AttrLoc);
-  SYCLIntelFPGAIVDepAttr *
-  BuildSYCLIntelFPGAIVDepAttr(const AttributeCommonInfo &CI, Expr *Expr1,
-                              Expr *Expr2);
+  SYCLIntelIVDepAttr *
+  BuildSYCLIntelIVDepAttr(const AttributeCommonInfo &CI, Expr *Expr1,
+                          Expr *Expr2);
   LoopUnrollHintAttr *BuildLoopUnrollHintAttr(const AttributeCommonInfo &A,
                                               Expr *E);
   OpenCLUnrollHintAttr *
   BuildOpenCLLoopUnrollHintAttr(const AttributeCommonInfo &A, Expr *E);
 
-  SYCLIntelFPGALoopCountAttr *
-  BuildSYCLIntelFPGALoopCountAttr(const AttributeCommonInfo &CI, Expr *E);
-  SYCLIntelFPGAInitiationIntervalAttr *
-  BuildSYCLIntelFPGAInitiationIntervalAttr(const AttributeCommonInfo &CI,
-                                           Expr *E);
-  SYCLIntelFPGAMaxConcurrencyAttr *
-  BuildSYCLIntelFPGAMaxConcurrencyAttr(const AttributeCommonInfo &CI, Expr *E);
-  SYCLIntelFPGAMaxInterleavingAttr *
-  BuildSYCLIntelFPGAMaxInterleavingAttr(const AttributeCommonInfo &CI, Expr *E);
-  SYCLIntelFPGASpeculatedIterationsAttr *
-  BuildSYCLIntelFPGASpeculatedIterationsAttr(const AttributeCommonInfo &CI,
-                                             Expr *E);
-  SYCLIntelFPGALoopCoalesceAttr *
-  BuildSYCLIntelFPGALoopCoalesceAttr(const AttributeCommonInfo &CI, Expr *E);
-  SYCLIntelFPGAMaxReinvocationDelayAttr *
-  BuildSYCLIntelFPGAMaxReinvocationDelayAttr(const AttributeCommonInfo &CI, 
-                                             Expr *E);
+  SYCLIntelLoopCountAttr *
+  BuildSYCLIntelLoopCountAttr(const AttributeCommonInfo &CI, Expr *E);
+  SYCLIntelInitiationIntervalAttr *
+  BuildSYCLIntelInitiationIntervalAttr(const AttributeCommonInfo &CI,
+                                       Expr *E);
+  SYCLIntelMaxConcurrencyAttr *
+  BuildSYCLIntelMaxConcurrencyAttr(const AttributeCommonInfo &CI, Expr *E);
+  SYCLIntelMaxInterleavingAttr *
+  BuildSYCLIntelMaxInterleavingAttr(const AttributeCommonInfo &CI, Expr *E);
+  SYCLIntelSpeculatedIterationsAttr *
+  BuildSYCLIntelSpeculatedIterationsAttr(const AttributeCommonInfo &CI,
+                                         Expr *E);
+  SYCLIntelLoopCoalesceAttr *
+  BuildSYCLIntelLoopCoalesceAttr(const AttributeCommonInfo &CI, Expr *E);
+  SYCLIntelMaxReinvocationDelayAttr *
+  BuildSYCLIntelMaxReinvocationDelayAttr(const AttributeCommonInfo &CI,
+                                         Expr *E);
 
   bool CheckQualifiedFunctionForTypeId(QualType T, SourceLocation Loc);
 
@@ -10988,7 +10988,7 @@ public:
   /// attribute to be added (usually because of a pragma).
   void AddOptnoneAttributeIfNoConflicts(FunctionDecl *FD, SourceLocation Loc);
 
-  void AddIntelFPGABankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
+  void AddSYCLIntelBankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
                                 Expr **Exprs, unsigned Size);
   void AddWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
                                 Expr *XDim, Expr *YDim, Expr *ZDim);
@@ -11024,38 +11024,38 @@ public:
                                 Expr *E);
   SYCLIntelLoopFuseAttr *
   MergeSYCLIntelLoopFuseAttr(Decl *D, const SYCLIntelLoopFuseAttr &A);
-  void AddIntelFPGAPrivateCopiesAttr(Decl *D, const AttributeCommonInfo &CI,
+  void AddSYCLIntelPrivateCopiesAttr(Decl *D, const AttributeCommonInfo &CI,
                                      Expr *E);
-  void AddIntelFPGAMaxReplicatesAttr(Decl *D, const AttributeCommonInfo &CI,
+  void AddSYCLIntelMaxReplicatesAttr(Decl *D, const AttributeCommonInfo &CI,
                                      Expr *E);
-  IntelFPGAMaxReplicatesAttr *
-  MergeIntelFPGAMaxReplicatesAttr(Decl *D, const IntelFPGAMaxReplicatesAttr &A);
-  void AddIntelFPGAForcePow2DepthAttr(Decl *D, const AttributeCommonInfo &CI,
+  SYCLIntelMaxReplicatesAttr *
+  MergeSYCLIntelMaxReplicatesAttr(Decl *D, const SYCLIntelMaxReplicatesAttr &A);
+  void AddSYCLIntelForcePow2DepthAttr(Decl *D, const AttributeCommonInfo &CI,
                                       Expr *E);
-  IntelFPGAForcePow2DepthAttr *
-  MergeIntelFPGAForcePow2DepthAttr(Decl *D,
-                                   const IntelFPGAForcePow2DepthAttr &A);
-  void AddSYCLIntelFPGAInitiationIntervalAttr(Decl *D,
-                                              const AttributeCommonInfo &CI,
-                                              Expr *E);
-  SYCLIntelFPGAInitiationIntervalAttr *MergeSYCLIntelFPGAInitiationIntervalAttr(
-      Decl *D, const SYCLIntelFPGAInitiationIntervalAttr &A);
+  SYCLIntelForcePow2DepthAttr *
+  MergeSYCLIntelForcePow2DepthAttr(Decl *D,
+                                   const SYCLIntelForcePow2DepthAttr &A);
+  void AddSYCLIntelInitiationIntervalAttr(Decl *D,
+                                          const AttributeCommonInfo &CI,
+                                          Expr *E);
+  SYCLIntelInitiationIntervalAttr *MergeSYCLIntelInitiationIntervalAttr(
+      Decl *D, const SYCLIntelInitiationIntervalAttr &A);
 
-  SYCLIntelFPGAMaxConcurrencyAttr *MergeSYCLIntelFPGAMaxConcurrencyAttr(
-      Decl *D, const SYCLIntelFPGAMaxConcurrencyAttr &A);
+  SYCLIntelMaxConcurrencyAttr *MergeSYCLIntelMaxConcurrencyAttr(
+      Decl *D, const SYCLIntelMaxConcurrencyAttr &A);
   void AddSYCLIntelMaxGlobalWorkDimAttr(Decl *D, const AttributeCommonInfo &CI,
                                         Expr *E);
   SYCLIntelMaxGlobalWorkDimAttr *
   MergeSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
                                      const SYCLIntelMaxGlobalWorkDimAttr &A);
-  void AddIntelFPGABankWidthAttr(Decl *D, const AttributeCommonInfo &CI,
+  void AddSYCLIntelBankWidthAttr(Decl *D, const AttributeCommonInfo &CI,
                                  Expr *E);
-  IntelFPGABankWidthAttr *
-  MergeIntelFPGABankWidthAttr(Decl *D, const IntelFPGABankWidthAttr &A);
-  void AddIntelFPGANumBanksAttr(Decl *D, const AttributeCommonInfo &CI,
+  SYCLIntelBankWidthAttr *
+  MergeSYCLIntelBankWidthAttr(Decl *D, const SYCLIntelBankWidthAttr &A);
+  void AddSYCLIntelNumBanksAttr(Decl *D, const AttributeCommonInfo &CI,
                                 Expr *E);
-  IntelFPGANumBanksAttr *
-  MergeIntelFPGANumBanksAttr(Decl *D, const IntelFPGANumBanksAttr &A);
+  SYCLIntelNumBanksAttr *
+  MergeSYCLIntelNumBanksAttr(Decl *D, const SYCLIntelNumBanksAttr &A);
   SYCLDeviceHasAttr *MergeSYCLDeviceHasAttr(Decl *D,
                                             const SYCLDeviceHasAttr &A);
   void AddSYCLDeviceHasAttr(Decl *D, const AttributeCommonInfo &CI,
@@ -11173,11 +11173,11 @@ public:
   SYCLIntelPipeIOAttr *MergeSYCLIntelPipeIOAttr(Decl *D,
                                                 const SYCLIntelPipeIOAttr &A);
 
-  /// AddSYCLIntelFPGAMaxConcurrencyAttr - Adds a max_concurrency attribute to a
+  /// AddSYCLIntelMaxConcurrencyAttr - Adds a max_concurrency attribute to a
   /// particular declaration.
-  void AddSYCLIntelFPGAMaxConcurrencyAttr(Decl *D,
-                                          const AttributeCommonInfo &CI,
-                                          Expr *E);
+  void AddSYCLIntelMaxConcurrencyAttr(Decl *D,
+                                      const AttributeCommonInfo &CI,
+                                      Expr *E);
 
   bool checkNSReturnsRetainedReturnType(SourceLocation loc, QualType type);
   bool checkAllowedSYCLInitializer(VarDecl *VD);

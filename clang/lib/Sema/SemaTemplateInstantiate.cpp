@@ -1266,29 +1266,29 @@ namespace {
                           bool AllowInjectedClassName = false);
 
     const LoopHintAttr *TransformLoopHintAttr(const LoopHintAttr *LH);
-    const SYCLIntelFPGAIVDepAttr *
-    TransformSYCLIntelFPGAIVDepAttr(const SYCLIntelFPGAIVDepAttr *IV);
-    const SYCLIntelFPGAInitiationIntervalAttr *
-    TransformSYCLIntelFPGAInitiationIntervalAttr(
-        const SYCLIntelFPGAInitiationIntervalAttr *II);
-    const SYCLIntelFPGAMaxConcurrencyAttr *
-    TransformSYCLIntelFPGAMaxConcurrencyAttr(
-        const SYCLIntelFPGAMaxConcurrencyAttr *MC);
+    const SYCLIntelIVDepAttr *
+    TransformSYCLIntelIVDepAttr(const SYCLIntelIVDepAttr *IV);
+    const SYCLIntelInitiationIntervalAttr *
+    TransformSYCLIntelInitiationIntervalAttr(
+        const SYCLIntelInitiationIntervalAttr *II);
+    const SYCLIntelMaxConcurrencyAttr *
+    TransformSYCLIntelMaxConcurrencyAttr(
+        const SYCLIntelMaxConcurrencyAttr *MC);
     const LoopUnrollHintAttr *
     TransformLoopUnrollHintAttr(const LoopUnrollHintAttr *LU);
-    const SYCLIntelFPGALoopCoalesceAttr *TransformSYCLIntelFPGALoopCoalesceAttr(
-        const SYCLIntelFPGALoopCoalesceAttr *LC);
-    const SYCLIntelFPGAMaxInterleavingAttr *
-    TransformSYCLIntelFPGAMaxInterleavingAttr(
-        const SYCLIntelFPGAMaxInterleavingAttr *MI);
-    const SYCLIntelFPGASpeculatedIterationsAttr *
-    TransformSYCLIntelFPGASpeculatedIterationsAttr(
-        const SYCLIntelFPGASpeculatedIterationsAttr *SI);
-    const SYCLIntelFPGALoopCountAttr *
-    TransformSYCLIntelFPGALoopCountAttr(const SYCLIntelFPGALoopCountAttr *SI);
-    const SYCLIntelFPGAMaxReinvocationDelayAttr *
-    TransformSYCLIntelFPGAMaxReinvocationDelayAttr(
-        const SYCLIntelFPGAMaxReinvocationDelayAttr *MRD);
+    const SYCLIntelLoopCoalesceAttr *TransformSYCLIntelLoopCoalesceAttr(
+        const SYCLIntelLoopCoalesceAttr *LC);
+    const SYCLIntelMaxInterleavingAttr *
+    TransformSYCLIntelMaxInterleavingAttr(
+        const SYCLIntelMaxInterleavingAttr *MI);
+    const SYCLIntelSpeculatedIterationsAttr *
+    TransformSYCLIntelSpeculatedIterationsAttr(
+        const SYCLIntelSpeculatedIterationsAttr *SI);
+    const SYCLIntelLoopCountAttr *
+    TransformSYCLIntelLoopCountAttr(const SYCLIntelLoopCountAttr *SI);
+    const SYCLIntelMaxReinvocationDelayAttr *
+    TransformSYCLIntelMaxReinvocationDelayAttr(
+        const SYCLIntelMaxReinvocationDelayAttr *MRD);
 
     ExprResult TransformPredefinedExpr(PredefinedExpr *E);
     ExprResult TransformDeclRefExpr(DeclRefExpr *E);
@@ -1768,9 +1768,9 @@ TemplateInstantiator::TransformLoopHintAttr(const LoopHintAttr *LH) {
                                       LH->getState(), TransformedExpr, *LH);
 }
 
-const SYCLIntelFPGAIVDepAttr *
-TemplateInstantiator::TransformSYCLIntelFPGAIVDepAttr(
-    const SYCLIntelFPGAIVDepAttr *IVDep) {
+const SYCLIntelIVDepAttr *
+TemplateInstantiator::TransformSYCLIntelIVDepAttr(
+    const SYCLIntelIVDepAttr *IVDep) {
 
   Expr *Expr1 = IVDep->getSafelenExpr()
                     ? getDerived().TransformExpr(IVDep->getSafelenExpr()).get()
@@ -1779,54 +1779,54 @@ TemplateInstantiator::TransformSYCLIntelFPGAIVDepAttr(
                     ? getDerived().TransformExpr(IVDep->getArrayExpr()).get()
                     : nullptr;
 
-  return getSema().BuildSYCLIntelFPGAIVDepAttr(*IVDep, Expr1, Expr2);
+  return getSema().BuildSYCLIntelIVDepAttr(*IVDep, Expr1, Expr2);
 }
 
-const SYCLIntelFPGAInitiationIntervalAttr *
-TemplateInstantiator::TransformSYCLIntelFPGAInitiationIntervalAttr(
-    const SYCLIntelFPGAInitiationIntervalAttr *II) {
+const SYCLIntelInitiationIntervalAttr *
+TemplateInstantiator::TransformSYCLIntelInitiationIntervalAttr(
+    const SYCLIntelInitiationIntervalAttr *II) {
   Expr *TransformedExpr =
       getDerived().TransformExpr(II->getIntervalExpr()).get();
-  return getSema().BuildSYCLIntelFPGAInitiationIntervalAttr(*II,
+  return getSema().BuildSYCLIntelInitiationIntervalAttr(*II,
                                                             TransformedExpr);
 }
 
-const SYCLIntelFPGAMaxConcurrencyAttr *
-TemplateInstantiator::TransformSYCLIntelFPGAMaxConcurrencyAttr(
-    const SYCLIntelFPGAMaxConcurrencyAttr *MC) {
+const SYCLIntelMaxConcurrencyAttr *
+TemplateInstantiator::TransformSYCLIntelMaxConcurrencyAttr(
+    const SYCLIntelMaxConcurrencyAttr *MC) {
   Expr *TransformedExpr =
       getDerived().TransformExpr(MC->getNThreadsExpr()).get();
-  return getSema().BuildSYCLIntelFPGAMaxConcurrencyAttr(*MC, TransformedExpr);
+  return getSema().BuildSYCLIntelMaxConcurrencyAttr(*MC, TransformedExpr);
 }
 
-const SYCLIntelFPGALoopCoalesceAttr *
-TemplateInstantiator::TransformSYCLIntelFPGALoopCoalesceAttr(
-    const SYCLIntelFPGALoopCoalesceAttr *LC) {
+const SYCLIntelLoopCoalesceAttr *
+TemplateInstantiator::TransformSYCLIntelLoopCoalesceAttr(
+    const SYCLIntelLoopCoalesceAttr *LC) {
   Expr *TransformedExpr = getDerived().TransformExpr(LC->getNExpr()).get();
-  return getSema().BuildSYCLIntelFPGALoopCoalesceAttr(*LC, TransformedExpr);
+  return getSema().BuildSYCLIntelLoopCoalesceAttr(*LC, TransformedExpr);
 }
 
-const SYCLIntelFPGAMaxInterleavingAttr *
-TemplateInstantiator::TransformSYCLIntelFPGAMaxInterleavingAttr(
-    const SYCLIntelFPGAMaxInterleavingAttr *MI) {
+const SYCLIntelMaxInterleavingAttr *
+TemplateInstantiator::TransformSYCLIntelMaxInterleavingAttr(
+    const SYCLIntelMaxInterleavingAttr *MI) {
   Expr *TransformedExpr = getDerived().TransformExpr(MI->getNExpr()).get();
-  return getSema().BuildSYCLIntelFPGAMaxInterleavingAttr(*MI, TransformedExpr);
+  return getSema().BuildSYCLIntelMaxInterleavingAttr(*MI, TransformedExpr);
 }
 
-const SYCLIntelFPGASpeculatedIterationsAttr *
-TemplateInstantiator::TransformSYCLIntelFPGASpeculatedIterationsAttr(
-    const SYCLIntelFPGASpeculatedIterationsAttr *SI) {
+const SYCLIntelSpeculatedIterationsAttr *
+TemplateInstantiator::TransformSYCLIntelSpeculatedIterationsAttr(
+    const SYCLIntelSpeculatedIterationsAttr *SI) {
   Expr *TransformedExpr = getDerived().TransformExpr(SI->getNExpr()).get();
-  return getSema().BuildSYCLIntelFPGASpeculatedIterationsAttr(*SI,
+  return getSema().BuildSYCLIntelSpeculatedIterationsAttr(*SI,
                                                               TransformedExpr);
 }
 
-const SYCLIntelFPGALoopCountAttr *
-TemplateInstantiator::TransformSYCLIntelFPGALoopCountAttr(
-    const SYCLIntelFPGALoopCountAttr *LCA) {
+const SYCLIntelLoopCountAttr *
+TemplateInstantiator::TransformSYCLIntelLoopCountAttr(
+    const SYCLIntelLoopCountAttr *LCA) {
   Expr *TransformedExpr =
       getDerived().TransformExpr(LCA->getNTripCount()).get();
-  return getSema().BuildSYCLIntelFPGALoopCountAttr(*LCA, TransformedExpr);
+  return getSema().BuildSYCLIntelLoopCountAttr(*LCA, TransformedExpr);
 }
 
 const LoopUnrollHintAttr *TemplateInstantiator::TransformLoopUnrollHintAttr(
@@ -1836,11 +1836,11 @@ const LoopUnrollHintAttr *TemplateInstantiator::TransformLoopUnrollHintAttr(
   return getSema().BuildLoopUnrollHintAttr(*LU, TransformedExpr);
 }
 
-const SYCLIntelFPGAMaxReinvocationDelayAttr *
-TemplateInstantiator::TransformSYCLIntelFPGAMaxReinvocationDelayAttr(
-    const SYCLIntelFPGAMaxReinvocationDelayAttr *MRD) {
+const SYCLIntelMaxReinvocationDelayAttr *
+TemplateInstantiator::TransformSYCLIntelMaxReinvocationDelayAttr(
+    const SYCLIntelMaxReinvocationDelayAttr *MRD) {
   Expr *TransformedExpr = getDerived().TransformExpr(MRD->getNExpr()).get();
-  return getSema().BuildSYCLIntelFPGAMaxReinvocationDelayAttr(*MRD,
+  return getSema().BuildSYCLIntelMaxReinvocationDelayAttr(*MRD,
                                                               TransformedExpr);
 }
 

@@ -8,70 +8,70 @@ sycl::queue deviceQueue;
 void check_ast()
 {
   //CHECK: VarDecl{{.*}}doublepump
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGADoublePumpAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelDoublePumpAttr
   [[intel::doublepump]] unsigned int doublepump[64];
 
   //CHECK: VarDecl{{.*}}memory
-  //CHECK: IntelFPGAMemoryAttr
+  //CHECK: SYCLIntelMemoryAttr
   [[intel::fpga_memory]] unsigned int memory[64];
 
   //CHECK: VarDecl{{.*}}memory_mlab
-  //CHECK: IntelFPGAMemoryAttr{{.*}}MLAB
+  //CHECK: SYCLIntelMemoryAttr{{.*}}MLAB
   [[intel::fpga_memory("MLAB")]] unsigned int memory_mlab[64];
 
   //CHECK: VarDecl{{.*}}mem_blockram
-  //CHECK: IntelFPGAMemoryAttr{{.*}}BlockRAM
+  //CHECK: SYCLIntelMemoryAttr{{.*}}BlockRAM
   [[intel::fpga_memory("BLOCK_RAM")]] unsigned int mem_blockram[32];
 
   //CHECK: VarDecl{{.*}}reg
-  //CHECK: IntelFPGARegisterAttr
+  //CHECK: SYCLIntelRegisterAttr
   [[intel::fpga_register]] unsigned int reg[64];
 
   //CHECK: VarDecl{{.*}}singlepump
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGASinglePumpAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelSinglePumpAttr
   [[intel::singlepump]] unsigned int singlepump[64];
 
   //CHECK: VarDecl{{.*}}bankwidth
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGABankWidthAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelBankWidthAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}4
   //CHECK-NEXT: IntegerLiteral{{.*}}4{{$}}
   [[intel::bankwidth(4)]] unsigned int bankwidth[32];
 
   //CHECK: VarDecl{{.*}}numbanks
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGANumBanksAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelNumBanksAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}8
   //CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
   [[intel::numbanks(8)]] unsigned int numbanks[32];
 
   //CHECK: VarDecl{{.*}}private_copies
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGAPrivateCopiesAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelPrivateCopiesAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}8
   //CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
   [[intel::private_copies(8)]] unsigned int private_copies[64];
 
   //CHECK: VarDecl{{.*}}merge_depth
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGAMergeAttr{{.*}}"mrg1" "depth"{{$}}
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelMergeAttr{{.*}}"mrg1" "depth"{{$}}
   [[intel::merge("mrg1", "depth")]] unsigned int merge_depth[64];
 
   //CHECK: VarDecl{{.*}}merge_width
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGAMergeAttr{{.*}}"mrg2" "width"{{$}}
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelMergeAttr{{.*}}"mrg2" "width"{{$}}
   [[intel::merge("mrg2", "width")]] unsigned int merge_width[64];
 
   //CHECK: VarDecl{{.*}}bankbits
-  //CHECK: IntelFPGANumBanksAttr{{.*}}Implicit{{$}}
+  //CHECK: SYCLIntelNumBanksAttr{{.*}}Implicit{{$}}
   //CHECK-NEXT: IntegerLiteral{{.*}}16{{$}}
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGABankBitsAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelBankBitsAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}2
   //CHECK-NEXT: IntegerLiteral{{.*}}2{{$}}
@@ -87,53 +87,53 @@ void check_ast()
   [[intel::bank_bits(2, 3, 4, 5)]] unsigned int bankbits[64];
 
   //CHECK: VarDecl{{.*}}bank_bits_width
-  //CHECK-NEXT: IntelFPGANumBanksAttr{{.*}}Implicit{{$}}
+  //CHECK-NEXT: SYCLIntelNumBanksAttr{{.*}}Implicit{{$}}
   //CHECK-NEXT: IntegerLiteral{{.*}}4{{$}}
-  //CHECK-NEXT: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK-NEXT: IntelFPGABankBitsAttr
+  //CHECK-NEXT: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK-NEXT: SYCLIntelBankBitsAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}2
   //CHECK-NEXT: IntegerLiteral{{.*}}2{{$}}
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}3
   //CHECK-NEXT: IntegerLiteral{{.*}}3{{$}}
-  //CHECK-NEXT: IntelFPGABankWidthAttr
+  //CHECK-NEXT: SYCLIntelBankWidthAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}16
   //CHECK-NEXT: IntegerLiteral{{.*}}16{{$}}
   [[intel::bank_bits(2, 3), intel::bankwidth(16)]] unsigned int bank_bits_width[64];
 
   //CHECK: VarDecl{{.*}}doublepump_mlab
-  //CHECK: IntelFPGADoublePumpAttr
-  //CHECK: IntelFPGAMemoryAttr{{.*}}MLAB{{$}}
+  //CHECK: SYCLIntelDoublePumpAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}MLAB{{$}}
   [[intel::doublepump]]
   [[intel::fpga_memory("MLAB")]] unsigned int doublepump_mlab[64];
 
   // Add implicit memory attribute.
   //CHECK: VarDecl{{.*}}max_replicates
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGAMaxReplicatesAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelMaxReplicatesAttr
   //CHECK: ConstantExpr
   //CHECK-NEXT: value:{{.*}}2
   //CHECK: IntegerLiteral{{.*}}2{{$}}
   [[intel::max_replicates(2)]] unsigned int max_replicates[64];
 
   //CHECK: VarDecl{{.*}}dual_port
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGASimpleDualPortAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelSimpleDualPortAttr
   [[intel::simple_dual_port]] unsigned int dual_port[64];
 
   //CHECK: VarDecl{{.*}}arr_force_p2d_0
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGAForcePow2DepthAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelForcePow2DepthAttr
   //CHECK: ConstantExpr
   //CHECK-NEXT: value:{{.*}}0
   //CHECK: IntegerLiteral{{.*}}0{{$}}
   [[intel::force_pow2_depth(0)]] unsigned int arr_force_p2d_0[64];
 
   //CHECK: VarDecl{{.*}}arr_force_p2d_1
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGAForcePow2DepthAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelForcePow2DepthAttr
   //CHECK: ConstantExpr
   //CHECK-NEXT: value:{{.*}}1
   //CHECK: IntegerLiteral{{.*}}1{{$}}
@@ -150,8 +150,8 @@ void check_ast()
 
   // Check duplicate argument values with implicit memory attribute.
   //CHECK: VarDecl{{.*}}var_max_replicates
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGAMaxReplicatesAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelMaxReplicatesAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}12
   //CHECK-NEXT: IntegerLiteral{{.*}}12{{$}}
@@ -160,8 +160,8 @@ void check_ast()
 
   // Check duplicate argument values.
   //CHECK: VarDecl{{.*}}var_private_copies
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGAPrivateCopiesAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelPrivateCopiesAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}12
   //CHECK-NEXT: IntegerLiteral{{.*}}12{{$}}
@@ -170,8 +170,8 @@ void check_ast()
 
   // Checking of duplicate argument values.
   //CHECK: VarDecl{{.*}}var_forcep2d
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGAForcePow2DepthAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelForcePow2DepthAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}1
   //CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
@@ -182,8 +182,8 @@ void check_ast()
   // No diagnostic is emitted because the arguments match.
   // Duplicate attribute is silently ignored.
   //CHECK: VarDecl{{.*}}var_bankwidth 'int'
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit Default
-  //CHECK: IntelFPGABankWidthAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit Default
+  //CHECK: SYCLIntelBankWidthAttr
   //CHECK-NEXT: ConstantExpr{{.*}}'int'
   //CHECK-NEXT: value: Int 16
   //CHECK-NEXT: IntegerLiteral{{.*}}'int' 16
@@ -194,8 +194,8 @@ void check_ast()
   // No diagnostic is emitted because the arguments match.
   // Duplicate attribute is silently ignored.
   //CHECK: VarDecl{{.*}}var_numbanks 'int'
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit Default
-  //CHECK: IntelFPGANumBanksAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit Default
+  //CHECK: SYCLIntelNumBanksAttr
   //CHECK-NEXT: ConstantExpr{{.*}}'int'
   //CHECK-NEXT: value: Int 8
   //CHECK-NEXT: IntegerLiteral{{.*}}'int' 8
@@ -208,8 +208,8 @@ void diagnostics()
 {
   // **doublepump
   //CHECK: VarDecl{{.*}}doublepump
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGADoublePumpAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelDoublePumpAttr
   [[intel::doublepump]] unsigned int doublepump[64];
 
   //expected-warning@+1 {{unknown attribute 'doublepump' ignored}}
@@ -233,8 +233,8 @@ void diagnostics()
 
   // **singlepump
   //CHECK: VarDecl{{.*}}singlepump
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGASinglePumpAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelSinglePumpAttr
   [[intel::singlepump]] unsigned int singlepump[64];
 
   //expected-warning@+1 {{unknown attribute 'singlepump' ignored}}
@@ -257,7 +257,7 @@ void diagnostics()
 
   // **fpga_register
   //CHECK: VarDecl{{.*}}reg
-  //CHECK: IntelFPGARegisterAttr
+  //CHECK: SYCLIntelRegisterAttr
   [[intel::fpga_register]] unsigned int reg[64];
 
   //expected-warning@+1 {{unknown attribute 'register' ignored}}
@@ -349,7 +349,7 @@ void diagnostics()
 
   // **memory
   //CHECK: VarDecl{{.*}}memory
-  //CHECK: IntelFPGAMemoryAttr
+  //CHECK: SYCLIntelMemoryAttr
   [[intel::fpga_memory]] unsigned int memory[64];
 
   //expected-error@+2{{attributes are not compatible}}
@@ -366,8 +366,8 @@ void diagnostics()
 
   // bankwidth
   //CHECK: VarDecl{{.*}}bankwidth
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGABankWidthAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelBankWidthAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}4
   //CHECK-NEXT: IntegerLiteral{{.*}}4{{$}}
@@ -386,8 +386,8 @@ void diagnostics()
   // **max_replicates
   // Add implicit memory attribute.
   //CHECK: VarDecl{{.*}}max_replicates
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGAMaxReplicatesAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelMaxReplicatesAttr
   //CHECK: ConstantExpr
   //CHECK-NEXT: value:{{.*}}2
   //CHECK: IntegerLiteral{{.*}}2{{$}}
@@ -417,8 +417,8 @@ void diagnostics()
   [[intel::simple_dual_port(0)]] unsigned int sdp[64];
 
   //CHECK: VarDecl{{.*}}dual_port
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGASimpleDualPortAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelSimpleDualPortAttr
   [[intel::simple_dual_port]] unsigned int dual_port[64];
 
   //expected-warning@+1 {{unknown attribute 'simple_dual_port' ignored}}
@@ -431,8 +431,8 @@ void diagnostics()
 
   // Checking of different argument values.
   //CHECK: VarDecl{{.*}}bw_bw 'unsigned int[64]'
-  //CHECK:IntelFPGAMemoryAttr{{.*}}Implicit Default
-  //CHECK: IntelFPGABankWidthAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit Default
+  //CHECK: SYCLIntelBankWidthAttr
   //CHECK-NEXT: ConstantExpr{{.*}}'int'
   //CHECK-NEXT: value: Int 8
   //CHECK-NEXT: IntegerLiteral{{.*}}'int' 8
@@ -460,8 +460,8 @@ void diagnostics()
 
   // private_copies_
   //CHECK: VarDecl{{.*}}private_copies
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGAPrivateCopiesAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelPrivateCopiesAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}8
   //CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
@@ -496,8 +496,8 @@ void diagnostics()
 
   // numbanks
   //CHECK: VarDecl{{.*}}numbanks
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGANumBanksAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelNumBanksAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}8
   //CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
@@ -510,8 +510,8 @@ void diagnostics()
   unsigned int nb_reg[64];
 
   //CHECK: VarDecl{{.*}}nb_nb 'unsigned int[64]'
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit Default
-  //CHECK:IntelFPGANumBanksAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit Default
+  //CHECK: SYCLIntelNumBanksAttr
   //CHECK-NEXT: ConstantExpr{{.*}}'int'
   //CHECK-NEXT: value: Int 8
   //CHECK-NEXT: IntegerLiteral{{.*}}'int' 8
@@ -542,8 +542,8 @@ void diagnostics()
 
   // merge
   //CHECK: VarDecl{{.*}}merge_depth
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGAMergeAttr{{.*}}"mrg1" "depth"{{$}}
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelMergeAttr{{.*}}"mrg1" "depth"{{$}}
   [[intel::merge("mrg1", "depth")]] unsigned int merge_depth[64];
 
   //expected-warning@+1 {{unknown attribute 'merge' ignored}}
@@ -569,18 +569,18 @@ void diagnostics()
 
   //Last one is applied and others ignored.
   //CHECK: VarDecl{{.*}}mrg_mrg
-  //CHECK: IntelFPGAMergeAttr{{.*}}"mrg4" "depth"{{$}}
-  //CHECK: IntelFPGAMergeAttr{{.*}}"mrg5" "width"{{$}}
+  //CHECK: SYCLIntelMergeAttr{{.*}}"mrg4" "depth"{{$}}
+  //CHECK: SYCLIntelMergeAttr{{.*}}"mrg5" "width"{{$}}
   //expected-warning@+2{{attribute 'merge' is already applied}}
   [[intel::merge("mrg4", "depth")]]
   [[intel::merge("mrg5", "width")]] unsigned int mrg_mrg[4];
 
   // bank_bits
   //CHECK: VarDecl{{.*}}bankbits
-  //CHECK: IntelFPGANumBanksAttr{{.*}}Implicit{{$}}
+  //CHECK: SYCLIntelNumBanksAttr{{.*}}Implicit{{$}}
   //CHECK-NEXT: IntegerLiteral{{.*}}16{{$}}
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGABankBitsAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelBankBitsAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}2
   //CHECK-NEXT: IntegerLiteral{{.*}}2{{$}}
@@ -596,10 +596,10 @@ void diagnostics()
   [[intel::bank_bits(2, 3, 4, 5)]] unsigned int bankbits[64];
 
   //CHECK: VarDecl{{.*}} bb_reg 'unsigned int[4]'
-  //CHECK: IntelFPGANumBanksAttr{{.*}}Implicit
+  //CHECK: SYCLIntelNumBanksAttr{{.*}}Implicit
   //CHECK-NEXT: IntegerLiteral{{.*}}'int' 4
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit Default
-  //CHECK: IntelFPGABankBitsAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit Default
+  //CHECK: SYCLIntelBankBitsAttr
   //CHECK-NEXT: ConstantExpr{{.*}}'int'
   //CHECK-NEXT: value: Int 2
   //CHECK-NEXT: IntegerLiteral{{.*}}'int' 2
@@ -613,14 +613,14 @@ void diagnostics()
   unsigned int bb_reg[4];
 
   //CHECK: VarDecl{{.*}}bb_bb
-  //CHECK: IntelFPGABankBitsAttr
+  //CHECK: SYCLIntelBankBitsAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}42
   //CHECK-NEXT: IntegerLiteral{{.*}}42{{$}}
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}43
   //CHECK-NEXT: IntegerLiteral{{.*}}43{{$}}
-  //CHECK: IntelFPGABankBitsAttr
+  //CHECK: SYCLIntelBankBitsAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}1
   //CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
@@ -651,8 +651,8 @@ void diagnostics()
 
   // force_pow2_depth
   //CHECK: VarDecl{{.*}}arr_force_p2d_0
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGAForcePow2DepthAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelForcePow2DepthAttr
   //CHECK: ConstantExpr
   //CHECK-NEXT: value:{{.*}}0
   //CHECK: IntegerLiteral{{.*}}0{{$}}
@@ -673,8 +673,8 @@ void diagnostics()
 
   // Checking of different argument values.
   //CHECK: VarDecl{{.*}}force_p2d_dup
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGAForcePow2DepthAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelForcePow2DepthAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}1
   //CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
@@ -745,74 +745,74 @@ void force_p2d_attr_on_func_arg([[intel::force_pow2_depth(0)]] int pc) {}
 
 struct foo {
   //CHECK: FieldDecl{{.*}}doublepump
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGADoublePumpAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelDoublePumpAttr
   [[intel::doublepump]] unsigned int doublepump[64];
 
   //CHECK: FieldDecl{{.*}}memory
-  //CHECK: IntelFPGAMemoryAttr
+  //CHECK: SYCLIntelMemoryAttr
   [[intel::fpga_memory]] unsigned int memory[64];
 
   //CHECK: FieldDecl{{.*}}memory_mlab
-  //CHECK: IntelFPGAMemoryAttr{{.*}}MLAB{{$}}
+  //CHECK: SYCLIntelMemoryAttr{{.*}}MLAB{{$}}
   [[intel::fpga_memory("MLAB")]] unsigned int memory_mlab[64];
 
   //CHECK: FieldDecl{{.*}}mem_blockram
-  //CHECK: IntelFPGAMemoryAttr{{.*}}BlockRAM{{$}}
+  //CHECK: SYCLIntelMemoryAttr{{.*}}BlockRAM{{$}}
   [[intel::fpga_memory("BLOCK_RAM")]] unsigned int mem_blockram[64];
 
   //CHECK: FieldDecl{{.*}}mem_blockram_doublepump
-  //CHECK: IntelFPGAMemoryAttr{{.*}}BlockRAM{{$}}
-  //CHECK: IntelFPGADoublePumpAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}BlockRAM{{$}}
+  //CHECK: SYCLIntelDoublePumpAttr
   [[intel::fpga_memory("BLOCK_RAM")]]
   [[intel::doublepump]] unsigned int mem_blockram_doublepump[64];
 
   //CHECK: FieldDecl{{.*}}reg
-  //CHECK: IntelFPGARegisterAttr
+  //CHECK: SYCLIntelRegisterAttr
   [[intel::fpga_register]] unsigned int reg[64];
 
   //CHECK: FieldDecl{{.*}}singlepump
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGASinglePumpAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelSinglePumpAttr
   [[intel::singlepump]] unsigned int singlepump[64];
 
   //CHECK: FieldDecl{{.*}}bankwidth
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGABankWidthAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelBankWidthAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}4
   //CHECK-NEXT: IntegerLiteral{{.*}}4{{$}}
   [[intel::bankwidth(4)]] unsigned int bankwidth[64];
 
   //CHECK: FieldDecl{{.*}}numbanks
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGANumBanksAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelNumBanksAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}8
   //CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
   [[intel::numbanks(8)]] unsigned int numbanks[64];
 
   //CHECK: FieldDecl{{.*}}private_copies
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGAPrivateCopiesAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelPrivateCopiesAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}4
   //CHECK-NEXT: IntegerLiteral{{.*}}4{{$}}
   [[intel::private_copies(4)]] unsigned int private_copies[64];
 
   //CHECK: FieldDecl{{.*}}merge_depth
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGAMergeAttr{{.*}}"mrg1" "depth"{{$}}
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelMergeAttr{{.*}}"mrg1" "depth"{{$}}
   [[intel::merge("mrg1", "depth")]] unsigned int merge_depth[64];
 
   //CHECK: FieldDecl{{.*}}merge_width
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGAMergeAttr{{.*}}"mrg2" "width"{{$}}
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelMergeAttr{{.*}}"mrg2" "width"{{$}}
   [[intel::merge("mrg2", "width")]] unsigned int merge_width[64];
 
   //CHECK: FieldDecl{{.*}}bankbits
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGABankBitsAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelBankBitsAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}2
   //CHECK-NEXT: IntegerLiteral{{.*}}2{{$}}
@@ -822,8 +822,8 @@ struct foo {
   [[intel::bank_bits(2, 3)]] unsigned int bankbits[64];
 
   //CHECK: FieldDecl{{.*}}force_p2d_field
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGAForcePow2DepthAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelForcePow2DepthAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}1
   //CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
@@ -834,8 +834,8 @@ struct foo {
 template <int A, int B, int C, int D, int E>
 void check_template_parameters() {
   //CHECK: VarDecl{{.*}}numbanks
-  //CHECK-NEXT: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK-NEXT: IntelFPGANumBanksAttr
+  //CHECK-NEXT: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK-NEXT: SYCLIntelNumBanksAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}8
   //CHECK-NEXT: SubstNonTypeTemplateParmExpr
@@ -844,8 +844,8 @@ void check_template_parameters() {
   [[intel::numbanks(C)]] unsigned int numbanks;
 
   //CHECK: VarDecl{{.*}}private_copies
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGAPrivateCopiesAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelPrivateCopiesAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}8
   //CHECK-NEXT: SubstNonTypeTemplateParmExpr
@@ -854,10 +854,10 @@ void check_template_parameters() {
   [[intel::private_copies(C)]] unsigned int private_copies;
 
   //CHECK: VarDecl{{.*}}bank_bits_width
-  //CHECK: IntelFPGANumBanksAttr{{.*}}Implicit{{$}}
+  //CHECK: SYCLIntelNumBanksAttr{{.*}}Implicit{{$}}
   //CHECK-NEXT: IntegerLiteral{{.*}}4{{$}}
-  //CHECK-NEXT: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK-NEXT: IntelFPGABankBitsAttr
+  //CHECK-NEXT: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK-NEXT: SYCLIntelBankBitsAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}2
   //CHECK-NEXT: SubstNonTypeTemplateParmExpr
@@ -866,7 +866,7 @@ void check_template_parameters() {
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}3
   //CHECK-NEXT: IntegerLiteral{{.*}}3{{$}}
-  //CHECK: IntelFPGABankWidthAttr
+  //CHECK: SYCLIntelBankWidthAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}8
   //CHECK-NEXT: SubstNonTypeTemplateParmExpr
@@ -876,8 +876,8 @@ void check_template_parameters() {
 
   // Add implicit memory attribute.
   //CHECK: VarDecl{{.*}}max_replicates
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGAMaxReplicatesAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelMaxReplicatesAttr
   //CHECK: ConstantExpr
   //CHECK-NEXT: value:{{.*}}2
   //CHECK-NEXT: SubstNonTypeTemplateParmExpr
@@ -942,8 +942,8 @@ void check_template_parameters() {
 
   // Test that checks template instantiations for different arg values.
   //CHECK: VarDecl{{.*}}force_p2d_dup
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGAForcePow2DepthAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelForcePow2DepthAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}1
   //CHECK-NEXT: SubstNonTypeTemplateParmExpr
@@ -957,8 +957,8 @@ void check_template_parameters() {
 template <int A>
 struct templ_st {
   //CHECK: FieldDecl{{.*}}templ_force_p2d_field
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK: IntelFPGAForcePow2DepthAttr
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelForcePow2DepthAttr
   //CHECK: ConstantExpr
   //CHECK-NEXT: value:{{.*}}0
   //CHECK-NEXT: SubstNonTypeTemplateParmExpr

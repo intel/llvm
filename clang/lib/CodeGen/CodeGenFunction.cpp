@@ -734,7 +734,7 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
       Fn->setMetadata("no_global_work_offset", llvm::MDNode::get(Context, {}));
   }
 
-  if (const auto *A = FD->getAttr<SYCLIntelFPGAMaxConcurrencyAttr>()) {
+  if (const auto *A = FD->getAttr<SYCLIntelMaxConcurrencyAttr>()) {
     const auto *CE = cast<ConstantExpr>(A->getNThreadsExpr());
     llvm::APSInt ArgVal = CE->getResultAsAPSInt();
     llvm::Metadata *AttrMDArgs[] = {
@@ -742,14 +742,14 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
     Fn->setMetadata("max_concurrency", llvm::MDNode::get(Context, AttrMDArgs));
   }
 
-  if (FD->hasAttr<SYCLIntelFPGADisableLoopPipeliningAttr>()) {
+  if (FD->hasAttr<SYCLIntelDisableLoopPipeliningAttr>()) {
     llvm::Metadata *AttrMDArgs[] = {
         llvm::ConstantAsMetadata::get(Builder.getInt32(1))};
     Fn->setMetadata("disable_loop_pipelining",
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
 
-  if (const auto *A = FD->getAttr<SYCLIntelFPGAInitiationIntervalAttr>()) {
+  if (const auto *A = FD->getAttr<SYCLIntelInitiationIntervalAttr>()) {
     const auto *CE = cast<ConstantExpr>(A->getIntervalExpr());
     llvm::APSInt ArgVal = CE->getResultAsAPSInt();
     llvm::Metadata *AttrMDArgs[] = {

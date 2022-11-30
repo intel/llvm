@@ -5104,17 +5104,17 @@ void CodeGenModule::setAspectsEnumDecl(const EnumDecl *ED) {
 void CodeGenModule::generateIntelFPGAAnnotation(
     const Decl *D, llvm::SmallString<256> &AnnotStr) {
   llvm::raw_svector_ostream Out(AnnotStr);
-  if (D->hasAttr<IntelFPGARegisterAttr>())
+  if (D->hasAttr<SYCLIntelRegisterAttr>())
     Out << "{register:1}";
-  if (auto const *MA = D->getAttr<IntelFPGAMemoryAttr>()) {
-    IntelFPGAMemoryAttr::MemoryKind Kind = MA->getKind();
+  if (auto const *MA = D->getAttr<SYCLIntelMemoryAttr>()) {
+    SYCLIntelMemoryAttr::MemoryKind Kind = MA->getKind();
     Out << "{memory:";
     switch (Kind) {
-    case IntelFPGAMemoryAttr::MLAB:
-    case IntelFPGAMemoryAttr::BlockRAM:
-      Out << IntelFPGAMemoryAttr::ConvertMemoryKindToStr(Kind);
+    case SYCLIntelMemoryAttr::MLAB:
+    case SYCLIntelMemoryAttr::BlockRAM:
+      Out << SYCLIntelMemoryAttr::ConvertMemoryKindToStr(Kind);
       break;
-    case IntelFPGAMemoryAttr::Default:
+    case SYCLIntelMemoryAttr::Default:
       Out << "DEFAULT";
       break;
     }
@@ -5138,25 +5138,25 @@ void CodeGenModule::generateIntelFPGAAnnotation(
       Out << '}';
     }
   }
-  if (D->hasAttr<IntelFPGASinglePumpAttr>())
+  if (D->hasAttr<SYCLIntelSinglePumpAttr>())
     Out << "{pump:1}";
-  if (D->hasAttr<IntelFPGADoublePumpAttr>())
+  if (D->hasAttr<SYCLIntelDoublePumpAttr>())
     Out << "{pump:2}";
-  if (const auto *BWA = D->getAttr<IntelFPGABankWidthAttr>()) {
+  if (const auto *BWA = D->getAttr<SYCLIntelBankWidthAttr>()) {
     llvm::APSInt BWAInt = BWA->getValue()->EvaluateKnownConstInt(getContext());
     Out << '{' << BWA->getSpelling() << ':' << BWAInt << '}';
   }
-  if (const auto *PCA = D->getAttr<IntelFPGAPrivateCopiesAttr>()) {
+  if (const auto *PCA = D->getAttr<SYCLIntelPrivateCopiesAttr>()) {
     llvm::APSInt PCAInt = PCA->getValue()->EvaluateKnownConstInt(getContext());
     Out << '{' << PCA->getSpelling() << ':' << PCAInt << '}';
   }
-  if (const auto *NBA = D->getAttr<IntelFPGANumBanksAttr>()) {
+  if (const auto *NBA = D->getAttr<SYCLIntelNumBanksAttr>()) {
     llvm::APSInt NBAInt = NBA->getValue()->EvaluateKnownConstInt(getContext());
     Out << '{' << NBA->getSpelling() << ':' << NBAInt << '}';
   }
-  if (const auto *BBA = D->getAttr<IntelFPGABankBitsAttr>()) {
+  if (const auto *BBA = D->getAttr<SYCLIntelBankBitsAttr>()) {
     Out << '{' << BBA->getSpelling() << ':';
-    for (IntelFPGABankBitsAttr::args_iterator I = BBA->args_begin(),
+    for (SYCLIntelBankBitsAttr::args_iterator I = BBA->args_begin(),
                                               E = BBA->args_end();
          I != E; ++I) {
       if (I != BBA->args_begin())
@@ -5166,17 +5166,17 @@ void CodeGenModule::generateIntelFPGAAnnotation(
     }
     Out << '}';
   }
-  if (const auto *MRA = D->getAttr<IntelFPGAMaxReplicatesAttr>()) {
+  if (const auto *MRA = D->getAttr<SYCLIntelMaxReplicatesAttr>()) {
     llvm::APSInt MRAInt = MRA->getValue()->EvaluateKnownConstInt(getContext());
     Out << '{' << MRA->getSpelling() << ':' << MRAInt << '}';
   }
-  if (const auto *MA = D->getAttr<IntelFPGAMergeAttr>()) {
+  if (const auto *MA = D->getAttr<SYCLIntelMergeAttr>()) {
     Out << '{' << MA->getSpelling() << ':' << MA->getName() << ':'
         << MA->getDirection() << '}';
   }
-  if (D->hasAttr<IntelFPGASimpleDualPortAttr>())
+  if (D->hasAttr<SYCLIntelSimpleDualPortAttr>())
     Out << "{simple_dual_port:1}";
-  if (const auto *FP2D = D->getAttr<IntelFPGAForcePow2DepthAttr>()) {
+  if (const auto *FP2D = D->getAttr<SYCLIntelForcePow2DepthAttr>()) {
     llvm::APSInt FP2DInt =
         FP2D->getValue()->EvaluateKnownConstInt(getContext());
     Out << '{' << FP2D->getSpelling() << ':' << FP2DInt << '}';

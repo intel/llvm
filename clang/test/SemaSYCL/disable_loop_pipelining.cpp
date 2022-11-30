@@ -19,12 +19,12 @@ struct FuncObj {
 int main() {
   deviceQueue.submit([&](sycl::handler &h) {
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel1
-    // CHECK:       SYCLIntelFPGADisableLoopPipeliningAttr {{.*}}
+    // CHECK:       SYCLIntelDisableLoopPipeliningAttr {{.*}}
     h.single_task<class test_kernel1>(
         FuncObj());
 
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel2
-    // CHECK:       SYCLIntelFPGADisableLoopPipeliningAttr {{.*}}
+    // CHECK:       SYCLIntelDisableLoopPipeliningAttr {{.*}}
     h.single_task<class test_kernel2>(
         []() [[intel::disable_loop_pipelining]]{});
   });
