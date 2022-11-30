@@ -24,19 +24,16 @@ int main() {
     });
   });
 
-  auto result_before_exec1 = arr[0];
-
   auto executable_graph = g.finalize(q.get_context());
 
-  auto result_before_exec2 = arr[0];
-
-  q.submit([&](sycl::handler &h) { h.exec_graph(executable_graph); });
-
-  auto result = arr[0];
+  auto e1 = q.exec_graph(executable_graph);
+  auto e2 = q.exec_graph(executable_graph, e1);
+  auto e3 = q.exec_graph(executable_graph, e1);
+  q.exec_graph(executable_graph, {e2, e3}).wait();
 
   sycl::free(arr, q);
 
-  std::cout << "done.\n";
+  std::cout << "done " << arr[0] << std::endl;
 
   return 0;
 }

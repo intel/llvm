@@ -10,6 +10,7 @@
 
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
+#include <detail/graph_impl.hpp>
 #include <detail/handler_impl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
@@ -696,6 +697,13 @@ void handler::depends_on(const std::vector<event> &Events) {
     }
     MEvents.push_back(EventImpl);
   }
+}
+
+void handler::exec_graph(ext::oneapi::experimental::command_graph<
+                         ext::oneapi::experimental::graph_state::executable>
+                             Graph) {
+  auto GraphImpl = detail::getSyclObjImpl(Graph);
+  GraphImpl->exec_and_wait(MQueue);
 }
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

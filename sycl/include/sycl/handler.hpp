@@ -30,6 +30,8 @@
 #include <sycl/sampler.hpp>
 #include <sycl/stl.hpp>
 
+#include <sycl/ext/oneapi/experimental/graph.hpp>
+
 #include <functional>
 #include <limits>
 #include <memory>
@@ -2515,6 +2517,13 @@ public:
   /// \param Length is a number of bytes in the allocation.
   /// \param Advice is a device-defined advice for the specified allocation.
   void mem_advise(const void *Ptr, size_t Length, int Advice);
+
+  /// Executes a command_graph.
+  ///
+  /// \param Graph Executable command_graph to run
+  void exec_graph(ext::oneapi::experimental::command_graph<
+                  ext::oneapi::experimental::graph_state::executable>
+                      Graph);
 
 private:
   std::shared_ptr<detail::handler_impl> MImpl;

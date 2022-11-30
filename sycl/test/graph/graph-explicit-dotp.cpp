@@ -78,9 +78,10 @@ int main() {
       },
       {node_a, node_b});
 
-  auto exec_graph = g.finalize(q.get_context());
+  auto executable_graph = g.finalize(q.get_context());
 
-  q.submit(exec_graph).wait();
+  // Using shortcut for executing a graph of commands
+  q.exec_graph(executable_graph).wait();
 
   if (*dotp != host_gold_result()) {
     std::cout << "Error unexpected result!\n";

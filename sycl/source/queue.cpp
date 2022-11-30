@@ -8,7 +8,6 @@
 
 #include <detail/backend_impl.hpp>
 #include <detail/event_impl.hpp>
-#include <detail/graph_impl.hpp>
 #include <detail/queue_impl.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception_list.hpp>
@@ -212,14 +211,6 @@ buffer<detail::AssertHappened, 1> &queue::getAssertHappenedBuffer() {
 bool queue::device_has(aspect Aspect) const {
   // avoid creating sycl object from impl
   return impl->getDeviceImplPtr()->has(Aspect);
-}
-
-event queue::submit(ext::oneapi::experimental::command_graph<
-                    ext::oneapi::experimental::graph_state::executable>
-                        Graph) {
-  auto GraphImpl = detail::getSyclObjImpl(Graph);
-  GraphImpl->exec_and_wait(this->impl);
-  return {};
 }
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
