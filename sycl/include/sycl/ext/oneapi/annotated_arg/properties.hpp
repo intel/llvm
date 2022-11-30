@@ -17,7 +17,7 @@ namespace ext {
 namespace oneapi {
 namespace experimental {
 
-template <typename T, typename PropertyListT, typename Enable> class annotated_arg;
+template <typename T, typename PropertyListT, bool IsPtr> class annotated_arg;
 
 struct register_map_key {
   using value_t = property_value<register_map_key>;
@@ -118,44 +118,44 @@ template <> struct is_property_key<maxburst_key> : std::true_type {};
 template <> struct is_property_key<wait_request_key> : std::true_type {};
 
 
-template <typename T, typename PropertyListT, typename Enable>
-struct is_property_key_of<register_map_key, annotated_arg<T, PropertyListT, Enable>>
+template <typename T, typename PropertyListT, bool IsPtr>
+struct is_property_key_of<register_map_key, annotated_arg<T, PropertyListT, IsPtr>>
     : std::true_type {};
 
-template <typename T, typename PropertyListT, typename Enable>
-struct is_property_key_of<conduit_key, annotated_arg<T, PropertyListT, Enable>>
+template <typename T, typename PropertyListT, bool IsPtr>
+struct is_property_key_of<conduit_key, annotated_arg<T, PropertyListT, IsPtr>>
     : std::true_type {};
 
-template <typename T, typename PropertyListT, typename Enable>
-struct is_property_key_of<stable_key, annotated_arg<T, PropertyListT, Enable>>
+template <typename T, typename PropertyListT, bool IsPtr>
+struct is_property_key_of<stable_key, annotated_arg<T, PropertyListT, IsPtr>>
     : std::true_type {};
 
-template <typename T, typename PropertyListT, typename Enable>
-struct is_property_key_of<buffer_location_key, annotated_arg<T, PropertyListT, Enable>>
+template <typename T, typename PropertyListT, bool IsPtr>
+struct is_property_key_of<buffer_location_key, annotated_arg<T, PropertyListT, IsPtr>>
     : std::true_type {};
 
-template <typename T, typename PropertyListT, typename Enable>
-struct is_property_key_of<awidth_key, annotated_arg<T, PropertyListT, Enable>>
+template <typename T, typename PropertyListT, bool IsPtr>
+struct is_property_key_of<awidth_key, annotated_arg<T, PropertyListT, IsPtr>>
     : std::true_type {};
 
-template <typename T, typename PropertyListT, typename Enable>
-struct is_property_key_of<dwidth_key, annotated_arg<T, PropertyListT, Enable>>
+template <typename T, typename PropertyListT, bool IsPtr>
+struct is_property_key_of<dwidth_key, annotated_arg<T, PropertyListT, IsPtr>>
     : std::true_type {};
 
-template <typename T, typename PropertyListT, typename Enable>
-struct is_property_key_of<latency_key, annotated_arg<T, PropertyListT, Enable>>
+template <typename T, typename PropertyListT, bool IsPtr>
+struct is_property_key_of<latency_key, annotated_arg<T, PropertyListT, IsPtr>>
     : std::true_type {};
 
-template <typename T, typename PropertyListT, typename Enable>
-struct is_property_key_of<read_write_mode_key, annotated_arg<T, PropertyListT, Enable>>
+template <typename T, typename PropertyListT, bool IsPtr>
+struct is_property_key_of<read_write_mode_key, annotated_arg<T, PropertyListT, IsPtr>>
     : std::true_type {};
 
-template <typename T, typename PropertyListT, typename Enable>
-struct is_property_key_of<maxburst_key, annotated_arg<T, PropertyListT, Enable>>
+template <typename T, typename PropertyListT, bool IsPtr>
+struct is_property_key_of<maxburst_key, annotated_arg<T, PropertyListT, IsPtr>>
     : std::true_type {};
 
-template <typename T, typename PropertyListT, typename Enable>
-struct is_property_key_of<wait_request_key, annotated_arg<T, PropertyListT, Enable>>
+template <typename T, typename PropertyListT, bool IsPtr>
+struct is_property_key_of<wait_request_key, annotated_arg<T, PropertyListT, IsPtr>>
     : std::true_type {};
 
 
