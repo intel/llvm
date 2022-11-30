@@ -26,12 +26,17 @@ using CallGraphFunctionFilter =
 // parameter is true, then no functions' uses are allowed except calls.
 // Otherwise, any function where use of the current one happened is added to the
 // call graph as if the use was a call.
-// The functionFilter parameter is a callback function that can be used to
-// control which functions will be added to a call graph. It is called before
-// adding a function to a call graph and if it returns true the function will be
-// added to a call graph.
-// Functions which are part of the visited set ('Visited'
-// parameter) are not traversed.
+// The 'functionFilter' parameter is a callback function that can be used to
+// control which functions will be added to a call graph. 
+//
+// The callback is/ invoked/ whenever a function being traversed is used
+// by some instruction which is not a call to this instruction (e.g. storing
+// function pointer to memory) - the first parameter is the using instructions,
+// the second - the function being traversed. The parent function of the
+// instruction is added to the call graph depending on whether the callback
+// returns 'true' (added) or 'false' (not added).
+// Functions which are part of the visited set ('Visited' parameter) are not
+// traversed.
 
 void traverseCallgraphUp(
     llvm::Function *F, CallGraphNodeAction NodeF,
