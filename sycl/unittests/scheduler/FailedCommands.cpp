@@ -156,11 +156,11 @@ TEST_F(SchedulerTest, FailedCommandAccessorCleanup) {
         sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx);
     auto ExecBundle = sycl::build(KernelBundle);
 
-    buffer<int, 1> Buff{cl::sycl::range<1>(1)};
+    buffer<int, 1> Buff{sycl::range<1>(1)};
 
     try {
       Q.submit([&](sycl::handler &CGH) {
-        auto Acc = Buff.get_access<cl::sycl::access::mode::read_write>(CGH);
+        auto Acc = Buff.get_access<sycl::access::mode::read_write>(CGH);
         CGH.use_kernel_bundle(ExecBundle);
         CGH.single_task<TestKernel>([=] {});
       });

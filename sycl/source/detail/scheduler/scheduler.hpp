@@ -541,7 +541,7 @@ protected:
     /// deletes the failed command.
     void cleanupFailedCommand(
         Command *FailedCmd,
-        std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>> &,
+        std::vector<std::shared_ptr<sycl::detail::stream_impl>> &,
         std::vector<Command *> &ToCleanUp);
 
     /// Reschedules the command passed using Queue provided.
