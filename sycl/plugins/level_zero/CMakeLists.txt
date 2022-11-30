@@ -15,6 +15,8 @@ else()
   set(LEVEL_ZERO_LOADER_TAG v1.8.8)
 endif()
 
+set(CMAKE_INCLUDE_CURRENT_DIR OFF)
+
 message(STATUS "Will fetch Level Zero Loader from ${LEVEL_ZERO_LOADER_REPO}")
 include(FetchContent)
 FetchContent_Declare(level-zero-loader
