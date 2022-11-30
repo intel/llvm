@@ -646,7 +646,6 @@ public:
     if (!xptiTraceEnabled())
       return;
     init();
-    printf("TLS Tracepoint@%s:%d\n", fileName ? fileName : "(Null)", line);
 
     // Before we use the code location information, we need to check if a
     // tracepoint has been set at a higher scope.
