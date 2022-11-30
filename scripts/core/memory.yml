@@ -215,13 +215,13 @@ params:
       name: flags
       desc: "[in] allocation and usage information flags"
     - type: "const $x_image_format_t*"
-      name: imageFormat
+      name: pImageFormat
       desc: "[in] pointer to image format specification"
     - type: "const $x_image_desc_t*"
-      name: imageDesc
+      name: pImageDesc
       desc: "[in] pointer to image description"
     - type: "void*"
-      name: hostPtr
+      name: pHost
       desc: "[in] pointer to the buffer data"
     - type: $x_mem_handle_t*
       name: phMem      
@@ -254,7 +254,7 @@ params:
       name: size
       desc: "[in] size in bytes of the memory object to be allocated"
     - type: "void*"
-      name: hostPtr
+      name: pHost
       desc: "[in] pointer to the buffer data"
     - type: $x_mem_handle_t*
       name: phBuffer     

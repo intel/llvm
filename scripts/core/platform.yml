@@ -116,7 +116,7 @@ params:
       name: hDriver
       desc: "[in] handle of the platform"
     - type: "$x_api_version_t*"
-      name: version
+      name: pVersion
       desc: "[out] api version"
 --- #--------------------------------------------------------------------------
 type: function

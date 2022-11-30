@@ -164,7 +164,7 @@ params:
       name: propSize
       desc: "[in] size of the Kernel Work Group property value"
     - type: "void*"
-      name: propValue
+      name: pPropValue
       desc: "[in,out][optional][range(0, propSize)] value of the Kernel Work Group property."
     - type: "size_t*"
       name: "pPropSizeRet"
@@ -189,7 +189,7 @@ params:
       name: propSize
       desc: "[in] size of the Kernel SubGroup property value"
     - type: "void*"
-      name: propValue
+      name: pPropValue
       desc: "[in,out][range(0, propSize)][optional] value of the Kernel SubGroup property."
     - type: "size_t*"
       name: pPropSizeRet
@@ -273,7 +273,7 @@ params:
       name: propSize
       desc: "[in] size in byte the attribute value"
     - type: "const void*"
-      name: propValue
+      name: pPropValue
       desc: "[in][range(0, propSize)] pointer to memory location holding the property value."
 --- #--------------------------------------------------------------------------
 type: function
@@ -291,7 +291,7 @@ params:
       name: argIndex
       desc: "[in] argument index in range [0, num args - 1]"
     - type: "$x_sampler_handle_t"
-      name: pArgValue
+      name: hArgValue
       desc: "[in] handle of Sampler object."
 --- #--------------------------------------------------------------------------
 type: function
@@ -309,7 +309,7 @@ params:
       name: argIndex
       desc: "[in] argument index in range [0, num args - 1]"
     - type: "$x_mem_handle_t"
-      name: pArgValue
+      name: hArgValue
       desc: "[in] handle of Memory object."
 --- #--------------------------------------------------------------------------
 type: function

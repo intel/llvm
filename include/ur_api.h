@@ -511,9 +511,9 @@ urContextSetExtendedDeleter(
 ///         + `NULL == hQueue`
 ///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == globalWorkOffset`
-///         + `NULL == globalWorkSize`
-///         + `NULL == event`
+///         + `NULL == pGlobalWorkOffset`
+///         + `NULL == pGlobalWorkSize`
+///         + `NULL == phEvent`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_KERNEL
 ///     - ::UR_RESULT_INVALID_EVENT
@@ -528,22 +528,22 @@ urEnqueueKernelLaunch(
     ur_kernel_handle_t hKernel,                     ///< [in] handle of the kernel object
     uint32_t workDim,                               ///< [in] number of dimensions, from 1 to 3, to specify the global and
                                                     ///< work-group work-items
-    const size_t* globalWorkOffset,                 ///< [in] pointer to an array of workDim unsigned values that specify the
+    const size_t* pGlobalWorkOffset,                ///< [in] pointer to an array of workDim unsigned values that specify the
                                                     ///< offset used to calculate the global ID of a work-item
-    const size_t* globalWorkSize,                   ///< [in] pointer to an array of workDim unsigned values that specify the
+    const size_t* pGlobalWorkSize,                  ///< [in] pointer to an array of workDim unsigned values that specify the
                                                     ///< number of global work-items in workDim that will execute the kernel
                                                     ///< function
-    const size_t* localWorkSize,                    ///< [in][optional] pointer to an array of workDim unsigned values that
+    const size_t* pLocalWorkSize,                   ///< [in][optional] pointer to an array of workDim unsigned values that
                                                     ///< specify the number of local work-items forming a work-group that will
                                                     ///< execute the kernel function.
                                                     ///< If nullptr, the runtime implementation will choose the work-group
                                                     ///< size. 
     uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
-    const ur_event_handle_t* eventWaitList,         ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                                     ///< events that must be complete before the kernel execution.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
                                                     ///< event. 
-    ur_event_handle_t* event                        ///< [in,out] return an event object that identifies this particular kernel
+    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular kernel
                                                     ///< execution instance.
                                                     ///< Contrary to clEnqueueNDRangeKernel, its input can not be a nullptr. 
                                                     ///< TODO: change to allow nullptr.
@@ -569,7 +569,7 @@ urEnqueueKernelLaunch(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == event`
+///         + `NULL == phEvent`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_VALUE
@@ -579,12 +579,12 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueEventsWait(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
     uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
-    const ur_event_handle_t* eventWaitList,         ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                                     ///< events that must be complete before this command can be executed.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that all
                                                     ///< previously enqueued commands
                                                     ///< must be complete. 
-    ur_event_handle_t* event                        ///< [in,out] return an event object that identifies this particular
+    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
                                                     ///< command instance.
                                                     ///< Input can not be a nullptr.
                                                     ///< TODO: change to allow nullptr. 
@@ -612,7 +612,7 @@ urEnqueueEventsWait(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == event`
+///         + `NULL == phEvent`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_VALUE
@@ -622,12 +622,12 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueEventsWaitWithBarrier(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
     uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
-    const ur_event_handle_t* eventWaitList,         ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                                     ///< events that must be complete before this command can be executed.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that all
                                                     ///< previously enqueued commands
                                                     ///< must be complete. 
-    ur_event_handle_t* event                        ///< [in,out] return an event object that identifies this particular
+    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
                                                     ///< command instance.
                                                     ///< Input can not be a nullptr.
                                                     ///< TODO: change to allow nullptr. 
@@ -652,8 +652,8 @@ urEnqueueEventsWaitWithBarrier(
 ///         + `NULL == hQueue`
 ///         + `NULL == hBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == dst`
-///         + `NULL == event`
+///         + `NULL == pDst`
+///         + `NULL == phEvent`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
@@ -666,13 +666,13 @@ urEnqueueMemBufferRead(
     bool blockingRead,                              ///< [in] indicates blocking (true), non-blocking (false)
     size_t offset,                                  ///< [in] offset in bytes in the buffer object
     size_t size,                                    ///< [in] size in bytes of data being read
-    void* dst,                                      ///< [in] pointer to host memory where data is to be read into
+    void* pDst,                                     ///< [in] pointer to host memory where data is to be read into
     uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
-    const ur_event_handle_t* eventWaitList,         ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                                     ///< events that must be complete before this command can be executed.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                     ///< command does not wait on any event to complete.
-    ur_event_handle_t* event                        ///< [in,out] return an event object that identifies this particular
+    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
                                                     ///< command instance.
                                                     ///< Input can not be a nullptr.
                                                     ///< TODO: change to allow nullptr. 
@@ -697,8 +697,8 @@ urEnqueueMemBufferRead(
 ///         + `NULL == hQueue`
 ///         + `NULL == hBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == src`
-///         + `NULL == event`
+///         + `NULL == pSrc`
+///         + `NULL == phEvent`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
@@ -711,13 +711,13 @@ urEnqueueMemBufferWrite(
     bool blockingWrite,                             ///< [in] indicates blocking (true), non-blocking (false)
     size_t offset,                                  ///< [in] offset in bytes in the buffer object
     size_t size,                                    ///< [in] size in bytes of data being written
-    const void* src,                                ///< [in] pointer to host memory where data is to be written from
+    const void* pSrc,                               ///< [in] pointer to host memory where data is to be written from
     uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
-    const ur_event_handle_t* eventWaitList,         ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                                     ///< events that must be complete before this command can be executed.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                     ///< command does not wait on any event to complete.
-    ur_event_handle_t* event                        ///< [in,out] return an event object that identifies this particular
+    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
                                                     ///< command instance.
                                                     ///< Input can not be a nullptr.
                                                     ///< TODO: change to allow nullptr. 
@@ -745,8 +745,8 @@ urEnqueueMemBufferWrite(
 ///         + `NULL == hQueue`
 ///         + `NULL == hBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == dst`
-///         + `NULL == event`
+///         + `NULL == pDst`
+///         + `NULL == phEvent`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
@@ -766,13 +766,13 @@ urEnqueueMemBufferReadRect(
                                                     ///< dst
     size_t hostSlicePitch,                          ///< [in] length of each 2D slice in bytes in the host memory region
                                                     ///< pointed by dst
-    void* dst,                                      ///< [in] pointer to host memory where data is to be read into
+    void* pDst,                                     ///< [in] pointer to host memory where data is to be read into
     uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
-    const ur_event_handle_t* eventWaitList,         ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                                     ///< events that must be complete before this command can be executed.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                     ///< command does not wait on any event to complete.
-    ur_event_handle_t* event                        ///< [in,out] return an event object that identifies this particular
+    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
                                                     ///< command instance.
                                                     ///< Input can not be a nullptr.
                                                     ///< TODO: change to allow nullptr. 
@@ -800,8 +800,8 @@ urEnqueueMemBufferReadRect(
 ///         + `NULL == hQueue`
 ///         + `NULL == hBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == src`
-///         + `NULL == event`
+///         + `NULL == pSrc`
+///         + `NULL == phEvent`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
@@ -822,13 +822,13 @@ urEnqueueMemBufferWriteRect(
                                                     ///< src
     size_t hostSlicePitch,                          ///< [in] length of each 2D slice in bytes in the host memory region
                                                     ///< pointed by src
-    void* src,                                      ///< [in] pointer to host memory where data is to be written from
+    void* pSrc,                                     ///< [in] pointer to host memory where data is to be written from
     uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
-    const ur_event_handle_t* eventWaitList,         ///< [in][optional][range(0, numEventsInWaitList)] points to a list of
+    const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] points to a list of
                                                     ///< events that must be complete before this command can be executed.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                     ///< command does not wait on any event to complete.
-    ur_event_handle_t* event                        ///< [in,out] return an event object that identifies this particular
+    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
                                                     ///< command instance.
                                                     ///< Input can not be a nullptr.
                                                     ///< TODO: change to allow nullptr. 
@@ -850,7 +850,7 @@ urEnqueueMemBufferWriteRect(
 ///         + `NULL == hBufferSrc`
 ///         + `NULL == hBufferDst`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == event`
+///         + `NULL == phEvent`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
@@ -863,11 +863,11 @@ urEnqueueMemBufferCopy(
     ur_mem_handle_t hBufferDst,                     ///< [in] handle of the dest buffer object
     size_t size,                                    ///< [in] size in bytes of data being copied
     uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
-    const ur_event_handle_t* eventWaitList,         ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                                     ///< events that must be complete before this command can be executed.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                     ///< command does not wait on any event to complete.
-    ur_event_handle_t* event                        ///< [in,out] return an event object that identifies this particular
+    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
                                                     ///< command instance.
                                                     ///< Input can not be a nullptr.
                                                     ///< TODO: change to allow nullptr. 
@@ -890,7 +890,7 @@ urEnqueueMemBufferCopy(
 ///         + `NULL == hBufferSrc`
 ///         + `NULL == hBufferDst`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == event`
+///         + `NULL == phEvent`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
@@ -909,11 +909,11 @@ urEnqueueMemBufferCopyRect(
     size_t dstRowPitch,                             ///< [in] length of each row in bytes in the destination buffer object
     size_t dstSlicePitch,                           ///< [in] length of each 2D slice in bytes in the destination buffer object
     uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
-    const ur_event_handle_t* eventWaitList,         ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                                     ///< events that must be complete before this command can be executed.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                     ///< command does not wait on any event to complete.
-    ur_event_handle_t* event                        ///< [in,out] return an event object that identifies this particular
+    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
                                                     ///< command instance.
                                                     ///< Input can not be a nullptr.
                                                     ///< TODO: change to allow nullptr. 
@@ -935,8 +935,8 @@ urEnqueueMemBufferCopyRect(
 ///         + `NULL == hQueue`
 ///         + `NULL == hBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pattern`
-///         + `NULL == event`
+///         + `NULL == pPattern`
+///         + `NULL == phEvent`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
@@ -946,16 +946,16 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueMemBufferFill(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
     ur_mem_handle_t hBuffer,                        ///< [in] handle of the buffer object
-    const void* pattern,                            ///< [in] pointer to the fill pattern
+    const void* pPattern,                           ///< [in] pointer to the fill pattern
     size_t patternSize,                             ///< [in] size in bytes of the pattern
     size_t offset,                                  ///< [in] offset into the buffer
     size_t size,                                    ///< [in] fill size in bytes, must be a multiple of patternSize
     uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
-    const ur_event_handle_t* eventWaitList,         ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                                     ///< events that must be complete before this command can be executed.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                     ///< command does not wait on any event to complete.
-    ur_event_handle_t* event                        ///< [in,out] return an event object that identifies this particular
+    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
                                                     ///< command instance.
                                                     ///< Input can not be a nullptr.
                                                     ///< TODO: change to allow nullptr. 
@@ -981,8 +981,8 @@ urEnqueueMemBufferFill(
 ///         + `NULL == hQueue`
 ///         + `NULL == hImage`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == dst`
-///         + `NULL == event`
+///         + `NULL == pDst`
+///         + `NULL == phEvent`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
@@ -998,13 +998,13 @@ urEnqueueMemImageRead(
                                                     ///< image
     size_t rowPitch,                                ///< [in] length of each row in bytes
     size_t slicePitch,                              ///< [in] length of each 2D slice of the 3D image
-    void* dst,                                      ///< [in] pointer to host memory where image is to be read into
+    void* pDst,                                     ///< [in] pointer to host memory where image is to be read into
     uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
-    const ur_event_handle_t* eventWaitList,         ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                                     ///< events that must be complete before this command can be executed.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                     ///< command does not wait on any event to complete.
-    ur_event_handle_t* event                        ///< [in,out] return an event object that identifies this particular
+    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
                                                     ///< command instance.
                                                     ///< Input can not be a nullptr.
                                                     ///< TODO: change to allow nullptr. 
@@ -1030,8 +1030,8 @@ urEnqueueMemImageRead(
 ///         + `NULL == hQueue`
 ///         + `NULL == hImage`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == src`
-///         + `NULL == event`
+///         + `NULL == pSrc`
+///         + `NULL == phEvent`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
@@ -1047,13 +1047,13 @@ urEnqueueMemImageWrite(
                                                     ///< image
     size_t inputRowPitch,                           ///< [in] length of each row in bytes
     size_t inputSlicePitch,                         ///< [in] length of each 2D slice of the 3D image
-    void* src,                                      ///< [in] pointer to host memory where image is to be read into
+    void* pSrc,                                     ///< [in] pointer to host memory where image is to be read into
     uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
-    const ur_event_handle_t* eventWaitList,         ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                                     ///< events that must be complete before this command can be executed.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                     ///< command does not wait on any event to complete.
-    ur_event_handle_t* event                        ///< [in,out] return an event object that identifies this particular
+    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
                                                     ///< command instance.
                                                     ///< Input can not be a nullptr.
                                                     ///< TODO: change to allow nullptr. 
@@ -1075,7 +1075,7 @@ urEnqueueMemImageWrite(
 ///         + `NULL == hImageSrc`
 ///         + `NULL == hImageDst`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == event`
+///         + `NULL == phEvent`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
@@ -1093,11 +1093,11 @@ urEnqueueMemImageCopy(
     ur_rect_region_t region,                        ///< [in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D
                                                     ///< image
     uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
-    const ur_event_handle_t* eventWaitList,         ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                                     ///< events that must be complete before this command can be executed.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                     ///< command does not wait on any event to complete.
-    ur_event_handle_t* event                        ///< [in,out] return an event object that identifies this particular
+    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
                                                     ///< command instance.
                                                     ///< Input can not be a nullptr.
                                                     ///< TODO: change to allow nullptr. 
@@ -1145,12 +1145,12 @@ typedef enum _ur_usm_migration_flag_t
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hQueue`
-///         + `NULL == buffer`
+///         + `NULL == hBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `0x3 < mapFlags`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == event`
-///         + `NULL == retMap`
+///         + `NULL == phEvent`
+///         + `NULL == ppRetMap`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
@@ -1159,21 +1159,21 @@ typedef enum _ur_usm_migration_flag_t
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueMemBufferMap(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
-    ur_mem_handle_t buffer,                         ///< [in] handle of the buffer object
+    ur_mem_handle_t hBuffer,                        ///< [in] handle of the buffer object
     bool blockingMap,                               ///< [in] indicates blocking (true), non-blocking (false)
     ur_map_flags_t mapFlags,                        ///< [in] flags for read, write, readwrite mapping
     size_t offset,                                  ///< [in] offset in bytes of the buffer region being mapped
     size_t size,                                    ///< [in] size in bytes of the buffer region being mapped
     uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
-    const ur_event_handle_t* eventWaitList,         ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                                     ///< events that must be complete before this command can be executed.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                     ///< command does not wait on any event to complete.
-    ur_event_handle_t* event,                       ///< [in,out] return an event object that identifies this particular
+    ur_event_handle_t* phEvent,                     ///< [in,out] return an event object that identifies this particular
                                                     ///< command instance.
                                                     ///< Input can not be a nullptr.
                                                     ///< TODO: change to allow nullptr. 
-    void** retMap                                   ///< [in,out] return mapped pointer.  TODO: move it before
+    void** ppRetMap                                 ///< [in,out] return mapped pointer.  TODO: move it before
                                                     ///< numEventsInWaitList?
     );
 
@@ -1193,8 +1193,8 @@ urEnqueueMemBufferMap(
 ///         + `NULL == hQueue`
 ///         + `NULL == hMem`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == mappedPtr`
-///         + `NULL == event`
+///         + `NULL == pMappedPtr`
+///         + `NULL == phEvent`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
@@ -1204,13 +1204,13 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueMemUnmap(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
     ur_mem_handle_t hMem,                           ///< [in] handle of the memory (buffer or image) object
-    void* mappedPtr,                                ///< [in] mapped host address
+    void* pMappedPtr,                               ///< [in] mapped host address
     uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
-    const ur_event_handle_t* eventWaitList,         ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                                     ///< events that must be complete before this command can be executed.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                     ///< command does not wait on any event to complete.
-    ur_event_handle_t* event                        ///< [in,out] return an event object that identifies this particular
+    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
                                                     ///< command instance.
                                                     ///< Input can not be a nullptr.
                                                     ///< TODO: change to allow nullptr. 
@@ -1227,7 +1227,7 @@ urEnqueueMemUnmap(
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == ptr`
-///         + `NULL == event`
+///         + `NULL == phEvent`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
@@ -1240,11 +1240,11 @@ urEnqueueUSMMemset(
     int8_t byteValue,                               ///< [in] byte value to fill
     size_t count,                                   ///< [in] size in bytes to be set
     uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
-    const ur_event_handle_t* eventWaitList,         ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                                     ///< events that must be complete before this command can be executed.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                     ///< command does not wait on any event to complete.
-    ur_event_handle_t* event                        ///< [in,out] return an event object that identifies this particular
+    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
                                                     ///< command instance.
                                                     ///< Input can not be a nullptr.
                                                     ///< TODO: change to allow nullptr. 
@@ -1260,9 +1260,9 @@ urEnqueueUSMMemset(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == dstPrt`
-///         + `NULL == srcPrt`
-///         + `NULL == event`
+///         + `NULL == pDst`
+///         + `NULL == pSrc`
+///         + `NULL == phEvent`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
@@ -1272,15 +1272,15 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueUSMMemcpy(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
     bool blocking,                                  ///< [in] blocking or non-blocking copy
-    void* dstPrt,                                   ///< [in] pointer to the destination USM memory object
-    const void* srcPrt,                             ///< [in] pointer to the source USM memory object
+    void* pDst,                                     ///< [in] pointer to the destination USM memory object
+    const void* pSrc,                               ///< [in] pointer to the source USM memory object
     size_t size,                                    ///< [in] size in bytes to be copied
     uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
-    const ur_event_handle_t* eventWaitList,         ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                                     ///< events that must be complete before this command can be executed.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                     ///< command does not wait on any event to complete.
-    ur_event_handle_t* event                        ///< [in,out] return an event object that identifies this particular
+    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
                                                     ///< command instance.
                                                     ///< Input can not be a nullptr.
                                                     ///< TODO: change to allow nullptr. 
@@ -1296,8 +1296,8 @@ urEnqueueUSMMemcpy(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == ptr`
-///         + `NULL == event`
+///         + `NULL == pMem`
+///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `0x1 < flags`
 ///     - ::UR_RESULT_INVALID_QUEUE
@@ -1308,15 +1308,15 @@ urEnqueueUSMMemcpy(
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueUSMPrefetch(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
-    const void* ptr,                                ///< [in] pointer to the USM memory object
+    const void* pMem,                               ///< [in] pointer to the USM memory object
     size_t size,                                    ///< [in] size in bytes to be fetched
     ur_usm_migration_flags_t flags,                 ///< [in] USM prefetch flags
     uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
-    const ur_event_handle_t* eventWaitList,         ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                                     ///< events that must be complete before this command can be executed.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                     ///< command does not wait on any event to complete.
-    ur_event_handle_t* event                        ///< [in,out] return an event object that identifies this particular
+    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
                                                     ///< command instance.
                                                     ///< Input can not be a nullptr.
                                                     ///< TODO: change to allow nullptr. 
@@ -1341,8 +1341,8 @@ typedef enum _ur_mem_advice_t
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == ptr`
-///         + `NULL == event`
+///         + `NULL == pMem`
+///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_MEM_ADVICE_MEM_ADVICE_DEFAULT < advice`
 ///     - ::UR_RESULT_INVALID_QUEUE
@@ -1353,10 +1353,10 @@ typedef enum _ur_mem_advice_t
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueUSMMemAdvice(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
-    const void* ptr,                                ///< [in] pointer to the USM memory object
+    const void* pMem,                               ///< [in] pointer to the USM memory object
     size_t size,                                    ///< [in] size in bytes to be adviced
     ur_mem_advice_t advice,                         ///< [in] USM memory advice
-    ur_event_handle_t* event                        ///< [in,out] return an event object that identifies this particular
+    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
                                                     ///< command instance.
                                                     ///< Input can not be a nullptr.
                                                     ///< TODO: change to allow nullptr. 
@@ -1411,16 +1411,16 @@ typedef enum _ur_profiling_info_t
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == context`
+///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pEvent`
+///         + `NULL == phEvent`
 ///     - ::UR_RESULT_INVALID_CONTEXT
 ///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventCreate(
-    ur_context_handle_t context,                    ///< [in] handle of the context object
-    ur_event_handle_t* pEvent                       ///< [out] pointer to handle of the event object created
+    ur_context_handle_t hContext,                   ///< [in] handle of the context object
+    ur_event_handle_t* phEvent                      ///< [out] pointer to handle of the event object created
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1435,23 +1435,23 @@ urEventCreate(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == event`
+///         + `NULL == hEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_EVENT_INFO_EVENT_INFO_REFERENCE_COUNT < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == propValue`
-///         + `NULL == propValueSizeRet`
+///         + `NULL == pPropValue`
+///         + `NULL == pPropValueSizeRet`
 ///     - ::UR_RESULT_INVALID_VALUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventGetInfo(
-    ur_event_handle_t event,                        ///< [in] handle of the event object
+    ur_event_handle_t hEvent,                       ///< [in] handle of the event object
     ur_event_info_t propName,                       ///< [in] the name of the event property to query
     size_t propValueSize,                           ///< [in] size in bytes of the event property value
-    void* propValue,                                ///< [out] value of the event property
-    size_t* propValueSizeRet                        ///< [out] bytes returned in event property
+    void* pPropValue,                               ///< [out] value of the event property
+    size_t* pPropValueSizeRet                       ///< [out] bytes returned in event property
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1467,7 +1467,7 @@ urEventGetInfo(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == event`
+///         + `NULL == hEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_PROFILING_INFO_PROFILING_INFO_COMMAND_END < propName`
 ///     - ::UR_RESULT_INVALID_VALUE
@@ -1476,11 +1476,11 @@ urEventGetInfo(
 ///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventGetProfilingInfo(
-    ur_event_handle_t event,                        ///< [in] handle of the event object
+    ur_event_handle_t hEvent,                       ///< [in] handle of the event object
     ur_profiling_info_t propName,                   ///< [in] the name of the profiling property to query
     size_t propValueSize,                           ///< [in] size in bytes of the profiling property value
-    void* propValue,                                ///< [out][optional] value of the profiling property
-    size_t* propValueSizeRet                        ///< [out][optional] pointer to the actual size in bytes returned in
+    void* pPropValue,                               ///< [out][optional] value of the profiling property
+    size_t* pPropValueSizeRet                       ///< [out][optional] pointer to the actual size in bytes returned in
                                                     ///< propValue
     );
 
@@ -1496,7 +1496,7 @@ urEventGetProfilingInfo(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == eventList`
+///         + `NULL == phEventWaitList`
 ///     - ::UR_RESULT_INVALID_VALUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_CONTEXT
@@ -1505,7 +1505,7 @@ urEventGetProfilingInfo(
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventWait(
     uint32_t numEvents,                             ///< [in] number of events in the event list
-    const ur_event_handle_t* eventList              ///< [in][range(0, numEvents)] pointer to a list of events to wait for
+    const ur_event_handle_t* phEventWaitList        ///< [in][range(0, numEvents)] pointer to a list of events to wait for
                                                     ///< completion
     );
 
@@ -1522,13 +1522,13 @@ urEventWait(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == event`
+///         + `NULL == hEvent`
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventRetain(
-    ur_event_handle_t event                         ///< [in] handle of the event object
+    ur_event_handle_t hEvent                        ///< [in] handle of the event object
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1544,13 +1544,13 @@ urEventRetain(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == event`
+///         + `NULL == hEvent`
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventRelease(
-    ur_event_handle_t event                         ///< [in] handle of the event object
+    ur_event_handle_t hEvent                        ///< [in] handle of the event object
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1755,11 +1755,11 @@ typedef struct _ur_image_desc_t
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `0x3f < flags`
-///         + `::UR_MEM_TYPE_MEM_TYPE_IMAGE1D_BUFFER < imageDesc->type`
+///         + `::UR_MEM_TYPE_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == imageFormat`
-///         + `NULL == imageDesc`
-///         + `NULL == hostPtr`
+///         + `NULL == pImageFormat`
+///         + `NULL == pImageDesc`
+///         + `NULL == pHost`
 ///         + `NULL == phMem`
 ///     - ::UR_RESULT_INVALID_CONTEXT
 ///     - ::UR_RESULT_INVALID_VALUE
@@ -1773,9 +1773,9 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urMemImageCreate(
     ur_context_handle_t hContext,                   ///< [in] handle of the context object
     ur_mem_flags_t flags,                           ///< [in] allocation and usage information flags
-    const ur_image_format_t* imageFormat,           ///< [in] pointer to image format specification
-    const ur_image_desc_t* imageDesc,               ///< [in] pointer to image description
-    void* hostPtr,                                  ///< [in] pointer to the buffer data
+    const ur_image_format_t* pImageFormat,          ///< [in] pointer to image format specification
+    const ur_image_desc_t* pImageDesc,              ///< [in] pointer to image description
+    void* pHost,                                    ///< [in] pointer to the buffer data
     ur_mem_handle_t* phMem                          ///< [out] pointer to handle of image object created
     );
 
@@ -1795,7 +1795,7 @@ urMemImageCreate(
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `0x3f < flags`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == hostPtr`
+///         + `NULL == pHost`
 ///         + `NULL == phBuffer`
 ///     - ::UR_RESULT_INVALID_CONTEXT
 ///     - ::UR_RESULT_INVALID_VALUE
@@ -1808,7 +1808,7 @@ urMemBufferCreate(
     ur_context_handle_t hContext,                   ///< [in] handle of the context object
     ur_mem_flags_t flags,                           ///< [in] allocation and usage information flags
     size_t size,                                    ///< [in] size in bytes of the memory object to be allocated
-    void* hostPtr,                                  ///< [in] pointer to the buffer data
+    void* pHost,                                    ///< [in] pointer to the buffer data
     ur_mem_handle_t* phBuffer                       ///< [out] pointer to handle of the memory buffer created
     );
 
@@ -2096,8 +2096,8 @@ typedef enum _ur_queue_flag_t
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_QUEUE_INFO_SIZE < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == propValue`
-///         + `NULL == pSize`
+///         + `NULL == pPropValue`
+///         + `NULL == pPropSizeRet`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_VALUE
 ///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
@@ -2107,8 +2107,8 @@ urQueueGetInfo(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
     ur_queue_info_t propName,                       ///< [in] name of the queue property to query
     size_t propValueSize,                           ///< [in] size in bytes of the queue property value provided
-    void* propValue,                                ///< [out] value of the queue property
-    size_t* pSize                                   ///< [out] size in bytes returned in queue property value
+    void* pPropValue,                               ///< [out] value of the queue property
+    size_t* pPropSizeRet                            ///< [out] size in bytes returned in queue property value
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2367,7 +2367,7 @@ typedef struct _ur_sampler_property_value_t
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == props`
+///         + `NULL == pProps`
 ///         + `NULL == phSampler`
 ///     - ::UR_RESULT_INVALID_CONTEXT
 ///     - ::UR_RESULT_INVALID_VALUE
@@ -2377,7 +2377,7 @@ typedef struct _ur_sampler_property_value_t
 UR_APIEXPORT ur_result_t UR_APICALL
 urSamplerCreate(
     ur_context_handle_t hContext,                   ///< [in] handle of the context object
-    const ur_sampler_property_value_t* props,       ///< [in] specifies a list of sampler property names and their
+    const ur_sampler_property_value_t* pProps,      ///< [in] specifies a list of sampler property names and their
                                                     ///< corresponding values.
     ur_sampler_handle_t* phSampler                  ///< [out] pointer to handle of sampler object created
     );
@@ -2442,8 +2442,8 @@ urSamplerRelease(
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_SAMPLER_INFO_SAMPLER_INFO_LOD_MAX < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == propValue`
-///         + `NULL == pSize`
+///         + `NULL == pPropValue`
+///         + `NULL == pPropSizeRet`
 ///     - ::UR_RESULT_INVALID_SAMPLER
 ///     - ::UR_RESULT_INVALID_VALUE
 ///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
@@ -2453,8 +2453,8 @@ urSamplerGetInfo(
     ur_sampler_handle_t hSampler,                   ///< [in] handle of the sampler object
     ur_sampler_info_t propName,                     ///< [in] name of the sampler property to query
     size_t propValueSize,                           ///< [in] size in bytes of the sampler property value provided
-    void* propValue,                                ///< [out] value of the sampler property
-    size_t* pSize                                   ///< [out] size in bytes returned in sampler property value
+    void* pPropValue,                               ///< [out] value of the sampler property
+    size_t* pPropSizeRet                            ///< [out] size in bytes returned in sampler property value
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2545,10 +2545,10 @@ typedef enum _ur_mem_alloc_info_t
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == context`
+///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pUSMFlag`
-///         + `NULL == pptr`
+///         + `NULL == ppMem`
 ///     - ::UR_RESULT_INVALID_CONTEXT
 ///     - ::UR_RESULT_INVALID_VALUE
 ///     - ::UR_RESULT_INVALID_USM_SIZE
@@ -2556,11 +2556,11 @@ typedef enum _ur_mem_alloc_info_t
 ///     - ::UR_RESULT_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urUSMHostAlloc(
-    ur_context_handle_t context,                    ///< [in] handle of the context object
+    ur_context_handle_t hContext,                   ///< [in] handle of the context object
     ur_usm_mem_flags_t* pUSMFlag,                   ///< [in] USM memory allocation flags
     size_t size,                                    ///< [in] size in bytes of the USM memory object to be allocated
     uint32_t align,                                 ///< [in] alignment of the USM memory object
-    void** pptr                                     ///< [out] pointer to USM host memory object
+    void** ppMem                                    ///< [out] pointer to USM host memory object
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2571,11 +2571,11 @@ urUSMHostAlloc(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == context`
-///         + `NULL == device`
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pUSMProp`
-///         + `NULL == pptr`
+///         + `NULL == ppMem`
 ///     - ::UR_RESULT_INVALID_CONTEXT
 ///     - ::UR_RESULT_INVALID_VALUE
 ///     - ::UR_RESULT_INVALID_USM_SIZE
@@ -2583,12 +2583,12 @@ urUSMHostAlloc(
 ///     - ::UR_RESULT_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urUSMDeviceAlloc(
-    ur_context_handle_t context,                    ///< [in] handle of the context object
-    ur_device_handle_t device,                      ///< [in] handle of the device object
+    ur_context_handle_t hContext,                   ///< [in] handle of the context object
+    ur_device_handle_t hDevice,                     ///< [in] handle of the device object
     ur_usm_mem_flags_t* pUSMProp,                   ///< [in] USM memory properties
     size_t size,                                    ///< [in] size in bytes of the USM memory object to be allocated
     uint32_t align,                                 ///< [in] alignment of the USM memory object
-    void** pptr                                     ///< [out] pointer to USM device memory object
+    void** ppMem                                    ///< [out] pointer to USM device memory object
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2599,11 +2599,11 @@ urUSMDeviceAlloc(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == context`
-///         + `NULL == device`
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pUSMProp`
-///         + `NULL == pptr`
+///         + `NULL == ppMem`
 ///     - ::UR_RESULT_INVALID_CONTEXT
 ///     - ::UR_RESULT_INVALID_VALUE
 ///     - ::UR_RESULT_INVALID_USM_SIZE
@@ -2611,12 +2611,12 @@ urUSMDeviceAlloc(
 ///     - ::UR_RESULT_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urUSMSharedAlloc(
-    ur_context_handle_t context,                    ///< [in] handle of the context object
-    ur_device_handle_t device,                      ///< [in] handle of the device object
+    ur_context_handle_t hContext,                   ///< [in] handle of the context object
+    ur_device_handle_t hDevice,                     ///< [in] handle of the device object
     ur_usm_mem_flags_t* pUSMProp,                   ///< [in] USM memory properties
     size_t size,                                    ///< [in] size in bytes of the USM memory object to be allocated
     uint32_t align,                                 ///< [in] alignment of the USM memory object
-    void** pptr                                     ///< [out] pointer to USM shared memory object
+    void** ppMem                                    ///< [out] pointer to USM shared memory object
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2627,15 +2627,15 @@ urUSMSharedAlloc(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == context`
+///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == ptr`
+///         + `NULL == pMem`
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urMemFree(
-    ur_context_handle_t context,                    ///< [in] handle of the context object
-    void* ptr                                       ///< [in] pointer to USM memory object
+    ur_context_handle_t hContext,                   ///< [in] handle of the context object
+    void* pMem                                      ///< [in] pointer to USM memory object
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2646,11 +2646,11 @@ urMemFree(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == context`
+///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == ptr`
-///         + `NULL == propValue`
-///         + `NULL == propValueSizeRet`
+///         + `NULL == pMem`
+///         + `NULL == pPropValue`
+///         + `NULL == pPropValueSizeRet`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_MEM_ALLOC_INFO_MEM_ALLOC_DEVICE < propName`
 ///     - ::UR_RESULT_INVALID_CONTEXT
@@ -2659,12 +2659,12 @@ urMemFree(
 ///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urMemGetMemAllocInfo(
-    ur_context_handle_t context,                    ///< [in] handle of the context object
-    const void* ptr,                                ///< [in] pointer to USM memory object
+    ur_context_handle_t hContext,                   ///< [in] handle of the context object
+    const void* pMem,                               ///< [in] pointer to USM memory object
     ur_mem_alloc_info_t propName,                   ///< [in] the name of the USM allocation property to query
     size_t propValueSize,                           ///< [in] size in bytes of the USM allocation property value
-    void* propValue,                                ///< [out] value of the USM allocation property
-    size_t* propValueSizeRet                        ///< [out] bytes returned in USM allocation property
+    void* pPropValue,                               ///< [out] value of the USM allocation property
+    size_t* pPropValueSizeRet                       ///< [out] bytes returned in USM allocation property
     );
 
 #if !defined(__GNUC__)
@@ -3001,15 +3001,15 @@ urDevicePartition(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == Binaries`
-///         + `NULL == SelectedBinary`
+///         + `NULL == ppBinaries`
+///         + `NULL == pSelectedBinary`
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceSelectBinary(
     ur_device_handle_t hDevice,                     ///< [in] handle of the device to select binary for.
-    const uint8_t** Binaries,                       ///< [in] the array of binaries to select from.
-    uint32_t NumBinaries,                           ///< [in] the number of binaries passed in Binaries. Must greater or equal
-                                                    ///< than zero.
-    uint32_t* SelectedBinary                        ///< [out] the index of the selected binary in the input array of binaries.
+    const uint8_t** ppBinaries,                     ///< [in] the array of binaries to select from.
+    uint32_t NumBinaries,                           ///< [in] the number of binaries passed in ppBinaries. Must greater than or
+                                                    ///< equal to zero.
+    uint32_t* pSelectedBinary                       ///< [out] the index of the selected binary in the input array of binaries.
                                                     ///< If a suitable binary was not found the function returns ${X}_INVALID_BINARY.
     );
 
@@ -3288,7 +3288,7 @@ urKernelGetGroupInfo(
     ur_device_handle_t hDevice,                     ///< [in] handle of the Device object
     ur_kernel_group_info_t propName,                ///< [in] name of the work Group property to query
     size_t propSize,                                ///< [in] size of the Kernel Work Group property value
-    void* propValue,                                ///< [in,out][optional][range(0, propSize)] value of the Kernel Work Group
+    void* pPropValue,                               ///< [in,out][optional][range(0, propSize)] value of the Kernel Work Group
                                                     ///< property.
     size_t* pPropSizeRet                            ///< [out][optional] pointer to the actual size in bytes of data being
                                                     ///< queried by propName.
@@ -3312,7 +3312,7 @@ urKernelGetSubGroupInfo(
     ur_device_handle_t hDevice,                     ///< [in] handle of the Device object
     ur_kernel_sub_group_info_t propName,            ///< [in] name of the SubGroup property to query
     size_t propSize,                                ///< [in] size of the Kernel SubGroup property value
-    void* propValue,                                ///< [in,out][range(0, propSize)][optional] value of the Kernel SubGroup
+    void* pPropValue,                               ///< [in,out][range(0, propSize)][optional] value of the Kernel SubGroup
                                                     ///< property.
     size_t* pPropSizeRet                            ///< [out][optional] pointer to the actual size in bytes of data being
                                                     ///< queried by propName.
@@ -3414,13 +3414,13 @@ urKernelSetArgPointer(
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_KERNEL_EXEC_INFO_USM_PTRS < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == propValue`
+///         + `NULL == pPropValue`
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetExecInfo(
     ur_kernel_handle_t hKernel,                     ///< [in] handle of the kernel object
     ur_kernel_exec_info_t propName,                 ///< [in] name of the execution attribute
     size_t propSize,                                ///< [in] size in byte the attribute value
-    const void* propValue                           ///< [in][range(0, propSize)] pointer to memory location holding the
+    const void* pPropValue                          ///< [in][range(0, propSize)] pointer to memory location holding the
                                                     ///< property value.
     );
 
@@ -3438,12 +3438,12 @@ urKernelSetExecInfo(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hKernel`
-///         + `NULL == pArgValue`
+///         + `NULL == hArgValue`
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgSampler(
     ur_kernel_handle_t hKernel,                     ///< [in] handle of the kernel object
     uint32_t argIndex,                              ///< [in] argument index in range [0, num args - 1]
-    ur_sampler_handle_t pArgValue                   ///< [in] handle of Sampler object.
+    ur_sampler_handle_t hArgValue                   ///< [in] handle of Sampler object.
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3460,12 +3460,12 @@ urKernelSetArgSampler(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hKernel`
-///         + `NULL == pArgValue`
+///         + `NULL == hArgValue`
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgMemObj(
     ur_kernel_handle_t hKernel,                     ///< [in] handle of the kernel object
     uint32_t argIndex,                              ///< [in] argument index in range [0, num args - 1]
-    ur_mem_handle_t pArgValue                       ///< [in] handle of Memory object.
+    ur_mem_handle_t hArgValue                       ///< [in] handle of Memory object.
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3766,11 +3766,11 @@ typedef enum _ur_api_version_t
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDriver`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == version`
+///         + `NULL == pVersion`
 UR_APIEXPORT ur_result_t UR_APICALL
 urPlatformGetApiVersion(
     ur_platform_handle_t hDriver,                   ///< [in] handle of the platform
-    ur_api_version_t* version                       ///< [out] api version
+    ur_api_version_t* pVersion                      ///< [out] api version
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3961,7 +3961,7 @@ urProgramRelease(
 ///         + `NULL == hProgram`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pFunctionName`
-///         + `NULL == pFunctionPointer`
+///         + `NULL == ppFunctionPointer`
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramGetFunctionPointer(
     ur_device_handle_t hDevice,                     ///< [in] handle of the device to retrieve pointer for.
@@ -3969,7 +3969,7 @@ urProgramGetFunctionPointer(
                                                     ///< The program must already be built to the specified device, or
                                                     ///< otherwise ::UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE is returned.
     const char* pFunctionName,                      ///< [in] A null-terminates string denoting the mangled function name.
-    void** pFunctionPointer                         ///< [out] Returns the pointer to the function if it is found in the program.
+    void** ppFunctionPointer                        ///< [out] Returns the pointer to the function if it is found in the program.
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4073,18 +4073,18 @@ typedef enum _ur_program_build_info_t
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_PROGRAM_BUILD_INFO_BINARY_TYPE < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == propSize`
+///         + `NULL == pPropSize`
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramGetBuildInfo(
     ur_program_handle_t hProgram,                   ///< [in] handle of the Program object
     ur_device_handle_t hDevice,                     ///< [in] handle of the Device object
     ur_program_build_info_t propName,               ///< [in] name of the Program build info to query
-    size_t* propSize,                               ///< [in,out] pointer to the size of the Program build info property.
+    size_t* pPropSize,                              ///< [in,out] pointer to the size of the Program build info property.
                                                     ///< If *propSize is 0 or greater than the number of bytes of the build
                                                     ///< info property,
                                                     ///< the call shall update the value with actual number of bytes of the
                                                     ///< build info property.
-    void* propValue                                 ///< [in,out][optional][range(0, *propSize)] value of the Program build property.
+    void* pPropValue                                ///< [in,out][optional][range(0, *propSize)] value of the Program build property.
                                                     ///< If *propSize is less than the number of bytes for the Program build property,
                                                     ///< only the first *propSize bytes will be returned.
     );
@@ -4099,13 +4099,13 @@ urProgramGetBuildInfo(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hProgram`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == specValue`
+///         + `NULL == pSpecValue`
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramSetSpecializationConstant(
     ur_program_handle_t hProgram,                   ///< [in] handle of the Program object
     uint32_t specId,                                ///< [in] specification constant Id
     size_t specSize,                                ///< [in] size of the specialization constant value
-    const void* specValue                           ///< [in] pointer to the specialization value bytes
+    const void* pSpecValue                          ///< [in] pointer to the specialization value bytes
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4330,7 +4330,7 @@ typedef void (UR_APICALL *ur_pfnPlatformCreateWithNativeHandleCb_t)(
 typedef struct _ur_platform_get_api_version_params_t
 {
     ur_platform_handle_t* phDriver;
-    ur_api_version_t** pversion;
+    ur_api_version_t** ppVersion;
 } ur_platform_get_api_version_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4541,8 +4541,8 @@ typedef struct _ur_context_callbacks_t
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct _ur_event_create_params_t
 {
-    ur_context_handle_t* pcontext;
-    ur_event_handle_t** ppEvent;
+    ur_context_handle_t* phContext;
+    ur_event_handle_t** pphEvent;
 } ur_event_create_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4564,11 +4564,11 @@ typedef void (UR_APICALL *ur_pfnEventCreateCb_t)(
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct _ur_event_get_info_params_t
 {
-    ur_event_handle_t* pevent;
+    ur_event_handle_t* phEvent;
     ur_event_info_t* ppropName;
     size_t* ppropValueSize;
-    void** ppropValue;
-    size_t** ppropValueSizeRet;
+    void** ppPropValue;
+    size_t** ppPropValueSizeRet;
 } ur_event_get_info_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4590,11 +4590,11 @@ typedef void (UR_APICALL *ur_pfnEventGetInfoCb_t)(
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct _ur_event_get_profiling_info_params_t
 {
-    ur_event_handle_t* pevent;
+    ur_event_handle_t* phEvent;
     ur_profiling_info_t* ppropName;
     size_t* ppropValueSize;
-    void** ppropValue;
-    size_t** ppropValueSizeRet;
+    void** ppPropValue;
+    size_t** ppPropValueSizeRet;
 } ur_event_get_profiling_info_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4617,7 +4617,7 @@ typedef void (UR_APICALL *ur_pfnEventGetProfilingInfoCb_t)(
 typedef struct _ur_event_wait_params_t
 {
     uint32_t* pnumEvents;
-    const ur_event_handle_t** peventList;
+    const ur_event_handle_t** pphEventWaitList;
 } ur_event_wait_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4639,7 +4639,7 @@ typedef void (UR_APICALL *ur_pfnEventWaitCb_t)(
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct _ur_event_retain_params_t
 {
-    ur_event_handle_t* pevent;
+    ur_event_handle_t* phEvent;
 } ur_event_retain_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4661,7 +4661,7 @@ typedef void (UR_APICALL *ur_pfnEventRetainCb_t)(
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct _ur_event_release_params_t
 {
-    ur_event_handle_t* pevent;
+    ur_event_handle_t* phEvent;
 } ur_event_release_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4843,7 +4843,7 @@ typedef struct _ur_program_get_function_pointer_params_t
     ur_device_handle_t* phDevice;
     ur_program_handle_t* phProgram;
     const char** ppFunctionName;
-    void*** ppFunctionPointer;
+    void*** pppFunctionPointer;
 } ur_program_get_function_pointer_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4894,8 +4894,8 @@ typedef struct _ur_program_get_build_info_params_t
     ur_program_handle_t* phProgram;
     ur_device_handle_t* phDevice;
     ur_program_build_info_t* ppropName;
-    size_t** ppropSize;
-    void** ppropValue;
+    size_t** ppPropSize;
+    void** ppPropValue;
 } ur_program_get_build_info_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4920,7 +4920,7 @@ typedef struct _ur_program_set_specialization_constant_params_t
     ur_program_handle_t* phProgram;
     uint32_t* pspecId;
     size_t* pspecSize;
-    const void** pspecValue;
+    const void** ppSpecValue;
 } ur_program_set_specialization_constant_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5189,7 +5189,7 @@ typedef struct _ur_kernel_get_group_info_params_t
     ur_device_handle_t* phDevice;
     ur_kernel_group_info_t* ppropName;
     size_t* ppropSize;
-    void** ppropValue;
+    void** ppPropValue;
     size_t** ppPropSizeRet;
 } ur_kernel_get_group_info_params_t;
 
@@ -5216,7 +5216,7 @@ typedef struct _ur_kernel_get_sub_group_info_params_t
     ur_device_handle_t* phDevice;
     ur_kernel_sub_group_info_t* ppropName;
     size_t* ppropSize;
-    void** ppropValue;
+    void** ppPropValue;
     size_t** ppPropSizeRet;
 } ur_kernel_get_sub_group_info_params_t;
 
@@ -5383,7 +5383,7 @@ typedef struct _ur_kernel_set_exec_info_params_t
     ur_kernel_handle_t* phKernel;
     ur_kernel_exec_info_t* ppropName;
     size_t* ppropSize;
-    const void** ppropValue;
+    const void** ppPropValue;
 } ur_kernel_set_exec_info_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5407,7 +5407,7 @@ typedef struct _ur_kernel_set_arg_sampler_params_t
 {
     ur_kernel_handle_t* phKernel;
     uint32_t* pargIndex;
-    ur_sampler_handle_t* ppArgValue;
+    ur_sampler_handle_t* phArgValue;
 } ur_kernel_set_arg_sampler_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5431,7 +5431,7 @@ typedef struct _ur_kernel_set_arg_mem_obj_params_t
 {
     ur_kernel_handle_t* phKernel;
     uint32_t* pargIndex;
-    ur_mem_handle_t* ppArgValue;
+    ur_mem_handle_t* phArgValue;
 } ur_kernel_set_arg_mem_obj_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5473,7 +5473,7 @@ typedef struct _ur_kernel_callbacks_t
 typedef struct _ur_sampler_create_params_t
 {
     ur_context_handle_t* phContext;
-    const ur_sampler_property_value_t** pprops;
+    const ur_sampler_property_value_t** ppProps;
     ur_sampler_handle_t** pphSampler;
 } ur_sampler_create_params_t;
 
@@ -5543,8 +5543,8 @@ typedef struct _ur_sampler_get_info_params_t
     ur_sampler_handle_t* phSampler;
     ur_sampler_info_t* ppropName;
     size_t* ppropValueSize;
-    void** ppropValue;
-    size_t** ppSize;
+    void** ppPropValue;
+    size_t** ppPropSizeRet;
 } ur_sampler_get_info_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5627,9 +5627,9 @@ typedef struct _ur_mem_image_create_params_t
 {
     ur_context_handle_t* phContext;
     ur_mem_flags_t* pflags;
-    const ur_image_format_t** pimageFormat;
-    const ur_image_desc_t** pimageDesc;
-    void** phostPtr;
+    const ur_image_format_t** ppImageFormat;
+    const ur_image_desc_t** ppImageDesc;
+    void** ppHost;
     ur_mem_handle_t** pphMem;
 } ur_mem_image_create_params_t;
 
@@ -5655,7 +5655,7 @@ typedef struct _ur_mem_buffer_create_params_t
     ur_context_handle_t* phContext;
     ur_mem_flags_t* pflags;
     size_t* psize;
-    void** phostPtr;
+    void** ppHost;
     ur_mem_handle_t** pphBuffer;
 } ur_mem_buffer_create_params_t;
 
@@ -5821,8 +5821,8 @@ typedef void (UR_APICALL *ur_pfnMemGetInfoCb_t)(
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct _ur_mem_free_params_t
 {
-    ur_context_handle_t* pcontext;
-    void** pptr;
+    ur_context_handle_t* phContext;
+    void** ppMem;
 } ur_mem_free_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5844,12 +5844,12 @@ typedef void (UR_APICALL *ur_pfnMemFreeCb_t)(
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct _ur_mem_get_mem_alloc_info_params_t
 {
-    ur_context_handle_t* pcontext;
-    const void** pptr;
+    ur_context_handle_t* phContext;
+    const void** ppMem;
     ur_mem_alloc_info_t* ppropName;
     size_t* ppropValueSize;
-    void** ppropValue;
-    size_t** ppropValueSizeRet;
+    void** ppPropValue;
+    size_t** ppPropValueSizeRet;
 } ur_mem_get_mem_alloc_info_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5890,12 +5890,12 @@ typedef struct _ur_enqueue_kernel_launch_params_t
     ur_queue_handle_t* phQueue;
     ur_kernel_handle_t* phKernel;
     uint32_t* pworkDim;
-    const size_t** pglobalWorkOffset;
-    const size_t** pglobalWorkSize;
-    const size_t** plocalWorkSize;
+    const size_t** ppGlobalWorkOffset;
+    const size_t** ppGlobalWorkSize;
+    const size_t** ppLocalWorkSize;
     uint32_t* pnumEventsInWaitList;
-    const ur_event_handle_t** peventWaitList;
-    ur_event_handle_t** pevent;
+    const ur_event_handle_t** pphEventWaitList;
+    ur_event_handle_t** pphEvent;
 } ur_enqueue_kernel_launch_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5919,8 +5919,8 @@ typedef struct _ur_enqueue_events_wait_params_t
 {
     ur_queue_handle_t* phQueue;
     uint32_t* pnumEventsInWaitList;
-    const ur_event_handle_t** peventWaitList;
-    ur_event_handle_t** pevent;
+    const ur_event_handle_t** pphEventWaitList;
+    ur_event_handle_t** pphEvent;
 } ur_enqueue_events_wait_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5944,8 +5944,8 @@ typedef struct _ur_enqueue_events_wait_with_barrier_params_t
 {
     ur_queue_handle_t* phQueue;
     uint32_t* pnumEventsInWaitList;
-    const ur_event_handle_t** peventWaitList;
-    ur_event_handle_t** pevent;
+    const ur_event_handle_t** pphEventWaitList;
+    ur_event_handle_t** pphEvent;
 } ur_enqueue_events_wait_with_barrier_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5972,10 +5972,10 @@ typedef struct _ur_enqueue_mem_buffer_read_params_t
     bool* pblockingRead;
     size_t* poffset;
     size_t* psize;
-    void** pdst;
+    void** ppDst;
     uint32_t* pnumEventsInWaitList;
-    const ur_event_handle_t** peventWaitList;
-    ur_event_handle_t** pevent;
+    const ur_event_handle_t** pphEventWaitList;
+    ur_event_handle_t** pphEvent;
 } ur_enqueue_mem_buffer_read_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6002,10 +6002,10 @@ typedef struct _ur_enqueue_mem_buffer_write_params_t
     bool* pblockingWrite;
     size_t* poffset;
     size_t* psize;
-    const void** psrc;
+    const void** ppSrc;
     uint32_t* pnumEventsInWaitList;
-    const ur_event_handle_t** peventWaitList;
-    ur_event_handle_t** pevent;
+    const ur_event_handle_t** pphEventWaitList;
+    ur_event_handle_t** pphEvent;
 } ur_enqueue_mem_buffer_write_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6037,10 +6037,10 @@ typedef struct _ur_enqueue_mem_buffer_read_rect_params_t
     size_t* pbufferSlicePitch;
     size_t* phostRowPitch;
     size_t* phostSlicePitch;
-    void** pdst;
+    void** ppDst;
     uint32_t* pnumEventsInWaitList;
-    const ur_event_handle_t** peventWaitList;
-    ur_event_handle_t** pevent;
+    const ur_event_handle_t** pphEventWaitList;
+    ur_event_handle_t** pphEvent;
 } ur_enqueue_mem_buffer_read_rect_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6072,10 +6072,10 @@ typedef struct _ur_enqueue_mem_buffer_write_rect_params_t
     size_t* pbufferSlicePitch;
     size_t* phostRowPitch;
     size_t* phostSlicePitch;
-    void** psrc;
+    void** ppSrc;
     uint32_t* pnumEventsInWaitList;
-    const ur_event_handle_t** peventWaitList;
-    ur_event_handle_t** pevent;
+    const ur_event_handle_t** pphEventWaitList;
+    ur_event_handle_t** pphEvent;
 } ur_enqueue_mem_buffer_write_rect_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6102,8 +6102,8 @@ typedef struct _ur_enqueue_mem_buffer_copy_params_t
     ur_mem_handle_t* phBufferDst;
     size_t* psize;
     uint32_t* pnumEventsInWaitList;
-    const ur_event_handle_t** peventWaitList;
-    ur_event_handle_t** pevent;
+    const ur_event_handle_t** pphEventWaitList;
+    ur_event_handle_t** pphEvent;
 } ur_enqueue_mem_buffer_copy_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6136,8 +6136,8 @@ typedef struct _ur_enqueue_mem_buffer_copy_rect_params_t
     size_t* pdstRowPitch;
     size_t* pdstSlicePitch;
     uint32_t* pnumEventsInWaitList;
-    const ur_event_handle_t** peventWaitList;
-    ur_event_handle_t** pevent;
+    const ur_event_handle_t** pphEventWaitList;
+    ur_event_handle_t** pphEvent;
 } ur_enqueue_mem_buffer_copy_rect_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6161,13 +6161,13 @@ typedef struct _ur_enqueue_mem_buffer_fill_params_t
 {
     ur_queue_handle_t* phQueue;
     ur_mem_handle_t* phBuffer;
-    const void** ppattern;
+    const void** ppPattern;
     size_t* ppatternSize;
     size_t* poffset;
     size_t* psize;
     uint32_t* pnumEventsInWaitList;
-    const ur_event_handle_t** peventWaitList;
-    ur_event_handle_t** pevent;
+    const ur_event_handle_t** pphEventWaitList;
+    ur_event_handle_t** pphEvent;
 } ur_enqueue_mem_buffer_fill_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6196,10 +6196,10 @@ typedef struct _ur_enqueue_mem_image_read_params_t
     ur_rect_region_t* pregion;
     size_t* prowPitch;
     size_t* pslicePitch;
-    void** pdst;
+    void** ppDst;
     uint32_t* pnumEventsInWaitList;
-    const ur_event_handle_t** peventWaitList;
-    ur_event_handle_t** pevent;
+    const ur_event_handle_t** pphEventWaitList;
+    ur_event_handle_t** pphEvent;
 } ur_enqueue_mem_image_read_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6228,10 +6228,10 @@ typedef struct _ur_enqueue_mem_image_write_params_t
     ur_rect_region_t* pregion;
     size_t* pinputRowPitch;
     size_t* pinputSlicePitch;
-    void** psrc;
+    void** ppSrc;
     uint32_t* pnumEventsInWaitList;
-    const ur_event_handle_t** peventWaitList;
-    ur_event_handle_t** pevent;
+    const ur_event_handle_t** pphEventWaitList;
+    ur_event_handle_t** pphEvent;
 } ur_enqueue_mem_image_write_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6260,8 +6260,8 @@ typedef struct _ur_enqueue_mem_image_copy_params_t
     ur_rect_offset_t* pdstOrigin;
     ur_rect_region_t* pregion;
     uint32_t* pnumEventsInWaitList;
-    const ur_event_handle_t** peventWaitList;
-    ur_event_handle_t** pevent;
+    const ur_event_handle_t** pphEventWaitList;
+    ur_event_handle_t** pphEvent;
 } ur_enqueue_mem_image_copy_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6284,15 +6284,15 @@ typedef void (UR_APICALL *ur_pfnEnqueueMemImageCopyCb_t)(
 typedef struct _ur_enqueue_mem_buffer_map_params_t
 {
     ur_queue_handle_t* phQueue;
-    ur_mem_handle_t* pbuffer;
+    ur_mem_handle_t* phBuffer;
     bool* pblockingMap;
     ur_map_flags_t* pmapFlags;
     size_t* poffset;
     size_t* psize;
     uint32_t* pnumEventsInWaitList;
-    const ur_event_handle_t** peventWaitList;
-    ur_event_handle_t** pevent;
-    void*** pretMap;
+    const ur_event_handle_t** pphEventWaitList;
+    ur_event_handle_t** pphEvent;
+    void*** pppRetMap;
 } ur_enqueue_mem_buffer_map_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6316,10 +6316,10 @@ typedef struct _ur_enqueue_mem_unmap_params_t
 {
     ur_queue_handle_t* phQueue;
     ur_mem_handle_t* phMem;
-    void** pmappedPtr;
+    void** ppMappedPtr;
     uint32_t* pnumEventsInWaitList;
-    const ur_event_handle_t** peventWaitList;
-    ur_event_handle_t** pevent;
+    const ur_event_handle_t** pphEventWaitList;
+    ur_event_handle_t** pphEvent;
 } ur_enqueue_mem_unmap_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6346,8 +6346,8 @@ typedef struct _ur_enqueue_usm_memset_params_t
     int8_t* pbyteValue;
     size_t* pcount;
     uint32_t* pnumEventsInWaitList;
-    const ur_event_handle_t** peventWaitList;
-    ur_event_handle_t** pevent;
+    const ur_event_handle_t** pphEventWaitList;
+    ur_event_handle_t** pphEvent;
 } ur_enqueue_usm_memset_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6371,12 +6371,12 @@ typedef struct _ur_enqueue_usm_memcpy_params_t
 {
     ur_queue_handle_t* phQueue;
     bool* pblocking;
-    void** pdstPrt;
-    const void** psrcPrt;
+    void** ppDst;
+    const void** ppSrc;
     size_t* psize;
     uint32_t* pnumEventsInWaitList;
-    const ur_event_handle_t** peventWaitList;
-    ur_event_handle_t** pevent;
+    const ur_event_handle_t** pphEventWaitList;
+    ur_event_handle_t** pphEvent;
 } ur_enqueue_usm_memcpy_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6399,12 +6399,12 @@ typedef void (UR_APICALL *ur_pfnEnqueueUSMMemcpyCb_t)(
 typedef struct _ur_enqueue_usm_prefetch_params_t
 {
     ur_queue_handle_t* phQueue;
-    const void** pptr;
+    const void** ppMem;
     size_t* psize;
     ur_usm_migration_flags_t* pflags;
     uint32_t* pnumEventsInWaitList;
-    const ur_event_handle_t** peventWaitList;
-    ur_event_handle_t** pevent;
+    const ur_event_handle_t** pphEventWaitList;
+    ur_event_handle_t** pphEvent;
 } ur_enqueue_usm_prefetch_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6427,10 +6427,10 @@ typedef void (UR_APICALL *ur_pfnEnqueueUSMPrefetchCb_t)(
 typedef struct _ur_enqueue_usm_mem_advice_params_t
 {
     ur_queue_handle_t* phQueue;
-    const void** pptr;
+    const void** ppMem;
     size_t* psize;
     ur_mem_advice_t* padvice;
-    ur_event_handle_t** pevent;
+    ur_event_handle_t** pphEvent;
 } ur_enqueue_usm_mem_advice_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6477,11 +6477,11 @@ typedef struct _ur_enqueue_callbacks_t
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct _ur_usm_host_alloc_params_t
 {
-    ur_context_handle_t* pcontext;
+    ur_context_handle_t* phContext;
     ur_usm_mem_flags_t** ppUSMFlag;
     size_t* psize;
     uint32_t* palign;
-    void*** ppptr;
+    void*** pppMem;
 } ur_usm_host_alloc_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6503,12 +6503,12 @@ typedef void (UR_APICALL *ur_pfnUSMHostAllocCb_t)(
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct _ur_usm_device_alloc_params_t
 {
-    ur_context_handle_t* pcontext;
-    ur_device_handle_t* pdevice;
+    ur_context_handle_t* phContext;
+    ur_device_handle_t* phDevice;
     ur_usm_mem_flags_t** ppUSMProp;
     size_t* psize;
     uint32_t* palign;
-    void*** ppptr;
+    void*** pppMem;
 } ur_usm_device_alloc_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6530,12 +6530,12 @@ typedef void (UR_APICALL *ur_pfnUSMDeviceAllocCb_t)(
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct _ur_usm_shared_alloc_params_t
 {
-    ur_context_handle_t* pcontext;
-    ur_device_handle_t* pdevice;
+    ur_context_handle_t* phContext;
+    ur_device_handle_t* phDevice;
     ur_usm_mem_flags_t** ppUSMProp;
     size_t* psize;
     uint32_t* palign;
-    void*** ppptr;
+    void*** pppMem;
 } ur_usm_shared_alloc_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6645,8 +6645,8 @@ typedef struct _ur_queue_get_info_params_t
     ur_queue_handle_t* phQueue;
     ur_queue_info_t* ppropName;
     size_t* ppropValueSize;
-    void** ppropValue;
-    size_t** ppSize;
+    void** ppPropValue;
+    size_t** ppPropSizeRet;
 } ur_queue_get_info_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6965,9 +6965,9 @@ typedef void (UR_APICALL *ur_pfnDevicePartitionCb_t)(
 typedef struct _ur_device_select_binary_params_t
 {
     ur_device_handle_t* phDevice;
-    const uint8_t*** pBinaries;
+    const uint8_t*** pppBinaries;
     uint32_t* pNumBinaries;
-    uint32_t** pSelectedBinary;
+    uint32_t** ppSelectedBinary;
 } ur_device_select_binary_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
