@@ -45,11 +45,10 @@ add_sycl_plugin(unified_runtime
     "adapters/level_zero/ur_level_zero.hpp"
     "adapters/level_zero/ur_level_zero.cpp"
   INCLUDE_DIRS
-    "."
     "${UNIFIED_RUNTIME_INCLUDE_DIR}"
   LIBRARIES
     Threads::Threads
     UnifiedRuntime-Headers
     LevelZeroLoader-Headers
-#    ze_loader
+    ze_loader
 )
