@@ -167,7 +167,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                                  typename Group::id_type local_id) {
 #ifdef __SYCL_DEVICE_ONLY__
   T result;
-  for (int s = 0; s < x.get_size(); ++s) {
+  for (int s = 0; s < x.get_count(); ++s) {
     result[s] = broadcast(g, x[s], local_id);
   }
   return result;
@@ -212,7 +212,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                                      linear_local_id) {
 #ifdef __SYCL_DEVICE_ONLY__
   T result;
-  for (int s = 0; s < x.get_size(); ++s) {
+  for (int s = 0; s < x.get_count(); ++s) {
     result[s] = broadcast(g, x[s], linear_local_id);
   }
   return result;
@@ -250,7 +250,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                     T> broadcast(Group g, T x) {
 #ifdef __SYCL_DEVICE_ONLY__
   T result;
-  for (int s = 0; s < x.get_size(); ++s) {
+  for (int s = 0; s < x.get_count(); ++s) {
     result[s] = broadcast(g, x[s]);
   }
   return result;
