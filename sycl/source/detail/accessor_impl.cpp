@@ -37,6 +37,7 @@ void addHostAccessorAndWait(Requirement *Req) {
   std::cout << "addHostAccessorAndWait begin" << std::endl;
   detail::EventImplPtr Event =
       detail::Scheduler::getInstance().addHostAccessor(Req);
+  std::cout << "addHostAccessorAndWait starting wait" << std::endl;
   Event->wait(Event);
   std::cout << "addHostAccessorAndWait end" << std::endl;
 }
