@@ -7942,12 +7942,8 @@ static pi_result USMSharedAllocImpl(void **ResultPtr, pi_context Context,
   // with the same command list handle.
   std::scoped_lock<pi_mutex> Lock(Context->ImmediateCommandListMutex);
 
-  // TODO: Underlying Level Zero runtime has issues with this one.
-  // Re-enable/substitute with read_only once that is fixed/implemented.
-  //
-  // ZE_CALL(zeCommandListAppendMemAdvise,
-  //         (Context->ZeCommandListInit, Device->ZeDevice, *ResultPtr, Size,
-  //          ZE_MEMORY_ADVICE_SET_READ_MOSTLY));
+  // TODO: Underlying Level Zero runtime doesn't have a way to communicate
+  // read-only property yet.
 
   ZE_CALL(zeCommandListAppendMemAdvise,
           (Context->ZeCommandListInit, Device->ZeDevice, *ResultPtr, Size,
