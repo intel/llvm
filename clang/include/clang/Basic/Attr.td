@@ -2483,7 +2483,7 @@ def SYCLIntelMaxReinvocationDelay : StmtAttr {
 def : MutualExclusions<[SYCLIntelDisableLoopPipelining,
                         SYCLIntelMaxReinvocationDelay]>;
 
-def IntelLocalNonConstVar : SubsetSubject<Var,
+def SYCLIntelLocalNonConstVar : SubsetSubject<Var,
                               [{S->hasLocalStorage() &&
                                 S->getKind() != Decl::ImplicitParam &&
                                 S->getKind() != Decl::ParmVar &&
@@ -2491,7 +2491,7 @@ def IntelLocalNonConstVar : SubsetSubject<Var,
                                 !S->getType().isConstQualified()}],
                               "local non-const variables">;
 
-def IntelConstVar : SubsetSubject<Var,
+def SYCLIntelConstVar : SubsetSubject<Var,
                       [{S->getKind() != Decl::ImplicitParam &&
                         S->getKind() != Decl::ParmVar &&
                         S->getKind() != Decl::NonTypeTemplateParm &&
@@ -2500,14 +2500,14 @@ def IntelConstVar : SubsetSubject<Var,
                             LangAS::opencl_constant)}],
                       "constant variables">;
 
-def IntelLocalStaticAgentMemVar : SubsetSubject<Var,
+def SYCLIntelLocalStaticAgentMemVar : SubsetSubject<Var,
       [{S->getKind() != Decl::ImplicitParam &&
         S->getKind() != Decl::NonTypeTemplateParm &&
        (S->getStorageClass() == SC_Static ||
         S->hasLocalStorage())}],
         "local variables, static variables, agent memory arguments">;
 
-def IntelLocalOrStaticVar : SubsetSubject<Var,
+def SYCLIntelLocalOrStaticVar : SubsetSubject<Var,
                               [{S->getKind() != Decl::ImplicitParam &&
                                 S->getKind() != Decl::ParmVar &&
                                 S->getKind() != Decl::NonTypeTemplateParm &&
@@ -2517,7 +2517,7 @@ def IntelLocalOrStaticVar : SubsetSubject<Var,
 
 def SYCLIntelDoublePump : Attr {
   let Spellings = [CXX11<"intel", "doublepump">];
-  let Subjects = SubjectList<[IntelConstVar, IntelLocalOrStaticVar,
+  let Subjects = SubjectList<[SYCLIntelConstVar, SYCLIntelLocalOrStaticVar,
                               Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLIntelDoublePumpAttrDocs];
@@ -2525,7 +2525,7 @@ def SYCLIntelDoublePump : Attr {
 
 def SYCLIntelSinglePump : Attr {
   let Spellings = [CXX11<"intel", "singlepump">];
-  let Subjects = SubjectList<[IntelConstVar, IntelLocalOrStaticVar,
+  let Subjects = SubjectList<[SYCLIntelConstVar, SYCLIntelLocalOrStaticVar,
                               Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLIntelSinglePumpAttrDocs];
@@ -2545,7 +2545,8 @@ def SYCLIntelMemory : Attr {
       }
     }
   }];
-  let Subjects = SubjectList<[IntelConstVar, IntelLocalStaticAgentMemVar,
+  let Subjects = SubjectList<[SYCLIntelConstVar,
+                              SYCLIntelLocalStaticAgentMemVar,
                               Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLIntelMemoryAttrDocs];
@@ -2553,7 +2554,7 @@ def SYCLIntelMemory : Attr {
 
 def SYCLIntelRegister : Attr {
   let Spellings = [CXX11<"intel", "fpga_register">];
-  let Subjects = SubjectList<[IntelConstVar, IntelLocalOrStaticVar,
+  let Subjects = SubjectList<[SYCLIntelConstVar, SYCLIntelLocalOrStaticVar,
                               Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLIntelRegisterAttrDocs];
@@ -2565,7 +2566,8 @@ def : MutualExclusions<[SYCLIntelDoublePump, SYCLIntelSinglePump,
 def SYCLIntelBankWidth : InheritableAttr {
   let Spellings = [CXX11<"intel", "bankwidth">];
   let Args = [ExprArgument<"Value">];
-  let Subjects = SubjectList<[IntelConstVar, IntelLocalStaticAgentMemVar,
+  let Subjects = SubjectList<[SYCLIntelConstVar,
+                              SYCLIntelLocalStaticAgentMemVar,
                               Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLIntelBankWidthAttrDocs];
@@ -2575,7 +2577,8 @@ def : MutualExclusions<[SYCLIntelRegister, SYCLIntelBankWidth]>;
 def SYCLIntelNumBanks : InheritableAttr {
   let Spellings = [CXX11<"intel", "numbanks">];
   let Args = [ExprArgument<"Value">];
-  let Subjects = SubjectList<[IntelConstVar, IntelLocalStaticAgentMemVar,
+  let Subjects = SubjectList<[SYCLIntelConstVar,
+                              SYCLIntelLocalStaticAgentMemVar,
                               Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLIntelNumBanksAttrDocs];
@@ -2585,7 +2588,7 @@ def SYCLIntelPrivateCopies : InheritableAttr {
   let Spellings = [CXX11<"intel", "private_copies">];
   let Args = [ExprArgument<"Value">];
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Subjects = SubjectList<[IntelLocalNonConstVar, Field], ErrorDiag>;
+  let Subjects = SubjectList<[SYCLIntelLocalNonConstVar, Field], ErrorDiag>;
   let Documentation = [SYCLIntelPrivateCopiesAttrDocs];
 }
 def : MutualExclusions<[SYCLIntelRegister, SYCLIntelPrivateCopies]>;
@@ -2594,7 +2597,7 @@ def : MutualExclusions<[SYCLIntelRegister, SYCLIntelPrivateCopies]>;
 def SYCLIntelMerge : Attr {
   let Spellings = [CXX11<"intel", "merge">];
   let Args = [StringArgument<"Name">, StringArgument<"Direction">];
-  let Subjects = SubjectList<[IntelConstVar, IntelLocalOrStaticVar,
+  let Subjects = SubjectList<[SYCLIntelConstVar, SYCLIntelLocalOrStaticVar,
                               Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLIntelMergeAttrDocs];
@@ -2604,7 +2607,8 @@ def : MutualExclusions<[SYCLIntelRegister, SYCLIntelMerge]>;
 def SYCLIntelMaxReplicates : InheritableAttr {
   let Spellings = [CXX11<"intel", "max_replicates">];
   let Args = [ExprArgument<"Value">];
-  let Subjects = SubjectList<[IntelConstVar, IntelLocalStaticAgentMemVar,
+  let Subjects = SubjectList<[SYCLIntelConstVar,
+                              SYCLIntelLocalStaticAgentMemVar,
                               Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLIntelMaxReplicatesAttrDocs];
@@ -2613,7 +2617,8 @@ def : MutualExclusions<[SYCLIntelRegister, SYCLIntelMaxReplicates]>;
 
 def SYCLIntelSimpleDualPort : Attr {
   let Spellings = [CXX11<"intel", "simple_dual_port">];
-  let Subjects = SubjectList<[IntelConstVar, IntelLocalStaticAgentMemVar,
+  let Subjects = SubjectList<[SYCLIntelConstVar,
+                              SYCLIntelLocalStaticAgentMemVar,
                               Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLIntelSimpleDualPortAttrDocs];
@@ -2639,7 +2644,8 @@ def SYCLIntelPipeIO : InheritableAttr {
 def SYCLIntelBankBits : Attr {
   let Spellings = [CXX11<"intel", "bank_bits">];
   let Args = [VariadicExprArgument<"Args">];
-  let Subjects = SubjectList<[IntelConstVar, IntelLocalStaticAgentMemVar,
+  let Subjects = SubjectList<[SYCLIntelConstVar,
+                              SYCLIntelLocalStaticAgentMemVar,
                               Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLIntelBankBitsDocs];
@@ -2650,7 +2656,8 @@ def : MutualExclusions<[SYCLIntelRegister, SYCLIntelNumBanks]>;
 def SYCLIntelForcePow2Depth : InheritableAttr {
   let Spellings = [CXX11<"intel", "force_pow2_depth">];
   let Args = [ExprArgument<"Value">];
-  let Subjects = SubjectList<[IntelConstVar, IntelLocalStaticAgentMemVar,
+  let Subjects = SubjectList<[SYCLIntelConstVar,
+                              SYCLIntelLocalStaticAgentMemVar,
                               Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLIntelForcePow2DepthAttrDocs];

@@ -1,7 +1,7 @@
 // RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -ast-dump -verify -pedantic %s | FileCheck %s
 
 // Test that checks global constant variable (which allows the redeclaration) since
-// IntelConstVar is one of the subjects listed for [[intel::max_replicates()]] attribute.
+// SYCLIntelConstVar is one of the subjects listed for [[intel::max_replicates()]] attribute.
 
 // Check duplicate argument values with implicit memory attribute.
 //CHECK: VarDecl{{.*}}var_max_replicates
