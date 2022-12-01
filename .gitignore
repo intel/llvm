@@ -53,9 +53,6 @@
 # Debug files
 scripts/**/*.json
 
-# Generated code
-source/*.cpp
-
 # Generated docs
 docs/
 

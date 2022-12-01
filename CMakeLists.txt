@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.2.0 FATAL_ERROR)
-project(unified_runtime)
+project(unified-runtime VERSION 0.5.0)
+
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -49,13 +52,47 @@ option(${PROJECT_NAME}_BUILD_TESTS "Build unit tests." ON)
 
 add_subdirectory(${THIRD_PARTY_DIR})
 
-# Copy third_party_binaries to output BIN folder
-#add_custom_target(copy_third_party_files)
+# A header only library to specify include directories in transitive
+# dependencies.
+add_library(headers INTERFACE)
+# Alias target to support FetchContent.
+add_library(${PROJECT_NAME}::headers ALIAS headers)
+target_include_directories(headers INTERFACE
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 
-#add_custom_command(
-#    TARGET copy_third_party_files
-#    POST_BUILD
-#)
+# Add the include directory and the headers target to the install.
+install(
+    DIRECTORY "${PROJECT_SOURCE_DIR}/include/"
+    DESTINATION include COMPONENT headers)
+install(
+    TARGETS headers
+    EXPORT ${PROJECT_NAME}-targets)
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 add_subdirectory(source)
+
+# Add the list of installed targets to the install. This includes the namespace
+# which all installed targets will be prefixed with, e.g. for the headers
+# target users will depend on ${PROJECT_NAME}::headers.
+install(
+    EXPORT ${PROJECT_NAME}-targets
+    FILE ${PROJECT_NAME}-targets.cmake
+    NAMESPACE ${PROJECT_NAME}::
+    DESTINATION lib/cmake/${PROJECT_NAME})
+
+# Configure the package versions file for use in find_package when installed.
+write_basic_package_version_file(
+    ${PROJECT_BINARY_DIR}/cmake/${PROJECT_NAME}-config-version.cmake
+    COMPATIBILITY SameMajorVersion)
+# Configure the package file that is searched for by find_package when
+# installed.
+configure_package_config_file(
+    ${PROJECT_SOURCE_DIR}/cmake/${PROJECT_NAME}-config.cmake.in
+    ${PROJECT_BINARY_DIR}/cmake/${PROJECT_NAME}-config.cmake
+    INSTALL_DESTINATION lib/cmake/${PROJECT_NAME})
+# Add the package files to the install.
+install(
+    FILES
+        ${PROJECT_BINARY_DIR}/cmake/${PROJECT_NAME}-config.cmake
+        ${PROJECT_BINARY_DIR}/cmake/${PROJECT_NAME}-config-version.cmake
+    DESTINATION lib/cmake/${PROJECT_NAME})
