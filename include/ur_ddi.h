@@ -332,8 +332,9 @@ typedef ur_result_t (UR_APICALL *ur_pfnProgramGetBuildInfo_t)(
     ur_program_handle_t,
     ur_device_handle_t,
     ur_program_build_info_t,
-    size_t*,
-    void*
+    size_t,
+    void*,
+    size_t*
     );
 
 ///////////////////////////////////////////////////////////////////////////////

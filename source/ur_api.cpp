@@ -3485,21 +3485,18 @@ urProgramGetInfo(
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_PROGRAM_BUILD_INFO_BINARY_TYPE < propName`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pPropSize`
 ur_result_t UR_APICALL
 urProgramGetBuildInfo(
     ur_program_handle_t hProgram,                   ///< [in] handle of the Program object
     ur_device_handle_t hDevice,                     ///< [in] handle of the Device object
     ur_program_build_info_t propName,               ///< [in] name of the Program build info to query
-    size_t* pPropSize,                              ///< [in,out] pointer to the size of the Program build info property.
-                                                    ///< If *propSize is 0 or greater than the number of bytes of the build
-                                                    ///< info property,
-                                                    ///< the call shall update the value with actual number of bytes of the
-                                                    ///< build info property.
-    void* pPropValue                                ///< [in,out][optional][range(0, *propSize)] value of the Program build property.
-                                                    ///< If *propSize is less than the number of bytes for the Program build property,
-                                                    ///< only the first *propSize bytes will be returned.
+    size_t propSize,                                ///< [in] size of the Program build info property.
+    void* pPropValue,                               ///< [in,out][optional] value of the Program build property.
+                                                    ///< If propSize is not equal to or greater than the real number of bytes
+                                                    ///< needed to return the info then the ::UR_RESULT_ERROR_INVALID_SIZE
+                                                    ///< error is returned and pKernelInfo is not used.
+    size_t* pPropSizeRet                            ///< [out][optional] pointer to the actual size in bytes of data being
+                                                    ///< queried by propName.
     )
 {
     ur_result_t result = UR_RESULT_SUCCESS;
