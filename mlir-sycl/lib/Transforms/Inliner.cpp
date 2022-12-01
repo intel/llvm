@@ -567,7 +567,7 @@ LogicalResult Inliner::inlineSCC(Inliner &Inliner, CGUseList &UseList,
 bool Inliner::inlineCallsInSCC(Inliner &Inliner, CGUseList &UseList,
                                CallGraphSCC &SCC,
                                Pass::Statistic &NumInlinedCalls) {
-  llvm::SmallSetVector<CallGraphNode *, 1> DeadNodes;
+  llvm::SmallPtrSet<CallGraphNode *, 1> DeadNodes;
 
   for (CallGraphNode *SrcNode : SCC) {
     if (SrcNode->isExternal())
