@@ -22,7 +22,7 @@ etors:
 type: enum
 desc: "USM memory allocation information type"
 class: $xUSM
-name: $x_mem_info_t
+name: $x_mem_alloc_info_t
 etors:
     - name: MEM_ALLOC_TYPE
       desc: "Memory allocation type info"
@@ -151,7 +151,7 @@ params:
     - type: "const void*"
       name: ptr
       desc: "[in] pointer to USM memory object"
-    - type: $x_mem_info_t
+    - type: $x_mem_alloc_info_t
       name: propName
       desc: "[in] the name of the USM allocation property to query"
     - type: size_t

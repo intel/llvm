@@ -359,6 +359,17 @@ class ur_mem_type_t(c_int):
 
 
 ###############################################################################
+## @brief Memory Information type
+class ur_mem_info_v(IntEnum):
+    SIZE = 0                                        ## size_t: actual size of of memory object in bytes
+    CONTEXT = 1                                     ## ::ur_context_handle_t: context in which the memory object was created
+
+class ur_mem_info_t(c_int):
+    def __str__(self):
+        return str(ur_mem_info_v(self.value))
+
+
+###############################################################################
 ## @brief Image channel order info: number of channels and the channel layout
 class ur_image_channel_order_v(IntEnum):
     CHANNEL_ORDER_A = 0                             ## channel order A
@@ -525,15 +536,15 @@ class ur_usm_mem_flags_t(c_int):
 
 ###############################################################################
 ## @brief USM memory allocation information type
-class ur_mem_info_v(IntEnum):
+class ur_mem_alloc_info_v(IntEnum):
     MEM_ALLOC_TYPE = 0                              ## Memory allocation type info
     MEM_ALLOC_BASE_PTR = 1                          ## Memory allocation base pointer info
     MEM_ALLOC_SIZE = 2                              ## Memory allocation size info
     MEM_ALLOC_DEVICE = 3                            ## Memory allocation device info
 
-class ur_mem_info_t(c_int):
+class ur_mem_alloc_info_t(c_int):
     def __str__(self):
-        return str(ur_mem_info_v(self.value))
+        return str(ur_mem_alloc_info_v(self.value))
 
 
 ###############################################################################
@@ -1472,9 +1483,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urMemGetMemAllocInfo
 if __use_win_types:
-    _urMemGetMemAllocInfo_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, ur_mem_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
+    _urMemGetMemAllocInfo_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, ur_mem_alloc_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
 else:
-    _urMemGetMemAllocInfo_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, ur_mem_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
+    _urMemGetMemAllocInfo_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, ur_mem_alloc_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
 
 
 ###############################################################################
