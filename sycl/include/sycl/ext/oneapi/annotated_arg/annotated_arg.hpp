@@ -54,20 +54,14 @@ namespace oneapi {
 namespace experimental {
 
 namespace detail {
-// Type-trait for checking if a type defines `operator->`.
-template <typename T, typename = void>
-struct HasParenthesisOperator : std::false_type {};
-template <typename T>
-struct HasParenthesisOperator<
-    T, sycl::detail::void_t<decltype(std::declval<T>().operator()())>>
-    : std::true_type {};
 
+// Type-trait for checking if a type defines `operator[]`.
 template <typename T, typename = void>
 struct HasSubscriptOperator : std::false_type {};
 
 template <typename T>
 struct HasSubscriptOperator<
-    T, sycl::detail::void_t<decltype(std::declval<T>().operator[]())>>
+    T, typename std::enable_if_t<!std::is_void<decltype(std::declval<T>().operator[](0))>::value>>
     : std::true_type {};
 
 } // namespace detail
@@ -274,13 +268,21 @@ public:
     return obj;
   }
 
-  // template<typename... Args>
-  // template <class RelayT = T>
-  // std::enable_if_t<detail::HasParenthesisOperator<RelayT>::value>
-  //     &operator()(Args... args) noexcept {
-  //   __SYCL_HOST_NOT_SUPPORTED("operator() on an annotated_arg")
-  //   return obj.operator(args);
-  // }
+  template <class RelayT = T>
+  std::enable_if_t<
+    detail::HasSubscriptOperator<RelayT>::value,
+    const decltype(std::declval<RelayT>().operator[](0))>
+  &operator[](std::ptrdiff_t idx) const noexcept {
+    return obj.operator[](idx);
+  }
+
+  template <class RelayT = T>
+  std::enable_if_t<
+    detail::HasSubscriptOperator<RelayT>::value,
+    decltype(std::declval<RelayT>().operator[](0))>
+  &operator[](std::ptrdiff_t idx) noexcept {
+    return obj.operator[](idx);
+  }
 
   template <typename PropertyT> static constexpr bool has_property() {
     return property_list_t::template has_property<PropertyT>();
