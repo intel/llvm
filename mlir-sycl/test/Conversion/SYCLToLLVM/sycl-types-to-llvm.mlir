@@ -18,12 +18,17 @@
 // CHECK: llvm.func @test_itemBase.false(%arg0: !llvm.[[ITEM_BASE_1_FALSE:struct<"struct.sycl::_V1::detail::ItemBase.*", \(]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]])
 // CHECK: llvm.func @test_item.true(%arg0: !llvm.[[ITEM_1_TRUE:struct<"class.sycl::_V1::item.*", \(]][[ITEM_BASE_1_TRUE]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]][[SUFFIX]])
 // CHECK: llvm.func @test_item.false(%arg0: !llvm.[[ITEM_1_FALSE:struct<"class.sycl::_V1::item.*", \(]][[ITEM_BASE_1_FALSE]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]][[SUFFIX]])
-// CHECK: llvm.func @test_group(%arg0: !llvm.[[GROUP_1:struct<"class.sycl::_V1::group.*", \(]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]])
-// CHECK: llvm.func @test_get_op(%arg0: !llvm.[[GETOP:struct<"class.sycl::_V1::detail::GetOp", \(i8\)>]])
-// CHECK: llvm.func @test_get_scalar_op(%arg0: !llvm.[[GETSCALAROP:struct<"class.sycl::_V1::detail::GetScalarOp.*", \(i32\)>]])
-// CHECK: llvm.func @test_nd_item(%arg0: !llvm.[[ND_ITEM_1:struct<"class.sycl::_V1::nd_item.*", \(]][[ITEM_1_TRUE]][[ITEM_BASE_1_TRUE]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]][[SUFFIX]], [[ITEM_1_FALSE]][[ITEM_BASE_1_FALSE]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]][[SUFFIX]], [[GROUP_1]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]][[SUFFIX]])
+// CHECK: llvm.func @test_group(%arg0: !llvm.[[GROUP:struct<"class.sycl::_V1::group.*", \(]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]])
+// CHECK: llvm.func @test_get_op(%arg0: !llvm.[[GET_OP:struct<"class.sycl::_V1::detail::GetOp", \(i8\)>]])
+// CHECK: llvm.func @test_get_scalar_op(%arg0: !llvm.[[GET_SCALAR_OP:struct<"class.sycl::_V1::detail::GetScalarOp.*", \(i32\)>]])
+// CHECK: llvm.func @test_nd_item(%arg0: !llvm.[[ND_ITEM_1:struct<"class.sycl::_V1::nd_item.*", \(]][[ITEM_1_TRUE]][[ITEM_BASE_1_TRUE]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]][[SUFFIX]], [[ITEM_1_FALSE]][[ITEM_BASE_1_FALSE]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]][[SUFFIX]], [[GROUP]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]][[SUFFIX]])
+// CHECK: llvm.func @test_tuple_value_holder(%arg0: !llvm.[[TUPLE_VALUE_HOLDER:struct<"struct.sycl::_V1::detail::TupleValueHolder", \(i32\)>]]) {
+// CHECK: llvm.func @test_tuple_copy_assignable_value_holder(%arg0: !llvm.[[TUPLE_COPY_ASSIGNABLE_VALUE_HOLDER:struct<"struct.sycl::_V1::detail::TupleCopyAssignableValueHolder", \(]][[TUPLE_VALUE_HOLDER]][[SUFFIX]]) {
 // CHECK: llvm.func @test_vec(%arg0: !llvm.[[VEC:struct<"class.sycl::_V1::vec", \(vector<4xf32>\)>]])
 // CHECK: llvm.func @test_atomic(%arg0: !llvm.[[ATOMIC1:struct<"class.sycl::_V1::atomic", \(struct<\(ptr<f32, 3>, ptr<f32, 3>, i64, array<1 x i64>, array<1 x i64>\)>\)>]], %arg1: !llvm.[[ATOMIC1:struct<"class.sycl::_V1::atomic.1", \(struct<\(ptr<i32, 1>, ptr<i32, 1>, i64, array<1 x i64>, array<1 x i64>\)>\)>]]) {
+// CHECK: llvm.func @test_assert_happened(%arg0: !llvm.[[ASSERT_HAPPENED:struct<"struct.sycl::_V1::detail::AssertHappened", \(i32, array<257 x i8>, array<257 x i8>, array<129 x i8>, i32, i64, i64, i64, i64, i64, i64\)>]]) {
+// CHECK: llvm.func @test_bfloat16(%arg0: !llvm.[[BFLOAT16:struct<"class.sycl::_V1::ext::oneapi::bfloat16", \(i16\)>]]) {
+// CHECK: llvm.func @test_sub_group(%arg0: !llvm.[[SUB_GROUP:struct<"struct.sycl::_V1::ext::oneapi::sub_group", \(i8\)>]]) {
 
 !sycl_array_1_ = !sycl.array<[1], (memref<1xi64>)>
 !sycl_array_2_ = !sycl.array<[2], (memref<2xi64>)>
@@ -43,9 +48,13 @@
 !sycl_group_1_ = !sycl.group<[1], (!sycl.range<1>, !sycl.range<1>, !sycl.range<1>, !sycl.id<1>)>
 !sycl_get_scalar_op_i32_ = !sycl.get_scalar_op<[i32], (i32)>
 !sycl_nd_item_1_ = !sycl.nd_item<[1], (!sycl_item_1_, !sycl_item_1_1, !sycl_group_1_)>
+!sycl_tuple_value_holder_i32_ = !sycl.tuple_value_holder<[i32], (i32)>
+!sycl_tuple_copy_assignable_value_holder_i32_ = !sycl.tuple_copy_assignable_value_holder<[i32, true], (!sycl.tuple_value_holder<[i32], (i32)>)>
 !sycl_vec_f32_4_ = !sycl.vec<[f32, 4], (vector<4xf32>)>
 !sycl_atomic_f32_3_ = !sycl.atomic<[f32,3], (memref<?xf32, 3>)>
 !sycl_atomic_i32_1_ = !sycl.atomic<[i32,1], (memref<?xi32, 1>)>
+!sycl_assert_happened_ = !sycl.assert_happened<(i32, !llvm.array<257 x i8>, !llvm.array<257 x i8>, !llvm.array<129 x i8>, i32, i64, i64, i64, i64, i64, i64)>
+!sycl_bfloat16_ = !sycl.bfloat16<(i16)>
 
 module {
   func.func @test_array.1(%arg0: !sycl_array_1_) {
@@ -114,10 +123,25 @@ module {
   func.func @test_nd_item(%arg0: !sycl_nd_item_1_) {
     return
   }
+  func.func @test_tuple_value_holder(%arg0: !sycl_tuple_value_holder_i32_) {
+    return
+  }
+  func.func @test_tuple_copy_assignable_value_holder(%arg0: !sycl_tuple_copy_assignable_value_holder_i32_) {
+    return
+  }
   func.func @test_vec(%arg0: !sycl_vec_f32_4_) {
     return
   }
   func.func @test_atomic(%arg0: !sycl_atomic_f32_3_, %arg1: !sycl_atomic_i32_1_) {
+    return
+  }
+  func.func @test_assert_happened(%arg0: !sycl_assert_happened_) {
+    return
+  }
+  func.func @test_bfloat16(%arg0: !sycl_bfloat16_) {
+    return
+  }
+  func.func @test_sub_group(%arg0: !sycl.sub_group) {
     return
   }
 }
