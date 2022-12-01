@@ -200,7 +200,7 @@ extern "C" SYCL_EXTERNAL void cons_5() {
 
 // CHECK-LLVM-LABEL: define spir_func void @cons_6(
 // CHECK-LLVM-SAME:                                i32 noundef %{{.*}}) #[[FUNCATTRS]]
-// CHECK-LLVM:         call void @[[VEC_SPLAT_CTR:.*]](%"class.sycl::_V1::vec" addrspace(4)* %{{.*}}, i32 addrspace(4)* %{{.*}})
+// CHECK-LLVM:         call spir_func void @[[VEC_SPLAT_CTR:.*]](%"class.sycl::_V1::vec" addrspace(4)* %{{.*}}, i32 addrspace(4)* %{{.*}})
 // CHECK-LLVM:       define linkonce_odr spir_func void @[[VEC_SPLAT_CTR]](%"class.sycl::_V1::vec" addrspace(4)* noundef align 32 %{{.*}}, i32 addrspace(4)* noundef align 4 %{{.*}}) #[[FUNCATTRS]] {
 // CHECK-LLVM:         %[[VECINIT:.*]] = insertelement <8 x i32> undef, i32 %{{.*}}, i32 0
 // CHECK-LLVM:         %{{.*}} = shufflevector <8 x i32> %[[VECINIT]], <8 x i32> undef, <8 x i32> zeroinitializer
@@ -216,7 +216,7 @@ extern "C" SYCL_EXTERNAL void cons_6(int Arg) {
 
 // CHECK-LLVM-LABEL: define spir_func void @cons_7(
 // CHECK-LLVM-SAME:                                float noundef %[[ARG0:.*]], float noundef %[[ARG1:.*]], float noundef %[[ARG2:.*]], float noundef %[[ARG3:.*]]) #[[FUNCATTRS]]
-// CHECK-LLVM:         call void @[[VEC_INITLIST_CTR:.*]](%"class.sycl::_V1::vec.1" addrspace(4)* %{{.*}}, float %[[ARG0]], float %[[ARG1]], float %[[ARG2]], float %[[ARG3]])
+// CHECK-LLVM:         call spir_func void @[[VEC_INITLIST_CTR:.*]](%"class.sycl::_V1::vec.1" addrspace(4)* %{{.*}}, float %[[ARG0]], float %[[ARG1]], float %[[ARG2]], float %[[ARG3]])
 // CHECK-LLVM:       define linkonce_odr spir_func void @[[VEC_INITLIST_CTR]](%"class.sycl::_V1::vec.1" addrspace(4)* noundef align 16 {{.*}}, float noundef {{.*}}, float noundef {{.*}}, float noundef {{.*}}, float noundef {{.*}}) #[[FUNCATTRS]]
 extern "C" SYCL_EXTERNAL void cons_7(float A, float B, float C, float D) {
   auto vec = sycl::vec<sycl::cl_float, 4>{A, B, C, D};
@@ -229,7 +229,7 @@ extern "C" SYCL_EXTERNAL void cons_7(float A, float B, float C, float D) {
 
 // CHECK-LLVM-LABEL:  define spir_func void @cons_8(
 // CHECK-LLVM-SAME:                                 %"class.sycl::_V1::vec.2" addrspace(4)* noundef align 128 %[[ARG0:.*]]) #[[FUNCATTRS]] {
-// CHECK-LLVM:          call void @_ZN4sycl3_V13vecIdLi16EEC1ERKS2_(%"class.sycl::_V1::vec.2" addrspace(4)* %{{.*}}, %"class.sycl::_V1::vec.2" addrspace(4)* %[[ARG0]])
+// CHECK-LLVM:          call spir_func void @_ZN4sycl3_V13vecIdLi16EEC1ERKS2_(%"class.sycl::_V1::vec.2" addrspace(4)* %{{.*}}, %"class.sycl::_V1::vec.2" addrspace(4)* %[[ARG0]])
 // CHECK-LLVM:        define linkonce_odr spir_func void @_ZN4sycl3_V13vecIdLi16EEC1ERKS2_(%"class.sycl::_V1::vec.2" addrspace(4)* noundef align 128 %{{.*}}, %{{.*}}class.sycl::_V1::vec.2" addrspace(4)* noundef align 128 %{{.*}}) #[[FUNCATTRS]] {
 extern "C" SYCL_EXTERNAL void cons_8(const sycl::vec<sycl::cl_double, 16> &Other) {
   auto vec = sycl::vec<sycl::cl_double, 16>{Other};
@@ -242,7 +242,7 @@ extern "C" SYCL_EXTERNAL void cons_8(const sycl::vec<sycl::cl_double, 16> &Other
 
 // CHECK-LLVM-LABEL:  define spir_func void @cons_9(
 // CHECK-LLVM-SAME:                                 <3 x i8> noundef %[[ARG0:.*]]) #[[FUNCATTRS]] {
-// CHECK-LLVM:          call void @[[VEC_NATIVE_CTR:.*]](%"class.sycl::_V1::vec.3" addrspace(4)* %{{.*}}, <3 x i8> %[[ARG0]])
+// CHECK-LLVM:          call spir_func void @[[VEC_NATIVE_CTR:.*]](%"class.sycl::_V1::vec.3" addrspace(4)* %{{.*}}, <3 x i8> %[[ARG0]])
 // CHECK-LLVM:        define linkonce_odr spir_func void @[[VEC_NATIVE_CTR]](%"class.sycl::_V1::vec.3" addrspace(4)* noundef align 4 %{{.*}}, <3 x i8> noundef %{{.*}}) #[[FUNCATTRS]] {
 extern "C" SYCL_EXTERNAL void cons_9(const sycl::vec<sycl::cl_char, 3>::vector_t Native) {
   auto vec = sycl::vec<sycl::cl_char, 3>{Native};
@@ -255,7 +255,7 @@ extern "C" SYCL_EXTERNAL void cons_9(const sycl::vec<sycl::cl_char, 3>::vector_t
 
 // CHECK-LLVM-LABEL: define spir_func void @cons_10(
 // CHECK-LLVM-SAME:                                 %"class.sycl::_V1::vec.5" addrspace(4)* noundef align 64 %[[ARG0:.*]], %"class.sycl::_V1::vec.6" addrspace(4)* noundef align 32 %[[ARG1:.*]], %"class.sycl::_V1::vec.7" addrspace(4)* noundef align 16 %[[ARG2:.*]], i64 noundef %{{.*}}, i64 noundef %{{.*}}) #1 {
-// CHECK-LLVM:         call void @[[VEC_INITLIST_VEC_CTR:.*]](%"class.sycl::_V1::vec.4" addrspace(4)* %{{.*}}, %"class.sycl::_V1::vec.5" addrspace(4)* %[[ARG0]], %"class.sycl::_V1::vec.6" addrspace(4)* %[[ARG1]], %"class.sycl::_V1::vec.7" addrspace(4)* %[[ARG2]], i64 addrspace(4)* %{{.*}}, i64 addrspace(4)* %{{.*}})
+// CHECK-LLVM:         call spir_func void @[[VEC_INITLIST_VEC_CTR:.*]](%"class.sycl::_V1::vec.4" addrspace(4)* %{{.*}}, %"class.sycl::_V1::vec.5" addrspace(4)* %[[ARG0]], %"class.sycl::_V1::vec.6" addrspace(4)* %[[ARG1]], %"class.sycl::_V1::vec.7" addrspace(4)* %[[ARG2]], i64 addrspace(4)* %{{.*}}, i64 addrspace(4)* %{{.*}})
 // CHECK-LLVM:       define linkonce_odr spir_func void @[[VEC_INITLIST_VEC_CTR]](%"class.sycl::_V1::vec.4" addrspace(4)* noundef align 128 %{{.*}}, %"class.sycl::_V1::vec.5" addrspace(4)* noundef align 64 %{{.*}}, %"class.sycl::_V1::vec.6" addrspace(4)* noundef align 32 %{{.*}}, %"class.sycl::_V1::vec.7" addrspace(4)* noundef align 16 %{{.*}}, i64 addrspace(4)* noundef align 8 %{{.*}}, i64 addrspace(4)* noundef align 8 %{{.*}}) #[[FUNCATTRS]] {
 
 extern "C" SYCL_EXTERNAL void cons_10(const sycl::long8 &A,
