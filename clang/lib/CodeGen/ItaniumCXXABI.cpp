@@ -1002,7 +1002,7 @@ llvm::Constant *ItaniumCXXABI::BuildMemberPointer(const CXXMethodDecl *MD,
     } else {
       const ASTContext &Context = getContext();
       CharUnits PointerWidth = Context.toCharUnitsFromBits(
-          Context.getTargetInfo().getPointerWidth(0));
+          Context.getTargetInfo().getPointerWidth(LangAS::Default));
       VTableOffset = Index * PointerWidth.getQuantity();
     }
 
@@ -1879,7 +1879,7 @@ llvm::GlobalVariable *ItaniumCXXABI::getAddrOfVTable(const CXXRecordDecl *RD,
   // values are read.
   unsigned PAlign = CGM.getItaniumVTableContext().isRelativeLayout()
                         ? 32
-                        : CGM.getTarget().getPointerAlign(0);
+                        : CGM.getTarget().getPointerAlign(LangAS::Default);
 
   VTable = CGM.CreateOrReplaceCXXRuntimeVariable(
       Name, VTableType, llvm::GlobalValue::ExternalLinkage,
@@ -1924,7 +1924,9 @@ CGCallee ItaniumCXXABI::getVirtualFunctionPointer(CodeGenFunction &CGF,
   if (CGF.ShouldEmitVTableTypeCheckedLoad(MethodDecl->getParent())) {
     VFunc = CGF.EmitVTableTypeCheckedLoad(
         MethodDecl->getParent(), VTable, TyPtr,
-        VTableIndex * CGM.getContext().getTargetInfo().getPointerWidth(0) / 8);
+        VTableIndex *
+            CGM.getContext().getTargetInfo().getPointerWidth(LangAS::Default) /
+            8);
   } else {
     CGF.EmitTypeMetadataCodeForVCall(MethodDecl->getParent(), VTable, Loc);
 
@@ -3907,8 +3909,8 @@ llvm::Constant *ItaniumRTTIBuilder::BuildTypeInfo(
   if (CGM.supportsCOMDAT() && GV->isWeakForLinker())
     GV->setComdat(M.getOrInsertComdat(GV->getName()));
 
-  CharUnits Align =
-      CGM.getContext().toCharUnitsFromBits(CGM.getTarget().getPointerAlign(0));
+  CharUnits Align = CGM.getContext().toCharUnitsFromBits(
+      CGM.getTarget().getPointerAlign(LangAS::Default));
   GV->setAlignment(Align.getAsAlign());
 
   // The Itanium ABI specifies that type_info objects must be globally
@@ -4086,7 +4088,8 @@ void ItaniumRTTIBuilder::BuildVMIClassTypeInfo(const CXXRecordDecl *RD) {
   // LLP64 platforms.
   QualType OffsetFlagsTy = CGM.getContext().LongTy;
   const TargetInfo &TI = CGM.getContext().getTargetInfo();
-  if (TI.getTriple().isOSCygMing() && TI.getPointerWidth(0) > TI.getLongWidth())
+  if (TI.getTriple().isOSCygMing() &&
+      TI.getPointerWidth(LangAS::Default) > TI.getLongWidth())
     OffsetFlagsTy = CGM.getContext().LongLongTy;
   llvm::Type *OffsetFlagsLTy =
       CGM.getTypes().ConvertType(OffsetFlagsTy);
@@ -4705,13 +4708,16 @@ void ItaniumCXXABI::emitBeginCatch(CodeGenFunction &CGF,
 ///   void @__clang_call_terminate(i8* %exn) nounwind noreturn
 /// This code is used only in C++.
 static llvm::FunctionCallee getClangCallTerminateFn(CodeGenModule &CGM) {
-  llvm::FunctionType *fnTy =
-    llvm::FunctionType::get(CGM.VoidTy, CGM.Int8PtrTy, /*isVarArg=*/false);
+  ASTContext &C = CGM.getContext();
+  const CGFunctionInfo &FI = CGM.getTypes().arrangeBuiltinFunctionDeclaration(
+      C.VoidTy, {C.getPointerType(C.CharTy)});
+  llvm::FunctionType *fnTy = CGM.getTypes().GetFunctionType(FI);
   llvm::FunctionCallee fnRef = CGM.CreateRuntimeFunction(
       fnTy, "__clang_call_terminate", llvm::AttributeList(), /*Local=*/true);
   llvm::Function *fn =
       cast<llvm::Function>(fnRef.getCallee()->stripPointerCasts());
   if (fn->empty()) {
+    CGM.SetLLVMFunctionAttributes(GlobalDecl(), FI, fn, /*IsThunk=*/false);
     fn->setDoesNotThrow();
     fn->setDoesNotReturn();
 

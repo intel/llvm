@@ -1698,8 +1698,8 @@ SDValue SelectionDAGBuilder::getValueImpl(const Value *V) {
     DenseMap<const AllocaInst*, int>::iterator SI =
       FuncInfo.StaticAllocaMap.find(AI);
     if (SI != FuncInfo.StaticAllocaMap.end())
-      return DAG.getFrameIndex(SI->second,
-                               TLI.getFrameIndexTy(DAG.getDataLayout()));
+      return DAG.getFrameIndex(
+          SI->second, TLI.getValueType(DAG.getDataLayout(), AI->getType()));
   }
 
   // If this is an instruction which fast-isel has deferred, select it now.
@@ -4030,7 +4030,7 @@ void SelectionDAGBuilder::visitAlloca(const AllocaInst &I) {
 
   SDValue AllocSize = getValue(I.getArraySize());
 
-  EVT IntPtr = TLI.getPointerTy(DAG.getDataLayout(), DL.getAllocaAddrSpace());
+  EVT IntPtr = TLI.getPointerTy(DAG.getDataLayout(), I.getAddressSpace());
   if (AllocSize.getValueType() != IntPtr)
     AllocSize = DAG.getZExtOrTrunc(AllocSize, dl, IntPtr);
 
@@ -4862,11 +4862,17 @@ void SelectionDAGBuilder::visitTargetIntrinsic(const CallInst &I,
   TLI.CollectTargetIntrinsicOperands(I, Ops, DAG);
   if (IsTgtIntrinsic) {
     // This is target intrinsic that touches memory
-    Result =
-        DAG.getMemIntrinsicNode(Info.opc, getCurSDLoc(), VTs, Ops, Info.memVT,
-                                MachinePointerInfo(Info.ptrVal, Info.offset),
-                                Info.align, Info.flags, Info.size,
-                                I.getAAMetadata());
+    //
+    // TODO: We currently just fallback to address space 0 if getTgtMemIntrinsic
+    //       didn't yield anything useful.
+    MachinePointerInfo MPI;
+    if (Info.ptrVal)
+      MPI = MachinePointerInfo(Info.ptrVal, Info.offset);
+    else if (Info.fallbackAddressSpace)
+      MPI = MachinePointerInfo(*Info.fallbackAddressSpace);
+    Result = DAG.getMemIntrinsicNode(Info.opc, getCurSDLoc(), VTs, Ops,
+                                     Info.memVT, MPI, Info.align, Info.flags,
+                                     Info.size, I.getAAMetadata());
   } else if (!HasChain) {
     Result = DAG.getNode(ISD::INTRINSIC_WO_CHAIN, getCurSDLoc(), VTs, Ops);
   } else if (!I.getType()->isVoidTy()) {
