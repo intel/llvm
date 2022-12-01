@@ -42,12 +42,6 @@ public:
     return getSyclObjImpl(*static_cast<const SyclObjT *>(this))
         .owner_before(getSyclObjImpl(Other));
   }
-#else
-  bool ext_oneapi_owner_before(
-      const ext::oneapi::detail::weak_object_base<SyclObjT> &Other)
-      const noexcept;
-
-  bool ext_oneapi_owner_before(const SyclObjT &Other) const noexcept;
 #endif
 };
 
