@@ -12,10 +12,15 @@
 
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
-#include "mlir/Dialect/SYCL/IR/SYCLOpsAlias.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/Transforms/InliningUtils.h"
+
+#include "llvm/ADT/TypeSwitch.h"
+#include "llvm/Support/Debug.h"
+#include "llvm/Support/WithColor.h"
+
+#define DEBUG_TYPE "SYCLOpsDialect"
 
 //===----------------------------------------------------------------------===//
 // SYCL Dialect Interfaces
@@ -66,17 +71,105 @@ public:
   }
 };
 
+class SYCLOpAsmInterface final : public mlir::OpAsmDialectInterface {
+public:
+  using mlir::OpAsmDialectInterface::OpAsmDialectInterface;
+
+  AliasResult getAlias(mlir::Type Type, llvm::raw_ostream &OS) const final;
+
+private:
+  static constexpr llvm::StringRef
+  getAlias(mlir::sycl::MemoryAccessMode MemAccessMode) {
+    switch (MemAccessMode) {
+    case mlir::sycl::MemoryAccessMode::Read:
+      return "r";
+    case mlir::sycl::MemoryAccessMode::Write:
+      return "w";
+    case mlir::sycl::MemoryAccessMode::ReadWrite:
+      return "rw";
+    case mlir::sycl::MemoryAccessMode::DiscardWrite:
+      return "dw";
+    case mlir::sycl::MemoryAccessMode::DiscardReadWrite:
+      return "drw";
+    case mlir::sycl::MemoryAccessMode::Atomic:
+      return "ato";
+    default:
+      llvm_unreachable("Unhandled kind");
+    }
+  }
+
+  static constexpr llvm::StringRef
+  getAlias(mlir::sycl::MemoryTargetMode MemTargetMode) {
+    switch (MemTargetMode) {
+    case mlir::sycl::MemoryTargetMode::GlobalBuffer:
+      return "gb";
+    case mlir::sycl::MemoryTargetMode::ConstantBuffer:
+      return "cb";
+    case mlir::sycl::MemoryTargetMode::Local:
+      return "l";
+    case mlir::sycl::MemoryTargetMode::Image:
+      return "i";
+    case mlir::sycl::MemoryTargetMode::HostBuffer:
+      return "hb";
+    case mlir::sycl::MemoryTargetMode::HostImage:
+      return "hi";
+    case mlir::sycl::MemoryTargetMode::ImageArray:
+      return "ia";
+    default:
+      llvm_unreachable("Unhandled kind");
+    }
+  }
+};
+
+mlir::OpAsmDialectInterface::AliasResult
+SYCLOpAsmInterface::getAlias(mlir::Type Type, llvm::raw_ostream &OS) const {
+  return llvm::TypeSwitch<mlir::Type, AliasResult>(Type)
+      .Case<mlir::sycl::AccessorType>([&](auto Ty) {
+        OS << "sycl_" << decltype(Ty)::getMnemonic() << "_" << Ty.getDimension()
+           << "_" << Ty.getType() << "_" << getAlias(Ty.getAccessMode()) << "_"
+           << getAlias(Ty.getTargetMode());
+        return AliasResult::FinalAlias;
+      })
+      .Case<mlir::sycl::ItemType, mlir::sycl::ItemBaseType>([&](auto Ty) {
+        OS << "sycl_" << decltype(Ty)::getMnemonic() << "_" << Ty.getDimension()
+           << "_";
+        return AliasResult::OverridableAlias;
+      })
+      .Case<mlir::sycl::NdRangeType, mlir::sycl::AccessorImplDeviceType,
+            mlir::sycl::ArrayType, mlir::sycl::NdItemType,
+            mlir::sycl::GroupType>([&](auto Ty) {
+        OS << "sycl_" << decltype(Ty)::getMnemonic() << "_" << Ty.getDimension()
+           << "_";
+        return AliasResult::FinalAlias;
+      })
+      .Case<mlir::sycl::GetScalarOpType>([&](auto Ty) {
+        OS << "sycl_" << decltype(Ty)::getMnemonic() << "_" << Ty.getDataType()
+           << "_";
+        return AliasResult::FinalAlias;
+      })
+      .Case<mlir::sycl::AtomicType>([&](auto Ty) {
+        OS << "sycl_" << decltype(Ty)::getMnemonic() << "_" << Ty.getDataType()
+           << "_" << mlir::sycl::accessAddressSpaceAsString(Ty.getAddrSpace())
+           << "_";
+        return AliasResult::FinalAlias;
+      })
+      .Case<mlir::sycl::VecType>([&](auto Ty) {
+        OS << "sycl_" << decltype(Ty)::getMnemonic() << "_" << Ty.getDataType()
+           << "_" << Ty.getNumElements() << "_";
+        return AliasResult::FinalAlias;
+      })
+      .Case<mlir::sycl::AccessorSubscriptType>([&](auto Ty) {
+        OS << "sycl_" << decltype(Ty)::getMnemonic() << "_"
+           << Ty.getCurrentDimension() << "_";
+        return AliasResult::OverridableAlias;
+      })
+      .Default([](auto) { return AliasResult::NoAlias; });
+}
 } // namespace
 
 //===----------------------------------------------------------------------===//
 // SYCL Dialect
 //===----------------------------------------------------------------------===//
-
-#include "llvm/ADT/TypeSwitch.h"
-#include "llvm/Support/Debug.h"
-#include "llvm/Support/WithColor.h"
-
-#define DEBUG_TYPE "SYCLOpsDialect"
 
 #define GET_TYPEDEF_CLASSES
 #include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.cpp.inc"

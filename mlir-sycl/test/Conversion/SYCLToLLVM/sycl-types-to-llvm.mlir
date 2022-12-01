@@ -25,25 +25,24 @@
 // CHECK: llvm.func @test_vec(%arg0: !llvm.[[VEC:struct<"class.sycl::_V1::vec", \(vector<4xf32>\)>]])
 // CHECK: llvm.func @test_atomic(%arg0: !llvm.[[ATOMIC1:struct<"class.sycl::_V1::atomic", \(struct<\(ptr<f32, 3>, ptr<f32, 3>, i64, array<1 x i64>, array<1 x i64>\)>\)>]], %arg1: !llvm.[[ATOMIC1:struct<"class.sycl::_V1::atomic.1", \(struct<\(ptr<i32, 1>, ptr<i32, 1>, i64, array<1 x i64>, array<1 x i64>\)>\)>]]) {
 
-
 !sycl_array_1_ = !sycl.array<[1], (memref<1xi64>)>
 !sycl_array_2_ = !sycl.array<[2], (memref<2xi64>)>
 !sycl_nd_range_1_ = !sycl.nd_range<[1], (!sycl.range<1>, !sycl.range<1>, !sycl.id<1>)>
 !sycl_nd_range_2_ = !sycl.nd_range<[2], (!sycl.range<2>, !sycl.range<2>, !sycl.id<2>)>
 !sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl.id<1>, !sycl.range<1>, !sycl.range<1>)>
 !sycl_accessor_impl_device_2_ = !sycl.accessor_impl_device<[2], (!sycl.id<2>, !sycl.range<2>, !sycl.range<2>)>
-!sycl_accessor_1_i32_ = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<i32, 1>)>)>
-!sycl_accessor_2_i32_ = !sycl.accessor<[2, i32, read_write, global_buffer], (!sycl_accessor_impl_device_2_, !llvm.struct<(ptr<i32, 1>)>)>
-!sycl_accessor_1_f32_ = !sycl.accessor<[1, f32, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<f32, 1>)>)>
-!sycl_accessor_2_f32_ = !sycl.accessor<[2, f32, read_write, global_buffer], (!sycl_accessor_impl_device_2_, !llvm.struct<(ptr<f32, 1>)>)>
-!sycl_accessor_subscript_1_ = !sycl.accessor_subscript<[1], (!sycl.id<2>, !sycl_accessor_2_i32_)>
-!sycl_item_base_1_true = !sycl.item_base<[1, true], (!sycl.range<1>, !sycl.id<1>, !sycl.id<1>)>
-!sycl_item_base_1_false = !sycl.item_base<[1, false], (!sycl.range<1>, !sycl.id<1>)>
-!sycl_item_1_true = !sycl.item<[1, true], (!sycl_item_base_1_true)>
-!sycl_item_1_false = !sycl.item<[1, false], (!sycl_item_base_1_false)>
+!sycl_accessor_1_i32_rw_gb = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<i32, 1>)>)>
+!sycl_accessor_2_i32_rw_gb = !sycl.accessor<[2, i32, read_write, global_buffer], (!sycl_accessor_impl_device_2_, !llvm.struct<(ptr<i32, 1>)>)>
+!sycl_accessor_1_f32_rw_gb = !sycl.accessor<[1, f32, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<f32, 1>)>)>
+!sycl_accessor_2_f32_rw_gb = !sycl.accessor<[2, f32, read_write, global_buffer], (!sycl_accessor_impl_device_2_, !llvm.struct<(ptr<f32, 1>)>)>
+!sycl_accessor_subscript_1_ = !sycl.accessor_subscript<[1], (!sycl.id<2>, !sycl.accessor<[2, i32, read_write, global_buffer], (!sycl_accessor_impl_device_2_, !llvm.struct<(ptr<i32, 1>)>)>)>
+!sycl_item_base_1_ = !sycl.item_base<[1, true], (!sycl.range<1>, !sycl.id<1>, !sycl.id<1>)>
+!sycl_item_base_1_1 = !sycl.item_base<[1, false], (!sycl.range<1>, !sycl.id<1>)>
+!sycl_item_1_ = !sycl.item<[1, true], (!sycl_item_base_1_)>
+!sycl_item_1_1 = !sycl.item<[1, false], (!sycl_item_base_1_1)>
 !sycl_group_1_ = !sycl.group<[1], (!sycl.range<1>, !sycl.range<1>, !sycl.range<1>, !sycl.id<1>)>
 !sycl_get_scalar_op_i32_ = !sycl.get_scalar_op<[i32], (i32)>
-!sycl_nd_item_1_ = !sycl.nd_item<[1], (!sycl_item_1_true, !sycl_item_1_false, !sycl_group_1_)>
+!sycl_nd_item_1_ = !sycl.nd_item<[1], (!sycl_item_1_, !sycl_item_1_1, !sycl_group_1_)>
 !sycl_vec_f32_4_ = !sycl.vec<[f32, 4], (vector<4xf32>)>
 !sycl_atomic_f32_3_ = !sycl.atomic<[f32,3], (memref<?xf32, 3>)>
 !sycl_atomic_i32_1_ = !sycl.atomic<[i32,1], (memref<?xi32, 1>)>
@@ -76,31 +75,31 @@ module {
   func.func @test_accessor_common(%arg0: !sycl.accessor_common) {
     return
   }
-  func.func @test_accessor.1(%arg0: !sycl_accessor_1_i32_) {
+  func.func @test_accessor.1(%arg0: !sycl_accessor_1_i32_rw_gb) {
     return
   }
-  func.func @test_accessor.2(%arg0: !sycl_accessor_2_i32_) {
+  func.func @test_accessor.2(%arg0: !sycl_accessor_2_i32_rw_gb) {
     return
   }
-  func.func @test_accessor.3(%arg0: !sycl_accessor_1_f32_) {
+  func.func @test_accessor.3(%arg0: !sycl_accessor_1_f32_rw_gb) {
     return
   }
-  func.func @test_accessor.4(%arg0: !sycl_accessor_2_f32_) {
+  func.func @test_accessor.4(%arg0: !sycl_accessor_2_f32_rw_gb) {
     return
   }
   func.func @test_accessorSubscript(%arg0: !sycl_accessor_subscript_1_) {
     return
   }
-  func.func @test_itemBase.true(%arg0: !sycl_item_base_1_true) {
+  func.func @test_itemBase.true(%arg0: !sycl_item_base_1_) {
     return
   }
-  func.func @test_itemBase.false(%arg0: !sycl_item_base_1_false) {
+  func.func @test_itemBase.false(%arg0: !sycl_item_base_1_1) {
     return
   }
-  func.func @test_item.true(%arg0: !sycl_item_1_true) {
+  func.func @test_item.true(%arg0: !sycl_item_1_) {
     return
   }
-  func.func @test_item.false(%arg0: !sycl_item_1_false) {
+  func.func @test_item.false(%arg0: !sycl_item_1_1) {
     return
   }
   func.func @test_group(%arg0: !sycl_group_1_) {
