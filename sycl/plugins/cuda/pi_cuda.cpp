@@ -1333,7 +1333,7 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capabilities);
   }
-  case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16: {
+  case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS: {
     int major = 0;
     sycl::detail::pi::assertion(
         cuDeviceGetAttribute(&major,

@@ -57,15 +57,18 @@ void mlir::sparse_tensor::buildSparseCompiler(
           /*analysisOnly=*/options.testBufferizationAnalysisOnly)));
   if (options.testBufferizationAnalysisOnly)
     return;
-  pm.addPass(createSparseTensorRewritePass(options.enableRuntimeLibrary));
+  pm.addPass(createPreSparsificationRewritePass());
   pm.addPass(createSparsificationPass(options.sparsificationOptions()));
-  if (options.enableRuntimeLibrary)
+  pm.addPass(createPostSparsificationRewritePass(options.enableRuntimeLibrary));
+  if (options.enableRuntimeLibrary) {
     pm.addPass(createSparseTensorConversionPass(
         options.sparseTensorConversionOptions()));
-  else
+  } else {
     pm.addPass(
         createSparseTensorCodegenPass(options.enableBufferInitialization));
-  pm.addPass(createSparseBufferRewritePass(options.enableBufferInitialization));
+    pm.addPass(
+        createSparseBufferRewritePass(options.enableBufferInitialization));
+  }
   pm.addPass(createDenseBufferizationPass(
       getBufferizationOptions(/*analysisOnly=*/false)));
   pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());

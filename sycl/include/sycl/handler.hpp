@@ -2031,25 +2031,24 @@ public:
 
   /// Reductions @{
 
-  template <typename KernelName = detail::auto_name, typename KernelType,
-            typename PropertiesT, int Dims, typename Reduction>
+  template <typename KernelName = detail::auto_name, int Dims,
+            typename PropertiesT, typename... RestT>
   std::enable_if_t<
-      detail::IsReduction<Reduction>::value &&
+      (sizeof...(RestT) > 1) &&
+      detail::AreAllButLastReductions<RestT...>::value &&
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
-  parallel_for(range<Dims> Range, PropertiesT Properties, Reduction Redu,
-               _KERNELFUNCPARAM(KernelFunc)) {
-    detail::reduction_parallel_for<KernelName>(*this, Range, Properties, Redu,
-                                               std::move(KernelFunc));
+  parallel_for(range<Dims> Range, PropertiesT Properties, RestT &&...Rest) {
+    detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
+                                               std::forward<RestT>(Rest)...);
   }
 
-  template <typename KernelName = detail::auto_name, typename KernelType,
-            int Dims, typename Reduction>
-  std::enable_if_t<detail::IsReduction<Reduction>::value>
-  parallel_for(range<Dims> Range, Reduction Redu,
-               _KERNELFUNCPARAM(KernelFunc)) {
+  template <typename KernelName = detail::auto_name, int Dims,
+            typename... RestT>
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
+  parallel_for(range<Dims> Range, RestT &&...Rest) {
     parallel_for<KernelName>(
-        Range, ext::oneapi::experimental::detail::empty_properties_t{}, Redu,
-        std::move(KernelFunc));
+        Range, ext::oneapi::experimental::detail::empty_properties_t{},
+        std::forward<RestT>(Rest)...);
   }
 
   template <typename KernelName = detail::auto_name, int Dims,
@@ -2660,11 +2659,10 @@ private:
   friend void detail::reduction::withAuxHandler(handler &CGH, FunctorTy Func);
 
   template <typename KernelName, detail::reduction::strategy Strategy, int Dims,
-            typename PropertiesT, typename KernelType, typename Reduction>
-  friend void detail::reduction_parallel_for(handler &CGH, range<Dims> Range,
+            typename PropertiesT, typename... RestT>
+  friend void detail::reduction_parallel_for(handler &CGH, range<Dims> NDRange,
                                              PropertiesT Properties,
-                                             Reduction Redu,
-                                             KernelType KernelFunc);
+                                             RestT... Rest);
 
   template <typename KernelName, detail::reduction::strategy Strategy, int Dims,
             typename PropertiesT, typename... RestT>

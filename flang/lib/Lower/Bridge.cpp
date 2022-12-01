@@ -39,17 +39,20 @@
 #include "flang/Optimizer/Dialect/FIRAttr.h"
 #include "flang/Optimizer/Dialect/FIRDialect.h"
 #include "flang/Optimizer/Dialect/FIROps.h"
+#include "flang/Optimizer/HLFIR/HLFIROps.h"
 #include "flang/Optimizer/Support/FIRContext.h"
 #include "flang/Optimizer/Support/FatalError.h"
 #include "flang/Optimizer/Support/InternalNames.h"
 #include "flang/Optimizer/Transforms/Passes.h"
 #include "flang/Parser/parse-tree.h"
 #include "flang/Runtime/iostat.h"
+#include "flang/Semantics/runtime-type-info.h"
 #include "flang/Semantics/tools.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Parser/Parser.h"
 #include "mlir/Transforms/RegionUtils.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -192,6 +195,67 @@ private:
   llvm::SmallSetVector<Fortran::semantics::SymbolRef, 64> seen;
 };
 
+class DispatchTableConverter {
+  struct DispatchTableInfo {
+    const Fortran::semantics::DerivedTypeSpec *typeSpec;
+    mlir::Location loc;
+  };
+
+public:
+  void registerTypeSpec(mlir::Location loc,
+                        const Fortran::semantics::DerivedTypeSpec *typeSpec) {
+    assert(typeSpec && "type spec is null");
+    std::string dtName = Fortran::lower::mangle::mangleName(*typeSpec);
+    if (seen.contains(dtName) || dtName.find("__fortran") != std::string::npos)
+      return;
+    seen.insert(dtName);
+    registeredDispatchTableInfo.emplace_back(DispatchTableInfo{typeSpec, loc});
+  }
+
+  void createDispatchTableOps(Fortran::lower::AbstractConverter &converter) {
+    for (const DispatchTableInfo &info : registeredDispatchTableInfo) {
+      std::string dtName = Fortran::lower::mangle::mangleName(*info.typeSpec);
+      const Fortran::semantics::DerivedTypeSpec *parent =
+          Fortran::evaluate::GetParentTypeSpec(*info.typeSpec);
+      fir::FirOpBuilder &builder = converter.getFirOpBuilder();
+      fir::DispatchTableOp dt = builder.createDispatchTableOp(
+          info.loc, dtName,
+          parent ? Fortran::lower::mangle::mangleName(*parent) : "");
+      auto insertPt = builder.saveInsertionPoint();
+
+      std::vector<const Fortran::semantics::Symbol *> bindings =
+          Fortran::semantics::CollectBindings(*info.typeSpec->scope());
+
+      if (!bindings.empty())
+        builder.createBlock(&dt.getRegion());
+
+      for (const Fortran::semantics::Symbol *binding : bindings) {
+        const auto *details =
+            binding->detailsIf<Fortran::semantics::ProcBindingDetails>();
+        std::string bindingName =
+            Fortran::lower::mangle::mangleName(details->symbol());
+        builder.create<fir::DTEntryOp>(
+            info.loc,
+            mlir::StringAttr::get(builder.getContext(),
+                                  binding->name().ToString()),
+            mlir::SymbolRefAttr::get(builder.getContext(), bindingName));
+      }
+      if (!bindings.empty())
+        builder.create<fir::FirEndOp>(info.loc);
+      builder.restoreInsertionPoint(insertPt);
+    }
+    registeredDispatchTableInfo.clear();
+  }
+
+private:
+  /// Store the semantic DerivedTypeSpec that will be required to generate the
+  /// dispatch table.
+  llvm::SmallVector<DispatchTableInfo> registeredDispatchTableInfo;
+
+  /// Track processed type specs to avoid multiple creation.
+  llvm::StringSet<> seen;
+};
+
 using IncrementLoopNestInfo = llvm::SmallVector<IncrementLoopInfo, 8>;
 } // namespace
 
@@ -268,6 +332,10 @@ public:
     /// processed.
     createGlobalOutsideOfFunctionLowering(
         [&]() { runtimeTypeInfoConverter.createTypeInfoGlobals(*this); });
+
+    /// Create the dispatch tables for derived types.
+    createGlobalOutsideOfFunctionLowering(
+        [&]() { dispatchTableConverter.createDispatchTableOps(*this); });
 
     // Create the list of any environment defaults for the runtime to set. The
     // runtime default list is only created if there is a main program to ensure
@@ -742,6 +810,12 @@ public:
       mlir::Location loc,
       Fortran::lower::SymbolRef typeInfoSym) override final {
     runtimeTypeInfoConverter.registerTypeInfoSymbol(*this, loc, typeInfoSym);
+  }
+
+  void registerDispatchTableInfo(
+      mlir::Location loc,
+      const Fortran::semantics::DerivedTypeSpec *typeSpec) override final {
+    dispatchTableConverter.registerTypeSpec(loc, typeSpec);
   }
 
 private:
@@ -2482,6 +2556,43 @@ private:
   void genAssignment(const Fortran::evaluate::Assignment &assign) {
     Fortran::lower::StatementContext stmtCtx;
     mlir::Location loc = toLocation();
+    if (bridge.getLoweringOptions().getLowerToHighLevelFIR()) {
+      if (explicitIterationSpace() || !implicitIterSpace.empty())
+        TODO(loc, "HLFIR assignment inside FORALL or WHERE");
+      auto &builder = getFirOpBuilder();
+      std::visit(
+          Fortran::common::visitors{
+              // [1] Plain old assignment.
+              [&](const Fortran::evaluate::Assignment::Intrinsic &) {
+                if (Fortran::lower::isWholeAllocatable(assign.lhs))
+                  TODO(loc, "HLFIR assignment to whole allocatable");
+                hlfir::EntityWithAttributes rhs =
+                    Fortran::lower::convertExprToHLFIR(loc, *this, assign.rhs,
+                                                       localSymbols, stmtCtx);
+                hlfir::EntityWithAttributes lhs =
+                    Fortran::lower::convertExprToHLFIR(loc, *this, assign.lhs,
+                                                       localSymbols, stmtCtx);
+                builder.create<hlfir::AssignOp>(loc, rhs, lhs);
+              },
+              // [2] User defined assignment. If the context is a scalar
+              // expression then call the procedure.
+              [&](const Fortran::evaluate::ProcedureRef &procRef) {
+                TODO(loc, "HLFIR user defined assignment");
+              },
+              // [3] Pointer assignment with possibly empty bounds-spec. R1035:
+              // a bounds-spec is a lower bound value.
+              [&](const Fortran::evaluate::Assignment::BoundsSpec &lbExprs) {
+                TODO(loc, "HLFIR pointer assignment");
+              },
+              // [4] Pointer assignment with bounds-remapping. R1036: a
+              // bounds-remapping is a pair, lower bound and upper bound.
+              [&](const Fortran::evaluate::Assignment::BoundsRemapping) {
+                TODO(loc, "HLFIR pointer assignment with bounds remapping");
+              },
+          },
+          assign.u);
+      return;
+    }
     if (explicitIterationSpace()) {
       Fortran::lower::createArrayLoads(*this, explicitIterSpace, localSymbols);
       explicitIterSpace.genLoopNest();
@@ -3553,6 +3664,7 @@ private:
   Fortran::lower::SymMap localSymbols;
   Fortran::parser::CharBlock currentPosition;
   RuntimeTypeInfoConverter runtimeTypeInfoConverter;
+  DispatchTableConverter dispatchTableConverter;
 
   /// WHERE statement/construct mask expression stack.
   Fortran::lower::ImplicitIterSpace implicitIterSpace;
