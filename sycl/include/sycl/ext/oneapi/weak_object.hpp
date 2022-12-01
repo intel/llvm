@@ -19,7 +19,9 @@ namespace oneapi {
 namespace detail {
 // Helper for creating ranges for empty weak_objects.
 template <int Dims> static range<Dims> createDummyRange() {
-  static_assert(Dims > 0 && Dims < 4, "Invalid dimensionality in range.");
+  static_assert(Dims >= 0 && Dims < 4, "Invalid dimensionality in range.");
+  if constexpr (Dims == 0)
+    return {};
   if constexpr (Dims == 1)
     return {1};
   else if constexpr (Dims == 2)
