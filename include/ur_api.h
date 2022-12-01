@@ -1644,6 +1644,16 @@ typedef enum _ur_mem_type_t
 } ur_mem_type_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Memory Information type
+typedef enum _ur_mem_info_t
+{
+    UR_MEM_INFO_SIZE = 0,                           ///< size_t: actual size of of memory object in bytes
+    UR_MEM_INFO_CONTEXT = 1,                        ///< ::ur_context_handle_t: context in which the memory object was created
+    UR_MEM_INFO_FORCE_UINT32 = 0x7fffffff
+
+} ur_mem_info_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Image channel order info: number of channels and the channel layout
 typedef enum _ur_image_channel_order_t
 {
@@ -1951,6 +1961,37 @@ urMemCreateWithNativeHandle(
     ur_platform_handle_t hPlatform,                 ///< [in] handle of the platform instance
     ur_native_handle_t hNativeMem,                  ///< [in] the native handle of the mem.
     ur_mem_handle_t* phMem                          ///< [out] pointer to the handle of the mem object created.
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Retrieve information about a memory object.
+/// 
+/// @details
+///     - Query information that is common to all memory objects.
+/// 
+/// @remarks
+///   _Analogues_
+///     - **clGetMemObjectInfo**
+/// 
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hMemory`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_MEM_INFO_CONTEXT < MemInfoType`
+UR_APIEXPORT ur_result_t UR_APICALL
+urMemGetInfo(
+    ur_mem_handle_t hMemory,                        ///< [in] handle to the memory object being queried.
+    ur_mem_info_t MemInfoType,                      ///< [in] type of the info to retrieve.
+    size_t propSize,                                ///< [in] the number of bytes of memory pointed to by pMemInfo.
+    void* pMemInfo,                                 ///< [out][optional] array of bytes holding the info.
+                                                    ///< If propSize is less than the real number of bytes needed to return 
+                                                    ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
+                                                    ///< pMemInfo is not used.
+    size_t* pPropSizeRet                            ///< [out][optional] pointer to the actual size in bytes of data queried by
+                                                    ///< pMemInfo.  
     );
 
 #if !defined(__GNUC__)
@@ -2486,15 +2527,15 @@ typedef enum _ur_usm_mem_flag_t
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM memory allocation information type
-typedef enum _ur_mem_info_t
+typedef enum _ur_mem_alloc_info_t
 {
-    UR_MEM_INFO_MEM_ALLOC_TYPE = 0,                 ///< Memory allocation type info
-    UR_MEM_INFO_MEM_ALLOC_BASE_PTR = 1,             ///< Memory allocation base pointer info
-    UR_MEM_INFO_MEM_ALLOC_SIZE = 2,                 ///< Memory allocation size info
-    UR_MEM_INFO_MEM_ALLOC_DEVICE = 3,               ///< Memory allocation device info
-    UR_MEM_INFO_FORCE_UINT32 = 0x7fffffff
+    UR_MEM_ALLOC_INFO_MEM_ALLOC_TYPE = 0,           ///< Memory allocation type info
+    UR_MEM_ALLOC_INFO_MEM_ALLOC_BASE_PTR = 1,       ///< Memory allocation base pointer info
+    UR_MEM_ALLOC_INFO_MEM_ALLOC_SIZE = 2,           ///< Memory allocation size info
+    UR_MEM_ALLOC_INFO_MEM_ALLOC_DEVICE = 3,         ///< Memory allocation device info
+    UR_MEM_ALLOC_INFO_FORCE_UINT32 = 0x7fffffff
 
-} ur_mem_info_t;
+} ur_mem_alloc_info_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM allocate host memory
@@ -2611,7 +2652,7 @@ urMemFree(
 ///         + `NULL == propValue`
 ///         + `NULL == propValueSizeRet`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_MEM_INFO_MEM_ALLOC_DEVICE < propName`
+///         + `::UR_MEM_ALLOC_INFO_MEM_ALLOC_DEVICE < propName`
 ///     - ::UR_RESULT_INVALID_CONTEXT
 ///     - ::UR_RESULT_INVALID_VALUE
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
@@ -2620,7 +2661,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urMemGetMemAllocInfo(
     ur_context_handle_t context,                    ///< [in] handle of the context object
     const void* ptr,                                ///< [in] pointer to USM memory object
-    ur_mem_info_t propName,                         ///< [in] the name of the USM allocation property to query
+    ur_mem_alloc_info_t propName,                   ///< [in] the name of the USM allocation property to query
     size_t propValueSize,                           ///< [in] size in bytes of the USM allocation property value
     void* propValue,                                ///< [out] value of the USM allocation property
     size_t* propValueSizeRet                        ///< [out] bytes returned in USM allocation property
@@ -5749,6 +5790,32 @@ typedef void (UR_APICALL *ur_pfnMemCreateWithNativeHandleCb_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function parameters for urMemGetInfo 
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct _ur_mem_get_info_params_t
+{
+    ur_mem_handle_t* phMemory;
+    ur_mem_info_t* pMemInfoType;
+    size_t* ppropSize;
+    void** ppMemInfo;
+    size_t** ppPropSizeRet;
+} ur_mem_get_info_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function-pointer for urMemGetInfo 
+/// @param[in] params Parameters passed to this instance
+/// @param[in] result Return value
+/// @param[in] pTracerUserData Per-Tracer user data
+/// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
+typedef void (UR_APICALL *ur_pfnMemGetInfoCb_t)(
+    ur_mem_get_info_params_t* params,
+    ur_result_t result,
+    void* pTracerUserData,
+    void** ppTracerInstanceUserData
+    );
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Callback function parameters for urMemFree 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -5779,7 +5846,7 @@ typedef struct _ur_mem_get_mem_alloc_info_params_t
 {
     ur_context_handle_t* pcontext;
     const void** pptr;
-    ur_mem_info_t* ppropName;
+    ur_mem_alloc_info_t* ppropName;
     size_t* ppropValueSize;
     void** ppropValue;
     size_t** ppropValueSizeRet;
@@ -5809,6 +5876,7 @@ typedef struct _ur_mem_callbacks_t
     ur_pfnMemBufferPartitionCb_t                                    pfnBufferPartitionCb;
     ur_pfnMemGetNativeHandleCb_t                                    pfnGetNativeHandleCb;
     ur_pfnMemCreateWithNativeHandleCb_t                             pfnCreateWithNativeHandleCb;
+    ur_pfnMemGetInfoCb_t                                            pfnGetInfoCb;
     ur_pfnMemFreeCb_t                                               pfnFreeCb;
     ur_pfnMemGetMemAllocInfoCb_t                                    pfnGetMemAllocInfoCb;
 } ur_mem_callbacks_t;

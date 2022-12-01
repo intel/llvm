@@ -55,6 +55,16 @@ etors:
       desc: "1D image buffer object"
 --- #--------------------------------------------------------------------------
 type: enum
+desc: "Memory Information type"
+class: $xMem
+name: $x_mem_info_t
+etors:
+    - name: SIZE
+      desc: "size_t: actual size of of memory object in bytes"
+    - name: CONTEXT
+      desc: "$x_context_handle_t: context in which the memory object was created"
+--- #--------------------------------------------------------------------------
+type: enum
 desc: "Image channel order info: number of channels and the channel layout"
 class: $xMem
 name: $x_image_channel_order_t
@@ -388,3 +398,34 @@ params:
       name: phMem
       desc: |
             [out] pointer to the handle of the mem object created.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Retrieve information about a memory object."
+class: $xMem
+name: GetInfo
+decl: static
+ordinal: "0"
+analogue:
+    - "**clGetMemObjectInfo**"
+details:
+    - "Query information that is common to all memory objects."
+params:
+    - type: $x_mem_handle_t
+      name: hMemory
+      desc: "[in] handle to the memory object being queried."
+    - type: $x_mem_info_t
+      name: MemInfoType
+      desc: "[in] type of the info to retrieve."
+    - type: "size_t"
+      name: propSize
+      desc: "[in] the number of bytes of memory pointed to by pMemInfo."
+    - type: "void*"
+      name: pMemInfo
+      desc: |
+            [out][optional] array of bytes holding the info.
+            If propSize is less than the real number of bytes needed to return 
+            the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pMemInfo is not used.
+    - type: "size_t*"
+      name: pPropSizeRet
+      desc: |
+            [out][optional] pointer to the actual size in bytes of data queried by pMemInfo.  
