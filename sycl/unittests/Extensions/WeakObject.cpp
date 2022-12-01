@@ -68,6 +68,8 @@ template <typename SyclObjT> struct WeakObjectCheckOwnerBefore {
 
     EXPECT_FALSE(WeakObj.owner_before(Obj));
     EXPECT_FALSE(Obj.ext_oneapi_owner_before(WeakObj));
+
+    EXPECT_FALSE(Obj.ext_oneapi_owner_before(Obj));
   }
 };
 
@@ -144,6 +146,11 @@ template <typename SyclObjT> struct WeakObjectCheckOwnerBeforeMulti {
 
     EXPECT_FALSE(WeakObj2.owner_before(Obj2));
     EXPECT_FALSE(Obj2.ext_oneapi_owner_before(WeakObj2));
+
+    EXPECT_TRUE(Obj1.ext_oneapi_owner_before(Obj2) ||
+                Obj2.ext_oneapi_owner_before(Obj1));
+    EXPECT_FALSE(Obj1.ext_oneapi_owner_before(Obj2) &&
+                 Obj2.ext_oneapi_owner_before(Obj1));
   }
 };
 

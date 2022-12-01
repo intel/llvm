@@ -40,7 +40,7 @@ public:
   /// \return true if this object precedes \param Other and false otherwise.
   bool ext_oneapi_owner_before(const SyclObjT &Other) const noexcept {
     return getSyclObjImpl(*static_cast<const SyclObjT *>(this))
-        .owner_before(Other.impl);
+        .owner_before(getSyclObjImpl(Other));
   }
 #else
   bool ext_oneapi_owner_before(
