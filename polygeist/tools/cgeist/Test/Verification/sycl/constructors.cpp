@@ -4,11 +4,12 @@
 #include <sycl/aliases.hpp>
 #include <sycl/sycl.hpp>
 
-// CHECK-DAG: !sycl_accessor_1_i32_w_gb = !sycl.accessor<[1, i32, write, global_buffer], (!sycl.accessor_impl_device<[1], (!sycl.id<1>, !sycl.range<1>, !sycl.range<1>)>, !llvm.struct<(ptr<i32, 1>)>)>
+// CHECK-DAG: !sycl_accessor_1_i32_w_gb = !sycl.accessor<[1, i32, write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<i32, 1>)>)>
 // CHECK-DAG: !sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl.id<1>, !sycl.range<1>, !sycl.range<1>)>
 // CHECK-DAG: !sycl_array_1_ = !sycl.array<[1], (memref<1xi64, 4>)>
 // CHECK-DAG: !sycl_array_2_ = !sycl.array<[2], (memref<2xi64, 4>)>
-// CHECK-DAG: ![[ITEM:.*]] = !sycl.item<[2, true], (!sycl.item_base<[2, true], (!sycl.range<2>, !sycl.id<2>, !sycl.id<2>)>)>
+// CHECK-DAG: ![[ITEM_BASE:.*]] = !sycl.item_base<[2, true], (!sycl.range<2>, !sycl.id<2>, !sycl.id<2>)>
+// CHECK-DAG: ![[ITEM:.*]] = !sycl.item<[2, true], (![[ITEM_BASE]])>
 
 // Check globals referenced in device functions are created in the GPU module
 // CHECK: gpu.module @device_functions {
