@@ -36,7 +36,7 @@ https://github.com/intel/llvm/issues
 
 == Dependencies
 
-This extension is written against the SYCL 2020 revision 5 specification.  All
+This extension is written against the SYCL 2020 revision 6 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
@@ -58,9 +58,9 @@ object alive.
 This extension adds the notion of a "weak" SYCL object, represented by the
 `weak_object` class. A weak object holds a reference to a SYCL object with
 common reference semantics of the specified type but will not keep the
-underlying object alive. As such, a weak object can be queries about having
-expired and exposes interfaces for locking the underlying object, creating a
-copy of it if it is still alive.
+underlying object alive. A weak object is considered expired if the underlying
+object is no longer alive. If a weak object has not expired, a copy of the
+underlying object can be created by calling either `lock` or `try_lock`.
 
 Additionally this extension adds the notion of owner-based ordering to allow for
 use of SYCL object and their weak variants in order-oriented data structures and
@@ -141,7 +141,7 @@ a|
 constexpr weak_object() noexcept;
 ----
 
-| Constructor for creating an empty `weak_object`. These are 
+| Constructor for creating an empty `weak_object`.
 
 a|
 [source,c++]
@@ -193,7 +193,7 @@ a|
 void swap(weak_object &Other) noexcept;
 ----
 
-| Exhanges the reference to the underlying SYCL object with the one held by
+| Exchanges the reference to the underlying SYCL object with the one held by
 `Other`.
 
 a|
@@ -217,13 +217,13 @@ std::optional<SyclObject> try_lock() const noexcept;
 a|
 [source,c++]
 ----
-SyclObject lock() const noexcept;
+SyclObject lock() const;
 ----
 
 | Returns the underlying SYCL object.
 
-Throws an exception with the `errc::invalid` error code if `std::nullopt` if the
-`weak_object` is empty or if `expired()` returns `true`.
+Throws an exception with the `errc::invalid` error code if the `weak_object` is
+empty or if `expired()` returns `true`.
 
 a|
 [source,c++]
