@@ -1,5 +1,7 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %t.out
+//
+// UNSUPPORTED: cuda || hip
 
 #include <numeric>
 
