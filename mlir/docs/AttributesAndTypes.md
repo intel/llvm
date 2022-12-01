@@ -656,11 +656,16 @@ default-constructed value for the C++ storage type. For example, `Optional<int>`
 will be set to `llvm::None` and `Attribute` will be set to `nullptr`. The
 presence of these parameters is tested by comparing them to their "null" values.
 
-Only optional parameters or directives that only capture optional parameters can
-be used in optional groups. An optional group is a set of elements optionally
-printed based on the presence of an anchor. The group in which the anchor is
-placed is printed if it is present, otherwise the other one is printed. Suppose
-parameter `a` is an `IntegerAttr`.
+An optional group is a set of elements optionally printed based on the presence
+of an anchor. Only optional parameters or directives that only capture optional
+parameters can be used in optional groups. The group in which the anchor is
+placed is printed if it is present, otherwise the other one is printed. If a
+directive that captures more than one optional parameter is used as the anchor,
+the optional group is printed if any of the captured parameters is present. For
+example, a `custom` directive may only be used as an optional group anchor if it
+captures at least one optional parameter.
+
+Suppose parameter `a` is an `IntegerAttr`.
 
 ```
 ( `(` $a^ `)` ) : (`x`)?
@@ -757,8 +762,9 @@ Attribute and type assembly formats have the following directives:
 
 ###### `params` Directive
 
-This directive is used to refer to all parameters of an attribute or type. When
-used as a top-level directive, `params` generates a parser and printer for a
+This directive is used to refer to all parameters of an attribute or type, except
+for the attribute self type (which is handled separately from normal parameters).
+When used as a top-level directive, `params` generates a parser and printer for a
 comma-separated list of the parameters. For example:
 
 ```tablegen
@@ -954,6 +960,8 @@ User defined storage classes must adhere to the following:
 - Provide a method to hash an instance of the `KeyTy`. (Note: This is not
   necessary if an `llvm::DenseMapInfo<KeyTy>` specialization exists)
   - `static llvm::hash_code hashKey(const KeyTy &)`
+- Provide a method to generate the `KeyTy` from an instance of the storage class.
+  - `static KeyTy getAsKey()`
 
 Let's look at an example:
 
@@ -990,6 +998,11 @@ struct ComplexTypeStorage : public TypeStorage {
   static ComplexTypeStorage *construct(StorageAllocator &allocator, const KeyTy &key) {
     return new (allocator.allocate<ComplexTypeStorage>())
         ComplexTypeStorage(key.first, key.second);
+  }
+
+  /// Construct an instance of the key from this storage class.
+  KeyTy getAsKey() const {
+    return KeyTy(nonZeroParam, integerType);
   }
 
   /// The parametric data held by the storage class.

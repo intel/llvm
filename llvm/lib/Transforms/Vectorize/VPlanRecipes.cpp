@@ -683,7 +683,10 @@ void VPWidenRecipe::print(raw_ostream &O, const Twine &Indent,
                           VPSlotTracker &SlotTracker) const {
   O << Indent << "WIDEN ";
   printAsOperand(O, SlotTracker);
-  O << " = " << getUnderlyingInstr()->getOpcodeName() << " ";
+  const Instruction *UI = getUnderlyingInstr();
+  O << " = " << UI->getOpcodeName() << " ";
+  if (auto *Cmp = dyn_cast<CmpInst>(UI))
+    O << CmpInst::getPredicateName(Cmp->getPredicate()) << " ";
   printOperands(O, SlotTracker);
 }
 
@@ -720,7 +723,7 @@ bool VPScalarIVStepsRecipe::isCanonical() const {
   if (CanIV->getStartValue() != getStartValue())
     return false;
   auto *StepVPV = getStepValue();
-  if (StepVPV->getDef())
+  if (StepVPV->hasDefiningRecipe())
     return false;
   auto *StepC = dyn_cast_or_null<ConstantInt>(StepVPV->getLiveInIRValue());
   return StepC && StepC->isOne();

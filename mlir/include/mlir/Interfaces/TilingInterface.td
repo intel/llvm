@@ -26,21 +26,6 @@ def TilingInterface : OpInterface<"TilingInterface"> {
   let methods = [
       InterfaceMethod<
         /*desc=*/[{
-          Returns a list of operands into which the result of the
-          tiled implementation is written into. With `tensor`
-          operands, this will be used as the initial tensor into which
-          the tiled results are inserted into. With `memref` operands,
-          this will be the operand into which the result of the tiled
-          operation is written into.
-        }],
-        /*retType=*/"SmallVector<Value>",
-        /*methodName=*/"getDestinationOperands",
-        /*args=*/(ins "OpBuilder &":$b),
-        /*methodBody=*/"",
-        /*defaultImplementation=*/"return ValueRange{};"
-      >,
-      InterfaceMethod<
-        /*desc=*/[{
           Returns a list of iterator types that describe the number of loops.
         }],
         /*retType=*/"SmallVector<utils::IteratorType>",
@@ -169,5 +154,73 @@ def TilingInterface : OpInterface<"TilingInterface"> {
         }]
       >
   ];  
+}
+
+def PartialReductionOpInterface : OpInterface<"PartialReductionOpInterface"> {
+  let description = [{
+    Interface for allowing operations to expose information needed to
+    tile reductions using partial reduction followed by merge. This is
+    complementary to TilingInterface to tile reductions.
+  }];
+  let cppNamespace = "::mlir";
+  let methods = [
+      InterfaceMethod<
+        /*desc=*/[{
+          Method to generate a tensor initalized with the identity value of the
+          operation reduction. The tensor shape is equal to operation result
+          shape with new dimension for each non zero tile size.
+        }],
+        /*retType=*/"FailureOr<Operation*>",
+        /*methodName=*/"generateInitialTensorForPartialReduction",
+        /*args=*/(ins
+            "OpBuilder &":$b,
+            "Location ":$loc,
+            "ArrayRef<OpFoldResult>":$sizes,
+            "ArrayRef<int>":$reductionDim),
+        /*methodBody=*/"",
+        /*defaultImplementation=*/[{
+          return failure();
+        }]
+      >,
+      InterfaceMethod<
+        /*desc=*/[{
+          Method to generate a tiled version of the operation where the tiled
+          reduction dimension are converted to parallel dimensions with a size
+          less or equal to the tile size. This is meant to be used with
+          `mergeReductions` method which will combine the partial reductions.
+        }],
+        /*retType=*/"Operation*",
+        /*methodName=*/"tileToPartialReduction",
+        /*args=*/(ins
+            "OpBuilder &":$b,
+            "Location ":$loc,
+            "ValueRange":$init,
+            "ArrayRef<OpFoldResult>":$offsets,
+            "ArrayRef<OpFoldResult>":$sizes,
+            "ArrayRef<int>":$reductionDims),
+        /*methodBody=*/"",
+        /*defaultImplementation=*/[{
+          return nullptr;
+        }]
+      >,
+      InterfaceMethod<
+        /*desc=*/[{
+          Method to merge partial reductions for an operation that has been
+          tiled along the reduction dimensions. This will only apply the
+          reduction the operation.
+        }],
+        /*retType=*/"Operation*",
+        /*methodName=*/"mergeReductions",
+        /*args=*/(ins
+            "OpBuilder &":$b,
+            "Location ":$loc,
+            "ValueRange":$partialReduce,
+            "ArrayRef<int>":$reductionDim),
+        /*methodBody=*/"",
+        /*defaultImplementation=*/[{
+          return nullptr;
+        }]
+      >
+  ];
 }
 #endif // MLIR_TILINGINTERFACE

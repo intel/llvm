@@ -1,4 +1,4 @@
-//===--- InterpState.cpp - Interpreter for the constexpr VM -----*- C++ -*-===//
+//===------- Interpcpp - Interpreter for the constexpr VM ------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -51,27 +51,6 @@ static bool Ret(InterpState &S, CodePtr &PC, APValue &Result) {
       return false;
   }
   return true;
-}
-
-template <PrimType Name, class T = typename PrimConv<Name>::T>
-static bool Call(InterpState &S, CodePtr &PC, const Function *Func) {
-  S.Current =
-      new InterpFrame(S, const_cast<Function *>(Func), S.Current, PC, {});
-  APValue CallResult;
-  // Note that we cannot assert(CallResult.hasValue()) here since
-  // Ret() above only sets the APValue if the curent frame doesn't
-  // have a caller set.
-  return Interpret(S, CallResult);
-}
-
-static bool CallVoid(InterpState &S, CodePtr &PC, const Function *Func) {
-  APValue VoidResult;
-  S.Current =
-      new InterpFrame(S, const_cast<Function *>(Func), S.Current, PC, {});
-  bool Success = Interpret(S, VoidResult);
-  assert(VoidResult.isAbsent());
-
-  return Success;
 }
 
 static bool RetVoid(InterpState &S, CodePtr &PC, APValue &Result) {
@@ -222,8 +201,8 @@ bool CheckArray(InterpState &S, CodePtr OpPC, const Pointer &Ptr) {
 
 bool CheckLive(InterpState &S, CodePtr OpPC, const Pointer &Ptr,
                AccessKinds AK) {
-  const auto &Src = S.Current->getSource(OpPC);
   if (Ptr.isZero()) {
+    const auto &Src = S.Current->getSource(OpPC);
 
     if (Ptr.isField())
       S.FFDiag(Src, diag::note_constexpr_null_subobject) << CSK_Field;
@@ -234,6 +213,7 @@ bool CheckLive(InterpState &S, CodePtr OpPC, const Pointer &Ptr,
   }
 
   if (!Ptr.isLive()) {
+    const auto &Src = S.Current->getSource(OpPC);
     bool IsTemp = Ptr.isTemporary();
 
     S.FFDiag(Src, diag::note_constexpr_lifetime_ended, 1) << AK << !IsTemp;

@@ -57,9 +57,8 @@ using namespace clang;
 //===----------------------------------------------------------------------===//
 
 MacroInfo *Preprocessor::AllocateMacroInfo(SourceLocation L) {
-  auto *MIChain = new (BP) MacroInfoChain{L, MIChainHead};
-  MIChainHead = MIChain;
-  return &MIChain->MI;
+  static_assert(std::is_trivially_destructible_v<MacroInfo>, "");
+  return new (BP) MacroInfo(L);
 }
 
 DefMacroDirective *Preprocessor::AllocateDefMacroDirective(MacroInfo *MI,
@@ -909,6 +908,10 @@ Preprocessor::getHeaderToIncludeForDiagnostics(SourceLocation IncLoc,
         InPrivateHeader = true;
         continue;
       }
+
+      // Don't suggest explicitly excluded headers.
+      if (Header.getRole() == ModuleMap::ExcludedHeader)
+        continue;
 
       // We'll suggest including textual headers below if they're
       // include-guarded.
@@ -2238,14 +2241,14 @@ Preprocessor::ImportAction Preprocessor::HandleHeaderIncludeOrImport(
     }
   }
   // Maybe a usable clang header module.
-  bool UsableHeaderModule =
+  bool UsableClangHeaderModule =
       (getLangOpts().CPlusPlusModules || getLangOpts().Modules) && SM &&
       !SM->isHeaderUnit();
 
   // Determine whether we should try to import the module for this #include, if
   // there is one. Don't do so if precompiled module support is disabled or we
   // are processing this module textually (because we're building the module).
-  if (MaybeTranslateInclude && (UsableHeaderUnit || UsableHeaderModule)) {
+  if (MaybeTranslateInclude && (UsableHeaderUnit || UsableClangHeaderModule)) {
     // If this include corresponds to a module but that module is
     // unavailable, diagnose the situation and bail out.
     // FIXME: Remove this; loadModule does the same check (but produces
@@ -2284,7 +2287,7 @@ Preprocessor::ImportAction Preprocessor::HandleHeaderIncludeOrImport(
     if (Imported) {
       Action = Import;
     } else if (Imported.isMissingExpected()) {
-      markModuleAsAffecting(
+      markClangModuleAsAffecting(
           static_cast<Module *>(Imported)->getTopLevelModule());
       // We failed to find a submodule that we assumed would exist (because it
       // was in the directory of an umbrella header, for instance), but no

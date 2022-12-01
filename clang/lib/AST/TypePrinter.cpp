@@ -49,109 +49,103 @@ using namespace clang;
 
 namespace {
 
-  /// RAII object that enables printing of the ARC __strong lifetime
-  /// qualifier.
-  class IncludeStrongLifetimeRAII {
-    PrintingPolicy &Policy;
-    bool Old;
+/// RAII object that enables printing of the ARC __strong lifetime
+/// qualifier.
+class IncludeStrongLifetimeRAII {
+  PrintingPolicy &Policy;
+  bool Old;
 
-  public:
-    explicit IncludeStrongLifetimeRAII(PrintingPolicy &Policy)
-        : Policy(Policy), Old(Policy.SuppressStrongLifetime) {
-        if (!Policy.SuppressLifetimeQualifiers)
-          Policy.SuppressStrongLifetime = false;
-    }
+public:
+  explicit IncludeStrongLifetimeRAII(PrintingPolicy &Policy)
+      : Policy(Policy), Old(Policy.SuppressStrongLifetime) {
+    if (!Policy.SuppressLifetimeQualifiers)
+      Policy.SuppressStrongLifetime = false;
+  }
 
-    ~IncludeStrongLifetimeRAII() {
-      Policy.SuppressStrongLifetime = Old;
-    }
-  };
+  ~IncludeStrongLifetimeRAII() { Policy.SuppressStrongLifetime = Old; }
+};
 
-  class ParamPolicyRAII {
-    PrintingPolicy &Policy;
-    bool Old;
+class ParamPolicyRAII {
+  PrintingPolicy &Policy;
+  bool Old;
 
-  public:
-    explicit ParamPolicyRAII(PrintingPolicy &Policy)
-        : Policy(Policy), Old(Policy.SuppressSpecifiers) {
-      Policy.SuppressSpecifiers = false;
-    }
+public:
+  explicit ParamPolicyRAII(PrintingPolicy &Policy)
+      : Policy(Policy), Old(Policy.SuppressSpecifiers) {
+    Policy.SuppressSpecifiers = false;
+  }
 
-    ~ParamPolicyRAII() {
-      Policy.SuppressSpecifiers = Old;
-    }
-  };
+  ~ParamPolicyRAII() { Policy.SuppressSpecifiers = Old; }
+};
 
-  class DefaultTemplateArgsPolicyRAII {
-    PrintingPolicy &Policy;
-    bool Old;
+class DefaultTemplateArgsPolicyRAII {
+  PrintingPolicy &Policy;
+  bool Old;
 
-  public:
-    explicit DefaultTemplateArgsPolicyRAII(PrintingPolicy &Policy)
-        : Policy(Policy), Old(Policy.SuppressDefaultTemplateArgs) {
-      Policy.SuppressDefaultTemplateArgs = false;
-    }
+public:
+  explicit DefaultTemplateArgsPolicyRAII(PrintingPolicy &Policy)
+      : Policy(Policy), Old(Policy.SuppressDefaultTemplateArgs) {
+    Policy.SuppressDefaultTemplateArgs = false;
+  }
 
-    ~DefaultTemplateArgsPolicyRAII() {
-      Policy.SuppressDefaultTemplateArgs = Old;
-    }
-  };
+  ~DefaultTemplateArgsPolicyRAII() { Policy.SuppressDefaultTemplateArgs = Old; }
+};
 
-  class ElaboratedTypePolicyRAII {
-    PrintingPolicy &Policy;
-    bool SuppressTagKeyword;
-    bool SuppressScope;
+class ElaboratedTypePolicyRAII {
+  PrintingPolicy &Policy;
+  bool SuppressTagKeyword;
+  bool SuppressScope;
 
-  public:
-    explicit ElaboratedTypePolicyRAII(PrintingPolicy &Policy) : Policy(Policy) {
-      SuppressTagKeyword = Policy.SuppressTagKeyword;
-      SuppressScope = Policy.SuppressScope;
-      Policy.SuppressTagKeyword = true;
-      Policy.SuppressScope = true;
-    }
+public:
+  explicit ElaboratedTypePolicyRAII(PrintingPolicy &Policy) : Policy(Policy) {
+    SuppressTagKeyword = Policy.SuppressTagKeyword;
+    SuppressScope = Policy.SuppressScope;
+    Policy.SuppressTagKeyword = true;
+    Policy.SuppressScope = true;
+  }
 
-    ~ElaboratedTypePolicyRAII() {
-      Policy.SuppressTagKeyword = SuppressTagKeyword;
-      Policy.SuppressScope = SuppressScope;
-    }
-  };
+  ~ElaboratedTypePolicyRAII() {
+    Policy.SuppressTagKeyword = SuppressTagKeyword;
+    Policy.SuppressScope = SuppressScope;
+  }
+};
 
-  class TypePrinter {
-    PrintingPolicy Policy;
-    unsigned Indentation;
-    bool HasEmptyPlaceHolder = false;
-    bool InsideCCAttribute = false;
+class TypePrinter {
+  PrintingPolicy Policy;
+  unsigned Indentation;
+  bool HasEmptyPlaceHolder = false;
+  bool InsideCCAttribute = false;
 
-  public:
-    explicit TypePrinter(const PrintingPolicy &Policy, unsigned Indentation = 0)
-        : Policy(Policy), Indentation(Indentation) {}
+public:
+  explicit TypePrinter(const PrintingPolicy &Policy, unsigned Indentation = 0)
+      : Policy(Policy), Indentation(Indentation) {}
 
-    void print(const Type *ty, Qualifiers qs, raw_ostream &OS,
-               StringRef PlaceHolder);
-    void print(QualType T, raw_ostream &OS, StringRef PlaceHolder);
+  void print(const Type *ty, Qualifiers qs, raw_ostream &OS,
+             StringRef PlaceHolder);
+  void print(QualType T, raw_ostream &OS, StringRef PlaceHolder);
 
-    static bool canPrefixQualifiers(const Type *T, bool &NeedARCStrongQualifier);
-    void spaceBeforePlaceHolder(raw_ostream &OS);
-    void printTypeSpec(NamedDecl *D, raw_ostream &OS);
-    void printTemplateId(const TemplateSpecializationType *T, raw_ostream &OS,
-                         bool FullyQualify);
+  static bool canPrefixQualifiers(const Type *T, bool &NeedARCStrongQualifier);
+  void spaceBeforePlaceHolder(raw_ostream &OS);
+  void printTypeSpec(NamedDecl *D, raw_ostream &OS);
+  void printTemplateId(const TemplateSpecializationType *T, raw_ostream &OS,
+                       bool FullyQualify);
 
-    void printBefore(QualType T, raw_ostream &OS);
-    void printAfter(QualType T, raw_ostream &OS);
-    void AppendScope(DeclContext *DC, raw_ostream &OS,
-                     DeclarationName NameInScope);
-    void printTag(TagDecl *T, raw_ostream &OS);
-    void printFunctionAfter(const FunctionType::ExtInfo &Info, raw_ostream &OS);
+  void printBefore(QualType T, raw_ostream &OS);
+  void printAfter(QualType T, raw_ostream &OS);
+  void AppendScope(DeclContext *DC, raw_ostream &OS,
+                   DeclarationName NameInScope);
+  void printTag(TagDecl *T, raw_ostream &OS);
+  void printFunctionAfter(const FunctionType::ExtInfo &Info, raw_ostream &OS);
 #define ABSTRACT_TYPE(CLASS, PARENT)
-#define TYPE(CLASS, PARENT) \
-    void print##CLASS##Before(const CLASS##Type *T, raw_ostream &OS); \
-    void print##CLASS##After(const CLASS##Type *T, raw_ostream &OS);
+#define TYPE(CLASS, PARENT)                                                    \
+  void print##CLASS##Before(const CLASS##Type *T, raw_ostream &OS);            \
+  void print##CLASS##After(const CLASS##Type *T, raw_ostream &OS);
 #include "clang/AST/TypeNodes.inc"
 
-  private:
-    void printBefore(const Type *ty, Qualifiers qs, raw_ostream &OS);
-    void printAfter(const Type *ty, Qualifiers qs, raw_ostream &OS);
-  };
+private:
+  void printBefore(const Type *ty, Qualifiers qs, raw_ostream &OS);
+  void printAfter(const Type *ty, Qualifiers qs, raw_ostream &OS);
+};
 
 } // namespace
 
@@ -1119,7 +1113,8 @@ void TypePrinter::printTypedefAfter(const TypedefType *T, raw_ostream &OS) {}
 
 void TypePrinter::printTypeOfExprBefore(const TypeOfExprType *T,
                                         raw_ostream &OS) {
-  OS << (T->isUnqual() ? "typeof_unqual " : "typeof ");
+  OS << (T->getKind() == TypeOfKind::Unqualified ? "typeof_unqual "
+                                                 : "typeof ");
   if (T->getUnderlyingExpr())
     T->getUnderlyingExpr()->printPretty(OS, nullptr, Policy);
   spaceBeforePlaceHolder(OS);
@@ -1129,7 +1124,8 @@ void TypePrinter::printTypeOfExprAfter(const TypeOfExprType *T,
                                        raw_ostream &OS) {}
 
 void TypePrinter::printTypeOfBefore(const TypeOfType *T, raw_ostream &OS) {
-  OS << (T->isUnqual() ? "typeof_unqual(" : "typeof(");
+  OS << (T->getKind() == TypeOfKind::Unqualified ? "typeof_unqual("
+                                                 : "typeof(");
   print(T->getUnmodifiedType(), OS, StringRef());
   OS << ')';
   spaceBeforePlaceHolder(OS);
@@ -1471,14 +1467,27 @@ void TypePrinter::printSubstTemplateTypeParmPackBefore(
                                         const SubstTemplateTypeParmPackType *T,
                                         raw_ostream &OS) {
   IncludeStrongLifetimeRAII Strong(Policy);
-  printTemplateTypeParmBefore(T->getReplacedParameter(), OS);
+  if (const TemplateTypeParmDecl *D = T->getReplacedParameter()) {
+    if (D && D->isImplicit()) {
+      if (auto *TC = D->getTypeConstraint()) {
+        TC->print(OS, Policy);
+        OS << ' ';
+      }
+      OS << "auto";
+    } else if (IdentifierInfo *Id = D->getIdentifier())
+      OS << (Policy.CleanUglifiedParameters ? Id->deuglifiedName()
+                                            : Id->getName());
+    else
+      OS << "type-parameter-" << D->getDepth() << '-' << D->getIndex();
+
+    spaceBeforePlaceHolder(OS);
+  }
 }
 
 void TypePrinter::printSubstTemplateTypeParmPackAfter(
                                         const SubstTemplateTypeParmPackType *T,
                                         raw_ostream &OS) {
   IncludeStrongLifetimeRAII Strong(Policy);
-  printTemplateTypeParmAfter(T->getReplacedParameter(), OS);
 }
 
 void TypePrinter::printTemplateId(const TemplateSpecializationType *T,
@@ -1740,6 +1749,7 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
   case attr::OpenCLLocalAddressSpace:
   case attr::OpenCLConstantAddressSpace:
   case attr::OpenCLGenericAddressSpace:
+  case attr::HLSLGroupSharedAddressSpace:
     // FIXME: Update printAttributedBefore to print these once we generate
     // AttributedType nodes for them.
     break;
@@ -2003,11 +2013,11 @@ static bool isSubstitutedType(ASTContext &Ctx, QualType T, QualType Pattern,
     if (!isSubstitutedTemplateArgument(Ctx, Template, PTST->getTemplateName(),
                                        Args, Depth))
       return false;
-    if (TemplateArgs.size() != PTST->getNumArgs())
+    if (TemplateArgs.size() != PTST->template_arguments().size())
       return false;
     for (unsigned I = 0, N = TemplateArgs.size(); I != N; ++I)
-      if (!isSubstitutedTemplateArgument(Ctx, TemplateArgs[I], PTST->getArg(I),
-                                         Args, Depth))
+      if (!isSubstitutedTemplateArgument(
+              Ctx, TemplateArgs[I], PTST->template_arguments()[I], Args, Depth))
         return false;
     return true;
   }
@@ -2239,6 +2249,8 @@ std::string Qualifiers::getAddrSpaceAsString(LangAS AS) {
     return "__uptr __ptr32";
   case LangAS::ptr64:
     return "__ptr64";
+  case LangAS::hlsl_groupshared:
+    return "groupshared";
   default:
     return std::to_string(toTargetAddressSpace(AS));
   }

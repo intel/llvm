@@ -387,6 +387,10 @@ inline void DoNotOptimize(Tp const& value) {
 #  define TEST_HAS_NO_FILESYSTEM_LIBRARY
 #endif
 
+#if defined(_LIBCPP_HAS_NO_FSTREAM)
+#  define TEST_HAS_NO_FSTREAM
+#endif
+
 #if defined(_LIBCPP_HAS_NO_FGETPOS_FSETPOS)
 #  define TEST_HAS_NO_FGETPOS_FSETPOS
 #endif
@@ -427,6 +431,10 @@ inline void DoNotOptimize(Tp const& value) {
 #define TEST_NO_UNIQUE_ADDRESS [[no_unique_address]]
 #else
 #define TEST_NO_UNIQUE_ADDRESS
+#endif
+
+#ifdef _LIBCPP_SHORT_WCHAR
+#  define TEST_SHORT_WCHAR
 #endif
 
 #endif // SUPPORT_TEST_MACROS_HPP

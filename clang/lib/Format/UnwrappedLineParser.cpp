@@ -197,6 +197,7 @@ public:
     PreBlockLine = std::move(Parser.Line);
     Parser.Line = std::make_unique<UnwrappedLine>();
     Parser.Line->Level = PreBlockLine->Level;
+    Parser.Line->PPLevel = PreBlockLine->PPLevel;
     Parser.Line->InPPDirective = PreBlockLine->InPPDirective;
     Parser.Line->InMacroBody = PreBlockLine->InMacroBody;
   }
@@ -833,6 +834,9 @@ bool UnwrappedLineParser::mightFitOnOneLine(
     delete SavedToken.Tok;
   }
 
+  // If these change PPLevel needs to be used for get correct indentation.
+  assert(!Line.InMacroBody);
+  assert(!Line.InPPDirective);
   return Line.Level * Style.IndentWidth + Length <= ColumnLimit;
 }
 
@@ -920,6 +924,9 @@ FormatToken *UnwrappedLineParser::parseBlock(
     return IfLBrace;
   }
 
+  const bool IsFunctionRBrace =
+      FormatTok->is(tok::r_brace) && Tok->is(TT_FunctionLBrace);
+
   auto RemoveBraces = [=]() mutable {
     if (!SimpleBlock)
       return false;
@@ -959,6 +966,17 @@ FormatToken *UnwrappedLineParser::parseBlock(
 
   // Munch the closing brace.
   nextToken(/*LevelDifference=*/-AddLevels);
+
+  // When this is a function block and there is an unnecessary semicolon
+  // afterwards then mark it as optional (so the RemoveSemi pass can get rid of
+  // it later).
+  if (Style.RemoveSemicolon && IsFunctionRBrace) {
+    while (FormatTok->is(tok::semi)) {
+      FormatTok->Optional = true;
+      nextToken();
+    }
+  }
+
   HandleVerilogBlockLabel();
 
   if (MacroBlock && FormatTok->is(tok::l_paren))
@@ -1094,15 +1112,16 @@ void UnwrappedLineParser::parsePPDirective() {
     parsePPIf(/*IfDef=*/true);
     break;
   case tok::pp_else:
-    parsePPElse();
-    break;
   case tok::pp_elifdef:
   case tok::pp_elifndef:
   case tok::pp_elif:
-    parsePPElIf();
+    parsePPElse();
     break;
   case tok::pp_endif:
     parsePPEndIf();
+    break;
+  case tok::pp_pragma:
+    parsePPPragma();
     break;
   default:
     parsePPUnknown();
@@ -1127,12 +1146,10 @@ void UnwrappedLineParser::conditionalCompilationStart(bool Unreachable) {
   ++PPBranchLevel;
   assert(PPBranchLevel >= 0 && PPBranchLevel <= (int)PPLevelBranchIndex.size());
   if (PPBranchLevel == (int)PPLevelBranchIndex.size()) {
-    // If the first branch is unreachable, set the BranchIndex to 1.  This way
-    // the next branch will be parsed if there is one.
-    PPLevelBranchIndex.push_back(Unreachable ? 1 : 0);
+    PPLevelBranchIndex.push_back(0);
     PPLevelBranchCount.push_back(0);
   }
-  PPChainBranchIndex.push(0);
+  PPChainBranchIndex.push(Unreachable ? -1 : 0);
   bool Skip = PPLevelBranchIndex[PPBranchLevel] > 0;
   conditionalCompilationCondition(Unreachable || Skip);
 }
@@ -1198,14 +1215,15 @@ void UnwrappedLineParser::parsePPElse() {
   // If a potential include guard has an #else, it's not an include guard.
   if (IncludeGuard == IG_Defined && PPBranchLevel == 0)
     IncludeGuard = IG_Rejected;
+  // Don't crash when there is an #else without an #if.
+  assert(PPBranchLevel >= -1);
+  if (PPBranchLevel == -1)
+    conditionalCompilationStart(/*Unreachable=*/true);
   conditionalCompilationAlternative();
-  if (PPBranchLevel > -1)
-    --PPBranchLevel;
+  --PPBranchLevel;
   parsePPUnknown();
   ++PPBranchLevel;
 }
-
-void UnwrappedLineParser::parsePPElIf() { parsePPElse(); }
 
 void UnwrappedLineParser::parsePPEndIf() {
   conditionalCompilationEnd();
@@ -1256,6 +1274,9 @@ void UnwrappedLineParser::parsePPDefine() {
     Line->Level += PPBranchLevel + 1;
   addUnwrappedLine();
   ++Line->Level;
+
+  Line->PPLevel = PPBranchLevel + (IncludeGuard == IG_Defined ? 0 : 1);
+  assert((int)Line->PPLevel >= 0);
   Line->InMacroBody = true;
 
   // Errors during a preprocessor directive can only affect the layout of the
@@ -1264,6 +1285,11 @@ void UnwrappedLineParser::parsePPDefine() {
   // re-indentation if there was a structural error) within the macro
   // definition.
   parseFile();
+}
+
+void UnwrappedLineParser::parsePPPragma() {
+  Line->InPragmaDirective = true;
+  parsePPUnknown();
 }
 
 void UnwrappedLineParser::parsePPUnknown() {

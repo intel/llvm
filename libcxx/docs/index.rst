@@ -93,6 +93,7 @@ reasons, but some of the major ones are:
   Further, both projects are apparently abandoned: STLport 5.2.1 was
   released in Oct'08, and STDCXX 4.2.1 in May'08.
 
+.. _SupportedPlatforms:
 
 Platform and Compiler Support
 =============================
@@ -187,7 +188,7 @@ Build Bots and Test Coverage
 ============================
 
 * `Buildkite CI pipeline <https://buildkite.com/llvm-project/libcxx-ci>`_
-* `LLVM Buildbot Builders <http://lab.llvm.org:8011>`_
+* `LLVM Buildbot Builders <https://lab.llvm.org/buildbot>`_
 * :ref:`Adding New CI Jobs <AddingNewCIJobs>`
 
 

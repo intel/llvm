@@ -92,16 +92,8 @@ public:
   }
 
   constexpr bool has_value() const noexcept { return hasVal; }
-  LLVM_DEPRECATED("Use has_value instead.", "has_value")
-  constexpr bool hasValue() const noexcept {
-    return hasVal;
-  }
 
   T &value() &noexcept {
-    assert(hasVal);
-    return val;
-  }
-  LLVM_DEPRECATED("Use value instead.", "value") T &getValue() &noexcept {
     assert(hasVal);
     return val;
   }
@@ -109,16 +101,7 @@ public:
     assert(hasVal);
     return val;
   }
-  LLVM_DEPRECATED("Use value instead.", "value")
-  constexpr T const &getValue() const &noexcept {
-    assert(hasVal);
-    return val;
-  }
   T &&value() &&noexcept {
-    assert(hasVal);
-    return std::move(val);
-  }
-  LLVM_DEPRECATED("Use value instead.", "value") T &&getValue() &&noexcept {
     assert(hasVal);
     return std::move(val);
   }
@@ -207,16 +190,8 @@ public:
   }
 
   constexpr bool has_value() const noexcept { return hasVal; }
-  LLVM_DEPRECATED("Use has_value instead.", "has_value")
-  constexpr bool hasValue() const noexcept {
-    return hasVal;
-  }
 
   T &value() &noexcept {
-    assert(hasVal);
-    return val;
-  }
-  LLVM_DEPRECATED("Use value instead.", "value") T &getValue() &noexcept {
     assert(hasVal);
     return val;
   }
@@ -224,16 +199,7 @@ public:
     assert(hasVal);
     return val;
   }
-  LLVM_DEPRECATED("Use value instead.", "value")
-  constexpr T const &getValue() const &noexcept {
-    assert(hasVal);
-    return val;
-  }
   T &&value() &&noexcept {
-    assert(hasVal);
-    return std::move(val);
-  }
-  LLVM_DEPRECATED("Use value instead.", "value") T &&getValue() &&noexcept {
     assert(hasVal);
     return std::move(val);
   }
@@ -387,6 +353,9 @@ public:
     return None;
   }
 };
+
+template<typename T>
+Optional(const T&) -> Optional<T>;
 
 template <class T> llvm::hash_code hash_value(const Optional<T> &O) {
   return O ? hash_combine(true, *O) : hash_value(false);

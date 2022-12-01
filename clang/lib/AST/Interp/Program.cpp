@@ -64,6 +64,7 @@ unsigned Program::createGlobalString(const StringLiteral *S) {
   unsigned Sz = Desc->getAllocSize();
   auto *G = new (Allocator, Sz) Global(Desc, /*isStatic=*/true,
                                        /*isExtern=*/false);
+  G->block()->invokeCtor();
   Globals.push_back(G);
 
   // Construct the string in storage.
@@ -220,6 +221,11 @@ Record *Program::getOrCreateRecord(const RecordDecl *RD) {
     return It->second;
   }
 
+  // We insert nullptr now and replace that later, so recursive calls
+  // to this function with the same RecordDecl don't run into
+  // infinite recursion.
+  Records.insert({RD, nullptr});
+
   // Number of bytes required by fields and base classes.
   unsigned BaseSize = 0;
   // Number of bytes required by virtual base.
@@ -293,7 +299,7 @@ Record *Program::getOrCreateRecord(const RecordDecl *RD) {
 
   Record *R = new (Allocator) Record(RD, std::move(Bases), std::move(Fields),
                                      std::move(VirtBases), VirtSize, BaseSize);
-  Records.insert({RD, R});
+  Records[RD] = R;
   return R;
 }
 

@@ -118,10 +118,10 @@ def ConvertArithToSPIRV : Pass<"convert-arith-to-spirv"> {
   let constructor = "mlir::arith::createConvertArithToSPIRVPass()";
   let dependentDialects = ["spirv::SPIRVDialect"];
   let options = [
-    Option<"emulateNon32BitScalarTypes", "emulate-non-32-bit-scalar-types",
+    Option<"emulateLT32BitScalarTypes", "emulate-lt-32-bit-scalar-types",
            "bool", /*default=*/"true",
-           "Emulate non-32-bit scalar types with 32-bit ones if "
-           "missing native support">,
+           "Emulate narrower scalar types with 32-bit ones if not supported by "
+           "the target">,
     Option<"enableFastMath", "enable-fast-math",
            "bool", /*default=*/"false",
            "Enable fast math mode (assuming no NaN and infinity for floating "
@@ -155,6 +155,7 @@ def ConvertAsyncToLLVM : Pass<"convert-async-to-llvm", "ModuleOp"> {
     "arith::ArithDialect",
     "async::AsyncDialect",
     "LLVM::LLVMDialect",
+    "func::FuncDialect",
   ];
 }
 
@@ -259,10 +260,10 @@ def ConvertControlFlowToSPIRV : Pass<"convert-cf-to-spirv"> {
   let constructor = "mlir::createConvertControlFlowToSPIRVPass()";
   let dependentDialects = ["spirv::SPIRVDialect"];
   let options = [
-    Option<"emulateNon32BitScalarTypes", "emulate-non-32-bit-scalar-types",
+    Option<"emulateLT32BitScalarTypes", "emulate-lt-32-bit-scalar-types",
            "bool", /*default=*/"true",
-           "Emulate non-32-bit scalar types with 32-bit ones if "
-           "missing native support">
+           "Emulate narrower scalar types with 32-bit ones if not supported by"
+           " the target">
   ];
 }
 
@@ -320,10 +321,10 @@ def ConvertFuncToSPIRV : Pass<"convert-func-to-spirv"> {
   let constructor = "mlir::createConvertFuncToSPIRVPass()";
   let dependentDialects = ["spirv::SPIRVDialect"];
   let options = [
-    Option<"emulateNon32BitScalarTypes", "emulate-non-32-bit-scalar-types",
+    Option<"emulateLT32BitScalarTypes", "emulate-lt-32-bit-scalar-types",
            "bool", /*default=*/"true",
-           "Emulate non-32-bit scalar types with 32-bit ones if "
-           "missing native support">
+           "Emulate narrower scalar types with 32-bit ones if not supported by"
+           " the target">
   ];
 }
 
@@ -437,6 +438,29 @@ def ConvertVulkanLaunchFuncToVulkanCalls
   }];
   let constructor = "mlir::createConvertVulkanLaunchFuncToVulkanCallsPass()";
   let dependentDialects = ["LLVM::LLVMDialect"];
+}
+
+//===----------------------------------------------------------------------===//
+// ConvertIndexToLLVMPass
+//===----------------------------------------------------------------------===//
+
+def ConvertIndexToLLVMPass : Pass<"convert-index-to-llvm"> {
+  let summary = "Lower the `index` dialect to the `llvm` dialect.";
+  let description = [{
+    This pass lowers Index dialect operations to LLVM dialect operations.
+    Operation conversions are 1-to-1 except for the exotic divides: `ceildivs`,
+    `ceildivu`, and `floordivs`, which expand to series of LLVM operations.
+    Importantly, the index bitwidth should be correctly set to the target
+    pointer width via `index-bitwidth`.
+  }];
+
+  let dependentDialects = ["::mlir::LLVM::LLVMDialect"];
+
+  let options = [
+    Option<"indexBitwidth", "index-bitwidth", "unsigned",
+           /*default=kDeriveIndexBitwidthFromDataLayout*/"0",
+           "Bitwidth of the index type, 0 to use size of machine word">,
+  ];
 }
 
 //===----------------------------------------------------------------------===//
@@ -792,10 +816,10 @@ def ConvertTensorToSPIRV : Pass<"convert-tensor-to-spirv"> {
   let constructor = "mlir::createConvertTensorToSPIRVPass()";
   let dependentDialects = ["spirv::SPIRVDialect"];
   let options = [
-    Option<"emulateNon32BitScalarTypes", "emulate-non-32-bit-scalar-types",
+    Option<"emulateLT32BitScalarTypes", "emulate-lt-32-bit-scalar-types",
            "bool", /*default=*/"true",
-           "Emulate non-32-bit scalar types with 32-bit ones if "
-           "missing native support">
+           "Emulate narrower scalar types with 32-bit ones if not supported by"
+           " the target">
   ];
 }
 

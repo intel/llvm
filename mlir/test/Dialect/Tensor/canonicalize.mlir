@@ -115,12 +115,12 @@ func.func @fold_insert(%arg0 : index) -> (tensor<4xf32>) {
 // -----
 
 // CHECK-LABEL: func @extract_from_tensor.cast
-// CHECK-SAME: %[[TENSOR:.*]]: tensor<*xf32>
-func.func @extract_from_tensor.cast(%tensor: tensor<*xf32>) -> f32 {
+// CHECK-SAME: %[[TENSOR:.*]]: tensor<9xf32>
+func.func @extract_from_tensor.cast(%tensor: tensor<9xf32>) -> f32 {
   // CHECK-NEXT: %[[C0:.*]] = arith.constant 0 : index
   %c0 = arith.constant 0 : index
   // CHECK-NOT: tensor.cast
-  %casted = tensor.cast %tensor : tensor<*xf32> to tensor<?xf32>
+  %casted = tensor.cast %tensor : tensor<9xf32> to tensor<?xf32>
   // CHECK-NEXT: tensor.extract %[[TENSOR]][%[[C0]]]
   %result = tensor.extract %casted[%c0] : tensor<?xf32>
   return %result : f32
@@ -353,7 +353,7 @@ func.func @slice_canonicalize(%arg0 : tensor<?x?x?xf32>, %arg1 : index,
 //  CHECK-SAME:      [4, 1, %{{[a-zA-Z0-9_]+}}] [1, 1, 1]
 //  CHECK-SAME:      : tensor<?x?x?xf32> to tensor<4x1x?xf32>
 //       CHECK:   %[[RESULT:.+]] = tensor.cast %[[SLICE]]
-//       CHEKC:   return %[[RESULT]]
+//       CHECK:   return %[[RESULT]]
 
 // -----
 
@@ -372,7 +372,7 @@ func.func @rank_reducing_slice_canonicalize(%arg0 : tensor<?x?x?xf32>, %arg1 : i
 //  CHECK-SAME:      [4, 1, %{{[a-zA-Z0-9_]+}}] [1, 1, 1]
 //  CHECK-SAME:      : tensor<?x?x?xf32> to tensor<4x?xf32>
 //       CHECK:   %[[RESULT:.+]] = tensor.cast %[[SLICE]]
-//       CHEKC:   return %[[RESULT]]
+//       CHECK:   return %[[RESULT]]
 
 // -----
 
@@ -467,7 +467,7 @@ func.func @slice_to_insert_slice_canonicalize(%arg0 : tensor<?x?x?xf32>, %arg1 :
 //       CHECK:   %[[RESULT:.+]] = tensor.insert_slice %[[SLICE]]
 //  CHECK-SAME:      [0, %{{.+}}, 1] [4, 1, %{{.+}}] [1, 1, 1]
 //  CHECK-SAME:      : tensor<4x1x?xf32> into tensor<?x?x?xf32>
-//       CHEKC:   return %[[RESULT]]
+//       CHECK:   return %[[RESULT]]
 
 // -----
 
@@ -486,7 +486,7 @@ func.func @rank_reducing_insert_slice_canonicalize(%arg0 : tensor<?x?xf32>, %arg
 //       CHECK:   %[[RESULT:.+]] = tensor.insert_slice %[[CAST]]
 //  CHECK-SAME:      [0, %{{.+}}, 1] [4, 1, %{{.+}}] [1, 1, 1]
 //  CHECK-SAME:      : tensor<4x?xf32> into tensor<?x?x?xf32>
-//       CHEKC:   return %[[RESULT]]
+//       CHECK:   return %[[RESULT]]
 
 // -----
 
@@ -509,7 +509,7 @@ func.func @rank_reducing_slice_to_insert_slice_canonicalize(%arg0 : tensor<?x?x?
 //       CHECK:   %[[RESULT:.+]] = tensor.insert_slice %[[SLICE]] into %[[ARG3]]
 //  CHECK-SAME:      [0, %{{.+}}, 1] [4, 1, %{{.+}}] [1, 1, 1]
 //  CHECK-SAME:      : tensor<4x?xf32> into tensor<?x?x?xf32>
-//       CHEKC:   return %[[RESULT]]
+//       CHECK:   return %[[RESULT]]
 
 // -----
 

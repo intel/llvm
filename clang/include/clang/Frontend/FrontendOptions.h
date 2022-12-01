@@ -87,9 +87,6 @@ enum ActionKind {
   /// Generate pre-compiled module from a C++ module interface file.
   GenerateModuleInterface,
 
-  /// Generate pre-compiled module from a set of header files.
-  GenerateHeaderModule,
-
   /// Generate a C++20 header unit module from a header file.
   GenerateHeaderUnit,
 
@@ -453,6 +450,10 @@ public:
   // Currently this is only used as part of the `-extract-api` action.
   /// The name of the product the input files belong too.
   std::string ProductName;
+
+  // Currently this is only used as part of the `-extract-api` action.
+  /// The file providing a list of APIs to ignore when extracting documentation
+  std::string ExtractAPIIgnoresFile;
 
   /// Args to pass to the plugins
   std::map<std::string, std::vector<std::string>> PluginArgs;

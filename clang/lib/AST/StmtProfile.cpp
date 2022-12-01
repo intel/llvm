@@ -530,6 +530,15 @@ void OMPClauseProfiler::VisitOMPDynamicAllocatorsClause(
 void OMPClauseProfiler::VisitOMPAtomicDefaultMemOrderClause(
     const OMPAtomicDefaultMemOrderClause *C) {}
 
+void OMPClauseProfiler::VisitOMPAtClause(const OMPAtClause *C) {}
+
+void OMPClauseProfiler::VisitOMPSeverityClause(const OMPSeverityClause *C) {}
+
+void OMPClauseProfiler::VisitOMPMessageClause(const OMPMessageClause *C) {
+  if (C->getMessageString())
+    Profiler->VisitStmt(C->getMessageString());
+}
+
 void OMPClauseProfiler::VisitOMPScheduleClause(const OMPScheduleClause *C) {
   VistOMPClauseWithPreInit(C);
   if (auto *S = C->getChunkSize())
@@ -1014,6 +1023,9 @@ void StmtProfiler::VisitOMPTaskwaitDirective(const OMPTaskwaitDirective *S) {
   VisitOMPExecutableDirective(S);
 }
 
+void StmtProfiler::VisitOMPErrorDirective(const OMPErrorDirective *S) {
+  VisitOMPExecutableDirective(S);
+}
 void StmtProfiler::VisitOMPTaskgroupDirective(const OMPTaskgroupDirective *S) {
   VisitOMPExecutableDirective(S);
   if (const Expr *E = S->getReductionRef())

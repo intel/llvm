@@ -985,7 +985,10 @@ configuration file:
 Files included by ``@file`` directives in configuration files are resolved
 relative to the including file. For example, if a configuration file
 ``~/.llvm/target.cfg`` contains the directive ``@os/linux.opts``, the file
-``linux.opts`` is searched for in the directory ``~/.llvm/os``.
+``linux.opts`` is searched for in the directory ``~/.llvm/os``. Another way to
+include a file content is using the command line option ``--config=``. It works
+similarly but the included file is searched for using the rules for configuration
+files.
 
 To generate paths relative to the configuration file, the ``<CFGDIR>`` token may
 be used. This will expand to the absolute path of the directory containing the
@@ -1371,7 +1374,7 @@ describes the various floating point semantic modes and the corresponding option
   :header: "Mode", "Values"
   :widths: 15, 30, 30
 
-  "ffp-exception-behavior", "{ignore, strict, may_trap}",
+  "ffp-exception-behavior", "{ignore, strict, maytrap}",
   "fenv_access", "{off, on}", "(none)"
   "frounding-math", "{dynamic, tonearest, downward, upward, towardzero}"
   "ffp-contract", "{on, off, fast, fast-honor-pragmas}"
@@ -2241,6 +2244,15 @@ usual build cycle when using sample profilers for optimization:
 
      $ clang++ -O2 -gline-tables-only -fprofile-sample-use=code.prof code.cc -o code
 
+  [OPTIONAL] Sampling-based profiles can have inaccuracies or missing block/
+  edge counters. The profile inference algorithm (profi) can be used to infer
+  missing blocks and edge counts, and improve the quality of profile data.
+  Enable it with ``-fsample-profile-use-profi``.
+
+  .. code-block:: console
+
+    $ clang++ -O2 -gline-tables-only -fprofile-sample-use=code.prof \
+      -fsample-profile-use-profi code.cc -o code
 
 Sample Profile Formats
 """"""""""""""""""""""
@@ -2841,11 +2853,17 @@ below. If multiple flags are present, the last one is used.
   Clang supports a number of optimizations to reduce the size of debug
   information in the binary. They work based on the assumption that
   the debug type information can be spread out over multiple
-  compilation units.  For instance, Clang will not emit type
-  definitions for types that are not needed by a module and could be
-  replaced with a forward declaration.  Further, Clang will only emit
-  type info for a dynamic C++ class in the module that contains the
-  vtable for the class.
+  compilation units.  Specifically, the optimizations are:
+
+- will not emit type definitions for types that are not needed by a
+  module and could be replaced with a forward declaration.
+- will only emit type info for a dynamic C++ class in the module that
+  contains the vtable for the class.
+- will only emit type info for a C++ class (non-trivial, non-aggregate)
+  in the modules that contain a definition for one of its constructors.
+- will only emit type definitions for types that are the subject of explicit
+  template instantiation declarations in the presence of an explicit
+  instantiation definition for the type.
 
   The **-fstandalone-debug** option turns off these optimizations.
   This is useful when working with 3rd-party libraries that don't come
@@ -2857,19 +2875,6 @@ below. If multiple flags are present, the last one is used.
    On Darwin **-fstandalone-debug** is enabled by default. The
    **-fno-standalone-debug** option can be used to get to turn on the
    vtable-based optimization described above.
-
-.. option:: -fuse-ctor-homing
-
-   This optimization is similar to the optimizations that are enabled as part
-   of -fno-standalone-debug. Here, Clang only emits type info for a
-   non-trivial, non-aggregate C++ class in the modules that contain a
-   definition of one of its constructors. This relies on the additional
-   assumption that all classes that are not trivially constructible have a
-   non-trivial constructor that is used somewhere. The negation,
-   -fno-use-ctor-homing, ensures that constructor homing is not used.
-
-   This flag is not enabled by default, and needs to be used with -cc1 or
-   -Xclang.
 
 .. option:: -g
 

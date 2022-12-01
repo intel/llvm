@@ -1579,6 +1579,7 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
           tok::kw___is_array,
           tok::kw___is_assignable,
           tok::kw___is_base_of,
+          tok::kw___is_bounded_array,
           tok::kw___is_class,
           tok::kw___is_complete_type,
           tok::kw___is_compound,
@@ -1604,15 +1605,18 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
           tok::kw___is_nothrow_assignable,
           tok::kw___is_nothrow_constructible,
           tok::kw___is_nothrow_destructible,
+          tok::kw___is_nullptr,
           tok::kw___is_object,
           tok::kw___is_pod,
           tok::kw___is_pointer,
           tok::kw___is_polymorphic,
           tok::kw___is_reference,
+          tok::kw___is_referenceable,
           tok::kw___is_rvalue_expr,
           tok::kw___is_rvalue_reference,
           tok::kw___is_same,
           tok::kw___is_scalar,
+          tok::kw___is_scoped_enum,
           tok::kw___is_sealed,
           tok::kw___is_signed,
           tok::kw___is_standard_layout,
@@ -1620,6 +1624,7 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
           tok::kw___is_trivially_assignable,
           tok::kw___is_trivially_constructible,
           tok::kw___is_trivially_copyable,
+          tok::kw___is_unbounded_array,
           tok::kw___is_union,
           tok::kw___is_unsigned,
           tok::kw___is_void,
@@ -3798,7 +3803,6 @@ MemInitResult Parser::ParseMemInitializer(Decl *ConstructorDecl) {
 
     // Parse the optional expression-list.
     ExprVector ArgExprs;
-    CommaLocsTy CommaLocs;
     auto RunSignatureHelp = [&] {
       if (TemplateTypeTy.isInvalid())
         return QualType();
@@ -3808,8 +3812,7 @@ MemInitResult Parser::ParseMemInitializer(Decl *ConstructorDecl) {
       CalledSignatureHelp = true;
       return PreferredType;
     };
-    if (Tok.isNot(tok::r_paren) &&
-        ParseExpressionList(ArgExprs, CommaLocs, [&] {
+    if (Tok.isNot(tok::r_paren) && ParseExpressionList(ArgExprs, [&] {
           PreferredType.enterFunctionArgument(Tok.getLocation(),
                                               RunSignatureHelp);
         })) {
@@ -4481,8 +4484,6 @@ void Parser::ParseCXX11AttributeSpecifierInternal(ParsedAttributes &Attrs,
     if (!TryConsumeToken(tok::colon) && CommonScopeName)
       Diag(Tok.getLocation(), diag::err_expected) << tok::colon;
   }
-
-  llvm::SmallDenseMap<IdentifierInfo *, SourceLocation, 4> SeenAttrs;
 
   bool AttrParsed = false;
   while (!Tok.isOneOf(tok::r_square, tok::semi, tok::eof)) {

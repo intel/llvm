@@ -372,6 +372,8 @@ public:
 
   unsigned getAssumedAddrSpace(const Value *V) const;
 
+  bool isSingleThreaded() const;
+
   std::pair<const Value *, unsigned>
   getPredicatedAddrSpace(const Value *V) const;
 
@@ -824,7 +826,7 @@ public:
   bool allowsMisalignedMemoryAccesses(LLVMContext &Context, unsigned BitWidth,
                                       unsigned AddressSpace = 0,
                                       Align Alignment = Align(1),
-                                      bool *Fast = nullptr) const;
+                                      unsigned *Fast = nullptr) const;
 
   /// Return hardware support for population count.
   PopcntSupportKind getPopcntSupport(unsigned IntTyWidthInBit) const;
@@ -1476,6 +1478,10 @@ public:
   bool preferPredicatedReductionSelect(unsigned Opcode, Type *Ty,
                                        ReductionFlags Flags) const;
 
+  /// Return true if the loop vectorizer should consider vectorizing an
+  /// otherwise scalar epilogue loop.
+  bool preferEpilogueVectorization() const;
+
   /// \returns True if the target wants to expand the given reduction intrinsic
   /// into a shuffle sequence.
   bool shouldExpandReduction(const IntrinsicInst *II) const;
@@ -1581,6 +1587,7 @@ public:
   virtual bool
   canHaveNonUndefGlobalInitializerInAddressSpace(unsigned AS) const = 0;
   virtual unsigned getAssumedAddrSpace(const Value *V) const = 0;
+  virtual bool isSingleThreaded() const = 0;
   virtual std::pair<const Value *, unsigned>
   getPredicatedAddrSpace(const Value *V) const = 0;
   virtual Value *rewriteIntrinsicWithAddressSpace(IntrinsicInst *II,
@@ -1684,7 +1691,7 @@ public:
                                               unsigned BitWidth,
                                               unsigned AddressSpace,
                                               Align Alignment,
-                                              bool *Fast) = 0;
+                                              unsigned *Fast) = 0;
   virtual PopcntSupportKind getPopcntSupport(unsigned IntTyWidthInBit) = 0;
   virtual bool haveFastSqrt(Type *Ty) = 0;
   virtual bool isExpensiveToSpeculativelyExecute(const Instruction *I) = 0;
@@ -1878,6 +1885,8 @@ public:
                                      ReductionFlags) const = 0;
   virtual bool preferPredicatedReductionSelect(unsigned Opcode, Type *Ty,
                                                ReductionFlags) const = 0;
+  virtual bool preferEpilogueVectorization() const = 0;
+
   virtual bool shouldExpandReduction(const IntrinsicInst *II) const = 0;
   virtual unsigned getGISelRematGlobalCost() const = 0;
   virtual unsigned getMinTripCountTailFoldingThreshold() const = 0;
@@ -1958,6 +1967,8 @@ public:
   unsigned getAssumedAddrSpace(const Value *V) const override {
     return Impl.getAssumedAddrSpace(V);
   }
+
+  bool isSingleThreaded() const override { return Impl.isSingleThreaded(); }
 
   std::pair<const Value *, unsigned>
   getPredicatedAddrSpace(const Value *V) const override {
@@ -2171,7 +2182,7 @@ public:
   }
   bool allowsMisalignedMemoryAccesses(LLVMContext &Context, unsigned BitWidth,
                                       unsigned AddressSpace, Align Alignment,
-                                      bool *Fast) override {
+                                      unsigned *Fast) override {
     return Impl.allowsMisalignedMemoryAccesses(Context, BitWidth, AddressSpace,
                                                Alignment, Fast);
   }
@@ -2521,6 +2532,10 @@ public:
                                        ReductionFlags Flags) const override {
     return Impl.preferPredicatedReductionSelect(Opcode, Ty, Flags);
   }
+  bool preferEpilogueVectorization() const override {
+    return Impl.preferEpilogueVectorization();
+  }
+
   bool shouldExpandReduction(const IntrinsicInst *II) const override {
     return Impl.shouldExpandReduction(II);
   }

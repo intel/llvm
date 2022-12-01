@@ -768,7 +768,7 @@ ParseResult OperationParser::finalize() {
   auto &attributeAliases = state.symbols.attributeAliasDefinitions;
   auto locID = TypeID::get<DeferredLocInfo *>();
   auto resolveLocation = [&, this](auto &opOrArgument) -> LogicalResult {
-    auto fwdLoc = opOrArgument.getLoc().template dyn_cast<OpaqueLoc>();
+    auto fwdLoc = dyn_cast<OpaqueLoc>(opOrArgument.getLoc());
     if (!fwdLoc || fwdLoc.getUnderlyingTypeID() != locID)
       return success();
     auto locInfo = deferredLocsReferences[fwdLoc.getUnderlyingLocation()];
@@ -776,7 +776,7 @@ ParseResult OperationParser::finalize() {
     if (!attr)
       return this->emitError(locInfo.loc)
              << "operation location alias was never defined";
-    auto locAttr = attr.dyn_cast<LocationAttr>();
+    auto locAttr = dyn_cast<LocationAttr>(attr);
     if (!locAttr)
       return this->emitError(locInfo.loc)
              << "expected location, but found '" << attr << "'";
@@ -1871,8 +1871,24 @@ OperationParser::parseCustomOperation(ArrayRef<ResultRecord> resultIDs) {
       defaultDialect = iface->getDefaultDialect();
   } else {
     Optional<Dialect::ParseOpHook> dialectHook;
-    if (Dialect *dialect = opNameInfo->getDialect())
-      dialectHook = dialect->getParseOperationHook(opName);
+    Dialect *dialect = opNameInfo->getDialect();
+    if (!dialect) {
+      InFlightDiagnostic diag =
+          emitError(opLoc) << "Dialect `" << opNameInfo->getDialectNamespace()
+                           << "' not found for custom op '" << originalOpName
+                           << "' ";
+      if (originalOpName != opName)
+        diag << " (tried '" << opName << "' as well)";
+      auto &note = diag.attachNote();
+      note << "Registered dialects: ";
+      llvm::interleaveComma(getContext()->getAvailableDialects(), note,
+                            [&](StringRef dialect) { note << dialect; });
+      note << " ; for more info on dialect registration see "
+              "https://mlir.llvm.org/getting_started/Faq/"
+              "#registered-loaded-dependent-whats-up-with-dialects-management";
+      return nullptr;
+    }
+    dialectHook = dialect->getParseOperationHook(opName);
     if (!dialectHook) {
       InFlightDiagnostic diag =
           emitError(opLoc) << "custom op '" << originalOpName << "' is unknown";
@@ -1930,7 +1946,7 @@ ParseResult OperationParser::parseLocationAlias(LocationAttr &loc) {
   // If this alias can be resolved, do it now.
   Attribute attr = state.symbols.attributeAliasDefinitions.lookup(identifier);
   if (attr) {
-    if (!(loc = attr.dyn_cast<LocationAttr>()))
+    if (!(loc = dyn_cast<LocationAttr>(attr)))
       return emitError(tok.getLoc())
              << "expected location, but found '" << attr << "'";
   } else {
@@ -2255,7 +2271,7 @@ ParseResult OperationParser::codeCompleteSSAUse() {
 
       // If the value isn't a forward reference, we also add the name of the op
       // to the detail.
-      if (auto result = frontValue.dyn_cast<OpResult>()) {
+      if (auto result = dyn_cast<OpResult>(frontValue)) {
         if (!forwardRefPlaceholders.count(result))
           detailOS << result.getOwner()->getName() << ": ";
       } else {
@@ -2593,8 +2609,8 @@ ParseResult TopLevelOperationParser::parse(Block *topLevelBlock,
       // top-level block.
       auto &parsedOps = topLevelOp->getBody()->getOperations();
       auto &destOps = topLevelBlock->getOperations();
-      destOps.splice(destOps.empty() ? destOps.end() : std::prev(destOps.end()),
-                     parsedOps, parsedOps.begin(), parsedOps.end());
+      destOps.splice(destOps.end(), parsedOps, parsedOps.begin(),
+                     parsedOps.end());
       return success();
     }
 

@@ -14,6 +14,7 @@
 #include "llvm/ADT/SetVector.h"
 #include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/Support/KnownBits.h"
 #include "llvm/Transforms/InstCombine/InstCombiner.h"
@@ -163,6 +164,8 @@ Instruction *InstCombinerImpl::PromoteCastOfAllocation(BitCastInst &CI,
   New->setAlignment(AI.getAlign());
   New->takeName(&AI);
   New->setUsedWithInAlloca(AI.isUsedWithInAlloca());
+  New->setMetadata(LLVMContext::MD_DIAssignID,
+                   AI.getMetadata(LLVMContext::MD_DIAssignID));
 
   // If the allocation has multiple real uses, insert a cast and change all
   // things that used it to use the new cast.  This will also hack on CI, but it
@@ -1340,6 +1343,17 @@ Instruction *InstCombinerImpl::visitZExt(ZExtInst &CI) {
       X->getType() == CI.getType()) {
     Constant *ZC = ConstantExpr::getZExt(C, CI.getType());
     return BinaryOperator::CreateXor(Builder.CreateAnd(X, ZC), ZC);
+  }
+
+  // If we are truncating, masking, and then zexting back to the original type,
+  // that's just a mask. This is not handled by canEvaluateZextd if the
+  // intermediate values have extra uses. This could be generalized further for
+  // a non-constant mask operand.
+  // zext (and (trunc X), C) --> and X, (zext C)
+  if (match(Src, m_And(m_Trunc(m_Value(X)), m_Constant(C))) &&
+      X->getType() == DestTy) {
+    Constant *ZextC = ConstantExpr::getZExt(C, DestTy);
+    return BinaryOperator::CreateAnd(X, ZextC);
   }
 
   if (match(Src, m_VScale(DL))) {

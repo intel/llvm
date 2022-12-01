@@ -249,11 +249,11 @@ void llvm::addStringMetadataToLoop(Loop *TheLoop, const char *StringMD,
 
 Optional<ElementCount>
 llvm::getOptionalElementCountLoopAttribute(const Loop *TheLoop) {
-  Optional<int> Width =
+  std::optional<int> Width =
       getOptionalIntLoopAttribute(TheLoop, "llvm.loop.vectorize.width");
 
   if (Width) {
-    Optional<int> IsScalable = getOptionalIntLoopAttribute(
+    std::optional<int> IsScalable = getOptionalIntLoopAttribute(
         TheLoop, "llvm.loop.vectorize.scalable.enable");
     return ElementCount::get(*Width, IsScalable.value_or(false));
   }
@@ -354,7 +354,7 @@ TransformationMode llvm::hasUnrollTransformation(const Loop *L) {
   if (getBooleanLoopAttribute(L, "llvm.loop.unroll.disable"))
     return TM_SuppressedByUser;
 
-  Optional<int> Count =
+  std::optional<int> Count =
       getOptionalIntLoopAttribute(L, "llvm.loop.unroll.count");
   if (Count)
     return Count.value() == 1 ? TM_SuppressedByUser : TM_ForcedByUser;
@@ -375,7 +375,7 @@ TransformationMode llvm::hasUnrollAndJamTransformation(const Loop *L) {
   if (getBooleanLoopAttribute(L, "llvm.loop.unroll_and_jam.disable"))
     return TM_SuppressedByUser;
 
-  Optional<int> Count =
+  std::optional<int> Count =
       getOptionalIntLoopAttribute(L, "llvm.loop.unroll_and_jam.count");
   if (Count)
     return Count.value() == 1 ? TM_SuppressedByUser : TM_ForcedByUser;
@@ -398,7 +398,7 @@ TransformationMode llvm::hasVectorizeTransformation(const Loop *L) {
 
   Optional<ElementCount> VectorizeWidth =
       getOptionalElementCountLoopAttribute(L);
-  Optional<int> InterleaveCount =
+  std::optional<int> InterleaveCount =
       getOptionalIntLoopAttribute(L, "llvm.loop.interleave.count");
 
   // 'Forcing' vector width and interleave count to one effectively disables
@@ -594,7 +594,7 @@ void llvm::deleteDeadLoop(Loop *L, DominatorTree *DT, ScalarEvolution *SE,
   }
 
   // Use a map to unique and a vector to guarantee deterministic ordering.
-  llvm::SmallDenseSet<std::pair<DIVariable *, DIExpression *>, 4> DeadDebugSet;
+  llvm::SmallDenseSet<DebugVariable, 4> DeadDebugSet;
   llvm::SmallVector<DbgVariableIntrinsic *, 4> DeadDebugInst;
 
   if (ExitBlock) {
@@ -623,11 +623,8 @@ void llvm::deleteDeadLoop(Loop *L, DominatorTree *DT, ScalarEvolution *SE,
         auto *DVI = dyn_cast<DbgVariableIntrinsic>(&I);
         if (!DVI)
           continue;
-        auto Key =
-            DeadDebugSet.find({DVI->getVariable(), DVI->getExpression()});
-        if (Key != DeadDebugSet.end())
+        if (!DeadDebugSet.insert(DebugVariable(DVI)).second)
           continue;
-        DeadDebugSet.insert({DVI->getVariable(), DVI->getExpression()});
         DeadDebugInst.push_back(DVI);
       }
 
@@ -636,15 +633,14 @@ void llvm::deleteDeadLoop(Loop *L, DominatorTree *DT, ScalarEvolution *SE,
     // Since debug values in the loop have been deleted, inserting an undef
     // dbg.value truncates the range of any dbg.value before the loop where the
     // loop used to be. This is particularly important for constant values.
-    DIBuilder DIB(*ExitBlock->getModule());
     Instruction *InsertDbgValueBefore = ExitBlock->getFirstNonPHI();
     assert(InsertDbgValueBefore &&
            "There should be a non-PHI instruction in exit block, else these "
            "instructions will have no parent.");
-    for (auto *DVI : DeadDebugInst)
-      DIB.insertDbgValueIntrinsic(UndefValue::get(Builder.getInt32Ty()),
-                                  DVI->getVariable(), DVI->getExpression(),
-                                  DVI->getDebugLoc(), InsertDbgValueBefore);
+    for (auto *DVI : DeadDebugInst) {
+      DVI->setUndef();
+      DVI->moveBefore(InsertDbgValueBefore);
+    }
   }
 
   // Remove the block from the reference counting scheme, so that we can
@@ -1708,9 +1704,9 @@ Value *llvm::addDiffRuntimeChecks(
   return MemoryRuntimeCheck;
 }
 
-Optional<IVConditionInfo> llvm::hasPartialIVCondition(Loop &L,
+Optional<IVConditionInfo> llvm::hasPartialIVCondition(const Loop &L,
                                                       unsigned MSSAThreshold,
-                                                      MemorySSA &MSSA,
+                                                      const MemorySSA &MSSA,
                                                       AAResults &AA) {
   auto *TI = dyn_cast<BranchInst>(L.getHeader()->getTerminator());
   if (!TI || !TI->isConditional())

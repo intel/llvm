@@ -127,10 +127,18 @@ def AOp : NS_Op<"a_op", []> {
 
 // DEF:      void AOp::setAAttrAttr(some-attr-kind attr) {
 // DEF-NEXT:   (*this)->setAttr(getAAttrAttrName(), attr);
+// DEF:      void AOp::setAAttr(some-return-type attrValue) {
+// DEF-NEXT:   (*this)->setAttr(getAAttrAttrName(), some-const-builder-call(::mlir::Builder((*this)->getContext()), attrValue));
 // DEF:      void AOp::setBAttrAttr(some-attr-kind attr) {
 // DEF-NEXT:   (*this)->setAttr(getBAttrAttrName(), attr);
+// DEF:      void AOp::setBAttr(some-return-type attrValue) {
+// DEF-NEXT:   (*this)->setAttr(getBAttrAttrName(), some-const-builder-call(::mlir::Builder((*this)->getContext()), attrValue));
 // DEF:      void AOp::setCAttrAttr(some-attr-kind attr) {
 // DEF-NEXT:   (*this)->setAttr(getCAttrAttrName(), attr);
+// DEF:      void AOp::setCAttr(::llvm::Optional<some-return-type> attrValue) {
+// DEF-NEXT:   if (attrValue)
+// DEF-NEXT:     return (*this)->setAttr(getCAttrAttrName(), some-const-builder-call(::mlir::Builder((*this)->getContext()), *attrValue));
+// DEF-NEXT:   (*this)->removeAttr(getCAttrAttrName());
 
 // Test remove methods
 // ---
@@ -488,6 +496,11 @@ def UnitAttrOp : NS_Op<"unit_attr_op", []> {
 // DEF-NEXT:   (*this)->removeAttr(getAttrAttrName());
 
 // DEF: build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, /*optional*/::mlir::UnitAttr attr)
+// DEF: build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, /*optional*/bool attr)
+
+// DECL-LABEL: UnitAttrOp declarations
+// DECL-NOT: declarations
+// DECL: build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, /*optional*/bool attr = false)
 
 
 // Test elementAttr field of TypedArrayAttr.

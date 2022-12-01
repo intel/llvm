@@ -206,6 +206,7 @@ macros = {
   '_LIBCPP_HAS_NO_FILESYSTEM_LIBRARY': 'no-filesystem',
   '_LIBCPP_HAS_NO_RANDOM_DEVICE': 'no-random-device',
   '_LIBCPP_HAS_NO_LOCALIZATION': 'no-localization',
+  '_LIBCPP_HAS_NO_FSTREAM': 'no-fstream',
   '_LIBCPP_HAS_NO_WIDE_CHARACTERS': 'no-wide-characters',
   '_LIBCPP_HAS_NO_UNICODE': 'libcpp-has-no-unicode',
   '_LIBCPP_ENABLE_DEBUG_MODE': 'libcpp-has-debug-mode',
@@ -236,7 +237,7 @@ for locale, alts in locales.items():
                                   when=lambda cfg, alts=alts: hasAnyLocale(cfg, alts)))
 
 
-# Add features representing the platform name: darwin, linux, windows, etc...
+# Add features representing the target platform name: darwin, linux, windows, etc...
 DEFAULT_FEATURES += [
   Feature(name='darwin', when=lambda cfg: '__APPLE__' in compilerMacros(cfg)),
   Feature(name='windows', when=lambda cfg: '_WIN32' in compilerMacros(cfg)),

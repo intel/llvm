@@ -394,9 +394,9 @@ Command::Command(CommandType Type, QueueImplPtr Queue)
       MPreparedDepsEvents(MEvent->getPreparedDepsEvents()),
       MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()),
       MType(Type) {
-  MSubmittedQueue = MQueue;
   MWorkerQueue = MQueue;
   MEvent->setWorkerQueue(MWorkerQueue);
+  MEvent->setSubmittedQueue(MWorkerQueue);
   MEvent->setCommand(this);
   MEvent->setContextImpl(MQueue->getContextImplPtr());
   MEvent->setStateIncomplete();
@@ -1712,8 +1712,8 @@ ExecCGCommand::ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup,
     : Command(CommandType::RUN_CG, std::move(Queue)),
       MCommandGroup(std::move(CommandGroup)) {
   if (MCommandGroup->getType() == detail::CG::CodeplayHostTask) {
-    MSubmittedQueue =
-        static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue;
+    MEvent->setSubmittedQueue(
+        static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue);
     MEvent->setNeedsCleanupAfterWait(true);
   } else if (MCommandGroup->getType() == CG::CGTYPE::Kernel &&
              (static_cast<CGExecKernel *>(MCommandGroup.get())->hasStreams() ||
@@ -1934,7 +1934,7 @@ static void adjustNDRangePerKernel(NDRDescT &NDR, RT::PiKernel Kernel,
   if (NDR.GlobalSize[0] != 0)
     return; // GlobalSize is set - no need to adjust
   // check the prerequisites:
-  assert(NDR.NumWorkGroups[0] != 0 && NDR.LocalSize[0] == 0);
+  assert(NDR.LocalSize[0] == 0);
   // TODO might be good to cache this info together with the kernel info to
   // avoid get_kernel_work_group_info on every kernel run
   range<3> WGSize = get_kernel_device_specific_info<

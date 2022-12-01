@@ -280,8 +280,6 @@ private:
   static std::string
   getOCLPipeOpaqueType(SmallVector<std::string, 8> &Postfixes);
 
-  void getParameterTypes(CallInst *CI, SmallVectorImpl<Type *> &Tys);
-
   static std::string translateOpaqueType(StringRef STName);
 
   /// Mutate the call instruction based on (optional) image operands at position

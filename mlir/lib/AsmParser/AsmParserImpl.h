@@ -13,6 +13,7 @@
 #include "mlir/AsmParser/AsmParserState.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/OpImplementation.h"
+#include "llvm/Support/Base64.h"
 
 namespace mlir {
 namespace detail {
@@ -245,6 +246,28 @@ public:
     return success();
   }
 
+  /// Parses a Base64 encoded string of bytes.
+  ParseResult parseBase64Bytes(std::vector<char> *bytes) override {
+    auto loc = getCurrentLocation();
+    if (!parser.getToken().is(Token::string))
+      return emitError(loc, "expected string");
+
+    if (bytes) {
+      // decodeBase64 doesn't modify its input so we can use the token spelling
+      // and just slice off the quotes/whitespaces if there are any. Whitespace
+      // and quotes cannot appear as part of a (standard) base64 encoded string,
+      // so this is safe to do.
+      StringRef b64QuotedString = parser.getTokenSpelling();
+      StringRef b64String =
+          b64QuotedString.ltrim("\"  \t\n\v\f\r").rtrim("\" \t\n\v\f\r");
+      if (auto err = llvm::decodeBase64(b64String, *bytes))
+        return emitError(loc, toString(std::move(err)));
+    }
+
+    parser.consumeToken();
+    return success();
+  }
+
   /// Parse a floating point value from the stream.
   ParseResult parseFloat(double &result) override {
     bool isNegative = parser.consumeIf(Token::minus);
@@ -439,14 +462,12 @@ public:
 
   /// Parse an optional @-identifier and store it (without the '@' symbol) in a
   /// string attribute named 'attrName'.
-  ParseResult parseOptionalSymbolName(StringAttr &result, StringRef attrName,
-                                      NamedAttrList &attrs) override {
+  ParseResult parseOptionalSymbolName(StringAttr &result) override {
     Token atToken = parser.getToken();
     if (atToken.isNot(Token::at_identifier))
       return failure();
 
     result = getBuilder().getStringAttr(atToken.getSymbolReference());
-    attrs.push_back(getBuilder().getNamedAttr(attrName, result));
     parser.consumeToken();
 
     // If we are populating the assembly parser state, record this as a symbol

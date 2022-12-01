@@ -107,14 +107,14 @@ std::unique_ptr<MipsAbiFlagsSection<ELFT>> MipsAbiFlagsSection<ELFT>::create() {
   Elf_Mips_ABIFlags flags = {};
   bool create = false;
 
-  for (InputSectionBase *sec : inputSections) {
+  for (InputSectionBase *sec : ctx.inputSections) {
     if (sec->type != SHT_MIPS_ABIFLAGS)
       continue;
     sec->markDead();
     create = true;
 
     std::string filename = toString(sec->file);
-    const size_t size = sec->rawData.size();
+    const size_t size = sec->content().size();
     // Older version of BFD (such as the default FreeBSD linker) concatenate
     // .MIPS.abiflags instead of merging. To allow for this case (or potential
     // zero padding) we ignore everything after the first Elf_Mips_ABIFlags
@@ -123,7 +123,8 @@ std::unique_ptr<MipsAbiFlagsSection<ELFT>> MipsAbiFlagsSection<ELFT>::create() {
             Twine(size) + " instead of " + Twine(sizeof(Elf_Mips_ABIFlags)));
       return nullptr;
     }
-    auto *s = reinterpret_cast<const Elf_Mips_ABIFlags *>(sec->rawData.data());
+    auto *s =
+        reinterpret_cast<const Elf_Mips_ABIFlags *>(sec->content().data());
     if (s->version != 0) {
       error(filename + ": unexpected .MIPS.abiflags version " +
             Twine(s->version));
@@ -174,7 +175,7 @@ std::unique_ptr<MipsOptionsSection<ELFT>> MipsOptionsSection<ELFT>::create() {
     return nullptr;
 
   SmallVector<InputSectionBase *, 0> sections;
-  for (InputSectionBase *sec : inputSections)
+  for (InputSectionBase *sec : ctx.inputSections)
     if (sec->type == SHT_MIPS_OPTIONS)
       sections.push_back(sec);
 
@@ -186,7 +187,7 @@ std::unique_ptr<MipsOptionsSection<ELFT>> MipsOptionsSection<ELFT>::create() {
     sec->markDead();
 
     std::string filename = toString(sec->file);
-    ArrayRef<uint8_t> d = sec->rawData;
+    ArrayRef<uint8_t> d = sec->content();
 
     while (!d.empty()) {
       if (d.size() < sizeof(Elf_Mips_Options)) {
@@ -231,7 +232,7 @@ std::unique_ptr<MipsReginfoSection<ELFT>> MipsReginfoSection<ELFT>::create() {
     return nullptr;
 
   SmallVector<InputSectionBase *, 0> sections;
-  for (InputSectionBase *sec : inputSections)
+  for (InputSectionBase *sec : ctx.inputSections)
     if (sec->type == SHT_MIPS_REGINFO)
       sections.push_back(sec);
 
@@ -242,12 +243,12 @@ std::unique_ptr<MipsReginfoSection<ELFT>> MipsReginfoSection<ELFT>::create() {
   for (InputSectionBase *sec : sections) {
     sec->markDead();
 
-    if (sec->rawData.size() != sizeof(Elf_Mips_RegInfo)) {
+    if (sec->content().size() != sizeof(Elf_Mips_RegInfo)) {
       error(toString(sec->file) + ": invalid size of .reginfo section");
       return nullptr;
     }
 
-    auto *r = reinterpret_cast<const Elf_Mips_RegInfo *>(sec->rawData.data());
+    auto *r = reinterpret_cast<const Elf_Mips_RegInfo *>(sec->content().data());
     reginfo.ri_gprmask |= r->ri_gprmask;
     sec->getFile<ELFT>()->mipsGp0 = r->ri_gp_value;
   };
@@ -605,7 +606,7 @@ void EhFrameSection::writeTo(uint8_t *buf) {
   // in the output buffer, but relocateAlloc() still works because
   // getOffset() takes care of discontiguous section pieces.
   for (EhInputSection *s : sections)
-    s->relocateAlloc(buf, nullptr);
+    target->relocateAlloc(*s, buf);
 
   if (getPartition().ehFrameHdr && getPartition().ehFrameHdr->getParent())
     getPartition().ehFrameHdr->write();
@@ -617,6 +618,7 @@ GotSection::GotSection()
   numEntries = target->gotHeaderEntriesNum;
 }
 
+void GotSection::addConstant(const Relocation &r) { relocations.push_back(r); }
 void GotSection::addEntry(Symbol &sym) {
   assert(sym.auxIdx == symAux.size() - 1);
   symAux.back().gotIdx = numEntries++;
@@ -682,7 +684,7 @@ void GotSection::writeTo(uint8_t *buf) {
   if (size == 0)
     return;
   target->writeGotHeader(buf);
-  relocateAlloc(buf, buf + size);
+  target->relocateAlloc(*this, buf);
 }
 
 static uint64_t getMipsPageAddr(uint64_t addr) {
@@ -1348,7 +1350,7 @@ DynamicSection<ELFT>::computeContents() {
   }
   if (!config->zText)
     dtFlags |= DF_TEXTREL;
-  if (config->hasTlsIe && config->shared)
+  if (ctx.hasTlsIe && config->shared)
     dtFlags |= DF_STATIC_TLS;
 
   if (dtFlags)
@@ -1588,14 +1590,14 @@ void RelocationBaseSection::addSymbolReloc(RelType dynType,
 }
 
 void RelocationBaseSection::addAddendOnlyRelocIfNonPreemptible(
-    RelType dynType, InputSectionBase &isec, uint64_t offsetInSec, Symbol &sym,
+    RelType dynType, GotSection &sec, uint64_t offsetInSec, Symbol &sym,
     RelType addendRelType) {
   // No need to write an addend to the section for preemptible symbols.
   if (sym.isPreemptible)
-    addReloc({dynType, &isec, offsetInSec, DynamicReloc::AgainstSymbol, sym, 0,
+    addReloc({dynType, &sec, offsetInSec, DynamicReloc::AgainstSymbol, sym, 0,
               R_ABS});
   else
-    addReloc(DynamicReloc::AddendOnlyWithTargetVA, dynType, isec, offsetInSec,
+    addReloc(DynamicReloc::AddendOnlyWithTargetVA, dynType, sec, offsetInSec,
              sym, 0, R_ABS, addendRelType);
 }
 
@@ -2835,12 +2837,14 @@ createSymbols(
 
 // Returns a newly-created .gdb_index section.
 template <class ELFT> GdbIndexSection *GdbIndexSection::create() {
+  llvm::TimeTraceScope timeScope("Create gdb index");
+
   // Collect InputFiles with .debug_info. See the comment in
   // LLDDwarfObj<ELFT>::LLDDwarfObj. If we do lightweight parsing in the future,
   // note that isec->data() may uncompress the full content, which should be
   // parallelized.
   SetVector<InputFile *> files;
-  for (InputSectionBase *s : inputSections) {
+  for (InputSectionBase *s : ctx.inputSections) {
     InputSection *isec = dyn_cast<InputSection>(s);
     if (!isec)
       continue;
@@ -2853,7 +2857,7 @@ template <class ELFT> GdbIndexSection *GdbIndexSection::create() {
       files.insert(isec->file);
   }
   // Drop .rel[a].debug_gnu_pub{names,types} for --emit-relocs.
-  llvm::erase_if(inputSections, [](InputSectionBase *s) {
+  llvm::erase_if(ctx.inputSections, [](InputSectionBase *s) {
     if (auto *isec = dyn_cast<InputSection>(s))
       if (InputSectionBase *rel = isec->getRelocatedSection())
         return !rel->isLive();
@@ -3309,7 +3313,7 @@ template <class ELFT> void elf::splitSections() {
 
 void elf::combineEhSections() {
   llvm::TimeTraceScope timeScope("Combine EH sections");
-  for (EhInputSection *sec : ehInputSections) {
+  for (EhInputSection *sec : ctx.ehInputSections) {
     EhFrameSection &eh = *sec->getPartition().ehFrame;
     sec->parent = &eh;
     eh.alignment = std::max(eh.alignment, sec->alignment);
@@ -3319,7 +3323,7 @@ void elf::combineEhSections() {
 
   if (!mainPart->armExidx)
     return;
-  llvm::erase_if(inputSections, [](InputSectionBase *s) {
+  llvm::erase_if(ctx.inputSections, [](InputSectionBase *s) {
     // Ignore dead sections and the partition end marker (.part.end),
     // whose partition number is out of bounds.
     if (!s->isLive() || s->partition == 255)
@@ -3522,8 +3526,8 @@ void ARMExidxSyntheticSection::writeTo(uint8_t *buf) {
   for (InputSection *isec : executableSections) {
     assert(isec->getParent() != nullptr);
     if (InputSection *d = findExidxSection(isec)) {
-      memcpy(buf + offset, d->rawData.data(), d->rawData.size());
-      d->relocateAlloc(buf + d->outSecOff, buf + d->outSecOff + d->getSize());
+      memcpy(buf + offset, d->content().data(), d->content().size());
+      target->relocateAlloc(*d, buf + d->outSecOff);
       offset += d->getSize();
     } else {
       // A Linker generated CANTUNWIND section.
@@ -3651,7 +3655,7 @@ size_t PPC64LongBranchTargetSection::getSize() const {
 void PPC64LongBranchTargetSection::writeTo(uint8_t *buf) {
   // If linking non-pic we have the final addresses of the targets and they get
   // written to the table directly. For pic the dynamic linker will allocate
-  // the section and fill it it.
+  // the section and fill it.
   if (config->isPic)
     return;
 

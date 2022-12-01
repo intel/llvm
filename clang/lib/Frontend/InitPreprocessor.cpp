@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Basic/FileManager.h"
+#include "clang/Basic/HLSLRuntime.h"
 #include "clang/Basic/MacroBuilder.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/SyncScope.h"
@@ -298,12 +299,12 @@ static void DefineFastIntType(unsigned TypeWidth, bool IsSigned,
 
 /// Get the value the ATOMIC_*_LOCK_FREE macro should have for a type with
 /// the specified properties.
-static const char *getLockFreeValue(unsigned TypeWidth, unsigned InlineWidth) {
+static const char *getLockFreeValue(unsigned TypeWidth, const TargetInfo &TI) {
   // Fully-aligned, power-of-2 sizes no larger than the inline
   // width will be inlined as lock-free operations.
   // Note: we do not need to check alignment since _Atomic(T) is always
   // appropriately-aligned in clang.
-  if ((TypeWidth & (TypeWidth - 1)) == 0 && TypeWidth <= InlineWidth)
+  if (TI.hasBuiltinAtomic(TypeWidth, TypeWidth))
     return "2"; // "always lock free"
   // We cannot be certain what operations the lib calls might be
   // able to implement as lock-free on future processors.
@@ -402,8 +403,8 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
     Builder.defineMacro("__SHADER_STAGE_LIBRARY",
                         Twine((uint32_t)ShaderStage::Library));
     // The current shader stage itself
-    uint32_t StageInteger = (uint32_t)TI.getTriple().getEnvironment() -
-                            (uint32_t)llvm::Triple::Pixel;
+    uint32_t StageInteger = static_cast<uint32_t>(
+        hlsl::getStageFromEnvironment(TI.getTriple().getEnvironment()));
 
     Builder.defineMacro("__SHADER_TARGET_STAGE", Twine(StageInteger));
     // Add target versions
@@ -716,7 +717,7 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
   Builder.defineMacro("__cpp_named_character_escapes", "202207L");
 
   if (LangOpts.Char8)
-    Builder.defineMacro("__cpp_char8_t", "201811L");
+    Builder.defineMacro("__cpp_char8_t", "202207L");
   Builder.defineMacro("__cpp_impl_destroying_delete", "201806L");
 
   // TS features.
@@ -1161,11 +1162,9 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
 
   auto addLockFreeMacros = [&](const llvm::Twine &Prefix) {
     // Used by libc++ and libstdc++ to implement ATOMIC_<foo>_LOCK_FREE.
-    unsigned InlineWidthBits = TI.getMaxAtomicInlineWidth();
 #define DEFINE_LOCK_FREE_MACRO(TYPE, Type)                                     \
   Builder.defineMacro(Prefix + #TYPE "_LOCK_FREE",                             \
-                      getLockFreeValue(TI.get##Type##Width(),                  \
-                                       InlineWidthBits));
+                      getLockFreeValue(TI.get##Type##Width(), TI));
     DEFINE_LOCK_FREE_MACRO(BOOL, Bool);
     DEFINE_LOCK_FREE_MACRO(CHAR, Char);
     if (LangOpts.Char8)
@@ -1178,8 +1177,7 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
     DEFINE_LOCK_FREE_MACRO(LONG, Long);
     DEFINE_LOCK_FREE_MACRO(LLONG, LongLong);
     Builder.defineMacro(Prefix + "POINTER_LOCK_FREE",
-                        getLockFreeValue(TI.getPointerWidth(0),
-                                         InlineWidthBits));
+                        getLockFreeValue(TI.getPointerWidth(0), TI));
 #undef DEFINE_LOCK_FREE_MACRO
   };
   addLockFreeMacros("__CLANG_ATOMIC_");
@@ -1334,8 +1332,7 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
 }
 
 /// InitializePreprocessor - Initialize the preprocessor getting it and the
-/// environment ready to process a single file. This returns true on error.
-///
+/// environment ready to process a single file.
 void clang::InitializePreprocessor(
     Preprocessor &PP, const PreprocessorOptions &InitOpts,
     const PCHContainerReader &PCHContainerRdr,

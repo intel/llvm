@@ -168,6 +168,17 @@ def DropEquivalentBufferResults : Pass<"drop-equivalent-buffer-results", "Module
   let dependentDialects = ["memref::MemRefDialect"];
 }
 
+def EmptyTensorToAllocTensor : Pass<"empty-tensor-to-alloc-tensor"> {
+  let summary = "Replace all empty ops by alloc_tensor ops.";
+  let description = [{
+    tensor.empty ops return a tensor of unspecified contents who's only purpose
+    is to carry the tensor shape. This pass converts such ops to
+    bufferization.alloc_tensor ops, which bufferize to buffer allocations.
+  }];
+  let constructor = "mlir::bufferization::createEmptyTensorToAllocTensorPass()";
+  let dependentDialects = ["tensor::TensorDialect"];
+}
+
 def OneShotBufferize : Pass<"one-shot-bufferize", "ModuleOp"> {
   let summary = "One-Shot Bufferize";
   let description = [{
@@ -273,6 +284,9 @@ def OneShotBufferize : Pass<"one-shot-bufferize", "ModuleOp"> {
     Option<"analysisFuzzerSeed", "analysis-fuzzer-seed", "unsigned",
            /*default=*/"0",
            "Test only: Analyze ops in random order with a given seed (fuzzer)">,
+    Option<"analysisHeuristic", "analysis-heuristic", "std::string",
+           /*default=*/"\"bottom-up\"",
+           "Heuristic that control the IR traversal during analysis">,
     Option<"bufferizeFunctionBoundaries", "bufferize-function-boundaries",
            "bool", /*default=*/"0",
            "Bufferize function boundaries (experimental).">,
@@ -357,16 +371,16 @@ def TensorCopyInsertion : Pass<"tensor-copy-insertion"> {
   let constructor = "mlir::bufferization::createTensorCopyInsertionPass()";
 }
 
-def AllocTensorElimination : Pass<"eliminate-alloc-tensors"> {
-  let summary = "Try to eliminate all alloc_tensor ops.";
+def EmptyTensorElimination : Pass<"eliminate-empty-tensors"> {
+  let summary = "Try to eliminate all tensor.empty ops.";
   let description = [{
-    This pass tries to eliminate all insert_slice op-anchored alloc_tensor ops.
-    I.e., when a value that is equivalent to an alloc_tensor op is inserted into
+    This pass tries to eliminate all insert_slice op-anchored tensor.empty ops.
+    I.e., when a value that is equivalent to an tensor.empty op is inserted into
     another tensor, this pass tries to rewrite the IR in such a way that the
     destination tensor of the insert_slice op is used directly instead of the
-    alloc_tensor result.
+    tensor.empty result.
   }];
-  let constructor = "mlir::bufferization::createAllocTensorEliminationPass()";
+  let constructor = "mlir::bufferization::createEmptyTensorEliminationPass()";
 }
 
 #endif // MLIR_DIALECT_BUFFERIZATION_TRANSFORMS_PASSES

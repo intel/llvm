@@ -430,7 +430,7 @@ unsigned getVOPDOpcode(unsigned Opc) {
 }
 
 bool isVOPD(unsigned Opc) {
-  return AMDGPU::getNamedOperandIdx(Opc, AMDGPU::OpName::src0X) != -1;
+  return AMDGPU::hasNamedOperand(Opc, AMDGPU::OpName::src0X);
 }
 
 bool isTrue16Inst(unsigned Opc) {
@@ -458,6 +458,113 @@ int getMCOpcode(uint16_t Opcode, unsigned Gen) {
 int getVOPDFull(unsigned OpX, unsigned OpY) {
   const VOPDInfo *Info = getVOPDInfoFromComponentOpcodes(OpX, OpY);
   return Info ? Info->Opcode : -1;
+}
+
+std::pair<unsigned, unsigned> getVOPDComponents(unsigned VOPDOpcode) {
+  const VOPDInfo *Info = getVOPDOpcodeHelper(VOPDOpcode);
+  assert(Info);
+  auto OpX = getVOPDBaseFromComponent(Info->OpX);
+  auto OpY = getVOPDBaseFromComponent(Info->OpY);
+  assert(OpX && OpY);
+  return {OpX->BaseVOP, OpY->BaseVOP};
+}
+
+namespace VOPD {
+
+ComponentProps::ComponentProps(const MCInstrDesc &OpDesc) {
+  assert(OpDesc.getNumDefs() == Component::DST_NUM);
+
+  assert(OpDesc.getOperandConstraint(Component::SRC0, MCOI::TIED_TO) == -1);
+  assert(OpDesc.getOperandConstraint(Component::SRC1, MCOI::TIED_TO) == -1);
+  auto TiedIdx = OpDesc.getOperandConstraint(Component::SRC2, MCOI::TIED_TO);
+  assert(TiedIdx == -1 || TiedIdx == Component::DST);
+  HasSrc2Acc = TiedIdx != -1;
+
+  SrcOperandsNum = OpDesc.getNumOperands() - OpDesc.getNumDefs();
+  assert(SrcOperandsNum <= Component::MAX_SRC_NUM);
+
+  auto OperandsNum = OpDesc.getNumOperands();
+  unsigned CompOprIdx;
+  for (CompOprIdx = Component::SRC1; CompOprIdx < OperandsNum; ++CompOprIdx) {
+    if (OpDesc.OpInfo[CompOprIdx].OperandType == AMDGPU::OPERAND_KIMM32) {
+      MandatoryLiteralIdx = CompOprIdx;
+      break;
+    }
+  }
+}
+
+unsigned ComponentInfo::getIndexInParsedOperands(unsigned CompOprIdx) const {
+  assert(CompOprIdx < Component::MAX_OPR_NUM);
+
+  if (CompOprIdx == Component::DST)
+    return getIndexOfDstInParsedOperands();
+
+  auto CompSrcIdx = CompOprIdx - Component::DST_NUM;
+  if (CompSrcIdx < getCompParsedSrcOperandsNum())
+    return getIndexOfSrcInParsedOperands(CompSrcIdx);
+
+  // The specified operand does not exist.
+  return 0;
+}
+
+Optional<unsigned> InstInfo::getInvalidCompOperandIndex(
+    std::function<unsigned(unsigned, unsigned)> GetRegIdx) const {
+
+  auto OpXRegs = getRegIndices(ComponentIndex::X, GetRegIdx);
+  auto OpYRegs = getRegIndices(ComponentIndex::Y, GetRegIdx);
+
+  unsigned CompOprIdx;
+  for (CompOprIdx = 0; CompOprIdx < Component::MAX_OPR_NUM; ++CompOprIdx) {
+    unsigned BanksNum = BANKS_NUM[CompOprIdx];
+    if (OpXRegs[CompOprIdx] && OpYRegs[CompOprIdx] &&
+        (OpXRegs[CompOprIdx] % BanksNum == OpYRegs[CompOprIdx] % BanksNum))
+      return CompOprIdx;
+  }
+
+  return {};
+}
+
+// Return an array of VGPR registers [DST,SRC0,SRC1,SRC2] used
+// by the specified component. If an operand is unused
+// or is not a VGPR, the corresponding value is 0.
+//
+// GetRegIdx(Component, MCOperandIdx) must return a VGPR register index
+// for the specified component and MC operand. The callback must return 0
+// if the operand is not a register or not a VGPR.
+InstInfo::RegIndices InstInfo::getRegIndices(
+    unsigned CompIdx,
+    std::function<unsigned(unsigned, unsigned)> GetRegIdx) const {
+  assert(CompIdx < COMPONENTS_NUM);
+
+  const auto &Comp = CompInfo[CompIdx];
+  InstInfo::RegIndices RegIndices;
+
+  RegIndices[DST] = GetRegIdx(CompIdx, Comp.getIndexOfDstInMCOperands());
+
+  for (unsigned CompOprIdx : {SRC0, SRC1, SRC2}) {
+    unsigned CompSrcIdx = CompOprIdx - DST_NUM;
+    RegIndices[CompOprIdx] =
+        Comp.hasRegSrcOperand(CompSrcIdx)
+            ? GetRegIdx(CompIdx, Comp.getIndexOfSrcInMCOperands(CompSrcIdx))
+            : 0;
+  }
+  return RegIndices;
+}
+
+} // namespace VOPD
+
+VOPD::InstInfo getVOPDInstInfo(const MCInstrDesc &OpX, const MCInstrDesc &OpY) {
+  return VOPD::InstInfo(OpX, OpY);
+}
+
+VOPD::InstInfo getVOPDInstInfo(unsigned VOPDOpcode,
+                               const MCInstrInfo *InstrInfo) {
+  auto [OpX, OpY] = getVOPDComponents(VOPDOpcode);
+  const auto &OpXDesc = InstrInfo->get(OpX);
+  const auto &OpYDesc = InstrInfo->get(OpY);
+  VOPD::ComponentInfo OpXInfo(OpXDesc, VOPD::ComponentKind::COMPONENT_X);
+  VOPD::ComponentInfo OpYInfo(OpYDesc, OpXInfo);
+  return VOPD::InstInfo(OpXInfo, OpYInfo);
 }
 
 namespace IsaInfo {

@@ -287,7 +287,7 @@ using SetOfInstrs = SmallPtrSet<Instruction *, 16>;
 using TypeIsSExt = PointerIntPair<Type *, 2, ExtType>;
 using InstrToOrigTy = DenseMap<Instruction *, TypeIsSExt>;
 using SExts = SmallVector<Instruction *, 16>;
-using ValueToSExts = DenseMap<Value *, SExts>;
+using ValueToSExts = MapVector<Value *, SExts>;
 
 class TypePromotionTransaction;
 
@@ -2252,19 +2252,19 @@ bool CodeGenPrepare::optimizeCallInst(CallInst *CI, ModifyDT &ModifiedDT) {
           DL->getTypeAllocSize(GV->getValueType()) >= MinSize + Offset2)
         GV->setAlignment(PrefAlign);
     }
-    // If this is a memcpy (or similar) then we may be able to improve the
-    // alignment
-    if (MemIntrinsic *MI = dyn_cast<MemIntrinsic>(CI)) {
-      Align DestAlign = getKnownAlignment(MI->getDest(), *DL);
-      MaybeAlign MIDestAlign = MI->getDestAlign();
-      if (!MIDestAlign || DestAlign > *MIDestAlign)
-        MI->setDestAlignment(DestAlign);
-      if (MemTransferInst *MTI = dyn_cast<MemTransferInst>(MI)) {
-        MaybeAlign MTISrcAlign = MTI->getSourceAlign();
-        Align SrcAlign = getKnownAlignment(MTI->getSource(), *DL);
-        if (!MTISrcAlign || SrcAlign > *MTISrcAlign)
-          MTI->setSourceAlignment(SrcAlign);
-      }
+  }
+  // If this is a memcpy (or similar) then we may be able to improve the
+  // alignment.
+  if (MemIntrinsic *MI = dyn_cast<MemIntrinsic>(CI)) {
+    Align DestAlign = getKnownAlignment(MI->getDest(), *DL);
+    MaybeAlign MIDestAlign = MI->getDestAlign();
+    if (!MIDestAlign || DestAlign > *MIDestAlign)
+      MI->setDestAlignment(DestAlign);
+    if (MemTransferInst *MTI = dyn_cast<MemTransferInst>(MI)) {
+      MaybeAlign MTISrcAlign = MTI->getSourceAlign();
+      Align SrcAlign = getKnownAlignment(MTI->getSource(), *DL);
+      if (!MTISrcAlign || SrcAlign > *MTISrcAlign)
+        MTI->setSourceAlignment(SrcAlign);
     }
   }
 
@@ -6122,6 +6122,7 @@ bool CodeGenPrepare::optimizePhiType(
   SmallVector<Instruction *, 4> Worklist;
   Worklist.push_back(cast<Instruction>(I));
   SmallPtrSet<PHINode *, 4> PhiNodes;
+  SmallPtrSet<ConstantData *, 4> Constants;
   PhiNodes.insert(I);
   Visited.insert(I);
   SmallPtrSet<Instruction *, 4> Defs;
@@ -6164,9 +6165,10 @@ bool CodeGenPrepare::optimizePhiType(
             AnyAnchored |= !isa<LoadInst>(OpBC->getOperand(0)) &&
                            !isa<ExtractElementInst>(OpBC->getOperand(0));
           }
-        } else if (!isa<UndefValue>(V)) {
+        } else if (auto *OpC = dyn_cast<ConstantData>(V))
+          Constants.insert(OpC);
+        else
           return false;
-        }
       }
     }
 
@@ -6208,7 +6210,8 @@ bool CodeGenPrepare::optimizePhiType(
   // Create all the new phi nodes of the new type, and bitcast any loads to the
   // correct type.
   ValueToValueMap ValMap;
-  ValMap[UndefValue::get(PhiTy)] = UndefValue::get(ConvertTy);
+  for (ConstantData *C : Constants)
+    ValMap[C] = ConstantExpr::getCast(Instruction::BitCast, C, ConvertTy);
   for (Instruction *D : Defs) {
     if (isa<BitCastInst>(D)) {
       ValMap[D] = D->getOperand(0);

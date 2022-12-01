@@ -32,7 +32,7 @@ static Error readStruct(StringRef Buffer, const char *Src, T &Struct) {
 
 template <typename T>
 static Error readInteger(StringRef Buffer, const char *Src, T &Val) {
-  static_assert(std::is_integral<T>::value,
+  static_assert(std::is_integral_v<T>,
                 "Cannot call readInteger on non-integral type.");
   // Don't read before the beginning or past the end of the file
   if (Src < Buffer.begin() || Src + sizeof(T) > Buffer.end())
@@ -80,6 +80,17 @@ Error DXContainer::parseShaderFlags(uint32_t Offset) {
   return Error::success();
 }
 
+Error DXContainer::parseHash(uint32_t Offset) {
+  if (Hash)
+    return parseFailed("More than one HASH part is present in the file");
+  const char *Current = Data.getBuffer().data() + Offset;
+  dxbc::ShaderHash ReadHash;
+  if (Error Err = readStruct(Data.getBuffer(), Current, ReadHash))
+    return Err;
+  Hash = ReadHash;
+  return Error::success();
+}
+
 Error DXContainer::parsePartOffsets() {
   const char *Current = Data.getBuffer().data() + sizeof(dxbc::Header);
   for (uint32_t Part = 0; Part < Header.PartCount; ++Part) {
@@ -105,6 +116,10 @@ Error DXContainer::parsePartOffsets() {
       break;
     case dxbc::PartType::SFI0:
       if (Error Err = parseShaderFlags(PartOffset + sizeof(dxbc::PartHeader)))
+        return Err;
+      break;
+    case dxbc::PartType::HASH:
+      if (Error Err = parseHash(PartOffset + sizeof(dxbc::PartHeader)))
         return Err;
       break;
     case dxbc::PartType::Unknown:

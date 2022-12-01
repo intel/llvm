@@ -14,6 +14,7 @@
 #include "clang/ExtractAPI/Serialization/SymbolGraphSerializer.h"
 #include "clang/Basic/Version.h"
 #include "clang/ExtractAPI/API.h"
+#include "clang/ExtractAPI/APIIgnoresList.h"
 #include "clang/ExtractAPI/DeclarationFragments.h"
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/Path.h"
@@ -480,6 +481,10 @@ Object SymbolGraphSerializer::serializeModule() const {
 }
 
 bool SymbolGraphSerializer::shouldSkip(const APIRecord &Record) const {
+  // Skip explicitly ignored symbols.
+  if (IgnoresList.shouldIgnore(Record.Name))
+    return true;
+
   // Skip unconditionally unavailable symbols
   if (Record.Availabilities.isUnconditionallyUnavailable())
     return true;
@@ -554,6 +559,7 @@ void SymbolGraphSerializer::serializeRelationship(RelationshipKind Kind,
   Object Relationship;
   Relationship["source"] = Source.USR;
   Relationship["target"] = Target.USR;
+  Relationship["targetFallback"] = Target.Name;
   Relationship["kind"] = getRelationshipString(Kind);
 
   Relationships.emplace_back(std::move(Relationship));
@@ -632,7 +638,7 @@ void SymbolGraphSerializer::serializeObjCContainerRecord(
       serializeMembers(Record, Category->Methods);
       serializeMembers(Record, Category->Properties);
 
-      // Surface the protocols of the the category to the interface.
+      // Surface the protocols of the category to the interface.
       for (const auto &Protocol : Category->Protocols)
         serializeRelationship(RelationshipKind::ConformsTo, Record, Protocol);
     }

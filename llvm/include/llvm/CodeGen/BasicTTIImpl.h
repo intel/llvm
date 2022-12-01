@@ -47,6 +47,7 @@
 #include "llvm/Support/MachineValueType.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Target/TargetMachine.h"
+#include "llvm/Target/TargetOptions.h"
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
@@ -255,7 +256,7 @@ public:
   /// @{
   bool allowsMisalignedMemoryAccesses(LLVMContext &Context, unsigned BitWidth,
                                       unsigned AddressSpace, Align Alignment,
-                                      bool *Fast) const {
+                                      unsigned *Fast) const {
     EVT E = EVT::getIntegerVT(Context, BitWidth);
     return getTLI()->allowsMisalignedMemoryAccesses(
         E, AddressSpace, Alignment, MachineMemOperand::MONone, Fast);
@@ -285,6 +286,11 @@ public:
 
   unsigned getAssumedAddrSpace(const Value *V) const {
     return getTLI()->getTargetMachine().getAssumedAddrSpace(V);
+  }
+
+  bool isSingleThreaded() const {
+    return getTLI()->getTargetMachine().Options.ThreadModel ==
+           ThreadModel::Single;
   }
 
   std::pair<const Value *, unsigned>

@@ -697,10 +697,10 @@ ret:
 define i32 @test23(i32 %A, i1 %pb, ptr %P) {
 ; CHECK-LABEL: @test23(
 ; CHECK-NEXT:  BB0:
-; CHECK-NEXT:    [[PHI_BO:%.*]] = add i32 [[A:%.*]], 19
+; CHECK-NEXT:    [[TMP0:%.*]] = add i32 [[A:%.*]], 19
 ; CHECK-NEXT:    br label [[LOOP:%.*]]
 ; CHECK:       Loop:
-; CHECK-NEXT:    [[B:%.*]] = phi i32 [ [[PHI_BO]], [[BB0:%.*]] ], [ 61, [[LOOP]] ]
+; CHECK-NEXT:    [[B:%.*]] = phi i32 [ [[TMP0]], [[BB0:%.*]] ], [ 61, [[LOOP]] ]
 ; CHECK-NEXT:    store i32 [[B]], ptr [[P:%.*]], align 4
 ; CHECK-NEXT:    br i1 [[PB:%.*]], label [[LOOP]], label [[EXIT:%.*]]
 ; CHECK:       Exit:
@@ -1280,14 +1280,12 @@ define i1 @pr57488_icmp_of_phi(ptr %ptr.base, i64 %len) {
 ; CHECK-NEXT:    [[LEN_ZERO:%.*]] = icmp eq i64 [[LEN]], 0
 ; CHECK-NEXT:    br i1 [[LEN_ZERO]], label [[EXIT:%.*]], label [[LOOP:%.*]]
 ; CHECK:       loop:
-; CHECK-NEXT:    [[ACCUM:%.*]] = phi i8 [ [[ACCUM_NEXT:%.*]], [[LOOP]] ], [ 1, [[START:%.*]] ]
+; CHECK-NEXT:    [[ACCUM:%.*]] = phi i1 [ [[AND:%.*]], [[LOOP]] ], [ true, [[START:%.*]] ]
 ; CHECK-NEXT:    [[PTR:%.*]] = phi ptr [ [[PTR_NEXT:%.*]], [[LOOP]] ], [ [[PTR_BASE]], [[START]] ]
 ; CHECK-NEXT:    [[PTR_NEXT]] = getelementptr inbounds i64, ptr [[PTR]], i64 1
-; CHECK-NEXT:    [[ACCUM_BOOL:%.*]] = icmp ne i8 [[ACCUM]], 0
 ; CHECK-NEXT:    [[VAL:%.*]] = load i64, ptr [[PTR]], align 8
 ; CHECK-NEXT:    [[VAL_ZERO:%.*]] = icmp eq i64 [[VAL]], 0
-; CHECK-NEXT:    [[AND:%.*]] = and i1 [[ACCUM_BOOL]], [[VAL_ZERO]]
-; CHECK-NEXT:    [[ACCUM_NEXT]] = zext i1 [[AND]] to i8
+; CHECK-NEXT:    [[AND]] = and i1 [[ACCUM]], [[VAL_ZERO]]
 ; CHECK-NEXT:    [[EXIT_COND:%.*]] = icmp eq ptr [[PTR_NEXT]], [[END]]
 ; CHECK-NEXT:    br i1 [[EXIT_COND]], label [[EXIT]], label [[LOOP]]
 ; CHECK:       exit:
@@ -1314,4 +1312,142 @@ loop:
 exit:
   %res = phi i1 [ true, %start ], [ %and, %loop ]
   ret i1 %res
+}
+
+declare void @use(i32)
+declare i1 @get.i1()
+
+define i32 @phi_op_self_simplify() {
+; CHECK-LABEL: @phi_op_self_simplify(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    br label [[LOOP:%.*]]
+; CHECK:       loop:
+; CHECK-NEXT:    [[IV:%.*]] = phi i32 [ 1, [[ENTRY:%.*]] ], [ [[IV_ADD2:%.*]], [[LOOP]] ]
+; CHECK-NEXT:    [[IV_ADD:%.*]] = xor i32 [[IV]], -1
+; CHECK-NEXT:    call void @use(i32 [[IV_ADD]])
+; CHECK-NEXT:    [[IV_ADD2]] = xor i32 [[IV]], -1
+; CHECK-NEXT:    br label [[LOOP]]
+;
+entry:
+  br label %loop
+
+loop:
+  %iv = phi i32 [ 1, %entry ], [ %iv.add2, %loop ]
+  %iv.add = xor i32 %iv, -1
+  call void @use(i32 %iv.add)
+  %iv.add2 = xor i32 %iv, -1
+  br label %loop
+}
+
+define i32 @phi_op_self_simplify_2(i32 %x) {
+; CHECK-LABEL: @phi_op_self_simplify_2(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[TMP0:%.*]] = or i32 [[X:%.*]], 1
+; CHECK-NEXT:    br label [[LOOP:%.*]]
+; CHECK:       loop:
+; CHECK-NEXT:    [[PHI:%.*]] = phi i32 [ [[TMP0]], [[ENTRY:%.*]] ], [ [[PHI]], [[LOOP]] ], [ 11, [[LOOP_LATCH:%.*]] ]
+; CHECK-NEXT:    [[C1:%.*]] = call i1 @get.i1()
+; CHECK-NEXT:    br i1 [[C1]], label [[LOOP_LATCH]], label [[LOOP]]
+; CHECK:       loop.latch:
+; CHECK-NEXT:    [[C2:%.*]] = call i1 @get.i1()
+; CHECK-NEXT:    br i1 [[C2]], label [[EXIT:%.*]], label [[LOOP]]
+; CHECK:       exit:
+; CHECK-NEXT:    ret i32 [[PHI]]
+;
+entry:
+  br label %loop
+
+loop:
+  %phi = phi i32 [ %x, %entry ], [ %or, %loop ], [ 10, %loop.latch ]
+  %or = or i32 %phi, 1
+  %c1 = call i1 @get.i1()
+  br i1 %c1, label %loop.latch, label %loop
+
+loop.latch:
+  %c2 = call i1 @get.i1()
+  br i1 %c2, label %exit, label %loop
+
+exit:
+  ret i32 %or
+}
+
+; Caused an infinite loop with D134954.
+define i64 @inttoptr_of_phi(i1 %c, ptr %arg.ptr, ptr %arg.ptr2) {
+; CHECK-LABEL: @inttoptr_of_phi(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    br i1 [[C:%.*]], label [[IF:%.*]], label [[ELSE:%.*]]
+; CHECK:       if:
+; CHECK-NEXT:    [[ARG_PTR2_VAL:%.*]] = load i64, ptr [[ARG_PTR2:%.*]], align 8
+; CHECK-NEXT:    [[ARG_PTR2_VAL_PTR:%.*]] = inttoptr i64 [[ARG_PTR2_VAL]] to ptr
+; CHECK-NEXT:    br label [[JOIN:%.*]]
+; CHECK:       else:
+; CHECK-NEXT:    br label [[JOIN]]
+; CHECK:       join:
+; CHECK-NEXT:    [[INT_PTR_PTR:%.*]] = phi ptr [ [[ARG_PTR2_VAL_PTR]], [[IF]] ], [ [[ARG_PTR:%.*]], [[ELSE]] ]
+; CHECK-NEXT:    [[V:%.*]] = load i64, ptr [[INT_PTR_PTR]], align 8
+; CHECK-NEXT:    ret i64 [[V]]
+;
+entry:
+  br i1 %c, label %if, label %else
+
+if:
+  %arg.ptr2.val = load i64, ptr %arg.ptr2, align 8
+  br label %join
+
+else:
+  %arg.int.ptr = ptrtoint ptr %arg.ptr to i64
+  br label %join
+
+join:
+  %int.ptr = phi i64 [ %arg.ptr2.val, %if ], [ %arg.int.ptr, %else ]
+  %ptr = inttoptr i64 %int.ptr to ptr
+  %v = load i64, ptr %ptr, align 8
+  ret i64 %v
+}
+
+define void @simplify_context_instr(ptr %ptr.base, i64 %n) {
+; CHECK-LABEL: @simplify_context_instr(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[PTR_END:%.*]] = getelementptr inbounds i8, ptr [[PTR_BASE:%.*]], i64 [[N:%.*]]
+; CHECK-NEXT:    br label [[LOOP:%.*]]
+; CHECK:       loop:
+; CHECK-NEXT:    [[PTR:%.*]] = phi ptr [ [[PTR_NEXT:%.*]], [[LATCH:%.*]] ], [ [[PTR_BASE]], [[ENTRY:%.*]] ]
+; CHECK-NEXT:    [[PHI:%.*]] = phi i1 [ [[CMP:%.*]], [[LATCH]] ], [ true, [[ENTRY]] ]
+; CHECK-NEXT:    [[V:%.*]] = load i8, ptr [[PTR]], align 1
+; CHECK-NEXT:    [[CMP]] = icmp eq i8 [[V]], 95
+; CHECK-NEXT:    br i1 [[CMP]], label [[LATCH]], label [[IF:%.*]]
+; CHECK:       if:
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[PHI]], i32 117, i32 100
+; CHECK-NEXT:    call void @use(i32 [[SEL]])
+; CHECK-NEXT:    br label [[LATCH]]
+; CHECK:       latch:
+; CHECK-NEXT:    [[PTR_NEXT]] = getelementptr inbounds i8, ptr [[PTR]], i64 1
+; CHECK-NEXT:    [[CMP_I_NOT:%.*]] = icmp eq ptr [[PTR_NEXT]], [[PTR_END]]
+; CHECK-NEXT:    br i1 [[CMP_I_NOT]], label [[EXIT:%.*]], label [[LOOP]]
+; CHECK:       exit:
+; CHECK-NEXT:    ret void
+;
+entry:
+  %ptr.end = getelementptr inbounds i8, ptr %ptr.base, i64 %n
+  br label %loop
+
+loop:
+  %ptr = phi ptr [ %ptr.next, %latch ], [ %ptr.base, %entry ]
+  %phi = phi i1 [ %cmp, %latch ], [ true, %entry ]
+  %v = load i8, ptr %ptr, align 1
+  %cmp = icmp eq i8 %v, 95
+  br i1 %cmp, label %latch, label %if
+
+if:
+  %sel = select i1 %phi, i32 117, i32 100
+  call void @use(i32 %sel)
+  br label %latch
+
+latch:
+  %ptr.next = getelementptr inbounds i8, ptr %ptr, i64 1
+  %cmp.i.not = icmp eq ptr %ptr.next, %ptr.end
+  br i1 %cmp.i.not, label %exit, label %loop
+
+exit:
+  ret void
 }

@@ -122,6 +122,7 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/SaveAndRestore.h"
+#include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/VersionTuple.h"
 #include "llvm/Support/raw_ostream.h"
@@ -1337,10 +1338,7 @@ void ASTReader::ParseLineTable(ModuleFile &F, const RecordData &Record) {
   // Parse the line entries
   std::vector<LineEntry> Entries;
   while (Idx < Record.size()) {
-    int FID = Record[Idx++];
-    assert(FID >= 0 && "Serialized line entries for non-local file.");
-    // Remap FileID from 1-based old view.
-    FID += F.SLocEntryBaseID - 1;
+    FileID FID = ReadFileID(F, Record, Idx);
 
     // Extract the line entries
     unsigned NumEntries = Record[Idx++];
@@ -1357,7 +1355,7 @@ void ASTReader::ParseLineTable(ModuleFile &F, const RecordData &Record) {
       Entries.push_back(LineEntry::get(FileOffset, LineNo, FilenameID,
                                        FileKind, IncludeOffset));
     }
-    LineTable.AddEntry(FileID::get(FID), Entries);
+    LineTable.AddEntry(FID, Entries);
   }
 }
 
@@ -1919,7 +1917,7 @@ HeaderFileInfoTrait::ReadData(internal_key_ref key, const unsigned char *d,
     Module::Header H = {std::string(key.Filename), "",
                         *FileMgr.getFile(Filename)};
     ModMap.addHeader(Mod, H, HeaderRole, /*Imported*/true);
-    HFI.isModuleHeader |= !(HeaderRole & ModuleMap::TextualHeader);
+    HFI.isModuleHeader |= ModuleMap::isModular(HeaderRole);
   }
 
   // This HeaderFileInfo was externally loaded.
@@ -2639,12 +2637,11 @@ ASTReader::ReadControlBlock(ModuleFile &F,
         // so we verify all input files.  Otherwise, verify only user input
         // files.
 
-        unsigned N = NumUserInputs;
-        if (ValidateSystemInputs ||
-            (HSOpts.ModulesValidateOncePerBuildSession &&
-             F.InputFilesValidationTimestamp <= HSOpts.BuildSessionTimestamp &&
-             F.Kind == MK_ImplicitModule))
-          N = NumInputs;
+        unsigned N = ValidateSystemInputs ? NumInputs : NumUserInputs;
+        if (HSOpts.ModulesValidateOncePerBuildSession &&
+            F.InputFilesValidationTimestamp > HSOpts.BuildSessionTimestamp &&
+            F.Kind == MK_ImplicitModule)
+          N = NumUserInputs;
 
         for (unsigned I = 0; I < N; ++I) {
           InputFile IF = getInputFile(F, I+1, Complain);
@@ -3404,9 +3401,14 @@ llvm::Error ASTReader::ReadASTBlock(ModuleFile &F,
       std::tie(F.SLocEntryBaseID, F.SLocEntryBaseOffset) =
           SourceMgr.AllocateLoadedSLocEntries(F.LocalNumSLocEntries,
                                               SLocSpaceSize);
-      if (!F.SLocEntryBaseID)
+      if (!F.SLocEntryBaseID) {
+        if (!Diags.isDiagnosticInFlight()) {
+          Diags.Report(SourceLocation(), diag::remark_sloc_usage);
+          SourceMgr.noteSLocAddressSpaceUsage(Diags);
+        }
         return llvm::createStringError(std::errc::invalid_argument,
                                        "ran out of source locations");
+      }
       // Make our entry in the range map. BaseID is negative and growing, so
       // we invert it. Because we invert it, though, we need the other end of
       // the range.
@@ -3919,7 +3921,8 @@ ASTReader::ReadModuleMapFileBlock(RecordData &Record, ModuleFile &F,
     Module *M =
         PP.getHeaderSearchInfo().lookupModule(F.ModuleName, F.ImportLoc);
     auto &Map = PP.getHeaderSearchInfo().getModuleMap();
-    const FileEntry *ModMap = M ? Map.getModuleMapFileForUniquing(M) : nullptr;
+    Optional<FileEntryRef> ModMap =
+        M ? Map.getModuleMapFileForUniquing(M) : None;
     // Don't emit module relocation error if we have -fno-validate-pch
     if (!bool(PP.getPreprocessorOpts().DisablePCHOrModuleValidation &
               DisableValidationForModuleKind::Module) &&
@@ -4208,6 +4211,8 @@ ASTReader::ASTReadResult ASTReader::ReadAST(StringRef FileName,
                                             SourceLocation ImportLoc,
                                             unsigned ClientLoadCapabilities,
                                             SmallVectorImpl<ImportedSubmodule> *Imported) {
+  llvm::TimeTraceScope scope("ReadAST", FileName);
+
   llvm::SaveAndRestore<SourceLocation>
     SetCurImportLocRAII(CurrentImportLoc, ImportLoc);
   llvm::SaveAndRestore<Optional<ModuleKind>> SetCurModuleKindRAII(
@@ -4291,10 +4296,8 @@ ASTReader::ASTReadResult ASTReader::ReadAST(StringRef FileName,
 
     // Map the original source file ID into the ID space of the current
     // compilation.
-    if (F.OriginalSourceFileID.isValid()) {
-      F.OriginalSourceFileID = FileID::get(
-          F.SLocEntryBaseID + F.OriginalSourceFileID.getOpaqueValue() - 1);
-    }
+    if (F.OriginalSourceFileID.isValid())
+      F.OriginalSourceFileID = TranslateFileID(F, F.OriginalSourceFileID);
 
     // Preload all the pending interesting identifiers by marking them out of
     // date.
@@ -4376,7 +4379,7 @@ ASTReader::ASTReadResult ASTReader::ReadAST(StringRef FileName,
 
     case UnresolvedModuleRef::Affecting:
       if (ResolvedMod)
-        Unresolved.Mod->AffectingModules.insert(ResolvedMod);
+        Unresolved.Mod->AffectingClangModules.insert(ResolvedMod);
       continue;
 
     case UnresolvedModuleRef::Export:
@@ -5166,19 +5169,28 @@ namespace {
 
 bool ASTReader::readASTFileControlBlock(
     StringRef Filename, FileManager &FileMgr,
-    const PCHContainerReader &PCHContainerRdr,
-    bool FindModuleFileExtensions,
+    const InMemoryModuleCache &ModuleCache,
+    const PCHContainerReader &PCHContainerRdr, bool FindModuleFileExtensions,
     ASTReaderListener &Listener, bool ValidateDiagnosticOptions) {
   // Open the AST file.
-  // FIXME: This allows use of the VFS; we do not allow use of the
-  // VFS when actually loading a module.
-  auto Buffer = FileMgr.getBufferForFile(Filename);
+  std::unique_ptr<llvm::MemoryBuffer> OwnedBuffer;
+  llvm::MemoryBuffer *Buffer = ModuleCache.lookupPCM(Filename);
   if (!Buffer) {
-    return true;
+    // FIXME: We should add the pcm to the InMemoryModuleCache if it could be
+    // read again later, but we do not have the context here to determine if it
+    // is safe to change the result of InMemoryModuleCache::getPCMState().
+
+    // FIXME: This allows use of the VFS; we do not allow use of the
+    // VFS when actually loading a module.
+    auto BufferOrErr = FileMgr.getBufferForFile(Filename);
+    if (!BufferOrErr)
+      return true;
+    OwnedBuffer = std::move(*BufferOrErr);
+    Buffer = OwnedBuffer.get();
   }
 
   // Initialize the stream
-  StringRef Bytes = PCHContainerRdr.ExtractPCH(**Buffer);
+  StringRef Bytes = PCHContainerRdr.ExtractPCH(*Buffer);
   BitstreamCursor Stream(Bytes);
 
   // Sniff for the signature.
@@ -5431,6 +5443,7 @@ bool ASTReader::readASTFileControlBlock(
 }
 
 bool ASTReader::isAcceptableASTFile(StringRef Filename, FileManager &FileMgr,
+                                    const InMemoryModuleCache &ModuleCache,
                                     const PCHContainerReader &PCHContainerRdr,
                                     const LangOptions &LangOpts,
                                     const TargetOptions &TargetOpts,
@@ -5440,9 +5453,9 @@ bool ASTReader::isAcceptableASTFile(StringRef Filename, FileManager &FileMgr,
   SimplePCHValidator validator(LangOpts, TargetOpts, PPOpts,
                                ExistingModuleCachePath, FileMgr,
                                RequireStrictOptionMatches);
-  return !readASTFileControlBlock(Filename, FileMgr, PCHContainerRdr,
-                                  /*FindModuleFileExtensions=*/false,
-                                  validator,
+  return !readASTFileControlBlock(Filename, FileMgr, ModuleCache,
+                                  PCHContainerRdr,
+                                  /*FindModuleFileExtensions=*/false, validator,
                                   /*ValidateDiagnosticOptions=*/true);
 }
 
@@ -6259,9 +6272,8 @@ void ASTReader::ReadPragmaDiagnosticMappings(DiagnosticsEngine &Diag) {
 
     DiagStates.clear();
 
-    auto ReadDiagState =
-        [&](const DiagState &BasedOn, SourceLocation Loc,
-            bool IncludeNonPragmaStates) -> DiagnosticsEngine::DiagState * {
+    auto ReadDiagState = [&](const DiagState &BasedOn,
+                             bool IncludeNonPragmaStates) {
       unsigned BackrefID = Record[Idx++];
       if (BackrefID != 0)
         return DiagStates[BackrefID - 1];
@@ -6322,7 +6334,7 @@ void ASTReader::ReadPragmaDiagnosticMappings(DiagnosticsEngine &Diag) {
       Initial.EnableAllWarnings = Flags & 1; Flags >>= 1;
       Initial.IgnoreAllWarnings = Flags & 1; Flags >>= 1;
       Initial.ExtBehavior = (diag::Severity)Flags;
-      FirstState = ReadDiagState(Initial, SourceLocation(), true);
+      FirstState = ReadDiagState(Initial, true);
 
       assert(F.OriginalSourceFileID.isValid());
 
@@ -6335,8 +6347,7 @@ void ASTReader::ReadPragmaDiagnosticMappings(DiagnosticsEngine &Diag) {
       // For prefix ASTs, start with whatever the user configured on the
       // command line.
       Idx++; // Skip flags.
-      FirstState = ReadDiagState(*Diag.DiagStatesByLoc.CurDiagState,
-                                 SourceLocation(), false);
+      FirstState = ReadDiagState(*Diag.DiagStatesByLoc.CurDiagState, false);
     }
 
     // Read the state transitions.
@@ -6344,22 +6355,19 @@ void ASTReader::ReadPragmaDiagnosticMappings(DiagnosticsEngine &Diag) {
     while (NumLocations--) {
       assert(Idx < Record.size() &&
              "Invalid data, missing pragma diagnostic states");
-      SourceLocation Loc = ReadSourceLocation(F, Record[Idx++]);
-      auto IDAndOffset = SourceMgr.getDecomposedLoc(Loc);
-      assert(IDAndOffset.first.isValid() && "invalid FileID for transition");
-      assert(IDAndOffset.second == 0 && "not a start location for a FileID");
+      FileID FID = ReadFileID(F, Record, Idx);
+      assert(FID.isValid() && "invalid FileID for transition");
       unsigned Transitions = Record[Idx++];
 
       // Note that we don't need to set up Parent/ParentOffset here, because
       // we won't be changing the diagnostic state within imported FileIDs
       // (other than perhaps appending to the main source file, which has no
       // parent).
-      auto &F = Diag.DiagStatesByLoc.Files[IDAndOffset.first];
+      auto &F = Diag.DiagStatesByLoc.Files[FID];
       F.StateTransitions.reserve(F.StateTransitions.size() + Transitions);
       for (unsigned I = 0; I != Transitions; ++I) {
         unsigned Offset = Record[Idx++];
-        auto *State =
-            ReadDiagState(*FirstState, Loc.getLocWithOffset(Offset), false);
+        auto *State = ReadDiagState(*FirstState, false);
         F.StateTransitions.push_back({State, Offset});
       }
     }
@@ -6369,7 +6377,7 @@ void ASTReader::ReadPragmaDiagnosticMappings(DiagnosticsEngine &Diag) {
            "Invalid data, missing final pragma diagnostic state");
     SourceLocation CurStateLoc =
         ReadSourceLocation(F, F.PragmaDiagMappings[Idx++]);
-    auto *CurState = ReadDiagState(*FirstState, CurStateLoc, false);
+    auto *CurState = ReadDiagState(*FirstState, false);
 
     if (!F.isModule()) {
       Diag.DiagStatesByLoc.CurDiagState = CurState;
@@ -6687,8 +6695,9 @@ void TypeLocReader::VisitAutoTypeLoc(AutoTypeLoc TL) {
     TL.setLAngleLoc(readSourceLocation());
     TL.setRAngleLoc(readSourceLocation());
     for (unsigned i = 0, e = TL.getNumArgs(); i != e; ++i)
-      TL.setArgLocInfo(i, Reader.readTemplateArgumentLocInfo(
-                              TL.getTypePtr()->getArg(i).getKind()));
+      TL.setArgLocInfo(
+          i, Reader.readTemplateArgumentLocInfo(
+                 TL.getTypePtr()->getTypeConstraintArguments()[i].getKind()));
   }
   if (Reader.readBool())
     TL.setRParenLoc(readSourceLocation());
@@ -6736,10 +6745,9 @@ void TypeLocReader::VisitTemplateSpecializationTypeLoc(
   TL.setLAngleLoc(readSourceLocation());
   TL.setRAngleLoc(readSourceLocation());
   for (unsigned i = 0, e = TL.getNumArgs(); i != e; ++i)
-    TL.setArgLocInfo(
-        i,
-        Reader.readTemplateArgumentLocInfo(
-          TL.getTypePtr()->getArg(i).getKind()));
+    TL.setArgLocInfo(i,
+                     Reader.readTemplateArgumentLocInfo(
+                         TL.getTypePtr()->template_arguments()[i].getKind()));
 }
 
 void TypeLocReader::VisitParenTypeLoc(ParenTypeLoc TL) {
@@ -6771,10 +6779,9 @@ void TypeLocReader::VisitDependentTemplateSpecializationTypeLoc(
   TL.setLAngleLoc(readSourceLocation());
   TL.setRAngleLoc(readSourceLocation());
   for (unsigned I = 0, E = TL.getNumArgs(); I != E; ++I)
-    TL.setArgLocInfo(
-        I,
-        Reader.readTemplateArgumentLocInfo(
-            TL.getTypePtr()->getArg(I).getKind()));
+    TL.setArgLocInfo(I,
+                     Reader.readTemplateArgumentLocInfo(
+                         TL.getTypePtr()->template_arguments()[I].getKind()));
 }
 
 void TypeLocReader::VisitPackExpansionTypeLoc(PackExpansionTypeLoc TL) {
@@ -7234,8 +7241,7 @@ void ASTReader::CompleteRedeclChain(const Decl *D) {
   //
   // FIXME: Merging a function definition should merge
   // all mergeable entities within it.
-  if (isa<TranslationUnitDecl>(DC) || isa<NamespaceDecl>(DC) ||
-      isa<CXXRecordDecl>(DC) || isa<EnumDecl>(DC)) {
+  if (isa<TranslationUnitDecl, NamespaceDecl, CXXRecordDecl, EnumDecl>(DC)) {
     if (DeclarationName Name = cast<NamedDecl>(D)->getDeclName()) {
       if (!getContext().getLangOpts().CPlusPlus &&
           isa<TranslationUnitDecl>(DC)) {
@@ -8244,8 +8250,8 @@ namespace serialization {
 /// Add the given set of methods to the method list.
 static void addMethodsToPool(Sema &S, ArrayRef<ObjCMethodDecl *> Methods,
                              ObjCMethodList &List) {
-  for (auto I = Methods.rbegin(), E = Methods.rend(); I != E; ++I)
-    S.addMethodToGlobalList(&List, *I);
+  for (ObjCMethodDecl *M : llvm::reverse(Methods))
+    S.addMethodToGlobalList(&List, M);
 }
 
 void ASTReader::ReadMethodPool(Selector Sel) {
@@ -9180,14 +9186,14 @@ void ASTReader::visitInputFiles(serialization::ModuleFile &MF,
 
 void ASTReader::visitTopLevelModuleMaps(
     serialization::ModuleFile &MF,
-    llvm::function_ref<void(const FileEntry *FE)> Visitor) {
+    llvm::function_ref<void(FileEntryRef FE)> Visitor) {
   unsigned NumInputs = MF.InputFilesLoaded.size();
   for (unsigned I = 0; I < NumInputs; ++I) {
     InputFileInfo IFI = readInputFileInfo(MF, I + 1);
     if (IFI.TopLevelModuleMap)
       // FIXME: This unnecessarily re-reads the InputFileInfo.
       if (auto FE = getInputFile(MF, I + 1).getFile())
-        Visitor(FE);
+        Visitor(*FE);
   }
 }
 
@@ -9441,7 +9447,8 @@ void ASTReader::finishPendingActions() {
 void ASTReader::diagnoseOdrViolations() {
   if (PendingOdrMergeFailures.empty() && PendingOdrMergeChecks.empty() &&
       PendingFunctionOdrMergeFailures.empty() &&
-      PendingEnumOdrMergeFailures.empty())
+      PendingEnumOdrMergeFailures.empty() &&
+      PendingObjCProtocolOdrMergeFailures.empty())
     return;
 
   // Trigger the import of the full definition of each class that had any
@@ -9485,6 +9492,16 @@ void ASTReader::diagnoseOdrViolations() {
     for (auto &Enum : Merge.second) {
       Enum->decls_begin();
     }
+  }
+
+  // Trigger the import of the full protocol definition.
+  auto ObjCProtocolOdrMergeFailures =
+      std::move(PendingObjCProtocolOdrMergeFailures);
+  PendingObjCProtocolOdrMergeFailures.clear();
+  for (auto &Merge : ObjCProtocolOdrMergeFailures) {
+    Merge.first->decls_begin();
+    for (auto &ProtocolPair : Merge.second)
+      ProtocolPair.first->decls_begin();
   }
 
   // For each declaration from a merged context, check that the canonical
@@ -9571,7 +9588,7 @@ void ASTReader::diagnoseOdrViolations() {
   }
 
   if (OdrMergeFailures.empty() && FunctionOdrMergeFailures.empty() &&
-      EnumOdrMergeFailures.empty())
+      EnumOdrMergeFailures.empty() && ObjCProtocolOdrMergeFailures.empty())
     return;
 
   // Ensure we don't accidentally recursively enter deserialization while
@@ -9635,6 +9652,25 @@ void ASTReader::diagnoseOdrViolations() {
     bool Diagnosed = false;
     for (auto &SecondEnum : Merge.second) {
       if (DiagsEmitter.diagnoseMismatch(FirstEnum, SecondEnum)) {
+        Diagnosed = true;
+        break;
+      }
+    }
+    (void)Diagnosed;
+    assert(Diagnosed && "Unable to emit ODR diagnostic.");
+  }
+
+  for (auto &Merge : ObjCProtocolOdrMergeFailures) {
+    // If we've already pointed out a specific problem with this protocol,
+    // don't bother issuing a general "something's different" diagnostic.
+    if (!DiagnosedOdrMergeFailures.insert(Merge.first).second)
+      continue;
+
+    ObjCProtocolDecl *FirstProtocol = Merge.first;
+    bool Diagnosed = false;
+    for (auto &ProtocolPair : Merge.second) {
+      if (DiagsEmitter.diagnoseMismatch(FirstProtocol, ProtocolPair.first,
+                                        ProtocolPair.second)) {
         Diagnosed = true;
         break;
       }
@@ -9920,7 +9956,16 @@ OMPClause *OMPClauseReader::readClause() {
   case llvm::omp::OMPC_atomic_default_mem_order:
     C = new (Context) OMPAtomicDefaultMemOrderClause();
     break;
- case llvm::omp::OMPC_private:
+  case llvm::omp::OMPC_at:
+    C = new (Context) OMPAtClause();
+    break;
+  case llvm::omp::OMPC_severity:
+    C = new (Context) OMPSeverityClause();
+    break;
+  case llvm::omp::OMPC_message:
+    C = new (Context) OMPMessageClause();
+    break;
+  case llvm::omp::OMPC_private:
     C = OMPPrivateClause::CreateEmpty(Context, Record.readInt());
     break;
   case llvm::omp::OMPC_firstprivate:
@@ -10320,6 +10365,23 @@ void OMPClauseReader::VisitOMPAtomicDefaultMemOrderClause(
       static_cast<OpenMPAtomicDefaultMemOrderClauseKind>(Record.readInt()));
   C->setLParenLoc(Record.readSourceLocation());
   C->setAtomicDefaultMemOrderKindKwLoc(Record.readSourceLocation());
+}
+
+void OMPClauseReader::VisitOMPAtClause(OMPAtClause *C) {
+  C->setAtKind(static_cast<OpenMPAtClauseKind>(Record.readInt()));
+  C->setLParenLoc(Record.readSourceLocation());
+  C->setAtKindKwLoc(Record.readSourceLocation());
+}
+
+void OMPClauseReader::VisitOMPSeverityClause(OMPSeverityClause *C) {
+  C->setSeverityKind(static_cast<OpenMPSeverityClauseKind>(Record.readInt()));
+  C->setLParenLoc(Record.readSourceLocation());
+  C->setSeverityKindKwLoc(Record.readSourceLocation());
+}
+
+void OMPClauseReader::VisitOMPMessageClause(OMPMessageClause *C) {
+  C->setMessageString(Record.readSubExpr());
+  C->setLParenLoc(Record.readSourceLocation());
 }
 
 void OMPClauseReader::VisitOMPPrivateClause(OMPPrivateClause *C) {
@@ -10737,13 +10799,17 @@ void OMPClauseReader::VisitOMPPriorityClause(OMPPriorityClause *C) {
 
 void OMPClauseReader::VisitOMPGrainsizeClause(OMPGrainsizeClause *C) {
   VisitOMPClauseWithPreInit(C);
+  C->setModifier(Record.readEnum<OpenMPGrainsizeClauseModifier>());
   C->setGrainsize(Record.readSubExpr());
+  C->setModifierLoc(Record.readSourceLocation());
   C->setLParenLoc(Record.readSourceLocation());
 }
 
 void OMPClauseReader::VisitOMPNumTasksClause(OMPNumTasksClause *C) {
   VisitOMPClauseWithPreInit(C);
+  C->setModifier(Record.readEnum<OpenMPNumTasksClauseModifier>());
   C->setNumTasks(Record.readSubExpr());
+  C->setModifierLoc(Record.readSourceLocation());
   C->setLParenLoc(Record.readSourceLocation());
 }
 

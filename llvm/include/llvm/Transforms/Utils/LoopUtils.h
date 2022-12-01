@@ -210,8 +210,9 @@ bool promoteLoopAccessesToScalars(
     const SmallSetVector<Value *, 8> &, SmallVectorImpl<BasicBlock *> &,
     SmallVectorImpl<Instruction *> &, SmallVectorImpl<MemoryAccess *> &,
     PredIteratorCache &, LoopInfo *, DominatorTree *, AssumptionCache *AC,
-    const TargetLibraryInfo *, Loop *, MemorySSAUpdater &, ICFLoopSafetyInfo *,
-    OptimizationRemarkEmitter *, bool AllowSpeculation);
+    const TargetLibraryInfo *, TargetTransformInfo *, Loop *,
+    MemorySSAUpdater &, ICFLoopSafetyInfo *, OptimizationRemarkEmitter *,
+    bool AllowSpeculation);
 
 /// Does a BFS from a given node to all of its children inside a given loop.
 /// The returned vector of nodes includes the starting point.
@@ -540,8 +541,10 @@ struct IVConditionInfo {
 /// If the branch condition of the header is partially invariant, return a pair
 /// containing the instructions to duplicate and a boolean Constant to update
 /// the condition in the loops created for the true or false successors.
-Optional<IVConditionInfo> hasPartialIVCondition(Loop &L, unsigned MSSAThreshold,
-                                                MemorySSA &MSSA, AAResults &AA);
+Optional<IVConditionInfo> hasPartialIVCondition(const Loop &L,
+                                                unsigned MSSAThreshold,
+                                                const MemorySSA &MSSA,
+                                                AAResults &AA);
 
 } // end namespace llvm
 

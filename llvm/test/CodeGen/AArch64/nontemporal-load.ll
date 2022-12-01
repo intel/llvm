@@ -103,8 +103,7 @@ define <32 x i8> @test_ldnp_v32i8(<32 x i8>* %A) {
 define <4 x i32> @test_ldnp_v4i32(<4 x i32>* %A) {
 ; CHECK-LABEL: test_ldnp_v4i32:
 ; CHECK:       ; %bb.0:
-; CHECK-NEXT:    ldnp d0, d1, [x0]
-; CHECK-NEXT:    mov.d v0[1], v1[0]
+; CHECK-NEXT:    ldr q0, [x0]
 ; CHECK-NEXT:    ret
 ;
 ; CHECK-BE-LABEL: test_ldnp_v4i32:
@@ -118,8 +117,7 @@ define <4 x i32> @test_ldnp_v4i32(<4 x i32>* %A) {
 define <4 x float> @test_ldnp_v4f32(<4 x float>* %A) {
 ; CHECK-LABEL: test_ldnp_v4f32:
 ; CHECK:       ; %bb.0:
-; CHECK-NEXT:    ldnp d0, d1, [x0]
-; CHECK-NEXT:    mov.d v0[1], v1[0]
+; CHECK-NEXT:    ldr q0, [x0]
 ; CHECK-NEXT:    ret
 ;
 ; CHECK-BE-LABEL: test_ldnp_v4f32:
@@ -133,8 +131,7 @@ define <4 x float> @test_ldnp_v4f32(<4 x float>* %A) {
 define <8 x i16> @test_ldnp_v8i16(<8 x i16>* %A) {
 ; CHECK-LABEL: test_ldnp_v8i16:
 ; CHECK:       ; %bb.0:
-; CHECK-NEXT:    ldnp d0, d1, [x0]
-; CHECK-NEXT:    mov.d v0[1], v1[0]
+; CHECK-NEXT:    ldr q0, [x0]
 ; CHECK-NEXT:    ret
 ;
 ; CHECK-BE-LABEL: test_ldnp_v8i16:
@@ -148,8 +145,7 @@ define <8 x i16> @test_ldnp_v8i16(<8 x i16>* %A) {
 define <16 x i8> @test_ldnp_v16i8(<16 x i8>* %A) {
 ; CHECK-LABEL: test_ldnp_v16i8:
 ; CHECK:       ; %bb.0:
-; CHECK-NEXT:    ldnp d0, d1, [x0]
-; CHECK-NEXT:    mov.d v0[1], v1[0]
+; CHECK-NEXT:    ldr q0, [x0]
 ; CHECK-NEXT:    ret
 ;
 ; CHECK-BE-LABEL: test_ldnp_v16i8:
@@ -162,8 +158,7 @@ define <16 x i8> @test_ldnp_v16i8(<16 x i8>* %A) {
 define <2 x double> @test_ldnp_v2f64(<2 x double>* %A) {
 ; CHECK-LABEL: test_ldnp_v2f64:
 ; CHECK:       ; %bb.0:
-; CHECK-NEXT:    ldnp d0, d1, [x0]
-; CHECK-NEXT:    mov.d v0[1], v1[0]
+; CHECK-NEXT:    ldr q0, [x0]
 ; CHECK-NEXT:    ret
 ;
 ; CHECK-BE-LABEL: test_ldnp_v2f64:
@@ -495,27 +490,27 @@ define <4 x i65> @test_ldnp_v4i65(<4 x i65>* %A) {
 ;
 ; CHECK-BE-LABEL: test_ldnp_v4i65:
 ; CHECK-BE:       // %bb.0:
-; CHECK-BE-NEXT:    ldp x9, x8, [x0, #16]
-; CHECK-BE-NEXT:    ldp x11, x10, [x0]
-; CHECK-BE-NEXT:    ldrb w7, [x0, #32]
-; CHECK-BE-NEXT:    lsr x13, x9, #56
-; CHECK-BE-NEXT:    lsr x14, x11, #56
-; CHECK-BE-NEXT:    extr x15, x10, x9, #56
-; CHECK-BE-NEXT:    bfi x7, x8, #8, #56
-; CHECK-BE-NEXT:    extr x8, x9, x8, #56
-; CHECK-BE-NEXT:    extr x12, x11, x10, #56
-; CHECK-BE-NEXT:    lsr x11, x11, #59
-; CHECK-BE-NEXT:    ubfx x9, x9, #57, #1
+; CHECK-BE-NEXT:    ldp x10, x9, [x0, #16]
+; CHECK-BE-NEXT:    ldp x12, x11, [x0]
+; CHECK-BE-NEXT:    ldrb w8, [x0, #32]
+; CHECK-BE-NEXT:    lsr x13, x10, #56
+; CHECK-BE-NEXT:    lsr x14, x12, #56
+; CHECK-BE-NEXT:    extr x15, x11, x10, #56
+; CHECK-BE-NEXT:    orr x7, x8, x9, lsl #8
+; CHECK-BE-NEXT:    extr x8, x10, x9, #56
+; CHECK-BE-NEXT:    extr x9, x12, x11, #56
+; CHECK-BE-NEXT:    lsr x12, x12, #59
+; CHECK-BE-NEXT:    ubfx x10, x10, #57, #1
 ; CHECK-BE-NEXT:    extr x5, x13, x8, #1
-; CHECK-BE-NEXT:    extr x1, x14, x12, #3
-; CHECK-BE-NEXT:    ubfx x12, x10, #58, #1
-; CHECK-BE-NEXT:    fmov d0, x11
-; CHECK-BE-NEXT:    and x11, x8, #0x1
-; CHECK-BE-NEXT:    lsr x10, x10, #56
-; CHECK-BE-NEXT:    fmov d2, x9
-; CHECK-BE-NEXT:    fmov d1, x12
-; CHECK-BE-NEXT:    extr x3, x10, x15, #2
-; CHECK-BE-NEXT:    fmov d3, x11
+; CHECK-BE-NEXT:    extr x1, x14, x9, #3
+; CHECK-BE-NEXT:    ubfx x9, x11, #58, #1
+; CHECK-BE-NEXT:    fmov d0, x12
+; CHECK-BE-NEXT:    and x12, x8, #0x1
+; CHECK-BE-NEXT:    lsr x11, x11, #56
+; CHECK-BE-NEXT:    fmov d2, x10
+; CHECK-BE-NEXT:    fmov d1, x9
+; CHECK-BE-NEXT:    extr x3, x11, x15, #2
+; CHECK-BE-NEXT:    fmov d3, x12
 ; CHECK-BE-NEXT:    mov v0.d[1], x1
 ; CHECK-BE-NEXT:    mov v2.d[1], x5
 ; CHECK-BE-NEXT:    mov v1.d[1], x3

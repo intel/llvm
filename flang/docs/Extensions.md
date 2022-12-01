@@ -343,6 +343,13 @@ end
   This Fortran 2008 feature might as well be viewed like an
   extension; no other compiler that we've tested can handle
   it yet.
+* According to 11.1.3.3p1, if a selector of an `ASSOCIATE` or
+  related construct is defined by a variable, it has the `TARGET`
+  attribute if the variable was a `POINTER` or `TARGET`.
+  We read this to include the case of the variable being a
+  pointer-valued function reference.
+  No other Fortran compiler seems to handle this correctly for
+  `ASSOCIATE`, though NAG gets it right for `SELECT TYPE`.
 
 ## Behavior in cases where the standard is ambiguous or indefinite
 
@@ -440,3 +447,46 @@ end subroutine
   The precedent among the most commonly used compilers
   agrees with f18's interpretation: a `DATA` statement without any other
   specification of the name refers to the host-associated object.
+
+* Many Fortran compilers allow a non-generic procedure to be `USE`-associated
+  into a scope that also contains a generic interface of the same name
+  but does not have the `USE`-associated non-generic procedure as a
+  specific procedure.
+```
+module m1
+ contains
+  subroutine foo(n)
+    integer, intent(in) :: n
+  end subroutine
+end module
+
+module m2
+  use m1, only: foo
+  interface foo
+    module procedure noargs
+  end interface
+ contains
+  subroutine noargs
+  end subroutine
+end module
+```
+
+  This case elicits a warning from f18, as it should not be treated
+  any differently than the same case with the non-generic procedure of
+  the same name being defined in the same scope rather than being
+  `USE`-associated into it, which is explicitly non-conforming in the
+  standard and not allowed by most other compilers.
+  If the `USE`-associated entity of the same name is not a procedure,
+  most compilers disallow it as well.
+
+* Fortran 2018 19.3.4p1: "A component name has the scope of its derived-type
+  definition.  Outside the type definition, it may also appear ..." which
+  seems to imply that within its derived-type definition, a component
+  name is in its scope, and at least shadows any entity of the same name
+  in the enclosing scope and might be read, thanks to the "also", to mean
+  that a "bare" reference to the name could be used in a specification inquiry.
+  However, most other compilers do not allow a component to shadow exterior
+  symbols, much less appear in specification inquiries, and there are
+  application codes that expect exterior symbols whose names match
+  components to be visible in a derived-type definition's default initialization
+  expressions, and so f18 follows that precedent.

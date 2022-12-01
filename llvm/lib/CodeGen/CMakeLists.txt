@@ -43,6 +43,7 @@ add_llvm_component_library(LLVMCodeGen
   CodeGenPassBuilder.cpp
   CodeGenPrepare.cpp
   CommandFlags.cpp
+  ComplexDeinterleavingPass.cpp
   CriticalAntiDepBreaker.cpp
   DeadMachineInstructionElim.cpp
   DetectDeadLanes.cpp
@@ -255,6 +256,7 @@ add_llvm_component_library(LLVMCodeGen
   BitWriter
   Core
   MC
+  ObjCARC
   ProfileData
   Scalar
   Support

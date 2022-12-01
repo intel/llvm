@@ -1175,8 +1175,8 @@ public:
 
   /// Returns the backedge value as a recipe. The backedge value is guaranteed
   /// to be a recipe.
-  VPRecipeBase *getBackedgeRecipe() {
-    return cast<VPRecipeBase>(getBackedgeValue()->getDef());
+  VPRecipeBase &getBackedgeRecipe() {
+    return *getBackedgeValue()->getDefiningRecipe();
   }
 };
 
@@ -1944,7 +1944,7 @@ public:
 
   /// Returns the scalar type of the induction.
   const Type *getScalarType() const {
-    return cast<VPCanonicalIVPHIRecipe>(getOperand(0)->getDef())
+    return cast<VPCanonicalIVPHIRecipe>(getOperand(0)->getDefiningRecipe())
         ->getScalarType();
   }
 };
@@ -3055,13 +3055,15 @@ VPValue *getOrCreateVPValueForSCEVExpr(VPlan &Plan, const SCEV *Expr,
 
 /// Returns true if \p VPV is uniform after vectorization.
 inline bool isUniformAfterVectorization(VPValue *VPV) {
-  if (auto *Def = VPV->getDef()) {
-    if (auto Rep = dyn_cast<VPReplicateRecipe>(Def))
-      return Rep->isUniform();
-    return false;
-  }
-  // A value without a def is external to vplan and thus uniform.
-  return true;
+  // A value defined outside the vector region must be uniform after
+  // vectorization inside a vector region.
+  if (VPV->isDefinedOutsideVectorRegions())
+    return true;
+  VPRecipeBase *Def = VPV->getDefiningRecipe();
+  assert(Def && "Must have definition for value defined inside vector region");
+  if (auto Rep = dyn_cast<VPReplicateRecipe>(Def))
+    return Rep->isUniform();
+  return false;
 }
 } // end namespace vputils
 

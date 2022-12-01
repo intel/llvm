@@ -1399,7 +1399,7 @@ ESIMD_INLINE __ESIMD_NS::simd<float, N> fmod(__ESIMD_NS::simd<float, N> y,
   __ESIMD_NS::simd<float, N> reminder =
       abs_y - abs_x * __ESIMD_NS::trunc<float>(abs_y / abs_x);
 
-  abs_x.merge(0.0, reminder >= 0);
+  abs_x.merge(0.0f, reminder >= 0);
   __ESIMD_NS::simd<float, N> fmod = reminder + abs_x;
   __ESIMD_NS::simd<float, N> fmod_abs = __ESIMD_NS::abs(fmod);
 
@@ -1574,7 +1574,6 @@ tanh_cody_waite_impl(__ESIMD_NS::simd<float, N> x) {
   constexpr float xsmall = 4.22863966691620432990E-04f;
   constexpr float xmedium = 0.54930614433405484570f;
   constexpr float xlarge = 8.66433975699931636772f;
-  constexpr float log2E = 1.442695f; // same as esimd::log(e)
 
   using RT = __ESIMD_NS::simd<float, N>;
 
@@ -1591,7 +1590,7 @@ tanh_cody_waite_impl(__ESIMD_NS::simd<float, N> x) {
 
   RT res;
   res.merge(sign, x, isLarge);
-  auto temp = __ESIMD_NS::exp(absX * 2.0f * log2E) + 1.f;
+  auto temp = __ESIMD_NS::exp(absX * 2.0f) + 1.f;
   temp = ((temp - 2.f) / temp) * sign;
   res.merge(temp, isGtMed);
   res.merge((absX + absX * g * (g * p1 + p0) / (g + q0)) * sign, isGtSmall);
@@ -1609,8 +1608,7 @@ tanh_impl(__ESIMD_NS::simd<float, N> x) {
    */
 
   constexpr float xsmall = 0.000045f; // same as exp(-10.0f)
-  constexpr float xlarge = 88.f;
-  constexpr float log2E = 1.442695f; // same as esimd::log(e)
+  constexpr float xlarge = 40.f;
 
   using RT = __ESIMD_NS::simd<float, N>;
 
@@ -1626,7 +1624,7 @@ tanh_impl(__ESIMD_NS::simd<float, N> x) {
   res.merge(sign, x, isLarge);
 
   RT exp;
-  exp = __ESIMD_NS::exp(absX * 2.f * log2E);
+  exp = __ESIMD_NS::exp(absX * 2.f);
 
   res.merge(((exp - 1.f) / (exp + 1.f)) * sign, (absX > xsmall) & isLessE);
 

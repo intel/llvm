@@ -88,6 +88,8 @@ extern "C" void LLVM_EXTERNAL_VISIBILITY LLVMInitializeAMDGPUAsmPrinter() {
 AMDGPUAsmPrinter::AMDGPUAsmPrinter(TargetMachine &TM,
                                    std::unique_ptr<MCStreamer> Streamer)
     : AsmPrinter(TM, std::move(Streamer)) {
+  assert(OutStreamer && "AsmPrinter constructed without streamer");
+
   if (TM.getTargetTriple().getOS() == Triple::AMDHSA) {
     if (isHsaAbiVersion2(getGlobalSTI())) {
       HSAMetadataStream.reset(new HSAMD::MetadataStreamerYamlV2());
@@ -158,10 +160,6 @@ void AMDGPUAsmPrinter::emitEndOfAsmFile(Module &M) {
   if (!IsTargetStreamerInitialized)
     initTargetStreamer(M);
 
-  // Following code requires TargetStreamer to be present.
-  if (!getTargetStreamer())
-    return;
-
   if (TM.getTargetTriple().getOS() != Triple::AMDHSA ||
       isHsaAbiVersion2(getGlobalSTI()))
     getTargetStreamer()->EmitISAVersion();
@@ -197,7 +195,7 @@ void AMDGPUAsmPrinter::emitFunctionBodyStart() {
 
   // TODO: Which one is called first, emitStartOfAsmFile or
   // emitFunctionBodyStart?
-  if (getTargetStreamer() && !getTargetStreamer()->getTargetID())
+  if (!getTargetStreamer()->getTargetID())
     initializeTargetID(*F.getParent());
 
   const auto &FunctionTargetID = STM.getTargetID();
@@ -338,8 +336,8 @@ void AMDGPUAsmPrinter::emitGlobalVariable(const GlobalVariable *GV) {
 
     emitVisibility(GVSym, GV->getVisibility(), !GV->isDeclaration());
     emitLinkage(GV, GVSym);
-    if (auto TS = getTargetStreamer())
-      TS->emitAMDGPULDS(GVSym, Size, Alignment);
+    auto TS = getTargetStreamer();
+    TS->emitAMDGPULDS(GVSym, Size, Alignment);
     return;
   }
 
@@ -417,7 +415,8 @@ uint16_t AMDGPUAsmPrinter::getAmdhsaKernelCodeProperties(
         amdhsa::KERNEL_CODE_PROPERTY_ENABLE_WAVEFRONT_SIZE32;
   }
 
-  if (CurrentProgramInfo.DynamicCallStack) {
+  if (CurrentProgramInfo.DynamicCallStack &&
+      AMDGPU::getAmdhsaCodeObjectVersion() >= 5) {
     KernelCodeProperties |= amdhsa::KERNEL_CODE_PROPERTY_USES_DYNAMIC_STACK;
   }
 

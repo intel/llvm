@@ -10,8 +10,8 @@ define void @test() nounwind comdat {
 ; CHECK-NEXT:    mflr 0
 ; CHECK-NEXT:    std 29, -24(1) # 8-byte Folded Spill
 ; CHECK-NEXT:    std 30, -16(1) # 8-byte Folded Spill
-; CHECK-NEXT:    std 0, 16(1)
 ; CHECK-NEXT:    stdu 1, -64(1)
+; CHECK-NEXT:    std 0, 80(1)
 ; CHECK-NEXT:    ld 29, 0(3)
 ; CHECK-NEXT:    ld 30, 32(1)
 ; CHECK-NEXT:    cmpld 30, 29
@@ -33,18 +33,18 @@ define void @test() nounwind comdat {
   br label %forcond
 
 forcond:                                          ; preds = %bounds.ok, %0
-  %1 = load i64, i64* %pos
-  %.len1 = load i64, i64* undef
+  %1 = load i64, ptr %pos
+  %.len1 = load i64, ptr undef
   %bounds.cmp = icmp ult i64 %1, %.len1
   br i1 %bounds.cmp, label %bounds.ok, label %bounds.fail
 
 bounds.ok:                                        ; preds = %forcond
-  %2 = load float, float* undef
+  %2 = load float, ptr undef
   %3 = frem float 0.000000e+00, %2
-  store float %3, float* undef
-  %4 = load i64, i64* %pos
+  store float %3, ptr undef
+  %4 = load i64, ptr %pos
   %5 = add i64 %4, 1
-  store i64 %5, i64* %pos
+  store i64 %5, ptr %pos
   br label %forcond
 
 bounds.fail:                                      ; preds = %forcond

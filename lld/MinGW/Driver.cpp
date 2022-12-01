@@ -139,9 +139,9 @@ searchLibrary(StringRef name, ArrayRef<StringRef> searchPaths, bool bStatic) {
     }
     if (Optional<std::string> s = findFile(dir, "lib" + name + ".a"))
       return *s;
+    if (Optional<std::string> s = findFile(dir, name + ".lib"))
+       return *s;
     if (!bStatic) {
-      if (Optional<std::string> s = findFile(dir, name + ".lib"))
-        return *s;
       if (Optional<std::string> s = findFile(dir, "lib" + name + ".dll"))
         return *s;
       if (Optional<std::string> s = findFile(dir, name + ".dll"))
@@ -388,6 +388,15 @@ bool mingw::link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
     auto *a = args.getLastArg(OPT_guard_longjmp);
     warn("parameter " + a->getSpelling() +
          " only takes effect when used with --guard-cf");
+  }
+
+  if (auto *a = args.getLastArg(OPT_error_limit)) {
+    int n;
+    StringRef s = a->getValue();
+    if (s.getAsInteger(10, n))
+      error(a->getSpelling() + ": number expected, but got " + s);
+    else
+      add("-errorlimit:" + s);
   }
 
   for (auto *a : args.filtered(OPT_mllvm))

@@ -56,6 +56,7 @@
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
@@ -483,6 +484,45 @@ memoryIsNotModifiedBetween(Instruction *FirstI, Instruction *SecondI,
   return true;
 }
 
+static void shortenAssignment(Instruction *Inst, uint64_t OldOffsetInBits,
+                              uint64_t OldSizeInBits, uint64_t NewSizeInBits,
+                              bool IsOverwriteEnd) {
+  DIExpression::FragmentInfo DeadFragment;
+  DeadFragment.SizeInBits = OldSizeInBits - NewSizeInBits;
+  DeadFragment.OffsetInBits =
+      OldOffsetInBits + (IsOverwriteEnd ? NewSizeInBits : 0);
+
+  auto CreateDeadFragExpr = [Inst, DeadFragment]() {
+    // FIXME: This should be using the DIExpression in the Alloca's dbg.assign
+    // for the variable, since that could also contain a fragment?
+    return *DIExpression::createFragmentExpression(
+        DIExpression::get(Inst->getContext(), None), DeadFragment.OffsetInBits,
+        DeadFragment.SizeInBits);
+  };
+
+  // A DIAssignID to use so that the inserted dbg.assign intrinsics do not
+  // link to any instructions. Created in the loop below (once).
+  DIAssignID *LinkToNothing = nullptr;
+
+  // Insert an unlinked dbg.assign intrinsic for the dead fragment after each
+  // overlapping dbg.assign intrinsic.
+  for (auto *DAI : at::getAssignmentMarkers(Inst)) {
+    if (auto FragInfo = DAI->getExpression()->getFragmentInfo()) {
+      if (!DIExpression::fragmentsOverlap(*FragInfo, DeadFragment))
+        continue;
+    }
+
+    // Fragments overlap: insert a new dbg.assign for this dead part.
+    auto *NewAssign = cast<DbgAssignIntrinsic>(DAI->clone());
+    NewAssign->insertAfter(DAI);
+    if (!LinkToNothing)
+      LinkToNothing = DIAssignID::getDistinct(Inst->getContext());
+    NewAssign->setAssignId(LinkToNothing);
+    NewAssign->setExpression(CreateDeadFragExpr());
+    NewAssign->setAddress(UndefValue::get(DAI->getAddress()->getType()));
+  }
+}
+
 static bool tryToShorten(Instruction *DeadI, int64_t &DeadStart,
                          uint64_t &DeadSize, int64_t KillingStart,
                          uint64_t KillingSize, bool IsOverwriteEnd) {
@@ -573,6 +613,10 @@ static bool tryToShorten(Instruction *DeadI, int64_t &DeadStart,
                                                "", DeadI);
     DeadIntrinsic->setDest(NewDestGEP);
   }
+
+  // Update attached dbg.assign intrinsics. Assume 8-bit byte.
+  shortenAssignment(DeadI, DeadStart * 8, DeadSize * 8, NewSize * 8,
+                    IsOverwriteEnd);
 
   // Finally update start and size of dead access.
   if (!IsOverwriteEnd)
@@ -1215,8 +1259,10 @@ struct DSEState {
       if (GEP->hasAllConstantIndices())
         Ptr = GEP->getPointerOperand()->stripPointerCasts();
 
-    if (auto *I = dyn_cast<Instruction>(Ptr))
-      return I->getParent()->isEntryBlock();
+    if (auto *I = dyn_cast<Instruction>(Ptr)) {
+      return I->getParent()->isEntryBlock() ||
+             (!ContainsIrreducibleLoops && !LI.getLoopFor(I->getParent()));
+    }
     return true;
   }
 
@@ -1874,23 +1920,8 @@ struct DSEState {
           // We are searching for the definition of the store's destination.
           // So, if that is the same definition as the load, then this is a
           // noop. Otherwise, fail.
-          if (LoadAccess != Current) {
-            // This is a potentially clobbering store, but it writes the same
-            // value, so we can safely ignore it if alignment is as expected.
-            if (auto *CurrentDef = cast<MemoryDef>(Current))
-              if (auto *CurrentStoreI =
-                      dyn_cast_or_null<StoreInst>(CurrentDef->getMemoryInst()))
-                // Check alignment to ensure load or store does not access at an
-                // offset.
-                if (CurrentStoreI->getValueOperand() == LoadI) {
-                  TypeSize StoreSize = DL.getTypeStoreSize(LoadI->getType());
-                  if (!StoreSize.isScalable() &&
-                      std::min(CurrentStoreI->getAlign(), LoadI->getAlign()) >=
-                          StoreSize)
-                    continue;
-                }
+          if (LoadAccess != Current)
             return false;
-          }
         }
         return true;
       }

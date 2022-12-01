@@ -8334,7 +8334,7 @@ void PPCTargetLowering::spliceIntoChain(SDValue ResChain,
 /// prefer float load to int load plus direct move
 /// when there is no integer use of int load
 bool PPCTargetLowering::directMoveIsProfitable(const SDValue &Op) const {
-  SDNode *Origin = Op.getOperand(0).getNode();
+  SDNode *Origin = Op.getOperand(Op->isStrictFPOpcode() ? 1 : 0).getNode();
   if (Origin->getOpcode() != ISD::LOAD)
     return true;
 
@@ -9772,8 +9772,11 @@ SDValue PPCTargetLowering::lowerToXXSPLTI32DX(ShuffleVectorSDNode *SVN,
   // Canonicalize the RHS being a BUILD_VECTOR when lowering to xxsplti32dx.
   if (RHS->getOpcode() != ISD::BUILD_VECTOR) {
     std::swap(LHS, RHS);
-    VecShuffle = DAG.getCommutedVectorShuffle(*SVN);
-    ShuffleMask = cast<ShuffleVectorSDNode>(VecShuffle)->getMask();
+    VecShuffle = peekThroughBitcasts(DAG.getCommutedVectorShuffle(*SVN));
+    ShuffleVectorSDNode *CommutedSV = dyn_cast<ShuffleVectorSDNode>(VecShuffle);
+    if (!CommutedSV)
+      return SDValue();
+    ShuffleMask = CommutedSV->getMask();
   }
 
   // Ensure that the RHS is a vector of constants.
@@ -16708,7 +16711,7 @@ bool PPCTargetLowering::isLegalAddImmediate(int64_t Imm) const {
 
 bool PPCTargetLowering::allowsMisalignedMemoryAccesses(EVT VT, unsigned, Align,
                                                        MachineMemOperand::Flags,
-                                                       bool *Fast) const {
+                                                       unsigned *Fast) const {
   if (DisablePPCUnaligned)
     return false;
 
@@ -16739,7 +16742,7 @@ bool PPCTargetLowering::allowsMisalignedMemoryAccesses(EVT VT, unsigned, Align,
     return false;
 
   if (Fast)
-    *Fast = true;
+    *Fast = 1;
 
   return true;
 }

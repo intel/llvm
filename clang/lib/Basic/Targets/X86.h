@@ -43,7 +43,8 @@ static const unsigned X86AddrSpaceMap[] = {
     0,   // sycl_private
     270, // ptr32_sptr
     271, // ptr32_uptr
-    272  // ptr64
+    272, // ptr64
+    0,   // hlsl_groupshared
 };
 
 // X86 target abstract base class; x86-32 and x86-64 are very close, so
@@ -103,6 +104,7 @@ class LLVM_LIBRARY_VISIBILITY X86TargetInfo : public TargetInfo {
   bool HasAVX512VL = false;
   bool HasAVX512VBMI = false;
   bool HasAVX512VBMI2 = false;
+  bool HasAVXIFMA = false;
   bool HasAVX512IFMA = false;
   bool HasAVX512VP2INTERSECT = false;
   bool HasSHA = false;
@@ -123,6 +125,7 @@ class LLVM_LIBRARY_VISIBILITY X86TargetInfo : public TargetInfo {
   bool HasCLFLUSHOPT = false;
   bool HasCLWB = false;
   bool HasMOVBE = false;
+  bool HasPREFETCHI = false;
   bool HasPREFETCHWT1 = false;
   bool HasRDPID = false;
   bool HasRDPRU = false;
@@ -135,6 +138,11 @@ class LLVM_LIBRARY_VISIBILITY X86TargetInfo : public TargetInfo {
   bool HasPTWRITE = false;
   bool HasINVPCID = false;
   bool HasENQCMD = false;
+  bool HasAMXFP16 = false;
+  bool HasCMPCCXADD = false;
+  bool HasRAOINT = false;
+  bool HasAVXVNNIINT8 = false;
+  bool HasAVXNECONVERT = false;
   bool HasKL = false;      // For key locker
   bool HasWIDEKL = false; // For wide key locker
   bool HasHRESET = false;
@@ -233,12 +241,16 @@ public:
 
   bool
   checkCFProtectionReturnSupported(DiagnosticsEngine &Diags) const override {
-    return true;
+    if (CPU == llvm::X86::CK_None || CPU >= llvm::X86::CK_PentiumPro)
+      return true;
+    return TargetInfo::checkCFProtectionReturnSupported(Diags);
   };
 
   bool
   checkCFProtectionBranchSupported(DiagnosticsEngine &Diags) const override {
-    return true;
+    if (CPU == llvm::X86::CK_None || CPU >= llvm::X86::CK_PentiumPro)
+      return true;
+    return TargetInfo::checkCFProtectionBranchSupported(Diags);
   };
 
   virtual bool validateOperandSize(const llvm::StringMap<bool> &FeatureMap,

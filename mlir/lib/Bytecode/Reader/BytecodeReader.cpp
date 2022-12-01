@@ -103,8 +103,13 @@ public:
       }
     }
 
-    // TODO: Check that the current data pointer is actually at the expected
-    // alignment.
+    // Ensure the data iterator is now aligned. This case is unlikely because we
+    // *just* went through the effort to align the data iterator.
+    if (LLVM_UNLIKELY(!llvm::isAddrAligned(llvm::Align(alignment), dataIt))) {
+      return emitError("expected data iterator aligned to ", alignment,
+                       ", but got pointer: '0x" +
+                           llvm::utohexstr((uintptr_t)dataIt) + "'");
+    }
 
     return success();
   }
@@ -1414,8 +1419,7 @@ LogicalResult BytecodeReader::parseIRSection(ArrayRef<uint8_t> sectionData,
   // Splice the parsed operations over to the provided top-level block.
   auto &parsedOps = moduleOp->getBody()->getOperations();
   auto &destOps = block->getOperations();
-  destOps.splice(destOps.empty() ? destOps.end() : std::prev(destOps.end()),
-                 parsedOps, parsedOps.begin(), parsedOps.end());
+  destOps.splice(destOps.end(), parsedOps, parsedOps.begin(), parsedOps.end());
   return success();
 }
 

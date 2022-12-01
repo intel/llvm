@@ -836,34 +836,8 @@ static void setPropertyExecutionMode(CodeGenModule &CGM, StringRef Name,
       llvm::ConstantInt::get(CGM.Int8Ty, Mode ? OMP_TGT_EXEC_MODE_SPMD
                                               : OMP_TGT_EXEC_MODE_GENERIC),
       Twine(Name, "_exec_mode"));
+  GVMode->setVisibility(llvm::GlobalVariable::ProtectedVisibility);
   CGM.addCompilerUsedGlobal(GVMode);
-}
-
-void CGOpenMPRuntimeGPU::createOffloadEntry(llvm::Constant *ID,
-                                              llvm::Constant *Addr,
-                                              uint64_t Size, int32_t,
-                                              llvm::GlobalValue::LinkageTypes) {
-  // TODO: Add support for global variables on the device after declare target
-  // support.
-  llvm::Function *Fn = dyn_cast<llvm::Function>(Addr);
-  if (!Fn)
-    return;
-
-  llvm::Module &M = CGM.getModule();
-  llvm::LLVMContext &Ctx = CGM.getLLVMContext();
-
-  // Get "nvvm.annotations" metadata node.
-  llvm::NamedMDNode *MD = M.getOrInsertNamedMetadata("nvvm.annotations");
-
-  llvm::Metadata *MDVals[] = {
-      llvm::ConstantAsMetadata::get(Fn), llvm::MDString::get(Ctx, "kernel"),
-      llvm::ConstantAsMetadata::get(
-          llvm::ConstantInt::get(llvm::Type::getInt32Ty(Ctx), 1))};
-  // Append metadata to nvvm.annotations.
-  MD->addOperand(llvm::MDNode::get(Ctx, MDVals));
-
-  // Add a function attribute for the kernel.
-  Fn->addFnAttr(llvm::Attribute::get(Ctx, "kernel"));
 }
 
 void CGOpenMPRuntimeGPU::emitTargetOutlinedFunction(
@@ -3634,6 +3608,9 @@ void CGOpenMPRuntimeGPU::processRequiresDirective(
       case CudaArch::SM_75:
       case CudaArch::SM_80:
       case CudaArch::SM_86:
+      case CudaArch::SM_87:
+      case CudaArch::SM_89:
+      case CudaArch::SM_90:
       case CudaArch::GFX600:
       case CudaArch::GFX601:
       case CudaArch::GFX602:

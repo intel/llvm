@@ -233,6 +233,13 @@ static cl::opt<bool> PredicateWidenableBranchGuards(
              "expressed as widenable branches to deoptimize blocks"),
     cl::init(true));
 
+static cl::opt<bool> InsertAssumesOfPredicatedGuardsConditions(
+    "loop-predication-insert-assumes-of-predicated-guards-conditions",
+    cl::Hidden,
+    cl::desc("Whether or not we should insert assumes of conditions of "
+             "predicated guards"),
+    cl::init(true));
+
 namespace {
 /// Represents an induction variable check:
 ///   icmp Pred, <induction variable>, <loop invariant limit>
@@ -562,7 +569,7 @@ bool LoopPredication::isLoopInvariantValue(const SCEV* S) {
   if (const SCEVUnknown *U = dyn_cast<SCEVUnknown>(S))
     if (const auto *LI = dyn_cast<LoadInst>(U->getValue()))
       if (LI->isUnordered() && L->hasLoopInvariantOperands(LI))
-        if (AA->pointsToConstantMemory(LI->getOperand(0)) ||
+        if (!isModSet(AA->getModRefInfoMask(LI->getOperand(0))) ||
             LI->hasMetadata(LLVMContext::MD_invariant_load))
           return true;
   return false;
@@ -756,17 +763,17 @@ unsigned LoopPredication::collectChecks(SmallVectorImpl<Value *> &Checks,
   // resulting list of subconditions in Checks vector.
   SmallVector<Value *, 4> Worklist(1, Condition);
   SmallPtrSet<Value *, 4> Visited;
+  Visited.insert(Condition);
   Value *WideableCond = nullptr;
   do {
     Value *Condition = Worklist.pop_back_val();
-    if (!Visited.insert(Condition).second)
-      continue;
-
     Value *LHS, *RHS;
     using namespace llvm::PatternMatch;
     if (match(Condition, m_And(m_Value(LHS), m_Value(RHS)))) {
-      Worklist.push_back(LHS);
-      Worklist.push_back(RHS);
+      if (Visited.insert(LHS).second)
+        Worklist.push_back(LHS);
+      if (Visited.insert(RHS).second)
+        Worklist.push_back(RHS);
       continue;
     }
 
@@ -817,6 +824,10 @@ bool LoopPredication::widenGuardConditions(IntrinsicInst *Guard,
   Value *AllChecks = Builder.CreateAnd(Checks);
   auto *OldCond = Guard->getOperand(0);
   Guard->setOperand(0, AllChecks);
+  if (InsertAssumesOfPredicatedGuardsConditions) {
+    Builder.SetInsertPoint(&*++BasicBlock::iterator(Guard));
+    Builder.CreateAssumption(OldCond);
+  }
   RecursivelyDeleteTriviallyDeadInstructions(OldCond, nullptr /* TLI */, MSSAU);
 
   LLVM_DEBUG(dbgs() << "Widened checks = " << NumWidened << "\n");
@@ -828,6 +839,12 @@ bool LoopPredication::widenWidenableBranchGuardConditions(
   assert(isGuardAsWidenableBranch(BI) && "Must be!");
   LLVM_DEBUG(dbgs() << "Processing guard:\n");
   LLVM_DEBUG(BI->dump());
+
+  Value *Cond, *WC;
+  BasicBlock *IfTrueBB, *IfFalseBB;
+  bool Parsed = parseWidenableBranch(BI, Cond, WC, IfTrueBB, IfFalseBB);
+  assert(Parsed && "Must be able to parse widenable branch");
+  (void)Parsed;
 
   TotalConsidered++;
   SmallVector<Value *, 4> Checks;
@@ -843,6 +860,10 @@ bool LoopPredication::widenWidenableBranchGuardConditions(
   Value *AllChecks = Builder.CreateAnd(Checks);
   auto *OldCond = BI->getCondition();
   BI->setCondition(AllChecks);
+  if (InsertAssumesOfPredicatedGuardsConditions) {
+    Builder.SetInsertPoint(IfTrueBB, IfTrueBB->getFirstInsertionPt());
+    Builder.CreateAssumption(Cond);
+  }
   RecursivelyDeleteTriviallyDeadInstructions(OldCond, nullptr /* TLI */, MSSAU);
   assert(isGuardAsWidenableBranch(BI) &&
          "Stopped being a guard after transform?");

@@ -106,7 +106,7 @@ An operation is defined by specializing the `Op` class with concrete contents
 for all the fields it requires. For example, `tf.AvgPool` is defined as
 
 ```tablegen
-def TF_AvgPoolOp : TF_Op<"AvgPool", [NoSideEffect]> {
+def TF_AvgPoolOp : TF_Op<"AvgPool", [NoMemoryEffect]> {
   let summary = "Performs average pooling on the input.";
 
   let description = [{
@@ -272,6 +272,9 @@ The second parameter to `DefaultValuedAttr` should be a string containing the
 C++ default value. For example, a float default value should be specified as
 like `"0.5f"`, and an integer array default value should be specified as like
 `"{1, 2, 3}"`.
+
+The generated operation printing function will not print default-valued
+attributes when the attribute value is equal to the default.
 
 #### Confining attributes
 
@@ -651,11 +654,11 @@ The available directives are as follows:
     -   See the [Custom Directives](#custom-directives) section below for more
         details.
 
-*   `functional-type` ( inputs , results )
+*   `functional-type` ( inputs , outputs )
 
-    -   Formats the `inputs` and `results` arguments as a
+    -   Formats the `inputs` and `outputs` arguments as a
         [function type](Dialects/Builtin.md/#functiontype).
-    -   The constraints on `inputs` and `results` are the same as the `input` of
+    -   The constraints on `inputs` and `outputs` are the same as the `input` of
         the `type` directive.
 
 *   `oilist` ( \`keyword\` elements | \`otherKeyword\` elements ...)
@@ -875,8 +878,9 @@ The elements of an optional group have the following requirements:
         the group is if the region is empty.
 *   Literals, variables, custom directives, and type directives are the only
     valid elements within the group.
-    -   Any attribute variable may be used, but only optional attributes can be
-        marked as the anchor.
+    -   Any attribute variable may be used, but only optional or default-valued
+        attributes can be marked as the anchor. A default-valued anchor is
+        considered present if it holds a value other than the default.
     -   Only variadic or optional results and operand arguments and can be used.
     -   All region variables can be used. When a non-variable length region is
         used, if the group is not present the region is empty.

@@ -1293,7 +1293,10 @@ uint32_t Process::AssignIndexIDToThread(uint64_t thread_id) {
 }
 
 StateType Process::GetState() {
-  return m_public_state.GetValue();
+  if (CurrentThreadIsPrivateStateThread())
+    return m_private_state.GetValue();
+  else
+    return m_public_state.GetValue();
 }
 
 void Process::SetPublicState(StateType new_state, bool restarted) {
@@ -2761,18 +2764,15 @@ ListenerSP ProcessAttachInfo::GetListenerForProcess(Debugger &debugger) {
 }
 
 Status Process::WillLaunch(Module *module) {
-  GetTarget().ResetBreakpointHitCounts();
   return DoWillLaunch(module);
 }
 
 Status Process::WillAttachToProcessWithID(lldb::pid_t pid) {
-  GetTarget().ResetBreakpointHitCounts();
   return DoWillAttachToProcessWithID(pid);
 }
 
 Status Process::WillAttachToProcessWithName(const char *process_name,
                                             bool wait_for_launch) {
-  GetTarget().ResetBreakpointHitCounts();
   return DoWillAttachToProcessWithName(process_name, wait_for_launch);
 }
 
@@ -6072,8 +6072,11 @@ bool Process::CallVoidArgVoidPtrReturn(const Address *address,
     llvm::consumeError(type_system_or_err.takeError());
     return false;
   }
+  auto ts = *type_system_or_err;
+  if (!ts)
+    return false;
   CompilerType void_ptr_type =
-      type_system_or_err->GetBasicTypeFromAST(eBasicTypeVoid).GetPointerType();
+      ts->GetBasicTypeFromAST(eBasicTypeVoid).GetPointerType();
   lldb::ThreadPlanSP call_plan_sp(new ThreadPlanCallFunction(
       *thread, *address, void_ptr_type, llvm::ArrayRef<addr_t>(), options));
   if (call_plan_sp) {

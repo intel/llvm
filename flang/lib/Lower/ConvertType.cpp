@@ -233,6 +233,10 @@ struct TypeBuilder {
         llvm::SmallVector<Fortran::lower::LenParameterTy> params;
         translateLenParameters(params, tySpec->category(), ultimate);
         ty = genFIRType(context, tySpec->category(), kind, params);
+      } else if (type->IsPolymorphic() &&
+                 !converter.getLoweringOptions().getPolymorphicTypeImpl()) {
+        // TODO is kept under experimental flag until feature is complete.
+        TODO(loc, "support for polymorphic types");
       } else if (type->IsUnlimitedPolymorphic()) {
         ty = mlir::NoneType::get(context);
       } else if (const Fortran::semantics::DerivedTypeSpec *tySpec =
@@ -335,6 +339,8 @@ struct TypeBuilder {
       TODO(loc, "parameterized derived types");
     }
     LLVM_DEBUG(llvm::dbgs() << "derived type: " << rec << '\n');
+
+    converter.registerDispatchTableInfo(loc, &tySpec);
 
     // Generate the type descriptor object if any
     if (const Fortran::semantics::Scope *derivedScope =

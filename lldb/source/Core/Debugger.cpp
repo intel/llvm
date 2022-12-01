@@ -44,6 +44,7 @@
 #include "lldb/Target/Thread.h"
 #include "lldb/Target/ThreadList.h"
 #include "lldb/Utility/AnsiTerminal.h"
+#include "lldb/Utility/Diagnostics.h"
 #include "lldb/Utility/Event.h"
 #include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Listener.h"
@@ -1310,6 +1311,9 @@ static void PrivateReportDiagnostic(Debugger &debugger,
                                     bool debugger_specific) {
   uint32_t event_type = 0;
   switch (type) {
+  case DiagnosticEventData::Type::Info:
+    assert(false && "DiagnosticEventData::Type::Info should not be broadcast");
+    return;
   case DiagnosticEventData::Type::Warning:
     event_type = Debugger::eBroadcastBitWarning;
     break;
@@ -1338,7 +1342,16 @@ void Debugger::ReportDiagnosticImpl(DiagnosticEventData::Type type,
                                     llvm::Optional<lldb::user_id_t> debugger_id,
                                     std::once_flag *once) {
   auto ReportDiagnosticLambda = [&]() {
-    // Check if this progress is for a specific debugger.
+    // The diagnostic subsystem is optional but we still want to broadcast
+    // events when it's disabled.
+    if (Diagnostics::Enabled())
+      Diagnostics::Instance().Report(message);
+
+    // We don't broadcast info events.
+    if (type == DiagnosticEventData::Type::Info)
+      return;
+
+    // Check if this diagnostic is for a specific debugger.
     if (debugger_id) {
       // It is debugger specific, grab it and deliver the event if the debugger
       // still exists.
@@ -1347,8 +1360,8 @@ void Debugger::ReportDiagnosticImpl(DiagnosticEventData::Type type,
         PrivateReportDiagnostic(*debugger_sp, type, std::move(message), true);
       return;
     }
-    // The progress event is not debugger specific, iterate over all debuggers
-    // and deliver a progress event to each one.
+    // The diagnostic event is not debugger specific, iterate over all debuggers
+    // and deliver a diagnostic event to each one.
     if (g_debugger_list_ptr && g_debugger_list_mutex_ptr) {
       std::lock_guard<std::recursive_mutex> guard(*g_debugger_list_mutex_ptr);
       for (const auto &debugger : *g_debugger_list_ptr)
@@ -1372,8 +1385,14 @@ void Debugger::ReportWarning(std::string message,
 void Debugger::ReportError(std::string message,
                            llvm::Optional<lldb::user_id_t> debugger_id,
                            std::once_flag *once) {
-
   ReportDiagnosticImpl(DiagnosticEventData::Type::Error, std::move(message),
+                       debugger_id, once);
+}
+
+void Debugger::ReportInfo(std::string message,
+                          llvm::Optional<lldb::user_id_t> debugger_id,
+                          std::once_flag *once) {
+  ReportDiagnosticImpl(DiagnosticEventData::Type::Info, std::move(message),
                        debugger_id, once);
 }
 

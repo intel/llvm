@@ -42,6 +42,7 @@ class AttributeSetNode;
 class FoldingSetNodeID;
 class Function;
 class LLVMContext;
+class MemoryEffects;
 class Type;
 
 enum class AllocFnKind : uint64_t {
@@ -145,6 +146,7 @@ public:
   static Attribute getWithPreallocatedType(LLVMContext &Context, Type *Ty);
   static Attribute getWithInAllocaType(LLVMContext &Context, Type *Ty);
   static Attribute getWithUWTableKind(LLVMContext &Context, UWTableKind Kind);
+  static Attribute getWithMemoryEffects(LLVMContext &Context, MemoryEffects ME);
 
   /// For a typed attribute, return the equivalent attribute with the type
   /// changed to \p ReplacementTy.
@@ -227,8 +229,7 @@ public:
   /// dereferenceable_or_null attribute.
   uint64_t getDereferenceableOrNullBytes() const;
 
-  /// Returns the argument numbers for the allocsize attribute (or pair(0, 0)
-  /// if not known).
+  /// Returns the argument numbers for the allocsize attribute.
   std::pair<unsigned, Optional<unsigned>> getAllocSizeArgs() const;
 
   /// Returns the minimum value for the vscale_range attribute.
@@ -243,6 +244,9 @@ public:
 
   // Returns the allocator function kind.
   AllocFnKind getAllocKind() const;
+
+  /// Returns memory effects.
+  MemoryEffects getMemoryEffects() const;
 
   /// The Attribute is converted to a string of equivalent mnemonic. This
   /// is, presumably, for writing out the mnemonics for the assembly writer.
@@ -371,11 +375,12 @@ public:
   Type *getPreallocatedType() const;
   Type *getInAllocaType() const;
   Type *getElementType() const;
-  std::pair<unsigned, Optional<unsigned>> getAllocSizeArgs() const;
+  Optional<std::pair<unsigned, Optional<unsigned>>> getAllocSizeArgs() const;
   unsigned getVScaleRangeMin() const;
   Optional<unsigned> getVScaleRangeMax() const;
   UWTableKind getUWTableKind() const;
   AllocFnKind getAllocKind() const;
+  MemoryEffects getMemoryEffects() const;
   std::string getAsString(bool InAttrGrp = false) const;
 
   /// Return true if this attribute set belongs to the LLVMContext.
@@ -875,6 +880,9 @@ public:
 
   AllocFnKind getAllocKind() const;
 
+  /// Returns memory effects of the function.
+  MemoryEffects getMemoryEffects() const;
+
   /// Return the attributes at the index as a string.
   std::string getAsString(unsigned Index, bool InAttrGrp = false) const;
 
@@ -1088,9 +1096,6 @@ public:
   /// Return true if the builder has IR-level attributes.
   bool hasAttributes() const { return !Attrs.empty(); }
 
-  /// Return true if the builder has an alignment attribute.
-  bool hasAlignmentAttr() const;
-
   /// Return Attribute with the given Kind. The returned attribute will be
   /// invalid if the Kind is not present in the builder.
   Attribute getAttribute(Attribute::AttrKind Kind) const;
@@ -1099,30 +1104,30 @@ public:
   /// invalid if the Kind is not present in the builder.
   Attribute getAttribute(StringRef Kind) const;
 
-  /// Return raw (possibly packed/encoded) value of integer attribute or 0 if
+  /// Return raw (possibly packed/encoded) value of integer attribute or None if
   /// not set.
-  uint64_t getRawIntAttr(Attribute::AttrKind Kind) const;
+  Optional<uint64_t> getRawIntAttr(Attribute::AttrKind Kind) const;
 
   /// Retrieve the alignment attribute, if it exists.
   MaybeAlign getAlignment() const {
-    return MaybeAlign(getRawIntAttr(Attribute::Alignment));
+    return MaybeAlign(getRawIntAttr(Attribute::Alignment).value_or(0));
   }
 
   /// Retrieve the stack alignment attribute, if it exists.
   MaybeAlign getStackAlignment() const {
-    return MaybeAlign(getRawIntAttr(Attribute::StackAlignment));
+    return MaybeAlign(getRawIntAttr(Attribute::StackAlignment).value_or(0));
   }
 
   /// Retrieve the number of dereferenceable bytes, if the
   /// dereferenceable attribute exists (zero is returned otherwise).
   uint64_t getDereferenceableBytes() const {
-    return getRawIntAttr(Attribute::Dereferenceable);
+    return getRawIntAttr(Attribute::Dereferenceable).value_or(0);
   }
 
   /// Retrieve the number of dereferenceable_or_null bytes, if the
   /// dereferenceable_or_null attribute exists (zero is returned otherwise).
   uint64_t getDereferenceableOrNullBytes() const {
-    return getRawIntAttr(Attribute::DereferenceableOrNull);
+    return getRawIntAttr(Attribute::DereferenceableOrNull).value_or(0);
   }
 
   /// Retrieve type for the given type attribute.
@@ -1145,15 +1150,8 @@ public:
   /// Retrieve the inalloca type.
   Type *getInAllocaType() const { return getTypeAttr(Attribute::InAlloca); }
 
-  /// Retrieve the allocsize args, if the allocsize attribute exists.  If it
-  /// doesn't exist, pair(0, 0) is returned.
-  std::pair<unsigned, Optional<unsigned>> getAllocSizeArgs() const;
-
-  /// Retrieve the minimum value of 'vscale_range'.
-  unsigned getVScaleRangeMin() const;
-
-  /// Retrieve the maximum value of 'vscale_range' or None when unknown.
-  Optional<unsigned> getVScaleRangeMax() const;
+  /// Retrieve the allocsize args, or None if the attribute does not exist.
+  Optional<std::pair<unsigned, Optional<unsigned>>> getAllocSizeArgs() const;
 
   /// Add integer attribute with raw value (packed/encoded if necessary).
   AttrBuilder &addRawIntAttr(Attribute::AttrKind Kind, uint64_t Value);
@@ -1230,6 +1228,9 @@ public:
 
   // This turns the allocator kind into the form used internally in Attribute.
   AttrBuilder &addAllocKindAttr(AllocFnKind Kind);
+
+  /// Add memory effect attribute.
+  AttrBuilder &addMemoryAttr(MemoryEffects ME);
 
   ArrayRef<Attribute> attrs() const { return Attrs; }
 

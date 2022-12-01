@@ -623,12 +623,6 @@ def atomic_store_64_local_m0 : PatFrag<(ops node:$ptr, node:$val),
 } // End let IsAtomic = 1, AddressSpaces = StoreAddress_local.AddrSpaces
 
 
-def si_setcc_uniform : PatFrag <
-  (ops node:$lhs, node:$rhs, node:$cond),
-  (setcc node:$lhs, node:$rhs, node:$cond), [{
-  return !N->isDivergent();
-}]>;
-
 //===----------------------------------------------------------------------===//
 // SDNodes PatFrags for a16 loads and stores with 3 components.
 // v3f16/v3i16 is widened to v4f16/v4i16, so we need to match on the memory
@@ -1239,7 +1233,6 @@ def CPol_0 : NamedOperandU32Default0<"CPol", NamedMatchClass<"CPol">>;
 def CPol_GLC1 : NamedOperandU32Default1<"CPol", NamedMatchClass<"CPol">>;
 
 def TFE : NamedOperandBit<"TFE", NamedMatchClass<"TFE">>;
-def TFE_0 : NamedOperandBit_0<"TFE", NamedMatchClass<"TFE">>;
 def SWZ : NamedOperandBit<"SWZ", NamedMatchClass<"SWZ">>;
 def SWZ_0 : NamedOperandBit_0<"SWZ", NamedMatchClass<"SWZ">>;
 def UNorm : NamedOperandBit<"UNorm", NamedMatchClass<"UNorm">>;
@@ -1778,7 +1771,7 @@ class isModifierType<ValueType SrcVT> {
 }
 
 // Return type of input modifiers operand for specified input operand
-class getSrcMod <ValueType VT, bit EnableF32SrcMods> {
+class getSrcMod <ValueType VT> {
   bit isFP = isFloatType<VT>.ret;
   bit isPacked = isPackedType<VT>.ret;
   Operand ret =  !if(!eq(VT.Size, 64),
@@ -1788,7 +1781,7 @@ class getSrcMod <ValueType VT, bit EnableF32SrcMods> {
                             FP16InputMods,
                             FP32InputMods
                           ),
-                         !if(EnableF32SrcMods, FP32InputMods, Int32InputMods))
+                         Int32InputMods)
                      );
 }
 
@@ -1813,14 +1806,14 @@ class getSrcModDPP_t16 <ValueType VT> {
 }
 
 // Return type of input modifiers operand for specified input operand for DPP
-class getSrcModVOP3DPP <ValueType VT, bit EnableF32SrcMods> {
+class getSrcModVOP3DPP <ValueType VT> {
   bit isFP = isFloatType<VT>.ret;
   bit isPacked = isPackedType<VT>.ret;
   Operand ret =
       !if (isFP,
            !if (!eq(VT.Value, f16.Value), FP16VCSrcInputMods,
                 FP32VCSrcInputMods),
-           !if (EnableF32SrcMods, FP32VCSrcInputMods, Int32VCSrcInputMods));
+           Int32VCSrcInputMods);
 }
 
 // Return type of input modifiers operand specified input operand for SDWA
@@ -2429,11 +2422,9 @@ def PatGenMode {
   int Pattern   = 1;
 }
 
-class VOPProfile <list<ValueType> _ArgVT, bit _EnableF32SrcMods = 0,
-                  bit _EnableClamp = 0> {
+class VOPProfile <list<ValueType> _ArgVT, bit _EnableClamp = 0> {
 
   field list<ValueType> ArgVT = _ArgVT;
-  field bit EnableF32SrcMods = _EnableF32SrcMods;
   field bit EnableClamp = _EnableClamp;
   field bit IsTrue16 = 0;
 
@@ -2459,15 +2450,15 @@ class VOPProfile <list<ValueType> _ArgVT, bit _EnableF32SrcMods = 0,
   field RegisterOperand Src2VOP3DPP = getVOP3DPPSrcForVT<Src2VT>.ret;
   field RegisterOperand Src0SDWA = getSDWASrcForVT<Src0VT>.ret;
   field RegisterOperand Src1SDWA = getSDWASrcForVT<Src0VT>.ret;
-  field Operand Src0Mod = getSrcMod<Src0VT, EnableF32SrcMods>.ret;
-  field Operand Src1Mod = getSrcMod<Src1VT, EnableF32SrcMods>.ret;
-  field Operand Src2Mod = getSrcMod<Src2VT, EnableF32SrcMods>.ret;
+  field Operand Src0Mod = getSrcMod<Src0VT>.ret;
+  field Operand Src1Mod = getSrcMod<Src1VT>.ret;
+  field Operand Src2Mod = getSrcMod<Src2VT>.ret;
   field Operand Src0ModDPP = getSrcModDPP<Src0VT>.ret;
   field Operand Src1ModDPP = getSrcModDPP<Src1VT>.ret;
   field Operand Src2ModDPP = getSrcModDPP<Src2VT>.ret;
   field Operand Src0ModVOP3DPP = getSrcModDPP<Src0VT>.ret;
   field Operand Src1ModVOP3DPP = getSrcModDPP<Src1VT>.ret;
-  field Operand Src2ModVOP3DPP = getSrcModVOP3DPP<Src2VT, EnableF32SrcMods>.ret;
+  field Operand Src2ModVOP3DPP = getSrcModVOP3DPP<Src2VT>.ret;
   field Operand Src0ModSDWA = getSrcModSDWA<Src0VT>.ret;
   field Operand Src1ModSDWA = getSrcModSDWA<Src1VT>.ret;
 
@@ -2481,12 +2472,10 @@ class VOPProfile <list<ValueType> _ArgVT, bit _EnableF32SrcMods = 0,
   field bit HasSrc1 = !ne(Src1VT.Value, untyped.Value);
   field bit HasSrc2 = !ne(Src2VT.Value, untyped.Value);
 
-  // HasSrc*FloatMods affects the SDWA encoding. We ignore EnableF32SrcMods.
   field bit HasSrc0FloatMods = isFloatType<Src0VT>.ret;
   field bit HasSrc1FloatMods = isFloatType<Src1VT>.ret;
   field bit HasSrc2FloatMods = isFloatType<Src2VT>.ret;
 
-  // HasSrc*IntMods affects the SDWA encoding. We ignore EnableF32SrcMods.
   field bit HasSrc0IntMods = isIntType<Src0VT>.ret;
   field bit HasSrc1IntMods = isIntType<Src1VT>.ret;
   field bit HasSrc2IntMods = isIntType<Src2VT>.ret;
@@ -2507,8 +2496,7 @@ class VOPProfile <list<ValueType> _ArgVT, bit _EnableF32SrcMods = 0,
   field bit HasModifiers = !or(isModifierType<Src0VT>.ret,
                                isModifierType<Src1VT>.ret,
                                isModifierType<Src2VT>.ret,
-                               HasOMod,
-                               EnableF32SrcMods);
+                               HasOMod);
 
   field bit HasSrc0Mods = HasModifiers;
   field bit HasSrc1Mods = !if(HasModifiers, !or(HasSrc1FloatMods, HasSrc1IntMods), 0);
@@ -2652,13 +2640,14 @@ def VOP_F16_F16_F16 : VOPProfile <[f16, f16, f16, untyped]>;
 def VOP_F16_F16_I16 : VOPProfile <[f16, f16, i16, untyped]>;
 def VOP_F16_F16_I32 : VOPProfile <[f16, f16, i32, untyped]>;
 def VOP_I16_I16_I16 : VOPProfile <[i16, i16, i16, untyped]>;
-def VOP_I16_I16_I16_ARITH : VOPProfile <[i16, i16, i16, untyped], 0, /*EnableClamp=*/1>;
+def VOP_I16_I16_I16_ARITH : VOPProfile <[i16, i16, i16, untyped], /*EnableClamp=*/1>;
 
 def VOP_I16_I16_I16_I16 : VOPProfile <[i16, i16, i16, i16, untyped]>;
 def VOP_F16_F16_F16_F16 : VOPProfile <[f16, f16, f16, f16, untyped]>;
 
 def VOP_I32_I16_I16_I32 : VOPProfile <[i32, i16, i16, i32, untyped]>;
 def VOP_I32_I16 : VOPProfile <[i32, i16, untyped, untyped]>;
+def VOP_I16_I32 : VOPProfile <[i16, i32, untyped, untyped]>;
 
 def VOP_V2F16_V2F16_V2F16 : VOPProfile <[v2f16, v2f16, v2f16, untyped]>;
 def VOP_V2I16_V2I16_V2I16 : VOPProfile <[v2i16, v2i16, v2i16, untyped]>;
@@ -2698,7 +2687,7 @@ def VOP_F64_F64_I32 : VOPProfile <[f64, f64, i32, untyped]>;
 def VOP_I32_F32_F32 : VOPProfile <[i32, f32, f32, untyped]>;
 def VOP_I32_F32_I32 : VOPProfile <[i32, f32, i32, untyped]>;
 def VOP_I32_I32_I32 : VOPProfile <[i32, i32, i32, untyped]>;
-def VOP_I32_I32_I32_ARITH : VOPProfile <[i32, i32, i32, untyped], 0, /*EnableClamp=*/1>;
+def VOP_I32_I32_I32_ARITH : VOPProfile <[i32, i32, i32, untyped], /*EnableClamp=*/1>;
 def VOP_V2F16_F32_F32 : VOPProfile <[v2f16, f32, f32, untyped]>;
 def VOP_F32_F16_F16_F16 : VOPProfile <[f32, f16, f16, f16]>;
 
@@ -3038,6 +3027,11 @@ def VOPDComponentTable : GenericTable {
   let Fields = ["BaseVOP", "VOPDOp", "CanBeVOPDX"];
   let PrimaryKey = ["BaseVOP"];
   let PrimaryKeyName = "getVOPDComponentHelper";
+}
+
+def getVOPDBaseFromComponent : SearchIndex {
+  let Table = VOPDComponentTable;
+  let Key = ["VOPDOp"];
 }
 
 def VOPDPairs : GenericTable {

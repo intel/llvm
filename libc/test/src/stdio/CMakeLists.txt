@@ -22,6 +22,54 @@ add_libc_unittest(
 )
 
 add_libc_unittest(
+  ungetc_test
+  SUITE
+    libc_stdio_unittests
+  SRCS
+    ungetc_test.cpp
+  DEPENDS
+    libc.include.stdio
+    libc.src.stdio.fclose
+    libc.src.stdio.fopen
+    libc.src.stdio.fread
+    libc.src.stdio.fseek
+    libc.src.stdio.fwrite
+    libc.src.stdio.ungetc
+)
+
+add_libc_unittest(
+  setbuf_test
+  SUITE
+    libc_stdio_unittests
+  SRCS
+    setbuf_test.cpp
+  DEPENDS
+    libc.include.stdio
+    libc.src.stdio.fclose
+    libc.src.stdio.fopen
+    libc.src.stdio.fread
+    libc.src.stdio.fwrite
+    libc.src.stdio.setbuf
+    libc.src.stdio.ungetc
+)
+
+add_libc_unittest(
+  setvbuf_test
+  SUITE
+    libc_stdio_unittests
+  SRCS
+    setvbuf_test.cpp
+  DEPENDS
+    libc.include.errno
+    libc.include.stdio
+    libc.src.stdio.fclose
+    libc.src.stdio.fopen
+    libc.src.stdio.fread
+    libc.src.stdio.fwrite
+    libc.src.stdio.setvbuf
+)
+
+add_libc_unittest(
   unlocked_fileop_test
   SUITE
     libc_stdio_unittests
@@ -112,6 +160,31 @@ add_libc_unittest(
 )
 
 add_libc_unittest(
+  fscanf_test
+  SUITE
+    libc_stdio_unittests
+  SRCS
+    fscanf_test.cpp
+  DEPENDS
+    libc.src.stdio.fscanf
+    libc.src.stdio.fclose
+    libc.src.stdio.ferror
+    libc.src.stdio.fopen
+    libc.src.stdio.fwrite
+    libc.src.__support.CPP.string_view
+)
+
+add_libc_unittest(
+  sscanf_test
+  SUITE
+    libc_stdio_unittests
+  SRCS
+    sscanf_test.cpp
+  DEPENDS
+    libc.src.stdio.sscanf
+)
+
+add_libc_unittest(
   puts_test
   SUITE
     libc_stdio_unittests
@@ -119,6 +192,20 @@ add_libc_unittest(
     puts_test.cpp
   DEPENDS
     libc.src.stdio.puts
+)
+
+add_libc_unittest(
+  putc_test
+  SUITE
+    libc_stdio_unittests
+  SRCS
+    putc_test.cpp
+  DEPENDS
+    libc.src.stdio.putc
+    libc.src.stdio.fclose
+    libc.src.stdio.ferror
+    libc.src.stdio.fopen
+    libc.src.stdio.fread
 )
 
 if(${LIBC_TARGET_OS} STREQUAL "linux")
@@ -139,5 +226,82 @@ if(${LIBC_TARGET_OS} STREQUAL "linux")
   )
 endif()
 
+add_libc_unittest(
+  fgetc_test
+  SUITE
+    libc_stdio_unittests
+  SRCS
+    fgetc_test.cpp
+  DEPENDS
+    libc.include.errno
+    libc.include.stdio
+    libc.src.stdio.fclose
+    libc.src.stdio.feof
+    libc.src.stdio.ferror
+    libc.src.stdio.fgetc
+    libc.src.stdio.fopen
+    libc.src.stdio.fwrite
+    libc.src.stdio.getc
+)
+
+add_libc_unittest(
+  fgetc_unlocked_test
+  SUITE
+    libc_stdio_unittests
+  SRCS
+    fgetc_unlocked_test.cpp
+  DEPENDS
+    libc.include.errno
+    libc.include.stdio
+    libc.src.stdio.fclose
+    libc.src.stdio.ferror
+    libc.src.stdio.ferror_unlocked
+    libc.src.stdio.feof
+    libc.src.stdio.feof_unlocked
+    libc.src.stdio.fgetc_unlocked
+    libc.src.stdio.flockfile
+    libc.src.stdio.fopen
+    libc.src.stdio.funlockfile
+    libc.src.stdio.fwrite
+    libc.src.stdio.getc_unlocked
+)
+
+add_libc_unittest(
+  fgets_test
+  SUITE
+    libc_stdio_unittests
+  SRCS
+    fgets_test.cpp
+  DEPENDS
+    libc.include.errno
+    libc.include.stdio
+    libc.src.stdio.fclose
+    libc.src.stdio.feof
+    libc.src.stdio.ferror
+    libc.src.stdio.fgets
+    libc.src.stdio.fopen
+    libc.src.stdio.fwrite
+)
+
+add_libc_unittest(
+  ftell_test
+  SUITE
+    libc_stdio_unittests
+  SRCS
+    ftell_test.cpp
+  DEPENDS
+    libc.include.errno
+    libc.include.stdio
+    libc.src.stdio.fclose
+    libc.src.stdio.fflush
+    libc.src.stdio.fopen
+    libc.src.stdio.fread
+    libc.src.stdio.fseek
+    libc.src.stdio.ftell
+    libc.src.stdio.fwrite
+    libc.src.stdio.setvbuf
+)
+
 add_subdirectory(printf_core)
+add_subdirectory(scanf_core)
 add_subdirectory(testdata)

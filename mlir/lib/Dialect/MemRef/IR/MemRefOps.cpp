@@ -110,6 +110,105 @@ Type mlir::memref::getTensorTypeFromMemRefType(Type type) {
 }
 
 //===----------------------------------------------------------------------===//
+// Utility functions for propagating static information
+//===----------------------------------------------------------------------===//
+
+/// Helper function that infers the constant values from a list of \p values,
+/// a \p memRefTy, and another helper function \p getAttributes.
+/// The inferred constant values replace the related `OpFoldResult` in
+/// \p values.
+///
+/// \note This function shouldn't be used directly, instead, use the
+/// `getConstifiedMixedXXX` methods from the related operations.
+///
+/// \p getAttributes retuns a list of potentially constant values, as determined
+/// by \p isDynamic, from the given \p memRefTy. The returned list must have as
+/// many elements as \p values or be empty.
+///
+/// E.g., consider the following example:
+/// ```
+/// memref.reinterpret_cast %base to <...> strides: [2, %dyn_stride] :
+///     memref<f32> to memref<?x?xf32, strided<[?, 1], offset: ?>>
+/// ```
+/// `ReinterpretCastOp::getMixedStrides()` will return `[2, %dyn_stride]`.
+/// Now using this helper function with:
+/// - `values == [2, %dyn_stride]`,
+/// - `memRefTy == memref<?x?xf32, strided<[?, 1], offset: ?>>`
+/// - `getAttributes == getConstantStrides` (i.e., a wrapper around
+/// `getStridesAndOffset`), and
+/// - `isDynamic == isDynamicStrideOrOffset`
+/// Will yield: `values == [2, 1]`
+static void constifyIndexValues(
+    SmallVectorImpl<OpFoldResult> &values, MemRefType memRefTy,
+    MLIRContext *ctxt,
+    llvm::function_ref<SmallVector<int64_t>(MemRefType)> getAttributes,
+    llvm::function_ref<bool(int64_t)> isDynamic) {
+  SmallVector<int64_t> constValues = getAttributes(memRefTy);
+  Builder builder(ctxt);
+  for (const auto &it : llvm::enumerate(constValues)) {
+    int64_t constValue = it.value();
+    if (!isDynamic(constValue))
+      values[it.index()] = builder.getIndexAttr(constValue);
+  }
+  for (OpFoldResult &ofr : values) {
+    if (ofr.is<Attribute>()) {
+      // FIXME: We shouldn't need to do that, but right now, the static indices
+      // are created with the wrong type: `i64` instead of `index`.
+      // As a result, if we were to keep the attribute as is, we may fail to see
+      // that two attributes are equal because one would have the i64 type and
+      // the other the index type.
+      // The alternative would be to create constant indices with getI64Attr in
+      // this and the previous loop, but it doesn't logically make sense (we are
+      // dealing with indices here) and would only strenghten the inconsistency
+      // around how static indices are created (some places use getI64Attr,
+      // others use getIndexAttr).
+      // The workaround here is to stick to the IndexAttr type for all the
+      // values, hence we recreate the attribute even when it is already static
+      // to make sure the type is consistent.
+      ofr = builder.getIndexAttr(
+          ofr.get<Attribute>().cast<IntegerAttr>().getInt());
+      continue;
+    }
+    Optional<int64_t> maybeConstant = getConstantIntValue(ofr.get<Value>());
+    if (maybeConstant)
+      ofr = builder.getIndexAttr(*maybeConstant);
+  }
+}
+
+/// Wrapper around `getShape` that conforms to the function signature
+/// expected for `getAttributes` in `constifyIndexValues`.
+static SmallVector<int64_t> getConstantSizes(MemRefType memRefTy) {
+  ArrayRef<int64_t> sizes = memRefTy.getShape();
+  return SmallVector<int64_t>(sizes.begin(), sizes.end());
+}
+
+/// Wrapper around `getStridesAndOffset` that returns only the offset and
+/// conforms to the function signature expected for `getAttributes` in
+/// `constifyIndexValues`.
+static SmallVector<int64_t> getConstantOffset(MemRefType memrefType) {
+  SmallVector<int64_t> strides;
+  int64_t offset;
+  LogicalResult hasStaticInformation =
+      getStridesAndOffset(memrefType, strides, offset);
+  if (failed(hasStaticInformation))
+    return SmallVector<int64_t>();
+  return SmallVector<int64_t>(1, offset);
+}
+
+/// Wrapper around `getStridesAndOffset` that returns only the strides and
+/// conforms to the function signature expected for `getAttributes` in
+/// `constifyIndexValues`.
+static SmallVector<int64_t> getConstantStrides(MemRefType memrefType) {
+  SmallVector<int64_t> strides;
+  int64_t offset;
+  LogicalResult hasStaticInformation =
+      getStridesAndOffset(memrefType, strides, offset);
+  if (failed(hasStaticInformation))
+    return SmallVector<int64_t>();
+  return strides;
+}
+
+//===----------------------------------------------------------------------===//
 // AllocOp / AllocaOp
 //===----------------------------------------------------------------------===//
 
@@ -185,7 +284,7 @@ struct SimplifyAllocConst : public OpRewritePattern<AllocLikeOp> {
     for (unsigned dim = 0, e = memrefType.getRank(); dim < e; ++dim) {
       int64_t dimSize = memrefType.getDimSize(dim);
       // If this is already static dimension, keep it.
-      if (dimSize != -1) {
+      if (!ShapedType::isDynamic(dimSize)) {
         newShapeConstants.push_back(dimSize);
         continue;
       }
@@ -197,7 +296,7 @@ struct SimplifyAllocConst : public OpRewritePattern<AllocLikeOp> {
         newShapeConstants.push_back(constantIndexOp.value());
       } else {
         // Dynamic shape dimension not folded; copy dynamicSize from old memref.
-        newShapeConstants.push_back(-1);
+        newShapeConstants.push_back(ShapedType::kDynamicSize);
         dynamicSizes.push_back(dynamicSize);
       }
       dynamicDimPos++;
@@ -378,7 +477,7 @@ static bool isGuaranteedAutomaticAllocation(Operation *op) {
 static bool isOpItselfPotentialAutomaticAllocation(Operation *op) {
   // This op itself doesn't create a stack allocation,
   // the inner allocation should be handled separately.
-  if (op->hasTrait<OpTrait::HasRecursiveSideEffects>())
+  if (op->hasTrait<OpTrait::HasRecursiveMemoryEffects>())
     return false;
   MemoryEffectOpInterface interface = dyn_cast<MemoryEffectOpInterface>(op);
   if (!interface)
@@ -666,7 +765,8 @@ bool CastOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
 
     for (unsigned i = 0, e = aT.getRank(); i != e; ++i) {
       int64_t aDim = aT.getDimSize(i), bDim = bT.getDimSize(i);
-      if (aDim != -1 && bDim != -1 && aDim != bDim)
+      if (!ShapedType::isDynamic(aDim) && !ShapedType::isDynamic(bDim) &&
+          aDim != bDim)
         return false;
     }
     return true;
@@ -807,16 +907,24 @@ void DimOp::build(OpBuilder &builder, OperationState &result, Value source,
   build(builder, result, source, indexValue);
 }
 
-void DimOp::build(OpBuilder &builder, OperationState &result, Value source,
-                  Value index) {
-  auto indexTy = builder.getIndexType();
-  build(builder, result, indexTy, source, index);
-}
-
 Optional<int64_t> DimOp::getConstantIndex() {
   if (auto constantOp = getIndex().getDefiningOp<arith::ConstantOp>())
     return constantOp.getValue().cast<IntegerAttr>().getInt();
   return {};
+}
+
+Speculation::Speculatability DimOp::getSpeculatability() {
+  auto constantIndex = getConstantIndex();
+  if (!constantIndex)
+    return Speculation::NotSpeculatable;
+
+  auto rankedSourceType = dyn_cast<MemRefType>(getSource().getType());
+  if (!rankedSourceType)
+    return Speculation::NotSpeculatable;
+
+  // The verifier rejects operations that violate this assertion.
+  assert(constantIndex < rankedSourceType.getRank());
+  return Speculation::Speculatable;
 }
 
 LogicalResult DimOp::verify() {
@@ -1240,6 +1348,32 @@ void ExtractAlignedPointerAsIndexOp::getAsmResultNames(
 // ExtractStridedMetadataOp
 //===----------------------------------------------------------------------===//
 
+/// The number and type of the results are inferred from the
+/// shape of the source.
+LogicalResult ExtractStridedMetadataOp::inferReturnTypes(
+    MLIRContext *context, Optional<Location> location, ValueRange operands,
+    DictionaryAttr attributes, RegionRange regions,
+    SmallVectorImpl<Type> &inferredReturnTypes) {
+  ExtractStridedMetadataOpAdaptor extractAdaptor(operands, attributes, regions);
+  auto sourceType = extractAdaptor.getSource().getType().dyn_cast<MemRefType>();
+  if (!sourceType)
+    return failure();
+
+  unsigned sourceRank = sourceType.getRank();
+  IndexType indexType = IndexType::get(context);
+  auto memrefType =
+      MemRefType::get({}, sourceType.getElementType(),
+                      MemRefLayoutAttrInterface{}, sourceType.getMemorySpace());
+  // Base.
+  inferredReturnTypes.push_back(memrefType);
+  // Offset.
+  inferredReturnTypes.push_back(indexType);
+  // Sizes and strides.
+  for (unsigned i = 0; i < sourceRank * 2; ++i)
+    inferredReturnTypes.push_back(indexType);
+  return success();
+}
+
 void ExtractStridedMetadataOp::getAsmResultNames(
     function_ref<void(Value, StringRef)> setNameFn) {
   setNameFn(getBaseBuffer(), "base_buffer");
@@ -1250,6 +1384,77 @@ void ExtractStridedMetadataOp::getAsmResultNames(
     setNameFn(getSizes().front(), "sizes");
     setNameFn(getStrides().front(), "strides");
   }
+}
+
+/// Helper function to perform the replacement of all constant uses of `values`
+/// by a materialized constant extracted from `maybeConstants`.
+/// `values` and `maybeConstants` are expected to have the same size.
+template <typename Container>
+static bool replaceConstantUsesOf(OpBuilder &rewriter, Location loc,
+                                  Container values,
+                                  ArrayRef<OpFoldResult> maybeConstants) {
+  assert(values.size() == maybeConstants.size() &&
+         " expected values and maybeConstants of the same size");
+  bool atLeastOneReplacement = false;
+  for (auto [maybeConstant, result] : llvm::zip(maybeConstants, values)) {
+    // Don't materialize a constant if there are no uses: this would indice
+    // infinite loops in the driver.
+    if (result.use_empty() || maybeConstant == getAsOpFoldResult(result))
+      continue;
+    assert(maybeConstant.template is<Attribute>() &&
+           "The constified value should be either unchanged (i.e., == result) "
+           "or a constant");
+    Value constantVal = rewriter.create<arith::ConstantIndexOp>(
+        loc, maybeConstant.template get<Attribute>()
+                 .template cast<IntegerAttr>()
+                 .getInt());
+    for (Operation *op : llvm::make_early_inc_range(result.getUsers())) {
+      // updateRootInplace: lambda cannot capture structured bindings in C++17
+      // yet.
+      op->replaceUsesOfWith(result, constantVal);
+      atLeastOneReplacement = true;
+    }
+  }
+  return atLeastOneReplacement;
+}
+
+LogicalResult
+ExtractStridedMetadataOp::fold(ArrayRef<Attribute> cstOperands,
+                               SmallVectorImpl<OpFoldResult> &results) {
+  OpBuilder builder(*this);
+
+  bool atLeastOneReplacement = replaceConstantUsesOf(
+      builder, getLoc(), ArrayRef<TypedValue<IndexType>>(getOffset()),
+      getConstifiedMixedOffset());
+  atLeastOneReplacement |= replaceConstantUsesOf(builder, getLoc(), getSizes(),
+                                                 getConstifiedMixedSizes());
+  atLeastOneReplacement |= replaceConstantUsesOf(
+      builder, getLoc(), getStrides(), getConstifiedMixedStrides());
+
+  return success(atLeastOneReplacement);
+}
+
+SmallVector<OpFoldResult> ExtractStridedMetadataOp::getConstifiedMixedSizes() {
+  SmallVector<OpFoldResult> values = getAsOpFoldResult(getSizes());
+  constifyIndexValues(values, getSource().getType(), getContext(),
+                      getConstantSizes, ShapedType::isDynamic);
+  return values;
+}
+
+SmallVector<OpFoldResult>
+ExtractStridedMetadataOp::getConstifiedMixedStrides() {
+  SmallVector<OpFoldResult> values = getAsOpFoldResult(getStrides());
+  constifyIndexValues(values, getSource().getType(), getContext(),
+                      getConstantStrides, ShapedType::isDynamicStrideOrOffset);
+  return values;
+}
+
+OpFoldResult ExtractStridedMetadataOp::getConstifiedMixedOffset() {
+  OpFoldResult offsetOfr = getAsOpFoldResult(getOffset());
+  SmallVector<OpFoldResult> values(1, offsetOfr);
+  constifyIndexValues(values, getSource().getType(), getContext(),
+                      getConstantOffset, ShapedType::isDynamicStrideOrOffset);
+  return values[0];
 }
 
 //===----------------------------------------------------------------------===//
@@ -1281,7 +1486,7 @@ LogicalResult GenericAtomicRMWOp::verify() {
 
   bool hasSideEffects =
       body.walk([&](Operation *nestedOp) {
-            if (MemoryEffectOpInterface::hasNoEffect(nestedOp))
+            if (isMemoryEffectFree(nestedOp))
               return WalkResult::advance();
             nestedOp->emitError(
                 "body of 'memref.generic_atomic_rmw' should contain "
@@ -1694,8 +1899,67 @@ OpFoldResult ReinterpretCastOp::fold(ArrayRef<Attribute> /*operands*/) {
   return nullptr;
 }
 
+SmallVector<OpFoldResult> ReinterpretCastOp::getConstifiedMixedSizes() {
+  SmallVector<OpFoldResult> values = getMixedSizes();
+  constifyIndexValues(values, getType(), getContext(), getConstantSizes,
+                      ShapedType::isDynamic);
+  return values;
+}
+
+SmallVector<OpFoldResult> ReinterpretCastOp::getConstifiedMixedStrides() {
+  SmallVector<OpFoldResult> values = getMixedStrides();
+  constifyIndexValues(values, getType(), getContext(), getConstantStrides,
+                      ShapedType::isDynamicStrideOrOffset);
+  return values;
+}
+
+OpFoldResult ReinterpretCastOp::getConstifiedMixedOffset() {
+  SmallVector<OpFoldResult> values = getMixedOffsets();
+  assert(values.size() == 1 &&
+         "reinterpret_cast must have one and only one offset");
+  constifyIndexValues(values, getType(), getContext(), getConstantOffset,
+                      ShapedType::isDynamicStrideOrOffset);
+  return values[0];
+}
+
 namespace {
-/// Replace reinterpret_cast(extract_strided_metadata memref) -> memref.
+/// Replace the sequence:
+/// ```
+/// base, offset, sizes, strides = extract_strided_metadata src
+/// dst = reinterpret_cast base to offset, sizes, strides
+/// ```
+/// With
+///
+/// ```
+/// dst = memref.cast src
+/// ```
+///
+/// Note: The cast operation is only inserted when the type of dst and src
+/// are not the same. E.g., when going from <4xf32> to <?xf32>.
+///
+/// This pattern also matches when the offset, sizes, and strides don't come
+/// directly from the `extract_strided_metadata`'s results but it can be
+/// statically proven that they would hold the same values.
+///
+/// For instance, the following sequence would be replaced:
+/// ```
+/// base, offset, sizes, strides =
+///   extract_strided_metadata memref : memref<3x4xty>
+/// dst = reinterpret_cast base to 0, [3, 4], strides
+/// ```
+/// Because we know (thanks to the type of the input memref) that variable
+/// `offset` and `sizes` will respectively hold 0 and [3, 4].
+///
+/// Similarly, the following sequence would be replaced:
+/// ```
+/// c0 = arith.constant 0
+/// c4 = arith.constant 4
+/// base, offset, sizes, strides =
+///   extract_strided_metadata memref : memref<3x4xty>
+/// dst = reinterpret_cast base to c0, [3, c4], strides
+/// ```
+/// Because we know that `offset`and `c0` will hold 0
+/// and `c4` will hold 4.
 struct ReinterpretCastOpExtractStridedMetadataFolder
     : public OpRewritePattern<ReinterpretCastOp> {
 public:
@@ -1711,24 +1975,39 @@ public:
     // properties as the extract strided metadata.
 
     // First, check that the strides are the same.
-    if (extractStridedMetadata.getStrides().size() != op.getStrides().size())
+    SmallVector<OpFoldResult> extractStridesOfr =
+        extractStridedMetadata.getConstifiedMixedStrides();
+    SmallVector<OpFoldResult> reinterpretStridesOfr =
+        op.getConstifiedMixedStrides();
+    if (extractStridesOfr.size() != reinterpretStridesOfr.size())
       return failure();
-    for (auto [extractStride, reinterpretStride] :
-         llvm::zip(extractStridedMetadata.getStrides(), op.getStrides()))
-      if (extractStride != reinterpretStride)
+
+    unsigned rank = op.getType().getRank();
+    for (unsigned i = 0; i < rank; ++i) {
+      if (extractStridesOfr[i] != reinterpretStridesOfr[i])
         return failure();
+    }
 
     // Second, check the sizes.
-    if (extractStridedMetadata.getSizes().size() != op.getSizes().size())
-      return failure();
-    for (auto [extractSize, reinterpretSize] :
-         llvm::zip(extractStridedMetadata.getSizes(), op.getSizes()))
-      if (extractSize != reinterpretSize)
+    assert(extractStridedMetadata.getSizes().size() ==
+               op.getMixedSizes().size() &&
+           "Strides and sizes rank must match");
+    SmallVector<OpFoldResult> extractSizesOfr =
+        extractStridedMetadata.getConstifiedMixedSizes();
+    SmallVector<OpFoldResult> reinterpretSizesOfr =
+        op.getConstifiedMixedSizes();
+    for (unsigned i = 0; i < rank; ++i) {
+      if (extractSizesOfr[i] != reinterpretSizesOfr[i])
         return failure();
-
+    }
     // Finally, check the offset.
-    if (op.getOffsets().size() != 1 &&
-        extractStridedMetadata.getOffset() != *op.getOffsets().begin())
+    assert(op.getMixedOffsets().size() == 1 &&
+           "reinterpret_cast with more than one offset should have been "
+           "rejected by the verifier");
+    OpFoldResult extractOffsetOfr =
+        extractStridedMetadata.getConstifiedMixedOffset();
+    OpFoldResult reinterpretOffsetOfr = op.getConstifiedMixedOffset();
+    if (extractOffsetOfr != reinterpretOffsetOfr)
       return failure();
 
     // At this point, we know that the back and forth between extract strided

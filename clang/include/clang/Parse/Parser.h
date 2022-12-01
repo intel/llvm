@@ -866,10 +866,11 @@ public:
   bool TryAnnotateCXXScopeToken(bool EnteringContext = false);
 
   bool MightBeCXXScopeToken() {
-    return Tok.is(tok::identifier) || Tok.is(tok::coloncolon) ||
-           (Tok.is(tok::annot_template_id) &&
-            NextToken().is(tok::coloncolon)) ||
-           Tok.is(tok::kw_decltype) || Tok.is(tok::kw___super);
+    return getLangOpts().CPlusPlus &&
+           (Tok.is(tok::identifier) || Tok.is(tok::coloncolon) ||
+            (Tok.is(tok::annot_template_id) &&
+             NextToken().is(tok::coloncolon)) ||
+            Tok.is(tok::kw_decltype) || Tok.is(tok::kw___super));
   }
   bool TryAnnotateOptionalCXXScopeToken(bool EnteringContext = false) {
     return MightBeCXXScopeToken() && TryAnnotateCXXScopeToken(EnteringContext);
@@ -1762,7 +1763,7 @@ public:
   ExprResult ParseExpression(TypeCastState isTypeCast = NotTypeCast);
   ExprResult ParseConstantExpressionInExprEvalContext(
       TypeCastState isTypeCast = NotTypeCast);
-  ExprResult ParseConstantExpression(TypeCastState isTypeCast = NotTypeCast);
+  ExprResult ParseConstantExpression();
   ExprResult ParseCaseExpression(SourceLocation CaseLoc);
   ExprResult ParseConstraintExpression();
   ExprResult
@@ -1835,11 +1836,8 @@ private:
                                                      ParsedType &CastTy,
                                                      SourceRange &CastRange);
 
-  typedef SmallVector<SourceLocation, 20> CommaLocsTy;
-
   /// ParseExpressionList - Used for C/C++ (argument-)expression-list.
   bool ParseExpressionList(SmallVectorImpl<Expr *> &Exprs,
-                           SmallVectorImpl<SourceLocation> &CommaLocs,
                            llvm::function_ref<void()> ExpressionStarts =
                                llvm::function_ref<void()>(),
                            bool FailImmediatelyOnInvalidExpr = false,
@@ -1847,9 +1845,7 @@ private:
 
   /// ParseSimpleExpressionList - A simple comma-separated list of expressions,
   /// used for misc language extensions.
-  bool ParseSimpleExpressionList(SmallVectorImpl<Expr*> &Exprs,
-                                 SmallVectorImpl<SourceLocation> &CommaLocs);
-
+  bool ParseSimpleExpressionList(SmallVectorImpl<Expr *> &Exprs);
 
   /// ParenParseOption - Control what ParseParenExpression will parse.
   enum ParenParseOption {
@@ -2109,8 +2105,8 @@ private:
   bool ParseParenExprOrCondition(StmtResult *InitStmt,
                                  Sema::ConditionResult &CondResult,
                                  SourceLocation Loc, Sema::ConditionKind CK,
-                                 bool MissingOK, SourceLocation *LParenLoc,
-                                 SourceLocation *RParenLoc);
+                                 SourceLocation &LParenLoc,
+                                 SourceLocation &RParenLoc);
   StmtResult ParseIfStatement(SourceLocation *TrailingElseLoc);
   StmtResult ParseSwitchStatement(SourceLocation *TrailingElseLoc);
   StmtResult ParseWhileStatement(SourceLocation *TrailingElseLoc);
@@ -2882,8 +2878,19 @@ private:
       Sema::AttributeCompletion Completion = Sema::AttributeCompletion::None,
       const IdentifierInfo *EnclosingScope = nullptr);
 
+  void MaybeParseHLSLSemantics(Declarator &D,
+                               SourceLocation *EndLoc = nullptr) {
+    assert(getLangOpts().HLSL && "MaybeParseHLSLSemantics is for HLSL only");
+    if (Tok.is(tok::colon)) {
+      ParsedAttributes Attrs(AttrFactory);
+      ParseHLSLSemantics(Attrs, EndLoc);
+      D.takeAttributes(Attrs);
+    }
+  }
+
   void MaybeParseHLSLSemantics(ParsedAttributes &Attrs,
                                SourceLocation *EndLoc = nullptr) {
+    assert(getLangOpts().HLSL && "MaybeParseHLSLSemantics is for HLSL only");
     if (getLangOpts().HLSL && Tok.is(tok::colon))
       ParseHLSLSemantics(Attrs, EndLoc);
   }
@@ -2922,6 +2929,8 @@ private:
   void ParseOpenCLQualifiers(ParsedAttributes &Attrs);
   void ParseNullabilityTypeSpecifiers(ParsedAttributes &attrs);
   void ParseCUDAFunctionAttributes(ParsedAttributes &attrs);
+  bool isHLSLQualifier(const Token &Tok) const;
+  void ParseHLSLQualifiers(ParsedAttributes &Attrs);
 
   VersionTuple ParseVersionTuple(SourceRange &Range);
   void ParseAvailabilityAttribute(IdentifierInfo &Availability,
@@ -3279,6 +3288,15 @@ private:
 
   /// Parse 'omp end assumes' directive.
   void ParseOpenMPEndAssumesDirective(SourceLocation Loc);
+
+  /// Parses clauses for directive.
+  ///
+  /// \param DKind Kind of current directive.
+  /// \param clauses for current directive.
+  /// \param start location for clauses of current directive
+  void ParseOpenMPClauses(OpenMPDirectiveKind DKind,
+                          SmallVectorImpl<clang::OMPClause *> &Clauses,
+                          SourceLocation Loc);
 
   /// Parse clauses for '#pragma omp [begin] declare target'.
   void ParseOMPDeclareTargetClauses(Sema::DeclareTargetContextInfo &DTCI);

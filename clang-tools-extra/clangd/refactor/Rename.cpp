@@ -100,14 +100,13 @@ const NamedDecl *canonicalRenameDecl(const NamedDecl *D) {
       return canonicalRenameDecl(Method->getParent());
     if (const FunctionDecl *InstantiatedMethod =
             Method->getInstantiatedFromMemberFunction())
-      Method = cast<CXXMethodDecl>(InstantiatedMethod);
+      return canonicalRenameDecl(InstantiatedMethod);
     // FIXME(kirillbobyrev): For virtual methods with
     // size_overridden_methods() > 1, this will not rename all functions it
     // overrides, because this code assumes there is a single canonical
     // declaration.
-    while (Method->isVirtual() && Method->size_overridden_methods())
-      Method = *Method->overridden_methods().begin();
-    return Method->getCanonicalDecl();
+    if (Method->isVirtual() && Method->size_overridden_methods())
+      return canonicalRenameDecl(*Method->overridden_methods().begin());
   }
   if (const auto *Function = dyn_cast<FunctionDecl>(D))
     if (const FunctionTemplateDecl *Template = Function->getPrimaryTemplate())
@@ -132,8 +131,11 @@ const NamedDecl *canonicalRenameDecl(const NamedDecl *D) {
   }
   if (const auto *VD = dyn_cast<VarDecl>(D)) {
     if (const VarDecl *OriginalVD = VD->getInstantiatedFromStaticDataMember())
-      VD = OriginalVD;
-    return VD->getCanonicalDecl();
+      return canonicalRenameDecl(OriginalVD);
+  }
+  if (const auto *UD = dyn_cast<UsingShadowDecl>(D)) {
+    if (const auto *TargetDecl = UD->getTargetDecl())
+      return canonicalRenameDecl(TargetDecl);
   }
   return dyn_cast<NamedDecl>(D->getCanonicalDecl());
 }
@@ -157,6 +159,22 @@ llvm::DenseSet<const NamedDecl *> locateDeclAt(ParsedAST &AST,
     Result.insert(canonicalRenameDecl(D));
   }
   return Result;
+}
+
+void filterRenameTargets(llvm::DenseSet<const NamedDecl *> &Decls) {
+  // For something like
+  //     namespace ns { void foo(); }
+  //     void bar() { using ns::f^oo; foo(); }
+  // locateDeclAt() will return a UsingDecl and foo's actual declaration.
+  // For renaming, we're only interested in foo's declaration, so drop the other
+  // one. There should never be more than one UsingDecl here, otherwise the
+  // rename would be ambiguos anyway.
+  auto UD = std::find_if(Decls.begin(), Decls.end(), [](const NamedDecl *D) {
+    return llvm::isa<UsingDecl>(D);
+  });
+  if (UD != Decls.end()) {
+    Decls.erase(UD);
+  }
 }
 
 // By default, we exclude symbols from system headers and protobuf symbols as
@@ -739,6 +757,7 @@ llvm::Expected<RenameResult> rename(const RenameInputs &RInputs) {
     return makeError(ReasonToReject::UnsupportedSymbol);
 
   auto DeclsUnderCursor = locateDeclAt(AST, IdentifierToken->location());
+  filterRenameTargets(DeclsUnderCursor);
   if (DeclsUnderCursor.empty())
     return makeError(ReasonToReject::NoSymbolFound);
   if (DeclsUnderCursor.size() > 1)
