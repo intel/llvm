@@ -428,4 +428,35 @@ params:
     - type: "size_t*"
       name: pPropSizeRet
       desc: |
-            [out][optional] pointer to the actual size in bytes of data queried by pMemInfo.  
+            [out][optional] pointer to the actual size in bytes of data queried by pMemInfo.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Retrieve information about an image object."
+class: $xMem
+name: ImageGetInfo
+decl: static
+ordinal: "0"
+analogue:
+    - "**clGetImageInfo**"
+details:
+    - "Query information specific to an image object."
+params:
+    - type: $x_mem_handle_t
+      name: hMemory
+      desc: "[in] handle to the image object being queried."
+    - type: $x_image_info_t
+      name: ImgInfoType
+      desc: "[in] type of image info to retrieve."
+    - type: "size_t"
+      name: propSize
+      desc: "[in] the number of bytes of memory pointer to by pImgInfo."
+    - type: "void*"
+      name: pImgInfo
+      desc: |
+            [out][optional] array of bytes holding the info.
+            If propSize is less than the real number of bytes needed to return
+            the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pImgInfo is not used.
+    - type: "size_t*"
+      name: pPropSizeRet
+      desc: |
+            [out][optional] pointer to the actual size in bytes of data queried by pImgInfo.

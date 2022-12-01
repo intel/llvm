@@ -1497,6 +1497,13 @@ else:
     _urMemGetInfo_t = CFUNCTYPE( ur_result_t, ur_mem_handle_t, ur_mem_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
 
 ###############################################################################
+## @brief Function-pointer for urMemImageGetInfo
+if __use_win_types:
+    _urMemImageGetInfo_t = WINFUNCTYPE( ur_result_t, ur_mem_handle_t, ur_image_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
+else:
+    _urMemImageGetInfo_t = CFUNCTYPE( ur_result_t, ur_mem_handle_t, ur_image_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
+
+###############################################################################
 ## @brief Function-pointer for urMemFree
 if __use_win_types:
     _urMemFree_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p )
@@ -1523,6 +1530,7 @@ class ur_mem_dditable_t(Structure):
         ("pfnGetNativeHandle", c_void_p),                               ## _urMemGetNativeHandle_t
         ("pfnCreateWithNativeHandle", c_void_p),                        ## _urMemCreateWithNativeHandle_t
         ("pfnGetInfo", c_void_p),                                       ## _urMemGetInfo_t
+        ("pfnImageGetInfo", c_void_p),                                  ## _urMemImageGetInfo_t
         ("pfnFree", c_void_p),                                          ## _urMemFree_t
         ("pfnGetMemAllocInfo", c_void_p)                                ## _urMemGetMemAllocInfo_t
     ]
@@ -2054,6 +2062,7 @@ class UR_DDI:
         self.urMemGetNativeHandle = _urMemGetNativeHandle_t(self.__dditable.Mem.pfnGetNativeHandle)
         self.urMemCreateWithNativeHandle = _urMemCreateWithNativeHandle_t(self.__dditable.Mem.pfnCreateWithNativeHandle)
         self.urMemGetInfo = _urMemGetInfo_t(self.__dditable.Mem.pfnGetInfo)
+        self.urMemImageGetInfo = _urMemImageGetInfo_t(self.__dditable.Mem.pfnImageGetInfo)
         self.urMemFree = _urMemFree_t(self.__dditable.Mem.pfnFree)
         self.urMemGetMemAllocInfo = _urMemGetMemAllocInfo_t(self.__dditable.Mem.pfnGetMemAllocInfo)
 
