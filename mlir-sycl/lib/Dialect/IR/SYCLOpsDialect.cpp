@@ -93,6 +93,8 @@ private:
       return "drw";
     case mlir::sycl::MemoryAccessMode::Atomic:
       return "ato";
+    default:
+      llvm_unreachable("Unhandled kind");
     }
   }
 
@@ -113,6 +115,8 @@ private:
       return "hi";
     case mlir::sycl::MemoryTargetMode::ImageArray:
       return "ia";
+    default:
+      llvm_unreachable("Unhandled kind");
     }
   }
 };
