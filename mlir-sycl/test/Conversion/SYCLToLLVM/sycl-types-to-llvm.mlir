@@ -13,26 +13,33 @@ func.func @test_array.2(%arg0: !sycl_array_2_) {
 
 // -----
 
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
 // CHECK: llvm.func @test_id(%arg0: !llvm.[[ID_1:struct<"class.sycl::_V1::id.*", \(]][[ARRAY_1]][[SUFFIX:\)>]], %arg1: !llvm.[[ID_1]][[ARRAY_1]][[SUFFIX]])
-func.func @test_id(%arg0: !sycl.id<1>, %arg1: !sycl.id<1>) {
+func.func @test_id(%arg0: !sycl_id_1_, %arg1: !sycl_id_1_) {
   return
 }
 
 // -----
 
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_2_ = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
 // CHECK: llvm.func @test_range.1(%arg0: !llvm.[[RANGE_1:struct<"class.sycl::_V1::range.*", \(]][[ARRAY_1]][[SUFFIX]])
-func.func @test_range.1(%arg0: !sycl.range<1>) {
+func.func @test_range.1(%arg0: !sycl_range_1_) {
   return
 }
 // CHECK: llvm.func @test_range.2(%arg0: !llvm.[[RANGE_2:struct<"class.sycl::_V1::range.*", \(]][[ARRAY_2]][[SUFFIX]])
-func.func @test_range.2(%arg0: !sycl.range<2>) {
+func.func @test_range.2(%arg0: !sycl_range_2_) {
   return
 }
 
 // -----
 
-!sycl_nd_range_1_ = !sycl.nd_range<[1], (!sycl.range<1>, !sycl.range<1>, !sycl.id<1>)>
-!sycl_nd_range_2_ = !sycl.nd_range<[2], (!sycl.range<2>, !sycl.range<2>, !sycl.id<2>)>
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_id_2_ = !sycl.id<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_2_ = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
+!sycl_nd_range_1_ = !sycl.nd_range<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+!sycl_nd_range_2_ = !sycl.nd_range<[2], (!sycl_range_2_, !sycl_range_2_, !sycl_id_2_)>
 // CHECK: llvm.func @test_nd_range.1(%arg0: !llvm.[[ND_RANGE_1:struct<"class.sycl::_V1::nd_range.*", \(]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]]) {
 func.func @test_nd_range.1(%arg0: !sycl_nd_range_1_) {
   return
@@ -44,13 +51,17 @@ func.func @test_nd_range.2(%arg0: !sycl_nd_range_2_) {
 
 // -----
 
-!sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl.id<1>, !sycl.range<1>, !sycl.range<1>)>
-!sycl_accessor_impl_device_2_ = !sycl.accessor_impl_device<[2], (!sycl.id<2>, !sycl.range<2>, !sycl.range<2>)>
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_id_2_ = !sycl.id<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_2_ = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
+!sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>
+!sycl_accessor_impl_device_2_ = !sycl.accessor_impl_device<[2], (!sycl_id_2_, !sycl_range_2_, !sycl_range_2_)>
 !sycl_accessor_1_i32_rw_gb = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<i32, 1>)>)>
 !sycl_accessor_2_i32_rw_gb = !sycl.accessor<[2, i32, read_write, global_buffer], (!sycl_accessor_impl_device_2_, !llvm.struct<(ptr<i32, 1>)>)>
 !sycl_accessor_1_f32_rw_gb = !sycl.accessor<[1, f32, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<f32, 1>)>)>
 !sycl_accessor_2_f32_rw_gb = !sycl.accessor<[2, f32, read_write, global_buffer], (!sycl_accessor_impl_device_2_, !llvm.struct<(ptr<f32, 1>)>)>
-!sycl_accessor_subscript_1_ = !sycl.accessor_subscript<[1], (!sycl.id<2>, !sycl.accessor<[2, i32, read_write, global_buffer], (!sycl_accessor_impl_device_2_, !llvm.struct<(ptr<i32, 1>)>)>)>
+!sycl_accessor_subscript_1_ = !sycl.accessor_subscript<[1], (!sycl_id_2_, !sycl.accessor<[2, i32, read_write, global_buffer], (!sycl_accessor_impl_device_2_, !llvm.struct<(ptr<i32, 1>)>)>)>
 // CHECK: llvm.func @test_accessorImplDevice(%arg0: !llvm.[[ACCESSORIMPLDEVICE_1:struct<"class.sycl::_V1::detail::AccessorImplDevice.*", \(]][[ID_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]])
 func.func @test_accessorImplDevice(%arg0: !sycl_accessor_impl_device_1_) {
   return
@@ -82,11 +93,13 @@ func.func @test_accessorSubscript(%arg0: !sycl_accessor_subscript_1_) {
 
 // -----
 
-!sycl_item_base_1_ = !sycl.item_base<[1, true], (!sycl.range<1>, !sycl.id<1>, !sycl.id<1>)>
-!sycl_item_base_1_1 = !sycl.item_base<[1, false], (!sycl.range<1>, !sycl.id<1>)>
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_item_base_1_ = !sycl.item_base<[1, true], (!sycl_range_1_, !sycl_id_1_, !sycl_id_1_)>
+!sycl_item_base_1_1 = !sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>
 !sycl_item_1_ = !sycl.item<[1, true], (!sycl_item_base_1_)>
 !sycl_item_1_1 = !sycl.item<[1, false], (!sycl_item_base_1_1)>
-!sycl_group_1_ = !sycl.group<[1], (!sycl.range<1>, !sycl.range<1>, !sycl.range<1>, !sycl.id<1>)>
+!sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
 !sycl_nd_item_1_ = !sycl.nd_item<[1], (!sycl_item_1_, !sycl_item_1_1, !sycl_group_1_)>
 // CHECK: llvm.func @test_itemBase.true(%arg0: !llvm.[[ITEM_BASE_1_TRUE:struct<"struct.sycl::_V1::detail::ItemBase.*", \(]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]])
 func.func @test_itemBase.true(%arg0: !sycl_item_base_1_) {

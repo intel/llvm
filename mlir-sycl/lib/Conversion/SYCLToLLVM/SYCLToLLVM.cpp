@@ -53,20 +53,16 @@ template <typename SYCLType> static SYCLType getElementType(const Type &type) {
   return elemType.cast<SYCLType>();
 }
 
-// Get LLVM type of "class.cl::sycl::detail::array" with \p dimNum number of
-// dimensions and element type \p type.
-static Optional<Type> getArrayTy(MLIRContext &context, unsigned dimNum,
-                                 Type type) {
-  assert((dimNum == 1 || dimNum == 2 || dimNum == 3) &&
-         "Expecting number of dimensions to be 1, 2, or 3.");
-  auto structTy = LLVM::LLVMStructType::getIdentified(
-      &context, "class.sycl::_V1::detail::array." + std::to_string(dimNum));
-  if (!structTy.isInitialized()) {
-    auto arrayTy = LLVM::LLVMArrayType::get(type, dimNum);
-    if (failed(structTy.setBody(arrayTy, /*isPacked=*/false)))
+// Get LLVM struct type with i8 as the body with name \p name.
+static Optional<Type> getI8Struct(StringRef name,
+                                  LLVMTypeConverter &converter) {
+  auto convertedTy =
+      LLVM::LLVMStructType::getIdentified(&converter.getContext(), name);
+  if (!convertedTy.isInitialized())
+    if (failed(convertedTy.setBody(IntegerType::get(&converter.getContext(), 8),
+                                   /*isPacked=*/false)))
       return llvm::None;
-  }
-  return structTy;
+  return convertedTy;
 }
 
 //===----------------------------------------------------------------------===//
@@ -118,13 +114,7 @@ convertAccessorSubscriptType(sycl::AccessorSubscriptType type,
 /// Converts SYCL accessor common type to LLVM type.
 static Optional<Type> convertAccessorCommonType(sycl::AccessorCommonType type,
                                                 LLVMTypeConverter &converter) {
-  auto convertedTy = LLVM::LLVMStructType::getIdentified(
-      &converter.getContext(), "class.sycl::_V1::detail::accessor_common");
-  if (!convertedTy.isInitialized())
-    if (failed(convertedTy.setBody(IntegerType::get(&converter.getContext(), 8),
-                                   /*isPacked=*/false)))
-      return llvm::None;
-  return convertedTy;
+  return getI8Struct("class.sycl::_V1::detail::accessor_common", converter);
 }
 
 /// Converts SYCL accessor type to LLVM type.
@@ -145,8 +135,16 @@ static Optional<Type> convertArrayType(sycl::ArrayType type,
   assert(type.getBody()[0].cast<MemRefType>().getElementType() ==
              converter.getIndexType() &&
          "Expecting SYCL array body entry element type to be the index type");
-  return getArrayTy(converter.getContext(), type.getDimension(),
-                    converter.getIndexType());
+  auto structTy = LLVM::LLVMStructType::getIdentified(
+      &converter.getContext(),
+      "class.sycl::_V1::detail::array." + std::to_string(type.getDimension()));
+  if (!structTy.isInitialized()) {
+    auto arrayTy =
+        LLVM::LLVMArrayType::get(converter.getIndexType(), type.getDimension());
+    if (failed(structTy.setBody(arrayTy, /*isPacked=*/false)))
+      return llvm::None;
+  }
+  return structTy;
 }
 
 /// Converts SYCL group type to LLVM type.
@@ -160,13 +158,7 @@ static Optional<Type> convertGroupType(sycl::GroupType type,
 /// Converts SYCL GetOp type to LLVM type.
 static Optional<Type> convertGetOpType(sycl::GetOpType type,
                                        LLVMTypeConverter &converter) {
-  auto convertedTy = LLVM::LLVMStructType::getIdentified(
-      &converter.getContext(), "class.sycl::_V1::detail::GetOp");
-  if (!convertedTy.isInitialized())
-    if (failed(convertedTy.setBody(IntegerType::get(&converter.getContext(), 8),
-                                   /*isPacked=*/false)))
-      return llvm::None;
-  return convertedTy;
+  return getI8Struct("class.sycl::_V1::detail::GetOp", converter);
 }
 
 /// Converts SYCL GetScalarOp type to LLVM type.
@@ -176,29 +168,12 @@ static Optional<Type> convertGetScalarOpType(sycl::GetScalarOpType type,
                          converter);
 }
 
-/// Converts SYCL range or id type to LLVM type, given \p dimNum - number of
-/// dimensions, \p name - the expected LLVM type name, \p converter - LLVM type
-/// converter.
-static Optional<Type> convertRangeOrIDTy(unsigned dimNum, StringRef name,
-                                         LLVMTypeConverter &converter) {
-  auto convertedTy = LLVM::LLVMStructType::getIdentified(
-      &converter.getContext(), name.str() + "." + std::to_string(dimNum));
-  if (!convertedTy.isInitialized()) {
-    auto arrayTy =
-        getArrayTy(converter.getContext(), dimNum, converter.getIndexType());
-    if (!arrayTy.has_value())
-      return llvm::None;
-    if (failed(convertedTy.setBody(arrayTy.value(), /*isPacked=*/false)))
-      return llvm::None;
-  }
-  return convertedTy;
-}
-
 /// Converts SYCL id type to LLVM type.
 static Optional<Type> convertIDType(sycl::IDType type,
                                     LLVMTypeConverter &converter) {
-  return convertRangeOrIDTy(type.getDimension(), "class.sycl::_V1::id",
-                            converter);
+  return convertBodyType("class.sycl::_V1::id." +
+                             std::to_string(type.getDimension()),
+                         type.getBody(), converter);
 }
 
 /// Converts SYCL item base type to LLVM type.
@@ -230,8 +205,9 @@ static Optional<Type> convertNdItemType(sycl::NdItemType type,
 /// Converts SYCL range type to LLVM type.
 static Optional<Type> convertRangeType(sycl::RangeType type,
                                        LLVMTypeConverter &converter) {
-  return convertRangeOrIDTy(type.getDimension(), "class.sycl::_V1::range",
-                            converter);
+  return convertBodyType("class.sycl::_V1::range." +
+                             std::to_string(type.getDimension()),
+                         type.getBody(), converter);
 }
 
 /// Converts SYCL nd_range type to LLVM type.

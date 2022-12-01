@@ -128,9 +128,9 @@ SYCLOpAsmInterface::getAlias(mlir::Type Type, llvm::raw_ostream &OS) const {
             OS << "sycl_" << decltype(Ty)::getMnemonic() << "_";
             return AliasResult::FinalAlias;
           })
-      .Case<mlir::sycl::NdRangeType, mlir::sycl::AccessorImplDeviceType,
-            mlir::sycl::ArrayType, mlir::sycl::NdItemType,
-            mlir::sycl::GroupType>([&](auto Ty) {
+      .Case<mlir::sycl::IDType, mlir::sycl::RangeType, mlir::sycl::NdRangeType,
+            mlir::sycl::AccessorImplDeviceType, mlir::sycl::ArrayType,
+            mlir::sycl::NdItemType, mlir::sycl::GroupType>([&](auto Ty) {
         OS << "sycl_" << decltype(Ty)::getMnemonic() << "_" << Ty.getDimension()
            << "_";
         return AliasResult::FinalAlias;

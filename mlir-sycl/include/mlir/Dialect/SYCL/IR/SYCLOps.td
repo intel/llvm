@@ -130,8 +130,9 @@ class SYCLInheritanceTypeTrait<string ParentClass>
 
 def SYCL_IDType
     : SYCL_Type<"ID", "id", [SYCLInheritanceTypeTrait<"ArrayType">]> {
-  let parameters = (ins "unsigned":$dimension);
-  let assemblyFormat = "`<` $dimension `>`";
+  let parameters = (ins "unsigned":$dimension,
+                        ArrayRefParameter<"mlir::Type">:$body);
+  let assemblyFormat = "`<`  `[` $dimension `]` `,` `(` $body `)` `>`";
 }
 
 def SYCL_AccessorCommonType : SYCL_Type<"AccessorCommon", "accessor_common"> {
@@ -152,8 +153,9 @@ def SYCL_AccessorType
 
 def SYCL_RangeType
     : SYCL_Type<"Range", "range", [SYCLInheritanceTypeTrait<"ArrayType">]> {
-  let parameters = (ins "unsigned":$dimension);
-  let assemblyFormat = "`<` $dimension `>`";
+  let parameters = (ins "unsigned":$dimension,
+                        ArrayRefParameter<"mlir::Type">:$body);
+  let assemblyFormat = "`<`  `[` $dimension `]` `,` `(` $body `)` `>`";
 }
 
 def SYCL_NdRangeType : SYCL_Type<"NdRange", "nd_range"> {
