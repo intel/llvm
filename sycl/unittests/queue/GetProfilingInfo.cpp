@@ -15,7 +15,6 @@
 
 #include <sycl/detail/defines_elementary.hpp>
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
@@ -70,24 +69,9 @@ redefinedPiEventGetProfilingInfo(pi_event event, pi_profiling_info param_name,
 }
 
 TEST(GetProfilingInfo, normal_pass_without_exception) {
-  sycl::platform Plt{sycl::default_selector{}};
-  if (Plt.is_host()) {
-    std::cout << "Test is not supported on host, skipping\n";
-    GTEST_SKIP(); // test is not supported on host.
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
-    std::cout << "Test is not supported on CUDA platform, skipping\n";
-    GTEST_SKIP();
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    std::cout << "Test is not supported on HIP platform, skipping\n";
-    GTEST_SKIP();
-  }
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-  Mock.redefine<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+  Mock.redefineBefore<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
       redefinedPiEventGetProfilingInfo);
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
@@ -123,24 +107,9 @@ TEST(GetProfilingInfo, normal_pass_without_exception) {
 }
 
 TEST(GetProfilingInfo, command_exception_check) {
-  sycl::platform Plt{sycl::default_selector{}};
-  if (Plt.is_host()) {
-    std::cout << "Test is not supported on host, skipping\n";
-    GTEST_SKIP(); // test is not supported on host.
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
-    std::cout << "Test is not supported on CUDA platform, skipping\n";
-    GTEST_SKIP();
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    std::cout << "Test is not supported on HIP platform, skipping\n";
-    GTEST_SKIP();
-  }
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-  Mock.redefine<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+  Mock.redefineBefore<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
       redefinedPiEventGetProfilingInfo);
 
   const sycl::device Dev = Plt.get_devices()[0];
@@ -241,24 +210,9 @@ TEST(GetProfilingInfo, exception_check_no_queue) {
 }
 
 TEST(GetProfilingInfo, check_if_now_dead_queue_property_set) {
-  sycl::platform Plt{sycl::default_selector{}};
-  if (Plt.is_host()) {
-    std::cout << "Test is not supported on host, skipping\n";
-    GTEST_SKIP(); // test is not supported on host.
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
-    std::cout << "Test is not supported on CUDA platform, skipping\n";
-    GTEST_SKIP();
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    std::cout << "Test is not supported on HIP platform, skipping\n";
-    GTEST_SKIP();
-  }
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-  Mock.redefine<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+  Mock.redefineBefore<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
       redefinedPiEventGetProfilingInfo);
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
@@ -297,24 +251,9 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_set) {
 }
 
 TEST(GetProfilingInfo, check_if_now_dead_queue_property_not_set) {
-  sycl::platform Plt{sycl::default_selector{}};
-  if (Plt.is_host()) {
-    std::cout << "Test is not supported on host, skipping\n";
-    GTEST_SKIP(); // test is not supported on host.
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
-    std::cout << "Test is not supported on CUDA platform, skipping\n";
-    GTEST_SKIP();
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    std::cout << "Test is not supported on HIP platform, skipping\n";
-    GTEST_SKIP();
-  }
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-  Mock.redefine<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+  Mock.redefineBefore<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
       redefinedPiEventGetProfilingInfo);
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};

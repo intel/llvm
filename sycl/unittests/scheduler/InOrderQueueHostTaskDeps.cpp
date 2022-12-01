@@ -9,7 +9,6 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
@@ -33,25 +32,12 @@ inline pi_result redefinedEventsWait(pi_uint32 num_events,
 }
 
 TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
-  default_selector Selector;
-  platform Plt{default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Not run due to host-only environment\n";
-    return;
-  }
-  // This test only contains device image for SPIR-V capable devices.
-  if (Plt.get_backend() != sycl::backend::opencl &&
-      Plt.get_backend() != sycl::backend::ext_oneapi_level_zero) {
-    std::cout << "Only OpenCL and Level Zero are supported for this test\n";
-    return;
-  }
-
-  unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-  Mock.redefine<detail::PiApiKind::piEventsWait>(redefinedEventsWait);
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+  Mock.redefineBefore<detail::PiApiKind::piEventsWait>(redefinedEventsWait);
 
   context Ctx{Plt};
-  queue InOrderQueue{Ctx, Selector, property::queue::in_order()};
+  queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
 
   kernel_bundle KernelBundle =
       sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx);

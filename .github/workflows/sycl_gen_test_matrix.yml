@@ -19,6 +19,10 @@ on:
         type: string
         required: true
         default: ""
+      cts_config:
+        type: string
+        required: false
+        default: ""
       uniq:
         description: Unique string to name dynamic runners in AWS
         type: string
@@ -33,6 +37,9 @@ on:
       lts_matrix:
         description: "Generated Matrix"
         value: ${{ jobs.test_matrix.outputs.lts_matrix }}
+      cts_matrix:
+        description: "Generated SYCL CTS Matrix"
+        value: ${{ jobs.test_matrix.outputs.cts_matrix }}
       lts_aws_matrix:
         description: "Generated Matrix AWS subset"
         value: ${{ jobs.test_matrix.outputs.lts_aws_matrix }}
@@ -42,6 +49,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       lts_matrix: ${{ steps.work.outputs.lts_matrix }}
+      cts_matrix: ${{ steps.work.outputs.cts_matrix }}
       lts_aws_matrix: ${{ steps.work.outputs.lts_aws_matrix }}
     steps:
     - name: Download scripts and configs

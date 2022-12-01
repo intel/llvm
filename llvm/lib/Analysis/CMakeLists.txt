@@ -2,7 +2,7 @@ if (DEFINED LLVM_HAVE_TF_AOT OR DEFINED LLVM_HAVE_TF_API)
   include(TensorFlowCompile)
   set(LLVM_INLINER_MODEL_PATH_DEFAULT "models/inliner-Oz")
 
-  set(LLVM_INLINER_MODEL_CURRENT_URL "<UNSPECIFIED>")
+  set(LLVM_INLINER_MODEL_CURRENT_URL "<UNSPECIFIED>" CACHE STRING "URL to download the LLVM inliner model")
 
   if (DEFINED LLVM_HAVE_TF_AOT)
     tf_find_and_compile(
@@ -18,7 +18,17 @@ if (DEFINED LLVM_HAVE_TF_AOT OR DEFINED LLVM_HAVE_TF_API)
   endif()
 
   if (DEFINED LLVM_HAVE_TF_API)
-    list(APPEND MLLinkDeps ${tensorflow_c_api} ${tensorflow_fx})
+    if (LLVM_HAVE_TFLITE)
+      build_proto(
+        tensorflow/core/protobuf/error_codes
+        tensorflow/core/example/feature
+        tensorflow/core/example/example)
+      list(APPEND MLLinkDeps 
+        tensorflow-lite::tensorflow-lite
+        protobuf::libprotobuf)
+    else()
+      list(APPEND MLLinkDeps ${tensorflow_c_api} ${tensorflow_fx})
+    endif()
   endif()
 endif()
 
@@ -36,6 +46,7 @@ add_llvm_component_library(LLVMAnalysis
   BranchProbabilityInfo.cpp
   CFG.cpp
   CFGPrinter.cpp
+  CFGSCCPrinter.cpp
   CFLAndersAliasAnalysis.cpp
   CFLSteensAliasAnalysis.cpp
   CGSCCPassManager.cpp
@@ -130,6 +141,7 @@ add_llvm_component_library(LLVMAnalysis
   SyncDependenceAnalysis.cpp
   SyntheticCountsUtils.cpp
   TFUtils.cpp
+  TFLiteUtils.cpp
   TargetLibraryInfo.cpp
   TargetTransformInfo.cpp
   TensorSpec.cpp

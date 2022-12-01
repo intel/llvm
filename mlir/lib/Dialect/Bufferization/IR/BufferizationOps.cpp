@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Bufferization/IR/BufferizableOpInterface.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -152,7 +152,6 @@ void mlir::bufferization::populateDynamicDimSizes(
 LogicalResult AllocTensorOp::bufferize(RewriterBase &rewriter,
                                        const BufferizationOptions &options) {
   OpBuilder::InsertionGuard g(rewriter);
-  Operation *op = this->getOperation();
   Location loc = getLoc();
 
   // Nothing to do for dead AllocTensorOps.
@@ -170,30 +169,17 @@ LogicalResult AllocTensorOp::bufferize(RewriterBase &rewriter,
     copyBuffer = *maybeCopyBuffer;
   }
 
-  // Compute memory space of this allocation.
-  unsigned memorySpace;
-  if (getMemorySpace().has_value()) {
-    memorySpace = *getMemorySpace();
-  } else if (getCopy()) {
-    memorySpace =
-        copyBuffer.getType().cast<BaseMemRefType>().getMemorySpaceAsInt();
-  } else if (options.defaultMemorySpace.has_value()) {
-    memorySpace = *options.defaultMemorySpace;
-  } else {
-    return op->emitError("could not infer memory space");
-  }
-
   // Create memory allocation.
-  auto allocType =
-      MemRefType::get(getType().getShape(), getType().getElementType(),
-                      AffineMap(), memorySpace);
+  auto allocType = bufferization::getBufferType(getResult(), options);
+  if (failed(allocType))
+    return failure();
   SmallVector<Value> dynamicDims = getDynamicSizes();
   if (getCopy()) {
     assert(dynamicDims.empty() && "expected either `copy` or `dynamicDims`");
     populateDynamicDimSizes(rewriter, loc, copyBuffer, dynamicDims);
   }
-  FailureOr<Value> alloc =
-      options.createAlloc(rewriter, loc, allocType, dynamicDims);
+  FailureOr<Value> alloc = options.createAlloc(
+      rewriter, loc, allocType->cast<MemRefType>(), dynamicDims);
   if (failed(alloc))
     return failure();
 
@@ -247,6 +233,30 @@ AllocTensorOp::getAliasingOpResult(OpOperand &opOperand,
   return {};
 }
 
+FailureOr<BaseMemRefType> AllocTensorOp::getBufferType(
+    Value value, const BufferizationOptions &options,
+    const DenseMap<Value, BaseMemRefType> &fixedTypes) {
+  assert(value == getResult() && "invalid value");
+
+  // Compute memory space of this allocation.
+  unsigned memorySpace;
+  if (getMemorySpace().has_value()) {
+    memorySpace = *getMemorySpace();
+  } else if (getCopy()) {
+    auto copyBufferType =
+        bufferization::getBufferType(getCopy(), options, fixedTypes);
+    if (failed(copyBufferType))
+      return failure();
+    memorySpace = copyBufferType->getMemorySpaceAsInt();
+  } else if (options.defaultMemorySpace.has_value()) {
+    memorySpace = *options.defaultMemorySpace;
+  } else {
+    return getOperation()->emitError("could not infer memory space");
+  }
+
+  return getMemRefTypeWithStaticIdentityLayout(getType(), memorySpace);
+}
+
 LogicalResult AllocTensorOp::verify() {
   if (getCopy() && !getDynamicSizes().empty())
     return emitError("dynamic sizes not needed when copying a tensor");
@@ -272,14 +282,22 @@ LogicalResult AllocTensorOp::verify() {
 void AllocTensorOp::build(OpBuilder &builder, OperationState &result,
                           RankedTensorType type, ValueRange dynamicSizes) {
   build(builder, result, type, dynamicSizes, /*copy=*/Value(),
+        /*size_hint=*/Value(),
         /*memory_space=*/IntegerAttr());
 }
 
 void AllocTensorOp::build(OpBuilder &builder, OperationState &result,
                           RankedTensorType type, ValueRange dynamicSizes,
                           Value copy) {
-  build(builder, result, type, dynamicSizes, copy,
+  build(builder, result, type, dynamicSizes, copy, /*size_hint=*/Value(),
         /*memory_space=*/IntegerAttr());
+}
+
+void AllocTensorOp::build(OpBuilder &builder, OperationState &result,
+                          TensorType type, ValueRange dynamicSizes, Value copy,
+                          IntegerAttr memorySpace) {
+  build(builder, result, type, dynamicSizes, copy, /*size_hint=*/Value(),
+        memorySpace);
 }
 
 namespace {
@@ -373,6 +391,11 @@ ParseResult AllocTensorOp::parse(OpAsmParser &parser, OperationState &result) {
     if (parser.parseLParen() || parser.parseOperand(copyOperand) ||
         parser.parseRParen())
       return failure();
+  ParseResult sizeHintKeyword = parser.parseOptionalKeyword("size_hint");
+  OpAsmParser::UnresolvedOperand sizeHintOperand;
+  if (sizeHintKeyword.succeeded())
+    if (parser.parseEqual() || parser.parseOperand(sizeHintOperand))
+      return failure();
   if (parser.parseOptionalAttrDict(result.attributes) || parser.parseColon())
     return failure();
 
@@ -387,10 +410,14 @@ ParseResult AllocTensorOp::parse(OpAsmParser &parser, OperationState &result) {
   if (copyKeyword.succeeded())
     if (parser.resolveOperand(copyOperand, type, result.operands))
       return failure();
+  if (sizeHintKeyword.succeeded())
+    if (parser.resolveOperand(sizeHintOperand, indexType, result.operands))
+      return failure();
   result.addAttribute(AllocTensorOp::getOperandSegmentSizeAttr(),
-                      parser.getBuilder().getI32VectorAttr(
+                      parser.getBuilder().getDenseI32ArrayAttr(
                           {static_cast<int32_t>(dynamicSizesOperands.size()),
-                           static_cast<int32_t>(copyKeyword.succeeded())}));
+                           static_cast<int32_t>(copyKeyword.succeeded()),
+                           static_cast<int32_t>(sizeHintKeyword.succeeded())}));
   return success();
 }
 
@@ -398,6 +425,8 @@ void AllocTensorOp::print(OpAsmPrinter &p) {
   p << "(" << getDynamicSizes() << ")";
   if (getCopy())
     p << " copy(" << getCopy() << ")";
+  if (getSizeHint())
+    p << " size_hint=" << getSizeHint();
   p.printOptionalAttrDict((*this)->getAttrs(), /*elidedAttrs=*/{
                               AllocTensorOp::getOperandSegmentSizeAttr()});
   p << " : ";
@@ -449,17 +478,20 @@ struct SimplifyClones : public OpRewritePattern<CloneOp> {
     }
 
     Value source = cloneOp.getInput();
+    // Aims to find the dealloc op for the canonical source
+    // which otherwise could prevent removal of unnecessary allocs.
+    Value canonicalSource = source;
+    while (auto iface = dyn_cast_or_null<ViewLikeOpInterface>(
+               canonicalSource.getDefiningOp()))
+      canonicalSource = iface.getViewSource();
 
-    // This only finds dealloc operations for the immediate value. It should
-    // also consider aliases. That would also make the safety check below
-    // redundant.
     llvm::Optional<Operation *> maybeCloneDeallocOp =
         memref::findDealloc(cloneOp.getOutput());
     // Skip if either of them has > 1 deallocate operations.
     if (!maybeCloneDeallocOp.has_value())
       return failure();
     llvm::Optional<Operation *> maybeSourceDeallocOp =
-        memref::findDealloc(source);
+        memref::findDealloc(canonicalSource);
     if (!maybeSourceDeallocOp.has_value())
       return failure();
     Operation *cloneDeallocOp = *maybeCloneDeallocOp;

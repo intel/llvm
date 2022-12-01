@@ -315,6 +315,11 @@ static Optional<const char *> GetCodeName(unsigned CodeID, unsigned BlockID,
       STRINGIFY_CODE(FS, TYPE_ID_METADATA)
       STRINGIFY_CODE(FS, BLOCK_COUNT)
       STRINGIFY_CODE(FS, PARAM_ACCESS)
+      STRINGIFY_CODE(FS, PERMODULE_CALLSITE_INFO)
+      STRINGIFY_CODE(FS, PERMODULE_ALLOC_INFO)
+      STRINGIFY_CODE(FS, COMBINED_CALLSITE_INFO)
+      STRINGIFY_CODE(FS, COMBINED_ALLOC_INFO)
+      STRINGIFY_CODE(FS, STACK_IDS)
     }
   case bitc::METADATA_ATTACHMENT_ID:
     switch (CodeID) {
@@ -761,7 +766,7 @@ Error BitcodeAnalyzer::parseBlock(unsigned BlockID, unsigned IndentLevel,
   // Keep it for later, when we see a MODULE_HASH record
   uint64_t BlockEntryPos = Stream.getCurrentByteNo();
 
-  Optional<const char *> BlockName = None;
+  Optional<const char *> BlockName;
   if (DumpRecords) {
     O->OS << Indent << "<";
     if ((BlockName = GetBlockName(BlockID, BlockInfo, CurStreamType)))

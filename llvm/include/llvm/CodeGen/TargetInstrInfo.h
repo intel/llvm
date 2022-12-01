@@ -19,7 +19,6 @@
 #include "llvm/ADT/None.h"
 #include "llvm/CodeGen/MIRFormatter.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
-#include "llvm/CodeGen/MachineCombinerPattern.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
@@ -54,11 +53,14 @@ class ScheduleDAGMI;
 class ScheduleHazardRecognizer;
 class SDNode;
 class SelectionDAG;
+class SMSchedule;
+class SwingSchedulerDAG;
 class RegScavenger;
 class TargetRegisterClass;
 class TargetRegisterInfo;
 class TargetSchedModel;
 class TargetSubtargetInfo;
+enum class MachineCombinerPattern;
 
 template <class T> class SmallVectorImpl;
 
@@ -106,6 +108,11 @@ public:
 
   static bool isGenericOpcode(unsigned Opc) {
     return Opc <= TargetOpcode::GENERIC_OP_END;
+  }
+
+  static bool isGenericAtomicRMWOpcode(unsigned Opc) {
+    return Opc >= TargetOpcode::GENERIC_ATOMICRMW_OP_START &&
+           Opc <= TargetOpcode::GENERIC_ATOMICRMW_OP_END;
   }
 
   /// Given a machine instruction descriptor, returns the register
@@ -729,6 +736,13 @@ public:
     /// update with no users being pipelined.
     virtual bool shouldIgnoreForPipelining(const MachineInstr *MI) const = 0;
 
+    /// Return true if the proposed schedule should used.  Otherwise return
+    /// false to not pipeline the loop. This function should be used to ensure
+    /// that pipelined loops meet target-specific quality heuristics.
+    virtual bool shouldUseSchedule(SwingSchedulerDAG &SSD, SMSchedule &SMS) {
+      return true;
+    }
+
     /// Create a condition to determine if the trip count of the loop is greater
     /// than TC, where TC is always one more than for the previous prologue or
     /// 0 if this is being called for the outermost prologue.
@@ -1134,8 +1148,8 @@ public:
   /// Return true if target supports reassociation of instructions in machine
   /// combiner pass to reduce register pressure for a given BB.
   virtual bool
-  shouldReduceRegisterPressure(MachineBasicBlock *MBB,
-                               RegisterClassInfo *RegClassInfo) const {
+  shouldReduceRegisterPressure(const MachineBasicBlock *MBB,
+                               const RegisterClassInfo *RegClassInfo) const {
     return false;
   }
 

@@ -20,7 +20,8 @@
 // alignment of the string heap buffer is hardcoded to 16
 static const size_t alignment = 16;
 
-void full_size() {
+template <class = int>
+TEST_CONSTEXPR_CXX20 void full_size() {
   std::string str;
   assert(str.max_size() == std::numeric_limits<size_t>::max() - alignment);
 
@@ -40,7 +41,8 @@ void full_size() {
   assert(u32str.max_size() == std::numeric_limits<size_t>::max() / 4 - alignment);
 }
 
-void half_size() {
+template <class = int>
+TEST_CONSTEXPR_CXX20 void half_size() {
   std::string str;
   assert(str.max_size() == std::numeric_limits<size_t>::max() / 2 - alignment);
 
@@ -60,7 +62,7 @@ void half_size() {
   assert(u32str.max_size() == std::numeric_limits<size_t>::max() / 4 - alignment);
 }
 
-bool test() {
+TEST_CONSTEXPR_CXX20 bool test() {
 
 #if _LIBCPP_ABI_VERSION == 1
 
@@ -74,7 +76,13 @@ bool test() {
 #   else
   full_size();
 #   endif
-# elif defined(__powerpc__) || defined(__powerpc64__) || defined(__sparc64__)
+# elif defined(__powerpc__) || defined(__powerpc64__)
+#   ifdef __BIG_ENDIAN__
+  half_size();
+#   else
+  full_size();
+#   endif
+# elif defined(__sparc64__)
   half_size();
 # elif defined(_WIN32)
   full_size();
@@ -94,7 +102,7 @@ bool test() {
 int main(int, char**) {
   test();
 #if TEST_STD_VER > 17
-  // static_assert(test());
+  static_assert(test());
 #endif
 
   return 0;

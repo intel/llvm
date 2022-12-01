@@ -2905,7 +2905,7 @@ void Lexer::ReadToEndOfLine(SmallVectorImpl<char> *Result) {
         break;
       }
       // FALL THROUGH.
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case '\r':
     case '\n':
       // Okay, we found the end of the line. First, back up past the \0, \r, \n.
@@ -3516,10 +3516,9 @@ bool Lexer::Lex(Token &Result) {
 /// token, not a normal token, as such, it is an internal interface.  It assumes
 /// that the Flags of result have been cleared before calling this.
 bool Lexer::LexTokenInternal(Token &Result, bool TokAtPhysicalStartOfLine) {
-LexNextToken:
-  // New token, can't need cleaning yet.
-  Result.clearFlag(Token::NeedsCleaning);
-  Result.setIdentifierInfo(nullptr);
+LexStart:
+  assert(!Result.needsCleaning() && "Result needs cleaning");
+  assert(!Result.hasPtrData() && "Result has not been reset");
 
   // CurPtr - Cache BufferPtr in an automatic variable.
   const char *CurPtr = BufferPtr;
@@ -3591,7 +3590,7 @@ LexNextToken:
   case '\r':
     if (CurPtr[0] == '\n')
       (void)getAndAdvanceChar(CurPtr, Result);
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case '\n':
     // If we are inside a preprocessor directive and we see the end of line,
     // we know we are done with the directive, so return an EOD token.
@@ -3788,7 +3787,7 @@ LexNextToken:
       return LexCharConstant(Result, ConsumeChar(CurPtr, SizeTmp, Result),
                              tok::wide_char_constant);
     // FALL THROUGH, treating L like the start of an identifier.
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
 
   // C99 6.4.2: Identifiers.
   case 'A': case 'B': case 'C': case 'D': case 'E': case 'F': case 'G':
@@ -4301,6 +4300,10 @@ HandleDirective:
 
   // We parsed the directive; lex a token with the new state.
   return false;
+
+LexNextToken:
+  Result.clearFlag(Token::NeedsCleaning);
+  goto LexStart;
 }
 
 const char *Lexer::convertDependencyDirectiveToken(
@@ -4323,6 +4326,8 @@ bool Lexer::LexDependencyDirectiveToken(Token &Result) {
   while (NextDepDirectiveTokenIndex == DepDirectives.front().Tokens.size()) {
     if (DepDirectives.front().Kind == pp_eof)
       return LexEndOfFile(Result, BufferEnd);
+    if (DepDirectives.front().Kind == tokens_present_before_eof)
+      MIOpt.ReadToken();
     NextDepDirectiveTokenIndex = 0;
     DepDirectives = DepDirectives.drop_front();
   }
@@ -4398,6 +4403,7 @@ bool Lexer::LexDependencyDirectiveTokenWhileSkipping(Token &Result) {
     case cxx_import_decl:
     case cxx_export_module_decl:
     case cxx_export_import_decl:
+    case tokens_present_before_eof:
       break;
     case pp_if:
     case pp_ifdef:

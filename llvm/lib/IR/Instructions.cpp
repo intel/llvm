@@ -14,6 +14,7 @@
 #include "llvm/IR/Instructions.h"
 #include "LLVMContextImpl.h"
 #include "llvm/ADT/None.h"
+#include "llvm/ADT/SmallBitVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/IR/Attributes.h"
@@ -37,6 +38,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
+#include "llvm/Support/ModRef.h"
 #include "llvm/Support/TypeSize.h"
 #include <algorithm>
 #include <cassert>
@@ -343,9 +345,25 @@ bool CallBase::paramHasAttr(unsigned ArgNo, Attribute::AttrKind Kind) const {
 
   if (Attrs.hasParamAttr(ArgNo, Kind))
     return true;
-  if (const Function *F = getCalledFunction())
-    return F->getAttributes().hasParamAttr(ArgNo, Kind);
-  return false;
+
+  const Function *F = getCalledFunction();
+  if (!F)
+    return false;
+
+  if (!F->getAttributes().hasParamAttr(ArgNo, Kind))
+    return false;
+
+  // Take into account mod/ref by operand bundles.
+  switch (Kind) {
+  case Attribute::ReadNone:
+    return !hasReadingOperandBundles() && !hasClobberingOperandBundles();
+  case Attribute::ReadOnly:
+    return !hasClobberingOperandBundles();
+  case Attribute::WriteOnly:
+    return !hasReadingOperandBundles();
+  default:
+    return true;
+  }
 }
 
 bool CallBase::hasFnAttrOnCalledFunction(Attribute::AttrKind Kind) const {
@@ -374,10 +392,12 @@ bool CallBase::hasFnAttrOnCalledFunction(StringRef Kind) const {
 
 template <typename AK>
 Attribute CallBase::getFnAttrOnCalledFunction(AK Kind) const {
-  // Operand bundles override attributes on the called function, but don't
-  // override attributes directly present on the call instruction.
-  if (isFnAttrDisallowedByOpBundle(Kind))
-    return Attribute();
+  if constexpr (std::is_same_v<AK, Attribute::AttrKind>) {
+    // getMemoryEffects() correctly combines memory effects from the call-site,
+    // operand bundles and function.
+    assert(Kind != Attribute::Memory && "Use getMemoryEffects() instead");
+  }
+
   Value *V = getCalledOperand();
   if (auto *CE = dyn_cast<ConstantExpr>(V))
     if (CE->getOpcode() == BitCast)
@@ -505,8 +525,87 @@ bool CallBase::hasReadingOperandBundles() const {
   // Implementation note: this is a conservative implementation of operand
   // bundle semantics, where *any* non-assume operand bundle (other than
   // ptrauth) forces a callsite to be at least readonly.
-  return hasOperandBundlesOtherThan(LLVMContext::OB_ptrauth) &&
+  return hasOperandBundlesOtherThan(
+             {LLVMContext::OB_ptrauth, LLVMContext::OB_kcfi}) &&
          getIntrinsicID() != Intrinsic::assume;
+}
+
+bool CallBase::hasClobberingOperandBundles() const {
+  return hasOperandBundlesOtherThan(
+             {LLVMContext::OB_deopt, LLVMContext::OB_funclet,
+              LLVMContext::OB_ptrauth, LLVMContext::OB_kcfi}) &&
+         getIntrinsicID() != Intrinsic::assume;
+}
+
+MemoryEffects CallBase::getMemoryEffects() const {
+  MemoryEffects ME = getAttributes().getMemoryEffects();
+  if (auto *Fn = dyn_cast<Function>(getCalledOperand())) {
+    MemoryEffects FnME = Fn->getMemoryEffects();
+    if (hasOperandBundles()) {
+      // TODO: Add a method to get memory effects for operand bundles instead.
+      if (hasReadingOperandBundles())
+        FnME |= MemoryEffects::readOnly();
+      if (hasClobberingOperandBundles())
+        FnME |= MemoryEffects::writeOnly();
+    }
+    ME &= FnME;
+  }
+  return ME;
+}
+void CallBase::setMemoryEffects(MemoryEffects ME) {
+  addFnAttr(Attribute::getWithMemoryEffects(getContext(), ME));
+}
+
+/// Determine if the function does not access memory.
+bool CallBase::doesNotAccessMemory() const {
+  return getMemoryEffects().doesNotAccessMemory();
+}
+void CallBase::setDoesNotAccessMemory() {
+  setMemoryEffects(MemoryEffects::none());
+}
+
+/// Determine if the function does not access or only reads memory.
+bool CallBase::onlyReadsMemory() const {
+  return getMemoryEffects().onlyReadsMemory();
+}
+void CallBase::setOnlyReadsMemory() {
+  setMemoryEffects(getMemoryEffects() & MemoryEffects::readOnly());
+}
+
+/// Determine if the function does not access or only writes memory.
+bool CallBase::onlyWritesMemory() const {
+  return getMemoryEffects().onlyWritesMemory();
+}
+void CallBase::setOnlyWritesMemory() {
+  setMemoryEffects(getMemoryEffects() & MemoryEffects::writeOnly());
+}
+
+/// Determine if the call can access memmory only using pointers based
+/// on its arguments.
+bool CallBase::onlyAccessesArgMemory() const {
+  return getMemoryEffects().onlyAccessesArgPointees();
+}
+void CallBase::setOnlyAccessesArgMemory() {
+  setMemoryEffects(getMemoryEffects() & MemoryEffects::argMemOnly());
+}
+
+/// Determine if the function may only access memory that is
+///  inaccessible from the IR.
+bool CallBase::onlyAccessesInaccessibleMemory() const {
+  return getMemoryEffects().onlyAccessesInaccessibleMem();
+}
+void CallBase::setOnlyAccessesInaccessibleMemory() {
+  setMemoryEffects(getMemoryEffects() & MemoryEffects::inaccessibleMemOnly());
+}
+
+/// Determine if the function may only access memory that is
+///  either inaccessible from the IR or pointed to by its arguments.
+bool CallBase::onlyAccessesInaccessibleMemOrArgMem() const {
+  return getMemoryEffects().onlyAccessesInaccessibleOrArgMem();
+}
+void CallBase::setOnlyAccessesInaccessibleMemOrArgMem() {
+  setMemoryEffects(getMemoryEffects() &
+                   MemoryEffects::inaccessibleOrArgMemOnly());
 }
 
 //===----------------------------------------------------------------------===//
@@ -958,12 +1057,6 @@ void CallBrInst::init(FunctionType *FTy, Value *Fn, BasicBlock *Fallthrough,
   assert(It + 2 + IndirectDests.size() == op_end() && "Should add up!");
 
   setName(NameStr);
-}
-
-BlockAddress *
-CallBrInst::getBlockAddressForIndirectDest(unsigned DestNo) const {
-  return BlockAddress::get(const_cast<Function *>(getFunction()),
-                           getIndirectDest(DestNo));
 }
 
 CallBrInst::CallBrInst(const CallBrInst &CBI)
@@ -2067,7 +2160,7 @@ bool ShuffleVectorInst::isValidOperands(const Value *V1, const Value *V2,
       return false;
 
   if (isa<ScalableVectorType>(V1->getType()))
-    if ((Mask[0] != 0 && Mask[0] != UndefMaskElem) || !is_splat(Mask))
+    if ((Mask[0] != 0 && Mask[0] != UndefMaskElem) || !all_equal(Mask))
       return false;
 
   return true;
@@ -2158,7 +2251,7 @@ Constant *ShuffleVectorInst::convertShuffleMaskForBitcode(ArrayRef<int> Mask,
                                                           Type *ResultTy) {
   Type *Int32Ty = Type::getInt32Ty(ResultTy->getContext());
   if (isa<ScalableVectorType>(ResultTy)) {
-    assert(is_splat(Mask) && "Unexpected shuffle");
+    assert(all_equal(Mask) && "Unexpected shuffle");
     Type *VecTy = VectorType::get(Int32Ty, Mask.size(), true);
     if (Mask[0] == 0)
       return Constant::getNullValue(VecTy);
@@ -2290,6 +2383,37 @@ bool ShuffleVectorInst::isTransposeMask(ArrayRef<int> Mask) {
     if (MaskEltVal - MaskEltPrevVal != 2)
       return false;
   }
+  return true;
+}
+
+bool ShuffleVectorInst::isSpliceMask(ArrayRef<int> Mask, int &Index) {
+  // Example: shufflevector <4 x n> A, <4 x n> B, <1,2,3,4>
+  int StartIndex = -1;
+  for (int I = 0, E = Mask.size(); I != E; ++I) {
+    int MaskEltVal = Mask[I];
+    if (MaskEltVal == -1)
+      continue;
+
+    if (StartIndex == -1) {
+      // Don't support a StartIndex that begins in the second input, or if the
+      // first non-undef index would access below the StartIndex.
+      if (MaskEltVal < I || E <= (MaskEltVal - I))
+        return false;
+
+      StartIndex = MaskEltVal - I;
+      continue;
+    }
+
+    // Splice is sequential starting from StartIndex.
+    if (MaskEltVal != (StartIndex + I))
+      return false;
+  }
+
+  if (StartIndex == -1)
+    return false;
+
+  // NOTE: This accepts StartIndex == 0 (COPY).
+  Index = StartIndex;
   return true;
 }
 
@@ -2485,7 +2609,7 @@ static bool isReplicationMaskWithParams(ArrayRef<int> Mask,
 bool ShuffleVectorInst::isReplicationMask(ArrayRef<int> Mask,
                                           int &ReplicationFactor, int &VF) {
   // undef-less case is trivial.
-  if (none_of(Mask, [](int MaskElt) { return MaskElt == UndefMaskElem; })) {
+  if (!llvm::is_contained(Mask, UndefMaskElem)) {
     ReplicationFactor =
         Mask.take_while([](int MaskElt) { return MaskElt == 0; }).size();
     if (ReplicationFactor == 0 || Mask.size() % ReplicationFactor != 0)
@@ -2541,6 +2665,37 @@ bool ShuffleVectorInst::isReplicationMask(int &ReplicationFactor,
   ReplicationFactor = ShuffleMask.size() / VF;
 
   return isReplicationMaskWithParams(ShuffleMask, ReplicationFactor, VF);
+}
+
+bool ShuffleVectorInst::isOneUseSingleSourceMask(ArrayRef<int> Mask, int VF) {
+  if (VF <= 0 || Mask.size() < static_cast<unsigned>(VF) ||
+      Mask.size() % VF != 0)
+    return false;
+  for (unsigned K = 0, Sz = Mask.size(); K < Sz; K += VF) {
+    ArrayRef<int> SubMask = Mask.slice(K, VF);
+    if (all_of(SubMask, [](int Idx) { return Idx == UndefMaskElem; }))
+      continue;
+    SmallBitVector Used(VF, false);
+    for_each(SubMask, [&Used, VF](int Idx) {
+      if (Idx != UndefMaskElem && Idx < VF)
+        Used.set(Idx);
+    });
+    if (!Used.all())
+      return false;
+  }
+  return true;
+}
+
+/// Return true if this shuffle mask is a replication mask.
+bool ShuffleVectorInst::isOneUseSingleSourceMask(int VF) const {
+  // Not possible to express a shuffle mask for a scalable vector for this
+  // case.
+  if (isa<ScalableVectorType>(getType()))
+    return false;
+  if (!isSingleSourceMask(ShuffleMask))
+    return false;
+
+  return isOneUseSingleSourceMask(ShuffleMask, VF);
 }
 
 //===----------------------------------------------------------------------===//

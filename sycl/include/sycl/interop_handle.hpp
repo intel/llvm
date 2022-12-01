@@ -11,7 +11,6 @@
 #include <sycl/access/access.hpp>
 #include <sycl/accessor.hpp>
 #include <sycl/backend_types.hpp>
-#include <sycl/detail/accessor_impl.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/pi.hpp>
@@ -146,7 +145,7 @@ public:
 private:
   friend class detail::ExecCGCommand;
   friend class detail::DispatchHostTask;
-  using ReqToMem = std::pair<detail::Requirement *, pi_mem>;
+  using ReqToMem = std::pair<detail::AccessorImplHost *, pi_mem>;
 
   interop_handle(std::vector<ReqToMem> MemObjs,
                  const std::shared_ptr<detail::queue_impl> &Queue,
@@ -157,13 +156,14 @@ private:
 
   template <backend Backend, typename DataT, int Dims>
   backend_return_t<Backend, buffer<DataT, Dims>>
-  getMemImpl(detail::Requirement *Req) const {
+  getMemImpl(detail::AccessorImplHost *Req) const {
     std::vector<pi_native_handle> NativeHandles{getNativeMem(Req)};
     return detail::BufferInterop<Backend, DataT, Dims>::GetNativeObjs(
         NativeHandles);
   }
 
-  __SYCL_EXPORT pi_native_handle getNativeMem(detail::Requirement *Req) const;
+  __SYCL_EXPORT pi_native_handle
+  getNativeMem(detail::AccessorImplHost *Req) const;
   __SYCL_EXPORT pi_native_handle getNativeQueue() const;
   __SYCL_EXPORT pi_native_handle getNativeDevice() const;
   __SYCL_EXPORT pi_native_handle getNativeContext() const;

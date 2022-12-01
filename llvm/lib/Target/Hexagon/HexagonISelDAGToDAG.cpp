@@ -304,7 +304,7 @@ bool HexagonDAGToDAGISel::tryLoadOfLoadIntrinsic(LoadSDNode *N) {
     SDNode *S = StoreInstrForLoadIntrinsic(L, C);
     SDValue F[] = { SDValue(N,0), SDValue(N,1), SDValue(C,0), SDValue(C,1) };
     SDValue T[] = { SDValue(L,0), SDValue(S,0), SDValue(L,1), SDValue(S,0) };
-    ReplaceUses(F, T, array_lengthof(T));
+    ReplaceUses(F, T, std::size(T));
     // This transformation will leave the intrinsic dead. If it remains in
     // the DAG, the selection code will see it again, but without the load,
     // and it will generate a store that is normally required for it.
@@ -354,7 +354,7 @@ bool HexagonDAGToDAGISel::SelectBrevLdIntrinsic(SDNode *IntN) {
   return false;
 }
 
-/// Generate a machine instruction node for the new circlar buffer intrinsics.
+/// Generate a machine instruction node for the new circular buffer intrinsics.
 /// The new versions use a CSx register instead of the K field.
 bool HexagonDAGToDAGISel::SelectNewCircIntrinsic(SDNode *IntN) {
   if (IntN->getOpcode() != ISD::INTRINSIC_W_CHAIN)
@@ -749,7 +749,7 @@ void HexagonDAGToDAGISel::SelectFrameIndex(SDNode *N) {
     R = CurDAG->getMachineNode(Hexagon::PS_fi, DL, MVT::i32, FI, Zero);
   } else {
     auto &HMFI = *MF->getInfo<HexagonMachineFunctionInfo>();
-    unsigned AR = HMFI.getStackAlignBaseVReg();
+    Register AR = HMFI.getStackAlignBaseReg();
     SDValue CH = CurDAG->getEntryNode();
     SDValue Ops[] = { CurDAG->getCopyFromReg(CH, DL, AR, MVT::i32), FI, Zero };
     R = CurDAG->getMachineNode(Hexagon::PS_fia, DL, MVT::i32, Ops);
@@ -984,7 +984,7 @@ static bool isMemOPCandidate(SDNode *I, SDNode *U) {
 void HexagonDAGToDAGISel::ppSimplifyOrSelect0(std::vector<SDNode*> &&Nodes) {
   SelectionDAG &DAG = *CurDAG;
 
-  for (auto I : Nodes) {
+  for (auto *I : Nodes) {
     if (I->getOpcode() != ISD::OR)
       continue;
 
@@ -1032,7 +1032,7 @@ void HexagonDAGToDAGISel::ppSimplifyOrSelect0(std::vector<SDNode*> &&Nodes) {
 void HexagonDAGToDAGISel::ppAddrReorderAddShl(std::vector<SDNode*> &&Nodes) {
   SelectionDAG &DAG = *CurDAG;
 
-  for (auto I : Nodes) {
+  for (auto *I : Nodes) {
     if (I->getOpcode() != ISD::STORE)
       continue;
 
@@ -1285,11 +1285,22 @@ void HexagonDAGToDAGISel::emitFunctionEntryCode() {
 
   MachineFrameInfo &MFI = MF->getFrameInfo();
   MachineBasicBlock *EntryBB = &MF->front();
-  Register AR = FuncInfo->CreateReg(MVT::i32);
   Align EntryMaxA = MFI.getMaxAlign();
-  BuildMI(EntryBB, DebugLoc(), HII->get(Hexagon::PS_aligna), AR)
+
+  // Reserve the first non-volatile register.
+  Register AP = 0;
+  auto &HRI = *HST.getRegisterInfo();
+  BitVector Reserved = HRI.getReservedRegs(*MF);
+  for (const MCPhysReg *R = HRI.getCalleeSavedRegs(MF); *R; ++R) {
+    if (Reserved[*R])
+      continue;
+    AP = *R;
+    break;
+  }
+  assert(AP.isValid() && "Couldn't reserve stack align register");
+  BuildMI(EntryBB, DebugLoc(), HII->get(Hexagon::PS_aligna), AP)
       .addImm(EntryMaxA.value());
-  MF->getInfo<HexagonMachineFunctionInfo>()->setStackAlignBaseVReg(AR);
+  MF->getInfo<HexagonMachineFunctionInfo>()->setStackAlignBaseReg(AP);
 }
 
 void HexagonDAGToDAGISel::updateAligna() {

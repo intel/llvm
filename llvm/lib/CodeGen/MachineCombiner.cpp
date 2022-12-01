@@ -14,6 +14,7 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/ProfileSummaryInfo.h"
 #include "llvm/CodeGen/LazyMachineBlockFrequencyInfo.h"
+#include "llvm/CodeGen/MachineCombinerPattern.h"
 #include "llvm/CodeGen/MachineDominators.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
@@ -318,6 +319,10 @@ static CombinerObjective getCombinerObjective(MachineCombinerPattern P) {
   case MachineCombinerPattern::REASSOC_XMM_AMM_BMM:
   case MachineCombinerPattern::SUBADD_OP1:
   case MachineCombinerPattern::SUBADD_OP2:
+  case MachineCombinerPattern::FMADD_AX:
+  case MachineCombinerPattern::FMADD_XA:
+  case MachineCombinerPattern::FMSUB:
+  case MachineCombinerPattern::FNMSUB:
     return CombinerObjective::MustReduceDepth;
   case MachineCombinerPattern::REASSOC_XY_BCA:
   case MachineCombinerPattern::REASSOC_XY_BAC:

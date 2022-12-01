@@ -71,7 +71,7 @@ public:
   ///
   ///  `Loc` must not be null.
   template <typename T>
-  typename std::enable_if<std::is_base_of<StorageLocation, T>::value, T &>::type
+  std::enable_if_t<std::is_base_of<StorageLocation, T>::value, T &>
   takeOwnership(std::unique_ptr<T> Loc) {
     assert(Loc != nullptr);
     Locs.push_back(std::move(Loc));
@@ -84,7 +84,7 @@ public:
   ///
   ///  `Val` must not be null.
   template <typename T>
-  typename std::enable_if<std::is_base_of<Value, T>::value, T &>::type
+  std::enable_if_t<std::is_base_of<Value, T>::value, T &>
   takeOwnership(std::unique_ptr<T> Val) {
     assert(Val != nullptr);
     Vals.push_back(std::move(Val));
@@ -137,22 +137,6 @@ public:
     return It == ExprToLoc.end() ? nullptr : It->second;
   }
 
-  /// Assigns `Loc` as the storage location of the `this` pointee.
-  ///
-  /// Requirements:
-  ///
-  ///  The `this` pointee must not be assigned a storage location.
-  void setThisPointeeStorageLocation(StorageLocation &Loc) {
-    assert(ThisPointeeLoc == nullptr);
-    ThisPointeeLoc = &Loc;
-  }
-
-  /// Returns the storage location assigned to the `this` pointee or null if the
-  /// `this` pointee has no assigned storage location.
-  StorageLocation *getThisPointeeStorageLocation() const {
-    return ThisPointeeLoc;
-  }
-
   /// Returns a pointer value that represents a null pointer. Calls with
   /// `PointeeType` that are canonically equivalent will return the same result.
   /// A null `PointeeType` can be used for the pointee of `std::nullptr_t`.
@@ -167,6 +151,18 @@ public:
   /// Creates an atomic boolean value.
   AtomicBoolValue &createAtomicBoolValue() {
     return takeOwnership(std::make_unique<AtomicBoolValue>());
+  }
+
+  /// Creates a Top value for booleans. Each instance is unique and can be
+  /// assigned a distinct truth value during solving.
+  ///
+  /// FIXME: `Top iff Top` is true when both Tops are identical (by pointer
+  /// equality), but not when they are distinct values. We should improve the
+  /// implementation so that `Top iff Top` has a consistent meaning, regardless
+  /// of the identity of `Top`. Moreover, I think the meaning should be
+  /// `false`.
+  TopBoolValue &createTopBoolValue() {
+    return takeOwnership(std::make_unique<TopBoolValue>());
   }
 
   /// Returns a boolean value that represents the conjunction of `LHS` and
@@ -321,8 +317,6 @@ private:
   // in scope for a particular basic block are stored in `Environment`.
   llvm::DenseMap<const ValueDecl *, StorageLocation *> DeclToLoc;
   llvm::DenseMap<const Expr *, StorageLocation *> ExprToLoc;
-
-  StorageLocation *ThisPointeeLoc = nullptr;
 
   // Null pointer values, keyed by the canonical pointee type.
   //

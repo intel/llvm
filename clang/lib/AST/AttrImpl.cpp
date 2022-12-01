@@ -137,7 +137,7 @@ void OMPDeclareTargetDeclAttr::printPrettyPragma(
   // Use fake syntax because it is for testing and debugging purpose only.
   if (getDevType() != DT_Any)
     OS << " device_type(" << ConvertDevTypeTyToStr(getDevType()) << ")";
-  if (getMapType() != MT_To)
+  if (getMapType() != MT_To && getMapType() != MT_Enter)
     OS << ' ' << ConvertMapTypeTyToStr(getMapType());
   if (Expr *E = getIndirectExpr()) {
     OS << " indirect(";
@@ -222,18 +222,18 @@ void OMPDeclareVariantAttr::printPrettyPragma(
     OS << ")";
   }
 
-  auto PrintInteropTypes = [&OS](InteropType *Begin, InteropType *End) {
-    for (InteropType *I = Begin; I != End; ++I) {
+  auto PrintInteropInfo = [&OS](OMPInteropInfo *Begin, OMPInteropInfo *End) {
+    for (OMPInteropInfo *I = Begin; I != End; ++I) {
       if (I != Begin)
         OS << ", ";
       OS << "interop(";
-      OS << ConvertInteropTypeToStr(*I);
+      OS << getInteropTypeString(I);
       OS << ")";
     }
   };
   if (appendArgs_size()) {
     OS << " append_args(";
-    PrintInteropTypes(appendArgs_begin(), appendArgs_end());
+    PrintInteropInfo(appendArgs_begin(), appendArgs_end());
     OS << ")";
   }
 }

@@ -126,6 +126,19 @@ define ptr @appendIndex(ptr %p, i64 %i) {
   ret ptr %2
 }
 
+; After canonicalizing, the second GEP is moved to the front, and then merged
+; with the first one with rewritten indices.
+; result = (i8*) &((struct.A*) &((struct.B*) p)[i].member2).member0 + 2
+define ptr @appendIndexReverse(ptr %p, i64 %i) {
+; CHECK-LABEL: @appendIndexReverse(
+; CHECK-NEXT:    [[TMP1:%.*]] = getelementptr [[STRUCT_B:%.*]], ptr [[P:%.*]], i64 [[I:%.*]], i32 2, i32 0, i64 2
+; CHECK-NEXT:    ret ptr [[TMP1]]
+;
+  %1 = getelementptr inbounds i64, ptr %p, i64 1
+  %2 = getelementptr inbounds %struct.B, ptr %1, i64 %i, i32 1
+  ret ptr %2
+}
+
 ; Offset of either GEP is not divisible by the other's size, converted to i8*
 ; and merged.
 ; Here i24 is 8-bit aligned.
@@ -144,8 +157,8 @@ define ptr @notDivisible(ptr %p) {
 ; or divisible by the other's size.
 define ptr @partialConstant2(ptr %p, i64 %a) {
 ; CHECK-LABEL: @partialConstant2(
-; CHECK-NEXT:    [[TMP1:%.*]] = getelementptr inbounds i32, ptr [[P:%.*]], i64 1
-; CHECK-NEXT:    [[TMP2:%.*]] = getelementptr inbounds [4 x i64], ptr [[TMP1]], i64 [[A:%.*]], i64 2
+; CHECK-NEXT:    [[TMP1:%.*]] = getelementptr [4 x i64], ptr [[P:%.*]], i64 [[A:%.*]], i64 2
+; CHECK-NEXT:    [[TMP2:%.*]] = getelementptr i32, ptr [[TMP1]], i64 1
 ; CHECK-NEXT:    ret ptr [[TMP2]]
 ;
   %1 = getelementptr inbounds i32, ptr %p, i64 1

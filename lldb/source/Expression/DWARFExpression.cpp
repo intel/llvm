@@ -471,7 +471,7 @@ bool DWARFExpression::LinkThreadLocalStorage(
       // by a file address on the stack. We assume that DW_OP_const4u or
       // DW_OP_const8u is used for these values, and we check that the last
       // opcode we got before either of these was DW_OP_const4u or
-      // DW_OP_const8u. If so, then we can link the value accodingly. For
+      // DW_OP_const8u. If so, then we can link the value accordingly. For
       // Darwin, the value in the DW_OP_const4u or DW_OP_const8u is the file
       // address of a structure that contains a function pointer, the pthread
       // key and the offset into the data pointed to by the pthread key. So we
@@ -735,7 +735,7 @@ void UpdateValueTypeFromLocationDescription(Log *log, const DWARFUnit *dwarf_cu,
                                             Value *value = nullptr) {
   // Note that this function is conflating DWARF expressions with
   // DWARF location descriptions. Perhaps it would be better to define
-  // a wrapper for DWARFExpresssion::Eval() that deals with DWARF
+  // a wrapper for DWARFExpression::Eval() that deals with DWARF
   // location descriptions (which consist of one or more DWARF
   // expressions). But doing this would mean we'd also need factor the
   // handling of DW_OP_(bit_)piece out of this function.
@@ -773,7 +773,7 @@ void UpdateValueTypeFromLocationDescription(Log *log, const DWARFUnit *dwarf_cu,
 /// \param dw_op_type C-style string used to vary the error output
 /// \param file_addr the file address we are trying to resolve and turn into a
 ///                  load address
-/// \param so_addr out parameter, will be set to load addresss or section offset
+/// \param so_addr out parameter, will be set to load address or section offset
 /// \param check_sectionoffset bool which determines if having a section offset
 ///                            but not a load address is considerd a success
 /// \returns llvm::Optional containing the load address if resolving and getting
@@ -847,10 +847,12 @@ bool DWARFExpression::Evaluate(
 
   Process *process = nullptr;
   StackFrame *frame = nullptr;
+  Target *target = nullptr;
 
   if (exe_ctx) {
     process = exe_ctx->GetProcessPtr();
     frame = exe_ctx->GetFramePtr();
+    target = exe_ctx->GetTargetPtr();
   }
   if (reg_ctx == nullptr && frame)
     reg_ctx = frame->GetRegisterContext().get();
@@ -906,12 +908,18 @@ bool DWARFExpression::Evaluate(
     // address and whose size is the size of an address on the target machine.
     case DW_OP_addr:
       stack.push_back(Scalar(opcodes.GetAddress(&offset)));
-      stack.back().SetValueType(Value::ValueType::FileAddress);
-      // Convert the file address to a load address, so subsequent
-      // DWARF operators can operate on it.
-      if (frame)
-        stack.back().ConvertToLoadAddress(module_sp.get(),
-                                          frame->CalculateTarget().get());
+      if (target &&
+          target->GetArchitecture().GetCore() == ArchSpec::eCore_wasm32) {
+        // wasm file sections aren't mapped into memory, therefore addresses can
+        // never point into a file section and are always LoadAddresses.
+        stack.back().SetValueType(Value::ValueType::LoadAddress);
+      } else {
+        stack.back().SetValueType(Value::ValueType::FileAddress);
+        // Convert the file address to a load address, so subsequent
+        // DWARF operators can operate on it.
+        if (target)
+          stack.back().ConvertToLoadAddress(module_sp.get(), target);
+      }
       break;
 
     // The DW_OP_addr_sect_offset4 is used for any location expressions in
@@ -985,11 +993,12 @@ bool DWARFExpression::Evaluate(
 
         stack.back().GetScalar() = *maybe_load_addr;
         // Fall through to load address promotion code below.
-      } LLVM_FALLTHROUGH;
+      }
+        [[fallthrough]];
       case Value::ValueType::Scalar:
         // Promote Scalar to LoadAddress and fall through.
         stack.back().SetValueType(Value::ValueType::LoadAddress);
-        LLVM_FALLTHROUGH;
+        [[fallthrough]];
       case Value::ValueType::LoadAddress:
         if (exe_ctx) {
           if (process) {
@@ -1134,7 +1143,7 @@ bool DWARFExpression::Evaluate(
         // Fall through to load address promotion code below.
       }
 
-        LLVM_FALLTHROUGH;
+        [[fallthrough]];
       case Value::ValueType::Scalar:
       case Value::ValueType::LoadAddress:
         if (exe_ctx) {
@@ -2373,9 +2382,11 @@ bool DWARFExpression::Evaluate(
           return false;
         }
       } else {
-        // Retrieve the type DIE that the value is being converted to.
+        // Retrieve the type DIE that the value is being converted to. This
+        // offset is compile unit relative so we need to fix it up.
+        const uint64_t abs_die_offset = die_offset +  dwarf_cu->GetOffset();
         // FIXME: the constness has annoying ripple effects.
-        DWARFDIE die = const_cast<DWARFUnit *>(dwarf_cu)->GetDIE(die_offset);
+        DWARFDIE die = const_cast<DWARFUnit *>(dwarf_cu)->GetDIE(abs_die_offset);
         if (!die) {
           if (error_ptr)
             error_ptr->SetErrorString("Cannot resolve DW_OP_convert type DIE");
@@ -2504,7 +2515,14 @@ bool DWARFExpression::Evaluate(
       uint64_t index = opcodes.GetULEB128(&offset);
       lldb::addr_t value = dwarf_cu->ReadAddressFromDebugAddrSection(index);
       stack.push_back(Scalar(value));
-      stack.back().SetValueType(Value::ValueType::FileAddress);
+      if (target &&
+          target->GetArchitecture().GetCore() == ArchSpec::eCore_wasm32) {
+        // wasm file sections aren't mapped into memory, therefore addresses can
+        // never point into a file section and are always LoadAddresses.
+        stack.back().SetValueType(Value::ValueType::LoadAddress);
+      } else {
+        stack.back().SetValueType(Value::ValueType::FileAddress);
+      }
     } break;
 
     // OPCODE: DW_OP_GNU_const_index

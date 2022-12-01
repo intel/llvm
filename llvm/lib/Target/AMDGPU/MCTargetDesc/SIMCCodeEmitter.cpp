@@ -274,7 +274,7 @@ uint32_t SIMCCodeEmitter::getLitEncoding(const MCOperand &MO,
       return getLit32Encoding(static_cast<uint32_t>(Imm), STI);
     if (OpInfo.OperandType == AMDGPU::OPERAND_REG_IMM_V2FP16)
       return getLit16Encoding(static_cast<uint16_t>(Imm), STI);
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   }
   case AMDGPU::OPERAND_REG_INLINE_C_V2INT16:
   case AMDGPU::OPERAND_REG_INLINE_AC_V2INT16:
@@ -297,12 +297,12 @@ uint64_t SIMCCodeEmitter::getImplicitOpSelHiEncoding(int Opcode) const {
   using namespace AMDGPU::VOP3PEncoding;
   using namespace AMDGPU::OpName;
 
-  if (AMDGPU::getNamedOperandIdx(Opcode, op_sel_hi) != -1) {
-    if (AMDGPU::getNamedOperandIdx(Opcode, src2) != -1)
+  if (AMDGPU::hasNamedOperand(Opcode, op_sel_hi)) {
+    if (AMDGPU::hasNamedOperand(Opcode, src2))
       return 0;
-    if (AMDGPU::getNamedOperandIdx(Opcode, src1) != -1)
+    if (AMDGPU::hasNamedOperand(Opcode, src1))
       return OP_SEL_HI_2;
-    if (AMDGPU::getNamedOperandIdx(Opcode, src0) != -1)
+    if (AMDGPU::hasNamedOperand(Opcode, src0))
       return OP_SEL_HI_1 | OP_SEL_HI_2;
   }
   return OP_SEL_HI_0 | OP_SEL_HI_1 | OP_SEL_HI_2;
@@ -369,9 +369,7 @@ void SIMCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
     return;
 
   // Do not print literals from SISrc Operands for insts with mandatory literals
-  int ImmLitIdx =
-      AMDGPU::getNamedOperandIdx(MI.getOpcode(), AMDGPU::OpName::imm);
-  if (ImmLitIdx != -1)
+  if (AMDGPU::hasNamedOperand(MI.getOpcode(), AMDGPU::OpName::imm))
     return;
 
   // Check for additional literals

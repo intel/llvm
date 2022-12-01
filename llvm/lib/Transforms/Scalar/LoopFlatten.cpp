@@ -139,7 +139,7 @@ struct FlattenInfo {
 
   PHINode *NarrowInnerInductionPHI = nullptr; // Holds the old/narrow induction
   PHINode *NarrowOuterInductionPHI = nullptr; // phis, i.e. the Phis before IV
-                                              // has been apllied. Used to skip
+                                              // has been applied. Used to skip
                                               // checks on phi nodes.
 
   FlattenInfo(Loop *OL, Loop *IL) : OuterLoop(OL), InnerLoop(IL){};
@@ -540,7 +540,7 @@ checkOuterLoopInsts(FlattenInfo &FI,
       // they make a net difference of zero.
       if (IterationInstructions.count(&I))
         continue;
-      // The uncoditional branch to the inner loop's header will turn into
+      // The unconditional branch to the inner loop's header will turn into
       // a fall-through, so adds no cost.
       BranchInst *Br = dyn_cast<BranchInst>(&I);
       if (Br && Br->isUnconditional() &&
@@ -552,7 +552,7 @@ checkOuterLoopInsts(FlattenInfo &FI,
                             m_Specific(FI.InnerTripCount))))
         continue;
       InstructionCost Cost =
-          TTI->getUserCost(&I, TargetTransformInfo::TCK_SizeAndLatency);
+          TTI->getInstructionCost(&I, TargetTransformInfo::TCK_SizeAndLatency);
       LLVM_DEBUG(dbgs() << "Cost " << Cost << ": "; I.dump());
       RepeatedInstrCost += Cost;
     }
@@ -762,6 +762,7 @@ static bool DoFlattenLoopPair(FlattenInfo &FI, DominatorTree *DT, LoopInfo *LI,
   // deleted, and any information that have about the outer loop invalidated.
   SE->forgetLoop(FI.OuterLoop);
   SE->forgetLoop(FI.InnerLoop);
+  SE->forgetBlockAndLoopDispositions();
   if (U)
     U->markLoopAsDeleted(*FI.InnerLoop, FI.InnerLoop->getName());
   LI->erase(FI.InnerLoop);

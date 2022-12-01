@@ -14,6 +14,7 @@
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
 #include "llvm/DebugInfo/DWARF/DWARFExpression.h"
 #include "llvm/Object/ObjectFile.h"
+#include "llvm/Support/Endian.h"
 #include <memory>
 #include <vector>
 
@@ -40,7 +41,7 @@ class ObjFileAddressMap : public AddressesMap {
 public:
   ObjFileAddressMap(DWARFContext &Context, const Options &Options,
                     object::ObjectFile &ObjFile)
-      : Opts(Options) {
+      : Opts(Options), Context(Context) {
     // Remember addresses of existing text sections.
     for (const object::SectionRef &Sect : ObjFile.sections()) {
       if (!Sect.isText())
@@ -137,9 +138,28 @@ public:
 
   void clear() override { DWARFAddressRanges.clear(); }
 
-  llvm::Expected<uint64_t> relocateIndexedAddr(uint64_t, uint64_t) override {
-    // should not be called.
-    return object::createError("no relocations in linked binary");
+  llvm::Expected<uint64_t> relocateIndexedAddr(uint64_t StartOffset,
+                                               uint64_t EndOffset) override {
+    // No relocations in linked binary. Return just address value.
+
+    const char *AddrPtr =
+        Context.getDWARFObj().getAddrSection().Data.data() + StartOffset;
+    support::endianness Endianess =
+        Context.getDWARFObj().isLittleEndian() ? support::little : support::big;
+
+    assert(EndOffset > StartOffset);
+    switch (EndOffset - StartOffset) {
+    case 1:
+      return *AddrPtr;
+    case 2:
+      return support::endian::read16(AddrPtr, Endianess);
+    case 4:
+      return support::endian::read32(AddrPtr, Endianess);
+    case 8:
+      return support::endian::read64(AddrPtr, Endianess);
+    }
+
+    llvm_unreachable("relocateIndexedAddr unhandled case!");
   }
 
 protected:
@@ -209,6 +229,7 @@ private:
   RangesTy DWARFAddressRanges;
   AddressRanges TextAddressRanges;
   const Options &Opts;
+  DWARFContext &Context;
 };
 
 static bool knownByDWARFUtil(StringRef SecName) {
@@ -263,6 +284,14 @@ Error linkDebugInfo(object::ObjectFile &File, const Options &Options,
                                           .str()))
     return createStringError(std::errc::invalid_argument, "");
 
+  std::unique_ptr<DWARFContext> Context = DWARFContext::create(File);
+
+  uint16_t MaxDWARFVersion = 0;
+  std::function<void(const DWARFUnit &Unit)> OnCUDieLoaded =
+      [&MaxDWARFVersion](const DWARFUnit &Unit) {
+        MaxDWARFVersion = std::max(Unit.getVersion(), MaxDWARFVersion);
+      };
+
   // Create DWARF linker.
   DWARFLinker DebugInfoLinker(&OutStreamer, DwarfLinkerClient::LLD);
 
@@ -278,8 +307,6 @@ Error linkDebugInfo(object::ObjectFile &File, const Options &Options,
   std::vector<std::unique_ptr<DWARFFile>> ObjectsForLinking(1);
   std::vector<std::unique_ptr<AddressesMap>> AddresssMapForLinking(1);
   std::vector<std::string> EmptyWarnings;
-
-  std::unique_ptr<DWARFContext> Context = DWARFContext::create(File);
 
   // Unknown debug sections would be removed. Display warning
   // for such sections.
@@ -300,7 +327,15 @@ Error linkDebugInfo(object::ObjectFile &File, const Options &Options,
       EmptyWarnings);
 
   for (size_t I = 0; I < ObjectsForLinking.size(); I++)
-    DebugInfoLinker.addObjectFile(*ObjectsForLinking[I]);
+    DebugInfoLinker.addObjectFile(*ObjectsForLinking[I], nullptr,
+                                  OnCUDieLoaded);
+
+  // If we haven't seen any CUs, pick an arbitrary valid Dwarf version anyway.
+  if (MaxDWARFVersion == 0)
+    MaxDWARFVersion = 3;
+
+  if (Error Err = DebugInfoLinker.setTargetDWARFVersion(MaxDWARFVersion))
+    return Err;
 
   // Link debug info.
   if (Error Err = DebugInfoLinker.link())

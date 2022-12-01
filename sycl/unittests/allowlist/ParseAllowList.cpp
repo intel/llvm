@@ -183,11 +183,10 @@ TEST(ParseAllowListTests, CheckAllValidDeviceTypeValuesAreProcessed) {
   }
   sycl::detail::AllowListParsedT ActualValue =
       sycl::detail::parseAllowList(AllowList);
-  sycl::detail::AllowListParsedT ExpectedValue{{{"DeviceType", "host"}},
-                                               {{"DeviceType", "cpu"}},
-                                               {{"DeviceType", "gpu"}},
-                                               {{"DeviceType", "acc"}},
-                                               {{"DeviceType", "*"}}};
+  sycl::detail::AllowListParsedT ExpectedValue{
+      {{"DeviceType", "host"}}, {{"DeviceType", "cpu"}},
+      {{"DeviceType", "gpu"}},  {{"DeviceType", "acc"}},
+      {{"DeviceType", "fpga"}}, {{"DeviceType", "*"}}};
   EXPECT_EQ(ExpectedValue, ActualValue);
 }
 

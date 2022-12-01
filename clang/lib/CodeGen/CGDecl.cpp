@@ -101,6 +101,7 @@ void CodeGenFunction::EmitDecl(const Decl &D) {
   case Decl::ObjCTypeParam:
   case Decl::Binding:
   case Decl::UnresolvedUsingIfExists:
+  case Decl::HLSLBuffer:
     llvm_unreachable("Declaration should not be in declstmts!");
   case Decl::Record:    // struct/union/class X;
   case Decl::CXXRecord: // struct/union/class X; [C++]
@@ -127,6 +128,7 @@ void CodeGenFunction::EmitDecl(const Decl &D) {
   case Decl::OMPRequires:
   case Decl::Empty:
   case Decl::Concept:
+  case Decl::ImplicitConceptSpecialization:
   case Decl::LifetimeExtendedTemporary:
   case Decl::RequiresExprBody:
     // None of these decls require codegen support.
@@ -871,7 +873,7 @@ void CodeGenFunction::EmitScalarInit(const Expr *init, const ValueDecl *D,
     // If D is pseudo-strong, treat it like __unsafe_unretained here. This means
     // that we omit the retain, and causes non-autoreleased return values to be
     // immediately released.
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   }
 
   case Qualifiers::OCL_ExplicitNone:

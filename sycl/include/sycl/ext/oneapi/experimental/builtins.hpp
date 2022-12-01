@@ -15,7 +15,7 @@
 #include <sycl/detail/type_traits.hpp>
 
 #include <CL/__spirv/spirv_ops.hpp>
-#include <sycl/ext/oneapi/experimental/bfloat16.hpp>
+#include <sycl/ext/oneapi/sycl::bfloat16.hpp>
 
 // TODO Decide whether to mark functions with this attribute.
 #define __NOEXC /*noexcept*/
@@ -31,14 +31,6 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace oneapi {
 namespace experimental {
-namespace detail {
-template <size_t N>
-uint32_t to_uint32_t(sycl::marray<bfloat16, N> x, size_t start) {
-  uint32_t res;
-  std::memcpy(&res, &x[start], sizeof(uint32_t));
-  return res;
-}
-} // namespace detail
 
 // Provides functionality to print data from kernels in a C way:
 // - On non-host devices this function is directly mapped to printf from
@@ -188,20 +180,20 @@ exp2(sycl::marray<half, N> x) __NOEXC {
 } // namespace native
 
 template <typename T>
-std::enable_if_t<std::is_same_v<T, bfloat16>, T> fabs(T x) {
+std::enable_if_t<std::is_same_v<T, sycl::bfloat16>, T> fabs(T x) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  return bfloat16::from_bits(__clc_fabs(x.raw()));
+  return sycl::bfloat16::from_bits(__clc_fabs(x.raw()));
 #else
   std::ignore = x;
-  throw runtime_error("bfloat16 is not currently supported on the host device.",
+  throw runtime_error("sycl::bfloat16 is not currently supported on the host device.",
                       PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
 template <size_t N>
-sycl::marray<bfloat16, N> fabs(sycl::marray<bfloat16, N> x) {
+sycl::marray<sycl::bfloat16, N> fabs(sycl::marray<sycl::bfloat16, N> x) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  sycl::marray<bfloat16, N> res;
+  sycl::marray<sycl::bfloat16, N> res;
 
   for (size_t i = 0; i < N / 2; i++) {
     auto partial_res = __clc_fabs(detail::to_uint32_t(x, i * 2));
@@ -209,33 +201,33 @@ sycl::marray<bfloat16, N> fabs(sycl::marray<bfloat16, N> x) {
   }
 
   if (N % 2) {
-    res[N - 1] = bfloat16::from_bits(__clc_fabs(x[N - 1].raw()));
+    res[N - 1] = sycl::bfloat16::from_bits(__clc_fabs(x[N - 1].raw()));
   }
   return res;
 #else
   std::ignore = x;
-  throw runtime_error("bfloat16 is not currently supported on the host device.",
+  throw runtime_error("sycl::bfloat16 is not currently supported on the host device.",
                       PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
 template <typename T>
-std::enable_if_t<std::is_same_v<T, bfloat16>, T> fmin(T x, T y) {
+std::enable_if_t<std::is_same_v<T, sycl::bfloat16>, T> fmin(T x, T y) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  return bfloat16::from_bits(__clc_fmin(x.raw(), y.raw()));
+  return sycl::bfloat16::from_bits(__clc_fmin(x.raw(), y.raw()));
 #else
   std::ignore = x;
   std::ignore = y;
-  throw runtime_error("bfloat16 is not currently supported on the host device.",
+  throw runtime_error("sycl::bfloat16 is not currently supported on the host device.",
                       PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
 template <size_t N>
-sycl::marray<bfloat16, N> fmin(sycl::marray<bfloat16, N> x,
-                               sycl::marray<bfloat16, N> y) {
+sycl::marray<sycl::bfloat16, N> fmin(sycl::marray<sycl::bfloat16, N> x,
+                               sycl::marray<sycl::bfloat16, N> y) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  sycl::marray<bfloat16, N> res;
+  sycl::marray<sycl::bfloat16, N> res;
 
   for (size_t i = 0; i < N / 2; i++) {
     auto partial_res = __clc_fmin(detail::to_uint32_t(x, i * 2),
@@ -245,35 +237,35 @@ sycl::marray<bfloat16, N> fmin(sycl::marray<bfloat16, N> x,
 
   if (N % 2) {
     res[N - 1] =
-        bfloat16::from_bits(__clc_fmin(x[N - 1].raw(), y[N - 1].raw()));
+        sycl::bfloat16::from_bits(__clc_fmin(x[N - 1].raw(), y[N - 1].raw()));
   }
 
   return res;
 #else
   std::ignore = x;
   std::ignore = y;
-  throw runtime_error("bfloat16 is not currently supported on the host device.",
+  throw runtime_error("sycl::bfloat16 is not currently supported on the host device.",
                       PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
 template <typename T>
-std::enable_if_t<std::is_same_v<T, bfloat16>, T> fmax(T x, T y) {
+std::enable_if_t<std::is_same_v<T, sycl::bfloat16>, T> fmax(T x, T y) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  return bfloat16::from_bits(__clc_fmax(x.raw(), y.raw()));
+  return sycl::bfloat16::from_bits(__clc_fmax(x.raw(), y.raw()));
 #else
   std::ignore = x;
   std::ignore = y;
-  throw runtime_error("bfloat16 is not currently supported on the host device.",
+  throw runtime_error("sycl::bfloat16 is not currently supported on the host device.",
                       PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
 template <size_t N>
-sycl::marray<bfloat16, N> fmax(sycl::marray<bfloat16, N> x,
-                               sycl::marray<bfloat16, N> y) {
+sycl::marray<sycl::bfloat16, N> fmax(sycl::marray<sycl::bfloat16, N> x,
+                               sycl::marray<sycl::bfloat16, N> y) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  sycl::marray<bfloat16, N> res;
+  sycl::marray<sycl::bfloat16, N> res;
 
   for (size_t i = 0; i < N / 2; i++) {
     auto partial_res = __clc_fmax(detail::to_uint32_t(x, i * 2),
@@ -283,36 +275,36 @@ sycl::marray<bfloat16, N> fmax(sycl::marray<bfloat16, N> x,
 
   if (N % 2) {
     res[N - 1] =
-        bfloat16::from_bits(__clc_fmax(x[N - 1].raw(), y[N - 1].raw()));
+        sycl::bfloat16::from_bits(__clc_fmax(x[N - 1].raw(), y[N - 1].raw()));
   }
   return res;
 #else
   std::ignore = x;
   std::ignore = y;
-  throw runtime_error("bfloat16 is not currently supported on the host device.",
+  throw runtime_error("sycl::bfloat16 is not currently supported on the host device.",
                       PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
 template <typename T>
-std::enable_if_t<std::is_same_v<T, bfloat16>, T> fma(T x, T y, T z) {
+std::enable_if_t<std::is_same_v<T, sycl::bfloat16>, T> fma(T x, T y, T z) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  return bfloat16::from_bits(__clc_fma(x.raw(), y.raw(), z.raw()));
+  return sycl::bfloat16::from_bits(__clc_fma(x.raw(), y.raw(), z.raw()));
 #else
   std::ignore = x;
   std::ignore = y;
   std::ignore = z;
-  throw runtime_error("bfloat16 is not currently supported on the host device.",
+  throw runtime_error("sycl::bfloat16 is not currently supported on the host device.",
                       PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
 template <size_t N>
-sycl::marray<bfloat16, N> fma(sycl::marray<bfloat16, N> x,
-                              sycl::marray<bfloat16, N> y,
-                              sycl::marray<bfloat16, N> z) {
+sycl::marray<sycl::bfloat16, N> fma(sycl::marray<sycl::bfloat16, N> x,
+                              sycl::marray<sycl::bfloat16, N> y,
+                              sycl::marray<sycl::bfloat16, N> z) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  sycl::marray<bfloat16, N> res;
+  sycl::marray<sycl::bfloat16, N> res;
 
   for (size_t i = 0; i < N / 2; i++) {
     auto partial_res =
@@ -322,7 +314,7 @@ sycl::marray<bfloat16, N> fma(sycl::marray<bfloat16, N> x,
   }
 
   if (N % 2) {
-    res[N - 1] = bfloat16::from_bits(
+    res[N - 1] = sycl::bfloat16::from_bits(
         __clc_fma(x[N - 1].raw(), y[N - 1].raw(), z[N - 1].raw()));
   }
   return res;
@@ -330,7 +322,7 @@ sycl::marray<bfloat16, N> fma(sycl::marray<bfloat16, N> x,
   std::ignore = x;
   std::ignore = y;
   std::ignore = z;
-  throw runtime_error("bfloat16 is not currently supported on the host device.",
+  throw runtime_error("sycl::bfloat16 is not currently supported on the host device.",
                       PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }

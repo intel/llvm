@@ -9,12 +9,17 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
+#include <helpers/PiMock.hpp>
+
 #include <detail/buffer_impl.hpp>
 #include <detail/event_impl.hpp>
 
 using namespace sycl;
 
 TEST_F(SchedulerTest, FinishedCmdCleanup) {
+  sycl::unittest::PiMock Mock;
+  sycl::queue Q{Mock.getPlatform().get_devices()[0], MAsyncHandler};
+
   MockScheduler MS;
   buffer<int, 1> BufA(range<1>(1));
   buffer<int, 1> BufB(range<1>(1));
@@ -23,8 +28,8 @@ TEST_F(SchedulerTest, FinishedCmdCleanup) {
   detail::Requirement MockReqB = getMockRequirement(BufB);
   detail::Requirement MockReqC = getMockRequirement(BufC);
   std::vector<detail::Command *> AuxCmds;
-  detail::MemObjRecord *RecC = MS.getOrInsertMemObjRecord(
-      detail::getSyclObjImpl(MQueue), &MockReqC, AuxCmds);
+  detail::MemObjRecord *RecC =
+      MS.getOrInsertMemObjRecord(detail::getSyclObjImpl(Q), &MockReqC, AuxCmds);
 
   // Create a graph and check that all inner nodes have been deleted and
   // their users have had the corresponding dependency replaced with a
@@ -51,32 +56,32 @@ TEST_F(SchedulerTest, FinishedCmdCleanup) {
   //                 +---------+
   //                 | AllocaB |
   //                 +---------+
-  detail::AllocaCommand AllocaA{detail::getSyclObjImpl(MQueue), MockReqA};
-  detail::AllocaCommand AllocaB{detail::getSyclObjImpl(MQueue), MockReqB};
+  detail::AllocaCommand AllocaA{detail::getSyclObjImpl(Q), MockReqA};
+  detail::AllocaCommand AllocaB{detail::getSyclObjImpl(Q), MockReqB};
 
   int NInnerCommandsAlive = 3;
   std::function<void()> Callback = [&]() { --NInnerCommandsAlive; };
 
-  MockCommand *InnerC = new MockCommandWithCallback(
-      detail::getSyclObjImpl(MQueue), MockReqA, Callback);
+  MockCommand *InnerC = new MockCommandWithCallback(detail::getSyclObjImpl(Q),
+                                                    MockReqA, Callback);
   addEdge(InnerC, &AllocaA, &AllocaA);
 
   std::vector<detail::Command *> ToEnqueue;
 
-  MockCommand LeafB{detail::getSyclObjImpl(MQueue), MockReqB};
+  MockCommand LeafB{detail::getSyclObjImpl(Q), MockReqB};
   addEdge(&LeafB, &AllocaB, &AllocaB);
   MS.addNodeToLeaves(RecC, &LeafB, access::mode::read, ToEnqueue);
 
-  MockCommand LeafA{detail::getSyclObjImpl(MQueue), MockReqA};
+  MockCommand LeafA{detail::getSyclObjImpl(Q), MockReqA};
   addEdge(&LeafA, InnerC, &AllocaA);
   MS.addNodeToLeaves(RecC, &LeafA, access::mode::read, ToEnqueue);
 
-  MockCommand *InnerB = new MockCommandWithCallback(
-      detail::getSyclObjImpl(MQueue), MockReqB, Callback);
+  MockCommand *InnerB = new MockCommandWithCallback(detail::getSyclObjImpl(Q),
+                                                    MockReqB, Callback);
   addEdge(InnerB, &LeafB, &AllocaB);
 
-  MockCommand *InnerA = new MockCommandWithCallback(
-      detail::getSyclObjImpl(MQueue), MockReqA, Callback);
+  MockCommand *InnerA = new MockCommandWithCallback(detail::getSyclObjImpl(Q),
+                                                    MockReqA, Callback);
   addEdge(InnerA, &LeafA, &AllocaA);
   addEdge(InnerA, InnerB, &AllocaB);
 

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -opaque-pointers -emit-llvm %s -o - | FileCheck --enable-var-scope %s
+// RUN: %clang_cc1 -fno-sycl-force-inline-kernel-lambda -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -opaque-pointers -emit-llvm %s -o - | FileCheck --enable-var-scope %s
 // CHECK: define {{.*}}spir_kernel void @{{[a-zA-Z0-9_]+}}(ptr addrspace(2) [[SAMPLER_ARG:%[a-zA-Z0-9_]+]])
 // CHECK-NEXT: entry:
 // CHECK-NEXT: [[SAMPLER_ARG]].addr = alloca ptr addrspace(2), align 8

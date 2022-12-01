@@ -531,6 +531,8 @@ void MCObjectFileInfo::initELFMCObjectFileInfo(const Triple &T, bool Large) {
   PseudoProbeSection = Ctx->getELFSection(".pseudo_probe", DebugSecType, 0);
   PseudoProbeDescSection =
       Ctx->getELFSection(".pseudo_probe_desc", DebugSecType, 0);
+
+  LLVMStatsSection = Ctx->getELFSection(".llvm_stats", ELF::SHT_PROGBITS, 0);
 }
 
 void MCObjectFileInfo::initGOFFMCObjectFileInfo(const Triple &T) {
@@ -1141,11 +1143,30 @@ MCObjectFileInfo::getBBAddrMapSection(const MCSection &TextSec) const {
 }
 
 MCSection *
-MCObjectFileInfo::getPseudoProbeSection(const MCSection *TextSec) const {
+MCObjectFileInfo::getKCFITrapSection(const MCSection &TextSec) const {
+  if (Ctx->getObjectFileType() != MCContext::IsELF)
+    return nullptr;
+
+  const MCSectionELF &ElfSec = static_cast<const MCSectionELF &>(TextSec);
+  unsigned Flags = ELF::SHF_LINK_ORDER | ELF::SHF_ALLOC;
+  StringRef GroupName;
+  if (const MCSymbol *Group = ElfSec.getGroup()) {
+    GroupName = Group->getName();
+    Flags |= ELF::SHF_GROUP;
+  }
+
+  return Ctx->getELFSection(".kcfi_traps", ELF::SHT_PROGBITS, Flags, 0,
+                            GroupName,
+                            /*IsComdat=*/true, ElfSec.getUniqueID(),
+                            cast<MCSymbolELF>(TextSec.getBeginSymbol()));
+}
+
+MCSection *
+MCObjectFileInfo::getPseudoProbeSection(const MCSection &TextSec) const {
   if (Ctx->getObjectFileType() == MCContext::IsELF) {
-    const auto *ElfSec = static_cast<const MCSectionELF *>(TextSec);
+    const auto &ElfSec = static_cast<const MCSectionELF &>(TextSec);
     // Create a separate section for probes that comes with a comdat function.
-    if (const MCSymbol *Group = ElfSec->getGroup()) {
+    if (const MCSymbol *Group = ElfSec.getGroup()) {
       auto *S = static_cast<MCSectionELF *>(PseudoProbeSection);
       auto Flags = S->getFlags() | ELF::SHF_GROUP;
       return Ctx->getELFSection(S->getName(), S->getType(), Flags,
@@ -1178,4 +1199,30 @@ MCObjectFileInfo::getPseudoProbeDescSection(StringRef FuncName) const {
     }
   }
   return PseudoProbeDescSection;
+}
+
+MCSection *MCObjectFileInfo::getLLVMStatsSection() const {
+  return LLVMStatsSection;
+}
+
+MCSection *MCObjectFileInfo::getPCSection(StringRef Name,
+                                          const MCSection *TextSec) const {
+  if (Ctx->getObjectFileType() != MCContext::IsELF)
+    return nullptr;
+
+  // SHF_WRITE for relocations, and let user post-process data in-place.
+  unsigned Flags = ELF::SHF_WRITE | ELF::SHF_ALLOC | ELF::SHF_LINK_ORDER;
+
+  if (!TextSec)
+    TextSec = getTextSection();
+
+  StringRef GroupName;
+  const auto &ElfSec = static_cast<const MCSectionELF &>(*TextSec);
+  if (const MCSymbol *Group = ElfSec.getGroup()) {
+    GroupName = Group->getName();
+    Flags |= ELF::SHF_GROUP;
+  }
+  return Ctx->getELFSection(Name, ELF::SHT_PROGBITS, Flags, 0, GroupName, true,
+                            ElfSec.getUniqueID(),
+                            cast<MCSymbolELF>(TextSec->getBeginSymbol()));
 }

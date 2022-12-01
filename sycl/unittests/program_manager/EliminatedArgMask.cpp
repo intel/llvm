@@ -12,7 +12,6 @@
 #include <detail/scheduler/commands.hpp>
 #include <sycl/sycl.hpp>
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
@@ -193,17 +192,9 @@ sycl::detail::ProgramManager::KernelArgMask getKernelArgMaskFromBundle(
 // Check that eliminated arg mask can be found for one of kernels in a
 // kernel bundle after two kernels are compiled and linked.
 TEST(EliminatedArgMask, KernelBundleWith2Kernels) {
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host() || Plt.get_backend() == sycl::backend::ext_oneapi_cuda ||
-      Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    std::cerr << "Test is not supported on "
-              << Plt.get_info<sycl::info::platform::name>() << ", skipping\n";
-    GTEST_SKIP(); // test is not supported on selected platform.
-  }
-
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-  Mock.redefine<sycl::detail::PiApiKind::piProgramCreate>(
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramCreate>(
       redefinedProgramCreateEAM);
 
   const sycl::device Dev = Plt.get_devices()[0];

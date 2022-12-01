@@ -64,7 +64,7 @@
 #include "mlir/Dialect/Bufferization/Transforms/Bufferize.h"
 #include "mlir/Dialect/Bufferization/Transforms/FuncBufferizableOpInterfaceImpl.h"
 #include "mlir/Dialect/Bufferization/Transforms/OneShotAnalysis.h"
-#include "mlir/Dialect/Bufferization/Transforms/TensorCopyInsertion.h"
+#include "mlir/Dialect/Bufferization/Transforms/Transforms.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/Operation.h"
@@ -401,9 +401,7 @@ mlir::bufferization::analyzeModuleOp(ModuleOp moduleOp,
 }
 
 LogicalResult mlir::bufferization::bufferizeModuleOp(
-    ModuleOp moduleOp, const OneShotAnalysisState &analysisState) {
-  auto const &options = static_cast<const OneShotBufferizationOptions &>(
-      analysisState.getOptions());
+    ModuleOp moduleOp, const OneShotBufferizationOptions &options) {
   assert(options.bufferizeFunctionBoundaries &&
          "expected that function boundary bufferization is activated");
   IRRewriter rewriter(moduleOp.getContext());
@@ -421,11 +419,11 @@ LogicalResult mlir::bufferization::bufferizeModuleOp(
   for (func::FuncOp funcOp : orderedFuncOps) {
     // Note: It would be good to apply cleanups here but we cannot as aliasInfo
     // would be invalidated.
-    if (failed(bufferizeOp(funcOp, options, /*copyBeforeWrite=*/false)))
+    if (failed(bufferizeOp(funcOp, options, options.copyBeforeWrite)))
       return failure();
     // Change buffer return types to more precise layout maps.
     if (options.functionBoundaryTypeConversion ==
-        BufferizationOptions::LayoutMapOption::InferLayoutMap)
+        LayoutMapOption::InferLayoutMap)
       foldMemRefCasts(funcOp);
   }
 
@@ -442,12 +440,16 @@ LogicalResult mlir::bufferization::runOneShotModuleBufferize(
     ModuleOp moduleOp, const OneShotBufferizationOptions &options) {
   assert(options.bufferizeFunctionBoundaries &&
          "expected that function boundary bufferization is activated");
-  OneShotAnalysisState analysisState(moduleOp, options);
-  if (failed(insertTensorCopies(moduleOp, options)))
-    return failure();
+  assert(!(options.copyBeforeWrite && options.testAnalysisOnly) &&
+         "invalid combination of bufferization flags");
+  if (!options.copyBeforeWrite) {
+    OneShotAnalysisState analysisState(moduleOp, options);
+    if (failed(insertTensorCopies(moduleOp, options)))
+      return failure();
+  }
   if (options.testAnalysisOnly)
     return success();
-  if (failed(bufferizeModuleOp(moduleOp, analysisState)))
+  if (failed(bufferizeModuleOp(moduleOp, options)))
     return failure();
   return success();
 }

@@ -1333,7 +1333,7 @@ Constant *llvm::ConstantFoldUnaryOpOperand(unsigned Opcode, Constant *Op,
                                            const DataLayout &DL) {
   assert(Instruction::isUnaryOp(Opcode));
 
-  return ConstantExpr::get(Opcode, Op);
+  return ConstantFoldUnaryInstruction(Opcode, Op);
 }
 
 Constant *llvm::ConstantFoldBinaryOpOperands(unsigned Opcode, Constant *LHS,
@@ -1626,6 +1626,7 @@ bool llvm::canConstantFoldCallTo(const CallBase *Call, const Function *F) {
   case Intrinsic::trunc:
   case Intrinsic::nearbyint:
   case Intrinsic::rint:
+  case Intrinsic::canonicalize:
   // Constrained intrinsics can be folded if FP environment is known
   // to compiler.
   case Intrinsic::experimental_constrained_fma:
@@ -1941,6 +1942,39 @@ getEvaluationRoundingMode(const ConstrainedFPIntrinsic *CI) {
   return *ORM;
 }
 
+/// Try to constant fold llvm.canonicalize for the given caller and value.
+static Constant *constantFoldCanonicalize(const Type *Ty, const CallBase *CI,
+                                          const APFloat &Src) {
+  // Zero, positive and negative, is always OK to fold.
+  if (Src.isZero())
+    return ConstantFP::get(CI->getContext(), Src);
+
+  if (!Ty->isIEEELikeFPTy())
+    return nullptr;
+
+  // Zero is always canonical and the sign must be preserved.
+  //
+  // Denorms and nans may have special encodings, but it should be OK to fold a
+  // totally average number.
+  if (Src.isNormal() || Src.isInfinity())
+    return ConstantFP::get(CI->getContext(), Src);
+
+  if (Src.isDenormal()) {
+    DenormalMode DenormMode =
+        CI->getFunction()->getDenormalMode(Src.getSemantics());
+    if (DenormMode == DenormalMode::getIEEE())
+      return nullptr;
+
+    bool IsPositive = !Src.isNegative() ||
+                      DenormMode.Input == DenormalMode::PositiveZero ||
+                      DenormMode.Output == DenormalMode::PositiveZero;
+    return ConstantFP::get(CI->getContext(),
+                           APFloat::getZero(Src.getSemantics(), !IsPositive));
+  }
+
+  return nullptr;
+}
+
 static Constant *ConstantFoldScalarCall1(StringRef Name,
                                          Intrinsic::ID IntrinsicID,
                                          Type *Ty,
@@ -1957,6 +1991,13 @@ static Constant *ConstantFoldScalarCall1(StringRef Name,
       return ConstantInt::getTrue(Ty->getContext());
     return nullptr;
   }
+
+  if (isa<PoisonValue>(Operands[0])) {
+    // TODO: All of these operations should probably propagate poison.
+    if (IntrinsicID == Intrinsic::canonicalize)
+      return PoisonValue::get(Ty);
+  }
+
   if (isa<UndefValue>(Operands[0])) {
     // cosine(arg) is between -1 and 1. cosine(invalid arg) is NaN.
     // ctpop() is between 0 and bitwidth, pick 0 for undef.
@@ -1964,7 +2005,8 @@ static Constant *ConstantFoldScalarCall1(StringRef Name,
     if (IntrinsicID == Intrinsic::cos ||
         IntrinsicID == Intrinsic::ctpop ||
         IntrinsicID == Intrinsic::fptoui_sat ||
-        IntrinsicID == Intrinsic::fptosi_sat)
+        IntrinsicID == Intrinsic::fptosi_sat ||
+        IntrinsicID == Intrinsic::canonicalize)
       return Constant::getNullValue(Ty);
     if (IntrinsicID == Intrinsic::bswap ||
         IntrinsicID == Intrinsic::bitreverse ||
@@ -2031,6 +2073,9 @@ static Constant *ConstantFoldScalarCall1(StringRef Name,
       U.convertToInteger(Int, APFloat::rmTowardZero, &IsExact);
       return ConstantInt::get(Ty, Int);
     }
+
+    if (IntrinsicID == Intrinsic::canonicalize)
+      return constantFoldCanonicalize(Ty, Call, U);
 
     if (!Ty->isHalfTy() && !Ty->isFloatTy() && !Ty->isDoubleTy())
       return nullptr;
@@ -2150,7 +2195,7 @@ static Constant *ConstantFoldScalarCall1(StringRef Name,
         return ConstantFoldFP(log, APF, Ty);
       case Intrinsic::log2:
         // TODO: What about hosts that lack a C99 library?
-        return ConstantFoldFP(Log2, APF, Ty);
+        return ConstantFoldFP(log2, APF, Ty);
       case Intrinsic::log10:
         // TODO: What about hosts that lack a C99 library?
         return ConstantFoldFP(log10, APF, Ty);
@@ -2279,7 +2324,7 @@ static Constant *ConstantFoldScalarCall1(StringRef Name,
     case LibFunc_log2f_finite:
       if (!APF.isNegative() && !APF.isZero() && TLI->has(Func))
         // TODO: What about hosts that lack a C99 library?
-        return ConstantFoldFP(Log2, APF, Ty);
+        return ConstantFoldFP(log2, APF, Ty);
       break;
     case LibFunc_log10:
     case LibFunc_log10f:
@@ -2360,7 +2405,7 @@ static Constant *ConstantFoldScalarCall1(StringRef Name,
 
       // Conversion is always precise.
       (void)status;
-      assert(status == APFloat::opOK && !lost &&
+      assert(status != APFloat::opInexact && !lost &&
              "Precision lost during fp16 constfolding");
 
       return ConstantFP::get(Ty->getContext(), Val);
@@ -2569,6 +2614,11 @@ static Constant *ConstantFoldScalarCall2(StringRef Name,
         break;
       case LibFunc_atan2:
       case LibFunc_atan2f:
+        // atan2(+/-0.0, +/-0.0) is known to raise an exception on some libm
+        // (Solaris), so we do not assume a known result for that.
+        if (Op1V.isZero() && Op2V.isZero())
+          return nullptr;
+        [[fallthrough]];
       case LibFunc_atan2_finite:
       case LibFunc_atan2f_finite:
         if (TLI->has(Func))
@@ -2641,7 +2691,7 @@ static Constant *ConstantFoldScalarCall2(StringRef Name,
       // undef - X -> { 0, false }
       if (!C0 || !C1)
         return Constant::getNullValue(Ty);
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case Intrinsic::uadd_with_overflow:
     case Intrinsic::sadd_with_overflow:
       // X + undef -> { -1, false }
@@ -2652,7 +2702,7 @@ static Constant *ConstantFoldScalarCall2(StringRef Name,
             {Constant::getAllOnesValue(Ty->getStructElementType(0)),
              Constant::getNullValue(Ty->getStructElementType(1))});
       }
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case Intrinsic::smul_with_overflow:
     case Intrinsic::umul_with_overflow: {
       // undef * X -> { 0, false }
@@ -2944,7 +2994,7 @@ static Constant *ConstantFoldScalarCall3(StringRef Name,
             // wrong result if C3 was -0.0.
             return ConstantFP::get(Ty->getContext(), APFloat(0.0f) + C3);
           }
-          LLVM_FALLTHROUGH;
+          [[fallthrough]];
         }
         case Intrinsic::fma:
         case Intrinsic::fmuladd: {
@@ -3120,7 +3170,7 @@ static Constant *ConstantFoldFixedVectorCall(
       }
       return ConstantVector::get(NCs);
     }
-    break;
+    return nullptr;
   }
   case Intrinsic::get_active_lane_mask: {
     auto *Op0 = dyn_cast<ConstantInt>(Operands[0]);
@@ -3139,7 +3189,7 @@ static Constant *ConstantFoldFixedVectorCall(
       }
       return ConstantVector::get(NCs);
     }
-    break;
+    return nullptr;
   }
   default:
     break;
@@ -3296,6 +3346,13 @@ bool llvm::isMathLibCallNoop(const CallBase *Call,
         break;
       }
 
+      case LibFunc_atan:
+      case LibFunc_atanf:
+      case LibFunc_atanl:
+        // Per POSIX, this MAY fail if Op is denormal. We choose not failing.
+        return true;
+
+
       case LibFunc_asinl:
       case LibFunc_asin:
       case LibFunc_asinf:
@@ -3360,6 +3417,15 @@ bool llvm::isMathLibCallNoop(const CallBase *Call,
       case LibFunc_remainderf:
         return Op0.isNaN() || Op1.isNaN() ||
                (!Op0.isInfinity() && !Op1.isZero());
+
+      case LibFunc_atan2:
+      case LibFunc_atan2f:
+      case LibFunc_atan2l:
+        // Although IEEE-754 says atan2(+/-0.0, +/-0.0) are well-defined, and
+        // GLIBC and MSVC do not appear to raise an error on those, we
+        // cannot rely on that behavior. POSIX and C11 say that a domain error
+        // may occur, so allow for that possibility.
+        return !Op0.isZero() || !Op1.isZero();
 
       default:
         break;

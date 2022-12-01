@@ -29,9 +29,9 @@
 #include "llvm/CodeGen/PreISelIntrinsicLowering.h"
 #include "llvm/CodeGen/ReplaceWithVeclib.h"
 #include "llvm/CodeGen/UnreachableBlockElim.h"
-#include "llvm/IR/IRPrintingPasses.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/Verifier.h"
+#include "llvm/IRPrinter/IRPrintingPasses.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCTargetOptions.h"
 #include "llvm/Support/CodeGen.h"
@@ -685,7 +685,7 @@ void CodeGenPassBuilder<Derived>::addPassesToHandleExceptions(
     // pad is shared by multiple invokes and is also a target of a normal
     // edge from elsewhere.
     addPass(SjLjEHPreparePass());
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case ExceptionHandling::DwarfCFI:
   case ExceptionHandling::ARM:
   case ExceptionHandling::AIX:

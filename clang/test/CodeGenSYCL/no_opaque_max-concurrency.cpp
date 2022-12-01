@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -disable-llvm-passes -triple spir64-unknown-unknown -sycl-std=2020 -no-opaque-pointers -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -fno-sycl-force-inline-kernel-lambda -fsycl-is-device -internal-isystem %S/Inputs -disable-llvm-passes -triple spir64-unknown-unknown -sycl-std=2020 -no-opaque-pointers -emit-llvm -o - %s | FileCheck %s
 
 #include "sycl.hpp"
 
@@ -18,7 +18,7 @@
 // CHECK: br label %for.cond2,  !llvm.loop ![[MD_MC_1:[0-9]+]]
 // CHECK: ret void
 
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name1() [[ATTR0:#.*]] {{.*}} !max_concurrency ![[NUM1:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name1() [[ATTR0:#[0-9]+]] {{.*}} !max_concurrency ![[NUM1:[0-9]+]]
 // CHECK: entry:
 // CHECK: [[F1:%.*]] = alloca [[CLASS_F1:%.*]], align 1
 // CHECK: [[F1_ASCAST:%.*]] = addrspacecast [[CLASS_F1]]* [[F1]] to [[CLASS_F1]] addrspace(4)*

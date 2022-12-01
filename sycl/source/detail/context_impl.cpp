@@ -28,7 +28,8 @@ namespace detail {
 context_impl::context_impl(const device &Device, async_handler AsyncHandler,
                            const property_list &PropList)
     : MAsyncHandler(AsyncHandler), MDevices(1, Device), MContext(nullptr),
-      MPlatform(), MPropList(PropList), MHostContext(Device.is_host()),
+      MPlatform(), MPropList(PropList),
+      MHostContext(detail::getSyclObjImpl(Device)->is_host()),
       MSupportBufferLocationByDevices(NotChecked) {
   MKernelProgramCache.setContextPtr(this);
 }

@@ -1387,8 +1387,8 @@ public:
   Optional<uint64_t> DiagnosticsHotnessThreshold = 0;
 
   /// The percentage of difference between profiling branch weights and
-  // llvm.expect branch weights to tolerate when emiting MisExpect diagnostics
-  Optional<uint64_t> DiagnosticsMisExpectTolerance = 0;
+  /// llvm.expect branch weights to tolerate when emiting MisExpect diagnostics
+  Optional<uint32_t> DiagnosticsMisExpectTolerance = 0;
   bool MisExpectWarningRequested = false;
 
   /// The specialized remark streamer used by LLVM's OptimizationRemarkEmitter.
@@ -1498,6 +1498,11 @@ public:
 
   /// Collection of metadata used in this context.
   DenseMap<const Value *, MDAttachments> ValueMetadata;
+
+  /// Map DIAssignID -> Instructions with that attachment.
+  /// Managed by Instruction via Instruction::updateDIAssignIDMapping.
+  /// Query using the at:: functions defined in DebugInfo.h.
+  DenseMap<DIAssignID *, SmallVector<Instruction *, 1>> AssignmentIDToInstrs;
 
   /// Collection of per-GlobalObject sections used in this context.
   DenseMap<const GlobalObject *, StringRef> GlobalObjectSections;

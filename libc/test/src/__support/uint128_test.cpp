@@ -6,7 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "src/__support/CPP/UInt.h"
+#include "src/__support/CPP/optional.h"
+#include "src/__support/UInt.h"
 
 #include "utils/UnitTest/Test.h"
 
@@ -14,6 +15,8 @@
 // we use a sugar which does not conflict with the UInt128 type which can
 // resolve to __uint128_t if the platform has it.
 using LL_UInt128 = __llvm_libc::cpp::UInt<128>;
+using LL_UInt192 = __llvm_libc::cpp::UInt<192>;
+using LL_UInt256 = __llvm_libc::cpp::UInt<256>;
 
 TEST(LlvmLibcUInt128ClassTest, BasicInit) {
   LL_UInt128 empty;
@@ -27,7 +30,7 @@ TEST(LlvmLibcUInt128ClassTest, AdditionTests) {
   LL_UInt128 val2(54321);
   LL_UInt128 result1(66666);
   EXPECT_EQ(val1 + val2, result1);
-  EXPECT_EQ((val1 + val2), (val2 + val1)); // addition is reciprocal
+  EXPECT_EQ((val1 + val2), (val2 + val1)); // addition is commutative
 
   // Test overflow
   LL_UInt128 val3({0xf000000000000001, 0});
@@ -35,6 +38,60 @@ TEST(LlvmLibcUInt128ClassTest, AdditionTests) {
   LL_UInt128 result2({0x10, 0x1});
   EXPECT_EQ(val3 + val4, result2);
   EXPECT_EQ(val3 + val4, val4 + val3);
+
+  // Test overflow
+  LL_UInt128 val5({0x0123456789abcdef, 0xfedcba9876543210});
+  LL_UInt128 val6({0x1111222233334444, 0xaaaabbbbccccdddd});
+  LL_UInt128 result3({0x12346789bcdf1233, 0xa987765443210fed});
+  EXPECT_EQ(val5 + val6, result3);
+  EXPECT_EQ(val5 + val6, val6 + val5);
+
+  // Test 192-bit addition
+  LL_UInt192 val7({0x0123456789abcdef, 0xfedcba9876543210, 0xfedcba9889abcdef});
+  LL_UInt192 val8({0x1111222233334444, 0xaaaabbbbccccdddd, 0xeeeeffffeeeeffff});
+  LL_UInt192 result4(
+      {0x12346789bcdf1233, 0xa987765443210fed, 0xedcbba98789acdef});
+  EXPECT_EQ(val7 + val8, result4);
+  EXPECT_EQ(val7 + val8, val8 + val7);
+
+  // Test 256-bit addition
+  LL_UInt256 val9({0x1f1e1d1c1b1a1918, 0xf1f2f3f4f5f6f7f8, 0x0123456789abcdef,
+                   0xfedcba9876543210});
+  LL_UInt256 val10({0x1111222233334444, 0xaaaabbbbccccdddd, 0x1111222233334444,
+                    0xaaaabbbbccccdddd});
+  LL_UInt256 result5({0x302f3f3e4e4d5d5c, 0x9c9dafb0c2c3d5d5,
+                      0x12346789bcdf1234, 0xa987765443210fed});
+  EXPECT_EQ(val9 + val10, result5);
+  EXPECT_EQ(val9 + val10, val10 + val9);
+}
+
+TEST(LlvmLibcUInt128ClassTest, SubtractionTests) {
+  LL_UInt128 val1(12345);
+  LL_UInt128 val2(54321);
+  LL_UInt128 result1({0xffffffffffff5c08, 0xffffffffffffffff});
+  LL_UInt128 result2(0xa3f8);
+  EXPECT_EQ(val1 - val2, result1);
+  EXPECT_EQ(val1, val2 + result1);
+  EXPECT_EQ(val2 - val1, result2);
+  EXPECT_EQ(val2, val1 + result2);
+
+  LL_UInt128 val3({0xf000000000000001, 0});
+  LL_UInt128 val4({0x100000000000000f, 0});
+  LL_UInt128 result3(0xdffffffffffffff2);
+  LL_UInt128 result4({0x200000000000000e, 0xffffffffffffffff});
+  EXPECT_EQ(val3 - val4, result3);
+  EXPECT_EQ(val3, val4 + result3);
+  EXPECT_EQ(val4 - val3, result4);
+  EXPECT_EQ(val4, val3 + result4);
+
+  LL_UInt128 val5({0x0123456789abcdef, 0xfedcba9876543210});
+  LL_UInt128 val6({0x1111222233334444, 0xaaaabbbbccccdddd});
+  LL_UInt128 result5({0xf0122345567889ab, 0x5431fedca9875432});
+  LL_UInt128 result6({0x0feddcbaa9877655, 0xabce01235678abcd});
+  EXPECT_EQ(val5 - val6, result5);
+  EXPECT_EQ(val5, val6 + result5);
+  EXPECT_EQ(val6 - val5, result6);
+  EXPECT_EQ(val6, val5 + result6);
 }
 
 TEST(LlvmLibcUInt128ClassTest, MultiplicationTests) {
@@ -42,7 +99,7 @@ TEST(LlvmLibcUInt128ClassTest, MultiplicationTests) {
   LL_UInt128 val2({10, 0});
   LL_UInt128 result1({50, 0});
   EXPECT_EQ((val1 * val2), result1);
-  EXPECT_EQ((val1 * val2), (val2 * val1)); // multiplication is reciprocal
+  EXPECT_EQ((val1 * val2), (val2 * val1)); // multiplication is commutative
 
   // Check that the multiplication works accross the whole number
   LL_UInt128 val3({0xf, 0});
@@ -75,6 +132,171 @@ TEST(LlvmLibcUInt128ClassTest, MultiplicationTests) {
   LL_UInt128 result5({0x917cf11d1e039c50, 0x3a4f32d17f40d08f});
   EXPECT_EQ((val9 * val10), result5);
   EXPECT_EQ((val9 * val10), (val10 * val9));
+
+  // Test 192-bit multiplication
+  LL_UInt192 val11(
+      {0xffffffffffffffff, 0x01D762422C946590, 0x9F4F2726179A2245});
+  LL_UInt192 val12(
+      {0xffffffffffffffff, 0x3792F412CB06794D, 0xCDB02555653131B6});
+
+  LL_UInt192 result6(
+      {0x0000000000000001, 0xc695a9ab08652121, 0x5de7faf698d32732});
+  EXPECT_EQ((val11 * val12), result6);
+  EXPECT_EQ((val11 * val12), (val12 * val11));
+
+  LL_UInt256 val13({0xffffffffffffffff, 0x01D762422C946590, 0x9F4F2726179A2245,
+                    0xffffffffffffffff});
+  LL_UInt256 val14({0xffffffffffffffff, 0xffffffffffffffff, 0x3792F412CB06794D,
+                    0xCDB02555653131B6});
+  LL_UInt256 result7({0x0000000000000001, 0xfe289dbdd36b9a6f,
+                      0x291de4c71d5f646c, 0xfd37221cb06d4978});
+  EXPECT_EQ((val13 * val14), result7);
+  EXPECT_EQ((val13 * val14), (val14 * val13));
+}
+
+TEST(LlvmLibcUInt128ClassTest, DivisionTests) {
+  LL_UInt128 val1({10, 0});
+  LL_UInt128 val2({5, 0});
+  LL_UInt128 result1({2, 0});
+  EXPECT_EQ((val1 / val2), result1);
+  EXPECT_EQ((val1 / result1), val2);
+
+  // Check that the division works accross the whole number
+  LL_UInt128 val3({0xffffffffffffffff, 0xffffffffffffffff});
+  LL_UInt128 val4({0xf, 0});
+  LL_UInt128 result2({0x1111111111111111, 0x1111111111111111});
+  EXPECT_EQ((val3 / val4), result2);
+  EXPECT_EQ((val3 / result2), val4);
+
+  // Check that division doesn't reorder the bits.
+  LL_UInt128 val5({0x26ae048cea62c840, 0x02468aceeca86420});
+  LL_UInt128 val6({2, 0});
+  LL_UInt128 result3({0x1357024675316420, 0x0123456776543210});
+  EXPECT_EQ((val5 / val6), result3);
+  EXPECT_EQ((val5 / result3), val6);
+
+  // Make sure that division handles inexact results correctly.
+  LL_UInt128 val7({1001, 0});
+  LL_UInt128 val8({10, 0});
+  LL_UInt128 result4({100, 0});
+  EXPECT_EQ((val7 / val8), result4);
+  EXPECT_EQ((val7 / result4), val8);
+
+  // Make sure that division handles divisors of one correctly.
+  LL_UInt128 val9({0x1234567812345678, 0x9abcdef09abcdef0});
+  LL_UInt128 val10({1, 0});
+  LL_UInt128 result5({0x1234567812345678, 0x9abcdef09abcdef0});
+  EXPECT_EQ((val9 / val10), result5);
+  EXPECT_EQ((val9 / result5), val10);
+
+  // Make sure that division handles results of slightly more than 1 correctly.
+  LL_UInt128 val11({1050, 0});
+  LL_UInt128 val12({1030, 0});
+  LL_UInt128 result6({1, 0});
+  EXPECT_EQ((val11 / val12), result6);
+
+  // Make sure that division handles dividing by zero correctly.
+  LL_UInt128 val13({1234, 0});
+  LL_UInt128 val14({0, 0});
+  EXPECT_FALSE(val13.div(val14).has_value());
+}
+
+TEST(LlvmLibcUInt128ClassTest, ModuloTests) {
+  LL_UInt128 val1({10, 0});
+  LL_UInt128 val2({5, 0});
+  LL_UInt128 result1({0, 0});
+  EXPECT_EQ((val1 % val2), result1);
+
+  LL_UInt128 val3({101, 0});
+  LL_UInt128 val4({10, 0});
+  LL_UInt128 result2({1, 0});
+  EXPECT_EQ((val3 % val4), result2);
+
+  LL_UInt128 val5({10000001, 0});
+  LL_UInt128 val6({10, 0});
+  LL_UInt128 result3({1, 0});
+  EXPECT_EQ((val5 % val6), result3);
+
+  LL_UInt128 val7({12345, 10});
+  LL_UInt128 val8({0, 1});
+  LL_UInt128 result4({12345, 0});
+  EXPECT_EQ((val7 % val8), result4);
+
+  LL_UInt128 val9({12345, 10});
+  LL_UInt128 val10({0, 11});
+  LL_UInt128 result5({12345, 10});
+  EXPECT_EQ((val9 % val10), result5);
+
+  LL_UInt128 val11({10, 10});
+  LL_UInt128 val12({10, 10});
+  LL_UInt128 result6({0, 0});
+  EXPECT_EQ((val11 % val12), result6);
+
+  LL_UInt128 val13({12345, 0});
+  LL_UInt128 val14({1, 0});
+  LL_UInt128 result7({0, 0});
+  EXPECT_EQ((val13 % val14), result7);
+
+  LL_UInt128 val15({0xffffffffffffffff, 0xffffffffffffffff});
+  LL_UInt128 val16({0x1111111111111111, 0x111111111111111});
+  LL_UInt128 result8({0xf, 0});
+  EXPECT_EQ((val15 % val16), result8);
+
+  LL_UInt128 val17({5076944270305263619, 54210108624}); // (10 ^ 30) + 3
+  LL_UInt128 val18({10, 0});
+  LL_UInt128 result9({3, 0});
+  EXPECT_EQ((val17 % val18), result9);
+}
+
+TEST(LlvmLibcUInt128ClassTest, PowerTests) {
+  LL_UInt128 val1({10, 0});
+  val1.pow_n(30);
+  LL_UInt128 result1({5076944270305263616, 54210108624}); // (10 ^ 30)
+  EXPECT_EQ(val1, result1);
+
+  LL_UInt128 val2({1, 0});
+  val2.pow_n(10);
+  LL_UInt128 result2({1, 0});
+  EXPECT_EQ(val2, result2);
+
+  LL_UInt128 val3({0, 0});
+  val3.pow_n(10);
+  LL_UInt128 result3({0, 0});
+  EXPECT_EQ(val3, result3);
+
+  LL_UInt128 val4({10, 0});
+  val4.pow_n(0);
+  LL_UInt128 result4({1, 0});
+  EXPECT_EQ(val4, result4);
+
+  // Test zero to the zero. Currently it returns 1, since that's the easiest
+  // result.
+  LL_UInt128 val5({0, 0});
+  val5.pow_n(0);
+  LL_UInt128 result5({1, 0});
+  EXPECT_EQ(val5, result5);
+
+  // Test a number that overflows. 100 ^ 20 is larger than 2 ^ 128.
+  LL_UInt128 val6({100, 0});
+  val6.pow_n(20);
+  LL_UInt128 result6({0xb9f5610000000000, 0x6329f1c35ca4bfab});
+  EXPECT_EQ(val6, result6);
+
+  // Test that both halves of the number are being used.
+  LL_UInt128 val7({1, 1});
+  val7.pow_n(2);
+  LL_UInt128 result7({1, 2});
+  EXPECT_EQ(val7, result7);
+
+  LL_UInt128 val_pow_two;
+  LL_UInt128 result_pow_two;
+  for (size_t i = 0; i < 128; ++i) {
+    val_pow_two = 2;
+    val_pow_two.pow_n(i);
+    result_pow_two = 1;
+    result_pow_two = result_pow_two << i;
+    EXPECT_EQ(val_pow_two, result_pow_two);
+  }
 }
 
 TEST(LlvmLibcUInt128ClassTest, ShiftLeftTests) {

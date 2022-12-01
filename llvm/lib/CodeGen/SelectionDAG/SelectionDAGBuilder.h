@@ -42,6 +42,7 @@ class AAResults;
 class AllocaInst;
 class AtomicCmpXchgInst;
 class AtomicRMWInst;
+class AssumptionCache;
 class BasicBlock;
 class BranchInst;
 class CallInst;
@@ -103,18 +104,35 @@ class SelectionDAGBuilder {
 
   /// Helper type for DanglingDebugInfoMap.
   class DanglingDebugInfo {
-    const DbgValueInst* DI = nullptr;
-    DebugLoc dl;
+    const DbgValueInst *DI = nullptr;
     unsigned SDNodeOrder = 0;
 
   public:
     DanglingDebugInfo() = default;
-    DanglingDebugInfo(const DbgValueInst *di, DebugLoc DL, unsigned SDNO)
-        : DI(di), dl(std::move(DL)), SDNodeOrder(SDNO) {}
+    DanglingDebugInfo(const DbgValueInst *DI, unsigned SDNO)
+        : DI(DI), SDNodeOrder(SDNO) {
+      assert(!DI->hasArgList() &&
+             "Dangling variadic debug values not supported yet");
+    }
 
-    const DbgValueInst* getDI() { return DI; }
-    DebugLoc getdl() { return dl; }
-    unsigned getSDNodeOrder() { return SDNodeOrder; }
+    DILocalVariable *getVariable() const { return DI->getVariable(); }
+    DIExpression *getExpression() const { return DI->getExpression(); }
+    Value *getVariableLocationOp(unsigned Idx) const {
+      assert(Idx == 0 && "Dangling variadic debug values not supported yet");
+      return DI->getVariableLocationOp(Idx);
+    }
+    DebugLoc getDebugLoc() const { return DI->getDebugLoc(); }
+    unsigned getSDNodeOrder() const { return SDNodeOrder; }
+
+    friend raw_ostream &operator<<(raw_ostream &OS,
+                                   const DanglingDebugInfo &Info) {
+      OS << "DDI(var=" << *Info.getVariable()
+         << ", val= " << *Info.getVariableLocationOp(0)
+         << ", expr=" << *Info.getExpression()
+         << ", order=" << Info.getSDNodeOrder()
+         << ", loc=" << Info.getDebugLoc() << ")";
+      return OS;
+    }
   };
 
   /// Helper type for DanglingDebugInfoMap.
@@ -191,6 +209,7 @@ public:
 
   SelectionDAG &DAG;
   AAResults *AA = nullptr;
+  AssumptionCache *AC = nullptr;
   const TargetLibraryInfo *LibInfo;
 
   class SDAGSwitchLowering : public SwitchCG::SwitchLowering {
@@ -244,7 +263,7 @@ public:
         SL(std::make_unique<SDAGSwitchLowering>(this, funcinfo)), FuncInfo(funcinfo),
         SwiftError(swifterror) {}
 
-  void init(GCFunctionInfo *gfi, AAResults *AA,
+  void init(GCFunctionInfo *gfi, AAResults *AA, AssumptionCache *AC,
             const TargetLibraryInfo *li);
 
   /// Clear out the current SelectionDAG and the associated state and prepare
@@ -296,8 +315,7 @@ public:
   SDValue getCopyFromRegs(const Value *V, Type *Ty);
 
   /// Register a dbg_value which relies on a Value which we have not yet seen.
-  void addDanglingDebugInfo(const DbgValueInst *DI, DebugLoc DL,
-                            unsigned Order);
+  void addDanglingDebugInfo(const DbgValueInst *DI, unsigned Order);
 
   /// If we have dangling debug info that describes \p Variable, or an
   /// overlapping part of variable considering the \p Expr, then this method
@@ -317,8 +335,8 @@ public:
   /// For a given list of Values, attempt to create and record a SDDbgValue in
   /// the SelectionDAG.
   bool handleDebugValue(ArrayRef<const Value *> Values, DILocalVariable *Var,
-                        DIExpression *Expr, DebugLoc CurDL, DebugLoc InstDL,
-                        unsigned Order, bool IsVariadic);
+                        DIExpression *Expr, DebugLoc DbgLoc, unsigned Order,
+                        bool IsVariadic);
 
   /// Evict any dangling debug information, attempting to salvage it first.
   void resolveOrClearDbgInfo();
@@ -567,10 +585,14 @@ private:
   void visitIntrinsicCall(const CallInst &I, unsigned Intrinsic);
   void visitTargetIntrinsic(const CallInst &I, unsigned Intrinsic);
   void visitConstrainedFPIntrinsic(const ConstrainedFPIntrinsic &FPI);
-  void visitVPLoadGather(const VPIntrinsic &VPIntrin, EVT VT,
-                         SmallVector<SDValue, 7> &OpValues, bool IsGather);
-  void visitVPStoreScatter(const VPIntrinsic &VPIntrin,
-                           SmallVector<SDValue, 7> &OpValues, bool IsScatter);
+  void visitVPLoad(const VPIntrinsic &VPIntrin, EVT VT,
+                   SmallVector<SDValue, 7> &OpValues);
+  void visitVPStore(const VPIntrinsic &VPIntrin,
+                    SmallVector<SDValue, 7> &OpValues);
+  void visitVPGather(const VPIntrinsic &VPIntrin, EVT VT,
+                     SmallVector<SDValue, 7> &OpValues);
+  void visitVPScatter(const VPIntrinsic &VPIntrin,
+                      SmallVector<SDValue, 7> &OpValues);
   void visitVPStridedLoad(const VPIntrinsic &VPIntrin, EVT VT,
                           SmallVectorImpl<SDValue> &OpValues);
   void visitVPStridedStore(const VPIntrinsic &VPIntrin,

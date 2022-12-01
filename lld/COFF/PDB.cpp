@@ -119,7 +119,7 @@ public:
                                std::vector<StringTableFixup> &stringTableFixups,
                                BinaryStreamRef symData);
 
-  // Write all module symbols from all all live debug symbol subsections of the
+  // Write all module symbols from all live debug symbol subsections of the
   // given object file into the given stream writer.
   Error writeAllModuleSymbolRecords(ObjFile *file, BinaryStreamWriter &writer);
 
@@ -809,6 +809,10 @@ void DebugSHandler::handleDebugS(SectionChunk *debugChunk) {
 
     case DebugSubsectionKind::CoffSymbolRVA:
       // Unclear what this is for.
+      break;
+
+    case DebugSubsectionKind::XfgHashType:
+    case DebugSubsectionKind::XfgHashVirtual:
       break;
 
     default:

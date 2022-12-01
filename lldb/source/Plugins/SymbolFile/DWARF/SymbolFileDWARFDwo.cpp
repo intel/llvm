@@ -49,7 +49,8 @@ DWARFCompileUnit *SymbolFileDWARFDwo::GetDWOCompileUnitForHash(uint64_t hash) {
   DWARFCompileUnit *cu = FindSingleCompileUnit();
   if (!cu)
     return nullptr;
-  if (hash != cu->GetDWOId())
+  llvm::Optional<uint64_t> dwo_id = cu->GetDWOId();
+  if (!dwo_id || hash != *dwo_id)
     return nullptr;
   return cu;
 }
@@ -117,7 +118,7 @@ lldb::TypeSP SymbolFileDWARFDwo::FindCompleteObjCDefinitionTypeForDIE(
       die, type_name, must_be_implementation);
 }
 
-llvm::Expected<TypeSystem &>
+llvm::Expected<lldb::TypeSystemSP>
 SymbolFileDWARFDwo::GetTypeSystemForLanguage(LanguageType language) {
   return GetBaseSymbolFile().GetTypeSystemForLanguage(language);
 }

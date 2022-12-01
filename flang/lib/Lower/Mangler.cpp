@@ -155,6 +155,10 @@ Fortran::lower::mangle::mangleName(const Fortran::semantics::Symbol &symbol,
             llvm::report_fatal_error(
                 "only derived type instances can be mangled");
           },
+          [&](const Fortran::semantics::ProcBindingDetails &procBinding)
+              -> std::string {
+            return mangleName(procBinding.symbol(), keepExternalInScope);
+          },
           [](const auto &) -> std::string { TODO_NOLOC("symbol mangling"); },
       },
       ultimateSymbol.details());
@@ -222,7 +226,7 @@ std::string Fortran::lower::mangle::mangleArrayLiteral(
     const Fortran::evaluate::ConstantSubscripts &shape,
     Fortran::common::TypeCategory cat, int kind,
     Fortran::common::ConstantSubscript charLen) {
-  std::string typeId = "";
+  std::string typeId;
   for (Fortran::evaluate::ConstantSubscript extent : shape)
     typeId.append(std::to_string(extent)).append("x");
   if (charLen >= 0)

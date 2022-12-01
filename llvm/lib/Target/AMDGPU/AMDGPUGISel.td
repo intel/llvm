@@ -149,6 +149,14 @@ def gi_smrd_buffer_imm32 :
     GIComplexOperandMatcher<s64, "selectSMRDBufferImm32">,
     GIComplexPatternEquiv<SMRDBufferImm32>;
 
+def gi_smrd_buffer_sgpr_imm :
+    GIComplexOperandMatcher<s64, "selectSMRDBufferSgprImm">,
+    GIComplexPatternEquiv<SMRDBufferSgprImm>;
+
+def gi_vop3_mad_mix_mods :
+    GIComplexOperandMatcher<s64, "selectVOP3PMadMixMods">,
+    GIComplexPatternEquiv<VOP3PMadMixMods>;
+
 // Separate load nodes are defined to glue m0 initialization in
 // SelectionDAG. The GISel selector can just insert m0 initialization
 // directly before selecting a glue-less load, so hide this

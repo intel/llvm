@@ -33,11 +33,6 @@ static llvm::cl::opt<unsigned>
                             llvm::cl::desc("AMDHSA Code Object Version"),
                             llvm::cl::init(4));
 
-// TODO-GFX11: Remove this when full 16-bit codegen is implemented.
-static llvm::cl::opt<bool>
-    LimitTo128VGPRs("amdgpu-limit-to-128-vgprs", llvm::cl::Hidden,
-                    llvm::cl::desc("Never use more than 128 VGPRs"));
-
 namespace {
 
 /// \returns Bit mask for given bit \p Shift and bit \p Width.
@@ -289,6 +284,11 @@ struct VOPDInfo {
   uint16_t OpY;
 };
 
+struct VOPTrue16Info {
+  uint16_t Opcode;
+  bool IsTrue16;
+};
+
 #define GET_MTBUFInfoTable_DECL
 #define GET_MTBUFInfoTable_IMPL
 #define GET_MUBUFInfoTable_DECL
@@ -309,6 +309,8 @@ struct VOPDInfo {
 #define GET_VOPDComponentTable_IMPL
 #define GET_VOPDPairs_DECL
 #define GET_VOPDPairs_IMPL
+#define GET_VOPTrue16Table_DECL
+#define GET_VOPTrue16Table_IMPL
 #define GET_WMMAOpcode2AddrMappingTable_DECL
 #define GET_WMMAOpcode2AddrMappingTable_IMPL
 #define GET_WMMAOpcode3AddrMappingTable_DECL
@@ -427,6 +429,15 @@ unsigned getVOPDOpcode(unsigned Opc) {
   return Info ? Info->VOPDOp : ~0u;
 }
 
+bool isVOPD(unsigned Opc) {
+  return AMDGPU::hasNamedOperand(Opc, AMDGPU::OpName::src0X);
+}
+
+bool isTrue16Inst(unsigned Opc) {
+  const VOPTrue16Info *Info = getTrue16OpcodeHelper(Opc);
+  return Info ? Info->IsTrue16 : false;
+}
+
 unsigned mapWMMA2AddrTo3AddrOpcode(unsigned Opc) {
   const WMMAOpcodeMappingInfo *Info = getWMMAMappingInfoFrom2AddrOpcode(Opc);
   return Info ? Info->Opcode3Addr : ~0u;
@@ -447,6 +458,113 @@ int getMCOpcode(uint16_t Opcode, unsigned Gen) {
 int getVOPDFull(unsigned OpX, unsigned OpY) {
   const VOPDInfo *Info = getVOPDInfoFromComponentOpcodes(OpX, OpY);
   return Info ? Info->Opcode : -1;
+}
+
+std::pair<unsigned, unsigned> getVOPDComponents(unsigned VOPDOpcode) {
+  const VOPDInfo *Info = getVOPDOpcodeHelper(VOPDOpcode);
+  assert(Info);
+  auto OpX = getVOPDBaseFromComponent(Info->OpX);
+  auto OpY = getVOPDBaseFromComponent(Info->OpY);
+  assert(OpX && OpY);
+  return {OpX->BaseVOP, OpY->BaseVOP};
+}
+
+namespace VOPD {
+
+ComponentProps::ComponentProps(const MCInstrDesc &OpDesc) {
+  assert(OpDesc.getNumDefs() == Component::DST_NUM);
+
+  assert(OpDesc.getOperandConstraint(Component::SRC0, MCOI::TIED_TO) == -1);
+  assert(OpDesc.getOperandConstraint(Component::SRC1, MCOI::TIED_TO) == -1);
+  auto TiedIdx = OpDesc.getOperandConstraint(Component::SRC2, MCOI::TIED_TO);
+  assert(TiedIdx == -1 || TiedIdx == Component::DST);
+  HasSrc2Acc = TiedIdx != -1;
+
+  SrcOperandsNum = OpDesc.getNumOperands() - OpDesc.getNumDefs();
+  assert(SrcOperandsNum <= Component::MAX_SRC_NUM);
+
+  auto OperandsNum = OpDesc.getNumOperands();
+  unsigned CompOprIdx;
+  for (CompOprIdx = Component::SRC1; CompOprIdx < OperandsNum; ++CompOprIdx) {
+    if (OpDesc.OpInfo[CompOprIdx].OperandType == AMDGPU::OPERAND_KIMM32) {
+      MandatoryLiteralIdx = CompOprIdx;
+      break;
+    }
+  }
+}
+
+unsigned ComponentInfo::getIndexInParsedOperands(unsigned CompOprIdx) const {
+  assert(CompOprIdx < Component::MAX_OPR_NUM);
+
+  if (CompOprIdx == Component::DST)
+    return getIndexOfDstInParsedOperands();
+
+  auto CompSrcIdx = CompOprIdx - Component::DST_NUM;
+  if (CompSrcIdx < getCompParsedSrcOperandsNum())
+    return getIndexOfSrcInParsedOperands(CompSrcIdx);
+
+  // The specified operand does not exist.
+  return 0;
+}
+
+Optional<unsigned> InstInfo::getInvalidCompOperandIndex(
+    std::function<unsigned(unsigned, unsigned)> GetRegIdx) const {
+
+  auto OpXRegs = getRegIndices(ComponentIndex::X, GetRegIdx);
+  auto OpYRegs = getRegIndices(ComponentIndex::Y, GetRegIdx);
+
+  unsigned CompOprIdx;
+  for (CompOprIdx = 0; CompOprIdx < Component::MAX_OPR_NUM; ++CompOprIdx) {
+    unsigned BanksNum = BANKS_NUM[CompOprIdx];
+    if (OpXRegs[CompOprIdx] && OpYRegs[CompOprIdx] &&
+        (OpXRegs[CompOprIdx] % BanksNum == OpYRegs[CompOprIdx] % BanksNum))
+      return CompOprIdx;
+  }
+
+  return {};
+}
+
+// Return an array of VGPR registers [DST,SRC0,SRC1,SRC2] used
+// by the specified component. If an operand is unused
+// or is not a VGPR, the corresponding value is 0.
+//
+// GetRegIdx(Component, MCOperandIdx) must return a VGPR register index
+// for the specified component and MC operand. The callback must return 0
+// if the operand is not a register or not a VGPR.
+InstInfo::RegIndices InstInfo::getRegIndices(
+    unsigned CompIdx,
+    std::function<unsigned(unsigned, unsigned)> GetRegIdx) const {
+  assert(CompIdx < COMPONENTS_NUM);
+
+  const auto &Comp = CompInfo[CompIdx];
+  InstInfo::RegIndices RegIndices;
+
+  RegIndices[DST] = GetRegIdx(CompIdx, Comp.getIndexOfDstInMCOperands());
+
+  for (unsigned CompOprIdx : {SRC0, SRC1, SRC2}) {
+    unsigned CompSrcIdx = CompOprIdx - DST_NUM;
+    RegIndices[CompOprIdx] =
+        Comp.hasRegSrcOperand(CompSrcIdx)
+            ? GetRegIdx(CompIdx, Comp.getIndexOfSrcInMCOperands(CompSrcIdx))
+            : 0;
+  }
+  return RegIndices;
+}
+
+} // namespace VOPD
+
+VOPD::InstInfo getVOPDInstInfo(const MCInstrDesc &OpX, const MCInstrDesc &OpY) {
+  return VOPD::InstInfo(OpX, OpY);
+}
+
+VOPD::InstInfo getVOPDInstInfo(unsigned VOPDOpcode,
+                               const MCInstrInfo *InstrInfo) {
+  auto [OpX, OpY] = getVOPDComponents(VOPDOpcode);
+  const auto &OpXDesc = InstrInfo->get(OpX);
+  const auto &OpYDesc = InstrInfo->get(OpY);
+  VOPD::ComponentInfo OpXInfo(OpXDesc, VOPD::ComponentKind::COMPONENT_X);
+  VOPD::ComponentInfo OpYInfo(OpYDesc, OpXInfo);
+  return VOPD::InstInfo(OpXInfo, OpYInfo);
 }
 
 namespace IsaInfo {
@@ -833,6 +951,9 @@ unsigned getVGPRAllocGranule(const MCSubtargetInfo *STI,
       *EnableWavefrontSize32 :
       STI->getFeatureBits().test(FeatureWavefrontSize32);
 
+  if (STI->getFeatureBits().test(FeatureGFX11FullVGPRs))
+    return IsWave32 ? 24 : 12;
+
   if (hasGFX10_3Insts(*STI))
     return IsWave32 ? 16 : 8;
 
@@ -856,19 +977,13 @@ unsigned getTotalNumVGPRs(const MCSubtargetInfo *STI) {
     return 512;
   if (!isGFX10Plus(*STI))
     return 256;
-  return STI->getFeatureBits().test(FeatureWavefrontSize32) ? 1024 : 512;
+  bool IsWave32 = STI->getFeatureBits().test(FeatureWavefrontSize32);
+  if (STI->getFeatureBits().test(FeatureGFX11FullVGPRs))
+    return IsWave32 ? 1536 : 768;
+  return IsWave32 ? 1024 : 512;
 }
 
 unsigned getAddressableNumVGPRs(const MCSubtargetInfo *STI) {
-  if (LimitTo128VGPRs.getNumOccurrences() ? LimitTo128VGPRs
-                                          : isGFX11Plus(*STI)) {
-    // GFX11 changes the encoding of 16-bit operands in VOP1/2/C instructions
-    // such that values 128..255 no longer mean v128..v255, they mean
-    // v0.hi..v127.hi instead. Until the compiler understands this, it is not
-    // safe to use v128..v255.
-    // TODO-GFX11: Remove this when full 16-bit codegen is implemented.
-    return 128;
-  }
   if (STI->getFeatureBits().test(FeatureGFX90AInsts))
     return 512;
   return 256;

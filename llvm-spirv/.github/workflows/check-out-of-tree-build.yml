@@ -38,19 +38,18 @@ jobs:
       matrix:
         build_type: [Release, Debug]
       fail-fast: false
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     steps:
       - name: Install dependencies
         run: |
           curl -L "https://apt.llvm.org/llvm-snapshot.gpg.key" | sudo apt-key add -
           curl -L "https://packages.lunarg.com/lunarg-signing-key-pub.asc" | sudo apt-key add -
-          echo "deb https://apt.llvm.org/bionic/ llvm-toolchain-bionic main" | sudo tee -a /etc/apt/sources.list
-          echo "deb https://packages.lunarg.com/vulkan bionic main" | sudo tee -a /etc/apt/sources.list
+          echo "deb https://apt.llvm.org/focal/ llvm-toolchain-focal main" | sudo tee -a /etc/apt/sources.list
+          echo "deb https://packages.lunarg.com/vulkan focal main" | sudo tee -a /etc/apt/sources.list
           sudo apt-get update
           sudo apt-get -yq --no-install-suggests --no-install-recommends install \
             clang-${{ env.LLVM_VERSION }} \
             llvm-${{ env.LLVM_VERSION }}-dev \
-            libomp-${{ env.LLVM_VERSION }}-dev \
             llvm-${{ env.LLVM_VERSION }}-tools \
             mlir-${{ env.LLVM_VERSION }}-tools \
             spirv-tools
@@ -76,7 +75,7 @@ jobs:
           mkdir build && cd build
           cmake ${{ github.workspace }}/SPIRV-LLVM-Translator \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
-            -DCMAKE_CXX_FLAGS="-Werror -Wno-error=deprecated-declarations" \
+            -DCMAKE_CXX_FLAGS="-Werror" \
             -DLLVM_INCLUDE_TESTS=ON \
             -DLLVM_EXTERNAL_LIT="/usr/lib/llvm-${{ env.LLVM_VERSION }}/build/utils/lit/lit.py" \
             -DLLVM_EXTERNAL_PROJECTS="SPIRV-Headers" \

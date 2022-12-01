@@ -98,13 +98,17 @@ namespace device {
 #include <sycl/info/device_traits_deprecated.def>
 #undef __SYCL_PARAM_TRAITS_DEPRECATED
 
-template <int Dimensions> struct max_work_item_sizes;
+template <int Dimensions = 3> struct max_work_item_sizes;
 #define __SYCL_PARAM_TRAITS_TEMPLATE_SPEC(DescType, Desc, ReturnT, PiCode)     \
   template <> struct Desc {                                                    \
     using return_type = ReturnT;                                               \
   };
+#define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, PiCode)  \
+  __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)
+
 #include <sycl/info/device_traits.def>
 } // namespace device
+#undef __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC
 
 // A.4 Queue information descriptors
@@ -118,12 +122,8 @@ namespace kernel {
 } // namespace kernel
 
 namespace kernel_device_specific {
-#define __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT(DescType, Desc, ReturnT, InputT,   \
-                                            PiCode)                            \
-  __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)
 #include <sycl/info/kernel_device_specific_traits.def>
 } // namespace kernel_device_specific
-#undef __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT
 
 // A.6 Event information desctiptors
 enum class event_command_status : pi_int32 {

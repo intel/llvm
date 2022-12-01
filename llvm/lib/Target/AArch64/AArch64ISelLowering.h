@@ -15,6 +15,7 @@
 #define LLVM_LIB_TARGET_AARCH64_AARCH64ISELLOWERING_H
 
 #include "AArch64.h"
+#include "Utils/AArch64SMEAttributes.h"
 #include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/SelectionDAG.h"
@@ -56,6 +57,17 @@ enum NodeType : unsigned {
   CALL_RVMARKER,
 
   CALL_BTI, // Function call followed by a BTI instruction.
+
+  // Essentially like a normal COPY that works on GPRs, but cannot be
+  // rematerialised by passes like the simple register coalescer. It's
+  // required for SME when lowering calls because we cannot allow frame
+  // index calculations using addvl to slip in between the smstart/smstop
+  // and the bl instruction. The scalable vector length may change across
+  // the smstart/smstop boundary.
+  OBSCURE_COPY,
+  SMSTART,
+  SMSTOP,
+  RESTORE_ZA,
 
   // Produces the full sequence of instructions for getting the thread pointer
   // offset of a variable into X0, using the TLSDesc model.
@@ -291,6 +303,8 @@ enum NodeType : unsigned {
   SMULL,
   UMULL,
 
+  PMULL,
+
   // Reciprocal estimates and steps.
   FRECPE,
   FRECPS,
@@ -318,6 +332,7 @@ enum NodeType : unsigned {
 
   INSR,
   PTEST,
+  PTEST_ANY,
   PTRUE,
 
   BITREVERSE_MERGE_PASSTHRU,
@@ -450,6 +465,7 @@ enum NodeType : unsigned {
   STZ2G,
 
   LDP,
+  LDNP,
   STP,
   STNP,
 
@@ -521,12 +537,12 @@ public:
   bool allowsMisalignedMemoryAccesses(
       EVT VT, unsigned AddrSpace = 0, Align Alignment = Align(1),
       MachineMemOperand::Flags Flags = MachineMemOperand::MONone,
-      bool *Fast = nullptr) const override;
+      unsigned *Fast = nullptr) const override;
   /// LLT variant.
   bool allowsMisalignedMemoryAccesses(LLT Ty, unsigned AddrSpace,
                                       Align Alignment,
                                       MachineMemOperand::Flags Flags,
-                                      bool *Fast = nullptr) const override;
+                                      unsigned *Fast = nullptr) const override;
 
   /// Provide custom lowering hooks for some operations.
   SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
@@ -602,6 +618,9 @@ public:
   bool shouldSinkOperands(Instruction *I,
                           SmallVectorImpl<Use *> &Ops) const override;
 
+  bool optimizeExtendOrTruncateConversion(Instruction *I,
+                                          Loop *L) const override;
+
   bool hasPairedLoad(EVT LoadedType, Align &RequiredAligment) const override;
 
   unsigned getMaxSupportedInterleaveFactor() const override { return 4; }
@@ -632,14 +651,6 @@ public:
   bool isLegalAddressingMode(const DataLayout &DL, const AddrMode &AM, Type *Ty,
                              unsigned AS,
                              Instruction *I = nullptr) const override;
-
-  /// Return the cost of the scaling factor used in the addressing
-  /// mode represented by AM for this target, for a load/store
-  /// of the specified type.
-  /// If the AM is supported, the return value must be >= 0.
-  /// If the AM is not supported, it returns a negative value.
-  InstructionCost getScalingFactorCost(const DataLayout &DL, const AddrMode &AM,
-                                       Type *Ty, unsigned AS) const override;
 
   /// Return true if an FMA operation is faster than a pair of fmul and fadd
   /// instructions. fmuladd intrinsics will be expanded to FMAs when this method
@@ -747,11 +758,11 @@ public:
     return true;
   }
 
-  bool isCheapToSpeculateCttz() const override {
+  bool isCheapToSpeculateCttz(Type *) const override {
     return true;
   }
 
-  bool isCheapToSpeculateCtlz() const override {
+  bool isCheapToSpeculateCtlz(Type *) const override {
     return true;
   }
 
@@ -801,6 +812,15 @@ public:
 
   bool shouldConvertFpToSat(unsigned Op, EVT FPVT, EVT VT) const override;
 
+  bool isComplexDeinterleavingSupported() const override;
+  bool isComplexDeinterleavingOperationSupported(
+      ComplexDeinterleavingOperation Operation, Type *Ty) const override;
+
+  Value *createComplexDeinterleavingIR(
+      Instruction *I, ComplexDeinterleavingOperation OperationType,
+      ComplexDeinterleavingRotation Rotation, Value *InputA, Value *InputB,
+      Value *Accumulator = nullptr) const override;
+
   bool hasBitPreservingFPLogic(EVT VT) const override {
     // FIXME: Is this always true? It should be true for vectors at least.
     return VT == MVT::f32 || VT == MVT::f64;
@@ -818,6 +838,8 @@ public:
   bool supportSwiftError() const override {
     return true;
   }
+
+  bool supportKCFIBundles() const override { return true; }
 
   /// Enable aggressive FMA fusion on targets that want it.
   bool enableAggressiveFMAFusion(EVT VT) const override;
@@ -871,6 +893,14 @@ public:
 
   bool shouldExpandGetActiveLaneMask(EVT VT, EVT OpVT) const override;
 
+  /// If a change in streaming mode is required on entry to/return from a
+  /// function call it emits and returns the corresponding SMSTART or SMSTOP node.
+  /// \p Entry tells whether this is before/after the Call, which is necessary
+  /// because PSTATE.SM is only queried once.
+  SDValue changeStreamingMode(SelectionDAG &DAG, SDLoc DL, bool Enable,
+                              SDValue Chain, SDValue InFlag,
+                              SDValue PStateSM, bool Entry) const;
+
 private:
   /// Keep a pointer to the AArch64Subtarget around so that we can
   /// make the right decision when generating code for different targets.
@@ -879,9 +909,13 @@ private:
   bool isExtFreeImpl(const Instruction *Ext) const override;
 
   void addTypeForNEON(MVT VT);
+  void addTypeForStreamingSVE(MVT VT);
   void addTypeForFixedLengthSVE(MVT VT);
   void addDRTypeForNEON(MVT VT);
   void addQRTypeForNEON(MVT VT);
+
+  unsigned allocateLazySaveBuffer(SDValue &Chain, const SDLoc &DL,
+                                  SelectionDAG &DAG) const;
 
   SDValue LowerFormalArguments(SDValue Chain, CallingConv::ID CallConv,
                                bool isVarArg,
@@ -894,7 +928,7 @@ private:
 
   SDValue LowerCallResult(SDValue Chain, SDValue InFlag,
                           CallingConv::ID CallConv, bool isVarArg,
-                          const SmallVectorImpl<ISD::InputArg> &Ins,
+                          const SmallVectorImpl<CCValAssign> &RVLocs,
                           const SDLoc &DL, SelectionDAG &DAG,
                           SmallVectorImpl<SDValue> &InVals, bool isThisReturn,
                           SDValue ThisVal) const;
@@ -903,6 +937,7 @@ private:
   SDValue LowerSTORE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerStore128(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerABS(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerZERO_EXTEND(SDValue Op, SelectionDAG &DAG) const;
 
   SDValue LowerMGATHER(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerMSCATTER(SDValue Op, SelectionDAG &DAG) const;
@@ -963,6 +998,7 @@ private:
                                  SelectionDAG &DAG) const;
   SDValue LowerWindowsGlobalTLSAddress(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSETCC(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerSETCCCARRY(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerBR_CC(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSELECT(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSELECT_CC(SDValue Op, SelectionDAG &DAG) const;
@@ -1029,8 +1065,6 @@ private:
   SDValue LowerWindowsDYNAMIC_STACKALLOC(SDValue Op, SDValue Chain,
                                          SDValue &Size,
                                          SelectionDAG &DAG) const;
-  SDValue LowerSVEStructLoad(unsigned Intrinsic, ArrayRef<SDValue> LoadOps,
-                             EVT VT, SelectionDAG &DAG, const SDLoc &DL) const;
 
   SDValue LowerFixedLengthVectorIntDivideToSVE(SDValue Op,
                                                SelectionDAG &DAG) const;
@@ -1160,6 +1194,11 @@ private:
   // with BITCAST used otherwise.
   // This function does not handle predicate bitcasts.
   SDValue getSVESafeBitCast(EVT VT, SDValue Op, SelectionDAG &DAG) const;
+
+  // Returns the runtime value for PSTATE.SM. When the function is streaming-
+  // compatible, this generates a call to __arm_sme_state.
+  SDValue getPStateSM(SelectionDAG &DAG, SDValue Chain, SMEAttrs Attrs,
+                      SDLoc DL, EVT VT) const;
 
   bool isConstantUnsignedBitfieldExtractLegal(unsigned Opc, LLT Ty1,
                                               LLT Ty2) const override;

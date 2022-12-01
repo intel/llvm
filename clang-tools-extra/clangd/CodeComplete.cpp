@@ -70,6 +70,7 @@
 #include <algorithm>
 #include <iterator>
 #include <limits>
+#include <utility>
 
 // We log detailed candidate here if you run with -debug-only=codecomplete.
 #define DEBUG_TYPE "CodeComplete"
@@ -94,10 +95,14 @@ CompletionItemKind toCompletionItemKind(index::SymbolKind Kind) {
   case SK::Struct:
     return CompletionItemKind::Struct;
   case SK::Class:
-  case SK::Protocol:
   case SK::Extension:
   case SK::Union:
     return CompletionItemKind::Class;
+  case SK::Protocol:
+    // Use interface instead of class for differentiation of classes and
+    // protocols with the same name (e.g. @interface NSObject vs. @protocol
+    // NSObject).
+    return CompletionItemKind::Interface;
   case SK::TypeAlias:
     // We use the same kind as the VSCode C++ extension.
     // FIXME: pick a better option when we have one.
@@ -221,7 +226,7 @@ struct CompletionCandidate {
 #ifndef NDEBUG
         llvm_unreachable("Don't expect members from index in code completion");
 #else
-        LLVM_FALLTHROUGH;
+        [[fallthrough]];
 #endif
       case index::SymbolKind::Function:
         // We can't group overloads together that need different #includes.
@@ -406,6 +411,8 @@ struct CodeCompletionBuilder {
       bool IsPattern = C.SemaResult->Kind == CodeCompletionResult::RK_Pattern;
       getSignature(*SemaCCS, &S.Signature, &S.SnippetSuffix,
                    &Completion.RequiredQualifier, IsPattern);
+      if (!C.SemaResult->FunctionCanBeCall)
+        S.SnippetSuffix.clear();
       S.ReturnType = getReturnType(*SemaCCS);
     } else if (C.IndexResult) {
       S.Signature = std::string(C.IndexResult->Signature);
@@ -486,6 +493,9 @@ private:
       // we need to complete 'forward<$1>($0)'.
       return "($0)";
 
+    if (Snippet->empty())
+      return "";
+
     bool MayHaveArgList = Completion.Kind == CompletionItemKind::Function ||
                           Completion.Kind == CompletionItemKind::Method ||
                           Completion.Kind == CompletionItemKind::Constructor ||
@@ -524,8 +534,6 @@ private:
       return *Snippet;
 
     // Replace argument snippets with a simplified pattern.
-    if (Snippet->empty())
-      return "";
     if (MayHaveArgList) {
       // Functions snippets can be of 2 types:
       // - containing only function arguments, e.g.
@@ -712,13 +720,13 @@ bool contextAllowsIndex(enum CodeCompletionContext::Kind K) {
   case CodeCompletionContext::CCC_Type:
   case CodeCompletionContext::CCC_ParenthesizedExpression:
   case CodeCompletionContext::CCC_ObjCInterfaceName:
-  case CodeCompletionContext::CCC_ObjCCategoryName:
   case CodeCompletionContext::CCC_Symbol:
   case CodeCompletionContext::CCC_SymbolOrNewName:
     return true;
   case CodeCompletionContext::CCC_OtherWithMacros:
   case CodeCompletionContext::CCC_DotMemberAccess:
   case CodeCompletionContext::CCC_ArrowMemberAccess:
+  case CodeCompletionContext::CCC_ObjCCategoryName:
   case CodeCompletionContext::CCC_ObjCPropertyAccess:
   case CodeCompletionContext::CCC_MacroName:
   case CodeCompletionContext::CCC_MacroNameUse:
@@ -1343,13 +1351,30 @@ bool allowIndex(CodeCompletionContext &CC) {
   llvm_unreachable("invalid NestedNameSpecifier kind");
 }
 
-std::future<SymbolSlab> startAsyncFuzzyFind(const SymbolIndex &Index,
-                                            const FuzzyFindRequest &Req) {
-  return runAsync<SymbolSlab>([&Index, Req]() {
+// Should we include a symbol from the index given the completion kind?
+// FIXME: Ideally we can filter in the fuzzy find request itself.
+bool includeSymbolFromIndex(CodeCompletionContext::Kind Kind,
+                            const Symbol &Sym) {
+  // Objective-C protocols are only useful in ObjC protocol completions,
+  // in other places they're confusing, especially when they share the same
+  // identifier with a class.
+  if (Sym.SymInfo.Kind == index::SymbolKind::Protocol &&
+      Sym.SymInfo.Lang == index::SymbolLanguage::ObjC)
+    return Kind == CodeCompletionContext::CCC_ObjCProtocolName;
+  else if (Kind == CodeCompletionContext::CCC_ObjCProtocolName)
+    // Don't show anything else in ObjC protocol completions.
+    return false;
+  return true;
+}
+
+std::future<std::pair<bool, SymbolSlab>>
+startAsyncFuzzyFind(const SymbolIndex &Index, const FuzzyFindRequest &Req) {
+  return runAsync<std::pair<bool, SymbolSlab>>([&Index, Req]() {
     trace::Span Tracer("Async fuzzyFind");
     SymbolSlab::Builder Syms;
-    Index.fuzzyFind(Req, [&Syms](const Symbol &Sym) { Syms.insert(Sym); });
-    return std::move(Syms).build();
+    bool Incomplete =
+        Index.fuzzyFind(Req, [&Syms](const Symbol &Sym) { Syms.insert(Sym); });
+    return std::make_pair(Incomplete, std::move(Syms).build());
   });
 }
 
@@ -1675,14 +1700,6 @@ private:
     return Output;
   }
 
-  bool includeSymbolFromIndex(const Symbol &Sym) {
-    if (CCContextKind == CodeCompletionContext::CCC_ObjCProtocolName) {
-      return Sym.SymInfo.Lang == index::SymbolLanguage::ObjC &&
-          Sym.SymInfo.Kind == index::SymbolKind::Protocol;
-    }
-    return true;
-  }
-
   SymbolSlab queryIndex() {
     trace::Span Tracer("Query index");
     SPAN_ATTACH(Tracer, "limit", int64_t(Opts.Limit));
@@ -1709,18 +1726,17 @@ private:
       SPAN_ATTACH(Tracer, "Speculative results", true);
 
       trace::Span WaitSpec("Wait speculative results");
-      return SpecFuzzyFind->Result.get();
+      auto SpecRes = SpecFuzzyFind->Result.get();
+      Incomplete |= SpecRes.first;
+      return std::move(SpecRes.second);
     }
 
     SPAN_ATTACH(Tracer, "Speculative results", false);
 
     // Run the query against the index.
     SymbolSlab::Builder ResultsBuilder;
-    if (Opts.Index->fuzzyFind(Req, [&](const Symbol &Sym) {
-          if (includeSymbolFromIndex(Sym))
-            ResultsBuilder.insert(Sym);
-        }))
-      Incomplete = true;
+    Incomplete |= Opts.Index->fuzzyFind(
+        Req, [&](const Symbol &Sym) { ResultsBuilder.insert(Sym); });
     return std::move(ResultsBuilder).build();
   }
 
@@ -1782,6 +1798,8 @@ private:
     // Now emit any Index-only results.
     for (const auto &IndexResult : IndexResults) {
       if (UsedIndexResults.count(&IndexResult))
+        continue;
+      if (!includeSymbolFromIndex(CCContextKind, IndexResult))
         continue;
       AddToBundles(/*SemaResult=*/nullptr, &IndexResult, nullptr);
     }
@@ -1998,14 +2016,23 @@ CodeCompleteResult codeCompleteComment(PathRef FileName, unsigned Offset,
     return CodeCompleteResult();
 
   CodeCompleteResult Result;
+  Range CompletionRange;
+  // Skip /*
+  Offset += 2;
+  CompletionRange.start = offsetToPosition(ParseInput.Contents, Offset);
+  CompletionRange.end =
+      offsetToPosition(ParseInput.Contents, Offset + Prefix.size());
+  Result.CompletionRange = CompletionRange;
   Result.Context = CodeCompletionContext::CCC_NaturalLanguage;
   for (llvm::StringRef Name : ParamNames) {
     if (!Name.startswith(Prefix))
       continue;
     CodeCompletion Item;
-    Item.Name = Name.str() + "=";
+    Item.Name = Name.str() + "=*/";
     Item.FilterText = Item.Name;
     Item.Kind = CompletionItemKind::Text;
+    Item.CompletionTokenRange = CompletionRange;
+    Item.Origin = SymbolOrigin::AST;
     Result.Completions.push_back(Item);
   }
 
@@ -2098,6 +2125,9 @@ bool isIndexedForCodeCompletion(const NamedDecl &ND, ASTContext &ASTCtx) {
     };
     return false;
   };
+  auto InClassScope = [](const NamedDecl &ND) {
+    return ND.getDeclContext()->getDeclKind() == Decl::CXXRecord;
+  };
   // We only complete symbol's name, which is the same as the name of the
   // *primary* template in case of template specializations.
   if (isExplicitTemplateSpecialization(&ND))
@@ -2113,8 +2143,11 @@ bool isIndexedForCodeCompletion(const NamedDecl &ND, ASTContext &ASTCtx) {
   if (InTopLevelScope(ND))
     return true;
 
+  // Always index enum constants, even if they're not in the top level scope:
+  // when
+  // --all-scopes-completion is set, we'll want to complete those as well.
   if (const auto *EnumDecl = dyn_cast<clang::EnumDecl>(ND.getDeclContext()))
-    return InTopLevelScope(*EnumDecl) && !EnumDecl->isScoped();
+    return (InTopLevelScope(*EnumDecl) || InClassScope(*EnumDecl));
 
   return false;
 }

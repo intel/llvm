@@ -17,10 +17,11 @@ using namespace sycl;
 
 static bool HostUnifiedMemory = false;
 
-static pi_result redefinedDeviceGetInfo(pi_device Device,
-                                        pi_device_info ParamName,
-                                        size_t ParamValueSize, void *ParamValue,
-                                        size_t *ParamValueSizeRet) {
+static pi_result redefinedDeviceGetInfoAfter(pi_device Device,
+                                             pi_device_info ParamName,
+                                             size_t ParamValueSize,
+                                             void *ParamValue,
+                                             size_t *ParamValueSizeRet) {
   if (ParamName == PI_DEVICE_INFO_HOST_UNIFIED_MEMORY) {
     auto *Result = reinterpret_cast<pi_bool *>(ParamValue);
     *Result = HostUnifiedMemory;
@@ -28,38 +29,35 @@ static pi_result redefinedDeviceGetInfo(pi_device Device,
     auto *Result = reinterpret_cast<_pi_device_type *>(ParamValue);
     *Result = PI_DEVICE_TYPE_CPU;
   }
+
+  // This mock device has no sub-devices
+  if (ParamName == PI_DEVICE_INFO_PARTITION_PROPERTIES) {
+    if (ParamValueSizeRet) {
+      *ParamValueSizeRet = 0;
+    }
+  }
+  if (ParamName == PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN) {
+    assert(ParamValueSize == sizeof(pi_device_affinity_domain));
+    if (ParamValue) {
+      *static_cast<pi_device_affinity_domain *>(ParamValue) = 0;
+    }
+  }
   return PI_SUCCESS;
 }
-
-static pi_result
-redefinedMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
-                         void *host_ptr, pi_mem *ret_mem,
-                         const pi_mem_properties *properties = nullptr) {
-  *ret_mem = nullptr;
-  return PI_SUCCESS;
-}
-
-static pi_result redefinedMemRelease(pi_mem mem) { return PI_SUCCESS; }
 
 TEST_F(SchedulerTest, AllocaLinking) {
-  platform Plt{default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Not run due to host-only environment\n";
-    return;
-  }
-
   // This host device constructor should be placed before Mock.redefine
   // because it overrides the real implementation of get_device_info
   // which is needed when creating a host device.
-  device HostDevice{host_selector()};
+  device HostDevice = detail::createSyclObjFromImpl<device>(
+      detail::device_impl::getHostDeviceImpl());
   std::shared_ptr<detail::queue_impl> DefaultHostQueue{
       new detail::queue_impl(detail::getSyclObjImpl(HostDevice), {}, {})};
 
-  queue Q;
-  unittest::PiMock Mock{Q};
-  Mock.redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
-  Mock.redefine<detail::PiApiKind::piMemBufferCreate>(redefinedMemBufferCreate);
-  Mock.redefine<detail::PiApiKind::piMemRelease>(redefinedMemRelease);
+  sycl::unittest::PiMock Mock;
+  sycl::queue Q{Mock.getPlatform().get_devices()[0]};
+  Mock.redefineAfter<detail::PiApiKind::piDeviceGetInfo>(
+      redefinedDeviceGetInfoAfter);
   sycl::detail::QueueImplPtr QImpl = detail::getSyclObjImpl(Q);
 
   MockScheduler MS;

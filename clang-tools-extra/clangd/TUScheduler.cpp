@@ -245,7 +245,7 @@ private:
 /// threads, remove()s mostly from the main thread, and get() from ASTWorker.
 /// Writes are rare and reads are cheap, so we don't expect much contention.
 class TUScheduler::HeaderIncluderCache {
-  // We should be be a little careful how we store the include graph of open
+  // We should be a little careful how we store the include graph of open
   // files, as each can have a large number of transitive headers.
   // This representation is O(unique transitive source files).
   llvm::BumpPtrAllocator Arena;
@@ -390,7 +390,8 @@ public:
   PreambleThrottlerRequest(llvm::StringRef Filename,
                            PreambleThrottler *Throttler,
                            std::condition_variable &CV)
-      : Throttler(Throttler), Satisfied(Throttler == nullptr) {
+      : Throttler(Throttler),
+        Satisfied(Throttler == nullptr) {
     // If there is no throttler, this dummy request is always satisfied.
     if (!Throttler)
       return;
@@ -473,13 +474,18 @@ public:
         if (Done)
           break;
 
-        Throttle.emplace(FileName, Throttler, ReqCV);
-        // If acquire succeeded synchronously, avoid status jitter.
-        if (!Throttle->satisfied())
-          Status.update([&](TUStatus &Status) {
-            Status.PreambleActivity = PreambleAction::Queued;
-          });
-        ReqCV.wait(Lock, [&] { return Throttle->satisfied() || Done; });
+        {
+          Throttle.emplace(FileName, Throttler, ReqCV);
+          llvm::Optional<trace::Span> Tracer;
+          // If acquire succeeded synchronously, avoid status jitter.
+          if (!Throttle->satisfied()) {
+            Tracer.emplace("PreambleThrottle");
+            Status.update([&](TUStatus &Status) {
+              Status.PreambleActivity = PreambleAction::Queued;
+            });
+          }
+          ReqCV.wait(Lock, [&] { return Throttle->satisfied() || Done; });
+        }
         if (Done)
           break;
         // While waiting for the throttler, the request may have been updated!

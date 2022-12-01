@@ -22,9 +22,5 @@ class initialize_to_identity
 } // namespace property
 
 // Reduction property trait specializations
-template <>
-struct is_property<property::reduction::initialize_to_identity>
-    : std::true_type {};
-
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

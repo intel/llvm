@@ -1,9 +1,9 @@
-// RUN: %clang_cc1 %s -triple spir -cl-std=CL2.0 -fdeclare-opencl-builtins -finclude-default-header -emit-llvm-bc -o %t.bc -no-opaque-pointers
+// RUN: %clang_cc1 %s -triple spir -cl-std=CL2.0 -fdeclare-opencl-builtins -finclude-default-header -emit-llvm-bc -o %t.bc
 
 // RUN: llvm-spirv %t.bc -o %t.spv
 // RUN: spirv-val %t.spv
 // RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
-// RUN: llvm-spirv %t.spv -r -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: llvm-spirv %t.spv -r -emit-opaque-pointers -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 // CHECK-SPIRV: Capability GroupNonUniformBallot
 // CHECK-SPIRV: Decorate {{[0-9]+}} BuiltIn 4418

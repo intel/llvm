@@ -304,6 +304,12 @@ bool llvm::isAllocationFn(
 }
 
 /// Tests if a value is a call or invoke to a library function that
+/// allocates memory via new.
+bool llvm::isNewLikeFn(const Value *V, const TargetLibraryInfo *TLI) {
+  return getAllocationData(V, OpNewLike, TLI).has_value();
+}
+
+/// Tests if a value is a call or invoke to a library function that
 /// allocates uninitialized memory (such as malloc).
 static bool isMallocLikeFn(const Value *V, const TargetLibraryInfo *TLI) {
   return getAllocationData(V, MallocOrOpNewLike, TLI).has_value();
@@ -777,9 +783,6 @@ bool ObjectSizeOffsetVisitor::CheckedZextOrTrunc(APInt &I) {
 }
 
 SizeOffsetType ObjectSizeOffsetVisitor::visitAllocaInst(AllocaInst &I) {
-  if (!I.getAllocatedType()->isSized())
-    return unknown();
-
   TypeSize ElemSize = DL.getTypeAllocSize(I.getAllocatedType());
   if (ElemSize.isScalable() && Options.EvalMode != ObjectSizeOpts::Mode::Min)
     return unknown();

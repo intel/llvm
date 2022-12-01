@@ -20,25 +20,14 @@ namespace {
 inline constexpr auto EnableDefaultContextsName =
     "SYCL_ENABLE_DEFAULT_CONTEXTS";
 
-pi_result redefinedContextCreate(const pi_context_properties *properties,
-                                 pi_uint32 num_devices,
-                                 const pi_device *devices,
-                                 void (*pfn_notify)(const char *errinfo,
-                                                    const void *private_info,
-                                                    size_t cb, void *user_data),
-                                 void *user_data, pi_context *ret_context) {
-  *ret_context = reinterpret_cast<pi_context>(1);
-  return PI_SUCCESS;
-}
-
-pi_result redefinedContextRelease(pi_context context) { return PI_SUCCESS; }
-
 pi_device ParentDevice = nullptr;
 pi_platform PiPlatform = nullptr;
 
-pi_result redefinedDeviceGetInfo(pi_device device, pi_device_info param_name,
-                                 size_t param_value_size, void *param_value,
-                                 size_t *param_value_size_ret) {
+pi_result redefinedDeviceGetInfoAfter(pi_device device,
+                                      pi_device_info param_name,
+                                      size_t param_value_size,
+                                      void *param_value,
+                                      size_t *param_value_size_ret) {
   if (param_name == PI_DEVICE_INFO_PARTITION_PROPERTIES) {
     if (param_value) {
       auto *Result =
@@ -64,30 +53,18 @@ pi_result redefinedDeviceGetInfo(pi_device device, pi_device_info param_name,
   return PI_SUCCESS;
 }
 
-pi_result redefinedDevicePartition(
+pi_result redefinedDevicePartitionAfter(
     pi_device device, const pi_device_partition_property *properties,
     pi_uint32 num_devices, pi_device *out_devices, pi_uint32 *out_num_devices) {
   if (out_devices) {
-    for (pi_uint32 I = 0; I < num_devices; ++I) {
-      out_devices[I] = reinterpret_cast<pi_device>(1);
+    for (size_t I = 0; I < num_devices; ++I) {
+      out_devices[I] = reinterpret_cast<pi_device>(1000 + I);
     }
   }
   if (out_num_devices)
     *out_num_devices = num_devices;
   return PI_SUCCESS;
 }
-
-pi_result redefinedDeviceRetain(pi_device device) { return PI_SUCCESS; }
-
-pi_result redefinedDeviceRelease(pi_device device) { return PI_SUCCESS; }
-
-pi_result redefinedQueueCreate(pi_context context, pi_device device,
-                               pi_queue_properties properties,
-                               pi_queue *queue) {
-  return PI_SUCCESS;
-}
-
-pi_result redefinedQueueRelease(pi_queue queue) { return PI_SUCCESS; }
 
 // Check that the device is verified to be either a member of the context or a
 // descendant of its member.
@@ -96,26 +73,17 @@ TEST(QueueDeviceCheck, CheckDeviceRestriction) {
       EnableDefaultContextsName, "1",
       detail::SYCLConfig<detail::SYCL_ENABLE_DEFAULT_CONTEXTS>::reset);
 
-  platform Plt{default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "The test is not supported on host, skipping" << std::endl;
-    GTEST_SKIP();
-  }
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+
   PiPlatform = detail::getSyclObjImpl(Plt)->getHandleRef();
-  // Create default context normally to avoid issues during its release, which
-  // takes plase after Mock is destroyed.
   context DefaultCtx = Plt.ext_oneapi_get_default_context();
   device Dev = DefaultCtx.get_devices()[0];
 
-  unittest::PiMock Mock{Plt};
-  Mock.redefine<detail::PiApiKind::piContextCreate>(redefinedContextCreate);
-  Mock.redefine<detail::PiApiKind::piContextRelease>(redefinedContextRelease);
-  Mock.redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
-  Mock.redefine<detail::PiApiKind::piDevicePartition>(redefinedDevicePartition);
-  Mock.redefine<detail::PiApiKind::piDeviceRelease>(redefinedDeviceRelease);
-  Mock.redefine<detail::PiApiKind::piDeviceRetain>(redefinedDeviceRetain);
-  Mock.redefine<detail::PiApiKind::piQueueCreate>(redefinedQueueCreate);
-  Mock.redefine<detail::PiApiKind::piQueueRelease>(redefinedQueueRelease);
+  Mock.redefineAfter<detail::PiApiKind::piDeviceGetInfo>(
+      redefinedDeviceGetInfoAfter);
+  Mock.redefineAfter<detail::PiApiKind::piDevicePartition>(
+      redefinedDevicePartitionAfter);
 
   // Device is a member of the context.
   {

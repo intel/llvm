@@ -10,9 +10,10 @@ template <unsigned ID> struct ethernet_pipe_id {
   static constexpr unsigned id = ID;
 };
 
-template <typename T, sycl::access::address_space space>
-void lsu_body(sycl::multi_ptr<T, space> input_ptr,
-              sycl::multi_ptr<T, space> output_ptr) {
+template <typename T, sycl::access::address_space space,
+          sycl::access::decorated is_decorated>
+void lsu_body(sycl::multi_ptr<T, space, is_decorated> input_ptr,
+              sycl::multi_ptr<T, space, is_decorated> output_ptr) {
   using PrefetchingLSU =
       sycl::ext::intel::lsu<sycl::ext::intel::prefetch<true>,
                             sycl::ext::intel::statically_coalesce<false>>;

@@ -82,6 +82,7 @@ add_clang_library(clangBasic
   Targets/Hexagon.cpp
   Targets/Lanai.cpp
   Targets/Le64.cpp
+  Targets/LoongArch.cpp
   Targets/M68k.cpp
   Targets/MSP430.cpp
   Targets/Mips.cpp
@@ -110,3 +111,7 @@ add_clang_library(clangBasic
   omp_gen
   )
 
+target_link_libraries(clangBasic
+  PRIVATE
+  ${LLVM_ATOMIC_LIB}
+)

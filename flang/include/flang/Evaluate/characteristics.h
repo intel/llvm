@@ -16,6 +16,7 @@
 #include "common.h"
 #include "expression.h"
 #include "shape.h"
+#include "tools.h"
 #include "type.h"
 #include "flang/Common/Fortran-features.h"
 #include "flang/Common/Fortran.h"
@@ -212,6 +213,7 @@ struct DummyProcedure {
   bool operator!=(const DummyProcedure &that) const { return !(*this == that); }
   bool IsCompatibleWith(
       const DummyProcedure &, std::string *whyNot = nullptr) const;
+  bool CanBePassedViaImplicitInterface() const;
   llvm::raw_ostream &Dump(llvm::raw_ostream &) const;
 
   CopyableIndirection<Procedure> procedure;

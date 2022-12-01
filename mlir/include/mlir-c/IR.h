@@ -376,11 +376,12 @@ MLIR_CAPI_EXPORTED void
 mlirOpPrintingFlagsElideLargeElementsAttrs(MlirOpPrintingFlags flags,
                                            intptr_t largeElementLimit);
 
-/// Enable printing of debug information. If 'prettyForm' is set to true,
-/// debug information is printed in a more readable 'pretty' form. Note: The
-/// IR generated with 'prettyForm' is not parsable.
+/// Enable or disable printing of debug information (based on `enable`). If
+/// 'prettyForm' is set to true, debug information is printed in a more readable
+/// 'pretty' form. Note: The IR generated with 'prettyForm' is not parsable.
 MLIR_CAPI_EXPORTED void
-mlirOpPrintingFlagsEnableDebugInfo(MlirOpPrintingFlags flags, bool prettyForm);
+mlirOpPrintingFlagsEnableDebugInfo(MlirOpPrintingFlags flags, bool enable,
+                                   bool prettyForm);
 
 /// Always print operations in the generic form.
 MLIR_CAPI_EXPORTED void
@@ -520,6 +521,11 @@ MLIR_CAPI_EXPORTED void mlirOperationPrintWithFlags(MlirOperation op,
                                                     MlirOpPrintingFlags flags,
                                                     MlirStringCallback callback,
                                                     void *userData);
+
+/// Same as mlirOperationPrint but writing the bytecode format out.
+MLIR_CAPI_EXPORTED void mlirOperationWriteBytecode(MlirOperation op,
+                                                   MlirStringCallback callback,
+                                                   void *userData);
 
 /// Prints an operation to stderr.
 MLIR_CAPI_EXPORTED void mlirOperationDump(MlirOperation op);

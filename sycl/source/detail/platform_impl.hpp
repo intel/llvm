@@ -137,6 +137,14 @@ public:
   /// given feature.
   bool has(aspect Aspect) const;
 
+  /// Queries the device_impl cache to return a shared_ptr for the
+  /// device_impl corresponding to the PiDevice.
+  ///
+  /// \param PiDevice is the PiDevice whose impl is requested
+  ///
+  /// \return a shared_ptr<device_impl> corresponding to the device
+  std::shared_ptr<device_impl> getDeviceImpl(RT::PiDevice PiDevice);
+
   /// Queries the device_impl cache to either return a shared_ptr
   /// for the device_impl corresponding to the PiDevice or add
   /// a new entry to the cache
@@ -180,7 +188,13 @@ public:
   static std::shared_ptr<platform_impl>
   getPlatformFromPiDevice(RT::PiDevice PiDevice, const plugin &Plugin);
 
+  // when getting sub-devices for ONEAPI_DEVICE_SELECTOR we may temporarily
+  // ensure every device is a root one.
+  bool MAlwaysRootDevice = false;
+
 private:
+  std::shared_ptr<device_impl> getDeviceImplHelper(RT::PiDevice PiDevice);
+
   bool MHostPlatform = false;
   RT::PiPlatform MPlatform = 0;
   std::shared_ptr<plugin> MPlugin;

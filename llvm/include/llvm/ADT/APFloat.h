@@ -153,10 +153,18 @@ struct APFloatBase {
     S_BFloat,
     S_IEEEsingle,
     S_IEEEdouble,
-    S_x87DoubleExtended,
     S_IEEEquad,
     S_PPCDoubleDouble,
-    S_MaxSemantics = S_PPCDoubleDouble
+    // 8-bit floating point number following IEEE-754 conventions with bit
+    // layout S1E5M2 as described in https://arxiv.org/abs/2209.05433.
+    S_Float8E5M2,
+    // 8-bit floating point number mostly following IEEE-754 conventions with
+    // bit layout S1E4M3 as described in https://arxiv.org/abs/2209.05433.
+    // Unlike IEEE-754 types, there are no infinity values, and NaN is
+    // represented with the exponent and mantissa bits set to all 1s.
+    S_Float8E4M3FN,
+    S_x87DoubleExtended,
+    S_MaxSemantics = S_x87DoubleExtended,
   };
 
   static const llvm::fltSemantics &EnumToSemantics(Semantics S);
@@ -168,6 +176,8 @@ struct APFloatBase {
   static const fltSemantics &IEEEdouble() LLVM_READNONE;
   static const fltSemantics &IEEEquad() LLVM_READNONE;
   static const fltSemantics &PPCDoubleDouble() LLVM_READNONE;
+  static const fltSemantics &Float8E5M2() LLVM_READNONE;
+  static const fltSemantics &Float8E4M3FN() LLVM_READNONE;
   static const fltSemantics &x87DoubleExtended() LLVM_READNONE;
 
   /// A Pseudo fltsemantic used to construct APFloats that cannot conflict with
@@ -504,6 +514,7 @@ private:
   void zeroSignificand();
   /// Return true if the significand excluding the integral bit is all ones.
   bool isSignificandAllOnes() const;
+  bool isSignificandAllOnesExceptLSB() const;
   /// Return true if the significand excluding the integral bit is all zeros.
   bool isSignificandAllZeros() const;
 
@@ -552,6 +563,8 @@ private:
   APInt convertQuadrupleAPFloatToAPInt() const;
   APInt convertF80LongDoubleAPFloatToAPInt() const;
   APInt convertPPCDoubleDoubleAPFloatToAPInt() const;
+  APInt convertFloat8E5M2APFloatToAPInt() const;
+  APInt convertFloat8E4M3FNAPFloatToAPInt() const;
   void initFromAPInt(const fltSemantics *Sem, const APInt &api);
   void initFromHalfAPInt(const APInt &api);
   void initFromBFloatAPInt(const APInt &api);
@@ -560,6 +573,8 @@ private:
   void initFromQuadrupleAPInt(const APInt &api);
   void initFromF80LongDoubleAPInt(const APInt &api);
   void initFromPPCDoubleDoubleAPInt(const APInt &api);
+  void initFromFloat8E5M2APInt(const APInt &api);
+  void initFromFloat8E4M3FNAPInt(const APInt &api);
 
   void assign(const IEEEFloat &);
   void copySignificand(const IEEEFloat &);
@@ -702,7 +717,7 @@ class APFloat : public APFloatBase {
   typedef detail::IEEEFloat IEEEFloat;
   typedef detail::DoubleAPFloat DoubleAPFloat;
 
-  static_assert(std::is_standard_layout<IEEEFloat>::value, "");
+  static_assert(std::is_standard_layout<IEEEFloat>::value);
 
   union Storage {
     const fltSemantics *semantics;
@@ -795,7 +810,7 @@ class APFloat : public APFloatBase {
 
   template <typename T> static bool usesLayout(const fltSemantics &Semantics) {
     static_assert(std::is_same<T, IEEEFloat>::value ||
-                  std::is_same<T, DoubleAPFloat>::value, "");
+                  std::is_same<T, DoubleAPFloat>::value);
     if (std::is_same<T, DoubleAPFloat>::value) {
       return &Semantics == &PPCDoubleDouble();
     }

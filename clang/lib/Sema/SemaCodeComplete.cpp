@@ -1098,7 +1098,8 @@ void ResultBuilder::MaybeAddResult(Result R, DeclContext *CurContext) {
                                 getBasePriority(Using->getTargetDecl()),
                                 R.Qualifier, false,
                                 (R.Availability == CXAvailability_Available ||
-                                 R.Availability == CXAvailability_Deprecated));
+                                 R.Availability == CXAvailability_Deprecated),
+                                std::move(R.FixIts));
     Result.ShadowDecl = Using;
     MaybeAddResult(Result, CurContext);
     return;
@@ -1230,8 +1231,8 @@ static OverloadCompare compareOverloads(const CXXMethodDecl &Candidate,
     if (Candidate.parameters()[I]->getType().getCanonicalType() !=
         Incumbent.parameters()[I]->getType().getCanonicalType())
       return OverloadCompare::BothViable;
-  if (!llvm::empty(Candidate.specific_attrs<EnableIfAttr>()) ||
-      !llvm::empty(Incumbent.specific_attrs<EnableIfAttr>()))
+  if (!Candidate.specific_attrs<EnableIfAttr>().empty() ||
+      !Incumbent.specific_attrs<EnableIfAttr>().empty())
     return OverloadCompare::BothViable;
   // At this point, we know calls can't pick one or the other based on
   // arguments, so one of the two must win. (Or both fail, handled elsewhere).
@@ -1273,7 +1274,8 @@ void ResultBuilder::AddResult(Result R, DeclContext *CurContext,
                                 getBasePriority(Using->getTargetDecl()),
                                 R.Qualifier, false,
                                 (R.Availability == CXAvailability_Available ||
-                                 R.Availability == CXAvailability_Deprecated));
+                                 R.Availability == CXAvailability_Deprecated),
+                                std::move(R.FixIts));
     Result.ShadowDecl = Using;
     AddResult(Result, CurContext, Hiding);
     return;
@@ -1376,6 +1378,33 @@ void ResultBuilder::AddResult(Result R, DeclContext *CurContext,
         }
         OverloadSet.Add(Method, Results.size());
       }
+
+  // When completing a non-static member function (and not via
+  // dot/arrow member access) and we're not inside that class' scope,
+  // it can't be a call.
+  if (CompletionContext.getKind() == clang::CodeCompletionContext::CCC_Symbol) {
+    const auto *Method = dyn_cast<CXXMethodDecl>(R.getDeclaration());
+    if (Method && !Method->isStatic()) {
+      // Find the class scope that we're currently in.
+      // We could e.g. be inside a lambda, so walk up the DeclContext until we
+      // find a CXXMethodDecl.
+      const auto *CurrentClassScope = [&]() -> const CXXRecordDecl * {
+        for (DeclContext *Ctx = SemaRef.CurContext; Ctx;
+             Ctx = Ctx->getParent()) {
+          const auto *CtxMethod = llvm::dyn_cast<CXXMethodDecl>(Ctx);
+          if (CtxMethod && !CtxMethod->getParent()->isLambda()) {
+            return CtxMethod->getParent();
+          }
+        }
+        return nullptr;
+      }();
+
+      R.FunctionCanBeCall =
+          CurrentClassScope &&
+          (CurrentClassScope == Method->getParent() ||
+           CurrentClassScope->isDerivedFrom(Method->getParent()));
+    }
+  }
 
   // Insert this result into the set of results.
   Results.push_back(R);
@@ -1807,7 +1836,7 @@ static void AddFunctionSpecifiers(Sema::ParserCompletionContext CCC,
       Results.AddResult(Result("mutable"));
       Results.AddResult(Result("virtual"));
     }
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
 
   case Sema::PCC_ObjCInterface:
   case Sema::PCC_ObjCImplementation:
@@ -2095,7 +2124,7 @@ static void AddOrdinaryNameResults(Sema::ParserCompletionContext CCC, Scope *S,
       AddObjCTopLevelResults(Results, true);
 
     AddTypedefResult(Results);
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
 
   case Sema::PCC_Class:
     if (SemaRef.getLangOpts().CPlusPlus) {
@@ -2153,7 +2182,7 @@ static void AddOrdinaryNameResults(Sema::ParserCompletionContext CCC, Scope *S,
                            Builder);
       }
     }
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
 
   case Sema::PCC_Template:
   case Sema::PCC_MemberTemplate:
@@ -2423,14 +2452,14 @@ static void AddOrdinaryNameResults(Sema::ParserCompletionContext CCC, Scope *S,
 
     AddStaticAssertResult(Builder, Results, SemaRef.getLangOpts());
   }
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
 
   // Fall through (for statement expressions).
   case Sema::PCC_ForInit:
   case Sema::PCC_Condition:
     AddStorageSpecifiers(CCC, SemaRef.getLangOpts(), Results);
     // Fall through: conditions and statements can have expressions.
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
 
   case Sema::PCC_ParenthesizedExpression:
     if (SemaRef.getLangOpts().ObjCAutoRefCount &&
@@ -2460,7 +2489,7 @@ static void AddOrdinaryNameResults(Sema::ParserCompletionContext CCC, Scope *S,
       Results.AddResult(Result(Builder.TakeString()));
     }
     // Fall through
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
 
   case Sema::PCC_Expression: {
     if (SemaRef.getLangOpts().CPlusPlus) {
@@ -2640,6 +2669,13 @@ static void AddOrdinaryNameResults(Sema::ParserCompletionContext CCC, Scope *S,
       Builder.AddChunk(CodeCompletionString::CK_LeftParen);
       Builder.AddPlaceholderChunk("type");
       Builder.AddChunk(CodeCompletionString::CK_RightParen);
+      Results.AddResult(Result(Builder.TakeString()));
+    }
+
+    if (SemaRef.getLangOpts().C2x) {
+      // nullptr
+      Builder.AddResultTypeChunk("nullptr_t");
+      Builder.AddTypedTextChunk("nullptr");
       Results.AddResult(Result(Builder.TakeString()));
     }
 
@@ -4199,7 +4235,7 @@ static void MaybeAddOverrideCalls(Sema &S, DeclContext *InContext,
 
   // We need to have names for all of the parameters, if we're going to
   // generate a forwarding call.
-  for (auto P : Method->parameters())
+  for (auto *P : Method->parameters())
     if (!P->getDeclName())
       return;
 
@@ -4227,7 +4263,7 @@ static void MaybeAddOverrideCalls(Sema &S, DeclContext *InContext,
         Results.getAllocator().CopyString(Overridden->getNameAsString()));
     Builder.AddChunk(CodeCompletionString::CK_LeftParen);
     bool FirstParam = true;
-    for (auto P : Method->parameters()) {
+    for (auto *P : Method->parameters()) {
       if (FirstParam)
         FirstParam = false;
       else
@@ -4657,9 +4693,9 @@ static const FunctionProtoType *TryDeconstructFunctionLike(QualType T) {
   // Note we only handle the sugared types, they closely match what users wrote.
   // We explicitly choose to not handle ClassTemplateSpecializationDecl.
   if (auto *Specialization = T->getAs<TemplateSpecializationType>()) {
-    if (Specialization->getNumArgs() != 1)
+    if (Specialization->template_arguments().size() != 1)
       return nullptr;
-    const TemplateArgument &Argument = Specialization->getArg(0);
+    const TemplateArgument &Argument = Specialization->template_arguments()[0];
     if (Argument.getKind() != TemplateArgument::Type)
       return nullptr;
     return Argument.getAsType()->getAs<FunctionProtoType>();
@@ -8505,7 +8541,7 @@ void Sema::CodeCompleteObjCImplementationCategory(Scope *S,
                         CodeCompleter->getCodeCompletionTUInfo(),
                         CodeCompletionContext::CCC_ObjCCategoryName);
 
-  // Add all of the categories that have have corresponding interface
+  // Add all of the categories that have corresponding interface
   // declarations in this class and any of its superclasses, except for
   // already-implemented categories in the class itself.
   llvm::SmallPtrSet<IdentifierInfo *, 16> CategoryNames;

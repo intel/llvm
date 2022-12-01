@@ -118,7 +118,7 @@ static unsigned int adjustColumnPos(FullSourceLoc Loc,
                                     unsigned int TokenLen = 0) {
   assert(!Loc.isInvalid() && "invalid Loc when adjusting column position");
 
-  std::pair<FileID, unsigned> LocInfo = Loc.getDecomposedLoc();
+  std::pair<FileID, unsigned> LocInfo = Loc.getDecomposedExpansionLoc();
   Optional<MemoryBufferRef> Buf =
       Loc.getManager().getBufferOrNone(LocInfo.first);
   assert(Buf && "got an invalid buffer for the location's file");
@@ -149,13 +149,16 @@ json::Object createMessage(StringRef Text) {
 /// \pre CharSourceRange must be a token range
 static json::Object createTextRegion(const SourceManager &SM,
                                      const CharSourceRange &R) {
-  FullSourceLoc FirstTokenLoc{R.getBegin(), SM};
-  FullSourceLoc LastTokenLoc{R.getEnd(), SM};
-  json::Object Region{{"startLine", FirstTokenLoc.getExpansionLineNumber()},
-                      {"startColumn", adjustColumnPos(FirstTokenLoc)},
-                      {"endColumn", adjustColumnPos(LastTokenLoc)}};
-  if (FirstTokenLoc != LastTokenLoc) {
-    Region["endLine"] = LastTokenLoc.getExpansionLineNumber();
+  FullSourceLoc BeginCharLoc{R.getBegin(), SM};
+  FullSourceLoc EndCharLoc{R.getEnd(), SM};
+  json::Object Region{{"startLine", BeginCharLoc.getExpansionLineNumber()},
+                      {"startColumn", adjustColumnPos(BeginCharLoc)}};
+
+  if (BeginCharLoc == EndCharLoc) {
+    Region["endColumn"] = adjustColumnPos(BeginCharLoc);
+  } else {
+    Region["endLine"] = EndCharLoc.getExpansionLineNumber();
+    Region["endColumn"] = adjustColumnPos(EndCharLoc);
   }
   return Region;
 }
@@ -178,6 +181,21 @@ static StringRef importanceToStr(ThreadFlowImportance I) {
     return "unimportant";
   }
   llvm_unreachable("Fully covered switch is not so fully covered");
+}
+
+static StringRef resultLevelToStr(SarifResultLevel R) {
+  switch (R) {
+  case SarifResultLevel::None:
+    return "none";
+  case SarifResultLevel::Note:
+    return "note";
+  case SarifResultLevel::Warning:
+    return "warning";
+  case SarifResultLevel::Error:
+    return "error";
+  }
+  llvm_unreachable("Potentially un-handled SarifResultLevel. "
+                   "Is the switch not fully covered?");
 }
 
 static json::Object
@@ -217,8 +235,10 @@ SarifDocumentWriter::createPhysicalLocation(const CharSourceRange &R) {
   }
   assert(I != CurrentArtifacts.end() && "Failed to insert new artifact");
   const SarifArtifactLocation &Location = I->second.Location;
-  uint32_t Idx = Location.Index.value();
-  return json::Object{{{"artifactLocation", json::Object{{{"index", Idx}}}},
+  json::Object ArtifactLocationObject{{"uri", Location.URI}};
+  if (Location.Index.has_value())
+    ArtifactLocationObject["index"] = Location.Index.value();
+  return json::Object{{{"artifactLocation", std::move(ArtifactLocationObject)},
                        {"region", createTextRegion(SourceMgr, R)}}};
 }
 
@@ -253,10 +273,15 @@ void SarifDocumentWriter::endRun() {
   json::Object &Tool = getCurrentTool();
   json::Array Rules;
   for (const SarifRule &R : CurrentRules) {
+    json::Object Config{
+        {"enabled", R.DefaultConfiguration.Enabled},
+        {"level", resultLevelToStr(R.DefaultConfiguration.Level)},
+        {"rank", R.DefaultConfiguration.Rank}};
     json::Object Rule{
         {"name", R.Name},
         {"id", R.Id},
-        {"fullDescription", json::Object{{"text", R.Description}}}};
+        {"fullDescription", json::Object{{"text", R.Description}}},
+        {"defaultConfiguration", std::move(Config)}};
     if (!R.HelpURI.empty())
       Rule["helpUri"] = R.HelpURI;
     Rules.emplace_back(std::move(Rule));
@@ -358,9 +383,12 @@ void SarifDocumentWriter::appendResult(const SarifResult &Result) {
   size_t RuleIdx = Result.RuleIdx;
   assert(RuleIdx < CurrentRules.size() &&
          "Trying to reference a rule that doesn't exist");
+  const SarifRule &Rule = CurrentRules[RuleIdx];
+  assert(Rule.DefaultConfiguration.Enabled &&
+         "Cannot add a result referencing a disabled Rule");
   json::Object Ret{{"message", createMessage(Result.DiagnosticMessage)},
                    {"ruleIndex", static_cast<int64_t>(RuleIdx)},
-                   {"ruleId", CurrentRules[RuleIdx].Id}};
+                   {"ruleId", Rule.Id}};
   if (!Result.Locations.empty()) {
     json::Array Locs;
     for (auto &Range : Result.Locations) {
@@ -370,6 +398,10 @@ void SarifDocumentWriter::appendResult(const SarifResult &Result) {
   }
   if (!Result.ThreadFlows.empty())
     Ret["codeFlows"] = json::Array{createCodeFlow(Result.ThreadFlows)};
+
+  Ret["level"] = resultLevelToStr(
+      Result.LevelOverride.value_or(Rule.DefaultConfiguration.Level));
+
   json::Object &Run = getCurrentRun();
   json::Array *Results = Run.getArray("results");
   Results->emplace_back(std::move(Ret));

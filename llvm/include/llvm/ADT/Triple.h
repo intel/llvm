@@ -111,10 +111,12 @@ public:
   enum SubArchType {
     NoSubArch,
 
+    ARMSubArch_v9_4a,
     ARMSubArch_v9_3a,
     ARMSubArch_v9_2a,
     ARMSubArch_v9_1a,
     ARMSubArch_v9,
+    ARMSubArch_v8_9a,
     ARMSubArch_v8_8a,
     ARMSubArch_v8_7a,
     ARMSubArch_v8_6a,
@@ -143,6 +145,7 @@ public:
     ARMSubArch_v4t,
 
     AArch64SubArch_arm64e,
+    AArch64SubArch_arm64ec,
 
     KalimbaSubArch_v3,
     KalimbaSubArch_v4,
@@ -235,6 +238,9 @@ public:
     GNUABI64,
     GNUEABI,
     GNUEABIHF,
+    GNUF32,
+    GNUF64,
+    GNUSF,
     GNUX32,
     GNUILP32,
     CODE16,
@@ -254,6 +260,9 @@ public:
     MacABI, // Mac Catalyst variant of Apple's iOS deployment target.
     
     // Shader Stages
+    // The order of these values matters, and must be kept in sync with the
+    // language options enum in Clang. The ordering is enforced in
+    // static_asserts in Triple.cpp and in Clang.
     Pixel,
     Vertex,
     Geometry,
@@ -561,7 +570,9 @@ public:
     EnvironmentType Env = getEnvironment();
     return Env == Triple::GNU || Env == Triple::GNUABIN32 ||
            Env == Triple::GNUABI64 || Env == Triple::GNUEABI ||
-           Env == Triple::GNUEABIHF || Env == Triple::GNUX32;
+           Env == Triple::GNUEABIHF || Env == Triple::GNUF32 ||
+           Env == Triple::GNUF64 || Env == Triple::GNUSF ||
+           Env == Triple::GNUX32;
   }
 
   bool isOSContiki() const {
@@ -587,6 +598,12 @@ public:
   bool isWindowsMSVCEnvironment() const {
     return isKnownWindowsMSVCEnvironment() ||
            (isOSWindows() && getEnvironment() == Triple::UnknownEnvironment);
+  }
+
+  // Checks if we're using the Windows Arm64EC ABI.
+  bool isWindowsArm64EC() const {
+    return getArch() == Triple::aarch64 &&
+           getSubArch() == Triple::AArch64SubArch_arm64ec;
   }
 
   bool isWindowsCoreCLREnvironment() const {
@@ -684,6 +701,11 @@ public:
   /// Tests whether the OS uses the XCOFF binary format.
   bool isOSBinFormatXCOFF() const {
     return getObjectFormat() == Triple::XCOFF;
+  }
+
+  /// Tests whether the OS uses the DXContainer binary format.
+  bool isOSBinFormatDXContainer() const {
+    return getObjectFormat() == Triple::DXContainer;
   }
 
   /// Tests whether the target is the PS4 platform.
@@ -865,10 +887,14 @@ public:
     return getArch() == Triple::ppc64 || getArch() == Triple::ppc64le;
   }
 
+  /// Tests whether the target is 32-bit RISC-V.
+  bool isRISCV32() const { return getArch() == Triple::riscv32; }
+
+  /// Tests whether the target is 64-bit RISC-V.
+  bool isRISCV64() const { return getArch() == Triple::riscv64; }
+
   /// Tests whether the target is RISC-V (32- and 64-bit).
-  bool isRISCV() const {
-    return getArch() == Triple::riscv32 || getArch() == Triple::riscv64;
-  }
+  bool isRISCV() const { return isRISCV32() || isRISCV64(); }
 
   /// Tests whether the target is 32-bit SPARC (little and big endian).
   bool isSPARC32() const {
@@ -920,7 +946,8 @@ public:
 
   /// Tests whether the target supports comdat
   bool supportsCOMDAT() const {
-    return !(isOSBinFormatMachO() || isOSBinFormatXCOFF());
+    return !(isOSBinFormatMachO() || isOSBinFormatXCOFF() ||
+             isOSBinFormatDXContainer());
   }
 
   /// Tests whether the target uses emulated TLS as default.
@@ -1009,12 +1036,6 @@ public:
   /// \returns A new triple with a little endian architecture or an unknown
   ///          architecture if no such variant can be found.
   llvm::Triple getLittleEndianArchVariant() const;
-
-  /// Get the (LLVM) name of the minimum ARM CPU for the arch we are targeting.
-  ///
-  /// \param Arch the architecture name (e.g., "armv7s"). If it is an empty
-  /// string then the triple's arch name is used.
-  StringRef getARMCPUForArch(StringRef Arch = StringRef()) const;
 
   /// Tests whether the target triple is little endian.
   ///

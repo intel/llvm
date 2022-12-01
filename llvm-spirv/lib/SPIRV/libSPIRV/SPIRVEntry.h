@@ -310,6 +310,11 @@ public:
   std::vector<SPIRVWord>
   getMemberDecorationLiterals(Decoration Kind, SPIRVWord MemberNumber) const;
   std::vector<std::string> getDecorationStringLiteral(Decoration Kind) const;
+  std::vector<std::vector<std::string>>
+  getAllDecorationStringLiterals(Decoration Kind) const;
+  std::vector<std::vector<std::string>>
+  getAllMemberDecorationStringLiterals(Decoration Kind,
+                                       SPIRVWord MemberNumber) const;
   std::vector<std::string>
   getMemberDecorationStringLiteral(Decoration Kind,
                                    SPIRVWord MemberNumber) const;
@@ -423,8 +428,8 @@ protected:
   /// An entry may have multiple FuncParamAttr decorations.
   typedef std::multimap<Decoration, const SPIRVDecorate *> DecorateMapType;
   typedef std::multimap<Decoration, const SPIRVDecorateId *> DecorateIdMapType;
-  typedef std::map<std::pair<SPIRVWord, Decoration>,
-                   const SPIRVMemberDecorate *>
+  typedef std::multimap<std::pair<SPIRVWord, Decoration>,
+                        const SPIRVMemberDecorate *>
       MemberDecorateMapType;
 
   bool canHaveMemberDecorates() const {

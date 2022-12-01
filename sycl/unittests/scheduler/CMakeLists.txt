@@ -23,4 +23,5 @@ add_sycl_unittest(SchedulerTests OBJECT
     InOrderQueueSyncCheck.cpp
     RunOnHostIntelCG.cpp
     EnqueueWithDependsOnDeps.cpp
+    AccessorDefaultCtor.cpp
 )

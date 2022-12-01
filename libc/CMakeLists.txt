@@ -14,6 +14,12 @@ set(LIBC_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
 # The top-level directory in which libc is being built.
 set(LIBC_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR})
 
+# For a runtimes build we need to manually include tablgen and LLVM directories.
+if ("libc" IN_LIST LLVM_ENABLE_RUNTIMES)
+  include(TableGen)
+  set(LLVM_LIBC_INCLUDE_DIRS ${LLVM_MAIN_INCLUDE_DIR} ${LLVM_BINARY_DIR}/include)
+endif()
+
 # Path libc/scripts directory.
 set(LIBC_BUILD_SCRIPTS_DIR "${LIBC_SOURCE_DIR}/utils/build_scripts")
 
@@ -49,7 +55,7 @@ else()
 endif()
 
 option(LLVM_LIBC_FULL_BUILD "Build and test LLVM libc as if it is the full libc" OFF)
-
+option(LLVM_LIBC_IMPLEMENTATION_DEFINED_TEST_BEHAVIOR "Build LLVM libc tests assuming our implementation-defined behavior" ON)
 option(LLVM_LIBC_ENABLE_LINTING "Enables linting of libc source files" OFF)
 
 if(LLVM_LIBC_CLANG_TIDY)
@@ -141,6 +147,24 @@ if(LLVM_LIBC_FULL_BUILD)
   add_subdirectory(utils/HdrGen)
 endif()
 
+set(LIBC_TARGET)
+set(LIBC_COMPONENT)
+set(LIBC_INSTALL_DEPENDS)
+set(LIBC_INSTALL_TARGET)
+if(LLVM_LIBC_FULL_BUILD)
+  set(LIBC_TARGET libc)
+  set(LIBC_COMPONENT libc)
+  set(LIBC_INSTALL_DEPENDS "libc;install-libc-headers;libc-startup")
+  set(LIBC_INSTALL_TARGET install-libc)
+  set(LIBC_ARCHIVE_NAME c)
+else()
+  set(LIBC_TARGET llvmlibc)
+  set(LIBC_COMPONENT llvmlibc)
+  set(LIBC_INSTALL_DEPENDS llvmlibc)
+  set(LIBC_INSTALL_TARGET install-llvmlibc)
+  set(LIBC_ARCHIVE_NAME llvmlibc)
+endif()
+
 add_subdirectory(include)
 add_subdirectory(config)
 add_subdirectory(src)
@@ -168,3 +192,18 @@ endif()
 if (LIBC_INCLUDE_DOCS)
   add_subdirectory(docs)
 endif()
+
+
+if(LLVM_LIBC_FULL_BUILD)
+  add_llvm_install_targets(
+    install-libc-headers
+    DEPENDS libc-headers
+    COMPONENT libc-headers
+  )
+endif()
+
+add_llvm_install_targets(
+  ${LIBC_INSTALL_TARGET}
+  DEPENDS ${LIBC_INSTALL_DEPENDS}
+  COMPONENT ${LIBC_COMPONENT}
+)

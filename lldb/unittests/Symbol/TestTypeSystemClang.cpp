@@ -27,14 +27,20 @@ public:
   SubsystemRAII<FileSystem, HostInfo> subsystems;
 
   void SetUp() override {
-    m_ast.reset(
-        new TypeSystemClang("test ASTContext", HostInfo::GetTargetTriple()));
+    m_holder =
+        std::make_unique<clang_utils::TypeSystemClangHolder>("test ASTContext");
+    m_ast = m_holder->GetAST();
   }
 
-  void TearDown() override { m_ast.reset(); }
+  void TearDown() override {
+    m_ast = nullptr;
+    m_holder.reset();
+  }
 
 protected:
-  std::unique_ptr<TypeSystemClang> m_ast;
+  
+  TypeSystemClang *m_ast = nullptr;
+  std::unique_ptr<clang_utils::TypeSystemClangHolder> m_holder;
 
   QualType GetBasicQualType(BasicType type) const {
     return ClangUtil::GetQualType(m_ast->GetBasicTypeFromAST(type));
@@ -257,7 +263,10 @@ TEST_F(TestTypeSystemClang, TestGetEnumIntegerTypeBasicTypes) {
     for (lldb::BasicType basic_type : types_to_test) {
       SCOPED_TRACE(std::to_string(basic_type));
 
-      TypeSystemClang ast("enum_ast", HostInfo::GetTargetTriple());
+      auto holder =
+          std::make_unique<clang_utils::TypeSystemClangHolder>("enum_ast");
+      auto &ast = *holder->GetAST();
+
       CompilerType basic_compiler_type = ast.GetBasicType(basic_type);
       EXPECT_TRUE(basic_compiler_type.IsValid());
 
@@ -273,7 +282,9 @@ TEST_F(TestTypeSystemClang, TestGetEnumIntegerTypeBasicTypes) {
 }
 
 TEST_F(TestTypeSystemClang, TestOwningModule) {
-  TypeSystemClang ast("module_ast", HostInfo::GetTargetTriple());
+  auto holder =
+      std::make_unique<clang_utils::TypeSystemClangHolder>("module_ast");
+  auto &ast = *holder->GetAST();
   CompilerType basic_compiler_type = ast.GetBasicType(BasicType::eBasicTypeInt);
   CompilerType enum_type = ast.CreateEnumerationType(
       "my_enum", ast.GetTranslationUnitDecl(), OptionalClangModuleID(100),
@@ -301,7 +312,7 @@ TEST_F(TestTypeSystemClang, TestIsClangType) {
   clang::ASTContext &context = m_ast->getASTContext();
   lldb::opaque_compiler_type_t bool_ctype =
       TypeSystemClang::GetOpaqueCompilerType(&context, lldb::eBasicTypeBool);
-  CompilerType bool_type(m_ast.get(), bool_ctype);
+  CompilerType bool_type(m_ast->weak_from_this(), bool_ctype);
   CompilerType record_type = m_ast->CreateRecordType(
       nullptr, OptionalClangModuleID(100), lldb::eAccessPublic, "FooRecord",
       clang::TTK_Struct, lldb::eLanguageTypeC_plus_plus, nullptr);
@@ -489,29 +500,35 @@ TEST_F(TestTypeSystemClang, TemplateArguments) {
       "foo_def", m_ast->CreateDeclContext(m_ast->GetTranslationUnitDecl()), 0);
 
   CompilerType auto_type(
-      m_ast.get(),
+      m_ast->weak_from_this(),
       m_ast->getASTContext()
           .getAutoType(ClangUtil::GetCanonicalQualType(typedef_type),
                        clang::AutoTypeKeyword::Auto, false)
           .getAsOpaquePtr());
 
-  CompilerType int_type(m_ast.get(),
+  CompilerType int_type(m_ast->weak_from_this(),
                         m_ast->getASTContext().IntTy.getAsOpaquePtr());
   for (CompilerType t : {type, typedef_type, auto_type}) {
     SCOPED_TRACE(t.GetTypeName().AsCString());
 
-    EXPECT_EQ(m_ast->GetTemplateArgumentKind(t.GetOpaqueQualType(), 0),
-              eTemplateArgumentKindType);
-    EXPECT_EQ(m_ast->GetTypeTemplateArgument(t.GetOpaqueQualType(), 0),
-              int_type);
-    EXPECT_EQ(llvm::None,
-              m_ast->GetIntegralTemplateArgument(t.GetOpaqueQualType(), 0));
+    const bool expand_pack = false;
+    EXPECT_EQ(
+        m_ast->GetTemplateArgumentKind(t.GetOpaqueQualType(), 0, expand_pack),
+        eTemplateArgumentKindType);
+    EXPECT_EQ(
+        m_ast->GetTypeTemplateArgument(t.GetOpaqueQualType(), 0, expand_pack),
+        int_type);
+    EXPECT_EQ(llvm::None, m_ast->GetIntegralTemplateArgument(
+                              t.GetOpaqueQualType(), 0, expand_pack));
 
-    EXPECT_EQ(m_ast->GetTemplateArgumentKind(t.GetOpaqueQualType(), 1),
-              eTemplateArgumentKindIntegral);
-    EXPECT_EQ(m_ast->GetTypeTemplateArgument(t.GetOpaqueQualType(), 1),
-              CompilerType());
-    auto result = m_ast->GetIntegralTemplateArgument(t.GetOpaqueQualType(), 1);
+    EXPECT_EQ(
+        m_ast->GetTemplateArgumentKind(t.GetOpaqueQualType(), 1, expand_pack),
+        eTemplateArgumentKindIntegral);
+    EXPECT_EQ(
+        m_ast->GetTypeTemplateArgument(t.GetOpaqueQualType(), 1, expand_pack),
+        CompilerType());
+    auto result = m_ast->GetIntegralTemplateArgument(t.GetOpaqueQualType(), 1,
+                                                     expand_pack);
     ASSERT_NE(llvm::None, result);
     EXPECT_EQ(arg, result->value);
     EXPECT_EQ(int_type, result->type);
@@ -720,21 +737,22 @@ TEST_F(TestTypeSystemClang, TestGetTypeClassDeclType) {
 
 TEST_F(TestTypeSystemClang, TestGetTypeClassTypeOf) {
   clang::ASTContext &ctxt = m_ast->getASTContext();
-  QualType t = ctxt.getTypeOfType(makeConstInt(ctxt));
+  QualType t = ctxt.getTypeOfType(makeConstInt(ctxt), TypeOfKind::Qualified);
   EXPECT_EQ(lldb::eTypeClassBuiltin, m_ast->GetTypeClass(t.getAsOpaquePtr()));
 }
 
 TEST_F(TestTypeSystemClang, TestGetTypeClassTypeOfExpr) {
   clang::ASTContext &ctxt = m_ast->getASTContext();
   auto *nullptr_expr = new (ctxt) CXXNullPtrLiteralExpr(ctxt.NullPtrTy, SourceLocation());
-  QualType t = ctxt.getTypeOfExprType(nullptr_expr);
+  QualType t = ctxt.getTypeOfExprType(nullptr_expr, TypeOfKind::Qualified);
   EXPECT_EQ(lldb::eTypeClassBuiltin, m_ast->GetTypeClass(t.getAsOpaquePtr()));
 }
 
 TEST_F(TestTypeSystemClang, TestGetTypeClassNested) {
   clang::ASTContext &ctxt = m_ast->getASTContext();
-  QualType t_base = ctxt.getTypeOfType(makeConstInt(ctxt));
-  QualType t = ctxt.getTypeOfType(t_base);
+  QualType t_base =
+      ctxt.getTypeOfType(makeConstInt(ctxt), TypeOfKind::Qualified);
+  QualType t = ctxt.getTypeOfType(t_base, TypeOfKind::Qualified);
   EXPECT_EQ(lldb::eTypeClassBuiltin, m_ast->GetTypeClass(t.getAsOpaquePtr()));
 }
 

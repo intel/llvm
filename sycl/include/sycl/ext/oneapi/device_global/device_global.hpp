@@ -101,6 +101,13 @@ public:
   static_assert(is_property_list<property_list_t>::value,
                 "Property list is invalid.");
 
+  // TODO: Remove when support has been added for device_global without the
+  // device_image_scope property.
+  static_assert(
+      property_list_t::template has_property<device_image_scope_key>(),
+      "device_global without the device_image_scope property is currently "
+      "unavailable.");
+
   device_global() = default;
 
   device_global(const device_global &) = delete;
@@ -108,15 +115,20 @@ public:
   device_global &operator=(const device_global &) = delete;
   device_global &operator=(const device_global &&) = delete;
 
-  multi_ptr<T, access::address_space::global_space> get_multi_ptr() noexcept {
+  template <access::decorated IsDecorated>
+  multi_ptr<T, access::address_space::global_space, IsDecorated>
+  get_multi_ptr() noexcept {
     __SYCL_HOST_NOT_SUPPORTED("get_multi_ptr()")
-    return {this->get_ptr()};
+    return address_space_cast<access::address_space::global_space, IsDecorated>(
+        this->get_ptr());
   }
 
-  multi_ptr<const T, access::address_space::global_space> get_multi_ptr()
-      const noexcept {
+  template <access::decorated IsDecorated>
+  multi_ptr<const T, access::address_space::global_space, IsDecorated>
+  get_multi_ptr() const noexcept {
     __SYCL_HOST_NOT_SUPPORTED("get_multi_ptr()")
-    return {this->get_ptr()};
+    return address_space_cast<access::address_space::global_space, IsDecorated,
+                              const T>(this->get_ptr());
   }
 
   T &get() noexcept {

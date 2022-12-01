@@ -13,7 +13,7 @@
 #include "src/__support/CPP/type_traits.h"
 #include "src/__support/FPUtil/FEnvImpl.h"
 #include "src/__support/FPUtil/FPBits.h"
-#include "src/__support/FPUtil/builtin_wrappers.h"
+#include "src/__support/builtin_wrappers.h"
 #include "src/__support/common.h"
 #include "src/math/generic/math_utils.h"
 
@@ -124,7 +124,7 @@ template <typename T> struct FModExceptionalInputHandler {
 
   static bool PreCheck(T x, T y, T &out) {
     using FPB = fputil::FPBits<T>;
-    const T quiet_NaN = FPB::build_nan(FPB::FloatProp::QUIET_NAN_MASK);
+    const T quiet_NaN = FPB::build_quiet_nan(0);
     FPB sx(x), sy(y);
     if (likely(!sy.is_zero() && !sy.is_inf_or_nan() && !sx.is_inf_or_nan())) {
       return false;

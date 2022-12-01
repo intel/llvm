@@ -312,6 +312,12 @@ static void PrintCallingConv(unsigned cc, raw_ostream &Out) {
   case CallingConv::AArch64_SVE_VectorCall:
     Out << "aarch64_sve_vector_pcs";
     break;
+  case CallingConv::AArch64_SME_ABI_Support_Routines_PreserveMost_From_X0:
+    Out << "aarch64_sme_preservemost_from_x0";
+    break;
+  case CallingConv::AArch64_SME_ABI_Support_Routines_PreserveMost_From_X2:
+    Out << "aarch64_sme_preservemost_from_x2";
+    break;
   case CallingConv::MSP430_INTR:   Out << "msp430_intrcc"; break;
   case CallingConv::AVR_INTR:      Out << "avr_intrcc "; break;
   case CallingConv::AVR_SIGNAL:    Out << "avr_signalcc "; break;
@@ -1859,6 +1865,12 @@ static void writeDILocation(raw_ostream &Out, const DILocation *DL,
   Out << ")";
 }
 
+static void writeDIAssignID(raw_ostream &Out, const DIAssignID *DL,
+                            AsmWriterContext &WriterCtx) {
+  Out << "!DIAssignID()";
+  MDFieldPrinter Printer(Out, WriterCtx);
+}
+
 static void writeDISubrange(raw_ostream &Out, const DISubrange *N,
                             AsmWriterContext &WriterCtx) {
   Out << "!DISubrange(";
@@ -3180,6 +3192,80 @@ void AssemblyWriter::printFunctionSummary(const FunctionSummary *FS) {
   if (const auto *TIdInfo = FS->getTypeIdInfo())
     printTypeIdInfo(*TIdInfo);
 
+  // The AllocationType identifiers capture the profiled context behavior
+  // reaching a specific static allocation site (possibly cloned). Thus
+  // "notcoldandcold" implies there are multiple contexts which reach this site,
+  // some of which are cold and some of which are not, and that need to
+  // disambiguate via cloning or other context identification.
+  auto AllocTypeName = [](uint8_t Type) -> const char * {
+    switch (Type) {
+    case (uint8_t)AllocationType::None:
+      return "none";
+    case (uint8_t)AllocationType::NotCold:
+      return "notcold";
+    case (uint8_t)AllocationType::Cold:
+      return "cold";
+    case (uint8_t)AllocationType::NotCold | (uint8_t)AllocationType::Cold:
+      return "notcoldandcold";
+    }
+    llvm_unreachable("Unexpected alloc type");
+  };
+
+  if (!FS->allocs().empty()) {
+    Out << ", allocs: (";
+    FieldSeparator AFS;
+    for (auto &AI : FS->allocs()) {
+      Out << AFS;
+      Out << "(versions: (";
+      FieldSeparator VFS;
+      for (auto V : AI.Versions) {
+        Out << VFS;
+        Out << AllocTypeName(V);
+      }
+      Out << "), memProf: (";
+      FieldSeparator MIBFS;
+      for (auto &MIB : AI.MIBs) {
+        Out << MIBFS;
+        Out << "(type: " << AllocTypeName((uint8_t)MIB.AllocType);
+        Out << ", stackIds: (";
+        FieldSeparator SIDFS;
+        for (auto Id : MIB.StackIdIndices) {
+          Out << SIDFS;
+          Out << TheIndex->getStackIdAtIndex(Id);
+        }
+        Out << "))";
+      }
+      Out << "))";
+    }
+    Out << ")";
+  }
+
+  if (!FS->callsites().empty()) {
+    Out << ", callsites: (";
+    FieldSeparator SNFS;
+    for (auto &CI : FS->callsites()) {
+      Out << SNFS;
+      if (CI.Callee)
+        Out << "(callee: ^" << Machine.getGUIDSlot(CI.Callee.getGUID());
+      else
+        Out << "(callee: null";
+      Out << ", clones: (";
+      FieldSeparator VFS;
+      for (auto V : CI.Clones) {
+        Out << VFS;
+        Out << V;
+      }
+      Out << "), stackIds: (";
+      FieldSeparator SIDFS;
+      for (auto Id : CI.StackIdIndices) {
+        Out << SIDFS;
+        Out << TheIndex->getStackIdAtIndex(Id);
+      }
+      Out << "))";
+    }
+    Out << ")";
+  }
+
   auto PrintRange = [&](const ConstantRange &Range) {
     Out << "[" << Range.getSignedMin() << ", " << Range.getSignedMax() << "]";
   };
@@ -4084,8 +4170,7 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
     Out << " within ";
     writeOperand(FPI->getParentPad(), /*PrintType=*/false);
     Out << " [";
-    for (unsigned Op = 0, NumOps = FPI->getNumArgOperands(); Op < NumOps;
-         ++Op) {
+    for (unsigned Op = 0, NumOps = FPI->arg_size(); Op < NumOps; ++Op) {
       if (Op > 0)
         Out << ", ";
       writeOperand(FPI->getArgOperand(Op), /*PrintType=*/true);
@@ -4129,7 +4214,6 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
     // If possible, print out the short form of the call instruction.  We can
     // only do this if the first argument is a pointer to a nonvararg function,
     // and if the return type is not a pointer to a function.
-    //
     Out << ' ';
     TypePrinter.print(FTy->isVarArg() ? FTy : RetTy, Out);
     Out << ' ';
@@ -4145,8 +4229,11 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
     // is only to aid readability, musttail calls forward varargs by default.
     if (CI->isMustTailCall() && CI->getParent() &&
         CI->getParent()->getParent() &&
-        CI->getParent()->getParent()->isVarArg())
-      Out << ", ...";
+        CI->getParent()->getParent()->isVarArg()) {
+      if (CI->arg_size() > 0)
+        Out << ", ";
+      Out << "...";
+    }
 
     Out << ')';
     if (PAL.hasFnAttrs())

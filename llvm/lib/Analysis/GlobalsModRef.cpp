@@ -238,17 +238,11 @@ void GlobalsAAResult::DeletionCallbackHandle::deleted() {
   // This object is now destroyed!
 }
 
-FunctionModRefBehavior GlobalsAAResult::getModRefBehavior(const Function *F) {
-  FunctionModRefBehavior Min = FMRB_UnknownModRefBehavior;
+MemoryEffects GlobalsAAResult::getMemoryEffects(const Function *F) {
+  if (FunctionInfo *FI = getFunctionInfo(F))
+    return MemoryEffects(FI->getModRefInfo());
 
-  if (FunctionInfo *FI = getFunctionInfo(F)) {
-    if (!isModOrRefSet(FI->getModRefInfo()))
-      Min = FMRB_DoesNotAccessMemory;
-    else if (!isModSet(FI->getModRefInfo()))
-      Min = FMRB_OnlyReadsMemory;
-  }
-
-  return FunctionModRefBehavior(AAResultBase::getModRefBehavior(F) & Min);
+  return AAResultBase::getMemoryEffects(F);
 }
 
 /// Returns the function info for the function, or null if we don't have
@@ -594,9 +588,8 @@ void GlobalsAAResult::AnalyzeCallGraph(CallGraph &CG, Module &M) {
                 // Don't let dbg intrinsics affect alias info.
                 continue;
 
-              FunctionModRefBehavior Behaviour =
-                  AAResultBase::getModRefBehavior(Callee);
-              FI.addModRefInfo(createModRefInfo(Behaviour));
+              MemoryEffects Behaviour = AAResultBase::getMemoryEffects(Callee);
+              FI.addModRefInfo(Behaviour.getModRef());
             }
           }
           continue;

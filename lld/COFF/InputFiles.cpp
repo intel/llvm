@@ -734,7 +734,8 @@ void ObjFile::initializeFlags() {
       if (sym->kind() == SymbolKind::S_OBJNAME) {
         auto objName = cantFail(SymbolDeserializer::deserializeAs<ObjNameSym>(
             sym.get()));
-        pchSignature = objName.Signature;
+        if (objName.Signature)
+          pchSignature = objName.Signature;
       }
       offset += sym->length();
     }
@@ -800,6 +801,10 @@ void ObjFile::initializeDependencies() {
   if (firstType->kind() == LF_PRECOMP) {
     PrecompRecord precomp = cantFail(
         TypeDeserializer::deserializeAs<PrecompRecord>(firstType->data()));
+    // We're better off trusting the LF_PRECOMP signature. In some cases the
+    // S_OBJNAME record doesn't contain a valid PCH signature.
+    if (precomp.Signature)
+      pchSignature = precomp.Signature;
     debugTypesObj = makeUsePrecompSource(ctx, this, precomp);
     // Drop the LF_PRECOMP record from the input stream.
     debugTypes = debugTypes.drop_front(firstType->RecordData.size());
@@ -1070,7 +1075,8 @@ void BitcodeFile::parse() {
         sym = ctx.symtab.addUndefined(symName, this, false);
       }
     } else {
-      sym = ctx.symtab.addRegular(this, symName, nullptr, fakeSC);
+      sym = ctx.symtab.addRegular(this, symName, nullptr, fakeSC, 0,
+                                  objSym.isWeak());
     }
     symbols.push_back(sym);
     if (objSym.isUsed())

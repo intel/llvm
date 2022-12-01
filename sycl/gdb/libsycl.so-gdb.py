@@ -51,21 +51,24 @@ class Accessor:
 class HostAccessor(Accessor):
     """For Host device memory layout"""
 
-    def payload(self):
-        return self.obj["impl"]["_M_ptr"].dereference()
-
     def memory_range(self, dim):
-        return self.payload()["MMemoryRange"]["common_array"][dim]
+        eval_string = "((" + str(self.obj.type) + ")" + str(self.obj) + ")->getMemoryRange()"
+        return gdb.parse_and_eval(eval_string)["common_array"][dim]
 
     def offset(self, dim):
-        return self.payload()["MOffset"]["common_array"][dim]
+        eval_string = "((" + str(self.obj.type) + ")" + str(self.obj) + ")->getOffset()"
+        return gdb.parse_and_eval(eval_string)["common_array"][dim]
 
     def data(self):
-        return self.payload()["MData"]
-
+        eval_string = "((" + str(self.obj.type) + ")" + str(self.obj) + ")->getPtr()"
+        return gdb.parse_and_eval(eval_string)
 
 class HostAccessorLocal(HostAccessor):
     """For Host device memory layout"""
+
+    def memory_range(self, dim):
+        eval_string = "((" + str(self.obj.type) + ")" + str(self.obj) + ")->getSize()"
+        return gdb.parse_and_eval(eval_string)["common_array"][dim]
 
     def index(self, arg):
         if arg.type.code == gdb.TYPE_CODE_INT:
@@ -73,14 +76,9 @@ class HostAccessorLocal(HostAccessor):
         result = 0
         for dim in range(self.depth):
             result = (
-                result * self.payload()["MSize"]["common_array"][dim]
-                + arg["common_array"][dim]
+                result * self.memory_range(dim) + arg["common_array"][dim]
             )
         return result
-
-    def data(self):
-        return self.payload()["MMem"]
-
 
 class DeviceAccessor(Accessor):
     """For CPU/GPU memory layout"""
@@ -104,7 +102,11 @@ class AccessorOpIndex(gdb.xmethod.XMethodWorker):
         self.depth = depth
 
     def get_arg_types(self):
-        return gdb.lookup_type("sycl::_V1::id<%s>" % self.depth)
+        try:
+            return gdb.lookup_type("sycl::_V1::id<%s>" % self.depth)
+        except:
+            pass
+        return None
 
     def get_result_type(self, *args):
         return self.result_type
@@ -151,7 +153,7 @@ class AccessorOpIndexItemFalse(AccessorOpIndex):
 
 
 class AccessorMatcher(gdb.xmethod.XMethodMatcher):
-    """Entry point for sycl::_V1::accessor"""
+    """Entry point for sycl::_V1::(local_)accessor"""
 
     def __init__(self):
         gdb.xmethod.XMethodMatcher.__init__(self, "AccessorMatcher")
@@ -160,7 +162,7 @@ class AccessorMatcher(gdb.xmethod.XMethodMatcher):
         if method_name != "operator[]":
             return None
 
-        result = re.match("^sycl::_V1::accessor<.+>$", class_type.tag)
+        result = re.match("^sycl::_V1::(?:local_)?accessor<.+>$", class_type.tag)
         if result is None:
             return None
 
@@ -247,8 +249,9 @@ class PrivateMemoryOpCall(gdb.xmethod.XMethodWorker):
             item_base = args[0]["localItem"]["MImpl"]
             item_base = self.ItemBase(item_base)
             index = item_base.get_linear_id()
-            return obj["Val"]["_M_t"]["_M_t"]["_M_head_impl"][index]
 
+            eval_string = "((" + str(obj.type) + ")" + str(obj) + ")->Val.get()"
+            return gdb.parse_and_eval(eval_string)[index]
 
 class PrivateMemoryMatcher(gdb.xmethod.XMethodMatcher):
     """Entry point for sycl::_V1::private_memory"""

@@ -153,7 +153,7 @@ BCEAtom visitICmpLoadOperand(Value *const Val, BaseIdentifier &BaseId) {
   if (!isDereferenceablePointer(Addr, LoadI->getType(), DL)) {
     LLVM_DEBUG(dbgs() << "not dereferenceable\n");
     // We need to make sure that we can do comparison in any order, so we
-    // require memory to be unconditionnally dereferencable.
+    // require memory to be unconditionally dereferenceable.
     return {};
   }
 
@@ -645,14 +645,18 @@ static BasicBlock *mergeComparisons(ArrayRef<BCECmpBlock> Comparisons,
         Comparisons.begin(), Comparisons.end(), 0u,
         [](int Size, const BCECmpBlock &C) { return Size + C.SizeBits(); });
 
+    // memcmp expects a 'size_t' argument and returns 'int'.
+    unsigned SizeTBits = TLI.getSizeTSize(*Phi.getModule());
+    unsigned IntBits = TLI.getIntSize();
+
     // Create memcmp() == 0.
     const auto &DL = Phi.getModule()->getDataLayout();
     Value *const MemCmpCall = emitMemCmp(
         Lhs, Rhs,
-        ConstantInt::get(DL.getIntPtrType(Context), TotalSizeBits / 8), Builder,
-        DL, &TLI);
+        ConstantInt::get(Builder.getIntNTy(SizeTBits), TotalSizeBits / 8),
+        Builder, DL, &TLI);
     IsEqual = Builder.CreateICmpEQ(
-        MemCmpCall, ConstantInt::get(Type::getInt32Ty(Context), 0));
+        MemCmpCall, ConstantInt::get(Builder.getIntNTy(IntBits), 0));
   }
 
   BasicBlock *const PhiBB = Phi.getParent();

@@ -28,7 +28,6 @@
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/DiagnosticPrinter.h"
-#include "llvm/IR/IRPrintingPasses.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LLVMRemarkStreamer.h"
 #include "llvm/IR/LegacyPassManager.h"
@@ -467,8 +466,8 @@ static int compileModule(char **argv, LLVMContext &Context) {
   };
 
   auto MAttrs = codegen::getMAttrs();
-  bool SkipModule = codegen::getMCPU() == "help" ||
-                    (!MAttrs.empty() && MAttrs.front() == "help");
+  bool SkipModule =
+      CPUStr == "help" || (!MAttrs.empty() && MAttrs.front() == "help");
 
   CodeGenOpt::Level OLvl = CodeGenOpt::Default;
   switch (OptLevel) {

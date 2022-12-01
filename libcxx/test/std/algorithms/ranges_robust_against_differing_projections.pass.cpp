@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
 // <algorithm>
 //
@@ -25,8 +24,8 @@
 // (in1, in2, ...)
 template <class Func, std::ranges::range Input1, std::ranges::range Input2, class ...Args>
 constexpr void test(Func&& func, Input1& in1, Input2& in2, Args&& ...args) {
-  func(in1.begin(), in1.end(), in2.begin(), in2.end(), std::forward<Args>(args)...);
-  func(in1, in2, std::forward<Args>(args)...);
+  (void)func(in1.begin(), in1.end(), in2.begin(), in2.end(), std::forward<Args>(args)...);
+  (void)func(in1, in2, std::forward<Args>(args)...);
 }
 
 constexpr bool test_all() {
@@ -56,7 +55,7 @@ constexpr bool test_all() {
 
   test(std::ranges::equal, in, in2, eq, proj1, proj2);
   test(std::ranges::lexicographical_compare, in, in2, eq, proj1, proj2);
-  //test(std::ranges::is_permutation, in, in2, eq, proj1, proj2);
+  test(std::ranges::is_permutation, in, in2, eq, proj1, proj2);
   test(std::ranges::includes, in, in2, less, proj1, proj2);
   test(std::ranges::find_first_of, in, in2, eq, proj1, proj2);
   test(std::ranges::mismatch, in, in2, eq, proj1, proj2);

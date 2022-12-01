@@ -44,7 +44,7 @@ static cl::opt<unsigned> UseDerefAtPointSemantics(
 //===----------------------------------------------------------------------===//
 static inline Type *checkType(Type *Ty) {
   assert(Ty && "Value defined with a null type: Error!");
-  assert(!isa<TypedPointerType>(Ty) &&
+  assert(!isa<TypedPointerType>(Ty->getScalarType()) &&
          "Cannot have values with typed pointer types");
   return Ty;
 }
@@ -636,7 +636,7 @@ static const Value *stripPointerCastsAndOffsets(
       case PSK_InBoundsConstantIndices:
         if (!GEP->hasAllConstantIndices())
           return V;
-        LLVM_FALLTHROUGH;
+        [[fallthrough]];
       case PSK_InBounds:
         if (!GEP->isInBounds())
           return V;

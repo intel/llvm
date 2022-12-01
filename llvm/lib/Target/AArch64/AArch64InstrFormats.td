@@ -117,6 +117,8 @@ def extract_high_v8i16 :
     ComplexPattern<v4i16, 1, "SelectExtractHigh", [extract_subvector, bitconvert]>;
 def extract_high_v4i32 :
     ComplexPattern<v2i32, 1, "SelectExtractHigh", [extract_subvector, bitconvert]>;
+def extract_high_v2i64 :
+    ComplexPattern<v1i64, 1, "SelectExtractHigh", [extract_subvector, bitconvert]>;
 
 def extract_high_dup_v8i16 :
    BinOpFrag<(extract_subvector (v8i16 (AArch64duplane16 (v8i16 node:$LHS), node:$RHS)), (i64 4))>;
@@ -939,6 +941,13 @@ def timm0_1 : Operand<i64>, TImmLeaf<i64, [{
   let ParserMatchClass = Imm0_1Operand;
 }
 
+// timm32_0_1 predicate - True if the 32-bit immediate is in the range [0,1]
+def timm32_0_1 : Operand<i32>, TImmLeaf<i32, [{
+  return ((uint32_t)Imm) < 2;
+}]> {
+  let ParserMatchClass = Imm0_1Operand;
+}
+
 // imm0_15 predicate - True if the immediate is in the range [0,15]
 def imm0_15 : Operand<i64>, ImmLeaf<i64, [{
   return ((uint64_t)Imm) < 16;
@@ -960,6 +969,13 @@ def imm0_3 : Operand<i64>, ImmLeaf<i64, [{
   let ParserMatchClass = Imm0_3Operand;
 }
 
+// timm32_0_3 predicate - True if the 32-bit immediate is in the range [0,3]
+def timm32_0_3 : Operand<i32>, TImmLeaf<i32, [{
+  return ((uint32_t)Imm) < 4;
+}]> {
+  let ParserMatchClass = Imm0_3Operand;
+}
+
 // timm32_0_7 predicate - True if the 32-bit immediate is in the range [0,7]
 def timm32_0_7 : Operand<i32>, TImmLeaf<i32, [{
   return ((uint32_t)Imm) < 8;
@@ -972,6 +988,27 @@ def imm32_0_15 : Operand<i32>, ImmLeaf<i32, [{
   return ((uint32_t)Imm) < 16;
 }]> {
   let ParserMatchClass = Imm0_15Operand;
+}
+
+// timm32_0_15 predicate - True if the 32-bit immediate is in the range [0,15]
+def timm32_0_15 : Operand<i32>, TImmLeaf<i32, [{
+  return ((uint32_t)Imm) < 16;
+}]> {
+  let ParserMatchClass = Imm0_15Operand;
+}
+
+// timm32_0_31 predicate - True if the 32-bit immediate is in the range [0,31]
+def timm32_0_31 : Operand<i32>, TImmLeaf<i32, [{
+  return ((uint32_t)Imm) < 32;
+}]> {
+  let ParserMatchClass = Imm0_31Operand;
+}
+
+// timm32_0_255 predicate - True if the 32-bit immediate is in the range [0,255]
+def timm32_0_255 : Operand<i32>, TImmLeaf<i32, [{
+  return ((uint32_t)Imm) < 256;
+}]> {
+  let ParserMatchClass = Imm0_255Operand;
 }
 
 // An arithmetic shifter operand:
@@ -1338,38 +1375,116 @@ defm sve_elm_idx_extdup_q
   : VectorIndex<i64, SVEVectorIndexExtDupQOperand,
                 [{ return ((uint64_t)Imm) < 4; }]>;
 
-def sme_elm_idx0_0 : Operand<i64>, ImmLeaf<i64, [{
-  return ((uint64_t)Imm) == 0;
+def sme_elm_idx0_0 : Operand<i32>, TImmLeaf<i32, [{
+  return ((uint32_t)Imm) == 0;
 }]> {
   let ParserMatchClass = Imm0_0Operand;
   let PrintMethod = "printMatrixIndex";
   let OperandNamespace = "AArch64";
   let OperandType = "OPERAND_IMPLICIT_IMM_0";
 }
-def sme_elm_idx0_1 : Operand<i64>, ImmLeaf<i64, [{
-  return ((uint64_t)Imm) <= 1;
+def sme_elm_idx0_1 : Operand<i32>, TImmLeaf<i32, [{
+  return ((uint32_t)Imm) <= 1;
 }]> {
   let ParserMatchClass = Imm0_1Operand;
   let PrintMethod = "printMatrixIndex";
 }
-def sme_elm_idx0_3 : Operand<i64>, ImmLeaf<i64, [{
-  return ((uint64_t)Imm) <= 3;
+def sme_elm_idx0_3 : Operand<i32>, TImmLeaf<i32, [{
+  return ((uint32_t)Imm) <= 3;
 }]> {
   let ParserMatchClass = Imm0_3Operand;
   let PrintMethod = "printMatrixIndex";
 }
-def sme_elm_idx0_7 : Operand<i64>, ImmLeaf<i64, [{
-  return ((uint64_t)Imm) <= 7;
+def sme_elm_idx0_7 : Operand<i32>, TImmLeaf<i32, [{
+  return ((uint32_t)Imm) <= 7;
 }]> {
   let ParserMatchClass = Imm0_7Operand;
   let PrintMethod = "printMatrixIndex";
 }
-def sme_elm_idx0_15 : Operand<i64>, ImmLeaf<i64, [{
-  return ((uint64_t)Imm) <= 15;
+def sme_elm_idx0_15 : Operand<i32>, TImmLeaf<i32, [{
+  return ((uint32_t)Imm) <= 15;
 }]> {
   let ParserMatchClass = Imm0_15Operand;
   let PrintMethod = "printMatrixIndex";
 }
+
+// SME2 vector select offset operands
+
+// uimm3s8 predicate
+// True if the immediate is a multiple of 8 in the range [0,56].
+def UImm3s8Operand : UImmScaledMemoryIndexed<3, 8>;
+
+def uimm3s8 : Operand<i64>, ImmLeaf<i64,
+[{ return Imm >= 0 && Imm <= 56 && ((Imm % 8) == 0); }], UImmS8XForm> {
+  let PrintMethod = "printVectorIndex<8>";
+  let ParserMatchClass = UImm3s8Operand;
+}
+
+class UImmScaledMemoryIndexedRange<int Width, int Scale, int OffsetVal> : AsmOperandClass {
+  let Name = "UImm" # Width # "s" # Scale # "Range";
+  let DiagnosticType = "InvalidMemoryIndexedRange" # Scale # "UImm" # Width;
+  let RenderMethod = "addImmScaledRangeOperands<" # Scale # ">";
+  let PredicateMethod = "isUImmScaled<" # Width # ", " # Scale # ", " # OffsetVal # ", /*IsRange=*/true>";
+  let ParserMethod = "tryParseImmRange";
+}
+
+// Implicit immediate ranges 0:1 and 0:3, scale has no meaning
+// since the immediate is zero
+def UImm0s2RangeOperand : UImmScaledMemoryIndexedRange<0, 2, 1>;
+def UImm0s4RangeOperand : UImmScaledMemoryIndexedRange<0, 4, 3>;
+
+def UImm1s2RangeOperand : UImmScaledMemoryIndexedRange<1, 2, 1>;
+def UImm1s4RangeOperand : UImmScaledMemoryIndexedRange<1, 4, 3>;
+def UImm2s2RangeOperand : UImmScaledMemoryIndexedRange<2, 2, 1>;
+def UImm2s4RangeOperand : UImmScaledMemoryIndexedRange<2, 4, 3>;
+def UImm3s2RangeOperand : UImmScaledMemoryIndexedRange<3, 2, 1>;
+
+def uimm0s2range : Operand<i64>, ImmLeaf<i64,
+[{ return Imm == 0; }], UImmS1XForm> {
+  let PrintMethod = "printImmRangeScale<2, 1>";
+  let ParserMatchClass = UImm0s2RangeOperand;
+  let OperandNamespace = "AArch64";
+  let OperandType = "OPERAND_IMPLICIT_IMM_0";
+}
+
+def uimm0s4range : Operand<i64>, ImmLeaf<i64,
+[{ return Imm == 0; }], UImmS1XForm> {
+  let PrintMethod = "printImmRangeScale<4, 3>";
+  let ParserMatchClass = UImm0s4RangeOperand;
+  let OperandNamespace = "AArch64";
+  let OperandType = "OPERAND_IMPLICIT_IMM_0";
+}
+
+def uimm1s2range : Operand<i64>, ImmLeaf<i64,
+[{ return Imm >= 0 && Imm <= 2 && ((Imm % 2) == 0); }], UImmS2XForm> {
+  let PrintMethod = "printImmRangeScale<2, 1>";
+  let ParserMatchClass = UImm1s2RangeOperand;
+}
+
+def uimm1s4range : Operand<i64>, ImmLeaf<i64,
+[{ return Imm >= 0 && Imm <= 4 && ((Imm % 4) == 0); }], UImmS4XForm> {
+  let PrintMethod = "printImmRangeScale<4, 3>";
+  let ParserMatchClass = UImm1s4RangeOperand;
+}
+
+def uimm2s2range : Operand<i64>, ImmLeaf<i64,
+[{ return Imm >= 0 && Imm <= 6 && ((Imm % 2) == 0); }], UImmS2XForm> {
+  let PrintMethod = "printImmRangeScale<2, 1>";
+  let ParserMatchClass = UImm2s2RangeOperand;
+}
+
+def uimm2s4range : Operand<i64>, ImmLeaf<i64,
+[{ return Imm >= 0 && Imm <= 12 && ((Imm % 4) == 0); }], UImmS4XForm> {
+  let PrintMethod = "printImmRangeScale<4, 3>";
+  let ParserMatchClass = UImm2s4RangeOperand;
+}
+
+def uimm3s2range : Operand<i64>, ImmLeaf<i64,
+[{ return Imm >= 0 && Imm <= 14 && ((Imm % 2) == 0); }], UImmS2XForm> {
+  let PrintMethod = "printImmRangeScale<2, 1>";
+  let ParserMatchClass = UImm3s2RangeOperand;
+}
+
 
 // 8-bit immediate for AdvSIMD where 64-bit values of the form:
 // aaaaaaaa bbbbbbbb cccccccc dddddddd eeeeeeee ffffffff gggggggg hhhhhhhh
@@ -2481,27 +2596,23 @@ class BaseAddSubRegPseudo<RegisterClass regtype,
 class BaseAddSubSReg<bit isSub, bit setFlags, RegisterClass regtype,
                      arith_shifted_reg shifted_regtype, string asm,
                      SDPatternOperator OpNode>
-    : I<(outs regtype:$Rd), (ins regtype:$Rn, shifted_regtype:$Rm),
-        asm, "\t$Rd, $Rn, $Rm", "",
-        [(set regtype:$Rd, (OpNode regtype:$Rn, shifted_regtype:$Rm))]>,
+    : I<(outs regtype:$Rd), (ins regtype:$Rn, (shifted_regtype $Rm, $shift):$Rm_and_shift),
+        asm, "\t$Rd, $Rn, $Rm_and_shift", "",
+        [(set regtype:$Rd, (OpNode regtype:$Rn, shifted_regtype:$Rm_and_shift))]>,
       Sched<[WriteISReg, ReadI, ReadISReg]> {
-  // The operands are in order to match the 'addr' MI operands, so we
-  // don't need an encoder method and by-name matching. Just use the default
-  // in-order handling. Since we're using by-order, make sure the names
-  // do not match.
-  bits<5> dst;
-  bits<5> src1;
-  bits<5> src2;
+  bits<5> Rd;
+  bits<5> Rn;
+  bits<5> Rm;
   bits<8> shift;
   let Inst{30}    = isSub;
   let Inst{29}    = setFlags;
   let Inst{28-24} = 0b01011;
   let Inst{23-22} = shift{7-6};
   let Inst{21}    = 0;
-  let Inst{20-16} = src2;
+  let Inst{20-16} = Rm;
   let Inst{15-10} = shift{5-0};
-  let Inst{9-5}   = src1;
-  let Inst{4-0}   = dst;
+  let Inst{9-5}   = Rn;
+  let Inst{4-0}   = Rd;
 
   let DecoderMethod = "DecodeThreeAddrSRegInstruction";
 }
@@ -2509,22 +2620,22 @@ class BaseAddSubSReg<bit isSub, bit setFlags, RegisterClass regtype,
 class BaseAddSubEReg<bit isSub, bit setFlags, RegisterClass dstRegtype,
                      RegisterClass src1Regtype, Operand src2Regtype,
                      string asm, SDPatternOperator OpNode>
-    : I<(outs dstRegtype:$R1),
-        (ins src1Regtype:$R2, src2Regtype:$R3),
-        asm, "\t$R1, $R2, $R3", "",
-        [(set dstRegtype:$R1, (OpNode src1Regtype:$R2, src2Regtype:$R3))]>,
+    : I<(outs dstRegtype:$Rd),
+        (ins src1Regtype:$Rn, (src2Regtype $Rm, $extend):$Rm_and_extend),
+        asm, "\t$Rd, $Rn, $Rm_and_extend", "",
+        [(set dstRegtype:$Rd, (OpNode src1Regtype:$Rn, src2Regtype:$Rm_and_extend))]>,
       Sched<[WriteIEReg, ReadI, ReadIEReg]> {
   bits<5> Rd;
   bits<5> Rn;
   bits<5> Rm;
-  bits<6> ext;
+  bits<6> extend;
   let Inst{30}    = isSub;
   let Inst{29}    = setFlags;
   let Inst{28-24} = 0b01011;
   let Inst{23-21} = 0b001;
   let Inst{20-16} = Rm;
-  let Inst{15-13} = ext{5-3};
-  let Inst{12-10} = ext{2-0};
+  let Inst{15-13} = extend{5-3};
+  let Inst{12-10} = extend{2-0};
   let Inst{9-5}   = Rn;
   let Inst{4-0}   = Rd;
 
@@ -2911,25 +3022,21 @@ class BaseLogicalImm<bits<2> opc, RegisterClass dregtype,
 class BaseLogicalSReg<bits<2> opc, bit N, RegisterClass regtype,
                       logical_shifted_reg shifted_regtype, string asm,
                       list<dag> pattern>
-    : I<(outs regtype:$Rd), (ins regtype:$Rn, shifted_regtype:$Rm),
-        asm, "\t$Rd, $Rn, $Rm", "", pattern>,
+    : I<(outs regtype:$Rd), (ins regtype:$Rn, (shifted_regtype $Rm, $shift):$Rm_and_shift),
+        asm, "\t$Rd, $Rn, $Rm_and_shift", "", pattern>,
       Sched<[WriteISReg, ReadI, ReadISReg]> {
-  // The operands are in order to match the 'addr' MI operands, so we
-  // don't need an encoder method and by-name matching. Just use the default
-  // in-order handling. Since we're using by-order, make sure the names
-  // do not match.
-  bits<5> dst;
-  bits<5> src1;
-  bits<5> src2;
+  bits<5> Rd;
+  bits<5> Rn;
+  bits<5> Rm;
   bits<8> shift;
   let Inst{30-29} = opc;
   let Inst{28-24} = 0b01010;
   let Inst{23-22} = shift{7-6};
   let Inst{21}    = N;
-  let Inst{20-16} = src2;
+  let Inst{20-16} = Rm;
   let Inst{15-10} = shift{5-0};
-  let Inst{9-5}   = src1;
-  let Inst{4-0}   = dst;
+  let Inst{9-5}   = Rn;
+  let Inst{4-0}   = Rd;
 
   let DecoderMethod = "DecodeThreeAddrSRegInstruction";
 }
@@ -2992,20 +3099,20 @@ class BaseLogicalRegPseudo<RegisterClass regtype, SDPatternOperator OpNode>
 
 // Split from LogicalImm as not all instructions have both.
 multiclass LogicalReg<bits<2> opc, bit N, string mnemonic,
-                      SDPatternOperator OpNode> {
-  let isReMaterializable = 1, isAsCheapAsAMove = 1 in {
+                      SDPatternOperator OpNode, int AddedComplexityVal = 0> {
+  let isReMaterializable = 1, isAsCheapAsAMove = 1, AddedComplexity = AddedComplexityVal in {
   def Wrr : BaseLogicalRegPseudo<GPR32, OpNode>;
   def Xrr : BaseLogicalRegPseudo<GPR64, OpNode>;
   }
 
   def Wrs : BaseLogicalSReg<opc, N, GPR32, logical_shifted_reg32, mnemonic,
                             [(set GPR32:$Rd, (OpNode GPR32:$Rn,
-                                                 logical_shifted_reg32:$Rm))]> {
+                                                 logical_shifted_reg32:$Rm_and_shift))]> {
     let Inst{31} = 0;
   }
   def Xrs : BaseLogicalSReg<opc, N, GPR64, logical_shifted_reg64, mnemonic,
                             [(set GPR64:$Rd, (OpNode GPR64:$Rn,
-                                                 logical_shifted_reg64:$Rm))]> {
+                                                 logical_shifted_reg64:$Rm_and_shift))]> {
     let Inst{31} = 1;
   }
 
@@ -3023,11 +3130,11 @@ multiclass LogicalRegS<bits<2> opc, bit N, string mnemonic,
   def Xrr : BaseLogicalRegPseudo<GPR64, OpNode>;
 
   def Wrs : BaseLogicalSReg<opc, N, GPR32, logical_shifted_reg32, mnemonic,
-            [(set GPR32:$Rd, (OpNode GPR32:$Rn, logical_shifted_reg32:$Rm))]> {
+            [(set GPR32:$Rd, (OpNode GPR32:$Rn, logical_shifted_reg32:$Rm_and_shift))]> {
     let Inst{31} = 0;
   }
   def Xrs : BaseLogicalSReg<opc, N, GPR64, logical_shifted_reg64, mnemonic,
-            [(set GPR64:$Rd, (OpNode GPR64:$Rn, logical_shifted_reg64:$Rm))]> {
+            [(set GPR64:$Rd, (OpNode GPR64:$Rn, logical_shifted_reg64:$Rm_and_shift))]> {
     let Inst{31} = 1;
   }
   } // Defs = [NZCV]
@@ -3890,7 +3997,7 @@ class BasePrefetchRO<bits<2> sz, bit V, bits<2> opc, dag outs, dag ins,
 multiclass PrefetchRO<bits<2> sz, bit V, bits<2> opc, string asm> {
   def roW : BasePrefetchRO<sz, V, opc, (outs),
                 (ins prfop:$Rt, GPR64sp:$Rn, GPR32:$Rm, ro_Wextend64:$extend),
-                asm, [(AArch64Prefetch imm:$Rt,
+                asm, [(AArch64Prefetch timm:$Rt,
                                      (ro_Windexed64 GPR64sp:$Rn, GPR32:$Rm,
                                                     ro_Wextend64:$extend))]> {
     let Inst{13} = 0b0;
@@ -3898,7 +4005,7 @@ multiclass PrefetchRO<bits<2> sz, bit V, bits<2> opc, string asm> {
 
   def roX : BasePrefetchRO<sz, V, opc, (outs),
                 (ins prfop:$Rt, GPR64sp:$Rn, GPR64:$Rm, ro_Xextend64:$extend),
-                asm,  [(AArch64Prefetch imm:$Rt,
+                asm,  [(AArch64Prefetch timm:$Rt,
                                       (ro_Xindexed64 GPR64sp:$Rn, GPR64:$Rm,
                                                      ro_Xextend64:$extend))]> {
     let Inst{13} = 0b1;
@@ -4576,7 +4683,7 @@ let Predicates = [HasFPARMv8] in {
 // Floating point to integer conversion
 //---
 
-let mayRaiseFPException = 1 in
+let mayRaiseFPException = 1, Uses = [FPCR] in
 class BaseFPToIntegerUnscaled<bits<2> type, bits<2> rmode, bits<3> opcode,
                       RegisterClass srcType, RegisterClass dstType,
                       string asm, list<dag> pattern>
@@ -4596,7 +4703,7 @@ class BaseFPToIntegerUnscaled<bits<2> type, bits<2> rmode, bits<3> opcode,
   let Inst{4-0}   = Rd;
 }
 
-let mayLoad = 0, mayStore = 0, hasSideEffects = 0, mayRaiseFPException = 1 in
+let mayLoad = 0, mayStore = 0, hasSideEffects = 0, mayRaiseFPException = 1, Uses = [FPCR] in
 class BaseFPToInteger<bits<2> type, bits<2> rmode, bits<3> opcode,
                       RegisterClass srcType, RegisterClass dstType,
                       Operand immType, string asm, list<dag> pattern>
@@ -4718,7 +4825,7 @@ multiclass FPToIntegerScaled<bits<2> rmode, bits<3> opcode, string asm,
 // Integer to floating point conversion
 //---
 
-let mayStore = 0, mayLoad = 0, hasSideEffects = 0, mayRaiseFPException = 1 in
+let mayStore = 0, mayLoad = 0, hasSideEffects = 0, mayRaiseFPException = 1, Uses = [FPCR] in
 class BaseIntegerToFP<bit isUnsigned,
                       RegisterClass srcType, RegisterClass dstType,
                       Operand immType, string asm, list<dag> pattern>
@@ -4736,7 +4843,7 @@ class BaseIntegerToFP<bit isUnsigned,
   let Inst{4-0}   = Rd;
 }
 
-let mayRaiseFPException = 1 in
+let mayRaiseFPException = 1, Uses = [FPCR] in
 class BaseIntegerToFPUnscaled<bit isUnsigned,
                       RegisterClass srcType, RegisterClass dstType,
                       ValueType dvt, string asm, SDPatternOperator node>
@@ -4973,7 +5080,7 @@ multiclass UnscaledConversion<string asm> {
 // Floating point conversion
 //---
 
-let mayRaiseFPException = 1 in
+let mayRaiseFPException = 1, Uses = [FPCR] in
 class BaseFPConversion<bits<2> type, bits<2> opcode, RegisterClass dstType,
                        RegisterClass srcType, string asm, list<dag> pattern>
     : I<(outs dstType:$Rd), (ins srcType:$Rn), asm, "\t$Rd, $Rn", "", pattern>,
@@ -5038,7 +5145,7 @@ class BaseSingleOperandFPData<bits<6> opcode, RegisterClass regtype,
 multiclass SingleOperandFPData<bits<4> opcode, string asm,
                                SDPatternOperator node = null_frag,
                                int fpexceptions = 1> {
-  let mayRaiseFPException = fpexceptions in {
+  let mayRaiseFPException = fpexceptions, Uses = !if(fpexceptions,[FPCR],[]<Register>) in {
   def Hr : BaseSingleOperandFPData<{0b00,opcode}, FPR16, f16, asm, node> {
     let Inst{23-22} = 0b11; // 16-bit size flag
     let Predicates = [HasFullFP16];
@@ -5058,7 +5165,7 @@ multiclass SingleOperandFPDataNoException<bits<4> opcode, string asm,
                                        SDPatternOperator node = null_frag>
     : SingleOperandFPData<opcode, asm, node, 0>;
 
-let mayRaiseFPException = 1 in
+let mayRaiseFPException = 1, Uses = [FPCR] in
 multiclass SingleOperandFPNo16<bits<6> opcode, string asm,
                   SDPatternOperator node = null_frag>{
 
@@ -5079,7 +5186,7 @@ multiclass FRIntNNT<bits<2> opcode, string asm, SDPatternOperator node = null_fr
 // Two operand floating point data processing
 //---
 
-let mayLoad = 0, mayStore = 0, hasSideEffects = 0, mayRaiseFPException = 1 in
+let mayLoad = 0, mayStore = 0, hasSideEffects = 0, mayRaiseFPException = 1, Uses = [FPCR] in
 class BaseTwoOperandFPData<bits<4> opcode, RegisterClass regtype,
                            string asm, list<dag> pat>
     : I<(outs regtype:$Rd), (ins regtype:$Rn, regtype:$Rm),
@@ -5143,7 +5250,7 @@ multiclass TwoOperandFPDataNeg<bits<4> opcode, string asm,
 // Three operand floating point data processing
 //---
 
-let mayRaiseFPException = 1 in
+let mayRaiseFPException = 1, Uses = [FPCR] in
 class BaseThreeOperandFPData<bit isNegated, bit isSub,
                              RegisterClass regtype, string asm, list<dag> pat>
     : I<(outs regtype:$Rd), (ins regtype:$Rn, regtype:$Rm, regtype: $Ra),
@@ -5188,7 +5295,7 @@ multiclass ThreeOperandFPData<bit isNegated, bit isSub,string asm,
 // Floating point data comparisons
 //---
 
-let mayLoad = 0, mayStore = 0, hasSideEffects = 0, mayRaiseFPException = 1 in
+let mayLoad = 0, mayStore = 0, hasSideEffects = 0, mayRaiseFPException = 1, Uses = [FPCR] in
 class BaseOneOperandFPComparison<bit signalAllNans,
                                  RegisterClass regtype, string asm,
                                  list<dag> pat>
@@ -5207,7 +5314,7 @@ class BaseOneOperandFPComparison<bit signalAllNans,
   let PostEncoderMethod = "fixOneOperandFPComparison";
 }
 
-let mayLoad = 0, mayStore = 0, hasSideEffects = 0, mayRaiseFPException = 1 in
+let mayLoad = 0, mayStore = 0, hasSideEffects = 0, mayRaiseFPException = 1, Uses = [FPCR] in
 class BaseTwoOperandFPComparison<bit signalAllNans, RegisterClass regtype,
                                 string asm, list<dag> pat>
     : I<(outs), (ins regtype:$Rn, regtype:$Rm), asm, "\t$Rn, $Rm", "", pat>,
@@ -5264,7 +5371,7 @@ multiclass FPComparison<bit signalAllNans, string asm,
 // Floating point conditional comparisons
 //---
 
-let mayLoad = 0, mayStore = 0, hasSideEffects = 0, mayRaiseFPException = 1 in
+let mayLoad = 0, mayStore = 0, hasSideEffects = 0, mayRaiseFPException = 1, Uses = [FPCR] in
 class BaseFPCondComparison<bit signalAllNans, RegisterClass regtype,
                            string mnemonic, list<dag> pat>
     : I<(outs), (ins regtype:$Rn, regtype:$Rm, imm32_0_15:$nzcv, ccode:$cond),
@@ -5590,7 +5697,7 @@ multiclass SIMDThreeSameVectorB<bit U, bits<5> opc, string asm,
 }
 
 // As above, but only floating point elements supported.
-let mayRaiseFPException = 1 in
+let mayRaiseFPException = 1, Uses = [FPCR] in
 multiclass SIMDThreeSameVectorFP<bit U, bit S, bits<3> opc,
                                  string asm, SDPatternOperator OpNode> {
   let Predicates = [HasNEON, HasFullFP16] in {
@@ -5612,7 +5719,7 @@ multiclass SIMDThreeSameVectorFP<bit U, bit S, bits<3> opc,
         [(set (v2f64 V128:$Rd), (OpNode (v2f64 V128:$Rn), (v2f64 V128:$Rm)))]>;
 }
 
-let mayRaiseFPException = 1 in
+let mayRaiseFPException = 1, Uses = [FPCR] in
 multiclass SIMDThreeSameVectorFPCmp<bit U, bit S, bits<3> opc,
                                     string asm,
                                     SDPatternOperator OpNode> {
@@ -5635,7 +5742,7 @@ multiclass SIMDThreeSameVectorFPCmp<bit U, bit S, bits<3> opc,
         [(set (v2i64 V128:$Rd), (OpNode (v2f64 V128:$Rn), (v2f64 V128:$Rm)))]>;
 }
 
-let mayRaiseFPException = 1 in
+let mayRaiseFPException = 1, Uses = [FPCR] in
 multiclass SIMDThreeSameVectorFPTied<bit U, bit S, bits<3> opc,
                                  string asm, SDPatternOperator OpNode> {
   let Predicates = [HasNEON, HasFullFP16] in {
@@ -5663,7 +5770,7 @@ multiclass SIMDThreeSameVectorFPTied<bit U, bit S, bits<3> opc,
 }
 
 // As above, but D and B sized elements unsupported.
-let mayRaiseFPException = 1 in
+let mayRaiseFPException = 1, Uses = [FPCR] in
 multiclass SIMDThreeSameVectorHS<bit U, bits<5> opc, string asm,
                                 SDPatternOperator OpNode> {
   def v4i16 : BaseSIMDThreeSameVector<0, U, 0b011, opc, V64,
@@ -5768,7 +5875,7 @@ multiclass SIMDThreeSameVectorDot<bit U, bit Mixed, string asm, SDPatternOperato
 // ARMv8.2-A Fused Multiply Add-Long Instructions (Vector): These instructions
 // select inputs from 4H vectors and accumulate outputs to a 2S vector (or from
 // 8H to 4S, when Q=1).
-let mayRaiseFPException = 1 in
+let mayRaiseFPException = 1, Uses = [FPCR] in
 class BaseSIMDThreeSameVectorFML<bit Q, bit U, bit b13, bits<3> size, string asm, string kind1,
                                  string kind2, RegisterOperand RegType,
                                  ValueType AccumType, ValueType InputType,
@@ -6039,7 +6146,7 @@ multiclass SIMDTwoVectorBH<bit U, bits<5> opc, string asm,
 multiclass SIMDTwoVectorFP<bit U, bit S, bits<5> opc, string asm,
                            SDPatternOperator OpNode,
                            int fpexceptions = 1> {
-  let mayRaiseFPException = fpexceptions in {
+  let mayRaiseFPException = fpexceptions, Uses = !if(fpexceptions,[FPCR],[]<Register>) in {
   let Predicates = [HasNEON, HasFullFP16] in {
   def v4f16 : BaseSIMDTwoSameVector<0, U, {S,1}, opc, 0b11, V64,
                                 asm, ".4h", ".4h",
@@ -6065,7 +6172,7 @@ multiclass SIMDTwoVectorFPNoException<bit U, bit S, bits<5> opc, string asm,
     : SIMDTwoVectorFP<U, S, opc, asm, OpNode, 0>;
 
 // Supports only S and D element sizes
-let mayRaiseFPException = 1 in
+let mayRaiseFPException = 1, Uses = [FPCR] in
 multiclass SIMDTwoVectorSD<bit U, bits<5> opc, string asm,
                            SDPatternOperator OpNode = null_frag> {
 
@@ -6095,7 +6202,7 @@ multiclass SIMDTwoVectorS<bit U, bit S, bits<5> opc, string asm,
                           [(set (v4i32 V128:$Rd), (OpNode (v4i32 V128:$Rn)))]>;
 }
 
-let mayRaiseFPException = 1 in
+let mayRaiseFPException = 1, Uses = [FPCR] in
 multiclass SIMDTwoVectorFPToInt<bit U, bit S, bits<5> opc, string asm,
                            SDPatternOperator OpNode> {
   let Predicates = [HasNEON, HasFullFP16] in {
@@ -6117,7 +6224,7 @@ multiclass SIMDTwoVectorFPToInt<bit U, bit S, bits<5> opc, string asm,
                           [(set (v2i64 V128:$Rd), (OpNode (v2f64 V128:$Rn)))]>;
 }
 
-let mayRaiseFPException = 1 in
+let mayRaiseFPException = 1, Uses = [FPCR] in
 multiclass SIMDTwoVectorIntToFP<bit U, bit S, bits<5> opc, string asm,
                            SDPatternOperator OpNode> {
   let Predicates = [HasNEON, HasFullFP16] in {
@@ -6269,7 +6376,7 @@ multiclass SIMDCmpTwoVector<bit U, bits<5> opc, string asm,
 multiclass SIMDFPCmpTwoVector<bit U, bit S, bits<5> opc,
                               string asm, SDNode OpNode> {
 
-  let mayRaiseFPException = 1 in {
+  let mayRaiseFPException = 1, Uses = [FPCR] in {
   let Predicates = [HasNEON, HasFullFP16] in {
   def v4i16rz : BaseSIMDCmpTwoVector<0, U, {S,1}, 0b11, opc, V64,
                                      asm, ".4h", "0.0",
@@ -6315,7 +6422,7 @@ multiclass SIMDFPCmpTwoVector<bit U, bit S, bits<5> opc,
                   (!cast<Instruction>(NAME # v2i64rz) V128:$Vd, V128:$Vn), 0>;
 }
 
-let mayLoad = 0, mayStore = 0, hasSideEffects = 0, mayRaiseFPException = 1 in
+let mayLoad = 0, mayStore = 0, hasSideEffects = 0, mayRaiseFPException = 1, Uses = [FPCR] in
 class BaseSIMDFPCvtTwoVector<bit Q, bit U, bits<2> size, bits<5> opcode,
                              RegisterOperand outtype, RegisterOperand intype,
                              string asm, string VdTy, string VnTy,
@@ -6337,7 +6444,7 @@ class BaseSIMDFPCvtTwoVector<bit Q, bit U, bits<2> size, bits<5> opcode,
   let Inst{4-0}   = Rd;
 }
 
-let mayLoad = 0, mayStore = 0, hasSideEffects = 0, mayRaiseFPException = 1 in
+let mayLoad = 0, mayStore = 0, hasSideEffects = 0, mayRaiseFPException = 1, Uses = [FPCR] in
 class BaseSIMDFPCvtTwoVectorTied<bit Q, bit U, bits<2> size, bits<5> opcode,
                              RegisterOperand outtype, RegisterOperand intype,
                              string asm, string VdTy, string VnTy,
@@ -6502,24 +6609,27 @@ multiclass SIMDNarrowThreeVectorBHS<bit U, bits<4> opc, string asm,
 }
 
 multiclass SIMDDifferentThreeVectorBD<bit U, bits<4> opc, string asm,
-                                      Intrinsic IntOp> {
+                                      SDPatternOperator OpNode> {
   def v8i8   : BaseSIMDDifferentThreeVector<U, 0b000, opc,
                                             V128, V64, V64,
                                             asm, ".8h", ".8b", ".8b",
-      [(set (v8i16 V128:$Rd), (IntOp (v8i8 V64:$Rn), (v8i8 V64:$Rm)))]>;
+      [(set (v8i16 V128:$Rd), (OpNode (v8i8 V64:$Rn), (v8i8 V64:$Rm)))]>;
   def v16i8  : BaseSIMDDifferentThreeVector<U, 0b001, opc,
                                             V128, V128, V128,
                                             asm#"2", ".8h", ".16b", ".16b", []>;
   let Predicates = [HasAES] in {
     def v1i64  : BaseSIMDDifferentThreeVector<U, 0b110, opc,
                                               V128, V64, V64,
-                                              asm, ".1q", ".1d", ".1d", []>;
+                                              asm, ".1q", ".1d", ".1d",
+        [(set (v16i8 V128:$Rd), (OpNode (v1i64 V64:$Rn), (v1i64 V64:$Rm)))]>;
     def v2i64  : BaseSIMDDifferentThreeVector<U, 0b111, opc,
                                               V128, V128, V128,
-                                              asm#"2", ".1q", ".2d", ".2d", []>;
+                                              asm#"2", ".1q", ".2d", ".2d",
+        [(set (v16i8 V128:$Rd), (OpNode (extract_high_v2i64 (v2i64 V128:$Rn)),
+                                        (extract_high_v2i64 (v2i64 V128:$Rm))))]>;
   }
 
-  def : Pat<(v8i16 (IntOp (v8i8 (extract_high_v16i8 (v16i8 V128:$Rn))),
+  def : Pat<(v8i16 (OpNode (v8i8 (extract_high_v16i8 (v16i8 V128:$Rn))),
                           (v8i8 (extract_high_v16i8 (v16i8 V128:$Rm))))),
       (!cast<Instruction>(NAME#"v16i8") V128:$Rn, V128:$Rm)>;
 }
@@ -6843,7 +6953,11 @@ multiclass SIMDZipVector<bits<3>opc, string asm,
 
   def : Pat<(v4f16 (OpNode V64:$Rn, V64:$Rm)),
         (!cast<Instruction>(NAME#"v4i16") V64:$Rn, V64:$Rm)>;
+  def : Pat<(v4bf16 (OpNode V64:$Rn, V64:$Rm)),
+        (!cast<Instruction>(NAME#"v4i16") V64:$Rn, V64:$Rm)>;
   def : Pat<(v8f16 (OpNode V128:$Rn, V128:$Rm)),
+        (!cast<Instruction>(NAME#"v8i16") V128:$Rn, V128:$Rm)>;
+  def : Pat<(v8bf16 (OpNode V128:$Rn, V128:$Rm)),
         (!cast<Instruction>(NAME#"v8i16") V128:$Rn, V128:$Rm)>;
   def : Pat<(v2f32 (OpNode V64:$Rn, V64:$Rm)),
         (!cast<Instruction>(NAME#"v2i32") V64:$Rn, V64:$Rm)>;
@@ -6938,7 +7052,7 @@ multiclass SIMDThreeScalarHSTied<bit U, bit R, bits<5> opc, string asm> {
 multiclass SIMDFPThreeScalar<bit U, bit S, bits<3> opc, string asm,
                              SDPatternOperator OpNode = null_frag,
                              Predicate pred = HasNEON> {
-  let mayLoad = 0, mayStore = 0, hasSideEffects = 0, mayRaiseFPException = 1 in {
+  let mayLoad = 0, mayStore = 0, hasSideEffects = 0, mayRaiseFPException = 1, Uses = [FPCR] in {
     let Predicates = [pred] in {
     def NAME#64 : BaseSIMDThreeScalar<U, {S,0b11}, {0b11,opc}, FPR64, asm,
       [(set (f64 FPR64:$Rd), (OpNode (f64 FPR64:$Rn), (f64 FPR64:$Rm)))]>;
@@ -6957,7 +7071,7 @@ multiclass SIMDFPThreeScalar<bit U, bit S, bits<3> opc, string asm,
 
 multiclass SIMDThreeScalarFPCmp<bit U, bit S, bits<3> opc, string asm,
                                 SDPatternOperator OpNode = null_frag> {
-  let mayLoad = 0, mayStore = 0, hasSideEffects = 0, mayRaiseFPException = 1 in {
+  let mayLoad = 0, mayStore = 0, hasSideEffects = 0, mayRaiseFPException = 1, Uses = [FPCR] in {
     def NAME#64 : BaseSIMDThreeScalar<U, {S,0b11}, {0b11,opc}, FPR64, asm,
       [(set (i64 FPR64:$Rd), (OpNode (f64 FPR64:$Rn), (f64 FPR64:$Rm)))]>;
     def NAME#32 : BaseSIMDThreeScalar<U, {S,0b01}, {0b11,opc}, FPR32, asm,
@@ -7087,7 +7201,7 @@ class BaseSIMDCmpTwoScalar<bit U, bits<2> size, bits<2> size2, bits<5> opcode,
   let Inst{4-0}   = Rd;
 }
 
-let mayRaiseFPException = 1 in
+let mayRaiseFPException = 1, Uses = [FPCR] in
 class SIMDInexactCvtTwoScalar<bits<5> opcode, string asm>
   : I<(outs FPR32:$Rd), (ins FPR64:$Rn), asm, "\t$Rd, $Rn", "",
      [(set (f32 FPR32:$Rd), (int_aarch64_sisd_fcvtxn (f64 FPR64:$Rn)))]>,
@@ -7111,7 +7225,7 @@ multiclass SIMDCmpTwoScalarD<bit U, bits<5> opc, string asm,
 
 multiclass SIMDFPCmpTwoScalar<bit U, bit S, bits<5> opc, string asm,
                               SDPatternOperator OpNode> {
-  let mayRaiseFPException = 1 in {
+  let mayRaiseFPException = 1, Uses = [FPCR] in {
   def v1i64rz  : BaseSIMDCmpTwoScalar<U, {S,1}, 0b00, opc, FPR64, asm, "0.0">;
   def v1i32rz  : BaseSIMDCmpTwoScalar<U, {S,0}, 0b00, opc, FPR32, asm, "0.0">;
   let Predicates = [HasNEON, HasFullFP16] in {
@@ -7141,7 +7255,7 @@ multiclass SIMDTwoScalarD<bit U, bits<5> opc, string asm,
             (!cast<Instruction>(NAME # "v1i64") FPR64:$Rn)>;
 }
 
-let mayRaiseFPException = 1 in
+let mayRaiseFPException = 1, Uses = [FPCR] in
 multiclass SIMDFPTwoScalar<bit U, bit S, bits<5> opc, string asm,
                            Predicate pred = HasNEON> {
   let Predicates = [pred] in {
@@ -7153,7 +7267,7 @@ multiclass SIMDFPTwoScalar<bit U, bit S, bits<5> opc, string asm,
   }
 }
 
-let mayRaiseFPException = 1 in
+let mayRaiseFPException = 1, Uses = [FPCR] in
 multiclass SIMDFPTwoScalarCVT<bit U, bit S, bits<5> opc, string asm,
                               SDPatternOperator OpNode> {
   def v1i64 : BaseSIMDTwoScalar<U, {S,1}, 0b00, opc, FPR64, FPR64, asm,
@@ -7202,7 +7316,7 @@ let mayLoad = 0, mayStore = 0, hasSideEffects = 0 in
 multiclass SIMDTwoScalarMixedBHS<bit U, bits<5> opc, string asm,
                                  SDPatternOperator OpNode = null_frag> {
   def v1i32  : BaseSIMDTwoScalar<U, 0b10, 0b00, opc, FPR32, FPR64, asm,
-        [(set (i32 FPR32:$Rd), (OpNode (i64 FPR64:$Rn)))]>;
+        [(set (f32 FPR32:$Rd), (OpNode (f64 FPR64:$Rn)))]>;
   def v1i16  : BaseSIMDTwoScalar<U, 0b01, 0b00, opc, FPR16, FPR32, asm, []>;
   def v1i8   : BaseSIMDTwoScalar<U, 0b00, 0b00, opc, FPR8 , FPR16, asm, []>;
 }
@@ -7236,7 +7350,7 @@ multiclass SIMDPairwiseScalarD<bit U, bits<5> opc, string asm> {
                                       asm, ".2d">;
 }
 
-let mayRaiseFPException = 1 in
+let mayRaiseFPException = 1, Uses = [FPCR] in
 multiclass SIMDFPPairwiseScalar<bit S, bits<5> opc, string asm> {
   let Predicates = [HasNEON, HasFullFP16] in {
   def v2i16p : BaseSIMDPairwiseScalar<0, {S,0}, opc, FPR16Op, V64,
@@ -7300,7 +7414,7 @@ multiclass SIMDAcrossLanesHSD<bit U, bits<5> opcode, string asm> {
                                    asm, ".4s", []>;
 }
 
-let mayRaiseFPException = 1 in
+let mayRaiseFPException = 1, Uses = [FPCR] in
 multiclass SIMDFPAcrossLanes<bits<5> opcode, bit sz1, string asm,
                             Intrinsic intOp> {
   let Predicates = [HasNEON, HasFullFP16] in {
@@ -8117,7 +8231,7 @@ multiclass SIMDThreeSameVectorBF16DotI<bit U, string asm> {
                                               ".2h", V128, v4f32, v8bf16>;
 }
 
-let mayRaiseFPException = 1 in
+let mayRaiseFPException = 1, Uses = [FPCR] in
 class SIMDBF16MLAL<bit Q, string asm, SDPatternOperator OpNode>
   : BaseSIMDThreeSameVectorTied<Q, 0b1, 0b110, 0b11111, V128, asm, ".4s",
               [(set (v4f32 V128:$dst), (OpNode (v4f32 V128:$Rd),
@@ -8126,7 +8240,7 @@ class SIMDBF16MLAL<bit Q, string asm, SDPatternOperator OpNode>
   let AsmString = !strconcat(asm, "{\t$Rd.4s, $Rn.8h, $Rm.8h}");
 }
 
-let mayRaiseFPException = 1 in
+let mayRaiseFPException = 1, Uses = [FPCR] in
 class SIMDBF16MLALIndex<bit Q, string asm, SDPatternOperator OpNode>
   : I<(outs V128:$dst),
       (ins V128:$Rd, V128:$Rn, V128_lo:$Rm, VectorIndexH:$idx), asm,
@@ -8166,21 +8280,21 @@ class SIMDThreeSameVectorBF16MatrixMul<string asm>
                                     ", $Rm", ".8h", "}");
 }
 
-let mayRaiseFPException = 1 in
+let mayRaiseFPException = 1, Uses = [FPCR] in
 class SIMD_BFCVTN
   : BaseSIMDMixedTwoVector<0, 0, 0b10, 0b10110, V128, V128,
                            "bfcvtn", ".4h", ".4s",
     [(set (v8bf16 V128:$Rd),
           (int_aarch64_neon_bfcvtn (v4f32 V128:$Rn)))]>;
 
-let mayRaiseFPException = 1 in
+let mayRaiseFPException = 1, Uses = [FPCR] in
 class SIMD_BFCVTN2
   : BaseSIMDMixedTwoVectorTied<1, 0, 0b10, 0b10110, V128, V128,
                            "bfcvtn2", ".8h", ".4s",
     [(set (v8bf16 V128:$dst),
           (int_aarch64_neon_bfcvtn2 (v8bf16 V128:$Rd), (v4f32 V128:$Rn)))]>;
 
-let mayRaiseFPException = 1 in
+let mayRaiseFPException = 1, Uses = [FPCR] in
 class BF16ToSinglePrecision<string asm>
   : I<(outs FPR16:$Rd), (ins FPR32:$Rn), asm, "\t$Rd, $Rn", "",
     [(set (bf16 FPR16:$Rd), (int_aarch64_neon_bfcvt (f32 FPR32:$Rn)))]>,
@@ -8234,7 +8348,7 @@ multiclass SIMDThreeSameVectorDotIndex<bit U, bit Mixed, bits<2> size, string as
 }
 
 // ARMv8.2-A Fused Multiply Add-Long Instructions (Indexed)
-let mayRaiseFPException = 1 in
+let mayRaiseFPException = 1, Uses = [FPCR] in
 class BaseSIMDThreeSameVectorFMLIndex<bit Q, bit U, bits<4> opc, string asm,
                                       string dst_kind, string lhs_kind,
                                       string rhs_kind, RegisterOperand RegType,
@@ -8262,7 +8376,7 @@ multiclass SIMDThreeSameVectorFMLIndex<bit U, bits<4> opc, string asm,
                                               V128, v4f32, v8f16, OpNode>;
 }
 
-let mayRaiseFPException = 1 in
+let mayRaiseFPException = 1, Uses = [FPCR] in
 multiclass SIMDFPIndexed<bit U, bits<4> opc, string asm,
                          SDPatternOperator OpNode> {
   let Predicates = [HasNEON, HasFullFP16] in {
@@ -8445,7 +8559,7 @@ multiclass SIMDFPIndexedTiedPatterns<string INST, SDPatternOperator OpNode> {
                 V128:$Rm, VectorIndexD:$idx)>;
 }
 
-let mayRaiseFPException = 1 in
+let mayRaiseFPException = 1, Uses = [FPCR] in
 multiclass SIMDFPIndexedTied<bit U, bits<4> opc, string asm> {
   let Predicates = [HasNEON, HasFullFP16] in {
   def v4i16_indexed : BaseSIMDIndexedTied<0, U, 0, 0b00, opc, V64, V64,
@@ -8847,20 +8961,6 @@ multiclass SIMDIndexedLongSQDMLXSDTied<bit U, bits<4> opc, string asm,
     let Inst{20} = idx{0};
   }
 
-  // FIXME: it would be nice to use the scalar (v1i32) instruction here, but an
-  // intermediate EXTRACT_SUBREG would be untyped.
-  def : Pat<(i32 (Accum (i32 FPR32Op:$Rd),
-                (i32 (vector_extract (v4i32
-                         (int_aarch64_neon_sqdmull (v4i16 V64:$Rn),
-                             (v4i16 (AArch64duplane16 (v8i16 V128_lo:$Rm),
-                                                    VectorIndexH:$idx)))),
-                         (i64 0))))),
-            (EXTRACT_SUBREG
-                (!cast<Instruction>(NAME # v4i16_indexed)
-                    (SUBREG_TO_REG (i32 0), FPR32Op:$Rd, ssub), V64:$Rn,
-                    V128_lo:$Rm, VectorIndexH:$idx),
-                ssub)>;
-
   def v8i16_indexed : BaseSIMDIndexedTied<1, U, 0, 0b01, opc,
                                       V128, V128,
                                       V128_lo, VectorIndexH,
@@ -8914,6 +9014,31 @@ multiclass SIMDIndexedLongSQDMLXSDTied<bit U, bits<4> opc, string asm,
     let Inst{20} = idx{0};
   }
 
+  def : Pat<(i32 (Accum (i32 FPR32Op:$Rd),
+                        (i32 (vector_extract
+                                    (v4i32 (int_aarch64_neon_sqdmull
+                                                (v4i16 V64:$Rn),
+                                                (v4i16 V64:$Rm))),
+                                    (i64 0))))),
+            (!cast<Instruction>(NAME # v1i32_indexed)
+                        FPR32Op:$Rd,
+                        (EXTRACT_SUBREG V64:$Rn, hsub),
+                        (INSERT_SUBREG (IMPLICIT_DEF), V64:$Rm, dsub),
+                        (i64 0))>;
+
+  def : Pat<(i32 (Accum (i32 FPR32Op:$Rd),
+                        (i32 (vector_extract
+                                    (v4i32 (int_aarch64_neon_sqdmull
+                                                (v4i16 V64:$Rn),
+                                                (v4i16 (AArch64duplane16
+                                                            (v8i16 V128_lo:$Rm),
+                                                            VectorIndexH:$idx)))),
+                                    (i64 0))))),
+            (!cast<Instruction>(NAME # v1i32_indexed)
+                        FPR32Op:$Rd,
+                        (EXTRACT_SUBREG V64:$Rn, hsub),
+                        V128_lo:$Rm,
+                        VectorIndexH:$idx)>;
 
   def v1i64_indexed : BaseSIMDIndexedTied<1, U, 1, 0b10, opc,
                                       FPR64Op, FPR32Op, V128, VectorIndexS,
@@ -10738,7 +10863,7 @@ def complexrotateopodd : Operand<i32>, TImmLeaf<i32, [{ return Imm >= 0 && Imm <
   let ParserMatchClass = ComplexRotationOperand<180, 90, "Odd">;
   let PrintMethod = "printComplexRotationOp<180, 90>";
 }
-let mayLoad = 0, mayStore = 0, hasSideEffects = 0, mayRaiseFPException = 1 in
+let mayLoad = 0, mayStore = 0, hasSideEffects = 0, mayRaiseFPException = 1, Uses = [FPCR] in
 class BaseSIMDThreeSameVectorComplex<bit Q, bit U, bits<2> size, bits<3> opcode,
                                      RegisterOperand regtype, Operand rottype,
                                      string asm, string kind, list<dag> pattern>
@@ -10809,7 +10934,7 @@ multiclass SIMDThreeSameVectorComplexHSD<bit U, bits<3> opcode, Operand rottype,
   }
 }
 
-let mayLoad = 0, mayStore = 0, hasSideEffects = 0, mayRaiseFPException = 1 in
+let mayLoad = 0, mayStore = 0, hasSideEffects = 0, mayRaiseFPException = 1, Uses = [FPCR] in
 class BaseSIMDThreeSameVectorTiedComplex<bit Q, bit U, bits<2> size,
                                          bits<3> opcode,
                                          RegisterOperand regtype,
@@ -10881,7 +11006,7 @@ multiclass SIMDThreeSameVectorTiedComplexHSD<bit U, bits<3> opcode,
   }
 }
 
-let mayLoad = 0, mayStore = 0, hasSideEffects = 0, mayRaiseFPException = 1 in
+let mayLoad = 0, mayStore = 0, hasSideEffects = 0, mayRaiseFPException = 1, Uses = [FPCR] in
 class BaseSIMDIndexedTiedComplex<bit Q, bit U, bit Scalar, bits<2> size,
                                  bit opc1, bit opc2, RegisterOperand dst_reg,
                                  RegisterOperand lhs_reg,

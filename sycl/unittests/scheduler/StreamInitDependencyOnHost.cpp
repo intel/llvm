@@ -80,8 +80,9 @@ TEST_F(SchedulerTest, StreamInitDependencyOnHost) {
   unittest::ScopedEnvVar DisabledCleanup{
       DisablePostEnqueueCleanupName, "1",
       detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
-  sycl::queue HQueue(host_selector{});
-  detail::QueueImplPtr HQueueImpl = detail::getSyclObjImpl(HQueue);
+  std::shared_ptr<detail::queue_impl> HQueueImpl(new detail::queue_impl(
+      detail::device_impl::getHostDeviceImpl(), /*AsyncHandler=*/{},
+      /*PropList=*/{}));
 
   // Emulating processing of command group function
   MockHandlerStreamInit MockCGH(HQueueImpl, true);

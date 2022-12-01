@@ -10,6 +10,7 @@
 #include "tests/scudo_unit_test.h"
 
 #include "allocator_config.h"
+#include "chunk.h"
 #include "combined.h"
 
 #include <condition_variable>
@@ -152,7 +153,7 @@ void ScudoCombinedTest<Config>::BasicTest(scudo::uptr SizeLog) {
   for (scudo::uptr AlignLog = MinAlignLog; AlignLog <= 16U; AlignLog++) {
     const scudo::uptr Align = 1U << AlignLog;
     for (scudo::sptr Delta = -32; Delta <= 32; Delta++) {
-      if (static_cast<scudo::sptr>(1U << SizeLog) + Delta <= 0)
+      if (static_cast<scudo::sptr>(1U << SizeLog) + Delta < 0)
         continue;
       const scudo::uptr Size = (1U << SizeLog) + Delta;
       void *P = Allocator->allocate(Size, Origin, Align);
@@ -394,6 +395,27 @@ SCUDO_TYPED_TEST(ScudoCombinedDeathTest, UseAfterFree) {
   }
 }
 
+SCUDO_TYPED_TEST(ScudoCombinedDeathTest, FreeWithTagMismatch) {
+  auto *Allocator = this->Allocator.get();
+
+  if (!Allocator->useMemoryTaggingTestOnly())
+    return;
+
+  // Check that double free is detected.
+  for (scudo::uptr SizeLog = 0U; SizeLog <= 20U; SizeLog++) {
+    const scudo::uptr Size = 1U << SizeLog;
+    EXPECT_DEATH(
+        {
+          disableDebuggerdMaybe();
+          void *P = Allocator->allocate(Size, Origin);
+          scudo::uptr NewTag = (scudo::extractTag(reinterpret_cast<scudo::uptr>(P)) + 1) % 16;
+          void *Q = scudo::addFixedTag(scudo::untagPointer(P), NewTag);
+          Allocator->deallocate(Q, Origin);
+        },
+        "");
+  }
+}
+
 SCUDO_TYPED_TEST(ScudoCombinedDeathTest, DisableMemoryTagging) {
   auto *Allocator = this->Allocator.get();
 
@@ -506,12 +528,12 @@ struct DeathSizeClassConfig {
   static const scudo::uptr MinSizeLog = 10;
   static const scudo::uptr MidSizeLog = 10;
   static const scudo::uptr MaxSizeLog = 13;
-  static const scudo::u32 MaxNumCachedHint = 4;
+  static const scudo::u16 MaxNumCachedHint = 8;
   static const scudo::uptr MaxBytesCachedLog = 12;
   static const scudo::uptr SizeDelta = 0;
 };
 
-static const scudo::uptr DeathRegionSizeLog = 20U;
+static const scudo::uptr DeathRegionSizeLog = 21U;
 struct DeathConfig {
   static const bool MaySupportMemoryTagging = false;
 
@@ -525,6 +547,7 @@ struct DeathConfig {
   static const scudo::uptr PrimaryCompactPtrScale = 0;
   static const bool PrimaryEnableRandomOffset = true;
   static const scudo::uptr PrimaryMapSizeIncrement = 1UL << 18;
+  static const scudo::uptr PrimaryGroupSizeLog = 18;
 
   typedef scudo::MapAllocatorNoCache SecondaryCache;
   template <class A> using TSDRegistryT = scudo::TSDRegistrySharedT<A, 1U, 1U>;
@@ -699,3 +722,33 @@ SCUDO_TYPED_TEST(ScudoCombinedTest, ReallocateInPlaceStress) {
       Allocator->deallocate(Ptrs[i], Origin);
   }
 }
+
+#if SCUDO_CAN_USE_PRIMARY64
+#if SCUDO_TRUSTY
+
+// TrustyConfig is designed for a domain-specific allocator. Add a basic test
+// which covers only simple operations and ensure the configuration is able to
+// compile.
+TEST(ScudoCombinedTest, BasicTrustyConfig) {
+  using AllocatorT = scudo::Allocator<scudo::TrustyConfig>;
+  auto Allocator = std::unique_ptr<AllocatorT>(new AllocatorT());
+
+  for (scudo::uptr ClassId = 1U;
+       ClassId <= scudo::TrustyConfig::SizeClassMap::LargestClassId;
+       ClassId++) {
+    const scudo::uptr Size =
+        scudo::TrustyConfig::SizeClassMap::getSizeByClassId(ClassId);
+    void *p = Allocator->allocate(Size - scudo::Chunk::getHeaderSize(), Origin);
+    ASSERT_NE(p, nullptr);
+    free(p);
+  }
+
+  bool UnlockRequired;
+  auto *TSD = Allocator->getTSDRegistry()->getTSDAndLock(&UnlockRequired);
+  TSD->Cache.drain();
+
+  Allocator->releaseToOS();
+}
+
+#endif
+#endif

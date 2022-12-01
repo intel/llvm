@@ -320,11 +320,12 @@ printMemoryTags(const DataExtractor &DE, Stream *s, lldb::addr_t addr,
 static const llvm::fltSemantics &GetFloatSemantics(const TargetSP &target_sp,
                                                    size_t byte_size) {
   if (target_sp) {
-    if (auto type_system_or_err =
-            target_sp->GetScratchTypeSystemForLanguage(eLanguageTypeC))
-      return type_system_or_err->GetFloatTypeSemantics(byte_size);
-    else
+    auto type_system_or_err =
+      target_sp->GetScratchTypeSystemForLanguage(eLanguageTypeC);
+    if (!type_system_or_err)
       llvm::consumeError(type_system_or_err.takeError());
+    else if (auto ts = *type_system_or_err)
+      return ts->GetFloatTypeSemantics(byte_size);
   }
   // No target, just make a reasonable guess
   switch(byte_size) {
@@ -357,7 +358,7 @@ lldb::offset_t lldb_private::DumpDataExtractor(
 
   offset_t offset = start_offset;
 
-  llvm::Optional<MemoryTagMap> memory_tag_map = llvm::None;
+  llvm::Optional<MemoryTagMap> memory_tag_map;
   if (show_memory_tags && base_addr != LLDB_INVALID_ADDRESS)
     memory_tag_map =
         GetMemoryTags(base_addr, DE.GetByteSize() - offset, exe_scope);

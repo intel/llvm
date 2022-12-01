@@ -18,6 +18,7 @@
 #include "bolt/Profile/Heatmap.h"
 #include "bolt/Utils/CommandLineOpts.h"
 #include "bolt/Utils/Utils.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -76,6 +77,8 @@ MaxSamples("max-samples",
   cl::Optional,
   cl::Hidden,
   cl::cat(AggregatorCategory));
+
+extern cl::opt<opts::ProfileFormatKind> ProfileFormat;
 
 cl::opt<bool> ReadPreAggregated(
     "pa", cl::desc("skip perf and read data from a pre-aggregated file format"),
@@ -609,7 +612,8 @@ Error DataAggregator::readProfile(BinaryContext &BC) {
     convertBranchData(Function);
   }
 
-  if (opts::AggregateOnly) {
+  if (opts::AggregateOnly &&
+      opts::ProfileFormat == opts::ProfileFormatKind::PF_Fdata) {
     if (std::error_code EC = writeAggregatedFile(opts::OutputFilename))
       report_error("cannot create output data file", EC);
   }
@@ -865,8 +869,8 @@ bool DataAggregator::recordTrace(
   if (From > To)
     return false;
 
-  BinaryBasicBlock *FromBB = BF.getBasicBlockContainingOffset(From);
-  BinaryBasicBlock *ToBB = BF.getBasicBlockContainingOffset(To);
+  const BinaryBasicBlock *FromBB = BF.getBasicBlockContainingOffset(From);
+  const BinaryBasicBlock *ToBB = BF.getBasicBlockContainingOffset(To);
 
   if (!FromBB || !ToBB)
     return false;
@@ -875,7 +879,8 @@ bool DataAggregator::recordTrace(
   // the previous block (that instruction should be a call).
   if (From == FromBB->getOffset() && !BF.containsAddress(FirstLBR.From) &&
       !FromBB->isEntryPoint() && !FromBB->isLandingPad()) {
-    BinaryBasicBlock *PrevBB = BF.getLayout().getBlock(FromBB->getIndex() - 1);
+    const BinaryBasicBlock *PrevBB =
+        BF.getLayout().getBlock(FromBB->getIndex() - 1);
     if (PrevBB->getSuccessor(FromBB->getLabel())) {
       const MCInst *Instr = PrevBB->getLastNonPseudoInstr();
       if (Instr && BC.MIB->isCall(*Instr))
@@ -938,7 +943,7 @@ DataAggregator::getFallthroughsInTrace(BinaryFunction &BF,
   SmallVector<std::pair<uint64_t, uint64_t>, 16> Res;
 
   if (!recordTrace(BF, FirstLBR, SecondLBR, Count, &Res))
-    return NoneType();
+    return None;
 
   return Res;
 }
@@ -1051,6 +1056,10 @@ void DataAggregator::consumeRestOfLine() {
   Line += 1;
 }
 
+bool DataAggregator::checkNewLine() {
+  return ParsingBuf[0] == '\n';
+}
+
 ErrorOr<DataAggregator::PerfBranchSample> DataAggregator::parseBranchSample() {
   PerfBranchSample Res;
 
@@ -1156,7 +1165,7 @@ ErrorOr<DataAggregator::PerfMemSample> DataAggregator::parseMemSample() {
   ErrorOr<StringRef> Event = parseString(FieldSeparator);
   if (std::error_code EC = Event.getError())
     return EC;
-  if (Event.get().find("mem-loads") == StringRef::npos) {
+  if (!Event.get().contains("mem-loads")) {
     consumeRestOfLine();
     return Res;
   }
@@ -1811,13 +1820,13 @@ Optional<int32_t> DataAggregator::parseCommExecEvent() {
   if (LineEnd == StringRef::npos) {
     reportError("expected rest of line");
     Diag << "Found: " << ParsingBuf << "\n";
-    return NoneType();
+    return None;
   }
   StringRef Line = ParsingBuf.substr(0, LineEnd);
 
   size_t Pos = Line.find("PERF_RECORD_COMM exec");
   if (Pos == StringRef::npos)
-    return NoneType();
+    return None;
   Line = Line.drop_front(Pos);
 
   // Line:
@@ -1827,7 +1836,7 @@ Optional<int32_t> DataAggregator::parseCommExecEvent() {
   if (PIDStr.getAsInteger(10, PID)) {
     reportError("expected PID");
     Diag << "Found: " << PIDStr << "in '" << Line << "'\n";
-    return NoneType();
+    return None;
   }
 
   return PID;
@@ -1841,7 +1850,7 @@ Optional<uint64_t> parsePerfTime(const StringRef TimeStr) {
   uint64_t USecTime;
   if (SecTimeStr.getAsInteger(10, SecTime) ||
       USecTimeStr.getAsInteger(10, USecTime))
-    return NoneType();
+    return None;
   return SecTime * 1000000ULL + USecTime;
 }
 }
@@ -1854,14 +1863,14 @@ Optional<DataAggregator::ForkInfo> DataAggregator::parseForkEvent() {
   if (LineEnd == StringRef::npos) {
     reportError("expected rest of line");
     Diag << "Found: " << ParsingBuf << "\n";
-    return NoneType();
+    return None;
   }
   StringRef Line = ParsingBuf.substr(0, LineEnd);
 
   size_t Pos = Line.find("PERF_RECORD_FORK");
   if (Pos == StringRef::npos) {
     consumeRestOfLine();
-    return NoneType();
+    return None;
   }
 
   ForkInfo FI;
@@ -1880,14 +1889,14 @@ Optional<DataAggregator::ForkInfo> DataAggregator::parseForkEvent() {
   if (ChildPIDStr.getAsInteger(10, FI.ChildPID)) {
     reportError("expected PID");
     Diag << "Found: " << ChildPIDStr << "in '" << Line << "'\n";
-    return NoneType();
+    return None;
   }
 
   const StringRef ParentPIDStr = Line.rsplit('(').second.split(':').first;
   if (ParentPIDStr.getAsInteger(10, FI.ParentPID)) {
     reportError("expected PID");
     Diag << "Found: " << ParentPIDStr << "in '" << Line << "'\n";
-    return NoneType();
+    return None;
   }
 
   consumeRestOfLine();
@@ -2021,19 +2030,16 @@ std::error_code DataAggregator::parseMMapEvents() {
     MMapInfo &MMapInfo = I->second;
     if (BC->HasFixedLoadAddress && MMapInfo.MMapAddress) {
       // Check that the binary mapping matches one of the segments.
-      bool MatchFound = false;
-      for (auto &KV : BC->SegmentMapInfo) {
-        SegmentInfo &SegInfo = KV.second;
-        // The mapping is page-aligned and hence the MMapAddress could be
-        // different from the segment start address. We cannot know the page
-        // size of the mapping, but we know it should not exceed the segment
-        // alignment value. Hence we are performing an approximate check.
-        if (SegInfo.Address >= MMapInfo.MMapAddress &&
-            SegInfo.Address - MMapInfo.MMapAddress < SegInfo.Alignment) {
-          MatchFound = true;
-          break;
-        }
-      }
+      bool MatchFound = llvm::any_of(
+          llvm::make_second_range(BC->SegmentMapInfo),
+          [&](SegmentInfo &SegInfo) {
+            // The mapping is page-aligned and hence the MMapAddress could be
+            // different from the segment start address. We cannot know the page
+            // size of the mapping, but we know it should not exceed the segment
+            // alignment value. Hence we are performing an approximate check.
+            return SegInfo.Address >= MMapInfo.MMapAddress &&
+                   SegInfo.Address - MMapInfo.MMapAddress < SegInfo.Alignment;
+          });
       if (!MatchFound) {
         errs() << "PERF2BOLT-WARNING: ignoring mapping of " << NameToUse
                << " at 0x" << Twine::utohexstr(MMapInfo.MMapAddress) << '\n';
@@ -2141,16 +2147,17 @@ DataAggregator::parseNameBuildIDPair() {
 
   ErrorOr<StringRef> BuildIDStr = parseString(FieldSeparator, true);
   if (std::error_code EC = BuildIDStr.getError())
-    return NoneType();
+    return None;
 
   // If one of the strings is missing, don't issue a parsing error, but still
   // do not return a value.
-  if (ParsingBuf[0] == '\n')
-    return NoneType();
+  consumeAllRemainingFS();
+  if (checkNewLine())
+    return None;
 
   ErrorOr<StringRef> NameStr = parseString(FieldSeparator, true);
   if (std::error_code EC = NameStr.getError())
-    return NoneType();
+    return None;
 
   consumeRestOfLine();
   return std::make_pair(NameStr.get(), BuildIDStr.get());
@@ -2198,7 +2205,7 @@ DataAggregator::getFileNameForBuildID(StringRef FileBuildID) {
   if (!FileName.empty())
     return FileName;
 
-  return NoneType();
+  return None;
 }
 
 std::error_code

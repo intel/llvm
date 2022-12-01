@@ -1,5 +1,5 @@
 ; REQUIRES: asserts
-; RUN: opt < %s -passes=loop-vectorize -force-vector-width=2 -force-vector-interleave=1 -disable-output -debug-only=loop-vectorize 2>&1 | FileCheck %s
+; RUN: opt < %s -passes=loop-vectorize -force-vector-width=2 -force-vector-interleave=1 -force-widen-divrem-via-safe-divisor=0 -disable-output -debug-only=loop-vectorize 2>&1 | FileCheck %s
 
 target datalayout = "e-m:e-i64:64-i128:128-n32:64-S128"
 
@@ -473,7 +473,7 @@ define void @need_new_block_after_sinking_pr56146(i32 %x, i32* %src, i32* noalia
 ; CHECK-NEXT:   Successor(s): loop.0
 ; CHECK-EMPTY:
 ; CHECK-NEXT:   loop.0:
-; CHECK-NEXT:     REPLICATE ir<[[L]]> = load ir<%src>
+; CHECK-NEXT:     CLONE ir<[[L]]> = load ir<%src>
 ; CHECK-NEXT:     EMIT vp<[[SPLICE:%.+]]> = first-order splice ir<%.pn> ir<[[L]]>
 ; CHECK-NEXT:   Successor(s): loop.0.split
 ; CHECK-EMPTY:

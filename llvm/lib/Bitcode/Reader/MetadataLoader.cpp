@@ -552,7 +552,7 @@ class MetadataLoader::MetadataLoaderImpl {
     case 0:
       if (N >= 3 && Expr[N - 3] == dwarf::DW_OP_bit_piece)
         Expr[N - 3] = dwarf::DW_OP_LLVM_fragment;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case 1:
       // Move DW_OP_deref to the end.
       if (N && Expr[0] == dwarf::DW_OP_deref) {
@@ -564,7 +564,7 @@ class MetadataLoader::MetadataLoaderImpl {
         *std::prev(End) = dwarf::DW_OP_deref;
       }
       NeedDeclareExpressionUpgrade = true;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case 2: {
       // Change DW_OP_plus to DW_OP_plus_uconst.
       // Change DW_OP_minus to DW_OP_uconst, DW_OP_minus
@@ -613,7 +613,7 @@ class MetadataLoader::MetadataLoaderImpl {
         SubExpr = SubExpr.slice(HistoricSize);
       }
       Expr = MutableArrayRef<uint64_t>(Buffer);
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     }
     case 3:
       // Up-to-date!
@@ -856,6 +856,7 @@ MetadataLoader::MetadataLoaderImpl::lazyLoadModuleMetadataBlock() {
       case bitc::METADATA_TEMPLATE_VALUE:
       case bitc::METADATA_GLOBAL_VAR:
       case bitc::METADATA_LOCAL_VAR:
+      case bitc::METADATA_ASSIGN_ID:
       case bitc::METADATA_LABEL:
       case bitc::METADATA_EXPRESSION:
       case bitc::METADATA_OBJC_PROPERTY:
@@ -1285,7 +1286,7 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
   }
   case bitc::METADATA_DISTINCT_NODE:
     IsDistinct = true;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case bitc::METADATA_NODE: {
     SmallVector<Metadata *, 8> Elts;
     Elts.reserve(Record.size());
@@ -1962,6 +1963,18 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
     } else
       return error("Invalid record");
 
+    break;
+  }
+  case bitc::METADATA_ASSIGN_ID: {
+    if (Record.size() != 1)
+      return error("Invalid DIAssignID record.");
+
+    IsDistinct = Record[0] & 1;
+    if (!IsDistinct)
+      return error("Invalid DIAssignID record. Must be distinct");
+
+    MetadataList.assignValue(DIAssignID::getDistinct(Context), NextMetadataNo);
+    NextMetadataNo++;
     break;
   }
   case bitc::METADATA_LOCAL_VAR: {

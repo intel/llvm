@@ -1002,7 +1002,7 @@ public:
         if (isUpper8BitReg(Operand.getReg()))
           return true;
       }
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     default:
       return false;
     }
@@ -2600,7 +2600,7 @@ public:
     if (FKI.Flags & MCFixupKindInfo::FKF_IsPCRel) {
       switch (FKI.TargetSize) {
       default:
-        return NoneType();
+        return None;
       case  8: RelType = ELF::R_X86_64_PC8; break;
       case 16: RelType = ELF::R_X86_64_PC16; break;
       case 32: RelType = ELF::R_X86_64_PC32; break;
@@ -2609,7 +2609,7 @@ public:
     } else {
       switch (FKI.TargetSize) {
       default:
-        return NoneType();
+        return None;
       case  8: RelType = ELF::R_X86_64_8; break;
       case 16: RelType = ELF::R_X86_64_16; break;
       case 32: RelType = ELF::R_X86_64_32; break;

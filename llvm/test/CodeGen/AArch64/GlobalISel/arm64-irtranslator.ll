@@ -137,13 +137,13 @@ false:
 ; CHECK-NEXT: successors: %[[BB_L1:bb.[0-9]+]](0x80000000)
 ;
 ; Check basic block L1 has 2 successors: BBL1 and BBL2
-; CHECK: [[BB_L1]].{{[a-zA-Z0-9.]+}} (address-taken):
+; CHECK: [[BB_L1]].{{[a-zA-Z0-9.]+}} (ir-block-address-taken %ir-block.{{[a-zA-Z0-9.]+}}):
 ; CHECK-NEXT: successors: %[[BB_L1]](0x40000000),
 ; CHECK:                  %[[BB_L2:bb.[0-9]+]](0x40000000)
 ; CHECK: G_BRINDIRECT %{{[0-9]+}}(p0)
 ;
 ; Check basic block L2 is the return basic block
-; CHECK: [[BB_L2]].{{[a-zA-Z0-9.]+}} (address-taken):
+; CHECK: [[BB_L2]].{{[a-zA-Z0-9.]+}} (ir-block-address-taken %ir-block.{{[a-zA-Z0-9.]+}}):
 ; CHECK-NEXT: RET_ReallyLR
 
 @indirectbr.L = internal unnamed_addr constant [3 x i8*] [i8* blockaddress(@indirectbr, %L1), i8* blockaddress(@indirectbr, %L2), i8* null], align 8
@@ -1549,7 +1549,7 @@ define i32 @test_extractelement(<2 x i32> %vec, i32 %idx) {
 ; CHECK-LABEL: name: test_extractelement
 ; CHECK: [[VEC:%[0-9]+]]:_(<2 x s32>) = COPY $d0
 ; CHECK: [[IDX:%[0-9]+]]:_(s32) = COPY $w0
-; CHECK: [[IDXEXT:%[0-9]+]]:_(s64) = G_SEXT [[IDX]]
+; CHECK: [[IDXEXT:%[0-9]+]]:_(s64) = G_ZEXT [[IDX]]
 ; CHECK: [[RES:%[0-9]+]]:_(s32) = G_EXTRACT_VECTOR_ELT [[VEC]](<2 x s32>), [[IDXEXT]](s64)
 ; CHECK: $w0 = COPY [[RES]](s32)
   %res = extractelement <2 x i32> %vec, i32 %idx
@@ -1565,6 +1565,27 @@ define i32 @test_extractelement_const_idx(<2 x i32> %vec) {
   %res = extractelement <2 x i32> %vec, i32 1
   ret i32 %res
 }
+
+define i32 @test_extractelement_const_idx_zext_i1(<2 x i32> %vec) {
+; CHECK-LABEL: name: test_extractelement
+; CHECK: [[VEC:%[0-9]+]]:_(<2 x s32>) = COPY $d0
+; CHECK: [[IDX:%[0-9]+]]:_(s64) = G_CONSTANT i64 1
+; CHECK: [[RES:%[0-9]+]]:_(s32) = G_EXTRACT_VECTOR_ELT [[VEC]](<2 x s32>), [[IDX]](s64)
+; CHECK: $w0 = COPY [[RES]](s32)
+  %res = extractelement <2 x i32> %vec, i1 true
+  ret i32 %res
+}
+
+define i32 @test_extractelement_const_idx_zext_i8(<2 x i32> %vec) {
+; CHECK-LABEL: name: test_extractelement
+; CHECK: [[VEC:%[0-9]+]]:_(<2 x s32>) = COPY $d0
+; CHECK: [[IDX:%[0-9]+]]:_(s64) = G_CONSTANT i64 255
+; CHECK: [[RES:%[0-9]+]]:_(s32) = G_EXTRACT_VECTOR_ELT [[VEC]](<2 x s32>), [[IDX]](s64)
+; CHECK: $w0 = COPY [[RES]](s32)
+  %res = extractelement <2 x i32> %vec, i8 255
+  ret i32 %res
+}
+
 
 define i32 @test_singleelementvector(i32 %elt){
 ; CHECK-LABEL: name: test_singleelementvector

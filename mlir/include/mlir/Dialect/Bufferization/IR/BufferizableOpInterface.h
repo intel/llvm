@@ -14,6 +14,8 @@
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/SetVector.h"
 
+#include "mlir/Dialect/Bufferization/IR/BufferizationEnums.h.inc"
+
 namespace mlir {
 class OpBuilder;
 
@@ -52,10 +54,8 @@ public:
   template <typename... DialectTs>
   void allowDialect() {
     // The following expands a call to allowDialectImpl for each dialect
-    // in 'DialectTs'. This magic is necessary due to a limitation in the places
-    // that a parameter pack can be expanded in c++11.
-    // FIXME: In c++17 this can be simplified by using 'fold expressions'.
-    (void)std::initializer_list<int>{0, (allowDialectImpl<DialectTs>(), 0)...};
+    // in 'DialectTs'.
+    (allowDialectImpl<DialectTs>(), ...);
   }
 
   /// Deny the given dialects.
@@ -63,8 +63,7 @@ public:
   /// This function adds one or multiple DENY entries.
   template <typename... DialectTs>
   void denyDialect() {
-    // FIXME: In c++17 this can be simplified by using 'fold expressions'.
-    (void)std::initializer_list<int>{0, (denyDialectImpl<DialectTs>(), 0)...};
+    (denyDialectImpl<DialectTs>(), ...);
   }
 
   /// Allow the given dialect.
@@ -82,8 +81,7 @@ public:
   /// This function adds one or multiple ALLOW entries.
   template <typename... OpTys>
   void allowOperation() {
-    // FIXME: In c++17 this can be simplified by using 'fold expressions'.
-    (void)std::initializer_list<int>{0, (allowOperationImpl<OpTys>(), 0)...};
+    (allowOperationImpl<OpTys>(), ...);
   }
 
   /// Deny the given ops.
@@ -91,8 +89,7 @@ public:
   /// This function adds one or multiple DENY entries.
   template <typename... OpTys>
   void denyOperation() {
-    // FIXME: In c++17 this can be simplified by using 'fold expressions'.
-    (void)std::initializer_list<int>{0, (denyOperationImpl<OpTys>(), 0)...};
+    (denyOperationImpl<OpTys>(), ...);
   }
 
   /// Allow the given op.
@@ -192,12 +189,6 @@ struct BufferizationOptions {
   using UnknownTypeConverterFn = std::function<BaseMemRefType(
       Value, unsigned, const BufferizationOptions &)>;
 
-  enum class LayoutMapOption : int8_t {
-    InferLayoutMap = 0,
-    IdentityLayoutMap = 1,
-    FullyDynamicLayoutMap = 2
-  };
-
   BufferizationOptions();
 
   /// Try to cast the given op to BufferizableOpInterface if the op is allow
@@ -291,6 +282,10 @@ struct BufferizationOptions {
   /// Seed for the analysis fuzzer. If set to `0`, the fuzzer is deactivated.
   /// Should be used only with `testAnalysisOnly = true`.
   unsigned analysisFuzzerSeed = 0;
+
+  /// If set to `true`, the analysis is skipped. A buffer is copied before every
+  /// write. This flag cannot be used together with `testAnalysisOnly = true`.
+  bool copyBeforeWrite = false;
 
   /// If set to `true`, does not modify the IR apart from adding attributes (for
   /// checking the results of the analysis) and post analysis steps.
@@ -391,8 +386,12 @@ public:
   /// In the above example, Values with a star satisfy the condition. When
   /// starting the traversal from Value 1, the resulting SetVector is:
   /// { 2, 7, 8, 5 }
-  SetVector<Value> findValueInReverseUseDefChain(
-      Value value, llvm::function_ref<bool(Value)> condition) const;
+  ///
+  /// If `followEquivalentOnly` is set, only equivalent OpOperands are selected.
+  SetVector<Value>
+  findValueInReverseUseDefChain(Value value,
+                                llvm::function_ref<bool(Value)> condition,
+                                bool followEquivalentOnly = false) const;
 
   /// Find the Values of the last preceding write of a given Value.
   ///
@@ -489,12 +488,29 @@ bool allocationDoesNotEscape(OpResult opResult);
 FailureOr<Value> getBuffer(RewriterBase &rewriter, Value value,
                            const BufferizationOptions &options);
 
-/// Return the buffer type for a given Value (tensor) after bufferization.
+/// Return the buffer type for a given Value (tensor) after bufferization
+/// without bufferizing any IR.
 ///
-/// Note: Op implementations should preferrably call `getBuffer()->getType()`.
-/// This function should only be used if `getBuffer` cannot be used.
+/// Note: It should be sufficient to call `getBuffer()->getType()` in most
+/// cases. However, when a buffer type should be predicted without modifying any
+/// IR, this function can be used.
+///
+/// This function is a wrapper around BufferizableOpInterface::getBufferType.
 FailureOr<BaseMemRefType> getBufferType(Value value,
                                         const BufferizationOptions &options);
+
+/// Return the buffer type for a given Value (tensor) after bufferization
+/// without bufferizing any IR. If at any point during the type computation, the
+/// type of a value in `fixedTypes` in required, the mapped type is used.
+///
+/// Note: It should be sufficient to call `getBuffer()->getType()` in most
+/// cases. However, when a buffer type should be predicted without modifying any
+/// IR, this function can be used.
+///
+/// This function is a wrapper around BufferizableOpInterface::getBufferType.
+FailureOr<BaseMemRefType>
+getBufferType(Value value, const BufferizationOptions &options,
+              const DenseMap<Value, BaseMemRefType> &fixedTypes);
 
 /// Replace an op with replacement values. The op is deleted. Tensor OpResults
 /// must be replaced with memref values.
@@ -543,8 +559,31 @@ BaseMemRefType getMemRefTypeWithFullyDynamicLayout(TensorType tensorType,
 BaseMemRefType getMemRefTypeWithStaticIdentityLayout(TensorType tensorType,
                                                      unsigned memorySpace = 0);
 
+/// Return the owner of the given value. In case of a BlockArgument that is the
+/// owner of the block. In case of an OpResult that is the defining op.
+Operation *getOwnerOfValue(Value value);
+
+namespace detail {
+/// This is the default implementation of
+/// BufferizableOpInterface::getBufferType. Should not be called from other
+/// places.
+FailureOr<BaseMemRefType>
+defaultGetBufferType(Value value, const BufferizationOptions &options,
+                     const DenseMap<Value, BaseMemRefType> &fixedTypes);
+
+/// This is the default implementation of
+/// BufferizableOpInterface::isRepetitiveRegion. Should not be called from other
+/// places.
+bool defaultIsRepetitiveRegion(BufferizableOpInterface bufferizableOp,
+                               unsigned index);
+} // namespace detail
+
 } // namespace bufferization
 } // namespace mlir
+
+//===----------------------------------------------------------------------===//
+// Bufferization Interfaces
+//===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Bufferization/IR/BufferizableOpInterface.h.inc"
 

@@ -14,7 +14,7 @@ set(lld_cmake_builddir "${CMAKE_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX}/cmake/lld")
 set(LLVM_INSTALL_PACKAGE_DIR "${CMAKE_INSTALL_PACKAGEDIR}/llvm" CACHE STRING
   "Path for CMake subdirectory for LLVM (defaults to '${CMAKE_INSTALL_PACKAGEDIR}/llvm')")
 # CMAKE_INSTALL_PACKAGEDIR might be absolute, so don't reuse below.
-set(llvm_cmake_builddir "${LLVM_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX}/cmake/llvm")
+set(llvm_cmake_builddir "${LLVM_LIBRARY_DIR}/cmake/llvm")
 
 get_property(LLD_EXPORTS GLOBAL PROPERTY LLD_EXPORTS)
 export(TARGETS ${LLD_EXPORTS} FILE ${lld_cmake_builddir}/LLDTargets.cmake)
@@ -31,6 +31,10 @@ configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/LLDConfig.cmake.in
   ${lld_cmake_builddir}/LLDConfig.cmake
   @ONLY)
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/LLDConfigVersion.cmake.in
+  ${lld_cmake_builddir}/LLDConfigVersion.cmake
+  @ONLY)
 set(LLD_CONFIG_CMAKE_DIR)
 set(LLD_CONFIG_LLVM_CMAKE_DIR)
 
@@ -44,6 +48,10 @@ configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/LLDConfig.cmake.in
   ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/LLDConfig.cmake
   @ONLY)
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/LLDConfigVersion.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/LLDConfigVersion.cmake
+  @ONLY)
 set(LLD_CONFIG_CODE)
 set(LLD_CONFIG_CMAKE_DIR)
 
@@ -52,6 +60,7 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
 
   install(FILES
     ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/LLDConfig.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/LLDConfigVersion.cmake
     DESTINATION ${LLD_INSTALL_PACKAGE_DIR}
     COMPONENT lld-cmake-exports)
 

@@ -2911,11 +2911,11 @@ define amdgpu_kernel void @sdivrem_v2i16(<2 x i16> addrspace(1)* %out0, <2 x i16
 ; GFX9-NEXT:    v_xor_b32_e32 v3, s11, v3
 ; GFX9-NEXT:    v_subrev_u32_e32 v0, s6, v0
 ; GFX9-NEXT:    v_subrev_u32_e32 v2, s10, v2
-; GFX9-NEXT:    v_sub_u32_sdwa v1, v1, s4 dst_sel:WORD_1 dst_unused:UNUSED_PAD src0_sel:DWORD src1_sel:DWORD
-; GFX9-NEXT:    v_sub_u32_sdwa v3, v3, s11 dst_sel:WORD_1 dst_unused:UNUSED_PAD src0_sel:DWORD src1_sel:DWORD
-; GFX9-NEXT:    v_mov_b32_e32 v4, 0xffff
-; GFX9-NEXT:    v_and_or_b32 v0, v0, v4, v1
-; GFX9-NEXT:    v_and_or_b32 v1, v2, v4, v3
+; GFX9-NEXT:    v_subrev_u32_e32 v1, s4, v1
+; GFX9-NEXT:    v_subrev_u32_e32 v3, s11, v3
+; GFX9-NEXT:    s_mov_b32 s4, 0x5040100
+; GFX9-NEXT:    v_perm_b32 v0, v1, v0, s4
+; GFX9-NEXT:    v_perm_b32 v1, v3, v2, s4
 ; GFX9-NEXT:    v_mov_b32_e32 v2, 0
 ; GFX9-NEXT:    s_waitcnt lgkmcnt(0)
 ; GFX9-NEXT:    global_store_dword v2, v0, s[0:1]
@@ -2992,12 +2992,12 @@ define amdgpu_kernel void @sdivrem_v2i16(<2 x i16> addrspace(1)* %out0, <2 x i16
 ; GFX10-NEXT:    v_xor_b32_e32 v2, s9, v2
 ; GFX10-NEXT:    v_xor_b32_e32 v3, s10, v3
 ; GFX10-NEXT:    v_subrev_nc_u32_e32 v0, s1, v0
-; GFX10-NEXT:    v_sub_nc_u32_sdwa v1, v1, s0 dst_sel:WORD_1 dst_unused:UNUSED_PAD src0_sel:DWORD src1_sel:DWORD
+; GFX10-NEXT:    v_subrev_nc_u32_e32 v1, s0, v1
 ; GFX10-NEXT:    v_subrev_nc_u32_e32 v2, s9, v2
-; GFX10-NEXT:    v_sub_nc_u32_sdwa v3, v3, s10 dst_sel:WORD_1 dst_unused:UNUSED_PAD src0_sel:DWORD src1_sel:DWORD
-; GFX10-NEXT:    v_and_or_b32 v0, 0xffff, v0, v1
+; GFX10-NEXT:    v_subrev_nc_u32_e32 v3, s10, v3
+; GFX10-NEXT:    v_perm_b32 v0, v1, v0, 0x5040100
 ; GFX10-NEXT:    v_mov_b32_e32 v1, 0
-; GFX10-NEXT:    v_and_or_b32 v2, 0xffff, v2, v3
+; GFX10-NEXT:    v_perm_b32 v2, v3, v2, 0x5040100
 ; GFX10-NEXT:    s_waitcnt lgkmcnt(0)
 ; GFX10-NEXT:    global_store_dword v1, v0, s[4:5]
 ; GFX10-NEXT:    global_store_dword v1, v2, s[6:7]

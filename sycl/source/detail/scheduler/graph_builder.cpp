@@ -539,7 +539,7 @@ Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
 }
 
 Command *Scheduler::GraphBuilder::addCGUpdateHost(
-    std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr HostQueue,
+    std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &HostQueue,
     std::vector<Command *> &ToEnqueue) {
 
   auto UpdateHost = static_cast<CGUpdateHost *>(CommandGroup.get());
@@ -668,7 +668,7 @@ static bool checkHostUnifiedMemory(const ContextImplPtr &Ctx) {
 // Note, creation of new allocation command can lead to the current context
 // (Record->MCurContext) change.
 AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
-    MemObjRecord *Record, const Requirement *Req, QueueImplPtr Queue,
+    MemObjRecord *Record, const Requirement *Req, const QueueImplPtr &Queue,
     std::vector<Command *> &ToEnqueue) {
 
   AllocaCommandBase *AllocaCmd = findAllocaForReq(
@@ -919,7 +919,7 @@ static void combineAccessModesOfReqs(std::vector<Requirement *> &Reqs) {
 
 Command *
 Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
-                               QueueImplPtr Queue,
+                               const QueueImplPtr &Queue,
                                std::vector<Command *> &ToEnqueue) {
   std::vector<Requirement *> &Reqs = CommandGroup->MRequirements;
   const std::vector<detail::EventImplPtr> &Events = CommandGroup->MEvents;
@@ -1302,7 +1302,7 @@ void Scheduler::GraphBuilder::removeRecordForMemObj(SYCLMemObjI *MemObject) {
 // requirement.
 // Optionality of Dep is set by Dep.MDepCommand equal to nullptr.
 Command *Scheduler::GraphBuilder::connectDepEvent(
-    Command *const Cmd, EventImplPtr DepEvent, const DepDesc &Dep,
+    Command *const Cmd, const EventImplPtr &DepEvent, const DepDesc &Dep,
     std::vector<Command *> &ToCleanUp) {
   assert(Cmd->getWorkerContext() != DepEvent->getContextImpl());
 

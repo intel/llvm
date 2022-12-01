@@ -1275,184 +1275,129 @@ fast_normalize(T p) __NOEXC {
   return __sycl_std::__invoke_fast_normalize<T>(p);
 }
 
-/* --------------- 4.13.7 Relational functions. Device version --------------*/
-// int isequal (half x, half y)
-// shortn isequal (halfn x, halfn y)
-// igeninteger32bit isequal (svgenfloatf x, svgenfloatf y)
-// int isequal (double x,double y);
-// longn isequal (doublen x, doublen y)
+/* SYCL 1.2.1 ---- 4.13.7 Relational functions. -----------------------------*/
+/* SYCL 2020  ---- 4.17.9 Relational functions. -----------------------------*/
+
 template <typename T,
           typename = detail::enable_if_t<detail::is_svgenfloat<T>::value, T>>
 detail::common_rel_ret_t<T> isequal(T x, T y) __NOEXC {
   return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_FOrdEqual<detail::rel_ret_t<T>>(x, y));
+      __sycl_std::__invoke_FOrdEqual<detail::internal_rel_ret_t<T>>(x, y));
 }
 
-// int isnotequal (half x, half y)
-// shortn isnotequal (halfn x, halfn y)
-// igeninteger32bit isnotequal (svgenfloatf x, svgenfloatf y)
-// int isnotequal (double x, double y)
-// longn isnotequal (doublen x, doublen y)
 template <typename T,
           typename = detail::enable_if_t<detail::is_svgenfloat<T>::value, T>>
 detail::common_rel_ret_t<T> isnotequal(T x, T y) __NOEXC {
   return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_FUnordNotEqual<detail::rel_ret_t<T>>(x, y));
+      __sycl_std::__invoke_FUnordNotEqual<detail::internal_rel_ret_t<T>>(x, y));
 }
 
-// int isgreater (half x, half y)
-// shortn isgreater (halfn x, halfn y)
-// igeninteger32bit isgreater (svgenfloatf x, svgenfloatf y)
-// int isgreater (double x, double y)
-// longn isgreater (doublen x, doublen y)
 template <typename T,
           typename = detail::enable_if_t<detail::is_svgenfloat<T>::value, T>>
 detail::common_rel_ret_t<T> isgreater(T x, T y) __NOEXC {
   return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_FOrdGreaterThan<detail::rel_ret_t<T>>(x, y));
+      __sycl_std::__invoke_FOrdGreaterThan<detail::internal_rel_ret_t<T>>(x,
+                                                                          y));
 }
 
-// int isgreaterequal (half x, half y)
-// shortn isgreaterequal (halfn x, halfn y)
-// igeninteger32bit isgreaterequal (svgenfloatf x, svgenfloatf y)
-// int isgreaterequal (double x, double y)
-// longn isgreaterequal (doublen x, doublen y)
 template <typename T,
           typename = detail::enable_if_t<detail::is_svgenfloat<T>::value, T>>
 detail::common_rel_ret_t<T> isgreaterequal(T x, T y) __NOEXC {
   return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_FOrdGreaterThanEqual<detail::rel_ret_t<T>>(x, y));
+      __sycl_std::__invoke_FOrdGreaterThanEqual<detail::internal_rel_ret_t<T>>(
+          x, y));
 }
 
-// int isless (half x, half y)
-// shortn isless (halfn x, halfn y)
-// igeninteger32bit isless (svgenfloatf x, svgenfloatf y)
-// int isless (long x, long y)
-// longn isless (doublen x, doublen y)
 template <typename T,
           typename = detail::enable_if_t<detail::is_svgenfloat<T>::value, T>>
 detail::common_rel_ret_t<T> isless(T x, T y) __NOEXC {
   return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_FOrdLessThan<detail::rel_ret_t<T>>(x, y));
+      __sycl_std::__invoke_FOrdLessThan<detail::internal_rel_ret_t<T>>(x, y));
 }
 
-// int islessequal (half x, half y)
-// shortn islessequal (halfn x, halfn y)
-// igeninteger32bit islessequal (svgenfloatf x, svgenfloatf y)
-// int islessequal (double x, double y)
-// longn islessequal (doublen x, doublen y)
 template <typename T,
           typename = detail::enable_if_t<detail::is_svgenfloat<T>::value, T>>
 detail::common_rel_ret_t<T> islessequal(T x, T y) __NOEXC {
   return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_FOrdLessThanEqual<detail::rel_ret_t<T>>(x, y));
+      __sycl_std::__invoke_FOrdLessThanEqual<detail::internal_rel_ret_t<T>>(x,
+                                                                            y));
 }
 
-// int islessgreater (half x, half y)
-// shortn islessgreater (halfn x, halfn y)
-// igeninteger32bit islessgreater (svgenfloatf x, svgenfloatf y)
-// int islessgreater (double x, double y)
-// longn islessgreater (doublen x, doublen y)
 template <typename T,
           typename = detail::enable_if_t<detail::is_svgenfloat<T>::value, T>>
 detail::common_rel_ret_t<T> islessgreater(T x, T y) __NOEXC {
   return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_FOrdNotEqual<detail::rel_ret_t<T>>(x, y));
+      __sycl_std::__invoke_FOrdNotEqual<detail::internal_rel_ret_t<T>>(x, y));
 }
 
-// int isfinite (half x)
-// shortn isfinite (halfn x)
-// igeninteger32bit isfinite (svgenfloatf x)
-// int isfinite (double x)
-// longn isfinite (doublen x)
 template <typename T,
           typename = detail::enable_if_t<detail::is_svgenfloat<T>::value, T>>
 detail::common_rel_ret_t<T> isfinite(T x) __NOEXC {
   return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_IsFinite<detail::rel_ret_t<T>>(x));
+      __sycl_std::__invoke_IsFinite<detail::internal_rel_ret_t<T>>(x));
 }
 
-// int isinf (half x)
-// shortn isinf (halfn x)
-// igeninteger32bit isinf (svgenfloatf x)
-// int isinf (double x)
-// longn isinf (doublen x)
 template <typename T,
           typename = detail::enable_if_t<detail::is_svgenfloat<T>::value, T>>
 detail::common_rel_ret_t<T> isinf(T x) __NOEXC {
   return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_IsInf<detail::rel_ret_t<T>>(x));
+      __sycl_std::__invoke_IsInf<detail::internal_rel_ret_t<T>>(x));
 }
 
-// int isnan (half x)
-// shortn isnan (halfn x)
-// igeninteger32bit isnan (svgenfloatf x)
-// int isnan (double x)
-// longn isnan (doublen x)
 template <typename T,
           typename = detail::enable_if_t<detail::is_svgenfloat<T>::value, T>>
 detail::common_rel_ret_t<T> isnan(T x) __NOEXC {
   return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_IsNan<detail::rel_ret_t<T>>(x));
+      __sycl_std::__invoke_IsNan<detail::internal_rel_ret_t<T>>(x));
 }
 
-// int isnormal (half x)
-// shortn isnormal (halfn x)
-// igeninteger32bit isnormal (svgenfloatf x)
-// int isnormal (double x)
-// longn isnormal (doublen x)
 template <typename T,
           typename = detail::enable_if_t<detail::is_svgenfloat<T>::value, T>>
 detail::common_rel_ret_t<T> isnormal(T x) __NOEXC {
   return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_IsNormal<detail::rel_ret_t<T>>(x));
+      __sycl_std::__invoke_IsNormal<detail::internal_rel_ret_t<T>>(x));
 }
 
-// int isordered (half x)
-// shortn isordered (halfn x, halfn y)
-// igeninteger32bit isordered (svgenfloatf x, svgenfloatf y)
-// int isordered (double x, double y)
-// longn isordered (doublen x, doublen y)
 template <typename T,
           typename = detail::enable_if_t<detail::is_svgenfloat<T>::value, T>>
 detail::common_rel_ret_t<T> isordered(T x, T y) __NOEXC {
   return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_Ordered<detail::rel_ret_t<T>>(x, y));
+      __sycl_std::__invoke_Ordered<detail::internal_rel_ret_t<T>>(x, y));
 }
 
-// int isunordered (half x, half y)
-// shortn isunordered (halfn x, halfn y)
-// igeninteger32bit isunordered (svgenfloatf x, svgenfloatf y)
-// int isunordered (double x, double y)
-// longn isunordered (doublen x, doublen y)
 template <typename T,
           typename = detail::enable_if_t<detail::is_svgenfloat<T>::value, T>>
 detail::common_rel_ret_t<T> isunordered(T x, T y) __NOEXC {
   return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_Unordered<detail::rel_ret_t<T>>(x, y));
+      __sycl_std::__invoke_Unordered<detail::internal_rel_ret_t<T>>(x, y));
 }
 
-// int signbit (half x)
-// shortn signbit (halfn x)
-// igeninteger32bit signbit (svgenfloatf x)
-// int signbit (double)
-// longn signbit (doublen x)
 template <typename T,
           typename = detail::enable_if_t<detail::is_svgenfloat<T>::value, T>>
 detail::common_rel_ret_t<T> signbit(T x) __NOEXC {
   return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_SignBitSet<detail::rel_ret_t<T>>(x));
+      __sycl_std::__invoke_SignBitSet<detail::internal_rel_ret_t<T>>(x));
 }
+
+namespace detail {
+#if defined(SYCL2020_CONFORMANT_APIS) && SYCL_LANGUAGE_VERSION >= 202001
+using anyall_ret_t = bool;
+#else
+using anyall_ret_t = int;
+#endif
+} // namespace detail
 
 // int any (sigeninteger x)
 template <typename T>
-detail::enable_if_t<detail::is_sigeninteger<T>::value, int> any(T x) __NOEXC {
+detail::enable_if_t<detail::is_sigeninteger<T>::value, detail::anyall_ret_t>
+any(T x) __NOEXC {
   return detail::Boolean<1>(int(detail::msbIsSet(x)));
 }
 
 // int any (vigeninteger x)
 template <typename T>
-detail::enable_if_t<detail::is_vigeninteger<T>::value, int> any(T x) __NOEXC {
+detail::enable_if_t<detail::is_vigeninteger<T>::value, detail::anyall_ret_t>
+any(T x) __NOEXC {
   return detail::rel_sign_bit_test_ret_t<T>(
       __sycl_std::__invoke_Any<detail::rel_sign_bit_test_ret_t<T>>(
           detail::rel_sign_bit_test_arg_t<T>(x)));
@@ -1460,13 +1405,15 @@ detail::enable_if_t<detail::is_vigeninteger<T>::value, int> any(T x) __NOEXC {
 
 // int all (sigeninteger x)
 template <typename T>
-detail::enable_if_t<detail::is_sigeninteger<T>::value, int> all(T x) __NOEXC {
+detail::enable_if_t<detail::is_sigeninteger<T>::value, detail::anyall_ret_t>
+all(T x) __NOEXC {
   return detail::Boolean<1>(int(detail::msbIsSet(x)));
 }
 
 // int all (vigeninteger x)
 template <typename T>
-detail::enable_if_t<detail::is_vigeninteger<T>::value, int> all(T x) __NOEXC {
+detail::enable_if_t<detail::is_vigeninteger<T>::value, detail::anyall_ret_t>
+all(T x) __NOEXC {
   return detail::rel_sign_bit_test_ret_t<T>(
       __sycl_std::__invoke_All<detail::rel_sign_bit_test_ret_t<T>>(
           detail::rel_sign_bit_test_arg_t<T>(x)));
@@ -2046,6 +1993,16 @@ extern SYCL_EXTERNAL double hypot(double x, double y);
 extern SYCL_EXTERNAL void *memcpy(void *dest, const void *src, size_t n);
 extern SYCL_EXTERNAL void *memset(void *dest, int c, size_t n);
 extern SYCL_EXTERNAL int memcmp(const void *s1, const void *s2, size_t n);
+extern SYCL_EXTERNAL long long int __imf_llmax(long long int x,
+                                               long long int y);
+extern SYCL_EXTERNAL long long int __imf_llmin(long long int x,
+                                               long long int y);
+extern SYCL_EXTERNAL unsigned long long int
+__imf_ullmax(unsigned long long int x, unsigned long long int y);
+extern SYCL_EXTERNAL unsigned long long int
+__imf_ullmin(unsigned long long int x, unsigned long long int y);
+extern SYCL_EXTERNAL unsigned int __imf_umax(unsigned int x, unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_umin(unsigned int x, unsigned int y);
 extern SYCL_EXTERNAL unsigned int __imf_brev(unsigned int x);
 extern SYCL_EXTERNAL unsigned long long int
 __imf_brevll(unsigned long long int x);
@@ -2121,6 +2078,64 @@ extern SYCL_EXTERNAL float __imf_ull2float_rd(unsigned long long int x);
 extern SYCL_EXTERNAL float __imf_ull2float_rn(unsigned long long int x);
 extern SYCL_EXTERNAL float __imf_ull2float_ru(unsigned long long int x);
 extern SYCL_EXTERNAL float __imf_ull2float_rz(unsigned long long int x);
+extern SYCL_EXTERNAL float __imf_half2float(_Float16 x);
+extern SYCL_EXTERNAL _Float16 __imf_float2half_rd(float x);
+extern SYCL_EXTERNAL _Float16 __imf_float2half_rn(float x);
+extern SYCL_EXTERNAL _Float16 __imf_float2half_ru(float x);
+extern SYCL_EXTERNAL _Float16 __imf_float2half_rz(float x);
+extern SYCL_EXTERNAL int __imf_half2int_rd(_Float16 x);
+extern SYCL_EXTERNAL int __imf_half2int_rn(_Float16 x);
+extern SYCL_EXTERNAL int __imf_half2int_ru(_Float16 x);
+extern SYCL_EXTERNAL int __imf_half2int_rz(_Float16 x);
+extern SYCL_EXTERNAL long long __imf_half2ll_rd(_Float16 x);
+extern SYCL_EXTERNAL long long __imf_half2ll_rn(_Float16 x);
+extern SYCL_EXTERNAL long long __imf_half2ll_ru(_Float16 x);
+extern SYCL_EXTERNAL long long __imf_half2ll_rz(_Float16 x);
+extern SYCL_EXTERNAL short __imf_half2short_rd(_Float16 x);
+extern SYCL_EXTERNAL short __imf_half2short_rn(_Float16 x);
+extern SYCL_EXTERNAL short __imf_half2short_ru(_Float16 x);
+extern SYCL_EXTERNAL short __imf_half2short_rz(_Float16 x);
+extern SYCL_EXTERNAL unsigned int __imf_half2uint_rd(_Float16 x);
+extern SYCL_EXTERNAL unsigned int __imf_half2uint_rn(_Float16 x);
+extern SYCL_EXTERNAL unsigned int __imf_half2uint_ru(_Float16 x);
+extern SYCL_EXTERNAL unsigned int __imf_half2uint_rz(_Float16 x);
+extern SYCL_EXTERNAL unsigned long long __imf_half2ull_rd(_Float16 x);
+extern SYCL_EXTERNAL unsigned long long __imf_half2ull_rn(_Float16 x);
+extern SYCL_EXTERNAL unsigned long long __imf_half2ull_ru(_Float16 x);
+extern SYCL_EXTERNAL unsigned long long __imf_half2ull_rz(_Float16 x);
+extern SYCL_EXTERNAL unsigned short __imf_half2ushort_rd(_Float16 x);
+extern SYCL_EXTERNAL unsigned short __imf_half2ushort_rn(_Float16 x);
+extern SYCL_EXTERNAL unsigned short __imf_half2ushort_ru(_Float16 x);
+extern SYCL_EXTERNAL unsigned short __imf_half2ushort_rz(_Float16 x);
+extern SYCL_EXTERNAL short __imf_half_as_short(_Float16 x);
+extern SYCL_EXTERNAL unsigned short __imf_half_as_ushort(_Float16 x);
+extern SYCL_EXTERNAL _Float16 __imf_int2half_rd(int x);
+extern SYCL_EXTERNAL _Float16 __imf_int2half_rn(int x);
+extern SYCL_EXTERNAL _Float16 __imf_int2half_ru(int x);
+extern SYCL_EXTERNAL _Float16 __imf_int2half_rz(int x);
+extern SYCL_EXTERNAL _Float16 __imf_ll2half_rd(long long x);
+extern SYCL_EXTERNAL _Float16 __imf_ll2half_rn(long long x);
+extern SYCL_EXTERNAL _Float16 __imf_ll2half_ru(long long x);
+extern SYCL_EXTERNAL _Float16 __imf_ll2half_rz(long long x);
+extern SYCL_EXTERNAL _Float16 __imf_short2half_rd(short x);
+extern SYCL_EXTERNAL _Float16 __imf_short2half_rn(short x);
+extern SYCL_EXTERNAL _Float16 __imf_short2half_ru(short x);
+extern SYCL_EXTERNAL _Float16 __imf_short2half_rz(short x);
+extern SYCL_EXTERNAL _Float16 __imf_short_as_half(short x);
+extern SYCL_EXTERNAL _Float16 __imf_uint2half_rd(unsigned int x);
+extern SYCL_EXTERNAL _Float16 __imf_uint2half_rn(unsigned int x);
+extern SYCL_EXTERNAL _Float16 __imf_uint2half_ru(unsigned int x);
+extern SYCL_EXTERNAL _Float16 __imf_uint2half_rz(unsigned int x);
+extern SYCL_EXTERNAL _Float16 __imf_ull2half_rd(unsigned long long x);
+extern SYCL_EXTERNAL _Float16 __imf_ull2half_rn(unsigned long long x);
+extern SYCL_EXTERNAL _Float16 __imf_ull2half_ru(unsigned long long x);
+extern SYCL_EXTERNAL _Float16 __imf_ull2half_rz(unsigned long long x);
+extern SYCL_EXTERNAL _Float16 __imf_ushort2half_rd(unsigned short x);
+extern SYCL_EXTERNAL _Float16 __imf_ushort2half_rn(unsigned short x);
+extern SYCL_EXTERNAL _Float16 __imf_ushort2half_ru(unsigned short x);
+extern SYCL_EXTERNAL _Float16 __imf_ushort2half_rz(unsigned short x);
+extern SYCL_EXTERNAL _Float16 __imf_ushort_as_half(unsigned short x);
+extern SYCL_EXTERNAL _Float16 __imf_double2half(double x);
 
 extern SYCL_EXTERNAL _Float16 __imf_fmaf16(_Float16 x, _Float16 y, _Float16 z);
 extern SYCL_EXTERNAL _Float16 __imf_fabsf16(_Float16 x);
@@ -2136,6 +2151,23 @@ extern SYCL_EXTERNAL _Float16 __imf_fmaxf16(_Float16 x, _Float16 y);
 extern SYCL_EXTERNAL _Float16 __imf_fminf16(_Float16 x, _Float16 y);
 extern SYCL_EXTERNAL _Float16 __imf_copysignf16(_Float16 x, _Float16 y);
 extern SYCL_EXTERNAL float __imf_half2float(_Float16 x);
+extern SYCL_EXTERNAL float __imf_bfloat162float(uint16_t x);
+extern SYCL_EXTERNAL uint16_t __imf_float2bfloat16(float x);
+extern SYCL_EXTERNAL uint16_t __imf_float2bfloat16_rd(float x);
+extern SYCL_EXTERNAL uint16_t __imf_float2bfloat16_rn(float x);
+extern SYCL_EXTERNAL uint16_t __imf_float2bfloat16_ru(float x);
+extern SYCL_EXTERNAL uint16_t __imf_float2bfloat16_rz(float x);
+extern SYCL_EXTERNAL uint16_t __imf_fmabf16(uint16_t x, uint16_t y, uint16_t z);
+extern SYCL_EXTERNAL uint16_t __imf_fmaxbf16(uint16_t x, uint16_t y);
+extern SYCL_EXTERNAL uint16_t __imf_fminbf16(uint16_t x, uint16_t y);
+extern SYCL_EXTERNAL uint16_t __imf_fabsbf16(uint16_t x);
+extern SYCL_EXTERNAL uint16_t __imf_rintbf16(uint16_t x);
+extern SYCL_EXTERNAL uint16_t __imf_floorbf16(uint16_t x);
+extern SYCL_EXTERNAL uint16_t __imf_ceilbf16(uint16_t x);
+extern SYCL_EXTERNAL uint16_t __imf_truncbf16(uint16_t x);
+extern SYCL_EXTERNAL uint16_t __imf_copysignbf16(uint16_t x, uint16_t y);
+extern SYCL_EXTERNAL uint16_t __imf_sqrtbf16(uint16_t x);
+extern SYCL_EXTERNAL uint16_t __imf_rsqrtbf16(uint16_t x);
 extern SYCL_EXTERNAL double __imf_fma(double x, double y, double z);
 extern SYCL_EXTERNAL double __imf_fabs(double x);
 extern SYCL_EXTERNAL double __imf_floor(double x);

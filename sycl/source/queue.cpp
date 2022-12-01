@@ -11,6 +11,7 @@
 #include <detail/queue_impl.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception_list.hpp>
+#include <sycl/ext/codeplay/experimental/fusion_properties.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/queue.hpp>
 #include <sycl/stl.hpp>
@@ -74,7 +75,11 @@ context queue::get_context() const { return impl->get_context(); }
 
 device queue::get_device() const { return impl->get_device(); }
 
-bool queue::is_host() const { return impl->is_host(); }
+bool queue::is_host() const {
+  bool IsHost = impl->is_host();
+  assert(!IsHost && "queue::is_host should not be called in implementation.");
+  return IsHost;
+}
 
 void queue::throw_asynchronous() { impl->throw_asynchronous(); }
 
@@ -208,5 +213,11 @@ bool queue::device_has(aspect Aspect) const {
   // avoid creating sycl object from impl
   return impl->getDeviceImplPtr()->has(Aspect);
 }
+
+bool queue::ext_codeplay_supports_fusion() const {
+  return impl->has_property<
+      ext::codeplay::experimental::property::queue::enable_fusion>();
+}
+
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

@@ -17,10 +17,10 @@
 #include <unordered_set>
 #include <vector>
 
+#include <detail/accessor_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/access/access.hpp>
-#include <sycl/detail/accessor_impl.hpp>
 #include <sycl/detail/cg.hpp>
 
 namespace sycl {
@@ -148,8 +148,6 @@ public:
 
   const QueueImplPtr &getQueue() const { return MQueue; }
 
-  const QueueImplPtr &getSubmittedQueue() const { return MSubmittedQueue; }
-
   const EventImplPtr &getEvent() const { return MEvent; }
 
   // Methods needed to support SYCL instrumentation
@@ -216,10 +214,8 @@ public:
 
 protected:
   QueueImplPtr MQueue;
-  QueueImplPtr MSubmittedQueue;
   EventImplPtr MEvent;
-
-  QueueImplPtr &MWorkerQueue;
+  QueueImplPtr MWorkerQueue;
 
   /// Dependency events prepared for waiting by backend.
   /// See processDepEvent for details.

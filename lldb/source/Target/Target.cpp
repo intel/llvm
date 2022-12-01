@@ -26,6 +26,7 @@
 #include "lldb/Core/StreamFile.h"
 #include "lldb/Core/StructuredDataImpl.h"
 #include "lldb/Core/ValueObject.h"
+#include "lldb/Core/ValueObjectConstResult.h"
 #include "lldb/Expression/DiagnosticManager.h"
 #include "lldb/Expression/ExpressionVariable.h"
 #include "lldb/Expression/REPL.h"
@@ -177,6 +178,7 @@ void Target::CleanupProcess() {
   // clean up needs some help from the process.
   m_breakpoint_list.ClearAllBreakpointSites();
   m_internal_breakpoint_list.ClearAllBreakpointSites();
+  ResetBreakpointHitCounts();
   // Disable watchpoints just on the debugger side.
   std::unique_lock<std::recursive_mutex> lock;
   this->GetWatchpointList().GetListMutex(lock);
@@ -356,7 +358,9 @@ BreakpointSP Target::CreateBreakpoint(const FileSpecList *containingModules,
                                       bool hardware,
                                       LazyBool move_to_nearest_code) {
   FileSpec remapped_file;
-  if (!GetSourcePathMap().ReverseRemapPath(file, remapped_file))
+  llvm::Optional<llvm::StringRef> removed_prefix_opt =
+      GetSourcePathMap().ReverseRemapPath(file, remapped_file);
+  if (!removed_prefix_opt)
     remapped_file = file;
 
   if (check_inlines == eLazyBoolCalculate) {
@@ -400,7 +404,7 @@ BreakpointSP Target::CreateBreakpoint(const FileSpecList *containingModules,
     return nullptr;
 
   BreakpointResolverSP resolver_sp(new BreakpointResolverFileLine(
-      nullptr, offset, skip_prologue, location_spec));
+      nullptr, offset, skip_prologue, location_spec, removed_prefix_opt));
   return CreateBreakpoint(filter_sp, resolver_sp, internal, hardware, true);
 }
 
@@ -1003,6 +1007,10 @@ bool Target::EnableBreakpointByID(break_id_t break_id) {
   return false;
 }
 
+void Target::ResetBreakpointHitCounts() {
+  GetBreakpointList().ResetHitCounts();
+}
+
 Status Target::SerializeBreakpointsToFile(const FileSpec &file,
                                           const BreakpointIDList &bp_ids,
                                           bool append) {
@@ -1428,7 +1436,8 @@ void Target::SetExecutableModule(ModuleSP &executable_sp,
     if (!m_arch.GetSpec().IsValid()) {
       m_arch = executable_sp->GetArchitecture();
       LLDB_LOG(log,
-               "setting architecture to {0} ({1}) based on executable file",
+               "Target::SetExecutableModule setting architecture to {0} ({1}) "
+               "based on executable file",
                m_arch.GetSpec().GetArchitectureName(),
                m_arch.GetSpec().GetTriple().getTriple());
     }
@@ -1475,7 +1484,8 @@ void Target::SetExecutableModule(ModuleSP &executable_sp,
   }
 }
 
-bool Target::SetArchitecture(const ArchSpec &arch_spec, bool set_platform) {
+bool Target::SetArchitecture(const ArchSpec &arch_spec, bool set_platform,
+                             bool merge) {
   Log *log = GetLog(LLDBLog::Target);
   bool missing_local_arch = !m_arch.GetSpec().IsValid();
   bool replace_local_arch = true;
@@ -1503,7 +1513,7 @@ bool Target::SetArchitecture(const ArchSpec &arch_spec, bool set_platform) {
   }
 
   if (!missing_local_arch) {
-    if (m_arch.GetSpec().IsCompatibleMatch(arch_spec)) {
+    if (merge && m_arch.GetSpec().IsCompatibleMatch(arch_spec)) {
       other.MergeFrom(m_arch.GetSpec());
 
       if (m_arch.GetSpec().IsCompatibleMatch(other)) {
@@ -1527,7 +1537,9 @@ bool Target::SetArchitecture(const ArchSpec &arch_spec, bool set_platform) {
     // specified
     if (replace_local_arch)
       m_arch = other;
-    LLDB_LOG(log, "set architecture to {0} ({1})",
+    LLDB_LOG(log,
+             "Target::SetArchitecture merging compatible arch; arch "
+             "is now {0} ({1})",
              m_arch.GetSpec().GetArchitectureName(),
              m_arch.GetSpec().GetTriple().getTriple());
     return true;
@@ -1535,9 +1547,13 @@ bool Target::SetArchitecture(const ArchSpec &arch_spec, bool set_platform) {
 
   // If we have an executable file, try to reset the executable to the desired
   // architecture
-  LLDB_LOGF(log, "Target::SetArchitecture changing architecture to %s (%s)",
-            arch_spec.GetArchitectureName(),
-            arch_spec.GetTriple().getTriple().c_str());
+  LLDB_LOGF(
+      log,
+      "Target::SetArchitecture changing architecture to %s (%s) from %s (%s)",
+      arch_spec.GetArchitectureName(),
+      arch_spec.GetTriple().getTriple().c_str(),
+      m_arch.GetSpec().GetArchitectureName(),
+      m_arch.GetSpec().GetTriple().getTriple().c_str());
   m_arch = other;
   ModuleSP executable_sp = GetExecutableModule();
 
@@ -2285,7 +2301,7 @@ void Target::ImageSearchPathsChanged(const PathMappingList &path_list,
     target->SetExecutableModule(exe_module_sp, eLoadDependentsYes);
 }
 
-llvm::Expected<TypeSystem &>
+llvm::Expected<lldb::TypeSystemSP>
 Target::GetScratchTypeSystemForLanguage(lldb::LanguageType language,
                                         bool create_on_demand) {
   if (!m_valid)
@@ -2314,14 +2330,15 @@ Target::GetScratchTypeSystemForLanguage(lldb::LanguageType language,
                                                             create_on_demand);
 }
 
-std::vector<TypeSystem *> Target::GetScratchTypeSystems(bool create_on_demand) {
+std::vector<lldb::TypeSystemSP>
+Target::GetScratchTypeSystems(bool create_on_demand) {
   if (!m_valid)
     return {};
 
   // Some TypeSystem instances are associated with several LanguageTypes so
   // they will show up several times in the loop below. The SetVector filters
   // out all duplicates as they serve no use for the caller.
-  llvm::SetVector<TypeSystem *> scratch_type_systems;
+  std::vector<lldb::TypeSystemSP> scratch_type_systems;
 
   LanguageSet languages_for_expressions =
       Language::GetLanguagesSupportingTypeSystemsForExpressions();
@@ -2336,10 +2353,17 @@ std::vector<TypeSystem *> Target::GetScratchTypeSystems(bool create_on_demand) {
                      "system available",
                      Language::GetNameForLanguageType(language));
     else
-      scratch_type_systems.insert(&type_system_or_err.get());
+      if (auto ts = *type_system_or_err)
+        scratch_type_systems.push_back(ts);
   }
-
-  return scratch_type_systems.takeVector();
+  std::sort(scratch_type_systems.begin(), scratch_type_systems.end(),
+            [](lldb::TypeSystemSP a, lldb::TypeSystemSP b) {
+              return a.get() <= b.get();
+            });
+  scratch_type_systems.erase(
+      std::unique(scratch_type_systems.begin(), scratch_type_systems.end()),
+      scratch_type_systems.end());
+  return scratch_type_systems;
 }
 
 PersistentExpressionState *
@@ -2353,7 +2377,13 @@ Target::GetPersistentExpressionStateForLanguage(lldb::LanguageType language) {
     return nullptr;
   }
 
-  return type_system_or_err->GetPersistentExpressionState();
+  if (auto ts = *type_system_or_err)
+    return ts->GetPersistentExpressionState();
+
+  LLDB_LOG(GetLog(LLDBLog::Target),
+           "Unable to get persistent expression state for language {}",
+           Language::GetNameForLanguageType(language));
+  return nullptr;
 }
 
 UserExpression *Target::GetUserExpressionForLanguage(
@@ -2370,8 +2400,16 @@ UserExpression *Target::GetUserExpressionForLanguage(
     return nullptr;
   }
 
-  auto *user_expr = type_system_or_err->GetUserExpression(
-      expr, prefix, language, desired_type, options, ctx_obj);
+  auto ts = *type_system_or_err;
+  if (!ts) {
+    error.SetErrorStringWithFormat(
+        "Type system for language %s is no longer live",
+        Language::GetNameForLanguageType(language));
+    return nullptr;
+  }
+
+  auto *user_expr = ts->GetUserExpression(expr, prefix, language, desired_type,
+                                          options, ctx_obj);
   if (!user_expr)
     error.SetErrorStringWithFormat(
         "Could not create an expression for language %s",
@@ -2392,9 +2430,15 @@ FunctionCaller *Target::GetFunctionCallerForLanguage(
         llvm::toString(std::move(err)).c_str());
     return nullptr;
   }
-
-  auto *persistent_fn = type_system_or_err->GetFunctionCaller(
-      return_type, function_address, arg_value_list, name);
+  auto ts = *type_system_or_err;
+  if (!ts) {
+    error.SetErrorStringWithFormat(
+        "Type system for language %s is no longer live",
+        Language::GetNameForLanguageType(language));
+    return nullptr;
+  }
+  auto *persistent_fn = ts->GetFunctionCaller(return_type, function_address,
+                                              arg_value_list, name);
   if (!persistent_fn)
     error.SetErrorStringWithFormat(
         "Could not create an expression for language %s",
@@ -2410,10 +2454,15 @@ Target::CreateUtilityFunction(std::string expression, std::string name,
   auto type_system_or_err = GetScratchTypeSystemForLanguage(language);
   if (!type_system_or_err)
     return type_system_or_err.takeError();
-
+  auto ts = *type_system_or_err;
+  if (!ts)
+    return llvm::make_error<llvm::StringError>(
+        llvm::StringRef("Type system for language ") +
+            Language::GetNameForLanguageType(language) +
+            llvm::StringRef(" is no longer live"),
+        llvm::inconvertibleErrorCode());
   std::unique_ptr<UtilityFunction> utility_fn =
-      type_system_or_err->CreateUtilityFunction(std::move(expression),
-                                                std::move(name));
+      ts->CreateUtilityFunction(std::move(expression), std::move(name));
   if (!utility_fn)
     return llvm::make_error<llvm::StringError>(
         llvm::StringRef("Could not create an expression for language") +
@@ -2507,8 +2556,13 @@ ExpressionResults Target::EvaluateExpression(
       LLDB_LOG_ERROR(GetLog(LLDBLog::Target), std::move(err),
                      "Unable to get scratch type system");
     } else {
-      persistent_var_sp =
-          type_system_or_err->GetPersistentExpressionState()->GetVariable(expr);
+      auto ts = *type_system_or_err;
+      if (!ts)
+        LLDB_LOG_ERROR(GetLog(LLDBLog::Target), std::move(err),
+                       "Scratch type system is no longer live");
+      else
+        persistent_var_sp =
+            ts->GetPersistentExpressionState()->GetVariable(expr);
     }
   }
   if (persistent_var_sp) {
@@ -2520,6 +2574,10 @@ ExpressionResults Target::EvaluateExpression(
     execution_results = UserExpression::Evaluate(exe_ctx, options, expr, prefix,
                                                  result_valobj_sp, error,
                                                  fixed_expression, ctx_obj);
+    // Pass up the error by wrapping it inside an error result.
+    if (error.Fail() && !result_valobj_sp)
+      result_valobj_sp = ValueObjectConstResult::Create(
+          exe_ctx.GetBestExecutionContextScope(), error);
   }
 
   if (execution_results == eExpressionCompleted)
@@ -2532,9 +2590,12 @@ ExpressionResults Target::EvaluateExpression(
 lldb::ExpressionVariableSP Target::GetPersistentVariable(ConstString name) {
   lldb::ExpressionVariableSP variable_sp;
   m_scratch_type_system_map.ForEach(
-      [name, &variable_sp](TypeSystem *type_system) -> bool {
+      [name, &variable_sp](TypeSystemSP type_system) -> bool {
+        auto ts = type_system.get();
+        if (!ts)
+          return true;
         if (PersistentExpressionState *persistent_state =
-                type_system->GetPersistentExpressionState()) {
+                ts->GetPersistentExpressionState()) {
           variable_sp = persistent_state->GetVariable(name);
 
           if (variable_sp)
@@ -2549,9 +2610,13 @@ lldb::addr_t Target::GetPersistentSymbol(ConstString name) {
   lldb::addr_t address = LLDB_INVALID_ADDRESS;
 
   m_scratch_type_system_map.ForEach(
-      [name, &address](TypeSystem *type_system) -> bool {
+      [name, &address](lldb::TypeSystemSP type_system) -> bool {
+        auto ts = type_system.get();
+        if (!ts)
+          return true;
+
         if (PersistentExpressionState *persistent_state =
-                type_system->GetPersistentExpressionState()) {
+                ts->GetPersistentExpressionState()) {
           address = persistent_state->LookupSymbol(name);
           if (address != LLDB_INVALID_ADDRESS)
             return false; // Stop iterating the ForEach
@@ -4269,6 +4334,12 @@ PathMappingList &TargetProperties::GetSourcePathMap() const {
   return option_value->GetCurrentValue();
 }
 
+bool TargetProperties::GetAutoSourceMapRelative() const {
+  const uint32_t idx = ePropertyAutoSourceMapRelative;
+  return m_collection_sp->GetPropertyAtIndexAsBoolean(
+      nullptr, idx, g_target_properties[idx].default_uint_value != 0);
+}
+
 void TargetProperties::AppendExecutableSearchPaths(const FileSpec &dir) {
   const uint32_t idx = ePropertyExecutableSearchPaths;
   OptionValueFileSpecList *option_value =
@@ -4374,7 +4445,7 @@ void TargetProperties::CheckJITObjectsDir() {
   else if (!writable)
     os << "is not writable";
 
-  llvm::Optional<lldb::user_id_t> debugger_id = llvm::None;
+  llvm::Optional<lldb::user_id_t> debugger_id;
   if (m_target)
     debugger_id = m_target->GetDebugger().GetID();
   Debugger::ReportError(os.str(), debugger_id);

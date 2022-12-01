@@ -1097,7 +1097,7 @@ LambdaCapture::LambdaCapture(SourceLocation Loc, bool Implicit,
   switch (Kind) {
   case LCK_StarThis:
     Bits |= Capture_ByCopy;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case LCK_This:
     assert(!Var && "'this' capture cannot have a variable!");
     Bits |= Capture_This;
@@ -1105,7 +1105,7 @@ LambdaCapture::LambdaCapture(SourceLocation Loc, bool Implicit,
 
   case LCK_ByCopy:
     Bits |= Capture_ByCopy;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case LCK_ByRef:
     assert(Var && "capture must have a variable!");
     break;
@@ -1574,6 +1574,11 @@ SizeOfPackExpr *SizeOfPackExpr::CreateDeserialized(ASTContext &Context,
   return new (Storage) SizeOfPackExpr(EmptyShell(), NumPartialArgs);
 }
 
+NonTypeTemplateParmDecl *SubstNonTypeTemplateParmExpr::getParameter() const {
+  return cast<NonTypeTemplateParmDecl>(
+      getReplacedTemplateParameterList(getAssociatedDecl())->asArray()[Index]);
+}
+
 QualType SubstNonTypeTemplateParmExpr::getParameterType(
     const ASTContext &Context) const {
   // Note that, for a class type NTTP, we will have an lvalue of type 'const
@@ -1584,13 +1589,20 @@ QualType SubstNonTypeTemplateParmExpr::getParameterType(
 }
 
 SubstNonTypeTemplateParmPackExpr::SubstNonTypeTemplateParmPackExpr(
-    QualType T, ExprValueKind ValueKind, NonTypeTemplateParmDecl *Param,
-    SourceLocation NameLoc, const TemplateArgument &ArgPack)
+    QualType T, ExprValueKind ValueKind, SourceLocation NameLoc,
+    const TemplateArgument &ArgPack, Decl *AssociatedDecl, unsigned Index)
     : Expr(SubstNonTypeTemplateParmPackExprClass, T, ValueKind, OK_Ordinary),
-      Param(Param), Arguments(ArgPack.pack_begin()),
-      NumArguments(ArgPack.pack_size()), NameLoc(NameLoc) {
+      AssociatedDecl(AssociatedDecl), Arguments(ArgPack.pack_begin()),
+      NumArguments(ArgPack.pack_size()), Index(Index), NameLoc(NameLoc) {
+  assert(AssociatedDecl != nullptr);
   setDependence(ExprDependence::TypeValueInstantiation |
                 ExprDependence::UnexpandedPack);
+}
+
+NonTypeTemplateParmDecl *
+SubstNonTypeTemplateParmPackExpr::getParameterPack() const {
+  return cast<NonTypeTemplateParmDecl>(
+      getReplacedTemplateParameterList(getAssociatedDecl())->asArray()[Index]);
 }
 
 TemplateArgument SubstNonTypeTemplateParmPackExpr::getArgumentPack() const {

@@ -424,6 +424,9 @@ template <> void SPIRVMap<std::string, Op, SPIRVInstruction>::init() {
   _SPIRV_OP(bitfield_extract_signed, BitFieldSExtract)
   _SPIRV_OP(bitfield_extract_unsigned, BitFieldUExtract)
   _SPIRV_OP(bit_reverse, BitReverse)
+  // cl_khr_split_work_group_barrier
+  _SPIRV_OP(intel_work_group_barrier_arrive, ControlBarrierArriveINTEL)
+  _SPIRV_OP(intel_work_group_barrier_wait, ControlBarrierWaitINTEL)
 #undef _SPIRV_OP
 }
 
@@ -788,12 +791,15 @@ unsigned getOCLVersion(Module *M, bool AllowMulti) {
   return encodeOCLVer(Ver.first, Ver.second, 0);
 }
 
-void decodeMDNode(MDNode *N, unsigned &X, unsigned &Y, unsigned &Z) {
+SmallVector<unsigned, 3> decodeMDNode(MDNode *N) {
   if (N == NULL)
-    return;
-  X = getMDOperandAsInt(N, 0);
-  Y = getMDOperandAsInt(N, 1);
-  Z = getMDOperandAsInt(N, 2);
+    return {};
+  size_t NumOperands = N->getNumOperands();
+  SmallVector<unsigned, 3> ReadVals;
+  ReadVals.reserve(NumOperands);
+  for (unsigned I = 0; I < NumOperands; ++I)
+    ReadVals.push_back(getMDOperandAsInt(N, I));
+  return ReadVals;
 }
 
 /// Encode LLVM type by SPIR-V execution mode VecTypeHint
@@ -861,7 +867,7 @@ unsigned transVecTypeHint(MDNode *Node) {
 }
 
 SPIRAddressSpace getOCLOpaqueTypeAddrSpace(Op OpCode) {
-  switch (OpCode) {
+  switch ((unsigned)OpCode) {
   case OpTypeQueue:
     return SPIRV_QUEUE_T_ADDR_SPACE;
   case OpTypeEvent:
@@ -875,10 +881,13 @@ SPIRAddressSpace getOCLOpaqueTypeAddrSpace(Op OpCode) {
     return SPIRV_PIPE_ADDR_SPACE;
   case OpTypeImage:
   case OpTypeSampledImage:
+  case OpTypeVmeImageINTEL:
     return SPIRV_IMAGE_ADDR_SPACE;
   case OpConstantSampler:
   case OpTypeSampler:
     return SPIRV_SAMPLER_T_ADDR_SPACE;
+  case internal::OpTypeJointMatrixINTEL:
+    return SPIRAS_Global;
   default:
     if (isSubgroupAvcINTELTypeOpCode(OpCode))
       return SPIRV_AVC_INTEL_T_ADDR_SPACE;
@@ -976,9 +985,7 @@ static FunctionType *getBlockInvokeTy(Function *F, unsigned BlockIdx) {
 class OCLBuiltinFuncMangleInfo : public SPIRV::BuiltinFuncMangleInfo {
 public:
   OCLBuiltinFuncMangleInfo(Function *F) : F(F) {}
-  OCLBuiltinFuncMangleInfo(ArrayRef<Type *> ArgTypes)
-      : ArgTypes(ArgTypes.vec()) {}
-  Type *getArgTy(unsigned I) { return F->getFunctionType()->getParamType(I); }
+  OCLBuiltinFuncMangleInfo() = default;
   void init(StringRef UniqName) override {
     // Make a local copy as we will modify the string in init function
     std::string TempStorage = UniqName.str();
@@ -1030,7 +1037,9 @@ public:
     } else if (NameRef.contains("barrier")) {
       addUnsignedArg(0);
       if (NameRef.equals("work_group_barrier") ||
-          NameRef.equals("sub_group_barrier"))
+          NameRef.equals("sub_group_barrier") ||
+          NameRef.equals("intel_work_group_barrier_arrive") ||
+          NameRef.equals("intel_work_group_barrier_wait"))
         setEnumArg(1, SPIR::PRIMITIVE_MEMORY_SCOPE);
     } else if (NameRef.startswith("atomic_work_item_fence")) {
       addUnsignedArg(0);
@@ -1300,29 +1309,11 @@ public:
   }
   // Auxiliarry information, it is expected that it is relevant at the moment
   // the init method is called.
-  Function *F;                  // SPIRV decorated function
-  // TODO: ArgTypes argument should get removed once all SPV-IR related issues
-  // are resolved
-  std::vector<Type *> ArgTypes; // Arguments of OCL builtin
+  Function *F; // SPIRV decorated function
 };
 
-CallInst *mutateCallInstOCL(
-    Module *M, CallInst *CI,
-    std::function<std::string(CallInst *, std::vector<Value *> &)> ArgMutate,
-    AttributeList *Attrs) {
-  OCLBuiltinFuncMangleInfo BtnInfo(CI->getCalledFunction());
-  return mutateCallInst(M, CI, ArgMutate, &BtnInfo, Attrs);
-}
-
-Instruction *mutateCallInstOCL(
-    Module *M, CallInst *CI,
-    std::function<std::string(CallInst *, std::vector<Value *> &, Type *&RetTy)>
-        ArgMutate,
-    std::function<Instruction *(CallInst *)> RetMutate, AttributeList *Attrs,
-    bool TakeFuncName) {
-  OCLBuiltinFuncMangleInfo BtnInfo(CI->getCalledFunction());
-  return mutateCallInst(M, CI, ArgMutate, RetMutate, &BtnInfo, Attrs,
-                        TakeFuncName);
+std::unique_ptr<SPIRV::BuiltinFuncMangleInfo> makeMangler(Function &F) {
+  return std::make_unique<OCLBuiltinFuncMangleInfo>(&F);
 }
 
 static StringRef getStructName(Type *Ty) {
@@ -1351,8 +1342,12 @@ Value *unwrapSpecialTypeInitializer(Value *V) {
   return nullptr;
 }
 
-bool isSamplerStructTy(StructType *STy) {
-  return STy && STy->hasName() && STy->getName() == kSPR2TypeName::Sampler;
+bool isSamplerTy(Type *Ty) {
+  if (auto *TPT = dyn_cast_or_null<TypedPointerType>(Ty)) {
+    auto *STy = dyn_cast_or_null<StructType>(TPT->getElementType());
+    return STy && STy->hasName() && STy->getName() == kSPR2TypeName::Sampler;
+  }
+  return false;
 }
 
 bool isPipeOrAddressSpaceCastBI(const StringRef MangledName) {
@@ -1596,9 +1591,7 @@ Value *SPIRV::transSPIRVMemorySemanticsIntoOCLMemFenceFlags(
 
 void llvm::mangleOpenClBuiltin(const std::string &UniqName,
                                ArrayRef<Type *> ArgTypes,
-                               ArrayRef<PointerIndirectPair> PointerElementTys,
                                std::string &MangledName) {
-  OCLUtil::OCLBuiltinFuncMangleInfo BtnInfo(ArgTypes);
-  BtnInfo.fillPointerElementTypes(PointerElementTys);
+  OCLUtil::OCLBuiltinFuncMangleInfo BtnInfo;
   MangledName = SPIRV::mangleBuiltin(UniqName, ArgTypes, &BtnInfo);
 }

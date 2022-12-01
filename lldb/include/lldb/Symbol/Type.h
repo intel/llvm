@@ -123,7 +123,7 @@ public:
 
   /// GetModule may return module for compile unit's object file.
   /// GetExeModule returns module for executable object file that contains
-  /// compile unit where type was actualy defined.
+  /// compile unit where type was actually defined.
   /// GetModule and GetExeModule may return the same value.
   lldb::ModuleSP GetExeModule();
 
@@ -134,6 +134,8 @@ public:
   const SymbolFile *GetSymbolFile() const { return m_symbol_file; }
 
   ConstString GetName();
+
+  ConstString GetBaseName();
 
   llvm::Optional<uint64_t> GetByteSize(ExecutionContextScope *exe_scope);
 
@@ -295,7 +297,7 @@ public:
 
   CompilerType GetCompilerType(bool prefer_dynamic);
 
-  TypeSystem *GetTypeSystem(bool prefer_dynamic);
+  CompilerType::TypeSystemSPWrapper GetTypeSystem(bool prefer_dynamic);
 
   bool GetDescription(lldb_private::Stream &strm,
                       lldb::DescriptionLevel description_level);

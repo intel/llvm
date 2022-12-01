@@ -16,6 +16,7 @@
 #include "CGCXXABI.h"
 #include "CGCleanup.h"
 #include "CGDebugInfo.h"
+#include "CGHLSLRuntime.h"
 #include "CGOpenMPRuntime.h"
 #include "CGSYCLRuntime.h"
 #include "CodeGenModule.h"
@@ -174,10 +175,11 @@ void CodeGenFunction::CGFPOptionsRAII::ConstructorHelper(FPOptions FPFeatures) {
   mergeFnAttrValue("no-infs-fp-math", FPFeatures.getNoHonorInfs());
   mergeFnAttrValue("no-nans-fp-math", FPFeatures.getNoHonorNaNs());
   mergeFnAttrValue("no-signed-zeros-fp-math", FPFeatures.getNoSignedZero());
-  mergeFnAttrValue("unsafe-fp-math", FPFeatures.getAllowFPReassociate() &&
-                                         FPFeatures.getAllowReciprocal() &&
-                                         FPFeatures.getAllowApproxFunc() &&
-                                         FPFeatures.getNoSignedZero());
+  mergeFnAttrValue(
+      "unsafe-fp-math",
+      FPFeatures.getAllowFPReassociate() && FPFeatures.getAllowReciprocal() &&
+          FPFeatures.getAllowApproxFunc() && FPFeatures.getNoSignedZero() &&
+          FPFeatures.allowFPContractAcrossStatement());
 }
 
 CodeGenFunction::CGFPOptionsRAII::~CGFPOptionsRAII() {
@@ -831,7 +833,7 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   CurCodeDecl = D;
   const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D);
   if (FD && FD->usesSEHTry())
-    CurSEHParent = FD;
+    CurSEHParent = GD;
   CurFuncDecl = (D ? D->getNonClosureContext() : nullptr);
   FnRetTy = RetTy;
   CurFn = Fn;
@@ -856,7 +858,7 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
     const bool SanitizeBounds = SanOpts.hasOneOf(SanitizerKind::Bounds);
     bool NoSanitizeCoverage = false;
 
-    for (auto Attr : D->specific_attrs<NoSanitizeAttr>()) {
+    for (auto *Attr : D->specific_attrs<NoSanitizeAttr>()) {
       // Apply the no_sanitize* attributes to SanOpts.
       SanitizerMask mask = Attr->getMask();
       SanOpts.Mask &= ~mask;
@@ -983,9 +985,18 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
     }
   }
 
-  if (CGM.getCodeGenOpts().getProfileInstr() != CodeGenOptions::ProfileNone)
-    if (CGM.isFunctionBlockedFromProfileInstr(Fn, Loc))
+  if (CGM.getCodeGenOpts().getProfileInstr() != CodeGenOptions::ProfileNone) {
+    switch (CGM.isFunctionBlockedFromProfileInstr(Fn, Loc)) {
+    case ProfileList::Skip:
+      Fn->addFnAttr(llvm::Attribute::SkipProfile);
+      break;
+    case ProfileList::Forbid:
       Fn->addFnAttr(llvm::Attribute::NoProfile);
+      break;
+    case ProfileList::Allow:
+      break;
+    }
+  }
 
   unsigned Count, Offset;
   if (const auto *Attr =
@@ -1063,7 +1074,7 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
         AspectsMD.push_back(llvm::ConstantAsMetadata::get(
             Builder.getInt32(AspectInt.getZExtValue())));
       }
-      Fn->setMetadata("intel_declared_aspects",
+      Fn->setMetadata("sycl_declared_aspects",
                       llvm::MDNode::get(getLLVMContext(), AspectsMD));
     }
     if (const auto *A = D->getAttr<SYCLUsesAspectsAttr>()) {
@@ -1073,9 +1084,17 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
         AspectsMD.push_back(llvm::ConstantAsMetadata::get(
             Builder.getInt32(AspectInt.getZExtValue())));
       }
-      Fn->setMetadata("intel_used_aspects",
+      Fn->setMetadata("sycl_used_aspects",
                       llvm::MDNode::get(getLLVMContext(), AspectsMD));
     }
+
+    // Source location of functions is required to emit required diagnostics in
+    // SYCLPropagateAspectsUsagePass. Save the token in a srcloc metadata node.
+    llvm::ConstantInt *Line =
+        llvm::ConstantInt::get(Int32Ty, D->getLocation().getRawEncoding());
+    llvm::ConstantAsMetadata *SrcLocMD = llvm::ConstantAsMetadata::get(Line);
+    llvm::MDTuple *SrcLocMDT = llvm::MDNode::get(getLLVMContext(), {SrcLocMD});
+    Fn->setMetadata("srcloc", SrcLocMDT);
   }
 
   if (getLangOpts().SYCLIsDevice && D &&
@@ -1322,6 +1341,10 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   // Emit OpenMP specific initialization of the device functions.
   if (getLangOpts().OpenMP && CurCodeDecl)
     CGM.getOpenMPRuntime().emitFunctionProlog(*this, CurCodeDecl);
+
+  // Handle emitting HLSL entry functions.
+  if (D && D->hasAttr<HLSLShaderAttr>())
+    CGM.getHLSLRuntime().emitEntryFunction(FD, Fn);
 
   EmitFunctionProlog(*CurFnInfo, CurFn, Args);
 
@@ -2659,8 +2682,6 @@ void CodeGenFunction::emitAlignmentAssumption(llvm::Value *PtrValue,
                                               SourceLocation AssumptionLoc,
                                               llvm::Value *Alignment,
                                               llvm::Value *OffsetValue) {
-  if (auto *CE = dyn_cast<CastExpr>(E))
-    E = CE->getSubExprAsWritten();
   QualType Ty = E->getType();
   SourceLocation Loc = E->getExprLoc();
 
@@ -2907,6 +2928,14 @@ void CodeGenFunction::EmitSanitizerStatReport(llvm::SanitizerStatKind SSK) {
   llvm::IRBuilder<> IRB(Builder.GetInsertBlock(), Builder.GetInsertPoint());
   IRB.SetCurrentDebugLocation(Builder.getCurrentDebugLocation());
   CGM.getSanStats().create(IRB, SSK);
+}
+
+void CodeGenFunction::EmitKCFIOperandBundle(
+    const CGCallee &Callee, SmallVectorImpl<llvm::OperandBundleDef> &Bundles) {
+  const FunctionProtoType *FP =
+      Callee.getAbstractInfo().getCalleeFunctionProtoType();
+  if (FP)
+    Bundles.emplace_back("kcfi", CGM.CreateKCFITypeId(FP->desugar()));
 }
 
 llvm::Value *

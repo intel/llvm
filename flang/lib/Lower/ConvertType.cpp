@@ -233,8 +233,12 @@ struct TypeBuilder {
         llvm::SmallVector<Fortran::lower::LenParameterTy> params;
         translateLenParameters(params, tySpec->category(), ultimate);
         ty = genFIRType(context, tySpec->category(), kind, params);
-      } else if (type->IsPolymorphic()) {
+      } else if (type->IsPolymorphic() &&
+                 !converter.getLoweringOptions().getPolymorphicTypeImpl()) {
+        // TODO is kept under experimental flag until feature is complete.
         TODO(loc, "support for polymorphic types");
+      } else if (type->IsUnlimitedPolymorphic()) {
+        ty = mlir::NoneType::get(context);
       } else if (const Fortran::semantics::DerivedTypeSpec *tySpec =
                      type->AsDerived()) {
         ty = genDerivedType(*tySpec);
@@ -253,11 +257,12 @@ struct TypeBuilder {
       translateShape(shape, std::move(*shapeExpr));
       ty = fir::SequenceType::get(shape, ty);
     }
-
     if (Fortran::semantics::IsPointer(symbol))
-      return fir::BoxType::get(fir::PointerType::get(ty));
+      return fir::wrapInClassOrBoxType(
+          fir::PointerType::get(ty), Fortran::semantics::IsPolymorphic(symbol));
     if (Fortran::semantics::IsAllocatable(symbol))
-      return fir::BoxType::get(fir::HeapType::get(ty));
+      return fir::wrapInClassOrBoxType(
+          fir::HeapType::get(ty), Fortran::semantics::IsPolymorphic(symbol));
     // isPtr and isAlloc are variable that were promoted to be on the
     // heap or to be pointers, but they do not have Fortran allocatable
     // or pointer semantics, so do not use box for them.
@@ -334,6 +339,8 @@ struct TypeBuilder {
       TODO(loc, "parameterized derived types");
     }
     LLVM_DEBUG(llvm::dbgs() << "derived type: " << rec << '\n');
+
+    converter.registerDispatchTableInfo(loc, &tySpec);
 
     // Generate the type descriptor object if any
     if (const Fortran::semantics::Scope *derivedScope =

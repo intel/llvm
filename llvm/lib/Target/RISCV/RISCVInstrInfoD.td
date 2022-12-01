@@ -113,7 +113,7 @@ defm : FPFMADynFrmAlias_m<FMSUB_D,  "fmsub.d",  DINX>;
 defm : FPFMADynFrmAlias_m<FNMSUB_D, "fnmsub.d", DINX>;
 defm : FPFMADynFrmAlias_m<FNMADD_D, "fnmadd.d", DINX>;
 
-let SchedRW = [WriteFALU64, ReadFALU64, ReadFALU64] in {
+let SchedRW = [WriteFAdd64, ReadFAdd64, ReadFAdd64] in {
 defm FADD_D : FPALU_rr_frm_m<0b0000001, "fadd.d", DINX, /*Commutable*/1>;
 defm FSUB_D : FPALU_rr_frm_m<0b0000101, "fsub.d", DINX>;
 }
@@ -335,6 +335,8 @@ def : PatSetCC<FPR64, any_fsetccs, SETLE, FLE_D>;
 def : PatSetCC<FPR64, any_fsetccs, SETOLE, FLE_D>;
 
 defm Select_FPR64 : SelectCC_GPR_rrirr<FPR64>;
+
+def PseudoFROUND_D : PseudoFROUND<FPR64>;
 
 /// Loads
 

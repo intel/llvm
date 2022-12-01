@@ -43,6 +43,7 @@
 #define SPIRV_OCLTYPETOSPIRV_H
 
 #include "LLVMSPIRVLib.h"
+#include "SPIRVBuiltinHelper.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/PassManager.h"
@@ -53,31 +54,28 @@
 
 namespace SPIRV {
 
-class OCLTypeToSPIRVBase {
+class OCLTypeToSPIRVBase : protected BuiltinCallHelper {
 public:
   OCLTypeToSPIRVBase();
 
   bool runOCLTypeToSPIRV(llvm::Module &M);
 
-  /// Returns the adapted type of the corresponding argument for a function.
-  /// The first value of the returned pair is the LLVM type of the argument.
-  /// The second value of the returned pair is the pointer element type of the
-  /// argument, if the type is a pointer.
-  std::pair<llvm::Type *, llvm::Type *>
-  getAdaptedArgumentType(llvm::Function *F, unsigned ArgNo);
+  /// Returns the adapted type of the corresponding argument for a function. If
+  /// the type is a pointer type, it will return a TypedPointerType instead.
+  llvm::Type *getAdaptedArgumentType(llvm::Function *F, unsigned ArgNo);
 
 private:
   llvm::Module *M;
   llvm::LLVMContext *Ctx;
-  // Map of argument/Function -> {pointee type, address space}
-  std::map<llvm::Value *, std::pair<llvm::Type *, unsigned>> AdaptedTy;
+  // Map of argument/Function -> adapted type (probably TypedPointerType)
+  std::map<llvm::Value *, llvm::Type *> AdaptedTy;
   std::set<llvm::Function *> WorkSet; // Functions to be adapted
 
   void adaptFunctionArguments(llvm::Function *F);
   void adaptArgumentsByMetadata(llvm::Function *F);
   void adaptArgumentsBySamplerUse(llvm::Module &M);
   void adaptFunction(llvm::Function *F);
-  void addAdaptedType(llvm::Value *V, llvm::Type *PointeeTy, unsigned AS);
+  void addAdaptedType(llvm::Value *V, llvm::Type *Ty);
   void addWork(llvm::Function *F);
 };
 

@@ -14,7 +14,7 @@
 #include <type_traits>
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
@@ -179,7 +179,7 @@ static MemRefType getCastCompatibleMemRefType(MemRefType aT, MemRefType bT) {
       (aOffset == bOffset) ? aOffset : ShapedType::kDynamicStrideOrOffset;
   return MemRefType::get(
       resShape, aT.getElementType(),
-      makeStridedLinearLayoutMap(resStrides, resOffset, aT.getContext()));
+      StridedLayoutAttr::get(aT.getContext(), resOffset, resStrides));
 }
 
 /// Operates under a scoped context to build the intersection between the
@@ -525,7 +525,9 @@ LogicalResult mlir::vector::splitFullAndPartialTransfer(
   SmallVector<bool, 4> bools(xferOp.getTransferRank(), true);
   auto inBoundsAttr = b.getBoolArrayAttr(bools);
   if (options.vectorTransferSplit == VectorTransferSplit::ForceInBounds) {
-    xferOp->setAttr(xferOp.getInBoundsAttrStrName(), inBoundsAttr);
+    b.updateRootInPlace(xferOp, [&]() {
+      xferOp->setAttr(xferOp.getInBoundsAttrStrName(), inBoundsAttr);
+    });
     return success();
   }
 
@@ -596,7 +598,9 @@ LogicalResult mlir::vector::splitFullAndPartialTransfer(
     for (unsigned i = 0, e = returnTypes.size(); i != e; ++i)
       xferReadOp.setOperand(i, fullPartialIfOp.getResult(i));
 
-    xferOp->setAttr(xferOp.getInBoundsAttrStrName(), inBoundsAttr);
+    b.updateRootInPlace(xferOp, [&]() {
+      xferOp->setAttr(xferOp.getInBoundsAttrStrName(), inBoundsAttr);
+    });
 
     return success();
   }
@@ -623,7 +627,7 @@ LogicalResult mlir::vector::splitFullAndPartialTransfer(
   else
     createFullPartialLinalgCopy(b, xferWriteOp, inBoundsCond, alloc);
 
-  xferOp->erase();
+  b.eraseOp(xferOp);
 
   return success();
 }
@@ -634,11 +638,5 @@ LogicalResult mlir::vector::VectorTransferFullPartialRewriter::matchAndRewrite(
   if (!xferOp || failed(splitFullAndPartialTransferPrecondition(xferOp)) ||
       failed(filter(xferOp)))
     return failure();
-  rewriter.startRootUpdate(xferOp);
-  if (succeeded(splitFullAndPartialTransfer(rewriter, xferOp, options))) {
-    rewriter.finalizeRootUpdate(xferOp);
-    return success();
-  }
-  rewriter.cancelRootUpdate(xferOp);
-  return failure();
+  return splitFullAndPartialTransfer(rewriter, xferOp, options);
 }

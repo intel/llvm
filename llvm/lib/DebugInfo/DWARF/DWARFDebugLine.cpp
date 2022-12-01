@@ -1382,10 +1382,12 @@ bool DWARFDebugLine::Prologue::getFileNameByIndex(
       IncludeDir = dwarf::toStringRef(IncludeDirectories[Entry.DirIdx - 1]);
   }
 
-  // For absolute paths only, include the compilation directory of compile unit.
-  // We know that FileName is not absolute, the only way to have an absolute
-  // path at this point would be if IncludeDir is absolute.
-  if (Kind == FileLineInfoKind::AbsoluteFilePath && !CompDir.empty() &&
+  // For absolute paths only, include the compilation directory of compile unit,
+  // unless v5 DirIdx == 0 (IncludeDir indicates the compilation directory). We
+  // know that FileName is not absolute, the only way to have an absolute path
+  // at this point would be if IncludeDir is absolute.
+  if (Kind == FileLineInfoKind::AbsoluteFilePath &&
+      (getVersion() < 5 || Entry.DirIdx != 0) && !CompDir.empty() &&
       !isPathAbsoluteOnWindowsOrPosix(IncludeDir))
     sys::path::append(FilePath, Style, CompDir);
 
@@ -1415,6 +1417,24 @@ bool DWARFDebugLine::LineTable::getFileLineInfoForAddress(
   Result.Discriminator = Row.Discriminator;
   Result.Source = getSourceByIndex(Row.File, Kind);
   return true;
+}
+
+bool DWARFDebugLine::LineTable::getDirectoryForEntry(
+    const FileNameEntry &Entry, std::string &Directory) const {
+  if (Prologue.getVersion() >= 5) {
+    if (Entry.DirIdx < Prologue.IncludeDirectories.size()) {
+      Directory =
+          dwarf::toString(Prologue.IncludeDirectories[Entry.DirIdx], "");
+      return true;
+    }
+    return false;
+  }
+  if (0 < Entry.DirIdx && Entry.DirIdx <= Prologue.IncludeDirectories.size()) {
+    Directory =
+        dwarf::toString(Prologue.IncludeDirectories[Entry.DirIdx - 1], "");
+    return true;
+  }
+  return false;
 }
 
 // We want to supply the Unit associated with a .debug_line[.dwo] table when

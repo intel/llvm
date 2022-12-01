@@ -525,7 +525,7 @@ MemDepResult MemoryDependenceResults::getSimplePointerDependencyFrom(
       }
 
       // Stores don't alias loads from read-only memory.
-      if (BatchAA.pointsToConstantMemory(LoadLoc))
+      if (!isModSet(BatchAA.getModRefInfoMask(LoadLoc)))
         continue;
 
       // Stores depend on may/must aliased loads.
@@ -621,7 +621,7 @@ MemDepResult MemoryDependenceResults::getSimplePointerDependencyFrom(
       // load query, we can safely ignore it (scan past it).
       if (isLoad)
         continue;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     default:
       // Otherwise, there is a potential dependence.  Return a clobber.
       return MemDepResult::getClobber(Inst);
@@ -993,7 +993,7 @@ SortNonLocalDepInfoCache(MemoryDependenceResults::NonLocalDepInfo &Cache,
     MemoryDependenceResults::NonLocalDepInfo::iterator Entry =
         std::upper_bound(Cache.begin(), Cache.end() - 1, Val);
     Cache.insert(Entry, Val);
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   }
   case 1:
     // One new entry, Just insert the new value at the appropriate position.

@@ -90,7 +90,6 @@ int main() {
 // NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} '__global char *' <LValueToRValue>
 // NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} '__global char *' lvalue ParmVar {{.*}} '_arg__specialization_constants_buffer' '__global char *'
 // NONATIVESUPPORT-NEXT: CompoundStmt
-// NONATIVESUPPORT-NEXT: ExprWithCleanups
 // NONATIVESUPPORT-NEXT: CXXOperatorCallExpr
 // NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} 'void (*)(group<1>, kernel_handler) const' <FunctionToPointerDecay>
 // NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} 'void (group<1>, kernel_handler) const' lvalue CXXMethod {{.*}} 'operator()' 'void (group<1>, kernel_handler) const'
@@ -98,9 +97,7 @@ int main() {
 // Kernel body with clones
 // NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} 'const (lambda at {{.*}}kernel-handler.cpp{{.*}})' lvalue
 // NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}kernel-handler.cpp{{.*}})' lvalue Var {{.*}} '(lambda at {{.*}}kernel-handler.cpp{{.*}})'
-// NONATIVESUPPORT-NEXT: CXXConstructExpr {{.*}} 'group<1>':'sycl::group<1>' 'void (sycl::group<1> &&) noexcept'
-// NONATIVESUPPORT-NEXT: MaterializeTemporaryExpr
-// NONATIVESUPPORT-NEXT: CXXTemporaryObjectExpr
+// NONATIVESUPPORT-NEXT: CXXTemporaryObjectExpr {{.*}} 'group<1>':'sycl::group<1>' 'void () noexcept' zeroing
 // NONATIVESUPPORT-NEXT: CXXConstructExpr {{.*}}'sycl::kernel_handler' 'void (const sycl::kernel_handler &) noexcept'
 // NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}}'const sycl::kernel_handler' lvalue
 // NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}}'sycl::kernel_handler' lvalue Var {{.*}} 'kh' {{.*}}'sycl::kernel_handler'

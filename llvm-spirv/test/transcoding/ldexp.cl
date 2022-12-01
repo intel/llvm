@@ -1,10 +1,10 @@
 // Check that translator converts scalar arg to vector for ldexp math instructions
-// RUN: %clang_cc1 -triple spir-unknown-unknown -O1 -cl-std=CL2.0 -fdeclare-opencl-builtins -finclude-default-header -emit-llvm-bc %s -o %t.bc -no-opaque-pointers
+// RUN: %clang_cc1 -triple spir-unknown-unknown -O1 -cl-std=CL2.0 -fdeclare-opencl-builtins -finclude-default-header -emit-llvm-bc %s -o %t.bc
 // RUN: llvm-spirv %t.bc -o %t.spv
 // RUN: spirv-val %t.spv
 // RUN: llvm-spirv -to-text %t.spv -o %t.spt
 // RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
-// RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+// RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 // RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefixes=CHECK-LLVM-CL20
 
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable

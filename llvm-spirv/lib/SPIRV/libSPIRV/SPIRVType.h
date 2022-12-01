@@ -102,6 +102,7 @@ public:
   bool isTypeVectorOrScalarInt() const;
   bool isTypeVectorOrScalarFloat() const;
   bool isTypeVectorOrScalarBool() const;
+  bool isTypeVectorPointer() const;
   bool isTypeSubgroupAvcINTEL() const;
   bool isTypeSubgroupAvcMceINTEL() const;
 };
@@ -898,10 +899,10 @@ public:
     return {ExtensionID::SPV_INTEL_vector_compute};
   }
 
-  bool hasAccessQualifier() const { return AccessKind.hasValue(); }
+  bool hasAccessQualifier() const { return AccessKind.has_value(); }
   SPIRVAccessQualifierKind getAccessQualifier() const {
     assert(hasAccessQualifier());
-    return AccessKind.getValue();
+    return AccessKind.value();
   }
 
 protected:

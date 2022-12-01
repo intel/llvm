@@ -297,7 +297,6 @@ defm : SBWriteResPair<WriteFSqrt80,  [SBPort0,SBFPDivider], 24, [1,24], 1, 6>;
 defm : SBWriteResPair<WriteDPPD,   [SBPort0,SBPort1,SBPort5],  9, [1,1,1], 3, 6>;
 defm : SBWriteResPair<WriteDPPS,   [SBPort0,SBPort1,SBPort5], 12, [1,2,1], 4, 6>;
 defm : SBWriteResPair<WriteDPPSY,  [SBPort0,SBPort1,SBPort5], 12, [1,2,1], 4, 7>;
-defm : SBWriteResPair<WriteDPPSZ,  [SBPort0,SBPort1,SBPort5], 12, [1,2,1], 4, 7>; // Unsupported = 1
 defm : SBWriteResPair<WriteFSign,    [SBPort5], 1>;
 defm : SBWriteResPair<WriteFRnd,     [SBPort1], 3, [1], 1, 6>;
 defm : SBWriteResPair<WriteFRndY,    [SBPort1], 3, [1], 1, 7>;
@@ -616,7 +615,6 @@ def SBWriteResGroup2 : SchedWriteRes<[SBPort5]> {
 }
 def: InstRW<[SBWriteResGroup2], (instrs FDECSTP, FINCSTP, FFREE, FFREEP, FNOP,
                                         LD_Frr, ST_Frr, ST_FPrr)>;
-def: InstRW<[SBWriteResGroup2], (instrs LOOP, LOOPE, LOOPNE)>; // FIXME: This seems wrong compared to other Intel CPUs.
 def: InstRW<[SBWriteResGroup2], (instrs RET64)>;
 
 def SBWriteResGroup4 : SchedWriteRes<[SBPort05]> {
@@ -737,13 +735,19 @@ def SBWriteResGroup29_2 : SchedWriteRes<[SBPort5,SBPort015]> {
 }
 def: InstRW<[SBWriteResGroup29_2], (instrs PAUSE)>;
 
-def SBWriteResGroup31 : SchedWriteRes<[SBPort23]> {
-  let Latency = 5;
-  let NumMicroOps = 1;
-  let ResourceCycles = [1];
+def SBWriteResGroup30 : SchedWriteRes<[SBPort1,SBPort5,SBPort015]> {
+  let Latency = 3;
+  let NumMicroOps = 8;
+  let ResourceCycles = [1,3,4];
 }
-def: InstRW<[SBWriteResGroup31], (instregex "MOVSX(16|32|64)rm(8|16|32)",
-                                            "MOVZX(16|32|64)rm(8|16)")>;
+def: InstRW<[SBWriteResGroup30], (instrs LOOP)>;
+
+def SBWriteResGroup31 : SchedWriteRes<[SBPort1,SBPort5,SBPort015,SBPort05]> {
+  let Latency = 4;
+  let NumMicroOps = 12;
+  let ResourceCycles = [1,3,6,2];
+}
+def: InstRW<[SBWriteResGroup31], (instrs LOOPE, LOOPNE)>;
 
 def SBWriteResGroup76 : SchedWriteRes<[SBPort05]> {
   let Latency = 5;
@@ -1002,13 +1006,6 @@ def SBWriteResGroup87 : SchedWriteRes<[SBPort4,SBPort5,SBPort01,SBPort23]> {
   let ResourceCycles = [1,1,1,2];
 }
 def: InstRW<[SBWriteResGroup87], (instrs FARCALL64m)>;
-
-def SBWriteResGroup93 : SchedWriteRes<[SBPort0,SBPort1,SBPort23]> {
-  let Latency = 9;
-  let NumMicroOps = 3;
-  let ResourceCycles = [1,1,1];
-}
-def: InstRW<[SBWriteResGroup93], (instregex "CVT(T?)(SD|SS)2SI(64)?rm")>;
 
 def SBWriteResGroup95 : SchedWriteRes<[SBPort5,SBPort01,SBPort23]> {
   let Latency = 9;

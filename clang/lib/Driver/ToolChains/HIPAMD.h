@@ -90,7 +90,7 @@ public:
                            llvm::opt::ArgStringList &CC1Args) const override;
   void AddHIPIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                          llvm::opt::ArgStringList &CC1Args) const override;
-  llvm::SmallVector<BitCodeLibraryInfo, 12> getHIPDeviceLibs(
+  llvm::SmallVector<BitCodeLibraryInfo, 12> getDeviceLibs(
       const llvm::opt::ArgList &Args,
       const Action::OffloadKind DeviceOffloadingKind) const override;
 

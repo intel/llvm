@@ -279,15 +279,16 @@ struct get_device_info_impl<std::vector<memory_scope>,
   }
 };
 
-// Specialization for bf16
+// Specialization for bf16 math functions
 template <>
-struct get_device_info_impl<bool, info::device::ext_oneapi_bfloat16> {
+struct get_device_info_impl<bool,
+                            info::device::ext_oneapi_bfloat16_math_functions> {
   static bool get(RT::PiDevice dev, const plugin &Plugin) {
-
     bool result = false;
 
     RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
-        dev, PiInfoCode<info::device::ext_oneapi_bfloat16>::value,
+        dev,
+        PiInfoCode<info::device::ext_oneapi_bfloat16_math_functions>::value,
         sizeof(result), &result, nullptr);
     if (Err != PI_SUCCESS) {
       return false;
@@ -1002,7 +1003,8 @@ get_device_info_host<info::device::atomic_memory_scope_capabilities>() {
 }
 
 template <>
-inline bool get_device_info_host<info::device::ext_oneapi_bfloat16>() {
+inline bool
+get_device_info_host<info::device::ext_oneapi_bfloat16_math_functions>() {
   return false;
 }
 
@@ -1302,9 +1304,8 @@ inline bool get_device_info_host<info::device::preferred_interop_user_sync>() {
 }
 
 template <> inline device get_device_info_host<info::device::parent_device>() {
-  // TODO: implement host device partitioning
   throw invalid_object_error(
-      "Partitioning to subdevices of the host device is not implemented yet",
+      "Partitioning to subdevices of the host device is not implemented",
       PI_ERROR_INVALID_DEVICE);
 }
 
@@ -1416,6 +1417,13 @@ inline bool get_device_info_host<info::device::ext_intel_mem_channel>() {
 
 // Specializations for intel extensions for Level Zero low-level
 // detail device descriptors (not support on host).
+template <>
+inline uint32_t
+get_device_info_host<ext::intel::info::device::device_id>() {
+  throw runtime_error(
+      "Obtaining the device ID is not supported on HOST device",
+      PI_ERROR_INVALID_DEVICE);
+}
 template <>
 inline std::string
 get_device_info_host<ext::intel::info::device::pci_address>() {
@@ -1564,6 +1572,22 @@ template <>
 inline uint64_t get_device_info_host<ext::intel::info::device::free_memory>() {
   throw runtime_error(
       "Obtaining the device free memory is not supported on HOST device",
+      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline uint32_t
+get_device_info_host<ext::intel::info::device::memory_clock_rate>() {
+  throw runtime_error(
+      "Obtaining the device memory clock rate is not supported on HOST device",
+      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline uint32_t
+get_device_info_host<ext::intel::info::device::memory_bus_width>() {
+  throw runtime_error(
+      "Obtaining the device memory bus width is not supported on HOST device",
       PI_ERROR_INVALID_DEVICE);
 }
 

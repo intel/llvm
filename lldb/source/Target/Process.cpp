@@ -1293,7 +1293,10 @@ uint32_t Process::AssignIndexIDToThread(uint64_t thread_id) {
 }
 
 StateType Process::GetState() {
-  return m_public_state.GetValue();
+  if (CurrentThreadIsPrivateStateThread())
+    return m_private_state.GetValue();
+  else
+    return m_public_state.GetValue();
 }
 
 void Process::SetPublicState(StateType new_state, bool restarted) {
@@ -2653,6 +2656,10 @@ DynamicLoader *Process::GetDynamicLoader() {
   return m_dyld_up.get();
 }
 
+void Process::SetDynamicLoader(DynamicLoaderUP dyld_up) {
+  m_dyld_up = std::move(dyld_up);
+}
+
 DataExtractor Process::GetAuxvData() { return DataExtractor(); }
 
 llvm::Expected<bool> Process::SaveCore(llvm::StringRef outfile) {
@@ -2754,6 +2761,19 @@ ListenerSP ProcessAttachInfo::GetListenerForProcess(Debugger &debugger) {
     return m_listener_sp;
   else
     return debugger.GetListener();
+}
+
+Status Process::WillLaunch(Module *module) {
+  return DoWillLaunch(module);
+}
+
+Status Process::WillAttachToProcessWithID(lldb::pid_t pid) {
+  return DoWillAttachToProcessWithID(pid);
+}
+
+Status Process::WillAttachToProcessWithName(const char *process_name,
+                                            bool wait_for_launch) {
+  return DoWillAttachToProcessWithName(process_name, wait_for_launch);
 }
 
 Status Process::Attach(ProcessAttachInfo &attach_info) {
@@ -3362,7 +3382,7 @@ bool Process::ShouldBroadcastEvent(Event *event_ptr) {
     m_stdio_communication.Disconnect();
     m_stdin_forward = false;
 
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case eStateConnected:
   case eStateAttaching:
   case eStateLaunching:
@@ -6052,8 +6072,11 @@ bool Process::CallVoidArgVoidPtrReturn(const Address *address,
     llvm::consumeError(type_system_or_err.takeError());
     return false;
   }
+  auto ts = *type_system_or_err;
+  if (!ts)
+    return false;
   CompilerType void_ptr_type =
-      type_system_or_err->GetBasicTypeFromAST(eBasicTypeVoid).GetPointerType();
+      ts->GetBasicTypeFromAST(eBasicTypeVoid).GetPointerType();
   lldb::ThreadPlanSP call_plan_sp(new ThreadPlanCallFunction(
       *thread, *address, void_ptr_type, llvm::ArrayRef<addr_t>(), options));
   if (call_plan_sp) {

@@ -136,7 +136,7 @@ private:
                                          unsigned Index) const {
     const MCInst *AnnotationInst = getAnnotationInst(Inst);
     if (!AnnotationInst)
-      return NoneType();
+      return None;
 
     for (int I = AnnotationInst->getNumOperands() - 1; I >= 0; --I) {
       int64_t ImmValue = AnnotationInst->getOperand(I).getImm();
@@ -145,7 +145,7 @@ private:
       }
     }
 
-    return NoneType();
+    return None;
   }
 
 protected:
@@ -164,9 +164,14 @@ protected:
   void setTailCall(MCInst &Inst);
 
 public:
-  class InstructionIterator
-      : public std::iterator<std::bidirectional_iterator_tag, MCInst> {
+  class InstructionIterator {
   public:
+    using iterator_category = std::bidirectional_iterator_tag;
+    using value_type = MCInst;
+    using difference_type = std::ptrdiff_t;
+    using pointer = value_type *;
+    using reference = value_type &;
+
     class Impl {
     public:
       virtual Impl *Copy() const = 0;
@@ -1261,8 +1266,18 @@ public:
   /// Replace displacement in compound memory operand with given \p Label.
   bool replaceMemOperandDisp(MCInst &Inst, const MCSymbol *Label,
                              MCContext *Ctx) const {
-    return replaceMemOperandDisp(
-        Inst, MCOperand::createExpr(MCSymbolRefExpr::create(Label, *Ctx)));
+    return replaceMemOperandDisp(Inst, Label, 0, Ctx);
+  }
+
+  /// Replace displacement in compound memory operand with given \p Label
+  /// plus addend.
+  bool replaceMemOperandDisp(MCInst &Inst, const MCSymbol *Label,
+                             int64_t Addend, MCContext *Ctx) const {
+    MCInst::iterator MemOpI = getMemOperandDisp(Inst);
+    if (MemOpI == Inst.end())
+      return false;
+    return setOperandToSymbolRef(Inst, MemOpI - Inst.begin(), Label, Addend,
+                                 Ctx, 0);
   }
 
   /// Returns how many bits we have in this instruction to encode a PC-rel
@@ -1426,7 +1441,7 @@ public:
     return false;
   }
 
-  /// Store \p Target absolute adddress to \p RegName
+  /// Store \p Target absolute address to \p RegName
   virtual InstructionListType materializeAddress(const MCSymbol *Target,
                                                  MCContext *Ctx,
                                                  MCPhysReg RegName,
@@ -1655,7 +1670,7 @@ public:
     auto AI = AnnotationNameIndexMap.find(Name);
     if (AI != AnnotationNameIndexMap.end())
       return AI->second;
-    return NoneType();
+    return None;
   }
 
   /// Return annotation index matching the \p Name. Create a new index if the

@@ -42,8 +42,6 @@ private:
 
   ExecutionMode getExecutionMode() const;
 
-  bool requiresFullRuntime() const { return RequiresFullRuntime; }
-
   /// Get barrier to synchronize all threads in a block.
   void syncCTAThreads(CodeGenFunction &CGF);
 
@@ -65,12 +63,6 @@ private:
   //
   // Base class overrides.
   //
-
-  /// Creates offloading entry for the provided entry ID \a ID,
-  /// address \a Addr, size \a Size, and flags \a Flags.
-  void createOffloadEntry(llvm::Constant *ID, llvm::Constant *Addr,
-                          uint64_t Size, int32_t Flags,
-                          llvm::GlobalValue::LinkageTypes Linkage) override;
 
   /// Emit outlined function specialized for the Fork-Join
   /// programming model for applicable target directives on the NVPTX device.
@@ -170,6 +162,8 @@ protected:
 public:
   explicit CGOpenMPRuntimeGPU(CodeGenModule &CGM);
   void clear() override;
+
+  bool isTargetCodegen() const override { return true; };
 
   /// Declare generalized virtual functions which need to be defined
   /// by all specializations of OpenMPGPURuntime Targets like AMDGCN
@@ -385,9 +379,6 @@ private:
   /// target region and used by containing directives such as 'parallel'
   /// to emit optimized code.
   ExecutionMode CurrentExecutionMode = EM_Unknown;
-
-  /// Check if the full runtime is required (default - yes).
-  bool RequiresFullRuntime = true;
 
   /// true if we're emitting the code for the target region and next parallel
   /// region is L0 for sure.

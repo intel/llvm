@@ -166,6 +166,19 @@ void invoke() {
     // CHECK: FunctionDecl {{.*}} {{.*}}kernel_3
     // CHECK-NOT: WorkGroupSizeHintAttr
 
+    h.single_task<class kernel_name4>([]() [[sycl::work_group_size_hint(4,4,4)]] {});
+    // CHECK: FunctionDecl {{.*}}kernel_name4
+    // CHECK: WorkGroupSizeHintAttr {{.*}}
+    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
+    // CHECK-NEXT:  value: Int 4
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 4
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 4
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+
   });
 
   // FIXME: Add tests with the C++23 lambda attribute syntax.

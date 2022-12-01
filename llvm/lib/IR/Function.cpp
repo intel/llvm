@@ -63,6 +63,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/ModRef.h"
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -727,6 +728,65 @@ void Function::copyAttributesFrom(const Function *Src) {
     setPrologueData(Src->getPrologueData());
 }
 
+MemoryEffects Function::getMemoryEffects() const {
+  return getAttributes().getMemoryEffects();
+}
+void Function::setMemoryEffects(MemoryEffects ME) {
+  addFnAttr(Attribute::getWithMemoryEffects(getContext(), ME));
+}
+
+/// Determine if the function does not access memory.
+bool Function::doesNotAccessMemory() const {
+  return getMemoryEffects().doesNotAccessMemory();
+}
+void Function::setDoesNotAccessMemory() {
+  setMemoryEffects(MemoryEffects::none());
+}
+
+/// Determine if the function does not access or only reads memory.
+bool Function::onlyReadsMemory() const {
+  return getMemoryEffects().onlyReadsMemory();
+}
+void Function::setOnlyReadsMemory() {
+  setMemoryEffects(getMemoryEffects() & MemoryEffects::readOnly());
+}
+
+/// Determine if the function does not access or only writes memory.
+bool Function::onlyWritesMemory() const {
+  return getMemoryEffects().onlyWritesMemory();
+}
+void Function::setOnlyWritesMemory() {
+  setMemoryEffects(getMemoryEffects() & MemoryEffects::writeOnly());
+}
+
+/// Determine if the call can access memmory only using pointers based
+/// on its arguments.
+bool Function::onlyAccessesArgMemory() const {
+  return getMemoryEffects().onlyAccessesArgPointees();
+}
+void Function::setOnlyAccessesArgMemory() {
+  setMemoryEffects(getMemoryEffects() & MemoryEffects::argMemOnly());
+}
+
+/// Determine if the function may only access memory that is
+///  inaccessible from the IR.
+bool Function::onlyAccessesInaccessibleMemory() const {
+  return getMemoryEffects().onlyAccessesInaccessibleMem();
+}
+void Function::setOnlyAccessesInaccessibleMemory() {
+  setMemoryEffects(getMemoryEffects() & MemoryEffects::inaccessibleMemOnly());
+}
+
+/// Determine if the function may only access memory that is
+///  either inaccessible from the IR or pointed to by its arguments.
+bool Function::onlyAccessesInaccessibleMemOrArgMem() const {
+  return getMemoryEffects().onlyAccessesInaccessibleOrArgMem();
+}
+void Function::setOnlyAccessesInaccessibleMemOrArgMem() {
+  setMemoryEffects(getMemoryEffects() &
+                   MemoryEffects::inaccessibleOrArgMemOnly());
+}
+
 /// Table of string intrinsic names indexed by enum value.
 static const char * const IntrinsicNameTable[] = {
   "not_intrinsic",
@@ -833,7 +893,7 @@ static std::string getMangledTypeStr(Type *Ty, bool &HasUnnamedType) {
         HasUnnamedType = true;
     } else {
       Result += "sl_";
-      for (auto Elem : STyp->elements())
+      for (auto *Elem : STyp->elements())
         Result += getMangledTypeStr(Elem, HasUnnamedType);
     }
     // Ensure nested structs are distinguishable.
@@ -1186,13 +1246,13 @@ static void DecodeIITType(unsigned &NextElt, ArrayRef<unsigned char> Infos,
   case IIT_EMPTYSTRUCT:
     OutputTable.push_back(IITDescriptor::get(IITDescriptor::Struct, 0));
     return;
-  case IIT_STRUCT9: ++StructElts; LLVM_FALLTHROUGH;
-  case IIT_STRUCT8: ++StructElts; LLVM_FALLTHROUGH;
-  case IIT_STRUCT7: ++StructElts; LLVM_FALLTHROUGH;
-  case IIT_STRUCT6: ++StructElts; LLVM_FALLTHROUGH;
-  case IIT_STRUCT5: ++StructElts; LLVM_FALLTHROUGH;
-  case IIT_STRUCT4: ++StructElts; LLVM_FALLTHROUGH;
-  case IIT_STRUCT3: ++StructElts; LLVM_FALLTHROUGH;
+  case IIT_STRUCT9: ++StructElts; [[fallthrough]];
+  case IIT_STRUCT8: ++StructElts; [[fallthrough]];
+  case IIT_STRUCT7: ++StructElts; [[fallthrough]];
+  case IIT_STRUCT6: ++StructElts; [[fallthrough]];
+  case IIT_STRUCT5: ++StructElts; [[fallthrough]];
+  case IIT_STRUCT4: ++StructElts; [[fallthrough]];
+  case IIT_STRUCT3: ++StructElts; [[fallthrough]];
   case IIT_STRUCT2: {
     OutputTable.push_back(IITDescriptor::get(IITDescriptor::Struct,StructElts));
 
@@ -1727,7 +1787,7 @@ Intrinsic::matchIntrinsicSignature(FunctionType *FTy,
 
   unsigned NumDeferredReturnChecks = DeferredChecks.size();
 
-  for (auto Ty : FTy->params())
+  for (auto *Ty : FTy->params())
     if (matchIntrinsicType(Ty, Infos, ArgTys, DeferredChecks, false))
       return MatchIntrinsicTypes_NoMatchArg;
 

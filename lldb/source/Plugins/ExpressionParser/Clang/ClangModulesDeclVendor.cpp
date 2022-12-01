@@ -34,7 +34,6 @@
 #include "lldb/Utility/LLDBAssert.h"
 #include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
-#include "lldb/Utility/ReproducerProvider.h"
 #include "lldb/Utility/StreamString.h"
 
 #include <memory>
@@ -126,7 +125,7 @@ private:
   ImportedModuleSet m_user_imported_modules;
   // We assume that every ASTContext has an TypeSystemClang, so we also store
   // a custom TypeSystemClang for our internal ASTContext.
-  std::unique_ptr<TypeSystemClang> m_ast_context;
+  std::shared_ptr<TypeSystemClang> m_ast_context;
 };
 } // anonymous namespace
 
@@ -191,7 +190,7 @@ ClangModulesDeclVendorImpl::ClangModulesDeclVendorImpl(
 
   // Initialize our TypeSystemClang.
   m_ast_context =
-      std::make_unique<TypeSystemClang>("ClangModulesDeclVendor ASTContext",
+      std::make_shared<TypeSystemClang>("ClangModulesDeclVendor ASTContext",
                                         m_compiler_instance->getASTContext());
 }
 
@@ -682,18 +681,6 @@ ClangModulesDeclVendor::Create(Target &target) {
 
   std::unique_ptr<clang::CompilerInstance> instance(
       new clang::CompilerInstance);
-
-  // When capturing a reproducer, hook up the file collector with clang to
-  // collector modules and headers.
-  if (repro::Generator *g = repro::Reproducer::Instance().GetGenerator()) {
-    repro::FileProvider &fp = g->GetOrCreate<repro::FileProvider>();
-    instance->setModuleDepCollector(
-        std::make_shared<ModuleDependencyCollectorAdaptor>(
-            fp.GetFileCollector()));
-    clang::DependencyOutputOptions &opts = instance->getDependencyOutputOpts();
-    opts.IncludeSystemHeaders = true;
-    opts.IncludeModuleFiles = true;
-  }
 
   // Make sure clang uses the same VFS as LLDB.
   instance->createFileManager(FileSystem::Instance().GetVirtualFileSystem());

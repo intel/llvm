@@ -53,7 +53,9 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
   void *RetVal = nullptr;
   if (Size == 0)
     return nullptr;
-  if (Ctxt.is_host()) {
+
+  std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
+  if (CtxImpl->is_host()) {
     if (!Alignment) {
       // worst case default
       Alignment = 128;
@@ -67,7 +69,6 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
       RetVal = nullptr;
     }
   } else {
-    std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
     pi_context C = CtxImpl->getHandleRef();
     const detail::plugin &Plugin = CtxImpl->getPlugin();
     pi_result Error;
@@ -121,7 +122,8 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
   if (Size == 0)
     return nullptr;
 
-  if (Ctxt.is_host()) {
+  std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
+  if (CtxImpl->is_host()) {
     if (Kind == alloc::unknown) {
       RetVal = nullptr;
     } else {
@@ -139,7 +141,6 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
       }
     }
   } else {
-    std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
     pi_context C = CtxImpl->getHandleRef();
     const detail::plugin &Plugin = CtxImpl->getPlugin();
     pi_result Error;
@@ -222,11 +223,12 @@ void free(void *Ptr, const context &Ctxt,
   XPTI_CREATE_TRACEPOINT(CodeLoc);
   if (Ptr == nullptr)
     return;
-  if (Ctxt.is_host()) {
+
+  std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
+  if (CtxImpl->is_host()) {
     // need to use alignedFree here for Windows
     detail::OSUtil::alignedFree(Ptr);
   } else {
-    std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
     pi_context C = CtxImpl->getHandleRef();
     const detail::plugin &Plugin = CtxImpl->getPlugin();
     Plugin.call<PiApiKind::piextUSMFree>(C, Ptr);
@@ -517,11 +519,12 @@ alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
   if (!Ptr)
     return alloc::unknown;
 
+  std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
+
   // Everything on a host device is just system malloc so call it host
-  if (Ctxt.is_host())
+  if (CtxImpl->is_host())
     return alloc::host;
 
-  std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
   pi_context PICtx = CtxImpl->getHandleRef();
   pi_usm_type AllocTy;
 
@@ -569,11 +572,11 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
     throw runtime_error("Ptr not a valid USM allocation!",
                         PI_ERROR_INVALID_VALUE);
 
-  // Just return the host device in the host context
-  if (Ctxt.is_host())
-    return Ctxt.get_devices()[0];
-
   std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
+
+  // Just return the host device in the host context
+  if (CtxImpl->is_host())
+    return Ctxt.get_devices()[0];
 
   // Check if ptr is a host allocation
   if (get_pointer_type(Ptr, Ctxt) == alloc::host) {
@@ -594,12 +597,13 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
   Plugin.call<detail::PiApiKind::piextUSMGetMemAllocInfo>(
       PICtx, Ptr, PI_MEM_ALLOC_DEVICE, sizeof(pi_device), &DeviceId, nullptr);
 
-  for (const device &Dev : CtxImpl->getDevices()) {
-    // Try to find the real sycl device used in the context
-    if (detail::getSyclObjImpl(Dev)->getHandleRef() == DeviceId)
-      return Dev;
-  }
-
+  // The device is not necessarily a member of the context, it could be a
+  // member's descendant instead. Fetch the corresponding device from the cache.
+  std::shared_ptr<detail::platform_impl> PltImpl = CtxImpl->getPlatformImpl();
+  std::shared_ptr<detail::device_impl> DevImpl =
+      PltImpl->getDeviceImpl(DeviceId);
+  if (DevImpl)
+    return detail::createSyclObjFromImpl<device>(DevImpl);
   throw runtime_error("Cannot find device associated with USM allocation!",
                       PI_ERROR_INVALID_OPERATION);
 }

@@ -247,7 +247,7 @@ MipsRegisterInfo::requiresRegisterScavenging(const MachineFunction &MF) const {
 // FrameIndex represent objects inside a abstract stack.
 // We must replace FrameIndex with an stack/frame pointer
 // direct reference.
-void MipsRegisterInfo::
+bool MipsRegisterInfo::
 eliminateFrameIndex(MachineBasicBlock::iterator II, int SPAdj,
                     unsigned FIOperandNum, RegScavenger *RS) const {
   MachineInstr &MI = *II;
@@ -269,6 +269,7 @@ eliminateFrameIndex(MachineBasicBlock::iterator II, int SPAdj,
                     << "\n");
 
   eliminateFI(MI, FIOperandNum, FrameIndex, stackSize, spOffset);
+  return false;
 }
 
 Register MipsRegisterInfo::
@@ -317,8 +318,4 @@ bool MipsRegisterInfo::canRealignStack(const MachineFunction &MF) const {
   // We have to reserve the base pointer register in the presence of variable
   // sized objects.
   return MF.getRegInfo().canReserveReg(BP);
-}
-
-bool MipsRegisterInfo::isConstantPhysReg(MCRegister PhysReg) const {
-  return PhysReg == Mips::ZERO_64 || PhysReg == Mips::ZERO;
 }

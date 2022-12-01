@@ -26,6 +26,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
+
 context::context(const property_list &PropList)
     : context(default_selector().select_device(), PropList) {}
 
@@ -49,7 +50,7 @@ context::context(const platform &Platform, async_handler AsyncHandler,
 
 context::context(const std::vector<device> &DeviceList,
                  const property_list &PropList)
-    : context(DeviceList, async_handler{}, PropList) {}
+    : context(DeviceList, detail::defaultAsyncHandler, PropList) {}
 
 context::context(const std::vector<device> &DeviceList,
                  async_handler AsyncHandler, const property_list &PropList) {
@@ -58,8 +59,9 @@ context::context(const std::vector<device> &DeviceList,
                                   PI_ERROR_INVALID_VALUE);
   }
   auto NonHostDeviceIter = std::find_if_not(
-      DeviceList.begin(), DeviceList.end(),
-      [&](const device &CurrentDevice) { return CurrentDevice.is_host(); });
+      DeviceList.begin(), DeviceList.end(), [&](const device &CurrentDevice) {
+        return detail::getSyclObjImpl(CurrentDevice)->is_host();
+      });
   if (NonHostDeviceIter == DeviceList.end())
     impl = std::make_shared<detail::context_impl>(DeviceList[0], AsyncHandler,
                                                   PropList);
@@ -70,7 +72,7 @@ context::context(const std::vector<device> &DeviceList,
     if (std::any_of(DeviceList.begin(), DeviceList.end(),
                     [&](const device &CurrentDevice) {
                       return (
-                          CurrentDevice.is_host() ||
+                          detail::getSyclObjImpl(CurrentDevice)->is_host() ||
                           (detail::getSyclObjImpl(CurrentDevice.get_platform())
                                ->getHandleRef() != NonHostPlatform));
                     }))
@@ -122,7 +124,11 @@ context::get_info() const {
 
 cl_context context::get() const { return impl->get(); }
 
-bool context::is_host() const { return impl->is_host(); }
+bool context::is_host() const {
+  bool IsHost = impl->is_host();
+  assert(!IsHost && "context::is_host should not be called in implementation.");
+  return IsHost;
+}
 
 backend context::get_backend() const noexcept { return getImplBackend(impl); }
 

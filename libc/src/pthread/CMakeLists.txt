@@ -292,6 +292,17 @@ add_entrypoint_object(
 )
 
 add_entrypoint_object(
+  pthread_exit
+  SRCS
+    pthread_exit.cpp
+  HDRS
+    pthread_exit.h
+  DEPENDS
+    libc.include.threads
+    libc.src.__support.threads.thread
+)
+
+add_entrypoint_object(
   pthread_self
   SRCS
     pthread_self.cpp
@@ -310,8 +321,8 @@ add_entrypoint_object(
     pthread_setname_np.h
   DEPENDS
     libc.include.pthread
-    libc.src.__support.CPP.array_ref
-    libc.src.__support.CPP.string_view
+    libc.src.__support.CPP.span
+    libc.src.__support.CPP.stringstream
     libc.src.__support.threads.thread
 )
 
@@ -323,7 +334,78 @@ add_entrypoint_object(
     pthread_getname_np.h
   DEPENDS
     libc.include.pthread
-    libc.src.__support.CPP.array_ref
+    libc.src.__support.CPP.span
     libc.src.__support.CPP.stringstream
     libc.src.__support.threads.thread
+)
+
+add_entrypoint_object(
+  pthread_key_create
+  SRCS
+    pthread_key_create.cpp
+  HDRS
+    pthread_key_create.h
+  DEPENDS
+    libc.include.errno
+    libc.include.pthread
+    libc.src.__support.threads.thread
+)
+
+add_entrypoint_object(
+  pthread_key_delete
+  SRCS
+    pthread_key_delete.cpp
+  HDRS
+    pthread_key_delete.h
+  DEPENDS
+    libc.include.errno
+    libc.include.pthread
+    libc.src.__support.threads.thread
+)
+
+add_entrypoint_object(
+  pthread_getspecific
+  SRCS
+    pthread_getspecific.cpp
+  HDRS
+    pthread_getspecific.h
+  DEPENDS
+    libc.include.errno
+    libc.include.pthread
+    libc.src.__support.threads.thread
+)
+
+add_entrypoint_object(
+  pthread_setspecific
+  SRCS
+    pthread_setspecific.cpp
+  HDRS
+    pthread_setspecific.h
+  DEPENDS
+    libc.include.errno
+    libc.include.pthread
+    libc.src.__support.threads.thread
+)
+
+add_entrypoint_object(
+  pthread_once
+  SRCS
+    pthread_once.cpp
+  HDRS
+    pthread_once.h
+  DEPENDS
+    libc.include.pthread
+    libc.src.__support.threads.callonce
+)
+
+add_entrypoint_object(
+  pthread_atfork
+  SRCS
+    pthread_atfork.cpp
+  HDRS
+    pthread_atfork.h
+  DEPENDS
+    libc.include.errno
+    libc.include.pthread
+    libc.src.__support.threads.fork_callbacks
 )
