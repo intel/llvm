@@ -94,6 +94,7 @@ public:
   weak_object(weak_object &&Other) noexcept = default;
 
   weak_object &operator=(const buffer_type &SYCLObj) noexcept {
+    // Create weak_ptr from the shared_ptr to SYCLObj's implementation object.
     this->MObjWeakPtr = sycl::detail::getSyclObjImpl(SYCLObj);
     this->MRange = SYCLObj.Range;
     this->MOffsetInBytes = SYCLObj.OffsetInBytes;
