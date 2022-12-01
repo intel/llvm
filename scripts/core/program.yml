@@ -127,7 +127,7 @@ params:
       desc: |
             [in] A null-terminates string denoting the mangled function name.
     - type: "void**"
-      name: pFunctionPointer
+      name: ppFunctionPointer
       desc: |
             [out] Returns the pointer to the function if it is found in the program.
 --- #--------------------------------------------------------------------------
@@ -244,13 +244,13 @@ params:
       name: propName
       desc: "[in] name of the Program build info to query"
     - type: "size_t*"
-      name: propSize
+      name: pPropSize
       desc: |
             [in,out] pointer to the size of the Program build info property.
             If *propSize is 0 or greater than the number of bytes of the build info property,
             the call shall update the value with actual number of bytes of the build info property.
     - type: "void*"
-      name: propValue
+      name: pPropValue
       desc: |
             [in,out][optional][range(0, *propSize)] value of the Program build property.
             If *propSize is less than the number of bytes for the Program build property,
@@ -272,7 +272,7 @@ params:
       name: specSize
       desc: "[in] size of the specialization constant value"
     - type: "const void*"
-      name: specValue
+      name: pSpecValue
       desc: "[in] pointer to the specialization value bytes"
 --- #--------------------------------------------------------------------------
 type: function

@@ -40,7 +40,7 @@ name: HostAlloc
 ordinal: "0"
 params:
     - type: $x_context_handle_t
-      name: context
+      name: hContext
       desc: "[in] handle of the context object"
     - type: $x_usm_mem_flags_t*
       name: pUSMFlag
@@ -52,7 +52,7 @@ params:
       name: align      
       desc: "[in] alignment of the USM memory object"
     - type: void**
-      name: pptr
+      name: ppMem
       desc: "[out] pointer to USM host memory object"
 returns:      
     - $X_RESULT_INVALID_CONTEXT
@@ -68,10 +68,10 @@ name: DeviceAlloc
 ordinal: "0"
 params:
     - type: $x_context_handle_t
-      name: context
+      name: hContext
       desc: "[in] handle of the context object"
     - type: $x_device_handle_t
-      name: device
+      name: hDevice
       desc: "[in] handle of the device object"
     - type: $x_usm_mem_flags_t*
       name: pUSMProp
@@ -83,7 +83,7 @@ params:
       name: align      
       desc: "[in] alignment of the USM memory object"
     - type: void**
-      name: pptr
+      name: ppMem
       desc: "[out] pointer to USM device memory object"
 returns:      
     - $X_RESULT_INVALID_CONTEXT
@@ -99,10 +99,10 @@ name: SharedAlloc
 ordinal: "0"
 params:
     - type: $x_context_handle_t
-      name: context
+      name: hContext
       desc: "[in] handle of the context object"
     - type: $x_device_handle_t
-      name: device
+      name: hDevice
       desc: "[in] handle of the device object"
     - type: $x_usm_mem_flags_t*
       name: pUSMProp
@@ -114,7 +114,7 @@ params:
       name: align      
       desc: "[in] alignment of the USM memory object"
     - type: void**
-      name: pptr
+      name: ppMem
       desc: "[out] pointer to USM shared memory object"
 returns:      
     - $X_RESULT_INVALID_CONTEXT
@@ -130,10 +130,10 @@ name: Free
 ordinal: "0"
 params:
     - type: $x_context_handle_t
-      name: context
+      name: hContext
       desc: "[in] handle of the context object"
     - type: void*
-      name: ptr
+      name: pMem
       desc: "[in] pointer to USM memory object"
 returns:
     - $X_RESULT_INVALID_MEM_OBJECT
@@ -146,10 +146,10 @@ name: GetMemAllocInfo
 ordinal: "0"
 params:
     - type: $x_context_handle_t
-      name: context
+      name: hContext
       desc: "[in] handle of the context object"
     - type: "const void*"
-      name: ptr
+      name: pMem
       desc: "[in] pointer to USM memory object"
     - type: $x_mem_alloc_info_t
       name: propName
@@ -158,10 +158,10 @@ params:
       name: propValueSize
       desc: "[in] size in bytes of the USM allocation property value"
     - type: void*
-      name: propValue
+      name: pPropValue
       desc: "[out] value of the USM allocation property"
     - type: size_t*
-      name: propValueSizeRet
+      name: pPropValueSizeRet
       desc: "[out] bytes returned in USM allocation property"
 returns:
     - $X_RESULT_INVALID_CONTEXT
