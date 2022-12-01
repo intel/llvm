@@ -1564,6 +1564,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextContextCreateWithNativeHandle, piextContextCreateWithNativeHandle)
   // Queue
   _PI_CL(piQueueCreate, piQueueCreate)
+  _PI_CL(piQueueCreateEx, piQueueCreateEx)
   _PI_CL(piQueueGetInfo, clGetCommandQueueInfo)
   _PI_CL(piQueueFinish, clFinish)
   _PI_CL(piQueueFlush, clFlush)
