@@ -292,10 +292,12 @@ public:
     assert(MThisCmd->getCG().getType() == CG::CGTYPE::CodeplayHostTask);
 
     CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
-    std::cout << "Host task waitForEvents begin " << std::endl;
+    std::cout << std::this_thread::get_id() << " Host task waitForEvents begin "
+              << std::endl;
     pi_result WaitResult = waitForEvents();
     if (WaitResult != PI_SUCCESS) {
-      std::cout << "Host task waitForEvents WaitResult != success "
+      std::cout << std::this_thread::get_id()
+                << " Host task waitForEvents WaitResult != success "
                 << std::endl;
       std::exception_ptr EPtr = std::make_exception_ptr(sycl::runtime_error(
           std::string("Couldn't wait for host-task's dependencies"),
@@ -306,7 +308,8 @@ public:
       HostTask.MHostTask.reset();
       return;
     }
-    std::cout << "Host task job execution begin " << std::endl;
+    std::cout << std::this_thread::get_id() << " Host task job execution begin "
+              << std::endl;
     try {
       // we're ready to call the user-defined lambda now
       if (HostTask.MHostTask->isInteropTask()) {
@@ -320,7 +323,8 @@ public:
     } catch (...) {
       HostTask.MQueue->reportAsyncException(std::current_exception());
     }
-    std::cout << "Host task job execution end " << std::endl;
+    std::cout << std::this_thread::get_id() << " Host task job execution end "
+              << std::endl;
 
     HostTask.MHostTask.reset();
 
@@ -329,7 +333,8 @@ public:
     assert(EmptyCmd && "No empty command found");
 
     Scheduler::getInstance().NotifyHostTaskCompletion(MThisCmd, EmptyCmd);
-    std::cout << "Host task operator end " << std::endl;
+    std::cout << std::this_thread::get_id() << " Host task operator end "
+              << std::endl;
   }
 };
 

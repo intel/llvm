@@ -363,10 +363,12 @@ void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req,
   auto EnqueueLeaves = [&ToCleanUp](LeavesCollection &Leaves) {
     for (Command *Cmd : Leaves) {
       EnqueueResultT Res;
-      std::cout << "enqueueLeavesOfReqUnlocked enqueueCommand begin  " << Cmd
+      std::cout << std::this_thread::get_id()
+                << "EnqueueLeavesOfReqUnlocked enqueueCommand begin  " << Cmd
                 << std::endl;
       bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
-      std::cout << "enqueueLeavesOfReqUnlocked enqueueCommand end  " << Cmd
+      std::cout << std::this_thread::get_id()
+                << " enqueueLeavesOfReqUnlocked enqueueCommand end  " << Cmd
                 << std::endl;
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
         throw runtime_error("Enqueue process failed.",
@@ -462,11 +464,14 @@ void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
     if (MDeferredCleanupCommands.empty())
       return;
   }
-
+  std::cout << std::this_thread::get_id()
+            << " cleanupCommands:: before try lock" << std::endl;
   WriteLockT Lock(MGraphLock, std::try_to_lock);
   // In order to avoid deadlocks related to blocked commands, defer cleanup if
   // the lock wasn't acquired.
   if (Lock.owns_lock()) {
+    std::cout << std::this_thread::get_id() << "cleanupCommand owns lock"
+              << std::endl;
     for (Command *Cmd : Cmds) {
       MGraphBuilder.cleanupCommand(Cmd);
     }
@@ -480,9 +485,13 @@ void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
     }
 
   } else {
+    std::cout << std::this_thread::get_id() << "ready to defer command cleanup"
+              << std::endl;
     std::lock_guard<std::mutex> Lock{MDeferredCleanupMutex};
     MDeferredCleanupCommands.insert(MDeferredCleanupCommands.end(),
                                     Cmds.begin(), Cmds.end());
+    std::cout << std::this_thread::get_id() << "defered command inserted"
+              << std::endl;
   }
 }
 
@@ -493,7 +502,8 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd, Command *BlockingCmd) {
   // of empty command.
   // Also, it's possible to have record deallocated prior to enqueue process.
   // Thus we employ read-lock of graph.
-  std::cout << "NotifyHostTaskCompletion begin " << std::endl;
+  std::cout << std::this_thread::get_id() << " NotifyHostTaskCompletion begin "
+            << std::endl;
   std::vector<Command *> ToCleanUp;
   {
     ReadLockT Lock = acquireReadLock();
@@ -513,7 +523,8 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd, Command *BlockingCmd) {
       Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement, ToCleanUp);
   }
   cleanupCommands(ToCleanUp);
-  std::cout << "NotifyHostTaskCompletion end " << std::endl;
+  std::cout << std::this_thread::get_id() << "NotifyHostTaskCompletion end "
+            << std::endl;
 }
 
 void Scheduler::deferMemObjRelease(const std::shared_ptr<SYCLMemObjI> &MemObj) {
