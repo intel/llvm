@@ -359,6 +359,17 @@ class ur_mem_type_t(c_int):
 
 
 ###############################################################################
+## @brief Memory Information type
+class ur_mem_info_v(IntEnum):
+    SIZE = 0                                        ## size_t: actual size of of memory object in bytes
+    CONTEXT = 1                                     ## ::ur_context_handle_t: context in which the memory object was created
+
+class ur_mem_info_t(c_int):
+    def __str__(self):
+        return str(ur_mem_info_v(self.value))
+
+
+###############################################################################
 ## @brief Image channel order info: number of channels and the channel layout
 class ur_image_channel_order_v(IntEnum):
     CHANNEL_ORDER_A = 0                             ## channel order A
@@ -541,15 +552,15 @@ class ur_usm_mem_flags_t(c_int):
 
 ###############################################################################
 ## @brief USM memory allocation information type
-class ur_mem_info_v(IntEnum):
+class ur_mem_alloc_info_v(IntEnum):
     MEM_ALLOC_TYPE = 0                              ## Memory allocation type info
     MEM_ALLOC_BASE_PTR = 1                          ## Memory allocation base pointer info
     MEM_ALLOC_SIZE = 2                              ## Memory allocation size info
     MEM_ALLOC_DEVICE = 3                            ## Memory allocation device info
 
-class ur_mem_info_t(c_int):
+class ur_mem_alloc_info_t(c_int):
     def __str__(self):
-        return str(ur_mem_info_v(self.value))
+        return str(ur_mem_alloc_info_v(self.value))
 
 
 ###############################################################################
@@ -1479,6 +1490,13 @@ else:
     _urMemCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_platform_handle_t, ur_native_handle_t, POINTER(ur_mem_handle_t) )
 
 ###############################################################################
+## @brief Function-pointer for urMemGetInfo
+if __use_win_types:
+    _urMemGetInfo_t = WINFUNCTYPE( ur_result_t, ur_mem_handle_t, ur_mem_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
+else:
+    _urMemGetInfo_t = CFUNCTYPE( ur_result_t, ur_mem_handle_t, ur_mem_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
+
+###############################################################################
 ## @brief Function-pointer for urMemFree
 if __use_win_types:
     _urMemFree_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p )
@@ -1488,9 +1506,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urMemGetMemAllocInfo
 if __use_win_types:
-    _urMemGetMemAllocInfo_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, ur_mem_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
+    _urMemGetMemAllocInfo_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, ur_mem_alloc_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
 else:
-    _urMemGetMemAllocInfo_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, ur_mem_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
+    _urMemGetMemAllocInfo_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, ur_mem_alloc_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
 
 
 ###############################################################################
@@ -1504,6 +1522,7 @@ class _ur_mem_dditable_t(Structure):
         ("pfnBufferPartition", c_void_p),                               ## _urMemBufferPartition_t
         ("pfnGetNativeHandle", c_void_p),                               ## _urMemGetNativeHandle_t
         ("pfnCreateWithNativeHandle", c_void_p),                        ## _urMemCreateWithNativeHandle_t
+        ("pfnGetInfo", c_void_p),                                       ## _urMemGetInfo_t
         ("pfnFree", c_void_p),                                          ## _urMemFree_t
         ("pfnGetMemAllocInfo", c_void_p)                                ## _urMemGetMemAllocInfo_t
     ]
@@ -2034,6 +2053,7 @@ class UR_DDI:
         self.urMemBufferPartition = _urMemBufferPartition_t(self.__dditable.Mem.pfnBufferPartition)
         self.urMemGetNativeHandle = _urMemGetNativeHandle_t(self.__dditable.Mem.pfnGetNativeHandle)
         self.urMemCreateWithNativeHandle = _urMemCreateWithNativeHandle_t(self.__dditable.Mem.pfnCreateWithNativeHandle)
+        self.urMemGetInfo = _urMemGetInfo_t(self.__dditable.Mem.pfnGetInfo)
         self.urMemFree = _urMemFree_t(self.__dditable.Mem.pfnFree)
         self.urMemGetMemAllocInfo = _urMemGetMemAllocInfo_t(self.__dditable.Mem.pfnGetMemAllocInfo)
 
