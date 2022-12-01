@@ -55,6 +55,16 @@ etors:
       desc: "1D image buffer object"
 --- #--------------------------------------------------------------------------
 type: enum
+desc: "Memory Information type"
+class: $xMem
+name: $x_mem_info_t
+etors:
+    - name: SIZE
+      desc: "size_t: actual size of of memory object in bytes"
+    - name: CONTEXT
+      desc: "$x_context_handle_t: context in which the memory object was created"
+--- #--------------------------------------------------------------------------
+type: enum
 desc: "Image channel order info: number of channels and the channel layout"
 class: $xMem
 name: $x_image_channel_order_t

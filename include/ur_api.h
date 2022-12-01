@@ -1644,6 +1644,16 @@ typedef enum _ur_mem_type_t
 } ur_mem_type_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Memory Information type
+typedef enum _ur_mem_info_t
+{
+    UR_MEM_INFO_SIZE = 0,                           ///< size_t: actual size of of memory object in bytes
+    UR_MEM_INFO_CONTEXT = 1,                        ///< ::ur_context_handle_t: context in which the memory object was created
+    UR_MEM_INFO_FORCE_UINT32 = 0x7fffffff
+
+} ur_mem_info_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Image channel order info: number of channels and the channel layout
 typedef enum _ur_image_channel_order_t
 {
@@ -2471,15 +2481,15 @@ typedef enum _ur_usm_mem_flag_t
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM memory allocation information type
-typedef enum _ur_mem_info_t
+typedef enum _ur_mem_alloc_info_t
 {
-    UR_MEM_INFO_MEM_ALLOC_TYPE = 0,                 ///< Memory allocation type info
-    UR_MEM_INFO_MEM_ALLOC_BASE_PTR = 1,             ///< Memory allocation base pointer info
-    UR_MEM_INFO_MEM_ALLOC_SIZE = 2,                 ///< Memory allocation size info
-    UR_MEM_INFO_MEM_ALLOC_DEVICE = 3,               ///< Memory allocation device info
-    UR_MEM_INFO_FORCE_UINT32 = 0x7fffffff
+    UR_MEM_ALLOC_INFO_MEM_ALLOC_TYPE = 0,           ///< Memory allocation type info
+    UR_MEM_ALLOC_INFO_MEM_ALLOC_BASE_PTR = 1,       ///< Memory allocation base pointer info
+    UR_MEM_ALLOC_INFO_MEM_ALLOC_SIZE = 2,           ///< Memory allocation size info
+    UR_MEM_ALLOC_INFO_MEM_ALLOC_DEVICE = 3,         ///< Memory allocation device info
+    UR_MEM_ALLOC_INFO_FORCE_UINT32 = 0x7fffffff
 
-} ur_mem_info_t;
+} ur_mem_alloc_info_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM allocate host memory
@@ -2596,7 +2606,7 @@ urMemFree(
 ///         + `NULL == propValue`
 ///         + `NULL == propValueSizeRet`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_MEM_INFO_MEM_ALLOC_DEVICE < propName`
+///         + `::UR_MEM_ALLOC_INFO_MEM_ALLOC_DEVICE < propName`
 ///     - ::UR_RESULT_INVALID_CONTEXT
 ///     - ::UR_RESULT_INVALID_VALUE
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
@@ -2605,7 +2615,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urMemGetMemAllocInfo(
     ur_context_handle_t context,                    ///< [in] handle of the context object
     const void* ptr,                                ///< [in] pointer to USM memory object
-    ur_mem_info_t propName,                         ///< [in] the name of the USM allocation property to query
+    ur_mem_alloc_info_t propName,                   ///< [in] the name of the USM allocation property to query
     size_t propValueSize,                           ///< [in] size in bytes of the USM allocation property value
     void* propValue,                                ///< [out] value of the USM allocation property
     size_t* propValueSizeRet                        ///< [out] bytes returned in USM allocation property
@@ -5764,7 +5774,7 @@ typedef struct _ur_mem_get_mem_alloc_info_params_t
 {
     ur_context_handle_t* pcontext;
     const void** pptr;
-    ur_mem_info_t* ppropName;
+    ur_mem_alloc_info_t* ppropName;
     size_t* ppropValueSize;
     void** ppropValue;
     size_t** ppropValueSizeRet;
