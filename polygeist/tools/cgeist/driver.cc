@@ -348,7 +348,7 @@ static int optimize(mlir::MLIRContext &Ctx,
     if (RaiseToAffine)
       OptPM.addPass(mlir::createLowerAffinePass());
     PM.addPass(sycl::createInlinePass(sycl::InlineMode::Simple,
-                                      /* RemoveDeadCallees */ false));
+                                      /* RemoveDeadCallees */ true));
 
     mlir::OpPassManager &OptPM2 = PM.nestAny();
     OptPM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));

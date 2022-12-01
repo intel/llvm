@@ -30,6 +30,7 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Support/LLVM.h"
+#include "mlir/Transforms/InliningUtils.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/ADT/bit.h"
@@ -234,6 +235,24 @@ struct BitmaskEnumStorage : public AttributeStorage {
 } // namespace mlir
 
 //===----------------------------------------------------------------------===//
+// VectorDialect Interfaces
+//===----------------------------------------------------------------------===//
+
+namespace {
+
+struct VectorInlinerInterface : public DialectInlinerInterface {
+  using DialectInlinerInterface::DialectInlinerInterface;
+
+  /// All operations can be inlined.
+  bool isLegalToInline(Operation *, Region *, bool wouldBeCloned,
+                       BlockAndValueMapping &) const final {
+    return true;
+  }
+};
+
+} // namespace
+
+//===----------------------------------------------------------------------===//
 // VectorDialect
 //===----------------------------------------------------------------------===//
 
@@ -247,6 +266,8 @@ void VectorDialect::initialize() {
 #define GET_OP_LIST
 #include "mlir/Dialect/Vector/IR/VectorOps.cpp.inc"
       >();
+
+  addInterfaces<VectorInlinerInterface>();
 }
 
 /// Materialize a single constant operation from a given attribute value with

@@ -38,11 +38,10 @@ public:
   //===--------------------------------------------------------------------===//
 
   /// This hook checks whether is legal to inline the \p Callable operation and
-  /// replace the \p Call operation with it. For the SYCL dialect we want to
-  /// allow inlining only SYCLCallOp operations.
+  /// replace the \p Call operation with it.
   bool isLegalToInline(mlir::Operation *Call, mlir::Operation *Callable,
                        bool WouldBeCloned) const final {
-    return mlir::isa<mlir::sycl::SYCLCallOp>(Call);
+    return true;
   }
 
   /// This hook checks whether is legal to inline the \p Op operation into the
