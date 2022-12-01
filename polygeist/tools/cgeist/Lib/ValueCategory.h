@@ -36,7 +36,7 @@ public:
   mlir::Value val;
   bool isReference;
   /// Holds the index the lvalue to a vector element refers to.
-  llvm::Optional<mlir::Value> Index;
+  llvm::Optional<mlir::Value> Index{llvm::None};
 
 public:
   ValueCategory() : val(nullptr), isReference(false) {}
