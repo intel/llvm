@@ -256,7 +256,8 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
                   .isa<mlir::sycl::AccessorType,
                        mlir::sycl::AccessorImplDeviceType,
                        mlir::sycl::ArrayType, mlir::sycl::ItemType,
-                       mlir::sycl::NdItemType, mlir::sycl::GroupType>()) {
+                       mlir::sycl::NdItemType, mlir::sycl::GroupType,
+                       mlir::sycl::VecType>()) {
             llvm_unreachable("not implemented yet");
           }
 

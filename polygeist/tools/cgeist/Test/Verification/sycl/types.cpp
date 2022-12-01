@@ -21,6 +21,8 @@
 // CHECK-DAG: !sycl_get_scalar_op_i32_ = !sycl.get_scalar_op<[i32], (i32)>
 // CHECK-DAG: !sycl_atomic_f32_3_ = !sycl.atomic<[f32,3], (memref<?xf32, 3>)>
 // CHECK-DAG: !sycl_atomic_i32_1_ = !sycl.atomic<[i32,1], (memref<?xi32, 1>)>
+// CHECK-DAG: !sycl_vec_f32_8_ = !sycl.vec<[f32, 8], (vector<8xf32>)>
+// CHECK-DAG: !sycl_vec_i32_4_ = !sycl.vec<[i32, 4], (vector<4xi32>)>
 
 // CHECK-LABEL: func.func @_Z4id_1N4sycl3_V12idILi1EEE(
 // CHECK:          %arg0: memref<?x!sycl_id_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_id_1_, llvm.noundef})
@@ -127,3 +129,13 @@ SYCL_EXTERNAL void atomic_1(sycl::atomic<int> atomic_int) {}
 // CHECK:          %arg0: memref<?x!sycl_atomic_f32_3_> {llvm.align = 8 : i64, llvm.byval = !sycl_atomic_f32_3_, llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
 SYCL_EXTERNAL void atomic_2(sycl::atomic<float, sycl::access::address_space::local_space> atomic_float) {}
+
+// CHECK-LABEL: func.func @_Z5vec_3N4sycl3_V13vecIiLi4EEE(
+// CHECK-SAME:    %arg0: memref<?x!sycl_vec_i32_4_> {llvm.align = 16 : i64, llvm.byval = !sycl_vec_i32_4_, llvm.noundef})
+// CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
+SYCL_EXTERNAL void vec_3(sycl::vec<sycl::cl_int, 4> vec) {}
+
+// CHECK-LABEL: func.func @_Z5vec_4N4sycl3_V13vecIfLi8EEE(
+// CHECK-SAME:    %arg0: memref<?x!sycl_vec_f32_8_> {llvm.align = 32 : i64, llvm.byval = !sycl_vec_f32_8_, llvm.noundef})
+// CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
+SYCL_EXTERNAL void vec_4(sycl::float8 vec) {}

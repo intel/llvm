@@ -19,6 +19,7 @@ include "mlir/IR/AttrTypeBase.td"
 include "mlir/Dialect/SYCL/IR/SYCLOpInterfaces.td"
 include "mlir/Dialect/LLVMIR/LLVMOpsInterfaces.td"
 include "mlir/Dialect/MemRef/IR/MemRefBase.td"
+include "mlir/IR/BuiltinTypes.td"
 include "mlir/IR/BuiltinTypeInterfaces.td"
 include "mlir/Interfaces/CallInterfaces.td"
 include "mlir/Interfaces/CastInterfaces.td"
@@ -218,11 +219,16 @@ def SYCL_GetScalarOpType : SYCL_Type<"GetScalarOp", "get_scalar_op"> {
   let assemblyFormat = "`<` `[` $dataType `]` `,` `(` $body `)` `>`";
 }
 
+def VectorEltTy : AnyTypeOf<[I1, I8, I16, I32, I64, F16, F32, F64]>;
+
+def VectorSplatArg : MemRefOf<[VectorEltTy]>;
+
 def SYCL_VecType : SYCL_Type<"Vec", "vec"> {
   let parameters = (ins "::mlir::Type":$dataType,
                         "int":$numElements,
                         "llvm::SmallVector<mlir::Type, 4>":$body);
   let assemblyFormat = "`<` `[` $dataType `,` $numElements `]` `,` `(` $body `)` `>`";
+  let genVerifyDecl = 1;
 }
 
 def SYCL_AtomicType : SYCL_Type<"Atomic", "atomic"> {
@@ -264,7 +270,6 @@ def SYCLMemref : AnyTypeOf<[
   AtomicMemRef
 ]>;
 def IndexType : AnyTypeOf<[I32, I64, Index]>;
-def IntMemrefType : AnyTypeOf<[MemRefOf<[I32]>]>;
 def SYCLGetResult : AnyTypeOf<[I64, MemRefOf<[I64]>]>;
 def SYCLGetIDResult : AnyTypeOf<[I64, SYCL_IDType]>;
 def SYCLGetRangeResult : AnyTypeOf<[I64, SYCL_RangeType]>;
@@ -273,7 +278,14 @@ def SYCLGetRangeResult : AnyTypeOf<[I64, SYCL_RangeType]>;
 // CONSTRUCTOR OPERATION
 ////////////////////////////////////////////////////////////////////////////////
 
-def ConstructorArgs : AnyTypeOf<[SYCLMemref, IndexType, IntMemrefType, SYCL_IDType, SYCL_RangeType]>;
+def ConstructorArgs : AnyTypeOf<[SYCLMemref,
+                                 VectorEltTy,
+                                 IndexType,
+                                 VectorSplatArg,
+                                 SYCL_IDType,
+                                 SYCL_RangeType,
+                                 Builtin_Vector,
+                               ]>;
 def SYCLConstructorOp : SYCL_Op<"constructor", []> {
   let summary = "Generic constructor operation";
   let description = [{
