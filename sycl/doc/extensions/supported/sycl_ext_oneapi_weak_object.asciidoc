@@ -118,7 +118,7 @@ public:
 
   bool expired() const noexcept;
   std::optional<SyclObject> try_lock() const noexcept;
-  SyclObject lock() const noexcept;
+  SyclObject lock() const;
 
   bool owner_before(const weak_object &Other) const noexcept;
   bool owner_before(const SyclObject &Other) const noexcept;
