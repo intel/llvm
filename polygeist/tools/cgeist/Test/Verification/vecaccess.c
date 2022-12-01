@@ -54,9 +54,9 @@ int test_inc(int_vec *v, int idx, int el) {
 
 // CHECK-LABEL:   func.func @test_gen(
 // CHECK-SAME:                        %[[VAL_0:.*]]: i32, %[[VAL_1:.*]]: i32, %[[VAL_2:.*]]: i32) -> vector<3xi32>
-// CHECK-NEXT:      %[[VAL_3:.*]] = arith.constant 2 : i32
-// CHECK-NEXT:      %[[VAL_4:.*]] = arith.constant 1 : i32
-// CHECK-NEXT:      %[[VAL_5:.*]] = arith.constant 0 : i32
+// CHECK-DAG:       %[[VAL_3:.*]] = arith.constant 2 : i32
+// CHECK-DAG:       %[[VAL_4:.*]] = arith.constant 1 : i32
+// CHECK-DAG:       %[[VAL_5:.*]] = arith.constant 0 : i32
 // CHECK-NEXT:      %[[VAL_6:.*]] = memref.alloca() : memref<1xvector<3xi32>>
 // CHECK-NEXT:      %[[VAL_7:.*]] = affine.load %[[VAL_6]][0] : memref<1xvector<3xi32>>
 // CHECK-NEXT:      %[[VAL_8:.*]] = vector.insertelement %[[VAL_0]], %[[VAL_7]]{{\[}}%[[VAL_5]] : i32] : vector<3xi32>

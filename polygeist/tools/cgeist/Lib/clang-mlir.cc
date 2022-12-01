@@ -74,30 +74,7 @@ MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob, OwningOpRef<ModuleOp> &Module,
       CaptureKinds(), ThisCapture(nullptr), ArrayInit(), ThisVal(), ReturnVal(),
       LTInfo(LTInfo) {}
 
-void MLIRScanner::initUnsupportedFunctions() {
-  // FIXME: Implement Array subscript expression for vectors (rvalue).
-  // #3 0x000056079c19f88a MLIRScanner::CommonArrayLookup(ValueCategory,
-  // mlir::Value, bool, bool)
-  // #4 0x000056079c20e68b
-  // MLIRScanner::VisitArraySubscriptExpr(clang::ArraySubscriptExpr*)
-  UnsupportedFuncs.insert(
-      "_ZNK4sycl3_V13vecIlLi2EE8getValueILi2EivEElNSt9enable_ifILb1ET0_"
-      "E4typeEi");
-  UnsupportedFuncs.insert(
-      "_ZNK4sycl3_V13vecIlLi4EE8getValueILi4EivEElNSt9enable_ifILb1ET0_"
-      "E4typeEi");
-  UnsupportedFuncs.insert(
-      "_ZNK4sycl3_V13vecIlLi8EE8getValueILi8EivEElNSt9enable_ifILb1ET0_"
-      "E4typeEi");
-  // FIXME: Implement Array subscript expression for vectors (lvalue).
-  // #3 0x000055d43215b80a MLIRScanner::CommonArrayLookup(ValueCategory,
-  // mlir::Value, bool, bool)
-  // #4 0x000055d4321ca6bb
-  // MLIRScanner::VisitArraySubscriptExpr(clang::ArraySubscriptExpr*)
-  UnsupportedFuncs.insert(
-      "_ZN4sycl3_V13vecIlLi16EE8setValueILi16EivEEvNSt9enable_ifILb1ET0_"
-      "E4typeERKli");
-}
+void MLIRScanner::initUnsupportedFunctions() {}
 
 static void checkFunctionParent(const FunctionOpInterface F,
                                 FunctionContext Context,
