@@ -25,6 +25,7 @@
       Op " is not supported on host device.");
 #endif
 
+
 #ifdef __SYCL_DEVICE_ONLY__
 #define __OPENCL_GLOBAL_AS__ __attribute__((opencl_global))
 #ifdef __ENABLE_USM_ADDR_SPACE__
@@ -75,11 +76,11 @@ struct HasSubscriptOperator<
 template <typename T, typename... Args>
 annotated_arg(T, Args... args) -> annotated_arg<T, detail::properties_t<Args...>, std::is_pointer<T>::value>;
 
-// template <typename T, typename... Args>
-// annotated_arg(T, properties<std::tuple<Args...>>) -> annotated_arg<T, detail::properties_t<Args...>, std::is_pointer<T>::value>;
+template <typename T, typename... Args>
+annotated_arg(T, properties<std::tuple<Args...>>) -> annotated_arg<T, detail::properties_t<Args...>, std::is_pointer<T>::value>;
 
-template <typename T, typename old, typename ArgT, bool IsPtr>
-annotated_arg(annotated_arg<T, old, IsPtr>, ArgT newp) -> annotated_arg<T, detail::merged_properties_t<old, ArgT>, IsPtr>;
+template <typename T, typename old, typename... ArgT, bool IsPtr>
+annotated_arg(annotated_arg<T, old, IsPtr>, properties<std::tuple<ArgT...>>) -> annotated_arg<T, detail::merged_properties_t<old, detail::properties_t<ArgT...>>, IsPtr>;
 
 template <typename T, typename PropertyListT = detail::empty_properties_t, bool IsPtr = std::is_pointer<T>::value>
 class annotated_arg {
@@ -116,16 +117,18 @@ public:
                 // "Property list is invalid.");
   static_assert(check_property_list<T, Props...>::value,
                 "The property list contains invalid property.");
+  static_assert(detail::SortedAllUnique<std::tuple<Props...>>::value,
+                "Duplicate properties in property list.");
 
   annotated_arg() noexcept = default;
   annotated_arg(const annotated_arg&) = default;
   annotated_arg& operator=(annotated_arg&) = default;
 
-  // explicit annotated_arg(const T& _ptr, const property_list_t &PropList = properties{}) noexcept
-  //   : obj((__OPENCL_GLOBAL_AS__ UnderlyingT*)_ptr) {}
+  annotated_arg(const T& _ptr, const property_list_t &PropList = properties{}) noexcept
+    : obj((__OPENCL_GLOBAL_AS__ UnderlyingT*)_ptr) {}
 
   template<typename... PropertyValueTs>
-  explicit annotated_arg(const T& _ptr, PropertyValueTs... props) noexcept : obj((__OPENCL_GLOBAL_AS__ UnderlyingT*)_ptr) {
+  annotated_arg(const T& _ptr, PropertyValueTs... props) noexcept : obj((__OPENCL_GLOBAL_AS__ UnderlyingT*)_ptr) {
     static_assert(
         std::is_same<
             property_list_t,
@@ -223,10 +226,10 @@ public:
   annotated_arg(const annotated_arg&) = default;
   annotated_arg& operator=(annotated_arg&) = default;
 
-  explicit annotated_arg(const T& _obj, const property_list_t &PropList = properties{}) noexcept : obj(_obj) {}
+  annotated_arg(const T& _obj, const property_list_t &PropList = properties{}) noexcept : obj(_obj) {}
 
   template<typename... PropertyValueTs>
-  explicit annotated_arg(const T& _obj, PropertyValueTs... props) noexcept : obj(_obj) {
+  annotated_arg(const T& _obj, PropertyValueTs... props) noexcept : obj(_obj) {
     static_assert(
         std::is_same<
             property_list_t,
