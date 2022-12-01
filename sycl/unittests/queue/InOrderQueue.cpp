@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include <helpers/PiMock.hpp>
-#include <sycl/queue.hpp>
 #include <sycl/properties/queue_properties.hpp>
+#include <sycl/queue.hpp>
 
 using namespace sycl;
 
@@ -21,7 +21,6 @@ TEST(InOrderQueue, CheckFlagIsPassed) {
 
   Mock.redefineBefore<detail::PiApiKind::piQueueCreateEx>(
       piQueueCreateExRedefineBefore);
-
 
   EXPECT_FALSE(InOrderFlagSeen);
   queue q1{};
