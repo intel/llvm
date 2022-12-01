@@ -20,13 +20,14 @@ piMemBufferCreate
 piMemBufferPartition
 piMemImageCreate
 piPlatformsGet
+piPluginGetLastError
 piPluginInit
 piProgramCreate
 piProgramCreateWithBinary
 piProgramLink
 piQueueCreate
+piQueueCreateEx
 piSamplerCreate
-piPluginGetLastError
 piTearDown
 piclProgramCreateWithSource
 piextContextCreateWithNativeHandle
