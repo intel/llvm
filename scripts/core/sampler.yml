@@ -71,7 +71,7 @@ params:
       name: hContext
       desc: "[in] handle of the context object"
     - type: "const $x_sampler_property_value_t*"
-      name: props
+      name: pProps
       desc: |
             [in] specifies a list of sampler property names and their corresponding values.
     - type: $x_sampler_handle_t*
@@ -134,10 +134,10 @@ params:
       name: propValueSize
       desc: "[in] size in bytes of the sampler property value provided"
     - type: "void*"
-      name: propValue
+      name: pPropValue
       desc: "[out] value of the sampler property"
     - type: "size_t*"
-      name: pSize
+      name: pPropSizeRet
       desc: "[out] size in bytes returned in sampler property value"
 returns:
     - $X_RESULT_INVALID_SAMPLER

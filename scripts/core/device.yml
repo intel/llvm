@@ -413,15 +413,15 @@ params:
       desc: |
             [in] handle of the device to select binary for.
     - type: "const uint8_t**"
-      name: Binaries
+      name: ppBinaries
       desc: |
             [in] the array of binaries to select from.
     - type: "uint32_t"
       name: NumBinaries
       desc: |
-            [in] the number of binaries passed in Binaries. Must greater or equal than zero.
+            [in] the number of binaries passed in ppBinaries. Must greater than or equal to zero.
     - type: "uint32_t*"
-      name: SelectedBinary
+      name: pSelectedBinary
       desc: |
             [out] the index of the selected binary in the input array of binaries.
             If a suitable binary was not found the function returns ${X}_INVALID_BINARY.

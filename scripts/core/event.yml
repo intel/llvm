@@ -49,10 +49,10 @@ analogue:
     - "**clCreateUserEvent**"
 params:
     - type: $x_context_handle_t
-      name: context
+      name: hContext
       desc: "[in] handle of the context object"
     - type: $x_event_handle_t*
-      name: pEvent
+      name: phEvent
       desc: "[out] pointer to handle of the event object created"
 returns:      
     - $X_RESULT_INVALID_CONTEXT
@@ -68,7 +68,7 @@ analogue:
     - "**clGetEventInfo**"
 params:
     - type: $x_event_handle_t
-      name: event
+      name: hEvent
       desc: "[in] handle of the event object"
     - type: $x_event_info_t
       name: propName
@@ -77,10 +77,10 @@ params:
       name: propValueSize
       desc: "[in] size in bytes of the event property value"
     - type: void*
-      name: propValue
+      name: pPropValue
       desc: "[out] value of the event property"
     - type: size_t*
-      name: propValueSizeRet
+      name: pPropValueSizeRet
       desc: "[out] bytes returned in event property"
 returns:
     - $X_RESULT_INVALID_VALUE
@@ -97,7 +97,7 @@ analogue:
     - "**clGetEventProfilingInfo**"
 params:
     - type: $x_event_handle_t
-      name: event
+      name: hEvent
       desc: "[in] handle of the event object"
     - type: $x_profiling_info_t
       name: propName
@@ -106,10 +106,10 @@ params:
       name: propValueSize
       desc: "[in] size in bytes of the profiling property value"
     - type: void*
-      name: propValue
+      name: pPropValue
       desc: "[out][optional] value of the profiling property"
     - type: size_t*
-      name: propValueSizeRet
+      name: pPropValueSizeRet
       desc: "[out][optional] pointer to the actual size in bytes returned in propValue"
 returns:
     - $X_RESULT_INVALID_VALUE
@@ -130,7 +130,7 @@ params:
       name: numEvents
       desc: "[in] number of events in the event list"
     - type: "const $x_event_handle_t*"
-      name: eventList
+      name: phEventWaitList
       desc: "[in][range(0, numEvents)] pointer to a list of events to wait for completion"
 returns:      
     - $X_RESULT_INVALID_VALUE
@@ -148,7 +148,7 @@ analogue:
     - "**clRetainEvent**"
 params:
     - type: $x_event_handle_t
-      name: event
+      name: hEvent
       desc: "[in] handle of the event object"
 returns:
     - $X_RESULT_INVALID_EVENT
@@ -164,7 +164,7 @@ analogue:
     - "**clReleaseEvent**"
 params:
     - type: $x_event_handle_t
-      name: event
+      name: hEvent
       desc: "[in] handle of the event object"
 returns:
     - $X_RESULT_INVALID_EVENT
