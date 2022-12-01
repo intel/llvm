@@ -52,7 +52,7 @@ pi_result redefinedFailingEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
   throw sycl::runtime_error(
       "Exception from redefinedFailingEnqueueKernelLaunch.",
       PI_ERROR_INVALID_OPERATION);
-  return PI_SUCCESS;
+  return PI_ERROR_INVALID_OPERATION;
 }
 
 size_t MemBufRefCount = 0u;
