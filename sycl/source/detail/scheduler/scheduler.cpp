@@ -40,6 +40,8 @@ bool Scheduler::checkLeavesCompletion(MemObjRecord *Record) {
 
 void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
                                       ReadLockT &GraphReadLock) {
+  std::cout << std::this_thread::get_id()
+            << " waitForRecordToFinish begin Record " << Record << std::endl;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // Will contain the list of dependencies for the Release Command
   std::set<Command *> DepCommands;
@@ -83,6 +85,8 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
     GraphProcessor::waitForEvent(ReleaseCmd->getEvent(), GraphReadLock,
                                  ToCleanUp);
   }
+  std::cout << std::this_thread::get_id()
+            << " waitForRecordToFinish end Record " << Record << std::endl;
 }
 
 EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
@@ -342,6 +346,9 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
 }
 
 void Scheduler::releaseHostAccessor(Requirement *Req) {
+  std::cout << "releaseHostAccessor begin MSYCLMemObj = " << Req->MSYCLMemObj
+            << std::endl;
+
   Command *const BlockedCmd = Req->MBlockedCmd;
 
   std::vector<Command *> ToCleanUp;
@@ -355,6 +362,8 @@ void Scheduler::releaseHostAccessor(Requirement *Req) {
     enqueueLeavesOfReqUnlocked(Req, ToCleanUp);
   }
   cleanupCommands(ToCleanUp);
+  std::cout << "releaseHostAccessor end MSYCLMemObj = " << Req->MSYCLMemObj
+            << std::endl;
 }
 
 void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req,
@@ -570,6 +579,9 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
           MemObjIt++;
           continue;
         }
+        std::cout << std::this_thread::get_id()
+                  << " cleanupDeferredMemObjects Record = " << Record
+                  << std::endl;
         ObjsReadyToRelease.push_back(*MemObjIt);
         MemObjIt = MDeferredMemObjRelease.erase(MemObjIt);
       }
