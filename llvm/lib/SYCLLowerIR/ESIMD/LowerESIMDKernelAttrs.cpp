@@ -18,75 +18,15 @@ using namespace llvm;
 
 namespace llvm {
 
-// Checks if Call Instruction corresponds to InvokeSimd function call.
-bool isInvokeSimdBuiltinCall(const CallInst *CI) {
-  Function *F = CI->getCalledFunction();
-
-  return F && F->getName().startswith(esimd::INVOKE_SIMD_PREF);
-}
-
-// Receives as a parameter an address of memory location where address function
-// being traversed by traverseCallgraphUp is stored. Checks if this memory
-// location is used diectly or indirectly as an argument for invoke_simd.
-// Returns false if the function is used as an argument for
-// invoke_simd function call, true otherwise.
-bool checkFunctionAddressUse(const Value *address) {
-  if (address == nullptr)
-    return true;
-
-  SmallPtrSet<const Use *, 4> Uses;
-  llvm::esimd::collectUsesLookThroughCasts(address, Uses);
-
-  for (const Use *U : Uses) {
-    Value *V = U->getUser();
-
-    if (auto *StI = dyn_cast<StoreInst>(V)) {
-      if (U == &StI->getOperandUse(StoreInst::getPointerOperandIndex()))
-        return false; // this is double indirection - not supported
-
-      V = esimd::stripCasts(StI->getPointerOperand());
-      if (!isa<AllocaInst>(V))
-        return false; // unsupported case of data flow through non-local memory
-
-      if (!checkFunctionAddressUse(V))
-        return false;
-
-    } else if (const auto *CI = dyn_cast<CallInst>(V)) {
-      // if __builtin_invoke_simd uses the pointer, do not traverse the function
-      if (isInvokeSimdBuiltinCall(CI))
-        return false;
-
-    } else if (isa<LoadInst>(V)) {
-      if (!checkFunctionAddressUse(V))
-        return false;
-
-    } else
-      return false;
-  }
-
-  return true;
-}
-
-// Filter function for graph traversal when propagating ESIMD attribute. It's
-// goal is to stop traversal at `invoke_simd` call boundary even in complex
-// case when function pointer is passed indirectly to `invoke_simd`
-// (pseudo code):
-//   store %addr,  @foo
-//   %val = load %addr
-//   invoke_simd(..., %val,...)
-//
-// TODO this algorithm is not reliable an will fail on more complex data flow.
-// However, the source C++ code is fixed library code, which generates the
-// above IR in -O0 mode, so should be safe enough.
+// Filter function for graph traversal when propagating ESIMD attribute.
+// While traversing the call graph, non-call use of the traversed function is
+// not added to the graph. The reason is that it is impossible to gurantee
+// correct inference of use of that function, in particular to determine if that
+// function is used as an argument for invoke_simd. As a result, any use of
+// function pointers requires explicit marking of the functions as
+// ESIMD_FUNCTION if needed.
 bool filterInvokeSimdUse(const Instruction *I, const Function *F) {
-  // if the instruction is to store address of a function, check if it is later
-  // used by InvokeSimd.
-  auto *SI = dyn_cast<StoreInst>(I);
-  if (SI && (SI->getValueOperand() == F)) {
-    const Value *Addr = SI->getPointerOperand();
-    return checkFunctionAddressUse(Addr);
-  }
-  return true;
+  return false;
 }
 
 PreservedAnalyses
