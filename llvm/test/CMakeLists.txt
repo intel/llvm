@@ -143,7 +143,6 @@ set(LLVM_TEST_DEPENDS
           opt
           sancov
           sanstats
-          spirv-to-ir-wrapper
           sycl-post-link
           split-file
           verify-uselistorder
@@ -173,7 +172,7 @@ if(TARGET LTO)
 endif()
 
 if(TARGET spirv-to-ir-wrapper)
-  set(LLVM_TEST_DEPENDS ${LLVM_TEST_DEPENDS} llvm-spirv)
+  set(LLVM_TEST_DEPENDS ${LLVM_TEST_DEPENDS} spirv-to-ir-wrapper llvm-spirv)
 endif()
 
 if(LLVM_BUILD_EXAMPLES)
