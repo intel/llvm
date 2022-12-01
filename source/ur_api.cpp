@@ -1640,8 +1640,41 @@ urMemGetInfo(
                                                     ///< If propSize is less than the real number of bytes needed to return 
                                                     ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
                                                     ///< pMemInfo is not used.
-    size_t* pPropSizeRet                            ///< [out][optional] pointer to the actual size in bytes of data queried by
-                                                    ///< pMemInfo.  
+    size_t* pPropSizeRet                            ///< [out][optional] pointer to the actual size in bytes of data queried by pMemInfo.
+    )
+{
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Retrieve information about an image object.
+/// 
+/// @details
+///     - Query information specific to an image object.
+/// 
+/// @remarks
+///   _Analogues_
+///     - **clGetImageInfo**
+/// 
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hMemory`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_IMAGE_INFO_DEPTH < ImgInfoType`
+ur_result_t UR_APICALL
+urMemImageGetInfo(
+    ur_mem_handle_t hMemory,                        ///< [in] handle to the image object being queried.
+    ur_image_info_t ImgInfoType,                    ///< [in] type of image info to retrieve.
+    size_t propSize,                                ///< [in] the number of bytes of memory pointer to by pImgInfo.
+    void* pImgInfo,                                 ///< [out][optional] array of bytes holding the info.
+                                                    ///< If propSize is less than the real number of bytes needed to return
+                                                    ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
+                                                    ///< pImgInfo is not used.
+    size_t* pPropSizeRet                            ///< [out][optional] pointer to the actual size in bytes of data queried by pImgInfo.
     )
 {
     ur_result_t result = UR_RESULT_SUCCESS;

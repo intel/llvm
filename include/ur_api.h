@@ -1988,8 +1988,37 @@ urMemGetInfo(
                                                     ///< If propSize is less than the real number of bytes needed to return 
                                                     ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
                                                     ///< pMemInfo is not used.
-    size_t* pPropSizeRet                            ///< [out][optional] pointer to the actual size in bytes of data queried by
-                                                    ///< pMemInfo.  
+    size_t* pPropSizeRet                            ///< [out][optional] pointer to the actual size in bytes of data queried by pMemInfo.
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Retrieve information about an image object.
+/// 
+/// @details
+///     - Query information specific to an image object.
+/// 
+/// @remarks
+///   _Analogues_
+///     - **clGetImageInfo**
+/// 
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hMemory`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_IMAGE_INFO_DEPTH < ImgInfoType`
+UR_APIEXPORT ur_result_t UR_APICALL
+urMemImageGetInfo(
+    ur_mem_handle_t hMemory,                        ///< [in] handle to the image object being queried.
+    ur_image_info_t ImgInfoType,                    ///< [in] type of image info to retrieve.
+    size_t propSize,                                ///< [in] the number of bytes of memory pointer to by pImgInfo.
+    void* pImgInfo,                                 ///< [out][optional] array of bytes holding the info.
+                                                    ///< If propSize is less than the real number of bytes needed to return
+                                                    ///< the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
+                                                    ///< pImgInfo is not used.
+    size_t* pPropSizeRet                            ///< [out][optional] pointer to the actual size in bytes of data queried by pImgInfo.
     );
 
 #if !defined(__GNUC__)
@@ -5813,6 +5842,32 @@ typedef void (UR_APICALL *ur_pfnMemGetInfoCb_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function parameters for urMemImageGetInfo 
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_mem_image_get_info_params_t
+{
+    ur_mem_handle_t* phMemory;
+    ur_image_info_t* pImgInfoType;
+    size_t* ppropSize;
+    void** ppImgInfo;
+    size_t** ppPropSizeRet;
+} ur_mem_image_get_info_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function-pointer for urMemImageGetInfo 
+/// @param[in] params Parameters passed to this instance
+/// @param[in] result Return value
+/// @param[in] pTracerUserData Per-Tracer user data
+/// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
+typedef void (UR_APICALL *ur_pfnMemImageGetInfoCb_t)(
+    ur_mem_image_get_info_params_t* params,
+    ur_result_t result,
+    void* pTracerUserData,
+    void** ppTracerInstanceUserData
+    );
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Callback function parameters for urMemFree 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -5874,6 +5929,7 @@ typedef struct ur_mem_callbacks_t
     ur_pfnMemGetNativeHandleCb_t                                    pfnGetNativeHandleCb;
     ur_pfnMemCreateWithNativeHandleCb_t                             pfnCreateWithNativeHandleCb;
     ur_pfnMemGetInfoCb_t                                            pfnGetInfoCb;
+    ur_pfnMemImageGetInfoCb_t                                       pfnImageGetInfoCb;
     ur_pfnMemFreeCb_t                                               pfnFreeCb;
     ur_pfnMemGetMemAllocInfoCb_t                                    pfnGetMemAllocInfoCb;
 } ur_mem_callbacks_t;

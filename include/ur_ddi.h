@@ -769,6 +769,16 @@ typedef ur_result_t (UR_APICALL *ur_pfnMemGetInfo_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urMemImageGetInfo 
+typedef ur_result_t (UR_APICALL *ur_pfnMemImageGetInfo_t)(
+    ur_mem_handle_t,
+    ur_image_info_t,
+    size_t,
+    void*,
+    size_t*
+    );
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urMemFree 
 typedef ur_result_t (UR_APICALL *ur_pfnMemFree_t)(
     ur_context_handle_t,
@@ -798,6 +808,7 @@ typedef struct ur_mem_dditable_t
     ur_pfnMemGetNativeHandle_t                                  pfnGetNativeHandle;
     ur_pfnMemCreateWithNativeHandle_t                           pfnCreateWithNativeHandle;
     ur_pfnMemGetInfo_t                                          pfnGetInfo;
+    ur_pfnMemImageGetInfo_t                                     pfnImageGetInfo;
     ur_pfnMemFree_t                                             pfnFree;
     ur_pfnMemGetMemAllocInfo_t                                  pfnGetMemAllocInfo;
 } ur_mem_dditable_t;
