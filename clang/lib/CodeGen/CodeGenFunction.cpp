@@ -1660,9 +1660,10 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
     return;
   }
   // When compiling a CUDA file in SYCL device mode,
-  // set weak ODR linkage for possibly duplicated __device__ functions.
+  // set weak ODR linkage for possibly duplicated functions.
   if (getLangOpts().CUDA && !getLangOpts().CUDAIsDevice &&
-      getLangOpts().SYCLIsDevice)
+      getLangOpts().SYCLIsDevice &&
+      (FD->hasAttr<CUDADeviceAttr>() || FD->hasAttr<CUDAHostAttr>()))
     Fn->setLinkage(llvm::Function::WeakODRLinkage);
 
   // Generate the body of the function.
