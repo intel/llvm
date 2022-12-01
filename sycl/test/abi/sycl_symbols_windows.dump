@@ -97,6 +97,7 @@
 ??$get_info@Ulocal_mem_size@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_KXZ
 ??$get_info@Ulocal_mem_type@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AW4local_mem_type@info@12@XZ
 ??$get_info@Umax_clock_frequency@device@info@_V1@sycl@@@device@_V1@sycl@@QEBAIXZ
+??$get_info@Umax_compute_queue_indices@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@QEBAHXZ
 ??$get_info@Umax_compute_units@device@info@_V1@sycl@@@device@_V1@sycl@@QEBAIXZ
 ??$get_info@Umax_constant_args@device@info@_V1@sycl@@@device@_V1@sycl@@QEBAIXZ
 ??$get_info@Umax_constant_buffer_size@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_KXZ
