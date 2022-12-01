@@ -1185,9 +1185,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urProgramGetBuildInfo
 if __use_win_types:
-    _urProgramGetBuildInfo_t = WINFUNCTYPE( ur_result_t, ur_program_handle_t, ur_device_handle_t, ur_program_build_info_t, POINTER(c_size_t), c_void_p )
+    _urProgramGetBuildInfo_t = WINFUNCTYPE( ur_result_t, ur_program_handle_t, ur_device_handle_t, ur_program_build_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
 else:
-    _urProgramGetBuildInfo_t = CFUNCTYPE( ur_result_t, ur_program_handle_t, ur_device_handle_t, ur_program_build_info_t, POINTER(c_size_t), c_void_p )
+    _urProgramGetBuildInfo_t = CFUNCTYPE( ur_result_t, ur_program_handle_t, ur_device_handle_t, ur_program_build_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urProgramSetSpecializationConstant

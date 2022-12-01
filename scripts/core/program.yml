@@ -243,18 +243,21 @@ params:
     - type: $x_program_build_info_t
       name: propName
       desc: "[in] name of the Program build info to query"
-    - type: "size_t*"
-      name: pPropSize
+    - type: "size_t"
+      name: propSize
       desc: |
-            [in,out] pointer to the size of the Program build info property.
-            If *propSize is 0 or greater than the number of bytes of the build info property,
-            the call shall update the value with actual number of bytes of the build info property.
+            [in] size of the Program build info property.
     - type: "void*"
       name: pPropValue
       desc: |
-            [in,out][optional][range(0, *propSize)] value of the Program build property.
-            If *propSize is less than the number of bytes for the Program build property,
-            only the first *propSize bytes will be returned.
+            [in,out][optional] value of the Program build property.
+            If propSize is not equal to or greater than the real number of bytes
+            needed to return the info then the $X_RESULT_ERROR_INVALID_SIZE
+            error is returned and pKernelInfo is not used.
+    - type: "size_t*"
+      name: pPropSizeRet
+      desc: |
+            [out][optional] pointer to the actual size in bytes of data being queried by propName.
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Set a Program object specialization constant to a specific value"
