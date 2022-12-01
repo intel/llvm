@@ -6526,8 +6526,14 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     PI_CALL(piEventReleaseInternal(E));
   Queue->ActiveBarriers.clear();
 
-  // Get command lists for each command queue.
+  // Command list(s) for putting barriers.
   std::vector<pi_command_list_ptr_t> CmdLists;
+
+  // There must be at least one L0 queue.
+  PI_ASSERT(!Queue->ComputeQueueGroup.ZeQueues.empty() ||
+                !Queue->CopyQueueGroup.ZeQueues.empty(),
+            PI_ERROR_INVALID_QUEUE);
+
   if (Queue->Device->useImmediateCommandLists()) {
     // If immediate command lists are being used, each will act as their own
     // queue, so we must insert a barrier into each.
@@ -6535,15 +6541,6 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     for (auto It = Queue->CommandListMap.begin();
          It != Queue->CommandListMap.end(); ++It)
       CmdLists.push_back(It);
-  } else if (Queue->ComputeQueueGroup.ZeQueues.empty() &&
-             Queue->CopyQueueGroup.ZeQueues.empty()) {
-    // If there are no queues, we get any available command list.
-    pi_command_list_ptr_t CmdList;
-    if (auto Res = Queue->Context->getAvailableCommandList(
-            Queue, CmdList,
-            /*UseCopyEngine=*/false, OkToBatch))
-      return Res;
-    CmdLists.push_back(CmdList);
   } else {
     size_t NumQueues = Queue->ComputeQueueGroup.ZeQueues.size() +
                        Queue->CopyQueueGroup.ZeQueues.size();
@@ -6551,19 +6548,34 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     // following availability command list lookups will prematurely push
     // open batch command lists out.
     OkToBatch = NumQueues == 1;
-    // Get an available command list tied to each command queue. We need these
-    // so a queue-wide barrier can be inserted into each command queue.
+    // Get an available command list tied to each command queue. We need
+    // these so a queue-wide barrier can be inserted into each command
+    // queue.
     CmdLists.reserve(NumQueues);
     for (auto QueueGroup : {Queue->ComputeQueueGroup, Queue->CopyQueueGroup}) {
       bool UseCopyEngine = QueueGroup.Type != _pi_queue::queue_type::Compute;
       for (ze_command_queue_handle_t ZeQueue : QueueGroup.ZeQueues) {
-        pi_command_list_ptr_t CmdList;
-        if (auto Res = Queue->Context->getAvailableCommandList(
-                Queue, CmdList, UseCopyEngine, OkToBatch, &ZeQueue))
-          return Res;
-        CmdLists.push_back(CmdList);
+        if (ZeQueue) {
+          pi_command_list_ptr_t CmdList;
+          if (auto Res = Queue->Context->getAvailableCommandList(
+                  Queue, CmdList, UseCopyEngine, OkToBatch, &ZeQueue))
+            return Res;
+          CmdLists.push_back(CmdList);
+        }
       }
     }
+  }
+
+  // If no activity has occurred on the queue then there will be no cmdlists.
+  // We need one for generating an Event, so create one.
+  if (CmdLists.size() == 0) {
+    // Get any available command list.
+    pi_command_list_ptr_t CmdList;
+    if (auto Res = Queue->Context->getAvailableCommandList(
+            Queue, CmdList,
+            /*UseCopyEngine=*/false, OkToBatch))
+      return Res;
+    CmdLists.push_back(CmdList);
   }
 
   if (CmdLists.size() > 1) {
@@ -6598,7 +6610,6 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
                                             *Event, IsInternal))
       return Res;
   } else {
-    PI_ASSERT(CmdLists.size() == 1, PI_ERROR_INVALID_QUEUE);
     // If there is only a single queue then insert a barrier and the single
     // result event can be used as our active barrier and used as the return
     // event. Take into account whether output event is discarded or not.
