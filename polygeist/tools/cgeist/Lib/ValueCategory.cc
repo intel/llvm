@@ -42,6 +42,14 @@ ValueCategory::ValueCategory(mlir::Value val, bool isReference)
   }
 }
 
+ValueCategory::ValueCategory(mlir::Value Val, mlir::Value Index)
+    : val{Val}, isReference{true}, Index{Index} {
+  assert(val.getType().isa<MemRefType>() &&
+         val.getType().cast<MemRefType>().getElementType().isa<VectorType>() &&
+         "Expecting memref of vector");
+  assert(Index.getType().isa<IntegerType>() && "Expecting integer index");
+}
+
 mlir::Value ValueCategory::getValue(mlir::OpBuilder &builder) const {
   assert(val && "must be not-null");
   if (!isReference)
@@ -53,8 +61,12 @@ mlir::Value ValueCategory::getValue(mlir::OpBuilder &builder) const {
   if (auto mt = val.getType().dyn_cast<mlir::MemRefType>()) {
     assert(mt.getShape().size() == 1 && "must have shape 1");
     auto c0 = builder.create<ConstantIndexOp>(loc, 0);
-    return builder.create<memref::LoadOp>(loc, val,
-                                          std::vector<mlir::Value>({c0}));
+    Value Loaded = builder.create<memref::LoadOp>(
+        loc, val, std::vector<mlir::Value>({c0}));
+    if (Index)
+      Loaded =
+          ValueCategory{Loaded, false}.ExtractElement(builder, loc, *Index).val;
+    return Loaded;
   }
   llvm_unreachable("type must be LLVMPointer or MemRef");
 }
@@ -136,6 +148,18 @@ void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
   }
   if (auto mt = val.getType().dyn_cast<MemRefType>()) {
     assert(mt.getShape().size() == 1 && "must have size 1");
+
+    if (Index) {
+      auto VT = mt.getElementType().cast<mlir::VectorType>().getElementType();
+      assert(VT == toStore.getType() && "Vector insertion element mismatch");
+      const auto C0 = builder.createOrFold<arith::ConstantIntOp>(
+          loc, 0, builder.getI64Type());
+      ValueCategory Vec{builder.createOrFold<memref::LoadOp>(loc, val, C0),
+                        false};
+      Vec = Vec.InsertElement(builder, loc, toStore, *Index);
+      toStore = Vec.val;
+    }
+
     if (auto PT = toStore.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
       if (auto MT = val.getType()
                         .cast<MemRefType>()
@@ -779,6 +803,17 @@ ValueCategory ValueCategory::Insert(OpBuilder &Builder, Location Loc, Value V,
          "Invalid index");
 
   return {Builder.createOrFold<vector::InsertOp>(Loc, V, val, Indices), false};
+}
+
+ValueCategory ValueCategory::InsertElement(OpBuilder &Builder, Location Loc,
+                                           Value V, Value Idx) const {
+  assert(val.getType().isa<VectorType>() && "Expecting vector type");
+  assert(val.getType().cast<VectorType>().getElementType() == V.getType() &&
+         "Cannot insert value in vector of different type");
+  assert(Idx.getType().isa<IntegerType>() && "Index must be an integer");
+
+  return {Builder.createOrFold<vector::InsertElementOp>(Loc, V, val, Idx),
+          false};
 }
 
 ValueCategory ValueCategory::Extract(OpBuilder &Builder, Location Loc,

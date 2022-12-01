@@ -12,6 +12,7 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Value.h"
+#include "llvm/ADT/Optional.h"
 
 // Represents a rhs or lhs value.
 class ValueCategory {
@@ -34,11 +35,14 @@ private:
 public:
   mlir::Value val;
   bool isReference;
+  /// Holds the index the lvalue to a vector element refers to.
+  llvm::Optional<mlir::Value> Index{llvm::None};
 
 public:
   ValueCategory() : val(nullptr), isReference(false) {}
   ValueCategory(std::nullptr_t) : val(nullptr), isReference(false) {}
   ValueCategory(mlir::Value val, bool isReference);
+  ValueCategory(mlir::Value Val, mlir::Value Index);
 
   static ValueCategory getNullValue(mlir::OpBuilder &Builder,
                                     mlir::Location Loc, mlir::Type Type);
@@ -155,6 +159,8 @@ public:
 
   ValueCategory Insert(mlir::OpBuilder &Builder, mlir::Location Loc,
                        mlir::Value V, llvm::ArrayRef<int64_t> Indices) const;
+  ValueCategory InsertElement(mlir::OpBuilder &Builder, mlir::Location Loc,
+                              mlir::Value V, mlir::Value Idx) const;
   ValueCategory Extract(mlir::OpBuilder &Builder, mlir::Location Loc,
                         llvm::ArrayRef<int64_t> Indices) const;
   ValueCategory ExtractElement(mlir::OpBuilder &Builder, mlir::Location Loc,

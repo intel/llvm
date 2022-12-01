@@ -943,6 +943,16 @@ MLIRScanner::EmitVectorSubscript(clang::ArraySubscriptExpr *Expr) {
 }
 
 ValueCategory
+MLIRScanner::EmitArraySubscriptExpr(clang::ArraySubscriptExpr *E) {
+  if (!E->getBase()->getType()->isVectorType())
+    return Visit(E);
+
+  auto LHS = EmitLValue(E->getBase());
+  auto Idx = Visit(E->getIdx());
+  return {LHS.val, Idx.val};
+}
+
+ValueCategory
 MLIRScanner::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *Expr) {
   LLVM_DEBUG({
     llvm::dbgs() << "VisitArraySubscriptExpr: ";
@@ -2155,7 +2165,7 @@ ValueCategory MLIRScanner::VisitBinAssign(BinaryOperator *E) {
     llvm::dbgs() << "\n";
   });
   ValueCategory RHS = Visit(E->getRHS());
-  ValueCategory LHS = Visit(E->getLHS());
+  ValueCategory LHS = EmitLValue(E->getLHS());
 
   assert(LHS.isReference);
   mlir::Value ToStore = RHS.getValue(Builder);
@@ -2562,6 +2572,8 @@ ValueCategory MLIRScanner::EmitLValue(Expr *E) {
   }
   case Expr::ParenExprClass:
     return EmitLValue(cast<ParenExpr>(E)->getSubExpr());
+  case Expr::ArraySubscriptExprClass:
+    return EmitArraySubscriptExpr(cast<ArraySubscriptExpr>(E));
   }
 }
 
