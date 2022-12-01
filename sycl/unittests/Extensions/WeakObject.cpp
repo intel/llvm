@@ -209,15 +209,24 @@ void runTest(sycl::unittest::PiMock &Mock) {
   sycl::accessor<int, 1, sycl::access::mode::read_write,
                  sycl::access::target::device,
                  sycl::access::placeholder::true_t>
-      Acc1D{Buf1D};
+      PAcc1D{Buf1D};
   sycl::accessor<int, 2, sycl::access::mode::read_write,
                  sycl::access::target::device,
                  sycl::access::placeholder::true_t>
-      Acc2D{Buf2D};
+      PAcc2D{Buf2D};
   sycl::accessor<int, 3, sycl::access::mode::read_write,
                  sycl::access::target::device,
                  sycl::access::placeholder::true_t>
-      Acc3D{Buf3D};
+      PAcc3D{Buf3D};
+  sycl::accessor<int, 1, sycl::access::mode::read_write,
+                 sycl::access::target::host_buffer>
+      HAcc1D;
+  sycl::accessor<int, 2, sycl::access::mode::read_write,
+                 sycl::access::target::host_buffer>
+      HAcc2D;
+  sycl::accessor<int, 3, sycl::access::mode::read_write,
+                 sycl::access::target::host_buffer>
+      HAcc3D;
 
   CallableT<decltype(Plt)>()(Plt);
   CallableT<decltype(Dev)>()(Dev);
@@ -229,15 +238,24 @@ void runTest(sycl::unittest::PiMock &Mock) {
   CallableT<decltype(Buf1D)>()(Buf1D);
   CallableT<decltype(Buf2D)>()(Buf2D);
   CallableT<decltype(Buf3D)>()(Buf3D);
-  CallableT<decltype(Acc1D)>()(Acc1D);
-  CallableT<decltype(Acc2D)>()(Acc2D);
-  CallableT<decltype(Acc3D)>()(Acc3D);
+  CallableT<decltype(PAcc1D)>()(PAcc1D);
+  CallableT<decltype(PAcc2D)>()(PAcc2D);
+  CallableT<decltype(PAcc3D)>()(PAcc3D);
+  CallableT<decltype(HAcc1D)>()(HAcc1D);
+  CallableT<decltype(HAcc2D)>()(HAcc2D);
+  CallableT<decltype(HAcc3D)>()(HAcc3D);
 
   Q.submit([&](sycl::handler &CGH) {
+    sycl::accessor<int, 1, sycl::access::mode::read> DAcc1D{Buf1D, CGH};
+    sycl::accessor<int, 2, sycl::access::mode::read> DAcc2D{Buf2D, CGH};
+    sycl::accessor<int, 3, sycl::access::mode::read> DAcc3D{Buf3D, CGH};
     sycl::local_accessor<int, 1> LAcc1D{1, CGH};
     sycl::local_accessor<int, 2> LAcc2D{sycl::range<2>{1, 2}, CGH};
     sycl::local_accessor<int, 3> LAcc3D{sycl::range<3>{1, 2, 3}, CGH};
 
+    CallableT<decltype(DAcc1D)>()(DAcc1D);
+    CallableT<decltype(DAcc2D)>()(DAcc2D);
+    CallableT<decltype(DAcc3D)>()(DAcc3D);
     CallableT<decltype(LAcc1D)>()(LAcc1D);
     CallableT<decltype(LAcc2D)>()(LAcc2D);
     CallableT<decltype(LAcc3D)>()(LAcc3D);
@@ -268,27 +286,45 @@ void runTestMulti(sycl::unittest::PiMock &Mock) {
   sycl::accessor<int, 1, sycl::access::mode::read_write,
                  sycl::access::target::device,
                  sycl::access::placeholder::true_t>
-      Acc1D1{Buf1D1};
+      PAcc1D1{Buf1D1};
   sycl::accessor<int, 1, sycl::access::mode::read_write,
                  sycl::access::target::device,
                  sycl::access::placeholder::true_t>
-      Acc1D2{Buf1D2};
+      PAcc1D2{Buf1D2};
   sycl::accessor<int, 2, sycl::access::mode::read_write,
                  sycl::access::target::device,
                  sycl::access::placeholder::true_t>
-      Acc2D1{Buf2D1};
+      PAcc2D1{Buf2D1};
   sycl::accessor<int, 2, sycl::access::mode::read_write,
                  sycl::access::target::device,
                  sycl::access::placeholder::true_t>
-      Acc2D2{Buf2D2};
+      PAcc2D2{Buf2D2};
   sycl::accessor<int, 3, sycl::access::mode::read_write,
                  sycl::access::target::device,
                  sycl::access::placeholder::true_t>
-      Acc3D2{Buf3D2};
+      PAcc3D1{Buf3D1};
   sycl::accessor<int, 3, sycl::access::mode::read_write,
                  sycl::access::target::device,
                  sycl::access::placeholder::true_t>
-      Acc3D1{Buf3D1};
+      PAcc3D2{Buf3D2};
+  sycl::accessor<int, 1, sycl::access::mode::read_write,
+                 sycl::access::target::host_buffer>
+      HAcc1D1;
+  sycl::accessor<int, 1, sycl::access::mode::read_write,
+                 sycl::access::target::host_buffer>
+      HAcc1D2;
+  sycl::accessor<int, 2, sycl::access::mode::read_write,
+                 sycl::access::target::host_buffer>
+      HAcc2D1;
+  sycl::accessor<int, 2, sycl::access::mode::read_write,
+                 sycl::access::target::host_buffer>
+      HAcc2D2;
+  sycl::accessor<int, 3, sycl::access::mode::read_write,
+                 sycl::access::target::host_buffer>
+      HAcc3D1;
+  sycl::accessor<int, 3, sycl::access::mode::read_write,
+                 sycl::access::target::host_buffer>
+      HAcc3D2;
 
   CallableT<decltype(Ctx1)>()(Ctx1, Ctx2);
   CallableT<decltype(Q1)>()(Q1, Q2);
@@ -297,11 +333,20 @@ void runTestMulti(sycl::unittest::PiMock &Mock) {
   CallableT<decltype(Buf1D1)>()(Buf1D1, Buf1D2);
   CallableT<decltype(Buf2D1)>()(Buf2D1, Buf2D2);
   CallableT<decltype(Buf3D1)>()(Buf3D1, Buf3D2);
-  CallableT<decltype(Acc1D1)>()(Acc1D1, Acc1D2);
-  CallableT<decltype(Acc2D1)>()(Acc2D1, Acc2D2);
-  CallableT<decltype(Acc3D1)>()(Acc3D1, Acc3D2);
+  CallableT<decltype(PAcc1D1)>()(PAcc1D1, PAcc1D2);
+  CallableT<decltype(PAcc2D1)>()(PAcc2D1, PAcc2D2);
+  CallableT<decltype(PAcc3D1)>()(PAcc3D1, PAcc3D2);
+  CallableT<decltype(HAcc1D1)>()(HAcc1D1, HAcc1D2);
+  CallableT<decltype(HAcc2D1)>()(HAcc2D1, HAcc2D2);
+  CallableT<decltype(HAcc3D1)>()(HAcc3D1, HAcc3D2);
 
   Q1.submit([&](sycl::handler &CGH) {
+    sycl::accessor<int, 1, sycl::access::mode::read> DAcc1D1{Buf1D1, CGH};
+    sycl::accessor<int, 1, sycl::access::mode::read> DAcc1D2{Buf1D2, CGH};
+    sycl::accessor<int, 2, sycl::access::mode::read> DAcc2D1{Buf2D1, CGH};
+    sycl::accessor<int, 2, sycl::access::mode::read> DAcc2D2{Buf2D2, CGH};
+    sycl::accessor<int, 3, sycl::access::mode::read> DAcc3D1{Buf3D1, CGH};
+    sycl::accessor<int, 3, sycl::access::mode::read> DAcc3D2{Buf3D2, CGH};
     sycl::local_accessor<int, 1> LAcc1D1{1, CGH};
     sycl::local_accessor<int, 1> LAcc1D2{1, CGH};
     sycl::local_accessor<int, 2> LAcc2D1{sycl::range<2>{1, 2}, CGH};
@@ -309,6 +354,9 @@ void runTestMulti(sycl::unittest::PiMock &Mock) {
     sycl::local_accessor<int, 3> LAcc3D1{sycl::range<3>{1, 2, 3}, CGH};
     sycl::local_accessor<int, 3> LAcc3D2{sycl::range<3>{1, 2, 3}, CGH};
 
+    CallableT<decltype(DAcc1D1)>()(DAcc1D1, DAcc1D2);
+    CallableT<decltype(DAcc2D1)>()(DAcc2D1, DAcc2D2);
+    CallableT<decltype(DAcc3D1)>()(DAcc3D1, DAcc3D2);
     CallableT<decltype(LAcc1D1)>()(LAcc1D1, LAcc1D2);
     CallableT<decltype(LAcc2D1)>()(LAcc2D1, LAcc2D2);
     CallableT<decltype(LAcc3D1)>()(LAcc3D1, LAcc3D2);

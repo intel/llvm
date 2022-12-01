@@ -13,6 +13,7 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
+#include <sycl/detail/owner_less_base.hpp>
 #include <sycl/detail/stl_type_traits.hpp>
 #include <sycl/exception_list.hpp>
 #include <sycl/ext/oneapi/weak_object_base.hpp>
@@ -37,7 +38,7 @@ auto get_native(const SyclT &Obj) -> backend_return_t<Backend, SyclT>;
 /// be executed.
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT context {
+class __SYCL_EXPORT context : public detail::OwnerLessBase<context> {
 public:
   /// Constructs a SYCL context instance using an instance of default_selector.
   ///
@@ -219,26 +220,6 @@ public:
   ///
   /// \return a vector of valid SYCL device instances.
   std::vector<device> get_devices() const;
-
-  /// Compares the context against a weak object using an owner-based
-  /// implementation-defined ordering.
-  ///
-  /// \param Other is the weak object to compare ordering against.
-  /// \return true if this object precedes \param Other and false otherwise.
-  bool ext_oneapi_owner_before(
-      const ext::oneapi::detail::weak_object_base<context> &Other)
-      const noexcept {
-    return impl.owner_before(ext::oneapi::detail::getSyclWeakObjImpl(Other));
-  }
-
-  /// Compares the context against another context using an owner-based
-  /// implementation-defined ordering.
-  ///
-  /// \param Other is the object to compare ordering against.
-  /// \return true if this object precedes \param Other and false otherwise.
-  bool ext_oneapi_owner_before(const context &Other) const noexcept {
-    return impl.owner_before(Other.impl);
-  }
 
 private:
   /// Constructs a SYCL context object from a valid context_impl instance.

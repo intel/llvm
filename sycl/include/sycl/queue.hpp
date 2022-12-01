@@ -13,6 +13,7 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
+#include <sycl/detail/owner_less_base.hpp>
 #include <sycl/detail/service_kernel_names.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
@@ -84,7 +85,7 @@ static event submitAssertCapture(queue &, event &, queue *,
 /// \sa kernel
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT queue {
+class __SYCL_EXPORT queue : public detail::OwnerLessBase<queue> {
 public:
   /// Constructs a SYCL queue instance using the device returned by an instance
   /// of default_selector.
@@ -1272,26 +1273,6 @@ public:
   ///
   /// \return the backend associated with this queue.
   backend get_backend() const noexcept;
-
-  /// Compares the queue against a weak object using an owner-based
-  /// implementation-defined ordering.
-  ///
-  /// \param Other is the weak object to compare ordering against.
-  /// \return true if this object precedes \param Other and false otherwise.
-  bool ext_oneapi_owner_before(
-      const ext::oneapi::detail::weak_object_base<queue> &Other)
-      const noexcept {
-    return impl.owner_before(ext::oneapi::detail::getSyclWeakObjImpl(Other));
-  }
-
-  /// Compares the queue against another queue using an owner-based
-  /// implementation-defined ordering.
-  ///
-  /// \param Other is the object to compare ordering against.
-  /// \return true if this object precedes \param Other and false otherwise.
-  bool ext_oneapi_owner_before(const queue &Other) const noexcept {
-    return impl.owner_before(Other.impl);
-  }
 
 private:
   pi_native_handle getNative() const;

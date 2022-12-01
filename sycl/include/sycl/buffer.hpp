@@ -9,6 +9,7 @@
 #pragma once
 
 #include <sycl/detail/common.hpp>
+#include <sycl/detail/owner_less_base.hpp>
 #include <sycl/detail/stl_type_traits.hpp>
 #include <sycl/detail/sycl_mem_obj_allocator.hpp>
 #include <sycl/event.hpp>
@@ -141,7 +142,8 @@ template <typename T, int dimensions = 1,
           typename AllocatorT = buffer_allocator<std::remove_const_t<T>>,
           typename __Enabled = typename detail::enable_if_t<(dimensions > 0) &&
                                                             (dimensions <= 3)>>
-class buffer : public detail::buffer_plain {
+class buffer : public detail::buffer_plain,
+               public detail::OwnerLessBase<buffer<T, dimensions, AllocatorT>> {
   // TODO check is_device_copyable<T>::value after converting sycl::vec into a
   // trivially copyable class.
   static_assert(!std::is_same<T, std::string>::value,
@@ -685,16 +687,6 @@ public:
 
   template <typename propertyT> propertyT get_property() const {
     return buffer_plain::template get_property<propertyT>();
-  }
-
-  bool ext_oneapi_owner_before(
-      const ext::oneapi::detail::weak_object_base<buffer> &Other)
-      const noexcept {
-    return impl.owner_before(ext::oneapi::detail::getSyclWeakObjImpl(Other));
-  }
-
-  bool ext_oneapi_owner_before(const buffer &Other) const noexcept {
-    return impl.owner_before(Other.impl);
   }
 
 protected:

@@ -14,6 +14,7 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
+#include <sycl/detail/owner_less_base.hpp>
 #include <sycl/ext/oneapi/weak_object_base.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/platform.hpp>
@@ -45,7 +46,7 @@ class filter_selector;
 /// may be executed.
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT device {
+class __SYCL_EXPORT device : public detail::OwnerLessBase<device> {
 public:
   /// Constructs a SYCL device instance using the default device.
   device();
@@ -218,26 +219,6 @@ public:
   ///
   /// \return true if the SYCL device has the given feature.
   bool has(aspect Aspect) const;
-
-  /// Compares the device against a weak object using an owner-based
-  /// implementation-defined ordering.
-  ///
-  /// \param Other is the weak object to compare ordering against.
-  /// \return true if this object precedes \param Other and false otherwise.
-  bool ext_oneapi_owner_before(
-      const ext::oneapi::detail::weak_object_base<device> &Other)
-      const noexcept {
-    return impl.owner_before(ext::oneapi::detail::getSyclWeakObjImpl(Other));
-  }
-
-  /// Compares the device against another device using an owner-based
-  /// implementation-defined ordering.
-  ///
-  /// \param Other is the object to compare ordering against.
-  /// \return true if this object precedes \param Other and false otherwise.
-  bool ext_oneapi_owner_before(const device &Other) const noexcept {
-    return impl.owner_before(Other.impl);
-  }
 
 private:
   std::shared_ptr<detail::device_impl> impl;

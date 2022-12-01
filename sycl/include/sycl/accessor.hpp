@@ -19,6 +19,7 @@
 #include <sycl/detail/handler_proxy.hpp>
 #include <sycl/detail/image_accessor_util.hpp>
 #include <sycl/detail/image_ocl_types.hpp>
+#include <sycl/detail/owner_less_base.hpp>
 #include <sycl/device.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/accessor_property_list.hpp>
@@ -465,40 +466,6 @@ public:
   }
 };
 
-// CRTP class supplying a common definition of owner-before ordering for
-// accessors.
-template <class AccessorT> class AccessorOwnerLessBase {
-public:
-#ifndef __SYCL_DEVICE_ONLY__
-  /// Compares the accessor against a weak object using an owner-based
-  /// implementation-defined ordering.
-  ///
-  /// \param Other is the weak object to compare ordering against.
-  /// \return true if this object precedes \param Other and false otherwise.
-  bool ext_oneapi_owner_before(
-      const ext::oneapi::detail::weak_object_base<AccessorT> &Other)
-      const noexcept {
-    return static_cast<const AccessorT *>(this)->impl.owner_before(
-        ext::oneapi::detail::getSyclWeakObjImpl(Other));
-  }
-
-  /// Compares the accessor against another accessor using an owner-based
-  /// implementation-defined ordering.
-  ///
-  /// \param Other is the object to compare ordering against.
-  /// \return true if this object precedes \param Other and false otherwise.
-  bool ext_oneapi_owner_before(const AccessorT &Other) const noexcept {
-    return static_cast<const AccessorT *>(this)->impl.owner_before(Other.impl);
-  }
-#else
-  bool ext_oneapi_owner_before(
-      const ext::oneapi::detail::weak_object_base<AccessorT> &Other)
-      const noexcept;
-
-  bool ext_oneapi_owner_before(const AccessorT &Other) const noexcept;
-#endif
-};
-
 class AccessorImplHost;
 
 void __SYCL_EXPORT addHostAccessorAndWait(AccessorImplHost *Req);
@@ -576,8 +543,6 @@ protected:
 
   template <class Obj>
   friend Obj detail::createSyclObjFromImpl(decltype(Obj::impl) ImplObj);
-
-  template <class AccessorT> friend class AccessorOwnerLessBase;
 
   LocalAccessorImplPtr impl;
 };
@@ -1025,7 +990,7 @@ class __SYCL_SPECIAL_CLASS __SYCL_TYPE(accessor) accessor :
 #endif
     public detail::accessor_common<DataT, Dimensions, AccessMode, AccessTarget,
                                    IsPlaceholder, PropertyListT>,
-    public detail::AccessorOwnerLessBase<
+    public detail::OwnerLessBase<
         accessor<DataT, Dimensions, AccessMode, AccessTarget, IsPlaceholder,
                  PropertyListT>> {
 protected:
@@ -2690,7 +2655,7 @@ template <typename DataT, int Dimensions, access::mode AccessMode,
 class __SYCL_SPECIAL_CLASS accessor<DataT, Dimensions, AccessMode,
                                     access::target::local, IsPlaceholder>
     : public local_accessor_base<DataT, Dimensions, AccessMode, IsPlaceholder>,
-      public detail::AccessorOwnerLessBase<
+      public detail::OwnerLessBase<
           accessor<DataT, Dimensions, AccessMode, access::target::local,
                    IsPlaceholder>> {
 
@@ -2728,7 +2693,7 @@ template <typename DataT, int Dimensions = 1>
 class __SYCL_SPECIAL_CLASS __SYCL_TYPE(local_accessor) local_accessor
     : public local_accessor_base<DataT, Dimensions, access::mode::read_write,
                                  access::placeholder::false_t>,
-      public detail::AccessorOwnerLessBase<local_accessor<DataT, Dimensions>> {
+      public detail::OwnerLessBase<local_accessor<DataT, Dimensions>> {
 
   using local_acc =
       local_accessor_base<DataT, Dimensions, access::mode::read_write,
@@ -2825,7 +2790,7 @@ __SYCL_TYPE(accessor) accessor<DataT, Dimensions, AccessMode,
                                access::target::image, IsPlaceholder>
     : public detail::image_accessor<DataT, Dimensions, AccessMode,
                                     access::target::image, IsPlaceholder>,
-      public detail::AccessorOwnerLessBase<
+      public detail::OwnerLessBase<
           accessor<DataT, Dimensions, AccessMode, access::target::image,
                    IsPlaceholder>> {
 private:
@@ -2890,7 +2855,7 @@ class accessor<DataT, Dimensions, AccessMode, access::target::host_image,
                IsPlaceholder>
     : public detail::image_accessor<DataT, Dimensions, AccessMode,
                                     access::target::host_image, IsPlaceholder>,
-      public detail::AccessorOwnerLessBase<
+      public detail::OwnerLessBase<
           accessor<DataT, Dimensions, AccessMode, access::target::host_image,
                    IsPlaceholder>> {
 public:
@@ -2925,7 +2890,7 @@ __SYCL_TYPE(accessor) accessor<DataT, Dimensions, AccessMode,
                                access::target::image_array, IsPlaceholder>
     : public detail::image_accessor<DataT, Dimensions + 1, AccessMode,
                                     access::target::image, IsPlaceholder>,
-      public detail::AccessorOwnerLessBase<
+      public detail::OwnerLessBase<
           accessor<DataT, Dimensions, AccessMode, access::target::image_array,
                    IsPlaceholder>> {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -2983,7 +2948,7 @@ template <typename DataT, int Dimensions = 1,
 class host_accessor
     : public accessor<DataT, Dimensions, AccessMode, target::host_buffer,
                       access::placeholder::false_t>,
-      public detail::AccessorOwnerLessBase<
+      public detail::OwnerLessBase<
           host_accessor<DataT, Dimensions, AccessMode>> {
 protected:
   using AccessorT = accessor<DataT, Dimensions, AccessMode, target::host_buffer,

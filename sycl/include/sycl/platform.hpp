@@ -14,6 +14,7 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
+#include <sycl/detail/owner_less_base.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/ext/oneapi/weak_object_base.hpp>
 #include <sycl/stl.hpp>
@@ -43,7 +44,7 @@ class filter_selector;
 /// Encapsulates a SYCL platform on which kernels may be executed.
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT platform {
+class __SYCL_EXPORT platform : public detail::OwnerLessBase<platform> {
 public:
   /// Constructs a SYCL platform using the default device.
   platform();
@@ -158,26 +159,6 @@ public:
   ///
   /// \return the default context
   context ext_oneapi_get_default_context() const;
-
-  /// Compares the platform against a weak object using an owner-based
-  /// implementation-defined ordering.
-  ///
-  /// \param Other is the weak object to compare ordering against.
-  /// \return true if this object precedes \param Other and false otherwise.
-  bool ext_oneapi_owner_before(
-      const ext::oneapi::detail::weak_object_base<platform> &Other)
-      const noexcept {
-    return impl.owner_before(ext::oneapi::detail::getSyclWeakObjImpl(Other));
-  }
-
-  /// Compares the platform against another platform using an owner-based
-  /// implementation-defined ordering.
-  ///
-  /// \param Other is the object to compare ordering against.
-  /// \return true if this object precedes \param Other and false otherwise.
-  bool ext_oneapi_owner_before(const platform &Other) const noexcept {
-    return impl.owner_before(Other.impl);
-  }
 
 private:
   pi_native_handle getNative() const;

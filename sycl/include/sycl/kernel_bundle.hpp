@@ -11,6 +11,7 @@
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/kernel_desc.hpp>
+#include <sycl/detail/owner_less_base.hpp>
 #include <sycl/detail/pi.h>
 #include <sycl/detail/pi.hpp>
 #include <sycl/device.hpp>
@@ -38,7 +39,7 @@ class kernel_id_impl;
 /// Objects of the class identify kernel is some kernel_bundle related APIs
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT kernel_id {
+class __SYCL_EXPORT kernel_id : public detail::OwnerLessBase<kernel_id> {
 public:
   kernel_id() = delete;
 
@@ -48,26 +49,6 @@ public:
   bool operator==(const kernel_id &RHS) const { return impl == RHS.impl; }
 
   bool operator!=(const kernel_id &RHS) const { return !(*this == RHS); }
-
-  /// Compares the kernel_id against a weak object using an owner-based
-  /// implementation-defined ordering.
-  ///
-  /// \param Other is the weak object to compare ordering against.
-  /// \return true if this object precedes \param Other and false otherwise.
-  bool ext_oneapi_owner_before(
-      const ext::oneapi::detail::weak_object_base<kernel_id> &Other)
-      const noexcept {
-    return impl.owner_before(ext::oneapi::detail::getSyclWeakObjImpl(Other));
-  }
-
-  /// Compares the kernel_id against another kernel_id using an owner-based
-  /// implementation-defined ordering.
-  ///
-  /// \param Other is the object to compare ordering against.
-  /// \return true if this object precedes \param Other and false otherwise.
-  bool ext_oneapi_owner_before(const kernel_id &Other) const noexcept {
-    return impl.owner_before(Other.impl);
-  }
 
 private:
   kernel_id(const char *Name);
@@ -122,7 +103,8 @@ protected:
 
 /// Objects of the class represents an instance of an image in a specific state.
 template <sycl::bundle_state State>
-class device_image : public detail::device_image_plain {
+class device_image : public detail::device_image_plain,
+                     public detail::OwnerLessBase<device_image<State>> {
 public:
   device_image() = delete;
 
@@ -136,26 +118,6 @@ public:
   /// KernelID and is compatible with the passed Dev
   bool has_kernel(const kernel_id &KernelID, const device &Dev) const noexcept {
     return device_image_plain::has_kernel(KernelID, Dev);
-  }
-
-  /// Compares the kernel against a weak object using an owner-based
-  /// implementation-defined ordering.
-  ///
-  /// \param Other is the weak object to compare ordering against.
-  /// \return true if this object precedes \param Other and false otherwise.
-  bool ext_oneapi_owner_before(
-      const ext::oneapi::detail::weak_object_base<device_image> &Other)
-      const noexcept {
-    return impl.owner_before(ext::oneapi::detail::getSyclWeakObjImpl(Other));
-  }
-
-  /// Compares the device_image against another device_image using an
-  /// owner-based implementation-defined ordering.
-  ///
-  /// \param Other is the object to compare ordering against.
-  /// \return true if this object precedes \param Other and false otherwise.
-  bool ext_oneapi_owner_before(const device_image &Other) const noexcept {
-    return impl.owner_before(Other.impl);
   }
 
 private:
@@ -236,7 +198,8 @@ protected:
 ///
 /// \ingroup sycl_api
 template <bundle_state State>
-class kernel_bundle : public detail::kernel_bundle_plain {
+class kernel_bundle : public detail::kernel_bundle_plain,
+                      public detail::OwnerLessBase<kernel_bundle<State>> {
 public:
   using device_image_iterator = const device_image<State> *;
 
@@ -350,26 +313,6 @@ public:
   /// \returns an iterator to the last device image kernel_bundle contains
   device_image_iterator end() const {
     return reinterpret_cast<device_image_iterator>(kernel_bundle_plain::end());
-  }
-
-  /// Compares the kernel against a weak object using an owner-based
-  /// implementation-defined ordering.
-  ///
-  /// \param Other is the weak object to compare ordering against.
-  /// \return true if this object precedes \param Other and false otherwise.
-  bool ext_oneapi_owner_before(
-      const ext::oneapi::detail::weak_object_base<kernel_bundle> &Other)
-      const noexcept {
-    return impl.owner_before(ext::oneapi::detail::getSyclWeakObjImpl(Other));
-  }
-
-  /// Compares the kernel_bundle against another kernel_bundle using an
-  /// owner-based implementation-defined ordering.
-  ///
-  /// \param Other is the object to compare ordering against.
-  /// \return true if this object precedes \param Other and false otherwise.
-  bool ext_oneapi_owner_before(const kernel_bundle &Other) const noexcept {
-    return impl.owner_before(Other.impl);
   }
 
 private:
