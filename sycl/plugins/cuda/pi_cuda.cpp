@@ -2543,7 +2543,7 @@ pi_result cuda_piQueueGetInfo(pi_queue command_queue, pi_queue_info param_name,
   case PI_QUEUE_INFO_PROPERTIES:
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    command_queue->properties_);
-  case PI_EXT_ONEAPI_QUEUE_INFO_STATUS: {
+  case PI_EXT_ONEAPI_QUEUE_INFO_EMPTY: {
     try {
       bool IsReady = command_queue->all_of([](CUstream s) -> bool {
         const CUresult ret = cuStreamQuery(s);

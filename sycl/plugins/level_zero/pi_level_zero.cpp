@@ -3658,7 +3658,7 @@ pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
   case PI_QUEUE_INFO_DEVICE_DEFAULT:
     die("PI_QUEUE_INFO_DEVICE_DEFAULT in piQueueGetInfo not implemented\n");
     break;
-  case PI_EXT_ONEAPI_QUEUE_INFO_STATUS: {
+  case PI_EXT_ONEAPI_QUEUE_INFO_EMPTY: {
     // We can exit early if we have in-order queue.
     if (Queue->isInOrderQueue()) {
       if (!Queue->LastCommandEvent)
@@ -3667,6 +3667,8 @@ pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
       // We can check status of the event only if it isn't discarded otherwise
       // it may be reset (because we are free to reuse such events) and
       // zeEventQueryStatus will hang.
+      // TODO: use more robust way to check that ZeEvent is not owned by
+      // LastCommandEvent.
       if (!Queue->LastCommandEvent->IsDiscarded) {
         ze_result_t ZeResult = ZE_CALL_NOCHECK(
             zeEventQueryStatus, (Queue->LastCommandEvent->ZeEvent));
