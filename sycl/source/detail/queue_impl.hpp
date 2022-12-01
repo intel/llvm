@@ -312,6 +312,31 @@ public:
       // queue property.
       CreationFlags |= PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS;
     }
+    // Track that priority settings are not ambiguous.
+    bool PrioritySeen = false;
+    if (MPropList
+            .has_property<ext::oneapi::property::queue::priority_normal>()) {
+      // Normal is the default priority, don't pass anything.
+      PrioritySeen = true;
+    }
+    if (MPropList.has_property<ext::oneapi::property::queue::priority_low>()) {
+      if (PrioritySeen) {
+        throw sycl::exception(
+            make_error_code(errc::invalid),
+            "Queue cannot be constructed with different priorities.");
+      }
+      CreationFlags |= PI_EXT_ONEAPI_QUEUE_PRIORITY_LOW;
+      PrioritySeen = true;
+    }
+    if (MPropList.has_property<ext::oneapi::property::queue::priority_high>()) {
+      if (PrioritySeen) {
+        throw sycl::exception(
+            make_error_code(errc::invalid),
+            "Queue cannot be constructed with different priorities.");
+      }
+      CreationFlags |= PI_EXT_ONEAPI_QUEUE_PRIORITY_HIGH;
+      PrioritySeen = true;
+    }
     RT::PiQueue Queue{};
     RT::PiContext Context = MContext->getHandleRef();
     RT::PiDevice Device = MDevice->getHandleRef();

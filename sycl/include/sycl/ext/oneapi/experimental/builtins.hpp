@@ -32,15 +32,6 @@ namespace ext {
 namespace oneapi {
 namespace experimental {
 
-namespace detail {
-template <size_t N>
-uint32_t to_uint32_t(sycl::marray<bfloat16, N> x, size_t start) {
-  uint32_t res;
-  std::memcpy(&res, &x[start], sizeof(uint32_t));
-  return res;
-}
-} // namespace detail
-
 // Provides functionality to print data from kernels in a C way:
 // - On non-host devices this function is directly mapped to printf from
 //   OpenCL C
