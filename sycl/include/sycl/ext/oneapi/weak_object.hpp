@@ -41,13 +41,14 @@ class weak_object : public detail::weak_object_base<SYCLObjT> {
 public:
   using object_type = typename detail::weak_object_base<SYCLObjT>::object_type;
 
-  constexpr weak_object() noexcept : detail::weak_object_base<SYCLObjT>() {}
+  constexpr weak_object() noexcept = default;
   weak_object(const SYCLObjT &SYCLObj) noexcept
       : detail::weak_object_base<SYCLObjT>(SYCLObj) {}
   weak_object(const weak_object &Other) noexcept = default;
   weak_object(weak_object &&Other) noexcept = default;
 
   weak_object &operator=(const SYCLObjT &SYCLObj) noexcept {
+    // Create weak_ptr from the shared_ptr to SYCLObj's implementation object.
     this->MObjWeakPtr = sycl::detail::getSyclObjImpl(SYCLObj);
     return *this;
   }
