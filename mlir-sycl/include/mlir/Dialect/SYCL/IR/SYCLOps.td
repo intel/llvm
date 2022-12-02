@@ -145,7 +145,7 @@ def SYCL_AccessorType
                         "unsigned":$dimension,
                         "mlir::sycl::MemoryAccessMode":$accessMode,
                         "mlir::sycl::MemoryTargetMode":$targetMode,
-                        "llvm::SmallVector<mlir::Type, 4>":$body);
+                        ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat =
       "`<` `[` $dimension `,` $type `,` ` ` custom<MemoryAccessMode>($accessMode) `,` ` ` custom<MemoryTargetMode>($targetMode) `]` `,` `(` $body `)` `>`";
 }
@@ -158,53 +158,53 @@ def SYCL_RangeType
 
 def SYCL_NdRangeType : SYCL_Type<"NdRange", "nd_range"> {
   let parameters = (ins "unsigned":$dimension,
-                        "llvm::SmallVector<mlir::Type, 4>":$body);
+                        ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat = "`<` `[` $dimension `]` `,` `(` $body `)` `>`";
 }
 
 def SYCL_AccessorImplType :
     SYCL_Type<"AccessorImplDevice", "accessor_impl_device"> {
   let parameters = (ins "unsigned":$dimension,
-                        "llvm::SmallVector<mlir::Type, 4>":$body);
+                        ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat = "`<` `[` $dimension `]` `,` `(` $body `)` `>`";
 }
 
 def SYCL_AccessorSubscriptType :
     SYCL_Type<"AccessorSubscript", "accessor_subscript"> {
   let parameters = (ins "int":$currentDimension,
-                        "llvm::SmallVector<mlir::Type, 4>":$body);
+                        ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat = "`<` `[` $currentDimension `]` `,` `(` $body `)` `>`";
 }
 
 def SYCL_ArrayType : SYCL_Type<"Array", "array"> {
   let parameters = (ins "unsigned":$dimension,
-                        "llvm::SmallVector<mlir::Type, 4>":$body);
+                        ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat = "`<` `[` $dimension `]` `,` `(` $body `)` `>`";
 }
 
 def SYCL_ItemType : SYCL_Type<"Item", "item"> {
   let parameters = (ins "unsigned":$dimension,
                         "bool":$withOffset,
-                        "llvm::SmallVector<mlir::Type, 4>":$body);
+                        ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat = "`<` `[` $dimension `,` $withOffset `]` `,` `(` $body `)` `>`";
 }
 
 def SYCL_ItemBaseType : SYCL_Type<"ItemBase", "item_base"> {
   let parameters = (ins "unsigned":$dimension,
                         "bool":$withOffset,
-                        "llvm::SmallVector<mlir::Type, 4>":$body);
+                        ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat = "`<` `[` $dimension `,` $withOffset `]` `,` `(` $body `)` `>`";
 }
 
 def SYCL_NdItemType : SYCL_Type<"NdItem", "nd_item"> {
   let parameters = (ins "unsigned":$dimension,
-                        "llvm::SmallVector<mlir::Type, 4>":$body);
+                        ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat = "`<` `[` $dimension `]` `,` `(` $body `)` `>`";
 }
 
 def SYCL_GroupType : SYCL_Type<"Group", "group"> {
   let parameters = (ins "unsigned":$dimension,
-                        "llvm::SmallVector<mlir::Type, 4>":$body);
+                        ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat = "`<` `[` $dimension `]` `,` `(` $body `)` `>`";
 }
 
@@ -215,8 +215,23 @@ def SYCL_GetOpType : SYCL_Type<"GetOp", "get_op"> {
 
 def SYCL_GetScalarOpType : SYCL_Type<"GetScalarOp", "get_scalar_op"> {
   let parameters = (ins "::mlir::Type":$dataType,
-                        "llvm::SmallVector<mlir::Type, 4>":$body);
+                        ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat = "`<` `[` $dataType `]` `,` `(` $body `)` `>`";
+}
+
+def SYCL_TupleValueHolderType : SYCL_Type<"TupleValueHolder", "tuple_value_holder"> {
+  let parameters = (ins "::mlir::Type":$dataType,
+                        ArrayRefParameter<"mlir::Type">:$body);
+  let assemblyFormat = "`<` `[` $dataType `]` `,` `(` $body `)` `>`";
+}
+
+def SYCL_TupleCopyAssignableValueHolderType
+    : SYCL_Type<"TupleCopyAssignableValueHolder", "tuple_copy_assignable_value_holder",
+        [SYCLInheritanceTypeTrait<"TupleValueHolderType">]> {
+  let parameters = (ins "::mlir::Type":$dataType,
+                        "bool":$isTriviallyCopyAssignable,
+                        ArrayRefParameter<"mlir::Type">:$body);
+  let assemblyFormat = "`<` `[` $dataType `,` $isTriviallyCopyAssignable `]` `,` `(` $body `)` `>`";
 }
 
 def VectorEltTy : AnyTypeOf<[I1, I8, I16, I32, I64, F16, F32, F64]>;
@@ -226,7 +241,7 @@ def VectorSplatArg : MemRefOf<[VectorEltTy]>;
 def SYCL_VecType : SYCL_Type<"Vec", "vec"> {
   let parameters = (ins "::mlir::Type":$dataType,
                         "int":$numElements,
-                        "llvm::SmallVector<mlir::Type, 4>":$body);
+                        ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat = "`<` `[` $dataType `,` $numElements `]` `,` `(` $body `)` `>`";
   let genVerifyDecl = 1;
 }
@@ -234,8 +249,22 @@ def SYCL_VecType : SYCL_Type<"Vec", "vec"> {
 def SYCL_AtomicType : SYCL_Type<"Atomic", "atomic"> {
   let parameters = (ins "::mlir::Type":$dataType,
                         "mlir::sycl::AccessAddrSpace":$addrSpace,
-                        "llvm::SmallVector<mlir::Type, 4>":$body);
+                        ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat = "`<` `[` $dataType `,` custom<AccessAddrSpace>($addrSpace) `]` `,` `(` $body `)` `>`";
+}
+
+def SYCL_AssertHappenedType : SYCL_Type<"AssertHappened", "assert_happened"> {
+  let parameters = (ins ArrayRefParameter<"mlir::Type">:$body);
+  let assemblyFormat = "`<` `(` $body `)` `>`";
+}
+
+def SYCL_BFloat16Type : SYCL_Type<"BFloat16", "bfloat16"> {
+  let parameters = (ins ArrayRefParameter<"mlir::Type">:$body);
+  let assemblyFormat = "`<` `(` $body `)` `>`";
+}
+
+def SYCL_SubGroupType : SYCL_Type<"SubGroup", "sub_group"> {
+  let assemblyFormat = "";
 }
 
 def IDMemRef : MemRefOf<[SYCL_IDType]>;

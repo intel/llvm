@@ -197,6 +197,21 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
       return mlir::sycl::GetScalarOpType::get(CGT.getModule()->getContext(),
                                               Type, Body);
     }
+    if (CTS->getName() == "TupleValueHolder") {
+      const auto Type =
+          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
+      return mlir::sycl::TupleValueHolderType::get(
+          CGT.getModule()->getContext(), Type, Body);
+    }
+    if (CTS->getName() == "TupleCopyAssignableValueHolder") {
+      const auto Type =
+          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
+      const auto IsTriviallyCopyAssignable =
+          CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
+      Body.push_back(CGT.getMLIRType(CTS->bases_begin()->getType()));
+      return mlir::sycl::TupleCopyAssignableValueHolderType::get(
+          CGT.getModule()->getContext(), Type, IsTriviallyCopyAssignable, Body);
+    }
     if (CTS->getName() == "atomic") {
       const auto Type =
           CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
@@ -214,6 +229,15 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
       return mlir::sycl::VecType::get(CGT.getModule()->getContext(), ElemType,
                                       NumElems, Body);
     }
+  }
+  if (const auto *CXXRD = llvm::dyn_cast<clang::CXXRecordDecl>(RD)) {
+    if (CXXRD->getName() == "AssertHappened")
+      return mlir::sycl::AssertHappenedType::get(CGT.getModule()->getContext(),
+                                                 Body);
+    if (CXXRD->getName() == "bfloat16")
+      return mlir::sycl::BFloat16Type::get(CGT.getModule()->getContext(), Body);
+    if (CXXRD->getName() == "sub_group")
+      return mlir::sycl::SubGroupType::get(CGT.getModule()->getContext());
   }
 
   llvm_unreachable("SYCL type not handle (yet)");

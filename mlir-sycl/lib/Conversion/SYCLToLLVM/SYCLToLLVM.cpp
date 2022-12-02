@@ -242,6 +242,23 @@ static Optional<Type> convertNdRangeType(sycl::NdRangeType type,
                          type.getBody(), converter);
 }
 
+/// Converts SYCL TupleValueHolder type to LLVM type.
+static Optional<Type>
+convertTupleValueHolderType(sycl::TupleValueHolderType type,
+                            LLVMTypeConverter &converter) {
+  return convertBodyType("struct.sycl::_V1::detail::TupleValueHolder",
+                         type.getBody(), converter);
+}
+
+/// Converts SYCL TupleCopyAssignableValueHolder type to LLVM type.
+static Optional<Type> convertTupleCopyAssignableValueHolderType(
+    sycl::TupleCopyAssignableValueHolderType type,
+    LLVMTypeConverter &converter) {
+  return convertBodyType(
+      "struct.sycl::_V1::detail::TupleCopyAssignableValueHolder",
+      type.getBody(), converter);
+}
+
 /// Converts SYCL vec type to LLVM type.
 static Optional<Type> convertVecType(sycl::VecType type,
                                      LLVMTypeConverter &converter) {
@@ -254,6 +271,32 @@ static Optional<Type> convertAtomicType(sycl::AtomicType type,
   // FIXME: Make sure that we have llvm.ptr as the body, not memref, through
   // the conversion done in ConvertTOLLVMABI pass
   return convertBodyType("class.sycl::_V1::atomic", type.getBody(), converter);
+}
+
+/// Converts SYCL AssertHappened type to LLVM type.
+static Optional<Type> convertAssertHappenedType(sycl::AssertHappenedType type,
+                                                LLVMTypeConverter &converter) {
+  return convertBodyType("struct.sycl::_V1::detail::AssertHappened",
+                         type.getBody(), converter);
+}
+
+/// Converts SYCL bfloat16 type to LLVM type.
+static Optional<Type> convertBFloat16Type(sycl::BFloat16Type type,
+                                          LLVMTypeConverter &converter) {
+  return convertBodyType("class.sycl::_V1::ext::oneapi::bfloat16",
+                         type.getBody(), converter);
+}
+
+/// Converts SYCL sub_group type to LLVM type.
+static Optional<Type> convertSubGroupType(sycl::SubGroupType type,
+                                          LLVMTypeConverter &converter) {
+  auto convertedTy = LLVM::LLVMStructType::getIdentified(
+      &converter.getContext(), "struct.sycl::_V1::ext::oneapi::sub_group");
+  if (!convertedTy.isInitialized())
+    if (failed(convertedTy.setBody(IntegerType::get(&converter.getContext(), 8),
+                                   /*isPacked=*/false)))
+      return llvm::None;
+  return convertedTy;
 }
 
 //===----------------------------------------------------------------------===//
@@ -454,10 +497,26 @@ void mlir::sycl::populateSYCLToLLVMTypeConversion(
   typeConverter.addConversion([&](sycl::NdRangeType type) {
     return convertNdRangeType(type, typeConverter);
   });
+  typeConverter.addConversion([&](sycl::TupleValueHolderType type) {
+    return convertTupleValueHolderType(type, typeConverter);
+  });
+  typeConverter.addConversion(
+      [&](sycl::TupleCopyAssignableValueHolderType type) {
+        return convertTupleCopyAssignableValueHolderType(type, typeConverter);
+      });
   typeConverter.addConversion(
       [&](sycl::VecType type) { return convertVecType(type, typeConverter); });
   typeConverter.addConversion([&](sycl::AtomicType type) {
     return convertAtomicType(type, typeConverter);
+  });
+  typeConverter.addConversion([&](sycl::AssertHappenedType type) {
+    return convertAssertHappenedType(type, typeConverter);
+  });
+  typeConverter.addConversion([&](sycl::BFloat16Type type) {
+    return convertBFloat16Type(type, typeConverter);
+  });
+  typeConverter.addConversion([&](sycl::SubGroupType type) {
+    return convertSubGroupType(type, typeConverter);
   });
 }
 

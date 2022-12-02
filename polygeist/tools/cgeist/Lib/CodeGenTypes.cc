@@ -1337,14 +1337,17 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     const auto *RD = RT->getAsRecordDecl();
     if (mlirclang::isNamespaceSYCL(RD->getEnclosingNamespaceContext())) {
       const auto TypeName = RD->getName();
-      if (TypeName == "range" || TypeName == "nd_range" ||
-          TypeName == "array" || TypeName == "id" ||
-          TypeName == "accessor_common" || TypeName == "accessor" ||
+      if (TypeName == "accessor" || TypeName == "accessor_common" ||
           TypeName == "AccessorImplDevice" || TypeName == "AccessorSubscript" ||
-          TypeName == "item" || TypeName == "ItemBase" ||
-          TypeName == "nd_item" || TypeName == "group" || TypeName == "GetOp" ||
-          TypeName == "GetScalarOp" || TypeName == "atomic" ||
-          TypeName == "vec") {
+          TypeName == "array" || TypeName == "AssertHappened" ||
+          TypeName == "atomic" || TypeName == "bfloat16" ||
+          TypeName == "GetOp" || TypeName == "GetScalarOp" ||
+          TypeName == "group" || TypeName == "id" || TypeName == "item" ||
+          TypeName == "ItemBase" || TypeName == "nd_item" ||
+          TypeName == "nd_range" || TypeName == "range" ||
+          TypeName == "sub_group" ||
+          TypeName == "TupleCopyAssignableValueHolder" ||
+          TypeName == "TupleValueHolder" || TypeName == "vec") {
         return getSYCLType(RT, *this);
       }
       // No need special handling for types that don't have record declaration
