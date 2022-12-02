@@ -221,7 +221,7 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
           CGT.getModule()->getContext(), Type,
           static_cast<mlir::sycl::AccessAddrSpace>(AddrSpace), Body);
     }
-     if (CTS->getName() == "multi_ptr") {
+    if (CTS->getName() == "multi_ptr") {
       const auto Type =
           CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
       const int AddrSpace =
