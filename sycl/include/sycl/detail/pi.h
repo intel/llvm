@@ -625,6 +625,8 @@ static constexpr pi_device_partition_property
     PI_DEVICE_PARTITION_BY_COUNTS_LIST_END = 0x0;
 static constexpr pi_device_partition_property
     PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN = 0x1088;
+static constexpr pi_device_partition_property
+    PI_DEVICE_EXT_INTEL_PARTITION_BY_CSLICE = 0x1089;
 
 // For compatibility with OpenCL define this not as enum.
 using pi_device_affinity_domain = pi_bitfield;

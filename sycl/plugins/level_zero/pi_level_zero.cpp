@@ -2603,29 +2603,36 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
             Ordinals.push_back(i);
           }
         }
+        bool IsPVC =
+            (PiSubDevice->ZeDeviceProperties->deviceId & 0xff0) == 0xbd0;
 
-        // Create PI sub-sub-devices with the sub-device for all the ordinals.
-        // Each {ordinal, index} points to a specific CCS which constructs
-        // a sub-sub-device at this point.
-        // FIXME: Level Zero creates multiple PiDevices for a single physical
-        // device when sub-device is partitioned into sub-sub-devices.
-        // Sub-sub-device is technically a command queue and we should not build
-        // program for each command queue. PiDevice is probably not the right
-        // abstraction for a Level Zero command queue.
-        for (uint32_t J = 0; J < Ordinals.size(); ++J) {
-          for (uint32_t K = 0; K < QueueGroupProperties[Ordinals[J]].numQueues;
-               ++K) {
-            std::unique_ptr<_pi_device> PiSubSubDevice(
-                new _pi_device(ZeSubdevices[I], this, PiSubDevice.get()));
-            pi_result Result = PiSubSubDevice->initialize(Ordinals[J], K);
-            if (Result != PI_SUCCESS) {
-              return Result;
+        // If isn't PVC, then submissions to different CCS can be executed on
+        // the same EUs still, so we cannot treat them as sub-sub-devices.
+        if (IsPVC) {
+          // Create PI sub-sub-devices with the sub-device for all the ordinals.
+          // Each {ordinal, index} points to a specific CCS which constructs
+          // a sub-sub-device at this point.
+          //
+          // FIXME: Level Zero creates multiple PiDevices for a single physical
+          // device when sub-device is partitioned into sub-sub-devices.
+          // Sub-sub-device is technically a command queue and we should not
+          // build program for each command queue. PiDevice is probably not the
+          // right abstraction for a Level Zero command queue.
+          for (uint32_t J = 0; J < Ordinals.size(); ++J) {
+            for (uint32_t K = 0;
+                 K < QueueGroupProperties[Ordinals[J]].numQueues; ++K) {
+              std::unique_ptr<_pi_device> PiSubSubDevice(
+                  new _pi_device(ZeSubdevices[I], this, PiSubDevice.get()));
+              pi_result Result = PiSubSubDevice->initialize(Ordinals[J], K);
+              if (Result != PI_SUCCESS) {
+                return Result;
+              }
+
+              // save pointers to sub-sub-devices for quick retrieval in the
+              // future.
+              PiSubDevice->SubDevices.push_back(PiSubSubDevice.get());
+              PiDevicesCache.push_back(std::move(PiSubSubDevice));
             }
-
-            // save pointers to sub-sub-devices for quick retrieval in the
-            // future.
-            PiSubDevice->SubDevices.push_back(PiSubSubDevice.get());
-            PiDevicesCache.push_back(std::move(PiSubSubDevice));
           }
         }
 
@@ -2860,14 +2867,21 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     if (ZeSubDeviceCount < 2) {
       return ReturnValue(pi_device_partition_property{0});
     }
+    bool PartitionedByCSlice = Device->SubDevices[0]
+                                   ->QueueGroup[_pi_queue::queue_type::Compute]
+                                   .ZeIndex >= 0;
+
     // It is debatable if SYCL sub-device and partitioning APIs sufficient to
     // expose Level Zero sub-devices?  We start with support of
     // "partition_by_affinity_domain" and "next_partitionable" but if that
-    // doesn't seem to be a good fit we could look at adding a more descriptive
-    // partitioning type.
+    // doesn't seem to be a good fit we could look at adding a more
+    // descriptive partitioning type.
     struct {
       pi_device_partition_property Arr[2];
-    } PartitionProperties = {{PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN, 0}};
+    } PartitionProperties = {{PartitionedByCSlice
+                                  ? PI_DEVICE_EXT_INTEL_PARTITION_BY_CSLICE
+                                  : PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
+                              0}};
     return ReturnValue(PartitionProperties);
   }
   case PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN:
@@ -2875,16 +2889,22 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
         PI_DEVICE_AFFINITY_DOMAIN_NUMA |
         PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE});
   case PI_DEVICE_INFO_PARTITION_TYPE: {
-    if (Device->isSubDevice()) {
+    // For root-device there is no partitioning to report.
+    if (!Device->isSubDevice())
+      return ReturnValue(pi_device_partition_property{0});
+
+    if (Device->QueueGroup[_pi_queue::queue_type::Compute].ZeIndex >= 0) {
       struct {
-        pi_device_partition_property Arr[3];
-      } PartitionProperties = {{PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
-                                PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE,
-                                0}};
+        pi_device_partition_property Arr[2];
+      } PartitionProperties = {{PI_DEVICE_EXT_INTEL_PARTITION_BY_CSLICE, 0}};
       return ReturnValue(PartitionProperties);
     }
-    // For root-device there is no partitioning to report.
-    return ReturnValue(pi_device_partition_property{0});
+
+    struct {
+      pi_device_partition_property Arr[3];
+    } PartitionProperties = {{PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
+                              PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE, 0}};
+    return ReturnValue(PartitionProperties);
   }
 
     // Everything under here is not supported yet
@@ -3256,14 +3276,19 @@ pi_result piDevicePartition(pi_device Device,
                             const pi_device_partition_property *Properties,
                             pi_uint32 NumDevices, pi_device *OutDevices,
                             pi_uint32 *OutNumDevices) {
+  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
   // Other partitioning ways are not supported by Level Zero
-  if (Properties[0] != PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN ||
-      (Properties[1] != PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE &&
-       Properties[1] != PI_DEVICE_AFFINITY_DOMAIN_NUMA)) {
+  if (Properties[0] == PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN) {
+    if ((Properties[1] != PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE &&
+       Properties[1] != PI_DEVICE_AFFINITY_DOMAIN_NUMA))
+      return PI_ERROR_INVALID_VALUE;
+  } else if (Properties[0] == PI_DEVICE_EXT_INTEL_PARTITION_BY_CSLICE) {
+    if (Properties[1] != 0)
+      return PI_ERROR_INVALID_VALUE;
+  } else {
     return PI_ERROR_INVALID_VALUE;
   }
 
-  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
   // Devices cache is normally created in piDevicesGet but still make
   // sure that cache is populated.
@@ -3273,8 +3298,28 @@ pi_result piDevicePartition(pi_device Device,
     return Res;
   }
 
+  auto EffectiveSize = [&]() -> decltype(Device->SubDevices.size()) {
+    if (Device->SubDevices.size() == 0)
+      return 0;
+
+    // Sub-Sub-Devices are partitioned by CSlices, not by affinity domain.
+    if (Properties[0] == PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN) {
+      if (Device->isSubDevice())
+        return 0;
+    }
+    if (Properties[0] == PI_DEVICE_EXT_INTEL_PARTITION_BY_CSLICE) {
+      // Not a CSlice-based partitioning.
+      if (Device->SubDevices[0]
+              ->QueueGroup[_pi_queue::queue_type::Compute]
+              .ZeIndex < 0)
+        return 0;
+    }
+
+    return Device->SubDevices.size();
+  }();
+
   if (OutNumDevices) {
-    *OutNumDevices = Device->SubDevices.size();
+    *OutNumDevices = EffectiveSize;
   }
 
   if (OutDevices) {
@@ -3282,7 +3327,7 @@ pi_result piDevicePartition(pi_device Device,
     // Currently supported partitioning (by affinity domain/numa) would always
     // partition to all sub-devices.
     //
-    PI_ASSERT(NumDevices == Device->SubDevices.size(), PI_ERROR_INVALID_VALUE);
+    PI_ASSERT(NumDevices == EffectiveSize, PI_ERROR_INVALID_VALUE);
 
     for (uint32_t I = 0; I < NumDevices; I++) {
       OutDevices[I] = Device->SubDevices[I];
