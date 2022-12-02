@@ -21,7 +21,7 @@ namespace mlir {
 namespace sycl {
 
 /// Inline mode to attempt.
-enum InlineMode { AlwaysInline, Simple, Aggressive };
+enum InlineMode { AlwaysInline, Simple, Aggressive, Ludicrous };
 
 #define GEN_PASS_DECL
 #include "mlir/Dialect/SYCL/Transforms/Passes.h.inc"

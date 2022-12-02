@@ -7,9 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Analysis/CallGraph.h"
+#include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
 #include "mlir/Dialect/SYCL/Transforms/Passes.h"
 #include "mlir/Transforms/InliningUtils.h"
+
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/TypeSwitch.h"
@@ -211,6 +213,17 @@ operator<<(llvm::raw_ostream &OS, const CGUseList &UseList) {
 /// Inlining heuristics to use.
 class InlineHeuristic {
 public:
+  /// Inlining mode (alwaysinline, simple, aggressive, ludicrous).
+  const sycl::InlineMode InlineMode;
+
+  /// Maximum size (defined as number of operations) a callee may have to be
+  /// considered for inlining.
+  enum MaxCalleeSize {
+    Large = 41,
+    Medium = 19,
+    Small = 7,
+  };
+
   InlineHeuristic(sycl::InlineMode InlineMode) : InlineMode(InlineMode) {}
 
   /// Returns true if the given call should be inlined and false otherwise.
@@ -220,8 +233,8 @@ private:
   /// Returns true if the target is an ancestor of the call and false otherwise.
   static bool isRecursiveCall(const ResolvedCall &ResolvedCall);
 
-  /// Inlining mode (alwaysinline, simple, ...)
-  const sycl::InlineMode InlineMode;
+  /// Returns the number of operations in the target of the supplied call.
+  static int64_t computeCalleeSize(const ResolvedCall &ResolvedCall);
 };
 
 // Inliner functionality.
@@ -275,9 +288,9 @@ protected:
                                Pass::Statistic &NumInlinedCalls);
 
   /// Collect all of the callable operations within the given \p SrcNode.
-  static void collectCallOps(CallGraphNode &SrcNode, CallGraph &CG,
-                             SymbolTableCollection &SymTable,
-                             SmallVectorImpl<ResolvedCall> &Calls);
+  void collectCallOps(CallGraphNode &SrcNode, CallGraph &CG,
+                      SymbolTableCollection &SymTable,
+                      SmallVectorImpl<ResolvedCall> &Calls) const;
 
   /// Mark the given callgraph node for deletion.
   void markForDeletion(CallGraphNode *CGN) { DeadNodes.insert(CGN); }
@@ -315,6 +328,9 @@ private:
 
   /// Ensures that the inliner is run on operations that define a symbol table.
   bool checkForSymbolTable(Operation &Op);
+
+  /// Return the number of times an SCC should be revisited while inlining.
+  unsigned getMaxIterationCount() const;
 
 private:
   const std::string PassName, FlagName, PassDescription;
@@ -497,14 +513,18 @@ bool InlineHeuristic::shouldInline(ResolvedCall &ResolvedCall,
   Optional<NamedAttribute> PassThroughAttr = FnAttrs.getNamed("passthrough");
 
   bool ShouldInline = false;
+
+  // Decide whether to inline a callee based on simple heuristics.
   switch (InlineMode) {
+  case sycl::InlineMode::Ludicrous:
+    [[fallthrough]];
   case sycl::InlineMode::Aggressive:
-    llvm_unreachable("TODO");
+    [[fallthrough]];
   case sycl::InlineMode::Simple:
     // Inline a function if it has an attribute suggesting that inlining is
     // desirable.
     if (PassThroughAttr)
-      ShouldInline = llvm::any_of(
+      ShouldInline |= llvm::any_of(
           PassThroughAttr->getValue().cast<ArrayAttr>(), [](Attribute Attr) {
             return Attr.isa<StringAttr>() &&
                    Attr.cast<StringAttr>() == "inlinehint";
@@ -512,7 +532,6 @@ bool InlineHeuristic::shouldInline(ResolvedCall &ResolvedCall,
 
     // Inline a function if inlining makes it dead.
     ShouldInline |= Uses.hasOneUseAndDiscardable(ResolvedCall.TgtNode);
-
     [[fallthrough]];
   case sycl::InlineMode::AlwaysInline:
     // Inline a function iff it has the 'alwaysinline' attribute.
@@ -525,12 +544,39 @@ bool InlineHeuristic::shouldInline(ResolvedCall &ResolvedCall,
     break;
   }
 
+  // Decide whether to inline a callee based on its size.
+  unsigned MaxSize = 0;
+  switch (InlineMode) {
+  case sycl::InlineMode::Ludicrous:
+    MaxSize = MaxCalleeSize::Large;
+    break;
+  case sycl::InlineMode::Aggressive:
+    MaxSize = MaxCalleeSize::Medium;
+    break;
+  case sycl::InlineMode::Simple:
+    MaxSize = MaxCalleeSize::Small;
+    break;
+  case sycl::InlineMode::AlwaysInline:
+    break;
+  }
+
+  if (MaxSize)
+    ShouldInline |= (computeCalleeSize(ResolvedCall) <= MaxSize);
+
   return ShouldInline;
 }
 
 bool InlineHeuristic::isRecursiveCall(const ResolvedCall &ResolvedCall) {
   return ResolvedCall.TgtNode->getCallableRegion()->isAncestor(
       ResolvedCall.Call->getParentRegion());
+}
+
+int64_t InlineHeuristic::computeCalleeSize(const ResolvedCall &ResolvedCall) {
+  int64_t Count = 0;
+  ResolvedCall.TgtNode->getCallableRegion()->walk(
+      [&](Operation *) { ++Count; });
+
+  return Count;
 }
 
 //===----------------------------------------------------------------------===//
@@ -578,8 +624,8 @@ bool Inliner::inlineCallsInSCC(Inliner &Inliner, CGUseList &UseList,
       continue;
     }
 
-    Inliner::collectCallOps(*SrcNode, Inliner.getCG(), Inliner.getSymbolTable(),
-                            Inliner.getCalls());
+    Inliner.collectCallOps(*SrcNode, Inliner.getCG(), Inliner.getSymbolTable(),
+                           Inliner.getCalls());
   }
 
   if (Inliner.getCalls().empty())
@@ -638,9 +684,7 @@ bool Inliner::inlineCallsInSCC(Inliner &Inliner, CGUseList &UseList,
 
   for (CallGraphNode *CGN : DeadNodes) {
     LLVM_DEBUG(llvm::dbgs()
-               << "** Marking "
-               << CGN->getCallableRegion()->getParentOp()->getName()
-               << " dead\n");
+               << "** Marking " << getFunction(*CGN).getName() << " dead\n");
     SCC.remove(CGN);
     Inliner.markForDeletion(CGN);
   }
@@ -652,7 +696,25 @@ bool Inliner::inlineCallsInSCC(Inliner &Inliner, CGUseList &UseList,
 
 void Inliner::collectCallOps(CallGraphNode &SrcNode, CallGraph &CG,
                              SymbolTableCollection &SymTable,
-                             SmallVectorImpl<ResolvedCall> &Calls) {
+                             SmallVectorImpl<ResolvedCall> &Calls) const {
+  auto Collect = [this](const CallGraphNode *CGN, const Operation *Call) {
+    if (CGN->isExternal())
+      return false;
+
+    // Select which call operations to collect based on heuristics.
+    switch (Heuristic.InlineMode) {
+    case sycl::InlineMode::Ludicrous:
+      return true;
+    case sycl::InlineMode::Aggressive:
+      return isa<sycl::SYCLCallOp, sycl::SYCLConstructorOp,
+                 sycl::SYCLMethodOpInterface>(Call);
+    case sycl::InlineMode::Simple:
+      return isa<sycl::SYCLCallOp, sycl::SYCLConstructorOp>(Call);
+    case sycl::InlineMode::AlwaysInline:
+      return isa<sycl::SYCLCallOp>(Call);
+    }
+  };
+
   SrcNode.getCallableRegion()->walk([&](Operation *Op) {
     if (auto Call = dyn_cast<CallOpInterface>(Op)) {
       CallInterfaceCallable Callable = Call.getCallableForCallee();
@@ -662,7 +724,7 @@ void Inliner::collectCallOps(CallGraphNode &SrcNode, CallGraph &CG,
       }
 
       CallGraphNode *TgtNode = CG.resolveCallable(Call, SymTable);
-      if (!TgtNode->isExternal())
+      if (Collect(TgtNode, Op))
         Calls.emplace_back(Call, &SrcNode, TgtNode);
     }
     return WalkResult::advance();
@@ -688,12 +750,30 @@ void InlinePass::runOnOperation() {
     return signalPassFailure();
 }
 
+unsigned InlinePass::getMaxIterationCount() const {
+  // Use the supplied option value if present.
+  if (MaxIterationCount.getNumOccurrences())
+    return MaxIterationCount.getValue();
+
+  // Set the max iteration count based on the inline mode.
+  switch (InlineMode) {
+  case sycl::InlineMode::Ludicrous:
+    return 7;
+  case sycl::InlineMode::Aggressive:
+    return 5;
+  case sycl::InlineMode::Simple:
+    return 3;
+  case sycl::InlineMode::AlwaysInline:
+    return 2;
+  }
+}
+
 LogicalResult InlinePass::runOnCG(Inliner &Inliner, CGUseList &UseList,
                                   CallGraph &CG,
                                   Pass::Statistic &NumInlinedCalls) {
   LogicalResult Res = Inliner::runTransformOnSCCs(CG, [&](CallGraphSCC &SCC) {
-    return Inliner::inlineSCC(Inliner, UseList, SCC,
-                              MaxIterationCount.getValue(), NumInlinedCalls);
+    return Inliner::inlineSCC(Inliner, UseList, SCC, getMaxIterationCount(),
+                              NumInlinedCalls);
   });
 
   // After inlining, make sure to erase any callables proven to be dead.
