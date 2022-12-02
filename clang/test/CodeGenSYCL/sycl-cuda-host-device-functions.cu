@@ -62,6 +62,11 @@ __device__ int fun5() { return 5; }
 // CHECK-DEV: define weak_odr noundef i32 @_Z4fun5v()
 // CHECK-DEV: ret i32 5
 
+int fun6() { return 7; }
+
+// CHECK-DEV: define dso_local noundef i32 @_Z4fun6v()
+// CHECK-DEV: ret i32 7
+
 
 int main(){
 
@@ -75,6 +80,7 @@ int main(){
       fun3();
       fun4();
       fun5();
+      fun6(); 
     });
   });
 
