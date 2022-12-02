@@ -47,4 +47,3 @@ template <typename Ty> static size_t get_msb_pos(Ty x) {
 }
 
 #endif // __LIBDEVICE_IMF_IMPL_UTILS_H__
-
