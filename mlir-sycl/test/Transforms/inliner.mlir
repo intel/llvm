@@ -174,12 +174,14 @@ gpu.func @gpu_func_callee() -> i32 attributes {passthrough = ["alwaysinline"]} {
 // INLINE-LABEL: func.func @callee() -> i32 {
 // INLINE-DAG:     %c1_i32 = arith.constant 1 : i32
 // INLINE-DAG:     %c2_i32 = arith.constant 2 : i32
-// INLINE-DAG:     %c3_i32 = arith.constant 3 : i32
-// INLINE-DAG:     %0 = sycl.call() {FunctionName = @private_callee_, MangledFunctionName = @private_callee, TypeName = @A} : () -> i32
-// INLINE-NEXT:    %1 = arith.addi %c1_i32, %0 : i32
-// INLINE-NEXT:    %2 = arith.addi %c3_i32, %1 : i32
-// INLINE-NEXT:    %3 = arith.addi %c2_i32, %2 : i32
-// INLINE-NEXT:    return %3 : i32
+// INLINE-DAG:     %c1_i32_0 = arith.constant 1 : i32
+// INLINE-DAG:     %c2_i32_1 = arith.constant 2 : i32
+// INLINE-DAG:     %0 = sycl.call() {FunctionName = @callee_, MangledFunctionName = @callee, TypeName = @A} : () -> i32
+// INLINE-NEXT:    %1 = arith.addi %c2_i32_1, %0 : i32
+// INLINE-NEXT:    %2 = arith.addi %c1_i32_0, %1 : i32
+// INLINE-NEXT:    %3 = arith.addi %c1_i32, %c2_i32 : i32
+// INLINE-NEXT:    %4 = arith.addi %2, %3 : i32
+// INLINE-NEXT:    return %4 : i32
 // INLINE-NEXT:  }
 
 // INLINE-NOT: func.func private @inline_hint_callee
@@ -200,9 +202,10 @@ func.func private @private_callee() -> i32 {
 }
 
 func.func @callee() -> i32 {
-  %c_i32 = arith.constant 3 : i32
-  %res1 = sycl.call() {FunctionName = @"inline_hint_callee_", MangledFunctionName = @inline_hint_callee, TypeName = @A} : () -> i32  
-  %res2 = arith.addi %c_i32, %res1 : i32  
-  return %res2 : i32
+  %c1 = arith.constant 1 : i32
+  %c2 = arith.constant 2 : i32
+  %res1 = sycl.call() {FunctionName = @"inline_hint_callee_", MangledFunctionName = @inline_hint_callee, TypeName = @A} : () -> i32    
+  %add1 = arith.addi %c1, %c2 : i32
+  %add2 = arith.addi %res1, %add1 : i32  
+  return %add2 : i32
 }
-
