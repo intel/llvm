@@ -7,8 +7,8 @@
 // RUN: not %clang -### -fsycl -fno-sycl-rdc -fsycl-device-code-split=per_source %t.fat.o 2>&1 | FileCheck -check-prefix=CHECK-ARCH %s
 
 
-// CHECK-SPLIT: error: -fno-sycl-rdc must be used in conjunction with -fsycl-device-code-split=per_source or -fsycl-device-code-split=per_kernel
-// CHECK-ARCH: error: linked binaries do not contain expected 'spir64-unknown-unknown' target; found targets: 'spir64_gen-unknown-unknown', this is not supported with -fno-sycl-rdc
+// CHECK-SPLIT: error: '-fno-sycl-rdc' must be used in conjunction with '-fsycl-device-code-split=per_source' or '-fsycl-device-code-split=per_kernel'
+// CHECK-ARCH: error: linked binaries do not contain expected 'spir64-unknown-unknown' target; found targets: 'spir64_gen-unknown-unknown', this is not supported with '-fno-sycl-rdc'
 
 
 // Some code so that we can create a binary out of this file.

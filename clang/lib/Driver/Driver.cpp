@@ -1105,7 +1105,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   if (NoRDC && (!DeviceCodeSplit ||
                 (DeviceCodeSplit->getValue() != StringRef("per_source") &&
                  DeviceCodeSplit->getValue() != StringRef("per_kernel"))))
-    Diag(clang::diag::err_no_rdc_unsupported_device_code_split)
+    Diag(clang::diag::err_drv_option_unsupported_device_code_split)
         << (NoRDC->getAlias() ? NoRDC->getAlias()->getSpelling()
                               : NoRDC->getSpelling());
 
@@ -5939,7 +5939,7 @@ class OffloadingActionBuilder final {
           Cnt++;
         }
         if (tools::SYCL::shouldDoPerObjectFileLinking(C)) {
-          C.getDriver().Diag(diag::err_no_rdc_drv_sycl_target_missing)
+          C.getDriver().Diag(diag::err_drv_no_rdc_sycl_target_missing)
               << SectionTriple << ArchListStr;
           C.setContainsError();
         } else {
