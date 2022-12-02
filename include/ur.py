@@ -287,7 +287,7 @@ class ur_usm_migration_flags_t(c_int):
 ###############################################################################
 ## @brief USM memory advice
 class ur_mem_advice_v(IntEnum):
-    MEM_ADVICE_DEFAULT = 0                          ## The USM memory advice is default
+    DEFAULT = 0                                     ## The USM memory advice is default
 
 class ur_mem_advice_t(c_int):
     def __str__(self):
@@ -297,11 +297,11 @@ class ur_mem_advice_t(c_int):
 ###############################################################################
 ## @brief Event query information type
 class ur_event_info_v(IntEnum):
-    EVENT_INFO_COMMAND_QUEUE = 0                    ## Command queue information of an event object
-    EVENT_INFO_CONTEXT = 1                          ## Context information of an event object
-    EVENT_INFO_COMMAND_TYPE = 2                     ## Command type information of an event object
-    EVENT_INFO_COMMAND_EXECUTION_STATUS = 3         ## Command execution status of an event object
-    EVENT_INFO_REFERENCE_COUNT = 4                  ## Reference count of an event object
+    COMMAND_QUEUE = 0                               ## Command queue information of an event object
+    CONTEXT = 1                                     ## Context information of an event object
+    COMMAND_TYPE = 2                                ## Command type information of an event object
+    COMMAND_EXECUTION_STATUS = 3                    ## Command execution status of an event object
+    REFERENCE_COUNT = 4                             ## Reference count of an event object
 
 class ur_event_info_t(c_int):
     def __str__(self):
@@ -311,13 +311,13 @@ class ur_event_info_t(c_int):
 ###############################################################################
 ## @brief Profiling query information type
 class ur_profiling_info_v(IntEnum):
-    PROFILING_INFO_COMMAND_QUEUED = 0               ## A 64-bit value of current device counter in nanoseconds when the event
+    COMMAND_QUEUED = 0                              ## A 64-bit value of current device counter in nanoseconds when the event
                                                     ## is enqueued
-    PROFILING_INFO_COMMAND_SUBMIT = 1               ## A 64-bit value of current device counter in nanoseconds when the event
+    COMMAND_SUBMIT = 1                              ## A 64-bit value of current device counter in nanoseconds when the event
                                                     ## is submitted
-    PROFILING_INFO_COMMAND_START = 2                ## A 64-bit value of current device counter in nanoseconds when the event
+    COMMAND_START = 2                               ## A 64-bit value of current device counter in nanoseconds when the event
                                                     ## starts execution
-    PROFILING_INFO_COMMAND_END = 3                  ## A 64-bit value of current device counter in nanoseconds when the event
+    COMMAND_END = 3                                 ## A 64-bit value of current device counter in nanoseconds when the event
                                                     ## has finished execution
 
 class ur_profiling_info_t(c_int):
@@ -328,14 +328,14 @@ class ur_profiling_info_t(c_int):
 ###############################################################################
 ## @brief Memory flags
 class ur_mem_flags_v(IntEnum):
-    MEM_READ_WRITE = UR_BIT(0)                      ## The memory object will be read and written by a kernel. This is the
+    READ_WRITE = UR_BIT(0)                          ## The memory object will be read and written by a kernel. This is the
                                                     ## default
-    MEM_WRITE_ONLY = UR_BIT(1)                      ## The memory object will be written but not read by a kernel
-    MEM_READ_ONLY = UR_BIT(2)                       ## The memory object is a read-only inside a kernel
-    MEM_USE_HOST_POINTER = UR_BIT(3)                ## Use memory pointed by a host pointer parameter as the storage bits for
+    WRITE_ONLY = UR_BIT(1)                          ## The memory object will be written but not read by a kernel
+    READ_ONLY = UR_BIT(2)                           ## The memory object is a read-only inside a kernel
+    USE_HOST_POINTER = UR_BIT(3)                    ## Use memory pointed by a host pointer parameter as the storage bits for
                                                     ## the memory object
-    MEM_ALLOC_HOST_POINTER = UR_BIT(4)              ## Allocate memory object from host accessible memory
-    MEM_ALLOC_COPY_HOST_POINTER = UR_BIT(5)         ## Allocate memory and copy the data from host pointer pointed memory
+    ALLOC_HOST_POINTER = UR_BIT(4)                  ## Allocate memory object from host accessible memory
+    ALLOC_COPY_HOST_POINTER = UR_BIT(5)             ## Allocate memory and copy the data from host pointer pointed memory
 
 class ur_mem_flags_t(c_int):
     def __str__(self):
@@ -345,13 +345,13 @@ class ur_mem_flags_t(c_int):
 ###############################################################################
 ## @brief Memory types
 class ur_mem_type_v(IntEnum):
-    MEM_TYPE_BUFFER = 0                             ## Buffer object
-    MEM_TYPE_IMAGE2D = 1                            ## 2D image object
-    MEM_TYPE_IMAGE3D = 2                            ## 3D image object
-    MEM_TYPE_IMAGE2D_ARRAY = 3                      ## 2D image array object
-    MEM_TYPE_IMAGE1D = 4                            ## 1D image object
-    MEM_TYPE_IMAGE1D_ARRAY = 5                      ## 1D image array object
-    MEM_TYPE_IMAGE1D_BUFFER = 6                     ## 1D image buffer object
+    BUFFER = 0                                      ## Buffer object
+    IMAGE2D = 1                                     ## 2D image object
+    IMAGE3D = 2                                     ## 3D image object
+    IMAGE2D_ARRAY = 3                               ## 2D image array object
+    IMAGE1D = 4                                     ## 1D image object
+    IMAGE1D_ARRAY = 5                               ## 1D image array object
+    IMAGE1D_BUFFER = 6                              ## 1D image buffer object
 
 class ur_mem_type_t(c_int):
     def __str__(self):
@@ -372,20 +372,20 @@ class ur_mem_info_t(c_int):
 ###############################################################################
 ## @brief Image channel order info: number of channels and the channel layout
 class ur_image_channel_order_v(IntEnum):
-    CHANNEL_ORDER_A = 0                             ## channel order A
-    CHANNEL_ORDER_R = 1                             ## channel order R
-    CHANNEL_ORDER_RG = 2                            ## channel order RG
-    CHANNEL_ORDER_RA = 3                            ## channel order RA
-    CHANNEL_ORDER_RGB = 4                           ## channel order RGB
-    CHANNEL_ORDER_RGBA = 5                          ## channel order RGBA
-    CHANNEL_ORDER_BGRA = 6                          ## channel order BGRA
-    CHANNEL_ORDER_ARGB = 7                          ## channel order ARGB
-    CHANNEL_ORDER_INTENSITY = 8                     ## channel order intensity
-    CHANNEL_ORDER_LUMINANCE = 9                     ## channel order luminance
-    CHANNEL_ORDER_RX = 10                           ## channel order Rx
-    CHANNEL_ORDER_RGX = 11                          ## channel order RGx
-    CHANNEL_ORDER_RGBX = 12                         ## channel order RGBx
-    CHANNEL_ORDER_SRGBA = 13                        ## channel order sRGBA
+    A = 0                                           ## channel order A
+    R = 1                                           ## channel order R
+    RG = 2                                          ## channel order RG
+    RA = 3                                          ## channel order RA
+    RGB = 4                                         ## channel order RGB
+    RGBA = 5                                        ## channel order RGBA
+    BGRA = 6                                        ## channel order BGRA
+    ARGB = 7                                        ## channel order ARGB
+    INTENSITY = 8                                   ## channel order intensity
+    LUMINANCE = 9                                   ## channel order luminance
+    RX = 10                                         ## channel order Rx
+    RGX = 11                                        ## channel order RGx
+    RGBX = 12                                       ## channel order RGBx
+    SRGBA = 13                                      ## channel order sRGBA
 
 class ur_image_channel_order_t(c_int):
     def __str__(self):
@@ -395,21 +395,21 @@ class ur_image_channel_order_t(c_int):
 ###############################################################################
 ## @brief Image channel type info: describe the size of the channel data type
 class ur_image_channel_type_v(IntEnum):
-    CHANNEL_TYPE_SNORM_INT8 = 0                     ## channel type snorm int8
-    CHANNEL_TYPE_SNORM_INT16 = 1                    ## channel type snorm int16
-    CHANNEL_TYPE_UNORM_INT8 = 2                     ## channel type unorm int8
-    CHANNEL_TYPE_UNORM_INT16 = 3                    ## channel type unorm int16
-    CHANNEL_TYPE_UNORM_SHORT_565 = 4                ## channel type unorm short 565
-    CHANNEL_TYPE_UNORM_SHORT_555 = 5                ## channel type unorm short 555
-    CHANNEL_TYPE_INT_101010 = 6                     ## channel type int 101010
-    CHANNEL_TYPE_SIGNED_INT8 = 7                    ## channel type signed int8
-    CHANNEL_TYPE_SIGNED_INT16 = 8                   ## channel type signed int16
-    CHANNEL_TYPE_SIGNED_INT32 = 9                   ## channel type signed int32
-    CHANNEL_TYPE_UNSIGNED_INT8 = 10                 ## channel type unsigned int8
-    CHANNEL_TYPE_UNSIGNED_INT16 = 11                ## channel type unsigned int16
-    CHANNEL_TYPE_UNSIGNED_INT32 = 12                ## channel type unsigned int32
-    CHANNEL_TYPE_HALF_FLOAT = 13                    ## channel type half float
-    CHANNEL_TYPE_FLOAT = 14                         ## channel type float
+    SNORM_INT8 = 0                                  ## channel type snorm int8
+    SNORM_INT16 = 1                                 ## channel type snorm int16
+    UNORM_INT8 = 2                                  ## channel type unorm int8
+    UNORM_INT16 = 3                                 ## channel type unorm int16
+    UNORM_SHORT_565 = 4                             ## channel type unorm short 565
+    UNORM_SHORT_555 = 5                             ## channel type unorm short 555
+    INT_101010 = 6                                  ## channel type int 101010
+    SIGNED_INT8 = 7                                 ## channel type signed int8
+    SIGNED_INT16 = 8                                ## channel type signed int16
+    SIGNED_INT32 = 9                                ## channel type signed int32
+    UNSIGNED_INT8 = 10                              ## channel type unsigned int8
+    UNSIGNED_INT16 = 11                             ## channel type unsigned int16
+    UNSIGNED_INT32 = 12                             ## channel type unsigned int32
+    HALF_FLOAT = 13                                 ## channel type half float
+    FLOAT = 14                                      ## channel type float
 
 class ur_image_channel_type_t(c_int):
     def __str__(self):
@@ -468,7 +468,7 @@ class ur_buffer_region_t(Structure):
 ###############################################################################
 ## @brief Buffer creation type
 class ur_buffer_create_type_v(IntEnum):
-    BUFFER_CREATE_TYPE_REGION = 0                   ## buffer create type is region
+    REGION = 0                                      ## buffer create type is region
 
 class ur_buffer_create_type_t(c_int):
     def __str__(self):
@@ -506,14 +506,14 @@ class ur_queue_flags_t(c_int):
 ###############################################################################
 ## @brief Get sample object information
 class ur_sampler_info_v(IntEnum):
-    SAMPLER_INFO_REFERENCE_COUNT = 0                ## Sampler reference count info
-    SAMPLER_INFO_CONTEXT = 1                        ## Sampler context info
-    SAMPLER_INFO_NORMALIZED_COORDS = 2              ## Sampler normalized coordindate setting
-    SAMPLER_INFO_ADDRESSING_MODE = 3                ## Sampler addressing mode setting
-    SAMPLER_INFO_FILTER_MODE = 4                    ## Sampler filter mode setting
-    SAMPLER_INFO_MIP_FILTER_MODE = 5                ## Sampler MIP filter mode setting
-    SAMPLER_INFO_LOD_MIN = 6                        ## Sampler LOD Min value
-    SAMPLER_INFO_LOD_MAX = 7                        ## Sampler LOD Max value
+    REFERENCE_COUNT = 0                             ## Sampler reference count info
+    CONTEXT = 1                                     ## Sampler context info
+    NORMALIZED_COORDS = 2                           ## Sampler normalized coordindate setting
+    ADDRESSING_MODE = 3                             ## Sampler addressing mode setting
+    FILTER_MODE = 4                                 ## Sampler filter mode setting
+    MIP_FILTER_MODE = 5                             ## Sampler MIP filter mode setting
+    LOD_MIN = 6                                     ## Sampler LOD Min value
+    LOD_MAX = 7                                     ## Sampler LOD Max value
 
 class ur_sampler_info_t(c_int):
     def __str__(self):
@@ -523,9 +523,9 @@ class ur_sampler_info_t(c_int):
 ###############################################################################
 ## @brief Sampler properties
 class ur_sampler_properties_v(IntEnum):
-    SAMPLER_PROPERTIES_NORMALIZED_COORDS = 0        ## Sampler normalized coordinates
-    SAMPLER_PROPERTIES_ADDRESSING_MODE = 1          ## Sampler addressing mode
-    SAMPLER_PROPERTIES_FILTER_MODE = 2              ## Sampler filter mode
+    NORMALIZED_COORDS = 0                           ## Sampler normalized coordinates
+    ADDRESSING_MODE = 1                             ## Sampler addressing mode
+    FILTER_MODE = 2                                 ## Sampler filter mode
 
 class ur_sampler_properties_t(c_int):
     def __str__(self):
@@ -543,7 +543,7 @@ class ur_sampler_property_value_t(Structure):
 ###############################################################################
 ## @brief USM memory property flags
 class ur_usm_mem_flags_v(IntEnum):
-    MEM_ALLOC_FLAGS_INTEL = UR_BIT(0)               ## The USM memory allocation is from Intel USM
+    ALLOC_FLAGS_INTEL = UR_BIT(0)                   ## The USM memory allocation is from Intel USM
 
 class ur_usm_mem_flags_t(c_int):
     def __str__(self):
@@ -553,10 +553,10 @@ class ur_usm_mem_flags_t(c_int):
 ###############################################################################
 ## @brief USM memory allocation information type
 class ur_mem_alloc_info_v(IntEnum):
-    MEM_ALLOC_TYPE = 0                              ## Memory allocation type info
-    MEM_ALLOC_BASE_PTR = 1                          ## Memory allocation base pointer info
-    MEM_ALLOC_SIZE = 2                              ## Memory allocation size info
-    MEM_ALLOC_DEVICE = 3                            ## Memory allocation device info
+    ALLOC_TYPE = 0                                  ## Memory allocation type info
+    ALLOC_BASE_PTR = 1                              ## Memory allocation base pointer info
+    ALLOC_SIZE = 2                                  ## Memory allocation size info
+    ALLOC_DEVICE = 3                                ## Memory allocation device info
 
 class ur_mem_alloc_info_t(c_int):
     def __str__(self):

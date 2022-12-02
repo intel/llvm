@@ -15,21 +15,21 @@ desc: "Get sample object information"
 class: $xSampler
 name: $x_sampler_info_t
 etors:
-    - name: SAMPLER_INFO_REFERENCE_COUNT
+    - name: REFERENCE_COUNT
       desc: "Sampler reference count info"
-    - name: SAMPLER_INFO_CONTEXT
+    - name: CONTEXT
       desc: "Sampler context info"
-    - name: SAMPLER_INFO_NORMALIZED_COORDS
+    - name: NORMALIZED_COORDS
       desc: "Sampler normalized coordindate setting"
-    - name: SAMPLER_INFO_ADDRESSING_MODE
+    - name: ADDRESSING_MODE
       desc: "Sampler addressing mode setting"
-    - name: SAMPLER_INFO_FILTER_MODE
+    - name: FILTER_MODE
       desc: "Sampler filter mode setting"
-    - name: SAMPLER_INFO_MIP_FILTER_MODE
+    - name: MIP_FILTER_MODE
       desc: "Sampler MIP filter mode setting"
-    - name: SAMPLER_INFO_LOD_MIN
+    - name: LOD_MIN
       desc: "Sampler LOD Min value"
-    - name: SAMPLER_INFO_LOD_MAX
+    - name: LOD_MAX
       desc: "Sampler LOD Max value"
 --- #--------------------------------------------------------------------------
 type: enum
@@ -37,11 +37,11 @@ desc: "Sampler properties"
 class: $xSampler
 name: $x_sampler_properties_t
 etors:
-    - name: SAMPLER_PROPERTIES_NORMALIZED_COORDS
+    - name: NORMALIZED_COORDS
       desc: "Sampler normalized coordinates"
-    - name: SAMPLER_PROPERTIES_ADDRESSING_MODE
+    - name: ADDRESSING_MODE
       desc: "Sampler addressing mode"
-    - name: SAMPLER_PROPERTIES_FILTER_MODE
+    - name: FILTER_MODE
       desc: "Sampler filter mode"
 --- #--------------------------------------------------------------------------
 type: struct

@@ -15,7 +15,7 @@ desc: "USM memory property flags"
 class: $xUSM
 name: $x_usm_mem_flags_t
 etors:
-    - name: MEM_ALLOC_FLAGS_INTEL
+    - name: ALLOC_FLAGS_INTEL
       value: "$X_BIT(0)"
       desc: "The USM memory allocation is from Intel USM"
 --- #--------------------------------------------------------------------------
@@ -24,13 +24,13 @@ desc: "USM memory allocation information type"
 class: $xUSM
 name: $x_mem_alloc_info_t
 etors:
-    - name: MEM_ALLOC_TYPE
+    - name: ALLOC_TYPE
       desc: "Memory allocation type info"
-    - name: MEM_ALLOC_BASE_PTR
+    - name: ALLOC_BASE_PTR
       desc: "Memory allocation base pointer info"
-    - name: MEM_ALLOC_SIZE
+    - name: ALLOC_SIZE
       desc: "Memory allocation size info"
-    - name: MEM_ALLOC_DEVICE
+    - name: ALLOC_DEVICE
       desc: "Memory allocation device info"
 --- #--------------------------------------------------------------------------
 type: function

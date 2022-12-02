@@ -1324,7 +1324,7 @@ urEnqueueUSMPrefetch(
 /// @brief USM memory advice
 typedef enum ur_mem_advice_t
 {
-    UR_MEM_ADVICE_MEM_ADVICE_DEFAULT = 0,           ///< The USM memory advice is default
+    UR_MEM_ADVICE_DEFAULT = 0,                      ///< The USM memory advice is default
     UR_MEM_ADVICE_FORCE_UINT32 = 0x7fffffff
 
 } ur_mem_advice_t;
@@ -1342,7 +1342,7 @@ typedef enum ur_mem_advice_t
 ///         + `NULL == pMem`
 ///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_MEM_ADVICE_MEM_ADVICE_DEFAULT < advice`
+///         + `::UR_MEM_ADVICE_DEFAULT < advice`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
@@ -1371,11 +1371,11 @@ urEnqueueUSMMemAdvice(
 /// @brief Event query information type
 typedef enum ur_event_info_t
 {
-    UR_EVENT_INFO_EVENT_INFO_COMMAND_QUEUE = 0,     ///< Command queue information of an event object
-    UR_EVENT_INFO_EVENT_INFO_CONTEXT = 1,           ///< Context information of an event object
-    UR_EVENT_INFO_EVENT_INFO_COMMAND_TYPE = 2,      ///< Command type information of an event object
-    UR_EVENT_INFO_EVENT_INFO_COMMAND_EXECUTION_STATUS = 3,  ///< Command execution status of an event object
-    UR_EVENT_INFO_EVENT_INFO_REFERENCE_COUNT = 4,   ///< Reference count of an event object
+    UR_EVENT_INFO_COMMAND_QUEUE = 0,                ///< Command queue information of an event object
+    UR_EVENT_INFO_CONTEXT = 1,                      ///< Context information of an event object
+    UR_EVENT_INFO_COMMAND_TYPE = 2,                 ///< Command type information of an event object
+    UR_EVENT_INFO_COMMAND_EXECUTION_STATUS = 3,     ///< Command execution status of an event object
+    UR_EVENT_INFO_REFERENCE_COUNT = 4,              ///< Reference count of an event object
     UR_EVENT_INFO_FORCE_UINT32 = 0x7fffffff
 
 } ur_event_info_t;
@@ -1384,13 +1384,13 @@ typedef enum ur_event_info_t
 /// @brief Profiling query information type
 typedef enum ur_profiling_info_t
 {
-    UR_PROFILING_INFO_PROFILING_INFO_COMMAND_QUEUED = 0,///< A 64-bit value of current device counter in nanoseconds when the event
+    UR_PROFILING_INFO_COMMAND_QUEUED = 0,           ///< A 64-bit value of current device counter in nanoseconds when the event
                                                     ///< is enqueued
-    UR_PROFILING_INFO_PROFILING_INFO_COMMAND_SUBMIT = 1,///< A 64-bit value of current device counter in nanoseconds when the event
+    UR_PROFILING_INFO_COMMAND_SUBMIT = 1,           ///< A 64-bit value of current device counter in nanoseconds when the event
                                                     ///< is submitted
-    UR_PROFILING_INFO_PROFILING_INFO_COMMAND_START = 2, ///< A 64-bit value of current device counter in nanoseconds when the event
+    UR_PROFILING_INFO_COMMAND_START = 2,            ///< A 64-bit value of current device counter in nanoseconds when the event
                                                     ///< starts execution
-    UR_PROFILING_INFO_PROFILING_INFO_COMMAND_END = 3,   ///< A 64-bit value of current device counter in nanoseconds when the event
+    UR_PROFILING_INFO_COMMAND_END = 3,              ///< A 64-bit value of current device counter in nanoseconds when the event
                                                     ///< has finished execution
     UR_PROFILING_INFO_FORCE_UINT32 = 0x7fffffff
 
@@ -1435,7 +1435,7 @@ urEventCreate(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EVENT_INFO_EVENT_INFO_REFERENCE_COUNT < propName`
+///         + `::UR_EVENT_INFO_REFERENCE_COUNT < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pPropValue`
 ///         + `NULL == pPropValueSizeRet`
@@ -1467,7 +1467,7 @@ urEventGetInfo(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_PROFILING_INFO_PROFILING_INFO_COMMAND_END < propName`
+///         + `::UR_PROFILING_INFO_COMMAND_END < propName`
 ///     - ::UR_RESULT_INVALID_VALUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_OUT_OF_RESOURCES
@@ -1614,14 +1614,14 @@ urEventCreateWithNativeHandle(
 typedef uint32_t ur_mem_flags_t;
 typedef enum ur_mem_flag_t
 {
-    UR_MEM_FLAG_MEM_READ_WRITE = UR_BIT(0),         ///< The memory object will be read and written by a kernel. This is the
+    UR_MEM_FLAG_READ_WRITE = UR_BIT(0),             ///< The memory object will be read and written by a kernel. This is the
                                                     ///< default
-    UR_MEM_FLAG_MEM_WRITE_ONLY = UR_BIT(1),         ///< The memory object will be written but not read by a kernel
-    UR_MEM_FLAG_MEM_READ_ONLY = UR_BIT(2),          ///< The memory object is a read-only inside a kernel
-    UR_MEM_FLAG_MEM_USE_HOST_POINTER = UR_BIT(3),   ///< Use memory pointed by a host pointer parameter as the storage bits for
+    UR_MEM_FLAG_WRITE_ONLY = UR_BIT(1),             ///< The memory object will be written but not read by a kernel
+    UR_MEM_FLAG_READ_ONLY = UR_BIT(2),              ///< The memory object is a read-only inside a kernel
+    UR_MEM_FLAG_USE_HOST_POINTER = UR_BIT(3),       ///< Use memory pointed by a host pointer parameter as the storage bits for
                                                     ///< the memory object
-    UR_MEM_FLAG_MEM_ALLOC_HOST_POINTER = UR_BIT(4), ///< Allocate memory object from host accessible memory
-    UR_MEM_FLAG_MEM_ALLOC_COPY_HOST_POINTER = UR_BIT(5),///< Allocate memory and copy the data from host pointer pointed memory
+    UR_MEM_FLAG_ALLOC_HOST_POINTER = UR_BIT(4),     ///< Allocate memory object from host accessible memory
+    UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER = UR_BIT(5),///< Allocate memory and copy the data from host pointer pointed memory
     UR_MEM_FLAG_FORCE_UINT32 = 0x7fffffff
 
 } ur_mem_flag_t;
@@ -1630,13 +1630,13 @@ typedef enum ur_mem_flag_t
 /// @brief Memory types
 typedef enum ur_mem_type_t
 {
-    UR_MEM_TYPE_MEM_TYPE_BUFFER = 0,                ///< Buffer object
-    UR_MEM_TYPE_MEM_TYPE_IMAGE2D = 1,               ///< 2D image object
-    UR_MEM_TYPE_MEM_TYPE_IMAGE3D = 2,               ///< 3D image object
-    UR_MEM_TYPE_MEM_TYPE_IMAGE2D_ARRAY = 3,         ///< 2D image array object
-    UR_MEM_TYPE_MEM_TYPE_IMAGE1D = 4,               ///< 1D image object
-    UR_MEM_TYPE_MEM_TYPE_IMAGE1D_ARRAY = 5,         ///< 1D image array object
-    UR_MEM_TYPE_MEM_TYPE_IMAGE1D_BUFFER = 6,        ///< 1D image buffer object
+    UR_MEM_TYPE_BUFFER = 0,                         ///< Buffer object
+    UR_MEM_TYPE_IMAGE2D = 1,                        ///< 2D image object
+    UR_MEM_TYPE_IMAGE3D = 2,                        ///< 3D image object
+    UR_MEM_TYPE_IMAGE2D_ARRAY = 3,                  ///< 2D image array object
+    UR_MEM_TYPE_IMAGE1D = 4,                        ///< 1D image object
+    UR_MEM_TYPE_IMAGE1D_ARRAY = 5,                  ///< 1D image array object
+    UR_MEM_TYPE_IMAGE1D_BUFFER = 6,                 ///< 1D image buffer object
     UR_MEM_TYPE_FORCE_UINT32 = 0x7fffffff
 
 } ur_mem_type_t;
@@ -1655,20 +1655,20 @@ typedef enum ur_mem_info_t
 /// @brief Image channel order info: number of channels and the channel layout
 typedef enum ur_image_channel_order_t
 {
-    UR_IMAGE_CHANNEL_ORDER_CHANNEL_ORDER_A = 0,     ///< channel order A
-    UR_IMAGE_CHANNEL_ORDER_CHANNEL_ORDER_R = 1,     ///< channel order R
-    UR_IMAGE_CHANNEL_ORDER_CHANNEL_ORDER_RG = 2,    ///< channel order RG
-    UR_IMAGE_CHANNEL_ORDER_CHANNEL_ORDER_RA = 3,    ///< channel order RA
-    UR_IMAGE_CHANNEL_ORDER_CHANNEL_ORDER_RGB = 4,   ///< channel order RGB
-    UR_IMAGE_CHANNEL_ORDER_CHANNEL_ORDER_RGBA = 5,  ///< channel order RGBA
-    UR_IMAGE_CHANNEL_ORDER_CHANNEL_ORDER_BGRA = 6,  ///< channel order BGRA
-    UR_IMAGE_CHANNEL_ORDER_CHANNEL_ORDER_ARGB = 7,  ///< channel order ARGB
-    UR_IMAGE_CHANNEL_ORDER_CHANNEL_ORDER_INTENSITY = 8, ///< channel order intensity
-    UR_IMAGE_CHANNEL_ORDER_CHANNEL_ORDER_LUMINANCE = 9, ///< channel order luminance
-    UR_IMAGE_CHANNEL_ORDER_CHANNEL_ORDER_RX = 10,   ///< channel order Rx
-    UR_IMAGE_CHANNEL_ORDER_CHANNEL_ORDER_RGX = 11,  ///< channel order RGx
-    UR_IMAGE_CHANNEL_ORDER_CHANNEL_ORDER_RGBX = 12, ///< channel order RGBx
-    UR_IMAGE_CHANNEL_ORDER_CHANNEL_ORDER_SRGBA = 13,///< channel order sRGBA
+    UR_IMAGE_CHANNEL_ORDER_A = 0,                   ///< channel order A
+    UR_IMAGE_CHANNEL_ORDER_R = 1,                   ///< channel order R
+    UR_IMAGE_CHANNEL_ORDER_RG = 2,                  ///< channel order RG
+    UR_IMAGE_CHANNEL_ORDER_RA = 3,                  ///< channel order RA
+    UR_IMAGE_CHANNEL_ORDER_RGB = 4,                 ///< channel order RGB
+    UR_IMAGE_CHANNEL_ORDER_RGBA = 5,                ///< channel order RGBA
+    UR_IMAGE_CHANNEL_ORDER_BGRA = 6,                ///< channel order BGRA
+    UR_IMAGE_CHANNEL_ORDER_ARGB = 7,                ///< channel order ARGB
+    UR_IMAGE_CHANNEL_ORDER_INTENSITY = 8,           ///< channel order intensity
+    UR_IMAGE_CHANNEL_ORDER_LUMINANCE = 9,           ///< channel order luminance
+    UR_IMAGE_CHANNEL_ORDER_RX = 10,                 ///< channel order Rx
+    UR_IMAGE_CHANNEL_ORDER_RGX = 11,                ///< channel order RGx
+    UR_IMAGE_CHANNEL_ORDER_RGBX = 12,               ///< channel order RGBx
+    UR_IMAGE_CHANNEL_ORDER_SRGBA = 13,              ///< channel order sRGBA
     UR_IMAGE_CHANNEL_ORDER_FORCE_UINT32 = 0x7fffffff
 
 } ur_image_channel_order_t;
@@ -1677,21 +1677,21 @@ typedef enum ur_image_channel_order_t
 /// @brief Image channel type info: describe the size of the channel data type
 typedef enum ur_image_channel_type_t
 {
-    UR_IMAGE_CHANNEL_TYPE_CHANNEL_TYPE_SNORM_INT8 = 0,  ///< channel type snorm int8
-    UR_IMAGE_CHANNEL_TYPE_CHANNEL_TYPE_SNORM_INT16 = 1, ///< channel type snorm int16
-    UR_IMAGE_CHANNEL_TYPE_CHANNEL_TYPE_UNORM_INT8 = 2,  ///< channel type unorm int8
-    UR_IMAGE_CHANNEL_TYPE_CHANNEL_TYPE_UNORM_INT16 = 3, ///< channel type unorm int16
-    UR_IMAGE_CHANNEL_TYPE_CHANNEL_TYPE_UNORM_SHORT_565 = 4, ///< channel type unorm short 565
-    UR_IMAGE_CHANNEL_TYPE_CHANNEL_TYPE_UNORM_SHORT_555 = 5, ///< channel type unorm short 555
-    UR_IMAGE_CHANNEL_TYPE_CHANNEL_TYPE_INT_101010 = 6,  ///< channel type int 101010
-    UR_IMAGE_CHANNEL_TYPE_CHANNEL_TYPE_SIGNED_INT8 = 7, ///< channel type signed int8
-    UR_IMAGE_CHANNEL_TYPE_CHANNEL_TYPE_SIGNED_INT16 = 8,///< channel type signed int16
-    UR_IMAGE_CHANNEL_TYPE_CHANNEL_TYPE_SIGNED_INT32 = 9,///< channel type signed int32
-    UR_IMAGE_CHANNEL_TYPE_CHANNEL_TYPE_UNSIGNED_INT8 = 10,  ///< channel type unsigned int8
-    UR_IMAGE_CHANNEL_TYPE_CHANNEL_TYPE_UNSIGNED_INT16 = 11, ///< channel type unsigned int16
-    UR_IMAGE_CHANNEL_TYPE_CHANNEL_TYPE_UNSIGNED_INT32 = 12, ///< channel type unsigned int32
-    UR_IMAGE_CHANNEL_TYPE_CHANNEL_TYPE_HALF_FLOAT = 13, ///< channel type half float
-    UR_IMAGE_CHANNEL_TYPE_CHANNEL_TYPE_FLOAT = 14,  ///< channel type float
+    UR_IMAGE_CHANNEL_TYPE_SNORM_INT8 = 0,           ///< channel type snorm int8
+    UR_IMAGE_CHANNEL_TYPE_SNORM_INT16 = 1,          ///< channel type snorm int16
+    UR_IMAGE_CHANNEL_TYPE_UNORM_INT8 = 2,           ///< channel type unorm int8
+    UR_IMAGE_CHANNEL_TYPE_UNORM_INT16 = 3,          ///< channel type unorm int16
+    UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565 = 4,      ///< channel type unorm short 565
+    UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555 = 5,      ///< channel type unorm short 555
+    UR_IMAGE_CHANNEL_TYPE_INT_101010 = 6,           ///< channel type int 101010
+    UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8 = 7,          ///< channel type signed int8
+    UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16 = 8,         ///< channel type signed int16
+    UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32 = 9,         ///< channel type signed int32
+    UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8 = 10,       ///< channel type unsigned int8
+    UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16 = 11,      ///< channel type unsigned int16
+    UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32 = 12,      ///< channel type unsigned int32
+    UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT = 13,          ///< channel type half float
+    UR_IMAGE_CHANNEL_TYPE_FLOAT = 14,               ///< channel type float
     UR_IMAGE_CHANNEL_TYPE_FORCE_UINT32 = 0x7fffffff
 
 } ur_image_channel_type_t;
@@ -1753,7 +1753,7 @@ typedef struct ur_image_desc_t
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `0x3f < flags`
-///         + `::UR_MEM_TYPE_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
+///         + `::UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pImageFormat`
 ///         + `NULL == pImageDesc`
@@ -1870,7 +1870,7 @@ typedef struct ur_buffer_region_t
 /// @brief Buffer creation type
 typedef enum ur_buffer_create_type_t
 {
-    UR_BUFFER_CREATE_TYPE_BUFFER_CREATE_TYPE_REGION = 0,///< buffer create type is region
+    UR_BUFFER_CREATE_TYPE_REGION = 0,               ///< buffer create type is region
     UR_BUFFER_CREATE_TYPE_FORCE_UINT32 = 0x7fffffff
 
 } ur_buffer_create_type_t;
@@ -1890,7 +1890,7 @@ typedef enum ur_buffer_create_type_t
 ///         + `NULL == hBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `0x3f < flags`
-///         + `::UR_BUFFER_CREATE_TYPE_BUFFER_CREATE_TYPE_REGION < bufferCreateType`
+///         + `::UR_BUFFER_CREATE_TYPE_REGION < bufferCreateType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pBufferCreateInfo`
 ///         + `NULL == phMem`
@@ -2283,14 +2283,14 @@ urQueueFlush(
 /// @brief Get sample object information
 typedef enum ur_sampler_info_t
 {
-    UR_SAMPLER_INFO_SAMPLER_INFO_REFERENCE_COUNT = 0,   ///< Sampler reference count info
-    UR_SAMPLER_INFO_SAMPLER_INFO_CONTEXT = 1,       ///< Sampler context info
-    UR_SAMPLER_INFO_SAMPLER_INFO_NORMALIZED_COORDS = 2, ///< Sampler normalized coordindate setting
-    UR_SAMPLER_INFO_SAMPLER_INFO_ADDRESSING_MODE = 3,   ///< Sampler addressing mode setting
-    UR_SAMPLER_INFO_SAMPLER_INFO_FILTER_MODE = 4,   ///< Sampler filter mode setting
-    UR_SAMPLER_INFO_SAMPLER_INFO_MIP_FILTER_MODE = 5,   ///< Sampler MIP filter mode setting
-    UR_SAMPLER_INFO_SAMPLER_INFO_LOD_MIN = 6,       ///< Sampler LOD Min value
-    UR_SAMPLER_INFO_SAMPLER_INFO_LOD_MAX = 7,       ///< Sampler LOD Max value
+    UR_SAMPLER_INFO_REFERENCE_COUNT = 0,            ///< Sampler reference count info
+    UR_SAMPLER_INFO_CONTEXT = 1,                    ///< Sampler context info
+    UR_SAMPLER_INFO_NORMALIZED_COORDS = 2,          ///< Sampler normalized coordindate setting
+    UR_SAMPLER_INFO_ADDRESSING_MODE = 3,            ///< Sampler addressing mode setting
+    UR_SAMPLER_INFO_FILTER_MODE = 4,                ///< Sampler filter mode setting
+    UR_SAMPLER_INFO_MIP_FILTER_MODE = 5,            ///< Sampler MIP filter mode setting
+    UR_SAMPLER_INFO_LOD_MIN = 6,                    ///< Sampler LOD Min value
+    UR_SAMPLER_INFO_LOD_MAX = 7,                    ///< Sampler LOD Max value
     UR_SAMPLER_INFO_FORCE_UINT32 = 0x7fffffff
 
 } ur_sampler_info_t;
@@ -2299,9 +2299,9 @@ typedef enum ur_sampler_info_t
 /// @brief Sampler properties
 typedef enum ur_sampler_properties_t
 {
-    UR_SAMPLER_PROPERTIES_SAMPLER_PROPERTIES_NORMALIZED_COORDS = 0, ///< Sampler normalized coordinates
-    UR_SAMPLER_PROPERTIES_SAMPLER_PROPERTIES_ADDRESSING_MODE = 1,   ///< Sampler addressing mode
-    UR_SAMPLER_PROPERTIES_SAMPLER_PROPERTIES_FILTER_MODE = 2,   ///< Sampler filter mode
+    UR_SAMPLER_PROPERTIES_NORMALIZED_COORDS = 0,    ///< Sampler normalized coordinates
+    UR_SAMPLER_PROPERTIES_ADDRESSING_MODE = 1,      ///< Sampler addressing mode
+    UR_SAMPLER_PROPERTIES_FILTER_MODE = 2,          ///< Sampler filter mode
     UR_SAMPLER_PROPERTIES_FORCE_UINT32 = 0x7fffffff
 
 } ur_sampler_properties_t;
@@ -2408,7 +2408,7 @@ urSamplerRelease(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hSampler`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_SAMPLER_INFO_SAMPLER_INFO_LOD_MAX < propName`
+///         + `::UR_SAMPLER_INFO_LOD_MAX < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pPropValue`
 ///         + `NULL == pPropSizeRet`
@@ -2488,7 +2488,7 @@ urSamplerCreateWithNativeHandle(
 typedef uint32_t ur_usm_mem_flags_t;
 typedef enum ur_usm_mem_flag_t
 {
-    UR_USM_MEM_FLAG_MEM_ALLOC_FLAGS_INTEL = UR_BIT(0),  ///< The USM memory allocation is from Intel USM
+    UR_USM_MEM_FLAG_ALLOC_FLAGS_INTEL = UR_BIT(0),  ///< The USM memory allocation is from Intel USM
     UR_USM_MEM_FLAG_FORCE_UINT32 = 0x7fffffff
 
 } ur_usm_mem_flag_t;
@@ -2497,10 +2497,10 @@ typedef enum ur_usm_mem_flag_t
 /// @brief USM memory allocation information type
 typedef enum ur_mem_alloc_info_t
 {
-    UR_MEM_ALLOC_INFO_MEM_ALLOC_TYPE = 0,           ///< Memory allocation type info
-    UR_MEM_ALLOC_INFO_MEM_ALLOC_BASE_PTR = 1,       ///< Memory allocation base pointer info
-    UR_MEM_ALLOC_INFO_MEM_ALLOC_SIZE = 2,           ///< Memory allocation size info
-    UR_MEM_ALLOC_INFO_MEM_ALLOC_DEVICE = 3,         ///< Memory allocation device info
+    UR_MEM_ALLOC_INFO_ALLOC_TYPE = 0,               ///< Memory allocation type info
+    UR_MEM_ALLOC_INFO_ALLOC_BASE_PTR = 1,           ///< Memory allocation base pointer info
+    UR_MEM_ALLOC_INFO_ALLOC_SIZE = 2,               ///< Memory allocation size info
+    UR_MEM_ALLOC_INFO_ALLOC_DEVICE = 3,             ///< Memory allocation device info
     UR_MEM_ALLOC_INFO_FORCE_UINT32 = 0x7fffffff
 
 } ur_mem_alloc_info_t;
@@ -2620,7 +2620,7 @@ urMemFree(
 ///         + `NULL == pPropValue`
 ///         + `NULL == pPropValueSizeRet`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_MEM_ALLOC_INFO_MEM_ALLOC_DEVICE < propName`
+///         + `::UR_MEM_ALLOC_INFO_ALLOC_DEVICE < propName`
 ///     - ::UR_RESULT_INVALID_CONTEXT
 ///     - ::UR_RESULT_INVALID_VALUE
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT

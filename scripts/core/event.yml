@@ -15,15 +15,15 @@ desc: "Event query information type"
 class: $xEvent
 name: $x_event_info_t
 etors:
-    - name: EVENT_INFO_COMMAND_QUEUE
+    - name: COMMAND_QUEUE
       desc: "Command queue information of an event object"
-    - name: EVENT_INFO_CONTEXT
+    - name: CONTEXT
       desc: "Context information of an event object"
-    - name: EVENT_INFO_COMMAND_TYPE
+    - name: COMMAND_TYPE
       desc: "Command type information of an event object"
-    - name: EVENT_INFO_COMMAND_EXECUTION_STATUS
+    - name: COMMAND_EXECUTION_STATUS
       desc: "Command execution status of an event object"
-    - name: EVENT_INFO_REFERENCE_COUNT
+    - name: REFERENCE_COUNT
       desc: "Reference count of an event object"
 --- #--------------------------------------------------------------------------
 type: enum
@@ -31,13 +31,13 @@ desc: "Profiling query information type"
 class: $xEvent
 name: $x_profiling_info_t
 etors:
-    - name: PROFILING_INFO_COMMAND_QUEUED
+    - name: COMMAND_QUEUED
       desc: "A 64-bit value of current device counter in nanoseconds when the event is enqueued"
-    - name: PROFILING_INFO_COMMAND_SUBMIT
+    - name: COMMAND_SUBMIT
       desc: "A 64-bit value of current device counter in nanoseconds when the event is submitted"
-    - name: PROFILING_INFO_COMMAND_START
+    - name: COMMAND_START
       desc: "A 64-bit value of current device counter in nanoseconds when the event starts execution"
-    - name: PROFILING_INFO_COMMAND_END
+    - name: COMMAND_END
       desc: "A 64-bit value of current device counter in nanoseconds when the event has finished execution"
 --- #--------------------------------------------------------------------------
 type: function
