@@ -40,7 +40,39 @@ void Scheduler::GraphProcessor::waitForEvent(const EventImplPtr &Event,
   assert(Cmd->getEvent() == Event);
 
   GraphReadLock.unlock();
+
+  static bool ThrowOnBlock = getenv("SYCL_THROW_ON_BLOCK") != nullptr;
+    if (ThrowOnBlock)
+      throw sycl::runtime_error(
+          std::string("Waiting for blocked command. Block reason: ") +
+              std::string(CmdAfterWait->getBlockReason()),
+          PI_ERROR_INVALID_OPERATION);
   Event->waitInternal();
+
+  if (Command* CmdAfterWait = Event->getCommand() && CmdAfterWait->isBlocking())
+  {
+    static bool ThrowOnBlock = getenv("SYCL_THROW_ON_BLOCK") != nullptr;
+    if (ThrowOnBlock)
+      throw sycl::runtime_error(
+          std::string("Waiting for blocked command. Block reason: ") +
+              std::string(CmdAfterWait->getBlockReason()),
+          PI_ERROR_INVALID_OPERATION);
+  #ifdef XPTI_ENABLE_INSTRUMENTATION
+    // Scoped trace event notifier that emits a barrier begin and barrier end
+    // event, which models the barrier while enqueuing along with the blocked
+    // reason, as determined by the scheduler
+    std::string Info = "enqueue.barrier[";
+    Info += std::string(Cmd->getBlockReason()) + "]";
+    emitInstrumentation(xpti::trace_barrier_begin, Info.c_str());
+#endif
+
+    // Wait if blocking. isBlocked path for task completion is handled above with Event->waitInternal().
+    while (CmdAfterWait->MIsManuallyBlocked == true)
+      ;
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    emitInstrumentation(xpti::trace_barrier_end, Info.c_str());
+#endif
+  }
 
   if (LockTheLock)
     GraphReadLock.lock();

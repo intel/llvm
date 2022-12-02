@@ -714,23 +714,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
   //               std::string(getBlockReason()),
   //           PI_ERROR_INVALID_OPERATION);
 
-  // #ifdef XPTI_ENABLE_INSTRUMENTATION
-  //     // Scoped trace event notifier that emits a barrier begin and barrier
-  //     end
-  //     // event, which models the barrier while enqueuing along with the
-  //     blocked
-  //     // reason, as determined by the scheduler
-  //     std::string Info = "enqueue.barrier[";
-  //     Info += std::string(getBlockReason()) + "]";
-  //     emitInstrumentation(xpti::trace_barrier_begin, Info.c_str());
-  // #endif
 
-  //     // Wait if blocking
-  //     while (MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked)
-  //       ;
-  // #ifdef XPTI_ENABLE_INSTRUMENTATION
-  //     emitInstrumentation(xpti::trace_barrier_end, Info.c_str());
-  // #endif
   //   }
 
   std::lock_guard<std::mutex> Lock(MEnqueueMtx);
@@ -1604,7 +1588,8 @@ void UpdateHostRequirementCommand::emitInstrumentationData() {
 }
 
 bool UpdateHostRequirementCommand::supportsPostEnqueueCleanup() const {
-  return !isBlocking(); // to think, may be moved to Command?
+  // TODO: consider moving to base class
+  return !isBlocking();
 }
 
 static std::string cgTypeToString(detail::CG::CGTYPE Type) {

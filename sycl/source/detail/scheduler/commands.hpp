@@ -148,6 +148,7 @@ public:
   enum class BlockReason : int { HostAccessor = 0, HostTask };
   bool blockManually(const BlockReason &Reason);
   bool unblock();
+  void extraWaitIfBlocked();
 
   void addBlockedUserUnique(const EventImplPtr &NewUser) {
     if (std::find(MBlockedUsers.begin(), MBlockedUsers.end(), NewUser) !=
@@ -276,7 +277,7 @@ public:
   /// Contains list of commands that depend on the command.
   std::unordered_set<Command *> MUsers;
   /// Indicates whether the command is set as blocking for its users.
-  bool MIsManuallyBlocked = false;
+  std::atomic_bool MIsManuallyBlocked = false;
   /// Counts the number of memory objects this command is a leaf for.
   unsigned MLeafCounter = 0;
 
