@@ -110,10 +110,10 @@ inline __SYCL_ALWAYS_INLINE
 // sycl::native::tanh is only implemented on nvptx backend so far. For other
 // backends we revert to the sycl::tanh impl.
 template <typename T, size_t N>
-inline __SYCL_ALWAYS_INLINE std::enable_if_t<std::is_same_v<T, half> ||
-                                                 std::is_same_v<T, float>,
-                                             sycl::marray<T, N>>
-tanh(sycl::marray<T, N> x) __NOEXC {
+inline __SYCL_ALWAYS_INLINE
+    std::enable_if_t<std::is_same_v<T, half> || std::is_same_v<T, float>,
+                     sycl::marray<T, N>>
+    tanh(sycl::marray<T, N> x) __NOEXC {
   sycl::marray<T, N> res;
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 #define FUNC_VEC native::tanh
