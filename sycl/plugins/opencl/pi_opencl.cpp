@@ -514,6 +514,7 @@ pi_result piQueueGetInfo(pi_queue queue, pi_queue_info param_name,
 
   switch (param_name) {
   case PI_EXT_ONEAPI_QUEUE_INFO_EMPTY:
+    // OpenCL doesn't provide API to check the status of the queue.
     return PI_ERROR_INVALID_VALUE;
   default:
     cl_int CLErr = clGetCommandQueueInfo(
