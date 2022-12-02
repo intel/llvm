@@ -2549,6 +2549,16 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
     if (CheckIntelFPGAMemBuiltinFunctionCall(TheCall))
       return ExprError();
     break;
+  case Builtin::BI__builtin_intel_fpga_ptr_annotation:
+    if (!Context.getLangOpts().SYCLIsDevice) {
+      Diag(TheCall->getBeginLoc(), diag::err_builtin_requires_language)
+          << "__builtin_intel_fpga_ptr_annotation"
+          << "SYCL device";
+      return ExprError();
+    }
+    if (CheckIntelFPGAPtrAnnotationBuiltinFunctionCall(BuiltinID, TheCall))
+      return ExprError();
+    break;
   case Builtin::BI__builtin_frame_address:
   case Builtin::BI__builtin_return_address: {
     if (SemaBuiltinConstantArgRange(TheCall, 0, 0, 0xFFFF))
@@ -5556,6 +5566,41 @@ bool Sema::CheckIntelFPGAMemBuiltinFunctionCall(CallExpr *TheCall) {
     if (SemaBuiltinConstantArg(TheCall, I, Result))
       return true;
   }
+
+  // Set the return type to be the same as the type of the first argument
+  // (pointer argument)
+  TheCall->setType(PointerArgType);
+  return false;
+}
+
+bool Sema::CheckIntelFPGAPtrAnnotationBuiltinFunctionCall(unsigned BuiltinID,
+                                                CallExpr *TheCall) {
+  const unsigned MinNumArgs = 2;
+  const unsigned MaxNumArgs = 2;
+  unsigned NumArgs = TheCall->getNumArgs();
+
+  // Make sure we have the minimum number of provided arguments.
+  if (checkArgCountAtLeast(*this, TheCall, MinNumArgs))
+    return true;
+
+  // Make sure we don't have too many arguments.
+  if (checkArgCountAtMost(*this, TheCall, MaxNumArgs))
+    return true;
+
+  Expr *PointerArg = TheCall->getArg(0);
+  QualType PointerArgType = PointerArg->getType();
+
+  // Make sure that the first argument is a pointer
+  if (!isa<PointerType>(PointerArgType))
+    return Diag(PointerArg->getBeginLoc(),
+                diag::err_intel_fpga_ptr_annotation_mismatch)
+           << 0;
+
+  // Second argument must be a constant string
+  if (!isa<StringLiteral>(TheCall->getArg(1)))
+    return Diag(PointerArg->getBeginLoc(),
+                diag::err_intel_fpga_ptr_annotation_mismatch)
+           << 0;
 
   // Set the return type to be the same as the type of the first argument
   // (pointer argument)

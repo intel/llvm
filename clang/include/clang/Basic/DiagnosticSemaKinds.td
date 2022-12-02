@@ -163,6 +163,10 @@ def err_intel_fpga_mem_arg_mismatch
     : Error<"builtin parameter must be %select{"
             "a pointer"
             "|a non-negative integer constant}0">;
+def err_intel_fpga_ptr_annotation_mismatch
+    : Error<"builtin parameter must be %select{"
+            "a pointer"
+            "|a non-negative integer constant}0">;
 
 // C99 variable-length arrays
 def ext_vla : Extension<"variable length arrays are a C99 feature">,

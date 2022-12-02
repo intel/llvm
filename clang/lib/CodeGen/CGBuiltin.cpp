@@ -5234,6 +5234,8 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     return EmitIntelFPGARegBuiltin(E, ReturnValue);
   case Builtin::BI__builtin_intel_fpga_mem:
     return EmitIntelFPGAMemBuiltin(E);
+  case Builtin::BI__builtin_intel_fpga_ptr_annotation:
+    return EmitIntelFPGAPtrAnnotationBuiltin(E);
 
   case Builtin::BI__builtin_get_device_side_mangled_name: {
     auto Name = CGM.getCUDARuntime().getDeviceSideName(
@@ -21171,6 +21173,25 @@ RValue CodeGenFunction::EmitIntelFPGARegBuiltin(const CallExpr *E,
   }
 
   return RValue::get(AnnotatedV);
+}
+
+RValue CodeGenFunction::EmitIntelFPGAPtrAnnotationBuiltin(const CallExpr *E) {
+  // Arguments
+  const Expr *PtrArg = E->getArg(0);
+  Value *PtrVal = EmitScalarExpr(PtrArg);
+
+  // Create the pointer annotation
+  Function *F =
+      CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation, PtrVal->getType());
+
+  SmallString<256> AnnotStr;
+  llvm::raw_svector_ostream Out(AnnotStr);
+
+  Out << cast<StringLiteral>(E->getArg(1))->getString();
+
+  llvm::Value *Ann = EmitAnnotationCall(F, PtrVal, AnnotStr, E->getExprLoc());
+
+  return RValue::get(Ann);
 }
 
 RValue CodeGenFunction::EmitIntelFPGAMemBuiltin(const CallExpr *E) {
