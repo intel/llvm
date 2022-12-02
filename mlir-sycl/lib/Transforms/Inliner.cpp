@@ -318,6 +318,19 @@ public:
       : sycl::impl::InlinePassBase<InlinePass>(Options) {}
   InlinePass(const InlinePass &) = default;
 
+  llvm::StringRef getArgument() const final {
+    switch (InlineMode) {
+    case sycl::InlineMode::Ludicrous:
+      return "Mode = Ludricrous";
+    case sycl::InlineMode::Aggressive:
+      return "Mode = Aggressive";
+    case sycl::InlineMode::Simple:
+      return "Mode = Simple";
+    case sycl::InlineMode::AlwaysInline:
+      return "Mode = AlwaysInline";
+    }
+  }
+
   void runOnOperation() final;
 
 private:
@@ -505,8 +518,11 @@ void CGUseList::decrementDiscardableUses(CGUser &Uses) {
 
 bool InlineHeuristic::shouldInline(ResolvedCall &ResolvedCall,
                                    const CGUseList &Uses) const {
-  if (isRecursiveCall(ResolvedCall))
+  if (isRecursiveCall(ResolvedCall)) {
+    LLVM_DEBUG(llvm::dbgs()
+               << "Call is recursive, not considered for inlining\n");
     return false;
+  }
 
   FunctionOpInterface Callee = getCalledFunction(ResolvedCall.Call);
   NamedAttrList FnAttrs(Callee->getAttrDictionary());
@@ -544,6 +560,9 @@ bool InlineHeuristic::shouldInline(ResolvedCall &ResolvedCall,
     break;
   }
 
+  if (ShouldInline)
+    return true;
+
   // Decide whether to inline a callee based on its size.
   unsigned MaxSize = 0;
   switch (InlineMode) {
@@ -557,13 +576,17 @@ bool InlineHeuristic::shouldInline(ResolvedCall &ResolvedCall,
     MaxSize = MaxCalleeSize::Small;
     break;
   case sycl::InlineMode::AlwaysInline:
-    break;
+    return false;
   }
 
-  if (MaxSize)
-    ShouldInline |= (computeCalleeSize(ResolvedCall) <= MaxSize);
+  bool Size = computeCalleeSize(ResolvedCall);
+  LLVM_DEBUG({
+    if (Size > MaxSize)
+      llvm::dbgs() << "Callee has size = " << Size
+                   << ", which is greater than the max (" << MaxSize << ")";
+  });
 
-  return ShouldInline;
+  return (Size <= MaxSize);
 }
 
 bool InlineHeuristic::isRecursiveCall(const ResolvedCall &ResolvedCall) {
