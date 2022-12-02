@@ -597,19 +597,27 @@ public:
     if (!Arg)
       return;
 
-    // Is this parameter passed by non-const reference?
+    // Is this parameter passed by non-const pointer or reference?
     // FIXME The condition T->idDependentType() could be relaxed a bit,
     // e.g. std::vector<T>& is dependent but we would want to highlight it
-    if (!T->isLValueReferenceType() ||
-        T.getNonReferenceType().isConstQualified() || T->isDependentType()) {
+    bool IsRef = T->isLValueReferenceType();
+    bool IsPtr = T->isPointerType();
+    if ((!IsRef && !IsPtr) || T->getPointeeType().isConstQualified() ||
+        T->isDependentType()) {
       return;
     }
 
     llvm::Optional<SourceLocation> Location;
 
-    // FIXME Add "unwrapping" for ArraySubscriptExpr and UnaryOperator,
+    // FIXME Add "unwrapping" for ArraySubscriptExpr,
     //  e.g. highlight `a` in `a[i]`
     // FIXME Handle dependent expression types
+    if (auto *IC = dyn_cast<ImplicitCastExpr>(Arg))
+      Arg = IC->getSubExprAsWritten();
+    if (auto *UO = dyn_cast<UnaryOperator>(Arg)) {
+      if (UO->getOpcode() == UO_AddrOf)
+        Arg = UO->getSubExpr();
+    }
     if (auto *DR = dyn_cast<DeclRefExpr>(Arg))
       Location = DR->getLocation();
     else if (auto *M = dyn_cast<MemberExpr>(Arg))
@@ -617,7 +625,8 @@ public:
 
     if (Location)
       H.addExtraModifier(*Location,
-                         HighlightingModifier::UsedAsMutableReference);
+                         IsRef ? HighlightingModifier::UsedAsMutableReference
+                               : HighlightingModifier::UsedAsMutablePointer);
   }
 
   void
@@ -800,6 +809,18 @@ public:
     return true;
   }
 
+  bool VisitAttr(Attr *A) {
+    switch (A->getKind()) {
+    case attr::Override:
+    case attr::Final:
+      H.addToken(A->getLocation(), HighlightingKind::Modifier);
+      break;
+    default:
+      break;
+    }
+    return true;
+  }
+
   bool VisitDependentNameTypeLoc(DependentNameTypeLoc L) {
     H.addToken(L.getNameLoc(), HighlightingKind::Type)
         .addModifier(HighlightingModifier::DependentName)
@@ -976,6 +997,8 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, HighlightingKind K) {
     return OS << "Primitive";
   case HighlightingKind::Macro:
     return OS << "Macro";
+  case HighlightingKind::Modifier:
+    return OS << "Modifier";
   case HighlightingKind::InactiveCode:
     return OS << "InactiveCode";
   }
@@ -1110,6 +1133,8 @@ llvm::StringRef toSemanticTokenType(HighlightingKind Kind) {
     return "type";
   case HighlightingKind::Macro:
     return "macro";
+  case HighlightingKind::Modifier:
+    return "modifier";
   case HighlightingKind::InactiveCode:
     return "comment";
   }
@@ -1140,6 +1165,8 @@ llvm::StringRef toSemanticTokenModifier(HighlightingModifier Modifier) {
     return "defaultLibrary";
   case HighlightingModifier::UsedAsMutableReference:
     return "usedAsMutableReference"; // nonstandard
+  case HighlightingModifier::UsedAsMutablePointer:
+    return "usedAsMutablePointer"; // nonstandard
   case HighlightingModifier::ConstructorOrDestructor:
     return "constructorOrDestructor"; // nonstandard
   case HighlightingModifier::FunctionScope:

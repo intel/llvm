@@ -44,23 +44,6 @@ void BuiltinDialect::registerAttributes() {
 }
 
 //===----------------------------------------------------------------------===//
-// ArrayAttr
-//===----------------------------------------------------------------------===//
-
-void ArrayAttr::walkImmediateSubElements(
-    function_ref<void(Attribute)> walkAttrsFn,
-    function_ref<void(Type)> walkTypesFn) const {
-  for (Attribute attr : getValue())
-    walkAttrsFn(attr);
-}
-
-Attribute
-ArrayAttr::replaceImmediateSubElements(ArrayRef<Attribute> replAttrs,
-                                       ArrayRef<Type> replTypes) const {
-  return get(getContext(), replAttrs);
-}
-
-//===----------------------------------------------------------------------===//
 // DictionaryAttr
 //===----------------------------------------------------------------------===//
 
@@ -217,25 +200,6 @@ DictionaryAttr DictionaryAttr::getEmptyUnchecked(MLIRContext *context) {
   return Base::get(context, ArrayRef<NamedAttribute>());
 }
 
-void DictionaryAttr::walkImmediateSubElements(
-    function_ref<void(Attribute)> walkAttrsFn,
-    function_ref<void(Type)> walkTypesFn) const {
-  for (const NamedAttribute &attr : getValue())
-    walkAttrsFn(attr.getValue());
-}
-
-Attribute
-DictionaryAttr::replaceImmediateSubElements(ArrayRef<Attribute> replAttrs,
-                                            ArrayRef<Type> replTypes) const {
-  std::vector<NamedAttribute> vec = getValue().vec();
-  for (auto &it : llvm::enumerate(replAttrs))
-    vec[it.index()].setValue(it.value());
-
-  // The above only modifies the mapped value, but not the key, and therefore
-  // not the order of the elements. It remains sorted
-  return getWithSorted(getContext(), vec);
-}
-
 //===----------------------------------------------------------------------===//
 // StridedLayoutAttr
 //===----------------------------------------------------------------------===//
@@ -243,7 +207,7 @@ DictionaryAttr::replaceImmediateSubElements(ArrayRef<Attribute> replAttrs,
 /// Prints a strided layout attribute.
 void StridedLayoutAttr::print(llvm::raw_ostream &os) const {
   auto printIntOrQuestion = [&](int64_t value) {
-    if (value == ShapedType::kDynamicStrideOrOffset)
+    if (ShapedType::isDynamic(value))
       os << "?";
     else
       os << value;
@@ -373,24 +337,6 @@ FlatSymbolRefAttr SymbolRefAttr::get(Operation *symbol) {
 StringAttr SymbolRefAttr::getLeafReference() const {
   ArrayRef<FlatSymbolRefAttr> nestedRefs = getNestedReferences();
   return nestedRefs.empty() ? getRootReference() : nestedRefs.back().getAttr();
-}
-
-void SymbolRefAttr::walkImmediateSubElements(
-    function_ref<void(Attribute)> walkAttrsFn,
-    function_ref<void(Type)> walkTypesFn) const {
-  walkAttrsFn(getRootReference());
-  for (FlatSymbolRefAttr ref : getNestedReferences())
-    walkAttrsFn(ref);
-}
-
-Attribute
-SymbolRefAttr::replaceImmediateSubElements(ArrayRef<Attribute> replAttrs,
-                                           ArrayRef<Type> replTypes) const {
-  ArrayRef<Attribute> rawNestedRefs = replAttrs.drop_front();
-  ArrayRef<FlatSymbolRefAttr> nestedRefs(
-      static_cast<const FlatSymbolRefAttr *>(rawNestedRefs.data()),
-      rawNestedRefs.size());
-  return get(replAttrs[0].cast<StringAttr>(), nestedRefs);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1813,22 +1759,6 @@ SparseElementsAttr::verify(function_ref<InFlightDiagnostic()> emitError,
 }
 
 //===----------------------------------------------------------------------===//
-// TypeAttr
-//===----------------------------------------------------------------------===//
-
-void TypeAttr::walkImmediateSubElements(
-    function_ref<void(Attribute)> walkAttrsFn,
-    function_ref<void(Type)> walkTypesFn) const {
-  walkTypesFn(getValue());
-}
-
-Attribute
-TypeAttr::replaceImmediateSubElements(ArrayRef<Attribute> replAttrs,
-                                      ArrayRef<Type> replTypes) const {
-  return get(replTypes[0]);
-}
-
-//===----------------------------------------------------------------------===//
 // Attribute Utilities
 //===----------------------------------------------------------------------===//
 
@@ -1840,7 +1770,7 @@ AffineMap mlir::makeStridedLinearLayoutMap(ArrayRef<int64_t> strides,
 
   // AffineExpr for offset.
   // Static case.
-  if (offset != MemRefType::getDynamicStrideOrOffset()) {
+  if (!ShapedType::isDynamic(offset)) {
     auto cst = getAffineConstantExpr(offset, context);
     expr = cst;
   } else {
@@ -1857,7 +1787,7 @@ AffineMap mlir::makeStridedLinearLayoutMap(ArrayRef<int64_t> strides,
     auto d = getAffineDimExpr(dim, context);
     AffineExpr mult;
     // Static case.
-    if (stride != MemRefType::getDynamicStrideOrOffset())
+    if (!ShapedType::isDynamic(stride))
       mult = getAffineConstantExpr(stride, context);
     else
       // Dynamic case, new symbol for each new stride.

@@ -49,6 +49,8 @@ def LLVM_Dialect : Dialect {
     static StringRef getStructRetAttrName() { return "llvm.sret"; }
     static StringRef getInAllocaAttrName() { return "llvm.inalloca"; }
     static StringRef getNoUndefAttrName() { return "llvm.noundef"; }
+    static StringRef getSExtAttrName() { return "llvm.signext"; }
+    static StringRef getZExtAttrName() { return "llvm.zeroext"; }
 
     /// Verifies if the attribute is a well-formed value for "llvm.struct_attrs"
     static LogicalResult verifyStructAttr(
@@ -374,7 +376,7 @@ class LLVM_IntrOpBase<Dialect dialect, string opName, string enumName,
     Operation *op = $_builder.create<$_qualCppClassName>(
       $_location,
       resultTypes,
-      processValues(llvmOperands));
+      convertValues(llvmOperands));
     }] # !if(!gt(numResults, 0), "$res = op->getResult(0);", "(void)op;");
 }
 

@@ -26,10 +26,10 @@
 #include "llvm/Config/llvm-config.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/ModRef.h"
 #include "llvm/IR/Type.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/ModRef.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cassert>
@@ -600,8 +600,7 @@ enum AttributeProperty {
 static bool hasAttributeProperty(Attribute::AttrKind Kind,
                                  AttributeProperty Prop) {
   unsigned Index = Kind - 1;
-  assert(Index < sizeof(AttrPropTable) / sizeof(AttrPropTable[0]) &&
-         "Invalid attribute kind");
+  assert(Index < std::size(AttrPropTable) && "Invalid attribute kind");
   return AttrPropTable[Index] & Prop;
 }
 

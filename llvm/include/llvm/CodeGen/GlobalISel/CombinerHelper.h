@@ -129,6 +129,10 @@ public:
     return KB;
   }
 
+  MachineIRBuilder &getBuilder() const {
+    return Builder;
+  }
+
   const TargetLowering &getTargetLowering() const;
 
   /// \returns true if the combiner is running pre-legalization.
@@ -695,6 +699,9 @@ public:
   ///           (fmad fneg(x), fneg(y), z) -> (fmad x, y, z)
   ///           (fma fneg(x), fneg(y), z) -> (fma x, y, z)
   bool matchRedundantNegOperands(MachineInstr &MI, BuildFnTy &MatchInfo);
+
+  bool matchFsubToFneg(MachineInstr &MI, Register &MatchInfo);
+  void applyFsubToFneg(MachineInstr &MI, Register &MatchInfo);
 
   bool canCombineFMadOrFMA(MachineInstr &MI, bool &AllowFusionGlobally,
                            bool &HasFMAD, bool &Aggressive,

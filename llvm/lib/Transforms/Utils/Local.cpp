@@ -80,6 +80,7 @@
 #include <cstdint>
 #include <iterator>
 #include <map>
+#include <optional>
 #include <utility>
 
 using namespace llvm;
@@ -807,7 +808,7 @@ void llvm::MergeBasicBlockIntoOnlyPred(BasicBlock *DestBB,
     DestBB->moveAfter(PredBB);
 
   if (DTU) {
-    assert(PredBB->getInstList().size() == 1 &&
+    assert(PredBB->size() == 1 &&
            isa<UnreachableInst>(PredBB->getTerminator()) &&
            "The successor list of PredBB isn't empty before "
            "applying corresponding DTU updates.");
@@ -1228,7 +1229,7 @@ bool llvm::TryToSimplifyUncondBranchFromEmptyBlock(BasicBlock *BB,
 
   // Clear the successor list of BB to match updates applying to DTU later.
   if (BB->getTerminator())
-    BB->getInstList().pop_back();
+    BB->back().eraseFromParent();
   new UnreachableInst(BB->getContext(), BB);
   assert(succ_empty(BB) && "The successor list of BB isn't empty before "
                            "applying corresponding DTU updates.");
@@ -1495,30 +1496,17 @@ static bool valueCoversEntireFragment(Type *ValTy, DbgVariableIntrinsic *DII) {
   return false;
 }
 
-/// Produce a DebugLoc to use for each dbg.declare/inst pair that are promoted
-/// to a dbg.value. Because no machine insts can come from debug intrinsics,
-/// only the scope and inlinedAt is significant. Zero line numbers are used in
-/// case this DebugLoc leaks into any adjacent instructions.
-static DebugLoc getDebugValueLoc(DbgVariableIntrinsic *DII, Instruction *Src) {
-  // Original dbg.declare must have a location.
-  const DebugLoc &DeclareLoc = DII->getDebugLoc();
-  MDNode *Scope = DeclareLoc.getScope();
-  DILocation *InlinedAt = DeclareLoc.getInlinedAt();
-  // Produce an unknown location with the correct scope / inlinedAt fields.
-  return DILocation::get(DII->getContext(), 0, 0, Scope, InlinedAt);
-}
-
 /// Inserts a llvm.dbg.value intrinsic before a store to an alloca'd value
 /// that has an associated llvm.dbg.declare or llvm.dbg.addr intrinsic.
 void llvm::ConvertDebugDeclareToDebugValue(DbgVariableIntrinsic *DII,
                                            StoreInst *SI, DIBuilder &Builder) {
-  assert(DII->isAddressOfVariable());
+  assert(DII->isAddressOfVariable() || isa<DbgAssignIntrinsic>(DII));
   auto *DIVar = DII->getVariable();
   assert(DIVar && "Missing variable");
   auto *DIExpr = DII->getExpression();
   Value *DV = SI->getValueOperand();
 
-  DebugLoc NewLoc = getDebugValueLoc(DII, SI);
+  DebugLoc NewLoc = getDebugValueLoc(DII);
 
   if (!valueCoversEntireFragment(DV->getType(), DII)) {
     // FIXME: If storing to a part of the variable described by the dbg.declare,
@@ -1553,7 +1541,7 @@ void llvm::ConvertDebugDeclareToDebugValue(DbgVariableIntrinsic *DII,
     return;
   }
 
-  DebugLoc NewLoc = getDebugValueLoc(DII, nullptr);
+  DebugLoc NewLoc = getDebugValueLoc(DII);
 
   // We are now tracking the loaded value instead of the address. In the
   // future if multi-location support is added to the IR, it might be
@@ -1587,7 +1575,7 @@ void llvm::ConvertDebugDeclareToDebugValue(DbgVariableIntrinsic *DII,
   BasicBlock *BB = APN->getParent();
   auto InsertionPt = BB->getFirstInsertionPt();
 
-  DebugLoc NewLoc = getDebugValueLoc(DII, nullptr);
+  DebugLoc NewLoc = getDebugValueLoc(DII);
 
   // The block may be a catchswitch block, which does not have a valid
   // insertion point.
@@ -1659,7 +1647,7 @@ bool llvm::LowerDbgDeclare(Function &F) {
           // pointer to the variable. Insert a *value* intrinsic that describes
           // the variable by dereferencing the alloca.
           if (!CI->isLifetimeStartOrEnd()) {
-            DebugLoc NewLoc = getDebugValueLoc(DDI, nullptr);
+            DebugLoc NewLoc = getDebugValueLoc(DDI);
             auto *DerefExpr =
                 DIExpression::append(DDI->getExpression(), dwarf::DW_OP_deref);
             DIB.insertDbgValueIntrinsic(AI, DDI->getVariable(), DerefExpr,
@@ -1803,6 +1791,40 @@ void llvm::salvageDebugInfo(Instruction &I) {
   salvageDebugInfoForDbgValues(I, DbgUsers);
 }
 
+/// Salvage the address component of \p DAI.
+static void salvageDbgAssignAddress(DbgAssignIntrinsic *DAI) {
+  Instruction *I = dyn_cast<Instruction>(DAI->getAddress());
+  // Only instructions can be salvaged at the moment.
+  if (!I)
+    return;
+
+  assert(!DAI->getAddressExpression()->getFragmentInfo().has_value() &&
+         "address-expression shouldn't have fragment info");
+
+  // The address component of a dbg.assign cannot be variadic.
+  uint64_t CurrentLocOps = 0;
+  SmallVector<Value *, 4> AdditionalValues;
+  SmallVector<uint64_t, 16> Ops;
+  Value *NewV = salvageDebugInfoImpl(*I, CurrentLocOps, Ops, AdditionalValues);
+
+  // Check if the salvage failed.
+  if (!NewV)
+    return;
+
+  DIExpression *SalvagedExpr = DIExpression::appendOpsToArg(
+      DAI->getAddressExpression(), Ops, 0, /*StackValue=*/false);
+  assert(!SalvagedExpr->getFragmentInfo().has_value() &&
+         "address-expression shouldn't have fragment info");
+
+  // Salvage succeeds if no additional values are required.
+  if (AdditionalValues.empty()) {
+    DAI->setAddress(NewV);
+    DAI->setAddressExpression(SalvagedExpr);
+  } else {
+    DAI->setAddress(UndefValue::get(I->getType()));
+  }
+}
+
 void llvm::salvageDebugInfoForDbgValues(
     Instruction &I, ArrayRef<DbgVariableIntrinsic *> DbgUsers) {
   // These are arbitrary chosen limits on the maximum number of values and the
@@ -1813,6 +1835,15 @@ void llvm::salvageDebugInfoForDbgValues(
   bool Salvaged = false;
 
   for (auto *DII : DbgUsers) {
+    if (auto *DAI = dyn_cast<DbgAssignIntrinsic>(DII)) {
+      if (DAI->getAddress() == &I) {
+        salvageDbgAssignAddress(DAI);
+        Salvaged = true;
+      }
+      if (DAI->getValue() != &I)
+        continue;
+    }
+
     // Do not add DW_OP_stack_value for DbgDeclare and DbgAddr, because they
     // are implicitly pointing out the value as a DWARF memory location
     // description.
@@ -1849,13 +1880,15 @@ void llvm::salvageDebugInfoForDbgValues(
     bool IsValidSalvageExpr = SalvagedExpr->getNumElements() <= MaxExpressionSize;
     if (AdditionalValues.empty() && IsValidSalvageExpr) {
       DII->setExpression(SalvagedExpr);
-    } else if (isa<DbgValueInst>(DII) && IsValidSalvageExpr &&
+    } else if (isa<DbgValueInst>(DII) && !isa<DbgAssignIntrinsic>(DII) &&
+               IsValidSalvageExpr &&
                DII->getNumVariableLocationOps() + AdditionalValues.size() <=
                    MaxDebugArgs) {
       DII->addVariableLocationOps(AdditionalValues, SalvagedExpr);
     } else {
       // Do not salvage using DIArgList for dbg.addr/dbg.declare, as it is
-      // currently only valid for stack value expressions.
+      // currently only valid for stack value expressions. Do not salvage
+      // using DIArgList for dbg.assign yet. FIXME: support this.
       // Also do not salvage if the resulting DIArgList would contain an
       // unreasonably large number of values.
       Value *Undef = UndefValue::get(I.getOperand(0)->getType());
@@ -2016,7 +2049,7 @@ Value *llvm::salvageDebugInfoImpl(Instruction &I, uint64_t CurrentLocOps,
 }
 
 /// A replacement for a dbg.value expression.
-using DbgValReplacement = Optional<DIExpression *>;
+using DbgValReplacement = std::optional<DIExpression *>;
 
 /// Point debug users of \p From to \p To using exprs given by \p RewriteExpr,
 /// possibly moving/undefing users to prevent use-before-def. Returns true if
@@ -2206,7 +2239,7 @@ unsigned llvm::changeToUnreachable(Instruction *I, bool PreserveLCSSA,
   while (BBI != BBE) {
     if (!BBI->use_empty())
       BBI->replaceAllUsesWith(PoisonValue::get(BBI->getType()));
-    BB->getInstList().erase(BBI++);
+    BBI++->eraseFromParent();
     ++NumInstrsRemoved;
   }
   if (DTU) {
@@ -2276,7 +2309,7 @@ BasicBlock *llvm::changeToInvokeAndSplitBasicBlock(CallInst *CI,
                                  CI->getName() + ".noexc");
 
   // Delete the unconditional branch inserted by SplitBlock
-  BB->getInstList().pop_back();
+  BB->back().eraseFromParent();
 
   // Create the new invoke instruction.
   SmallVector<Value *, 8> InvokeArgs(CI->args());
@@ -2304,7 +2337,7 @@ BasicBlock *llvm::changeToInvokeAndSplitBasicBlock(CallInst *CI,
   CI->replaceAllUsesWith(II);
 
   // Delete the original call
-  Split->getInstList().pop_front();
+  Split->front().eraseFromParent();
   return Split;
 }
 
@@ -2357,7 +2390,9 @@ static bool markAliveBlocks(Function &F,
               }
           }
         } else if ((isa<ConstantPointerNull>(Callee) &&
-                    !NullPointerIsDefined(CI->getFunction())) ||
+                    !NullPointerIsDefined(CI->getFunction(),
+                                          cast<PointerType>(Callee->getType())
+                                              ->getAddressSpace())) ||
                    isa<UndefValue>(Callee)) {
           changeToUnreachable(CI, false, DTU);
           Changed = true;
@@ -2596,6 +2631,9 @@ void llvm::combineMetadata(Instruction *K, const Instruction *J,
         break;
       case LLVMContext::MD_dbg:
         llvm_unreachable("getAllMetadataOtherThanDebugLoc returned a MD_dbg");
+      case LLVMContext::MD_DIAssignID:
+        K->mergeDIAssignID(J);
+        break;
       case LLVMContext::MD_tbaa:
         K->setMetadata(Kind, MDNode::getMostGenericTBAA(JMD, KMD));
         break;

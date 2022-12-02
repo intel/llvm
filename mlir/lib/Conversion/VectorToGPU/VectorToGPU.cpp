@@ -94,7 +94,7 @@ static bool contractSupportsMMAMatrixType(vector::ContractionOp contract,
 
 // Return the stide for the dimension 0 of |type| if it is a memref and has a
 // constant stride.
-static llvm::Optional<int64_t>
+static std::optional<int64_t>
 getMemrefConstantHorizontalStride(ShapedType type) {
   auto memrefType = type.dyn_cast<MemRefType>();
   if (!memrefType)
@@ -108,7 +108,7 @@ getMemrefConstantHorizontalStride(ShapedType type) {
       strides.back() != 1)
     return llvm::None;
   int64_t stride = strides[strides.size() - 2];
-  if (stride == ShapedType::kDynamicStrideOrOffset)
+  if (stride == ShapedType::kDynamic)
     return llvm::None;
   return stride;
 }
@@ -172,7 +172,7 @@ static bool broadcastSupportsMMAMatrixType(vector::BroadcastOp broadcastOp) {
 
 /// Return the MMA elementwise enum associated with `op` if it is supported.
 /// Return `llvm::None` otherwise.
-static llvm::Optional<gpu::MMAElementwiseOp>
+static std::optional<gpu::MMAElementwiseOp>
 convertElementwiseOpToMMA(Operation *op) {
   if (isa<arith::AddFOp>(op))
     return gpu::MMAElementwiseOp::ADDF;
@@ -212,7 +212,7 @@ extractStridedSliceSupportsMMAMatrixType(vector::ExtractStridedSliceOp op) {
   if (warpMatrixInfo->operandRole == nvgpu::MatMulOperandRole::B)
     return (op->getResult(0).getType().cast<VectorType>() ==
             (*contractOp).getRhs().getType().cast<VectorType>());
-  else if (warpMatrixInfo->operandRole == nvgpu::MatMulOperandRole::C)
+  if (warpMatrixInfo->operandRole == nvgpu::MatMulOperandRole::C)
     return (op->getResult(0).getType().cast<VectorType>() ==
             (*contractOp).getAcc().getType().cast<VectorType>());
 
@@ -431,7 +431,7 @@ static void convertTransferReadOp(vector::TransferReadOp op,
                                   llvm::DenseMap<Value, Value> &valueMapping) {
   assert(op.getTransferRank() > 0 && "unexpected 0-d transfer");
   assert(transferReadSupportsMMAMatrixType(op, /*useNvGpu=*/false));
-  Optional<int64_t> stride =
+  std::optional<int64_t> stride =
       getMemrefConstantHorizontalStride(op.getShapedType());
   AffineMap map = op.getPermutationMap();
   // Handle broadcast by setting the stride to 0.
@@ -454,7 +454,7 @@ static void convertTransferReadOp(vector::TransferReadOp op,
 static void convertTransferWriteOp(vector::TransferWriteOp op,
                                    llvm::DenseMap<Value, Value> &valueMapping) {
   assert(transferWriteSupportsMMAMatrixType(op));
-  Optional<int64_t> stride =
+  std::optional<int64_t> stride =
       getMemrefConstantHorizontalStride(op.getShapedType());
   assert(stride);
   OpBuilder b(op);
@@ -768,7 +768,7 @@ convertExtractStridedSlice(vector::ExtractStridedSliceOp op,
 
   if (offsets[0] && offsets[1])
     return op->emitError() << "Slicing fragments in 2D is not supported. ";
-  else if (offsets[0])
+  if (offsets[0])
     sliceOffset[0] = (warpVectorShape[0] / offsets[0]);
   else if (offsets[1])
     sliceOffset[0] = (warpVectorShape[1] / offsets[1]);

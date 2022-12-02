@@ -26,7 +26,7 @@ class SparseTensor_Op<string mnemonic, list<Trait> traits = []>
 //===----------------------------------------------------------------------===//
 
 def SparseTensor_NewOp : SparseTensor_Op<"new", [Pure]>,
-    Arguments<(ins AnyType:$source)>,
+    Arguments<(ins AnyType:$source, UnitAttr:$expandSymmetry)>,
     Results<(outs AnySparseTensor:$result)> {
   string summary = "Materializes a new sparse tensor from given source";
   string description = [{
@@ -39,13 +39,22 @@ def SparseTensor_NewOp : SparseTensor_Op<"new", [Pure]>,
     code. The operation is provided as an anchor that materializes a properly
     typed sparse tensor with inital contents into a computation.
 
+    An optional attribute `expandSymmetry` can be used to extend this operation
+    to make symmetry in external formats explicit in the storage. That is, when
+    the attribute presents and a non-zero value is discovered at (i, j) where
+    i!=j, we add the same value to (j, i). This claims more storage than a pure
+    symmetric storage, and thus may cause a bad performance hit. True symmetric
+    storage is planned for the future.
+
     Example:
 
     ```mlir
     sparse_tensor.new %source : !Source to tensor<1024x1024xf64, #CSR>
     ```
   }];
-  let assemblyFormat = "$source attr-dict `:` type($source) `to` type($result)";
+  let assemblyFormat = "(`expand_symmetry` $expandSymmetry^)? $source attr-dict"
+                       "`:` type($source) `to` type($result)";
+  let hasVerifier = 1;
 }
 
 def SparseTensor_ConvertOp : SparseTensor_Op<"convert",
@@ -518,6 +527,45 @@ def SparseTensor_SortOp : SparseTensor_Op<"sort", [AttrSizedOperandSegments]>,
   let hasVerifier = 1;
 }
 
+def SparseTensor_SortCooOp : SparseTensor_Op<"sort_coo">,
+    Arguments<(ins Index:$n, StridedMemRefRankOf<[AnyInteger, Index], [1]>:$xy,
+               Variadic<StridedMemRefRankOf<[AnyType], [1]>>:$ys,
+               OptionalAttr<IndexAttr>:$nx, OptionalAttr<IndexAttr>:$ny,
+               UnitAttr:$stable)>  {
+  let summary = "Sorts the arrays in xs and ys lexicographically on the "
+                "integral values found in the xs list";
+  let description = [{
+    Sparse_tensor.sort_coo is similar to sparse_tensor.sort, except that all the
+    `xs` values and some `ys` values are put in the linear buffer `xy`. The
+    optional index attribute `nx` provides the number of `xs` values in `xy`.
+    When `nx` is not explicitly specified, its value is 1. The optional index
+    attribute `ny` provides the number of `ys` values in `xy`. When `ny` is not
+    explicitly specified, its value is 0. This instruction supports a more
+    efficient way to store the COO definition in sparse tensor type.
+
+    The buffer xy should have a dimension not less than n * (nx + ny) while the
+    buffers in `ys` should have a dimension not less than `n`. The behavior of
+    the operator is undefined if this condition is not met.
+
+    Example:
+
+    ```mlir
+    sparse_tensor.sort_coo %n, %x { nx = 2 : index}
+      : memref<?xindex>
+    ```
+
+    ```mlir
+    sparse_tensor.sort %n, %xy jointly %y1 { nx = 2 : index, ny = 2 : index}
+      : memref<?xi64> jointly memref<?xf32>
+    ```
+  }];
+
+  let assemblyFormat = "(`stable` $stable^)? $n"
+                       "`,`$xy (`jointly` $ys^)? attr-dict"
+                       "`:` type($xy) (`jointly` type($ys)^)?";
+  let hasVerifier = 1;
+}
+
 //===----------------------------------------------------------------------===//
 // Sparse Tensor Syntax Operations.
 //===----------------------------------------------------------------------===//
@@ -857,21 +905,44 @@ def SparseTensor_YieldOp : SparseTensor_Op<"yield", [Pure, Terminator]>,
 
 def SparseTensor_ForeachOp : SparseTensor_Op<"foreach",
     [SingleBlockImplicitTerminator<"YieldOp">]>,
-    Arguments<(ins AnyTensor:$tensor)>{
+     Arguments<(ins AnyTensor:$tensor,
+                    Variadic<AnyType>:$initArgs)>,
+     Results<(outs Variadic<AnyType>:$results)> {
   let summary = "Iterates over elements in a tensor";
   let description = [{
      Iterates over stored elements in a tensor (which are typically, but not always,
      non-zero for sparse tensors) and executes the block.
 
-     For an input tensor with rank n, the block must take n + 1 arguments. The
-     first n arguments must be Index type, together indicating the current coordinates
-     of the element being visited. The last argument must have the same type as the
+     For an input tensor with rank n, the block must take n + 1 (and additional loop
+     carried variables as described below) arguments. The first n arguments must be
+     Index type, together indicating the current coordinates of the element being visited.
+     The last argument must have the same type as the
      tensor's element type, representing the actual value loaded from the input
      tensor at the given coordinates.
 
-     Note that foreach generated loop iterates over the stored elements in the storage
-     order. However, no matter what storage order is used, the indices passed to the block
-     always obey the original dimension order.
+     `sparse_tensor.foreach` can also operate on loop-carried variables and returns
+     the final values after loop termination. The initial values of the variables are
+     passed as additional SSA operands to the "sparse_tensor.foreach" following the n + 1
+     SSA values mentioned above (n coordinate and 1 value).
+
+     The region must terminate with a "sparse_tensor.yield" that passes the current
+     values of all loop-carried variables to the next iteration, or to the
+     result, if at the last iteration. The number and static types of loop-carried
+     variables may not change with iterations.
+
+     For example:
+     ```mlir
+     %c0 = arith.constant 0 : i32
+     %ret = sparse_tensor.foreach in %0 init(%c0): tensor<?x?xi32, #DCSR>, i32 -> i32 do {
+      ^bb0(%arg1: index, %arg2: index, %arg3: i32, %iter: i32):
+        %sum = arith.add %iter, %arg3
+        sparse_tensor.yield %sum
+     }
+     ```
+
+     It is important to note that foreach generated loop iterates over the stored elements
+     in the storage order. However, no matter what storage order is used, the indices passed
+     to the block always obey the original dimension order.
 
      For example:
      ```mlir
@@ -879,10 +950,10 @@ def SparseTensor_ForeachOp : SparseTensor_Op<"foreach",
        dimLevelType = [ "compressed", "compressed" ],
        dimOrdering = affine_map<(i,j) -> (j,i)>
      }>
-     
+
      // foreach on a column-major sparse tensor
      sparse_tensor.foreach in %0 : tensor<2x3xf64, #COL_MAJOR> do {
-      ^bb0(%row: index, %col: index, %arg3: f64): 
+      ^bb0(%row: index, %col: index, %arg3: f64):
          // [%row, %col] -> [0, 0], [1, 0], [2, 0], [0, 1], [1, 1], [2, 1]
      }
 
@@ -892,30 +963,25 @@ def SparseTensor_ForeachOp : SparseTensor_Op<"foreach",
 
      // foreach on a row-major sparse tensor
      sparse_tensor.foreach in %0 : tensor<2x3xf64, #ROW_MAJOR> do {
-      ^bb0(%row: index, %col: index, %arg3: f64): 
+      ^bb0(%row: index, %col: index, %arg3: f64):
          // [%row, %col] -> [0, 0], [0, 1], [1, 0], [1, 1], [2, 0], [2, 1]
      }
 
      ```
-
-     Example:
-
-     ```mlir
-     sparse_tensor.foreach in %0 : tensor<?x?xf64, #DCSR> do {
-      ^bb0(%arg1: index, %arg2: index, %arg3: f64):
-        do something...
-     }
-     ```
   }];
 
   let builders = [
-    OpBuilder<(
-      ins "Value":$tensor,
-      "function_ref<void(OpBuilder &, Location, ValueRange)>")>
+    OpBuilder<(ins "Value":$tensor,
+      "function_ref<void(OpBuilder &, Location, ValueRange, Value, ValueRange)>")>,
+    OpBuilder<(ins "Value":$tensor,
+      "ValueRange":$iterArgs,
+      "function_ref<void(OpBuilder &, Location, ValueRange, Value, ValueRange)>")>
   ];
 
-  let regions = (region AnyRegion:$region);
-  let assemblyFormat = "`in` $tensor attr-dict `:` type($tensor)  `do` $region";
+  let regions = (region SizedRegion<1>:$region);
+  let assemblyFormat = "`in` $tensor (`init``(`$initArgs^`)`)? attr-dict"
+                       "    `:` type($tensor) (`,` type($initArgs)^)?"
+                       "  (`->` type($results)^)?  `do` $region";
   let hasVerifier = 1;
 }
 

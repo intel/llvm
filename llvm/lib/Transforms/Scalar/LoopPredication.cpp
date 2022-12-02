@@ -200,6 +200,7 @@
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/LoopUtils.h"
 #include "llvm/Transforms/Utils/ScalarEvolutionExpander.h"
+#include <optional>
 
 #define DEBUG_TYPE "loop-predication"
 
@@ -482,10 +483,10 @@ static bool isSafeToTruncateWideIVType(const DataLayout &DL,
 
 // Return an LoopICmp describing a latch check equivlent to LatchCheck but with
 // the requested type if safe to do so.  May involve the use of a new IV.
-static Optional<LoopICmp> generateLoopLatchCheck(const DataLayout &DL,
-                                                 ScalarEvolution &SE,
-                                                 const LoopICmp LatchCheck,
-                                                 Type *RangeCheckType) {
+static std::optional<LoopICmp> generateLoopLatchCheck(const DataLayout &DL,
+                                                      ScalarEvolution &SE,
+                                                      const LoopICmp LatchCheck,
+                                                      Type *RangeCheckType) {
 
   auto *LatchType = LatchCheck.IV->getType();
   if (RangeCheckType == LatchType)
@@ -763,17 +764,17 @@ unsigned LoopPredication::collectChecks(SmallVectorImpl<Value *> &Checks,
   // resulting list of subconditions in Checks vector.
   SmallVector<Value *, 4> Worklist(1, Condition);
   SmallPtrSet<Value *, 4> Visited;
+  Visited.insert(Condition);
   Value *WideableCond = nullptr;
   do {
     Value *Condition = Worklist.pop_back_val();
-    if (!Visited.insert(Condition).second)
-      continue;
-
     Value *LHS, *RHS;
     using namespace llvm::PatternMatch;
     if (match(Condition, m_And(m_Value(LHS), m_Value(RHS)))) {
-      Worklist.push_back(LHS);
-      Worklist.push_back(RHS);
+      if (Visited.insert(LHS).second)
+        Worklist.push_back(LHS);
+      if (Visited.insert(RHS).second)
+        Worklist.push_back(RHS);
       continue;
     }
 

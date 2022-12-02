@@ -1707,83 +1707,84 @@ InstructionCost X86TTIImpl::getShuffleCost(TTI::ShuffleKind Kind,
             CostTableLookup(AVX512BWShuffleTbl, Kind, LT.second))
       return LT.first * Entry->Cost;
 
-  static const CostTblEntry AVX512ShuffleTbl[] = {
-      {TTI::SK_Broadcast, MVT::v8f64, 1},  // vbroadcastpd
-      {TTI::SK_Broadcast, MVT::v16f32, 1}, // vbroadcastps
-      {TTI::SK_Broadcast, MVT::v8i64, 1},  // vpbroadcastq
-      {TTI::SK_Broadcast, MVT::v16i32, 1}, // vpbroadcastd
-      {TTI::SK_Broadcast, MVT::v32i16, 1}, // vpbroadcastw
-      {TTI::SK_Broadcast, MVT::v32f16, 1}, // vpbroadcastw
-      {TTI::SK_Broadcast, MVT::v64i8, 1},  // vpbroadcastb
+  static const CostKindTblEntry AVX512ShuffleTbl[] = {
+      {TTI::SK_Broadcast, MVT::v8f64,  { 1, 1, 1, 1 } }, // vbroadcastsd
+      {TTI::SK_Broadcast, MVT::v16f32, { 1, 1, 1, 1 } }, // vbroadcastss
+      {TTI::SK_Broadcast, MVT::v8i64,  { 1, 1, 1, 1 } }, // vpbroadcastq
+      {TTI::SK_Broadcast, MVT::v16i32, { 1, 1, 1, 1 } }, // vpbroadcastd
+      {TTI::SK_Broadcast, MVT::v32i16, { 1, 1, 1, 1 } }, // vpbroadcastw
+      {TTI::SK_Broadcast, MVT::v32f16, { 1, 1, 1, 1 } }, // vpbroadcastw
+      {TTI::SK_Broadcast, MVT::v64i8,  { 1, 1, 1, 1 } }, // vpbroadcastb
 
-      {TTI::SK_Reverse, MVT::v8f64, 1},  // vpermpd
-      {TTI::SK_Reverse, MVT::v16f32, 1}, // vpermps
-      {TTI::SK_Reverse, MVT::v8i64, 1},  // vpermq
-      {TTI::SK_Reverse, MVT::v16i32, 1}, // vpermd
-      {TTI::SK_Reverse, MVT::v32i16, 7}, // per mca
-      {TTI::SK_Reverse, MVT::v32f16, 7}, // per mca
-      {TTI::SK_Reverse, MVT::v64i8,  7}, // per mca
+      {TTI::SK_Reverse, MVT::v8f64,  { 1, 3, 1, 1 } }, // vpermpd
+      {TTI::SK_Reverse, MVT::v16f32, { 1, 3, 1, 1 } }, // vpermps
+      {TTI::SK_Reverse, MVT::v8i64,  { 1, 3, 1, 1 } }, // vpermq
+      {TTI::SK_Reverse, MVT::v16i32, { 1, 3, 1, 1 } }, // vpermd
+      {TTI::SK_Reverse, MVT::v32i16, { 7, 7, 7, 7 } }, // per mca
+      {TTI::SK_Reverse, MVT::v32f16, { 7, 7, 7, 7 } }, // per mca
+      {TTI::SK_Reverse, MVT::v64i8,  { 7, 7, 7, 7 } }, // per mca
 
-      {TTI::SK_Splice, MVT::v8f64,  1}, // vpalignd
-      {TTI::SK_Splice, MVT::v4f64,  1}, // vpalignd
-      {TTI::SK_Splice, MVT::v16f32, 1}, // vpalignd
-      {TTI::SK_Splice, MVT::v8f32,  1}, // vpalignd
-      {TTI::SK_Splice, MVT::v8i64,  1}, // vpalignd
-      {TTI::SK_Splice, MVT::v4i64,  1}, // vpalignd
-      {TTI::SK_Splice, MVT::v16i32, 1}, // vpalignd
-      {TTI::SK_Splice, MVT::v8i32,  1}, // vpalignd
-      {TTI::SK_Splice, MVT::v32i16, 4}, // split + palignr
-      {TTI::SK_Splice, MVT::v32f16, 4}, // split + palignr
-      {TTI::SK_Splice, MVT::v64i8,  4}, // split + palignr
+      {TTI::SK_Splice, MVT::v8f64,  { 1, 1, 1, 1 } }, // vpalignd
+      {TTI::SK_Splice, MVT::v4f64,  { 1, 1, 1, 1 } }, // vpalignd
+      {TTI::SK_Splice, MVT::v16f32, { 1, 1, 1, 1 } }, // vpalignd
+      {TTI::SK_Splice, MVT::v8f32,  { 1, 1, 1, 1 } }, // vpalignd
+      {TTI::SK_Splice, MVT::v8i64,  { 1, 1, 1, 1 } }, // vpalignd
+      {TTI::SK_Splice, MVT::v4i64,  { 1, 1, 1, 1 } }, // vpalignd
+      {TTI::SK_Splice, MVT::v16i32, { 1, 1, 1, 1 } }, // vpalignd
+      {TTI::SK_Splice, MVT::v8i32,  { 1, 1, 1, 1 } }, // vpalignd
+      {TTI::SK_Splice, MVT::v32i16, { 4, 4, 4, 4 } }, // split + palignr
+      {TTI::SK_Splice, MVT::v32f16, { 4, 4, 4, 4 } }, // split + palignr
+      {TTI::SK_Splice, MVT::v64i8,  { 4, 4, 4, 4 } }, // split + palignr
 
-      {TTI::SK_PermuteSingleSrc, MVT::v8f64, 1},  // vpermpd
-      {TTI::SK_PermuteSingleSrc, MVT::v4f64, 1},  // vpermpd
-      {TTI::SK_PermuteSingleSrc, MVT::v2f64, 1},  // vpermpd
-      {TTI::SK_PermuteSingleSrc, MVT::v16f32, 1}, // vpermps
-      {TTI::SK_PermuteSingleSrc, MVT::v8f32, 1},  // vpermps
-      {TTI::SK_PermuteSingleSrc, MVT::v4f32, 1},  // vpermps
-      {TTI::SK_PermuteSingleSrc, MVT::v8i64, 1},  // vpermq
-      {TTI::SK_PermuteSingleSrc, MVT::v4i64, 1},  // vpermq
-      {TTI::SK_PermuteSingleSrc, MVT::v2i64, 1},  // vpermq
-      {TTI::SK_PermuteSingleSrc, MVT::v16i32, 1}, // vpermd
-      {TTI::SK_PermuteSingleSrc, MVT::v8i32, 1},  // vpermd
-      {TTI::SK_PermuteSingleSrc, MVT::v4i32, 1},  // vpermd
-      {TTI::SK_PermuteSingleSrc, MVT::v16i8, 1},  // pshufb
+      {TTI::SK_PermuteSingleSrc, MVT::v8f64,  { 1, 3, 1, 1 } }, // vpermpd
+      {TTI::SK_PermuteSingleSrc, MVT::v4f64,  { 1, 3, 1, 1 } }, // vpermpd
+      {TTI::SK_PermuteSingleSrc, MVT::v2f64,  { 1, 3, 1, 1 } }, // vpermpd
+      {TTI::SK_PermuteSingleSrc, MVT::v16f32, { 1, 3, 1, 1 } }, // vpermps
+      {TTI::SK_PermuteSingleSrc, MVT::v8f32,  { 1, 3, 1, 1 } }, // vpermps
+      {TTI::SK_PermuteSingleSrc, MVT::v4f32,  { 1, 3, 1, 1 } }, // vpermps
+      {TTI::SK_PermuteSingleSrc, MVT::v8i64,  { 1, 3, 1, 1 } }, // vpermq
+      {TTI::SK_PermuteSingleSrc, MVT::v4i64,  { 1, 3, 1, 1 } }, // vpermq
+      {TTI::SK_PermuteSingleSrc, MVT::v2i64,  { 1, 3, 1, 1 } }, // vpermq
+      {TTI::SK_PermuteSingleSrc, MVT::v16i32, { 1, 3, 1, 1 } }, // vpermd
+      {TTI::SK_PermuteSingleSrc, MVT::v8i32,  { 1, 3, 1, 1 } }, // vpermd
+      {TTI::SK_PermuteSingleSrc, MVT::v4i32,  { 1, 3, 1, 1 } }, // vpermd
+      {TTI::SK_PermuteSingleSrc, MVT::v16i8,  { 1, 3, 1, 1 } }, // pshufb
 
-      {TTI::SK_PermuteTwoSrc, MVT::v8f64, 1},  // vpermt2pd
-      {TTI::SK_PermuteTwoSrc, MVT::v16f32, 1}, // vpermt2ps
-      {TTI::SK_PermuteTwoSrc, MVT::v8i64, 1},  // vpermt2q
-      {TTI::SK_PermuteTwoSrc, MVT::v16i32, 1}, // vpermt2d
-      {TTI::SK_PermuteTwoSrc, MVT::v4f64, 1},  // vpermt2pd
-      {TTI::SK_PermuteTwoSrc, MVT::v8f32, 1},  // vpermt2ps
-      {TTI::SK_PermuteTwoSrc, MVT::v4i64, 1},  // vpermt2q
-      {TTI::SK_PermuteTwoSrc, MVT::v8i32, 1},  // vpermt2d
-      {TTI::SK_PermuteTwoSrc, MVT::v2f64, 1},  // vpermt2pd
-      {TTI::SK_PermuteTwoSrc, MVT::v4f32, 1},  // vpermt2ps
-      {TTI::SK_PermuteTwoSrc, MVT::v2i64, 1},  // vpermt2q
-      {TTI::SK_PermuteTwoSrc, MVT::v4i32, 1},  // vpermt2d
+      {TTI::SK_PermuteTwoSrc, MVT::v8f64,  { 1, 3, 1, 1 } }, // vpermt2pd
+      {TTI::SK_PermuteTwoSrc, MVT::v16f32, { 1, 3, 1, 1 } }, // vpermt2ps
+      {TTI::SK_PermuteTwoSrc, MVT::v8i64,  { 1, 3, 1, 1 } }, // vpermt2q
+      {TTI::SK_PermuteTwoSrc, MVT::v16i32, { 1, 3, 1, 1 } }, // vpermt2d
+      {TTI::SK_PermuteTwoSrc, MVT::v4f64,  { 1, 3, 1, 1 } }, // vpermt2pd
+      {TTI::SK_PermuteTwoSrc, MVT::v8f32,  { 1, 3, 1, 1 } }, // vpermt2ps
+      {TTI::SK_PermuteTwoSrc, MVT::v4i64,  { 1, 3, 1, 1 } }, // vpermt2q
+      {TTI::SK_PermuteTwoSrc, MVT::v8i32,  { 1, 3, 1, 1 } }, // vpermt2d
+      {TTI::SK_PermuteTwoSrc, MVT::v2f64,  { 1, 3, 1, 1 } }, // vpermt2pd
+      {TTI::SK_PermuteTwoSrc, MVT::v4f32,  { 1, 3, 1, 1 } }, // vpermt2ps
+      {TTI::SK_PermuteTwoSrc, MVT::v2i64,  { 1, 3, 1, 1 } }, // vpermt2q
+      {TTI::SK_PermuteTwoSrc, MVT::v4i32,  { 1, 3, 1, 1 } }, // vpermt2d
 
       // FIXME: This just applies the type legalization cost rules above
       // assuming these completely split.
-      {TTI::SK_PermuteSingleSrc, MVT::v32i16, 14},
-      {TTI::SK_PermuteSingleSrc, MVT::v32f16, 14},
-      {TTI::SK_PermuteSingleSrc, MVT::v64i8,  14},
-      {TTI::SK_PermuteTwoSrc,    MVT::v32i16, 42},
-      {TTI::SK_PermuteTwoSrc,    MVT::v32f16, 42},
-      {TTI::SK_PermuteTwoSrc,    MVT::v64i8,  42},
+      {TTI::SK_PermuteSingleSrc, MVT::v32i16, { 14, 14, 14, 14 } },
+      {TTI::SK_PermuteSingleSrc, MVT::v32f16, { 14, 14, 14, 14 } },
+      {TTI::SK_PermuteSingleSrc, MVT::v64i8,  { 14, 14, 14, 14 } },
+      {TTI::SK_PermuteTwoSrc,    MVT::v32i16, { 42, 42, 42, 42 } },
+      {TTI::SK_PermuteTwoSrc,    MVT::v32f16, { 42, 42, 42, 42 } },
+      {TTI::SK_PermuteTwoSrc,    MVT::v64i8,  { 42, 42, 42, 42 } },
 
-      {TTI::SK_Select, MVT::v32i16, 1}, // vpternlogq
-      {TTI::SK_Select, MVT::v32f16, 1}, // vpternlogq
-      {TTI::SK_Select, MVT::v64i8,  1}, // vpternlogq
-      {TTI::SK_Select, MVT::v8f64,  1}, // vblendmpd
-      {TTI::SK_Select, MVT::v16f32, 1}, // vblendmps
-      {TTI::SK_Select, MVT::v8i64,  1}, // vblendmq
-      {TTI::SK_Select, MVT::v16i32, 1}, // vblendmd
+      {TTI::SK_Select, MVT::v32i16, { 1, 1, 1, 1 } }, // vpternlogq
+      {TTI::SK_Select, MVT::v32f16, { 1, 1, 1, 1 } }, // vpternlogq
+      {TTI::SK_Select, MVT::v64i8,  { 1, 1, 1, 1 } }, // vpternlogq
+      {TTI::SK_Select, MVT::v8f64,  { 1, 1, 1, 1 } }, // vblendmpd
+      {TTI::SK_Select, MVT::v16f32, { 1, 1, 1, 1 } }, // vblendmps
+      {TTI::SK_Select, MVT::v8i64,  { 1, 1, 1, 1 } }, // vblendmq
+      {TTI::SK_Select, MVT::v16i32, { 1, 1, 1, 1 } }, // vblendmd
   };
 
   if (ST->hasAVX512())
     if (const auto *Entry = CostTableLookup(AVX512ShuffleTbl, Kind, LT.second))
-      return LT.first * Entry->Cost;
+      if (auto KindCost = Entry->Cost[CostKind])
+        return LT.first * KindCost.value();
 
   static const CostTblEntry AVX2ShuffleTbl[] = {
       {TTI::SK_Broadcast, MVT::v4f64, 1},  // vbroadcastpd
@@ -4392,9 +4393,17 @@ InstructionCost X86TTIImpl::getScalarizationOverhead(VectorType *Ty,
 
   std::pair<InstructionCost, MVT> LT = getTypeLegalizationCost(Ty);
   MVT MScalarTy = LT.second.getScalarType();
-  unsigned SizeInBits = LT.second.getSizeInBits();
+  unsigned LegalVectorBitWidth = LT.second.getSizeInBits();
   TTI::TargetCostKind CostKind = TTI::TargetCostKind::TCK_RecipThroughput;
   InstructionCost Cost = 0;
+
+  constexpr unsigned LaneBitWidth = 128;
+  assert((LegalVectorBitWidth < LaneBitWidth ||
+          (LegalVectorBitWidth % LaneBitWidth) == 0) &&
+         "Illegal vector");
+
+  const int NumLegalVectors = *LT.first.getValue();
+  assert(NumLegalVectors >= 0 && "Negative cost!");
 
   // For insertions, a ISD::BUILD_VECTOR style vector initialization can be much
   // cheaper than an accumulation of ISD::INSERT_VECTOR_ELT.
@@ -4404,7 +4413,7 @@ InstructionCost X86TTIImpl::getScalarizationOverhead(VectorType *Ty,
         (MScalarTy == MVT::f32 && ST->hasSSE41())) {
       // For types we can insert directly, insertion into 128-bit sub vectors is
       // cheap, followed by a cheap chain of concatenations.
-      if (SizeInBits <= 128) {
+      if (LegalVectorBitWidth <= LaneBitWidth) {
         Cost +=
             BaseT::getScalarizationOverhead(Ty, DemandedElts, Insert, false);
       } else {
@@ -4420,32 +4429,51 @@ InstructionCost X86TTIImpl::getScalarizationOverhead(VectorType *Ty,
         // Case#2: inserting into 5th index needs extracti128 + vpinsrd +
         // inserti128.
         // Case#3: inserting into 4,5,6,7 index needs 4*vpinsrd + inserti128.
-        const int CostValue = *LT.first.getValue();
-        assert(CostValue >= 0 && "Negative cost!");
-        unsigned Num128Lanes = SizeInBits / 128 * CostValue;
-        unsigned NumElts = LT.second.getVectorNumElements() * CostValue;
-        APInt WidenedDemandedElts = DemandedElts.zext(NumElts);
-        unsigned Scale = NumElts / Num128Lanes;
-        // We iterate each 128-lane, and check if we need a
-        // extracti128/inserti128 for this 128-lane.
-        for (unsigned I = 0; I < NumElts; I += Scale) {
-          APInt Mask = WidenedDemandedElts.getBitsSet(NumElts, I, I + Scale);
-          APInt MaskedDE = Mask & WidenedDemandedElts;
-          unsigned Population = MaskedDE.countPopulation();
-          Cost += (Population > 0 && Population != Scale &&
-                   I % LT.second.getVectorNumElements() != 0);
-          Cost += Population > 0;
-        }
-        Cost += DemandedElts.countPopulation();
+        assert((LegalVectorBitWidth % LaneBitWidth) == 0 && "Illegal vector");
+        unsigned NumLegalLanes = LegalVectorBitWidth / LaneBitWidth;
+        unsigned NumLanesTotal = NumLegalLanes * NumLegalVectors;
+        unsigned NumLegalElts =
+            LT.second.getVectorNumElements() * NumLegalVectors;
+        assert(NumLegalElts >= DemandedElts.getBitWidth() &&
+               "Vector has been legalized to smaller element count");
+        assert((NumLegalElts % NumLanesTotal) == 0 &&
+               "Unexpected elts per lane");
+        unsigned NumEltsPerLane = NumLegalElts / NumLanesTotal;
 
-        // For vXf32 cases, insertion into the 0'th index in each v4f32
-        // 128-bit vector is free.
-        // NOTE: This assumes legalization widens vXf32 vectors.
-        if (MScalarTy == MVT::f32)
-          for (unsigned i = 0, e = cast<FixedVectorType>(Ty)->getNumElements();
-               i < e; i += 4)
-            if (DemandedElts[i])
-              Cost--;
+        APInt WidenedDemandedElts = DemandedElts.zext(NumLegalElts);
+        auto *LaneTy =
+            FixedVectorType::get(Ty->getElementType(), NumEltsPerLane);
+
+        for (unsigned I = 0; I != NumLanesTotal; ++I) {
+          APInt LaneEltMask = WidenedDemandedElts.extractBits(
+              NumEltsPerLane, NumEltsPerLane * I);
+          if (LaneEltMask.isNullValue())
+            continue;
+          // FIXME: we don't need to extract if all non-demanded elements
+          //        are legalization-inserted padding.
+          if (!LaneEltMask.isAllOnes())
+            Cost += getShuffleCost(TTI::SK_ExtractSubvector, Ty, None, CostKind,
+                                   I * NumEltsPerLane, LaneTy);
+          Cost += BaseT::getScalarizationOverhead(LaneTy, LaneEltMask, Insert,
+                                                  false);
+        }
+
+        APInt AffectedLanes =
+            APIntOps::ScaleBitMask(WidenedDemandedElts, NumLanesTotal);
+        APInt FullyAffectedLegalVectors = APIntOps::ScaleBitMask(
+            AffectedLanes, NumLegalVectors, /*MatchAllBits=*/true);
+        for (int LegalVec = 0; LegalVec != NumLegalVectors; ++LegalVec) {
+          for (unsigned Lane = 0; Lane != NumLegalLanes; ++Lane) {
+            unsigned I = NumLegalLanes * LegalVec + Lane;
+            // No need to insert unaffected lane; or lane 0 of each legal vector
+            // iff ALL lanes of that vector were affected and will be inserted.
+            if (!AffectedLanes[I] ||
+                (Lane == 0 && FullyAffectedLegalVectors[LegalVec]))
+              continue;
+            Cost += getShuffleCost(TTI::SK_InsertSubvector, Ty, None, CostKind,
+                                   I * NumEltsPerLane, LaneTy);
+          }
+        }
       }
     } else if (LT.second.isVector()) {
       // Without fast insertion, we need to use MOVD/MOVQ to pass each demanded
@@ -4477,39 +4505,36 @@ InstructionCost X86TTIImpl::getScalarizationOverhead(VectorType *Ty,
     }
 
     if (LT.second.isVector()) {
-      int CostValue = *LT.first.getValue();
-      assert(CostValue >= 0 && "Negative cost!");
-
-      unsigned NumElts = LT.second.getVectorNumElements() * CostValue;
-      assert(NumElts >= DemandedElts.getBitWidth() &&
+      unsigned NumLegalElts =
+          LT.second.getVectorNumElements() * NumLegalVectors;
+      assert(NumLegalElts >= DemandedElts.getBitWidth() &&
              "Vector has been legalized to smaller element count");
 
-      // If we're extracting elements from a 128-bit subvector lane, we only need
-      // to extract each lane once, not for every element.
-      if (SizeInBits > 128) {
-        assert((SizeInBits % 128) == 0 && "Illegal vector");
-        unsigned NumLegal128Lanes = SizeInBits / 128;
-        unsigned Num128Lanes = NumLegal128Lanes * CostValue;
-        APInt WidenedDemandedElts = DemandedElts.zext(NumElts);
-        unsigned Scale = NumElts / Num128Lanes;
+      // If we're extracting elements from a 128-bit subvector lane,
+      // we only need to extract each lane once, not for every element.
+      if (LegalVectorBitWidth > LaneBitWidth) {
+        unsigned NumLegalLanes = LegalVectorBitWidth / LaneBitWidth;
+        unsigned NumLanesTotal = NumLegalLanes * NumLegalVectors;
+        assert((NumLegalElts % NumLanesTotal) == 0 &&
+               "Unexpected elts per lane");
+        unsigned NumEltsPerLane = NumLegalElts / NumLanesTotal;
 
         // Add cost for each demanded 128-bit subvector extraction.
         // Luckily this is a lot easier than for insertion.
-        APInt DemandedUpper128Lanes =
-            APIntOps::ScaleBitMask(WidenedDemandedElts, Num128Lanes);
-        auto *Ty128 = FixedVectorType::get(Ty->getElementType(), Scale);
-        for (unsigned I = 0; I != Num128Lanes; ++I)
-          if (DemandedUpper128Lanes[I])
-            Cost += getShuffleCost(TTI::SK_ExtractSubvector, Ty, None, CostKind,
-                                   I * Scale, Ty128);
+        APInt WidenedDemandedElts = DemandedElts.zext(NumLegalElts);
+        auto *LaneTy =
+            FixedVectorType::get(Ty->getElementType(), NumEltsPerLane);
 
-        // Add all the demanded element extractions together, but adjust the
-        // index to use the equivalent of the bottom 128 bit lane.
-        for (unsigned I = 0; I != NumElts; ++I)
-          if (WidenedDemandedElts[I]) {
-            unsigned Idx = I % Scale;
-            Cost += getVectorInstrCost(Instruction::ExtractElement, Ty, Idx);
-          }
+        for (unsigned I = 0; I != NumLanesTotal; ++I) {
+          APInt LaneEltMask = WidenedDemandedElts.extractBits(
+              NumEltsPerLane, I * NumEltsPerLane);
+          if (LaneEltMask.isNullValue())
+            continue;
+          Cost += getShuffleCost(TTI::SK_ExtractSubvector, Ty, None, CostKind,
+                                 I * NumEltsPerLane, LaneTy);
+          Cost += BaseT::getScalarizationOverhead(LaneTy, LaneEltMask, false,
+                                                  Extract);
+        }
 
         return Cost;
       }

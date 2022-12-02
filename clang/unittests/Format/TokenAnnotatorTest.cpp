@@ -145,6 +145,36 @@ TEST_F(TokenAnnotatorTest, UnderstandsUsesOfStarAndAmp) {
   EXPECT_TOKEN(Tokens[6], tok::l_paren, TT_FunctionTypeLParen);
   EXPECT_TOKEN(Tokens[7], tok::star, TT_UnaryOperator);
   EXPECT_TOKEN(Tokens[12], tok::star, TT_PointerOrReference);
+
+  Tokens = annotate("if (Foo * Bar / Test)");
+  ASSERT_EQ(Tokens.size(), 9u) << Tokens;
+  EXPECT_TOKEN(Tokens[3], tok::star, TT_BinaryOperator);
+
+  Tokens = annotate("if (Class* obj {getObj()})");
+  ASSERT_EQ(Tokens.size(), 12u) << Tokens;
+  EXPECT_TOKEN(Tokens[3], tok::star, TT_PointerOrReference);
+
+  Tokens = annotate("if (Foo* Bar = getObj())");
+  ASSERT_EQ(Tokens.size(), 11u) << Tokens;
+  EXPECT_TOKEN(Tokens[3], tok::star, TT_PointerOrReference);
+
+  Tokens = annotate("int f3() { return sizeof(Foo&); }");
+  ASSERT_EQ(Tokens.size(), 14u) << Tokens;
+  EXPECT_TOKEN(Tokens[9], tok::amp, TT_PointerOrReference);
+
+  Tokens = annotate("int f4() { return sizeof(Foo&&); }");
+  ASSERT_EQ(Tokens.size(), 14u) << Tokens;
+  EXPECT_TOKEN(Tokens[9], tok::ampamp, TT_PointerOrReference);
+
+  Tokens = annotate("void f5() { int f6(Foo&, Bar&); }");
+  ASSERT_EQ(Tokens.size(), 17u) << Tokens;
+  EXPECT_TOKEN(Tokens[9], tok::amp, TT_PointerOrReference);
+  EXPECT_TOKEN(Tokens[12], tok::amp, TT_PointerOrReference);
+
+  Tokens = annotate("void f7() { int f8(Foo&&, Bar&&); }");
+  ASSERT_EQ(Tokens.size(), 17u) << Tokens;
+  EXPECT_TOKEN(Tokens[9], tok::ampamp, TT_PointerOrReference);
+  EXPECT_TOKEN(Tokens[12], tok::ampamp, TT_PointerOrReference);
 }
 
 TEST_F(TokenAnnotatorTest, UnderstandsUsesOfPlusAndMinus) {
@@ -393,50 +423,80 @@ TEST_F(TokenAnnotatorTest, UnderstandsFunctionRefQualifiers) {
 TEST_F(TokenAnnotatorTest, UnderstandsOverloadedOperators) {
   auto Tokens = annotate("x.operator+()");
   ASSERT_EQ(Tokens.size(), 7u) << Tokens;
+  EXPECT_TOKEN(Tokens[2], tok::kw_operator, TT_FunctionDeclarationName);
   EXPECT_TOKEN(Tokens[3], tok::plus, TT_OverloadedOperator);
   EXPECT_TOKEN(Tokens[4], tok::l_paren, TT_OverloadedOperatorLParen);
   Tokens = annotate("x.operator=()");
   ASSERT_EQ(Tokens.size(), 7u) << Tokens;
+  EXPECT_TOKEN(Tokens[2], tok::kw_operator, TT_FunctionDeclarationName);
   EXPECT_TOKEN(Tokens[3], tok::equal, TT_OverloadedOperator);
   EXPECT_TOKEN(Tokens[4], tok::l_paren, TT_OverloadedOperatorLParen);
   Tokens = annotate("x.operator+=()");
   ASSERT_EQ(Tokens.size(), 7u) << Tokens;
+  EXPECT_TOKEN(Tokens[2], tok::kw_operator, TT_FunctionDeclarationName);
   EXPECT_TOKEN(Tokens[3], tok::plusequal, TT_OverloadedOperator);
   EXPECT_TOKEN(Tokens[4], tok::l_paren, TT_OverloadedOperatorLParen);
   Tokens = annotate("x.operator,()");
   ASSERT_EQ(Tokens.size(), 7u) << Tokens;
+  EXPECT_TOKEN(Tokens[2], tok::kw_operator, TT_FunctionDeclarationName);
   EXPECT_TOKEN(Tokens[3], tok::comma, TT_OverloadedOperator);
   EXPECT_TOKEN(Tokens[4], tok::l_paren, TT_OverloadedOperatorLParen);
   Tokens = annotate("x.operator()()");
   ASSERT_EQ(Tokens.size(), 8u) << Tokens;
+  EXPECT_TOKEN(Tokens[2], tok::kw_operator, TT_FunctionDeclarationName);
   EXPECT_TOKEN(Tokens[3], tok::l_paren, TT_OverloadedOperator);
   EXPECT_TOKEN(Tokens[4], tok::r_paren, TT_OverloadedOperator);
   EXPECT_TOKEN(Tokens[5], tok::l_paren, TT_OverloadedOperatorLParen);
   Tokens = annotate("x.operator[]()");
   ASSERT_EQ(Tokens.size(), 8u) << Tokens;
+  EXPECT_TOKEN(Tokens[2], tok::kw_operator, TT_FunctionDeclarationName);
   // EXPECT_TOKEN(Tokens[3], tok::l_square, TT_OverloadedOperator);
   // EXPECT_TOKEN(Tokens[4], tok::r_square, TT_OverloadedOperator);
   EXPECT_TOKEN(Tokens[5], tok::l_paren, TT_OverloadedOperatorLParen);
   Tokens = annotate("x.operator\"\"_a()");
   ASSERT_EQ(Tokens.size(), 7u) << Tokens;
+  EXPECT_TOKEN(Tokens[2], tok::kw_operator, TT_FunctionDeclarationName);
   EXPECT_TOKEN(Tokens[3], tok::string_literal, TT_OverloadedOperator);
   EXPECT_TOKEN(Tokens[4], tok::l_paren, TT_OverloadedOperatorLParen);
   Tokens = annotate("x.operator\"\" _a()");
   ASSERT_EQ(Tokens.size(), 8u) << Tokens;
+  // FIXME
+  // EXPECT_TOKEN(Tokens[2], tok::kw_operator, TT_FunctionDeclarationName);
   EXPECT_TOKEN(Tokens[3], tok::string_literal, TT_OverloadedOperator);
   EXPECT_TOKEN(Tokens[5], tok::l_paren, TT_OverloadedOperatorLParen);
   Tokens = annotate("x.operator\"\"if()");
   ASSERT_EQ(Tokens.size(), 7u) << Tokens;
+  EXPECT_TOKEN(Tokens[2], tok::kw_operator, TT_FunctionDeclarationName);
   EXPECT_TOKEN(Tokens[3], tok::string_literal, TT_OverloadedOperator);
   EXPECT_TOKEN(Tokens[4], tok::l_paren, TT_OverloadedOperatorLParen);
   Tokens = annotate("x.operator\"\"s()");
   ASSERT_EQ(Tokens.size(), 7u) << Tokens;
+  EXPECT_TOKEN(Tokens[2], tok::kw_operator, TT_FunctionDeclarationName);
   EXPECT_TOKEN(Tokens[3], tok::string_literal, TT_OverloadedOperator);
   EXPECT_TOKEN(Tokens[4], tok::l_paren, TT_OverloadedOperatorLParen);
   Tokens = annotate("x.operator\"\" s()");
   ASSERT_EQ(Tokens.size(), 8u) << Tokens;
+  // FIXME
+  // EXPECT_TOKEN(Tokens[2], tok::kw_operator, TT_FunctionDeclarationName);
   EXPECT_TOKEN(Tokens[3], tok::string_literal, TT_OverloadedOperator);
   EXPECT_TOKEN(Tokens[5], tok::l_paren, TT_OverloadedOperatorLParen);
+
+  Tokens = annotate("int operator+(int);");
+  ASSERT_EQ(Tokens.size(), 8u) << Tokens;
+  EXPECT_TOKEN(Tokens[1], tok::kw_operator, TT_FunctionDeclarationName);
+  EXPECT_TOKEN(Tokens[2], tok::plus, TT_OverloadedOperator);
+  EXPECT_TOKEN(Tokens[3], tok::l_paren, TT_OverloadedOperatorLParen);
+  Tokens = annotate("auto operator=(T&) {}");
+  ASSERT_EQ(Tokens.size(), 10u) << Tokens;
+  EXPECT_TOKEN(Tokens[1], tok::kw_operator, TT_FunctionDeclarationName);
+  EXPECT_TOKEN(Tokens[2], tok::equal, TT_OverloadedOperator);
+  EXPECT_TOKEN(Tokens[3], tok::l_paren, TT_OverloadedOperatorLParen);
+  Tokens = annotate("auto operator()() {}");
+  ASSERT_EQ(Tokens.size(), 9u) << Tokens;
+  EXPECT_TOKEN(Tokens[1], tok::kw_operator, TT_FunctionDeclarationName);
+  EXPECT_TOKEN(Tokens[2], tok::l_paren, TT_OverloadedOperator);
+  EXPECT_TOKEN(Tokens[3], tok::r_paren, TT_OverloadedOperator);
+  EXPECT_TOKEN(Tokens[4], tok::l_paren, TT_OverloadedOperatorLParen);
 }
 
 TEST_F(TokenAnnotatorTest, UnderstandsRequiresClausesAndConcepts) {
@@ -1035,6 +1095,16 @@ TEST_F(TokenAnnotatorTest, UnderstandsFunctionAnnotations) {
   EXPECT_TOKEN(Tokens[8], tok::r_paren, TT_Unknown);
 }
 
+TEST_F(TokenAnnotatorTest, UnderstandsFunctionDeclarationNames) {
+  auto Tokens = annotate("void f [[noreturn]] ();");
+  ASSERT_EQ(Tokens.size(), 11u) << Tokens;
+  EXPECT_TOKEN(Tokens[1], tok::identifier, TT_FunctionDeclarationName);
+
+  Tokens = annotate("void f [[noreturn]] () {}");
+  ASSERT_EQ(Tokens.size(), 12u) << Tokens;
+  EXPECT_TOKEN(Tokens[1], tok::identifier, TT_FunctionDeclarationName);
+}
+
 TEST_F(TokenAnnotatorTest, UnderstandsVerilogOperators) {
   auto Annotate = [this](llvm::StringRef Code) {
     return annotate(Code, getLLVMStyle(FormatStyle::LK_Verilog));
@@ -1122,6 +1192,35 @@ TEST_F(TokenAnnotatorTest, UnderstandsVerilogOperators) {
   EXPECT_TOKEN(Tokens[5], tok::question, TT_ConditionalExpr);
   EXPECT_TOKEN(Tokens[7], tok::colon, TT_ConditionalExpr);
   EXPECT_TOKEN(Tokens[9], tok::colon, TT_GotoLabelColon);
+}
+
+TEST_F(TokenAnnotatorTest, UnderstandConstructors) {
+  auto Tokens = annotate("Class::Class() : BaseClass(), Member() {}");
+
+  // The TT_Unknown is clearly not binding for the future, please adapt if those
+  // tokens get annotated.
+  ASSERT_EQ(Tokens.size(), 16u) << Tokens;
+  EXPECT_TOKEN(Tokens[5], tok::colon, TT_CtorInitializerColon);
+  EXPECT_TOKEN(Tokens[6], tok::identifier, TT_Unknown);
+  EXPECT_TOKEN(Tokens[7], tok::l_paren, TT_Unknown);
+  EXPECT_TOKEN(Tokens[8], tok::r_paren, TT_Unknown);
+  EXPECT_TOKEN(Tokens[9], tok::comma, TT_CtorInitializerComma);
+  EXPECT_TOKEN(Tokens[10], tok::identifier, TT_Unknown);
+  EXPECT_TOKEN(Tokens[11], tok::l_paren, TT_Unknown);
+  EXPECT_TOKEN(Tokens[12], tok::r_paren, TT_Unknown);
+  EXPECT_TOKEN(Tokens[13], tok::l_brace, TT_FunctionLBrace);
+
+  Tokens = annotate("Class::Class() : BaseClass{}, Member{} {}");
+  ASSERT_EQ(Tokens.size(), 16u) << Tokens;
+  EXPECT_TOKEN(Tokens[5], tok::colon, TT_CtorInitializerColon);
+  EXPECT_TOKEN(Tokens[6], tok::identifier, TT_Unknown);
+  EXPECT_TOKEN(Tokens[7], tok::l_brace, TT_Unknown);
+  EXPECT_TOKEN(Tokens[8], tok::r_brace, TT_Unknown);
+  EXPECT_TOKEN(Tokens[9], tok::comma, TT_CtorInitializerComma);
+  EXPECT_TOKEN(Tokens[10], tok::identifier, TT_Unknown);
+  EXPECT_TOKEN(Tokens[11], tok::l_brace, TT_Unknown);
+  EXPECT_TOKEN(Tokens[12], tok::r_brace, TT_Unknown);
+  EXPECT_TOKEN(Tokens[13], tok::l_brace, TT_FunctionLBrace);
 }
 
 } // namespace

@@ -353,7 +353,7 @@ func.func @slice_canonicalize(%arg0 : tensor<?x?x?xf32>, %arg1 : index,
 //  CHECK-SAME:      [4, 1, %{{[a-zA-Z0-9_]+}}] [1, 1, 1]
 //  CHECK-SAME:      : tensor<?x?x?xf32> to tensor<4x1x?xf32>
 //       CHECK:   %[[RESULT:.+]] = tensor.cast %[[SLICE]]
-//       CHEKC:   return %[[RESULT]]
+//       CHECK:   return %[[RESULT]]
 
 // -----
 
@@ -372,7 +372,7 @@ func.func @rank_reducing_slice_canonicalize(%arg0 : tensor<?x?x?xf32>, %arg1 : i
 //  CHECK-SAME:      [4, 1, %{{[a-zA-Z0-9_]+}}] [1, 1, 1]
 //  CHECK-SAME:      : tensor<?x?x?xf32> to tensor<4x?xf32>
 //       CHECK:   %[[RESULT:.+]] = tensor.cast %[[SLICE]]
-//       CHEKC:   return %[[RESULT]]
+//       CHECK:   return %[[RESULT]]
 
 // -----
 
@@ -467,7 +467,7 @@ func.func @slice_to_insert_slice_canonicalize(%arg0 : tensor<?x?x?xf32>, %arg1 :
 //       CHECK:   %[[RESULT:.+]] = tensor.insert_slice %[[SLICE]]
 //  CHECK-SAME:      [0, %{{.+}}, 1] [4, 1, %{{.+}}] [1, 1, 1]
 //  CHECK-SAME:      : tensor<4x1x?xf32> into tensor<?x?x?xf32>
-//       CHEKC:   return %[[RESULT]]
+//       CHECK:   return %[[RESULT]]
 
 // -----
 
@@ -486,7 +486,7 @@ func.func @rank_reducing_insert_slice_canonicalize(%arg0 : tensor<?x?xf32>, %arg
 //       CHECK:   %[[RESULT:.+]] = tensor.insert_slice %[[CAST]]
 //  CHECK-SAME:      [0, %{{.+}}, 1] [4, 1, %{{.+}}] [1, 1, 1]
 //  CHECK-SAME:      : tensor<4x?xf32> into tensor<?x?x?xf32>
-//       CHEKC:   return %[[RESULT]]
+//       CHECK:   return %[[RESULT]]
 
 // -----
 
@@ -509,7 +509,7 @@ func.func @rank_reducing_slice_to_insert_slice_canonicalize(%arg0 : tensor<?x?x?
 //       CHECK:   %[[RESULT:.+]] = tensor.insert_slice %[[SLICE]] into %[[ARG3]]
 //  CHECK-SAME:      [0, %{{.+}}, 1] [4, 1, %{{.+}}] [1, 1, 1]
 //  CHECK-SAME:      : tensor<4x?xf32> into tensor<?x?x?xf32>
-//       CHEKC:   return %[[RESULT]]
+//       CHECK:   return %[[RESULT]]
 
 // -----
 
@@ -1627,4 +1627,54 @@ func.func @rank_reducing_empty_tensor_extract(%sz : index, %idx : index) -> tens
   // CHECK-NOT: extract
   %r = tensor.extract_slice %a[%idx, 0] [1, 2] [1, 1] : tensor<?x2xf32> to tensor<2xf32>
   return %r: tensor<2xf32>
+}
+
+// -----
+
+//       CHECK: #[[$map:.*]] = affine_map<()[s0] -> (s0 floordiv 40)>
+// CHECK-LABEL: func @dim_of_expand_shape(
+//  CHECK-SAME:     %[[t:.*]]: tensor<?x?xf32>
+//       CHECK:   %[[c1:.*]] = arith.constant 1 : index
+//       CHECK:   %[[dim:.*]] = tensor.dim %[[t]], %[[c1]] : tensor<?x?xf32>
+//       CHECK:   %[[apply:.*]] = affine.apply #[[$map]]()[%[[dim]]]
+//       CHECK:   return %[[apply]]
+func.func @dim_of_expand_shape(%t: tensor<?x?xf32>) -> index {
+  %c2 = arith.constant 2 : index
+  %0 = tensor.expand_shape %t [[0], [1, 2, 3, 4, 5]]
+      : tensor<?x?xf32> into tensor<?x1x?x5x1x8xf32>
+  %1 = tensor.dim %0, %c2 : tensor<?x1x?x5x1x8xf32>
+  return %1 : index
+}
+
+// -----
+
+//       CHECK: #[[$map:.*]] = affine_map<()[s0, s1, s2] -> (((s0 * s1) * s2) * 7)>
+// CHECK-LABEL: func @dim_of_collapse_shape(
+//  CHECK-SAME:     %[[t:.*]]: tensor<?x?x?x7x?xf32>
+//   CHECK-DAG:   %[[c1:.*]] = arith.constant 1 : index
+//   CHECK-DAG:   %[[c2:.*]] = arith.constant 2 : index
+//   CHECK-DAG:   %[[c4:.*]] = arith.constant 4 : index
+//   CHECK-DAG:   %[[dim1:.*]] = tensor.dim %[[t]], %[[c1]]
+//   CHECK-DAG:   %[[dim2:.*]] = tensor.dim %[[t]], %[[c2]]
+//   CHECK-DAG:   %[[dim4:.*]] = tensor.dim %[[t]], %[[c4]]
+//       CHECK:   %[[apply:.*]] = affine.apply #[[$map]]()[%[[dim1]], %[[dim2]], %[[dim4]]]
+//       CHECK:   return %[[apply]]
+func.func @dim_of_collapse_shape(%t: tensor<?x?x?x7x?xf32>) -> index {
+  %c1 = arith.constant 1 : index
+  %0 = tensor.collapse_shape %t [[0], [1, 2, 3, 4]]
+      : tensor<?x?x?x7x?xf32> into tensor<?x?xf32>
+  %1 = tensor.dim %0, %c1 : tensor<?x?xf32>
+  return %1 : index
+}
+
+// -----
+
+// CHECK-LABEL: func @collapse_expand_fold_to_cast(
+//  CHECK-SAME:     %[[t:.*]]: tensor<?xf32>
+//       CHECK:   return %[[t]]
+func.func @collapse_expand_fold_to_cast(%t: tensor<?xf32>) -> (tensor<?xf32>)
+{
+  %0 = tensor.expand_shape %t [[0, 1]] : tensor<?xf32> into tensor<1x?xf32>
+  %1 = tensor.collapse_shape %0 [[0, 1]] : tensor<1x?xf32> into tensor<?xf32>
+  return %1 : tensor<?xf32>
 }

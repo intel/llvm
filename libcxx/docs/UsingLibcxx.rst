@@ -122,6 +122,21 @@ provide pretty-printers itself. Those can be used as:
         -ex "python register_libcxx_printer_loader()" \
         <args>
 
+.. _include-what-you-use:
+
+include-what-you-use (IWYU)
+===========================
+
+libc++ provides an IWYU `mapping file <https://github.com/include-what-you-use/include-what-you-use/blob/master/docs/IWYUMappings.md>`,
+which drastically improves the accuracy of the tool when using libc++. To use the mapping file with
+IWYU, you should run the tool like so:
+
+.. code-block:: bash
+
+  $ include-what-you-use -Xiwyu /path/to/libcxx/include/libcxx.imp file.cpp
+
+If you would prefer to not use that flag, then you can replace ``/path/to/include-what-you-use/share/libcxx.imp```
+file with the libc++-provided ``libcxx.imp`` file.
 
 .. _assertions-mode:
 
@@ -393,6 +408,44 @@ which no dialect declares as such (See the second form described above).
 * ``search``
 * ``unique``
 * ``upper_bound``
+* ``ranges::adjacent_find``
+* ``ranges::all_of``
+* ``ranges::any_of``
+* ``ranges::binary_search``
+* ``ranges::clamp``
+* ``ranges::count_if``
+* ``ranges::count``
+* ``ranges::equal_range``
+* ``ranges::equal``
+* ``ranges::find_end``
+* ``ranges::find_first_of``
+* ``ranges::find_if_not``
+* ``ranges::find_if``
+* ``ranges::find``
+* ``ranges::get_temporary_buffer``
+* ``ranges::includes``
+* ``ranges::is_heap_until``
+* ``ranges::is_heap``
+* ``ranges::is_partitioned``
+* ``ranges::is_permutation``
+* ``ranges::is_sorted_until``
+* ``ranges::is_sorted``
+* ``ranges::lexicographical_compare``
+* ``ranges::lower_bound``
+* ``ranges::max_element``
+* ``ranges::max``
+* ``ranges::min_element``
+* ``ranges::min``
+* ``ranges::minmax_element``
+* ``ranges::minmax``
+* ``ranges::mismatch``
+* ``ranges::none_of``
+* ``ranges::remove_if``
+* ``ranges::remove``
+* ``ranges::search_n``
+* ``ranges::search``
+* ``ranges::unique``
+* ``ranges::upper_bound``
 * ``lock_guard``'s constructors
 * ``as_const``
 * ``bit_cast``

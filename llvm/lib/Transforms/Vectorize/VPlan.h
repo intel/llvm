@@ -1175,8 +1175,8 @@ public:
 
   /// Returns the backedge value as a recipe. The backedge value is guaranteed
   /// to be a recipe.
-  VPRecipeBase *getBackedgeRecipe() {
-    return cast<VPRecipeBase>(getBackedgeValue()->getDef());
+  VPRecipeBase &getBackedgeRecipe() {
+    return *getBackedgeValue()->getDefiningRecipe();
   }
 };
 
@@ -1944,7 +1944,7 @@ public:
 
   /// Returns the scalar type of the induction.
   const Type *getScalarType() const {
-    return cast<VPCanonicalIVPHIRecipe>(getOperand(0)->getDef())
+    return cast<VPCanonicalIVPHIRecipe>(getOperand(0)->getDefiningRecipe())
         ->getScalarType();
   }
 };
@@ -1952,19 +1952,16 @@ public:
 /// A recipe for handling phi nodes of integer and floating-point inductions,
 /// producing their scalar values.
 class VPScalarIVStepsRecipe : public VPRecipeBase, public VPValue {
-  /// Scalar type to use for the generated values.
-  Type *Ty;
   /// If not nullptr, truncate the generated values to TruncToTy.
   Type *TruncToTy;
   const InductionDescriptor &IndDesc;
 
 public:
-  VPScalarIVStepsRecipe(Type *Ty, const InductionDescriptor &IndDesc,
+  VPScalarIVStepsRecipe(const InductionDescriptor &IndDesc,
                         VPValue *CanonicalIV, VPValue *Start, VPValue *Step,
                         Type *TruncToTy)
       : VPRecipeBase(VPScalarIVStepsSC, {CanonicalIV, Start, Step}),
-        VPValue(nullptr, this), Ty(Ty), TruncToTy(TruncToTy), IndDesc(IndDesc) {
-  }
+        VPValue(nullptr, this), TruncToTy(TruncToTy), IndDesc(IndDesc) {}
 
   ~VPScalarIVStepsRecipe() override = default;
 
@@ -3059,7 +3056,7 @@ inline bool isUniformAfterVectorization(VPValue *VPV) {
   // vectorization inside a vector region.
   if (VPV->isDefinedOutsideVectorRegions())
     return true;
-  VPDef *Def = VPV->getDef();
+  VPRecipeBase *Def = VPV->getDefiningRecipe();
   assert(Def && "Must have definition for value defined inside vector region");
   if (auto Rep = dyn_cast<VPReplicateRecipe>(Def))
     return Rep->isUniform();

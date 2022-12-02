@@ -269,8 +269,7 @@ define i32 @test_nouseful_bits(i8 %a, i32 %b) {
 ; CHECK-NEXT:    lsl w8, w8, #8
 ; CHECK-NEXT:    mov w9, w8
 ; CHECK-NEXT:    bfxil w9, w0, #0, #8
-; CHECK-NEXT:    bfi w8, w9, #16, #16
-; CHECK-NEXT:    mov w0, w8
+; CHECK-NEXT:    orr w0, w8, w9, lsl #16
 ; CHECK-NEXT:    ret
   %conv = zext i8 %a to i32     ;   0  0  0  A
   %shl = shl i32 %b, 8          ;   B2 B1 B0 0
@@ -600,4 +599,142 @@ define i64 @test_and_extended_shift_with_imm(i64 %0) {
   %2 = shl i64 %0, 7
   %3 = and i64 %2, 32640  ; #0x7f80
   ret i64 %3
+}
+
+; orr with left-shifted operand is better than bfi, since it improves data
+; dependency, and orr has a smaller latency and higher throughput than bfm on
+; some AArch64 processors (for the rest, orr is at least as good as bfm)
+;
+; ubfx x8, x0, #8, #7
+; and x9, x0, #0x7f
+; orr x0, x9, x8, lsl #7
+define i64 @test_orr_not_bfxil_i64(i64 %0) {
+; CHECK-LABEL: test_orr_not_bfxil_i64:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    ubfx x8, x0, #8, #7
+; CHECK-NEXT:    and x9, x0, #0x7f
+; CHECK-NEXT:    orr x0, x9, x8, lsl #7
+; CHECK-NEXT:    ret
+  %2 = and i64 %0, 127
+  %3 = lshr i64 %0, 1
+  %4 = and i64 %3, 16256  ; 0x3f80
+  %5 = or i64 %4, %2
+  ret i64 %5
+}
+
+; The 32-bit test for `test_orr_not_bfxil_i64`.
+define i32 @test_orr_not_bfxil_i32(i32 %0) {
+; CHECK-LABEL: test_orr_not_bfxil_i32:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    ubfx w8, w0, #8, #7
+; CHECK-NEXT:    and w9, w0, #0x7f
+; CHECK-NEXT:    orr w0, w9, w8, lsl #7
+; CHECK-NEXT:    ret
+  %2 = and i32 %0, 127
+  %3 = lshr i32 %0, 1
+  %4 = and i32 %3, 16256  ; 0x3f80
+  %5 = or i32 %4, %2
+  ret i32 %5
+}
+
+; For or operation, one operand is a left shift of another operand.
+; So orr with a left-shifted operand is generated (not bfi).
+define i64 @test_orr_not_bfi_i64(i64 %0) {
+; CHECK-LABEL: test_orr_not_bfi_i64:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    and x8, x0, #0xff
+; CHECK-NEXT:    orr x0, x8, x8, lsl #8
+; CHECK-NEXT:    ret
+  %2 = and i64 %0, 255
+  %3 = shl i64 %2, 8
+  %4 = or i64 %2, %3
+  ret i64 %4
+}
+
+; bfi is better than orr, since it would simplify away two instructions
+; (%mask and %bit-field-pos-op).
+define i32 @test_bfi_not_orr_i32(i32 %0, i32 %1) {
+; CHECK-LABEL: test_bfi_not_orr_i32:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    and w8, w1, #0xff
+; CHECK-NEXT:    bfi w8, w0, #8, #8
+; CHECK-NEXT:    mov w0, w8
+; CHECK-NEXT:    ret
+  %bfi_dst = and i32 %1, 255
+  %mask = and i32 %0, 255
+  %bit-field-pos-op = shl i32 %mask, 8
+  %or_res = or i32 %bit-field-pos-op, %bfi_dst
+  ret i32 %or_res
+}
+
+; orr is generated (not bfi), since both simplify away one instruction (%3)
+; while orr has shorter latency and higher throughput.
+define i32 @test_orr_not_bfi_i32(i32 %0) {
+; CHECK-LABEL: test_orr_not_bfi_i32:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    and w8, w0, #0xff
+; CHECK-NEXT:    orr w0, w8, w8, lsl #8
+; CHECK-NEXT:    ret
+  %2 = and i32 %0, 255
+  %3 = shl i32 %2, 8
+  %4 = or i32 %2, %3
+  ret i32 %4
+}
+
+; bfxil is better than orr, since it would simplify away two instructions
+; (%mask and %bit-field-extract-op).
+define i64 @test_bfxil_not_orr_i64(i64 %0, i64 %1) {
+; CHECK-LABEL: test_bfxil_not_orr_i64:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    and x0, x0, #0xff000
+; CHECK-NEXT:    bfxil x0, x1, #12, #8
+; CHECK-NEXT:    ret
+  %shifted-mask = and i64 %1, 1044480
+  %bfi-dst = and i64 %0, 1044480
+  %bit-field-extract-op = lshr i64 %shifted-mask, 12
+  %or_res = or i64 %bit-field-extract-op, %bfi-dst
+  ret i64 %or_res
+}
+
+; orr is generated (not bfxil), since one operand is the right shift of another
+; operand.
+define i64 @orr_not_bfxil_test2_i64(i64 %0) {
+; CHECK-LABEL: orr_not_bfxil_test2_i64:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    and x8, x0, #0xff000
+; CHECK-NEXT:    orr x0, x8, x8, lsr #12
+; CHECK-NEXT:    ret
+  %2 = and i64 %0, 1044480 ; 0xff000
+  %3 = lshr i64 %2, 12
+  %4 = or i64 %2, %3
+  ret i64 %4
+}
+
+; bfxil simplifies away two instructions (that computes %shifted-mask and
+; %bit-field-extract-op respectively), so it's better than orr (which
+; simplifies away at most one shift).
+define i32 @test_bfxil_not_orr_i32(i32 %0, i32 %1) {
+; CHECK-LABEL: test_bfxil_not_orr_i32:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    and w0, w0, #0xff000
+; CHECK-NEXT:    bfxil w0, w1, #12, #8
+; CHECK-NEXT:    ret
+  %shifted-mask = and i32 %1, 1044480
+  %bfxil-dst = and i32 %0, 1044480
+  %bit-field-extract-op = lshr i32 %shifted-mask, 12
+  %or_res = or i32 %bit-field-extract-op, %bfxil-dst
+  ret i32 %or_res
+}
+
+; one operand is the shift of another operand, so orr is generated (not bfxil).
+define i32 @orr_not_bfxil_test2_i32(i32 %0) {
+; CHECK-LABEL: orr_not_bfxil_test2_i32:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    and w8, w0, #0xff000
+; CHECK-NEXT:    orr w0, w8, w8, lsr #12
+; CHECK-NEXT:    ret
+  %2 = and i32 %0, 1044480  ; 0xff000
+  %3 = lshr i32 %2, 12
+  %4 = or i32 %2, %3
+  ret i32 %4
 }

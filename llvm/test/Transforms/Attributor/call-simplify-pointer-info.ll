@@ -4,7 +4,7 @@
 ;
 
 define internal i8 @read_arg(i8* %p) {
-; CGSCC: Function Attrs: argmemonly nofree norecurse nosync nounwind readonly willreturn
+; CGSCC: Function Attrs: nofree norecurse nosync nounwind willreturn memory(argmem: read)
 ; CGSCC-LABEL: define {{[^@]+}}@read_arg
 ; CGSCC-SAME: (i8* nocapture nofree noundef nonnull readonly dereferenceable(1022) [[P:%.*]]) #[[ATTR0:[0-9]+]] {
 ; CGSCC-NEXT:  entry:
@@ -17,14 +17,14 @@ entry:
 }
 
 define internal i8 @read_arg_index(i8* %p, i64 %index) {
-; TUNIT: Function Attrs: argmemonly nofree norecurse nosync nounwind readonly willreturn
+; TUNIT: Function Attrs: nofree norecurse nosync nounwind willreturn memory(argmem: read)
 ; TUNIT-LABEL: define {{[^@]+}}@read_arg_index
 ; TUNIT-SAME: (i8* nocapture nofree noundef nonnull readonly align 2 dereferenceable(1022) [[P:%.*]]) #[[ATTR0:[0-9]+]] {
 ; TUNIT-NEXT:  entry:
 ; TUNIT-NEXT:    [[L:%.*]] = load i8, i8* [[P]], align 2
 ; TUNIT-NEXT:    ret i8 [[L]]
 ;
-; CGSCC: Function Attrs: argmemonly nofree norecurse nosync nounwind readonly willreturn
+; CGSCC: Function Attrs: nofree norecurse nosync nounwind willreturn memory(argmem: read)
 ; CGSCC-LABEL: define {{[^@]+}}@read_arg_index
 ; CGSCC-SAME: (i8* nocapture nofree noundef nonnull readonly dereferenceable(1022) [[P:%.*]]) #[[ATTR0]] {
 ; CGSCC-NEXT:  entry:
@@ -38,7 +38,7 @@ entry:
 }
 
 define i8 @call_simplifiable_1() {
-; TUNIT: Function Attrs: nofree norecurse nosync nounwind readnone willreturn
+; TUNIT: Function Attrs: nofree norecurse nosync nounwind willreturn memory(none)
 ; TUNIT-LABEL: define {{[^@]+}}@call_simplifiable_1
 ; TUNIT-SAME: () #[[ATTR1:[0-9]+]] {
 ; TUNIT-NEXT:  entry:
@@ -46,7 +46,7 @@ define i8 @call_simplifiable_1() {
 ; TUNIT-NEXT:    [[I0:%.*]] = getelementptr inbounds [1024 x i8], [1024 x i8]* [[BYTES]], i64 0, i64 2
 ; TUNIT-NEXT:    ret i8 2
 ;
-; CGSCC: Function Attrs: nofree nosync nounwind readnone willreturn
+; CGSCC: Function Attrs: nofree nosync nounwind willreturn memory(none)
 ; CGSCC-LABEL: define {{[^@]+}}@call_simplifiable_1
 ; CGSCC-SAME: () #[[ATTR1:[0-9]+]] {
 ; CGSCC-NEXT:  entry:
@@ -67,7 +67,7 @@ entry:
 ;;; Same as read_arg, but we need a copy to form distinct leaves in the callgraph.
 
 define internal i8 @read_arg_1(i8* %p) {
-; CGSCC: Function Attrs: argmemonly nofree norecurse nosync nounwind readonly willreturn
+; CGSCC: Function Attrs: nofree norecurse nosync nounwind willreturn memory(argmem: read)
 ; CGSCC-LABEL: define {{[^@]+}}@read_arg_1
 ; CGSCC-SAME: (i8* nocapture nofree noundef nonnull readonly dereferenceable(1) [[P:%.*]]) #[[ATTR0]] {
 ; CGSCC-NEXT:  entry:
@@ -80,11 +80,11 @@ entry:
 }
 
 define internal i8 @sum_two_same_loads(i8* %p) {
-; CGSCC: Function Attrs: argmemonly nofree nosync nounwind readonly willreturn
+; CGSCC: Function Attrs: nofree nosync nounwind willreturn memory(argmem: read)
 ; CGSCC-LABEL: define {{[^@]+}}@sum_two_same_loads
 ; CGSCC-SAME: (i8* nocapture nofree noundef nonnull readonly dereferenceable(1022) [[P:%.*]]) #[[ATTR2:[0-9]+]] {
-; CGSCC-NEXT:    [[X:%.*]] = call i8 @read_arg_1(i8* nocapture nofree noundef nonnull readonly dereferenceable(1022) [[P]]) #[[ATTR3]]
-; CGSCC-NEXT:    [[Y:%.*]] = call i8 @read_arg_1(i8* nocapture nofree noundef nonnull readonly dereferenceable(1022) [[P]]) #[[ATTR3]]
+; CGSCC-NEXT:    [[X:%.*]] = call i8 @read_arg_1(i8* nocapture nofree noundef nonnull readonly dereferenceable(1022) [[P]]) #[[ATTR4:[0-9]+]]
+; CGSCC-NEXT:    [[Y:%.*]] = call i8 @read_arg_1(i8* nocapture nofree noundef nonnull readonly dereferenceable(1022) [[P]]) #[[ATTR4]]
 ; CGSCC-NEXT:    [[Z:%.*]] = add nsw i8 [[X]], [[Y]]
 ; CGSCC-NEXT:    ret i8 [[Z]]
 ;
@@ -95,7 +95,7 @@ define internal i8 @sum_two_same_loads(i8* %p) {
 }
 
 define i8 @call_simplifiable_2() {
-; TUNIT: Function Attrs: nofree norecurse nosync nounwind readnone willreturn
+; TUNIT: Function Attrs: nofree norecurse nosync nounwind willreturn memory(none)
 ; TUNIT-LABEL: define {{[^@]+}}@call_simplifiable_2
 ; TUNIT-SAME: () #[[ATTR1]] {
 ; TUNIT-NEXT:  entry:
@@ -104,7 +104,7 @@ define i8 @call_simplifiable_2() {
 ; TUNIT-NEXT:    [[I1:%.*]] = getelementptr inbounds [1024 x i8], [1024 x i8]* [[BYTES]], i64 0, i64 3
 ; TUNIT-NEXT:    ret i8 4
 ;
-; CGSCC: Function Attrs: nofree nosync nounwind readnone willreturn
+; CGSCC: Function Attrs: nofree nosync nounwind willreturn memory(none)
 ; CGSCC-LABEL: define {{[^@]+}}@call_simplifiable_2
 ; CGSCC-SAME: () #[[ATTR1]] {
 ; CGSCC-NEXT:  entry:
@@ -127,7 +127,7 @@ entry:
 }
 
 define i8 @call_not_simplifiable_1() {
-; TUNIT: Function Attrs: nofree norecurse nosync nounwind readnone willreturn
+; TUNIT: Function Attrs: nofree norecurse nosync nounwind willreturn memory(none)
 ; TUNIT-LABEL: define {{[^@]+}}@call_not_simplifiable_1
 ; TUNIT-SAME: () #[[ATTR1]] {
 ; TUNIT-NEXT:  entry:
@@ -137,7 +137,7 @@ define i8 @call_not_simplifiable_1() {
 ; TUNIT-NEXT:    [[R:%.*]] = call i8 @read_arg_index(i8* nocapture nofree noundef nonnull readonly align 2 dereferenceable(1022) [[I0]]) #[[ATTR2:[0-9]+]]
 ; TUNIT-NEXT:    ret i8 [[R]]
 ;
-; CGSCC: Function Attrs: nofree nosync nounwind readnone willreturn
+; CGSCC: Function Attrs: nofree nosync nounwind willreturn memory(none)
 ; CGSCC-LABEL: define {{[^@]+}}@call_not_simplifiable_1
 ; CGSCC-SAME: () #[[ATTR1]] {
 ; CGSCC-NEXT:  entry:
@@ -158,14 +158,14 @@ entry:
 ;;; Same as read_arg, but we need a copy to form distinct leaves in the callgraph.
 
 define internal i8 @read_arg_2(i8* %p) {
-; TUNIT: Function Attrs: argmemonly nofree norecurse nosync nounwind readonly willreturn
+; TUNIT: Function Attrs: nofree norecurse nosync nounwind willreturn memory(argmem: read)
 ; TUNIT-LABEL: define {{[^@]+}}@read_arg_2
 ; TUNIT-SAME: (i8* nocapture nofree noundef nonnull readonly dereferenceable(1021) [[P:%.*]]) #[[ATTR0]] {
 ; TUNIT-NEXT:  entry:
 ; TUNIT-NEXT:    [[L:%.*]] = load i8, i8* [[P]], align 1
 ; TUNIT-NEXT:    ret i8 [[L]]
 ;
-; CGSCC: Function Attrs: argmemonly nofree norecurse nosync nounwind readonly willreturn
+; CGSCC: Function Attrs: nofree norecurse nosync nounwind willreturn memory(argmem: read)
 ; CGSCC-LABEL: define {{[^@]+}}@read_arg_2
 ; CGSCC-SAME: (i8* nocapture nofree noundef nonnull readonly dereferenceable(1) [[P:%.*]]) #[[ATTR0]] {
 ; CGSCC-NEXT:  entry:
@@ -178,7 +178,7 @@ entry:
 }
 
 define internal i8 @sum_two_different_loads(i8* %p, i8* %q) {
-; TUNIT: Function Attrs: argmemonly nofree norecurse nosync nounwind readonly willreturn
+; TUNIT: Function Attrs: nofree norecurse nosync nounwind willreturn memory(argmem: read)
 ; TUNIT-LABEL: define {{[^@]+}}@sum_two_different_loads
 ; TUNIT-SAME: (i8* nocapture nofree noundef nonnull readonly align 2 dereferenceable(1022) [[P:%.*]], i8* nocapture nofree noundef nonnull readonly dereferenceable(1021) [[Q:%.*]]) #[[ATTR0]] {
 ; TUNIT-NEXT:    [[X:%.*]] = call i8 @read_arg_2(i8* nocapture nofree noundef nonnull readonly align 2 dereferenceable(1022) [[P]]) #[[ATTR2]]
@@ -186,11 +186,11 @@ define internal i8 @sum_two_different_loads(i8* %p, i8* %q) {
 ; TUNIT-NEXT:    [[Z:%.*]] = add nsw i8 [[X]], [[Y]]
 ; TUNIT-NEXT:    ret i8 [[Z]]
 ;
-; CGSCC: Function Attrs: argmemonly nofree nosync nounwind readonly willreturn
+; CGSCC: Function Attrs: nofree nosync nounwind willreturn memory(argmem: read)
 ; CGSCC-LABEL: define {{[^@]+}}@sum_two_different_loads
 ; CGSCC-SAME: (i8* nocapture nofree noundef nonnull readonly dereferenceable(1022) [[P:%.*]], i8* nocapture nofree noundef nonnull readonly dereferenceable(1021) [[Q:%.*]]) #[[ATTR2]] {
-; CGSCC-NEXT:    [[X:%.*]] = call i8 @read_arg_2(i8* nocapture nofree noundef nonnull readonly dereferenceable(1022) [[P]]) #[[ATTR3]]
-; CGSCC-NEXT:    [[Y:%.*]] = call i8 @read_arg_2(i8* nocapture nofree noundef nonnull readonly dereferenceable(1021) [[Q]]) #[[ATTR3]]
+; CGSCC-NEXT:    [[X:%.*]] = call i8 @read_arg_2(i8* nocapture nofree noundef nonnull readonly dereferenceable(1022) [[P]]) #[[ATTR4]]
+; CGSCC-NEXT:    [[Y:%.*]] = call i8 @read_arg_2(i8* nocapture nofree noundef nonnull readonly dereferenceable(1021) [[Q]]) #[[ATTR4]]
 ; CGSCC-NEXT:    [[Z:%.*]] = add nsw i8 [[X]], [[Y]]
 ; CGSCC-NEXT:    ret i8 [[Z]]
 ;
@@ -201,7 +201,7 @@ define internal i8 @sum_two_different_loads(i8* %p, i8* %q) {
 }
 
 define i8 @call_not_simplifiable_2() {
-; TUNIT: Function Attrs: nofree norecurse nosync nounwind readnone willreturn
+; TUNIT: Function Attrs: nofree norecurse nosync nounwind willreturn memory(none)
 ; TUNIT-LABEL: define {{[^@]+}}@call_not_simplifiable_2
 ; TUNIT-SAME: () #[[ATTR1]] {
 ; TUNIT-NEXT:  entry:
@@ -214,7 +214,7 @@ define i8 @call_not_simplifiable_2() {
 ; TUNIT-NEXT:    [[R:%.*]] = call i8 @sum_two_different_loads(i8* nocapture nofree noundef nonnull readonly align 2 dereferenceable(1022) [[I0]], i8* nocapture nofree noundef nonnull readonly dereferenceable(1021) [[I1]]) #[[ATTR2]]
 ; TUNIT-NEXT:    ret i8 [[R]]
 ;
-; CGSCC: Function Attrs: nofree nosync nounwind readnone willreturn
+; CGSCC: Function Attrs: nofree nosync nounwind willreturn memory(none)
 ; CGSCC-LABEL: define {{[^@]+}}@call_not_simplifiable_2
 ; CGSCC-SAME: () #[[ATTR1]] {
 ; CGSCC-NEXT:  entry:
@@ -239,12 +239,13 @@ entry:
 }
 
 ;.
-; TUNIT: attributes #[[ATTR0]] = { argmemonly nofree norecurse nosync nounwind readonly willreturn }
-; TUNIT: attributes #[[ATTR1]] = { nofree norecurse nosync nounwind readnone willreturn }
-; TUNIT: attributes #[[ATTR2]] = { nofree nosync nounwind readonly willreturn }
+; TUNIT: attributes #[[ATTR0]] = { nofree norecurse nosync nounwind willreturn memory(argmem: read) }
+; TUNIT: attributes #[[ATTR1]] = { nofree norecurse nosync nounwind willreturn memory(none) }
+; TUNIT: attributes #[[ATTR2]] = { nofree nosync nounwind willreturn }
 ;.
-; CGSCC: attributes #[[ATTR0]] = { argmemonly nofree norecurse nosync nounwind readonly willreturn }
-; CGSCC: attributes #[[ATTR1]] = { nofree nosync nounwind readnone willreturn }
-; CGSCC: attributes #[[ATTR2]] = { argmemonly nofree nosync nounwind readonly willreturn }
-; CGSCC: attributes #[[ATTR3]] = { readonly willreturn }
+; CGSCC: attributes #[[ATTR0]] = { nofree norecurse nosync nounwind willreturn memory(argmem: read) }
+; CGSCC: attributes #[[ATTR1]] = { nofree nosync nounwind willreturn memory(none) }
+; CGSCC: attributes #[[ATTR2]] = { nofree nosync nounwind willreturn memory(argmem: read) }
+; CGSCC: attributes #[[ATTR3]] = { willreturn }
+; CGSCC: attributes #[[ATTR4]] = { willreturn memory(read) }
 ;.

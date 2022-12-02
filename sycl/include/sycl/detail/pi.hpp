@@ -159,6 +159,7 @@ template <class To, class From> To cast(From value);
 // Holds the PluginInformation for the plugin that is bound.
 // Currently a global variable is used to store OpenCL plugin information to be
 // used with SYCL Interoperability Constructors.
+// TODO: GlobalPlugin does not seem to be needed anymore. Consider removing it!
 extern std::shared_ptr<plugin> GlobalPlugin;
 
 // Performs PI one-time initialization.

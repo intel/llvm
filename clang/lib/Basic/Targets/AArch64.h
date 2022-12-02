@@ -16,7 +16,6 @@
 #include "OSTargets.h"
 #include "clang/Basic/TargetBuiltins.h"
 #include "llvm/Support/AArch64TargetParser.h"
-#include "llvm/Support/TargetParser.h"
 
 namespace clang {
 namespace targets {
@@ -97,6 +96,8 @@ public:
                                MacroBuilder &Builder) const;
   void getTargetDefinesARMV88A(const LangOptions &Opts,
                                MacroBuilder &Builder) const;
+  void getTargetDefinesARMV89A(const LangOptions &Opts,
+                               MacroBuilder &Builder) const;
   void getTargetDefinesARMV9A(const LangOptions &Opts,
                               MacroBuilder &Builder) const;
   void getTargetDefinesARMV91A(const LangOptions &Opts,
@@ -104,6 +105,8 @@ public:
   void getTargetDefinesARMV92A(const LangOptions &Opts,
                                MacroBuilder &Builder) const;
   void getTargetDefinesARMV93A(const LangOptions &Opts,
+                               MacroBuilder &Builder) const;
+  void getTargetDefinesARMV94A(const LangOptions &Opts,
                                MacroBuilder &Builder) const;
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override;

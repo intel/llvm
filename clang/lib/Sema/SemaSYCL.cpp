@@ -368,9 +368,11 @@ bool Sema::isDeclAllowedInSYCLDeviceCode(const Decl *D) {
   if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
     const IdentifierInfo *II = FD->getIdentifier();
 
-    // Allow __builtin_assume_aligned to be called from within device code.
+    // Allow __builtin_assume_aligned and __builtin_printf to be called from
+    // within device code.
     if (FD->getBuiltinID() &&
-        FD->getBuiltinID() == Builtin::BI__builtin_assume_aligned)
+        (FD->getBuiltinID() == Builtin::BI__builtin_assume_aligned ||
+         FD->getBuiltinID() == Builtin::BI__builtin_printf))
       return true;
 
     // Allow to use `::printf` only for CUDA.
@@ -579,7 +581,8 @@ public:
       }
 
       if (const CXXMethodDecl *Method = dyn_cast<CXXMethodDecl>(Callee))
-        if (Method->isVirtual())
+        if (Method->isVirtual() &&
+            !SemaRef.getLangOpts().SYCLAllowVirtualFunctions)
           SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
               << Sema::KernelCallVirtualFunction;
 
@@ -2087,6 +2090,7 @@ public:
 
     const ConstantArrayType *CAT =
         SemaRef.getASTContext().getAsConstantArrayType(ArrayTy);
+    assert(CAT && "Should only be called on constant-size array.");
     QualType ModifiedArray = SemaRef.getASTContext().getConstantArrayType(
         ModifiedArrayElement, CAT->getSize(),
         const_cast<Expr *>(CAT->getSizeExpr()), CAT->getSizeModifier(),

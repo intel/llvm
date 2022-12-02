@@ -206,6 +206,8 @@ StringRef sys::detail::getHostCPUNameForARM(StringRef ProcCpuinfoContent) {
         .Case("0xd02", "cortex-a34")
         .Case("0xd04", "cortex-a35")
         .Case("0xd03", "cortex-a53")
+        .Case("0xd05", "cortex-a55")
+        .Case("0xd46", "cortex-a510")
         .Case("0xd07", "cortex-a57")
         .Case("0xd08", "cortex-a72")
         .Case("0xd09", "cortex-a73")
@@ -213,8 +215,12 @@ StringRef sys::detail::getHostCPUNameForARM(StringRef ProcCpuinfoContent) {
         .Case("0xd0b", "cortex-a76")
         .Case("0xd0d", "cortex-a77")
         .Case("0xd41", "cortex-a78")
+        .Case("0xd47", "cortex-a710")
+        .Case("0xd4d", "cortex-a715")
         .Case("0xd44", "cortex-x1")
         .Case("0xd4c", "cortex-x1c")
+        .Case("0xd48", "cortex-x2")
+        .Case("0xd4e", "cortex-x3")
         .Case("0xd0c", "neoverse-n1")
         .Case("0xd49", "neoverse-n2")
         .Case("0xd40", "neoverse-v1")
@@ -815,9 +821,23 @@ getIntelProcessorTypeAndSubtype(unsigned Family, unsigned Model,
     // Alderlake:
     case 0x97:
     case 0x9a:
+    // Raptorlake:
+    case 0xb7:
+    // Meteorlake:
+    case 0xb5:
+    case 0xaa:
+    case 0xac:
       CPU = "alderlake";
       *Type = X86::INTEL_COREI7;
       *Subtype = X86::INTEL_COREI7_ALDERLAKE;
+      break;
+
+    // Graniterapids:
+    case 0xae:
+    case 0xad:
+      CPU = "graniterapids";
+      *Type = X86::INTEL_COREI7;
+      *Subtype = X86::INTEL_COREI7_GRANITERAPIDS;
       break;
 
     // Icelake Xeon:
@@ -867,6 +887,18 @@ getIntelProcessorTypeAndSubtype(unsigned Family, unsigned Model,
     case 0x86:
       CPU = "tremont";
       *Type = X86::INTEL_TREMONT;
+      break;
+
+    // Sierraforest:
+    case 0xaf:
+      CPU = "sierraforest";
+      *Type = X86::INTEL_SIERRAFOREST;
+      break;
+
+    // Grandridge:
+    case 0xb6:
+      CPU = "grandridge";
+      *Type = X86::INTEL_GRANDRIDGE;
       break;
 
     // Xeon Phi (Knights Landing + Knights Mill):
@@ -1064,9 +1096,14 @@ getAMDProcessorTypeAndSubtype(unsigned Family, unsigned Model,
   case 25:
     CPU = "znver3";
     *Type = X86::AMDFAM19H;
-    if (Model <= 0x0f || Model == 0x21) {
+    if (Model <= 0x0f || (Model >= 0x20 && Model <= 0x5f)) {
+      // Family 19h Models 00h-0Fh - Zen3
+      // Family 19h Models 20h-2Fh - Zen3
+      // Family 19h Models 30h-3Fh - Zen3
+      // Family 19h Models 40h-4Fh - Zen3+
+      // Family 19h Models 50h-5Fh - Zen3+
       *Subtype = X86::AMDFAM19H_ZNVER3;
-      break; // 00h-0Fh, 21h: Zen3
+      break;
     }
     break;
   default:
@@ -1244,7 +1281,7 @@ StringRef sys::getHostCPUName() {
   return "generic";
 }
 
-#elif defined(__APPLE__) && (defined(__ppc__) || defined(__powerpc__))
+#elif defined(__APPLE__) && defined(__powerpc__)
 StringRef sys::getHostCPUName() {
   host_basic_info_data_t hostInfo;
   mach_msg_type_number_t infoCount;
@@ -1288,7 +1325,7 @@ StringRef sys::getHostCPUName() {
 
   return "generic";
 }
-#elif defined(__linux__) && (defined(__ppc__) || defined(__powerpc__))
+#elif defined(__linux__) && defined(__powerpc__)
 StringRef sys::getHostCPUName() {
   std::unique_ptr<llvm::MemoryBuffer> P = getProcCpuinfoContent();
   StringRef Content = P ? P->getBuffer() : "";
@@ -1543,7 +1580,7 @@ VendorSignatures getVendorSignature(unsigned *MaxLeaf) {
 // On Linux, the number of physical cores can be computed from /proc/cpuinfo,
 // using the number of unique physical/core id pairs. The following
 // implementation reads the /proc/cpuinfo format on an x86_64 system.
-int computeHostNumPhysicalCores() {
+static int computeHostNumPhysicalCores() {
   // Enabled represents the number of physical id/core id pairs with at least
   // one processor id enabled by the CPU affinity mask.
   cpu_set_t Affinity, Enabled;
@@ -1588,9 +1625,11 @@ int computeHostNumPhysicalCores() {
   return CPU_COUNT(&Enabled);
 }
 #elif defined(__linux__) && defined(__s390x__)
-int computeHostNumPhysicalCores() { return sysconf(_SC_NPROCESSORS_ONLN); }
+static int computeHostNumPhysicalCores() {
+  return sysconf(_SC_NPROCESSORS_ONLN);
+}
 #elif defined(__linux__) && !defined(__ANDROID__)
-int computeHostNumPhysicalCores() {
+static int computeHostNumPhysicalCores() {
   cpu_set_t Affinity;
   if (sched_getaffinity(0, sizeof(Affinity), &Affinity) == 0)
     return CPU_COUNT(&Affinity);
@@ -1610,7 +1649,7 @@ int computeHostNumPhysicalCores() {
 }
 #elif defined(__APPLE__)
 // Gets the number of *physical cores* on the machine.
-int computeHostNumPhysicalCores() {
+static int computeHostNumPhysicalCores() {
   uint32_t count;
   size_t len = sizeof(count);
   sysctlbyname("hw.physicalcpu", &count, &len, NULL, 0);
@@ -1625,7 +1664,7 @@ int computeHostNumPhysicalCores() {
   return count;
 }
 #elif defined(__MVS__)
-int computeHostNumPhysicalCores() {
+static int computeHostNumPhysicalCores() {
   enum {
     // Byte offset of the pointer to the Communications Vector Table (CVT) in
     // the Prefixed Save Area (PSA). The table entry is a 31-bit pointer and

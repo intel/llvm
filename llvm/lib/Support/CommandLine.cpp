@@ -1158,9 +1158,11 @@ Error ExpansionContext::expandResponseFile(
   assert(sys::path::is_absolute(FName));
   llvm::ErrorOr<std::unique_ptr<MemoryBuffer>> MemBufOrErr =
       FS->getBufferForFile(FName);
-  if (!MemBufOrErr)
-    return llvm::createStringError(
-        MemBufOrErr.getError(), Twine("cannot not open file '") + FName + "'");
+  if (!MemBufOrErr) {
+    std::error_code EC = MemBufOrErr.getError();
+    return llvm::createStringError(EC, Twine("cannot not open file '") + FName +
+                                           "': " + EC.message());
+  }
   MemoryBuffer &MemBuf = *MemBufOrErr.get();
   StringRef Str(MemBuf.getBufferStart(), MemBuf.getBufferSize());
 
@@ -1189,27 +1191,44 @@ Error ExpansionContext::expandResponseFile(
     return Error::success();
 
   StringRef BasePath = llvm::sys::path::parent_path(FName);
-  for (auto I = NewArgv.begin(), E = NewArgv.end(); I != E; ++I) {
-    const char *&Arg = *I;
-    if (Arg == nullptr)
+  for (const char *&Arg : NewArgv) {
+    if (!Arg)
       continue;
 
     // Substitute <CFGDIR> with the file's base path.
     if (InConfigFile)
       ExpandBasePaths(BasePath, Saver, Arg);
 
-    // Get expanded file name.
-    StringRef FileName(Arg);
-    if (!FileName.consume_front("@"))
+    // Discover the case, when argument should be transformed into '@file' and
+    // evaluate 'file' for it.
+    StringRef ArgStr(Arg);
+    StringRef FileName;
+    bool ConfigInclusion = false;
+    if (ArgStr.consume_front("@")) {
+      FileName = ArgStr;
+      if (!llvm::sys::path::is_relative(FileName))
+        continue;
+    } else if (ArgStr.consume_front("--config=")) {
+      FileName = ArgStr;
+      ConfigInclusion = true;
+    } else {
       continue;
-    if (!llvm::sys::path::is_relative(FileName))
-      continue;
+    }
 
     // Update expansion construct.
     SmallString<128> ResponseFile;
     ResponseFile.push_back('@');
-    ResponseFile.append(BasePath);
-    llvm::sys::path::append(ResponseFile, FileName);
+    if (ConfigInclusion && !llvm::sys::path::has_parent_path(FileName)) {
+      SmallString<128> FilePath;
+      if (!findConfigFile(FileName, FilePath))
+        return createStringError(
+            std::make_error_code(std::errc::no_such_file_or_directory),
+            "cannot not find configuration file: " + FileName);
+      ResponseFile.append(FilePath);
+    } else {
+      ResponseFile.append(BasePath);
+      llvm::sys::path::append(ResponseFile, FileName);
+    }
     Arg = Saver.save(ResponseFile.str()).data();
   }
   return Error::success();
@@ -1262,7 +1281,7 @@ Error ExpansionContext::expandResponseFiles(
         if (auto CWD = FS->getCurrentWorkingDirectory()) {
           CurrDir = *CWD;
         } else {
-          return make_error<StringError>(
+          return createStringError(
               CWD.getError(), Twine("cannot get absolute path for: ") + FName);
         }
       } else {
@@ -1271,49 +1290,48 @@ Error ExpansionContext::expandResponseFiles(
       llvm::sys::path::append(CurrDir, FName);
       FName = CurrDir.c_str();
     }
+
+    ErrorOr<llvm::vfs::Status> Res = FS->status(FName);
+    if (!Res || !Res->exists()) {
+      std::error_code EC = Res.getError();
+      if (!InConfigFile) {
+        // If the specified file does not exist, leave '@file' unexpanded, as
+        // libiberty does.
+        if (!EC || EC == llvm::errc::no_such_file_or_directory) {
+          ++I;
+          continue;
+        }
+      }
+      if (!EC)
+        EC = llvm::errc::no_such_file_or_directory;
+      return createStringError(EC, Twine("cannot not open file '") + FName +
+                                       "': " + EC.message());
+    }
+    const llvm::vfs::Status &FileStatus = Res.get();
+
     auto IsEquivalent =
-        [FName, this](const ResponseFileRecord &RFile) -> ErrorOr<bool> {
-      ErrorOr<llvm::vfs::Status> LHS = FS->status(FName);
-      if (!LHS)
-        return LHS.getError();
+        [FileStatus, this](const ResponseFileRecord &RFile) -> ErrorOr<bool> {
       ErrorOr<llvm::vfs::Status> RHS = FS->status(RFile.File);
       if (!RHS)
         return RHS.getError();
-      return LHS->equivalent(*RHS);
+      return FileStatus.equivalent(*RHS);
     };
 
     // Check for recursive response files.
     for (const auto &F : drop_begin(FileStack)) {
       if (ErrorOr<bool> R = IsEquivalent(F)) {
         if (R.get())
-          return make_error<StringError>(
-              Twine("recursive expansion of: '") + F.File + "'", R.getError());
+          return createStringError(
+              R.getError(), Twine("recursive expansion of: '") + F.File + "'");
       } else {
-        return make_error<StringError>(Twine("cannot open file: ") + F.File,
-                                       R.getError());
+        return createStringError(R.getError(),
+                                 Twine("cannot open file: ") + F.File);
       }
     }
 
     // Replace this response file argument with the tokenization of its
     // contents.  Nested response files are expanded in subsequent iterations.
     SmallVector<const char *, 0> ExpandedArgv;
-    if (!InConfigFile) {
-      // If the specified file does not exist, leave '@file' unexpanded, as
-      // libiberty does.
-      ErrorOr<llvm::vfs::Status> Res = FS->status(FName);
-      if (!Res) {
-        std::error_code EC = Res.getError();
-        if (EC == llvm::errc::no_such_file_or_directory) {
-          ++I;
-          continue;
-        }
-      } else {
-        if (!Res->exists()) {
-          ++I;
-          continue;
-        }
-      }
-    }
     if (Error Err = expandResponseFile(FName, ExpandedArgv))
       return Err;
 

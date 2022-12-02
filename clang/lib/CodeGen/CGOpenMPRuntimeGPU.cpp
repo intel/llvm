@@ -840,33 +840,6 @@ static void setPropertyExecutionMode(CodeGenModule &CGM, StringRef Name,
   CGM.addCompilerUsedGlobal(GVMode);
 }
 
-void CGOpenMPRuntimeGPU::createOffloadEntry(llvm::Constant *ID,
-                                              llvm::Constant *Addr,
-                                              uint64_t Size, int32_t,
-                                              llvm::GlobalValue::LinkageTypes) {
-  // TODO: Add support for global variables on the device after declare target
-  // support.
-  llvm::Function *Fn = dyn_cast<llvm::Function>(Addr);
-  if (!Fn)
-    return;
-
-  llvm::Module &M = CGM.getModule();
-  llvm::LLVMContext &Ctx = CGM.getLLVMContext();
-
-  // Get "nvvm.annotations" metadata node.
-  llvm::NamedMDNode *MD = M.getOrInsertNamedMetadata("nvvm.annotations");
-
-  llvm::Metadata *MDVals[] = {
-      llvm::ConstantAsMetadata::get(Fn), llvm::MDString::get(Ctx, "kernel"),
-      llvm::ConstantAsMetadata::get(
-          llvm::ConstantInt::get(llvm::Type::getInt32Ty(Ctx), 1))};
-  // Append metadata to nvvm.annotations.
-  MD->addOperand(llvm::MDNode::get(Ctx, MDVals));
-
-  // Add a function attribute for the kernel.
-  Fn->addFnAttr(llvm::Attribute::get(Ctx, "kernel"));
-}
-
 void CGOpenMPRuntimeGPU::emitTargetOutlinedFunction(
     const OMPExecutableDirective &D, StringRef ParentName,
     llvm::Function *&OutlinedFn, llvm::Constant *&OutlinedFnID,
@@ -916,7 +889,12 @@ unsigned CGOpenMPRuntimeGPU::getDefaultLocationReserved2Flags() const {
 }
 
 CGOpenMPRuntimeGPU::CGOpenMPRuntimeGPU(CodeGenModule &CGM)
-    : CGOpenMPRuntime(CGM, "_", "$") {
+    : CGOpenMPRuntime(CGM) {
+  llvm::OpenMPIRBuilderConfig Config(CGM.getLangOpts().OpenMPIsDevice, true,
+                                     hasRequiresUnifiedSharedMemory());
+  OMPBuilder.setConfig(Config);
+  OffloadEntriesInfoManager.setConfig(Config);
+
   if (!CGM.getLangOpts().OpenMPIsDevice)
     llvm_unreachable("OpenMP can only handle device code.");
 

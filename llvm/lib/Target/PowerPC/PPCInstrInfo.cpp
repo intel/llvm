@@ -613,7 +613,7 @@ void PPCInstrInfo::finalizeInsInstrs(
 }
 
 bool PPCInstrInfo::shouldReduceRegisterPressure(
-    MachineBasicBlock *MBB, RegisterClassInfo *RegClassInfo) const {
+    const MachineBasicBlock *MBB, const RegisterClassInfo *RegClassInfo) const {
 
   if (!EnableFMARegPressureReduction)
     return false;
@@ -635,10 +635,11 @@ bool PPCInstrInfo::shouldReduceRegisterPressure(
     return false;
 
   const TargetRegisterInfo *TRI = &getRegisterInfo();
-  MachineFunction *MF = MBB->getParent();
-  MachineRegisterInfo *MRI = &MF->getRegInfo();
+  const MachineFunction *MF = MBB->getParent();
+  const MachineRegisterInfo *MRI = &MF->getRegInfo();
 
-  auto GetMBBPressure = [&](MachineBasicBlock *MBB) -> std::vector<unsigned> {
+  auto GetMBBPressure =
+      [&](const MachineBasicBlock *MBB) -> std::vector<unsigned> {
     RegionPressure Pressure;
     RegPressureTracker RPTracker(Pressure);
 
@@ -646,10 +647,7 @@ bool PPCInstrInfo::shouldReduceRegisterPressure(
     RPTracker.init(MBB->getParent(), RegClassInfo, nullptr, MBB, MBB->end(),
                    /*TrackLaneMasks*/ false, /*TrackUntiedDefs=*/true);
 
-    for (MachineBasicBlock::iterator MII = MBB->instr_end(),
-                                     MIE = MBB->instr_begin();
-         MII != MIE; --MII) {
-      MachineInstr &MI = *std::prev(MII);
+    for (const auto &MI : reverse(*MBB)) {
       if (MI.isDebugValue() || MI.isDebugLabel())
         continue;
       RegisterOperands RegOpers;
@@ -1070,11 +1068,7 @@ bool PPCInstrInfo::isCoalescableExtInstr(const MachineInstr &MI,
 
 unsigned PPCInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
                                            int &FrameIndex) const {
-  unsigned Opcode = MI.getOpcode();
-  const unsigned *OpcodesForSpill = getLoadOpcodesForSpillArray();
-  const unsigned *End = OpcodesForSpill + SOK_LastOpcodeSpill;
-
-  if (End != std::find(OpcodesForSpill, End, Opcode)) {
+  if (llvm::is_contained(getLoadOpcodesForSpillArray(), MI.getOpcode())) {
     // Check for the operands added by addFrameReference (the immediate is the
     // offset which defaults to 0).
     if (MI.getOperand(1).isImm() && !MI.getOperand(1).getImm() &&
@@ -1122,6 +1116,7 @@ bool PPCInstrInfo::isReallyTriviallyReMaterializable(
   case PPC::CRSET:
   case PPC::CRUNSET:
   case PPC::XXSETACCZ:
+  case PPC::XXSETACCZW:
     return true;
   }
   return false;
@@ -1129,11 +1124,7 @@ bool PPCInstrInfo::isReallyTriviallyReMaterializable(
 
 unsigned PPCInstrInfo::isStoreToStackSlot(const MachineInstr &MI,
                                           int &FrameIndex) const {
-  unsigned Opcode = MI.getOpcode();
-  const unsigned *OpcodesForSpill = getStoreOpcodesForSpillArray();
-  const unsigned *End = OpcodesForSpill + SOK_LastOpcodeSpill;
-
-  if (End != std::find(OpcodesForSpill, End, Opcode)) {
+  if (llvm::is_contained(getStoreOpcodesForSpillArray(), MI.getOpcode())) {
     if (MI.getOperand(1).isImm() && !MI.getOperand(1).getImm() &&
         MI.getOperand(2).isFI()) {
       FrameIndex = MI.getOperand(2).getIndex();
@@ -1907,6 +1898,10 @@ unsigned PPCInstrInfo::getSpillIndex(const TargetRegisterClass *RC) const {
     assert(Subtarget.pairedVectorMemops() &&
            "Register unexpected when paired memops are disabled.");
     OpcodeIndex = SOK_UAccumulatorSpill;
+  } else if (PPC::WACCRCRegClass.hasSubClassEq(RC)) {
+    assert(Subtarget.pairedVectorMemops() &&
+           "Register unexpected when paired memops are disabled.");
+    OpcodeIndex = SOK_WAccumulatorSpill;
   } else if (PPC::VSRpRCRegClass.hasSubClassEq(RC)) {
     assert(Subtarget.pairedVectorMemops() &&
            "Register unexpected when paired memops are disabled.");
@@ -1921,13 +1916,13 @@ unsigned PPCInstrInfo::getSpillIndex(const TargetRegisterClass *RC) const {
 
 unsigned
 PPCInstrInfo::getStoreOpcodeForSpill(const TargetRegisterClass *RC) const {
-  const unsigned *OpcodesForSpill = getStoreOpcodesForSpillArray();
+  ArrayRef<unsigned> OpcodesForSpill = getStoreOpcodesForSpillArray();
   return OpcodesForSpill[getSpillIndex(RC)];
 }
 
 unsigned
 PPCInstrInfo::getLoadOpcodeForSpill(const TargetRegisterClass *RC) const {
-  const unsigned *OpcodesForSpill = getLoadOpcodesForSpillArray();
+  ArrayRef<unsigned> OpcodesForSpill = getLoadOpcodesForSpillArray();
   return OpcodesForSpill[getSpillIndex(RC)];
 }
 
@@ -3452,15 +3447,17 @@ unsigned PPCInstrInfo::getSpillTarget() const {
   // With P10, we may need to spill paired vector registers or accumulator
   // registers. MMA implies paired vectors, so we can just check that.
   bool IsP10Variant = Subtarget.isISA3_1() || Subtarget.pairedVectorMemops();
-  return IsP10Variant ? 2 : Subtarget.hasP9Vector() ? 1 : 0;
+  return Subtarget.isISAFuture() ? 3 : IsP10Variant ?
+                                   2 : Subtarget.hasP9Vector() ?
+                                   1 : 0;
 }
 
-const unsigned *PPCInstrInfo::getStoreOpcodesForSpillArray() const {
-  return StoreSpillOpcodesArray[getSpillTarget()];
+ArrayRef<unsigned> PPCInstrInfo::getStoreOpcodesForSpillArray() const {
+  return {StoreSpillOpcodesArray[getSpillTarget()], SOK_LastOpcodeSpill};
 }
 
-const unsigned *PPCInstrInfo::getLoadOpcodesForSpillArray() const {
-  return LoadSpillOpcodesArray[getSpillTarget()];
+ArrayRef<unsigned> PPCInstrInfo::getLoadOpcodesForSpillArray() const {
+  return {LoadSpillOpcodesArray[getSpillTarget()], SOK_LastOpcodeSpill};
 }
 
 void PPCInstrInfo::fixupIsDeadOrKill(MachineInstr *StartMI, MachineInstr *EndMI,

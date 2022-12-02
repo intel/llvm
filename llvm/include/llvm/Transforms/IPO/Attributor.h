@@ -129,6 +129,7 @@
 #include "llvm/Transforms/Utils/CallGraphUpdater.h"
 
 #include <map>
+#include <optional>
 
 namespace llvm {
 
@@ -1347,7 +1348,7 @@ struct AttributorConfig {
   DenseSet<const char *> *Allowed = nullptr;
 
   /// Maximum number of iterations to run until fixpoint.
-  Optional<unsigned> MaxFixpointIterations = None;
+  std::optional<unsigned> MaxFixpointIterations = None;
 
   /// A callback function that returns an ORE object from a Function pointer.
   ///{
@@ -3141,11 +3142,6 @@ ChangeStatus clampStateAndIndicateChange(StateType &S, const StateType &R) {
 struct AAReturnedValues
     : public IRAttribute<Attribute::Returned, AbstractAttribute> {
   AAReturnedValues(const IRPosition &IRP, Attributor &A) : IRAttribute(IRP) {}
-
-  /// Return an assumed unique return value if a single candidate is found. If
-  /// there cannot be one, return a nullptr. If it is not clear yet, return the
-  /// Optional::NoneType.
-  Optional<Value *> getAssumedUniqueReturnValue(Attributor &A) const;
 
   /// Check \p Pred on all returned values.
   ///
@@ -5044,7 +5040,7 @@ struct AAPointerInfo : public AbstractAttribute {
       } else {
         // Since the OAS information changed, set a conservative state -- drop
         // the contents, and assume MayAccess rather than MustAccess.
-        Content.reset();
+        setWrittenValueUnknown();
         Kind = AccessKind(Kind | AK_MAY);
         Kind = AccessKind(Kind & ~AK_MUST);
       }
@@ -5084,13 +5080,18 @@ struct AAPointerInfo : public AbstractAttribute {
       return Content.has_value() && !*Content;
     }
 
+    /// Set the value written to nullptr, i.e., unknown.
+    void setWrittenValueUnknown() { Content = nullptr; }
+
     /// Return the type associated with the access, if known.
     Type *getType() const { return Ty; }
 
-    /// Return the value writen, if any. As long as
-    /// isWrittenValueYetUndetermined return true this function shall not be
-    /// called.
-    Value *getWrittenValue() const { return *Content; }
+    /// Return the value writen, if any.
+    Value *getWrittenValue() const {
+      assert(!isWrittenValueYetUndetermined() &&
+             "Value needs to be determined before accessing it.");
+      return *Content;
+    }
 
     /// Return the written value which can be `llvm::null` if it is not yet
     /// determined.

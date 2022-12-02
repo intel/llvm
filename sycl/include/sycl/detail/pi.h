@@ -53,9 +53,14 @@
 // 10.14 Add PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY as an extension for
 // piDeviceGetInfo.
 // 11.15 piEventCreate creates even in the signalled state now.
+// 11.16 Add PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE and
+// PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH as an extension for
+// piDeviceGetInfo.
+// 11.17 Added new PI_EXT_ONEAPI_QUEUE_PRIORITY_LOW and
+// PI_EXT_ONEAPI_QUEUE_PRIORITY_HIGH queue properties.
 
 #define _PI_H_VERSION_MAJOR 11
-#define _PI_H_VERSION_MINOR 15
+#define _PI_H_VERSION_MINOR 16
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -277,13 +282,19 @@ typedef enum {
   // Return true if sub-device should do its own program build
   PI_DEVICE_INFO_BUILD_ON_SUBDEVICE = 0x10028,
   PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY = 0x10029,
+  // Return 0 if device doesn't have any memory modules. Return the minimum of
+  // the clock rate values if there are several memory modules on the device.
+  PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE = 0x10030,
+  // Return 0 if device doesn't have any memory modules. Return the minimum of
+  // the bus width values if there are several memory modules on the device.
+  PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH = 0x10031,
   PI_DEVICE_INFO_ATOMIC_64 = 0x10110,
   PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 0x10111,
   PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 0x11000,
   PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU = 0x10112,
   PI_DEVICE_INFO_BACKEND_VERSION = 0x10113,
-  // Return true if bfloat16 data type is supported by device
-  PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16 = 0x1FFFF,
+  // Return whether bfloat16 math functions are supported by device
+  PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS = 0x1FFFF,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS = 0x20000,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_1D = 0x20001,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D = 0x20002,
@@ -571,6 +582,8 @@ constexpr pi_queue_properties PI_QUEUE_PROFILING_ENABLE = (1 << 1);
 constexpr pi_queue_properties PI_QUEUE_ON_DEVICE = (1 << 2);
 constexpr pi_queue_properties PI_QUEUE_ON_DEVICE_DEFAULT = (1 << 3);
 constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS = (1 << 4);
+constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_PRIORITY_LOW = (1 << 5);
+constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_PRIORITY_HIGH = (1 << 6);
 
 using pi_result = _pi_result;
 using pi_platform_info = _pi_platform_info;

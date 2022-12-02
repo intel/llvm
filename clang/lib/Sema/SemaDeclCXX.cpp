@@ -102,24 +102,31 @@ bool CheckDefaultArgumentVisitor::VisitDeclRefExpr(const DeclRefExpr *DRE) {
       return S.Diag(DRE->getBeginLoc(),
                     diag::err_param_default_argument_references_param)
              << Param->getDeclName() << DefaultArg->getSourceRange();
-  } else if (const auto *VDecl = dyn_cast<VarDecl>(Decl)) {
-    // C++ [dcl.fct.default]p7:
-    //   Local variables shall not be used in default argument
-    //   expressions.
-    //
-    // C++17 [dcl.fct.default]p7 (by CWG 2082):
-    //   A local variable shall not appear as a potentially-evaluated
-    //   expression in a default argument.
-    //
-    // C++20 [dcl.fct.default]p7 (DR as part of P0588R1, see also CWG 2346):
-    //   Note: A local variable cannot be odr-used (6.3) in a default argument.
-    //
-    if (VDecl->isLocalVarDecl() && !DRE->isNonOdrUse())
-      return S.Diag(DRE->getBeginLoc(),
-                    diag::err_param_default_argument_references_local)
-             << VDecl->getDeclName() << DefaultArg->getSourceRange();
+  } else {
+    const VarDecl *VD = nullptr;
+    if (const auto *BD = dyn_cast<BindingDecl>(Decl))
+      VD = dyn_cast_if_present<VarDecl>(BD->getDecomposedDecl());
+    else
+      VD = dyn_cast<VarDecl>(Decl);
+    if (VD) {
+      // C++ [dcl.fct.default]p7:
+      //   Local variables shall not be used in default argument
+      //   expressions.
+      //
+      // C++17 [dcl.fct.default]p7 (by CWG 2082):
+      //   A local variable shall not appear as a potentially-evaluated
+      //   expression in a default argument.
+      //
+      // C++20 [dcl.fct.default]p7 (DR as part of P0588R1, see also CWG 2346):
+      //   Note: A local variable cannot be odr-used (6.3) in a default
+      //   argument.
+      //
+      if (VD->isLocalVarDecl() && !DRE->isNonOdrUse())
+        return S.Diag(DRE->getBeginLoc(),
+                      diag::err_param_default_argument_references_local)
+               << Decl->getDeclName() << DefaultArg->getSourceRange();
+    }
   }
-
   return false;
 }
 
@@ -149,13 +156,20 @@ bool CheckDefaultArgumentVisitor::VisitPseudoObjectExpr(
 }
 
 bool CheckDefaultArgumentVisitor::VisitLambdaExpr(const LambdaExpr *Lambda) {
-  // C++11 [expr.lambda.prim]p13:
-  //   A lambda-expression appearing in a default argument shall not
-  //   implicitly or explicitly capture any entity.
-  if (Lambda->capture_begin() == Lambda->capture_end())
-    return false;
-
-  return S.Diag(Lambda->getBeginLoc(), diag::err_lambda_capture_default_arg);
+  // [expr.prim.lambda.capture]p9
+  // a lambda-expression appearing in a default argument cannot implicitly or
+  // explicitly capture any local entity. Such a lambda-expression can still
+  // have an init-capture if any full-expression in its initializer satisfies
+  // the constraints of an expression appearing in a default argument.
+  bool Invalid = false;
+  for (const LambdaCapture &LC : Lambda->captures()) {
+    if (!Lambda->isInitCapture(&LC))
+      return S.Diag(LC.getLocation(), diag::err_lambda_capture_default_arg);
+    // Init captures are always VarDecl.
+    auto *D = cast<VarDecl>(LC.getCapturedVar());
+    Invalid |= Visit(D->getInit());
+  }
+  return Invalid;
 }
 } // namespace
 
@@ -746,11 +760,16 @@ Sema::ActOnDecompositionDeclarator(Scope *S, Declarator &D,
   // C++17 [dcl.dcl]/8:
   //   The decl-specifier-seq shall contain only the type-specifier auto
   //   and cv-qualifiers.
-  // C++2a [dcl.dcl]/8:
+  // C++20 [dcl.dcl]/8:
   //   If decl-specifier-seq contains any decl-specifier other than static,
   //   thread_local, auto, or cv-qualifiers, the program is ill-formed.
+  // C++2b [dcl.pre]/6:
+  //   Each decl-specifier in the decl-specifier-seq shall be static,
+  //   thread_local, auto (9.2.9.6 [dcl.spec.auto]), or a cv-qualifier.
   auto &DS = D.getDeclSpec();
   {
+    // Note: While constrained-auto needs to be checked, we do so separately so
+    // we can emit a better diagnostic.
     SmallVector<StringRef, 8> BadSpecifiers;
     SmallVector<SourceLocation, 8> BadSpecifierLocs;
     SmallVector<StringRef, 8> CPlusPlus20Specifiers;
@@ -777,6 +796,7 @@ Sema::ActOnDecompositionDeclarator(Scope *S, Declarator &D,
       BadSpecifiers.push_back("inline");
       BadSpecifierLocs.push_back(DS.getInlineSpecLoc());
     }
+
     if (!BadSpecifiers.empty()) {
       auto &&Err = Diag(BadSpecifierLocs.front(), diag::err_decomp_decl_spec);
       Err << (int)BadSpecifiers.size()
@@ -835,6 +855,20 @@ Sema::ActOnDecompositionDeclarator(Scope *S, Declarator &D,
     // shouldn't be called for such a type.
     if (R->isFunctionType())
       D.setInvalidType();
+  }
+
+  // Constrained auto is prohibited by [decl.pre]p6, so check that here.
+  if (DS.isConstrainedAuto()) {
+    TemplateIdAnnotation *TemplRep = DS.getRepAsTemplateId();
+    assert(TemplRep->Kind == TNK_Concept_template &&
+           "No other template kind should be possible for a constrained auto");
+
+    SourceRange TemplRange{TemplRep->TemplateNameLoc,
+                           TemplRep->RAngleLoc.isValid()
+                               ? TemplRep->RAngleLoc
+                               : TemplRep->TemplateNameLoc};
+    Diag(TemplRep->TemplateNameLoc, diag::err_decomp_decl_constraint)
+        << TemplRange << FixItHint::CreateRemoval(TemplRange);
   }
 
   // Build the BindingDecls.
@@ -3086,7 +3120,7 @@ void Sema::CheckOverrideControl(NamedDecl *D) {
     return;
 
   if (MD && !MD->isVirtual()) {
-    // If we have a non-virtual method, check if if hides a virtual method.
+    // If we have a non-virtual method, check if it hides a virtual method.
     // (In that case, it's most likely the method has the wrong type.)
     SmallVector<CXXMethodDecl *, 8> OverloadedMethods;
     FindHiddenVirtualMethods(MD, OverloadedMethods);
@@ -4723,10 +4757,10 @@ Sema::BuildBaseInitializer(QualType BaseType, TypeSourceInfo *BaseTInfo,
 }
 
 // Create a static_cast\<T&&>(expr).
-static Expr *CastForMoving(Sema &SemaRef, Expr *E, QualType T = QualType()) {
-  if (T.isNull()) T = E->getType();
-  QualType TargetType = SemaRef.BuildReferenceType(
-      T, /*SpelledAsLValue*/false, SourceLocation(), DeclarationName());
+static Expr *CastForMoving(Sema &SemaRef, Expr *E) {
+  QualType TargetType =
+      SemaRef.BuildReferenceType(E->getType(), /*SpelledAsLValue*/ false,
+                                 SourceLocation(), DeclarationName());
   SourceLocation ExprLoc = E->getBeginLoc();
   TypeSourceInfo *TargetLoc = SemaRef.Context.getTrivialTypeSourceInfo(
       TargetType, ExprLoc);
@@ -11203,10 +11237,13 @@ static void DiagnoseNamespaceInlineMismatch(Sema &S, SourceLocation KeywordLoc,
 
 /// ActOnStartNamespaceDef - This is called at the start of a namespace
 /// definition.
-Decl *Sema::ActOnStartNamespaceDef(
-    Scope *NamespcScope, SourceLocation InlineLoc, SourceLocation NamespaceLoc,
-    SourceLocation IdentLoc, IdentifierInfo *II, SourceLocation LBrace,
-    const ParsedAttributesView &AttrList, UsingDirectiveDecl *&UD) {
+Decl *Sema::ActOnStartNamespaceDef(Scope *NamespcScope,
+                                   SourceLocation InlineLoc,
+                                   SourceLocation NamespaceLoc,
+                                   SourceLocation IdentLoc, IdentifierInfo *II,
+                                   SourceLocation LBrace,
+                                   const ParsedAttributesView &AttrList,
+                                   UsingDirectiveDecl *&UD, bool IsNested) {
   SourceLocation StartLoc = InlineLoc.isValid() ? InlineLoc : NamespaceLoc;
   // For anonymous namespace, take the location of the left brace.
   SourceLocation Loc = II ? IdentLoc : LBrace;
@@ -11276,8 +11313,8 @@ Decl *Sema::ActOnStartNamespaceDef(
                                       &IsInline, PrevNS);
   }
 
-  NamespaceDecl *Namespc = NamespaceDecl::Create(Context, CurContext, IsInline,
-                                                 StartLoc, Loc, II, PrevNS);
+  NamespaceDecl *Namespc = NamespaceDecl::Create(
+      Context, CurContext, IsInline, StartLoc, Loc, II, PrevNS, IsNested);
   if (IsInvalid)
     Namespc->setInvalidDecl();
 
@@ -11538,12 +11575,11 @@ QualType Sema::CheckComparisonCategoryType(ComparisonCategoryType Kind,
 NamespaceDecl *Sema::getOrCreateStdNamespace() {
   if (!StdNamespace) {
     // The "std" namespace has not yet been defined, so build one implicitly.
-    StdNamespace = NamespaceDecl::Create(Context,
-                                         Context.getTranslationUnitDecl(),
-                                         /*Inline=*/false,
-                                         SourceLocation(), SourceLocation(),
-                                         &PP.getIdentifierTable().get("std"),
-                                         /*PrevDecl=*/nullptr);
+    StdNamespace = NamespaceDecl::Create(
+        Context, Context.getTranslationUnitDecl(),
+        /*Inline=*/false, SourceLocation(), SourceLocation(),
+        &PP.getIdentifierTable().get("std"),
+        /*PrevDecl=*/nullptr, /*Nested=*/false);
     getStdNamespace()->setImplicit(true);
   }
 
@@ -13013,7 +13049,7 @@ bool Sema::CheckUsingDeclQualifier(SourceLocation UsingLoc, bool HasTypename,
 
   // Salient point: SS doesn't have to name a base class as long as
   // lookup only finds members from base classes.  Therefore we can
-  // diagnose here only if we can prove that that can't happen,
+  // diagnose here only if we can prove that can't happen,
   // i.e. if the class hierarchies provably don't intersect.
 
   // TODO: it would be nice if "definitely valid" results were cached
@@ -14713,7 +14749,8 @@ void Sema::DefineImplicitCopyAssignment(SourceLocation CurrentLocation,
 
     MemberBuilder From(OtherRef, OtherRefType, /*IsArrow=*/false, MemberLookup);
 
-    MemberBuilder To(This, getCurrentThisType(), /*IsArrow=*/true, MemberLookup);
+    MemberBuilder To(This, getCurrentThisType(), /*IsArrow=*/!LangOpts.HLSL,
+                     MemberLookup);
 
     // Build the copy of this field.
     StmtResult Copy = buildSingleCopyAssign(*this, Loc, FieldType,
@@ -14731,9 +14768,16 @@ void Sema::DefineImplicitCopyAssignment(SourceLocation CurrentLocation,
 
   if (!Invalid) {
     // Add a "return *this;"
-    ExprResult ThisObj = CreateBuiltinUnaryOp(Loc, UO_Deref, This.build(*this, Loc));
+    Expr *ThisExpr = nullptr;
+    if (!LangOpts.HLSL) {
+      ExprResult ThisObj =
+          CreateBuiltinUnaryOp(Loc, UO_Deref, This.build(*this, Loc));
+      ThisExpr = ThisObj.get();
+    } else {
+      ThisExpr = This.build(*this, Loc);
+    }
 
-    StmtResult Return = BuildReturnStmt(Loc, ThisObj.get());
+    StmtResult Return = BuildReturnStmt(Loc, ThisExpr);
     if (Return.isInvalid())
       Invalid = true;
     else
@@ -16756,7 +16800,7 @@ static bool UsefulToPrintExpr(const Expr *E) {
     return false;
 
   // -5 is also simple to understand.
-  if (const auto *UnaryOp = dyn_cast_or_null<UnaryOperator>(E))
+  if (const auto *UnaryOp = dyn_cast<UnaryOperator>(E))
     return UsefulToPrintExpr(UnaryOp->getSubExpr());
 
   // Ignore nested binary operators. This could be a FIXME for improvements
@@ -16770,7 +16814,7 @@ static bool UsefulToPrintExpr(const Expr *E) {
 /// Try to print more useful information about a failed static_assert
 /// with expression \E
 void Sema::DiagnoseStaticAssertDetails(const Expr *E) {
-  if (const auto *Op = dyn_cast_or_null<BinaryOperator>(E)) {
+  if (const auto *Op = dyn_cast<BinaryOperator>(E)) {
     const Expr *LHS = Op->getLHS()->IgnoreParenImpCasts();
     const Expr *RHS = Op->getRHS()->IgnoreParenImpCasts();
 

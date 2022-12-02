@@ -29,6 +29,7 @@
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/IR/Statepoint.h"
+#include <optional>
 
 using namespace llvm;
 
@@ -112,11 +113,29 @@ static ValueAsMetadata *getAsMetadata(Value *V) {
 
 void DbgVariableIntrinsic::replaceVariableLocationOp(Value *OldValue,
                                                      Value *NewValue) {
+  // If OldValue is used as the address part of a dbg.assign intrinsic replace
+  // it with NewValue and return true.
+  auto ReplaceDbgAssignAddress = [this, OldValue, NewValue]() -> bool {
+    auto *DAI = dyn_cast<DbgAssignIntrinsic>(this);
+    if (!DAI || OldValue != DAI->getAddress())
+      return false;
+    DAI->setAddress(NewValue);
+    return true;
+  };
+  bool DbgAssignAddrReplaced = ReplaceDbgAssignAddress();
+  (void)DbgAssignAddrReplaced;
+
   assert(NewValue && "Values must be non-null");
   auto Locations = location_ops();
   auto OldIt = find(Locations, OldValue);
-  assert(OldIt != Locations.end() && "OldValue must be a current location");
+  assert((OldIt != Locations.end() || DbgAssignAddrReplaced) &&
+         "OldValue must be a current location");
   if (!hasArgList()) {
+    // Additional check necessary to avoid unconditionally replacing this
+    // operand when a dbg.assign address is replaced (DbgAssignAddrReplaced is
+    // true).
+    if (OldValue != getVariableLocationOp(0))
+      return;
     Value *NewOperand = isa<MetadataAsValue>(NewValue)
                             ? NewValue
                             : MetadataAsValue::get(
@@ -170,6 +189,32 @@ Optional<uint64_t> DbgVariableIntrinsic::getFragmentSizeInBits() const {
   if (auto Fragment = getExpression()->getFragmentInfo())
     return Fragment->SizeInBits;
   return getVariable()->getSizeInBits();
+}
+
+Value *DbgAssignIntrinsic::getAddress() const {
+  auto *MD = getRawAddress();
+  if (auto *V = dyn_cast<ValueAsMetadata>(MD))
+    return V->getValue();
+
+  // When the value goes to null, it gets replaced by an empty MDNode.
+  assert(!cast<MDNode>(MD)->getNumOperands() && "Expected an empty MDNode");
+  return nullptr;
+}
+
+void DbgAssignIntrinsic::setAssignId(DIAssignID *New) {
+  setOperand(OpAssignID, MetadataAsValue::get(getContext(), New));
+}
+
+void DbgAssignIntrinsic::setAddress(Value *V) {
+  assert(V->getType()->isPointerTy() &&
+         "Destination Component must be a pointer type");
+  setOperand(OpAddress,
+             MetadataAsValue::get(getContext(), ValueAsMetadata::get(V)));
+}
+
+void DbgAssignIntrinsic::setValue(Value *V) {
+  setOperand(OpValue,
+             MetadataAsValue::get(getContext(), ValueAsMetadata::get(V)));
 }
 
 int llvm::Intrinsic::lookupLLVMIntrinsicByName(ArrayRef<const char *> NameTable,
@@ -638,7 +683,7 @@ static ICmpInst::Predicate getIntPredicateFromMD(const Value *Op) {
 
 CmpInst::Predicate VPCmpIntrinsic::getPredicate() const {
   bool IsFP = true;
-  Optional<unsigned> CCArgIdx;
+  std::optional<unsigned> CCArgIdx;
   switch (getIntrinsicID()) {
   default:
     break;

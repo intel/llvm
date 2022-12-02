@@ -490,7 +490,7 @@ public:
   using size_type = size_t;
 
   NamedAttrList() : dictionarySorted({}, true) {}
-  NamedAttrList(llvm::NoneType none) : NamedAttrList() {}
+  NamedAttrList(std::nullopt_t none) : NamedAttrList() {}
   NamedAttrList(ArrayRef<NamedAttribute> attributes);
   NamedAttrList(DictionaryAttr attributes);
   NamedAttrList(const_iterator inStart, const_iterator inEnd);
@@ -759,7 +759,7 @@ private:
 class OpPrintingFlags {
 public:
   OpPrintingFlags();
-  OpPrintingFlags(llvm::NoneType) : OpPrintingFlags() {}
+  OpPrintingFlags(std::nullopt_t) : OpPrintingFlags() {}
 
   /// Enables the elision of large elements attributes by printing a lexically
   /// valid but otherwise meaningless form instead of the element data. The
@@ -768,10 +768,11 @@ public:
   /// elements.
   OpPrintingFlags &elideLargeElementsAttrs(int64_t largeElementLimit = 16);
 
-  /// Enable printing of debug information. If 'prettyForm' is set to true,
-  /// debug information is printed in a more readable 'pretty' form. Note: The
-  /// IR generated with 'prettyForm' is not parsable.
-  OpPrintingFlags &enableDebugInfo(bool prettyForm = false);
+  /// Enable or disable printing of debug information (based on `enable`). If
+  /// 'prettyForm' is set to true, debug information is printed in a more
+  /// readable 'pretty' form. Note: The IR generated with 'prettyForm' is not
+  /// parsable.
+  OpPrintingFlags &enableDebugInfo(bool enable = true, bool prettyForm = false);
 
   /// Always print operations in the generic form.
   OpPrintingFlags &printGenericOpForm();
@@ -893,6 +894,29 @@ struct OperationEquivalence {
 
 /// Enable Bitmask enums for OperationEquivalence::Flags.
 LLVM_ENABLE_BITMASK_ENUMS_IN_NAMESPACE();
+
+//===----------------------------------------------------------------------===//
+// OperationFingerPrint
+//===----------------------------------------------------------------------===//
+
+/// A unique fingerprint for a specific operation, and all of it's internal
+/// operations.
+class OperationFingerPrint {
+public:
+  OperationFingerPrint(Operation *topOp);
+  OperationFingerPrint(const OperationFingerPrint &) = default;
+  OperationFingerPrint &operator=(const OperationFingerPrint &) = default;
+
+  bool operator==(const OperationFingerPrint &other) const {
+    return hash == other.hash;
+  }
+  bool operator!=(const OperationFingerPrint &other) const {
+    return !(*this == other);
+  }
+
+private:
+  std::array<uint8_t, 20> hash;
+};
 
 } // namespace mlir
 

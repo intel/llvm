@@ -245,7 +245,7 @@ private:
 /// threads, remove()s mostly from the main thread, and get() from ASTWorker.
 /// Writes are rare and reads are cheap, so we don't expect much contention.
 class TUScheduler::HeaderIncluderCache {
-  // We should be be a little careful how we store the include graph of open
+  // We should be a little careful how we store the include graph of open
   // files, as each can have a large number of transitive headers.
   // This representation is O(unique transitive source files).
   llvm::BumpPtrAllocator Arena;
@@ -1653,10 +1653,9 @@ bool TUScheduler::update(PathRef File, ParseInputs Inputs,
   bool ContentChanged = false;
   if (!FD) {
     // Create a new worker to process the AST-related tasks.
-    ASTWorkerHandle Worker =
-        ASTWorker::create(File, CDB, *IdleASTs, *HeaderIncluders,
-                          WorkerThreads ? WorkerThreads.getPointer() : nullptr,
-                          Barrier, Opts, *Callbacks);
+    ASTWorkerHandle Worker = ASTWorker::create(
+        File, CDB, *IdleASTs, *HeaderIncluders,
+        WorkerThreads ? &*WorkerThreads : nullptr, Barrier, Opts, *Callbacks);
     FD = std::unique_ptr<FileData>(
         new FileData{Inputs.Contents, std::move(Worker)});
     ContentChanged = true;

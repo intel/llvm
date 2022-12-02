@@ -7,7 +7,7 @@
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
-using sycl::ext::oneapi::experimental::bfloat16;
+using sycl::ext::oneapi::bfloat16;
 
 constexpr int stride = 16;
 

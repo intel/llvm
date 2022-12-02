@@ -20,6 +20,7 @@
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Dialect/Vector/Transforms/VectorDistribution.h"
+#include "mlir/Dialect/Vector/Transforms/VectorRewritePatterns.h"
 #include "mlir/Dialect/Vector/Transforms/VectorTransforms.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
@@ -71,11 +72,11 @@ struct TestVectorToVectorLowering
 
 private:
   // Return the target shape based on op type.
-  static Optional<SmallVector<int64_t, 4>> getShape(Operation *op) {
+  static Optional<SmallVector<int64_t>> getShape(Operation *op) {
     if (isa<arith::AddFOp, arith::SelectOp, arith::CmpFOp>(op))
-      return SmallVector<int64_t, 4>(2, 2);
+      return SmallVector<int64_t>(2, 2);
     if (isa<vector::ContractionOp>(op))
-      return SmallVector<int64_t, 4>(3, 2);
+      return SmallVector<int64_t>(3, 2);
     // For transfer ops, just propagate the shape coming from
     // InsertStridedSlices/ExtractStridedSlices.
     if (auto readOp = dyn_cast<vector::TransferReadOp>(op)) {
@@ -89,15 +90,15 @@ private:
           return llvm::None;
         dstVec = vecType;
       }
-      return SmallVector<int64_t, 4>(dstVec.getShape().begin(),
-                                     dstVec.getShape().end());
+      return SmallVector<int64_t>(dstVec.getShape().begin(),
+                                  dstVec.getShape().end());
     }
     if (auto writeOp = dyn_cast<vector::TransferWriteOp>(op)) {
       auto insert = writeOp.getVector().getDefiningOp<InsertStridedSliceOp>();
       if (!insert)
         return llvm::None;
       ArrayRef<int64_t> shape = insert.getSourceVectorType().getShape();
-      return SmallVector<int64_t, 4>(shape.begin(), shape.end());
+      return SmallVector<int64_t>(shape.begin(), shape.end());
     }
     return llvm::None;
   }
@@ -313,10 +314,10 @@ struct TestVectorUnrollingPatterns
 
     if (unrollBasedOnType) {
       UnrollVectorOptions::NativeShapeFnType nativeShapeFn =
-          [](Operation *op) -> Optional<SmallVector<int64_t, 4>> {
+          [](Operation *op) -> Optional<SmallVector<int64_t>> {
         vector::ContractionOp contractOp = cast<vector::ContractionOp>(op);
-        SmallVector<int64_t, 4> nativeShape(
-            contractOp.getIteratorTypes().size(), 4);
+        SmallVector<int64_t> nativeShape(contractOp.getIteratorTypes().size(),
+                                         4);
         Type lhsType = contractOp.getLhsType().getElementType();
         nativeShape[nativeShape.size() - 1] = lhsType.isF16() ? 4 : 2;
         return nativeShape;
@@ -338,12 +339,11 @@ struct TestVectorUnrollingPatterns
       }
       populateVectorUnrollPatterns(patterns, opts);
     } else {
-      auto nativeShapeFn =
-          [](Operation *op) -> Optional<SmallVector<int64_t, 4>> {
+      auto nativeShapeFn = [](Operation *op) -> Optional<SmallVector<int64_t>> {
         auto contractOp = dyn_cast<ContractionOp>(op);
         if (!contractOp)
           return None;
-        return SmallVector<int64_t, 4>(contractOp.getIteratorTypes().size(), 2);
+        return SmallVector<int64_t>(contractOp.getIteratorTypes().size(), 2);
       };
       populateVectorUnrollPatterns(patterns,
                                    UnrollVectorOptions()
@@ -686,7 +686,8 @@ static Value allocateGlobalSharedMemory(Location loc, OpBuilder &builder,
 
 static Value warpReduction(Location loc, OpBuilder &builder, Value input,
                            CombiningKind kind, uint32_t size) {
-  Value laneVal = input;
+  // First reduce on a single thread to get per lane reduction value.
+  Value laneVal = builder.create<vector::ReductionOp>(loc, kind, input);
   // Parallel reduction using butterfly shuffles.
   for (uint64_t i = 1; i < size; i <<= 1) {
     Value shuffled = builder
@@ -757,6 +758,21 @@ struct TestVectorDistribution
         return AffineMap::get(val.getContext());
       return AffineMap::get(vecRank, 0, builder.getAffineDimExpr(vecRank - 1));
     };
+    auto shuffleFn = [](Location loc, OpBuilder &builder, Value val,
+                        Value srcIdx, int64_t warpSz) {
+      assert((val.getType().isF32() || val.getType().isInteger(32)) &&
+             "unsupported shuffle type");
+      Type i32Type = builder.getIntegerType(32);
+      Value srcIdxI32 =
+          builder.create<arith::IndexCastOp>(loc, i32Type, srcIdx);
+      Value warpSzI32 = builder.create<arith::ConstantOp>(
+          loc, builder.getIntegerAttr(i32Type, warpSz));
+      Value result = builder
+                         .create<gpu::ShuffleOp>(loc, val, srcIdxI32, warpSzI32,
+                                                 gpu::ShuffleMode::IDX)
+                         .getResult(0);
+      return result;
+    };
     if (distributeTransferWriteOps) {
       RewritePatternSet patterns(ctx);
       populateDistributeTransferWriteOpPatterns(patterns, distributionFn);
@@ -764,8 +780,8 @@ struct TestVectorDistribution
     }
     if (propagateDistribution) {
       RewritePatternSet patterns(ctx);
-      vector::populatePropagateWarpVectorDistributionPatterns(patterns,
-                                                              distributionFn);
+      vector::populatePropagateWarpVectorDistributionPatterns(
+          patterns, distributionFn, shuffleFn);
       vector::populateDistributeReduction(patterns, warpReduction);
       (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
     }
@@ -781,6 +797,26 @@ struct TestVectorDistribution
       (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
       return;
     }
+  }
+};
+
+struct TestVectorExtractStridedSliceLowering
+    : public PassWrapper<TestVectorExtractStridedSliceLowering,
+                         OperationPass<func::FuncOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(
+      TestVectorExtractStridedSliceLowering)
+
+  StringRef getArgument() const final {
+    return "test-vector-extract-strided-slice-lowering";
+  }
+  StringRef getDescription() const final {
+    return "Test lowering patterns that converts vector.extract_strided_slice "
+           "into a chain of vector.extract and vector.insert ops";
+  }
+  void runOnOperation() override {
+    RewritePatternSet patterns(&getContext());
+    populateVectorExtractStridedSliceToExtractInsertChainPatterns(patterns);
+    (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
   }
 };
 
@@ -818,6 +854,8 @@ void registerTestVectorLowerings() {
   PassRegistration<TestVectorScanLowering>();
 
   PassRegistration<TestVectorDistribution>();
+
+  PassRegistration<TestVectorExtractStridedSliceLowering>();
 }
 } // namespace test
 } // namespace mlir

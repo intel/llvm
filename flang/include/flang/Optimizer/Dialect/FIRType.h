@@ -288,6 +288,9 @@ bool isPolymorphicType(mlir::Type ty);
 /// value.
 bool isUnlimitedPolymorphicType(mlir::Type ty);
 
+/// Return the inner type of the given type.
+mlir::Type unwrapInnerType(mlir::Type ty);
+
 /// Return true iff `ty` is a RecordType with members that are allocatable.
 bool isRecordWithAllocatableMember(mlir::Type ty);
 
@@ -333,6 +336,16 @@ inline mlir::Type wrapInClassOrBoxType(mlir::Type eleTy,
   if (isPolymorphic && !isAssumedType)
     return fir::ClassType::get(eleTy);
   return fir::BoxType::get(eleTy);
+}
+
+/// Is `t` an address to fir.box or class type?
+inline bool isBoxAddress(mlir::Type t) {
+  return fir::isa_ref_type(t) && fir::unwrapRefType(t).isa<fir::BaseBoxType>();
+}
+
+/// Is `t` a fir.box or class address or value type?
+inline bool isBoxAddressOrValue(mlir::Type t) {
+  return fir::unwrapRefType(t).isa<fir::BaseBoxType>();
 }
 
 } // namespace fir

@@ -171,9 +171,9 @@ static Optional<int64_t> getTypeNumBytes(const SPIRVConversionOptions &options,
       return elementSize;
 
     auto dims = memRefType.getShape();
-    if (llvm::is_contained(dims, ShapedType::kDynamicSize) ||
-        offset == MemRefType::getDynamicStrideOrOffset() ||
-        llvm::is_contained(strides, MemRefType::getDynamicStrideOrOffset()))
+    if (llvm::is_contained(dims, ShapedType::kDynamic) ||
+        ShapedType::isDynamic(offset) ||
+        llvm::is_contained(strides, ShapedType::kDynamic))
       return llvm::None;
 
     int64_t memrefSize = -1;
@@ -220,9 +220,16 @@ static Type convertScalarType(const spirv::TargetEnv &targetEnv,
 
   // Otherwise we need to adjust the type, which really means adjusting the
   // bitwidth given this is a scalar type.
-
-  if (!options.emulateNon32BitScalarTypes)
+  if (!options.emulateLT32BitScalarTypes)
     return nullptr;
+
+  // We only emulate narrower scalar types here and do not truncate results.
+  if (type.getIntOrFloatBitWidth() > 32) {
+    LLVM_DEBUG(llvm::dbgs()
+               << type
+               << " not converted to 32-bit for SPIR-V to avoid truncation\n");
+    return nullptr;
+  }
 
   if (auto floatType = type.dyn_cast<FloatType>()) {
     LLVM_DEBUG(llvm::dbgs() << type << " converted to 32-bit for SPIR-V\n");
@@ -742,8 +749,8 @@ Value mlir::spirv::getVulkanElementPtr(SPIRVTypeConverter &typeConverter,
   int64_t offset;
   SmallVector<int64_t, 4> strides;
   if (failed(getStridesAndOffset(baseType, strides, offset)) ||
-      llvm::is_contained(strides, MemRefType::getDynamicStrideOrOffset()) ||
-      offset == MemRefType::getDynamicStrideOrOffset()) {
+      llvm::is_contained(strides, ShapedType::kDynamic) ||
+      ShapedType::isDynamic(offset)) {
     return nullptr;
   }
 
@@ -773,8 +780,8 @@ Value mlir::spirv::getOpenCLElementPtr(SPIRVTypeConverter &typeConverter,
   int64_t offset;
   SmallVector<int64_t, 4> strides;
   if (failed(getStridesAndOffset(baseType, strides, offset)) ||
-      llvm::is_contained(strides, MemRefType::getDynamicStrideOrOffset()) ||
-      offset == MemRefType::getDynamicStrideOrOffset()) {
+      llvm::is_contained(strides, ShapedType::kDynamic) ||
+      ShapedType::isDynamic(offset)) {
     return nullptr;
   }
 

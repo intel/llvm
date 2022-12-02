@@ -2638,7 +2638,7 @@ void X86_64TargetCodeGenInfo::checkFunctionCallABI(
   llvm::StringMap<bool> CalleeMap;
   unsigned ArgIndex = 0;
 
-  // We need to loop through the actual call arguments rather than the the
+  // We need to loop through the actual call arguments rather than the
   // function's parameters, in case this variadic.
   for (const CallArg &Arg : Args) {
     // The "avx" feature changes how vectors >128 in size are passed. "avx512f"
@@ -7070,10 +7070,10 @@ Address ARMABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
 
   // Empty records are ignored for parameter passing purposes.
   if (isEmptyRecord(getContext(), Ty, true)) {
-    Address Addr = Address(CGF.Builder.CreateLoad(VAListAddr),
-                           getVAListElementType(CGF), SlotSize);
-    Addr = CGF.Builder.CreateElementBitCast(Addr, CGF.ConvertTypeForMem(Ty));
-    return Addr;
+    VAListAddr = CGF.Builder.CreateElementBitCast(VAListAddr, CGF.Int8PtrTy);
+    auto *Load = CGF.Builder.CreateLoad(VAListAddr);
+    Address Addr = Address(Load, CGF.Int8Ty, SlotSize);
+    return CGF.Builder.CreateElementBitCast(Addr, CGF.ConvertTypeForMem(Ty));
   }
 
   CharUnits TySize = getContext().getTypeSizeInChars(Ty);
@@ -8348,15 +8348,16 @@ public:
       : DefaultABIInfo(CGT), ParamRegs(NPR), RetRegs(NRR) {}
 
   ABIArgInfo classifyReturnType(QualType Ty, bool &LargeRet) const {
-    if (isAggregateTypeForABI(Ty)) {
-      // On AVR, a return struct with size less than or equals to 8 bytes is
-      // returned directly via registers R18-R25. On AVRTiny, a return struct
-      // with size less than or equals to 4 bytes is returned directly via
-      // registers R22-R25.
-      if (getContext().getTypeSize(Ty) <= RetRegs * 8)
-        return ABIArgInfo::getDirect();
-      // A return struct with larger size is returned via a stack
-      // slot, along with a pointer to it as the function's implicit argument.
+    // On AVR, a return struct with size less than or equals to 8 bytes is
+    // returned directly via registers R18-R25. On AVRTiny, a return struct
+    // with size less than or equals to 4 bytes is returned directly via
+    // registers R22-R25.
+    if (isAggregateTypeForABI(Ty) &&
+        getContext().getTypeSize(Ty) <= RetRegs * 8)
+      return ABIArgInfo::getDirect();
+    // A return value (struct or scalar) with larger size is returned via a
+    // stack slot, along with a pointer as the function's implicit argument.
+    if (getContext().getTypeSize(Ty) > RetRegs * 8) {
       LargeRet = true;
       return getNaturalAlignIndirect(Ty);
     }
@@ -10336,7 +10337,7 @@ bool TypeStringCache::removeIncomplete(const IdentifierInfo *ID) {
 void TypeStringCache::addIfComplete(const IdentifierInfo *ID, StringRef Str,
                                     bool IsRecursive) {
   if (!ID || IncompleteUsedCount)
-    return; // No key or it is is an incomplete sub-type so don't add.
+    return; // No key or it is an incomplete sub-type so don't add.
   Entry &E = Map[ID];
   if (IsRecursive && !E.Str.empty()) {
     assert(E.State==Recursive && E.Str.size() == Str.size() &&
