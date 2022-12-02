@@ -143,6 +143,32 @@ void mlir::sycl::printAccessAddrSpace(AsmPrinter &Printer,
   Printer << accessAddressSpaceAsString(AccAddress);
 }
 
+std::string
+mlir::sycl::decoratedAccessAsString(mlir::sycl::DecoratedAccess DecAccess) {
+  return std::to_string(static_cast<int>(DecAccess));
+}
+
+mlir::LogicalResult mlir::sycl::parseDecoratedAccess(
+    mlir::AsmParser &Parser,
+    mlir::FailureOr<mlir::sycl::DecoratedAccess> &DecAccess) {
+
+  int DecAccessInt;
+  if (Parser.parseInteger<int>(DecAccessInt)) {
+    return mlir::ParseResult::failure();
+  }
+
+  assert(0 <= DecAccessInt && DecAccessInt <= 2 &&
+         "Expecting Decorated Access value between 0 and 2 (inclusive)");
+
+  DecAccess.emplace(static_cast<mlir::sycl::DecoratedAccess>(DecAccessInt));
+  return mlir::ParseResult::success();
+}
+
+void mlir::sycl::printDecoratedAccess(AsmPrinter &Printer,
+                                      DecoratedAccess DecAccess) {
+  Printer << decoratedAccessAsString(DecAccess);
+}
+
 llvm::SmallVector<mlir::TypeID>
 mlir::sycl::getDerivedTypes(mlir::TypeID TypeID) {
   if (TypeID == mlir::sycl::AccessorCommonType::getTypeID())

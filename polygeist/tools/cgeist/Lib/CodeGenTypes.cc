@@ -1343,7 +1343,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
           TypeName == "atomic" || TypeName == "bfloat16" ||
           TypeName == "GetOp" || TypeName == "GetScalarOp" ||
           TypeName == "group" || TypeName == "id" || TypeName == "item" ||
-          TypeName == "ItemBase" || TypeName == "nd_item" ||
+          TypeName == "ItemBase" || TypeName == "multi_ptr" || TypeName == "nd_item" ||
           TypeName == "nd_range" || TypeName == "range" ||
           TypeName == "sub_group" ||
           TypeName == "TupleCopyAssignableValueHolder" ||

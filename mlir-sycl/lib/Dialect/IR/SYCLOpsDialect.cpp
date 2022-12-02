@@ -173,6 +173,12 @@ SYCLOpAsmInterface::getAlias(mlir::Type Type, llvm::raw_ostream &OS) const {
            << "_";
         return AliasResult::FinalAlias;
       })
+      .Case<mlir::sycl::MultiPtrType>([&](auto Ty) {
+        OS << "sycl_" << decltype(Ty)::getMnemonic() << "_" << Ty.getDataType()
+           << "_" << mlir::sycl::accessAddressSpaceAsString(Ty.getAddrSpace())
+           << "_";
+        return AliasResult::OverridableAlias;
+      })
       .Default([](auto) { return AliasResult::NoAlias; });
 }
 } // namespace
