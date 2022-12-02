@@ -307,17 +307,13 @@ class annotated_ptr {
   };
 
 //Deduction guides
-template <typename T, typename... Args>
-annotated_arg(T, Args... args) ->
-    annotated_arg<T, detail::properties_t<Args...>>;
+template <typename T, typename... PropertyValueTs>
+annotated_ptr(T, PropertyValueTs... values) ->
+    annotated_ptr<T, decltype(properties{PropertyValueTs...})>;
 
-template <typename T, typename... Args>
-annotated_arg(T, properties<std::tuple<Args...>>) ->
-    annotated_arg<T, detail::properties_t<Args...>>;
-
-template <typename T, typename old, typename... Args>
-annotated_arg(annotated_arg<T, old>, properties<std::tuple<Args...>>) ->
-    annotated_arg<T, detail::merged_properties_t<old, detail::properties_t<Args...>>>;
+template <typename T, typename PropertiesA, typename PropertiesB>
+annotated_ptr(annotated_ptr<T, PropertiesA>, PropertiesB>) ->
+    annotated_ptr<T, /* a type that combines the properties of PropertiesA and PropertiesB */>;
 } // namespace sycl::ext::oneapi::experimental
 ----
 

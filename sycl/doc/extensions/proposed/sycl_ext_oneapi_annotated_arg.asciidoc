@@ -223,17 +223,13 @@ class annotated_arg {
 };
 
 //Deduction guides
-template <typename T, typename... Args>
-annotated_arg(T, Args... args) ->
-    annotated_arg<T, detail::properties_t<Args...>>;
+template <typename T, typename... PropertyValueTs>
+annotated_arg(T, PropertyValueTs... values) ->
+    annotated_arg<T, decltype(properties{PropertyValueTs...})>;
 
-template <typename T, typename... Args>
-annotated_arg(T, properties<std::tuple<Args...>>) ->
-    annotated_arg<T, detail::properties_t<Args...>>;
-
-template <typename T, typename old, typename... Args>
-annotated_arg(annotated_arg<T, old>, properties<std::tuple<Args...>>) ->
-    annotated_arg<T, detail::merged_properties_t<old, detail::properties_t<Args...>>>;
+template <typename T, typename PropertiesA, typename PropertiesB>
+annotated_arg(annotated_arg<T, PropertiesA>, PropertiesB>) ->
+    annotated_arg<T, /* a type that combines the properties of PropertiesA and PropertiesB */>;
 } // namespace sycl::ext::oneapi::experimental
 ----
 
@@ -326,8 +322,8 @@ annotated_arg& operator=(annotated_arg&) = default;
 a|
 [source,c++]
 ----
-operator T&() noexcept;
-operator const T&() const noexcept;
+operator T() noexcept;
+operator const T() const noexcept;
 ----
 | Implicit conversion to a reference to the underlying type `T`.
 
