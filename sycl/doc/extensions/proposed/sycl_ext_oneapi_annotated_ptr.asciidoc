@@ -217,7 +217,8 @@ class annotated_ptr {
 
 `PropertyListT` enables properties to be associated with an `annotated_ptr`.
 Properties may be specified for an `annotated_ptr` to provide semantic
-modification or optimization hint information.
+modification or optimization hint information. Please note that there cannot
+be duplicated property in a properties list. Otherwise, a compiler time error is triggered.
 
 Here's an example of how a property could be used:
 
@@ -307,12 +308,16 @@ class annotated_ptr {
 
 //Deduction guides
 template <typename T, typename... Args>
-annotated_ptr(T, Args... args) -> annotated_ptr<T, detail::properties_t<Args...>>;
+annotated_arg(T, Args... args) ->
+    annotated_arg<T, detail::properties_t<Args...>>;
 
-template <typename T, typename oldProp, typename otherProp>
-annotated_ptr(annotated_arg<T, oldProp>, otherProp other)
-   -> annotated_ptr<T, detail::merged_properties_t<oldProp, otherProp>>;
+template <typename T, typename... Args>
+annotated_arg(T, properties<std::tuple<Args...>>) ->
+    annotated_arg<T, detail::properties_t<Args...>>;
 
+template <typename T, typename old, typename... Args>
+annotated_arg(annotated_arg<T, old>, properties<std::tuple<Args...>>) ->
+    annotated_arg<T, detail::merged_properties_t<old, detail::properties_t<Args...>>>;
 } // namespace sycl::ext::oneapi::experimental
 ----
 
@@ -341,7 +346,6 @@ Constructs an `annotated_ptr` object. Does not allocate new storage. The
 underlying pointer is initialized with `Ptr`.
 
 The new property set `PropertyListT` contains all properties in `P`.
-If there are duplicate properties present in the property list of `P`, the values of the duplicate properties must be the same.
 
 // --- ROW BREAK ---
 a|
@@ -355,7 +359,6 @@ Constructs an `annotated_ptr` object. Does not allocate new storage. The
 underlying pointer is initialized with `Ptr`.
 
 The new property set `PropertyListT` contains all properties in `P`.
-If there are duplicate properties present in the property list of `P`, the values of the duplicate properties must be the same.
 
 // --- ROW BREAK ---
 a|
@@ -384,9 +387,9 @@ Constructs an `annotated_ptr` object. Does not allocate new storage. The
 underlying pointer is initialized with `Ptr`.
 
 The new `PropertyListT` is the union of all properties contained within
-`PropertyListU` and `PropertyListV`. If there are any common properties in the
-two lists with different values, a compile-time error is triggered. Common
-properties with the same value (or no value) are allowed.
+`PropertyListU` and `PropertyListV`. If there are any common properties
+in the two lists with different values, a compile-time error is triggered.
+Common properties with the same value (or no value) are allowed.
 
 `T2*` must be implicitly convertible to `T*`.
 
@@ -564,8 +567,8 @@ class annotated_ref {
   public:
     annotated_ref(const annotated_ref&) = default;
     operator T() const;
-    void operator=(const T&) const;
-    void operator=(const annotated_ref&) const = default;
+    annotated_ref& operator=(const T&) const;
+    annotated_ref& operator=(const annotated_ref&) const = default;
   };
 } // namespace sycl::ext::oneapi::experimental
 ```
@@ -599,7 +602,7 @@ annotations when the object is loaded from memory.
 a|
 [source,c++]
 ----
-void operator=(const T &) const;
+annotated_ref& operator=(const T &) const;
 ----
 |
 Writes an object of type `T` to the location referenced by this wrapper,
@@ -609,7 +612,7 @@ applying the annotations when the object is stored to memory.
 a|
 [source,c++]
 ----
-void operator=(const annotated_ref&) const = default;
+annotated_ref& operator=(const annotated_ref&) const = default;
 ----
 |
 Assign from another `annotated_ref` object.

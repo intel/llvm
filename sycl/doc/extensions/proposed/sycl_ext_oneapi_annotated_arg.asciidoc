@@ -175,13 +175,15 @@ the following types:
 * sycl::half
 
 The properties supported with `annotated_arg` may be defined in
-separate extensions.
+separate extensions. Please note that there cannot be duplicated property in a 
+properties list. Otherwise, a compiler time error is triggered.
 
 The section below describes the constructors and member functions for
 `annotated_arg`.
 
 The template parameter `T` in the definition of `annotated_arg` template below
-must be a legal parameter type as defined by the SYCL specification.
+must be a legal parameter type as defined by the SYCL specification. Given `annotated_arg<T, ...>`,
+`T` must be a trivially copy-able type.
 
 [source,c++]
 ----
@@ -190,7 +192,7 @@ template <typename T, typename PropertyListT = properties<>>
 class annotated_arg {
   public:
     annotated_arg() noexcept;
-    annotated_arg(const T& v_, const properties<PropertyListT> &P = properties{}) noexcept;
+    annotated_arg(const T& v_, const PropertyListT &P = properties{}) noexcept;
     template<typename... PropertyValueTs>
     annotated_arg(const T& v_, PropertyValueTs... props) noexcept;
 
@@ -204,18 +206,12 @@ class annotated_arg {
     annotated_arg& operator=(annotated_arg&) = default;
 
     // Conversion operator to convert to the underlying type
-    operator T&() noexcept;
-    operator const T&() const noexcept;
+    operator T() noexcept;
+    operator const T() const noexcept;
 
     // Available if the operator[] is valid for objects of type T, return
     // type will match the return type of T::operator[](std::ptrdiff_t)
     /* ... */ operator[](std::ptrdiff_t idx) const noexcept;
-
-    // Available if the operator() is valid for objects of type T, return
-    // type will match the return type of
-    //   template<typename... Args> T::operator()(Args... args)
-    template<typename... Args> /* ... */ operator()(Args... args) noexcept;
-    template<typename... Args> /* ... */ operator()(Args... args) const noexcept;
 
     template<typename propertyT>
     static constexpr bool has_property();
@@ -228,12 +224,16 @@ class annotated_arg {
 
 //Deduction guides
 template <typename T, typename... Args>
-annotated_arg(T, Args... args) -> annotated_arg<T, detail::properties_t<Args...>>;
+annotated_arg(T, Args... args) ->
+    annotated_arg<T, detail::properties_t<Args...>>;
 
-template <typename T, typename oldProp, typename otherProp>
-annotated_arg(annotated_arg<T, oldProp>, otherProp other) 
-    -> annotated_arg<T, detail::merged_properties_t<oldProp, otherProp>>;
+template <typename T, typename... Args>
+annotated_arg(T, properties<std::tuple<Args...>>) ->
+    annotated_arg<T, detail::properties_t<Args...>>;
 
+template <typename T, typename old, typename... Args>
+annotated_arg(annotated_arg<T, old>, properties<std::tuple<Args...>>) ->
+    annotated_arg<T, detail::merged_properties_t<old, detail::properties_t<Args...>>>;
 } // namespace sycl::ext::oneapi::experimental
 ----
 
@@ -260,7 +260,6 @@ annotated_arg(const T& v_, const PropertyListT &P = properties{}) noexcept;
 Constructs an `annotated_arg` object from the input object `v_`.
 
 The new property set `PropertyListT` contains all properties in `P`.
-If there are duplicate properties present in the property list of `P`, the values of the duplicate properties must be the same.
 
 // --- ROW BREAK ---
 a|
@@ -269,11 +268,10 @@ a|
 template<typename... PropertyValueTs>
 annotated_arg(const T& v_, const PropertyValueTs... props) noexcept;
 ----
-|
+| Not available in device code.
 Constructs an `annotated_arg` object from the input object `v_`. 
 
-The new property set `PropertyListT` contains all properties in `P`.
-If there are duplicate properties present in the property list of `P`, the values of the duplicate properties must be the same.
+The new property set `PropertyListT` contains all properties listed in `props`.
 
 // --- ROW BREAK ---
 a|
@@ -282,7 +280,7 @@ a|
 template <typename T2, typename P> explicit annotated_arg(
   const annotated_arg<T2, P> &ConvertFrom);
 ----
-|
+| Not available in device code.
 Constructs the `annotated_arg` object from the `ConvertFrom` object if
 the list of properties in `PropertyListT` is a superset of the list of
 properties in `P`.
@@ -297,7 +295,7 @@ template <typename T2, typename PropertyListU, typename PropertyListV>
 explicit annotated_arg(const annotated_arg<T2, PropertyListU>& v_,
   properties<PropertyListV> P) noexcept;
 ----
-|
+| Not available in device code.
 Constructs the `annotated_arg` object from the input object `v_`.
 
 The new `PropertyListT` is the union of all properties contained within
@@ -307,13 +305,13 @@ properties with the same value (or no value) are allowed.
 
 `T2` must be implicitly convertible to `T`.
 
-
 // --- ROW BREAK ---
 a|
 [source,c++]
 ----
 annotated_arg(const annotated_arg&) = default;
 ----
+| Not available in device code.
 Compiler generated copy constructor.
 
 // --- ROW BREAK ---
@@ -322,7 +320,7 @@ a|
 ----
 annotated_arg& operator=(annotated_arg&) = default;
 ----
-Compiler generated assignment operator.
+| Compiler generated assignment operator.
 
 // --- ROW BREAK ---
 a|
@@ -342,17 +340,6 @@ a|
 |
 Available if the `operator[]` is valid for objects of type `T`. This function
 will call the subscript operator defined for `T`.
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-template<typename... Args> /* ... */ operator()(Args... args) noexcept;
-template<typename... Args> /* ... */ operator()(Args... args) const noexcept;
-----
-|
-Available if the `operator()` is valid for objects of type `T`. This function
-will call the 'call operator' defined for `T`.
 
 // --- ROW BREAK ---
 a|
