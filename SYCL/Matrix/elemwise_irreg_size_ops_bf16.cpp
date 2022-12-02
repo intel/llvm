@@ -183,8 +183,6 @@ int main() {
         res = false;
     }
   }
-  if (res)
-    std::cout << "passed\n";
-  else
-    std::cout << "failed\n";
+  std::cout << (res ? "passed" : "failed") << std::endl;
+  return !res;
 }

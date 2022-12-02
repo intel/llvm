@@ -10,7 +10,6 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-// CHECK: passed
 
 // This tests support of row major layout for matrix B which does automatic VNNI
 // transform. This is currently only available on AMX

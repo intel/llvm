@@ -10,10 +10,6 @@
 // RUN: %clangxx -fsycl %s -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=2
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 
-// CHECK: passed
-
-// CHECK: passed
-
 #include <iostream>
 #include <sycl/sycl.hpp>
 
@@ -166,8 +162,6 @@ int main() {
         res = false;
     }
   }
-  if (res)
-    std::cout << "passed\n";
-  else
-    std::cout << "failed\n";
+  std::cout << (res ? "passed" : "failed") << std::endl;
+  return !res;
 }
