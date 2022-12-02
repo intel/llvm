@@ -368,9 +368,11 @@ bool Sema::isDeclAllowedInSYCLDeviceCode(const Decl *D) {
   if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
     const IdentifierInfo *II = FD->getIdentifier();
 
-    // Allow __builtin_assume_aligned to be called from within device code.
+    // Allow __builtin_assume_aligned and __builtin_printf to be called from
+    // within device code.
     if (FD->getBuiltinID() &&
-        FD->getBuiltinID() == Builtin::BI__builtin_assume_aligned)
+        (FD->getBuiltinID() == Builtin::BI__builtin_assume_aligned ||
+         FD->getBuiltinID() == Builtin::BI__builtin_printf))
       return true;
 
     // Allow to use `::printf` only for CUDA.

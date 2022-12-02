@@ -342,13 +342,12 @@ static uint16_t __iml_integral2half_u(Ty u, __iml_rounding_mode rounding_mode) {
         break;
       }
     }
-  }
-
-  if (h_mant == 0x400) {
-    h_exp++;
-    h_mant = 0;
-    if (h_exp > 15)
-      is_overflow = true;
+    if (h_mant == 0x400) {
+      h_exp++;
+      h_mant = 0;
+      if (h_exp > 15)
+        is_overflow = true;
+    }
   }
 
   if (is_overflow) {
@@ -412,13 +411,12 @@ static uint16_t __iml_integral2half_s(Ty i, __iml_rounding_mode rounding_mode) {
         break;
       }
     }
-  }
-
-  if (h_mant == 0x400) {
-    h_exp++;
-    h_mant = 0;
-    if (h_exp > 15)
-      is_overflow = true;
+    if (h_mant == 0x400) {
+      h_exp++;
+      h_mant = 0;
+      if (h_exp > 15)
+        is_overflow = true;
+    }
   }
 
   if (is_overflow) {
