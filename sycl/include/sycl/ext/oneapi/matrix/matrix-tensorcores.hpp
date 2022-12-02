@@ -76,10 +76,8 @@ struct joint_matrix_cuda;
   };
 
 // m8n32k16
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(sycl::ext::oneapi::bfloat16, a,
-                                 8, 16, 4)
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(sycl::ext::oneapi::bfloat16, b,
-                                 16, 32, 16)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(sycl::ext::oneapi::bfloat16, a, 8, 16, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(sycl::ext::oneapi::bfloat16, b, 16, 32, 16)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, a, 8, 16, 16)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, b, 16, 32, 16)
 
@@ -88,10 +86,8 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 16, 32, 16)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(uint8_t, a, 8, 16, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(uint8_t, b, 16, 32, 16)
 // m32n8k16
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(sycl::ext::oneapi::bfloat16, a,
-                                 32, 16, 16)
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(sycl::ext::oneapi::bfloat16, b,
-                                 16, 8, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(sycl::ext::oneapi::bfloat16, a, 32, 16, 16)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(sycl::ext::oneapi::bfloat16, b, 16, 8, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, a, 32, 16, 16)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, b, 16, 8, 16)
 
@@ -100,10 +96,8 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 16, 8, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(uint8_t, a, 32, 16, 16)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(uint8_t, b, 16, 8, 4)
 // m16n16k16
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(sycl::ext::oneapi::bfloat16, a,
-                                 16, 16, 8)
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(sycl::ext::oneapi::bfloat16, b,
-                                 16, 16, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(sycl::ext::oneapi::bfloat16, a, 16, 16, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(sycl::ext::oneapi::bfloat16, b, 16, 16, 8)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, a, 16, 16, 16)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, b, 16, 16, 16)
 
@@ -543,8 +537,7 @@ void joint_matrix_mad_cuda(
             reinterpret_cast<const int32_t *>(&C.wi_marray),
             get_layout_pair_id<LayoutA, LayoutB>(), 0);
       }
-    } else if constexpr (std::is_same_v<
-                             Tm, sycl::ext::oneapi::bfloat16>) {
+    } else if constexpr (std::is_same_v<Tm, sycl::ext::oneapi::bfloat16>) {
       __mma_bf16_m16n16k16_mma_f32(
           reinterpret_cast<float *>(&D.wi_marray),
           reinterpret_cast<const int32_t *>(&A.wi_marray),
@@ -579,8 +572,7 @@ void joint_matrix_mad_cuda(
             reinterpret_cast<const int32_t *>(&C.wi_marray),
             get_layout_pair_id<LayoutA, LayoutB>(), 0);
       }
-    } else if constexpr (std::is_same_v<
-                             Tm, sycl::ext::oneapi::bfloat16>) {
+    } else if constexpr (std::is_same_v<Tm, sycl::ext::oneapi::bfloat16>) {
       __mma_bf16_m8n32k16_mma_f32(
           reinterpret_cast<float *>(&D.wi_marray),
           reinterpret_cast<const int32_t *>(&A.wi_marray),
@@ -601,8 +593,7 @@ void joint_matrix_mad_cuda(
         __imma_m32n8k16_mma_u8(ptrD, ptrA, ptrB, ptrC,
                                get_layout_pair_id<LayoutA, LayoutB>(), 0);
       }
-    } else if constexpr (std::is_same_v<
-                             Tm, sycl::ext::oneapi::bfloat16>) {
+    } else if constexpr (std::is_same_v<Tm, sycl::ext::oneapi::bfloat16>) {
       __mma_bf16_m32n8k16_mma_f32(
           reinterpret_cast<float *>(&D.wi_marray),
           reinterpret_cast<const int32_t *>(&A.wi_marray),
