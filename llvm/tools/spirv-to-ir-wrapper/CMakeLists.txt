@@ -1,9 +1,3 @@
-
-if (NOT LLVM_TOOL_LLVM_SPIRV_BUILD OR
-    NOT IS_DIRECTORY "${LLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR}")
-  return()
-endif()
-
 set(LLVM_LINK_COMPONENTS
   BinaryFormat
   Core
