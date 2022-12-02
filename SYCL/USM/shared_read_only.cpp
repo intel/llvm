@@ -11,7 +11,7 @@ int main() {
   auto *p2 = sycl::malloc_shared<float>(42, q);
 
   // CHECK: zeMemAllocShared
-  // CHECK: {{zeCommandListAppendMemAdvise.*ZE_MEMORY_ADVICE_SET_READ_MOSTLY}}
+  // TODO: Level Zero doesn't have API to communicate read-only guarantee yet.
   // CHECK: {{zeCommandListAppendMemAdvise.*ZE_MEMORY_ADVICE_SET_PREFERRED_LOCATION*}}
   // CHECK: zeMemAllocShared
   // CHECK-NOT: MemAdvise
