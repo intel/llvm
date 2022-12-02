@@ -613,7 +613,7 @@ scatter_rgba(T *p, simd<uint32_t, N> offsets,
 
 template <typename T, int N, rgba_channel_mask RGBAMask>
 __SYCL_DEPRECATED("use scatter_rgba<rgba_channel_mask>()")
-__ESIMD_API std::std::
+__ESIMD_API std::
     enable_if_t<(N == 8 || N == 16 || N == 32) && sizeof(T) == 4> scatter_rgba(
         T *p, simd<uint32_t, N> offsets,
         simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
