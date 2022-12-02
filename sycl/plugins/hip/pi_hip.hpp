@@ -484,20 +484,18 @@ struct _pi_queue {
       unsigned int end =
           std::min(static_cast<unsigned int>(compute_streams_.size()),
                    num_compute_streams_);
-      for (unsigned int i = 0; i < end; i++) {
-        if (!f(compute_streams_[i]))
-          return false;
-      }
+      if (!std::all_of(compute_streams_.begin(), compute_streams_.begin() + end,
+                       f))
+        return false;
     }
     {
       std::lock_guard<std::mutex> transfer_guard(transfer_stream_mutex_);
       unsigned int end =
           std::min(static_cast<unsigned int>(transfer_streams_.size()),
                    num_transfer_streams_);
-      for (unsigned int i = 0; i < end; i++) {
-        if (!f(transfer_streams_[i]))
-          return false;
-      }
+      if (!std::all_of(transfer_streams_.begin(),
+                       transfer_streams_.begin() + end, f))
+        return false;
     }
     return true;
   }
