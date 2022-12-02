@@ -9,11 +9,7 @@ else()
 endif()
 
 set(LEVEL_ZERO_LOADER_REPO "https://github.com/oneapi-src/level-zero.git")
-if (WIN32)
-  set(LEVEL_ZERO_LOADER_TAG v1.2.3)
-else()
-  set(LEVEL_ZERO_LOADER_TAG v1.8.8)
-endif()
+set(LEVEL_ZERO_LOADER_TAG v1.8.8)
 
 # Disable due to a bug https://github.com/oneapi-src/level-zero/issues/104
 set(CMAKE_INCLUDE_CURRENT_DIR OFF)
