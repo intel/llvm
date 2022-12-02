@@ -1016,7 +1016,7 @@ desc: "USM memory advice"
 class: $xUSM
 name: $x_mem_advice_t
 etors:
-    - name: MEM_ADVICE_DEFAULT
+    - name: DEFAULT
       desc: "The USM memory advice is default"
 --- #--------------------------------------------------------------------------
 type: function

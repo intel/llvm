@@ -15,22 +15,22 @@ desc: "Memory flags"
 class: $xMem
 name: $x_mem_flags_t
 etors:
-    - name: MEM_READ_WRITE
+    - name: READ_WRITE
       value: "$X_BIT(0)"
       desc: "The memory object will be read and written by a kernel. This is the default"
-    - name: MEM_WRITE_ONLY
+    - name: WRITE_ONLY
       value: "$X_BIT(1)"
       desc: "The memory object will be written but not read by a kernel"
-    - name: MEM_READ_ONLY
+    - name: READ_ONLY
       value: "$X_BIT(2)"
       desc: "The memory object is a read-only inside a kernel"
-    - name: MEM_USE_HOST_POINTER
+    - name: USE_HOST_POINTER
       value: "$X_BIT(3)"
       desc: "Use memory pointed by a host pointer parameter as the storage bits for the memory object"
-    - name: MEM_ALLOC_HOST_POINTER
+    - name: ALLOC_HOST_POINTER
       value: "$X_BIT(4)"
       desc: "Allocate memory object from host accessible memory"
-    - name: MEM_ALLOC_COPY_HOST_POINTER
+    - name: ALLOC_COPY_HOST_POINTER
       value: "$X_BIT(5)"
       desc: "Allocate memory and copy the data from host pointer pointed memory"
 --- #--------------------------------------------------------------------------
@@ -39,19 +39,19 @@ desc: "Memory types"
 class: $xMem
 name: $x_mem_type_t
 etors:
-    - name: MEM_TYPE_BUFFER
+    - name: BUFFER
       desc: "Buffer object"
-    - name: MEM_TYPE_IMAGE2D
+    - name: IMAGE2D
       desc: "2D image object"
-    - name: MEM_TYPE_IMAGE3D
+    - name: IMAGE3D
       desc: "3D image object"
-    - name: MEM_TYPE_IMAGE2D_ARRAY
+    - name: IMAGE2D_ARRAY
       desc: "2D image array object"
-    - name: MEM_TYPE_IMAGE1D
+    - name: IMAGE1D
       desc: "1D image object"
-    - name: MEM_TYPE_IMAGE1D_ARRAY
+    - name: IMAGE1D_ARRAY
       desc: "1D image array object"
-    - name: MEM_TYPE_IMAGE1D_BUFFER
+    - name: IMAGE1D_BUFFER
       desc: "1D image buffer object"
 --- #--------------------------------------------------------------------------
 type: enum
@@ -69,33 +69,33 @@ desc: "Image channel order info: number of channels and the channel layout"
 class: $xMem
 name: $x_image_channel_order_t
 etors:
-    - name: CHANNEL_ORDER_A
+    - name: A
       desc: "channel order A"
-    - name: CHANNEL_ORDER_R
+    - name: R
       desc: "channel order R"
-    - name: CHANNEL_ORDER_RG
+    - name: RG
       desc: "channel order RG"
-    - name: CHANNEL_ORDER_RA
+    - name: RA
       desc: "channel order RA"
-    - name: CHANNEL_ORDER_RGB
+    - name: RGB
       desc: "channel order RGB"
-    - name: CHANNEL_ORDER_RGBA
+    - name: RGBA
       desc: "channel order RGBA"
-    - name: CHANNEL_ORDER_BGRA
+    - name: BGRA
       desc: "channel order BGRA"
-    - name: CHANNEL_ORDER_ARGB
+    - name: ARGB
       desc: "channel order ARGB"
-    - name: CHANNEL_ORDER_INTENSITY
+    - name: INTENSITY
       desc: "channel order intensity"
-    - name: CHANNEL_ORDER_LUMINANCE
+    - name: LUMINANCE
       desc: "channel order luminance"
-    - name: CHANNEL_ORDER_RX
+    - name: RX
       desc: "channel order Rx"
-    - name: CHANNEL_ORDER_RGX
+    - name: RGX
       desc: "channel order RGx"
-    - name: CHANNEL_ORDER_RGBX
+    - name: RGBX
       desc: "channel order RGBx"
-    - name: CHANNEL_ORDER_SRGBA
+    - name: SRGBA
       desc: "channel order sRGBA"
 --- #--------------------------------------------------------------------------
 type: enum
@@ -103,35 +103,35 @@ desc: "Image channel type info: describe the size of the channel data type"
 class: $xMem
 name: $x_image_channel_type_t
 etors:
-    - name: CHANNEL_TYPE_SNORM_INT8
+    - name: SNORM_INT8
       desc: "channel type snorm int8"
-    - name: CHANNEL_TYPE_SNORM_INT16
+    - name: SNORM_INT16
       desc: "channel type snorm int16"
-    - name: CHANNEL_TYPE_UNORM_INT8
+    - name: UNORM_INT8
       desc: "channel type unorm int8"
-    - name: CHANNEL_TYPE_UNORM_INT16
+    - name: UNORM_INT16
       desc: "channel type unorm int16"
-    - name: CHANNEL_TYPE_UNORM_SHORT_565
+    - name: UNORM_SHORT_565
       desc: "channel type unorm short 565"
-    - name: CHANNEL_TYPE_UNORM_SHORT_555
+    - name: UNORM_SHORT_555
       desc: "channel type unorm short 555"
-    - name: CHANNEL_TYPE_INT_101010
+    - name: INT_101010
       desc: "channel type int 101010"
-    - name: CHANNEL_TYPE_SIGNED_INT8
+    - name: SIGNED_INT8
       desc: "channel type signed int8"
-    - name: CHANNEL_TYPE_SIGNED_INT16
+    - name: SIGNED_INT16
       desc: "channel type signed int16"
-    - name: CHANNEL_TYPE_SIGNED_INT32
+    - name: SIGNED_INT32
       desc: "channel type signed int32"
-    - name: CHANNEL_TYPE_UNSIGNED_INT8
+    - name: UNSIGNED_INT8
       desc: "channel type unsigned int8"
-    - name: CHANNEL_TYPE_UNSIGNED_INT16
+    - name: UNSIGNED_INT16
       desc: "channel type unsigned int16"
-    - name: CHANNEL_TYPE_UNSIGNED_INT32
+    - name: UNSIGNED_INT32
       desc: "channel type unsigned int32"
-    - name: CHANNEL_TYPE_HALF_FLOAT
+    - name: HALF_FLOAT
       desc: "channel type half float"
-    - name: CHANNEL_TYPE_FLOAT
+    - name: FLOAT
       desc: "channel type float"
 --- #--------------------------------------------------------------------------
 type: enum
@@ -319,7 +319,7 @@ desc: "Buffer creation type"
 class: $xMem
 name: $x_buffer_create_type_t
 etors:
-    - name: BUFFER_CREATE_TYPE_REGION
+    - name: REGION
       value: "0"
       desc: "buffer create type is region"
 --- #--------------------------------------------------------------------------

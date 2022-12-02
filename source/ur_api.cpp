@@ -1120,7 +1120,7 @@ urEnqueueUSMPrefetch(
 ///         + `NULL == pMem`
 ///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_MEM_ADVICE_MEM_ADVICE_DEFAULT < advice`
+///         + `::UR_MEM_ADVICE_DEFAULT < advice`
 ///     - ::UR_RESULT_INVALID_QUEUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
@@ -1185,7 +1185,7 @@ urEventCreate(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EVENT_INFO_EVENT_INFO_REFERENCE_COUNT < propName`
+///         + `::UR_EVENT_INFO_REFERENCE_COUNT < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pPropValue`
 ///         + `NULL == pPropValueSizeRet`
@@ -1221,7 +1221,7 @@ urEventGetInfo(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_PROFILING_INFO_PROFILING_INFO_COMMAND_END < propName`
+///         + `::UR_PROFILING_INFO_COMMAND_END < propName`
 ///     - ::UR_RESULT_INVALID_VALUE
 ///     - ::UR_RESULT_INVALID_EVENT
 ///     - ::UR_RESULT_OUT_OF_RESOURCES
@@ -1395,7 +1395,7 @@ urEventCreateWithNativeHandle(
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `0x3f < flags`
-///         + `::UR_MEM_TYPE_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
+///         + `::UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pImageFormat`
 ///         + `NULL == pImageDesc`
@@ -1530,7 +1530,7 @@ urMemRelease(
 ///         + `NULL == hBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `0x3f < flags`
-///         + `::UR_BUFFER_CREATE_TYPE_BUFFER_CREATE_TYPE_REGION < bufferCreateType`
+///         + `::UR_BUFFER_CREATE_TYPE_REGION < bufferCreateType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pBufferCreateInfo`
 ///         + `NULL == phMem`
@@ -2028,7 +2028,7 @@ urSamplerRelease(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hSampler`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_SAMPLER_INFO_SAMPLER_INFO_LOD_MAX < propName`
+///         + `::UR_SAMPLER_INFO_LOD_MAX < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pPropValue`
 ///         + `NULL == pPropSizeRet`
@@ -2239,7 +2239,7 @@ urMemFree(
 ///         + `NULL == pPropValue`
 ///         + `NULL == pPropValueSizeRet`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_MEM_ALLOC_INFO_MEM_ALLOC_DEVICE < propName`
+///         + `::UR_MEM_ALLOC_INFO_ALLOC_DEVICE < propName`
 ///     - ::UR_RESULT_INVALID_CONTEXT
 ///     - ::UR_RESULT_INVALID_VALUE
 ///     - ::UR_RESULT_INVALID_MEM_OBJECT
