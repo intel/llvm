@@ -7,5 +7,5 @@
 
 extern "C" __device__ void foo() {}
 
-// CHECK-ON: !{i32 4, !"nvvm-reflect-prec-sqrt", i32 1}
-// CHECK-OFF: !{i32 4, !"nvvm-reflect-prec-sqrt", i32 0}
+// CHECK-ON: !{i32 7, !"nvvm-reflect-prec-sqrt", i32 1}
+// CHECK-OFF: !{i32 7, !"nvvm-reflect-prec-sqrt", i32 0}
