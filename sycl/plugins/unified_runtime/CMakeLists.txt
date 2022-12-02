@@ -24,12 +24,8 @@ add_library (UnifiedRuntime-Headers INTERFACE)
 target_include_directories(UnifiedRuntime-Headers
   INTERFACE
     "${UNIFIED_RUNTIME_INCLUDE_DIR}"
-    "${CMAKE_CURRENT_SOURCE_DIR}"
 )
 
-list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS unified-runtime)
-
-find_package(Threads REQUIRED)
 
 #
 # Build a helper static library to carry pieces shared between
@@ -37,22 +33,16 @@ find_package(Threads REQUIRED)
 # use dynamic plugin library as that only exports pi* symbols.
 #
 add_library(unified_runtime_static STATIC
-  "${sycl_inc_dir}/sycl/detail/pi.h"
-  "${CMAKE_CURRENT_SOURCE_DIR}/ur.hpp"
-  "${CMAKE_CURRENT_SOURCE_DIR}/ur.cpp"
-  "${CMAKE_CURRENT_SOURCE_DIR}/pi2ur.hpp"
-  "${CMAKE_CURRENT_SOURCE_DIR}/adapters/level_zero/ur_level_zero.hpp"
-  "${CMAKE_CURRENT_SOURCE_DIR}/adapters/level_zero/ur_level_zero.cpp"
+  "ur.hpp"
+  "ur.cpp"
+  "pi2ur.hpp"
+  "adapters/level_zero/ur_level_zero.hpp"
+  "adapters/level_zero/ur_level_zero.cpp"
 )
 
 target_include_directories(unified_runtime_static
   INTERFACE
-    "${UNIFIED_RUNTIME_INCLUDE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}"
-  PRIVATE
-    # For include <sycl/detail/pi.h>
-    # TODO: how to get rid of this?
-    "${CMAKE_SOURCE_DIR}/../sycl/include"
 )
 
 target_link_libraries(unified_runtime_static PRIVATE
@@ -65,13 +55,13 @@ target_link_libraries(unified_runtime_static PRIVATE
 # So what we really build is the Unified Runtime with Level Zero Adapter
 # together.
 #
+find_package(Threads REQUIRED)
+
 add_sycl_plugin(unified_runtime
   SOURCES
     # Put here anything that belongs exclusively to Unified Runtime
     # and should not be shared with the Level Zero plugin
-    "${CMAKE_CURRENT_SOURCE_DIR}/pi2ur.cpp"
-  INCLUDE_DIRS
-    "${UNIFIED_RUNTIME_INCLUDE_DIR}"
+    "pi2ur.cpp"
   LIBRARIES
     unified_runtime_static
     Threads::Threads

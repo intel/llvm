@@ -28,34 +28,15 @@ set(LEVEL_ZERO_INCLUDE_DIR
   ${level-zero-loader_SOURCE_DIR}/include CACHE PATH "Path to Level Zero Headers")
 
 add_library (LevelZeroLoader-Headers INTERFACE)
-add_library (LevelZeroLoader::Headers ALIAS LevelZeroLoader-Headers)
 target_include_directories(LevelZeroLoader-Headers
   INTERFACE "${LEVEL_ZERO_INCLUDE_DIR}"
 )
 
 if (SYCL_ENABLE_XPTI_TRACING)
   set(XPTI_PROXY_SRC "${CMAKE_SOURCE_DIR}/../xpti/src/xpti_proxy.cpp")
+  set(XPTI_INCLUDE "${CMAKE_SOURCE_DIR}/../xpti/include")
+  set(XPIT_LIBS "${CMAKE_DL_LIBS}")
 endif()
-
-find_package(Threads REQUIRED)
-
-add_sycl_plugin(level_zero
-  SOURCES
-    "${sycl_inc_dir}/sycl/detail/pi.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/pi_level_zero.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/pi_level_zero.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/usm_allocator.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/usm_allocator.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tracing.cpp"
-    ${XPTI_PROXY_SRC}
-  LIBRARIES
-#    ${LEVEL_ZERO_LOADER_LIBRARY}
-    LevelZeroLoader-Headers
-    UnifiedRuntime-Headers
-    ze_loader
-    Threads::Threads
-    unified_runtime_static
-)
 
 find_package(Python3 REQUIRED)
 
@@ -66,7 +47,29 @@ add_custom_target(ze-api
   BYPRODUCTS
     ${CMAKE_CURRENT_BINARY_DIR}/ze_api.def
   )
-target_include_directories(pi_level_zero PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+
+find_package(Threads REQUIRED)
+
+add_sycl_plugin(level_zero
+  SOURCES
+    "pi_level_zero.cpp"
+    "pi_level_zero.hpp"
+    "usm_allocator.cpp"
+    "usm_allocator.hpp"
+    "tracing.cpp"
+    ${XPTI_PROXY_SRC}
+  INCLUDE_DIRS
+    ${CMAKE_CURRENT_BINARY_DIR} # for ze_api.def
+    ${XPTI_INCLUDE}
+  LIBRARIES
+    LevelZeroLoader-Headers
+    UnifiedRuntime-Headers
+    ze_loader
+    Threads::Threads
+    unified_runtime_static
+    ${XPTI_LIBS}
+)
+
 add_dependencies(pi_level_zero ze-api)
 
 if (SYCL_ENABLE_XPTI_TRACING)
@@ -74,11 +77,4 @@ if (SYCL_ENABLE_XPTI_TRACING)
     XPTI_ENABLE_INSTRUMENTATION
     XPTI_STATIC_LIBRARY
   )
-  target_include_directories(pi_level_zero PRIVATE "${CMAKE_SOURCE_DIR}/../xpti/include")
-  target_link_libraries(pi_level_zero PRIVATE ${CMAKE_DL_LIBS})
-endif()
-
-if (TARGET level-zero-loader)
-  add_dependencies(ze-api level-zero-loader)
-  add_dependencies(pi_level_zero level-zero-loader)
 endif()
