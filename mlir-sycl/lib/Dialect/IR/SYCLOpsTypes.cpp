@@ -156,7 +156,7 @@ mlir::sycl::getDerivedTypes(mlir::TypeID TypeID) {
 mlir::LogicalResult
 mlir::sycl::VecType::verify(llvm::function_ref<InFlightDiagnostic()> EmitError,
                             mlir::Type DataT, int NumElements,
-                            llvm::SmallVector<mlir::Type, 4>) {
+                            llvm::ArrayRef<mlir::Type>) {
   if (!(NumElements == 1 || NumElements == 2 || NumElements == 3 ||
         NumElements == 4 || NumElements == 8 || NumElements == 16)) {
     return EmitError() << "SYCL vector types can only hold 1, 2, 3, 4, 8 or 16 "
