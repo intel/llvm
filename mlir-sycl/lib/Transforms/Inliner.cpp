@@ -48,33 +48,6 @@ static FunctionOpInterface getCalledFunction(const CallOpInterface &Call) {
   return nullptr;
 }
 
-static bool isSYCLMethod(Operation *Op) {
-  using namespace sycl;
-
-  // TODO: find a way to avoid having to modify this code is a new SYCL Method
-  // operator is added.
-  return llvm::TypeSwitch<Operation *, bool>(Op)
-      .Case<SYCLAccessorSubscriptOp>([](auto) { return true; })
-      .Case<SYCLRangeGetOp, SYCLRangeSizeOp>([](auto) { return true; })
-      .Case<SYCLNdRangeGetGlobalRange, SYCLNdRangeGetLocalRange>(
-          [](auto) { return true; })
-      .Case<SYCLIDGetOp>([](auto) { return true; })
-      .Case<SYCLItemGetIDOp, SYCLItemGetRangeOp, SYCLItemGetLinearIDOp>(
-          [](auto) { return true; })
-      .Case<SYCLNDItemGetGlobalIDOp, SYCLNDItemGetGlobalLinearIDOp,
-            SYCLNDItemGetLocalIDOp, SYCLNDItemGetLocalLinearIDOp,
-            SYCLNDItemGetGroupOp, SYCLNDItemGetGroupLinearIDOp,
-            SYCLNDItemGetGroupRangeOp, SYCLNDItemGetGlobalRangeOp,
-            SYCLNDItemGetLocalRangeOp, SYCLNDItemGetNdRangeOp>(
-          [](auto) { return true; })
-      .Case<SYCLGroupGetGroupIDOp, SYCLGroupGetLocalIDOp,
-            SYCLGroupGetGroupRangeOp, SYCLGroupGetMaxLocalRangeOp,
-            SYCLGroupGetGroupLinearIDOp, SYCLGroupGetLocalLinearIDOp,
-            SYCLGroupGetGroupLinearRangeOp, SYCLGroupGetLocalLinearRangeOp>(
-          [](auto) { return true; })
-      .Default([](auto) { return false; });
-}
-
 namespace {
 
 /// This struct represents a resolved call to a given call graph node. Given
@@ -355,6 +328,9 @@ private:
 
   /// Ensures that the inliner is run on operations that define a symbol table.
   bool checkForSymbolTable(Operation &Op);
+
+  /// Return the number of times an SCC should be revisited while inlining.
+  unsigned getMaxIterationCount() const;
 
 private:
   const std::string PassName, FlagName, PassDescription;
@@ -721,19 +697,19 @@ bool Inliner::inlineCallsInSCC(Inliner &Inliner, CGUseList &UseList,
 void Inliner::collectCallOps(CallGraphNode &SrcNode, CallGraph &CG,
                              SymbolTableCollection &SymTable,
                              SmallVectorImpl<ResolvedCall> &Calls) const {
-  auto Collect = [this](const CallGraphNode &CGN, const CallOpInterface &Call) {
-    if (CGN.isExternal())
+  auto Collect = [this](const CallGraphNode *CGN, const Operation *Call) {
+    if (CGN->isExternal())
       return false;
 
     // Select which call operations to collect based on heuristics.
     switch (Heuristic.InlineMode) {
     case sycl::InlineMode::Ludicrous:
-      return isa<sycl::SYCLCallOp>(Call) ||
-             isa<sycl::SYCLConstructorOp>(Call) || isSYCLMethod(Call);
+      return true;
     case sycl::InlineMode::Aggressive:
-      return isa<sycl::SYCLCallOp>(Call) || isSYCLMethod(Call);
+      return isa<sycl::SYCLCallOp, sycl::SYCLConstructorOp,
+                 sycl::SYCLMethodOpInterface>(Call);
     case sycl::InlineMode::Simple:
-      [[fallthrough]];
+      return isa<sycl::SYCLCallOp, sycl::SYCLConstructorOp>(Call);
     case sycl::InlineMode::AlwaysInline:
       return isa<sycl::SYCLCallOp>(Call);
     }
@@ -748,7 +724,7 @@ void Inliner::collectCallOps(CallGraphNode &SrcNode, CallGraph &CG,
       }
 
       CallGraphNode *TgtNode = CG.resolveCallable(Call, SymTable);
-      if (Collect(*TgtNode, Call))
+      if (Collect(TgtNode, Op))
         Calls.emplace_back(Call, &SrcNode, TgtNode);
     }
     return WalkResult::advance();
@@ -774,12 +750,30 @@ void InlinePass::runOnOperation() {
     return signalPassFailure();
 }
 
+unsigned InlinePass::getMaxIterationCount() const {
+  // Use the supplied option value if present.
+  if (MaxIterationCount.getNumOccurrences())
+    return MaxIterationCount.getValue();
+
+  // Set the max iteration count based on the inline mode.
+  switch (InlineMode) {
+  case sycl::InlineMode::Ludicrous:
+    return 7;
+  case sycl::InlineMode::Aggressive:
+    return 5;
+  case sycl::InlineMode::Simple:
+    return 3;
+  case sycl::InlineMode::AlwaysInline:
+    return 2;
+  }
+}
+
 LogicalResult InlinePass::runOnCG(Inliner &Inliner, CGUseList &UseList,
                                   CallGraph &CG,
                                   Pass::Statistic &NumInlinedCalls) {
   LogicalResult Res = Inliner::runTransformOnSCCs(CG, [&](CallGraphSCC &SCC) {
-    return Inliner::inlineSCC(Inliner, UseList, SCC,
-                              MaxIterationCount.getValue(), NumInlinedCalls);
+    return Inliner::inlineSCC(Inliner, UseList, SCC, getMaxIterationCount(),
+                              NumInlinedCalls);
   });
 
   // After inlining, make sure to erase any callables proven to be dead.

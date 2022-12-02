@@ -286,7 +286,7 @@ def ConstructorArgs : AnyTypeOf<[SYCLMemref,
                                  SYCL_RangeType,
                                  Builtin_Vector,
                                ]>;
-def SYCLConstructorOp : SYCL_Op<"constructor", []> {
+def SYCLConstructorOp : SYCL_Op<"constructor", [CallOpInterface]> {
   let summary = "Generic constructor operation";
   let description = [{
     This operation represent the call to the constructor of a SYCL type.
@@ -300,6 +300,23 @@ def SYCLConstructorOp : SYCL_Op<"constructor", []> {
   let results = (outs);
 
   let hasVerifier = 1;
+
+  let extraClassDeclaration = [{
+    operand_iterator arg_operand_begin() { return operand_begin(); }
+    operand_iterator arg_operand_end() { return operand_end(); }
+
+    /// Return the callee of the generic SYCL call operation, this is required by
+    /// the call interface.
+    CallInterfaceCallable getCallableForCallee() {
+      return (*this)->getAttrOfType<FlatSymbolRefAttr>(getMangledFunctionNameAttrName());
+    }
+
+    /// Get the argument operands to the called function, this is required by the
+    /// call interface.
+    operand_range getArgOperands() {
+      return {arg_operand_begin(), arg_operand_end()};
+    }
+  }];      
 
   let assemblyFormat = [{
     `(` $Args `)` attr-dict `:` functional-type($Args, results)
