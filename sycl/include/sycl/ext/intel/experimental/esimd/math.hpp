@@ -1184,7 +1184,7 @@ atan(__ESIMD_NS::simd<T, SZ> src0) {
        ((Src0 * T(0.395889) + T(1.12158)) * Src0P2) + (Src0 * T(0.636918)) +
        T(1.0));
 
-  Result.merge(Result - T(detail::__ESIMD_CONST_PI / T(2.0)), Gt1);
+  Result.merge(Result - T(detail::__ESIMD_CONST_PI) / T(2.0), Gt1);
 
   return __ESIMD_NS::abs(Result) * sign;
 }
@@ -1267,7 +1267,7 @@ template <int N>
 __ESIMD_NS::simd<float, N> atan2_fast(__ESIMD_NS::simd<float, N> y,
                                       __ESIMD_NS::simd<float, N> x);
 /* scalar input */
-float atan2_fast(float y, float x);
+template <typename T> float atan2_fast(T y, T x);
 
 /* atan2 - atan2 implementation */
 /* For Vector input */
@@ -1275,7 +1275,7 @@ template <int N>
 __ESIMD_NS::simd<float, N> atan2(__ESIMD_NS::simd<float, N> y,
                                  __ESIMD_NS::simd<float, N> x);
 /* scalar Input */
-float atan2(float y, float x);
+template <typename T> float atan2(T y, T x);
 
 /* fmod: */
 /* vector input */
@@ -1283,14 +1283,14 @@ template <int N>
 __ESIMD_NS::simd<float, N> fmod(__ESIMD_NS::simd<float, N> y,
                                 __ESIMD_NS::simd<float, N> x);
 /* scalar Input */
-float fmod(float y, float x);
+template <typename T> float fmod(T y, T x);
 
 /* sin_emu - EU emulation for sin(x) */
 /* For Vector input */
 template <int N>
 __ESIMD_NS::simd<float, N> sin_emu(__ESIMD_NS::simd<float, N> x);
 /* scalar Input */
-float sin_emu(float x);
+template <typename T> float sin_emu(T x);
 
 /* cos_emu - EU emulation for cos(x) */
 /* For Vector input */
@@ -1298,7 +1298,7 @@ template <int N>
 __ESIMD_NS::simd<float, N> cos_emu(__ESIMD_NS::simd<float, N> x);
 
 /* scalar Input */
-float cos_emu(float x);
+template <typename T> float cos_emu(T x);
 
 /* tanh_cody_waite - Cody-Waite implementation for tanh(x) */
 /* float input */
@@ -1330,9 +1330,9 @@ atan2_fast(__ESIMD_NS::simd<float, N> y, __ESIMD_NS::simd<float, N> x) {
   __ESIMD_NS::simd<float, N> abs_y = __ESIMD_NS::abs(y) + CONST_DBL_EPSILON;
 
   r.merge((x + abs_y) / (abs_y - x), (x - abs_y) / (x + abs_y), mask);
-  atan2.merge(detail::__ESIMD_CONST_PI * 0.75, detail::__ESIMD_CONST_PI * 0.25,
-              mask);
-  atan2 += (0.1963 * r * r - 0.9817) * r;
+  atan2.merge(float(detail::__ESIMD_CONST_PI) * 0.75f,
+              float(detail::__ESIMD_CONST_PI) * 0.25f, mask);
+  atan2 += (0.1963f * r * r - 0.9817f) * r;
 
   sign.merge(OneN, OneP, y < 0);
 
@@ -1340,7 +1340,7 @@ atan2_fast(__ESIMD_NS::simd<float, N> y, __ESIMD_NS::simd<float, N> x) {
 }
 
 //   For Scalar Input
-ESIMD_INLINE float atan2_fast(float y, float x) {
+template <> ESIMD_INLINE float atan2_fast(float y, float x) {
   __ESIMD_NS::simd<float, 1> vy = y;
   __ESIMD_NS::simd<float, 1> vx = x;
   __ESIMD_NS::simd<float, 1> atan2 = esimd::atan2_fast(vy, vx);
@@ -1358,22 +1358,22 @@ ESIMD_INLINE __ESIMD_NS::simd<float, N> atan2(__ESIMD_NS::simd<float, N> y,
 
   constexpr float CONST_DBL_EPSILON = 0.00001f;
 
-  mask = (x < -CONST_DBL_EPSILON && y < CONST_DBL_EPSILON && y >= 0);
-  atan2.merge(detail::__ESIMD_CONST_PI, 0, mask);
+  mask = (x < -CONST_DBL_EPSILON && y < CONST_DBL_EPSILON && y >= 0.f);
+  atan2.merge(float(detail::__ESIMD_CONST_PI), 0.f, mask);
   mask = (x < -CONST_DBL_EPSILON && y > -CONST_DBL_EPSILON && y < 0);
-  atan2.merge(-detail::__ESIMD_CONST_PI, mask);
+  atan2.merge(float(-detail::__ESIMD_CONST_PI), mask);
   mask = (x < CONST_DBL_EPSILON && __ESIMD_NS::abs(y) > CONST_DBL_EPSILON);
   v_distance = __ESIMD_NS::sqrt(x * x + y * y);
-  atan2.merge(2.0 * esimd::atan((v_distance - x) / y), mask);
+  atan2.merge(2.0f * esimd::atan((v_distance - x) / y), mask);
 
-  mask = (x > 0);
+  mask = (x > 0.f);
   atan2.merge(2.0f * esimd::atan(y / (v_distance + x)), mask);
 
   return atan2;
 }
 
 // For Scalar Input
-ESIMD_INLINE float atan2(float y, float x) {
+template <> ESIMD_INLINE float atan2(float y, float x) {
   __ESIMD_NS::simd<float, 1> vy = y;
   __ESIMD_NS::simd<float, 1> vx = x;
   __ESIMD_NS::simd<float, 1> atan2 = esimd::atan2(vy, vx);
@@ -1403,7 +1403,7 @@ ESIMD_INLINE __ESIMD_NS::simd<float, N> fmod(__ESIMD_NS::simd<float, N> y,
 }
 
 // For Scalar Input
-ESIMD_INLINE float fmod(float y, float x) {
+template <> ESIMD_INLINE float fmod(float y, float x) {
   return fmod(__ESIMD_NS::simd<float, 1>(y), __ESIMD_NS::simd<float, 1>(x))[0];
 }
 
@@ -1417,19 +1417,19 @@ ESIMD_INLINE __ESIMD_NS::simd<float, N> sin_emu(__ESIMD_NS::simd<float, N> x) {
 
   __ESIMD_NS::simd<float, N> sign;
   __ESIMD_NS::simd<float, N> fTrig;
-  __ESIMD_NS::simd<float, N> TwoPI(detail::__ESIMD_CONST_PI * 2.0f);
-  __ESIMD_NS::simd<float, N> CmpI(detail::__ESIMD_CONST_PI);
+  __ESIMD_NS::simd<float, N> TwoPI(float(detail::__ESIMD_CONST_PI) * 2.0f);
+  __ESIMD_NS::simd<float, N> CmpI((float)detail::__ESIMD_CONST_PI);
   __ESIMD_NS::simd<float, N> OneP(1.0f);
   __ESIMD_NS::simd<float, N> OneN(-1.0f);
 
   x = esimd::fmod(x, TwoPI);
   x.merge(TwoPI + x, x < 0);
 
-  x1.merge(CmpI - x, x - CmpI, (x <= detail::__ESIMD_CONST_PI));
-  x1.merge(x, (x <= detail::__ESIMD_CONST_PI * 0.5f));
-  x1.merge(TwoPI - x, (x > detail::__ESIMD_CONST_PI * 1.5f));
+  x1.merge(CmpI - x, x - CmpI, (x <= float(detail::__ESIMD_CONST_PI)));
+  x1.merge(x, (x <= float(detail::__ESIMD_CONST_PI) * 0.5f));
+  x1.merge(TwoPI - x, (x > float(detail::__ESIMD_CONST_PI) * 1.5f));
 
-  sign.merge(OneN, OneP, (x > detail::__ESIMD_CONST_PI));
+  sign.merge(OneN, OneP, (x > float(detail::__ESIMD_CONST_PI)));
 
   x2 = x1 * x1;
   t3 = x2 * x1 * 0.1666667f;
@@ -1444,7 +1444,7 @@ ESIMD_INLINE __ESIMD_NS::simd<float, N> sin_emu(__ESIMD_NS::simd<float, N> x) {
 }
 
 // scalar Input
-ESIMD_INLINE float sin_emu(float x0) {
+template <> ESIMD_INLINE float sin_emu(float x0) {
   return esimd::sin_emu(__ESIMD_NS::simd<float, 1>(x0))[0];
 }
 
@@ -1452,11 +1452,11 @@ ESIMD_INLINE float sin_emu(float x0) {
 // For Vector input
 template <int N>
 ESIMD_INLINE __ESIMD_NS::simd<float, N> cos_emu(__ESIMD_NS::simd<float, N> x) {
-  return esimd::sin_emu(0.5f * (float)detail::__ESIMD_CONST_PI - x);
+  return esimd::sin_emu(0.5f * float(detail::__ESIMD_CONST_PI) - x);
 }
 
 // scalar Input
-ESIMD_INLINE float cos_emu(float x0) {
+template <> ESIMD_INLINE float cos_emu(float x0) {
   return esimd::cos_emu(__ESIMD_NS::simd<float, 1>(x0))[0];
 }
 
@@ -1476,13 +1476,13 @@ tanh_cody_waite_impl(__ESIMD_NS::simd<float, N> x) {
    *
    */
 
-  constexpr float p0 = -0.8237728127E+00;
-  constexpr float p1 = -0.3831010665E-02;
-  constexpr float q0 = 0.2471319654E+01;
-  constexpr float q1 = 1.0000000000E+00;
-  constexpr float xsmall = 4.22863966691620432990E-04;
-  constexpr float xmedium = 0.54930614433405484570;
-  constexpr float xlarge = 8.66433975699931636772;
+  constexpr float p0 = -0.8237728127E+00f;
+  constexpr float p1 = -0.3831010665E-02f;
+  constexpr float q0 = 0.2471319654E+01f;
+  constexpr float q1 = 1.0000000000E+00f;
+  constexpr float xsmall = 4.22863966691620432990E-04f;
+  constexpr float xmedium = 0.54930614433405484570f;
+  constexpr float xlarge = 8.66433975699931636772f;
 
   using RT = __ESIMD_NS::simd<float, N>;
 
@@ -1490,7 +1490,7 @@ tanh_cody_waite_impl(__ESIMD_NS::simd<float, N> x) {
   RT g = absX * absX;
 
   RT sign;
-  sign.merge(-1.0f, 1.0f, x < 0);
+  sign.merge(-1.f, 1.f, x < 0.f);
 
   auto isLarge = absX > xlarge;
   auto minor = absX <= xlarge;
@@ -1499,8 +1499,8 @@ tanh_cody_waite_impl(__ESIMD_NS::simd<float, N> x) {
 
   RT res;
   res.merge(sign, x, isLarge);
-  auto temp = __ESIMD_NS::exp(absX * 2.0f) + 1.0f;
-  temp = ((temp - 2.0f) / temp) * sign;
+  auto temp = __ESIMD_NS::exp(absX * 2.0f) + 1.f;
+  temp = ((temp - 2.f) / temp) * sign;
   res.merge(temp, isGtMed);
   res.merge((absX + absX * g * (g * p1 + p0) / (g + q0)) * sign, isGtSmall);
 
@@ -1516,15 +1516,15 @@ tanh_impl(__ESIMD_NS::simd<float, N> x) {
    *
    */
 
-  constexpr float xsmall = 0.000045; // same as exp(-10.0f)
-  constexpr float xlarge = 40.0;
+  constexpr float xsmall = 0.000045f; // same as exp(-10.0f)
+  constexpr float xlarge = 40.f;
 
   using RT = __ESIMD_NS::simd<float, N>;
 
   RT absX = __ESIMD_NS::abs(x);
 
   RT sign;
-  sign.merge(-1.0f, 1.0f, x < 0);
+  sign.merge(-1.f, 1.f, x < 0.f);
 
   auto isLarge = (absX > xlarge);
   auto isLessE = (absX <= xlarge);
@@ -1533,14 +1533,14 @@ tanh_impl(__ESIMD_NS::simd<float, N> x) {
   res.merge(sign, x, isLarge);
 
   RT exp;
-  exp = __ESIMD_NS::exp(absX * 2.0f);
+  exp = __ESIMD_NS::exp(absX * 2.f);
 
-  res.merge(((exp - 1.0f) / (exp + 1.0f)) * sign, (absX > xsmall) & isLessE);
+  res.merge(((exp - 1.f) / (exp + 1.f)) * sign, (absX > xsmall) & isLessE);
 
   return res;
 }
 } // namespace detail
-  /// @endcond ESIMD_DETAIL
+/// @endcond ESIMD_DETAIL
 
 /* tanh_cody_waite - Cody-Waite implementation for tanh(x) */
 /* float input */
