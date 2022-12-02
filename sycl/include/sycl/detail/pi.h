@@ -62,7 +62,7 @@
 // _pi_queue_info.
 
 #define _PI_H_VERSION_MAJOR 11
-#define _PI_H_VERSION_MINOR 16
+#define _PI_H_VERSION_MINOR 18
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
