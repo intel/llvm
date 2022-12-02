@@ -64,6 +64,13 @@ Scheduler &GlobalHandler::getScheduler() {
 }
 
 ProgramManager &GlobalHandler::getProgramManager() {
+#ifdef ENABLE_STACK_TRACE
+  static bool Dummy = []() {
+    llvm::sys::PrintStackTraceOnErrorSignal(llvm::StringRef());
+    return true;
+  }();
+  (void)Dummy;
+#endif
   return getOrCreate(MProgramManager);
 }
 
