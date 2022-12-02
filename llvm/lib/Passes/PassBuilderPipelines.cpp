@@ -636,7 +636,9 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
 
   // Try vectorization/scalarization transforms that are both improvements
   // themselves and can allow further folds with GVN and InstCombine.
-  FPM.addPass(VectorCombinePass(/*TryEarlyFoldsOnly=*/true));
+  // Disable for SYCL until SPIR-V reader is updated for all drivers.
+  if (!SYCLOptimizationMode)
+    FPM.addPass(VectorCombinePass(/*TryEarlyFoldsOnly=*/true));
 
   // Eliminate redundancies.
   FPM.addPass(MergedLoadStoreMotionPass());
