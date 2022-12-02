@@ -27,17 +27,28 @@ class tf32 {
 };
 } // namespace precision
 
-template <typename type, size_t size> class wi_data {
-  marray<type, size> &data;
-  wi_data(marray<type, size> &wi_marray) : data(wi_marray){};
-  template <typename T, use Use, size_t Rows, size_t Cols, layout Layout,
-            typename Group>
-  friend struct joint_matrix;
+template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
+          layout Layout = layout::dynamic>
+struct joint_matrix;
+
+template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
+          layout Layout>
+class wi_data {
+
+  joint_matrix<Group, T, Use, Rows, Cols, Layout> &jm;
+
+  wi_data(joint_matrix<Group, T, Use, Rows, Cols, Layout> &_jm) : jm(_jm){};
+
+  template <typename Grp, typename Type, use UseJm, size_t NumRows,
+            size_t NumCols, layout LayoutJm>
+  friend wi_data<Grp, Type, UseJm, NumRows, NumCols, LayoutJm>
+  get_wi_data(Grp,
+              joint_matrix<Grp, Type, UseJm, NumRows, NumCols, LayoutJm> &);
 
 public:
-  size_t length() { return data.size(); };
+  size_t length() { return jm.cuda_impl.wi_marray.size(); };
 
-  type &operator[](size_t i) { return data[i]; };
+  decltype(auto) operator[](size_t i) { return (jm.cuda_impl.wi_marray[i]); };
 };
 
 } // namespace matrix
@@ -45,20 +56,17 @@ public:
 
 namespace detail {
 
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-
 template <typename T, sycl::ext::oneapi::experimental::matrix::use Use,
           size_t Rows, size_t Cols,
           sycl::ext::oneapi::experimental::matrix::layout Layout =
               sycl::ext::oneapi::experimental::matrix::layout::dynamic,
-          typename Group = sycl::sub_group, typename Cond = void>
+          typename Cond = void>
 struct joint_matrix_cuda;
 
 #define __SYCL_JOINT_MATRIX_OVERLOAD_ARR(TYPE, USE, M, N, SIZE)                \
   template <sycl::ext::oneapi::experimental::matrix::layout Layout>            \
   struct joint_matrix_cuda<                                                    \
       TYPE, sycl::ext::oneapi::experimental::matrix::use::USE, M, N, Layout,   \
-      sycl::sub_group,                                                         \
       typename std::enable_if_t<                                               \
           Layout ==                                                            \
               sycl::ext::oneapi::experimental::matrix::layout::row_major ||    \
@@ -113,8 +121,7 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR(double, b, 4, 8, 1)
   template <>                                                                  \
   struct joint_matrix_cuda<                                                    \
       TYPE, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,   \
-      sycl::ext::oneapi::experimental::matrix::layout::dynamic,                \
-      sycl::sub_group> {                                                       \
+      sycl::ext::oneapi::experimental::matrix::layout::dynamic> {              \
     marray<TYPE, SIZE> wi_marray;                                              \
   };
 
@@ -136,7 +143,7 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(double, 8, 8, 2)
   template <sycl::ext::oneapi::experimental::matrix::layout Layout>            \
   struct joint_matrix_cuda<                                                    \
       PRECISION, sycl::ext::oneapi::experimental::matrix::use::USE, M, N,      \
-      Layout, sycl::sub_group,                                                 \
+      Layout,                                                                  \
       typename std::enable_if_t<                                               \
           Layout ==                                                            \
               sycl::ext::oneapi::experimental::matrix::layout::row_major ||    \
@@ -153,7 +160,7 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR_PRECISION(
     4)
 
 #undef __SYCL_JOINT_MATRIX_OVERLOAD_ARR_PRECISION
-
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 template <sycl::ext::oneapi::experimental::matrix::layout Layout>
 constexpr int get_layout_id();
 
@@ -175,8 +182,7 @@ template <sycl::ext::oneapi::experimental::matrix::layout Layout, typename S,
 void load_accumulator_layoutT(
     joint_matrix_cuda<
         S, sycl::ext::oneapi::experimental::matrix::use::accumulator, NumRows,
-        NumCols, sycl::ext::oneapi::experimental::matrix::layout::dynamic,
-        sycl::sub_group> &res,
+        NumCols, sycl::ext::oneapi::experimental::matrix::layout::dynamic> &res,
     multi_ptr<T, Space, IsDecorated> src, size_t stride) {
   if constexpr (std::is_same_v<S, int32_t>) {
     auto destptr = reinterpret_cast<int32_t *>(&res.wi_marray);
@@ -224,8 +230,7 @@ template <typename S, typename T, size_t NumRows, size_t NumCols,
 void load_accumulator_cuda(
     joint_matrix_cuda<
         S, sycl::ext::oneapi::experimental::matrix::use::accumulator, NumRows,
-        NumCols, sycl::ext::oneapi::experimental::matrix::layout::dynamic,
-        sycl::sub_group> &res,
+        NumCols, sycl::ext::oneapi::experimental::matrix::layout::dynamic> &res,
     multi_ptr<T, Space, IsDecorated> src, size_t stride,
     sycl::ext::oneapi::experimental::matrix::layout Layout) {
   switch (Layout) {
@@ -255,7 +260,7 @@ template <
                 sycl::ext::oneapi::experimental::matrix::layout::col_major,
         bool> = true>
 void load_multiplicand_cuda(
-    joint_matrix_cuda<S, Use, NumRows, NumCols, Layout, sycl::sub_group> &res,
+    joint_matrix_cuda<S, Use, NumRows, NumCols, Layout> &res,
     multi_ptr<T, Space, IsDecorated> src, size_t stride) {
   if constexpr (std::is_same_v<S, sycl::ext::oneapi::experimental::bfloat16>) {
     auto tileptr = reinterpret_cast<const int32_t *>(src.get());
@@ -380,8 +385,7 @@ template <sycl::ext::oneapi::experimental::matrix::layout Layout, typename T,
 void store_layoutT(
     joint_matrix_cuda<
         T, sycl::ext::oneapi::experimental::matrix::use::accumulator, NumRows,
-        NumCols, sycl::ext::oneapi::experimental::matrix::layout::dynamic,
-        sycl::sub_group> &src,
+        NumCols, sycl::ext::oneapi::experimental::matrix::layout::dynamic> &src,
     multi_ptr<T, Space, IsDecorated> dst, size_t stride) {
   if constexpr (NumRows == 16 && NumCols == 16) {
     if constexpr (std::is_same_v<T, float>) {
@@ -437,8 +441,7 @@ template <typename T, size_t NumRows, size_t NumCols,
 void joint_matrix_store_cuda(
     joint_matrix_cuda<
         T, sycl::ext::oneapi::experimental::matrix::use::accumulator, NumRows,
-        NumCols, sycl::ext::oneapi::experimental::matrix::layout::dynamic,
-        sycl::sub_group> &src,
+        NumCols, sycl::ext::oneapi::experimental::matrix::layout::dynamic> &src,
     multi_ptr<T, Space, IsDecorated> dst, size_t stride,
     sycl::ext::oneapi::experimental::matrix::layout Layout) {
   switch (Layout) {
@@ -504,16 +507,14 @@ template <
 void joint_matrix_mad_cuda(
     joint_matrix_cuda<
         Tc, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,
-        sycl::ext::oneapi::experimental::matrix::layout::dynamic,
-        sycl::sub_group> &D,
+        sycl::ext::oneapi::experimental::matrix::layout::dynamic> &D,
     joint_matrix_cuda<Tm, sycl::ext::oneapi::experimental::matrix::use::a, M, K,
-                      LayoutA, sycl::sub_group> &A,
+                      LayoutA> &A,
     joint_matrix_cuda<Tm, sycl::ext::oneapi::experimental::matrix::use::b, K, N,
-                      LayoutB, sycl::sub_group> &B,
+                      LayoutB> &B,
     joint_matrix_cuda<
         Tc, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,
-        sycl::ext::oneapi::experimental::matrix::layout::dynamic,
-        sycl::sub_group> &C) {
+        sycl::ext::oneapi::experimental::matrix::layout::dynamic> &C) {
   if constexpr (M == 16 && N == 16 && K == 16) {
     if constexpr (std::is_same_v<Tc, int32_t>) {
       auto ptrA = reinterpret_cast<const int32_t *>(&A.wi_marray);
@@ -640,6 +641,7 @@ void joint_matrix_mad_cuda(
                           get_layout_pair_id<LayoutA, LayoutB>(), 0);
   }
 }
+
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 
 } // namespace detail
