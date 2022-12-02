@@ -164,13 +164,13 @@ using make_signed_impl_t = typename make_signed_impl<T, T>::type;
 
 template <typename T>
 struct make_signed_impl<
-    T, enable_if_t<is_contained<T, gtl::scalar_integer_list>::value, T>> {
+    T, std::enable_if_t<is_contained<T, gtl::scalar_integer_list>::value, T>> {
   using type = typename std::make_signed<T>::type;
 };
 
 template <typename T>
 struct make_signed_impl<
-    T, enable_if_t<is_contained<T, gtl::vector_integer_list>::value, T>> {
+    T, std::enable_if_t<is_contained<T, gtl::vector_integer_list>::value, T>> {
   using base_type = make_signed_impl_t<vector_element_t<T>>;
   using type = change_base_type_t<T, base_type>;
 };
@@ -179,7 +179,7 @@ struct make_signed_impl<
 // infrastructure.
 template <typename T>
 struct make_signed_impl<
-    T, enable_if_t<!is_contained<T, gtl::integer_list>::value, T>> {
+    T, std::enable_if_t<!is_contained<T, gtl::integer_list>::value, T>> {
   using type = T;
 };
 
@@ -198,13 +198,13 @@ using make_unsigned_impl_t = typename make_unsigned_impl<T, T>::type;
 
 template <typename T>
 struct make_unsigned_impl<
-    T, enable_if_t<is_contained<T, gtl::scalar_integer_list>::value, T>> {
+    T, std::enable_if_t<is_contained<T, gtl::scalar_integer_list>::value, T>> {
   using type = typename std::make_unsigned<T>::type;
 };
 
 template <typename T>
 struct make_unsigned_impl<
-    T, enable_if_t<is_contained<T, gtl::vector_integer_list>::value, T>> {
+    T, std::enable_if_t<is_contained<T, gtl::vector_integer_list>::value, T>> {
   using base_type = make_unsigned_impl_t<vector_element_t<T>>;
   using type = change_base_type_t<T, base_type>;
 };
@@ -213,7 +213,7 @@ struct make_unsigned_impl<
 // infrastructure.
 template <typename T>
 struct make_unsigned_impl<
-    T, enable_if_t<!is_contained<T, gtl::integer_list>::value, T>> {
+    T, std::enable_if_t<!is_contained<T, gtl::integer_list>::value, T>> {
   using type = T;
 };
 
@@ -339,21 +339,21 @@ using make_type_t = typename make_type_impl<T, TL>::type;
 template <typename T, typename Enable = void> struct make_larger_impl;
 template <typename T>
 struct make_larger_impl<
-    T, enable_if_t<is_contained<T, gtl::scalar_floating_list>::value, T>> {
+    T, std::enable_if_t<is_contained<T, gtl::scalar_floating_list>::value, T>> {
   using type = find_twice_as_large_type_t<gtl::scalar_floating_list, T>;
 };
 
 template <typename T>
 struct make_larger_impl<
-    T,
-    enable_if_t<is_contained<T, gtl::scalar_signed_integer_list>::value, T>> {
+    T, std::enable_if_t<is_contained<T, gtl::scalar_signed_integer_list>::value,
+                        T>> {
   using type = find_twice_as_large_type_t<gtl::scalar_signed_integer_list, T>;
 };
 
 template <typename T>
 struct make_larger_impl<
-    T,
-    enable_if_t<is_contained<T, gtl::scalar_unsigned_integer_list>::value, T>> {
+    T, std::enable_if_t<
+           is_contained<T, gtl::scalar_unsigned_integer_list>::value, T>> {
   using type = find_twice_as_large_type_t<gtl::scalar_unsigned_integer_list, T>;
 };
 
