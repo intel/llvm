@@ -569,7 +569,7 @@ EnableIfNativeShuffle<T> SubgroupShuffleUp(T x, uint32_t delta) {
 template <typename T>
 EnableIfVectorShuffle<T> SubgroupShuffle(T x, id<1> local_id) {
   T result;
-  for (int s = 0; s < x.get_size(); ++s) {
+  for (int s = 0; s < x.size(); ++s) {
     result[s] = SubgroupShuffle(x[s], local_id);
   }
   return result;
@@ -578,7 +578,7 @@ EnableIfVectorShuffle<T> SubgroupShuffle(T x, id<1> local_id) {
 template <typename T>
 EnableIfVectorShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
   T result;
-  for (int s = 0; s < x.get_size(); ++s) {
+  for (int s = 0; s < x.size(); ++s) {
     result[s] = SubgroupShuffleXor(x[s], local_id);
   }
   return result;
@@ -587,7 +587,7 @@ EnableIfVectorShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
 template <typename T>
 EnableIfVectorShuffle<T> SubgroupShuffleDown(T x, uint32_t delta) {
   T result;
-  for (int s = 0; s < x.get_size(); ++s) {
+  for (int s = 0; s < x.size(); ++s) {
     result[s] = SubgroupShuffleDown(x[s], delta);
   }
   return result;
@@ -596,7 +596,7 @@ EnableIfVectorShuffle<T> SubgroupShuffleDown(T x, uint32_t delta) {
 template <typename T>
 EnableIfVectorShuffle<T> SubgroupShuffleUp(T x, uint32_t delta) {
   T result;
-  for (int s = 0; s < x.get_size(); ++s) {
+  for (int s = 0; s < x.size(); ++s) {
     result[s] = SubgroupShuffleUp(x[s], delta);
   }
   return result;
