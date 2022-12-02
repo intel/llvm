@@ -42,11 +42,14 @@ SYCL specification refer to that revision.
 
 == Status
 
-This is a proposed extension specification, intended to gather community
-feedback. Interfaces defined in this specification may not be implemented yet
-or may be in a preliminary state. The specification itself may also change in
-incompatible ways before it is finalized.  *Shipping software products should
-not rely on APIs defined in this specification.*
+This extension is supported by {dpcpp} on all backends except OpenCL.
+[NOTE]
+====
+Currently support for OpenCL backend is limited, API introduced by this extension
+can be called only for in-order queues which doesn't have `discard_events` property.
+Exception is thrown if new API is called on other type of queue. OpenCL currently
+doesn't have an API to get queue status.
+====
 
 
 == Overview
