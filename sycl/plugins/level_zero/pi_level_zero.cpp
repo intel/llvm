@@ -1036,13 +1036,15 @@ _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
     EventList.clear();
   } else {
     // For immediate commandlist reset only those events that have signalled.
-    for (auto it = EventList.begin(); it != EventList.end(); it++) {
+    for (auto it = EventList.begin(); it != EventList.end();) {
       std::scoped_lock<pi_shared_mutex> EventLock((*it)->Mutex);
       ze_result_t ZeResult =
           ZE_CALL_NOCHECK(zeEventQueryStatus, ((*it)->ZeEvent));
       if (ZeResult == ZE_RESULT_SUCCESS) {
         EventListToCleanup.push_back(std::move((*it)));
-        it = EventList.erase(it, it);
+        it = EventList.erase(it);
+      } else {
+        it++;
       }
     }
   }
