@@ -13,7 +13,7 @@
 
 #include <sycl/detail/spinlock.hpp>
 
-#include <level_zero/zet_api.h>
+#include <zet_api.h>
 
 #include <iostream>
 #include <mutex>
