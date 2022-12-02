@@ -125,8 +125,7 @@ struct LinalgOpTilingInterface
     SmallVector<Type> resultTensorTypes =
         getTensorOutputTypes(linalgOp, tiledOperands);
 
-    Operation *tiledOp =
-        linalgOp.clone(b, loc, resultTensorTypes, tiledOperands);
+    Operation *tiledOp = clone(b, linalgOp, resultTensorTypes, tiledOperands);
     offsetIndices(b, cast<LinalgOp>(tiledOp), offsets);
 
     return {tiledOp};
@@ -280,7 +279,7 @@ struct LinalgOpPartialReductionInterface
     for (int64_t idx : llvm::seq<int64_t>(0, oldShape.size() + 1)) {
       if (idx == insertSplitDimension) {
         dispatchIndexOpFoldResults(sizes[idx], dynamicDims, newOutputShape,
-                                   ShapedType::kDynamicStrideOrOffset);
+                                   ShapedType::kDynamic);
         continue;
       }
       int64_t oldIdx = idx < insertSplitDimension ? idx : idx - 1;
