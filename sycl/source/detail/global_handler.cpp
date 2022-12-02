@@ -78,6 +78,7 @@ std::mutex &GlobalHandler::getFilterMutex() {
   return getOrCreate(MFilterMutex);
 }
 std::vector<plugin> &GlobalHandler::getPlugins() {
+   init();
   return getOrCreate(MPlugins);
 }
 device_filter_list &
