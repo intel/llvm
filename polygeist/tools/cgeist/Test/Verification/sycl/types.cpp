@@ -17,8 +17,8 @@
 // CHECK-DAG: !sycl_nd_range_2_ = !sycl.nd_range<[2], (!sycl.range<2>, !sycl.range<2>, !sycl.id<2>)>
 // CHECK-DAG: !sycl_get_scalar_op_i32_ = !sycl.get_scalar_op<[i32], (i32)>
 // CHECK-DAG: !sycl_tuple_value_holder_i32_ = !sycl.tuple_value_holder<[i32], (i32)>
-// CHECK-DAG: [[TUPLE_COPY_ASSIGNABLE_VALUE_HOLDER_TRUE:!sycl_tuple_copy_assignable_value_holder_i32_.*]] = !sycl.tuple_copy_assignable_value_holder<[i32, true], (!sycl.tuple_value_holder<[i32], (i32)>)>
-// CHECK-DAG: [[TUPLE_COPY_ASSIGNABLE_VALUE_HOLDER_FALSE:!sycl_tuple_copy_assignable_value_holder_i32_.*]] = !sycl.tuple_copy_assignable_value_holder<[i32, false], (!sycl.tuple_value_holder<[i32], (i32)>)>
+// CHECK-DAG: [[TUPLE_COPY_ASSIGNABLE_VALUE_HOLDER_TRUE:!sycl_tuple_copy_assignable_value_holder_i32_.*]] = !sycl.tuple_copy_assignable_value_holder<[i32, true], (!sycl_tuple_value_holder_i32_)>
+// CHECK-DAG: [[TUPLE_COPY_ASSIGNABLE_VALUE_HOLDER_FALSE:!sycl_tuple_copy_assignable_value_holder_i32_.*]] = !sycl.tuple_copy_assignable_value_holder<[i32, false], (!sycl_tuple_value_holder_i32_)>
 // CHECK-DAG: !sycl_vec_f32_8_ = !sycl.vec<[f32, 8], (vector<8xf32>)>
 // CHECK-DAG: !sycl_vec_i32_4_ = !sycl.vec<[i32, 4], (vector<4xi32>)>
 // CHECK-DAG: !sycl_atomic_f32_3_ = !sycl.atomic<[f32,3], (memref<?xf32, 3>)>

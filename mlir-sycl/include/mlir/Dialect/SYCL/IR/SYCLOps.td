@@ -221,7 +221,7 @@ def SYCL_GetScalarOpType : SYCL_Type<"GetScalarOp", "get_scalar_op"> {
 
 def SYCL_TupleValueHolderType : SYCL_Type<"TupleValueHolder", "tuple_value_holder"> {
   let parameters = (ins "::mlir::Type":$dataType,
-                        "llvm::SmallVector<mlir::Type, 4>":$body);
+                        ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat = "`<` `[` $dataType `]` `,` `(` $body `)` `>`";
 }
 
@@ -230,7 +230,7 @@ def SYCL_TupleCopyAssignableValueHolderType
         [SYCLInheritanceTypeTrait<"TupleValueHolderType">]> {
   let parameters = (ins "::mlir::Type":$dataType,
                         "bool":$isTriviallyCopyAssignable,
-                        "llvm::SmallVector<mlir::Type, 4>":$body);
+                        ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat = "`<` `[` $dataType `,` $isTriviallyCopyAssignable `]` `,` `(` $body `)` `>`";
 }
 
@@ -254,12 +254,12 @@ def SYCL_AtomicType : SYCL_Type<"Atomic", "atomic"> {
 }
 
 def SYCL_AssertHappenedType : SYCL_Type<"AssertHappened", "assert_happened"> {
-  let parameters = (ins "llvm::SmallVector<mlir::Type, 4>":$body);
+  let parameters = (ins ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat = "`<` `(` $body `)` `>`";
 }
 
 def SYCL_BFloat16Type : SYCL_Type<"BFloat16", "bfloat16"> {
-  let parameters = (ins "llvm::SmallVector<mlir::Type, 4>":$body);
+  let parameters = (ins ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat = "`<` `(` $body `)` `>`";
 }
 
