@@ -26,7 +26,6 @@ namespace {
 constexpr StringRef SYCL_HOST_ACCESS_ATTR = "sycl-host-access";
 
 constexpr StringRef SPIRV_DECOR_MD_KIND = "spirv.Decorations";
-constexpr StringRef SPIRV_PARAM_DECOR_MD_KIND = "spirv.ParameterDecorations";
 // The corresponding SPIR-V OpCode for the host_access property is documented
 // in the SPV_INTEL_global_variable_decorations design document:
 // https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/DeviceGlobal/SPV_INTEL_global_variable_decorations.asciidoc#decoration
@@ -113,8 +112,8 @@ Optional<StringRef> getGlobalVariableString(const Value *StringV) {
 }
 
 /// Tries to generate a SPIR-V decorate metadata node from an attribute. If
-///// the attribute is unknown \c nullptr will be returned.
-/////
+/// the attribute is unknown \c nullptr will be returned.
+///
 /// @param Ctx   [in] the LLVM context.
 /// @param Attr  [in] the LLVM attribute to generate metadata for.
 ///
@@ -131,13 +130,13 @@ MDNode *attributeToDecorateMetadata(LLVMContext &Ctx, const Attribute &Attr) {
   Decor DecorFound = DecorIt->second;
   uint32_t DecorCode = DecorFound.Code;
   switch (DecorFound.Type) {
-  case DecorValueTy::uint32:
-    return buildSpirvDecorMetadata(Ctx, DecorCode,
-                                   getAttributeAsInteger<uint32_t>(Attr));
-  case DecorValueTy::boolean:
-    return buildSpirvDecorMetadata(Ctx, DecorCode, hasProperty(Attr));
-  default:
-    llvm_unreachable("Unhandled decorator type.");
+    case DecorValueTy::uint32:
+      return buildSpirvDecorMetadata(Ctx, DecorCode,
+                                     getAttributeAsInteger<uint32_t>(Attr));
+    case DecorValueTy::boolean:
+      return buildSpirvDecorMetadata(Ctx, DecorCode, hasProperty(Attr));
+    default:
+      llvm_unreachable("Unhandled decorator type.");
   }
 }
 
@@ -184,8 +183,8 @@ attributeToExecModeMetadata(Module &M, const Attribute &Attr) {
     // Get the integers from the strings.
     SmallVector<Metadata *, 3> MDVals;
     for (StringRef ValStr : ValStrs)
-      MDVals.push_back(ConstantAsMetadata::get(
-          Constant::getIntegerValue(SizeTTy, APInt(SizeTBitSize, ValStr, 10))));
+      MDVals.push_back(ConstantAsMetadata::get(Constant::getIntegerValue(
+          SizeTTy, APInt(SizeTBitSize, ValStr, 10))));
 
     const char *MDName = (AttrKindStr == "sycl-work-group-size")
                              ? "reqd_work_group_size"
@@ -212,7 +211,6 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
                                                  ModuleAnalysisManager &MAM) {
   LLVMContext &Ctx = M.getContext();
   unsigned MDKindID = Ctx.getMDKindID(SPIRV_DECOR_MD_KIND);
-  unsigned MDParamKindID = Ctx.getMDKindID(SPIRV_PARAM_DECOR_MD_KIND);
   bool CompileTimePropertiesMet = false;
 
   // Let's process all the globals
@@ -250,55 +248,33 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
     }
   }
 
+  // Process all properties on kernels.
   for (Function &F : M) {
     // Only consider kernels.
     if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
       continue;
 
-    {
-      // Process all properties on kernels arugments
-      SmallVector<Metadata *, 8> MDOps;
-      for (unsigned i = 0; i < F.arg_size(); i++) {
-        SmallVector<Metadata *, 8> MDArgOps;
-        for (auto &Attribute : F.getAttributes().getParamAttrs(i)) {
-          if (MDNode *SPIRVMetadata =
-                  attributeToDecorateMetadata(Ctx, Attribute))
-            MDArgOps.push_back(SPIRVMetadata);
-        }
-        MDOps.push_back(MDNode::get(Ctx, MDArgOps));
-      }
-      // Add the generated metadata to the kernel function.
-      if (!MDOps.empty()) {
-        F.addMetadata(MDParamKindID, *MDNode::get(Ctx, MDOps));
-        CompileTimePropertiesMet = true;
-      }
+    SmallVector<Metadata *, 8> MDOps;
+    SmallVector<std::pair<std::string, MDNode *>, 8> NamedMDOps;
+    for (const Attribute &Attribute : F.getAttributes().getFnAttrs()) {
+      if (MDNode *SPIRVMetadata = attributeToDecorateMetadata(Ctx, Attribute))
+        MDOps.push_back(SPIRVMetadata);
+      else if (auto NamedMetadata = attributeToExecModeMetadata(M, Attribute))
+        NamedMDOps.push_back(*NamedMetadata);
     }
 
-    {
-      // Process all properties on kernels.
-      SmallVector<Metadata *, 8> MDOps;
-      SmallVector<std::pair<std::string, MDNode *>, 8> NamedMDOps;
-      for (const Attribute &Attribute : F.getAttributes().getFnAttrs()) {
-        if (MDNode *SPIRVMetadata = attributeToDecorateMetadata(Ctx, Attribute))
-          MDOps.push_back(SPIRVMetadata);
-        else if (auto NamedMetadata = attributeToExecModeMetadata(M, Attribute))
-          NamedMDOps.push_back(*NamedMetadata);
-      }
+    // Add the generated metadata to the kernel function.
+    if (!MDOps.empty()) {
+      F.addMetadata(MDKindID, *MDNode::get(Ctx, MDOps));
+      CompileTimePropertiesMet = true;
+    }
 
-      // Add the generated metadata to the kernel function.
-      if (!MDOps.empty()) {
-        F.addMetadata(MDKindID, *MDNode::get(Ctx, MDOps));
-        CompileTimePropertiesMet = true;
-      }
-
-      // Add the new named metadata to the kernel function.
-      for (std::pair<std::string, MDNode *> NamedMD : NamedMDOps) {
-        // If multiple sources defined this metadata, prioritize the existing
-        // one.
-        if (F.hasMetadata(NamedMD.first))
-          continue;
-        F.addMetadata(NamedMD.first, *NamedMD.second);
-      }
+    // Add the new named metadata to the kernel function.
+    for (std::pair<std::string, MDNode *> NamedMD : NamedMDOps) {
+      // If multiple sources defined this metadata, prioritize the existing one.
+      if (F.hasMetadata(NamedMD.first))
+        continue;
+      F.addMetadata(NamedMD.first, *NamedMD.second);
     }
   }
 
