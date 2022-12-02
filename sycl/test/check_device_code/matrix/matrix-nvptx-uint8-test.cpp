@@ -38,9 +38,9 @@ int main() {
         [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
           sycl::sub_group sg = item.get_sub_group();
 
-          joint_matrix<int32_t, use::accumulator, 16, 16> sub_c(sg);
-          joint_matrix<uint8_t, use::a, 16, 16, layout::row_major> sub_a(sg);
-          joint_matrix<uint8_t, use::b, 16, 16, layout::row_major> sub_b(sg);
+          joint_matrix<sub_group, int32_t, use::accumulator, 16, 16> sub_c{};
+          joint_matrix<sub_group, uint8_t, use::a, 16, 16, layout::row_major> sub_a{};
+          joint_matrix<sub_group, uint8_t, use::b, 16, 16, layout::row_major> sub_b{};
 
           // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.c.row.stride.s32.p1i32(i32 addrspace(1)* %_arg_accC, i32 16)
           // CHECK-OPAQUE: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.c.row.stride.s32.p1(ptr addrspace(1) %_arg_accC, i32 16)
@@ -66,9 +66,9 @@ int main() {
         [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
           sycl::sub_group sg = item.get_sub_group();
 
-          joint_matrix<int32_t, use::accumulator, 16, 16> sub_c(sg);
-          joint_matrix<uint8_t, use::a, 16, 16, layout::col_major> sub_a(sg);
-          joint_matrix<uint8_t, use::b, 16, 16, layout::col_major> sub_b(sg);
+          joint_matrix<sub_group, int32_t, use::accumulator, 16, 16> sub_c{};
+          joint_matrix<sub_group, uint8_t, use::a, 16, 16, layout::col_major> sub_a{};
+          joint_matrix<sub_group, uint8_t, use::b, 16, 16, layout::col_major> sub_b{};
 
           // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.c.col.stride.s32.p1i32(i32 addrspace(1)* %_arg_accC, i32 16)
           // CHECK-OPAQUE: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.c.col.stride.s32.p1(ptr addrspace(1) %_arg_accC, i32 16)
@@ -94,9 +94,9 @@ int main() {
         [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
           sycl::sub_group sg = item.get_sub_group();
 
-          joint_matrix<int32_t, use::accumulator, 32, 8> sub_c(sg);
-          joint_matrix<uint8_t, use::a, 32, 16, layout::row_major> sub_a(sg);
-          joint_matrix<uint8_t, use::b, 16, 8, layout::row_major> sub_b(sg);
+          joint_matrix<sub_group, int32_t, use::accumulator, 32, 8> sub_c{};
+          joint_matrix<sub_group, uint8_t, use::a, 32, 16, layout::row_major> sub_a{};
+          joint_matrix<sub_group, uint8_t, use::b, 16, 8, layout::row_major> sub_b{};
 
           // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m32n8k16.load.c.row.stride.s32.p1i32(i32 addrspace(1)* %_arg_accC, i32 16)
           // CHECK-OPAQUE: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m32n8k16.load.c.row.stride.s32.p1(ptr addrspace(1) %_arg_accC, i32 16)
@@ -122,9 +122,9 @@ int main() {
         [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
           sycl::sub_group sg = item.get_sub_group();
 
-          joint_matrix<int32_t, use::accumulator, 32, 8> sub_c(sg);
-          joint_matrix<uint8_t, use::a, 32, 16, layout::col_major> sub_a(sg);
-          joint_matrix<uint8_t, use::b, 16, 8, layout::col_major> sub_b(sg);
+          joint_matrix<sub_group, int32_t, use::accumulator, 32, 8> sub_c{};
+          joint_matrix<sub_group, uint8_t, use::a, 32, 16, layout::col_major> sub_a{};
+          joint_matrix<sub_group, uint8_t, use::b, 16, 8, layout::col_major> sub_b{};
 
           // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m32n8k16.load.c.col.stride.s32.p1i32(i32 addrspace(1)* %_arg_accC, i32 16)
           // CHECK-OPAQUE: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m32n8k16.load.c.col.stride.s32.p1(ptr addrspace(1) %_arg_accC, i32 16)
@@ -150,9 +150,9 @@ int main() {
         [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
           sycl::sub_group sg = item.get_sub_group();
 
-          joint_matrix<int32_t, use::accumulator, 8, 32> sub_c(sg);
-          joint_matrix<uint8_t, use::a, 8, 16, layout::row_major> sub_a(sg);
-          joint_matrix<uint8_t, use::b, 16, 32, layout::row_major> sub_b(sg);
+          joint_matrix<sub_group, int32_t, use::accumulator, 8, 32> sub_c{};
+          joint_matrix<sub_group, uint8_t, use::a, 8, 16, layout::row_major> sub_a{};
+          joint_matrix<sub_group, uint8_t, use::b, 16, 32, layout::row_major> sub_b{};
 
           // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m8n32k16.load.c.row.stride.s32.p1i32(i32 addrspace(1)* %_arg_accC, i32 16)
           // CHECK-OPAQUE: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m8n32k16.load.c.row.stride.s32.p1(ptr addrspace(1) %_arg_accC, i32 16)
@@ -178,9 +178,9 @@ int main() {
         [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
           sycl::sub_group sg = item.get_sub_group();
 
-          joint_matrix<int32_t, use::accumulator, 8, 32> sub_c(sg);
-          joint_matrix<uint8_t, use::a, 8, 16, layout::col_major> sub_a(sg);
-          joint_matrix<uint8_t, use::b, 16, 32, layout::col_major> sub_b(sg);
+          joint_matrix<sub_group, int32_t, use::accumulator, 8, 32> sub_c{};
+          joint_matrix<sub_group, uint8_t, use::a, 8, 16, layout::col_major> sub_a{};
+          joint_matrix<sub_group, uint8_t, use::b, 16, 32, layout::col_major> sub_b{};
 
           // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m8n32k16.load.c.col.stride.s32.p1i32(i32 addrspace(1)* %_arg_accC, i32 16)
           // CHECK-OPAQUE: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m8n32k16.load.c.col.stride.s32.p1(ptr addrspace(1) %_arg_accC, i32 16)

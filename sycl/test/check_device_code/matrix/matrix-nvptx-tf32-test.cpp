@@ -59,11 +59,9 @@ int main() {
         [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
           sycl::sub_group sg = item.get_sub_group();
 
-          joint_matrix<precision::tf32, use::a, M, K, layout::row_major> sub_a(
-              sg);
-          joint_matrix<precision::tf32, use::b, K, N, layout::row_major> sub_b(
-              sg);
-          joint_matrix<float, use::accumulator, M, N> sub_c(sg);
+          joint_matrix<sub_group, precision::tf32, use::a, M, K, layout::row_major> sub_a{};
+          joint_matrix<sub_group, precision::tf32, use::b, K, N, layout::row_major> sub_b{};
+          joint_matrix<sub_group, float, use::accumulator, M, N> sub_c{};
 
           //CHECK: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k8.load.a.row.stride.tf32.p0i32(i32* %call.ascast.i.i{{.*}}.i, i32 8)
           //CHECK-OPAQUE: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k8.load.a.row.stride.tf32.p0(ptr %call.ascast.i.i{{.*}}.i, i32 8)
@@ -79,10 +77,10 @@ int main() {
           // CHECK: tail call i32 @llvm.nvvm.f2tf32.rna(float {{.*}}
           // Round a, b to tf32
           for (auto i = 0; i < 4; ++i)
-            sub_a.get_wi_marray()[i] = round_to_tf32(sub_a.get_wi_marray()[i]);
+            get_wi_data(sg, sub_a)[i] = round_to_tf32(get_wi_data(sg, sub_a)[i]);
 
           for (auto i = 0; i < 4; ++i)
-            sub_b.get_wi_marray()[i] = round_to_tf32(sub_b.get_wi_marray()[i]);
+            get_wi_data(sg, sub_b)[i] = round_to_tf32(get_wi_data(sg, sub_b)[i]);
 
           //CHECK: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m16n16k8.mma.row.row.tf32(i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 %{{.*}}, i32 {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}})
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
@@ -104,11 +102,9 @@ int main() {
         [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
           sycl::sub_group sg = item.get_sub_group();
 
-          joint_matrix<precision::tf32, use::a, M, K, layout::col_major> sub_a(
-              sg);
-          joint_matrix<precision::tf32, use::b, K, N, layout::col_major> sub_b(
-              sg);
-          joint_matrix<float, use::accumulator, M, N> sub_c(sg);
+          joint_matrix<sub_group, precision::tf32, use::a, M, K, layout::col_major> sub_a{};
+          joint_matrix<sub_group, precision::tf32, use::b, K, N, layout::col_major> sub_b{};
+          joint_matrix<sub_group, float, use::accumulator, M, N> sub_c{};
 
           //CHECK: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k8.load.a.col.stride.tf32.p0i32(i32* %call.ascast.i.i{{.*}}.i, i32 8)
           //CHECK-OPAQUE: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k8.load.a.col.stride.tf32.p0(ptr %call.ascast.i.i{{.*}}.i, i32 8)
@@ -124,10 +120,10 @@ int main() {
           // CHECK: tail call i32 @llvm.nvvm.f2tf32.rna(float {{.*}}
           // Round a, b to tf32
           for (auto i = 0; i < 4; ++i)
-            sub_a.get_wi_marray()[i] = round_to_tf32(sub_a.get_wi_marray()[i]);
+            get_wi_data(sg, sub_a)[i] = round_to_tf32(get_wi_data(sg, sub_a)[i]);
 
           for (auto i = 0; i < 4; ++i)
-            sub_b.get_wi_marray()[i] = round_to_tf32(sub_b.get_wi_marray()[i]);
+            get_wi_data(sg, sub_b)[i] = round_to_tf32(get_wi_data(sg, sub_b)[i]);
 
           //CHECK: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m16n16k8.mma.col.col.tf32(i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}})
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
