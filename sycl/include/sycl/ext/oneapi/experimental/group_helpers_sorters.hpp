@@ -61,15 +61,20 @@ public:
   template <typename Group, typename T> T operator()(Group g, T val) {
 #ifdef __SYCL_DEVICE_ONLY__
     auto range_size = g.get_local_range().size();
-    if (scratch_size >= memory_required<T>(Group::fence_scope, range_size)) {
-      std::size_t local_id = g.get_local_linear_id();
+    if (scratch_size >=
+        memory_required<T>(Group::fence_scope, g.get_local_range())) {
+      auto id = sycl::detail::Builder::getNDItem<Group::dimensions>();
+      std::size_t local_id = id.get_local_linear_id();
       T *temp = reinterpret_cast<T *>(scratch);
       ::new (temp + local_id) T(val);
       sycl::detail::merge_sort(g, temp, range_size, comp,
                                scratch + range_size * sizeof(T));
       val = temp[local_id];
+    } else {
+      assert((scratch_size >=
+              memory_required<T>(Group::fence_scope, g.get_local_range())) &&
+             "default_sorter isn't implemented for small scratch_size");
     }
-    // TODO: it's better to add else branch
 #else
     (void)g;
     throw sycl::exception(
