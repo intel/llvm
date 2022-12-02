@@ -2731,6 +2731,13 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
       // Supports reading and writing of images.
       SupportedExtensions += ("cl_khr_3d_image_writes ");
 
+    // L0 does not tell us if bfloat16 is supported.
+    // For now, assume ATS and PVC support it.
+    // TODO: change the way we detect bfloat16 support.
+    if ((Device->ZeDeviceProperties->deviceId & 0xfff) == 0x201 ||
+        (Device->ZeDeviceProperties->deviceId & 0xff0) == 0xbd0)
+      SupportedExtensions += ("cl_intel_bfloat16_conversions ");
+
     return ReturnValue(SupportedExtensions.c_str());
   }
   case PI_DEVICE_INFO_NAME:
@@ -3205,8 +3212,10 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
     // currently not supported in level zero runtime
     return PI_ERROR_INVALID_VALUE;
-  case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16:
-    return PI_ERROR_INVALID_VALUE;
+  case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS: {
+    // bfloat16 math functions are not yet supported on Intel GPUs.
+    return ReturnValue(bool{false});
+  }
 
   // TODO: Implement.
   case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
