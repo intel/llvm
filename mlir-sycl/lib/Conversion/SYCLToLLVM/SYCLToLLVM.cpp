@@ -266,13 +266,7 @@ static Optional<Type> convertBFloat16Type(sycl::BFloat16Type type,
 /// Converts SYCL sub_group type to LLVM type.
 static Optional<Type> convertSubGroupType(sycl::SubGroupType type,
                                           LLVMTypeConverter &converter) {
-  auto convertedTy = LLVM::LLVMStructType::getIdentified(
-      &converter.getContext(), "struct.sycl::_V1::ext::oneapi::sub_group");
-  if (!convertedTy.isInitialized())
-    if (failed(convertedTy.setBody(IntegerType::get(&converter.getContext(), 8),
-                                   /*isPacked=*/false)))
-      return llvm::None;
-  return convertedTy;
+  return getI8Struct("struct.sycl::_V1::ext::oneapi::sub_group", converter);
 }
 
 //===----------------------------------------------------------------------===//
