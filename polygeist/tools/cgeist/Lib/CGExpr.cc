@@ -137,11 +137,12 @@ MLIRScanner::VisitCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *Expr) {
 
 ValueCategory MLIRScanner::VisitStringLiteral(clang::StringLiteral *Expr) {
   auto Loc = getMLIRLocation(Expr->getExprLoc());
-  return ValueCategory(
-      Glob.getOrCreateGlobalLLVMString(Loc, Builder, Expr->getString(), isa<mlir::gpu::GPUModuleOp>(Function->getParentOp())
+  return ValueCategory(Glob.getOrCreateGlobalLLVMString(
+                           Loc, Builder, Expr->getString(),
+                           isa<mlir::gpu::GPUModuleOp>(Function->getParentOp())
                                ? FunctionContext::SYCLDevice
                                : FunctionContext::Host),
-      /*isReference*/ true);
+                       /*isReference*/ true);
 }
 
 ValueCategory MLIRScanner::VisitParenExpr(clang::ParenExpr *Expr) {

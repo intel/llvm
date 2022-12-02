@@ -2016,22 +2016,23 @@ MLIRASTConsumer::getOrCreateGlobal(const clang::ValueDecl &VD,
   return Globals[Name];
 }
 
-Value MLIRASTConsumer::getOrCreateGlobalLLVMString(Location Loc,
-                                                   OpBuilder &Builder,
-                                                   StringRef value, FunctionContext FuncContext) {
+Value MLIRASTConsumer::getOrCreateGlobalLLVMString(
+    Location Loc, OpBuilder &Builder, StringRef value,
+    FunctionContext FuncContext) {
   using namespace mlir;
   // Create the global at the entry of the module.
   if (LLVMStringGlobals.find(value.str()) == LLVMStringGlobals.end()) {
     OpBuilder::InsertionGuard insertGuard(Builder);
-    switch(FuncContext) {
-      case FunctionContext::SYCLDevice:
-        Builder.setInsertionPointToStart(mlirclang::getDeviceModule(*Module).getBody());
-        break;
-      case FunctionContext::Host:
-        Builder.setInsertionPointToStart(Module->getBody());
-        break;
-      default:
-        llvm_unreachable("Unknown Functin Context while creating global string");  
+    switch (FuncContext) {
+    case FunctionContext::SYCLDevice:
+      Builder.setInsertionPointToStart(
+          mlirclang::getDeviceModule(*Module).getBody());
+      break;
+    case FunctionContext::Host:
+      Builder.setInsertionPointToStart(Module->getBody());
+      break;
+    default:
+      llvm_unreachable("Unknown Functin Context while creating global string");
     }
 
     auto type = LLVM::LLVMArrayType::get(
