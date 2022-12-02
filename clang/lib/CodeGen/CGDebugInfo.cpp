@@ -1191,7 +1191,7 @@ llvm::DIType *CGDebugInfo::CreatePointerLikeType(llvm::dwarf::Tag Tag,
   uint64_t Size = CGM.getContext().getTypeSize(Ty);
   auto Align = getTypeAlignIfRequired(Ty, CGM.getContext());
   Optional<unsigned> DWARFAddressSpace = CGM.getTarget().getDWARFAddressSpace(
-      CGM.getContext().getTargetAddressSpace(PointeeTy));
+      CGM.getTypes().getTargetAddressSpace(PointeeTy));
 
   SmallVector<llvm::Metadata *, 4> Annots;
   auto *BTFAttrTy = dyn_cast<BTFTagAttributedType>(PointeeTy);
@@ -4496,7 +4496,7 @@ llvm::DILocalVariable *CGDebugInfo::EmitDeclare(const VarDecl *VD,
 
   auto Align = getDeclAlignIfRequired(VD, CGM.getContext());
 
-  unsigned AddressSpace = CGM.getContext().getTargetAddressSpace(VD->getType());
+  unsigned AddressSpace = CGM.getTypes().getTargetAddressSpace(VD->getType());
   AppendAddressSpaceXDeref(AddressSpace, Expr);
 
   // If this is implicit parameter of CXXThis or ObjCSelf kind, then give it an
@@ -4657,7 +4657,7 @@ llvm::DILocalVariable *CGDebugInfo::EmitDeclare(const BindingDecl *BD,
     return nullptr;
 
   auto Align = getDeclAlignIfRequired(BD, CGM.getContext());
-  unsigned AddressSpace = CGM.getContext().getTargetAddressSpace(BD->getType());
+  unsigned AddressSpace = CGM.getTypes().getTargetAddressSpace(BD->getType());
 
   SmallVector<uint64_t, 3> Expr;
   AppendAddressSpaceXDeref(AddressSpace, Expr);
@@ -5336,8 +5336,7 @@ void CGDebugInfo::EmitGlobalVariable(llvm::GlobalVariable *Var,
     auto Align = getDeclAlignIfRequired(D, CGM.getContext());
 
     SmallVector<uint64_t, 4> Expr;
-    unsigned AddressSpace =
-        CGM.getContext().getTargetAddressSpace(D->getType());
+    unsigned AddressSpace = CGM.getTypes().getTargetAddressSpace(D->getType());
     if (CGM.getLangOpts().CUDA && CGM.getLangOpts().CUDAIsDevice) {
       if (D->hasAttr<CUDASharedAttr>())
         AddressSpace =

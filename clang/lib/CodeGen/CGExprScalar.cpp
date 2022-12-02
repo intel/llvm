@@ -1650,7 +1650,7 @@ ScalarExprEmitter::VisitSYCLUniqueStableIdExpr(SYCLUniqueStableIdExpr *E) {
       E->ComputeName(Context), "__usid_str",
       static_cast<unsigned>(GlobalAS.value_or(LangAS::Default)));
 
-  unsigned ExprAS = Context.getTargetAddressSpace(E->getType());
+  unsigned ExprAS = CGF.CGM.getTypes().getTargetAddressSpace(E->getType());
 
   if (GlobalConstStr->getType()->getPointerAddressSpace() == ExprAS)
     return GlobalConstStr;
