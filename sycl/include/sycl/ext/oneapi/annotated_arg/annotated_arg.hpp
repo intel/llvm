@@ -25,7 +25,6 @@
       Op " is not supported on host device.");
 #endif
 
-
 #ifdef __SYCL_DEVICE_ONLY__
 #define __OPENCL_GLOBAL_AS__ __attribute__((opencl_global))
 #ifdef __ENABLE_USM_ADDR_SPACE__
@@ -61,22 +60,30 @@ struct HasSubscriptOperator : std::false_type {};
 
 template <typename T>
 struct HasSubscriptOperator<
-    T, typename std::enable_if_t<!std::is_void<decltype(std::declval<T>().operator[](0))>::value>>
-    : std::true_type {};
+    T, typename std::enable_if_t<
+           !std::is_void<decltype(std::declval<T>().operator[](0))>::value>>
+    : std::true_type{};
 
 } // namespace detail
 
+template <typename T, typename... Args>
+annotated_arg(T, Args... args)
+    -> annotated_arg<T, detail::properties_t<Args...>,
+                     std::is_pointer<T>::value>;
 
 template <typename T, typename... Args>
-annotated_arg(T, Args... args) -> annotated_arg<T, detail::properties_t<Args...>, std::is_pointer<T>::value>;
-
-template <typename T, typename... Args>
-annotated_arg(T, properties<std::tuple<Args...>>) -> annotated_arg<T, detail::properties_t<Args...>, std::is_pointer<T>::value>;
+annotated_arg(T, properties<std::tuple<Args...>>)
+    -> annotated_arg<T, detail::properties_t<Args...>,
+                     std::is_pointer<T>::value>;
 
 template <typename T, typename old, typename... ArgT, bool IsPtr>
-annotated_arg(annotated_arg<T, old, IsPtr>, properties<std::tuple<ArgT...>>) -> annotated_arg<T, detail::merged_properties_t<old, detail::properties_t<ArgT...>>, IsPtr>;
+annotated_arg(annotated_arg<T, old, IsPtr>, properties<std::tuple<ArgT...>>)
+    -> annotated_arg<
+        T, detail::merged_properties_t<old, detail::properties_t<ArgT...>>,
+        IsPtr>;
 
-template <typename T, typename PropertyListT = detail::empty_properties_t, bool IsPtr = std::is_pointer<T>::value>
+template <typename T, typename PropertyListT = detail::empty_properties_t,
+          bool IsPtr = std::is_pointer<T>::value>
 class annotated_arg {
   // This should always fail when instantiating the unspecialized version.
   static_assert(is_property_list<PropertyListT>::value,
@@ -85,90 +92,94 @@ class annotated_arg {
 
 // Partial specialization for pointer type
 template <typename T, typename... Props>
-class __SYCL_SPECIAL_CLASS __SYCL_TYPE(annotated_arg) annotated_arg<T, detail::properties_t<Props...>, true> {
+class __SYCL_SPECIAL_CLASS __SYCL_TYPE(annotated_arg)
+    annotated_arg<T, detail::properties_t<Props...>, true> {
   using property_list_t = detail::properties_t<Props...>;
   using UnderlyingT = typename std::remove_pointer<T>::type;
   __OPENCL_GLOBAL_AS__ UnderlyingT *obj;
 
-  template<typename T2, typename PropertyListT, bool OtherIsPtr>
+  template <typename T2, typename PropertyListT, bool OtherIsPtr>
   friend class annotated_arg;
 
-  #ifdef __SYCL_DEVICE_ONLY__
-    void __init(
-      [[__sycl_detail__::add_ir_attributes_kernel_parameter(
-          detail::PropertyMetaInfo<Props>::name...,
-          detail::PropertyMetaInfo<Props>::value...
-      )]]
-      __OPENCL_GLOBAL_AS__ UnderlyingT* _obj) {
-        obj = _obj;
-    }
-  #endif
+#ifdef __SYCL_DEVICE_ONLY__
+  void __init([[__sycl_detail__::add_ir_attributes_kernel_parameter(
+      detail::PropertyMetaInfo<Props>::name...,
+      detail::PropertyMetaInfo<Props>::value...)]] __OPENCL_GLOBAL_AS__
+                  UnderlyingT *_obj) {
+    obj = _obj;
+  }
+#endif
 
 public:
   static_assert(std::is_trivially_destructible<T>::value,
                 "Type T must be trivially destructible.");
   // static_assert(is_property_list<property_list_t>::value,
-                // "Property list is invalid.");
+  // "Property list is invalid.");
   static_assert(check_property_list<T, Props...>::value,
                 "The property list contains invalid property.");
   static_assert(detail::SortedAllUnique<std::tuple<Props...>>::value,
                 "Duplicate properties in property list.");
 
   annotated_arg() noexcept = default;
-  annotated_arg(const annotated_arg&) = default;
-  annotated_arg& operator=(annotated_arg&) = default;
+  annotated_arg(const annotated_arg &) = default;
+  annotated_arg &operator=(annotated_arg &) = default;
 
-  annotated_arg(const T& _ptr, const property_list_t &PropList = properties{}) noexcept
-    : obj((__OPENCL_GLOBAL_AS__ UnderlyingT*)_ptr) {}
+  annotated_arg(const T &_ptr,
+                const property_list_t &PropList = properties{}) noexcept
+      : obj((__OPENCL_GLOBAL_AS__ UnderlyingT *)_ptr) {}
 
-  template<typename... PropertyValueTs>
-  annotated_arg(const T& _ptr, PropertyValueTs... props) noexcept : obj((__OPENCL_GLOBAL_AS__ UnderlyingT*)_ptr) {
+  template <typename... PropertyValueTs>
+  annotated_arg(const T &_ptr, PropertyValueTs... props) noexcept
+      : obj((__OPENCL_GLOBAL_AS__ UnderlyingT *)_ptr) {
     static_assert(
-        std::is_same<
-            property_list_t,
-            detail::merged_properties_t<property_list_t, detail::properties_t<PropertyValueTs...>>>::value,
-        "The property list must contain all properties of the input of the constructor"
-    );
+        std::is_same<property_list_t,
+                     detail::merged_properties_t<
+                         property_list_t,
+                         detail::properties_t<PropertyValueTs...>>>::value,
+        "The property list must contain all properties of the input of the "
+        "constructor");
   }
-  
+
   // Constructs an annotated_arg object from another annotated_arg object.
-  // The property set PropertyListT contains all properties of the input annotated_arg object.
-  // If there are duplicate properties present in the property list of the input annotated_arg object,
-  // the values of the duplicate properties must be the same.
+  // The property set PropertyListT contains all properties of the input
+  // annotated_arg object. If there are duplicate properties present in the
+  // property list of the input annotated_arg object, the values of the
+  // duplicate properties must be the same.
   template <typename T2, typename PropertyList2>
-  explicit annotated_arg(const annotated_arg<T2, PropertyList2> &other) noexcept : obj(other.obj) {
-    static_assert(std::is_convertible<T2, T>::value, 
-      "The underlying data type of the input annotated_arg is not compatible");
+  explicit annotated_arg(const annotated_arg<T2, PropertyList2> &other) noexcept
+      : obj(other.obj) {
+    static_assert(std::is_convertible<T2, T>::value,
+                  "The underlying data type of the input annotated_arg is not "
+                  "compatible");
 
     static_assert(
         std::is_same<
             property_list_t,
             detail::merged_properties_t<property_list_t, PropertyList2>>::value,
-        "The constructed annotated_arg type must contain all the properties of the input annotated_arg");
+        "The constructed annotated_arg type must contain all the properties of "
+        "the input annotated_arg");
   }
 
   template <typename T2, typename PropertyListU, typename PropertyListV>
   explicit annotated_arg(const annotated_arg<T2, PropertyListU> &other,
-      const PropertyListV& proplist) noexcept : obj(other.obj) {
-    static_assert(std::is_convertible<T2, T>::value, 
-      "The underlying data type of the input annotated_arg is not compatible");
+                         const PropertyListV &proplist) noexcept
+      : obj(other.obj) {
+    static_assert(std::is_convertible<T2, T>::value,
+                  "The underlying data type of the input annotated_arg is not "
+                  "compatible");
 
     static_assert(
-        std::is_same<
-            property_list_t,
-            detail::merged_properties_t<PropertyListU, PropertyListV>>::value,
-        "The property list of constructed annotated_arg type must be the union of the input property lists");
+        std::is_same<property_list_t, detail::merged_properties_t<
+                                          PropertyListU, PropertyListV>>::value,
+        "The property list of constructed annotated_arg type must be the union "
+        "of the input property lists");
   }
 
-  operator T() noexcept {
-    return  obj;
-  }
+  operator T() noexcept { return obj; }
 
-  operator const T() const noexcept {
-    return obj;
-  }
+  operator const T() const noexcept { return obj; }
 
-  UnderlyingT& operator [](std::ptrdiff_t idx) const noexcept {
+  UnderlyingT &operator[](std::ptrdiff_t idx) const noexcept {
     return obj[idx];
   }
 
@@ -181,27 +192,24 @@ public:
   }
 };
 
-
 // Partial specialization for non-pointer type
 template <typename T, typename... Props>
-class __SYCL_SPECIAL_CLASS __SYCL_TYPE(annotated_arg) annotated_arg <T, detail::properties_t<Props...>, false> {
+class __SYCL_SPECIAL_CLASS __SYCL_TYPE(annotated_arg)
+    annotated_arg<T, detail::properties_t<Props...>, false> {
   using property_list_t = detail::properties_t<Props...>;
 
-  template<typename T2, typename PropertyListT, bool OtherIsPtr>
+  template <typename T2, typename PropertyListT, bool OtherIsPtr>
   friend class annotated_arg;
 
   T obj;
 
-  #ifdef __SYCL_DEVICE_ONLY__
-    void __init(
-      [[__sycl_detail__::add_ir_attributes_kernel_parameter(
-          detail::PropertyMetaInfo<Props>::name...,
-          detail::PropertyMetaInfo<Props>::value...
-      )]]
-      T _obj) {
-        obj = _obj;
-    }
-  #endif
+#ifdef __SYCL_DEVICE_ONLY__
+  void __init([[__sycl_detail__::add_ir_attributes_kernel_parameter(
+      detail::PropertyMetaInfo<Props>::name...,
+      detail::PropertyMetaInfo<Props>::value...)]] T _obj) {
+    obj = _obj;
+  }
+#endif
 
 public:
   // T should be trivially copy constructible to be device copyable
@@ -217,70 +225,73 @@ public:
                 "The property list contains invalid property.");
 
   annotated_arg() noexcept = default;
-  annotated_arg(const annotated_arg&) = default;
-  annotated_arg& operator=(annotated_arg&) = default;
+  annotated_arg(const annotated_arg &) = default;
+  annotated_arg &operator=(annotated_arg &) = default;
 
-  annotated_arg(const T& _obj, const property_list_t &PropList = properties{}) noexcept : obj(_obj) {}
+  annotated_arg(const T &_obj,
+                const property_list_t &PropList = properties{}) noexcept
+      : obj(_obj) {}
 
-  template<typename... PropertyValueTs>
-  annotated_arg(const T& _obj, PropertyValueTs... props) noexcept : obj(_obj) {
+  template <typename... PropertyValueTs>
+  annotated_arg(const T &_obj, PropertyValueTs... props) noexcept : obj(_obj) {
     static_assert(
-        std::is_same<
-            property_list_t,
-            detail::merged_properties_t<property_list_t, detail::properties_t<PropertyValueTs...>>>::value,
-        "The property list must contain all properties of the input of the constructor"
-    );
+        std::is_same<property_list_t,
+                     detail::merged_properties_t<
+                         property_list_t,
+                         detail::properties_t<PropertyValueTs...>>>::value,
+        "The property list must contain all properties of the input of the "
+        "constructor");
   }
 
   // Constructs an annotated_arg object from another annotated_arg object.
-  // The property set PropertyListT contains all properties of the input annotated_arg object.
-  // If there are duplicate properties present in the property list of the input annotated_arg object,
-  // the values of the duplicate properties must be the same.
+  // The property set PropertyListT contains all properties of the input
+  // annotated_arg object. If there are duplicate properties present in the
+  // property list of the input annotated_arg object, the values of the
+  // duplicate properties must be the same.
   template <typename T2, typename PropertyList2>
-  explicit annotated_arg(const annotated_arg<T2, PropertyList2> &other) noexcept : obj(other.obj) {
+  explicit annotated_arg(const annotated_arg<T2, PropertyList2> &other) noexcept
+      : obj(other.obj) {
     static_assert(std::is_convertible<T2, T>::value,
-      "The underlying data type of the input annotated_arg is not compatible");
+                  "The underlying data type of the input annotated_arg is not "
+                  "compatible");
 
     static_assert(
         std::is_same<
             property_list_t,
             detail::merged_properties_t<property_list_t, PropertyList2>>::value,
-        "The constructed annotated_arg type must contain all the properties of the input annotated_arg");
+        "The constructed annotated_arg type must contain all the properties of "
+        "the input annotated_arg");
   }
 
   template <typename T2, typename PropertyListU, typename PropertyListV>
   explicit annotated_arg(const annotated_arg<T2, PropertyListU> &other,
-      const PropertyListV& proplist) noexcept : obj(other.obj) {
+                         const PropertyListV &proplist) noexcept
+      : obj(other.obj) {
     static_assert(std::is_convertible<T2, T>::value,
-      "The underlying data type of the input annotated_arg is not compatible");
+                  "The underlying data type of the input annotated_arg is not "
+                  "compatible");
 
-     static_assert(
-        std::is_same<
-            property_list_t,
-            detail::merged_properties_t<PropertyListU, PropertyListV>>::value,
-        "The property list of constructed annotated_arg type must be the union of the input property lists");
+    static_assert(
+        std::is_same<property_list_t, detail::merged_properties_t<
+                                          PropertyListU, PropertyListV>>::value,
+        "The property list of constructed annotated_arg type must be the union "
+        "of the input property lists");
   }
 
-  operator T() noexcept {
-    return obj;
-  }
-  operator const T() const noexcept {
-    return obj;
-  }
+  operator T() noexcept { return obj; }
+  operator const T() const noexcept { return obj; }
 
   template <class RelayT = T>
-  std::enable_if_t<
-    detail::HasSubscriptOperator<RelayT>::value,
-    const decltype(std::declval<RelayT>().operator[](0))>
-  &operator[](std::ptrdiff_t idx) const noexcept {
+  std::enable_if_t<detail::HasSubscriptOperator<RelayT>::value,
+                   const decltype(std::declval<RelayT>().operator[](0))> &
+  operator[](std::ptrdiff_t idx) const noexcept {
     return obj.operator[](idx);
   }
 
   template <class RelayT = T>
-  std::enable_if_t<
-    detail::HasSubscriptOperator<RelayT>::value,
-    decltype(std::declval<RelayT>().operator[](0))>
-  &operator[](std::ptrdiff_t idx) noexcept {
+  std::enable_if_t<detail::HasSubscriptOperator<RelayT>::value,
+                   decltype(std::declval<RelayT>().operator[](0))> &
+  operator[](std::ptrdiff_t idx) noexcept {
     return obj.operator[](idx);
   }
 
@@ -292,7 +303,6 @@ public:
     return property_list_t::template get_property<PropertyT>();
   }
 };
-
 
 } // namespace experimental
 } // namespace oneapi

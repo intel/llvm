@@ -6,12 +6,11 @@
 using namespace sycl::ext::oneapi::experimental;
 
 static annotated_arg<int, decltype(properties())> AnnotatedArg1;
-static annotated_arg<int, decltype(properties(register_map))>
-    AnnotatedArg2;
-static annotated_arg<int*, decltype(properties(register_map, conduit))>
+static annotated_arg<int, decltype(properties(register_map))> AnnotatedArg2;
+static annotated_arg<int *, decltype(properties(register_map, conduit))>
     AnnotatedArg3;
-static annotated_arg<int*, decltype(properties(buffer_location<1>, read_only,
-                                    stable, conduit))>
+static annotated_arg<int *, decltype(properties(buffer_location<1>, read_only,
+                                                stable, conduit))>
     AnnotatedArg4;
 
 // Checks is_property_key_of and is_property_value_of for T.
@@ -71,7 +70,8 @@ int main() {
   static_assert(AnnotatedArg4.has_property<read_write_mode_key>());
   static_assert(AnnotatedArg4.get_property<conduit_key>() == conduit);
   static_assert(AnnotatedArg4.get_property<stable_key>() == stable);
-  static_assert(AnnotatedArg4.get_property<buffer_location_key>() == buffer_location<1>);
+  static_assert(AnnotatedArg4.get_property<buffer_location_key>() ==
+                buffer_location<1>);
   static_assert(AnnotatedArg4.get_property<read_write_mode_key>() == read_only);
 
   return 0;
