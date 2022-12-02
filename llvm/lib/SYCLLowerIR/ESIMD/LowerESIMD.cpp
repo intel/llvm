@@ -1259,13 +1259,11 @@ translateSpirvGlobalUses(LoadInst *LI, StringRef SpirvGlobalName,
     if (isa<ExtractElementInst>(EEI)) {
       IndexValue = getIndexFromExtract(cast<ExtractElementInst>(EEI));
     } else {
-      auto *GEPCE =
-          dyn_cast<GetElementPtrConstantExpr>(LI->getPointerOperand());
-      if (GEPCE) {
-        IndexValue = cast<Constant>(GEPCE->getOperand(2))
-                         ->getUniqueInteger()
-                         .getZExtValue();
-      }
+      auto *GEPCE = cast<GetElementPtrConstantExpr>(LI->getPointerOperand());
+
+      IndexValue = cast<Constant>(GEPCE->getOperand(2))
+                       ->getUniqueInteger()
+                       .getZExtValue();
     }
 
     if (SpirvGlobalName == "WorkgroupSize") {
