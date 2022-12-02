@@ -61,10 +61,10 @@ template <typename SyclObjT> struct WeakObjectCheckOwnerBefore {
     sycl::ext::oneapi::weak_object<SyclObjT> WeakObj{Obj};
     sycl::ext::oneapi::weak_object<SyclObjT> NullWeakObj;
 
-    EXPECT_TRUE(WeakObj.owner_before(NullWeakObj) ||
-                NullWeakObj.owner_before(WeakObj));
-    EXPECT_FALSE(WeakObj.owner_before(NullWeakObj) &&
-                 NullWeakObj.owner_before(WeakObj));
+    EXPECT_TRUE((WeakObj.owner_before(NullWeakObj) &&
+                 !NullWeakObj.owner_before(WeakObj)) ||
+                (NullWeakObj.owner_before(WeakObj) &&
+                 !WeakObj.owner_before(NullWeakObj)));
 
     EXPECT_FALSE(WeakObj.owner_before(Obj));
     EXPECT_FALSE(Obj.ext_oneapi_owner_before(WeakObj));
@@ -79,10 +79,10 @@ template <typename SyclObjT> struct WeakObjectCheckOwnerLess {
     sycl::ext::oneapi::weak_object<SyclObjT> NullWeakObj;
     sycl::ext::oneapi::owner_less<SyclObjT> Comparator;
 
-    EXPECT_TRUE(Comparator(WeakObj, NullWeakObj) ||
-                Comparator(NullWeakObj, WeakObj));
-    EXPECT_FALSE(Comparator(WeakObj, NullWeakObj) &&
-                 Comparator(NullWeakObj, WeakObj));
+    EXPECT_TRUE((Comparator(WeakObj, NullWeakObj) &&
+                 !Comparator(NullWeakObj, WeakObj)) ||
+                (Comparator(NullWeakObj, WeakObj) &&
+                 !Comparator(WeakObj, NullWeakObj)));
 
     EXPECT_FALSE(Comparator(WeakObj, Obj));
     EXPECT_FALSE(Comparator(Obj, WeakObj));
@@ -118,10 +118,9 @@ template <typename SyclObjT> struct WeakObjectCheckOwnerLessMulti {
     sycl::ext::oneapi::weak_object<SyclObjT> WeakObj2{Obj2};
     sycl::ext::oneapi::owner_less<SyclObjT> Comparator;
 
-    EXPECT_TRUE(Comparator(WeakObj1, WeakObj2) ||
-                Comparator(WeakObj2, WeakObj1));
-    EXPECT_FALSE(Comparator(WeakObj1, WeakObj2) &&
-                 Comparator(WeakObj2, WeakObj1));
+    EXPECT_TRUE(
+        (Comparator(WeakObj1, WeakObj2) && !Comparator(WeakObj2, WeakObj1)) ||
+        (Comparator(WeakObj2, WeakObj1) && !Comparator(WeakObj1, WeakObj2)));
 
     EXPECT_FALSE(Comparator(WeakObj1, Obj1));
     EXPECT_FALSE(Comparator(Obj1, WeakObj1));
@@ -136,10 +135,9 @@ template <typename SyclObjT> struct WeakObjectCheckOwnerBeforeMulti {
     sycl::ext::oneapi::weak_object<SyclObjT> WeakObj1{Obj1};
     sycl::ext::oneapi::weak_object<SyclObjT> WeakObj2{Obj2};
 
-    EXPECT_TRUE(WeakObj1.owner_before(WeakObj2) ||
-                WeakObj2.owner_before(WeakObj1));
-    EXPECT_FALSE(WeakObj1.owner_before(WeakObj2) &&
-                 WeakObj2.owner_before(WeakObj1));
+    EXPECT_TRUE(
+        (WeakObj1.owner_before(WeakObj2) && !WeakObj2.owner_before(WeakObj1)) ||
+        (WeakObj2.owner_before(WeakObj1) && !WeakObj1.owner_before(WeakObj2)));
 
     EXPECT_FALSE(WeakObj1.owner_before(Obj1));
     EXPECT_FALSE(Obj1.ext_oneapi_owner_before(WeakObj1));
@@ -147,10 +145,10 @@ template <typename SyclObjT> struct WeakObjectCheckOwnerBeforeMulti {
     EXPECT_FALSE(WeakObj2.owner_before(Obj2));
     EXPECT_FALSE(Obj2.ext_oneapi_owner_before(WeakObj2));
 
-    EXPECT_TRUE(Obj1.ext_oneapi_owner_before(Obj2) ||
-                Obj2.ext_oneapi_owner_before(Obj1));
-    EXPECT_FALSE(Obj1.ext_oneapi_owner_before(Obj2) &&
-                 Obj2.ext_oneapi_owner_before(Obj1));
+    EXPECT_TRUE((Obj1.ext_oneapi_owner_before(Obj2) &&
+                 !Obj2.ext_oneapi_owner_before(Obj1)) ||
+                (Obj2.ext_oneapi_owner_before(Obj1) &&
+                 !Obj1.ext_oneapi_owner_before(Obj2)));
   }
 };
 
