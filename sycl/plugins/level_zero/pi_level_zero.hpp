@@ -42,9 +42,9 @@
 #include <unordered_set>
 #include <vector>
 
+#include <sycl/detail/iostream_proxy.hpp>
 #include <ze_api.h>
 #include <zes_api.h>
-#include <sycl/detail/iostream_proxy.hpp>
 
 // Share code between this PI L0 Plugin and UR L0 Adapter
 #include <adapters/level_zero/ur_level_zero.hpp>
@@ -208,6 +208,8 @@ struct _pi_platform : public _ur_level_zero_platform {
   std::list<pi_context> Contexts;
   pi_shared_mutex ContextsMutex;
 };
+
+struct _zer_platform_handle_t : public _pi_platform {};
 
 // Implements memory allocation via L0 RT for USM allocator interface.
 class USMMemoryAllocBase : public SystemMemory {

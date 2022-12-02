@@ -15,6 +15,7 @@ else()
   set(LEVEL_ZERO_LOADER_TAG v1.8.8)
 endif()
 
+# Disable due to a bug https://github.com/oneapi-src/level-zero/issues/104
 set(CMAKE_INCLUDE_CURRENT_DIR OFF)
 
 message(STATUS "Will fetch Level Zero Loader from ${LEVEL_ZERO_LOADER_REPO}")
@@ -57,7 +58,7 @@ add_sycl_plugin(level_zero
     UnifiedRuntime-Headers
     ze_loader
     Threads::Threads
-    pi_unified_runtime
+    unified_runtime_static
 )
 
 find_package(Python3 REQUIRED)

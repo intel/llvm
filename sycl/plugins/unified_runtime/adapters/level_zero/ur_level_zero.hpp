@@ -7,6 +7,7 @@
 //===-----------------------------------------------------------------===//
 #pragma once
 
+#include <cassert>
 #include <list>
 #include <map>
 #include <stdarg.h>
@@ -14,10 +15,10 @@
 #include <unordered_map>
 #include <vector>
 
-#include <ze_api.h>
-#include <zes_api.h>
 #include <ur.hpp>
+#include <ze_api.h>
 #include <zer_api.h>
+#include <zes_api.h>
 
 // Returns the ze_structure_type_t to use in .stype of a structured descriptor.
 // Intentionally not defined; will give an error if no proper specialization
@@ -217,3 +218,6 @@ public:
 };
 
 extern ZeUSMImportExtension ZeUSMImport;
+
+// This will count the calls to Level-Zero
+extern std::map<const char *, int> *ZeCallCount;
