@@ -112,7 +112,9 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
     if (CTS->getName() == "range") {
       const auto Dim =
           CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
-      return mlir::sycl::RangeType::get(CGT.getModule()->getContext(), Dim);
+      Body.push_back(CGT.getMLIRType(CTS->bases_begin()->getType()));
+      return mlir::sycl::RangeType::get(CGT.getModule()->getContext(), Dim,
+                                        Body);
     }
     if (CTS->getName() == "nd_range") {
       const auto Dim =
@@ -129,7 +131,8 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
     if (CTS->getName() == "id") {
       const auto Dim =
           CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
-      return mlir::sycl::IDType::get(CGT.getModule()->getContext(), Dim);
+      Body.push_back(CGT.getMLIRType(CTS->bases_begin()->getType()));
+      return mlir::sycl::IDType::get(CGT.getModule()->getContext(), Dim, Body);
     }
     if (CTS->getName() == "accessor_common")
       return mlir::sycl::AccessorCommonType::get(CGT.getModule()->getContext());

@@ -2,19 +2,23 @@
 
 #include <sycl/sycl.hpp>
 
-// CHECK-DAG: !sycl_accessor_1_i32_rw_gb = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl.accessor_impl_device<[1], (!sycl.id<1>, !sycl.range<1>, !sycl.range<1>)>, !llvm.struct<(ptr<i32, 1>)>)>
-// CHECK-DAG: !sycl_accessor_2_i32_rw_gb = !sycl.accessor<[2, i32, read_write, global_buffer], (!sycl.accessor_impl_device<[2], (!sycl.id<2>, !sycl.range<2>, !sycl.range<2>)>, !llvm.struct<(ptr<i32, 1>)>)>
-// CHECK-DAG: !sycl_accessor_3_f32_rw_gb = !sycl.accessor<[3, f32, read_write, global_buffer], (!sycl.accessor_impl_device<[3], (!sycl.id<3>, !sycl.range<3>, !sycl.range<3>)>, !llvm.struct<(ptr<f32, 1>)>)>
 // CHECK-DAG: !sycl_array_1_ = !sycl.array<[1], (memref<1xi64, 4>)>
 // CHECK-DAG: !sycl_array_2_ = !sycl.array<[2], (memref<2xi64, 4>)>
-// CHECK-DAG: !sycl_group_1_ = !sycl.group<[1], (!sycl.range<1>, !sycl.range<1>, !sycl.range<1>, !sycl.id<1>)>
-// CHECK-DAG: !sycl_group_2_ = !sycl.group<[2], (!sycl.range<2>, !sycl.range<2>, !sycl.range<2>, !sycl.id<2>)>
-// CHECK-DAG: ![[ITEM1:.*]] = !sycl.item<[1, true], (!sycl.item_base<[1, true], (!sycl.range<1>, !sycl.id<1>, !sycl.id<1>)>)>
-// CHECK-DAG: ![[ITEM2:.*]] = !sycl.item<[2, false], (!sycl.item_base<[2, false], (!sycl.range<2>, !sycl.id<2>)>)>
-// CHECK-DAG: !sycl_nd_item_1_ = !sycl.nd_item<[1], (![[ITEM1]], !sycl.item<[1, false], (!sycl.item_base<[1, false], (!sycl.range<1>, !sycl.id<1>)>)>, !sycl_group_1_)>
-// CHECK-DAG: !sycl_nd_item_2_ = !sycl.nd_item<[2], (!sycl.item<[2, true], (!sycl.item_base<[2, true], (!sycl.range<2>, !sycl.id<2>, !sycl.id<2>)>)>, ![[ITEM2]], !sycl_group_2_)>
-// CHECK-DAG: !sycl_nd_range_1_ = !sycl.nd_range<[1], (!sycl.range<1>, !sycl.range<1>, !sycl.id<1>)>
-// CHECK-DAG: !sycl_nd_range_2_ = !sycl.nd_range<[2], (!sycl.range<2>, !sycl.range<2>, !sycl.id<2>)>
+// CHECK-DAG: !sycl_id_1_ = !sycl.id<[1], (!sycl_array_1_)>
+// CHECK-DAG: !sycl_id_2_ = !sycl.id<[2], (!sycl_array_2_)>
+// CHECK-DAG: !sycl_range_1_ = !sycl.range<[1], (!sycl_array_1_)>
+// CHECK-DAG: !sycl_range_2_ = !sycl.range<[2], (!sycl_array_2_)>
+// CHECK-DAG: !sycl_accessor_1_i32_rw_gb = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>, !llvm.struct<(ptr<i32, 1>)>)>
+// CHECK-DAG: !sycl_accessor_2_i32_rw_gb = !sycl.accessor<[2, i32, read_write, global_buffer], (!sycl.accessor_impl_device<[2], (!sycl_id_2_, !sycl_range_2_, !sycl_range_2_)>, !llvm.struct<(ptr<i32, 1>)>)>
+// CHECK-DAG: !sycl_accessor_3_f32_rw_gb = !sycl.accessor<[3, f32, read_write, global_buffer], (!sycl.accessor_impl_device<[3], (!sycl.id<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>, !sycl.range<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>, !sycl.range<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>)>, !llvm.struct<(ptr<f32, 1>)>)>
+// CHECK-DAG: !sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+// CHECK-DAG: !sycl_group_2_ = !sycl.group<[2], (!sycl_range_2_, !sycl_range_2_, !sycl_range_2_, !sycl_id_2_)>
+// CHECK-DAG: ![[ITEM1:.*]] = !sycl.item<[1, true], (!sycl.item_base<[1, true], (!sycl_range_1_, !sycl_id_1_, !sycl_id_1_)>)>
+// CHECK-DAG: ![[ITEM2:.*]] = !sycl.item<[2, false], (!sycl.item_base<[2, false], (!sycl_range_2_, !sycl_id_2_)>)>
+// CHECK-DAG: !sycl_nd_item_1_ = !sycl.nd_item<[1], (!sycl_item_1_, !sycl.item<[1, false], (!sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>)>, !sycl_group_1_)>
+// CHECK-DAG: !sycl_nd_item_2_ = !sycl.nd_item<[2], (!sycl.item<[2, true], (!sycl.item_base<[2, true], (!sycl_range_2_, !sycl_id_2_, !sycl_id_2_)>)>, !sycl_item_2_, !sycl_group_2_)>
+// CHECK-DAG: !sycl_nd_range_1_ = !sycl.nd_range<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+// CHECK-DAG: !sycl_nd_range_2_ = !sycl.nd_range<[2], (!sycl_range_2_, !sycl_range_2_, !sycl_id_2_)>
 // CHECK-DAG: !sycl_get_scalar_op_i32_ = !sycl.get_scalar_op<[i32], (i32)>
 // CHECK-DAG: !sycl_tuple_value_holder_i32_ = !sycl.tuple_value_holder<[i32], (i32)>
 // CHECK-DAG: [[TUPLE_COPY_ASSIGNABLE_VALUE_HOLDER_TRUE:!sycl_tuple_copy_assignable_value_holder_i32_.*]] = !sycl.tuple_copy_assignable_value_holder<[i32, true], (!sycl_tuple_value_holder_i32_)>
@@ -27,13 +31,13 @@
 // CHECK-DAG: !sycl_bfloat16_ = !sycl.bfloat16<(i16)>
 
 // CHECK-LABEL: func.func @_Z4id_1N4sycl3_V12idILi1EEE(
-// CHECK:          %arg0: memref<?x!sycl.id<1>> {llvm.align = 8 : i64, llvm.byval = !sycl.id<1>, llvm.noundef})
+// CHECK:          %arg0: memref<?x!sycl_id_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_id_1_, llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC:llvm.cconv = #llvm.cconv<spir_funccc>]], [[LINKEXT:llvm.linkage = #llvm.linkage<external>]],
 // CHECK-SAME: [[PASSTHROUGH:passthrough = \["convergent", "mustprogress", "norecurse", "nounwind", \["frame-pointer", "all"\], \["no-trapping-math", "true"\], \["stack-protector-buffer-size", "8"\], \["sycl-module-id", ".*/polygeist/tools/cgeist/Test/Verification/sycl/types.cpp"\]\]]]} {
 SYCL_EXTERNAL void id_1(sycl::id<1> id) {}
 
 // CHECK-LABEL: func.func @_Z4id_2N4sycl3_V12idILi2EEE(
-// CHECK:          %arg0: memref<?x!sycl.id<2>> {llvm.align = 8 : i64, llvm.byval = !sycl.id<2>, llvm.noundef})
+// CHECK:          %arg0: memref<?x!sycl_id_2_> {llvm.align = 8 : i64, llvm.byval = !sycl_id_2_, llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
 SYCL_EXTERNAL void id_2(sycl::id<2> id) {}
 
@@ -53,12 +57,12 @@ SYCL_EXTERNAL void acc_2(sycl::accessor<sycl::cl_int, 2, sycl::access::mode::rea
 SYCL_EXTERNAL void acc_3(sycl::accessor<sycl::cl_float, 3, sycl::access::mode::read_write>) {}
 
 // CHECK-LABEL: func.func @_Z7range_1N4sycl3_V15rangeILi1EEE(
-// CHECK:          %arg0: memref<?x!sycl.range<1>> {llvm.align = 8 : i64, llvm.byval = !sycl.range<1>, llvm.noundef})
+// CHECK:          %arg0: memref<?x!sycl_range_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_range_1_, llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
 SYCL_EXTERNAL void range_1(sycl::range<1> range) {}
 
 // CHECK-LABEL: func.func @_Z7range_2N4sycl3_V15rangeILi2EEE(
-// CHECK:          %arg0: memref<?x!sycl.range<2>> {llvm.align = 8 : i64, llvm.byval = !sycl.range<2>, llvm.noundef})  
+// CHECK:          %arg0: memref<?x!sycl_range_2_> {llvm.align = 8 : i64, llvm.byval = !sycl_range_2_, llvm.noundef})  
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
 SYCL_EXTERNAL void range_2(sycl::range<2> range) {}
 
