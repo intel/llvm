@@ -219,6 +219,21 @@ def SYCL_GetScalarOpType : SYCL_Type<"GetScalarOp", "get_scalar_op"> {
   let assemblyFormat = "`<` `[` $dataType `]` `,` `(` $body `)` `>`";
 }
 
+def SYCL_TupleValueHolderType : SYCL_Type<"TupleValueHolder", "tuple_value_holder"> {
+  let parameters = (ins "::mlir::Type":$dataType,
+                        "llvm::SmallVector<mlir::Type, 4>":$body);
+  let assemblyFormat = "`<` `[` $dataType `]` `,` `(` $body `)` `>`";
+}
+
+def SYCL_TupleCopyAssignableValueHolderType
+    : SYCL_Type<"TupleCopyAssignableValueHolder", "tuple_copy_assignable_value_holder",
+        [SYCLInheritanceTypeTrait<"TupleValueHolderType">]> {
+  let parameters = (ins "::mlir::Type":$dataType,
+                        "bool":$isTriviallyCopyAssignable,
+                        "llvm::SmallVector<mlir::Type, 4>":$body);
+  let assemblyFormat = "`<` `[` $dataType `,` $isTriviallyCopyAssignable `]` `,` `(` $body `)` `>`";
+}
+
 def VectorEltTy : AnyTypeOf<[I1, I8, I16, I32, I64, F16, F32, F64]>;
 
 def VectorSplatArg : MemRefOf<[VectorEltTy]>;
@@ -236,6 +251,20 @@ def SYCL_AtomicType : SYCL_Type<"Atomic", "atomic"> {
                         "mlir::sycl::AccessAddrSpace":$addrSpace,
                         "llvm::SmallVector<mlir::Type, 4>":$body);
   let assemblyFormat = "`<` `[` $dataType `,` custom<AccessAddrSpace>($addrSpace) `]` `,` `(` $body `)` `>`";
+}
+
+def SYCL_AssertHappenedType : SYCL_Type<"AssertHappened", "assert_happened"> {
+  let parameters = (ins "llvm::SmallVector<mlir::Type, 4>":$body);
+  let assemblyFormat = "`<` `(` $body `)` `>`";
+}
+
+def SYCL_BFloat16Type : SYCL_Type<"BFloat16", "bfloat16"> {
+  let parameters = (ins "llvm::SmallVector<mlir::Type, 4>":$body);
+  let assemblyFormat = "`<` `(` $body `)` `>`";
+}
+
+def SYCL_SubGroupType : SYCL_Type<"SubGroup", "sub_group"> {
+  let assemblyFormat = "";
 }
 
 def IDMemRef : MemRefOf<[SYCL_IDType]>;
