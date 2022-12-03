@@ -79,7 +79,7 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
 
       size_t sz = 1;
       for (int64_t i = 1; i < sourceMemRefType.getRank(); i++) {
-        if (sourceMemRefType.getShape()[i] == ShapedType::kDynamicSize)
+        if (sourceMemRefType.getShape()[i] == ShapedType::kDynamic)
           return failure();
         sz *= sourceMemRefType.getShape()[i];
       }
@@ -261,8 +261,7 @@ struct Pointer2MemrefOpLowering
     auto result = getStridesAndOffset(op.getType(), strides, offset);
     (void)result;
     assert(succeeded(result) && "unexpected failure in stride computation");
-    assert(offset != ShapedType::kDynamicStrideOrOffset &&
-           "expected static offset");
+    assert(offset != ShapedType::kDynamic && "expected static offset");
 
     bool first = true;
     assert(!llvm::any_of(strides, [&](int64_t stride) {
@@ -270,7 +269,7 @@ struct Pointer2MemrefOpLowering
         first = false;
         return false;
       }
-      return stride == ShapedType::kDynamicStrideOrOffset;
+      return stride == ShapedType::kDynamic;
     }) && "expected static strides except first element");
 
     descr.setAllocatedPtr(rewriter, loc, ptr);

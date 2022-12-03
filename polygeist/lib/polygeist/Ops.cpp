@@ -846,15 +846,14 @@ struct SimplifySubViewUsers : public OpRewritePattern<memref::SubViewOp> {
     for (auto tup :
          llvm::zip(subindex.static_offsets(), subindex.static_sizes(),
                    subindex.static_strides())) {
-      auto sz = std::get<1>(tup).dyn_cast<IntegerAttr>().getValue();
+      auto sz = rewriter.getI64IntegerAttr(std::get<1>(tup)).getValue();
 
-      auto stride = std::get<2>(tup).dyn_cast<IntegerAttr>().getValue();
+      auto stride = rewriter.getI64IntegerAttr(std::get<2>(tup)).getValue();
       if (stride != 1)
         return failure();
 
       if (offs == -1) {
-        offs = std::get<0>(tup)
-                   .dyn_cast<IntegerAttr>()
+        offs = rewriter.getI64IntegerAttr(std::get<0>(tup))
                    .getValue()
                    .getLimitedValue();
         if (sz != 1)
@@ -1518,7 +1517,7 @@ public:
     }
 
     for (size_t i = 1; i < mt.getShape().size(); i++)
-      if (mt.getShape()[i] == ShapedType::kDynamicSize)
+      if (mt.getShape()[i] == ShapedType::kDynamic)
         return failure();
 
     Value val = src.getSource();
