@@ -1036,13 +1036,15 @@ _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
     EventList.clear();
   } else {
     // For immediate commandlist reset only those events that have signalled.
-    for (auto it = EventList.begin(); it != EventList.end(); it++) {
+    for (auto it = EventList.begin(); it != EventList.end();) {
       std::scoped_lock<pi_shared_mutex> EventLock((*it)->Mutex);
       ze_result_t ZeResult =
           ZE_CALL_NOCHECK(zeEventQueryStatus, ((*it)->ZeEvent));
       if (ZeResult == ZE_RESULT_SUCCESS) {
-        std::move(it, it, std::back_inserter(EventListToCleanup));
-        EventList.erase(it, it);
+        EventListToCleanup.push_back(std::move((*it)));
+        it = EventList.erase(it);
+      } else {
+        it++;
       }
     }
   }
@@ -7953,9 +7955,8 @@ static pi_result USMSharedAllocImpl(void **ResultPtr, pi_context Context,
   // with the same command list handle.
   std::scoped_lock<pi_mutex> Lock(Context->ImmediateCommandListMutex);
 
-  ZE_CALL(zeCommandListAppendMemAdvise,
-          (Context->ZeCommandListInit, Device->ZeDevice, *ResultPtr, Size,
-           ZE_MEMORY_ADVICE_SET_READ_MOSTLY));
+  // TODO: Underlying Level Zero runtime doesn't have a way to communicate
+  // read-only property yet.
 
   ZE_CALL(zeCommandListAppendMemAdvise,
           (Context->ZeCommandListInit, Device->ZeDevice, *ResultPtr, Size,
