@@ -605,6 +605,10 @@ private:
 
   llvm::DenseMap<StringRef, const RecordDecl *> TypesWithAspects;
   const EnumDecl *AspectsEnumDecl = nullptr;
+  // Helps squashing blocks of TopLevelStmtDecl into a single llvm::Function
+  // when used with -fincremental-extensions.
+  std::pair<std::unique_ptr<CodeGenFunction>, const TopLevelStmtDecl *>
+      GlobalTopLevelStmtBlockInFlight;
 
 public:
   CodeGenModule(ASTContext &C, IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS,
@@ -1629,6 +1633,7 @@ private:
 
   void EmitDeclContext(const DeclContext *DC);
   void EmitLinkageSpec(const LinkageSpecDecl *D);
+  void EmitTopLevelStmt(const TopLevelStmtDecl *D);
 
   /// Emit the function that initializes C++ thread_local variables.
   void EmitCXXThreadLocalInitFunc();
