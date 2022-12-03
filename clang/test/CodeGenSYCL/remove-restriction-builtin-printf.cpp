@@ -10,7 +10,7 @@ int main() {
   q.submit([&](handler &h) {
     // CHECK: define {{.*}}spir_kernel {{.*}}
     h.single_task<class kernelA>([=]() {
-      // CHECK: printf(ptr noundef nonnull dereferenceable(1) @.str, i32 noundef 24)
+      // CHECK: call {{.*}}printf(ptr noundef nonnull dereferenceable(1) @{{.*}}, i32 noundef 24)
         __builtin_printf("hello, %d\n", 24);
     });
   });
