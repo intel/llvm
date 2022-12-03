@@ -321,7 +321,6 @@ void TypePrinter::printBefore(const Type *T,Qualifiers Quals, raw_ostream &OS) {
   if (Policy.SuppressSpecifiers && T->isSpecifierType())
     return;
 
-<<<<<<< HEAD
   if (Policy.SuppressTypedefs && (T->getTypeClass() == Type::Typedef)) {
     QualType UnderlyingType = T->getCanonicalTypeInternal();
     SplitQualType Split = splitAccordingToPolicy(UnderlyingType, Policy);
@@ -330,10 +329,7 @@ void TypePrinter::printBefore(const Type *T,Qualifiers Quals, raw_ostream &OS) {
     return;
   }
 
-  SaveAndRestore<bool> PrevPHIsEmpty(HasEmptyPlaceHolder);
-=======
   SaveAndRestore PrevPHIsEmpty(HasEmptyPlaceHolder);
->>>>>>> abf0c6c0c0b7a3493c59858d175a9731eeae0ff5
 
   // Print qualifiers as appropriate.
 
