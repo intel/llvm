@@ -628,8 +628,8 @@ bool CursorVisitor::VisitDeclContext(DeclContext *DC) {
 
   // FIXME: Eventually remove.  This part of a hack to support proper
   // iteration over all Decls contained lexically within an ObjC container.
-  SaveAndRestore<DeclContext::decl_iterator *> DI_saved(DI_current, &I);
-  SaveAndRestore<DeclContext::decl_iterator> DE_saved(DE_current, E);
+  SaveAndRestore DI_saved(DI_current, &I);
+  SaveAndRestore DE_saved(DE_current, E);
 
   for (; I != E; ++I) {
     Decl *D = *I;
@@ -3802,8 +3802,10 @@ clang_parseTranslationUnit_Impl(CXIndex CIdx, const char *source_filename,
   }
 
   // Configure the diagnostics.
+  std::unique_ptr<DiagnosticOptions> DiagOpts = CreateAndPopulateDiagOpts(
+      llvm::makeArrayRef(command_line_args, num_command_line_args));
   IntrusiveRefCntPtr<DiagnosticsEngine> Diags(
-      CompilerInstance::createDiagnostics(new DiagnosticOptions));
+      CompilerInstance::createDiagnostics(DiagOpts.release()));
 
   if (options & CXTranslationUnit_KeepGoing)
     Diags->setFatalsAsError(true);

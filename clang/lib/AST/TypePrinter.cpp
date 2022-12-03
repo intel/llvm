@@ -197,7 +197,7 @@ void TypePrinter::print(const Type *T, Qualifiers Quals, raw_ostream &OS,
     return;
   }
 
-  SaveAndRestore<bool> PHVal(HasEmptyPlaceHolder, PlaceHolder.empty());
+  SaveAndRestore PHVal(HasEmptyPlaceHolder, PlaceHolder.empty());
 
   printBefore(T, Quals, OS);
   OS << PlaceHolder;
@@ -321,6 +321,7 @@ void TypePrinter::printBefore(const Type *T,Qualifiers Quals, raw_ostream &OS) {
   if (Policy.SuppressSpecifiers && T->isSpecifierType())
     return;
 
+<<<<<<< HEAD
   if (Policy.SuppressTypedefs && (T->getTypeClass() == Type::Typedef)) {
     QualType UnderlyingType = T->getCanonicalTypeInternal();
     SplitQualType Split = splitAccordingToPolicy(UnderlyingType, Policy);
@@ -330,6 +331,9 @@ void TypePrinter::printBefore(const Type *T,Qualifiers Quals, raw_ostream &OS) {
   }
 
   SaveAndRestore<bool> PrevPHIsEmpty(HasEmptyPlaceHolder);
+=======
+  SaveAndRestore PrevPHIsEmpty(HasEmptyPlaceHolder);
+>>>>>>> abf0c6c0c0b7a3493c59858d175a9731eeae0ff5
 
   // Print qualifiers as appropriate.
 
@@ -406,7 +410,7 @@ void TypePrinter::printComplexAfter(const ComplexType *T, raw_ostream &OS) {
 
 void TypePrinter::printPointerBefore(const PointerType *T, raw_ostream &OS) {
   IncludeStrongLifetimeRAII Strong(Policy);
-  SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
+  SaveAndRestore NonEmptyPH(HasEmptyPlaceHolder, false);
   printBefore(T->getPointeeType(), OS);
   // Handle things like 'int (*A)[4];' correctly.
   // FIXME: this should include vectors, but vectors use attributes I guess.
@@ -417,7 +421,7 @@ void TypePrinter::printPointerBefore(const PointerType *T, raw_ostream &OS) {
 
 void TypePrinter::printPointerAfter(const PointerType *T, raw_ostream &OS) {
   IncludeStrongLifetimeRAII Strong(Policy);
-  SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
+  SaveAndRestore NonEmptyPH(HasEmptyPlaceHolder, false);
   // Handle things like 'int (*A)[4];' correctly.
   // FIXME: this should include vectors, but vectors use attributes I guess.
   if (isa<ArrayType>(T->getPointeeType()))
@@ -427,14 +431,14 @@ void TypePrinter::printPointerAfter(const PointerType *T, raw_ostream &OS) {
 
 void TypePrinter::printBlockPointerBefore(const BlockPointerType *T,
                                           raw_ostream &OS) {
-  SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
+  SaveAndRestore NonEmptyPH(HasEmptyPlaceHolder, false);
   printBefore(T->getPointeeType(), OS);
   OS << '^';
 }
 
 void TypePrinter::printBlockPointerAfter(const BlockPointerType *T,
                                           raw_ostream &OS) {
-  SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
+  SaveAndRestore NonEmptyPH(HasEmptyPlaceHolder, false);
   printAfter(T->getPointeeType(), OS);
 }
 
@@ -449,7 +453,7 @@ static QualType skipTopLevelReferences(QualType T) {
 void TypePrinter::printLValueReferenceBefore(const LValueReferenceType *T,
                                              raw_ostream &OS) {
   IncludeStrongLifetimeRAII Strong(Policy);
-  SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
+  SaveAndRestore NonEmptyPH(HasEmptyPlaceHolder, false);
   QualType Inner = skipTopLevelReferences(T->getPointeeTypeAsWritten());
   printBefore(Inner, OS);
   // Handle things like 'int (&A)[4];' correctly.
@@ -462,7 +466,7 @@ void TypePrinter::printLValueReferenceBefore(const LValueReferenceType *T,
 void TypePrinter::printLValueReferenceAfter(const LValueReferenceType *T,
                                             raw_ostream &OS) {
   IncludeStrongLifetimeRAII Strong(Policy);
-  SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
+  SaveAndRestore NonEmptyPH(HasEmptyPlaceHolder, false);
   QualType Inner = skipTopLevelReferences(T->getPointeeTypeAsWritten());
   // Handle things like 'int (&A)[4];' correctly.
   // FIXME: this should include vectors, but vectors use attributes I guess.
@@ -474,7 +478,7 @@ void TypePrinter::printLValueReferenceAfter(const LValueReferenceType *T,
 void TypePrinter::printRValueReferenceBefore(const RValueReferenceType *T,
                                              raw_ostream &OS) {
   IncludeStrongLifetimeRAII Strong(Policy);
-  SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
+  SaveAndRestore NonEmptyPH(HasEmptyPlaceHolder, false);
   QualType Inner = skipTopLevelReferences(T->getPointeeTypeAsWritten());
   printBefore(Inner, OS);
   // Handle things like 'int (&&A)[4];' correctly.
@@ -487,7 +491,7 @@ void TypePrinter::printRValueReferenceBefore(const RValueReferenceType *T,
 void TypePrinter::printRValueReferenceAfter(const RValueReferenceType *T,
                                             raw_ostream &OS) {
   IncludeStrongLifetimeRAII Strong(Policy);
-  SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
+  SaveAndRestore NonEmptyPH(HasEmptyPlaceHolder, false);
   QualType Inner = skipTopLevelReferences(T->getPointeeTypeAsWritten());
   // Handle things like 'int (&&A)[4];' correctly.
   // FIXME: this should include vectors, but vectors use attributes I guess.
@@ -499,7 +503,7 @@ void TypePrinter::printRValueReferenceAfter(const RValueReferenceType *T,
 void TypePrinter::printMemberPointerBefore(const MemberPointerType *T,
                                            raw_ostream &OS) {
   IncludeStrongLifetimeRAII Strong(Policy);
-  SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
+  SaveAndRestore NonEmptyPH(HasEmptyPlaceHolder, false);
   printBefore(T->getPointeeType(), OS);
   // Handle things like 'int (Cls::*A)[4];' correctly.
   // FIXME: this should include vectors, but vectors use attributes I guess.
@@ -516,7 +520,7 @@ void TypePrinter::printMemberPointerBefore(const MemberPointerType *T,
 void TypePrinter::printMemberPointerAfter(const MemberPointerType *T,
                                           raw_ostream &OS) {
   IncludeStrongLifetimeRAII Strong(Policy);
-  SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
+  SaveAndRestore NonEmptyPH(HasEmptyPlaceHolder, false);
   // Handle things like 'int (Cls::*A)[4];' correctly.
   // FIXME: this should include vectors, but vectors use attributes I guess.
   if (isa<ArrayType>(T->getPointeeType()))
@@ -858,7 +862,7 @@ void TypePrinter::printFunctionProtoBefore(const FunctionProtoType *T,
       OS << '(';
   } else {
     // If needed for precedence reasons, wrap the inner part in grouping parens.
-    SaveAndRestore<bool> PrevPHIsEmpty(HasEmptyPlaceHolder, false);
+    SaveAndRestore PrevPHIsEmpty(HasEmptyPlaceHolder, false);
     printBefore(T->getReturnType(), OS);
     if (!PrevPHIsEmpty.get())
       OS << '(';
@@ -886,7 +890,7 @@ void TypePrinter::printFunctionProtoAfter(const FunctionProtoType *T,
   // If needed for precedence reasons, wrap the inner part in grouping parens.
   if (!HasEmptyPlaceHolder)
     OS << ')';
-  SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
+  SaveAndRestore NonEmptyPH(HasEmptyPlaceHolder, false);
 
   OS << '(';
   {
@@ -1037,7 +1041,7 @@ void TypePrinter::printFunctionAfter(const FunctionType::ExtInfo &Info,
 void TypePrinter::printFunctionNoProtoBefore(const FunctionNoProtoType *T,
                                              raw_ostream &OS) {
   // If needed for precedence reasons, wrap the inner part in grouping parens.
-  SaveAndRestore<bool> PrevPHIsEmpty(HasEmptyPlaceHolder, false);
+  SaveAndRestore PrevPHIsEmpty(HasEmptyPlaceHolder, false);
   printBefore(T->getReturnType(), OS);
   if (!PrevPHIsEmpty.get())
     OS << '(';
@@ -1048,7 +1052,7 @@ void TypePrinter::printFunctionNoProtoAfter(const FunctionNoProtoType *T,
   // If needed for precedence reasons, wrap the inner part in grouping parens.
   if (!HasEmptyPlaceHolder)
     OS << ')';
-  SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
+  SaveAndRestore NonEmptyPH(HasEmptyPlaceHolder, false);
 
   OS << "()";
   printFunctionAfter(T->getExtInfo(), OS);
@@ -1691,7 +1695,7 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
 
   // If this is a calling convention attribute, don't print the implicit CC from
   // the modified type.
-  SaveAndRestore<bool> MaybeSuppressCC(InsideCCAttribute, T->isCallingConv());
+  SaveAndRestore MaybeSuppressCC(InsideCCAttribute, T->isCallingConv());
 
   printAfter(T->getModifiedType(), OS);
 
