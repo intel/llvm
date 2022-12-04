@@ -83,4 +83,7 @@
 /* Whether to enable opaque pointers by default */
 #cmakedefine01 CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL
 
+/* Store the hash of the last clang commit used in build */
+#define LLVM_MAIN_HASH "${LLVM_MAIN_HASH}"
+
 #endif

@@ -1013,6 +1013,13 @@ endif()
 
 set(CLANG_INSTALL_LIBDIR_BASENAME "lib${CLANG_LIBDIR_SUFFIX}")
 
+#set the variable for the last clang hash used in build
+execute_process(COMMAND git merge-base origin/xmain origin/main
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                OUTPUT_VARIABLE LLVM_MAIN_HASH
+                ERROR_VARIABLE LLVM_MAIN_HASH_ERROR
+                OUTPUT_STRIP_TRAILING_WHITESPACE)
+
 configure_file(
   ${CLANG_SOURCE_DIR}/include/clang/Config/config.h.cmake
   ${CLANG_BINARY_DIR}/include/clang/Config/config.h)
