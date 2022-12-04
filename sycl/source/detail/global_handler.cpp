@@ -64,13 +64,6 @@ Scheduler &GlobalHandler::getScheduler() {
 }
 
 ProgramManager &GlobalHandler::getProgramManager() {
-#ifdef ENABLE_STACK_TRACE
-  static bool Dummy = []() {
-    llvm::sys::PrintStackTraceOnErrorSignal(llvm::StringRef());
-    return true;
-  }();
-  (void)Dummy;
-#endif
   return getOrCreate(MProgramManager);
 }
 
@@ -97,6 +90,14 @@ std::mutex &GlobalHandler::getFilterMutex() {
   return getOrCreate(MFilterMutex);
 }
 std::vector<plugin> &GlobalHandler::getPlugins() {
+
+#ifdef ENABLE_STACK_TRACE
+  static bool Dummy = []() {
+    llvm::sys::PrintStackTraceOnErrorSignal(llvm::StringRef());
+    return true;
+  }();
+  (void)Dummy;
+#endif
   return getOrCreate(MPlugins);
 }
 device_filter_list &

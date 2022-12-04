@@ -1723,6 +1723,7 @@ std::vector<device_image_plain>
 ProgramManager::getSYCLDeviceImages(const context &Ctx,
                                     const std::vector<device> &Devs,
                                     bundle_state TargetState) {
+
   // Collect device images with compatible state
   std::vector<device_image_plain> DeviceImages =
       getSYCLDeviceImagesWithCompatibleState(Ctx, Devs, TargetState);
