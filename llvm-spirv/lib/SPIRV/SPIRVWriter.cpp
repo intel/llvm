@@ -1823,8 +1823,9 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
       std::vector<Instruction *> Loads;
       auto *GVTy = GV->getType();
       auto *VecTy = GVTy->isOpaquePointerTy()
-          ? nullptr
-          : dyn_cast<FixedVectorType>(GVTy->getNonOpaquePointerElementType());
+                        ? nullptr
+                        : dyn_cast<FixedVectorType>(
+                              GVTy->getNonOpaquePointerElementType());
       auto ReplaceIfLoad = [&](User *I) -> void {
         auto *LD = dyn_cast<LoadInst>(I);
         if (!LD)
