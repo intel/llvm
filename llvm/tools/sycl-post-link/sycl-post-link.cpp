@@ -753,9 +753,6 @@ processInputModule(std::unique_ptr<Module> M) {
           (SplitMode == module_split::SPLIT_AUTO)) &&
          "invalid split mode for IR-only output");
 
-  assert((RelocatableDeviceCode || SplitMode != module_split::SPLIT_NONE) &&
-         "invalid split mode for relocatable device code mode");
-
   // Top-level per-kernel/per-source splitter. SYCL/ESIMD splitting is applied
   // to modules resulting from all other kinds of splitting.
   std::unique_ptr<module_split::ModuleSplitterBase> ScopedSplitter =
