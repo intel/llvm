@@ -60,13 +60,8 @@ event_impl::~event_impl() {
 
 void event_impl::waitInternal() {
   if (!MHostEvent && MEvent) {
-    // std::cout << std::this_thread::get_id()
-    //           << " waitInternal piEventsWait begin" << std::endl;
     // Wait for the native event
     getPlugin().call<PiApiKind::piEventsWait>(1, &MEvent);
-    // std::cout << std::this_thread::get_id() << " waitInternal piEventsWait
-    // end"
-    //           << std::endl;
   } else if (MState == HES_Discarded) {
     // Waiting for the discarded event is invalid
     throw sycl::exception(
@@ -86,8 +81,6 @@ void event_impl::waitInternal() {
   // Wait for connected events(e.g. streams prints)
   for (const EventImplPtr &Event : MPostCompleteEvents)
     Event->wait(Event);
-  detail::Scheduler::getInstance().cleanupDeferredMemObjects(
-      BlockingT::NON_BLOCKING);
   // std::cout << std::this_thread::get_id()
   //           << " waitInternal  MPostCompleteEvents.wait end" << std::endl;
 }
@@ -246,6 +239,9 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self) {
   else if (MCommand)
     detail::Scheduler::getInstance().waitForEvent(Self);
   cleanupCommand(std::move(Self));
+
+  detail::Scheduler::getInstance().cleanupDeferredMemObjects(
+      BlockingT::NON_BLOCKING);
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
