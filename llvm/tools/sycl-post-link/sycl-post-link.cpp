@@ -208,6 +208,10 @@ cl::opt<bool> DeviceGlobals{
     cl::desc("Lower and generate information about device global variables"),
     cl::cat(PostLinkCat)};
 
+cl::opt<bool> RelocatableDeviceCode{
+    "sycl-rdc", cl::desc("relocatable device code mode"), cl::Optional,
+    cl::init(true), cl::cat(PostLinkCat)};
+
 struct GlobalBinImageProps {
   bool EmitKernelParamInfo;
   bool EmitProgramMetadata;
@@ -749,6 +753,9 @@ processInputModule(std::unique_ptr<Module> M) {
           (SplitMode == module_split::SPLIT_AUTO)) &&
          "invalid split mode for IR-only output");
 
+  assert((RelocatableDeviceCode || SplitMode != module_split::SPLIT_NONE) &&
+         "invalid split mode for relocatable device code mode");
+
   // Top-level per-kernel/per-source splitter. SYCL/ESIMD splitting is applied
   // to modules resulting from all other kinds of splitting.
   std::unique_ptr<module_split::ModuleSplitterBase> ScopedSplitter =
@@ -999,6 +1006,12 @@ int main(int argc, char **argv) {
   }
   if (IROutputOnly && DoExportedSyms) {
     errs() << "error: -" << EmitExportedSymbols.ArgStr << " can't be used with"
+           << " -" << IROutputOnly.ArgStr << "\n";
+    return 1;
+  }
+  if (IROutputOnly && !RelocatableDeviceCode) {
+    errs() << "error: -" << RelocatableDeviceCode.ArgStr
+           << " can't be used with"
            << " -" << IROutputOnly.ArgStr << "\n";
     return 1;
   }
