@@ -14,6 +14,8 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
+#include <sycl/detail/owner_less_base.hpp>
+#include <sycl/ext/oneapi/weak_object_base.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/platform.hpp>
 #include <sycl/stl.hpp>
@@ -44,7 +46,7 @@ class filter_selector;
 /// may be executed.
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT device {
+class __SYCL_EXPORT device : public detail::OwnerLessBase<device> {
 public:
   /// Constructs a SYCL device instance using the default device.
   device();
