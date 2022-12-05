@@ -4,7 +4,7 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 // HIP does not support floating point atomics.
-// XFAIL: hip
+// UNSUPPORTED: hip
 
 #include "max.h"
 
