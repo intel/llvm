@@ -298,13 +298,28 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
     }
     {
       WriteLockT Lock = acquireWriteLock();
+      std::cout << std::this_thread::get_id()
+                << " removeMemoryObject write lock acquired Record = " << Record
+                << std::endl;
       MGraphBuilder.decrementLeafCountersForRecord(Record);
+      std::cout
+          << std::this_thread::get_id()
+          << " removeMemoryObject cleanupCommandsForRecord before Record = "
+          << Record << std::endl;
       MGraphBuilder.cleanupCommandsForRecord(Record, StreamsToDeallocate,
                                              AuxResourcesToDeallocate);
+      std::cout << std::this_thread::get_id()
+                << " removeMemoryObject removeRecordForMemObj before Record = "
+                << Record << std::endl;
       MGraphBuilder.removeRecordForMemObj(MemObj);
+      std::cout << std::this_thread::get_id()
+                << " removeMemoryObject removeRecordForMemObj done Record = "
+                << Record << std::endl;
     }
   }
   deallocateStreams(StreamsToDeallocate);
+  std::cout << std::this_thread::get_id()
+            << " removeMemoryObject streams deallocated" << std::endl;
 }
 
 EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
