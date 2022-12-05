@@ -1351,7 +1351,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
           TypeName == "minimum" || TypeName == "multi_ptr" ||
           TypeName == "nd_item" || TypeName == "nd_range" ||
           TypeName == "OwnerLessBase" || TypeName == "range" ||
-          TypeName == "sub_group" ||
+          TypeName == "sub_group" || TypeName == "SwizzleOp" ||
           TypeName == "TupleCopyAssignableValueHolder" ||
           TypeName == "TupleValueHolder" || TypeName == "vec") {
         return getSYCLType(RT, *this);

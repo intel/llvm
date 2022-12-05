@@ -308,6 +308,13 @@ def SYCL_VecType : SYCL_Type<"Vec", "vec"> {
   let genVerifyDecl = 1;
 }
 
+def SYCL_SwizzledVecType : SYCL_Type<"SwizzledVec", "swizzled_vec"> {
+  let parameters = (ins "::mlir::sycl::VecType":$vecType,
+                        ArrayRefParameter<"int">:$indexes,
+                        ArrayRefParameter<"mlir::Type">:$body);
+  let assemblyFormat = "`<` `[` $vecType `,` $indexes `]` `,` `(` $body `)` `>`";
+}
+
 // Define MemRef types (alphabetical order).
 def AccessorCommonMemRef : MemRefOf<[SYCL_AccessorCommonType]>;
 def AccessorImplDeviceMemRef : MemRefOf<[SYCL_AccessorImplDeviceType]>;
@@ -315,16 +322,16 @@ def AccessorMemRef : MemRefOf<[SYCL_AccessorType]>;
 def AccessorSubscriptMemRef : MemRefOf<[SYCL_AccessorSubscriptType]>;
 def ArrayMemRef : MemRefOf<[SYCL_ArrayType]>;
 def AtomicMemRef : MemRefOf<[SYCL_AtomicType]>;
+def GetOpMemRef : MemRefOf<[SYCL_GetOpType]>;
+def GetScalarOpMemRef : MemRefOf<[SYCL_GetScalarOpType]>;
 def GroupMemRef : MemRefOf<[SYCL_GroupType]>;
 def IDMemRef : MemRefOf<[SYCL_IDType]>;
 def ItemBaseMemRef : MemRefOf<[SYCL_ItemBaseType]>;
 def ItemMemRef : MemRefOf<[SYCL_ItemType]>;
 def MultiPtrMemRef : MemRefOf<[SYCL_MultiPtrType]>;
 def NDItemMemRef : MemRefOf<[SYCL_NdItemType]>;
-def NDRangeMemRef : MemRefOf<[SYCL_NdRangeType]>;
-def OwnerLessBaseMemRef : MemRefOf<[SYCL_OwnerLessBaseType]>;
-def RangeMemRef : MemRefOf<[SYCL_RangeType]>;
 def VecMemRef : MemRefOf<[SYCL_VecType]>;
+def SwizzledVecMemRef : MemRefOf<[SYCL_SwizzledVecType]>;
 
 def SYCLMemref : AnyTypeOf<[
   // Keep in alphabetical order.
@@ -334,6 +341,8 @@ def SYCLMemref : AnyTypeOf<[
   AccessorSubscriptMemRef,
   ArrayMemRef,
   AtomicMemRef,
+  GetOpMemRef,
+  GetScalarOpMemRef,
   GroupMemRef,  
   IDMemRef,
   ItemBaseMemRef,
@@ -343,6 +352,7 @@ def SYCLMemref : AnyTypeOf<[
   NDRangeMemRef,
   OwnerLessBaseMemRef,
   RangeMemRef,
+  SwizzledVecMemRef,
   VecMemRef
 ]>;
 

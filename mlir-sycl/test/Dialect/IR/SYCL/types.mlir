@@ -175,8 +175,6 @@ func.func @get_op(%arg0: !sycl.get_op<i32>) attributes {llvm.linkage = #llvm.lin
   return
 }
 
-// -----
-
 ////////////////////////////////////////////////////////////////////////////////
 // GET_SCALAR_OP
 ////////////////////////////////////////////////////////////////////////////////
@@ -187,8 +185,6 @@ func.func @get_op(%arg0: !sycl.get_op<i32>) attributes {llvm.linkage = #llvm.lin
 func.func @get_scalar_op(%arg0: !sycl_get_scalar_op_i32_) attributes {llvm.linkage = #llvm.linkage<external>} {
   return
 }
-
-// -----
 
 ////////////////////////////////////////////////////////////////////////////////
 // VEC
@@ -205,6 +201,24 @@ func.func @vec_0(%arg0: !sycl_vec_i32_2_) attributes {llvm.linkage = #llvm.linka
 func.func @vec_1(%arg0: !sycl_vec_f32_4_) attributes {llvm.linkage = #llvm.linkage<external>} {
   return
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// SWIZZLED_VEC
+////////////////////////////////////////////////////////////////////////////////
+
+!sycl_swizzled_vec_i32_2_ = !sycl.swizzled_vec<[!sycl_vec_i32_2_, 0, 1], (memref<?x!sycl_vec_i32_2_, 4>, !sycl.get_op<i8>, !sycl.get_op<i8>)>
+!sycl_swizzled_vec_i32_2_1 = !sycl.swizzled_vec<[!sycl_vec_i32_2_, 0, 1], (memref<?x!sycl_vec_i32_2_, 4>, !sycl_swizzled_vec_i32_2_, !sycl_get_scalar_op_i32_)>
+
+// CHECK: func @swizzled_vec_0(%arg0: !sycl_swizzled_vec_i32_2_)
+func.func @swizzled_vec_0(%arg0: !sycl_swizzled_vec_i32_2_) attributes {llvm.linkage = #llvm.linkage<external>} {
+  return
+}
+// CHECK: func @swizzled_vec_1(%arg0: !sycl_swizzled_vec_i32_2_1)
+func.func @swizzled_vec_1(%arg0: !sycl_swizzled_vec_i32_2_1) attributes {llvm.linkage = #llvm.linkage<external>} {
+  return
+}
+
+// -----
 
 ////////////////////////////////////////////////////////////////////////////////
 // ATOMIC

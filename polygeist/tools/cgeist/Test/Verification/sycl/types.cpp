@@ -31,6 +31,7 @@
 // CHECK-DAG: [[TUPLE_COPY_ASSIGNABLE_VALUE_HOLDER_FALSE:!sycl_tuple_copy_assignable_value_holder_i32_.*]] = !sycl.tuple_copy_assignable_value_holder<[i32, false], (!sycl_tuple_value_holder_i32_)>
 // CHECK-DAG: !sycl_vec_f32_8_ = !sycl.vec<[f32, 8], (vector<8xf32>)>
 // CHECK-DAG: !sycl_vec_i32_4_ = !sycl.vec<[i32, 4], (vector<4xi32>)>
+// CHECK-DAG: !sycl_swizzled_vec_f32_8_ = !sycl.swizzled_vec<[!sycl_vec_f32_8_, 0, 1, 2], (memref<?x!sycl_vec_f32_8_, 4>, !sycl.get_op<f32>, !sycl.get_op<f32>)>
 // CHECK-DAG: !sycl_atomic_f32_3_ = !sycl.atomic<[f32,3], (memref<?xf32, 3>)>
 // CHECK-DAG: !sycl_atomic_i32_1_ = !sycl.atomic<[i32,1], (memref<?xi32, 1>)>
 // CHECK-DAG: !sycl_assert_happened_ = !sycl.assert_happened<(i32, !llvm.array<257 x i8>, !llvm.array<257 x i8>, !llvm.array<129 x i8>, i32, i64, i64, i64, i64, i64, i64)>
@@ -170,6 +171,15 @@ SYCL_EXTERNAL void vec_3(sycl::vec<sycl::cl_int, 4> vec) {}
 // CHECK-SAME:    %arg0: memref<?x!sycl_vec_f32_8_> {llvm.align = 32 : i64, llvm.byval = !sycl_vec_f32_8_, llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
 SYCL_EXTERNAL void vec_4(sycl::float8 vec) {}
+
+//#define SYCL_SIMPLE_SWIZZLES
+
+// CHECK-LABEL: func.func @_Z12swizzled_vecN4sycl3_V16detail9SwizzleOpINS0_3vecIfLi8EEENS1_5GetOpIfEES6_S5_JLi0ELi1ELi2EEEE(
+// CHECK-SAME:    %arg0: memref<?x!sycl_swizzled_vec_f32_8_> {llvm.noundef})
+// CHECK-SAME:  attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
+SYCL_EXTERNAL void swizzled_vec(sycl::detail::SwizzleOp<sycl::float8, sycl::detail::GetOp<float>, sycl::detail::GetOp<float>, sycl::detail::GetOp, 0, 1, 2> swizzle) {}
+
+//#undef SYCL_SIMPLE_SWIZZLES
 
 // CHECK-LABEL: func.func @_Z8atomic_1N4sycl3_V16atomicIiLNS0_6access13address_spaceE1EEE(
 // CHECK:          %arg0: memref<?x!sycl_atomic_i32_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_atomic_i32_1_, llvm.noundef})

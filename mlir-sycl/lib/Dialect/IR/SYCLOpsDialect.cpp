@@ -181,6 +181,12 @@ SYCLOpAsmInterface::getAlias(mlir::Type Type, llvm::raw_ostream &OS) const {
            << "_";
         return AliasResult::OverridableAlias;
       })
+      .Case<mlir::sycl::SwizzledVecType>([&](auto Ty) {
+        const auto VecTy = Ty.getVecType();
+        OS << "sycl_" << decltype(Ty)::getMnemonic() << "_"
+           << VecTy.getDataType() << "_" << VecTy.getNumElements() << "_";
+        return AliasResult::OverridableAlias;
+      })
       .Default([](auto) { return AliasResult::NoAlias; });
 }
 } // namespace

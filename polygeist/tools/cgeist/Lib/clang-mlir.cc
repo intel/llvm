@@ -1445,9 +1445,11 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
                   sycl::AccessorSubscriptType, sycl::AtomicType,
                   sycl::GetScalarOpType, sycl::GroupType, sycl::ItemBaseType,
                   sycl::ItemType, sycl::MultiPtrType, sycl::NdItemType,
-                  sycl::NdRangeType, sycl::VecType>([&](auto ElemTy) {
-              return SYCLCommonFieldLookup<decltype(ElemTy)>(Val, FNum, Shape);
-            })
+                  sycl::NdRangeType, sycl::SwizzledVecType, sycl::VecType>(
+                [&](auto ElemTy) {
+                  return SYCLCommonFieldLookup<decltype(ElemTy)>(Val, FNum,
+                                                                 Shape);
+                })
             .Default([&Val](Type T) {
               llvm_unreachable("not implemented");
               return Val;

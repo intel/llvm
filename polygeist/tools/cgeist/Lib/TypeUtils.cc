@@ -128,6 +128,7 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
     OwnerLessBase,
     Range,
     SubGroup,
+    SwizzleOp,
     TupleCopyAssignableValueHolder,
     TupleValueHolder,
     Vec
@@ -159,6 +160,7 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
       {"OwnerLessBase", TypeEnum::OwnerLessBase},
       {"range", TypeEnum::Range},
       {"sub_group", SubGroup},
+      {"SwizzleOp", SwizzleOp},
       {"TupleCopyAssignableValueHolder", TupleCopyAssignableValueHolder},
       {"TupleValueHolder", TypeEnum::TupleValueHolder},
       {"vec", TypeEnum::Vec},
@@ -327,6 +329,19 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
           CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
       return mlir::sycl::VecType::get(CGT.getModule()->getContext(), ElemType,
                                       NumElems, Body);
+    }
+    case TypeEnum::SwizzleOp: {
+      const auto VecType =
+          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType())
+              .cast<mlir::sycl::VecType>();
+      const auto IndexesArgs = CTS->getTemplateArgs().get(4).getPackAsArray();
+      SmallVector<int> Indexes;
+      Indexes.reserve(IndexesArgs.size());
+      std::transform(
+          IndexesArgs.begin(), IndexesArgs.end(), std::back_inserter(Indexes),
+          [](const auto &Arg) { return Arg.getAsIntegral().getSExtValue(); });
+      return mlir::sycl::SwizzledVecType::get(CGT.getModule()->getContext(),
+                                              VecType, Indexes, Body);
     }
     default:
       llvm_unreachable(
