@@ -182,18 +182,6 @@ public:
            PiArray{DeviceLibReqMask});
   }
 
-  /// Drops all properties from the set.
-  ///
-  /// Default constructor of PiPropertySet initializes it with some most widely
-  /// used properties. However, it could be the case that those defaults are
-  /// not suitable for some tests. This method allows to reset property set
-  /// so it is absolutely empty.
-  void resetAllProps() {
-    MNames.clear();
-    MMockProperties.clear();
-    MProperties.clear();
-  }
-
   /// Adds a new array of properties to the set.
   ///
   /// \param Name is a property array name. See pi.h for list of known names.
