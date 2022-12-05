@@ -100,6 +100,7 @@
 #include "llvm/Transforms/Utils/NameAnonGlobals.h"
 #include "llvm/Transforms/Utils/SymbolRewriter.h"
 #include <memory>
+#include <optional>
 using namespace clang;
 using namespace llvm;
 
@@ -320,7 +321,7 @@ static CodeGenOpt::Level getCGOptLevel(const CodeGenOptions &CodeGenOpts) {
   }
 }
 
-static Optional<llvm::CodeModel::Model>
+static std::optional<llvm::CodeModel::Model>
 getCodeModel(const CodeGenOptions &CodeGenOpts) {
   unsigned CodeModel = llvm::StringSwitch<unsigned>(CodeGenOpts.CodeModel)
                            .Case("tiny", llvm::CodeModel::Tiny)
@@ -332,7 +333,7 @@ getCodeModel(const CodeGenOptions &CodeGenOpts) {
                            .Default(~0u);
   assert(CodeModel != ~0u && "invalid code model!");
   if (CodeModel == ~1u)
-    return None;
+    return std::nullopt;
   return static_cast<llvm::CodeModel::Model>(CodeModel);
 }
 
@@ -580,7 +581,7 @@ void EmitAssemblyHelper::CreateTargetMachine(bool MustCreateTM) {
     return;
   }
 
-  Optional<llvm::CodeModel::Model> CM = getCodeModel(CodeGenOpts);
+  std::optional<llvm::CodeModel::Model> CM = getCodeModel(CodeGenOpts);
   std::string FeaturesStr =
       llvm::join(TargetOpts.Features.begin(), TargetOpts.Features.end(), ",");
   llvm::Reloc::Model RM = CodeGenOpts.RelocationModel;

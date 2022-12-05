@@ -766,7 +766,7 @@ static void maybeSynthesizeBlockSignature(TypeProcessingState &state,
       /*NumExceptions=*/0,
       /*NoexceptExpr=*/nullptr,
       /*ExceptionSpecTokens=*/nullptr,
-      /*DeclsInPrototype=*/None, loc, loc, declarator));
+      /*DeclsInPrototype=*/std::nullopt, loc, loc, declarator));
 
   // For consistency, make sure the state still has us as processing
   // the decl spec.
@@ -5873,7 +5873,8 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
           << T <<  D.getSourceRange();
         D.setEllipsisLoc(SourceLocation());
       } else {
-        T = Context.getPackExpansionType(T, None, /*ExpectPackInType=*/false);
+        T = Context.getPackExpansionType(T, std::nullopt,
+                                         /*ExpectPackInType=*/false);
       }
       break;
     case DeclaratorContext::TemplateParam:
@@ -5886,7 +5887,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
       // parameter packs in the type of the non-type template parameter, then
       // it expands those parameter packs.
       if (T->containsUnexpandedParameterPack())
-        T = Context.getPackExpansionType(T, None);
+        T = Context.getPackExpansionType(T, std::nullopt);
       else
         S.Diag(D.getEllipsisLoc(),
                LangOpts.CPlusPlus11

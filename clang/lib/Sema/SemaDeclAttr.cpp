@@ -2755,7 +2755,7 @@ static void handleAvailabilityAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 
         if (IOSToWatchOSMapping) {
           if (auto MappedVersion = IOSToWatchOSMapping->map(
-                  Version, MinimumWatchOSVersion, None)) {
+                  Version, MinimumWatchOSVersion, std::nullopt)) {
             return MappedVersion.value();
           }
         }
@@ -2810,8 +2810,8 @@ static void handleAvailabilityAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
           return Version;
 
         if (IOSToTvOSMapping) {
-          if (auto MappedVersion =
-                  IOSToTvOSMapping->map(Version, VersionTuple(0, 0), None)) {
+          if (auto MappedVersion = IOSToTvOSMapping->map(
+                  Version, VersionTuple(0, 0), std::nullopt)) {
             return *MappedVersion;
           }
         }
@@ -2876,12 +2876,13 @@ static void handleAvailabilityAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
         auto RemapMacOSVersion =
             [&](const VersionTuple &V) -> Optional<VersionTuple> {
           if (V.empty())
-            return None;
+            return std::nullopt;
           // API_TO_BE_DEPRECATED is 100000.
           if (V.getMajor() == 100000)
             return VersionTuple(100000);
           // The minimum iosmac version is 13.1
-          return MacOStoMacCatalystMapping->map(V, VersionTuple(13, 1), None);
+          return MacOStoMacCatalystMapping->map(V, VersionTuple(13, 1),
+                                                std::nullopt);
         };
         Optional<VersionTuple> NewIntroduced =
                                    RemapMacOSVersion(Introduced.Version),
