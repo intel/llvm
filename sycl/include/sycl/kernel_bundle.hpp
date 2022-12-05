@@ -11,11 +11,9 @@
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/kernel_desc.hpp>
-#include <sycl/detail/owner_less_base.hpp>
 #include <sycl/detail/pi.h>
 #include <sycl/detail/pi.hpp>
 #include <sycl/device.hpp>
-#include <sycl/ext/oneapi/weak_object_base.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
 
@@ -39,7 +37,7 @@ class kernel_id_impl;
 /// Objects of the class identify kernel is some kernel_bundle related APIs
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT kernel_id : public detail::OwnerLessBase<kernel_id> {
+class __SYCL_EXPORT kernel_id {
 public:
   kernel_id() = delete;
 
@@ -103,8 +101,7 @@ protected:
 
 /// Objects of the class represents an instance of an image in a specific state.
 template <sycl::bundle_state State>
-class device_image : public detail::device_image_plain,
-                     public detail::OwnerLessBase<device_image<State>> {
+class device_image : public detail::device_image_plain {
 public:
   device_image() = delete;
 
@@ -198,8 +195,7 @@ protected:
 ///
 /// \ingroup sycl_api
 template <bundle_state State>
-class kernel_bundle : public detail::kernel_bundle_plain,
-                      public detail::OwnerLessBase<kernel_bundle<State>> {
+class kernel_bundle : public detail::kernel_bundle_plain {
 public:
   using device_image_iterator = const device_image<State> *;
 

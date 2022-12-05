@@ -13,8 +13,6 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
-#include <sycl/detail/owner_less_base.hpp>
-#include <sycl/ext/oneapi/weak_object_base.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/stl.hpp>
 
@@ -37,7 +35,7 @@ class event_impl;
 /// kernels and signaling barriers.
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT event : public detail::OwnerLessBase<event> {
+class __SYCL_EXPORT event {
 public:
   /// Constructs a ready SYCL event.
   ///
