@@ -73,16 +73,18 @@ void parallel_for_nd_item(std::array<int, N> &A) {
   }
 }
 
+static void check_shape(std::array<int, N> &A) {
+  for (unsigned i = 0; i < N; ++i)
+    assert(A[i] == i);
+}
+
 int main() {
   std::array<int, N> A{0};
   parallel_for_id(A);
-  for (unsigned i = 0; i < N; ++i)
-    assert(A[i] == i);
+  check_shape(A);
   parallel_for_item(A);
-  for (unsigned i = 0; i < N; ++i)
-    assert(A[i] == i);
+  check_shape(A);
   parallel_for_nd_item(A);
-  for (unsigned i = 0; i < N; ++i)
-    assert(A[i] == i);
+  check_shape(A);
   std::cout << "Test passed" << std::endl;
 }
