@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <CL/sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/defines_elementary.hpp>
 
 #include <memory>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 class stream_impl;
@@ -25,5 +25,5 @@ using QueueImplPtr = std::shared_ptr<detail::queue_impl>;
 void initStream(StreamImplPtr Stream, QueueImplPtr Queue);
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

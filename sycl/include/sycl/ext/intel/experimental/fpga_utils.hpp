@@ -8,14 +8,15 @@
 
 #pragma once
 
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/stl_type_traits.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/detail/stl_type_traits.hpp>
 #include <sycl/ext/oneapi/latency_control/properties.hpp>
+#include <sycl/stl.hpp>
 #include <tuple>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl::ext::intel::experimental::detail {
+namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::intel::experimental::detail {
 
 template <template <int32_t> class _Type, class _T>
 struct _MatchType : std::is_same<_Type<_T::value>, _T> {};
@@ -54,5 +55,6 @@ using defaultLatencyAnchorIdProperty = latency_anchor_id_key::value_t<-1>;
 using defaultLatencyConstraintProperty =
     latency_constraint_key::value_t<0, latency_control_type::none, 0>;
 
-} // namespace sycl::ext::intel::experimental::detail
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace ext::intel::experimental::detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl

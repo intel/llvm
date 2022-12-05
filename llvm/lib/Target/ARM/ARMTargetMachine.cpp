@@ -196,7 +196,7 @@ static std::string computeDataLayout(const Triple &TT, StringRef CPU,
 
 static Reloc::Model getEffectiveRelocModel(const Triple &TT,
                                            Optional<Reloc::Model> RM) {
-  if (!RM.hasValue())
+  if (!RM)
     // Default relocation model on Darwin is PIC.
     return TT.isOSBinFormatMachO() ? Reloc::PIC_ : Reloc::Static;
 
@@ -426,8 +426,12 @@ void ARMPassConfig::addIRPasses() {
   TargetPassConfig::addIRPasses();
 
   // Run the parallel DSP pass.
-  if (getOptLevel() == CodeGenOpt::Aggressive) 
+  if (getOptLevel() == CodeGenOpt::Aggressive)
     addPass(createARMParallelDSPPass());
+
+  // Match complex arithmetic patterns
+  if (TM->getOptLevel() >= CodeGenOpt::Default)
+    addPass(createComplexDeinterleavingPass(TM));
 
   // Match interleaved memory accesses to ldN/stN intrinsics.
   if (TM->getOptLevel() != CodeGenOpt::None)

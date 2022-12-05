@@ -54,6 +54,7 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Allocator.h"
+#include <optional>
 
 namespace llvm {
 class Module;
@@ -127,7 +128,7 @@ struct IRInstructionData
   /// This is only relevant if we are wrapping a CmpInst where we needed to
   /// change the predicate of a compare instruction from a greater than form
   /// to a less than form.  It is None otherwise.
-  Optional<CmpInst::Predicate> RevisedPredicate;
+  std::optional<CmpInst::Predicate> RevisedPredicate;
 
   /// This is only relevant if we are wrapping a CallInst. If we are requiring
   /// that the function calls have matching names as well as types, and the
@@ -137,7 +138,7 @@ struct IRInstructionData
   /// function call type.  The value held here is used to create the hash of the
   /// instruction, and check to make sure two instructions are close to one
   /// another.
-  Optional<std::string> CalleeName;
+  std::optional<std::string> CalleeName;
 
   /// This structure holds the distances of how far "ahead of" or "behind" the
   /// target blocks of a branch, or the incoming blocks of a phi nodes are.
@@ -547,7 +548,7 @@ struct IRInstructionMapper {
       // an outlined function. Also, assume-like intrinsics could be removed
       // from the region, removing arguments, causing discrepencies in the
       // number of inputs between different regions.
-      if (II.isLifetimeStartOrEnd() || II.isAssumeLikeIntrinsic())
+      if (II.isAssumeLikeIntrinsic())
         return Illegal;
       return EnableIntrinsics ? Legal : Illegal;
     }
@@ -831,8 +832,6 @@ public:
   void getBasicBlocks(DenseSet<BasicBlock *> &BBSet) const {
     for (IRInstructionData &ID : *this) {
       BasicBlock *BB = ID.Inst->getParent();
-      if (BBSet.contains(BB))
-        continue;
       BBSet.insert(BB);
     }
   }
@@ -843,10 +842,8 @@ public:
                       SmallVector<BasicBlock *> &BBList) const {
     for (IRInstructionData &ID : *this) {
       BasicBlock *BB = ID.Inst->getParent();
-      if (BBSet.contains(BB))
-        continue;
-      BBSet.insert(BB);
-      BBList.push_back(BB);
+      if (BBSet.insert(BB).second)
+        BBList.push_back(BB);
     }
   }
 
@@ -1043,7 +1040,7 @@ public:
     // If we've already analyzed a Module or set of Modules, so we must clear
     // the SimilarityCandidates to make sure we do not have only old values
     // hanging around.
-    if (SimilarityCandidates.hasValue())
+    if (SimilarityCandidates)
       SimilarityCandidates->clear();
     else
       SimilarityCandidates = SimilarityGroupList();

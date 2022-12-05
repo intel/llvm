@@ -5,6 +5,7 @@
 ; CHECK:       ModulePass Manager
 ; CHECK-NEXT:    Pre-ISel Intrinsic Lowering
 ; CHECK-NEXT:    FunctionPass Manager
+; CHECK-NEXT:      Expand large div/rem
 ; CHECK-NEXT:      Expand Atomic instructions
 ; CHECK-NEXT:      Simplify the CFG
 ; CHECK-NEXT:      Dominator Tree Construction
@@ -46,6 +47,7 @@
 ; CHECK-NEXT:      Basic Alias Analysis (stateless AA impl)
 ; CHECK-NEXT:      Function Alias Analysis Results
 ; CHECK-NEXT:      Transform functions to use DSP intrinsics
+; CHECK-NEXT:      Complex Deinterleaving Pass
 ; CHECK-NEXT:      Interleaved Access Pass
 ; CHECK-NEXT:      Type Promotion
 ; CHECK-NEXT:      CodeGen Prepare

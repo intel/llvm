@@ -4,7 +4,7 @@
 
 #include "Inputs/sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void a_kernel(const Func &kernelFunc) {

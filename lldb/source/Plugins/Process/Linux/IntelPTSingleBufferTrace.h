@@ -10,12 +10,9 @@
 #define liblldb_IntelPTSingleBufferTrace_H_
 
 #include "Perf.h"
-
 #include "lldb/Utility/TraceIntelPTGDBRemotePackets.h"
 #include "lldb/lldb-types.h"
-
 #include "llvm/Support/Error.h"
-
 #include <memory>
 
 namespace lldb_private {
@@ -44,6 +41,11 @@ public:
   ///     Similarly, if \b false, data is collected right away until \a Pause is
   ///     invoked.
   ///
+  ///  \param[in] cgroup_fd
+  ///   A file descriptor in /sys/fs associated with the cgroup of the process
+  ///   to trace. If not \a llvm::None, then the trace sesion will use cgroup
+  ///   filtering.
+  ///
   /// \return
   ///   A \a IntelPTSingleBufferTrace instance if tracing was successful, or
   ///   an \a llvm::Error otherwise.
@@ -51,7 +53,7 @@ public:
   Start(const TraceIntelPTStartRequest &request,
         llvm::Optional<lldb::tid_t> tid,
         llvm::Optional<lldb::cpu_id_t> cpu_id = llvm::None,
-        bool disabled = false);
+        bool disabled = false, llvm::Optional<int> cgroup_fd = llvm::None);
 
   /// \return
   ///    The bytes requested by a jLLDBTraceGetBinaryData packet that was routed

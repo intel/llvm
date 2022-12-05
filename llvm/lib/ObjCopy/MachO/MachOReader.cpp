@@ -174,6 +174,9 @@ Error MachOReader::readLoadCommands(Object &O) const {
     case MachO::LC_FUNCTION_STARTS:
       O.FunctionStartsCommandIndex = O.LoadCommands.size();
       break;
+    case MachO::LC_DYLIB_CODE_SIGN_DRS:
+      O.DylibCodeSignDRsIndex = O.LoadCommands.size();
+      break;
     case MachO::LC_DYLD_EXPORTS_TRIE:
       O.ExportsTrieCommandIndex = O.LoadCommands.size();
       break;
@@ -281,7 +284,11 @@ void MachOReader::readLazyBindInfo(Object &O) const {
 }
 
 void MachOReader::readExportInfo(Object &O) const {
-  O.Exports.Trie = MachOObj.getDyldInfoExportsTrie();
+  // This information can be in LC_DYLD_INFO or in LC_DYLD_EXPORTS_TRIE
+  ArrayRef<uint8_t> Trie = MachOObj.getDyldInfoExportsTrie();
+  if (Trie.empty())
+    Trie = MachOObj.getDyldExportsTrie();
+  O.Exports.Trie = Trie;
 }
 
 void MachOReader::readLinkData(Object &O, Optional<size_t> LCIndex,
@@ -305,6 +312,10 @@ void MachOReader::readLinkerOptimizationHint(Object &O) const {
 
 void MachOReader::readFunctionStartsData(Object &O) const {
   return readLinkData(O, O.FunctionStartsCommandIndex, O.FunctionStarts);
+}
+
+void MachOReader::readDylibCodeSignDRs(Object &O) const {
+  return readLinkData(O, O.DylibCodeSignDRsIndex, O.DylibCodeSignDRs);
 }
 
 void MachOReader::readExportsTrie(Object &O) const {
@@ -366,6 +377,7 @@ Expected<std::unique_ptr<Object>> MachOReader::create() const {
   readDataInCodeData(*Obj);
   readLinkerOptimizationHint(*Obj);
   readFunctionStartsData(*Obj);
+  readDylibCodeSignDRs(*Obj);
   readExportsTrie(*Obj);
   readChainedFixups(*Obj);
   readIndirectSymbolTable(*Obj);

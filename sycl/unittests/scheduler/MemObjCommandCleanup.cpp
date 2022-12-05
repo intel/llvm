@@ -9,28 +9,35 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-using namespace cl::sycl;
+#include <helpers/PiMock.hpp>
+
+#include <detail/buffer_impl.hpp>
+
+using namespace sycl;
 
 TEST_F(SchedulerTest, MemObjCommandCleanupAllocaUsers) {
+  sycl::unittest::PiMock Mock;
+  sycl::queue Q{Mock.getPlatform().get_devices()[0], MAsyncHandler};
+
   MockScheduler MS;
   buffer<int, 1> BufA(range<1>(1));
   buffer<int, 1> BufB(range<1>(1));
   detail::Requirement MockReqA = getMockRequirement(BufA);
   detail::Requirement MockReqB = getMockRequirement(BufB);
   std::vector<detail::Command *> AuxCmds;
-  detail::MemObjRecord *RecA = MS.getOrInsertMemObjRecord(
-      detail::getSyclObjImpl(MQueue), &MockReqA, AuxCmds);
+  detail::MemObjRecord *RecA =
+      MS.getOrInsertMemObjRecord(detail::getSyclObjImpl(Q), &MockReqA, AuxCmds);
 
   // Create 2 fake allocas, one of which will be cleaned up
   detail::AllocaCommand *MockAllocaA =
-      new detail::AllocaCommand(detail::getSyclObjImpl(MQueue), MockReqA);
+      new detail::AllocaCommand(detail::getSyclObjImpl(Q), MockReqA);
   std::unique_ptr<detail::AllocaCommand> MockAllocaB{
-      new detail::AllocaCommand(detail::getSyclObjImpl(MQueue), MockReqB)};
+      new detail::AllocaCommand(detail::getSyclObjImpl(Q), MockReqB)};
   RecA->MAllocaCommands.push_back(MockAllocaA);
 
   // Create a direct user of both allocas
   std::unique_ptr<MockCommand> MockDirectUser{
-      new MockCommand(detail::getSyclObjImpl(MQueue), MockReqA)};
+      new MockCommand(detail::getSyclObjImpl(Q), MockReqA)};
   addEdge(MockDirectUser.get(), MockAllocaA, MockAllocaA);
   addEdge(MockDirectUser.get(), MockAllocaB.get(), MockAllocaB.get());
 
@@ -38,7 +45,7 @@ TEST_F(SchedulerTest, MemObjCommandCleanupAllocaUsers) {
   bool IndirectUserDeleted = false;
   std::function<void()> Callback = [&]() { IndirectUserDeleted = true; };
   MockCommand *MockIndirectUser = new MockCommandWithCallback(
-      detail::getSyclObjImpl(MQueue), MockReqA, Callback);
+      detail::getSyclObjImpl(Q), MockReqA, Callback);
   addEdge(MockIndirectUser, MockDirectUser.get(), MockAllocaA);
 
   MS.cleanupCommandsForRecord(RecA);
@@ -53,20 +60,23 @@ TEST_F(SchedulerTest, MemObjCommandCleanupAllocaUsers) {
 }
 
 TEST_F(SchedulerTest, MemObjCommandCleanupAllocaDeps) {
+  sycl::unittest::PiMock Mock;
+  sycl::queue Q{Mock.getPlatform().get_devices()[0], MAsyncHandler};
+
   MockScheduler MS;
   buffer<int, 1> Buf(range<1>(1));
   detail::Requirement MockReq = getMockRequirement(Buf);
   std::vector<detail::Command *> AuxCmds;
-  detail::MemObjRecord *MemObjRec = MS.getOrInsertMemObjRecord(
-      detail::getSyclObjImpl(MQueue), &MockReq, AuxCmds);
+  detail::MemObjRecord *MemObjRec =
+      MS.getOrInsertMemObjRecord(detail::getSyclObjImpl(Q), &MockReq, AuxCmds);
 
   // Create a fake alloca.
   detail::AllocaCommand *MockAllocaCmd =
-      new detail::AllocaCommand(detail::getSyclObjImpl(MQueue), MockReq);
+      new detail::AllocaCommand(detail::getSyclObjImpl(Q), MockReq);
   MemObjRec->MAllocaCommands.push_back(MockAllocaCmd);
 
   // Add another mock command and add MockAllocaCmd as its user.
-  MockCommand DepCmd(detail::getSyclObjImpl(MQueue), MockReq);
+  MockCommand DepCmd(detail::getSyclObjImpl(Q), MockReq);
   addEdge(MockAllocaCmd, &DepCmd, nullptr);
 
   // Check that DepCmd.MUsers size reflect the dependency properly.

@@ -14,10 +14,11 @@
 
 #include "mlir/Dialect/Affine/Analysis/LoopAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/Dialect/Utils/IndexingUtils.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/IntegerSet.h"
@@ -25,7 +26,6 @@
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Support/MathExtras.h"
-#include <numeric>
 
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SetVector.h"
@@ -41,130 +41,6 @@ Value mlir::vector::createOrFoldDimOp(OpBuilder &b, Location loc, Value source,
   if (source.getType().isa<UnrankedTensorType, RankedTensorType>())
     return b.createOrFold<tensor::DimOp>(loc, source, dim);
   llvm_unreachable("Expected MemRefType or TensorType");
-}
-
-Value mlir::vector::makeArithReduction(OpBuilder &b, Location loc,
-                                       CombiningKind kind, Value v1, Value v2) {
-  Type t1 = getElementTypeOrSelf(v1.getType());
-  Type t2 = getElementTypeOrSelf(v2.getType());
-  switch (kind) {
-  case CombiningKind::ADD:
-    if (t1.isIntOrIndex() && t2.isIntOrIndex())
-      return b.createOrFold<arith::AddIOp>(loc, v1, v2);
-    else if (t1.isa<FloatType>() && t2.isa<FloatType>())
-      return b.createOrFold<arith::AddFOp>(loc, v1, v2);
-    llvm_unreachable("invalid value types for ADD reduction");
-  case CombiningKind::AND:
-    assert(t1.isIntOrIndex() && t2.isIntOrIndex() && "expected int values");
-    return b.createOrFold<arith::AndIOp>(loc, v1, v2);
-  case CombiningKind::MAXF:
-    assert(t1.isa<FloatType>() && t2.isa<FloatType>() &&
-           "expected float values");
-    return b.createOrFold<arith::MaxFOp>(loc, v1, v2);
-  case CombiningKind::MINF:
-    assert(t1.isa<FloatType>() && t2.isa<FloatType>() &&
-           "expected float values");
-    return b.createOrFold<arith::MinFOp>(loc, v1, v2);
-  case CombiningKind::MAXSI:
-    assert(t1.isIntOrIndex() && t2.isIntOrIndex() && "expected int values");
-    return b.createOrFold<arith::MaxSIOp>(loc, v1, v2);
-  case CombiningKind::MINSI:
-    assert(t1.isIntOrIndex() && t2.isIntOrIndex() && "expected int values");
-    return b.createOrFold<arith::MinSIOp>(loc, v1, v2);
-  case CombiningKind::MAXUI:
-    assert(t1.isIntOrIndex() && t2.isIntOrIndex() && "expected int values");
-    return b.createOrFold<arith::MaxUIOp>(loc, v1, v2);
-  case CombiningKind::MINUI:
-    assert(t1.isIntOrIndex() && t2.isIntOrIndex() && "expected int values");
-    return b.createOrFold<arith::MinUIOp>(loc, v1, v2);
-  case CombiningKind::MUL:
-    if (t1.isIntOrIndex() && t2.isIntOrIndex())
-      return b.createOrFold<arith::MulIOp>(loc, v1, v2);
-    else if (t1.isa<FloatType>() && t2.isa<FloatType>())
-      return b.createOrFold<arith::MulFOp>(loc, v1, v2);
-    llvm_unreachable("invalid value types for MUL reduction");
-  case CombiningKind::OR:
-    assert(t1.isIntOrIndex() && t2.isIntOrIndex() && "expected int values");
-    return b.createOrFold<arith::OrIOp>(loc, v1, v2);
-  case CombiningKind::XOR:
-    assert(t1.isIntOrIndex() && t2.isIntOrIndex() && "expected int values");
-    return b.createOrFold<arith::XOrIOp>(loc, v1, v2);
-  };
-  llvm_unreachable("unknown CombiningKind");
-}
-
-/// Return the number of elements of basis, `0` if empty.
-int64_t mlir::computeMaxLinearIndex(ArrayRef<int64_t> basis) {
-  if (basis.empty())
-    return 0;
-  return std::accumulate(basis.begin(), basis.end(), 1,
-                         std::multiplies<int64_t>());
-}
-
-SmallVector<int64_t, 4> mlir::computeStrides(ArrayRef<int64_t> shape,
-                                             ArrayRef<int64_t> sizes) {
-  int64_t rank = shape.size();
-  // Compute the count for each dimension.
-  SmallVector<int64_t, 4> sliceDimCounts(rank);
-  for (int64_t r = 0; r < rank; ++r)
-    sliceDimCounts[r] = ceilDiv(shape[r], sizes[r]);
-  // Use that to compute the slice stride for each dimension.
-  SmallVector<int64_t, 4> sliceStrides(rank);
-  sliceStrides[rank - 1] = 1;
-  for (int64_t r = rank - 2; r >= 0; --r)
-    sliceStrides[r] = sliceStrides[r + 1] * sliceDimCounts[r + 1];
-  return sliceStrides;
-}
-
-SmallVector<int64_t, 4> mlir::computeElementOffsetsFromVectorSliceOffsets(
-    ArrayRef<int64_t> sizes, ArrayRef<int64_t> vectorOffsets) {
-  SmallVector<int64_t, 4> result;
-  for (auto it : llvm::zip(vectorOffsets, sizes))
-    result.push_back(std::get<0>(it) * std::get<1>(it));
-  return result;
-}
-
-Optional<SmallVector<int64_t, 4>> mlir::shapeRatio(ArrayRef<int64_t> superShape,
-                                                   ArrayRef<int64_t> subShape) {
-  if (superShape.size() < subShape.size()) {
-    return Optional<SmallVector<int64_t, 4>>();
-  }
-
-  // Starting from the end, compute the integer divisors.
-  std::vector<int64_t> result;
-  result.reserve(superShape.size());
-  int64_t superSize = 0, subSize = 0;
-  for (auto it :
-       llvm::zip(llvm::reverse(superShape), llvm::reverse(subShape))) {
-    std::tie(superSize, subSize) = it;
-    assert(superSize > 0 && "superSize must be > 0");
-    assert(subSize > 0 && "subSize must be > 0");
-
-    // If integral division does not occur, return and let the caller decide.
-    if (superSize % subSize != 0)
-      return None;
-    result.push_back(superSize / subSize);
-  }
-
-  // At this point we computed the ratio (in reverse) for the common
-  // size. Fill with the remaining entries from the super-vector shape (still in
-  // reverse).
-  int commonSize = subShape.size();
-  std::copy(superShape.rbegin() + commonSize, superShape.rend(),
-            std::back_inserter(result));
-
-  assert(result.size() == superShape.size() &&
-         "super to sub shape ratio is not of the same size as the super rank");
-
-  // Reverse again to get it back in the proper order and return.
-  return SmallVector<int64_t, 4>{result.rbegin(), result.rend()};
-}
-
-Optional<SmallVector<int64_t, 4>> mlir::shapeRatio(VectorType superVectorType,
-                                                   VectorType subVectorType) {
-  assert(superVectorType.getElementType() == subVectorType.getElementType() &&
-         "vector types must be of the same elemental type");
-  return shapeRatio(superVectorType.getShape(), subVectorType.getShape());
 }
 
 /// Constructs a permutation map from memref indices to vector dimension.
@@ -196,8 +72,8 @@ static AffineMap makePermutationMap(
     return AffineMap();
   MLIRContext *context =
       enclosingLoopToVectorDim.begin()->getFirst()->getContext();
-  SmallVector<AffineExpr, 4> perm(enclosingLoopToVectorDim.size(),
-                                  getAffineConstantExpr(0, context));
+  SmallVector<AffineExpr> perm(enclosingLoopToVectorDim.size(),
+                               getAffineConstantExpr(0, context));
 
   for (auto kvp : enclosingLoopToVectorDim) {
     assert(kvp.second < perm.size());
@@ -218,6 +94,7 @@ static AffineMap makePermutationMap(
             countInvariantIndices == numIndices - 1) &&
            "Vectorization prerequisite violated: at most 1 index may be "
            "invariant wrt a vectorized loop");
+    (void)countInvariantIndices;
   }
   return AffineMap::get(indices.size(), 0, perm, context);
 }
@@ -303,10 +180,11 @@ bool matcher::operatesOnSuperVectorsOf(Operation &op,
   }
 
   // Get the ratio.
-  auto ratio = shapeRatio(superVectorType, subVectorType);
+  auto ratio =
+      computeShapeRatio(superVectorType.getShape(), subVectorType.getShape());
 
   // Sanity check.
-  assert((ratio.hasValue() || !mustDivide) &&
+  assert((ratio || !mustDivide) &&
          "vector.transfer operation in which super-vector size is not an"
          " integer multiple of sub-vector size");
 
@@ -315,5 +193,5 @@ bool matcher::operatesOnSuperVectorsOf(Operation &op,
   // This could be useful information if we wanted to reshape at the level of
   // the vector type (but we would have to look at the compute and distinguish
   // between parallel, reduction and possibly other cases.
-  return ratio.hasValue();
+  return ratio.has_value();
 }

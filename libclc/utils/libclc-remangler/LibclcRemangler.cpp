@@ -175,7 +175,6 @@ class Remangler {
   bool Failed = false;
 
   void printNode(const Node *node, OutputBuffer &nodeOutBuffer) {
-    initializeOutputBuffer(nullptr, nullptr, nodeOutBuffer, 1024);
     node->print(nodeOutBuffer);
   }
 
@@ -258,7 +257,6 @@ class Remangler {
     }
     default: {
       OutputBuffer errorTypeOut;
-      initializeOutputBuffer(nullptr, nullptr, errorTypeOut, 1024);
       errorTypeOut << "Unhandled name : ";
       nameNode->print(errorTypeOut);
       errorTypeOut << "\n";
@@ -429,7 +427,6 @@ class Remangler {
     }
     default: {
       OutputBuffer errorTypeOut;
-      initializeOutputBuffer(nullptr, nullptr, errorTypeOut, 1024);
       errorTypeOut << "Unhandled type : ";
       typeNode->print(errorTypeOut);
       errorTypeOut << "\n";
@@ -469,7 +466,6 @@ public:
   std::string remangle() {
     Subs.clear();
     OutputBuffer remanglingStream;
-    initializeOutputBuffer(nullptr, nullptr, remanglingStream, 1024);
     remangleOpenCLCFunction(Root, remanglingStream);
     std::string remangled = std::string(remanglingStream.getBuffer(),
                                         remanglingStream.getCurrentPosition());
@@ -657,6 +653,15 @@ int main(int argc, const char **argv) {
   std::unique_ptr<llvm::Module> M =
       ExitOnErr(parseBitcodeFile(BufferPtr.get()->getMemBufferRef(), Context));
 
+  // This module is built explicitly for linking with any .bc compiled with the
+  // "nvptx64-nvidia-cuda" (CUDA) or "amdgcn-amd-amdhsa" (HIP AMD) triples.
+  // Therefore we update the module triple.
+  if (M.get()->getTargetTriple() == "nvptx64-unknown-nvidiacl") {
+    M.get()->setTargetTriple("nvptx64-nvidia-cuda");
+  }
+  else if (M.get()->getTargetTriple() == "amdgcn-unknown-amdhsa") {
+    M.get()->setTargetTriple("amdgcn-amd-amdhsa");
+  }
   std::error_code EC;
   std::unique_ptr<ToolOutputFile> Out(
       new ToolOutputFile(OutputFilename, EC, sys::fs::OF_None));

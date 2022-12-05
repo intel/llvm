@@ -18,6 +18,7 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Casting.h"
+#include <optional>
 
 namespace llvm {
 namespace detail {
@@ -72,8 +73,8 @@ protected:
   template <typename CastT, typename ValueT>
   static auto castValue(
       ValueT value,
-      typename std::enable_if_t<
-          is_detected<has_dyn_cast_t, ValueT, CastT>::value> * = nullptr) {
+      std::enable_if_t<is_detected<has_dyn_cast_t, ValueT, CastT>::value> * =
+          nullptr) {
     return value.template dyn_cast<CastT>();
   }
 
@@ -82,8 +83,8 @@ protected:
   template <typename CastT, typename ValueT>
   static auto castValue(
       ValueT value,
-      typename std::enable_if_t<
-          !is_detected<has_dyn_cast_t, ValueT, CastT>::value> * = nullptr) {
+      std::enable_if_t<!is_detected<has_dyn_cast_t, ValueT, CastT>::value> * =
+          nullptr) {
     return dyn_cast<CastT>(value);
   }
 
@@ -125,20 +126,19 @@ public:
 
   /// As a default, invoke the given callable within the root value.
   template <typename CallableT>
-  LLVM_NODISCARD ResultT Default(CallableT &&defaultFn) {
+  [[nodiscard]] ResultT Default(CallableT &&defaultFn) {
     if (result)
       return std::move(*result);
     return defaultFn(this->value);
   }
   /// As a default, return the given value.
-  LLVM_NODISCARD ResultT Default(ResultT defaultResult) {
+  [[nodiscard]] ResultT Default(ResultT defaultResult) {
     if (result)
       return std::move(*result);
     return defaultResult;
   }
 
-  LLVM_NODISCARD
-  operator ResultT() {
+  [[nodiscard]] operator ResultT() {
     assert(result && "Fell off the end of a type-switch");
     return std::move(*result);
   }
@@ -146,7 +146,7 @@ public:
 private:
   /// The pointer to the result of this switch statement, once known,
   /// null before that.
-  Optional<ResultT> result;
+  std::optional<ResultT> result;
 };
 
 /// Specialization of TypeSwitch for void returning callables.

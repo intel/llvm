@@ -49,6 +49,7 @@
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils.h"
 #include <cassert>
+#include <optional>
 #include <string>
 
 using namespace llvm;
@@ -548,7 +549,7 @@ static void registerPartialPipelineCallback(PassInstrumentationCallbacks &PIC,
 
   PIC.registerShouldRunOptionalPassCallback(
       [=, EnableCurrent = StartBefore.empty() && StartAfter.empty(),
-       EnableNext = Optional<bool>(), StartBeforeCount = 0u,
+       EnableNext = std::optional<bool>(), StartBeforeCount = 0u,
        StartAfterCount = 0u, StopBeforeCount = 0u,
        StopAfterCount = 0u](StringRef P, Any) mutable {
         bool StartBeforePass = !StartBefore.empty() && P.contains(StartBefore);
@@ -960,7 +961,7 @@ void TargetPassConfig::addPassesToHandleExceptions() {
     // pad is shared by multiple invokes and is also a target of a normal
     // edge from elsewhere.
     addPass(createSjLjEHPreparePass(TM));
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case ExceptionHandling::DwarfCFI:
   case ExceptionHandling::ARM:
   case ExceptionHandling::AIX:
@@ -1113,6 +1114,7 @@ bool TargetPassConfig::addISelPasses() {
 
   addPass(createPreISelIntrinsicLoweringPass());
   PM->add(createTargetTransformInfoWrapperPass(TM->getTargetIRAnalysis()));
+  addPass(createExpandLargeDivRemPass());
   addIRPasses();
   addCodeGenPrepare();
   addPassesToHandleExceptions();
@@ -1403,6 +1405,11 @@ FunctionPass *TargetPassConfig::createRegAllocPass(bool Optimized) {
 
   // With no -regalloc= override, ask the target for a regalloc pass.
   return createTargetRegisterAllocator(Optimized);
+}
+
+bool TargetPassConfig::isCustomizedRegAlloc() {
+  return RegAlloc !=
+         (RegisterRegAlloc::FunctionPassCtor)&useDefaultRegisterAllocator;
 }
 
 bool TargetPassConfig::addRegAssignAndRewriteFast() {

@@ -147,10 +147,10 @@
 // RUN:    | FileCheck -check-prefix CHECK_SECTION %s
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu %S/Inputs/SYCL/liblin64.a %s 2>&1 \
 // RUN:    | FileCheck -check-prefix NO_CHECK_SECTION %s
-// CHECK_SECTION: clang-offload-bundler{{.*}} "-type=ao" "-targets=host-x86_64-unknown-linux-gnu"{{.*}} "-check-section"
-// CHECK_SECTION: clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocr-intel-unknown"{{.*}} "-check-section"
-// CHECK_SECTION: clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocx-intel-unknown"{{.*}} "-check-section"
-// CHECK_SECTION: clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocr_emu-intel-unknown"{{.*}} "-check-section"
+// CHECK_SECTION: {{(/|\\)}}clang-offload-bundler{{.*}} "-type=ao" "-targets=host-x86_64-unknown-linux-gnu"{{.*}} "-check-section"
+// CHECK_SECTION: {{(/|\\)}}clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocr-intel-unknown"{{.*}} "-check-section"
+// CHECK_SECTION: {{(/|\\)}}clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocx-intel-unknown"{{.*}} "-check-section"
+// CHECK_SECTION: {{(/|\\)}}clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocr_emu-intel-unknown"{{.*}} "-check-section"
 // NO_CHECK_SECTION-NOT: clang-offload-bundler{{.*}} "-type=ao" "-targets=host-x86_64-unknown-linux-gnu"{{.*}} "-check-section"
 // NO_CHECK_SECTION-NOT: clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocr-intel-unknown"{{.*}} "-check-section"
 // NO_CHECK_SECTION-NOT: clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocx-intel-unknown"{{.*}} "-check-section"

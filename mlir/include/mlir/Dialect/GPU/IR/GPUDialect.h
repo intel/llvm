@@ -22,8 +22,10 @@
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/SymbolTable.h"
+#include "mlir/Interfaces/InferIntRangeInterface.h"
 #include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
+#include "llvm/ADT/STLExtras.h"
 
 namespace mlir {
 namespace gpu {
@@ -169,6 +171,8 @@ void addAsyncDependency(Operation *op, Value token);
 #include "mlir/Dialect/GPU/IR/GPUOpsDialect.h.inc"
 
 #include "mlir/Dialect/GPU/IR/GPUOpInterfaces.h.inc"
+
+#include "mlir/Dialect/SCF/IR/DeviceMappingInterface.h"
 
 #define GET_ATTRDEF_CLASSES
 #include "mlir/Dialect/GPU/IR/GPUOpsAttributes.h.inc"

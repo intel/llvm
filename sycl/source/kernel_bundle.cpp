@@ -8,11 +8,12 @@
 
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_id_impl.hpp>
+#include <detail/program_manager/program_manager.hpp>
 
 #include <set>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 kernel_id::kernel_id(const char *Name)
     : impl(std::make_shared<detail::kernel_id_impl>(Name)) {}
@@ -113,6 +114,19 @@ bool kernel_bundle_plain::is_specialization_constant_set(
 ///// sycl::detail free functions
 //////////////////////////////////
 
+const std::vector<device>
+removeDuplicateDevices(const std::vector<device> &Devs) {
+  std::vector<device> UniqueDevices;
+
+  // Building a new vector with unique elements and keep original order
+  std::unordered_set<device> UniqueDeviceSet;
+  for (const device &Dev : Devs)
+    if (UniqueDeviceSet.insert(Dev).second)
+      UniqueDevices.push_back(Dev);
+
+  return UniqueDevices;
+}
+
 kernel_id get_kernel_id_impl(std::string KernelName) {
   return detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
 }
@@ -142,12 +156,6 @@ detail::KernelBundleImplPtr
 get_empty_interop_kernel_bundle_impl(const context &Ctx,
                                      const std::vector<device> &Devs) {
   return std::make_shared<detail::kernel_bundle_impl>(Ctx, Devs);
-}
-
-std::shared_ptr<detail::kernel_bundle_impl>
-join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles) {
-  return std::make_shared<detail::kernel_bundle_impl>(Bundles,
-                                                      bundle_state::input);
 }
 
 std::shared_ptr<detail::kernel_bundle_impl>
@@ -287,5 +295,33 @@ std::vector<kernel_id> get_kernel_ids() {
   return detail::ProgramManager::getInstance().getAllSYCLKernelIDs();
 }
 
+bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
+  for (const auto &KernelId : KernelIDs) {
+    const detail::RTDeviceBinaryImage &Img =
+        detail::ProgramManager::getInstance().getDeviceImage(
+            detail::OSUtil::ExeModuleHandle, KernelId.get_name(), context(Dev),
+            Dev);
+    const detail::RTDeviceBinaryImage::PropertyRange &ARange =
+        Img.getDeviceRequirements();
+    for (detail::RTDeviceBinaryImage::PropertyRange::ConstIterator It :
+         ARange) {
+      using namespace std::literals;
+      if ((*It)->Name != "aspects"sv)
+        continue;
+      detail::ByteArray Aspects =
+          detail::DeviceBinaryProperty(*It).asByteArray();
+      // Drop 8 bytes describing the size of the byte array
+      Aspects.dropBytes(8);
+      while (!Aspects.empty()) {
+        aspect Aspect = Aspects.consume<aspect>();
+        if (!Dev.has(Aspect))
+          return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

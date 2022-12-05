@@ -8,7 +8,7 @@
 
 #include "device_math.h"
 
-#ifdef __SPIR__
+#if defined(__SPIR__) || defined(__NVPTX__)
 
 DEVICE_EXTERN_C_INLINE
 int abs(int x) { return __devicelib_abs(x); }
@@ -147,4 +147,4 @@ float asinhf(float x) { return __devicelib_asinhf(x); }
 
 DEVICE_EXTERN_C_INLINE
 float atanhf(float x) { return __devicelib_atanhf(x); }
-#endif // __SPIR__
+#endif // __SPIR__ || __NVPTX__

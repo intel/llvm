@@ -1,4 +1,4 @@
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -spirv-text -o %t.txt
 ; RUN: FileCheck < %t.txt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
@@ -43,14 +43,14 @@ entry:
 ; Function Attrs: nounwind
 declare spir_func float @_Z11read_imagef20ocl_image2d_depth_ro11ocl_samplerDv2_i(%opencl.image2d_depth_ro_t addrspace(1)*, i32, <2 x i32>) #0
 
-; Function Attrs: nounwind readnone
+; Function Attrs: nounwind
 declare spir_func i32 @_Z13get_global_idj(i32) #1
 
 ; Function Attrs: nounwind
 declare spir_func <2 x i32> @_Z13get_image_dim20ocl_image2d_depth_ro(%opencl.image2d_depth_ro_t addrspace(1)*) #0
 
 attributes #0 = { nounwind }
-attributes #1 = { nounwind readnone }
+attributes #1 = { nounwind }
 
 !opencl.enable.FP_CONTRACT = !{}
 !opencl.spir.version = !{!6}

@@ -1,7 +1,7 @@
 // The purpose of this test is to check that the following code can be
 // successfully compiled
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 int main() {
   sycl::half x;

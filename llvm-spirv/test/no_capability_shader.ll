@@ -1,6 +1,6 @@
 ;__kernel void sample_test(read_only image2d_t src, read_only image1d_buffer_t buff){}
 
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -spirv-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv

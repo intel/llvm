@@ -301,7 +301,7 @@ bool AMDGPUTargetAsmStreamer::EmitCodeEnd(const MCSubtargetInfo &STI) {
   uint32_t Encoded_pad = Encoded_s_code_end;
 
   // Instruction cache line size in bytes.
-  const unsigned Log2CacheLineSize = 6;
+  const unsigned Log2CacheLineSize = AMDGPU::isGFX11Plus(STI) ? 7 : 6;
   const unsigned CacheLineSize = 1u << Log2CacheLineSize;
 
   // Extra padding amount in bytes to support prefetch mode 3.
@@ -367,6 +367,9 @@ void AMDGPUTargetAsmStreamer::EmitAmdhsaKernelDescriptor(
     PRINT_FIELD(OS, ".amdhsa_wavefront_size32", KD,
                 kernel_code_properties,
                 amdhsa::KERNEL_CODE_PROPERTY_ENABLE_WAVEFRONT_SIZE32);
+  if (AMDGPU::getAmdhsaCodeObjectVersion() >= 5)
+    PRINT_FIELD(OS, ".amdhsa_uses_dynamic_stack", KD, kernel_code_properties,
+                amdhsa::KERNEL_CODE_PROPERTY_USES_DYNAMIC_STACK);
   PRINT_FIELD(OS,
               (hasArchitectedFlatScratch(STI)
                    ? ".amdhsa_enable_private_segment"
@@ -540,9 +543,9 @@ void AMDGPUTargetELFStreamer::EmitNote(
   S.emitValue(DescSZ, 4);                                     // descz
   S.emitInt32(NoteType);                                      // type
   S.emitBytes(Name);                                          // name
-  S.emitValueToAlignment(4, 0, 1, 0);                         // padding 0
+  S.emitValueToAlignment(Align(4), 0, 1, 0);                  // padding 0
   EmitDesc(S);                                                // desc
-  S.emitValueToAlignment(4, 0, 1, 0);                         // padding 0
+  S.emitValueToAlignment(Align(4), 0, 1, 0);                  // padding 0
   S.popSection();
 }
 
@@ -824,7 +827,7 @@ bool AMDGPUTargetELFStreamer::EmitCodeEnd(const MCSubtargetInfo &STI) {
   uint32_t Encoded_pad = Encoded_s_code_end;
 
   // Instruction cache line size in bytes.
-  const unsigned Log2CacheLineSize = 6;
+  const unsigned Log2CacheLineSize = AMDGPU::isGFX11Plus(STI) ? 7 : 6;
   const unsigned CacheLineSize = 1u << Log2CacheLineSize;
 
   // Extra padding amount in bytes to support prefetch mode 3.
@@ -837,7 +840,7 @@ bool AMDGPUTargetELFStreamer::EmitCodeEnd(const MCSubtargetInfo &STI) {
 
   MCStreamer &OS = getStreamer();
   OS.pushSection();
-  OS.emitValueToAlignment(CacheLineSize, Encoded_pad, 4);
+  OS.emitValueToAlignment(Align(CacheLineSize), Encoded_pad, 4);
   for (unsigned I = 0; I < FillSize; I += 4)
     OS.emitInt32(Encoded_pad);
   OS.popSection();

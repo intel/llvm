@@ -21,48 +21,139 @@ define <2 x i16> @test_load_bitcast_select(i1 %cond1, i1 %cond2) {
 entry:
   %true = alloca half, align 2
   %false = alloca half, align 2
-  store half 0xHFFFF, half* %true, align 2
-  store half 0xH0000, half* %false, align 2
-  %false.cast = bitcast half* %false to %st.half*
-  %true.cast = bitcast half* %true to %st.half*
-  %sel1 = select i1 %cond1, %st.half* %true.cast, %st.half* %false.cast
-  %cast1 = bitcast %st.half* %sel1 to i16*
-  %ld1 = load i16, i16* %cast1, align 2
+  store half 0xHFFFF, ptr %true, align 2
+  store half 0xH0000, ptr %false, align 2
+  %sel1 = select i1 %cond1, ptr %true, ptr %false
+  %ld1 = load i16, ptr %sel1, align 2
   %v1 = insertelement <2 x i16> poison, i16 %ld1, i32 0
-  %sel2 = select i1 %cond2, %st.half* %true.cast, %st.half* %false.cast
-  %cast2 = bitcast %st.half* %sel2 to i16*
-  %ld2 = load i16, i16* %cast2, align 2
+  %sel2 = select i1 %cond2, ptr %true, ptr %false
+  %ld2 = load i16, ptr %sel2, align 2
   %v2 = insertelement <2 x i16> %v1, i16 %ld2, i32 1
   ret <2 x i16> %v2
 }
 
-%st.args = type { i32, i32* }
+%st.args = type { i32, ptr }
 
 ; A bitcasted load and a direct load of select.
 define void @test_multiple_loads_select(i1 %cmp){
 ; CHECK-LABEL: @test_multiple_loads_select(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[TMP0:%.*]] = bitcast i32* undef to i8*
-; CHECK-NEXT:    [[TMP1:%.*]] = bitcast i32* undef to i8*
-; CHECK-NEXT:    [[ADDR_I8_SROA_SPECULATED:%.*]] = select i1 [[CMP:%.*]], i8* [[TMP0]], i8* [[TMP1]]
-; CHECK-NEXT:    call void @foo_i8(i8* [[ADDR_I8_SROA_SPECULATED]])
-; CHECK-NEXT:    [[ADDR_I32_SROA_SPECULATED:%.*]] = select i1 [[CMP]], i32* undef, i32* undef
-; CHECK-NEXT:    call void @foo_i32(i32* [[ADDR_I32_SROA_SPECULATED]])
+; CHECK-NEXT:    [[ADDR_I8_SROA_SPECULATED:%.*]] = select i1 [[CMP:%.*]], ptr undef, ptr undef
+; CHECK-NEXT:    call void @foo_i8(ptr [[ADDR_I8_SROA_SPECULATED]])
+; CHECK-NEXT:    [[ADDR_I32_SROA_SPECULATED:%.*]] = select i1 [[CMP]], ptr undef, ptr undef
+; CHECK-NEXT:    call void @foo_i32(ptr [[ADDR_I32_SROA_SPECULATED]])
 ; CHECK-NEXT:    ret void
 ;
 entry:
   %args = alloca [2 x %st.args], align 16
-  %arr0 = getelementptr inbounds [2 x %st.args], [2 x %st.args]* %args, i64 0, i64 0
-  %arr1 = getelementptr inbounds [2 x %st.args], [2 x %st.args]* %args, i64 0, i64 1
-  %sel = select i1 %cmp, %st.args* %arr1, %st.args* %arr0
-  %addr = getelementptr inbounds %st.args, %st.args* %sel, i64 0, i32 1
-  %bcast.i8 = bitcast i32** %addr to i8**
-  %addr.i8 = load i8*, i8** %bcast.i8, align 8
-  call void @foo_i8(i8* %addr.i8)
-  %addr.i32 = load i32*, i32** %addr, align 8
-  call void @foo_i32 (i32* %addr.i32)
+  %arr1 = getelementptr inbounds [2 x %st.args], ptr %args, i64 0, i64 1
+  %sel = select i1 %cmp, ptr %arr1, ptr %args
+  %addr = getelementptr inbounds %st.args, ptr %sel, i64 0, i32 1
+  %addr.i8 = load ptr, ptr %addr, align 8
+  call void @foo_i8(ptr %addr.i8)
+  %addr.i32 = load ptr, ptr %addr, align 8
+  call void @foo_i32 (ptr %addr.i32)
   ret void
 }
 
-declare void @foo_i8(i8*)
-declare void @foo_i32(i32*)
+declare void @foo_i8(ptr)
+declare void @foo_i32(ptr)
+
+; Lifetime intrinsics should not prevent dereferenceability inferrence.
+define i32 @interfering_lifetime(ptr %data, i64 %indvars.iv) {
+; CHECK-LABEL: @interfering_lifetime(
+; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds i32, ptr [[DATA:%.*]], i64 [[INDVARS_IV:%.*]]
+; CHECK-NEXT:    [[I1:%.*]] = load i32, ptr [[ARRAYIDX]], align 4
+; CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp slt i32 [[I1]], 0
+; CHECK-NEXT:    [[I3_SROA_SPECULATE_LOAD_FALSE:%.*]] = load i32, ptr [[ARRAYIDX]], align 4
+; CHECK-NEXT:    [[I3_SROA_SPECULATED:%.*]] = select i1 [[CMP_I_I]], i32 0, i32 [[I3_SROA_SPECULATE_LOAD_FALSE]]
+; CHECK-NEXT:    ret i32 [[I3_SROA_SPECULATED]]
+;
+  %min = alloca i32, align 4
+  %arrayidx = getelementptr inbounds i32, ptr %data, i64 %indvars.iv
+  %i1 = load i32, ptr %arrayidx, align 4
+  call void @llvm.lifetime.start.p0(i64 4, ptr %min)
+  store i32 0, ptr %min, align 4
+  %cmp.i.i = icmp slt i32 %i1, 0
+  %__b.__a.i.i = select i1 %cmp.i.i, ptr %min, ptr %arrayidx
+  %i3 = load i32, ptr %__b.__a.i.i, align 4
+  ret i32 %i3
+}
+
+; We should recursively evaluate select's.
+define i32 @clamp_load_to_constant_range(ptr %data, i64 %indvars.iv) {
+; CHECK-LABEL: @clamp_load_to_constant_range(
+; CHECK-NEXT:    [[MIN:%.*]] = alloca i32, align 4
+; CHECK-NEXT:    [[MAX:%.*]] = alloca i32, align 4
+; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds i32, ptr [[DATA:%.*]], i64 [[INDVARS_IV:%.*]]
+; CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 4, ptr [[MIN]])
+; CHECK-NEXT:    store i32 0, ptr [[MIN]], align 4
+; CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 4, ptr [[MAX]])
+; CHECK-NEXT:    store i32 4095, ptr [[MAX]], align 4
+; CHECK-NEXT:    [[I1:%.*]] = load i32, ptr [[ARRAYIDX]], align 4
+; CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp slt i32 [[I1]], 0
+; CHECK-NEXT:    [[I2:%.*]] = tail call i32 @llvm.smax.i32(i32 [[I1]], i32 0)
+; CHECK-NEXT:    [[__B___A_I_I:%.*]] = select i1 [[CMP_I_I]], ptr [[MIN]], ptr [[ARRAYIDX]]
+; CHECK-NEXT:    [[CMP_I1_I:%.*]] = icmp ugt i32 [[I2]], 4095
+; CHECK-NEXT:    [[__B___A_I2_I:%.*]] = select i1 [[CMP_I1_I]], ptr [[MAX]], ptr [[__B___A_I_I]]
+; CHECK-NEXT:    [[I3:%.*]] = load i32, ptr [[__B___A_I2_I]], align 4
+; CHECK-NEXT:    ret i32 [[I3]]
+;
+  %min = alloca i32, align 4
+  %max = alloca i32, align 4
+  %arrayidx = getelementptr inbounds i32, ptr %data, i64 %indvars.iv
+  call void @llvm.lifetime.start.p0(i64 4, ptr %min)
+  store i32 0, ptr %min, align 4
+  call void @llvm.lifetime.start.p0(i64 4, ptr %max)
+  store i32 4095, ptr %max, align 4
+  %i1 = load i32, ptr %arrayidx, align 4
+  %cmp.i.i = icmp slt i32 %i1, 0
+  %i2 = tail call i32 @llvm.smax.i32(i32 %i1, i32 0)
+  %__b.__a.i.i = select i1 %cmp.i.i, ptr %min, ptr %arrayidx
+  %cmp.i1.i = icmp ugt i32 %i2, 4095
+  %__b.__a.i2.i = select i1 %cmp.i1.i, ptr %max, ptr %__b.__a.i.i
+  %i3 = load i32, ptr %__b.__a.i2.i, align 4
+  ret i32 %i3
+}
+
+define i32 @non_speculatable_load_of_select(i1 %cond, ptr %data) {
+; CHECK-LABEL: @non_speculatable_load_of_select(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[MIN:%.*]] = alloca i32, align 4
+; CHECK-NEXT:    store i32 0, ptr [[MIN]], align 4
+; CHECK-NEXT:    [[ADDR:%.*]] = select i1 [[COND:%.*]], ptr [[MIN]], ptr [[DATA:%.*]], !prof [[PROF0:![0-9]+]]
+; CHECK-NEXT:    [[R:%.*]] = load i32, ptr [[ADDR]], align 4
+; CHECK-NEXT:    ret i32 [[R]]
+;
+entry:
+  %min = alloca i32, align 4
+  store i32 0, ptr %min, align 4
+  %addr = select i1 %cond, ptr %min, ptr %data, !prof !0
+  %r = load i32, ptr %addr, align 4
+  ret i32 %r
+}
+define i32 @non_speculatable_load_of_select_inverted(i1 %cond, ptr %data) {
+; CHECK-LABEL: @non_speculatable_load_of_select_inverted(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[MAX:%.*]] = alloca i32, align 4
+; CHECK-NEXT:    store i32 4095, ptr [[MAX]], align 4
+; CHECK-NEXT:    [[ADDR:%.*]] = select i1 [[COND:%.*]], ptr [[DATA:%.*]], ptr [[MAX]], !prof [[PROF0]]
+; CHECK-NEXT:    [[R:%.*]] = load i32, ptr [[ADDR]], align 4
+; CHECK-NEXT:    ret i32 [[R]]
+;
+entry:
+  %max = alloca i32, align 4
+  store i32 4095, ptr %max, align 4
+  %addr = select i1 %cond, ptr %data, ptr %max, !prof !0
+  %r = load i32, ptr %addr, align 4
+  ret i32 %r
+}
+
+!0  = !{!"branch_weights", i32 1,  i32 99}
+
+; Ensure that the branch metadata is reversed to match the reversals above.
+; CHECK: !0 = {{.*}} i32 1, i32 99}
+
+declare void @llvm.lifetime.start.p0(i64, ptr )
+declare void @llvm.lifetime.end.p0(i64, ptr)
+declare i32 @llvm.smax.i32(i32, i32)

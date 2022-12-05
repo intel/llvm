@@ -23,6 +23,7 @@
 #include "llvm/Support/AMDHSAKernelDescriptor.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/TargetParser.h"
+#include <optional>
 
 #define GET_INSTRINFO_NAMED_OPS
 #define GET_INSTRMAP_INFO
@@ -268,6 +269,27 @@ struct VOPInfo {
   bool IsSingle;
 };
 
+struct VOPC64DPPInfo {
+  uint16_t Opcode;
+};
+
+struct VOPDComponentInfo {
+  uint16_t BaseVOP;
+  uint16_t VOPDOp;
+  bool CanBeVOPDX;
+};
+
+struct VOPDInfo {
+  uint16_t Opcode;
+  uint16_t OpX;
+  uint16_t OpY;
+};
+
+struct VOPTrue16Info {
+  uint16_t Opcode;
+  bool IsTrue16;
+};
+
 #define GET_MTBUFInfoTable_DECL
 #define GET_MTBUFInfoTable_IMPL
 #define GET_MUBUFInfoTable_DECL
@@ -280,6 +302,20 @@ struct VOPInfo {
 #define GET_VOP2InfoTable_IMPL
 #define GET_VOP3InfoTable_DECL
 #define GET_VOP3InfoTable_IMPL
+#define GET_VOPC64DPPTable_DECL
+#define GET_VOPC64DPPTable_IMPL
+#define GET_VOPC64DPP8Table_DECL
+#define GET_VOPC64DPP8Table_IMPL
+#define GET_VOPDComponentTable_DECL
+#define GET_VOPDComponentTable_IMPL
+#define GET_VOPDPairs_DECL
+#define GET_VOPDPairs_IMPL
+#define GET_VOPTrue16Table_DECL
+#define GET_VOPTrue16Table_IMPL
+#define GET_WMMAOpcode2AddrMappingTable_DECL
+#define GET_WMMAOpcode2AddrMappingTable_IMPL
+#define GET_WMMAOpcode3AddrMappingTable_DECL
+#define GET_WMMAOpcode3AddrMappingTable_IMPL
 #include "AMDGPUGenSearchableTables.inc"
 
 int getMTBUFBaseOpcode(unsigned Opc) {
@@ -367,6 +403,10 @@ bool getVOP3IsSingle(unsigned Opc) {
   return Info ? Info->IsSingle : false;
 }
 
+bool isVOPC64DPP(unsigned Opc) {
+  return isVOPC64DPPOpcodeHelper(Opc) || isVOPC64DPP8OpcodeHelper(Opc);
+}
+
 bool getMAIIsDGEMM(unsigned Opc) {
   const MAIInstInfo *Info = getMAIInstInfoHelper(Opc);
   return Info ? Info->is_dgemm : false;
@@ -377,11 +417,155 @@ bool getMAIIsGFX940XDL(unsigned Opc) {
   return Info ? Info->is_gfx940_xdl : false;
 }
 
+CanBeVOPD getCanBeVOPD(unsigned Opc) {
+  const VOPDComponentInfo *Info = getVOPDComponentHelper(Opc);
+  if (Info)
+    return {Info->CanBeVOPDX, true};
+  else
+    return {false, false};
+}
+
+unsigned getVOPDOpcode(unsigned Opc) {
+  const VOPDComponentInfo *Info = getVOPDComponentHelper(Opc);
+  return Info ? Info->VOPDOp : ~0u;
+}
+
+bool isVOPD(unsigned Opc) {
+  return AMDGPU::hasNamedOperand(Opc, AMDGPU::OpName::src0X);
+}
+
+bool isTrue16Inst(unsigned Opc) {
+  const VOPTrue16Info *Info = getTrue16OpcodeHelper(Opc);
+  return Info ? Info->IsTrue16 : false;
+}
+
+unsigned mapWMMA2AddrTo3AddrOpcode(unsigned Opc) {
+  const WMMAOpcodeMappingInfo *Info = getWMMAMappingInfoFrom2AddrOpcode(Opc);
+  return Info ? Info->Opcode3Addr : ~0u;
+}
+
+unsigned mapWMMA3AddrTo2AddrOpcode(unsigned Opc) {
+  const WMMAOpcodeMappingInfo *Info = getWMMAMappingInfoFrom3AddrOpcode(Opc);
+  return Info ? Info->Opcode2Addr : ~0u;
+}
+
 // Wrapper for Tablegen'd function.  enum Subtarget is not defined in any
 // header files, so we need to wrap it in a function that takes unsigned
 // instead.
 int getMCOpcode(uint16_t Opcode, unsigned Gen) {
   return getMCOpcodeGen(Opcode, static_cast<Subtarget>(Gen));
+}
+
+int getVOPDFull(unsigned OpX, unsigned OpY) {
+  const VOPDInfo *Info = getVOPDInfoFromComponentOpcodes(OpX, OpY);
+  return Info ? Info->Opcode : -1;
+}
+
+std::pair<unsigned, unsigned> getVOPDComponents(unsigned VOPDOpcode) {
+  const VOPDInfo *Info = getVOPDOpcodeHelper(VOPDOpcode);
+  assert(Info);
+  auto OpX = getVOPDBaseFromComponent(Info->OpX);
+  auto OpY = getVOPDBaseFromComponent(Info->OpY);
+  assert(OpX && OpY);
+  return {OpX->BaseVOP, OpY->BaseVOP};
+}
+
+namespace VOPD {
+
+ComponentProps::ComponentProps(const MCInstrDesc &OpDesc) {
+  assert(OpDesc.getNumDefs() == Component::DST_NUM);
+
+  assert(OpDesc.getOperandConstraint(Component::SRC0, MCOI::TIED_TO) == -1);
+  assert(OpDesc.getOperandConstraint(Component::SRC1, MCOI::TIED_TO) == -1);
+  auto TiedIdx = OpDesc.getOperandConstraint(Component::SRC2, MCOI::TIED_TO);
+  assert(TiedIdx == -1 || TiedIdx == Component::DST);
+  HasSrc2Acc = TiedIdx != -1;
+
+  SrcOperandsNum = OpDesc.getNumOperands() - OpDesc.getNumDefs();
+  assert(SrcOperandsNum <= Component::MAX_SRC_NUM);
+
+  auto OperandsNum = OpDesc.getNumOperands();
+  unsigned CompOprIdx;
+  for (CompOprIdx = Component::SRC1; CompOprIdx < OperandsNum; ++CompOprIdx) {
+    if (OpDesc.OpInfo[CompOprIdx].OperandType == AMDGPU::OPERAND_KIMM32) {
+      MandatoryLiteralIdx = CompOprIdx;
+      break;
+    }
+  }
+}
+
+unsigned ComponentInfo::getIndexInParsedOperands(unsigned CompOprIdx) const {
+  assert(CompOprIdx < Component::MAX_OPR_NUM);
+
+  if (CompOprIdx == Component::DST)
+    return getIndexOfDstInParsedOperands();
+
+  auto CompSrcIdx = CompOprIdx - Component::DST_NUM;
+  if (CompSrcIdx < getCompParsedSrcOperandsNum())
+    return getIndexOfSrcInParsedOperands(CompSrcIdx);
+
+  // The specified operand does not exist.
+  return 0;
+}
+
+Optional<unsigned> InstInfo::getInvalidCompOperandIndex(
+    std::function<unsigned(unsigned, unsigned)> GetRegIdx) const {
+
+  auto OpXRegs = getRegIndices(ComponentIndex::X, GetRegIdx);
+  auto OpYRegs = getRegIndices(ComponentIndex::Y, GetRegIdx);
+
+  unsigned CompOprIdx;
+  for (CompOprIdx = 0; CompOprIdx < Component::MAX_OPR_NUM; ++CompOprIdx) {
+    unsigned BanksNum = BANKS_NUM[CompOprIdx];
+    if (OpXRegs[CompOprIdx] && OpYRegs[CompOprIdx] &&
+        (OpXRegs[CompOprIdx] % BanksNum == OpYRegs[CompOprIdx] % BanksNum))
+      return CompOprIdx;
+  }
+
+  return {};
+}
+
+// Return an array of VGPR registers [DST,SRC0,SRC1,SRC2] used
+// by the specified component. If an operand is unused
+// or is not a VGPR, the corresponding value is 0.
+//
+// GetRegIdx(Component, MCOperandIdx) must return a VGPR register index
+// for the specified component and MC operand. The callback must return 0
+// if the operand is not a register or not a VGPR.
+InstInfo::RegIndices InstInfo::getRegIndices(
+    unsigned CompIdx,
+    std::function<unsigned(unsigned, unsigned)> GetRegIdx) const {
+  assert(CompIdx < COMPONENTS_NUM);
+
+  const auto &Comp = CompInfo[CompIdx];
+  InstInfo::RegIndices RegIndices;
+
+  RegIndices[DST] = GetRegIdx(CompIdx, Comp.getIndexOfDstInMCOperands());
+
+  for (unsigned CompOprIdx : {SRC0, SRC1, SRC2}) {
+    unsigned CompSrcIdx = CompOprIdx - DST_NUM;
+    RegIndices[CompOprIdx] =
+        Comp.hasRegSrcOperand(CompSrcIdx)
+            ? GetRegIdx(CompIdx, Comp.getIndexOfSrcInMCOperands(CompSrcIdx))
+            : 0;
+  }
+  return RegIndices;
+}
+
+} // namespace VOPD
+
+VOPD::InstInfo getVOPDInstInfo(const MCInstrDesc &OpX, const MCInstrDesc &OpY) {
+  return VOPD::InstInfo(OpX, OpY);
+}
+
+VOPD::InstInfo getVOPDInstInfo(unsigned VOPDOpcode,
+                               const MCInstrInfo *InstrInfo) {
+  auto [OpX, OpY] = getVOPDComponents(VOPDOpcode);
+  const auto &OpXDesc = InstrInfo->get(OpX);
+  const auto &OpYDesc = InstrInfo->get(OpY);
+  VOPD::ComponentInfo OpXInfo(OpXDesc, VOPD::ComponentKind::COMPONENT_X);
+  VOPD::ComponentInfo OpYInfo(OpYDesc, OpXInfo);
+  return VOPD::InstInfo(OpXInfo, OpYInfo);
 }
 
 namespace IsaInfo {
@@ -400,8 +584,8 @@ void AMDGPUTargetID::setTargetIDFromFeaturesString(StringRef FS) {
   // absence of the target features we assume we must generate code that can run
   // in any environment.
   SubtargetFeatures Features(FS);
-  Optional<bool> XnackRequested;
-  Optional<bool> SramEccRequested;
+  std::optional<bool> XnackRequested;
+  std::optional<bool> SramEccRequested;
 
   for (const std::string &Feature : Features.getFeatures()) {
     if (Feature == "+xnack")
@@ -768,6 +952,9 @@ unsigned getVGPRAllocGranule(const MCSubtargetInfo *STI,
       *EnableWavefrontSize32 :
       STI->getFeatureBits().test(FeatureWavefrontSize32);
 
+  if (STI->getFeatureBits().test(FeatureGFX11FullVGPRs))
+    return IsWave32 ? 24 : 12;
+
   if (hasGFX10_3Insts(*STI))
     return IsWave32 ? 16 : 8;
 
@@ -791,7 +978,10 @@ unsigned getTotalNumVGPRs(const MCSubtargetInfo *STI) {
     return 512;
   if (!isGFX10Plus(*STI))
     return 256;
-  return STI->getFeatureBits().test(FeatureWavefrontSize32) ? 1024 : 512;
+  bool IsWave32 = STI->getFeatureBits().test(FeatureWavefrontSize32);
+  if (STI->getFeatureBits().test(FeatureGFX11FullVGPRs))
+    return IsWave32 ? 1536 : 768;
+  return IsWave32 ? 1024 : 512;
 }
 
 unsigned getAddressableNumVGPRs(const MCSubtargetInfo *STI) {
@@ -1755,6 +1945,10 @@ bool hasArchitectedFlatScratch(const MCSubtargetInfo &STI) {
 
 bool hasMAIInsts(const MCSubtargetInfo &STI) {
   return STI.getFeatureBits()[AMDGPU::FeatureMAIInsts];
+}
+
+bool hasVOPD(const MCSubtargetInfo &STI) {
+  return STI.getFeatureBits()[AMDGPU::FeatureVOPD];
 }
 
 int32_t getTotalNumVGPRs(bool has90AInsts, int32_t ArgNumAGPR,

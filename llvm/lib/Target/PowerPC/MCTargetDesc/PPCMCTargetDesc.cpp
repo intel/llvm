@@ -48,6 +48,7 @@
 using namespace llvm;
 
 #define GET_INSTRINFO_MC_DESC
+#define ENABLE_INSTR_PREDICATE_VERIFIER
 #include "PPCGenInstrInfo.inc"
 
 #define GET_SUBTARGETINFO_MC_DESC
@@ -195,7 +196,7 @@ public:
   void emitTCEntry(const MCSymbol &S,
                    MCSymbolRefExpr::VariantKind Kind) override {
     // Creates a R_PPC64_TOC relocation
-    Streamer.emitValueToAlignment(8);
+    Streamer.emitValueToAlignment(Align(8));
     Streamer.emitSymbolValue(&S, 8);
   }
 
@@ -288,7 +289,7 @@ private:
     case 16:
     case 32:
     case 64:
-      return (int)Log2(Offset) << (int)ELF::STO_PPC64_LOCAL_BIT;
+      return Log2_32(Offset) << ELF::STO_PPC64_LOCAL_BIT;
     }
   }
 };
@@ -324,7 +325,7 @@ public:
                    MCSymbolRefExpr::VariantKind Kind) override {
     const MCAsmInfo *MAI = Streamer.getContext().getAsmInfo();
     const unsigned PointerSize = MAI->getCodePointerSize();
-    Streamer.emitValueToAlignment(PointerSize);
+    Streamer.emitValueToAlignment(Align(PointerSize));
     Streamer.emitValue(MCSymbolRefExpr::create(&S, Kind, Streamer.getContext()),
                        PointerSize);
   }

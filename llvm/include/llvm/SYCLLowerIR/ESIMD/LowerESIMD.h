@@ -69,6 +69,17 @@ private:
 ModulePass *createESIMDLowerVecArgPass();
 void initializeESIMDLowerVecArgLegacyPassPass(PassRegistry &);
 
+// - Converts simd* function parameters and return values passed by pointer to
+// pass-by-value
+//   (where possible)
+// - Converts globals of type simd* to simd::raw_vector_t* globals (llvm vector
+// type pointer)
+class ESIMDOptimizeVecArgCallConvPass
+    : public PassInfoMixin<ESIMDOptimizeVecArgCallConvPass> {
+public:
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
+};
+
 // Lowers calls to __esimd_set_kernel_properties
 class SYCLLowerESIMDKernelPropsPass
     : public PassInfoMixin<SYCLLowerESIMDKernelPropsPass> {
@@ -76,6 +87,12 @@ public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 };
 
+// Fixes ESIMD Kernel attributes for wrapper functions for ESIMD kernels
+class SYCLFixupESIMDKernelWrapperMDPass
+    : public PassInfoMixin<SYCLFixupESIMDKernelWrapperMDPass> {
+public:
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
+};
 } // namespace llvm
 
 #endif // LLVM_SYCLLOWERIR_LOWERESIMD_H

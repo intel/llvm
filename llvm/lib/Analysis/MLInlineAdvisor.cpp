@@ -232,7 +232,10 @@ void MLInlineAdvisor::onSuccessfulInlining(const MLInlineAdvice &Advice,
   Function *Callee = Advice.getCallee();
   // The caller features aren't valid anymore.
   {
-    PreservedAnalyses PA = PreservedAnalyses::none();
+    PreservedAnalyses PA = PreservedAnalyses::all();
+    PA.abandon<FunctionPropertiesAnalysis>();
+    PA.abandon<DominatorTreeAnalysis>();
+    PA.abandon<LoopAnalysis>();
     FAM.invalidate(*Caller, PA);
   }
   Advice.updateCachedCallerFPI(FAM);
@@ -412,8 +415,8 @@ void MLInlineAdvisor::print(raw_ostream &OS) const {
      << " EdgesOfLastSeenNodes: " << EdgesOfLastSeenNodes << "\n";
   OS << "[MLInlineAdvisor] FPI:\n";
   for (auto I : FPICache) {
-    OS << I.getFirst()->getName() << ":\n";
-    I.getSecond().print(OS);
+    OS << I.first->getName() << ":\n";
+    I.second.print(OS);
     OS << "\n";
   }
   OS << "\n";

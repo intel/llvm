@@ -1,4 +1,4 @@
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-fp-contract=on
 ; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s
 ; RUN: spirv-val %t.spv

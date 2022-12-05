@@ -31,11 +31,14 @@ constexpr size_t FileHeaderSize32 = 20;
 constexpr size_t FileHeaderSize64 = 24;
 constexpr size_t AuxFileHeaderSize32 = 72;
 constexpr size_t AuxFileHeaderSize64 = 110;
+constexpr size_t AuxFileHeaderSizeShort = 28;
 constexpr size_t SectionHeaderSize32 = 40;
 constexpr size_t SectionHeaderSize64 = 72;
 constexpr size_t SymbolTableEntrySize = 18;
 constexpr size_t RelocationSerializationSize32 = 10;
 constexpr size_t RelocationSerializationSize64 = 14;
+constexpr size_t ExceptionSectionEntrySize32 = 6;
+constexpr size_t ExceptionSectionEntrySize64 = 10;
 constexpr uint16_t RelocOverflow = 65535;
 constexpr uint8_t AllocRegNo = 31;
 

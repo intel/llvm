@@ -94,10 +94,6 @@ protected:
     RClass
   };
   enum ARMArchEnum {
-    ARMv2,
-    ARMv2a,
-    ARMv3,
-    ARMv3m,
     ARMv4,
     ARMv4t,
     ARMv5,
@@ -123,6 +119,7 @@ protected:
     ARMv86a,
     ARMv87a,
     ARMv88a,
+    ARMv89a,
     ARMv8a,
     ARMv8mBaseline,
     ARMv8mMainline,
@@ -132,6 +129,7 @@ protected:
     ARMv91a,
     ARMv92a,
     ARMv93a,
+    ARMv94a,
   };
 
 public:
@@ -430,7 +428,8 @@ public:
   }
 
   MCPhysReg getFramePointerReg() const {
-    if (isTargetDarwin() || (!isTargetWindows() && isThumb()))
+    if (isTargetDarwin() ||
+        (!isTargetWindows() && isThumb() && !createAAPCSFrameChain()))
       return ARM::R7;
     return ARM::R11;
   }

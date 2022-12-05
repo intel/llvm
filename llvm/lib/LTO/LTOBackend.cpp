@@ -40,6 +40,7 @@
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
+#include "llvm/Transforms/IPO/WholeProgramDevirt.h"
 #include "llvm/Transforms/Scalar/LoopPassManager.h"
 #include "llvm/Transforms/Utils/FunctionImportUtils.h"
 #include "llvm/Transforms/Utils/SplitModule.h"
@@ -81,17 +82,19 @@ extern cl::opt<bool> NoPGOWarnMismatch;
   exit(1);
 }
 
-Error Config::addSaveTemps(std::string OutputFileName,
-                           bool UseInputModulePath) {
+Error Config::addSaveTemps(std::string OutputFileName, bool UseInputModulePath,
+                           const DenseSet<StringRef> &SaveTempsArgs) {
   ShouldDiscardValueNames = false;
 
   std::error_code EC;
-  ResolutionFile =
-      std::make_unique<raw_fd_ostream>(OutputFileName + "resolution.txt", EC,
-                                       sys::fs::OpenFlags::OF_TextWithCRLF);
-  if (EC) {
-    ResolutionFile.reset();
-    return errorCodeToError(EC);
+  if (SaveTempsArgs.empty() || SaveTempsArgs.contains("resolution")) {
+    ResolutionFile =
+        std::make_unique<raw_fd_ostream>(OutputFileName + "resolution.txt", EC,
+                                         sys::fs::OpenFlags::OF_TextWithCRLF);
+    if (EC) {
+      ResolutionFile.reset();
+      return errorCodeToError(EC);
+    }
   }
 
   auto setHook = [&](std::string PathSuffix, ModuleHookFn &Hook) {
@@ -125,14 +128,7 @@ Error Config::addSaveTemps(std::string OutputFileName,
     };
   };
 
-  setHook("0.preopt", PreOptModuleHook);
-  setHook("1.promote", PostPromoteModuleHook);
-  setHook("2.internalize", PostInternalizeModuleHook);
-  setHook("3.import", PostImportModuleHook);
-  setHook("4.opt", PostOptModuleHook);
-  setHook("5.precodegen", PreCodeGenModuleHook);
-
-  CombinedIndexHook =
+  auto SaveCombinedIndex =
       [=](const ModuleSummaryIndex &Index,
           const DenseSet<GlobalValue::GUID> &GUIDPreservedSymbols) {
         std::string Path = OutputFileName + "index.bc";
@@ -151,6 +147,31 @@ Error Config::addSaveTemps(std::string OutputFileName,
         Index.exportToDot(OSDot, GUIDPreservedSymbols);
         return true;
       };
+
+  if (SaveTempsArgs.empty()) {
+    setHook("0.preopt", PreOptModuleHook);
+    setHook("1.promote", PostPromoteModuleHook);
+    setHook("2.internalize", PostInternalizeModuleHook);
+    setHook("3.import", PostImportModuleHook);
+    setHook("4.opt", PostOptModuleHook);
+    setHook("5.precodegen", PreCodeGenModuleHook);
+    CombinedIndexHook = SaveCombinedIndex;
+  } else {
+    if (SaveTempsArgs.contains("preopt"))
+      setHook("0.preopt", PreOptModuleHook);
+    if (SaveTempsArgs.contains("promote"))
+      setHook("1.promote", PostPromoteModuleHook);
+    if (SaveTempsArgs.contains("internalize"))
+      setHook("2.internalize", PostInternalizeModuleHook);
+    if (SaveTempsArgs.contains("import"))
+      setHook("3.import", PostImportModuleHook);
+    if (SaveTempsArgs.contains("opt"))
+      setHook("4.opt", PostOptModuleHook);
+    if (SaveTempsArgs.contains("precodegen"))
+      setHook("5.precodegen", PreCodeGenModuleHook);
+    if (SaveTempsArgs.contains("combinedindex"))
+      CombinedIndexHook = SaveCombinedIndex;
+  }
 
   return Error::success();
 }
@@ -186,7 +207,7 @@ createTargetMachine(const Config &Conf, const Target *TheTarget, Module &M) {
   for (const std::string &A : Conf.MAttrs)
     Features.AddFeature(A);
 
-  Optional<Reloc::Model> RelocModel = None;
+  Optional<Reloc::Model> RelocModel;
   if (Conf.RelocModel)
     RelocModel = *Conf.RelocModel;
   else if (M.getModuleFlag("PIC Level"))
@@ -235,7 +256,7 @@ static void runNewPMPasses(const Config &Conf, Module &Mod, TargetMachine *TM,
   ModuleAnalysisManager MAM;
 
   PassInstrumentationCallbacks PIC;
-  StandardInstrumentations SI(Conf.DebugPassManager);
+  StandardInstrumentations SI(Mod.getContext(), Conf.DebugPassManager);
   SI.registerCallbacks(PIC, &FAM);
   PassBuilder PB(TM, Conf.PTO, PGOOpt, &PIC);
 
@@ -370,7 +391,8 @@ static void codegen(const Config &Conf, TargetMachine *TM,
                          EC.message());
   }
 
-  Expected<std::unique_ptr<CachedFileStream>> StreamOrErr = AddStream(Task);
+  Expected<std::unique_ptr<CachedFileStream>> StreamOrErr =
+      AddStream(Task, Mod.getModuleIdentifier());
   if (Error Err = StreamOrErr.takeError())
     report_fatal_error(std::move(Err));
   std::unique_ptr<CachedFileStream> &Stream = *StreamOrErr;
@@ -539,6 +561,8 @@ Error lto::thinBackend(const Config &Conf, unsigned Task, AddStreamFn AddStream,
   // Set the partial sample profile ratio in the profile summary module flag of
   // the module, if applicable.
   Mod.setPartialSampleProfileRatio(CombinedIndex);
+
+  updatePublicTypeTestCalls(Mod, CombinedIndex.withWholeProgramVisibility());
 
   if (Conf.CodeGenOnly) {
     codegen(Conf, TM.get(), AddStream, Task, Mod, CombinedIndex);

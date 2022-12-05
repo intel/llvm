@@ -67,6 +67,12 @@ bool lldb_private::LLDBSwigPythonWatchpointCallbackFunction(
   return false;
 }
 
+bool lldb_private::LLDBSwigPythonFormatterCallbackFunction(
+    const char *python_function_name, const char *session_dictionary_name,
+    lldb::TypeImplSP type_impl_sp) {
+  return false;
+}
+
 bool lldb_private::LLDBSwigPythonCallTypeScript(
     const char *python_function_name, const void *session_dictionary,
     const lldb::ValueObjectSP &valobj_sp, void **pyfunct_wrapper,
@@ -263,4 +269,8 @@ bool lldb_private::LLDBSwigPythonStopHookCallHandleStop(
     void *implementor, lldb::ExecutionContextRefSP exc_ctx_sp,
     lldb::StreamSP stream) {
   return false;
+}
+
+python::PythonObject lldb_private::python::ToSWIGWrapper(const Status &status) {
+  return python::PythonObject();
 }

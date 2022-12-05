@@ -8,7 +8,7 @@
 // Tests that creating a shared library with multiple object files using joint
 // group operations does not cause conflicting definitions.
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #ifdef CASE1
 #define FNAME test1

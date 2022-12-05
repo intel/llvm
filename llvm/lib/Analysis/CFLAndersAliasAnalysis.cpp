@@ -81,6 +81,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -351,12 +352,12 @@ static bool hasWriteOnlyState(StateSet Set) {
   return (Set & StateSet(WriteOnlyStateMask)).any();
 }
 
-static Optional<InterfaceValue>
+static std::optional<InterfaceValue>
 getInterfaceValue(InstantiatedValue IValue,
                   const SmallVectorImpl<Value *> &RetVals) {
   auto Val = IValue.Val;
 
-  Optional<unsigned> Index;
+  std::optional<unsigned> Index;
   if (auto Arg = dyn_cast<Argument>(Val))
     Index = Arg->getArgNo() + 1;
   else if (is_contained(RetVals, Val))
@@ -615,7 +616,7 @@ static void initializeWorkList(std::vector<WorkListItem> &WorkList,
       auto Src = InstantiatedValue{Val, I};
       // If there's an assignment edge from X to Y, it means Y is reachable from
       // X at S3 and X is reachable from Y at S1
-      for (auto &Edge : ValueInfo.getNodeInfoAtLevel(I).Edges) {
+      for (const auto &Edge : ValueInfo.getNodeInfoAtLevel(I).Edges) {
         propagate(Edge.Other, Src, MatchState::FlowFromReadOnly, ReachSet,
                   WorkList);
         propagate(Src, Edge.Other, MatchState::FlowToWriteOnly, ReachSet,
@@ -625,7 +626,7 @@ static void initializeWorkList(std::vector<WorkListItem> &WorkList,
   }
 }
 
-static Optional<InstantiatedValue> getNodeBelow(const CFLGraph &Graph,
+static std::optional<InstantiatedValue> getNodeBelow(const CFLGraph &Graph,
                                                 InstantiatedValue V) {
   auto NodeBelow = InstantiatedValue{V.Val, V.DerefLevel + 1};
   if (Graph.getNode(NodeBelow))
@@ -831,14 +832,14 @@ CFLAndersAAResult::ensureCached(const Function &Fn) {
     scan(Fn);
     Iter = Cache.find(&Fn);
     assert(Iter != Cache.end());
-    assert(Iter->second.hasValue());
+    assert(Iter->second);
   }
   return Iter->second;
 }
 
 const AliasSummary *CFLAndersAAResult::getAliasSummary(const Function &Fn) {
   auto &FunInfo = ensureCached(Fn);
-  if (FunInfo.hasValue())
+  if (FunInfo)
     return &FunInfo->getAliasSummary();
   else
     return nullptr;

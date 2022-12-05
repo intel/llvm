@@ -12,11 +12,11 @@
 ;    }
 ;    return b;
 ;}
-; RUN: llvm-as -opaque-pointers=0 < %s | llvm-spirv -spirv-text | FileCheck %s --check-prefix=CHECK-SPIRV
-; RUN: llvm-as -opaque-pointers=0 < %s | llvm-spirv -o %t.spv
+; RUN: llvm-as < %s | llvm-spirv -spirv-text | FileCheck %s --check-prefix=CHECK-SPIRV
+; RUN: llvm-as < %s | llvm-spirv -o %t.spv
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -to-text %t.spv -o -| FileCheck %s --check-prefix=CHECK-SPIRV
-; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; XFAIL: *
 ; This is requires debug metadata update.

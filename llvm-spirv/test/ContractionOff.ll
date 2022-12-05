@@ -17,22 +17,22 @@
 ; clang -cc1 -x cl -emit-llvm -O2 -disable-llvm-passes -triple spir64 1.cl -o 1.ll
 ; opt -mem2reg 1.ll -S -o 1.o.ll
 
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv.default
 ; RUN: llvm-spirv %t.spv.default -to-text -o - | FileCheck %s --check-prefixes CHECK,CHECK-ON
 ; RUN: spirv-val %t.spv.default
 
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv.off --spirv-fp-contract=off
 ; RUN: llvm-spirv %t.spv.off -to-text -o - | FileCheck %s --check-prefixes CHECK,CHECK-OFF
 ; RUN: spirv-val %t.spv.off
 
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv.fast --spirv-fp-contract=fast
 ; RUN: llvm-spirv %t.spv.fast -to-text -o - | FileCheck %s --check-prefixes CHECK,CHECK-FAST
 ; RUN: spirv-val %t.spv.fast
 
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv.on --spirv-fp-contract=on
 ; RUN: llvm-spirv %t.spv.on -to-text -o - | FileCheck %s --check-prefixes CHECK,CHECK-ON
 ; RUN: spirv-val %t.spv.on

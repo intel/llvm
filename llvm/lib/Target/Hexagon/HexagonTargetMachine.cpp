@@ -27,7 +27,6 @@
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/Transforms/Scalar.h"
 
 using namespace llvm;
@@ -194,7 +193,7 @@ namespace llvm {
 } // end namespace llvm;
 
 static Reloc::Model getEffectiveRelocModel(Optional<Reloc::Model> RM) {
-  return RM.getValueOr(Reloc::Static);
+  return RM.value_or(Reloc::Static);
 }
 
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeHexagonTarget() {
@@ -271,19 +270,6 @@ HexagonTargetMachine::getSubtargetImpl(const Function &F) const {
     I = std::make_unique<HexagonSubtarget>(TargetTriple, CPU, FS, *this);
   }
   return I.get();
-}
-
-void HexagonTargetMachine::adjustPassManager(PassManagerBuilder &PMB) {
-  PMB.addExtension(
-    PassManagerBuilder::EP_LateLoopOptimizations,
-    [&](const PassManagerBuilder &, legacy::PassManagerBase &PM) {
-      PM.add(createHexagonLoopIdiomPass());
-    });
-  PMB.addExtension(
-      PassManagerBuilder::EP_LoopOptimizerEnd,
-      [&](const PassManagerBuilder &, legacy::PassManagerBase &PM) {
-        PM.add(createHexagonVectorLoopCarriedReuseLegacyPass());
-      });
 }
 
 void HexagonTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {

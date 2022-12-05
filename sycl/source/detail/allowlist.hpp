@@ -8,15 +8,15 @@
 
 #pragma once
 
-#include <CL/sycl/detail/defines_elementary.hpp>
-#include <CL/sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
+#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/pi.hpp>
 
 #include <map>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 using DeviceDescT = std::map<std::string, std::string>;
@@ -31,5 +31,5 @@ void applyAllowList(std::vector<RT::PiDevice> &PiDevices,
                     RT::PiPlatform PiPlatform, const plugin &Plugin);
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -1,0 +1,36 @@
+// Marked deprecated in SYCL 2020 spec
+__SYCL_PARAM_TRAITS_DEPRECATED(image_support, "deprecated in SYCL 2020, use device::has(aspect::image) instead")
+__SYCL_PARAM_TRAITS_DEPRECATED(max_constant_buffer_size,"deprecated in SYCL 2020")
+__SYCL_PARAM_TRAITS_DEPRECATED(max_constant_args,"deprecated in SYCL 2020")
+__SYCL_PARAM_TRAITS_DEPRECATED(host_unified_memory,"deprecated in SYCL 2020, use device::has() with "
+                                                    "one of the aspect::usm_* aspects instead")
+__SYCL_PARAM_TRAITS_DEPRECATED(is_endian_little,"deprecated in SYCL 2020, check the byte order of "
+                                                "the host system instead, the host and the device "
+                                                "are required to have the same byte order")
+__SYCL_PARAM_TRAITS_DEPRECATED(is_compiler_available,"deprecated in SYCL 2020, use device::has(aspect::online_compiler) instead")
+__SYCL_PARAM_TRAITS_DEPRECATED(is_linker_available, "deprecated in SYCL 2020, use device::has(aspect::online_linker) instead")
+__SYCL_PARAM_TRAITS_DEPRECATED(queue_profiling, "deprecated in SYCL 2020, use device::has(aspect::queue_profiling) instead")
+__SYCL_PARAM_TRAITS_DEPRECATED(built_in_kernels,"deprecated in SYCL 2020, use info::device::built_in_kernel_ids instead")
+__SYCL_PARAM_TRAITS_DEPRECATED(profile,"deprecated in SYCL 2020")
+// TODO Despite giving this deprecation warning, we're still yet to implement
+// info::device::aspects.
+__SYCL_PARAM_TRAITS_DEPRECATED(extensions,"deprecated in SYCL 2020, use info::device::aspects instead")
+__SYCL_PARAM_TRAITS_DEPRECATED(printf_buffer_size,"deprecated in SYCL 2020")
+__SYCL_PARAM_TRAITS_DEPRECATED(preferred_interop_user_sync,"deprecated in SYCL 2020")
+
+// Deprecated and not part of SYCL 2020 spec
+__SYCL_PARAM_TRAITS_DEPRECATED(usm_system_allocator,"use info::device::usm_system_allocations instead")
+
+//TODO:Remove when possible
+__SYCL_PARAM_TRAITS_DEPRECATED(ext_intel_pci_address,"use ext::intel::info::device::pci_address instead")
+__SYCL_PARAM_TRAITS_DEPRECATED(ext_intel_gpu_eu_count,"use ext::intel::info::device::gpu_eu_count instead")
+__SYCL_PARAM_TRAITS_DEPRECATED(ext_intel_gpu_eu_simd_width,"use ext::intel::info::device::gpu_eu_simd_width instead")
+__SYCL_PARAM_TRAITS_DEPRECATED(ext_intel_gpu_slices,"use ext::intel::info::device::gpu_slices instead")
+__SYCL_PARAM_TRAITS_DEPRECATED(ext_intel_gpu_subslices_per_slice,"use ext::intel::info::device::gpu_subslices_per_slice instead")
+__SYCL_PARAM_TRAITS_DEPRECATED(ext_intel_gpu_hw_threads_per_eu,"use ext::intel::info::device::gpu_hw_threads_per_eu instead")
+__SYCL_PARAM_TRAITS_DEPRECATED(ext_intel_device_info_uuid,"use ext::intel::info::device::uuid instead")
+__SYCL_PARAM_TRAITS_DEPRECATED(ext_intel_max_mem_bandwidth,"use ext::intel::info::device::max_mem_bandwidth instead")
+__SYCL_PARAM_TRAITS_DEPRECATED(ext_oneapi_max_work_groups_1d,"use ext::oneapi::experimental::info::device::max_work_groups<1> instead")
+__SYCL_PARAM_TRAITS_DEPRECATED(ext_oneapi_max_work_groups_2d,"use ext::oneapi::experimental::info::device::max_work_groups<2> instead")
+__SYCL_PARAM_TRAITS_DEPRECATED(ext_oneapi_max_work_groups_3d,"use ext::oneapi::experimental::info::device::max_work_groups<3> instead")
+__SYCL_PARAM_TRAITS_DEPRECATED(ext_oneapi_max_global_work_groups,"use ext::oneapi::experimental::info::device::max_global_work_groups instead")

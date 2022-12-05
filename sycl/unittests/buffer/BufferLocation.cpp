@@ -7,14 +7,15 @@
 //===----------------------------------------------------------------------===//
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiMock.hpp>
 #include <helpers/TestKernel.hpp>
 
-#include <CL/sycl.hpp>
-#include <CL/sycl/accessor.hpp>
+#include <sycl/accessor.hpp>
+#include <sycl/sycl.hpp>
 
 #include <gtest/gtest.h>
+
+#include <detail/buffer_impl.hpp>
 
 const uint64_t DEFAULT_VALUE = 7777;
 static uint64_t PassedLocation = DEFAULT_VALUE;
@@ -42,11 +43,11 @@ pi_result redefinedMemBufferCreate(pi_context, pi_mem_flags, size_t size,
   return PI_SUCCESS;
 }
 
-static pi_result redefinedDeviceGetInfo(pi_device device,
-                                        pi_device_info param_name,
-                                        size_t param_value_size,
-                                        void *param_value,
-                                        size_t *param_value_size_ret) {
+static pi_result redefinedDeviceGetInfoAfter(pi_device device,
+                                             pi_device_info param_name,
+                                             size_t param_value_size,
+                                             void *param_value,
+                                             size_t *param_value_size_ret) {
   if (param_name == PI_DEVICE_INFO_TYPE) {
     auto *Result = reinterpret_cast<_pi_device_type *>(param_value);
     *Result = PI_DEVICE_TYPE_ACC;
@@ -57,11 +58,30 @@ static pi_result redefinedDeviceGetInfo(pi_device device,
   }
   if (param_name == PI_DEVICE_INFO_EXTENSIONS) {
     const std::string name = "cl_intel_mem_alloc_buffer_location";
+
+    // Increase size by one for the null terminator
+    const size_t nameSize = name.size() + 1;
+
     if (!param_value) {
-      *param_value_size_ret = name.size();
+      // Choose bigger size so that both original and redefined function
+      // has enough memory for storing the extension string
+      *param_value_size_ret =
+          nameSize > *param_value_size_ret ? nameSize : *param_value_size_ret;
     } else {
       char *dst = static_cast<char *>(param_value);
       strcpy(dst, name.data());
+    }
+  }
+  // This mock device has no sub-devices
+  if (param_name == PI_DEVICE_INFO_PARTITION_PROPERTIES) {
+    if (param_value_size_ret) {
+      *param_value_size_ret = 0;
+    }
+  }
+  if (param_name == PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN) {
+    assert(param_value_size == sizeof(pi_device_affinity_domain));
+    if (param_value) {
+      *static_cast<pi_device_affinity_domain *>(param_value) = 0;
     }
   }
   return PI_SUCCESS;
@@ -69,54 +89,41 @@ static pi_result redefinedDeviceGetInfo(pi_device device,
 
 class BufferTest : public ::testing::Test {
 public:
-  BufferTest() : Plt{sycl::default_selector()} {}
+  BufferTest() : Mock{}, Plt{Mock.getPlatform()} {}
 
 protected:
   void SetUp() override {
-    if (Plt.is_host() || Plt.get_backend() != sycl::backend::opencl) {
-      std::cout << "This test is only supported on OpenCL backend\n";
-      std::cout << "Current platform is "
-                << Plt.get_info<sycl::info::platform::name>();
-      return;
-    }
-
-    Mock = std::make_unique<sycl::unittest::PiMock>(Plt);
-
-    setupDefaultMockAPIs(*Mock);
-    Mock->redefine<sycl::detail::PiApiKind::piMemBufferCreate>(
+    Mock.redefineBefore<sycl::detail::PiApiKind::piMemBufferCreate>(
         redefinedMemBufferCreate);
-    Mock->redefine<sycl::detail::PiApiKind::piDeviceGetInfo>(
-        redefinedDeviceGetInfo);
+    Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
+        redefinedDeviceGetInfoAfter);
   }
 
 protected:
-  std::unique_ptr<sycl::unittest::PiMock> Mock;
+  sycl::unittest::PiMock Mock;
   sycl::platform Plt;
 };
 
 // Test that buffer_location was passed correctly
 TEST_F(BufferTest, BufferLocationOnly) {
-  if (Plt.is_host() || Plt.get_backend() != sycl::backend::opencl) {
-    return;
-  }
-
   sycl::context Context{Plt};
   sycl::queue Queue{Context, sycl::accelerator_selector{}};
 
-  cl::sycl::buffer<int, 1> Buf(3);
+  sycl::buffer<int, 1> Buf(3);
   Queue
-      .submit([&](cl::sycl::handler &cgh) {
+      .submit([&](sycl::handler &cgh) {
         sycl::ext::oneapi::accessor_property_list<
-            cl::sycl::ext::intel::property::buffer_location::instance<2>>
+            sycl::ext::intel::property::buffer_location::instance<2>>
             PL{sycl::ext::intel::buffer_location<2>};
         sycl::accessor<
-            int, 1, cl::sycl::access::mode::read_write,
-            cl::sycl::access::target::global_buffer,
-            cl::sycl::access::placeholder::false_t,
-            cl::sycl::ext::oneapi::accessor_property_list<
-                cl::sycl::ext::intel::property::buffer_location::instance<2>>>
+            int, 1, sycl::access::mode::read_write,
+            sycl::access::target::global_buffer,
+            sycl::access::placeholder::false_t,
+            sycl::ext::oneapi::accessor_property_list<
+                sycl::ext::intel::property::buffer_location::instance<2>>>
             Acc{Buf, cgh, sycl::read_write, PL};
-        cgh.single_task<TestKernel>([=]() { Acc[0] = 4; });
+        constexpr size_t KS = sizeof(decltype(Acc));
+        cgh.single_task<TestKernel<KS>>([=]() { Acc[0] = 4; });
       })
       .wait();
   EXPECT_EQ(PassedLocation, (uint64_t)2);
@@ -125,47 +132,44 @@ TEST_F(BufferTest, BufferLocationOnly) {
 // Test that buffer_location was passed correcty if there is one more accessor
 // property and buffer_location is correctly chaned by creating new accessors
 TEST_F(BufferTest, BufferLocationWithAnotherProp) {
-  if (Plt.is_host() || Plt.get_backend() != sycl::backend::opencl) {
-    return;
-  }
-
   sycl::context Context{Plt};
   sycl::queue Queue{Context, sycl::accelerator_selector{}};
 
-  cl::sycl::buffer<int, 1> Buf(3);
+  sycl::buffer<int, 1> Buf(3);
   Queue
-      .submit([&](cl::sycl::handler &cgh) {
+      .submit([&](sycl::handler &cgh) {
         sycl::ext::oneapi::accessor_property_list<
-            cl::sycl::ext::oneapi::property::no_alias::instance<true>,
-            cl::sycl::ext::intel::property::buffer_location::instance<5>>
+            sycl::ext::oneapi::property::no_alias::instance<true>,
+            sycl::ext::intel::property::buffer_location::instance<5>>
             PL{sycl::ext::oneapi::no_alias,
                sycl::ext::intel::buffer_location<5>};
         sycl::accessor<
-            int, 1, cl::sycl::access::mode::write,
-            cl::sycl::access::target::global_buffer,
-            cl::sycl::access::placeholder::false_t,
-            cl::sycl::ext::oneapi::accessor_property_list<
-                cl::sycl::ext::oneapi::property::no_alias::instance<true>,
-                cl::sycl::ext::intel::property::buffer_location::instance<5>>>
+            int, 1, sycl::access::mode::write,
+            sycl::access::target::global_buffer,
+            sycl::access::placeholder::false_t,
+            sycl::ext::oneapi::accessor_property_list<
+                sycl::ext::oneapi::property::no_alias::instance<true>,
+                sycl::ext::intel::property::buffer_location::instance<5>>>
             Acc{Buf, cgh, sycl::write_only, PL};
 
-        cgh.single_task<TestKernel>([=]() { Acc[0] = 4; });
+        constexpr size_t KS = sizeof(decltype(Acc));
+        cgh.single_task<TestKernel<KS>>([=]() { Acc[0] = 4; });
       })
       .wait();
   EXPECT_EQ(PassedLocation, (uint64_t)5);
 
   // Check that if new accessor created, buffer_location is changed
   Queue
-      .submit([&](cl::sycl::handler &cgh) {
+      .submit([&](sycl::handler &cgh) {
         sycl::ext::oneapi::accessor_property_list<
-            cl::sycl::ext::intel::property::buffer_location::instance<3>>
+            sycl::ext::intel::property::buffer_location::instance<3>>
             PL{sycl::ext::intel::buffer_location<3>};
         sycl::accessor<
-            int, 1, cl::sycl::access::mode::write,
-            cl::sycl::access::target::global_buffer,
-            cl::sycl::access::placeholder::false_t,
-            cl::sycl::ext::oneapi::accessor_property_list<
-                cl::sycl::ext::intel::property::buffer_location::instance<3>>>
+            int, 1, sycl::access::mode::write,
+            sycl::access::target::global_buffer,
+            sycl::access::placeholder::false_t,
+            sycl::ext::oneapi::accessor_property_list<
+                sycl::ext::intel::property::buffer_location::instance<3>>>
             Acc{Buf, cgh, sycl::write_only, PL};
       })
       .wait();
@@ -178,11 +182,11 @@ TEST_F(BufferTest, BufferLocationWithAnotherProp) {
 
   // Check that if new accessor created, buffer_location is deleted from buffer
   Queue
-      .submit([&](cl::sycl::handler &cgh) {
-        sycl::accessor<int, 1, cl::sycl::access::mode::write,
-                       cl::sycl::access::target::global_buffer,
-                       cl::sycl::access::placeholder::false_t,
-                       cl::sycl::ext::oneapi::accessor_property_list<>>
+      .submit([&](sycl::handler &cgh) {
+        sycl::accessor<int, 1, sycl::access::mode::write,
+                       sycl::access::target::global_buffer,
+                       sycl::access::placeholder::false_t,
+                       sycl::ext::oneapi::accessor_property_list<>>
             Acc{Buf, cgh, sycl::write_only};
       })
       .wait();
@@ -194,22 +198,19 @@ TEST_F(BufferTest, BufferLocationWithAnotherProp) {
 
 // Test that there is no buffer_location property
 TEST_F(BufferTest, WOBufferLocation) {
-  if (Plt.is_host() || Plt.get_backend() != sycl::backend::opencl) {
-    return;
-  }
-
   sycl::context Context{Plt};
   sycl::queue Queue{Context, sycl::accelerator_selector{}};
 
-  cl::sycl::buffer<int, 1> Buf(3);
+  sycl::buffer<int, 1> Buf(3);
   Queue
-      .submit([&](cl::sycl::handler &cgh) {
-        sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
-                       cl::sycl::access::target::global_buffer,
-                       cl::sycl::access::placeholder::false_t,
-                       cl::sycl::ext::oneapi::accessor_property_list<>>
+      .submit([&](sycl::handler &cgh) {
+        sycl::accessor<int, 1, sycl::access::mode::read_write,
+                       sycl::access::target::global_buffer,
+                       sycl::access::placeholder::false_t,
+                       sycl::ext::oneapi::accessor_property_list<>>
             Acc{Buf, cgh, sycl::read_write};
-        cgh.single_task<TestKernel>([=]() { Acc[0] = 4; });
+        constexpr size_t KS = sizeof(decltype(Acc));
+        cgh.single_task<TestKernel<KS>>([=]() { Acc[0] = 4; });
       })
       .wait();
   EXPECT_EQ(PassedLocation, DEFAULT_VALUE);

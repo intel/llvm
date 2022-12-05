@@ -244,7 +244,7 @@ static void optimizeModule(Module &TheModule, TargetMachine &TM,
   ModuleAnalysisManager MAM;
 
   PassInstrumentationCallbacks PIC;
-  StandardInstrumentations SI(DebugPassManager);
+  StandardInstrumentations SI(TheModule.getContext(), DebugPassManager);
   SI.registerCallbacks(PIC, &FAM);
   PipelineTuningOptions PTO;
   PTO.LoopVectorization = true;
@@ -452,6 +452,10 @@ ProcessThinLTOModule(Module &TheModule, ModuleSummaryIndex &Index,
                      bool DisableCodeGen, StringRef SaveTempsDir,
                      bool Freestanding, unsigned OptLevel, unsigned count,
                      bool DebugPassManager) {
+  // See comment at call to updateVCallVisibilityInIndex() for why
+  // WholeProgramVisibilityEnabledInLTO is false.
+  updatePublicTypeTestCalls(TheModule,
+                            /* WholeProgramVisibilityEnabledInLTO */ false);
 
   // "Benchmark"-like optimization: single-source case
   bool SingleModule = (ModuleMap.size() == 1);
@@ -1047,6 +1051,8 @@ void ThinLTOCodeGenerator::run() {
   // Currently there is no support for enabling whole program visibility via a
   // linker option in the old LTO API, but this call allows it to be specified
   // via the internal option. Must be done before WPD below.
+  if (hasWholeProgramVisibility(/* WholeProgramVisibilityEnabledInLTO */ false))
+    Index->setWithWholeProgramVisibility();
   updateVCallVisibilityInIndex(*Index,
                                /* WholeProgramVisibilityEnabledInLTO */ false,
                                // FIXME: This needs linker information via a
@@ -1211,7 +1217,7 @@ void ThinLTOCodeGenerator::run() {
     }
   }
 
-  pruneCache(CacheOptions.Path, CacheOptions.Policy);
+  pruneCache(CacheOptions.Path, CacheOptions.Policy, ProducedBinaries);
 
   // If statistics were requested, print them out now.
   if (llvm::AreStatisticsEnabled())

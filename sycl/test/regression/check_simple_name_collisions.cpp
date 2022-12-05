@@ -20,7 +20,11 @@
 #define BUFFER
 #define IMAGE 
 #define UNDEFINED
+#define VL
+#define DIM
+#define DIMS
+#define NDIMS
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 int main() { return 0; }

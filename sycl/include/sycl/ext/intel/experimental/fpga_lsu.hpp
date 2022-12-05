@@ -8,12 +8,12 @@
 #pragma once
 
 #include "fpga_utils.hpp"
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/pointers.hpp>
+#include <sycl/detail/defines.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/pointers.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace intel {
 namespace experimental {
@@ -51,8 +51,10 @@ template <class... _mem_access_params> class lsu final {
 public:
   lsu() = delete;
 
-  template <typename _T, access::address_space _space, typename _propertiesT>
-  static _T load(sycl::multi_ptr<_T, _space> Ptr, _propertiesT Properties) {
+  template <typename _T, access::address_space _space,
+            access::decorated _Is_decorated, typename _propertiesT>
+  static _T load(sycl::multi_ptr<_T, _space, _Is_decorated> Ptr,
+                 _propertiesT Properties) {
     check_space<_space>();
     check_load();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
@@ -88,13 +90,15 @@ public:
 #endif
   }
 
-  template <typename _T, access::address_space _space>
-  static _T load(sycl::multi_ptr<_T, _space> Ptr) {
+  template <typename _T, access::address_space _space,
+            access::decorated _Is_decorated>
+  static _T load(sycl::multi_ptr<_T, _space, _Is_decorated> Ptr) {
     return load<_T, _space>(Ptr, oneapi::experimental::properties{});
   }
 
-  template <typename _T, access::address_space _space, typename _propertiesT>
-  static void store(sycl::multi_ptr<_T, _space> Ptr, _T Val,
+  template <typename _T, access::address_space _space,
+            access::decorated _Is_decorated, typename _propertiesT>
+  static void store(sycl::multi_ptr<_T, _space, _Is_decorated> Ptr, _T Val,
                     _propertiesT Properties) {
     check_space<_space>();
     check_store();
@@ -131,8 +135,9 @@ public:
 #endif
   }
 
-  template <typename _T, access::address_space _space>
-  static void store(sycl::multi_ptr<_T, _space> Ptr, _T Val) {
+  template <typename _T, access::address_space _space,
+            access::decorated _Is_decorated>
+  static void store(sycl::multi_ptr<_T, _space, _Is_decorated> Ptr, _T Val) {
     store<_T, _space>(Ptr, Val, oneapi::experimental::properties{});
   }
 
@@ -199,5 +204,5 @@ private:
 } // namespace experimental
 } // namespace intel
 } // namespace ext
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

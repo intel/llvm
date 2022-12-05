@@ -153,7 +153,7 @@ bool Parser::ExpectAndConsume(tok::TokenKind ExpectedTok, unsigned DiagID,
   return true;
 }
 
-bool Parser::ExpectAndConsumeSemi(unsigned DiagID) {
+bool Parser::ExpectAndConsumeSemi(unsigned DiagID, StringRef TokenUsed) {
   if (TryConsumeToken(tok::semi))
     return false;
 
@@ -172,7 +172,7 @@ bool Parser::ExpectAndConsumeSemi(unsigned DiagID) {
     return false;
   }
 
-  return ExpectAndConsume(tok::semi, DiagID);
+  return ExpectAndConsume(tok::semi, DiagID , TokenUsed);
 }
 
 void Parser::ConsumeExtraSemi(ExtraSemiKind Kind, DeclSpec::TST TST) {
@@ -386,7 +386,7 @@ bool Parser::SkipUntil(ArrayRef<tok::TokenKind> Toks, SkipUntilFlags Flags) {
     case tok::semi:
       if (HasFlagsSet(Flags, StopAtSemi))
         return false;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     default:
       // Skip this token.
       ConsumeAnyToken();
@@ -663,12 +663,22 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result,
     return false;
   }
 
-  case tok::annot_module_include:
-    Actions.ActOnModuleInclude(Tok.getLocation(),
-                               reinterpret_cast<Module *>(
-                                   Tok.getAnnotationValue()));
+  case tok::annot_module_include: {
+    auto Loc = Tok.getLocation();
+    Module *Mod = reinterpret_cast<Module *>(Tok.getAnnotationValue());
+    // FIXME: We need a better way to disambiguate C++ clang modules and
+    // standard C++ modules.
+    if (!getLangOpts().CPlusPlusModules || !Mod->isHeaderUnit())
+      Actions.ActOnModuleInclude(Loc, Mod);
+    else {
+      DeclResult Import =
+          Actions.ActOnModuleImport(Loc, SourceLocation(), Loc, Mod);
+      Decl *ImportDecl = Import.isInvalid() ? nullptr : Import.get();
+      Result = Actions.ConvertDeclToDeclGroup(ImportDecl);
+    }
     ConsumeAnnotationToken();
     return false;
+  }
 
   case tok::annot_module_begin:
     Actions.ActOnModuleBegin(Tok.getLocation(), reinterpret_cast<Module *>(
@@ -721,10 +731,17 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result,
     break;
   }
 
-  ParsedAttributes attrs(AttrFactory);
-  MaybeParseCXX11Attributes(attrs);
+  ParsedAttributes DeclAttrs(AttrFactory);
+  ParsedAttributes DeclSpecAttrs(AttrFactory);
+  // GNU attributes are applied to the declaration specification while the
+  // standard attributes are applied to the declaration.  We parse the two
+  // attribute sets into different containters so we can apply them during
+  // the regular parsing process.
+  while (MaybeParseCXX11Attributes(DeclAttrs) ||
+         MaybeParseGNUAttributes(DeclSpecAttrs))
+    ;
 
-  Result = ParseExternalDeclaration(attrs);
+  Result = ParseExternalDeclaration(DeclAttrs, DeclSpecAttrs);
   // An empty Result might mean a line with ';' or some parsing error, ignore
   // it.
   if (Result) {
@@ -767,8 +784,10 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result,
 ///
 /// [Modules-TS] module-import-declaration
 ///
-Parser::DeclGroupPtrTy Parser::ParseExternalDeclaration(ParsedAttributes &Attrs,
-                                                        ParsingDeclSpec *DS) {
+Parser::DeclGroupPtrTy
+Parser::ParseExternalDeclaration(ParsedAttributes &Attrs,
+                                 ParsedAttributes &DeclSpecAttrs,
+                                 ParsingDeclSpec *DS) {
   DestroyTemplateIdAnnotationsRAIIObj CleanupRAII(*this);
   ParenBraceBracketBalancer BalancerRAIIObj(*this);
 
@@ -856,7 +875,7 @@ Parser::DeclGroupPtrTy Parser::ParseExternalDeclaration(ParsedAttributes &Attrs,
     // __extension__ silences extension warnings in the subexpression.
     ExtensionRAIIObject O(Diags);  // Use RAII to do this.
     ConsumeToken();
-    return ParseExternalDeclaration(Attrs);
+    return ParseExternalDeclaration(Attrs, DeclSpecAttrs);
   }
   case tok::kw_asm: {
     ProhibitAttributes(Attrs);
@@ -884,7 +903,7 @@ Parser::DeclGroupPtrTy Parser::ParseExternalDeclaration(ParsedAttributes &Attrs,
     break;
   }
   case tok::at:
-    return ParseObjCAtDirectives(Attrs);
+    return ParseObjCAtDirectives(Attrs, DeclSpecAttrs);
   case tok::minus:
   case tok::plus:
     if (!getLangOpts().ObjC) {
@@ -922,7 +941,7 @@ Parser::DeclGroupPtrTy Parser::ParseExternalDeclaration(ParsedAttributes &Attrs,
     }
     // This must be 'export template'. Parse it so we can diagnose our lack
     // of support.
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case tok::kw_using:
   case tok::kw_namespace:
   case tok::kw_typedef:
@@ -932,10 +951,18 @@ Parser::DeclGroupPtrTy Parser::ParseExternalDeclaration(ParsedAttributes &Attrs,
     // A function definition cannot start with any of these keywords.
     {
       SourceLocation DeclEnd;
-      ParsedAttributes EmptyDeclSpecAttrs(AttrFactory);
       return ParseDeclaration(DeclaratorContext::File, DeclEnd, Attrs,
-                              EmptyDeclSpecAttrs);
+                              DeclSpecAttrs);
     }
+
+  case tok::kw_cbuffer:
+  case tok::kw_tbuffer:
+    if (getLangOpts().HLSL) {
+      SourceLocation DeclEnd;
+      return ParseDeclaration(DeclaratorContext::File, DeclEnd, Attrs,
+                              DeclSpecAttrs);
+    }
+    goto dont_know;
 
   case tok::kw_static:
     // Parse (then ignore) 'static' prior to a template instantiation. This is
@@ -944,9 +971,8 @@ Parser::DeclGroupPtrTy Parser::ParseExternalDeclaration(ParsedAttributes &Attrs,
       Diag(ConsumeToken(), diag::warn_static_inline_explicit_inst_ignored)
         << 0;
       SourceLocation DeclEnd;
-      ParsedAttributes EmptyDeclSpecAttrs(AttrFactory);
       return ParseDeclaration(DeclaratorContext::File, DeclEnd, Attrs,
-                              EmptyDeclSpecAttrs);
+                              DeclSpecAttrs);
     }
     goto dont_know;
 
@@ -957,9 +983,8 @@ Parser::DeclGroupPtrTy Parser::ParseExternalDeclaration(ParsedAttributes &Attrs,
       // Inline namespaces. Allowed as an extension even in C++03.
       if (NextKind == tok::kw_namespace) {
         SourceLocation DeclEnd;
-        ParsedAttributes EmptyDeclSpecAttrs(AttrFactory);
         return ParseDeclaration(DeclaratorContext::File, DeclEnd, Attrs,
-                                EmptyDeclSpecAttrs);
+                                DeclSpecAttrs);
       }
 
       // Parse (then ignore) 'inline' prior to a template instantiation. This is
@@ -968,9 +993,8 @@ Parser::DeclGroupPtrTy Parser::ParseExternalDeclaration(ParsedAttributes &Attrs,
         Diag(ConsumeToken(), diag::warn_static_inline_explicit_inst_ignored)
           << 1;
         SourceLocation DeclEnd;
-        ParsedAttributes EmptyDeclSpecAttrs(AttrFactory);
         return ParseDeclaration(DeclaratorContext::File, DeclEnd, Attrs,
-                                EmptyDeclSpecAttrs);
+                                DeclSpecAttrs);
       }
     }
     goto dont_know;
@@ -1006,7 +1030,7 @@ Parser::DeclGroupPtrTy Parser::ParseExternalDeclaration(ParsedAttributes &Attrs,
       return nullptr;
     }
     // We can't tell whether this is a function-definition or declaration yet.
-    return ParseDeclarationOrFunctionDefinition(Attrs, DS);
+    return ParseDeclarationOrFunctionDefinition(Attrs, DeclSpecAttrs, DS);
   }
 
   // This routine returns a DeclGroup, if the thing we parsed only contains a
@@ -1043,7 +1067,7 @@ bool Parser::isStartOfFunctionDefinition(const ParsingDeclarator &Declarator) {
   // Handle K&R C argument lists: int X(f) int f; {}
   if (!getLangOpts().CPlusPlus &&
       Declarator.getFunctionTypeInfo().isKNRPrototype())
-    return isDeclarationSpecifier();
+    return isDeclarationSpecifier(ImplicitTypenameContext::No);
 
   if (getLangOpts().CPlusPlus && Tok.is(tok::equal)) {
     const Token &KW = NextToken();
@@ -1071,7 +1095,17 @@ bool Parser::isStartOfFunctionDefinition(const ParsingDeclarator &Declarator) {
 /// [OMP]   allocate-directive                         [TODO]
 ///
 Parser::DeclGroupPtrTy Parser::ParseDeclOrFunctionDefInternal(
-    ParsedAttributes &Attrs, ParsingDeclSpec &DS, AccessSpecifier AS) {
+    ParsedAttributes &Attrs, ParsedAttributes &DeclSpecAttrs,
+    ParsingDeclSpec &DS, AccessSpecifier AS) {
+  // Because we assume that the DeclSpec has not yet been initialised, we simply
+  // overwrite the source range and attribute the provided leading declspec
+  // attributes.
+  assert(DS.getSourceRange().isInvalid() &&
+         "expected uninitialised source range");
+  DS.SetRangeStart(DeclSpecAttrs.Range.getBegin());
+  DS.SetRangeEnd(DeclSpecAttrs.Range.getEnd());
+  DS.takeAttributesFrom(DeclSpecAttrs);
+
   MaybeParseMicrosoftAttributes(DS.getAttributes());
   // Parse the common declaration-specifiers piece.
   ParseDeclarationSpecifiers(DS, ParsedTemplateInfo(), AS,
@@ -1113,8 +1147,8 @@ Parser::DeclGroupPtrTy Parser::ParseDeclOrFunctionDefInternal(
     ProhibitAttributes(Attrs, CorrectLocationForAttributes);
     ConsumeToken();
     RecordDecl *AnonRecord = nullptr;
-    Decl *TheDecl = Actions.ParsedFreeStandingDeclSpec(getCurScope(), AS_none,
-                                                       DS, AnonRecord);
+    Decl *TheDecl = Actions.ParsedFreeStandingDeclSpec(
+        getCurScope(), AS_none, DS, ParsedAttributesView::none(), AnonRecord);
     DS.complete(TheDecl);
     if (AnonRecord) {
       Decl* decls[] = {AnonRecord, TheDecl};
@@ -1170,9 +1204,10 @@ Parser::DeclGroupPtrTy Parser::ParseDeclOrFunctionDefInternal(
 }
 
 Parser::DeclGroupPtrTy Parser::ParseDeclarationOrFunctionDefinition(
-    ParsedAttributes &Attrs, ParsingDeclSpec *DS, AccessSpecifier AS) {
+    ParsedAttributes &Attrs, ParsedAttributes &DeclSpecAttrs,
+    ParsingDeclSpec *DS, AccessSpecifier AS) {
   if (DS) {
-    return ParseDeclOrFunctionDefInternal(Attrs, *DS, AS);
+    return ParseDeclOrFunctionDefInternal(Attrs, DeclSpecAttrs, *DS, AS);
   } else {
     ParsingDeclSpec PDS(*this);
     // Must temporarily exit the objective-c container scope for
@@ -1180,7 +1215,7 @@ Parser::DeclGroupPtrTy Parser::ParseDeclarationOrFunctionDefinition(
     // afterwards.
     ObjCDeclContextSwitch ObjCDC(*this);
 
-    return ParseDeclOrFunctionDefInternal(Attrs, PDS, AS);
+    return ParseDeclOrFunctionDefInternal(Attrs, DeclSpecAttrs, PDS, AS);
   }
 }
 
@@ -1452,7 +1487,7 @@ void Parser::ParseKNRParamDeclarations(Declarator &D) {
                             Scope::FunctionDeclarationScope | Scope::DeclScope);
 
   // Read all the argument declarations.
-  while (isDeclarationSpecifier()) {
+  while (isDeclarationSpecifier(ImplicitTypenameContext::No)) {
     SourceLocation DSStart = Tok.getLocation();
 
     // Parse the common declaration-specifiers piece.
@@ -1574,7 +1609,7 @@ ExprResult Parser::ParseAsmStringLiteral(bool ForAsmLabel) {
   ExprResult AsmString(ParseStringLiteralExpression());
   if (!AsmString.isInvalid()) {
     const auto *SL = cast<StringLiteral>(AsmString.get());
-    if (!SL->isAscii()) {
+    if (!SL->isOrdinary()) {
       Diag(Tok, diag::err_asm_operand_wide_string_literal)
         << SL->isWide()
         << SL->getSourceRange();
@@ -1665,8 +1700,12 @@ void Parser::AnnotateScopeToken(CXXScopeSpec &SS, bool IsNewAnnotation) {
 ///
 /// \param CCC Indicates how to perform typo-correction for this name. If NULL,
 ///        no typo correction will be performed.
+/// \param AllowImplicitTypename Whether we are in a context where a dependent
+///        nested-name-specifier without typename is treated as a type (e.g.
+///        T::type).
 Parser::AnnotatedNameKind
-Parser::TryAnnotateName(CorrectionCandidateCallback *CCC) {
+Parser::TryAnnotateName(CorrectionCandidateCallback *CCC,
+                        ImplicitTypenameContext AllowImplicitTypename) {
   assert(Tok.is(tok::identifier) || Tok.is(tok::annot_cxxscope));
 
   const bool EnteringContext = false;
@@ -1680,7 +1719,8 @@ Parser::TryAnnotateName(CorrectionCandidateCallback *CCC) {
     return ANK_Error;
 
   if (Tok.isNot(tok::identifier) || SS.isInvalid()) {
-    if (TryAnnotateTypeOrScopeTokenAfterScopeSpec(SS, !WasScopeAnnotation))
+    if (TryAnnotateTypeOrScopeTokenAfterScopeSpec(SS, !WasScopeAnnotation,
+                                                  AllowImplicitTypename))
       return ANK_Error;
     return ANK_Unresolved;
   }
@@ -1690,10 +1730,11 @@ Parser::TryAnnotateName(CorrectionCandidateCallback *CCC) {
 
   // FIXME: Move the tentative declaration logic into ClassifyName so we can
   // typo-correct to tentatively-declared identifiers.
-  if (isTentativelyDeclared(Name)) {
+  if (isTentativelyDeclared(Name) && SS.isEmpty()) {
     // Identifier has been tentatively declared, and thus cannot be resolved as
     // an expression. Fall back to annotating it as a type.
-    if (TryAnnotateTypeOrScopeTokenAfterScopeSpec(SS, !WasScopeAnnotation))
+    if (TryAnnotateTypeOrScopeTokenAfterScopeSpec(SS, !WasScopeAnnotation,
+                                                  AllowImplicitTypename))
       return ANK_Error;
     return Tok.is(tok::annot_typename) ? ANK_Success : ANK_TentativeDecl;
   }
@@ -1820,7 +1861,7 @@ Parser::TryAnnotateName(CorrectionCandidateCallback *CCC) {
         AnnotateScopeToken(SS, !WasScopeAnnotation);
       return ANK_TemplateName;
     }
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case Sema::NC_VarTemplate:
   case Sema::NC_FunctionTemplate:
   case Sema::NC_UndeclaredTemplate: {
@@ -1889,7 +1930,8 @@ bool Parser::TryKeywordIdentFallback(bool DisableKeyword) {
 ///
 /// Note that this routine emits an error if you call it with ::new or ::delete
 /// as the current tokens, so only call it in contexts where these are invalid.
-bool Parser::TryAnnotateTypeOrScopeToken() {
+bool Parser::TryAnnotateTypeOrScopeToken(
+    ImplicitTypenameContext AllowImplicitTypename) {
   assert((Tok.is(tok::identifier) || Tok.is(tok::coloncolon) ||
           Tok.is(tok::kw_typename) || Tok.is(tok::annot_cxxscope) ||
           Tok.is(tok::kw_decltype) || Tok.is(tok::annot_template_id) ||
@@ -1906,7 +1948,7 @@ bool Parser::TryAnnotateTypeOrScopeToken() {
     if (getLangOpts().MSVCCompat && NextToken().is(tok::kw_typedef)) {
       Token TypedefToken;
       PP.Lex(TypedefToken);
-      bool Result = TryAnnotateTypeOrScopeToken();
+      bool Result = TryAnnotateTypeOrScopeToken(AllowImplicitTypename);
       PP.EnterToken(Tok, /*IsReinject=*/true);
       Tok = TypedefToken;
       if (!Result)
@@ -1932,7 +1974,8 @@ bool Parser::TryAnnotateTypeOrScopeToken() {
           Tok.is(tok::annot_decltype)) {
         // Attempt to recover by skipping the invalid 'typename'
         if (Tok.is(tok::annot_decltype) ||
-            (!TryAnnotateTypeOrScopeToken() && Tok.isAnnotation())) {
+            (!TryAnnotateTypeOrScopeToken(AllowImplicitTypename) &&
+             Tok.isAnnotation())) {
           unsigned DiagID = diag::err_expected_qualified_after_typename;
           // MS compatibility: MSVC permits using known types with typename.
           // e.g. "typedef typename T* pointer_type"
@@ -1998,22 +2041,24 @@ bool Parser::TryAnnotateTypeOrScopeToken() {
                                        /*EnteringContext*/ false))
       return true;
 
-  return TryAnnotateTypeOrScopeTokenAfterScopeSpec(SS, !WasScopeAnnotation);
+  return TryAnnotateTypeOrScopeTokenAfterScopeSpec(SS, !WasScopeAnnotation,
+                                                   AllowImplicitTypename);
 }
 
 /// Try to annotate a type or scope token, having already parsed an
 /// optional scope specifier. \p IsNewScope should be \c true unless the scope
 /// specifier was extracted from an existing tok::annot_cxxscope annotation.
-bool Parser::TryAnnotateTypeOrScopeTokenAfterScopeSpec(CXXScopeSpec &SS,
-                                                       bool IsNewScope) {
+bool Parser::TryAnnotateTypeOrScopeTokenAfterScopeSpec(
+    CXXScopeSpec &SS, bool IsNewScope,
+    ImplicitTypenameContext AllowImplicitTypename) {
   if (Tok.is(tok::identifier)) {
     // Determine whether the identifier is a type name.
     if (ParsedType Ty = Actions.getTypeName(
             *Tok.getIdentifierInfo(), Tok.getLocation(), getCurScope(), &SS,
             false, NextToken().is(tok::period), nullptr,
             /*IsCtorOrDtorName=*/false,
-            /*NonTrivialTypeSourceInfo*/true,
-            /*IsClassTemplateDeductionContext*/true)) {
+            /*NonTrivialTypeSourceInfo=*/true,
+            /*IsClassTemplateDeductionContext=*/true, AllowImplicitTypename)) {
       SourceLocation BeginLoc = Tok.getLocation();
       if (SS.isNotEmpty()) // it was a C++ qualified type name.
         BeginLoc = SS.getBeginLoc();
@@ -2050,9 +2095,9 @@ bool Parser::TryAnnotateTypeOrScopeTokenAfterScopeSpec(CXXScopeSpec &SS,
     }
 
     if (!getLangOpts().CPlusPlus) {
-      // If we're in C, we can't have :: tokens at all (the lexer won't return
-      // them).  If the identifier is not a type, then it can't be scope either,
-      // just early exit.
+      // If we're in C, the only place we can have :: tokens is C2x
+      // attribute which is parsed elsewhere. If the identifier is not a type,
+      // then it can't be scope either, just early exit.
       return false;
     }
 
@@ -2099,7 +2144,7 @@ bool Parser::TryAnnotateTypeOrScopeTokenAfterScopeSpec(CXXScopeSpec &SS,
       // template-id annotation in a context where we weren't allowed
       // to produce a type annotation token. Update the template-id
       // annotation token to a type annotation token now.
-      AnnotateTemplateIdTokenAsType(SS);
+      AnnotateTemplateIdTokenAsType(SS, AllowImplicitTypename);
       return false;
     }
   }
@@ -2157,7 +2202,7 @@ bool Parser::isTokenEqualOrEqualTypo() {
     Diag(Tok, diag::err_invalid_token_after_declarator_suggest_equal)
         << Kind
         << FixItHint::CreateReplacement(SourceRange(Tok.getLocation()), "=");
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case tok::equal:
     return true;
   }
@@ -2312,7 +2357,8 @@ void Parser::ParseMicrosoftIfExistsExternalDeclaration() {
   while (Tok.isNot(tok::r_brace) && !isEofOrEom()) {
     ParsedAttributes Attrs(AttrFactory);
     MaybeParseCXX11Attributes(Attrs);
-    DeclGroupPtrTy Result = ParseExternalDeclaration(Attrs);
+    ParsedAttributes EmptyDeclSpecAttrs(AttrFactory);
+    DeclGroupPtrTy Result = ParseExternalDeclaration(Attrs, EmptyDeclSpecAttrs);
     if (Result && !getCurScope()->getParent())
       Actions.getASTConsumer().HandleTopLevelDecl(Result.get());
   }

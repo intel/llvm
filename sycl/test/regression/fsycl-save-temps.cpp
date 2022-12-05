@@ -9,13 +9,13 @@
 // Verify that a sample compilation succeeds with -save-temps
 // RUN: %clangxx -fsycl -save-temps %s -o %t.out
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 void foo() {}
 
 int main() {
-  cl::sycl::queue Q;
-  Q.submit([](cl::sycl::handler &Cgh) {
+  sycl::queue Q;
+  Q.submit([](sycl::handler &Cgh) {
     Cgh.single_task<class KernelFunction>([]() { foo(); });
   });
   return 0;

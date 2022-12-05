@@ -465,6 +465,8 @@ ParsedAST::build(llvm::StringRef Filename, const ParseInputs &Inputs,
   std::vector<std::unique_ptr<tidy::ClangTidyCheck>> CTChecks;
   ast_matchers::MatchFinder CTFinder;
   llvm::Optional<tidy::ClangTidyContext> CTContext;
+  // Must outlive FixIncludes.
+  auto BuildDir = VFS->getCurrentWorkingDirectory();
   llvm::Optional<IncludeFixer> FixIncludes;
   llvm::DenseMap<diag::kind, DiagnosticsEngine::Level> OverriddenSeverity;
   // No need to run clang-tidy or IncludeFixerif we are not going to surface
@@ -480,7 +482,7 @@ ParsedAST::build(llvm::StringRef Filename, const ParseInputs &Inputs,
     CTContext->setASTContext(&Clang->getASTContext());
     CTContext->setCurrentFile(Filename);
     CTContext->setSelfContainedDiags(true);
-    CTChecks = CTFactories.createChecksForLanguage(CTContext.getPointer());
+    CTChecks = CTFactories.createChecksForLanguage(&*CTContext);
     Preprocessor *PP = &Clang->getPreprocessor();
     for (const auto &Check : CTChecks) {
       Check->registerPPCallbacks(Clang->getSourceManager(), PP, PP);
@@ -493,6 +495,7 @@ ParsedAST::build(llvm::StringRef Filename, const ParseInputs &Inputs,
     // We restore the original severity in the level adjuster.
     // FIXME: It would be better to have a real API for this, but what?
     for (auto ID : {diag::ext_implicit_function_decl_c99,
+                    diag::ext_implicit_lib_function_decl,
                     diag::ext_implicit_lib_function_decl_c99,
                     diag::warn_implicit_function_decl}) {
       OverriddenSeverity.try_emplace(
@@ -550,7 +553,6 @@ ParsedAST::build(llvm::StringRef Filename, const ParseInputs &Inputs,
 
     // Add IncludeFixer which can recover diagnostics caused by missing includes
     // (e.g. incomplete type) and attach include insertion fixes to diagnostics.
-    auto BuildDir = VFS->getCurrentWorkingDirectory();
     if (Inputs.Index && !BuildDir.getError()) {
       auto Style =
           getFormatStyleForFile(Filename, Inputs.Contents, *Inputs.TFS);
@@ -661,14 +663,15 @@ ParsedAST::build(llvm::StringRef Filename, const ParseInputs &Inputs,
                     Preamble->Diags.end());
     // Finally, add diagnostics coming from the AST.
     {
-      std::vector<Diag> D = ASTDiags.take(CTContext.getPointer());
+      std::vector<Diag> D = ASTDiags.take(&*CTContext);
       Diags->insert(Diags->end(), D.begin(), D.end());
     }
   }
-  ParsedAST Result(Inputs.Version, std::move(Preamble), std::move(Clang),
-                   std::move(Action), std::move(Tokens), std::move(Macros),
-                   std::move(Marks), std::move(ParsedDecls), std::move(Diags),
-                   std::move(Includes), std::move(CanonIncludes));
+  ParsedAST Result(Filename, Inputs.Version, std::move(Preamble),
+                   std::move(Clang), std::move(Action), std::move(Tokens),
+                   std::move(Macros), std::move(Marks), std::move(ParsedDecls),
+                   std::move(Diags), std::move(Includes),
+                   std::move(CanonIncludes));
   if (Result.Diags) {
     auto UnusedHeadersDiags =
         issueUnusedIncludesDiagnostics(Result, Inputs.Contents);
@@ -759,7 +762,7 @@ const CanonicalIncludes &ParsedAST::getCanonicalIncludes() const {
   return CanonIncludes;
 }
 
-ParsedAST::ParsedAST(llvm::StringRef Version,
+ParsedAST::ParsedAST(PathRef TUPath, llvm::StringRef Version,
                      std::shared_ptr<const PreambleData> Preamble,
                      std::unique_ptr<CompilerInstance> Clang,
                      std::unique_ptr<FrontendAction> Action,
@@ -768,10 +771,10 @@ ParsedAST::ParsedAST(llvm::StringRef Version,
                      std::vector<Decl *> LocalTopLevelDecls,
                      llvm::Optional<std::vector<Diag>> Diags,
                      IncludeStructure Includes, CanonicalIncludes CanonIncludes)
-    : Version(Version), Preamble(std::move(Preamble)), Clang(std::move(Clang)),
-      Action(std::move(Action)), Tokens(std::move(Tokens)),
-      Macros(std::move(Macros)), Marks(std::move(Marks)),
-      Diags(std::move(Diags)),
+    : TUPath(TUPath), Version(Version), Preamble(std::move(Preamble)),
+      Clang(std::move(Clang)), Action(std::move(Action)),
+      Tokens(std::move(Tokens)), Macros(std::move(Macros)),
+      Marks(std::move(Marks)), Diags(std::move(Diags)),
       LocalTopLevelDecls(std::move(LocalTopLevelDecls)),
       Includes(std::move(Includes)), CanonIncludes(std::move(CanonIncludes)) {
   Resolver = std::make_unique<HeuristicResolver>(getASTContext());

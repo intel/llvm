@@ -21,11 +21,7 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
   if (NOT DEFINED SYCL_EP_LEVEL_ZERO_LOADER_SKIP_AUTO_UPDATE)
     set(SYCL_EP_LEVEL_ZERO_LOADER_SKIP_AUTO_UPDATE ${SYCL_EXTERNAL_PROJECTS_SKIP_AUTO_UPDATE})
   endif()
-  if (WIN32)
-    set(LEVEL_ZERO_LOADER_SOURCE_VERSION v1.2.3)
-  else()
-    set(LEVEL_ZERO_LOADER_SOURCE_VERSION v1.4.1)
-  endif()
+  set(LEVEL_ZERO_LOADER_SOURCE_VERSION v1.8.8)
 
   #TODO: Replace ExternalProject with FetchContent for better maintainance and
   #      cmake files simplification
@@ -107,7 +103,7 @@ find_package(Threads REQUIRED)
 
 add_sycl_plugin(level_zero
   SOURCES
-    "${sycl_inc_dir}/CL/sycl/detail/pi.h"
+    "${sycl_inc_dir}/sycl/detail/pi.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/pi_level_zero.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/pi_level_zero.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/usm_allocator.cpp"
@@ -117,6 +113,7 @@ add_sycl_plugin(level_zero
   LIBRARIES
     "${LEVEL_ZERO_LOADER}"
     Threads::Threads
+    unified_runtime
 )
 
 find_package(Python3 REQUIRED)

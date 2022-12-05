@@ -12,7 +12,7 @@
 ;;                  0, NULL, NULL,
 ;;                  ^(){});
 ;; }
-; RUN: llvm-as -opaque-pointers=0 < %s > %t.bc
+; RUN: llvm-as < %s > %t.bc
 ; RUN: llvm-spirv %t.bc -o - -spirv-text | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv

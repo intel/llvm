@@ -8,4 +8,4 @@
 // the -fno-operator-names option
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>

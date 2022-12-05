@@ -17,7 +17,7 @@
 // constants, emits correct specialization constats map file and can properly
 // translate the resulting bitcode to SPIR-V.
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <cstdint>
 #include <vector>

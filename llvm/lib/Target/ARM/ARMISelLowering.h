@@ -445,7 +445,7 @@ class VectorType;
     bool allowsMisalignedMemoryAccesses(EVT VT, unsigned AddrSpace,
                                         Align Alignment,
                                         MachineMemOperand::Flags Flags,
-                                        bool *Fast) const override;
+                                        unsigned *Fast) const override;
 
     EVT getOptimalMemOpType(const MemOp &Op,
                             const AttributeList &FuncAttributes) const override;
@@ -469,14 +469,6 @@ class VectorType;
     bool isLegalAddressingMode(const DataLayout &DL, const AddrMode &AM,
                                Type *Ty, unsigned AS,
                                Instruction *I = nullptr) const override;
-
-    /// getScalingFactorCost - Return the cost of the scaling used in
-    /// addressing mode represented by AM.
-    /// If the AM is supported, the return value must be >= 0.
-    /// If the AM is not supported, the return value must be negative.
-    InstructionCost getScalingFactorCost(const DataLayout &DL,
-                                         const AddrMode &AM, Type *Ty,
-                                         unsigned AS) const override;
 
     bool isLegalT2ScaledAddressingMode(const AddrMode &AM, EVT VT) const;
 
@@ -592,6 +584,8 @@ class VectorType;
 
     bool preferZeroCompareBranch() const override { return true; }
 
+    bool isMaskAndCmp0FoldingBeneficial(const Instruction &AndI) const override;
+
     bool
     isShuffleMaskLegal(ArrayRef<int> M, EVT VT) const override;
     bool isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const override;
@@ -687,8 +681,8 @@ class VectorType;
       return (MemVT.getSizeInBits() <= 32);
     }
 
-    bool isCheapToSpeculateCttz() const override;
-    bool isCheapToSpeculateCtlz() const override;
+    bool isCheapToSpeculateCttz(Type *Ty) const override;
+    bool isCheapToSpeculateCtlz(Type *Ty) const override;
 
     bool convertSetCCLogicToBitwiseLogic(EVT VT) const override {
       return VT.isScalarInteger();
@@ -733,12 +727,23 @@ class VectorType;
     bool isDesirableToCommuteWithShift(const SDNode *N,
                                        CombineLevel Level) const override;
 
+    bool isDesirableToCommuteXorWithShift(const SDNode *N) const override;
+
     bool shouldFoldConstantShiftPairToMask(const SDNode *N,
                                            CombineLevel Level) const override;
 
     bool preferIncOfAddToSubOfNot(EVT VT) const override;
 
     bool shouldConvertFpToSat(unsigned Op, EVT FPVT, EVT VT) const override;
+
+    bool isComplexDeinterleavingSupported() const override;
+    bool isComplexDeinterleavingOperationSupported(
+        ComplexDeinterleavingOperation Operation, Type *Ty) const override;
+
+    Value *createComplexDeinterleavingIR(
+        Instruction *I, ComplexDeinterleavingOperation OperationType,
+        ComplexDeinterleavingRotation Rotation, Value *InputA, Value *InputB,
+        Value *Accumulator = nullptr) const override;
 
   protected:
     std::pair<const TargetRegisterClass *, uint8_t>

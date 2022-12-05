@@ -45,9 +45,11 @@ public:
   bool SelectInlineAsmMemoryOperand(const SDValue &Op, unsigned ConstraintID,
                                     std::vector<SDValue> &OutOps) override;
 
+  bool SelectAddrFrameIndex(SDValue Addr, SDValue &Base, SDValue &Offset);
   bool SelectFrameAddrRegImm(SDValue Addr, SDValue &Base, SDValue &Offset);
-  bool SelectBaseAddr(SDValue Addr, SDValue &Base);
   bool SelectAddrRegImm(SDValue Addr, SDValue &Base, SDValue &Offset);
+
+  bool tryShrinkShlLogicImm(SDNode *Node);
 
   bool selectShiftMask(SDValue N, unsigned ShiftWidth, SDValue &ShAmt);
   bool selectShiftMaskXLen(SDValue N, SDValue &ShAmt) {
@@ -58,7 +60,20 @@ public:
   }
 
   bool selectSExti32(SDValue N, SDValue &Val);
-  bool selectZExti32(SDValue N, SDValue &Val);
+  bool selectZExtBits(SDValue N, unsigned Bits, SDValue &Val);
+  template <unsigned Bits> bool selectZExtBits(SDValue N, SDValue &Val) {
+    return selectZExtBits(N, Bits, Val);
+  }
+
+  bool selectSHXADDOp(SDValue N, unsigned ShAmt, SDValue &Val);
+  template <unsigned ShAmt> bool selectSHXADDOp(SDValue N, SDValue &Val) {
+    return selectSHXADDOp(N, ShAmt, Val);
+  }
+
+  bool selectSHXADD_UWOp(SDValue N, unsigned ShAmt, SDValue &Val);
+  template <unsigned ShAmt> bool selectSHXADD_UWOp(SDValue N, SDValue &Val) {
+    return selectSHXADD_UWOp(N, ShAmt, Val);
+  }
 
   bool hasAllNBitUsers(SDNode *Node, unsigned Bits) const;
   bool hasAllHUsers(SDNode *Node) const { return hasAllNBitUsers(Node, 16); }
@@ -117,9 +132,11 @@ public:
 #include "RISCVGenDAGISel.inc"
 
 private:
-  bool doPeepholeLoadStoreADDI(SDNode *Node);
   bool doPeepholeSExtW(SDNode *Node);
   bool doPeepholeMaskedRVV(SDNode *Node);
+  bool doPeepholeMergeVVMFold();
+  bool performVMergeToVAdd(SDNode *N);
+  bool performCombineVMergeAndVOps(SDNode *N, bool IsTA);
 };
 
 namespace RISCV {

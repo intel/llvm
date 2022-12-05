@@ -11,12 +11,12 @@
 #include "fpga_utils.hpp"
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_types.hpp>
-#include <CL/sycl/stl.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/stl.hpp>
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace intel {
 namespace experimental {
@@ -75,7 +75,9 @@ public:
 #else
     (void)Success;
     (void)Properties;
-    assert(!"Pipes are not supported on a host device!");
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Pipes are not supported on a host device.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -122,7 +124,9 @@ public:
     (void)Success;
     (void)Data;
     (void)Properties;
-    assert(!"Pipes are not supported on a host device!");
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Pipes are not supported on a host device.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -169,7 +173,9 @@ public:
     return TempData;
 #else
     (void)Properties;
-    assert(!"Pipes are not supported on a host device!");
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Pipes are not supported on a host device.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -212,7 +218,9 @@ public:
 #else
     (void)Data;
     (void)Properties;
-    assert(!"Pipes are not supported on a host device!");
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Pipes are not supported on a host device.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -273,5 +281,5 @@ private:
 } // namespace experimental
 } // namespace intel
 } // namespace ext
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

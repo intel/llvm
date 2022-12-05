@@ -1,5 +1,5 @@
 ; This test ensures that the translator does not crash
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
 
 ; ModuleID = 'test.bc'

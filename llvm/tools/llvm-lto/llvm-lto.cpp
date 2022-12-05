@@ -261,6 +261,10 @@ static cl::opt<bool>
                      cl::desc("Print pass management debugging information"),
                      cl::cat(LTOCategory));
 
+static cl::opt<bool>
+    LTOSaveBeforeOpt("lto-save-before-opt", cl::init(false),
+                     cl::desc("Save the IR before running optimizations"));
+
 namespace {
 
 struct ModuleInfo {
@@ -313,11 +317,11 @@ namespace {
       if (!CurrentActivity.empty())
         OS << ' ' << CurrentActivity;
       OS << ": ";
-  
+
       DiagnosticPrinterRawOStream DP(OS);
       DI.print(DP);
       OS << '\n';
-  
+
       if (DI.getSeverity() == DS_Error)
         exit(1);
       return true;
@@ -1066,9 +1070,12 @@ int main(int argc, char **argv) {
   CodeGen.setAttrs(codegen::getMAttrs());
 
   if (auto FT = codegen::getExplicitFileType())
-    CodeGen.setFileType(FT.getValue());
+    CodeGen.setFileType(*FT);
 
   if (!OutputFilename.empty()) {
+    if (LTOSaveBeforeOpt)
+      CodeGen.setSaveIRBeforeOptPath(OutputFilename + ".0.preopt.bc");
+
     if (SaveLinkedModuleFile) {
       std::string ModuleFilename = OutputFilename;
       ModuleFilename += ".linked.bc";
@@ -1092,7 +1099,9 @@ int main(int argc, char **argv) {
         error("writing merged module failed.");
     }
 
-    auto AddStream = [&](size_t Task) -> std::unique_ptr<CachedFileStream> {
+    auto AddStream =
+        [&](size_t Task,
+            const Twine &ModuleName) -> std::unique_ptr<CachedFileStream> {
       std::string PartFilename = OutputFilename;
       if (Parallelism != 1)
         PartFilename += "." + utostr(Task);

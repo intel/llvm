@@ -1,9 +1,9 @@
-// RUN: %clangxx -fsycl --no-system-header-prefix=CL/sycl -fsyntax-only -Wall -Wextra -Werror -Wno-ignored-attributes -Wno-deprecated-declarations -Wpessimizing-move -Wunused-variable -Wmismatched-tags -Wunneeded-internal-declaration -Wno-unknown-cuda-version -Wno-unused-parameter -Wno-unused-command-line-argument %s
-// RUN: %clangxx -fsycl -E --no-system-header-prefix=CL/sycl %s -o %t.ii
+// RUN: %clangxx -fsycl --no-system-header-prefix=sycl -fsyntax-only -Wall -Wextra -Werror -Wno-ignored-attributes -Wno-deprecated-declarations -Wpessimizing-move -Wunused-variable -Wmismatched-tags -Wunneeded-internal-declaration -Wno-unknown-cuda-version -Wno-unused-parameter -Wno-unused-command-line-argument %s
+// RUN: %clangxx -fsycl -E --no-system-header-prefix=sycl %s -o %t.ii
 // RUN: %clangxx -fsycl -fsyntax-only -Wall -Wextra -Werror -Wno-ignored-attributes -Wno-deprecated-declarations -Wpessimizing-move -Wunused-variable -Wmismatched-tags -Wunneeded-internal-declaration -Wno-unknown-cuda-version -Wno-unused-parameter -Wno-unused-command-line-argument %t.ii
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 int main() {
   vec<long, 4> newVec;
   queue myQueue;

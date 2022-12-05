@@ -705,10 +705,10 @@ void FilterAndStoreDiagnosticConsumer::HandleDiagnostic(
     }
 
     if (StandaloneDiags) {
-      llvm::Optional<StoredDiagnostic> StoredDiag = None;
+      llvm::Optional<StoredDiagnostic> StoredDiag;
       if (!ResultDiag) {
         StoredDiag.emplace(Level, Info);
-        ResultDiag = StoredDiag.getPointer();
+        ResultDiag = &*StoredDiag;
       }
       StandaloneDiags->push_back(
           makeStandaloneDiagnostic(*LangOpts, *ResultDiag));
@@ -1756,8 +1756,7 @@ ASTUnit *ASTUnit::LoadFromCommandLine(
       SkipFunctionBodies == SkipFunctionBodiesScope::PreambleAndMainFile;
 
   if (ModuleFormat)
-    CI->getHeaderSearchOpts().ModuleFormat =
-        std::string(ModuleFormat.getValue());
+    CI->getHeaderSearchOpts().ModuleFormat = std::string(*ModuleFormat);
 
   // Create the AST unit.
   std::unique_ptr<ASTUnit> AST;

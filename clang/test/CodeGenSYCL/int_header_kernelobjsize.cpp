@@ -7,7 +7,7 @@
 
 #include "sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 
 void testA() {
   queue q;

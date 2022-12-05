@@ -623,7 +623,7 @@ static unsigned short EncodeVersions(unsigned int MinVersion,
   }
 
   unsigned VersionIDs[] = {100, 110, 120, 200, 300};
-  for (unsigned I = 0; I < sizeof(VersionIDs) / sizeof(VersionIDs[0]); I++) {
+  for (unsigned I = 0; I < std::size(VersionIDs); I++) {
     if (VersionIDs[I] >= MinVersion && VersionIDs[I] < MaxVersion) {
       Encoded |= 1 << I;
     }
@@ -1129,7 +1129,7 @@ void OpenCLBuiltinFileEmitterBase::expandTypesInSignature(
         // If the type requires an extension, add a TypeExtMap entry mapping
         // the full type name to the extension.
         StringRef Ext =
-            Arg->getValueAsDef("Extension")->getValueAsString("ExtName");
+            Type->getValueAsDef("Extension")->getValueAsString("ExtName");
         if (!Ext.empty() && TypeExtMap.find(FullType) == TypeExtMap.end()) {
           TypeExtMap.insert({FullType, Ext});
         }

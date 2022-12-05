@@ -36,9 +36,9 @@
 ;    return 0;
 ;  }
 
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s
 
 ; CHECK: [[IT_VEC:![0-9]+]] = !DICompositeType(tag: DW_TAG_structure_type, name: "iterator<vector>", {{.+}}, templateParams: [[TMPL_P:![0-9]+]]

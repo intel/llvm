@@ -21,6 +21,8 @@
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/MC/MCDwarf.h"
 
+#include <algorithm>
+
 using namespace llvm;
 
 // For now we use x18, a.k.a s2, as pointer to shadow call stack.
@@ -37,8 +39,8 @@ static void emitSCSPrologue(MachineFunction &MF, MachineBasicBlock &MBB,
   // Do not save RA to the SCS if it's not saved to the regular stack,
   // i.e. RA is not at risk of being overwritten.
   std::vector<CalleeSavedInfo> &CSI = MF.getFrameInfo().getCalleeSavedInfo();
-  if (std::none_of(CSI.begin(), CSI.end(),
-                   [&](CalleeSavedInfo &CSR) { return CSR.getReg() == RAReg; }))
+  if (llvm::none_of(
+          CSI, [&](CalleeSavedInfo &CSR) { return CSR.getReg() == RAReg; }))
     return;
 
   Register SCSPReg = RISCVABI::getSCSPReg();
@@ -87,8 +89,8 @@ static void emitSCSEpilogue(MachineFunction &MF, MachineBasicBlock &MBB,
 
   // See emitSCSPrologue() above.
   std::vector<CalleeSavedInfo> &CSI = MF.getFrameInfo().getCalleeSavedInfo();
-  if (std::none_of(CSI.begin(), CSI.end(),
-                   [&](CalleeSavedInfo &CSR) { return CSR.getReg() == RAReg; }))
+  if (llvm::none_of(
+          CSI, [&](CalleeSavedInfo &CSR) { return CSR.getReg() == RAReg; }))
     return;
 
   Register SCSPReg = RISCVABI::getSCSPReg();
@@ -292,54 +294,10 @@ void RISCVFrameLowering::adjustReg(MachineBasicBlock &MBB,
                                    const DebugLoc &DL, Register DestReg,
                                    Register SrcReg, int64_t Val,
                                    MachineInstr::MIFlag Flag) const {
-  MachineRegisterInfo &MRI = MBB.getParent()->getRegInfo();
-  const RISCVInstrInfo *TII = STI.getInstrInfo();
-
-  if (DestReg == SrcReg && Val == 0)
-    return;
-
-  if (isInt<12>(Val)) {
-    BuildMI(MBB, MBBI, DL, TII->get(RISCV::ADDI), DestReg)
-        .addReg(SrcReg)
-        .addImm(Val)
-        .setMIFlag(Flag);
-    return;
-  }
-
-  // Try to split the offset across two ADDIs. We need to keep the stack pointer
-  // aligned after each ADDI. We need to determine the maximum value we can put
-  // in each ADDI. In the negative direction, we can use -2048 which is always
-  // sufficiently aligned. In the positive direction, we need to find the
-  // largest 12-bit immediate that is aligned. Exclude -4096 since it can be
-  // created with LUI.
-  assert(getStackAlign().value() < 2048 && "Stack alignment too large");
-  int64_t MaxPosAdjStep = 2048 - getStackAlign().value();
-  if (Val > -4096 && Val <= (2 * MaxPosAdjStep)) {
-    int64_t FirstAdj = Val < 0 ? -2048 : MaxPosAdjStep;
-    Val -= FirstAdj;
-    BuildMI(MBB, MBBI, DL, TII->get(RISCV::ADDI), DestReg)
-        .addReg(SrcReg)
-        .addImm(FirstAdj)
-        .setMIFlag(Flag);
-    BuildMI(MBB, MBBI, DL, TII->get(RISCV::ADDI), DestReg)
-        .addReg(DestReg, RegState::Kill)
-        .addImm(Val)
-        .setMIFlag(Flag);
-    return;
-  }
-
-  unsigned Opc = RISCV::ADD;
-  if (Val < 0) {
-    Val = -Val;
-    Opc = RISCV::SUB;
-  }
-
-  Register ScratchReg = MRI.createVirtualRegister(&RISCV::GPRRegClass);
-  TII->movImm(MBB, MBBI, DL, ScratchReg, Val, Flag);
-  BuildMI(MBB, MBBI, DL, TII->get(Opc), DestReg)
-      .addReg(SrcReg)
-      .addReg(ScratchReg, RegState::Kill)
-      .setMIFlag(Flag);
+  // We must keep the stack pointer aligned through any intermediate
+  // updates.
+  const RISCVRegisterInfo &RI = *STI.getRegisterInfo();
+  RI.adjustReg(MBB, MBBI, DL, DestReg, SrcReg, Val, Flag, getStackAlign());
 }
 
 // Returns the register used to hold the frame pointer.
@@ -371,7 +329,24 @@ void RISCVFrameLowering::adjustStackForRVV(MachineFunction &MF,
   assert(Amount != 0 && "Did not need to adjust stack pointer for RVV.");
 
   const RISCVInstrInfo *TII = STI.getInstrInfo();
-  Register SPReg = getSPReg(STI);
+  const Register SPReg = getSPReg(STI);
+
+  // Optimize compile time offset case
+  if (STI.getRealMinVLen() == STI.getRealMaxVLen()) {
+    // 1. Multiply the number of v-slots by the (constant) length of register
+    const int64_t VLENB = STI.getRealMinVLen() / 8;
+    assert(Amount % 8 == 0 &&
+           "Reserve the stack by the multiple of one vector size.");
+    const int64_t NumOfVReg = Amount / 8;
+    const int64_t Offset = NumOfVReg * VLENB;
+    if (!isInt<32>(Offset)) {
+      report_fatal_error(
+        "Frame size outside of the signed 32-bit range not supported");
+    }
+    adjustReg(MBB, MBBI, DL, SPReg, SPReg, Offset, Flag);
+    return;
+  }
+
   unsigned Opc = RISCV::ADD;
   if (Amount < 0) {
     Amount = -Amount;
@@ -379,7 +354,8 @@ void RISCVFrameLowering::adjustStackForRVV(MachineFunction &MF,
   }
   // 1. Multiply the number of v-slots to the length of registers
   Register FactorRegister =
-      TII->getVLENFactoredAmount(MF, MBB, MBBI, DL, Amount, Flag);
+      MF.getRegInfo().createVirtualRegister(&RISCV::GPRRegClass);
+  TII->getVLENFactoredAmount(MF, MBB, MBBI, DL, FactorRegister, Amount, Flag);
   // 2. SP = SP - RVV stack size
   BuildMI(MBB, MBBI, DL, TII->get(Opc), SPReg)
       .addReg(SPReg)
@@ -512,6 +488,8 @@ void RISCVFrameLowering::emitPrologue(MachineFunction &MF,
     if (STI.isRegisterReservedByUser(FPReg))
       MF.getFunction().getContext().diagnose(DiagnosticInfoUnsupported{
           MF.getFunction(), "Frame pointer required, but has been reserved."});
+    // The frame pointer does need to be reserved from register allocation.
+    assert(MF.getRegInfo().isReserved(FPReg) && "FP not reserved");
 
     adjustReg(MBB, MBBI, DL, FPReg, SPReg,
               RealStackSize - RVFI->getVarArgsSaveSize(),
@@ -897,7 +875,8 @@ void RISCVFrameLowering::determineCalleeSaves(MachineFunction &MF,
 }
 
 std::pair<int64_t, Align>
-RISCVFrameLowering::assignRVVStackObjectOffsets(MachineFrameInfo &MFI) const {
+RISCVFrameLowering::assignRVVStackObjectOffsets(MachineFunction &MF) const {
+  MachineFrameInfo &MFI = MF.getFrameInfo();
   // Create a buffer of RVV objects to allocate.
   SmallVector<int, 8> ObjectsToAllocate;
   for (int I = 0, E = MFI.getObjectIndexEnd(); I != E; ++I) {
@@ -910,10 +889,18 @@ RISCVFrameLowering::assignRVVStackObjectOffsets(MachineFrameInfo &MFI) const {
     ObjectsToAllocate.push_back(I);
   }
 
-  // Allocate all RVV locals and spills
-  int64_t Offset = 0;
   // The minimum alignment is 16 bytes.
   Align RVVStackAlign(16);
+  const auto &ST = MF.getSubtarget<RISCVSubtarget>();
+
+  if (!ST.hasVInstructions()) {
+    assert(ObjectsToAllocate.empty() &&
+           "Can't allocate scalable-vector objects without V instructions");
+    return std::make_pair(0, RVVStackAlign);
+  }
+
+  // Allocate all RVV locals and spills
+  int64_t Offset = 0;
   for (int FI : ObjectsToAllocate) {
     // ObjectSize in bytes.
     int64_t ObjectSize = MFI.getObjectSize(FI);
@@ -941,72 +928,48 @@ RISCVFrameLowering::assignRVVStackObjectOffsets(MachineFrameInfo &MFI) const {
   return std::make_pair(StackSize, RVVStackAlign);
 }
 
-static bool hasRVVSpillWithFIs(MachineFunction &MF) {
+static unsigned getScavSlotsNumForRVV(MachineFunction &MF) {
+  // For RVV spill, scalable stack offsets computing requires up to two scratch
+  // registers
+  static constexpr unsigned ScavSlotsNumRVVSpillScalableObject = 2;
+
+  // For RVV spill, non-scalable stack offsets computing requires up to one
+  // scratch register.
+  static constexpr unsigned ScavSlotsNumRVVSpillNonScalableObject = 1;
+
+  // ADDI instruction's destination register can be used for computing
+  // offsets. So Scalable stack offsets require up to one scratch register.
+  static constexpr unsigned ScavSlotsADDIScalableObject = 1;
+
+  static constexpr unsigned MaxScavSlotsNumKnown =
+      std::max({ScavSlotsADDIScalableObject, ScavSlotsNumRVVSpillScalableObject,
+                ScavSlotsNumRVVSpillNonScalableObject});
+
+  unsigned MaxScavSlotsNum = 0;
   if (!MF.getSubtarget<RISCVSubtarget>().hasVInstructions())
     return false;
   for (const MachineBasicBlock &MBB : MF)
-    for (const MachineInstr &MI : MBB)
-      if (RISCV::isRVVSpill(MI, /*CheckFIs*/ true))
-        return true;
-  return false;
-}
-
-void RISCVFrameLowering::processFunctionBeforeFrameFinalized(
-    MachineFunction &MF, RegScavenger *RS) const {
-  const RISCVRegisterInfo *RegInfo =
-      MF.getSubtarget<RISCVSubtarget>().getRegisterInfo();
-  MachineFrameInfo &MFI = MF.getFrameInfo();
-  const TargetRegisterClass *RC = &RISCV::GPRRegClass;
-  auto *RVFI = MF.getInfo<RISCVMachineFunctionInfo>();
-
-  int64_t RVVStackSize;
-  Align RVVStackAlign;
-  std::tie(RVVStackSize, RVVStackAlign) = assignRVVStackObjectOffsets(MFI);
-
-  RVFI->setRVVStackSize(RVVStackSize);
-  RVFI->setRVVStackAlign(RVVStackAlign);
-
-  // Ensure the entire stack is aligned to at least the RVV requirement: some
-  // scalable-vector object alignments are not considered by the
-  // target-independent code.
-  MFI.ensureMaxAlignment(RVVStackAlign);
-
-  // estimateStackSize has been observed to under-estimate the final stack
-  // size, so give ourselves wiggle-room by checking for stack size
-  // representable an 11-bit signed field rather than 12-bits.
-  // FIXME: It may be possible to craft a function with a small stack that
-  // still needs an emergency spill slot for branch relaxation. This case
-  // would currently be missed.
-  // RVV loads & stores have no capacity to hold the immediate address offsets
-  // so we must always reserve an emergency spill slot if the MachineFunction
-  // contains any RVV spills.
-  if (!isInt<11>(MFI.estimateStackSize(MF)) || hasRVVSpillWithFIs(MF)) {
-    int RegScavFI = MFI.CreateStackObject(RegInfo->getSpillSize(*RC),
-                                          RegInfo->getSpillAlign(*RC), false);
-    RS->addScavengingFrameIndex(RegScavFI);
-    // For RVV, scalable stack offsets require up to two scratch registers to
-    // compute the final offset. Reserve an additional emergency spill slot.
-    if (RVVStackSize != 0) {
-      int RVVRegScavFI = MFI.CreateStackObject(
-          RegInfo->getSpillSize(*RC), RegInfo->getSpillAlign(*RC), false);
-      RS->addScavengingFrameIndex(RVVRegScavFI);
+    for (const MachineInstr &MI : MBB) {
+      bool IsRVVSpill = RISCV::isRVVSpill(MI);
+      for (auto &MO : MI.operands()) {
+        if (!MO.isFI())
+          continue;
+        bool IsScalableVectorID = MF.getFrameInfo().getStackID(MO.getIndex()) ==
+                                  TargetStackID::ScalableVector;
+        if (IsRVVSpill) {
+          MaxScavSlotsNum = std::max(
+              MaxScavSlotsNum, IsScalableVectorID
+                                   ? ScavSlotsNumRVVSpillScalableObject
+                                   : ScavSlotsNumRVVSpillNonScalableObject);
+        } else if (MI.getOpcode() == RISCV::ADDI && IsScalableVectorID) {
+          MaxScavSlotsNum =
+              std::max(MaxScavSlotsNum, ScavSlotsADDIScalableObject);
+        }
+      }
+      if (MaxScavSlotsNum == MaxScavSlotsNumKnown)
+        return MaxScavSlotsNumKnown;
     }
-  }
-
-  if (MFI.getCalleeSavedInfo().empty() || RVFI->useSaveRestoreLibCalls(MF)) {
-    RVFI->setCalleeSavedStackSize(0);
-    return;
-  }
-
-  unsigned Size = 0;
-  for (const auto &Info : MFI.getCalleeSavedInfo()) {
-    int FrameIdx = Info.getFrameIdx();
-    if (MFI.getStackID(FrameIdx) != TargetStackID::Default)
-      continue;
-
-    Size += MFI.getObjectSize(FrameIdx);
-  }
-  RVFI->setCalleeSavedStackSize(Size);
+  return MaxScavSlotsNum;
 }
 
 static bool hasRVVFrameObject(const MachineFunction &MF) {
@@ -1026,6 +989,110 @@ static bool hasRVVFrameObject(const MachineFunction &MF) {
   //
   // Refer to https://github.com/llvm/llvm-project/issues/53016.
   return MF.getSubtarget<RISCVSubtarget>().hasVInstructions();
+}
+
+static unsigned estimateFunctionSizeInBytes(const MachineFunction &MF,
+                                            const RISCVInstrInfo &TII) {
+  unsigned FnSize = 0;
+  for (auto &MBB : MF) {
+    for (auto &MI : MBB) {
+      // Far branches over 20-bit offset will be relaxed in branch relaxation
+      // pass. In the worst case, conditional branches will be relaxed into
+      // the following instruction sequence. Unconditional branches are
+      // relaxed in the same way, with the exception that there is no first
+      // branch instruction.
+      //
+      //        foo
+      //        bne     t5, t6, .rev_cond # `TII->getInstSizeInBytes(MI)` bytes
+      //        sd      s11, 0(sp)        # 4 bytes, or 2 bytes in RVC
+      //        jump    .restore, s11     # 8 bytes
+      // .rev_cond
+      //        bar
+      //        j       .dest_bb          # 4 bytes, or 2 bytes in RVC
+      // .restore:
+      //        ld      s11, 0(sp)        # 4 bytes, or 2 bytes in RVC
+      // .dest:
+      //        baz
+      if (MI.isConditionalBranch())
+        FnSize += TII.getInstSizeInBytes(MI);
+      if (MI.isConditionalBranch() || MI.isUnconditionalBranch()) {
+        if (MF.getSubtarget<RISCVSubtarget>().hasStdExtC())
+          FnSize += 2 + 8 + 2 + 2;
+        else
+          FnSize += 4 + 8 + 4 + 4;
+        continue;
+      }
+
+      FnSize += TII.getInstSizeInBytes(MI);
+    }
+  }
+  return FnSize;
+}
+
+void RISCVFrameLowering::processFunctionBeforeFrameFinalized(
+    MachineFunction &MF, RegScavenger *RS) const {
+  const RISCVRegisterInfo *RegInfo =
+      MF.getSubtarget<RISCVSubtarget>().getRegisterInfo();
+  const RISCVInstrInfo *TII = MF.getSubtarget<RISCVSubtarget>().getInstrInfo();
+  MachineFrameInfo &MFI = MF.getFrameInfo();
+  const TargetRegisterClass *RC = &RISCV::GPRRegClass;
+  auto *RVFI = MF.getInfo<RISCVMachineFunctionInfo>();
+
+  int64_t RVVStackSize;
+  Align RVVStackAlign;
+  std::tie(RVVStackSize, RVVStackAlign) = assignRVVStackObjectOffsets(MF);
+
+  RVFI->setRVVStackSize(RVVStackSize);
+  RVFI->setRVVStackAlign(RVVStackAlign);
+
+  if (hasRVVFrameObject(MF)) {
+    // Ensure the entire stack is aligned to at least the RVV requirement: some
+    // scalable-vector object alignments are not considered by the
+    // target-independent code.
+    MFI.ensureMaxAlignment(RVVStackAlign);
+  }
+
+  unsigned ScavSlotsNum = 0;
+
+  // estimateStackSize has been observed to under-estimate the final stack
+  // size, so give ourselves wiggle-room by checking for stack size
+  // representable an 11-bit signed field rather than 12-bits.
+  if (!isInt<11>(MFI.estimateStackSize(MF)))
+    ScavSlotsNum = 1;
+
+  // Far branches over 20-bit offset require a spill slot for scratch register.
+  bool IsLargeFunction = !isInt<20>(estimateFunctionSizeInBytes(MF, *TII));
+  if (IsLargeFunction)
+    ScavSlotsNum = std::max(ScavSlotsNum, 1u);
+
+  // RVV loads & stores have no capacity to hold the immediate address offsets
+  // so we must always reserve an emergency spill slot if the MachineFunction
+  // contains any RVV spills.
+  ScavSlotsNum = std::max(ScavSlotsNum, getScavSlotsNumForRVV(MF));
+
+  for (unsigned I = 0; I < ScavSlotsNum; I++) {
+    int FI = MFI.CreateStackObject(RegInfo->getSpillSize(*RC),
+                                   RegInfo->getSpillAlign(*RC), false);
+    RS->addScavengingFrameIndex(FI);
+
+    if (IsLargeFunction && RVFI->getBranchRelaxationScratchFrameIndex() == -1)
+      RVFI->setBranchRelaxationScratchFrameIndex(FI);
+  }
+
+  if (MFI.getCalleeSavedInfo().empty() || RVFI->useSaveRestoreLibCalls(MF)) {
+    RVFI->setCalleeSavedStackSize(0);
+    return;
+  }
+
+  unsigned Size = 0;
+  for (const auto &Info : MFI.getCalleeSavedInfo()) {
+    int FrameIdx = Info.getFrameIdx();
+    if (MFI.getStackID(FrameIdx) != TargetStackID::Default)
+      continue;
+
+    Size += MFI.getObjectSize(FrameIdx);
+  }
+  RVFI->setCalleeSavedStackSize(Size);
 }
 
 // Not preserve stack space within prologue for outgoing variables when the
@@ -1181,6 +1248,14 @@ bool RISCVFrameLowering::restoreCalleeSavedRegisters(
       MI->eraseFromParent();
     }
   }
+
+  return true;
+}
+
+bool RISCVFrameLowering::enableShrinkWrapping(const MachineFunction &MF) const {
+  // Keep the conventional code flow when not optimizing.
+  if (MF.getFunction().hasOptNone())
+    return false;
 
   return true;
 }

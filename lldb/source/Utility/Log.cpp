@@ -13,6 +13,7 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/ADT/iterator.h"
 
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/Chrono.h"
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/Path.h"
@@ -34,6 +35,11 @@
 
 using namespace lldb_private;
 
+char LogHandler::ID;
+char StreamLogHandler::ID;
+char CallbackLogHandler::ID;
+char RotatingLogHandler::ID;
+
 llvm::ManagedStatic<Log::ChannelMap> Log::g_channel_map;
 
 void Log::ForEachCategory(
@@ -54,13 +60,14 @@ void Log::ListCategories(llvm::raw_ostream &stream,
                   });
 }
 
-uint32_t Log::GetFlags(llvm::raw_ostream &stream, const ChannelMap::value_type &entry,
-                         llvm::ArrayRef<const char *> categories) {
+Log::MaskType Log::GetFlags(llvm::raw_ostream &stream,
+                            const ChannelMap::value_type &entry,
+                            llvm::ArrayRef<const char *> categories) {
   bool list_categories = false;
-  uint32_t flags = 0;
+  Log::MaskType flags = 0;
   for (const char *category : categories) {
     if (llvm::StringRef("all").equals_insensitive(category)) {
-      flags |= UINT32_MAX;
+      flags |= std::numeric_limits<Log::MaskType>::max();
       continue;
     }
     if (llvm::StringRef("default").equals_insensitive(category)) {
@@ -85,7 +92,7 @@ uint32_t Log::GetFlags(llvm::raw_ostream &stream, const ChannelMap::value_type &
 }
 
 void Log::Enable(const std::shared_ptr<LogHandler> &handler_sp,
-                 uint32_t options, uint32_t flags) {
+                 uint32_t options, Log::MaskType flags) {
   llvm::sys::ScopedWriter lock(m_mutex);
 
   MaskType mask = m_mask.fetch_or(flags, std::memory_order_relaxed);
@@ -96,7 +103,7 @@ void Log::Enable(const std::shared_ptr<LogHandler> &handler_sp,
   }
 }
 
-void Log::Disable(uint32_t flags) {
+void Log::Disable(Log::MaskType flags) {
   llvm::sys::ScopedWriter lock(m_mutex);
 
   MaskType mask = m_mask.fetch_and(~flags, std::memory_order_relaxed);
@@ -106,11 +113,21 @@ void Log::Disable(uint32_t flags) {
   }
 }
 
+bool Log::Dump(llvm::raw_ostream &output_stream) {
+  llvm::sys::ScopedReader lock(m_mutex);
+  if (RotatingLogHandler *handler =
+          llvm::dyn_cast_or_null<RotatingLogHandler>(m_handler.get())) {
+    handler->Dump(output_stream);
+    return true;
+  }
+  return false;
+}
+
 const Flags Log::GetOptions() const {
   return m_options.load(std::memory_order_relaxed);
 }
 
-const Flags Log::GetMask() const {
+Log::MaskType Log::GetMask() const {
   return m_mask.load(std::memory_order_relaxed);
 }
 
@@ -187,7 +204,7 @@ void Log::Register(llvm::StringRef name, Channel &channel) {
 void Log::Unregister(llvm::StringRef name) {
   auto iter = g_channel_map->find(name);
   assert(iter != g_channel_map->end());
-  iter->second.Disable(UINT32_MAX);
+  iter->second.Disable(std::numeric_limits<MaskType>::max());
   g_channel_map->erase(iter);
 }
 
@@ -200,7 +217,7 @@ bool Log::EnableLogChannel(const std::shared_ptr<LogHandler> &log_handler_sp,
     error_stream << llvm::formatv("Invalid log channel '{0}'.\n", channel);
     return false;
   }
-  uint32_t flags = categories.empty()
+  MaskType flags = categories.empty()
                        ? iter->second.m_channel.default_flags
                        : GetFlags(error_stream, *iter, categories);
   iter->second.Enable(log_handler_sp, log_options, flags);
@@ -215,10 +232,26 @@ bool Log::DisableLogChannel(llvm::StringRef channel,
     error_stream << llvm::formatv("Invalid log channel '{0}'.\n", channel);
     return false;
   }
-  uint32_t flags = categories.empty()
-                       ? UINT32_MAX
+  MaskType flags = categories.empty()
+                       ? std::numeric_limits<MaskType>::max()
                        : GetFlags(error_stream, *iter, categories);
   iter->second.Disable(flags);
+  return true;
+}
+
+bool Log::DumpLogChannel(llvm::StringRef channel,
+                         llvm::raw_ostream &output_stream,
+                         llvm::raw_ostream &error_stream) {
+  auto iter = g_channel_map->find(channel);
+  if (iter == g_channel_map->end()) {
+    error_stream << llvm::formatv("Invalid log channel '{0}'.\n", channel);
+    return false;
+  }
+  if (!iter->second.Dump(output_stream)) {
+    error_stream << llvm::formatv(
+        "log channel '{0}' does not support dumping.\n", channel);
+    return false;
+  }
   return true;
 }
 
@@ -235,7 +268,7 @@ bool Log::ListChannelCategories(llvm::StringRef channel,
 
 void Log::DisableAllLogChannels() {
   for (auto &entry : *g_channel_map)
-    entry.second.Disable(UINT32_MAX);
+    entry.second.Disable(std::numeric_limits<MaskType>::max());
 }
 
 void Log::ForEachChannelCategory(
@@ -317,12 +350,7 @@ void Log::WriteMessage(const std::string &message) {
   auto handler_sp = GetHandler();
   if (!handler_sp)
     return;
-
-  Flags options = GetOptions();
-  if (options.Test(LLDB_LOG_OPTION_THREADSAFE))
-    handler_sp->EmitThreadSafe(message);
-  else
-    handler_sp->Emit(message);
+  handler_sp->Emit(message);
 }
 
 void Log::Format(llvm::StringRef file, llvm::StringRef function,
@@ -334,17 +362,27 @@ void Log::Format(llvm::StringRef file, llvm::StringRef function,
   WriteMessage(message.str());
 }
 
-void LogHandler::EmitThreadSafe(llvm::StringRef message) {
-  std::lock_guard<std::mutex> guard(m_mutex);
-  Emit(message);
+StreamLogHandler::StreamLogHandler(int fd, bool should_close,
+                                   size_t buffer_size)
+    : m_stream(fd, should_close, buffer_size == 0) {
+  if (buffer_size > 0)
+    m_stream.SetBufferSize(buffer_size);
 }
 
-StreamLogHandler::StreamLogHandler(int fd, bool should_close, bool unbuffered)
-    : m_stream(fd, should_close, unbuffered) {}
+StreamLogHandler::~StreamLogHandler() { Flush(); }
+
+void StreamLogHandler::Flush() {
+  std::lock_guard<std::mutex> guard(m_mutex);
+  m_stream.flush();
+}
 
 void StreamLogHandler::Emit(llvm::StringRef message) {
-  m_stream << message;
-  m_stream.flush();
+  if (m_stream.GetBufferSize() > 0) {
+    std::lock_guard<std::mutex> guard(m_mutex);
+    m_stream << message;
+  } else {
+    m_stream << message;
+  }
 }
 
 CallbackLogHandler::CallbackLogHandler(lldb::LogOutputCallback callback,
@@ -359,6 +397,7 @@ RotatingLogHandler::RotatingLogHandler(size_t size)
     : m_messages(std::make_unique<std::string[]>(size)), m_size(size) {}
 
 void RotatingLogHandler::Emit(llvm::StringRef message) {
+  std::lock_guard<std::mutex> guard(m_mutex);
   ++m_total_count;
   const size_t index = m_next_index;
   m_next_index = NormalizeIndex(index + 1);
@@ -376,6 +415,7 @@ size_t RotatingLogHandler::GetFirstMessageIndex() const {
 }
 
 void RotatingLogHandler::Dump(llvm::raw_ostream &stream) const {
+  std::lock_guard<std::mutex> guard(m_mutex);
   const size_t start_idx = GetFirstMessageIndex();
   const size_t stop_idx = start_idx + GetNumMessages();
   for (size_t i = start_idx; i < stop_idx; ++i) {

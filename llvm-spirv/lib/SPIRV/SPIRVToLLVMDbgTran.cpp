@@ -1116,7 +1116,7 @@ SPIRVToLLVMDbgTran::ParseChecksum(StringRef Text) {
     auto Checksum = Text.substr(ColonPos).ltrim(':');
     if (auto Kind = DIFile::getChecksumKind(KindStr)) {
       size_t ChecksumEndPos = Checksum.find_if_not(llvm::isHexDigit);
-      CS.emplace(Kind.getValue(), Checksum.substr(0, ChecksumEndPos));
+      CS.emplace(Kind.value(), Checksum.substr(0, ChecksumEndPos));
     }
   }
   return CS;

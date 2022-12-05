@@ -876,44 +876,6 @@ void CodeGenFunction::EmitTypeCheck(TypeCheckKind TCK, SourceLocation Loc,
   }
 }
 
-/// Determine whether this expression refers to a flexible array member in a
-/// struct. We disable array bounds checks for such members.
-static bool isFlexibleArrayMemberExpr(const Expr *E) {
-  // For compatibility with existing code, we treat arrays of length 0 or
-  // 1 as flexible array members.
-  // FIXME: This is inconsistent with the warning code in SemaChecking. Unify
-  // the two mechanisms.
-  const ArrayType *AT = E->getType()->castAsArrayTypeUnsafe();
-  if (const auto *CAT = dyn_cast<ConstantArrayType>(AT)) {
-    // FIXME: Sema doesn't treat [1] as a flexible array member if the bound
-    // was produced by macro expansion.
-    if (CAT->getSize().ugt(1))
-      return false;
-  } else if (!isa<IncompleteArrayType>(AT))
-    return false;
-
-  E = E->IgnoreParens();
-
-  // A flexible array member must be the last member in the class.
-  if (const auto *ME = dyn_cast<MemberExpr>(E)) {
-    // FIXME: If the base type of the member expr is not FD->getParent(),
-    // this should not be treated as a flexible array member access.
-    if (const auto *FD = dyn_cast<FieldDecl>(ME->getMemberDecl())) {
-      // FIXME: Sema doesn't treat a T[1] union member as a flexible array
-      // member, only a T[0] or T[] member gets that treatment.
-      if (FD->getParent()->isUnion())
-        return true;
-      RecordDecl::field_iterator FI(
-          DeclContext::decl_iterator(const_cast<FieldDecl *>(FD)));
-      return ++FI == FD->getParent()->field_end();
-    }
-  } else if (const auto *IRE = dyn_cast<ObjCIvarRefExpr>(E)) {
-    return IRE->getDecl()->getNextIvar() == nullptr;
-  }
-
-  return false;
-}
-
 llvm::Value *CodeGenFunction::LoadPassedObjectSize(const Expr *E,
                                                    QualType EltTy) {
   ASTContext &C = getContext();
@@ -955,8 +917,11 @@ llvm::Value *CodeGenFunction::LoadPassedObjectSize(const Expr *E,
 
 /// If Base is known to point to the start of an array, return the length of
 /// that array. Return 0 if the length cannot be determined.
-static llvm::Value *getArrayIndexingBound(
-    CodeGenFunction &CGF, const Expr *Base, QualType &IndexedType) {
+static llvm::Value *getArrayIndexingBound(CodeGenFunction &CGF,
+                                          const Expr *Base,
+                                          QualType &IndexedType,
+                                          LangOptions::StrictFlexArraysLevelKind
+                                          StrictFlexArraysLevel) {
   // For the vector indexing extension, the bound is the number of elements.
   if (const VectorType *VT = Base->getType()->getAs<VectorType>()) {
     IndexedType = Base->getType();
@@ -967,7 +932,8 @@ static llvm::Value *getArrayIndexingBound(
 
   if (const auto *CE = dyn_cast<CastExpr>(Base)) {
     if (CE->getCastKind() == CK_ArrayToPointerDecay &&
-        !isFlexibleArrayMemberExpr(CE->getSubExpr())) {
+        !CE->getSubExpr()->isFlexibleArrayMemberLike(CGF.getContext(),
+                                                     StrictFlexArraysLevel)) {
       IndexedType = CE->getSubExpr()->getType();
       const ArrayType *AT = IndexedType->castAsArrayTypeUnsafe();
       if (const auto *CAT = dyn_cast<ConstantArrayType>(AT))
@@ -994,8 +960,12 @@ void CodeGenFunction::EmitBoundsCheck(const Expr *E, const Expr *Base,
          "should not be called unless adding bounds checks");
   SanitizerScope SanScope(this);
 
+  const LangOptions::StrictFlexArraysLevelKind StrictFlexArraysLevel =
+    getLangOpts().getStrictFlexArraysLevel();
+
   QualType IndexedType;
-  llvm::Value *Bound = getArrayIndexingBound(*this, Base, IndexedType);
+  llvm::Value *Bound =
+      getArrayIndexingBound(*this, Base, IndexedType, StrictFlexArraysLevel);
   if (!Bound)
     return;
 
@@ -1414,6 +1384,8 @@ LValue CodeGenFunction::EmitLValue(const Expr *E) {
     return EmitOMPArraySectionExpr(cast<OMPArraySectionExpr>(E));
   case Expr::ExtVectorElementExprClass:
     return EmitExtVectorElementExpr(cast<ExtVectorElementExpr>(E));
+  case Expr::CXXThisExprClass:
+    return MakeAddrLValue(LoadCXXThisAddress(), E->getType());
   case Expr::MemberExprClass:
     return EmitMemberExpr(cast<MemberExpr>(E));
   case Expr::CompoundLiteralExprClass:
@@ -1649,21 +1621,7 @@ static bool getRangeForType(CodeGenFunction &CGF, QualType Ty,
     End = llvm::APInt(CGF.getContext().getTypeSize(Ty), 2);
   } else {
     const EnumDecl *ED = ET->getDecl();
-    llvm::Type *LTy = CGF.ConvertTypeForMem(ED->getIntegerType());
-    unsigned Bitwidth = LTy->getScalarSizeInBits();
-    unsigned NumNegativeBits = ED->getNumNegativeBits();
-    unsigned NumPositiveBits = ED->getNumPositiveBits();
-
-    if (NumNegativeBits) {
-      unsigned NumBits = std::max(NumNegativeBits, NumPositiveBits + 1);
-      assert(NumBits <= Bitwidth);
-      End = llvm::APInt(Bitwidth, 1) << (NumBits - 1);
-      Min = -End;
-    } else {
-      assert(NumPositiveBits <= Bitwidth);
-      End = llvm::APInt(Bitwidth, 1) << NumPositiveBits;
-      Min = llvm::APInt::getZero(Bitwidth);
-    }
+    ED->getValueRange(End, Min);
   }
   return true;
 }
@@ -1731,6 +1689,10 @@ llvm::Value *CodeGenFunction::EmitLoadOfScalar(Address Addr, bool Volatile,
                                                LValueBaseInfo BaseInfo,
                                                TBAAAccessInfo TBAAInfo,
                                                bool isNontemporal) {
+  if (auto *GV = dyn_cast<llvm::GlobalValue>(Addr.getPointer()))
+    if (GV->isThreadLocal())
+      Addr = Addr.withPointer(Builder.CreateThreadLocalAddress(GV));
+
   if (const auto *ClangVecTy = Ty->getAs<VectorType>()) {
     // Boolean vectors use `iN` as storage type.
     if (ClangVecTy->isExtVectorBoolType()) {
@@ -1789,7 +1751,10 @@ llvm::Value *CodeGenFunction::EmitLoadOfScalar(Address Addr, bool Volatile,
   if (EmitScalarRangeCheck(Load, Ty, Loc)) {
     // In order to prevent the optimizer from throwing away the check, don't
     // attach range metadata to the load.
-  } else if (CGM.getCodeGenOpts().OptimizationLevel > 0)
+    // TODO: Enable range metadata for AMDGCN after issue
+    // https://github.com/llvm/llvm-project/issues/58176 is fixed.
+  } else if (CGM.getCodeGenOpts().OptimizationLevel > 0 &&
+             !CGM.getTriple().isAMDGCN())
     if (llvm::MDNode *RangeInfo = getRangeForLoadFromType(Ty))
       Load->setMetadata(llvm::LLVMContext::MD_range, RangeInfo);
 
@@ -1872,6 +1837,10 @@ void CodeGenFunction::EmitStoreOfScalar(llvm::Value *Value, Address Addr,
                                         LValueBaseInfo BaseInfo,
                                         TBAAAccessInfo TBAAInfo,
                                         bool isInit, bool isNontemporal) {
+  if (auto *GV = dyn_cast<llvm::GlobalValue>(Addr.getPointer()))
+    if (GV->isThreadLocal())
+      Addr = Addr.withPointer(Builder.CreateThreadLocalAddress(GV));
+
   llvm::Type *SrcTy = Value->getType();
   if (const auto *ClangVecTy = Ty->getAs<VectorType>()) {
     auto *VecTy = dyn_cast<llvm::FixedVectorType>(SrcTy);
@@ -2527,14 +2496,16 @@ static Address emitDeclTargetVarDeclLValue(CodeGenFunction &CGF,
                                            const VarDecl *VD, QualType T) {
   llvm::Optional<OMPDeclareTargetDeclAttr::MapTypeTy> Res =
       OMPDeclareTargetDeclAttr::isDeclareTargetDeclaration(VD);
-  // Return an invalid address if variable is MT_To and unified
-  // memory is not enabled. For all other cases: MT_Link and
-  // MT_To with unified memory, return a valid address.
-  if (!Res || (*Res == OMPDeclareTargetDeclAttr::MT_To &&
+  // Return an invalid address if variable is MT_To (or MT_Enter starting with
+  // OpenMP 5.2) and unified memory is not enabled. For all other cases: MT_Link
+  // and MT_To (or MT_Enter) with unified memory, return a valid address.
+  if (!Res || ((*Res == OMPDeclareTargetDeclAttr::MT_To ||
+                *Res == OMPDeclareTargetDeclAttr::MT_Enter) &&
                !CGF.CGM.getOpenMPRuntime().hasRequiresUnifiedSharedMemory()))
     return Address::invalid();
   assert(((*Res == OMPDeclareTargetDeclAttr::MT_Link) ||
-          (*Res == OMPDeclareTargetDeclAttr::MT_To &&
+          ((*Res == OMPDeclareTargetDeclAttr::MT_To ||
+            *Res == OMPDeclareTargetDeclAttr::MT_Enter) &&
            CGF.CGM.getOpenMPRuntime().hasRequiresUnifiedSharedMemory())) &&
          "Expected link clause OR to clause with unified memory enabled.");
   QualType PtrTy = CGF.getContext().getPointerType(VD->getType());
@@ -2602,6 +2573,10 @@ static LValue EmitGlobalVarDeclLValue(CodeGenFunction &CGF,
   }
 
   llvm::Value *V = CGF.CGM.GetAddrOfGlobalVar(VD);
+
+  if (VD->getTLSKind() != VarDecl::TLS_None)
+    V = CGF.Builder.CreateThreadLocalAddress(V);
+
   llvm::Type *RealVarTy = CGF.getTypes().ConvertTypeForMem(VD->getType());
   V = EmitBitCastOfLValueToProperType(CGF, V, RealVarTy);
   CharUnits Alignment = CGF.getContext().getDeclAlign(VD);
@@ -2879,6 +2854,10 @@ LValue CodeGenFunction::EmitDeclRefLValue(const DeclRefExpr *E) {
       llvm_unreachable("DeclRefExpr for Decl not entered in LocalDeclMap?");
     }
 
+    // Handle threadlocal function locals.
+    if (VD->getTLSKind() != VarDecl::TLS_None)
+      addr =
+          addr.withPointer(Builder.CreateThreadLocalAddress(addr.getPointer()));
 
     // Check for OpenMP threadprivate variables.
     if (getLangOpts().OpenMP && !getLangOpts().OpenMPSimd &&
@@ -2936,8 +2915,13 @@ LValue CodeGenFunction::EmitDeclRefLValue(const DeclRefExpr *E) {
   // FIXME: While we're emitting a binding from an enclosing scope, all other
   // DeclRefExprs we see should be implicitly treated as if they also refer to
   // an enclosing scope.
-  if (const auto *BD = dyn_cast<BindingDecl>(ND))
+  if (const auto *BD = dyn_cast<BindingDecl>(ND)) {
+    if (E->refersToEnclosingVariableOrCapture()) {
+      auto *FD = LambdaCaptureFields.lookup(BD);
+      return EmitCapturedFieldLValue(*this, FD, CXXABIThisValue);
+    }
     return EmitLValue(BD->getBinding());
+  }
 
   // We can form DeclRefExprs naming GUID declarations when reconstituting
   // non-type template parameters into expressions.
@@ -3288,7 +3272,7 @@ void CodeGenFunction::EmitCheck(
   assert(IsSanitizerScope);
   assert(Checked.size() > 0);
   assert(CheckHandler >= 0 &&
-         size_t(CheckHandler) < llvm::array_lengthof(SanitizerHandlers));
+         size_t(CheckHandler) < std::size(SanitizerHandlers));
   const StringRef CheckName = SanitizerHandlers[CheckHandler].Name;
 
   llvm::Value *FatalCond = nullptr;
@@ -3762,7 +3746,7 @@ static Address emitArraySubscriptGEP(CodeGenFunction &CGF, Address addr,
                                      const ValueDecl *arrayDecl = nullptr) {
   // All the indices except that last must be zero.
 #ifndef NDEBUG
-  for (auto idx : indices.drop_back())
+  for (auto *idx : indices.drop_back())
     assert(isa<llvm::ConstantInt>(idx) &&
            cast<llvm::ConstantInt>(idx)->isZero());
 #endif
@@ -4315,7 +4299,7 @@ unsigned CodeGenFunction::getDebugInfoFIndex(const RecordDecl *Rec,
                                              unsigned FieldIndex) {
   unsigned I = 0, Skipped = 0;
 
-  for (auto F : Rec->getDefinition()->fields()) {
+  for (auto *F : Rec->getDefinition()->fields()) {
     if (I == FieldIndex)
       break;
     if (F->isUnnamedBitfield())
@@ -5080,7 +5064,9 @@ static CGCallee EmitDirectCallee(CodeGenFunction &CGF, GlobalDecl GD) {
   if (auto builtinID = FD->getBuiltinID()) {
     std::string NoBuiltinFD = ("no-builtin-" + FD->getName()).str();
     std::string NoBuiltins = "no-builtins";
-    std::string FDInlineName = (FD->getName() + ".inline").str();
+
+    StringRef Ident = CGF.CGM.getMangledName(GD);
+    std::string FDInlineName = (Ident + ".inline").str();
 
     bool IsPredefinedLibFunction =
         CGF.getContext().BuiltinInfo.isPredefinedLibFunction(builtinID);
@@ -5303,6 +5289,15 @@ LValue CodeGenFunction::EmitObjCSelectorLValue(const ObjCSelectorExpr *E) {
 llvm::Value *CodeGenFunction::EmitIvarOffset(const ObjCInterfaceDecl *Interface,
                                              const ObjCIvarDecl *Ivar) {
   return CGM.getObjCRuntime().EmitIvarOffset(*this, Interface, Ivar);
+}
+
+llvm::Value *
+CodeGenFunction::EmitIvarOffsetAsPointerDiff(const ObjCInterfaceDecl *Interface,
+                                             const ObjCIvarDecl *Ivar) {
+  llvm::Value *OffsetValue = EmitIvarOffset(Interface, Ivar);
+  QualType PointerDiffType = getContext().getPointerDiffType();
+  return Builder.CreateZExtOrTrunc(OffsetValue,
+                                   getTypes().ConvertType(PointerDiffType));
 }
 
 LValue CodeGenFunction::EmitLValueForIvar(QualType ObjectTy,

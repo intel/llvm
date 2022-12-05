@@ -336,16 +336,16 @@ void MCSubtargetInfo::initInstrItins(InstrItineraryData &InstrItins) const {
 }
 
 Optional<unsigned> MCSubtargetInfo::getCacheSize(unsigned Level) const {
-  return Optional<unsigned>();
+  return None;
 }
 
 Optional<unsigned>
 MCSubtargetInfo::getCacheAssociativity(unsigned Level) const {
-  return Optional<unsigned>();
+  return None;
 }
 
 Optional<unsigned> MCSubtargetInfo::getCacheLineSize(unsigned Level) const {
-  return Optional<unsigned>();
+  return None;
 }
 
 unsigned MCSubtargetInfo::getPrefetchDistance() const {
@@ -365,4 +365,8 @@ unsigned MCSubtargetInfo::getMinPrefetchStride(unsigned NumMemAccesses,
                                                unsigned NumPrefetches,
                                                bool HasCall) const {
   return 1;
+}
+
+bool MCSubtargetInfo::shouldPrefetchAddressSpace(unsigned AS) const {
+  return !AS;
 }

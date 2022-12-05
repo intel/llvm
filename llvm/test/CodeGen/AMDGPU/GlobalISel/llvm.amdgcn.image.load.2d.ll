@@ -35,7 +35,7 @@ define amdgpu_ps <4 x float> @load_2d_v4f32_xyzw(<8 x i32> inreg %rsrc, i32 %s, 
   ret <4 x float> %v
 }
 
-define amdgpu_ps <4 x float> @load_2d_v4f32_xyzw_tfe(<8 x i32> inreg %rsrc, i32 addrspace(1)* inreg %out, i32 %s, i32 %t) {
+define amdgpu_ps <4 x float> @load_2d_v4f32_xyzw_tfe(<8 x i32> inreg %rsrc, ptr addrspace(1) inreg %out, i32 %s, i32 %t) {
 ; GFX6-LABEL: load_2d_v4f32_xyzw_tfe:
 ; GFX6:       ; %bb.0:
 ; GFX6-NEXT:    v_mov_b32_e32 v5, v0
@@ -94,14 +94,14 @@ define amdgpu_ps <4 x float> @load_2d_v4f32_xyzw_tfe(<8 x i32> inreg %rsrc, i32 
 ; GFX11-LABEL: load_2d_v4f32_xyzw_tfe:
 ; GFX11:       ; %bb.0:
 ; GFX11-NEXT:    v_mov_b32_e32 v7, 0
-; GFX11-NEXT:    v_mov_b32_e32 v5, v0
-; GFX11-NEXT:    v_mov_b32_e32 v6, v1
+; GFX11-NEXT:    v_dual_mov_b32 v5, v0 :: v_dual_mov_b32 v6, v1
 ; GFX11-NEXT:    s_mov_b32 s0, s2
 ; GFX11-NEXT:    s_mov_b32 s1, s3
-; GFX11-NEXT:    v_mov_b32_e32 v8, v7
+; GFX11-NEXT:    s_delay_alu instid0(VALU_DEP_2)
 ; GFX11-NEXT:    v_mov_b32_e32 v9, v7
-; GFX11-NEXT:    v_mov_b32_e32 v10, v7
 ; GFX11-NEXT:    v_mov_b32_e32 v11, v7
+; GFX11-NEXT:    v_mov_b32_e32 v10, v7
+; GFX11-NEXT:    v_mov_b32_e32 v8, v7
 ; GFX11-NEXT:    s_mov_b32 s2, s4
 ; GFX11-NEXT:    s_mov_b32 s3, s5
 ; GFX11-NEXT:    s_mov_b32 s4, s6
@@ -109,10 +109,8 @@ define amdgpu_ps <4 x float> @load_2d_v4f32_xyzw_tfe(<8 x i32> inreg %rsrc, i32 
 ; GFX11-NEXT:    s_mov_b32 s6, s8
 ; GFX11-NEXT:    s_mov_b32 s7, s9
 ; GFX11-NEXT:    v_mov_b32_e32 v0, v7
-; GFX11-NEXT:    v_mov_b32_e32 v1, v8
-; GFX11-NEXT:    v_mov_b32_e32 v2, v9
-; GFX11-NEXT:    v_mov_b32_e32 v3, v10
-; GFX11-NEXT:    v_mov_b32_e32 v4, v11
+; GFX11-NEXT:    v_dual_mov_b32 v2, v9 :: v_dual_mov_b32 v3, v10
+; GFX11-NEXT:    v_dual_mov_b32 v1, v8 :: v_dual_mov_b32 v4, v11
 ; GFX11-NEXT:    image_load v[0:4], v[5:6], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_2D unorm tfe
 ; GFX11-NEXT:    s_waitcnt vmcnt(0)
 ; GFX11-NEXT:    global_store_b32 v7, v4, s[10:11]
@@ -121,11 +119,11 @@ define amdgpu_ps <4 x float> @load_2d_v4f32_xyzw_tfe(<8 x i32> inreg %rsrc, i32 
   %v = call { <4 x float>, i32 } @llvm.amdgcn.image.load.2d.sl_v4f32i32s.i32(i32 15, i32 %s, i32 %t, <8 x i32> %rsrc, i32 1, i32 0)
   %v.vec = extractvalue { <4 x float>, i32 } %v, 0
   %v.err = extractvalue { <4 x float>, i32 } %v, 1
-  store i32 %v.err, i32 addrspace(1)* %out, align 4
+  store i32 %v.err, ptr addrspace(1) %out, align 4
   ret <4 x float> %v.vec
 }
 
-define amdgpu_ps <4 x float> @load_2d_v4f32_xyzw_tfe_lwe(<8 x i32> inreg %rsrc, i32 addrspace(1)* inreg %out, i32 %s, i32 %t) {
+define amdgpu_ps <4 x float> @load_2d_v4f32_xyzw_tfe_lwe(<8 x i32> inreg %rsrc, ptr addrspace(1) inreg %out, i32 %s, i32 %t) {
 ; GFX6-LABEL: load_2d_v4f32_xyzw_tfe_lwe:
 ; GFX6:       ; %bb.0:
 ; GFX6-NEXT:    v_mov_b32_e32 v5, v0
@@ -184,14 +182,14 @@ define amdgpu_ps <4 x float> @load_2d_v4f32_xyzw_tfe_lwe(<8 x i32> inreg %rsrc, 
 ; GFX11-LABEL: load_2d_v4f32_xyzw_tfe_lwe:
 ; GFX11:       ; %bb.0:
 ; GFX11-NEXT:    v_mov_b32_e32 v7, 0
-; GFX11-NEXT:    v_mov_b32_e32 v5, v0
-; GFX11-NEXT:    v_mov_b32_e32 v6, v1
+; GFX11-NEXT:    v_dual_mov_b32 v5, v0 :: v_dual_mov_b32 v6, v1
 ; GFX11-NEXT:    s_mov_b32 s0, s2
 ; GFX11-NEXT:    s_mov_b32 s1, s3
-; GFX11-NEXT:    v_mov_b32_e32 v8, v7
+; GFX11-NEXT:    s_delay_alu instid0(VALU_DEP_2)
 ; GFX11-NEXT:    v_mov_b32_e32 v9, v7
-; GFX11-NEXT:    v_mov_b32_e32 v10, v7
 ; GFX11-NEXT:    v_mov_b32_e32 v11, v7
+; GFX11-NEXT:    v_mov_b32_e32 v10, v7
+; GFX11-NEXT:    v_mov_b32_e32 v8, v7
 ; GFX11-NEXT:    s_mov_b32 s2, s4
 ; GFX11-NEXT:    s_mov_b32 s3, s5
 ; GFX11-NEXT:    s_mov_b32 s4, s6
@@ -199,10 +197,8 @@ define amdgpu_ps <4 x float> @load_2d_v4f32_xyzw_tfe_lwe(<8 x i32> inreg %rsrc, 
 ; GFX11-NEXT:    s_mov_b32 s6, s8
 ; GFX11-NEXT:    s_mov_b32 s7, s9
 ; GFX11-NEXT:    v_mov_b32_e32 v0, v7
-; GFX11-NEXT:    v_mov_b32_e32 v1, v8
-; GFX11-NEXT:    v_mov_b32_e32 v2, v9
-; GFX11-NEXT:    v_mov_b32_e32 v3, v10
-; GFX11-NEXT:    v_mov_b32_e32 v4, v11
+; GFX11-NEXT:    v_dual_mov_b32 v2, v9 :: v_dual_mov_b32 v3, v10
+; GFX11-NEXT:    v_dual_mov_b32 v1, v8 :: v_dual_mov_b32 v4, v11
 ; GFX11-NEXT:    image_load v[0:4], v[5:6], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_2D unorm tfe lwe
 ; GFX11-NEXT:    s_waitcnt vmcnt(0)
 ; GFX11-NEXT:    global_store_b32 v7, v4, s[10:11]
@@ -211,7 +207,7 @@ define amdgpu_ps <4 x float> @load_2d_v4f32_xyzw_tfe_lwe(<8 x i32> inreg %rsrc, 
   %v = call { <4 x float>, i32 } @llvm.amdgcn.image.load.2d.sl_v4f32i32s.i32(i32 15, i32 %s, i32 %t, <8 x i32> %rsrc, i32 3, i32 0)
   %v.vec = extractvalue { <4 x float>, i32 } %v, 0
   %v.err = extractvalue { <4 x float>, i32 } %v, 1
-  store i32 %v.err, i32 addrspace(1)* %out, align 4
+  store i32 %v.err, ptr addrspace(1) %out, align 4
   ret <4 x float> %v.vec
 }
 

@@ -9,13 +9,15 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-using namespace cl::sycl;
+#include <helpers/PiMock.hpp>
 
-class MemObjMock : public cl::sycl::detail::SYCLMemObjI {
+using namespace sycl;
+
+class MemObjMock : public sycl::detail::SYCLMemObjI {
 public:
-  using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
+  using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 
-  MemObjMock(const std::shared_ptr<cl::sycl::detail::MemObjRecord> &Record)
+  MemObjMock(const std::shared_ptr<sycl::detail::MemObjRecord> &Record)
       : SYCLMemObjI() {
     MRecord = Record;
   }
@@ -24,34 +26,29 @@ public:
 
   MemObjType getType() const override { return MemObjType::Buffer; }
 
-  void *allocateMem(ContextImplPtr, bool, void *,
-                    cl::sycl::detail::pi::PiEvent &) {
+  void *allocateMem(ContextImplPtr, bool, void *, sycl::detail::pi::PiEvent &) {
     return nullptr;
   }
 
   void *allocateHostMem() { return nullptr; }
   void releaseMem(ContextImplPtr, void *) {}
   void releaseHostMem(void *) {}
-  size_t getSize() const override { return 10; }
+  size_t getSizeInBytes() const override { return 10; }
   detail::ContextImplPtr getInteropContext() const override { return nullptr; }
 };
 
-static cl::sycl::device getDeviceWithHostUnifiedMemory() {
-  for (cl::sycl::device &D : cl::sycl::device::get_devices()) {
-    if (!D.is_host() &&
-        D.get_info<cl::sycl::info::device::host_unified_memory>())
+static sycl::device getDeviceWithHostUnifiedMemory(sycl::platform &Plt) {
+  for (sycl::device &D : Plt.get_devices()) {
+    if (D.get_info<sycl::info::device::host_unified_memory>())
       return D;
   }
   return {};
 }
 
 TEST_F(SchedulerTest, LinkedAllocaDependencies) {
-  cl::sycl::device Dev = getDeviceWithHostUnifiedMemory();
-  if (Dev.is_host()) {
-    std::cerr << "Not run: no non-host devices with host unified memory support"
-              << std::endl;
-    return;
-  }
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+  sycl::device Dev = getDeviceWithHostUnifiedMemory(Plt);
 
   // 1. create two commands: alloca + alloca and link them
   // 2. call Scheduler::GraphBuilder::getOrCreateAllocaForReq
@@ -59,37 +56,38 @@ TEST_F(SchedulerTest, LinkedAllocaDependencies) {
 
   // Commands are linked only if the device supports host unified memory.
 
-  cl::sycl::queue Queue1{Dev};
-  cl::sycl::detail::QueueImplPtr Q1 = cl::sycl::detail::getSyclObjImpl(Queue1);
+  sycl::queue Queue1{Dev};
+  sycl::detail::QueueImplPtr Q1 = sycl::detail::getSyclObjImpl(Queue1);
 
-  sycl::device HostDevice;
+  device HostDevice = detail::createSyclObjFromImpl<device>(
+      detail::device_impl::getHostDeviceImpl());
   std::shared_ptr<detail::queue_impl> DefaultHostQueue(new detail::queue_impl(
       detail::getSyclObjImpl(HostDevice), /*AsyncHandler=*/{},
       /*PropList=*/{}));
 
-  auto AllocaDep = [](cl::sycl::detail::Command *, cl::sycl::detail::Command *,
-                      cl::sycl::detail::MemObjRecord *,
-                      std::vector<cl::sycl::detail::Command *> &) {};
+  auto AllocaDep = [](sycl::detail::Command *, sycl::detail::Command *,
+                      sycl::detail::MemObjRecord *,
+                      std::vector<sycl::detail::Command *> &) {};
 
-  std::shared_ptr<cl::sycl::detail::MemObjRecord> Record{
-      new cl::sycl::detail::MemObjRecord(DefaultHostQueue->getContextImplPtr(),
-                                         10, AllocaDep)};
+  std::shared_ptr<sycl::detail::MemObjRecord> Record{
+      new sycl::detail::MemObjRecord(DefaultHostQueue->getContextImplPtr(), 10,
+                                     AllocaDep)};
 
   MemObjMock MemObj(Record);
   Req.MSYCLMemObj = &MemObj;
 
-  cl::sycl::detail::AllocaCommand AllocaCmd1(DefaultHostQueue, Req, false);
+  sycl::detail::AllocaCommand AllocaCmd1(DefaultHostQueue, Req, false);
   Record->MAllocaCommands.push_back(&AllocaCmd1);
 
   MockCommand DepCmd(DefaultHostQueue, Req);
   MockCommand DepDepCmd(DefaultHostQueue, Req);
   DepCmd.MDeps.push_back({&DepDepCmd, DepDepCmd.getRequirement(), &AllocaCmd1});
   DepDepCmd.MUsers.insert(&DepCmd);
-  std::vector<cl::sycl::detail::Command *> ToEnqueue;
+  std::vector<sycl::detail::Command *> ToEnqueue;
   Record->MWriteLeaves.push_back(&DepCmd, ToEnqueue);
 
   MockScheduler MS;
-  cl::sycl::detail::Command *AllocaCmd2 =
+  sycl::detail::Command *AllocaCmd2 =
       MS.getOrCreateAllocaForReq(Record.get(), &Req, Q1, ToEnqueue);
 
   ASSERT_TRUE(!!AllocaCmd1.MLinkedAllocaCmd)
@@ -102,12 +100,12 @@ TEST_F(SchedulerTest, LinkedAllocaDependencies) {
   ASSERT_GT(DepCmd.MUsers.count(AllocaCmd2), 0u)
       << "No deps appeared for leaves of record (i.e. deps of existing alloca)";
   ASSERT_TRUE(std::find_if(AllocaCmd2->MDeps.begin(), AllocaCmd2->MDeps.end(),
-                           [&](const cl::sycl::detail::DepDesc &Dep) -> bool {
+                           [&](const sycl::detail::DepDesc &Dep) -> bool {
                              return Dep.MDepCommand == &AllocaCmd1;
                            }) != AllocaCmd2->MDeps.end())
       << "No deps for existing alloca appeared in new alloca";
   ASSERT_TRUE(std::find_if(AllocaCmd2->MDeps.begin(), AllocaCmd2->MDeps.end(),
-                           [&](const cl::sycl::detail::DepDesc &Dep) -> bool {
+                           [&](const sycl::detail::DepDesc &Dep) -> bool {
                              return Dep.MDepCommand == &DepCmd;
                            }) != AllocaCmd2->MDeps.end())
       << "No deps for leaves (deps of existing alloca) appeared in new alloca";

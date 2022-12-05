@@ -12,12 +12,12 @@
 
 #include "error_handling.hpp"
 
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
+#include <sycl/backend_types.hpp>
+#include <sycl/detail/pi.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 namespace enqueue_kernel_launch {
@@ -28,7 +28,7 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
 
   const plugin &Plugin = DeviceImpl.getPlugin();
   RT::PiDevice Device = DeviceImpl.getHandleRef();
-  cl::sycl::platform Platform = DeviceImpl.get_platform();
+  sycl::platform Platform = DeviceImpl.get_platform();
 
   if (HasLocalSize) {
     size_t MaxThreadsPerBlock[3] = {};
@@ -54,7 +54,7 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
   bool IsOpenCL = false;    // Backend is any OpenCL version
   bool IsOpenCLV1x = false; // Backend is OpenCL 1.x
   bool IsOpenCLV20 = false; // Backend is OpenCL 2.0
-  if (Platform.get_backend() == cl::sycl::backend::opencl) {
+  if (Platform.get_backend() == sycl::backend::opencl) {
     std::string VersionString = DeviceImpl.get_info<info::device::version>();
     IsOpenCL = true;
     IsOpenCLV1x = (VersionString.find("1.") == 0);
@@ -83,14 +83,14 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
         NDRDesc.LocalSize[1] != CompileWGSize[1] ||
         NDRDesc.LocalSize[2] != CompileWGSize[2])
       throw sycl::nd_range_error(
-          "The specified local size {" + std::to_string(NDRDesc.LocalSize[0]) +
+          "The specified local size {" + std::to_string(NDRDesc.LocalSize[2]) +
               ", " + std::to_string(NDRDesc.LocalSize[1]) + ", " +
-              std::to_string(NDRDesc.LocalSize[2]) +
+              std::to_string(NDRDesc.LocalSize[0]) +
               "} doesn't match the required work-group size specified "
               "in the program source {" +
-              std::to_string(CompileWGSize[0]) + ", " +
+              std::to_string(CompileWGSize[2]) + ", " +
               std::to_string(CompileWGSize[1]) + ", " +
-              std::to_string(CompileWGSize[2]) + "}",
+              std::to_string(CompileWGSize[0]) + "}",
           PI_ERROR_INVALID_WORK_GROUP_SIZE);
   }
   if (IsOpenCL) {
@@ -361,5 +361,5 @@ void handleErrorOrWarning(pi_result Error, const device_impl &DeviceImpl,
 } // namespace enqueue_kernel_launch
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

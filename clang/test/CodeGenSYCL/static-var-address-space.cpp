@@ -10,6 +10,6 @@ void test() {
 }
 
 int main() {
-  cl::sycl::kernel_single_task<class fake_kernel>([]() { test<int>(); });
+  sycl::kernel_single_task<class fake_kernel>([]() { test<int>(); });
   return 0;
 }

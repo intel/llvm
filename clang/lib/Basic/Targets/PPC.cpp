@@ -281,7 +281,6 @@ void PPCTargetInfo::getTargetDefines(const LangOptions &Opts,
   if (PointerWidth == 64) {
     Builder.defineMacro("_ARCH_PPC64");
     Builder.defineMacro("__powerpc64__");
-    Builder.defineMacro("__ppc64__");
     Builder.defineMacro("__PPC64__");
   } else if (getTriple().isOSAIX()) {
     // The XL compilers on AIX define _ARCH_PPC64 for both 32 and 64-bit modes.
@@ -849,6 +848,9 @@ void PPCTargetInfo::adjust(DiagnosticsEngine &Diags, LangOptions &Opts) {
                            ? &llvm::APFloat::IEEEquad()
                            : &llvm::APFloat::PPCDoubleDouble();
   Opts.IEEE128 = 1;
+  if (getTriple().isOSAIX() && Opts.EnableAIXQuadwordAtomicsABI &&
+      HasQuadwordAtomics)
+    MaxAtomicInlineWidth = 128;
 }
 
 ArrayRef<Builtin::Info> PPCTargetInfo::getTargetBuiltins() const {

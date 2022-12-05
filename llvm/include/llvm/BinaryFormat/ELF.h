@@ -435,6 +435,7 @@ enum : unsigned {
   EF_ARM_ABI_FLOAT_SOFT = 0x00000200U, // EABI_VER5
   EF_ARM_VFP_FLOAT = 0x00000400U,      // Legacy pre EABI_VER5
   EF_ARM_ABI_FLOAT_HARD = 0x00000400U, // EABI_VER5
+  EF_ARM_BE8 = 0x00800000U,
   EF_ARM_EABI_UNKNOWN = 0x00000000U,
   EF_ARM_EABI_VER1 = 0x01000000U,
   EF_ARM_EABI_VER2 = 0x02000000U,
@@ -619,6 +620,9 @@ enum {
   EF_HEXAGON_MACH_V67T = 0x00008067, // Hexagon V67T
   EF_HEXAGON_MACH_V68 = 0x00000068,  // Hexagon V68
   EF_HEXAGON_MACH_V69 = 0x00000069,  // Hexagon V69
+  EF_HEXAGON_MACH_V71 = 0x00000071,  // Hexagon V71
+  EF_HEXAGON_MACH_V71T = 0x00008071, // Hexagon V71T
+  EF_HEXAGON_MACH_V73 = 0x00000073,  // Hexagon V73
   EF_HEXAGON_MACH = 0x000003ff,      // Hexagon V..
 
   // Highest ISA version flags
@@ -636,6 +640,9 @@ enum {
   EF_HEXAGON_ISA_V67 = 0x00000067,  // Hexagon V67 ISA
   EF_HEXAGON_ISA_V68 = 0x00000068,  // Hexagon V68 ISA
   EF_HEXAGON_ISA_V69 = 0x00000069,  // Hexagon V69 ISA
+  EF_HEXAGON_ISA_V71 = 0x00000071,  // Hexagon V71 ISA
+  EF_HEXAGON_ISA_V73 = 0x00000073,  // Hexagon V73 ISA
+  EF_HEXAGON_ISA_V75 = 0x00000075,  // Hexagon V75 ISA
   EF_HEXAGON_ISA = 0x000003ff,      // Hexagon V.. ISA
 };
 
@@ -900,6 +907,24 @@ enum {
 #include "ELFRelocs/CSKY.def"
 };
 
+// LoongArch Specific e_flags
+enum : unsigned {
+  // Definitions from LoongArch ELF psABI v2.01.
+  // Reference: https://github.com/loongson/LoongArch-Documentation
+  // (commit hash 296de4def055c871809068e0816325a4ac04eb12)
+
+  // Base ABI Modifiers
+  EF_LOONGARCH_ABI_SOFT_FLOAT    = 0x1,
+  EF_LOONGARCH_ABI_SINGLE_FLOAT  = 0x2,
+  EF_LOONGARCH_ABI_DOUBLE_FLOAT  = 0x3,
+  EF_LOONGARCH_ABI_MODIFIER_MASK = 0x7,
+
+  // Object file ABI versions
+  EF_LOONGARCH_OBJABI_V0   = 0x0,
+  EF_LOONGARCH_OBJABI_V1   = 0x40,
+  EF_LOONGARCH_OBJABI_MASK = 0xC0,
+};
+
 // ELF Relocation types for LoongArch
 enum {
 #include "ELFRelocs/LoongArch.def"
@@ -981,12 +1006,16 @@ enum : unsigned {
   SHT_LLVM_ADDRSIG = 0x6fff4c03,        // List of address-significant symbols
                                         // for safe ICF.
   SHT_LLVM_DEPENDENT_LIBRARIES =
-      0x6fff4c04,                    // LLVM Dependent Library Specifiers.
-  SHT_LLVM_SYMPART = 0x6fff4c05,     // Symbol partition specification.
-  SHT_LLVM_PART_EHDR = 0x6fff4c06,   // ELF header for loadable partition.
-  SHT_LLVM_PART_PHDR = 0x6fff4c07,   // Phdrs for loadable partition.
-  SHT_LLVM_BB_ADDR_MAP = 0x6fff4c08, // LLVM Basic Block Address Map.
+      0x6fff4c04,                  // LLVM Dependent Library Specifiers.
+  SHT_LLVM_SYMPART = 0x6fff4c05,   // Symbol partition specification.
+  SHT_LLVM_PART_EHDR = 0x6fff4c06, // ELF header for loadable partition.
+  SHT_LLVM_PART_PHDR = 0x6fff4c07, // Phdrs for loadable partition.
+  SHT_LLVM_BB_ADDR_MAP_V0 =
+      0x6fff4c08, // LLVM Basic Block Address Map (old version kept for
+                  // backward-compatibility).
   SHT_LLVM_CALL_GRAPH_PROFILE = 0x6fff4c09, // LLVM Call Graph Profile.
+  SHT_LLVM_BB_ADDR_MAP = 0x6fff4c0a,        // LLVM Basic Block Address Map.
+  SHT_LLVM_OFFLOADING = 0x6fff4c0b,         // LLVM device offloading data.
   // Android's experimental support for SHT_RELR sections.
   // https://android.googlesource.com/platform/bionic/+/b7feec74547f84559a1467aca02708ff61346d2a/libc/include/elf.h#512
   SHT_ANDROID_RELR = 0x6fffff00,   // Relocation entries; only offsets.
@@ -1353,6 +1382,7 @@ enum {
   PT_GNU_RELRO = 0x6474e552,    // Read-only after relocation.
   PT_GNU_PROPERTY = 0x6474e553, // .note.gnu.property notes sections.
 
+  PT_OPENBSD_MUTABLE = 0x65a3dbe5,   // Like bss, but not immutable.
   PT_OPENBSD_RANDOMIZE = 0x65a3dbe6, // Fill with random data.
   PT_OPENBSD_WXNEEDED = 0x65a3dbe7,  // Program does W^X violations.
   PT_OPENBSD_BOOTDATA = 0x65a41be6,  // Section for boot arguments.
@@ -1362,12 +1392,17 @@ enum {
   // These all contain stack unwind tables.
   PT_ARM_EXIDX = 0x70000001,
   PT_ARM_UNWIND = 0x70000001,
+  // MTE memory tag segment type
+  PT_AARCH64_MEMTAG_MTE = 0x70000002,
 
   // MIPS program header types.
   PT_MIPS_REGINFO = 0x70000000,  // Register usage information.
   PT_MIPS_RTPROC = 0x70000001,   // Runtime procedure table.
   PT_MIPS_OPTIONS = 0x70000002,  // Options segment.
   PT_MIPS_ABIFLAGS = 0x70000003, // Abiflags segment.
+
+  // RISCV program header types.
+  PT_RISCV_ATTRIBUTES = 0x70000003,
 };
 
 // Segment flag bits.
@@ -1568,6 +1603,7 @@ enum {
   NT_GNU_BUILD_ID = 3,
   NT_GNU_GOLD_VERSION = 4,
   NT_GNU_PROPERTY_TYPE_0 = 5,
+  FDO_PACKAGING_METADATA = 0xcafe1a7e,
 };
 
 // Android note types.
@@ -1769,6 +1805,7 @@ struct Elf64_Nhdr {
 // Legal values for ch_type field of compressed section header.
 enum {
   ELFCOMPRESS_ZLIB = 1,            // ZLIB/DEFLATE algorithm.
+  ELFCOMPRESS_ZSTD = 2,            // Zstandard algorithm
   ELFCOMPRESS_LOOS = 0x60000000,   // Start of OS-specific.
   ELFCOMPRESS_HIOS = 0x6fffffff,   // End of OS-specific.
   ELFCOMPRESS_LOPROC = 0x70000000, // Start of processor-specific.

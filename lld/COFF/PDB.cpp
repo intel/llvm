@@ -57,6 +57,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/ScopedPrinter.h"
 #include <memory>
+#include <optional>
 
 using namespace llvm;
 using namespace llvm::codeview;
@@ -119,7 +120,7 @@ public:
                                std::vector<StringTableFixup> &stringTableFixups,
                                BinaryStreamRef symData);
 
-  // Write all module symbols from all all live debug symbol subsections of the
+  // Write all module symbols from all live debug symbol subsections of the
   // given object file into the given stream writer.
   Error writeAllModuleSymbolRecords(ObjFile *file, BinaryStreamWriter &writer);
 
@@ -296,14 +297,14 @@ static void addGHashTypeInfo(COFFLinkerContext &ctx,
   // Start the TPI or IPI stream header.
   builder.getTpiBuilder().setVersionHeader(pdb::PdbTpiV80);
   builder.getIpiBuilder().setVersionHeader(pdb::PdbTpiV80);
-  for_each(ctx.tpiSourceList, [&](TpiSource *source) {
+  for (TpiSource *source : ctx.tpiSourceList) {
     builder.getTpiBuilder().addTypeRecords(source->mergedTpi.recs,
                                            source->mergedTpi.recSizes,
                                            source->mergedTpi.recHashes);
     builder.getIpiBuilder().addTypeRecords(source->mergedIpi.recs,
                                            source->mergedIpi.recSizes,
                                            source->mergedIpi.recHashes);
-  });
+  }
 }
 
 static void
@@ -811,6 +812,10 @@ void DebugSHandler::handleDebugS(SectionChunk *debugChunk) {
       // Unclear what this is for.
       break;
 
+    case DebugSubsectionKind::XfgHashType:
+    case DebugSubsectionKind::XfgHashVirtual:
+      break;
+
     default:
       warn("ignoring unknown debug$S subsection kind 0x" +
            utohexstr(uint32_t(ss.kind())) + " in file " + toString(&file));
@@ -1134,7 +1139,8 @@ void PDBLinker::addObjectsToPDB() {
   ScopedTimer t1(ctx.addObjectsTimer);
 
   // Create module descriptors
-  for_each(ctx.objFileInstances, [&](ObjFile *obj) { createModuleDBI(obj); });
+  for (ObjFile *obj : ctx.objFileInstances)
+    createModuleDBI(obj);
 
   // Reorder dependency type sources to come first.
   tMerger.sortDependencies();
@@ -1144,9 +1150,10 @@ void PDBLinker::addObjectsToPDB() {
     tMerger.mergeTypesWithGHash();
 
   // Merge dependencies and then regular objects.
-  for_each(tMerger.dependencySources,
-           [&](TpiSource *source) { addDebug(source); });
-  for_each(tMerger.objectSources, [&](TpiSource *source) { addDebug(source); });
+  for (TpiSource *source : tMerger.dependencySources)
+    addDebug(source);
+  for (TpiSource *source : tMerger.objectSources)
+    addDebug(source);
 
   builder.getStringTableBuilder().setStrings(pdbStrTab);
   t1.stop();
@@ -1163,10 +1170,10 @@ void PDBLinker::addObjectsToPDB() {
   t2.stop();
 
   if (config->showSummary) {
-    for_each(ctx.tpiSourceList, [&](TpiSource *source) {
+    for (TpiSource *source : ctx.tpiSourceList) {
       nbTypeRecords += source->nbTypeRecords;
       nbTypeRecordsBytes += source->nbTypeRecordsBytes;
-    });
+    }
   }
 }
 
@@ -1770,7 +1777,7 @@ static bool findLineTable(const SectionChunk *c, uint32_t addr,
 // Use CodeView line tables to resolve a file and line number for the given
 // offset into the given chunk and return them, or None if a line table was
 // not found.
-Optional<std::pair<StringRef, uint32_t>>
+std::optional<std::pair<StringRef, uint32_t>>
 lld::coff::getFileLineCodeView(const SectionChunk *c, uint32_t addr) {
   ExitOnError exitOnErr;
 
@@ -1780,10 +1787,10 @@ lld::coff::getFileLineCodeView(const SectionChunk *c, uint32_t addr) {
   uint32_t offsetInLinetable;
 
   if (!findLineTable(c, addr, cvStrTab, checksums, lines, offsetInLinetable))
-    return None;
+    return std::nullopt;
 
-  Optional<uint32_t> nameIndex;
-  Optional<uint32_t> lineNumber;
+  std::optional<uint32_t> nameIndex;
+  std::optional<uint32_t> lineNumber;
   for (const LineColumnEntry &entry : lines) {
     for (const LineNumberEntry &ln : entry.LineNumbers) {
       LineInfo li(ln.Flags);
@@ -1801,7 +1808,7 @@ lld::coff::getFileLineCodeView(const SectionChunk *c, uint32_t addr) {
     }
   }
   if (!nameIndex)
-    return None;
+    return std::nullopt;
   StringRef filename = exitOnErr(getFileName(cvStrTab, checksums, *nameIndex));
   return std::make_pair(filename, *lineNumber);
 }

@@ -46,6 +46,9 @@ enum InternalOp {
   IOpJointMatrixWorkItemLengthINTEL = 6410,
   IOpComplexFMulINTEL = 6415,
   IOpComplexFDivINTEL = 6416,
+  IOpConvertFToTF32INTEL = 6426,
+  IOpMaskedGatherINTEL = 6428,
+  IOpMaskedScatterINTEL = 6429,
   IOpPrev = OpMax - 2,
   IOpForward
 };
@@ -78,7 +81,9 @@ enum InternalCapability {
   ICapFPArithmeticFenceINTEL = 6144,
   ICapGlobalVariableDecorationsINTEL = 6146,
   ICapabilityNonConstantAddrspacePrintfINTEL = 6411,
-  ICapabilityComplexFloatMulDivINTEL = 6414
+  ICapabilityComplexFloatMulDivINTEL = 6414,
+  ICapabilityTensorFloat32ConversionINTEL = 6425,
+  ICapabilityMaskedGatherScatterINTEL = 6427
 };
 
 enum InternalFunctionControlMask { IFunctionControlOptNoneINTELMask = 0x10000 };
@@ -88,7 +93,10 @@ enum InternalExecutionMode {
   IExecModeStreamingInterfaceINTEL = 6154
 };
 
-enum InternalLoopControlMask { ILoopControlLoopCountINTELMask = 0x1000000 };
+enum InternalLoopControlMask {
+  ILoopControlLoopCountINTELMask = 0x1000000,
+  ILoopControlMaxReinvocationDelayINTELMask = 0x2000000
+};
 
 constexpr LinkageType LinkageTypeInternal =
     static_cast<LinkageType>(ILTInternal);
@@ -123,6 +131,13 @@ _SPIRV_OP(Capability, NonConstantAddrspacePrintfINTEL)
 _SPIRV_OP(Capability, ComplexFloatMulDivINTEL)
 _SPIRV_OP(Op, ComplexFMulINTEL)
 _SPIRV_OP(Op, ComplexFDivINTEL)
+
+_SPIRV_OP(Capability, MaskedGatherScatterINTEL)
+_SPIRV_OP(Op, MaskedGatherINTEL)
+_SPIRV_OP(Op, MaskedScatterINTEL)
+
+_SPIRV_OP(Capability, TensorFloat32ConversionINTEL)
+_SPIRV_OP(Op, ConvertFToTF32INTEL)
 #undef _SPIRV_OP
 
 constexpr Op OpForward = static_cast<Op>(IOpForward);
@@ -184,8 +199,10 @@ constexpr ExecutionMode ExecutionModeFastCompositeKernelINTEL =
 constexpr ExecutionMode ExecutionModeStreamingInterfaceINTEL =
     static_cast<ExecutionMode>(IExecModeStreamingInterfaceINTEL);
 
-constexpr LoopControlMask LoopControlLoopCountINTELMask =
+static const LoopControlMask LoopControlLoopCountINTELMask =
     static_cast<LoopControlMask>(ILoopControlLoopCountINTELMask);
+static const LoopControlMask LoopControlMaxReinvocationDelayINTELMask =
+    static_cast<LoopControlMask>(ILoopControlMaxReinvocationDelayINTELMask);
 
 } // namespace internal
 } // namespace spv

@@ -304,7 +304,7 @@ void DebugHandlerBase::beginFunction(const MachineFunction *MF) {
         LabelsBeforeInsn[Entries.front().getInstr()] = Asm->getFunctionBegin();
       if (Entries.front().getInstr()->getDebugExpression()->isFragment()) {
         // Mark all non-overlapping initial fragments.
-        for (auto I = Entries.begin(); I != Entries.end(); ++I) {
+        for (const auto *I = Entries.begin(); I != Entries.end(); ++I) {
           if (!I->isDbgValue())
             continue;
           const DIExpression *Fragment = I->getInstr()->getDebugExpression();
@@ -416,16 +416,11 @@ void DebugHandlerBase::endFunction(const MachineFunction *MF) {
   InstOrdering.clear();
 }
 
-void DebugHandlerBase::beginBasicBlock(const MachineBasicBlock &MBB) {
-  if (!MBB.isBeginSection())
-    return;
-
-  PrevLabel = MBB.getSymbol();
+void DebugHandlerBase::beginBasicBlockSection(const MachineBasicBlock &MBB) {
+  if (!MBB.isEntryBlock())
+    PrevLabel = MBB.getSymbol();
 }
 
-void DebugHandlerBase::endBasicBlock(const MachineBasicBlock &MBB) {
-  if (!MBB.isEndSection())
-    return;
-
+void DebugHandlerBase::endBasicBlockSection(const MachineBasicBlock &MBB) {
   PrevLabel = nullptr;
 }

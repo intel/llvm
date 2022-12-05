@@ -126,12 +126,12 @@ namespace HexagonFUnits {
 }
 }
 
-static bool isIntRegForSubInst(unsigned Reg) {
+static bool isIntRegForSubInst(Register Reg) {
   return (Reg >= Hexagon::R0 && Reg <= Hexagon::R7) ||
          (Reg >= Hexagon::R16 && Reg <= Hexagon::R23);
 }
 
-static bool isDblRegForSubInst(unsigned Reg, const HexagonRegisterInfo &HRI) {
+static bool isDblRegForSubInst(Register Reg, const HexagonRegisterInfo &HRI) {
   return isIntRegForSubInst(HRI.getSubReg(Reg, Hexagon::isub_lo)) &&
          isIntRegForSubInst(HRI.getSubReg(Reg, Hexagon::isub_hi));
 }
@@ -159,7 +159,7 @@ bool HexagonInstrInfo::isAsCheapAsAMove(const MachineInstr &MI) const {
     auto Op = MI.getOperand(1);
     // If the instruction has a global address as operand, it is not cheap
     // since the operand will be constant extended.
-    if (Op.getType() == MachineOperand::MO_GlobalAddress)
+    if (Op.isGlobal())
       return false;
     // If the instruction has an operand of size > 16bits, its will be
     // const-extended and hence, it is not cheap.
@@ -233,7 +233,7 @@ MachineInstr *HexagonInstrInfo::findLoopInstr(MachineBasicBlock *BB,
 /// This treats possible (predicated) defs as actually happening ones
 /// (conservatively).
 static inline void parseOperands(const MachineInstr &MI,
-      SmallVector<unsigned, 4> &Defs, SmallVector<unsigned, 8> &Uses) {
+      SmallVectorImpl<Register> &Defs, SmallVectorImpl<Register> &Uses) {
   Defs.clear();
   Uses.clear();
 
@@ -755,7 +755,7 @@ public:
                                   SmallVectorImpl<MachineOperand> &Cond) override {
     if (TripCount == -1) {
       // Check if we're done with the loop.
-      unsigned Done = TII->createVR(MF, MVT::i1);
+      Register Done = TII->createVR(MF, MVT::i1);
       MachineInstr *NewCmp = BuildMI(&MBB, DL,
                                      TII->get(Hexagon::C2_cmpgtui), Done)
                                  .addReg(LoopCount)
@@ -1052,7 +1052,7 @@ bool HexagonInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
 
   auto RealCirc = [&](unsigned Opc, bool HasImm, unsigned MxOp) {
     Register Mx = MI.getOperand(MxOp).getReg();
-    unsigned CSx = (Mx == Hexagon::M0 ? Hexagon::CS0 : Hexagon::CS1);
+    Register CSx = (Mx == Hexagon::M0 ? Hexagon::CS0 : Hexagon::CS1);
     BuildMI(MBB, MI, DL, get(Hexagon::A2_tfrrcr), CSx)
         .add(MI.getOperand((HasImm ? 5 : 4)));
     auto MIB = BuildMI(MBB, MI, DL, get(Opc)).add(MI.getOperand(0))
@@ -1690,7 +1690,8 @@ bool HexagonInstrInfo::PredicateInstruction(
     NOp++;
   }
 
-  unsigned PredReg, PredRegPos, PredRegFlags;
+  Register PredReg;
+  unsigned PredRegPos, PredRegFlags;
   bool GotPredReg = getPredReg(Cond, PredReg, PredRegPos, PredRegFlags);
   (void)GotPredReg;
   assert(GotPredReg);
@@ -1734,7 +1735,7 @@ bool HexagonInstrInfo::ClobbersPredicate(MachineInstr &MI,
       }
       continue;
     } else if (MO.isRegMask()) {
-      for (unsigned PR : Hexagon::PredRegsRegClass) {
+      for (Register PR : Hexagon::PredRegsRegClass) {
         if (!MI.modifiesRegister(PR, &HRI))
           continue;
         Pred.push_back(MO);
@@ -1800,7 +1801,7 @@ bool HexagonInstrInfo::isSchedulingBoundary(const MachineInstr &MI,
       return true;
     // If any of the block's successors is a landing pad, this could be a
     // throwing call.
-    for (auto I : MBB->successors())
+    for (auto *I : MBB->successors())
       if (I->isEHPad())
         return true;
   }
@@ -2089,7 +2090,7 @@ HexagonInstrInfo::getSerializableBitmaskMachineOperandTargetFlags() const {
   return makeArrayRef(Flags);
 }
 
-unsigned HexagonInstrInfo::createVR(MachineFunction *MF, MVT VT) const {
+Register HexagonInstrInfo::createVR(MachineFunction *MF, MVT VT) const {
   MachineRegisterInfo &MRI = MF->getRegInfo();
   const TargetRegisterClass *TRC;
   if (VT == MVT::i1) {
@@ -2127,7 +2128,7 @@ bool HexagonInstrInfo::isComplex(const MachineInstr &MI) const {
          !isMemOp(MI) && !MI.isBranch() && !MI.isReturn() && !MI.isCall();
 }
 
-// Return true if the instruction is a compund branch instruction.
+// Return true if the instruction is a compound branch instruction.
 bool HexagonInstrInfo::isCompoundBranchInstr(const MachineInstr &MI) const {
   return getType(MI) == HexagonII::TypeCJ && MI.isBranch();
 }
@@ -2198,10 +2199,10 @@ bool HexagonInstrInfo::isDependent(const MachineInstr &ProdMI,
     return false;
   const HexagonRegisterInfo &HRI = *Subtarget.getRegisterInfo();
 
-  SmallVector<unsigned, 4> DefsA;
-  SmallVector<unsigned, 4> DefsB;
-  SmallVector<unsigned, 8> UsesA;
-  SmallVector<unsigned, 8> UsesB;
+  SmallVector<Register, 4> DefsA;
+  SmallVector<Register, 4> DefsB;
+  SmallVector<Register, 8> UsesA;
+  SmallVector<Register, 8> UsesB;
 
   parseOperands(ProdMI, DefsA, UsesA);
   parseOperands(ConsMI, DefsB, UsesB);
@@ -2251,15 +2252,6 @@ bool HexagonInstrInfo::isDuplexPair(const MachineInstr &MIa,
   HexagonII::SubInstructionGroup MIaG = getDuplexCandidateGroup(MIa);
   HexagonII::SubInstructionGroup MIbG = getDuplexCandidateGroup(MIb);
   return (isDuplexPairMatch(MIaG, MIbG) || isDuplexPairMatch(MIbG, MIaG));
-}
-
-bool HexagonInstrInfo::isEarlySourceInstr(const MachineInstr &MI) const {
-  if (MI.mayLoadOrStore() || MI.isCompare())
-    return true;
-
-  // Multiply
-  unsigned SchedClass = MI.getDesc().getSchedClass();
-  return is_TC4x(SchedClass) || is_TC3x(SchedClass);
 }
 
 bool HexagonInstrInfo::isEndLoopN(unsigned Opcode) const {
@@ -2415,43 +2407,6 @@ bool HexagonInstrInfo::isJumpWithinBranchRange(const MachineInstr &MI,
   case Hexagon::J4_cmpeqn1_tp1_jump_nt:
     return isInt<11>(offset);
   }
-}
-
-bool HexagonInstrInfo::isLateInstrFeedsEarlyInstr(const MachineInstr &LRMI,
-      const MachineInstr &ESMI) const {
-  bool isLate = isLateResultInstr(LRMI);
-  bool isEarly = isEarlySourceInstr(ESMI);
-
-  LLVM_DEBUG(dbgs() << "V60" << (isLate ? "-LR  " : " --  "));
-  LLVM_DEBUG(LRMI.dump());
-  LLVM_DEBUG(dbgs() << "V60" << (isEarly ? "-ES  " : " --  "));
-  LLVM_DEBUG(ESMI.dump());
-
-  if (isLate && isEarly) {
-    LLVM_DEBUG(dbgs() << "++Is Late Result feeding Early Source\n");
-    return true;
-  }
-
-  return false;
-}
-
-bool HexagonInstrInfo::isLateResultInstr(const MachineInstr &MI) const {
-  switch (MI.getOpcode()) {
-  case TargetOpcode::EXTRACT_SUBREG:
-  case TargetOpcode::INSERT_SUBREG:
-  case TargetOpcode::SUBREG_TO_REG:
-  case TargetOpcode::REG_SEQUENCE:
-  case TargetOpcode::IMPLICIT_DEF:
-  case TargetOpcode::COPY:
-  case TargetOpcode::INLINEASM:
-  case TargetOpcode::PHI:
-    return false;
-  default:
-    break;
-  }
-
-  unsigned SchedClass = MI.getDesc().getSchedClass();
-  return !is_TC1(SchedClass);
 }
 
 bool HexagonInstrInfo::isLateSourceInstr(const MachineInstr &MI) const {
@@ -3234,7 +3189,7 @@ bool HexagonInstrInfo::producesStall(const MachineInstr &MI,
 }
 
 bool HexagonInstrInfo::predCanBeUsedAsDotNew(const MachineInstr &MI,
-      unsigned PredReg) const {
+      Register PredReg) const {
   for (const MachineOperand &MO : MI.operands()) {
     // Predicate register must be explicitly defined.
     if (MO.isRegMask() && MO.clobbersPhysReg(PredReg))
@@ -3431,7 +3386,7 @@ unsigned HexagonInstrInfo::getCExtOpNum(const MachineInstr &MI) const {
 // If so, return its group. Zero otherwise.
 HexagonII::CompoundGroup HexagonInstrInfo::getCompoundCandidateGroup(
       const MachineInstr &MI) const {
-  unsigned DstReg, SrcReg, Src1Reg, Src2Reg;
+  Register DstReg, SrcReg, Src1Reg, Src2Reg;
 
   switch (MI.getOpcode()) {
   default:
@@ -3929,7 +3884,7 @@ int HexagonInstrInfo::getDotOldOp(const MachineInstr &MI) const {
 // If so, return its group. Zero otherwise.
 HexagonII::SubInstructionGroup HexagonInstrInfo::getDuplexCandidateGroup(
       const MachineInstr &MI) const {
-  unsigned DstReg, SrcReg, Src1Reg, Src2Reg;
+  Register DstReg, SrcReg, Src1Reg, Src2Reg;
   const HexagonRegisterInfo &HRI = *Subtarget.getRegisterInfo();
 
   switch (MI.getOpcode()) {
@@ -4556,7 +4511,7 @@ short HexagonInstrInfo::getNonExtOpcode(const MachineInstr &MI) const {
 }
 
 bool HexagonInstrInfo::getPredReg(ArrayRef<MachineOperand> Cond,
-      unsigned &PredReg, unsigned &PredRegPos, unsigned &PredRegFlags) const {
+      Register &PredReg, unsigned &PredRegPos, unsigned &PredRegFlags) const {
   if (Cond.empty())
     return false;
   assert(Cond.size() == 2);

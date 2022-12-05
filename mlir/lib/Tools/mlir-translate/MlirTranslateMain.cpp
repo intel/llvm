@@ -56,15 +56,20 @@ LogicalResult mlir::mlirTranslateMain(int argc, char **argv,
   llvm::InitLLVM y(argc, argv);
 
   // Add flags for all the registered translations.
-  llvm::cl::opt<const TranslateFunction *, false, TranslationParser>
+  llvm::cl::opt<const Translation *, false, TranslationParser>
       translationRequested("", llvm::cl::desc("Translation to perform"),
                            llvm::cl::Required);
   registerAsmPrinterCLOptions();
   registerMLIRContextCLOptions();
+  registerTranslationCLOptions();
   llvm::cl::ParseCommandLineOptions(argc, argv, toolName);
 
   std::string errorMessage;
-  auto input = openInputFile(inputFilename, &errorMessage);
+  std::unique_ptr<llvm::MemoryBuffer> input;
+  if (auto inputAlignment = translationRequested->getInputAlignment())
+    input = openInputFile(inputFilename, *inputAlignment, &errorMessage);
+  else
+    input = openInputFile(inputFilename, &errorMessage);
   if (!input) {
     llvm::errs() << errorMessage << "\n";
     return failure();
@@ -98,13 +103,9 @@ LogicalResult mlir::mlirTranslateMain(int argc, char **argv,
     return sourceMgrHandler.verify();
   };
 
-  if (splitInputFile) {
-    if (failed(splitAndProcessBuffer(std::move(input), processBuffer,
-                                     output->os())))
-      return failure();
-  } else if (failed(processBuffer(std::move(input), output->os()))) {
+  if (failed(splitAndProcessBuffer(std::move(input), processBuffer,
+                                   output->os(), splitInputFile)))
     return failure();
-  }
 
   output->keep();
   return success();

@@ -60,7 +60,7 @@ int main()
 
   myQueue.submit([&](handler &cgh) {
     auto outAcc = outBuf.get_access<access::mode::write>(cgh);
-    cgh.parallel_for<class Worker>(num_items, [=](cl::sycl::id<1> index) {
+    cgh.parallel_for<class Worker>(num_items, [=](sycl::id<1> index) {
       outAcc[index] = i + s.m;
     });
   });
@@ -192,7 +192,7 @@ are copied into the array within the local capture object.
 
   myQueue.submit([&](handler &cgh) {
     auto outAcc = outBuf.get_access<access::mode::write>(cgh);
-    cgh.parallel_for<class Worker>(num_items, [=](cl::sycl::id<1> index) {
+    cgh.parallel_for<class Worker>(num_items, [=](sycl::id<1> index) {
       outAcc[index] = array[index.get(0)];
     });
   });
@@ -264,7 +264,7 @@ of each accessor array element in ascending index value.
                          in_buffer2.get_access<access::mode::read>(cgh)};
     auto outAcc = out_buffer.get_access<access::mode::write>(cgh);
 
-    cgh.parallel_for<class Worker>(num_items, [=](cl::sycl::id<1> index) {
+    cgh.parallel_for<class Worker>(num_items, [=](sycl::id<1> index) {
       outAcc[index] = inAcc[0][index] + inAcc[1][index];
     });
   });
@@ -356,7 +356,7 @@ in a manner similar to other instances of accessor arrays.
    };
    auto outAcc = out_buffer.get_access<access::mode::write>(cgh);
 
-   cgh.parallel_for<class Worker>(num_items, [=](cl::sycl::id<1> index) {
+   cgh.parallel_for<class Worker>(num_items, [=](sycl::id<1> index) {
      outAcc[index] = s.m + s.inAcc[0][index] + s.inAcc[1][index];
    });
 });

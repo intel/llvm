@@ -14,20 +14,20 @@
 
 #include <stdint.h>
 
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/detail/accessor_impl.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/detail/helpers.hpp>
-#include <CL/sycl/detail/host_profiling_info.hpp>
-#include <CL/sycl/detail/kernel_desc.hpp>
-#include <CL/sycl/detail/type_traits.hpp>
-#include <CL/sycl/group.hpp>
-#include <CL/sycl/id.hpp>
-#include <CL/sycl/kernel.hpp>
-#include <CL/sycl/nd_item.hpp>
-#include <CL/sycl/range.hpp>
+#include <detail/accessor_impl.hpp>
+#include <sycl/backend_types.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/detail/helpers.hpp>
+#include <sycl/detail/host_profiling_info.hpp>
+#include <sycl/detail/kernel_desc.hpp>
+#include <sycl/detail/type_traits.hpp>
 #include <sycl/ext/intel/esimd/common.hpp> // SLM_BTI
+#include <sycl/group.hpp>
+#include <sycl/id.hpp>
+#include <sycl/kernel.hpp>
+#include <sycl/nd_item.hpp>
+#include <sycl/range.hpp>
 
 #include <esimdemu_support.h>
 
@@ -35,6 +35,7 @@
 #include <cstdio>
 #include <cstring>
 #include <functional>
+#include <iostream>
 #include <map>
 #include <memory>
 #include <string>
@@ -263,8 +264,8 @@ public:
     const auto InvokeKernelArg = KernelInvocationContext<DIMS>{
         MKernel, LocalSize, GlobalSize, GlobalOffset};
 
-    EsimdemuKernel{reinterpret_cast<fptrVoid>(InvokeKernel<DIMS>), GroupDim,
-                   SpaceDim}
+    EsimdemuKernel{reinterpret_cast<fptrVoid>(InvokeKernel<DIMS>),
+                   GroupDim.data(), SpaceDim.data()}
         .launchMT(sizeof(InvokeKernelArg), &InvokeKernelArg);
   }
 };
@@ -343,7 +344,7 @@ static bool isNull(int NDims, const size_t *R) {
 
 // NDims is the number of dimensions in the ND-range. Kernels are
 // normalized in the handler so that all kernels take an sycl::nd_item
-// as argument (see StoreLambda in CL/sycl/handler.hpp). For kernels
+// as argument (see StoreLambda in sycl/handler.hpp). For kernels
 // whose workgroup size (LocalWorkSize) is unspecified, InvokeImpl
 // sets LocalWorkSize to {1, 1, 1}, i.e. each workgroup contains just
 // one work item. CM emulator will run several workgroups in parallel
@@ -624,7 +625,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     // TODO : Populate return string accordingly - e.g. cl_khr_fp16,
     // cl_khr_fp64, cl_khr_int64_base_atomics,
     // cl_khr_int64_extended_atomics
-    return ReturnValue("");
+    return ReturnValue("cl_khr_fp64");
   case PI_DEVICE_INFO_VERSION:
     return ReturnValue(Device->VersionStr.c_str());
   case PI_DEVICE_INFO_BUILD_ON_SUBDEVICE: // emulator doesn't support partition
@@ -782,13 +783,15 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_REFERENCE_COUNT:
     // TODO : CHECK
     return ReturnValue(pi_uint32{0});
+  case PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL:
+    return ReturnValue(size_t{1});
 
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS)
-    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_IL_VERSION)
 
     // Intel-specific extensions
+    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_DEVICE_ID)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_PCI_ADDRESS)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_GPU_EU_COUNT)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH)
@@ -930,7 +933,7 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
     return PI_ERROR_INVALID_QUEUE_PROPERTIES;
   }
 
-  cm_support::CmQueue *CmQueue;
+  cm_support::CmQueue *CmQueue = nullptr;
 
   int Result = Context->Device->CmDevicePtr->CreateQueue(CmQueue);
   if (Result != cm_support::CM_SUCCESS) {
@@ -1021,7 +1024,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
 
   char *MapBasePtr = nullptr;
   cm_surface_ptr_t CmBuf;
-  cm_support::SurfaceIndex *CmIndex;
+  cm_support::SurfaceIndex *CmIndex = nullptr;
   int Status = cm_support::CM_FAILURE;
 
   if (Flags & PI_MEM_FLAGS_HOST_PTR_USE) {
@@ -1116,8 +1119,8 @@ _pi_mem::~_pi_mem() {
     Status = CmDevice->DestroySurface(SurfacePtr.RegularImgPtr);
   }
 
-  cl::sycl::detail::pi::assertion(Status == cm_support::CM_SUCCESS &&
-                                  "Surface Deletion Failure from CM_EMU");
+  sycl::detail::pi::assertion(Status == cm_support::CM_SUCCESS &&
+                              "Surface Deletion Failure from CM_EMU");
 
   for (auto mapit = Mappings.begin(); mapit != Mappings.end();) {
     mapit = Mappings.erase(mapit);
@@ -1213,7 +1216,7 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
 
   char *MapBasePtr = nullptr;
   cm_surface_ptr_t CmImg;
-  cm_support::SurfaceIndex *CmIndex;
+  cm_support::SurfaceIndex *CmIndex = nullptr;
   int Status = cm_support::CM_SUCCESS;
 
   if (Flags & PI_MEM_FLAGS_HOST_PTR_USE) {
@@ -2009,7 +2012,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
 #define _PI_API(api)                                                           \
   (PluginInit->PiFunctionTable).api = (decltype(&::api))(&api);
-#include <CL/sycl/detail/pi.def>
+#include <sycl/detail/pi.def>
 
   return PI_SUCCESS;
 }

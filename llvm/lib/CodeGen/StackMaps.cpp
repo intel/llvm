@@ -365,7 +365,7 @@ StackMaps::parseRegisterLiveOutMask(const uint32_t *Mask) const {
   });
 
   for (auto I = LiveOuts.begin(), E = LiveOuts.end(); I != E; ++I) {
-    for (auto II = std::next(I); II != E; ++II) {
+    for (auto *II = std::next(I); II != E; ++II) {
       if (I->DwarfRegNum != II->DwarfRegNum) {
         // Skip all the now invalid entries.
         I = --II;
@@ -688,7 +688,7 @@ void StackMaps::emitCallsiteEntries(MCStreamer &OS) {
     }
 
     // Emit alignment to 8 byte.
-    OS.emitValueToAlignment(8);
+    OS.emitValueToAlignment(Align(8));
 
     // Num live-out registers and padding to align to 4 byte.
     OS.emitInt16(0);
@@ -700,7 +700,7 @@ void StackMaps::emitCallsiteEntries(MCStreamer &OS) {
       OS.emitIntValue(LO.Size, 1);
     }
     // Emit alignment to 8 byte.
-    OS.emitValueToAlignment(8);
+    OS.emitValueToAlignment(Align(8));
   }
 }
 

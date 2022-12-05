@@ -20,9 +20,9 @@
 ;
 ; The test would be in em.ll.
 
-; RUN: llvm-as -opaque-pointers=0 < %s -o %t.bc
+; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv --spirv-ext=+SPV_INTEL_debug_module %t.bc -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=x86_64-unknown-linux-gnu -filetype=obj  %t.ll -o - | llvm-dwarfdump - | FileCheck %s
 
 ; CHECK: [[DIE_ID:0x[0-9a-f]+]]: DW_TAG_module

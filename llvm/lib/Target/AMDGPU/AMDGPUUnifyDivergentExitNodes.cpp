@@ -211,8 +211,12 @@ bool AMDGPUUnifyDivergentExitNodes::runOnFunction(Function &F) {
       if (!isUniformlyReached(DA, *BB))
         ReturningBlocks.push_back(BB);
     } else if (isa<UnreachableInst>(BB->getTerminator())) {
-      if (!isUniformlyReached(DA, *BB))
-        UnreachableBlocks.push_back(BB);
+      // TODO: For now we unify UnreachableBlocks even though they are uniformly
+      // reachable. This is to workaround the limitation of structurizer, which
+      // can not handle multiple function exits. After structurizer is able to
+      // handle multiple function exits, we should only unify UnreachableBlocks
+      // that are not uniformly reachable.
+      UnreachableBlocks.push_back(BB);
     } else if (BranchInst *BI = dyn_cast<BranchInst>(BB->getTerminator())) {
 
       ConstantInt *BoolTrue = ConstantInt::getTrue(F.getContext());
@@ -220,7 +224,7 @@ bool AMDGPUUnifyDivergentExitNodes::runOnFunction(Function &F) {
         DummyReturnBB = BasicBlock::Create(F.getContext(),
                                            "DummyReturnBlock", &F);
         Type *RetTy = F.getReturnType();
-        Value *RetVal = RetTy->isVoidTy() ? nullptr : UndefValue::get(RetTy);
+        Value *RetVal = RetTy->isVoidTy() ? nullptr : PoisonValue::get(RetTy);
         ReturnInst::Create(F.getContext(), RetVal, DummyReturnBB);
         ReturningBlocks.push_back(DummyReturnBB);
       }
@@ -282,7 +286,7 @@ bool AMDGPUUnifyDivergentExitNodes::runOnFunction(Function &F) {
       // structurizer/annotator can't handle the multiple exits
 
       Type *RetTy = F.getReturnType();
-      Value *RetVal = RetTy->isVoidTy() ? nullptr : UndefValue::get(RetTy);
+      Value *RetVal = RetTy->isVoidTy() ? nullptr : PoisonValue::get(RetTy);
       // Remove and delete the unreachable inst.
       UnreachableBlock->getTerminator()->eraseFromParent();
 

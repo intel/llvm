@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiMock.hpp>
 #include <helpers/TestKernel.hpp>
 
@@ -30,35 +29,23 @@ pi_result redefinedMemBufferCreate(pi_context, pi_mem_flags, size_t size,
 
 class EventDestructionTest : public ::testing::Test {
 public:
-  EventDestructionTest() : Plt{default_selector()} {}
+  EventDestructionTest() : Mock{}, Plt{Mock.getPlatform()} {}
 
 protected:
   void SetUp() override {
-    if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
-      std::cout << "This test is only supported on OpenCL backend\n";
-      std::cout << "Current platform is "
-                << Plt.get_info<sycl::info::platform::name>();
-      return;
-    }
-
-    Mock = std::make_unique<unittest::PiMock>(Plt);
-
-    setupDefaultMockAPIs(*Mock);
-    Mock->redefine<detail::PiApiKind::piEventRelease>(redefinedEventRelease);
-    Mock->redefine<sycl::detail::PiApiKind::piMemBufferCreate>(
+    Mock.redefineBefore<detail::PiApiKind::piEventRelease>(
+        redefinedEventRelease);
+    Mock.redefineBefore<detail::PiApiKind::piMemBufferCreate>(
         redefinedMemBufferCreate);
   }
 
 protected:
-  std::unique_ptr<unittest::PiMock> Mock;
-  platform Plt;
+  unittest::PiMock Mock;
+  sycl::platform Plt;
 };
 
 // Test that events are destructed in correct time
 TEST_F(EventDestructionTest, EventDestruction) {
-  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
-    return;
-  }
   sycl::context Context{Plt};
   sycl::queue Queue{Context, sycl::default_selector{}};
 
@@ -67,12 +54,11 @@ TEST_F(EventDestructionTest, EventDestruction) {
     sycl::event E1{};
 
     {
-      sycl::event E0 = Queue.submit([&](cl::sycl::handler &cgh) {
-        cgh.single_task<TestKernel>([]() {});
-      });
-      E1 = Queue.submit([&](cl::sycl::handler &cgh) {
+      sycl::event E0 = Queue.submit(
+          [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      E1 = Queue.submit([&](sycl::handler &cgh) {
         cgh.depends_on(E0);
-        cgh.single_task<TestKernel>([]() {});
+        cgh.single_task<TestKernel<>>([]() {});
       });
       E1.wait();
     }
@@ -83,17 +69,17 @@ TEST_F(EventDestructionTest, EventDestruction) {
     // Therefore no event release should be called until here.
     EXPECT_EQ(ReleaseCounter, 0);
 
-    sycl::event E2 = Queue.submit([&](cl::sycl::handler &cgh) {
+    sycl::event E2 = Queue.submit([&](sycl::handler &cgh) {
       cgh.depends_on(E1);
-      cgh.single_task<TestKernel>([]() {});
+      cgh.single_task<TestKernel<>>([]() {});
     });
     E2.wait();
     // Dependencies of E1 should be cleared here. It depends on E0.
     EXPECT_EQ(ReleaseCounter, 1);
 
-    sycl::event E3 = Queue.submit([&](cl::sycl::handler &cgh) {
+    sycl::event E3 = Queue.submit([&](sycl::handler &cgh) {
       cgh.depends_on({E1, E2});
-      cgh.single_task<TestKernel>([]() {});
+      cgh.single_task<TestKernel<>>([]() {});
     });
     E3.wait();
     // Dependency of E1 has already cleared. E2 depends on E1 that
@@ -105,22 +91,22 @@ TEST_F(EventDestructionTest, EventDestruction) {
     ReleaseCounter = 0;
     int data[2] = {0, 1};
     sycl::buffer<int, 1> Buf(&data[0], sycl::range<1>(2));
-    Queue.submit([&](cl::sycl::handler &cgh) {
+    Queue.submit([&](sycl::handler &cgh) {
       auto Acc = Buf.get_access<sycl::access::mode::read_write>(cgh);
-      cgh.single_task<TestKernel>([=]() {});
+      cgh.single_task<TestKernel<>>([=]() {});
     });
 
-    Queue.submit([&](cl::sycl::handler &cgh) {
+    Queue.submit([&](sycl::handler &cgh) {
       auto Acc = Buf.get_access<sycl::access::mode::read_write>(cgh);
-      cgh.single_task<TestKernel>([=]() {});
+      cgh.single_task<TestKernel<>>([=]() {});
     });
-    sycl::event E1 = Queue.submit([&](cl::sycl::handler &cgh) {
+    sycl::event E1 = Queue.submit([&](sycl::handler &cgh) {
       auto Acc = Buf.get_access<sycl::access::mode::read_write>(cgh);
-      cgh.single_task<TestKernel>([=]() {});
+      cgh.single_task<TestKernel<>>([=]() {});
     });
-    sycl::event E2 = Queue.submit([&](cl::sycl::handler &cgh) {
+    sycl::event E2 = Queue.submit([&](sycl::handler &cgh) {
       auto Acc = Buf.get_access<sycl::access::mode::read_write>(cgh);
-      cgh.single_task<TestKernel>([=]() {});
+      cgh.single_task<TestKernel<>>([=]() {});
     });
     E2.wait();
     // Dependencies are deleted through one level of dependencies. When
@@ -134,9 +120,6 @@ TEST_F(EventDestructionTest, EventDestruction) {
 
 // Test for event::get_wait_list
 TEST_F(EventDestructionTest, GetWaitList) {
-  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
-    return;
-  }
   ReleaseCounter = 0;
   sycl::context Context{Plt};
   sycl::queue Queue{Context, sycl::default_selector{}};
@@ -171,12 +154,11 @@ TEST_F(EventDestructionTest, GetWaitList) {
     sycl::event E1{};
 
     {
-      sycl::event E0 = Queue.submit([&](cl::sycl::handler &cgh) {
-        cgh.single_task<TestKernel>([]() {});
-      });
-      E1 = Queue.submit([&](cl::sycl::handler &cgh) {
+      sycl::event E0 = Queue.submit(
+          [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      E1 = Queue.submit([&](sycl::handler &cgh) {
         cgh.depends_on(E0);
-        cgh.single_task<TestKernel>([]() {});
+        cgh.single_task<TestKernel<>>([]() {});
       });
       E1.wait();
       auto wait_list = E1.get_wait_list();
@@ -188,15 +170,15 @@ TEST_F(EventDestructionTest, GetWaitList) {
     ASSERT_EQ(wait_list.size(), (size_t)1);
     EXPECT_EQ(ReleaseCounter, 0);
 
-    sycl::event E2 = Queue.submit([&](cl::sycl::handler &cgh) {
+    sycl::event E2 = Queue.submit([&](sycl::handler &cgh) {
       cgh.depends_on(E1);
-      cgh.single_task<TestKernel>([]() {});
+      cgh.single_task<TestKernel<>>([]() {});
     });
     E2.wait();
 
-    sycl::event E3 = Queue.submit([&](cl::sycl::handler &cgh) {
+    sycl::event E3 = Queue.submit([&](sycl::handler &cgh) {
       cgh.depends_on({E1, E2});
-      cgh.single_task<TestKernel>([]() {});
+      cgh.single_task<TestKernel<>>([]() {});
     });
     E3.wait();
 

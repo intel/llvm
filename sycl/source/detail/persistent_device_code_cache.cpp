@@ -14,15 +14,15 @@
 #include <cstdio>
 #include <optional>
 
-#if defined(__SYCL_RT_OS_LINUX)
+#if defined(__SYCL_RT_OS_POSIX_SUPPORT)
 #include <unistd.h>
 #else
 #include <direct.h>
 #include <io.h>
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 /* Lock file suffix */
@@ -333,8 +333,10 @@ std::string PersistentDeviceCodeCache::getCacheItemPath(
     return {};
   }
 
-  std::string ImgString{(const char *)Img.getRawData().BinaryStart,
-                        Img.getSize()};
+  std::string ImgString = "";
+  if (Img.getRawData().BinaryStart)
+    ImgString.assign((const char *)Img.getRawData().BinaryStart, Img.getSize());
+
   std::string DeviceString{getDeviceIDString(Device)};
   std::string SpecConstsString{(const char *)SpecConsts.data(),
                                SpecConsts.size()};
@@ -365,5 +367,5 @@ std::string PersistentDeviceCodeCache::getRootDir() {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

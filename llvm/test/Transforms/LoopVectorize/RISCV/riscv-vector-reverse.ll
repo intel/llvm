@@ -48,6 +48,8 @@ define void @vector_reverse_i64(ptr nocapture noundef writeonly %A, ptr nocaptur
 ; CHECK-NEXT:  LV: Scalarizing: %idxprom = zext i32 %i.0 to i64
 ; CHECK-NEXT:  LV: Scalarizing: %arrayidx = getelementptr inbounds i32, ptr %B, i64 %idxprom
 ; CHECK-NEXT:  LV: Scalarizing: %arrayidx3 = getelementptr inbounds i32, ptr %A, i64 %idxprom
+; CHECK-NEXT:  LV: Scalarizing: %cmp = icmp ugt i64 %indvars.iv, 1
+; CHECK-NEXT:  LV: Scalarizing: %indvars.iv.next = add nsw i64 %indvars.iv, -1
 ; CHECK-NEXT:  VPlan 'Initial VPlan for VF={vscale x 4},UF>=1' {
 ; CHECK-NEXT:  Live-in vp<%2> = vector-trip-count
 ; CHECK:       vector.ph:
@@ -166,7 +168,7 @@ define void @vector_reverse_f32(ptr nocapture noundef writeonly %A, ptr nocaptur
 ; CHECK-NEXT:  LV: Found an estimated cost of 1 for VF vscale x 4 For instruction: %idxprom = zext i32 %i.0 to i64
 ; CHECK-NEXT:  LV: Found an estimated cost of 0 for VF vscale x 4 For instruction: %arrayidx = getelementptr inbounds float, ptr %B, i64 %idxprom
 ; CHECK-NEXT:  LV: Found an estimated cost of 7 for VF vscale x 4 For instruction: %1 = load float, ptr %arrayidx, align 4
-; CHECK-NEXT:  LV: Found an estimated cost of 2 for VF vscale x 4 For instruction: %conv1 = fadd float %1, 1.000000e+00
+; CHECK-NEXT:  LV: Found an estimated cost of 1 for VF vscale x 4 For instruction: %conv1 = fadd float %1, 1.000000e+00
 ; CHECK-NEXT:  LV: Found an estimated cost of 0 for VF vscale x 4 For instruction: %arrayidx3 = getelementptr inbounds float, ptr %A, i64 %idxprom
 ; CHECK-NEXT:  LV: Found an estimated cost of 7 for VF vscale x 4 For instruction: store float %conv1, ptr %arrayidx3, align 4
 ; CHECK-NEXT:  LV: Found an estimated cost of 1 for VF vscale x 4 For instruction: %cmp = icmp ugt i64 %indvars.iv, 1
@@ -177,6 +179,8 @@ define void @vector_reverse_f32(ptr nocapture noundef writeonly %A, ptr nocaptur
 ; CHECK-NEXT:  LV: Scalarizing: %idxprom = zext i32 %i.0 to i64
 ; CHECK-NEXT:  LV: Scalarizing: %arrayidx = getelementptr inbounds float, ptr %B, i64 %idxprom
 ; CHECK-NEXT:  LV: Scalarizing: %arrayidx3 = getelementptr inbounds float, ptr %A, i64 %idxprom
+; CHECK-NEXT:  LV: Scalarizing: %cmp = icmp ugt i64 %indvars.iv, 1
+; CHECK-NEXT:  LV: Scalarizing: %indvars.iv.next = add nsw i64 %indvars.iv, -1
 ; CHECK-NEXT:  VPlan 'Initial VPlan for VF={vscale x 4},UF>=1' {
 ; CHECK-NEXT:  Live-in vp<%2> = vector-trip-count
 ; CHECK:       vector.ph:
@@ -206,7 +210,7 @@ define void @vector_reverse_f32(ptr nocapture noundef writeonly %A, ptr nocaptur
 ; CHECK-NEXT:  LV: Found an estimated cost of 1 for VF vscale x 4 For instruction: %idxprom = zext i32 %i.0 to i64
 ; CHECK-NEXT:  LV: Found an estimated cost of 0 for VF vscale x 4 For instruction: %arrayidx = getelementptr inbounds float, ptr %B, i64 %idxprom
 ; CHECK-NEXT:  LV: Found an estimated cost of 7 for VF vscale x 4 For instruction: %1 = load float, ptr %arrayidx, align 4
-; CHECK-NEXT:  LV: Found an estimated cost of 2 for VF vscale x 4 For instruction: %conv1 = fadd float %1, 1.000000e+00
+; CHECK-NEXT:  LV: Found an estimated cost of 1 for VF vscale x 4 For instruction: %conv1 = fadd float %1, 1.000000e+00
 ; CHECK-NEXT:  LV: Found an estimated cost of 0 for VF vscale x 4 For instruction: %arrayidx3 = getelementptr inbounds float, ptr %A, i64 %idxprom
 ; CHECK-NEXT:  LV: Found an estimated cost of 7 for VF vscale x 4 For instruction: store float %conv1, ptr %arrayidx3, align 4
 ; CHECK-NEXT:  LV: Found an estimated cost of 1 for VF vscale x 4 For instruction: %cmp = icmp ugt i64 %indvars.iv, 1
@@ -231,7 +235,7 @@ define void @vector_reverse_f32(ptr nocapture noundef writeonly %A, ptr nocaptur
 ; CHECK-NEXT:  LV(REG): RegisterClass: RISCV::VRRC, 4 registers
 ; CHECK-NEXT:  LV: The target has 31 registers of RISCV::GPRRC register class
 ; CHECK-NEXT:  LV: The target has 32 registers of RISCV::VRRC register class
-; CHECK-NEXT:  LV: Loop cost is 23
+; CHECK-NEXT:  LV: Loop cost is 22
 ; CHECK-NEXT:  LV: IC is 2
 ; CHECK-NEXT:  LV: VF is vscale x 4
 ; CHECK-NEXT:  LV: Not Interleaving.

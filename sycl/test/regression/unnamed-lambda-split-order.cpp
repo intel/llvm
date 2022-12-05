@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda %s -o %t.out
-#include "CL/sycl.hpp"
+#include "sycl.hpp"
 
 // This validates the case where using a lambda in a kernel in a different order
 // than the lexical order of the lambdas. In a previous implementation of

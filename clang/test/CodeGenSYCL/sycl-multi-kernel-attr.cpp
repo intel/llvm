@@ -2,7 +2,7 @@
 
 #include "sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 queue q;
 
 class Functor {

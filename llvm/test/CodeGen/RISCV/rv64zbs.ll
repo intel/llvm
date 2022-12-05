@@ -363,6 +363,42 @@ define signext i32 @bext_i32_no_mask(i32 signext %a, i32 signext %b) nounwind {
   ret i32 %and1
 }
 
+; This gets previous converted to (i1 (truncate (srl X, Y)). Make sure we are
+; able to use bext.
+define void @bext_i32_trunc(i32 signext %0, i32 signext %1) {
+; RV64I-LABEL: bext_i32_trunc:
+; RV64I:       # %bb.0:
+; RV64I-NEXT:    srlw a0, a0, a1
+; RV64I-NEXT:    andi a0, a0, 1
+; RV64I-NEXT:    beqz a0, .LBB19_2
+; RV64I-NEXT:  # %bb.1:
+; RV64I-NEXT:    ret
+; RV64I-NEXT:  .LBB19_2:
+; RV64I-NEXT:    tail bar@plt
+;
+; RV64ZBS-LABEL: bext_i32_trunc:
+; RV64ZBS:       # %bb.0:
+; RV64ZBS-NEXT:    bext a0, a0, a1
+; RV64ZBS-NEXT:    beqz a0, .LBB19_2
+; RV64ZBS-NEXT:  # %bb.1:
+; RV64ZBS-NEXT:    ret
+; RV64ZBS-NEXT:  .LBB19_2:
+; RV64ZBS-NEXT:    tail bar@plt
+  %3 = shl i32 1, %1
+  %4 = and i32 %3, %0
+  %5 = icmp eq i32 %4, 0
+  br i1 %5, label %6, label %7
+
+6:                                                ; preds = %2
+  tail call void @bar()
+  br label %7
+
+7:                                                ; preds = %6, %2
+  ret void
+}
+
+declare void @bar()
+
 define i64 @bext_i64(i64 %a, i64 %b) nounwind {
 ; RV64I-LABEL: bext_i64:
 ; RV64I:       # %bb.0:
@@ -426,6 +462,40 @@ define i64 @bexti_i64(i64 %a) nounwind {
   %shr = lshr i64 %a, 5
   %and = and i64 %shr, 1
   ret i64 %and
+}
+
+define signext i32 @bexti_i32_cmp(i32 signext %a) nounwind {
+; RV64I-LABEL: bexti_i32_cmp:
+; RV64I:       # %bb.0:
+; RV64I-NEXT:    slli a0, a0, 58
+; RV64I-NEXT:    srli a0, a0, 63
+; RV64I-NEXT:    ret
+;
+; RV64ZBS-LABEL: bexti_i32_cmp:
+; RV64ZBS:       # %bb.0:
+; RV64ZBS-NEXT:    bexti a0, a0, 5
+; RV64ZBS-NEXT:    ret
+  %and = and i32 %a, 32
+  %cmp = icmp ne i32 %and, 0
+  %zext = zext i1 %cmp to i32
+  ret i32 %zext
+}
+
+define i64 @bexti_i64_cmp(i64 %a) nounwind {
+; RV64I-LABEL: bexti_i64_cmp:
+; RV64I:       # %bb.0:
+; RV64I-NEXT:    slli a0, a0, 58
+; RV64I-NEXT:    srli a0, a0, 63
+; RV64I-NEXT:    ret
+;
+; RV64ZBS-LABEL: bexti_i64_cmp:
+; RV64ZBS:       # %bb.0:
+; RV64ZBS-NEXT:    bexti a0, a0, 5
+; RV64ZBS-NEXT:    ret
+  %and = and i64 %a, 32
+  %cmp = icmp ne i64 %and, 0
+  %zext = zext i1 %cmp to i64
+  ret i64 %zext
 }
 
 define signext i32 @bclri_i32_10(i32 signext %a) nounwind {

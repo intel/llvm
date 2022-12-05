@@ -60,7 +60,8 @@ class TargetOptions;
 namespace mca {
 class CustomBehaviour;
 class InstrPostProcess;
-class SourceMgr;
+class InstrumentManager;
+struct SourceMgr;
 } // namespace mca
 
 MCStreamer *createNullStreamer(MCContext &Ctx);
@@ -114,6 +115,11 @@ MCStreamer *createSPIRVStreamer(MCContext &Ctx,
                                 std::unique_ptr<MCObjectWriter> &&OW,
                                 std::unique_ptr<MCCodeEmitter> &&CE,
                                 bool RelaxAll);
+MCStreamer *createDXContainerStreamer(MCContext &Ctx,
+                                      std::unique_ptr<MCAsmBackend> &&TAB,
+                                      std::unique_ptr<MCObjectWriter> &&OW,
+                                      std::unique_ptr<MCCodeEmitter> &&CE,
+                                      bool RelaxAll);
 
 MCRelocationInfo *createMCRelocationInfo(const Triple &TT, MCContext &Ctx);
 
@@ -128,6 +134,9 @@ mca::CustomBehaviour *createCustomBehaviour(const MCSubtargetInfo &STI,
 
 mca::InstrPostProcess *createInstrPostProcess(const MCSubtargetInfo &STI,
                                               const MCInstrInfo &MCII);
+
+mca::InstrumentManager *createInstrumentManager(const MCSubtargetInfo &STI,
+                                                const MCInstrInfo &MCII);
 
 /// Target - Wrapper for Target specific information.
 ///
@@ -211,6 +220,12 @@ public:
                       std::unique_ptr<MCAsmBackend> &&TAB,
                       std::unique_ptr<MCObjectWriter> &&OW,
                       std::unique_ptr<MCCodeEmitter> &&Emitter, bool RelaxAll);
+  
+  using DXContainerStreamerCtorTy =
+      MCStreamer *(*)(const Triple &T, MCContext &Ctx,
+                      std::unique_ptr<MCAsmBackend> &&TAB,
+                      std::unique_ptr<MCObjectWriter> &&OW,
+                      std::unique_ptr<MCCodeEmitter> &&Emitter, bool RelaxAll);
 
   using NullTargetStreamerCtorTy = MCTargetStreamer *(*)(MCStreamer &S);
   using AsmTargetStreamerCtorTy = MCTargetStreamer *(*)(
@@ -233,6 +248,10 @@ public:
   using InstrPostProcessCtorTy =
       mca::InstrPostProcess *(*)(const MCSubtargetInfo &STI,
                                  const MCInstrInfo &MCII);
+
+  using InstrumentManagerCtorTy =
+      mca::InstrumentManager *(*)(const MCSubtargetInfo &STI,
+                                  const MCInstrInfo &MCII);
 
 private:
   /// Next - The next registered target in the linked list, maintained by the
@@ -313,6 +332,7 @@ private:
   WasmStreamerCtorTy WasmStreamerCtorFn = nullptr;
   XCOFFStreamerCtorTy XCOFFStreamerCtorFn = nullptr;
   SPIRVStreamerCtorTy SPIRVStreamerCtorFn = nullptr;
+  DXContainerStreamerCtorTy DXContainerStreamerCtorFn = nullptr;
 
   /// Construction function for this target's null TargetStreamer, if
   /// registered (default = nullptr).
@@ -341,6 +361,10 @@ private:
   /// InstrPostProcessCtorFn - Construction function for this target's
   /// InstrPostProcess, if registered (default = nullptr).
   InstrPostProcessCtorTy InstrPostProcessCtorFn = nullptr;
+
+  /// InstrumentManagerCtorFn - Construction function for this target's
+  /// InstrumentManager, if registered (default = nullptr).
+  InstrumentManagerCtorTy InstrumentManagerCtorFn = nullptr;
 
 public:
   Target() = default;
@@ -541,8 +565,6 @@ public:
     switch (T.getObjectFormat()) {
     case Triple::UnknownObjectFormat:
       llvm_unreachable("Unknown object format");
-    case Triple::DXContainer:
-      llvm_unreachable("DXContainer is unsupported through MC");
     case Triple::COFF:
       assert(T.isOSWindows() && "only Windows COFF is supported");
       S = COFFStreamerCtorFn(Ctx, std::move(TAB), std::move(OW),
@@ -592,6 +614,14 @@ public:
       else
         S = createSPIRVStreamer(Ctx, std::move(TAB), std::move(OW),
                                 std::move(Emitter), RelaxAll);
+      break;
+    case Triple::DXContainer:
+      if (DXContainerStreamerCtorFn)
+        S = DXContainerStreamerCtorFn(T, Ctx, std::move(TAB), std::move(OW),
+                              std::move(Emitter), RelaxAll);
+      else
+        S = createDXContainerStreamer(Ctx, std::move(TAB), std::move(OW),
+                                      std::move(Emitter), RelaxAll);
       break;
     }
     if (ObjectTargetStreamerCtorFn)
@@ -685,6 +715,17 @@ public:
                                                 const MCInstrInfo &MCII) const {
     if (InstrPostProcessCtorFn)
       return InstrPostProcessCtorFn(STI, MCII);
+    return nullptr;
+  }
+
+  /// createInstrumentManager - Create a target specific
+  /// InstrumentManager. This class is used by llvm-mca and requires
+  /// backend functionality.
+  mca::InstrumentManager *
+  createInstrumentManager(const MCSubtargetInfo &STI,
+                          const MCInstrInfo &MCII) const {
+    if (InstrumentManagerCtorFn)
+      return InstrumentManagerCtorFn(STI, MCII);
     return nullptr;
   }
 
@@ -977,6 +1018,10 @@ struct TargetRegistry {
     T.SPIRVStreamerCtorFn = Fn;
   }
 
+  static void RegisterDXContainerStreamer(Target &T, Target::DXContainerStreamerCtorTy Fn) {
+    T.DXContainerStreamerCtorFn = Fn;
+  }
+
   static void RegisterWasmStreamer(Target &T, Target::WasmStreamerCtorTy Fn) {
     T.WasmStreamerCtorFn = Fn;
   }
@@ -1054,6 +1099,21 @@ struct TargetRegistry {
   static void RegisterInstrPostProcess(Target &T,
                                        Target::InstrPostProcessCtorTy Fn) {
     T.InstrPostProcessCtorFn = Fn;
+  }
+
+  /// RegisterInstrumentManager - Register an InstrumentManager
+  /// implementation for the given target.
+  ///
+  /// Clients are responsible for ensuring that registration doesn't occur
+  /// while another thread is attempting to access the registry. Typically
+  /// this is done by initializing all targets at program startup.
+  ///
+  /// @param T - The target being registered.
+  /// @param Fn - A function to construct an InstrumentManager for the
+  /// target.
+  static void RegisterInstrumentManager(Target &T,
+                                        Target::InstrumentManagerCtorTy Fn) {
+    T.InstrumentManagerCtorFn = Fn;
   }
 
   /// @}

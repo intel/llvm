@@ -9,14 +9,14 @@
 #pragma once
 
 #include <CL/__spirv/spirv_types.hpp>
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/property_list.hpp>
+#include <sycl/context.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/property_list.hpp>
 
 #include <unordered_map>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 enum class addressing_mode : unsigned int;
 enum class filtering_mode : unsigned int;
@@ -42,7 +42,7 @@ public:
   /// Checks if this sampler_impl has a property of type propertyT.
   ///
   /// \return true if this sampler_impl has a property of type propertyT.
-  template <typename propertyT> bool has_property() const {
+  template <typename propertyT> bool has_property() const noexcept {
     return MPropList.has_property<propertyT>();
   }
 
@@ -71,5 +71,5 @@ private:
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

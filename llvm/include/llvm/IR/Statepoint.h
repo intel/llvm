@@ -30,6 +30,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 namespace llvm {
@@ -54,7 +55,6 @@ enum class StatepointFlags {
 // These two are defined in IntrinsicInst since they're part of the
 // IntrinsicInst class hierarchy.
 class GCRelocateInst;
-class GCResultInst;
 
 /// Represents a gc.statepoint intrinsic call.  This extends directly from
 /// CallBase as the IntrinsicInst only supports calls and gc.statepoint is
@@ -234,8 +234,8 @@ std::vector<const GCRelocateInst *> GCStatepointInst::getGCRelocates() const {
 /// have attributes that describe properties of gc.statepoint call they will be
 /// eventually be wrapped in.  This struct is used represent such directives.
 struct StatepointDirectives {
-  Optional<uint32_t> NumPatchBytes;
-  Optional<uint64_t> StatepointID;
+  std::optional<uint32_t> NumPatchBytes;
+  std::optional<uint64_t> StatepointID;
 
   static const uint64_t DefaultStatepointID = 0xABCDEF00;
   static const uint64_t DeoptBundleStatepointID = 0xABCDEF0F;

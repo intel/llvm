@@ -46,7 +46,6 @@ class MCSubtargetInfo;
 class MCSymbol;
 class raw_pwrite_stream;
 class PassBuilder;
-class PassManagerBuilder;
 struct PerFunctionMIParsingState;
 class SMDiagnostic;
 class SMRange;
@@ -222,7 +221,10 @@ public:
 
   /// Returns the code model. The choices are small, kernel, medium, large, and
   /// target default.
-  CodeModel::Model getCodeModel() const;
+  CodeModel::Model getCodeModel() const { return CMModel; }
+
+  /// Set the code model.
+  void setCodeModel(CodeModel::Model CM) { CMModel = CM; }
 
   bool isPositionIndependent() const;
 
@@ -344,12 +346,7 @@ public:
   /// corresponding to \p F.
   virtual TargetTransformInfo getTargetTransformInfo(const Function &F) const;
 
-  /// Allow the target to modify the pass manager, e.g. by calling
-  /// PassManagerBuilder::addExtension.
-  virtual void adjustPassManager(PassManagerBuilder &) {}
-
-  /// Allow the target to modify the pass pipeline with New Pass Manager
-  /// (similar to adjustPassManager for Legacy Pass manager).
+  /// Allow the target to modify the pass pipeline.
   virtual void registerPassBuilderCallbacks(PassBuilder &) {}
 
   /// Allow the target to register alias analyses with the AAManager for use
@@ -444,13 +441,13 @@ public:
                                      raw_pwrite_stream &, raw_pwrite_stream *,
                                      CodeGenFileType, CGPassBuilderOption,
                                      PassInstrumentationCallbacks *) {
-    return make_error<StringError>("buildCodeGenPipeline is not overriden",
+    return make_error<StringError>("buildCodeGenPipeline is not overridden",
                                    inconvertibleErrorCode());
   }
 
   virtual std::pair<StringRef, bool> getPassNameFromLegacyName(StringRef) {
     llvm_unreachable(
-        "getPassNameFromLegacyName parseMIRPipeline is not overriden");
+        "getPassNameFromLegacyName parseMIRPipeline is not overridden");
   }
 
   /// Add passes to the specified pass manager to get machine code emitted with

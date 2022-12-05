@@ -6,7 +6,7 @@
 // over in llvm-test-suite along with the other changes
 // needed to support the SYCL 2020 target updates.
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 int main() {
   sycl::queue testQueue;

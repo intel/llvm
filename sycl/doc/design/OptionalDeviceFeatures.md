@@ -396,48 +396,65 @@ In order to communicate the information from `[[sycl::device_has()]]` and
 `[[sycl_detail::uses_aspects()]]` attributes to the DPC++ post-link tool, we
 introduce several new LLVM IR metadata.
 
-The named metadata `!intel_types_that_use_aspects` conveys information about
+The named metadata `!sycl_types_that_use_aspects` conveys information about
 types that are decorated with `[[sycl_detail::uses_aspects()]]`.  This metadata
 is not referenced by any instruction in the module, so it must be looked up by
 name.  The format looks like this:
 
 ```
-!intel_types_that_use_aspects = !{!0, !1, !2}
-!0 = !{!"class.cl::sycl::detail::half_impl::half", i32 8}
-!1 = !{!"class.cl::sycl::amx_type", i32 9}
-!2 = !{!"class.cl::sycl::other_type", i32 8, i32 9}
+!sycl_types_that_use_aspects = !{!0, !1, !2}
+!0 = !{!"class.sycl::detail::half_impl::half", i32 8}
+!1 = !{!"class.sycl::amx_type", i32 9}
+!2 = !{!"class.sycl::other_type", i32 8, i32 9}
 ```
 
-The value of the `!intel_types_that_use_aspects` metadata is a list of unnamed
+The value of the `!sycl_types_that_use_aspects` metadata is a list of unnamed
 metadata nodes, each of which describes one type that is decorated with
 `[[sycl_detail::uses_aspects()]]`.  The value of each unnamed metadata node
 starts with a string giving the name of the type which is followed by a list of
 `i32` constants where each constant is a value from `enum class aspect` telling
 the numerical value of an aspect from the type's
 `[[sycl_detail::uses_aspects()]]` attribute.  In the example above, the type
-`cl::sycl::detail::half_impl::half` uses an aspect whose numerical value is
-`8` and the type `cl::sycl::other_type` uses two aspects `8` and `9`.
+`sycl::detail::half_impl::half` uses an aspect whose numerical value is
+`8` and the type `sycl::other_type` uses two aspects `8` and `9`.
 
 **NOTE**: The reason we choose this representation is because LLVM IR does not
 allow metadata to be attached directly to types.  This representation works
 around that limitation by creating global named metadata that references the
 type's name.
 
-We also introduce three metadata that can be attached to a function definition
-similar to the existing `!intel_reqd_sub_group_size`:
+To synchronize the integral values of given aspects between the SYCL headers and
+the compiler, the `!sycl_aspects` metadata is added to the module, based on the
+values defined in the enum. Inside this metadata node, each value of the aspect
+enum is represented by another metadata node with two operands; the name of the
+value and the corresponding integral value. An example of this is:
 
-* The `!intel_declared_aspects` metadata is used for functions that are
+```
+!sycl_aspects = !{!0, !1, !2, ...}
+!0 = !{!"host", i32 0}
+!1 = !{!"cpu", i32 1}
+!2 = !{!"gpu", i32 2}
+...
+```
+
+**NOTE**: The `!sycl_aspects` metadata is both used by the compiler to identify
+the aspect values of implicit aspect requirements, such as `aspect::fp64` from
+the use of `double`, and to offer better diagnostic messages.
+
+We also introduce three metadata that can be attached to a function definition:
+
+* The `!sycl_declared_aspects` metadata is used for functions that are
   decorated with `[[sycl::device_has()]]`.  The value of the metadata node is a
   list of `i32` constants, where each constant is a value from
   `enum class aspect` representing the aspects listed in the attribute.
 
-* The `!intel_used_aspects` metadata is used to store the propagated
+* The `!sycl_used_aspects` metadata is used to store the propagated
   information about all aspects used by a kernel or exported device function.
   The value of this metadata node is also a list of `i32` constants, where each
   constant is a value from `enum class aspect` representing the aspects that
   are used by the kernel or exported device function.
 
-* The `!intel_fixed_targets` metadata is used to decorate kernel functions and
+* The `!sycl_fixed_targets` metadata is used to decorate kernel functions and
   `SYCL_EXTERNAL` functions, telling the value of the `-fsycl-fixed-targets`
   switch that was used to compile the translation unit.  The value of this
   metadata node is a list of string literals corresponding to the list of
@@ -458,7 +475,7 @@ numerical values `8` and `9`.  In addition, the function uses an optional
 feature that corresponds to an aspect with numerical value `8`.
 
 ```
-define void @foo() !intel_declared_aspects !1 !intel_used_aspects !2 {}
+define void @foo() !sycl_declared_aspects !1 !sycl_used_aspects !2 {}
 !1 = !{i32 8, i32 9}
 !2 = !{i32 8}
 ```
@@ -473,34 +490,44 @@ to the following rules:
 
 * If the translation unit contains any type definitions that are decorated with
   `[[sycl_detail::uses_aspects()]]`, the front-end creates an
-  `!intel_types_that_use_aspects` metadata describing the aspects used by all
+  `!sycl_types_that_use_aspects` metadata describing the aspects used by all
   such types.
 
 * If a function is decorated with `[[sycl_detail::uses_aspects()]]`, the
-  front-end adds an `!intel_used_aspects` metadata to the function's definition
+  front-end adds an `!sycl_used_aspects` metadata to the function's definition
   listing the aspects from that attribute.
 
 * If a function is decorated with `[[sycl::device_has()]]`, the front-end adds
-  an `!intel_declared_aspects` metadata to the function's definition listing
+  an `!sycl_declared_aspects` metadata to the function's definition listing
   the aspects from that attribute.
+
+* If a completed enum is decorated with `[[sycl_detail::sycl_type(aspect)]]` the
+  front-end adds an `!sycl_aspects` metadata to the module containing one
+  metadata node for each value in the enum. If there are multiple enum
+  definitions with the `[[sycl_detail::sycl_type(aspect)]]` attribute a
+  diagnostic is issued.
 
 
 ### New LLVM IR pass to propagate aspect usage
 
 We add a new IR phase to the device compiler which does the following:
 
-* Creates (or augments) a function's `!intel_used_aspects` metadata with
+* Creates (or augments) a function's `!sycl_used_aspects` metadata with
   aspects that come from references to types in the
-  `intel_types_that_use_aspects` list.
+  `sycl_types_that_use_aspects` list.
 
-* Propagates each function's `!intel_used_aspects` metadata up the static call
+* If a function has the `!sycl_declared_aspects` metadata, creates (or augments)
+  the function's `!sycl_used_aspects` metadata with aspects from the
+  `!sycl_declared_aspects` list.
+
+* Propagates each function's `!sycl_used_aspects` metadata up the static call
   graph so that each function lists the aspects used by that function and by
   any functions it calls.
 
-* Diagnoses a warning if any function that has `!intel_declared_aspects` uses
+* Diagnoses a warning if any function that has `!sycl_declared_aspects` uses
   an aspect not listed in that declared set.
 
-* Creates an `!intel_fixed_targets` metadata for each kernel function or
+* Creates an `!sycl_fixed_targets` metadata for each kernel function or
   `SYCL_EXTERNAL` function that is defined.  This is done regardless of whether
   the `-fsycl-fixed-targets` command line switch is specified.  If the switch
   is not specified, the metadata has an empty list of targets.
@@ -517,40 +544,40 @@ other IR phases.
 
 Implementing the first bullet point is straightforward.  The implementation can
 scan the IR for each function looking for instructions that reference a type.
-It can then see if that type is in the `!intel_types_that_use_aspects` set; if
-so it adds the type's aspects to the function's `!intel_used_aspects` set.
+It can then see if that type is in the `!sycl_types_that_use_aspects` set; if
+so it adds the type's aspects to the function's `!sycl_used_aspects` set.
 While doing this, the implementation must have a special case for the `double`
 type because the front-end does not include that type in the
-`!intel_types_that_use_aspects` set.  If a function references the `double`
+`!sycl_types_that_use_aspects` set.  If a function references the `double`
 type, the implementation implicitly assumes that the function uses
-`aspect::fp64` and adds that aspect to the function's `!intel_used_aspects`
+`aspect::fp64` and adds that aspect to the function's `!sycl_used_aspects`
 set.
 
 **NOTE**: This scan of the IR will require comparing the type referenced by
 each IR instruction with the names of the types in the
-`!intel_types_that_use_aspects` metadata.  It would be very inefficient if we
+`!sycl_types_that_use_aspects` metadata.  It would be very inefficient if we
 did a string comparison each time.  As an optimization, the implementation can
-first lookup up each type name in the `!intel_types_that_use_aspects` metadata
+first lookup up each type name in the `!sycl_types_that_use_aspects` metadata
 set, finding the "type pointer" that corresponds to each type name.  Then the
 pass over the IR can compare the type pointer in each IR instruction with the
-type pointers from the `!intel_types_that_use_aspects` metadata set.
+type pointers from the `!sycl_types_that_use_aspects` metadata set.
 
 The second bullet point requires building the static call graph, but the
 implementation need not scan the instructions in each function.  Instead, it
-need only look at the `!intel_used_aspects` metadata for each function,
+need only look at the `!sycl_used_aspects` metadata for each function,
 propagating the aspects used by each function up to it callers and augmenting
-the caller's `!intel_used_aspects` set.
+the caller's `!sycl_used_aspects` set.
 
 Diagnosing warnings for the third bullet point is then straightforward.  The
-implementation looks for functions that have `!intel_declared_aspects` and
-compares that set with the `!intel_used_aspects` set (if any).  If a function
+implementation looks for functions that have `!sycl_declared_aspects` and
+compares that set with the `!sycl_used_aspects` set (if any).  If a function
 uses an aspect that is not in the declared set, the implementation issues a
 warning.
 
 Diagnosing warnings for the fifth bullet point requires the [device
 configuration file][7] which gives the set of allowed optional features for
 each target device.  The implementation looks for functions that have either
-`!intel_declared_aspects` or `!intel_used_aspects`, and it compares the aspects
+`!sycl_declared_aspects` or `!sycl_used_aspects`, and it compares the aspects
 from these metadata to the allowed list in the configuration file.  If any
 aspect is not on the allowed list, the implementation issues a warning.  In
 addition, the implementation looks for device functions that have
@@ -608,8 +635,8 @@ The downside, though, is that the warning message is less informative.
 
 ### Assumptions on other phases of clang
 
-The post-link tool (described below) uses the `!intel_used_aspects` and
-`!intel_declared_aspects` metadata, so this metadata must be retained by any
+The post-link tool (described below) uses the `!sycl_used_aspects` and
+`!sycl_declared_aspects` metadata, so this metadata must be retained by any
 other clang passes.  However, post-link only uses this metadata when it
 decorates the definition of a kernel function or the definition of an exported
 device function, so it does not matter if intervening clang passes discard the
@@ -622,7 +649,7 @@ always have external linkage, so there is no possibility that a clang phase
 will optimize them away.
 
 **NOTE**: Ideally, we would change the llvm-link tool to somehow preserve the
-`!intel_declared_aspects` and `!intel_used_aspects` metadata for functions
+`!sycl_declared_aspects` and `!sycl_used_aspects` metadata for functions
 marked `SYCL_EXTERNAL` so that we could compare the declared aspects (in the
 module that imports the function) with the used aspects (in the module the
 exports the function).  This would allow us to diagnose errors where the
@@ -663,7 +690,7 @@ of aspects.
 
 For the purposes of this analysis, the set of *UsedAspects* aspects is computed
 by taking the union of the aspects listed in the kernel's (or device
-function's) `!intel_used_aspects` and `!intel_declared_aspects` sets.  This is
+function's) `!sycl_used_aspects` and `!sycl_declared_aspects` sets.  This is
 consistent with the SYCL specification, which says that a kernel decorated with
 `[[sycl::device_has()]]` may only be submitted to a device that provides the
 listed aspects, regardless of whether the kernel actually uses those aspects.
@@ -689,11 +716,11 @@ device image so long as the translation units were compiled with the same
 Therefore, two kernels or exported device functions can only be bundled
 together into the same device image if:
 
-* They both have `!intel_fixed_targets` metadata with the same non-empty set of
+* They both have `!sycl_fixed_targets` metadata with the same non-empty set of
   targets, or
 
 * All of the following are true:
-  - Both have an empty set of `!intel_fixed_targets` metadata,
+  - Both have an empty set of `!sycl_fixed_targets` metadata,
   - They share the same set of *UsedAspects* aspects,
   - They either both have no required work-group size or both have the same
     required work-group size, and
@@ -740,8 +767,8 @@ If the image contains kernels that were *not* compiled with
 * Set *FinalWorkGroup* to the image's required work-group size (which could be
   the empty set if the image has no required work-group size).
 * Scan over all functions in the image and examine the function's metadata:
-  - If the function has either `!intel_used_aspects` or
-    `!intel_declared_aspects` metadata and one of the aspects in that metadata
+  - If the function has either `!sycl_used_aspects` or
+    `!sycl_declared_aspects` metadata and one of the aspects in that metadata
     is not in the image's *UsedAspects* set, issue a warning and add that
     aspect to the *FinalUsedAspects* set.
   - If the function has `!intel_reqd_sub_group_size` metadata and the size is
@@ -775,7 +802,7 @@ the pass works as follows:
 
 * Set *FinalFixedTargets* to the image's set of fixed target devices.
 * Scan over all functions in the image looking for functions that have the
-  `!intel_fixed_targets` metadata.  If the metadata exists and its set includes
+  `!sycl_fixed_targets` metadata.  If the metadata exists and its set includes
   any target devices not in the image's set of fixed targets, issue a warning
   and set *FinalFixedTargets* to the intersection of the metadata's target set
   and the *FinalFixedTargets* set.  (This may result in *FinalFixedTargets*
@@ -876,7 +903,7 @@ a name of a device architecture. There are sub-keys under each device for
 the supported aspects and sub-group sizes.  For example:
 
 ```
-intel_gpu_11_1:
+intel_gpu_12_0_0:
   aspects: [1, 2, 3]
   sub-group-sizes: [8, 16]
 intel_gpu_icl:
@@ -933,7 +960,7 @@ example set of targets used for the illustration is 4 targets
     - non-SPIR-V based
         - ptx64 (PTX)
     - SPIR-V based
-        - intel_gpu_12 (Intel Graphics)
+        - intel_gpu_12_0_0 (Intel Graphics)
         - x86_64_avx512 (AVX512)
 
 ![Device SPIRV translation and AOT compilation](images/DeviceLinkAOTAndWrap.svg)
@@ -1002,27 +1029,34 @@ architectures need to be identified:
 
 - `-fsycl-targets` option
 - a device configuration file entry
-- `-target` option of the `sycl-aspec-filter` tool
-- a SYCL aspect enum identifier (we expect to add a new SYCL aspect for each
-  device target architecture)
+- `-target` option of the `sycl-aspect-filter` tool
+- a new SYCL enumeration named `architecture`
 
-In all such places architecture naming should be the same. In some cases aliases
-are allowed. Below is a list of target architectures supported by DPC++:
+The following table lists these target names:
 
-| target/alias(es) | description |
-|-|-|
-| intel_gpu    | Generic Intel graphics architecture |
-| intel_gpu_tgl, intel_gpu_12_0 | Intel Tiger Lake (11th generation Core) integrated graphics architecture |
-| ptx64  | Generic 64-bit PTX target architecture |
-| spir64 | Generic 64-bit SPIR-V target |
-| x86_64 | Generic 64-bit x86 architecture |
+| name                 | has `architecture` enum | description                            |
+-----------------------|-------------------------|----------------------------------------|
+| ptx64                | no                      | Generic 64-bit PTX target architecture |
+| spir64               | no                      | Generic 64-bit SPIR-V target           |
+| x86\_64              | yes                     | Generic 64-bit x86 architecture        |
+| intel\_gpu\_\<name\> | yes                     | Intel graphics architecture \<name\>   |
 
-TODO: Provide full list of AOT targets supported by the identification
-mechanism.
+The "name" column in this table lists the possible target names.  Since not all
+targets have a corresponding enumerator in the `architecture` enumeration, the
+second column tells when there is such an enumerator.  The last row in this
+table corresponds to all of the architecture names listed in the
+[sycl\_ext\_intel\_device\_architecture][8] extension whose name starts with
+`intel_gpu_`.
+
+[8]: <../extensions/proposed/sycl_ext_intel_device_architecture.asciidoc>
+
+TODO: This table needs to be filled out for the CPU variants supported by the
+`opencl-aot` tool (avx512, avx2, avx, sse4.2) and for the FPGA targets.  We
+also need to figure out how CUDA fits in here.
 
 Example of clang compilation invocation with 2 AOT targets and generic SPIR-V:
 ```
-clang++ -fsycl -fsycl-targets=spir64,intel_gpu_12_0,ptx64 ...
+clang++ -fsycl -fsycl-targets=spir64,intel_gpu_12_0_0,ptx64 ...
 ```
 
 ### Changes to the DPC++ runtime
@@ -1059,7 +1093,7 @@ The exception's `what` string contains a message describing the reason the
 device image is incompatible.  For example:
 
 ```
-Kernel was compiled with '-fsycl-fixed-targets=intel_gpu_11_1' but was
+Kernel was compiled with '-fsycl-fixed-targets=intel_gpu_12_0_0' but was
 submitted to a different device.
 
 Kernel uses optional feature corresponding to 'aspect::fp16' but device does
@@ -1072,7 +1106,7 @@ sub-group size.
 
 ## Appendix: Adding an attribute to 8-byte `atomic_ref`
 
-As described above under ["Changes to DPC++ headers"][8], we need to decorate
+As described above under ["Changes to DPC++ headers"][9], we need to decorate
 any SYCL type representing an optional device feature with the
 `[[sycl_detail::uses_aspects()]]` attribute.  This is somewhat tricky for
 `atomic_ref`, though, because it is only an optional feature when specialized
@@ -1080,7 +1114,7 @@ for a 8-byte type.  However, we can accomplish this by using partial
 specialization techniques.  The following code snippet demonstrates (best read
 from bottom to top):
 
-[8]: <#changes-to-dpc-headers>
+[9]: <#changes-to-dpc-headers>
 
 ```
 namespace sycl {

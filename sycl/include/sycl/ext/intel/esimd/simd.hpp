@@ -22,11 +22,12 @@
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
 
 #ifndef __SYCL_DEVICE_ONLY__
-#include <iostream>
+#include <sycl/detail/iostream_proxy.hpp>
 #endif // __SYCL_DEVICE_ONLY__
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace __ESIMD_NS {
+namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::intel::esimd {
 
 /// @addtogroup sycl_esimd_core
 /// @{
@@ -181,7 +182,8 @@ public:
 /// element type \c To.
 template <typename To, typename From, int N>
 ESIMD_INLINE simd<To, N> convert(const simd<From, N> &val) {
-  if constexpr (std::is_same_v<To, From>)
+  if constexpr (std::is_same_v<std::remove_const_t<To>,
+                               std::remove_const_t<From>>)
     return val;
   else
     return detail::convert_vector<To, From, N>(val.data());
@@ -197,8 +199,9 @@ template <int N> using simd_mask = detail::simd_mask_type<N>;
 
 /// @} sycl_esimd_core_vectors
 
-} // namespace __ESIMD_NS
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace ext::intel::esimd
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl
 
 /// @ingroup sycl_esimd_misc
 /// Prints a \c simd object to an output stream.

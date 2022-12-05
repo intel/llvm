@@ -44,7 +44,8 @@ class TraceIntelPTTestCaseBase(TestBase):
                 return False
         if not is_supported():
             self.skipTest("Per cpu tracing is not supported. You need "
-                "/proc/sys/kernel/perf_event_paranoid to be 0 or -1.")
+                "/proc/sys/kernel/perf_event_paranoid to be 0 or -1. "
+                "You can use `sudo sysctl -w kernel.perf_event_paranoid=-1` for that.")
 
     def getTraceOrCreate(self):
         if not self.target().GetTrace().IsValid():
@@ -132,4 +133,26 @@ class TraceIntelPTTestCaseBase(TestBase):
             command = "thread trace stop"
             if thread is not None:
                 command += " " + str(thread.GetIndexID())
+            self.expect(command, error=error, substrs=substrs)
+
+    def traceLoad(self, traceDescriptionFilePath, error=False, substrs=None):
+        if self.USE_SB_API:
+            traceDescriptionFile = lldb.SBFileSpec(traceDescriptionFilePath, True)
+            loadTraceError = lldb.SBError()
+            self.dbg.LoadTraceFromFile(loadTraceError, traceDescriptionFile)
+            self.assertSBError(loadTraceError, error)
+        else:
+            command = f"trace load -v {traceDescriptionFilePath}"
+            self.expect(command, error=error, substrs=substrs)
+
+    def traceSave(self, traceBundleDir, compact=False, error=False, substrs=None):
+        if self.USE_SB_API:
+            save_error = lldb.SBError()
+            self.target().GetTrace().SaveToDisk(
+                save_error, lldb.SBFileSpec(traceBundleDir), compact)
+            self.assertSBError(save_error, error)
+        else:
+            command = f"trace save {traceBundleDir}"
+            if compact:
+                command += " -c"
             self.expect(command, error=error, substrs=substrs)

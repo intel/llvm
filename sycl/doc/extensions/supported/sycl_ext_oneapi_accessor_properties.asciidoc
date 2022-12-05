@@ -139,7 +139,7 @@ class T {
     
     // Enabled only when propertyT is a run time property
     template<typename propertyT>
-    bool has_property() const;
+    bool has_property() const noexcept;
     
     // Enabled only when propertyT is a compile time property
     template<typename propertyT>
@@ -228,7 +228,7 @@ Replace Table 4.6: Common member functions of the SYCL property interface with t
 a|
 ```c++
 template<typename propertyT>
-bool has_property() const;
+bool has_property() const noexcept;
 ``` | Returns true if T was constructed with the property specified by propertyT.  Returns false if it was not.  
 Available only if propertyT is not a compile-time-constant property.  
 a|
@@ -495,4 +495,5 @@ NOTE: The constructors for no_offset and no_alias are unspecified as users must 
 |1|2020-06-18|Joe Garvey|Initial public draft
 |2|2020-09-08|Joe Garvey|Rewrote as a vendor extension in the ONEAPI namespace.
 |3|2021-01-28|Jessica Davies|Modify semantics of no_alias
+|4|2022-08-23|Nikita Kornev|Add noexcept specifier to has_property() for non compile-time-constant properties
 |======================================== 

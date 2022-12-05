@@ -2,7 +2,7 @@
 /// SYCL device code
 
 // RUN: %clang_cc1 -fsycl-is-device -fsycl-instrument-device-code -triple spir64-unknown-unknown -emit-llvm %s -o - | FileCheck %s
-// RUN: %clang_cc1 -fsycl-is-device -fno-legacy-pass-manager -fsycl-instrument-device-code -triple spir64-unknown-unknown -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -fsycl-instrument-device-code -triple spir64-unknown-unknown -emit-llvm %s -o - | FileCheck %s
 
 // CHECK: kernel_function
 // CHECK-NEXT: entry:
@@ -13,8 +13,8 @@
 #include "Inputs/sycl.hpp"
 
 int main() {
-  cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write> accessorA;
-  cl::sycl::kernel_single_task<class kernel_function>(
+  sycl::accessor<int, 1, sycl::access::mode::read_write> accessorA;
+  sycl::kernel_single_task<class kernel_function>(
       [=]() {
         accessorA.use();
       });

@@ -97,6 +97,10 @@ public:
   computeMSVCVersion(const Driver *D,
                      const llvm::opt::ArgList &Args) const override;
 
+  llvm::SmallVector<BitCodeLibraryInfo, 12>
+  getDeviceLibs(const llvm::opt::ArgList &Args,
+                const Action::OffloadKind DeviceOffloadingKind) const override;
+
   const ToolChain &HostTC;
 
 protected:

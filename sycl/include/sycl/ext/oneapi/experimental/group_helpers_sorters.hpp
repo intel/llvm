@@ -9,10 +9,10 @@
 #pragma once
 
 #if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-#include <CL/sycl/detail/group_sort_impl.hpp>
+#include <sycl/detail/group_sort_impl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace oneapi {
 namespace experimental {
@@ -62,8 +62,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     auto range_size = g.get_local_range().size();
     if (scratch_size >= memory_required<T>(Group::fence_scope, range_size)) {
-      auto id = sycl::detail::Builder::getNDItem<Group::dimensions>();
-      std::size_t local_id = id.get_local_linear_id();
+      std::size_t local_id = g.get_local_linear_id();
       T *temp = reinterpret_cast<T *>(scratch);
       ::new (temp + local_id) T(val);
       sycl::detail::merge_sort(g, temp, range_size, comp,
@@ -96,6 +95,6 @@ public:
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 #endif // __cplusplus >=201703L

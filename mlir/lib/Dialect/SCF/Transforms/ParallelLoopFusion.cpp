@@ -10,14 +10,20 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
+#include "mlir/Dialect/SCF/Transforms/Passes.h"
+
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/SCF/Passes.h"
-#include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/Dialect/SCF/Transforms.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/SCF/Transforms/Transforms.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/OpDefinition.h"
+#include "mlir/Interfaces/SideEffectInterfaces.h"
+
+namespace mlir {
+#define GEN_PASS_DEF_SCFPARALLELLOOPFUSION
+#include "mlir/Dialect/SCF/Transforms/Passes.h.inc"
+} // namespace mlir
 
 using namespace mlir;
 using namespace mlir::scf;
@@ -55,7 +61,7 @@ static bool haveNoReadsAfterWriteExceptSameIndex(
     const BlockAndValueMapping &firstToSecondPloopIndices) {
   DenseMap<Value, SmallVector<ValueRange, 1>> bufferStores;
   firstPloop.getBody()->walk([&](memref::StoreOp store) {
-    bufferStores[store.getMemRef()].push_back(store.indices());
+    bufferStores[store.getMemRef()].push_back(store.getIndices());
   });
   auto walkResult = secondPloop.getBody()->walk([&](memref::LoadOp load) {
     // Stop if the memref is defined in secondPloop body. Careful alias analysis
@@ -75,7 +81,7 @@ static bool haveNoReadsAfterWriteExceptSameIndex(
     // Check that the load indices of secondPloop coincide with store indices of
     // firstPloop for the same memrefs.
     auto storeIndices = write->second.front();
-    auto loadIndices = load.indices();
+    auto loadIndices = load.getIndices();
     if (storeIndices.size() != loadIndices.size())
       return WalkResult::interrupt();
     for (int i = 0, e = storeIndices.size(); i < e; ++i) {
@@ -150,8 +156,7 @@ void mlir::scf::naivelyFuseParallelOps(Region &region) {
         continue;
       }
       // TODO: Handle region side effects properly.
-      noSideEffects &=
-          MemoryEffectOpInterface::hasNoEffect(&op) && op.getNumRegions() == 0;
+      noSideEffects &= isMemoryEffectFree(&op) && op.getNumRegions() == 0;
     }
     for (ArrayRef<ParallelOp> ploops : ploopChains) {
       for (int i = 0, e = ploops.size(); i + 1 < e; ++i)
@@ -162,7 +167,7 @@ void mlir::scf::naivelyFuseParallelOps(Region &region) {
 
 namespace {
 struct ParallelLoopFusion
-    : public SCFParallelLoopFusionBase<ParallelLoopFusion> {
+    : public impl::SCFParallelLoopFusionBase<ParallelLoopFusion> {
   void runOnOperation() override {
     getOperation()->walk([&](Operation *child) {
       for (Region &region : child->getRegions())

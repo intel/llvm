@@ -29,6 +29,9 @@
 #include "llvm/CodeGen/GlobalISel/Combiner.h"
 #include "llvm/CodeGen/GlobalISel/CombinerHelper.h"
 #include "llvm/CodeGen/GlobalISel/CombinerInfo.h"
+#include "llvm/CodeGen/GlobalISel/GISelChangeObserver.h"
+#include "llvm/CodeGen/GlobalISel/GenericMachineInstrs.h"
+#include "llvm/CodeGen/GlobalISel/LegalizerHelper.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 #include "llvm/CodeGen/GlobalISel/Utils.h"
@@ -41,6 +44,7 @@
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
+#include <optional>
 
 #define DEBUG_TYPE "aarch64-postlegalizer-lowering"
 
@@ -108,8 +112,8 @@ static bool isTRNMask(ArrayRef<int> M, unsigned NumElts,
 
 /// Check if a G_EXT instruction can handle a shuffle mask \p M when the vector
 /// sources of the shuffle are different.
-static Optional<std::pair<bool, uint64_t>> getExtMask(ArrayRef<int> M,
-                                                      unsigned NumElts) {
+static std::optional<std::pair<bool, uint64_t>> getExtMask(ArrayRef<int> M,
+                                                           unsigned NumElts) {
   // Look for the first non-undef element.
   auto FirstRealElt = find_if(M, [](int Elt) { return Elt >= 0; });
   if (FirstRealElt == M.end())
@@ -190,8 +194,8 @@ static bool isZipMask(ArrayRef<int> M, unsigned NumElts,
 /// G_INSERT_VECTOR_ELT destination should be the LHS of the G_SHUFFLE_VECTOR.
 ///
 /// Second element is the destination lane for the G_INSERT_VECTOR_ELT.
-static Optional<std::pair<bool, int>> isINSMask(ArrayRef<int> M,
-                                                int NumInputElements) {
+static std::optional<std::pair<bool, int>> isINSMask(ArrayRef<int> M,
+                                                     int NumInputElements) {
   if (M.size() != static_cast<size_t>(NumInputElements))
     return None;
   int NumLHSMatch = 0, NumRHSMatch = 0;
@@ -370,22 +374,60 @@ static bool matchDup(MachineInstr &MI, MachineRegisterInfo &MRI,
   return false;
 }
 
+// Check if an EXT instruction can handle the shuffle mask when the vector
+// sources of the shuffle are the same.
+static bool isSingletonExtMask(ArrayRef<int> M, LLT Ty) {
+  unsigned NumElts = Ty.getNumElements();
+
+  // Assume that the first shuffle index is not UNDEF.  Fail if it is.
+  if (M[0] < 0)
+    return false;
+
+  // If this is a VEXT shuffle, the immediate value is the index of the first
+  // element.  The other shuffle indices must be the successive elements after
+  // the first one.
+  unsigned ExpectedElt = M[0];
+  for (unsigned I = 1; I < NumElts; ++I) {
+    // Increment the expected index.  If it wraps around, just follow it
+    // back to index zero and keep going.
+    ++ExpectedElt;
+    if (ExpectedElt == NumElts)
+      ExpectedElt = 0;
+
+    if (M[I] < 0)
+      continue; // Ignore UNDEF indices.
+    if (ExpectedElt != static_cast<unsigned>(M[I]))
+      return false;
+  }
+
+  return true;
+}
+
 static bool matchEXT(MachineInstr &MI, MachineRegisterInfo &MRI,
                      ShuffleVectorPseudo &MatchInfo) {
   assert(MI.getOpcode() == TargetOpcode::G_SHUFFLE_VECTOR);
   Register Dst = MI.getOperand(0).getReg();
-  auto ExtInfo = getExtMask(MI.getOperand(3).getShuffleMask(),
-                            MRI.getType(Dst).getNumElements());
-  if (!ExtInfo)
-    return false;
-  bool ReverseExt;
-  uint64_t Imm;
-  std::tie(ReverseExt, Imm) = *ExtInfo;
+  LLT DstTy = MRI.getType(Dst);
   Register V1 = MI.getOperand(1).getReg();
   Register V2 = MI.getOperand(2).getReg();
+  auto Mask = MI.getOperand(3).getShuffleMask();
+  uint64_t Imm;
+  auto ExtInfo = getExtMask(Mask, DstTy.getNumElements());
+  uint64_t ExtFactor = MRI.getType(V1).getScalarSizeInBits() / 8;
+
+  if (!ExtInfo) {
+    if (!getOpcodeDef<GImplicitDef>(V2, MRI) ||
+        !isSingletonExtMask(Mask, DstTy))
+      return false;
+
+    Imm = Mask[0] * ExtFactor;
+    MatchInfo = ShuffleVectorPseudo(AArch64::G_EXT, Dst, {V1, V1, Imm});
+    return true;
+  }
+  bool ReverseExt;
+  std::tie(ReverseExt, Imm) = *ExtInfo;
   if (ReverseExt)
     std::swap(V1, V2);
-  uint64_t ExtFactor = MRI.getType(V1).getScalarSizeInBits() / 8;
   Imm *= ExtFactor;
   MatchInfo = ShuffleVectorPseudo(AArch64::G_EXT, Dst, {V1, V2, Imm});
   return true;
@@ -516,9 +558,9 @@ static bool applyVAshrLshrImm(MachineInstr &MI, MachineRegisterInfo &MRI,
 /// be used to optimize the instruction.
 ///
 /// \note This assumes that the comparison has been legalized.
-Optional<std::pair<uint64_t, CmpInst::Predicate>>
+std::optional<std::pair<uint64_t, CmpInst::Predicate>>
 tryAdjustICmpImmAndPred(Register RHS, CmpInst::Predicate P,
-                          const MachineRegisterInfo &MRI) {
+                        const MachineRegisterInfo &MRI) {
   const auto &Ty = MRI.getType(RHS);
   if (Ty.isVector())
     return None;
@@ -976,6 +1018,25 @@ static bool applyFormTruncstore(MachineInstr &MI, MachineRegisterInfo &MRI,
   return true;
 }
 
+// Lower vector G_SEXT_INREG back to shifts for selection. We allowed them to
+// form in the first place for combine opportunities, so any remaining ones
+// at this stage need be lowered back.
+static bool matchVectorSextInReg(MachineInstr &MI, MachineRegisterInfo &MRI) {
+  assert(MI.getOpcode() == TargetOpcode::G_SEXT_INREG);
+  Register DstReg = MI.getOperand(0).getReg();
+  LLT DstTy = MRI.getType(DstReg);
+  return DstTy.isVector();
+}
+
+static void applyVectorSextInReg(MachineInstr &MI, MachineRegisterInfo &MRI,
+                                 MachineIRBuilder &B,
+                                 GISelChangeObserver &Observer) {
+  assert(MI.getOpcode() == TargetOpcode::G_SEXT_INREG);
+  B.setInstrAndDebugLoc(MI);
+  LegalizerHelper Helper(*MI.getMF(), Observer, B);
+  Helper.lower(MI, 0, /* Unused hint type */ LLT());
+}
+
 #define AARCH64POSTLEGALIZERLOWERINGHELPER_GENCOMBINERHELPER_DEPS
 #include "AArch64GenPostLegalizeGILowering.inc"
 #undef AARCH64POSTLEGALIZERLOWERINGHELPER_GENCOMBINERHELPER_DEPS
@@ -997,14 +1058,14 @@ public:
       report_fatal_error("Invalid rule identifier");
   }
 
-  virtual bool combine(GISelChangeObserver &Observer, MachineInstr &MI,
-                       MachineIRBuilder &B) const override;
+  bool combine(GISelChangeObserver &Observer, MachineInstr &MI,
+               MachineIRBuilder &B) const override;
 };
 
 bool AArch64PostLegalizerLoweringInfo::combine(GISelChangeObserver &Observer,
                                                MachineInstr &MI,
                                                MachineIRBuilder &B) const {
-  CombinerHelper Helper(Observer, B);
+  CombinerHelper Helper(Observer, B, /* IsPreLegalize*/ false);
   AArch64GenPostLegalizerLoweringHelper Generated(GeneratedRuleCfg);
   return Generated.tryCombineAll(Observer, MI, B, Helper);
 }

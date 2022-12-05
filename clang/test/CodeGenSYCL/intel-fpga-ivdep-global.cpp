@@ -75,6 +75,34 @@ void ivdep_conflicting_safelen() {
   }
 }
 
+// Global ivdep w/ safelen value 1 is specified - do not annotate GEP
+//
+// CHECK: define {{.*}}spir_func void @_Z{{[0-9]+}}ivdep_safelen_onev()
+void ivdep_safelen_one() {
+  // CHECK: %[[ARRAY_A:[0-9a-z]+]] = alloca [10 x i32]
+  int a[10];
+  [[intel::ivdep(1)]] for (int i = 0; i != 10; ++i) {
+    // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}
+    // CHECK-NOT: !llvm.index.group
+    a[i] = 0;
+    // CHECK: br label %for.cond, !llvm.loop ![[MD_NO_LOOP_SAFELEN1:[0-9]+]]
+  }
+}
+
+// Global ivdep w/ safelen value 0 is specified - do not annotate GEP
+//
+// CHECK: define {{.*}}spir_func void @_Z{{[0-9]+}}ivdep_safelen_zerov()
+void ivdep_safelen_zero() {
+  // CHECK: %[[ARRAY_A:[0-9a-z]+]] = alloca [10 x i32]
+  int a[10];
+  [[intel::ivdep(0)]] for (int i = 0; i != 10; ++i) {
+    // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}
+    // CHECK-NOT: !llvm.index.group
+    a[i] = 0;
+    // CHECK: br label %for.cond, !llvm.loop ![[MD_NO_LOOP_SAFELEN2:[0-9]+]]
+  }
+}
+
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   kernelFunc();
@@ -86,6 +114,8 @@ int main() {
     ivdep_no_param_multiple_geps();
     ivdep_safelen();
     ivdep_conflicting_safelen();
+    ivdep_safelen_one();
+    ivdep_safelen_zero();
   });
   return 0;
 }
@@ -122,3 +152,11 @@ int main() {
 // CHECK-DAG: ![[IDX_GROUP_B_CONFL_SAFELEN]] = distinct !{}
 // CHECK-DAG: ![[MD_LOOP_CONFL_SAFELEN]] = distinct !{![[MD_LOOP_CONFL_SAFELEN]], ![[#]], ![[IVDEP_CONFL_SAFELEN:[0-9]+]], ![[IVDEP_LEGACY_SAFELEN_5]]}
 // CHECK-DAG: ![[IVDEP_CONFL_SAFELEN]] = !{!"llvm.loop.parallel_access_indices", ![[IDX_GROUP_A_CONFL_SAFELEN]], ![[IDX_GROUP_B_CONFL_SAFELEN]], i32 5}
+
+/// Global ivdep w/ safelen value of 1 has no effect. Attribute is ignored and no IR is generated with safelen value of 1.
+// CHECK-DAG: ![[MD_NO_LOOP_SAFELEN1]] = distinct !{![[MD_NO_LOOP_SAFELEN1]], ![[#]]}
+// CHECK-NOT: !{!"llvm.loop.ivdep.safelen", i32 1}
+
+/// Global ivdep w/ safelen value of 0 has no effect. Attribute is ignored and no IR is generated with safelen value of 0.
+// CHECK-DAG: ![[MD_NO_LOOP_SAFELEN2]] = distinct !{![[MD_NO_LOOP_SAFELEN2]], ![[#]]}
+// CHECK-NOT: !{!"llvm.loop.ivdep.enable"}

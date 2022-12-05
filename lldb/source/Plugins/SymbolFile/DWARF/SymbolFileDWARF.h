@@ -21,6 +21,7 @@
 
 #include "lldb/Core/UniqueCStringMap.h"
 #include "lldb/Core/dwarf.h"
+#include "lldb/Expression/DWARFExpressionList.h"
 #include "lldb/Symbol/DebugMacros.h"
 #include "lldb/Symbol/SymbolContext.h"
 #include "lldb/Symbol/SymbolFile.h"
@@ -162,6 +163,9 @@ public:
                                 lldb::SymbolContextItem resolve_scope,
                                 lldb_private::SymbolContext &sc) override;
 
+  lldb_private::Status
+  CalculateFrameVariableError(lldb_private::StackFrame &frame) override;
+
   uint32_t ResolveSymbolContext(
       const lldb_private::SourceLocationSpec &src_location_spec,
       lldb::SymbolContextItem resolve_scope,
@@ -177,9 +181,8 @@ public:
                            uint32_t max_matches,
                            lldb_private::VariableList &variables) override;
 
-  void FindFunctions(lldb_private::ConstString name,
+  void FindFunctions(const lldb_private::Module::LookupInfo &lookup_info,
                      const lldb_private::CompilerDeclContext &parent_decl_ctx,
-                     lldb::FunctionNameType name_type_mask,
                      bool include_inlines,
                      lldb_private::SymbolContextList &sc_list) override;
 
@@ -207,7 +210,7 @@ public:
                 lldb::TypeClass type_mask,
                 lldb_private::TypeList &type_list) override;
 
-  llvm::Expected<lldb_private::TypeSystem &>
+  llvm::Expected<lldb::TypeSystemSP>
   GetTypeSystemForLanguage(lldb::LanguageType language) override;
 
   lldb_private::CompilerDeclContext FindNamespace(
@@ -297,8 +300,7 @@ public:
 
   lldb_private::FileSpec GetFile(DWARFUnit &unit, size_t file_idx);
 
-  static llvm::Expected<lldb_private::TypeSystem &>
-  GetTypeSystem(DWARFUnit &unit);
+  static llvm::Expected<lldb::TypeSystemSP> GetTypeSystem(DWARFUnit &unit);
 
   static DWARFASTParser *GetDWARFParser(DWARFUnit &unit);
 
@@ -327,6 +329,22 @@ public:
   lldb_private::StatsDuration &GetDebugInfoParseTimeRef() {
     return m_parse_time;
   }
+
+  virtual lldb::offset_t
+  GetVendorDWARFOpcodeSize(const lldb_private::DataExtractor &data,
+                           const lldb::offset_t data_offset,
+                           const uint8_t op) const {
+    return LLDB_INVALID_OFFSET;
+  }
+
+  virtual bool
+  ParseVendorDWARFOpcode(uint8_t op, const lldb_private::DataExtractor &opcodes,
+                         lldb::offset_t &offset,
+                         std::vector<lldb_private::Value> &stack) const {
+    return false;
+  }
+
+  lldb_private::ConstString ConstructFunctionDemangledName(const DWARFDIE &die);
 
 protected:
   typedef llvm::DenseMap<const DWARFDebugInfoEntry *, lldb_private::Type *>

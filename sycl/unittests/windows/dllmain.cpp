@@ -12,10 +12,9 @@
  * distinct binary executable.
  */
 
-#include <CL/sycl.hpp>
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
+#include <sycl/sycl.hpp>
 
 #include <gtest/gtest.h>
 
@@ -37,14 +36,9 @@ pi_result redefinedTearDown(void *PluginParameter) {
 
 TEST(Windows, DllMainCall) {
 #ifdef _WIN32
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    printf("Test is not supported on host, skipping\n");
-    return;
-  }
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-  Mock.redefine<sycl::detail::PiApiKind::piTearDown>(redefinedTearDown);
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+  Mock.redefineBefore<sycl::detail::PiApiKind::piTearDown>(redefinedTearDown);
 
   // Teardown calls are only expected on sycl.dll library unload, not when
   // process gets terminated.

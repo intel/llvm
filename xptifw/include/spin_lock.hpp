@@ -12,7 +12,7 @@
 #define __has_include(x)
 #endif
 
-#if __has_include(<immintrin.h>)
+#if __has_include(<immintrin.h>) && defined(__x86_64__)
 #define HAS_PAUSE
 #include <immintrin.h>
 #endif
@@ -83,6 +83,7 @@ private:
   Mutex *MMutex;
   bool MIsWriter = false;
 };
+template <typename Mutex> SharedLock(Mutex &) -> SharedLock<Mutex>;
 
 /// SpinLock is a synchronization primitive, that uses atomic variable and
 /// causes thread trying acquire lock wait in loop while repeatedly check if

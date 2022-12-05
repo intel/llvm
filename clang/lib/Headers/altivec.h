@@ -17323,32 +17323,32 @@ provided.
 #define vec_ncipherlast_be __builtin_altivec_crypto_vncipherlast
 
 #ifdef __VSX__
-static __inline__ vector unsigned long long __attribute__((__always_inline__))
-__builtin_crypto_vsbox(vector unsigned long long __a) {
+static __inline__ vector unsigned char __attribute__((__always_inline__))
+__builtin_crypto_vsbox(vector unsigned char __a) {
   return __builtin_altivec_crypto_vsbox(__a);
 }
 
-static __inline__ vector unsigned long long __attribute__((__always_inline__))
-__builtin_crypto_vcipher(vector unsigned long long __a,
-                         vector unsigned long long __b) {
+static __inline__ vector unsigned char __attribute__((__always_inline__))
+__builtin_crypto_vcipher(vector unsigned char __a,
+                         vector unsigned char __b) {
   return __builtin_altivec_crypto_vcipher(__a, __b);
 }
 
-static __inline__ vector unsigned long long __attribute__((__always_inline__))
-__builtin_crypto_vcipherlast(vector unsigned long long __a,
-                             vector unsigned long long __b) {
+static __inline__ vector unsigned char __attribute__((__always_inline__))
+__builtin_crypto_vcipherlast(vector unsigned char __a,
+                             vector unsigned char __b) {
   return __builtin_altivec_crypto_vcipherlast(__a, __b);
 }
 
-static __inline__ vector unsigned long long __attribute__((__always_inline__))
-__builtin_crypto_vncipher(vector unsigned long long __a,
-                          vector unsigned long long __b) {
+static __inline__ vector unsigned char __attribute__((__always_inline__))
+__builtin_crypto_vncipher(vector unsigned char __a,
+                          vector unsigned char __b) {
   return __builtin_altivec_crypto_vncipher(__a, __b);
 }
 
-static __inline__ vector unsigned long long __attribute__((__always_inline__))
-__builtin_crypto_vncipherlast(vector unsigned long long __a,
-                              vector unsigned long long __b) {
+static __inline__ vector unsigned char  __attribute__((__always_inline__))
+__builtin_crypto_vncipherlast(vector unsigned char __a,
+                              vector unsigned char __b) {
   return __builtin_altivec_crypto_vncipherlast(__a, __b);
 }
 #endif /* __VSX__ */
@@ -18966,23 +18966,23 @@ vec_blendv(vector double __a, vector double __b,
 
 #define vec_replace_unaligned(__a, __b, __c)                                   \
   _Generic((__a), vector signed int                                            \
-           : (vector signed int)__builtin_altivec_vinsw(                       \
-                 (vector unsigned char)__a, (unsigned int)__b, __c),           \
+           : __builtin_altivec_vinsw((vector unsigned char)__a,                \
+                                     (unsigned int)__b, __c),                  \
              vector unsigned int                                               \
-           : (vector unsigned int)__builtin_altivec_vinsw(                     \
-                 (vector unsigned char)__a, (unsigned int)__b, __c),           \
+           : __builtin_altivec_vinsw((vector unsigned char)__a,                \
+                                     (unsigned int)__b, __c),                  \
              vector unsigned long long                                         \
-           : (vector unsigned long long)__builtin_altivec_vinsd(               \
-                 (vector unsigned char)__a, (unsigned long long)__b, __c),     \
+           : __builtin_altivec_vinsd((vector unsigned char)__a,                \
+                                     (unsigned long long)__b, __c),            \
              vector signed long long                                           \
-           : (vector signed long long)__builtin_altivec_vinsd(                 \
-                 (vector unsigned char)__a, (unsigned long long)__b, __c),     \
+           : __builtin_altivec_vinsd((vector unsigned char)__a,                \
+                                     (unsigned long long)__b, __c),            \
              vector float                                                      \
-           : (vector float)__builtin_altivec_vinsw((vector unsigned char)__a,  \
-                                                   (unsigned int)__b, __c),    \
+           : __builtin_altivec_vinsw((vector unsigned char)__a,                \
+                                     (unsigned int)__b, __c),                  \
              vector double                                                     \
-           : (vector double)__builtin_altivec_vinsd(                           \
-               (vector unsigned char)__a, (unsigned long long)__b, __c))
+           : __builtin_altivec_vinsd((vector unsigned char)__a,                \
+                                     (unsigned long long)__b, __c))
 
 #define vec_replace_elt(__a, __b, __c)                                         \
   _Generic((__a), vector signed int                                            \

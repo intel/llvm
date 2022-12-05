@@ -4,7 +4,7 @@
 ; RUN: llc -march=amdgcn -mcpu=gfx900 -verify-machineinstrs < %s | FileCheck -check-prefixes=GFX6789 %s
 ; RUN: llc -march=amdgcn -mcpu=gfx900 -mattr=-enable-prt-strict-null -verify-machineinstrs < %s | FileCheck -check-prefixes=NOPRT %s
 ; RUN: llc -march=amdgcn -mcpu=gfx1010 -verify-machineinstrs < %s | FileCheck -check-prefixes=GFX10PLUS,GFX10 %s
-; RUN: llc -march=amdgcn -mcpu=gfx1100 -verify-machineinstrs < %s | FileCheck -check-prefixes=GFX10PLUS,GFX11 %s
+; RUN: llc -march=amdgcn -mcpu=gfx1100 -amdgpu-enable-delay-alu=0 -verify-machineinstrs < %s | FileCheck -check-prefixes=GFX10PLUS,GFX11 %s
 
 define amdgpu_ps <4 x float> @load_1d(<8 x i32> inreg %rsrc, i32 %s) {
 ; VERDE-LABEL: load_1d:
@@ -41,7 +41,7 @@ main_body:
   ret <4 x float> %v
 }
 
-define amdgpu_ps <4 x float> @load_1d_tfe(<8 x i32> inreg %rsrc, i32 addrspace(1)* inreg %out, i32 %s) {
+define amdgpu_ps <4 x float> @load_1d_tfe(<8 x i32> inreg %rsrc, ptr addrspace(1) inreg %out, i32 %s) {
 ; VERDE-LABEL: load_1d_tfe:
 ; VERDE:       ; %bb.0: ; %main_body
 ; VERDE-NEXT:    v_mov_b32_e32 v5, v0
@@ -124,17 +124,14 @@ define amdgpu_ps <4 x float> @load_1d_tfe(<8 x i32> inreg %rsrc, i32 addrspace(1
 ;
 ; GFX11-LABEL: load_1d_tfe:
 ; GFX11:       ; %bb.0: ; %main_body
-; GFX11-NEXT:    v_mov_b32_e32 v6, 0
-; GFX11-NEXT:    v_mov_b32_e32 v5, v0
-; GFX11-NEXT:    v_mov_b32_e32 v7, v6
-; GFX11-NEXT:    v_mov_b32_e32 v8, v6
+; GFX11-NEXT:    v_dual_mov_b32 v5, v0 :: v_dual_mov_b32 v6, 0
 ; GFX11-NEXT:    v_mov_b32_e32 v9, v6
 ; GFX11-NEXT:    v_mov_b32_e32 v10, v6
+; GFX11-NEXT:    v_mov_b32_e32 v8, v6
+; GFX11-NEXT:    v_mov_b32_e32 v7, v6
 ; GFX11-NEXT:    v_mov_b32_e32 v0, v6
-; GFX11-NEXT:    v_mov_b32_e32 v1, v7
-; GFX11-NEXT:    v_mov_b32_e32 v2, v8
-; GFX11-NEXT:    v_mov_b32_e32 v3, v9
-; GFX11-NEXT:    v_mov_b32_e32 v4, v10
+; GFX11-NEXT:    v_dual_mov_b32 v2, v8 :: v_dual_mov_b32 v1, v7
+; GFX11-NEXT:    v_dual_mov_b32 v3, v9 :: v_dual_mov_b32 v4, v10
 ; GFX11-NEXT:    image_load v[0:4], v5, s[0:7] dmask:0xf dim:SQ_RSRC_IMG_1D unorm tfe
 ; GFX11-NEXT:    s_waitcnt vmcnt(0)
 ; GFX11-NEXT:    global_store_b32 v6, v4, s[8:9]
@@ -144,11 +141,11 @@ main_body:
   %v = call {<4 x float>,i32} @llvm.amdgcn.image.load.1d.v4f32i32.i32(i32 15, i32 %s, <8 x i32> %rsrc, i32 1, i32 0)
   %v.vec = extractvalue {<4 x float>, i32} %v, 0
   %v.err = extractvalue {<4 x float>, i32} %v, 1
-  store i32 %v.err, i32 addrspace(1)* %out, align 4
+  store i32 %v.err, ptr addrspace(1) %out, align 4
   ret <4 x float> %v.vec
 }
 
-define amdgpu_ps <4 x float> @load_1d_lwe(<8 x i32> inreg %rsrc, i32 addrspace(1)* inreg %out, i32 %s) {
+define amdgpu_ps <4 x float> @load_1d_lwe(<8 x i32> inreg %rsrc, ptr addrspace(1) inreg %out, i32 %s) {
 ; VERDE-LABEL: load_1d_lwe:
 ; VERDE:       ; %bb.0: ; %main_body
 ; VERDE-NEXT:    v_mov_b32_e32 v5, v0
@@ -231,17 +228,14 @@ define amdgpu_ps <4 x float> @load_1d_lwe(<8 x i32> inreg %rsrc, i32 addrspace(1
 ;
 ; GFX11-LABEL: load_1d_lwe:
 ; GFX11:       ; %bb.0: ; %main_body
-; GFX11-NEXT:    v_mov_b32_e32 v6, 0
-; GFX11-NEXT:    v_mov_b32_e32 v5, v0
-; GFX11-NEXT:    v_mov_b32_e32 v7, v6
-; GFX11-NEXT:    v_mov_b32_e32 v8, v6
+; GFX11-NEXT:    v_dual_mov_b32 v5, v0 :: v_dual_mov_b32 v6, 0
 ; GFX11-NEXT:    v_mov_b32_e32 v9, v6
 ; GFX11-NEXT:    v_mov_b32_e32 v10, v6
+; GFX11-NEXT:    v_mov_b32_e32 v8, v6
+; GFX11-NEXT:    v_mov_b32_e32 v7, v6
 ; GFX11-NEXT:    v_mov_b32_e32 v0, v6
-; GFX11-NEXT:    v_mov_b32_e32 v1, v7
-; GFX11-NEXT:    v_mov_b32_e32 v2, v8
-; GFX11-NEXT:    v_mov_b32_e32 v3, v9
-; GFX11-NEXT:    v_mov_b32_e32 v4, v10
+; GFX11-NEXT:    v_dual_mov_b32 v2, v8 :: v_dual_mov_b32 v1, v7
+; GFX11-NEXT:    v_dual_mov_b32 v3, v9 :: v_dual_mov_b32 v4, v10
 ; GFX11-NEXT:    image_load v[0:4], v5, s[0:7] dmask:0xf dim:SQ_RSRC_IMG_1D unorm lwe
 ; GFX11-NEXT:    s_waitcnt vmcnt(0)
 ; GFX11-NEXT:    global_store_b32 v6, v4, s[8:9]
@@ -251,7 +245,7 @@ main_body:
   %v = call {<4 x float>, i32} @llvm.amdgcn.image.load.1d.v4f32i32.i32(i32 15, i32 %s, <8 x i32> %rsrc, i32 2, i32 0)
   %v.vec = extractvalue {<4 x float>, i32} %v, 0
   %v.err = extractvalue {<4 x float>, i32} %v, 1
-  store i32 %v.err, i32 addrspace(1)* %out, align 4
+  store i32 %v.err, ptr addrspace(1) %out, align 4
   ret <4 x float> %v.vec
 }
 
@@ -290,7 +284,7 @@ main_body:
   ret <4 x float> %v
 }
 
-define amdgpu_ps <4 x float> @load_2d_tfe(<8 x i32> inreg %rsrc, i32 addrspace(1)* inreg %out, i32 %s, i32 %t) {
+define amdgpu_ps <4 x float> @load_2d_tfe(<8 x i32> inreg %rsrc, ptr addrspace(1) inreg %out, i32 %s, i32 %t) {
 ; VERDE-LABEL: load_2d_tfe:
 ; VERDE:       ; %bb.0: ; %main_body
 ; VERDE-NEXT:    v_mov_b32_e32 v5, v0
@@ -377,18 +371,15 @@ define amdgpu_ps <4 x float> @load_2d_tfe(<8 x i32> inreg %rsrc, i32 addrspace(1
 ;
 ; GFX11-LABEL: load_2d_tfe:
 ; GFX11:       ; %bb.0: ; %main_body
-; GFX11-NEXT:    v_mov_b32_e32 v7, 0
-; GFX11-NEXT:    v_mov_b32_e32 v6, v1
+; GFX11-NEXT:    v_dual_mov_b32 v7, 0 :: v_dual_mov_b32 v6, v1
 ; GFX11-NEXT:    v_mov_b32_e32 v5, v0
-; GFX11-NEXT:    v_mov_b32_e32 v8, v7
 ; GFX11-NEXT:    v_mov_b32_e32 v9, v7
-; GFX11-NEXT:    v_mov_b32_e32 v10, v7
 ; GFX11-NEXT:    v_mov_b32_e32 v11, v7
+; GFX11-NEXT:    v_mov_b32_e32 v10, v7
+; GFX11-NEXT:    v_mov_b32_e32 v8, v7
 ; GFX11-NEXT:    v_mov_b32_e32 v0, v7
-; GFX11-NEXT:    v_mov_b32_e32 v1, v8
-; GFX11-NEXT:    v_mov_b32_e32 v2, v9
-; GFX11-NEXT:    v_mov_b32_e32 v3, v10
-; GFX11-NEXT:    v_mov_b32_e32 v4, v11
+; GFX11-NEXT:    v_dual_mov_b32 v2, v9 :: v_dual_mov_b32 v3, v10
+; GFX11-NEXT:    v_dual_mov_b32 v1, v8 :: v_dual_mov_b32 v4, v11
 ; GFX11-NEXT:    image_load v[0:4], v[5:6], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_2D unorm tfe
 ; GFX11-NEXT:    s_waitcnt vmcnt(0)
 ; GFX11-NEXT:    global_store_b32 v7, v4, s[8:9]
@@ -398,7 +389,7 @@ main_body:
   %v = call {<4 x float>,i32} @llvm.amdgcn.image.load.2d.v4f32i32.i32(i32 15, i32 %s, i32 %t, <8 x i32> %rsrc, i32 1, i32 0)
   %v.vec = extractvalue {<4 x float>, i32} %v, 0
   %v.err = extractvalue {<4 x float>, i32} %v, 1
-  store i32 %v.err, i32 addrspace(1)* %out, align 4
+  store i32 %v.err, ptr addrspace(1) %out, align 4
   ret <4 x float> %v.vec
 }
 
@@ -437,7 +428,7 @@ main_body:
   ret <4 x float> %v
 }
 
-define amdgpu_ps <4 x float> @load_3d_tfe_lwe(<8 x i32> inreg %rsrc, i32 addrspace(1)* inreg %out, i32 %s, i32 %t, i32 %r) {
+define amdgpu_ps <4 x float> @load_3d_tfe_lwe(<8 x i32> inreg %rsrc, ptr addrspace(1) inreg %out, i32 %s, i32 %t, i32 %r) {
 ; VERDE-LABEL: load_3d_tfe_lwe:
 ; VERDE:       ; %bb.0: ; %main_body
 ; VERDE-NEXT:    v_mov_b32_e32 v5, v0
@@ -528,19 +519,15 @@ define amdgpu_ps <4 x float> @load_3d_tfe_lwe(<8 x i32> inreg %rsrc, i32 addrspa
 ;
 ; GFX11-LABEL: load_3d_tfe_lwe:
 ; GFX11:       ; %bb.0: ; %main_body
-; GFX11-NEXT:    v_mov_b32_e32 v8, 0
-; GFX11-NEXT:    v_mov_b32_e32 v7, v2
-; GFX11-NEXT:    v_mov_b32_e32 v6, v1
-; GFX11-NEXT:    v_mov_b32_e32 v5, v0
-; GFX11-NEXT:    v_mov_b32_e32 v9, v8
-; GFX11-NEXT:    v_mov_b32_e32 v10, v8
+; GFX11-NEXT:    v_dual_mov_b32 v5, v0 :: v_dual_mov_b32 v8, 0
+; GFX11-NEXT:    v_dual_mov_b32 v7, v2 :: v_dual_mov_b32 v6, v1
 ; GFX11-NEXT:    v_mov_b32_e32 v11, v8
 ; GFX11-NEXT:    v_mov_b32_e32 v12, v8
+; GFX11-NEXT:    v_mov_b32_e32 v10, v8
+; GFX11-NEXT:    v_mov_b32_e32 v9, v8
 ; GFX11-NEXT:    v_mov_b32_e32 v0, v8
-; GFX11-NEXT:    v_mov_b32_e32 v1, v9
-; GFX11-NEXT:    v_mov_b32_e32 v2, v10
-; GFX11-NEXT:    v_mov_b32_e32 v3, v11
-; GFX11-NEXT:    v_mov_b32_e32 v4, v12
+; GFX11-NEXT:    v_dual_mov_b32 v2, v10 :: v_dual_mov_b32 v1, v9
+; GFX11-NEXT:    v_dual_mov_b32 v3, v11 :: v_dual_mov_b32 v4, v12
 ; GFX11-NEXT:    image_load v[0:4], v[5:7], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_3D unorm tfe lwe
 ; GFX11-NEXT:    s_waitcnt vmcnt(0)
 ; GFX11-NEXT:    global_store_b32 v8, v4, s[8:9]
@@ -550,7 +537,7 @@ main_body:
   %v = call {<4 x float>,i32} @llvm.amdgcn.image.load.3d.v4f32i32.i32(i32 15, i32 %s, i32 %t, i32 %r, <8 x i32> %rsrc, i32 3, i32 0)
   %v.vec = extractvalue {<4 x float>, i32} %v, 0
   %v.err = extractvalue {<4 x float>, i32} %v, 1
-  store i32 %v.err, i32 addrspace(1)* %out, align 4
+  store i32 %v.err, ptr addrspace(1) %out, align 4
   ret <4 x float> %v.vec
 }
 
@@ -589,7 +576,7 @@ main_body:
   ret <4 x float> %v
 }
 
-define amdgpu_ps <4 x float> @load_cube_lwe(<8 x i32> inreg %rsrc, i32 addrspace(1)* inreg %out, i32 %s, i32 %t, i32 %slice) {
+define amdgpu_ps <4 x float> @load_cube_lwe(<8 x i32> inreg %rsrc, ptr addrspace(1) inreg %out, i32 %s, i32 %t, i32 %slice) {
 ; VERDE-LABEL: load_cube_lwe:
 ; VERDE:       ; %bb.0: ; %main_body
 ; VERDE-NEXT:    v_mov_b32_e32 v5, v0
@@ -680,19 +667,15 @@ define amdgpu_ps <4 x float> @load_cube_lwe(<8 x i32> inreg %rsrc, i32 addrspace
 ;
 ; GFX11-LABEL: load_cube_lwe:
 ; GFX11:       ; %bb.0: ; %main_body
-; GFX11-NEXT:    v_mov_b32_e32 v8, 0
-; GFX11-NEXT:    v_mov_b32_e32 v7, v2
-; GFX11-NEXT:    v_mov_b32_e32 v6, v1
-; GFX11-NEXT:    v_mov_b32_e32 v5, v0
-; GFX11-NEXT:    v_mov_b32_e32 v9, v8
-; GFX11-NEXT:    v_mov_b32_e32 v10, v8
+; GFX11-NEXT:    v_dual_mov_b32 v5, v0 :: v_dual_mov_b32 v8, 0
+; GFX11-NEXT:    v_dual_mov_b32 v7, v2 :: v_dual_mov_b32 v6, v1
 ; GFX11-NEXT:    v_mov_b32_e32 v11, v8
 ; GFX11-NEXT:    v_mov_b32_e32 v12, v8
+; GFX11-NEXT:    v_mov_b32_e32 v10, v8
+; GFX11-NEXT:    v_mov_b32_e32 v9, v8
 ; GFX11-NEXT:    v_mov_b32_e32 v0, v8
-; GFX11-NEXT:    v_mov_b32_e32 v1, v9
-; GFX11-NEXT:    v_mov_b32_e32 v2, v10
-; GFX11-NEXT:    v_mov_b32_e32 v3, v11
-; GFX11-NEXT:    v_mov_b32_e32 v4, v12
+; GFX11-NEXT:    v_dual_mov_b32 v2, v10 :: v_dual_mov_b32 v1, v9
+; GFX11-NEXT:    v_dual_mov_b32 v3, v11 :: v_dual_mov_b32 v4, v12
 ; GFX11-NEXT:    image_load v[0:4], v[5:7], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_CUBE unorm lwe
 ; GFX11-NEXT:    s_waitcnt vmcnt(0)
 ; GFX11-NEXT:    global_store_b32 v8, v4, s[8:9]
@@ -702,7 +685,7 @@ main_body:
   %v = call {<4 x float>,i32} @llvm.amdgcn.image.load.cube.v4f32i32.i32(i32 15, i32 %s, i32 %t, i32 %slice, <8 x i32> %rsrc, i32 2, i32 0)
   %v.vec = extractvalue {<4 x float>, i32} %v, 0
   %v.err = extractvalue {<4 x float>, i32} %v, 1
-  store i32 %v.err, i32 addrspace(1)* %out, align 4
+  store i32 %v.err, ptr addrspace(1) %out, align 4
   ret <4 x float> %v.vec
 }
 
@@ -741,7 +724,7 @@ main_body:
   ret <4 x float> %v
 }
 
-define amdgpu_ps <4 x float> @load_1darray_tfe(<8 x i32> inreg %rsrc, i32 addrspace(1)* inreg %out, i32 %s, i32 %slice) {
+define amdgpu_ps <4 x float> @load_1darray_tfe(<8 x i32> inreg %rsrc, ptr addrspace(1) inreg %out, i32 %s, i32 %slice) {
 ; VERDE-LABEL: load_1darray_tfe:
 ; VERDE:       ; %bb.0: ; %main_body
 ; VERDE-NEXT:    v_mov_b32_e32 v5, v0
@@ -828,18 +811,15 @@ define amdgpu_ps <4 x float> @load_1darray_tfe(<8 x i32> inreg %rsrc, i32 addrsp
 ;
 ; GFX11-LABEL: load_1darray_tfe:
 ; GFX11:       ; %bb.0: ; %main_body
-; GFX11-NEXT:    v_mov_b32_e32 v7, 0
-; GFX11-NEXT:    v_mov_b32_e32 v6, v1
+; GFX11-NEXT:    v_dual_mov_b32 v7, 0 :: v_dual_mov_b32 v6, v1
 ; GFX11-NEXT:    v_mov_b32_e32 v5, v0
-; GFX11-NEXT:    v_mov_b32_e32 v8, v7
 ; GFX11-NEXT:    v_mov_b32_e32 v9, v7
-; GFX11-NEXT:    v_mov_b32_e32 v10, v7
 ; GFX11-NEXT:    v_mov_b32_e32 v11, v7
+; GFX11-NEXT:    v_mov_b32_e32 v10, v7
+; GFX11-NEXT:    v_mov_b32_e32 v8, v7
 ; GFX11-NEXT:    v_mov_b32_e32 v0, v7
-; GFX11-NEXT:    v_mov_b32_e32 v1, v8
-; GFX11-NEXT:    v_mov_b32_e32 v2, v9
-; GFX11-NEXT:    v_mov_b32_e32 v3, v10
-; GFX11-NEXT:    v_mov_b32_e32 v4, v11
+; GFX11-NEXT:    v_dual_mov_b32 v2, v9 :: v_dual_mov_b32 v3, v10
+; GFX11-NEXT:    v_dual_mov_b32 v1, v8 :: v_dual_mov_b32 v4, v11
 ; GFX11-NEXT:    image_load v[0:4], v[5:6], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_1D_ARRAY unorm tfe
 ; GFX11-NEXT:    s_waitcnt vmcnt(0)
 ; GFX11-NEXT:    global_store_b32 v7, v4, s[8:9]
@@ -849,7 +829,7 @@ main_body:
   %v = call {<4 x float>,i32} @llvm.amdgcn.image.load.1darray.v4f32i32.i32(i32 15, i32 %s, i32 %slice, <8 x i32> %rsrc, i32 1, i32 0)
   %v.vec = extractvalue {<4 x float>, i32} %v, 0
   %v.err = extractvalue {<4 x float>, i32} %v, 1
-  store i32 %v.err, i32 addrspace(1)* %out, align 4
+  store i32 %v.err, ptr addrspace(1) %out, align 4
   ret <4 x float> %v.vec
 }
 
@@ -888,7 +868,7 @@ main_body:
   ret <4 x float> %v
 }
 
-define amdgpu_ps <4 x float> @load_2darray_lwe(<8 x i32> inreg %rsrc, i32 addrspace(1)* inreg %out, i32 %s, i32 %t, i32 %slice) {
+define amdgpu_ps <4 x float> @load_2darray_lwe(<8 x i32> inreg %rsrc, ptr addrspace(1) inreg %out, i32 %s, i32 %t, i32 %slice) {
 ; VERDE-LABEL: load_2darray_lwe:
 ; VERDE:       ; %bb.0: ; %main_body
 ; VERDE-NEXT:    v_mov_b32_e32 v5, v0
@@ -979,19 +959,15 @@ define amdgpu_ps <4 x float> @load_2darray_lwe(<8 x i32> inreg %rsrc, i32 addrsp
 ;
 ; GFX11-LABEL: load_2darray_lwe:
 ; GFX11:       ; %bb.0: ; %main_body
-; GFX11-NEXT:    v_mov_b32_e32 v8, 0
-; GFX11-NEXT:    v_mov_b32_e32 v7, v2
-; GFX11-NEXT:    v_mov_b32_e32 v6, v1
-; GFX11-NEXT:    v_mov_b32_e32 v5, v0
-; GFX11-NEXT:    v_mov_b32_e32 v9, v8
-; GFX11-NEXT:    v_mov_b32_e32 v10, v8
+; GFX11-NEXT:    v_dual_mov_b32 v5, v0 :: v_dual_mov_b32 v8, 0
+; GFX11-NEXT:    v_dual_mov_b32 v7, v2 :: v_dual_mov_b32 v6, v1
 ; GFX11-NEXT:    v_mov_b32_e32 v11, v8
 ; GFX11-NEXT:    v_mov_b32_e32 v12, v8
+; GFX11-NEXT:    v_mov_b32_e32 v10, v8
+; GFX11-NEXT:    v_mov_b32_e32 v9, v8
 ; GFX11-NEXT:    v_mov_b32_e32 v0, v8
-; GFX11-NEXT:    v_mov_b32_e32 v1, v9
-; GFX11-NEXT:    v_mov_b32_e32 v2, v10
-; GFX11-NEXT:    v_mov_b32_e32 v3, v11
-; GFX11-NEXT:    v_mov_b32_e32 v4, v12
+; GFX11-NEXT:    v_dual_mov_b32 v2, v10 :: v_dual_mov_b32 v1, v9
+; GFX11-NEXT:    v_dual_mov_b32 v3, v11 :: v_dual_mov_b32 v4, v12
 ; GFX11-NEXT:    image_load v[0:4], v[5:7], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_2D_ARRAY unorm lwe
 ; GFX11-NEXT:    s_waitcnt vmcnt(0)
 ; GFX11-NEXT:    global_store_b32 v8, v4, s[8:9]
@@ -1001,7 +977,7 @@ main_body:
   %v = call {<4 x float>,i32} @llvm.amdgcn.image.load.2darray.v4f32i32.i32(i32 15, i32 %s, i32 %t, i32 %slice, <8 x i32> %rsrc, i32 2, i32 0)
   %v.vec = extractvalue {<4 x float>, i32} %v, 0
   %v.err = extractvalue {<4 x float>, i32} %v, 1
-  store i32 %v.err, i32 addrspace(1)* %out, align 4
+  store i32 %v.err, ptr addrspace(1) %out, align 4
   ret <4 x float> %v.vec
 }
 
@@ -1040,7 +1016,7 @@ main_body:
   ret <4 x float> %v
 }
 
-define amdgpu_ps <4 x float> @load_2dmsaa_both(<8 x i32> inreg %rsrc, i32 addrspace(1)* inreg %out, i32 %s, i32 %t, i32 %fragid) {
+define amdgpu_ps <4 x float> @load_2dmsaa_both(<8 x i32> inreg %rsrc, ptr addrspace(1) inreg %out, i32 %s, i32 %t, i32 %fragid) {
 ; VERDE-LABEL: load_2dmsaa_both:
 ; VERDE:       ; %bb.0: ; %main_body
 ; VERDE-NEXT:    v_mov_b32_e32 v5, v0
@@ -1131,19 +1107,15 @@ define amdgpu_ps <4 x float> @load_2dmsaa_both(<8 x i32> inreg %rsrc, i32 addrsp
 ;
 ; GFX11-LABEL: load_2dmsaa_both:
 ; GFX11:       ; %bb.0: ; %main_body
-; GFX11-NEXT:    v_mov_b32_e32 v8, 0
-; GFX11-NEXT:    v_mov_b32_e32 v7, v2
-; GFX11-NEXT:    v_mov_b32_e32 v6, v1
-; GFX11-NEXT:    v_mov_b32_e32 v5, v0
-; GFX11-NEXT:    v_mov_b32_e32 v9, v8
-; GFX11-NEXT:    v_mov_b32_e32 v10, v8
+; GFX11-NEXT:    v_dual_mov_b32 v5, v0 :: v_dual_mov_b32 v8, 0
+; GFX11-NEXT:    v_dual_mov_b32 v7, v2 :: v_dual_mov_b32 v6, v1
 ; GFX11-NEXT:    v_mov_b32_e32 v11, v8
 ; GFX11-NEXT:    v_mov_b32_e32 v12, v8
+; GFX11-NEXT:    v_mov_b32_e32 v10, v8
+; GFX11-NEXT:    v_mov_b32_e32 v9, v8
 ; GFX11-NEXT:    v_mov_b32_e32 v0, v8
-; GFX11-NEXT:    v_mov_b32_e32 v1, v9
-; GFX11-NEXT:    v_mov_b32_e32 v2, v10
-; GFX11-NEXT:    v_mov_b32_e32 v3, v11
-; GFX11-NEXT:    v_mov_b32_e32 v4, v12
+; GFX11-NEXT:    v_dual_mov_b32 v2, v10 :: v_dual_mov_b32 v1, v9
+; GFX11-NEXT:    v_dual_mov_b32 v3, v11 :: v_dual_mov_b32 v4, v12
 ; GFX11-NEXT:    image_load v[0:4], v[5:7], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_2D_MSAA unorm tfe lwe
 ; GFX11-NEXT:    s_waitcnt vmcnt(0)
 ; GFX11-NEXT:    global_store_b32 v8, v4, s[8:9]
@@ -1153,7 +1125,7 @@ main_body:
   %v = call {<4 x float>,i32} @llvm.amdgcn.image.load.2dmsaa.v4f32i32.i32(i32 15, i32 %s, i32 %t, i32 %fragid, <8 x i32> %rsrc, i32 3, i32 0)
   %v.vec = extractvalue {<4 x float>, i32} %v, 0
   %v.err = extractvalue {<4 x float>, i32} %v, 1
-  store i32 %v.err, i32 addrspace(1)* %out, align 4
+  store i32 %v.err, ptr addrspace(1) %out, align 4
   ret <4 x float> %v.vec
 }
 
@@ -1192,7 +1164,7 @@ main_body:
   ret <4 x float> %v
 }
 
-define amdgpu_ps <4 x float> @load_2darraymsaa_tfe(<8 x i32> inreg %rsrc, i32 addrspace(1)* inreg %out, i32 %s, i32 %t, i32 %slice, i32 %fragid) {
+define amdgpu_ps <4 x float> @load_2darraymsaa_tfe(<8 x i32> inreg %rsrc, ptr addrspace(1) inreg %out, i32 %s, i32 %t, i32 %slice, i32 %fragid) {
 ; VERDE-LABEL: load_2darraymsaa_tfe:
 ; VERDE:       ; %bb.0: ; %main_body
 ; VERDE-NEXT:    v_mov_b32_e32 v5, v0
@@ -1287,20 +1259,16 @@ define amdgpu_ps <4 x float> @load_2darraymsaa_tfe(<8 x i32> inreg %rsrc, i32 ad
 ;
 ; GFX11-LABEL: load_2darraymsaa_tfe:
 ; GFX11:       ; %bb.0: ; %main_body
-; GFX11-NEXT:    v_mov_b32_e32 v9, 0
-; GFX11-NEXT:    v_mov_b32_e32 v8, v3
-; GFX11-NEXT:    v_mov_b32_e32 v7, v2
-; GFX11-NEXT:    v_mov_b32_e32 v6, v1
+; GFX11-NEXT:    v_dual_mov_b32 v9, 0 :: v_dual_mov_b32 v8, v3
+; GFX11-NEXT:    v_dual_mov_b32 v7, v2 :: v_dual_mov_b32 v6, v1
 ; GFX11-NEXT:    v_mov_b32_e32 v5, v0
-; GFX11-NEXT:    v_mov_b32_e32 v10, v9
 ; GFX11-NEXT:    v_mov_b32_e32 v11, v9
-; GFX11-NEXT:    v_mov_b32_e32 v12, v9
 ; GFX11-NEXT:    v_mov_b32_e32 v13, v9
+; GFX11-NEXT:    v_mov_b32_e32 v12, v9
+; GFX11-NEXT:    v_mov_b32_e32 v10, v9
 ; GFX11-NEXT:    v_mov_b32_e32 v0, v9
-; GFX11-NEXT:    v_mov_b32_e32 v1, v10
-; GFX11-NEXT:    v_mov_b32_e32 v2, v11
-; GFX11-NEXT:    v_mov_b32_e32 v3, v12
-; GFX11-NEXT:    v_mov_b32_e32 v4, v13
+; GFX11-NEXT:    v_dual_mov_b32 v2, v11 :: v_dual_mov_b32 v3, v12
+; GFX11-NEXT:    v_dual_mov_b32 v1, v10 :: v_dual_mov_b32 v4, v13
 ; GFX11-NEXT:    image_load v[0:4], v[5:8], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_2D_MSAA_ARRAY unorm tfe
 ; GFX11-NEXT:    s_waitcnt vmcnt(0)
 ; GFX11-NEXT:    global_store_b32 v9, v4, s[8:9]
@@ -1310,7 +1278,7 @@ main_body:
   %v = call {<4 x float>,i32} @llvm.amdgcn.image.load.2darraymsaa.v4f32i32.i32(i32 15, i32 %s, i32 %t, i32 %slice, i32 %fragid, <8 x i32> %rsrc, i32 1, i32 0)
   %v.vec = extractvalue {<4 x float>, i32} %v, 0
   %v.err = extractvalue {<4 x float>, i32} %v, 1
-  store i32 %v.err, i32 addrspace(1)* %out, align 4
+  store i32 %v.err, ptr addrspace(1) %out, align 4
   ret <4 x float> %v.vec
 }
 
@@ -1349,7 +1317,7 @@ main_body:
   ret <4 x float> %v
 }
 
-define amdgpu_ps <4 x float> @load_mip_1d_lwe(<8 x i32> inreg %rsrc, i32 addrspace(1)* inreg %out, i32 %s, i32 %mip) {
+define amdgpu_ps <4 x float> @load_mip_1d_lwe(<8 x i32> inreg %rsrc, ptr addrspace(1) inreg %out, i32 %s, i32 %mip) {
 ; VERDE-LABEL: load_mip_1d_lwe:
 ; VERDE:       ; %bb.0: ; %main_body
 ; VERDE-NEXT:    v_mov_b32_e32 v5, v0
@@ -1436,18 +1404,15 @@ define amdgpu_ps <4 x float> @load_mip_1d_lwe(<8 x i32> inreg %rsrc, i32 addrspa
 ;
 ; GFX11-LABEL: load_mip_1d_lwe:
 ; GFX11:       ; %bb.0: ; %main_body
-; GFX11-NEXT:    v_mov_b32_e32 v7, 0
-; GFX11-NEXT:    v_mov_b32_e32 v6, v1
+; GFX11-NEXT:    v_dual_mov_b32 v7, 0 :: v_dual_mov_b32 v6, v1
 ; GFX11-NEXT:    v_mov_b32_e32 v5, v0
-; GFX11-NEXT:    v_mov_b32_e32 v8, v7
 ; GFX11-NEXT:    v_mov_b32_e32 v9, v7
-; GFX11-NEXT:    v_mov_b32_e32 v10, v7
 ; GFX11-NEXT:    v_mov_b32_e32 v11, v7
+; GFX11-NEXT:    v_mov_b32_e32 v10, v7
+; GFX11-NEXT:    v_mov_b32_e32 v8, v7
 ; GFX11-NEXT:    v_mov_b32_e32 v0, v7
-; GFX11-NEXT:    v_mov_b32_e32 v1, v8
-; GFX11-NEXT:    v_mov_b32_e32 v2, v9
-; GFX11-NEXT:    v_mov_b32_e32 v3, v10
-; GFX11-NEXT:    v_mov_b32_e32 v4, v11
+; GFX11-NEXT:    v_dual_mov_b32 v2, v9 :: v_dual_mov_b32 v3, v10
+; GFX11-NEXT:    v_dual_mov_b32 v1, v8 :: v_dual_mov_b32 v4, v11
 ; GFX11-NEXT:    image_load_mip v[0:4], v[5:6], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_1D unorm lwe
 ; GFX11-NEXT:    s_waitcnt vmcnt(0)
 ; GFX11-NEXT:    global_store_b32 v7, v4, s[8:9]
@@ -1457,7 +1422,7 @@ main_body:
   %v = call {<4 x float>,i32} @llvm.amdgcn.image.load.mip.1d.v4f32i32.i32(i32 15, i32 %s, i32 %mip, <8 x i32> %rsrc, i32 2, i32 0)
   %v.vec = extractvalue {<4 x float>, i32} %v, 0
   %v.err = extractvalue {<4 x float>, i32} %v, 1
-  store i32 %v.err, i32 addrspace(1)* %out, align 4
+  store i32 %v.err, ptr addrspace(1) %out, align 4
   ret <4 x float> %v.vec
 }
 
@@ -1496,7 +1461,7 @@ main_body:
   ret <4 x float> %v
 }
 
-define amdgpu_ps <4 x float> @load_mip_2d_tfe(<8 x i32> inreg %rsrc, i32 addrspace(1)* inreg %out, i32 %s, i32 %t, i32 %mip) {
+define amdgpu_ps <4 x float> @load_mip_2d_tfe(<8 x i32> inreg %rsrc, ptr addrspace(1) inreg %out, i32 %s, i32 %t, i32 %mip) {
 ; VERDE-LABEL: load_mip_2d_tfe:
 ; VERDE:       ; %bb.0: ; %main_body
 ; VERDE-NEXT:    v_mov_b32_e32 v5, v0
@@ -1587,19 +1552,15 @@ define amdgpu_ps <4 x float> @load_mip_2d_tfe(<8 x i32> inreg %rsrc, i32 addrspa
 ;
 ; GFX11-LABEL: load_mip_2d_tfe:
 ; GFX11:       ; %bb.0: ; %main_body
-; GFX11-NEXT:    v_mov_b32_e32 v8, 0
-; GFX11-NEXT:    v_mov_b32_e32 v7, v2
-; GFX11-NEXT:    v_mov_b32_e32 v6, v1
-; GFX11-NEXT:    v_mov_b32_e32 v5, v0
-; GFX11-NEXT:    v_mov_b32_e32 v9, v8
-; GFX11-NEXT:    v_mov_b32_e32 v10, v8
+; GFX11-NEXT:    v_dual_mov_b32 v5, v0 :: v_dual_mov_b32 v8, 0
+; GFX11-NEXT:    v_dual_mov_b32 v7, v2 :: v_dual_mov_b32 v6, v1
 ; GFX11-NEXT:    v_mov_b32_e32 v11, v8
 ; GFX11-NEXT:    v_mov_b32_e32 v12, v8
+; GFX11-NEXT:    v_mov_b32_e32 v10, v8
+; GFX11-NEXT:    v_mov_b32_e32 v9, v8
 ; GFX11-NEXT:    v_mov_b32_e32 v0, v8
-; GFX11-NEXT:    v_mov_b32_e32 v1, v9
-; GFX11-NEXT:    v_mov_b32_e32 v2, v10
-; GFX11-NEXT:    v_mov_b32_e32 v3, v11
-; GFX11-NEXT:    v_mov_b32_e32 v4, v12
+; GFX11-NEXT:    v_dual_mov_b32 v2, v10 :: v_dual_mov_b32 v1, v9
+; GFX11-NEXT:    v_dual_mov_b32 v3, v11 :: v_dual_mov_b32 v4, v12
 ; GFX11-NEXT:    image_load_mip v[0:4], v[5:7], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_2D unorm tfe
 ; GFX11-NEXT:    s_waitcnt vmcnt(0)
 ; GFX11-NEXT:    global_store_b32 v8, v4, s[8:9]
@@ -1609,7 +1570,7 @@ main_body:
   %v = call {<4 x float>,i32} @llvm.amdgcn.image.load.mip.2d.v4f32i32.i32(i32 15, i32 %s, i32 %t, i32 %mip, <8 x i32> %rsrc, i32 1, i32 0)
   %v.vec = extractvalue {<4 x float>, i32} %v, 0
   %v.err = extractvalue {<4 x float>, i32} %v, 1
-  store i32 %v.err, i32 addrspace(1)* %out, align 4
+  store i32 %v.err, ptr addrspace(1) %out, align 4
   ret <4 x float> %v.vec
 }
 
@@ -1919,7 +1880,7 @@ main_body:
   ret float %vv
 }
 
-define amdgpu_ps <4 x float> @load_1d_tfe_V4_dmask3(<8 x i32> inreg %rsrc, i32 addrspace(1)* inreg %out, i32 %s) {
+define amdgpu_ps <4 x float> @load_1d_tfe_V4_dmask3(<8 x i32> inreg %rsrc, ptr addrspace(1) inreg %out, i32 %s) {
 ; VERDE-LABEL: load_1d_tfe_V4_dmask3:
 ; VERDE:       ; %bb.0: ; %main_body
 ; VERDE-NEXT:    v_mov_b32_e32 v4, v0
@@ -1996,15 +1957,12 @@ define amdgpu_ps <4 x float> @load_1d_tfe_V4_dmask3(<8 x i32> inreg %rsrc, i32 a
 ;
 ; GFX11-LABEL: load_1d_tfe_V4_dmask3:
 ; GFX11:       ; %bb.0: ; %main_body
-; GFX11-NEXT:    v_mov_b32_e32 v5, 0
-; GFX11-NEXT:    v_mov_b32_e32 v4, v0
-; GFX11-NEXT:    v_mov_b32_e32 v6, v5
+; GFX11-NEXT:    v_dual_mov_b32 v4, v0 :: v_dual_mov_b32 v5, 0
 ; GFX11-NEXT:    v_mov_b32_e32 v7, v5
 ; GFX11-NEXT:    v_mov_b32_e32 v8, v5
-; GFX11-NEXT:    v_mov_b32_e32 v0, v5
-; GFX11-NEXT:    v_mov_b32_e32 v1, v6
-; GFX11-NEXT:    v_mov_b32_e32 v2, v7
-; GFX11-NEXT:    v_mov_b32_e32 v3, v8
+; GFX11-NEXT:    v_mov_b32_e32 v6, v5
+; GFX11-NEXT:    v_dual_mov_b32 v0, v5 :: v_dual_mov_b32 v3, v8
+; GFX11-NEXT:    v_dual_mov_b32 v1, v6 :: v_dual_mov_b32 v2, v7
 ; GFX11-NEXT:    image_load v[0:3], v4, s[0:7] dmask:0x7 dim:SQ_RSRC_IMG_1D unorm tfe
 ; GFX11-NEXT:    s_waitcnt vmcnt(0)
 ; GFX11-NEXT:    global_store_b32 v5, v3, s[8:9]
@@ -2014,11 +1972,11 @@ main_body:
   %v = call {<4 x float>,i32} @llvm.amdgcn.image.load.1d.v4f32i32.i32(i32 7, i32 %s, <8 x i32> %rsrc, i32 1, i32 0)
   %v.vec = extractvalue {<4 x float>, i32} %v, 0
   %v.err = extractvalue {<4 x float>, i32} %v, 1
-  store i32 %v.err, i32 addrspace(1)* %out, align 4
+  store i32 %v.err, ptr addrspace(1) %out, align 4
   ret <4 x float> %v.vec
 }
 
-define amdgpu_ps <4 x float> @load_1d_tfe_V4_dmask2(<8 x i32> inreg %rsrc, i32 addrspace(1)* inreg %out, i32 %s) {
+define amdgpu_ps <4 x float> @load_1d_tfe_V4_dmask2(<8 x i32> inreg %rsrc, ptr addrspace(1) inreg %out, i32 %s) {
 ; VERDE-LABEL: load_1d_tfe_V4_dmask2:
 ; VERDE:       ; %bb.0: ; %main_body
 ; VERDE-NEXT:    v_mov_b32_e32 v3, v0
@@ -2089,13 +2047,11 @@ define amdgpu_ps <4 x float> @load_1d_tfe_V4_dmask2(<8 x i32> inreg %rsrc, i32 a
 ;
 ; GFX11-LABEL: load_1d_tfe_V4_dmask2:
 ; GFX11:       ; %bb.0: ; %main_body
-; GFX11-NEXT:    v_mov_b32_e32 v4, 0
-; GFX11-NEXT:    v_mov_b32_e32 v3, v0
-; GFX11-NEXT:    v_mov_b32_e32 v5, v4
+; GFX11-NEXT:    v_dual_mov_b32 v3, v0 :: v_dual_mov_b32 v4, 0
 ; GFX11-NEXT:    v_mov_b32_e32 v6, v4
+; GFX11-NEXT:    v_mov_b32_e32 v5, v4
 ; GFX11-NEXT:    v_mov_b32_e32 v0, v4
-; GFX11-NEXT:    v_mov_b32_e32 v1, v5
-; GFX11-NEXT:    v_mov_b32_e32 v2, v6
+; GFX11-NEXT:    v_dual_mov_b32 v2, v6 :: v_dual_mov_b32 v1, v5
 ; GFX11-NEXT:    image_load v[0:2], v3, s[0:7] dmask:0x6 dim:SQ_RSRC_IMG_1D unorm tfe
 ; GFX11-NEXT:    s_waitcnt vmcnt(0)
 ; GFX11-NEXT:    global_store_b32 v4, v2, s[8:9]
@@ -2105,11 +2061,11 @@ main_body:
   %v = call {<4 x float>,i32} @llvm.amdgcn.image.load.1d.v4f32i32.i32(i32 6, i32 %s, <8 x i32> %rsrc, i32 1, i32 0)
   %v.vec = extractvalue {<4 x float>, i32} %v, 0
   %v.err = extractvalue {<4 x float>, i32} %v, 1
-  store i32 %v.err, i32 addrspace(1)* %out, align 4
+  store i32 %v.err, ptr addrspace(1) %out, align 4
   ret <4 x float> %v.vec
 }
 
-define amdgpu_ps <4 x float> @load_1d_tfe_V4_dmask1(<8 x i32> inreg %rsrc, i32 addrspace(1)* inreg %out, i32 %s) {
+define amdgpu_ps <4 x float> @load_1d_tfe_V4_dmask1(<8 x i32> inreg %rsrc, ptr addrspace(1) inreg %out, i32 %s) {
 ; VERDE-LABEL: load_1d_tfe_V4_dmask1:
 ; VERDE:       ; %bb.0: ; %main_body
 ; VERDE-NEXT:    v_mov_b32_e32 v2, v0
@@ -2174,11 +2130,9 @@ define amdgpu_ps <4 x float> @load_1d_tfe_V4_dmask1(<8 x i32> inreg %rsrc, i32 a
 ;
 ; GFX11-LABEL: load_1d_tfe_V4_dmask1:
 ; GFX11:       ; %bb.0: ; %main_body
-; GFX11-NEXT:    v_mov_b32_e32 v3, 0
-; GFX11-NEXT:    v_mov_b32_e32 v2, v0
+; GFX11-NEXT:    v_dual_mov_b32 v2, v0 :: v_dual_mov_b32 v3, 0
 ; GFX11-NEXT:    v_mov_b32_e32 v4, v3
-; GFX11-NEXT:    v_mov_b32_e32 v0, v3
-; GFX11-NEXT:    v_mov_b32_e32 v1, v4
+; GFX11-NEXT:    v_dual_mov_b32 v0, v3 :: v_dual_mov_b32 v1, v4
 ; GFX11-NEXT:    image_load v[0:1], v2, s[0:7] dmask:0x8 dim:SQ_RSRC_IMG_1D unorm tfe
 ; GFX11-NEXT:    s_waitcnt vmcnt(0)
 ; GFX11-NEXT:    global_store_b32 v3, v1, s[8:9]
@@ -2188,11 +2142,11 @@ main_body:
   %v = call {<4 x float>,i32} @llvm.amdgcn.image.load.1d.v4f32i32.i32(i32 8, i32 %s, <8 x i32> %rsrc, i32 1, i32 0)
   %v.vec = extractvalue {<4 x float>, i32} %v, 0
   %v.err = extractvalue {<4 x float>, i32} %v, 1
-  store i32 %v.err, i32 addrspace(1)* %out, align 4
+  store i32 %v.err, ptr addrspace(1) %out, align 4
   ret <4 x float> %v.vec
 }
 
-define amdgpu_ps <2 x float> @load_1d_tfe_V2_dmask1(<8 x i32> inreg %rsrc, i32 addrspace(1)* inreg %out, i32 %s) {
+define amdgpu_ps <2 x float> @load_1d_tfe_V2_dmask1(<8 x i32> inreg %rsrc, ptr addrspace(1) inreg %out, i32 %s) {
 ; VERDE-LABEL: load_1d_tfe_V2_dmask1:
 ; VERDE:       ; %bb.0: ; %main_body
 ; VERDE-NEXT:    v_mov_b32_e32 v2, v0
@@ -2257,11 +2211,9 @@ define amdgpu_ps <2 x float> @load_1d_tfe_V2_dmask1(<8 x i32> inreg %rsrc, i32 a
 ;
 ; GFX11-LABEL: load_1d_tfe_V2_dmask1:
 ; GFX11:       ; %bb.0: ; %main_body
-; GFX11-NEXT:    v_mov_b32_e32 v3, 0
-; GFX11-NEXT:    v_mov_b32_e32 v2, v0
+; GFX11-NEXT:    v_dual_mov_b32 v2, v0 :: v_dual_mov_b32 v3, 0
 ; GFX11-NEXT:    v_mov_b32_e32 v4, v3
-; GFX11-NEXT:    v_mov_b32_e32 v0, v3
-; GFX11-NEXT:    v_mov_b32_e32 v1, v4
+; GFX11-NEXT:    v_dual_mov_b32 v0, v3 :: v_dual_mov_b32 v1, v4
 ; GFX11-NEXT:    image_load v[0:1], v2, s[0:7] dmask:0x8 dim:SQ_RSRC_IMG_1D unorm tfe
 ; GFX11-NEXT:    s_waitcnt vmcnt(0)
 ; GFX11-NEXT:    global_store_b32 v3, v1, s[8:9]
@@ -2271,7 +2223,7 @@ main_body:
   %v = call {<2 x float>,i32} @llvm.amdgcn.image.load.1d.v2f32i32.i32(i32 8, i32 %s, <8 x i32> %rsrc, i32 1, i32 0)
   %v.vec = extractvalue {<2 x float>, i32} %v, 0
   %v.err = extractvalue {<2 x float>, i32} %v, 1
-  store i32 %v.err, i32 addrspace(1)* %out, align 4
+  store i32 %v.err, ptr addrspace(1) %out, align 4
   ret <2 x float> %v.vec
 }
 
@@ -2437,10 +2389,16 @@ define amdgpu_ps void @store_1d(<8 x i32> inreg %rsrc, <4 x float> %vdata, i32 %
 ; NOPRT-NEXT:    image_store v[0:3], v4, s[0:7] dmask:0xf unorm
 ; NOPRT-NEXT:    s_endpgm
 ;
-; GFX10PLUS-LABEL: store_1d:
-; GFX10PLUS:       ; %bb.0: ; %main_body
-; GFX10PLUS-NEXT:    image_store v[0:3], v4, s[0:7] dmask:0xf dim:SQ_RSRC_IMG_1D unorm
-; GFX10PLUS-NEXT:    s_endpgm
+; GFX10-LABEL: store_1d:
+; GFX10:       ; %bb.0: ; %main_body
+; GFX10-NEXT:    image_store v[0:3], v4, s[0:7] dmask:0xf dim:SQ_RSRC_IMG_1D unorm
+; GFX10-NEXT:    s_endpgm
+;
+; GFX11-LABEL: store_1d:
+; GFX11:       ; %bb.0: ; %main_body
+; GFX11-NEXT:    image_store v[0:3], v4, s[0:7] dmask:0xf dim:SQ_RSRC_IMG_1D unorm
+; GFX11-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-NEXT:    s_endpgm
 main_body:
   call void @llvm.amdgcn.image.store.1d.v4f32.i32(<4 x float> %vdata, i32 15, i32 %s, <8 x i32> %rsrc, i32 0, i32 0)
   ret void
@@ -2467,10 +2425,16 @@ define amdgpu_ps void @store_2d(<8 x i32> inreg %rsrc, <4 x float> %vdata, i32 %
 ; NOPRT-NEXT:    image_store v[0:3], v[4:5], s[0:7] dmask:0xf unorm
 ; NOPRT-NEXT:    s_endpgm
 ;
-; GFX10PLUS-LABEL: store_2d:
-; GFX10PLUS:       ; %bb.0: ; %main_body
-; GFX10PLUS-NEXT:    image_store v[0:3], v[4:5], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_2D unorm
-; GFX10PLUS-NEXT:    s_endpgm
+; GFX10-LABEL: store_2d:
+; GFX10:       ; %bb.0: ; %main_body
+; GFX10-NEXT:    image_store v[0:3], v[4:5], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_2D unorm
+; GFX10-NEXT:    s_endpgm
+;
+; GFX11-LABEL: store_2d:
+; GFX11:       ; %bb.0: ; %main_body
+; GFX11-NEXT:    image_store v[0:3], v[4:5], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_2D unorm
+; GFX11-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-NEXT:    s_endpgm
 main_body:
   call void @llvm.amdgcn.image.store.2d.v4f32.i32(<4 x float> %vdata, i32 15, i32 %s, i32 %t, <8 x i32> %rsrc, i32 0, i32 0)
   ret void
@@ -2497,10 +2461,16 @@ define amdgpu_ps void @store_3d(<8 x i32> inreg %rsrc, <4 x float> %vdata, i32 %
 ; NOPRT-NEXT:    image_store v[0:3], v[4:6], s[0:7] dmask:0xf unorm
 ; NOPRT-NEXT:    s_endpgm
 ;
-; GFX10PLUS-LABEL: store_3d:
-; GFX10PLUS:       ; %bb.0: ; %main_body
-; GFX10PLUS-NEXT:    image_store v[0:3], v[4:6], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_3D unorm
-; GFX10PLUS-NEXT:    s_endpgm
+; GFX10-LABEL: store_3d:
+; GFX10:       ; %bb.0: ; %main_body
+; GFX10-NEXT:    image_store v[0:3], v[4:6], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_3D unorm
+; GFX10-NEXT:    s_endpgm
+;
+; GFX11-LABEL: store_3d:
+; GFX11:       ; %bb.0: ; %main_body
+; GFX11-NEXT:    image_store v[0:3], v[4:6], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_3D unorm
+; GFX11-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-NEXT:    s_endpgm
 main_body:
   call void @llvm.amdgcn.image.store.3d.v4f32.i32(<4 x float> %vdata, i32 15, i32 %s, i32 %t, i32 %r, <8 x i32> %rsrc, i32 0, i32 0)
   ret void
@@ -2527,10 +2497,16 @@ define amdgpu_ps void @store_cube(<8 x i32> inreg %rsrc, <4 x float> %vdata, i32
 ; NOPRT-NEXT:    image_store v[0:3], v[4:6], s[0:7] dmask:0xf unorm da
 ; NOPRT-NEXT:    s_endpgm
 ;
-; GFX10PLUS-LABEL: store_cube:
-; GFX10PLUS:       ; %bb.0: ; %main_body
-; GFX10PLUS-NEXT:    image_store v[0:3], v[4:6], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_CUBE unorm
-; GFX10PLUS-NEXT:    s_endpgm
+; GFX10-LABEL: store_cube:
+; GFX10:       ; %bb.0: ; %main_body
+; GFX10-NEXT:    image_store v[0:3], v[4:6], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_CUBE unorm
+; GFX10-NEXT:    s_endpgm
+;
+; GFX11-LABEL: store_cube:
+; GFX11:       ; %bb.0: ; %main_body
+; GFX11-NEXT:    image_store v[0:3], v[4:6], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_CUBE unorm
+; GFX11-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-NEXT:    s_endpgm
 main_body:
   call void @llvm.amdgcn.image.store.cube.v4f32.i32(<4 x float> %vdata, i32 15, i32 %s, i32 %t, i32 %slice, <8 x i32> %rsrc, i32 0, i32 0)
   ret void
@@ -2557,10 +2533,16 @@ define amdgpu_ps void @store_1darray(<8 x i32> inreg %rsrc, <4 x float> %vdata, 
 ; NOPRT-NEXT:    image_store v[0:3], v[4:5], s[0:7] dmask:0xf unorm da
 ; NOPRT-NEXT:    s_endpgm
 ;
-; GFX10PLUS-LABEL: store_1darray:
-; GFX10PLUS:       ; %bb.0: ; %main_body
-; GFX10PLUS-NEXT:    image_store v[0:3], v[4:5], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_1D_ARRAY unorm
-; GFX10PLUS-NEXT:    s_endpgm
+; GFX10-LABEL: store_1darray:
+; GFX10:       ; %bb.0: ; %main_body
+; GFX10-NEXT:    image_store v[0:3], v[4:5], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_1D_ARRAY unorm
+; GFX10-NEXT:    s_endpgm
+;
+; GFX11-LABEL: store_1darray:
+; GFX11:       ; %bb.0: ; %main_body
+; GFX11-NEXT:    image_store v[0:3], v[4:5], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_1D_ARRAY unorm
+; GFX11-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-NEXT:    s_endpgm
 main_body:
   call void @llvm.amdgcn.image.store.1darray.v4f32.i32(<4 x float> %vdata, i32 15, i32 %s, i32 %slice, <8 x i32> %rsrc, i32 0, i32 0)
   ret void
@@ -2587,10 +2569,16 @@ define amdgpu_ps void @store_2darray(<8 x i32> inreg %rsrc, <4 x float> %vdata, 
 ; NOPRT-NEXT:    image_store v[0:3], v[4:6], s[0:7] dmask:0xf unorm da
 ; NOPRT-NEXT:    s_endpgm
 ;
-; GFX10PLUS-LABEL: store_2darray:
-; GFX10PLUS:       ; %bb.0: ; %main_body
-; GFX10PLUS-NEXT:    image_store v[0:3], v[4:6], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_2D_ARRAY unorm
-; GFX10PLUS-NEXT:    s_endpgm
+; GFX10-LABEL: store_2darray:
+; GFX10:       ; %bb.0: ; %main_body
+; GFX10-NEXT:    image_store v[0:3], v[4:6], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_2D_ARRAY unorm
+; GFX10-NEXT:    s_endpgm
+;
+; GFX11-LABEL: store_2darray:
+; GFX11:       ; %bb.0: ; %main_body
+; GFX11-NEXT:    image_store v[0:3], v[4:6], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_2D_ARRAY unorm
+; GFX11-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-NEXT:    s_endpgm
 main_body:
   call void @llvm.amdgcn.image.store.2darray.v4f32.i32(<4 x float> %vdata, i32 15, i32 %s, i32 %t, i32 %slice, <8 x i32> %rsrc, i32 0, i32 0)
   ret void
@@ -2617,10 +2605,16 @@ define amdgpu_ps void @store_2dmsaa(<8 x i32> inreg %rsrc, <4 x float> %vdata, i
 ; NOPRT-NEXT:    image_store v[0:3], v[4:6], s[0:7] dmask:0xf unorm
 ; NOPRT-NEXT:    s_endpgm
 ;
-; GFX10PLUS-LABEL: store_2dmsaa:
-; GFX10PLUS:       ; %bb.0: ; %main_body
-; GFX10PLUS-NEXT:    image_store v[0:3], v[4:6], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_2D_MSAA unorm
-; GFX10PLUS-NEXT:    s_endpgm
+; GFX10-LABEL: store_2dmsaa:
+; GFX10:       ; %bb.0: ; %main_body
+; GFX10-NEXT:    image_store v[0:3], v[4:6], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_2D_MSAA unorm
+; GFX10-NEXT:    s_endpgm
+;
+; GFX11-LABEL: store_2dmsaa:
+; GFX11:       ; %bb.0: ; %main_body
+; GFX11-NEXT:    image_store v[0:3], v[4:6], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_2D_MSAA unorm
+; GFX11-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-NEXT:    s_endpgm
 main_body:
   call void @llvm.amdgcn.image.store.2dmsaa.v4f32.i32(<4 x float> %vdata, i32 15, i32 %s, i32 %t, i32 %fragid, <8 x i32> %rsrc, i32 0, i32 0)
   ret void
@@ -2647,10 +2641,16 @@ define amdgpu_ps void @store_2darraymsaa(<8 x i32> inreg %rsrc, <4 x float> %vda
 ; NOPRT-NEXT:    image_store v[0:3], v[4:7], s[0:7] dmask:0xf unorm da
 ; NOPRT-NEXT:    s_endpgm
 ;
-; GFX10PLUS-LABEL: store_2darraymsaa:
-; GFX10PLUS:       ; %bb.0: ; %main_body
-; GFX10PLUS-NEXT:    image_store v[0:3], v[4:7], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_2D_MSAA_ARRAY unorm
-; GFX10PLUS-NEXT:    s_endpgm
+; GFX10-LABEL: store_2darraymsaa:
+; GFX10:       ; %bb.0: ; %main_body
+; GFX10-NEXT:    image_store v[0:3], v[4:7], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_2D_MSAA_ARRAY unorm
+; GFX10-NEXT:    s_endpgm
+;
+; GFX11-LABEL: store_2darraymsaa:
+; GFX11:       ; %bb.0: ; %main_body
+; GFX11-NEXT:    image_store v[0:3], v[4:7], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_2D_MSAA_ARRAY unorm
+; GFX11-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-NEXT:    s_endpgm
 main_body:
   call void @llvm.amdgcn.image.store.2darraymsaa.v4f32.i32(<4 x float> %vdata, i32 15, i32 %s, i32 %t, i32 %slice, i32 %fragid, <8 x i32> %rsrc, i32 0, i32 0)
   ret void
@@ -2677,10 +2677,16 @@ define amdgpu_ps void @store_mip_1d(<8 x i32> inreg %rsrc, <4 x float> %vdata, i
 ; NOPRT-NEXT:    image_store_mip v[0:3], v[4:5], s[0:7] dmask:0xf unorm
 ; NOPRT-NEXT:    s_endpgm
 ;
-; GFX10PLUS-LABEL: store_mip_1d:
-; GFX10PLUS:       ; %bb.0: ; %main_body
-; GFX10PLUS-NEXT:    image_store_mip v[0:3], v[4:5], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_1D unorm
-; GFX10PLUS-NEXT:    s_endpgm
+; GFX10-LABEL: store_mip_1d:
+; GFX10:       ; %bb.0: ; %main_body
+; GFX10-NEXT:    image_store_mip v[0:3], v[4:5], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_1D unorm
+; GFX10-NEXT:    s_endpgm
+;
+; GFX11-LABEL: store_mip_1d:
+; GFX11:       ; %bb.0: ; %main_body
+; GFX11-NEXT:    image_store_mip v[0:3], v[4:5], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_1D unorm
+; GFX11-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-NEXT:    s_endpgm
 main_body:
   call void @llvm.amdgcn.image.store.mip.1d.v4f32.i32(<4 x float> %vdata, i32 15, i32 %s, i32 %mip, <8 x i32> %rsrc, i32 0, i32 0)
   ret void
@@ -2707,10 +2713,16 @@ define amdgpu_ps void @store_mip_2d(<8 x i32> inreg %rsrc, <4 x float> %vdata, i
 ; NOPRT-NEXT:    image_store_mip v[0:3], v[4:6], s[0:7] dmask:0xf unorm
 ; NOPRT-NEXT:    s_endpgm
 ;
-; GFX10PLUS-LABEL: store_mip_2d:
-; GFX10PLUS:       ; %bb.0: ; %main_body
-; GFX10PLUS-NEXT:    image_store_mip v[0:3], v[4:6], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_2D unorm
-; GFX10PLUS-NEXT:    s_endpgm
+; GFX10-LABEL: store_mip_2d:
+; GFX10:       ; %bb.0: ; %main_body
+; GFX10-NEXT:    image_store_mip v[0:3], v[4:6], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_2D unorm
+; GFX10-NEXT:    s_endpgm
+;
+; GFX11-LABEL: store_mip_2d:
+; GFX11:       ; %bb.0: ; %main_body
+; GFX11-NEXT:    image_store_mip v[0:3], v[4:6], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_2D unorm
+; GFX11-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-NEXT:    s_endpgm
 main_body:
   call void @llvm.amdgcn.image.store.mip.2d.v4f32.i32(<4 x float> %vdata, i32 15, i32 %s, i32 %t, i32 %mip, <8 x i32> %rsrc, i32 0, i32 0)
   ret void
@@ -2737,10 +2749,16 @@ define amdgpu_ps void @store_mip_3d(<8 x i32> inreg %rsrc, <4 x float> %vdata, i
 ; NOPRT-NEXT:    image_store_mip v[0:3], v[4:7], s[0:7] dmask:0xf unorm
 ; NOPRT-NEXT:    s_endpgm
 ;
-; GFX10PLUS-LABEL: store_mip_3d:
-; GFX10PLUS:       ; %bb.0: ; %main_body
-; GFX10PLUS-NEXT:    image_store_mip v[0:3], v[4:7], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_3D unorm
-; GFX10PLUS-NEXT:    s_endpgm
+; GFX10-LABEL: store_mip_3d:
+; GFX10:       ; %bb.0: ; %main_body
+; GFX10-NEXT:    image_store_mip v[0:3], v[4:7], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_3D unorm
+; GFX10-NEXT:    s_endpgm
+;
+; GFX11-LABEL: store_mip_3d:
+; GFX11:       ; %bb.0: ; %main_body
+; GFX11-NEXT:    image_store_mip v[0:3], v[4:7], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_3D unorm
+; GFX11-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-NEXT:    s_endpgm
 main_body:
   call void @llvm.amdgcn.image.store.mip.3d.v4f32.i32(<4 x float> %vdata, i32 15, i32 %s, i32 %t, i32 %r, i32 %mip, <8 x i32> %rsrc, i32 0, i32 0)
   ret void
@@ -2767,10 +2785,16 @@ define amdgpu_ps void @store_mip_cube(<8 x i32> inreg %rsrc, <4 x float> %vdata,
 ; NOPRT-NEXT:    image_store_mip v[0:3], v[4:7], s[0:7] dmask:0xf unorm da
 ; NOPRT-NEXT:    s_endpgm
 ;
-; GFX10PLUS-LABEL: store_mip_cube:
-; GFX10PLUS:       ; %bb.0: ; %main_body
-; GFX10PLUS-NEXT:    image_store_mip v[0:3], v[4:7], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_CUBE unorm
-; GFX10PLUS-NEXT:    s_endpgm
+; GFX10-LABEL: store_mip_cube:
+; GFX10:       ; %bb.0: ; %main_body
+; GFX10-NEXT:    image_store_mip v[0:3], v[4:7], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_CUBE unorm
+; GFX10-NEXT:    s_endpgm
+;
+; GFX11-LABEL: store_mip_cube:
+; GFX11:       ; %bb.0: ; %main_body
+; GFX11-NEXT:    image_store_mip v[0:3], v[4:7], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_CUBE unorm
+; GFX11-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-NEXT:    s_endpgm
 main_body:
   call void @llvm.amdgcn.image.store.mip.cube.v4f32.i32(<4 x float> %vdata, i32 15, i32 %s, i32 %t, i32 %slice, i32 %mip, <8 x i32> %rsrc, i32 0, i32 0)
   ret void
@@ -2797,10 +2821,16 @@ define amdgpu_ps void @store_mip_1darray(<8 x i32> inreg %rsrc, <4 x float> %vda
 ; NOPRT-NEXT:    image_store_mip v[0:3], v[4:6], s[0:7] dmask:0xf unorm da
 ; NOPRT-NEXT:    s_endpgm
 ;
-; GFX10PLUS-LABEL: store_mip_1darray:
-; GFX10PLUS:       ; %bb.0: ; %main_body
-; GFX10PLUS-NEXT:    image_store_mip v[0:3], v[4:6], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_1D_ARRAY unorm
-; GFX10PLUS-NEXT:    s_endpgm
+; GFX10-LABEL: store_mip_1darray:
+; GFX10:       ; %bb.0: ; %main_body
+; GFX10-NEXT:    image_store_mip v[0:3], v[4:6], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_1D_ARRAY unorm
+; GFX10-NEXT:    s_endpgm
+;
+; GFX11-LABEL: store_mip_1darray:
+; GFX11:       ; %bb.0: ; %main_body
+; GFX11-NEXT:    image_store_mip v[0:3], v[4:6], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_1D_ARRAY unorm
+; GFX11-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-NEXT:    s_endpgm
 main_body:
   call void @llvm.amdgcn.image.store.mip.1darray.v4f32.i32(<4 x float> %vdata, i32 15, i32 %s, i32 %slice, i32 %mip, <8 x i32> %rsrc, i32 0, i32 0)
   ret void
@@ -2827,10 +2857,16 @@ define amdgpu_ps void @store_mip_2darray(<8 x i32> inreg %rsrc, <4 x float> %vda
 ; NOPRT-NEXT:    image_store_mip v[0:3], v[4:7], s[0:7] dmask:0xf unorm da
 ; NOPRT-NEXT:    s_endpgm
 ;
-; GFX10PLUS-LABEL: store_mip_2darray:
-; GFX10PLUS:       ; %bb.0: ; %main_body
-; GFX10PLUS-NEXT:    image_store_mip v[0:3], v[4:7], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_2D_ARRAY unorm
-; GFX10PLUS-NEXT:    s_endpgm
+; GFX10-LABEL: store_mip_2darray:
+; GFX10:       ; %bb.0: ; %main_body
+; GFX10-NEXT:    image_store_mip v[0:3], v[4:7], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_2D_ARRAY unorm
+; GFX10-NEXT:    s_endpgm
+;
+; GFX11-LABEL: store_mip_2darray:
+; GFX11:       ; %bb.0: ; %main_body
+; GFX11-NEXT:    image_store_mip v[0:3], v[4:7], s[0:7] dmask:0xf dim:SQ_RSRC_IMG_2D_ARRAY unorm
+; GFX11-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-NEXT:    s_endpgm
 main_body:
   call void @llvm.amdgcn.image.store.mip.2darray.v4f32.i32(<4 x float> %vdata, i32 15, i32 %s, i32 %t, i32 %slice, i32 %mip, <8 x i32> %rsrc, i32 0, i32 0)
   ret void
@@ -3207,10 +3243,16 @@ define amdgpu_ps void @store_1d_V1(<8 x i32> inreg %rsrc, float %vdata, i32 %s) 
 ; NOPRT-NEXT:    image_store v0, v1, s[0:7] dmask:0x2 unorm
 ; NOPRT-NEXT:    s_endpgm
 ;
-; GFX10PLUS-LABEL: store_1d_V1:
-; GFX10PLUS:       ; %bb.0: ; %main_body
-; GFX10PLUS-NEXT:    image_store v0, v1, s[0:7] dmask:0x2 dim:SQ_RSRC_IMG_1D unorm
-; GFX10PLUS-NEXT:    s_endpgm
+; GFX10-LABEL: store_1d_V1:
+; GFX10:       ; %bb.0: ; %main_body
+; GFX10-NEXT:    image_store v0, v1, s[0:7] dmask:0x2 dim:SQ_RSRC_IMG_1D unorm
+; GFX10-NEXT:    s_endpgm
+;
+; GFX11-LABEL: store_1d_V1:
+; GFX11:       ; %bb.0: ; %main_body
+; GFX11-NEXT:    image_store v0, v1, s[0:7] dmask:0x2 dim:SQ_RSRC_IMG_1D unorm
+; GFX11-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-NEXT:    s_endpgm
 main_body:
   call void @llvm.amdgcn.image.store.1d.f32.i32(float %vdata, i32 2, i32 %s, <8 x i32> %rsrc, i32 0, i32 0)
   ret void
@@ -3237,10 +3279,16 @@ define amdgpu_ps void @store_1d_V2(<8 x i32> inreg %rsrc, <2 x float> %vdata, i3
 ; NOPRT-NEXT:    image_store v[0:1], v2, s[0:7] dmask:0xc unorm
 ; NOPRT-NEXT:    s_endpgm
 ;
-; GFX10PLUS-LABEL: store_1d_V2:
-; GFX10PLUS:       ; %bb.0: ; %main_body
-; GFX10PLUS-NEXT:    image_store v[0:1], v2, s[0:7] dmask:0xc dim:SQ_RSRC_IMG_1D unorm
-; GFX10PLUS-NEXT:    s_endpgm
+; GFX10-LABEL: store_1d_V2:
+; GFX10:       ; %bb.0: ; %main_body
+; GFX10-NEXT:    image_store v[0:1], v2, s[0:7] dmask:0xc dim:SQ_RSRC_IMG_1D unorm
+; GFX10-NEXT:    s_endpgm
+;
+; GFX11-LABEL: store_1d_V2:
+; GFX11:       ; %bb.0: ; %main_body
+; GFX11-NEXT:    image_store v[0:1], v2, s[0:7] dmask:0xc dim:SQ_RSRC_IMG_1D unorm
+; GFX11-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-NEXT:    s_endpgm
 main_body:
   call void @llvm.amdgcn.image.store.1d.v2f32.i32(<2 x float> %vdata, i32 12, i32 %s, <8 x i32> %rsrc, i32 0, i32 0)
   ret void
@@ -3372,10 +3420,16 @@ define amdgpu_ps void @store_1d_glc(<8 x i32> inreg %rsrc, <4 x float> %vdata, i
 ; NOPRT-NEXT:    image_store v[0:3], v4, s[0:7] dmask:0xf unorm glc
 ; NOPRT-NEXT:    s_endpgm
 ;
-; GFX10PLUS-LABEL: store_1d_glc:
-; GFX10PLUS:       ; %bb.0: ; %main_body
-; GFX10PLUS-NEXT:    image_store v[0:3], v4, s[0:7] dmask:0xf dim:SQ_RSRC_IMG_1D unorm glc
-; GFX10PLUS-NEXT:    s_endpgm
+; GFX10-LABEL: store_1d_glc:
+; GFX10:       ; %bb.0: ; %main_body
+; GFX10-NEXT:    image_store v[0:3], v4, s[0:7] dmask:0xf dim:SQ_RSRC_IMG_1D unorm glc
+; GFX10-NEXT:    s_endpgm
+;
+; GFX11-LABEL: store_1d_glc:
+; GFX11:       ; %bb.0: ; %main_body
+; GFX11-NEXT:    image_store v[0:3], v4, s[0:7] dmask:0xf dim:SQ_RSRC_IMG_1D unorm glc
+; GFX11-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-NEXT:    s_endpgm
 main_body:
   call void @llvm.amdgcn.image.store.1d.v4f32.i32(<4 x float> %vdata, i32 15, i32 %s, <8 x i32> %rsrc, i32 0, i32 1)
   ret void
@@ -3402,10 +3456,16 @@ define amdgpu_ps void @store_1d_slc(<8 x i32> inreg %rsrc, <4 x float> %vdata, i
 ; NOPRT-NEXT:    image_store v[0:3], v4, s[0:7] dmask:0xf unorm slc
 ; NOPRT-NEXT:    s_endpgm
 ;
-; GFX10PLUS-LABEL: store_1d_slc:
-; GFX10PLUS:       ; %bb.0: ; %main_body
-; GFX10PLUS-NEXT:    image_store v[0:3], v4, s[0:7] dmask:0xf dim:SQ_RSRC_IMG_1D unorm slc
-; GFX10PLUS-NEXT:    s_endpgm
+; GFX10-LABEL: store_1d_slc:
+; GFX10:       ; %bb.0: ; %main_body
+; GFX10-NEXT:    image_store v[0:3], v4, s[0:7] dmask:0xf dim:SQ_RSRC_IMG_1D unorm slc
+; GFX10-NEXT:    s_endpgm
+;
+; GFX11-LABEL: store_1d_slc:
+; GFX11:       ; %bb.0: ; %main_body
+; GFX11-NEXT:    image_store v[0:3], v4, s[0:7] dmask:0xf dim:SQ_RSRC_IMG_1D unorm slc
+; GFX11-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-NEXT:    s_endpgm
 main_body:
   call void @llvm.amdgcn.image.store.1d.v4f32.i32(<4 x float> %vdata, i32 15, i32 %s, <8 x i32> %rsrc, i32 0, i32 2)
   ret void
@@ -3432,10 +3492,16 @@ define amdgpu_ps void @store_1d_glc_slc(<8 x i32> inreg %rsrc, <4 x float> %vdat
 ; NOPRT-NEXT:    image_store v[0:3], v4, s[0:7] dmask:0xf unorm glc slc
 ; NOPRT-NEXT:    s_endpgm
 ;
-; GFX10PLUS-LABEL: store_1d_glc_slc:
-; GFX10PLUS:       ; %bb.0: ; %main_body
-; GFX10PLUS-NEXT:    image_store v[0:3], v4, s[0:7] dmask:0xf dim:SQ_RSRC_IMG_1D unorm glc slc
-; GFX10PLUS-NEXT:    s_endpgm
+; GFX10-LABEL: store_1d_glc_slc:
+; GFX10:       ; %bb.0: ; %main_body
+; GFX10-NEXT:    image_store v[0:3], v4, s[0:7] dmask:0xf dim:SQ_RSRC_IMG_1D unorm glc slc
+; GFX10-NEXT:    s_endpgm
+;
+; GFX11-LABEL: store_1d_glc_slc:
+; GFX11:       ; %bb.0: ; %main_body
+; GFX11-NEXT:    image_store v[0:3], v4, s[0:7] dmask:0xf dim:SQ_RSRC_IMG_1D unorm glc slc
+; GFX11-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-NEXT:    s_endpgm
 main_body:
   call void @llvm.amdgcn.image.store.1d.v4f32.i32(<4 x float> %vdata, i32 15, i32 %s, <8 x i32> %rsrc, i32 0, i32 3)
   ret void
@@ -3690,13 +3756,22 @@ define amdgpu_ps void @image_store_wait(<8 x i32> inreg %arg, <8 x i32> inreg %a
 ; NOPRT-NEXT:    image_store v[0:3], v4, s[16:23] dmask:0xf unorm
 ; NOPRT-NEXT:    s_endpgm
 ;
-; GFX10PLUS-LABEL: image_store_wait:
-; GFX10PLUS:       ; %bb.0: ; %main_body
-; GFX10PLUS-NEXT:    image_store v[0:3], v4, s[0:7] dmask:0xf dim:SQ_RSRC_IMG_1D unorm
-; GFX10PLUS-NEXT:    image_load v[0:3], v4, s[8:15] dmask:0xf dim:SQ_RSRC_IMG_1D unorm
-; GFX10PLUS-NEXT:    s_waitcnt vmcnt(0)
-; GFX10PLUS-NEXT:    image_store v[0:3], v4, s[16:23] dmask:0xf dim:SQ_RSRC_IMG_1D unorm
-; GFX10PLUS-NEXT:    s_endpgm
+; GFX10-LABEL: image_store_wait:
+; GFX10:       ; %bb.0: ; %main_body
+; GFX10-NEXT:    image_store v[0:3], v4, s[0:7] dmask:0xf dim:SQ_RSRC_IMG_1D unorm
+; GFX10-NEXT:    image_load v[0:3], v4, s[8:15] dmask:0xf dim:SQ_RSRC_IMG_1D unorm
+; GFX10-NEXT:    s_waitcnt vmcnt(0)
+; GFX10-NEXT:    image_store v[0:3], v4, s[16:23] dmask:0xf dim:SQ_RSRC_IMG_1D unorm
+; GFX10-NEXT:    s_endpgm
+;
+; GFX11-LABEL: image_store_wait:
+; GFX11:       ; %bb.0: ; %main_body
+; GFX11-NEXT:    image_store v[0:3], v4, s[0:7] dmask:0xf dim:SQ_RSRC_IMG_1D unorm
+; GFX11-NEXT:    image_load v[0:3], v4, s[8:15] dmask:0xf dim:SQ_RSRC_IMG_1D unorm
+; GFX11-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-NEXT:    image_store v[0:3], v4, s[16:23] dmask:0xf dim:SQ_RSRC_IMG_1D unorm
+; GFX11-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-NEXT:    s_endpgm
 main_body:
   call void @llvm.amdgcn.image.store.1d.v4f32.i32(<4 x float> %arg3, i32 15, i32 %arg4, <8 x i32> %arg, i32 0, i32 0)
   %data = call <4 x float> @llvm.amdgcn.image.load.1d.v4f32.i32(i32 15, i32 %arg4, <8 x i32> %arg1, i32 0, i32 0)
@@ -3704,7 +3779,7 @@ main_body:
   ret void
 }
 
-define amdgpu_ps float @image_load_mmo(<8 x i32> inreg %rsrc, float addrspace(3)* %lds, <2 x i32> %c) #0 {
+define amdgpu_ps float @image_load_mmo(<8 x i32> inreg %rsrc, ptr addrspace(3) %lds, <2 x i32> %c) #0 {
 ; VERDE-LABEL: image_load_mmo:
 ; VERDE:       ; %bb.0:
 ; VERDE-NEXT:    image_load v1, v[1:2], s[0:7] dmask:0x1 unorm
@@ -3768,12 +3843,12 @@ define amdgpu_ps float @image_load_mmo(<8 x i32> inreg %rsrc, float addrspace(3)
 ; GFX11-NEXT:    v_mov_b32_e32 v0, v1
 ; GFX11-NEXT:    s_waitcnt lgkmcnt(0)
 ; GFX11-NEXT:    ; return to shader part epilog
-  store float 0.000000e+00, float addrspace(3)* %lds
+  store float 0.000000e+00, ptr addrspace(3) %lds
   %c0 = extractelement <2 x i32> %c, i32 0
   %c1 = extractelement <2 x i32> %c, i32 1
   %tex = call float @llvm.amdgcn.image.load.2d.f32.i32(i32 1, i32 %c0, i32 %c1, <8 x i32> %rsrc, i32 0, i32 0)
-  %tmp2 = getelementptr float, float addrspace(3)* %lds, i32 4
-  store float 0.000000e+00, float addrspace(3)* %tmp2
+  %tmp2 = getelementptr float, ptr addrspace(3) %lds, i32 4
+  store float 0.000000e+00, ptr addrspace(3) %tmp2
   ret float %tex
 }
 

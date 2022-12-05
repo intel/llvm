@@ -11,7 +11,7 @@
 
 #include "sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 
 // user-defined function
 void function() {

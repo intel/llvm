@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/SPIRV/IR/TargetAndABI.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVEnums.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVTypes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/FunctionInterfaces.h"
@@ -95,7 +96,7 @@ MLIRContext *spirv::TargetEnv::getContext() const {
 //===----------------------------------------------------------------------===//
 
 StringRef spirv::getInterfaceVarABIAttrName() {
-  return "spv.interface_var_abi";
+  return "spirv.interface_var_abi";
 }
 
 spirv::InterfaceVarABIAttr
@@ -116,7 +117,7 @@ bool spirv::needsInterfaceVarABIAttrs(spirv::TargetEnvAttr targetAttr) {
   return false;
 }
 
-StringRef spirv::getEntryPointABIAttrName() { return "spv.entry_point_abi"; }
+StringRef spirv::getEntryPointABIAttrName() { return "spirv.entry_point_abi"; }
 
 spirv::EntryPointABIAttr
 spirv::getEntryPointABIAttr(ArrayRef<int32_t> localSize, MLIRContext *context) {
@@ -164,16 +165,16 @@ spirv::getDefaultResourceLimits(MLIRContext *context) {
       /*cooperative_matrix_properties_nv=*/ArrayAttr());
 }
 
-StringRef spirv::getTargetEnvAttrName() { return "spv.target_env"; }
+StringRef spirv::getTargetEnvAttrName() { return "spirv.target_env"; }
 
 spirv::TargetEnvAttr spirv::getDefaultTargetEnv(MLIRContext *context) {
   auto triple = spirv::VerCapExtAttr::get(spirv::Version::V_1_0,
                                           {spirv::Capability::Shader},
                                           ArrayRef<Extension>(), context);
-  return spirv::TargetEnvAttr::get(triple, spirv::Vendor::Unknown,
-                                   spirv::DeviceType::Unknown,
-                                   spirv::TargetEnvAttr::kUnknownDeviceID,
-                                   spirv::getDefaultResourceLimits(context));
+  return spirv::TargetEnvAttr::get(
+      triple, spirv::getDefaultResourceLimits(context),
+      spirv::ClientAPI::Unknown, spirv::Vendor::Unknown,
+      spirv::DeviceType::Unknown, spirv::TargetEnvAttr::kUnknownDeviceID);
 }
 
 spirv::TargetEnvAttr spirv::lookupTargetEnv(Operation *op) {

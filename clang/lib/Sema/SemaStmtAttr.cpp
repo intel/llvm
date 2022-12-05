@@ -219,39 +219,13 @@ static Attr *handleSYCLIntelFPGADisableLoopPipeliningAttr(Sema &S, Stmt *,
   return new (S.Context) SYCLIntelFPGADisableLoopPipeliningAttr(S.Context, A);
 }
 
-// Handle [[intel:fpga_pipeline]] attribute.
-static Attr *handleSYCLIntelFPGAPipelineAttr(Sema &S, Stmt *,
-                                             const ParsedAttr &A) {
-  // If no attribute argument is specified, set to default value '1'.
-  Expr *E = A.isArgExpr(0)
-                ? A.getArgAsExpr(0)
-                : IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
-                                         S.Context.IntTy, A.getLoc());
-
-  return S.BuildSYCLIntelFPGAPipelineAttr(A, E);
-}
-
-SYCLIntelFPGAPipelineAttr *
-Sema::BuildSYCLIntelFPGAPipelineAttr(const AttributeCommonInfo &A, Expr *E) {
-
-  if (!E->isValueDependent()) {
-    // Check if the expression is not value dependent.
-    llvm::APSInt ArgVal;
-    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
-    if (Res.isInvalid())
-      return nullptr;
-    E = Res.get();
-  }
-
-  return new (Context) SYCLIntelFPGAPipelineAttr(Context, A, E);
-}
-
 static bool checkSYCLIntelFPGAIVDepSafeLen(Sema &S, llvm::APSInt &Value,
                                            Expr *E) {
-  if (!Value.isStrictlyPositive())
+  // This attribute requires a non-negative value.
+  if (!Value.isNonNegative())
     return S.Diag(E->getExprLoc(),
                   diag::err_attribute_requires_positive_integer)
-           << "'ivdep'" << /* positive */ 0;
+           << "'ivdep'" << /*non-negative*/ 1;
   return false;
 }
 
@@ -276,6 +250,12 @@ static IVDepExprResult HandleFPGAIVDepAttrExpr(Sema &S, Expr *E,
     if (checkSYCLIntelFPGAIVDepSafeLen(S, *ArgVal, E))
       return IVDepExprResult::Invalid;
     SafelenValue = ArgVal->getZExtValue();
+    // ivdep attribute allows both safelen = 0 and safelen = 1 with a warning.
+    if (SafelenValue == 0 || SafelenValue == 1) {
+      S.Diag(E->getExprLoc(), diag::warn_ivdep_attribute_argument)
+          << SafelenValue;
+      return IVDepExprResult::Invalid;
+    }
     return IVDepExprResult::SafeLen;
   }
 
@@ -469,6 +449,35 @@ static Attr *handleSYCLIntelFPGALoopCountAttr(Sema &S, Stmt *St,
 static Attr *handleIntelFPGANofusionAttr(Sema &S, Stmt *St,
                                          const ParsedAttr &A) {
   return new (S.Context) SYCLIntelFPGANofusionAttr(S.Context, A);
+}
+
+SYCLIntelFPGAMaxReinvocationDelayAttr *
+Sema::BuildSYCLIntelFPGAMaxReinvocationDelayAttr(const AttributeCommonInfo &CI,
+                                                 Expr *E) {
+  if (!E->isValueDependent()) {
+    llvm::APSInt ArgVal;
+    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
+    if (Res.isInvalid())
+      return nullptr;
+    E = Res.get();
+
+    // This attribute requires a strictly positive value.
+    if (ArgVal <= 0) {
+      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+          << CI << /*positive*/ 0;
+      return nullptr;
+    }
+  }
+
+  return new (Context) SYCLIntelFPGAMaxReinvocationDelayAttr(Context, CI, E);
+}
+
+static Attr * handleSYCLIntelFPGAMaxReinvocationDelayAttr(Sema &S, Stmt *St,
+                                                      const ParsedAttr &A) {
+  S.CheckDeprecatedSYCLAttributeSpelling(A);
+
+  Expr *E = A.getArgAsExpr(0);
+  return S.BuildSYCLIntelFPGAMaxReinvocationDelayAttr(A, E);
 }
 
 static Attr *handleLoopHintAttr(Sema &S, Stmt *St, const ParsedAttr &A,
@@ -709,21 +718,33 @@ CheckForIncompatibleAttributes(Sema &S,
   if (!DiagnoseMutualExclusions(S, Attrs))
     return;
 
-  // There are 6 categories of loop hints attributes: vectorize, interleave,
-  // unroll, unroll_and_jam, pipeline and distribute. Except for distribute they
-  // come in two variants: a state form and a numeric form.  The state form
-  // selectively defaults/enables/disables the transformation for the loop
-  // (for unroll, default indicates full unrolling rather than enabling the
-  // transformation). The numeric form form provides an integer hint (for
-  // example, unroll count) to the transformer. The following array accumulates
-  // the hints encountered while iterating through the attributes to check for
-  // compatibility.
+  enum CategoryType {
+    // For the following categories, they come in two variants: a state form and
+    // a numeric form. The state form may be one of default, enable, and
+    // disable. The numeric form provides an integer hint (for example, unroll
+    // count) to the transformer.
+    Vectorize,
+    Interleave,
+    UnrollAndJam,
+    Pipeline,
+    // For unroll, default indicates full unrolling rather than enabling the
+    // transformation.
+    Unroll,
+    // The loop distribution transformation only has a state form that is
+    // exposed by #pragma clang loop distribute (enable | disable).
+    Distribute,
+    // The vector predication only has a state form that is exposed by
+    // #pragma clang loop vectorize_predicate (enable | disable).
+    VectorizePredicate,
+    // This serves as a indicator to how many category are listed in this enum.
+    NumberOfCategories
+  };
+  // The following array accumulates the hints encountered while iterating
+  // through the attributes to check for compatibility.
   struct {
     const LoopHintAttr *StateAttr;
     const LoopHintAttr *NumericAttr;
-  } HintAttrs[] = {{nullptr, nullptr}, {nullptr, nullptr}, {nullptr, nullptr},
-                   {nullptr, nullptr}, {nullptr, nullptr}, {nullptr, nullptr},
-                   {nullptr, nullptr}};
+  } HintAttrs[CategoryType::NumberOfCategories] = {};
 
   for (const auto *I : Attrs) {
     const LoopHintAttr *LH = dyn_cast<LoopHintAttr>(I);
@@ -732,16 +753,8 @@ CheckForIncompatibleAttributes(Sema &S,
     if (!LH)
       continue;
 
+    CategoryType Category = CategoryType::NumberOfCategories;
     LoopHintAttr::OptionType Option = LH->getOption();
-    enum {
-      Vectorize,
-      Interleave,
-      Unroll,
-      UnrollAndJam,
-      Distribute,
-      Pipeline,
-      VectorizePredicate
-    } Category;
     switch (Option) {
     case LoopHintAttr::Vectorize:
     case LoopHintAttr::VectorizeWidth:
@@ -772,7 +785,7 @@ CheckForIncompatibleAttributes(Sema &S,
       break;
     };
 
-    assert(Category < sizeof(HintAttrs) / sizeof(HintAttrs[0]));
+    assert(Category != NumberOfCategories && "Unhandled loop hint option");
     auto &CategoryState = HintAttrs[Category];
     const LoopHintAttr *PrevAttr;
     if (Option == LoopHintAttr::Vectorize ||
@@ -848,7 +861,8 @@ static void CheckForIncompatibleSYCLLoopAttributes(
   CheckForDuplicationSYCLLoopAttribute<LoopUnrollHintAttr>(S, Attrs, false);
   CheckRedundantSYCLIntelFPGAIVDepAttrs(S, Attrs);
   CheckForDuplicationSYCLLoopAttribute<SYCLIntelFPGANofusionAttr>(S, Attrs);
-  CheckForDuplicationSYCLLoopAttribute<SYCLIntelFPGAPipelineAttr>(S, Attrs);
+  CheckForDuplicationSYCLLoopAttribute<SYCLIntelFPGAMaxReinvocationDelayAttr>(
+      S, Attrs);
 }
 
 void CheckForIncompatibleUnrollHintAttributes(
@@ -994,8 +1008,8 @@ static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
     return handleUnlikely(S, St, A, Range);
   case ParsedAttr::AT_SYCLIntelFPGANofusion:
     return handleIntelFPGANofusionAttr(S, St, A);
-  case ParsedAttr::AT_SYCLIntelFPGAPipeline:
-    return handleSYCLIntelFPGAPipelineAttr(S, St, A);
+  case ParsedAttr::AT_SYCLIntelFPGAMaxReinvocationDelay:
+    return handleSYCLIntelFPGAMaxReinvocationDelayAttr(S, St, A);
   default:
     // N.B., ClangAttrEmitter.cpp emits a diagnostic helper that ensures a
     // declaration attribute is not written on a statement, but this code is

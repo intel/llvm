@@ -8,13 +8,14 @@
 
 #pragma once
 
-#include <CL/sycl/backend.hpp>
-#include <CL/sycl/context.hpp>
+#include <sycl/backend.hpp>
+#include <sycl/context.hpp>
+#include <sycl/ext/oneapi/experimental/backend/backend_traits_cuda.hpp>
 
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace oneapi {
 namespace cuda {
@@ -52,13 +53,6 @@ inline auto get_native<backend::ext_oneapi_cuda, context>(const context &C)
   return ret;
 }
 
-// Specialisation of non-free context get_native
-template <>
-inline backend_return_t<backend::ext_oneapi_cuda, context>
-context::get_native<backend::ext_oneapi_cuda>() const {
-  return sycl::get_native<backend::ext_oneapi_cuda, context>(*this);
-}
-
 // Specialisation of interop_handles get_native_context
 template <>
 inline backend_return_t<backend::ext_oneapi_cuda, context>
@@ -75,6 +69,13 @@ interop_handle::get_native_context<backend::ext_oneapi_cuda>() const {
 template <>
 inline device make_device<backend::ext_oneapi_cuda>(
     const backend_input_t<backend::ext_oneapi_cuda, device> &BackendObject) {
+  auto devs = device::get_devices(info::device_type::gpu);
+  for (auto &dev : devs) {
+    if (dev.get_backend() == backend::ext_oneapi_cuda &&
+        BackendObject == get_native<backend::ext_oneapi_cuda>(dev)) {
+      return dev;
+    }
+  }
   pi_native_handle NativeHandle = static_cast<pi_native_handle>(BackendObject);
   return ext::oneapi::cuda::make_device(NativeHandle);
 }
@@ -95,9 +96,9 @@ inline queue make_queue<backend::ext_oneapi_cuda>(
     const backend_input_t<backend::ext_oneapi_cuda, queue> &BackendObject,
     const context &TargetContext, const async_handler Handler) {
   return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
-                            TargetContext, true, Handler,
+                            TargetContext, nullptr, true, Handler,
                             /*Backend*/ backend::ext_oneapi_cuda);
 }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

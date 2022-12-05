@@ -25,6 +25,7 @@
 #include <cassert>
 #include <cinttypes>
 #include <cstdint>
+#include <optional>
 
 using namespace llvm;
 using namespace dwarf;
@@ -1091,7 +1092,7 @@ Error DWARFDebugFrame::parse(DWARFDataExtractor Data) {
       Optional<uint64_t> Personality;
       Optional<uint32_t> PersonalityEncoding;
       if (IsEH) {
-        Optional<uint64_t> AugmentationLength;
+        std::optional<uint64_t> AugmentationLength;
         uint64_t StartAugmentationOffset;
         uint64_t EndAugmentationOffset;
 
@@ -1145,7 +1146,7 @@ Error DWARFDebugFrame::parse(DWARFDataExtractor Data) {
           }
         }
 
-        if (AugmentationLength.hasValue()) {
+        if (AugmentationLength) {
           if (Offset != EndAugmentationOffset)
             return createStringError(errc::invalid_argument,
                                      "parsing augmentation data at 0x%" PRIx64

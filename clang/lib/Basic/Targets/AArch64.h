@@ -16,7 +16,6 @@
 #include "OSTargets.h"
 #include "clang/Basic/TargetBuiltins.h"
 #include "llvm/Support/AArch64TargetParser.h"
-#include "llvm/Support/TargetParser.h"
 
 namespace clang {
 namespace targets {
@@ -54,6 +53,7 @@ class LLVM_LIBRARY_VISIBILITY AArch64TargetInfo : public TargetInfo {
   bool HasLSE;
   bool HasFlagM;
   bool HasMOPS;
+  bool HasRCPC;
 
   llvm::AArch64::ArchKind ArchKind;
 
@@ -96,6 +96,8 @@ public:
                                MacroBuilder &Builder) const;
   void getTargetDefinesARMV88A(const LangOptions &Opts,
                                MacroBuilder &Builder) const;
+  void getTargetDefinesARMV89A(const LangOptions &Opts,
+                               MacroBuilder &Builder) const;
   void getTargetDefinesARMV9A(const LangOptions &Opts,
                               MacroBuilder &Builder) const;
   void getTargetDefinesARMV91A(const LangOptions &Opts,
@@ -103,6 +105,8 @@ public:
   void getTargetDefinesARMV92A(const LangOptions &Opts,
                                MacroBuilder &Builder) const;
   void getTargetDefinesARMV93A(const LangOptions &Opts,
+                               MacroBuilder &Builder) const;
+  void getTargetDefinesARMV94A(const LangOptions &Opts,
                                MacroBuilder &Builder) const;
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override;
@@ -113,8 +117,18 @@ public:
   getVScaleRange(const LangOptions &LangOpts) const override;
 
   bool hasFeature(StringRef Feature) const override;
+  void setFeatureEnabled(llvm::StringMap<bool> &Features, StringRef Name,
+                         bool Enabled) const override;
   bool handleTargetFeatures(std::vector<std::string> &Features,
                             DiagnosticsEngine &Diags) override;
+  bool
+  initFeatureMap(llvm::StringMap<bool> &Features, DiagnosticsEngine &Diags,
+                 StringRef CPU,
+                 const std::vector<std::string> &FeaturesVec) const override;
+  ParsedTargetAttr parseTargetAttr(StringRef Str) const override;
+  bool supportsTargetAttributeTune() const override { return true; }
+
+  bool hasBFloat16Type() const override;
 
   CallingConvCheckResult checkCallingConvention(CallingConv CC) const override;
 

@@ -36,6 +36,7 @@
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
 #include <iterator>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -203,7 +204,7 @@ void DwarfCompileUnit::addLocationAttribute(
     DIE *VariableDIE, const DIGlobalVariable *GV, ArrayRef<GlobalExpr> GlobalExprs) {
   bool addToAccelTable = false;
   DIELoc *Loc = nullptr;
-  Optional<unsigned> NVPTXAddressSpace;
+  std::optional<unsigned> NVPTXAddressSpace;
   std::unique_ptr<DIEDwarfExpression> DwarfExpr;
   for (const auto &GE : GlobalExprs) {
     const GlobalVariable *Global = GE.Var;
@@ -340,7 +341,7 @@ void DwarfCompileUnit::addLocationAttribute(
     // correctly interpret address space of the variable address.
     const unsigned NVPTX_ADDR_global_space = 5;
     addUInt(*VariableDIE, dwarf::DW_AT_address_class, dwarf::DW_FORM_data1,
-            NVPTXAddressSpace ? *NVPTXAddressSpace : NVPTX_ADDR_global_space);
+            NVPTXAddressSpace.value_or(NVPTX_ADDR_global_space));
   }
   if (Loc)
     addBlock(*VariableDIE, dwarf::DW_AT_location, DwarfExpr->finalize());
@@ -445,7 +446,12 @@ void DwarfCompileUnit::attachLowHighPC(DIE &D, const MCSymbol *Begin,
 // scope then create and insert DIEs for these variables.
 DIE &DwarfCompileUnit::updateSubprogramScopeDIE(const DISubprogram *SP) {
   DIE *SPDie = getOrCreateSubprogramDIE(SP, includeMinimalInlineScopes());
+  auto *ContextCU = static_cast<DwarfCompileUnit *>(SPDie->getUnit());
+  return ContextCU->updateSubprogramScopeDIEImpl(SP, SPDie);
+}
 
+DIE &DwarfCompileUnit::updateSubprogramScopeDIEImpl(const DISubprogram *SP,
+                                                    DIE *SPDie) {
   SmallVector<RangeSpan, 2> BB_List;
   // If basic block sections are on, ranges for each basic block section has
   // to be emitted separately.
@@ -547,11 +553,8 @@ void DwarfCompileUnit::constructScopeDIE(LexicalScope *Scope,
 
   // Emit inlined subprograms.
   if (Scope->getParent() && isa<DISubprogram>(DS)) {
-    DIE *ScopeDIE = constructInlinedScopeDIE(Scope);
-    if (!ScopeDIE)
-      return;
-
-    ParentScopeDIE.addChild(ScopeDIE);
+    DIE *ScopeDIE = constructInlinedScopeDIE(Scope, ParentScopeDIE);
+    assert(ScopeDIE && "Scope DIE should not be null.");
     createAndAddScopeChildren(Scope, *ScopeDIE);
     return;
   }
@@ -650,9 +653,8 @@ void DwarfCompileUnit::attachRangesOrLowHighPC(
   attachRangesOrLowHighPC(Die, std::move(List));
 }
 
-// This scope represents inlined body of a function. Construct DIE to
-// represent this concrete inlined copy of the function.
-DIE *DwarfCompileUnit::constructInlinedScopeDIE(LexicalScope *Scope) {
+DIE *DwarfCompileUnit::constructInlinedScopeDIE(LexicalScope *Scope,
+                                                DIE &ParentScopeDIE) {
   assert(Scope->getScopeNode());
   auto *DS = Scope->getScopeNode();
   auto *InlinedSP = getDISubprogram(DS);
@@ -662,6 +664,7 @@ DIE *DwarfCompileUnit::constructInlinedScopeDIE(LexicalScope *Scope) {
   assert(OriginDIE && "Unable to find original DIE for an inlined subprogram.");
 
   auto ScopeDIE = DIE::get(DIEValueAllocator, dwarf::DW_TAG_inlined_subroutine);
+  ParentScopeDIE.addChild(ScopeDIE);
   addDIEEntry(*ScopeDIE, dwarf::DW_AT_abstract_origin, *OriginDIE);
 
   attachRangesOrLowHighPC(*ScopeDIE, Scope->getRanges());
@@ -845,10 +848,10 @@ DIE *DwarfCompileUnit::constructVariableDIEImpl(const DbgVariable &DV,
   if (!DV.hasFrameIndexExprs())
     return VariableDie;
 
-  Optional<unsigned> NVPTXAddressSpace;
+  std::optional<unsigned> NVPTXAddressSpace;
   DIELoc *Loc = new (DIEValueAllocator) DIELoc;
   DIEDwarfExpression DwarfExpr(*Asm, *this, *Loc);
-  for (auto &Fragment : DV.getFrameIndexExprs()) {
+  for (const auto &Fragment : DV.getFrameIndexExprs()) {
     Register FrameReg;
     const DIExpression *Expr = Fragment.Expr;
     const TargetFrameLowering *TFI = Asm->MF->getSubtarget().getFrameLowering();
@@ -893,7 +896,7 @@ DIE *DwarfCompileUnit::constructVariableDIEImpl(const DbgVariable &DV,
     // correctly interpret address space of the variable address.
     const unsigned NVPTX_ADDR_local_space = 6;
     addUInt(*VariableDie, dwarf::DW_AT_address_class, dwarf::DW_FORM_data1,
-            NVPTXAddressSpace ? *NVPTXAddressSpace : NVPTX_ADDR_local_space);
+            NVPTXAddressSpace.value_or(NVPTX_ADDR_local_space));
   }
   addBlock(*VariableDie, dwarf::DW_AT_location, DwarfExpr.finalize());
   if (DwarfExpr.TagOffset)
@@ -970,7 +973,7 @@ sortLocalVars(SmallVectorImpl<DbgVariable *> &Input) {
   SmallDenseSet<DbgVariable *, 8> Visiting;
 
   // Initialize the worklist and the DIVariable lookup table.
-  for (auto Var : reverse(Input)) {
+  for (auto *Var : reverse(Input)) {
     DbgVar.insert({Var->getVariable(), Var});
     WorkList.push_back({Var, 0});
   }
@@ -1005,7 +1008,7 @@ sortLocalVars(SmallVectorImpl<DbgVariable *> &Input) {
     // Push dependencies and this node onto the worklist, so that this node is
     // visited again after all of its dependencies are handled.
     WorkList.push_back({Var, 1});
-    for (auto *Dependency : dependencies(Var)) {
+    for (const auto *Dependency : dependencies(Var)) {
       // Don't add dependency if it is in a different lexical scope or a global.
       if (const auto *Dep = dyn_cast<const DILocalVariable>(Dependency))
         if (DbgVariable *Var = DbgVar.lookup(Dep))
@@ -1018,6 +1021,7 @@ sortLocalVars(SmallVectorImpl<DbgVariable *> &Input) {
 DIE &DwarfCompileUnit::constructSubprogramScopeDIE(const DISubprogram *Sub,
                                                    LexicalScope *Scope) {
   DIE &ScopeDIE = updateSubprogramScopeDIE(Sub);
+  auto *ContextCU = static_cast<DwarfCompileUnit *>(ScopeDIE.getUnit());
 
   if (Scope) {
     assert(!Scope->getInlinedAt());
@@ -1025,8 +1029,10 @@ DIE &DwarfCompileUnit::constructSubprogramScopeDIE(const DISubprogram *Sub,
     // Collect lexical scope children first.
     // ObjectPointer might be a local (non-argument) local variable if it's a
     // block's synthetic this pointer.
-    if (DIE *ObjectPointer = createAndAddScopeChildren(Scope, ScopeDIE))
-      addDIEEntry(ScopeDIE, dwarf::DW_AT_object_pointer, *ObjectPointer);
+    if (DIE *ObjectPointer =
+            ContextCU->createAndAddScopeChildren(Scope, ScopeDIE))
+      ContextCU->addDIEEntry(ScopeDIE, dwarf::DW_AT_object_pointer,
+                             *ObjectPointer);
   }
 
   // If this is a variadic function, add an unspecified parameter.

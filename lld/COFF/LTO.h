@@ -27,14 +27,11 @@
 #include <memory>
 #include <vector>
 
-namespace llvm {
-namespace lto {
+namespace llvm::lto {
 class LTO;
 }
-}
 
-namespace lld {
-namespace coff {
+namespace lld::coff {
 
 class BitcodeFile;
 class InputFile;
@@ -50,12 +47,12 @@ public:
 
 private:
   std::unique_ptr<llvm::lto::LTO> ltoObj;
-  std::vector<SmallString<0>> buf;
+  std::vector<std::pair<std::string, SmallString<0>>> buf;
   std::vector<std::unique_ptr<MemoryBuffer>> files;
+  std::vector<std::string> file_names;
   std::unique_ptr<llvm::raw_fd_ostream> indexFile;
   llvm::DenseSet<StringRef> thinIndices;
 };
-}
 }
 
 #endif

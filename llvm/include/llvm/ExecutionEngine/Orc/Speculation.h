@@ -88,10 +88,10 @@ private:
     for (auto &Callee : CandidateSet) {
       auto ImplSymbol = AliaseeImplTable.getImplFor(Callee);
       // try to distinguish already compiled & library symbols
-      if (!ImplSymbol.hasValue())
+      if (!ImplSymbol)
         continue;
-      const auto &ImplSymbolName = ImplSymbol.getPointer()->first;
-      JITDylib *ImplJD = ImplSymbol.getPointer()->second;
+      const auto &ImplSymbolName = ImplSymbol->first;
+      JITDylib *ImplJD = ImplSymbol->second;
       auto &SymbolsInJD = SpeculativeLookUpImpls[ImplJD];
       SymbolsInJD.insert(ImplSymbolName);
     }

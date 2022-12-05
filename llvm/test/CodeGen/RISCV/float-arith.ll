@@ -238,8 +238,8 @@ define float @fsgnjn_s(float %a, float %b) nounwind {
 ; RV32I-NEXT:    not a0, a0
 ; RV32I-NEXT:    lui a1, 524288
 ; RV32I-NEXT:    and a0, a0, a1
-; RV32I-NEXT:    slli a1, s0, 1
-; RV32I-NEXT:    srli a1, a1, 1
+; RV32I-NEXT:    slli s0, s0, 1
+; RV32I-NEXT:    srli a1, s0, 1
 ; RV32I-NEXT:    or a0, a1, a0
 ; RV32I-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s0, 8(sp) # 4-byte Folded Reload
@@ -256,8 +256,8 @@ define float @fsgnjn_s(float %a, float %b) nounwind {
 ; RV64I-NEXT:    not a0, a0
 ; RV64I-NEXT:    lui a1, 524288
 ; RV64I-NEXT:    and a0, a0, a1
-; RV64I-NEXT:    slli a1, s0, 33
-; RV64I-NEXT:    srli a1, a1, 33
+; RV64I-NEXT:    slli s0, s0, 33
+; RV64I-NEXT:    srli a1, s0, 33
 ; RV64I-NEXT:    or a0, a1, a0
 ; RV64I-NEXT:    ld ra, 8(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s0, 0(sp) # 8-byte Folded Reload
@@ -611,6 +611,12 @@ define float @fnmadd_s_3(float %a, float %b, float %c) nounwind {
 ; RV64IF-NEXT:    fneg.s fa0, ft0
 ; RV64IF-NEXT:    ret
 ;
+; CHECKIF-LABEL: fnmadd_s_3:
+; CHECKIF:       # %bb.0:
+; CHECKIF-NEXT:    fmadd.s ft0, fa0, fa1, fa2
+; CHECKIF-NEXT:    fneg.s fa0, ft0
+; CHECKIF-NEXT:    ret
+;
 ; RV32I-LABEL: fnmadd_s_3:
 ; RV32I:       # %bb.0:
 ; RV32I-NEXT:    addi sp, sp, -16
@@ -647,6 +653,11 @@ define float @fnmadd_nsz(float %a, float %b, float %c) nounwind {
 ; RV64IF:       # %bb.0:
 ; RV64IF-NEXT:    fnmadd.s fa0, fa0, fa1, fa2
 ; RV64IF-NEXT:    ret
+;
+; CHECKIF-LABEL: fnmadd_nsz:
+; CHECKIF:       # %bb.0:
+; CHECKIF-NEXT:    fnmadd.s fa0, fa0, fa1, fa2
+; CHECKIF-NEXT:    ret
 ;
 ; RV32I-LABEL: fnmadd_nsz:
 ; RV32I:       # %bb.0:

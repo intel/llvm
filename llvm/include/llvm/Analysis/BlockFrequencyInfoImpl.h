@@ -43,6 +43,7 @@
 #include <iterator>
 #include <limits>
 #include <list>
+#include <optional>
 #include <queue>
 #include <string>
 #include <utility>
@@ -1262,7 +1263,7 @@ bool BlockFrequencyInfoImpl<BT>::computeMassInLoop(LoopData &Loop) {
     LLVM_DEBUG(dbgs() << "isIrreducible = true\n");
     Distribution Dist;
     unsigned NumHeadersWithWeight = 0;
-    Optional<uint64_t> MinHeaderWeight;
+    std::optional<uint64_t> MinHeaderWeight;
     DenseSet<uint32_t> HeadersWithoutWeight;
     HeadersWithoutWeight.reserve(Loop.NumHeaders);
     for (uint32_t H = 0; H < Loop.NumHeaders; ++H) {
@@ -1278,9 +1279,9 @@ bool BlockFrequencyInfoImpl<BT>::computeMassInLoop(LoopData &Loop) {
       }
       LLVM_DEBUG(dbgs() << getBlockName(HeaderNode)
                         << " has irr loop header weight "
-                        << HeaderWeight.getValue() << "\n");
+                        << HeaderWeight.value() << "\n");
       NumHeadersWithWeight++;
-      uint64_t HeaderWeightValue = HeaderWeight.getValue();
+      uint64_t HeaderWeightValue = HeaderWeight.value();
       if (!MinHeaderWeight || HeaderWeightValue < MinHeaderWeight)
         MinHeaderWeight = HeaderWeightValue;
       if (HeaderWeightValue) {
@@ -1299,7 +1300,7 @@ bool BlockFrequencyInfoImpl<BT>::computeMassInLoop(LoopData &Loop) {
       auto &HeaderNode = Loop.Nodes[H];
       assert(!getBlock(HeaderNode)->getIrrLoopHeaderWeight() &&
              "Shouldn't have a weight metadata");
-      uint64_t MinWeight = MinHeaderWeight.getValue();
+      uint64_t MinWeight = *MinHeaderWeight;
       LLVM_DEBUG(dbgs() << "Giving weight " << MinWeight << " to "
                         << getBlockName(HeaderNode) << "\n");
       if (MinWeight)
@@ -1442,7 +1443,7 @@ void BlockFrequencyInfoImpl<BT>::iterativeInference(
   // Successors[I] holds unique sucessors of the I-th block
   auto Successors = std::vector<std::vector<size_t>>(Freq.size());
   for (size_t I = 0; I < Freq.size(); I++) {
-    for (auto &Jump : ProbMatrix[I]) {
+    for (const auto &Jump : ProbMatrix[I]) {
       Successors[Jump.first].push_back(I);
     }
   }
@@ -1472,7 +1473,7 @@ void BlockFrequencyInfoImpl<BT>::iterativeInference(
     // (1.0 - SelfProb), where SelfProb is the sum of probabilities on the edges
     Scaled64 NewFreq;
     Scaled64 OneMinusSelfProb = Scaled64::getOne();
-    for (auto &Jump : ProbMatrix[I]) {
+    for (const auto &Jump : ProbMatrix[I]) {
       if (Jump.first == I) {
         OneMinusSelfProb -= Jump.second;
       } else {
@@ -1732,10 +1733,10 @@ raw_ostream &BlockFrequencyInfoImpl<BT>::print(raw_ostream &OS) const {
     if (Optional<uint64_t> ProfileCount =
         BlockFrequencyInfoImplBase::getBlockProfileCount(
             F->getFunction(), getNode(&BB)))
-      OS << ", count = " << ProfileCount.getValue();
+      OS << ", count = " << ProfileCount.value();
     if (Optional<uint64_t> IrrLoopHeaderWeight =
         BB.getIrrLoopHeaderWeight())
-      OS << ", irr_loop_header_weight = " << IrrLoopHeaderWeight.getValue();
+      OS << ", irr_loop_header_weight = " << IrrLoopHeaderWeight.value();
     OS << "\n";
   }
 
@@ -1869,7 +1870,7 @@ struct BFIDOTGraphTraitsBase : public DefaultDOTGraphTraits {
     case GVDT_Count: {
       auto Count = Graph->getBlockProfileCount(Node);
       if (Count)
-        OS << Count.getValue();
+        OS << *Count;
       else
         OS << "Unknown";
       break;

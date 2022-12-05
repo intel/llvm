@@ -157,6 +157,8 @@ public:
 
   // Only implement for XCOFF
   virtual void printAuxiliaryHeader() {}
+  virtual void printExceptionSection() {}
+  virtual void printLoaderSection(bool PrintHeader, bool PrintSymbolTable) {}
 
   // Only implemented for MachO.
   virtual void printMachODataInCode() { }

@@ -123,6 +123,7 @@ namespace llvm {
     /// XXPERMDI - The PPC XXPERMDI instruction
     ///
     XXPERMDI,
+    XXPERM,
 
     /// The CMPB instruction (takes two operands of i32 or i64).
     CMPB,
@@ -594,6 +595,11 @@ namespace llvm {
     ATOMIC_CMP_SWAP_8,
     ATOMIC_CMP_SWAP_16,
 
+    /// CHAIN,Glue = STORE_COND CHAIN, GPR, Ptr
+    /// The store conditional instruction ST[BHWD]ARX that produces a glue
+    /// result to attach it to a conditional branch.
+    STORE_COND,
+
     /// GPRC = TOC_ENTRY GA, TOC
     /// Loads the entry for GA from the TOC, where the TOC base is given by
     /// the last operand.
@@ -790,11 +796,11 @@ namespace llvm {
       return MVT::i32;
     }
 
-    bool isCheapToSpeculateCttz() const override {
+    bool isCheapToSpeculateCttz(Type *Ty) const override {
       return true;
     }
 
-    bool isCheapToSpeculateCtlz() const override {
+    bool isCheapToSpeculateCtlz(Type *Ty) const override {
       return true;
     }
 
@@ -954,9 +960,9 @@ namespace llvm {
     MachineBasicBlock *emitProbedAlloca(MachineInstr &MI,
                                         MachineBasicBlock *MBB) const;
 
-    bool hasInlineStackProbe(MachineFunction &MF) const override;
+    bool hasInlineStackProbe(const MachineFunction &MF) const override;
 
-    unsigned getStackProbeSize(MachineFunction &MF) const;
+    unsigned getStackProbeSize(const MachineFunction &MF) const;
 
     ConstraintType getConstraintType(StringRef Constraint) const override;
 
@@ -994,6 +1000,10 @@ namespace llvm {
         return InlineAsm::Constraint_Zy;
       return TargetLowering::getInlineAsmMemConstraint(ConstraintCode);
     }
+
+    void CollectTargetIntrinsicOperands(const CallInst &I,
+                                 SmallVectorImpl<SDValue> &Ops,
+                                 SelectionDAG &DAG) const override;
 
     /// isLegalAddressingMode - Return true if the addressing mode represented
     /// by AM is legal for this target, for a load/store of the specified type.
@@ -1067,7 +1077,7 @@ namespace llvm {
     bool allowsMisalignedMemoryAccesses(
         EVT VT, unsigned AddrSpace, Align Alignment = Align(1),
         MachineMemOperand::Flags Flags = MachineMemOperand::MONone,
-        bool *Fast = nullptr) const override;
+        unsigned *Fast = nullptr) const override;
 
     /// isFMAFasterThanFMulAndFAdd - Return true if an FMA operation is faster
     /// than a pair of fmul and fadd instructions. fmuladd intrinsics will be
@@ -1281,6 +1291,8 @@ namespace llvm {
     SDValue LowerFunnelShift(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerBUILD_VECTOR(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerVECTOR_SHUFFLE(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerVPERM(SDValue Op, SelectionDAG &DAG, ArrayRef<int> PermMask,
+                       EVT VT, SDValue V1, SDValue V2) const;
     SDValue LowerINSERT_VECTOR_ELT(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerINTRINSIC_WO_CHAIN(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerINTRINSIC_VOID(SDValue Op, SelectionDAG &DAG) const;
@@ -1293,6 +1305,7 @@ namespace llvm {
                                     SelectionDAG &DAG) const;
     bool isLowringToMASSFiniteSafe(SDValue Op) const;
     bool isLowringToMASSSafe(SDValue Op) const;
+    bool isScalarMASSConversionEnabled() const;
     SDValue lowerLibCallBase(const char *LibCallDoubleName,
                              const char *LibCallFloatName,
                              const char *LibCallDoubleNameFinite,

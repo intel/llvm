@@ -130,7 +130,7 @@ private:
                                     MachineInstr &SCCDefInst,
                                     SetVectorType &Worklist,
                                     Register NewCond = Register()) const;
-  void addSCCDefsToVALUWorklist(MachineOperand &Op,
+  void addSCCDefsToVALUWorklist(MachineInstr *SCCUseInst,
                                 SetVectorType &Worklist) const;
 
   const TargetRegisterClass *
@@ -184,8 +184,7 @@ public:
     return ST;
   }
 
-  bool isReallyTriviallyReMaterializable(const MachineInstr &MI,
-                                         AAResults *AA) const override;
+  bool isReallyTriviallyReMaterializable(const MachineInstr &MI) const override;
 
   bool isIgnorableUse(const MachineOperand &MO) const override;
 
@@ -211,10 +210,8 @@ public:
                    bool KillSrc) const override;
 
   void materializeImmediate(MachineBasicBlock &MBB,
-                            MachineBasicBlock::iterator MI,
-                            const DebugLoc &DL,
-                            unsigned DestReg,
-                            int64_t Value) const;
+                            MachineBasicBlock::iterator MI, const DebugLoc &DL,
+                            Register DestReg, int64_t Value) const;
 
   const TargetRegisterClass *getPreferredSelectRegClass(
                                unsigned Size) const;
@@ -277,6 +274,10 @@ public:
                              int64_t BrOffset) const override;
 
   MachineBasicBlock *getBranchDestBlock(const MachineInstr &MI) const override;
+
+  /// Return whether the block terminate with divergent branch.
+  /// Note this only work before lowering the pseudo control flow instructions.
+  bool hasDivergentBranch(const MachineBasicBlock *MBB) const;
 
   void insertIndirectBranch(MachineBasicBlock &MBB,
                             MachineBasicBlock &NewDestBB,
@@ -554,6 +555,14 @@ public:
     return MI.getDesc().TSFlags & SIInstrFlags::EXP;
   }
 
+  static bool isDualSourceBlendEXP(const MachineInstr &MI) {
+    if (!isEXP(MI))
+      return false;
+    unsigned Target = MI.getOperand(0).getImm();
+    return Target == AMDGPU::Exp::ET_DUAL_SRC_BLEND0 ||
+           Target == AMDGPU::Exp::ET_DUAL_SRC_BLEND1;
+  }
+
   bool isEXP(uint16_t Opcode) const {
     return get(Opcode).TSFlags & SIInstrFlags::EXP;
   }
@@ -665,6 +674,14 @@ public:
     return MI.getDesc().TSFlags & SIInstrFlags::IsDOT;
   }
 
+  static bool isWMMA(const MachineInstr &MI) {
+    return MI.getDesc().TSFlags & SIInstrFlags::IsWMMA;
+  }
+
+  bool isWMMA(uint16_t Opcode) const {
+    return get(Opcode).TSFlags & SIInstrFlags::IsWMMA;
+  }
+
   bool isDOT(uint16_t Opcode) const {
     return get(Opcode).TSFlags & SIInstrFlags::IsDOT;
   }
@@ -706,7 +723,7 @@ public:
   }
 
   /// \returns true if this is an s_store_dword* instruction. This is more
-  /// specific than than isSMEM && mayStore.
+  /// specific than isSMEM && mayStore.
   static bool isScalarStore(const MachineInstr &MI) {
     return MI.getDesc().TSFlags & SIInstrFlags::SCALAR_STORE;
   }
@@ -791,6 +808,13 @@ public:
     return isInlineConstant(Imm.bitcastToAPInt());
   }
 
+  // Returns true if this non-register operand definitely does not need to be
+  // encoded as a 32-bit literal. Note that this function handles all kinds of
+  // operands, not just immediates.
+  //
+  // Some operands like FrameIndexes could resolve to an inline immediate value
+  // that will not require an additional 4-bytes; this function assumes that it
+  // will.
   bool isInlineConstant(const MachineOperand &MO, uint8_t OperandType) const;
 
   bool isInlineConstant(const MachineOperand &MO,
@@ -840,23 +864,6 @@ public:
     const MachineInstr *Parent = MO.getParent();
     return isInlineConstant(*Parent, Parent->getOperandNo(&MO));
   }
-
-  bool isLiteralConstant(const MachineOperand &MO,
-                         const MCOperandInfo &OpInfo) const {
-    return MO.isImm() && !isInlineConstant(MO, OpInfo.OperandType);
-  }
-
-  bool isLiteralConstant(const MachineInstr &MI, int OpIdx) const {
-    const MachineOperand &MO = MI.getOperand(OpIdx);
-    return MO.isImm() && !isInlineConstant(MI, OpIdx);
-  }
-
-  // Returns true if this operand could potentially require a 32-bit literal
-  // operand, but not necessarily. A FrameIndex for example could resolve to an
-  // inline immediate value that will not require an additional 4-bytes; this
-  // assumes that it will.
-  bool isLiteralConstantLike(const MachineOperand &MO,
-                             const MCOperandInfo &OpInfo) const;
 
   bool isImmOperandLegal(const MachineInstr &MI, unsigned OpNo,
                          const MachineOperand &MO) const;
@@ -1224,6 +1231,9 @@ namespace AMDGPU {
 
   LLVM_READONLY
   int getDPPOp32(uint16_t Opcode);
+
+  LLVM_READONLY
+  int getDPPOp64(uint16_t Opcode);
 
   LLVM_READONLY
   int getBasicFromSDWAOp(uint16_t Opcode);

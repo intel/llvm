@@ -172,7 +172,7 @@ static MarshallingInfo createMarshallingInfo(const Record &R) {
   Ret.NormalizedValuesScope = R.getValueAsString("NormalizedValuesScope");
   Ret.ImpliedCheck = R.getValueAsString("ImpliedCheck");
   Ret.ImpliedValue =
-      R.getValueAsOptionalString("ImpliedValue").getValueOr(Ret.DefaultValue);
+      R.getValueAsOptionalString("ImpliedValue").value_or(Ret.DefaultValue);
 
   Ret.ShouldParse = R.getValueAsString("ShouldParse");
   Ret.Normalizer = R.getValueAsString("Normalizer");
@@ -448,12 +448,10 @@ void EmitOptParser(RecordKeeper &Records, raw_ostream &OS) {
 
   OS << MarshallingInfo::ValueTablesDecl << "{";
   for (auto ValueTableName : ValueTableNames)
-    OS << "{" << ValueTableName << ", sizeof(" << ValueTableName
-       << ") / sizeof(SimpleEnumValue)"
-       << "},\n";
+    OS << "{" << ValueTableName << ", std::size(" << ValueTableName << ")},\n";
   OS << "};\n";
   OS << "static const unsigned SimpleEnumValueTablesSize = "
-        "sizeof(SimpleEnumValueTables) / sizeof(SimpleEnumValueTable);\n";
+        "std::size(SimpleEnumValueTables);\n";
 
   OS << "#endif // SIMPLE_ENUM_VALUE_TABLE\n";
   OS << "\n";

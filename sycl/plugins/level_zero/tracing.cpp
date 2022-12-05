@@ -12,7 +12,7 @@
 #include <level_zero/ze_api.h>
 #include <xpti/xpti_trace_framework.h>
 
-#include <iostream>
+#include <sycl/detail/iostream_proxy.hpp>
 
 constexpr auto ZE_CALL_STREAM_NAME = "sycl.experimental.level_zero.call";
 constexpr auto ZE_DEBUG_STREAM_NAME = "sycl.experimental.level_zero.debug";

@@ -7,13 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/opencl.h>
-#include <CL/sycl.hpp>
-#include <CL/sycl/backend/opencl.hpp>
+#include <sycl/backend/opencl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <gtest/gtest.h>
 
 namespace {
-using namespace cl::sycl;
+using namespace sycl;
 
 TEST(PiUtilityTest, CheckPiCastScalar) {
   std::int32_t I = 42;

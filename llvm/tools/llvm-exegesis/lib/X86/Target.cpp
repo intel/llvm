@@ -31,6 +31,9 @@
 #include <immintrin.h>
 #include <intrin.h>
 #endif
+#if defined(__x86_64__) && defined(_MSC_VER)
+#include <float.h> // For _clearfp in ~X86SavedState().
+#endif
 
 namespace llvm {
 namespace exegesis {
@@ -706,8 +709,7 @@ private:
 
   ArrayRef<unsigned> getUnavailableRegisters() const override {
     return makeArrayRef(kUnavailableRegisters,
-                        sizeof(kUnavailableRegisters) /
-                            sizeof(kUnavailableRegisters[0]));
+                        std::size(kUnavailableRegisters));
   }
 
   bool allowAsBackToBack(const Instruction &Instr) const override {

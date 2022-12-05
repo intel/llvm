@@ -16,6 +16,7 @@
 
 #include "llvm/Analysis/LoopAnalysisManager.h"
 #include "llvm/IR/PassManager.h"
+#include <optional>
 
 namespace llvm {
 
@@ -108,8 +109,9 @@ private:
   /// Return true if the indexed reference is 'consecutive' in loop \p L.
   /// An indexed reference is 'consecutive' if the only coefficient that uses
   /// the loop induction variable is the rightmost one, and the access stride is
-  /// smaller than the cache line size \p CLS.
-  bool isConsecutive(const Loop &L, unsigned CLS) const;
+  /// smaller than the cache line size \p CLS. Provide a valid \p Stride value
+  /// if the indexed reference is 'consecutive'.
+  bool isConsecutive(const Loop &L, const SCEV *&Stride, unsigned CLS) const;
 
   /// Retrieve the index of the subscript corresponding to the given loop \p
   /// L. Return a zero-based positive index if the subscript index is
@@ -268,7 +270,7 @@ private:
 
   /// The max. distance between array elements accessed in a loop so that the
   /// elements are classified to have temporal reuse.
-  Optional<unsigned> TRT;
+  std::optional<unsigned> TRT;
 
   const LoopInfo &LI;
   ScalarEvolution &SE;

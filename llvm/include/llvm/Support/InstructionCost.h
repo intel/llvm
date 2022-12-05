@@ -21,6 +21,7 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/Support/MathExtras.h"
 #include <limits>
+#include <optional>
 
 namespace llvm {
 
@@ -84,7 +85,7 @@ public:
   /// This function is intended to be used as sparingly as possible, since the
   /// class provides the full range of operator support required for arithmetic
   /// and comparisons.
-  Optional<CostType> getValue() const {
+  std::optional<CostType> getValue() const {
     if (isValid())
       return Value;
     return None;
@@ -244,7 +245,7 @@ public:
   template <class Function>
   auto map(const Function &F) const -> InstructionCost {
     if (isValid())
-      return F(*getValue());
+      return F(Value);
     return getInvalid();
   }
 };

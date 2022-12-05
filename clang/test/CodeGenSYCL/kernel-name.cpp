@@ -6,7 +6,7 @@ inline namespace cl {
   }
 }
 
-using namespace cl::sycl;
+using namespace sycl;
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {

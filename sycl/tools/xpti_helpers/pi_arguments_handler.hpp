@@ -9,15 +9,17 @@
 
 #pragma once
 
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/type_traits.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/detail/type_traits.hpp>
+
+#include <sycl/detail/defines_elementary.hpp>
 
 #include <functional>
 #include <optional>
 #include <tuple>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace xpti_helpers {
 
 template <typename TupleT, size_t... Is>
@@ -69,14 +71,15 @@ public:
     MHandler##_##api(Plugin, Result, ArgsData);                                \
     return;                                                                    \
   }
-#include <CL/sycl/detail/pi.def>
+#include <sycl/detail/pi.def>
 #undef _PI_API
   }
 
 #define _PI_API(api)                                                           \
   void set##_##api(                                                            \
-      const typename to_function<typename detail::function_traits<decltype(    \
-          api)>::args_type>::type &Handler) {                                  \
+      const typename to_function<                                              \
+          typename detail::function_traits<decltype(api)>::args_type>::type    \
+          &Handler) {                                                          \
     MHandler##_##api = [Handler](const pi_plugin &Plugin,                      \
                                  std::optional<pi_result> Res, void *Data) {   \
       using TupleT =                                                           \
@@ -84,13 +87,13 @@ public:
       TupleT Tuple = unpack<TupleT>(                                           \
           (char *)Data,                                                        \
           std::make_index_sequence<std::tuple_size<TupleT>::value>{});         \
-      const auto Wrapper = [&Plugin, Res, Handler](auto &... Args) {           \
+      const auto Wrapper = [&Plugin, Res, Handler](auto &...Args) {            \
         Handler(Plugin, Res, Args...);                                         \
       };                                                                       \
       std::apply(Wrapper, Tuple);                                              \
     };                                                                         \
   }
-#include <CL/sycl/detail/pi.def>
+#include <sycl/detail/pi.def>
 #undef _PI_API
 
 private:
@@ -98,9 +101,9 @@ private:
   std::function<void(const pi_plugin &, std::optional<pi_result>, void *)>     \
       MHandler##_##api =                                                       \
           [](const pi_plugin &, std::optional<pi_result>, void *) {};
-#include <CL/sycl/detail/pi.def>
+#include <sycl/detail/pi.def>
 #undef _PI_API
 };
 } // namespace xpti_helpers
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

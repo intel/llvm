@@ -1,5 +1,8 @@
 // REQUIRES: x86-registered-target
 
+// FIXME: enable opaque pointers support
+// UNSUPPORTED: enable-opaque-pointers
+
 //
 // Check help message.
 //
@@ -83,7 +86,7 @@
 // CHECK-HELP:     =hip                  -   HIP
 // CHECK-HELP:     =sycl                 -   SYCL
 // CHECK-HELP:   --link-opts=<string>    - link options passed to the offload runtime
-// CHECK-HELP:   -o=<filename>           - Output filename
+// CHECK-HELP:   -o <filename>           - Output filename
 // CHECK-HELP:   --properties=<filename> - File listing device binary image properties, SYCL offload only
 // CHECK-HELP:   --target=<string>       - offload target triple
 // CHECK-HELP:   -v                      - verbose output

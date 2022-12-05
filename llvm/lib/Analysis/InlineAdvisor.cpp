@@ -56,7 +56,14 @@ static cl::opt<int>
                         cl::desc("Scale to limit the cost of inline deferral"),
                         cl::init(2), cl::Hidden);
 
+static cl::opt<bool>
+    AnnotateInlinePhase("annotate-inline-phase", cl::Hidden, cl::init(false),
+                        cl::desc("If true, annotate inline advisor remarks "
+                                 "with LTO and pass information."));
+
+namespace llvm {
 extern cl::opt<InlinerFunctionImportStatsOpts> InlinerFunctionImportStats;
+}
 
 namespace {
 using namespace llvm::ore;
@@ -153,7 +160,7 @@ llvm::Optional<llvm::InlineCost> static getDefaultInlineAdvice(
   };
   return llvm::shouldInline(
       CB, GetInlineCost, ORE,
-      Params.EnableDeferral.getValueOr(EnableInlineDeferral));
+      Params.EnableDeferral.value_or(EnableInlineDeferral));
 }
 
 std::unique_ptr<InlineAdvice>
@@ -192,18 +199,18 @@ AnalysisKey InlineAdvisorAnalysis::Key;
 
 bool InlineAdvisorAnalysis::Result::tryCreate(
     InlineParams Params, InliningAdvisorMode Mode,
-    const ReplayInlinerSettings &ReplaySettings) {
+    const ReplayInlinerSettings &ReplaySettings, InlineContext IC) {
   auto &FAM = MAM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
   switch (Mode) {
   case InliningAdvisorMode::Default:
     LLVM_DEBUG(dbgs() << "Using default inliner heuristic.\n");
-    Advisor.reset(new DefaultInlineAdvisor(M, FAM, Params));
+    Advisor.reset(new DefaultInlineAdvisor(M, FAM, Params, IC));
     // Restrict replay to default advisor, ML advisors are stateful so
     // replay will need augmentations to interleave with them correctly.
     if (!ReplaySettings.ReplayFile.empty()) {
       Advisor = llvm::getReplayInlineAdvisor(M, FAM, M.getContext(),
                                              std::move(Advisor), ReplaySettings,
-                                             /* EmitRemarks =*/true);
+                                             /* EmitRemarks =*/true, IC);
     }
     break;
   case InliningAdvisorMode::Development:
@@ -212,7 +219,7 @@ bool InlineAdvisorAnalysis::Result::tryCreate(
     Advisor =
         llvm::getDevelopmentModeAdvisor(M, MAM, [&FAM, Params](CallBase &CB) {
           auto OIC = getDefaultInlineAdvice(CB, FAM, Params);
-          return OIC.hasValue();
+          return OIC.has_value();
         });
 #endif
     break;
@@ -508,7 +515,10 @@ void llvm::emitInlinedIntoBasedOnCost(
 
 InlineAdvisor::InlineAdvisor(Module &M, FunctionAnalysisManager &FAM,
                              Optional<InlineContext> IC)
-    : M(M), FAM(FAM), IC(IC) {
+    : M(M), FAM(FAM), IC(IC),
+      AnnotatedInlinePassName((IC && AnnotateInlinePhase)
+                                  ? llvm::AnnotateInlinePassName(*IC)
+                                  : DEBUG_TYPE) {
   if (InlinerFunctionImportStats != InlinerFunctionImportStatsOpts::No) {
     ImportedFunctionsStats =
         std::make_unique<ImportedFunctionsInliningStatistics>();
@@ -572,18 +582,6 @@ std::string llvm::AnnotateInlinePassName(InlineContext IC) {
          std::string(getInlineAdvisorContext(IC.Pass));
 }
 
-const char *InlineAdvisor::getAnnotatedInlinePassName() {
-  if (!IC.hasValue())
-    return DEBUG_TYPE;
-
-  // IC is constant and initialized in constructor, so compute the annotated
-  // name only once.
-  static const std::string PassName =
-      llvm::AnnotateInlinePassName(IC.getValue());
-
-  return PassName.c_str();
-}
-
 InlineAdvisor::MandatoryInliningKind
 InlineAdvisor::getMandatoryKind(CallBase &CB, FunctionAnalysisManager &FAM,
                                 OptimizationRemarkEmitter &ORE) {
@@ -598,7 +596,7 @@ InlineAdvisor::getMandatoryKind(CallBase &CB, FunctionAnalysisManager &FAM,
   auto TrivialDecision =
       llvm::getAttributeBasedInliningDecision(CB, &Callee, TIR, GetTLI);
 
-  if (TrivialDecision.hasValue()) {
+  if (TrivialDecision) {
     if (TrivialDecision->isSuccess())
       return MandatoryInliningKind::Always;
     else

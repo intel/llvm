@@ -3,21 +3,21 @@
 // Tests for AST of __uses_aspects__(aspect, ...) attribute
 #include "sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 queue q;
 
 // CHECK: FunctionDecl {{.*}} func1 'void ()'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: SYCLUsesAspectsAttr
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::aspect' EnumConstant {{.*}} 'cpu' 'sycl::aspect'
-[[__sycl_detail__::__uses_aspects__(cl::sycl::aspect::cpu)]] void func1() {}
+[[__sycl_detail__::__uses_aspects__(sycl::aspect::cpu)]] void func1() {}
 
 // CHECK: FunctionDecl {{.*}} func2 'void ()'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: SYCLUsesAspectsAttr
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::aspect' EnumConstant {{.*}} 'fp16' 'sycl::aspect'
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::aspect' EnumConstant {{.*}} 'gpu' 'sycl::aspect'
-[[__sycl_detail__::__uses_aspects__(cl::sycl::aspect::fp16, cl::sycl::aspect::gpu)]] void func2() {}
+[[__sycl_detail__::__uses_aspects__(sycl::aspect::fp16, sycl::aspect::gpu)]] void func2() {}
 
 // CHECK: FunctionDecl {{.*}} func3 'void ()'
 // CHECK-NEXT: CompoundStmt
@@ -29,10 +29,10 @@ queue q;
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: SYCLUsesAspectsAttr
 // CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}} 'sycl::aspect'
-// CHECK-NEXT: NonTypeTemplateParmDecl {{.*}} referenced 'cl::sycl::aspect':'sycl::aspect' depth 0 index 0 Aspect
+// CHECK-NEXT: NonTypeTemplateParmDecl {{.*}} referenced 'sycl::aspect':'sycl::aspect' depth 0 index 0 Aspect
 // CHECK-NEXT: CStyleCastExpr {{.*}} 'sycl::aspect' <IntegralCast>
 // CHECK-NEXT: IntegerLiteral {{.*}} 'int' 0
-template <cl::sycl::aspect Aspect>
+template <sycl::aspect Aspect>
 [[__sycl_detail__::__uses_aspects__(Aspect)]] void func4() {}
 
 // CHECK: FunctionDecl {{.*}} used func5 'void ()'
@@ -42,25 +42,25 @@ template <cl::sycl::aspect Aspect>
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: SYCLUsesAspectsAttr {{.*}} Inherited
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::aspect' EnumConstant {{.*}} 'cpu' 'sycl::aspect'
-[[__sycl_detail__::__uses_aspects__(cl::sycl::aspect::cpu)]] void func5();
+[[__sycl_detail__::__uses_aspects__(sycl::aspect::cpu)]] void func5();
 void func5() {}
 
 // CHECK: FunctionDecl {{.*}} used func6 'void ()'
 // CHECK-NEXT: SYCLUsesAspectsAttr
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::aspect' EnumConstant {{.*}} 'cpu' 'sycl::aspect'
-[[__sycl_detail__::__uses_aspects__(cl::sycl::aspect::cpu)]] void func6();
+[[__sycl_detail__::__uses_aspects__(sycl::aspect::cpu)]] void func6();
 
 // CHECK: FunctionDecl {{.*}} used func6 'void ()'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: SYCLUsesAspectsAttr
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::aspect' EnumConstant {{.*}} 'gpu' 'sycl::aspect'
 // CHECK-NOT: SYCLUsesAspectsAttr
-[[__sycl_detail__::__uses_aspects__(cl::sycl::aspect::gpu)]] void func6() {}
+[[__sycl_detail__::__uses_aspects__(sycl::aspect::gpu)]] void func6() {}
 
 // CHECK: CXXRecordDecl {{.*}} class TypeWithAspect definition
 // CHECK: SYCLUsesAspectsAttr
 // CHECK-NEXT:DeclRefExpr {{.*}} 'sycl::aspect' EnumConstant {{.*}} 'cpu' 'sycl::aspect'
-class [[__sycl_detail__::__uses_aspects__(cl::sycl::aspect::cpu)]] TypeWithAspect{};
+class [[__sycl_detail__::__uses_aspects__(sycl::aspect::cpu)]] TypeWithAspect{};
 
 class KernelFunctor {
 public:
@@ -68,7 +68,7 @@ public:
     func1();
     func2();
     func3();
-    func4<cl::sycl::aspect::host>();
+    func4<sycl::aspect::host>();
     func5();
     func6();
   }

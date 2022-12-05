@@ -8,18 +8,18 @@
 
 #pragma once
 
-#include <CL/sycl/accessor.hpp>
-#include <CL/sycl/buffer.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/handler.hpp>
-#include <CL/sycl/property_list.hpp>
-#include <CL/sycl/range.hpp>
-#include <CL/sycl/stream.hpp>
+#include <sycl/accessor.hpp>
+#include <sycl/buffer.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/handler.hpp>
+#include <sycl/property_list.hpp>
+#include <sycl/range.hpp>
+#include <sycl/stream.hpp>
 
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 class __SYCL_EXPORT stream_impl {
@@ -42,6 +42,12 @@ public:
   GlobalOffsetAccessorT accessGlobalOffset(handler &CGH);
 
   // Enqueue task to copy stream buffer to the host and print the contents
+  // The host task event is then registered for post processing in the
+  // LeadEvent as well as in queue LeadEvent associated with.
+  void flush(const EventImplPtr &LeadEvent);
+
+  // Enqueue task to copy stream buffer to the host and print the contents
+  // Remove during next ABI breaking window
   void flush();
 
   size_t get_size() const;
@@ -70,9 +76,8 @@ private:
   // Additinonal memory is allocated in the beginning of the stream buffer for
   // 2 variables: offset in the stream buffer and offset in the flush buffer.
   static const size_t OffsetSize = 2 * sizeof(unsigned);
-
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

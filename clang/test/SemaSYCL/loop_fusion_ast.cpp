@@ -3,7 +3,7 @@
 // Tests for AST of Intel FPGA loop fusion function attributes
 #include "sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 queue q;
 
 // CHECK: FunctionDecl {{.*}} func1 'void ()'

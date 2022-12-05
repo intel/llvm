@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "AArch64.h"
+#include "../CommonArgs.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/Options.h"
@@ -37,6 +38,8 @@ std::string aarch64::getAArch64TargetCPU(const ArgList &Args,
     StringRef Mcpu = A->getValue();
     CPU = Mcpu.split("+").first.lower();
   }
+
+  CPU = llvm::AArch64::resolveCPUAlias(CPU);
 
   // Handle CPU name is 'native'.
   if (CPU == "native")
@@ -104,9 +107,11 @@ static bool DecodeAArch64Features(const Driver &D, StringRef text,
     if ((ArchKind == llvm::AArch64::ArchKind::ARMV8_6A ||
          ArchKind == llvm::AArch64::ArchKind::ARMV8_7A ||
          ArchKind == llvm::AArch64::ArchKind::ARMV8_8A ||
+         ArchKind == llvm::AArch64::ArchKind::ARMV8_9A ||
          ArchKind == llvm::AArch64::ArchKind::ARMV9_1A ||
          ArchKind == llvm::AArch64::ArchKind::ARMV9_2A ||
-         ArchKind == llvm::AArch64::ArchKind::ARMV9_3A) &&
+         ArchKind == llvm::AArch64::ArchKind::ARMV9_3A ||
+         ArchKind == llvm::AArch64::ArchKind::ARMV9_4A) &&
         Feature == "sve")
       Features.push_back("+f32mm");
   }
@@ -120,6 +125,8 @@ static bool DecodeAArch64Mcpu(const Driver &D, StringRef Mcpu, StringRef &CPU,
   std::pair<StringRef, StringRef> Split = Mcpu.split("+");
   CPU = Split.first;
   llvm::AArch64::ArchKind ArchKind = llvm::AArch64::ArchKind::ARMV8A;
+
+  CPU = llvm::AArch64::resolveCPUAlias(CPU);
 
   if (CPU == "native")
     CPU = llvm::sys::getHostCPUName();
@@ -265,13 +272,13 @@ void aarch64::getAArch64TargetFeatures(const Driver &D,
         D, getAArch64TargetCPU(Args, Triple, A), Args, Features);
 
   if (!success) {
-    auto Diag = D.Diag(diag::err_drv_clang_unsupported);
+    auto Diag = D.Diag(diag::err_drv_unsupported_option_argument);
     // If "-Wa,-march=" is used, 'WaMArch' will contain the argument's value,
     // while 'A' is uninitialized. Only dereference 'A' in the other case.
     if (!WaMArch.empty())
-      Diag << "-march=" + WaMArch.str();
+      Diag << "-march=" << WaMArch;
     else
-      Diag << A->getAsString(Args);
+      Diag << A->getSpelling() << A->getValue();
   }
 
   if (Args.getLastArg(options::OPT_mgeneral_regs_only)) {
@@ -325,7 +332,7 @@ void aarch64::getAArch64TargetFeatures(const Driver &D,
           continue;
         }
         D.Diag(diag::err_drv_unsupported_option_argument)
-            << A->getOption().getName() << Scope;
+            << A->getSpelling() << Scope;
         break;
       }
     }
@@ -611,6 +618,10 @@ fp16_fml_fallthrough:
   } else if (Triple.isAndroid()) {
     // Enabled A53 errata (835769) workaround by default on android
     Features.push_back("+fix-cortex-a53-835769");
+  } else if (Triple.isOSFuchsia()) {
+    std::string CPU = getCPUName(D, Args, Triple);
+    if (CPU.empty() || CPU == "generic" || CPU == "cortex-a53")
+      Features.push_back("+fix-cortex-a53-835769");
   }
 
   if (Args.getLastArg(options::OPT_mno_bti_at_return_twice))

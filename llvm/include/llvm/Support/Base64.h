@@ -19,6 +19,7 @@
 #include <memory>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace llvm {
 
@@ -55,6 +56,8 @@ template <class InputBytes> std::string encodeBase64(InputBytes const &Bytes) {
   }
   return Buffer;
 }
+
+llvm::Error decodeBase64(llvm::StringRef Input, std::vector<char> &Output);
 
 // General-purpose Base64 encoder/decoder.
 // TODO update WinCOFFObjectWriter.cpp to use this library.

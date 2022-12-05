@@ -55,9 +55,21 @@ def gi_dotiuvop3pmods :
     GIComplexOperandMatcher<s32, "selectDotIUVOP3PMods">,
     GIComplexPatternEquiv<DotIUVOP3PMods>;
 
+def gi_wmmaopselvop3pmods :
+    GIComplexOperandMatcher<s32, "selectWMMAOpSelVOP3PMods">,
+    GIComplexPatternEquiv<WMMAOpSelVOP3PMods>;
+
 def gi_vop3opselmods :
     GIComplexOperandMatcher<s32, "selectVOP3OpSelMods">,
     GIComplexPatternEquiv<VOP3OpSelMods>;
+
+def gi_vinterpmods :
+    GIComplexOperandMatcher<s32, "selectVINTERPMods">,
+    GIComplexPatternEquiv<VINTERPMods>;
+
+def gi_vinterpmods_hi :
+    GIComplexOperandMatcher<s32, "selectVINTERPModsHi">,
+    GIComplexPatternEquiv<VINTERPModsHi>;
 
 // FIXME: Why do we have both VOP3OpSel and VOP3OpSelMods?
 def gi_vop3opsel :
@@ -75,6 +87,10 @@ def gi_smrd_imm32 :
 def gi_smrd_sgpr :
     GIComplexOperandMatcher<s64, "selectSmrdSgpr">,
     GIComplexPatternEquiv<SMRDSgpr>;
+
+def gi_smrd_sgpr_imm :
+    GIComplexOperandMatcher<s64, "selectSmrdSgprImm">,
+    GIComplexPatternEquiv<SMRDSgprImm>;
 
 def gi_flat_offset :
     GIComplexOperandMatcher<s64, "selectFlatOffset">,
@@ -132,6 +148,14 @@ def gi_smrd_buffer_imm :
 def gi_smrd_buffer_imm32 :
     GIComplexOperandMatcher<s64, "selectSMRDBufferImm32">,
     GIComplexPatternEquiv<SMRDBufferImm32>;
+
+def gi_smrd_buffer_sgpr_imm :
+    GIComplexOperandMatcher<s64, "selectSMRDBufferSgprImm">,
+    GIComplexPatternEquiv<SMRDBufferSgprImm>;
+
+def gi_vop3_mad_mix_mods :
+    GIComplexOperandMatcher<s64, "selectVOP3PMadMixMods">,
+    GIComplexPatternEquiv<VOP3PMadMixMods>;
 
 // Separate load nodes are defined to glue m0 initialization in
 // SelectionDAG. The GISel selector can just insert m0 initialization
@@ -194,6 +218,7 @@ def : GINodeEquiv<G_AMDGPU_BUFFER_LOAD_UBYTE, SIbuffer_load_ubyte>;
 def : GINodeEquiv<G_AMDGPU_BUFFER_LOAD_SSHORT, SIbuffer_load_short>;
 def : GINodeEquiv<G_AMDGPU_BUFFER_LOAD_SBYTE, SIbuffer_load_byte>;
 def : GINodeEquiv<G_AMDGPU_BUFFER_LOAD_FORMAT, SIbuffer_load_format>;
+def : GINodeEquiv<G_AMDGPU_BUFFER_LOAD_FORMAT_TFE, SIbuffer_load_format_tfe>;
 def : GINodeEquiv<G_AMDGPU_BUFFER_LOAD_FORMAT_D16, SIbuffer_load_format_d16>;
 def : GINodeEquiv<G_AMDGPU_TBUFFER_LOAD_FORMAT, SItbuffer_load>;
 def : GINodeEquiv<G_AMDGPU_TBUFFER_LOAD_FORMAT_D16, SItbuffer_load_d16>;

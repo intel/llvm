@@ -22,7 +22,7 @@ SymbolFileOnDemand::SymbolFileOnDemand(
     std::unique_ptr<SymbolFile> &&symbol_file)
     : m_sym_file_impl(std::move(symbol_file)) {}
 
-SymbolFileOnDemand::~SymbolFileOnDemand() {}
+SymbolFileOnDemand::~SymbolFileOnDemand() = default;
 
 uint32_t SymbolFileOnDemand::CalculateAbilities() {
   // Explicitly allow ability checking to pass though.
@@ -274,6 +274,15 @@ SymbolFileOnDemand::ResolveSymbolContext(const Address &so_addr,
   return m_sym_file_impl->ResolveSymbolContext(so_addr, resolve_scope, sc);
 }
 
+Status SymbolFileOnDemand::CalculateFrameVariableError(StackFrame &frame) {
+  if (!m_debug_info_enabled) {
+    LLDB_LOG(GetLog(), "[{0}] {1} is skipped", GetSymbolFileName(),
+             __FUNCTION__);
+    return Status();
+  }
+  return m_sym_file_impl->CalculateFrameVariableError(frame);
+}
+
 uint32_t SymbolFileOnDemand::ResolveSymbolContext(
     const SourceLocationSpec &src_location_spec,
     SymbolContextItem resolve_scope, SymbolContextList &sc_list) {
@@ -375,9 +384,11 @@ void SymbolFileOnDemand::FindFunctions(const RegularExpression &regex,
 }
 
 void SymbolFileOnDemand::FindFunctions(
-    ConstString name, const CompilerDeclContext &parent_decl_ctx,
-    FunctionNameType name_type_mask, bool include_inlines,
+    const Module::LookupInfo &lookup_info,
+    const CompilerDeclContext &parent_decl_ctx, bool include_inlines,
     SymbolContextList &sc_list) {
+  ConstString name = lookup_info.GetLookupName();
+  FunctionNameType name_type_mask = lookup_info.GetNameTypeMask();
   if (!m_debug_info_enabled) {
     Log *log = GetLog();
 
@@ -402,7 +413,7 @@ void SymbolFileOnDemand::FindFunctions(
     // allow the FindFucntions to go through.
     SetLoadDebugInfoEnabled();
   }
-  return m_sym_file_impl->FindFunctions(name, parent_decl_ctx, name_type_mask,
+  return m_sym_file_impl->FindFunctions(lookup_info, parent_decl_ctx,
                                         include_inlines, sc_list);
 }
 
@@ -456,7 +467,7 @@ void SymbolFileOnDemand::GetTypes(SymbolContextScope *sc_scope,
   return m_sym_file_impl->GetTypes(sc_scope, type_mask, type_list);
 }
 
-llvm::Expected<TypeSystem &>
+llvm::Expected<lldb::TypeSystemSP>
 SymbolFileOnDemand::GetTypeSystemForLanguage(LanguageType language) {
   if (!m_debug_info_enabled) {
     Log *log = GetLog();

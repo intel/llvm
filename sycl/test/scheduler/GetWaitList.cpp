@@ -8,9 +8,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 int main() {
-  cl::sycl::event start;
+  sycl::event start;
   start.wait_and_throw();
 }

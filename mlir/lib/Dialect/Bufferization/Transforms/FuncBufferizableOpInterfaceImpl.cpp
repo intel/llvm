@@ -69,7 +69,7 @@ getBufferizedFunctionArgType(FuncOp funcOp, int64_t index,
 
   BaseMemRefType memrefType;
   if (options.functionBoundaryTypeConversion ==
-      BufferizationOptions::LayoutMapOption::IdentityLayoutMap) {
+      LayoutMapOption::IdentityLayoutMap) {
     memrefType = getMemRefTypeWithStaticIdentityLayout(tensorType);
   } else {
     // Note: Layout maps on function parameters cannot be inferred. The best we
@@ -86,7 +86,7 @@ getBufferizedFunctionArgType(FuncOp funcOp, int64_t index,
   assert(rankedMemrefType && "buffer layout not supported on unranked tensors");
   return MemRefType::get(
       rankedMemrefType.getShape(), rankedMemrefType.getElementType(),
-      layoutAttr.getValue(), rankedMemrefType.getMemorySpaceAsInt());
+      layoutAttr.getValue(), rankedMemrefType.getMemorySpace());
 }
 
 /// Return the FuncOp called by `callOp`.
@@ -101,22 +101,23 @@ static FuncOp getCalledFunction(CallOpInterface callOp) {
 /// Get FuncAnalysisState.
 static const FuncAnalysisState &
 getFuncAnalysisState(const AnalysisState &state) {
-  Optional<const FuncAnalysisState *> maybeState =
-      state.getDialectState<FuncAnalysisState>(
-          func::FuncDialect::getDialectNamespace());
-  assert(maybeState.hasValue() && "FuncAnalysisState does not exist");
-  return **maybeState;
+  assert(isa<OneShotAnalysisState>(state) && "expected OneShotAnalysisState");
+  auto *result = static_cast<const OneShotAnalysisState &>(state)
+                     .getExtension<FuncAnalysisState>();
+  assert(result && "FuncAnalysisState does not exist");
+  return *result;
 }
 
 /// Return the state (phase) of analysis of the FuncOp.
 static FuncOpAnalysisState getFuncOpAnalysisState(const AnalysisState &state,
                                                   FuncOp funcOp) {
-  Optional<const FuncAnalysisState *> maybeState =
-      state.getDialectState<FuncAnalysisState>(
-          func::FuncDialect::getDialectNamespace());
-  if (!maybeState.hasValue())
+  if (!isa<OneShotAnalysisState>(state))
     return FuncOpAnalysisState::NotAnalyzed;
-  const auto &analyzedFuncOps = maybeState.getValue()->analyzedFuncOps;
+  auto *funcState = static_cast<const OneShotAnalysisState &>(state)
+                        .getExtension<FuncAnalysisState>();
+  if (!funcState)
+    return FuncOpAnalysisState::NotAnalyzed;
+  const auto &analyzedFuncOps = funcState->analyzedFuncOps;
   auto it = analyzedFuncOps.find(funcOp);
   if (it == analyzedFuncOps.end())
     return FuncOpAnalysisState::NotAnalyzed;
@@ -240,14 +241,13 @@ struct CallOpInterface
     const FuncAnalysisState &funcState = getFuncAnalysisState(state);
     Optional<int64_t> maybeEquiv =
         getEquivalentFuncArgIdx(funcOp, funcState, opResult.getResultNumber());
-    if (maybeEquiv.hasValue()) {
+    if (maybeEquiv) {
 #ifndef NDEBUG
       SmallVector<OpOperand *> aliasingOpOperands =
           getAliasingOpOperand(op, opResult, state);
       assert(aliasingOpOperands.size() == 1 &&
              "expected exactly 1 aliasing OpOperand");
-      assert(aliasingOpOperands.front()->getOperandNumber() ==
-                 maybeEquiv.getValue() &&
+      assert(aliasingOpOperands.front()->getOperandNumber() == *maybeEquiv &&
              "inconsistent analysis state");
 #endif
       return BufferRelation::Equivalent;
@@ -258,7 +258,7 @@ struct CallOpInterface
   /// All function arguments are writable. It is the responsibility of the
   /// CallOp to insert buffer copies where necessary.
   LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
-                          BufferizationState &state) const {
+                          const BufferizationOptions &options) const {
     func::CallOp callOp = cast<func::CallOp>(op);
     unsigned numResults = callOp.getNumResults();
     unsigned numOperands = callOp->getNumOperands();
@@ -307,10 +307,11 @@ struct CallOpInterface
       // Retrieve buffers for tensor operands.
       Value buffer = newOperands[idx];
       if (!buffer) {
-        FailureOr<Value> bufferOrFailure = state.getBuffer(rewriter, opOperand);
-        if (failed(bufferOrFailure))
+        FailureOr<Value> maybeBuffer =
+            getBuffer(rewriter, opOperand.get(), options);
+        if (failed(maybeBuffer))
           return failure();
-        buffer = *bufferOrFailure;
+        buffer = *maybeBuffer;
       }
 
       // Caller / callee type mismatch is handled with a CastOp.
@@ -368,7 +369,7 @@ struct ReturnOpInterface
   }
 
   LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
-                          BufferizationState &state) const {
+                          const BufferizationOptions &options) const {
 #ifndef NDEBUG
     auto returnOp = cast<func::ReturnOp>(op);
     assert(isa<FuncOp>(returnOp->getParentOp()) &&
@@ -390,11 +391,9 @@ struct FuncOpInterface
   /// All function bbArgs are writable unless they are explicitly marked as
   /// read-only. Callers must insert copies when needed.
   LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
-                          BufferizationState &state) const {
+                          const BufferizationOptions &options) const {
     auto funcOp = cast<FuncOp>(op);
     FunctionType funcType = funcOp.getFunctionType();
-    const OneShotBufferizationOptions &options =
-        static_cast<const OneShotBufferizationOptions &>(state.getOptions());
 
     // Construct the bufferized function type.
     SmallVector<Type> argTypes;
@@ -473,7 +472,7 @@ struct FuncOpInterface
 
       BaseMemRefType resultType;
       if (options.functionBoundaryTypeConversion ==
-          BufferizationOptions::LayoutMapOption::IdentityLayoutMap) {
+          LayoutMapOption::IdentityLayoutMap) {
         resultType = getMemRefTypeWithStaticIdentityLayout(tensorType);
       } else {
         // Note: If `InferLayoutMap`, cast are later folded away.

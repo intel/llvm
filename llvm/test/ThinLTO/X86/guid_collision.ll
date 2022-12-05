@@ -3,13 +3,13 @@
 ;
 ; RUN: opt -module-summary %s -o %t.bc
 ; RUN: opt -module-summary %p/Inputs/guid_collision.ll -o %t2.bc
-; RUN: llvm-lto2 run %t.bc %t2.bc -o %t.out -save-temps \
+; RUN: llvm-lto2 run -opaque-pointers %t.bc %t2.bc -o %t.out -save-temps \
 ; RUN: -r=%t.bc,H,px -r=%t.bc,G, -r=%t2.bc,G,px
 ; RUN: llvm-dis -o - %t.out.1.3.import.bc | FileCheck %s
 
-; RUN: llvm-lto2 run %t.bc %t2.bc -o %t.out -thinlto-distributed-indexes \
+; RUN: llvm-lto2 run -opaque-pointers %t.bc %t2.bc -o %t.out -thinlto-distributed-indexes \
 ; RUN: -r=%t.bc,H,px -r=%t.bc,G, -r=%t2.bc,G,px
-; RUN: opt -function-import -import-all-index -summary-file %t.bc.thinlto.bc %t.bc -o %t.out
+; RUN: opt -passes=function-import -import-all-index -summary-file %t.bc.thinlto.bc %t.bc -o %t.out
 ; RUN: llvm-dis -o - %t.out | FileCheck %s
 
 ; Validate that G was imported
@@ -27,7 +27,7 @@ source_filename = "-"
 ; from, to test handling of a global variable with an entry in the distributed
 ; index but not with a copy in the source module (since we can't import
 ; appending linkage globals).
-@llvm.global_ctors = appending global [0 x { i32, void ()*, i8* }] zeroinitializer
+@llvm.global_ctors = appending global [0 x { i32, ptr, ptr }] zeroinitializer
 
 define i64 @H() {
   call i64 @G()

@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/stl_type_traits.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/detail/stl_type_traits.hpp>
+#include <sycl/stl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace intel {
 
@@ -27,11 +27,11 @@ template <template <int32_t> class _Type, class... _T> struct _GetValue {
 template <template <int32_t> class _Type, class _T1, class... _T>
 struct _GetValue<_Type, _T1, _T...> {
   static constexpr auto value =
-      detail::conditional_t<_MatchType<_Type, _T1>::value, _T1,
-                            _GetValue<_Type, _T...>>::value;
+      std::conditional_t<_MatchType<_Type, _T1>::value, _T1,
+                         _GetValue<_Type, _T...>>::value;
 };
 } // namespace intel
 } // namespace ext
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

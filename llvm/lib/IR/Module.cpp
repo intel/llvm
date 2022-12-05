@@ -49,6 +49,7 @@
 #include <cassert>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -596,7 +597,9 @@ PICLevel::Level Module::getPICLevel() const {
 }
 
 void Module::setPICLevel(PICLevel::Level PL) {
-  addModuleFlag(ModFlagBehavior::Max, "PIC Level", PL);
+  // The merge result of a non-PIC object and a PIC object can only be reliably
+  // used as a non-PIC object, so use the Min merge behavior.
+  addModuleFlag(ModFlagBehavior::Min, "PIC Level", PL);
 }
 
 PIELevel::Level Module::getPIELevel() const {
@@ -714,6 +717,18 @@ void Module::setStackProtectorGuardReg(StringRef Reg) {
   addModuleFlag(ModFlagBehavior::Error, "stack-protector-guard-reg", ID);
 }
 
+StringRef Module::getStackProtectorGuardSymbol() const {
+  Metadata *MD = getModuleFlag("stack-protector-guard-symbol");
+  if (auto *MDS = dyn_cast_or_null<MDString>(MD))
+    return MDS->getString();
+  return {};
+}
+
+void Module::setStackProtectorGuardSymbol(StringRef Symbol) {
+  MDString *ID = MDString::get(getContext(), Symbol);
+  addModuleFlag(ModFlagBehavior::Error, "stack-protector-guard-symbol", ID);
+}
+
 int Module::getStackProtectorGuardOffset() const {
   Metadata *MD = getModuleFlag("stack-protector-guard-offset");
   if (auto *CI = mdconst::dyn_extract_or_null<ConstantInt>(MD))
@@ -761,7 +776,7 @@ static VersionTuple getSDKVersionMD(Metadata *MD) {
   auto *Arr = dyn_cast_or_null<ConstantDataArray>(CM->getValue());
   if (!Arr)
     return {};
-  auto getVersionComponent = [&](unsigned Index) -> Optional<unsigned> {
+  auto getVersionComponent = [&](unsigned Index) -> std::optional<unsigned> {
     if (Index >= Arr->getNumElements())
       return None;
     return (unsigned)Arr->getElementAsInteger(Index);

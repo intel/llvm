@@ -12,6 +12,7 @@
 #include "llvm/DebugInfo/GSYM/LineTable.h"
 #include "llvm/DebugInfo/GSYM/InlineInfo.h"
 #include "llvm/Support/DataExtractor.h"
+#include <optional>
 
 using namespace llvm;
 using namespace gsym;
@@ -108,7 +109,7 @@ llvm::Expected<uint64_t> FunctionInfo::encode(FileWriter &O) const {
   // Write the name of this function as a uint32_t string table offset.
   O.writeU32(Name);
 
-  if (OptLineTable.hasValue()) {
+  if (OptLineTable) {
     O.writeU32(InfoType::LineTableInfo);
     // Write a uint32_t length as zero for now, we will fix this up after
     // writing the LineTable out with the number of bytes that were written.
@@ -126,7 +127,7 @@ llvm::Expected<uint64_t> FunctionInfo::encode(FileWriter &O) const {
   }
 
   // Write out the inline function info if we have any and if it is valid.
-  if (Inline.hasValue()) {
+  if (Inline) {
     O.writeU32(InfoType::InlineInfo);
     // Write a uint32_t length as zero for now, we will fix this up after
     // writing the LineTable out with the number of bytes that were written.
@@ -178,8 +179,8 @@ llvm::Expected<LookupResult> FunctionInfo::lookup(DataExtractor &Data,
         Offset - 4);
   LR.FuncName = GR.getString(NameOffset);
   bool Done = false;
-  Optional<LineEntry> LineEntry;
-  Optional<DataExtractor> InlineInfoData;
+  std::optional<LineEntry> LineEntry;
+  std::optional<DataExtractor> InlineInfoData;
   while (!Done) {
     if (!Data.isValidOffsetForDataOfSize(Offset, 8))
       return createStringError(std::errc::io_error,

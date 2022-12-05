@@ -150,6 +150,14 @@ TEST_F(HeaderSearchTest, DotDotsWithAbsPath) {
             "z");
 }
 
+TEST_F(HeaderSearchTest, BothDotDots) {
+  addSearchDir("/x/../y/");
+  EXPECT_EQ(Search.suggestPathToFileForDiagnostics("/x/../y/z",
+                                                   /*WorkingDir=*/"",
+                                                   /*MainFile=*/""),
+            "z");
+}
+
 TEST_F(HeaderSearchTest, IncludeFromSameDirectory) {
   EXPECT_EQ(Search.suggestPathToFileForDiagnostics("/y/z/t.h",
                                                    /*WorkingDir=*/"",
@@ -200,9 +208,9 @@ TEST_F(HeaderSearchTest, HeaderFrameworkLookup) {
       /*RelativePath=*/nullptr, /*RequestingModule=*/nullptr,
       /*SuggestedModule=*/nullptr, /*IsMapped=*/nullptr, &IsFrameworkFound);
 
-  EXPECT_TRUE(FoundFile.hasValue());
+  EXPECT_TRUE(FoundFile.has_value());
   EXPECT_TRUE(IsFrameworkFound);
-  auto &FE = FoundFile.getValue();
+  auto &FE = FoundFile.value();
   auto FI = Search.getExistingFileInfo(FE);
   EXPECT_TRUE(FI);
   EXPECT_TRUE(FI->IsValid);
@@ -269,9 +277,9 @@ TEST_F(HeaderSearchTest, HeaderMapFrameworkLookup) {
       /*SuggestedModule=*/nullptr, &IsMapped,
       /*IsFrameworkFound=*/nullptr);
 
-  EXPECT_TRUE(FoundFile.hasValue());
+  EXPECT_TRUE(FoundFile.has_value());
   EXPECT_TRUE(IsMapped);
-  auto &FE = FoundFile.getValue();
+  auto &FE = FoundFile.value();
   auto FI = Search.getExistingFileInfo(FE);
   EXPECT_TRUE(FI);
   EXPECT_TRUE(FI->IsValid);

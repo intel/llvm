@@ -67,6 +67,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -340,7 +341,7 @@ bool SafeStack::IsSafeStackAlloca(const Value *AllocaPtr, uint64_t AllocaSize) {
         // analysis here, which would look at all uses of an argument inside
         // the function being called.
         auto B = CS.arg_begin(), E = CS.arg_end();
-        for (auto A = B; A != E; ++A)
+        for (const auto *A = B; A != E; ++A)
           if (A->get() == V)
             if (!(CS.doesNotCapture(A - B) && (CS.doesNotAccessMemory(A - B) ||
                                                CS.doesNotAccessMemory()))) {
@@ -498,7 +499,7 @@ Value *SafeStack::moveStaticAllocasToUnsafeStack(
   if (ClColoring)
     SSC.run();
 
-  for (auto *I : SSC.getMarkers()) {
+  for (const auto *I : SSC.getMarkers()) {
     auto *Op = dyn_cast<Instruction>(I->getOperand(1));
     const_cast<IntrinsicInst *>(I)->eraseFromParent();
     // Remove the operand bitcast, too, if it has no more uses left.
@@ -896,7 +897,7 @@ public:
 
     DominatorTree *DT;
     bool ShouldPreserveDominatorTree;
-    Optional<DominatorTree> LazilyComputedDomTree;
+    std::optional<DominatorTree> LazilyComputedDomTree;
 
     // Do we already have a DominatorTree avaliable from the previous pass?
     // Note that we should *NOT* require it, to avoid the case where we end up
@@ -907,7 +908,7 @@ public:
     } else {
       // Otherwise, we need to compute it.
       LazilyComputedDomTree.emplace(F);
-      DT = LazilyComputedDomTree.getPointer();
+      DT = &*LazilyComputedDomTree;
       ShouldPreserveDominatorTree = false;
     }
 

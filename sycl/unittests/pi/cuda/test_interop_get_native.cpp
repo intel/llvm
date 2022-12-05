@@ -11,11 +11,11 @@
 #include <cuda.h>
 
 #include "TestGetPlatforms.hpp"
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <iostream>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 struct CudaInteropGetNativeTests : public ::testing::TestWithParam<platform> {
 

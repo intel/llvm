@@ -136,6 +136,10 @@
 #define Xp NASTY_MACRO
 #define Xs NASTY_MACRO
 
+// The classic Windows min/max macros
+#define min NASTY_MACRO
+#define max NASTY_MACRO
+
 /*
 BEGIN-SCRIPT
 
@@ -215,7 +219,7 @@ END-SCRIPT
 #include <float.h>
 #include <format>
 #include <forward_list>
-#if !defined(_LIBCPP_HAS_NO_LOCALIZATION)
+#if !defined(_LIBCPP_HAS_NO_LOCALIZATION) && !defined(_LIBCPP_HAS_NO_FSTREAM)
 #   include <fstream>
 #endif
 #include <functional>
@@ -253,6 +257,7 @@ END-SCRIPT
 #include <map>
 #include <math.h>
 #include <memory>
+#include <memory_resource>
 #if !defined(_LIBCPP_HAS_NO_THREADS)
 #   include <mutex>
 #endif

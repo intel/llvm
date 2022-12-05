@@ -13,7 +13,7 @@ function(add_sycl_library LIB_NAME TYPE)
     add_dependencies(sycl-toolchain ${LIB_NAME})
   endif()
 
-  if (ARG_LINKER_SCRIPT AND UNIX)
+  if (ARG_LINKER_SCRIPT AND UNIX AND NOT APPLE)
     target_link_libraries(${LIB_NAME} PRIVATE
       "-Wl,--version-script=${ARG_LINKER_SCRIPT}")
   endif()

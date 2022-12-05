@@ -26,7 +26,6 @@ namespace llvm {
 class FunctionPass;
 class MachineFunction;
 class MachineFunctionPass;
-class MemoryBuffer;
 class ModulePass;
 class Pass;
 class TargetMachine;
@@ -79,6 +78,10 @@ namespace llvm {
   /// createCodeGenPreparePass - Transform the code to expose more pattern
   /// matching during instruction selection.
   FunctionPass *createCodeGenPreparePass();
+
+  /// This pass implements generation of target-specific intrinsics to support
+  /// handling of complex number arithmetic
+  FunctionPass *createComplexDeinterleavingPass(const TargetMachine *TM);
 
   /// AtomicExpandID -- Lowers atomic operations in terms of either cmpxchg
   /// load-linked/store-conditional loops.
@@ -409,6 +412,9 @@ namespace llvm {
   /// RemoveRedundantDebugValues pass.
   extern char &RemoveRedundantDebugValuesID;
 
+  /// MachineCFGPrinter pass.
+  extern char &MachineCFGPrinterID;
+
   /// LiveDebugValues pass
   extern char &LiveDebugValuesID;
 
@@ -484,6 +490,9 @@ namespace llvm {
   /// instructions with selects or just the explicit vector length into the
   /// predicate mask.
   FunctionPass *createExpandVectorPredicationPass();
+
+  // Expands large div/rem instructions.
+  FunctionPass *createExpandLargeDivRemPass();
 
   // This pass expands memcmp() to load/stores.
   FunctionPass *createExpandMemCmpPass();

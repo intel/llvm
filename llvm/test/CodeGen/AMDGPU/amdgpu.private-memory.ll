@@ -6,14 +6,14 @@
 ; RUN: llc -show-mc-encoding --amdhsa-code-object-version=2 -mattr=+promote-alloca -amdgpu-load-store-vectorizer=0 -enable-amdgpu-aa=0 -verify-machineinstrs -mtriple=amdgcn-amdhsa -march=amdgcn -mcpu=tonga -mattr=-unaligned-access-mode < %s | FileCheck -enable-var-scope -check-prefix=SI-PROMOTE-VECT -check-prefix=SI -check-prefix=FUNC %s
 ; RUN: llc -show-mc-encoding --amdhsa-code-object-version=2 -mattr=-promote-alloca -amdgpu-load-store-vectorizer=0 -enable-amdgpu-aa=0 -verify-machineinstrs -mtriple=amdgcn-amdhsa -march=amdgcn -mcpu=tonga -mattr=-unaligned-access-mode < %s | FileCheck -enable-var-scope -check-prefix=SI-ALLOCA -check-prefix=SI -check-prefix=FUNC %s
 
-; RUN: opt -S -mtriple=amdgcn-unknown-amdhsa -data-layout=A5 -mcpu=kaveri -amdgpu-promote-alloca -disable-promote-alloca-to-vector < %s | FileCheck -enable-var-scope -check-prefix=HSAOPT -check-prefix=OPT %s
-; RUN: opt -S -mtriple=amdgcn-unknown-unknown -data-layout=A5 -mcpu=kaveri -amdgpu-promote-alloca -disable-promote-alloca-to-vector < %s | FileCheck -enable-var-scope -check-prefix=NOHSAOPT -check-prefix=OPT %s
+; RUN: opt -S -mtriple=amdgcn-unknown-amdhsa -data-layout=A5 -mcpu=kaveri -passes=amdgpu-promote-alloca -disable-promote-alloca-to-vector < %s | FileCheck -enable-var-scope -check-prefix=HSAOPT -check-prefix=OPT %s
+; RUN: opt -S -mtriple=amdgcn-unknown-unknown -data-layout=A5 -mcpu=kaveri -passes=amdgpu-promote-alloca -disable-promote-alloca-to-vector < %s | FileCheck -enable-var-scope -check-prefix=NOHSAOPT -check-prefix=OPT %s
 
 ; RUN: llc -march=r600 -mcpu=cypress -disable-promote-alloca-to-vector < %s | FileCheck %s -check-prefix=R600 -check-prefix=FUNC
 ; RUN: llc -march=r600 -mcpu=cypress < %s | FileCheck %s -check-prefix=R600-VECT -check-prefix=FUNC
 
-; HSAOPT: @mova_same_clause.stack = internal unnamed_addr addrspace(3) global [256 x [5 x i32]] undef, align 4
-; HSAOPT: @high_alignment.stack = internal unnamed_addr addrspace(3) global [256 x [8 x i32]] undef, align 16
+; HSAOPT: @mova_same_clause.stack = internal unnamed_addr addrspace(3) global [256 x [5 x i32]] poison, align 4
+; HSAOPT: @high_alignment.stack = internal unnamed_addr addrspace(3) global [256 x [8 x i32]] poison, align 16
 
 
 ; FUNC-LABEL: {{^}}mova_same_clause:
@@ -28,7 +28,7 @@
 ; HSA-PROMOTE: workgroup_group_segment_byte_size = 5120
 ; HSA-PROMOTE: .end_amd_kernel_code_t
 
-; HSA-PROMOTE: s_load_dword s{{[0-9]+}}, s[4:5], 0x2
+; HSA-PROMOTE: s_load_dwordx2 s[{{[0-9:]+}}], s[4:5], 0x1
 
 ; SI-PROMOTE: ds_write_b32
 ; SI-PROMOTE: ds_write_b32

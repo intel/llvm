@@ -5,7 +5,7 @@
 
 using namespace sycl::ext::intel::esimd;
 using namespace sycl::ext::intel;
-using namespace cl::sycl;
+using namespace sycl;
 
 using simd_mask_elem_t = simd_mask<1>::element_type;
 

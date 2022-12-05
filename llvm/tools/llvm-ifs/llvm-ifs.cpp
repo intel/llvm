@@ -32,6 +32,7 @@
 #include "llvm/TextAPI/InterfaceFile.h"
 #include "llvm/TextAPI/TextAPIReader.h"
 #include "llvm/TextAPI/TextAPIWriter.h"
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -86,7 +87,7 @@ struct DriverConfig {
   Optional<FileFormat> InputFormat;
   Optional<FileFormat> OutputFormat;
 
-  Optional<std::string> HintIfsTarget;
+  std::optional<std::string> HintIfsTarget;
   Optional<std::string> OptTargetTriple;
   Optional<IFSArch> OverrideArch;
   Optional<IFSBitWidthType> OverrideBitWidth;
@@ -102,12 +103,12 @@ struct DriverConfig {
 
   std::vector<std::string> Exclude;
 
-  Optional<std::string> SoName;
+  std::optional<std::string> SoName;
 
-  Optional<std::string> Output;
-  Optional<std::string> OutputElf;
-  Optional<std::string> OutputIfs;
-  Optional<std::string> OutputTbd;
+  std::optional<std::string> Output;
+  std::optional<std::string> OutputElf;
+  std::optional<std::string> OutputIfs;
+  std::optional<std::string> OutputTbd;
 
   bool WriteIfChanged = false;
 };
@@ -376,7 +377,7 @@ static DriverConfig parseArgs(int argc, char *const *argv) {
   return Config;
 }
 
-int main(int argc, char *argv[]) {
+int llvm_ifs_main(int argc, char **argv) {
   DriverConfig Config = parseArgs(argc, argv);
 
   if (Config.InputFilePaths.empty())
@@ -519,7 +520,7 @@ int main(int argc, char *argv[]) {
     // TODO: Remove OutputFormat flag in the next revision.
     WithColor::warning() << "--output-format option is deprecated, please use "
                             "--output-{FILE_FORMAT} options instead\n";
-    switch (Config.OutputFormat.getValue()) {
+    switch (*Config.OutputFormat) {
     case FileFormat::TBD: {
       std::error_code SysErr;
       raw_fd_ostream Out(*Config.Output, SysErr);
@@ -533,34 +534,33 @@ int main(int argc, char *argv[]) {
             << "Triple should be defined when output format is TBD";
         return -1;
       }
-      return writeTbdStub(llvm::Triple(Stub.Target.Triple.getValue()),
+      return writeTbdStub(llvm::Triple(Stub.Target.Triple.value()),
                           Stub.Symbols, "TBD", Out);
     }
     case FileFormat::IFS: {
       Stub.IfsVersion = IfsVersionCurrent;
-      if (Config.InputFormat.getValue() == FileFormat::ELF &&
+      if (Config.InputFormat.value() == FileFormat::ELF &&
           Config.HintIfsTarget) {
         std::error_code HintEC(1, std::generic_category());
         IFSTarget HintTarget = parseTriple(*Config.HintIfsTarget);
-        if (Stub.Target.Arch.getValue() != HintTarget.Arch.getValue())
+        if (Stub.Target.Arch.value() != HintTarget.Arch.value())
           fatalError(make_error<StringError>(
               "Triple hint does not match the actual architecture", HintEC));
-        if (Stub.Target.Endianness.getValue() !=
-            HintTarget.Endianness.getValue())
+        if (Stub.Target.Endianness.value() != HintTarget.Endianness.value())
           fatalError(make_error<StringError>(
               "Triple hint does not match the actual endianness", HintEC));
-        if (Stub.Target.BitWidth.getValue() != HintTarget.BitWidth.getValue())
+        if (Stub.Target.BitWidth.value() != HintTarget.BitWidth.value())
           fatalError(make_error<StringError>(
               "Triple hint does not match the actual bit width", HintEC));
 
         stripIFSTarget(Stub, true, false, false, false);
-        Stub.Target.Triple = Config.HintIfsTarget.getValue();
+        Stub.Target.Triple = Config.HintIfsTarget.value();
       } else {
         stripIFSTarget(Stub, Config.StripIfsTarget, Config.StripIfsArch,
                        Config.StripIfsEndianness, Config.StripIfsBitwidth);
       }
       Error IFSWriteError =
-          writeIFS(Config.Output.getValue(), Stub, Config.WriteIfChanged);
+          writeIFS(Config.Output.value(), Stub, Config.WriteIfChanged);
       if (IFSWriteError)
         fatalError(std::move(IFSWriteError));
       break;
@@ -589,29 +589,28 @@ int main(int argc, char *argv[]) {
     }
     if (Config.OutputIfs) {
       Stub.IfsVersion = IfsVersionCurrent;
-      if (Config.InputFormat.getValue() == FileFormat::ELF &&
+      if (Config.InputFormat.value() == FileFormat::ELF &&
           Config.HintIfsTarget) {
         std::error_code HintEC(1, std::generic_category());
         IFSTarget HintTarget = parseTriple(*Config.HintIfsTarget);
-        if (Stub.Target.Arch.getValue() != HintTarget.Arch.getValue())
+        if (Stub.Target.Arch.value() != HintTarget.Arch.value())
           fatalError(make_error<StringError>(
               "Triple hint does not match the actual architecture", HintEC));
-        if (Stub.Target.Endianness.getValue() !=
-            HintTarget.Endianness.getValue())
+        if (Stub.Target.Endianness.value() != HintTarget.Endianness.value())
           fatalError(make_error<StringError>(
               "Triple hint does not match the actual endianness", HintEC));
-        if (Stub.Target.BitWidth.getValue() != HintTarget.BitWidth.getValue())
+        if (Stub.Target.BitWidth.value() != HintTarget.BitWidth.value())
           fatalError(make_error<StringError>(
               "Triple hint does not match the actual bit width", HintEC));
 
         stripIFSTarget(Stub, true, false, false, false);
-        Stub.Target.Triple = Config.HintIfsTarget.getValue();
+        Stub.Target.Triple = Config.HintIfsTarget.value();
       } else {
         stripIFSTarget(Stub, Config.StripIfsTarget, Config.StripIfsArch,
                        Config.StripIfsEndianness, Config.StripIfsBitwidth);
       }
       Error IFSWriteError =
-          writeIFS(Config.OutputIfs.getValue(), Stub, Config.WriteIfChanged);
+          writeIFS(Config.OutputIfs.value(), Stub, Config.WriteIfChanged);
       if (IFSWriteError)
         fatalError(std::move(IFSWriteError));
     }
@@ -628,7 +627,7 @@ int main(int argc, char *argv[]) {
             << "Triple should be defined when output format is TBD";
         return -1;
       }
-      return writeTbdStub(llvm::Triple(Stub.Target.Triple.getValue()),
+      return writeTbdStub(llvm::Triple(Stub.Target.Triple.value()),
                           Stub.Symbols, "TBD", Out);
     }
   }

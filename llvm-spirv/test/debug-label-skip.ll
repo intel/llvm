@@ -1,4 +1,4 @@
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
 
 source_filename = "debug-label-bitcode.c"

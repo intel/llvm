@@ -9,7 +9,7 @@
 ; RUN: not llvm-spirv --spirv-ext= 2>&1 | FileCheck %s --check-prefix=CHECK-INVALID-FORMAT
 ;
 ; Bunch of positive tests:
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc --spirv-ext=+all -o - 2>&1 | FileCheck %s --check-prefix=CHECK-VALID
 ; RUN: llvm-spirv %t.bc --spirv-ext=-all -o - 2>&1 | FileCheck %s --check-prefix=CHECK-VALID
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_subgroups -o - 2>&1 | FileCheck %s --check-prefix=CHECK-VALID

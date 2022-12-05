@@ -271,12 +271,12 @@ endif()
 # directory that LLDB is using for its embedded Clang instance needs to point
 # to the resource directory of the used Clang installation.
 if (NOT TARGET clang-resource-headers)
-  set(LLDB_CLANG_RESOURCE_DIR_NAME "${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}.${LLVM_VERSION_PATCH}")
+  set(LLDB_CLANG_RESOURCE_DIR_NAME "${LLVM_VERSION_MAJOR}")
   # Iterate over the possible places where the external resource directory
   # could be and pick the first that exists.
   foreach(CANDIDATE "${Clang_DIR}/../.." "${LLVM_DIR}" "${LLVM_LIBRARY_DIRS}"
                     "${LLVM_BUILD_LIBRARY_DIR}"
-                    "${LLVM_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX}")
+                    "${LLVM_LIBRARY_DIR}")
     # Build the resource directory path by appending 'clang/<version number>'.
     set(CANDIDATE_RESOURCE_DIR "${CANDIDATE}/clang/${LLDB_CLANG_RESOURCE_DIR_NAME}")
     if (IS_DIRECTORY "${CANDIDATE_RESOURCE_DIR}")

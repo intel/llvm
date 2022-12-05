@@ -57,6 +57,7 @@
 #include <algorithm>
 #include <cassert>
 #include <iterator>
+#include <optional>
 #include <utility>
 
 using namespace llvm;
@@ -164,7 +165,7 @@ private:
   const X86InstrInfo *TII = nullptr;
   const TargetRegisterInfo *TRI = nullptr;
 
-  Optional<PredState> PS;
+  std::optional<PredState> PS;
 
   void hardenEdgesWithLFENCE(MachineFunction &MF);
 
@@ -1145,7 +1146,7 @@ X86SpeculativeLoadHardeningPass::tracePredStateThroughIndirectBranches(
     // Insert a comparison of the incoming target register with this block's
     // address. This also requires us to mark the block as having its address
     // taken explicitly.
-    MBB.setHasAddressTaken();
+    MBB.setMachineBlockAddressTaken();
     auto InsertPt = MBB.SkipPHIsLabelsAndDebug(MBB.begin());
     if (MF.getTarget().getCodeModel() == CodeModel::Small &&
         !Subtarget->isPositionIndependent()) {

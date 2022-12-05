@@ -44,7 +44,8 @@ static const unsigned SPIRDefIsPrivMap[] = {
     0, // sycl_private
     0, // ptr32_sptr
     0, // ptr32_uptr
-    0  // ptr64
+    0, // ptr64
+    0, // hlsl_groupshared
 };
 
 // Used by both the SPIR and SPIR-V targets.
@@ -76,7 +77,8 @@ static const unsigned SPIRDefIsGenMap[] = {
     0, // sycl_private
     0, // ptr32_sptr
     0, // ptr32_uptr
-    0  // ptr64
+    0, // ptr64
+    0, // hlsl_groupshared
 };
 
 // Base class for SPIR and SPIR-V target info.
@@ -223,6 +225,14 @@ public:
 
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override;
+};
+
+// spir64_fpga target
+class LLVM_LIBRARY_VISIBILITY SPIR64FPGATargetInfo : public SPIR64TargetInfo {
+public:
+  SPIR64FPGATargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
+      : SPIR64TargetInfo(Triple, Opts) {}
+  virtual size_t getMaxBitIntWidth() const override { return 4096; }
 };
 
 // x86-32 SPIR Windows target

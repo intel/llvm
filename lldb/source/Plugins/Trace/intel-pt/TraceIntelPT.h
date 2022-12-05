@@ -11,9 +11,8 @@
 
 #include "TaskTimer.h"
 #include "ThreadDecoder.h"
+#include "TraceIntelPTBundleLoader.h"
 #include "TraceIntelPTMultiCpuDecoder.h"
-#include "TraceIntelPTSessionFileParser.h"
-
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/lldb-types.h"
 #include "llvm/Support/raw_ostream.h"
@@ -23,9 +22,27 @@ namespace trace_intel_pt {
 
 class TraceIntelPT : public Trace {
 public:
+  /// Properties to be used with the `settings` command.
+  class PluginProperties : public Properties {
+  public:
+    static ConstString GetSettingName();
+
+    PluginProperties();
+
+    ~PluginProperties() override = default;
+
+    uint64_t GetInfiniteDecodingLoopVerificationThreshold();
+
+    uint64_t GetExtremelyLargeDecodingThreshold();
+  };
+
+  /// Return the global properties for this trace plug-in.
+  static PluginProperties &GetGlobalProperties();
+
   void Dump(Stream *s) const override;
 
-  llvm::Error SaveLiveTraceToDisk(FileSpec directory) override;
+  llvm::Expected<FileSpec> SaveToDisk(FileSpec directory,
+                                      bool compact) override;
 
   ~TraceIntelPT() override = default;
 
@@ -39,12 +56,11 @@ public:
 
   /// Create an instance of this class from a trace bundle.
   ///
-  /// \param[in] trace_session_file
-  ///     The contents of the trace session file. See \a Trace::FindPlugin.
+  /// \param[in] trace_bundle_description
+  ///     The description of the trace bundle. See \a Trace::FindPlugin.
   ///
-  /// \param[in] session_file_dir
-  ///     The path to the directory that contains the session file. It's used to
-  ///     resolved relative paths in the session file.
+  /// \param[in] bundle_dir
+  ///     The path to the directory that contains the trace bundle.
   ///
   /// \param[in] debugger
   ///     The debugger instance where new Targets will be created as part of the
@@ -52,15 +68,16 @@ public:
   ///
   /// \return
   ///     A trace instance or an error in case of failures.
-  static llvm::Expected<lldb::TraceSP>
-  CreateInstanceForSessionFile(const llvm::json::Value &trace_session_file,
-                               llvm::StringRef session_file_dir,
-                               Debugger &debugger);
+  static llvm::Expected<lldb::TraceSP> CreateInstanceForTraceBundle(
+      const llvm::json::Value &trace_bundle_description,
+      llvm::StringRef bundle_dir, Debugger &debugger);
 
   static llvm::Expected<lldb::TraceSP>
   CreateInstanceForLiveProcess(Process &process);
 
   static llvm::StringRef GetPluginNameStatic() { return "intel-pt"; }
+
+  static void DebuggerInitialize(Debugger &debugger);
   /// \}
 
   lldb::CommandObjectSP
@@ -71,9 +88,10 @@ public:
 
   llvm::StringRef GetSchema() override;
 
-  lldb::TraceCursorUP GetCursor(Thread &thread) override;
+  llvm::Expected<lldb::TraceCursorSP> CreateNewCursor(Thread &thread) override;
 
-  void DumpTraceInfo(Thread &thread, Stream &s, bool verbose) override;
+  void DumpTraceInfo(Thread &thread, Stream &s, bool verbose,
+                     bool json) override;
 
   llvm::Expected<llvm::Optional<uint64_t>> GetRawTraceSize(Thread &thread);
 
@@ -105,12 +123,16 @@ public:
   ///     This value defines whether to have an intel pt trace buffer per thread
   ///     or per cpu core.
   ///
+  /// \param[in] disable_cgroup_filtering
+  ///     Disable the cgroup filtering that is automatically applied when doing
+  ///     per cpu tracing.
+  ///
   /// \return
   ///     \a llvm::Error::success if the operation was successful, or
   ///     \a llvm::Error otherwise.
   llvm::Error Start(uint64_t ipt_trace_size, uint64_t total_buffer_size_limit,
                     bool enable_tsc, llvm::Optional<uint64_t> psb_period,
-                    bool m_per_cpu_tracing);
+                    bool m_per_cpu_tracing, bool disable_cgroup_filtering);
 
   /// \copydoc Trace::Start
   llvm::Error Start(StructuredData::ObjectSP configuration =
@@ -158,41 +180,59 @@ public:
   ///     The timer object for this trace.
   TaskTimer &GetTimer();
 
+  /// \return
+  ///     The ScopedTaskTimer object for the given thread in this trace.
+  ScopedTaskTimer &GetThreadTimer(lldb::tid_t tid);
+
+  /// \return
+  ///     The global copedTaskTimer object for this trace.
+  ScopedTaskTimer &GetGlobalTimer();
+
   TraceIntelPTSP GetSharedPtr();
 
+  enum class TraceMode { UserMode, KernelMode };
+
+  TraceMode GetTraceMode();
+
 private:
-  friend class TraceIntelPTSessionFileParser;
+  friend class TraceIntelPTBundleLoader;
 
   llvm::Expected<pt_cpu> GetCPUInfoForLiveProcess();
 
   /// Postmortem trace constructor
   ///
-  /// \param[in] session
-  ///     The definition file for the postmortem session.
+  /// \param[in] bundle_description
+  ///     The definition file for the postmortem bundle.
   ///
   /// \param[in] traced_processes
-  ///     The processes traced in the live session.
+  ///     The processes traced in the postmortem session.
   ///
   /// \param[in] trace_threads
-  ///     The threads traced in the live session. They must belong to the
+  ///     The threads traced in the postmortem session. They must belong to the
   ///     processes mentioned above.
+  ///
+  /// \param[in] trace_mode
+  ///     The tracing mode of the postmortem session.
   ///
   /// \return
   ///     A TraceIntelPT shared pointer instance.
   /// \{
   static TraceIntelPTSP CreateInstanceForPostmortemTrace(
-      JSONTraceSession &session,
+      JSONTraceBundleDescription &bundle_description,
       llvm::ArrayRef<lldb::ProcessSP> traced_processes,
-      llvm::ArrayRef<lldb::ThreadPostMortemTraceSP> traced_threads);
+      llvm::ArrayRef<lldb::ThreadPostMortemTraceSP> traced_threads,
+      TraceMode trace_mode);
 
   /// This constructor is used by CreateInstanceForPostmortemTrace to get the
   /// instance ready before using shared pointers, which is a limitation of C++.
-  TraceIntelPT(JSONTraceSession &session,
-               llvm::ArrayRef<lldb::ProcessSP> traced_processes);
+  TraceIntelPT(JSONTraceBundleDescription &bundle_description,
+               llvm::ArrayRef<lldb::ProcessSP> traced_processes,
+               TraceMode trace_mode);
   /// \}
 
   /// Constructor for live processes
-  TraceIntelPT(Process &live_process) : Trace(live_process){};
+  TraceIntelPT(Process &live_process)
+      : Trace(live_process), trace_mode(TraceMode::UserMode){};
 
   /// Decode the trace of the given thread that, i.e. recontruct the traced
   /// instructions.
@@ -203,8 +243,19 @@ private:
   ///
   /// \return
   ///     A \a DecodedThread shared pointer with the decoded instructions. Any
-  ///     errors are embedded in the instruction list.
-  DecodedThreadSP Decode(Thread &thread);
+  ///     errors are embedded in the instruction list. An \a llvm::Error is
+  ///     returned if the decoder couldn't be properly set up.
+  llvm::Expected<DecodedThreadSP> Decode(Thread &thread);
+
+  /// \return
+  ///     The lowest timestamp in nanoseconds in all traces if available, \a
+  ///     llvm::None if all the traces were empty or no trace contained no
+  ///     timing information, or an \a llvm::Error if it was not possible to set
+  ///     up the decoder for some trace.
+  llvm::Expected<llvm::Optional<uint64_t>> FindBeginningOfTimeNanos();
+
+  // Dump out trace info in JSON format
+  void DumpTraceInfoAsJson(Thread &thread, Stream &s, bool verbose);
 
   /// We package all the data that can change upon process stops to make sure
   /// this contract is very visible.
@@ -216,18 +267,23 @@ private:
     llvm::DenseMap<lldb::tid_t, std::unique_ptr<ThreadDecoder>> thread_decoders;
     /// Helper variable used to track long running operations for telemetry.
     TaskTimer task_timer;
-    /// It is provided by either a session file or a live process to convert TSC
+    /// It is provided by either a trace bundle or a live process to convert TSC
     /// counters to and from nanos. It might not be available on all hosts.
     llvm::Optional<LinuxPerfZeroTscConversion> tsc_conversion;
+    llvm::Optional<uint64_t> beginning_of_time_nanos;
+    bool beginning_of_time_nanos_calculated = false;
   } m_storage;
 
-  /// It is provided by either a session file or a live process' "cpuInfo"
+  /// It is provided by either a trace bundle or a live process' "cpuInfo"
   /// binary data. We don't put it in the Storage because this variable doesn't
   /// change.
   llvm::Optional<pt_cpu> m_cpu_info;
 
   /// Get the storage after refreshing the data in the case of a live process.
   Storage &GetUpdatedStorage();
+
+  /// The tracing mode of post mortem trace.
+  TraceMode trace_mode;
 };
 
 } // namespace trace_intel_pt
