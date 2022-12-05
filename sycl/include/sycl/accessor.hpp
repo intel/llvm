@@ -506,8 +506,8 @@ public:
   template <class Obj>
   friend decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject);
 
-  template <class Obj>
-  friend Obj detail::createSyclObjFromImpl(decltype(Obj::impl) ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 
   template <typename, int, access::mode, access::target, access::placeholder,
             typename>
@@ -541,8 +541,8 @@ protected:
   template <class Obj>
   friend decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject);
 
-  template <class Obj>
-  friend Obj detail::createSyclObjFromImpl(decltype(Obj::impl) ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 
   LocalAccessorImplPtr impl;
 };
@@ -984,7 +984,7 @@ private:
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::target AccessTarget, access::placeholder IsPlaceholder,
           typename PropertyListT>
-class __SYCL_SPECIAL_CLASS __SYCL_TYPE(accessor) accessor :
+class __SYCL_EBO __SYCL_SPECIAL_CLASS __SYCL_TYPE(accessor) accessor :
 #ifndef __SYCL_DEVICE_ONLY__
     public detail::AccessorBaseHost,
 #endif
@@ -1226,8 +1226,8 @@ private:
   friend class sycl::stream;
   friend class sycl::ext::intel::esimd::detail::AccessorPrivateProxy;
 
-  template <class Obj>
-  friend Obj detail::createSyclObjFromImpl(decltype(Obj::impl) ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 
 public:
   // 4.7.6.9.1. Interface for buffer command accessors
@@ -2498,8 +2498,8 @@ protected:
     return Result;
   }
 
-  template <class Obj>
-  friend Obj detail::createSyclObjFromImpl(decltype(Obj::impl) ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 
 public:
   using value_type = DataT;
@@ -2649,8 +2649,8 @@ public:
 // TODO: Remove deprecated specialization once no longer needed
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::placeholder IsPlaceholder>
-class __SYCL_SPECIAL_CLASS accessor<DataT, Dimensions, AccessMode,
-                                    access::target::local, IsPlaceholder>
+class __SYCL_EBO __SYCL_SPECIAL_CLASS accessor<
+    DataT, Dimensions, AccessMode, access::target::local, IsPlaceholder>
     : public local_accessor_base<DataT, Dimensions, AccessMode, IsPlaceholder>,
       public detail::OwnerLessBase<
           accessor<DataT, Dimensions, AccessMode, access::target::local,
@@ -2687,7 +2687,7 @@ private:
 };
 
 template <typename DataT, int Dimensions = 1>
-class __SYCL_SPECIAL_CLASS __SYCL_TYPE(local_accessor) local_accessor
+class __SYCL_EBO __SYCL_SPECIAL_CLASS __SYCL_TYPE(local_accessor) local_accessor
     : public local_accessor_base<DataT, Dimensions, access::mode::read_write,
                                  access::placeholder::false_t>,
       public detail::OwnerLessBase<local_accessor<DataT, Dimensions>> {
@@ -2782,9 +2782,8 @@ public:
 /// \ingroup sycl_api_acc
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::placeholder IsPlaceholder>
-class __SYCL_SPECIAL_CLASS
-__SYCL_TYPE(accessor) accessor<DataT, Dimensions, AccessMode,
-                               access::target::image, IsPlaceholder>
+class __SYCL_EBO __SYCL_SPECIAL_CLASS __SYCL_TYPE(accessor) accessor<
+    DataT, Dimensions, AccessMode, access::target::image, IsPlaceholder>
     : public detail::image_accessor<DataT, Dimensions, AccessMode,
                                     access::target::image, IsPlaceholder>,
       public detail::OwnerLessBase<
@@ -2848,8 +2847,8 @@ public:
 /// \ingroup sycl_api_acc
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::placeholder IsPlaceholder>
-class accessor<DataT, Dimensions, AccessMode, access::target::host_image,
-               IsPlaceholder>
+class __SYCL_EBO accessor<DataT, Dimensions, AccessMode,
+                          access::target::host_image, IsPlaceholder>
     : public detail::image_accessor<DataT, Dimensions, AccessMode,
                                     access::target::host_image, IsPlaceholder>,
       public detail::OwnerLessBase<
@@ -2882,9 +2881,8 @@ public:
 /// \ingroup sycl_api_acc
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::placeholder IsPlaceholder>
-class __SYCL_SPECIAL_CLASS
-__SYCL_TYPE(accessor) accessor<DataT, Dimensions, AccessMode,
-                               access::target::image_array, IsPlaceholder>
+class __SYCL_EBO __SYCL_SPECIAL_CLASS __SYCL_TYPE(accessor) accessor<
+    DataT, Dimensions, AccessMode, access::target::image_array, IsPlaceholder>
     : public detail::image_accessor<DataT, Dimensions + 1, AccessMode,
                                     access::target::image, IsPlaceholder>,
       public detail::OwnerLessBase<
@@ -2942,7 +2940,7 @@ public:
 
 template <typename DataT, int Dimensions = 1,
           access_mode AccessMode = access_mode::read_write>
-class host_accessor
+class __SYCL_EBO host_accessor
     : public accessor<DataT, Dimensions, AccessMode, target::host_buffer,
                       access::placeholder::false_t>,
       public detail::OwnerLessBase<
