@@ -42,16 +42,8 @@ template <typename T> T foo() {
 }
 
 void TestVectorAddWithAnnotatedMMHosts() {
-#ifdef FPGA_EMULATOR
-  using testconfig_selector = sycl::ext::intel::fpga_emulator_selector;
-#elif FPGA_SIMULATOR
-  using testconfig_selector = sycl::ext::intel::fpga_simulator_selector;
-#else
-  using testconfig_selector = sycl::ext::intel::fpga_selector;
-#endif
-
   // Create the SYCL device queue
-  queue q(testconfig_selector{});
+  queue q(sycl::ext::intel::fpga_selector_v);
   auto raw = malloc_shared<int>(5, q);
   for (int i = 0; i < 5; i++) {
     raw[i] = 0;
