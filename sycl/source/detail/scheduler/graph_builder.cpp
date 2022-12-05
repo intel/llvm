@@ -1301,6 +1301,7 @@ void Scheduler::GraphBuilder::cleanupFailedCommand(
   if (!EmptyCmd)
     throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
   EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+  EmptyCmd->MBlockReason = Command::BlockReason::EnqueueFailed;
 
   // Collect stream objects for the failed command.
   if (FailedCmd->getType() == Command::CommandType::RUN_CG) {

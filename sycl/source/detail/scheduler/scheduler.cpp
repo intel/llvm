@@ -145,17 +145,6 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
         throw runtime_error("Enqueue process failed.",
                             PI_ERROR_INVALID_OPERATION);
-
-      // If there are no memory dependencies decouple and free the command.
-
-      /// NOT sure if this comment is still true
-      // Though, dismiss ownership of native kernel command group as it's
-      // resources may be in use by backend and synchronization point here is
-      // at native kernel execution finish.
-      if (NewCmd && (NewCmd->MDeps.size() == 0 && NewCmd->MUsers.size() == 0)) {
-        NewEvent->setCommand(nullptr);
-        delete NewCmd;
-      }
     }
   } catch (...) {
     std::vector<StreamImplPtr> StreamsToDeallocate;
