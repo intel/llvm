@@ -251,67 +251,58 @@ void merge_sort(Group group, Iter first, const std::size_t n, Compare comp,
 }
 
 // traits for ascending functors
-template <typename _Comp> struct is_comp_ascending {
+template <typename CompT> struct IsCompAscending {
   static constexpr bool value = false;
 };
-template <typename _T> struct is_comp_ascending<std::less<_T>> {
-  static constexpr bool value = true;
-};
-
-// traits for descending functors
-template <typename _Comp> struct is_comp_descending {
-  static constexpr bool value = false;
-};
-template <typename _T> struct is_comp_descending<std::greater<_T>> {
+template <typename Type> struct IsCompAscending<std::less<Type>> {
   static constexpr bool value = true;
 };
 
 // get number of states radix bits can represent
-__attribute__((always_inline)) constexpr std::uint32_t
-get_states_in_bits(std::uint32_t radix_bits) {
+constexpr std::uint32_t get_states_in_bits(std::uint32_t radix_bits) {
   return (1 << radix_bits);
 }
 
 //------------------------------------------------------------------------
-// ordered traits for a given size and integral/float flag
+// Ordered traits for a given size and integral/float flag
 //------------------------------------------------------------------------
 
-template <std::size_t type_size, bool is_integral_type> struct get_ordered {};
+template <std::size_t type_size, bool is_integral_type> struct GetOrdered {};
 
-template <> struct get_ordered<1, true> {
-  using _type = uint8_t;
+template <> struct GetOrdered<1, true> {
+  using Type = uint8_t;
   constexpr static std::int8_t mask = 0x80;
 };
 
-template <> struct get_ordered<2, true> {
-  using _type = uint16_t;
+template <> struct GetOrdered<2, true> {
+  using Type = uint16_t;
   constexpr static std::int16_t mask = 0x8000;
 };
 
-template <> struct get_ordered<4, true> {
-  using _type = uint32_t;
+template <> struct GetOrdered<4, true> {
+  using Type = uint32_t;
   constexpr static std::int32_t mask = 0x80000000;
 };
 
-template <> struct get_ordered<8, true> {
-  using _type = uint64_t;
+template <> struct GetOrdered<8, true> {
+  using Type = uint64_t;
   constexpr static std::int64_t mask = 0x8000000000000000;
 };
 
-template <> struct get_ordered<2, false> {
-  using _type = uint16_t;
+template <> struct GetOrdered<2, false> {
+  using Type = uint16_t;
   constexpr static std::uint32_t nmask = 0xFFFF; // for negative numbers
   constexpr static std::uint32_t pmask = 0x8000; // for positive numbers
 };
 
-template <> struct get_ordered<4, false> {
-  using _type = uint32_t;
+template <> struct GetOrdered<4, false> {
+  using Type = uint32_t;
   constexpr static std::uint32_t nmask = 0xFFFFFFFF; // for negative numbers
   constexpr static std::uint32_t pmask = 0x80000000; // for positive numbers
 };
 
-template <> struct get_ordered<8, false> {
-  using _type = uint64_t;
+template <> struct GetOrdered<8, false> {
+  using Type = uint64_t;
   constexpr static std::uint64_t nmask =
       0xFFFFFFFFFFFFFFFF; // for negative numbers
   constexpr static std::uint64_t pmask =
@@ -319,70 +310,67 @@ template <> struct get_ordered<8, false> {
 };
 
 //------------------------------------------------------------------------
-// ordered type for a given type
+// Ordered type for a given type
 //------------------------------------------------------------------------
 
 // for unknown/unsupported type we do not have any trait
-template <typename _T, typename _Dummy = void> struct ordered {};
+template <typename ValT, typename Enabled = void> struct Ordered {};
 
 // for unsigned integrals we use the same type
-template <typename _T>
-struct ordered<_T, std::enable_if_t<std::is_integral<_T>::value &&
-                                    std::is_unsigned<_T>::value>> {
-  using _type = _T;
+template <typename ValT>
+struct Ordered<ValT, std::enable_if_t<std::is_integral<ValT>::value &&
+                                    std::is_unsigned<ValT>::value>> {
+  using Type = ValT;
 };
 
 // for signed integrals or floatings we map: size -> corresponding unsigned
 // integral
-template <typename _T>
-struct ordered<_T, std::enable_if_t<(std::is_integral<_T>::value &&
-                                     std::is_signed<_T>::value) ||
-                                    !std::is_integral<_T>::value>> {
-  using _type =
-      typename get_ordered<sizeof(_T), std::is_integral<_T>::value>::_type;
+template <typename ValT>
+struct Ordered<ValT, std::enable_if_t<(std::is_integral<ValT>::value &&
+                                       std::is_signed<ValT>::value) ||
+                                      !std::is_integral<ValT>::value>> {
+  using Type =
+      typename GetOrdered<sizeof(ValT), std::is_integral<ValT>::value>::Type;
 };
 
 // shorthands
-template <typename _T> using ordered_t = typename ordered<_T>::_type;
+template <typename ValT> using OrderedT = typename Ordered<ValT>::Type;
 
 //------------------------------------------------------------------------
-// functions for conversion to ordered type
+// functions for conversion to Ordered type
 //------------------------------------------------------------------------
 
-// for already ordered types (any uints) we use the same type
-template <typename _T>
-__attribute__((always_inline))
-std::enable_if_t<std::is_same<_T, ordered_t<_T>>::value, ordered_t<_T>>
-convert_to_ordered(_T value) {
+// for already Ordered types (any uints) we use the same type
+template <typename ValT>
+std::enable_if_t<std::is_same_v<ValT, OrderedT<ValT>>, OrderedT<ValT>>
+convertToOrdered(ValT value) {
   return value;
 }
 
-// converts integral type to ordered (in terms of bitness) type
-template <typename _T>
-__attribute__((always_inline))
-std::enable_if_t<!std::is_same<_T, ordered_t<_T>>::value &&
-                     std::is_integral<_T>::value,
-                 ordered_t<_T>>
-convert_to_ordered(_T value) {
-  _T result = value ^ get_ordered<sizeof(_T), true>::mask;
-  return *reinterpret_cast<ordered_t<_T> *>(&result);
+// converts integral type to Ordered (in terms of bitness) type
+template <typename ValT>
+std::enable_if_t<!std::is_same<ValT, OrderedT<ValT>>::value &&
+                     std::is_integral<ValT>::value,
+                 OrderedT<ValT>>
+convertToOrdered(ValT value) {
+  ValT result = value ^ GetOrdered<sizeof(ValT), true>::mask;
+  return *reinterpret_cast<OrderedT<ValT> *>(&result);
 }
 
-// converts floating type to ordered (in terms of bitness) type
-template <typename _T>
-__attribute__((always_inline))
-std::enable_if_t<!std::is_same<_T, ordered_t<_T>>::value &&
-                     !std::is_integral<_T>::value,
-                 ordered_t<_T>>
-convert_to_ordered(_T value) {
-  ordered_t<_T> uvalue = *reinterpret_cast<ordered_t<_T> *>(&value);
+// converts floating type to Ordered (in terms of bitness) type
+template <typename ValT>
+std::enable_if_t<!std::is_same<ValT, OrderedT<ValT>>::value &&
+                     !std::is_integral<ValT>::value,
+                 OrderedT<ValT>>
+convertToOrdered(ValT value) {
+  OrderedT<ValT> uvalue = *reinterpret_cast<OrderedT<ValT> *>(&value);
   // check if value negative
-  ordered_t<_T> is_negative = uvalue >> (sizeof(_T) * CHAR_BIT - 1);
+  OrderedT<ValT> is_negative = uvalue >> (sizeof(ValT) * CHAR_BIT - 1);
   // for positive: 00..00 -> 00..00 -> 10..00
   // for negative: 00..01 -> 11..11 -> 11..11
-  ordered_t<_T> ordered_mask =
-      (is_negative * get_ordered<sizeof(_T), false>::nmask) |
-      get_ordered<sizeof(_T), false>::pmask;
+  OrderedT<ValT> ordered_mask =
+      (is_negative * GetOrdered<sizeof(ValT), false>::nmask) |
+      GetOrdered<sizeof(ValT), false>::pmask;
   return uvalue ^ ordered_mask;
 }
 
@@ -391,83 +379,79 @@ convert_to_ordered(_T value) {
 //------------------------------------------------------------------------
 
 // required for descending comparator support
-template <bool flag> struct invert_if {
-  template <typename _T>
-  __attribute__((always_inline)) _T operator()(_T value) {
-    return value;
-  }
+template <bool flag> struct InvertIf {
+  template <typename ValT> ValT operator()(ValT value) { return value; }
 };
 
 // invert value if descending comparator is passed
-template <> struct invert_if<true> {
-  template <typename _T>
-  __attribute__((always_inline)) _T operator()(_T value) {
-    return ~value;
-  }
+template <> struct InvertIf<true> {
+  template <typename ValT> ValT operator()(ValT value) { return ~value; }
 
   // invertation for bool type have to be logical, rather than bit
-  __attribute__((always_inline)) bool operator()(bool value) { return !value; }
+  bool operator()(bool value) { return !value; }
 };
+
 // get bit values in a certain bucket of a value
-template <std::uint32_t radix_bits, bool is_comp_asc, typename _T>
-__attribute__((always_inline)) std::uint32_t
-get_bucket_value(_T value, std::uint32_t radix_iter) {
+template <std::uint32_t radix_bits, bool is_comp_asc, typename ValT>
+std::uint32_t
+getBucketValue(ValT value, std::uint32_t radix_iter) {
   // invert value if we need to sort in descending order
-  value = invert_if<!is_comp_asc>{}(value);
+  value = InvertIf<!is_comp_asc>{}(value);
 
   // get bucket offset idx from the end of bit type (least significant bits)
   std::uint32_t bucket_offset = radix_iter * radix_bits;
 
   // get offset mask for one bucket, e.g.
   // radix_bits=2: 0000 0001 -> 0000 0100 -> 0000 0011
-  ordered_t<_T> bucket_mask = (1u << radix_bits) - 1u;
+  OrderedT<ValT> bucket_mask = (1u << radix_bits) - 1u;
 
   // get bits under bucket mask
   return (value >> bucket_offset) & bucket_mask;
 }
-template <typename T>
-__attribute__((always_inline)) T get_default_value(std::less<T>) {
-  return std::numeric_limits<T>::max();
+template <typename ValT> ValT getDefaultValue(std::less<ValT>) {
+  return std::numeric_limits<ValT>::max();
 }
 
-template <typename T>
-__attribute__((always_inline)) T get_default_value(std::greater<T>) {
-  return std::numeric_limits<T>::lowest();
+template <typename ValT> ValT getDefaultValue(std::greater<ValT>) {
+  return std::numeric_limits<ValT>::lowest();
 }
 
-template <bool is_key_value_sort> struct values_assigner {
-  template <typename IterIn, typename IterOut>
-  void operator()(IterOut output, size_t idx_out, IterIn input, size_t idx_in) {
+template <bool is_key_value_sort> struct ValuesAssigner {
+  template <typename IterInT, typename IterOutT>
+  void operator()(IterOutT output, size_t idx_out, IterInT input,
+                  size_t idx_in) {
     output[idx_out] = input[idx_in];
   }
 
-  template <typename IterOut, typename T>
-  void operator()(IterOut output, size_t idx_out, T value) {
+  template <typename IterOutT, typename ValT>
+  void operator()(IterOutT output, size_t idx_out, ValT value) {
     output[idx_out] = value;
   }
 };
 
-template <> struct values_assigner<false> {
-  template <typename IterIn, typename IterOut>
-  void operator()(IterOut, size_t, IterIn, size_t) {}
+template <> struct ValuesAssigner<false> {
+  template <typename IterInT, typename IterOutT>
+  void operator()(IterOutT, size_t, IterInT, size_t) {}
 
-  template <typename IterOut, typename T> void operator()(IterOut, size_t, T) {}
+  template <typename IterOutT, typename ValT>
+  void operator()(IterOutT, size_t, ValT) {}
 };
 
 // The iteration of radix sort for unknown number of elements per work item
 template <uint32_t radix_bits, bool is_key_value_sort, typename KeysT,
           typename ValueT, typename CompareT, typename GroupT>
-void perform_radix_iter_joint(GroupT group, const uint32_t items_per_work_item,
-                              const uint32_t radix_iter, const size_t n,
-                              KeysT *keys_input, ValueT *vals_input,
-                              KeysT *keys_output, ValueT *vals_output,
-                              uint32_t *memory, CompareT comp) {
+void perform_radix_iter_dynamic_size(GroupT group,
+                                     const uint32_t items_per_work_item,
+                                     const uint32_t radix_iter, const size_t n,
+                                     KeysT *keys_input, ValueT *vals_input,
+                                     KeysT *keys_output, ValueT *vals_output,
+                                     uint32_t *memory, CompareT comp) {
   const uint32_t radix_states = get_states_in_bits(radix_bits);
   const size_t wgsize = group.get_local_linear_range();
   const size_t idx = group.get_local_linear_id();
 
   constexpr bool is_comp_asc =
-      is_comp_ascending<typename std::decay<CompareT>::type>::value;
+      IsCompAscending<typename std::decay<CompareT>::type>::value;
 
   // 1.1. Zeroinitialize local memory
 
@@ -481,12 +465,12 @@ void perform_radix_iter_joint(GroupT group, const uint32_t items_per_work_item,
 
   for (uint32_t i = 0; i < items_per_work_item; ++i) {
     const uint32_t val_idx = items_per_work_item * idx + i;
-    // get value, convert it to ordered (in terms of bitness)
-    const auto val = convert_to_ordered(
-        (val_idx < n) ? keys_input[val_idx] : get_default_value(comp));
+    // get value, convert it to Ordered (in terms of bitness)
+    const auto val = convertToOrdered((val_idx < n) ? keys_input[val_idx]
+                                                    : getDefaultValue(comp));
     // get bit values in a certain bucket of a value
     const uint32_t bucket_val =
-        get_bucket_value<radix_bits, is_comp_asc>(val, radix_iter);
+        getBucketValue<radix_bits, is_comp_asc>(val, radix_iter);
 
     // increment counter for this bit bucket
     if (val_idx < n)
@@ -518,18 +502,18 @@ void perform_radix_iter_joint(GroupT group, const uint32_t items_per_work_item,
   // 3. Reorder
   for (uint32_t i = 0; i < items_per_work_item; ++i) {
     const uint32_t val_idx = items_per_work_item * idx + i;
-    // get value, convert it to ordered (in terms of bitness)
-    auto val = convert_to_ordered((val_idx < n) ? keys_input[val_idx]
-                                                : get_default_value(comp));
+    // get value, convert it to Ordered (in terms of bitness)
+    auto val = convertToOrdered((val_idx < n) ? keys_input[val_idx]
+                                              : getDefaultValue(comp));
     // get bit values in a certain bucket of a value
     uint32_t bucket_val =
-        get_bucket_value<radix_bits, is_comp_asc>(val, radix_iter);
+        getBucketValue<radix_bits, is_comp_asc>(val, radix_iter);
 
     uint32_t new_offset_idx = private_scan_memory[bucket_val]++ +
                               scan_memory[bucket_val * wgsize + idx];
     if (val_idx < n) {
       keys_output[new_offset_idx] = keys_input[val_idx];
-      values_assigner<is_key_value_sort>()(vals_output, new_offset_idx,
+      ValuesAssigner<is_key_value_sort>()(vals_output, new_offset_idx,
                                            vals_input, val_idx);
     }
   }
@@ -560,11 +544,11 @@ void perform_radix_iter_static_size(GroupT group, const uint32_t radix_iter,
   uint32_t *pointers[items_per_work_item] = {nullptr};
   // 1.2. count values and write result to private count array
   for (uint32_t i = 0; i < items_per_work_item; ++i) {
-    // get value, convert it to ordered (in terms of bitness)
-    ordered_t<KeysT> val = convert_to_ordered(keys[i]);
+    // get value, convert it to Ordered (in terms of bitness)
+    Ordered_t<KeysT> val = convertToOrdered(keys[i]);
     // get bit values in a certain bucket of a value
     uint32_t bucket_val =
-        get_bucket_value<radix_bits, is_comp_asc>(val, radix_iter);
+        getBucketValue<radix_bits, is_comp_asc>(val, radix_iter);
     pointers[i] = scan_memory + (bucket_val * wgsize + idx);
     count_arr[i] = (*pointers[i])++;
   }
@@ -600,7 +584,7 @@ void perform_radix_iter_static_size(GroupT group, const uint32_t radix_iter,
       memory + wgsize * items_per_work_item * sizeof(KeysT));
   for (uint32_t i = 0; i < items_per_work_item; ++i) {
     keys_temp[ranks[i]] = keys[i];
-    values_assigner<is_key_value_sort>()(vals_temp, ranks[i], vals, i);
+    ValuesAssigner<is_key_value_sort>()(vals_temp, ranks[i], vals, i);
   }
 
   sycl::group_barrier(group);
@@ -613,7 +597,7 @@ void perform_radix_iter_static_size(GroupT group, const uint32_t radix_iter,
         shift = i * wgsize + idx;
     }
     keys[i] = keys_temp[shift];
-    values_assigner<is_key_value_sort>()(vals, i, vals_temp, shift);
+    ValuesAssigner<is_key_value_sort>()(vals, i, vals_temp, shift);
   }
 }
 
@@ -642,7 +626,7 @@ void private_sort(GroupT group, KeysT *keys, ValsT *values, const size_t n,
       keys_output + is_key_value_sort * n * sizeof(KeysT) + alignof(uint32_t));
 
   for (uint32_t radix_iter = first_iter; radix_iter < last_iter; ++radix_iter) {
-    perform_radix_iter_joint<radix_bits, is_key_value_sort>(
+    perform_radix_iter_dynamic_size<radix_bits, is_key_value_sort>(
         group, runtime_items_per_work_item, radix_iter, n, keys_input,
         vals_input, keys_output, vals_output, scan_memory, comp);
 
@@ -661,7 +645,7 @@ void private_memory_sort(Group group, T *keys, U *values, Compare comp,
                          const uint32_t last_bit) {
   (void)comp;
   constexpr bool is_comp_asc =
-      is_comp_ascending<typename std::decay<Compare>::type>::value;
+      IsCompAscending<typename std::decay<Compare>::type>::value;
   const uint32_t first_iter = first_bit / radix_bits;
   const uint32_t last_iter = last_bit / radix_bits;
 
