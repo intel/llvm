@@ -217,3 +217,15 @@ func.func @vec_1(%arg0: !sycl_vec_f32_4_) attributes {llvm.linkage = #llvm.linka
 func.func @_Z6atomicN4sycl3_V16atomicIiLNS0_6access13address_spaceE1EEE(%arg0: !sycl_atomic_f32_3_, %arg1: !sycl_atomic_i32_1_) attributes {llvm.linkage = #llvm.linkage<external>} {
   return
 }
+
+
+////////////////////////////////////////////////////////////////////////////////
+// multi_ptr
+////////////////////////////////////////////////////////////////////////////////
+
+!sycl_multi_ptr_i32_1_ = !sycl.multi_ptr<[i32, 1, 1], (memref<?xi32, 1>)>
+
+// CHECK: func @_Z9multi_ptrN4sycl3_V19multi_ptrIiLNS0_6access13address_spaceE1ELNS2_9decoratedE1EEE(%arg0: !sycl_multi_ptr_i32_1_)
+func.func @_Z9multi_ptrN4sycl3_V19multi_ptrIiLNS0_6access13address_spaceE1ELNS2_9decoratedE1EEE(%arg0: !sycl_multi_ptr_i32_1_) attributes {llvm.linkage = #llvm.linkage<external>} {
+  return
+}

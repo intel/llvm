@@ -53,6 +53,8 @@ enum class AccessAddrSpace : int {
   ExtIntelHost = 6
 };
 
+enum class DecoratedAccess : int { No = 0, Yes = 1, Legacy = 2 };
+
 llvm::StringRef
 memoryAccessModeAsString(mlir::sycl::MemoryAccessMode MemAccessMode);
 LogicalResult parseMemoryAccessMode(AsmParser &Parser,
@@ -69,6 +71,11 @@ std::string accessAddressSpaceAsString(mlir::sycl::AccessAddrSpace AccAddress);
 LogicalResult parseAccessAddrSpace(AsmParser &Parser,
                                    FailureOr<AccessAddrSpace> &AccAddress);
 void printAccessAddrSpace(AsmPrinter &Printer, AccessAddrSpace AccAddress);
+
+std::string decoratedAccessAsString(mlir::sycl::DecoratedAccess DecAccess);
+LogicalResult parseDecoratedAccess(AsmParser &Parser,
+                                   FailureOr<DecoratedAccess> &DecAccess);
+void printDecoratedAccess(AsmPrinter &Printer, DecoratedAccess DecAccess);
 
 template <typename Parameter> class SYCLInheritanceTypeTrait {
 public:

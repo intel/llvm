@@ -185,6 +185,15 @@ static Optional<Type> convertItemBaseType(sycl::ItemBaseType type,
                          type.getBody(), converter);
 }
 
+/// Converts SYCL multi_ptr type to LLVM type.
+static Optional<Type> convertMultiPtrType(sycl::MultiPtrType type,
+                                          LLVMTypeConverter &converter) {
+  // FIXME: Make sure that we have llvm.ptr as the body, not memref, through
+  // the conversion done in ConvertTOLLVMABI pass
+  return convertBodyType("class.sycl::_V1::multi_ptr", type.getBody(),
+                         converter);
+}
+
 /// Converts SYCL item type to LLVM type.
 static Optional<Type> convertItemType(sycl::ItemType type,
                                       LLVMTypeConverter &converter) {
@@ -457,6 +466,9 @@ void mlir::sycl::populateSYCLToLLVMTypeConversion(
   });
   typeConverter.addConversion([&](sycl::ItemType type) {
     return convertItemType(type, typeConverter);
+  });
+  typeConverter.addConversion([&](sycl::MultiPtrType type) {
+    return convertMultiPtrType(type, typeConverter);
   });
   typeConverter.addConversion([&](sycl::NdItemType type) {
     return convertNdItemType(type, typeConverter);

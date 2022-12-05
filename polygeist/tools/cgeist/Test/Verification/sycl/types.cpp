@@ -29,6 +29,7 @@
 // CHECK-DAG: !sycl_atomic_i32_1_ = !sycl.atomic<[i32,1], (memref<?xi32, 1>)>
 // CHECK-DAG: !sycl_assert_happened_ = !sycl.assert_happened<(i32, !llvm.array<257 x i8>, !llvm.array<257 x i8>, !llvm.array<129 x i8>, i32, i64, i64, i64, i64, i64, i64)>
 // CHECK-DAG: !sycl_bfloat16_ = !sycl.bfloat16<(i16)>
+// CHECK-DAG: !sycl_multi_ptr_i32_1_ = !sycl.multi_ptr<[i32, 1, 1], (memref<?xi32, 1>)>
 
 // CHECK-LABEL: func.func @_Z4id_1N4sycl3_V12idILi1EEE(
 // CHECK:          %arg0: memref<?x!sycl_id_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_id_1_, llvm.noundef})
@@ -176,3 +177,8 @@ SYCL_EXTERNAL void get_bfloat16(sycl::ext::oneapi::bfloat16 get_bfloat16) {}
 // CHECK:          %arg0: memref<?x!sycl.sub_group> {llvm.align = 1 : i64, llvm.byval = !sycl.sub_group, llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
 SYCL_EXTERNAL void get_sub_group(sycl::ext::oneapi::sub_group get_sub_group) {}
+
+// CHECK-LABEL: func.func @_Z9multi_ptrN4sycl3_V19multi_ptrIiLNS0_6access13address_spaceE1ELNS2_9decoratedE1EEE(
+// CHECK:          %arg0: memref<?x!sycl_multi_ptr_i32_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_multi_ptr_i32_1_, llvm.noundef})
+// CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
+SYCL_EXTERNAL void multi_ptr(sycl::multi_ptr<int, sycl::access::address_space::global_space, sycl::access::decorated::yes> multi_ptr_int) {}

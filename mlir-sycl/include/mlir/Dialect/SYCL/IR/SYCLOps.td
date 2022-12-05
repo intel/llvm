@@ -255,6 +255,14 @@ def SYCL_AtomicType : SYCL_Type<"Atomic", "atomic"> {
   let assemblyFormat = "`<` `[` $dataType `,` custom<AccessAddrSpace>($addrSpace) `]` `,` `(` $body `)` `>`";
 }
 
+def SYCL_MultiPtrType : SYCL_Type<"MultiPtr", "multi_ptr"> {
+  let parameters = (ins "::mlir::Type":$dataType,
+                        "mlir::sycl::AccessAddrSpace":$addrSpace,
+                        "mlir::sycl::DecoratedAccess":$decAccess,
+                        ArrayRefParameter<"mlir::Type">:$body);
+  let assemblyFormat = "`<` `[` $dataType `,` ` ` custom<AccessAddrSpace>($addrSpace) `,` ` ` custom<DecoratedAccess>($decAccess) `]` `,` `(` $body `)` `>`";
+}
+
 def SYCL_AssertHappenedType : SYCL_Type<"AssertHappened", "assert_happened"> {
   let parameters = (ins ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat = "`<` `(` $body `)` `>`";
@@ -272,6 +280,7 @@ def SYCL_SubGroupType : SYCL_Type<"SubGroup", "sub_group"> {
 def IDMemRef : MemRefOf<[SYCL_IDType]>;
 def AccessorCommonMemRef : MemRefOf<[SYCL_AccessorCommonType]>;
 def AccessorMemRef : MemRefOf<[SYCL_AccessorType]>;
+def AtomicMemRef : MemRefOf<[SYCL_AtomicType]>;
 def RangeMemRef : MemRefOf<[SYCL_RangeType]>;
 def NDRangeMemRef : MemRefOf<[SYCL_NdRangeType]>;
 def AccessorImplMemRef : MemRefOf<[SYCL_AccessorImplType]>;
@@ -279,15 +288,16 @@ def AccessorSubscriptMemRef : MemRefOf<[SYCL_AccessorSubscriptType]>;
 def ArrayMemRef : MemRefOf<[SYCL_ArrayType]>;
 def ItemMemRef : MemRefOf<[SYCL_ItemType]>;
 def ItemBaseMemRef : MemRefOf<[SYCL_ItemBaseType]>;
+def MultiPtrMemRef : MemRefOf<[SYCL_MultiPtrType]>;
 def NDItemMemRef : MemRefOf<[SYCL_NdItemType]>;
 def GroupMemRef : MemRefOf<[SYCL_GroupType]>;
 def VecMemRef : MemRefOf<[SYCL_VecType]>;
-def AtomicMemRef : MemRefOf<[SYCL_AtomicType]>;
 
 def SYCLMemref : AnyTypeOf<[
   IDMemRef,
   AccessorCommonMemRef,
   AccessorMemRef,
+  AtomicMemRef,
   RangeMemRef,
   NDRangeMemRef,
   AccessorImplMemRef,
@@ -295,6 +305,7 @@ def SYCLMemref : AnyTypeOf<[
   ArrayMemRef,
   ItemMemRef,
   ItemBaseMemRef,
+  MultiPtrMemRef,
   NDItemMemRef,
   GroupMemRef,
   VecMemRef,

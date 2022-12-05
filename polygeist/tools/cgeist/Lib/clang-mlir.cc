@@ -1441,8 +1441,8 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
             .Case<sycl::AccessorType, sycl::AccessorImplDeviceType,
                   sycl::AccessorSubscriptType, sycl::AtomicType,
                   sycl::GetScalarOpType, sycl::GroupType, sycl::ItemBaseType,
-                  sycl::ItemType, sycl::NdItemType, sycl::NdRangeType,
-                  sycl::VecType>([&](auto ElemTy) {
+                  sycl::ItemType, sycl::MultiPtrType, sycl::NdItemType,
+                  sycl::NdRangeType, sycl::VecType>([&](auto ElemTy) {
               return SYCLCommonFieldLookup<decltype(ElemTy)>(Val, FNum, Shape);
             })
             .Default([&Val](Type T) {

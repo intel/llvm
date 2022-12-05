@@ -193,3 +193,13 @@ func.func @test_bfloat16(%arg0: !sycl_bfloat16_) {
 func.func @test_sub_group(%arg0: !sycl.sub_group) {
   return
 }
+
+// -----
+
+!sycl_multi_ptr_i32_1_ = !sycl.multi_ptr<[i32, 1, 1], (memref<?xi32, 1>)>
+// CHECK: llvm.func @test_multi_ptr(%arg0: !llvm.[[ATOMIC1:struct<"class.sycl::_V1::multi_ptr", \(struct<\(ptr<i32, 1>, ptr<i32, 1>, i64, array<1 x i64>, array<1 x i64>\)>\)>]]) {
+func.func @test_multi_ptr(%arg0: !sycl_multi_ptr_i32_1_) {
+    return
+}
+
+// -----
