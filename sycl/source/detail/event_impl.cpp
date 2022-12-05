@@ -146,8 +146,8 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
 }
 
 event_impl::event_impl(const QueueImplPtr &Queue)
-    : MQueue{Queue}, MIsProfilingEnabled{Queue->is_host() ||
-                                         Queue->MIsProfilingEnabled} {
+    : MQueue{Queue},
+      MIsProfilingEnabled{Queue->is_host() || Queue->MIsProfilingEnabled} {
   this->setContextImpl(Queue->getContextImplPtr());
 
   if (Queue->is_host()) {
@@ -232,6 +232,9 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self) {
   else if (MCommand)
     detail::Scheduler::getInstance().waitForEvent(Self);
   cleanupCommand(std::move(Self));
+
+  detail::Scheduler::getInstance().cleanupDeferredMemObjects(
+      BlockingT::NON_BLOCKING);
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
