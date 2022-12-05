@@ -1153,7 +1153,8 @@ linkAndWrapDeviceFiles(SmallVectorImpl<OffloadFile> &LinkerInputFiles,
 
     DenseSet<OffloadKind> ActiveOffloadKinds;
     for (const auto &File : Input)
-      ActiveOffloadKinds.insert(File.getBinary()->getOffloadKind());
+      if (File.getBinary()->getOffloadKind() != OFK_None)
+        ActiveOffloadKinds.insert(File.getBinary()->getOffloadKind());
 
     // First link and remove all the input files containing bitcode.
     SmallVector<StringRef> InputFiles;
@@ -1236,7 +1237,7 @@ Optional<std::string> findFile(StringRef Dir, StringRef Root,
 
   if (sys::fs::exists(Path))
     return static_cast<std::string>(Path);
-  return None;
+  return std::nullopt;
 }
 
 Optional<std::string> findFromSearchPaths(StringRef Name, StringRef Root,
@@ -1244,7 +1245,7 @@ Optional<std::string> findFromSearchPaths(StringRef Name, StringRef Root,
   for (StringRef Dir : SearchPaths)
     if (Optional<std::string> File = findFile(Dir, Root, Name))
       return File;
-  return None;
+  return std::nullopt;
 }
 
 Optional<std::string> searchLibraryBaseName(StringRef Name, StringRef Root,
@@ -1255,7 +1256,7 @@ Optional<std::string> searchLibraryBaseName(StringRef Name, StringRef Root,
     if (Optional<std::string> File = findFile(Dir, Root, "lib" + Name + ".a"))
       return File;
   }
-  return None;
+  return std::nullopt;
 }
 
 /// Search for static libraries in the linker's library path given input like
