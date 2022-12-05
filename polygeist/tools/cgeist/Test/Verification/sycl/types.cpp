@@ -172,14 +172,10 @@ SYCL_EXTERNAL void vec_3(sycl::vec<sycl::cl_int, 4> vec) {}
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
 SYCL_EXTERNAL void vec_4(sycl::float8 vec) {}
 
-//#define SYCL_SIMPLE_SWIZZLES
-
 // CHECK-LABEL: func.func @_Z12swizzled_vecN4sycl3_V16detail9SwizzleOpINS0_3vecIfLi8EEENS1_5GetOpIfEES6_S5_JLi0ELi1ELi2EEEE(
 // CHECK-SAME:    %arg0: memref<?x!sycl_swizzled_vec_f32_8_> {llvm.noundef})
 // CHECK-SAME:  attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
 SYCL_EXTERNAL void swizzled_vec(sycl::detail::SwizzleOp<sycl::float8, sycl::detail::GetOp<float>, sycl::detail::GetOp<float>, sycl::detail::GetOp, 0, 1, 2> swizzle) {}
-
-//#undef SYCL_SIMPLE_SWIZZLES
 
 // CHECK-LABEL: func.func @_Z8atomic_1N4sycl3_V16atomicIiLNS0_6access13address_spaceE1EEE(
 // CHECK:          %arg0: memref<?x!sycl_atomic_i32_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_atomic_i32_1_, llvm.noundef})
