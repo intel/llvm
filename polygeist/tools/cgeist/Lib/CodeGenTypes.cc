@@ -1345,7 +1345,8 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
           TypeName == "group" || TypeName == "id" || TypeName == "item" ||
           TypeName == "ItemBase" || TypeName == "multi_ptr" ||
           TypeName == "nd_item" || TypeName == "nd_range" ||
-          TypeName == "range" || TypeName == "sub_group" ||
+          TypeName == "OwnerLessBase" || TypeName == "range" ||
+          TypeName == "sub_group" ||
           TypeName == "TupleCopyAssignableValueHolder" ||
           TypeName == "TupleValueHolder" || TypeName == "vec") {
         return getSYCLType(RT, *this);

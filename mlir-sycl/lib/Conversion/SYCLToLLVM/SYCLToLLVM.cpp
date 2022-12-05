@@ -211,6 +211,12 @@ static Optional<Type> convertNdItemType(sycl::NdItemType type,
                          type.getBody(), converter);
 }
 
+/// Converts SYCL owner less base type to LLVM type.
+static Optional<Type> convertOwnerLessBaseType(sycl::OwnerLessBaseType type,
+                                               LLVMTypeConverter &converter) {
+  return getI8Struct("class.sycl::_V1::detail::OwnerLessBase", converter);
+}
+
 /// Converts SYCL range type to LLVM type.
 static Optional<Type> convertRangeType(sycl::RangeType type,
                                        LLVMTypeConverter &converter) {
@@ -472,6 +478,9 @@ void mlir::sycl::populateSYCLToLLVMTypeConversion(
   });
   typeConverter.addConversion([&](sycl::NdItemType type) {
     return convertNdItemType(type, typeConverter);
+  });
+  typeConverter.addConversion([&](sycl::OwnerLessBaseType type) {
+    return convertOwnerLessBaseType(type, typeConverter);
   });
   typeConverter.addConversion([&](sycl::RangeType type) {
     return convertRangeType(type, typeConverter);

@@ -1482,9 +1482,9 @@ static bool isSYCLInheritType(Type &Ty, Value &Val) {
       })
       .Case<sycl::AccessorType>([&](auto) {
         assert(Ty.isa<MemRefType>());
-        return Ty.cast<MemRefType>()
-            .getElementType()
-            .isa<sycl::AccessorCommonType>();
+        Type BaseElemTy = Ty.cast<MemRefType>().getElementType();
+        return BaseElemTy.isa<sycl::AccessorCommonType>() ||
+               BaseElemTy.isa<sycl::OwnerLessBaseType>();
       })
       .Default([](auto) { return false; });
 }

@@ -54,6 +54,15 @@ bool mlir::sycl::SYCLCastOp::areCastCompatible(::mlir::TypeRange Inputs,
   if (HasAccessorCommonTrait && IsAccessorCommon)
     return true;
 
+  const bool HasOwnerLessBaseTrait =
+      Input.getElementType()
+          .hasTrait<mlir::sycl::SYCLInheritanceTypeTrait<
+              mlir::sycl::OwnerLessBaseType>::Trait>();
+  const bool IsOwnerLessBase =
+      Output.getElementType().isa<mlir::sycl::OwnerLessBaseType>();
+  if (HasOwnerLessBaseTrait && IsOwnerLessBase)
+    return true;
+
   return false;
 }
 
