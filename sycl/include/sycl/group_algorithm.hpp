@@ -15,7 +15,6 @@
 #include <sycl/builtins.hpp>
 #include <sycl/detail/spirv.hpp>
 #include <sycl/detail/type_traits.hpp>
-#include <sycl/ext/oneapi/experimental/group_sort.hpp>
 #include <sycl/ext/oneapi/functional.hpp>
 #include <sycl/functional.hpp>
 #include <sycl/group.hpp>

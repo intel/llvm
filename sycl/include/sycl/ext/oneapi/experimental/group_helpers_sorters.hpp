@@ -8,8 +8,10 @@
 
 #pragma once
 
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if !defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0
 #include <sycl/detail/group_sort_impl.hpp>
+#include <sycl/ext/oneapi/experimental/builtins.hpp>
+#include <sycl/group_algorithm.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -89,6 +91,102 @@ public:
   static constexpr std::size_t memory_required(sycl::memory_scope scope,
                                                sycl::range<dim> r) {
     return 2 * memory_required<T>(scope, r.size());
+  }
+};
+
+enum class sorting_order { ascending, descending };
+
+namespace detail {
+
+template <typename T, sorting_order = sorting_order::ascending>
+struct ConvertToComp {
+  using Type = std::less<T>;
+};
+
+template <typename T> struct ConvertToComp<T, sorting_order::descending> {
+  using Type = std::greater<T>;
+};
+} // namespace detail
+
+
+template <typename ValT, sorting_order OrderT = sorting_order::ascending,
+          unsigned int BitsPerPass = 4>
+class radix_sorter {
+
+  std::byte *scratch = nullptr;
+  uint32_t first_bit = 0;
+  uint32_t last_bit = 0;
+  std::size_t scratch_size = 0;
+
+  static constexpr uint32_t bits = BitsPerPass;
+
+public:
+  template <std::size_t Extent>
+  radix_sorter(sycl::span<std::byte, Extent> scratch_,
+               const std::bitset<sizeof(ValT) *CHAR_BIT> mask =
+                   std::bitset<sizeof(ValT) * CHAR_BIT>(
+                       std::numeric_limits<unsigned long long>::max()))
+      : scratch(scratch_.data()), scratch_size(scratch_.size()) {
+    static_assert((std::is_arithmetic<ValT>::value ||
+                   std::is_same<ValT, sycl::half>::value),
+                  "radix sort is not usable");
+
+    first_bit = 0;
+    while (first_bit < mask.size() && !mask[first_bit])
+      ++first_bit;
+
+    last_bit = first_bit;
+    while (last_bit < mask.size() && mask[last_bit])
+      ++last_bit;
+  }
+
+  template <typename GroupT, typename PtrT>
+  void operator()(GroupT g, PtrT first, PtrT last) {
+    (void)g;
+    (void)first;
+    (void)last;
+#ifdef __SYCL_DEVICE_ONLY__
+    sycl::detail::private_sort</*is_key_value=*/false, /*empty*/ 1,
+                               BitsPerPass>(
+        g, first, /*empty*/ first, (last - first) > 0 ? (last - first) : 0,
+        typename detail::ConvertToComp<ValT, OrderT>::Type{}, scratch,
+        first_bit, last_bit);
+#endif
+  }
+
+  template <typename GroupT> ValT operator()(GroupT g, ValT val) {
+    (void)g;
+    (void)val;
+#ifdef __SYCL_DEVICE_ONLY__
+    ValT result[]{val};
+    sycl::detail::private_memory_sort</*is_key_value=*/false,
+                                      /*is_blocked=*/true,
+                                      /*items_per_work_item=*/1, bits>(
+        g, result, /*empty*/ result,
+        typename detail::ConvertToComp<ValT, OrderT>::Type{}, scratch,
+        first_bit, last_bit);
+    return result[0];
+#else
+    return ValT{};
+#endif
+  }
+
+  static constexpr std::size_t memory_required(sycl::memory_scope scope,
+                                               std::size_t range_size) {
+    // Scope is not important so far
+    (void)scope;
+    return range_size * sizeof(ValT) +
+           (1 << bits) * range_size * sizeof(uint32_t) + alignof(uint32_t);
+  }
+
+  // memory_helpers
+  template <int dimensions = 1>
+  static constexpr size_t memory_required(sycl::memory_scope scope,
+                                          sycl::range<dimensions> local_range) {
+    // Scope is not important so far
+    (void)scope;
+    return std::max(local_range.size() * sizeof(ValT),
+                    local_range.size() * (1 << bits) * sizeof(uint32_t));
   }
 };
 

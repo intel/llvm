@@ -250,6 +250,429 @@ void merge_sort(Group group, Iter first, const std::size_t n, Compare comp,
   }
 }
 
+// traits for ascending functors
+template <typename _Comp> struct is_comp_ascending {
+  static constexpr bool value = false;
+};
+template <typename _T> struct is_comp_ascending<std::less<_T>> {
+  static constexpr bool value = true;
+};
+
+// traits for descending functors
+template <typename _Comp> struct is_comp_descending {
+  static constexpr bool value = false;
+};
+template <typename _T> struct is_comp_descending<std::greater<_T>> {
+  static constexpr bool value = true;
+};
+
+// get number of states radix bits can represent
+__attribute__((always_inline)) constexpr std::uint32_t
+get_states_in_bits(std::uint32_t radix_bits) {
+  return (1 << radix_bits);
+}
+
+//------------------------------------------------------------------------
+// ordered traits for a given size and integral/float flag
+//------------------------------------------------------------------------
+
+template <std::size_t type_size, bool is_integral_type> struct get_ordered {};
+
+template <> struct get_ordered<1, true> {
+  using _type = uint8_t;
+  constexpr static std::int8_t mask = 0x80;
+};
+
+template <> struct get_ordered<2, true> {
+  using _type = uint16_t;
+  constexpr static std::int16_t mask = 0x8000;
+};
+
+template <> struct get_ordered<4, true> {
+  using _type = uint32_t;
+  constexpr static std::int32_t mask = 0x80000000;
+};
+
+template <> struct get_ordered<8, true> {
+  using _type = uint64_t;
+  constexpr static std::int64_t mask = 0x8000000000000000;
+};
+
+template <> struct get_ordered<2, false> {
+  using _type = uint16_t;
+  constexpr static std::uint32_t nmask = 0xFFFF; // for negative numbers
+  constexpr static std::uint32_t pmask = 0x8000; // for positive numbers
+};
+
+template <> struct get_ordered<4, false> {
+  using _type = uint32_t;
+  constexpr static std::uint32_t nmask = 0xFFFFFFFF; // for negative numbers
+  constexpr static std::uint32_t pmask = 0x80000000; // for positive numbers
+};
+
+template <> struct get_ordered<8, false> {
+  using _type = uint64_t;
+  constexpr static std::uint64_t nmask =
+      0xFFFFFFFFFFFFFFFF; // for negative numbers
+  constexpr static std::uint64_t pmask =
+      0x8000000000000000; // for positive numbers
+};
+
+//------------------------------------------------------------------------
+// ordered type for a given type
+//------------------------------------------------------------------------
+
+// for unknown/unsupported type we do not have any trait
+template <typename _T, typename _Dummy = void> struct ordered {};
+
+// for unsigned integrals we use the same type
+template <typename _T>
+struct ordered<_T, std::enable_if_t<std::is_integral<_T>::value &&
+                                    std::is_unsigned<_T>::value>> {
+  using _type = _T;
+};
+
+// for signed integrals or floatings we map: size -> corresponding unsigned
+// integral
+template <typename _T>
+struct ordered<_T, std::enable_if_t<(std::is_integral<_T>::value &&
+                                     std::is_signed<_T>::value) ||
+                                    !std::is_integral<_T>::value>> {
+  using _type =
+      typename get_ordered<sizeof(_T), std::is_integral<_T>::value>::_type;
+};
+
+// shorthands
+template <typename _T> using ordered_t = typename ordered<_T>::_type;
+
+//------------------------------------------------------------------------
+// functions for conversion to ordered type
+//------------------------------------------------------------------------
+
+// for already ordered types (any uints) we use the same type
+template <typename _T>
+__attribute__((always_inline))
+std::enable_if_t<std::is_same<_T, ordered_t<_T>>::value, ordered_t<_T>>
+convert_to_ordered(_T value) {
+  return value;
+}
+
+// converts integral type to ordered (in terms of bitness) type
+template <typename _T>
+__attribute__((always_inline))
+std::enable_if_t<!std::is_same<_T, ordered_t<_T>>::value &&
+                     std::is_integral<_T>::value,
+                 ordered_t<_T>>
+convert_to_ordered(_T value) {
+  _T result = value ^ get_ordered<sizeof(_T), true>::mask;
+  return *reinterpret_cast<ordered_t<_T> *>(&result);
+}
+
+// converts floating type to ordered (in terms of bitness) type
+template <typename _T>
+__attribute__((always_inline))
+std::enable_if_t<!std::is_same<_T, ordered_t<_T>>::value &&
+                     !std::is_integral<_T>::value,
+                 ordered_t<_T>>
+convert_to_ordered(_T value) {
+  ordered_t<_T> uvalue = *reinterpret_cast<ordered_t<_T> *>(&value);
+  // check if value negative
+  ordered_t<_T> is_negative = uvalue >> (sizeof(_T) * CHAR_BIT - 1);
+  // for positive: 00..00 -> 00..00 -> 10..00
+  // for negative: 00..01 -> 11..11 -> 11..11
+  ordered_t<_T> ordered_mask =
+      (is_negative * get_ordered<sizeof(_T), false>::nmask) |
+      get_ordered<sizeof(_T), false>::pmask;
+  return uvalue ^ ordered_mask;
+}
+
+//------------------------------------------------------------------------
+// bit pattern functions
+//------------------------------------------------------------------------
+
+// required for descending comparator support
+template <bool flag> struct invert_if {
+  template <typename _T>
+  __attribute__((always_inline)) _T operator()(_T value) {
+    return value;
+  }
+};
+
+// invert value if descending comparator is passed
+template <> struct invert_if<true> {
+  template <typename _T>
+  __attribute__((always_inline)) _T operator()(_T value) {
+    return ~value;
+  }
+
+  // invertation for bool type have to be logical, rather than bit
+  __attribute__((always_inline)) bool operator()(bool value) { return !value; }
+};
+// get bit values in a certain bucket of a value
+template <std::uint32_t radix_bits, bool is_comp_asc, typename _T>
+__attribute__((always_inline)) std::uint32_t
+get_bucket_value(_T value, std::uint32_t radix_iter) {
+  // invert value if we need to sort in descending order
+  value = invert_if<!is_comp_asc>{}(value);
+
+  // get bucket offset idx from the end of bit type (least significant bits)
+  std::uint32_t bucket_offset = radix_iter * radix_bits;
+
+  // get offset mask for one bucket, e.g.
+  // radix_bits=2: 0000 0001 -> 0000 0100 -> 0000 0011
+  ordered_t<_T> bucket_mask = (1u << radix_bits) - 1u;
+
+  // get bits under bucket mask
+  return (value >> bucket_offset) & bucket_mask;
+}
+template <typename T>
+__attribute__((always_inline)) T get_default_value(std::less<T>) {
+  return std::numeric_limits<T>::max();
+}
+
+template <typename T>
+__attribute__((always_inline)) T get_default_value(std::greater<T>) {
+  return std::numeric_limits<T>::lowest();
+}
+
+template <bool is_key_value_sort> struct values_assigner {
+  template <typename IterIn, typename IterOut>
+  void operator()(IterOut output, size_t idx_out, IterIn input, size_t idx_in) {
+    output[idx_out] = input[idx_in];
+  }
+
+  template <typename IterOut, typename T>
+  void operator()(IterOut output, size_t idx_out, T value) {
+    output[idx_out] = value;
+  }
+};
+
+template <> struct values_assigner<false> {
+  template <typename IterIn, typename IterOut>
+  void operator()(IterOut, size_t, IterIn, size_t) {}
+
+  template <typename IterOut, typename T> void operator()(IterOut, size_t, T) {}
+};
+
+// The iteration of radix sort for unknown number of elements per work item
+template <uint32_t radix_bits, bool is_key_value_sort, typename KeysT,
+          typename ValueT, typename CompareT, typename GroupT>
+void perform_radix_iter_joint(GroupT group, const uint32_t items_per_work_item,
+                              const uint32_t radix_iter, const size_t n,
+                              KeysT *keys_input, ValueT *vals_input,
+                              KeysT *keys_output, ValueT *vals_output,
+                              uint32_t *memory, CompareT comp) {
+  const uint32_t radix_states = get_states_in_bits(radix_bits);
+  const size_t wgsize = group.get_local_linear_range();
+  const size_t idx = group.get_local_linear_id();
+
+  constexpr bool is_comp_asc =
+      is_comp_ascending<typename std::decay<CompareT>::type>::value;
+
+  // 1.1. Zeroinitialize local memory
+
+  uint32_t *scan_memory = reinterpret_cast<uint32_t *>(memory);
+  for (uint32_t state = 0; state < radix_states; ++state)
+    scan_memory[state * wgsize + idx] = 0;
+
+  sycl::group_barrier(group);
+
+  // 1.2. count values and write result to private count array and count memory
+
+  for (uint32_t i = 0; i < items_per_work_item; ++i) {
+    const uint32_t val_idx = items_per_work_item * idx + i;
+    // get value, convert it to ordered (in terms of bitness)
+    const auto val = convert_to_ordered(
+        (val_idx < n) ? keys_input[val_idx] : get_default_value(comp));
+    // get bit values in a certain bucket of a value
+    const uint32_t bucket_val =
+        get_bucket_value<radix_bits, is_comp_asc>(val, radix_iter);
+
+    // increment counter for this bit bucket
+    if (val_idx < n)
+      scan_memory[bucket_val * wgsize + idx]++;
+  }
+
+  sycl::group_barrier(group);
+
+  // 2.1 Scan. Upsweep: reduce over radix states
+  uint32_t reduced = 0;
+  for (uint32_t i = 0; i < radix_states; ++i)
+    reduced += scan_memory[idx * radix_states + i];
+
+  // 2.2. Exclusive scan: over work items
+  uint32_t scanned =
+      sycl::exclusive_scan_over_group(group, reduced, std::plus<uint32_t>());
+
+  // 2.3. Exclusive downsweep: exclusive scan over radix states
+  for (uint32_t i = 0; i < radix_states; ++i) {
+    uint32_t value = scan_memory[idx * radix_states + i];
+    scan_memory[idx * radix_states + i] = scanned;
+    scanned += value;
+  }
+
+  sycl::group_barrier(group);
+
+  uint32_t private_scan_memory[radix_states] = {0};
+
+  // 3. Reorder
+  for (uint32_t i = 0; i < items_per_work_item; ++i) {
+    const uint32_t val_idx = items_per_work_item * idx + i;
+    // get value, convert it to ordered (in terms of bitness)
+    auto val = convert_to_ordered((val_idx < n) ? keys_input[val_idx]
+                                                : get_default_value(comp));
+    // get bit values in a certain bucket of a value
+    uint32_t bucket_val =
+        get_bucket_value<radix_bits, is_comp_asc>(val, radix_iter);
+
+    uint32_t new_offset_idx = private_scan_memory[bucket_val]++ +
+                              scan_memory[bucket_val * wgsize + idx];
+    if (val_idx < n) {
+      keys_output[new_offset_idx] = keys_input[val_idx];
+      values_assigner<is_key_value_sort>()(vals_output, new_offset_idx,
+                                           vals_input, val_idx);
+    }
+  }
+}
+
+// The iteration of radix sort for known number of elements per work item
+template <std::size_t items_per_work_item, uint32_t radix_bits,
+          bool is_comp_asc, bool is_key_value_sort, bool is_blocked,
+          typename KeysT, typename ValsT, typename GroupT>
+void perform_radix_iter_static_size(GroupT group, const uint32_t radix_iter,
+                                    const uint32_t last_iter, KeysT *keys,
+                                    ValsT vals, std::byte *memory) {
+  const uint32_t radix_states = get_states_in_bits(radix_bits);
+  const size_t wgsize = group.get_local_linear_range();
+  const size_t idx = group.get_local_linear_id();
+
+  // 1.1. count per witem: create a private array for storing count values
+  uint32_t count_arr[items_per_work_item] = {0};
+  uint32_t ranks[items_per_work_item] = {0};
+
+  // 1.1. Zeroinitialize local memory
+  uint32_t *scan_memory = reinterpret_cast<uint32_t *>(memory);
+  for (uint32_t i = 0; i < radix_states; ++i)
+    scan_memory[i * wgsize + idx] = 0;
+
+  sycl::group_barrier(group);
+
+  uint32_t *pointers[items_per_work_item] = {nullptr};
+  // 1.2. count values and write result to private count array
+  for (uint32_t i = 0; i < items_per_work_item; ++i) {
+    // get value, convert it to ordered (in terms of bitness)
+    ordered_t<KeysT> val = convert_to_ordered(keys[i]);
+    // get bit values in a certain bucket of a value
+    uint32_t bucket_val =
+        get_bucket_value<radix_bits, is_comp_asc>(val, radix_iter);
+    pointers[i] = scan_memory + (bucket_val * wgsize + idx);
+    count_arr[i] = (*pointers[i])++;
+  }
+  sycl::group_barrier(group);
+
+  // 2.1 Scan. Upsweep: reduce over radix states
+  uint32_t reduced = 0;
+  for (uint32_t i = 0; i < radix_states; ++i)
+    reduced += scan_memory[idx * radix_states + i];
+
+  // 2.2. Exclusive scan: over work items
+  uint32_t scanned =
+      sycl::exclusive_scan_over_group(group, reduced, std::plus<uint32_t>());
+
+  // 2.3. Exclusive downsweep: exclusive scan over radix states
+  for (uint32_t i = 0; i < radix_states; ++i) {
+    uint32_t value = scan_memory[idx * radix_states + i];
+    scan_memory[idx * radix_states + i] = scanned;
+    scanned += value;
+  }
+
+  sycl::group_barrier(group);
+
+  // 2.4. Fill ranks with offsets
+  for (uint32_t i = 0; i < items_per_work_item; ++i)
+    ranks[i] = count_arr[i] + *pointers[i];
+
+  sycl::group_barrier(group);
+
+  // 3. Reorder
+  KeysT *keys_temp = reinterpret_cast<KeysT *>(memory);
+  ValsT vals_temp = reinterpret_cast<ValsT>(
+      memory + wgsize * items_per_work_item * sizeof(KeysT));
+  for (uint32_t i = 0; i < items_per_work_item; ++i) {
+    keys_temp[ranks[i]] = keys[i];
+    values_assigner<is_key_value_sort>()(vals_temp, ranks[i], vals, i);
+  }
+
+  sycl::group_barrier(group);
+
+  // 4. Copy back to input
+  for (uint32_t i = 0; i < items_per_work_item; ++i) {
+    std::size_t shift = idx * items_per_work_item + i;
+    if constexpr (!is_blocked) {
+      if (radix_iter == last_iter - 1)
+        shift = i * wgsize + idx;
+    }
+    keys[i] = keys_temp[shift];
+    values_assigner<is_key_value_sort>()(vals, i, vals_temp, shift);
+  }
+}
+
+template <bool is_key_value_sort, uint32_t items_per_work_item = 1,
+          uint32_t radix_bits = 4, typename GroupT, typename KeysT,
+          typename ValsT, typename CompareT>
+void private_sort(GroupT group, KeysT *keys, ValsT *values, const size_t n,
+                  CompareT comp, std::byte *scratch, const uint32_t first_bit,
+                  const uint32_t last_bit) {
+  const size_t wgsize = group.get_local_linear_range();
+  constexpr uint32_t radix_states = get_states_in_bits(radix_bits);
+  const uint32_t first_iter = first_bit / radix_bits;
+  const uint32_t last_iter = last_bit / radix_bits;
+
+  KeysT *keys_input = keys;
+  ValsT *vals_input = values;
+  const uint32_t runtime_items_per_work_item = (n - 1) / wgsize + 1;
+
+  // set pointers to unaligned memory
+  uint32_t *scan_memory = reinterpret_cast<uint32_t *>(scratch);
+  KeysT *keys_output = reinterpret_cast<KeysT *>(
+      scratch + radix_states * wgsize * sizeof(uint32_t));
+  // Adding 4 bytes extra space for keys due to specifics of some hardware
+  // architectures.
+  ValsT *vals_output = reinterpret_cast<ValsT *>(
+      keys_output + is_key_value_sort * n * sizeof(KeysT) + alignof(uint32_t));
+
+  for (uint32_t radix_iter = first_iter; radix_iter < last_iter; ++radix_iter) {
+    perform_radix_iter_joint<radix_bits, is_key_value_sort>(
+        group, runtime_items_per_work_item, radix_iter, n, keys_input,
+        vals_input, keys_output, vals_output, scan_memory, comp);
+
+    sycl::group_barrier(group);
+
+    std::swap(keys_input, keys_output);
+    std::swap(vals_input, vals_output);
+  }
+}
+
+template <bool is_key_value_sort, bool is_blocked,
+          std::size_t items_per_work_item = 1, uint32_t radix_bits = 4,
+          typename Group, typename T, typename U, typename Compare>
+void private_memory_sort(Group group, T *keys, U *values, Compare comp,
+                         std::byte *scratch, const uint32_t first_bit,
+                         const uint32_t last_bit) {
+  (void)comp;
+  constexpr bool is_comp_asc =
+      is_comp_ascending<typename std::decay<Compare>::type>::value;
+  const uint32_t first_iter = first_bit / radix_bits;
+  const uint32_t last_iter = last_bit / radix_bits;
+
+  for (uint32_t radix_iter = first_iter; radix_iter < last_iter; ++radix_iter) {
+    perform_radix_iter_static_size<items_per_work_item, radix_bits, is_comp_asc,
+                                   is_key_value_sort, is_blocked>(
+        group, radix_iter, last_iter, keys, values, scratch);
+    sycl::group_barrier(group);
+  }
+}
+
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

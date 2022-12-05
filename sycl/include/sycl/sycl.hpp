@@ -30,6 +30,7 @@
 #include <sycl/functional.hpp>
 #include <sycl/group.hpp>
 #include <sycl/group_algorithm.hpp>
+#include <sycl/ext/oneapi/experimental/group_sort.hpp>
 #include <sycl/group_local_memory.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/id.hpp>
