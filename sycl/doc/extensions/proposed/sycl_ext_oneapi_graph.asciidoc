@@ -955,7 +955,7 @@ input data is set.
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 
 int main() {
-  using namespace sycl::ext::oneapi::experimental;
+  namespace sycl_ext = sycl::ext::oneapi::experimental;
 
   const size_t n = 10;
   float alpha = 1.0f;
@@ -964,7 +964,7 @@ int main() {
 
   sycl::queue q;
 
-  command_graph g;
+  sycl_ext::command_graph g;
 
   float *x , *y, *z;
 
@@ -994,21 +994,21 @@ int main() {
       y[i] = 2.0f;
       z[i] = 3.0f;
     });
-  }, { property::node::depends_on(node_x, node_y, node_z)});
+  }, { sycl_ext::property::node::depends_on(node_x, node_y, node_z)});
 
   auto node_a = g.add([&](sycl::handler &h) {
     h.parallel_for(sycl::range<1>{n}, [=](sycl::id<1> it) {
       const size_t i = it[0];
       x[i] = alpha * x[i] + beta * y[i];
     });
-  }, { property::node::depends_on(node_i)});
+  }, { sycl_ext::property::node::depends_on(node_i)});
 
   auto node_b = g.add([&](sycl::handler &h) {
     h.parallel_for(sycl::range<1>{n}, [=](sycl::id<1> it) {
       const size_t i = it[0];
       z[i] = gamma * z[i] + beta * y[i];
     });
-  }, { property::node::depends_on(node_i)});
+  }, { sycl_ext::property::node::depends_on(node_i)});
 
   auto node_c = g.add(
       [&](sycl::handler &h) {
@@ -1019,10 +1019,10 @@ int main() {
                          sum += x[i] * z[i];
                        });
       },
-      { property::node::depends_on(node_a, node_b)});
+      { sycl_ext::property::node::depends_on(node_a, node_b)});
 
-  auto node_fx = g.add_free(x, {property::node::depends_on(node_c)});
-  auto node_fy = g.add_free(y, {property::node::depends_on(node_b)});
+  auto node_fx = g.add_free(x, {sycl_ext::property::node::depends_on(node_c)});
+  auto node_fy = g.add_free(y, {sycl_ext::property::node::depends_on(node_b)});
 
   auto exec = g.finalize(q.get_context());
 
