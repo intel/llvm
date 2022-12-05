@@ -61,7 +61,7 @@ While this document presents the core API that unifies Intel AMX, Intel XMX, and
 [frame="none",options="header"]
 |======================
 |Value |Description
-|1     |Initial extension JIT implementation on Intel AMX and Intel XMX. load, store, mad, fill, piece-wise operations, and the query interface are supported. The old API used for this implementation is detailed in [matrix extension](../../deprecated/sycl_ext_oneapi_deprecated_matrix_no_use.asciidoc)
+|1     |Initial extension JIT implementation on Intel AMX and Intel XMX. load, store, mad, fill, piece-wise operations, and the query interface are supported. The old API used for this implementation is detailed in [matrix extension](../../deprecated/sycl_ext_oneapi_matrix_no_use.asciidoc)
 |2     |JIT implementation on Intel AMX and Intel XMX. load, store, mad, fill, piece-wise operations, and the query interface are supported 
 |3     |Implementation on Nvidia Tensor Cores
 |======================
@@ -226,8 +226,7 @@ The code listing below shows a synopsis of these new APIs.
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
-template <typename Group, typename T, size_t NumRows, size_t NumCols,
-          use Use, layout Layout>
+template <typename Group, typename T, size_t NumRows, size_t NumCols, use Use, layout Layout>
    wi_data<group, T, Use, NumRows, NumCols, Layout> get_wi_data(Group sg, joint_matrix<Group, T, Use, Rows, Cols, Layout> Mat);
 
 template <typename T, size_t NumRows, size_t NumCols, use Use, layout Layout, typename Group>
@@ -580,10 +579,6 @@ for (int i = 0; i < data.length; ++i) {
   sum_of_local_rows[row] += data[i];
 }
 ```
-
-
-## Open Questions
-- Ronan Keryell: "It would be interesting to investigate whether providing also member functions would simplify the API. Provide both so it is possible to use the best one for each use case, while waiting for https://en.wikipedia.org/wiki/Uniform_Function_Call_Syntax to land into C++?"
 
 ## TODO List
 - Add WI data to joint matrix mapping coordinates information for piece-wise operations. This will be added as part of the query or new methods to the 'get_wi_data' class. 
