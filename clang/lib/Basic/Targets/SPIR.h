@@ -19,6 +19,7 @@
 #include "llvm/IR/DataLayout.h"
 #include "llvm/Support/Compiler.h"
 #include "OSTargets.h"
+#include <optional>
 
 namespace clang {
 namespace targets {
@@ -128,7 +129,7 @@ public:
     return TargetInfo::VoidPtrBuiltinVaList;
   }
 
-  Optional<unsigned>
+  std::optional<unsigned>
   getDWARFAddressSpace(unsigned AddressSpace) const override {
     return AddressSpace;
   }
