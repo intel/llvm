@@ -40,8 +40,8 @@ bool Scheduler::checkLeavesCompletion(MemObjRecord *Record) {
 
 void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
                                       ReadLockT &GraphReadLock) {
-  std::cout << std::this_thread::get_id()
-            << " waitForRecordToFinish begin Record " << Record << std::endl;
+  // std::cout << std::this_thread::get_id()
+  //           << " waitForRecordToFinish begin Record " << Record << std::endl;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // Will contain the list of dependencies for the Release Command
   std::set<Command *> DepCommands;
@@ -85,8 +85,8 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
     GraphProcessor::waitForEvent(ReleaseCmd->getEvent(), GraphReadLock,
                                  ToCleanUp);
   }
-  std::cout << std::this_thread::get_id()
-            << " waitForRecordToFinish end Record " << Record << std::endl;
+  // std::cout << std::this_thread::get_id()
+  //           << " waitForRecordToFinish end Record " << Record << std::endl;
 }
 
 EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
@@ -298,28 +298,30 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
     }
     {
       WriteLockT Lock = acquireWriteLock();
-      std::cout << std::this_thread::get_id()
-                << " removeMemoryObject write lock acquired Record = " << Record
-                << std::endl;
+      // std::cout << std::this_thread::get_id()
+      //           << " removeMemoryObject write lock acquired Record = " <<
+      //           Record
+      //           << std::endl;
       MGraphBuilder.decrementLeafCountersForRecord(Record);
-      std::cout
-          << std::this_thread::get_id()
-          << " removeMemoryObject cleanupCommandsForRecord before Record = "
-          << Record << std::endl;
+      // std::cout
+      //     << std::this_thread::get_id()
+      //     << " removeMemoryObject cleanupCommandsForRecord before Record = "
+      //     << Record << std::endl;
       MGraphBuilder.cleanupCommandsForRecord(Record, StreamsToDeallocate,
                                              AuxResourcesToDeallocate);
-      std::cout << std::this_thread::get_id()
-                << " removeMemoryObject removeRecordForMemObj before Record = "
-                << Record << std::endl;
+      // std::cout << std::this_thread::get_id()
+      //           << " removeMemoryObject removeRecordForMemObj before Record =
+      //           "
+      //           << Record << std::endl;
       MGraphBuilder.removeRecordForMemObj(MemObj);
-      std::cout << std::this_thread::get_id()
-                << " removeMemoryObject removeRecordForMemObj done Record = "
-                << Record << std::endl;
+      // std::cout << std::this_thread::get_id()
+      //           << " removeMemoryObject removeRecordForMemObj done Record = "
+      //           << Record << std::endl;
     }
   }
   deallocateStreams(StreamsToDeallocate);
-  std::cout << std::this_thread::get_id()
-            << " removeMemoryObject streams deallocated" << std::endl;
+  // std::cout << std::this_thread::get_id()
+  //           << " removeMemoryObject streams deallocated" << std::endl;
 }
 
 EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
@@ -361,8 +363,8 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
 }
 
 void Scheduler::releaseHostAccessor(Requirement *Req) {
-  std::cout << "releaseHostAccessor begin MSYCLMemObj = " << Req->MSYCLMemObj
-            << std::endl;
+  // std::cout << "releaseHostAccessor begin MSYCLMemObj = " << Req->MSYCLMemObj
+  //           << std::endl;
 
   Command *const BlockedCmd = Req->MBlockedCmd;
 
@@ -377,8 +379,8 @@ void Scheduler::releaseHostAccessor(Requirement *Req) {
     enqueueLeavesOfReqUnlocked(Req, ToCleanUp);
   }
   cleanupCommands(ToCleanUp);
-  std::cout << "releaseHostAccessor end MSYCLMemObj = " << Req->MSYCLMemObj
-            << std::endl;
+  // std::cout << "releaseHostAccessor end MSYCLMemObj = " << Req->MSYCLMemObj
+  //           << std::endl;
 }
 
 void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req,
@@ -387,13 +389,13 @@ void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req,
   auto EnqueueLeaves = [&ToCleanUp](LeavesCollection &Leaves) {
     for (Command *Cmd : Leaves) {
       EnqueueResultT Res;
-      std::cout << std::this_thread::get_id()
-                << "EnqueueLeavesOfReqUnlocked enqueueCommand begin  " << Cmd
-                << std::endl;
+      // std::cout << std::this_thread::get_id()
+      //           << "EnqueueLeavesOfReqUnlocked enqueueCommand begin  " << Cmd
+      //           << std::endl;
       bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
-      std::cout << std::this_thread::get_id()
-                << " enqueueLeavesOfReqUnlocked enqueueCommand end  " << Cmd
-                << std::endl;
+      // std::cout << std::this_thread::get_id()
+      //           << " enqueueLeavesOfReqUnlocked enqueueCommand end  " << Cmd
+      //           << std::endl;
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
         throw runtime_error("Enqueue process failed.",
                             PI_ERROR_INVALID_OPERATION);
@@ -450,10 +452,10 @@ Scheduler::~Scheduler() {
 void Scheduler::releaseResources() {
   MReleaseStarted = true;
   // TraceEvent trace("releaseResources");
-  std::cout << "releaseResources begin " << std::endl;
+  // std::cout << "releaseResources begin " << std::endl;
   if (DefaultHostQueue) {
     DefaultHostQueue->wait();
-    std::cout << "DefaultHostQueue wait finished" << std::endl;
+    // std::cout << "DefaultHostQueue wait finished" << std::endl;
   }
   GlobalHandler::instance().drainThreadPool();
   // std::cout << "threads finished" << std::endl;
@@ -469,12 +471,12 @@ void Scheduler::releaseResources() {
   // queue_impl, ~queue_impl is called and buffer for assert (which is created
   // with size only so all confitions for deferred release are satisfied) is
   // added to deferred mem obj storage. So we may end up with leak.
-  std::cout << "cleanupDeferredMemObjects(BlockingT::BLOCKING); begin "
-            << std::endl;
+  // std::cout << "cleanupDeferredMemObjects(BlockingT::BLOCKING); begin "
+  //           << std::endl;
   while (!isDeferredMemObjectsEmpty())
     cleanupDeferredMemObjects(BlockingT::BLOCKING);
-  std::cout << "cleanupDeferredMemObjects(BlockingT::BLOCKING); end "
-            << std::endl;
+  // std::cout << "cleanupDeferredMemObjects(BlockingT::BLOCKING); end "
+  //           << std::endl;
 }
 
 MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
@@ -485,19 +487,19 @@ void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
   if (Cmds.empty()) {
     std::lock_guard<std::mutex> Lock{MDeferredCleanupMutex};
     if (MDeferredCleanupCommands.empty()) {
-      std::cout << std::this_thread::get_id() << " cleanupCommands end "
-                << std::endl;
+      // std::cout << std::this_thread::get_id() << " cleanupCommands end "
+      //           << std::endl;
       return;
     }
   }
-  std::cout << std::this_thread::get_id()
-            << " cleanupCommands:: before try lock" << std::endl;
+  // std::cout << std::this_thread::get_id()
+  //           << " cleanupCommands:: before try lock" << std::endl;
   WriteLockT Lock(MGraphLock, std::try_to_lock);
   // In order to avoid deadlocks related to blocked commands, defer cleanup if
   // the lock wasn't acquired.
   if (Lock.owns_lock()) {
-    std::cout << std::this_thread::get_id() << "cleanupCommand owns lock"
-              << std::endl;
+    // std::cout << std::this_thread::get_id() << "cleanupCommand owns lock"
+    //           << std::endl;
     for (Command *Cmd : Cmds) {
       MGraphBuilder.cleanupCommand(Cmd);
     }
@@ -511,16 +513,17 @@ void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
     }
 
   } else {
-    std::cout << std::this_thread::get_id() << "ready to defer command cleanup"
-              << std::endl;
+    // std::cout << std::this_thread::get_id() << "ready to defer command
+    // cleanup"
+    //           << std::endl;
     std::lock_guard<std::mutex> Lock{MDeferredCleanupMutex};
     MDeferredCleanupCommands.insert(MDeferredCleanupCommands.end(),
                                     Cmds.begin(), Cmds.end());
-    std::cout << std::this_thread::get_id() << "defered command inserted"
-              << std::endl;
+    // std::cout << std::this_thread::get_id() << "defered command inserted"
+    //           << std::endl;
   }
-  std::cout << std::this_thread::get_id() << " cleanupCommands end "
-            << std::endl;
+  // std::cout << std::this_thread::get_id() << " cleanupCommands end "
+  //           << std::endl;
 }
 
 void Scheduler::NotifyHostTaskCompletion(Command *Cmd, Command *BlockingCmd) {
@@ -530,8 +533,9 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd, Command *BlockingCmd) {
   // of empty command.
   // Also, it's possible to have record deallocated prior to enqueue process.
   // Thus we employ read-lock of graph.
-  std::cout << std::this_thread::get_id() << " NotifyHostTaskCompletion begin "
-            << std::endl;
+  // std::cout << std::this_thread::get_id() << " NotifyHostTaskCompletion begin
+  // "
+  //           << std::endl;
   std::vector<Command *> ToCleanUp;
   {
     ReadLockT Lock = acquireReadLock();
@@ -539,11 +543,12 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd, Command *BlockingCmd) {
     std::vector<DepDesc> Deps = Cmd->MDeps;
 
     // update self-event status
-    std::cout << "NotifyHostTaskCompletion Cmd->getEvent()->setComplete begin "
-              << std::endl;
+    // std::cout << "NotifyHostTaskCompletion Cmd->getEvent()->setComplete begin
+    // "
+    //           << std::endl;
     Cmd->getEvent()->setComplete();
-    std::cout << "NotifyHostTaskCompletion Cmd->getEvent()->setComplete end "
-              << std::endl;
+    // std::cout << "NotifyHostTaskCompletion Cmd->getEvent()->setComplete end "
+    //           << std::endl;
 
     BlockingCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
@@ -551,8 +556,8 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd, Command *BlockingCmd) {
       Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement, ToCleanUp);
   }
   cleanupCommands(ToCleanUp);
-  std::cout << std::this_thread::get_id() << "NotifyHostTaskCompletion end "
-            << std::endl;
+  // std::cout << std::this_thread::get_id() << "NotifyHostTaskCompletion end "
+  //           << std::endl;
 }
 
 void Scheduler::deferMemObjRelease(const std::shared_ptr<SYCLMemObjI> &MemObj) {
@@ -598,9 +603,9 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
           MemObjIt++;
           continue;
         }
-        std::cout << std::this_thread::get_id()
-                  << " cleanupDeferredMemObjects Record = " << Record
-                  << std::endl;
+        // std::cout << std::this_thread::get_id()
+        //           << " cleanupDeferredMemObjects Record = " << Record
+        //           << std::endl;
         ObjsReadyToRelease.push_back(*MemObjIt);
         MemObjIt = MDeferredMemObjRelease.erase(MemObjIt);
       }

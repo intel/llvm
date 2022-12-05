@@ -32,9 +32,9 @@ void Scheduler::GraphProcessor::waitForEvent(const EventImplPtr &Event,
                                              ReadLockT &GraphReadLock,
                                              std::vector<Command *> &ToCleanUp,
                                              bool LockTheLock) {
-  auto id = Gen.next();
-  std::cout << std::this_thread::get_id() << " waitForEvent begin " << id
-            << std::endl;
+  // auto id = Gen.next();
+  //  std::cout << std::this_thread::get_id() << " waitForEvent begin " << id
+  //            << std::endl;
   Command *Cmd = getCommand(Event);
   // Command can be nullptr if user creates sycl::event explicitly or the
   // event has been waited on by another thread
@@ -50,15 +50,18 @@ void Scheduler::GraphProcessor::waitForEvent(const EventImplPtr &Event,
   assert(Cmd->getEvent() == Event);
 
   GraphReadLock.unlock();
-  std::cout << std::this_thread::get_id() << " waitForEvent waitInternal begin "
-            << id << std::endl;
+  // std::cout << std::this_thread::get_id() << " waitForEvent waitInternal
+  // begin "
+  //           << id << std::endl;
   Event->waitInternal();
-  std::cout << std::this_thread::get_id() << " waitForEvent waitInternal end "
-            << id << std::endl;
+  // std::cout << std::this_thread::get_id() << " waitForEvent waitInternal end
+  // "
+  //           << id << std::endl;
   if (LockTheLock)
     GraphReadLock.lock();
-  std::cout << std::this_thread::get_id() << " waitForEvent after lock " << id
-            << std::endl;
+  // std::cout << std::this_thread::get_id() << " waitForEvent after lock " <<
+  // id
+  //           << std::endl;
 }
 
 bool Scheduler::GraphProcessor::enqueueCommand(
