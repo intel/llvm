@@ -54,11 +54,11 @@ void helper::ModuleHelper::identifyUnusedFunctions(
   // and add all functions called from this function to the worklist. Repeat
   // until the worklist is empty.
   SmallVector<Function *> Worklist;
-  for (auto *Root : CGRoots) {
+  for (llvm::Function *Root : CGRoots) {
     Worklist.push_back(Root);
   }
   for (size_t I = 0; I < Worklist.size(); ++I) {
-    auto *F = Worklist[I];
+    llvm::Function *F = Worklist[I];
     UsedFunctions.insert(F);
     for (auto &CGR : *CG[F]) {
       auto *CF = CGR.second->getFunction();

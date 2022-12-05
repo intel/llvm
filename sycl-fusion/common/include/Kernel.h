@@ -132,21 +132,17 @@ public:
   KernelInfoList &kernels() { return Kernels; }
 
   bool hasKernelFor(const std::string &KernelName) {
-    return findKernelFor(KernelName) != nullptr;
+    return getKernelFor(KernelName) != nullptr;
   }
 
   SYCLKernelInfo *getKernelFor(const std::string &KernelName) {
-    return findKernelFor(KernelName);
-  }
-
-private:
-  SYCLKernelInfo *findKernelFor(const std::string &KernelName) {
     auto It =
         std::find_if(Kernels.begin(), Kernels.end(),
                      [&](SYCLKernelInfo &K) { return K.Name == KernelName; });
     return (It != Kernels.end()) ? &*It : nullptr;
   }
 
+private:
   KernelInfoList Kernels;
 };
 

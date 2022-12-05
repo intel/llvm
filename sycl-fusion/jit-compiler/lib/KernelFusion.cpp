@@ -27,10 +27,10 @@ static FusionResult errorToFusionResult(llvm::Error &&Err,
   std::stringstream ErrMsg;
   ErrMsg << Msg << "\nDetailed information:\n";
   llvm::handleAllErrors(std::move(Err),
-                        [&ErrMsg](const llvm::StringError &Err) {
+                        [&ErrMsg](const llvm::StringError &StrErr) {
                           // Cannot throw an exception here if LLVM itself is
                           // compiled without exception support.
-                          ErrMsg << "\t" << Err.getMessage() << "\n";
+                          ErrMsg << "\t" << StrErr.getMessage() << "\n";
                         });
   return FusionResult{ErrMsg.str()};
 }
@@ -58,12 +58,13 @@ FusionResult KernelFusion::fuseKernels(
                               KernelInformation.end());
   // Load all input kernels from their respective SPIR-V modules into a single
   // LLVM IR module.
-  auto ModOrError = translation::SPIRVLLVMTranslator::loadSPIRVKernels(
-      *JITCtx.getLLVMContext(), ModuleInfo.kernels());
+  llvm::Expected<std::unique_ptr<llvm::Module>> ModOrError =
+      translation::SPIRVLLVMTranslator::loadSPIRVKernels(
+          *JITCtx.getLLVMContext(), ModuleInfo.kernels());
   if (auto Error = ModOrError.takeError()) {
     return errorToFusionResult(std::move(Error), "SPIR-V translation failed");
   }
-  auto LLVMMod = std::move(*ModOrError);
+  std::unique_ptr<llvm::Module> LLVMMod = std::move(*ModOrError);
 
   // Add information about the kernel that should be fused as metadata into the
   // LLVM module.
@@ -71,13 +72,13 @@ FusionResult KernelFusion::fuseKernels(
                             std::move(Identities), Internalization, Constants};
   FusedFunctionList FusedKernelList;
   FusedKernelList.push_back(FusedKernel);
-  auto NewModOrError =
+  llvm::Expected<std::unique_ptr<llvm::Module>> NewModOrError =
       helper::FusionHelper::addFusedKernel(LLVMMod.get(), FusedKernelList);
   if (auto Error = NewModOrError.takeError()) {
     return errorToFusionResult(std::move(Error),
                                "Insertion of fused kernel stub failed");
   }
-  auto NewMod = std::move(*NewModOrError);
+  std::unique_ptr<llvm::Module> NewMod = std::move(*NewModOrError);
 
   // TODO: Invoke the actual fusion via LLVM pass manager.
   // This will be added in a later PR.
@@ -89,20 +90,20 @@ FusionResult KernelFusion::fuseKernels(
     return FusionResult{"No KernelInfo for fused kernel"};
   }
 
-  auto &FusedKernelInfo = *NewModInfo->getKernelFor(FusedKernelName);
+  SYCLKernelInfo &FusedKernelInfo = *NewModInfo->getKernelFor(FusedKernelName);
 
   // Translate the LLVM IR module resulting from the fusion pass into SPIR-V.
-  auto BinaryOrError =
+  llvm::Expected<jit_compiler::SPIRVBinary *> BinaryOrError =
       translation::SPIRVLLVMTranslator::translateLLVMtoSPIRV(*NewMod, JITCtx);
   if (auto Error = BinaryOrError.takeError()) {
     return errorToFusionResult(std::move(Error),
                                "Translation to SPIR-V failed");
   }
-  auto *SPIRVBin = *BinaryOrError;
+  jit_compiler::SPIRVBinary *SPIRVBin = *BinaryOrError;
 
   // Update the KernelInfo for the fused kernel with the address and size of the
   // SPIR-V binary resulting from translation.
-  auto &FusedBinaryInfo = FusedKernelInfo.BinaryInfo;
+  SYCLKernelBinaryInfo &FusedBinaryInfo = FusedKernelInfo.BinaryInfo;
   FusedBinaryInfo.Format = BinaryFormat::SPIRV;
   // Output SPIR-V should use the same number of address bits as the input
   // SPIR-V. SPIR-V translation requires all modules to use the same number of

@@ -116,13 +116,13 @@ SPIRVLLVMTranslator::loadSPIRVKernels(llvm::LLVMContext &LLVMCtx,
     // FIXME: Currently, we use the front of the list.
     // Do we need to iterate to find the most suitable
     // SPIR-V module?
-    auto &BinInfo = Kernel.BinaryInfo;
+    SYCLKernelBinaryInfo &BinInfo = Kernel.BinaryInfo;
     // TODO(Lukas, ONNX-399): Also support LLVM IR as input but simply skipping
     // the translation from SPIR-V to LLVM.
     assert(BinInfo.Format == BinaryFormat::SPIRV &&
            "Only SPIR-V supported as input");
-    const auto *SPRModulePtr = BinInfo.BinaryStart;
-    auto SPRModuleSize = BinInfo.BinarySize;
+    const unsigned char *SPRModulePtr = BinInfo.BinaryStart;
+    size_t SPRModuleSize = BinInfo.BinarySize;
     BinaryBlob BinBlob{SPRModulePtr, SPRModuleSize};
     if (ParsedSPIRVModules.contains(BinBlob)) {
       // Multiple kernels can be stored in the same SPIR-V module.
