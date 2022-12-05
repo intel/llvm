@@ -18,4 +18,4 @@
 // separated.
 #define CMPXCHG_TEST
 
-#include "lsc/atomic_smoke.cpp"
+#include "atomic_smoke.cpp"
