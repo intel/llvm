@@ -40,39 +40,14 @@ void Scheduler::GraphProcessor::waitForEvent(const EventImplPtr &Event,
   assert(Cmd->getEvent() == Event);
 
   GraphReadLock.unlock();
-
-  static bool ThrowOnBlock = getenv("SYCL_THROW_ON_BLOCK") != nullptr;
-    if (ThrowOnBlock)
-      throw sycl::runtime_error(
-          std::string("Waiting for blocked command. Block reason: ") +
-              std::string(CmdAfterWait->getBlockReason()),
-          PI_ERROR_INVALID_OPERATION);
   Event->waitInternal();
 
-  if (Command* CmdAfterWait = Event->getCommand() && CmdAfterWait->isBlocking())
-  {
-    static bool ThrowOnBlock = getenv("SYCL_THROW_ON_BLOCK") != nullptr;
-    if (ThrowOnBlock)
-      throw sycl::runtime_error(
-          std::string("Waiting for blocked command. Block reason: ") +
-              std::string(CmdAfterWait->getBlockReason()),
-          PI_ERROR_INVALID_OPERATION);
-  #ifdef XPTI_ENABLE_INSTRUMENTATION
-    // Scoped trace event notifier that emits a barrier begin and barrier end
-    // event, which models the barrier while enqueuing along with the blocked
-    // reason, as determined by the scheduler
-    std::string Info = "enqueue.barrier[";
-    Info += std::string(Cmd->getBlockReason()) + "]";
-    emitInstrumentation(xpti::trace_barrier_begin, Info.c_str());
-#endif
-
-    // Wait if blocking. isBlocked path for task completion is handled above with Event->waitInternal().
+  if (Command *CmdAfterWait = static_cast<Command *>(Event->getCommand());
+      CmdAfterWait && CmdAfterWait->isBlocking())
+    // Wait if blocking. isBlocked path for task completion is handled above
+    // with Event->waitInternal().
     while (CmdAfterWait->MIsManuallyBlocked == true)
       ;
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-    emitInstrumentation(xpti::trace_barrier_end, Info.c_str());
-#endif
-  }
 
   if (LockTheLock)
     GraphReadLock.lock();
@@ -82,22 +57,14 @@ bool Scheduler::GraphProcessor::handleBlockingCmd(Command *Cmd,
                                                   EnqueueResultT &EnqueueResult,
                                                   Command *RootCommand,
                                                   BlockingT Blocking) {
- 
-  static bool ThrowOnBlock = getenv("SYCL_THROW_ON_BLOCK") != nullptr;
+
   // No error to be returned for root command.
-  // Blocking && !ThrowOnBlock means that we will wait for task in parent command enqueue if it is blocking and do not report it to user.
-  if ((Cmd == RootCommand) || (Blocking && !ThrowOnBlock))
+  if (Cmd == RootCommand || Blocking)
     return true;
 
   {
     std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
     if (Cmd->isBlocking()) {
-      if (Blocking && ThrowOnBlock)
-        // Means that we are going to wait on Blocking command
-        throw sycl::runtime_error(
-          std::string("Waiting for blocked command. Block reason: ") +
-              std::string(Cmd->getBlockReason()),
-          PI_ERROR_INVALID_OPERATION);
       const EventImplPtr &RootCmdEvent = RootCommand->getEvent();
       Cmd->addBlockedUserUnique(RootCmdEvent);
       EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);

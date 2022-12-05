@@ -269,7 +269,7 @@ TEST_F(DependsOnTests, EnqueueNoMemObjDoubleKernelDepHost) {
 
   detail::Command *Cmd1 = AddTaskCG(TestCGType::HOST_TASK, Events);
   EventImplPtr Cmd1Event = Cmd1->getEvent();
-  Cmd1->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
+  Cmd1->blockManually(detail::Command::BlockReason::HostAccessor);
 
   // Depends on host task
   Events.push_back(Cmd1Event);

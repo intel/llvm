@@ -695,27 +695,11 @@ void Command::emitInstrumentation(uint16_t Type, const char *Txt) {
 
 bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
                       std::vector<Command *> &ToCleanUp) {
+  assert(MEnqueueStatus != EnqueueResultT::SyclEnqueueBlocked &&
+         "Final command enqueue should always be not blocked.");
   // Exit if already enqueued
   if (MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess)
     return true;
-
-  // If the command is blocked from enqueueing
-  //   if (MIsManuallyBlockable && MEnqueueStatus ==
-  //   EnqueueResultT::SyclEnqueueBlocked) {
-  //     // Exit if enqueue type is not blocking
-  //     if (!Blocking) {
-  //       EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked,
-  //       this); return false;
-  //     }
-  //     static bool ThrowOnBlock = getenv("SYCL_THROW_ON_BLOCK") != nullptr;
-  //     if (ThrowOnBlock)
-  //       throw sycl::runtime_error(
-  //           std::string("Waiting for blocked command. Block reason: ") +
-  //               std::string(getBlockReason()),
-  //           PI_ERROR_INVALID_OPERATION);
-
-
-  //   }
 
   std::lock_guard<std::mutex> Lock(MEnqueueMtx);
 
