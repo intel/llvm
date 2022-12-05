@@ -523,7 +523,7 @@ private:
 };
 
 /// \returns a vector of types for a collection of values.
-template <class T> std::vector<Type *> getTypes(T V) {
+template <class T> std::vector<Type *> getTypes(llvm::ArrayRef<T> V) {
   std::vector<Type *> Tys;
   for (auto &I : V)
     Tys.push_back(I->getType());
