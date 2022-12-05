@@ -5573,43 +5573,40 @@ class OffloadingActionBuilder final {
               JobAction *LinkDeviceCode =
                   C.MakeAction<LinkJobAction>(DeviceCodeAndSYCLLibs, types::TY_LLVM_BC);
 
-              if (!IsRDC) {
-                if (FullDeviceLinkAction->getType() == types::TY_Tempfilelist) {
-                  // If our compiler input outputs a temp file list (eg. fat
-                  // static archive), we need to link the device code against
-                  // each entry in the static archive.
-                  auto *ParallelLinkDeviceCode =
-                      C.MakeAction<ForEachWrappingAction>(
-                          cast<JobAction>(FullDeviceLinkAction),
-                          LinkDeviceCode);
-                  // The SYCL device library action tree should not be
-                  // for-eached, it only needs to happen once total. The
-                  // for-each action should start linking device code with the
-                  // device libraries.
-                  std::function<void(const Action *)> traverseActionTree =
-                      [&](const Action *Act) {
-                        ParallelLinkDeviceCode->addSerialAction(Act);
-                        for (const auto &Input : Act->getInputs()) {
-                          traverseActionTree(Input);
-                        }
-                      };
-                  traverseActionTree(LinkSYCLLibs);
-                  ActionList TformInputs{FullDeviceLinkAction,
-                                         ParallelLinkDeviceCode};
-                  auto *ReplaceFilesAction =
-                      C.MakeAction<FileTableTformJobAction>(
-                          TformInputs, types::TY_Tempfilelist,
-                          types::TY_Tempfilelist);
-                  ReplaceFilesAction->addReplaceColumnTform(
-                      FileTableTformJobAction::COL_ZERO,
-                      FileTableTformJobAction::COL_ZERO);
-                  ReplaceFilesAction->addExtractColumnTform(
-                      FileTableTformJobAction::COL_ZERO, false /*drop titles*/);
-                  FullDeviceLinkAction = ReplaceFilesAction;
-                } else {
-                  // If our compiler input is singular, just do a single link.
-                  FullDeviceLinkAction = LinkDeviceCode;
-                }
+              if (FullDeviceLinkAction->getType() == types::TY_Tempfilelist) {
+                // If our compiler input outputs a temp file list (eg. fat
+                // static archive), we need to link the device code against
+                // each entry in the static archive.
+                auto *ParallelLinkDeviceCode =
+                    C.MakeAction<ForEachWrappingAction>(
+                        cast<JobAction>(FullDeviceLinkAction), LinkDeviceCode);
+                // The SYCL device library action tree should not be
+                // for-eached, it only needs to happen once total. The
+                // for-each action should start linking device code with the
+                // device libraries.
+                std::function<void(const Action *)> traverseActionTree =
+                    [&](const Action *Act) {
+                      ParallelLinkDeviceCode->addSerialAction(Act);
+                      for (const auto &Input : Act->getInputs()) {
+                        traverseActionTree(Input);
+                      }
+                    };
+                traverseActionTree(LinkSYCLLibs);
+                ActionList TformInputs{FullDeviceLinkAction,
+                                       ParallelLinkDeviceCode};
+                auto *ReplaceFilesAction =
+                    C.MakeAction<FileTableTformJobAction>(
+                        TformInputs, types::TY_Tempfilelist,
+                        types::TY_Tempfilelist);
+                ReplaceFilesAction->addReplaceColumnTform(
+                    FileTableTformJobAction::COL_ZERO,
+                    FileTableTformJobAction::COL_ZERO);
+                ReplaceFilesAction->addExtractColumnTform(
+                    FileTableTformJobAction::COL_ZERO, false /*drop titles*/);
+                FullDeviceLinkAction = ReplaceFilesAction;
+              } else {
+                // If our compiler input is singular, just do a single link.
+                FullDeviceLinkAction = LinkDeviceCode;
               }
             }
           } else
