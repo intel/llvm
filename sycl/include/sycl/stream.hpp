@@ -11,6 +11,8 @@
 #include <sycl/builtins.hpp>
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/owner_less_base.hpp>
+#include <sycl/ext/oneapi/weak_object_base.hpp>
 #include <sycl/handler.hpp>
 
 namespace sycl {
@@ -739,7 +741,8 @@ inline __width_manipulator__ setw(int Width) {
 /// vector and SYCL types to the console.
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT __SYCL_SPECIAL_CLASS __SYCL_TYPE(stream) stream {
+class __SYCL_EXPORT __SYCL_SPECIAL_CLASS __SYCL_TYPE(stream) stream
+    : public detail::OwnerLessBase<stream> {
 public:
 #ifdef __SYCL_DEVICE_ONLY__
   // Default constructor for objects later initialized with __init member.

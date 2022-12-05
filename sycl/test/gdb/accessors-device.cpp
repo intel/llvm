@@ -33,6 +33,7 @@ int main() {
 
 // CHECK:           0 | class sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>
 // CHECK-NEXT:      0 |   class sycl::detail::accessor_common<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t> (base) (empty)
+// CHECK-NEXT:      0 |   class sycl::detail::OwnerLessBase<class sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t> > (base) (empty)
 // CHECK-NEXT:      0 |   class sycl::detail::AccessorImplDevice<1> impl
 // CHECK-NEXT:      0 |     class sycl::id<1> Offset
 // CHECK-NEXT:      0 |       class sycl::detail::array<1> (base)
