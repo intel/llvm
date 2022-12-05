@@ -5711,7 +5711,7 @@ class OffloadingActionBuilder final {
               C.getDriver().Diag(clang::diag::err_drv_bad_target_id) << ArchStr;
               continue;
             }
-            auto CanId = getCanonicalTargetID(Arch.getValue(), Features);
+            auto CanId = getCanonicalTargetID(Arch.value(), Features);
             ArchStr = Args.MakeArgStringRef(CanId);
           }
           ParsedArg->claim();

@@ -190,7 +190,6 @@ variables in production code.</span>
 | `SYCL_PRINT_EXECUTION_GRAPH` | Described [below](#sycl_print_execution_graph-options) | Print execution graph to DOT text file. |
 | `SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP` | Any(\*) | Disable cleanup of finished command nodes at host-device synchronization points. |
 | `SYCL_DISABLE_POST_ENQUEUE_CLEANUP` | Any(\*) | Disable cleanup of enqueued command nodes during submission. |
-| `SYCL_THROW_ON_BLOCK` | Any(\*) | Throw an exception on attempt to wait for a blocked command.  |
 | `SYCL_DEVICELIB_INHIBIT_NATIVE` | String of device library extensions (separated by a whitespace) | Do not rely on device native support for devicelib extensions listed in this option. |
 | `SYCL_PROGRAM_COMPILE_OPTIONS` | String of valid OpenCL compile options | Override compile options for all programs. |
 | `SYCL_PROGRAM_LINK_OPTIONS` | String of valid OpenCL link options | Override link options for all programs. |

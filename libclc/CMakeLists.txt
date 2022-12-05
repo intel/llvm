@@ -81,7 +81,6 @@ if( LIBCLC_TARGETS_TO_BUILD STREQUAL "all" )
 	set( LIBCLC_TARGETS_TO_BUILD ${LIBCLC_TARGETS_ALL} )
 endif()
 
-
 set(LIBCLC_TARGET_TO_TEST)
 
 foreach ( t ${LIBCLC_TEST_TARGETS_ALL})
@@ -121,12 +120,12 @@ message( "LLVM bindir: ${LLVM_TOOLS_BINARY_DIR}" )
 message( "LLVM cxx flags: ${LLVM_CXX_FLAGS}" )
 message( "" )
 
-find_program( LLVM_CLANG clang PATHS ${LLVM_BINDIR} NO_DEFAULT_PATH )
-find_program( LLVM_AS llvm-as PATHS ${LLVM_BINDIR} NO_DEFAULT_PATH )
-find_program( LLVM_LINK llvm-link PATHS ${LLVM_BINDIR} NO_DEFAULT_PATH )
-find_program( LLVM_OPT opt PATHS ${LLVM_BINDIR} NO_DEFAULT_PATH )
-find_program( LLVM_SPIRV llvm-spirv PATHS ${LLVM_BINDIR} NO_DEFAULT_PATH )
-find_program( LIBCLC_REMANGLER libclc-remangler PATHS ${LLVM_BINDIR}
+find_program( LLVM_CLANG clang PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
+find_program( LLVM_AS llvm-as PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
+find_program( LLVM_LINK llvm-link PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
+find_program( LLVM_OPT opt PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
+find_program( LLVM_SPIRV llvm-spirv PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
+find_program( LIBCLC_REMANGLER libclc-remangler PATHS ${LLVM_TOOLS_BINARY_DIR}
 							NO_DEFAULT_PATH )
 
 # Print toolchain
