@@ -1055,9 +1055,10 @@ protected:
     return Result;
   }
 
-  template <typename T, int Dims> static constexpr bool IsSameAsBuffer() {
-    return std::is_same<T, DataT>::value && (Dims > 0) && (Dims == Dimensions);
-  }
+  template <typename T, int Dims>
+  struct IsSameAsBuffer
+      : std::bool_constant<std::is_same<T, DataT>::value && (Dims > 0) &&
+                           (Dims == Dimensions)> {};
 
   static access::mode getAdjustedMode(const PropertyListT &PropertyList) {
     access::mode AdjustedMode = AccessMode;
@@ -1074,15 +1075,11 @@ protected:
     return AdjustedMode;
   }
 
-#if __cplusplus >= 201703L
-
-  template <typename TagT> static constexpr bool IsValidTag() {
-    return std::is_same<TagT, mode_tag_t<AccessMode>>::value ||
-           std::is_same<TagT,
-                        mode_target_tag_t<AccessMode, AccessTarget>>::value;
-  }
-
-#endif
+  template <typename TagT>
+  struct IsValidTag
+      : std::disjunction<
+            std::is_same<TagT, mode_tag_t<AccessMode>>,
+            std::is_same<TagT, mode_target_tag_t<AccessMode, AccessTarget>>> {};
 
 #ifdef __SYCL_DEVICE_ONLY__
 
@@ -1402,7 +1399,7 @@ public:
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
-                IsSameAsBuffer<T, Dims>() &&
+                IsSameAsBuffer<T, Dims>::value &&
                 ((!IsPlaceH && IsHostBuf) ||
                  (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>>
   accessor(
@@ -1436,7 +1433,7 @@ public:
             typename... PropTypes,
             typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
-                IsSameAsBuffer<T, Dims>() &&
+                IsSameAsBuffer<T, Dims>::value &&
                 ((!IsPlaceH && IsHostBuf) ||
                  (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>>
   accessor(
@@ -1473,8 +1470,8 @@ public:
             typename TagT,
             typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
-                IsSameAsBuffer<T, Dims>() && IsValidTag<TagT>() && IsPlaceH &&
-                (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
+                IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
+                IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, TagT,
       const property_list &PropertyList = {},
@@ -1487,8 +1484,8 @@ public:
             typename TagT, typename... PropTypes,
             typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
-                IsSameAsBuffer<T, Dims>() && IsValidTag<TagT>() && IsPlaceH &&
-                (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
+                IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
+                IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, TagT,
       const ext::oneapi::accessor_property_list<PropTypes...> &PropertyList =
@@ -1502,7 +1499,7 @@ public:
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
-                IsSameAsBuffer<T, Dims>() &&
+                IsSameAsBuffer<T, Dims>::value &&
                 (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
@@ -1535,7 +1532,7 @@ public:
             typename... PropTypes,
             typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
-                IsSameAsBuffer<T, Dims>() &&
+                IsSameAsBuffer<T, Dims>::value &&
                 (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
@@ -1571,8 +1568,8 @@ public:
             typename TagT,
             typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
-                IsSameAsBuffer<T, Dims>() && IsValidTag<TagT>() && !IsPlaceH &&
-                (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
+                IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
+                !IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       TagT, const property_list &PropertyList = {},
@@ -1585,8 +1582,8 @@ public:
             typename TagT, typename... PropTypes,
             typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
-                IsSameAsBuffer<T, Dims>() && IsValidTag<TagT>() && !IsPlaceH &&
-                (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
+                IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
+                !IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       TagT,
@@ -1602,7 +1599,7 @@ public:
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
-                IsSameAsBuffer<T, Dims>() &&
+                IsSameAsBuffer<T, Dims>::value &&
                 ((!IsPlaceH && IsHostBuf) ||
                  (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>>
   accessor(
@@ -1615,7 +1612,7 @@ public:
             typename... PropTypes,
             typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
-                IsSameAsBuffer<T, Dims>() &&
+                IsSameAsBuffer<T, Dims>::value &&
                 ((!IsPlaceH && IsHostBuf) ||
                  (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>>
   accessor(
@@ -1631,8 +1628,8 @@ public:
             typename TagT,
             typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
-                IsSameAsBuffer<T, Dims>() && IsValidTag<TagT>() && IsPlaceH &&
-                (IsGlobalBuf || IsConstantBuf)>>
+                IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
+                IsPlaceH && (IsGlobalBuf || IsConstantBuf)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
       TagT, const property_list &PropertyList = {},
@@ -1645,8 +1642,8 @@ public:
             typename TagT, typename... PropTypes,
             typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
-                IsSameAsBuffer<T, Dims>() && IsValidTag<TagT>() && IsPlaceH &&
-                (IsGlobalBuf || IsConstantBuf)>>
+                IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
+                IsPlaceH && (IsGlobalBuf || IsConstantBuf)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
       TagT,
@@ -1661,7 +1658,7 @@ public:
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
-                IsSameAsBuffer<T, Dims>() &&
+                IsSameAsBuffer<T, Dims>::value &&
                 (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
@@ -1674,7 +1671,7 @@ public:
             typename... PropTypes,
             typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
-                IsSameAsBuffer<T, Dims>() &&
+                IsSameAsBuffer<T, Dims>::value &&
                 (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
@@ -1691,8 +1688,8 @@ public:
             typename TagT,
             typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
-                IsSameAsBuffer<T, Dims>() && IsValidTag<TagT>() && !IsPlaceH &&
-                (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
+                IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
+                !IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       range<Dimensions> AccessRange, TagT,
@@ -1707,8 +1704,8 @@ public:
             typename TagT, typename... PropTypes,
             typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
-                IsSameAsBuffer<T, Dims>() && IsValidTag<TagT>() && !IsPlaceH &&
-                (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
+                IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
+                !IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       range<Dimensions> AccessRange, TagT,
@@ -1724,7 +1721,7 @@ public:
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
-                IsSameAsBuffer<T, Dims>() &&
+                IsSameAsBuffer<T, Dims>::value &&
                 ((!IsPlaceH && IsHostBuf) ||
                  (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>>
   accessor(
@@ -1765,7 +1762,7 @@ public:
             typename... PropTypes,
             typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
-                IsSameAsBuffer<T, Dims>() &&
+                IsSameAsBuffer<T, Dims>::value &&
                 ((!IsPlaceH && IsHostBuf) ||
                  (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>>
   accessor(
@@ -1810,8 +1807,8 @@ public:
             typename TagT,
             typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
-                IsSameAsBuffer<T, Dims>() && IsValidTag<TagT>() && IsPlaceH &&
-                (IsGlobalBuf || IsConstantBuf)>>
+                IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
+                IsPlaceH && (IsGlobalBuf || IsConstantBuf)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
       id<Dimensions> AccessOffset, TagT, const property_list &PropertyList = {},
@@ -1824,8 +1821,8 @@ public:
             typename TagT, typename... PropTypes,
             typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
-                IsSameAsBuffer<T, Dims>() && IsValidTag<TagT>() && IsPlaceH &&
-                (IsGlobalBuf || IsConstantBuf)>>
+                IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
+                IsPlaceH && (IsGlobalBuf || IsConstantBuf)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
       id<Dimensions> AccessOffset, TagT,
@@ -1840,7 +1837,7 @@ public:
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
-                IsSameAsBuffer<T, Dims>() &&
+                IsSameAsBuffer<T, Dims>::value &&
                 (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
@@ -1881,7 +1878,7 @@ public:
             typename... PropTypes,
             typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
-                IsSameAsBuffer<T, Dims>() &&
+                IsSameAsBuffer<T, Dims>::value &&
                 (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
@@ -1925,8 +1922,8 @@ public:
             typename TagT,
             typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
-                IsSameAsBuffer<T, Dims>() && IsValidTag<TagT>() && !IsPlaceH &&
-                (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
+                IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
+                !IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       range<Dimensions> AccessRange, id<Dimensions> AccessOffset, TagT,
@@ -1941,8 +1938,8 @@ public:
             typename TagT, typename... PropTypes,
             typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
-                IsSameAsBuffer<T, Dims>() && IsValidTag<TagT>() && !IsPlaceH &&
-                (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
+                IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
+                !IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       range<Dimensions> AccessRange, id<Dimensions> AccessOffset, TagT,
@@ -2956,17 +2953,10 @@ protected:
 
   constexpr static int AdjustedDim = Dimensions == 0 ? 1 : Dimensions;
 
-  template <typename T, int Dims> static constexpr bool IsSameAsBuffer() {
-    return std::is_same<T, DataT>::value && (Dims > 0) && (Dims == Dimensions);
-  }
-
-#if __cplusplus >= 201703L
-
-  template <typename TagT> static constexpr bool IsValidTag() {
-    return std::is_same<TagT, mode_tag_t<AccessMode>>::value;
-  }
-
-#endif
+  template <typename T, int Dims>
+  struct IsSameAsBuffer
+      : std::bool_constant<std::is_same<T, DataT>::value && (Dims > 0) &&
+                           (Dims == Dimensions)> {};
 
   void
   __init(typename accessor<DataT, Dimensions, AccessMode, target::host_buffer,
@@ -3012,7 +3002,7 @@ public:
       : AccessorT(BufferRef, PropertyList, CodeLoc) {}
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
       buffer<T, Dims, AllocatorT> &BufferRef,
       const property_list &PropertyList = {},
@@ -3022,7 +3012,7 @@ public:
 #if __cplusplus >= 201703L
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
       buffer<DataT, Dimensions, AllocatorT> &BufferRef, mode_tag_t<AccessMode>,
       const property_list &PropertyList = {},
@@ -3032,7 +3022,7 @@ public:
 #endif
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       const property_list &PropertyList = {},
@@ -3042,7 +3032,7 @@ public:
 #if __cplusplus >= 201703L
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
       buffer<DataT, Dimensions, AllocatorT> &BufferRef,
       handler &CommandGroupHandler, mode_tag_t<AccessMode>,
@@ -3053,7 +3043,7 @@ public:
 #endif
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
       buffer<DataT, Dimensions, AllocatorT> &BufferRef,
       range<Dimensions> AccessRange, const property_list &PropertyList = {},
@@ -3063,7 +3053,7 @@ public:
 #if __cplusplus >= 201703L
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
       buffer<DataT, Dimensions, AllocatorT> &BufferRef,
       range<Dimensions> AccessRange, mode_tag_t<AccessMode>,
@@ -3074,7 +3064,7 @@ public:
 #endif
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
       buffer<DataT, Dimensions, AllocatorT> &BufferRef,
       handler &CommandGroupHandler, range<Dimensions> AccessRange,
@@ -3086,7 +3076,7 @@ public:
 #if __cplusplus >= 201703L
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
       buffer<DataT, Dimensions, AllocatorT> &BufferRef,
       handler &CommandGroupHandler, range<Dimensions> AccessRange,
@@ -3098,7 +3088,7 @@ public:
 #endif
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
       buffer<DataT, Dimensions, AllocatorT> &BufferRef,
       range<Dimensions> AccessRange, id<Dimensions> AccessOffset,
@@ -3110,7 +3100,7 @@ public:
 #if __cplusplus >= 201703L
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
       buffer<DataT, Dimensions, AllocatorT> &BufferRef,
       range<Dimensions> AccessRange, id<Dimensions> AccessOffset,
@@ -3122,7 +3112,7 @@ public:
 #endif
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
       buffer<DataT, Dimensions, AllocatorT> &BufferRef,
       handler &CommandGroupHandler, range<Dimensions> AccessRange,
@@ -3134,7 +3124,7 @@ public:
 #if __cplusplus >= 201703L
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
       buffer<DataT, Dimensions, AllocatorT> &BufferRef,
       handler &CommandGroupHandler, range<Dimensions> AccessRange,
