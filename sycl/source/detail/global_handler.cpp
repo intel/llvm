@@ -111,7 +111,8 @@ void releaseDefaultContexts() {
   // routines will be called in the end.
   
   //std::cout << "releaseDefaultContexts()" << std::endl;
-  GlobalHandler::instance().MPlatformToDefaultContextCache.Inst.release();
+  //GlobalHandler::instance().MPlatformToDefaultContextCache.Inst.release();
+  GlobalHandler::instance().MPlatformToDefaultContextCache.Inst.reset(nullptr);
 #endif
 }
 
