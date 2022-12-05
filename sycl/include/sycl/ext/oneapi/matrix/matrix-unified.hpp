@@ -40,15 +40,14 @@ template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
           layout Layout>
 inline __SYCL_ALWAYS_INLINE wi_data<Group, T, Use, Rows, Cols, Layout>
 get_wi_data(Group sg, joint_matrix<Group, T, Use, Rows, Cols, Layout> &jm) {
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
-  // TODO add Intel impl.
-#else
+#if defined(__SYCL_DEVICE_ONLY__)
+#if defined(__NVPTX__)
   std::ignore = sg;
-  // Host version of get_wi_data is required by compiler even though it will
-  // never be called because joint_matrix cannot be constructed on host. It uses
-  // the ext_oneapi_cuda impl.
   return wi_data(jm);
-#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
+#else
+  // TODO add Intel impl.
+#endif // defined(__NVPTX__)
+#endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
 template <typename Group, typename T, size_t NumRows, size_t NumCols, use Use,
