@@ -212,6 +212,9 @@ operator<<(llvm::raw_ostream &OS, const CGUseList &UseList) {
 
 /// Inlining heuristics to use.
 class InlineHeuristic {
+  friend llvm::raw_ostream &operator<<(llvm::raw_ostream &,
+                                       const InlineHeuristic &);
+
 public:
   /// Inlining mode (alwaysinline, simple, aggressive, ludicrous).
   const sycl::InlineMode InlineMode;
@@ -236,6 +239,28 @@ private:
   /// Returns the number of operations in the target of the supplied call.
   static int64_t computeCalleeSize(const ResolvedCall &ResolvedCall);
 };
+
+[[maybe_unused]] inline llvm::raw_ostream &
+operator<<(llvm::raw_ostream &OS, const InlineHeuristic &Heuristic) {
+  OS << "{ InlineMode = ";
+  switch (Heuristic.InlineMode) {
+  case sycl::InlineMode::Ludicrous:
+    OS << "Ludicrous";
+    break;
+  case sycl::InlineMode::Aggressive:
+    OS << "Aggressive";
+    break;
+  case sycl::InlineMode::Simple:
+    OS << "Simple";
+    break;
+  case sycl::InlineMode::AlwaysInline:
+    OS << "AlwaysInline";
+    break;
+  }
+  OS << " }";
+
+  return OS;
+}
 
 // Inliner functionality.
 class Inliner : public InlinerInterface {
@@ -321,12 +346,13 @@ public:
   void runOnOperation() final;
 
 private:
-  /// Inline function calls in the given callgraph \p CG (on each SCC in bottom
-  /// up order).
+  /// Inline function calls in the given callgraph \p CG (on each SCC in
+  /// bottom up order).
   LogicalResult runOnCG(Inliner &Inliner, CGUseList &UseList, CallGraph &CG,
                         Pass::Statistic &NumInlinedCalls);
 
-  /// Ensures that the inliner is run on operations that define a symbol table.
+  /// Ensures that the inliner is run on operations that define a symbol
+  /// table.
   bool checkForSymbolTable(Operation &Op);
 
   /// Return the number of times an SCC should be revisited while inlining.
@@ -505,16 +531,18 @@ void CGUseList::decrementDiscardableUses(CGUser &Uses) {
 
 bool InlineHeuristic::shouldInline(ResolvedCall &ResolvedCall,
                                    const CGUseList &Uses) const {
-  if (isRecursiveCall(ResolvedCall))
+  if (isRecursiveCall(ResolvedCall)) {
+    LLVM_DEBUG(llvm::dbgs()
+               << "Call is recursive, not considered for inlining\n");
     return false;
+  }
 
   FunctionOpInterface Callee = getCalledFunction(ResolvedCall.Call);
   NamedAttrList FnAttrs(Callee->getAttrDictionary());
   Optional<NamedAttribute> PassThroughAttr = FnAttrs.getNamed("passthrough");
 
-  bool ShouldInline = false;
-
   // Decide whether to inline a callee based on simple heuristics.
+  bool ShouldInline = false;
   switch (InlineMode) {
   case sycl::InlineMode::Ludicrous:
     [[fallthrough]];
@@ -524,7 +552,7 @@ bool InlineHeuristic::shouldInline(ResolvedCall &ResolvedCall,
     // Inline a function if it has an attribute suggesting that inlining is
     // desirable.
     if (PassThroughAttr)
-      ShouldInline |= llvm::any_of(
+      ShouldInline = llvm::any_of(
           PassThroughAttr->getValue().cast<ArrayAttr>(), [](Attribute Attr) {
             return Attr.isa<StringAttr>() &&
                    Attr.cast<StringAttr>() == "inlinehint";
@@ -544,6 +572,9 @@ bool InlineHeuristic::shouldInline(ResolvedCall &ResolvedCall,
     break;
   }
 
+  if (ShouldInline)
+    return true;
+
   // Decide whether to inline a callee based on its size.
   unsigned MaxSize = 0;
   switch (InlineMode) {
@@ -557,13 +588,17 @@ bool InlineHeuristic::shouldInline(ResolvedCall &ResolvedCall,
     MaxSize = MaxCalleeSize::Small;
     break;
   case sycl::InlineMode::AlwaysInline:
-    break;
+    return false;
   }
 
-  if (MaxSize)
-    ShouldInline |= (computeCalleeSize(ResolvedCall) <= MaxSize);
+  unsigned Size = computeCalleeSize(ResolvedCall);
+  LLVM_DEBUG({
+    if (Size > MaxSize)
+      llvm::dbgs() << "Callee has size = " << Size
+                   << ", which is greater than the max (" << MaxSize << ")";
+  });
 
-  return ShouldInline;
+  return (Size <= MaxSize);
 }
 
 bool InlineHeuristic::isRecursiveCall(const ResolvedCall &ResolvedCall) {
@@ -745,6 +780,8 @@ void InlinePass::runOnOperation() {
   CGUseList UseList(getOperation(), CG, SymTable);
   InlineHeuristic Heuristic(InlineMode);
   Inliner Inliner(Ctx, CG, SymTable, Heuristic);
+
+  LLVM_DEBUG(llvm::dbgs() << "Inline Heuristic: " << Heuristic << "\n");
 
   if (failed(runOnCG(Inliner, UseList, CG, NumInlinedCalls)))
     return signalPassFailure();
