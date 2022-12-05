@@ -5,6 +5,8 @@
 // This test checks that unreferenced SYCL_EXTERNAL functions are not dropped
 // from the module and go through sycl-post-link. This test also checks that
 // ESIMD lowering happens for such functions as well.
+//
+// XFAIL:*
 
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>

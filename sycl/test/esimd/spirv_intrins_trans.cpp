@@ -5,6 +5,8 @@
 // This test checks that all LLVM-IR instructions that work with SPIR-V builtins
 // are correctly translated into GenX counterparts (implemented in
 // LowerESIMD.cpp)
+//
+// XFAIL:*
 
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
