@@ -36,7 +36,8 @@ inline __SYCL_ALWAYS_INLINE std::enable_if_t<
         T, sycl::ext::oneapi::experimental::cuda::detail::ldg_types>::value,
     T>
 __ldg(const T *ptr) {
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+#if defined(__SYCL_DEVICE_ONLY__)
+#if defined(__NVPTX__)
   if constexpr (std::is_same_v<T, float>) {
     return __nvvm_ldg_f(ptr);
   } else if constexpr (std::is_same_v<T, double>) {
@@ -69,7 +70,10 @@ __ldg(const T *ptr) {
     return ret;
   }
 #else
-  throw runtime_error("__ldg is not supported on host device.",
+  return *ptr;
+#endif
+#else
+  throw runtime_error("__ldg is not supported on host.",
                       PI_ERROR_INVALID_DEVICE);
 #endif
 }
