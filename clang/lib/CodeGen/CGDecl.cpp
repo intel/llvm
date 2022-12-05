@@ -2766,5 +2766,5 @@ CodeGenModule::getOMPAllocateAlignment(const VarDecl *VD) {
           std::max<unsigned>(UserAlign, NaturalAlign.getQuantity()));
     }
   }
-  return llvm::None;
+  return std::nullopt;
 }

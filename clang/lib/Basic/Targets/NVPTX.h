@@ -87,7 +87,7 @@ public:
 
   ArrayRef<TargetInfo::GCCRegAlias> getGCCRegAliases() const override {
     // No aliases.
-    return None;
+    return std::nullopt;
   }
 
   bool validateAsmConstraint(const char *&Name,
@@ -170,7 +170,7 @@ public:
   getDWARFAddressSpace(unsigned AddressSpace) const override {
     if (AddressSpace >= std::size(NVPTXDWARFAddrSpaceMap) ||
         NVPTXDWARFAddrSpaceMap[AddressSpace] < 0)
-      return llvm::None;
+      return std::nullopt;
     return NVPTXDWARFAddrSpaceMap[AddressSpace];
   }
 
