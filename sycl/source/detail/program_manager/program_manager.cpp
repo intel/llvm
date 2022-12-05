@@ -1861,15 +1861,15 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
     PIDevices.push_back(getSyclObjImpl(Dev)->getHandleRef());
 
   std::string LinkOptionsStr;
-  applyLinkOptionsFromEnvironment(LinkOptionsStr);
-  if (LinkOptionsStr.empty()) {
-    for (const device_image_plain &DeviceImage : DeviceImages) {
-      const std::shared_ptr<device_image_impl> &InputImpl =
-          getSyclObjImpl(DeviceImage);
-      appendLinkOptionsFromImage(LinkOptionsStr,
-                                 *(InputImpl->get_bin_image_ref()));
-    }
-  }
+  /* applyLinkOptionsFromEnvironment(LinkOptionsStr); */
+  /* if (LinkOptionsStr.empty()) { */
+  /*   for (const device_image_plain &DeviceImage : DeviceImages) { */
+  /*     const std::shared_ptr<device_image_impl> &InputImpl = */
+  /*         getSyclObjImpl(DeviceImage); */
+  /*     appendLinkOptionsFromImage(LinkOptionsStr, */
+  /*                                *(InputImpl->get_bin_image_ref())); */
+  /*   } */
+  /* } */
   const context &Context = getSyclObjImpl(DeviceImages[0])->get_context();
   const ContextImplPtr ContextImpl = getSyclObjImpl(Context);
   const detail::plugin &Plugin = ContextImpl->getPlugin();
