@@ -11,8 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// Flaky with CUDA
-// UNSUPPORTED: cuda
+// Flaky with CUDA and HIP (https://github.com/intel/llvm/issues/6495).
+// UNSUPPORTED: cuda, hip
 
 #include <cassert>
 #include <sycl/sycl.hpp>
