@@ -328,8 +328,6 @@ void PassManagerBuilder::populateModulePassManager(
     // builds. The function merging pass is
     if (MergeFunctions)
       MPM.add(createMergeFunctionsPass());
-
-    MPM.add(createAnnotationRemarksLegacyPass());
     return;
   }
 
@@ -471,8 +469,6 @@ void PassManagerBuilder::populateModulePassManager(
   // resulted in single-entry-single-exit or empty blocks. Clean up the CFG.
   MPM.add(createCFGSimplificationPass(
       SimplifyCFGOptions().convertSwitchRangeToICmp(true)));
-
-  MPM.add(createAnnotationRemarksLegacyPass());
 }
 
 LLVMPassManagerBuilderRef LLVMPassManagerBuilderCreate() {

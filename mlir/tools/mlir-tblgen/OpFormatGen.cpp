@@ -57,8 +57,8 @@ struct AttributeVariable
     : public OpVariableElement<NamedAttribute, VariableElement::Attribute> {
   using Base::Base;
 
-  /// Return the constant builder call for the type of this attribute, or None
-  /// if it doesn't have one.
+  /// Return the constant builder call for the type of this attribute, or
+  /// std::nullopt if it doesn't have one.
   llvm::Optional<StringRef> getTypeBuilder() const {
     llvm::Optional<Type> attrType = var->attr.getValueType();
     return attrType ? attrType->getBuilderCall() : std::nullopt;
@@ -251,7 +251,7 @@ struct OperationFormat {
   public:
     TypeResolution() = default;
 
-    /// Get the index into the buildable types for this type, or None.
+    /// Get the index into the buildable types for this type, or std::nullopt.
     Optional<int> getBuilderIdx() const { return builderIdx; }
     void setBuilderIdx(int idx) { builderIdx = idx; }
 
@@ -263,7 +263,7 @@ struct OperationFormat {
     const NamedAttribute *getAttribute() const {
       return resolver.dyn_cast<const NamedAttribute *>();
     }
-    /// Get the transformer for the type of the variable, or None.
+    /// Get the transformer for the type of the variable, or std::nullopt.
     Optional<StringRef> getVarTransformer() const {
       return variableTransformer;
     }
@@ -2471,7 +2471,7 @@ static Optional<LogicalResult> checkRangeForElement(
     // We found a closing element that is valid.
     return success();
   }
-  // Return None to indicate that we reached the end.
+  // Return std::nullopt to indicate that we reached the end.
   return std::nullopt;
 }
 

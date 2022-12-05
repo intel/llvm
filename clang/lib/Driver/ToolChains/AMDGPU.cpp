@@ -854,7 +854,7 @@ void ROCMToolChain::addClangTargetOptions(
   const StringRef GpuArch = getGPUArch(DriverArgs);
   auto Kind = llvm::AMDGPU::parseArchAMDGCN(GpuArch);
   const StringRef CanonArch = llvm::AMDGPU::getArchNameAMDGCN(Kind);
-  std::string LibDeviceFile = RocmInstallation.getLibDeviceFile(CanonArch);
+  StringRef LibDeviceFile = RocmInstallation.getLibDeviceFile(CanonArch);
   auto ABIVer = DeviceLibABIVersion::fromCodeObjectVersion(
       getAMDGPUCodeObjectVersion(getDriver(), DriverArgs));
   if (!RocmInstallation.checkCommonBitcodeLibs(CanonArch, LibDeviceFile,
@@ -945,7 +945,7 @@ llvm::SmallVector<std::string, 12> ROCMToolChain::getCommonDeviceLibNames(
   auto Kind = llvm::AMDGPU::parseArchAMDGCN(GPUArch);
   const StringRef CanonArch = llvm::AMDGPU::getArchNameAMDGCN(Kind);
 
-  std::string LibDeviceFile = RocmInstallation.getLibDeviceFile(CanonArch);
+  StringRef LibDeviceFile = RocmInstallation.getLibDeviceFile(CanonArch);
   auto ABIVer = DeviceLibABIVersion::fromCodeObjectVersion(
       getAMDGPUCodeObjectVersion(getDriver(), DriverArgs));
   if (!RocmInstallation.checkCommonBitcodeLibs(CanonArch, LibDeviceFile,

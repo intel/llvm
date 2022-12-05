@@ -860,8 +860,8 @@ public:
 
   enum class Signedness { Signed, Unsigned };
 
-  /// Return the signedness of this type, or None if this type is neither
-  /// signed nor unsigned.
+  /// Return the signedness of this type, or std::nullopt if this type is
+  /// neither signed nor unsigned.
   std::optional<Signedness> getSignedness() const;
 
   static bool classof(const Metadata *MD) {
@@ -1728,7 +1728,7 @@ public:
   /// Returns a new DILocation with updated base discriminator \p BD. Only the
   /// base discriminator is set in the new DILocation, the other encoded values
   /// are elided.
-  /// If the discriminator cannot be encoded, the function returns None.
+  /// If the discriminator cannot be encoded, the function returns std::nullopt.
   inline std::optional<const DILocation *>
   cloneWithBaseDiscriminator(unsigned BD) const;
 
@@ -1745,7 +1745,7 @@ public:
   /// Returns a new DILocation with duplication factor \p DF * current
   /// duplication factor encoded in the discriminator. The current duplication
   /// factor is as defined by getDuplicationFactor().
-  /// Returns None if encoding failed.
+  /// Returns std::nullopt if encoding failed.
   inline std::optional<const DILocation *>
   cloneByMultiplyingDuplicationFactor(unsigned DF) const;
 
@@ -2552,8 +2552,8 @@ public:
   /// Determines the size of the variable's type.
   std::optional<uint64_t> getSizeInBits() const;
 
-  /// Return the signedness of this variable's type, or None if this type is
-  /// neither signed nor unsigned.
+  /// Return the signedness of this variable's type, or std::nullopt if this
+  /// type is neither signed nor unsigned.
   std::optional<DIBasicType::Signedness> getSignedness() const {
     if (auto *BT = dyn_cast<DIBasicType>(getType()))
       return BT->getSignedness();
