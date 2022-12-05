@@ -844,7 +844,7 @@ static bool findIntermediateShape(ArrayRef<int64_t> lhsShape,
                                   bool isDynamic) {
   if (isDynamic) {
     // TODO (natashaknk): Make dynamic intermediate shape not always be rank-1
-    intermediateShape = {ShapedType::kDynamicSize};
+    intermediateShape = {ShapedType::kDynamic};
     return true;
   }
 
@@ -1781,19 +1781,13 @@ struct ConcatConverter : public OpConversionPattern<tosa::ConcatOp> {
     Value emptyTensor = rewriter.create<tensor::EmptyOp>(
         loc, resultType.getShape(), resultType.getElementType(), dynDims);
 
-    Value zeroVal = rewriter.createOrFold<arith::ConstantOp>(
-        loc, rewriter.getZeroAttr(resultType.getElementType()));
-    Value result = rewriter
-                       .create<linalg::FillOp>(loc, ValueRange{zeroVal},
-                                               ValueRange{emptyTensor})
-                       .result();
-
     auto toOpFoldResult = [](Value v) -> OpFoldResult {
       auto op = v.getDefiningOp<arith::ConstantIndexOp>();
       if (!op)
         return v;
       return op.getValue();
     };
+    Value result = emptyTensor;
     for (auto arg : adaptor.getOperands()) {
       sizes[axis] = rewriter.createOrFold<tensor::DimOp>(loc, arg, axisValue);
       result = rewriter.createOrFold<tensor::InsertSliceOp>(
@@ -1892,7 +1886,7 @@ struct TileConverter : public OpConversionPattern<tosa::TileOp> {
     SmallVector<int64_t, 2> genericShape;
     for (int i = 0; i < rank; i++) {
       int64_t dim = multiples[i];
-      genericShape.push_back(dim == -1 ? ShapedType::kDynamicSize : dim);
+      genericShape.push_back(dim == -1 ? ShapedType::kDynamic : dim);
       genericShape.push_back(inputShape[i]);
     }
 

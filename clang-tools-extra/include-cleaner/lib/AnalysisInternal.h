@@ -29,6 +29,7 @@
 namespace clang {
 class ASTContext;
 class Decl;
+class HeaderSearch;
 class NamedDecl;
 namespace include_cleaner {
 
@@ -75,17 +76,19 @@ private:
   // Order must match Kind enum!
   std::variant<SourceLocation, tooling::stdlib::Symbol> Storage;
 };
-llvm::raw_ostream &operator<<(llvm::raw_ostream &, const Header &);
+llvm::raw_ostream &operator<<(llvm::raw_ostream &, const SymbolLocation &);
 
 /// Finds the headers that provide the symbol location.
 // FIXME: expose signals
 llvm::SmallVector<Header> findHeaders(const SymbolLocation &Loc,
                                       const SourceManager &SM,
-                                      const PragmaIncludes &PI);
+                                      const PragmaIncludes *PI);
 
 /// Write an HTML summary of the analysis to the given stream.
-/// FIXME: Once analysis has a public API, this should be public too.
-void writeHTMLReport(FileID File, llvm::ArrayRef<Decl *> Roots, ASTContext &Ctx,
+void writeHTMLReport(FileID File, const RecordedPP::RecordedIncludes &Includes,
+                     llvm::ArrayRef<Decl *> Roots,
+                     llvm::ArrayRef<SymbolReference> MacroRefs, ASTContext &Ctx,
+                     HeaderSearch &HS, PragmaIncludes *PI,
                      llvm::raw_ostream &OS);
 
 } // namespace include_cleaner

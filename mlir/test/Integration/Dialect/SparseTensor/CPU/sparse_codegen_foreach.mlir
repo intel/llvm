@@ -1,15 +1,15 @@
-// RUN: mlir-opt %s --sparse-compiler=enable-runtime-library=true | \
-// RUN: mlir-cpu-runner \
-// RUN:  -e entry -entry-point-result=void  \
-// RUN:  -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
-// RUN: FileCheck %s
+// DEFINE: %{option} = enable-runtime-library=true
+// DEFINE: %{command} = mlir-opt %s --sparse-compiler=%{option} | \
+// DEFINE: mlir-cpu-runner \
+// DEFINE:  -e entry -entry-point-result=void  \
+// DEFINE:  -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
+// DEFINE: FileCheck %s
+//
+// RUN: %{command}
 //
 // Do the same run, but now with direct IR generation.
-// RUN: mlir-opt %s --sparse-compiler=enable-runtime-library=false | \
-// RUN: mlir-cpu-runner \
-// RUN:  -e entry -entry-point-result=void  \
-// RUN:  -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
-// RUN: FileCheck %s
+// REDEFINE: %{option} = enable-runtime-library=false
+// RUN: %{command}
 
 #Row = #sparse_tensor.encoding<{
   dimLevelType = [ "compressed", "dense" ]
@@ -251,6 +251,7 @@ module {
     bufferization.dealloc_tensor %s3 : tensor<2x2xf64, #DCSC>
     bufferization.dealloc_tensor %s4 : tensor<2x2xf64, #SortedCOO>
     bufferization.dealloc_tensor %s5 : tensor<2x2xf64, #SortedCOOPerm>
+    bufferization.dealloc_tensor %s6 : tensor<7x8x9xf64, #CCCPerm>
 
     return
   }

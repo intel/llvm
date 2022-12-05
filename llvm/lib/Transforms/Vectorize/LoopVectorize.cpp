@@ -363,13 +363,14 @@ cl::opt<bool> llvm::EnableLoopVectorization(
     "vectorize-loops", cl::init(true), cl::Hidden,
     cl::desc("Run the Loop vectorization passes"));
 
-cl::opt<bool> PrintVPlansInDotFormat(
-    "vplan-print-in-dot-format", cl::init(false), cl::Hidden,
+static cl::opt<bool> PrintVPlansInDotFormat(
+    "vplan-print-in-dot-format", cl::Hidden,
     cl::desc("Use dot format instead of plain text when dumping VPlans"));
 
-cl::opt<cl::boolOrDefault> ForceSafeDivisor(
+static cl::opt<cl::boolOrDefault> ForceSafeDivisor(
     "force-widen-divrem-via-safe-divisor", cl::Hidden,
-    cl::desc("Override cost based safe divisor widening for div/rem instructions"));
+    cl::desc(
+        "Override cost based safe divisor widening for div/rem instructions"));
 
 /// A helper function that returns true if the given type is irregular. The
 /// type is irregular if its allocated size doesn't equal the store size of an
@@ -1050,8 +1051,8 @@ void InnerLoopVectorizer::collectPoisonGeneratingRecipes(
 
       // Add new definitions to the worklist.
       for (VPValue *operand : CurRec->operands())
-        if (VPDef *OpDef = operand->getDef())
-          Worklist.push_back(cast<VPRecipeBase>(OpDef));
+        if (VPRecipeBase *OpDef = operand->getDefiningRecipe())
+          Worklist.push_back(OpDef);
     }
   });
 
@@ -1064,13 +1065,12 @@ void InnerLoopVectorizer::collectPoisonGeneratingRecipes(
     for (VPRecipeBase &Recipe : *VPBB) {
       if (auto *WidenRec = dyn_cast<VPWidenMemoryInstructionRecipe>(&Recipe)) {
         Instruction &UnderlyingInstr = WidenRec->getIngredient();
-        VPDef *AddrDef = WidenRec->getAddr()->getDef();
+        VPRecipeBase *AddrDef = WidenRec->getAddr()->getDefiningRecipe();
         if (AddrDef && WidenRec->isConsecutive() &&
             Legal->blockNeedsPredication(UnderlyingInstr.getParent()))
-          collectPoisonGeneratingInstrsInBackwardSlice(
-              cast<VPRecipeBase>(AddrDef));
+          collectPoisonGeneratingInstrsInBackwardSlice(AddrDef);
       } else if (auto *InterleaveRec = dyn_cast<VPInterleaveRecipe>(&Recipe)) {
-        VPDef *AddrDef = InterleaveRec->getAddr()->getDef();
+        VPRecipeBase *AddrDef = InterleaveRec->getAddr()->getDefiningRecipe();
         if (AddrDef) {
           // Check if any member of the interleave group needs predication.
           const InterleaveGroup<Instruction> *InterGroup =
@@ -1085,8 +1085,7 @@ void InnerLoopVectorizer::collectPoisonGeneratingRecipes(
           }
 
           if (NeedPredication)
-            collectPoisonGeneratingInstrsInBackwardSlice(
-                cast<VPRecipeBase>(AddrDef));
+            collectPoisonGeneratingInstrsInBackwardSlice(AddrDef);
         }
       }
     }
@@ -2334,11 +2333,19 @@ static Value *getStepVector(Value *Val, Value *StartIdx, Value *Step,
 /// variable on which to base the steps, \p Step is the size of the step.
 static void buildScalarSteps(Value *ScalarIV, Value *Step,
                              const InductionDescriptor &ID, VPValue *Def,
-                             VPTransformState &State) {
+                             Type *TruncToTy, VPTransformState &State) {
   IRBuilderBase &Builder = State.Builder;
+  Type *ScalarIVTy = ScalarIV->getType()->getScalarType();
+  if (TruncToTy) {
+    assert(Step->getType()->isIntegerTy() &&
+           "Truncation requires an integer step");
+    ScalarIV = State.Builder.CreateTrunc(ScalarIV, TruncToTy);
+    Step = State.Builder.CreateTrunc(Step, TruncToTy);
+    ScalarIVTy = ScalarIV->getType()->getScalarType();
+  }
+
   // We shouldn't have to build scalar steps if we aren't vectorizing.
   // Get the value type and ensure it and the step have the same integer type.
-  Type *ScalarIVTy = ScalarIV->getType()->getScalarType();
   assert(ScalarIVTy == Step->getType() &&
          "Val and Step should have the same type");
 
@@ -2429,8 +2436,14 @@ static Value *CreateStepValue(const SCEV *Step, ScalarEvolution &SE,
 static Value *emitTransformedIndex(IRBuilderBase &B, Value *Index,
                                    Value *StartValue, Value *Step,
                                    const InductionDescriptor &ID) {
-  assert(Index->getType()->getScalarType() == Step->getType() &&
-         "Index scalar type does not match StepValue type");
+  Type *StepTy = Step->getType();
+  Value *CastedIndex = StepTy->isIntegerTy()
+                           ? B.CreateSExtOrTrunc(Index, StepTy)
+                           : B.CreateCast(Instruction::SIToFP, Index, StepTy);
+  if (CastedIndex != Index) {
+    CastedIndex->setName(CastedIndex->getName() + ".cast");
+    Index = CastedIndex;
+  }
 
   // Note: the IR at this point is broken. We cannot use SE to create any new
   // SCEV and then expand it, hoping that SCEV's simplification will give us
@@ -2696,6 +2709,7 @@ void InnerLoopVectorizer::vectorizeInterleaveGroup(
   for (unsigned Part = 0; Part < UF; Part++) {
     // Collect the stored vector from each member.
     SmallVector<Value *, 4> StoredVecs;
+    unsigned StoredIdx = 0;
     for (unsigned i = 0; i < InterleaveFactor; i++) {
       assert((Group->getMember(i) || MaskForGaps) &&
              "Fail to get a member from an interleaved store group");
@@ -2708,7 +2722,8 @@ void InnerLoopVectorizer::vectorizeInterleaveGroup(
         continue;
       }
 
-      Value *StoredVec = State.get(StoredValues[i], Part);
+      Value *StoredVec = State.get(StoredValues[StoredIdx], Part);
+      ++StoredIdx;
 
       if (Group->isReverse())
         StoredVec = Builder.CreateVectorReverse(StoredVec, "reverse");
@@ -3134,25 +3149,19 @@ PHINode *InnerLoopVectorizer::createInductionResumeValue(
     if (II.getInductionBinOp() && isa<FPMathOperator>(II.getInductionBinOp()))
       B.setFastMathFlags(II.getInductionBinOp()->getFastMathFlags());
 
-    Type *StepType = II.getStep()->getType();
-    Instruction::CastOps CastOp =
-        CastInst::getCastOpcode(VectorTripCount, true, StepType, true);
-    Value *VTC = B.CreateCast(CastOp, VectorTripCount, StepType, "cast.vtc");
     Value *Step =
         CreateStepValue(II.getStep(), *PSE.getSE(), &*B.GetInsertPoint());
-    EndValue = emitTransformedIndex(B, VTC, II.getStartValue(), Step, II);
+    EndValue =
+        emitTransformedIndex(B, VectorTripCount, II.getStartValue(), Step, II);
     EndValue->setName("ind.end");
 
     // Compute the end value for the additional bypass (if applicable).
     if (AdditionalBypass.first) {
       B.SetInsertPoint(&(*AdditionalBypass.first->getFirstInsertionPt()));
-      CastOp = CastInst::getCastOpcode(AdditionalBypass.second, true, StepType,
-                                       true);
       Value *Step =
           CreateStepValue(II.getStep(), *PSE.getSE(), &*B.GetInsertPoint());
-      VTC = B.CreateCast(CastOp, AdditionalBypass.second, StepType, "cast.vtc");
-      EndValueFromAdditionalBypass =
-          emitTransformedIndex(B, VTC, II.getStartValue(), Step, II);
+      EndValueFromAdditionalBypass = emitTransformedIndex(
+          B, AdditionalBypass.second, II.getStartValue(), Step, II);
       EndValueFromAdditionalBypass->setName("ind.end");
     }
   }
@@ -3349,17 +3358,11 @@ void InnerLoopVectorizer::fixupIVUsers(PHINode *OrigPhi,
 
       Value *CountMinusOne = B.CreateSub(
           VectorTripCount, ConstantInt::get(VectorTripCount->getType(), 1));
-      Value *CMO =
-          !II.getStep()->getType()->isIntegerTy()
-              ? B.CreateCast(Instruction::SIToFP, CountMinusOne,
-                             II.getStep()->getType())
-              : B.CreateSExtOrTrunc(CountMinusOne, II.getStep()->getType());
-      CMO->setName("cast.cmo");
-
+      CountMinusOne->setName("cmo");
       Value *Step = CreateStepValue(II.getStep(), *PSE.getSE(),
                                     VectorHeader->getTerminator());
       Value *Escape =
-          emitTransformedIndex(B, CMO, II.getStartValue(), Step, II);
+          emitTransformedIndex(B, CountMinusOne, II.getStartValue(), Step, II);
       Escape->setName("ind.escape");
       MissingVals[UI] = Escape;
     }
@@ -5953,8 +5956,9 @@ LoopVectorizationCostModel::calculateRegisterUsage(ArrayRef<ElementCount> VFs) {
   IntervalMap EndPoint;
   // Saves the list of instruction indices that are used in the loop.
   SmallPtrSet<Instruction *, 8> Ends;
-  // Saves the list of values that are used in the loop but are
-  // defined outside the loop, such as arguments and constants.
+  // Saves the list of values that are used in the loop but are defined outside
+  // the loop (not including non-instruction values such as arguments and
+  // constants).
   SmallPtrSet<Value *, 8> LoopInvariants;
 
   for (BasicBlock *BB : make_range(DFS.beginRPO(), DFS.endRPO())) {
@@ -5966,6 +5970,9 @@ LoopVectorizationCostModel::calculateRegisterUsage(ArrayRef<ElementCount> VFs) {
         auto *Instr = dyn_cast<Instruction>(U);
 
         // Ignore non-instruction values such as arguments, constants, etc.
+        // FIXME: Might need some motivation why these values are ignored. If
+        // for example an argument is used inside the loop it will increase the
+        // register pressure (so shouldn't we add it to LoopInvariants).
         if (!Instr)
           continue;
 
@@ -6021,14 +6028,19 @@ LoopVectorizationCostModel::calculateRegisterUsage(ArrayRef<ElementCount> VFs) {
 
     // For each VF find the maximum usage of registers.
     for (unsigned j = 0, e = VFs.size(); j < e; ++j) {
-      // Count the number of live intervals.
+      // Count the number of registers used, per register class, given all open
+      // intervals.
+      // Note that elements in this SmallMapVector will be default constructed
+      // as 0. So we can use "RegUsage[ClassID] += n" in the code below even if
+      // there is no previous entry for ClassID.
       SmallMapVector<unsigned, unsigned, 4> RegUsage;
 
       if (VFs[j].isScalar()) {
         for (auto *Inst : OpenIntervals) {
-          unsigned ClassID = TTI.getRegisterClassForType(false, Inst->getType());
-          // If RegUsage[ClassID] doesn't exist, it will be default
-          // constructed as 0 before the addition
+          unsigned ClassID =
+              TTI.getRegisterClassForType(false, Inst->getType());
+          // FIXME: The target might use more than one register for the type
+          // even in the scalar case.
           RegUsage[ClassID] += 1;
         }
       } else {
@@ -6038,14 +6050,14 @@ LoopVectorizationCostModel::calculateRegisterUsage(ArrayRef<ElementCount> VFs) {
           if (VecValuesToIgnore.count(Inst))
             continue;
           if (isScalarAfterVectorization(Inst, VFs[j])) {
-            unsigned ClassID = TTI.getRegisterClassForType(false, Inst->getType());
-            // If RegUsage[ClassID] doesn't exist, it will be default
-            // constructed as 0 before the addition
+            unsigned ClassID =
+                TTI.getRegisterClassForType(false, Inst->getType());
+            // FIXME: The target might use more than one register for the type
+            // even in the scalar case.
             RegUsage[ClassID] += 1;
           } else {
-            unsigned ClassID = TTI.getRegisterClassForType(true, Inst->getType());
-            // If RegUsage[ClassID] doesn't exist, it will be default
-            // constructed as 0 before the addition
+            unsigned ClassID =
+                TTI.getRegisterClassForType(true, Inst->getType());
             RegUsage[ClassID] += GetRegUsage(Inst->getType(), VFs[j]);
           }
         }
@@ -6065,17 +6077,19 @@ LoopVectorizationCostModel::calculateRegisterUsage(ArrayRef<ElementCount> VFs) {
   }
 
   for (unsigned i = 0, e = VFs.size(); i < e; ++i) {
+    // Note that elements in this SmallMapVector will be default constructed
+    // as 0. So we can use "Invariant[ClassID] += n" in the code below even if
+    // there is no previous entry for ClassID.
     SmallMapVector<unsigned, unsigned, 4> Invariant;
 
     for (auto *Inst : LoopInvariants) {
+      // FIXME: The target might use more than one register for the type
+      // even in the scalar case.
       unsigned Usage =
           VFs[i].isScalar() ? 1 : GetRegUsage(Inst->getType(), VFs[i]);
       unsigned ClassID =
           TTI.getRegisterClassForType(VFs[i].isVector(), Inst->getType());
-      if (Invariant.find(ClassID) == Invariant.end())
-        Invariant[ClassID] = Usage;
-      else
-        Invariant[ClassID] += Usage;
+      Invariant[ClassID] += Usage;
     }
 
     LLVM_DEBUG({
@@ -8481,11 +8495,12 @@ VPBasicBlock *VPRecipeBuilder::handleReplication(
   // value. Avoid hoisting the insert-element which packs the scalar value into
   // a vector value, as that happens iff all users use the vector value.
   for (VPValue *Op : Recipe->operands()) {
-    auto *PredR = dyn_cast_or_null<VPPredInstPHIRecipe>(Op->getDef());
+    auto *PredR =
+        dyn_cast_or_null<VPPredInstPHIRecipe>(Op->getDefiningRecipe());
     if (!PredR)
       continue;
-    auto *RepR =
-        cast_or_null<VPReplicateRecipe>(PredR->getOperand(0)->getDef());
+    auto *RepR = cast<VPReplicateRecipe>(
+        PredR->getOperand(0)->getDefiningRecipe());
     assert(RepR->isPredicated() &&
            "expected Replicate recipe to be predicated");
     RepR->setAlsoPack(false);
@@ -8911,7 +8926,7 @@ VPlanPtr LoopVectorizationPlanner::buildVPlanWithVPRecipes(
           Plan->addVPValue(Instr, VPV);
           // If the re-used value is a recipe, register the recipe for the
           // instruction, in case the recipe for Instr needs to be recorded.
-          if (auto *R = dyn_cast_or_null<VPRecipeBase>(VPV->getDef()))
+          if (VPRecipeBase *R = VPV->getDefiningRecipe())
             RecipeBuilder.setRecipe(Instr, R);
           continue;
         }
@@ -9055,12 +9070,12 @@ VPlanPtr LoopVectorizationPlanner::buildVPlanWithVPRecipes(
     if (!RecurPhi)
       continue;
 
-    VPRecipeBase *PrevRecipe = RecurPhi->getBackedgeRecipe();
+    VPRecipeBase *PrevRecipe = &RecurPhi->getBackedgeRecipe();
     // Fixed-order recurrences do not contain cycles, so this loop is guaranteed
     // to terminate.
     while (auto *PrevPhi =
                dyn_cast<VPFirstOrderRecurrencePHIRecipe>(PrevRecipe))
-      PrevRecipe = PrevPhi->getBackedgeRecipe();
+      PrevRecipe = &PrevPhi->getBackedgeRecipe();
     VPBasicBlock *InsertBlock = PrevRecipe->getParent();
     auto *Region = GetReplicateRegion(PrevRecipe);
     if (Region)
@@ -9283,7 +9298,7 @@ void LoopVectorizationPlanner::adjustRecipesForReductions(
       VPValue *Cond =
           RecipeBuilder.createBlockInMask(OrigLoop->getHeader(), Plan);
       VPValue *Red = PhiR->getBackedgeValue();
-      assert(cast<VPRecipeBase>(Red->getDef())->getParent() != LatchVPBB &&
+      assert(Red->getDefiningRecipe()->getParent() != LatchVPBB &&
              "reduction recipe must be defined before latch");
       Builder.createNaryOp(Instruction::Select, {Cond, Red, PhiR});
     }
@@ -9532,27 +9547,17 @@ void VPScalarIVStepsRecipe::execute(VPTransformState &State) {
   auto CreateScalarIV = [&](Value *&Step) -> Value * {
     Value *ScalarIV = State.get(getCanonicalIV(), VPIteration(0, 0));
     auto *CanonicalIV = State.get(getParent()->getPlan()->getCanonicalIV(), 0);
-    if (!isCanonical() || CanonicalIV->getType() != Ty) {
-      ScalarIV =
-          Ty->isIntegerTy()
-              ? State.Builder.CreateSExtOrTrunc(ScalarIV, Ty)
-              : State.Builder.CreateCast(Instruction::SIToFP, ScalarIV, Ty);
+    if (!isCanonical() || CanonicalIV->getType() != Step->getType()) {
       ScalarIV = emitTransformedIndex(State.Builder, ScalarIV,
                                       getStartValue()->getLiveInIRValue(), Step,
                                       IndDesc);
       ScalarIV->setName("offset.idx");
     }
-    if (TruncToTy) {
-      assert(Step->getType()->isIntegerTy() &&
-             "Truncation requires an integer step");
-      ScalarIV = State.Builder.CreateTrunc(ScalarIV, TruncToTy);
-      Step = State.Builder.CreateTrunc(Step, TruncToTy);
-    }
     return ScalarIV;
   };
 
   Value *ScalarIV = CreateScalarIV(Step);
-  buildScalarSteps(ScalarIV, Step, IndDesc, this, State);
+  buildScalarSteps(ScalarIV, Step, IndDesc, this, TruncToTy, State);
 }
 
 void VPInterleaveRecipe::execute(VPTransformState &State) {
@@ -9657,7 +9662,7 @@ void VPReplicateRecipe::execute(VPTransformState &State) {
 
   // A store of a loop varying value to a loop invariant address only
   // needs only the last copy of the store.
-  if (isa<StoreInst>(UI) && !getOperand(1)->getDef()) {
+  if (isa<StoreInst>(UI) && !getOperand(1)->hasDefiningRecipe()) {
     auto Lane = VPLane::getLastLaneForVF(State.VF);
     State.ILV->scalarizeInstruction(UI, this, VPIteration(State.UF - 1, Lane), IsPredicated,
                                     State);
@@ -9874,9 +9879,9 @@ Value *VPTransformState::get(VPValue *Def, unsigned Part) {
   unsigned LastLane = IsUniform ? 0 : VF.getKnownMinValue() - 1;
   // Check if there is a scalar value for the selected lane.
   if (!hasScalarValue(Def, {Part, LastLane})) {
-    // At the moment, VPWidenIntOrFpInductionRecipes can also be uniform.
-    assert((isa<VPWidenIntOrFpInductionRecipe>(Def->getDef()) ||
-            isa<VPScalarIVStepsRecipe>(Def->getDef())) &&
+    // At the moment, VPWidenIntOrFpInductionRecipes and VPScalarIVStepsRecipes can also be uniform.
+    assert((isa<VPWidenIntOrFpInductionRecipe>(Def->getDefiningRecipe()) ||
+            isa<VPScalarIVStepsRecipe>(Def->getDefiningRecipe())) &&
            "unexpected recipe found to be invariant");
     IsUniform = true;
     LastLane = 0;

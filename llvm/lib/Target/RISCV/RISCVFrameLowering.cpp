@@ -294,54 +294,10 @@ void RISCVFrameLowering::adjustReg(MachineBasicBlock &MBB,
                                    const DebugLoc &DL, Register DestReg,
                                    Register SrcReg, int64_t Val,
                                    MachineInstr::MIFlag Flag) const {
-  MachineRegisterInfo &MRI = MBB.getParent()->getRegInfo();
-  const RISCVInstrInfo *TII = STI.getInstrInfo();
-
-  if (DestReg == SrcReg && Val == 0)
-    return;
-
-  if (isInt<12>(Val)) {
-    BuildMI(MBB, MBBI, DL, TII->get(RISCV::ADDI), DestReg)
-        .addReg(SrcReg)
-        .addImm(Val)
-        .setMIFlag(Flag);
-    return;
-  }
-
-  // Try to split the offset across two ADDIs. We need to keep the stack pointer
-  // aligned after each ADDI. We need to determine the maximum value we can put
-  // in each ADDI. In the negative direction, we can use -2048 which is always
-  // sufficiently aligned. In the positive direction, we need to find the
-  // largest 12-bit immediate that is aligned. Exclude -4096 since it can be
-  // created with LUI.
-  assert(getStackAlign().value() < 2048 && "Stack alignment too large");
-  int64_t MaxPosAdjStep = 2048 - getStackAlign().value();
-  if (Val > -4096 && Val <= (2 * MaxPosAdjStep)) {
-    int64_t FirstAdj = Val < 0 ? -2048 : MaxPosAdjStep;
-    Val -= FirstAdj;
-    BuildMI(MBB, MBBI, DL, TII->get(RISCV::ADDI), DestReg)
-        .addReg(SrcReg)
-        .addImm(FirstAdj)
-        .setMIFlag(Flag);
-    BuildMI(MBB, MBBI, DL, TII->get(RISCV::ADDI), DestReg)
-        .addReg(DestReg, RegState::Kill)
-        .addImm(Val)
-        .setMIFlag(Flag);
-    return;
-  }
-
-  unsigned Opc = RISCV::ADD;
-  if (Val < 0) {
-    Val = -Val;
-    Opc = RISCV::SUB;
-  }
-
-  Register ScratchReg = MRI.createVirtualRegister(&RISCV::GPRRegClass);
-  TII->movImm(MBB, MBBI, DL, ScratchReg, Val, Flag);
-  BuildMI(MBB, MBBI, DL, TII->get(Opc), DestReg)
-      .addReg(SrcReg)
-      .addReg(ScratchReg, RegState::Kill)
-      .setMIFlag(Flag);
+  // We must keep the stack pointer aligned through any intermediate
+  // updates.
+  const RISCVRegisterInfo &RI = *STI.getRegisterInfo();
+  RI.adjustReg(MBB, MBBI, DL, DestReg, SrcReg, Val, Flag, getStackAlign());
 }
 
 // Returns the register used to hold the frame pointer.
@@ -373,7 +329,24 @@ void RISCVFrameLowering::adjustStackForRVV(MachineFunction &MF,
   assert(Amount != 0 && "Did not need to adjust stack pointer for RVV.");
 
   const RISCVInstrInfo *TII = STI.getInstrInfo();
-  Register SPReg = getSPReg(STI);
+  const Register SPReg = getSPReg(STI);
+
+  // Optimize compile time offset case
+  if (STI.getRealMinVLen() == STI.getRealMaxVLen()) {
+    // 1. Multiply the number of v-slots by the (constant) length of register
+    const int64_t VLENB = STI.getRealMinVLen() / 8;
+    assert(Amount % 8 == 0 &&
+           "Reserve the stack by the multiple of one vector size.");
+    const int64_t NumOfVReg = Amount / 8;
+    const int64_t Offset = NumOfVReg * VLENB;
+    if (!isInt<32>(Offset)) {
+      report_fatal_error(
+        "Frame size outside of the signed 32-bit range not supported");
+    }
+    adjustReg(MBB, MBBI, DL, SPReg, SPReg, Offset, Flag);
+    return;
+  }
+
   unsigned Opc = RISCV::ADD;
   if (Amount < 0) {
     Amount = -Amount;

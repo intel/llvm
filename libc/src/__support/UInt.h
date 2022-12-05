@@ -6,21 +6,23 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_LIBC_UTILS_UINT_H
-#define LLVM_LIBC_UTILS_UINT_H
+#ifndef LLVM_LIBC_SRC_SUPPORT_UINT_H
+#define LLVM_LIBC_SRC_SUPPORT_UINT_H
 
 #include "src/__support/CPP/array.h"
 #include "src/__support/CPP/limits.h"
 #include "src/__support/CPP/optional.h"
 #include "src/__support/CPP/type_traits.h"
 #include "src/__support/builtin_wrappers.h"
+#include "src/__support/integer_utils.h"
+#include "src/__support/number_pair.h"
 
 #include <stddef.h> // For size_t
 #include <stdint.h>
 
 namespace __llvm_libc::cpp {
 
-template <size_t Bits> class UInt {
+template <size_t Bits> struct UInt {
 
   static_assert(Bits > 0 && Bits % 64 == 0,
                 "Number of bits in UInt should be a multiple of 64.");
@@ -32,7 +34,6 @@ template <size_t Bits> class UInt {
   static constexpr uint64_t low(uint64_t v) { return v & MASK32; }
   static constexpr uint64_t high(uint64_t v) { return (v >> 32) & MASK32; }
 
-public:
   constexpr UInt() {}
 
   constexpr UInt(const UInt<Bits> &other) {
@@ -100,37 +101,26 @@ public:
   // property of unsigned integers:
   //   x + (~x) = 2^(sizeof(x)) - 1.
   constexpr uint64_t add(const UInt<Bits> &x) {
-    bool carry = false;
+    SumCarry<uint64_t> s{0, 0};
     for (size_t i = 0; i < WordCount; ++i) {
-      uint64_t complement = ~x.val[i];
-      if (!carry) {
-        if (val[i] <= complement)
-          val[i] += x.val[i];
-        else {
-          val[i] -= complement + 1;
-          carry = true;
-        }
-      } else {
-        if (val[i] < complement) {
-          val[i] += x.val[i] + 1;
-          carry = false;
-        } else
-          val[i] -= complement;
-      }
+      s = add_with_carry(val[i], x.val[i], s.carry);
+      val[i] = s.sum;
     }
-    return carry ? 1 : 0;
+    return s.carry;
   }
 
   constexpr UInt<Bits> operator+(const UInt<Bits> &other) const {
-    UInt<Bits> result(*this);
-    result.add(other);
-    // TODO(lntue): Set overflow flag / errno when carry is true.
+    UInt<Bits> result;
+    SumCarry<uint64_t> s{0, 0};
+    for (size_t i = 0; i < WordCount; ++i) {
+      s = add_with_carry(val[i], other.val[i], s.carry);
+      result.val[i] = s.sum;
+    }
     return result;
   }
 
   constexpr UInt<Bits> operator+=(const UInt<Bits> &other) {
-    // TODO(lntue): Set overflow flag / errno when carry is true.
-    add(other);
+    add(other); // Returned carry value is ignored.
     return *this;
   }
 
@@ -183,68 +173,40 @@ public:
   // carry bits.
   // Returns the carry value produced by the multiplication operation.
   constexpr uint64_t mul(uint64_t x) {
-    uint64_t x_lo = low(x);
-    uint64_t x_hi = high(x);
-
-    cpp::array<uint64_t, WordCount + 1> row1;
+    UInt<128> partial_sum(0);
     uint64_t carry = 0;
     for (size_t i = 0; i < WordCount; ++i) {
-      uint64_t l = low(val[i]);
-      uint64_t h = high(val[i]);
-      uint64_t p1 = x_lo * l;
-      uint64_t p2 = x_lo * h;
-
-      uint64_t res_lo = low(p1) + carry;
-      carry = high(res_lo);
-      uint64_t res_hi = high(p1) + low(p2) + carry;
-      carry = high(res_hi) + high(p2);
-
-      res_lo = low(res_lo);
-      res_hi = low(res_hi);
-      row1[i] = res_lo + (res_hi << 32);
+      NumberPair<uint64_t> prod = full_mul(val[i], x);
+      UInt<128> tmp({prod.lo, prod.hi});
+      carry += partial_sum.add(tmp);
+      val[i] = partial_sum.val[0];
+      partial_sum.val[0] = partial_sum.val[1];
+      partial_sum.val[1] = carry;
+      carry = 0;
     }
-    row1[WordCount] = carry;
-
-    cpp::array<uint64_t, WordCount + 1> row2;
-    row2[0] = 0;
-    carry = 0;
-    for (size_t i = 0; i < WordCount; ++i) {
-      uint64_t l = low(val[i]);
-      uint64_t h = high(val[i]);
-      uint64_t p1 = x_hi * l;
-      uint64_t p2 = x_hi * h;
-
-      uint64_t res_lo = low(p1) + carry;
-      carry = high(res_lo);
-      uint64_t res_hi = high(p1) + low(p2) + carry;
-      carry = high(res_hi) + high(p2);
-
-      res_lo = low(res_lo);
-      res_hi = low(res_hi);
-      row2[i] = res_lo + (res_hi << 32);
-    }
-    row2[WordCount] = carry;
-
-    UInt<(WordCount + 1) * 64> r1(row1), r2(row2);
-    r2.shift_left(32);
-    r1.add(r2);
-    for (size_t i = 0; i < WordCount; ++i) {
-      val[i] = r1[i];
-    }
-    return r1[WordCount];
+    return partial_sum.val[1];
   }
 
   constexpr UInt<Bits> operator*(const UInt<Bits> &other) const {
-    UInt<Bits> result(0);
-    for (size_t i = 0; i < WordCount; ++i) {
-      if (other[i] == 0)
-        continue;
-      UInt<Bits> row_result(*this);
-      row_result.mul(other[i]);
-      row_result.shift_left(64 * i);
-      result = result + row_result;
+    if constexpr (WordCount == 1) {
+      return {val[0] * other.val[0]};
+    } else {
+      UInt<Bits> result(0);
+      UInt<128> partial_sum(0);
+      uint64_t carry = 0;
+      for (size_t i = 0; i < WordCount; ++i) {
+        for (size_t j = 0; j <= i; j++) {
+          NumberPair<uint64_t> prod = full_mul(val[j], other.val[i - j]);
+          UInt<128> tmp({prod.lo, prod.hi});
+          carry += partial_sum.add(tmp);
+        }
+        result.val[i] = partial_sum.val[0];
+        partial_sum.val[0] = partial_sum.val[1];
+        partial_sum.val[1] = carry;
+        carry = 0;
+      }
+      return result;
     }
-    return result;
   }
 
   // pow takes a power and sets this to its starting value to that power. Zero
@@ -325,21 +287,36 @@ public:
   }
 
   constexpr void shift_left(size_t s) {
+#ifdef __SIZEOF_INT128__
+    if constexpr (Bits == 128) {
+      // Use builtin 128 bits if available;
+      if (s >= 128) {
+        val[0] = 0;
+        val[1] = 0;
+        return;
+      }
+      __uint128_t tmp = __uint128_t(val[0]) + (__uint128_t(val[1]) << 64);
+      tmp <<= s;
+      val[0] = uint64_t(tmp);
+      val[1] = uint64_t(tmp >> 64);
+      return;
+    }
+#endif                           // __SIZEOF_INT128__
     const size_t drop = s / 64;  // Number of words to drop
     const size_t shift = s % 64; // Bits to shift in the remaining words.
-    const uint64_t mask = ((uint64_t(1) << shift) - 1) << (64 - shift);
+    size_t i = WordCount;
 
-    for (size_t i = WordCount; drop > 0 && i > 0; --i) {
-      if (i > drop)
-        val[i - 1] = val[i - drop - 1];
-      else
-        val[i - 1] = 0;
+    if (drop < WordCount) {
+      i = WordCount - 1;
+      size_t j = WordCount - 1 - drop;
+      for (; j > 0; --i, --j) {
+        val[i] = (val[j] << shift) | (val[j - 1] >> (64 - shift));
+      }
+      val[i] = val[0] << shift;
     }
-    for (size_t i = WordCount; shift > 0 && i > drop; --i) {
-      uint64_t drop_val = (val[i - 1] & mask) >> (64 - shift);
-      val[i - 1] <<= shift;
-      if (i < WordCount)
-        val[i] |= drop_val;
+
+    for (size_t j = 0; j < i; ++j) {
+      val[j] = 0;
     }
   }
 
@@ -357,19 +334,20 @@ public:
   constexpr void shift_right(size_t s) {
     const size_t drop = s / 64;  // Number of words to drop
     const size_t shift = s % 64; // Bit shift in the remaining words.
-    const uint64_t mask = (uint64_t(1) << shift) - 1;
 
-    for (size_t i = 0; drop > 0 && i < WordCount; ++i) {
-      if (i + drop < WordCount)
-        val[i] = val[i + drop];
-      else
-        val[i] = 0;
+    size_t i = 0;
+
+    if (drop < WordCount) {
+      size_t j = drop;
+      for (; j < WordCount - 1; ++i, ++j) {
+        val[i] = (val[j] >> shift) | (val[j + 1] << (64 - shift));
+      }
+      val[i] = val[j] >> shift;
+      ++i;
     }
-    for (size_t i = 0; shift > 0 && i < WordCount; ++i) {
-      uint64_t drop_val = ((val[i] & mask) << (64 - shift));
-      val[i] >>= shift;
-      if (i > 0)
-        val[i - 1] |= drop_val;
+
+    for (; i < WordCount; ++i) {
+      val[i] = 0;
     }
   }
 
@@ -515,40 +493,6 @@ public:
   const uint64_t *data() const { return val; }
 };
 
-template <>
-constexpr UInt<128> UInt<128>::operator*(const UInt<128> &other) const {
-  // temp low covers bits 0-63, middle covers 32-95, high covers 64-127, and
-  // high overflow covers 96-159.
-  uint64_t temp_low = low(val[0]) * low(other[0]);
-  uint64_t temp_middle_1 = low(val[0]) * high(other[0]);
-  uint64_t temp_middle_2 = high(val[0]) * low(other[0]);
-
-  // temp_middle is split out so that overflows can be handled, but since
-  // but since the result will be truncated to 128 bits any overflow from here
-  // on doesn't matter.
-  uint64_t temp_high = low(val[0]) * low(other[1]) +
-                       high(val[0]) * high(other[0]) +
-                       low(val[1]) * low(other[0]);
-
-  uint64_t temp_high_overflow =
-      low(val[0]) * high(other[1]) + high(val[0]) * low(other[1]) +
-      low(val[1]) * high(other[0]) + high(val[1]) * low(other[0]);
-
-  // temp_low_middle has just the high 32 bits of low, as well as any
-  // overflow.
-  uint64_t temp_low_middle =
-      high(temp_low) + low(temp_middle_1) + low(temp_middle_2);
-
-  uint64_t new_low = low(temp_low) + (low(temp_low_middle) << 32);
-  uint64_t new_high = high(temp_low_middle) + high(temp_middle_1) +
-                      high(temp_middle_2) + temp_high +
-                      (low(temp_high_overflow) << 32);
-  UInt<128> result(0);
-  result[0] = new_low;
-  result[1] = new_high;
-  return result;
-}
-
 // Provides limits of UInt<128>.
 template <> class numeric_limits<UInt<128>> {
 public:
@@ -556,9 +500,18 @@ public:
   static constexpr UInt<128> min() { return 0; }
 };
 
-// Provides is_integral of UInt<128>.
-template <> struct is_integral<UInt<128>> : public cpp::true_type {};
+// Provides is_integral of UInt<128>, UInt<192>, UInt<256>.
+template <size_t Bits> struct is_integral<UInt<Bits>> : public cpp::true_type {
+  static_assert(Bits > 0 && Bits % 64 == 0,
+                "Number of bits in UInt should be a multiple of 64.");
+};
+
+// Provides is_unsigned of UInt<128>, UInt<192>, UInt<256>.
+template <size_t Bits> struct is_unsigned<UInt<Bits>> : public cpp::true_type {
+  static_assert(Bits > 0 && Bits % 64 == 0,
+                "Number of bits in UInt should be a multiple of 64.");
+};
 
 } // namespace __llvm_libc::cpp
 
-#endif // LLVM_LIBC_UTILS_UINT_H
+#endif // LLVM_LIBC_SRC_SUPPORT_UINT_H

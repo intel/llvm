@@ -861,12 +861,12 @@ bool SystemZTargetLowering::isLegalAddImmediate(int64_t Imm) const {
 }
 
 bool SystemZTargetLowering::allowsMisalignedMemoryAccesses(
-    EVT VT, unsigned, Align, MachineMemOperand::Flags, bool *Fast) const {
+    EVT VT, unsigned, Align, MachineMemOperand::Flags, unsigned *Fast) const {
   // Unaligned accesses should never be slower than the expanded version.
   // We check specifically for aligned accesses in the few cases where
   // they are required.
   if (Fast)
-    *Fast = true;
+    *Fast = 1;
   return true;
 }
 
@@ -7038,6 +7038,8 @@ SDValue SystemZTargetLowering::combineGET_CCMASK(
   int CCMaskVal = CCMask->getZExtValue();
 
   SDValue Select = N->getOperand(0);
+  if (Select->getOpcode() == ISD::TRUNCATE)
+    Select = Select->getOperand(0);
   if (Select->getOpcode() != SystemZISD::SELECT_CCMASK)
     return SDValue();
 
@@ -7052,9 +7054,9 @@ SDValue SystemZTargetLowering::combineGET_CCMASK(
   auto *FalseVal = dyn_cast<ConstantSDNode>(Select->getOperand(1));
   if (!TrueVal || !FalseVal)
     return SDValue();
-  if (TrueVal->getZExtValue() != 0 && FalseVal->getZExtValue() == 0)
+  if (TrueVal->getZExtValue() == 1 && FalseVal->getZExtValue() == 0)
     ;
-  else if (TrueVal->getZExtValue() == 0 && FalseVal->getZExtValue() != 0)
+  else if (TrueVal->getZExtValue() == 0 && FalseVal->getZExtValue() == 1)
     SelectCCMaskVal ^= SelectCCValidVal;
   else
     return SDValue();

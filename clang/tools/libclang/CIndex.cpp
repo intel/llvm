@@ -2448,6 +2448,12 @@ void OMPClauseEnqueue::VisitOMPDynamicAllocatorsClause(
 void OMPClauseEnqueue::VisitOMPAtomicDefaultMemOrderClause(
     const OMPAtomicDefaultMemOrderClause *) {}
 
+void OMPClauseEnqueue::VisitOMPAtClause(const OMPAtClause *) {}
+
+void OMPClauseEnqueue::VisitOMPSeverityClause(const OMPSeverityClause *) {}
+
+void OMPClauseEnqueue::VisitOMPMessageClause(const OMPMessageClause *) {}
+
 void OMPClauseEnqueue::VisitOMPDeviceClause(const OMPDeviceClause *C) {
   Visitor->AddStmt(C->getDevice());
 }

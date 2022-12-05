@@ -17,16 +17,15 @@
 #ifndef CLANG_INCLUDE_CLEANER_RECORD_H
 #define CLANG_INCLUDE_CLEANER_RECORD_H
 
-#include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/StringRef.h"
-#include "llvm/Support/Allocator.h"
-#include "llvm/Support/FileSystem/UniqueID.h"
 #include "clang-include-cleaner/Types.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Allocator.h"
+#include "llvm/Support/FileSystem/UniqueID.h"
 #include <memory>
 #include <vector>
 
@@ -70,6 +69,12 @@ public:
   llvm::SmallVector<const FileEntry *> getExporters(const FileEntry *File,
                                                     FileManager &FM) const;
 
+  /// Returns true if the given file is a self-contained file.
+  bool isSelfContained(const FileEntry *File) const;
+
+  /// Returns true if the given file is marked with the IWYU private pragma.
+  bool isPrivate(const FileEntry *File) const;
+
 private:
   class RecordPragma;
   /// 1-based Line numbers for the #include directives of the main file that
@@ -77,7 +82,8 @@ private:
   /// export` right after).
   llvm::DenseSet</*LineNumber*/ unsigned> ShouldKeep;
 
-  /// The public header mapping by the IWYU private pragma.
+  /// The public header mapping by the IWYU private pragma. For private pragmas
+  //  without public mapping an empty StringRef is stored.
   //
   // !!NOTE: instead of using a FileEntry* to identify the physical file, we
   // deliberately use the UniqueID to ensure the result is stable across
@@ -94,11 +100,13 @@ private:
                  llvm::SmallVector</*RealPathNames*/ llvm::StringRef>>
       IWYUExportBy;
 
+  /// Contains all non self-contained files detected during the parsing.
+  llvm::DenseSet<llvm::sys::fs::UniqueID> NonSelfContainedFiles;
+
   /// Owns the strings.
   llvm::BumpPtrAllocator Arena;
 
   // FIXME: add support for clang use_instead pragma
-  // FIXME: add selfcontained file.
 };
 
 /// Recorded main-file parser events relevant to include-cleaner.
@@ -142,11 +150,15 @@ struct RecordedPP {
     ///  - for a logical file like <vector>, we check Spelled
     llvm::SmallVector<const Include *> match(Header H) const;
 
+    /// Finds the include written on the specified line.
+    const Include *atLine(unsigned OneBasedIndex) const;
+
   private:
     std::vector<Include> All;
     // Lookup structures for match(), values are index into All.
     llvm::StringMap<llvm::SmallVector<unsigned>> BySpelling;
     llvm::DenseMap<const FileEntry *, llvm::SmallVector<unsigned>> ByFile;
+    llvm::DenseMap<unsigned, unsigned> ByLine;
   } Includes;
 };
 

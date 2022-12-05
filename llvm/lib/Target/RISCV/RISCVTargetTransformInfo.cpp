@@ -46,6 +46,33 @@ InstructionCost RISCVTTIImpl::getIntImmCost(const APInt &Imm, Type *Ty,
                                     getST()->getFeatureBits());
 }
 
+// Look for patterns of shift followed by AND that can be turned into a pair of
+// shifts. We won't need to materialize an immediate for the AND so these can
+// be considered free.
+static bool canUseShiftPair(Instruction *Inst, const APInt &Imm) {
+  uint64_t Mask = Imm.getZExtValue();
+  auto *BO = dyn_cast<BinaryOperator>(Inst->getOperand(0));
+  if (!BO || !BO->hasOneUse())
+    return false;
+
+  if (BO->getOpcode() != Instruction::Shl)
+    return false;
+
+  if (!isa<ConstantInt>(BO->getOperand(1)))
+    return false;
+
+  unsigned ShAmt = cast<ConstantInt>(BO->getOperand(1))->getZExtValue();
+  // (and (shl x, c2), c1) will be matched to (srli (slli x, c2+c3), c3) if c1
+  // is a mask shifted by c2 bits with c3 leading zeros.
+  if (isShiftedMask_64(Mask)) {
+    unsigned Trailing = countTrailingZeros(Mask);
+    if (ShAmt == Trailing)
+      return true;
+  }
+
+  return false;
+}
+
 InstructionCost RISCVTTIImpl::getIntImmCostInst(unsigned Opcode, unsigned Idx,
                                                 const APInt &Imm, Type *Ty,
                                                 TTI::TargetCostKind CostKind,
@@ -74,6 +101,9 @@ InstructionCost RISCVTTIImpl::getIntImmCostInst(unsigned Opcode, unsigned Idx,
       return TTI::TCC_Free;
     // zext.w
     if (Imm == UINT64_C(0xffffffff) && ST->hasStdExtZba())
+      return TTI::TCC_Free;
+    if (Inst && Idx == 1 && Imm.getBitWidth() <= ST->getXLen() &&
+        canUseShiftPair(Inst, Imm))
       return TTI::TCC_Free;
     [[fallthrough]];
   case Instruction::Add:
@@ -415,6 +445,32 @@ static const CostTblEntry VectorIntrinsicCostTable[]{
     {Intrinsic::bswap, MVT::nxv2i64, 31},
     {Intrinsic::bswap, MVT::nxv4i64, 31},
     {Intrinsic::bswap, MVT::nxv8i64, 31},
+    {Intrinsic::vp_bswap, MVT::v2i16, 3},
+    {Intrinsic::vp_bswap, MVT::v4i16, 3},
+    {Intrinsic::vp_bswap, MVT::v8i16, 3},
+    {Intrinsic::vp_bswap, MVT::v16i16, 3},
+    {Intrinsic::vp_bswap, MVT::nxv1i16, 3},
+    {Intrinsic::vp_bswap, MVT::nxv2i16, 3},
+    {Intrinsic::vp_bswap, MVT::nxv4i16, 3},
+    {Intrinsic::vp_bswap, MVT::nxv8i16, 3},
+    {Intrinsic::vp_bswap, MVT::nxv16i16, 3},
+    {Intrinsic::vp_bswap, MVT::v2i32, 12},
+    {Intrinsic::vp_bswap, MVT::v4i32, 12},
+    {Intrinsic::vp_bswap, MVT::v8i32, 12},
+    {Intrinsic::vp_bswap, MVT::v16i32, 12},
+    {Intrinsic::vp_bswap, MVT::nxv1i32, 12},
+    {Intrinsic::vp_bswap, MVT::nxv2i32, 12},
+    {Intrinsic::vp_bswap, MVT::nxv4i32, 12},
+    {Intrinsic::vp_bswap, MVT::nxv8i32, 12},
+    {Intrinsic::vp_bswap, MVT::nxv16i32, 12},
+    {Intrinsic::vp_bswap, MVT::v2i64, 31},
+    {Intrinsic::vp_bswap, MVT::v4i64, 31},
+    {Intrinsic::vp_bswap, MVT::v8i64, 31},
+    {Intrinsic::vp_bswap, MVT::v16i64, 31},
+    {Intrinsic::vp_bswap, MVT::nxv1i64, 31},
+    {Intrinsic::vp_bswap, MVT::nxv2i64, 31},
+    {Intrinsic::vp_bswap, MVT::nxv4i64, 31},
+    {Intrinsic::vp_bswap, MVT::nxv8i64, 31},
     {Intrinsic::bitreverse, MVT::v2i8, 17},
     {Intrinsic::bitreverse, MVT::v4i8, 17},
     {Intrinsic::bitreverse, MVT::v8i8, 17},
@@ -532,6 +588,14 @@ RISCVTTIImpl::getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
   case Intrinsic::vp_rint: {
     // RISC-V target uses at least 5 instructions to lower rounding intrinsics.
     unsigned Cost = 5;
+    auto LT = getTypeLegalizationCost(RetTy);
+    if (TLI->isOperationCustom(ISD::VP_FRINT, LT.second))
+      return Cost * LT.first;
+    break;
+  }
+  case Intrinsic::vp_nearbyint: {
+    // More one read and one write for fflags than vp_rint.
+    unsigned Cost = 7;
     auto LT = getTypeLegalizationCost(RetTy);
     if (TLI->isOperationCustom(ISD::VP_FRINT, LT.second))
       return Cost * LT.first;
@@ -927,6 +991,60 @@ InstructionCost RISCVTTIImpl::getVectorInstrCost(unsigned Opcode, Type *Val,
     BaseCost = Opcode == Instruction::InsertElement ? 3 : 4;
   }
   return BaseCost + SlideCost;
+}
+
+InstructionCost RISCVTTIImpl::getArithmeticInstrCost(
+    unsigned Opcode, Type *Ty, TTI::TargetCostKind CostKind,
+    TTI::OperandValueInfo Op1Info, TTI::OperandValueInfo Op2Info,
+    ArrayRef<const Value *> Args, const Instruction *CxtI) {
+
+  // TODO: Handle more cost kinds.
+  if (CostKind != TTI::TCK_RecipThroughput)
+    return BaseT::getArithmeticInstrCost(Opcode, Ty, CostKind, Op1Info, Op2Info,
+                                         Args, CxtI);
+
+  if (isa<FixedVectorType>(Ty) && !ST->useRVVForFixedLengthVectors())
+    return BaseT::getArithmeticInstrCost(Opcode, Ty, CostKind, Op1Info, Op2Info,
+                                         Args, CxtI);
+
+  // Skip if scalar size of Ty is bigger than ELEN.
+  if (isa<VectorType>(Ty) && Ty->getScalarSizeInBits() > ST->getELEN())
+    return BaseT::getArithmeticInstrCost(Opcode, Ty, CostKind, Op1Info, Op2Info,
+                                         Args, CxtI);
+
+  // Legalize the type.
+  std::pair<InstructionCost, MVT> LT = getTypeLegalizationCost(Ty);
+
+  // TODO: Handle scalar type.
+  if (!LT.second.isVector())
+    return BaseT::getArithmeticInstrCost(Opcode, Ty, CostKind, Op1Info, Op2Info,
+                                         Args, CxtI);
+
+  switch (TLI->InstructionOpcodeToISD(Opcode)) {
+  case ISD::ADD:
+  case ISD::SUB:
+  case ISD::AND:
+  case ISD::OR:
+  case ISD::XOR:
+  case ISD::SHL:
+  case ISD::SRL:
+  case ISD::SRA:
+  case ISD::MUL:
+  case ISD::MULHS:
+  case ISD::MULHU:
+  case ISD::FADD:
+  case ISD::FSUB:
+  case ISD::FMUL:
+  case ISD::FNEG: {
+    // TODO: Add the cost of materializing any constant vectors required since
+    // we otherwise treat constants as no-cost.
+    // TODO: We should be accounting for LMUL and scaling costs for LMUL > 1.
+    return LT.first * 1;
+  }
+  default:
+    return BaseT::getArithmeticInstrCost(Opcode, Ty, CostKind, Op1Info, Op2Info,
+                                         Args, CxtI);
+  }
 }
 
 void RISCVTTIImpl::getUnrollingPreferences(Loop *L, ScalarEvolution &SE,

@@ -873,8 +873,7 @@ ModuleMap::createPrivateModuleFragmentForInterfaceUnit(Module *Parent,
 }
 
 Module *ModuleMap::createModuleForInterfaceUnit(SourceLocation Loc,
-                                                StringRef Name,
-                                                Module *GlobalModule) {
+                                                StringRef Name) {
   assert(LangOpts.CurrentModule == Name && "module name mismatch");
   assert(!Modules[Name] && "redefining existing module");
 
@@ -896,29 +895,6 @@ Module *ModuleMap::createModuleForInterfaceUnit(SourceLocation Loc,
   auto *MainFile = SourceMgr.getFileEntryForID(SourceMgr.getMainFileID());
   assert(MainFile && "no input file for module interface");
   Headers[MainFile].push_back(KnownHeader(Result, PrivateHeader));
-
-  return Result;
-}
-
-Module *ModuleMap::createHeaderModule(StringRef Name,
-                                      ArrayRef<Module::Header> Headers) {
-  assert(LangOpts.CurrentModule == Name && "module name mismatch");
-  assert(!Modules[Name] && "redefining existing module");
-
-  auto *Result =
-      new Module(Name, SourceLocation(), nullptr, /*IsFramework*/ false,
-                 /*IsExplicit*/ false, NumCreatedModules++);
-  Result->Kind = Module::ModuleInterfaceUnit;
-  Modules[Name] = SourceModule = Result;
-
-  for (const Module::Header &H : Headers) {
-    auto *M = new Module(H.NameAsWritten, SourceLocation(), Result,
-                         /*IsFramework*/ false,
-                         /*IsExplicit*/ true, NumCreatedModules++);
-    // Header modules are implicitly 'export *'.
-    M->Exports.push_back(Module::ExportDecl(nullptr, true));
-    addHeader(M, H, NormalHeader);
-  }
 
   return Result;
 }

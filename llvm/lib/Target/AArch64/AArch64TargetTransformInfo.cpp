@@ -975,16 +975,34 @@ instCombineSVECntElts(InstCombiner &IC, IntrinsicInst &II, unsigned NumElts) {
 
 static Optional<Instruction *> instCombineSVEPTest(InstCombiner &IC,
                                                    IntrinsicInst &II) {
-  IntrinsicInst *Pg = dyn_cast<IntrinsicInst>(II.getArgOperand(0));
-  IntrinsicInst *Op = dyn_cast<IntrinsicInst>(II.getArgOperand(1));
+  Value *PgVal = II.getArgOperand(0);
+  Value *OpVal = II.getArgOperand(1);
+
+  IRBuilder<> Builder(II.getContext());
+  Builder.SetInsertPoint(&II);
+
+  // PTEST_<FIRST|LAST>(X, X) is equivalent to PTEST_ANY(X, X).
+  // Later optimizations prefer this form.
+  if (PgVal == OpVal &&
+      (II.getIntrinsicID() == Intrinsic::aarch64_sve_ptest_first ||
+       II.getIntrinsicID() == Intrinsic::aarch64_sve_ptest_last)) {
+    Value *Ops[] = {PgVal, OpVal};
+    Type *Tys[] = {PgVal->getType()};
+
+    auto *PTest =
+        Builder.CreateIntrinsic(Intrinsic::aarch64_sve_ptest_any, Tys, Ops);
+    PTest->takeName(&II);
+
+    return IC.replaceInstUsesWith(II, PTest);
+  }
+
+  IntrinsicInst *Pg = dyn_cast<IntrinsicInst>(PgVal);
+  IntrinsicInst *Op = dyn_cast<IntrinsicInst>(OpVal);
 
   if (!Pg || !Op)
     return None;
 
   Intrinsic::ID OpIID = Op->getIntrinsicID();
-
-  IRBuilder<> Builder(II.getContext());
-  Builder.SetInsertPoint(&II);
 
   if (Pg->getIntrinsicID() == Intrinsic::aarch64_sve_convert_to_svbool &&
       OpIID == Intrinsic::aarch64_sve_convert_to_svbool &&
@@ -1900,12 +1918,6 @@ InstructionCost AArch64TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
     { ISD::BITCAST, MVT::nxv2i16, MVT::nxv2f16, 0 },
     { ISD::BITCAST, MVT::nxv4i16, MVT::nxv4f16, 0 },
     { ISD::BITCAST, MVT::nxv2i32, MVT::nxv2f32, 0 },
-
-    // Zero extends from nxvmi1 to nxvmiN.
-    { ISD::ZERO_EXTEND, MVT::nxv2i64, MVT::nxv2i1, 1 },
-    { ISD::ZERO_EXTEND, MVT::nxv4i32, MVT::nxv4i1, 1 },
-    { ISD::ZERO_EXTEND, MVT::nxv8i16, MVT::nxv8i1, 1 },
-    { ISD::ZERO_EXTEND, MVT::nxv16i8, MVT::nxv16i1, 1 },
   };
 
   if (const auto *Entry = ConvertCostTableLookup(ConversionTbl, ISD,
@@ -2153,6 +2165,18 @@ InstructionCost AArch64TTIImpl::getArithmeticInstrCost(
           Cost *= 4;
         return Cost;
       } else {
+        // If one of the operands is a uniform constant then the cost for each
+        // element is Cost for insertion, extraction and division.
+        // Insertion cost = 2, Extraction Cost = 2, Division = cost for the
+        // operation with scalar type
+        if ((Op1Info.isConstant() && Op1Info.isUniform()) ||
+            (Op2Info.isConstant() && Op2Info.isUniform())) {
+          if (auto *VTy = dyn_cast<FixedVectorType>(Ty)) {
+            InstructionCost DivCost = BaseT::getArithmeticInstrCost(
+                Opcode, Ty->getScalarType(), CostKind, Op1Info, Op2Info);
+            return (4 + DivCost) * VTy->getNumElements();
+          }
+        }
         // On AArch64, without SVE, vector divisions are expanded
         // into scalar divisions of each pair of elements.
         Cost += getArithmeticInstrCost(Instruction::ExtractElement, Ty,
@@ -2615,7 +2639,7 @@ Value *AArch64TTIImpl::getOrCreateResultFromMemIntrinsic(IntrinsicInst *Inst,
       if (Inst->getArgOperand(i)->getType() != ST->getElementType(i))
         return nullptr;
     }
-    Value *Res = UndefValue::get(ExpectedType);
+    Value *Res = PoisonValue::get(ExpectedType);
     IRBuilder<> Builder(Inst);
     for (unsigned i = 0, e = NumElts; i != e; ++i) {
       Value *L = Inst->getArgOperand(i);

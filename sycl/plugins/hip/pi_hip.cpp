@@ -1659,6 +1659,13 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     SupportedExtensions += PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT;
     SupportedExtensions += " ";
 
+    hipDeviceProp_t props;
+    sycl::detail::pi::assertion(hipGetDeviceProperties(&props, device->get()) ==
+                                hipSuccess);
+    if (props.arch.hasDoubles) {
+      SupportedExtensions += "cl_khr_fp64 ";
+    }
+
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    SupportedExtensions.c_str());
   }
@@ -1848,7 +1855,7 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
   case PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
-  case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16:
+  case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS:
     return PI_ERROR_INVALID_VALUE;
 
   default:
@@ -2413,6 +2420,21 @@ pi_result hip_piQueueGetInfo(pi_queue command_queue, pi_queue_info param_name,
   case PI_QUEUE_INFO_PROPERTIES:
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    command_queue->properties_);
+  case PI_EXT_ONEAPI_QUEUE_INFO_EMPTY: {
+    bool IsReady = command_queue->all_of([](hipStream_t s) -> bool {
+      const hipError_t ret = hipStreamQuery(s);
+      if (ret == hipSuccess)
+        return true;
+
+      if (ret == hipErrorNotReady)
+        return false;
+
+      PI_CHECK_ERROR(ret);
+      return false;
+    });
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   IsReady);
+  }
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }

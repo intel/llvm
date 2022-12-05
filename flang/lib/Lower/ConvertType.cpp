@@ -142,7 +142,9 @@ struct TypeBuilder {
     Fortran::common::TypeCategory category = dynamicType->category();
 
     mlir::Type baseType;
-    if (category == Fortran::common::TypeCategory::Derived) {
+    if (dynamicType->IsUnlimitedPolymorphic()) {
+      baseType = mlir::NoneType::get(context);
+    } else if (category == Fortran::common::TypeCategory::Derived) {
       baseType = genDerivedType(dynamicType->GetDerivedTypeSpec());
     } else {
       // LOGICAL, INTEGER, REAL, COMPLEX, CHARACTER
@@ -339,6 +341,8 @@ struct TypeBuilder {
       TODO(loc, "parameterized derived types");
     }
     LLVM_DEBUG(llvm::dbgs() << "derived type: " << rec << '\n');
+
+    converter.registerDispatchTableInfo(loc, &tySpec);
 
     // Generate the type descriptor object if any
     if (const Fortran::semantics::Scope *derivedScope =

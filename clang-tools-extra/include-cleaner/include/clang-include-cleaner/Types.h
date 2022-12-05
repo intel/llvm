@@ -52,27 +52,23 @@ struct Symbol {
     Declaration,
     /// A preprocessor macro, as defined in a specific location.
     Macro,
-    /// A recognized symbol from the standard library, like std::string.
-    Standard,
   };
 
   Symbol(const Decl &D) : Storage(&D) {}
   Symbol(struct Macro M) : Storage(M) {}
-  Symbol(tooling::stdlib::Symbol S) : Storage(S) {}
 
   Kind kind() const { return static_cast<Kind>(Storage.index()); }
   bool operator==(const Symbol &RHS) const { return Storage == RHS.Storage; }
 
   const Decl &declaration() const { return *std::get<Declaration>(Storage); }
   struct Macro macro() const { return std::get<Macro>(Storage); }
-  tooling::stdlib::Symbol standard() const {
-    return std::get<Standard>(Storage);
-  }
 
 private:
-  // FIXME: Add support for macros.
   // Order must match Kind enum!
-  std::variant<const Decl *, struct Macro, tooling::stdlib::Symbol> Storage;
+  std::variant<const Decl *, struct Macro> Storage;
+
+  Symbol(decltype(Storage) Sentinel) : Storage(std::move(Sentinel)) {}
+  friend llvm::DenseMapInfo<Symbol>;
 };
 llvm::raw_ostream &operator<<(llvm::raw_ostream &, const Symbol &);
 
@@ -122,9 +118,7 @@ struct Header {
   tooling::stdlib::Header standard() const {
     return std::get<Standard>(Storage);
   }
-  StringRef verbatim() const {
-    return std::get<Verbatim>(Storage);
-  }
+  StringRef verbatim() const { return std::get<Verbatim>(Storage); }
 
 private:
   // Order must match Kind enum!
@@ -144,5 +138,37 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &, const Include &);
 
 } // namespace include_cleaner
 } // namespace clang
+
+namespace llvm {
+
+template <> struct DenseMapInfo<clang::include_cleaner::Symbol> {
+  using Outer = clang::include_cleaner::Symbol;
+  using Base = DenseMapInfo<decltype(Outer::Storage)>;
+
+  static inline Outer getEmptyKey() { return {Base::getEmptyKey()}; }
+  static inline Outer getTombstoneKey() { return {Base::getTombstoneKey()}; }
+  static unsigned getHashValue(const Outer &Val) {
+    return Base::getHashValue(Val.Storage);
+  }
+  static bool isEqual(const Outer &LHS, const Outer &RHS) {
+    return Base::isEqual(LHS.Storage, RHS.Storage);
+  }
+};
+template <> struct DenseMapInfo<clang::include_cleaner::Macro> {
+  using Outer = clang::include_cleaner::Macro;
+  using Base = DenseMapInfo<decltype(Outer::Definition)>;
+
+  static inline Outer getEmptyKey() { return {nullptr, Base::getEmptyKey()}; }
+  static inline Outer getTombstoneKey() {
+    return {nullptr, Base::getTombstoneKey()};
+  }
+  static unsigned getHashValue(const Outer &Val) {
+    return Base::getHashValue(Val.Definition);
+  }
+  static bool isEqual(const Outer &LHS, const Outer &RHS) {
+    return Base::isEqual(LHS.Definition, RHS.Definition);
+  }
+};
+} // namespace llvm
 
 #endif

@@ -17,6 +17,7 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/Operation.h"
+#include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/Passes.h"
@@ -217,7 +218,7 @@ struct OneShotBufferizePass
       // Configure type converter.
       LayoutMapOption unknownTypeConversionOption =
           parseLayoutMapOption(unknownTypeConversion);
-      opt.unknownTypeConverterFn = [=](Value value, unsigned memorySpace,
+      opt.unknownTypeConverterFn = [=](Value value, Attribute memorySpace,
                                        const BufferizationOptions &options) {
         auto tensorType = value.getType().cast<TensorType>();
         if (unknownTypeConversionOption == LayoutMapOption::IdentityLayoutMap)
@@ -490,7 +491,7 @@ LogicalResult bufferization::bufferizeOp(Operation *op,
     if (opFilter && !opFilter->isOpAllowed(op))
       continue;
     // Ops without any uses and no side effects will fold away.
-    if (op->getUses().empty() && MemoryEffectOpInterface::hasNoEffect(op))
+    if (op->getUses().empty() && isMemoryEffectFree(op))
       continue;
     // ToTensorOps/ToMemrefOps are allowed in the output.
     if (isa<ToTensorOp, ToMemrefOp>(op))
@@ -506,7 +507,7 @@ BufferizationOptions bufferization::getPartialBufferizationOptions() {
   options.allowUnknownOps = true;
   options.createDeallocs = false;
   options.enforceAliasingInvariants = false;
-  options.unknownTypeConverterFn = [](Value value, unsigned memorySpace,
+  options.unknownTypeConverterFn = [](Value value, Attribute memorySpace,
                                       const BufferizationOptions &options) {
     return getMemRefTypeWithStaticIdentityLayout(
         value.getType().cast<TensorType>(), memorySpace);

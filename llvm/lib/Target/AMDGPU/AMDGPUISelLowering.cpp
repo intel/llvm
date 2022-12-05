@@ -306,6 +306,21 @@ AMDGPUTargetLowering::AMDGPUTargetLowering(const TargetMachine &TM,
 
   setOperationAction(ISD::FREM, {MVT::f16, MVT::f32, MVT::f64}, Custom);
 
+  if (Subtarget->has16BitInsts())
+    setOperationAction(ISD::IS_FPCLASS, {MVT::f16, MVT::f32, MVT::f64}, Legal);
+  else
+    setOperationAction(ISD::IS_FPCLASS, {MVT::f32, MVT::f64}, Legal);
+
+  // FIXME: These IS_FPCLASS vector fp types are marked custom so it reaches
+  // scalarization code. Can be removed when IS_FPCLASS expand isn't called by
+  // default unless marked custom/legal.
+  setOperationAction(
+      ISD::IS_FPCLASS,
+      {MVT::v2f16, MVT::v3f16, MVT::v4f16, MVT::v16f16, MVT::v2f32, MVT::v3f32,
+       MVT::v4f32, MVT::v5f32, MVT::v6f32, MVT::v7f32, MVT::v8f32, MVT::v16f32,
+       MVT::v2f64, MVT::v3f64, MVT::v4f64, MVT::v8f64, MVT::v16f64},
+      Custom);
+
   // Expand to fneg + fadd.
   setOperationAction(ISD::FSUB, MVT::f64, Expand);
 
@@ -683,7 +698,7 @@ bool AMDGPUTargetLowering::isLoadBitCastBeneficial(EVT LoadTy, EVT CastTy,
   if ((LScalarSize >= CastScalarSize) && (CastScalarSize < 32))
     return false;
 
-  bool Fast = false;
+  unsigned Fast = 0;
   return allowsMemoryAccessForAlignment(*DAG.getContext(), DAG.getDataLayout(),
                                         CastTy, MMO, &Fast) &&
          Fast;
@@ -2903,7 +2918,7 @@ SDValue AMDGPUTargetLowering::performLoadCombine(SDNode *N,
   unsigned Size = VT.getStoreSize();
   Align Alignment = LN->getAlign();
   if (Alignment < Size && isTypeLegal(VT)) {
-    bool IsFast;
+    unsigned IsFast;
     unsigned AS = LN->getAddressSpace();
 
     // Expand unaligned loads earlier than legalization. Due to visitation order
@@ -2956,7 +2971,7 @@ SDValue AMDGPUTargetLowering::performStoreCombine(SDNode *N,
   SelectionDAG &DAG = DCI.DAG;
   Align Alignment = SN->getAlign();
   if (Alignment < Size && isTypeLegal(VT)) {
-    bool IsFast;
+    unsigned IsFast;
     unsigned AS = SN->getAddressSpace();
 
     // Expand unaligned stores earlier than legalization. Due to visitation
@@ -4429,6 +4444,7 @@ const char* AMDGPUTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(BUFFER_LOAD_BYTE)
   NODE_NAME_CASE(BUFFER_LOAD_SHORT)
   NODE_NAME_CASE(BUFFER_LOAD_FORMAT)
+  NODE_NAME_CASE(BUFFER_LOAD_FORMAT_TFE)
   NODE_NAME_CASE(BUFFER_LOAD_FORMAT_D16)
   NODE_NAME_CASE(SBUFFER_LOAD)
   NODE_NAME_CASE(BUFFER_STORE)

@@ -55,6 +55,7 @@
 #include <cctype>
 #include <cstdint>
 #include <cstdio>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -252,6 +253,7 @@ private:
   OperandMatchResultTy tryParseSysCROperand(OperandVector &Operands);
   template <bool IsSVEPrefetch = false>
   OperandMatchResultTy tryParsePrefetch(OperandVector &Operands);
+  OperandMatchResultTy tryParseRPRFMOperand(OperandVector &Operands);
   OperandMatchResultTy tryParsePSBHint(OperandVector &Operands);
   OperandMatchResultTy tryParseBTIHint(OperandVector &Operands);
   OperandMatchResultTy tryParseAdrpLabel(OperandVector &Operands);
@@ -937,7 +939,7 @@ public:
   /// a shifted immediate by value 'Shift' or '0', or if it is an unshifted
   /// immediate that can be shifted by 'Shift'.
   template <unsigned Width>
-  Optional<std::pair<int64_t, unsigned> > getShiftedVal() const {
+  std::optional<std::pair<int64_t, unsigned>> getShiftedVal() const {
     if (isShiftedImm() && Width == getShiftedImmShift())
       if (auto *CE = dyn_cast<MCConstantExpr>(getShiftedImmVal()))
         return std::make_pair(CE->getValue(), Width);
@@ -2608,7 +2610,7 @@ static Optional<std::pair<int, int>> parseVectorKind(StringRef Suffix,
   }
 
   if (Res == std::make_pair(-1, -1))
-    return Optional<std::pair<int, int>>();
+    return None;
 
   return Optional<std::pair<int, int>>(Res);
 }
@@ -2890,7 +2892,7 @@ unsigned AArch64AsmParser::getNumRegsForRegKind(RegKind K) {
   case RegKind::SVEPredicateAsCounter:
     return 16;
   case RegKind::LookupTable:
-   return 512;
+   return 1;
   }
   llvm_unreachable("Unsupported RegKind");
 }
@@ -2940,6 +2942,56 @@ AArch64AsmParser::tryParseSysCROperand(OperandVector &Operands) {
   Lex(); // Eat identifier token.
   Operands.push_back(
       AArch64Operand::CreateSysCR(CRNum, S, getLoc(), getContext()));
+  return MatchOperand_Success;
+}
+
+// Either an identifier for named values or a 6-bit immediate.
+OperandMatchResultTy
+AArch64AsmParser::tryParseRPRFMOperand(OperandVector &Operands) {
+  SMLoc S = getLoc();
+  const AsmToken &Tok = getTok();
+
+  unsigned MaxVal = 63;
+
+  // Immediate case, with optional leading hash:
+  if (parseOptionalToken(AsmToken::Hash) ||
+      Tok.is(AsmToken::Integer)) {
+    const MCExpr *ImmVal;
+    if (getParser().parseExpression(ImmVal))
+      return MatchOperand_ParseFail;
+
+    const MCConstantExpr *MCE = dyn_cast<MCConstantExpr>(ImmVal);
+    if (!MCE) {
+      TokError("immediate value expected for prefetch operand");
+      return MatchOperand_ParseFail;
+    }
+    unsigned prfop = MCE->getValue();
+    if (prfop > MaxVal) {
+      TokError("prefetch operand out of range, [0," + utostr(MaxVal) +
+               "] expected");
+      return MatchOperand_ParseFail;
+    }
+
+    auto RPRFM = AArch64RPRFM::lookupRPRFMByEncoding(MCE->getValue());
+    Operands.push_back(AArch64Operand::CreatePrefetch(
+        prfop, RPRFM ? RPRFM->Name : "", S, getContext()));
+    return MatchOperand_Success;
+  }
+
+  if (Tok.isNot(AsmToken::Identifier)) {
+    TokError("prefetch hint expected");
+    return MatchOperand_ParseFail;
+  }
+
+  auto RPRFM = AArch64RPRFM::lookupRPRFMByName(Tok.getString());
+  if (!RPRFM) {
+    TokError("prefetch hint expected");
+    return MatchOperand_ParseFail;
+  }
+
+  Operands.push_back(AArch64Operand::CreatePrefetch(
+      RPRFM->Encoding, Tok.getString(), S, getContext()));
+  Lex(); // Eat identifier token.
   return MatchOperand_Success;
 }
 
@@ -3414,7 +3466,7 @@ AArch64AsmParser::tryParseMatrixRegister(OperandVector &Operands) {
   StringRef Tail = Name.drop_front(DotPosition);
   StringRef RowOrColumn = Head.take_back();
 
-  MatrixKind Kind = StringSwitch<MatrixKind>(RowOrColumn)
+  MatrixKind Kind = StringSwitch<MatrixKind>(RowOrColumn.lower())
                         .Case("h", MatrixKind::Row)
                         .Case("v", MatrixKind::Col)
                         .Default(MatrixKind::Tile);
@@ -3584,6 +3636,8 @@ static void setRequiredFeatureString(FeatureBitset FBS, std::string &Str) {
     Str += "ARMv8.7a";
   else if (FBS[AArch64::HasV8_8aOps])
     Str += "ARMv8.8a";
+  else if (FBS[AArch64::HasV8_9aOps])
+    Str += "ARMv8.9a";
   else if (FBS[AArch64::HasV9_0aOps])
     Str += "ARMv9-a";
   else if (FBS[AArch64::HasV9_1aOps])
@@ -3592,6 +3646,8 @@ static void setRequiredFeatureString(FeatureBitset FBS, std::string &Str) {
     Str += "ARMv9.2a";
   else if (FBS[AArch64::HasV9_3aOps])
     Str += "ARMv9.3a";
+  else if (FBS[AArch64::HasV9_4aOps])
+    Str += "ARMv9.4a";
   else if (FBS[AArch64::HasV8_0rOps])
     Str += "ARMv8r";
   else {
@@ -6646,10 +6702,12 @@ static void ExpandCryptoAEK(AArch64::ArchKind ArchKind,
     case AArch64::ArchKind::ARMV8_6A:
     case AArch64::ArchKind::ARMV8_7A:
     case AArch64::ArchKind::ARMV8_8A:
+    case AArch64::ArchKind::ARMV8_9A:
     case AArch64::ArchKind::ARMV9A:
     case AArch64::ArchKind::ARMV9_1A:
     case AArch64::ArchKind::ARMV9_2A:
     case AArch64::ArchKind::ARMV9_3A:
+    case AArch64::ArchKind::ARMV9_4A:
     case AArch64::ArchKind::ARMV8R:
       RequestedExtensions.push_back("sm4");
       RequestedExtensions.push_back("sha3");
@@ -6673,9 +6731,12 @@ static void ExpandCryptoAEK(AArch64::ArchKind ArchKind,
     case AArch64::ArchKind::ARMV8_6A:
     case AArch64::ArchKind::ARMV8_7A:
     case AArch64::ArchKind::ARMV8_8A:
+    case AArch64::ArchKind::ARMV8_9A:
     case AArch64::ArchKind::ARMV9A:
     case AArch64::ArchKind::ARMV9_1A:
     case AArch64::ArchKind::ARMV9_2A:
+    case AArch64::ArchKind::ARMV9_3A:
+    case AArch64::ArchKind::ARMV9_4A:
       RequestedExtensions.push_back("nosm4");
       RequestedExtensions.push_back("nosha3");
       RequestedExtensions.push_back("nosha2");
@@ -7486,6 +7547,15 @@ unsigned AArch64AsmParser::validateTargetOperandClass(MCParsedAsmOperand &AsmOp,
     break;
   case MCK__HASH_8:
     ExpectedVal = 8;
+    break;
+  case MCK__HASH__MINUS_4:
+    ExpectedVal = -4;
+    break;
+  case MCK__HASH__MINUS_8:
+    ExpectedVal = -8;
+    break;
+  case MCK__HASH__MINUS_16:
+    ExpectedVal = -16;
     break;
   case MCK_MPR:
     // If the Kind is a token for the MPR register class which has the "za"

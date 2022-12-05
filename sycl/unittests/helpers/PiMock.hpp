@@ -204,7 +204,7 @@ public:
       // Copy the PiPlugin, thus untying our to-be mock platform from other
       // platforms within the context. Reset our platform to use the new plugin.
       NewPluginPtr = std::make_shared<detail::plugin>(
-          OriginalPiPlugin.getPiPluginPtr(), OriginalPiPlugin.getBackend(),
+          OriginalPiPlugin.getPiPluginPtr(), Backend,
           OriginalPiPlugin.getLibraryHandle());
       // Save a copy of the platform resource
       OrigFuncTable = OriginalPiPlugin.getPiPlugin().PiFunctionTable;

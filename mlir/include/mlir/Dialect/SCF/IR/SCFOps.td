@@ -487,6 +487,7 @@ def ForeachThreadOp : SCF_Op<"foreach_thread", [
   let results = (outs Variadic<AnyType>:$results);
   let regions = (region SizedRegion<1>:$region);
 
+  let hasCanonicalizer = 1;
   let hasCustomAssemblyFormat = 1;
   let hasVerifier = 1;
 
@@ -510,9 +511,18 @@ def ForeachThreadOp : SCF_Op<"foreach_thread", [
           opOperand->getOperandNumber() - getRank());
     }
 
+    /// Return the num_threads operand that is tied to the given thread id
+    /// block argument.
     OpOperand *getTiedOpOperand(BlockArgument bbArg) {
       assert(bbArg.getArgNumber() >= getRank() && "invalid bbArg");
       return &getOperation()->getOpOperand(bbArg.getArgNumber());
+    }
+
+    /// Return the shared_outs operand that is tied to the given OpResult.
+    OpOperand *getTiedOpOperand(OpResult opResult) {
+      assert(opResult.getDefiningOp() == getOperation() && "invalid OpResult");
+      return &getOperation()->getOpOperand(
+          opResult.getResultNumber() + getRank());
     }
 
     BlockArgument getTiedBlockArgument(OpOperand *opOperand) {
@@ -935,7 +945,7 @@ def WhileOp : SCF_Op<"while",
 
     Note that the types of region arguments need not to match with each other.
     The op expects the operand types to match with argument types of the
-    "before" region"; the result types to match with the trailing operand types
+    "before" region; the result types to match with the trailing operand types
     of the terminator of the "before" region, and with the argument types of the
     "after" region. The following scheme can be used to share the results of
     some operations executed in the "before" region with the "after" region,
@@ -983,7 +993,16 @@ def WhileOp : SCF_Op<"while",
   let results = (outs Variadic<AnyType>:$results);
   let regions = (region SizedRegion<1>:$before, SizedRegion<1>:$after);
 
+  let builders = [
+    OpBuilder<(ins "TypeRange":$resultTypes, "ValueRange":$operands,
+      "function_ref<void(OpBuilder &, Location, ValueRange)>":$beforeBuilder,
+      "function_ref<void(OpBuilder &, Location, ValueRange)>":$afterBuilder)>
+  ];
+
   let extraClassDeclaration = [{
+    using BodyBuilderFn =
+        function_ref<void(OpBuilder &, Location, ValueRange)>;
+
     OperandRange getSuccessorEntryOperands(Optional<unsigned> index);
     ConditionOp getConditionOp();
     YieldOp getYieldOp();

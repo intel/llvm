@@ -8,6 +8,7 @@
 
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_id_impl.hpp>
+#include <detail/program_manager/program_manager.hpp>
 
 #include <set>
 
@@ -292,6 +293,34 @@ std::vector<sycl::device> find_device_intersection(
 
 std::vector<kernel_id> get_kernel_ids() {
   return detail::ProgramManager::getInstance().getAllSYCLKernelIDs();
+}
+
+bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
+  for (const auto &KernelId : KernelIDs) {
+    const detail::RTDeviceBinaryImage &Img =
+        detail::ProgramManager::getInstance().getDeviceImage(
+            detail::OSUtil::ExeModuleHandle, KernelId.get_name(), context(Dev),
+            Dev);
+    const detail::RTDeviceBinaryImage::PropertyRange &ARange =
+        Img.getDeviceRequirements();
+    for (detail::RTDeviceBinaryImage::PropertyRange::ConstIterator It :
+         ARange) {
+      using namespace std::literals;
+      if ((*It)->Name != "aspects"sv)
+        continue;
+      detail::ByteArray Aspects =
+          detail::DeviceBinaryProperty(*It).asByteArray();
+      // Drop 8 bytes describing the size of the byte array
+      Aspects.dropBytes(8);
+      while (!Aspects.empty()) {
+        aspect Aspect = Aspects.consume<aspect>();
+        if (!Dev.has(Aspect))
+          return false;
+      }
+    }
+  }
+
+  return true;
 }
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

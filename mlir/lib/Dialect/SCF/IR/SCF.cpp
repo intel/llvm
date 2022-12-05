@@ -1323,6 +1323,31 @@ ForeachThreadOp mlir::scf::getForeachThreadOpThreadIndexOwner(Value val) {
   return dyn_cast<ForeachThreadOp>(containingOp);
 }
 
+namespace {
+/// Fold tensor.dim(foreach_thread shared_outs(... = %t)) to tensor.dim(%t).
+struct DimOfForeachThreadOp : public OpRewritePattern<tensor::DimOp> {
+  using OpRewritePattern<tensor::DimOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(tensor::DimOp dimOp,
+                                PatternRewriter &rewriter) const final {
+    auto foreachThreadOp = dimOp.getSource().getDefiningOp<ForeachThreadOp>();
+    if (!foreachThreadOp)
+      return failure();
+    Value sharedOut =
+        foreachThreadOp.getTiedOpOperand(dimOp.getSource().cast<OpResult>())
+            ->get();
+    rewriter.updateRootInPlace(
+        dimOp, [&]() { dimOp.getSourceMutable().assign(sharedOut); });
+    return success();
+  }
+};
+} // namespace
+
+void ForeachThreadOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                                  MLIRContext *context) {
+  results.add<DimOfForeachThreadOp>(context);
+}
+
 //===----------------------------------------------------------------------===//
 // PerformConcurrentlyOp
 //===----------------------------------------------------------------------===//
@@ -2668,6 +2693,34 @@ LogicalResult ReduceReturnOp::verify() {
 //===----------------------------------------------------------------------===//
 // WhileOp
 //===----------------------------------------------------------------------===//
+
+void WhileOp::build(::mlir::OpBuilder &odsBuilder,
+                    ::mlir::OperationState &odsState, TypeRange resultTypes,
+                    ValueRange operands, BodyBuilderFn beforeBuilder,
+                    BodyBuilderFn afterBuilder) {
+  assert(beforeBuilder && "the builder callback for 'before' must be present");
+  assert(afterBuilder && "the builder callback for 'after' must be present");
+
+  odsState.addOperands(operands);
+  odsState.addTypes(resultTypes);
+
+  OpBuilder::InsertionGuard guard(odsBuilder);
+
+  SmallVector<Location, 4> blockArgLocs;
+  for (Value operand : operands) {
+    blockArgLocs.push_back(operand.getLoc());
+  }
+
+  Region *beforeRegion = odsState.addRegion();
+  Block *beforeBlock = odsBuilder.createBlock(beforeRegion, /*insertPt=*/{},
+                                              resultTypes, blockArgLocs);
+  beforeBuilder(odsBuilder, odsState.location, beforeBlock->getArguments());
+
+  Region *afterRegion = odsState.addRegion();
+  Block *afterBlock = odsBuilder.createBlock(afterRegion, /*insertPt=*/{},
+                                             resultTypes, blockArgLocs);
+  afterBuilder(odsBuilder, odsState.location, afterBlock->getArguments());
+}
 
 OperandRange WhileOp::getSuccessorEntryOperands(Optional<unsigned> index) {
   assert(index && *index == 0 &&
