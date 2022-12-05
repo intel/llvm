@@ -14,7 +14,9 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
+#include <sycl/detail/owner_less_base.hpp>
 #include <sycl/device_selector.hpp>
+#include <sycl/ext/oneapi/weak_object_base.hpp>
 #include <sycl/stl.hpp>
 
 // 4.6.2 Platform class
@@ -42,7 +44,7 @@ class filter_selector;
 /// Encapsulates a SYCL platform on which kernels may be executed.
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT platform {
+class __SYCL_EXPORT platform : public detail::OwnerLessBase<platform> {
 public:
   /// Constructs a SYCL platform using the default device.
   platform();

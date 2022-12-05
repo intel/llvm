@@ -3,7 +3,7 @@
 
 ; RUN: opt -module-summary %s -o %t1.bc
 ; RUN: opt -module-summary %p/Inputs/alias_internal.ll -o %t2.bc
-; RUN: llvm-lto2 run %t1.bc %t2.bc -o %t.out -save-temps \
+; RUN: llvm-lto2 run -opaque-pointers %t1.bc %t2.bc -o %t.out -save-temps \
 ; RUN:   -r %t1.bc,a1,plx \
 ; RUN:   -r %t2.bc,a2,plx
 
@@ -14,8 +14,8 @@
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
-define internal i32 @f(i8*) unnamed_addr {
+define internal i32 @f(ptr) unnamed_addr {
     ret i32 42
 }
 
-@a1 = weak alias i32 (i8*), i32 (i8*)* @f
+@a1 = weak alias i32 (ptr), ptr @f
