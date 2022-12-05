@@ -46,6 +46,8 @@ public:
 
   static ValueCategory getNullValue(mlir::OpBuilder &Builder,
                                     mlir::Location Loc, mlir::Type Type);
+  static ValueCategory getUndefValue(mlir::OpBuilder &Builder,
+                                     mlir::Location Loc, mlir::Type Type);
 
   // TODO: rename to 'loadVariable'? getValue seems to generic.
   mlir::Value getValue(mlir::OpBuilder &Builder) const;

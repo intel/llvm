@@ -451,7 +451,7 @@ ValueCategory MLIRScanner::VisitCXXStdInitializerListExpr(
 
   mlir::Type SubType = Glob.getTypes().getMLIRType(Expr->getType());
 
-  mlir::Value Res = Builder.create<LLVM::UndefOp>(Loc, SubType);
+  mlir::Value Res = ValueCategory::getUndefValue(Builder, Loc, SubType).val;
 
   ArrayPtr = CommonArrayToPointer(ArrayPtr);
 
