@@ -1,4 +1,5 @@
-; RUN: opt < %s -passes=instcombine -S | FileCheck %s
+; Add -opaque-pointers until they are not enabled by default
+; RUN: opt -opaque-pointers < %s -passes=instcombine -S | FileCheck %s
 
 define void @f(i16 %y) {
   ret void
