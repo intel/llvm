@@ -3282,7 +3282,7 @@ pi_result piDevicePartition(pi_device Device,
   // Other partitioning ways are not supported by Level Zero
   if (Properties[0] == PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN) {
     if ((Properties[1] != PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE &&
-       Properties[1] != PI_DEVICE_AFFINITY_DOMAIN_NUMA))
+         Properties[1] != PI_DEVICE_AFFINITY_DOMAIN_NUMA))
       return PI_ERROR_INVALID_VALUE;
   } else if (Properties[0] == PI_DEVICE_EXT_INTEL_PARTITION_BY_CSLICE) {
     if (Properties[1] != 0)
