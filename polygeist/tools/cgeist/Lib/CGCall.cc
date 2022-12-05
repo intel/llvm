@@ -29,7 +29,7 @@ extern llvm::cl::opt<bool> GenerateAllSYCLFuncs;
 /// Try to typecast the caller arg of type MemRef to fit the corresponding
 /// callee arg type. We only deal with the cast where src and dst have the same
 /// shape size and elem type, and just the first shape differs: src has
-/// ShapedType::kDynamicSize and dst has a constant integer.
+/// ShapedType::kDynamic and dst has a constant integer.
 static Value castCallerMemRefArg(Value CallerArg, Type CalleeArgType,
                                  OpBuilder &B) {
   OpBuilder::InsertionGuard Guard(B);
@@ -43,7 +43,7 @@ static Value castCallerMemRefArg(Value CallerArg, Type CalleeArgType,
       auto DstShape = DstTy.getShape();
 
       if (SrcShape.size() == DstShape.size() && !SrcShape.empty() &&
-          SrcShape[0] == ShapedType::kDynamicSize &&
+          SrcShape[0] == ShapedType::kDynamic &&
           std::equal(std::next(SrcShape.begin()), SrcShape.end(),
                      std::next(DstShape.begin()))) {
         B.setInsertionPointAfterValue(CallerArg);
@@ -188,7 +188,7 @@ ValueCategory MLIRScanner::callHelper(
         assert(Shape.size() == 2);
 
         auto Pshape = Shape[0];
-        if (Pshape == ShapedType::kDynamicSize)
+        if (Pshape == ShapedType::kDynamic)
           Shape[0] = 1;
 
         OpBuilder ABuilder(Builder.getContext());
@@ -220,7 +220,7 @@ ValueCategory MLIRScanner::callHelper(
             Val = ABuilder.create<memref::AllocaOp>(Loc, MemRefTy);
             Val = ABuilder.create<memref::CastOp>(
                 Loc,
-                MemRefType::get(ShapedType::kDynamicSize,
+                MemRefType::get(ShapedType::kDynamic,
                                 Arg.getValue(Builder).getType()),
                 Val);
           } else
@@ -303,7 +303,7 @@ ValueCategory MLIRScanner::callHelper(
     assert(Shape.size() == 2);
 
     auto Pshape = Shape[0];
-    if (Pshape == ShapedType::kDynamicSize)
+    if (Pshape == ShapedType::kDynamic)
       Shape[0] = 1;
 
     OpBuilder ABuilder(Builder.getContext());

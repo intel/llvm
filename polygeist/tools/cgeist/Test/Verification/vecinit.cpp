@@ -4,24 +4,8 @@ typedef float float4 __attribute__((ext_vector_type(4)));
 typedef float float8 __attribute__((ext_vector_type(8)));
 
 // CHECK-LABEL:   func.func @_Z13test_constantv() -> vector<8xf32>
-// CHECK-NEXT:      %[[VAL_0:.*]] = arith.constant 0.000000e+00 : f32
-// CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 1.000000e+00 : f32
-// CHECK-NEXT:      %[[VAL_2:.*]] = arith.constant 2.000000e+00 : f32
-// CHECK-NEXT:      %[[VAL_3:.*]] = arith.constant 3.000000e+00 : f32
-// CHECK-NEXT:      %[[VAL_4:.*]] = arith.constant 4.000000e+00 : f32
-// CHECK-NEXT:      %[[VAL_5:.*]] = arith.constant 5.000000e+00 : f32
-// CHECK-NEXT:      %[[VAL_6:.*]] = arith.constant 6.000000e+00 : f32
-// CHECK-NEXT:      %[[VAL_7:.*]] = arith.constant 7.000000e+00 : f32
-// CHECK-NEXT:      %[[VAL_8:.*]] = arith.constant dense<0.000000e+00> : vector<8xf32>
-// CHECK-NEXT:      %[[VAL_9:.*]] = vector.insert %[[VAL_0]], %[[VAL_8]] [0] : f32 into vector<8xf32>
-// CHECK-NEXT:      %[[VAL_10:.*]] = vector.insert %[[VAL_1]], %[[VAL_9]] [1] : f32 into vector<8xf32>
-// CHECK-NEXT:      %[[VAL_11:.*]] = vector.insert %[[VAL_2]], %[[VAL_10]] [2] : f32 into vector<8xf32>
-// CHECK-NEXT:      %[[VAL_12:.*]] = vector.insert %[[VAL_3]], %[[VAL_11]] [3] : f32 into vector<8xf32>
-// CHECK-NEXT:      %[[VAL_13:.*]] = vector.insert %[[VAL_4]], %[[VAL_12]] [4] : f32 into vector<8xf32>
-// CHECK-NEXT:      %[[VAL_14:.*]] = vector.insert %[[VAL_5]], %[[VAL_13]] [5] : f32 into vector<8xf32>
-// CHECK-NEXT:      %[[VAL_15:.*]] = vector.insert %[[VAL_6]], %[[VAL_14]] [6] : f32 into vector<8xf32>
-// CHECK-NEXT:      %[[VAL_16:.*]] = vector.insert %[[VAL_7]], %[[VAL_15]] [7] : f32 into vector<8xf32>
-// CHECK-NEXT:      return %[[VAL_16]] : vector<8xf32>
+// CHECK-NEXT:      %[[VAL_0:.*]] = arith.constant dense<[0.000000e+00, 1.000000e+00, 2.000000e+00, 3.000000e+00, 4.000000e+00, 5.000000e+00, 6.000000e+00, 7.000000e+00]> : vector<8xf32>
+// CHECK-NEXT:      return %[[VAL_0]] : vector<8xf32>
 // CHECK-NEXT:    }
 float8 test_constant() {
   return {0, 1, 2, 3, 4, 5, 6, 7};

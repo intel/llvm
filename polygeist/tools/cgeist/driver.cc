@@ -699,8 +699,8 @@ runOptimizationPipeline(llvm::Module &Module,
   llvm::PrintPassOptions PrintPassOpts;
   PrintPassOpts.Verbose = true;
   PrintPassOpts.SkipAnalyses = true;
-  llvm::StandardInstrumentations SI(false, true /*VerifyEachPass*/,
-                                    PrintPassOpts);
+  llvm::StandardInstrumentations SI(Module.getContext(), false,
+                                    true /*VerifyEachPass*/, PrintPassOpts);
   SI.registerCallbacks(PIC, &FAM);
 
   llvm::TargetMachine *TM = nullptr;

@@ -141,6 +141,8 @@ CodeGenModule::CodeGenModule(ASTContext &C,
   const llvm::DataLayout &DL = M.getDataLayout();
   AllocaInt8PtrTy = Int8Ty->getPointerTo(DL.getAllocaAddrSpace());
   GlobalsInt8PtrTy = Int8Ty->getPointerTo(DL.getDefaultGlobalsAddressSpace());
+  DefaultInt8PtrTy =
+      Int8Ty->getPointerTo(getContext().getTargetAddressSpace(LangAS::Default));
   ASTAllocaAddressSpace = getTargetCodeGenInfo().getASTAllocaAddressSpace();
 
   // Build C++20 Module initializers.
@@ -4318,7 +4320,8 @@ llvm::Constant *CodeGenModule::GetOrCreateLLVMFunction(
     // (If function is requested for a definition, we always need to create a new
     // function, not just return a bitcast.)
     if (!IsForDefinition)
-      return llvm::ConstantExpr::getBitCast(Entry, Ty->getPointerTo());
+      return llvm::ConstantExpr::getBitCast(
+          Entry, Ty->getPointerTo(Entry->getAddressSpace()));
   }
 
   // This function doesn't have a complete type (for example, the return
