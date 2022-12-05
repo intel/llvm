@@ -68,7 +68,10 @@ void parallel_for_nd_item(std::array<int, N> &A, queue q) {
   }
 }
 
-static void check_shape(std::array<int, N> &A) {
+template <typename F>
+static void parallel_for(F Func, queue q) {
+  std::array<int, N> A{0};
+  Func(A, q);
   for (unsigned i = 0; i < N; ++i)
     assert(A[i] == i);
 }
@@ -78,12 +81,8 @@ int main() {
   device d = q.get_device();
   std::cout << "Using " << d.get_info<info::device::name>() << "\n";
 
-  std::array<int, N> A{0};
-  parallel_for_id(A, q);
-  check_shape(A);
-  parallel_for_item(A, q);
-  check_shape(A);
-  parallel_for_nd_item(A, q);
-  check_shape(A);
+  parallel_for(parallel_for_id, q);
+  parallel_for(parallel_for_item, q);
+  parallel_for(parallel_for_nd_item, q);
   std::cout << "Test passed" << std::endl;
 }
