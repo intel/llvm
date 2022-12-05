@@ -1,4 +1,4 @@
-//==----- properties.hpp - SYCL properties associated with annotated_arg ---==//
+// properties.hpp - SYCL properties associated with annotated_arg/ptr //
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -17,8 +17,11 @@ namespace ext {
 namespace oneapi {
 namespace experimental {
 
-template <typename T, typename PropertyListT, bool IsPtr> class annotated_arg;
+template <typename T, typename PropertyListT> class annotated_arg;
 
+//===----------------------------------------------------------------------===//
+//        Common properties of annotated_arg/annotated_ptr
+//===----------------------------------------------------------------------===//
 struct register_map_key {
   using value_t = property_value<register_map_key>;
 };
@@ -113,48 +116,44 @@ template <> struct is_property_key<read_write_mode_key> : std::true_type {};
 template <> struct is_property_key<maxburst_key> : std::true_type {};
 template <> struct is_property_key<wait_request_key> : std::true_type {};
 
-template <typename T, typename PropertyListT, bool IsPtr>
-struct is_property_key_of<register_map_key,
-                          annotated_arg<T, PropertyListT, IsPtr>>
+template <typename T, typename PropertyListT>
+struct is_property_key_of<register_map_key, annotated_arg<T, PropertyListT>>
     : std::true_type {};
 
-template <typename T, typename PropertyListT, bool IsPtr>
-struct is_property_key_of<conduit_key, annotated_arg<T, PropertyListT, IsPtr>>
+template <typename T, typename PropertyListT>
+struct is_property_key_of<conduit_key, annotated_arg<T, PropertyListT>>
     : std::true_type {};
 
-template <typename T, typename PropertyListT, bool IsPtr>
-struct is_property_key_of<stable_key, annotated_arg<T, PropertyListT, IsPtr>>
+template <typename T, typename PropertyListT>
+struct is_property_key_of<stable_key, annotated_arg<T, PropertyListT>>
     : std::true_type {};
 
-template <typename T, typename PropertyListT, bool IsPtr>
-struct is_property_key_of<buffer_location_key,
-                          annotated_arg<T, PropertyListT, IsPtr>>
+template <typename T, typename PropertyListT>
+struct is_property_key_of<buffer_location_key, annotated_arg<T, PropertyListT>>
     : std::true_type {};
 
-template <typename T, typename PropertyListT, bool IsPtr>
-struct is_property_key_of<awidth_key, annotated_arg<T, PropertyListT, IsPtr>>
+template <typename T, typename PropertyListT>
+struct is_property_key_of<awidth_key, annotated_arg<T, PropertyListT>>
     : std::true_type {};
 
-template <typename T, typename PropertyListT, bool IsPtr>
-struct is_property_key_of<dwidth_key, annotated_arg<T, PropertyListT, IsPtr>>
+template <typename T, typename PropertyListT>
+struct is_property_key_of<dwidth_key, annotated_arg<T, PropertyListT>>
     : std::true_type {};
 
-template <typename T, typename PropertyListT, bool IsPtr>
-struct is_property_key_of<latency_key, annotated_arg<T, PropertyListT, IsPtr>>
+template <typename T, typename PropertyListT>
+struct is_property_key_of<latency_key, annotated_arg<T, PropertyListT>>
     : std::true_type {};
 
-template <typename T, typename PropertyListT, bool IsPtr>
-struct is_property_key_of<read_write_mode_key,
-                          annotated_arg<T, PropertyListT, IsPtr>>
+template <typename T, typename PropertyListT>
+struct is_property_key_of<read_write_mode_key, annotated_arg<T, PropertyListT>>
     : std::true_type {};
 
-template <typename T, typename PropertyListT, bool IsPtr>
-struct is_property_key_of<maxburst_key, annotated_arg<T, PropertyListT, IsPtr>>
+template <typename T, typename PropertyListT>
+struct is_property_key_of<maxburst_key, annotated_arg<T, PropertyListT>>
     : std::true_type {};
 
-template <typename T, typename PropertyListT, bool IsPtr>
-struct is_property_key_of<wait_request_key,
-                          annotated_arg<T, PropertyListT, IsPtr>>
+template <typename T, typename PropertyListT>
+struct is_property_key_of<wait_request_key, annotated_arg<T, PropertyListT>>
     : std::true_type {};
 
 namespace detail {
@@ -249,8 +248,6 @@ struct PropertyMetaInfo<read_write_mode_key::value_t<Mode>> {
 
 } // namespace detail
 
-//===---------------------Properties Verification----------------------===//
-
 // 'buffer_location' and mmhost properties are pointers-only
 template <typename T, typename PropertyValueT>
 struct is_valid_property : std::false_type {};
@@ -294,6 +291,7 @@ struct is_valid_property<T, stable_key::value_t> : std::true_type {};
 
 template <typename T, typename... Props>
 struct check_property_list : std::true_type {};
+
 template <typename T, typename Prop, typename... Props>
 struct check_property_list<T, Prop, Props...>
     : std::conditional_t<is_valid_property<T, Prop>::value,

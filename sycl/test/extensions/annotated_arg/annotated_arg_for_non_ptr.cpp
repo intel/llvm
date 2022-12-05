@@ -11,11 +11,6 @@
 using namespace sycl;
 using namespace ext::oneapi::experimental;
 
-using annotated_arg_t1 =
-    annotated_arg<A, decltype(properties(conduit, stable))>;
-
-using annotated_arg_t3 = annotated_arg<A, decltype(properties(conduit))>;
-
 struct B {};
 
 struct A : public B {
@@ -25,6 +20,11 @@ struct A : public B {
 
   const int &operator[](std::ptrdiff_t idx) const { return x; }
 };
+
+using annotated_arg_t1 =
+    annotated_arg<A, decltype(properties(conduit, stable))>;
+
+using annotated_arg_t3 = annotated_arg<A, decltype(properties(conduit))>;
 
 struct MyIP {
   int *a;

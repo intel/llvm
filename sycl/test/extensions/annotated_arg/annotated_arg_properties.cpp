@@ -7,11 +7,14 @@ using namespace sycl::ext::oneapi::experimental;
 
 static annotated_arg<int, decltype(properties())> AnnotatedArg1;
 static annotated_arg<int, decltype(properties(register_map))> AnnotatedArg2;
-static annotated_arg<int *, decltype(properties(register_map, conduit))>
+static annotated_arg<int *, decltype(properties(conduit, stable))>
     AnnotatedArg3;
-static annotated_arg<int *, decltype(properties(buffer_location<1>, read_only,
-                                                stable, conduit))>
+static annotated_arg<int *, decltype(properties(buffer_location<1>,
+                                                read_write_mode_read, stable,
+                                                conduit))>
     AnnotatedArg4;
+
+struct A {};
 
 // Checks is_property_key_of and is_property_value_of for T.
 template <typename T> void checkIsPropertyOf() {
@@ -35,9 +38,19 @@ template <typename T> void checkIsPropertyOf() {
   static_assert(is_property_value_of<decltype(awidth<2>), T>::value);
   static_assert(is_property_value_of<decltype(dwidth<8>), T>::value);
   static_assert(is_property_value_of<decltype(latency<0>), T>::value);
-  static_assert(is_property_value_of<decltype(read_only), T>::value);
+  static_assert(is_property_value_of<decltype(read_write_mode_read), T>::value);
   static_assert(is_property_value_of<decltype(maxburst<1>), T>::value);
-  static_assert(is_property_value_of<decltype(wait_request<true>), T>::value);
+  static_assert(
+      is_property_value_of<decltype(wait_request_requested), T>::value);
+}
+
+// Checks is_property_key_of and is_property_value_of are false for non-pointer
+// type T.
+template <typename T> void checkIsValidPropertyOfNonPtr() {
+  static_assert(
+      is_valid_property<T, decltype(wait_request_not_requested)>::value ==
+      false);
+  static_assert(is_valid_property<T, decltype(latency<8>)>::value == false);
 }
 
 int main() {
@@ -55,11 +68,11 @@ int main() {
   static_assert(AnnotatedArg2.get_property<register_map_key>() == register_map);
 
   checkIsPropertyOf<decltype(AnnotatedArg3)>();
-  static_assert(AnnotatedArg3.has_property<register_map_key>());
+  static_assert(!AnnotatedArg3.has_property<register_map_key>());
   static_assert(AnnotatedArg3.has_property<conduit_key>());
-  static_assert(!AnnotatedArg3.has_property<stable_key>());
+  static_assert(AnnotatedArg3.has_property<stable_key>());
   static_assert(!AnnotatedArg3.has_property<buffer_location_key>());
-  static_assert(AnnotatedArg3.get_property<register_map_key>() == register_map);
+  static_assert(AnnotatedArg3.get_property<stable_key>() == stable);
   static_assert(AnnotatedArg3.get_property<conduit_key>() == conduit);
 
   checkIsPropertyOf<decltype(AnnotatedArg4)>();
@@ -72,7 +85,10 @@ int main() {
   static_assert(AnnotatedArg4.get_property<stable_key>() == stable);
   static_assert(AnnotatedArg4.get_property<buffer_location_key>() ==
                 buffer_location<1>);
-  static_assert(AnnotatedArg4.get_property<read_write_mode_key>() == read_only);
+  static_assert(AnnotatedArg4.get_property<read_write_mode_key>() ==
+                read_write_mode_read);
 
+  // Check if a property is valid for a given type
+  checkIsValidPropertyOfNonPtr<A>();
   return 0;
 }

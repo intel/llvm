@@ -66,24 +66,21 @@ struct HasSubscriptOperator<
 
 } // namespace detail
 
+// Deduction guide
 template <typename T, typename... Args>
 annotated_arg(T, Args... args)
-    -> annotated_arg<T, detail::properties_t<Args...>,
-                     std::is_pointer<T>::value>;
+    -> annotated_arg<T, detail::properties_t<Args...>>;
 
 template <typename T, typename... Args>
 annotated_arg(T, properties<std::tuple<Args...>>)
-    -> annotated_arg<T, detail::properties_t<Args...>,
-                     std::is_pointer<T>::value>;
+    -> annotated_arg<T, detail::properties_t<Args...>>;
 
-template <typename T, typename old, typename... ArgT, bool IsPtr>
-annotated_arg(annotated_arg<T, old, IsPtr>, properties<std::tuple<ArgT...>>)
+template <typename T, typename old, typename... ArgT>
+annotated_arg(annotated_arg<T, old>, properties<std::tuple<ArgT...>>)
     -> annotated_arg<
-        T, detail::merged_properties_t<old, detail::properties_t<ArgT...>>,
-        IsPtr>;
+        T, detail::merged_properties_t<old, detail::properties_t<ArgT...>>>;
 
-template <typename T, typename PropertyListT = detail::empty_properties_t,
-          bool IsPtr = std::is_pointer<T>::value>
+template <typename T, typename PropertyListT = detail::empty_properties_t>
 class annotated_arg {
   // This should always fail when instantiating the unspecialized version.
   static_assert(is_property_list<PropertyListT>::value,
@@ -92,20 +89,18 @@ class annotated_arg {
 
 // Partial specialization for pointer type
 template <typename T, typename... Props>
-class __SYCL_SPECIAL_CLASS __SYCL_TYPE(annotated_arg)
-    annotated_arg<T, detail::properties_t<Props...>, true> {
+class __SYCL_SPECIAL_CLASS
+__SYCL_TYPE(annotated_arg) annotated_arg<T *, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
-  using UnderlyingT = typename std::remove_pointer<T>::type;
-  __OPENCL_GLOBAL_AS__ UnderlyingT *obj;
+  __OPENCL_GLOBAL_AS__ T *obj;
 
-  template <typename T2, typename PropertyListT, bool OtherIsPtr>
-  friend class annotated_arg;
+  template <typename T2, typename PropertyListT> friend class annotated_arg;
 
 #ifdef __SYCL_DEVICE_ONLY__
   void __init([[__sycl_detail__::add_ir_attributes_kernel_parameter(
       detail::PropertyMetaInfo<Props>::name...,
-      detail::PropertyMetaInfo<Props>::value...)]] __OPENCL_GLOBAL_AS__
-                  UnderlyingT *_obj) {
+      detail::PropertyMetaInfo<Props>::value...)]] __OPENCL_GLOBAL_AS__ T
+                  *_obj) {
     obj = _obj;
   }
 #endif
@@ -113,10 +108,8 @@ class __SYCL_SPECIAL_CLASS __SYCL_TYPE(annotated_arg)
 public:
   static_assert(std::is_trivially_destructible<T>::value,
                 "Type T must be trivially destructible.");
-  // static_assert(is_property_list<property_list_t>::value,
-  // "Property list is invalid.");
-  static_assert(check_property_list<T, Props...>::value,
-                "The property list contains invalid property.");
+  static_assert(is_property_list<property_list_t>::value,
+                "Property list is invalid.");
   static_assert(detail::SortedAllUnique<std::tuple<Props...>>::value,
                 "Duplicate properties in property list.");
 
@@ -124,13 +117,13 @@ public:
   annotated_arg(const annotated_arg &) = default;
   annotated_arg &operator=(annotated_arg &) = default;
 
-  annotated_arg(const T &_ptr,
+  annotated_arg(T *_ptr,
                 const property_list_t &PropList = properties{}) noexcept
-      : obj((__OPENCL_GLOBAL_AS__ UnderlyingT *)_ptr) {}
+      : obj((__OPENCL_GLOBAL_AS__ T *)_ptr) {}
 
   template <typename... PropertyValueTs>
-  annotated_arg(const T &_ptr, PropertyValueTs... props) noexcept
-      : obj((__OPENCL_GLOBAL_AS__ UnderlyingT *)_ptr) {
+  annotated_arg(T *_ptr, PropertyValueTs... props) noexcept
+      : obj((__OPENCL_GLOBAL_AS__ T *)_ptr) {
     static_assert(
         std::is_same<property_list_t,
                      detail::merged_properties_t<
@@ -148,7 +141,7 @@ public:
   template <typename T2, typename PropertyList2>
   explicit annotated_arg(const annotated_arg<T2, PropertyList2> &other) noexcept
       : obj(other.obj) {
-    static_assert(std::is_convertible<T2, T>::value,
+    static_assert(std::is_convertible<T2, T *>::value,
                   "The underlying data type of the input annotated_arg is not "
                   "compatible");
 
@@ -164,7 +157,7 @@ public:
   explicit annotated_arg(const annotated_arg<T2, PropertyListU> &other,
                          const PropertyListV &proplist) noexcept
       : obj(other.obj) {
-    static_assert(std::is_convertible<T2, T>::value,
+    static_assert(std::is_convertible<T2, T *>::value,
                   "The underlying data type of the input annotated_arg is not "
                   "compatible");
 
@@ -175,13 +168,11 @@ public:
         "of the input property lists");
   }
 
-  operator T() noexcept { return obj; }
+  operator T *() const noexcept { return obj; }
 
-  operator const T() const noexcept { return obj; }
+  operator const T *() const noexcept { return obj; }
 
-  UnderlyingT &operator[](std::ptrdiff_t idx) const noexcept {
-    return obj[idx];
-  }
+  T &operator[](std::ptrdiff_t idx) const noexcept { return obj[idx]; }
 
   template <typename PropertyT> static constexpr bool has_property() {
     return property_list_t::template has_property<PropertyT>();
@@ -194,12 +185,11 @@ public:
 
 // Partial specialization for non-pointer type
 template <typename T, typename... Props>
-class __SYCL_SPECIAL_CLASS __SYCL_TYPE(annotated_arg)
-    annotated_arg<T, detail::properties_t<Props...>, false> {
+class __SYCL_SPECIAL_CLASS
+__SYCL_TYPE(annotated_arg) annotated_arg<T, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
 
-  template <typename T2, typename PropertyListT, bool OtherIsPtr>
-  friend class annotated_arg;
+  template <typename T2, typename PropertyListT> friend class annotated_arg;
 
   T obj;
 
@@ -212,11 +202,9 @@ class __SYCL_SPECIAL_CLASS __SYCL_TYPE(annotated_arg)
 #endif
 
 public:
-  // T should be trivially copy constructible to be device copyable
+  // T should be trivially copyable to be device-copyable
   static_assert(std::is_trivially_copyable<T>::value,
                 "Type T must be trivially copyable.");
-  // static_assert(std::is_trivially_copy_constructible<T>::value,
-  //               "Type T must be trivially copy constructable.");
   static_assert(std::is_trivially_destructible<T>::value,
                 "Type T must be trivially destructible.");
   static_assert(is_property_list<property_list_t>::value,
