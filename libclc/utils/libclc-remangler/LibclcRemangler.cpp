@@ -596,7 +596,7 @@ private:
           SpvNamespace = NamespaceDecl::Create(
               *ContextAST, ContextAST->getTranslationUnitDecl(), false, SL, SL,
               &ContextAST->Idents.get("__spv", tok::TokenKind::identifier),
-              nullptr);
+              nullptr, false);
         std::string StructName{KNN->DataStr};
         StructName.erase(0, StructName.find_first_not_of("__spv::"));
         auto *II =
