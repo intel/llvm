@@ -18,8 +18,6 @@
 #include <sycl/detail/pi.hpp>
 #include <sycl/detail/spinlock.hpp>
 
-#include "win_unload.hpp"
-
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -78,7 +76,6 @@ std::mutex &GlobalHandler::getFilterMutex() {
   return getOrCreate(MFilterMutex);
 }
 std::vector<plugin> &GlobalHandler::getPlugins() {
-   init();
   return getOrCreate(MPlugins);
 }
 device_filter_list &
@@ -112,6 +109,8 @@ void releaseDefaultContexts() {
   // finished. To avoid calls to nowhere, intentionally leak platform to device
   // cache. This will prevent destructors from being called, thus no PI cleanup
   // routines will be called in the end.
+  
+  //std::cout << "releaseDefaultContexts()" << std::endl;
   GlobalHandler::instance().MPlatformToDefaultContextCache.Inst.release();
 #endif
 }
@@ -127,6 +126,8 @@ void GlobalHandler::registerDefaultContextReleaseHandler() {
 // Note: Split from shutdown so it is available to the unittests for ensuring
 //       that the mock plugin is the lone plugin.
 void GlobalHandler::unloadPlugins() {
+  //std::cout << "unloadPlugins() " << std::endl;
+  
   // Call to GlobalHandler::instance().getPlugins() initializes plugins. If
   // user application has loaded SYCL runtime, and never called any APIs,
   // there's no need to load and unload plugins.
@@ -178,8 +179,8 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
   // Perform actions based on the reason for calling.
   switch (fdwReason) {
   case DLL_PROCESS_DETACH:
-    if (!lpReserved)
-      shutdown();
+    //std::cout << "PROCESS DETACH! - calling shutdown()" << std::endl;
+    shutdown();
     break;
   case DLL_PROCESS_ATTACH:
   case DLL_THREAD_ATTACH:

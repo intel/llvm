@@ -13,6 +13,8 @@
 #include <windows.h>
 #include <winreg.h>
 
+#include "win_unload.hpp"
+
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
@@ -32,6 +34,7 @@ void *loadOsLibrary(const std::string &PluginPath) {
     assert(false && "Failed to update DLL search path");
   }
   auto Result = (void *)LoadLibraryA(PluginPath.c_str());
+  preserve_lib(PluginPath);
   (void)SetErrorMode(SavedMode);
   if (!SetDllDirectoryA(nullptr)) {
     assert(false && "Failed to restore DLL search path");

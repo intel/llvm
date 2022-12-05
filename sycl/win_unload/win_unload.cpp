@@ -1,6 +1,6 @@
-#include <iostream>
-//#include <cstdio>
-//#include <string>
+//#include <iostream>
+
+#include <windows.h>
 
 #include "win_unload.hpp"
 
@@ -9,9 +9,8 @@
 // working.
 // need namespace, etc.
 
-void init() {
-  std::cout << "win_unload init() " << std::endl;
-  //printf("hi");
-  volatile int x = 31;
+void preserve_lib(const std::string &PluginPath) {
+  //std::cout << "preserve_lib: " << PluginPath <<  std::endl;
+  volatile auto Result = (void *)LoadLibraryA(PluginPath.c_str());
 }
 
