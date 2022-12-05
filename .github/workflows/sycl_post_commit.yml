@@ -15,6 +15,7 @@ on:
     - .github/workflows/sycl_macos_build_and_test.yml
   workflow_dispatch:
 
+
 jobs:
   # This job generates matrix of tests for LLVM Test Suite
   test_matrix:

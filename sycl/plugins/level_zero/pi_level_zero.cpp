@@ -1002,6 +1002,14 @@ bool _pi_queue::isDiscardEvents() const {
   return ((this->Properties & PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS) != 0);
 }
 
+bool _pi_queue::isPriorityLow() const {
+  return ((this->Properties & PI_EXT_ONEAPI_QUEUE_PRIORITY_LOW) != 0);
+}
+
+bool _pi_queue::isPriorityHigh() const {
+  return ((this->Properties & PI_EXT_ONEAPI_QUEUE_PRIORITY_HIGH) != 0);
+}
+
 pi_result
 _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
                             bool MakeAvailable,
@@ -1028,13 +1036,15 @@ _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
     EventList.clear();
   } else {
     // For immediate commandlist reset only those events that have signalled.
-    for (auto it = EventList.begin(); it != EventList.end(); it++) {
+    for (auto it = EventList.begin(); it != EventList.end();) {
       std::scoped_lock<pi_shared_mutex> EventLock((*it)->Mutex);
       ze_result_t ZeResult =
           ZE_CALL_NOCHECK(zeEventQueryStatus, ((*it)->ZeEvent));
       if (ZeResult == ZE_RESULT_SUCCESS) {
-        std::move(it, it, std::back_inserter(EventListToCleanup));
-        EventList.erase(it, it);
+        EventListToCleanup.push_back(std::move((*it)));
+        it = EventList.erase(it);
+      } else {
+        it++;
       }
     }
   }
@@ -1829,6 +1839,14 @@ _pi_queue::pi_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
   ZeCommandQueueDesc.ordinal = *QueueGroupOrdinal;
   ZeCommandQueueDesc.index = QueueIndex;
   ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS;
+  const char *Priority = "Normal";
+  if (Queue->isPriorityLow()) {
+    ZeCommandQueueDesc.priority = ZE_COMMAND_QUEUE_PRIORITY_PRIORITY_LOW;
+    Priority = "Low";
+  } else if (Queue->isPriorityHigh()) {
+    ZeCommandQueueDesc.priority = ZE_COMMAND_QUEUE_PRIORITY_PRIORITY_HIGH;
+    Priority = "High";
+  }
 
   // Evaluate performance of explicit usage for "0" index.
   if (QueueIndex != 0) {
@@ -1836,9 +1854,9 @@ _pi_queue::pi_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
   }
 
   zePrint("[getZeQueue]: create queue ordinal = %d, index = %d "
-          "(round robin in [%d, %d])\n",
+          "(round robin in [%d, %d]) priority = %s\n",
           ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index, LowerIndex,
-          UpperIndex);
+          UpperIndex, Priority);
 
   auto ZeResult = ZE_CALL_NOCHECK(
       zeCommandQueueCreate, (Queue->Context->ZeContext, Queue->Device->ZeDevice,
@@ -1864,6 +1882,14 @@ pi_command_list_ptr_t &_pi_queue::pi_queue_group_t::getImmCmdList() {
   ZeCommandQueueDesc.ordinal = QueueOrdinal;
   ZeCommandQueueDesc.index = QueueIndex;
   ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS;
+  const char *Priority = "Normal";
+  if (Queue->isPriorityLow()) {
+    ZeCommandQueueDesc.priority = ZE_COMMAND_QUEUE_PRIORITY_PRIORITY_LOW;
+    Priority = "Low";
+  } else if (Queue->isPriorityHigh()) {
+    ZeCommandQueueDesc.priority = ZE_COMMAND_QUEUE_PRIORITY_PRIORITY_HIGH;
+    Priority = "High";
+  }
 
   // Evaluate performance of explicit usage for "0" index.
   if (QueueIndex != 0) {
@@ -1871,9 +1897,9 @@ pi_command_list_ptr_t &_pi_queue::pi_queue_group_t::getImmCmdList() {
   }
 
   zePrint("[getZeQueue]: create queue ordinal = %d, index = %d "
-          "(round robin in [%d, %d])\n",
+          "(round robin in [%d, %d]) priority = %s\n",
           ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index, LowerIndex,
-          UpperIndex);
+          UpperIndex, Priority);
 
   ze_command_list_handle_t ZeCommandList;
   ZE_CALL_NOCHECK(zeCommandListCreateImmediate,
@@ -2731,6 +2757,13 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
       // Supports reading and writing of images.
       SupportedExtensions += ("cl_khr_3d_image_writes ");
 
+    // L0 does not tell us if bfloat16 is supported.
+    // For now, assume ATS and PVC support it.
+    // TODO: change the way we detect bfloat16 support.
+    if ((Device->ZeDeviceProperties->deviceId & 0xfff) == 0x201 ||
+        (Device->ZeDeviceProperties->deviceId & 0xff0) == 0xbd0)
+      SupportedExtensions += ("cl_intel_bfloat16_conversions ");
+
     return ReturnValue(SupportedExtensions.c_str());
   }
   case PI_DEVICE_INFO_NAME:
@@ -3205,8 +3238,10 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
     // currently not supported in level zero runtime
     return PI_ERROR_INVALID_VALUE;
-  case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16:
-    return PI_ERROR_INVALID_VALUE;
+  case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS: {
+    // bfloat16 math functions are not yet supported on Intel GPUs.
+    return ReturnValue(bool{false});
+  }
 
   // TODO: Implement.
   case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
@@ -3523,7 +3558,9 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
   PI_ASSERT(!(Properties & ~(PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE |
                              PI_QUEUE_PROFILING_ENABLE | PI_QUEUE_ON_DEVICE |
                              PI_QUEUE_ON_DEVICE_DEFAULT |
-                             PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS)),
+                             PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS |
+                             PI_EXT_ONEAPI_QUEUE_PRIORITY_LOW |
+                             PI_EXT_ONEAPI_QUEUE_PRIORITY_HIGH)),
             PI_ERROR_INVALID_VALUE);
 
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
@@ -3623,6 +3660,83 @@ pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
   case PI_QUEUE_INFO_DEVICE_DEFAULT:
     die("PI_QUEUE_INFO_DEVICE_DEFAULT in piQueueGetInfo not implemented\n");
     break;
+  case PI_EXT_ONEAPI_QUEUE_INFO_EMPTY: {
+    // We can exit early if we have in-order queue.
+    if (Queue->isInOrderQueue()) {
+      if (!Queue->LastCommandEvent)
+        return ReturnValue(pi_bool{true});
+
+      // We can check status of the event only if it isn't discarded otherwise
+      // it may be reset (because we are free to reuse such events) and
+      // zeEventQueryStatus will hang.
+      // TODO: use more robust way to check that ZeEvent is not owned by
+      // LastCommandEvent.
+      if (!Queue->LastCommandEvent->IsDiscarded) {
+        ze_result_t ZeResult = ZE_CALL_NOCHECK(
+            zeEventQueryStatus, (Queue->LastCommandEvent->ZeEvent));
+        if (ZeResult == ZE_RESULT_NOT_READY) {
+          return ReturnValue(pi_bool{false});
+        } else if (ZeResult != ZE_RESULT_SUCCESS) {
+          return mapError(ZeResult);
+        }
+        return ReturnValue(pi_bool{true});
+      }
+      // For immediate command lists we have to check status of the event
+      // because immediate command lists are not associated with level zero
+      // queue. Conservatively return false in this case because last event is
+      // discarded and we can't check its status.
+      if (Queue->Device->useImmediateCommandLists())
+        return ReturnValue(pi_bool{false});
+    }
+
+    // If we have any open command list which is not empty then return false
+    // because it means that there are commands which are not even submitted for
+    // execution yet.
+    using IsCopy = bool;
+    if (Queue->hasOpenCommandList(IsCopy{true}) ||
+        Queue->hasOpenCommandList(IsCopy{false}))
+      return ReturnValue(pi_bool{false});
+
+    for (const auto &QueueGroup :
+         {Queue->ComputeQueueGroup, Queue->CopyQueueGroup}) {
+      if (Queue->Device->useImmediateCommandLists()) {
+        // Immediate command lists are not associated with any Level Zero queue,
+        // that's why we have to check status of events in each immediate
+        // command list. Start checking from the end and exit early if some
+        // event is not completed.
+        for (const auto &ImmCmdList : QueueGroup.ImmCmdLists) {
+          if (ImmCmdList == Queue->CommandListMap.end())
+            continue;
+
+          auto EventList = ImmCmdList->second.EventList;
+          for (auto It = EventList.crbegin(); It != EventList.crend(); It++) {
+            ze_result_t ZeResult =
+                ZE_CALL_NOCHECK(zeEventQueryStatus, ((*It)->ZeEvent));
+            if (ZeResult == ZE_RESULT_NOT_READY) {
+              return ReturnValue(pi_bool{false});
+            } else if (ZeResult != ZE_RESULT_SUCCESS) {
+              return mapError(ZeResult);
+            }
+          }
+        }
+      } else {
+        for (const auto &ZeQueue : QueueGroup.ZeQueues) {
+          if (!ZeQueue)
+            continue;
+          // Provide 0 as the timeout parameter to immediately get the status of
+          // the Level Zero queue.
+          ze_result_t ZeResult = ZE_CALL_NOCHECK(zeCommandQueueSynchronize,
+                                                 (ZeQueue, /* timeout */ 0));
+          if (ZeResult == ZE_RESULT_NOT_READY) {
+            return ReturnValue(pi_bool{false});
+          } else if (ZeResult != ZE_RESULT_SUCCESS) {
+            return mapError(ZeResult);
+          }
+        }
+      }
+    }
+    return ReturnValue(pi_bool{true});
+  }
   default:
     zePrint("Unsupported ParamName in piQueueGetInfo: ParamName=%d(0x%x)\n",
             ParamName, ParamName);
@@ -6491,8 +6605,14 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     PI_CALL(piEventReleaseInternal(E));
   Queue->ActiveBarriers.clear();
 
-  // Get command lists for each command queue.
+  // Command list(s) for putting barriers.
   std::vector<pi_command_list_ptr_t> CmdLists;
+
+  // There must be at least one L0 queue.
+  PI_ASSERT(!Queue->ComputeQueueGroup.ZeQueues.empty() ||
+                !Queue->CopyQueueGroup.ZeQueues.empty(),
+            PI_ERROR_INVALID_QUEUE);
+
   if (Queue->Device->useImmediateCommandLists()) {
     // If immediate command lists are being used, each will act as their own
     // queue, so we must insert a barrier into each.
@@ -6500,15 +6620,6 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     for (auto It = Queue->CommandListMap.begin();
          It != Queue->CommandListMap.end(); ++It)
       CmdLists.push_back(It);
-  } else if (Queue->ComputeQueueGroup.ZeQueues.empty() &&
-             Queue->CopyQueueGroup.ZeQueues.empty()) {
-    // If there are no queues, we get any available command list.
-    pi_command_list_ptr_t CmdList;
-    if (auto Res = Queue->Context->getAvailableCommandList(
-            Queue, CmdList,
-            /*UseCopyEngine=*/false, OkToBatch))
-      return Res;
-    CmdLists.push_back(CmdList);
   } else {
     size_t NumQueues = Queue->ComputeQueueGroup.ZeQueues.size() +
                        Queue->CopyQueueGroup.ZeQueues.size();
@@ -6516,19 +6627,34 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     // following availability command list lookups will prematurely push
     // open batch command lists out.
     OkToBatch = NumQueues == 1;
-    // Get an available command list tied to each command queue. We need these
-    // so a queue-wide barrier can be inserted into each command queue.
+    // Get an available command list tied to each command queue. We need
+    // these so a queue-wide barrier can be inserted into each command
+    // queue.
     CmdLists.reserve(NumQueues);
     for (auto QueueGroup : {Queue->ComputeQueueGroup, Queue->CopyQueueGroup}) {
       bool UseCopyEngine = QueueGroup.Type != _pi_queue::queue_type::Compute;
       for (ze_command_queue_handle_t ZeQueue : QueueGroup.ZeQueues) {
-        pi_command_list_ptr_t CmdList;
-        if (auto Res = Queue->Context->getAvailableCommandList(
-                Queue, CmdList, UseCopyEngine, OkToBatch, &ZeQueue))
-          return Res;
-        CmdLists.push_back(CmdList);
+        if (ZeQueue) {
+          pi_command_list_ptr_t CmdList;
+          if (auto Res = Queue->Context->getAvailableCommandList(
+                  Queue, CmdList, UseCopyEngine, OkToBatch, &ZeQueue))
+            return Res;
+          CmdLists.push_back(CmdList);
+        }
       }
     }
+  }
+
+  // If no activity has occurred on the queue then there will be no cmdlists.
+  // We need one for generating an Event, so create one.
+  if (CmdLists.size() == 0) {
+    // Get any available command list.
+    pi_command_list_ptr_t CmdList;
+    if (auto Res = Queue->Context->getAvailableCommandList(
+            Queue, CmdList,
+            /*UseCopyEngine=*/false, OkToBatch))
+      return Res;
+    CmdLists.push_back(CmdList);
   }
 
   if (CmdLists.size() > 1) {
@@ -6563,7 +6689,6 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
                                             *Event, IsInternal))
       return Res;
   } else {
-    PI_ASSERT(CmdLists.size() == 1, PI_ERROR_INVALID_QUEUE);
     // If there is only a single queue then insert a barrier and the single
     // result event can be used as our active barrier and used as the return
     // event. Take into account whether output event is discarded or not.
@@ -6678,6 +6803,8 @@ pi_result _pi_queue::synchronize() {
       if (ZeQueue)
         ZE_CALL(zeHostSynchronize, (ZeQueue));
   }
+
+  LastCommandEvent = nullptr;
 
   // With the entire queue synchronized, the active barriers must be done so we
   // can remove them.
@@ -7907,9 +8034,8 @@ static pi_result USMSharedAllocImpl(void **ResultPtr, pi_context Context,
   // with the same command list handle.
   std::scoped_lock<pi_mutex> Lock(Context->ImmediateCommandListMutex);
 
-  ZE_CALL(zeCommandListAppendMemAdvise,
-          (Context->ZeCommandListInit, Device->ZeDevice, *ResultPtr, Size,
-           ZE_MEMORY_ADVICE_SET_READ_MOSTLY));
+  // TODO: Underlying Level Zero runtime doesn't have a way to communicate
+  // read-only property yet.
 
   ZE_CALL(zeCommandListAppendMemAdvise,
           (Context->ZeCommandListInit, Device->ZeDevice, *ResultPtr, Size,

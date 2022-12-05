@@ -306,14 +306,9 @@ public:
 
 protected:
   CodeGenModule &CGM;
-  StringRef FirstSeparator, Separator;
 
   /// An OpenMP-IR-Builder instance.
   llvm::OpenMPIRBuilder OMPBuilder;
-
-  /// Constructor allowing to redefine the name separator for the variables.
-  explicit CGOpenMPRuntime(CodeGenModule &CGM, StringRef FirstSeparator,
-                           StringRef Separator);
 
   /// Helper to emit outlined function for 'target' directive.
   /// \param D Directive to emit.
@@ -413,8 +408,7 @@ protected:
   ///
   llvm::Value *getCriticalRegionLock(StringRef CriticalName);
 
-private:
-
+protected:
   /// Map for SourceLocation and OpenMP runtime library debug locations.
   typedef llvm::DenseMap<SourceLocation, llvm::Value *> OpenMPDebugLocMapTy;
   OpenMPDebugLocMapTy OpenMPDebugLocMap;
@@ -692,8 +686,7 @@ private:
                           Address DependenciesArray);
 
 public:
-  explicit CGOpenMPRuntime(CodeGenModule &CGM)
-      : CGOpenMPRuntime(CGM, ".", ".") {}
+  explicit CGOpenMPRuntime(CodeGenModule &CGM);
   virtual ~CGOpenMPRuntime() {}
   virtual void clear();
 

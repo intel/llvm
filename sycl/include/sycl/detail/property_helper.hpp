@@ -40,8 +40,11 @@ enum DataLessPropKind {
   FusionNoBarrier = 13,
   FusionEnable = 14,
   FusionForce = 15,
+  QueuePriorityNormal = 16,
+  QueuePriorityLow = 17,
+  QueuePriorityHigh = 18,
   // Indicates the last known dataless property.
-  LastKnownDataLessPropKind = 15,
+  LastKnownDataLessPropKind = 18,
   // Exceeding 32 may cause ABI breaking change on some of OSes.
   DataLessPropKindSize = 32
 };
