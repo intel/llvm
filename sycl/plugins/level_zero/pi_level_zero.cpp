@@ -3660,6 +3660,83 @@ pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
   case PI_QUEUE_INFO_DEVICE_DEFAULT:
     die("PI_QUEUE_INFO_DEVICE_DEFAULT in piQueueGetInfo not implemented\n");
     break;
+  case PI_EXT_ONEAPI_QUEUE_INFO_EMPTY: {
+    // We can exit early if we have in-order queue.
+    if (Queue->isInOrderQueue()) {
+      if (!Queue->LastCommandEvent)
+        return ReturnValue(pi_bool{true});
+
+      // We can check status of the event only if it isn't discarded otherwise
+      // it may be reset (because we are free to reuse such events) and
+      // zeEventQueryStatus will hang.
+      // TODO: use more robust way to check that ZeEvent is not owned by
+      // LastCommandEvent.
+      if (!Queue->LastCommandEvent->IsDiscarded) {
+        ze_result_t ZeResult = ZE_CALL_NOCHECK(
+            zeEventQueryStatus, (Queue->LastCommandEvent->ZeEvent));
+        if (ZeResult == ZE_RESULT_NOT_READY) {
+          return ReturnValue(pi_bool{false});
+        } else if (ZeResult != ZE_RESULT_SUCCESS) {
+          return mapError(ZeResult);
+        }
+        return ReturnValue(pi_bool{true});
+      }
+      // For immediate command lists we have to check status of the event
+      // because immediate command lists are not associated with level zero
+      // queue. Conservatively return false in this case because last event is
+      // discarded and we can't check its status.
+      if (Queue->Device->useImmediateCommandLists())
+        return ReturnValue(pi_bool{false});
+    }
+
+    // If we have any open command list which is not empty then return false
+    // because it means that there are commands which are not even submitted for
+    // execution yet.
+    using IsCopy = bool;
+    if (Queue->hasOpenCommandList(IsCopy{true}) ||
+        Queue->hasOpenCommandList(IsCopy{false}))
+      return ReturnValue(pi_bool{false});
+
+    for (const auto &QueueGroup :
+         {Queue->ComputeQueueGroup, Queue->CopyQueueGroup}) {
+      if (Queue->Device->useImmediateCommandLists()) {
+        // Immediate command lists are not associated with any Level Zero queue,
+        // that's why we have to check status of events in each immediate
+        // command list. Start checking from the end and exit early if some
+        // event is not completed.
+        for (const auto &ImmCmdList : QueueGroup.ImmCmdLists) {
+          if (ImmCmdList == Queue->CommandListMap.end())
+            continue;
+
+          auto EventList = ImmCmdList->second.EventList;
+          for (auto It = EventList.crbegin(); It != EventList.crend(); It++) {
+            ze_result_t ZeResult =
+                ZE_CALL_NOCHECK(zeEventQueryStatus, ((*It)->ZeEvent));
+            if (ZeResult == ZE_RESULT_NOT_READY) {
+              return ReturnValue(pi_bool{false});
+            } else if (ZeResult != ZE_RESULT_SUCCESS) {
+              return mapError(ZeResult);
+            }
+          }
+        }
+      } else {
+        for (const auto &ZeQueue : QueueGroup.ZeQueues) {
+          if (!ZeQueue)
+            continue;
+          // Provide 0 as the timeout parameter to immediately get the status of
+          // the Level Zero queue.
+          ze_result_t ZeResult = ZE_CALL_NOCHECK(zeCommandQueueSynchronize,
+                                                 (ZeQueue, /* timeout */ 0));
+          if (ZeResult == ZE_RESULT_NOT_READY) {
+            return ReturnValue(pi_bool{false});
+          } else if (ZeResult != ZE_RESULT_SUCCESS) {
+            return mapError(ZeResult);
+          }
+        }
+      }
+    }
+    return ReturnValue(pi_bool{true});
+  }
   default:
     zePrint("Unsupported ParamName in piQueueGetInfo: ParamName=%d(0x%x)\n",
             ParamName, ParamName);
@@ -6726,6 +6803,8 @@ pi_result _pi_queue::synchronize() {
       if (ZeQueue)
         ZE_CALL(zeHostSynchronize, (ZeQueue));
   }
+
+  LastCommandEvent = nullptr;
 
   // With the entire queue synchronized, the active barriers must be done so we
   // can remove them.
