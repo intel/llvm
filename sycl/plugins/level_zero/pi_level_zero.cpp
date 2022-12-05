@@ -3291,7 +3291,6 @@ pi_result piDevicePartition(pi_device Device,
     return PI_ERROR_INVALID_VALUE;
   }
 
-
   // Devices cache is normally created in piDevicesGet but still make
   // sure that cache is populated.
   //
