@@ -482,9 +482,6 @@ MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
 }
 
 void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
-  std::cout << std::this_thread::get_id() << " cleanupCommands begin "
-            << std::endl;
-  cleanupDeferredMemObjects(BlockingT::NON_BLOCKING);
   if (Cmds.empty()) {
     std::lock_guard<std::mutex> Lock{MDeferredCleanupMutex};
     if (MDeferredCleanupCommands.empty()) {
