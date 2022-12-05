@@ -24,10 +24,7 @@
 using namespace sycl;
 static constexpr unsigned N = 8;
 
-void parallel_for_id(std::array<int, N> &A) {
-  auto q = queue{};
-  device d = q.get_device();
-  std::cout << "Using " << d.get_info<info::device::name>() << "\n";
+void parallel_for_id(std::array<int, N> &A, queue q) {
   auto range = sycl::range<1>{N};
 
   {
@@ -41,8 +38,7 @@ void parallel_for_id(std::array<int, N> &A) {
   }
 }
 
-void parallel_for_item(std::array<int, N> &A) {
-  auto q = queue{};
+void parallel_for_item(std::array<int, N> &A, queue q) {
   auto range = sycl::range<1>{N};
 
   {
@@ -57,8 +53,7 @@ void parallel_for_item(std::array<int, N> &A) {
   }
 }
 
-void parallel_for_nd_item(std::array<int, N> &A) {
-  auto q = queue{};
+void parallel_for_nd_item(std::array<int, N> &A, queue q) {
   nd_range<1> ndRange(N /*globalSize*/, 2 /*localSize*/);
 
   {
@@ -79,12 +74,16 @@ static void check_shape(std::array<int, N> &A) {
 }
 
 int main() {
+  auto q = queue{};
+  device d = q.get_device();
+  std::cout << "Using " << d.get_info<info::device::name>() << "\n";
+
   std::array<int, N> A{0};
-  parallel_for_id(A);
+  parallel_for_id(A, q);
   check_shape(A);
-  parallel_for_item(A);
+  parallel_for_item(A, q);
   check_shape(A);
-  parallel_for_nd_item(A);
+  parallel_for_nd_item(A, q);
   check_shape(A);
   std::cout << "Test passed" << std::endl;
 }
