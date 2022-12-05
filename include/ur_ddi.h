@@ -1204,6 +1204,7 @@ typedef ur_result_t (UR_APICALL *ur_pfnTearDown_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urGetLastResult 
 typedef ur_result_t (UR_APICALL *ur_pfnGetLastResult_t)(
+    ur_platform_handle_t,
     const char**
     );
 

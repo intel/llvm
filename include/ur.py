@@ -1727,9 +1727,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urGetLastResult
 if __use_win_types:
-    _urGetLastResult_t = WINFUNCTYPE( ur_result_t, POINTER(c_char_p) )
+    _urGetLastResult_t = WINFUNCTYPE( ur_result_t, ur_platform_handle_t, POINTER(c_char_p) )
 else:
-    _urGetLastResult_t = CFUNCTYPE( ur_result_t, POINTER(c_char_p) )
+    _urGetLastResult_t = CFUNCTYPE( ur_result_t, ur_platform_handle_t, POINTER(c_char_p) )
 
 ###############################################################################
 ## @brief Function-pointer for urInit

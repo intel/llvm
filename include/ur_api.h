@@ -2014,36 +2014,6 @@ urTearDown(
     void* pParams                                   ///< [in] pointer to tear down parameters
     );
 
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Retrieve string representation of the underlying adapter specific
-///        result reported by the the last API that returned
-///        UR_RESULT_ADAPTER_SPECIFIC. Allows for an adapter independent way to
-///        return an adapter specific result.
-/// 
-/// @details
-///     - The string returned via the ppMessage is a NULL terminated C style
-///       string.
-///     - The string returned via the ppMessage is thread local.
-///     - The entry point will return UR_RESULT_SUCCESS if the result being
-///       reported is to be considered a warning. Any other result code returned
-///       indicates that the adapter specific result is an error.
-///     - The memory in the string returned via the ppMessage is owned by the
-///       adapter.
-///     - The application may call this function from simultaneous threads.
-///     - The implementation of this function should be lock-free.
-/// 
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == ppMessage`
-UR_APIEXPORT ur_result_t UR_APICALL
-urGetLastResult(
-    const char** ppMessage                          ///< [out] pointer to a string containing adapter specific result in string
-                                                    ///< representation.
-    );
-
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
@@ -3818,6 +3788,39 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urPlatformCreateWithNativeHandle(
     ur_native_handle_t hNativePlatform,             ///< [in] the native handle of the platform.
     ur_platform_handle_t* phPlatform                ///< [out] pointer to the handle of the platform object created.
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Retrieve string representation of the underlying adapter specific
+///        result reported by the the last API that returned
+///        UR_RESULT_ADAPTER_SPECIFIC. Allows for an adapter independent way to
+///        return an adapter specific result.
+/// 
+/// @details
+///     - The string returned via the ppMessage is a NULL terminated C style
+///       string.
+///     - The string returned via the ppMessage is thread local.
+///     - The entry point will return UR_RESULT_SUCCESS if the result being
+///       reported is to be considered a warning. Any other result code returned
+///       indicates that the adapter specific result is an error.
+///     - The memory in the string returned via the ppMessage is owned by the
+///       adapter.
+///     - The application may call this function from simultaneous threads.
+///     - The implementation of this function should be lock-free.
+/// 
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hPlatform`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == ppMessage`
+UR_APIEXPORT ur_result_t UR_APICALL
+urGetLastResult(
+    ur_platform_handle_t hPlatform,                 ///< [in] handle of the platform instance
+    const char** ppMessage                          ///< [out] pointer to a string containing adapter specific result in string
+                                                    ///< representation.
     );
 
 #if !defined(__GNUC__)
@@ -6582,6 +6585,7 @@ typedef void (UR_APICALL *ur_pfnTearDownCb_t)(
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_get_last_result_params_t
 {
+    ur_platform_handle_t* phPlatform;
     const char*** pppMessage;
 } ur_get_last_result_params_t;
 
