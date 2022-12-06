@@ -23,6 +23,7 @@ FetchContent_Declare(level-zero-loader
 
 # Suppress some pedantic warnings for Level Zero build
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-but-set-variable")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-pedantic")
 
 FetchContent_MakeAvailable(level-zero-loader)
 FetchContent_GetProperties(level-zero-loader)
