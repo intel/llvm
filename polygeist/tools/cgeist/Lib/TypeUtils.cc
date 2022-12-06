@@ -101,7 +101,60 @@ mlir::Type getPtrTyWithNewType(mlir::Type Orig, mlir::Type NewElementType) {
 
 mlir::Type getSYCLType(const clang::RecordType *RT,
                        mlirclang::CodeGen::CodeGenTypes &CGT) {
-  const auto *RD = RT->getAsRecordDecl();
+
+  enum TypeEnum {
+    // Keep in alphabetical order.
+    AccessorCommon,
+    AccessorImplDevice,
+    Accessor,
+    AccessorSubscript,
+    AssertHappened,
+    Array,
+    Atomic,
+    BFloat16,
+    GetScalarOp,
+    GetOp,
+    Group,
+    ID,
+    ItemBase,
+    Item,
+    MultiPtr,
+    NdItem,
+    NdRange,
+    Range,
+    SubGroup,
+    TupleCopyAssignableValueHolder,
+    TupleValueHolder,
+    Vec
+  };
+
+  std::map<std::string, TypeEnum> StrToTypeEnum = {
+      // Keep in alphabetical order.
+      {"accessor_common", TypeEnum::AccessorCommon},
+      {"AccessorImplDevice", TypeEnum::AccessorImplDevice},
+      {"accessor", TypeEnum::Accessor},
+      {"AccessorSubscript", TypeEnum::AccessorSubscript},
+      {"AssertHappened", AssertHappened},
+      {"array", TypeEnum::Array},
+      {"atomic", TypeEnum::Atomic},
+      {"bfloat16", BFloat16},
+      {"GetScalarOp", TypeEnum::GetScalarOp},
+      {"GetOp", TypeEnum::GetOp},
+      {"group", TypeEnum::Group},
+      {"id", TypeEnum::ID},
+      {"ItemBase", TypeEnum::ItemBase},
+      {"item", TypeEnum::Item},
+      {"multi_ptr", MultiPtr},
+      {"nd_item", TypeEnum::NdItem},
+      {"nd_range", TypeEnum::NdRange},
+      {"range", TypeEnum::Range},
+      {"sub_group", SubGroup},
+      {"TupleCopyAssignableValueHolder", TupleCopyAssignableValueHolder},
+      {"TupleValueHolder", TypeEnum::TupleValueHolder},
+      {"vec", TypeEnum::Vec},
+  };
+
+  const clang::RecordDecl *RD = RT->getAsRecordDecl();
   llvm::SmallVector<mlir::Type, 4> Body;
 
   for (const auto *Field : RD->fields())
@@ -109,34 +162,18 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
 
   if (const auto *CTS =
           llvm::dyn_cast<clang::ClassTemplateSpecializationDecl>(RD)) {
-    if (CTS->getName() == "range") {
-      const auto Dim =
-          CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
-      Body.push_back(CGT.getMLIRType(CTS->bases_begin()->getType()));
-      return mlir::sycl::RangeType::get(CGT.getModule()->getContext(), Dim,
-                                        Body);
-    }
-    if (CTS->getName() == "nd_range") {
-      const auto Dim =
-          CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
-      return mlir::sycl::NdRangeType::get(CGT.getModule()->getContext(), Dim,
-                                          Body);
-    }
-    if (CTS->getName() == "array") {
-      const auto Dim =
-          CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
-      return mlir::sycl::ArrayType::get(CGT.getModule()->getContext(), Dim,
-                                        Body);
-    }
-    if (CTS->getName() == "id") {
-      const auto Dim =
-          CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
-      Body.push_back(CGT.getMLIRType(CTS->bases_begin()->getType()));
-      return mlir::sycl::IDType::get(CGT.getModule()->getContext(), Dim, Body);
-    }
-    if (CTS->getName() == "accessor_common")
+
+    switch (StrToTypeEnum[CTS->getName().str()]) {
+    // Keep in alphabetical order.
+    case TypeEnum::AccessorCommon:
       return mlir::sycl::AccessorCommonType::get(CGT.getModule()->getContext());
-    if (CTS->getName() == "accessor") {
+    case TypeEnum::AccessorImplDevice: {
+      const auto Dim =
+          CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
+      return mlir::sycl::AccessorImplDeviceType::get(
+          CGT.getModule()->getContext(), Dim, Body);
+    }
+    case TypeEnum::Accessor: {
       const auto Type =
           CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
       const auto Dim =
@@ -149,73 +186,19 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
                                            Dim, MemAccessMode, MemTargetMode,
                                            Body);
     }
-    if (CTS->getName() == "AccessorImplDevice") {
-      const auto Dim =
-          CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
-      return mlir::sycl::AccessorImplDeviceType::get(
-          CGT.getModule()->getContext(), Dim, Body);
-    }
-    if (CTS->getName() == "AccessorSubscript") {
+    case TypeEnum::AccessorSubscript: {
       const auto CurDim =
           CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
       return mlir::sycl::AccessorSubscriptType::get(
           CGT.getModule()->getContext(), CurDim, Body);
     }
-    if (CTS->getName() == "item") {
+    case TypeEnum::Array: {
       const auto Dim =
           CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
-      const auto Offset =
-          CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
-      return mlir::sycl::ItemType::get(CGT.getModule()->getContext(), Dim,
-                                       Offset, Body);
-    }
-    if (CTS->getName() == "ItemBase") {
-      const auto Dim =
-          CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
-      const auto Offset =
-          CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
-      return mlir::sycl::ItemBaseType::get(CGT.getModule()->getContext(), Dim,
-                                           Offset, Body);
-    }
-    if (CTS->getName() == "nd_item") {
-      const auto Dim =
-          CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
-      return mlir::sycl::NdItemType::get(CGT.getModule()->getContext(), Dim,
-                                         Body);
-    }
-    if (CTS->getName() == "group") {
-      const auto Dim =
-          CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
-      return mlir::sycl::GroupType::get(CGT.getModule()->getContext(), Dim,
+      return mlir::sycl::ArrayType::get(CGT.getModule()->getContext(), Dim,
                                         Body);
     }
-    if (CTS->getName() == "GetOp") {
-      const auto Type =
-          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
-      return mlir::sycl::GetOpType::get(CGT.getModule()->getContext(), Type);
-    }
-    if (CTS->getName() == "GetScalarOp") {
-      const auto Type =
-          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
-      return mlir::sycl::GetScalarOpType::get(CGT.getModule()->getContext(),
-                                              Type, Body);
-    }
-    if (CTS->getName() == "TupleValueHolder") {
-      const auto Type =
-          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
-      return mlir::sycl::TupleValueHolderType::get(
-          CGT.getModule()->getContext(), Type, Body);
-    }
-    if (CTS->getName() == "TupleCopyAssignableValueHolder") {
-      const auto Type =
-          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
-      const auto IsTriviallyCopyAssignable =
-          CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
-      Body.push_back(CGT.getMLIRType(CTS->bases_begin()->getType()));
-      return mlir::sycl::TupleCopyAssignableValueHolderType::get(
-          CGT.getModule()->getContext(), Type, IsTriviallyCopyAssignable, Body);
-    }
-    if (CTS->getName() == "atomic") {
+    case TypeEnum::Atomic: {
       const auto Type =
           CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
       const int AddrSpace =
@@ -224,7 +207,46 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
           CGT.getModule()->getContext(), Type,
           static_cast<mlir::sycl::AccessAddrSpace>(AddrSpace), Body);
     }
-    if (CTS->getName() == "multi_ptr") {
+    case TypeEnum::GetScalarOp: {
+      const auto Type =
+          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
+      return mlir::sycl::GetScalarOpType::get(CGT.getModule()->getContext(),
+                                              Type, Body);
+    }
+    case TypeEnum::GetOp: {
+      const auto Type =
+          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
+      return mlir::sycl::GetOpType::get(CGT.getModule()->getContext(), Type);
+    }
+    case TypeEnum::Group: {
+      const auto Dim =
+          CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
+      return mlir::sycl::GroupType::get(CGT.getModule()->getContext(), Dim,
+                                        Body);
+    }
+    case TypeEnum::ID: {
+      const auto Dim =
+          CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
+      Body.push_back(CGT.getMLIRType(CTS->bases_begin()->getType()));
+      return mlir::sycl::IDType::get(CGT.getModule()->getContext(), Dim, Body);
+    }
+    case TypeEnum::ItemBase: {
+      const auto Dim =
+          CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
+      const auto Offset =
+          CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
+      return mlir::sycl::ItemBaseType::get(CGT.getModule()->getContext(), Dim,
+                                           Offset, Body);
+    }
+    case TypeEnum::Item: {
+      const auto Dim =
+          CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
+      const auto Offset =
+          CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
+      return mlir::sycl::ItemType::get(CGT.getModule()->getContext(), Dim,
+                                       Offset, Body);
+    }
+    case TypeEnum::MultiPtr: {
       const auto Type =
           CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
       const int AddrSpace =
@@ -236,7 +258,41 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
           static_cast<mlir::sycl::AccessAddrSpace>(AddrSpace),
           static_cast<mlir::sycl::DecoratedAccess>(DecAccess), Body);
     }
-    if (CTS->getName() == "vec") {
+    case TypeEnum::NdItem: {
+      const auto Dim =
+          CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
+      return mlir::sycl::NdItemType::get(CGT.getModule()->getContext(), Dim,
+                                         Body);
+    }
+    case TypeEnum::NdRange: {
+      const auto Dim =
+          CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
+      return mlir::sycl::NdRangeType::get(CGT.getModule()->getContext(), Dim,
+                                          Body);
+    }
+    case TypeEnum::Range: {
+      const auto Dim =
+          CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
+      Body.push_back(CGT.getMLIRType(CTS->bases_begin()->getType()));
+      return mlir::sycl::RangeType::get(CGT.getModule()->getContext(), Dim,
+                                        Body);
+    }
+    case TypeEnum::TupleCopyAssignableValueHolder: {
+      const auto Type =
+          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
+      const auto IsTriviallyCopyAssignable =
+          CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
+      Body.push_back(CGT.getMLIRType(CTS->bases_begin()->getType()));
+      return mlir::sycl::TupleCopyAssignableValueHolderType::get(
+          CGT.getModule()->getContext(), Type, IsTriviallyCopyAssignable, Body);
+    }
+    case TypeEnum::TupleValueHolder: {
+      const auto Type =
+          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
+      return mlir::sycl::TupleValueHolderType::get(
+          CGT.getModule()->getContext(), Type, Body);
+    }
+    case TypeEnum::Vec: {
       const auto ElemType =
           CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
       const auto NumElems =
@@ -244,18 +300,28 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
       return mlir::sycl::VecType::get(CGT.getModule()->getContext(), ElemType,
                                       NumElems, Body);
     }
-  }
-  if (const auto *CXXRD = llvm::dyn_cast<clang::CXXRecordDecl>(RD)) {
-    if (CXXRD->getName() == "AssertHappened")
-      return mlir::sycl::AssertHappenedType::get(CGT.getModule()->getContext(),
-                                                 Body);
-    if (CXXRD->getName() == "bfloat16")
-      return mlir::sycl::BFloat16Type::get(CGT.getModule()->getContext(), Body);
-    if (CXXRD->getName() == "sub_group")
-      return mlir::sycl::SubGroupType::get(CGT.getModule()->getContext());
+    default:
+      llvm_unreachable(
+          "ClassTemplateSpecializationDecl: SYCL type not handled (yet)");
+    }
   }
 
-  llvm_unreachable("SYCL type not handle (yet)");
+  if (const auto *CXXRD = llvm::dyn_cast<clang::CXXRecordDecl>(RD)) {
+    switch (StrToTypeEnum[CXXRD->getName().str()]) {
+    // Keep in alphabetical order.
+    case TypeEnum::AssertHappened:
+      return mlir::sycl::AssertHappenedType::get(CGT.getModule()->getContext(),
+                                                 Body);
+    case TypeEnum::BFloat16:
+      return mlir::sycl::BFloat16Type::get(CGT.getModule()->getContext(), Body);
+    case TypeEnum::SubGroup:
+      return mlir::sycl::SubGroupType::get(CGT.getModule()->getContext());
+    default:
+      llvm_unreachable("CXXRecordDecl: SYCL type not handled (yet)");
+    }
+  }
+
+  llvm_unreachable("SYCL type not handled (yet)");
 }
 
 llvm::Type *getLLVMType(const clang::QualType QT,
