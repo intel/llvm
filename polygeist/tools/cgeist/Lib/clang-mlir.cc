@@ -1471,18 +1471,22 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
   return ValueCategory(Result, /*isReference*/ true);
 }
 
-static bool isSYCLInheritType(Type &nt, Value &value) {
-  Type elemTy = value.getType().dyn_cast<MemRefType>().getElementType();
-  if ((elemTy.isa<sycl::IDType>() || elemTy.isa<sycl::RangeType>()) &&
-      nt.dyn_cast<MemRefType>().getElementType().isa<sycl::ArrayType>())
-    return true;
-  if ((elemTy.isa<sycl::AccessorType>()) &&
-      nt.dyn_cast<MemRefType>()
-          .getElementType()
-          .isa<sycl::AccessorCommonType>())
-    return true;
+static bool isSYCLInheritType(Type &Ty, Value &Val) {
+  assert(Val.getType().isa<MemRefType>());
 
-  return false;
+  Type ElemTy = Val.getType().cast<MemRefType>().getElementType();
+  return TypeSwitch<Type, bool>(ElemTy)
+      .Case<sycl::IDType, sycl::RangeType>([&](auto) {
+        assert(Ty.isa<MemRefType>());
+        return Ty.cast<MemRefType>().getElementType().isa<sycl::ArrayType>();
+      })
+      .Case<sycl::AccessorType>([&](auto) {
+        assert(Ty.isa<MemRefType>());
+        return Ty.cast<MemRefType>()
+            .getElementType()
+            .isa<sycl::AccessorCommonType>();
+      })
+      .Default([](auto) { return false; });
 }
 
 Value MLIRScanner::GetAddressOfDerivedClass(
