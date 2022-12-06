@@ -17,9 +17,6 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
-// C++17
-template <class...> using void_t = void;
-
 // Custom type traits
 template <typename T>
 using allocator_value_type_t = typename std::allocator_traits<T>::value_type;
@@ -44,9 +41,9 @@ using iterator_to_const_type_t =
 // https://en.cppreference.com/w/cpp/named_req/OutputIterator
 template <typename T>
 using output_iterator_requirements =
-    void_t<iterator_category_t<T>,
-           decltype(*std::declval<T>() =
-                        std::declval<iterator_value_type_t<T>>())>;
+    std::void_t<iterator_category_t<T>,
+                decltype(*std::declval<T>() =
+                             std::declval<iterator_value_type_t<T>>())>;
 
 template <typename, typename = void> struct is_output_iterator {
   static constexpr bool value = false;
