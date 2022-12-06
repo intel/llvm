@@ -4635,7 +4635,7 @@ void Sema::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
   Callee = Callee->getMostRecentDecl();
 
   // SYCL_EXTERNAL functions are not allowed without
-  // relocatable device code
+  // relocatable device code.
   if (!getLangOpts().GPURelocatableDeviceCode &&
       Callee->hasAttr<SYCLDeviceAttr>() &&
       !getSourceManager().isInSystemHeader(Callee->getLocation())) {
@@ -4643,9 +4643,8 @@ void Sema::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
   }
 
   // No further checks for declarations with no callsites.
-  if (!Caller) {
+  if (!Caller)
     return;
-  }
 
   // If the reason for the emission of this diagnostic is not SYCL-specific,
   // and it is not known to be reachable from a routine on device, do not
