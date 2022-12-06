@@ -45,6 +45,9 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 class context;
 namespace detail {
 
+bool isDevSupportImgAspects(std::set<RTDeviceBinaryImage *> BinImages,
+                            const device &Dev);
+
 // This value must be the same as in libdevice/device_itt.h.
 // See sycl/doc/design/ITTAnnotations.md for more info.
 static constexpr uint32_t inline ITTSpecConstId = 0xFF747469;
