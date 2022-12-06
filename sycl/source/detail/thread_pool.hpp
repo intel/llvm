@@ -30,10 +30,7 @@ class ThreadPool {
   std::mutex MJobQueueMutex;
   std::condition_variable MDoSmthOrStop;
   std::atomic_bool MStop;
-
-  // Drain related staff
-  std::map<std::thread::id, std::atomic_bool /*needToDrain*/> MDrainSchedule;
-  std::atomic_bool MDrain{false};
+  std::atomic_uint MJobsInExecution;
 
   void worker() {
     GlobalHandler::instance().registerSchedulerUsage(false);
@@ -41,19 +38,11 @@ class ThreadPool {
     std::thread::id ThisThreadId = std::this_thread::get_id();
     while (true) {
       MDoSmthOrStop.wait(Lock, [this, &ThisThreadId]() {
-        return !MJobQueue.empty() || MStop.load() ||
-               (MDrain.load() && MDrainSchedule[ThisThreadId].load());
+        return !MJobQueue.empty() || MStop.load();
       });
 
-      // lets complete enqueued tasks first
-      if (MStop.load() && MJobQueue.empty())
+      if (MStop.load())
         break;
-
-      if (MJobQueue.empty() && MDrain.load() &&
-          MDrainSchedule[ThisThreadId].load()) {
-        assert(MDrainSchedule[ThisThreadId].exchange(false));
-        continue;
-      }
 
       std::function<void()> Job = std::move(MJobQueue.front());
       MJobQueue.pop();
@@ -62,6 +51,8 @@ class ThreadPool {
       Job();
 
       Lock.lock();
+
+      MJobsInExecution--;
     }
   }
 
@@ -69,6 +60,7 @@ class ThreadPool {
     MLaunchedThreads.reserve(MThreadCount);
 
     MStop.store(false);
+    MJobsInExecution.store(0);
 
     for (size_t Idx = 0; Idx < MThreadCount; ++Idx)
       MLaunchedThreads.emplace_back([this] { worker(); });
@@ -76,16 +68,8 @@ class ThreadPool {
 
 public:
   void drain() {
-    for (const auto &thread : MLaunchedThreads) {
-      MDrainSchedule[thread.get_id()].store(true);
-    }
-    MDrain.store(true);
-    MDoSmthOrStop.notify_all();
-    while (std::any_of(MDrainSchedule.cbegin(), MDrainSchedule.cend(),
-                       [](const auto &state) { return state.second.load(); }))
+    while (MJobsInExecution != 0)
       std::this_thread::yield();
-
-    MDrain.store(false);
   }
 
   ThreadPool(unsigned int ThreadCount = 1) : MThreadCount(ThreadCount) {
@@ -118,7 +102,7 @@ public:
       std::lock_guard<std::mutex> Lock(MJobQueueMutex);
       MJobQueue.emplace(Func);
     }
-
+    MJobsInExecution++;
     MDoSmthOrStop.notify_one();
   }
 };

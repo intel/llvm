@@ -28,7 +28,14 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
-// just a draft, no unification
+// Utility class to track references on object.
+// Used for Scheduler now and created as thread_local object.
+// Origin idea is to track usage of Scheduler from main and other used threads -
+// they increment MCounter; and to use but not add extra reference by our
+// thread_pool threads. For this control MIncrementCounter class member is used.
+// MObj and MReleaseCalled is extra protection needed to handle case when main
+// thread finished but thread_pool is still running and we will join that
+// threads in releaseResources call.
 template <class ResourceHandler> class ObjectUsageCounter {
 public:
   ObjectUsageCounter(std::unique_ptr<ResourceHandler> &Obj,
@@ -41,8 +48,7 @@ public:
     if (MIncrementCounter)
       MCounter--;
     if (!MCounter && MObj) {
-      bool ReleaseCalled = MReleaseCalled.exchange(true);
-      if (!ReleaseCalled)
+      if (!MReleaseCalled.exchange(true))
         MObj->releaseResources();
     }
   }
@@ -50,11 +56,8 @@ public:
 private:
   static std::atomic_uint MCounter;
   bool MIncrementCounter;
-
   std::unique_ptr<ResourceHandler> &MObj;
-
-  static std::atomic_bool MReleaseCalled; // test
-  // std::unique_ptr<TraceEvent> MTrace;
+  static std::atomic_bool MReleaseCalled;
 };
 template <class ResourceHandler>
 std::atomic_uint ObjectUsageCounter<ResourceHandler>::MCounter{0};
@@ -90,7 +93,6 @@ void GlobalHandler::attachScheduler(Scheduler *Scheduler) {
 }
 
 Scheduler &GlobalHandler::getScheduler() {
-  // just a draft
   getOrCreate(MScheduler);
   registerSchedulerUsage();
   return *MScheduler.Inst;
