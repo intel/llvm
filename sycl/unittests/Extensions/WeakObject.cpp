@@ -211,18 +211,9 @@ void runTest(sycl::unittest::PiMock &Mock) {
   sycl::buffer<int, 1> Buf1D{1};
   sycl::buffer<int, 2> Buf2D{sycl::range<2>{1, 2}};
   sycl::buffer<int, 3> Buf3D{sycl::range<3>{1, 2, 3}};
-  sycl::accessor<int, 1, sycl::access::mode::read_write,
-                 sycl::access::target::device,
-                 sycl::access::placeholder::true_t>
-      PAcc1D{Buf1D};
-  sycl::accessor<int, 2, sycl::access::mode::read_write,
-                 sycl::access::target::device,
-                 sycl::access::placeholder::true_t>
-      PAcc2D{Buf2D};
-  sycl::accessor<int, 3, sycl::access::mode::read_write,
-                 sycl::access::target::device,
-                 sycl::access::placeholder::true_t>
-      PAcc3D{Buf3D};
+  sycl::accessor PAcc1D{Buf1D, sycl::read_write};
+  sycl::accessor PAcc2D{Buf2D, sycl::read_write};
+  sycl::accessor PAcc3D{Buf3D, sycl::read_write};
   sycl::accessor<int, 1, sycl::access::mode::read_write,
                  sycl::access::target::host_buffer>
       HAcc1D;
@@ -251,9 +242,9 @@ void runTest(sycl::unittest::PiMock &Mock) {
   CallableT<decltype(HAcc3D)>()(HAcc3D);
 
   Q.submit([&](sycl::handler &CGH) {
-    sycl::accessor<int, 1, sycl::access::mode::read> DAcc1D{Buf1D, CGH};
-    sycl::accessor<int, 2, sycl::access::mode::read> DAcc2D{Buf2D, CGH};
-    sycl::accessor<int, 3, sycl::access::mode::read> DAcc3D{Buf3D, CGH};
+    sycl::accessor DAcc1D{Buf1D, CGH, sycl::read_only};
+    sycl::accessor DAcc2D{Buf2D, CGH, sycl::read_only};
+    sycl::accessor DAcc3D{Buf3D, CGH, sycl::read_only};
     sycl::local_accessor<int, 1> LAcc1D{1, CGH};
     sycl::local_accessor<int, 2> LAcc2D{sycl::range<2>{1, 2}, CGH};
     sycl::local_accessor<int, 3> LAcc3D{sycl::range<3>{1, 2, 3}, CGH};
@@ -288,30 +279,12 @@ void runTestMulti(sycl::unittest::PiMock &Mock) {
   sycl::buffer<int, 2> Buf2D2{sycl::range<2>{1, 2}};
   sycl::buffer<int, 3> Buf3D1{sycl::range<3>{1, 2, 3}};
   sycl::buffer<int, 3> Buf3D2{sycl::range<3>{1, 2, 3}};
-  sycl::accessor<int, 1, sycl::access::mode::read_write,
-                 sycl::access::target::device,
-                 sycl::access::placeholder::true_t>
-      PAcc1D1{Buf1D1};
-  sycl::accessor<int, 1, sycl::access::mode::read_write,
-                 sycl::access::target::device,
-                 sycl::access::placeholder::true_t>
-      PAcc1D2{Buf1D2};
-  sycl::accessor<int, 2, sycl::access::mode::read_write,
-                 sycl::access::target::device,
-                 sycl::access::placeholder::true_t>
-      PAcc2D1{Buf2D1};
-  sycl::accessor<int, 2, sycl::access::mode::read_write,
-                 sycl::access::target::device,
-                 sycl::access::placeholder::true_t>
-      PAcc2D2{Buf2D2};
-  sycl::accessor<int, 3, sycl::access::mode::read_write,
-                 sycl::access::target::device,
-                 sycl::access::placeholder::true_t>
-      PAcc3D1{Buf3D1};
-  sycl::accessor<int, 3, sycl::access::mode::read_write,
-                 sycl::access::target::device,
-                 sycl::access::placeholder::true_t>
-      PAcc3D2{Buf3D2};
+  sycl::accessor PAcc1D1{Buf1D1, sycl::read_write};
+  sycl::accessor PAcc1D2{Buf1D2, sycl::read_write};
+  sycl::accessor PAcc2D1{Buf2D1, sycl::read_write};
+  sycl::accessor PAcc2D2{Buf2D2, sycl::read_write};
+  sycl::accessor PAcc3D1{Buf3D1, sycl::read_write};
+  sycl::accessor PAcc3D2{Buf3D2, sycl::read_write};
   sycl::accessor<int, 1, sycl::access::mode::read_write,
                  sycl::access::target::host_buffer>
       HAcc1D1;
@@ -346,12 +319,12 @@ void runTestMulti(sycl::unittest::PiMock &Mock) {
   CallableT<decltype(HAcc3D1)>()(HAcc3D1, HAcc3D2);
 
   Q1.submit([&](sycl::handler &CGH) {
-    sycl::accessor<int, 1, sycl::access::mode::read> DAcc1D1{Buf1D1, CGH};
-    sycl::accessor<int, 1, sycl::access::mode::read> DAcc1D2{Buf1D2, CGH};
-    sycl::accessor<int, 2, sycl::access::mode::read> DAcc2D1{Buf2D1, CGH};
-    sycl::accessor<int, 2, sycl::access::mode::read> DAcc2D2{Buf2D2, CGH};
-    sycl::accessor<int, 3, sycl::access::mode::read> DAcc3D1{Buf3D1, CGH};
-    sycl::accessor<int, 3, sycl::access::mode::read> DAcc3D2{Buf3D2, CGH};
+    sycl::accessor DAcc1D1{Buf1D1, CGH, sycl::read_only};
+    sycl::accessor DAcc1D2{Buf1D2, CGH, sycl::read_only};
+    sycl::accessor DAcc2D1{Buf2D1, CGH, sycl::read_only};
+    sycl::accessor DAcc2D2{Buf2D2, CGH, sycl::read_only};
+    sycl::accessor DAcc3D1{Buf3D1, CGH, sycl::read_only};
+    sycl::accessor DAcc3D2{Buf3D2, CGH, sycl::read_only};
     sycl::local_accessor<int, 1> LAcc1D1{1, CGH};
     sycl::local_accessor<int, 1> LAcc1D2{1, CGH};
     sycl::local_accessor<int, 2> LAcc2D1{sycl::range<2>{1, 2}, CGH};

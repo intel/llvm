@@ -12,6 +12,8 @@
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/ext/oneapi/weak_object_base.hpp>
 
+#include <optional>
+
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
