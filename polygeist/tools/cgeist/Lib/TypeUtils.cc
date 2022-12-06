@@ -115,9 +115,13 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
     GetScalarOp,
     GetOp,
     Group,
+    HItem,
     ID,
     ItemBase,
     Item,
+    KernelHandler,
+    Maximum,
+    Minimum,
     MultiPtr,
     NdItem,
     NdRange,
@@ -142,9 +146,13 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
       {"GetScalarOp", TypeEnum::GetScalarOp},
       {"GetOp", TypeEnum::GetOp},
       {"group", TypeEnum::Group},
+      {"h_item", TypeEnum::HItem},
       {"id", TypeEnum::ID},
       {"ItemBase", TypeEnum::ItemBase},
       {"item", TypeEnum::Item},
+      {"kernel_handler", TypeEnum::KernelHandler},
+      {"maximum", TypeEnum::Maximum},
+      {"minimum", TypeEnum::Minimum},
       {"multi_ptr", MultiPtr},
       {"nd_item", TypeEnum::NdItem},
       {"nd_range", TypeEnum::NdRange},
@@ -226,6 +234,12 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
       return mlir::sycl::GroupType::get(CGT.getModule()->getContext(), Dim,
                                         Body);
     }
+    case TypeEnum::HItem: {
+      const auto Dim =
+          CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
+      return mlir::sycl::HItemType::get(CGT.getModule()->getContext(), Dim,
+                                        Body);
+    }
     case TypeEnum::ID: {
       const auto Dim =
           CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
@@ -247,6 +261,16 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
           CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
       return mlir::sycl::ItemType::get(CGT.getModule()->getContext(), Dim,
                                        Offset, Body);
+    }
+    case TypeEnum::Maximum: {
+      const auto Type =
+          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
+      return mlir::sycl::MaximumType::get(CGT.getModule()->getContext(), Type);
+    }
+    case TypeEnum::Minimum: {
+      const auto Type =
+          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
+      return mlir::sycl::MinimumType::get(CGT.getModule()->getContext(), Type);
     }
     case TypeEnum::MultiPtr: {
       const auto Type =
@@ -318,6 +342,9 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
                                                  Body);
     case TypeEnum::BFloat16:
       return mlir::sycl::BFloat16Type::get(CGT.getModule()->getContext(), Body);
+    case TypeEnum::KernelHandler:
+      return mlir::sycl::KernelHandlerType::get(CGT.getModule()->getContext(),
+                                                Body);
     case TypeEnum::SubGroup:
       return mlir::sycl::SubGroupType::get(CGT.getModule()->getContext());
     default:

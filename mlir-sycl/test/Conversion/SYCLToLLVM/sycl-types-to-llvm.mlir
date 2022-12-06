@@ -103,9 +103,10 @@ func.func @test_OwnerLessBase(%arg0: !sycl.owner_less_base) {
 !sycl_item_base_1_ = !sycl.item_base<[1, true], (!sycl_range_1_, !sycl_id_1_, !sycl_id_1_)>
 !sycl_item_base_1_1 = !sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>
 !sycl_item_1_ = !sycl.item<[1, true], (!sycl_item_base_1_)>
-!sycl_item_1_1 = !sycl.item<[1, false], (!sycl_item_base_1_1)>
+!sycl_item_1_1_ = !sycl.item<[1, false], (!sycl_item_base_1_1)>
 !sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
-!sycl_nd_item_1_ = !sycl.nd_item<[1], (!sycl_item_1_, !sycl_item_1_1, !sycl_group_1_)>
+!sycl_nd_item_1_ = !sycl.nd_item<[1], (!sycl_item_1_, !sycl_item_1_1_, !sycl_group_1_)>
+!sycl_h_item_1_ = !sycl.h_item<[1], (!sycl_item_1_1_, !sycl_item_1_1_, !sycl_item_1_1_)>
 // CHECK: llvm.func @test_itemBase.true(%arg0: !llvm.[[ITEM_BASE_1_TRUE:struct<"struct.sycl::_V1::detail::ItemBase.*", \(]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]])
 func.func @test_itemBase.true(%arg0: !sycl_item_base_1_) {
   return
@@ -119,7 +120,7 @@ func.func @test_item.true(%arg0: !sycl_item_1_) {
   return
 }
 // CHECK: llvm.func @test_item.false(%arg0: !llvm.[[ITEM_1_FALSE:struct<"class.sycl::_V1::item.*", \(]][[ITEM_BASE_1_FALSE]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]][[SUFFIX]])
-func.func @test_item.false(%arg0: !sycl_item_1_1) {
+func.func @test_item.false(%arg0: !sycl_item_1_1_) {
   return
 }
 // CHECK: llvm.func @test_group(%arg0: !llvm.[[GROUP:struct<"class.sycl::_V1::group.*", \(]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]])
@@ -128,6 +129,10 @@ func.func @test_group(%arg0: !sycl_group_1_) {
 }
 // CHECK: llvm.func @test_nd_item(%arg0: !llvm.[[ND_ITEM_1:struct<"class.sycl::_V1::nd_item.*", \(]][[ITEM_1_TRUE]][[ITEM_BASE_1_TRUE]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]][[SUFFIX]], [[ITEM_1_FALSE]][[ITEM_BASE_1_FALSE]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]][[SUFFIX]], [[GROUP]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]][[SUFFIX]])
 func.func @test_nd_item(%arg0: !sycl_nd_item_1_) {
+  return
+}
+// CHECK: llvm.func @test_h_item(%arg0: !llvm.[[H_ITEM:struct<"class.sycl::_V1::h_item", \(]][[ITEM_1_FALSE]][[ITEM_BASE_1_FALSE]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]][[SUFFIX]], [[ITEM_1_FALSE]][[ITEM_BASE_1_FALSE]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]][[SUFFIX]], [[ITEM_1_FALSE]][[ITEM_BASE_1_FALSE]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]][[SUFFIX]][[SUFFIX]]) {
+func.func @test_h_item(%arg0: !sycl_h_item_1_) {
   return
 }
 
@@ -143,6 +148,19 @@ func.func @test_get_op(%arg0: !sycl.get_op<i32>) {
 !sycl_get_scalar_op_i32_ = !sycl.get_scalar_op<[i32], (i32)>
 // CHECK: llvm.func @test_get_scalar_op(%arg0: !llvm.[[GET_SCALAR_OP:struct<"class.sycl::_V1::detail::GetScalarOp.*", \(i32\)>]])
 func.func @test_get_scalar_op(%arg0: !sycl_get_scalar_op_i32_) {
+  return
+}
+
+// -----
+
+!sycl_maximum_i32_ = !sycl.maximum<i32>
+!sycl_minimum_i32_ = !sycl.minimum<i32>
+// CHECK: llvm.func @test_maximum(%arg0: !llvm.[[MAXIMUM:struct<"struct.sycl::_V1::maximum", \(i8\)>]]) {
+func.func @test_maximum(%arg0: !sycl_maximum_i32_) {
+  return
+}
+// CHECK: llvm.func @test_minimum(%arg0: !llvm.[[MINIMUM:struct<"struct.sycl::_V1::minimum", \(i8\)>]]) {
+func.func @test_minimum(%arg0: !sycl_minimum_i32_) {
   return
 }
 
@@ -191,6 +209,14 @@ func.func @test_assert_happened(%arg0: !sycl_assert_happened_) {
 func.func @test_bfloat16(%arg0: !sycl_bfloat16_) {
   return
 }
+
+// -----
+
+!sycl_kernel_handler_ = !sycl.kernel_handler<(!llvm.ptr<i8, 4>)>
+// CHECK: llvm.func @test_kernel_handler(%arg0: !llvm.[[KERNEL_HANDLER:struct<"class.sycl::_V1::kernel_handler", \(ptr<i8, 4>\)>]]) {
+func.func @test_kernel_handler(%arg0: !sycl_kernel_handler_) {
+  return
+} 
 
 // -----
 

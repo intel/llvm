@@ -20,6 +20,7 @@
 // CHECK-DAG: !sycl_nd_range_1_ = !sycl.nd_range<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
 // CHECK-DAG: !sycl_nd_range_2_ = !sycl.nd_range<[2], (!sycl_range_2_, !sycl_range_2_, !sycl_id_2_)>
 // CHECK-DAG: !sycl_get_scalar_op_i32_ = !sycl.get_scalar_op<[i32], (i32)>
+// CHECK-DAG: !sycl_h_item_1_ = !sycl.h_item<[1], (!sycl.item<[1, false], (!sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>)>, !sycl.item<[1, false], (!sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>)>, !sycl.item<[1, false], (!sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>)>)>
 // CHECK-DAG: !sycl_tuple_value_holder_i32_ = !sycl.tuple_value_holder<[i32], (i32)>
 // CHECK-DAG: [[TUPLE_COPY_ASSIGNABLE_VALUE_HOLDER_TRUE:!sycl_tuple_copy_assignable_value_holder_i32_.*]] = !sycl.tuple_copy_assignable_value_holder<[i32, true], (!sycl_tuple_value_holder_i32_)>
 // CHECK-DAG: [[TUPLE_COPY_ASSIGNABLE_VALUE_HOLDER_FALSE:!sycl_tuple_copy_assignable_value_holder_i32_.*]] = !sycl.tuple_copy_assignable_value_holder<[i32, false], (!sycl_tuple_value_holder_i32_)>
@@ -29,6 +30,9 @@
 // CHECK-DAG: !sycl_atomic_i32_1_ = !sycl.atomic<[i32,1], (memref<?xi32, 1>)>
 // CHECK-DAG: !sycl_assert_happened_ = !sycl.assert_happened<(i32, !llvm.array<257 x i8>, !llvm.array<257 x i8>, !llvm.array<129 x i8>, i32, i64, i64, i64, i64, i64, i64)>
 // CHECK-DAG: !sycl_bfloat16_ = !sycl.bfloat16<(i16)>
+// CHECK-DAG: !sycl_kernel_handler_ = !sycl.kernel_handler<(!llvm.ptr<i8, 4>)>
+// CHECK-DAG: !sycl_maximum_i32_ = !sycl.maximum<i32>
+// CHECK-DAG: !sycl_minimum_i32_ = !sycl.minimum<i32>
 // CHECK-DAG: !sycl_multi_ptr_i32_1_ = !sycl.multi_ptr<[i32, 1, 1], (memref<?xi32, 1>)>
 
 // CHECK-LABEL: func.func @_Z4id_1N4sycl3_V12idILi1EEE(
@@ -132,6 +136,11 @@ SYCL_EXTERNAL void get_op(sycl::detail::GetOp<int> get_op) {}
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
 SYCL_EXTERNAL void get_scalar_op(sycl::detail::GetScalarOp<int> get_scalar_op) {}
 
+// CHECK-LABEL: func.func @_Z6h_itemN4sycl3_V16h_itemILi1EEE(
+// CHECK:          %arg0: memref<?x!sycl_h_item_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_h_item_1_, llvm.noundef})
+// CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
+SYCL_EXTERNAL void h_item(sycl::h_item<1> h_item) {}
+
 // CHECK-LABEL: func.func @_Z18tuple_value_holderN4sycl3_V16detail16TupleValueHolderIiEE(
 // CHECK:          %arg0: memref<?x!sycl_tuple_value_holder_i32_> {llvm.align = 4 : i64, llvm.byval = !sycl_tuple_value_holder_i32_, llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
@@ -168,20 +177,35 @@ SYCL_EXTERNAL void atomic_1(sycl::atomic<int> atomic_int) {}
 SYCL_EXTERNAL void atomic_2(sycl::atomic<float, sycl::access::address_space::local_space> atomic_float) {}
 
 // %"struct.sycl::_V1::detail::AssertHappened" = type { i32, [257 x i8], [257 x i8], [129 x i8], i32, i64, i64, i64, i64, i64, i64 }
-// CHECK-LABEL: func.func @_Z19get_assert_happenedN4sycl3_V16detail14AssertHappenedE(
+// CHECK-LABEL: func.func @_Z15assert_happenedN4sycl3_V16detail14AssertHappenedE(
 // CHECK:          %arg0: memref<?x!sycl_assert_happened_> {llvm.align = 8 : i64, llvm.byval = !sycl_assert_happened_, llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
-SYCL_EXTERNAL void get_assert_happened(sycl::detail::AssertHappened get_assert_happened) {}
+SYCL_EXTERNAL void assert_happened(sycl::detail::AssertHappened get_assert_happened) {}
 
-// CHECK-LABEL: func.func @_Z12get_bfloat16N4sycl3_V13ext6oneapi8bfloat16E(
+// CHECK-LABEL: func.func @_Z8bfloat16N4sycl3_V13ext6oneapi8bfloat16E(
 // CHECK:          %arg0: memref<?x!sycl_bfloat16_> {llvm.align = 2 : i64, llvm.byval = !sycl_bfloat16_, llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
-SYCL_EXTERNAL void get_bfloat16(sycl::ext::oneapi::bfloat16 get_bfloat16) {}
+SYCL_EXTERNAL void bfloat16(sycl::ext::oneapi::bfloat16 get_bfloat16) {}
 
-// CHECL-LABEL: func.func @_Z13get_sub_groupN4sycl3_V13ext6oneapi9sub_groupE(
+// CHECK-LABEL: func.func @_Z14kernel_handlerN4sycl3_V114kernel_handlerE(
+// CHECK:          %arg0: memref<?x!sycl_kernel_handler_> {llvm.align = 8 : i64, llvm.byval = !sycl_kernel_handler_, llvm.noundef})
+// CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
+SYCL_EXTERNAL void kernel_handler(sycl::kernel_handler kernel_handler) {}
+
+// CHECL-LABEL: func.func @_Z7sub_groupN4sycl3_V13ext6oneapi9sub_groupE(
 // CHECK:          %arg0: memref<?x!sycl.sub_group> {llvm.align = 1 : i64, llvm.byval = !sycl.sub_group, llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
-SYCL_EXTERNAL void get_sub_group(sycl::ext::oneapi::sub_group get_sub_group) {}
+SYCL_EXTERNAL void sub_group(sycl::ext::oneapi::sub_group get_sub_group) {}
+
+// CHECK-LABEL: func.func @_Z7maximumN4sycl3_V17maximumIiEE(
+// CHECK:          %arg0: memref<?x!sycl_maximum_i32_> {llvm.align = 1 : i64, llvm.byval = !sycl_maximum_i32_, llvm.noundef})
+// CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
+SYCL_EXTERNAL void maximum(sycl::maximum<int> max) {}
+
+// CHECK-LABEL: func.func @_Z7minimumN4sycl3_V17minimumIiEE(
+// CHECK:          %arg0: memref<?x!sycl_minimum_i32_> {llvm.align = 1 : i64, llvm.byval = !sycl_minimum_i32_, llvm.noundef})
+// CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
+SYCL_EXTERNAL void minimum(sycl::minimum<int> min) {}
 
 // CHECK-LABEL: func.func @_Z9multi_ptrN4sycl3_V19multi_ptrIiLNS0_6access13address_spaceE1ELNS2_9decoratedE1EEE(
 // CHECK:          %arg0: memref<?x!sycl_multi_ptr_i32_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_multi_ptr_i32_1_, llvm.noundef})
