@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include "ur_level_zero.hpp"
+#include <ur_bindings.hpp>
 
 // Define the static class field
 std::mutex ZeCall::GlobalLock;
@@ -226,7 +227,7 @@ template <> zes_structure_type_t getZesStructureType<zes_mem_properties_t>() {
   return ZES_STRUCTURE_TYPE_MEM_PROPERTIES;
 }
 
-zer_result_t _ur_level_zero_platform::initialize() {
+zer_result_t _ur_platform_handle_t::initialize() {
   // Cache driver properties
   ZeStruct<ze_driver_properties_t> ZeDriverProperties;
   ZE_CALL(zeDriverGetProperties, (ZeDriver, &ZeDriverProperties));
@@ -361,9 +362,10 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerPlatformGet(
 
         ZE_CALL(zeDriverGet, (&ZeDriverCount, ZeDrivers.data()));
         for (uint32_t I = 0; I < ZeDriverCount; ++I) {
-          auto Platform = new _ur_level_zero_platform(ZeDrivers[I]);
+          auto Platform = new _zer_platform_handle_t(ZeDrivers[I]);
+          printf("sizeof = %d\n", sizeof(_zer_platform_handle_t));
           // Save a copy in the cache for future uses.
-          PiPlatformsCache->push_back((zer_platform_handle_t)Platform);
+          PiPlatformsCache->push_back(Platform);
 
           zer_result_t Result = Platform->initialize();
           if (Result != ZER_RESULT_SUCCESS) {

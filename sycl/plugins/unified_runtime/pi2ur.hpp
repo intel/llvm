@@ -1,4 +1,4 @@
-//===---------------- pi2ur.cpp - PI API to UR API  --------------------==//
+//===---------------- pi2ur.hpp - PI API to UR API  --------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,7 +11,7 @@
 
 #include "zer_api.h"
 #include <sycl/detail/pi.h>
-#include <ur.hpp>
+#include <ur/ur.hpp>
 
 // Map of UR error codes to PI error codes
 static pi_result ur2piResult(zer_result_t urResult) {
@@ -51,9 +51,8 @@ static pi_result ur2piResult(zer_result_t urResult) {
     return ur2piResult(Result);
 
 namespace pi2ur {
-__SYCL_EXPORT pi_result piPlatformsGet(pi_uint32 num_entries,
-                                       pi_platform *platforms,
-                                       pi_uint32 *num_platforms) {
+inline pi_result piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
+                                pi_uint32 *num_platforms) {
 
   // https://spec.oneapi.io/unified-runtime/latest/core/api.html#zerplatformget
 
@@ -66,11 +65,10 @@ __SYCL_EXPORT pi_result piPlatformsGet(pi_uint32 num_entries,
   return PI_SUCCESS;
 }
 
-__SYCL_EXPORT pi_result piPlatformGetInfo(pi_platform platform,
-                                          pi_platform_info param_name,
-                                          size_t param_value_size,
-                                          void *param_value,
-                                          size_t *param_value_size_ret) {
+inline pi_result piPlatformGetInfo(pi_platform platform,
+                                   pi_platform_info param_name,
+                                   size_t param_value_size, void *param_value,
+                                   size_t *param_value_size_ret) {
   die("Unified Runtime: piPlatformGetInfo is not implemented");
 }
 } // namespace pi2ur
