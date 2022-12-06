@@ -186,9 +186,17 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
           CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
       const auto MemAccessMode = static_cast<mlir::sycl::MemoryAccessMode>(
           CTS->getTemplateArgs().get(2).getAsIntegral().getExtValue());
-
       const auto MemTargetMode = static_cast<mlir::sycl::MemoryTargetMode>(
           CTS->getTemplateArgs().get(3).getAsIntegral().getExtValue());
+
+      // The SYCL RT specialize the accessor class for local memory accesses.
+      // That specialization is derived from a non-empty base class, so push it.
+      // TODO: we should push the non-empty base classes in a more general way.
+      if (MemTargetMode == mlir::sycl::MemoryTargetMode::Local) {
+        assert(Body.empty());
+        Body.push_back(CGT.getMLIRType(CTS->bases_begin()->getType()));
+      }
+
       return mlir::sycl::AccessorType::get(CGT.getModule()->getContext(), Type,
                                            Dim, MemAccessMode, MemTargetMode,
                                            Body);

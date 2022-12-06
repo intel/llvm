@@ -4,6 +4,7 @@
 #include <sycl/sycl.hpp>
 
 // CHECK-DAG: !sycl_accessor_1_i32_rw_gb = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>, !llvm.struct<(ptr<i32, 1>)>)>
+// CHECK-DAG: !sycl_accessor_1_i32_rw_l = !sycl.accessor<[1, i32, read_write, local], (!sycl_local_accessor_base_1_i32_rw)>
 // CHECK-DAG: !sycl_accessor_2_i32_rw_gb = !sycl.accessor<[2, i32, read_write, global_buffer], (!sycl.accessor_impl_device<[2], (!sycl_id_2_, !sycl_range_2_, !sycl_range_2_)>, !llvm.struct<(ptr<i32, 1>)>)>
 // CHECK-DAG: !sycl_accessor_3_f32_rw_gb = !sycl.accessor<[3, f32, read_write, global_buffer], (!sycl.accessor_impl_device<[3], (!sycl.id<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>, !sycl.range<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>, !sycl.range<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>)>, !llvm.struct<(ptr<f32, 1>)>)>
 // CHECK-DAG: !sycl_array_1_ = !sycl.array<[1], (memref<1xi64, 4>)>
@@ -48,6 +49,12 @@ SYCL_EXTERNAL void accessor_2(sycl::accessor<sycl::cl_int, 2, sycl::access::mode
 // CHECK:          %arg0: memref<?x!sycl_accessor_3_f32_rw_gb> {llvm.align = 8 : i64, llvm.byval = !sycl_accessor_3_f32_rw_gb, llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
 SYCL_EXTERNAL void accessor_3(sycl::accessor<sycl::cl_float, 3, sycl::access::mode::read_write, sycl::access::target::global_buffer>) {}
+
+// COM: Local Accessor Test
+// CHECK-LABEL: func.func @_Z10accessor_4N4sycl3_V18accessorIiLi1ELNS0_6access4modeE1026ELNS2_6targetE2016ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE(
+// CHECK:          %arg0: memref<?x!sycl_accessor_1_i32_rw_l> {llvm.align = 8 : i64, llvm.byval = !sycl_accessor_1_i32_rw_l, llvm.noundef}) 
+// CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
+SYCL_EXTERNAL void accessor_4(sycl::accessor<sycl::cl_int, 1, sycl::access::mode::read_write, sycl::access::target::local>) {}
 
 // %"struct.sycl::_V1::detail::AssertHappened" = type { i32, [257 x i8], [257 x i8], [129 x i8], i32, i64, i64, i64, i64, i64, i64 }
 // CHECK-LABEL: func.func @_Z15assert_happenedN4sycl3_V16detail14AssertHappenedE(
