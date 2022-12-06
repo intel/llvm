@@ -146,7 +146,7 @@ public:
     (void)first;
     (void)last;
 #ifdef __SYCL_DEVICE_ONLY__
-    sycl::detail::private_sort</*is_key_value=*/false, /*empty*/ 1,
+    sycl::detail::privateSort</*is_key_value=*/false, /*empty*/ 1,
                                BitsPerPass>(
         g, first, /*empty*/ first, (last - first) > 0 ? (last - first) : 0,
         typename detail::ConvertToComp<ValT, OrderT>::Type{}, scratch,
@@ -159,7 +159,7 @@ public:
     (void)val;
 #ifdef __SYCL_DEVICE_ONLY__
     ValT result[]{val};
-    sycl::detail::private_memory_sort</*is_key_value=*/false,
+    sycl::detail::privateMemorySort</*is_key_value=*/false,
                                       /*is_blocked=*/true,
                                       /*items_per_work_item=*/1, bits>(
         g, result, /*empty*/ result,

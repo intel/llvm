@@ -259,7 +259,7 @@ template <typename Type> struct IsCompAscending<std::less<Type>> {
 };
 
 // get number of states radix bits can represent
-constexpr std::uint32_t get_states_in_bits(std::uint32_t radix_bits) {
+constexpr std::uint32_t getStatesInBits(std::uint32_t radix_bits) {
   return (1 << radix_bits);
 }
 
@@ -440,13 +440,13 @@ template <> struct ValuesAssigner<false> {
 // The iteration of radix sort for unknown number of elements per work item
 template <uint32_t radix_bits, bool is_key_value_sort, typename KeysT,
           typename ValueT, typename CompareT, typename GroupT>
-void perform_radix_iter_dynamic_size(GroupT group,
-                                     const uint32_t items_per_work_item,
-                                     const uint32_t radix_iter, const size_t n,
-                                     KeysT *keys_input, ValueT *vals_input,
-                                     KeysT *keys_output, ValueT *vals_output,
-                                     uint32_t *memory, CompareT comp) {
-  const uint32_t radix_states = get_states_in_bits(radix_bits);
+void performRadixIterDynamicSize(GroupT group,
+                                 const uint32_t items_per_work_item,
+                                 const uint32_t radix_iter, const size_t n,
+                                 KeysT *keys_input, ValueT *vals_input,
+                                 KeysT *keys_output, ValueT *vals_output,
+                                 uint32_t *memory, CompareT comp) {
+  const uint32_t radix_states = getStatesInBits(radix_bits);
   const size_t wgsize = group.get_local_linear_range();
   const size_t idx = group.get_local_linear_id();
 
@@ -523,10 +523,10 @@ void perform_radix_iter_dynamic_size(GroupT group,
 template <std::size_t items_per_work_item, uint32_t radix_bits,
           bool is_comp_asc, bool is_key_value_sort, bool is_blocked,
           typename KeysT, typename ValsT, typename GroupT>
-void perform_radix_iter_static_size(GroupT group, const uint32_t radix_iter,
-                                    const uint32_t last_iter, KeysT *keys,
-                                    ValsT vals, std::byte *memory) {
-  const uint32_t radix_states = get_states_in_bits(radix_bits);
+void performRadixIterStaticSize(GroupT group, const uint32_t radix_iter,
+                                const uint32_t last_iter, KeysT *keys,
+                                ValsT vals, std::byte *memory) {
+  const uint32_t radix_states = getStatesInBits(radix_bits);
   const size_t wgsize = group.get_local_linear_range();
   const size_t idx = group.get_local_linear_id();
 
@@ -545,7 +545,7 @@ void perform_radix_iter_static_size(GroupT group, const uint32_t radix_iter,
   // 1.2. count values and write result to private count array
   for (uint32_t i = 0; i < items_per_work_item; ++i) {
     // get value, convert it to Ordered (in terms of bitness)
-    Ordered_t<KeysT> val = convertToOrdered(keys[i]);
+    OrderedT<KeysT> val = convertToOrdered(keys[i]);
     // get bit values in a certain bucket of a value
     uint32_t bucket_val =
         getBucketValue<radix_bits, is_comp_asc>(val, radix_iter);
@@ -604,11 +604,11 @@ void perform_radix_iter_static_size(GroupT group, const uint32_t radix_iter,
 template <bool is_key_value_sort, uint32_t items_per_work_item = 1,
           uint32_t radix_bits = 4, typename GroupT, typename KeysT,
           typename ValsT, typename CompareT>
-void private_sort(GroupT group, KeysT *keys, ValsT *values, const size_t n,
-                  CompareT comp, std::byte *scratch, const uint32_t first_bit,
-                  const uint32_t last_bit) {
+void privateSort(GroupT group, KeysT *keys, ValsT *values, const size_t n,
+                 CompareT comp, std::byte *scratch, const uint32_t first_bit,
+                 const uint32_t last_bit) {
   const size_t wgsize = group.get_local_linear_range();
-  constexpr uint32_t radix_states = get_states_in_bits(radix_bits);
+  constexpr uint32_t radix_states = getStatesInBits(radix_bits);
   const uint32_t first_iter = first_bit / radix_bits;
   const uint32_t last_iter = last_bit / radix_bits;
 
@@ -626,7 +626,7 @@ void private_sort(GroupT group, KeysT *keys, ValsT *values, const size_t n,
       keys_output + is_key_value_sort * n * sizeof(KeysT) + alignof(uint32_t));
 
   for (uint32_t radix_iter = first_iter; radix_iter < last_iter; ++radix_iter) {
-    perform_radix_iter_dynamic_size<radix_bits, is_key_value_sort>(
+    performRadixIterDynamicSize<radix_bits, is_key_value_sort>(
         group, runtime_items_per_work_item, radix_iter, n, keys_input,
         vals_input, keys_output, vals_output, scan_memory, comp);
 
@@ -640,7 +640,7 @@ void private_sort(GroupT group, KeysT *keys, ValsT *values, const size_t n,
 template <bool is_key_value_sort, bool is_blocked,
           std::size_t items_per_work_item = 1, uint32_t radix_bits = 4,
           typename Group, typename T, typename U, typename Compare>
-void private_memory_sort(Group group, T *keys, U *values, Compare comp,
+void privateMemorySort(Group group, T *keys, U *values, Compare comp,
                          std::byte *scratch, const uint32_t first_bit,
                          const uint32_t last_bit) {
   (void)comp;
@@ -650,8 +650,8 @@ void private_memory_sort(Group group, T *keys, U *values, Compare comp,
   const uint32_t last_iter = last_bit / radix_bits;
 
   for (uint32_t radix_iter = first_iter; radix_iter < last_iter; ++radix_iter) {
-    perform_radix_iter_static_size<items_per_work_item, radix_bits, is_comp_asc,
-                                   is_key_value_sort, is_blocked>(
+    performRadixIterStaticSize<items_per_work_item, radix_bits, is_comp_asc,
+                               is_key_value_sort, is_blocked>(
         group, radix_iter, last_iter, keys, values, scratch);
     sycl::group_barrier(group);
   }
