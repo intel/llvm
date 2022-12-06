@@ -55,14 +55,10 @@ namespace experimental {
 namespace detail {
 
 // Type-trait for checking if a type defines `operator[]`.
-template <typename T, typename = void>
-struct HasSubscriptOperator : std::false_type {};
-
 template <typename T>
-struct HasSubscriptOperator<
-    T, typename std::enable_if_t<
-           !std::is_void<decltype(std::declval<T>().operator[](0))>::value>>
-    : std::true_type{};
+struct HasSubscriptOperator
+    : std::bool_constant<
+          !std::is_void<decltype(std::declval<T>().operator[](0))>::value>{};
 
 } // namespace detail
 
@@ -92,15 +88,22 @@ template <typename T, typename... Props>
 class __SYCL_SPECIAL_CLASS
 __SYCL_TYPE(annotated_arg) annotated_arg<T *, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
-  __OPENCL_GLOBAL_AS__ T *obj;
+
+#ifdef __SYCL_DEVICE_ONLY__
+  using global_pointer_t = typename sycl::detail::DecoratedType<
+      T, access::address_space::global_space>::type *;
+#else
+  using global_pointer_t = T *;
+#endif
+
+  global_pointer_t obj;
 
   template <typename T2, typename PropertyListT> friend class annotated_arg;
 
 #ifdef __SYCL_DEVICE_ONLY__
   void __init([[__sycl_detail__::add_ir_attributes_kernel_parameter(
       detail::PropertyMetaInfo<Props>::name...,
-      detail::PropertyMetaInfo<Props>::value...)]] __OPENCL_GLOBAL_AS__ T
-                  *_obj) {
+      detail::PropertyMetaInfo<Props>::value...)]] global_pointer_t _obj) {
     obj = _obj;
   }
 #endif
@@ -110,8 +113,8 @@ public:
                 "Type T must be trivially destructible.");
   static_assert(is_property_list<property_list_t>::value,
                 "Property list is invalid.");
-  static_assert(detail::SortedAllUnique<std::tuple<Props...>>::value,
-                "Duplicate properties in property list.");
+  // static_assert(detail::SortedAllUnique<std::tuple<Props...>>::value,
+  // "Duplicate properties in property list.");
 
   annotated_arg() noexcept = default;
   annotated_arg(const annotated_arg &) = default;
@@ -119,11 +122,11 @@ public:
 
   annotated_arg(T *_ptr,
                 const property_list_t &PropList = properties{}) noexcept
-      : obj((__OPENCL_GLOBAL_AS__ T *)_ptr) {}
+      : obj(sycl::detail::cast_AS<global_pointer_t>(_ptr)) {}
 
   template <typename... PropertyValueTs>
   annotated_arg(T *_ptr, PropertyValueTs... props) noexcept
-      : obj((__OPENCL_GLOBAL_AS__ T *)_ptr) {
+      : obj(sycl::detail::cast_AS<global_pointer_t>(_ptr)) {
     static_assert(
         std::is_same<property_list_t,
                      detail::merged_properties_t<
