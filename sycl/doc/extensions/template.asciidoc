@@ -96,6 +96,8 @@ This extension is no longer implemented in {dpcpp}.  This specification is
 being archived only for historical purposes.  *The APIs defined in this
 specification no longer exist and cannot be used.*
 
+== Backend support status and portability recommendation
+
 _This is an example of a note which can be added if your extension is
 implemented only for certain backends.  A note like this is appropriate if the
 extension is implemented only on certain devices or backends._
@@ -109,6 +111,19 @@ Be aware that the compiler is not able to issue a diagnostic to warn you if
 this happens.
 ====
 
+_Use this if the extension is not supported on at least one backend :_
+
+It is(n't) possible to use this extension to write fully portable code.
+Here "fully portable" means that a program can compile and execute using
+any backend supported by DPC++.
+
+_Use this if it is possible to write fully portable code. See
+the link:.README-process.md[README-process] guide for recommendations on
+dealing with portability concerns when adding extensions._
+
+In order to write fully portable code that can also exploit the extension
+features on supported backends, users are recommended to "Insert portability
+recommendations here".
 
 == Overview
 
