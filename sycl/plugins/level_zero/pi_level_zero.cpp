@@ -1027,15 +1027,19 @@ _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
   }
 
   auto &EventList = CommandList->second.EventList;
-  // Check if standard commandlist
-  if (CommandList->second.ZeFence != nullptr) {
+  // Check if standard commandlist or fully synced in-order queue.
+  // If one of those conditions is met then we are sure that all events are
+  // completed so we don't need to check event status.
+  if (CommandList->second.ZeFence != nullptr ||
+      (isInOrderQueue() && !LastCommandEvent)) {
     // Remember all the events in this command list which needs to be
     // released/cleaned up and clear event list associated with command list.
     std::move(std::begin(EventList), std::end(EventList),
               std::back_inserter(EventListToCleanup));
     EventList.clear();
-  } else {
+  } else if (!isDiscardEvents()) {
     // For immediate commandlist reset only those events that have signalled.
+    // If events in the queue are discarded then we can't check their status.
     for (auto it = EventList.begin(); it != EventList.end();) {
       std::scoped_lock<pi_shared_mutex> EventLock((*it)->Mutex);
       ze_result_t ZeResult =
@@ -1044,6 +1048,9 @@ _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
         EventListToCleanup.push_back(std::move((*it)));
         it = EventList.erase(it);
       } else {
+        // Break early as soon as we found first incomplete event because next
+        // events are submitted even later.
+        break;
         it++;
       }
     }
