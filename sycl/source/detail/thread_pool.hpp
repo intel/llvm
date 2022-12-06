@@ -93,7 +93,7 @@ public:
       std::lock_guard<std::mutex> Lock(MJobQueueMutex);
       MJobQueue.emplace([F = std::move(Func)]() { F(); });
     }
-
+    MJobsInExecution++;
     MDoSmthOrStop.notify_one();
   }
 
