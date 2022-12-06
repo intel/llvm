@@ -148,7 +148,8 @@ def SYCL_AccessorImplDeviceType :
 
 def SYCL_AccessorType
     : SYCL_Type<"Accessor", "accessor",
-        [SYCLInheritanceTypeTrait<"AccessorCommonType">]> {
+        [SYCLInheritanceTypeTrait<"AccessorCommonType">,
+         SYCLInheritanceTypeTrait<"OwnerLessBaseType">]> {
   let summary = "Buffer Accessor";
   let description = [{ Accessor to a buffer object.}];
   let parameters = (ins "::mlir::Type":$type,
@@ -278,6 +279,10 @@ def SYCL_NdRangeType : SYCL_Type<"NdRange", "nd_range"> {
   let assemblyFormat = "`<` `[` $dimension `]` `,` `(` $body `)` `>`";
 }
 
+def SYCL_OwnerLessBaseType : SYCL_Type<"OwnerLessBase", "owner_less_base"> {
+  let assemblyFormat = "";
+}
+
 def SYCL_RangeType
     : SYCL_Type<"Range", "range", [SYCLInheritanceTypeTrait<"ArrayType">]> {
   let parameters = (ins "unsigned":$dimension,
@@ -329,6 +334,7 @@ def LocalAccessorMemRef : MemRefOf<[SYCL_LocalAccessorType]>;
 def MultiPtrMemRef : MemRefOf<[SYCL_MultiPtrType]>;
 def NDItemMemRef : MemRefOf<[SYCL_NdItemType]>;
 def NDRangeMemRef : MemRefOf<[SYCL_NdRangeType]>;
+def OwnerLessBaseMemRef : MemRefOf<[SYCL_OwnerLessBaseType]>;
 def RangeMemRef : MemRefOf<[SYCL_RangeType]>;
 def VecMemRef : MemRefOf<[SYCL_VecType]>;
 
@@ -350,6 +356,7 @@ def SYCLMemref : AnyTypeOf<[
   MultiPtrMemRef,
   NDItemMemRef,
   NDRangeMemRef,
+  OwnerLessBaseMemRef,
   RangeMemRef,
   VecMemRef
 ]>;
@@ -416,7 +423,7 @@ def SYCLConstructorOp : SYCL_Op<"constructor", [CallOpInterface]> {
 ////////////////////////////////////////////////////////////////////////////////
 
 def CastArg : AnyTypeOf<[IDMemRef, RangeMemRef, AccessorMemRef]>;
-def CastRes : AnyTypeOf<[ArrayMemRef, AccessorCommonMemRef]>;
+def CastRes : AnyTypeOf<[ArrayMemRef, AccessorCommonMemRef, OwnerLessBaseMemRef]>;
 def SYCLCastOp : SYCL_Op<"cast", [DeclareOpInterfaceMethods<CastOpInterface>, 
   Pure, MemRefsNormalizable]
 > {

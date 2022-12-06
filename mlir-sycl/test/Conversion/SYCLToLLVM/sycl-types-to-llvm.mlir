@@ -69,11 +69,11 @@ func.func @test_nd_range.2(%arg0: !sycl_nd_range_2_) {
 func.func @test_accessorImplDevice(%arg0: !sycl_accessor_impl_device_1_) {
   return
 }
-// CHECK: llvm.func @test_accessor_common(%arg0: !llvm.[[ACCESSOR_COMMON:struct<"class.sycl::_V1::detail::accessor_common", \(i8\)>]])
+// CHECK: llvm.func @test_accessor_common(%arg0: !llvm.struct<"class.sycl::_V1::detail::accessor_common", (i8)>)
 func.func @test_accessor_common(%arg0: !sycl.accessor_common) {
   return
 }
-// CHECK: llvm.func @test_accessor.1(%arg0: !llvm.[[ACCESSOR_1:struct<"class.sycl::_V1::accessor.*", \(]][[ACCESSORIMPLDEVICE_1]][[ID_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]], struct<(ptr<i32, 1>)>[[SUFFIX]])
+// CHECK: llvm.func @test_accessor.1(%arg0: !llvm.struct<"class.sycl::_V1::accessor{{.*}}", ([[ACCESSORIMPLDEVICE_1]][[ID_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]], struct<(ptr<i32, 1>)>[[SUFFIX]])
 func.func @test_accessor.1(%arg0: !sycl_accessor_1_i32_rw_gb) {
   return
 }
@@ -81,20 +81,24 @@ func.func @test_accessor.1(%arg0: !sycl_accessor_1_i32_rw_gb) {
 func.func @test_accessor.2(%arg0: !sycl_accessor_2_i32_rw_gb) {
   return
 }
-// CHECK: llvm.func @test_accessor.3(%arg0: !llvm.[[ACCESSOR_3:struct<"class.sycl::_V1::accessor.*", \(]][[ACCESSORIMPLDEVICE_1]][[ID_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]], struct<(ptr<f32, 1>)>[[SUFFIX]])
+// CHECK: llvm.func @test_accessor.3(%arg0: !llvm.struct<"class.sycl::_V1::accessor{{.*}}", ([[ACCESSORIMPLDEVICE_1]][[ID_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]], struct<(ptr<f32, 1>)>[[SUFFIX]])
 func.func @test_accessor.3(%arg0: !sycl_accessor_1_f32_rw_gb) {
   return
 }
-// CHECK: llvm.func @test_accessor.4(%arg0: !llvm.[[ACCESSOR_4:struct<"class.sycl::_V1::accessor.*", \(]][[ACCESSORIMPLDEVICE_2]][[ID_2]][[ARRAY_2]][[SUFFIX]], [[RANGE_2]][[ARRAY_2]][[SUFFIX]], [[RANGE_2]][[ARRAY_2]][[SUFFIX]][[SUFFIX]], struct<(ptr<f32, 1>)>[[SUFFIX]])
+// CHECK: llvm.func @test_accessor.4(%arg0: !llvm.struct<"class.sycl::_V1::accessor{{.*}}", ([[ACCESSORIMPLDEVICE_2]][[ID_2]][[ARRAY_2]][[SUFFIX]], [[RANGE_2]][[ARRAY_2]][[SUFFIX]], [[RANGE_2]][[ARRAY_2]][[SUFFIX]][[SUFFIX]], struct<(ptr<f32, 1>)>[[SUFFIX]])
 func.func @test_accessor.4(%arg0: !sycl_accessor_2_f32_rw_gb) {
   return
 }
-// CHECK: llvm.func @test_accessor.5(%arg0: !llvm.[[ACCESSOR_5:struct<"class.sycl::_V1::accessor.*", \(]][[LOCALACCESSORBASE:struct<"class.sycl::_V1::local_accessor_base.*", \(]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]], struct<(ptr<i32, 3>
+// CHECK: llvm.func @test_accessor.5(%arg0: !llvm.struct<"class.sycl::_V1::accessor{{.*}}", (struct<"class.sycl::_V1::local_accessor_base{{.*}}", ([[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]], struct<(ptr<i32, 3>
 func.func @test_accessor.5(%arg0: !sycl_accessor_1_i32_rw_1) {
   return
 }
-// CHECK: llvm.func @test_accessorSubscript(%arg0: !llvm.[[ACCESSORSUBSCRIPT_1:struct<"class.sycl::_V1::detail::accessor_common.AccessorSubscript.*", \(]][[ID_2]][[ARRAY_2]][[SUFFIX]], [[ACCESSOR_2]][[ACCESSORIMPLDEVICE_2]][[ID_2]][[ARRAY_2]][[SUFFIX]], [[RANGE_2]][[ARRAY_2]][[SUFFIX]], [[RANGE_2]][[ARRAY_2]][[SUFFIX]][[SUFFIX]], struct<(ptr<i32, 1>)>[[SUFFIX]]) 
+// CHECK: llvm.func @test_accessorSubscript(%arg0: !llvm.struct<"class.sycl::_V1::detail::accessor_common.AccessorSubscript{{.*}}", ([[ID_2]][[ARRAY_2]][[SUFFIX]], [[ACCESSOR_2]][[ACCESSORIMPLDEVICE_2]][[ID_2]][[ARRAY_2]][[SUFFIX]], [[RANGE_2]][[ARRAY_2]][[SUFFIX]], [[RANGE_2]][[ARRAY_2]][[SUFFIX]][[SUFFIX]], struct<(ptr<i32, 1>)>[[SUFFIX]]) 
 func.func @test_accessorSubscript(%arg0: !sycl_accessor_subscript_1_) {
+  return
+}
+// CHECK: llvm.func @test_OwnerLessBase(%arg0: !llvm.struct<"class.sycl::_V1::detail::OwnerLessBase", (i8)>)
+func.func @test_OwnerLessBase(%arg0: !sycl.owner_less_base) {
   return
 }
 

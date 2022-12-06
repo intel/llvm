@@ -97,6 +97,11 @@ SYCL_EXTERNAL void get_op(sycl::detail::GetOp<int> get_op) {}
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
 SYCL_EXTERNAL void get_scalar_op(sycl::detail::GetScalarOp<int> get_scalar_op) {}
 
+// CHECK-LABEL: func.func @_Z15owner_less_baseN4sycl3_V16detail13OwnerLessBaseINS0_8accessorIiLi1ELNS0_6access4modeE1026ELNS4_6targetE2014ELNS4_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEEEE(
+// CHECK:          %arg0: memref<?x!sycl.owner_less_base> {llvm.align = 1 : i64, llvm.byval = !sycl.owner_less_base, llvm.noundef})
+// CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
+SYCL_EXTERNAL void owner_less_base(sycl::detail::OwnerLessBase<sycl::accessor<sycl::cl_int, 1, sycl::access::mode::read_write>> owner_less_base) {}
+
 // CHECK-LABEL: func.func @_Z7group_1N4sycl3_V15groupILi1EEE(
 // CHECK:          %arg0: memref<?x!sycl_group_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_group_1_, llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]

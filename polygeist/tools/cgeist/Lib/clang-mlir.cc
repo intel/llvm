@@ -1479,10 +1479,13 @@ static bool isSYCLInheritType(Type &Ty, Value &Val) {
     return false;
 
   Type ElemTy = Ty.cast<MemRefType>().getElementType();
-
   return TypeSwitch<Type, bool>(
              Val.getType().cast<MemRefType>().getElementType())
-      .Case<sycl::AccessorType, sycl::LocalAccessorBaseType>(
+      .Case<sycl::AccessorType>([&](auto) {
+        return ElemTy.isa<sycl::AccessorCommonType>() ||
+               ElemTy.isa<sycl::OwnerLessBaseType>();
+      })
+      .Case<sycl::LocalAccessorBaseType>(
           [&](auto) { return ElemTy.isa<sycl::AccessorCommonType>(); })
       .Case<sycl::LocalAccessorType>(
           [&](auto) { return ElemTy.isa<sycl::LocalAccessorBaseType>(); })

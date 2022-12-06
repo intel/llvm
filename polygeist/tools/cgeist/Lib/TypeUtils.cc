@@ -124,6 +124,7 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
     MultiPtr,
     NdItem,
     NdRange,
+    OwnerLessBase,
     Range,
     SubGroup,
     TupleCopyAssignableValueHolder,
@@ -153,6 +154,7 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
       {"multi_ptr", MultiPtr},
       {"nd_item", TypeEnum::NdItem},
       {"nd_range", TypeEnum::NdRange},
+      {"OwnerLessBase", TypeEnum::OwnerLessBase},
       {"range", TypeEnum::Range},
       {"sub_group", SubGroup},
       {"TupleCopyAssignableValueHolder", TupleCopyAssignableValueHolder},
@@ -310,6 +312,8 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
       return mlir::sycl::NdRangeType::get(CGT.getModule()->getContext(), Dim,
                                           Body);
     }
+    case TypeEnum::OwnerLessBase:
+      return mlir::sycl::OwnerLessBaseType::get(CGT.getModule()->getContext());
     case TypeEnum::Range: {
       const auto Dim =
           CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
