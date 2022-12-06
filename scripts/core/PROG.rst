@@ -53,18 +53,18 @@ Initialization and Discovery
 
     // Discover all the platform instances
     uint32_t platformCount = 0;
-    ${x}PlatformGet(&platformCount, nullptr);
+    ${x}PlatformGet(0, nullptr, &platformCount);
 
     std::vector<${x}_platform_handle_t> platforms(platformCount);
-    ${x}PlatformGet(&platformCount, platforms.data());
+    ${x}PlatformGet(platform.size(), platforms.data(), &platformCount);
 
     // Get number of total GPU devices in the platform
     uint32_t deviceCount = 0;
-    ${x}DeviceGet(platforms[0], ${X}_DEVICE_TYPE_GPU, &deviceCount, nullptr);
+    ${x}DeviceGet(platforms[0], ${X}_DEVICE_TYPE_GPU, &deviceCount, nullptr, nullptr);
 
     // Get handles of all GPU devices in the platform
     std::vector<${x}_device_handle_t> devices(deviceCount);
-    ${x}DeviceGet(platforms[0], ${X}_DEVICE_TYPE_GPU, &deviceCount, devices.data());
+    ${x}DeviceGet(platforms[0], ${X}_DEVICE_TYPE_GPU, &deviceCount, devices.data(), devices.size());
 
 Device handle lifetime
 ----------------------
@@ -83,7 +83,7 @@ after it released its own reference.
     // Get the handle of the first GPU device in the platform
     ${x}_device_handle_t hDevice;
     uint32_t deviceCount = 1;
-    ${x}DeviceGet(hPlatforms[0], ${X}_DEVICE_TYPE_GPU, &deviceCount, &hDevice);
+    ${x}DeviceGet(hPlatforms[0], ${X}_DEVICE_TYPE_GPU, &deviceCount, &hDevice, 1);
     ${x}DeviceRelease(hDevice);
 
 
@@ -97,15 +97,15 @@ In case where the info size is only known at runtime then two calls are needed, 
 
     // Size is known beforehand
     ${x}_device_type_t deviceType;
-    ${x}DeviceGetInfo(hDevice, ${X}_DEVICE_INFO_TYPE, sizeof(${x}_device_type_t), &deviceType);
+    ${x}DeviceGetInfo(hDevice, ${X}_DEVICE_INFO_TYPE, sizeof(${x}_device_type_t), &deviceType, nullptr);
 
     // Size is only known at runtime
     size_t infoSize;
-    ${x}DeviceGetInfo(hDevice, ${X}_DEVICE_INFO_NAME, 0, &infoSize);
+    ${x}DeviceGetInfo(hDevice, ${X}_DEVICE_INFO_NAME, 0, &infoSize, nullptr);
     
     std::string deviceName;
     DeviceName.resize(infoSize);
-    ${x}DeviceGetInfo(hDevice, ${X}_DEVICE_INFO_NAME, infoSize, deviceName.data());
+    ${x}DeviceGetInfo(hDevice, ${X}_DEVICE_INFO_NAME, infoSize, deviceName.data(), nullptr);
 
 Device partitioning into sub-devices
 ------------------------------------
@@ -123,11 +123,11 @@ fixed part of the parent device, which can explicitly be programmed individually
 
     uint32_t count = 0;
     std::vector<${x}_device_handle_t> subDevices;
-    ${x}DevicePartition(hDevice, &properties, &count, nullptr);
+    ${x}DevicePartition(hDevice, &properties, &count, nullptr, nullptr);
 
     if (count > 0) {
         subDevices.resize(count);
-        ${x}DevicePartition(Device, &properties, &count, &subDevices.data());
+        ${x}DevicePartition(Device, &properties, &count, &subDevices.data(), nullptr);
     }
 
 The returned sub-devices may be requested for further partitioning into sub-sub-devices, and so on.
@@ -137,7 +137,7 @@ An implementation would return "0" in the count if no further partitioning is su
 
     uint32_t count = 1;
     ${x}_device_handle_t hSubSubDevice;
-    ${x}DevicePartition(subDevices[0], properties, &count, &hSubSubDevice);
+    ${x}DevicePartition(subDevices[0], properties, &count, &hSubSubDevice, nullptr);
 
 Contexts
 ========
@@ -150,7 +150,7 @@ events, and programs are explicitly created against a context. A trivial work wi
 
     uint32_t deviceCount = 1;
     ${x}_device_handle_t hDevice;
-    ${x}DeviceGet(hPlatform, ${X}_DEVICE_TYPE_GPU, &deviceCount, &hDevice);
+    ${x}DeviceGet(hPlatform, ${X}_DEVICE_TYPE_GPU, &deviceCount, &hDevice, nullptr);
 
     // Create a context
     ${x}_context_handle_t hContext;
@@ -245,6 +245,6 @@ For example, given a ${x}_program_handle_t, we can
 call ${x}ProgramGetNativeHandle to retrieve a ${x}_native_handle_t.
 We can then leverage a platform extension to convert the
 native handle to a driver handle. For example, OpenCL platform
-may expose an extension ${x}ProgramConvertOpenCLExt to retrieve
+may expose an extension ${x}ProgramCreateWithNativeHandle to retrieve
 a cl_program.
 
