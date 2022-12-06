@@ -60,10 +60,13 @@
 // PI_EXT_ONEAPI_QUEUE_PRIORITY_HIGH queue properties.
 // 11.18 Add new parameter name PI_EXT_ONEAPI_QUEUE_INFO_EMPTY to
 // _pi_queue_info.
-// 11.19 Add new PI_DEVICE_EXT_INTEL_PARTITION_BY_CSLICE piDevicePartition
-// scheme.
+// 12.19 Add new PI_DEVICE_EXT_INTEL_PARTITION_BY_CSLICE piDevicePartition
+// scheme. Sub-sub-devices (representing compute slice) creation via
+// partitioning by affinity domain is disabled by default and can be temporarily
+// restored via SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING
+// environment variable.
 
-#define _PI_H_VERSION_MAJOR 11
+#define _PI_H_VERSION_MAJOR 12
 #define _PI_H_VERSION_MINOR 19
 
 #define _PI_STRING_HELPER(a) #a

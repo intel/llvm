@@ -170,6 +170,12 @@ static const int DeviceEventsSetting = [] {
   return AllHostVisible;
 }();
 
+static const bool ExposeCSliceInAffinityPartitioning = [] {
+  const char *Flag =
+      std::getenv("SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING");
+  return Flag ? std::atoi(Flag) != 0 : false;
+}();
+
 // Helper function to implement zeHostSynchronize.
 // The behavior is to avoid infinite wait during host sync under ZE_DEBUG.
 // This allows for a much more responsive debugging of hangs.
@@ -2873,18 +2879,25 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
                                    ->QueueGroup[_pi_queue::queue_type::Compute]
                                    .ZeIndex >= 0;
 
-    // It is debatable if SYCL sub-device and partitioning APIs sufficient to
-    // expose Level Zero sub-devices?  We start with support of
-    // "partition_by_affinity_domain" and "next_partitionable" but if that
-    // doesn't seem to be a good fit we could look at adding a more
-    // descriptive partitioning type.
-    struct {
-      pi_device_partition_property Arr[2];
-    } PartitionProperties = {{PartitionedByCSlice
-                                  ? PI_DEVICE_EXT_INTEL_PARTITION_BY_CSLICE
-                                  : PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
-                              0}};
-    return ReturnValue(PartitionProperties);
+    auto ReturnHelper = [&](auto... Partitions) {
+      struct {
+        pi_device_partition_property Arr[sizeof...(Partitions)+1];
+      } PartitionProperties = {{Partitions..., 0}};
+      return ReturnValue(PartitionProperties);
+    };
+
+    if (ExposeCSliceInAffinityPartitioning) {
+      if (PartitionedByCSlice)
+        return ReturnHelper(PI_DEVICE_EXT_INTEL_PARTITION_BY_CSLICE,
+                            PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN);
+
+      else
+        return ReturnHelper(PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN);
+    } else {
+      return ReturnHelper(PartitionedByCSlice
+                              ? PI_DEVICE_EXT_INTEL_PARTITION_BY_CSLICE
+                              : PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN);
+    }
   }
   case PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN:
     return ReturnValue(pi_device_affinity_domain{
@@ -3304,7 +3317,12 @@ pi_result piDevicePartition(pi_device Device,
       return 0;
 
     // Sub-Sub-Devices are partitioned by CSlices, not by affinity domain.
-    if (Properties[0] == PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN) {
+    // However, if
+    // SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING overrides that
+    // still expose CSlices in partitioning by affinity domain for compatibility
+    // reasons.
+    if (Properties[0] == PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN &&
+        !ExposeCSliceInAffinityPartitioning) {
       if (Device->isSubDevice())
         return 0;
     }
