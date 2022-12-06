@@ -4634,6 +4634,19 @@ void Sema::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
                                        DeviceDiagnosticReason Reason) {
   Callee = Callee->getMostRecentDecl();
 
+  // SYCL_EXTERNAL functions are not allowed without
+  // relocatable device code
+  if (!getLangOpts().GPURelocatableDeviceCode &&
+      Callee->hasAttr<SYCLDeviceAttr>() &&
+      !getSourceManager().isInSystemHeader(Callee->getLocation())) {
+    Diag(Callee->getLocation(), diag::err_sycl_external_no_rdc);
+  }
+
+  // No further checks for declarations with no callsites.
+  if (!Caller) {
+    return;
+  }
+
   // If the reason for the emission of this diagnostic is not SYCL-specific,
   // and it is not known to be reachable from a routine on device, do not
   // issue a diagnostic.
@@ -4641,31 +4654,16 @@ void Sema::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
       !isFDReachableFromSyclDevice(Callee, Caller))
     return;
 
-  auto isUndefinedFunction = [&](const FunctionDecl *Callee) {
-    return !Callee->isDefined() && !Callee->getBuiltinID() &&
-           !Callee->isReplaceableGlobalAllocationFunction() &&
-           !isSYCLUndefinedAllowed(Callee, getSourceManager());
-  };
-  bool HasSYCLAttr =
-      Callee->hasAttr<SYCLDeviceAttr>() || Callee->hasAttr<SYCLKernelAttr>();
-
-  // Throw diagnostic if relocatable device code mode is disabled
-  // and an undefined function is called since compilation happens on a
-  // per-object file basis, so cross-object dependencies are not supported.
-  if (!getLangOpts().GPURelocatableDeviceCode && HasSYCLAttr &&
-      isUndefinedFunction(Callee) &&
-      !getSourceManager().isInSystemHeader(Callee->getLocation()))
-    Diag(Loc, diag::err_sycl_restrict)
-        << Sema::KernelCallExternalFunctionInNoRDCMode;
-
   // If Callee has a SYCL attribute, no diagnostic needed.
-  if (HasSYCLAttr)
+  if (Callee->hasAttr<SYCLDeviceAttr>() || Callee->hasAttr<SYCLKernelAttr>())
     return;
 
   // Diagnose if this is an undefined function and it is not a builtin.
   // Currently, there is an exception of "__failed_assertion" in libstdc++-11,
   // this undefined function is used to trigger a compiling error.
-  if (isUndefinedFunction(Callee)) {
+  if (!Callee->isDefined() && !Callee->getBuiltinID() &&
+      !Callee->isReplaceableGlobalAllocationFunction() &&
+      !isSYCLUndefinedAllowed(Callee, getSourceManager())) {
     Diag(Loc, diag::err_sycl_restrict) << Sema::KernelCallUndefinedFunction;
     Diag(Callee->getLocation(), diag::note_previous_decl) << Callee;
     Diag(Caller->getLocation(), diag::note_called_by) << Caller;

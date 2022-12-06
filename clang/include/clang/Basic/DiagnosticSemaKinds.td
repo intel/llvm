@@ -11787,11 +11787,13 @@ def err_sycl_restrict : Error<
   "|call an undefined function without SYCL_EXTERNAL attribute"
   "|use a const static or global variable that is neither zero-initialized "
   "nor constant-initialized"
-  "|use a SYCL_EXTERNAL function in a separate compilation unit without relocatable device code"
   "}0">;
 def err_sycl_external_global : Error<
   "invalid reference to 'device_global' variable; external 'device_global'"
   " variable must be marked with SYCL_EXTERNAL macro">;
+def err_sycl_external_no_rdc : Error<
+  "invalid declaration of SYCL_EXTERNAL function in non-relocatable "
+   "device code mode">;
 def warn_sycl_kernel_too_big_args : Warning<
   "size of kernel arguments (%0 bytes) may exceed the supported maximum "
   "of %1 bytes on some devices">, InGroup<SyclStrict>, ShowInSystemHeader;
