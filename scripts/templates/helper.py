@@ -491,7 +491,7 @@ Private:
 """
 def _remove_ptr(name, last=True):
     if last:
-        name = re.sub(r"(.*)\*$", r"\1", name) # removes only last '*'
+        name = re.sub(r"(.*)\*", r"\1", name) # removes only last '*'
     else:
         name = re.sub(r"\*", "", name) # removes all '*'
     return name
@@ -605,10 +605,15 @@ def get_ctype_name(namespace, tags, item):
     name = _remove_const(name)
     name = re.sub(r"void\*", "c_void_p", name)
     name = re.sub(r"char\*", "c_char_p", name)
+    name = re.sub(r"bool", "c_bool", name)
     name = re.sub(r"uint8_t", "c_ubyte", name)
     name = re.sub(r"uint16_t", "c_ushort", name)
     name = re.sub(r"uint32_t", "c_ulong", name)
     name = re.sub(r"uint64_t", "c_ulonglong", name)
+    name = re.sub(r"int8_t", "c_byte", name)
+    name = re.sub(r"int16_t", "c_short", name)
+    name = re.sub(r"int32_t", "c_long", name)
+    name = re.sub(r"int64_t", "c_longlong", name)
     name = re.sub(r"size_t", "c_size_t", name)
     name = re.sub(r"float", "c_float", name)
     name = re.sub(r"double", "c_double", name)
@@ -619,11 +624,10 @@ def get_ctype_name(namespace, tags, item):
         if not re.match(r"_void_", name): # its not c_void_p
             name = re.sub(r"void", "None", name)
 
-    if type_traits.is_pointer(name):
-        name = _remove_ptr(name)
-        name = "POINTER(%s)"%name
+    while type_traits.is_pointer(name):
+        name = "POINTER(%s)"%_remove_ptr(name)
 
-    elif 'name' in item and value_traits.is_array(item['name']):
+    if 'name' in item and value_traits.is_array(item['name']):
         length = subt(namespace, tags, value_traits.get_array_length(item['name']))
         name = "%s * %s"%(name, length)
 
