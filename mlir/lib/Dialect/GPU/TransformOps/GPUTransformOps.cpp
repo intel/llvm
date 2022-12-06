@@ -16,23 +16,12 @@
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Transform/IR/TransformDialect.h"
 #include "mlir/Dialect/Transform/IR/TransformInterfaces.h"
+#include "mlir/Dialect/Transform/IR/TransformUtils.h"
 #include "mlir/IR/BlockAndValueMapping.h"
-#include "mlir/IR/Diagnostics.h"
-#include "mlir/IR/Value.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 
 using namespace mlir;
 using namespace mlir::gpu;
 using namespace mlir::transform;
-
-namespace {
-/// A simple pattern rewriter that implements no special logic.
-class SimpleRewriter : public PatternRewriter {
-public:
-  SimpleRewriter(MLIRContext *context) : PatternRewriter(context) {}
-};
-} // namespace
 
 /// Check if given mapping attributes are one of the desired attributes
 static DiagnosedSilenceableFailure
@@ -103,12 +92,12 @@ checkGpuLimits(TransformOpInterface transformOp, Optional<int64_t> gridDimX,
 static DiagnosedSilenceableFailure
 createGpuLaunch(RewriterBase &rewriter, Location loc,
                 TransformOpInterface transformOp, LaunchOp &launchOp,
-                Optional<int64_t> gridDimX = llvm::None,
-                Optional<int64_t> gridDimY = llvm::None,
-                Optional<int64_t> gridDimZ = llvm::None,
-                Optional<int64_t> blockDimX = llvm::None,
-                Optional<int64_t> blockDimY = llvm::None,
-                Optional<int64_t> blockDimZ = llvm::None) {
+                Optional<int64_t> gridDimX = std::nullopt,
+                Optional<int64_t> gridDimY = std::nullopt,
+                Optional<int64_t> gridDimZ = std::nullopt,
+                Optional<int64_t> blockDimX = std::nullopt,
+                Optional<int64_t> blockDimY = std::nullopt,
+                Optional<int64_t> blockDimZ = std::nullopt) {
   DiagnosedSilenceableFailure diag =
       checkGpuLimits(transformOp, gridDimX, gridDimY, gridDimZ, blockDimX,
                      blockDimY, blockDimZ);
@@ -135,14 +124,14 @@ createGpuLaunch(RewriterBase &rewriter, Location loc,
 
 /// Alter kernel configuration of the given kernel.
 static DiagnosedSilenceableFailure
-alterGpuLaunch(SimpleRewriter &rewriter, LaunchOp gpuLaunch,
+alterGpuLaunch(TrivialPatternRewriter &rewriter, LaunchOp gpuLaunch,
                TransformOpInterface transformOp,
-               Optional<int64_t> gridDimX = llvm::None,
-               Optional<int64_t> gridDimY = llvm::None,
-               Optional<int64_t> gridDimZ = llvm::None,
-               Optional<int64_t> blockDimX = llvm::None,
-               Optional<int64_t> blockDimY = llvm::None,
-               Optional<int64_t> blockDimZ = llvm::None) {
+               Optional<int64_t> gridDimX = std::nullopt,
+               Optional<int64_t> gridDimY = std::nullopt,
+               Optional<int64_t> gridDimZ = std::nullopt,
+               Optional<int64_t> blockDimX = std::nullopt,
+               Optional<int64_t> blockDimY = std::nullopt,
+               Optional<int64_t> blockDimZ = std::nullopt) {
   DiagnosedSilenceableFailure diag =
       checkGpuLimits(transformOp, gridDimX, gridDimY, gridDimZ, blockDimX,
                      blockDimY, blockDimZ);
@@ -305,7 +294,7 @@ transform::MapForeachToBlocks::applyToOne(Operation *target,
                                           SmallVectorImpl<Operation *> &results,
                                           transform::TransformState &state) {
   LaunchOp gpuLaunch = dyn_cast<LaunchOp>(target);
-  SimpleRewriter rewriter(getContext());
+  TrivialPatternRewriter rewriter(getContext());
   auto transformOp = cast<TransformOpInterface>(getOperation());
 
   if (!getGenerateGpuLaunch() && !gpuLaunch) {
@@ -546,7 +535,7 @@ DiagnosedSilenceableFailure transform::MapNestedForeachToThreads::applyToOne(
   blockDim.resize(/*size=*/3, /*value=*/1);
 
   DiagnosedSilenceableFailure diag =
-      checkGpuLimits(transformOp, llvm::None, llvm::None, llvm::None,
+      checkGpuLimits(transformOp, std::nullopt, std::nullopt, std::nullopt,
                      blockDim[0], blockDim[1], blockDim[2]);
   if (diag.isSilenceableFailure()) {
     results.assign({target});
@@ -555,7 +544,7 @@ DiagnosedSilenceableFailure transform::MapNestedForeachToThreads::applyToOne(
   }
 
   MLIRContext *ctx = getContext();
-  SimpleRewriter rewriter(ctx);
+  TrivialPatternRewriter rewriter(ctx);
   rewriter.setInsertionPoint(target);
 
   SmallVector<DeviceMappingAttrInterface> threadMappingAttributes = {
@@ -568,9 +557,9 @@ DiagnosedSilenceableFailure transform::MapNestedForeachToThreads::applyToOne(
       threadMappingAttributes);
 
   if (diag.succeeded()) {
-    diag =
-        alterGpuLaunch(rewriter, gpuLaunch, transformOp, llvm::None, llvm::None,
-                       llvm::None, blockDim[0], blockDim[1], blockDim[2]);
+    diag = alterGpuLaunch(rewriter, gpuLaunch, transformOp, std::nullopt,
+                          std::nullopt, std::nullopt, blockDim[0], blockDim[1],
+                          blockDim[2]);
   }
 
   results.assign({gpuLaunch});

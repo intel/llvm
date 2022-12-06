@@ -381,7 +381,8 @@ static bool shouldPinPassToLegacyPM(StringRef Pass) {
       "dot-regions",          "dot-regions-only",
       "view-regions",         "view-regions-only",
       "select-optimize",      "expand-large-div-rem",
-      "structurizecfg",       "fix-irreducible"};
+      "structurizecfg",       "fix-irreducible",
+      "expand-large-fp-convert"};
   for (const auto &P : PassNamePrefix)
     if (Pass.startswith(P))
       return true;
@@ -428,6 +429,7 @@ int main(int argc, char **argv) {
   // For codegen passes, only passes that do IR to IR transformation are
   // supported.
   initializeExpandLargeDivRemLegacyPassPass(Registry);
+  initializeExpandLargeFpConvertLegacyPassPass(Registry);
   initializeExpandMemCmpPassPass(Registry);
   initializeScalarizeMaskedMemIntrinLegacyPassPass(Registry);
   initializeSelectOptimizePass(Registry);
@@ -524,7 +526,7 @@ int main(int argc, char **argv) {
   // Load the input module...
   auto SetDataLayout = [](StringRef) -> Optional<std::string> {
     if (ClDataLayout.empty())
-      return None;
+      return std::nullopt;
     return ClDataLayout;
   };
   std::unique_ptr<Module> M;

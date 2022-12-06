@@ -185,7 +185,7 @@ void DbgVariableIntrinsic::addVariableLocationOps(ArrayRef<Value *> NewValues,
       0, MetadataAsValue::get(getContext(), DIArgList::get(getContext(), MDs)));
 }
 
-Optional<uint64_t> DbgVariableIntrinsic::getFragmentSizeInBits() const {
+std::optional<uint64_t> DbgVariableIntrinsic::getFragmentSizeInBits() const {
   if (auto Fragment = getExpression()->getFragmentInfo())
     return Fragment->SizeInBits;
   return getVariable()->getSizeInBits();
@@ -275,18 +275,18 @@ Value *InstrProfIncrementInst::getStep() const {
   return ConstantInt::get(Type::getInt64Ty(Context), 1);
 }
 
-Optional<RoundingMode> ConstrainedFPIntrinsic::getRoundingMode() const {
+std::optional<RoundingMode> ConstrainedFPIntrinsic::getRoundingMode() const {
   unsigned NumOperands = arg_size();
   Metadata *MD = nullptr;
   auto *MAV = dyn_cast<MetadataAsValue>(getArgOperand(NumOperands - 2));
   if (MAV)
     MD = MAV->getMetadata();
   if (!MD || !isa<MDString>(MD))
-    return None;
+    return std::nullopt;
   return convertStrToRoundingMode(cast<MDString>(MD)->getString());
 }
 
-Optional<fp::ExceptionBehavior>
+std::optional<fp::ExceptionBehavior>
 ConstrainedFPIntrinsic::getExceptionBehavior() const {
   unsigned NumOperands = arg_size();
   Metadata *MD = nullptr;
@@ -294,18 +294,18 @@ ConstrainedFPIntrinsic::getExceptionBehavior() const {
   if (MAV)
     MD = MAV->getMetadata();
   if (!MD || !isa<MDString>(MD))
-    return None;
+    return std::nullopt;
   return convertStrToExceptionBehavior(cast<MDString>(MD)->getString());
 }
 
 bool ConstrainedFPIntrinsic::isDefaultFPEnvironment() const {
-  Optional<fp::ExceptionBehavior> Except = getExceptionBehavior();
+  std::optional<fp::ExceptionBehavior> Except = getExceptionBehavior();
   if (Except) {
     if (Except.value() != fp::ebIgnore)
       return false;
   }
 
-  Optional<RoundingMode> Rounding = getRoundingMode();
+  std::optional<RoundingMode> Rounding = getRoundingMode();
   if (Rounding) {
     if (Rounding.value() != RoundingMode::NearestTiesToEven)
       return false;
@@ -415,7 +415,7 @@ void VPIntrinsic::setVectorLengthParam(Value *NewEVL) {
 Optional<unsigned> VPIntrinsic::getMaskParamPos(Intrinsic::ID IntrinsicID) {
   switch (IntrinsicID) {
   default:
-    return None;
+    return std::nullopt;
 
 #define BEGIN_REGISTER_VP_INTRINSIC(VPID, MASKPOS, VLENPOS)                    \
   case Intrinsic::VPID:                                                        \
@@ -428,7 +428,7 @@ Optional<unsigned>
 VPIntrinsic::getVectorLengthParamPos(Intrinsic::ID IntrinsicID) {
   switch (IntrinsicID) {
   default:
-    return None;
+    return std::nullopt;
 
 #define BEGIN_REGISTER_VP_INTRINSIC(VPID, MASKPOS, VLENPOS)                    \
   case Intrinsic::VPID:                                                        \
@@ -461,7 +461,7 @@ Optional<unsigned> VPIntrinsic::getMemoryPointerParamPos(Intrinsic::ID VPID) {
 #define END_REGISTER_VP_INTRINSIC(VPID) break;
 #include "llvm/IR/VPIntrinsics.def"
   }
-  return None;
+  return std::nullopt;
 }
 
 /// \return The data (payload) operand of this store or scatter.
@@ -481,7 +481,7 @@ Optional<unsigned> VPIntrinsic::getMemoryDataParamPos(Intrinsic::ID VPID) {
 #define END_REGISTER_VP_INTRINSIC(VPID) break;
 #include "llvm/IR/VPIntrinsics.def"
   }
-  return None;
+  return std::nullopt;
 }
 
 bool VPIntrinsic::isVPIntrinsic(Intrinsic::ID ID) {
@@ -506,7 +506,7 @@ Optional<unsigned> VPIntrinsic::getFunctionalOpcodeForVP(Intrinsic::ID ID) {
 #define END_REGISTER_VP_INTRINSIC(VPID) break;
 #include "llvm/IR/VPIntrinsics.def"
   }
-  return None;
+  return std::nullopt;
 }
 
 Intrinsic::ID VPIntrinsic::getForOpcode(unsigned IROPC) {
@@ -717,7 +717,7 @@ Optional<unsigned> VPReductionIntrinsic::getVectorParamPos(Intrinsic::ID ID) {
   default:
     break;
   }
-  return None;
+  return std::nullopt;
 }
 
 Optional<unsigned> VPReductionIntrinsic::getStartParamPos(Intrinsic::ID ID) {
@@ -729,7 +729,7 @@ Optional<unsigned> VPReductionIntrinsic::getStartParamPos(Intrinsic::ID ID) {
   default:
     break;
   }
-  return None;
+  return std::nullopt;
 }
 
 Instruction::BinaryOps BinaryOpIntrinsic::getBinaryOp() const {

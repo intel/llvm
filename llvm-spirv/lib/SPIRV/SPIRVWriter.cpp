@@ -4122,18 +4122,26 @@ SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
       auto *FormatStrPtr = cast<PointerType>(CI->getArgOperand(0)->getType());
       if (FormatStrPtr->getAddressSpace() !=
           SPIR::TypeAttributeEnum::ATTR_CONST) {
-        if (!BM->isAllowedToUseExtension(
-                ExtensionID::SPV_INTEL_non_constant_addrspace_printf)) {
+        if (BM->isAllowedToUseExtension(
+                ExtensionID::SPV_EXT_relaxed_printf_string_address_space)) {
+          BM->addExtension(
+              ExtensionID::SPV_EXT_relaxed_printf_string_address_space);
+        } else if (BM->isAllowedToUseExtension(
+                       ExtensionID::SPV_INTEL_non_constant_addrspace_printf)) {
+          BM->addExtension(
+              ExtensionID::SPV_INTEL_non_constant_addrspace_printf);
+          BM->addCapability(
+              internal::CapabilityNonConstantAddrspacePrintfINTEL);
+        } else {
           std::string ErrorStr =
-              "The SPV_INTEL_non_constant_addrspace_printf extension should be "
+              "Either SPV_EXT_relaxed_printf_string_address_space or "
+              "SPV_INTEL_non_constant_addrspace_printf extension should be "
               "allowed to translate this module, because this LLVM module "
               "contains the printf function with format string, whose address "
               "space is not equal to 2 (constant).";
           getErrorLog().checkError(false, SPIRVEC_RequiresExtension, CI,
                                    ErrorStr);
         }
-        BM->addExtension(ExtensionID::SPV_INTEL_non_constant_addrspace_printf);
-        BM->addCapability(internal::CapabilityNonConstantAddrspacePrintfINTEL);
       }
     }
 
