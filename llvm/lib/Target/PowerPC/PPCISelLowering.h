@@ -29,6 +29,7 @@
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Type.h"
 #include "llvm/Support/MachineValueType.h"
+#include <optional>
 #include <utility>
 
 namespace llvm {
@@ -854,7 +855,7 @@ namespace llvm {
     /// Returns false if it can be represented by [r+imm], which are preferred.
     bool SelectAddressRegReg(SDValue N, SDValue &Base, SDValue &Index,
                              SelectionDAG &DAG,
-                             MaybeAlign EncodingAlignment = None) const;
+                             MaybeAlign EncodingAlignment = std::nullopt) const;
 
     /// SelectAddressRegImm - Returns true if the address N can be represented
     /// by a base register plus a signed 16-bit displacement [r+imm], and if it
@@ -1162,10 +1163,10 @@ namespace llvm {
     PPC::AddrMode SelectForceXFormMode(SDValue N, SDValue &Disp, SDValue &Base,
                                        SelectionDAG &DAG) const;
 
-    bool
-    splitValueIntoRegisterParts(SelectionDAG &DAG, const SDLoc &DL, SDValue Val,
-                                SDValue *Parts, unsigned NumParts, MVT PartVT,
-                                Optional<CallingConv::ID> CC) const override;
+    bool splitValueIntoRegisterParts(
+        SelectionDAG & DAG, const SDLoc &DL, SDValue Val, SDValue *Parts,
+        unsigned NumParts, MVT PartVT, std::optional<CallingConv::ID> CC)
+        const override;
     /// Structure that collects some common arguments that get passed around
     /// between the functions for call lowering.
     struct CallFlags {

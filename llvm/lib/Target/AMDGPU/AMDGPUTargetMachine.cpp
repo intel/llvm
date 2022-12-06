@@ -59,6 +59,7 @@
 #include "llvm/Transforms/Utils.h"
 #include "llvm/Transforms/Utils/SimplifyLibCalls.h"
 #include "llvm/Transforms/Vectorize.h"
+#include <optional>
 
 using namespace llvm;
 using namespace llvm::PatternMatch;
@@ -527,7 +528,7 @@ static StringRef getGPUOrDefault(const Triple &TT, StringRef GPU) {
   return "r600";
 }
 
-static Reloc::Model getEffectiveRelocModel(Optional<Reloc::Model> RM) {
+static Reloc::Model getEffectiveRelocModel(std::optional<Reloc::Model> RM) {
   // The AMDGPU toolchain only supports generating shared objects, so we
   // must always use PIC.
   return Reloc::PIC_;
@@ -536,8 +537,8 @@ static Reloc::Model getEffectiveRelocModel(Optional<Reloc::Model> RM) {
 AMDGPUTargetMachine::AMDGPUTargetMachine(const Target &T, const Triple &TT,
                                          StringRef CPU, StringRef FS,
                                          TargetOptions Options,
-                                         Optional<Reloc::Model> RM,
-                                         Optional<CodeModel::Model> CM,
+                                         std::optional<Reloc::Model> RM,
+                                         std::optional<CodeModel::Model> CM,
                                          CodeGenOpt::Level OptLevel)
     : LLVMTargetMachine(T, computeDataLayout(TT), TT, getGPUOrDefault(TT, CPU),
                         FS, Options, getEffectiveRelocModel(RM),
@@ -805,7 +806,6 @@ AMDGPUTargetMachine::getAddressSpaceForPseudoSourceKind(unsigned Kind) const {
   case PseudoSourceValue::JumpTable:
   case PseudoSourceValue::GlobalValueCallEntry:
   case PseudoSourceValue::ExternalSymbolCallEntry:
-  case PseudoSourceValue::TargetCustom:
     return AMDGPUAS::CONSTANT_ADDRESS;
   }
   return AMDGPUAS::FLAT_ADDRESS;
@@ -818,8 +818,8 @@ AMDGPUTargetMachine::getAddressSpaceForPseudoSourceKind(unsigned Kind) const {
 GCNTargetMachine::GCNTargetMachine(const Target &T, const Triple &TT,
                                    StringRef CPU, StringRef FS,
                                    TargetOptions Options,
-                                   Optional<Reloc::Model> RM,
-                                   Optional<CodeModel::Model> CM,
+                                   std::optional<Reloc::Model> RM,
+                                   std::optional<CodeModel::Model> CM,
                                    CodeGenOpt::Level OL, bool JIT)
     : AMDGPUTargetMachine(T, TT, CPU, FS, Options, RM, CM, OL) {}
 
@@ -1475,7 +1475,7 @@ bool GCNTargetMachine::parseMachineFunctionInfo(
     Error = SMDiagnostic(*PFS.SM, SMLoc(), Buffer.getBufferIdentifier(), 1,
                          RegName.Value.size(), SourceMgr::DK_Error,
                          "incorrect register class for field", RegName.Value,
-                         None, None);
+                         std::nullopt, std::nullopt);
     SourceRange = RegName.SourceRange;
     return true;
   };
