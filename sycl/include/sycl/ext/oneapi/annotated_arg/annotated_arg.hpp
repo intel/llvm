@@ -25,27 +25,6 @@
       Op " is not supported on host device.");
 #endif
 
-#ifdef __SYCL_DEVICE_ONLY__
-#define __OPENCL_GLOBAL_AS__ __attribute__((opencl_global))
-#ifdef __ENABLE_USM_ADDR_SPACE__
-#define __OPENCL_GLOBAL_DEVICE_AS__ __attribute__((opencl_global_device))
-#define __OPENCL_GLOBAL_HOST_AS__ __attribute__((opencl_global_host))
-#else
-#define __OPENCL_GLOBAL_DEVICE_AS__ __attribute__((opencl_global))
-#define __OPENCL_GLOBAL_HOST_AS__ __attribute__((opencl_global))
-#endif // __ENABLE_USM_ADDR_SPACE__
-#define __OPENCL_LOCAL_AS__ __attribute__((opencl_local))
-#define __OPENCL_CONSTANT_AS__ __attribute__((opencl_constant))
-#define __OPENCL_PRIVATE_AS__ __attribute__((opencl_private))
-#else
-#define __OPENCL_GLOBAL_AS__
-#define __OPENCL_GLOBAL_DEVICE_AS__
-#define __OPENCL_GLOBAL_HOST_AS__
-#define __OPENCL_LOCAL_AS__
-#define __OPENCL_CONSTANT_AS__
-#define __OPENCL_PRIVATE_AS__
-#endif
-
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
