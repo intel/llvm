@@ -30,77 +30,71 @@ namespace math {
 // Need to ensure that sycl bfloat16 defined in bfloat16.hpp is compatible
 // with uint16_t in layout.
 #if __cplusplus >= 201703L
-static_assert(sizeof(sycl::ext::oneapi::experimental::bfloat16) ==
-                  sizeof(uint16_t),
+static_assert(sizeof(sycl::ext::oneapi::bfloat16) == sizeof(uint16_t),
               "sycl bfloat16 is not compatible with uint16_t.");
 
-float bfloat162float(sycl::ext::oneapi::experimental::bfloat16 b) {
+float bfloat162float(sycl::ext::oneapi::bfloat16 b) {
   return __imf_bfloat162float(__builtin_bit_cast(uint16_t, b));
 }
 
-sycl::ext::oneapi::experimental::bfloat16 float2bfloat16(float f) {
-  return __builtin_bit_cast(sycl::ext::oneapi::experimental::bfloat16,
+sycl::ext::oneapi::bfloat16 float2bfloat16(float f) {
+  return __builtin_bit_cast(sycl::ext::oneapi::bfloat16,
                             __imf_float2bfloat16(f));
 }
 
-sycl::ext::oneapi::experimental::bfloat16 float2bfloat16_rd(float f) {
-  return __builtin_bit_cast(sycl::ext::oneapi::experimental::bfloat16,
+sycl::ext::oneapi::bfloat16 float2bfloat16_rd(float f) {
+  return __builtin_bit_cast(sycl::ext::oneapi::bfloat16,
                             __imf_float2bfloat16_rd(f));
 }
 
-sycl::ext::oneapi::experimental::bfloat16 float2bfloat16_rn(float f) {
-  return __builtin_bit_cast(sycl::ext::oneapi::experimental::bfloat16,
+sycl::ext::oneapi::bfloat16 float2bfloat16_rn(float f) {
+  return __builtin_bit_cast(sycl::ext::oneapi::bfloat16,
                             __imf_float2bfloat16_rn(f));
 }
 
-sycl::ext::oneapi::experimental::bfloat16 float2bfloat16_ru(float f) {
-  return __builtin_bit_cast(sycl::ext::oneapi::experimental::bfloat16,
+sycl::ext::oneapi::bfloat16 float2bfloat16_ru(float f) {
+  return __builtin_bit_cast(sycl::ext::oneapi::bfloat16,
                             __imf_float2bfloat16_ru(f));
 }
 
-sycl::ext::oneapi::experimental::bfloat16 float2bfloat16_rz(float f) {
-  return __builtin_bit_cast(sycl::ext::oneapi::experimental::bfloat16,
+sycl::ext::oneapi::bfloat16 float2bfloat16_rz(float f) {
+  return __builtin_bit_cast(sycl::ext::oneapi::bfloat16,
                             __imf_float2bfloat16_rz(f));
 }
 
-bool hisnan(sycl::ext::oneapi::experimental::bfloat16 b) {
+bool hisnan(sycl::ext::oneapi::bfloat16 b) {
   return sycl::isnan(bfloat162float(b));
 }
 
-bool hisinf(sycl::ext::oneapi::experimental::bfloat16 b) {
+bool hisinf(sycl::ext::oneapi::bfloat16 b) {
   return sycl::isinf(bfloat162float(b));
 }
 
-bool heq(sycl::ext::oneapi::experimental::bfloat16 b1,
-         sycl::ext::oneapi::experimental::bfloat16 b2) {
+bool heq(sycl::ext::oneapi::bfloat16 b1, sycl::ext::oneapi::bfloat16 b2) {
   if (hisnan(b1) || hisnan(b2))
     return false;
   return __builtin_bit_cast(uint16_t, b1) == __builtin_bit_cast(uint16_t, b2);
 }
 
-bool hequ(sycl::ext::oneapi::experimental::bfloat16 b1,
-          sycl::ext::oneapi::experimental::bfloat16 b2) {
+bool hequ(sycl::ext::oneapi::bfloat16 b1, sycl::ext::oneapi::bfloat16 b2) {
   if (hisnan(b1) || hisnan(b1))
     return true;
   return __builtin_bit_cast(uint16_t, b1) == __builtin_bit_cast(uint16_t, b2);
 }
 
-bool hne(sycl::ext::oneapi::experimental::bfloat16 b1,
-         sycl::ext::oneapi::experimental::bfloat16 b2) {
+bool hne(sycl::ext::oneapi::bfloat16 b1, sycl::ext::oneapi::bfloat16 b2) {
   if (hisnan(b1) || hisnan(b2))
     return false;
   return __builtin_bit_cast(uint16_t, b1) != __builtin_bit_cast(uint16_t, b2);
 }
 
-bool hneu(sycl::ext::oneapi::experimental::bfloat16 b1,
-          sycl::ext::oneapi::experimental::bfloat16 b2) {
+bool hneu(sycl::ext::oneapi::bfloat16 b1, sycl::ext::oneapi::bfloat16 b2) {
   if (hisnan(b1) || hisnan(b2))
     return true;
   return __builtin_bit_cast(uint16_t, b1) != __builtin_bit_cast(uint16_t, b2);
 }
 
-bool hge(sycl::ext::oneapi::experimental::bfloat16 b1,
-         sycl::ext::oneapi::experimental::bfloat16 b2) {
+bool hge(sycl::ext::oneapi::bfloat16 b1, sycl::ext::oneapi::bfloat16 b2) {
   if (hisnan(b1) || hisnan(b2))
     return false;
   float bf1 = bfloat162float(b1);
@@ -108,8 +102,7 @@ bool hge(sycl::ext::oneapi::experimental::bfloat16 b1,
   return (bf1 >= bf2);
 }
 
-bool hgeu(sycl::ext::oneapi::experimental::bfloat16 b1,
-          sycl::ext::oneapi::experimental::bfloat16 b2) {
+bool hgeu(sycl::ext::oneapi::bfloat16 b1, sycl::ext::oneapi::bfloat16 b2) {
   if (hisnan(b1) || hisnan(b2))
     return true;
   float bf1 = bfloat162float(b1);
@@ -117,8 +110,7 @@ bool hgeu(sycl::ext::oneapi::experimental::bfloat16 b1,
   return (bf1 >= bf2);
 }
 
-bool hgt(sycl::ext::oneapi::experimental::bfloat16 b1,
-         sycl::ext::oneapi::experimental::bfloat16 b2) {
+bool hgt(sycl::ext::oneapi::bfloat16 b1, sycl::ext::oneapi::bfloat16 b2) {
   if (hisnan(b1) || hisnan(b2))
     return false;
   float bf1 = bfloat162float(b1);
@@ -126,8 +118,7 @@ bool hgt(sycl::ext::oneapi::experimental::bfloat16 b1,
   return (bf1 > bf2);
 }
 
-bool hgtu(sycl::ext::oneapi::experimental::bfloat16 b1,
-          sycl::ext::oneapi::experimental::bfloat16 b2) {
+bool hgtu(sycl::ext::oneapi::bfloat16 b1, sycl::ext::oneapi::bfloat16 b2) {
   if (hisnan(b1) || hisnan(b2))
     return true;
   float bf1 = bfloat162float(b1);
@@ -135,8 +126,7 @@ bool hgtu(sycl::ext::oneapi::experimental::bfloat16 b1,
   return (bf1 > bf2);
 }
 
-bool hle(sycl::ext::oneapi::experimental::bfloat16 b1,
-         sycl::ext::oneapi::experimental::bfloat16 b2) {
+bool hle(sycl::ext::oneapi::bfloat16 b1, sycl::ext::oneapi::bfloat16 b2) {
   if (hisnan(b1) || hisnan(b2))
     return false;
   float bf1 = bfloat162float(b1);
@@ -144,8 +134,7 @@ bool hle(sycl::ext::oneapi::experimental::bfloat16 b1,
   return (bf1 <= bf2);
 }
 
-bool hleu(sycl::ext::oneapi::experimental::bfloat16 b1,
-          sycl::ext::oneapi::experimental::bfloat16 b2) {
+bool hleu(sycl::ext::oneapi::bfloat16 b1, sycl::ext::oneapi::bfloat16 b2) {
   if (hisnan(b1) || hisnan(b2))
     return true;
   float bf1 = bfloat162float(b1);
@@ -153,8 +142,7 @@ bool hleu(sycl::ext::oneapi::experimental::bfloat16 b1,
   return (bf1 <= bf2);
 }
 
-bool hlt(sycl::ext::oneapi::experimental::bfloat16 b1,
-         sycl::ext::oneapi::experimental::bfloat16 b2) {
+bool hlt(sycl::ext::oneapi::bfloat16 b1, sycl::ext::oneapi::bfloat16 b2) {
   if (hisnan(b1) || hisnan(b2))
     return false;
   float bf1 = bfloat162float(b1);
@@ -162,8 +150,7 @@ bool hlt(sycl::ext::oneapi::experimental::bfloat16 b1,
   return (bf1 < bf2);
 }
 
-bool hltu(sycl::ext::oneapi::experimental::bfloat16 b1,
-          sycl::ext::oneapi::experimental::bfloat16 b2) {
+bool hltu(sycl::ext::oneapi::bfloat16 b1, sycl::ext::oneapi::bfloat16 b2) {
   if (hisnan(b1) || hisnan(b2))
     return true;
   float bf1 = bfloat162float(b1);
@@ -171,75 +158,67 @@ bool hltu(sycl::ext::oneapi::experimental::bfloat16 b1,
   return (bf1 < bf2);
 }
 
-sycl::ext::oneapi::experimental::bfloat16
-hmax(sycl::ext::oneapi::experimental::bfloat16 b1,
-     sycl::ext::oneapi::experimental::bfloat16 b2) {
+sycl::ext::oneapi::bfloat16 hmax(sycl::ext::oneapi::bfloat16 b1,
+                                 sycl::ext::oneapi::bfloat16 b2) {
   uint16_t canonical_nan = 0x7FC0;
   uint16_t b1a = __builtin_bit_cast(uint16_t, b1);
   uint16_t b2a = __builtin_bit_cast(uint16_t, b2);
   if (hisnan(b1) && hisnan(b2))
-    return __builtin_bit_cast(sycl::ext::oneapi::experimental::bfloat16,
-                              canonical_nan);
+    return __builtin_bit_cast(sycl::ext::oneapi::bfloat16, canonical_nan);
   if (hisnan(b1))
     return b2;
   else if (hisnan(b2))
     return b1;
   else if (((b1a | b2a) == 0x8000) && ((b1a & b2a) == 0x0))
-    return __builtin_bit_cast(sycl::ext::oneapi::experimental::bfloat16,
+    return __builtin_bit_cast(sycl::ext::oneapi::bfloat16,
                               static_cast<uint16_t>(0x0));
   else {
     return (hgt(b1, b2) ? b1 : b2);
   }
 }
 
-sycl::ext::oneapi::experimental::bfloat16
-hmax_nan(sycl::ext::oneapi::experimental::bfloat16 b1,
-         sycl::ext::oneapi::experimental::bfloat16 b2) {
+sycl::ext::oneapi::bfloat16 hmax_nan(sycl::ext::oneapi::bfloat16 b1,
+                                     sycl::ext::oneapi::bfloat16 b2) {
   uint16_t canonical_nan = 0x7FC0;
   uint16_t b1a = __builtin_bit_cast(uint16_t, b1);
   uint16_t b2a = __builtin_bit_cast(uint16_t, b2);
   if (hisnan(b1) || hisnan(b2))
-    return __builtin_bit_cast(sycl::ext::oneapi::experimental::bfloat16,
-                              canonical_nan);
+    return __builtin_bit_cast(sycl::ext::oneapi::bfloat16, canonical_nan);
   else if (((b1a | b2a) == 0x8000) && ((b1a & b2a) == 0x0))
-    return __builtin_bit_cast(sycl::ext::oneapi::experimental::bfloat16,
+    return __builtin_bit_cast(sycl::ext::oneapi::bfloat16,
                               static_cast<uint16_t>(0x0));
   else
     return (hgt(b1, b2) ? b1 : b2);
 }
 
-sycl::ext::oneapi::experimental::bfloat16
-hmin(sycl::ext::oneapi::experimental::bfloat16 b1,
-     sycl::ext::oneapi::experimental::bfloat16 b2) {
+sycl::ext::oneapi::bfloat16 hmin(sycl::ext::oneapi::bfloat16 b1,
+                                 sycl::ext::oneapi::bfloat16 b2) {
   uint16_t canonical_nan = 0x7FC0;
   uint16_t b1a = __builtin_bit_cast(uint16_t, b1);
   uint16_t b2a = __builtin_bit_cast(uint16_t, b2);
   if (hisnan(b1) && hisnan(b2))
-    return __builtin_bit_cast(sycl::ext::oneapi::experimental::bfloat16,
-                              canonical_nan);
+    return __builtin_bit_cast(sycl::ext::oneapi::bfloat16, canonical_nan);
   if (hisnan(b1))
     return b2;
   else if (hisnan(b2))
     return b1;
   else if (((b1a | b2a) == 0x8000) && ((b1a & b2a) == 0x0))
-    return __builtin_bit_cast(sycl::ext::oneapi::experimental::bfloat16,
+    return __builtin_bit_cast(sycl::ext::oneapi::bfloat16,
                               static_cast<uint16_t>(0x8000));
   else {
     return (hlt(b1, b2) ? b1 : b2);
   }
 }
 
-sycl::ext::oneapi::experimental::bfloat16
-hmin_nan(sycl::ext::oneapi::experimental::bfloat16 b1,
-         sycl::ext::oneapi::experimental::bfloat16 b2) {
+sycl::ext::oneapi::bfloat16 hmin_nan(sycl::ext::oneapi::bfloat16 b1,
+                                     sycl::ext::oneapi::bfloat16 b2) {
   uint16_t canonical_nan = 0x7FC0;
   uint16_t b1a = __builtin_bit_cast(uint16_t, b1);
   uint16_t b2a = __builtin_bit_cast(uint16_t, b2);
   if (hisnan(b1) || hisnan(b2))
-    return __builtin_bit_cast(sycl::ext::oneapi::experimental::bfloat16,
-                              canonical_nan);
+    return __builtin_bit_cast(sycl::ext::oneapi::bfloat16, canonical_nan);
   else if (((b1a | b2a) == 0x8000) && ((b1a & b2a) == 0x0))
-    return __builtin_bit_cast(sycl::ext::oneapi::experimental::bfloat16,
+    return __builtin_bit_cast(sycl::ext::oneapi::bfloat16,
                               static_cast<uint16_t>(0x8000));
   else
     return (hlt(b1, b2) ? b1 : b2);
