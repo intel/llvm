@@ -17,11 +17,6 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
-// Type traits identical to those in std in newer versions. Can be removed when
-// SYCL requires a newer version of the C++ standard.
-// C++14
-template <typename T> using add_pointer_t = typename std::add_pointer<T>::type;
-
 // C++17
 template <bool V> using bool_constant = std::integral_constant<bool, V>;
 
