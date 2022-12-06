@@ -9,7 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <sycl/ext/oneapi/experimental/bfloat16.hpp>
+#include <sycl/ext/oneapi/bfloat16.hpp>
 #include <type_traits>
 
 extern "C" {
