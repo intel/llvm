@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -DUSE_OPENCL %s
-// RUN: %clangxx -fsycl -DUSE_L0 %s
+// RUN: %clangxx %fsycl-host-only -DUSE_L0 %s
 // RUN: %clangxx -fsycl -DUSE_CUDA %s
 // RUN: %clangxx -fsycl -DUSE_HIP %s
 // RUN: %clangxx -fsycl -DUSE_CUDA_EXPERIMENTAL %s
