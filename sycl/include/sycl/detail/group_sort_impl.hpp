@@ -319,7 +319,7 @@ template <typename ValT, typename Enabled = void> struct Ordered {};
 // for unsigned integrals we use the same type
 template <typename ValT>
 struct Ordered<ValT, std::enable_if_t<std::is_integral<ValT>::value &&
-                                    std::is_unsigned<ValT>::value>> {
+                                      std::is_unsigned<ValT>::value>> {
   using Type = ValT;
 };
 
@@ -393,8 +393,7 @@ template <> struct InvertIf<true> {
 
 // get bit values in a certain bucket of a value
 template <std::uint32_t radix_bits, bool is_comp_asc, typename ValT>
-std::uint32_t
-getBucketValue(ValT value, std::uint32_t radix_iter) {
+std::uint32_t getBucketValue(ValT value, std::uint32_t radix_iter) {
   // invert value if we need to sort in descending order
   value = InvertIf<!is_comp_asc>{}(value);
 
@@ -514,7 +513,7 @@ void performRadixIterDynamicSize(GroupT group,
     if (val_idx < n) {
       keys_output[new_offset_idx] = keys_input[val_idx];
       ValuesAssigner<is_key_value_sort>()(vals_output, new_offset_idx,
-                                           vals_input, val_idx);
+                                          vals_input, val_idx);
     }
   }
 }
@@ -641,8 +640,8 @@ template <bool is_key_value_sort, bool is_blocked,
           std::size_t items_per_work_item = 1, uint32_t radix_bits = 4,
           typename Group, typename T, typename U, typename Compare>
 void privateMemorySort(Group group, T *keys, U *values, Compare comp,
-                         std::byte *scratch, const uint32_t first_bit,
-                         const uint32_t last_bit) {
+                       std::byte *scratch, const uint32_t first_bit,
+                       const uint32_t last_bit) {
   (void)comp;
   constexpr bool is_comp_asc =
       IsCompAscending<typename std::decay<Compare>::type>::value;

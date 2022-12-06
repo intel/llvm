@@ -108,7 +108,6 @@ template <typename T> struct ConvertToComp<T, sorting_order::descending> {
 };
 } // namespace detail
 
-
 template <typename ValT, sorting_order OrderT = sorting_order::ascending,
           unsigned int BitsPerPass = 4>
 class radix_sorter {
@@ -146,8 +145,7 @@ public:
     (void)first;
     (void)last;
 #ifdef __SYCL_DEVICE_ONLY__
-    sycl::detail::privateSort</*is_key_value=*/false, /*empty*/ 1,
-                               BitsPerPass>(
+    sycl::detail::privateSort</*is_key_value=*/false, /*empty*/ 1, BitsPerPass>(
         g, first, /*empty*/ first, (last - first) > 0 ? (last - first) : 0,
         typename detail::ConvertToComp<ValT, OrderT>::Type{}, scratch,
         first_bit, last_bit);
@@ -160,8 +158,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     ValT result[]{val};
     sycl::detail::privateMemorySort</*is_key_value=*/false,
-                                      /*is_blocked=*/true,
-                                      /*items_per_work_item=*/1, bits>(
+                                    /*is_blocked=*/true,
+                                    /*items_per_work_item=*/1, bits>(
         g, result, /*empty*/ result,
         typename detail::ConvertToComp<ValT, OrderT>::Type{}, scratch,
         first_bit, last_bit);
