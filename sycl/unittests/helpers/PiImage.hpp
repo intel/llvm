@@ -157,6 +157,9 @@ private:
   bool MEntriesNeedUpdate = false;
 };
 
+// PiArray CTAD to avoid warnings.
+template <typename T> PiArray(std::initializer_list<T>) -> PiArray<T>;
+
 /// Convenience wrapper for pi_device_binary_property_set.
 class PiPropertySet {
 public:
