@@ -296,4 +296,5 @@ q.single_task(KernelFunctor{a, b, c}).wait();
 |========================================
 |Rev|Date|Author|Changes
 |1|2022-03-01|Abhishek Tiwari|*Initial public working draft*
+|2|2022-12-05|Abhishek Tiwari|*Make pipelined property parameter a signed int*
 |========================================
