@@ -196,7 +196,6 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
           CGT.getModule()->getContext(), CurDim, Body);
     }
     case TypeEnum::Array: {
-      llvm::dbgs() << "at line " << __LINE__ << "\n";
       const auto Dim =
           CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
       return mlir::sycl::ArrayType::get(CGT.getModule()->getContext(), Dim,
