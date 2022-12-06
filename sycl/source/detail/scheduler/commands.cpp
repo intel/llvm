@@ -821,7 +821,8 @@ const char *Command::getBlockReason() const {
     return "A Buffer is locked by the host accessor";
   case BlockReason::HostTask:
     return "Blocked by host task";
-
+  case BlockReason::EnqueueFailed:
+    return "Failed to enqueue a preceding command";
   default:
     return "Unknown block reason";
   }
