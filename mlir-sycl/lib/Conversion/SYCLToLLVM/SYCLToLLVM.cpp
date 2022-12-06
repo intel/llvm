@@ -189,7 +189,7 @@ static Optional<Type> convertItemBaseType(sycl::ItemBaseType type,
 static Optional<Type>
 convertLocalAccessorBaseDeviceType(sycl::LocalAccessorBaseDeviceType type,
                                    LLVMTypeConverter &converter) {
-  return convertBodyType("class.sycl::_V1::details::LocalAccessorBaseDevice" +
+  return convertBodyType("class.sycl::_V1::detail::LocalAccessorBaseDevice" +
                              std::to_string(type.getDimension()),
                          type.getBody(), converter);
 }
