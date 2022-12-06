@@ -52,7 +52,7 @@ public:
 // is_contained
 template <typename T, typename TypeList>
 struct is_contained
-    : conditional_t<std::is_same<remove_cv_t<T>, head_t<TypeList>>::value,
+    : conditional_t<std::is_same<std::remove_cv_t<T>, head_t<TypeList>>::value,
                     std::true_type, is_contained<T, tail_t<TypeList>>> {};
 
 template <typename T>
