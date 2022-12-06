@@ -13,11 +13,13 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
+#include <sycl/detail/owner_less_base.hpp>
 #include <sycl/detail/service_kernel_names.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception_list.hpp>
+#include <sycl/ext/oneapi/weak_object_base.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/property_list.hpp>
@@ -83,7 +85,7 @@ static event submitAssertCapture(queue &, event &, queue *,
 /// \sa kernel
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT queue {
+class __SYCL_EXPORT queue : public detail::OwnerLessBase<queue> {
 public:
   /// Constructs a SYCL queue instance using the device returned by an instance
   /// of default_selector.
