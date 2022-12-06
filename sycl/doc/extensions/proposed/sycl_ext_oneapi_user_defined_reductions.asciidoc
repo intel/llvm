@@ -103,7 +103,7 @@ namespace sycl::ext::oneapi::experimental {
 **TODO**: consider adding `is_group_with_scratchpad_v` helper to describe
 preconditions better.
 
-1._Constraints_: `GroupHelper` is a `group_with_scratchpad`.
+1._Constraints_: `GroupHelper` is **TODO**: add link to GroupHelper spec when it's ready.
 
 _Mandates_: `binary_op(*first, *first)` must return a value of type
 `std::iterator_traits<Ptr>::value_type`.
@@ -126,7 +126,8 @@ the call to this overload is equivalent to calling
 
 2._Constraints_: `GroupHelper` is a `group_with_scratchpad`.
 
-_Mandates_: `binary_op(init, *first)` must return a value of type `T`.
+_Mandates_: `binary_op(init, *first)` must return a value of type `T`. `T` must
+satisfy MoveConstructible requirement.
 
 _Preconditions_: `first`, `last`, `init` and the type of `binary_op` must be the
 same for all work-items in the group. `binary_op` must be an instance of a
