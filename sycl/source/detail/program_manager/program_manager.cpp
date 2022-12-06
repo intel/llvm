@@ -1875,7 +1875,7 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
   const detail::plugin &Plugin = ContextImpl->getPlugin();
 
   /* std::cout << ' */
-  LinkOptionsStr = "Hi";
+  LinkOptionsStr = "-vc-codegen";
   RT::PiProgram LinkedProg = nullptr;
   RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramLink>(
       ContextImpl->getHandleRef(), PIDevices.size(), PIDevices.data(),
