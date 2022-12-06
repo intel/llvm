@@ -983,9 +983,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urPlatformCreateWithNativeHandle
 if __use_win_types:
-    _urPlatformCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_platform_handle_t, ur_native_handle_t, POINTER(ur_platform_handle_t) )
+    _urPlatformCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_native_handle_t, POINTER(ur_platform_handle_t) )
 else:
-    _urPlatformCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_platform_handle_t, ur_native_handle_t, POINTER(ur_platform_handle_t) )
+    _urPlatformCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_native_handle_t, POINTER(ur_platform_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urPlatformGetApiVersion
@@ -1044,9 +1044,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urContextCreateWithNativeHandle
 if __use_win_types:
-    _urContextCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_platform_handle_t, ur_native_handle_t, POINTER(ur_context_handle_t) )
+    _urContextCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_native_handle_t, POINTER(ur_context_handle_t) )
 else:
-    _urContextCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_platform_handle_t, ur_native_handle_t, POINTER(ur_context_handle_t) )
+    _urContextCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_native_handle_t, POINTER(ur_context_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urContextSetExtendedDeleter
@@ -1121,9 +1121,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urEventCreateWithNativeHandle
 if __use_win_types:
-    _urEventCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_platform_handle_t, ur_native_handle_t, POINTER(ur_event_handle_t) )
+    _urEventCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_event_handle_t) )
 else:
-    _urEventCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_platform_handle_t, ur_native_handle_t, POINTER(ur_event_handle_t) )
+    _urEventCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_event_handle_t) )
 
 
 ###############################################################################
@@ -1206,9 +1206,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urProgramCreateWithNativeHandle
 if __use_win_types:
-    _urProgramCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_program_handle_t, ur_native_handle_t, POINTER(ur_program_handle_t) )
+    _urProgramCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_program_handle_t) )
 else:
-    _urProgramCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_program_handle_t, ur_native_handle_t, POINTER(ur_program_handle_t) )
+    _urProgramCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_program_handle_t) )
 
 
 ###############################################################################
@@ -1258,9 +1258,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urModuleCreateWithNativeHandle
 if __use_win_types:
-    _urModuleCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_platform_handle_t, ur_native_handle_t, POINTER(ur_module_handle_t) )
+    _urModuleCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_module_handle_t) )
 else:
-    _urModuleCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_platform_handle_t, ur_native_handle_t, POINTER(ur_module_handle_t) )
+    _urModuleCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_module_handle_t) )
 
 
 ###############################################################################
@@ -1326,9 +1326,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urKernelCreateWithNativeHandle
 if __use_win_types:
-    _urKernelCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_platform_handle_t, ur_native_handle_t, POINTER(ur_kernel_handle_t) )
+    _urKernelCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_kernel_handle_t) )
 else:
-    _urKernelCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_platform_handle_t, ur_native_handle_t, POINTER(ur_kernel_handle_t) )
+    _urKernelCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_kernel_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urKernelSetArg
@@ -1423,9 +1423,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urSamplerCreateWithNativeHandle
 if __use_win_types:
-    _urSamplerCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_sampler_handle_t, ur_native_handle_t, POINTER(ur_sampler_handle_t) )
+    _urSamplerCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_sampler_handle_t) )
 else:
-    _urSamplerCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_sampler_handle_t, ur_native_handle_t, POINTER(ur_sampler_handle_t) )
+    _urSamplerCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_sampler_handle_t) )
 
 
 ###############################################################################
@@ -1485,9 +1485,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urMemCreateWithNativeHandle
 if __use_win_types:
-    _urMemCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_platform_handle_t, ur_native_handle_t, POINTER(ur_mem_handle_t) )
+    _urMemCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_mem_handle_t) )
 else:
-    _urMemCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_platform_handle_t, ur_native_handle_t, POINTER(ur_mem_handle_t) )
+    _urMemCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_mem_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urMemGetInfo
@@ -1786,9 +1786,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urQueueCreateWithNativeHandle
 if __use_win_types:
-    _urQueueCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_native_handle_t, POINTER(ur_queue_handle_t) )
+    _urQueueCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_queue_handle_t) )
 else:
-    _urQueueCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_native_handle_t, POINTER(ur_queue_handle_t) )
+    _urQueueCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_queue_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urQueueFinish
@@ -1871,9 +1871,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urDeviceCreateWithNativeHandle
 if __use_win_types:
-    _urDeviceCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_platform_handle_t, ur_native_handle_t, POINTER(ur_device_handle_t) )
+    _urDeviceCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_native_handle_t, ur_platform_handle_t, POINTER(ur_device_handle_t) )
 else:
-    _urDeviceCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_platform_handle_t, ur_native_handle_t, POINTER(ur_device_handle_t) )
+    _urDeviceCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_native_handle_t, ur_platform_handle_t, POINTER(ur_device_handle_t) )
 
 
 ###############################################################################

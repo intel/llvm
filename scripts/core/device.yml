@@ -544,13 +544,13 @@ details:
     - "The application may call this function from simultaneous threads for the same context."
     - "The implementation of this function should be thread-safe."
 params:
-    - type: $x_platform_handle_t
-      name: hPlatform
-      desc: "[in] handle of the platform instance"
     - type: $x_native_handle_t
       name: hNativeDevice
       desc: |
             [in] the native handle of the device.
+    - type: $x_platform_handle_t
+      name: hPlatform
+      desc: "[in] handle of the platform instance"
     - type: "$x_device_handle_t*"
       name: phDevice
       desc: |

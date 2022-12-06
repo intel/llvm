@@ -307,13 +307,13 @@ details:
     - "The application may call this function from simultaneous threads for the same context."
     - "The implementation of this function should be thread-safe."
 params:
-    - type: $x_program_handle_t
-      name: hProgram
-      desc: "[in] handle of the program instance"
     - type: $x_native_handle_t
       name: hNativeProgram
       desc: |
             [in] the native handle of the program.
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context instance"
     - type: "$x_program_handle_t*"
       name: phProgram
       desc: |
