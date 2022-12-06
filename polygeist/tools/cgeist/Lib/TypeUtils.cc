@@ -163,17 +163,8 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
   const clang::RecordDecl *RD = RT->getAsRecordDecl();
   llvm::SmallVector<mlir::Type, 4> Body;
 
-  //  llvm::dbgs() << "RD: ";
-  //  RD->dump();
-  //  llvm::dbgs() << "\n";
-
-  for (const auto *Field : RD->fields()) {
-    //  llvm::dbgs() << "Field: ";
-    // Field->dump();
-    // llvm::dbgs() << "\n";
-
+  for (const auto *Field : RD->fields())
     Body.push_back(CGT.getMLIRType(Field->getType()));
-  }
 
   if (const auto *CTS =
           llvm::dyn_cast<clang::ClassTemplateSpecializationDecl>(RD)) {
