@@ -218,12 +218,12 @@ urContextCreateWithNativeHandle(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pParams`
+///         + `NULL == pUserData`
 ur_result_t UR_APICALL
 urContextSetExtendedDeleter(
     ur_context_handle_t hContext,                   ///< [in] handle of the context.
     ur_context_extended_deleter_t pfnDeleter,       ///< [in] Function pointer to extended deleter.
-    void* pParams                                   ///< [in][out] pointer to data to be passed to callback.
+    void* pUserData                                 ///< [in][out] pointer to data to be passed to callback.
     )
 {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -1374,6 +1374,38 @@ urEventCreateWithNativeHandle(
     ur_native_handle_t hNativeEvent,                ///< [in] the native handle of the event.
     ur_context_handle_t hContext,                   ///< [in] handle of the context object
     ur_event_handle_t* phEvent                      ///< [out] pointer to the handle of the event object created.
+    )
+{
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Register a user callback function for a specific command execution
+///        status.
+/// 
+/// @details
+///     - The registered callback function will be called when the execution
+///       status of command associated with event changes to an execution status
+///       equal to or past the status specified by command_exec_status.
+///     - The application may call this function from simultaneous threads for
+///       the same context.
+///     - The implementation of this function should be thread-safe.
+/// 
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hEvent`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXECUTION_INFO_EXECUTION_INFO_QUEUED < execStatus`
+ur_result_t UR_APICALL
+urEventSetCallback(
+    ur_event_handle_t hEvent,                       ///< [in] handle of the event object
+    ur_execution_info_t execStatus,                 ///< [in] execution status of the event
+    ur_event_callback_t pfnNotify,                  ///< [in] execution status of the event
+    void* pUserData                                 ///< [in][out][optional] pointer to data to be passed to callback.
     )
 {
     ur_result_t result = UR_RESULT_SUCCESS;

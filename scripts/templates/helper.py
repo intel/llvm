@@ -381,7 +381,7 @@ def subt(namespace, tags, string, comment=False, remove_namespace=False):
             string = re.sub(r"%s_?"%re.escape(key.upper()), repl.upper(), string)
         else:
             string = re.sub(r"-%s"%re.escape(key), "-"+value, string)           # hack for compile options
-            repl = "::"+value if comment and "$OneApi" != key else value        # replace tag; e.g., "$x" -> "xe"
+            repl = "::"+value if comment and "$OneApi" != key else value        # replace tag; e.g., "$x" -> "ur"
             string = re.sub(re.escape(key), repl, string)
             string = re.sub(re.escape(key.upper()), repl.upper(), string)
     return string
@@ -695,6 +695,16 @@ def make_param_lines(namespace, tags, obj, py=False, decl=False, meta=None, form
         name = _get_param_name(namespace, tags, item)
         if py:
             tname = get_ctype_name(namespace, tags, item)
+            # Handle fptr_typedef
+            # On Python side, passing a function pointer to a CFUNCTYPE is a bit awkward
+            # So solve this, if we encounter a function pointer type, we relpace it with
+            # c_void_p - a generic void pointer
+            if "fptr_typedef" in meta:
+                fptr_types = list(meta['fptr_typedef'].keys())
+                for fptr_type in fptr_types:
+                    if tname == subt(namespace, tags, fptr_type):
+                        tname = 'c_void_p'  # Substitute function pointers to c_void_p
+                        break
         else:
             tname = _get_type_name(namespace, tags, obj, item)
 

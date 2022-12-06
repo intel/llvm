@@ -1074,9 +1074,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urContextSetExtendedDeleter
 if __use_win_types:
-    _urContextSetExtendedDeleter_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_context_extended_deleter_t, c_void_p )
+    _urContextSetExtendedDeleter_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_void_p )
 else:
-    _urContextSetExtendedDeleter_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_context_extended_deleter_t, c_void_p )
+    _urContextSetExtendedDeleter_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_void_p )
 
 
 ###############################################################################
@@ -1151,9 +1151,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urEventSetCallback
 if __use_win_types:
-    _urEventSetCallback_t = WINFUNCTYPE( ur_result_t, ur_event_handle_t, ur_execution_info_t, ur_event_callback_t, c_void_p )
+    _urEventSetCallback_t = WINFUNCTYPE( ur_result_t, ur_event_handle_t, ur_execution_info_t, c_void_p, c_void_p )
 else:
-    _urEventSetCallback_t = CFUNCTYPE( ur_result_t, ur_event_handle_t, ur_execution_info_t, ur_event_callback_t, c_void_p )
+    _urEventSetCallback_t = CFUNCTYPE( ur_result_t, ur_event_handle_t, ur_execution_info_t, c_void_p, c_void_p )
 
 
 ###############################################################################
@@ -1261,9 +1261,9 @@ class ur_program_dditable_t(Structure):
 ###############################################################################
 ## @brief Function-pointer for urModuleCreate
 if __use_win_types:
-    _urModuleCreate_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_size_t, c_char_p, ur_modulecreate_callback_t, c_void_p, POINTER(ur_module_handle_t) )
+    _urModuleCreate_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_size_t, c_char_p, c_void_p, c_void_p, POINTER(ur_module_handle_t) )
 else:
-    _urModuleCreate_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_size_t, c_char_p, ur_modulecreate_callback_t, c_void_p, POINTER(ur_module_handle_t) )
+    _urModuleCreate_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_size_t, c_char_p, c_void_p, c_void_p, POINTER(ur_module_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urModuleRetain

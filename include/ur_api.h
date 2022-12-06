@@ -1604,7 +1604,7 @@ urEventCreateWithNativeHandle(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Event states for all events.
-typedef enum _ur_execution_info_t
+typedef enum ur_execution_info_t
 {
     UR_EXECUTION_INFO_EXECUTION_INFO_COMPLETE = 0,  ///< Indicates that the event has completed
     UR_EXECUTION_INFO_EXECUTION_INFO_RUNNING = 1,   ///< Indicates that the device has started processing this event
@@ -4801,7 +4801,7 @@ typedef void (UR_APICALL *ur_pfnEventCreateWithNativeHandleCb_t)(
 /// @brief Callback function parameters for urEventSetCallback 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct _ur_event_set_callback_params_t
+typedef struct ur_event_set_callback_params_t
 {
     ur_event_handle_t* phEvent;
     ur_execution_info_t* pexecStatus;
