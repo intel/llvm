@@ -256,12 +256,7 @@ Error SimpleTable::merge(const SimpleTable &Other) {
     return makeError("different number of columns");
   if (ColumnNames != Other.ColumnNames)
     return makeError("different column names");
-  for (unsigned I = 0; I < Other.Rows.size(); I++) {
-    const auto &OtherRow = Other[I];
-    SmallVector<StringRef, 3> NewRow(OtherRow.Cells.begin(),
-                                     OtherRow.Cells.end());
-    addRow(std::move(NewRow));
-  }
+  Rows.insert(Rows.end(), Other.Rows.begin(), Other.Rows.end());
   return Error::success();
 }
 
