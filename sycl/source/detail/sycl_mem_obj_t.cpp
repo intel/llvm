@@ -91,7 +91,7 @@ void SYCLMemObjT::updateHostMemory() {
   // If we're attached to a memory record, process the deletion of the memory
   // record. We may get detached before we do this.
   if (MRecord)
-    Scheduler::getInstance().removeMemoryObject(this);
+    assert(Scheduler::getInstance().removeMemoryObject(this));
   releaseHostMem(MShadowCopy);
 
   if (MOpenCLInterop) {

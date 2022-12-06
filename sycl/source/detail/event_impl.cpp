@@ -233,9 +233,6 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self) {
     detail::Scheduler::getInstance().waitForEvent(Self);
   cleanupCommand(std::move(Self));
 
-  detail::Scheduler::getInstance().cleanupDeferredMemObjects(
-      BlockingT::NON_BLOCKING);
-
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
 #endif

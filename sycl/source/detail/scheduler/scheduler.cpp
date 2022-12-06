@@ -268,7 +268,8 @@ void Scheduler::cleanupFinishedCommands(const EventImplPtr &FinishedEvent) {
   deallocateStreams(StreamsToDeallocate);
 }
 
-void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
+bool Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj,
+                                   bool StrictLock) {
   // We are going to traverse a graph of finished commands. Gather stream
   // objects from these commands if any and deallocate buffers for these stream
   // objects, this is needed to guarantee that streamed data is printed and
@@ -284,16 +285,22 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
     MemObjRecord *Record = MGraphBuilder.getMemObjRecord(MemObj);
     if (!Record)
       // No operations were performed on the mem object
-      return;
+      return true;
 
     {
       // This only needs a shared mutex as it only involves enqueueing and
       // awaiting for events
-      ReadLockT Lock = acquireReadLock();
+      ReadLockT Lock = StrictLock ? ReadLockT(MGraphLock)
+                                  : ReadLockT(MGraphLock, std::try_to_lock);
+      if (!Lock.owns_lock())
+        return false;
       waitForRecordToFinish(Record, Lock);
     }
     {
-      WriteLockT Lock = acquireWriteLock();
+      WriteLockT Lock = StrictLock ? acquireWriteLock()
+                                   : WriteLockT(MGraphLock, std::try_to_lock);
+      if (!Lock.owns_lock())
+        return false;
       MGraphBuilder.decrementLeafCountersForRecord(Record);
       MGraphBuilder.cleanupCommandsForRecord(Record, StreamsToDeallocate,
                                              AuxResourcesToDeallocate);
@@ -301,6 +308,7 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
     }
   }
   deallocateStreams(StreamsToDeallocate);
+  return true;
 }
 
 EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
@@ -444,6 +452,8 @@ MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
 }
 
 void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
+  cleanupDeferredMemObjects(BlockingT::NON_BLOCKING);
+
   if (Cmds.empty()) {
     std::lock_guard<std::mutex> Lock{MDeferredCleanupMutex};
     if (MDeferredCleanupCommands.empty())
@@ -499,8 +509,10 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd, Command *BlockingCmd) {
 }
 
 void Scheduler::deferMemObjRelease(const std::shared_ptr<SYCLMemObjI> &MemObj) {
-  std::lock_guard<std::mutex> Lock{MDeferredMemReleaseMutex};
-  MDeferredMemObjRelease.push_back(MemObj);
+  {
+    std::lock_guard<std::mutex> Lock{MDeferredMemReleaseMutex};
+    MDeferredMemObjRelease.push_back(MemObj);
+  }
   cleanupDeferredMemObjects(BlockingT::NON_BLOCKING);
 }
 
@@ -510,8 +522,6 @@ inline bool Scheduler::isDeferredMemObjectsEmpty() {
 }
 
 void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
-  // std::cout << "MDeferredMemObjRelease.size = " <<
-  // MDeferredMemObjRelease.size() << std::endl;
   if (isDeferredMemObjectsEmpty())
     return;
   if (Blocking == BlockingT::BLOCKING) {
@@ -526,7 +536,7 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
 
   std::vector<std::shared_ptr<SYCLMemObjI>> ObjsReadyToRelease;
   {
-
+    // Lock is needed for checkLeavesCompletion - if walks through Record leaves
     ReadLockT Lock = ReadLockT(MGraphLock, std::try_to_lock);
     if (Lock.owns_lock()) {
       // Not expected that Blocking == true will be used in parallel with
@@ -544,9 +554,16 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
       }
     }
   }
-  // std::cout << "MDeferredMemObjRelease after NON_BLOCKING.size = " <<
-  // MDeferredMemObjRelease.size() << std::endl;
-  //  if any ObjsReadyToRelease found - it is leaving scope and being deleted
+  auto ReleaseCandidateIt = ObjsReadyToRelease.begin();
+  while (ReleaseCandidateIt != ObjsReadyToRelease.end()) {
+    if (!removeMemoryObject(ReleaseCandidateIt->get(), false))
+      break;
+    ReleaseCandidateIt = ObjsReadyToRelease.erase(ReleaseCandidateIt);
+  }
+  MDeferredMemObjRelease.insert(
+      MDeferredMemObjRelease.end(),
+      std::make_move_iterator(ObjsReadyToRelease.begin()),
+      std::make_move_iterator(ObjsReadyToRelease.end()));
 }
 
 } // namespace detail

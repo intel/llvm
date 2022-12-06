@@ -396,7 +396,14 @@ public:
   /// This member function is used by \ref buffer and \ref image.
   ///
   /// \param MemObj is a memory object that points to the buffer being removed.
-  void removeMemoryObject(detail::SYCLMemObjI *MemObj);
+  /// \param StrictLock WA, is a flag used to identify if strict read and write
+  /// lock are allowed or not. Default value is always applied in buffer_impl
+  /// destructor. StrictLock == false is introduced for
+  /// cleanupDeferredMemObjects to avoid blocking mem object release that may
+  /// lead to dead lock. \return WA, true if all release action completed and we
+  /// could delete memory object, false otherwise, most possible reason to
+  /// receive false - fail to obtain write lock.
+  bool removeMemoryObject(detail::SYCLMemObjI *MemObj, bool StrictLock = true);
 
   /// Removes finished non-leaf non-alloca commands from the subgraph (assuming
   /// that all its commands have been waited for).
