@@ -690,6 +690,9 @@ def make_param_lines(namespace, tags, obj, py=False, decl=False, meta=None, form
     lines = []
 
     params = obj['params']
+    fptr_types = [] # This is done so that we dont have to try/catch for defined
+    if meta is not None and "fptr_typedef" in meta:
+        fptr_types = list(meta['fptr_typedef'].keys())
 
     for i, item in enumerate(params):
         name = _get_param_name(namespace, tags, item)
@@ -699,8 +702,7 @@ def make_param_lines(namespace, tags, obj, py=False, decl=False, meta=None, form
             # On Python side, passing a function pointer to a CFUNCTYPE is a bit awkward
             # So solve this, if we encounter a function pointer type, we relpace it with
             # c_void_p - a generic void pointer
-            if "fptr_typedef" in meta:
-                fptr_types = list(meta['fptr_typedef'].keys())
+            if len(fptr_types) > 0:
                 for fptr_type in fptr_types:
                     if tname == subt(namespace, tags, fptr_type):
                         tname = 'c_void_p'  # Substitute function pointers to c_void_p
