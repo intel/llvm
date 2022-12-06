@@ -497,6 +497,10 @@ SYCLDeviceLibFuncMap SDLMap = {
     {"__devicelib_imf_floorbf16", DeviceLibExt::cl_intel_devicelib_imf_bf16},
     {"__devicelib_imf_ceilbf16", DeviceLibExt::cl_intel_devicelib_imf_bf16},
     {"__devicelib_imf_truncbf16", DeviceLibExt::cl_intel_devicelib_imf_bf16},
+    {"__devicelib_ConvertFToBF16INTEL",
+     DeviceLibExt::cl_intel_devicelib_bfloat16},
+    {"__devicelib_ConvertBF16ToFINTEL",
+     DeviceLibExt::cl_intel_devicelib_bfloat16},
 };
 
 // Each fallback device library corresponds to one bit in "require mask" which
@@ -512,6 +516,7 @@ SYCLDeviceLibFuncMap SDLMap = {
 // fallback-imf:          0x40
 // fallback-imf-fp64:     0x80
 // fallback-imf-bf16:     0x100
+// fallback-bfloat16:     0x200
 uint32_t getDeviceLibBits(const std::string &FuncName) {
   auto DeviceLibFuncIter = SDLMap.find(FuncName);
   return ((DeviceLibFuncIter == SDLMap.end())

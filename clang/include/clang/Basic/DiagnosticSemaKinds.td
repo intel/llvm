@@ -528,6 +528,8 @@ def warn_cxx17_compat_decomp_decl_spec : Warning<
 def err_decomp_decl_type : Error<
   "decomposition declaration cannot be declared with type %0; "
   "declared type must be 'auto' or reference to 'auto'">;
+def err_decomp_decl_constraint : Error<
+  "decomposition declaration cannot be declared with constrained 'auto'">;
 def err_decomp_decl_parens : Error<
   "decomposition declaration cannot be declared with parentheses">;
 def err_decomp_decl_template : Error<
@@ -1362,7 +1364,7 @@ def warn_atomic_property_rule : Warning<
   "with a user defined %select{getter|setter}2">,
   InGroup<DiagGroup<"atomic-property-with-user-defined-accessor">>;
 def note_atomic_property_fixup_suggest : Note<"setter and getter must both be "
-  "synthesized, or both be user defined,or the property must be nonatomic">;
+  "synthesized, or both be user defined, or the property must be nonatomic">;
 def err_atomic_property_nontrivial_assign_op : Error<
   "atomic property of reference type %0 cannot have non-trivial assignment"
   " operator">;

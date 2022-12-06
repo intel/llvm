@@ -277,8 +277,8 @@ bool device_impl::has(aspect Aspect) const {
     return has_extension("cl_khr_fp16");
   case aspect::fp64:
     return has_extension("cl_khr_fp64");
-  case aspect::ext_oneapi_bfloat16:
-    return get_info<info::device::ext_oneapi_bfloat16>();
+  case aspect::ext_oneapi_bfloat16_math_functions:
+    return get_info<info::device::ext_oneapi_bfloat16_math_functions>();
   case aspect::int64_base_atomics:
     return has_extension("cl_khr_int64_base_atomics");
   case aspect::int64_extended_atomics:

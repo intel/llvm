@@ -212,10 +212,16 @@ void hlfir::genLengthParameters(mlir::Location loc, fir::FirOpBuilder &builder,
                                 llvm::SmallVectorImpl<mlir::Value> &result) {
   if (!entity.hasLengthParameters())
     return;
-  if (entity.getType().isa<hlfir::ExprType>())
+  if (entity.getType().isa<hlfir::ExprType>()) {
     // Going through fir::ExtendedValue would create a temp,
     // which is not desired for an inquiry.
+    // TODO: make this an interface when adding further character producing ops.
+    if (auto concat = entity.getDefiningOp<hlfir::ConcatOp>()) {
+      result.push_back(concat.getLength());
+      return;
+    }
     TODO(loc, "inquire type parameters of hlfir.expr");
+  }
 
   if (entity.isCharacter()) {
     auto [exv, cleanup] = translateToExtendedValue(loc, builder, entity);
@@ -224,4 +230,20 @@ void hlfir::genLengthParameters(mlir::Location loc, fir::FirOpBuilder &builder,
     return;
   }
   TODO(loc, "inquire PDTs length parameters in HLFIR");
+}
+
+std::pair<mlir::Value, mlir::Value> hlfir::genVariableFirBaseShapeAndParams(
+    mlir::Location loc, fir::FirOpBuilder &builder, Entity entity,
+    llvm::SmallVectorImpl<mlir::Value> &typeParams) {
+  auto [exv, cleanup] = translateToExtendedValue(loc, builder, entity);
+  assert(!cleanup && "variable to Exv should not produce cleanup");
+  if (entity.hasLengthParameters()) {
+    auto params = fir::getTypeParams(exv);
+    typeParams.append(params.begin(), params.end());
+  }
+  if (entity.isScalar())
+    return {fir::getBase(exv), mlir::Value{}};
+  if (auto variableInterface = entity.getIfVariableInterface())
+    return {fir::getBase(exv), variableInterface.getShape()};
+  return {fir::getBase(exv), builder.createShape(loc, exv)};
 }

@@ -11,9 +11,11 @@
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/kernel_desc.hpp>
+#include <sycl/detail/owner_less_base.hpp>
 #include <sycl/detail/pi.h>
 #include <sycl/detail/pi.hpp>
 #include <sycl/device.hpp>
+#include <sycl/ext/oneapi/weak_object_base.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
 
@@ -37,7 +39,7 @@ class kernel_id_impl;
 /// Objects of the class identify kernel is some kernel_bundle related APIs
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT kernel_id {
+class __SYCL_EXPORT kernel_id : public detail::OwnerLessBase<kernel_id> {
 public:
   kernel_id() = delete;
 
@@ -101,7 +103,8 @@ protected:
 
 /// Objects of the class represents an instance of an image in a specific state.
 template <sycl::bundle_state State>
-class device_image : public detail::device_image_plain {
+class device_image : public detail::device_image_plain,
+                     public detail::OwnerLessBase<device_image<State>> {
 public:
   device_image() = delete;
 
@@ -195,7 +198,8 @@ protected:
 ///
 /// \ingroup sycl_api
 template <bundle_state State>
-class kernel_bundle : public detail::kernel_bundle_plain {
+class kernel_bundle : public detail::kernel_bundle_plain,
+                      public detail::OwnerLessBase<kernel_bundle<State>> {
 public:
   using device_image_iterator = const device_image<State> *;
 
@@ -252,7 +256,7 @@ public:
   /// \returns a kernel object which represents the kernel identified by
   /// kernel_id passed
   template <bundle_state _State = State,
-            typename = detail::enable_if_t<_State == bundle_state::executable>>
+            typename = std::enable_if_t<_State == bundle_state::executable>>
   kernel get_kernel(const kernel_id &KernelID) const {
     return detail::kernel_bundle_plain::get_kernel(KernelID);
   }
@@ -272,7 +276,7 @@ public:
   /// for this bundle. If the specialization constant’s value was previously set
   /// in this bundle, the value is overwritten.
   template <auto &SpecName, bundle_state _State = State,
-            typename = detail::enable_if_t<_State == bundle_state::input>>
+            typename = std::enable_if_t<_State == bundle_state::input>>
   void set_specialization_constant(
       typename std::remove_reference_t<decltype(SpecName)>::value_type Value) {
     const char *SpecSymName = detail::get_spec_constant_symbolic_ID<SpecName>();
@@ -564,7 +568,8 @@ bool has_kernel_bundle(const context &Ctx, const std::vector<device> &Devs) {
 
 /// \returns true if all of the kernels identified by KernelIDs are compatible
 /// with the device Dev.
-bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev);
+__SYCL_EXPORT bool is_compatible(const std::vector<kernel_id> &KernelIDs,
+                                 const device &Dev);
 
 template <typename KernelName> bool is_compatible(const device &Dev) {
   return is_compatible({get_kernel_id<KernelName>()}, Dev);

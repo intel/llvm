@@ -67,6 +67,7 @@ enum class DeviceLibExt : std::uint32_t {
   cl_intel_devicelib_imf,
   cl_intel_devicelib_imf_fp64,
   cl_intel_devicelib_imf_bf16,
+  cl_intel_devicelib_bfloat16,
 };
 
 // Provides single loading and building OpenCL programs with unique contexts
