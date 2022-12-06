@@ -26,7 +26,7 @@ include "mlir/Interfaces/CastInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
 ////////////////////////////////////////////////////////////////////////////////
-// TYPE DECLARATIONS
+// DIALECT DECLARATION
 ////////////////////////////////////////////////////////////////////////////////
 
 def SYCL_Dialect : Dialect {
@@ -115,6 +115,10 @@ class SYCLMethodOpInterfaceImpl<
   }];
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// TYPES DECLARATIONS
+////////////////////////////////////////////////////////////////////////////////
+
 class SYCL_Type<string name, string typeMnemonic, list<Trait> traits = []>
     : TypeDef<SYCL_Dialect, name,
               !listconcat([MemRefElementTypeInterface,
@@ -128,20 +132,25 @@ class SYCLInheritanceTypeTrait<string ParentClass>
   let cppNamespace = "::mlir::sycl";
 }
 
-def SYCL_IDType
-    : SYCL_Type<"ID", "id", [SYCLInheritanceTypeTrait<"ArrayType">]> {
-  let parameters = (ins "unsigned":$dimension,
-                        ArrayRefParameter<"mlir::Type">:$body);
-  let assemblyFormat = "`<`  `[` $dimension `]` `,` `(` $body `)` `>`";
-}
-
+//
+// SYCL types (alphabetical order).
+//
 def SYCL_AccessorCommonType : SYCL_Type<"AccessorCommon", "accessor_common"> {
   let assemblyFormat = "";
+}
+
+def SYCL_AccessorImplDeviceType :
+    SYCL_Type<"AccessorImplDevice", "accessor_impl_device"> {
+  let parameters = (ins "unsigned":$dimension,
+                        ArrayRefParameter<"mlir::Type">:$body);
+  let assemblyFormat = "`<` `[` $dimension `]` `,` `(` $body `)` `>`";
 }
 
 def SYCL_AccessorType
     : SYCL_Type<"Accessor", "accessor",
         [SYCLInheritanceTypeTrait<"AccessorCommonType">]> {
+  let summary = "Buffer Accessor";
+  let description = [{ Accessor to a buffer object.}];
   let parameters = (ins "::mlir::Type":$type,
                         "unsigned":$dimension,
                         "mlir::sycl::MemoryAccessMode":$accessMode,
@@ -151,31 +160,16 @@ def SYCL_AccessorType
       "`<` `[` $dimension `,` $type `,` ` ` custom<MemoryAccessMode>($accessMode) `,` ` ` custom<MemoryTargetMode>($targetMode) `]` `,` `(` $body `)` `>`";
 }
 
-def SYCL_RangeType
-    : SYCL_Type<"Range", "range", [SYCLInheritanceTypeTrait<"ArrayType">]> {
-  let parameters = (ins "unsigned":$dimension,
-                        ArrayRefParameter<"mlir::Type">:$body);
-  let assemblyFormat = "`<`  `[` $dimension `]` `,` `(` $body `)` `>`";
-}
-
-def SYCL_NdRangeType : SYCL_Type<"NdRange", "nd_range"> {
-  let parameters = (ins "unsigned":$dimension,
-                        ArrayRefParameter<"mlir::Type">:$body);
-  let assemblyFormat = "`<` `[` $dimension `]` `,` `(` $body `)` `>`";
-}
-
-def SYCL_AccessorImplType :
-    SYCL_Type<"AccessorImplDevice", "accessor_impl_device"> {
-  let parameters = (ins "unsigned":$dimension,
-                        ArrayRefParameter<"mlir::Type">:$body);
-  let assemblyFormat = "`<` `[` $dimension `]` `,` `(` $body `)` `>`";
-}
-
 def SYCL_AccessorSubscriptType :
     SYCL_Type<"AccessorSubscript", "accessor_subscript"> {
   let parameters = (ins "int":$currentDimension,
                         ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat = "`<` `[` $currentDimension `]` `,` `(` $body `)` `>`";
+}
+
+def SYCL_AssertHappenedType : SYCL_Type<"AssertHappened", "assert_happened"> {
+  let parameters = (ins ArrayRefParameter<"mlir::Type">:$body);
+  let assemblyFormat = "`<` `(` $body `)` `>`";
 }
 
 def SYCL_ArrayType : SYCL_Type<"Array", "array"> {
@@ -184,11 +178,40 @@ def SYCL_ArrayType : SYCL_Type<"Array", "array"> {
   let assemblyFormat = "`<` `[` $dimension `]` `,` `(` $body `)` `>`";
 }
 
-def SYCL_ItemType : SYCL_Type<"Item", "item"> {
-  let parameters = (ins "unsigned":$dimension,
-                        "bool":$withOffset,
+def SYCL_AtomicType : SYCL_Type<"Atomic", "atomic"> {
+  let parameters = (ins "::mlir::Type":$dataType,
+                        "mlir::sycl::AccessAddrSpace":$addrSpace,
                         ArrayRefParameter<"mlir::Type">:$body);
-  let assemblyFormat = "`<` `[` $dimension `,` $withOffset `]` `,` `(` $body `)` `>`";
+  let assemblyFormat = "`<` `[` $dataType `,` custom<AccessAddrSpace>($addrSpace) `]` `,` `(` $body `)` `>`";
+}
+
+def SYCL_BFloat16Type : SYCL_Type<"BFloat16", "bfloat16"> {
+  let parameters = (ins ArrayRefParameter<"mlir::Type">:$body);
+  let assemblyFormat = "`<` `(` $body `)` `>`";
+}
+
+def SYCL_GetScalarOpType : SYCL_Type<"GetScalarOp", "get_scalar_op"> {
+  let parameters = (ins "::mlir::Type":$dataType,
+                        ArrayRefParameter<"mlir::Type">:$body);
+  let assemblyFormat = "`<` `[` $dataType `]` `,` `(` $body `)` `>`";
+}
+
+def SYCL_GetOpType : SYCL_Type<"GetOp", "get_op"> {
+  let parameters = (ins "::mlir::Type":$dataType);
+  let assemblyFormat = "`<` $dataType `>`";
+}
+
+def SYCL_GroupType : SYCL_Type<"Group", "group"> {
+  let parameters = (ins "unsigned":$dimension,
+                        ArrayRefParameter<"mlir::Type">:$body);
+  let assemblyFormat = "`<` `[` $dimension `]` `,` `(` $body `)` `>`";
+}
+
+def SYCL_IDType
+    : SYCL_Type<"ID", "id", [SYCLInheritanceTypeTrait<"ArrayType">]> {
+  let parameters = (ins "unsigned":$dimension,
+                        ArrayRefParameter<"mlir::Type">:$body);
+  let assemblyFormat = "`<`  `[` $dimension `]` `,` `(` $body `)` `>`";
 }
 
 def SYCL_ItemBaseType : SYCL_Type<"ItemBase", "item_base"> {
@@ -198,33 +221,42 @@ def SYCL_ItemBaseType : SYCL_Type<"ItemBase", "item_base"> {
   let assemblyFormat = "`<` `[` $dimension `,` $withOffset `]` `,` `(` $body `)` `>`";
 }
 
+def SYCL_ItemType : SYCL_Type<"Item", "item"> {
+  let parameters = (ins "unsigned":$dimension,
+                        "bool":$withOffset,
+                        ArrayRefParameter<"mlir::Type">:$body);
+  let assemblyFormat = "`<` `[` $dimension `,` $withOffset `]` `,` `(` $body `)` `>`";
+}
+
+def SYCL_MultiPtrType : SYCL_Type<"MultiPtr", "multi_ptr"> {
+  let parameters = (ins "::mlir::Type":$dataType,
+                        "mlir::sycl::AccessAddrSpace":$addrSpace,
+                        "mlir::sycl::DecoratedAccess":$decAccess,
+                        ArrayRefParameter<"mlir::Type">:$body);
+  let assemblyFormat = "`<` `[` $dataType `,` ` ` custom<AccessAddrSpace>($addrSpace) `,` ` ` custom<DecoratedAccess>($decAccess) `]` `,` `(` $body `)` `>`";
+}
+
 def SYCL_NdItemType : SYCL_Type<"NdItem", "nd_item"> {
   let parameters = (ins "unsigned":$dimension,
                         ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat = "`<` `[` $dimension `]` `,` `(` $body `)` `>`";
 }
 
-def SYCL_GroupType : SYCL_Type<"Group", "group"> {
+def SYCL_NdRangeType : SYCL_Type<"NdRange", "nd_range"> {
   let parameters = (ins "unsigned":$dimension,
                         ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat = "`<` `[` $dimension `]` `,` `(` $body `)` `>`";
 }
 
-def SYCL_GetOpType : SYCL_Type<"GetOp", "get_op"> {
-  let parameters = (ins "::mlir::Type":$dataType);
-  let assemblyFormat = "`<` $dataType `>`";
+def SYCL_RangeType
+    : SYCL_Type<"Range", "range", [SYCLInheritanceTypeTrait<"ArrayType">]> {
+  let parameters = (ins "unsigned":$dimension,
+                        ArrayRefParameter<"mlir::Type">:$body);
+  let assemblyFormat = "`<`  `[` $dimension `]` `,` `(` $body `)` `>`";
 }
 
-def SYCL_GetScalarOpType : SYCL_Type<"GetScalarOp", "get_scalar_op"> {
-  let parameters = (ins "::mlir::Type":$dataType,
-                        ArrayRefParameter<"mlir::Type">:$body);
-  let assemblyFormat = "`<` `[` $dataType `]` `,` `(` $body `)` `>`";
-}
-
-def SYCL_TupleValueHolderType : SYCL_Type<"TupleValueHolder", "tuple_value_holder"> {
-  let parameters = (ins "::mlir::Type":$dataType,
-                        ArrayRefParameter<"mlir::Type">:$body);
-  let assemblyFormat = "`<` `[` $dataType `]` `,` `(` $body `)` `>`";
+def SYCL_SubGroupType : SYCL_Type<"SubGroup", "sub_group"> {
+  let assemblyFormat = "";
 }
 
 def SYCL_TupleCopyAssignableValueHolderType
@@ -236,9 +268,11 @@ def SYCL_TupleCopyAssignableValueHolderType
   let assemblyFormat = "`<` `[` $dataType `,` $isTriviallyCopyAssignable `]` `,` `(` $body `)` `>`";
 }
 
-def VectorEltTy : AnyTypeOf<[I1, I8, I16, I32, I64, F16, F32, F64]>;
-
-def VectorSplatArg : MemRefOf<[VectorEltTy]>;
+def SYCL_TupleValueHolderType : SYCL_Type<"TupleValueHolder", "tuple_value_holder"> {
+  let parameters = (ins "::mlir::Type":$dataType,
+                        ArrayRefParameter<"mlir::Type">:$body);
+  let assemblyFormat = "`<` `[` $dataType `]` `,` `(` $body `)` `>`";
+}
 
 def SYCL_VecType : SYCL_Type<"Vec", "vec"> {
   let parameters = (ins "::mlir::Type":$dataType,
@@ -248,73 +282,49 @@ def SYCL_VecType : SYCL_Type<"Vec", "vec"> {
   let genVerifyDecl = 1;
 }
 
-def SYCL_AtomicType : SYCL_Type<"Atomic", "atomic"> {
-  let parameters = (ins "::mlir::Type":$dataType,
-                        "mlir::sycl::AccessAddrSpace":$addrSpace,
-                        ArrayRefParameter<"mlir::Type">:$body);
-  let assemblyFormat = "`<` `[` $dataType `,` custom<AccessAddrSpace>($addrSpace) `]` `,` `(` $body `)` `>`";
-}
-
-def SYCL_MultiPtrType : SYCL_Type<"MultiPtr", "multi_ptr"> {
-  let parameters = (ins "::mlir::Type":$dataType,
-                        "mlir::sycl::AccessAddrSpace":$addrSpace,
-                        "mlir::sycl::DecoratedAccess":$decAccess,
-                        ArrayRefParameter<"mlir::Type">:$body);
-  let assemblyFormat = "`<` `[` $dataType `,` ` ` custom<AccessAddrSpace>($addrSpace) `,` ` ` custom<DecoratedAccess>($decAccess) `]` `,` `(` $body `)` `>`";
-}
-
-def SYCL_AssertHappenedType : SYCL_Type<"AssertHappened", "assert_happened"> {
-  let parameters = (ins ArrayRefParameter<"mlir::Type">:$body);
-  let assemblyFormat = "`<` `(` $body `)` `>`";
-}
-
-def SYCL_BFloat16Type : SYCL_Type<"BFloat16", "bfloat16"> {
-  let parameters = (ins ArrayRefParameter<"mlir::Type">:$body);
-  let assemblyFormat = "`<` `(` $body `)` `>`";
-}
-
-def SYCL_SubGroupType : SYCL_Type<"SubGroup", "sub_group"> {
-  let assemblyFormat = "";
-}
-
-def IDMemRef : MemRefOf<[SYCL_IDType]>;
+// Define MemRef types (alphabetical order).
 def AccessorCommonMemRef : MemRefOf<[SYCL_AccessorCommonType]>;
+def AccessorImplDeviceMemRef : MemRefOf<[SYCL_AccessorImplDeviceType]>;
 def AccessorMemRef : MemRefOf<[SYCL_AccessorType]>;
-def AtomicMemRef : MemRefOf<[SYCL_AtomicType]>;
-def RangeMemRef : MemRefOf<[SYCL_RangeType]>;
-def NDRangeMemRef : MemRefOf<[SYCL_NdRangeType]>;
-def AccessorImplMemRef : MemRefOf<[SYCL_AccessorImplType]>;
 def AccessorSubscriptMemRef : MemRefOf<[SYCL_AccessorSubscriptType]>;
 def ArrayMemRef : MemRefOf<[SYCL_ArrayType]>;
-def ItemMemRef : MemRefOf<[SYCL_ItemType]>;
+def AtomicMemRef : MemRefOf<[SYCL_AtomicType]>;
+def GroupMemRef : MemRefOf<[SYCL_GroupType]>;
+def IDMemRef : MemRefOf<[SYCL_IDType]>;
 def ItemBaseMemRef : MemRefOf<[SYCL_ItemBaseType]>;
+def ItemMemRef : MemRefOf<[SYCL_ItemType]>;
 def MultiPtrMemRef : MemRefOf<[SYCL_MultiPtrType]>;
 def NDItemMemRef : MemRefOf<[SYCL_NdItemType]>;
-def GroupMemRef : MemRefOf<[SYCL_GroupType]>;
+def NDRangeMemRef : MemRefOf<[SYCL_NdRangeType]>;
+def RangeMemRef : MemRefOf<[SYCL_RangeType]>;
 def VecMemRef : MemRefOf<[SYCL_VecType]>;
 
 def SYCLMemref : AnyTypeOf<[
-  IDMemRef,
+  // Keep in alphabetical order.
   AccessorCommonMemRef,
+  AccessorImplDeviceMemRef,
   AccessorMemRef,
-  AtomicMemRef,
-  RangeMemRef,
-  NDRangeMemRef,
-  AccessorImplMemRef,
   AccessorSubscriptMemRef,
   ArrayMemRef,
-  ItemMemRef,
+  AtomicMemRef,
+  GroupMemRef,  
+  IDMemRef,
   ItemBaseMemRef,
+  ItemMemRef,
   MultiPtrMemRef,
   NDItemMemRef,
-  GroupMemRef,
-  VecMemRef,
-  AtomicMemRef
+  NDRangeMemRef,
+  RangeMemRef,
+  VecMemRef
 ]>;
+
+// Other types (alphabetical order).
 def IndexType : AnyTypeOf<[I32, I64, Index]>;
-def SYCLGetResult : AnyTypeOf<[I64, MemRefOf<[I64]>]>;
 def SYCLGetIDResult : AnyTypeOf<[I64, SYCL_IDType]>;
 def SYCLGetRangeResult : AnyTypeOf<[I64, SYCL_RangeType]>;
+def SYCLGetResult : AnyTypeOf<[I64, MemRefOf<[I64]>]>;
+def VectorEltTy : AnyTypeOf<[I1, I8, I16, I32, I64, F16, F32, F64]>;
+def VectorSplatArg : MemRefOf<[VectorEltTy]>;
 
 ////////////////////////////////////////////////////////////////////////////////
 // CONSTRUCTOR OPERATION
