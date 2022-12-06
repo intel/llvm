@@ -21,7 +21,7 @@ FetchContent_Declare(level-zero-loader
   GIT_TAG           ${LEVEL_ZERO_LOADER_TAG}
 )
 
-# Suppress some pedantic warnign for Level Zero build
+# Suppress some pedantic warnings for Level Zero build
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-but-set-variable")
 
 FetchContent_MakeAvailable(level-zero-loader)
