@@ -15,6 +15,7 @@
 #include <sycl/detail/spirv.hpp>
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/group.hpp>
+#include <sycl/sub_group.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {

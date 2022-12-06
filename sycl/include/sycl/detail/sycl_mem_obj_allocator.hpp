@@ -66,11 +66,11 @@ protected:
 
 private:
   template <typename T>
-  using EnableIfDefaultAllocator = enable_if_t<
+  using EnableIfDefaultAllocator = std::enable_if_t<
       std::is_same<T, sycl_memory_object_allocator<OwnerDataT>>::value>;
 
   template <typename T>
-  using EnableIfNonDefaultAllocator = enable_if_t<
+  using EnableIfNonDefaultAllocator = std::enable_if_t<
       !std::is_same<T, sycl_memory_object_allocator<OwnerDataT>>::value>;
 
   template <typename T = AllocatorT>
