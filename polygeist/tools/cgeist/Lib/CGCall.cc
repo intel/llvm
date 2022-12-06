@@ -147,7 +147,8 @@ ValueCategory MLIRScanner::callHelper(
     LLVM_DEBUG({
       llvm::dbgs() << "AType: " << AType << "\n";
       llvm::dbgs() << "AType addrspace: "
-                   << Glob.getCGM().getContext().getTargetAddressSpace(AType)
+                   << Glob.getCGM().getContext().getTargetAddressSpace(
+                          AType.getAddressSpace())
                    << "\n";
       llvm::dbgs() << "ExpectedType: " << ExpectedType << "\n";
     });
