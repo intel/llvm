@@ -450,13 +450,13 @@ public:
   const QueueImplPtr &getDefaultHostQueue() const { return DefaultHostQueue; }
 
   static MemObjRecord *getMemObjRecord(const Requirement *const Req);
-  // Virtual for testing purposes only
+
   void deferMemObjRelease(const std::shared_ptr<detail::SYCLMemObjI> &MemObj);
 
   Scheduler();
   ~Scheduler();
   void releaseResources();
-  inline bool isDeferredMemObjectsEmpty();
+  bool isDeferredMemObjectsEmpty();
 
 protected:
   using RWLockT = std::shared_timed_mutex;

@@ -33,9 +33,6 @@ namespace detail {
 // Origin idea is to track usage of Scheduler from main and other used threads -
 // they increment MCounter; and to use but not add extra reference by our
 // thread_pool threads. For this control MIncrementCounter class member is used.
-// MObj and MReleaseCalled is extra protection needed to handle case when main
-// thread finished but thread_pool is still running and we will join that
-// threads in releaseResources call.
 template <class ResourceHandler> class ObjectUsageCounter {
 public:
   ObjectUsageCounter(std::unique_ptr<ResourceHandler> &Obj, bool ModifyCounter)
@@ -81,7 +78,7 @@ T &GlobalHandler::getOrCreate(InstWithLock<T> &IWL, Types... Args) {
 }
 
 void GlobalHandler::attachScheduler(Scheduler *Scheduler) {
-  // The method is for testing purposes. Do not protect with lock since
+  // The method is used in unit tests only. Do not protect with lock since
   // releaseResources will cause dead lock due to host queue release
   if (MScheduler.Inst)
     MScheduler.Inst->releaseResources();
