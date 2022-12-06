@@ -2,4 +2,4 @@
 
 #include <string>
 
-void preserve_lib(const std::string &PluginPath);
+void * preserve_lib(const std::string &PluginPath);

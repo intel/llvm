@@ -33,8 +33,8 @@ void *loadOsLibrary(const std::string &PluginPath) {
   if (!SetDllDirectoryA("")) {
     assert(false && "Failed to update DLL search path");
   }
-  auto Result = (void *)LoadLibraryA(PluginPath.c_str());
-  preserve_lib(PluginPath);
+  //auto Result = (void *)LoadLibraryA(PluginPath.c_str());
+  auto Result = preserve_lib(PluginPath);
   (void)SetErrorMode(SavedMode);
   if (!SetDllDirectoryA(nullptr)) {
     assert(false && "Failed to restore DLL search path");
