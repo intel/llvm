@@ -283,6 +283,7 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
           CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
       const auto Dim =
           CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
+      Body.push_back(CGT.getMLIRType(CTS->bases_begin()->getType()));
       return mlir::sycl::LocalAccessorType::get(CGT.getModule()->getContext(),
                                                 Type, Dim, Body);
     }
