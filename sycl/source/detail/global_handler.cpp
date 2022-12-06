@@ -38,31 +38,27 @@ namespace detail {
 // threads in releaseResources call.
 template <class ResourceHandler> class ObjectUsageCounter {
 public:
-  ObjectUsageCounter(std::unique_ptr<ResourceHandler> &Obj,
-                     bool IncrementCounter)
-      : MIncrementCounter(IncrementCounter), MObj(Obj) {
-    if (MIncrementCounter)
+  ObjectUsageCounter(std::unique_ptr<ResourceHandler> &Obj, bool ModifyCounter)
+      : MModifyCounter(ModifyCounter), MObj(Obj) {
+    if (MModifyCounter)
       MCounter++;
   }
   ~ObjectUsageCounter() {
-    if (MIncrementCounter)
-      MCounter--;
-    if (!MCounter && MObj) {
-      if (!MReleaseCalled.exchange(true))
-        MObj->releaseResources();
-    }
+    if (!MModifyCounter)
+      return;
+
+    MCounter--;
+    if (!MCounter && MObj)
+      MObj->releaseResources();
   }
 
 private:
   static std::atomic_uint MCounter;
-  bool MIncrementCounter;
+  bool MModifyCounter;
   std::unique_ptr<ResourceHandler> &MObj;
-  static std::atomic_bool MReleaseCalled;
 };
 template <class ResourceHandler>
 std::atomic_uint ObjectUsageCounter<ResourceHandler>::MCounter{0};
-template <class ResourceHandler>
-std::atomic_bool ObjectUsageCounter<ResourceHandler>::MReleaseCalled{false};
 
 using LockGuard = std::lock_guard<SpinLock>;
 
@@ -98,9 +94,9 @@ Scheduler &GlobalHandler::getScheduler() {
   return *MScheduler.Inst;
 }
 
-void GlobalHandler::registerSchedulerUsage(bool IncrementCounter) {
+void GlobalHandler::registerSchedulerUsage(bool ModifyCounter) {
   thread_local ObjectUsageCounter SchedulerCounter(MScheduler.Inst,
-                                                   IncrementCounter);
+                                                   ModifyCounter);
 }
 
 ProgramManager &GlobalHandler::getProgramManager() {

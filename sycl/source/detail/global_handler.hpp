@@ -54,7 +54,7 @@ public:
   GlobalHandler(const GlobalHandler &) = delete;
   GlobalHandler(GlobalHandler &&) = delete;
 
-  void registerSchedulerUsage(bool IncrementCounter = true);
+  void registerSchedulerUsage(bool ModifyCounter = true);
   Scheduler &getScheduler();
   ProgramManager &getProgramManager();
   Sync &getSync();

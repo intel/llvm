@@ -33,7 +33,7 @@ class ThreadPool {
   std::atomic_uint MJobsInExecution;
 
   void worker() {
-    GlobalHandler::instance().registerSchedulerUsage(false);
+    GlobalHandler::instance().registerSchedulerUsage(/*ModifyCounter*/ false);
     std::unique_lock<std::mutex> Lock(MJobQueueMutex);
     std::thread::id ThisThreadId = std::this_thread::get_id();
     while (true) {
