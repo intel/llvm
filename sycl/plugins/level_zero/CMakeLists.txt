@@ -52,6 +52,19 @@ find_package(Threads REQUIRED)
 
 add_sycl_plugin(level_zero
   SOURCES
+    # These are short-term shared with Unified Runtime
+    # The two plugins define a few things differrently so must
+    # be built separately. This difference is spelled in
+    # their "ur_bindings.hpp" files.
+    #
+    "ur_bindings.hpp"
+    "../unified_runtime/pi2ur.hpp"
+    "../unified_runtime/pi2ur.cpp"
+    "../unified_runtime/ur/ur.hpp"
+    "../unified_runtime/ur/ur.cpp"
+    "../unified_runtime/ur/adapters/level_zero/ur_level_zero.hpp"
+    "../unified_runtime/ur/adapters/level_zero/ur_level_zero.cpp"
+    # Following are the PI Level-Zero Plugin only codes.
     "pi_level_zero.cpp"
     "pi_level_zero.hpp"
     "usm_allocator.cpp"
@@ -60,13 +73,14 @@ add_sycl_plugin(level_zero
     ${XPTI_PROXY_SRC}
   INCLUDE_DIRS
     ${CMAKE_CURRENT_BINARY_DIR} # for ze_api.def
+    ${CMAKE_CURRENT_SOURCE_DIR} # for Level-Zero Plugin "ur_bindings.hpp"
+    ${CMAKE_CURRENT_SOURCE_DIR}/../unified_runtime # for Unified Runtime
     ${XPTI_INCLUDE}
   LIBRARIES
     LevelZeroLoader-Headers
     UnifiedRuntime-Headers
     ze_loader
     Threads::Threads
-    unified_runtime_static
     ${XPTI_LIBS}
 )
 

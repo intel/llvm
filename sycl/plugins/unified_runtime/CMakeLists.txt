@@ -26,44 +26,31 @@ target_include_directories(UnifiedRuntime-Headers
     "${UNIFIED_RUNTIME_INCLUDE_DIR}"
 )
 
-
-#
-# Build a helper static library to carry pieces shared between
-# this Unified Runtime plugin and Level Zero plugin. We cannot
-# use dynamic plugin library as that only exports pi* symbols.
-#
-add_library(unified_runtime_static STATIC
-  "ur.hpp"
-  "ur.cpp"
-  "pi2ur.hpp"
-  "adapters/level_zero/ur_level_zero.hpp"
-  "adapters/level_zero/ur_level_zero.cpp"
-)
-
-target_include_directories(unified_runtime_static
-  INTERFACE
-    "${CMAKE_CURRENT_SOURCE_DIR}"
-)
-
-target_link_libraries(unified_runtime_static PRIVATE
-  UnifiedRuntime-Headers
-  LevelZeroLoader-Headers
-)
+find_package(Threads REQUIRED)
 
 #
 # NOTE: the Unified Runtime doesn't have the loader [yet].
 # So what we really build is the Unified Runtime with Level Zero Adapter
 # together.
 #
-find_package(Threads REQUIRED)
-
 add_sycl_plugin(unified_runtime
   SOURCES
-    # Put here anything that belongs exclusively to Unified Runtime
-    # and should not be shared with the Level Zero plugin
+    # These are short-term shared with Unified Runtime
+    # The two plugins define a few things differrently so must
+    # be built separately. This difference is spelled in
+    # their "ur_bindings.hpp" files.
+    #
+    "ur_bindings.hpp"
+    "pi2ur.hpp"
     "pi2ur.cpp"
-  LIBRARIES
-    unified_runtime_static
+    "ur/ur.hpp"
+    "ur/ur.cpp"
+    "ur/adapters/level_zero/ur_level_zero.hpp"
+    "ur/adapters/level_zero/ur_level_zero.cpp"
+    # These below belong to Unified Runtime PI Plugin only
+    "pi_unified_runtime.hpp"
+    "pi_unified_runtime.cpp"
+    LIBRARIES
     Threads::Threads
     UnifiedRuntime-Headers
     LevelZeroLoader-Headers
