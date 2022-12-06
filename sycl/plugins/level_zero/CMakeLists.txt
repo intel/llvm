@@ -21,6 +21,9 @@ FetchContent_Declare(level-zero-loader
   GIT_TAG           ${LEVEL_ZERO_LOADER_TAG}
 )
 
+# Suppress some pedantic warnign for Level Zero build
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-but-set-variable")
+
 FetchContent_MakeAvailable(level-zero-loader)
 FetchContent_GetProperties(level-zero-loader)
 
@@ -83,14 +86,6 @@ add_sycl_plugin(level_zero
     Threads::Threads
     ${XPTI_LIBS}
 )
-
-# Compilation option modification to prevent build termination caused by
-# warnings from Level-Zero files
-if (WIN32)
-string(REPLACE "/W4" " " CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-else()
-string(REPLACE "-pedantic" " " CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-endif()
 
 add_dependencies(pi_level_zero ze-api)
 
