@@ -163,9 +163,6 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
   if (const auto *CTS =
           llvm::dyn_cast<clang::ClassTemplateSpecializationDecl>(RD)) {
 
-    llvm::dbgs() << "at line " << __LINE__
-                 << ", CTS->getName(): " << CTS->getName() << "\n";
-
     switch (StrToTypeEnum[CTS->getName().str()]) {
     // Keep in alphabetical order.
     case TypeEnum::AccessorCommon:
