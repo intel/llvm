@@ -1343,9 +1343,11 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
           TypeName == "atomic" || TypeName == "bfloat16" ||
           TypeName == "GetOp" || TypeName == "GetScalarOp" ||
           TypeName == "group" || TypeName == "id" || TypeName == "item" ||
-          TypeName == "ItemBase" || TypeName == "multi_ptr" ||
-          TypeName == "nd_item" || TypeName == "nd_range" ||
-          TypeName == "range" || TypeName == "sub_group" ||
+          TypeName == "ItemBase" || TypeName == "LocalAccessorBaseDevice" ||
+          TypeName == "local_accessor_base" || TypeName == "local_accessor" ||
+          TypeName == "multi_ptr" || TypeName == "nd_item" ||
+          TypeName == "nd_range" || TypeName == "range" ||
+          TypeName == "sub_group" ||
           TypeName == "TupleCopyAssignableValueHolder" ||
           TypeName == "TupleValueHolder" || TypeName == "vec") {
         return getSYCLType(RT, *this);

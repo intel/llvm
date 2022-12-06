@@ -123,20 +123,55 @@ private:
 mlir::OpAsmDialectInterface::AliasResult
 SYCLOpAsmInterface::getAlias(mlir::Type Type, llvm::raw_ostream &OS) const {
   return llvm::TypeSwitch<mlir::Type, AliasResult>(Type)
+      // Keep approx. in the same order as in SYCLOps.td
+      .Case<mlir::sycl::AccessorType>([&](auto Ty) {
+        OS << "sycl_" << decltype(Ty)::getMnemonic() << "_" << Ty.getDimension()
+           << "_" << Ty.getType() << "_" << getAlias(Ty.getAccessMode()) << "_"
+           << getAlias(Ty.getTargetMode());
+        return AliasResult::FinalAlias;
+      })
+      .Case<mlir::sycl::AccessorSubscriptType>([&](auto Ty) {
+        OS << "sycl_" << decltype(Ty)::getMnemonic() << "_"
+           << Ty.getCurrentDimension() << "_";
+        return AliasResult::OverridableAlias;
+      })
       .Case<mlir::sycl::AssertHappenedType, mlir::sycl::BFloat16Type>(
           [&](auto Ty) {
             OS << "sycl_" << decltype(Ty)::getMnemonic() << "_";
             return AliasResult::FinalAlias;
           })
-      .Case<mlir::sycl::IDType, mlir::sycl::RangeType, mlir::sycl::NdRangeType,
-            mlir::sycl::AccessorImplDeviceType, mlir::sycl::ArrayType,
-            mlir::sycl::NdItemType, mlir::sycl::GroupType>([&](auto Ty) {
+      .Case<mlir::sycl::AtomicType>([&](auto Ty) {
+        OS << "sycl_" << decltype(Ty)::getMnemonic() << "_" << Ty.getDataType()
+           << "_" << mlir::sycl::accessAddressSpaceAsString(Ty.getAddrSpace())
+           << "_";
+        return AliasResult::FinalAlias;
+      })
+      .Case<mlir::sycl::AccessorImplDeviceType, mlir::sycl::ArrayType,
+            mlir::sycl::GroupType, mlir::sycl::IDType,
+            mlir::sycl::LocalAccessorBaseDeviceType, mlir::sycl::NdItemType,
+            mlir::sycl::NdRangeType, mlir::sycl::RangeType>([&](auto Ty) {
         OS << "sycl_" << decltype(Ty)::getMnemonic() << "_" << Ty.getDimension()
            << "_";
         return AliasResult::FinalAlias;
       })
       .Case<mlir::sycl::ItemType, mlir::sycl::ItemBaseType>([&](auto Ty) {
         OS << "sycl_" << decltype(Ty)::getMnemonic() << "_" << Ty.getDimension()
+           << "_";
+        return AliasResult::OverridableAlias;
+      })
+      .Case<mlir::sycl::LocalAccessorBaseType>([&](auto Ty) {
+        OS << "sycl_" << decltype(Ty)::getMnemonic() << "_" << Ty.getDimension()
+           << "_" << Ty.getType() << "_" << getAlias(Ty.getAccessMode());
+        return AliasResult::FinalAlias;
+      })
+      .Case<mlir::sycl::LocalAccessorType>([&](auto Ty) {
+        OS << "sycl_" << decltype(Ty)::getMnemonic() << "_" << Ty.getDimension()
+           << "_" << Ty.getType();
+        return AliasResult::FinalAlias;
+      })
+      .Case<mlir::sycl::MultiPtrType>([&](auto Ty) {
+        OS << "sycl_" << decltype(Ty)::getMnemonic() << "_" << Ty.getDataType()
+           << "_" << mlir::sycl::accessAddressSpaceAsString(Ty.getAddrSpace())
            << "_";
         return AliasResult::OverridableAlias;
       })
@@ -155,29 +190,6 @@ SYCLOpAsmInterface::getAlias(mlir::Type Type, llvm::raw_ostream &OS) const {
         OS << "sycl_" << decltype(Ty)::getMnemonic() << "_" << Ty.getDataType()
            << "_" << Ty.getNumElements() << "_";
         return AliasResult::FinalAlias;
-      })
-      .Case<mlir::sycl::AccessorSubscriptType>([&](auto Ty) {
-        OS << "sycl_" << decltype(Ty)::getMnemonic() << "_"
-           << Ty.getCurrentDimension() << "_";
-        return AliasResult::OverridableAlias;
-      })
-      .Case<mlir::sycl::AccessorType>([&](auto Ty) {
-        OS << "sycl_" << decltype(Ty)::getMnemonic() << "_" << Ty.getDimension()
-           << "_" << Ty.getType() << "_" << getAlias(Ty.getAccessMode()) << "_"
-           << getAlias(Ty.getTargetMode());
-        return AliasResult::FinalAlias;
-      })
-      .Case<mlir::sycl::AtomicType>([&](auto Ty) {
-        OS << "sycl_" << decltype(Ty)::getMnemonic() << "_" << Ty.getDataType()
-           << "_" << mlir::sycl::accessAddressSpaceAsString(Ty.getAddrSpace())
-           << "_";
-        return AliasResult::FinalAlias;
-      })
-      .Case<mlir::sycl::MultiPtrType>([&](auto Ty) {
-        OS << "sycl_" << decltype(Ty)::getMnemonic() << "_" << Ty.getDataType()
-           << "_" << mlir::sycl::accessAddressSpaceAsString(Ty.getAddrSpace())
-           << "_";
-        return AliasResult::OverridableAlias;
       })
       .Default([](auto) { return AliasResult::NoAlias; });
 }

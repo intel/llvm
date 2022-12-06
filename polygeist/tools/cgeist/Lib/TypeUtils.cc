@@ -1,4 +1,4 @@
-//===- type utils.cc ---------------------------------------------*- C++-*-===//
+//===- TypeUtils.cctype ------------------------------------------*- C++-*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -103,7 +103,7 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
                        mlirclang::CodeGen::CodeGenTypes &CGT) {
 
   enum TypeEnum {
-    // Keep in alphabetical order.
+    // Same order as in SYCLOps.td
     AccessorCommon,
     AccessorImplDevice,
     Accessor,
@@ -118,6 +118,9 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
     ID,
     ItemBase,
     Item,
+    LocalAccessorBaseDevice,
+    LocalAccessorBase,
+    LocalAccessor,
     MultiPtr,
     NdItem,
     NdRange,
@@ -129,7 +132,7 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
   };
 
   std::map<std::string, TypeEnum> StrToTypeEnum = {
-      // Keep in alphabetical order.
+      // Same order as in SYCLOps.td
       {"accessor_common", TypeEnum::AccessorCommon},
       {"AccessorImplDevice", TypeEnum::AccessorImplDevice},
       {"accessor", TypeEnum::Accessor},
@@ -144,6 +147,9 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
       {"id", TypeEnum::ID},
       {"ItemBase", TypeEnum::ItemBase},
       {"item", TypeEnum::Item},
+      {"LocalAccessorBaseDevice", TypeEnum::LocalAccessorBaseDevice},
+      {"local_accessor_base", TypeEnum::LocalAccessorBase},
+      {"local_accessor", TypeEnum::LocalAccessor},
       {"multi_ptr", MultiPtr},
       {"nd_item", TypeEnum::NdItem},
       {"nd_range", TypeEnum::NdRange},
@@ -157,14 +163,20 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
   const clang::RecordDecl *RD = RT->getAsRecordDecl();
   llvm::SmallVector<mlir::Type, 4> Body;
 
-  for (const auto *Field : RD->fields())
+  //  llvm::dbgs() << "RD: ";
+  //  RD->dump();
+  //  llvm::dbgs() << "\n";
+
+  for (const auto *Field : RD->fields()) {
+    //  llvm::dbgs() << "Field: ";
+    // Field->dump();
+    // llvm::dbgs() << "\n";
+
     Body.push_back(CGT.getMLIRType(Field->getType()));
+  }
 
   if (const auto *CTS =
           llvm::dyn_cast<clang::ClassTemplateSpecializationDecl>(RD)) {
-
-    llvm::dbgs() << "at line " << __LINE__
-                 << ", CTS->getName(): " << CTS->getName() << "\n";
 
     switch (StrToTypeEnum[CTS->getName().str()]) {
     // Keep in alphabetical order.
@@ -183,6 +195,7 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
           CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
       const auto MemAccessMode = static_cast<mlir::sycl::MemoryAccessMode>(
           CTS->getTemplateArgs().get(2).getAsIntegral().getExtValue());
+
       const auto MemTargetMode = static_cast<mlir::sycl::MemoryTargetMode>(
           CTS->getTemplateArgs().get(3).getAsIntegral().getExtValue());
       return mlir::sycl::AccessorType::get(CGT.getModule()->getContext(), Type,
@@ -196,7 +209,6 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
           CGT.getModule()->getContext(), CurDim, Body);
     }
     case TypeEnum::Array: {
-      llvm::dbgs() << "at line " << __LINE__ << "\n";
       const auto Dim =
           CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
       return mlir::sycl::ArrayType::get(CGT.getModule()->getContext(), Dim,
@@ -211,16 +223,16 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
           CGT.getModule()->getContext(), Type,
           static_cast<mlir::sycl::AccessAddrSpace>(AddrSpace), Body);
     }
+    case TypeEnum::GetOp: {
+      const auto Type =
+          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
+      return mlir::sycl::GetOpType::get(CGT.getModule()->getContext(), Type);
+    }
     case TypeEnum::GetScalarOp: {
       const auto Type =
           CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
       return mlir::sycl::GetScalarOpType::get(CGT.getModule()->getContext(),
                                               Type, Body);
-    }
-    case TypeEnum::GetOp: {
-      const auto Type =
-          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
-      return mlir::sycl::GetOpType::get(CGT.getModule()->getContext(), Type);
     }
     case TypeEnum::Group: {
       const auto Dim =
@@ -249,6 +261,30 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
           CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
       return mlir::sycl::ItemType::get(CGT.getModule()->getContext(), Dim,
                                        Offset, Body);
+    }
+    case TypeEnum::LocalAccessorBaseDevice: {
+      const auto Dim =
+          CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
+      return mlir::sycl::LocalAccessorBaseDeviceType::get(
+          CGT.getModule()->getContext(), Dim, Body);
+    }
+    case TypeEnum::LocalAccessorBase: {
+      const auto Type =
+          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
+      const auto Dim =
+          CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
+      const auto MemAccessMode = static_cast<mlir::sycl::MemoryAccessMode>(
+          CTS->getTemplateArgs().get(2).getAsIntegral().getExtValue());
+      return mlir::sycl::LocalAccessorBaseType::get(
+          CGT.getModule()->getContext(), Type, Dim, MemAccessMode, Body);
+    }
+    case TypeEnum::LocalAccessor: {
+      const auto Type =
+          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
+      const auto Dim =
+          CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
+      return mlir::sycl::LocalAccessorType::get(CGT.getModule()->getContext(),
+                                                Type, Dim, Body);
     }
     case TypeEnum::MultiPtr: {
       const auto Type =

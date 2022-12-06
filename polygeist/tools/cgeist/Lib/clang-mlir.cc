@@ -1441,8 +1441,10 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
             .Case<sycl::AccessorType, sycl::AccessorImplDeviceType,
                   sycl::AccessorSubscriptType, sycl::AtomicType,
                   sycl::GetScalarOpType, sycl::GroupType, sycl::ItemBaseType,
-                  sycl::ItemType, sycl::MultiPtrType, sycl::NdItemType,
-                  sycl::NdRangeType, sycl::VecType>([&](auto ElemTy) {
+                  sycl::ItemType, sycl::LocalAccessorBaseDeviceType,
+                  sycl::LocalAccessorBaseType, sycl::LocalAccessorType,
+                  sycl::MultiPtrType, sycl::NdItemType, sycl::NdRangeType,
+                  sycl::VecType>([&](auto ElemTy) {
               return SYCLCommonFieldLookup<decltype(ElemTy)>(Val, FNum, Shape);
             })
             .Default([&Val](Type T) {
@@ -1473,19 +1475,19 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
 
 static bool isSYCLInheritType(Type &Ty, Value &Val) {
   assert(Val.getType().isa<MemRefType>());
+  if (!Ty.isa<MemRefType>())
+    return false;
 
-  Type ElemTy = Val.getType().cast<MemRefType>().getElementType();
-  return TypeSwitch<Type, bool>(ElemTy)
-      .Case<sycl::IDType, sycl::RangeType>([&](auto) {
-        assert(Ty.isa<MemRefType>());
-        return Ty.cast<MemRefType>().getElementType().isa<sycl::ArrayType>();
-      })
-      .Case<sycl::AccessorType>([&](auto) {
-        assert(Ty.isa<MemRefType>());
-        return Ty.cast<MemRefType>()
-            .getElementType()
-            .isa<sycl::AccessorCommonType>();
-      })
+  Type ElemTy = Ty.cast<MemRefType>().getElementType();
+
+  return TypeSwitch<Type, bool>(
+             Val.getType().cast<MemRefType>().getElementType())
+      .Case<sycl::AccessorType, sycl::LocalAccessorBaseType>(
+          [&](auto) { return ElemTy.isa<sycl::AccessorCommonType>(); })
+      .Case<sycl::LocalAccessorType>(
+          [&](auto) { return ElemTy.isa<sycl::LocalAccessorBaseType>(); })
+      .Case<sycl::IDType, sycl::RangeType>(
+          [&](auto) { return ElemTy.isa<sycl::ArrayType>(); })
       .Default([](auto) { return false; });
 }
 

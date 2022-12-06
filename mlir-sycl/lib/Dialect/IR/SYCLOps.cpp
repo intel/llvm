@@ -14,15 +14,13 @@
 
 bool mlir::sycl::SYCLCastOp::areCastCompatible(::mlir::TypeRange Inputs,
                                                ::mlir::TypeRange Outputs) {
-  if (Inputs.size() != 1 || Outputs.size() != 1) {
+  if (Inputs.size() != 1 || Outputs.size() != 1)
     return false;
-  }
 
   const auto Input = Inputs.front().dyn_cast<MemRefType>();
   const auto Output = Outputs.front().dyn_cast<MemRefType>();
-  if (!Input || !Output) {
+  if (!Input || !Output)
     return false;
-  }
 
   /// This is a hack - Since the sycl's CastOp takes as input/output MemRef, we
   /// want to ensure that the cast is valid within MemRef's world.
@@ -34,9 +32,8 @@ bool mlir::sycl::SYCLCastOp::areCastCompatible(::mlir::TypeRange Inputs,
   const auto TempOutput =
       mlir::MemRefType::get(Output.getShape(), Input.getElementType(),
                             Output.getLayout(), Output.getMemorySpace());
-  if (!mlir::memref::CastOp::areCastCompatible(Input, TempOutput)) {
+  if (!mlir::memref::CastOp::areCastCompatible(Input, TempOutput))
     return false;
-  }
 
   const bool HasArrayTrait = Input.getElementType()
                                  .hasTrait<mlir::sycl::SYCLInheritanceTypeTrait<
