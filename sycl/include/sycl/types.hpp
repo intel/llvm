@@ -317,17 +317,17 @@ std::enable_if_t<is_float_to_int<T, R>::value, R> convertImpl(T Value) {
 #else
 
 template <rounding_mode Mode>
-using RteOrAutomatic = detail::bool_constant<Mode == rounding_mode::automatic ||
-                                             Mode == rounding_mode::rte>;
+using RteOrAutomatic = std::bool_constant<Mode == rounding_mode::automatic ||
+                                          Mode == rounding_mode::rte>;
 
 template <rounding_mode Mode>
-using Rtz = detail::bool_constant<Mode == rounding_mode::rtz>;
+using Rtz = std::bool_constant<Mode == rounding_mode::rtz>;
 
 template <rounding_mode Mode>
-using Rtp = detail::bool_constant<Mode == rounding_mode::rtp>;
+using Rtp = std::bool_constant<Mode == rounding_mode::rtp>;
 
 template <rounding_mode Mode>
-using Rtn = detail::bool_constant<Mode == rounding_mode::rtn>;
+using Rtn = std::bool_constant<Mode == rounding_mode::rtn>;
 
 // convert types with an equal size and diff names
 template <typename T, typename R, rounding_mode roundingMode, typename OpenCLT,
@@ -2406,8 +2406,8 @@ template <> struct is_device_copyable<std::tuple<>> : std::true_type {};
 // is device copyable.
 template <typename T, typename... Ts>
 struct is_device_copyable<std::tuple<T, Ts...>>
-    : detail::bool_constant<is_device_copyable<T>::value &&
-                            is_device_copyable<std::tuple<Ts...>>::value> {};
+    : std::bool_constant<is_device_copyable<T>::value &&
+                         is_device_copyable<std::tuple<Ts...>>::value> {};
 
 // marray is device copyable if element type is device copyable and it is also
 // not trivially copyable (if the element type is trivially copyable, the marray

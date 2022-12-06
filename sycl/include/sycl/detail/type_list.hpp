@@ -89,21 +89,21 @@ using is_one_of_spaces =
 
 // size type predicates
 template <typename T1, typename T2>
-struct is_type_size_equal : bool_constant<(sizeof(T1) == sizeof(T2))> {};
+struct is_type_size_equal : std::bool_constant<(sizeof(T1) == sizeof(T2))> {};
 
 template <typename T1, typename T2>
-struct is_type_size_greater : bool_constant<(sizeof(T1) > sizeof(T2))> {};
+struct is_type_size_greater : std::bool_constant<(sizeof(T1) > sizeof(T2))> {};
 
 template <typename T1, typename T2>
 struct is_type_size_double_of
-    : bool_constant<(sizeof(T1) == (sizeof(T2) * 2))> {};
+    : std::bool_constant<(sizeof(T1) == (sizeof(T2) * 2))> {};
 
 template <typename T1, typename T2>
-struct is_type_size_less : bool_constant<(sizeof(T1) < sizeof(T2))> {};
+struct is_type_size_less : std::bool_constant<(sizeof(T1) < sizeof(T2))> {};
 
 template <typename T1, typename T2>
-struct is_type_size_half_of : bool_constant<(sizeof(T1) == (sizeof(T2) / 2))> {
-};
+struct is_type_size_half_of
+    : std::bool_constant<(sizeof(T1) == (sizeof(T2) / 2))> {};
 
 // find required type
 template <typename TypeList, template <typename, typename> class Comp,

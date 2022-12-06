@@ -18,8 +18,6 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 // C++17
-template <bool V> using bool_constant = std::integral_constant<bool, V>;
-
 template <class...> using void_t = void;
 
 // Custom type traits

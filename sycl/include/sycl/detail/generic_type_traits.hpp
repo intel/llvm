@@ -228,17 +228,17 @@ template <typename T>
 using is_geninteger64bit = is_gen_based_on_type_sizeof<T, 8, is_geninteger>;
 
 template <typename T>
-using is_genintptr = bool_constant<
+using is_genintptr = std::bool_constant<
     is_pointer<T>::value && is_genint<remove_pointer_t<T>>::value &&
     is_address_space_compliant<T, gvl::nonconst_address_space_list>::value>;
 
 template <typename T>
-using is_genfloatptr = bool_constant<
+using is_genfloatptr = std::bool_constant<
     is_pointer<T>::value && is_genfloat<remove_pointer_t<T>>::value &&
     is_address_space_compliant<T, gvl::nonconst_address_space_list>::value>;
 
 template <typename T>
-using is_genptr = bool_constant<
+using is_genptr = std::bool_constant<
     is_pointer<T>::value && is_gentype<remove_pointer_t<T>>::value &&
     is_address_space_compliant<T, gvl::nonconst_address_space_list>::value>;
 

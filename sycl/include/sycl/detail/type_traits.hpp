@@ -229,7 +229,7 @@ template <typename T> using make_unsigned_t = typename make_unsigned<T>::type;
 // Checks that sizeof base type of T equal N and T satisfies S<T>::value
 template <typename T, int N, template <typename> class S>
 using is_gen_based_on_type_sizeof =
-    bool_constant<S<T>::value && (sizeof(vector_element_t<T>) == N)>;
+    std::bool_constant<S<T>::value && (sizeof(vector_element_t<T>) == N)>;
 
 template <typename> struct is_vec : std::false_type {};
 template <typename T, std::size_t N>
@@ -252,28 +252,30 @@ struct is_floating_point
 // is_arithmetic
 template <typename T>
 struct is_arithmetic
-    : bool_constant<is_integral<T>::value || is_floating_point<T>::value> {};
+    : std::bool_constant<is_integral<T>::value || is_floating_point<T>::value> {
+};
 
 template <typename T>
 struct is_scalar_arithmetic
-    : bool_constant<!is_vec<T>::value && is_arithmetic<T>::value> {};
+    : std::bool_constant<!is_vec<T>::value && is_arithmetic<T>::value> {};
 
 template <typename T>
 struct is_vector_arithmetic
-    : bool_constant<is_vec<T>::value && is_arithmetic<T>::value> {};
+    : std::bool_constant<is_vec<T>::value && is_arithmetic<T>::value> {};
 
 // is_bool
 template <typename T>
 struct is_scalar_bool
-    : bool_constant<std::is_same<std::remove_cv_t<T>, bool>::value> {};
+    : std::bool_constant<std::is_same<std::remove_cv_t<T>, bool>::value> {};
 
 template <typename T>
 struct is_vector_bool
-    : bool_constant<is_vec<T>::value &&
-                    is_scalar_bool<vector_element_t<T>>::value> {};
+    : std::bool_constant<is_vec<T>::value &&
+                         is_scalar_bool<vector_element_t<T>>::value> {};
 
 template <typename T>
-struct is_bool : bool_constant<is_scalar_bool<vector_element_t<T>>::value> {};
+struct is_bool
+    : std::bool_constant<is_scalar_bool<vector_element_t<T>>::value> {};
 
 // is_pointer
 template <typename T> struct is_pointer_impl : std::false_type {};
@@ -319,7 +321,7 @@ template <typename T, typename SpaceList, access::address_space Space,
           access::decorated DecorateAddress>
 struct is_address_space_compliant_impl<multi_ptr<T, Space, DecorateAddress>,
                                        SpaceList>
-    : bool_constant<is_one_of_spaces<Space, SpaceList>::value> {};
+    : std::bool_constant<is_one_of_spaces<Space, SpaceList>::value> {};
 
 template <typename T, typename SpaceList>
 struct is_address_space_compliant
