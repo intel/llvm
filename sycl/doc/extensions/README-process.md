@@ -43,8 +43,8 @@ version of the extension's feature-test macro when this occurs.
 When proposing a new extension targeting a particular backend, consider
 which other backends may be likely to use similar architecture features
 and may be able to support the extension. Some types of devices, such as
-GPU accelerators (e.g. devices using level_zero, ext_oneapi_cuda, and
-ext_oneapi_hip backends) are often designed to target similar sets of
+GPU accelerators (e.g. devices using `level_zero`, `ext_oneapi_cuda`, and
+`ext_oneapi_hip` backends) are often designed to target similar sets of
 programming patterns. For example, a common set of applications and
 patterns that are targeted by gpu accelerators includes AI algorithms and
 data analytics, quantum or classical particle based simulations, and quantum
