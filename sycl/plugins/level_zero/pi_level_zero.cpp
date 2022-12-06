@@ -2881,7 +2881,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
 
     auto ReturnHelper = [&](auto... Partitions) {
       struct {
-        pi_device_partition_property Arr[sizeof...(Partitions)+1];
+        pi_device_partition_property Arr[sizeof...(Partitions) + 1];
       } PartitionProperties = {{Partitions..., 0}};
       return ReturnValue(PartitionProperties);
     };
