@@ -2,7 +2,7 @@
 ; RUN: split-file %s %t
 ; RUN: opt -thinlto-bc %t/main.ll -thin-link-bitcode-file=%t1.thinlink.bc -o %t1.bc
 ; RUN: opt -thinlto-bc %t/callees.ll -thin-link-bitcode-file=%t2.thinlink.bc -o %t2.bc
-; RUN: llvm-lto2 run -disable-thinlto-funcattrs=0 %t1.bc %t2.bc -o %t.o -r %t1.bc,caller,px -r %t1.bc,caller1,px -r %t1.bc,caller2,px -r %t1.bc,caller_nounwind,px  \
+; RUN: llvm-lto2 run -opaque-pointers -disable-thinlto-funcattrs=0 %t1.bc %t2.bc -o %t.o -r %t1.bc,caller,px -r %t1.bc,caller1,px -r %t1.bc,caller2,px -r %t1.bc,caller_nounwind,px  \
 ; RUN:               -r %t1.bc,cleanupret,l -r %t1.bc,catchret,l -r %t1.bc,resume,l -r %t1.bc,cleanupret_nounwind,l \
 ; RUN:               -r %t2.bc,cleanupret,px -r %t2.bc,catchret,px -r %t2.bc,resume,px -r %t2.bc,cleanupret_nounwind,px -r %t2.bc,nonThrowing,px -r %t2.bc,__gxx_personality_v0,px -save-temps
 ; RUN: llvm-dis -o - %t2.bc | FileCheck %s --check-prefix=SUMMARY
@@ -63,7 +63,7 @@ define void @nonThrowing() #0 {
 
 declare i32 @__gxx_personality_v0(...)
 
-define void @cleanupret() personality i32 (...)* @__gxx_personality_v0 {
+define void @cleanupret() personality ptr @__gxx_personality_v0 {
 entry:
   invoke void @nonThrowing()
           to label %exit unwind label %pad
@@ -74,7 +74,7 @@ exit:
   ret void
 }
 
-define void @catchret() personality i32 (...)* @__gxx_personality_v0 {
+define void @catchret() personality ptr @__gxx_personality_v0 {
 entry:
   invoke void @nonThrowing()
           to label %exit unwind label %pad
@@ -87,7 +87,7 @@ exit:
   ret void
 }
 
-define void @resume() uwtable optsize ssp personality i32 (...)* @__gxx_personality_v0 {
+define void @resume() uwtable optsize ssp personality ptr @__gxx_personality_v0 {
 entry:
   invoke void @nonThrowing()
           to label %try.cont unwind label %lpad
@@ -96,12 +96,12 @@ try.cont:                                         ; preds = %entry, %invoke.cont
   ret void
 
 lpad:                                             ; preds = %entry
-  %exn = landingpad {i8*, i32}
+  %exn = landingpad {ptr, i32}
            cleanup
-  resume { i8*, i32 } %exn
+  resume { ptr, i32 } %exn
 }
 
-define void @cleanupret_nounwind() #0 personality i32 (...)* @__gxx_personality_v0 {
+define void @cleanupret_nounwind() #0 personality ptr @__gxx_personality_v0 {
 entry:
   invoke void @nonThrowing()
           to label %exit unwind label %pad

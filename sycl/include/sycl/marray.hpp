@@ -17,7 +17,7 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
-/// Provides a cross-patform math array class template that works on
+/// Provides a cross-platform math array class template that works on
 /// SYCL devices as well as in host C++ code.
 ///
 /// \ingroup sycl_api
