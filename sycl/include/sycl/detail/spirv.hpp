@@ -142,10 +142,11 @@ using EnableIfGenericBroadcast = std::enable_if_t<
 
 // FIXME: Disable widening once all backends support all data types.
 template <typename T>
-using WidenOpenCLTypeTo32_t = conditional_t<
+using WidenOpenCLTypeTo32_t = std::conditional_t<
     std::is_same<T, cl_char>() || std::is_same<T, cl_short>(), cl_int,
-    conditional_t<std::is_same<T, cl_uchar>() || std::is_same<T, cl_ushort>(),
-                  cl_uint, T>>;
+    std::conditional_t<std::is_same<T, cl_uchar>() ||
+                           std::is_same<T, cl_ushort>(),
+                       cl_uint, T>>;
 
 // Broadcast with scalar local index
 // Work-group supports any integral type

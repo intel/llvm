@@ -20,9 +20,6 @@ namespace detail {
 // Type traits identical to those in std in newer versions. Can be removed when
 // SYCL requires a newer version of the C++ standard.
 // C++14
-template <bool B, class T, class F>
-using conditional_t = typename std::conditional<B, T, F>::type;
-
 template <typename T> using add_pointer_t = typename std::add_pointer<T>::type;
 
 // C++17

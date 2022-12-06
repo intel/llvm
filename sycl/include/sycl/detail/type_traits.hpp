@@ -100,8 +100,8 @@ struct vector_size
 // 4.10.2.6 Memory layout and alignment
 template <typename T, int N>
 struct vector_alignment_impl
-    : conditional_t<N == 3, int_constant<sizeof(T) * 4>,
-                    int_constant<sizeof(T) * N>> {};
+    : std::conditional_t<N == 3, int_constant<sizeof(T) * 4>,
+                         int_constant<sizeof(T) * N>> {};
 
 template <typename T, int N>
 struct vector_alignment
@@ -365,7 +365,7 @@ template <typename T, int N> struct make_larger_impl<vec<T, N>, vec<T, N>> {
   using upper_type = typename make_larger_impl<base_type, base_type>::type;
   using new_type = vec<upper_type, N>;
   static constexpr bool found = !std::is_same<upper_type, void>::value;
-  using type = conditional_t<found, new_type, void>;
+  using type = std::conditional_t<found, new_type, void>;
 };
 
 template <typename T> struct make_larger {

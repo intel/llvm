@@ -121,14 +121,14 @@ template <typename T, int N> class BaseCLTypeConverter;
 
 // Element type for relational operator return value.
 template <typename DataT>
-using rel_t = typename detail::conditional_t<
+using rel_t = typename std::conditional_t<
     sizeof(DataT) == sizeof(cl_char), cl_char,
-    typename detail::conditional_t<
+    typename std::conditional_t<
         sizeof(DataT) == sizeof(cl_short), cl_short,
-        typename detail::conditional_t<
+        typename std::conditional_t<
             sizeof(DataT) == sizeof(cl_int), cl_int,
-            typename detail::conditional_t<sizeof(DataT) == sizeof(cl_long),
-                                           cl_long, bool>>>>;
+            typename std::conditional_t<sizeof(DataT) == sizeof(cl_long),
+                                        cl_long, bool>>>>;
 
 // Special type indicating that SwizzleOp should just read value from vector -
 // not trying to perform any operations. Should not be called.
@@ -566,20 +566,19 @@ template <typename Type, int NumElements> class vec {
 
   // SizeChecker is needed for vec(const argTN &... args) ctor to validate args.
   template <int Counter, int MaxValue, class...>
-  struct SizeChecker : detail::conditional_t<Counter == MaxValue,
-                                             std::true_type, std::false_type> {
-  };
+  struct SizeChecker : std::conditional_t<Counter == MaxValue, std::true_type,
+                                          std::false_type> {};
 
   template <int Counter, int MaxValue, typename DataT_, class... tail>
   struct SizeChecker<Counter, MaxValue, DataT_, tail...>
-      : detail::conditional_t<Counter + 1 <= MaxValue,
-                              SizeChecker<Counter + 1, MaxValue, tail...>,
-                              std::false_type> {};
+      : std::conditional_t<Counter + 1 <= MaxValue,
+                           SizeChecker<Counter + 1, MaxValue, tail...>,
+                           std::false_type> {};
 
 #define __SYCL_ALLOW_VECTOR_SIZES(num_elements)                                \
   template <int Counter, int MaxValue, typename DataT_, class... tail>         \
   struct SizeChecker<Counter, MaxValue, vec<DataT_, num_elements>, tail...>    \
-      : detail::conditional_t<                                                 \
+      : std::conditional_t<                                                    \
             Counter + (num_elements) <= MaxValue,                              \
             SizeChecker<Counter + (num_elements), MaxValue, tail...>,          \
             std::false_type> {};                                               \
@@ -590,7 +589,7 @@ template <typename Type, int NumElements> class vec {
       Counter, MaxValue,                                                       \
       detail::SwizzleOp<vec<DataT_, num_elements>, T2, T3, T4, T5...>,         \
       tail...>                                                                 \
-      : detail::conditional_t<                                                 \
+      : std::conditional_t<                                                    \
             Counter + sizeof...(T5) <= MaxValue,                               \
             SizeChecker<Counter + sizeof...(T5), MaxValue, tail...>,           \
             std::false_type> {};                                               \
@@ -601,7 +600,7 @@ template <typename Type, int NumElements> class vec {
       Counter, MaxValue,                                                       \
       detail::SwizzleOp<const vec<DataT_, num_elements>, T2, T3, T4, T5...>,   \
       tail...>                                                                 \
-      : detail::conditional_t<                                                 \
+      : std::conditional_t<                                                    \
             Counter + sizeof...(T5) <= MaxValue,                               \
             SizeChecker<Counter + sizeof...(T5), MaxValue, tail...>,           \
             std::false_type> {};
@@ -617,7 +616,7 @@ template <typename Type, int NumElements> class vec {
   template <class...> struct conjunction : std::true_type {};
   template <class B1, class... tail>
   struct conjunction<B1, tail...>
-      : detail::conditional_t<bool(B1::value), conjunction<tail...>, B1> {};
+      : std::conditional_t<bool(B1::value), conjunction<tail...>, B1> {};
 
   // TypeChecker is needed for vec(const argTN &... args) ctor to validate args.
   template <typename T, typename DataT_>
@@ -2144,10 +2143,10 @@ namespace detail {
 // select_apply_cl_t selects from T8/T16/T32/T64 basing on
 // sizeof(IN).  expected to handle scalar types in IN.
 template <typename T, typename T8, typename T16, typename T32, typename T64>
-using select_apply_cl_t =
-    conditional_t<sizeof(T) == 1, T8,
-                  conditional_t<sizeof(T) == 2, T16,
-                                conditional_t<sizeof(T) == 4, T32, T64>>>;
+using select_apply_cl_t = std::conditional_t<
+    sizeof(T) == 1, T8,
+    std::conditional_t<sizeof(T) == 2, T16,
+                       std::conditional_t<sizeof(T) == 4, T32, T64>>>;
 } // namespace detail
 
 #define __SYCL_DECLARE_CONVERTER(base, num)                                    \

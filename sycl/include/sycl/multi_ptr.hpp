@@ -645,9 +645,9 @@ template <typename ElementType, access::address_space Space>
 class multi_ptr<ElementType, Space, access::decorated::legacy> {
 public:
   using element_type =
-      detail::conditional_t<std::is_same<ElementType, half>::value,
-                            sycl::detail::half_impl::BIsRepresentationT,
-                            ElementType>;
+      std::conditional_t<std::is_same<ElementType, half>::value,
+                         sycl::detail::half_impl::BIsRepresentationT,
+                         ElementType>;
   using difference_type = std::ptrdiff_t;
 
   // Implementation defined pointer and reference types that correspond to
