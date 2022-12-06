@@ -359,7 +359,6 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerPlatformGet(
         ZE_CALL(zeDriverGet, (&ZeDriverCount, ZeDrivers.data()));
         for (uint32_t I = 0; I < ZeDriverCount; ++I) {
           auto Platform = new _zer_platform_handle_t(ZeDrivers[I]);
-          printf("sizeof = %d\n", sizeof(_zer_platform_handle_t));
           // Save a copy in the cache for future uses.
           PiPlatformsCache->push_back(Platform);
 
