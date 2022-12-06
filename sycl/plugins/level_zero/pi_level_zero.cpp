@@ -1010,10 +1010,10 @@ bool _pi_queue::isPriorityHigh() const {
   return ((this->Properties & PI_EXT_ONEAPI_QUEUE_PRIORITY_HIGH) != 0);
 }
 
-pi_result
-_pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
-                            bool MakeAvailable,
-                            std::vector<pi_event> &EventListToCleanup) {
+pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
+                                      bool MakeAvailable,
+                                      std::vector<pi_event> &EventListToCleanup,
+                                      bool CheckStatus) {
   bool UseCopyEngine = CommandList->second.isCopy(this);
 
   // Immediate commandlists do not have an associated fence.
@@ -1030,7 +1030,7 @@ _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
   // Check if standard commandlist or fully synced in-order queue.
   // If one of those conditions is met then we are sure that all events are
   // completed so we don't need to check event status.
-  if (CommandList->second.ZeFence != nullptr ||
+  if (!CheckStatus || CommandList->second.ZeFence != nullptr ||
       (isInOrderQueue() && !LastCommandEvent)) {
     // Remember all the events in this command list which needs to be
     // released/cleaned up and clear event list associated with command list.
@@ -1290,7 +1290,8 @@ CleanupEventListFromResetCmdList(std::vector<pi_event> &EventListToCleanup,
 
 // Reset signalled command lists in the queue and put them to the cache of
 // command lists.
-pi_result resetCommandLists(pi_queue Queue, bool QueueLocked = false) {
+pi_result resetCommandLists(pi_queue Queue, bool QueueLocked = false,
+                            bool CheckStatus = true) {
   // We need events to be cleaned up out of scope where queue is locked to avoid
   // nested locks, because event cleanup requires event to be locked. Nested
   // locks are hard to control and can cause deadlocks if mutexes are locked in
@@ -1304,15 +1305,15 @@ pi_result resetCommandLists(pi_queue Queue, bool QueueLocked = false) {
     // signalled, then the command list & fence are reset and command list is
     // returned to the command list cache. All events associated with command
     // list are cleaned up if command list was reset.
-    std::unique_lock<pi_shared_mutex> QueueLock(Queue->Mutex,
-                                                std::defer_lock);
+    std::unique_lock<pi_shared_mutex> QueueLock(Queue->Mutex, std::defer_lock);
     if (!QueueLocked)
       QueueLock.lock();
     for (auto &&it = Queue->CommandListMap.begin();
          it != Queue->CommandListMap.end(); ++it) {
       // Immediate commandlists don't use a fence but still need reset.
       if (it->second.ZeFence == nullptr) {
-        PI_CALL(Queue->resetCommandList(it, true, EventListToCleanup));
+        PI_CALL(
+            Queue->resetCommandList(it, true, EventListToCleanup, CheckStatus));
       } else {
         // It is possible that the fence was already noted as signalled and
         // reset. In that case the ZeFenceInUse flag will be false.
@@ -6814,7 +6815,7 @@ pi_result _pi_queue::synchronize() {
         ZE_CALL(zeHostSynchronize, (ZeQueue));
   }
 
-  resetCommandLists(this, /* QueueLocked */ true);
+  resetCommandLists(this, /* QueueLocked */ true, /* CheckStatus */ false);
   LastCommandEvent = nullptr;
 
   // With the entire queue synchronized, the active barriers must be done so we
