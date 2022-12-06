@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -Xclang -verify %s -Xclang -verify-ignore-unexpected=note,warning -o %t.out -std=c++17
+// RUN: %clangxx %fsycl-host-only -Xclang -verify %s -Xclang -verify-ignore-unexpected=note,warning -o %t.out -std=c++17 %sycl_lib -L%sycl_libs_dir
 // RUN: %t.out
 // expected-no-diagnostics
 
@@ -246,7 +246,7 @@ typename std::enable_if<!std::is_same_v<T, half> && !std::is_same_v<T, float> &&
 checkMarrayKnownIdentity() {
   constexpr marray<T, Num> zeros(T(0));
   constexpr marray<T, Num> ones(T(1));
-  constexpr marray<T, Num> bit_ones(T(~0));
+  constexpr marray<T, Num> bit_ones(~T(0));
 
   static_assert(has_known_identity<plus<>, marray<T, Num>>::value);
   static_assert(

@@ -22,7 +22,8 @@ namespace mlir {
 namespace tosa {
 
 // Creates a SmallVector of Stringrefs for N parallel loops
-SmallVector<StringRef> getNParallelLoopsAttrs(unsigned nParallelLoops);
+SmallVector<utils::IteratorType>
+getNParallelLoopsAttrs(unsigned nParallelLoops);
 
 // Takes a vector of values and condenses them to a vector with no gaps.
 SmallVector<Value> condenseValues(const SmallVector<Value> &values);
@@ -67,7 +68,7 @@ Optional<SmallVector<Value>> checkHasDynamicBatchDims(PatternRewriter &rewriter,
     if (llvm::any_of(dynTy.getShape().drop_front(), ShapedType::isDynamic)) {
       (void)rewriter.notifyMatchFailure(
           op, "input can only be dynamic for batch size");
-      return llvm::None;
+      return std::nullopt;
     }
   }
 

@@ -150,7 +150,7 @@ unsigned Merger::addLat(unsigned t, unsigned i, unsigned e) {
 
 unsigned Merger::addSet() {
   unsigned s = latSets.size();
-  latSets.emplace_back(SmallVector<unsigned, 16>());
+  latSets.emplace_back();
   return s;
 }
 
@@ -1071,7 +1071,7 @@ Optional<unsigned> Merger::buildTensorExp(linalg::GenericOp op, Value v) {
     }
   }
   // Cannot build.
-  return None;
+  return std::nullopt;
 }
 
 static Value insertYieldOp(RewriterBase &rewriter, Location loc, Region &region,

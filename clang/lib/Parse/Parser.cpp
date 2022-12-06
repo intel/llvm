@@ -707,8 +707,7 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result,
 
     // Late template parsing can begin.
     Actions.SetLateTemplateParser(LateTemplateParserCallback, nullptr, this);
-    if (!PP.isIncrementalProcessingEnabled())
-      Actions.ActOnEndOfTranslationUnit();
+    Actions.ActOnEndOfTranslationUnit();
     //else don't tell Sema that we ended parsing: more input might come.
     return true;
 
@@ -731,10 +730,17 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result,
     break;
   }
 
-  ParsedAttributes attrs(AttrFactory);
-  MaybeParseCXX11Attributes(attrs);
+  ParsedAttributes DeclAttrs(AttrFactory);
+  ParsedAttributes DeclSpecAttrs(AttrFactory);
+  // GNU attributes are applied to the declaration specification while the
+  // standard attributes are applied to the declaration.  We parse the two
+  // attribute sets into different containters so we can apply them during
+  // the regular parsing process.
+  while (MaybeParseCXX11Attributes(DeclAttrs) ||
+         MaybeParseGNUAttributes(DeclSpecAttrs))
+    ;
 
-  Result = ParseExternalDeclaration(attrs);
+  Result = ParseExternalDeclaration(DeclAttrs, DeclSpecAttrs);
   // An empty Result might mean a line with ';' or some parsing error, ignore
   // it.
   if (Result) {
@@ -777,8 +783,10 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result,
 ///
 /// [Modules-TS] module-import-declaration
 ///
-Parser::DeclGroupPtrTy Parser::ParseExternalDeclaration(ParsedAttributes &Attrs,
-                                                        ParsingDeclSpec *DS) {
+Parser::DeclGroupPtrTy
+Parser::ParseExternalDeclaration(ParsedAttributes &Attrs,
+                                 ParsedAttributes &DeclSpecAttrs,
+                                 ParsingDeclSpec *DS) {
   DestroyTemplateIdAnnotationsRAIIObj CleanupRAII(*this);
   ParenBraceBracketBalancer BalancerRAIIObj(*this);
 
@@ -866,7 +874,7 @@ Parser::DeclGroupPtrTy Parser::ParseExternalDeclaration(ParsedAttributes &Attrs,
     // __extension__ silences extension warnings in the subexpression.
     ExtensionRAIIObject O(Diags);  // Use RAII to do this.
     ConsumeToken();
-    return ParseExternalDeclaration(Attrs);
+    return ParseExternalDeclaration(Attrs, DeclSpecAttrs);
   }
   case tok::kw_asm: {
     ProhibitAttributes(Attrs);
@@ -894,7 +902,7 @@ Parser::DeclGroupPtrTy Parser::ParseExternalDeclaration(ParsedAttributes &Attrs,
     break;
   }
   case tok::at:
-    return ParseObjCAtDirectives(Attrs);
+    return ParseObjCAtDirectives(Attrs, DeclSpecAttrs);
   case tok::minus:
   case tok::plus:
     if (!getLangOpts().ObjC) {
@@ -909,7 +917,7 @@ Parser::DeclGroupPtrTy Parser::ParseExternalDeclaration(ParsedAttributes &Attrs,
     if (CurParsedObjCImpl) {
       // Code-complete Objective-C methods even without leading '-'/'+' prefix.
       Actions.CodeCompleteObjCMethodDecl(getCurScope(),
-                                         /*IsInstanceMethod=*/None,
+                                         /*IsInstanceMethod=*/std::nullopt,
                                          /*ReturnType=*/nullptr);
     }
     Actions.CodeCompleteOrdinaryName(
@@ -942,18 +950,16 @@ Parser::DeclGroupPtrTy Parser::ParseExternalDeclaration(ParsedAttributes &Attrs,
     // A function definition cannot start with any of these keywords.
     {
       SourceLocation DeclEnd;
-      ParsedAttributes EmptyDeclSpecAttrs(AttrFactory);
       return ParseDeclaration(DeclaratorContext::File, DeclEnd, Attrs,
-                              EmptyDeclSpecAttrs);
+                              DeclSpecAttrs);
     }
 
   case tok::kw_cbuffer:
   case tok::kw_tbuffer:
     if (getLangOpts().HLSL) {
       SourceLocation DeclEnd;
-      ParsedAttributes EmptyDeclSpecAttrs(AttrFactory);
       return ParseDeclaration(DeclaratorContext::File, DeclEnd, Attrs,
-                              EmptyDeclSpecAttrs);
+                              DeclSpecAttrs);
     }
     goto dont_know;
 
@@ -964,9 +970,8 @@ Parser::DeclGroupPtrTy Parser::ParseExternalDeclaration(ParsedAttributes &Attrs,
       Diag(ConsumeToken(), diag::warn_static_inline_explicit_inst_ignored)
         << 0;
       SourceLocation DeclEnd;
-      ParsedAttributes EmptyDeclSpecAttrs(AttrFactory);
       return ParseDeclaration(DeclaratorContext::File, DeclEnd, Attrs,
-                              EmptyDeclSpecAttrs);
+                              DeclSpecAttrs);
     }
     goto dont_know;
 
@@ -977,9 +982,8 @@ Parser::DeclGroupPtrTy Parser::ParseExternalDeclaration(ParsedAttributes &Attrs,
       // Inline namespaces. Allowed as an extension even in C++03.
       if (NextKind == tok::kw_namespace) {
         SourceLocation DeclEnd;
-        ParsedAttributes EmptyDeclSpecAttrs(AttrFactory);
         return ParseDeclaration(DeclaratorContext::File, DeclEnd, Attrs,
-                                EmptyDeclSpecAttrs);
+                                DeclSpecAttrs);
       }
 
       // Parse (then ignore) 'inline' prior to a template instantiation. This is
@@ -988,9 +992,8 @@ Parser::DeclGroupPtrTy Parser::ParseExternalDeclaration(ParsedAttributes &Attrs,
         Diag(ConsumeToken(), diag::warn_static_inline_explicit_inst_ignored)
           << 1;
         SourceLocation DeclEnd;
-        ParsedAttributes EmptyDeclSpecAttrs(AttrFactory);
         return ParseDeclaration(DeclaratorContext::File, DeclEnd, Attrs,
-                                EmptyDeclSpecAttrs);
+                                DeclSpecAttrs);
       }
     }
     goto dont_know;
@@ -1025,8 +1028,13 @@ Parser::DeclGroupPtrTy Parser::ParseExternalDeclaration(ParsedAttributes &Attrs,
       ConsumeToken();
       return nullptr;
     }
+    if (PP.isIncrementalProcessingEnabled() &&
+        !isDeclarationStatement(/*DisambiguatingWithExpression=*/true))
+      return ParseTopLevelStmtDecl();
+
     // We can't tell whether this is a function-definition or declaration yet.
-    return ParseDeclarationOrFunctionDefinition(Attrs, DS);
+    if (!SingleDecl)
+      return ParseDeclarationOrFunctionDefinition(Attrs, DeclSpecAttrs, DS);
   }
 
   // This routine returns a DeclGroup, if the thing we parsed only contains a
@@ -1091,7 +1099,17 @@ bool Parser::isStartOfFunctionDefinition(const ParsingDeclarator &Declarator) {
 /// [OMP]   allocate-directive                         [TODO]
 ///
 Parser::DeclGroupPtrTy Parser::ParseDeclOrFunctionDefInternal(
-    ParsedAttributes &Attrs, ParsingDeclSpec &DS, AccessSpecifier AS) {
+    ParsedAttributes &Attrs, ParsedAttributes &DeclSpecAttrs,
+    ParsingDeclSpec &DS, AccessSpecifier AS) {
+  // Because we assume that the DeclSpec has not yet been initialised, we simply
+  // overwrite the source range and attribute the provided leading declspec
+  // attributes.
+  assert(DS.getSourceRange().isInvalid() &&
+         "expected uninitialised source range");
+  DS.SetRangeStart(DeclSpecAttrs.Range.getBegin());
+  DS.SetRangeEnd(DeclSpecAttrs.Range.getEnd());
+  DS.takeAttributesFrom(DeclSpecAttrs);
+
   MaybeParseMicrosoftAttributes(DS.getAttributes());
   // Parse the common declaration-specifiers piece.
   ParseDeclarationSpecifiers(DS, ParsedTemplateInfo(), AS,
@@ -1190,9 +1208,10 @@ Parser::DeclGroupPtrTy Parser::ParseDeclOrFunctionDefInternal(
 }
 
 Parser::DeclGroupPtrTy Parser::ParseDeclarationOrFunctionDefinition(
-    ParsedAttributes &Attrs, ParsingDeclSpec *DS, AccessSpecifier AS) {
+    ParsedAttributes &Attrs, ParsedAttributes &DeclSpecAttrs,
+    ParsingDeclSpec *DS, AccessSpecifier AS) {
   if (DS) {
-    return ParseDeclOrFunctionDefInternal(Attrs, *DS, AS);
+    return ParseDeclOrFunctionDefInternal(Attrs, DeclSpecAttrs, *DS, AS);
   } else {
     ParsingDeclSpec PDS(*this);
     // Must temporarily exit the objective-c container scope for
@@ -1200,7 +1219,7 @@ Parser::DeclGroupPtrTy Parser::ParseDeclarationOrFunctionDefinition(
     // afterwards.
     ObjCDeclContextSwitch ObjCDC(*this);
 
-    return ParseDeclOrFunctionDefInternal(Attrs, PDS, AS);
+    return ParseDeclOrFunctionDefInternal(Attrs, DeclSpecAttrs, PDS, AS);
   }
 }
 
@@ -2342,7 +2361,8 @@ void Parser::ParseMicrosoftIfExistsExternalDeclaration() {
   while (Tok.isNot(tok::r_brace) && !isEofOrEom()) {
     ParsedAttributes Attrs(AttrFactory);
     MaybeParseCXX11Attributes(Attrs);
-    DeclGroupPtrTy Result = ParseExternalDeclaration(Attrs);
+    ParsedAttributes EmptyDeclSpecAttrs(AttrFactory);
+    DeclGroupPtrTy Result = ParseExternalDeclaration(Attrs, EmptyDeclSpecAttrs);
     if (Result && !getCurScope()->getParent())
       Actions.getASTConsumer().HandleTopLevelDecl(Result.get());
   }

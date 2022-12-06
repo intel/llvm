@@ -666,17 +666,43 @@ func.func @vector_extract_simple(%laneid: index) -> (f32) {
 
 // -----
 
-// CHECK-PROP-LABEL: func.func @vector_extractelement_simple(
+// CHECK-PROP-LABEL: func.func @vector_extractelement_0d(
 //       CHECK-PROP:   %[[R:.*]] = vector.warp_execute_on_lane_0(%{{.*}})[32] -> (vector<f32>) {
 //       CHECK-PROP:     %[[V:.*]] = "some_def"() : () -> vector<f32>
 //       CHECK-PROP:     vector.yield %[[V]] : vector<f32>
 //       CHECK-PROP:   }
 //       CHECK-PROP:   %[[E:.*]] = vector.extractelement %[[R]][] : vector<f32>
 //       CHECK-PROP:   return %[[E]] : f32
-func.func @vector_extractelement_simple(%laneid: index) -> (f32) {
+func.func @vector_extractelement_0d(%laneid: index) -> (f32) {
   %r = vector.warp_execute_on_lane_0(%laneid)[32] -> (f32) {
     %0 = "some_def"() : () -> (vector<f32>)
     %1 = vector.extractelement %0[] : vector<f32>
+    vector.yield %1 : f32
+  }
+  return %r : f32
+}
+
+// -----
+
+//       CHECK-PROP: #[[$map:.*]] = affine_map<()[s0] -> (s0 ceildiv 3)>
+//       CHECK-PROP: #[[$map1:.*]] = affine_map<()[s0] -> (s0 mod 3)>
+// CHECK-PROP-LABEL: func.func @vector_extractelement_1d(
+//  CHECK-PROP-SAME:     %[[LANEID:.*]]: index, %[[POS:.*]]: index
+//   CHECK-PROP-DAG:   %[[C32:.*]] = arith.constant 32 : i32
+//       CHECK-PROP:   %[[W:.*]] = vector.warp_execute_on_lane_0(%{{.*}})[32] -> (vector<3xf32>) {
+//       CHECK-PROP:     %[[V:.*]] = "some_def"
+//       CHECK-PROP:     vector.yield %[[V]] : vector<96xf32>
+//       CHECK-PROP:   }
+//       CHECK-PROP:   %[[FROM_LANE:.*]] = affine.apply #[[$map]]()[%[[POS]]]
+//       CHECK-PROP:   %[[DISTR_POS:.*]] = affine.apply #[[$map1]]()[%[[POS]]]
+//       CHECK-PROP:   %[[EXTRACTED:.*]] = vector.extractelement %[[W]][%[[DISTR_POS]] : index] : vector<3xf32>
+//       CHECK-PROP:   %[[FROM_LANE_I32:.*]] = arith.index_cast %[[FROM_LANE]] : index to i32
+//       CHECK-PROP:   %[[SHUFFLED:.*]], %{{.*}} = gpu.shuffle  idx %[[EXTRACTED]], %[[FROM_LANE_I32]], %[[C32]] : f32
+//       CHECK-PROP:   return %[[SHUFFLED]]
+func.func @vector_extractelement_1d(%laneid: index, %pos: index) -> (f32) {
+  %r = vector.warp_execute_on_lane_0(%laneid)[32] -> (f32) {
+    %0 = "some_def"() : () -> (vector<96xf32>)
+    %1 = vector.extractelement %0[%pos : index] : vector<96xf32>
     vector.yield %1 : f32
   }
   return %r : f32
@@ -724,7 +750,7 @@ func.func @dont_duplicate_read(
 // -----
 
 // CHECK-PROP:   func @dedup
-func.func @dedup(%laneid: index, %v0: vector<4xf32>, %v1: vector<4xf32>) 
+func.func @dedup(%laneid: index, %v0: vector<4xf32>, %v1: vector<4xf32>)
     -> (vector<1xf32>, vector<1xf32>) {
 
   // CHECK-PROP: %[[SINGLE_RES:.*]] = vector.warp_execute_on_lane_0{{.*}} -> (vector<1xf32>) {
@@ -746,7 +772,7 @@ func.func @dedup(%laneid: index, %v0: vector<4xf32>, %v1: vector<4xf32>)
 // -----
 
 // CHECK-SCF-IF:   func @warp_execute_has_broadcast_semantics
-func.func @warp_execute_has_broadcast_semantics(%laneid: index, %s0: f32, %v0: vector<f32>, %v1: vector<1xf32>, %v2: vector<1x1xf32>) 
+func.func @warp_execute_has_broadcast_semantics(%laneid: index, %s0: f32, %v0: vector<f32>, %v1: vector<1xf32>, %v2: vector<1x1xf32>)
     -> (f32, vector<f32>, vector<1xf32>, vector<1x1xf32>) {
   // CHECK-SCF-IF-DAG: %[[C0:.*]] = arith.constant 0 : index
 
@@ -792,7 +818,7 @@ func.func @warp_execute_has_broadcast_semantics(%laneid: index, %s0: f32, %v0: v
 
 // CHECK-SCF-IF:   func @warp_execute_nd_distribute
 // CHECK-SCF-IF-SAME: (%[[LANEID:.*]]: index
-func.func @warp_execute_nd_distribute(%laneid: index, %v0: vector<1x64x1xf32>, %v1: vector<1x2x128xf32>) 
+func.func @warp_execute_nd_distribute(%laneid: index, %v0: vector<1x64x1xf32>, %v1: vector<1x2x128xf32>)
     -> (vector<1x64x1xf32>, vector<1x2x128xf32>) {
   // CHECK-SCF-IF-DAG: %[[C0:.*]] = arith.constant 0 : index
 

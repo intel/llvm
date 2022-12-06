@@ -26,6 +26,7 @@ void Fortran::lower::SymMap::addSymbol(Fortran::semantics::SymbolRef sym,
             [&](const fir::CharArrayBoxValue &v) { makeSym(sym, v, force); },
             [&](const fir::BoxValue &v) { makeSym(sym, v, force); },
             [&](const fir::MutableBoxValue &v) { makeSym(sym, v, force); },
+            [&](const fir::PolymorphicValue &v) { makeSym(sym, v, force); },
             [](auto) {
               llvm::report_fatal_error("value not added to symbol table");
             });
@@ -100,10 +101,10 @@ Fortran::lower::SymMap::lookupVariableDefinition(semantics::SymbolRef sym) {
               std::get_if<fir::FortranVariableOpInterface>(&iter->second))
         return *varDef;
       else
-        return llvm::None;
+        return std::nullopt;
     }
   }
-  return llvm::None;
+  return std::nullopt;
 }
 
 llvm::raw_ostream &

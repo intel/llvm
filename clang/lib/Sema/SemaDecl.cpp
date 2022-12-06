@@ -1247,7 +1247,8 @@ Corrected:
   // member accesses, as we need to defer certain access checks until we know
   // the context.
   bool ADL = UseArgumentDependentLookup(SS, Result, NextToken.is(tok::l_paren));
-  if (Result.isSingleResult() && !ADL && !FirstDecl->isCXXClassMember())
+  if (Result.isSingleResult() && !ADL &&
+      (!FirstDecl->isCXXClassMember() || isa<EnumConstantDecl>(FirstDecl)))
     return NameClassification::NonType(Result.getRepresentativeDecl());
 
   // Otherwise, this is an overload set that we will need to resolve later.
@@ -2224,7 +2225,7 @@ void Sema::ActOnPopScope(SourceLocation Loc, Scope *S) {
   };
   SmallVector<LocAndDiag, 16> DeclDiags;
   auto addDiag = [&DeclDiags](SourceLocation Loc, PartialDiagnostic PD) {
-    DeclDiags.push_back(LocAndDiag{Loc, None, std::move(PD)});
+    DeclDiags.push_back(LocAndDiag{Loc, std::nullopt, std::move(PD)});
   };
   auto addDiagWithPrev = [&DeclDiags](SourceLocation Loc,
                                       SourceLocation PreviousDeclLoc,
@@ -2962,24 +2963,24 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.MergeSYCLIntelSchedulerTargetFmaxMhzAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelNoGlobalWorkOffsetAttr>(Attr))
     NewAttr = S.MergeSYCLIntelNoGlobalWorkOffsetAttr(D, *A);
-  else if (const auto *A = dyn_cast<IntelFPGAMaxReplicatesAttr>(Attr))
-    NewAttr = S.MergeIntelFPGAMaxReplicatesAttr(D, *A);
-  else if (const auto *A = dyn_cast<SYCLIntelFPGAMaxConcurrencyAttr>(Attr))
-    NewAttr = S.MergeSYCLIntelFPGAMaxConcurrencyAttr(D, *A);
-  else if (const auto *A = dyn_cast<IntelFPGAForcePow2DepthAttr>(Attr))
-    NewAttr = S.MergeIntelFPGAForcePow2DepthAttr(D, *A);
-  else if (const auto *A = dyn_cast<SYCLIntelFPGAInitiationIntervalAttr>(Attr))
-    NewAttr = S.MergeSYCLIntelFPGAInitiationIntervalAttr(D, *A);
+  else if (const auto *A = dyn_cast<SYCLIntelMaxReplicatesAttr>(Attr))
+    NewAttr = S.MergeSYCLIntelMaxReplicatesAttr(D, *A);
+  else if (const auto *A = dyn_cast<SYCLIntelMaxConcurrencyAttr>(Attr))
+    NewAttr = S.MergeSYCLIntelMaxConcurrencyAttr(D, *A);
+  else if (const auto *A = dyn_cast<SYCLIntelForcePow2DepthAttr>(Attr))
+    NewAttr = S.MergeSYCLIntelForcePow2DepthAttr(D, *A);
+  else if (const auto *A = dyn_cast<SYCLIntelInitiationIntervalAttr>(Attr))
+    NewAttr = S.MergeSYCLIntelInitiationIntervalAttr(D, *A);
   else if (const auto *A = dyn_cast<WorkGroupSizeHintAttr>(Attr))
     NewAttr = S.MergeWorkGroupSizeHintAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelMaxGlobalWorkDimAttr>(Attr))
     NewAttr = S.MergeSYCLIntelMaxGlobalWorkDimAttr(D, *A);
   else if (const auto *BTFA = dyn_cast<BTFDeclTagAttr>(Attr))
     NewAttr = S.mergeBTFDeclTagAttr(D, *BTFA);
-  else if (const auto *A = dyn_cast<IntelFPGABankWidthAttr>(Attr))
-    NewAttr = S.MergeIntelFPGABankWidthAttr(D, *A);
-  else if (const auto *A = dyn_cast<IntelFPGANumBanksAttr>(Attr))
-    NewAttr = S.MergeIntelFPGANumBanksAttr(D, *A);
+  else if (const auto *A = dyn_cast<SYCLIntelBankWidthAttr>(Attr))
+    NewAttr = S.MergeSYCLIntelBankWidthAttr(D, *A);
+  else if (const auto *A = dyn_cast<SYCLIntelNumBanksAttr>(Attr))
+    NewAttr = S.MergeSYCLIntelNumBanksAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLDeviceHasAttr>(Attr))
     NewAttr = S.MergeSYCLDeviceHasAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLUsesAspectsAttr>(Attr))
@@ -9323,10 +9324,23 @@ static OpenCLParamType getOpenCLKernelParameterType(Sema &S, QualType PT) {
     // reference if an implementation supports them in kernel parameters.
     if (S.getLangOpts().OpenCLCPlusPlus &&
         !S.getOpenCLOptions().isAvailableOption(
-            "__cl_clang_non_portable_kernel_param_types", S.getLangOpts()) &&
-        !PointeeType->isAtomicType() && !PointeeType->isVoidType() &&
-        !PointeeType->isStandardLayoutType())
+            "__cl_clang_non_portable_kernel_param_types", S.getLangOpts())) {
+     auto CXXRec = PointeeType.getCanonicalType()->getAsCXXRecordDecl();
+     bool IsStandardLayoutType = true;
+     if (CXXRec) {
+       // If template type is not ODR-used its definition is only available
+       // in the template definition not its instantiation.
+       // FIXME: This logic doesn't work for types that depend on template
+       // parameter (PR58590).
+       if (!CXXRec->hasDefinition())
+         CXXRec = CXXRec->getTemplateInstantiationPattern();
+       if (!CXXRec || !CXXRec->hasDefinition() || !CXXRec->isStandardLayout())
+         IsStandardLayoutType = false;
+     }
+     if (!PointeeType->isAtomicType() && !PointeeType->isVoidType() &&
+        !IsStandardLayoutType)
       return InvalidKernelParam;
+    }
 
     return PtrKernelParam;
   }
@@ -13691,8 +13705,8 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
     InitializationKind Kind
       = InitializationKind::CreateDefault(Var->getLocation());
 
-    InitializationSequence InitSeq(*this, Entity, Kind, None);
-    ExprResult Init = InitSeq.Perform(*this, Entity, Kind, None);
+    InitializationSequence InitSeq(*this, Entity, Kind, std::nullopt);
+    ExprResult Init = InitSeq.Perform(*this, Entity, Kind, std::nullopt);
 
     if (Init.get()) {
       Var->setInit(MaybeCreateExprWithCleanups(Init.get()));
@@ -15846,8 +15860,8 @@ NamedDecl *Sema::ImplicitlyDefineFunction(SourceLocation Loc,
                                              /*NumExceptions=*/0,
                                              /*NoexceptExpr=*/nullptr,
                                              /*ExceptionSpecTokens=*/nullptr,
-                                             /*DeclsInPrototype=*/None, Loc,
-                                             Loc, D),
+                                             /*DeclsInPrototype=*/std::nullopt,
+                                             Loc, Loc, D),
                 std::move(DS.getAttributes()), SourceLocation());
   D.SetIdentifier(&II, Loc);
 
@@ -19439,7 +19453,7 @@ void Sema::ActOnEnumBody(SourceLocation EnumLoc, SourceRange BraceRange,
     }
   }
 
-  // If we have have an empty set of enumerators we still need one bit.
+  // If we have an empty set of enumerators we still need one bit.
   // From [dcl.enum]p8
   // If the enumerator-list is empty, the values of the enumeration are as if
   // the enumeration had a single enumerator with value 0
@@ -19633,6 +19647,12 @@ Decl *Sema::ActOnFileScopeAsmDecl(Expr *expr,
                                                    AsmString, StartLoc,
                                                    EndLoc);
   CurContext->addDecl(New);
+  return New;
+}
+
+Decl *Sema::ActOnTopLevelStmtDecl(Stmt *Statement) {
+  auto *New = TopLevelStmtDecl::Create(Context, Statement);
+  Context.getTranslationUnitDecl()->addDecl(New);
   return New;
 }
 

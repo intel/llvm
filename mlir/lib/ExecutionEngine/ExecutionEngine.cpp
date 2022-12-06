@@ -96,7 +96,7 @@ void SimpleObjectCache::dumpToObjectFile(StringRef outputFilename) {
   file->keep();
 }
 
-bool SimpleObjectCache::isEmpty() { return cachedObjects.size() == 0; }
+bool SimpleObjectCache::isEmpty() { return cachedObjects.empty(); }
 
 void ExecutionEngine::dumpToObjectFile(StringRef filename) {
   if (cache == nullptr) {
@@ -145,8 +145,8 @@ bool ExecutionEngine::setupTargetTriple(Module *llvmModule) {
   llvm::StringMap<bool> hostFeatures;
 
   if (llvm::sys::getHostCPUFeatures(hostFeatures))
-    for (auto &f : hostFeatures)
-      features.AddFeature(f.first(), f.second);
+    for (const auto &[feature, isEnabled] : hostFeatures)
+      features.AddFeature(feature, isEnabled);
 
   std::unique_ptr<llvm::TargetMachine> machine(target->createTargetMachine(
       targetTriple, cpu, features.getString(), {}, {}));

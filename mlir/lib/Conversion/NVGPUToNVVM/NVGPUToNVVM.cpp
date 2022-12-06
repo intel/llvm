@@ -305,7 +305,7 @@ struct MmaSyncOptoNVVM : public ConvertOpToLLVMPattern<nvgpu::MmaSyncOp> {
           "could not infer the PTX type for the accumulator/result");
 
     // TODO: add an attribute to the op to customize this behavior.
-    Optional<NVVM::MMAIntOverflow> overflow(llvm::None);
+    Optional<NVVM::MMAIntOverflow> overflow(std::nullopt);
     if (aType.getElementType().isa<IntegerType>())
       overflow = NVVM::MMAIntOverflow::satfinite;
 
@@ -322,7 +322,7 @@ struct MmaSyncOptoNVVM : public ConvertOpToLLVMPattern<nvgpu::MmaSyncOp> {
     Value intrinsicResult = rewriter.create<NVVM::MmaOp>(
         op.getLoc(), intrinsicResTy, matA, matB, matC,
         /*shape=*/gemmShape,
-        /*b1Op=*/llvm::None,
+        /*b1Op=*/std::nullopt,
         /*intOverflow=*/overflow,
         /*multiplicandPtxTypes=*/
         std::array<NVVM::MMATypes, 2>{*ptxTypeA, *ptxTypeB},
@@ -438,7 +438,8 @@ buildMmaSparseAsmString(const std::array<int64_t, 3> &shape, unsigned matASize,
       ss << "$" << asmArgIdx++ << (i < arrSize - 1 ? "," : "");
     ss << "},";
   }
-  ss << "$" << asmArgIdx++ << ",$" << asmArgIdx++ << ";";
+  ss << "$" << asmArgIdx++ << ",";
+  ss << "$" << asmArgIdx++ << ";";
   ss.flush();
   return asmStr;
 }
@@ -516,7 +517,7 @@ struct NVGPUMmaSparseSyncLowering
       return failure();
 
     // TODO: add an attribute to the op to customize this behavior.
-    Optional<NVVM::MMAIntOverflow> overflow(llvm::None);
+    Optional<NVVM::MMAIntOverflow> overflow(std::nullopt);
     if (aType.getElementType().isa<IntegerType>())
       overflow = NVVM::MMAIntOverflow::satfinite;
 

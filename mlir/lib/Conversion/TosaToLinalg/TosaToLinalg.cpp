@@ -244,7 +244,7 @@ createLinalgBodyCalculationForElementwiseOp(Operation *op, ValueRange args,
         rewriter.create<arith::ShRSIOp>(loc, resultTypes, args[0], subtract)
             ->getResults();
     auto truncated =
-        rewriter.create<arith::TruncIOp>(loc, i1Ty, shifted, mlir::None);
+        rewriter.create<arith::TruncIOp>(loc, i1Ty, shifted, std::nullopt);
     auto isInputOdd =
         rewriter.create<arith::AndIOp>(loc, i1Ty, truncated, i1one);
 
@@ -428,20 +428,21 @@ createLinalgBodyCalculationForElementwiseOp(Operation *op, ValueRange args,
       return args.front();
 
     if (srcTy.isa<FloatType>() && dstTy.isa<FloatType>() && bitExtend)
-      return rewriter.create<arith::ExtFOp>(loc, resultTypes, args, mlir::None);
+      return rewriter.create<arith::ExtFOp>(loc, resultTypes, args,
+                                            std::nullopt);
 
     if (srcTy.isa<FloatType>() && dstTy.isa<FloatType>() && !bitExtend)
       return rewriter.create<arith::TruncFOp>(loc, resultTypes, args,
-                                              mlir::None);
+                                              std::nullopt);
 
     // 1-bit integers need to be treated as signless.
     if (srcTy.isInteger(1) && arith::UIToFPOp::areCastCompatible(srcTy, dstTy))
       return rewriter.create<arith::UIToFPOp>(loc, resultTypes, args,
-                                              mlir::None);
+                                              std::nullopt);
 
     if (srcTy.isInteger(1) && dstTy.isa<IntegerType>() && bitExtend)
       return rewriter.create<arith::ExtUIOp>(loc, resultTypes, args,
-                                             mlir::None);
+                                             std::nullopt);
 
     // Unsigned integers need an unrealized cast so that they can be passed
     // to UIToFP.
@@ -459,7 +460,7 @@ createLinalgBodyCalculationForElementwiseOp(Operation *op, ValueRange args,
     // All other si-to-fp conversions should be handled by SIToFP.
     if (arith::SIToFPOp::areCastCompatible(srcTy, dstTy))
       return rewriter.create<arith::SIToFPOp>(loc, resultTypes, args,
-                                              mlir::None);
+                                              std::nullopt);
 
     // Casting to boolean, floats need to only be checked as not-equal to zero.
     if (srcTy.isa<FloatType>() && dstTy.isInteger(1)) {
@@ -508,7 +509,7 @@ createLinalgBodyCalculationForElementwiseOp(Operation *op, ValueRange args,
 
     if (srcTy.isa<IntegerType>() && dstTy.isa<IntegerType>() && bitExtend)
       return rewriter.create<arith::ExtSIOp>(loc, resultTypes, args,
-                                             mlir::None);
+                                             std::nullopt);
 
     if (srcTy.isa<IntegerType>() && dstTy.isa<IntegerType>() && !bitExtend) {
       auto intMin = rewriter.create<arith::ConstantIntOp>(
@@ -791,12 +792,12 @@ static LogicalResult reduceMatchAndRewriteHelper(Operation *op, uint64_t axis,
 
   SmallVector<AffineExpr, 2> srcExprs;
   SmallVector<AffineExpr, 2> dstExprs;
-  SmallVector<StringRef, 4> iteratorTypes;
+  SmallVector<utils::IteratorType, 4> iteratorTypes;
   for (unsigned int i = 0, rank = inputTy.getRank(); i != rank; ++i) {
     srcExprs.push_back(mlir::getAffineDimExpr(i, rewriter.getContext()));
 
-    iteratorTypes.push_back(axis == i ? getReductionIteratorTypeName()
-                                      : getParallelIteratorTypeName());
+    iteratorTypes.push_back(axis == i ? utils::IteratorType::reduction
+                                      : utils::IteratorType::parallel);
     if (axis != i)
       dstExprs.push_back(mlir::getAffineDimExpr(i, rewriter.getContext()));
   }
@@ -844,7 +845,7 @@ static bool findIntermediateShape(ArrayRef<int64_t> lhsShape,
                                   bool isDynamic) {
   if (isDynamic) {
     // TODO (natashaknk): Make dynamic intermediate shape not always be rank-1
-    intermediateShape = {ShapedType::kDynamicSize};
+    intermediateShape = {ShapedType::kDynamic};
     return true;
   }
 
@@ -1383,7 +1384,8 @@ public:
     auto inputMap = AffineMap::get(/*dimCount=*/4, /*symbolCount=*/0,
                                    inputExprs, builder.getContext());
     auto resultMap = rewriter.getMultiDimIdentityMap(resultTy.getRank());
-    SmallVector<StringRef> iterators(4, getParallelIteratorTypeName());
+    SmallVector<utils::IteratorType> iterators(4,
+                                               utils::IteratorType::parallel);
 
     Value empty = builder.create<tensor::EmptyOp>(
         resultTy.getShape(), resultTy.getElementType(), outputDynSize);
@@ -1780,19 +1782,13 @@ struct ConcatConverter : public OpConversionPattern<tosa::ConcatOp> {
     Value emptyTensor = rewriter.create<tensor::EmptyOp>(
         loc, resultType.getShape(), resultType.getElementType(), dynDims);
 
-    Value zeroVal = rewriter.createOrFold<arith::ConstantOp>(
-        loc, rewriter.getZeroAttr(resultType.getElementType()));
-    Value result = rewriter
-                       .create<linalg::FillOp>(loc, ValueRange{zeroVal},
-                                               ValueRange{emptyTensor})
-                       .result();
-
     auto toOpFoldResult = [](Value v) -> OpFoldResult {
       auto op = v.getDefiningOp<arith::ConstantIndexOp>();
       if (!op)
         return v;
       return op.getValue();
     };
+    Value result = emptyTensor;
     for (auto arg : adaptor.getOperands()) {
       sizes[axis] = rewriter.createOrFold<tensor::DimOp>(loc, arg, axisValue);
       result = rewriter.createOrFold<tensor::InsertSliceOp>(
@@ -1891,7 +1887,7 @@ struct TileConverter : public OpConversionPattern<tosa::TileOp> {
     SmallVector<int64_t, 2> genericShape;
     for (int i = 0; i < rank; i++) {
       int64_t dim = multiples[i];
-      genericShape.push_back(dim == -1 ? ShapedType::kDynamicSize : dim);
+      genericShape.push_back(dim == -1 ? ShapedType::kDynamic : dim);
       genericShape.push_back(inputShape[i]);
     }
 
@@ -2083,9 +2079,9 @@ public:
 
     // We need to reduce along the arg-max axis, with parallel operations along
     // the rest.
-    SmallVector<StringRef, 4> iteratorTypes;
-    iteratorTypes.resize(inputTy.getRank(), getParallelIteratorTypeName());
-    iteratorTypes[axis] = getReductionIteratorTypeName();
+    SmallVector<utils::IteratorType, 4> iteratorTypes;
+    iteratorTypes.resize(inputTy.getRank(), utils::IteratorType::parallel);
+    iteratorTypes[axis] = utils::IteratorType::reduction;
 
     SmallVector<AffineExpr, 2> srcExprs;
     SmallVector<AffineExpr, 2> dstExprs;
