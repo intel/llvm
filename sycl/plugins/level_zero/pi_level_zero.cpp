@@ -1289,8 +1289,8 @@ CleanupEventListFromResetCmdList(std::vector<pi_event> &EventListToCleanup,
 }
 
 // Reset signalled command lists in the queue and put them to the cache of
-// command lists. A caller must not lock the queue mutex.
-pi_result resetCommandLists(pi_queue Queue) {
+// command lists.
+pi_result resetCommandLists(pi_queue Queue, bool QueueLocked = false) {
   // We need events to be cleaned up out of scope where queue is locked to avoid
   // nested locks, because event cleanup requires event to be locked. Nested
   // locks are hard to control and can cause deadlocks if mutexes are locked in
@@ -1304,7 +1304,10 @@ pi_result resetCommandLists(pi_queue Queue) {
     // signalled, then the command list & fence are reset and command list is
     // returned to the command list cache. All events associated with command
     // list are cleaned up if command list was reset.
-    std::scoped_lock<pi_shared_mutex> Lock(Queue->Mutex);
+    std::unique_lock<pi_shared_mutex> QueueLock(Queue->Mutex,
+                                                std::defer_lock);
+    if (!QueueLocked)
+      QueueLock.lock();
     for (auto &&it = Queue->CommandListMap.begin();
          it != Queue->CommandListMap.end(); ++it) {
       // Immediate commandlists don't use a fence but still need reset.
@@ -1322,7 +1325,7 @@ pi_result resetCommandLists(pi_queue Queue) {
       }
     }
   }
-  CleanupEventListFromResetCmdList(EventListToCleanup);
+  CleanupEventListFromResetCmdList(EventListToCleanup, QueueLocked);
   return PI_SUCCESS;
 }
 
@@ -6811,6 +6814,7 @@ pi_result _pi_queue::synchronize() {
         ZE_CALL(zeHostSynchronize, (ZeQueue));
   }
 
+  resetCommandLists(this, /* QueueLocked */ true);
   LastCommandEvent = nullptr;
 
   // With the entire queue synchronized, the active barriers must be done so we
