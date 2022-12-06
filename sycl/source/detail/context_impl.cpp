@@ -123,8 +123,19 @@ context_impl::~context_impl() {
     getPlugin().call<PiApiKind::piProgramRelease>(LibProg.second);
   }
   if (!MHostContext) {
+    std::cout << "~context_impl .call piContextRelease" << std::endl;
     // TODO catch an exception and put it to list of asynchronous exceptions
-    getPlugin().call<PiApiKind::piContextRelease>(MContext);
+    try{
+      auto plug = getPlugin();
+      std::cout << "plugin: " << (long)&plug << std::endl;
+      std::cout << "backend: " << (long)(plug.getBackend()) << std::endl;
+      std::cout << "MContext: " <<(long)&MContext << std::endl;
+      //getPlugin().call<PiApiKind::piContextRelease>(MContext);
+      getPlugin().call_nocheck<PiApiKind::piContextRelease>(MContext);
+    }catch(...){
+      std::cout << "exception caught calling piContextRelease" << std::endl; //not seen
+    }
+    std::cout << "piContextRelease success" << std::endl; // don't arrive here
   }
 }
 

@@ -57,9 +57,9 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   # win_unload
   include_directories(${LLVM_EXTERNAL_SYCL_SOURCE_DIR}/win_unload)
   if(WIN_DUPE)
-    target_link_libraries(${LIB_NAME} PRIVATE win_unloadd)
+    target_link_libraries(${LIB_NAME} PUBLIC win_unloadd) # private -> public
   else()
-    target_link_libraries(${LIB_NAME} PRIVATE win_unload)
+    target_link_libraries(${LIB_NAME} PUBLIC win_unload)
   endif()
 
   target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_INTERNAL_API )

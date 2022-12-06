@@ -1,6 +1,6 @@
 
 project(win_unload)
-add_library(win_unload win_unload.cpp)
+add_library(win_unload SHARED  win_unload.cpp) # SHARED added here and below
 
 if (MSVC)
   # MSVC provides two incompatible build variants for its CRT: release and debug
@@ -42,7 +42,7 @@ endif()
 # creating a debug version of the static library that uses the flags used by
 # the SYCL runtime
 if (MSVC)
-  add_library(win_unloadd win_unload.cpp)
+  add_library(win_unloadd SHARED win_unload.cpp) # SHARED
   target_compile_options(win_unloadd PRIVATE ${WINUNLOAD_CXX_FLAGS_DEBUG})
   target_compile_options(win_unload PRIVATE ${WINUNLOAD_CXX_FLAGS_RELEASE})
 endif()

@@ -110,7 +110,7 @@ void releaseDefaultContexts() {
   // cache. This will prevent destructors from being called, thus no PI cleanup
   // routines will be called in the end.
   
-  //std::cout << "releaseDefaultContexts()" << std::endl;
+  std::cout << "releaseDefaultContexts()" << std::endl;
   //GlobalHandler::instance().MPlatformToDefaultContextCache.Inst.release();
   GlobalHandler::instance().MPlatformToDefaultContextCache.Inst.reset(nullptr);
 #endif
@@ -127,7 +127,7 @@ void GlobalHandler::registerDefaultContextReleaseHandler() {
 // Note: Split from shutdown so it is available to the unittests for ensuring
 //       that the mock plugin is the lone plugin.
 void GlobalHandler::unloadPlugins() {
-  //std::cout << "unloadPlugins() " << std::endl;
+  std::cout << "unloadPlugins() " << std::endl;
   
   // Call to GlobalHandler::instance().getPlugins() initializes plugins. If
   // user application has loaded SYCL runtime, and never called any APIs,
@@ -180,10 +180,15 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
   // Perform actions based on the reason for calling.
   switch (fdwReason) {
   case DLL_PROCESS_DETACH:
-    //std::cout << "PROCESS DETACH! - calling shutdown()" << std::endl;
+    std::cout << "PROCESS DETACH! - calling shutdown()" << std::endl;
     shutdown();
     break;
   case DLL_PROCESS_ATTACH:
+    std::cout << "SYCL PROCESS ATTACH" << std::endl;
+    //LoadLibraryA("C:\\iusers\\cperkins\\sycl_workspace\\build\\bin\\pi_opencl.dll");
+    //LoadLibraryA("C:\\iusers\\cperkins\\sycl_workspace\\build\\bin\\pi_level_zero.dll");
+    //LoadLibraryA("C:\\iusers\\cperkins\\sycl_workspace\\build\\bin\\win_unload.dll");
+    break;
   case DLL_THREAD_ATTACH:
   case DLL_THREAD_DETACH:
     break;

@@ -2,4 +2,4 @@
 
 #include <string>
 
-void * preserve_lib(const std::string &PluginPath);
+__declspec(dllexport) void * preserve_lib(const std::string &PluginPath);
