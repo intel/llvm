@@ -185,13 +185,11 @@ urContextGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hPlatform`
 ///         + `NULL == hNativeContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phContext`
 ur_result_t UR_APICALL
 urContextCreateWithNativeHandle(
-    ur_platform_handle_t hPlatform,                 ///< [in] handle of the platform instance
     ur_native_handle_t hNativeContext,              ///< [in] the native handle of the context.
     ur_context_handle_t* phContext                  ///< [out] pointer to the handle of the context object created.
     )
@@ -1367,14 +1365,14 @@ urEventGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hPlatform`
 ///         + `NULL == hNativeEvent`
+///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phEvent`
 ur_result_t UR_APICALL
 urEventCreateWithNativeHandle(
-    ur_platform_handle_t hPlatform,                 ///< [in] handle of the platform instance
     ur_native_handle_t hNativeEvent,                ///< [in] the native handle of the event.
+    ur_context_handle_t hContext,                   ///< [in] handle of the context object
     ur_event_handle_t* phEvent                      ///< [out] pointer to the handle of the event object created.
     )
 {
@@ -1600,14 +1598,14 @@ urMemGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hPlatform`
 ///         + `NULL == hNativeMem`
+///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phMem`
 ur_result_t UR_APICALL
 urMemCreateWithNativeHandle(
-    ur_platform_handle_t hPlatform,                 ///< [in] handle of the platform instance
     ur_native_handle_t hNativeMem,                  ///< [in] the native handle of the mem.
+    ur_context_handle_t hContext,                   ///< [in] handle of the context object
     ur_mem_handle_t* phMem                          ///< [out] pointer to the handle of the mem object created.
     )
 {
@@ -1881,14 +1879,14 @@ urQueueGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hQueue`
 ///         + `NULL == hNativeQueue`
+///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phQueue`
 ur_result_t UR_APICALL
 urQueueCreateWithNativeHandle(
-    ur_queue_handle_t hQueue,                       ///< [in] handle of the queue instance
     ur_native_handle_t hNativeQueue,                ///< [in] the native handle of the queue.
+    ur_context_handle_t hContext,                   ///< [in] handle of the context object
     ur_queue_handle_t* phQueue                      ///< [out] pointer to the handle of the queue object created.
     )
 {
@@ -2129,14 +2127,14 @@ urSamplerGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hSampler`
 ///         + `NULL == hNativeSampler`
+///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phSampler`
 ur_result_t UR_APICALL
 urSamplerCreateWithNativeHandle(
-    ur_sampler_handle_t hSampler,                   ///< [in] handle of the sampler instance
     ur_native_handle_t hNativeSampler,              ///< [in] the native handle of the sampler.
+    ur_context_handle_t hContext,                   ///< [in] handle of the context object
     ur_sampler_handle_t* phSampler                  ///< [out] pointer to the handle of the sampler object created.
     )
 {
@@ -2551,14 +2549,14 @@ urDeviceGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hPlatform`
 ///         + `NULL == hNativeDevice`
+///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phDevice`
 ur_result_t UR_APICALL
 urDeviceCreateWithNativeHandle(
-    ur_platform_handle_t hPlatform,                 ///< [in] handle of the platform instance
     ur_native_handle_t hNativeDevice,               ///< [in] the native handle of the device.
+    ur_platform_handle_t hPlatform,                 ///< [in] handle of the platform instance
     ur_device_handle_t* phDevice                    ///< [out] pointer to the handle of the device object created.
     )
 {
@@ -2937,14 +2935,14 @@ urKernelGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hPlatform`
 ///         + `NULL == hNativeKernel`
+///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phKernel`
 ur_result_t UR_APICALL
 urKernelCreateWithNativeHandle(
-    ur_platform_handle_t hPlatform,                 ///< [in] handle of the platform instance
     ur_native_handle_t hNativeKernel,               ///< [in] the native handle of the kernel.
+    ur_context_handle_t hContext,                   ///< [in] handle of the context object
     ur_kernel_handle_t* phKernel                    ///< [out] pointer to the handle of the kernel object created.
     )
 {
@@ -3079,14 +3077,14 @@ urModuleGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hPlatform`
 ///         + `NULL == hNativeModule`
+///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phModule`
 ur_result_t UR_APICALL
 urModuleCreateWithNativeHandle(
-    ur_platform_handle_t hPlatform,                 ///< [in] handle of the platform instance
     ur_native_handle_t hNativeModule,               ///< [in] the native handle of the module.
+    ur_context_handle_t hContext,                   ///< [in] handle of the context instance.
     ur_module_handle_t* phModule                    ///< [out] pointer to the handle of the module object created.
     )
 {
@@ -3229,13 +3227,11 @@ urPlatformGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hPlatform`
 ///         + `NULL == hNativePlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phPlatform`
 ur_result_t UR_APICALL
 urPlatformCreateWithNativeHandle(
-    ur_platform_handle_t hPlatform,                 ///< [in] handle of the platform instance
     ur_native_handle_t hNativePlatform,             ///< [in] the native handle of the platform.
     ur_platform_handle_t* phPlatform                ///< [out] pointer to the handle of the platform object created.
     )
@@ -3541,14 +3537,14 @@ urProgramGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hProgram`
 ///         + `NULL == hNativeProgram`
+///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phProgram`
 ur_result_t UR_APICALL
 urProgramCreateWithNativeHandle(
-    ur_program_handle_t hProgram,                   ///< [in] handle of the program instance
     ur_native_handle_t hNativeProgram,              ///< [in] the native handle of the program.
+    ur_context_handle_t hContext,                   ///< [in] handle of the context instance
     ur_program_handle_t* phProgram                  ///< [out] pointer to the handle of the program object created.
     )
 {

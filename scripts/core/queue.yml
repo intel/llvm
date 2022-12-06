@@ -177,13 +177,13 @@ details:
     - "The application may call this function from simultaneous threads for the same context."
     - "The implementation of this function should be thread-safe."
 params:
-    - type: $x_queue_handle_t
-      name: hQueue
-      desc: "[in] handle of the queue instance"
     - type: $x_native_handle_t
       name: hNativeQueue
       desc: |
             [in] the native handle of the queue.
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
     - type: "$x_queue_handle_t*"
       name: phQueue
       desc: |

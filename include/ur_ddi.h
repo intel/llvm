@@ -47,7 +47,6 @@ typedef ur_result_t (UR_APICALL *ur_pfnPlatformGetNativeHandle_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urPlatformCreateWithNativeHandle 
 typedef ur_result_t (UR_APICALL *ur_pfnPlatformCreateWithNativeHandle_t)(
-    ur_platform_handle_t,
     ur_native_handle_t,
     ur_platform_handle_t*
     );
@@ -132,7 +131,6 @@ typedef ur_result_t (UR_APICALL *ur_pfnContextGetNativeHandle_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urContextCreateWithNativeHandle 
 typedef ur_result_t (UR_APICALL *ur_pfnContextCreateWithNativeHandle_t)(
-    ur_platform_handle_t,
     ur_native_handle_t,
     ur_context_handle_t*
     );
@@ -236,8 +234,8 @@ typedef ur_result_t (UR_APICALL *ur_pfnEventGetNativeHandle_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urEventCreateWithNativeHandle 
 typedef ur_result_t (UR_APICALL *ur_pfnEventCreateWithNativeHandle_t)(
-    ur_platform_handle_t,
     ur_native_handle_t,
+    ur_context_handle_t,
     ur_event_handle_t*
     );
 
@@ -357,8 +355,8 @@ typedef ur_result_t (UR_APICALL *ur_pfnProgramGetNativeHandle_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urProgramCreateWithNativeHandle 
 typedef ur_result_t (UR_APICALL *ur_pfnProgramCreateWithNativeHandle_t)(
-    ur_program_handle_t,
     ur_native_handle_t,
+    ur_context_handle_t,
     ur_program_handle_t*
     );
 
@@ -434,8 +432,8 @@ typedef ur_result_t (UR_APICALL *ur_pfnModuleGetNativeHandle_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urModuleCreateWithNativeHandle 
 typedef ur_result_t (UR_APICALL *ur_pfnModuleCreateWithNativeHandle_t)(
-    ur_platform_handle_t,
     ur_native_handle_t,
+    ur_context_handle_t,
     ur_module_handle_t*
     );
 
@@ -534,8 +532,8 @@ typedef ur_result_t (UR_APICALL *ur_pfnKernelGetNativeHandle_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urKernelCreateWithNativeHandle 
 typedef ur_result_t (UR_APICALL *ur_pfnKernelCreateWithNativeHandle_t)(
-    ur_platform_handle_t,
     ur_native_handle_t,
+    ur_context_handle_t,
     ur_kernel_handle_t*
     );
 
@@ -663,8 +661,8 @@ typedef ur_result_t (UR_APICALL *ur_pfnSamplerGetNativeHandle_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urSamplerCreateWithNativeHandle 
 typedef ur_result_t (UR_APICALL *ur_pfnSamplerCreateWithNativeHandle_t)(
-    ur_sampler_handle_t,
     ur_native_handle_t,
+    ur_context_handle_t,
     ur_sampler_handle_t*
     );
 
@@ -755,8 +753,8 @@ typedef ur_result_t (UR_APICALL *ur_pfnMemGetNativeHandle_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urMemCreateWithNativeHandle 
 typedef ur_result_t (UR_APICALL *ur_pfnMemCreateWithNativeHandle_t)(
-    ur_platform_handle_t,
     ur_native_handle_t,
+    ur_context_handle_t,
     ur_mem_handle_t*
     );
 
@@ -1288,8 +1286,8 @@ typedef ur_result_t (UR_APICALL *ur_pfnQueueGetNativeHandle_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urQueueCreateWithNativeHandle 
 typedef ur_result_t (UR_APICALL *ur_pfnQueueCreateWithNativeHandle_t)(
-    ur_queue_handle_t,
     ur_native_handle_t,
+    ur_context_handle_t,
     ur_queue_handle_t*
     );
 
@@ -1402,8 +1400,8 @@ typedef ur_result_t (UR_APICALL *ur_pfnDeviceGetNativeHandle_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urDeviceCreateWithNativeHandle 
 typedef ur_result_t (UR_APICALL *ur_pfnDeviceCreateWithNativeHandle_t)(
-    ur_platform_handle_t,
     ur_native_handle_t,
+    ur_platform_handle_t,
     ur_device_handle_t*
     );
 
