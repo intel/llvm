@@ -455,6 +455,24 @@ makeKernelParamOptInfo(const std::string &Name, const size_t NumArgs,
   return Prop;
 }
 
+/// Utility function to add aspects to property set.
+inline void addAspects(PiPropertySet &Props,
+                       const std::vector<sycl::aspect> &Aspects) {
+  const size_t BYTES_FOR_SIZE = 8;
+  std::vector<char> ValData(BYTES_FOR_SIZE +
+                            Aspects.size() * sizeof(sycl::aspect));
+  uint64_t ValDataSize = ValData.size();
+  std::uninitialized_copy(&ValDataSize, &ValDataSize + sizeof(uint64_t),
+                          ValData.data());
+  auto *AspectsPtr = reinterpret_cast<const unsigned char *>(&Aspects[0]);
+  std::uninitialized_copy(AspectsPtr, AspectsPtr + Aspects.size(),
+                          ValData.data() + BYTES_FOR_SIZE);
+  PiProperty Prop{"aspects", ValData, PI_PROPERTY_TYPE_BYTE_ARRAY};
+  PiArray<PiProperty> Value{std::move(Prop)};
+  Props.insert(__SYCL_PI_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS,
+               std::move(Value));
+}
+
 } // namespace unittest
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
