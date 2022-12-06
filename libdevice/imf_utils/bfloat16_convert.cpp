@@ -159,4 +159,24 @@ DEVICE_EXTERN_C_INLINE
 long long __devicelib_imf_bfloat162ll_rz(_iml_bf16_internal b) {
   return __iml_bfloat162integral_s<long long>(b, __IML_RTZ);
 }
+
+DEVICE_EXTERN_C_INLINE
+short __devicelib_imf_bfloat16_as_short(_iml_bf16_internal b) {
+  return __builtin_bit_cast(short, b);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned short __devicelib_imf_bfloat16_as_ushort(_iml_bf16_internal b) {
+  return __builtin_bit_cast(unsigned short, b);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_short_as_bfloat16(short x) {
+  return __builtin_bit_cast(_iml_bf16_internal, x);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_ushort_as_bfloat16(unsigned short x) {
+  return __builtin_bit_cast(_iml_bf16_internal, x);
+}
 #endif
