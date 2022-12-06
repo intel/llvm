@@ -418,14 +418,11 @@ Scheduler::~Scheduler() {
 }
 
 void Scheduler::releaseResources() {
-  MReleaseStarted = true;
-  // TraceEvent trace("releaseResources");
   if (DefaultHostQueue) {
     DefaultHostQueue->wait();
-    // std::cout << "DefaultHostQueue finished" << std::endl;
   }
   GlobalHandler::instance().drainThreadPool();
-  // std::cout << "threads finished" << std::endl;
+
   //  There might be some commands scheduled for post enqueue cleanup that
   //  haven't been freed because of the graph mutex being locked at the time,
   //  clean them up now.
@@ -447,7 +444,6 @@ MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
 }
 
 void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
-  cleanupDeferredMemObjects(BlockingT::NON_BLOCKING);
   if (Cmds.empty()) {
     std::lock_guard<std::mutex> Lock{MDeferredCleanupMutex};
     if (MDeferredCleanupCommands.empty())
@@ -503,10 +499,8 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd, Command *BlockingCmd) {
 }
 
 void Scheduler::deferMemObjRelease(const std::shared_ptr<SYCLMemObjI> &MemObj) {
-  if (!MReleaseStarted) {
-    std::lock_guard<std::mutex> Lock{MDeferredMemReleaseMutex};
-    MDeferredMemObjRelease.push_back(MemObj);
-  }
+  std::lock_guard<std::mutex> Lock{MDeferredMemReleaseMutex};
+  MDeferredMemObjRelease.push_back(MemObj);
   cleanupDeferredMemObjects(BlockingT::NON_BLOCKING);
 }
 

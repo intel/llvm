@@ -452,7 +452,6 @@ public:
   inline bool isDeferredMemObjectsEmpty();
 
 protected:
-  std::atomic_bool MReleaseStarted{false};
   using RWLockT = std::shared_timed_mutex;
   using ReadLockT = std::shared_lock<RWLockT>;
   using WriteLockT = std::unique_lock<RWLockT>;
