@@ -1586,30 +1586,30 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urEnqueueMemBufferRead
 if __use_win_types:
-    _urEnqueueMemBufferRead_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_mem_handle_t, bool, c_size_t, c_size_t, c_void_p, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+    _urEnqueueMemBufferRead_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_mem_handle_t, c_bool, c_size_t, c_size_t, c_void_p, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 else:
-    _urEnqueueMemBufferRead_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_mem_handle_t, bool, c_size_t, c_size_t, c_void_p, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+    _urEnqueueMemBufferRead_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_mem_handle_t, c_bool, c_size_t, c_size_t, c_void_p, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urEnqueueMemBufferWrite
 if __use_win_types:
-    _urEnqueueMemBufferWrite_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_mem_handle_t, bool, c_size_t, c_size_t, c_void_p, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+    _urEnqueueMemBufferWrite_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_mem_handle_t, c_bool, c_size_t, c_size_t, c_void_p, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 else:
-    _urEnqueueMemBufferWrite_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_mem_handle_t, bool, c_size_t, c_size_t, c_void_p, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+    _urEnqueueMemBufferWrite_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_mem_handle_t, c_bool, c_size_t, c_size_t, c_void_p, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urEnqueueMemBufferReadRect
 if __use_win_types:
-    _urEnqueueMemBufferReadRect_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_mem_handle_t, bool, ur_rect_offset_t, ur_rect_offset_t, ur_rect_region_t, c_size_t, c_size_t, c_size_t, c_size_t, c_void_p, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+    _urEnqueueMemBufferReadRect_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_mem_handle_t, c_bool, ur_rect_offset_t, ur_rect_offset_t, ur_rect_region_t, c_size_t, c_size_t, c_size_t, c_size_t, c_void_p, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 else:
-    _urEnqueueMemBufferReadRect_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_mem_handle_t, bool, ur_rect_offset_t, ur_rect_offset_t, ur_rect_region_t, c_size_t, c_size_t, c_size_t, c_size_t, c_void_p, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+    _urEnqueueMemBufferReadRect_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_mem_handle_t, c_bool, ur_rect_offset_t, ur_rect_offset_t, ur_rect_region_t, c_size_t, c_size_t, c_size_t, c_size_t, c_void_p, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urEnqueueMemBufferWriteRect
 if __use_win_types:
-    _urEnqueueMemBufferWriteRect_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_mem_handle_t, bool, ur_rect_offset_t, ur_rect_offset_t, ur_rect_region_t, c_size_t, c_size_t, c_size_t, c_size_t, c_void_p, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+    _urEnqueueMemBufferWriteRect_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_mem_handle_t, c_bool, ur_rect_offset_t, ur_rect_offset_t, ur_rect_region_t, c_size_t, c_size_t, c_size_t, c_size_t, c_void_p, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 else:
-    _urEnqueueMemBufferWriteRect_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_mem_handle_t, bool, ur_rect_offset_t, ur_rect_offset_t, ur_rect_region_t, c_size_t, c_size_t, c_size_t, c_size_t, c_void_p, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+    _urEnqueueMemBufferWriteRect_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_mem_handle_t, c_bool, ur_rect_offset_t, ur_rect_offset_t, ur_rect_region_t, c_size_t, c_size_t, c_size_t, c_size_t, c_void_p, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urEnqueueMemBufferCopy
@@ -1635,16 +1635,16 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urEnqueueMemImageRead
 if __use_win_types:
-    _urEnqueueMemImageRead_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_mem_handle_t, bool, ur_rect_offset_t, ur_rect_region_t, c_size_t, c_size_t, c_void_p, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+    _urEnqueueMemImageRead_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_mem_handle_t, c_bool, ur_rect_offset_t, ur_rect_region_t, c_size_t, c_size_t, c_void_p, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 else:
-    _urEnqueueMemImageRead_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_mem_handle_t, bool, ur_rect_offset_t, ur_rect_region_t, c_size_t, c_size_t, c_void_p, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+    _urEnqueueMemImageRead_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_mem_handle_t, c_bool, ur_rect_offset_t, ur_rect_region_t, c_size_t, c_size_t, c_void_p, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urEnqueueMemImageWrite
 if __use_win_types:
-    _urEnqueueMemImageWrite_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_mem_handle_t, bool, ur_rect_offset_t, ur_rect_region_t, c_size_t, c_size_t, c_void_p, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+    _urEnqueueMemImageWrite_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_mem_handle_t, c_bool, ur_rect_offset_t, ur_rect_region_t, c_size_t, c_size_t, c_void_p, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 else:
-    _urEnqueueMemImageWrite_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_mem_handle_t, bool, ur_rect_offset_t, ur_rect_region_t, c_size_t, c_size_t, c_void_p, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+    _urEnqueueMemImageWrite_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_mem_handle_t, c_bool, ur_rect_offset_t, ur_rect_region_t, c_size_t, c_size_t, c_void_p, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urEnqueueMemImageCopy
@@ -1656,9 +1656,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urEnqueueMemBufferMap
 if __use_win_types:
-    _urEnqueueMemBufferMap_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_mem_handle_t, bool, ur_map_flags_t, c_size_t, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t), POINTER(c_void_p) )
+    _urEnqueueMemBufferMap_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_mem_handle_t, c_bool, ur_map_flags_t, c_size_t, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t), POINTER(c_void_p) )
 else:
-    _urEnqueueMemBufferMap_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_mem_handle_t, bool, ur_map_flags_t, c_size_t, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t), POINTER(c_void_p) )
+    _urEnqueueMemBufferMap_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_mem_handle_t, c_bool, ur_map_flags_t, c_size_t, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t), POINTER(c_void_p) )
 
 ###############################################################################
 ## @brief Function-pointer for urEnqueueMemUnmap
@@ -1670,16 +1670,16 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urEnqueueUSMMemset
 if __use_win_types:
-    _urEnqueueUSMMemset_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_int8_t, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+    _urEnqueueUSMMemset_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_byte, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 else:
-    _urEnqueueUSMMemset_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_int8_t, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+    _urEnqueueUSMMemset_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_byte, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urEnqueueUSMMemcpy
 if __use_win_types:
-    _urEnqueueUSMMemcpy_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, bool, c_void_p, c_void_p, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+    _urEnqueueUSMMemcpy_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, c_bool, c_void_p, c_void_p, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 else:
-    _urEnqueueUSMMemcpy_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, bool, c_void_p, c_void_p, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+    _urEnqueueUSMMemcpy_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, c_bool, c_void_p, c_void_p, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urEnqueueUSMPrefetch
@@ -1892,9 +1892,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urDeviceSelectBinary
 if __use_win_types:
-    _urDeviceSelectBinary_t = WINFUNCTYPE( ur_result_t, ur_device_handle_t, POINTER(c_ubyte*), c_ulong, POINTER(c_ulong) )
+    _urDeviceSelectBinary_t = WINFUNCTYPE( ur_result_t, ur_device_handle_t, POINTER(POINTER(c_ubyte)), c_ulong, POINTER(c_ulong) )
 else:
-    _urDeviceSelectBinary_t = CFUNCTYPE( ur_result_t, ur_device_handle_t, POINTER(c_ubyte*), c_ulong, POINTER(c_ulong) )
+    _urDeviceSelectBinary_t = CFUNCTYPE( ur_result_t, ur_device_handle_t, POINTER(POINTER(c_ubyte)), c_ulong, POINTER(c_ulong) )
 
 ###############################################################################
 ## @brief Function-pointer for urDeviceGetNativeHandle

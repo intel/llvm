@@ -19,11 +19,19 @@ jobs:
       - name: Install pip packages
         run: pip install -r third_party/requirements.txt
 
-      - name: Generate specification, check for uncommitted diff
+      - name: Generate specification, check for uncommitted diff, check python module.
         run: |
           cd scripts
           python run.py --core
           if [ $(git diff | wc -l) != 0 ]; then
             git diff
+            exit 1
+          fi
+          cd ../include
+          error_file=$(mktemp)
+          python -c "import ur" >& $error_file
+          if [ $? != 0 ]; then
+            echo "Importing the generated ur.py module failed with the following:"
+            cat $error_file
             exit 1
           fi
