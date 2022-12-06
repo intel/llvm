@@ -13,7 +13,7 @@ constexpr auto Backend = sycl::backend::opencl;
 #endif
 
 #ifdef USE_L0
-#include <level_zero/ze_api.h>
+#include <ze_api.h>
 
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 
