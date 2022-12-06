@@ -84,6 +84,14 @@ add_sycl_plugin(level_zero
     ${XPTI_LIBS}
 )
 
+# Compilation option modification to prevent build termination caused by
+# warnings from Level-Zero files
+if (WIN32)
+string(REPLACE "/W4" " " CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+else()
+string(REPLACE "-pedantic" " " CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+endif()
+
 add_dependencies(pi_level_zero ze-api)
 
 if (SYCL_ENABLE_XPTI_TRACING)
