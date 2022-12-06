@@ -11,8 +11,8 @@
 #pragma once
 
 #include <sycl/detail/helpers.hpp>
-#include <sycl/group_barrier.hpp>
 #include <sycl/group_algorithm.hpp>
+#include <sycl/group_barrier.hpp>
 #include <sycl/multi_ptr.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
