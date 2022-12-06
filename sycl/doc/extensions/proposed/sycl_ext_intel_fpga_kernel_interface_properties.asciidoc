@@ -200,7 +200,7 @@ inline constexpr pipelined_key::value_t<
 
  When the parameter is a positive value, the value specifies the 'initiation
  interval' (II) of the kernel i.e., the minimum number of cycles between successive
- invocations of the kernel. Example:
+ invocations. Example:
 
  * `pipelined<N>` - For `N > 0`, the compiler will pipeline multiple kernel
  invocations such that an invocation can be launched every `N` cycles if one is
