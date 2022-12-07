@@ -266,7 +266,8 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
                                                    MemRefLayoutAttrInterface(),
                                                    MT.getMemorySpace());
                     })
-                    .Case<mlir::sycl::ItemBaseType>([&](auto Ty) {
+                    .Case<mlir::sycl::ItemBaseType,
+                          mlir::sycl::RoundedRangeKernelType>([&](auto Ty) {
                       return mlir::MemRefType::get(Shape, Ty.getBody()[I],
                                                    MemRefLayoutAttrInterface(),
                                                    MT.getMemorySpace());
@@ -680,7 +681,7 @@ ValueCategory MLIRScanner::VisitMaterializeTemporaryExpr(
     return V;
 
   CGEIST_WARNING(llvm::WithColor::warning()
-                 << "cleanup of materialized not handled");
+                 << "cleanup of materialized not handled\n");
   auto Op =
       createAllocOp(Glob.getTypes().getMLIRType(Expr->getSubExpr()->getType()),
                     nullptr, 0, /*isArray*/ IsArray, /*LLVMABI*/ LLVMABI);

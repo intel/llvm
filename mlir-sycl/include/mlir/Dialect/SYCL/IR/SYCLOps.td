@@ -311,6 +311,13 @@ def SYCL_RangeType
   let assemblyFormat = "`<`  `[` $dimension `]` `,` `(` $body `)` `>`";
 }
 
+def SYCL_RoundedRangeKernelType : SYCL_Type<"RoundedRangeKernel", "rounded_range_kernel"> {
+  let parameters = (ins "::mlir::Type":$dataType,
+                        "unsigned":$dimension,
+                        ArrayRefParameter<"mlir::Type">:$body);
+  let assemblyFormat = "`<` `[` $dataType `,` $dimension `]` `,` `(` $body `)` `>`";
+}
+
 def SYCL_SubGroupType : SYCL_Type<"SubGroup", "sub_group"> {
   let assemblyFormat = "";
 }

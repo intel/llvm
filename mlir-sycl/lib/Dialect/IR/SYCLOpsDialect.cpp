@@ -154,7 +154,8 @@ SYCLOpAsmInterface::getAlias(mlir::Type Type, llvm::raw_ostream &OS) const {
            << "_";
         return AliasResult::FinalAlias;
       })
-      .Case<mlir::sycl::ItemType, mlir::sycl::ItemBaseType>([&](auto Ty) {
+      .Case<mlir::sycl::ItemType, mlir::sycl::ItemBaseType,
+            mlir::sycl::RoundedRangeKernelType>([&](auto Ty) {
         OS << "sycl_" << decltype(Ty)::getMnemonic() << "_" << Ty.getDimension()
            << "_";
         return AliasResult::OverridableAlias;

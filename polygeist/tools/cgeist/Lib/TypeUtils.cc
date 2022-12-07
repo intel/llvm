@@ -130,6 +130,7 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
     NdRange,
     OwnerLessBase,
     Range,
+    RoundedRangeKernel,
     SubGroup,
     SwizzleOp,
     TupleCopyAssignableValueHolder,
@@ -165,6 +166,7 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
       {"nd_range", TypeEnum::NdRange},
       {"OwnerLessBase", TypeEnum::OwnerLessBase},
       {"range", TypeEnum::Range},
+      {"RoundedRangeKernel", TypeEnum::RoundedRangeKernel},
       {"sub_group", SubGroup},
       {"SwizzleOp", SwizzleOp},
       {"TupleCopyAssignableValueHolder", TupleCopyAssignableValueHolder},
@@ -346,6 +348,14 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
       Body.push_back(CGT.getMLIRType(CTS->bases_begin()->getType()));
       return mlir::sycl::RangeType::get(CGT.getModule()->getContext(), Dim,
                                         Body);
+    }
+    case TypeEnum::RoundedRangeKernel: {
+      const auto Type =
+          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
+      const auto Dim =
+          CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
+      return mlir::sycl::RoundedRangeKernelType::get(
+          CGT.getModule()->getContext(), Type, Dim, Body);
     }
     case TypeEnum::TupleCopyAssignableValueHolder: {
       const auto Type =

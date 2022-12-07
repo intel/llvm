@@ -56,7 +56,7 @@ func.func @test_accessor_common(%arg0: !sycl.accessor_common) {
 func.func @test_accessorImplDevice(%arg0: !sycl_accessor_impl_device_1_) {
   return
 }
-// CHECK: llvm.func @test_accessor.1(%arg0: !llvm.struct<"class.sycl::_V1::accessor{{.*}}", ([[ACCESSORIMPLDEVICE_1]][[ID_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]], struct<(ptr<i32, 1>)>[[SUFFIX]])
+// CHECK: llvm.func @test_accessor.1(%arg0: !llvm.[[ACCESSOR_1:struct<"class.sycl::_V1::accessor.*", \(]][[ACCESSORIMPLDEVICE_1]][[ID_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]], struct<(ptr<i32, 1>)>[[SUFFIX]])
 func.func @test_accessor.1(%arg0: !sycl_accessor_1_i32_rw_gb) {
   return
 }
@@ -208,6 +208,21 @@ func.func @test_nd_range.1(%arg0: !sycl_nd_range_1_) {
 }
 // CHECK: llvm.func @test_nd_range.2(%arg0: !llvm.[[ND_RANGE_2:struct<"class.sycl::_V1::nd_range.*", \(]][[RANGE_2]][[ARRAY_2]][[SUFFIX]], [[RANGE_2]][[ARRAY_2]][[SUFFIX]], [[ID_2]][[ARRAY_2]][[SUFFIX]][[SUFFIX]]) {
 func.func @test_nd_range.2(%arg0: !sycl_nd_range_2_) {
+  return
+}
+
+// -----
+
+!sycl_array_1_ = !sycl.array<[1], (memref<1xi64, 4>)>
+!sycl_id_1_ = !sycl.id<[1], (!sycl_array_1_)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl_array_1_)>
+!sycl_item_base_1_ = !sycl.item_base<[1, true], (!sycl_range_1_, !sycl_id_1_, !sycl_id_1_)>
+!sycl_item_1_ = !sycl.item<[1, true], (!sycl_item_base_1_)>
+!sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>
+!sycl_accessor_1_i32_w_gb = !sycl.accessor<[1, i32, write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<i32, 1>)>)>
+!sycl_rounded_range_kernel_1_ = !sycl.rounded_range_kernel<[!sycl_item_1_, 1], (!sycl_range_1_, !llvm.struct<(!sycl_accessor_1_i32_w_gb)>)>
+// CHECK: llvm.func @test_rounded_range_kernel(%arg0: !llvm.struct<"class.sycl::_V1::detail::RoundedRangeKernel.1{{.*}}", ([[RANGE_1]][[ARRAY_1]][[SUFFIX]], struct<([[ACCESSOR_1]][[ACCESSORIMPLDEVICE_1]][[ID_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]], struct<(ptr<i32, 1>)>[[SUFFIX]][[SUFFIX]][[SUFFIX]]) {
+func.func @test_rounded_range_kernel(%arg0: !sycl_rounded_range_kernel_1_) {
   return
 }
 

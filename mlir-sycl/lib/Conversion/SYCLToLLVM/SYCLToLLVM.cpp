@@ -271,6 +271,15 @@ static Optional<Type> convertRangeType(sycl::RangeType type,
                          type.getBody(), converter);
 }
 
+/// Converts SYCL RoundedRangeKernel type to LLVM type.
+static Optional<Type>
+convertRoundedRangeKernelType(sycl::RoundedRangeKernelType type,
+                              LLVMTypeConverter &converter) {
+  return convertBodyType("class.sycl::_V1::detail::RoundedRangeKernel." +
+                             std::to_string(type.getDimension()),
+                         type.getBody(), converter);
+}
+
 /// Converts SYCL nd_range type to LLVM type.
 static Optional<Type> convertNdRangeType(sycl::NdRangeType type,
                                          LLVMTypeConverter &converter) {
@@ -578,6 +587,9 @@ void mlir::sycl::populateSYCLToLLVMTypeConversion(
   });
   typeConverter.addConversion([&](sycl::RangeType type) {
     return convertRangeType(type, typeConverter);
+  });
+  typeConverter.addConversion([&](sycl::RoundedRangeKernelType type) {
+    return convertRoundedRangeKernelType(type, typeConverter);
   });
   typeConverter.addConversion([&](sycl::SubGroupType type) {
     return convertSubGroupType(type, typeConverter);
