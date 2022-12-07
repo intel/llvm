@@ -301,6 +301,7 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
       Body.push_back(CGT.getMLIRType(CTS->bases_begin()->getType()));
       return mlir::sycl::LocalAccessorType::get(CGT.getModule()->getContext(),
                                                 Type, Dim, Body);
+    }
     case TypeEnum::Maximum: {
       const auto Type =
           CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());

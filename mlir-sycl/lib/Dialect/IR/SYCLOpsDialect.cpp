@@ -137,10 +137,9 @@ SYCLOpAsmInterface::getAlias(mlir::Type Type, llvm::raw_ostream &OS) const {
       })
       .Case<mlir::sycl::AssertHappenedType, mlir::sycl::BFloat16Type,
             mlir::sycl::KernelHandlerType>([&](auto Ty) {
-          [&](auto Ty) {
-            OS << "sycl_" << decltype(Ty)::getMnemonic() << "_";
-            return AliasResult::FinalAlias;
-          })
+        OS << "sycl_" << decltype(Ty)::getMnemonic() << "_";
+        return AliasResult::FinalAlias;
+      })
       .Case<mlir::sycl::AtomicType>([&](auto Ty) {
         OS << "sycl_" << decltype(Ty)::getMnemonic() << "_" << Ty.getDataType()
            << "_" << mlir::sycl::accessAddressSpaceAsString(Ty.getAddrSpace())

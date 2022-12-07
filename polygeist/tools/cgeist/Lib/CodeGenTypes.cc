@@ -1344,7 +1344,8 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
           TypeName == "GetOp" || TypeName == "GetScalarOp" ||
           TypeName == "group" || TypeName == "h_item" || TypeName == "id" ||
           TypeName == "item" || TypeName == "ItemBase" ||
-          TypeName == "kernel_handler" || TypeName == "LocalAccessorBaseDevice" ||
+          TypeName == "kernel_handler" ||
+          TypeName == "LocalAccessorBaseDevice" ||
           TypeName == "local_accessor_base" || TypeName == "local_accessor" ||
           TypeName == "maximum" || TypeName == "minimum" ||
           TypeName == "multi_ptr" || TypeName == "nd_item" ||
