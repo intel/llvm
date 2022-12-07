@@ -2,7 +2,7 @@
 // RUN:   -triple nvptx64-nvidia-cuda -aux-triple x86_64-unknown-linux-gnu \
 // RUN:   -fsycl-is-device -sycl-std=2020 -ast-dump %s | FileCheck %s
 
-// Check that aux builtins have the correct __device__ attribute.
+// Check that aux builtins have the correct device attribute (i.e., __device__).
 
 __attribute__((device)) void df() {
   int x = __nvvm_read_ptx_sreg_ctaid_x();
