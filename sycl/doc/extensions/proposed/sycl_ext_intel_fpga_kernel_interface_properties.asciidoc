@@ -216,7 +216,8 @@ inline constexpr pipelined_key::value_t<
  equivalent to a combination of the property parameter values listed above, but
  the choice is implementation defined.
 
- If the property parameter is not specified, the default value is `-1`.
+ If the property parameter (N) is not specified, the default value is `-1`.
+ Valid values for `N` are values greater than or equal to `-1`.
 |===
 
 Device compilers that do not support this extension may accept and ignore these
