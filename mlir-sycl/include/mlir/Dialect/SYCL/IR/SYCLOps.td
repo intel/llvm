@@ -330,8 +330,11 @@ def ItemBaseMemRef : MemRefOf<[SYCL_ItemBaseType]>;
 def ItemMemRef : MemRefOf<[SYCL_ItemType]>;
 def MultiPtrMemRef : MemRefOf<[SYCL_MultiPtrType]>;
 def NDItemMemRef : MemRefOf<[SYCL_NdItemType]>;
-def VecMemRef : MemRefOf<[SYCL_VecType]>;
+def NDRangeMemRef : MemRefOf<[SYCL_NdRangeType]>;
+def OwnerLessBaseMemRef : MemRefOf<[SYCL_OwnerLessBaseType]>;
+def RangeMemRef : MemRefOf<[SYCL_RangeType]>;
 def SwizzledVecMemRef : MemRefOf<[SYCL_SwizzledVecType]>;
+def VecMemRef : MemRefOf<[SYCL_VecType]>;
 
 def SYCLMemref : AnyTypeOf<[
   // Keep in alphabetical order.
