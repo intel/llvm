@@ -61,13 +61,13 @@ While this document presents the core API that unifies Intel AMX, Intel XMX, and
 [frame="none",options="header"]
 |======================
 |Value |Description
-|1     |Initial extension JIT implementation on Intel AMX and Intel XMX. load, store, mad, fill, piece-wise operations, and the query interface are supported. The old API used for this implementation is detailed in [matrix extension](../../deprecated/sycl_ext_oneapi_matrix_no_use.asciidoc)
+|1     |Initial extension JIT implementation on Intel AMX and Intel XMX. load, store, mad, fill, piece-wise operations, and the query interface are supported. The old API used for this implementation is detailed in link:../../deprecated/sycl_ext_oneapi_matrix_no_use.asciidoc[matrix extension]
 |2     |JIT implementation on Intel AMX and Intel XMX. load, store, mad, fill, piece-wise operations, and the query interface are supported 
 |3     |Implementation on Nvidia Tensor Cores
 |======================
 
 ## New `joint_matrix` class
-We introduce a new class called `joint_matrix`. The user needs to specify the memory scope, the type of the elements, the shape, the matrix use, and the memory layout of the matrix. This results in the following description:
+We introduce a new class called `joint_matrix`. The user needs to specify the group memory scope, the type of the elements, the shape, the matrix use, and the memory layout of the matrix. This results in the following description:
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
@@ -95,10 +95,10 @@ enum class use {
 ```
 
 #### Shape
-Size of a `joint_matrix` that refers to its number of rows `Rows` and number of columns `Cols` must be constant.
+The shape of a `joint_matrix` refers to its number of rows `Rows` and number of columns `Cols`.
 
 #### Layout
-This specifies the memory layout and it can be row major and column major layouts
+This specifies the memory layout and it can be row major or column major.
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
@@ -111,10 +111,10 @@ enum class layout {
 ```
 
 
-#### Memory Scope
-In this API, we use the terminology of `joint_matrix` instead of plain `matrix` to emphasize that the matrix is shared among a group of work items and is not private to each work item. The memory scope is added as an additional template parameter and is also part of the constructor arguments.
+#### Group Memory Scope
+In this API, we use the terminology of `joint_matrix` instead of plain `matrix` to emphasize that the matrix is shared among a group of work items and is not private to each work item. The group scope is added as an additional template parameter and is also part of the constructor arguments.
 
-IMPORTANT: In the current implementation, only the subgroup scope is supported
+IMPORTANT: In the current implementation, only the `sub_group` scope is supported
 
 When the group is a `sycl::sub_group`, a matrix is declared as follows:
 
@@ -126,13 +126,11 @@ joint_matrix<sub_group, int8_t, use::a, tM, tN, layout::row_major> tA();
 ## Matrix Operations and their Execution Scope
 We define three new functions needed to perform the main and common operations on matrices, namely load, store, and the actual multiply and add operation. This set of functions can be easily extended if the matrix hardware implements new features.
 
-The base pointer determines the starting address of the matrix to be loaded/stored. `layout` determines whether the data is being read/written in a row (`row_major`), column major (`column_major`) fashion. `stride` describes the number of elements between consecutive rows for the row major layout, or between columns for the column major layout. 
-
-Since the matrix functions are group operations (as defined in Section 4.17.3 of the SYCL specification), the matrix API has to be accessed by all the work-items in the group in a convergent control flow. The `Group` template argument can be a work-group or a subgroup. These functions will be called once by each work item in the group.
+Since the matrix functions are group operations (as defined in Section 4.17.3 of the SYCL specification), the matrix API has to be accessed by all the work-items in the group in a convergent control flow. The `Group` template argument can be a work-group or a sub-group. These functions will be called once by each work item in the group.
 
 To be aligned with the SYCL 2020 group algorithms, an additional group argument is added to the matrix operations to designate that these functions are collective operations. The {dpcpp} syntax is the following: 
 
-IMPORTANT: In the current implementation, only the subgroup scope is supported.  
+IMPORTANT: In the current implementation, only the `sub_group` scope is supported.  
 
 #### Load
 ```c++
@@ -141,7 +139,7 @@ namespace sycl::ext::oneapi::experimental::matrix {
             access::address_space Space>
   void joint_matrix_load(Group sg,
     joint_matrix<Group, T, use::accumulator, NumRows, NumCols, layout::dynamic> &res,
-    multi_ptr<T, Space, IsDecorated> src, size_t stride, layout memL);
+    multi_ptr<T, Space, IsDecorated> src, size_t stride, layout Layout);
     
   template <typename Group, typename T, size_t NumRows, size_t NumCols,
           use Use, layout Layout, access::address_space Space>
@@ -153,8 +151,11 @@ namespace sycl::ext::oneapi::experimental::matrix {
 
 `joint_matrix_load` loads data from memory to the 2d tiles/registers of the tensor hardware.
 We define two overloads of the load function depending on whether the memory layout was declared as part of the `joint_matrix` type or not. 
-The first overload that takes memory layout as an argument is only available for a `joint_matrix` type that was declared with `layout::dynamic`.
-The second overload without a memory layout must not be used with a `joint_matrix` type that was declared with `layout::dynamic`.
+The first overload that takes memory layout as an argument is only available for a `joint_matrix` type that used the default value `layout::dynamic`.
+The second overload without a memory layout must not be used with a `joint_matrix` type that used the default value `layout::dynamic`.
+
+The base pointer `src` here determines the starting address of the matrix to be loaded from. `Layout` determines whether the data is being read in a row (`row_major`), column major (`column_major`) fashion. `stride` describes the number of elements between consecutive rows for the row major layout, or between columns for the column major layout. 
+
 
 #### Store
 ```c++
@@ -163,10 +164,13 @@ namespace sycl::ext::oneapi::experimental::matrix {
             access::address_space Space>
   void joint_matrix_store(Group sg,
     joint_matrix<Group, T, use::accumulator, NumRows, NumCols, layout::dynamic> &res,
-    multi_ptr<T, Space, IsDecorated> src, size_t stride, layout memL);
+    multi_ptr<T, Space, IsDecorated> dest, size_t stride, layout Layout);
 }
 ```
 This function stores the data in the accumulator matrix from the 2d tiles back to memory.
+
+The base pointer `dest` here determines the starting address of the matrix to be stored. `Layout` determines whether the data is being written in a row (`row_major`), column major (`column_major`) fashion. `stride` describes the number of elements between consecutive rows for the row major layout, or between columns for the column major layout. 
+
 
 #### Multiply and Add
 
@@ -193,7 +197,7 @@ namespace sycl::ext::oneapi::experimental::matrix {
   void joint_matrix_fill(Group sg, joint_matrix<Group, T, Use, NumRows, NumCols, Layout> &m, Tv v);
 }
 ```
-IMPORTANT: In the current implementation, only the subgroup scope is supported.  
+IMPORTANT: In the current implementation, only the `sub_group` scope is supported.  
 
 #### Element Indexing and Piece-Wise Operations
 ##### Background
@@ -218,23 +222,20 @@ Also, note that `get_wi_data` cannot return a fixed size array length because th
 
 1- The main compilation mode of SYCL is JIT compilation and partitioning among WIs is implementation defined.
 
-2- SG size is not generally fixed.
-
-In the case of CUDA backend which is SYCL AOT compiled and SG size = 32 known and fixed, an additional `marray`-based capability is provided in [matrix Tensor Cores additional extension](sycl/doc/extensions/experimental/sycl_ext_oneapi_matrix/sycl_ext_oneapi_matrix_cuda.asciidoc).
+2- Sub group size is not generally fixed.
 
 The code listing below shows a synopsis of these new APIs.
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
-template <typename Group, typename T, size_t NumRows, size_t NumCols, use Use, layout Layout>
-   wi_data<group, T, Use, NumRows, NumCols, Layout> get_wi_data(Group sg, joint_matrix<Group, T, Use, Rows, Cols, Layout> Mat);
+   wi_data<group, T, Use, Rows, Cols, Layout> get_wi_data(Group sg, joint_matrix<Group, T, Use, Rows, Cols, Layout> Mat);
 
-template <typename T, size_t NumRows, size_t NumCols, use Use, layout Layout, typename Group>
+template <typename T, size_t Rows, size_t Cols, use Use, layout Layout, typename Group>
 class wi_data {
   size_t length();
   wi_element<T, NumRows, NumCols, Use, Layout, Group> operator[](size_t i);
 };
-template <typename T, size_t NumRows, size_t NumCols,
+template <typename T, size_t Rows, size_t Cols,
           use Use, layout Layout,
           typename Group = sycl::sub_group>
 class wi_element {
@@ -246,7 +247,7 @@ class wi_element {
 ```
 
 In the following example `wi_data_c` is a reference to the WI owned portion of the joint matrix `matC`. As such `wi_data_c[i] OP rhs` updates the corresponding matrix element in the joint_matrix `matC`.
-Vectorization along the subgroup dimension will get enabled automatically to vectorize the contiguous portion of the matrix. 
+Vectorization along the sub group dimension will get enabled automatically to vectorize the contiguous portion of the matrix. 
 
 
 ```c++
@@ -255,11 +256,9 @@ for (int i = 0; i < wi_data_c.length(); i++)
         wi_data_c[i] *= alpha;    // Note that the indexing here "i" is in the vector owned by a WI, not in the matrix C        
 ```
 
-IMPORTANT: In the current implementation, only the subgroup scope is supported.
+IMPORTANT: In the current implementation, only the `sub_group` scope is supported.
 
 IMPORTANT: The WI data to joint matrix mapping coordinates information is not implemented yet.
-
-IMPORTANT: In the Tensor Cores implementation, it is possible to know how many elements are owned by each WI at compile time. In this case, `wi_data` can be of type `marray`. An additional interface will be provided for the Tensor Cores backend.
 
 ## Example using int8_t type
 ```c++
@@ -305,7 +304,7 @@ The query interface proposed here consists of three functionalities:
 
 - Default values: this provides a default shape if the user does not provide a specific combination. In this case, aliases to the `joint_matrix` type can be used, namely `joint_matrix_a/b/accumulator` where no additional argument is needed. This form happens when the user specifies all template parameters except the sizes of the matrices (`tiles`) M, N, and K.
 
-- General query: the general query interface provides information  about sizes, types, static/dynamic, and scopes that are supported by a specific TPU implementation. This is needed to avoid padding by the user, for tuning, and efficient code generation if used by a library. The general query returns an array of `combinations` of `combination` type. Each combination includes the sizes and the types for the matrices A, B, and accumulator. Note that for each TPU, the query returns `max_msize, max_nsize, max_ksize` or `msize, nsize, ksize` exclusively, depending on whether the implementation supports a continuous or discrete number of sizes. For example, the Intel AMX implementation supports a continuous number of sizes, so the `max_*` variant is applied and only the maximum number is returned. The Intel XMX implementation, on the other hand, supports a discrete list of numbers so the  `msize, nsize, ksize` variant is applied.  This form takes place when users only specify the TPU they are interested in using.
+- General query: the general query interface provides information  about sizes, types,  and scopes that are supported by a specific TPU implementation. This is needed to avoid padding by the user, for tuning, and efficient code generation if used by a library. The general query returns an array of `combinations` of `combination` type. Each combination includes the sizes and the types for the matrices A, B, and accumulator. Note that for each TPU, the query returns `max_msize, max_nsize, max_ksize` or `msize, nsize, ksize` exclusively, depending on whether the implementation supports a continuous or discrete number of sizes. For example, the Intel AMX implementation supports a continuous number of sizes, so the `max_*` variant is applied and only the maximum number is returned. The Intel XMX implementation, on the other hand, supports a discrete list of numbers so the  `msize, nsize, ksize` variant is applied.  This form takes place when users only specify the TPU they are interested in using.
 
 The table below provides a description for each of the member variables and type aliases in `tpu_params` class and the forms in which  they are defined.
 
