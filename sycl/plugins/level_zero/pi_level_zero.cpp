@@ -26,6 +26,7 @@
 
 #include <zet_api.h>
 
+#include "ur/usm_allocator_config.hpp"
 #include "ur_bindings.hpp"
 
 extern "C" {
@@ -95,6 +96,8 @@ static const bool IndirectAccessTrackingEnabled = [] {
   return std::getenv("SYCL_PI_LEVEL_ZERO_TRACK_INDIRECT_ACCESS_MEMORY") !=
          nullptr;
 }();
+
+static usm_settings::USMAllocatorConfig USMAllocatorConfigInstance;
 
 // Map from L0 to PI result.
 static inline pi_result mapError(ze_result_t Result) {
@@ -775,18 +778,24 @@ pi_result _pi_context::initialize() {
   auto createUSMAllocators = [this](pi_device Device) {
     SharedMemAllocContexts.emplace(
         std::piecewise_construct, std::make_tuple(Device->ZeDevice),
-        std::make_tuple(std::unique_ptr<SystemMemory>(
-            new USMSharedMemoryAlloc(this, Device))));
+        std::make_tuple(
+            std::unique_ptr<SystemMemory>(
+                new USMSharedMemoryAlloc(this, Device)),
+            USMAllocatorConfigInstance.Configs[usm_settings::MemType::Shared]));
 
     SharedReadOnlyMemAllocContexts.emplace(
         std::piecewise_construct, std::make_tuple(Device->ZeDevice),
         std::make_tuple(std::unique_ptr<SystemMemory>(
-            new USMSharedReadOnlyMemoryAlloc(this, Device))));
+                            new USMSharedReadOnlyMemoryAlloc(this, Device)),
+                        USMAllocatorConfigInstance
+                            .Configs[usm_settings::MemType::SharedReadOnly]));
 
     DeviceMemAllocContexts.emplace(
         std::piecewise_construct, std::make_tuple(Device->ZeDevice),
-        std::make_tuple(std::unique_ptr<SystemMemory>(
-            new USMDeviceMemoryAlloc(this, Device))));
+        std::make_tuple(
+            std::unique_ptr<SystemMemory>(
+                new USMDeviceMemoryAlloc(this, Device)),
+            USMAllocatorConfigInstance.Configs[usm_settings::MemType::Device]));
   };
 
   // Recursive helper to call createUSMAllocators for all sub-devices
@@ -808,7 +817,8 @@ pi_result _pi_context::initialize() {
   // are device-specific. Host allocations are not device-dependent therefore
   // we don't need a map with device as key.
   HostMemAllocContext = std::make_unique<USMAllocContext>(
-      std::unique_ptr<SystemMemory>(new USMHostMemoryAlloc(this)));
+      std::unique_ptr<SystemMemory>(new USMHostMemoryAlloc(this)),
+      USMAllocatorConfigInstance.Configs[usm_settings::MemType::Host]);
 
   // We may allocate memory to this root device so create allocators.
   if (SingleRootDevice &&
@@ -8111,12 +8121,6 @@ pi_result USMHostMemoryAlloc::allocateImpl(void **ResultPtr, size_t Size,
   return USMHostAllocImpl(ResultPtr, Context, nullptr, Size, Alignment);
 }
 
-MemType USMSharedMemoryAlloc::getMemTypeImpl() { return MemType::Shared; }
-
-MemType USMDeviceMemoryAlloc::getMemTypeImpl() { return MemType::Device; }
-
-MemType USMHostMemoryAlloc::getMemTypeImpl() { return MemType::Host; }
-
 void *USMMemoryAllocBase::allocate(size_t Size) {
   void *Ptr = nullptr;
 
@@ -8144,8 +8148,6 @@ void USMMemoryAllocBase::deallocate(void *Ptr, bool OwnZeMemHandle) {
     throw UsmAllocationException(Res);
   }
 }
-
-MemType USMMemoryAllocBase::getMemType() { return getMemTypeImpl(); }
 
 pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context Context,
                               pi_device Device,
@@ -9222,7 +9224,7 @@ pi_result _pi_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
     // The host allocation may already exists, e.g. with imported
     // host ptr, or in case of interop buffer.
     if (!HostAllocation.ZeHandle) {
-      if (enableBufferPooling()) {
+      if (USMAllocatorConfigInstance.EnableBuffers) {
         HostAllocation.ReleaseAction = allocation_t::free;
         PI_CALL(piextUSMHostAlloc(pi_cast<void **>(&ZeHandle), Context, nullptr,
                                   Size, getAlignment()));
@@ -9275,7 +9277,7 @@ pi_result _pi_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
       Allocation.Valid = true;
       return PI_SUCCESS;
     } else { // Create device allocation
-      if (enableBufferPooling()) {
+      if (USMAllocatorConfigInstance.EnableBuffers) {
         Allocation.ReleaseAction = allocation_t::free;
         PI_CALL(piextUSMDeviceAlloc(pi_cast<void **>(&ZeHandle), Context,
                                     Device, nullptr, Size, getAlignment()));
@@ -9336,7 +9338,7 @@ pi_result _pi_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
         // host ptr, or in case of interop buffer.
         if (!HostAllocation.ZeHandle) {
           void *ZeHandleHost;
-          if (enableBufferPooling()) {
+          if (USMAllocatorConfigInstance.EnableBuffers) {
             HostAllocation.ReleaseAction = allocation_t::free;
             PI_CALL(piextUSMHostAlloc(&ZeHandleHost, Context, nullptr, Size,
                                       getAlignment()));
