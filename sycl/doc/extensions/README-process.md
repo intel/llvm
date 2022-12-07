@@ -54,7 +54,7 @@ the requirements of all supportable backends. If unsure about the
 applicability of an extension to a backend, it is recommended to seek advice
 from one of the developers responsible for that backend. When an extension
 API is not supported on some backends or devices, one option is to treat the
-API as an "optional kernel feature" and tie it to a device or platform
+API as an "optional kernel feature" and tie it to a device
 aspect (or to one of the architecture enums).
 In this case, the application must do one of two things:
 
