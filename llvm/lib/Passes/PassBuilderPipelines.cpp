@@ -26,6 +26,7 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/Passes/OptimizationLevel.h"
 #include "llvm/Passes/PassBuilder.h"
+#include "llvm/SYCLLowerIR/IR/PassAdaptors.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/PGOOptions.h"
@@ -1982,7 +1983,99 @@ ModulePassManager PassBuilder::buildO0DefaultPipeline(OptimizationLevel Level,
 
   MPM.addPass(createModuleToFunctionPassAdaptor(AnnotationRemarksPass()));
 
+  if (PTO.OptimizeSYCLFramework) {
+    assert(Level == OptimizationLevel::O0 &&
+           "Optimization of sycl framework should be used only with O0 "
+           "optimization level");
+    addDefaultSYCLFrameworkOptimizationPipeline(MPM);
+  }
+
   return MPM;
+}
+
+void PassBuilder::addSYCLFrameworkSimplificationPipeline(
+    ModulePassManager &MPM) {
+  FunctionPassManager EarlyFPM;
+  // Lower llvm.expect to metadata before attempting transforms.
+  // Compare/branch metadata may alter the behavior of passes like SimplifyCFG.
+  EarlyFPM.addPass(LowerExpectIntrinsicPass());
+  EarlyFPM.addPass(SimplifyCFGPass());
+  EarlyFPM.addPass(SROAPass());
+  EarlyFPM.addPass(EarlyCSEPass());
+  MPM.addPass(
+      createModuleToSYCLFrameworkFunctionPassAdaptor(std::move(EarlyFPM)));
+  MPM.addPass(createModuleToSYCLFrameworkFunctionPassAdaptor(PromotePass()));
+}
+
+void PassBuilder::addSYCLFrameworkOptimizationPipeline(ModulePassManager &MPM) {
+  FunctionPassManager OptimizePM;
+  OptimizePM.addPass(Float2IntPass());
+  OptimizePM.addPass(LowerConstantIntrinsicsPass());
+
+  if (EnableMatrix) {
+    OptimizePM.addPass(LowerMatrixIntrinsicsPass());
+    OptimizePM.addPass(EarlyCSEPass());
+  }
+
+  for (auto &C : VectorizerStartEPCallbacks)
+    C(OptimizePM, OptimizationLevel::O2);
+
+  if (!SYCLOptimizationMode) {
+    LoopPassManager LPM;
+    LPM.addPass(LoopRotatePass(/*EnableHeaderDuplication*/ true,
+                               /*PrepareForLTO*/ false));
+    // Some loops may have become dead by now. Try to delete them.
+    LPM.addPass(LoopDeletionPass());
+    OptimizePM.addPass(
+        createFunctionToLoopPassAdaptor(std::move(LPM), /*UseMemorySSA=*/false,
+                                        /*UseBlockFrequencyInfo=*/false));
+
+    // Distribute loops to allow partial vectorization. I.e. isolate dependences
+    // into separate loop that would otherwise inhibit vectorization. This is
+    // currently only performed for loops marked with the metadata
+    // llvm.loop.distribute=true or when -enable-loop-distribute is specified.
+    OptimizePM.addPass(LoopDistributePass());
+
+    // Populates the VFABI attribute with the scalar-to-vector mappings
+    // from the TargetLibraryInfo.
+    OptimizePM.addPass(InjectTLIMappings());
+
+    addVectorPasses(OptimizationLevel::O2, OptimizePM, /* IsFullLTO */ false);
+  }
+
+  // LoopSink pass sinks instructions hoisted by LICM, which serves as a
+  // canonicalization pass that enables other optimizations. As a result,
+  // LoopSink pass needs to be a very late IR pass to avoid undoing LICM
+  // result too early.
+  OptimizePM.addPass(LoopSinkPass());
+
+  // And finally clean up LCSSA form before generating code.
+  OptimizePM.addPass(InstSimplifyPass());
+
+  // This hoists/decomposes div/rem ops. It should run after other sink/hoist
+  // passes to avoid re-sinking, but before SimplifyCFG because it can allow
+  // flattening of blocks.
+  OptimizePM.addPass(DivRemPairsPass());
+
+  // Try to annotate calls that were created during optimization.
+  OptimizePM.addPass(TailCallElimPass());
+
+  // LoopSink (and other loop passes since the last simplifyCFG) might have
+  // resulted in single-entry-single-exit or empty blocks. Clean up the CFG.
+  OptimizePM.addPass(
+      SimplifyCFGPass(SimplifyCFGOptions().convertSwitchRangeToICmp(true)));
+
+  // Add the core optimizing pipeline.
+  MPM.addPass(createModuleToSYCLFrameworkFunctionPassAdaptor(
+      std::move(OptimizePM), PTO.EagerlyInvalidateAnalyses));
+}
+
+void PassBuilder::addDefaultSYCLFrameworkOptimizationPipeline(
+    ModulePassManager &MPM) {
+  addSYCLFrameworkSimplificationPipeline(MPM);
+  addSYCLFrameworkOptimizationPipeline(MPM);
+
+  // TODO: add manual Inliner Pass.
 }
 
 AAManager PassBuilder::buildDefaultAAPipeline() {
