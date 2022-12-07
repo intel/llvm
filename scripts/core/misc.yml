@@ -21,4 +21,4 @@ params:
       name: pParams
       desc: "[in] pointer to tear down parameters"
 returns:
-    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY

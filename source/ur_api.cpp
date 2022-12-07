@@ -248,14 +248,14 @@ urContextSetExtendedDeleter(
 ///         + `NULL == pGlobalWorkOffset`
 ///         + `NULL == pGlobalWorkSize`
 ///         + `NULL == phEvent`
-///     - ::UR_RESULT_INVALID_QUEUE
-///     - ::UR_RESULT_INVALID_KERNEL
-///     - ::UR_RESULT_INVALID_EVENT
-///     - ::UR_RESULT_INVALID_WORK_DIMENSION
-///     - ::UR_RESULT_INVALID_WORK_GROUP_SIZE
-///     - ::UR_RESULT_INVALID_VALUE
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
+///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urEnqueueKernelLaunch(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
@@ -308,11 +308,11 @@ urEnqueueKernelLaunch(
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phEvent`
-///     - ::UR_RESULT_INVALID_QUEUE
-///     - ::UR_RESULT_INVALID_EVENT
-///     - ::UR_RESULT_INVALID_VALUE
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urEnqueueEventsWait(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
@@ -355,11 +355,11 @@ urEnqueueEventsWait(
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phEvent`
-///     - ::UR_RESULT_INVALID_QUEUE
-///     - ::UR_RESULT_INVALID_EVENT
-///     - ::UR_RESULT_INVALID_VALUE
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urEnqueueEventsWaitWithBarrier(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
@@ -400,11 +400,11 @@ urEnqueueEventsWaitWithBarrier(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pDst`
 ///         + `NULL == phEvent`
-///     - ::UR_RESULT_INVALID_QUEUE
-///     - ::UR_RESULT_INVALID_EVENT
-///     - ::UR_RESULT_INVALID_MEM_OBJECT
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urEnqueueMemBufferRead(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
@@ -449,11 +449,11 @@ urEnqueueMemBufferRead(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pSrc`
 ///         + `NULL == phEvent`
-///     - ::UR_RESULT_INVALID_QUEUE
-///     - ::UR_RESULT_INVALID_EVENT
-///     - ::UR_RESULT_INVALID_MEM_OBJECT
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urEnqueueMemBufferWrite(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
@@ -501,11 +501,11 @@ urEnqueueMemBufferWrite(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pDst`
 ///         + `NULL == phEvent`
-///     - ::UR_RESULT_INVALID_QUEUE
-///     - ::UR_RESULT_INVALID_EVENT
-///     - ::UR_RESULT_INVALID_MEM_OBJECT
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urEnqueueMemBufferReadRect(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
@@ -560,11 +560,11 @@ urEnqueueMemBufferReadRect(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pSrc`
 ///         + `NULL == phEvent`
-///     - ::UR_RESULT_INVALID_QUEUE
-///     - ::UR_RESULT_INVALID_EVENT
-///     - ::UR_RESULT_INVALID_MEM_OBJECT
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urEnqueueMemBufferWriteRect(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
@@ -613,11 +613,11 @@ urEnqueueMemBufferWriteRect(
 ///         + `NULL == hBufferDst`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phEvent`
-///     - ::UR_RESULT_INVALID_QUEUE
-///     - ::UR_RESULT_INVALID_EVENT
-///     - ::UR_RESULT_INVALID_MEM_OBJECT
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urEnqueueMemBufferCopy(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
@@ -657,11 +657,11 @@ urEnqueueMemBufferCopy(
 ///         + `NULL == hBufferDst`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phEvent`
-///     - ::UR_RESULT_INVALID_QUEUE
-///     - ::UR_RESULT_INVALID_EVENT
-///     - ::UR_RESULT_INVALID_MEM_OBJECT
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urEnqueueMemBufferCopyRect(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
@@ -707,11 +707,11 @@ urEnqueueMemBufferCopyRect(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pPattern`
 ///         + `NULL == phEvent`
-///     - ::UR_RESULT_INVALID_QUEUE
-///     - ::UR_RESULT_INVALID_EVENT
-///     - ::UR_RESULT_INVALID_MEM_OBJECT
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urEnqueueMemBufferFill(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
@@ -757,11 +757,11 @@ urEnqueueMemBufferFill(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pDst`
 ///         + `NULL == phEvent`
-///     - ::UR_RESULT_INVALID_QUEUE
-///     - ::UR_RESULT_INVALID_EVENT
-///     - ::UR_RESULT_INVALID_MEM_OBJECT
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urEnqueueMemImageRead(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
@@ -810,11 +810,11 @@ urEnqueueMemImageRead(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pSrc`
 ///         + `NULL == phEvent`
-///     - ::UR_RESULT_INVALID_QUEUE
-///     - ::UR_RESULT_INVALID_EVENT
-///     - ::UR_RESULT_INVALID_MEM_OBJECT
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urEnqueueMemImageWrite(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
@@ -858,11 +858,11 @@ urEnqueueMemImageWrite(
 ///         + `NULL == hImageDst`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phEvent`
-///     - ::UR_RESULT_INVALID_QUEUE
-///     - ::UR_RESULT_INVALID_EVENT
-///     - ::UR_RESULT_INVALID_MEM_OBJECT
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urEnqueueMemImageCopy(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
@@ -916,11 +916,11 @@ urEnqueueMemImageCopy(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phEvent`
 ///         + `NULL == ppRetMap`
-///     - ::UR_RESULT_INVALID_QUEUE
-///     - ::UR_RESULT_INVALID_EVENT
-///     - ::UR_RESULT_INVALID_MEM_OBJECT
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urEnqueueMemBufferMap(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
@@ -964,11 +964,11 @@ urEnqueueMemBufferMap(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pMappedPtr`
 ///         + `NULL == phEvent`
-///     - ::UR_RESULT_INVALID_QUEUE
-///     - ::UR_RESULT_INVALID_EVENT
-///     - ::UR_RESULT_INVALID_MEM_OBJECT
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urEnqueueMemUnmap(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
@@ -1001,11 +1001,11 @@ urEnqueueMemUnmap(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == ptr`
 ///         + `NULL == phEvent`
-///     - ::UR_RESULT_INVALID_QUEUE
-///     - ::UR_RESULT_INVALID_EVENT
-///     - ::UR_RESULT_INVALID_MEM_OBJECT
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urEnqueueUSMMemset(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
@@ -1040,11 +1040,11 @@ urEnqueueUSMMemset(
 ///         + `NULL == pDst`
 ///         + `NULL == pSrc`
 ///         + `NULL == phEvent`
-///     - ::UR_RESULT_INVALID_QUEUE
-///     - ::UR_RESULT_INVALID_EVENT
-///     - ::UR_RESULT_INVALID_MEM_OBJECT
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urEnqueueUSMMemcpy(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
@@ -1081,11 +1081,11 @@ urEnqueueUSMMemcpy(
 ///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `0x1 < flags`
-///     - ::UR_RESULT_INVALID_QUEUE
-///     - ::UR_RESULT_INVALID_EVENT
-///     - ::UR_RESULT_INVALID_MEM_OBJECT
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urEnqueueUSMPrefetch(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
@@ -1121,11 +1121,11 @@ urEnqueueUSMPrefetch(
 ///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_MEM_ADVICE_DEFAULT < advice`
-///     - ::UR_RESULT_INVALID_QUEUE
-///     - ::UR_RESULT_INVALID_EVENT
-///     - ::UR_RESULT_INVALID_MEM_OBJECT
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urEnqueueUSMMemAdvice(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
@@ -1158,9 +1158,9 @@ urEnqueueUSMMemAdvice(
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phEvent`
-///     - ::UR_RESULT_INVALID_CONTEXT
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urEventCreate(
     ur_context_handle_t hContext,                   ///< [in] handle of the context object
@@ -1189,10 +1189,10 @@ urEventCreate(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pPropValue`
 ///         + `NULL == pPropValueSizeRet`
-///     - ::UR_RESULT_INVALID_VALUE
-///     - ::UR_RESULT_INVALID_EVENT
-///     - ::UR_RESULT_OUT_OF_RESOURCES
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL
 urEventGetInfo(
     ur_event_handle_t hEvent,                       ///< [in] handle of the event object
@@ -1222,10 +1222,10 @@ urEventGetInfo(
 ///         + `NULL == hEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_PROFILING_INFO_COMMAND_END < propName`
-///     - ::UR_RESULT_INVALID_VALUE
-///     - ::UR_RESULT_INVALID_EVENT
-///     - ::UR_RESULT_OUT_OF_RESOURCES
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL
 urEventGetProfilingInfo(
     ur_event_handle_t hEvent,                       ///< [in] handle of the event object
@@ -1253,11 +1253,11 @@ urEventGetProfilingInfo(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phEventWaitList`
-///     - ::UR_RESULT_INVALID_VALUE
-///     - ::UR_RESULT_INVALID_EVENT
-///     - ::UR_RESULT_INVALID_CONTEXT
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urEventWait(
     uint32_t numEvents,                             ///< [in] number of events in the event list
@@ -1283,9 +1283,9 @@ urEventWait(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hEvent`
-///     - ::UR_RESULT_INVALID_EVENT
-///     - ::UR_RESULT_OUT_OF_RESOURCES
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL
 urEventRetain(
     ur_event_handle_t hEvent                        ///< [in] handle of the event object
@@ -1309,9 +1309,9 @@ urEventRetain(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hEvent`
-///     - ::UR_RESULT_INVALID_EVENT
-///     - ::UR_RESULT_OUT_OF_RESOURCES
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL
 urEventRelease(
     ur_event_handle_t hEvent                        ///< [in] handle of the event object
@@ -1433,14 +1433,14 @@ urEventSetCallback(
 ///         + `NULL == pImageDesc`
 ///         + `NULL == pHost`
 ///         + `NULL == phMem`
-///     - ::UR_RESULT_INVALID_CONTEXT
-///     - ::UR_RESULT_INVALID_VALUE
-///     - ::UR_RESULT_INVALID_IMAGE_FORMAT_DESCRIPTOR
-///     - ::UR_RESULT_INVALID_IMAGE_SIZE
-///     - ::UR_RESULT_INVALID_OPERATION
-///     - ::UR_RESULT_INVALID_HOST_PTR
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
+///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
+///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+///     - ::UR_RESULT_ERROR_INVALID_HOST_PTR
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urMemImageCreate(
     ur_context_handle_t hContext,                   ///< [in] handle of the context object
@@ -1473,12 +1473,12 @@ urMemImageCreate(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pHost`
 ///         + `NULL == phBuffer`
-///     - ::UR_RESULT_INVALID_CONTEXT
-///     - ::UR_RESULT_INVALID_VALUE
-///     - ::UR_RESULT_INVALID_BUFFER_SIZE
-///     - ::UR_RESULT_INVALID_HOST_PTR
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_BUFFER_SIZE
+///     - ::UR_RESULT_ERROR_INVALID_HOST_PTR
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urMemBufferCreate(
     ur_context_handle_t hContext,                   ///< [in] handle of the context object
@@ -1510,9 +1510,9 @@ urMemBufferCreate(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hMem`
-///     - ::UR_RESULT_INVALID_MEM_OBJECT
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urMemRetain(
     ur_mem_handle_t hMem                            ///< [in] handle of the memory object to get access
@@ -1536,8 +1536,8 @@ urMemRetain(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hMem`
-///     - ::UR_RESULT_INVALID_MEM_OBJECT
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL
 urMemRelease(
     ur_mem_handle_t hMem                            ///< [in] handle of the memory object to release
@@ -1566,13 +1566,13 @@ urMemRelease(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pBufferCreateInfo`
 ///         + `NULL == phMem`
-///     - ::UR_RESULT_INVALID_MEM_OBJECT
-///     - ::UR_RESULT_OBJECT_ALLOCATION_FAILURE
-///     - ::UR_RESULT_INVALID_VALUE
-///     - ::UR_RESULT_INVALID_BUFFER_SIZE
-///     - ::UR_RESULT_INVALID_HOST_PTR
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_BUFFER_SIZE
+///     - ::UR_RESULT_ERROR_INVALID_HOST_PTR
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urMemBufferPartition(
     ur_mem_handle_t hBuffer,                        ///< [in] handle of the buffer object to allocate from
@@ -1722,7 +1722,7 @@ urMemImageGetInfo(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pParams`
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL
 urTearDown(
     void* pParams                                   ///< [in] pointer to tear down parameters
@@ -1750,10 +1750,10 @@ urTearDown(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pPropValue`
 ///         + `NULL == pPropSizeRet`
-///     - ::UR_RESULT_INVALID_QUEUE
-///     - ::UR_RESULT_INVALID_VALUE
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urQueueGetInfo(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
@@ -1785,12 +1785,12 @@ urQueueGetInfo(
 ///         + `0xf < props`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phQueue`
-///     - ::UR_RESULT_INVALID_CONTEXT
-///     - ::UR_RESULT_INVALID_DEVICE
-///     - ::UR_RESULT_INVALID_VALUE
-///     - ::UR_RESULT_INVALID_QUEUE_PROPERTIES
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urQueueCreate(
     ur_context_handle_t hContext,                   ///< [in] handle of the context object
@@ -1822,9 +1822,9 @@ urQueueCreate(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hQueue`
-///     - ::UR_RESULT_INVALID_QUEUE
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urQueueRetain(
     ur_queue_handle_t hQueue                        ///< [in] handle of the queue object to get access
@@ -1854,9 +1854,9 @@ urQueueRetain(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hQueue`
-///     - ::UR_RESULT_INVALID_QUEUE
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urQueueRelease(
     ur_queue_handle_t hQueue                        ///< [in] handle of the queue object to release
@@ -1946,7 +1946,7 @@ urQueueCreateWithNativeHandle(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hQueue`
-///     - ::UR_RESULT_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL
 urQueueFinish(
@@ -1977,7 +1977,7 @@ urQueueFinish(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hQueue`
-///     - ::UR_RESULT_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL
 urQueueFlush(
@@ -2010,11 +2010,11 @@ urQueueFlush(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pProps`
 ///         + `NULL == phSampler`
-///     - ::UR_RESULT_INVALID_CONTEXT
-///     - ::UR_RESULT_INVALID_VALUE
-///     - ::UR_RESULT_INVALID_OPERATION
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urSamplerCreate(
     ur_context_handle_t hContext,                   ///< [in] handle of the context object
@@ -2041,9 +2041,9 @@ urSamplerCreate(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hSampler`
-///     - ::UR_RESULT_INVALID_SAMPLER
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_SAMPLER
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urSamplerRetain(
     ur_sampler_handle_t hSampler                    ///< [in] handle of the sampler object to get access
@@ -2067,9 +2067,9 @@ urSamplerRetain(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hSampler`
-///     - ::UR_RESULT_INVALID_SAMPLER
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_SAMPLER
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urSamplerRelease(
     ur_sampler_handle_t hSampler                    ///< [in] handle of the sampler object to release
@@ -2097,10 +2097,10 @@ urSamplerRelease(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pPropValue`
 ///         + `NULL == pPropSizeRet`
-///     - ::UR_RESULT_INVALID_SAMPLER
-///     - ::UR_RESULT_INVALID_VALUE
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_SAMPLER
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urSamplerGetInfo(
     ur_sampler_handle_t hSampler,                   ///< [in] handle of the sampler object
@@ -2185,11 +2185,11 @@ urSamplerCreateWithNativeHandle(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pUSMFlag`
 ///         + `NULL == ppMem`
-///     - ::UR_RESULT_INVALID_CONTEXT
-///     - ::UR_RESULT_INVALID_VALUE
-///     - ::UR_RESULT_INVALID_USM_SIZE
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_USM_SIZE
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urUSMHostAlloc(
     ur_context_handle_t hContext,                   ///< [in] handle of the context object
@@ -2216,11 +2216,11 @@ urUSMHostAlloc(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pUSMProp`
 ///         + `NULL == ppMem`
-///     - ::UR_RESULT_INVALID_CONTEXT
-///     - ::UR_RESULT_INVALID_VALUE
-///     - ::UR_RESULT_INVALID_USM_SIZE
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_USM_SIZE
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urUSMDeviceAlloc(
     ur_context_handle_t hContext,                   ///< [in] handle of the context object
@@ -2248,11 +2248,11 @@ urUSMDeviceAlloc(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pUSMProp`
 ///         + `NULL == ppMem`
-///     - ::UR_RESULT_INVALID_CONTEXT
-///     - ::UR_RESULT_INVALID_VALUE
-///     - ::UR_RESULT_INVALID_USM_SIZE
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_USM_SIZE
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL
 urUSMSharedAlloc(
     ur_context_handle_t hContext,                   ///< [in] handle of the context object
@@ -2278,8 +2278,8 @@ urUSMSharedAlloc(
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pMem`
-///     - ::UR_RESULT_INVALID_MEM_OBJECT
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL
 urMemFree(
     ur_context_handle_t hContext,                   ///< [in] handle of the context object
@@ -2305,10 +2305,10 @@ urMemFree(
 ///         + `NULL == pPropValueSizeRet`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_MEM_ALLOC_INFO_ALLOC_DEVICE < propName`
-///     - ::UR_RESULT_INVALID_CONTEXT
-///     - ::UR_RESULT_INVALID_VALUE
-///     - ::UR_RESULT_INVALID_MEM_OBJECT
-///     - ::UR_RESULT_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL
 urMemGetMemAllocInfo(
     ur_context_handle_t hContext,                   ///< [in] handle of the context object
