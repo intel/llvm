@@ -523,7 +523,7 @@ LoopNest mlir::scf::buildLoopNest(
     assert(results.size() == iterArgs.size() &&
            "loop nest body must return as many values as loop has iteration "
            "arguments");
-    return LoopNest();
+    return LoopNest{{}, std::move(results)};
   }
 
   // First, create the loop structure iteratively using the body-builder
@@ -573,9 +573,9 @@ LoopNest mlir::scf::buildLoopNest(
   builder.create<scf::YieldOp>(loc, results);
 
   // Return the loops.
-  LoopNest res;
-  res.loops.assign(loops.begin(), loops.end());
-  return res;
+  ValueVector nestResults;
+  llvm::copy(loops.front().getResults(), std::back_inserter(nestResults));
+  return LoopNest{std::move(loops), std::move(nestResults)};
 }
 
 LoopNest mlir::scf::buildLoopNest(
@@ -583,7 +583,7 @@ LoopNest mlir::scf::buildLoopNest(
     ValueRange steps,
     function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuilder) {
   // Delegate to the main function by wrapping the body builder.
-  return buildLoopNest(builder, loc, lbs, ubs, steps, llvm::None,
+  return buildLoopNest(builder, loc, lbs, ubs, steps, std::nullopt,
                        [&bodyBuilder](OpBuilder &nestedBuilder,
                                       Location nestedLoc, ValueRange ivs,
                                       ValueRange) -> ValueVector {
@@ -736,7 +736,7 @@ static Optional<int64_t> computeConstDiff(Value l, Value u) {
       matchPattern(
           u, m_Op<arith::AddIOp>(m_ConstantInt(&diff), matchers::m_Val(l))))
     return diff.getSExtValue();
-  return llvm::None;
+  return std::nullopt;
 }
 
 /// Rewriting pattern that erases loops that are known not to iterate, replaces
@@ -1323,6 +1323,31 @@ ForeachThreadOp mlir::scf::getForeachThreadOpThreadIndexOwner(Value val) {
   return dyn_cast<ForeachThreadOp>(containingOp);
 }
 
+namespace {
+/// Fold tensor.dim(foreach_thread shared_outs(... = %t)) to tensor.dim(%t).
+struct DimOfForeachThreadOp : public OpRewritePattern<tensor::DimOp> {
+  using OpRewritePattern<tensor::DimOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(tensor::DimOp dimOp,
+                                PatternRewriter &rewriter) const final {
+    auto foreachThreadOp = dimOp.getSource().getDefiningOp<ForeachThreadOp>();
+    if (!foreachThreadOp)
+      return failure();
+    Value sharedOut =
+        foreachThreadOp.getTiedOpOperand(dimOp.getSource().cast<OpResult>())
+            ->get();
+    rewriter.updateRootInPlace(
+        dimOp, [&]() { dimOp.getSourceMutable().assign(sharedOut); });
+    return success();
+  }
+};
+} // namespace
+
+void ForeachThreadOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                                  MLIRContext *context) {
+  results.add<DimOfForeachThreadOp>(context);
+}
+
 //===----------------------------------------------------------------------===//
 // PerformConcurrentlyOp
 //===----------------------------------------------------------------------===//
@@ -1426,7 +1451,7 @@ bool mlir::scf::insideMutuallyExclusiveBranches(Operation *a, Operation *b) {
 
 void IfOp::build(OpBuilder &builder, OperationState &result, Value cond,
                  bool withElseRegion) {
-  build(builder, result, /*resultTypes=*/llvm::None, cond, withElseRegion);
+  build(builder, result, /*resultTypes=*/std::nullopt, cond, withElseRegion);
 }
 
 void IfOp::build(OpBuilder &builder, OperationState &result,
@@ -2570,7 +2595,8 @@ struct MergeNestedParallelLoops : public OpRewritePattern<ParallelOp> {
     auto newSteps = concatValues(op.getStep(), innerOp.getStep());
 
     rewriter.replaceOpWithNewOp<ParallelOp>(op, newLowerBounds, newUpperBounds,
-                                            newSteps, llvm::None, bodyBuilder);
+                                            newSteps, std::nullopt,
+                                            bodyBuilder);
     return success();
   }
 };

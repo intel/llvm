@@ -337,12 +337,12 @@ fir::FirOpBuilder::convertWithSemantics(mlir::Location loc, mlir::Type toTy,
     return create<fir::BoxAddrOp>(loc, toTy, val);
   }
 
-  if (fir::isPolymorphicType(fromTy) &&
-      (fir::isAllocatableType(fromTy) || fir::isPointerType(fromTy)) &&
-      fir::isPolymorphicType(toTy)) {
+  if ((fir::isPolymorphicType(fromTy) &&
+       (fir::isAllocatableType(fromTy) || fir::isPointerType(fromTy)) &&
+       fir::isPolymorphicType(toTy)) ||
+      (fir::isPolymorphicType(fromTy) && toTy.isa<fir::BoxType>()))
     return create<fir::ReboxOp>(loc, toTy, val, mlir::Value{},
                                 /*slice=*/mlir::Value{});
-  }
 
   return createConvert(loc, toTy, val);
 }
@@ -374,7 +374,7 @@ fir::StringLitOp fir::FirOpBuilder::createStringLitOp(mlir::Location loc,
   mlir::NamedAttribute sizeAttr(sizeTag, getI64IntegerAttr(data.size()));
   llvm::SmallVector<mlir::NamedAttribute> attrs{dataAttr, sizeAttr};
   return create<fir::StringLitOp>(loc, llvm::ArrayRef<mlir::Type>{type},
-                                  llvm::None, attrs);
+                                  std::nullopt, attrs);
 }
 
 mlir::Value fir::FirOpBuilder::genShape(mlir::Location loc,
@@ -504,7 +504,8 @@ mlir::Value fir::FirOpBuilder::createBox(mlir::Location loc,
         mlir::ValueRange emptyRange;
         mlir::Value s = createShape(loc, exv);
         return create<fir::EmboxOp>(loc, boxTy, itemAddr, s, /*slice=*/empty,
-                                    /*typeparams=*/emptyRange, box.getTdesc());
+                                    /*typeparams=*/emptyRange,
+                                    isPolymorphic ? box.getTdesc() : tdesc);
       },
       [&](const fir::CharArrayBoxValue &box) -> mlir::Value {
         mlir::Value s = createShape(loc, exv);
@@ -532,7 +533,8 @@ mlir::Value fir::FirOpBuilder::createBox(mlir::Location loc,
         mlir::Value empty;
         mlir::ValueRange emptyRange;
         return create<fir::EmboxOp>(loc, boxTy, itemAddr, empty, empty,
-                                    emptyRange, p.getTdesc());
+                                    emptyRange,
+                                    isPolymorphic ? p.getTdesc() : tdesc);
       },
       [&](const auto &) -> mlir::Value {
         mlir::Value empty;
@@ -1151,10 +1153,11 @@ static void genComponentByComponentAssignment(fir::FirOpBuilder &builder,
                                                    fromCoor, indices);
     }
     if (auto fieldEleTy = fir::unwrapSequenceType(lFieldTy);
-        fieldEleTy.isa<fir::BoxType>()) {
-      assert(
-          fieldEleTy.cast<fir::BoxType>().getEleTy().isa<fir::PointerType>() &&
-          "allocatable members require deep copy");
+        fieldEleTy.isa<fir::BaseBoxType>()) {
+      assert(fieldEleTy.cast<fir::BaseBoxType>()
+                 .getEleTy()
+                 .isa<fir::PointerType>() &&
+             "allocatable members require deep copy");
       auto fromPointerValue = builder.create<fir::LoadOp>(loc, fromCoor);
       auto castTo = builder.createConvert(loc, fieldEleTy, fromPointerValue);
       builder.create<fir::StoreOp>(loc, castTo, toCoor);
@@ -1199,8 +1202,8 @@ void fir::factory::genRecordAssignment(fir::FirOpBuilder &builder,
   // Box operands may be polymorphic, it is not entirely clear from 10.2.1.3
   // if the assignment is performed on the dynamic of declared type. Use the
   // runtime assuming it is performed on the dynamic type.
-  bool hasBoxOperands = fir::getBase(lhs).getType().isa<fir::BoxType>() ||
-                        fir::getBase(rhs).getType().isa<fir::BoxType>();
+  bool hasBoxOperands = fir::getBase(lhs).getType().isa<fir::BaseBoxType>() ||
+                        fir::getBase(rhs).getType().isa<fir::BaseBoxType>();
   auto recTy = baseTy.dyn_cast<fir::RecordType>();
   assert(recTy && "must be a record type");
   if (hasBoxOperands || !recordTypeCanBeMemCopied(recTy)) {

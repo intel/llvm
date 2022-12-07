@@ -32,6 +32,7 @@
 #include "llvm/TextAPI/InterfaceFile.h"
 #include "llvm/TextAPI/TextAPIReader.h"
 #include "llvm/TextAPI/TextAPIWriter.h"
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -86,7 +87,7 @@ struct DriverConfig {
   Optional<FileFormat> InputFormat;
   Optional<FileFormat> OutputFormat;
 
-  Optional<std::string> HintIfsTarget;
+  std::optional<std::string> HintIfsTarget;
   Optional<std::string> OptTargetTriple;
   Optional<IFSArch> OverrideArch;
   Optional<IFSBitWidthType> OverrideBitWidth;
@@ -102,12 +103,12 @@ struct DriverConfig {
 
   std::vector<std::string> Exclude;
 
-  Optional<std::string> SoName;
+  std::optional<std::string> SoName;
 
-  Optional<std::string> Output;
-  Optional<std::string> OutputElf;
-  Optional<std::string> OutputIfs;
-  Optional<std::string> OutputTbd;
+  std::optional<std::string> Output;
+  std::optional<std::string> OutputElf;
+  std::optional<std::string> OutputIfs;
+  std::optional<std::string> OutputTbd;
 
   bool WriteIfChanged = false;
 };
@@ -308,7 +309,7 @@ static DriverConfig parseArgs(int argc, char *const *argv) {
     Config.InputFormat = StringSwitch<Optional<FileFormat>>(A->getValue())
                              .Case("IFS", FileFormat::IFS)
                              .Case("ELF", FileFormat::ELF)
-                             .Default(None);
+                             .Default(std::nullopt);
     if (!Config.InputFormat)
       fatalError(Twine("invalid argument '") + A->getValue());
   }
@@ -322,7 +323,7 @@ static DriverConfig parseArgs(int argc, char *const *argv) {
                               .Case("IFS", FileFormat::IFS)
                               .Case("ELF", FileFormat::ELF)
                               .Case("TBD", FileFormat::TBD)
-                              .Default(None);
+                              .Default(std::nullopt);
     if (!Config.OutputFormat)
       OptionNotFound("--output-format", A->getValue());
   }
@@ -343,7 +344,7 @@ static DriverConfig parseArgs(int argc, char *const *argv) {
         StringSwitch<Optional<IFSEndiannessType>>(A->getValue())
             .Case("little", IFSEndiannessType::Little)
             .Case("big", IFSEndiannessType::Big)
-            .Default(None);
+            .Default(std::nullopt);
     if (!Config.OverrideEndianness)
       OptionNotFound("--endianness", A->getValue());
   }

@@ -1424,8 +1424,8 @@ void OCLToSPIRVBase::visitCallEnqueueKernel(CallInst *CI,
   }
 
   StringRef NewName = "__spirv_EnqueueKernel__";
-  FunctionType *FT =
-      FunctionType::get(CI->getType(), getTypes(Args), false /*isVarArg*/);
+  FunctionType *FT = FunctionType::get(
+      CI->getType(), getTypes(ArrayRef<Value *>(Args)), false /*isVarArg*/);
   Function *NewF =
       Function::Create(FT, GlobalValue::ExternalLinkage, NewName, M);
   NewF->setCallingConv(CallingConv::SPIR_FUNC);

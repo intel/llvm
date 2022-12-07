@@ -337,5 +337,83 @@ mlir::LogicalResult hlfir::DesignateOp::verify() {
   return mlir::success();
 }
 
+//===----------------------------------------------------------------------===//
+// ConcatOp
+//===----------------------------------------------------------------------===//
+
+static unsigned getCharacterKind(mlir::Type t) {
+  return hlfir::getFortranElementType(t).cast<fir::CharacterType>().getFKind();
+}
+
+static llvm::Optional<fir::CharacterType::LenType>
+getCharacterLengthIfStatic(mlir::Type t) {
+  if (auto charType =
+          hlfir::getFortranElementType(t).dyn_cast<fir::CharacterType>())
+    if (charType.hasConstantLen())
+      return charType.getLen();
+  return std::nullopt;
+}
+
+mlir::LogicalResult hlfir::ConcatOp::verify() {
+  if (getStrings().size() < 2)
+    return emitOpError("must be provided at least two string operands");
+  unsigned kind = getCharacterKind(getResult().getType());
+  for (auto string : getStrings())
+    if (kind != getCharacterKind(string.getType()))
+      return emitOpError("strings must have the same KIND as the result type");
+  return mlir::success();
+}
+
+void hlfir::ConcatOp::build(mlir::OpBuilder &builder,
+                            mlir::OperationState &result,
+                            mlir::ValueRange strings, mlir::Value len) {
+  fir::CharacterType::LenType resultTypeLen = 0;
+  assert(!strings.empty() && "must contain operands");
+  unsigned kind = getCharacterKind(strings[0].getType());
+  for (auto string : strings)
+    if (auto cstLen = getCharacterLengthIfStatic(string.getType())) {
+      resultTypeLen += *cstLen;
+    } else {
+      resultTypeLen = fir::CharacterType::unknownLen();
+      break;
+    }
+  auto resultType = hlfir::ExprType::get(
+      builder.getContext(), hlfir::ExprType::Shape{},
+      fir::CharacterType::get(builder.getContext(), kind, resultTypeLen),
+      false);
+  build(builder, result, resultType, strings, len);
+}
+
+//===----------------------------------------------------------------------===//
+// AssociateOp
+//===----------------------------------------------------------------------===//
+
+void hlfir::AssociateOp::build(mlir::OpBuilder &builder,
+                               mlir::OperationState &result, mlir::Value source,
+                               llvm::StringRef uniq_name, mlir::Value shape,
+                               mlir::ValueRange typeparams,
+                               fir::FortranVariableFlagsAttr fortran_attrs) {
+  auto nameAttr = builder.getStringAttr(uniq_name);
+  // TODO: preserve polymorphism of polymorphic expr.
+  mlir::Type firVarType = fir::ReferenceType::get(
+      getFortranElementOrSequenceType(source.getType()));
+  mlir::Type hlfirVariableType =
+      DeclareOp::getHLFIRVariableType(firVarType, /*hasExplicitLbs=*/false);
+  mlir::Type i1Type = builder.getI1Type();
+  build(builder, result, {hlfirVariableType, firVarType, i1Type}, source, shape,
+        typeparams, nameAttr, fortran_attrs);
+}
+
+//===----------------------------------------------------------------------===//
+// EndAssociateOp
+//===----------------------------------------------------------------------===//
+
+void hlfir::EndAssociateOp::build(mlir::OpBuilder &builder,
+                                  mlir::OperationState &result,
+                                  hlfir::AssociateOp associate) {
+  return build(builder, result, associate.getFirBase(),
+               associate.getMustFreeStrorageFlag());
+}
+
 #define GET_OP_CLASSES
 #include "flang/Optimizer/HLFIR/HLFIROps.cpp.inc"

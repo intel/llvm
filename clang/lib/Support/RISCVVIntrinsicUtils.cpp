@@ -16,8 +16,6 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/raw_ostream.h"
 #include <numeric>
-#include <set>
-#include <unordered_map>
 
 using namespace llvm;
 
@@ -67,7 +65,7 @@ VScaleVal LMULType::getScale(unsigned ElementBitwidth) const {
   }
   // Illegal vscale result would be less than 1
   if (Log2ScaleResult < 0)
-    return llvm::None;
+    return std::nullopt;
   return 1 << Log2ScaleResult;
 }
 
@@ -435,7 +433,7 @@ Optional<PrototypeDescriptor> PrototypeDescriptor::parsePrototypeDescriptor(
       uint32_t Log2EEW;
       if (ComplexTT.second.getAsInteger(10, Log2EEW)) {
         llvm_unreachable("Invalid Log2EEW value!");
-        return None;
+        return std::nullopt;
       }
       switch (Log2EEW) {
       case 3:
@@ -452,13 +450,13 @@ Optional<PrototypeDescriptor> PrototypeDescriptor::parsePrototypeDescriptor(
         break;
       default:
         llvm_unreachable("Invalid Log2EEW value, should be [3-6]");
-        return None;
+        return std::nullopt;
       }
     } else if (ComplexTT.first == "FixedSEW") {
       uint32_t NewSEW;
       if (ComplexTT.second.getAsInteger(10, NewSEW)) {
         llvm_unreachable("Invalid FixedSEW value!");
-        return None;
+        return std::nullopt;
       }
       switch (NewSEW) {
       case 8:
@@ -475,13 +473,13 @@ Optional<PrototypeDescriptor> PrototypeDescriptor::parsePrototypeDescriptor(
         break;
       default:
         llvm_unreachable("Invalid FixedSEW value, should be 8, 16, 32 or 64");
-        return None;
+        return std::nullopt;
       }
     } else if (ComplexTT.first == "LFixedLog2LMUL") {
       int32_t Log2LMUL;
       if (ComplexTT.second.getAsInteger(10, Log2LMUL)) {
         llvm_unreachable("Invalid LFixedLog2LMUL value!");
-        return None;
+        return std::nullopt;
       }
       switch (Log2LMUL) {
       case -3:
@@ -507,13 +505,13 @@ Optional<PrototypeDescriptor> PrototypeDescriptor::parsePrototypeDescriptor(
         break;
       default:
         llvm_unreachable("Invalid LFixedLog2LMUL value, should be [-3, 3]");
-        return None;
+        return std::nullopt;
       }
     } else if (ComplexTT.first == "SFixedLog2LMUL") {
       int32_t Log2LMUL;
       if (ComplexTT.second.getAsInteger(10, Log2LMUL)) {
         llvm_unreachable("Invalid SFixedLog2LMUL value!");
-        return None;
+        return std::nullopt;
       }
       switch (Log2LMUL) {
       case -3:
@@ -539,7 +537,7 @@ Optional<PrototypeDescriptor> PrototypeDescriptor::parsePrototypeDescriptor(
         break;
       default:
         llvm_unreachable("Invalid LFixedLog2LMUL value, should be [-3, 3]");
-        return None;
+        return std::nullopt;
       }
 
     } else {
@@ -786,17 +784,17 @@ void RVVType::applyFixedLog2LMUL(int Log2LMUL, enum FixedLMULType Type) {
 }
 
 Optional<RVVTypes>
-RVVType::computeTypes(BasicType BT, int Log2LMUL, unsigned NF,
-                      ArrayRef<PrototypeDescriptor> Prototype) {
+RVVTypeCache::computeTypes(BasicType BT, int Log2LMUL, unsigned NF,
+                           ArrayRef<PrototypeDescriptor> Prototype) {
   // LMUL x NF must be less than or equal to 8.
   if ((Log2LMUL >= 1) && (1 << Log2LMUL) * NF > 8)
-    return llvm::None;
+    return std::nullopt;
 
   RVVTypes Types;
   for (const PrototypeDescriptor &Proto : Prototype) {
     auto T = computeType(BT, Log2LMUL, Proto);
     if (!T)
-      return llvm::None;
+      return std::nullopt;
     // Record legal type index
     Types.push_back(T.value());
   }
@@ -816,11 +814,8 @@ static uint64_t computeRVVTypeHashValue(BasicType BT, int Log2LMUL,
          ((uint64_t)(Proto.VTM & 0xff) << 32);
 }
 
-Optional<RVVTypePtr> RVVType::computeType(BasicType BT, int Log2LMUL,
-                                          PrototypeDescriptor Proto) {
-  // Concat BasicType, LMUL and Proto as key
-  static std::unordered_map<uint64_t, RVVType> LegalTypes;
-  static std::set<uint64_t> IllegalTypes;
+Optional<RVVTypePtr> RVVTypeCache::computeType(BasicType BT, int Log2LMUL,
+                                               PrototypeDescriptor Proto) {
   uint64_t Idx = computeRVVTypeHashValue(BT, Log2LMUL, Proto);
   // Search first
   auto It = LegalTypes.find(Idx);
@@ -828,18 +823,19 @@ Optional<RVVTypePtr> RVVType::computeType(BasicType BT, int Log2LMUL,
     return &(It->second);
 
   if (IllegalTypes.count(Idx))
-    return llvm::None;
+    return std::nullopt;
 
   // Compute type and record the result.
   RVVType T(BT, Log2LMUL, Proto);
   if (T.isValid()) {
     // Record legal type index and value.
-    LegalTypes.insert({Idx, T});
-    return &(LegalTypes[Idx]);
+    std::pair<std::unordered_map<uint64_t, RVVType>::iterator, bool>
+        InsertResult = LegalTypes.insert({Idx, T});
+    return &(InsertResult.first->second);
   }
   // Record illegal type index.
   IllegalTypes.insert(Idx);
-  return llvm::None;
+  return std::nullopt;
 }
 
 //===----------------------------------------------------------------------===//
@@ -900,11 +896,11 @@ std::string RVVIntrinsic::getBuiltinTypeStr() const {
 }
 
 std::string RVVIntrinsic::getSuffixStr(
-    BasicType Type, int Log2LMUL,
+    RVVTypeCache &TypeCache, BasicType Type, int Log2LMUL,
     llvm::ArrayRef<PrototypeDescriptor> PrototypeDescriptors) {
   SmallVector<std::string> SuffixStrs;
   for (auto PD : PrototypeDescriptors) {
-    auto T = RVVType::computeType(Type, Log2LMUL, PD);
+    auto T = TypeCache.computeType(Type, Log2LMUL, PD);
     SuffixStrs.push_back((*T)->getShortStr());
   }
   return join(SuffixStrs, "_");
