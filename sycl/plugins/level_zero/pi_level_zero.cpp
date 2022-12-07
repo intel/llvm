@@ -620,6 +620,7 @@ inline static pi_result createEventAndAssociateQueue(
   (*Event)->Queue = Queue;
   (*Event)->CommandType = CommandType;
   (*Event)->IsDiscarded = IsInternal;
+  (*Event)->CommandList = CommandList;
   // Discarded event doesn't own ze_event, it is used by multiple pi_event
   // objects. We destroy corresponding ze_event by releasing events from the
   // events cache at queue destruction. Event in the cache owns the Level Zero
@@ -5720,6 +5721,7 @@ pi_result _pi_event::reset() {
   WaitList = {};
   RefCountExternal = 0;
   RefCount.reset();
+  CommandList = std::nullopt;
 
   if (!isHostVisible())
     HostVisibleEvent = nullptr;
@@ -6118,18 +6120,84 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
   std::unordered_set<pi_queue> Queues;
   for (uint32_t I = 0; I < NumEvents; I++) {
     {
-      std::shared_lock<pi_shared_mutex> EventLock(EventList[I]->Mutex);
-      if (!EventList[I]->hasExternalRefs())
-        die("piEventsWait must not be called for an internal event");
+      {
+        std::shared_lock<pi_shared_mutex> EventLock(EventList[I]->Mutex);
+        if (!EventList[I]->hasExternalRefs())
+          die("piEventsWait must not be called for an internal event");
 
-      if (!EventList[I]->Completed) {
-        auto HostVisibleEvent = EventList[I]->HostVisibleEvent;
-        if (!HostVisibleEvent)
-          die("The host-visible proxy event missing");
+        if (!EventList[I]->Completed) {
+          auto HostVisibleEvent = EventList[I]->HostVisibleEvent;
+          if (!HostVisibleEvent)
+            die("The host-visible proxy event missing");
 
-        ze_event_handle_t ZeEvent = HostVisibleEvent->ZeEvent;
-        zePrint("ZeEvent = %#lx\n", pi_cast<std::uintptr_t>(ZeEvent));
-        ZE_CALL(zeHostSynchronize, (ZeEvent));
+          ze_event_handle_t ZeEvent = HostVisibleEvent->ZeEvent;
+          zePrint("ZeEvent = %#lx\n", pi_cast<std::uintptr_t>(ZeEvent));
+          ZE_CALL(zeHostSynchronize, (ZeEvent));
+        }
+      }
+      auto Queue = EventList[I]->Queue;
+      if (!Queue)
+        continue;
+      // Lock automatically releases when this goes out of scope.
+      std::scoped_lock<pi_shared_mutex> lock(Queue->Mutex);
+      if (Queue->Device->useImmediateCommandLists()) {
+        if (Queue->isInOrderQueue()) {
+          // If this is the last command event
+          if (EventList[I] == Queue->LastCommandEvent ||
+              !Queue->LastCommandEvent) {
+            Queue->LastCommandEvent = nullptr;
+            resetCommandLists(Queue, true, false);
+            return PI_SUCCESS;
+          } else {
+            // Check that we have associated command list.
+            if (!(EventList[I]->CommandList &&
+                  EventList[I]->CommandList.value() !=
+                      Queue->CommandListMap.end()))
+              continue;
+
+            // If it's not the last event then we can gather all predecessor
+            // events and clean them up.
+            std::vector<pi_event> EventListToCleanup;
+            auto &CommandListWithCompletedEvent =
+                EventList[I]->CommandList.value();
+            auto &CmdListEvents =
+                CommandListWithCompletedEvent->second.EventList;
+            auto CompletedEventIt = std::find(
+                CmdListEvents.begin(), CmdListEvents.end(), EventList[I]);
+            if (CompletedEventIt != CmdListEvents.end()) {
+              // Remember the first event in this command list, we know that it
+              // is completed.
+              auto FirstEvent = CmdListEvents.front();
+              // We can cleanup all events prior to the completed event.
+              std::move(std::begin(CmdListEvents), CompletedEventIt + 1,
+                        std::back_inserter(EventListToCleanup));
+              CmdListEvents.erase(CmdListEvents.begin(), CompletedEventIt + 1);
+              // We can cleanup events from command lists prior to the command
+              // list containing completed event.
+              for (auto &&it = Queue->CommandListMap.begin();
+                   it != Queue->CommandListMap.end(); ++it) {
+                if (!it->second.EventList.empty()) {
+                  auto LastEventInCmdList = it->second.EventList.back();
+                  std::vector WaitListVec(FirstEvent->WaitList.PiEventList,
+                                          FirstEvent->WaitList.PiEventList +
+                                              FirstEvent->WaitList.Length);
+                  // if the first event in command list with completed event
+                  // depends on current command list's last event then we can
+                  // cleanup all events from current command list.
+                  if (std::find(WaitListVec.begin(), WaitListVec.end(),
+                                LastEventInCmdList) != WaitListVec.end()) {
+                    std::move(std::begin(it->second.EventList),
+                              std::end(it->second.EventList),
+                              std::back_inserter(EventListToCleanup));
+                    it->second.EventList.clear();
+                  }
+                }
+              }
+            }
+            CleanupEventListFromResetCmdList(EventListToCleanup, true);
+            return PI_SUCCESS;
+          }
+        }
       }
       if (auto Q = EventList[I]->Queue)
         Queues.insert(Q);

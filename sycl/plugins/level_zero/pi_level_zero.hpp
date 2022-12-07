@@ -33,6 +33,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <shared_mutex>
 #include <string>
 #include <sycl/detail/pi.h>
@@ -1278,6 +1279,9 @@ struct _pi_event : _pi_object {
   // enqueued, and must then be released when this event has signalled.
   // This list must be destroyed once the event has signalled.
   _pi_ze_event_list_t WaitList;
+
+  // Command list associated with the pi_event.
+  std::optional<pi_command_list_ptr_t> CommandList;
 
   // Tracks if the needed cleanup was already performed for
   // a completed event. This allows to control that some cleanup
