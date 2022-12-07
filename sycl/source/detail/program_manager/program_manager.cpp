@@ -1870,7 +1870,7 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
                                  *(InputImpl->get_bin_image_ref()));
     }
   } else {
-    LinkOptionsStr += "-vc-codegen";
+    LinkOptionsStr += " -vc-codegen";
   }
   const context &Context = getSyclObjImpl(DeviceImages[0])->get_context();
   const ContextImplPtr ContextImpl = getSyclObjImpl(Context);
