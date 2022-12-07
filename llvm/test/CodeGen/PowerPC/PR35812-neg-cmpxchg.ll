@@ -12,9 +12,9 @@ define signext i32 @main() nounwind {
 ; CHECK-LABEL: main:
 ; CHECK:       # %bb.0: # %L.entry
 ; CHECK-NEXT:    mflr 0
-; CHECK-NEXT:    std 0, 16(1)
 ; CHECK-NEXT:    stdu 1, -48(1)
 ; CHECK-NEXT:    li 3, -32477
+; CHECK-NEXT:    std 0, 64(1)
 ; CHECK-NEXT:    li 4, 234
 ; CHECK-NEXT:    addi 6, 1, 46
 ; CHECK-NEXT:    sth 3, 46(1)
@@ -65,16 +65,16 @@ define signext i32 @main() nounwind {
 ; CHECK-P7-LABEL: main:
 ; CHECK-P7:       # %bb.0: # %L.entry
 ; CHECK-P7-NEXT:    mflr 0
-; CHECK-P7-NEXT:    std 0, 16(1)
 ; CHECK-P7-NEXT:    stdu 1, -48(1)
 ; CHECK-P7-NEXT:    li 3, -32477
 ; CHECK-P7-NEXT:    lis 5, 0
 ; CHECK-P7-NEXT:    addi 4, 1, 46
 ; CHECK-P7-NEXT:    li 7, 0
+; CHECK-P7-NEXT:    std 0, 64(1)
 ; CHECK-P7-NEXT:    sth 3, 46(1)
 ; CHECK-P7-NEXT:    li 6, 234
-; CHECK-P7-NEXT:    ori 5, 5, 33059
 ; CHECK-P7-NEXT:    rlwinm 3, 4, 3, 27, 27
+; CHECK-P7-NEXT:    ori 5, 5, 33059
 ; CHECK-P7-NEXT:    ori 7, 7, 65535
 ; CHECK-P7-NEXT:    sync
 ; CHECK-P7-NEXT:    slw 6, 6, 3
@@ -129,28 +129,28 @@ define signext i32 @main() nounwind {
 ; CHECK-P7-NEXT:    blr
 L.entry:
   %value.addr = alloca i16, align 2
-  store i16 -32477, i16* %value.addr, align 2
-  %0 = cmpxchg i16* %value.addr, i16 -32477, i16 234 seq_cst seq_cst
+  store i16 -32477, ptr %value.addr, align 2
+  %0 = cmpxchg ptr %value.addr, i16 -32477, i16 234 seq_cst seq_cst
   %1 = extractvalue { i16, i1 } %0, 1
   br i1 %1, label %L.B0000, label %L.B0003
 
 L.B0003:                                          ; preds = %L.entry
-  %puts = call i32 @puts(i8* getelementptr inbounds ([46 x i8], [46 x i8]* @str, i64 0, i64 0))
+  %puts = call i32 @puts(ptr @str)
   ret i32 1
 
 L.B0000:                                          ; preds = %L.entry
-  %2 = load i16, i16* %value.addr, align 2
+  %2 = load i16, ptr %value.addr, align 2
   %3 = icmp eq i16 %2, 234
   br i1 %3, label %L.B0001, label %L.B0005
 
 L.B0005:                                          ; preds = %L.B0000
-  %puts1 = call i32 @puts(i8* getelementptr inbounds ([59 x i8], [59 x i8]* @str.1, i64 0, i64 0))
+  %puts1 = call i32 @puts(ptr @str.1)
   ret i32 1
 
 L.B0001:                                          ; preds = %L.B0000
-  %puts2 = call i32 @puts(i8* getelementptr inbounds ([7 x i8], [7 x i8]* @str.2, i64 0, i64 0))
+  %puts2 = call i32 @puts(ptr @str.2)
   ret i32 0
 }
 
 ; Function Attrs: nounwind
-declare i32 @puts(i8* nocapture readonly) #0
+declare i32 @puts(ptr nocapture readonly) #0

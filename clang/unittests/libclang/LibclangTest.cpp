@@ -517,7 +517,7 @@ TEST_F(LibclangReparseTest, ReparseWithModule) {
   std::string ModulesCache = std::string("-fmodules-cache-path=") + TestDir;
   const char *Args[] = { "-fmodules", ModulesCache.c_str(),
                          "-I", TestDir.c_str() };
-  int NumArgs = sizeof(Args) / sizeof(Args[0]);
+  int NumArgs = std::size(Args);
   ClangTU = clang_parseTranslationUnit(Index, MName.c_str(), Args, NumArgs,
                                        nullptr, 0, TUFlags);
   EXPECT_EQ(1U, clang_getNumDiagnostics(ClangTU));
@@ -557,7 +557,7 @@ TEST_F(LibclangReparseTest, clang_parseTranslationUnit2FullArgv) {
 
   EXPECT_EQ(CXError_Success,
             clang_parseTranslationUnit2FullArgv(Index, Filename.c_str(), Argv,
-                                                sizeof(Argv) / sizeof(Argv[0]),
+                                                std::size(Argv),
                                                 nullptr, 0, TUFlags, &ClangTU));
   EXPECT_EQ(0U, clang_getNumDiagnostics(ClangTU));
   DisplayDiagnostics();
@@ -706,7 +706,7 @@ TEST_F(LibclangSerializationTest, TokenKindsAreCorrectAfterLoading) {
   const char *Argv[] = {"-xc++-header", "-std=c++11"};
 
   ClangTU = clang_parseTranslationUnit(Index, HeaderName.c_str(), Argv,
-                                       sizeof(Argv) / sizeof(Argv[0]), nullptr,
+                                       std::size(Argv), nullptr,
                                        0, TUFlags);
 
   auto CheckTokenKinds = [=]() {
@@ -863,27 +863,19 @@ TEST_F(LibclangParseTest, clang_getUnqualifiedTypeRemovesQualifiers) {
            clang_isRestrictQualifiedType(type);
   };
 
-  auto from_CXString = [](CXString cx_string) -> std::string {
-    std::string string{clang_getCString(cx_string)};
-
-    clang_disposeString(cx_string);
-
-    return string;
-  };
-
   ClangTU = clang_parseTranslationUnit(Index, Header.c_str(), nullptr, 0,
                                        nullptr, 0, TUFlags);
 
-  Traverse([&is_qualified, &from_CXString](CXCursor cursor, CXCursor) {
+  Traverse([&is_qualified](CXCursor cursor, CXCursor) {
     if (clang_getCursorKind(cursor) == CXCursor_FunctionDecl) {
       CXType arg_type = clang_getArgType(clang_getCursorType(cursor), 0);
       EXPECT_TRUE(is_qualified(arg_type))
-          << "Input data '" << from_CXString(clang_getCursorSpelling(cursor))
+          << "Input data '" << fromCXString(clang_getCursorSpelling(cursor))
           << "' first argument does not have a qualified type.";
 
       CXType unqualified_arg_type = clang_getUnqualifiedType(arg_type);
       EXPECT_FALSE(is_qualified(unqualified_arg_type))
-          << "The type '" << from_CXString(clang_getTypeSpelling(arg_type))
+          << "The type '" << fromCXString(clang_getTypeSpelling(arg_type))
           << "' was not unqualified after a call to clang_getUnqualifiedType.";
     }
 
@@ -901,34 +893,57 @@ TEST_F(LibclangParseTest, clang_getNonReferenceTypeRemovesRefQualifiers) {
            (type.kind == CXType_RValueReference);
   };
 
-  auto from_CXString = [](CXString cx_string) -> std::string {
-    std::string string{clang_getCString(cx_string)};
-
-    clang_disposeString(cx_string);
-
-    return string;
-  };
-
   const char *Args[] = {"-xc++"};
   ClangTU = clang_parseTranslationUnit(Index, Header.c_str(), Args, 1, nullptr,
                                        0, TUFlags);
 
-  Traverse([&is_ref_qualified, &from_CXString](CXCursor cursor, CXCursor) {
+  Traverse([&is_ref_qualified](CXCursor cursor, CXCursor) {
     if (clang_getCursorKind(cursor) == CXCursor_FunctionDecl) {
       CXType arg_type = clang_getArgType(clang_getCursorType(cursor), 0);
       EXPECT_TRUE(is_ref_qualified(arg_type))
-          << "Input data '" << from_CXString(clang_getCursorSpelling(cursor))
+          << "Input data '" << fromCXString(clang_getCursorSpelling(cursor))
           << "' first argument does not have a ref-qualified type.";
 
       CXType non_reference_arg_type = clang_getNonReferenceType(arg_type);
       EXPECT_FALSE(is_ref_qualified(non_reference_arg_type))
-          << "The type '" << from_CXString(clang_getTypeSpelling(arg_type))
+          << "The type '" << fromCXString(clang_getTypeSpelling(arg_type))
           << "' ref-qualifier was not removed after a call to "
              "clang_getNonReferenceType.";
     }
 
     return CXChildVisit_Continue;
   });
+}
+
+TEST_F(LibclangParseTest, VisitUsingTypeLoc) {
+  const char testSource[] = R"cpp(
+namespace ns1 {
+class Class1
+{
+    void fun();
+};
+}
+
+using ns1::Class1;
+
+void Class1::fun() {}
+)cpp";
+  std::string fileName = "main.cpp";
+  WriteFile(fileName, testSource);
+  const char *Args[] = {"-xc++"};
+  ClangTU = clang_parseTranslationUnit(Index, fileName.c_str(), Args, 1,
+                                       nullptr, 0, TUFlags);
+
+  llvm::Optional<CXCursor> typeRefCsr;
+  Traverse([&](CXCursor cursor, CXCursor parent) -> CXChildVisitResult {
+    if (cursor.kind == CXCursor_TypeRef) {
+      typeRefCsr.emplace(cursor);
+    }
+    return CXChildVisit_Recurse;
+  });
+  ASSERT_TRUE(typeRefCsr.has_value());
+  EXPECT_EQ(fromCXString(clang_getCursorSpelling(*typeRefCsr)),
+            "class ns1::Class1");
 }
 
 class LibclangRewriteTest : public LibclangParseTest {

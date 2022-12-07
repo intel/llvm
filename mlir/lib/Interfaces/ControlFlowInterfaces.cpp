@@ -42,13 +42,13 @@ detail::getBranchSuccessorArgument(const SuccessorOperands &operands,
   OperandRange forwardedOperands = operands.getForwardedOperands();
   // Check that the operands are valid.
   if (forwardedOperands.empty())
-    return llvm::None;
+    return std::nullopt;
 
   // Check to ensure that this operand is within the range.
   unsigned operandsStart = forwardedOperands.getBeginOperandIndex();
   if (operandIndex < operandsStart ||
       operandIndex >= (operandsStart + forwardedOperands.size()))
-    return llvm::None;
+    return std::nullopt;
 
   // Index the successor.
   unsigned argIndex =
@@ -156,12 +156,8 @@ LogicalResult detail::verifyTypesAlongControlFlowEdges(Operation *op) {
   };
 
   // Verify types along control flow edges originating from the parent.
-  if (failed(verifyTypesAlongAllEdges(op, llvm::None, inputTypesFromParent)))
+  if (failed(verifyTypesAlongAllEdges(op, std::nullopt, inputTypesFromParent)))
     return failure();
-
-  // RegionBranchOpInterface should not be implemented by Ops that do not have
-  // attached regions.
-  assert(op->getNumRegions() != 0);
 
   auto areTypesCompatible = [&](TypeRange lhs, TypeRange rhs) {
     if (lhs.size() != rhs.size())
@@ -210,7 +206,7 @@ LogicalResult detail::verifyTypesAlongControlFlowEdges(Operation *op) {
       // If there is no return-like terminator, the op itself should verify
       // type consistency.
       if (!regionReturnOperands)
-        return llvm::None;
+        return std::nullopt;
 
       // All successors get the same set of operand types.
       return TypeRange(regionReturnOperands->getTypes());
@@ -386,7 +382,7 @@ mlir::getMutableRegionBranchSuccessorOperands(Operation *operation,
   // easier. Furthermore, this may even make this function obsolete.
   if (operation->hasTrait<OpTrait::ReturnLike>())
     return MutableOperandRange(operation);
-  return llvm::None;
+  return std::nullopt;
 }
 
 /// Returns the read only operands that are passed to the region with the given
@@ -396,5 +392,5 @@ Optional<OperandRange>
 mlir::getRegionBranchSuccessorOperands(Operation *operation,
                                        Optional<unsigned> regionIndex) {
   auto range = getMutableRegionBranchSuccessorOperands(operation, regionIndex);
-  return range ? Optional<OperandRange>(*range) : llvm::None;
+  return range ? Optional<OperandRange>(*range) : std::nullopt;
 }

@@ -37,12 +37,12 @@
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/ErrorOr.h"
+#include "llvm/Support/RWMutex.h"
 #include "llvm/Support/raw_ostream.h"
 #include <functional>
 #include <list>
 #include <map>
 #include <set>
-#include <shared_mutex>
 #include <string>
 #include <system_error>
 #include <type_traits>
@@ -179,6 +179,10 @@ class BinaryContext {
   using NameToSectionMapType = std::multimap<std::string, BinarySection *>;
   NameToSectionMapType NameToSection;
 
+  /// Map section references to BinarySection for matching sections in the
+  /// input file to internal section representation.
+  DenseMap<SectionRef, BinarySection *> SectionRefToBinarySection;
+
   /// Low level section registration.
   BinarySection &registerSection(BinarySection *Section);
 
@@ -186,7 +190,7 @@ class BinaryContext {
   std::map<uint64_t, BinaryFunction> BinaryFunctions;
 
   /// A mutex that is used to control parallel accesses to BinaryFunctions
-  mutable std::shared_timed_mutex BinaryFunctionsMutex;
+  mutable llvm::sys::RWMutex BinaryFunctionsMutex;
 
   /// Functions injected by BOLT
   std::vector<BinaryFunction *> InjectedBinaryFunctions;
@@ -223,6 +227,9 @@ class BinaryContext {
 
   /// DWARF line info for CUs.
   std::map<unsigned, DwarfLineTable> DwarfLineTablesCUMap;
+
+  /// Internal helper for removing section name from a lookup table.
+  void deregisterSectionName(const BinarySection &Section);
 
 public:
   static Expected<std::unique_ptr<BinaryContext>>
@@ -316,7 +323,7 @@ public:
     if (FileBuildID)
       return StringRef(*FileBuildID);
 
-    return NoneType();
+    return std::nullopt;
   }
   void setFileBuildID(StringRef ID) { FileBuildID = std::string(ID); }
 
@@ -413,7 +420,7 @@ public:
   std::unordered_map<const MCSymbol *, BinaryFunction *> SymbolToFunctionMap;
 
   /// A mutex that is used to control parallel accesses to SymbolToFunctionMap
-  mutable std::shared_timed_mutex SymbolToFunctionMapMutex;
+  mutable llvm::sys::RWMutex SymbolToFunctionMapMutex;
 
   /// Look up the symbol entry that contains the given \p Address (based on
   /// the start address and size for each symbol).  Returns a pointer to
@@ -549,9 +556,9 @@ public:
   std::unique_ptr<MCContext> Ctx;
 
   /// A mutex that is used to control parallel accesses to Ctx
-  mutable std::shared_timed_mutex CtxMutex;
-  std::unique_lock<std::shared_timed_mutex> scopeLock() const {
-    return std::unique_lock<std::shared_timed_mutex>(CtxMutex);
+  mutable llvm::sys::RWMutex CtxMutex;
+  std::unique_lock<llvm::sys::RWMutex> scopeLock() const {
+    return std::unique_lock<llvm::sys::RWMutex>(CtxMutex);
   }
 
   std::unique_ptr<DWARFContext> DwCtx;
@@ -951,13 +958,13 @@ public:
   BinarySection &registerSection(SectionRef Section);
 
   /// Register a copy of /p OriginalSection under a different name.
-  BinarySection &registerSection(StringRef SectionName,
+  BinarySection &registerSection(const Twine &SectionName,
                                  const BinarySection &OriginalSection);
 
   /// Register or update the information for the section with the given
   /// /p Name.  If the section already exists, the information in the
   /// section will be updated with the new data.
-  BinarySection &registerOrUpdateSection(StringRef Name, unsigned ELFType,
+  BinarySection &registerOrUpdateSection(const Twine &Name, unsigned ELFType,
                                          unsigned ELFFlags,
                                          uint8_t *Data = nullptr,
                                          uint64_t Size = 0,
@@ -967,7 +974,7 @@ public:
   /// with the given /p Name.  If the section already exists, the
   /// information in the section will be updated with the new data.
   BinarySection &
-  registerOrUpdateNoteSection(StringRef Name, uint8_t *Data = nullptr,
+  registerOrUpdateNoteSection(const Twine &Name, uint8_t *Data = nullptr,
                               uint64_t Size = 0, unsigned Alignment = 1,
                               bool IsReadOnly = true,
                               unsigned ELFType = ELF::SHT_PROGBITS) {
@@ -976,9 +983,15 @@ public:
                                    Size, Alignment);
   }
 
+  /// Remove sections that were preregistered but never used.
+  void deregisterUnusedSections();
+
   /// Remove the given /p Section from the set of all sections.  Return
   /// true if the section was removed (and deleted), otherwise false.
   bool deregisterSection(BinarySection &Section);
+
+  /// Re-register \p Section under the \p NewName.
+  void renameSection(BinarySection &Section, const Twine &NewName);
 
   /// Iterate over all registered sections.
   iterator_range<FilteredSectionIterator> sections() {
@@ -1073,20 +1086,26 @@ public:
     return const_cast<BinaryContext *>(this)->getSectionForAddress(Address);
   }
 
+  /// Return internal section representation for a section in a file.
+  BinarySection *getSectionForSectionRef(SectionRef Section) const {
+    return SectionRefToBinarySection.lookup(Section);
+  }
+
   /// Return section(s) associated with given \p Name.
   iterator_range<NameToSectionMapType::iterator>
-  getSectionByName(StringRef Name) {
-    return make_range(NameToSection.equal_range(std::string(Name)));
+  getSectionByName(const Twine &Name) {
+    return make_range(NameToSection.equal_range(Name.str()));
   }
   iterator_range<NameToSectionMapType::const_iterator>
-  getSectionByName(StringRef Name) const {
-    return make_range(NameToSection.equal_range(std::string(Name)));
+  getSectionByName(const Twine &Name) const {
+    return make_range(NameToSection.equal_range(Name.str()));
   }
 
   /// Return the unique section associated with given \p Name.
   /// If there is more than one section with the same name, return an error
   /// object.
-  ErrorOr<BinarySection &> getUniqueSectionByName(StringRef SectionName) const {
+  ErrorOr<BinarySection &>
+  getUniqueSectionByName(const Twine &SectionName) const {
     auto Sections = getSectionByName(SectionName);
     if (Sections.begin() != Sections.end() &&
         std::next(Sections.begin()) == Sections.end())
@@ -1217,10 +1236,10 @@ public:
     return Size;
   }
 
-  /// Verify that assembling instruction \p Inst results in the same sequence of
-  /// bytes as \p Encoding.
-  bool validateEncoding(const MCInst &Instruction,
-                        ArrayRef<uint8_t> Encoding) const;
+  /// Validate that disassembling the \p Sequence of bytes into an instruction
+  /// and assembling the instruction again, results in a byte sequence identical
+  /// to the original one.
+  bool validateInstructionEncoding(ArrayRef<uint8_t> Sequence) const;
 
   /// Return a function execution count threshold for determining whether
   /// the function is 'hot'. Consider it hot if count is above the average exec

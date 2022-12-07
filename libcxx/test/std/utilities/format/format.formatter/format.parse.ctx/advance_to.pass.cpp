@@ -35,7 +35,7 @@ constexpr void test(const CharT* fmt) {
   }
   {
     std::basic_string_view view{fmt};
-    std::basic_format_parse_context<CharT> context(view);
+    std::basic_format_parse_context context(view);
 
     context.advance_to(context.begin() + 1);
     assert(std::to_address(context.begin()) == fmt + 1);
@@ -50,7 +50,9 @@ constexpr void test(const CharT* fmt) {
 
 constexpr bool test() {
   test("abc");
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
   test(L"abc");
+#endif
 #ifndef TEST_HAS_NO_CHAR8_T
   test(u8"abc");
 #endif

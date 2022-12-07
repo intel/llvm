@@ -81,10 +81,20 @@ static StringInitFailureKind IsStringInit(Expr *Init, const ArrayType *AT,
   const QualType ElemTy =
       Context.getCanonicalType(AT->getElementType()).getUnqualifiedType();
 
+  auto IsCharOrUnsignedChar = [](const QualType &T) {
+    const BuiltinType *BT = dyn_cast<BuiltinType>(T.getTypePtr());
+    return BT && BT->isCharType() && BT->getKind() != BuiltinType::SChar;
+  };
+
   switch (SL->getKind()) {
   case StringLiteral::UTF8:
     // char8_t array can be initialized with a UTF-8 string.
-    if (ElemTy->isChar8Type())
+    // - C++20 [dcl.init.string] (DR)
+    //   Additionally, an array of char or unsigned char may be initialized
+    //   by a UTF-8 string literal.
+    if (ElemTy->isChar8Type() ||
+        (Context.getLangOpts().Char8 &&
+         IsCharOrUnsignedChar(ElemTy.getCanonicalType())))
       return SIF_None;
     [[fallthrough]];
   case StringLiteral::Ordinary:
@@ -493,7 +503,7 @@ ExprResult InitListChecker::PerformEmptyInit(SourceLocation Loc,
                                                             true);
   MultiExprArg SubInit;
   Expr *InitExpr;
-  InitListExpr DummyInitList(SemaRef.Context, Loc, None, Loc);
+  InitListExpr DummyInitList(SemaRef.Context, Loc, std::nullopt, Loc);
 
   // C++ [dcl.init.aggr]p7:
   //   If there are fewer initializer-clauses in the list than there are
@@ -512,8 +522,10 @@ ExprResult InitListChecker::PerformEmptyInit(SourceLocation Loc,
     //
     // Only do this if we're initializing a class type, to avoid filling in
     // the initializer list where possible.
-    InitExpr = VerifyOnly ? &DummyInitList : new (SemaRef.Context)
-                   InitListExpr(SemaRef.Context, Loc, None, Loc);
+    InitExpr = VerifyOnly
+                   ? &DummyInitList
+                   : new (SemaRef.Context)
+                         InitListExpr(SemaRef.Context, Loc, std::nullopt, Loc);
     InitExpr->setType(SemaRef.Context.VoidTy);
     SubInit = InitExpr;
     Kind = InitializationKind::CreateCopy(Loc, Loc);
@@ -1518,8 +1530,8 @@ void InitListChecker::CheckComplexType(const InitializedEntity &Entity,
 
   // As an extension, clang supports complex initializers, which initialize
   // a complex number component-wise.  When an explicit initializer list for
-  // a complex number contains two two initializers, this extension kicks in:
-  // it exepcts the initializer list to contain two elements convertible to
+  // a complex number contains two initializers, this extension kicks in:
+  // it expects the initializer list to contain two elements convertible to
   // the element type of the complex type. The first element initializes
   // the real part, and the second element intitializes the imaginary part.
 
@@ -2934,7 +2946,7 @@ InitListChecker::CheckDesignatedInitializer(const InitializedEntity &Entity,
 
     // Compute the type of the integer literals.
     QualType PromotedCharTy = CharTy;
-    if (CharTy->isPromotableIntegerType())
+    if (Context.isPromotableIntegerType(CharTy))
       PromotedCharTy = Context.getPromotedIntegerType(CharTy);
     unsigned PromotedCharTyWidth = Context.getTypeSize(PromotedCharTy);
 
@@ -3110,10 +3122,8 @@ InitListExpr *
 InitListChecker::createInitListExpr(QualType CurrentObjectType,
                                     SourceRange InitRange,
                                     unsigned ExpectedNumInits) {
-  InitListExpr *Result
-    = new (SemaRef.Context) InitListExpr(SemaRef.Context,
-                                         InitRange.getBegin(), None,
-                                         InitRange.getEnd());
+  InitListExpr *Result = new (SemaRef.Context) InitListExpr(
+      SemaRef.Context, InitRange.getBegin(), std::nullopt, InitRange.getEnd());
 
   QualType ResultType = CurrentObjectType;
   if (!ResultType->isArrayType())
@@ -5228,7 +5238,7 @@ static void TryDefaultInitialization(Sema &S,
   //       constructor for T is called (and the initialization is ill-formed if
   //       T has no accessible default constructor);
   if (DestType->isRecordType() && S.getLangOpts().CPlusPlus) {
-    TryConstructorInitialization(S, Entity, Kind, None, DestType,
+    TryConstructorInitialization(S, Entity, Kind, std::nullopt, DestType,
                                  Entity.getType(), Sequence);
     return;
   }
@@ -7587,15 +7597,15 @@ static SourceRange nextPathEntryRange(const IndirectLocalPath &Path, unsigned I,
 }
 
 static bool pathOnlyInitializesGslPointer(IndirectLocalPath &Path) {
-  for (auto It = Path.rbegin(), End = Path.rend(); It != End; ++It) {
-    if (It->Kind == IndirectLocalPathEntry::VarInit)
+  for (const auto &It : llvm::reverse(Path)) {
+    if (It.Kind == IndirectLocalPathEntry::VarInit)
       continue;
-    if (It->Kind == IndirectLocalPathEntry::AddressOf)
+    if (It.Kind == IndirectLocalPathEntry::AddressOf)
       continue;
-    if (It->Kind == IndirectLocalPathEntry::LifetimeBoundCall)
+    if (It.Kind == IndirectLocalPathEntry::LifetimeBoundCall)
       continue;
-    return It->Kind == IndirectLocalPathEntry::GslPointerInit ||
-           It->Kind == IndirectLocalPathEntry::GslReferenceInit;
+    return It.Kind == IndirectLocalPathEntry::GslPointerInit ||
+           It.Kind == IndirectLocalPathEntry::GslReferenceInit;
   }
   return false;
 }
@@ -9125,9 +9135,8 @@ bool InitializationSequence::Diagnose(Sema &S,
         << FixItHint::CreateInsertion(Args.front()->getBeginLoc(), "u8");
     break;
   case FK_UTF8StringIntoPlainChar:
-    S.Diag(Kind.getLocation(),
-           diag::err_array_init_utf8_string_into_char)
-      << S.getLangOpts().CPlusPlus20;
+    S.Diag(Kind.getLocation(), diag::err_array_init_utf8_string_into_char)
+        << DestType->isSignedIntegerType() << S.getLangOpts().CPlusPlus20;
     break;
   case FK_ArrayTypeMismatch:
   case FK_NonConstantArrayInit:

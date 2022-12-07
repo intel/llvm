@@ -34,6 +34,18 @@ using namespace mlir::gpu;
 #include "mlir/Dialect/GPU/IR/GPUOpsDialect.cpp.inc"
 
 //===----------------------------------------------------------------------===//
+// GPU Device Mapping Attributes
+//===----------------------------------------------------------------------===//
+
+int64_t GPUBlockMappingAttr::getMappingId() const {
+  return static_cast<int64_t>(getBlock());
+}
+
+int64_t GPUThreadMappingAttr::getMappingId() const {
+  return static_cast<int64_t>(getThread());
+}
+
+//===----------------------------------------------------------------------===//
 // MMAMatrixType
 //===----------------------------------------------------------------------===//
 
@@ -309,6 +321,14 @@ static void printAsyncDependencies(OpAsmPrinter &printer, Operation *op,
 // AllReduceOp
 //===----------------------------------------------------------------------===//
 
+static bool verifyReduceOpAndType(gpu::AllReduceOperation opName,
+                                  Type resType) {
+  return (opName != gpu::AllReduceOperation::AND &&
+          opName != gpu::AllReduceOperation::OR &&
+          opName != gpu::AllReduceOperation::XOR) ||
+         resType.isa<IntegerType>();
+}
+
 LogicalResult gpu::AllReduceOp::verifyRegions() {
   if (getBody().empty() != getOp().has_value())
     return emitError("expected either an op attribute or a non-empty body");
@@ -333,10 +353,7 @@ LogicalResult gpu::AllReduceOp::verifyRegions() {
       return emitError("expected gpu.yield op in region");
   } else {
     gpu::AllReduceOperation opName = *getOp();
-    if ((opName == gpu::AllReduceOperation::AND ||
-         opName == gpu::AllReduceOperation::OR ||
-         opName == gpu::AllReduceOperation::XOR) &&
-        !getType().isa<IntegerType>()) {
+    if (!verifyReduceOpAndType(opName, getType())) {
       return emitError()
              << '`' << gpu::stringifyAllReduceOperation(opName)
              << "` accumulator is only compatible with Integer type";
@@ -362,6 +379,19 @@ static void printAllReduceOperation(AsmPrinter &printer, Operation *op,
                                     AllReduceOperationAttr attr) {
   if (attr)
     attr.print(printer);
+}
+
+//===----------------------------------------------------------------------===//
+// SubgroupReduceOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult gpu::SubgroupReduceOp::verify() {
+  gpu::AllReduceOperation opName = getOp();
+  if (!verifyReduceOpAndType(opName, getType())) {
+    return emitError() << '`' << gpu::stringifyAllReduceOperation(opName)
+                       << "` accumulator is only compatible with Integer type";
+  }
+  return success();
 }
 
 //===----------------------------------------------------------------------===//
@@ -1036,14 +1066,14 @@ LogicalResult gpu::ReturnOp::verify() {
 
   FunctionType funType = function.getFunctionType();
 
-  if (funType.getNumResults() != operands().size())
+  if (funType.getNumResults() != getOperands().size())
     return emitOpError()
         .append("expected ", funType.getNumResults(), " result operands")
         .attachNote(function.getLoc())
         .append("return type declared here");
 
   for (const auto &pair : llvm::enumerate(
-           llvm::zip(function.getFunctionType().getResults(), operands()))) {
+           llvm::zip(function.getFunctionType().getResults(), getOperands()))) {
     auto [type, operand] = pair.value();
     if (type != operand.getType())
       return emitOpError() << "unexpected type `" << operand.getType()
@@ -1171,17 +1201,10 @@ LogicalResult SubgroupMmaLoadMatrixOp::verify() {
   auto resMatrixType = resType.cast<gpu::MMAMatrixType>();
   auto operand = resMatrixType.getOperand();
   auto srcMemrefType = srcType.cast<MemRefType>();
-  auto srcMemSpace = srcMemrefType.getMemorySpaceAsInt();
 
   if (!isLastMemrefDimUnitStride(srcMemrefType))
     return emitError(
         "expected source memref most minor dim must have unit stride");
-
-  if (srcMemSpace != kGenericMemorySpace && srcMemSpace != kSharedMemorySpace &&
-      srcMemSpace != kGlobalMemorySpace)
-    return emitError(
-        "source memorySpace kGenericMemorySpace, kSharedMemorySpace or "
-        "kGlobalMemorySpace only allowed");
 
   if (!operand.equals("AOp") && !operand.equals("BOp") &&
       !operand.equals("COp"))
@@ -1199,16 +1222,10 @@ LogicalResult SubgroupMmaStoreMatrixOp::verify() {
   auto dstType = getDstMemref().getType();
   auto srcMatrixType = srcType.cast<gpu::MMAMatrixType>();
   auto dstMemrefType = dstType.cast<MemRefType>();
-  auto dstMemSpace = dstMemrefType.getMemorySpaceAsInt();
 
   if (!isLastMemrefDimUnitStride(dstMemrefType))
     return emitError(
         "expected destination memref most minor dim must have unit stride");
-
-  if (dstMemSpace != kGenericMemorySpace && dstMemSpace != kSharedMemorySpace &&
-      dstMemSpace != kGlobalMemorySpace)
-    return emitError("destination memorySpace of kGenericMemorySpace, "
-                     "kGlobalMemorySpace or kSharedMemorySpace only allowed");
 
   if (!srcMatrixType.getOperand().equals("COp"))
     return emitError(
@@ -1245,29 +1262,14 @@ LogicalResult SubgroupMmaComputeOp::verify() {
   return success();
 }
 
-/// This is a common class used for patterns of the form
-/// "someop(memrefcast) -> someop".  It folds the source of any memref.cast
-/// into the root operation directly.
-static LogicalResult foldMemRefCast(Operation *op) {
-  bool folded = false;
-  for (OpOperand &operand : op->getOpOperands()) {
-    auto cast = operand.get().getDefiningOp<mlir::memref::CastOp>();
-    if (cast) {
-      operand.set(cast.getOperand());
-      folded = true;
-    }
-  }
-  return success(folded);
-}
-
 LogicalResult MemcpyOp::fold(ArrayRef<Attribute> operands,
                              SmallVectorImpl<::mlir::OpFoldResult> &results) {
-  return foldMemRefCast(*this);
+  return memref::foldMemRefCast(*this);
 }
 
 LogicalResult MemsetOp::fold(ArrayRef<Attribute> operands,
                              SmallVectorImpl<::mlir::OpFoldResult> &results) {
-  return foldMemRefCast(*this);
+  return memref::foldMemRefCast(*this);
 }
 
 //===----------------------------------------------------------------------===//

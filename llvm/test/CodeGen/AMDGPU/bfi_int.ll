@@ -8,7 +8,7 @@
 ; BFI_INT Definition pattern from ISA docs
 ; (y & x) | (z & ~x)
 ;
-define amdgpu_kernel void @s_bfi_def_i32(i32 addrspace(1)* %out, i32 %x, i32 %y, i32 %z) {
+define amdgpu_kernel void @s_bfi_def_i32(ptr addrspace(1) %out, i32 %x, i32 %y, i32 %z) {
 ; GFX7-LABEL: s_bfi_def_i32:
 ; GFX7:       ; %bb.0: ; %entry
 ; GFX7-NEXT:    s_load_dwordx4 s[4:7], s[0:1], 0x9
@@ -85,7 +85,7 @@ entry:
   %1 = and i32 %z, %0
   %2 = and i32 %y, %x
   %3 = or i32 %1, %2
-  store i32 %3, i32 addrspace(1)* %out
+  store i32 %3, ptr addrspace(1) %out
   ret void
 }
 
@@ -131,7 +131,7 @@ entry:
 
 ; SHA-256 Ch function
 ; z ^ (x & (y ^ z))
-define amdgpu_kernel void @s_bfi_sha256_ch(i32 addrspace(1)* %out, i32 %x, i32 %y, i32 %z) {
+define amdgpu_kernel void @s_bfi_sha256_ch(ptr addrspace(1) %out, i32 %x, i32 %y, i32 %z) {
 ; GFX7-LABEL: s_bfi_sha256_ch:
 ; GFX7:       ; %bb.0: ; %entry
 ; GFX7-NEXT:    s_load_dwordx4 s[4:7], s[0:1], 0x9
@@ -207,7 +207,7 @@ entry:
   %0 = xor i32 %y, %z
   %1 = and i32 %x, %0
   %2 = xor i32 %z, %1
-  store i32 %2, i32 addrspace(1)* %out
+  store i32 %2, ptr addrspace(1) %out
   ret void
 }
 
@@ -469,7 +469,7 @@ entry:
 
 ; SHA-256 Ma function
 ; ((x & z) | (y & (x | z)))
-define amdgpu_kernel void @s_bfi_sha256_ma(i32 addrspace(1)* %out, i32 %x, i32 %y, i32 %z) {
+define amdgpu_kernel void @s_bfi_sha256_ma(ptr addrspace(1) %out, i32 %x, i32 %y, i32 %z) {
 ; GFX7-LABEL: s_bfi_sha256_ma:
 ; GFX7:       ; %bb.0: ; %entry
 ; GFX7-NEXT:    s_load_dwordx4 s[4:7], s[0:1], 0x9
@@ -551,7 +551,7 @@ entry:
   %1 = or i32 %x, %z
   %2 = and i32 %y, %1
   %3 = or i32 %0, %2
-  store i32 %3, i32 addrspace(1)* %out
+  store i32 %3, ptr addrspace(1) %out
   ret void
 }
 
@@ -1633,7 +1633,7 @@ define amdgpu_kernel void @s_bitselect_i64_pat_0(i64 %a, i64 %b, i64 %mask) {
   %and1 = and i64 %not.a, %mask
   %bitselect = or i64 %and0, %and1
   %scalar.use = add i64 %bitselect, 10
-  store i64 %scalar.use, i64 addrspace(1)* undef
+  store i64 %scalar.use, ptr addrspace(1) undef
   ret void
 }
 
@@ -1721,7 +1721,7 @@ define amdgpu_kernel void @s_bitselect_i64_pat_1(i64 %a, i64 %b, i64 %mask) {
   %bitselect = xor i64 %and, %mask
 
   %scalar.use = add i64 %bitselect, 10
-  store i64 %scalar.use, i64 addrspace(1)* undef
+  store i64 %scalar.use, ptr addrspace(1) undef
   ret void
 }
 
@@ -1809,7 +1809,7 @@ define amdgpu_kernel void @s_bitselect_i64_pat_2(i64 %a, i64 %b, i64 %mask) {
   %bitselect = xor i64 %and, %mask
 
   %scalar.use = add i64 %bitselect, 10
-  store i64 %scalar.use, i64 addrspace(1)* undef
+  store i64 %scalar.use, ptr addrspace(1) undef
   ret void
 }
 
@@ -1904,73 +1904,6 @@ entry:
   %or1 = or i64 %and0, %and1
 
   %scalar.use = add i64 %or1, 10
-  store i64 %scalar.use, i64 addrspace(1)* undef
+  store i64 %scalar.use, ptr addrspace(1) undef
   ret void
-}
-
-define i32 @v_bfi_seq_i32(i32 %x, i32 %y, i32 %z) {
-; GFX7-LABEL: v_bfi_seq_i32:
-; GFX7:       ; %bb.0:
-; GFX7-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX7-NEXT:    v_lshlrev_b32_e32 v0, 20, v0
-; GFX7-NEXT:    s_mov_b32 s4, 0xffc00
-; GFX7-NEXT:    v_xor_b32_e32 v0, v0, v1
-; GFX7-NEXT:    v_bfi_b32 v2, s4, v1, v2
-; GFX7-NEXT:    v_and_b32_e32 v0, 0x3ff00000, v0
-; GFX7-NEXT:    v_xor_b32_e32 v0, v0, v2
-; GFX7-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX8-LABEL: v_bfi_seq_i32:
-; GFX8:       ; %bb.0:
-; GFX8-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX8-NEXT:    v_lshlrev_b32_e32 v0, 20, v0
-; GFX8-NEXT:    s_mov_b32 s4, 0xffc00
-; GFX8-NEXT:    v_xor_b32_e32 v0, v0, v1
-; GFX8-NEXT:    v_bfi_b32 v2, s4, v1, v2
-; GFX8-NEXT:    v_and_b32_e32 v0, 0x3ff00000, v0
-; GFX8-NEXT:    v_xor_b32_e32 v0, v0, v2
-; GFX8-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX10-LABEL: v_bfi_seq_i32:
-; GFX10:       ; %bb.0:
-; GFX10-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX10-NEXT:    s_waitcnt_vscnt null, 0x0
-; GFX10-NEXT:    v_lshlrev_b32_e32 v0, 20, v0
-; GFX10-NEXT:    v_xor_b32_e32 v0, v0, v1
-; GFX10-NEXT:    v_bfi_b32 v1, 0xffc00, v1, v2
-; GFX10-NEXT:    v_and_b32_e32 v0, 0x3ff00000, v0
-; GFX10-NEXT:    v_xor_b32_e32 v0, v0, v1
-; GFX10-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX8-GISEL-LABEL: v_bfi_seq_i32:
-; GFX8-GISEL:       ; %bb.0:
-; GFX8-GISEL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX8-GISEL-NEXT:    v_lshlrev_b32_e32 v0, 20, v0
-; GFX8-GISEL-NEXT:    v_and_b32_e32 v3, 0xffc00, v1
-; GFX8-GISEL-NEXT:    v_and_b32_e32 v2, 0xfff003ff, v2
-; GFX8-GISEL-NEXT:    v_xor_b32_e32 v0, v0, v1
-; GFX8-GISEL-NEXT:    v_or_b32_e32 v2, v3, v2
-; GFX8-GISEL-NEXT:    v_and_b32_e32 v0, 0x3ff00000, v0
-; GFX8-GISEL-NEXT:    v_xor_b32_e32 v0, v0, v2
-; GFX8-GISEL-NEXT:    s_setpc_b64 s[30:31]
-;
-; GFX10-GISEL-LABEL: v_bfi_seq_i32:
-; GFX10-GISEL:       ; %bb.0:
-; GFX10-GISEL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX10-GISEL-NEXT:    s_waitcnt_vscnt null, 0x0
-; GFX10-GISEL-NEXT:    v_lshlrev_b32_e32 v0, 20, v0
-; GFX10-GISEL-NEXT:    v_and_b32_e32 v2, 0xfff003ff, v2
-; GFX10-GISEL-NEXT:    v_xor_b32_e32 v0, v0, v1
-; GFX10-GISEL-NEXT:    v_and_or_b32 v1, 0xffc00, v1, v2
-; GFX10-GISEL-NEXT:    v_and_b32_e32 v0, 0x3ff00000, v0
-; GFX10-GISEL-NEXT:    v_xor_b32_e32 v0, v0, v1
-; GFX10-GISEL-NEXT:    s_setpc_b64 s[30:31]
-  %1 = shl i32 %x, 20
-  %2 = and i32 %y, 1047552
-  %3 = and i32 %z, -1047553
-  %4 = or i32 %2, %3
-  %5 = xor i32 %1, %y
-  %6 = and i32 %5, 1072693248
-  %7 = xor i32 %6, %4
-  ret i32 %7
 }

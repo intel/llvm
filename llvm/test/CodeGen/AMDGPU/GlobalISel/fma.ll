@@ -122,6 +122,129 @@ define half @v_fma_f16(half %x, half %y, half %z) {
   ret half %fma
 }
 
+define half @v_fma_f16_fneg_lhs(half %x, half %y, half %z) {
+; GFX6-LABEL: v_fma_f16_fneg_lhs:
+; GFX6:       ; %bb.0:
+; GFX6-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX6-NEXT:    v_cvt_f32_f16_e64 v0, -v0
+; GFX6-NEXT:    v_cvt_f32_f16_e32 v1, v1
+; GFX6-NEXT:    v_cvt_f32_f16_e32 v2, v2
+; GFX6-NEXT:    v_fma_f32 v0, v0, v1, v2
+; GFX6-NEXT:    v_cvt_f16_f32_e32 v0, v0
+; GFX6-NEXT:    s_setpc_b64 s[30:31]
+;
+; GFX8-LABEL: v_fma_f16_fneg_lhs:
+; GFX8:       ; %bb.0:
+; GFX8-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX8-NEXT:    v_fma_f16 v0, -v0, v1, v2
+; GFX8-NEXT:    s_setpc_b64 s[30:31]
+;
+; GFX9-LABEL: v_fma_f16_fneg_lhs:
+; GFX9:       ; %bb.0:
+; GFX9-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX9-NEXT:    v_fma_f16 v0, -v0, v1, v2
+; GFX9-NEXT:    s_setpc_b64 s[30:31]
+;
+; GFX10-LABEL: v_fma_f16_fneg_lhs:
+; GFX10:       ; %bb.0:
+; GFX10-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX10-NEXT:    s_waitcnt_vscnt null, 0x0
+; GFX10-NEXT:    v_fma_f16 v0, -v0, v1, v2
+; GFX10-NEXT:    s_setpc_b64 s[30:31]
+;
+; GFX11-LABEL: v_fma_f16_fneg_lhs:
+; GFX11:       ; %bb.0:
+; GFX11-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX11-NEXT:    s_waitcnt_vscnt null, 0x0
+; GFX11-NEXT:    v_fma_f16 v0, -v0, v1, v2
+; GFX11-NEXT:    s_setpc_b64 s[30:31]
+  %neg.x = fneg half %x
+  %fma = call half @llvm.fma.f16(half %neg.x, half %y, half %z)
+  ret half %fma
+}
+
+define half @v_fma_f16_fneg_rhs(half %x, half %y, half %z) {
+; GFX6-LABEL: v_fma_f16_fneg_rhs:
+; GFX6:       ; %bb.0:
+; GFX6-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX6-NEXT:    v_cvt_f32_f16_e32 v0, v0
+; GFX6-NEXT:    v_cvt_f32_f16_e64 v1, -v1
+; GFX6-NEXT:    v_cvt_f32_f16_e32 v2, v2
+; GFX6-NEXT:    v_fma_f32 v0, v0, v1, v2
+; GFX6-NEXT:    v_cvt_f16_f32_e32 v0, v0
+; GFX6-NEXT:    s_setpc_b64 s[30:31]
+;
+; GFX8-LABEL: v_fma_f16_fneg_rhs:
+; GFX8:       ; %bb.0:
+; GFX8-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX8-NEXT:    v_fma_f16 v0, v0, -v1, v2
+; GFX8-NEXT:    s_setpc_b64 s[30:31]
+;
+; GFX9-LABEL: v_fma_f16_fneg_rhs:
+; GFX9:       ; %bb.0:
+; GFX9-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX9-NEXT:    v_fma_f16 v0, v0, -v1, v2
+; GFX9-NEXT:    s_setpc_b64 s[30:31]
+;
+; GFX10-LABEL: v_fma_f16_fneg_rhs:
+; GFX10:       ; %bb.0:
+; GFX10-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX10-NEXT:    s_waitcnt_vscnt null, 0x0
+; GFX10-NEXT:    v_fma_f16 v0, v0, -v1, v2
+; GFX10-NEXT:    s_setpc_b64 s[30:31]
+;
+; GFX11-LABEL: v_fma_f16_fneg_rhs:
+; GFX11:       ; %bb.0:
+; GFX11-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX11-NEXT:    s_waitcnt_vscnt null, 0x0
+; GFX11-NEXT:    v_fma_f16 v0, v0, -v1, v2
+; GFX11-NEXT:    s_setpc_b64 s[30:31]
+  %neg.y = fneg half %y
+  %fma = call half @llvm.fma.f16(half %x, half %neg.y, half %z)
+  ret half %fma
+}
+
+define half @v_fma_f16_fneg_add(half %x, half %y, half %z) {
+; GFX6-LABEL: v_fma_f16_fneg_add:
+; GFX6:       ; %bb.0:
+; GFX6-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX6-NEXT:    v_cvt_f32_f16_e32 v0, v0
+; GFX6-NEXT:    v_cvt_f32_f16_e32 v1, v1
+; GFX6-NEXT:    v_cvt_f32_f16_e64 v2, -v2
+; GFX6-NEXT:    v_fma_f32 v0, v0, v1, v2
+; GFX6-NEXT:    v_cvt_f16_f32_e32 v0, v0
+; GFX6-NEXT:    s_setpc_b64 s[30:31]
+;
+; GFX8-LABEL: v_fma_f16_fneg_add:
+; GFX8:       ; %bb.0:
+; GFX8-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX8-NEXT:    v_fma_f16 v0, v0, v1, -v2
+; GFX8-NEXT:    s_setpc_b64 s[30:31]
+;
+; GFX9-LABEL: v_fma_f16_fneg_add:
+; GFX9:       ; %bb.0:
+; GFX9-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX9-NEXT:    v_fma_f16 v0, v0, v1, -v2
+; GFX9-NEXT:    s_setpc_b64 s[30:31]
+;
+; GFX10-LABEL: v_fma_f16_fneg_add:
+; GFX10:       ; %bb.0:
+; GFX10-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX10-NEXT:    s_waitcnt_vscnt null, 0x0
+; GFX10-NEXT:    v_fma_f16 v0, v0, v1, -v2
+; GFX10-NEXT:    s_setpc_b64 s[30:31]
+;
+; GFX11-LABEL: v_fma_f16_fneg_add:
+; GFX11:       ; %bb.0:
+; GFX11-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX11-NEXT:    s_waitcnt_vscnt null, 0x0
+; GFX11-NEXT:    v_fma_f16 v0, v0, v1, -v2
+; GFX11-NEXT:    s_setpc_b64 s[30:31]
+  %neg.z = fneg half %z
+  %fma = call half @llvm.fma.f16(half %x, half %y, half %neg.z)
+  ret half %fma
+}
+
 define <2 x half> @v_fma_v2f16(<2 x half> %x, <2 x half> %y, <2 x half> %z) {
 ; GFX6-LABEL: v_fma_v2f16:
 ; GFX6:       ; %bb.0:
@@ -346,11 +469,67 @@ define <2 x half> @v_fma_v2f16_fneg_lhs_rhs(<2 x half> %x, <2 x half> %y, <2 x h
   ret <2 x half> %fma
 }
 
-; FIXME:
-; define <3 x half> @v_fma_v3f16(<3 x half> %x, <3 x half> %y, <3 x half> %z) {
-;   %fma = call <3 x half> @llvm.fma.v3f16(<3 x half> %x, <3 x half> %y, <3 x half> %z)
-;   ret <3 x half> %fma
-; }
+define <3 x half> @v_fma_v3f16(<3 x half> %x, <3 x half> %y, <3 x half> %z) {
+; GFX6-LABEL: v_fma_v3f16:
+; GFX6:       ; %bb.0:
+; GFX6-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX6-NEXT:    v_cvt_f32_f16_e32 v0, v0
+; GFX6-NEXT:    v_cvt_f32_f16_e32 v3, v3
+; GFX6-NEXT:    v_cvt_f32_f16_e32 v6, v6
+; GFX6-NEXT:    v_cvt_f32_f16_e32 v1, v1
+; GFX6-NEXT:    v_cvt_f32_f16_e32 v2, v2
+; GFX6-NEXT:    v_cvt_f32_f16_e32 v5, v5
+; GFX6-NEXT:    v_fma_f32 v0, v0, v3, v6
+; GFX6-NEXT:    v_cvt_f32_f16_e32 v3, v4
+; GFX6-NEXT:    v_cvt_f32_f16_e32 v4, v7
+; GFX6-NEXT:    v_cvt_f32_f16_e32 v6, v8
+; GFX6-NEXT:    v_cvt_f16_f32_e32 v0, v0
+; GFX6-NEXT:    v_fma_f32 v1, v1, v3, v4
+; GFX6-NEXT:    v_fma_f32 v2, v2, v5, v6
+; GFX6-NEXT:    v_cvt_f16_f32_e32 v1, v1
+; GFX6-NEXT:    v_cvt_f16_f32_e32 v2, v2
+; GFX6-NEXT:    s_setpc_b64 s[30:31]
+;
+; GFX8-LABEL: v_fma_v3f16:
+; GFX8:       ; %bb.0:
+; GFX8-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX8-NEXT:    v_lshrrev_b32_e32 v6, 16, v0
+; GFX8-NEXT:    v_lshrrev_b32_e32 v7, 16, v2
+; GFX8-NEXT:    v_lshrrev_b32_e32 v8, 16, v4
+; GFX8-NEXT:    v_fma_f16 v0, v0, v2, v4
+; GFX8-NEXT:    v_fma_f16 v2, v6, v7, v8
+; GFX8-NEXT:    v_fma_f16 v1, v1, v3, v5
+; GFX8-NEXT:    v_mov_b32_e32 v3, 16
+; GFX8-NEXT:    v_lshlrev_b32_sdwa v2, v3, v2 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:DWORD src1_sel:WORD_0
+; GFX8-NEXT:    v_or_b32_sdwa v0, v0, v2 dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:WORD_0 src1_sel:DWORD
+; GFX8-NEXT:    v_bfe_u32 v1, v1, 0, 16
+; GFX8-NEXT:    s_setpc_b64 s[30:31]
+;
+; GFX9-LABEL: v_fma_v3f16:
+; GFX9:       ; %bb.0:
+; GFX9-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX9-NEXT:    v_pk_fma_f16 v0, v0, v2, v4
+; GFX9-NEXT:    v_pk_fma_f16 v1, v1, v3, v5
+; GFX9-NEXT:    s_setpc_b64 s[30:31]
+;
+; GFX10-LABEL: v_fma_v3f16:
+; GFX10:       ; %bb.0:
+; GFX10-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX10-NEXT:    s_waitcnt_vscnt null, 0x0
+; GFX10-NEXT:    v_pk_fma_f16 v0, v0, v2, v4
+; GFX10-NEXT:    v_pk_fma_f16 v1, v1, v3, v5
+; GFX10-NEXT:    s_setpc_b64 s[30:31]
+;
+; GFX11-LABEL: v_fma_v3f16:
+; GFX11:       ; %bb.0:
+; GFX11-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX11-NEXT:    s_waitcnt_vscnt null, 0x0
+; GFX11-NEXT:    v_pk_fma_f16 v0, v0, v2, v4
+; GFX11-NEXT:    v_pk_fma_f16 v1, v1, v3, v5
+; GFX11-NEXT:    s_setpc_b64 s[30:31]
+  %fma = call <3 x half> @llvm.fma.v3f16(<3 x half> %x, <3 x half> %y, <3 x half> %z)
+  ret <3 x half> %fma
+}
 
 define <4 x half> @v_fma_v4f16(<4 x half> %x, <4 x half> %y, <4 x half> %z) {
 ; GFX6-LABEL: v_fma_v4f16:
@@ -855,6 +1034,37 @@ define float @v_fma_f32_fneg_z(float %x, float %y, float %z) {
 ; GFX11-NEXT:    s_setpc_b64 s[30:31]
   %neg.z = fneg float %z
   %fma = call float @llvm.fma.f32(float %x, float %y, float %neg.z)
+  ret float %fma
+}
+
+define amdgpu_ps float @dont_crash_after_fma_mix_select_attempt(float inreg %x, float %y, float %z) {
+; GFX6-LABEL: dont_crash_after_fma_mix_select_attempt:
+; GFX6:       ; %bb.0: ; %.entry
+; GFX6-NEXT:    v_fma_f32 v0, |s0|, v0, v1
+; GFX6-NEXT:    ; return to shader part epilog
+;
+; GFX8-LABEL: dont_crash_after_fma_mix_select_attempt:
+; GFX8:       ; %bb.0: ; %.entry
+; GFX8-NEXT:    v_fma_f32 v0, |s0|, v0, v1
+; GFX8-NEXT:    ; return to shader part epilog
+;
+; GFX9-LABEL: dont_crash_after_fma_mix_select_attempt:
+; GFX9:       ; %bb.0: ; %.entry
+; GFX9-NEXT:    v_fma_f32 v0, |s0|, v0, v1
+; GFX9-NEXT:    ; return to shader part epilog
+;
+; GFX10-LABEL: dont_crash_after_fma_mix_select_attempt:
+; GFX10:       ; %bb.0: ; %.entry
+; GFX10-NEXT:    v_fma_f32 v0, |s0|, v0, v1
+; GFX10-NEXT:    ; return to shader part epilog
+;
+; GFX11-LABEL: dont_crash_after_fma_mix_select_attempt:
+; GFX11:       ; %bb.0: ; %.entry
+; GFX11-NEXT:    v_fma_f32 v0, |s0|, v0, v1
+; GFX11-NEXT:    ; return to shader part epilog
+.entry:
+  %fabs.x = call contract float @llvm.fabs.f32(float %x)
+  %fma = call float @llvm.fma.f32(float %fabs.x, float %y, float %z)
   ret float %fma
 }
 

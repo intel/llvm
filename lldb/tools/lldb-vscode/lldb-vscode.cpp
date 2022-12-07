@@ -204,7 +204,7 @@ void SendTerminatedEvent() {
     g_vsc.sent_terminated_event = true;
     g_vsc.RunTerminateCommands();
     // Send a "terminated" event
-    llvm::json::Object event(CreateEventObject("terminated"));
+    llvm::json::Object event(CreateTerminatedEventObject());
     g_vsc.SendJSON(llvm::json::Value(std::move(event)));
   }
 }
@@ -1444,8 +1444,15 @@ void request_initialize(const llvm::json::Object &request) {
   auto log_cb = [](const char *buf, void *baton) -> void {
     g_vsc.SendOutput(OutputType::Console, llvm::StringRef{buf});
   };
+
+  auto arguments = request.getObject("arguments");
+  // sourceInitFile option is not from formal DAP specification. It is only
+  // used by unit tests to prevent sourcing .lldbinit files from environment
+  // which may affect the outcome of tests.
+  bool source_init_file = GetBoolean(arguments, "sourceInitFile", true);
+
   g_vsc.debugger =
-      lldb::SBDebugger::Create(true /*source_init_files*/, log_cb, nullptr);
+      lldb::SBDebugger::Create(source_init_file, log_cb, nullptr);
   g_vsc.progress_event_thread = std::thread(ProgressEventThreadFunction);
 
   // Start our event thread so we can receive events from the debugger, target,
@@ -2942,7 +2949,7 @@ void request_variables(const llvm::json::Object &request) {
       const uint32_t addr_size = g_vsc.target.GetProcess().GetAddressByteSize();
       lldb::SBValue reg_set = g_vsc.variables.registers.GetValueAtIndex(0);
       const uint32_t num_regs = reg_set.GetNumChildren();
-      for (uint32_t reg_idx=0; reg_idx<num_regs; ++reg_idx) {
+      for (uint32_t reg_idx = 0; reg_idx < num_regs; ++reg_idx) {
         lldb::SBValue reg = reg_set.GetChildAtIndex(reg_idx);
         const lldb::Format format = reg.GetFormat();
         if (format == lldb::eFormatDefault || format == lldb::eFormatHex) {

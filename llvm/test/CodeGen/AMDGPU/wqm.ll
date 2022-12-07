@@ -150,7 +150,7 @@ main_body:
 }
 
 ; Check that WQM is re-enabled when required.
-define amdgpu_ps <4 x float> @test4(<8 x i32> inreg %rsrc, <4 x i32> inreg %sampler, float addrspace(1)* inreg %ptr, i32 %c, i32 %d, float %data) {
+define amdgpu_ps <4 x float> @test4(<8 x i32> inreg %rsrc, <4 x i32> inreg %sampler, ptr addrspace(1) inreg %ptr, i32 %c, i32 %d, float %data) {
 ; GFX9-W64-LABEL: test4:
 ; GFX9-W64:       ; %bb.0: ; %main_body
 ; GFX9-W64-NEXT:    s_mov_b64 s[12:13], exec
@@ -204,7 +204,7 @@ define amdgpu_ps float @test5(i32 inreg %idx0, i32 inreg %idx1) {
 ; GFX9-W64-NEXT:    buffer_load_dword v1, v1, s[0:3], 0 idxen
 ; GFX9-W64-NEXT:    s_waitcnt vmcnt(0)
 ; GFX9-W64-NEXT:    v_add_f32_e32 v0, v0, v1
-; GFX9-W64-NEXT:    ; kill: def $vgpr0 killed $vgpr0 killed $exec killed $exec
+; GFX9-W64-NEXT:    ; kill: def $vgpr0 killed $vgpr0 killed $exec
 ; GFX9-W64-NEXT:    s_and_b64 exec, exec, s[2:3]
 ; GFX9-W64-NEXT:    ; return to shader part epilog
 ;
@@ -219,7 +219,7 @@ define amdgpu_ps float @test5(i32 inreg %idx0, i32 inreg %idx1) {
 ; GFX10-W32-NEXT:    buffer_load_dword v1, v1, s[0:3], 0 idxen
 ; GFX10-W32-NEXT:    s_waitcnt vmcnt(0)
 ; GFX10-W32-NEXT:    v_add_f32_e32 v0, v0, v1
-; GFX10-W32-NEXT:    ; kill: def $vgpr0 killed $vgpr0 killed $exec killed $exec
+; GFX10-W32-NEXT:    ; kill: def $vgpr0 killed $vgpr0 killed $exec
 ; GFX10-W32-NEXT:    s_and_b32 exec_lo, exec_lo, s2
 ; GFX10-W32-NEXT:    ; return to shader part epilog
 main_body:
@@ -243,7 +243,7 @@ define amdgpu_ps float @test6(i32 inreg %idx0, i32 inreg %idx1) {
 ; GFX9-W64-NEXT:    buffer_load_dword v1, v1, s[0:3], 0 idxen
 ; GFX9-W64-NEXT:    s_waitcnt vmcnt(0)
 ; GFX9-W64-NEXT:    v_add_f32_e32 v0, v0, v1
-; GFX9-W64-NEXT:    ; kill: def $vgpr0 killed $vgpr0 killed $exec killed $exec
+; GFX9-W64-NEXT:    ; kill: def $vgpr0 killed $vgpr0 killed $exec
 ; GFX9-W64-NEXT:    s_and_b64 exec, exec, s[2:3]
 ; GFX9-W64-NEXT:    ; return to shader part epilog
 ;
@@ -258,7 +258,7 @@ define amdgpu_ps float @test6(i32 inreg %idx0, i32 inreg %idx1) {
 ; GFX10-W32-NEXT:    buffer_load_dword v1, v1, s[0:3], 0 idxen
 ; GFX10-W32-NEXT:    s_waitcnt vmcnt(0)
 ; GFX10-W32-NEXT:    v_add_f32_e32 v0, v0, v1
-; GFX10-W32-NEXT:    ; kill: def $vgpr0 killed $vgpr0 killed $exec killed $exec
+; GFX10-W32-NEXT:    ; kill: def $vgpr0 killed $vgpr0 killed $exec
 ; GFX10-W32-NEXT:    s_and_b32 exec_lo, exec_lo, s2
 ; GFX10-W32-NEXT:    ; return to shader part epilog
 main_body:
@@ -496,7 +496,7 @@ define amdgpu_ps float @test_wwm5(i32 inreg %idx0, i32 inreg %idx1) {
 ; GFX9-W64-NEXT:    s_wqm_b64 exec, exec
 ; GFX9-W64-NEXT:    v_mov_b32_e32 v0, v1
 ; GFX9-W64-NEXT:    v_add_f32_e32 v0, v0, v0
-; GFX9-W64-NEXT:    ; kill: def $vgpr0 killed $vgpr0 killed $exec killed $exec
+; GFX9-W64-NEXT:    ; kill: def $vgpr0 killed $vgpr0 killed $exec
 ; GFX9-W64-NEXT:    s_and_b64 exec, exec, s[2:3]
 ; GFX9-W64-NEXT:    ; return to shader part epilog
 ;
@@ -518,7 +518,7 @@ define amdgpu_ps float @test_wwm5(i32 inreg %idx0, i32 inreg %idx1) {
 ; GFX10-W32-NEXT:    s_wqm_b32 exec_lo, exec_lo
 ; GFX10-W32-NEXT:    v_mov_b32_e32 v0, v1
 ; GFX10-W32-NEXT:    v_add_f32_e32 v0, v0, v0
-; GFX10-W32-NEXT:    ; kill: def $vgpr0 killed $vgpr0 killed $exec killed $exec
+; GFX10-W32-NEXT:    ; kill: def $vgpr0 killed $vgpr0 killed $exec
 ; GFX10-W32-NEXT:    s_and_b32 exec_lo, exec_lo, s2
 ; GFX10-W32-NEXT:    s_waitcnt_vscnt null, 0x0
 ; GFX10-W32-NEXT:    ; return to shader part epilog
@@ -586,7 +586,7 @@ define amdgpu_ps float @test_wwm6_then() {
 ; GFX10-W32-NEXT:    s_or_b32 exec_lo, exec_lo, s0
 ; GFX10-W32-NEXT:    ; return to shader part epilog
 main_body:
-  %src0 = load volatile float, float addrspace(1)* undef
+  %src0 = load volatile float, ptr addrspace(1) undef
   ; use mbcnt to make sure the branch is divergent
   %lo = call i32 @llvm.amdgcn.mbcnt.lo(i32 -1, i32 0)
   %hi = call i32 @llvm.amdgcn.mbcnt.hi(i32 -1, i32 %lo)
@@ -594,7 +594,7 @@ main_body:
   br i1 %cc, label %endif, label %if
 
 if:
-  %src1 = load volatile float, float addrspace(1)* undef
+  %src1 = load volatile float, ptr addrspace(1) undef
   %out = fadd float %src0, %src1
   %out.0 = call float @llvm.amdgcn.wwm.f32(float %out)
   br label %endif
@@ -667,7 +667,7 @@ define amdgpu_ps float @test_wwm6_loop() {
 ; GFX10-W32-NEXT:    s_or_b32 exec_lo, exec_lo, s0
 ; GFX10-W32-NEXT:    ; return to shader part epilog
 main_body:
-  %src0 = load volatile float, float addrspace(1)* undef
+  %src0 = load volatile float, ptr addrspace(1) undef
   ; use mbcnt to make sure the branch is divergent
   %lo = call i32 @llvm.amdgcn.mbcnt.lo(i32 -1, i32 0)
   %hi = call i32 @llvm.amdgcn.mbcnt.hi(i32 -1, i32 %lo)
@@ -675,7 +675,7 @@ main_body:
 
 loop:
   %counter = phi i32 [ %hi, %main_body ], [ %counter.1, %loop ]
-  %src1 = load volatile float, float addrspace(1)* undef
+  %src1 = load volatile float, ptr addrspace(1) undef
   %out = fadd float %src0, %src1
   %out.0 = call float @llvm.amdgcn.wwm.f32(float %out)
   %counter.1 = sub i32 %counter, 1
@@ -962,7 +962,7 @@ define amdgpu_ps float @test_strict_wqm5(i32 inreg %idx0, i32 inreg %idx1) {
 ; GFX9-W64-NEXT:    s_wqm_b64 exec, exec
 ; GFX9-W64-NEXT:    v_mov_b32_e32 v0, v1
 ; GFX9-W64-NEXT:    v_add_f32_e32 v0, v0, v0
-; GFX9-W64-NEXT:    ; kill: def $vgpr0 killed $vgpr0 killed $exec killed $exec
+; GFX9-W64-NEXT:    ; kill: def $vgpr0 killed $vgpr0 killed $exec
 ; GFX9-W64-NEXT:    s_and_b64 exec, exec, s[2:3]
 ; GFX9-W64-NEXT:    ; return to shader part epilog
 ;
@@ -986,7 +986,7 @@ define amdgpu_ps float @test_strict_wqm5(i32 inreg %idx0, i32 inreg %idx1) {
 ; GFX10-W32-NEXT:    s_wqm_b32 exec_lo, exec_lo
 ; GFX10-W32-NEXT:    v_mov_b32_e32 v0, v1
 ; GFX10-W32-NEXT:    v_add_f32_e32 v0, v0, v0
-; GFX10-W32-NEXT:    ; kill: def $vgpr0 killed $vgpr0 killed $exec killed $exec
+; GFX10-W32-NEXT:    ; kill: def $vgpr0 killed $vgpr0 killed $exec
 ; GFX10-W32-NEXT:    s_and_b32 exec_lo, exec_lo, s2
 ; GFX10-W32-NEXT:    s_waitcnt_vscnt null, 0x0
 ; GFX10-W32-NEXT:    ; return to shader part epilog
@@ -1058,7 +1058,7 @@ define amdgpu_ps float @test_strict_wqm6_then() {
 ; GFX10-W32-NEXT:    s_or_b32 exec_lo, exec_lo, s0
 ; GFX10-W32-NEXT:    ; return to shader part epilog
 main_body:
-  %src0 = load volatile float, float addrspace(1)* undef
+  %src0 = load volatile float, ptr addrspace(1) undef
   ; use mbcnt to make sure the branch is divergent
   %lo = call i32 @llvm.amdgcn.mbcnt.lo(i32 -1, i32 0)
   %hi = call i32 @llvm.amdgcn.mbcnt.hi(i32 -1, i32 %lo)
@@ -1066,7 +1066,7 @@ main_body:
   br i1 %cc, label %endif, label %if
 
 if:
-  %src1 = load volatile float, float addrspace(1)* undef
+  %src1 = load volatile float, ptr addrspace(1) undef
   %out = fadd float %src0, %src1
   %out.0 = call float @llvm.amdgcn.strict.wqm.f32(float %out)
   br label %endif
@@ -1145,7 +1145,7 @@ define amdgpu_ps float @test_strict_wqm6_loop() {
 ; GFX10-W32-NEXT:    s_or_b32 exec_lo, exec_lo, s0
 ; GFX10-W32-NEXT:    ; return to shader part epilog
 main_body:
-  %src0 = load volatile float, float addrspace(1)* undef
+  %src0 = load volatile float, ptr addrspace(1) undef
   ; use mbcnt to make sure the branch is divergent
   %lo = call i32 @llvm.amdgcn.mbcnt.lo(i32 -1, i32 0)
   %hi = call i32 @llvm.amdgcn.mbcnt.hi(i32 -1, i32 %lo)
@@ -1153,7 +1153,7 @@ main_body:
 
 loop:
   %counter = phi i32 [ %hi, %main_body ], [ %counter.1, %loop ]
-  %src1 = load volatile float, float addrspace(1)* undef
+  %src1 = load volatile float, ptr addrspace(1) undef
   %out = fadd float %src0, %src1
   %out.0 = call float @llvm.amdgcn.strict.wqm.f32(float %out)
   %counter.1 = sub i32 %counter, 1
@@ -1176,7 +1176,7 @@ define amdgpu_ps void @test_set_inactive2(i32 inreg %idx0, i32 inreg %idx1) {
 ; GFX9-W64-NEXT:    s_nop 0
 ; GFX9-W64-NEXT:    buffer_load_dword v2, v2, s[0:3], 0 idxen
 ; GFX9-W64-NEXT:    ; kill: def $vgpr1 killed $vgpr1 def $scc killed $exec
-; GFX9-W64-NEXT:    ; kill: def $vgpr2 killed $vgpr2 killed $exec killed $exec
+; GFX9-W64-NEXT:    ; kill: def $vgpr2 killed $vgpr2 killed $exec
 ; GFX9-W64-NEXT:    s_and_b64 exec, exec, s[2:3]
 ; GFX9-W64-NEXT:    s_waitcnt vmcnt(0)
 ; GFX9-W64-NEXT:    v_add_u32_e32 v1, v2, v1
@@ -1193,7 +1193,7 @@ define amdgpu_ps void @test_set_inactive2(i32 inreg %idx0, i32 inreg %idx1) {
 ; GFX10-W32-NEXT:    buffer_load_dword v2, v0, s[0:3], 0 idxen
 ; GFX10-W32-NEXT:    buffer_load_dword v1, v1, s[0:3], 0 idxen
 ; GFX10-W32-NEXT:    ; kill: def $vgpr2 killed $vgpr2 def $scc killed $exec
-; GFX10-W32-NEXT:    ; kill: def $vgpr1 killed $vgpr1 killed $exec killed $exec
+; GFX10-W32-NEXT:    ; kill: def $vgpr1 killed $vgpr1 killed $exec
 ; GFX10-W32-NEXT:    s_and_b32 exec_lo, exec_lo, s2
 ; GFX10-W32-NEXT:    s_waitcnt vmcnt(0)
 ; GFX10-W32-NEXT:    v_add_nc_u32_e32 v1, v1, v2
@@ -1623,7 +1623,7 @@ END:
 }
 
 ; Kill is performed in WQM mode so that uniform kill behaves correctly ...
-define amdgpu_ps <4 x float> @test_kill_0(<8 x i32> inreg %rsrc, <4 x i32> inreg %sampler, float addrspace(1)* inreg %ptr, <2 x i32> %idx, <2 x float> %data, float %coord, float %coord2, float %z) {
+define amdgpu_ps <4 x float> @test_kill_0(<8 x i32> inreg %rsrc, <4 x i32> inreg %sampler, ptr addrspace(1) inreg %ptr, <2 x i32> %idx, <2 x float> %data, float %coord, float %coord2, float %z) {
 ; GFX9-W64-LABEL: test_kill_0:
 ; GFX9-W64:       ; %bb.0: ; %main_body
 ; GFX9-W64-NEXT:    s_mov_b64 s[12:13], exec
@@ -2003,13 +2003,12 @@ entry:
 
   call void @llvm.amdgcn.raw.buffer.store.f32(float %data, <4 x i32> undef, i32 0, i32 0, i32 0)
 
-  %s.gep = getelementptr [32 x i32], [32 x i32] addrspace(5)* %array, i32 0, i32 0
-  store volatile i32 %a, i32 addrspace(5)* %s.gep, align 4
+  store volatile i32 %a, ptr addrspace(5) %array, align 4
 
   call void @llvm.amdgcn.struct.buffer.store.f32(float %data, <4 x i32> undef, i32 1, i32 0, i32 0, i32 0)
 
-  %c.gep = getelementptr [32 x i32], [32 x i32] addrspace(5)* %array, i32 0, i32 %idx
-  %c = load i32, i32 addrspace(5)* %c.gep, align 4
+  %c.gep = getelementptr [32 x i32], ptr addrspace(5) %array, i32 0, i32 %idx
+  %c = load i32, ptr addrspace(5) %c.gep, align 4
   %c.bc = bitcast i32 %c to float
   %t = call <4 x float> @llvm.amdgcn.image.sample.1d.v4f32.f32(i32 15, float %c.bc, <8 x i32> undef, <4 x i32> undef, i1 false, i32 0, i32 0) #0
   call void @llvm.amdgcn.raw.buffer.store.v4f32(<4 x float> %t, <4 x i32> undef, i32 0, i32 0, i32 0)
@@ -2103,7 +2102,7 @@ entry:
   br i1 %cc, label %if, label %else
 
 if:
-  store volatile <4 x float> %dtex, <4 x float> addrspace(1)* undef
+  store volatile <4 x float> %dtex, ptr addrspace(1) undef
   unreachable
 
 else:
@@ -2500,7 +2499,7 @@ define amdgpu_ps float @test_strict_wwm5(i32 inreg %idx0, i32 inreg %idx1) {
 ; GFX9-W64-NEXT:    s_wqm_b64 exec, exec
 ; GFX9-W64-NEXT:    v_mov_b32_e32 v0, v1
 ; GFX9-W64-NEXT:    v_add_f32_e32 v0, v0, v0
-; GFX9-W64-NEXT:    ; kill: def $vgpr0 killed $vgpr0 killed $exec killed $exec
+; GFX9-W64-NEXT:    ; kill: def $vgpr0 killed $vgpr0 killed $exec
 ; GFX9-W64-NEXT:    s_and_b64 exec, exec, s[2:3]
 ; GFX9-W64-NEXT:    ; return to shader part epilog
 ;
@@ -2522,7 +2521,7 @@ define amdgpu_ps float @test_strict_wwm5(i32 inreg %idx0, i32 inreg %idx1) {
 ; GFX10-W32-NEXT:    s_wqm_b32 exec_lo, exec_lo
 ; GFX10-W32-NEXT:    v_mov_b32_e32 v0, v1
 ; GFX10-W32-NEXT:    v_add_f32_e32 v0, v0, v0
-; GFX10-W32-NEXT:    ; kill: def $vgpr0 killed $vgpr0 killed $exec killed $exec
+; GFX10-W32-NEXT:    ; kill: def $vgpr0 killed $vgpr0 killed $exec
 ; GFX10-W32-NEXT:    s_and_b32 exec_lo, exec_lo, s2
 ; GFX10-W32-NEXT:    s_waitcnt_vscnt null, 0x0
 ; GFX10-W32-NEXT:    ; return to shader part epilog
@@ -2590,7 +2589,7 @@ define amdgpu_ps float @test_strict_wwm6_then() {
 ; GFX10-W32-NEXT:    s_or_b32 exec_lo, exec_lo, s0
 ; GFX10-W32-NEXT:    ; return to shader part epilog
 main_body:
-  %src0 = load volatile float, float addrspace(1)* undef
+  %src0 = load volatile float, ptr addrspace(1) undef
   ; use mbcnt to make sure the branch is divergent
   %lo = call i32 @llvm.amdgcn.mbcnt.lo(i32 -1, i32 0)
   %hi = call i32 @llvm.amdgcn.mbcnt.hi(i32 -1, i32 %lo)
@@ -2598,7 +2597,7 @@ main_body:
   br i1 %cc, label %endif, label %if
 
 if:
-  %src1 = load volatile float, float addrspace(1)* undef
+  %src1 = load volatile float, ptr addrspace(1) undef
   %out = fadd float %src0, %src1
   %out.0 = call float @llvm.amdgcn.strict.wwm.f32(float %out)
   br label %endif
@@ -2667,7 +2666,7 @@ define amdgpu_ps float @test_strict_wwm6_loop() {
 ; GFX10-W32-NEXT:    s_or_b32 exec_lo, exec_lo, s0
 ; GFX10-W32-NEXT:    ; return to shader part epilog
 main_body:
-  %src0 = load volatile float, float addrspace(1)* undef
+  %src0 = load volatile float, ptr addrspace(1) undef
   ; use mbcnt to make sure the branch is divergent
   %lo = call i32 @llvm.amdgcn.mbcnt.lo(i32 -1, i32 0)
   %hi = call i32 @llvm.amdgcn.mbcnt.hi(i32 -1, i32 %lo)
@@ -2675,7 +2674,7 @@ main_body:
 
 loop:
   %counter = phi i32 [ %hi, %main_body ], [ %counter.1, %loop ]
-  %src1 = load volatile float, float addrspace(1)* undef
+  %src1 = load volatile float, ptr addrspace(1) undef
   %out = fadd float %src0, %src1
   %out.0 = call float @llvm.amdgcn.strict.wwm.f32(float %out)
   %counter.1 = sub i32 %counter, 1
@@ -2820,24 +2819,18 @@ define amdgpu_ps float @test_strict_wqm_within_wqm(<8 x i32> inreg %rsrc, <4 x i
 ; GFX9-W64:       ; %bb.0: ; %main_body
 ; GFX9-W64-NEXT:    s_mov_b64 s[12:13], exec
 ; GFX9-W64-NEXT:    s_wqm_b64 exec, exec
-; GFX9-W64-NEXT:    s_mov_b64 s[14:15], exec
-; GFX9-W64-NEXT:    s_wqm_b64 exec, exec
 ; GFX9-W64-NEXT:    v_mov_b32_e32 v2, v0
-; GFX9-W64-NEXT:    s_mov_b64 exec, s[14:15]
 ; GFX9-W64-NEXT:    v_cmp_eq_u32_e32 vcc, 0, v1
 ; GFX9-W64-NEXT:    v_mov_b32_e32 v0, 0
 ; GFX9-W64-NEXT:    s_and_saveexec_b64 s[14:15], vcc
 ; GFX9-W64-NEXT:    s_cbranch_execz .LBB46_2
 ; GFX9-W64-NEXT:  ; %bb.1: ; %IF
-; GFX9-W64-NEXT:    s_mov_b64 s[16:17], exec
-; GFX9-W64-NEXT:    s_wqm_b64 exec, exec
 ; GFX9-W64-NEXT:    image_sample v2, v2, s[0:7], s[8:11] dmask:0x1
 ; GFX9-W64-NEXT:    s_waitcnt vmcnt(0)
 ; GFX9-W64-NEXT:    image_sample v2, v2, s[0:7], s[8:11] dmask:0x1
 ; GFX9-W64-NEXT:    s_waitcnt vmcnt(0)
 ; GFX9-W64-NEXT:    v_cvt_i32_f32_e32 v2, v2
 ; GFX9-W64-NEXT:    ds_swizzle_b32 v2, v2 offset:swizzle(SWAP,2)
-; GFX9-W64-NEXT:    s_mov_b64 exec, s[16:17]
 ; GFX9-W64-NEXT:    s_waitcnt lgkmcnt(0)
 ; GFX9-W64-NEXT:    v_mov_b32_e32 v0, v2
 ; GFX9-W64-NEXT:    v_cvt_f32_i32_e32 v0, v0
@@ -2850,24 +2843,18 @@ define amdgpu_ps float @test_strict_wqm_within_wqm(<8 x i32> inreg %rsrc, <4 x i
 ; GFX10-W32:       ; %bb.0: ; %main_body
 ; GFX10-W32-NEXT:    s_mov_b32 s12, exec_lo
 ; GFX10-W32-NEXT:    s_wqm_b32 exec_lo, exec_lo
-; GFX10-W32-NEXT:    s_mov_b32 s13, exec_lo
-; GFX10-W32-NEXT:    s_wqm_b32 exec_lo, exec_lo
 ; GFX10-W32-NEXT:    v_mov_b32_e32 v2, v0
-; GFX10-W32-NEXT:    s_mov_b32 exec_lo, s13
 ; GFX10-W32-NEXT:    v_mov_b32_e32 v0, 0
 ; GFX10-W32-NEXT:    s_mov_b32 s13, exec_lo
 ; GFX10-W32-NEXT:    v_cmpx_eq_u32_e32 0, v1
 ; GFX10-W32-NEXT:    s_cbranch_execz .LBB46_2
 ; GFX10-W32-NEXT:  ; %bb.1: ; %IF
-; GFX10-W32-NEXT:    s_mov_b32 s14, exec_lo
-; GFX10-W32-NEXT:    s_wqm_b32 exec_lo, exec_lo
 ; GFX10-W32-NEXT:    image_sample v2, v2, s[0:7], s[8:11] dmask:0x1 dim:SQ_RSRC_IMG_1D
 ; GFX10-W32-NEXT:    s_waitcnt vmcnt(0)
 ; GFX10-W32-NEXT:    image_sample v2, v2, s[0:7], s[8:11] dmask:0x1 dim:SQ_RSRC_IMG_1D
 ; GFX10-W32-NEXT:    s_waitcnt vmcnt(0)
 ; GFX10-W32-NEXT:    v_cvt_i32_f32_e32 v2, v2
 ; GFX10-W32-NEXT:    ds_swizzle_b32 v2, v2 offset:swizzle(SWAP,2)
-; GFX10-W32-NEXT:    s_mov_b32 exec_lo, s14
 ; GFX10-W32-NEXT:    s_waitcnt lgkmcnt(0)
 ; GFX10-W32-NEXT:    v_mov_b32_e32 v0, v2
 ; GFX10-W32-NEXT:    v_cvt_f32_i32_e32 v0, v0
@@ -3150,10 +3137,8 @@ define amdgpu_ps float @test_wqm_strict_wqm_wqm(i32 inreg %idx0, i32 inreg %idx1
 ; GFX9-W64-NEXT:    s_wqm_b64 exec, exec
 ; GFX9-W64-NEXT:    v_mov_b32_e32 v0, s1
 ; GFX9-W64-NEXT:    buffer_load_dword v0, v0, s[16:19], 0 idxen
-; GFX9-W64-NEXT:    s_mov_b64 s[0:1], exec
-; GFX9-W64-NEXT:    s_wqm_b64 exec, exec
+; GFX9-W64-NEXT:    s_nop 0
 ; GFX9-W64-NEXT:    buffer_load_dword v2, v1, s[16:19], 0 idxen
-; GFX9-W64-NEXT:    s_mov_b64 exec, s[0:1]
 ; GFX9-W64-NEXT:    s_waitcnt vmcnt(1)
 ; GFX9-W64-NEXT:    v_add_f32_e32 v0, v0, v0
 ; GFX9-W64-NEXT:    image_sample v0, v0, s[8:15], s[16:19] dmask:0x1
@@ -3194,11 +3179,9 @@ define amdgpu_ps float @test_wqm_strict_wqm_wqm(i32 inreg %idx0, i32 inreg %idx1
 ; GFX10-W32-NEXT:    s_and_b32 exec_lo, exec_lo, s20
 ; GFX10-W32-NEXT:    buffer_store_dword v0, v1, s[16:19], 0 idxen
 ; GFX10-W32-NEXT:    s_wqm_b32 exec_lo, exec_lo
+; GFX10-W32-NEXT:    s_clause 0x1
 ; GFX10-W32-NEXT:    buffer_load_dword v0, v3, s[16:19], 0 idxen
-; GFX10-W32-NEXT:    s_mov_b32 s0, exec_lo
-; GFX10-W32-NEXT:    s_wqm_b32 exec_lo, exec_lo
 ; GFX10-W32-NEXT:    buffer_load_dword v2, v1, s[16:19], 0 idxen
-; GFX10-W32-NEXT:    s_mov_b32 exec_lo, s0
 ; GFX10-W32-NEXT:    s_waitcnt vmcnt(1)
 ; GFX10-W32-NEXT:    v_add_f32_e32 v0, v0, v0
 ; GFX10-W32-NEXT:    s_waitcnt vmcnt(0)
@@ -3232,7 +3215,7 @@ main_body:
 
 ; Check if the correct VCC register is selected. WQM pass incorrectly uses VCC for
 ; vector comparisons in Wave32 mode.
-define amdgpu_ps void @test_for_deactivating_lanes_in_wave32(float addrspace(6)* inreg %0) {
+define amdgpu_ps void @test_for_deactivating_lanes_in_wave32(ptr addrspace(6) inreg %0) {
 ; GFX9-W64-LABEL: test_for_deactivating_lanes_in_wave32:
 ; GFX9-W64:       ; %bb.0: ; %main_body
 ; GFX9-W64-NEXT:    s_mov_b32 s3, 0x31016fac
@@ -3265,7 +3248,7 @@ define amdgpu_ps void @test_for_deactivating_lanes_in_wave32(float addrspace(6)*
 ; GFX10-W32-NEXT:    exp null off, off, off, off done vm
 ; GFX10-W32-NEXT:    s_endpgm
 main_body:
-  %1 = ptrtoint float addrspace(6)* %0 to i32
+  %1 = ptrtoint ptr addrspace(6) %0 to i32
   %2 = insertelement <4 x i32> <i32 poison, i32 32768, i32 32, i32 822177708>, i32 %1, i32 0
   %3 = call nsz arcp float @llvm.amdgcn.s.buffer.load.f32(<4 x i32> %2, i32 0, i32 0) #3
   %4 = fcmp nsz arcp ugt float %3, 0.000000e+00

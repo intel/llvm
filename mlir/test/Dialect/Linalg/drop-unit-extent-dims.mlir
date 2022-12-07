@@ -1,4 +1,4 @@
-// RUN: mlir-opt %s -split-input-file -pass-pipeline="func.func(linalg-fold-unit-extent-dims)" | FileCheck %s
+// RUN: mlir-opt %s -split-input-file -pass-pipeline="builtin.module(func.func(linalg-fold-unit-extent-dims))" | FileCheck %s
 
 #accesses = [
   affine_map<(i, j, k, l, m) -> (i, k, m)>,
@@ -384,11 +384,12 @@ func.func @unit_dim_for_both_reduction(%arg0: tensor<1x?x1x1xf32>) -> tensor<1x1
 //  CHECK-DAG:   %[[RESHAPE:.+]] = tensor.collapse_shape %[[ARG0]] {{\[}}[0, 1, 2, 3]
 //      CHECK:   %[[INIT:.+]] = tensor.empty() : tensor<1xf32>
 //      CHECK:   %[[FILL:.+]] = linalg.fill ins(%{{.+}}{{.*}}outs(%[[INIT]]
+//      CHECK:   %[[INIT2:.+]] = tensor.empty() : tensor<1xf32>
 //      CHECK:   %[[RESULT:.+]] = linalg.generic
-// CHECK-SAME:     indexing_maps = [#[[MAP2]], #[[MAP2]]]
+// CHECK-SAME:     indexing_maps = [#[[MAP2]], #[[MAP2]], #[[MAP2]]]
 // CHECK-SAME:     iterator_types = ["parallel"]
-// CHECK-SAME:     ins(%[[RESHAPE]] : tensor<?xf32>)
-// CHECK-SAME:     outs(%[[FILL]] : tensor<1xf32>)
+// CHECK-SAME:     ins(%[[RESHAPE]], %[[FILL]] : tensor<?xf32>, tensor<1xf32>)
+// CHECK-SAME:     outs(%[[INIT2]] : tensor<1xf32>)
 //      CHECK:   %[[RESULT_RESHAPE:.+]] = tensor.expand_shape %[[RESULT]] {{\[}}[0, 1]]
 //      CHECK:   return %[[RESULT_RESHAPE]]
 
@@ -775,9 +776,9 @@ func.func @input_stays_same(%arg0 : memref<?x1x?xf32, strided<[?, 1, 1]>>, %arg1
   return %shape : memref<?x1x?x1x?xf32>
 }
 
-// CHECK:     #[[MAP1:.*]] = affine_map<(d0, d1, d2) -> (d0, 0, d2)>
-// CHECK:     #[[MAP2:.*]] = affine_map<(d0, d1, d2) -> ()>
-// CHECK:     #[[MAP3:.*]] = affine_map<(d0, d1, d2) -> (d0, d1, d2)>
+// CHECK-DAG:     #[[MAP1:.*]] = affine_map<(d0, d1, d2) -> (d0, 0, d2)>
+// CHECK-DAG:     #[[MAP2:.*]] = affine_map<(d0, d1, d2) -> ()>
+// CHECK-DAG:     #[[MAP3:.*]] = affine_map<(d0, d1, d2) -> (d0, d1, d2)>
 // CHECK:     func @input_stays_same(
 // CHECK-SAME:  %[[ARG0:.*]]: memref<?x1x?xf32, strided<[?, 1, 1]>>,
 // CHECK-SAME:  %[[ARG1:.*]]: f32, %[[ARG2:.*]]: memref<?x1x?x1x?xf32>)
@@ -867,6 +868,6 @@ func.func @drop_all_loops(%arg0 : memref<1x1xf32, 3>) -> memref<1x1xf32, 3>
 }
 
 // CHECK-LABEL: func @drop_all_loops
-//       CHECK:   memref.collapse_shape 
+//       CHECK:   memref.collapse_shape
 //  CHECK-SAME:     [] : memref<1x1xf32, 3> into memref<f32, 3>
 //       CHECK:   linalg.generic{{.*}}memref<f32, 3>

@@ -31,7 +31,7 @@
 using namespace mlir::sparse_tensor;
 
 /// Opens the file for reading.
-void SparseTensorFile::openFile() {
+void SparseTensorReader::openFile() {
   if (file)
     MLIR_SPARSETENSOR_FATAL("Already opened file %s\n", filename);
   file = fopen(filename, "r");
@@ -40,29 +40,34 @@ void SparseTensorFile::openFile() {
 }
 
 /// Closes the file.
-void SparseTensorFile::closeFile() {
+void SparseTensorReader::closeFile() {
   if (file) {
     fclose(file);
     file = nullptr;
   }
 }
 
-// TODO(wrengr/bixia): figure out how to reorganize the element-parsing
-// loop of `openSparseTensorCOO` into methods of this class, so we can
-// avoid leaking access to the `line` pointer (both for general hygiene
-// and because we can't mark it const due to the second argument of
-// `strtoul`/`strtoud` being `char * *restrict` rather than
-// `char const* *restrict`).
-//
 /// Attempts to read a line from the file.
-char *SparseTensorFile::readLine() {
-  if (fgets(line, kColWidth, file))
-    return line;
-  MLIR_SPARSETENSOR_FATAL("Cannot read next line of %s\n", filename);
+void SparseTensorReader::readLine() {
+  if (!fgets(line, kColWidth, file))
+    MLIR_SPARSETENSOR_FATAL("Cannot read next line of %s\n", filename);
+}
+
+char *SparseTensorReader::readCOOIndices(uint64_t *indices) {
+  readLine();
+  // Local variable for tracking the parser's position in the `line` buffer.
+  char *linePtr = line;
+  for (uint64_t rank = getRank(), r = 0; r < rank; ++r) {
+    // Parse the 1-based index.
+    uint64_t idx = strtoul(linePtr, &linePtr, 10);
+    // Store the 0-based index.
+    indices[r] = idx - 1;
+  }
+  return linePtr;
 }
 
 /// Reads and parses the file's header.
-void SparseTensorFile::readHeader() {
+void SparseTensorReader::readHeader() {
   assert(file && "Attempt to readHeader() before openFile()");
   if (strstr(filename, ".mtx"))
     readMMEHeader();
@@ -75,15 +80,15 @@ void SparseTensorFile::readHeader() {
 
 /// Asserts the shape subsumes the actual dimension sizes.  Is only
 /// valid after parsing the header.
-void SparseTensorFile::assertMatchesShape(uint64_t rank,
-                                          const uint64_t *shape) const {
+void SparseTensorReader::assertMatchesShape(uint64_t rank,
+                                            const uint64_t *shape) const {
   assert(rank == getRank() && "Rank mismatch");
   for (uint64_t r = 0; r < rank; ++r)
     assert((shape[r] == 0 || shape[r] == idata[2 + r]) &&
            "Dimension size mismatch");
 }
 
-bool SparseTensorFile::canReadAs(PrimaryType valTy) const {
+bool SparseTensorReader::canReadAs(PrimaryType valTy) const {
   switch (valueKind_) {
   case ValueKind::kInvalid:
     assert(false && "Must readHeader() before calling canReadAs()");
@@ -108,6 +113,8 @@ bool SparseTensorFile::canReadAs(PrimaryType valTy) const {
     // integer and floating primary-types.
     return isRealPrimaryType(valTy);
   }
+  MLIR_SPARSETENSOR_FATAL("Unknown ValueKind: %d\n",
+                          static_cast<uint8_t>(valueKind_));
 }
 
 /// Helper to convert C-style strings (i.e., '\0' terminated) to lower case.
@@ -127,7 +134,7 @@ static inline bool strne(const char *lhs, const char *rhs) {
 }
 
 /// Read the MME header of a general sparse matrix of type real.
-void SparseTensorFile::readMMEHeader() {
+void SparseTensorReader::readMMEHeader() {
   char header[64];
   char object[64];
   char format[64];
@@ -179,7 +186,7 @@ void SparseTensorFile::readMMEHeader() {
 /// format, we assume that the file starts with optional comments followed
 /// by two lines that define the rank, the number of nonzeros, and the
 /// dimensions sizes (one per rank) of the sparse tensor.
-void SparseTensorFile::readExtFROSTTHeader() {
+void SparseTensorReader::readExtFROSTTHeader() {
   // Skip comments.
   while (true) {
     readLine();

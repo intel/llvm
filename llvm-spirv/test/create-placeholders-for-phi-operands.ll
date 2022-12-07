@@ -30,8 +30,8 @@ BB.0:
   %or.cond = select i1 %cmp41, i1 true, i1 %cmp42.not104
   br i1 %or.cond, label %BB.2, label %BB.3
 
-BB.1:                                             ; preds = %BB.12, %BB.7
-  %savedstack.sink = phi i8* [ %savedstack, %BB.12 ], [ %savedstack.us, %BB.7 ]
+BB.1:                                             ; preds = %BB.12.loopexit, %BB.11.loopexit
+  %savedstack.sink = phi i8* [ %savedstack, %BB.12.loopexit ], [ %savedstack.us, %BB.11.loopexit ]
   call void @llvm.stackrestore(i8* %savedstack.sink), !llvm.access.group !9
   br label %BB.2
 
@@ -64,7 +64,10 @@ BB.6:                                             ; preds = %BB.4
 BB.7:                                             ; preds = %BB.8
   %indvars.iv.next27 = add nuw nsw i64 %indvars.iv26, 1
   %exitcond29.not = icmp eq i64 %indvars.iv.next27, %7
-  br i1 %exitcond29.not, label %BB.1, label %BB.11, !llvm.loop !11
+  br i1 %exitcond29.not, label %BB.11.loopexit, label %BB.11, !llvm.loop !11
+
+BB.11.loopexit:
+  br label %BB.1
 
 BB.8:                                             ; preds = %BB.11, %BB.8
   %indvars.iv22 = phi i64 [ 0, %BB.11 ], [ %indvars.iv.next23, %BB.8 ]
@@ -96,7 +99,10 @@ BB.12:                                            ; preds = %BB.12, %BB.5
   %indvars.iv33 = phi i64 [ 0, %BB.5 ], [ %indvars.iv.next34, %BB.12 ]
   %indvars.iv.next34 = add nuw nsw i64 %indvars.iv33, 1
   %exitcond35.not = icmp eq i64 %indvars.iv.next34, 624
-  br i1 %exitcond35.not, label %BB.1, label %BB.12, !llvm.loop !11
+  br i1 %exitcond35.not, label %BB.12.loopexit, label %BB.12, !llvm.loop !11
+
+BB.12.loopexit:
+  br label %BB.1
 }
 
 declare spir_func i64 @_Z13get_global_idj(i32) local_unnamed_addr

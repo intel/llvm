@@ -70,7 +70,7 @@ static void collectUnderlyingAddressValues(RegionBranchOpInterface branch,
       }
       return inputIndex - firstInputIndex;
     }
-    return llvm::None;
+    return std::nullopt;
   };
 
   // Check branches from the parent operation.
@@ -80,7 +80,7 @@ static void collectUnderlyingAddressValues(RegionBranchOpInterface branch,
     regionIndex = region->getRegionNumber();
   }
   if (Optional<unsigned> operandIndex =
-          getOperandIndexIfPred(/*predIndex=*/llvm::None)) {
+          getOperandIndexIfPred(/*predIndex=*/std::nullopt)) {
     collectUnderlyingAddressValues(
         branch.getSuccessorEntryOperands(regionIndex)[*operandIndex], maxDepth,
         visited, output);
@@ -348,7 +348,7 @@ AliasResult LocalAliasAnalysis::alias(Value lhs, Value rhs) {
 
 ModRefResult LocalAliasAnalysis::getModRef(Operation *op, Value location) {
   // Check to see if this operation relies on nested side effects.
-  if (op->hasTrait<OpTrait::HasRecursiveSideEffects>()) {
+  if (op->hasTrait<OpTrait::HasRecursiveMemoryEffects>()) {
     // TODO: To check recursive operations we need to check all of the nested
     // operations, which can result in a quadratic number of queries. We should
     // introduce some caching of some kind to help alleviate this, especially as

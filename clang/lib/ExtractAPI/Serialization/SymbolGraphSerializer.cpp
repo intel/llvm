@@ -14,6 +14,7 @@
 #include "clang/ExtractAPI/Serialization/SymbolGraphSerializer.h"
 #include "clang/Basic/Version.h"
 #include "clang/ExtractAPI/API.h"
+#include "clang/ExtractAPI/APIIgnoresList.h"
 #include "clang/ExtractAPI/DeclarationFragments.h"
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/Path.h"
@@ -59,7 +60,7 @@ void serializeArray(Object &Paren, StringRef Key, Optional<Array> Array) {
 /// the semantic version representation of \p V.
 Optional<Object> serializeSemanticVersion(const VersionTuple &V) {
   if (V.empty())
-    return None;
+    return std::nullopt;
 
   Object Version;
   Version["major"] = V.getMajor();
@@ -145,7 +146,7 @@ Object serializeSourceRange(const PresumedLoc &BeginLoc,
 /// an \c Array containing the formatted availability information.
 Optional<Array> serializeAvailability(const AvailabilitySet &Availabilities) {
   if (Availabilities.isDefault())
-    return None;
+    return std::nullopt;
 
   Array AvailabilityArray;
 
@@ -231,7 +232,7 @@ Object serializeIdentifier(const APIRecord &Record, Language Lang) {
 /// formatted lines.
 Optional<Object> serializeDocComment(const DocComment &Comment) {
   if (Comment.empty())
-    return None;
+    return std::nullopt;
 
   Object DocComment;
   Array LinesArray;
@@ -283,7 +284,7 @@ Optional<Object> serializeDocComment(const DocComment &Comment) {
 /// declaration fragments array.
 Optional<Array> serializeDeclarationFragments(const DeclarationFragments &DF) {
   if (DF.getFragments().empty())
-    return None;
+    return std::nullopt;
 
   Array Fragments;
   for (const auto &F : DF.getFragments()) {
@@ -411,7 +412,7 @@ Optional<Object> serializeFunctionSignatureMixinImpl(const RecordTy &Record,
                                                      std::true_type) {
   const auto &FS = Record.Signature;
   if (FS.empty())
-    return None;
+    return std::nullopt;
 
   Object Signature;
   serializeArray(Signature, "returns",
@@ -435,7 +436,7 @@ Optional<Object> serializeFunctionSignatureMixinImpl(const RecordTy &Record,
 template <typename RecordTy>
 Optional<Object> serializeFunctionSignatureMixinImpl(const RecordTy &Record,
                                                      std::false_type) {
-  return None;
+  return std::nullopt;
 }
 
 /// Serialize the function signature field, as specified by the
@@ -480,6 +481,10 @@ Object SymbolGraphSerializer::serializeModule() const {
 }
 
 bool SymbolGraphSerializer::shouldSkip(const APIRecord &Record) const {
+  // Skip explicitly ignored symbols.
+  if (IgnoresList.shouldIgnore(Record.Name))
+    return true;
+
   // Skip unconditionally unavailable symbols
   if (Record.Availabilities.isUnconditionallyUnavailable())
     return true;
@@ -496,7 +501,7 @@ template <typename RecordTy>
 Optional<Object>
 SymbolGraphSerializer::serializeAPIRecord(const RecordTy &Record) const {
   if (shouldSkip(Record))
-    return None;
+    return std::nullopt;
 
   Object Obj;
   serializeObject(Obj, "identifier",
@@ -554,6 +559,7 @@ void SymbolGraphSerializer::serializeRelationship(RelationshipKind Kind,
   Object Relationship;
   Relationship["source"] = Source.USR;
   Relationship["target"] = Target.USR;
+  Relationship["targetFallback"] = Target.Name;
   Relationship["kind"] = getRelationshipString(Kind);
 
   Relationships.emplace_back(std::move(Relationship));
@@ -632,7 +638,7 @@ void SymbolGraphSerializer::serializeObjCContainerRecord(
       serializeMembers(Record, Category->Methods);
       serializeMembers(Record, Category->Properties);
 
-      // Surface the protocols of the the category to the interface.
+      // Surface the protocols of the category to the interface.
       for (const auto &Protocol : Category->Protocols)
         serializeRelationship(RelationshipKind::ConformsTo, Record, Protocol);
     }

@@ -1,19 +1,24 @@
-// RUN: mlir-opt %s --sparse-compiler | \
-// RUN: TENSOR0="%mlir_src_dir/test/Integration/data/wide.mtx" \
-// RUN: mlir-cpu-runner \
-// RUN:  -e entry -entry-point-result=void  \
-// RUN:  -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
-// RUN: FileCheck %s
+// DEFINE: %{option} = enable-runtime-library=true
+// DEFINE: %{command} = mlir-opt %s --sparse-compiler=%{option} | \
+// DEFINE: TENSOR0="%mlir_src_dir/test/Integration/data/wide.mtx" \
+// DEFINE: mlir-cpu-runner \
+// DEFINE:  -e entry -entry-point-result=void  \
+// DEFINE:  -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
+// DEFINE: FileCheck %s
 //
-// Do the same run, but now with SIMDization as well. This should not change the outcome.
+// RUN: %{command}
 //
-// RUN: mlir-opt %s \
-// RUN:   --sparse-compiler="vectorization-strategy=any-storage-inner-loop vl=16 enable-simd-index32" | \
-// RUN: TENSOR0="%mlir_src_dir/test/Integration/data/wide.mtx" \
-// RUN: mlir-cpu-runner \
-// RUN:  -e entry -entry-point-result=void  \
-// RUN:  -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
-// RUN: FileCheck %s
+// Do the same run, but now with direct IR generation.
+// REDEFINE: %{option} = enable-runtime-library=false
+// RUN: %{command}
+//
+// Do the same run, but now with parallelization strategy.
+// REDEFINE: %{option} = "enable-runtime-library=true parallelization-strategy=any-storage-any-loop"
+// RUN: %{command}
+//
+// Do the same run, but now with direct IR generation and parallelization strategy.
+// REDEFINE: %{option} = "enable-runtime-library=false parallelization-strategy=any-storage-any-loop"
+// RUN: %{command}
 
 !Filename = !llvm.ptr<i8>
 
@@ -100,10 +105,6 @@ module {
 
     // Release the resources.
     bufferization.dealloc_tensor %a : tensor<?x?xi32, #SparseMatrix>
-
-    // TODO(springerm): auto release!
-    bufferization.dealloc_tensor %b : tensor<?xi32>
-    bufferization.dealloc_tensor %x : tensor<?xi32>
 
     return
   }

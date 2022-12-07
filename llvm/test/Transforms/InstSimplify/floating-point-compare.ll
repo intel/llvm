@@ -185,6 +185,8 @@ declare <2 x float> @llvm.maxnum.v2f32(<2 x float>, <2 x float>)
 declare float @llvm.maximum.f32(float, float)
 declare double @llvm.exp2.f64(double)
 declare float @llvm.fma.f32(float,float,float)
+declare double @llvm.canonicalize.f64(double)
+declare double @llvm.copysign.f64(double, double)
 
 declare void @expect_equal(i1,i1)
 
@@ -999,14 +1001,9 @@ define <2 x i1> @known_positive_une_with_negative_constant_splat_vec(<2 x i32> %
   ret <2 x i1> %cmp
 }
 
-; TODO: This could fold to true.
 define i1 @pr58046(i64 %arg) {
 ; CHECK-LABEL: @pr58046(
-; CHECK-NEXT:    [[FP:%.*]] = uitofp i64 [[ARG:%.*]] to double
-; CHECK-NEXT:    [[MUL:%.*]] = fmul double -0.000000e+00, [[FP]]
-; CHECK-NEXT:    [[DIV:%.*]] = fdiv double 1.000000e+00, [[MUL]]
-; CHECK-NEXT:    [[CMP:%.*]] = fcmp oeq double [[DIV]], 0xFFF0000000000000
-; CHECK-NEXT:    ret i1 [[CMP]]
+; CHECK-NEXT:    ret i1 true
 ;
   %fp = uitofp i64 %arg to double
   %mul = fmul double -0.000000e+00, %fp
@@ -1264,5 +1261,89 @@ define i1 @isKnownNeverInfinity_fpext_sitofp(i16 %x) {
   %f = sitofp i16 %x to half
   %e = fpext half %f to double
   %r = fcmp oeq double %e, 0xfff0000000000000
+  ret i1 %r
+}
+
+define i1 @isKnownNeverInfinity_canonicalize(double %x) {
+; CHECK-LABEL: @isKnownNeverInfinity_canonicalize(
+; CHECK-NEXT:    ret i1 true
+;
+  %a = fadd ninf double %x, 1.0
+  %e = call double @llvm.canonicalize.f64(double %a)
+  %r = fcmp une double %e, 0x7ff0000000000000
+  ret i1 %r
+}
+
+define i1 @isNotKnownNeverInfinity_canonicalize(double %x) {
+; CHECK-LABEL: @isNotKnownNeverInfinity_canonicalize(
+; CHECK-NEXT:    [[E:%.*]] = call double @llvm.canonicalize.f64(double [[X:%.*]])
+; CHECK-NEXT:    [[R:%.*]] = fcmp une double [[E]], 0x7FF0000000000000
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %e = call double @llvm.canonicalize.f64(double %x)
+  %r = fcmp une double %e, 0x7ff0000000000000
+  ret i1 %r
+}
+
+define i1 @isKnownNeverInfinity_fabs(double %x) {
+; CHECK-LABEL: @isKnownNeverInfinity_fabs(
+; CHECK-NEXT:    ret i1 true
+;
+  %a = fadd ninf double %x, 1.0
+  %e = call double @llvm.fabs.f64(double %a)
+  %r = fcmp une double %e, 0x7ff0000000000000
+  ret i1 %r
+}
+
+define i1 @isNotKnownNeverInfinity_fabs(double %x) {
+; CHECK-LABEL: @isNotKnownNeverInfinity_fabs(
+; CHECK-NEXT:    [[E:%.*]] = call double @llvm.fabs.f64(double [[X:%.*]])
+; CHECK-NEXT:    [[R:%.*]] = fcmp une double [[E]], 0x7FF0000000000000
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %e = call double @llvm.fabs.f64(double %x)
+  %r = fcmp une double %e, 0x7ff0000000000000
+  ret i1 %r
+}
+
+define i1 @isKnownNeverInfinity_fneg(double %x) {
+; CHECK-LABEL: @isKnownNeverInfinity_fneg(
+; CHECK-NEXT:    ret i1 true
+;
+  %a = fadd ninf double %x, 1.0
+  %e = fneg double %a
+  %r = fcmp une double %e, 0x7ff0000000000000
+  ret i1 %r
+}
+
+define i1 @isNotKnownNeverInfinity_fneg(double %x) {
+; CHECK-LABEL: @isNotKnownNeverInfinity_fneg(
+; CHECK-NEXT:    [[E:%.*]] = fneg double [[X:%.*]]
+; CHECK-NEXT:    [[R:%.*]] = fcmp une double [[E]], 0x7FF0000000000000
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %e = fneg double %x
+  %r = fcmp une double %e, 0x7ff0000000000000
+  ret i1 %r
+}
+
+define i1 @isKnownNeverInfinity_copysign(double %x, double %sign) {
+; CHECK-LABEL: @isKnownNeverInfinity_copysign(
+; CHECK-NEXT:    ret i1 true
+;
+  %a = fadd ninf double %x, 1.0
+  %e = call double @llvm.copysign.f64(double %a, double %sign)
+  %r = fcmp une double %e, 0x7ff0000000000000
+  ret i1 %r
+}
+
+define i1 @isNotKnownNeverInfinity_copysign(double %x, double %sign) {
+; CHECK-LABEL: @isNotKnownNeverInfinity_copysign(
+; CHECK-NEXT:    [[E:%.*]] = call double @llvm.copysign.f64(double [[X:%.*]], double [[SIGN:%.*]])
+; CHECK-NEXT:    [[R:%.*]] = fcmp une double [[E]], 0x7FF0000000000000
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %e = call double @llvm.copysign.f64(double %x, double %sign)
+  %r = fcmp une double %e, 0x7ff0000000000000
   ret i1 %r
 }

@@ -61,15 +61,15 @@ static constexpr auto EMULATION_PLATFORM_NAME =
 static constexpr auto HARDWARE_PLATFORM_NAME =
     "Intel(R) FPGA SDK for OpenCL(TM)";
 
-int fpga_selector_v(const device &device) {
+inline int fpga_selector_v(const device &device) {
   return detail::selectDeviceByPlatform(HARDWARE_PLATFORM_NAME, device);
 }
 
-int fpga_emulator_selector_v(const device &device) {
+inline int fpga_emulator_selector_v(const device &device) {
   return detail::selectDeviceByPlatform(EMULATION_PLATFORM_NAME, device);
 }
 
-int fpga_simulator_selector_v(const device &device) {
+inline int fpga_simulator_selector_v(const device &device) {
   static bool IsFirstCall = true;
   if (IsFirstCall) {
     detail::enableFPGASimulator();

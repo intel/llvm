@@ -32,8 +32,6 @@ using namespace llvm;
 SIMachineFunctionInfo::SIMachineFunctionInfo(const MachineFunction &MF)
   : AMDGPUMachineFunction(MF),
     Mode(MF.getFunction()),
-    BufferPSV(static_cast<const AMDGPUTargetMachine &>(MF.getTarget())),
-    ImagePSV(static_cast<const AMDGPUTargetMachine &>(MF.getTarget())),
     GWSResourcePSV(static_cast<const AMDGPUTargetMachine &>(MF.getTarget())),
     PrivateSegmentBuffer(false),
     DispatchPtr(false),
@@ -106,7 +104,7 @@ SIMachineFunctionInfo::SIMachineFunctionInfo(const MachineFunction &MF)
 
     if (ST.hasGFX90AInsts() &&
         ST.getMaxNumVGPRs(F) <= AMDGPU::VGPR_32RegClass.getNumRegs() &&
-        !mayUseAGPRs(MF))
+        !mayUseAGPRs(F))
       MayNeedAGPRs = false; // We will select all MAI with VGPR operands.
   }
 
@@ -589,7 +587,7 @@ convertArgumentInfo(const AMDGPUFunctionArgInfo &ArgInfo,
   if (Any)
     return AI;
 
-  return None;
+  return std::nullopt;
 }
 
 yaml::SIMachineFunctionInfo::SIMachineFunctionInfo(
@@ -653,19 +651,19 @@ bool SIMachineFunctionInfo::initializeBaseYamlFields(
 
       Error = SMDiagnostic(*PFS.SM, SMLoc(), Buffer.getBufferIdentifier(), 1, 1,
                            SourceMgr::DK_Error, toString(FIOrErr.takeError()),
-                           "", None, None);
+                           "", std::nullopt, std::nullopt);
       SourceRange = YamlMFI.ScavengeFI->SourceRange;
       return true;
     }
     ScavengeFI = *FIOrErr;
   } else {
-    ScavengeFI = None;
+    ScavengeFI = std::nullopt;
   }
   return false;
 }
 
-bool SIMachineFunctionInfo::mayUseAGPRs(const MachineFunction &MF) const {
-  for (const BasicBlock &BB : MF.getFunction()) {
+bool SIMachineFunctionInfo::mayUseAGPRs(const Function &F) const {
+  for (const BasicBlock &BB : F) {
     for (const Instruction &I : BB) {
       const auto *CB = dyn_cast<CallBase>(&I);
       if (!CB)

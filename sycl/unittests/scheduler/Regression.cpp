@@ -57,7 +57,7 @@ static pi_result redefinedEnqueueNativeKernel(
 TEST_F(SchedulerTest, CheckArgsBlobInPiEnqueueNativeKernelIsValid) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  Mock.redefine<detail::PiApiKind::piEnqueueNativeKernel>(
+  Mock.redefineBefore<detail::PiApiKind::piEnqueueNativeKernel>(
       redefinedEnqueueNativeKernel);
 
   auto Kernel = []() { std::cout << "Blablabla"; };

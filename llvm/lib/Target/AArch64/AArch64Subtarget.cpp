@@ -65,6 +65,10 @@ ReservedRegsForRA("reserve-regs-for-regalloc", cl::desc("Reserve physical "
                   "Should only be used for testing register allocator."),
                   cl::CommaSeparated, cl::Hidden);
 
+static cl::opt<bool>
+    ForceStreamingCompatibleSVE("force-streaming-compatible-sve",
+                                cl::init(false), cl::Hidden);
+
 unsigned AArch64Subtarget::getVectorInsertExtractBaseCost() const {
   if (OverrideVectorInsertExtractBaseCost.getNumOccurrences() > 0)
     return OverrideVectorInsertExtractBaseCost;
@@ -138,7 +142,9 @@ void AArch64Subtarget::initializeProperties() {
     MaxBytesForLoopAlignment = 8;
     break;
   case CortexA710:
+  case CortexA715:
   case CortexX2:
+  case CortexX3:
     PrefFunctionLogAlignment = 4;
     VScaleForTuning = 1;
     PrefLoopLogAlignment = 5;
@@ -274,12 +280,14 @@ AArch64Subtarget::AArch64Subtarget(const Triple &TT, const std::string &CPU,
                                    const std::string &FS,
                                    const TargetMachine &TM, bool LittleEndian,
                                    unsigned MinSVEVectorSizeInBitsOverride,
-                                   unsigned MaxSVEVectorSizeInBitsOverride)
+                                   unsigned MaxSVEVectorSizeInBitsOverride,
+                                   bool StreamingSVEModeDisabled)
     : AArch64GenSubtargetInfo(TT, CPU, TuneCPU, FS),
       ReserveXRegister(AArch64::GPR64commonRegClass.getNumRegs()),
       ReserveXRegisterForRA(AArch64::GPR64commonRegClass.getNumRegs()),
       CustomCallSavedXRegs(AArch64::GPR64commonRegClass.getNumRegs()),
       IsLittle(LittleEndian),
+      StreamingSVEModeDisabled(StreamingSVEModeDisabled),
       MinSVEVectorSizeInBits(MinSVEVectorSizeInBitsOverride),
       MaxSVEVectorSizeInBits(MaxSVEVectorSizeInBitsOverride), TargetTriple(TT),
       InstrInfo(initializeSubtargetDependencies(FS, CPU, TuneCPU)),
@@ -304,10 +312,16 @@ AArch64Subtarget::AArch64Subtarget(const Triple &TT, const std::string &CPU,
   auto TRI = getRegisterInfo();
   StringSet<> ReservedRegNames;
   ReservedRegNames.insert(ReservedRegsForRA.begin(), ReservedRegsForRA.end());
-  for (unsigned i = 0; i < 31; ++i) {
+  for (unsigned i = 0; i < 29; ++i) {
     if (ReservedRegNames.count(TRI->getName(AArch64::X0 + i)))
       ReserveXRegisterForRA.set(i);
   }
+  // X30 is named LR, so we can't use TRI->getName to check X30.
+  if (ReservedRegNames.count("X30") || ReservedRegNames.count("LR"))
+    ReserveXRegisterForRA.set(30);
+  // X29 is named FP, so we can't use TRI->getName to check X29.
+  if (ReservedRegNames.count("X29") || ReservedRegNames.count("FP"))
+    ReserveXRegisterForRA.set(29);
 }
 
 const CallLowering *AArch64Subtarget::getCallLowering() const {
@@ -341,8 +355,11 @@ AArch64Subtarget::ClassifyGlobalReference(const GlobalValue *GV,
     return AArch64II::MO_GOT;
 
   if (!TM.shouldAssumeDSOLocal(*GV->getParent(), GV)) {
-    if (GV->hasDLLImportStorageClass())
+    if (GV->hasDLLImportStorageClass()) {
+      if (isWindowsArm64EC() && GV->getValueType()->isFunctionTy())
+        return AArch64II::MO_GOT | AArch64II::MO_DLLIMPORTAUX;
       return AArch64II::MO_GOT | AArch64II::MO_DLLIMPORT;
+    }
     if (getTargetTriple().isOSWindows())
       return AArch64II::MO_GOT | AArch64II::MO_COFFSTUB;
     return AArch64II::MO_GOT;
@@ -379,9 +396,17 @@ unsigned AArch64Subtarget::classifyGlobalFunctionReference(
       !TM.shouldAssumeDSOLocal(*GV->getParent(), GV))
     return AArch64II::MO_GOT;
 
-  // Use ClassifyGlobalReference for setting MO_DLLIMPORT/MO_COFFSTUB.
-  if (getTargetTriple().isOSWindows())
+  if (getTargetTriple().isOSWindows()) {
+    if (isWindowsArm64EC() && GV->getValueType()->isFunctionTy() &&
+        GV->hasDLLImportStorageClass()) {
+      // On Arm64EC, if we're calling a function directly, use MO_DLLIMPORT,
+      // not MO_DLLIMPORTAUX.
+      return AArch64II::MO_GOT | AArch64II::MO_DLLIMPORT;
+    }
+
+    // Use ClassifyGlobalReference for setting MO_DLLIMPORT/MO_COFFSTUB.
     return ClassifyGlobalReference(GV, TM);
+  }
 
   return AArch64II::MO_NO_FLAG;
 }
@@ -431,3 +456,11 @@ void AArch64Subtarget::mirFileLoaded(MachineFunction &MF) const {
 }
 
 bool AArch64Subtarget::useAA() const { return UseAA; }
+
+bool AArch64Subtarget::forceStreamingCompatibleSVE() const {
+  if (ForceStreamingCompatibleSVE) {
+    assert(hasSVEorSME() && "Expected SVE to be available");
+    return hasSVEorSME();
+  }
+  return false;
+}

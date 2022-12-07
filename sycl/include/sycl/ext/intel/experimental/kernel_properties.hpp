@@ -34,10 +34,10 @@ template <class T> struct proxy {
 };
 } // namespace detail
 
-/// A boolean property which requests the compiler to double the amount of
-/// general-purpose registers available to a thread at the expense of reducing
-/// the amount of available hardware threads.
-struct use_double_grf_tag {
+/// A boolean property which requests the compiler to use large register
+/// allocation mode at the expense of reducing the amount of available hardware
+/// threads.
+struct use_large_grf_tag {
   template <class T> friend struct detail::proxy;
 
 private:
@@ -45,7 +45,9 @@ private:
   static constexpr int value = 0;
 };
 
-inline constexpr use_double_grf_tag use_double_grf = {};
+__SYCL_DEPRECATED("use_double_grf is deprecated, use use_large_grf instead")
+inline constexpr use_large_grf_tag use_double_grf = {};
+inline constexpr use_large_grf_tag use_large_grf = {};
 
 } // namespace kernel_properties
 
@@ -61,14 +63,14 @@ void set_kernel_properties(KernelProps... props) {
   using Props = __MP11_NS::mp_list<KernelProps...>;
   __MP11_NS::mp_for_each<Props>([&](auto Prop) {
     using PropT = decltype(Prop);
-    constexpr bool IsDoubleGRF =
-        std::is_same_v<PropT, kernel_properties::use_double_grf_tag>;
-    if constexpr (IsDoubleGRF) {
+    constexpr bool IsLargeGRF =
+        std::is_same_v<PropT, kernel_properties::use_large_grf_tag>;
+    if constexpr (IsLargeGRF) {
       __sycl_set_kernel_properties(
           kernel_properties::detail::proxy<
-              kernel_properties::use_double_grf_tag>::value);
+              kernel_properties::use_large_grf_tag>::value);
     } else {
-      static_assert(IsDoubleGRF &&
+      static_assert(IsLargeGRF &&
                     "set_kernel_properties: invalid kernel property");
     }
   });

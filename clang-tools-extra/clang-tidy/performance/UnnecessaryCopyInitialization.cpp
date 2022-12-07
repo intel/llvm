@@ -46,7 +46,7 @@ llvm::Optional<SourceLocation> firstLocAfterNewLine(SourceLocation Loc,
   bool Invalid;
   const char *TextAfter = SM.getCharacterData(Loc, &Invalid);
   if (Invalid) {
-    return llvm::None;
+    return std::nullopt;
   }
   size_t Offset = std::strcspn(TextAfter, "\n");
   return Loc.getLocWithOffset(TextAfter[Offset] == '\0' ? Offset : Offset + 1);
@@ -191,12 +191,12 @@ bool differentReplacedTemplateParams(const QualType &VarType,
           getSubstitutedType(VarType, Context)) {
     if (const SubstTemplateTypeParmType *InitializerTmplType =
             getSubstitutedType(InitializerType, Context)) {
-      return VarTmplType->getReplacedParameter()
-                 ->desugar()
-                 .getCanonicalType() !=
-             InitializerTmplType->getReplacedParameter()
-                 ->desugar()
-                 .getCanonicalType();
+      const TemplateTypeParmDecl *VarTTP = VarTmplType->getReplacedParameter();
+      const TemplateTypeParmDecl *InitTTP =
+          InitializerTmplType->getReplacedParameter();
+      return (VarTTP->getDepth() != InitTTP->getDepth() ||
+              VarTTP->getIndex() != InitTTP->getIndex() ||
+              VarTTP->isParameterPack() != InitTTP->isParameterPack());
     }
   }
   return false;

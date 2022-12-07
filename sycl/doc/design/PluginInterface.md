@@ -97,10 +97,10 @@ stored in the associated platforms during platform object construction.
 The PI API calls are later forwarded using this information.
 A plugin is said to "bind" after this process completes with no errors.
 During device selection, the user can prefer selection of a device from a
-specific Plugin or Backend using the env SYCL_BE. The correspondence between
-a plugin and a SYCL_BE value is currently hardcoded in the runtime.
+specific Plugin or Backend using the env ONEAPI_DEVICE_SELECTOR. The correspondence between
+a plugin and a ONEAPI_DEVICE_SELECTOR value is currently hardcoded in the runtime.
 ( TBD: Make this a part of configuration file).
-Eg: SYCL_BE=PI_OPENCL corresponds to OpenCL Plugin.
+Eg: ONEAPI_DEVICE_SELECTOR=opencl:* corresponds to OpenCL Plugin.
 
 #### OpenCL plugin
 

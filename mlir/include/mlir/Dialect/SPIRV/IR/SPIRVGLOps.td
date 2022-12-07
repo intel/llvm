@@ -35,7 +35,7 @@ class SPIRV_GLOp<string mnemonic, int opcode, list<Trait> traits = []> :
 // Base class for GL unary ops.
 class SPIRV_GLUnaryOp<string mnemonic, int opcode, Type resultType,
                       Type operandType, list<Trait> traits = []> :
-  SPIRV_GLOp<mnemonic, opcode, !listconcat([NoSideEffect], traits)> {
+  SPIRV_GLOp<mnemonic, opcode, !listconcat([Pure], traits)> {
 
   let arguments = (ins
     SPIRV_ScalarOrVectorOf<operandType>:$operand
@@ -60,7 +60,7 @@ class SPIRV_GLUnaryArithmeticOp<string mnemonic, int opcode, Type type,
 // Base class for GL binary ops.
 class SPIRV_GLBinaryOp<string mnemonic, int opcode, Type resultType,
                         Type operandType, list<Trait> traits = []> :
-  SPIRV_GLOp<mnemonic, opcode, !listconcat([NoSideEffect], traits)> {
+  SPIRV_GLOp<mnemonic, opcode, !listconcat([Pure], traits)> {
 
   let arguments = (ins
     SPIRV_ScalarOrVectorOf<operandType>:$lhs,
@@ -86,7 +86,7 @@ class SPIRV_GLBinaryArithmeticOp<string mnemonic, int opcode, Type type,
 // Base class for GL ternary ops.
 class SPIRV_GLTernaryArithmeticOp<string mnemonic, int opcode, Type type,
                         list<Trait> traits = []> :
-  SPIRV_GLOp<mnemonic, opcode, !listconcat([NoSideEffect], traits)> {
+  SPIRV_GLOp<mnemonic, opcode, !listconcat([Pure], traits)> {
 
   let arguments = (ins
     SPIRV_ScalarOrVectorOf<type>:$x,
@@ -456,10 +456,13 @@ def SPIRV_GLFloorOp : SPIRV_GLUnaryArithmeticOp<"Floor", 8, SPIRV_Float> {
 // -----
 
 def SPIRV_GLRoundOp: SPIRV_GLUnaryArithmeticOp<"Round", 1, SPIRV_Float> {
-  let summary = "Rounds to the whole number";
+  let summary = "Rounds to the nearest whole number";
 
   let description = [{
-    Result is the value equal to the nearest whole number.
+    Result is the value equal to the nearest whole number to x. The fraction
+    0.5 will round in a direction chosen by the implementation, presumably
+    the direction that is fastest. This includes the possibility that
+    Round x is the same value as RoundEven x for all values of x.
 
     The operand x must be a scalar or vector whose component type is
     floating-point.
@@ -471,7 +474,7 @@ def SPIRV_GLRoundOp: SPIRV_GLUnaryArithmeticOp<"Round", 1, SPIRV_Float> {
     ```
     float-scalar-vector-type ::= float-type |
                                  `vector<` integer-literal `x` float-type `>`
-    floor-op ::= ssa-id `=` `spirv.GL.Round` ssa-use `:`
+    round-op ::= ssa-id `=` `spirv.GL.Round` ssa-use `:`
                 float-scalar-vector-type
     ```
     #### Example:
@@ -479,6 +482,38 @@ def SPIRV_GLRoundOp: SPIRV_GLUnaryArithmeticOp<"Round", 1, SPIRV_Float> {
     ```mlir
     %2 = spirv.GL.Round %0 : f32
     %3 = spirv.GL.Round %1 : vector<3xf16>
+    ```
+  }];
+}
+
+// -----
+
+def SPIRV_GLRoundEvenOp: SPIRV_GLUnaryArithmeticOp<"RoundEven", 2, SPIRV_Float> {
+  let summary = "Rounds to the nearest even whole number";
+
+  let description = [{
+    Result is the value equal to the nearest whole number to x. A fractional
+    part of 0.5 will round toward the nearest even whole number. (Both 3.5 and
+    4.5 for x will be 4.0.)
+
+    The operand x must be a scalar or vector whose component type is
+    floating-point.
+
+    Result Type and the type of x must be the same type. Results are computed
+    per component.
+
+    <!-- End of AutoGen section -->
+    ```
+    float-scalar-vector-type ::= float-type |
+                                 `vector<` integer-literal `x` float-type `>`
+    round-even-op ::= ssa-id `=` `spirv.GL.RoundEven` ssa-use `:`
+                float-scalar-vector-type
+    ```
+    #### Example:
+
+    ```mlir
+    %2 = spirv.GL.RoundEven %0 : f32
+    %3 = spirv.GL.RoundEven %1 : vector<3xf16>
     ```
   }];
 }
@@ -1077,7 +1112,7 @@ def SPIRV_GLFmaOp : SPIRV_GLTernaryArithmeticOp<"Fma", 50, SPIRV_Float> {
 
 // ----
 
-def SPIRV_GLFrexpStructOp : SPIRV_GLOp<"FrexpStruct", 52, [NoSideEffect]> {
+def SPIRV_GLFrexpStructOp : SPIRV_GLOp<"FrexpStruct", 52, [Pure]> {
   let summary = "Splits x into two components such that x = significand * 2^exponent";
 
   let description = [{
@@ -1132,7 +1167,7 @@ def SPIRV_GLFrexpStructOp : SPIRV_GLOp<"FrexpStruct", 52, [NoSideEffect]> {
 
 def SPIRV_GLLdexpOp :
   SPIRV_GLOp<"Ldexp", 53, [
-      NoSideEffect, AllTypesMatch<["x", "y"]>]> {
+      Pure, AllTypesMatch<["x", "y"]>]> {
   let summary = "Builds y such that y = significand * 2^exponent";
 
   let description = [{
@@ -1184,7 +1219,7 @@ def SPIRV_GLLdexpOp :
 
 def SPIRV_GLFMixOp :
   SPIRV_GLOp<"FMix", 46, [
-      NoSideEffect, AllTypesMatch<["x", "y", "a", "result"]>]> {
+      Pure, AllTypesMatch<["x", "y", "a", "result"]>]> {
   let summary = "Builds the linear blend of x and y";
 
   let description = [{

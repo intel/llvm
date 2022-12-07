@@ -1813,7 +1813,7 @@ namespace {
  public:
    SanitizeDtorCleanupBuilder(ASTContext &Context, EHScopeStack &EHStack,
                               const CXXDestructorDecl *DD)
-       : Context(Context), EHStack(EHStack), DD(DD), StartIndex(llvm::None) {}
+       : Context(Context), EHStack(EHStack), DD(DD), StartIndex(std::nullopt) {}
    void PushCleanupForField(const FieldDecl *Field) {
      if (Field->isZeroSize(Context))
        return;
@@ -1824,7 +1824,7 @@ namespace {
      } else if (StartIndex) {
        EHStack.pushCleanup<SanitizeDtorFieldRange>(
            NormalAndEHCleanup, DD, StartIndex.value(), FieldIndex);
-       StartIndex = None;
+       StartIndex = std::nullopt;
      }
    }
    void End() {
@@ -2583,7 +2583,7 @@ void CodeGenFunction::InitializeVTablePointer(const VPtr &Vptr) {
       llvm::FunctionType::get(CGM.Int32Ty, /*isVarArg=*/true)
           ->getPointerTo(ProgAS)
           ->getPointerTo(GlobalsAS);
-  // vtable field is is derived from `this` pointer, therefore they should be in
+  // vtable field is derived from `this` pointer, therefore they should be in
   // the same addr space. Note that this might not be LLVM address space 0.
   VTableField = Builder.CreateElementBitCast(VTableField, VTablePtrTy);
   VTableAddressPoint = Builder.CreateBitCast(VTableAddressPoint, VTablePtrTy);

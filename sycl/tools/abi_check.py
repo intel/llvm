@@ -56,6 +56,13 @@ def parse_readobj_output(output):
   # is used. Ignore it for the purpose of the library ABI check.
   ignore_symbols = ["_dl_relocate_static_pie"]
 
+  # Starting from glibc 2.34 these symbols are not present anymore in the binary
+  # Ignoring these in case older glibc is used.
+  # Note that Ubuntu 20 has glibc 2.31 and Ubuntu 22 has glibc 2.35
+  # See: https://github.com/bminor/glibc/commit/035c012e32c11e84d64905efaf55e74f704d3668
+  ignore_symbols += ["__libc_csu_fini",
+                     "__libc_csu_init"]
+
   # In some scenarios MSVC and clang-cl exhibit differences in regards to the exported symbols they generate.
   # Some of them happen in the SYCL RT library and we think clang-cl's behavior is more reasonable.
   #

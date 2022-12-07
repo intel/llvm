@@ -13,13 +13,13 @@ target triple = "spir-unknown-unknown"
 %opencl.image2d_wo_t = type opaque
 
 ; CHECK-LLVM-LABEL: @nosamp
-; CHECK-LLVM: call spir_func <4 x half> @_Z11read_imageh14ocl_image2d_roDv2_i
+; CHECK-LLVM: call spir_func <4 x half> @_Z11read_imageh14ocl_image2d_roDv2_i(
 
 ; CHECK-LLVM-LABEL: @withsamp
-; CHECK-LLVM: call spir_func <4 x half> @_Z11read_imageh14ocl_image2d_ro11ocl_samplerDv2_i
+; CHECK-LLVM: call spir_func <4 x half> @_Z11read_imageh14ocl_image2d_ro11ocl_samplerDv2_i(
 
 ; CHECK-LLVM-LABEL: @writehalf
-; CHECK-LLVM: call spir_func void @_Z12write_imageh14ocl_image2d_woDv2_iDv4_Dh
+; CHECK-LLVM: call spir_func void @_Z12write_imageh14ocl_image2d_woDv2_iDv4_Dh(
 
 ; Function Attrs: convergent nounwind
 define spir_kernel void @nosamp(%opencl.image2d_ro_t addrspace(1)* %im, <2 x i32> %coord, <4 x half> addrspace(1)* nocapture %res) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !5 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {

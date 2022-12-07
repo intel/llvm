@@ -1621,16 +1621,7 @@ static ExprResult LookupMemberExpr(Sema &S, LookupResult &R,
   if (BaseType->isExtVectorType()) {
     // FIXME: this expr should store IsArrow.
     IdentifierInfo *Member = MemberName.getAsIdentifierInfo();
-    ExprValueKind VK;
-    if (IsArrow)
-      VK = VK_LValue;
-    else {
-      if (PseudoObjectExpr *POE = dyn_cast<PseudoObjectExpr>(BaseExpr.get()))
-        VK = POE->getSyntacticForm()->getValueKind();
-      else
-        VK = BaseExpr.get()->getValueKind();
-    }
-
+    ExprValueKind VK = (IsArrow ? VK_LValue : BaseExpr.get()->getValueKind());
     QualType ret = CheckExtVectorComponent(S, BaseType, VK, OpLoc,
                                            Member, MemberLoc);
     if (ret.isNull())
@@ -1903,6 +1894,14 @@ Sema::BuildImplicitMemberExpr(const CXXScopeSpec &SS,
     if (SS.getRange().isValid())
       Loc = SS.getRange().getBegin();
     baseExpr = BuildCXXThisExpr(loc, ThisTy, /*IsImplicit=*/true);
+    if (getLangOpts().HLSL && ThisTy.getTypePtr()->isPointerType()) {
+      ThisTy = ThisTy.getTypePtr()->getPointeeType();
+      return BuildMemberReferenceExpr(baseExpr, ThisTy,
+                                      /*OpLoc*/ SourceLocation(),
+                                      /*IsArrow*/ false, SS, TemplateKWLoc,
+                                      /*FirstQualifierInScope*/ nullptr, R,
+                                      TemplateArgs, S);
+    }
   }
 
   return BuildMemberReferenceExpr(baseExpr, ThisTy,

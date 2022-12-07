@@ -292,6 +292,26 @@ def HasStdExtCOrZca
                                    "'Zca' (part of the C extension, excluding "
                                    "compressed floating point loads/stores)">;
 
+def FeatureExtZcd
+    : SubtargetFeature<"experimental-zcd", "HasStdExtZcd", "true",
+                       "'Zcd' (Compressed Double-Precision Floating-Point Instructions)">;
+
+def HasStdExtCOrZcd
+    : Predicate<"Subtarget->hasStdExtC() || Subtarget->hasStdExtZcd()">,
+                AssemblerPredicate<(any_of FeatureStdExtC, FeatureExtZcd),
+                                   "'C' (Compressed Instructions) or "
+                                   "'Zcd' (Compressed Double-Precision Floating-Point Instructions)">;
+                                   
+def FeatureExtZcf
+    : SubtargetFeature<"experimental-zcf", "HasStdExtZcf", "true",
+                       "'Zcf' (Compressed Single-Precision Floating-Point Instructions)">;
+
+def HasStdExtCOrZcf
+    : Predicate<"Subtarget->hasStdExtC() || Subtarget->hasStdExtZcf()">,
+                AssemblerPredicate<(any_of FeatureStdExtC, FeatureExtZcf),
+                                   "'C' (Compressed Instructions) or "
+                                   "'Zcf' (Compressed Single-Precision Floating-Point Instructions)">;
+
 def FeatureNoRVCHints
     : SubtargetFeature<"no-rvc-hints", "EnableRVCHintInstrs", "false",
                        "Disable RVC Hint Instructions.">;
@@ -388,6 +408,17 @@ def HasStdExtZicbop : Predicate<"Subtarget->hasStdExtZicbop()">,
                                 AssemblerPredicate<(all_of FeatureStdExtZicbop),
                                 "'Zicbop' (Cache-Block Prefetch Instructions)">;
 
+def FeatureStdExtSvnapot
+    : SubtargetFeature<"svnapot", "HasStdExtSvnapot", "true",
+                       "'Svnapot' (NAPOT Translation Contiguity)">;
+
+def FeatureStdExtSvinval
+    : SubtargetFeature<"svinval", "HasStdExtSvinval", "true",
+                       "'Svinval' (Fine-Grained Address-Translation Cache Invalidation)">;
+def HasStdExtSvinval : Predicate<"Subtarget->hasStdExtSvinval()">,
+                                AssemblerPredicate<(all_of FeatureStdExtSvinval),
+                                "'Svinval' (Fine-Grained Address-Translation Cache Invalidation)">;
+
 def FeatureStdExtZtso
     : SubtargetFeature<"experimental-ztso", "HasStdExtZtso", "true",
                        "'Ztso' (Memory Model - Total Store Order)">;
@@ -401,6 +432,21 @@ def FeatureStdExtZawrs
 def HasStdExtZawrs : Predicate<"Subtarget->hasStdExtZawrs()">,
                                AssemblerPredicate<(all_of FeatureStdExtZawrs),
                                "'Zawrs' (Wait on Reservation Set)">;
+
+//===----------------------------------------------------------------------===//
+// Vendor extensions
+//===----------------------------------------------------------------------===//
+
+def FeatureVendorXVentanaCondOps
+    : SubtargetFeature<"xventanacondops", "HasVendorXVentanaCondOps", "true",
+                       "'XVentanaCondOps' (Ventana Conditional Ops)">;
+def HasVendorXVentanaCondOps : Predicate<"Subtarget->hasVendorXVentanaCondOps()">,
+                                AssemblerPredicate<(all_of FeatureVendorXVentanaCondOps),
+                                "'XVentanaCondOps' (Ventana Conditional Ops)">;
+
+//===----------------------------------------------------------------------===//
+// LLVM specific features and extensions
+//===----------------------------------------------------------------------===//
 
 // Feature32Bit exists to mark CPUs that support RV32 to distinquish them from
 // tuning CPU names.
@@ -441,6 +487,11 @@ def FeatureUnalignedScalarMem
                       "true", "Has reasonably performant unaligned scalar "
                       "loads and stores">;
 
+def TuneNoOptimizedZeroStrideLoad
+   : SubtargetFeature<"no-optimized-zero-stride-load", "HasOptimizedZeroStrideLoad",
+                      "false", "Hasn't optimized (perform fewer memory operations)"
+                      "zero-stride vector load">;
+
 def TuneLUIADDIFusion
     : SubtargetFeature<"lui-addi-fusion", "HasLUIADDIFusion",
                        "true", "Enable LUI+ADDI macrofusion">;
@@ -449,9 +500,18 @@ def TuneNoDefaultUnroll
     : SubtargetFeature<"no-default-unroll", "EnableDefaultUnroll", "false",
                        "Disable default unroll preference.">;
 
+// SiFive 7 is able to fuse integer ALU operations with a preceding branch
+// instruction.
+def TuneShortForwardBranchOpt
+    : SubtargetFeature<"short-forward-branch-opt", "HasShortForwardBranchOpt",
+                       "true", "Enable short forward branch optimization">;
+def HasShortForwardBranchOpt : Predicate<"Subtarget->hasShortForwardBranchOpt()">;
+def NoShortForwardBranchOpt : Predicate<"!Subtarget->hasShortForwardBranchOpt()">;
+
 def TuneSiFive7 : SubtargetFeature<"sifive7", "RISCVProcFamily", "SiFive7",
                                    "SiFive 7-Series processors",
-                                   [TuneNoDefaultUnroll]>;
+                                   [TuneNoDefaultUnroll,
+                                    TuneShortForwardBranchOpt]>;
 
 // Assume that lock-free native-width atomics are available, even if the target
 // and operating system combination would not usually provide them. The user
@@ -478,7 +538,7 @@ include "RISCVSchedule.td"
 include "RISCVRegisterInfo.td"
 include "RISCVCallingConv.td"
 include "RISCVInstrInfo.td"
-include "RISCVRegisterBanks.td"
+include "GISel/RISCVRegisterBanks.td"
 include "RISCVSchedRocket.td"
 include "RISCVSchedSiFive7.td"
 

@@ -210,6 +210,8 @@ _LIBCPP_PUSH_MACROS
 #  define _LIBCPP_HAS_NO_OFF_T_FUNCTIONS
 #endif
 
+#if !defined(_LIBCPP_HAS_NO_FSTREAM)
+
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 template <class _CharT, class _Traits>
@@ -751,9 +753,11 @@ basic_filebuf<_CharT, _Traits>::underflow()
         }
         else
         {
-            _LIBCPP_ASSERT ( !(__extbufnext_ == NULL && (__extbufend_ != __extbufnext_)), "underflow moving from NULL" );
-            if (__extbufend_ != __extbufnext_)
+            if (__extbufend_ != __extbufnext_) {
+                _LIBCPP_ASSERT(__extbufnext_ != nullptr, "underflow moving from nullptr");
+                _LIBCPP_ASSERT(__extbuf_ != nullptr, "underflow moving into nullptr");
                 _VSTD::memmove(__extbuf_, __extbufnext_, __extbufend_ - __extbufnext_);
+            }
             __extbufnext_ = __extbuf_ + (__extbufend_ - __extbufnext_);
             __extbufend_ = __extbuf_ + (__extbuf_ == __extbuf_min_ ? sizeof(__extbuf_min_) : __ebs_);
             size_t __nmemb = _VSTD::min(static_cast<size_t>(__ibs_ - __unget_sz),
@@ -1742,6 +1746,17 @@ extern template class _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS basic_filebuf<char>;
 
 _LIBCPP_END_NAMESPACE_STD
 
+#endif // _LIBCPP_HAS_NO_FSTREAM
+
 _LIBCPP_POP_MACROS
+
+#if !defined(_LIBCPP_REMOVE_TRANSITIVE_INCLUDES) && _LIBCPP_STD_VER <= 20
+#  include <atomic>
+#  include <concepts>
+#  include <iosfwd>
+#  include <limits>
+#  include <new>
+#  include <stdexcept>
+#endif
 
 #endif // _LIBCPP_FSTREAM

@@ -68,6 +68,22 @@ MlirType mlirIndexTypeGet(MlirContext ctx) {
 // Floating-point types.
 //===----------------------------------------------------------------------===//
 
+bool mlirTypeIsAFloat8E5M2(MlirType type) {
+  return unwrap(type).isFloat8E5M2();
+}
+
+MlirType mlirFloat8E5M2TypeGet(MlirContext ctx) {
+  return wrap(FloatType::getFloat8E5M2(unwrap(ctx)));
+}
+
+bool mlirTypeIsAFloat8E4M3FN(MlirType type) {
+  return unwrap(type).isFloat8E4M3FN();
+}
+
+MlirType mlirFloat8E4M3FNTypeGet(MlirContext ctx) {
+  return wrap(FloatType::getFloat8E4M3FN(unwrap(ctx)));
+}
+
 bool mlirTypeIsABF16(MlirType type) { return unwrap(type).isBF16(); }
 
 MlirType mlirBF16TypeGet(MlirContext ctx) {
@@ -149,18 +165,18 @@ int64_t mlirShapedTypeGetDimSize(MlirType type, intptr_t dim) {
   return unwrap(type).cast<ShapedType>().getDimSize(static_cast<unsigned>(dim));
 }
 
-int64_t mlirShapedTypeGetDynamicSize() { return ShapedType::kDynamicSize; }
+int64_t mlirShapedTypeGetDynamicSize() { return ShapedType::kDynamic; }
 
 bool mlirShapedTypeIsDynamicSize(int64_t size) {
   return ShapedType::isDynamic(size);
 }
 
 bool mlirShapedTypeIsDynamicStrideOrOffset(int64_t val) {
-  return ShapedType::isDynamicStrideOrOffset(val);
+  return ShapedType::isDynamic(val);
 }
 
 int64_t mlirShapedTypeGetDynamicStrideOrOffset() {
-  return ShapedType::kDynamicStrideOrOffset;
+  return ShapedType::kDynamic;
 }
 
 //===----------------------------------------------------------------------===//

@@ -45,11 +45,12 @@ asm(\"cas w0, w1, [x2]\");
 ")
 
 set(ARM64 aarch64)
-set(ARM32 arm armhf armv6m armv7m armv7em armv7 armv7s armv7k armv8m.main armv8.1m.main)
+set(ARM32 arm armhf armv4t armv6m armv7m armv7em armv7 armv7s armv7k armv8m.main armv8.1m.main)
 set(AVR avr)
 set(HEXAGON hexagon)
 set(X86 i386)
 set(X86_64 x86_64)
+set(LOONGARCH64 loongarch64)
 set(MIPS32 mips mipsel)
 set(MIPS64 mips64 mips64el)
 set(PPC32 powerpc powerpcspe)
@@ -72,7 +73,7 @@ set(ALL_BUILTIN_SUPPORTED_ARCH
   ${X86} ${X86_64} ${ARM32} ${ARM64} ${AVR}
   ${HEXAGON} ${MIPS32} ${MIPS64} ${PPC32} ${PPC64}
   ${RISCV32} ${RISCV64} ${SPARC} ${SPARCV9}
-  ${WASM32} ${WASM64} ${VE})
+  ${WASM32} ${WASM64} ${VE} ${LOONGARCH64})
 
 include(CompilerRTUtils)
 include(CompilerRTDarwinUtils)

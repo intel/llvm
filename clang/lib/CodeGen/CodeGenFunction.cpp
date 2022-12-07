@@ -175,10 +175,11 @@ void CodeGenFunction::CGFPOptionsRAII::ConstructorHelper(FPOptions FPFeatures) {
   mergeFnAttrValue("no-infs-fp-math", FPFeatures.getNoHonorInfs());
   mergeFnAttrValue("no-nans-fp-math", FPFeatures.getNoHonorNaNs());
   mergeFnAttrValue("no-signed-zeros-fp-math", FPFeatures.getNoSignedZero());
-  mergeFnAttrValue("unsafe-fp-math", FPFeatures.getAllowFPReassociate() &&
-                                         FPFeatures.getAllowReciprocal() &&
-                                         FPFeatures.getAllowApproxFunc() &&
-                                         FPFeatures.getNoSignedZero());
+  mergeFnAttrValue(
+      "unsafe-fp-math",
+      FPFeatures.getAllowFPReassociate() && FPFeatures.getAllowReciprocal() &&
+          FPFeatures.getAllowApproxFunc() && FPFeatures.getNoSignedZero() &&
+          FPFeatures.allowFPContractAcrossStatement());
 }
 
 CodeGenFunction::CGFPOptionsRAII::~CGFPOptionsRAII() {
@@ -733,7 +734,7 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
       Fn->setMetadata("no_global_work_offset", llvm::MDNode::get(Context, {}));
   }
 
-  if (const auto *A = FD->getAttr<SYCLIntelFPGAMaxConcurrencyAttr>()) {
+  if (const auto *A = FD->getAttr<SYCLIntelMaxConcurrencyAttr>()) {
     const auto *CE = cast<ConstantExpr>(A->getNThreadsExpr());
     llvm::APSInt ArgVal = CE->getResultAsAPSInt();
     llvm::Metadata *AttrMDArgs[] = {
@@ -741,14 +742,14 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
     Fn->setMetadata("max_concurrency", llvm::MDNode::get(Context, AttrMDArgs));
   }
 
-  if (FD->hasAttr<SYCLIntelFPGADisableLoopPipeliningAttr>()) {
+  if (FD->hasAttr<SYCLIntelDisableLoopPipeliningAttr>()) {
     llvm::Metadata *AttrMDArgs[] = {
         llvm::ConstantAsMetadata::get(Builder.getInt32(1))};
     Fn->setMetadata("disable_loop_pipelining",
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
 
-  if (const auto *A = FD->getAttr<SYCLIntelFPGAInitiationIntervalAttr>()) {
+  if (const auto *A = FD->getAttr<SYCLIntelInitiationIntervalAttr>()) {
     const auto *CE = cast<ConstantExpr>(A->getIntervalExpr());
     llvm::APSInt ArgVal = CE->getResultAsAPSInt();
     llvm::Metadata *AttrMDArgs[] = {
@@ -832,7 +833,7 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   CurCodeDecl = D;
   const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D);
   if (FD && FD->usesSEHTry())
-    CurSEHParent = FD;
+    CurSEHParent = GD;
   CurFuncDecl = (D ? D->getNonClosureContext() : nullptr);
   FnRetTy = RetTy;
   CurFn = Fn;
@@ -1016,7 +1017,9 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   // backends as they don't need it -- instructions on these architectures are
   // always atomically patchable at runtime.
   if (CGM.getCodeGenOpts().HotPatch &&
-      getContext().getTargetInfo().getTriple().isX86())
+      getContext().getTargetInfo().getTriple().isX86() &&
+      getContext().getTargetInfo().getTriple().getEnvironment() !=
+          llvm::Triple::CODE16)
     Fn->addFnAttr("patchable-function", "prologue-short-redirect");
 
   // Add no-jump-tables value.
@@ -1086,6 +1089,14 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
       Fn->setMetadata("sycl_used_aspects",
                       llvm::MDNode::get(getLLVMContext(), AspectsMD));
     }
+
+    // Source location of functions is required to emit required diagnostics in
+    // SYCLPropagateAspectsUsagePass. Save the token in a srcloc metadata node.
+    llvm::ConstantInt *Line =
+        llvm::ConstantInt::get(Int32Ty, D->getLocation().getRawEncoding());
+    llvm::ConstantAsMetadata *SrcLocMD = llvm::ConstantAsMetadata::get(Line);
+    llvm::MDTuple *SrcLocMDT = llvm::MDNode::get(getLLVMContext(), {SrcLocMD});
+    Fn->setMetadata("srcloc", SrcLocMDT);
   }
 
   if (getLangOpts().SYCLIsDevice && D &&
@@ -1694,7 +1705,7 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
       llvm::Value *IsFalse = Builder.getFalse();
       EmitCheck(std::make_pair(IsFalse, SanitizerKind::Return),
                 SanitizerHandler::MissingReturn,
-                EmitCheckSourceLocation(FD->getLocation()), None);
+                EmitCheckSourceLocation(FD->getLocation()), std::nullopt);
     } else if (ShouldEmitUnreachable) {
       if (CGM.getCodeGenOpts().OptimizationLevel == 0)
         EmitTrapCall(llvm::Intrinsic::trap);

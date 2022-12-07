@@ -19,46 +19,65 @@ using namespace clang::interp;
 using APSInt = llvm::APSInt;
 using Error = llvm::Error;
 
-Expected<Function *> ByteCodeEmitter::compileFunc(const FunctionDecl *F) {
-  // Do not try to compile undefined functions.
-  if (!F->isDefined(F) || (!F->hasBody() && F->willHaveBody()))
-    return nullptr;
-
-  // Set up argument indices.
-  unsigned ParamOffset = 0;
-  SmallVector<PrimType, 8> ParamTypes;
-  llvm::DenseMap<unsigned, Function::ParamDescriptor> ParamDescriptors;
-
-  // If the return is not a primitive, a pointer to the storage where the value
-  // is initialized in is passed as the first argument.
-  QualType Ty = F->getReturnType();
-  if (!Ty->isVoidType() && !Ctx.classify(Ty)) {
-    ParamTypes.push_back(PT_Ptr);
-    ParamOffset += align(primSize(PT_Ptr));
-  }
-
-  // Assign descriptors to all parameters.
-  // Composite objects are lowered to pointers.
-  for (const ParmVarDecl *PD : F->parameters()) {
-    PrimType Ty;
-    if (llvm::Optional<PrimType> T = Ctx.classify(PD->getType())) {
-      Ty = *T;
-    } else {
-      Ty = PT_Ptr;
-    }
-
-    Descriptor *Desc = P.createDescriptor(PD, Ty);
-    ParamDescriptors.insert({ParamOffset, {Ty, Desc}});
-    Params.insert({PD, ParamOffset});
-    ParamOffset += align(primSize(Ty));
-    ParamTypes.push_back(Ty);
-  }
+Expected<Function *>
+ByteCodeEmitter::compileFunc(const FunctionDecl *FuncDecl) {
+  // Function is not defined at all or not yet. We will
+  // create a Function instance but not compile the body. That
+  // will (maybe) happen later.
+  bool HasBody = FuncDecl->hasBody(FuncDecl);
 
   // Create a handle over the emitted code.
-  Function *Func = P.createFunction(F, ParamOffset, std::move(ParamTypes),
-                                    std::move(ParamDescriptors));
+  Function *Func = P.getFunction(FuncDecl);
+  if (!Func) {
+    // Set up argument indices.
+    unsigned ParamOffset = 0;
+    SmallVector<PrimType, 8> ParamTypes;
+    llvm::DenseMap<unsigned, Function::ParamDescriptor> ParamDescriptors;
+
+    // If the return is not a primitive, a pointer to the storage where the
+    // value is initialized in is passed as the first argument. See 'RVO'
+    // elsewhere in the code.
+    QualType Ty = FuncDecl->getReturnType();
+    bool HasRVO = false;
+    if (!Ty->isVoidType() && !Ctx.classify(Ty)) {
+      HasRVO = true;
+      ParamTypes.push_back(PT_Ptr);
+      ParamOffset += align(primSize(PT_Ptr));
+    }
+
+    // If the function decl is a member decl, the next parameter is
+    // the 'this' pointer. This parameter is pop()ed from the
+    // InterpStack when calling the function.
+    bool HasThisPointer = false;
+    if (const auto *MD = dyn_cast<CXXMethodDecl>(FuncDecl);
+        MD && MD->isInstance()) {
+      HasThisPointer = true;
+      ParamTypes.push_back(PT_Ptr);
+      ParamOffset += align(primSize(PT_Ptr));
+    }
+
+    // Assign descriptors to all parameters.
+    // Composite objects are lowered to pointers.
+    for (const ParmVarDecl *PD : FuncDecl->parameters()) {
+      PrimType Ty = Ctx.classify(PD->getType()).value_or(PT_Ptr);
+      Descriptor *Desc = P.createDescriptor(PD, Ty);
+      ParamDescriptors.insert({ParamOffset, {Ty, Desc}});
+      Params.insert({PD, ParamOffset});
+      ParamOffset += align(primSize(Ty));
+      ParamTypes.push_back(Ty);
+    }
+
+    Func =
+        P.createFunction(FuncDecl, ParamOffset, std::move(ParamTypes),
+                         std::move(ParamDescriptors), HasThisPointer, HasRVO);
+  }
+
+  assert(Func);
+  if (!HasBody)
+    return Func;
+
   // Compile the function body.
-  if (!F->isConstexpr() || !visitFunc(F)) {
+  if (!FuncDecl->isConstexpr() || !visitFunc(FuncDecl)) {
     // Return a dummy function if compilation failed.
     if (BailLocation)
       return llvm::make_error<ByteCodeGenError>(*BailLocation);

@@ -64,6 +64,7 @@ unsigned Program::createGlobalString(const StringLiteral *S) {
   unsigned Sz = Desc->getAllocSize();
   auto *G = new (Allocator, Sz) Global(Desc, /*isStatic=*/true,
                                        /*isExtern=*/false);
+  G->block()->invokeCtor();
   Globals.push_back(G);
 
   // Construct the string in storage.
@@ -203,7 +204,8 @@ llvm::Optional<unsigned> Program::createGlobal(const DeclTy &D, QualType Ty,
 }
 
 Function *Program::getFunction(const FunctionDecl *F) {
-  F = F->getDefinition();
+  F = F->getCanonicalDecl();
+  assert(F);
   auto It = Funcs.find(F);
   return It == Funcs.end() ? nullptr : It->second.get();
 }
@@ -219,6 +221,11 @@ Record *Program::getOrCreateRecord(const RecordDecl *RD) {
   if (It != Records.end()) {
     return It->second;
   }
+
+  // We insert nullptr now and replace that later, so recursive calls
+  // to this function with the same RecordDecl don't run into
+  // infinite recursion.
+  Records.insert({RD, nullptr});
 
   // Number of bytes required by fields and base classes.
   unsigned BaseSize = 0;
@@ -293,7 +300,7 @@ Record *Program::getOrCreateRecord(const RecordDecl *RD) {
 
   Record *R = new (Allocator) Record(RD, std::move(Bases), std::move(Fields),
                                      std::move(VirtBases), VirtSize, BaseSize);
-  Records.insert({RD, R});
+  Records[RD] = R;
   return R;
 }
 

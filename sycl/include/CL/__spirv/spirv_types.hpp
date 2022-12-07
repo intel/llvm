@@ -116,17 +116,12 @@ enum class MatrixLayout : uint32_t {
   Unused = 4
 };
 
-enum class MatrixUse : uint32_t {
-  MatrixA = 0,
-  MatrixB = 1,
-  Accumulator = 2,
-  Unnecessary = 3
-};
+enum class MatrixUse : uint32_t { MatrixA = 0, MatrixB = 1, Accumulator = 2 };
 
 #if (SYCL_EXT_ONEAPI_MATRIX_VERSION > 1)
 template <typename T, std::size_t R, std::size_t C, MatrixLayout L,
           Scope::Flag S = Scope::Flag::Subgroup,
-          MatrixUse U = MatrixUse::Unnecessary>
+          MatrixUse U = MatrixUse::MatrixA>
 struct __spirv_JointMatrixINTEL;
 #else
 template <typename T, std::size_t R, std::size_t C, MatrixLayout L,

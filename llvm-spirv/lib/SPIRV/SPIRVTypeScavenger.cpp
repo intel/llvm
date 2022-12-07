@@ -229,13 +229,13 @@ void SPIRVTypeScavenger::deduceFunctionType(Function &F) {
   // If the function is a mangled name, try to recover types from the Itanium
   // name mangling.
   if (F.getName().startswith("_Z")) {
-    SmallVector<Type *, 8> ParameterTypes;
-    getParameterTypes(&F, ParameterTypes);
+    SmallVector<Type *, 8> ParamTypes;
+    getParameterTypes(&F, ParamTypes);
     for (Argument *Arg : PointerArgs) {
-      if (auto *Ty = ParameterTypes[Arg->getArgNo()]) {
-        DeducedTypes[Arg] = Ty;
+      if (auto *Ty = dyn_cast<TypedPointerType>(ParamTypes[Arg->getArgNo()])) {
+        DeducedTypes[Arg] = Ty->getElementType();
         LLVM_DEBUG(dbgs() << "Arg " << Arg->getArgNo() << " of " << F.getName()
-                          << " has type " << *Ty << "\n");
+                          << " has type " << *Ty->getElementType() << "\n");
       }
     }
   }
@@ -252,7 +252,7 @@ static bool doesNotImplyType(Value *V) {
 
 SPIRVTypeScavenger::DeducedType
 SPIRVTypeScavenger::computePointerElementType(Value *V) {
-  assert(V->getType()->isPointerTy() &&
+  assert(V->getType()->isPtrOrPtrVectorTy() &&
          "Trying to get the pointer type of a non-pointer value?");
 
   // Don't try to store null, undef, or poison in our type map. We'll call these

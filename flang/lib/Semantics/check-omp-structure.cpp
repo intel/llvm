@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "check-omp-structure.h"
+#include "definable.h"
 #include "flang/Parser/parse-tree.h"
 #include "flang/Semantics/tools.h"
 #include <algorithm>
@@ -1059,6 +1060,15 @@ void OmpStructureChecker::Leave(const parser::OpenMPDeclareSimdConstruct &) {
   dirContext_.pop_back();
 }
 
+void OmpStructureChecker::Enter(const parser::OpenMPRequiresConstruct &x) {
+  const auto &dir{std::get<parser::Verbatim>(x.t)};
+  PushContextAndClauseSets(dir.source, llvm::omp::Directive::OMPD_requires);
+}
+
+void OmpStructureChecker::Leave(const parser::OpenMPRequiresConstruct &) {
+  dirContext_.pop_back();
+}
+
 void OmpStructureChecker::Enter(const parser::OpenMPDeclarativeAllocate &x) {
   isPredefinedAllocator = true;
   const auto &dir{std::get<parser::Verbatim>(x.t)};
@@ -1858,6 +1868,9 @@ CHECK_SIMPLE_CLAUSE(Init, OMPC_init)
 CHECK_SIMPLE_CLAUSE(Use, OMPC_use)
 CHECK_SIMPLE_CLAUSE(Novariants, OMPC_novariants)
 CHECK_SIMPLE_CLAUSE(Nocontext, OMPC_nocontext)
+CHECK_SIMPLE_CLAUSE(At, OMPC_at)
+CHECK_SIMPLE_CLAUSE(Severity, OMPC_severity)
+CHECK_SIMPLE_CLAUSE(Message, OMPC_message)
 CHECK_SIMPLE_CLAUSE(Filter, OMPC_filter)
 CHECK_SIMPLE_CLAUSE(When, OMPC_when)
 CHECK_SIMPLE_CLAUSE(AdjustArgs, OMPC_adjust_args)
@@ -1963,9 +1976,9 @@ void OmpStructureChecker::CheckIntentInPointerAndDefinable(
               "in a %s clause"_err_en_US,
               symbol->name(),
               parser::ToUpperCaseLetters(getClauseName(clause).str()));
-        }
-        if (auto msg{
-                WhyNotModifiable(*symbol, context_.FindScope(name->source))}) {
+        } else if (auto msg{WhyNotDefinable(name->source,
+                       context_.FindScope(name->source), DefinabilityFlags{},
+                       *symbol)}) {
           context_
               .Say(GetContext().clauseSource,
                   "Variable '%s' on the %s clause is not definable"_err_en_US,
@@ -2572,7 +2585,8 @@ void OmpStructureChecker::CheckDefinableObjects(
   for (auto it{symbols.begin()}; it != symbols.end(); ++it) {
     const auto *symbol{it->first};
     const auto source{it->second};
-    if (auto msg{WhyNotModifiable(*symbol, context_.FindScope(source))}) {
+    if (auto msg{WhyNotDefinable(source, context_.FindScope(source),
+            DefinabilityFlags{}, *symbol)}) {
       context_
           .Say(source,
               "Variable '%s' on the %s clause is not definable"_err_en_US,

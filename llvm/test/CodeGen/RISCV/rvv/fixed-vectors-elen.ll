@@ -9,7 +9,7 @@
 define void @add_v4i32(<4 x i32>* %x, <4 x i32>* %y) {
 ; CHECK-LABEL: add_v4i32:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
+; CHECK-NEXT:    vsetivli zero, 4, e32, m1, ta, ma
 ; CHECK-NEXT:    vle32.v v8, (a0)
 ; CHECK-NEXT:    vle32.v v9, (a1)
 ; CHECK-NEXT:    vadd.vv v8, v8, v9
@@ -35,15 +35,15 @@ define void @add_v2i64(<2 x i64>* %x, <2 x i64>* %y) {
 ; RV32-NEXT:    lw t0, 8(a1)
 ; RV32-NEXT:    lw a1, 12(a1)
 ; RV32-NEXT:    add a5, a5, a6
-; RV32-NEXT:    add a6, a4, a7
-; RV32-NEXT:    sltu a4, a6, a4
+; RV32-NEXT:    add a7, a4, a7
+; RV32-NEXT:    sltu a4, a7, a4
 ; RV32-NEXT:    add a4, a5, a4
 ; RV32-NEXT:    add a1, a3, a1
-; RV32-NEXT:    add a3, a2, t0
-; RV32-NEXT:    sltu a2, a3, a2
+; RV32-NEXT:    add t0, a2, t0
+; RV32-NEXT:    sltu a2, t0, a2
 ; RV32-NEXT:    add a1, a1, a2
-; RV32-NEXT:    sw a3, 8(a0)
-; RV32-NEXT:    sw a6, 0(a0)
+; RV32-NEXT:    sw t0, 8(a0)
+; RV32-NEXT:    sw a7, 0(a0)
 ; RV32-NEXT:    sw a1, 12(a0)
 ; RV32-NEXT:    sw a4, 4(a0)
 ; RV32-NEXT:    ret
@@ -70,7 +70,7 @@ define void @add_v2i64(<2 x i64>* %x, <2 x i64>* %y) {
 define void @add_v2i32(<2 x i32>* %x, <2 x i32>* %y) {
 ; CHECK-LABEL: add_v2i32:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vsetivli zero, 2, e32, m1, ta, mu
+; CHECK-NEXT:    vsetivli zero, 2, e32, m1, ta, ma
 ; CHECK-NEXT:    vle32.v v8, (a0)
 ; CHECK-NEXT:    vle32.v v9, (a1)
 ; CHECK-NEXT:    vadd.vv v8, v8, v9
@@ -117,7 +117,7 @@ define void @add_v1i64(<1 x i64>* %x, <1 x i64>* %y) {
 define void @fadd_v4f32(<4 x float>* %x, <4 x float>* %y) {
 ; CHECK-LABEL: fadd_v4f32:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
+; CHECK-NEXT:    vsetivli zero, 4, e32, m1, ta, ma
 ; CHECK-NEXT:    vle32.v v8, (a0)
 ; CHECK-NEXT:    vle32.v v9, (a1)
 ; CHECK-NEXT:    vfadd.vv v8, v8, v9
@@ -154,7 +154,7 @@ define void @fadd_v2f64(<2 x double>* %x, <2 x double>* %y) {
 define void @fadd_v2f32(<2 x float>* %x, <2 x float>* %y) {
 ; CHECK-LABEL: fadd_v2f32:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vsetivli zero, 2, e32, m1, ta, mu
+; CHECK-NEXT:    vsetivli zero, 2, e32, m1, ta, ma
 ; CHECK-NEXT:    vle32.v v8, (a0)
 ; CHECK-NEXT:    vle32.v v9, (a1)
 ; CHECK-NEXT:    vfadd.vv v8, v8, v9

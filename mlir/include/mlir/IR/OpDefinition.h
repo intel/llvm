@@ -41,19 +41,13 @@ public:
   OptionalParseResult(ParseResult result) : impl(result) {}
   OptionalParseResult(const InFlightDiagnostic &)
       : OptionalParseResult(failure()) {}
-  OptionalParseResult(llvm::NoneType) : impl(llvm::None) {}
+  OptionalParseResult(std::nullopt_t) : impl(std::nullopt) {}
 
   /// Returns true if we contain a valid ParseResult value.
   bool has_value() const { return impl.has_value(); }
-  LLVM_DEPRECATED("Use has_value instead", "has_value") bool hasValue() const {
-    return impl.has_value();
-  }
 
   /// Access the internal ParseResult value.
   ParseResult value() const { return impl.value(); }
-  LLVM_DEPRECATED("Use value instead", "value") ParseResult getValue() const {
-    return impl.value();
-  }
   ParseResult operator*() const { return value(); }
 
 private:
@@ -100,7 +94,7 @@ public:
   MLIRContext *getContext() { return getOperation()->getContext(); }
 
   /// Print the operation to the given stream.
-  void print(raw_ostream &os, OpPrintingFlags flags = llvm::None) {
+  void print(raw_ostream &os, OpPrintingFlags flags = std::nullopt) {
     state->print(os, flags);
   }
   void print(raw_ostream &os, AsmState &asmState) {
@@ -240,7 +234,7 @@ class OpFoldResult : public PointerUnion<Attribute, Value> {
   using PointerUnion<Attribute, Value>::PointerUnion;
 
 public:
-  void dump() { llvm::errs() << *this << "\n"; }
+  void dump() const { llvm::errs() << *this << "\n"; }
 };
 
 /// Allow printing to a stream.
@@ -854,7 +848,7 @@ public:
   /// can use SFINAE to disable the methods for non-single region operations.
   template <typename OpT, typename T = void>
   using enable_if_single_region =
-      typename std::enable_if_t<OpT::template hasTrait<OneRegion>(), T>;
+      std::enable_if_t<OpT::template hasTrait<OneRegion>(), T>;
 
   template <typename OpT = ConcreteType>
   enable_if_single_region<OpT, Block::iterator> begin() {
@@ -957,7 +951,7 @@ struct SingleBlockImplicitTerminator {
 
     template <typename OpT, typename T = void>
     using enable_if_single_region =
-        typename std::enable_if_t<OpT::template hasTrait<OneRegion>(), T>;
+        std::enable_if_t<OpT::template hasTrait<OneRegion>(), T>;
 
     /// Insert the operation into the back of the body, before the terminator.
     template <typename OpT = ConcreteType>

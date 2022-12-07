@@ -108,7 +108,12 @@ void AMDGCN::Linker::constructLldCommand(Compilation &C, const JobAction &JA,
                                          const llvm::opt::ArgList &Args) const {
   // Construct lld command.
   // The output from ld.lld is an HSA code object file.
-  ArgStringList LldArgs{"-flavor", "gnu", "--no-undefined", "-shared",
+  ArgStringList LldArgs{"-flavor",
+                        "gnu",
+                        "-m",
+                        "elf64_amdgpu",
+                        "--no-undefined",
+                        "-shared",
                         "-plugin-opt=-amdgpu-internalize-symbols"};
 
   auto &TC = getToolChain();
@@ -214,7 +219,7 @@ HIPAMDToolChain::HIPAMDToolChain(const Driver &D, const llvm::Triple &Triple,
 }
 
 static const char *getLibSpirvTargetName(const ToolChain &HostTC) {
-  return "remangled-l64-signed_char.libspirv-amdgcn--amdhsa.bc";
+  return "remangled-l64-signed_char.libspirv-amdgcn-amd-amdhsa.bc";
 }
 
 void HIPAMDToolChain::addClangTargetOptions(

@@ -64,10 +64,12 @@ public:
     CortexA78,
     CortexA78C,
     CortexA710,
+    CortexA715,
     CortexR82,
     CortexX1,
     CortexX1C,
     CortexX2,
+    CortexX3,
     ExynosM3,
     Falkor,
     Kryo,
@@ -121,6 +123,7 @@ protected:
 
   bool IsLittle;
 
+  bool StreamingSVEModeDisabled;
   unsigned MinSVEVectorSizeInBits;
   unsigned MaxSVEVectorSizeInBits;
   unsigned VScaleForTuning = 2;
@@ -158,7 +161,8 @@ public:
                    const std::string &TuneCPU, const std::string &FS,
                    const TargetMachine &TM, bool LittleEndian,
                    unsigned MinSVEVectorSizeInBitsOverride = 0,
-                   unsigned MaxSVEVectorSizeInBitsOverride = 0);
+                   unsigned MaxSVEVectorSizeInBitsOverride = 0,
+                   bool StreamingSVEModeDisabled = true);
 
 // Getters for SubtargetFeatures defined in tablegen
 #define GET_SUBTARGETINFO_MACRO(ATTRIBUTE, DEFAULT, GETTER)                    \
@@ -198,6 +202,9 @@ public:
   bool isXRaySupported() const override { return true; }
 
   unsigned getMinVectorRegisterBitWidth() const {
+    // Don't assume any minimum vector size when PSTATE.SM may not be 0.
+    if (!isStreamingSVEModeDisabled())
+      return 0;
     return MinVectorRegisterBitWidth;
   }
 
@@ -300,6 +307,14 @@ public:
   unsigned classifyGlobalFunctionReference(const GlobalValue *GV,
                                            const TargetMachine &TM) const;
 
+  /// This function is design to compatible with the function def in other
+  /// targets and escape build error about the virtual function def in base
+  /// class TargetSubtargetInfo. Updeate me if AArch64 target need to use it.
+  unsigned char
+  classifyGlobalFunctionReference(const GlobalValue *GV) const override {
+    return 0;
+  }
+
   void overrideSchedPolicy(MachineSchedPolicy &Policy,
                            unsigned NumRegionInstrs) const override;
 
@@ -346,23 +361,32 @@ public:
 
   void mirFileLoaded(MachineFunction &MF) const override;
 
+  bool hasSVEorSME() const { return hasSVE() || hasSME(); }
+
   // Return the known range for the bit length of SVE data registers. A value
   // of 0 means nothing is known about that particular limit beyong what's
   // implied by the architecture.
   unsigned getMaxSVEVectorSizeInBits() const {
-    assert(HasSVE && "Tried to get SVE vector length without SVE support!");
+    assert(hasSVEorSME() &&
+           "Tried to get SVE vector length without SVE support!");
     return MaxSVEVectorSizeInBits;
   }
 
   unsigned getMinSVEVectorSizeInBits() const {
-    assert(HasSVE && "Tried to get SVE vector length without SVE support!");
+    assert(hasSVEorSME() &&
+           "Tried to get SVE vector length without SVE support!");
     return MinSVEVectorSizeInBits;
   }
 
   bool useSVEForFixedLengthVectors() const {
+    if (forceStreamingCompatibleSVE())
+      return true;
+
     // Prefer NEON unless larger SVE registers are available.
     return hasSVE() && getMinSVEVectorSizeInBits() >= 256;
   }
+
+  bool forceStreamingCompatibleSVE() const;
 
   unsigned getVScaleForTuning() const { return VScaleForTuning; }
 
@@ -378,6 +402,7 @@ public:
     return "__security_check_cookie";
   }
 
+  bool isStreamingSVEModeDisabled() const { return StreamingSVEModeDisabled; }
 };
 } // End llvm namespace
 

@@ -1171,10 +1171,12 @@ public:
         return Expr<T>{Constant<T>{array.GetType().GetDerivedTypeSpec(),
             std::move(elements_), ConstantSubscripts{n}}};
       } else if constexpr (T::category == TypeCategory::Character) {
-        auto length{Fold(context_, common::Clone(array.LEN()))};
-        if (std::optional<ConstantSubscript> lengthValue{ToInt64(length)}) {
-          return Expr<T>{Constant<T>{
-              *lengthValue, std::move(elements_), ConstantSubscripts{n}}};
+        if (const auto *len{array.LEN()}) {
+          auto length{Fold(context_, common::Clone(*len))};
+          if (std::optional<ConstantSubscript> lengthValue{ToInt64(length)}) {
+            return Expr<T>{Constant<T>{
+                *lengthValue, std::move(elements_), ConstantSubscripts{n}}};
+          }
         }
       } else {
         return Expr<T>{
@@ -1371,12 +1373,13 @@ std::optional<Expr<RESULT>> MapOperation(FoldingContext &context,
 template <typename RESULT, typename A>
 ArrayConstructor<RESULT> ArrayConstructorFromMold(
     const A &prototype, std::optional<Expr<SubscriptInteger>> &&length) {
+  ArrayConstructor<RESULT> result{prototype};
   if constexpr (RESULT::category == TypeCategory::Character) {
-    return ArrayConstructor<RESULT>{
-        std::move(length.value()), ArrayConstructorValues<RESULT>{}};
-  } else {
-    return ArrayConstructor<RESULT>{prototype};
+    if (length) {
+      result.set_LEN(std::move(*length));
+    }
   }
+  return result;
 }
 
 // array * array case
@@ -1607,7 +1610,6 @@ Expr<TO> FoldOperation(
         TypeCategory constexpr FromCat{FROMCAT};
         static_assert(FromCat == Operand::category);
         auto &convert{msvcWorkaround.convert};
-        char buffer[64];
         if (auto value{GetScalarConstantValue<Operand>(kindExpr)}) {
           FoldingContext &ctx{msvcWorkaround.context};
           if constexpr (TO::category == TypeCategory::Integer) {
@@ -1636,6 +1638,7 @@ Expr<TO> FoldOperation(
             if constexpr (FromCat == TypeCategory::Integer) {
               auto converted{Scalar<TO>::FromInteger(*value)};
               if (!converted.flags.empty()) {
+                char buffer[64];
                 std::snprintf(buffer, sizeof buffer,
                     "INTEGER(%d) to REAL(%d) conversion", Operand::kind,
                     TO::kind);
@@ -1644,6 +1647,7 @@ Expr<TO> FoldOperation(
               return ScalarConstantToExpr(std::move(converted.value));
             } else if constexpr (FromCat == TypeCategory::Real) {
               auto converted{Scalar<TO>::Convert(*value)};
+              char buffer[64];
               if (!converted.flags.empty()) {
                 std::snprintf(buffer, sizeof buffer,
                     "REAL(%d) to REAL(%d) conversion", Operand::kind, TO::kind);

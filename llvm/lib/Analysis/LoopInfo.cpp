@@ -68,15 +68,16 @@ bool Loop::hasLoopInvariantOperands(const Instruction *I) const {
 }
 
 bool Loop::makeLoopInvariant(Value *V, bool &Changed, Instruction *InsertPt,
-                             MemorySSAUpdater *MSSAU) const {
+                             MemorySSAUpdater *MSSAU,
+                             ScalarEvolution *SE) const {
   if (Instruction *I = dyn_cast<Instruction>(V))
-    return makeLoopInvariant(I, Changed, InsertPt, MSSAU);
+    return makeLoopInvariant(I, Changed, InsertPt, MSSAU, SE);
   return true; // All non-instructions are loop-invariant.
 }
 
 bool Loop::makeLoopInvariant(Instruction *I, bool &Changed,
-                             Instruction *InsertPt,
-                             MemorySSAUpdater *MSSAU) const {
+                             Instruction *InsertPt, MemorySSAUpdater *MSSAU,
+                             ScalarEvolution *SE) const {
   // Test if the value is already loop-invariant.
   if (isLoopInvariant(I))
     return true;
@@ -97,7 +98,7 @@ bool Loop::makeLoopInvariant(Instruction *I, bool &Changed,
   }
   // Don't hoist instructions with loop-variant operands.
   for (Value *Operand : I->operands())
-    if (!makeLoopInvariant(Operand, Changed, InsertPt, MSSAU))
+    if (!makeLoopInvariant(Operand, Changed, InsertPt, MSSAU, SE))
       return false;
 
   // Hoist.
@@ -112,6 +113,9 @@ bool Loop::makeLoopInvariant(Instruction *I, bool &Changed,
   // condition. Conservatively strip it here so that we don't give any wrong
   // information to the optimizer.
   I->dropUnknownNonDebugMetadata();
+
+  if (SE)
+    SE->forgetBlockAndLoopDispositions(I);
 
   Changed = true;
   return true;
@@ -199,12 +203,12 @@ Optional<Loop::LoopBounds> Loop::LoopBounds::getBounds(const Loop &L,
                                                        ScalarEvolution &SE) {
   InductionDescriptor IndDesc;
   if (!InductionDescriptor::isInductionPHI(&IndVar, &L, &SE, IndDesc))
-    return None;
+    return std::nullopt;
 
   Value *InitialIVValue = IndDesc.getStartValue();
   Instruction *StepInst = IndDesc.getInductionBinOp();
   if (!InitialIVValue || !StepInst)
-    return None;
+    return std::nullopt;
 
   const SCEV *Step = IndDesc.getStep();
   Value *StepInstOp1 = StepInst->getOperand(1);
@@ -217,7 +221,7 @@ Optional<Loop::LoopBounds> Loop::LoopBounds::getBounds(const Loop &L,
 
   Value *FinalIVValue = findFinalIVValue(L, IndVar, *StepInst);
   if (!FinalIVValue)
-    return None;
+    return std::nullopt;
 
   return LoopBounds(L, *InitialIVValue, *StepInst, StepValue, *FinalIVValue,
                     SE);
@@ -284,7 +288,7 @@ Optional<Loop::LoopBounds> Loop::getBounds(ScalarEvolution &SE) const {
   if (PHINode *IndVar = getInductionVariable(SE))
     return LoopBounds::getBounds(*this, *IndVar, SE);
 
-  return None;
+  return std::nullopt;
 }
 
 PHINode *Loop::getInductionVariable(ScalarEvolution &SE) const {
@@ -1049,7 +1053,7 @@ Optional<const MDOperand *> llvm::findStringMetadataForLoop(const Loop *TheLoop,
                                                             StringRef Name) {
   MDNode *MD = findOptionMDForLoop(TheLoop, Name);
   if (!MD)
-    return None;
+    return std::nullopt;
   switch (MD->getNumOperands()) {
   case 1:
     return nullptr;
@@ -1064,7 +1068,7 @@ Optional<bool> llvm::getOptionalBoolLoopAttribute(const Loop *TheLoop,
                                                   StringRef Name) {
   MDNode *MD = findOptionMDForLoop(TheLoop, Name);
   if (!MD)
-    return None;
+    return std::nullopt;
   switch (MD->getNumOperands()) {
   case 1:
     // When the value is absent it is interpreted as 'attribute set'.
@@ -1082,16 +1086,16 @@ bool llvm::getBooleanLoopAttribute(const Loop *TheLoop, StringRef Name) {
   return getOptionalBoolLoopAttribute(TheLoop, Name).value_or(false);
 }
 
-llvm::Optional<int> llvm::getOptionalIntLoopAttribute(const Loop *TheLoop,
-                                                      StringRef Name) {
+std::optional<int> llvm::getOptionalIntLoopAttribute(const Loop *TheLoop,
+                                                     StringRef Name) {
   const MDOperand *AttrMD =
       findStringMetadataForLoop(TheLoop, Name).value_or(nullptr);
   if (!AttrMD)
-    return None;
+    return std::nullopt;
 
   ConstantInt *IntMD = mdconst::extract_or_null<ConstantInt>(AttrMD->get());
   if (!IntMD)
-    return None;
+    return std::nullopt;
 
   return IntMD->getSExtValue();
 }

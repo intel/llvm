@@ -163,7 +163,7 @@ OpDescriptor llvm::fuzzerop::splitBlockDescriptor(unsigned Weight) {
   SourcePred isInt1Ty{[](ArrayRef<Value *>, const Value *V) {
                         return V->getType()->isIntegerTy(1);
                       },
-                      None};
+                      std::nullopt};
   return {Weight, {isInt1Ty}, buildSplitBlock};
 }
 
@@ -182,7 +182,7 @@ OpDescriptor llvm::fuzzerop::gepDescriptor(unsigned Weight) {
   // TODO: Try to avoid meaningless accesses.
   SourcePred sizedType(
       [](ArrayRef<Value *>, const Value *V) { return V->getType()->isSized(); },
-      None);
+      std::nullopt);
   return {Weight, {sizedPtrType(), sizedType, anyIntType()}, buildGEP};
 }
 
@@ -298,7 +298,7 @@ OpDescriptor llvm::fuzzerop::insertElementDescriptor(unsigned Weight) {
   auto buildInsert = [](ArrayRef<Value *> Srcs, Instruction *Inst) {
     return InsertElementInst::Create(Srcs[0], Srcs[1], Srcs[2], "I", Inst);
   };
-    // TODO: Try to avoid undefined accesses.
+  // TODO: Try to avoid undefined accesses.
   return {Weight,
           {anyVectorType(), matchScalarOfFirstType(), anyIntType()},
           buildInsert};
@@ -313,8 +313,8 @@ static SourcePred validShuffleVectorIndex() {
     auto *Int32Ty = Type::getInt32Ty(Cur[0]->getContext());
     // TODO: It's straighforward to make up reasonable values, but listing them
     // exhaustively would be insane. Come up with a couple of sensible ones.
-    return std::vector<Constant *>{UndefValue::get(
-        VectorType::get(Int32Ty, FirstTy->getElementCount()))};
+    return std::vector<Constant *>{
+        UndefValue::get(VectorType::get(Int32Ty, FirstTy->getElementCount()))};
   };
   return {Pred, Make};
 }

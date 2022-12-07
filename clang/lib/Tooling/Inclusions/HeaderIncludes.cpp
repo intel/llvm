@@ -58,7 +58,7 @@ unsigned getOffsetAfterTokenSequence(
 // (second) raw_identifier name is checked.
 bool checkAndConsumeDirectiveWithName(
     Lexer &Lex, StringRef Name, Token &Tok,
-    llvm::Optional<StringRef> RawIDName = llvm::None) {
+    llvm::Optional<StringRef> RawIDName = std::nullopt) {
   bool Matched = Tok.is(tok::hash) && !Lex.LexFromRawLexer(Tok) &&
                  Tok.is(tok::raw_identifier) &&
                  Tok.getRawIdentifier() == Name && !Lex.LexFromRawLexer(Tok) &&
@@ -266,6 +266,8 @@ bool IncludeCategoryManager::isMainHeader(StringRef IncludeName) const {
   return false;
 }
 
+const llvm::Regex HeaderIncludes::IncludeRegex(IncludeRegexPattern);
+
 HeaderIncludes::HeaderIncludes(StringRef FileName, StringRef Code,
                                const IncludeStyle &Style)
     : FileName(FileName), Code(Code), FirstIncludeOffset(-1),
@@ -274,8 +276,7 @@ HeaderIncludes::HeaderIncludes(StringRef FileName, StringRef Code,
       MaxInsertOffset(MinInsertOffset +
                       getMaxHeaderInsertionOffset(
                           FileName, Code.drop_front(MinInsertOffset), Style)),
-      Categories(Style, FileName),
-      IncludeRegex(llvm::Regex(IncludeRegexPattern)) {
+      Categories(Style, FileName) {
   // Add 0 for main header and INT_MAX for headers that are not in any
   // category.
   Priorities = {0, INT_MAX};
@@ -351,7 +352,7 @@ HeaderIncludes::insert(llvm::StringRef IncludeName, bool IsAngled) const {
     for (const auto &Inc : It->second)
       if ((IsAngled && StringRef(Inc.Name).startswith("<")) ||
           (!IsAngled && StringRef(Inc.Name).startswith("\"")))
-        return llvm::None;
+        return std::nullopt;
   std::string Quoted =
       std::string(llvm::formatv(IsAngled ? "<{0}>" : "\"{0}\"", IncludeName));
   StringRef QuotedName = Quoted;

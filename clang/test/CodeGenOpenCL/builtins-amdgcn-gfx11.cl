@@ -31,3 +31,15 @@ void test_ds_bvh_stack_rtn(global uint2* out, uint addr, uint data, uint4 data1)
 {
   *out = __builtin_amdgcn_ds_bvh_stack_rtn(addr, data, data1, 128);
 }
+
+// CHECK-LABEL: @test_permlane64(
+// CHECK: call i32 @llvm.amdgcn.permlane64(i32 %a)
+void test_permlane64(global uint* out, uint a) {
+  *out = __builtin_amdgcn_permlane64(a);
+}
+
+// CHECK-LABEL: @test_s_wait_event_export_ready
+// CHECK: call void @llvm.amdgcn.s.wait.event.export.ready
+void test_s_wait_event_export_ready() {
+  __builtin_amdgcn_s_wait_event_export_ready();
+}

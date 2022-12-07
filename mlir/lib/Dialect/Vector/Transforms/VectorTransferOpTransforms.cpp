@@ -18,7 +18,7 @@
 #include "mlir/Dialect/Vector/Utils/VectorUtils.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Dominance.h"
-#include "mlir/Transforms/SideEffectUtils.h"
+#include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Debug.h"
@@ -114,7 +114,7 @@ void TransferOptimization::deadStoreOp(vector::TransferWriteOp write) {
       users.append(subView->getUsers().begin(), subView->getUsers().end());
       continue;
     }
-    if (isSideEffectFree(user))
+    if (isMemoryEffectFree(user))
       continue;
     if (user == write.getOperation())
       continue;
@@ -200,7 +200,7 @@ void TransferOptimization::storeToLoadForwarding(vector::TransferReadOp read) {
       users.append(subView->getUsers().begin(), subView->getUsers().end());
       continue;
     }
-    if (isSideEffectFree(user) || isa<vector::TransferReadOp>(user))
+    if (isMemoryEffectFree(user) || isa<vector::TransferReadOp>(user))
       continue;
     if (auto write = dyn_cast<vector::TransferWriteOp>(user)) {
       // If there is a write, but we can prove that it is disjoint we can ignore

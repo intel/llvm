@@ -506,7 +506,7 @@ MetadataStreamerMsgPackV3::getAccessQualifier(StringRef AccQual) const {
       .Case("read_only", StringRef("read_only"))
       .Case("write_only", StringRef("write_only"))
       .Case("read_write", StringRef("read_write"))
-      .Default(None);
+      .Default(std::nullopt);
 }
 
 Optional<StringRef> MetadataStreamerMsgPackV3::getAddressSpaceQualifier(
@@ -525,7 +525,7 @@ Optional<StringRef> MetadataStreamerMsgPackV3::getAddressSpaceQualifier(
   case AMDGPUAS::REGION_ADDRESS:
     return StringRef("region");
   default:
-    return None;
+    return std::nullopt;
   }
 }
 
@@ -874,8 +874,9 @@ msgpack::MapDocNode MetadataStreamerMsgPackV3::getHSAKernelProps(
       Kern.getDocument()->getNode(ProgramInfo.LDSSize);
   Kern[".private_segment_fixed_size"] =
       Kern.getDocument()->getNode(ProgramInfo.ScratchSize);
-  Kern[".uses_dynamic_stack"] =
-      Kern.getDocument()->getNode(ProgramInfo.DynamicCallStack);
+  if (AMDGPU::getAmdhsaCodeObjectVersion() >= 5)
+    Kern[".uses_dynamic_stack"] =
+        Kern.getDocument()->getNode(ProgramInfo.DynamicCallStack);
 
   // FIXME: The metadata treats the minimum as 16?
   Kern[".kernarg_segment_align"] =

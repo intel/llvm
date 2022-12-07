@@ -173,6 +173,9 @@ public:
 
   bool isNarrowingProfitable(EVT VT1, EVT VT2) const override;
 
+  bool isDesirableToCommuteWithShift(const SDNode *N,
+                                     CombineLevel Level) const override;
+
   EVT getTypeForExtReturn(LLVMContext &Context, EVT VT,
                           ISD::NodeType ExtendKind) const override;
 
@@ -511,6 +514,7 @@ enum NodeType : unsigned {
   BUFFER_LOAD_BYTE,
   BUFFER_LOAD_SHORT,
   BUFFER_LOAD_FORMAT,
+  BUFFER_LOAD_FORMAT_TFE,
   BUFFER_LOAD_FORMAT_D16,
   SBUFFER_LOAD,
   BUFFER_STORE,

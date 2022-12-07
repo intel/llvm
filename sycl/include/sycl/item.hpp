@@ -25,9 +25,12 @@ template <typename TransformedArgType, int Dims, typename KernelType>
 class RoundedRangeKernel;
 template <typename TransformedArgType, int Dims, typename KernelType>
 class RoundedRangeKernelWithKH;
+
+namespace reduction {
+template <int Dims>
+item<Dims, false> getDelinearizedItem(range<Dims> Range, id<Dims> Id);
+} // namespace reduction
 } // namespace detail
-template <int dimensions> class id;
-template <int dimensions> class range;
 
 /// Identifies an instance of the function object executing at each point
 /// in a range.
@@ -73,13 +76,13 @@ public:
 #endif // __SYCL_DISABLE_ITEM_TO_INT_CONV__
   template <bool has_offset = with_offset>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL2020")
-  detail::enable_if_t<has_offset, id<dimensions>> get_offset() const {
+  std::enable_if_t<has_offset, id<dimensions>> get_offset() const {
     return MImpl.MOffset;
   }
 
   template <bool has_offset = with_offset>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL2020")
-  detail::enable_if_t<has_offset, size_t> __SYCL_ALWAYS_INLINE
+  std::enable_if_t<has_offset, size_t> __SYCL_ALWAYS_INLINE
       get_offset(int dimension) const {
     size_t Id = MImpl.MOffset[dimension];
     __SYCL_ASSUME_INT(Id);
@@ -87,7 +90,7 @@ public:
   }
 
   template <bool has_offset = with_offset>
-  operator detail::enable_if_t<!has_offset, item<dimensions, true>>() const {
+  operator std::enable_if_t<!has_offset, item<dimensions, true>>() const {
     return detail::Builder::createItem<dimensions, true>(
         MImpl.MExtent, MImpl.MIndex, /*Offset*/ {});
   }
@@ -112,12 +115,12 @@ public:
 
 protected:
   template <bool has_offset = with_offset>
-  item(detail::enable_if_t<has_offset, const range<dimensions>> &extent,
+  item(std::enable_if_t<has_offset, const range<dimensions>> &extent,
        const id<dimensions> &index, const id<dimensions> &offset)
       : MImpl{extent, index, offset} {}
 
   template <bool has_offset = with_offset>
-  item(detail::enable_if_t<!has_offset, const range<dimensions>> &extent,
+  item(std::enable_if_t<!has_offset, const range<dimensions>> &extent,
        const id<dimensions> &index)
       : MImpl{extent, index} {}
 
@@ -129,6 +132,10 @@ private:
   template <typename, int, typename>
   friend class detail::RoundedRangeKernelWithKH;
   void set_allowed_range(const range<dimensions> rnwi) { MImpl.MExtent = rnwi; }
+
+  template <int Dims>
+  friend item<Dims, false>
+  detail::reduction::getDelinearizedItem(range<Dims> Range, id<Dims> Id);
 
   detail::ItemBase<dimensions, with_offset> MImpl;
 };

@@ -861,10 +861,12 @@ bool IsBareNullPointer(const Expr<SomeType> *expr) {
 // GetSymbolVector()
 auto GetSymbolVectorHelper::operator()(const Symbol &x) const -> Result {
   if (const auto *details{x.detailsIf<semantics::AssocEntityDetails>()}) {
-    return (*this)(details->expr());
-  } else {
-    return {x.GetUltimate()};
+    if (IsVariable(details->expr()) && !GetProcedureRef(*details->expr())) {
+      // associate(x => variable that is not a pointer returned by a function)
+      return (*this)(details->expr());
+    }
   }
+  return {x.GetUltimate()};
 }
 auto GetSymbolVectorHelper::operator()(const Component &x) const -> Result {
   Result result{(*this)(x.base())};
@@ -1002,6 +1004,12 @@ std::optional<parser::MessageFixedText> CheckProcCompatibility(bool isCall,
   } else if (!rhsProcedure) {
     msg = "In assignment to procedure %s, the characteristics of the target"
           " procedure '%s' could not be determined"_err_en_US;
+  } else if (!isCall && lhsProcedure->functionResult &&
+      rhsProcedure->functionResult &&
+      !lhsProcedure->functionResult->IsCompatibleWith(
+          *rhsProcedure->functionResult, &whyNotCompatible)) {
+    msg =
+        "Function %s associated with incompatible function designator '%s': %s"_err_en_US;
   } else if (lhsProcedure->IsCompatibleWith(
                  *rhsProcedure, &whyNotCompatible, specificIntrinsic)) {
     // OK
@@ -1264,6 +1272,9 @@ bool IsPureProcedure(const Symbol &original) {
     // reference an IMPURE procedure or a VOLATILE variable
     if (const auto &expr{symbol.get<SubprogramDetails>().stmtFunction()}) {
       for (const SymbolRef &ref : evaluate::CollectSymbols(*expr)) {
+        if (&*ref == &symbol) {
+          return false; // error recovery, recursion is caught elsewhere
+        }
         if (IsFunction(*ref) && !IsPureProcedure(*ref)) {
           return false;
         }
@@ -1330,7 +1341,12 @@ bool IsFunction(const Scope &scope) {
 
 bool IsProcedure(const Symbol &symbol) {
   return common::visit(common::visitors{
-                           [](const SubprogramDetails &) { return true; },
+                           [&symbol](const SubprogramDetails &) {
+                             const Scope *scope{symbol.scope()};
+                             // Main programs & BLOCK DATA are not procedures.
+                             return !scope ||
+                                 scope->kind() == Scope::Kind::Subprogram;
+                           },
                            [](const SubprogramNameDetails &) { return true; },
                            [](const ProcEntityDetails &) { return true; },
                            [](const GenericDetails &) { return true; },
@@ -1475,14 +1491,14 @@ bool IsAssumedShape(const Symbol &symbol) {
   const Symbol &ultimate{ResolveAssociations(symbol)};
   const auto *object{ultimate.detailsIf<ObjectEntityDetails>()};
   return object && object->CanBeAssumedShape() &&
-      !evaluate::IsAllocatableOrPointer(ultimate);
+      !semantics::IsAllocatableOrPointer(ultimate);
 }
 
 bool IsDeferredShape(const Symbol &symbol) {
   const Symbol &ultimate{ResolveAssociations(symbol)};
   const auto *object{ultimate.detailsIf<ObjectEntityDetails>()};
   return object && object->CanBeDeferredShape() &&
-      evaluate::IsAllocatableOrPointer(ultimate);
+      semantics::IsAllocatableOrPointer(ultimate);
 }
 
 bool IsFunctionResult(const Symbol &original) {

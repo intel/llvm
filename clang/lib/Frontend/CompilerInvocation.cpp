@@ -94,7 +94,9 @@
 #include <cassert>
 #include <cstddef>
 #include <cstring>
+#include <ctime>
 #include <fstream>
+#include <limits>
 #include <memory>
 #include <string>
 #include <tuple>
@@ -174,7 +176,7 @@ static llvm::Optional<bool> normalizeSimpleFlag(OptSpecifier Opt,
                                                 DiagnosticsEngine &Diags) {
   if (Args.hasArg(Opt))
     return true;
-  return None;
+  return std::nullopt;
 }
 
 static Optional<bool> normalizeSimpleNegativeFlag(OptSpecifier Opt, unsigned,
@@ -182,7 +184,7 @@ static Optional<bool> normalizeSimpleNegativeFlag(OptSpecifier Opt, unsigned,
                                                   DiagnosticsEngine &) {
   if (Args.hasArg(Opt))
     return false;
-  return None;
+  return std::nullopt;
 }
 
 /// The tblgen-erated code passes in a fifth parameter of an arbitrary type, but
@@ -197,8 +199,7 @@ static void denormalizeSimpleFlag(SmallVectorImpl<const char *> &Args,
 }
 
 template <typename T> static constexpr bool is_uint64_t_convertible() {
-  return !std::is_same<T, uint64_t>::value &&
-         llvm::is_integral_or_enum<T>::value;
+  return !std::is_same_v<T, uint64_t> && llvm::is_integral_or_enum<T>::value;
 }
 
 template <typename T,
@@ -208,7 +209,7 @@ static auto makeFlagToValueNormalizer(T Value) {
                  DiagnosticsEngine &) -> Optional<T> {
     if (Args.hasArg(Opt))
       return Value;
-    return None;
+    return std::nullopt;
   };
 }
 
@@ -226,7 +227,7 @@ static auto makeBooleanOptionNormalizer(bool Value, bool OtherValue,
     if (const Arg *A = Args.getLastArg(Opt, OtherOpt)) {
       return A->getOption().matches(Opt) ? Value : OtherValue;
     }
-    return None;
+    return std::nullopt;
   };
 }
 
@@ -275,7 +276,7 @@ findValueTableByName(const SimpleEnumValueTable &Table, StringRef Name) {
     if (Name == Table.Table[I].Name)
       return Table.Table[I];
 
-  return None;
+  return std::nullopt;
 }
 
 static Optional<SimpleEnumValue>
@@ -284,7 +285,7 @@ findValueTableByValue(const SimpleEnumValueTable &Table, unsigned Value) {
     if (Value == Table.Table[I].Value)
       return Table.Table[I];
 
-  return None;
+  return std::nullopt;
 }
 
 static llvm::Optional<unsigned> normalizeSimpleEnum(OptSpecifier Opt,
@@ -296,7 +297,7 @@ static llvm::Optional<unsigned> normalizeSimpleEnum(OptSpecifier Opt,
 
   auto *Arg = Args.getLastArg(Opt);
   if (!Arg)
-    return None;
+    return std::nullopt;
 
   StringRef ArgValue = Arg->getValue();
   if (auto MaybeEnumVal = findValueTableByName(Table, ArgValue))
@@ -304,7 +305,7 @@ static llvm::Optional<unsigned> normalizeSimpleEnum(OptSpecifier Opt,
 
   Diags.Report(diag::err_drv_invalid_value)
       << Arg->getAsString(Args) << ArgValue;
-  return None;
+  return std::nullopt;
 }
 
 static void denormalizeSimpleEnumImpl(SmallVectorImpl<const char *> &Args,
@@ -338,7 +339,7 @@ static Optional<std::string> normalizeString(OptSpecifier Opt, int TableIndex,
                                              DiagnosticsEngine &Diags) {
   auto *Arg = Args.getLastArg(Opt);
   if (!Arg)
-    return None;
+    return std::nullopt;
   return std::string(Arg->getValue());
 }
 
@@ -348,12 +349,12 @@ static Optional<IntTy> normalizeStringIntegral(OptSpecifier Opt, int,
                                                DiagnosticsEngine &Diags) {
   auto *Arg = Args.getLastArg(Opt);
   if (!Arg)
-    return None;
+    return std::nullopt;
   IntTy Res;
   if (StringRef(Arg->getValue()).getAsInteger(0, Res)) {
     Diags.Report(diag::err_drv_invalid_int_value)
         << Arg->getAsString(Args) << Arg->getValue();
-    return None;
+    return std::nullopt;
   }
   return Res;
 }
@@ -401,7 +402,7 @@ static Optional<std::string> normalizeTriple(OptSpecifier Opt, int TableIndex,
                                              DiagnosticsEngine &Diags) {
   auto *Arg = Args.getLastArg(Opt);
   if (!Arg)
-    return None;
+    return std::nullopt;
   return llvm::Triple::normalize(Arg->getValue());
 }
 
@@ -489,9 +490,6 @@ static bool FixupInvocation(CompilerInvocation &Invocation,
 
   if (LangOpts.AppleKext && !LangOpts.CPlusPlus)
     Diags.Report(diag::warn_c_kext);
-
-  if (Args.hasArg(OPT_fconcepts_ts))
-    Diags.Report(diag::warn_fe_concepts_ts_flag);
 
   if (LangOpts.NewAlignOverride &&
       !llvm::isPowerOf2_32(LangOpts.NewAlignOverride)) {
@@ -1028,6 +1026,15 @@ static bool ParseAnalyzerArgs(AnalyzerOptions &Opts, ArgList &Args,
 
       A->claim();
       Opts.Config[key] = std::string(val);
+
+      // FIXME: Remove this hunk after clang-17 released.
+      constexpr auto SingleFAM =
+          "consider-single-element-arrays-as-flexible-array-members";
+      if (key == SingleFAM) {
+        Diags.Report(diag::warn_analyzer_deprecated_option_with_alternative)
+            << SingleFAM << "clang-17"
+            << "-fstrict-flex-arrays=<N>";
+      }
     }
   }
 
@@ -1065,11 +1072,12 @@ static void initOption(AnalyzerOptions::ConfigTable &Config,
 static void initOption(AnalyzerOptions::ConfigTable &Config,
                        DiagnosticsEngine *Diags,
                        bool &OptionField, StringRef Name, bool DefaultVal) {
-  auto PossiblyInvalidVal = llvm::StringSwitch<Optional<bool>>(
-                 getStringOption(Config, Name, (DefaultVal ? "true" : "false")))
-      .Case("true", true)
-      .Case("false", false)
-      .Default(None);
+  auto PossiblyInvalidVal =
+      llvm::StringSwitch<Optional<bool>>(
+          getStringOption(Config, Name, (DefaultVal ? "true" : "false")))
+          .Case("true", true)
+          .Case("false", false)
+          .Default(std::nullopt);
 
   if (!PossiblyInvalidVal) {
     if (Diags)
@@ -1383,10 +1391,10 @@ void CompilerInvocation::GenerateCodeGenArgs(
     DebugInfoVal = "unused-types";
     break;
   case codegenoptions::NoDebugInfo: // default value
-    DebugInfoVal = None;
+    DebugInfoVal = std::nullopt;
     break;
   case codegenoptions::LocTrackingOnly: // implied value
-    DebugInfoVal = None;
+    DebugInfoVal = std::nullopt;
     break;
   }
   if (DebugInfoVal)
@@ -1723,7 +1731,7 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
     StringRef Value = A->getValue();
     if (Value != "simple" && Value != "mangled")
       Diags.Report(diag::err_drv_unsupported_option_argument)
-          << A->getOption().getName() << A->getValue();
+          << A->getSpelling() << A->getValue();
     Opts.setDebugSimpleTemplateNames(
         StringRef(A->getValue()) == "simple"
             ? codegenoptions::DebugTemplateNamesKind::Simple
@@ -2490,7 +2498,6 @@ static const auto &getFrontendActionTable() {
 
       {frontend::GenerateModule, OPT_emit_module},
       {frontend::GenerateModuleInterface, OPT_emit_module_interface},
-      {frontend::GenerateHeaderModule, OPT_emit_header_module},
       {frontend::GenerateHeaderUnit, OPT_emit_header_unit},
       {frontend::GeneratePCH, OPT_emit_pch},
       {frontend::GenerateInterfaceStubs, OPT_emit_interface_stubs},
@@ -2520,7 +2527,7 @@ static Optional<frontend::ActionKind> getFrontendAction(OptSpecifier &Opt) {
     if (ActionOpt.second == Opt.getID())
       return ActionOpt.first;
 
-  return None;
+  return std::nullopt;
 }
 
 /// Maps frontend action to command line option.
@@ -2530,7 +2537,7 @@ getProgramActionOpt(frontend::ActionKind ProgramAction) {
     if (ActionOpt.first == ProgramAction)
       return OptSpecifier(ActionOpt.second);
 
-  return None;
+  return std::nullopt;
 }
 
 static void GenerateFrontendArgs(const FrontendOptions &Opts,
@@ -3012,8 +3019,8 @@ static void GenerateHeaderSearchArgs(HeaderSearchOptions &Opts,
   auto End = Opts.UserEntries.end();
 
   // Add -I..., -F..., and -index-header-map options in order.
-  for (; It < End &&
-         Matches(*It, {frontend::IndexHeaderMap, frontend::Angled}, None, true);
+  for (; It < End && Matches(*It, {frontend::IndexHeaderMap, frontend::Angled},
+                             std::nullopt, true);
        ++It) {
     OptSpecifier Opt = [It, Matches]() {
       if (Matches(*It, frontend::IndexHeaderMap, true, true))
@@ -3051,7 +3058,8 @@ static void GenerateHeaderSearchArgs(HeaderSearchOptions &Opts,
     GenerateArg(Args, OPT_idirafter, It->Path, SA);
   for (; It < End && Matches(*It, {frontend::Quoted}, false, true); ++It)
     GenerateArg(Args, OPT_iquote, It->Path, SA);
-  for (; It < End && Matches(*It, {frontend::System}, false, None); ++It)
+  for (; It < End && Matches(*It, {frontend::System}, false, std::nullopt);
+       ++It)
     GenerateArg(Args, It->IgnoreSysRoot ? OPT_isystem : OPT_iwithsysroot,
                 It->Path, SA);
   for (; It < End && Matches(*It, {frontend::System}, true, true); ++It)
@@ -3890,7 +3898,7 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
     else
       Opts.LongDoubleSize = 0;
   }
-  if (Opts.FastRelaxedMath)
+  if (Opts.FastRelaxedMath || Opts.CLUnsafeMath)
     Opts.setDefaultFPContractMode(LangOptions::FPM_Fast);
 
   llvm::sort(Opts.ModuleFeatures);
@@ -4220,7 +4228,6 @@ static bool isStrictlyPreprocessorAction(frontend::ActionKind Action) {
   case frontend::FixIt:
   case frontend::GenerateModule:
   case frontend::GenerateModuleInterface:
-  case frontend::GenerateHeaderModule:
   case frontend::GenerateHeaderUnit:
   case frontend::GeneratePCH:
   case frontend::GenerateInterfaceStubs:
@@ -4317,6 +4324,9 @@ static void GeneratePreprocessorArgs(PreprocessorOptions &Opts,
   for (const auto &RF : Opts.RemappedFiles)
     GenerateArg(Args, OPT_remap_file, RF.first + ";" + RF.second, SA);
 
+  if (Opts.SourceDateEpoch)
+    GenerateArg(Args, OPT_source_date_epoch, Twine(*Opts.SourceDateEpoch), SA);
+
   // Don't handle LexEditorPlaceholders. It is implied by the action that is
   // generated elsewhere.
 }
@@ -4397,6 +4407,22 @@ static bool ParsePreprocessorArgs(PreprocessorOptions &Opts, ArgList &Args,
     }
 
     Opts.addRemappedFile(Split.first, Split.second);
+  }
+
+  if (const Arg *A = Args.getLastArg(OPT_source_date_epoch)) {
+    StringRef Epoch = A->getValue();
+    // SOURCE_DATE_EPOCH, if specified, must be a non-negative decimal integer.
+    // On time64 systems, pick 253402300799 (the UNIX timestamp of
+    // 9999-12-31T23:59:59Z) as the upper bound.
+    const uint64_t MaxTimestamp =
+        std::min<uint64_t>(std::numeric_limits<time_t>::max(), 253402300799);
+    uint64_t V;
+    if (Epoch.getAsInteger(10, V) || V > MaxTimestamp) {
+      Diags.Report(diag::err_fe_invalid_source_date_epoch)
+          << Epoch << MaxTimestamp;
+    } else {
+      Opts.SourceDateEpoch = V;
+    }
   }
 
   // Always avoid lexing editor placeholders when we're just running the
@@ -4641,8 +4667,10 @@ bool CompilerInvocation::CreateFromArgsImpl(
   }
 
   // Store the command-line for using in the CodeView backend.
-  Res.getCodeGenOpts().Argv0 = Argv0;
-  append_range(Res.getCodeGenOpts().CommandLineArgs, CommandLineArgs);
+  if (Res.getCodeGenOpts().CodeViewCommandLine) {
+    Res.getCodeGenOpts().Argv0 = Argv0;
+    append_range(Res.getCodeGenOpts().CommandLineArgs, CommandLineArgs);
+  }
 
   FixupInvocation(Res, Diags, Args, DashX);
 
@@ -4827,12 +4855,19 @@ IntrusiveRefCntPtr<llvm::vfs::FileSystem>
 clang::createVFSFromCompilerInvocation(
     const CompilerInvocation &CI, DiagnosticsEngine &Diags,
     IntrusiveRefCntPtr<llvm::vfs::FileSystem> BaseFS) {
-  if (CI.getHeaderSearchOpts().VFSOverlayFiles.empty())
+  return createVFSFromOverlayFiles(CI.getHeaderSearchOpts().VFSOverlayFiles,
+                                   Diags, std::move(BaseFS));
+}
+
+IntrusiveRefCntPtr<llvm::vfs::FileSystem> clang::createVFSFromOverlayFiles(
+    ArrayRef<std::string> VFSOverlayFiles, DiagnosticsEngine &Diags,
+    IntrusiveRefCntPtr<llvm::vfs::FileSystem> BaseFS) {
+  if (VFSOverlayFiles.empty())
     return BaseFS;
 
   IntrusiveRefCntPtr<llvm::vfs::FileSystem> Result = BaseFS;
   // earlier vfs files are on the bottom
-  for (const auto &File : CI.getHeaderSearchOpts().VFSOverlayFiles) {
+  for (const auto &File : VFSOverlayFiles) {
     llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> Buffer =
         Result->getBufferForFile(File);
     if (!Buffer) {

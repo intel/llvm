@@ -101,6 +101,8 @@
 #include <cstdlib> // ::getenv
 #include <map>
 #include <memory>
+#include <regex>
+#include <sstream>
 #include <utility>
 #if LLVM_ON_UNIX
 #include <unistd.h> // getpid
@@ -110,8 +112,8 @@ using namespace clang::driver;
 using namespace clang;
 using namespace llvm::opt;
 
-static llvm::Optional<llvm::Triple>
-getOffloadTargetTriple(const Driver &D, const ArgList &Args) {
+static std::optional<llvm::Triple> getOffloadTargetTriple(const Driver &D,
+                                                          const ArgList &Args) {
   auto OffloadTargets = Args.getAllArgValues(options::OPT_offload_EQ);
   // Offload compilation flow does not support multiple targets for now. We
   // need the HIPActionBuilder (and possibly the CudaActionBuilder{,Base}too)
@@ -119,17 +121,17 @@ getOffloadTargetTriple(const Driver &D, const ArgList &Args) {
   switch (OffloadTargets.size()) {
   default:
     D.Diag(diag::err_drv_only_one_offload_target_supported);
-    return llvm::None;
+    return std::nullopt;
   case 0:
     D.Diag(diag::err_drv_invalid_or_unsupported_offload_target) << "";
-    return llvm::None;
+    return std::nullopt;
   case 1:
     break;
   }
   return llvm::Triple(OffloadTargets[0]);
 }
 
-static llvm::Optional<llvm::Triple>
+static std::optional<llvm::Triple>
 getNVIDIAOffloadTargetTriple(const Driver &D, const ArgList &Args,
                              const llvm::Triple &HostTriple) {
   if (!Args.hasArg(options::OPT_offload_EQ)) {
@@ -142,19 +144,19 @@ getNVIDIAOffloadTargetTriple(const Driver &D, const ArgList &Args,
     if (Args.hasArg(options::OPT_emit_llvm))
       return TT;
     D.Diag(diag::err_drv_cuda_offload_only_emit_bc);
-    return llvm::None;
+    return std::nullopt;
   }
   D.Diag(diag::err_drv_invalid_or_unsupported_offload_target) << TT->str();
-  return llvm::None;
+  return std::nullopt;
 }
-static llvm::Optional<llvm::Triple>
+static std::optional<llvm::Triple>
 getHIPOffloadTargetTriple(const Driver &D, const ArgList &Args) {
   if (!Args.hasArg(options::OPT_offload_EQ)) {
     return llvm::Triple("amdgcn-amd-amdhsa"); // Default HIP triple.
   }
   auto TT = getOffloadTargetTriple(D, Args);
   if (!TT)
-    return llvm::None;
+    return std::nullopt;
   if (TT->getArch() == llvm::Triple::amdgcn &&
       TT->getVendor() == llvm::Triple::AMD &&
       TT->getOS() == llvm::Triple::AMDHSA)
@@ -162,7 +164,7 @@ getHIPOffloadTargetTriple(const Driver &D, const ArgList &Args) {
   if (TT->getArch() == llvm::Triple::spirv64)
     return TT;
   D.Diag(diag::err_drv_invalid_or_unsupported_offload_target) << TT->str();
-  return llvm::None;
+  return std::nullopt;
 }
 
 // static
@@ -186,7 +188,7 @@ std::string Driver::GetResourcesPath(StringRef BinaryPath,
     // ../lib gets us to lib/ in both cases.
     P = llvm::sys::path::parent_path(Dir);
     llvm::sys::path::append(P, CLANG_INSTALL_LIBDIR_BASENAME, "clang",
-                            CLANG_VERSION_STRING);
+                            CLANG_VERSION_MAJOR_STRING);
   }
 
   return std::string(P.str());
@@ -224,7 +226,11 @@ Driver::Driver(StringRef ClangExecutable, StringRef TargetTriple,
   SystemConfigDir = CLANG_CONFIG_FILE_SYSTEM_DIR;
 #endif
 #if defined(CLANG_CONFIG_FILE_USER_DIR)
-  UserConfigDir = CLANG_CONFIG_FILE_USER_DIR;
+  {
+    SmallString<128> P;
+    llvm::sys::fs::expand_tilde(CLANG_CONFIG_FILE_USER_DIR, P);
+    UserConfigDir = static_cast<std::string>(P);
+  }
 #endif
 
   // Compute the path to the resource directory.
@@ -234,14 +240,14 @@ Driver::Driver(StringRef ClangExecutable, StringRef TargetTriple,
 void Driver::setDriverMode(StringRef Value) {
   static const std::string OptName =
       getOpts().getOption(options::OPT_driver_mode).getPrefixedName();
-  if (auto M = llvm::StringSwitch<llvm::Optional<DriverMode>>(Value)
+  if (auto M = llvm::StringSwitch<std::optional<DriverMode>>(Value)
                    .Case("gcc", GCCMode)
                    .Case("g++", GXXMode)
                    .Case("cpp", CPPMode)
                    .Case("cl", CLMode)
                    .Case("flang", FlangMode)
                    .Case("dxc", DXCMode)
-                   .Default(None))
+                   .Default(std::nullopt))
     Mode = *M;
   else
     Diag(diag::err_drv_unsupported_option_argument) << OptName << Value;
@@ -338,6 +344,19 @@ InputArgList Driver::ParseArgStrings(ArrayRef<const char *> ArgStrings,
     }
     ContainsError |= Diags.getDiagnosticLevel(DiagID, SourceLocation()) >
                      DiagnosticsEngine::Warning;
+  }
+
+  for (const Arg *A : Args.filtered(options::OPT_o)) {
+    if (ArgStrings[A->getIndex()] == A->getSpelling())
+      continue;
+
+    // Warn on joined arguments that are similar to a long argument.
+    std::string ArgString = ArgStrings[A->getIndex()];
+    std::string Nearest;
+    if (getOpts().findNearest("-" + ArgString, Nearest, IncludedFlagsBitmask,
+                              ExcludedFlagsBitmask) == 0)
+      Diags.Report(diag::warn_drv_potentially_misspelled_joined_argument)
+          << A->getAsString(Args) << Nearest;
   }
 
   return Args;
@@ -720,7 +739,7 @@ static driver::LTOKind parseLTOMode(Driver &D, const llvm::opt::ArgList &Args,
 
   if (LTOMode == LTOK_Unknown) {
     D.Diag(diag::err_drv_unsupported_option_argument)
-        << A->getOption().getName() << A->getValue();
+        << A->getSpelling() << A->getValue();
     return LTOK_None;
   }
   return LTOMode;
@@ -752,7 +771,7 @@ Driver::OpenMPRuntimeKind Driver::getOpenMPRuntime(const ArgList &Args) const {
   if (RT == OMPRT_Unknown) {
     if (A)
       Diag(diag::err_drv_unsupported_option_argument)
-          << A->getOption().getName() << A->getValue();
+          << A->getSpelling() << A->getValue();
     else
       // FIXME: We could use a nicer diagnostic here.
       Diag(diag::err_drv_unsupported_opt) << "-fopenmp";
@@ -1197,7 +1216,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
           } else {
             // No colon found, do not use the input
             C.getDriver().Diag(diag::err_drv_unsupported_option_argument)
-                << SYCLAddTargets->getOption().getName() << Val;
+                << SYCLAddTargets->getSpelling() << Val;
           }
         }
       } else
@@ -1217,6 +1236,19 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       addSYCLDefaultTriple(C, UniqueSYCLTriplesVec);
     }
   }
+  // -fno-sycl-libspirv flag is reserved for very unusual cases where the
+  // libspirv library is not linked when using CUDA/HIP: so output appropriate
+  // warnings.
+  if (C.getInputArgs().hasArg(options::OPT_fno_sycl_libspirv)) {
+    for (auto &TT : UniqueSYCLTriplesVec) {
+      if (TT.isNVPTX() || TT.isAMDGCN()) {
+        Diag(diag::warn_flag_no_sycl_libspirv) << TT.getTriple();
+      } else {
+        Diag(diag::warn_drv_unsupported_option_for_target)
+            << "-fno-sycl-libspirv" << TT.getTriple();
+      }
+    }
+  }
   // We'll need to use the SYCL and host triples as the key into
   // getOffloadingDeviceToolChain, because the device toolchains we're
   // going to create will depend on both.
@@ -1230,35 +1262,6 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   //
   // TODO: Add support for other offloading programming models here.
   //
-}
-
-/// Looks the given directories for the specified file.
-///
-/// \param[out] FilePath File path, if the file was found.
-/// \param[in]  Dirs Directories used for the search.
-/// \param[in]  FileName Name of the file to search for.
-/// \return True if file was found.
-///
-/// Looks for file specified by FileName sequentially in directories specified
-/// by Dirs.
-///
-static bool searchForFile(SmallVectorImpl<char> &FilePath,
-                          ArrayRef<StringRef> Dirs, StringRef FileName,
-                          llvm::vfs::FileSystem &FS) {
-  SmallString<128> WPath;
-  for (const StringRef &Dir : Dirs) {
-    if (Dir.empty())
-      continue;
-    WPath.clear();
-    llvm::sys::path::append(WPath, Dir, FileName);
-    llvm::sys::path::native(WPath);
-    auto Status = FS.status(WPath);
-    if (Status && Status->getType() == llvm::sys::fs::file_type::regular_file) {
-      FilePath = std::move(WPath);
-      return true;
-    }
-  }
-  return false;
 }
 
 static void appendOneArg(InputArgList &Args, const Arg *Opt,
@@ -1277,13 +1280,26 @@ static void appendOneArg(InputArgList &Args, const Arg *Opt,
   Args.append(Copy);
 }
 
-bool Driver::readConfigFile(StringRef FileName) {
+bool Driver::readConfigFile(StringRef FileName,
+                            llvm::cl::ExpansionContext &ExpCtx) {
+  // Try opening the given file.
+  auto Status = getVFS().status(FileName);
+  if (!Status) {
+    Diag(diag::err_drv_cannot_open_config_file)
+        << FileName << Status.getError().message();
+    return true;
+  }
+  if (Status->getType() != llvm::sys::fs::file_type::regular_file) {
+    Diag(diag::err_drv_cannot_open_config_file)
+        << FileName << "not a regular file";
+    return true;
+  }
+
   // Try reading the given file.
   SmallVector<const char *, 32> NewCfgArgs;
-  llvm::cl::ExpansionContext ExpCtx(Alloc, llvm::cl::tokenizeConfigFile);
-  ExpCtx.setVFS(&getVFS());
-  if (!ExpCtx.readConfigFile(FileName, NewCfgArgs)) {
-    Diag(diag::err_drv_cannot_read_config_file) << FileName;
+  if (llvm::Error Err = ExpCtx.readConfigFile(FileName, NewCfgArgs)) {
+    Diag(diag::err_drv_cannot_read_config_file)
+        << FileName << toString(std::move(Err));
     return true;
   }
 
@@ -1295,11 +1311,6 @@ bool Driver::readConfigFile(StringRef FileName) {
       ParseArgStrings(NewCfgArgs, IsCLMode(), ContainErrors));
   if (ContainErrors)
     return true;
-
-  if (NewOptions->hasArg(options::OPT_config)) {
-    Diag(diag::err_drv_nested_config_file);
-    return true;
-  }
 
   // Claim all arguments that come from a configuration file so that the driver
   // does not warn on any that is unused.
@@ -1322,6 +1333,10 @@ bool Driver::readConfigFile(StringRef FileName) {
 }
 
 bool Driver::loadConfigFiles() {
+  llvm::cl::ExpansionContext ExpCtx(Saver.getAllocator(),
+                                    llvm::cl::tokenizeConfigFile);
+  ExpCtx.setVFS(&getVFS());
+
   // Process options that change search path for config files.
   if (CLOptions) {
     if (CLOptions->hasArg(options::OPT_config_system_dir_EQ)) {
@@ -1335,8 +1350,8 @@ bool Driver::loadConfigFiles() {
     }
     if (CLOptions->hasArg(options::OPT_config_user_dir_EQ)) {
       SmallString<128> CfgDir;
-      CfgDir.append(
-          CLOptions->getLastArgValue(options::OPT_config_user_dir_EQ));
+      llvm::sys::fs::expand_tilde(
+          CLOptions->getLastArgValue(options::OPT_config_user_dir_EQ), CfgDir);
       if (CfgDir.empty() || getVFS().makeAbsolute(CfgDir))
         UserConfigDir.clear();
       else
@@ -1346,31 +1361,28 @@ bool Driver::loadConfigFiles() {
 
   // Prepare list of directories where config file is searched for.
   StringRef CfgFileSearchDirs[] = {UserConfigDir, SystemConfigDir, Dir};
+  ExpCtx.setSearchDirs(CfgFileSearchDirs);
 
   // First try to load configuration from the default files, return on error.
-  if (loadDefaultConfigFiles(CfgFileSearchDirs))
+  if (loadDefaultConfigFiles(ExpCtx))
     return true;
 
   // Then load configuration files specified explicitly.
-  llvm::SmallString<128> CfgFilePath;
+  SmallString<128> CfgFilePath;
   if (CLOptions) {
     for (auto CfgFileName : CLOptions->getAllArgValues(options::OPT_config)) {
       // If argument contains directory separator, treat it as a path to
       // configuration file.
       if (llvm::sys::path::has_parent_path(CfgFileName)) {
-        CfgFilePath = CfgFileName;
+        CfgFilePath.assign(CfgFileName);
         if (llvm::sys::path::is_relative(CfgFilePath)) {
-          if (getVFS().makeAbsolute(CfgFilePath))
-            return true;
-          auto Status = getVFS().status(CfgFilePath);
-          if (!Status ||
-              Status->getType() != llvm::sys::fs::file_type::regular_file) {
-            Diag(diag::err_drv_config_file_not_exist) << CfgFilePath;
+          if (getVFS().makeAbsolute(CfgFilePath)) {
+            Diag(diag::err_drv_cannot_open_config_file)
+                << CfgFilePath << "cannot get absolute path";
             return true;
           }
         }
-      } else if (!searchForFile(CfgFilePath, CfgFileSearchDirs, CfgFileName,
-                                getVFS())) {
+      } else if (!ExpCtx.findConfigFile(CfgFileName, CfgFilePath)) {
         // Report an error that the config file could not be found.
         Diag(diag::err_drv_config_file_not_found) << CfgFileName;
         for (const StringRef &SearchDir : CfgFileSearchDirs)
@@ -1380,7 +1392,7 @@ bool Driver::loadConfigFiles() {
       }
 
       // Try to read the config file, return on error.
-      if (readConfigFile(CfgFilePath))
+      if (readConfigFile(CfgFilePath, ExpCtx))
         return true;
     }
   }
@@ -1389,7 +1401,7 @@ bool Driver::loadConfigFiles() {
   return false;
 }
 
-bool Driver::loadDefaultConfigFiles(ArrayRef<StringRef> CfgFileSearchDirs) {
+bool Driver::loadDefaultConfigFiles(llvm::cl::ExpansionContext &ExpCtx) {
   // Disable default config if CLANG_NO_DEFAULT_CONFIG is set to a non-empty
   // value.
   if (const char *NoConfigEnv = ::getenv("CLANG_NO_DEFAULT_CONFIG")) {
@@ -1433,36 +1445,36 @@ bool Driver::loadDefaultConfigFiles(ArrayRef<StringRef> CfgFileSearchDirs) {
   //    (e.g. i386-pc-linux-gnu.cfg + clang-g++.cfg for *clang-g++).
 
   // Try loading <triple>-<mode>.cfg, and return if we find a match.
-  llvm::SmallString<128> CfgFilePath;
+  SmallString<128> CfgFilePath;
   std::string CfgFileName = Triple + '-' + RealMode + ".cfg";
-  if (searchForFile(CfgFilePath, CfgFileSearchDirs, CfgFileName, getVFS()))
-    return readConfigFile(CfgFilePath);
+  if (ExpCtx.findConfigFile(CfgFileName, CfgFilePath))
+    return readConfigFile(CfgFilePath, ExpCtx);
 
   bool TryModeSuffix = !ClangNameParts.ModeSuffix.empty() &&
                        ClangNameParts.ModeSuffix != RealMode;
   if (TryModeSuffix) {
     CfgFileName = Triple + '-' + ClangNameParts.ModeSuffix + ".cfg";
-    if (searchForFile(CfgFilePath, CfgFileSearchDirs, CfgFileName, getVFS()))
-      return readConfigFile(CfgFilePath);
+    if (ExpCtx.findConfigFile(CfgFileName, CfgFilePath))
+      return readConfigFile(CfgFilePath, ExpCtx);
   }
 
   // Try loading <mode>.cfg, and return if loading failed.  If a matching file
   // was not found, still proceed on to try <triple>.cfg.
   CfgFileName = RealMode + ".cfg";
-  if (searchForFile(CfgFilePath, CfgFileSearchDirs, CfgFileName, getVFS())) {
-    if (readConfigFile(CfgFilePath))
+  if (ExpCtx.findConfigFile(CfgFileName, CfgFilePath)) {
+    if (readConfigFile(CfgFilePath, ExpCtx))
       return true;
   } else if (TryModeSuffix) {
     CfgFileName = ClangNameParts.ModeSuffix + ".cfg";
-    if (searchForFile(CfgFilePath, CfgFileSearchDirs, CfgFileName, getVFS()) &&
-        readConfigFile(CfgFilePath))
+    if (ExpCtx.findConfigFile(CfgFileName, CfgFilePath) &&
+        readConfigFile(CfgFilePath, ExpCtx))
       return true;
   }
 
   // Try loading <triple>.cfg and return if we find a match.
   CfgFileName = Triple + ".cfg";
-  if (searchForFile(CfgFilePath, CfgFileSearchDirs, CfgFileName, getVFS()))
-    return readConfigFile(CfgFilePath);
+  if (ExpCtx.findConfigFile(CfgFileName, CfgFilePath))
+    return readConfigFile(CfgFilePath, ExpCtx);
 
   // If we were unable to find a config file deduced from executable name,
   // that is not an error.
@@ -1536,9 +1548,6 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
 
   // FIXME: This stuff needs to go into the Compilation, not the driver.
   bool CCCPrintPhases;
-
-  // Silence driver warnings if requested
-  Diags.setIgnoreAllWarnings(Args.hasArg(options::OPT_w));
 
   // -canonical-prefixes, -no-canonical-prefixes are used very early in main.
   Args.ClaimAllArgs(options::OPT_canonical_prefixes);
@@ -1733,9 +1742,6 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   if (checkForSYCLDefaultDevice(*C, *TranslatedArgs))
     setSYCLDefaultTriple(true);
 
-  // Check missing targets in archives/objects based on inputs from the user.
-  checkForOffloadMismatch(*C, *TranslatedArgs);
-
   // Populate the tool chains for the offloading devices, if any.
   CreateOffloadingDeviceToolChains(*C, Inputs);
 
@@ -1896,6 +1902,11 @@ bool Driver::getCrashDiagnosticFile(StringRef ReproCrashFilename,
   return false;
 }
 
+static const char BugReporMsg[] =
+    "\n********************\n\n"
+    "PLEASE ATTACH THE FOLLOWING FILES TO THE BUG REPORT:\n"
+    "Preprocessed source(s) and associated run script(s) are located at:";
+
 // When clang crashes, produce diagnostic information including the fully
 // preprocessed source file(s).  Request that the developer attach the
 // diagnostic information to a bug report.
@@ -1950,6 +1961,29 @@ void Driver::generateCompilationDiagnostics(
 
   // Suppress tool output.
   C.initCompilationForDiagnostics();
+
+  // If lld failed, rerun it again with --reproduce.
+  if (IsLLD) {
+    const char *TmpName = CreateTempFile(C, "linker-crash", "tar");
+    Command NewLLDInvocation = Cmd;
+    llvm::opt::ArgStringList ArgList = NewLLDInvocation.getArguments();
+    StringRef ReproduceOption =
+        C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment()
+            ? "/reproduce:"
+            : "--reproduce=";
+    ArgList.push_back(Saver.save(Twine(ReproduceOption) + TmpName).data());
+    NewLLDInvocation.replaceArguments(std::move(ArgList));
+
+    // Redirect stdout/stderr to /dev/null.
+    NewLLDInvocation.Execute({std::nullopt, {""}, {""}}, nullptr, nullptr);
+    Diag(clang::diag::note_drv_command_failed_diag_msg) << BugReporMsg;
+    Diag(clang::diag::note_drv_command_failed_diag_msg) << TmpName;
+    Diag(clang::diag::note_drv_command_failed_diag_msg)
+        << "\n\n********************";
+    if (Report)
+      Report->TemporaryFiles.push_back(TmpName);
+    return;
+  }
 
   // Construct the list of inputs.
   InputList Inputs;
@@ -2028,22 +2062,6 @@ void Driver::generateCompilationDiagnostics(
     return;
   }
 
-  // If lld failed, rerun it again with --reproduce.
-  if (IsLLD) {
-    const char *TmpName = CreateTempFile(C, "linker-crash", "tar");
-    Command NewLLDInvocation = Cmd;
-    llvm::opt::ArgStringList ArgList = NewLLDInvocation.getArguments();
-    StringRef ReproduceOption =
-        C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment()
-            ? "/reproduce:"
-            : "--reproduce=";
-    ArgList.push_back(Saver.save(Twine(ReproduceOption) + TmpName).data());
-    NewLLDInvocation.replaceArguments(std::move(ArgList));
-
-    // Redirect stdout/stderr to /dev/null.
-    NewLLDInvocation.Execute({None, {""}, {""}}, nullptr, nullptr);
-  }
-
   const TempFileList &TempFiles = C.getTempFiles();
   if (TempFiles.empty()) {
     Diag(clang::diag::note_drv_command_failed_diag_msg)
@@ -2051,10 +2069,7 @@ void Driver::generateCompilationDiagnostics(
     return;
   }
 
-  Diag(clang::diag::note_drv_command_failed_diag_msg)
-      << "\n********************\n\n"
-         "PLEASE ATTACH THE FOLLOWING FILES TO THE BUG REPORT:\n"
-         "Preprocessed source(s) and associated run script(s) are located at:";
+  Diag(clang::diag::note_drv_command_failed_diag_msg) << BugReporMsg;
 
   SmallString<128> VFS;
   SmallString<128> ReproCrashFilename;
@@ -2287,7 +2302,7 @@ void Driver::PrintSYCLToolHelp(const Compilation &C) const {
                                          "opencl-aot", "--help", ""));
     if (HelpArgs.empty()) {
       C.getDriver().Diag(diag::err_drv_unsupported_option_argument)
-                         << A->getOption().getName() << AV;
+                         << A->getSpelling() << AV;
       return;
     }
   }
@@ -2884,7 +2899,7 @@ bool Driver::DiagnoseInputExistence(const DerivedArgList &Args, StringRef Value,
   // they can be influenced by linker flags the clang driver might not
   // understand.
   // Examples:
-  // - `clang-cl main.cc ole32.lib` in a a non-MSVC shell will make the driver
+  // - `clang-cl main.cc ole32.lib` in a non-MSVC shell will make the driver
   //   module look for an MSVC installation in the registry. (We could ask
   //   the MSVCToolChain object if it can find `ole32.lib`, but the logic to
   //   look in the registry might move into lld-link in the future so that
@@ -3190,12 +3205,16 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
   }
 }
 
-static bool runBundler(const SmallVectorImpl<StringRef> &BundlerArgs,
+static bool runBundler(const SmallVectorImpl<StringRef> &InputArgs,
                        Compilation &C) {
   // Find bundler.
   StringRef ExecPath(C.getArgs().MakeArgString(C.getDriver().Dir));
   llvm::ErrorOr<std::string> BundlerBinary =
       llvm::sys::findProgramByName("clang-offload-bundler", ExecPath);
+  SmallVector<StringRef, 6> BundlerArgs;
+  BundlerArgs.push_back(BundlerBinary.getError() ? "clang-offload-bundler"
+                                                 : BundlerBinary.get().c_str());
+  BundlerArgs.append(InputArgs);
   // Since this is run in real time and not in the toolchain, output the
   // command line if requested.
   bool OutputOnly = C.getArgs().hasArg(options::OPT__HASH_HASH_HASH);
@@ -3236,8 +3255,8 @@ static bool hasFPGABinary(Compilation &C, std::string Object, types::ID Type) {
   const char *Inputs = C.getArgs().MakeArgString(Twine("-input=") + Object);
   // Always use -type=ao for aocx/aocr bundle checking.  The 'bundles' are
   // actually archives.
-  SmallVector<StringRef, 6> BundlerArgs = {"clang-offload-bundler", "-type=ao",
-                                           Targets, Inputs, "-check-section"};
+  SmallVector<StringRef, 6> BundlerArgs = {"-type=ao", Targets, Inputs,
+                                           "-check-section"};
   return runBundler(BundlerArgs, C);
 }
 
@@ -3277,7 +3296,7 @@ static SmallVector<std::string, 4> getOffloadSections(Compilation &C,
   llvm::SmallString<64> OutputFile(
       C.getDriver().GetTemporaryPath("bundle-list", "txt"));
   llvm::FileRemover OutputRemover(OutputFile.c_str());
-  llvm::Optional<llvm::StringRef> Redirects[] = {
+  std::optional<llvm::StringRef> Redirects[] = {
       {""},
       OutputFile.str(),
       OutputFile.str(),
@@ -3322,8 +3341,7 @@ static bool hasSYCLDefaultSection(Compilation &C, const StringRef &File) {
   const char *Targets =
       C.getArgs().MakeArgString(Twine("-targets=sycl-") + TT.str());
   const char *Inputs = C.getArgs().MakeArgString(Twine("-input=") + File.str());
-  SmallVector<StringRef, 6> BundlerArgs = {"clang-offload-bundler",
-                                           IsArchive ? "-type=ao" : "-type=o",
+  SmallVector<StringRef, 6> BundlerArgs = {IsArchive ? "-type=ao" : "-type=o",
                                            Targets, Inputs, "-check-section"};
   return runBundler(BundlerArgs, C);
 }
@@ -3345,8 +3363,7 @@ static bool hasOffloadSections(Compilation &C, const StringRef &File,
   // of the generic host availability.
   const char *Targets = Args.MakeArgString(Twine("-targets=host-") + TT.str());
   const char *Inputs = Args.MakeArgString(Twine("-input=") + File.str());
-  SmallVector<StringRef, 6> BundlerArgs = {"clang-offload-bundler",
-                                           IsArchive ? "-type=ao" : "-type=o",
+  SmallVector<StringRef, 6> BundlerArgs = {IsArchive ? "-type=ao" : "-type=o",
                                            Targets, Inputs, "-check-section"};
   return runBundler(BundlerArgs, C);
 }
@@ -3595,81 +3612,6 @@ bool Driver::checkForOffloadStaticLib(Compilation &C,
                hasFPGABinary(C, OLArg.str(), types::TY_FPGA_AOCX));
     }
   return false;
-}
-
-// Goes through all of the arguments, including inputs expected for the
-// linker directly, to determine if the targets contained in the objects and
-// archives match target expectations being performed.
-void Driver::checkForOffloadMismatch(Compilation &C,
-                                     DerivedArgList &Args) const {
-  // Check only if enabled with -fsycl
-  if (!Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false))
-    return;
-
-  SmallVector<const char *, 16> OffloadLibArgs(getLinkerArgs(C, Args, true));
-  // Gather all of the sections seen in the offload objects/archives
-  SmallVector<std::string, 4> UniqueSections;
-  for (StringRef OLArg : OffloadLibArgs) {
-    SmallVector<std::string, 4> Sections(getOffloadSections(C, OLArg));
-    for (auto Section : Sections) {
-      // We only care about sections that start with 'sycl-'.  Also remove
-      // the prefix before adding it.
-      std::string Prefix("sycl-");
-      if (Section.compare(0, Prefix.length(), Prefix) != 0)
-        continue;
-      std::string Arch = Section.substr(Prefix.length());
-      // There are a few different variants for FPGA, if we see one, just
-      // use the default FPGA triple to reduce possible match confusion.
-      if (Arch.compare(0, 4, "fpga") == 0)
-        Arch = C.getDriver().MakeSYCLDeviceTriple("spir64_fpga").str();
-      if (std::find(UniqueSections.begin(), UniqueSections.end(), Arch) ==
-          UniqueSections.end())
-        UniqueSections.push_back(Arch);
-    }
-  }
-
-  if (!UniqueSections.size())
-    return;
-
-  // Put together list of user defined and implied targets, we will diagnose
-  // each target individually.
-  SmallVector<StringRef, 4> Targets;
-  if (const Arg *A = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
-    for (StringRef Val : A->getValues()) {
-      if (auto ValidDevice = isIntelGPUTarget(Val)) {
-        if (!ValidDevice->empty())
-          Targets.push_back(Args.MakeArgString(
-              C.getDriver().MakeSYCLDeviceTriple("spir64_gen").str() + "-" +
-              *ValidDevice));
-        continue;
-      }
-      Targets.push_back(Val);
-    }
-  } else { // Implied targets
-    // No -fsycl-targets given, check based on -fintelfpga or default device
-    bool SYCLfpga = C.getInputArgs().hasArg(options::OPT_fintelfpga);
-    // -fsycl -fintelfpga implies spir64_fpga
-    Targets.push_back(SYCLfpga ? "spir64_fpga" : getDefaultSYCLArch(C));
-  }
-
-  for (auto SyclTarget : Targets) {
-    // Match found sections with user and implied targets.
-    llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple(SyclTarget));
-    // If any matching section is found, we are good.
-    if (std::find(UniqueSections.begin(), UniqueSections.end(), TT.str()) !=
-        UniqueSections.end())
-      continue;
-    // Didn't find any matches, return the full list for the diagnostic.
-    SmallString<128> ArchListStr;
-    int Cnt = 0;
-    for (std::string Section : UniqueSections) {
-      if (Cnt)
-        ArchListStr += ", ";
-      ArchListStr += Section;
-      Cnt++;
-    }
-    Diag(diag::warn_drv_sycl_target_missing) << SyclTarget << ArchListStr;
-  }
 }
 
 /// Check whether the given input tree contains any clang-offload-dependency
@@ -3986,7 +3928,7 @@ class OffloadingActionBuilder final {
     /// option is invalid.
     virtual StringRef getCanonicalOffloadArch(StringRef Arch) = 0;
 
-    virtual llvm::Optional<std::pair<llvm::StringRef, llvm::StringRef>>
+    virtual std::optional<std::pair<llvm::StringRef, llvm::StringRef>>
     getConflictOffloadArchCombination(const std::set<StringRef> &GpuArchs) = 0;
 
     bool initialize() override {
@@ -4124,10 +4066,10 @@ class OffloadingActionBuilder final {
       return CudaArchToString(Arch);
     }
 
-    llvm::Optional<std::pair<llvm::StringRef, llvm::StringRef>>
+    std::optional<std::pair<llvm::StringRef, llvm::StringRef>>
     getConflictOffloadArchCombination(
         const std::set<StringRef> &GpuArchs) override {
-      return llvm::None;
+      return std::nullopt;
     }
 
     bool canUseBundlerUnbundler() const override {
@@ -4260,7 +4202,7 @@ class OffloadingActionBuilder final {
     // Bundle code objects except --no-gpu-output is specified for device
     // only compilation. Bundle other type of output files only if
     // --gpu-bundle-output is specified for device only compilation.
-    Optional<bool> BundleOutput;
+    std::optional<bool> BundleOutput;
 
   public:
     HIPActionBuilder(Compilation &C, DerivedArgList &Args,
@@ -4292,7 +4234,7 @@ class OffloadingActionBuilder final {
       return Args.MakeArgStringRef(CanId);
     };
 
-    llvm::Optional<std::pair<llvm::StringRef, llvm::StringRef>>
+    std::optional<std::pair<llvm::StringRef, llvm::StringRef>>
     getConflictOffloadArchCombination(
         const std::set<StringRef> &GpuArchs) override {
       return getConflictTargetIDCombination(GpuArchs);
@@ -5121,6 +5063,76 @@ class OffloadingActionBuilder final {
       }
     }
 
+    // Return whether to use native bfloat16 library.
+    bool selectBfloatLibs(const ToolChain *TC, bool &useNative) {
+      const OptTable &Opts = C.getDriver().getOpts();
+      const char *TargetOpt = nullptr;
+      const char *DeviceOpt = nullptr;
+      bool needLibs = false;
+      for (auto *A : Args) {
+        llvm::Triple *TargetBE = nullptr;
+
+        auto GetTripleIt = [&, this](llvm::StringRef Triple) {
+          llvm::Triple TargetTriple{Triple};
+          auto TripleIt = llvm::find_if(SYCLTripleList, [&](auto &SYCLTriple) {
+            return SYCLTriple == TargetTriple;
+          });
+          return TripleIt != SYCLTripleList.end() ? &*TripleIt : nullptr;
+        };
+
+        if (A->getOption().matches(options::OPT_fsycl_targets_EQ)) {
+          // spir64 target is actually JIT compilation, so we defer selection of
+          // bfloat16 libraries to runtime. For AOT we need libraries.
+          needLibs = TC->getTriple().getSubArch() != llvm::Triple::NoSubArch;
+          TargetBE = GetTripleIt(A->getValue(0));
+          if (TargetBE)
+            TargetOpt = A->getValue(0);
+          else
+            continue;
+        } else if (A->getOption().matches(options::OPT_Xsycl_backend_EQ)) {
+          // Passing device args: -Xsycl-target-backend=<triple> <opt>
+          TargetBE = GetTripleIt(A->getValue(0));
+          if (TargetBE)
+            DeviceOpt = A->getValue(1);
+          else
+            continue;
+        } else if (A->getOption().matches(options::OPT_Xsycl_backend)) {
+          // Passing device args: -Xsycl-target-backend <opt>
+          TargetBE = &SYCLTripleList.front();
+          DeviceOpt = A->getValue(0);
+        } else if (A->getOption().matches(options::OPT_Xs_separate)) {
+          // Passing device args: -Xs <opt>
+          DeviceOpt = A->getValue(0);
+        } else {
+          continue;
+        };
+      }
+      useNative = false;
+      if (needLibs)
+        if (TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen &&
+            TargetOpt && DeviceOpt) {
+
+          auto checkBF = [=](std::string &Dev) {
+            static const std::regex BFFs("pvc.*|ats.*");
+            return std::regex_match(Dev, BFFs);
+          };
+
+          needLibs = true;
+          std::string Params{DeviceOpt};
+          size_t DevicesPos = Params.find("-device ");
+          useNative = false;
+          if (DevicesPos != std::string::npos) {
+            useNative = true;
+            std::istringstream Devices(Params.substr(DevicesPos + 8));
+            for (std::string S; std::getline(Devices, S, ',');) {
+              useNative &= checkBF(S);
+            }
+          }
+        }
+
+      return needLibs;
+    }
+
     bool addSYCLDeviceLibs(const ToolChain *TC, ActionList &DeviceLinkObjects,
                            bool isSpirvAOT, bool isMSVCEnv) {
       struct DeviceLibOptInfo {
@@ -5134,7 +5146,8 @@ class OffloadingActionBuilder final {
       // of "internal" libraries cannot be affected via -fno-sycl-device-lib.
       llvm::StringMap<bool> devicelib_link_info = {
           {"libc", true},        {"libm-fp32", true},   {"libm-fp64", true},
-          {"libimf-fp32", true}, {"libimf-fp64", true}, {"internal", true}};
+          {"libimf-fp32", true}, {"libimf-fp64", true}, {"libimf-bf16", true},
+          {"internal", true}};
       if (Arg *A = Args.getLastArg(options::OPT_fsycl_device_lib_EQ,
                                    options::OPT_fno_sycl_device_lib_EQ)) {
         if (A->getValues().size() == 0)
@@ -5158,7 +5171,7 @@ class OffloadingActionBuilder final {
               // Driver::CreateOffloadingDeviceToolChains() to minimize code
               // duplication.
               C.getDriver().Diag(diag::err_drv_unsupported_option_argument)
-                  << A->getOption().getName() << Val;
+                  << A->getSpelling() << Val;
             }
             devicelib_link_info[Val] = true && !NoDeviceLibs;
           }
@@ -5180,7 +5193,8 @@ class OffloadingActionBuilder final {
         {"libsycl-msvc-math", "libm-fp32"},
 #endif
         {"libsycl-imf", "libimf-fp32"},
-        {"libsycl-imf-fp64", "libimf-fp64"}
+        {"libsycl-imf-fp64", "libimf-fp64"},
+        {"libsycl-imf-bf16", "libimf-bf16"},
       };
       // For AOT compilation, we need to link sycl_device_fallback_libs as
       // default too.
@@ -5192,7 +5206,12 @@ class OffloadingActionBuilder final {
           {"libsycl-fallback-cmath", "libm-fp32"},
           {"libsycl-fallback-cmath-fp64", "libm-fp64"},
           {"libsycl-fallback-imf", "libimf-fp32"},
-          {"libsycl-fallback-imf-fp64", "libimf-fp64"}};
+          {"libsycl-fallback-imf-fp64", "libimf-fp64"},
+          {"libsycl-fallback-imf-bf16", "libimf-bf16"}};
+      const SYCLDeviceLibsList sycl_device_bfloat16_fallback_lib = {
+          {"libsycl-fallback-bfloat16", "libm-bfloat16"}};
+      const SYCLDeviceLibsList sycl_device_bfloat16_native_lib = {
+          {"libsycl-native-bfloat16", "libm-bfloat16"}};
       // ITT annotation libraries are linked in separately whenever the device
       // code instrumentation is enabled.
       const SYCLDeviceLibsList sycl_device_annotation_libs = {
@@ -5242,6 +5261,17 @@ class OffloadingActionBuilder final {
       addInputs(sycl_device_wrapper_libs);
       if (isSpirvAOT || TC->getTriple().isNVPTX())
         addInputs(sycl_device_fallback_libs);
+
+      bool nativeBfloatLibs;
+      bool needBfloatLibs = selectBfloatLibs(TC, nativeBfloatLibs);
+      if (needBfloatLibs) {
+        // Add native or fallback bfloat16 library.
+        if (nativeBfloatLibs)
+          addInputs(sycl_device_bfloat16_native_lib);
+        else
+          addInputs(sycl_device_bfloat16_fallback_lib);
+      }
+
       if (Args.hasFlag(options::OPT_fsycl_instrument_device_code,
                        options::OPT_fno_sycl_instrument_device_code, true))
         addInputs(sycl_device_annotation_libs);
@@ -5272,9 +5302,9 @@ class OffloadingActionBuilder final {
           // Select remangled libclc variant
           std::string LibSpirvTargetName =
               (TC->getAuxTriple()->isOSWindows())
-                  ? "remangled-l32-signed_char.libspirv-nvptx64--nvidiacl."
+                  ? "remangled-l32-signed_char.libspirv-nvptx64-nvidia-cuda."
                     "bc"
-                  : "remangled-l64-signed_char.libspirv-nvptx64--nvidiacl."
+                  : "remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda."
                     "bc";
 
           for (StringRef LibraryPath : LibraryPaths) {
@@ -5678,7 +5708,7 @@ class OffloadingActionBuilder final {
               C.getDriver().Diag(clang::diag::err_drv_bad_target_id) << ArchStr;
               continue;
             }
-            auto CanId = getCanonicalTargetID(Arch.getValue(), Features);
+            auto CanId = getCanonicalTargetID(Arch.value(), Features);
             ArchStr = Args.MakeArgStringRef(CanId);
           }
           ParsedArg->claim();
@@ -5707,6 +5737,68 @@ class OffloadingActionBuilder final {
       }
 
       return false;
+    }
+
+    // Goes through all of the arguments, including inputs expected for the
+    // linker directly, to determine if the targets contained in the objects and
+    // archives match target expectations being performed.
+    void
+    checkForOffloadMismatch(Compilation &C, DerivedArgList &Args,
+                            SmallVector<DeviceTargetInfo, 4> &Targets) const {
+      if (Targets.empty())
+        return;
+
+      SmallVector<const char *, 16> OffloadLibArgs(
+          getLinkerArgs(C, Args, true));
+      // Gather all of the sections seen in the offload objects/archives
+      SmallVector<std::string, 4> UniqueSections;
+      for (StringRef OLArg : OffloadLibArgs) {
+        SmallVector<std::string, 4> Sections(getOffloadSections(C, OLArg));
+        for (auto Section : Sections) {
+          // We only care about sections that start with 'sycl-'.  Also remove
+          // the prefix before adding it.
+          std::string Prefix("sycl-");
+          if (Section.compare(0, Prefix.length(), Prefix) != 0)
+            continue;
+
+          std::string Arch = Section.substr(Prefix.length());
+
+          // There are a few different variants for FPGA, if we see one, just
+          // use the default FPGA triple to reduce possible match confusion.
+          if (Arch.compare(0, 4, "fpga") == 0)
+            Arch = C.getDriver().MakeSYCLDeviceTriple("spir64_fpga").str();
+          if (std::find(UniqueSections.begin(), UniqueSections.end(), Arch) ==
+              UniqueSections.end())
+            UniqueSections.push_back(Arch);
+        }
+      }
+
+      if (!UniqueSections.size())
+        return;
+
+      for (auto SyclTarget : Targets) {
+        std::string SectionTriple = SyclTarget.TC->getTriple().str();
+        if (SyclTarget.BoundArch) {
+          SectionTriple += "-";
+          SectionTriple += SyclTarget.BoundArch;
+        }
+
+        // If any matching section is found, we are good.
+        if (std::find(UniqueSections.begin(), UniqueSections.end(),
+                      SectionTriple) != UniqueSections.end())
+          continue;
+        // Didn't find any matches, return the full list for the diagnostic.
+        SmallString<128> ArchListStr;
+        int Cnt = 0;
+        for (std::string Section : UniqueSections) {
+          if (Cnt)
+            ArchListStr += ", ";
+          ArchListStr += Section;
+          Cnt++;
+        }
+        C.getDriver().Diag(diag::warn_drv_sycl_target_missing)
+            << SectionTriple << ArchListStr;
+      }
     }
 
     bool initialize() override {
@@ -5905,6 +5997,9 @@ class OffloadingActionBuilder final {
         const auto *TC = ToolChains.front();
         SYCLTargetInfoList.emplace_back(TC, nullptr);
       }
+
+      checkForOffloadMismatch(C, Args, SYCLTargetInfoList);
+
       DeviceLinkerInputs.resize(SYCLTargetInfoList.size());
       return false;
     }
@@ -6651,16 +6746,18 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     }
   }
 
-  // Builder to be used to build offloading actions.
-  OffloadingActionBuilder OffloadBuilder(C, Args, Inputs);
-
   bool UseNewOffloadingDriver =
       C.isOffloadingHostKind(Action::OFK_OpenMP) ||
       Args.hasFlag(options::OPT_offload_new_driver,
                    options::OPT_no_offload_new_driver, false);
 
+  // Builder to be used to build offloading actions.
+  std::unique_ptr<OffloadingActionBuilder> OffloadBuilder =
+      !UseNewOffloadingDriver
+          ? std::make_unique<OffloadingActionBuilder>(C, Args, Inputs)
+          : nullptr;
+
   // Construct the actions to perform.
-  HeaderModulePrecompileJobAction *HeaderModuleAction = nullptr;
   ExtractAPIJobAction *ExtractAPIAction = nullptr;
   ActionList LinkerInputs;
   ActionList MergerInputs;
@@ -6682,14 +6779,14 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     // Use the current host action in any of the offloading actions, if
     // required.
     if (!UseNewOffloadingDriver)
-      if (OffloadBuilder.addHostDependenceToDeviceActions(Current, InputArg, Args))
+      if (OffloadBuilder->addHostDependenceToDeviceActions(Current, InputArg, Args))
         break;
 
     for (phases::ID Phase : PL) {
 
       // Add any offload action the host action depends on.
       if (!UseNewOffloadingDriver)
-        Current = OffloadBuilder.addDeviceDependencesToHostAction(
+        Current = OffloadBuilder->addDeviceDependencesToHostAction(
             Current, InputArg, Phase, PL.back(), FullPL);
       if (!Current)
         break;
@@ -6712,16 +6809,6 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       if (Phase == phases::IfsMerge) {
         assert(Phase == PL.back() && "merging must be final compilation step.");
         MergerInputs.push_back(Current);
-        Current = nullptr;
-        break;
-      }
-
-      // Each precompiled header file after a module file action is a module
-      // header of that same module file, rather than being compiled to a
-      // separate PCH.
-      if (Phase == phases::Precompile && HeaderModuleAction &&
-          getPrecompiledType(InputType) == types::TY_PCH) {
-        HeaderModuleAction->addModuleHeaderInput(Current);
         Current = nullptr;
         break;
       }
@@ -6757,9 +6844,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       if (NewCurrent == Current)
         continue;
 
-      if (auto *HMA = dyn_cast<HeaderModulePrecompileJobAction>(NewCurrent))
-        HeaderModuleAction = HMA;
-      else if (auto *EAA = dyn_cast<ExtractAPIJobAction>(NewCurrent))
+      if (auto *EAA = dyn_cast<ExtractAPIJobAction>(NewCurrent))
         ExtractAPIAction = EAA;
 
       Current = NewCurrent;
@@ -6767,7 +6852,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       // Use the current host action in any of the offloading actions, if
       // required.
       if (!UseNewOffloadingDriver)
-        if (OffloadBuilder.addHostDependenceToDeviceActions(Current, InputArg, Args))
+        if (OffloadBuilder->addHostDependenceToDeviceActions(Current, InputArg, Args))
           break;
 
       // Try to build the offloading actions and add the result as a dependency
@@ -6785,20 +6870,22 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
 
     // Add any top level actions generated for offloading.
     if (!UseNewOffloadingDriver)
-      OffloadBuilder.appendTopLevelActions(Actions, Current, InputArg);
+      OffloadBuilder->appendTopLevelActions(Actions, Current, InputArg);
     else if (Current)
       Current->propagateHostOffloadInfo(C.getActiveOffloadKinds(),
                                         /*BoundArch=*/nullptr);
   }
 
-  OffloadBuilder.appendTopLevelLinkAction(Actions);
+  if (!UseNewOffloadingDriver) {
+    OffloadBuilder->appendTopLevelLinkAction(Actions);
 
-  // With static fat archives we need to create additional steps for
-  // generating dependence objects for device link actions.
-  if (!LinkerInputs.empty() && C.getDriver().getOffloadStaticLibSeen())
-    OffloadBuilder.addDeviceLinkDependenciesFromHost(LinkerInputs);
+    // With static fat archives we need to create additional steps for
+    // generating dependence objects for device link actions.
+    if (!LinkerInputs.empty() && C.getDriver().getOffloadStaticLibSeen())
+      OffloadBuilder->addDeviceLinkDependenciesFromHost(LinkerInputs);
 
-  OffloadBuilder.unbundleStaticArchives(C, Args, PL);
+    OffloadBuilder->unbundleStaticArchives(C, Args, PL);
+  }
 
   // For an FPGA archive, we add the unbundling step above to take care of
   // the device side, but also unbundle here to extract the host side
@@ -6835,7 +6922,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       if (auto *IA = dyn_cast<InputAction>(UnbundlerInput)) {
         std::string FileName = IA->getInputArg().getAsString(Args);
         Arg *InputArg = MakeInputArg(Args, getOpts(), FileName);
-        OffloadBuilder.addHostDependenceToDeviceActions(UnbundlerInput,
+        OffloadBuilder->addHostDependenceToDeviceActions(UnbundlerInput,
                                                         InputArg, Args);
       }
     }
@@ -6847,12 +6934,12 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     Arg *FinalPhaseArg;
     if (getFinalPhase(Args, &FinalPhaseArg) == phases::Link)
       if (!UseNewOffloadingDriver)
-        OffloadBuilder.appendDeviceLinkActions(Actions);
+        OffloadBuilder->appendDeviceLinkActions(Actions);
   }
 
   if (!LinkerInputs.empty()) {
     if (!UseNewOffloadingDriver)
-      OffloadBuilder.makeHostLinkAction(LinkerInputs);
+      OffloadBuilder->makeHostLinkAction(LinkerInputs);
     types::ID LinkType(types::TY_Image);
     if (Args.hasArg(options::OPT_fsycl_link_EQ))
       LinkType = types::TY_Archive;
@@ -6869,7 +6956,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       LA = C.MakeAction<LinkJobAction>(LinkerInputs, LinkType);
     }
     if (!UseNewOffloadingDriver)
-      LA = OffloadBuilder.processHostLinkAction(LA);
+      LA = OffloadBuilder->processHostLinkAction(LA);
     Actions.push_back(LA);
   }
 
@@ -6994,11 +7081,11 @@ static StringRef getCanonicalArchString(Compilation &C,
 
 /// Checks if the set offloading architectures does not conflict. Returns the
 /// incompatible pair if a conflict occurs.
-static llvm::Optional<std::pair<llvm::StringRef, llvm::StringRef>>
+static std::optional<std::pair<llvm::StringRef, llvm::StringRef>>
 getConflictOffloadArchCombination(const llvm::DenseSet<StringRef> &Archs,
                                   Action::OffloadKind Kind) {
   if (Kind != Action::OFK_HIP)
-    return None;
+    return std::nullopt;
 
   std::set<StringRef> ArchSet;
   llvm::copy(Archs, std::inserter(ArchSet, ArchSet.begin()));
@@ -7037,15 +7124,27 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
       Arg = ExtractedArg.get();
     }
 
+    // Add or remove the seen architectures in order of appearance. If an
+    // invalid architecture is given we simply exit.
     if (Arg->getOption().matches(options::OPT_offload_arch_EQ)) {
-      for (StringRef Arch : llvm::split(Arg->getValue(), ","))
-        Archs.insert(getCanonicalArchString(C, Args, Arch, TC->getTriple()));
+      for (StringRef Arch : llvm::split(Arg->getValue(), ",")) {
+        StringRef ArchStr =
+            getCanonicalArchString(C, Args, Arch, TC->getTriple());
+        if (ArchStr.empty())
+          return Archs;
+        Archs.insert(ArchStr);
+      }
     } else if (Arg->getOption().matches(options::OPT_no_offload_arch_EQ)) {
       for (StringRef Arch : llvm::split(Arg->getValue(), ",")) {
-        if (Arch == StringRef("all"))
+        if (Arch == "all") {
           Archs.clear();
-        else
-          Archs.erase(getCanonicalArchString(C, Args, Arch, TC->getTriple()));
+        } else {
+          StringRef ArchStr =
+              getCanonicalArchString(C, Args, Arch, TC->getTriple());
+          if (ArchStr.empty())
+            return Archs;
+          Archs.erase(ArchStr);
+        }
       }
     }
   }
@@ -7155,7 +7254,9 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
 
     // Compiling HIP in non-RDC mode requires linking each action individually.
     for (Action *&A : DeviceActions) {
-      if (A->getType() != types::TY_Object || Kind != Action::OFK_HIP ||
+      if ((A->getType() != types::TY_Object &&
+           A->getType() != types::TY_LTO_BC) ||
+          Kind != Action::OFK_HIP ||
           Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc, false))
         continue;
       ActionList LinkerInput = {A};
@@ -7301,9 +7402,6 @@ Action *Driver::ConstructPhaseAction(
       OutputTy = types::TY_Nothing;
     }
 
-    if (ModName)
-      return C.MakeAction<HeaderModulePrecompileJobAction>(Input, OutputTy,
-                                                           ModName);
     return C.MakeAction<PrecompileJobAction>(Input, OutputTy);
   }
   case phases::Compile: {
@@ -7458,7 +7556,7 @@ void Driver::BuildJobs(Compilation &C) const {
 
   if (CCPrintProcessStats) {
     C.setPostCallback([=](const Command &Cmd, int Res) {
-      Optional<llvm::sys::ProcessStatistics> ProcStat =
+      std::optional<llvm::sys::ProcessStatistics> ProcStat =
           Cmd.getProcessStatistics();
       if (!ProcStat)
         return;
@@ -8161,10 +8259,6 @@ InputInfoList Driver::BuildJobsForActionNoCache(
   if (JA->getType() == types::TY_dSYM)
     BaseInput = InputInfos[0].getFilename();
 
-  // ... and in header module compilations, which use the module name.
-  if (auto *ModuleJA = dyn_cast<HeaderModulePrecompileJobAction>(JA))
-    BaseInput = ModuleJA->getModuleName();
-
   // Append outputs of offload device jobs to the input list
   if (!OffloadDependencesInputInfo.empty())
     InputInfos.append(OffloadDependencesInputInfo.begin(),
@@ -8792,7 +8886,7 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
 std::string Driver::GetFilePath(StringRef Name, const ToolChain &TC) const {
   // Search for Name in a list of paths.
   auto SearchPaths = [&](const llvm::SmallVectorImpl<std::string> &P)
-      -> llvm::Optional<std::string> {
+      -> std::optional<std::string> {
     // Respect a limited subset of the '-Bprefix' functionality in GCC by
     // attempting to use this prefix when looking for file paths.
     for (const auto &Dir : P) {
@@ -8803,7 +8897,7 @@ std::string Driver::GetFilePath(StringRef Name, const ToolChain &TC) const {
       if (llvm::sys::fs::exists(Twine(P)))
         return std::string(P);
     }
-    return None;
+    return std::nullopt;
   };
 
   if (auto P = SearchPaths(PrefixDirs))

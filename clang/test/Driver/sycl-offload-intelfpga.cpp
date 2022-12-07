@@ -83,8 +83,8 @@
 // CHK-FPGA-EARLY: clang-offload-wrapper{{.*}} "-host" "x86_64-unknown-linux-gnu" "-o" "[[WRAPOUTHOST:.+\.bc]]" "-kind=host"
 // CHK-FPGA-EARLY-NOT: clang{{.*}} "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-O2"
 // CHK-FPGA-EARLY: "-o" "[[OBJOUT:.+\.o]]" {{.*}} "[[WRAPOUTHOST]]"
-// CHK-FPGA-EARLY: llvm-ar{{.*}} "cr" "libfoo.a" "[[OBJOUT]]" "[[OBJOUTDEV]]"
-// CHK-FPGA-IMAGE: llvm-ar{{.*}} "cr" "libfoo.a" "[[INPUT]]" "[[OBJOUTDEV]]"
+// CHK-FPGA-EARLY: llvm-ar{{.*}} "cqL" "libfoo.a" "[[OBJOUT]]" "[[OBJOUTDEV]]"
+// CHK-FPGA-IMAGE: llvm-ar{{.*}} "cqL" "libfoo.a" "[[INPUT]]" "[[OBJOUTDEV]]"
 
 // Output designation should not be used for unbundling step
 // RUN:  touch %t.o
@@ -140,7 +140,7 @@
 // CHK-FPGA-LINK-LIB-EARLY: clang-offload-wrapper{{.*}} "-host=x86_64-unknown-linux-gnu" "-target=fpga_aocr-intel-unknown" "-kind=sycl" "-batch" "[[OUTPUT4]]"
 // CHK-FPGA-LINK-LIB: llc{{.*}} "-filetype=obj" "-o" "[[OUTPUT5:.+\.o]]"
 // CHK-FPGA-LINK-LIB: clang-offload-bundler{{.*}} "-type=aoo" "-targets=host-x86_64-unknown-linux-gnu" "-input=[[INPUT]]" "-output=[[OUTPUT1:.+\.txt]]" "-unbundle"
-// CHK-FPGA-LINK-LIB-IMAGE: llvm-ar{{.*}} "cr" {{.*}} "@[[OUTPUT1]]"
+// CHK-FPGA-LINK-LIB-IMAGE: llvm-ar{{.*}} "cqL" {{.*}} "@[[OUTPUT1]]"
 
 /// Check the warning's emission for -fsycl-link's appending behavior
 // RUN: touch dummy.a
@@ -157,7 +157,7 @@
 // RUN: | FileCheck -check-prefixes=CHK-SYCL-LINK-LIN -DINPUTSRC=a %s
 // RUN: %clang_cl -### -fsycl -fintelfpga -fsycl-link %t_dir/dummy_file.cpp 2>&1 \
 // RUN: | FileCheck -check-prefixes=CHK-SYCL-LINK-WIN -DINPUTSRC=a %s
-// CHK-SYCL-LINK-LIN: llvm-ar{{.*}} "cr" "[[INPUTSRC]].a"
+// CHK-SYCL-LINK-LIN: llvm-ar{{.*}} "cqL" "[[INPUTSRC]].a"
 // CHK-SYCL-LINK-WIN: lib.exe{{.*}} "-OUT:[[INPUTSRC]].a"
 
 /// -fintelfpga with AOCR library and additional object

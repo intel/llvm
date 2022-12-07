@@ -165,6 +165,7 @@ public:
   DecodeStatus convertVOP3DPPInst(MCInst &MI) const;
   DecodeStatus convertVOP3PDPPInst(MCInst &MI) const;
   DecodeStatus convertVOPCDPPInst(MCInst &MI) const;
+  void convertMacDPPInst(MCInst &MI) const;
 
   MCOperand decodeOperand_VGPR_32(unsigned Val) const;
   MCOperand decodeOperand_VGPR_32_Lo128(unsigned Val) const;
@@ -181,6 +182,10 @@ public:
   MCOperand decodeOperand_VReg_96(unsigned Val) const;
   MCOperand decodeOperand_VReg_128(unsigned Val) const;
   MCOperand decodeOperand_VReg_256(unsigned Val) const;
+  MCOperand decodeOperand_VReg_288(unsigned Val) const;
+  MCOperand decodeOperand_VReg_320(unsigned Val) const;
+  MCOperand decodeOperand_VReg_352(unsigned Val) const;
+  MCOperand decodeOperand_VReg_384(unsigned Val) const;
   MCOperand decodeOperand_VReg_512(unsigned Val) const;
   MCOperand decodeOperand_VReg_1024(unsigned Val) const;
 
@@ -192,12 +197,20 @@ public:
   MCOperand decodeOperand_SReg_64_XEXEC(unsigned Val) const;
   MCOperand decodeOperand_SReg_128(unsigned Val) const;
   MCOperand decodeOperand_SReg_256(unsigned Val) const;
+  MCOperand decodeOperand_SReg_288(unsigned Val) const;
+  MCOperand decodeOperand_SReg_320(unsigned Val) const;
+  MCOperand decodeOperand_SReg_352(unsigned Val) const;
+  MCOperand decodeOperand_SReg_384(unsigned Val) const;
   MCOperand decodeOperand_SReg_512(unsigned Val) const;
 
   MCOperand decodeOperand_AGPR_32(unsigned Val) const;
   MCOperand decodeOperand_AReg_64(unsigned Val) const;
   MCOperand decodeOperand_AReg_128(unsigned Val) const;
   MCOperand decodeOperand_AReg_256(unsigned Val) const;
+  MCOperand decodeOperand_AReg_288(unsigned Val) const;
+  MCOperand decodeOperand_AReg_320(unsigned Val) const;
+  MCOperand decodeOperand_AReg_352(unsigned Val) const;
+  MCOperand decodeOperand_AReg_384(unsigned Val) const;
   MCOperand decodeOperand_AReg_512(unsigned Val) const;
   MCOperand decodeOperand_AReg_1024(unsigned Val) const;
   MCOperand decodeOperand_AV_32(unsigned Val) const;
@@ -213,6 +226,10 @@ public:
     OPW128,
     OPW160,
     OPW256,
+    OPW288,
+    OPW320,
+    OPW352,
+    OPW384,
     OPW512,
     OPW1024,
     OPW16,
@@ -260,6 +277,8 @@ public:
   bool isGFX11Plus() const;
 
   bool hasArchitectedFlatScratch() const;
+
+  bool isMacDPP(MCInst &MI) const;
 };
 
 //===----------------------------------------------------------------------===//

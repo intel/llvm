@@ -47,7 +47,7 @@ static Optional<OptimizationLevel> mapToLevel(unsigned optLevel,
   case 3:
     return OptimizationLevel::O3;
   }
-  return None;
+  return std::nullopt;
 }
 // Create and return a lambda that uses LLVM pass manager builder to set up
 // optimizations based on the given level.
@@ -68,7 +68,13 @@ mlir::makeOptimizingTransformer(unsigned optLevel, unsigned sizeLevel,
     CGSCCAnalysisManager cgam;
     ModuleAnalysisManager mam;
 
-    PassBuilder pb(targetMachine);
+    PipelineTuningOptions tuningOptions;
+    tuningOptions.LoopUnrolling = true;
+    tuningOptions.LoopInterleaving = true;
+    tuningOptions.LoopVectorization = true;
+    tuningOptions.SLPVectorization = true;
+
+    PassBuilder pb(targetMachine, tuningOptions);
 
     pb.registerModuleAnalyses(mam);
     pb.registerCGSCCAnalyses(cgam);

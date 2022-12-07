@@ -581,9 +581,8 @@ private:
   static const ParmVarDecl *getParamDefinition(const ParmVarDecl *P) {
     if (auto *Callee = dyn_cast<FunctionDecl>(P->getDeclContext())) {
       if (auto *Def = Callee->getDefinition()) {
-        auto I = std::distance(
-            Callee->param_begin(),
-            std::find(Callee->param_begin(), Callee->param_end(), P));
+        auto I = std::distance(Callee->param_begin(),
+                               llvm::find(Callee->parameters(), P));
         if (I < Callee->getNumParams()) {
           return Def->getParamDecl(I);
         }
@@ -647,11 +646,11 @@ private:
     // TokenBuffer will return null if e.g. R corresponds to only part of a
     // macro expansion.
     if (!Spelled || Spelled->empty())
-      return llvm::None;
+      return std::nullopt;
     // Hint must be within the main file, not e.g. a non-preamble include.
     if (SM.getFileID(Spelled->front().location()) != SM.getMainFileID() ||
         SM.getFileID(Spelled->back().location()) != SM.getMainFileID())
-      return llvm::None;
+      return std::nullopt;
     return Range{sourceLocToPosition(SM, Spelled->front().location()),
                  sourceLocToPosition(SM, Spelled->back().endLocation())};
   }

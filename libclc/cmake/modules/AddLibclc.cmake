@@ -108,29 +108,40 @@ macro(add_libclc_builtin_set arch_suffix)
   
   # Generate remangled variants if requested
   if( LIBCLC_GENERATE_REMANGLED_VARIANTS )
+    set(dummy_in "${CMAKE_BINARY_DIR}/lib/clc/libclc_dummy_in.cc")
+    add_custom_command( OUTPUT ${dummy_in}
+      COMMAND ${CMAKE_COMMAND} -E touch ${dummy_in} )
     set(long_widths l32 l64)
     set(char_signedness signed unsigned)
+    if( ${obj_suffix} STREQUAL "libspirv-nvptx64--nvidiacl.bc")
+      set( obj_suffix_mangled "libspirv-nvptx64-nvidia-cuda.bc")
+    elseif( ${obj_suffix} STREQUAL "libspirv-amdgcn--amdhsa.bc")
+      set( obj_suffix_mangled "libspirv-amdgcn-amd-amdhsa.bc")
+    else()
+      set( obj_suffix_mangled "${obj_suffix}")
+    endif()
     # All permutations of [l32, l64] and [signed, unsigned]
     foreach(long_width ${long_widths})
       foreach(signedness ${char_signedness})
         # Remangle
         set( builtins_remangle_path
-            "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/remangled-${long_width}-${signedness}_char.${obj_suffix}" )
+            "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/remangled-${long_width}-${signedness}_char.${obj_suffix_mangled}" )
         add_custom_command( OUTPUT "${builtins_remangle_path}"
           COMMAND libclc-remangler
           -o "${builtins_remangle_path}"
           --long-width=${long_width}
           --char-signedness=${signedness}
-          "$<TARGET_PROPERTY:prepare-${obj_suffix},TARGET_FILE>"
-          DEPENDS "${builtins_obj_path}" "prepare-${obj_suffix}" libclc-remangler )
-        add_custom_target( "remangled-${long_width}-${signedness}_char.${obj_suffix}" ALL
-          DEPENDS "${builtins_remangle_path}" )
-        set_target_properties("remangled-${long_width}-${signedness}_char.${obj_suffix}"
+          --input-ir="$<TARGET_PROPERTY:prepare-${obj_suffix},TARGET_FILE>"
+          ${dummy_in}
+          DEPENDS "${builtins_obj_path}" "prepare-${obj_suffix}" libclc-remangler ${dummy_in})
+        add_custom_target( "remangled-${long_width}-${signedness}_char.${obj_suffix_mangled}" ALL
+          DEPENDS "${builtins_remangle_path}" "${dummy_in}")
+        set_target_properties("remangled-${long_width}-${signedness}_char.${obj_suffix_mangled}"
           PROPERTIES TARGET_FILE "${builtins_remangle_path}")
 
         # Add dependency to top-level pseudo target to ease making other
         # targets dependent on libclc.
-        add_dependencies(${ARG_PARENT_TARGET} "remangled-${long_width}-${signedness}_char.${obj_suffix}")
+        add_dependencies(${ARG_PARENT_TARGET} "remangled-${long_width}-${signedness}_char.${obj_suffix_mangled}")
 
         # Keep remangled variants
         install(
