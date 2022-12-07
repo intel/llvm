@@ -66,12 +66,12 @@ template <typename ElementType, access::address_space Space,
 class multi_ptr;
 
 template <class T>
-__SYCL_INLINE_CONSTEXPR bool is_group_v =
+inline constexpr bool is_group_v =
     detail::is_group<T>::value || detail::is_sub_group<T>::value;
 
 namespace ext::oneapi::experimental {
 template <class T>
-__SYCL_INLINE_CONSTEXPR bool is_group_helper_v =
+inline constexpr bool is_group_helper_v =
     detail::is_group_helper<std::decay_t<T>>::value;
 } // namespace ext::oneapi::experimental
 

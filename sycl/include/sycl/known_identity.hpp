@@ -383,7 +383,7 @@ struct has_known_identity
                                       std::decay_t<AccumulatorT>> {};
 
 template <typename BinaryOperation, typename AccumulatorT>
-__SYCL_INLINE_CONSTEXPR bool has_known_identity_v =
+inline constexpr bool has_known_identity_v =
     sycl::has_known_identity<BinaryOperation, AccumulatorT>::value;
 
 // ---- known_identity
@@ -393,7 +393,7 @@ struct known_identity
                                   std::decay_t<AccumulatorT>> {};
 
 template <typename BinaryOperation, typename AccumulatorT>
-__SYCL_INLINE_CONSTEXPR AccumulatorT known_identity_v =
+inline constexpr AccumulatorT known_identity_v =
     sycl::known_identity<BinaryOperation, AccumulatorT>::value;
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
