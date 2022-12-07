@@ -107,11 +107,11 @@ address spaces.
 Add two new memory regions as follows:
 
 *Device memory* is a sub-region of global memory that is not directly accessible
-by the host.  Global accessors and USM allocations of the device alloc type
-reside in this address space.
+by the host.  Buffer accessors and USM allocations whose kind is
+`usm::alloc::device` reside in this address space.
 
-*Host memory* is a sub-region of global memory.  USM pointers allocated with the
-host alloc type reside in this address space.
+*Host memory* is a sub-region of global memory.  USM allocations whose kind is
+`usm::alloc::host` reside in this address space.
 
 
 === Multi-pointer Class
