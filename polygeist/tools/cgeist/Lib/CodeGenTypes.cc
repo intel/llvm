@@ -1342,8 +1342,10 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
           TypeName == "array" || TypeName == "AssertHappened" ||
           TypeName == "atomic" || TypeName == "bfloat16" ||
           TypeName == "GetOp" || TypeName == "GetScalarOp" ||
-          TypeName == "group" || TypeName == "id" || TypeName == "item" ||
-          TypeName == "ItemBase" || TypeName == "multi_ptr" ||
+          TypeName == "group" || TypeName == "h_item" || TypeName == "id" ||
+          TypeName == "item" || TypeName == "ItemBase" ||
+          TypeName == "kernel_handler" || TypeName == "maximum" ||
+          TypeName == "minimum" || TypeName == "multi_ptr" ||
           TypeName == "nd_item" || TypeName == "nd_range" ||
           TypeName == "OwnerLessBase" || TypeName == "range" ||
           TypeName == "sub_group" ||

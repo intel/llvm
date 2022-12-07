@@ -208,6 +208,12 @@ def SYCL_GroupType : SYCL_Type<"Group", "group"> {
   let assemblyFormat = "`<` `[` $dimension `]` `,` `(` $body `)` `>`";
 }
 
+def SYCL_HItemType : SYCL_Type<"HItem", "h_item"> {
+  let parameters = (ins "unsigned":$dimension,
+                        ArrayRefParameter<"mlir::Type">:$body);
+  let assemblyFormat = "`<` `[` $dimension `]` `,` `(` $body `)` `>`";
+}
+
 def SYCL_IDType
     : SYCL_Type<"ID", "id", [SYCLInheritanceTypeTrait<"ArrayType">]> {
   let parameters = (ins "unsigned":$dimension,
@@ -227,6 +233,21 @@ def SYCL_ItemType : SYCL_Type<"Item", "item"> {
                         "bool":$withOffset,
                         ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat = "`<` `[` $dimension `,` $withOffset `]` `,` `(` $body `)` `>`";
+}
+
+def SYCL_KernelHandlerType : SYCL_Type<"KernelHandler", "kernel_handler"> {
+  let parameters = (ins ArrayRefParameter<"mlir::Type">:$body);
+  let assemblyFormat = "`<` `(` $body `)` `>`";
+}
+
+def SYCL_MaximumType : SYCL_Type<"Maximum", "maximum"> {
+  let parameters = (ins "::mlir::Type":$dataType);
+  let assemblyFormat = "`<` $dataType `>`";
+}
+
+def SYCL_MinimumType : SYCL_Type<"Minimum", "minimum"> {
+  let parameters = (ins "::mlir::Type":$dataType);
+  let assemblyFormat = "`<` $dataType `>`";
 }
 
 def SYCL_MultiPtrType : SYCL_Type<"MultiPtr", "multi_ptr"> {
