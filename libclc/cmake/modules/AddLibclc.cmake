@@ -108,9 +108,6 @@ macro(add_libclc_builtin_set arch_suffix)
   
   # Generate remangled variants if requested
   if( LIBCLC_GENERATE_REMANGLED_VARIANTS )
-    set(dummy_in "${CMAKE_BINARY_DIR}/lib/clc/libclc_dummy_in.cc")
-    add_custom_command( OUTPUT ${dummy_in}
-      COMMAND ${CMAKE_COMMAND} -E touch ${dummy_in} )
     set(long_widths l32 l64)
     set(char_signedness signed unsigned)
     if( ${obj_suffix} STREQUAL "libspirv-nvptx64--nvidiacl.bc")
@@ -131,11 +128,10 @@ macro(add_libclc_builtin_set arch_suffix)
           -o "${builtins_remangle_path}"
           --long-width=${long_width}
           --char-signedness=${signedness}
-          --input-ir="$<TARGET_PROPERTY:prepare-${obj_suffix},TARGET_FILE>"
-          ${dummy_in}
-          DEPENDS "${builtins_obj_path}" "prepare-${obj_suffix}" libclc-remangler ${dummy_in})
+          "$<TARGET_PROPERTY:prepare-${obj_suffix},TARGET_FILE>"
+          DEPENDS "${builtins_obj_path}" "prepare-${obj_suffix}" libclc-remangler )
         add_custom_target( "remangled-${long_width}-${signedness}_char.${obj_suffix_mangled}" ALL
-          DEPENDS "${builtins_remangle_path}" "${dummy_in}")
+          DEPENDS "${builtins_remangle_path}" )
         set_target_properties("remangled-${long_width}-${signedness}_char.${obj_suffix_mangled}"
           PROPERTIES TARGET_FILE "${builtins_remangle_path}")
 
