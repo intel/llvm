@@ -886,17 +886,17 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
   PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
 
   ModulePassManager MPM;
-  
-  if (!CodeGenOpts.DisableLLVMPasses || !CodeGenOpts.DisableSYCLEarlyOpts) {
 
-    if (LangOpts.SYCLIsDevice && !CodeGenOpts.DisableSYCLEarlyOpts)
-      MPM.addPass(SYCLPropagateAspectsUsagePass());
+  if (LangOpts.SYCLIsDevice && !CodeGenOpts.DisableSYCLEarlyOpts)
+    MPM.addPass(SYCLPropagateAspectsUsagePass());
+  
+  if (!CodeGenOpts.DisableLLVMPasses) {
 
     // Map our optimization levels into one of the distinct levels used to
     // configure the pipeline.
     OptimizationLevel Level = mapToLevel(CodeGenOpts);
 
-    if (LangOpts.SYCLIsDevice && !CodeGenOpts.DisableLLVMPasses)
+    if (LangOpts.SYCLIsDevice && !CodeGenOpts.DisableSYCLEarlyOpts)
       PB.registerPipelineStartEPCallback(
           [&](ModulePassManager &MPM, OptimizationLevel Level) {
             MPM.addPass(ESIMDVerifierPass(LangOpts.SYCLESIMDForceStatelessMem));
@@ -904,7 +904,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
           });
 
     // Add the InferAddressSpaces pass for all the SPIR[V] targets
-    if ((TargetTriple.isSPIR() || TargetTriple.isSPIRV()) && !CodeGenOpts.DisableLLVMPasses) {
+    if ((TargetTriple.isSPIR() || TargetTriple.isSPIRV()) && !CodeGenOpts.DisableSYCLEarlyOpts) {
       PB.registerOptimizerLastEPCallback(
           [](ModulePassManager &MPM, OptimizationLevel Level) {
             MPM.addPass(createModuleToFunctionPassAdaptor(
@@ -915,7 +915,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     bool IsThinLTO = CodeGenOpts.PrepareForThinLTO;
     bool IsLTO = CodeGenOpts.PrepareForLTO;
 
-    if (LangOpts.ObjCAutoRefCount && !CodeGenOpts.DisableLLVMPasses) {
+    if (LangOpts.ObjCAutoRefCount) {
       PB.registerPipelineStartEPCallback(
           [](ModulePassManager &MPM, OptimizationLevel Level) {
             if (Level != OptimizationLevel::O0)
@@ -934,62 +934,62 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
           });
     }
 
-    if (!CodeGenOpts.DisableLLVMPasses) {
-      // If we reached here with a non-empty index file name, then the index
-      // file was empty and we are not performing ThinLTO backend compilation
-      // (used in testing in a distributed build environment).
-      bool IsThinLTOPostLink = !CodeGenOpts.ThinLTOIndexFile.empty();
-      // If so drop any the type test assume sequences inserted for whole program
-      // vtables so that codegen doesn't complain.
-      if (IsThinLTOPostLink)
-        PB.registerPipelineStartEPCallback(
-            [](ModulePassManager &MPM, OptimizationLevel Level) {
-              MPM.addPass(LowerTypeTestsPass(/*ExportSummary=*/nullptr,
-                                            /*ImportSummary=*/nullptr,
-                                            /*DropTypeTests=*/true));
-            });
+    // If we reached here with a non-empty index file name, then the index
+    // file was empty and we are not performing ThinLTO backend compilation
+    // (used in testing in a distributed build environment).
+    bool IsThinLTOPostLink = !CodeGenOpts.ThinLTOIndexFile.empty();
+    // If so drop any the type test assume sequences inserted for whole program
+    // vtables so that codegen doesn't complain.
+    if (IsThinLTOPostLink)
+      PB.registerPipelineStartEPCallback(
+          [](ModulePassManager &MPM, OptimizationLevel Level) {
+            MPM.addPass(LowerTypeTestsPass(/*ExportSummary=*/nullptr,
+                                          /*ImportSummary=*/nullptr,
+                                          /*DropTypeTests=*/true));
+          });
 
-      if (CodeGenOpts.InstrumentFunctions ||
-          CodeGenOpts.InstrumentFunctionEntryBare ||
-          CodeGenOpts.InstrumentFunctionsAfterInlining ||
-          CodeGenOpts.InstrumentForProfiling) {
-        PB.registerPipelineStartEPCallback(
-            [](ModulePassManager &MPM, OptimizationLevel Level) {
-              MPM.addPass(createModuleToFunctionPassAdaptor(
-                  EntryExitInstrumenterPass(/*PostInlining=*/false)));
-            });
-        PB.registerOptimizerLastEPCallback(
-            [](ModulePassManager &MPM, OptimizationLevel Level) {
-              MPM.addPass(createModuleToFunctionPassAdaptor(
-                  EntryExitInstrumenterPass(/*PostInlining=*/true)));
-            });
-      }
+    if (CodeGenOpts.InstrumentFunctions ||
+        CodeGenOpts.InstrumentFunctionEntryBare ||
+        CodeGenOpts.InstrumentFunctionsAfterInlining ||
+        CodeGenOpts.InstrumentForProfiling) {
+      PB.registerPipelineStartEPCallback(
+          [](ModulePassManager &MPM, OptimizationLevel Level) {
+            MPM.addPass(createModuleToFunctionPassAdaptor(
+                EntryExitInstrumenterPass(/*PostInlining=*/false)));
+          });
+      PB.registerOptimizerLastEPCallback(
+          [](ModulePassManager &MPM, OptimizationLevel Level) {
+            MPM.addPass(createModuleToFunctionPassAdaptor(
+                EntryExitInstrumenterPass(/*PostInlining=*/true)));
+          });
+    }
 
-      // Register callbacks to schedule sanitizer passes at the appropriate part
-      // of the pipeline.
-      if (LangOpts.Sanitize.has(SanitizerKind::LocalBounds))
-        PB.registerScalarOptimizerLateEPCallback(
-            [](FunctionPassManager &FPM, OptimizationLevel Level) {
-              FPM.addPass(BoundsCheckingPass());
-            });
+    // Register callbacks to schedule sanitizer passes at the appropriate part
+    // of the pipeline.
+    if (LangOpts.Sanitize.has(SanitizerKind::LocalBounds))
+      PB.registerScalarOptimizerLateEPCallback(
+          [](FunctionPassManager &FPM, OptimizationLevel Level) {
+            FPM.addPass(BoundsCheckingPass());
+          });
 
-      // Don't add sanitizers if we are here from ThinLTO PostLink. That already
-      // done on PreLink stage.
-      if (!IsThinLTOPostLink)
-        addSanitizers(TargetTriple, CodeGenOpts, LangOpts, PB);
+    // Don't add sanitizers if we are here from ThinLTO PostLink. That already
+    // done on PreLink stage.
+    if (!IsThinLTOPostLink)
+      addSanitizers(TargetTriple, CodeGenOpts, LangOpts, PB);
 
-      if (Optional<GCOVOptions> Options = getGCOVOptions(CodeGenOpts, LangOpts))
-        PB.registerPipelineStartEPCallback(
-            [Options](ModulePassManager &MPM, OptimizationLevel Level) {
-              MPM.addPass(GCOVProfilerPass(*Options));
-            });
-      if (Optional<InstrProfOptions> Options =
-              getInstrProfOptions(CodeGenOpts, LangOpts))
-        PB.registerPipelineStartEPCallback(
-            [Options](ModulePassManager &MPM, OptimizationLevel Level) {
-              MPM.addPass(InstrProfiling(*Options, false));
-            });
+    if (Optional<GCOVOptions> Options = getGCOVOptions(CodeGenOpts, LangOpts))
+      PB.registerPipelineStartEPCallback(
+          [Options](ModulePassManager &MPM, OptimizationLevel Level) {
+            MPM.addPass(GCOVProfilerPass(*Options));
+          });
+    if (Optional<InstrProfOptions> Options =
+            getInstrProfOptions(CodeGenOpts, LangOpts))
+      PB.registerPipelineStartEPCallback(
+          [Options](ModulePassManager &MPM, OptimizationLevel Level) {
+            MPM.addPass(InstrProfiling(*Options, false));
+          });
 
+    if (!CodeGenOpts.DisableSYCLEarlyOpts) {
       if (CodeGenOpts.OptimizationLevel == 0) {
         MPM = PB.buildO0DefaultPipeline(Level, IsLTO || IsThinLTO);
       } else if (IsThinLTO) {
@@ -999,14 +999,14 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       } else {
         MPM = PB.buildPerModuleDefaultPipeline(Level);
       }
-
-      if (!CodeGenOpts.MemoryProfileOutput.empty()) {
-        MPM.addPass(createModuleToFunctionPassAdaptor(MemProfilerPass()));
-        MPM.addPass(ModuleMemProfilerPass());
-      }
     }
 
-    if (LangOpts.SYCLIsDevice && !CodeGenOpts.DisableLLVMPasses) {
+    if (!CodeGenOpts.MemoryProfileOutput.empty()) {
+      MPM.addPass(createModuleToFunctionPassAdaptor(MemProfilerPass()));
+      MPM.addPass(ModuleMemProfilerPass());
+    }
+
+    if (LangOpts.SYCLIsDevice) {
       MPM.addPass(SYCLMutatePrintfAddrspacePass());
       if (LangOpts.EnableDAEInSpirKernels)
         MPM.addPass(DeadArgumentEliminationSYCLPass());
@@ -1015,22 +1015,22 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     // Add SPIRITTAnnotations pass to the pass manager if
     // -fsycl-instrument-device-code option was passed. This option can be used
     // only with spir triple.
-    if (LangOpts.SYCLIsDevice && CodeGenOpts.SPIRITTAnnotations && !CodeGenOpts.DisableLLVMPasses) {
+    if (LangOpts.SYCLIsDevice && CodeGenOpts.SPIRITTAnnotations && !CodeGenOpts.DisableSYCLEarlyOpts) {
       assert(TargetTriple.isSPIR() &&
               "ITT annotations can only be added to a module with spir target");
       MPM.addPass(SPIRITTAnnotationsPass());
     }
+  }
 
-    // Allocate static local memory in SYCL kernel scope for each allocation
-    // call. It should be called after inlining pass.
-    if (LangOpts.SYCLIsDevice) {
-      // Group local memory pass depends on inlining. Turn it on even in case if
-      // all llvm passes or SYCL early optimizations are disabled.
-      // FIXME: Remove this workaround when dependency on inlining is eliminated.
-      if (CodeGenOpts.DisableLLVMPasses || CodeGenOpts.DisableSYCLEarlyOpts)
-        MPM.addPass(AlwaysInlinerPass(false));
-      MPM.addPass(SYCLLowerWGLocalMemoryPass());
-    }
+  // Allocate static local memory in SYCL kernel scope for each allocation
+  // call. It should be called after inlining pass.
+  if (LangOpts.SYCLIsDevice) {
+    // Group local memory pass depends on inlining. Turn it on even in case if
+    // all llvm passes or SYCL early optimizations are disabled.
+    // FIXME: Remove this workaround when dependency on inlining is eliminated.
+    if (CodeGenOpts.DisableLLVMPasses || CodeGenOpts.DisableSYCLEarlyOpts)
+      MPM.addPass(AlwaysInlinerPass(false));
+    MPM.addPass(SYCLLowerWGLocalMemoryPass());
   }
 
   // Add a verifier pass if requested. We don't have to do this if the action
