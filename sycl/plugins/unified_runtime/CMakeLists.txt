@@ -54,5 +54,5 @@ add_sycl_plugin(unified_runtime
     Threads::Threads
     UnifiedRuntime-Headers
     LevelZeroLoader-Headers
-    ${LEVEL_ZERO_LIBRARY}
+    LevelZeroLoader
 )
