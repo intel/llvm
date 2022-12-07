@@ -19,12 +19,16 @@ class use_primary_context : public ::sycl::detail::DataLessProperty<
                                 ::sycl::detail::UsePrimaryContext> {};
 } // namespace ext::oneapi::cuda::property::context
 
-namespace property::context::cuda {
+namespace property::context {
+namespace __SYCL2020_DEPRECATED(
+    "use 'sycl::ext::oneapi::cuda::property::context' instead") cuda {
 class use_primary_context
     : public ::sycl::ext::oneapi::cuda::property::context::use_primary_context {
 };
 // clang-format off
-} // namespace property
+} // namespace cuda
+// clang-format on
+} // namespace property::context
 
 // Forward declaration
 class context;

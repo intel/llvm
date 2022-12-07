@@ -198,7 +198,8 @@ make_buffer(
       !(BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep));
 }
 
-namespace level_zero {
+namespace __SYCL2020_DEPRECATED("use 'ext::oneapi::level_zero' instead")
+    level_zero {
 using namespace ext::oneapi::level_zero;
 }
 
