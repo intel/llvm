@@ -10,12 +10,17 @@
 // been introduced as well.
 
 #include "sycl.hpp"
+#include "../CodeGenCUDA/Inputs/cuda.h"
 
-__attribute__((device)) void cuda_dev_undefined();
+__device__ void cuda_dev_undefined_0();
+__attribute__((device)) void cuda_dev_undefined_1();
+void fn_0(){
+  cuda_dev_undefined_0();
+  cuda_dev_undefined_1();
+}
+
 __attribute__((sycl_device)) void sycl_ext_undefined();
-
-void fn_0(){ return cuda_dev_undefined(); };
-void fn_1(){ return sycl_ext_undefined(); };
+void fn_1(){ sycl_ext_undefined(); }
 
 sycl::queue deviceQueue;
 
@@ -23,7 +28,8 @@ int main() {
 
   deviceQueue.submit([&](sycl::handler &h) {
     h.single_task<class CallToUndefinedFnTester>([]() {
-      cuda_dev_undefined();
+      cuda_dev_undefined_0();
+      cuda_dev_undefined_1();
       sycl_ext_undefined();
       fn_0();
     });
