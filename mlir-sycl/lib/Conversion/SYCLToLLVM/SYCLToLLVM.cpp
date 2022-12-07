@@ -168,6 +168,12 @@ static Optional<Type> convertGetScalarOpType(sycl::GetScalarOpType type,
                          converter);
 }
 
+/// Converts SYCL h_item type to LLVM type.
+static Optional<Type> convertHItemType(sycl::HItemType type,
+                                       LLVMTypeConverter &converter) {
+  return convertBodyType("class.sycl::_V1::h_item", type.getBody(), converter);
+}
+
 /// Converts SYCL id type to LLVM type.
 static Optional<Type> convertIDType(sycl::IDType type,
                                     LLVMTypeConverter &converter) {
@@ -211,6 +217,18 @@ static Optional<Type> convertLocalAccessorType(sycl::LocalAccessorType type,
   return convertBodyType("class.sycl::_V1::local_accessor." +
                              std::to_string(type.getDimension()),
                          type.getBody(), converter);
+}
+
+/// Converts SYCL maximum type to LLVM type.
+static Optional<Type> convertMaximumType(sycl::MaximumType type,
+                                         LLVMTypeConverter &converter) {
+  return getI8Struct("struct.sycl::_V1::maximum", converter);
+}
+
+/// Converts SYCL minimum type to LLVM type.
+static Optional<Type> convertMinimumType(sycl::MinimumType type,
+                                         LLVMTypeConverter &converter) {
+  return getI8Struct("struct.sycl::_V1::minimum", converter);
 }
 
 /// Converts SYCL multi_ptr type to LLVM type.
@@ -304,6 +322,13 @@ static Optional<Type> convertBFloat16Type(sycl::BFloat16Type type,
                                           LLVMTypeConverter &converter) {
   return convertBodyType("class.sycl::_V1::ext::oneapi::bfloat16",
                          type.getBody(), converter);
+}
+
+/// Converts SYCL kernel_handler type to LLVM type.
+static Optional<Type> convertKernelHandlerType(sycl::KernelHandlerType type,
+                                               LLVMTypeConverter &converter) {
+  return convertBodyType("class.sycl::_V1::kernel_handler", type.getBody(),
+                         converter);
 }
 
 /// Converts SYCL sub_group type to LLVM type.
@@ -503,6 +528,9 @@ void mlir::sycl::populateSYCLToLLVMTypeConversion(
   typeConverter.addConversion([&](sycl::GroupType type) {
     return convertGroupType(type, typeConverter);
   });
+  typeConverter.addConversion([&](sycl::HItemType type) {
+    return convertHItemType(type, typeConverter);
+  });
   typeConverter.addConversion(
       [&](sycl::IDType type) { return convertIDType(type, typeConverter); });
   typeConverter.addConversion([&](sycl::ItemBaseType type) {
@@ -510,6 +538,9 @@ void mlir::sycl::populateSYCLToLLVMTypeConversion(
   });
   typeConverter.addConversion([&](sycl::ItemType type) {
     return convertItemType(type, typeConverter);
+  });
+  typeConverter.addConversion([&](sycl::KernelHandlerType type) {
+    return convertKernelHandlerType(type, typeConverter);
   });
   typeConverter.addConversion([&](sycl::LocalAccessorBaseDeviceType type) {
     return convertLocalAccessorBaseDeviceType(type, typeConverter);
@@ -519,6 +550,12 @@ void mlir::sycl::populateSYCLToLLVMTypeConversion(
   });
   typeConverter.addConversion([&](sycl::LocalAccessorType type) {
     return convertLocalAccessorType(type, typeConverter);
+  });
+  typeConverter.addConversion([&](sycl::MaximumType type) {
+    return convertMaximumType(type, typeConverter);
+  });
+  typeConverter.addConversion([&](sycl::MinimumType type) {
+    return convertMinimumType(type, typeConverter);
   });
   typeConverter.addConversion([&](sycl::MultiPtrType type) {
     return convertMultiPtrType(type, typeConverter);

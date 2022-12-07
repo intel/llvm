@@ -16,13 +16,17 @@
 // CHECK-DAG: !sycl_get_scalar_op_i32_ = !sycl.get_scalar_op<[i32], (i32)>
 // CHECK-DAG: !sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
 // CHECK-DAG: !sycl_group_2_ = !sycl.group<[2], (!sycl_range_2_, !sycl_range_2_, !sycl_range_2_, !sycl_id_2_)>
+// CHECK-DAG: !sycl_h_item_1_ = !sycl.h_item<[1], (!sycl.item<[1, false], (!sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>)>, !sycl.item<[1, false], (!sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>)>, !sycl.item<[1, false], (!sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>)>)>
 // CHECK-DAG: !sycl_id_1_ = !sycl.id<[1], (!sycl_array_1_)>
 // CHECK-DAG: !sycl_id_2_ = !sycl.id<[2], (!sycl_array_2_)>
 // CHECK-DAG: !sycl_item_1_ = !sycl.item<[1, true], (!sycl.item_base<[1, true], (!sycl_range_1_, !sycl_id_1_, !sycl_id_1_)>)>
 // CHECK-DAG: !sycl_item_2_ = !sycl.item<[2, false], (!sycl.item_base<[2, false], (!sycl_range_2_, !sycl_id_2_)>)>
+// CHECK-DAG: !sycl_kernel_handler_ = !sycl.kernel_handler<(!llvm.ptr<i8, 4>)>
 // CHECK-DAG: !sycl_LocalAccessorBaseDevice_1_ = !sycl.LocalAccessorBaseDevice<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
 // CHECK-DAG: !sycl_local_accessor_base_1_i32_rw = !sycl.local_accessor_base<[1, i32, read_write], (!sycl_LocalAccessorBaseDevice_1_, memref<?xi32, 3>)>
 // CHECK-DAG: !sycl_local_accessor_1_i32_ = !sycl.local_accessor<[1, i32], (!sycl_local_accessor_base_1_i32_rw)>
+// CHECK-DAG: !sycl_maximum_i32_ = !sycl.maximum<i32>
+// CHECK-DAG: !sycl_minimum_i32_ = !sycl.minimum<i32>
 // CHECK-DAG: !sycl_multi_ptr_i32_1_ = !sycl.multi_ptr<[i32, 1, 1], (memref<?xi32, 1>)>
 // CHECK-DAG: !sycl_nd_item_1_ = !sycl.nd_item<[1], (!sycl_item_1_, !sycl.item<[1, false], (!sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>)>, !sycl_group_1_)>
 // CHECK-DAG: !sycl_nd_item_2_ = !sycl.nd_item<[2], (!sycl.item<[2, true], (!sycl.item_base<[2, true], (!sycl_range_2_, !sycl_id_2_, !sycl_id_2_)>)>, !sycl_item_2_, !sycl_group_2_)>
@@ -112,6 +116,11 @@ SYCL_EXTERNAL void group_1(sycl::group<1> group) {}
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
 SYCL_EXTERNAL void group_2(sycl::group<2> group) {}
 
+// CHECK-LABEL: func.func @_Z6h_itemN4sycl3_V16h_itemILi1EEE(
+// CHECK:          %arg0: memref<?x!sycl_h_item_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_h_item_1_, llvm.noundef})
+// CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
+SYCL_EXTERNAL void h_item(sycl::h_item<1> h_item) {}
+
 // CHECK-LABEL: func.func @_Z4id_1N4sycl3_V12idILi1EEE(
 // CHECK:          %arg0: memref<?x!sycl_id_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_id_1_, llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
@@ -132,6 +141,11 @@ SYCL_EXTERNAL void item_1_true(sycl::item<1, true> item) {}
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
 SYCL_EXTERNAL void item_2_false(sycl::item<2, false> item) {}
 
+// CHECK-LABEL: func.func @_Z14kernel_handlerN4sycl3_V114kernel_handlerE(
+// CHECK:          %arg0: memref<?x!sycl_kernel_handler_> {llvm.align = 8 : i64, llvm.byval = !sycl_kernel_handler_, llvm.noundef})
+// CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
+SYCL_EXTERNAL void kernel_handler(sycl::kernel_handler kernel_handler) {}
+
 // CHECK-LABEL: func.func @_Z26local_accessor_base_deviceN4sycl3_V16detail23LocalAccessorBaseDeviceILi1EEE(
 // CHECK:          %arg0: memref<?x!sycl_LocalAccessorBaseDevice_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_LocalAccessorBaseDevice_1_, llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
@@ -146,6 +160,16 @@ SYCL_EXTERNAL void local_accessor_base(sycl::local_accessor_base<sycl::cl_int, 1
 // CHECK:          %arg0: memref<?x!sycl_local_accessor_1_i32_> {llvm.align = 8 : i64, llvm.byval = !sycl_local_accessor_1_i32_, llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
 SYCL_EXTERNAL void local_accessor(sycl::local_accessor<sycl::cl_int, 1> acc) {}
+
+// CHECK-LABEL: func.func @_Z7maximumN4sycl3_V17maximumIiEE(
+// CHECK:          %arg0: memref<?x!sycl_maximum_i32_> {llvm.align = 1 : i64, llvm.byval = !sycl_maximum_i32_, llvm.noundef})
+// CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
+SYCL_EXTERNAL void maximum(sycl::maximum<int> max) {}
+
+// CHECK-LABEL: func.func @_Z7minimumN4sycl3_V17minimumIiEE(
+// CHECK:          %arg0: memref<?x!sycl_minimum_i32_> {llvm.align = 1 : i64, llvm.byval = !sycl_minimum_i32_, llvm.noundef})
+// CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
+SYCL_EXTERNAL void minimum(sycl::minimum<int> min) {}
 
 // CHECK-LABEL: func.func @_Z9multi_ptrN4sycl3_V19multi_ptrIiLNS0_6access13address_spaceE1ELNS2_9decoratedE1EEE(
 // CHECK:          %arg0: memref<?x!sycl_multi_ptr_i32_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_multi_ptr_i32_1_, llvm.noundef})

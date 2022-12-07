@@ -313,7 +313,8 @@ void MLIRScanner::init(FunctionOpInterface func, const FunctionToEmit &FTE) {
     ReturnVal = Builder.create<memref::AllocaOp>(Loc, type);
     if (type.getElementType().isa<IntegerType, FloatType>()) {
       Builder.create<memref::StoreOp>(
-          Loc, Builder.create<LLVM::UndefOp>(Loc, type.getElementType()),
+          Loc,
+          ValueCategory::getUndefValue(Builder, Loc, type.getElementType()).val,
           ReturnVal, std::vector<Value>({}));
     }
   }
@@ -408,7 +409,8 @@ Value MLIRScanner::createAllocOp(Type t, clang::VarDecl *name,
             aBuilder.create<arith::ConstantIntOp>(varLoc, 1, 64), 0);
         if (t.isa<IntegerType, FloatType>()) {
           aBuilder.create<LLVM::StoreOp>(
-              varLoc, aBuilder.create<LLVM::UndefOp>(varLoc, t), alloc);
+              varLoc, ValueCategory::getUndefValue(aBuilder, varLoc, t).val,
+              alloc);
         }
         // alloc = Builder.create<LLVM::BitcastOp>(varLoc,
         // LLVM::LLVMPointerType::get(LLVM::LLVMArrayType::get(t, 1)), alloc);
@@ -440,10 +442,11 @@ Value MLIRScanner::createAllocOp(Type t, clang::VarDecl *name,
         llvm::dbgs() << "\n";
       });
 
-      if (t.isa<IntegerType, FloatType>()) {
+      if (t.isa<IntegerType, FloatType, VectorType>()) {
         Value idxs[] = {aBuilder.create<arith::ConstantIndexOp>(Loc, 0)};
         aBuilder.create<memref::StoreOp>(
-            varLoc, aBuilder.create<LLVM::UndefOp>(varLoc, t), alloc, idxs);
+            varLoc, ValueCategory::getUndefValue(aBuilder, varLoc, t).val,
+            alloc, idxs);
       }
     }
   } else {
@@ -1819,7 +1822,7 @@ MLIRASTConsumer::getOrCreateLLVMGlobal(const clang::ValueDecl *FD,
       ms.setEntryAndAllocBlock(blk);
       res = ms.Visit(const_cast<clang::Expr *>(init)).getValue(Builder);
     } else {
-      res = Builder.create<LLVM::UndefOp>(Module->getLoc(), rt);
+      res = ValueCategory::getUndefValue(Builder, Module->getLoc(), rt).val;
     }
     bool legal = true;
     for (Operation &op : *blk) {
@@ -1836,7 +1839,8 @@ MLIRASTConsumer::getOrCreateLLVMGlobal(const clang::ValueDecl *FD,
     } else {
       Block *blk2 = new Block();
       Builder.setInsertionPointToEnd(blk2);
-      Value nres = Builder.create<LLVM::UndefOp>(Module->getLoc(), rt);
+      Value nres =
+          ValueCategory::getUndefValue(Builder, Module->getLoc(), rt).val;
       Builder.create<LLVM::ReturnOp>(Module->getLoc(),
                                      std::vector<Value>({nres}));
       glob.getInitializerRegion().push_back(blk2);
