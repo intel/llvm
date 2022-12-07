@@ -100,6 +100,15 @@ static CGCXXABI *createCXXABI(CodeGenModule &CGM) {
   llvm_unreachable("invalid C++ ABI kind");
 }
 
+static bool SYCLCUDAIsHost(const clang::LangOptions &LangOpts) {
+  // Return true for the host compilation of SYCL CUDA sources.
+  return LangOpts.SYCLIsHost && LangOpts.CUDA && !LangOpts.CUDAIsDevice;
+}
+static bool SYCLCUDAIsSYCLDevice(const clang::LangOptions &LangOpts) {
+  // Return true for the SYCL device compilation of SYCL CUDA sources.
+  return LangOpts.SYCLIsDevice && LangOpts.CUDA && !LangOpts.CUDAIsDevice;
+}
+
 CodeGenModule::CodeGenModule(ASTContext &C,
                              IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS,
                              const HeaderSearchOptions &HSO,
@@ -2902,7 +2911,7 @@ void CodeGenModule::EmitDeferred() {
   for (GlobalDecl &D : CurDeclsToEmit) {
     // Emit a dummy __host__ function if a legit one is not already present in
     // case of SYCL compilation of CUDA sources.
-    if (LangOpts.CUDA && !LangOpts.CUDAIsDevice && LangOpts.SYCLIsHost) {
+    if (SYCLCUDAIsHost(LangOpts)) {
       GlobalDecl OtherD;
       if (lookupRepresentativeDecl(getMangledName(D), OtherD) &&
           (D.getCanonicalDecl().getDecl() !=
@@ -2912,7 +2921,7 @@ void CodeGenModule::EmitDeferred() {
     }
     // Emit a dummy __host__ function if a legit one is not already present in
     // case of SYCL compilation of CUDA sources.
-    if (LangOpts.CUDA && !LangOpts.CUDAIsDevice && LangOpts.SYCLIsDevice) {
+    if (SYCLCUDAIsSYCLDevice(LangOpts)) {
       GlobalDecl OtherD;
       if (lookupRepresentativeDecl(getMangledName(D), OtherD) &&
           (D.getCanonicalDecl().getDecl() !=
@@ -3598,10 +3607,9 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
     if (!FD->doesThisDeclarationHaveABody()) {
       if (!FD->doesDeclarationForceExternallyVisibleDefinition()) {
         // Force the declaration in SYCL compilation of CUDA sources.
-        if (!((LangOpts.SYCLIsHost && LangOpts.CUDA && !LangOpts.CUDAIsDevice &&
-               Global->hasAttr<CUDAHostAttr>()) ||
-              (LangOpts.SYCLIsDevice && LangOpts.CUDA &&
-               !LangOpts.CUDAIsDevice && Global->hasAttr<CUDADeviceAttr>())))
+        if (!((SYCLCUDAIsHost(LangOpts) && Global->hasAttr<CUDAHostAttr>()) ||
+              (SYCLCUDAIsSYCLDevice(LangOpts) &&
+               Global->hasAttr<CUDADeviceAttr>())))
           return;
       }
 
@@ -3664,16 +3672,14 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
   if (MustBeEmitted(Global) && MayBeEmittedEagerly(Global)) {
     // Avoid emitting the same __host__ __device__ functions,
     // in SYCL-CUDA-host compilation, and
-    if (LangOpts.SYCLIsHost && LangOpts.CUDA && !LangOpts.CUDAIsDevice &&
-        isa<FunctionDecl>(Global) && !Global->hasAttr<CUDAHostAttr>() &&
-        Global->hasAttr<CUDADeviceAttr>()) {
+    if (SYCLCUDAIsHost(LangOpts) && isa<FunctionDecl>(Global) &&
+        !Global->hasAttr<CUDAHostAttr>() && Global->hasAttr<CUDADeviceAttr>()) {
       addDeferredDeclToEmit(GD);
       return;
     }
     // in SYCL-CUDA-device compilation.
-    if (LangOpts.SYCLIsDevice && LangOpts.CUDA && !LangOpts.CUDAIsDevice &&
-        isa<FunctionDecl>(Global) && Global->hasAttr<CUDAHostAttr>() &&
-        !Global->hasAttr<CUDADeviceAttr>()) {
+    if (SYCLCUDAIsSYCLDevice(LangOpts) && isa<FunctionDecl>(Global) &&
+        Global->hasAttr<CUDAHostAttr>() && !Global->hasAttr<CUDADeviceAttr>()) {
       addDeferredDeclToEmit(GD);
       return;
     }
