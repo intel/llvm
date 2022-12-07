@@ -296,20 +296,17 @@ std::vector<kernel_id> get_kernel_ids() {
 }
 
 bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
-  for (const auto &KernelId : KernelIDs) {
-    const detail::RTDeviceBinaryImage &Img =
-        detail::ProgramManager::getInstance().getDeviceImage(
-            detail::OSUtil::ExeModuleHandle, KernelId.get_name(), context(Dev),
-            Dev);
-    const detail::RTDeviceBinaryImage::PropertyRange &ARange =
-        Img.getDeviceRequirements();
-    for (detail::RTDeviceBinaryImage::PropertyRange::ConstIterator It :
-         ARange) {
+  using namespace detail;
+  std::set<RTDeviceBinaryImage *> BinImages;
+  ProgramManager::getInstance().getRawDeviceImages(KernelIDs, BinImages);
+  for (RTDeviceBinaryImage *Img : BinImages) {
+    const RTDeviceBinaryImage::PropertyRange &PropRange =
+        Img->getDeviceRequirements();
+    for (RTDeviceBinaryImage::PropertyRange::ConstIterator It : PropRange) {
       using namespace std::literals;
       if ((*It)->Name != "aspects"sv)
         continue;
-      detail::ByteArray Aspects =
-          detail::DeviceBinaryProperty(*It).asByteArray();
+      ByteArray Aspects = DeviceBinaryProperty(*It).asByteArray();
       // Drop 8 bytes describing the size of the byte array
       Aspects.dropBytes(8);
       while (!Aspects.empty()) {

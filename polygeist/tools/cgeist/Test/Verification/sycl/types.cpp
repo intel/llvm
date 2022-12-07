@@ -8,15 +8,20 @@
 // CHECK-DAG: !sycl_id_2_ = !sycl.id<[2], (!sycl_array_2_)>
 // CHECK-DAG: !sycl_range_1_ = !sycl.range<[1], (!sycl_array_1_)>
 // CHECK-DAG: !sycl_range_2_ = !sycl.range<[2], (!sycl_array_2_)>
-// CHECK-DAG: !sycl_accessor_1_i32_rw_gb = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>, !llvm.struct<(ptr<i32, 1>)>)>
-// CHECK-DAG: !sycl_accessor_2_i32_rw_gb = !sycl.accessor<[2, i32, read_write, global_buffer], (!sycl.accessor_impl_device<[2], (!sycl_id_2_, !sycl_range_2_, !sycl_range_2_)>, !llvm.struct<(ptr<i32, 1>)>)>
-// CHECK-DAG: !sycl_accessor_3_f32_rw_gb = !sycl.accessor<[3, f32, read_write, global_buffer], (!sycl.accessor_impl_device<[3], (!sycl.id<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>, !sycl.range<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>, !sycl.range<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>)>, !llvm.struct<(ptr<f32, 1>)>)>
+// CHECK-DAG: !sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>
+// CHECK-DAG: !sycl_accessor_impl_device_2_ = !sycl.accessor_impl_device<[2], (!sycl_id_2_, !sycl_range_2_, !sycl_range_2_)>
+// CHECK-DAG: !sycl_accessor_impl_device_3_ = !sycl.accessor_impl_device<[3], (!sycl_id_3_, !sycl_range_3_, !sycl_range_3_)>
+// CHECK-DAG: !sycl_accessor_1_i32_rw_gb = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<i32, 1>)>)>
+// CHECK-DAG: !sycl_accessor_2_i32_rw_gb = !sycl.accessor<[2, i32, read_write, global_buffer], (!sycl_accessor_impl_device_2_, !llvm.struct<(ptr<i32, 1>)>)>
+// CHECK-DAG: !sycl_accessor_3_f32_rw_gb = !sycl.accessor<[3, f32, read_write, global_buffer], (!sycl_accessor_impl_device_3_, !llvm.struct<(ptr<f32, 1>)>)>
 // CHECK-DAG: !sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
 // CHECK-DAG: !sycl_group_2_ = !sycl.group<[2], (!sycl_range_2_, !sycl_range_2_, !sycl_range_2_, !sycl_id_2_)>
-// CHECK-DAG: ![[ITEM1:.*]] = !sycl.item<[1, true], (!sycl.item_base<[1, true], (!sycl_range_1_, !sycl_id_1_, !sycl_id_1_)>)>
-// CHECK-DAG: ![[ITEM2:.*]] = !sycl.item<[2, false], (!sycl.item_base<[2, false], (!sycl_range_2_, !sycl_id_2_)>)>
-// CHECK-DAG: !sycl_nd_item_1_ = !sycl.nd_item<[1], (!sycl_item_1_, !sycl.item<[1, false], (!sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>)>, !sycl_group_1_)>
-// CHECK-DAG: !sycl_nd_item_2_ = !sycl.nd_item<[2], (!sycl.item<[2, true], (!sycl.item_base<[2, true], (!sycl_range_2_, !sycl_id_2_, !sycl_id_2_)>)>, !sycl_item_2_, !sycl_group_2_)>
+// CHECK-DAG: ![[ITEM1:.*]] = !sycl.item<[1, true], (!sycl_item_base_1_)>
+// CHECK-DAG: ![[ITEM2:.*]] = !sycl.item<[1, false], (!sycl_item_base_1_1)>
+// CHECK-DAG: ![[ITEM3:.*]] = !sycl.item<[2, true], (!sycl_item_base_2_1)>
+// CHECK-DAG: ![[ITEM4:.*]] = !sycl.item<[2, false], (!sycl_item_base_2_)>
+// CHECK-DAG: !sycl_nd_item_1_ = !sycl.nd_item<[1], (![[ITEM1]], ![[ITEM2]], !sycl_group_1_)>
+// CHECK-DAG: !sycl_nd_item_2_ = !sycl.nd_item<[2], (![[ITEM3]], ![[ITEM4]], !sycl_group_2_)>
 // CHECK-DAG: !sycl_nd_range_1_ = !sycl.nd_range<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
 // CHECK-DAG: !sycl_nd_range_2_ = !sycl.nd_range<[2], (!sycl_range_2_, !sycl_range_2_, !sycl_id_2_)>
 // CHECK-DAG: !sycl_get_scalar_op_i32_ = !sycl.get_scalar_op<[i32], (i32)>
@@ -97,7 +102,7 @@ SYCL_EXTERNAL void arr_2(sycl::detail::array<2> arr) {}
 SYCL_EXTERNAL void item_1_true(sycl::item<1, true> item) {}
 
 // CHECK-LABEL: func.func @_Z12item_2_falseN4sycl3_V14itemILi2ELb0EEE(
-// CHECK:          %arg0: memref<?x![[ITEM2]]> {llvm.align = 8 : i64, llvm.byval = ![[ITEM2]], llvm.noundef})
+// CHECK:          %arg0: memref<?x![[ITEM4]]> {llvm.align = 8 : i64, llvm.byval = ![[ITEM4]], llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
 SYCL_EXTERNAL void item_2_false(sycl::item<2, false> item) {}
 

@@ -200,7 +200,7 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
         newOperands.push_back(std::get<1>(pair)->getOperand(0));
         // rewriter.eraseOp(std::get<1>(pair));
       }
-      mergedTerminator.operandsMutable().assign(newOperands);
+      mergedTerminator.getOperandsMutable().assign(newOperands);
     };
 
     auto mergedYieldOp = cast<AffineYieldOp>(newBlock->getTerminator());

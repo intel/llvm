@@ -4034,6 +4034,21 @@ SDValue DAGCombiner::visitMUL(SDNode *N) {
                                       getShiftAmountTy(N0.getValueType()))));
   }
 
+  // Attempt to reuse an existing umul_lohi/smul_lohi node, but only if the
+  // hi result is in use in case we hit this mid-legalization.
+  for (unsigned LoHiOpc : {ISD::UMUL_LOHI, ISD::SMUL_LOHI}) {
+    if (!LegalOperations || TLI.isOperationLegalOrCustom(LoHiOpc, VT)) {
+      SDVTList LoHiVT = DAG.getVTList(VT, VT);
+      // TODO: Can we match commutable operands with getNodeIfExists?
+      if (SDNode *LoHi = DAG.getNodeIfExists(LoHiOpc, LoHiVT, {N0, N1}))
+        if (LoHi->hasAnyUseOfValue(1))
+          return SDValue(LoHi, 0);
+      if (SDNode *LoHi = DAG.getNodeIfExists(LoHiOpc, LoHiVT, {N1, N0}))
+        if (LoHi->hasAnyUseOfValue(1))
+          return SDValue(LoHi, 0);
+    }
+  }
+
   // Try to transform:
   // (1) multiply-by-(power-of-2 +/- 1) into shift and add/sub.
   // mul x, (2^N + 1) --> add (shl x, N), x
@@ -7920,22 +7935,22 @@ calculateByteProvider(SDValue Op, unsigned Index, unsigned Depth,
 
   // Typical i64 by i8 pattern requires recursion up to 8 calls depth
   if (Depth == 10)
-    return None;
+    return std::nullopt;
 
   // Only allow multiple uses if the instruction is a vector load (in which
   // case we will use the load for every ExtractVectorElement)
   if (Depth && !Op.hasOneUse() &&
       (Op.getOpcode() != ISD::LOAD || !Op.getValueType().isVector()))
-    return None;
+    return std::nullopt;
 
   // Fail to combine if we have encountered anything but a LOAD after handling
   // an ExtractVectorElement.
   if (Op.getOpcode() != ISD::LOAD && VectorIndex.has_value())
-    return None;
+    return std::nullopt;
 
   unsigned BitWidth = Op.getValueSizeInBits();
   if (BitWidth % 8 != 0)
-    return None;
+    return std::nullopt;
   unsigned ByteWidth = BitWidth / 8;
   assert(Index < ByteWidth && "invalid index requested");
   (void) ByteWidth;
@@ -7945,27 +7960,27 @@ calculateByteProvider(SDValue Op, unsigned Index, unsigned Depth,
     auto LHS =
         calculateByteProvider(Op->getOperand(0), Index, Depth + 1, VectorIndex);
     if (!LHS)
-      return None;
+      return std::nullopt;
     auto RHS =
         calculateByteProvider(Op->getOperand(1), Index, Depth + 1, VectorIndex);
     if (!RHS)
-      return None;
+      return std::nullopt;
 
     if (LHS->isConstantZero())
       return RHS;
     if (RHS->isConstantZero())
       return LHS;
-    return None;
+    return std::nullopt;
   }
   case ISD::SHL: {
     auto ShiftOp = dyn_cast<ConstantSDNode>(Op->getOperand(1));
     if (!ShiftOp)
-      return None;
+      return std::nullopt;
 
     uint64_t BitShift = ShiftOp->getZExtValue();
 
     if (BitShift % 8 != 0)
-      return None;
+      return std::nullopt;
     uint64_t ByteShift = BitShift / 8;
 
     // If we are shifting by an amount greater than the index we are trying to
@@ -7982,13 +7997,13 @@ calculateByteProvider(SDValue Op, unsigned Index, unsigned Depth,
     SDValue NarrowOp = Op->getOperand(0);
     unsigned NarrowBitWidth = NarrowOp.getScalarValueSizeInBits();
     if (NarrowBitWidth % 8 != 0)
-      return None;
+      return std::nullopt;
     uint64_t NarrowByteWidth = NarrowBitWidth / 8;
 
     if (Index >= NarrowByteWidth)
       return Op.getOpcode() == ISD::ZERO_EXTEND
                  ? Optional<ByteProvider>(ByteProvider::getConstantZero())
-                 : None;
+                 : std::nullopt;
     return calculateByteProvider(NarrowOp, Index, Depth + 1, VectorIndex,
                                  StartingIndex);
   }
@@ -7998,14 +8013,14 @@ calculateByteProvider(SDValue Op, unsigned Index, unsigned Depth,
   case ISD::EXTRACT_VECTOR_ELT: {
     auto OffsetOp = dyn_cast<ConstantSDNode>(Op->getOperand(1));
     if (!OffsetOp)
-      return None;
+      return std::nullopt;
 
     VectorIndex = OffsetOp->getZExtValue();
 
     SDValue NarrowOp = Op->getOperand(0);
     unsigned NarrowBitWidth = NarrowOp.getScalarValueSizeInBits();
     if (NarrowBitWidth % 8 != 0)
-      return None;
+      return std::nullopt;
     uint64_t NarrowByteWidth = NarrowBitWidth / 8;
 
     // Check to see if the position of the element in the vector corresponds
@@ -8015,9 +8030,9 @@ calculateByteProvider(SDValue Op, unsigned Index, unsigned Depth,
     // vector of i16s, each element provides two bytes (V[1] provides byte 2 and
     // 3).
     if (VectorIndex.value() * NarrowByteWidth > StartingIndex)
-      return None;
+      return std::nullopt;
     if ((VectorIndex.value() + 1) * NarrowByteWidth <= StartingIndex)
-      return None;
+      return std::nullopt;
 
     return calculateByteProvider(Op->getOperand(0), Index, Depth + 1,
                                  VectorIndex, StartingIndex);
@@ -8025,11 +8040,11 @@ calculateByteProvider(SDValue Op, unsigned Index, unsigned Depth,
   case ISD::LOAD: {
     auto L = cast<LoadSDNode>(Op.getNode());
     if (!L->isSimple() || L->isIndexed())
-      return None;
+      return std::nullopt;
 
     unsigned NarrowBitWidth = L->getMemoryVT().getSizeInBits();
     if (NarrowBitWidth % 8 != 0)
-      return None;
+      return std::nullopt;
     uint64_t NarrowByteWidth = NarrowBitWidth / 8;
 
     // If the width of the load does not reach byte we are trying to provide for
@@ -8038,14 +8053,14 @@ calculateByteProvider(SDValue Op, unsigned Index, unsigned Depth,
     if (Index >= NarrowByteWidth)
       return L->getExtensionType() == ISD::ZEXTLOAD
                  ? Optional<ByteProvider>(ByteProvider::getConstantZero())
-                 : None;
+                 : std::nullopt;
 
     unsigned BPVectorIndex = VectorIndex.value_or(0U);
     return ByteProvider::getMemory(L, Index, BPVectorIndex);
   }
   }
 
-  return None;
+  return std::nullopt;
 }
 
 static unsigned littleEndianByteAt(unsigned BW, unsigned i) {
@@ -8064,7 +8079,7 @@ static Optional<bool> isBigEndian(const ArrayRef<int64_t> ByteOffsets,
   // The endian can be decided only when it is 2 bytes at least.
   unsigned Width = ByteOffsets.size();
   if (Width < 2)
-    return None;
+    return std::nullopt;
 
   bool BigEndian = true, LittleEndian = true;
   for (unsigned i = 0; i < Width; i++) {
@@ -8072,7 +8087,7 @@ static Optional<bool> isBigEndian(const ArrayRef<int64_t> ByteOffsets,
     LittleEndian &= CurrentByteOffset == littleEndianByteAt(Width, i);
     BigEndian &= CurrentByteOffset == bigEndianByteAt(Width, i);
     if (!BigEndian && !LittleEndian)
-      return None;
+      return std::nullopt;
   }
 
   assert((BigEndian != LittleEndian) && "It should be either big endian or"
@@ -8135,9 +8150,13 @@ SDValue DAGCombiner::mergeTruncStores(StoreSDNode *N) {
   while (auto *Store = dyn_cast<StoreSDNode>(Chain)) {
     // All stores must be the same size to ensure that we are writing all of the
     // bytes in the wide value.
+    // This store should have exactly one use as a chain operand for another
+    // store in the merging set. If there are other chain uses, then the
+    // transform may not be safe because order of loads/stores outside of this
+    // set may not be preserved.
     // TODO: We could allow multiple sizes by tracking each stored byte.
     if (Store->getMemoryVT() != MemVT || !Store->isSimple() ||
-        Store->isIndexed())
+        Store->isIndexed() || !Store->hasOneUse())
       return SDValue();
     Stores.push_back(Store);
     Chain = Store->getChain();
@@ -8355,8 +8374,9 @@ SDValue DAGCombiner::MatchLoadCombine(SDNode *N) {
   SmallVector<int64_t, 8> ByteOffsets(ByteWidth);
   unsigned ZeroExtendedBytes = 0;
   for (int i = ByteWidth - 1; i >= 0; --i) {
-    auto P = calculateByteProvider(SDValue(N, 0), i, 0, /*VectorIndex*/ None,
-                                   /*StartingIndex*/ i);
+    auto P =
+        calculateByteProvider(SDValue(N, 0), i, 0, /*VectorIndex*/ std::nullopt,
+                              /*StartingIndex*/ i);
     if (!P)
       return SDValue();
 

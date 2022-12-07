@@ -2,7 +2,7 @@
 // RUN: sycl-mlir-opt -allow-unregistered-dialect %s -split-input-file | FileCheck %s
 
 // Verify the generic printed output can be parsed.
-// RUN: sycl-mlir-opt -allow-unregistered-dialect %s -split-input-file | sycl-mlir-opt -allow-unregistered-dialect | FileCheck %s
+// RUN: sycl-mlir-opt -allow-unregistered-dialect %s -split-input-file -mlir-print-local-scope | sycl-mlir-opt -allow-unregistered-dialect | FileCheck %s
 
 ////////////////////////////////////////////////////////////////////////////////
 // ID
@@ -86,15 +86,15 @@ func.func @_Z10nd_range_2N4sycl3_V18nd_rangeILi2EEE(%arg0: !sycl.nd_range<[2], (
 // ARRAY
 ////////////////////////////////////////////////////////////////////////////////
 
-!sycl_array_1_ = !sycl.array<[1], (memref<1xi64>)>
-!sycl_array_2_ = !sycl.array<[2], (memref<2xi64>)>
+!sycl_array_1_ = !sycl.array<[1], (memref<1xi64, 4>)>
+!sycl_array_2_ = !sycl.array<[2], (memref<2xi64, 4>)>
 
 // CHECK: func @_Z5arr_1N2cl4sycl6detail5arrayILi1EEE(%arg0: !sycl_array_1_)
-func.func @_Z5arr_1N2cl4sycl6detail5arrayILi1EEE(%arg0: !sycl.array<[1], (memref<1xi64>)>) attributes {llvm.linkage = #llvm.linkage<external>} {
+func.func @_Z5arr_1N2cl4sycl6detail5arrayILi1EEE(%arg0: !sycl_array_1_) attributes {llvm.linkage = #llvm.linkage<external>} {
   return
 }
 // CHECK: func @_Z5arr_2N2cl4sycl6detail5arrayILi2EEE(%arg0: !sycl_array_2_)
-func.func @_Z5arr_2N2cl4sycl6detail5arrayILi2EEE(%arg0: !sycl.array<[2], (memref<2xi64>)>) attributes {llvm.linkage = #llvm.linkage<external>} {
+func.func @_Z5arr_2N2cl4sycl6detail5arrayILi2EEE(%arg0: !sycl_array_2_) attributes {llvm.linkage = #llvm.linkage<external>} {
   return
 }
 
