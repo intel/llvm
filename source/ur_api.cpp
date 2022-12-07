@@ -2349,12 +2349,15 @@ urMemGetMemAllocInfo(
 ///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_DEVICE_TYPE_VPU < DeviceType`
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ur_result_t UR_APICALL
 urDeviceGet(
     ur_platform_handle_t hPlatform,                 ///< [in] handle of the platform instance
     ur_device_type_t DeviceType,                    ///< [in] the type of the devices.
     uint32_t NumEntries,                            ///< [in] the number of devices to be added to phDevices.
-                                                    ///< If phDevices in not NULL then NumEntries should be greater than zero.
+                                                    ///< If phDevices in not NULL then NumEntries should be greater than zero,
+                                                    ///< otherwise ::UR_RESULT_ERROR_INVALID_SIZE,
+                                                    ///< will be returned.
     ur_device_handle_t* phDevices,                  ///< [out][optional][range(0, NumEntries)] array of handle of devices.
                                                     ///< If NumEntries is less than the number of devices available, then
                                                     ///< platform shall only retrieve that number of devices.
@@ -3140,10 +3143,13 @@ urModuleCreateWithNativeHandle(
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ur_result_t UR_APICALL
 urPlatformGet(
     uint32_t NumEntries,                            ///< [in] the number of platforms to be added to phPlatforms. 
-                                                    ///< If phPlatforms is not NULL, then NumEntries but be greater than zero.
+                                                    ///< If phPlatforms is not NULL, then NumEntries should be greater than
+                                                    ///< zero, otherwise ::UR_RESULT_ERROR_INVALID_SIZE,
+                                                    ///< will be returned.
     ur_platform_handle_t* phPlatforms,              ///< [out][optional][range(0, NumEntries)] array of handle of platforms.
                                                     ///< If NumEntries is less than the number of platforms available, then
                                                     ///< ::urPlatform shall only retrieve that number of platforms.

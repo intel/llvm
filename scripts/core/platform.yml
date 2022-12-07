@@ -26,7 +26,8 @@ params:
       name: NumEntries
       desc: |
             [in] the number of platforms to be added to phPlatforms. 
-            If phPlatforms is not NULL, then NumEntries but be greater than zero.
+            If phPlatforms is not NULL, then NumEntries should be greater than zero, otherwise $X_RESULT_ERROR_INVALID_SIZE,
+            will be returned.
     - type: "$x_platform_handle_t*"
       name: phPlatforms
       desc: |
@@ -36,6 +37,8 @@ params:
       name: "pNumPlatforms"
       desc: |
             [out][optional] returns the total number of platforms available. 
+returns:
+    - $X_RESULT_ERROR_INVALID_SIZE
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Supported platform info"
