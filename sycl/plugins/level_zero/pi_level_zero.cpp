@@ -5321,10 +5321,8 @@ pi_result piKernelGetGroupInfo(pi_kernel Kernel, pi_device Device,
     return ReturnValue(WorkSize);
   }
   case PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
-    uint32_t X, Y, Z;
-    ZE_CALL(zeKernelSuggestGroupSize,
-            (Kernel->ZeKernel, 10000, 10000, 10000, &X, &Y, &Z));
-    return ReturnValue(size_t{X * Y * Z});
+    return ReturnValue(
+        pi_uint64{Device->ZeDeviceComputeProperties->maxTotalGroupSize});
   }
   case PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
     struct {
