@@ -208,7 +208,7 @@ static Optional<Type> convertLocalAccessorType(sycl::LocalAccessorType type,
                                                LLVMTypeConverter &converter) {
   // FIXME: Make sure that we have llvm.ptr as the body, not memref, through
   // the conversion done in ConvertTOLLVMABI pass
-  return convertBodyType("class.sycl::_V1::local_accessor" +
+  return convertBodyType("class.sycl::_V1::local_accessor." +
                              std::to_string(type.getDimension()),
                          type.getBody(), converter);
 }
