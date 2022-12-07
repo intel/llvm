@@ -63,11 +63,11 @@ module.exports = ({core, process}) => {
       }
       if (needsDrivers) {
         ltsString = ltsString.replaceAll(
-            "ghcr.io/intel/llvm/ubuntu2004_intel_drivers:latest",
-            "ghcr.io/intel/llvm/ubuntu2004_base:latest");
+            "ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest",
+            "ghcr.io/intel/llvm/ubuntu2204_base:latest");
         ltsAWSString = ltsAWSString.replaceAll(
-            "ghcr.io/intel/llvm/ubuntu2004_intel_drivers:latest",
-            "ghcr.io/intel/llvm/ubuntu2004_base:latest");
+            "ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest",
+            "ghcr.io/intel/llvm/ubuntu2204_base:latest");
       }
 
       core.setOutput('lts_matrix', ltsString);
@@ -105,8 +105,8 @@ module.exports = ({core, process}) => {
       }
       if (needsDrivers) {
         ctsString = ctsString.replaceAll(
-            "ghcr.io/intel/llvm/ubuntu2004_intel_drivers:latest",
-            "ghcr.io/intel/llvm/ubuntu2004_base:latest");
+            "ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest",
+            "ghcr.io/intel/llvm/ubuntu2204_base:latest");
       }
 
       core.setOutput('cts_matrix', ctsString);

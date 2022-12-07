@@ -51,7 +51,7 @@ Alternatively, you can use a Docker image that has everything you need for build
 pre-installed:
 
 ```
-docker run --name sycl_build -it -v /local/workspace/dir/:/src ghcr.io/intel/llvm/ubuntu2004_base /bin/bash
+docker run --name sycl_build -it -v /local/workspace/dir/:/src ghcr.io/intel/llvm/ubuntu2204_base /bin/bash
 ```
 
 This command will start a terminal session, from which you can proceed with the

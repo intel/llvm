@@ -46,7 +46,7 @@ jobs:
   linux_clang_shared_libs:
     # TODO use nightly images when Docker containers are available
     name: Linux + Clang + Shared libs
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     if: github.repository == 'intel/llvm'
     steps:
     - uses: actions/checkout@v3
@@ -65,7 +65,7 @@ jobs:
     - name: Configure
       run: |
         wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-        sudo add-apt-repository "deb http://apt.llvm.org/focal/   llvm-toolchain-focal-15 main"
+        sudo add-apt-repository "deb http://apt.llvm.org/jammy/   llvm-toolchain-jammy-15 main"
         sudo apt-get update
         sudo apt-get install -y clang-15
         export CC="clang-15"
