@@ -198,7 +198,7 @@ convertLocalAccessorBaseDeviceType(sycl::LocalAccessorBaseDeviceType type,
 static Optional<Type>
 convertLocalAccessorBaseType(sycl::LocalAccessorBaseType type,
                              LLVMTypeConverter &converter) {
-  return convertBodyType("class.sycl::_V1::local_accessor_base" +
+  return convertBodyType("class.sycl::_V1::local_accessor_base." +
                              std::to_string(type.getDimension()),
                          type.getBody(), converter);
 }
