@@ -84,10 +84,10 @@ private:
       for (Operation *users : readOp->getUsers()) {
         auto extract = dyn_cast<ExtractStridedSliceOp>(users);
         if (!extract)
-          return llvm::None;
+          return std::nullopt;
         auto vecType = extract.getResult().getType().cast<VectorType>();
         if (dstVec && dstVec != vecType)
-          return llvm::None;
+          return std::nullopt;
         dstVec = vecType;
       }
       return SmallVector<int64_t>(dstVec.getShape().begin(),
@@ -96,11 +96,11 @@ private:
     if (auto writeOp = dyn_cast<vector::TransferWriteOp>(op)) {
       auto insert = writeOp.getVector().getDefiningOp<InsertStridedSliceOp>();
       if (!insert)
-        return llvm::None;
+        return std::nullopt;
       ArrayRef<int64_t> shape = insert.getSourceVectorType().getShape();
       return SmallVector<int64_t>(shape.begin(), shape.end());
     }
-    return llvm::None;
+    return std::nullopt;
   }
 
   static LogicalResult filter(Operation *op) {
@@ -334,7 +334,7 @@ struct TestVectorUnrollingPatterns
           vector::ContractionOp contractOp = cast<vector::ContractionOp>(op);
           if (contractOp.getIteratorTypes().size() == unrollOrder.size())
             return SmallVector<int64_t>(unrollOrder.begin(), unrollOrder.end());
-          return None;
+          return std::nullopt;
         });
       }
       populateVectorUnrollPatterns(patterns, opts);
@@ -342,7 +342,7 @@ struct TestVectorUnrollingPatterns
       auto nativeShapeFn = [](Operation *op) -> Optional<SmallVector<int64_t>> {
         auto contractOp = dyn_cast<ContractionOp>(op);
         if (!contractOp)
-          return None;
+          return std::nullopt;
         return SmallVector<int64_t>(contractOp.getIteratorTypes().size(), 2);
       };
       populateVectorUnrollPatterns(patterns,
@@ -404,7 +404,7 @@ struct TestVectorTransferUnrollingPatterns
             else if (auto writeOp = dyn_cast<vector::TransferWriteOp>(op))
               numLoops = writeOp.getVectorType().getRank();
             else
-              return None;
+              return std::nullopt;
             auto order = llvm::reverse(llvm::seq<int64_t>(0, numLoops));
             return llvm::to_vector(order);
           });
@@ -820,6 +820,38 @@ struct TestVectorExtractStridedSliceLowering
   }
 };
 
+struct TestCreateVectorBroadcast
+    : public PassWrapper<TestCreateVectorBroadcast,
+                         OperationPass<func::FuncOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestCreateVectorBroadcast)
+
+  StringRef getArgument() const final { return "test-create-vector-broadcast"; }
+  StringRef getDescription() const final {
+    return "Test optimization transformations for transfer ops";
+  }
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<vector::VectorDialect>();
+  }
+
+  void runOnOperation() override {
+    getOperation()->walk([](Operation *op) {
+      if (op->getName().getStringRef() != "test_create_broadcast")
+        return;
+      auto targetShape =
+          op->getResult(0).getType().cast<VectorType>().getShape();
+      auto arrayAttr =
+          op->getAttr("broadcast_dims").cast<DenseI64ArrayAttr>().asArrayRef();
+      llvm::SetVector<int64_t> broadcastedDims;
+      broadcastedDims.insert(arrayAttr.begin(), arrayAttr.end());
+      OpBuilder b(op);
+      Value bcast = vector::BroadcastOp::createOrFoldBroadcastOp(
+          b, op->getOperand(0), targetShape, broadcastedDims);
+      op->getResult(0).replaceAllUsesWith(bcast);
+      op->erase();
+    });
+  }
+};
+
 } // namespace
 
 namespace mlir {
@@ -856,6 +888,8 @@ void registerTestVectorLowerings() {
   PassRegistration<TestVectorDistribution>();
 
   PassRegistration<TestVectorExtractStridedSliceLowering>();
+
+  PassRegistration<TestCreateVectorBroadcast>();
 }
 } // namespace test
 } // namespace mlir
