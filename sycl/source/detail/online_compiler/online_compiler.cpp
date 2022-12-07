@@ -37,13 +37,17 @@ prepareOclocArgs(sycl::info::device_type DeviceType, device_arch DeviceArch,
       Args.push_back("icllp");
       break;
 
+    case device_arch::gpu_gen12:
+      Args.push_back("tgllp");
+      break;
+
     default:
-      Args.push_back("skl");
+      Args.push_back("tgllp");
     }
   } else {
     // TODO: change that to generic device when ocloc adds support for it.
-    // For now "skl" is used as the lowest arch with GEN9 arch.
-    Args.push_back("skl");
+    // For now "tgllp" is used as the option supported on all known GPU RT.
+    Args.push_back("tgllp");
   }
 
   if (DeviceStepping != "") {
