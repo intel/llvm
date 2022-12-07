@@ -143,30 +143,11 @@ TEST(IsCompatible, CPU) {
       redefinedDeviceGetInfoCPU);
   sycl::platform Plt = Mock.getPlatform();
   const sycl::device Dev = Plt.get_devices()[0];
-  sycl::queue Q(Dev);
-  bool Compatible = true;
-  bool Called = false;
 
-  if (sycl::is_compatible<TestKernelCPU>(Dev)) {
-    Q.submit([&](sycl::handler &h) { h.single_task<TestKernelCPU>([=]() {}); });
-    Q.wait();
-    Compatible &= Dev.is_cpu();
-    Called = true;
-  }
-  if (sycl::is_compatible<TestKernelGPU>(Dev)) {
-    Q.submit([&](sycl::handler &h) { h.single_task<TestKernelGPU>([=]() {}); });
-    Q.wait();
-    Compatible &= Dev.is_gpu();
-    Called = true;
-  }
-  if (sycl::is_compatible<TestKernelACC>(Dev)) {
-    Q.submit([&](sycl::handler &h) { h.single_task<TestKernelACC>([=]() {}); });
-    Q.wait();
-    Compatible &= Dev.is_accelerator();
-    Called = true;
-  }
-
-  EXPECT_EQ(Called && Compatible, true);
+  EXPECT_TRUE(Dev.is_cpu());
+  EXPECT_TRUE(sycl::is_compatible<TestKernelCPU>(Dev));
+  EXPECT_FALSE(sycl::is_compatible<TestKernelGPU>(Dev));
+  EXPECT_FALSE(sycl::is_compatible<TestKernelACC>(Dev));
 }
 
 TEST(IsCompatible, GPU) {
@@ -175,30 +156,11 @@ TEST(IsCompatible, GPU) {
       redefinedDeviceGetInfoGPU);
   sycl::platform Plt = Mock.getPlatform();
   const sycl::device Dev = Plt.get_devices()[0];
-  sycl::queue Q(Dev);
-  bool Compatible = true;
-  bool Called = false;
 
-  if (sycl::is_compatible<TestKernelCPU>(Dev)) {
-    Q.submit([&](sycl::handler &h) { h.single_task<TestKernelCPU>([=]() {}); });
-    Q.wait();
-    Compatible &= Dev.is_cpu();
-    Called = true;
-  }
-  if (sycl::is_compatible<TestKernelGPU>(Dev)) {
-    Q.submit([&](sycl::handler &h) { h.single_task<TestKernelGPU>([=]() {}); });
-    Q.wait();
-    Compatible &= Dev.is_gpu();
-    Called = true;
-  }
-  if (sycl::is_compatible<TestKernelACC>(Dev)) {
-    Q.submit([&](sycl::handler &h) { h.single_task<TestKernelACC>([=]() {}); });
-    Q.wait();
-    Compatible &= Dev.is_accelerator();
-    Called = true;
-  }
-
-  EXPECT_EQ(Called && Compatible, true);
+  EXPECT_TRUE(Dev.is_gpu());
+  EXPECT_FALSE(sycl::is_compatible<TestKernelCPU>(Dev));
+  EXPECT_TRUE(sycl::is_compatible<TestKernelGPU>(Dev));
+  EXPECT_FALSE(sycl::is_compatible<TestKernelACC>(Dev));
 }
 
 TEST(IsCompatible, ACC) {
@@ -207,28 +169,9 @@ TEST(IsCompatible, ACC) {
       redefinedDeviceGetInfoACC);
   sycl::platform Plt = Mock.getPlatform();
   const sycl::device Dev = Plt.get_devices()[0];
-  sycl::queue Q(Dev);
-  bool Compatible = true;
-  bool Called = false;
 
-  if (sycl::is_compatible<TestKernelCPU>(Dev)) {
-    Q.submit([&](sycl::handler &h) { h.single_task<TestKernelCPU>([=]() {}); });
-    Q.wait();
-    Compatible &= Dev.is_cpu();
-    Called = true;
-  }
-  if (sycl::is_compatible<TestKernelGPU>(Dev)) {
-    Q.submit([&](sycl::handler &h) { h.single_task<TestKernelGPU>([=]() {}); });
-    Q.wait();
-    Compatible &= Dev.is_gpu();
-    Called = true;
-  }
-  if (sycl::is_compatible<TestKernelACC>(Dev)) {
-    Q.submit([&](sycl::handler &h) { h.single_task<TestKernelACC>([=]() {}); });
-    Q.wait();
-    Compatible &= Dev.is_accelerator();
-    Called = true;
-  }
-
-  EXPECT_EQ(Called && Compatible, true);
+  EXPECT_TRUE(Dev.is_accelerator());
+  EXPECT_FALSE(sycl::is_compatible<TestKernelCPU>(Dev));
+  EXPECT_FALSE(sycl::is_compatible<TestKernelGPU>(Dev));
+  EXPECT_TRUE(sycl::is_compatible<TestKernelACC>(Dev));
 }

@@ -156,12 +156,12 @@ static llvm::Optional<QualType> getUnwidenedIntegerType(const ASTContext &Ctx,
                                                         const Expr *E) {
   const Expr *Base = E->IgnoreImpCasts();
   if (E == Base)
-    return llvm::None;
+    return std::nullopt;
 
   QualType BaseTy = Base->getType();
   if (!Ctx.isPromotableIntegerType(BaseTy) ||
       Ctx.getTypeSize(BaseTy) >= Ctx.getTypeSize(E->getType()))
-    return llvm::None;
+    return std::nullopt;
 
   return BaseTy;
 }
@@ -1648,9 +1648,9 @@ ScalarExprEmitter::VisitSYCLUniqueStableIdExpr(SYCLUniqueStableIdExpr *E) {
       Context.getTargetInfo().getConstantAddressSpace();
   llvm::Constant *GlobalConstStr = Builder.CreateGlobalStringPtr(
       E->ComputeName(Context), "__usid_str",
-      static_cast<unsigned>(GlobalAS.getValueOr(LangAS::Default)));
+      static_cast<unsigned>(GlobalAS.value_or(LangAS::Default)));
 
-  unsigned ExprAS = Context.getTargetAddressSpace(E->getType());
+  unsigned ExprAS = CGF.CGM.getTypes().getTargetAddressSpace(E->getType());
 
   if (GlobalConstStr->getType()->getPointerAddressSpace() == ExprAS)
     return GlobalConstStr;

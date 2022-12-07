@@ -989,6 +989,8 @@ void LLVMToSPIRVBase::transVectorComputeMetadata(Function *F) {
   }
 }
 
+static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target);
+
 void LLVMToSPIRVBase::transFPGAFunctionMetadata(SPIRVFunction *BF,
                                                 Function *F) {
   if (MDNode *StallEnable = F->getMetadata(kSPIR2MD::StallEnable)) {
@@ -1037,6 +1039,10 @@ void LLVMToSPIRVBase::transFPGAFunctionMetadata(SPIRVFunction *BF,
       BF->addDecorate(new SPIRVDecoratePipelineEnableINTEL(BF, !Disable));
     }
   }
+
+  // In addition, process the decorations on the function
+  if (auto *FDecoMD = F->getMetadata(SPIRV_MD_DECORATIONS))
+    transMetadataDecorations(FDecoMD, BF);
 }
 
 SPIRVValue *LLVMToSPIRVBase::transConstantUse(Constant *C) {
@@ -1584,7 +1590,7 @@ LLVMToSPIRVBase::getLoopControl(const BranchInst *Branch,
                       const std::pair<SPIRVWord, SPIRVWord> &CompareRight) {
                      return CompareLeft.first < CompareRight.first;
                    });
-  for (auto Param : ParametersToSort)
+  for (const auto &Param : ParametersToSort)
     Parameters.push_back(Param.second);
 
   return static_cast<spv::LoopControlMask>(LoopControl);
@@ -3394,6 +3400,38 @@ static SPIRVWord getBuiltinIdForIntrinsic(Intrinsic::ID IID) {
   }
 }
 
+static SPIRVWord getNativeBuiltinIdForIntrinsic(Intrinsic::ID IID) {
+  switch (IID) {
+  case Intrinsic::cos:
+    return OpenCLLIB::Native_cos;
+  case Intrinsic::exp:
+    return OpenCLLIB::Native_exp;
+  case Intrinsic::exp2:
+    return OpenCLLIB::Native_exp2;
+  case Intrinsic::log:
+    return OpenCLLIB::Native_log;
+  case Intrinsic::log10:
+    return OpenCLLIB::Native_log10;
+  case Intrinsic::log2:
+    return OpenCLLIB::Native_log2;
+  case Intrinsic::sin:
+    return OpenCLLIB::Native_sin;
+  case Intrinsic::sqrt:
+    return OpenCLLIB::Native_sqrt;
+  default:
+    return getBuiltinIdForIntrinsic(IID);
+  }
+}
+
+static bool allowsApproxFunction(IntrinsicInst *II) {
+  auto *Ty = II->getType();
+  // OpenCL native_* built-ins only support single precision data type
+  return II->hasApproxFunc() &&
+         (Ty->isFloatTy() ||
+          (Ty->isVectorTy() &&
+           cast<VectorType>(Ty)->getElementType()->isFloatTy()));
+}
+
 SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
                                                 SPIRVBasicBlock *BB) {
   auto GetMemoryAccess = [](MemIntrinsic *MI) -> std::vector<SPIRVWord> {
@@ -3418,7 +3456,8 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   // LLVM intrinsics with known translation to SPIR-V are handled here. They
   // also must be registered at isKnownIntrinsic function in order to make
   // -spirv-allow-unknown-intrinsics work correctly.
-  switch (II->getIntrinsicID()) {
+  auto IID = II->getIntrinsicID();
+  switch (IID) {
   case Intrinsic::assume: {
     // llvm.assume translation is currently supported only within
     // SPV_KHR_expect_assume extension, ignore it otherwise, since it's
@@ -3455,7 +3494,9 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   case Intrinsic::trunc: {
     if (!checkTypeForSPIRVExtendedInstLowering(II, BM))
       break;
-    SPIRVWord ExtOp = getBuiltinIdForIntrinsic(II->getIntrinsicID());
+    SPIRVWord ExtOp = allowsApproxFunction(II)
+                          ? getNativeBuiltinIdForIntrinsic(IID)
+                          : getBuiltinIdForIntrinsic(IID);
     SPIRVType *STy = transType(II->getType());
     std::vector<SPIRVValue *> Ops(1, transValue(II->getArgOperand(0), BB));
     return BM->addExtInst(STy, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp, Ops,
@@ -3471,7 +3512,9 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   case Intrinsic::minnum: {
     if (!checkTypeForSPIRVExtendedInstLowering(II, BM))
       break;
-    SPIRVWord ExtOp = getBuiltinIdForIntrinsic(II->getIntrinsicID());
+    SPIRVWord ExtOp = allowsApproxFunction(II)
+                          ? getNativeBuiltinIdForIntrinsic(IID)
+                          : getBuiltinIdForIntrinsic(IID);
     SPIRVType *STy = transType(II->getType());
     std::vector<SPIRVValue *> Ops{transValue(II->getArgOperand(0), BB),
                                   transValue(II->getArgOperand(1), BB)};
@@ -3486,13 +3529,12 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     SPIRVValue *FirstArgVal = transValue(II->getArgOperand(0), BB);
     SPIRVValue *SecondArgVal = transValue(II->getArgOperand(1), BB);
 
-    Op OC = (II->getIntrinsicID() == Intrinsic::smin)
-                ? OpSLessThan
-                : ((II->getIntrinsicID() == Intrinsic::smax)
-                       ? OpSGreaterThan
-                       : ((II->getIntrinsicID() == Intrinsic::umin)
-                              ? OpULessThan
-                              : OpUGreaterThan));
+    Op OC =
+        (IID == Intrinsic::smin)
+            ? OpSLessThan
+            : ((IID == Intrinsic::smax)
+                   ? OpSGreaterThan
+                   : ((IID == Intrinsic::umin) ? OpULessThan : OpUGreaterThan));
     if (auto *VecTy = dyn_cast<VectorType>(II->getArgOperand(0)->getType()))
       BoolTy = VectorType::get(BoolTy, VecTy->getElementCount());
     SPIRVValue *Cmp =
@@ -3527,8 +3569,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   }
   case Intrinsic::ctlz:
   case Intrinsic::cttz: {
-    SPIRVWord ExtOp = II->getIntrinsicID() == Intrinsic::ctlz ? OpenCLLIB::Clz
-                                                              : OpenCLLIB::Ctz;
+    SPIRVWord ExtOp = IID == Intrinsic::ctlz ? OpenCLLIB::Clz : OpenCLLIB::Ctz;
     SPIRVType *Ty = transType(II->getType());
     std::vector<SPIRVValue *> Ops(1, transValue(II->getArgOperand(0), BB));
     return BM->addExtInst(Ty, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp, Ops,
@@ -4081,18 +4122,26 @@ SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
       auto *FormatStrPtr = cast<PointerType>(CI->getArgOperand(0)->getType());
       if (FormatStrPtr->getAddressSpace() !=
           SPIR::TypeAttributeEnum::ATTR_CONST) {
-        if (!BM->isAllowedToUseExtension(
-                ExtensionID::SPV_INTEL_non_constant_addrspace_printf)) {
+        if (BM->isAllowedToUseExtension(
+                ExtensionID::SPV_EXT_relaxed_printf_string_address_space)) {
+          BM->addExtension(
+              ExtensionID::SPV_EXT_relaxed_printf_string_address_space);
+        } else if (BM->isAllowedToUseExtension(
+                       ExtensionID::SPV_INTEL_non_constant_addrspace_printf)) {
+          BM->addExtension(
+              ExtensionID::SPV_INTEL_non_constant_addrspace_printf);
+          BM->addCapability(
+              internal::CapabilityNonConstantAddrspacePrintfINTEL);
+        } else {
           std::string ErrorStr =
-              "The SPV_INTEL_non_constant_addrspace_printf extension should be "
+              "Either SPV_EXT_relaxed_printf_string_address_space or "
+              "SPV_INTEL_non_constant_addrspace_printf extension should be "
               "allowed to translate this module, because this LLVM module "
               "contains the printf function with format string, whose address "
               "space is not equal to 2 (constant).";
           getErrorLog().checkError(false, SPIRVEC_RequiresExtension, CI,
                                    ErrorStr);
         }
-        BM->addExtension(ExtensionID::SPV_INTEL_non_constant_addrspace_printf);
-        BM->addCapability(internal::CapabilityNonConstantAddrspacePrintfINTEL);
       }
     }
 

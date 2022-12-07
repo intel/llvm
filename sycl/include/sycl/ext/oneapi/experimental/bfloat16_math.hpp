@@ -39,8 +39,9 @@ std::enable_if_t<std::is_same<T, bfloat16>::value, T> fabs(T x) {
   return oneapi::detail::bitsToBfloat16(__clc_fabs(XBits));
 #else
   std::ignore = x;
-  throw runtime_error("bfloat16 is not currently supported on the host device.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw runtime_error(
+      "bfloat16 math functions are not currently supported on the host device.",
+      PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
@@ -62,8 +63,9 @@ sycl::marray<bfloat16, N> fabs(sycl::marray<bfloat16, N> x) {
   return res;
 #else
   std::ignore = x;
-  throw runtime_error("bfloat16 is not currently supported on the host device.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw runtime_error(
+      "bfloat16 math functions are not currently supported on the host device.",
+      PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
@@ -76,8 +78,9 @@ std::enable_if_t<std::is_same<T, bfloat16>::value, T> fmin(T x, T y) {
 #else
   std::ignore = x;
   std::ignore = y;
-  throw runtime_error("bfloat16 is not currently supported on the host device.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw runtime_error(
+      "bfloat16 math functions are not currently supported on the host device.",
+      PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
@@ -105,8 +108,9 @@ sycl::marray<bfloat16, N> fmin(sycl::marray<bfloat16, N> x,
 #else
   std::ignore = x;
   std::ignore = y;
-  throw runtime_error("bfloat16 is not currently supported on the host device.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw runtime_error(
+      "bfloat16 math functions are not currently supported on the host device.",
+      PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
@@ -119,8 +123,9 @@ std::enable_if_t<std::is_same<T, bfloat16>::value, T> fmax(T x, T y) {
 #else
   std::ignore = x;
   std::ignore = y;
-  throw runtime_error("bfloat16 is not currently supported on the host device.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw runtime_error(
+      "bfloat16 math functions are not currently supported on the host device.",
+      PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
@@ -147,8 +152,9 @@ sycl::marray<bfloat16, N> fmax(sycl::marray<bfloat16, N> x,
 #else
   std::ignore = x;
   std::ignore = y;
-  throw runtime_error("bfloat16 is not currently supported on the host device.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw runtime_error(
+      "bfloat16 math functions are not currently supported on the host device.",
+      PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
@@ -163,8 +169,9 @@ std::enable_if_t<std::is_same<T, bfloat16>::value, T> fma(T x, T y, T z) {
   std::ignore = x;
   std::ignore = y;
   std::ignore = z;
-  throw runtime_error("bfloat16 is not currently supported on the host device.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw runtime_error(
+      "bfloat16 math functions are not currently supported on the host device.",
+      PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
@@ -196,8 +203,9 @@ sycl::marray<bfloat16, N> fma(sycl::marray<bfloat16, N> x,
   std::ignore = x;
   std::ignore = y;
   std::ignore = z;
-  throw runtime_error("bfloat16 is not currently supported on the host device.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw runtime_error(
+      "bfloat16 math functions are not currently supported on the host device.",
+      PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
