@@ -25,10 +25,15 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
   FetchContent_MakeAvailable(level-zero-loader)
   FetchContent_GetProperties(level-zero-loader)
 
-  set(LEVEL_ZERO_LIBRARY CACHE ze_loader)
+  set(LEVEL_ZERO_LIBRARY ze_loader)
   set(LEVEL_ZERO_INCLUDE_DIR
     ${level-zero-loader_SOURCE_DIR}/include CACHE PATH "Path to Level Zero Headers")
 endif()
+
+add_library (LevelZeroLoader INTERFACE)
+target_link_libraries(LevelZeroLoader
+  INTERFACE "${LEVEL_ZERO_LIBRARY}"
+)
 
 add_library (LevelZeroLoader-Headers INTERFACE)
 target_include_directories(LevelZeroLoader-Headers
@@ -82,7 +87,7 @@ add_sycl_plugin(level_zero
   LIBRARIES
     LevelZeroLoader-Headers
     UnifiedRuntime-Headers
-    ${LEVEL_ZERO_LIBRARY}
+    LevelZeroLoader
     Threads::Threads
     ${XPTI_LIBS}
 )
