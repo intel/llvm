@@ -17,13 +17,9 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
-// Custom type traits
-template <typename T>
-using allocator_value_type_t = typename std::allocator_traits<T>::value_type;
-
-template <typename T>
-using allocator_pointer_t = typename std::allocator_traits<T>::pointer;
-
+// Custom type traits.
+// FIXME: Those doesn't seem to be a part of any published/future C++ standard
+// so should probably be moved to a different place.
 template <typename T>
 using iterator_category_t = typename std::iterator_traits<T>::iterator_category;
 
