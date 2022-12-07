@@ -1,5 +1,5 @@
 import("//llvm/lib/Target/targets.gni")
-import("//llvm/utils/unittest/unittest.gni")
+import("//third-party/unittest/unittest.gni")
 
 unittest("LLVMMCATests") {
   deps = [
@@ -12,9 +12,7 @@ unittest("LLVMMCATests") {
     deps += [ "X86" ]
   }
 
-  sources = [
-    "MCATestBase.cpp",
-  ]
+  sources = [ "MCATestBase.cpp" ]
 
   # FIXME: Why is this so complicated in the cmake file?
   mca_views_sources = [ "SummaryView.cpp" ]

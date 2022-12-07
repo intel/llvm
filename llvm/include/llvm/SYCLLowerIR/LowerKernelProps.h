@@ -14,7 +14,7 @@
 
 namespace sycl {
 namespace kernel_props {
-constexpr char ATTR_DOUBLE_GRF[] = "double-grf";
+constexpr char ATTR_LARGE_GRF[] = "large-grf";
 }
 } // namespace sycl
 namespace llvm {

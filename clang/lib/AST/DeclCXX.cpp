@@ -36,6 +36,7 @@
 #include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Specifiers.h"
+#include "clang/Basic/TargetInfo.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -768,12 +769,16 @@ void CXXRecordDecl::addedMember(Decl *D) {
         // Note that we have a user-declared constructor.
         data().UserDeclaredConstructor = true;
 
-        // C++ [class]p4:
-        //   A POD-struct is an aggregate class [...]
-        // Since the POD bit is meant to be C++03 POD-ness, clear it even if
-        // the type is technically an aggregate in C++0x since it wouldn't be
-        // in 03.
-        data().PlainOldData = false;
+        const TargetInfo &TI = getASTContext().getTargetInfo();
+        if ((!Constructor->isDeleted() && !Constructor->isDefaulted()) ||
+            !TI.areDefaultedSMFStillPOD(getLangOpts())) {
+          // C++ [class]p4:
+          //   A POD-struct is an aggregate class [...]
+          // Since the POD bit is meant to be C++03 POD-ness, clear it even if
+          // the type is technically an aggregate in C++0x since it wouldn't be
+          // in 03.
+          data().PlainOldData = false;
+        }
       }
 
       if (Constructor->isDefaultConstructor()) {
@@ -881,18 +886,24 @@ void CXXRecordDecl::addedMember(Decl *D) {
       if (!Method->isImplicit()) {
         data().UserDeclaredSpecialMembers |= SMKind;
 
-        // C++03 [class]p4:
-        //   A POD-struct is an aggregate class that has [...] no user-defined
-        //   copy assignment operator and no user-defined destructor.
-        //
-        // Since the POD bit is meant to be C++03 POD-ness, and in C++03,
-        // aggregates could not have any constructors, clear it even for an
-        // explicitly defaulted or deleted constructor.
-        // type is technically an aggregate in C++0x since it wouldn't be in 03.
-        //
-        // Also, a user-declared move assignment operator makes a class non-POD.
-        // This is an extension in C++03.
-        data().PlainOldData = false;
+        const TargetInfo &TI = getASTContext().getTargetInfo();
+        if ((!Method->isDeleted() && !Method->isDefaulted() &&
+             SMKind != SMF_MoveAssignment) ||
+            !TI.areDefaultedSMFStillPOD(getLangOpts())) {
+          // C++03 [class]p4:
+          //   A POD-struct is an aggregate class that has [...] no user-defined
+          //   copy assignment operator and no user-defined destructor.
+          //
+          // Since the POD bit is meant to be C++03 POD-ness, and in C++03,
+          // aggregates could not have any constructors, clear it even for an
+          // explicitly defaulted or deleted constructor.
+          // type is technically an aggregate in C++0x since it wouldn't be in
+          // 03.
+          //
+          // Also, a user-declared move assignment operator makes a class
+          // non-POD. This is an extension in C++03.
+          data().PlainOldData = false;
+        }
       }
       // When instantiating a class, we delay updating the destructor and
       // triviality properties of the class until selecting a destructor and
@@ -2869,41 +2880,47 @@ NamespaceDecl *UsingDirectiveDecl::getNominatedNamespace() {
 
 NamespaceDecl::NamespaceDecl(ASTContext &C, DeclContext *DC, bool Inline,
                              SourceLocation StartLoc, SourceLocation IdLoc,
-                             IdentifierInfo *Id, NamespaceDecl *PrevDecl)
+                             IdentifierInfo *Id, NamespaceDecl *PrevDecl,
+                             bool Nested)
     : NamedDecl(Namespace, DC, IdLoc, Id), DeclContext(Namespace),
-      redeclarable_base(C), LocStart(StartLoc),
-      AnonOrFirstNamespaceAndInline(nullptr, Inline) {
+      redeclarable_base(C), LocStart(StartLoc) {
+  unsigned Flags = 0;
+  if (Inline)
+    Flags |= F_Inline;
+  if (Nested)
+    Flags |= F_Nested;
+  AnonOrFirstNamespaceAndFlags = {nullptr, Flags};
   setPreviousDecl(PrevDecl);
 
   if (PrevDecl)
-    AnonOrFirstNamespaceAndInline.setPointer(PrevDecl->getOriginalNamespace());
+    AnonOrFirstNamespaceAndFlags.setPointer(PrevDecl->getOriginalNamespace());
 }
 
 NamespaceDecl *NamespaceDecl::Create(ASTContext &C, DeclContext *DC,
                                      bool Inline, SourceLocation StartLoc,
                                      SourceLocation IdLoc, IdentifierInfo *Id,
-                                     NamespaceDecl *PrevDecl) {
-  return new (C, DC) NamespaceDecl(C, DC, Inline, StartLoc, IdLoc, Id,
-                                   PrevDecl);
+                                     NamespaceDecl *PrevDecl, bool Nested) {
+  return new (C, DC)
+      NamespaceDecl(C, DC, Inline, StartLoc, IdLoc, Id, PrevDecl, Nested);
 }
 
 NamespaceDecl *NamespaceDecl::CreateDeserialized(ASTContext &C, unsigned ID) {
   return new (C, ID) NamespaceDecl(C, nullptr, false, SourceLocation(),
-                                   SourceLocation(), nullptr, nullptr);
+                                   SourceLocation(), nullptr, nullptr, false);
 }
 
 NamespaceDecl *NamespaceDecl::getOriginalNamespace() {
   if (isFirstDecl())
     return this;
 
-  return AnonOrFirstNamespaceAndInline.getPointer();
+  return AnonOrFirstNamespaceAndFlags.getPointer();
 }
 
 const NamespaceDecl *NamespaceDecl::getOriginalNamespace() const {
   if (isFirstDecl())
     return this;
 
-  return AnonOrFirstNamespaceAndInline.getPointer();
+  return AnonOrFirstNamespaceAndFlags.getPointer();
 }
 
 bool NamespaceDecl::isOriginalNamespace() const { return isFirstDecl(); }
@@ -3091,18 +3108,23 @@ SourceRange UsingDecl::getSourceRange() const {
 void UsingEnumDecl::anchor() {}
 
 UsingEnumDecl *UsingEnumDecl::Create(ASTContext &C, DeclContext *DC,
-                                     SourceLocation UL, SourceLocation EL,
-                                     SourceLocation NL, EnumDecl *Enum) {
-  return new (C, DC) UsingEnumDecl(DC, Enum->getDeclName(), UL, EL, NL, Enum);
+                                     SourceLocation UL,
+                                     SourceLocation EL,
+                                     SourceLocation NL,
+                                     TypeSourceInfo *EnumType) {
+  assert(isa<EnumDecl>(EnumType->getType()->getAsTagDecl()));
+  return new (C, DC)
+      UsingEnumDecl(DC, EnumType->getType()->getAsTagDecl()->getDeclName(), UL, EL, NL, EnumType);
 }
 
 UsingEnumDecl *UsingEnumDecl::CreateDeserialized(ASTContext &C, unsigned ID) {
-  return new (C, ID) UsingEnumDecl(nullptr, DeclarationName(), SourceLocation(),
-                                   SourceLocation(), SourceLocation(), nullptr);
+  return new (C, ID)
+      UsingEnumDecl(nullptr, DeclarationName(), SourceLocation(),
+                    SourceLocation(), SourceLocation(), nullptr);
 }
 
 SourceRange UsingEnumDecl::getSourceRange() const {
-  return SourceRange(EnumLocation, getLocation());
+  return SourceRange(UsingLocation, EnumType->getTypeLoc().getEndLoc());
 }
 
 void UsingPackDecl::anchor() {}
@@ -3117,7 +3139,8 @@ UsingPackDecl *UsingPackDecl::Create(ASTContext &C, DeclContext *DC,
 UsingPackDecl *UsingPackDecl::CreateDeserialized(ASTContext &C, unsigned ID,
                                                  unsigned NumExpansions) {
   size_t Extra = additionalSizeToAlloc<NamedDecl *>(NumExpansions);
-  auto *Result = new (C, ID, Extra) UsingPackDecl(nullptr, nullptr, None);
+  auto *Result =
+      new (C, ID, Extra) UsingPackDecl(nullptr, nullptr, std::nullopt);
   Result->NumExpansions = NumExpansions;
   auto *Trail = Result->getTrailingObjects<NamedDecl *>();
   for (unsigned I = 0; I != NumExpansions; ++I)
@@ -3255,7 +3278,7 @@ DecompositionDecl *DecompositionDecl::CreateDeserialized(ASTContext &C,
   size_t Extra = additionalSizeToAlloc<BindingDecl *>(NumBindings);
   auto *Result = new (C, ID, Extra)
       DecompositionDecl(C, nullptr, SourceLocation(), SourceLocation(),
-                        QualType(), nullptr, StorageClass(), None);
+                        QualType(), nullptr, StorageClass(), std::nullopt);
   // Set up and clean out the bindings array.
   Result->NumBindings = NumBindings;
   auto *Trail = Result->getTrailingObjects<BindingDecl *>();
@@ -3264,16 +3287,17 @@ DecompositionDecl *DecompositionDecl::CreateDeserialized(ASTContext &C,
   return Result;
 }
 
-void DecompositionDecl::printName(llvm::raw_ostream &os) const {
-  os << '[';
+void DecompositionDecl::printName(llvm::raw_ostream &OS,
+                                  const PrintingPolicy &Policy) const {
+  OS << '[';
   bool Comma = false;
   for (const auto *B : bindings()) {
     if (Comma)
-      os << ", ";
-    B->printName(os);
+      OS << ", ";
+    B->printName(OS, Policy);
     Comma = true;
   }
-  os << ']';
+  OS << ']';
 }
 
 void MSPropertyDecl::anchor() {}
@@ -3309,7 +3333,8 @@ MSGuidDecl *MSGuidDecl::CreateDeserialized(ASTContext &C, unsigned ID) {
   return new (C, ID) MSGuidDecl(nullptr, QualType(), Parts());
 }
 
-void MSGuidDecl::printName(llvm::raw_ostream &OS) const {
+void MSGuidDecl::printName(llvm::raw_ostream &OS,
+                           const PrintingPolicy &) const {
   OS << llvm::format("GUID{%08" PRIx32 "-%04" PRIx16 "-%04" PRIx16 "-",
                      PartVal.Part1, PartVal.Part2, PartVal.Part3);
   unsigned I = 0;
@@ -3418,7 +3443,8 @@ UnnamedGlobalConstantDecl::CreateDeserialized(ASTContext &C, unsigned ID) {
       UnnamedGlobalConstantDecl(C, nullptr, QualType(), APValue());
 }
 
-void UnnamedGlobalConstantDecl::printName(llvm::raw_ostream &OS) const {
+void UnnamedGlobalConstantDecl::printName(llvm::raw_ostream &OS,
+                                          const PrintingPolicy &) const {
   OS << "unnamed-global-constant";
 }
 

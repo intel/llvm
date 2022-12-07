@@ -10,6 +10,7 @@
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/pi.hpp>
 
+#include <atomic>
 #include <cstring>
 #include <memory>
 
@@ -218,6 +219,11 @@ public:
   const PropertyRange &getDeviceGlobals() const { return DeviceGlobals; }
   const PropertyRange &getDeviceRequirements() const {
     return DeviceRequirements;
+  }
+
+  std::uintptr_t getImageID() const {
+    assert(Bin && "Image ID is not available without a binary image.");
+    return reinterpret_cast<std::uintptr_t>(Bin);
   }
 
 protected:

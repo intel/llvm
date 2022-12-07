@@ -67,6 +67,7 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/CodeMoverUtils.h"
 #include "llvm/Transforms/Utils/LoopPeel.h"
+#include "llvm/Transforms/Utils/LoopSimplify.h"
 
 using namespace llvm;
 
@@ -644,7 +645,7 @@ private:
   void collectFusionCandidates(const LoopVector &LV) {
     for (Loop *L : LV) {
       TTI::PeelingPreferences PP =
-          gatherPeelingPreferences(L, SE, TTI, None, None);
+          gatherPeelingPreferences(L, SE, TTI, std::nullopt, std::nullopt);
       FusionCandidate CurrCand(L, DT, &PDT, ORE, PP);
       if (!CurrCand.isEligibleForFusion(SE))
         continue;
@@ -707,14 +708,14 @@ private:
     if (isa<SCEVCouldNotCompute>(TripCount0)) {
       UncomputableTripCount++;
       LLVM_DEBUG(dbgs() << "Trip count of first loop could not be computed!");
-      return {false, None};
+      return {false, std::nullopt};
     }
 
     const SCEV *TripCount1 = SE.getBackedgeTakenCount(FC1.L);
     if (isa<SCEVCouldNotCompute>(TripCount1)) {
       UncomputableTripCount++;
       LLVM_DEBUG(dbgs() << "Trip count of second loop could not be computed!");
-      return {false, None};
+      return {false, std::nullopt};
     }
 
     LLVM_DEBUG(dbgs() << "\tTrip counts: " << *TripCount0 << " & "
@@ -739,7 +740,7 @@ private:
       LLVM_DEBUG(dbgs() << "Loop(s) do not have a single exit point or do not "
                            "have a constant number of iterations. Peeling "
                            "is not benefical\n");
-      return {false, None};
+      return {false, std::nullopt};
     }
 
     Optional<unsigned> Difference;
@@ -2085,8 +2086,19 @@ PreservedAnalyses LoopFusePass::run(Function &F, FunctionAnalysisManager &AM) {
   const TargetTransformInfo &TTI = AM.getResult<TargetIRAnalysis>(F);
   const DataLayout &DL = F.getParent()->getDataLayout();
 
+  // Ensure loops are in simplifed form which is a pre-requisite for loop fusion
+  // pass. Added only for new PM since the legacy PM has already added
+  // LoopSimplify pass as a dependency.
+  bool Changed = false;
+  for (auto &L : LI) {
+    Changed |=
+        simplifyLoop(L, &DT, &LI, &SE, &AC, nullptr, false /* PreserveLCSSA */);
+  }
+  if (Changed)
+    PDT.recalculate(F);
+
   LoopFuser LF(LI, DT, DI, SE, PDT, ORE, DL, AC, TTI);
-  bool Changed = LF.fuseLoops(F);
+  Changed |= LF.fuseLoops(F);
   if (!Changed)
     return PreservedAnalyses::all();
 

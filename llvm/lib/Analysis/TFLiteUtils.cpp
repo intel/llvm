@@ -53,8 +53,8 @@ class TFModelEvaluatorImpl {
 public:
   TFModelEvaluatorImpl(StringRef SavedModelPath,
                        const std::vector<TensorSpec> &InputSpecs,
-                       function_ref<TensorSpec(size_t)> GetOutputSpecs,
-                       size_t OutputSpecsSize, const char *Tags);
+                       const std::vector<TensorSpec> &OutputSpecs,
+                       const char *Tags);
 
   bool isValid() const { return IsValid; }
   size_t outputSize() const { return Output.size(); }
@@ -98,9 +98,8 @@ private:
 
 TFModelEvaluatorImpl::TFModelEvaluatorImpl(
     StringRef SavedModelPath, const std::vector<TensorSpec> &InputSpecs,
-    function_ref<TensorSpec(size_t)> GetOutputSpecs, size_t OutputSpecsSize,
-    const char *Tags = "serve")
-    : Input(InputSpecs.size()), Output(OutputSpecsSize) {
+    const std::vector<TensorSpec> &OutputSpecs, const char *Tags = "serve")
+    : Input(InputSpecs.size()), Output(OutputSpecs.size()) {
   // INFO and DEBUG messages could be numerous and not particularly interesting
   tflite::LoggerOptions::SetMinimumLogSeverity(tflite::TFLITE_LOG_WARNING);
   // FIXME: make ErrorReporter a member (may also need subclassing
@@ -121,8 +120,21 @@ TFModelEvaluatorImpl::TFModelEvaluatorImpl(
   tflite::InterpreterBuilder Builder(*Model, Resolver);
   Builder(&Interpreter);
 
-  if (!Interpreter ||
-      Interpreter->AllocateTensors() != TfLiteStatus::kTfLiteOk) {
+  if (!Interpreter) {
+    invalidate();
+    return;
+  }
+
+  // We assume the input buffers are valid for the lifetime of the interpreter.
+  // By default, tflite allocates memory in an arena and will periodically take
+  // away memory and reallocate it in a different location after evaluations in
+  // order to improve utilization of the buffers owned in the arena. So, we
+  // explicitly mark our input buffers as persistent to avoid this behavior.
+  for (size_t I = 0; I < Interpreter->inputs().size(); ++I)
+    Interpreter->tensor(I)->allocation_type =
+        TfLiteAllocationType::kTfLiteArenaRwPersistent;
+
+  if (Interpreter->AllocateTensors() != TfLiteStatus::kTfLiteOk) {
     invalidate();
     return;
   }
@@ -158,8 +170,8 @@ TFModelEvaluatorImpl::TFModelEvaluatorImpl(
     return;
   }
 
-  for (size_t I = 0; I < OutputSpecsSize; ++I) {
-    auto OutputSpec = GetOutputSpecs(I);
+  for (size_t I = 0; I < OutputSpecs.size(); ++I) {
+    const auto &OutputSpec = OutputSpecs[I];
     Output[I] = Interpreter->output_tensor(
         OutputsMap[OutputSpec.name() + ":" +
                    std::to_string(OutputSpec.port())]);
@@ -168,23 +180,15 @@ TFModelEvaluatorImpl::TFModelEvaluatorImpl(
   }
 }
 
-TFModelEvaluator::TFModelEvaluator(
-    StringRef SavedModelPath, const std::vector<TensorSpec> &InputSpecs,
-    function_ref<TensorSpec(size_t)> GetOutputSpecs, size_t OutputSpecsSize,
-    const char *Tags)
-    : Impl(new TFModelEvaluatorImpl(SavedModelPath, InputSpecs, GetOutputSpecs,
-                                    OutputSpecsSize, Tags)) {
-  if (!Impl->isValid())
-    Impl.reset();
-}
-
 TFModelEvaluator::TFModelEvaluator(StringRef SavedModelPath,
                                    const std::vector<TensorSpec> &InputSpecs,
                                    const std::vector<TensorSpec> &OutputSpecs,
                                    const char *Tags)
-    : TFModelEvaluator(
-          SavedModelPath, InputSpecs, [&](size_t I) { return OutputSpecs[I]; },
-          OutputSpecs.size(), Tags) {}
+    : Impl(new TFModelEvaluatorImpl(SavedModelPath, InputSpecs, OutputSpecs,
+                                    Tags)) {
+  if (!Impl->isValid())
+    Impl.reset();
+}
 
 TFModelEvaluatorImpl::~TFModelEvaluatorImpl() {}
 

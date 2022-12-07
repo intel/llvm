@@ -40,6 +40,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cmath>
+#include <optional>
 #include <queue>
 
 using namespace llvm;
@@ -56,6 +57,8 @@ enum ProfileFormat {
   PF_GCC,
   PF_Binary
 };
+
+enum class ShowFormat { Text, Json, Yaml };
 
 static void warn(Twine Message, std::string Whence = "",
                  std::string Hint = "") {
@@ -629,6 +632,100 @@ adjustInstrProfile(std::unique_ptr<WriterContext> &WC,
     }
   };
 
+  // We need to flatten the SampleFDO profile as the InstrFDO
+  // profile does not have inlined callsite profiles.
+  // One caveat is the pre-inlined function -- their samples
+  // should be collapsed into the caller function.
+  // Here we do a DFS traversal to get the flatten profile
+  // info: the sum of entrycount and the max of maxcount.
+  // Here is the algorithm:
+  //   recursive (FS, root_name) {
+  //      name = FS->getName();
+  //      get samples for FS;
+  //      if (InstrProf.find(name) {
+  //        root_name = name;
+  //      } else {
+  //        if (name is in static_func map) {
+  //          root_name = static_name;
+  //        }
+  //      }
+  //      update the Map entry for root_name;
+  //      for (subfs: FS) {
+  //        recursive(subfs, root_name);
+  //      }
+  //   }
+  //
+  // Here is an example.
+  //
+  // SampleProfile:
+  // foo:12345:1000
+  // 1: 1000
+  // 2.1: 1000
+  // 15: 5000
+  // 4: bar:1000
+  //  1: 1000
+  //  2: goo:3000
+  //   1: 3000
+  // 8: bar:40000
+  //  1: 10000
+  //  2: goo:30000
+  //   1: 30000
+  //
+  // InstrProfile has two entries:
+  //  foo
+  //  bar.cc:bar
+  //
+  // After BuildMaxSampleMap, we should have the following in FlattenSampleMap:
+  // {"foo", {1000, 5000}}
+  // {"bar.cc:bar", {11000, 30000}}
+  //
+  // foo's has an entry count of 1000, and max body count of 5000.
+  // bar.cc:bar has an entry count of 11000 (sum two callsites of 1000 and
+  // 10000), and max count of 30000 (from the callsite in line 8).
+  //
+  // Note that goo's count will remain in bar.cc:bar() as it does not have an
+  // entry in InstrProfile.
+  DenseMap<StringRef, std::pair<uint64_t, uint64_t>> FlattenSampleMap;
+  auto BuildMaxSampleMap = [&FlattenSampleMap, &StaticFuncMap,
+                            &InstrProfileMap](const FunctionSamples &FS,
+                                              const StringRef &RootName) {
+    auto BuildMaxSampleMapImpl = [&](const FunctionSamples &FS,
+                                     const StringRef &RootName,
+                                     auto &BuildImpl) -> void {
+      const StringRef &Name = FS.getName();
+      const StringRef *NewRootName = &RootName;
+      uint64_t EntrySample = FS.getHeadSamplesEstimate();
+      uint64_t MaxBodySample = FS.getMaxCountInside(/* SkipCallSite*/ true);
+
+      auto It = InstrProfileMap.find(Name);
+      if (It != InstrProfileMap.end()) {
+        NewRootName = &Name;
+      } else {
+        auto NewName = StaticFuncMap.find(Name);
+        if (NewName != StaticFuncMap.end()) {
+          It = InstrProfileMap.find(NewName->second.str());
+          if (NewName->second != DuplicateNameStr) {
+            NewRootName = &NewName->second;
+          }
+        } else {
+          // Here the EntrySample is of an inlined function, so we should not
+          // update the EntrySample in the map.
+          EntrySample = 0;
+        }
+      }
+      EntrySample += FlattenSampleMap[*NewRootName].first;
+      MaxBodySample =
+          std::max(FlattenSampleMap[*NewRootName].second, MaxBodySample);
+      FlattenSampleMap[*NewRootName] =
+          std::make_pair(EntrySample, MaxBodySample);
+
+      for (const auto &C : FS.getCallsiteSamples())
+        for (const auto &F : C.second)
+          BuildImpl(F.second, *NewRootName, BuildImpl);
+    };
+    BuildMaxSampleMapImpl(FS, RootName, BuildMaxSampleMapImpl);
+  };
+
   for (auto &PD : WC->Writer.getProfileData()) {
     // Populate IPBuilder.
     for (const auto &PDV : PD.getValue()) {
@@ -645,6 +742,11 @@ adjustInstrProfile(std::unique_ptr<WriterContext> &WC,
     StringRef FullName = PD.getKey();
     InstrProfileMap[FullName] = InstrProfileEntry(R);
     buildStaticFuncMap(FullName);
+  }
+
+  for (auto &PD : Reader->getProfiles()) {
+    sampleprof::FunctionSamples &FS = PD.second;
+    BuildMaxSampleMap(FS, FS.getName());
   }
 
   ProfileSummary InstrPS = *IPBuilder.getSummary();
@@ -676,20 +778,19 @@ adjustInstrProfile(std::unique_ptr<WriterContext> &WC,
 
   // Find hot/warm functions in sample profile which is cold in instr profile
   // and adjust the profiles of those functions in the instr profile.
-  for (const auto &PD : Reader->getProfiles()) {
-    const sampleprof::FunctionSamples &FS = PD.second;
-    uint64_t SampleMaxCount = FS.getMaxCountInside();
+  for (const auto &E : FlattenSampleMap) {
+    uint64_t SampleMaxCount = std::max(E.second.first, E.second.second);
     if (SampleMaxCount < ColdSampleThreshold)
       continue;
-    auto &FContext = PD.first;
-    auto It = InstrProfileMap.find(FContext.toString());
+    const StringRef &Name = E.first;
+    auto It = InstrProfileMap.find(Name);
     if (It == InstrProfileMap.end()) {
-      auto NewName = StaticFuncMap.find(FContext.toString());
+      auto NewName = StaticFuncMap.find(Name);
       if (NewName != StaticFuncMap.end()) {
         It = InstrProfileMap.find(NewName->second.str());
         if (NewName->second == DuplicateNameStr) {
           WithColor::warning()
-              << "Static function " << FContext.toString()
+              << "Static function " << Name
               << " has multiple promoted names, cannot adjust profile.\n";
         }
       }
@@ -864,8 +965,8 @@ mergeSampleProfile(const WeightedFileVector &Inputs, SymbolRemapper *Remapper,
   SmallVector<std::unique_ptr<sampleprof::SampleProfileReader>, 5> Readers;
   LLVMContext Context;
   sampleprof::ProfileSymbolList WriterList;
-  Optional<bool> ProfileIsProbeBased;
-  Optional<bool> ProfileIsCS;
+  std::optional<bool> ProfileIsProbeBased;
+  std::optional<bool> ProfileIsCS;
   for (const auto &Input : Inputs) {
     auto ReaderOrErr = SampleProfileReader::create(Input.Filename, Context,
                                                    FSDiscriminatorPassOption);
@@ -2252,7 +2353,12 @@ static int showInstrProfile(const std::string &Filename, bool ShowCounts,
                             uint64_t ValueCutoff, bool OnlyListBelow,
                             const std::string &ShowFunction, bool TextFormat,
                             bool ShowBinaryIds, bool ShowCovered,
+                            bool ShowProfileVersion, ShowFormat SFormat,
                             raw_fd_ostream &OS) {
+  if (SFormat == ShowFormat::Json)
+    exitWithError("JSON output is not supported for instr profiles");
+  if (SFormat == ShowFormat::Yaml)
+    exitWithError("YAML output is not supported for instr profiles");
   auto ReaderOrErr = InstrProfReader::create(Filename);
   std::vector<uint32_t> Cutoffs = std::move(DetailedSummaryCutoffs);
   if (ShowDetailedSummary && Cutoffs.empty()) {
@@ -2462,6 +2568,8 @@ static int showInstrProfile(const std::string &Filename, bool ShowCounts,
     if (Error E = Reader->printBinaryIds(OS))
       exitWithError(std::move(E), Filename);
 
+  if (ShowProfileVersion)
+    OS << "Profile version: " << Reader->getVersion() << "\n";
   return 0;
 }
 
@@ -2616,7 +2724,9 @@ static int showSampleProfile(const std::string &Filename, bool ShowCounts,
                              const std::string &ShowFunction,
                              bool ShowProfileSymbolList,
                              bool ShowSectionInfoOnly, bool ShowHotFuncList,
-                             bool JsonFormat, raw_fd_ostream &OS) {
+                             ShowFormat SFormat, raw_fd_ostream &OS) {
+  if (SFormat == ShowFormat::Yaml)
+    exitWithError("YAML output is not supported for sample profiles");
   using namespace sampleprof;
   LLVMContext Context;
   auto ReaderOrErr =
@@ -2634,12 +2744,12 @@ static int showSampleProfile(const std::string &Filename, bool ShowCounts,
     exitWithErrorCode(EC, Filename);
 
   if (ShowAllFunctions || ShowFunction.empty()) {
-    if (JsonFormat)
+    if (SFormat == ShowFormat::Json)
       Reader->dumpJson(OS);
     else
       Reader->dump(OS);
   } else {
-    if (JsonFormat)
+    if (SFormat == ShowFormat::Json)
       exitWithError(
           "the JSON format is supported only when all functions are to "
           "be printed");
@@ -2668,7 +2778,9 @@ static int showSampleProfile(const std::string &Filename, bool ShowCounts,
 
 static int showMemProfProfile(const std::string &Filename,
                               const std::string &ProfiledBinary,
-                              raw_fd_ostream &OS) {
+                              ShowFormat SFormat, raw_fd_ostream &OS) {
+  if (SFormat == ShowFormat::Json)
+    exitWithError("JSON output is not supported for MemProf");
   auto ReaderOr = llvm::memprof::RawMemProfReader::create(
       Filename, ProfiledBinary, /*KeepNames=*/true);
   if (Error E = ReaderOr.takeError())
@@ -2687,10 +2799,18 @@ static int showMemProfProfile(const std::string &Filename,
 static int showDebugInfoCorrelation(const std::string &Filename,
                                     bool ShowDetailedSummary,
                                     bool ShowProfileSymbolList,
-                                    raw_fd_ostream &OS) {
+                                    ShowFormat SFormat, raw_fd_ostream &OS) {
+  if (SFormat == ShowFormat::Json)
+    exitWithError("JSON output is not supported for debug info correlation");
   std::unique_ptr<InstrProfCorrelator> Correlator;
   if (auto Err = InstrProfCorrelator::get(Filename).moveInto(Correlator))
     exitWithError(std::move(Err), Filename);
+  if (SFormat == ShowFormat::Yaml) {
+    if (auto Err = Correlator->dumpYaml(OS))
+      exitWithError(std::move(Err), Filename);
+    return 0;
+  }
+
   if (auto Err = Correlator->correlateProfileData())
     exitWithError(std::move(Err), Filename);
 
@@ -2716,12 +2836,20 @@ static int show_main(int argc, const char *argv[]) {
 
   cl::opt<bool> ShowCounts("counts", cl::init(false),
                            cl::desc("Show counter values for shown functions"));
+  cl::opt<ShowFormat> SFormat(
+      "show-format", cl::init(ShowFormat::Text),
+      cl::desc("Emit output in the selected format if supported"),
+      cl::values(clEnumValN(ShowFormat::Text, "text",
+                            "emit normal text output (default)"),
+                 clEnumValN(ShowFormat::Json, "json", "emit JSON"),
+                 clEnumValN(ShowFormat::Yaml, "yaml", "emit YAML")));
+  // TODO: Consider replacing this with `--show-format=text-encoding`.
   cl::opt<bool> TextFormat(
       "text", cl::init(false),
       cl::desc("Show instr profile data in text dump format"));
   cl::opt<bool> JsonFormat(
-      "json", cl::init(false),
-      cl::desc("Show sample profile data in the JSON format"));
+      "json", cl::desc("Show sample profile data in the JSON format "
+                       "(deprecated, please use --show-format=json)"));
   cl::opt<bool> ShowIndirectCallTargets(
       "ic-targets", cl::init(false),
       cl::desc("Show indirect call site target values for shown functions"));
@@ -2786,7 +2914,8 @@ static int show_main(int argc, const char *argv[]) {
   cl::opt<std::string> ProfiledBinary(
       "profiled-binary", cl::init(""),
       cl::desc("Path to binary from which the profile was collected."));
-
+  cl::opt<bool> ShowProfileVersion("profile-version", cl::init(false),
+                                   cl::desc("Show profile version. "));
   cl::ParseCommandLineOptions(argc, argv, "LLVM profile data summary\n");
 
   if (Filename.empty() && DebugInfoFilename.empty())
@@ -2799,6 +2928,8 @@ static int show_main(int argc, const char *argv[]) {
            << ": Input file name cannot be the same as the output file name!\n";
     return 1;
   }
+  if (JsonFormat)
+    SFormat = ShowFormat::Json;
 
   std::error_code EC;
   raw_fd_ostream OS(OutputFilename.data(), EC, sys::fs::OF_TextWithCRLF);
@@ -2810,23 +2941,25 @@ static int show_main(int argc, const char *argv[]) {
 
   if (!DebugInfoFilename.empty())
     return showDebugInfoCorrelation(DebugInfoFilename, ShowDetailedSummary,
-                                    ShowProfileSymbolList, OS);
+                                    ShowProfileSymbolList, SFormat, OS);
 
   if (ProfileKind == instr)
     return showInstrProfile(
         Filename, ShowCounts, TopNFunctions, ShowIndirectCallTargets,
         ShowMemOPSizes, ShowDetailedSummary, DetailedSummaryCutoffs,
         ShowAllFunctions, ShowCS, ValueCutoff, OnlyListBelow, ShowFunction,
-        TextFormat, ShowBinaryIds, ShowCovered, OS);
+        TextFormat, ShowBinaryIds, ShowCovered, ShowProfileVersion, SFormat,
+        OS);
   if (ProfileKind == sample)
-    return showSampleProfile(
-        Filename, ShowCounts, TopNFunctions, ShowAllFunctions,
-        ShowDetailedSummary, ShowFunction, ShowProfileSymbolList,
-        ShowSectionInfoOnly, ShowHotFuncList, JsonFormat, OS);
-  return showMemProfProfile(Filename, ProfiledBinary, OS);
+    return showSampleProfile(Filename, ShowCounts, TopNFunctions,
+                             ShowAllFunctions, ShowDetailedSummary,
+                             ShowFunction, ShowProfileSymbolList,
+                             ShowSectionInfoOnly, ShowHotFuncList, SFormat, OS);
+  return showMemProfProfile(Filename, ProfiledBinary, SFormat, OS);
 }
 
-int main(int argc, const char *argv[]) {
+int llvm_profdata_main(int argc, char **argvNonConst) {
+  const char **argv = const_cast<const char **>(argvNonConst);
   InitLLVM X(argc, argv);
 
   StringRef ProgName(sys::path::filename(argv[0]));

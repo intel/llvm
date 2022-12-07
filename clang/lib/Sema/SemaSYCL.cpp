@@ -368,9 +368,11 @@ bool Sema::isDeclAllowedInSYCLDeviceCode(const Decl *D) {
   if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
     const IdentifierInfo *II = FD->getIdentifier();
 
-    // Allow __builtin_assume_aligned to be called from within device code.
+    // Allow __builtin_assume_aligned and __builtin_printf to be called from
+    // within device code.
     if (FD->getBuiltinID() &&
-        FD->getBuiltinID() == Builtin::BI__builtin_assume_aligned)
+        (FD->getBuiltinID() == Builtin::BI__builtin_assume_aligned ||
+         FD->getBuiltinID() == Builtin::BI__builtin_printf))
       return true;
 
     // Allow to use `::printf` only for CUDA.
@@ -420,7 +422,7 @@ static void checkSYCLType(Sema &S, QualType Ty, SourceRange Loc,
 
   // variable length arrays
   if (Ty->isVariableArrayType()) {
-    S.SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_vla_unsupported);
+    S.SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_vla_unsupported) << 0;
     Emitting = true;
   }
 
@@ -540,9 +542,9 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
   // Attributes that should not be propagated from device functions to a kernel.
   if (DirectlyCalled) {
     llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
-      return isa<SYCLIntelLoopFuseAttr, SYCLIntelFPGAMaxConcurrencyAttr,
-                 SYCLIntelFPGADisableLoopPipeliningAttr,
-                 SYCLIntelFPGAInitiationIntervalAttr,
+      return isa<SYCLIntelLoopFuseAttr, SYCLIntelMaxConcurrencyAttr,
+                 SYCLIntelDisableLoopPipeliningAttr,
+                 SYCLIntelInitiationIntervalAttr,
                  SYCLIntelUseStallEnableClustersAttr, SYCLDeviceHasAttr,
                  SYCLAddIRAttributesFunctionAttr>(A);
     });
@@ -579,7 +581,8 @@ public:
       }
 
       if (const CXXMethodDecl *Method = dyn_cast<CXXMethodDecl>(Callee))
-        if (Method->isVirtual())
+        if (Method->isVirtual() &&
+            !SemaRef.getLangOpts().SYCLAllowVirtualFunctions)
           SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
               << Sema::KernelCallVirtualFunction;
 
@@ -986,6 +989,28 @@ static QualType GetSYCLKernelObjectType(const FunctionDecl *KernelCaller) {
 
   // SYCL 1.2.1
   return KernelParamTy.getUnqualifiedType();
+}
+
+static CXXMethodDecl *getOperatorParens(const CXXRecordDecl *Rec) {
+  for (auto *MD : Rec->methods()) {
+    if (MD->getOverloadedOperator() == OO_Call)
+      return MD;
+  }
+  return nullptr;
+}
+
+// Fetch the associated call operator of the kernel object
+// (of either the lambda or the function object).
+static CXXMethodDecl *
+GetCallOperatorOfKernelObject(const CXXRecordDecl *KernelObjType) {
+  CXXMethodDecl *CallOperator = nullptr;
+  if (!KernelObjType)
+    return CallOperator;
+  if (KernelObjType->isLambda())
+    CallOperator = KernelObjType->getLambdaCallOperator();
+  else
+    CallOperator = getOperatorParens(KernelObjType);
+  return CallOperator;
 }
 
 /// Creates a kernel parameter descriptor
@@ -1720,7 +1745,7 @@ public:
     while (FieldTy->isAnyPointerType()) {
       FieldTy = QualType{FieldTy->getPointeeOrArrayElementType(), 0};
       if (FieldTy->isVariableArrayType()) {
-        Diag.Report(FD->getLocation(), diag::err_vla_unsupported);
+        Diag.Report(FD->getLocation(), diag::err_vla_unsupported) << 0;
         IsInvalid = true;
         break;
       }
@@ -2065,6 +2090,7 @@ public:
 
     const ConstantArrayType *CAT =
         SemaRef.getASTContext().getAsConstantArrayType(ArrayTy);
+    assert(CAT && "Should only be called on constant-size array.");
     QualType ModifiedArray = SemaRef.getASTContext().getConstantArrayType(
         ModifiedArrayElement, CAT->getSize(),
         const_cast<Expr *>(CAT->getSizeExpr()), CAT->getSizeModifier(),
@@ -2775,14 +2801,6 @@ public:
   }
 };
 
-static CXXMethodDecl *getOperatorParens(const CXXRecordDecl *Rec) {
-  for (auto *MD : Rec->methods()) {
-    if (MD->getOverloadedOperator() == OO_Call)
-      return MD;
-  }
-  return nullptr;
-}
-
 static bool isESIMDKernelType(const CXXRecordDecl *KernelObjType) {
   const CXXMethodDecl *OpParens = getOperatorParens(KernelObjType);
   return (OpParens != nullptr) && OpParens->hasAttr<SYCLSimdAttr>();
@@ -2871,13 +2889,10 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
     // Fetch the kernel object and the associated call operator
     // (of either the lambda or the function object).
-    CXXRecordDecl *KernelObj =
+    const CXXRecordDecl *KernelObj =
         GetSYCLKernelObjectType(KernelCallerFunc)->getAsCXXRecordDecl();
-    CXXMethodDecl *WGLambdaFn = nullptr;
-    if (KernelObj->isLambda())
-      WGLambdaFn = KernelObj->getLambdaCallOperator();
-    else
-      WGLambdaFn = getOperatorParens(KernelObj);
+    CXXMethodDecl *WGLambdaFn = GetCallOperatorOfKernelObject(KernelObj);
+
     assert(WGLambdaFn && "non callable object is passed as kernel obj");
     // Mark the function that it "works" in a work group scope:
     // NOTE: In case of parallel_for_work_item the marker call itself is
@@ -3486,10 +3501,10 @@ public:
 
   bool enterArray(FieldDecl *FD, QualType ArrayType,
                   QualType ElementType) final {
-    uint64_t ArraySize = SemaRef.getASTContext()
-                             .getAsConstantArrayType(ArrayType)
-                             ->getSize()
-                             .getZExtValue();
+    const ConstantArrayType *CAT =
+        SemaRef.getASTContext().getAsConstantArrayType(ArrayType);
+    assert(CAT && "Should only be called on constant-size array.");
+    uint64_t ArraySize = CAT->getSize().getZExtValue();
     addCollectionInitListExpr(ArrayType, ArraySize);
     ArrayInfos.emplace_back(getFieldEntity(FD, ArrayType), 0);
 
@@ -3534,7 +3549,7 @@ public:
 static bool IsSYCLUnnamedKernel(Sema &SemaRef, const FunctionDecl *FD) {
   if (!SemaRef.getLangOpts().SYCLUnnamedLambda)
     return false;
-  QualType FunctorTy = GetSYCLKernelObjectType(FD);
+  const QualType FunctorTy = GetSYCLKernelObjectType(FD);
   QualType TmplArgTy = calculateKernelNameType(SemaRef.Context, FD);
   return SemaRef.Context.hasSameType(FunctorTy, TmplArgTy);
 }
@@ -3616,17 +3631,25 @@ public:
 
       Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
                           CurOffset + offsetOf(FD, FieldTy));
+    } else if (isSyclType(FieldTy, SYCLTypeAttr::stream)) {
+      addParam(FD, FieldTy, SYCLIntegrationHeader::kind_stream);
+    } else if (isSyclType(FieldTy, SYCLTypeAttr::sampler) ||
+               isSyclType(FieldTy, SYCLTypeAttr::annotated_ptr) ||
+               isSyclType(FieldTy, SYCLTypeAttr::annotated_arg)) {
+      CXXMethodDecl *InitMethod = getMethodByName(ClassTy, InitMethodName);
+      assert(InitMethod && "type must have __init method");
+      const ParmVarDecl *InitArg = InitMethod->getParamDecl(0);
+      assert(InitArg && "Init method must have arguments");
+      QualType T = InitArg->getType();
+      SYCLIntegrationHeader::kernel_param_kind_t ParamKind =
+          isSyclType(FieldTy, SYCLTypeAttr::sampler)
+              ? SYCLIntegrationHeader::kind_sampler
+              : (T->isPointerType() ? SYCLIntegrationHeader::kind_pointer
+                                    : SYCLIntegrationHeader::kind_std_layout);
+      addParam(T, ParamKind, offsetOf(FD, FieldTy));
     } else {
-      if (getMethodByName(ClassTy, FinalizeMethodName))
-        addParam(FD, FieldTy, SYCLIntegrationHeader::kind_stream);
-      else {
-        CXXMethodDecl *InitMethod = getMethodByName(ClassTy, InitMethodName);
-        assert(InitMethod && "type must have __init method");
-        const ParmVarDecl *SamplerArg = InitMethod->getParamDecl(0);
-        assert(SamplerArg && "Init method must have arguments");
-        addParam(SamplerArg->getType(), SYCLIntegrationHeader::kind_sampler,
-                 offsetOf(FD, FieldTy));
-      }
+      llvm_unreachable(
+          "Unexpected SYCL special class when generating integration header");
     }
     return true;
   }
@@ -3935,7 +3958,7 @@ public:
   }
 };
 
-void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
+void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc,
                                ArrayRef<const Expr *> Args) {
   QualType KernelNameType =
       calculateKernelNameType(getASTContext(), KernelFunc);
@@ -3952,7 +3975,7 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
   const CXXRecordDecl *KernelObj =
       GetSYCLKernelObjectType(KernelFunc)->getAsCXXRecordDecl();
 
-  if (!KernelObj) {
+  if (!GetCallOperatorOfKernelObject(KernelObj)) {
     Diag(Args[0]->getExprLoc(), diag::err_sycl_kernel_not_function_object);
     KernelFunc->setInvalidDecl();
     return;
@@ -4412,9 +4435,9 @@ static void PropagateAndDiagnoseDeviceAttr(
   case attr::Kind::SYCLIntelMaxGlobalWorkDim:
   case attr::Kind::SYCLIntelNoGlobalWorkOffset:
   case attr::Kind::SYCLIntelLoopFuse:
-  case attr::Kind::SYCLIntelFPGAMaxConcurrency:
-  case attr::Kind::SYCLIntelFPGADisableLoopPipelining:
-  case attr::Kind::SYCLIntelFPGAInitiationInterval:
+  case attr::Kind::SYCLIntelMaxConcurrency:
+  case attr::Kind::SYCLIntelDisableLoopPipelining:
+  case attr::Kind::SYCLIntelInitiationInterval:
   case attr::Kind::SYCLIntelUseStallEnableClusters:
   case attr::Kind::SYCLDeviceHas:
   case attr::Kind::SYCLAddIRAttributesFunction:
@@ -4992,7 +5015,7 @@ public:
     DeclContext *DC = RD->getDeclContext();
     if (isa<FunctionDecl, RecordDecl, LinkageSpecDecl>(DC)) {
       PrintNamespaceScopes(DC);
-      RD->printName(OS);
+      RD->printName(OS, Policy);
       return;
     }
 
@@ -5066,6 +5089,10 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   PrintingPolicy Policy(LO);
   Policy.SuppressTypedefs = true;
   Policy.SuppressUnwrittenScope = true;
+  // Disable printing anonymous tag locations because on Windows
+  // file path separators are treated as escape sequences and cause errors
+  // when integration header is compiled with host compiler.
+  Policy.AnonymousTagLocations = 0;
   SYCLFwdDeclEmitter FwdDeclEmitter(O, S.getLangOpts());
 
   // Predefines which need to be set for custom host compilation

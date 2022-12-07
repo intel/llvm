@@ -77,6 +77,10 @@ struct WmmaLoadOpToNVVMLowering
     if (failed(areAllLLVMTypes(op, adaptor.getOperands(), rewriter)))
       return failure();
 
+    // TODO: Support transposed mma loads.
+    if (subgroupMmaLoadMatrixOp.getTranspose())
+      return failure();
+
     // Get the shape of the MMAMatrix type being returned. The shape will
     // choose which intrinsic this op will be lowered to.
     gpu::MMAMatrixType retType =
@@ -311,8 +315,9 @@ static Value createScalarOp(OpBuilder &builder, Location loc,
   case gpu::MMAElementwiseOp::MINF:
     return createMinMaxF(builder, loc, operands[0], operands[1],
                          /*isMin=*/true);
+  default:
+    llvm_unreachable("unknown op");
   }
-  llvm_unreachable("unknown op");
 }
 
 /// Convert GPU MMA elementwise ops to extract + op + insert.

@@ -42,9 +42,9 @@ __kernel void test_atomic_cmpxchg(__global int *p, int cmp, int val) {
 //
 //
 // CHECK-LLVM-LABEL: define spir_kernel void @test_atomic_cmpxchg
-// CHECK-LLVM: call spir_func i32 @_Z14atomic_cmpxchgPU3AS1Viii
+// CHECK-LLVM: call spir_func i32 @_Z14atomic_cmpxchgPU3AS1Viii(
 // TODO: is it an issue that we lost call to @_Z14atomic_cmpxchgPU3AS1jjj here?
-// CHECK-LLVM: call spir_func i32 @_Z14atomic_cmpxchgPU3AS1Viii
+// CHECK-LLVM: call spir_func i32 @_Z14atomic_cmpxchgPU3AS1Viii(
 
 // References:
 // [1]: https://www.khronos.org/registry/OpenCL/sdk/2.0/docs/man/xhtml/atomic_cmpxchg.html

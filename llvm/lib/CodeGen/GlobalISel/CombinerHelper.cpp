@@ -27,11 +27,13 @@
 #include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/CodeGen/TargetOpcodes.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/InstrTypes.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/DivisionByConstantInfo.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Target/TargetMachine.h"
 #include <cmath>
+#include <optional>
 #include <tuple>
 
 #define DEBUG_TYPE "gi-combiner"
@@ -112,18 +114,18 @@ isBigEndian(const SmallDenseMap<int64_t, int64_t, 8> &MemOffset2Idx,
   // Need at least two byte positions to decide on endianness.
   unsigned Width = MemOffset2Idx.size();
   if (Width < 2)
-    return None;
+    return std::nullopt;
   bool BigEndian = true, LittleEndian = true;
   for (unsigned MemOffset = 0; MemOffset < Width; ++ MemOffset) {
     auto MemOffsetAndIdx = MemOffset2Idx.find(MemOffset);
     if (MemOffsetAndIdx == MemOffset2Idx.end())
-      return None;
+      return std::nullopt;
     const int64_t Idx = MemOffsetAndIdx->second - LowestIdx;
     assert(Idx >= 0 && "Expected non-negative byte offset?");
     LittleEndian &= Idx == littleEndianByteAt(Width, MemOffset);
     BigEndian &= Idx == bigEndianByteAt(Width, MemOffset);
     if (!BigEndian && !LittleEndian)
-      return None;
+      return std::nullopt;
   }
 
   assert((BigEndian != LittleEndian) &&
@@ -555,7 +557,7 @@ bool CombinerHelper::matchCombineExtendingLoads(MachineInstr &MI,
       if (MMO.isAtomic() && UseMI.getOpcode() != TargetOpcode::G_ANYEXT)
         continue;
       // Check for legality.
-      if (LI) {
+      if (!isPreLegalize()) {
         LegalityQuery::MemDesc MMDesc(MMO);
         unsigned CandidateLoadOpc = getExtLoadOpcForExtend(UseMI.getOpcode());
         LLT UseTy = MRI.getType(UseMI.getOperand(0).getReg());
@@ -1288,7 +1290,7 @@ static Optional<APFloat> constantFoldFpUnary(unsigned Opcode, LLT DstTy,
                                              const MachineRegisterInfo &MRI) {
   const ConstantFP *MaybeCst = getConstantFPVRegVal(Op, MRI);
   if (!MaybeCst)
-    return None;
+    return std::nullopt;
 
   APFloat V = MaybeCst->getValueAPF();
   switch (Opcode) {
@@ -1597,6 +1599,13 @@ void CombinerHelper::applyShiftOfShiftedLogic(MachineInstr &MI,
   Register Shift1 =
       Builder.buildInstr(Opcode, {DestType}, {Shift1Base, Const}).getReg(0);
 
+  // If LogicNonShiftReg is the same to Shift1Base, and shift1 const is the same
+  // to MatchInfo.Shift2 const, CSEMIRBuilder will reuse the old shift1 when
+  // build shift2. So, if we erase MatchInfo.Shift2 at the end, actually we
+  // remove old shift1. And it will cause crash later. So erase it earlier to
+  // avoid the crash.
+  MatchInfo.Shift2->eraseFromParent();
+
   Register Shift2Const = MI.getOperand(2).getReg();
   Register Shift2 = Builder
                         .buildInstr(Opcode, {DestType},
@@ -1606,8 +1615,7 @@ void CombinerHelper::applyShiftOfShiftedLogic(MachineInstr &MI,
   Register Dest = MI.getOperand(0).getReg();
   Builder.buildInstr(MatchInfo.Logic->getOpcode(), {Dest}, {Shift1, Shift2});
 
-  // These were one use so it's safe to remove them.
-  MatchInfo.Shift2->eraseFromParent();
+  // This was one use so it's safe to remove it.
   MatchInfo.Logic->eraseFromParent();
 
   MI.eraseFromParent();
@@ -2749,9 +2757,9 @@ bool CombinerHelper::matchAshrShlToSextInreg(
   assert(MI.getOpcode() == TargetOpcode::G_ASHR);
   int64_t ShlCst, AshrCst;
   Register Src;
-  // FIXME: detect splat constant vectors.
   if (!mi_match(MI.getOperand(0).getReg(), MRI,
-                m_GAShr(m_GShl(m_Reg(Src), m_ICst(ShlCst)), m_ICst(AshrCst))))
+                m_GAShr(m_GShl(m_Reg(Src), m_ICstOrSplat(ShlCst)),
+                        m_ICstOrSplat(AshrCst))))
     return false;
   if (ShlCst != AshrCst)
     return false;
@@ -2823,12 +2831,6 @@ bool CombinerHelper::matchRedundantAnd(MachineInstr &MI,
     return false;
 
   Register AndDst = MI.getOperand(0).getReg();
-  LLT DstTy = MRI.getType(AndDst);
-
-  // FIXME: This should be removed once GISelKnownBits supports vectors.
-  if (DstTy.isVector())
-    return false;
-
   Register LHS = MI.getOperand(1).getReg();
   Register RHS = MI.getOperand(2).getReg();
   KnownBits LHSBits = KB->getKnownBits(LHS);
@@ -2869,12 +2871,6 @@ bool CombinerHelper::matchRedundantOr(MachineInstr &MI, Register &Replacement) {
     return false;
 
   Register OrDst = MI.getOperand(0).getReg();
-  LLT DstTy = MRI.getType(OrDst);
-
-  // FIXME: This should be removed once GISelKnownBits supports vectors.
-  if (DstTy.isVector())
-    return false;
-
   Register LHS = MI.getOperand(1).getReg();
   Register RHS = MI.getOperand(2).getReg();
   KnownBits LHSBits = KB->getKnownBits(LHS);
@@ -3250,7 +3246,7 @@ CombinerHelper::findCandidatesForLoadOrCombine(const MachineInstr *Root) const {
 
     // In the combine, we want to elimate the entire tree.
     if (!MRI.hasOneNonDBGUse(OrLHS) || !MRI.hasOneNonDBGUse(OrRHS))
-      return None;
+      return std::nullopt;
 
     // If it's a G_OR, save it and continue to walk. If it's not, then it's
     // something that may be a load + arithmetic.
@@ -3267,7 +3263,7 @@ CombinerHelper::findCandidatesForLoadOrCombine(const MachineInstr *Root) const {
   // We're going to try and merge each register into a wider power-of-2 type,
   // so we ought to have an even number of registers.
   if (RegsToVisit.empty() || RegsToVisit.size() % 2 != 0)
-    return None;
+    return std::nullopt;
   return RegsToVisit;
 }
 
@@ -3279,7 +3275,7 @@ CombinerHelper::findCandidatesForLoadOrCombine(const MachineInstr *Root) const {
 /// e.g. x[i] << 24
 ///
 /// \returns The load instruction and the byte offset it is moved into.
-static Optional<std::pair<GZExtLoad *, int64_t>>
+static std::optional<std::pair<GZExtLoad *, int64_t>>
 matchLoadAndBytePosition(Register Reg, unsigned MemSizeInBits,
                          const MachineRegisterInfo &MRI) {
   assert(MRI.hasOneNonDBGUse(Reg) &&
@@ -3293,15 +3289,15 @@ matchLoadAndBytePosition(Register Reg, unsigned MemSizeInBits,
   }
 
   if (Shift % MemSizeInBits != 0)
-    return None;
+    return std::nullopt;
 
   // TODO: Handle other types of loads.
   auto *Load = getOpcodeDef<GZExtLoad>(MaybeLoad, MRI);
   if (!Load)
-    return None;
+    return std::nullopt;
 
   if (!Load->isUnordered() || Load->getMemSizeInBits() != MemSizeInBits)
-    return None;
+    return std::nullopt;
 
   return std::make_pair(Load, Shift / MemSizeInBits);
 }
@@ -3346,7 +3342,7 @@ CombinerHelper::findLoadOffsetsForLoadOrCombine(
     // shifted) value.
     auto LoadAndPos = matchLoadAndBytePosition(Reg, MemSizeInBits, MRI);
     if (!LoadAndPos)
-      return None;
+      return std::nullopt;
     GZExtLoad *Load;
     int64_t DstPos;
     std::tie(Load, DstPos) = *LoadAndPos;
@@ -3357,14 +3353,14 @@ CombinerHelper::findLoadOffsetsForLoadOrCombine(
     if (!MBB)
       MBB = LoadMBB;
     if (LoadMBB != MBB)
-      return None;
+      return std::nullopt;
 
     // Make sure that the MachineMemOperands of every seen load are compatible.
     auto &LoadMMO = Load->getMMO();
     if (!MMO)
       MMO = &LoadMMO;
     if (MMO->getAddrSpace() != LoadMMO.getAddrSpace())
-      return None;
+      return std::nullopt;
 
     // Find out what the base pointer and index for the load is.
     Register LoadPtr;
@@ -3377,7 +3373,7 @@ CombinerHelper::findLoadOffsetsForLoadOrCombine(
 
     // Don't combine things like a[i], a[i] -> a bigger load.
     if (!SeenIdx.insert(Idx).second)
-      return None;
+      return std::nullopt;
 
     // Every load must share the same base pointer; don't combine things like:
     //
@@ -3385,7 +3381,7 @@ CombinerHelper::findLoadOffsetsForLoadOrCombine(
     if (!BasePtr.isValid())
       BasePtr = LoadPtr;
     if (BasePtr != LoadPtr)
-      return None;
+      return std::nullopt;
 
     if (Idx < LowestIdx) {
       LowestIdx = Idx;
@@ -3397,7 +3393,7 @@ CombinerHelper::findLoadOffsetsForLoadOrCombine(
     //
     // a[i] << 16, a[i + k] << 16 -> a bigger load.
     if (!MemOffset2Idx.try_emplace(DstPos, Idx).second)
-      return None;
+      return std::nullopt;
     Loads.insert(Load);
 
     // Keep track of the position of the earliest/latest loads in the pattern.
@@ -3432,9 +3428,9 @@ CombinerHelper::findLoadOffsetsForLoadOrCombine(
     if (Loads.count(&MI))
       continue;
     if (MI.isLoadFoldBarrier())
-      return None;
+      return std::nullopt;
     if (Iter++ == MaxIter)
-      return None;
+      return std::nullopt;
   }
 
   return std::make_tuple(LowestIdxLoad, LowestIdx, LatestLoad);
@@ -3538,7 +3534,7 @@ bool CombinerHelper::matchLoadOrCombine(
   // Load must be allowed and fast on the target.
   LLVMContext &C = MF.getFunction().getContext();
   auto &DL = MF.getDataLayout();
-  bool Fast = false;
+  unsigned Fast = 0;
   if (!getTargetLowering().allowsMemoryAccess(C, DL, Ty, *NewMMO, &Fast) ||
       !Fast)
     return false;
@@ -3559,11 +3555,12 @@ bool CombinerHelper::matchLoadOrCombine(
 /// value found.
 /// On match, returns the start byte offset of the \p SrcVal that is being
 /// stored.
-static Optional<int64_t> getTruncStoreByteOffset(GStore &Store, Register &SrcVal,
-                                                 MachineRegisterInfo &MRI) {
+static std::optional<int64_t>
+getTruncStoreByteOffset(GStore &Store, Register &SrcVal,
+                        MachineRegisterInfo &MRI) {
   Register TruncVal;
   if (!mi_match(Store.getValueReg(), MRI, m_GTrunc(m_Reg(TruncVal))))
-    return None;
+    return std::nullopt;
 
   // The shift amount must be a constant multiple of the narrow type.
   // It is translated to the offset address in the wide source value "y".
@@ -3581,21 +3578,21 @@ static Optional<int64_t> getTruncStoreByteOffset(GStore &Store, Register &SrcVal
         SrcVal = TruncVal;
       return 0; // If it's the lowest index store.
     }
-    return None;
+    return std::nullopt;
   }
 
   unsigned NarrowBits = Store.getMMO().getMemoryType().getScalarSizeInBits();
   if (ShiftAmt % NarrowBits!= 0)
-    return None;
+    return std::nullopt;
   const unsigned Offset = ShiftAmt / NarrowBits;
 
   if (SrcVal.isValid() && FoundSrcVal != SrcVal)
-    return None;
+    return std::nullopt;
 
   if (!SrcVal.isValid())
     SrcVal = FoundSrcVal;
   else if (MRI.getType(SrcVal) != MRI.getType(FoundSrcVal))
-    return None;
+    return std::nullopt;
   return Offset;
 }
 
@@ -3743,7 +3740,7 @@ bool CombinerHelper::matchTruncStoreMerge(MachineInstr &MI,
   const auto &DL = LastStore.getMF()->getDataLayout();
   auto &C = LastStore.getMF()->getFunction().getContext();
   // Check that a store of the wide type is both allowed and fast on the target
-  bool Fast = false;
+  unsigned Fast = 0;
   bool Allowed = getTargetLowering().allowsMemoryAccess(
       C, DL, WideStoreTy, LowestIdxStore->getMMO(), &Fast);
   if (!Allowed || !Fast)
@@ -3928,33 +3925,30 @@ bool CombinerHelper::matchExtractVecEltBuildVec(MachineInstr &MI,
   // and find the source register that the index maps to.
   Register SrcVec = MI.getOperand(1).getReg();
   LLT SrcTy = MRI.getType(SrcVec);
-  if (!isLegalOrBeforeLegalizer(
-          {TargetOpcode::G_BUILD_VECTOR, {SrcTy, SrcTy.getElementType()}}))
-    return false;
 
   auto Cst = getIConstantVRegValWithLookThrough(MI.getOperand(2).getReg(), MRI);
   if (!Cst || Cst->Value.getZExtValue() >= SrcTy.getNumElements())
     return false;
 
   unsigned VecIdx = Cst->Value.getZExtValue();
-  MachineInstr *BuildVecMI =
-      getOpcodeDef(TargetOpcode::G_BUILD_VECTOR, SrcVec, MRI);
-  if (!BuildVecMI) {
-    BuildVecMI = getOpcodeDef(TargetOpcode::G_BUILD_VECTOR_TRUNC, SrcVec, MRI);
-    if (!BuildVecMI)
-      return false;
-    LLT ScalarTy = MRI.getType(BuildVecMI->getOperand(1).getReg());
-    if (!isLegalOrBeforeLegalizer(
-            {TargetOpcode::G_BUILD_VECTOR_TRUNC, {SrcTy, ScalarTy}}))
-      return false;
+
+  // Check if we have a build_vector or build_vector_trunc with an optional
+  // trunc in front.
+  MachineInstr *SrcVecMI = MRI.getVRegDef(SrcVec);
+  if (SrcVecMI->getOpcode() == TargetOpcode::G_TRUNC) {
+    SrcVecMI = MRI.getVRegDef(SrcVecMI->getOperand(1).getReg());
   }
+
+  if (SrcVecMI->getOpcode() != TargetOpcode::G_BUILD_VECTOR &&
+      SrcVecMI->getOpcode() != TargetOpcode::G_BUILD_VECTOR_TRUNC)
+    return false;
 
   EVT Ty(getMVTForLLT(SrcTy));
   if (!MRI.hasOneNonDBGUse(SrcVec) &&
       !getTargetLowering().aggressivelyPreferBuildVectorSources(Ty))
     return false;
 
-  Reg = BuildVecMI->getOperand(VecIdx + 1).getReg();
+  Reg = SrcVecMI->getOperand(VecIdx + 1).getReg();
   return true;
 }
 
@@ -4565,8 +4559,10 @@ bool CombinerHelper::matchReassocConstantInnerLHS(GPtrAdd &MI,
     // doesn't happen.
     LHSPtrAdd->moveBefore(&MI);
     Register RHSReg = MI.getOffsetReg();
+    // set VReg will cause type mismatch if it comes from extend/trunc
+    auto NewCst = B.buildConstant(MRI.getType(RHSReg), LHSCstOff->Value);
     Observer.changingInstr(MI);
-    MI.getOperand(2).setReg(LHSCstOff->VReg);
+    MI.getOperand(2).setReg(NewCst.getReg(0));
     Observer.changedInstr(MI);
     Observer.changingInstr(*LHSPtrAdd);
     LHSPtrAdd->getOperand(2).setReg(RHSReg);
@@ -5204,6 +5200,38 @@ bool CombinerHelper::matchRedundantNegOperands(MachineInstr &MI,
   return true;
 }
 
+bool CombinerHelper::matchFsubToFneg(MachineInstr &MI, Register &MatchInfo) {
+  assert(MI.getOpcode() == TargetOpcode::G_FSUB);
+
+  Register LHS = MI.getOperand(1).getReg();
+  MatchInfo = MI.getOperand(2).getReg();
+  LLT Ty = MRI.getType(MI.getOperand(0).getReg());
+
+  const auto LHSCst = Ty.isVector()
+                          ? getFConstantSplat(LHS, MRI, /* allowUndef */ true)
+                          : getFConstantVRegValWithLookThrough(LHS, MRI);
+  if (!LHSCst)
+    return false;
+
+  // -0.0 is always allowed
+  if (LHSCst->Value.isNegZero())
+    return true;
+
+  // +0.0 is only allowed if nsz is set.
+  if (LHSCst->Value.isPosZero())
+    return MI.getFlag(MachineInstr::FmNsz);
+
+  return false;
+}
+
+void CombinerHelper::applyFsubToFneg(MachineInstr &MI, Register &MatchInfo) {
+  Builder.setInstrAndDebugLoc(MI);
+  Register Dst = MI.getOperand(0).getReg();
+  Builder.buildFNeg(
+      Dst, Builder.buildFCanonicalize(MRI.getType(Dst), MatchInfo).getReg(0));
+  eraseInst(MI);
+}
+
 /// Checks if \p MI is TargetOpcode::G_FMUL and contractable either
 /// due to global flags or MachineInstr flags.
 static bool isContractableFMul(MachineInstr &MI, bool AllowFusionGlobally) {
@@ -5235,7 +5263,7 @@ bool CombinerHelper::canCombineFMadOrFMA(MachineInstr &MI,
     return false;
 
   // Floating-point multiply-add with intermediate rounding.
-  HasFMAD = (LI && TLI.isFMADLegal(MI, DstType));
+  HasFMAD = (!isPreLegalize() && TLI.isFMADLegal(MI, DstType));
   // Floating-point multiply-add without intermediate rounding.
   bool HasFMA = TLI.isFMAFasterThanFMulAndFAdd(*MF, DstType) &&
                 isLegalOrBeforeLegalizer({TargetOpcode::G_FMA, {DstType}});
@@ -5917,6 +5945,21 @@ bool CombinerHelper::matchTruncBuildVectorFold(MachineInstr &MI,
   return MRI.getType(MatchInfo) == MRI.getType(MI.getOperand(0).getReg());
 }
 
+bool CombinerHelper::matchTruncLshrBuildVectorFold(MachineInstr &MI,
+                                                   Register &MatchInfo) {
+  // Replace (G_TRUNC (G_LSHR (G_BITCAST (G_BUILD_VECTOR x, y)), K)) with
+  //    y if K == size of vector element type
+  Optional<ValueAndVReg> ShiftAmt;
+  if (!mi_match(MI.getOperand(1).getReg(), MRI,
+                m_GLShr(m_GBitcast(m_GBuildVector(m_Reg(), m_Reg(MatchInfo))),
+                        m_GCst(ShiftAmt))))
+    return false;
+
+  LLT MatchTy = MRI.getType(MatchInfo);
+  return ShiftAmt->Value.getZExtValue() == MatchTy.getSizeInBits() &&
+         MatchTy == MRI.getType(MI.getOperand(0).getReg());
+}
+
 unsigned CombinerHelper::getFPMinMaxOpcForSelect(
     CmpInst::Predicate Pred, LLT DstTy,
     SelectPatternNaNBehaviour VsNaNRetVal) const {
@@ -6046,6 +6089,38 @@ bool CombinerHelper::matchSimplifySelectToMinMax(MachineInstr &MI,
   Register TrueVal = MI.getOperand(2).getReg();
   Register FalseVal = MI.getOperand(3).getReg();
   return matchFPSelectToMinMax(Dst, Cond, TrueVal, FalseVal, MatchInfo);
+}
+
+bool CombinerHelper::matchRedundantBinOpInEquality(MachineInstr &MI,
+                                                   BuildFnTy &MatchInfo) {
+  assert(MI.getOpcode() == TargetOpcode::G_ICMP);
+  // (X + Y) == X --> Y == 0
+  // (X + Y) != X --> Y != 0
+  // (X - Y) == X --> Y == 0
+  // (X - Y) != X --> Y != 0
+  // (X ^ Y) == X --> Y == 0
+  // (X ^ Y) != X --> Y != 0
+  Register Dst = MI.getOperand(0).getReg();
+  CmpInst::Predicate Pred;
+  Register X, Y, OpLHS, OpRHS;
+  bool MatchedSub = mi_match(
+      Dst, MRI,
+      m_c_GICmp(m_Pred(Pred), m_Reg(X), m_GSub(m_Reg(OpLHS), m_Reg(Y))));
+  if (MatchedSub && X != OpLHS)
+    return false;
+  if (!MatchedSub) {
+    if (!mi_match(Dst, MRI,
+                  m_c_GICmp(m_Pred(Pred), m_Reg(X),
+                            m_any_of(m_GAdd(m_Reg(OpLHS), m_Reg(OpRHS)),
+                                     m_GXor(m_Reg(OpLHS), m_Reg(OpRHS))))))
+      return false;
+    Y = X == OpLHS ? OpRHS : X == OpRHS ? OpLHS : Register();
+  }
+  MatchInfo = [=](MachineIRBuilder &B) {
+    auto Zero = B.buildConstant(MRI.getType(Y), 0);
+    B.buildICmp(Pred, Dst, Y, Zero);
+  };
+  return CmpInst::isEquality(Pred) && Y.isValid();
 }
 
 bool CombinerHelper::tryCombine(MachineInstr &MI) {

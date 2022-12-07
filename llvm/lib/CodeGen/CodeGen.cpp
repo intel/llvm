@@ -37,6 +37,7 @@ void llvm::initializeCodeGen(PassRegistry &Registry) {
   initializeEarlyMachineLICMPass(Registry);
   initializeEarlyTailDuplicatePass(Registry);
   initializeExpandLargeDivRemLegacyPassPass(Registry);
+  initializeExpandLargeFpConvertLegacyPassPass(Registry);
   initializeExpandMemCmpPassPass(Registry);
   initializeExpandPostRAPass(Registry);
   initializeFEntryInserterPass(Registry);
@@ -77,6 +78,7 @@ void llvm::initializeCodeGen(PassRegistry &Registry) {
   initializeMachineCycleInfoWrapperPassPass(Registry);
   initializeMachineDominatorTreePass(Registry);
   initializeMachineFunctionPrinterPassPass(Registry);
+  initializeMachineLateInstrsCleanupPass(Registry);
   initializeMachineLICMPass(Registry);
   initializeMachineLoopInfoPass(Registry);
   initializeMachineModuleInfoWrapperPassPass(Registry);
@@ -89,6 +91,7 @@ void llvm::initializeCodeGen(PassRegistry &Registry) {
   initializeMachineSchedulerPass(Registry);
   initializeMachineSinkingPass(Registry);
   initializeMachineVerifierPassPass(Registry);
+  initializeObjCARCContractLegacyPassPass(Registry);
   initializeOptimizePHIsPass(Registry);
   initializePEIPass(Registry);
   initializePHIEliminationPass(Registry);

@@ -59,7 +59,7 @@ filterForDialect(ArrayRef<llvm::Record *> records, Dialect &dialect) {
 Optional<Dialect> tblgen::findDialectToGenerate(ArrayRef<Dialect> dialects) {
   if (dialects.empty()) {
     llvm::errs() << "no dialect was found\n";
-    return llvm::None;
+    return std::nullopt;
   }
 
   // Select the dialect to gen for.
@@ -69,7 +69,7 @@ Optional<Dialect> tblgen::findDialectToGenerate(ArrayRef<Dialect> dialects) {
   if (selectedDialect.getNumOccurrences() == 0) {
     llvm::errs() << "when more than 1 dialect is present, one must be selected "
                     "via '-dialect'\n";
-    return llvm::None;
+    return std::nullopt;
   }
 
   const auto *dialectIt = llvm::find_if(dialects, [](const Dialect &dialect) {
@@ -77,7 +77,7 @@ Optional<Dialect> tblgen::findDialectToGenerate(ArrayRef<Dialect> dialects) {
   });
   if (dialectIt == dialects.end()) {
     llvm::errs() << "selected dialect with '-dialect' does not exist\n";
-    return llvm::None;
+    return std::nullopt;
   }
   return *dialectIt;
 }
@@ -107,7 +107,7 @@ public:
 /// Registration for a single dependent dialect: to be inserted in the ctor
 /// above for each dependent dialect.
 const char *const dialectRegistrationTemplate = R"(
-    getContext()->getOrLoadDialect<{0}>();
+    getContext()->loadDialect<{0}>();
 )";
 
 /// The code block for the attribute parser/printer hooks.

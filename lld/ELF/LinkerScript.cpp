@@ -438,7 +438,7 @@ static void sortSections(MutableArrayRef<InputSectionBase *> vec,
     // ">" is not a mistake. Sections with larger alignments are placed
     // before sections with smaller alignments in order to reduce the
     // amount of padding necessary. This is compatible with GNU.
-    return a->alignment > b->alignment;
+    return a->addralign > b->addralign;
   };
   auto nameComparator = [](InputSectionBase *a, InputSectionBase *b) {
     return a->name < b->name;
@@ -589,7 +589,7 @@ LinkerScript::createInputSectionList(OutputSection &outCmd) {
 
   for (SectionCommand *cmd : outCmd.commands) {
     if (auto *isd = dyn_cast<InputSectionDescription>(cmd)) {
-      isd->sectionBases = computeInputSections(isd, inputSections);
+      isd->sectionBases = computeInputSections(isd, ctx.inputSections);
       for (InputSectionBase *s : isd->sectionBases)
         s->parent = &outCmd;
       ret.insert(ret.end(), isd->sectionBases.begin(), isd->sectionBases.end());
@@ -633,7 +633,7 @@ void LinkerScript::processSectionCommands() {
     if (osec->subalignExpr) {
       uint32_t subalign = osec->subalignExpr().getValue();
       for (InputSectionBase *s : v)
-        s->alignment = subalign;
+        s->addralign = subalign;
     }
 
     // Set the partition field the same way OutputSection::recordSection()
@@ -847,10 +847,10 @@ void LinkerScript::addOrphanSections() {
   // to create target sections first. We do not want priority handling
   // for synthetic sections because them are special.
   size_t n = 0;
-  for (InputSectionBase *isec : inputSections) {
+  for (InputSectionBase *isec : ctx.inputSections) {
     // Process InputSection and MergeInputSection.
     if (LLVM_LIKELY(isa<InputSection>(isec)))
-      inputSections[n++] = isec;
+      ctx.inputSections[n++] = isec;
 
     // In -r links, SHF_LINK_ORDER sections are added while adding their parent
     // sections because we need to know the parent's output section before we
@@ -869,7 +869,7 @@ void LinkerScript::addOrphanSections() {
           add(depSec);
   }
   // Keep just InputSection.
-  inputSections.resize(n);
+  ctx.inputSections.resize(n);
 
   // If no SECTIONS command was given, we should insert sections commands
   // before others, so that we can handle scripts which refers them,
@@ -996,7 +996,7 @@ void LinkerScript::assignOffsets(OutputSection *sec) {
     // sec->alignment is the max of ALIGN and the maximum of input
     // section alignments.
     const uint64_t pos = dot;
-    dot = alignToPowerOf2(dot, sec->alignment);
+    dot = alignToPowerOf2(dot, sec->addralign);
     sec->addr = dot;
     expandMemoryRegions(dot - pos);
   }
@@ -1010,7 +1010,7 @@ void LinkerScript::assignOffsets(OutputSection *sec) {
   if (sec->lmaExpr) {
     state->lmaOffset = sec->lmaExpr().getValue() - dot;
   } else if (MemoryRegion *mr = sec->lmaRegion) {
-    uint64_t lmaStart = alignToPowerOf2(mr->curPos, sec->alignment);
+    uint64_t lmaStart = alignToPowerOf2(mr->curPos, sec->addralign);
     if (mr->curPos < lmaStart)
       expandMemoryRegion(mr, lmaStart - mr->curPos, sec->name);
     state->lmaOffset = lmaStart - dot;
@@ -1053,7 +1053,7 @@ void LinkerScript::assignOffsets(OutputSection *sec) {
     for (InputSection *isec : cast<InputSectionDescription>(cmd)->sections) {
       assert(isec->getParent() == sec);
       const uint64_t pos = dot;
-      dot = alignToPowerOf2(dot, isec->alignment);
+      dot = alignToPowerOf2(dot, isec->addralign);
       isec->outSecOff = dot - sec->addr;
       dot += isec->getSize();
 
@@ -1152,8 +1152,8 @@ void LinkerScript::adjustOutputSections() {
 
     // Handle align (e.g. ".foo : ALIGN(16) { ... }").
     if (sec->alignExpr)
-      sec->alignment =
-          std::max<uint32_t>(sec->alignment, sec->alignExpr().getValue());
+      sec->addralign =
+          std::max<uint32_t>(sec->addralign, sec->alignExpr().getValue());
 
     bool isEmpty = (getFirstInputSection(sec) == nullptr);
     bool discardable = isEmpty && isDiscardable(*sec);
@@ -1405,12 +1405,12 @@ ExprValue LinkerScript::getSymbolValue(StringRef name, const Twine &loc) {
 }
 
 // Returns the index of the segment named Name.
-static Optional<size_t> getPhdrIndex(ArrayRef<PhdrsCommand> vec,
-                                     StringRef name) {
+static std::optional<size_t> getPhdrIndex(ArrayRef<PhdrsCommand> vec,
+                                          StringRef name) {
   for (size_t i = 0; i < vec.size(); ++i)
     if (vec[i].name == name)
       return i;
-  return None;
+  return std::nullopt;
 }
 
 // Returns indices of ELF headers containing specific section. Each index is a
@@ -1419,7 +1419,7 @@ SmallVector<size_t, 0> LinkerScript::getPhdrIndices(OutputSection *cmd) {
   SmallVector<size_t, 0> ret;
 
   for (StringRef s : cmd->phdrs) {
-    if (Optional<size_t> idx = getPhdrIndex(phdrsCommands, s))
+    if (std::optional<size_t> idx = getPhdrIndex(phdrsCommands, s))
       ret.push_back(*idx);
     else if (s != "NONE")
       error(cmd->location + ": program header '" + s +

@@ -16,6 +16,7 @@
 #include "X86BaseInfo.h"
 #include "X86IntelInstPrinter.h"
 #include "X86MCAsmInfo.h"
+#include "X86TargetStreamer.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/DebugInfo/CodeView/CodeView.h"
@@ -642,7 +643,7 @@ Optional<uint64_t> X86MCInstrAnalysis::evaluateMemoryOperandAddress(
   const MCInstrDesc &MCID = Info->get(Inst.getOpcode());
   int MemOpStart = X86II::getMemoryOperandNo(MCID.TSFlags);
   if (MemOpStart == -1)
-    return None;
+    return std::nullopt;
   MemOpStart += X86II::getOperandBias(MCID);
 
   const MCOperand &SegReg = Inst.getOperand(MemOpStart + X86::AddrSegmentReg);
@@ -652,24 +653,24 @@ Optional<uint64_t> X86MCInstrAnalysis::evaluateMemoryOperandAddress(
   const MCOperand &Disp = Inst.getOperand(MemOpStart + X86::AddrDisp);
   if (SegReg.getReg() != 0 || IndexReg.getReg() != 0 || ScaleAmt.getImm() != 1 ||
       !Disp.isImm())
-    return None;
+    return std::nullopt;
 
   // RIP-relative addressing.
   if (BaseReg.getReg() == X86::RIP)
     return Addr + Size + Disp.getImm();
 
-  return None;
+  return std::nullopt;
 }
 
 Optional<uint64_t>
 X86MCInstrAnalysis::getMemoryOperandRelocationOffset(const MCInst &Inst,
                                                      uint64_t Size) const {
   if (Inst.getOpcode() != X86::LEA64r)
-    return None;
+    return std::nullopt;
   const MCInstrDesc &MCID = Info->get(Inst.getOpcode());
   int MemOpStart = X86II::getMemoryOperandNo(MCID.TSFlags);
   if (MemOpStart == -1)
-    return None;
+    return std::nullopt;
   MemOpStart += X86II::getOperandBias(MCID);
   const MCOperand &SegReg = Inst.getOperand(MemOpStart + X86::AddrSegmentReg);
   const MCOperand &BaseReg = Inst.getOperand(MemOpStart + X86::AddrBaseReg);
@@ -679,7 +680,7 @@ X86MCInstrAnalysis::getMemoryOperandRelocationOffset(const MCInst &Inst,
   // Must be a simple rip-relative address.
   if (BaseReg.getReg() != X86::RIP || SegReg.getReg() != 0 ||
       IndexReg.getReg() != 0 || ScaleAmt.getImm() != 1 || !Disp.isImm())
-    return None;
+    return std::nullopt;
   // rip-relative ModR/M immediate is 32 bits.
   assert(Size > 4 && "invalid instruction size for rip-relative lea");
   return Size - 4;
@@ -721,6 +722,9 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeX86TargetMC() {
 
     // Register the asm target streamer.
     TargetRegistry::RegisterAsmTargetStreamer(*T, createX86AsmTargetStreamer);
+
+    // Register the null streamer.
+    TargetRegistry::RegisterNullTargetStreamer(*T, createX86NullTargetStreamer);
 
     TargetRegistry::RegisterCOFFStreamer(*T, createX86WinCOFFStreamer);
 

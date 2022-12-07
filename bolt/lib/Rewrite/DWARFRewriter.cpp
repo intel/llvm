@@ -67,7 +67,7 @@ Optional<AttrInfo> findAttributeInfo(const DWARFDie DIE,
   for (dwarf::Attribute &Attr : Attrs)
     if (Optional<AttrInfo> Info = findAttributeInfo(DIE, Attr))
       return Info;
-  return None;
+  return std::nullopt;
 }
 } // namespace bolt
 } // namespace llvm
@@ -91,7 +91,7 @@ static cl::opt<bool> KeepARanges(
 
 static cl::opt<bool>
 DeterministicDebugInfo("deterministic-debuginfo",
-  cl::desc("disables parallel execution of tasks that may produce"
+  cl::desc("disables parallel execution of tasks that may produce "
            "nondeterministic debug info"),
   cl::init(true),
   cl::cat(BoltCategory));
@@ -302,7 +302,7 @@ void DWARFRewriter::updateDebugInfo() {
       DebugLocWriter->finalize(*DwoDebugInfoPatcher, *DWOAbbrevWriter);
       DwoDebugInfoPatcher->clearDestinationLabels();
       if (!DwoDebugInfoPatcher->getWasRangBasedUsed())
-        RangesBase = None;
+        RangesBase = std::nullopt;
       if (Unit->getVersion() >= 5)
         TempRangesSectionWriter->finalizeSection();
     }
@@ -498,20 +498,20 @@ void DWARFRewriter::updateUnitDebugInfo(
         Optional<uint64_t> Address = AttrVal.V.getAsAddress();
         const BinaryFunction *Function =
             BC.getBinaryFunctionContainingAddress(*Address);
-        uint32_t Index = 0;
-        // Preserving original address instead of using whatever ends up at this
-        // index.
-        if (!Function) {
-          Index = AddrWriter->getIndexFromAddress(*Address, Unit);
-        } else {
-          const uint64_t UpdatedAddress =
-              Function->translateInputToOutputAddress(*Address);
-          Index = AddrWriter->getIndexFromAddress(UpdatedAddress, Unit);
-        }
-        if (AttrVal.V.getForm() == dwarf::DW_FORM_addrx)
+        uint64_t UpdatedAddress = *Address;
+        if (Function)
+          UpdatedAddress =
+              Function->translateInputToOutputAddress(UpdatedAddress);
+
+        if (AttrVal.V.getForm() == dwarf::DW_FORM_addrx) {
+          const uint32_t Index =
+              AddrWriter->getIndexFromAddress(UpdatedAddress, Unit);
           DebugInfoPatcher.addUDataPatch(AttrVal.Offset, Index, AttrVal.Size);
-        else
+        } else if (AttrVal.V.getForm() == dwarf::DW_FORM_addr) {
+          DebugInfoPatcher.addLE32Patch(AttrVal.Offset, UpdatedAddress);
+        } else {
           errs() << "BOLT-ERROR: unsupported form for " << Entry << "\n";
+        }
       };
 
       if (Optional<AttrInfo> AttrVal =
@@ -821,7 +821,7 @@ void DWARFRewriter::updateDWARFObjectAddressRanges(
       DebugInfoPatcher.addLE32Patch(RangesBaseAttrInfo->Offset,
                                     static_cast<uint32_t>(*RangesBase),
                                     RangesBaseAttrInfo->Size);
-      RangesBase = None;
+      RangesBase = std::nullopt;
     }
   }
 
@@ -1218,7 +1218,7 @@ updateDebugData(DWARFContext &DWCtx, std::string &Storage,
 
   auto SectionIter = KnownSections.find(SectionName);
   if (SectionIter == KnownSections.end())
-    return None;
+    return std::nullopt;
 
   Streamer.switchSection(SectionIter->second.first);
   StringRef OutData = SectionContents;

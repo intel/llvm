@@ -1087,8 +1087,8 @@ bool DataFlowSanitizer::initializeModule(Module &M) {
                                 Type::getInt8PtrTy(*Ctx), IntptrTy};
   DFSanSetLabelFnTy = FunctionType::get(Type::getVoidTy(*Ctx),
                                         DFSanSetLabelArgs, /*isVarArg=*/false);
-  DFSanNonzeroLabelFnTy =
-      FunctionType::get(Type::getVoidTy(*Ctx), None, /*isVarArg=*/false);
+  DFSanNonzeroLabelFnTy = FunctionType::get(Type::getVoidTy(*Ctx), std::nullopt,
+                                            /*isVarArg=*/false);
   DFSanVarargWrapperFnTy = FunctionType::get(
       Type::getVoidTy(*Ctx), Type::getInt8PtrTy(*Ctx), /*isVarArg=*/false);
   DFSanConditionalCallbackFnTy =
@@ -1234,19 +1234,22 @@ DataFlowSanitizer::buildWrapperFunction(Function *F, StringRef NewFName,
 
 // Initialize DataFlowSanitizer runtime functions and declare them in the module
 void DataFlowSanitizer::initializeRuntimeFunctions(Module &M) {
+  LLVMContext &C = M.getContext();
   {
     AttributeList AL;
-    AL = AL.addFnAttribute(M.getContext(), Attribute::NoUnwind);
-    AL = AL.addFnAttribute(M.getContext(), Attribute::ReadOnly);
-    AL = AL.addRetAttribute(M.getContext(), Attribute::ZExt);
+    AL = AL.addFnAttribute(C, Attribute::NoUnwind);
+    AL = AL.addFnAttribute(
+        C, Attribute::getWithMemoryEffects(C, MemoryEffects::readOnly()));
+    AL = AL.addRetAttribute(C, Attribute::ZExt);
     DFSanUnionLoadFn =
         Mod->getOrInsertFunction("__dfsan_union_load", DFSanUnionLoadFnTy, AL);
   }
   {
     AttributeList AL;
-    AL = AL.addFnAttribute(M.getContext(), Attribute::NoUnwind);
-    AL = AL.addFnAttribute(M.getContext(), Attribute::ReadOnly);
-    AL = AL.addRetAttribute(M.getContext(), Attribute::ZExt);
+    AL = AL.addFnAttribute(C, Attribute::NoUnwind);
+    AL = AL.addFnAttribute(
+        C, Attribute::getWithMemoryEffects(C, MemoryEffects::readOnly()));
+    AL = AL.addRetAttribute(C, Attribute::ZExt);
     DFSanLoadLabelAndOriginFn = Mod->getOrInsertFunction(
         "__dfsan_load_label_and_origin", DFSanLoadLabelAndOriginFnTy, AL);
   }
@@ -1470,8 +1473,8 @@ bool DataFlowSanitizer::runImpl(
     }
   }
 
-  ReadOnlyNoneAttrs.addAttribute(Attribute::ReadOnly)
-      .addAttribute(Attribute::ReadNone);
+  // TODO: This could be more precise.
+  ReadOnlyNoneAttrs.addAttribute(Attribute::Memory);
 
   // First, change the ABI of every function in the module.  ABI-listed
   // functions keep their original ABI and get a wrapper function.
@@ -2462,7 +2465,7 @@ void DFSanFunction::storePrimitiveShadowOrigin(Value *Addr, uint64_t Size,
   if (LeftSize >= ShadowVecSize) {
     auto *ShadowVecTy =
         FixedVectorType::get(DFS.PrimitiveShadowTy, ShadowVecSize);
-    Value *ShadowVec = UndefValue::get(ShadowVecTy);
+    Value *ShadowVec = PoisonValue::get(ShadowVecTy);
     for (unsigned I = 0; I != ShadowVecSize; ++I) {
       ShadowVec = IRB.CreateInsertElement(
           ShadowVec, PrimitiveShadow,
@@ -3327,46 +3330,6 @@ void DFSanVisitor::visitPHINode(PHINode &PN) {
   }
 
   DFSF.PHIFixups.push_back({&PN, ShadowPN, OriginPN});
-}
-
-namespace {
-class DataFlowSanitizerLegacyPass : public ModulePass {
-private:
-  std::vector<std::string> ABIListFiles;
-
-public:
-  static char ID;
-
-  DataFlowSanitizerLegacyPass(
-      const std::vector<std::string> &ABIListFiles = std::vector<std::string>())
-      : ModulePass(ID), ABIListFiles(ABIListFiles) {}
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequired<TargetLibraryInfoWrapperPass>();
-  }
-
-  bool runOnModule(Module &M) override {
-    return DataFlowSanitizer(ABIListFiles)
-        .runImpl(M, [&](Function &F) -> TargetLibraryInfo & {
-          return getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
-        });
-  }
-};
-} // namespace
-
-char DataFlowSanitizerLegacyPass::ID;
-
-INITIALIZE_PASS_BEGIN(DataFlowSanitizerLegacyPass, "dfsan",
-                      "DataFlowSanitizer: dynamic data flow analysis.", false,
-                      false)
-INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
-INITIALIZE_PASS_END(DataFlowSanitizerLegacyPass, "dfsan",
-                    "DataFlowSanitizer: dynamic data flow analysis.", false,
-                    false)
-
-ModulePass *llvm::createDataFlowSanitizerLegacyPassPass(
-    const std::vector<std::string> &ABIListFiles) {
-  return new DataFlowSanitizerLegacyPass(ABIListFiles);
 }
 
 PreservedAnalyses DataFlowSanitizerPass::run(Module &M,

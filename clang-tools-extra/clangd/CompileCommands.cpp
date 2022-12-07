@@ -13,7 +13,6 @@
 #include "clang/Driver/Driver.h"
 #include "clang/Driver/Options.h"
 #include "clang/Frontend/CompilerInvocation.h"
-#include "clang/Tooling/ArgumentsAdjusters.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
@@ -29,6 +28,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Program.h"
 #include <iterator>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -42,34 +42,34 @@ llvm::Optional<std::string> queryXcrun(llvm::ArrayRef<llvm::StringRef> Argv) {
   auto Xcrun = llvm::sys::findProgramByName("xcrun");
   if (!Xcrun) {
     log("Couldn't find xcrun. Hopefully you have a non-apple toolchain...");
-    return llvm::None;
+    return std::nullopt;
   }
   llvm::SmallString<64> OutFile;
   llvm::sys::fs::createTemporaryFile("clangd-xcrun", "", OutFile);
   llvm::FileRemover OutRemover(OutFile);
-  llvm::Optional<llvm::StringRef> Redirects[3] = {
+  std::optional<llvm::StringRef> Redirects[3] = {
       /*stdin=*/{""}, /*stdout=*/{OutFile.str()}, /*stderr=*/{""}};
   vlog("Invoking {0} to find clang installation", *Xcrun);
   int Ret = llvm::sys::ExecuteAndWait(*Xcrun, Argv,
-                                      /*Env=*/llvm::None, Redirects,
+                                      /*Env=*/std::nullopt, Redirects,
                                       /*SecondsToWait=*/10);
   if (Ret != 0) {
     log("xcrun exists but failed with code {0}. "
         "If you have a non-apple toolchain, this is OK. "
         "Otherwise, try xcode-select --install.",
         Ret);
-    return llvm::None;
+    return std::nullopt;
   }
 
   auto Buf = llvm::MemoryBuffer::getFile(OutFile);
   if (!Buf) {
     log("Can't read xcrun output: {0}", Buf.getError().message());
-    return llvm::None;
+    return std::nullopt;
   }
   StringRef Path = Buf->get()->getBuffer().trim();
   if (Path.empty()) {
     log("xcrun produced no output");
-    return llvm::None;
+    return std::nullopt;
   }
   return Path.str();
 }
@@ -120,12 +120,12 @@ std::string detectClangPath() {
 // The effect of this is to set -isysroot correctly. We do the same.
 llvm::Optional<std::string> detectSysroot() {
 #ifndef __APPLE__
-  return llvm::None;
+  return std::nullopt;
 #endif
 
   // SDKROOT overridden in environment, respect it. Driver will set isysroot.
   if (::getenv("SDKROOT"))
-    return llvm::None;
+    return std::nullopt;
   return queryXcrun({"xcrun", "--show-sdk-path"});
 }
 
@@ -195,8 +195,9 @@ CommandMangler CommandMangler::detect() {
 
 CommandMangler CommandMangler::forTests() { return CommandMangler(); }
 
-void CommandMangler::adjust(std::vector<std::string> &Cmd,
-                            llvm::StringRef File) const {
+void CommandMangler::operator()(tooling::CompileCommand &Command,
+                                llvm::StringRef File) const {
+  std::vector<std::string> &Cmd = Command.CommandLine;
   trace::Span S("AdjustCompileFlags");
   // Most of the modifications below assumes the Cmd starts with a driver name.
   // We might consider injecting a generic driver name like "cc" or "c++", but
@@ -301,6 +302,17 @@ void CommandMangler::adjust(std::vector<std::string> &Cmd,
   for (auto &Edit : Config::current().CompileFlags.Edits)
     Edit(Cmd);
 
+  // The system include extractor needs to run:
+  //  - AFTER transferCompileCommand(), because the -x flag it adds may be
+  //    necessary for the system include extractor to identify the file type
+  //  - AFTER applying CompileFlags.Edits, because the name of the compiler
+  //    that needs to be invoked may come from the CompileFlags->Compiler key
+  //  - BEFORE resolveDriver() because that can mess up the driver path,
+  //    e.g. changing gcc to /path/to/clang/bin/gcc
+  if (SystemIncludeExtractor) {
+    SystemIncludeExtractor(Command, File);
+  }
+
   // Check whether the flag exists, either as -flag or -flag=*
   auto Has = [&](llvm::StringRef Flag) {
     for (llvm::StringRef Arg : Cmd) {
@@ -338,16 +350,6 @@ void CommandMangler::adjust(std::vector<std::string> &Cmd,
               return resolveDriver(Cmd.front(), FollowSymlink, ClangPath);
             });
   }
-}
-
-CommandMangler::operator clang::tooling::ArgumentsAdjuster() && {
-  // ArgumentsAdjuster is a std::function and so must be copyable.
-  return [Mangler = std::make_shared<CommandMangler>(std::move(*this))](
-             const std::vector<std::string> &Args, llvm::StringRef File) {
-    auto Result = Args;
-    Mangler->adjust(Result, File);
-    return Result;
-  };
 }
 
 // ArgStripper implementation

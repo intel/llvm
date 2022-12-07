@@ -129,6 +129,7 @@
 #include "llvm/Transforms/Utils/CallGraphUpdater.h"
 
 #include <map>
+#include <optional>
 
 namespace llvm {
 
@@ -209,9 +210,84 @@ Optional<Value *>
 combineOptionalValuesInAAValueLatice(const Optional<Value *> &A,
                                      const Optional<Value *> &B, Type *Ty);
 
+/// Helper to represent an access offset and size, with logic to deal with
+/// uncertainty and check for overlapping accesses.
+struct OffsetAndSize {
+  int64_t Offset = Unassigned;
+  int64_t Size = Unassigned;
+
+  OffsetAndSize(int64_t Offset, int64_t Size) : Offset(Offset), Size(Size) {}
+  OffsetAndSize() = default;
+  static OffsetAndSize getUnknown() { return OffsetAndSize{Unknown, Unknown}; }
+
+  /// Return true if offset or size are unknown.
+  bool offsetOrSizeAreUnknown() const {
+    return Offset == OffsetAndSize::Unknown || Size == OffsetAndSize::Unknown;
+  }
+
+  /// Return true if offset and size are unknown, thus this is the default
+  /// unknown object.
+  bool offsetAndSizeAreUnknown() const {
+    return Offset == OffsetAndSize::Unknown && Size == OffsetAndSize::Unknown;
+  }
+
+  /// Return true if the offset and size are unassigned.
+  bool isUnassigned() const {
+    assert((Offset == OffsetAndSize::Unassigned) ==
+               (Size == OffsetAndSize::Unassigned) &&
+           "Inconsistent state!");
+    return Offset == OffsetAndSize::Unassigned;
+  }
+
+  /// Return true if this offset and size pair might describe an address that
+  /// overlaps with \p OAS.
+  bool mayOverlap(const OffsetAndSize &OAS) const {
+    // Any unknown value and we are giving up -> overlap.
+    if (offsetOrSizeAreUnknown() || OAS.offsetOrSizeAreUnknown())
+      return true;
+
+    // Check if one offset point is in the other interval [offset,
+    // offset+size].
+    return OAS.Offset + OAS.Size > Offset && OAS.Offset < Offset + Size;
+  }
+
+  OffsetAndSize &operator&=(const OffsetAndSize &R) {
+    if (Offset == Unassigned)
+      Offset = R.Offset;
+    else if (R.Offset != Unassigned && R.Offset != Offset)
+      Offset = Unknown;
+
+    if (Size == Unassigned)
+      Size = R.Size;
+    else if (Size == Unknown || R.Size == Unknown)
+      Size = Unknown;
+    else if (R.Size != Unassigned)
+      Size = std::max(Size, R.Size);
+
+    return *this;
+  }
+
+  /// Constants used to represent special offsets or sizes.
+  /// - This assumes that Offset and Size are non-negative.
+  /// - The constants should not clash with DenseMapInfo, such as EmptyKey
+  ///   (INT64_MAX) and TombstoneKey (INT64_MIN).
+  static constexpr int64_t Unassigned = -1;
+  static constexpr int64_t Unknown = -2;
+};
+
+inline bool operator==(const OffsetAndSize &A, const OffsetAndSize &B) {
+  return A.Offset == B.Offset && A.Size == B.Size;
+}
+
+inline bool operator!=(const OffsetAndSize &A, const OffsetAndSize &B) {
+  return !(A == B);
+}
+
 /// Return the initial value of \p Obj with type \p Ty if that is a constant.
 Constant *getInitialValueForObj(Value &Obj, Type &Ty,
-                                const TargetLibraryInfo *TLI);
+                                const TargetLibraryInfo *TLI,
+                                const DataLayout &DL,
+                                OffsetAndSize *OASPtr = nullptr);
 
 /// Collect all potential underlying objects of \p Ptr at position \p CtxI in
 /// \p Objects. Assumed information is used and dependences onto \p QueryingAA
@@ -1272,7 +1348,7 @@ struct AttributorConfig {
   DenseSet<const char *> *Allowed = nullptr;
 
   /// Maximum number of iterations to run until fixpoint.
-  Optional<unsigned> MaxFixpointIterations = None;
+  std::optional<unsigned> MaxFixpointIterations = std::nullopt;
 
   /// A callback function that returns an ORE object from a Function pointer.
   ///{
@@ -1624,14 +1700,13 @@ struct Attributor {
     }
     Value &V = IRP.getAssociatedValue();
     auto &Entry = ToBeChangedValues[&V];
-    Value *&CurNV = Entry.first;
+    Value *CurNV = get<0>(Entry);
     if (CurNV && (CurNV->stripPointerCasts() == NV.stripPointerCasts() ||
                   isa<UndefValue>(CurNV)))
       return false;
     assert((!CurNV || CurNV == &NV || isa<UndefValue>(NV)) &&
            "Value replacement was registered twice with different values!");
-    CurNV = &NV;
-    Entry.second = ChangeDroppable;
+    Entry = {&NV, ChangeDroppable};
     return true;
   }
 
@@ -2189,7 +2264,8 @@ private:
 
   /// Values we replace with a new value after manifest is done. We will remove
   /// then trivially dead instructions as well.
-  SmallMapVector<Value *, std::pair<Value *, bool>, 32> ToBeChangedValues;
+  SmallMapVector<Value *, PointerIntPair<Value *, 1, bool>, 32>
+      ToBeChangedValues;
 
   /// Instructions we replace with `unreachable` insts after manifest is done.
   SmallSetVector<WeakVH, 16> ToBeChangedToUnreachableInsts;
@@ -3066,11 +3142,6 @@ ChangeStatus clampStateAndIndicateChange(StateType &S, const StateType &R) {
 struct AAReturnedValues
     : public IRAttribute<Attribute::Returned, AbstractAttribute> {
   AAReturnedValues(const IRPosition &IRP, Attributor &A) : IRAttribute(IRP) {}
-
-  /// Return an assumed unique return value if a single candidate is found. If
-  /// there cannot be one, return a nullptr. If it is not clear yet, return the
-  /// Optional::NoneType.
-  Optional<Value *> getAssumedUniqueReturnValue(Attributor &A) const;
 
   /// Check \p Pred on all returned values.
   ///
@@ -4321,7 +4392,7 @@ struct AAValueConstantRange
           AA::getWithType(*ConstantInt::get(Ty->getContext(), *C), *Ty));
     }
     if (RangeV.isEmptySet())
-      return llvm::None;
+      return std::nullopt;
     return nullptr;
   }
 
@@ -4576,7 +4647,7 @@ struct AAPotentialConstantValues
     if (getAssumedSet().size() == 0) {
       if (undefIsContained())
         return UndefValue::get(getAssociatedValue().getType());
-      return llvm::None;
+      return std::nullopt;
     }
 
     return nullptr;
@@ -4933,33 +5004,47 @@ struct AAPointerInfo : public AbstractAttribute {
 
   /// An access description.
   struct Access {
-    Access(Instruction *I, Optional<Value *> Content, AccessKind Kind, Type *Ty)
-        : LocalI(I), RemoteI(I), Content(Content), Kind(Kind), Ty(Ty) {
+    Access(Instruction *I, int64_t Offset, int64_t Size,
+           Optional<Value *> Content, AccessKind Kind, Type *Ty)
+        : LocalI(I), RemoteI(I), Content(Content), OAS(Offset, Size),
+          Kind(Kind), Ty(Ty) {
       verify();
     }
-    Access(Instruction *LocalI, Instruction *RemoteI, Optional<Value *> Content,
-           AccessKind Kind, Type *Ty)
-        : LocalI(LocalI), RemoteI(RemoteI), Content(Content), Kind(Kind),
-          Ty(Ty) {
+    Access(Instruction *LocalI, Instruction *RemoteI, int64_t Offset,
+           int64_t Size, Optional<Value *> Content, AccessKind Kind, Type *Ty)
+        : LocalI(LocalI), RemoteI(RemoteI), Content(Content), OAS(Offset, Size),
+          Kind(Kind), Ty(Ty) {
       verify();
     }
     Access(const Access &Other) = default;
     Access(const Access &&Other)
         : LocalI(Other.LocalI), RemoteI(Other.RemoteI), Content(Other.Content),
-          Kind(Other.Kind), Ty(Other.Ty) {}
+          OAS(Other.OAS), Kind(Other.Kind), Ty(Other.Ty) {}
 
     Access &operator=(const Access &Other) = default;
     bool operator==(const Access &R) const {
-      return LocalI == R.LocalI && RemoteI == R.RemoteI &&
+      return LocalI == R.LocalI && RemoteI == R.RemoteI && OAS == R.OAS &&
              Content == R.Content && Kind == R.Kind;
     }
     bool operator!=(const Access &R) const { return !(*this == R); }
 
     Access &operator&=(const Access &R) {
       assert(RemoteI == R.RemoteI && "Expected same instruction!");
-      Content =
-          AA::combineOptionalValuesInAAValueLatice(Content, R.Content, Ty);
+      assert(LocalI == R.LocalI && "Expected same instruction!");
       Kind = AccessKind(Kind | R.Kind);
+      auto Before = OAS;
+      OAS &= R.OAS;
+      if (Before.isUnassigned() || Before == OAS) {
+        Content =
+            AA::combineOptionalValuesInAAValueLatice(Content, R.Content, Ty);
+      } else {
+        // Since the OAS information changed, set a conservative state -- drop
+        // the contents, and assume MayAccess rather than MustAccess.
+        setWrittenValueUnknown();
+        Kind = AccessKind(Kind | AK_MAY);
+        Kind = AccessKind(Kind & ~AK_MUST);
+      }
+      verify();
       return *this;
     }
 
@@ -4995,17 +5080,28 @@ struct AAPointerInfo : public AbstractAttribute {
       return Content.has_value() && !*Content;
     }
 
+    /// Set the value written to nullptr, i.e., unknown.
+    void setWrittenValueUnknown() { Content = nullptr; }
+
     /// Return the type associated with the access, if known.
     Type *getType() const { return Ty; }
 
-    /// Return the value writen, if any. As long as
-    /// isWrittenValueYetUndetermined return true this function shall not be
-    /// called.
-    Value *getWrittenValue() const { return *Content; }
+    /// Return the value writen, if any.
+    Value *getWrittenValue() const {
+      assert(!isWrittenValueYetUndetermined() &&
+             "Value needs to be determined before accessing it.");
+      return *Content;
+    }
 
     /// Return the written value which can be `llvm::null` if it is not yet
     /// determined.
     Optional<Value *> getContent() const { return Content; }
+
+    /// Return the offset for this access.
+    int64_t getOffset() const { return OAS.Offset; }
+
+    /// Return the size for this access.
+    int64_t getSize() const { return OAS.Size; }
 
   private:
     /// The instruction responsible for the access with respect to the local
@@ -5018,6 +5114,9 @@ struct AAPointerInfo : public AbstractAttribute {
     /// The value written, if any. `llvm::none` means "not known yet", `nullptr`
     /// cannot be determined.
     Optional<Value *> Content;
+
+    /// The object accessed, in terms of an offset and size in bytes.
+    AA::OffsetAndSize OAS;
 
     /// The access kind, e.g., READ, as bitset (could be more than one).
     AccessKind Kind;
@@ -5036,48 +5135,13 @@ struct AAPointerInfo : public AbstractAttribute {
   /// See AbstractAttribute::getIdAddr()
   const char *getIdAddr() const override { return &ID; }
 
-  /// Helper to represent an access offset and size, with logic to deal with
-  /// uncertainty and check for overlapping accesses.
-  struct OffsetAndSize : public std::pair<int64_t, int64_t> {
-    using BaseTy = std::pair<int64_t, int64_t>;
-    OffsetAndSize(int64_t Offset, int64_t Size) : BaseTy(Offset, Size) {}
-    OffsetAndSize(const BaseTy &P) : BaseTy(P) {}
-    int64_t getOffset() const { return first; }
-    int64_t getSize() const { return second; }
-    static OffsetAndSize getUnknown() {
-      return OffsetAndSize(Unknown, Unknown);
-    }
-
-    /// Return true if offset or size are unknown.
-    bool offsetOrSizeAreUnknown() const {
-      return getOffset() == OffsetAndSize::Unknown ||
-             getSize() == OffsetAndSize::Unknown;
-    }
-
-    /// Return true if this offset and size pair might describe an address that
-    /// overlaps with \p OAS.
-    bool mayOverlap(const OffsetAndSize &OAS) const {
-      // Any unknown value and we are giving up -> overlap.
-      if (offsetOrSizeAreUnknown() || OAS.offsetOrSizeAreUnknown())
-        return true;
-
-      // Check if one offset point is in the other interval [offset,
-      // offset+size].
-      return OAS.getOffset() + OAS.getSize() > getOffset() &&
-             OAS.getOffset() < getOffset() + getSize();
-    }
-
-    /// Constants used to represent special offsets or sizes.
-    static constexpr int64_t Unassigned = -1;
-    static constexpr int64_t Unknown = -2;
-  };
-
   /// Call \p CB on all accesses that might interfere with \p OAS and return
   /// true if all such accesses were known and the callback returned true for
   /// all of them, false otherwise. An access interferes with an offset-size
   /// pair if it might read or write that memory region.
   virtual bool forallInterferingAccesses(
-      OffsetAndSize OAS, function_ref<bool(const Access &, bool)> CB) const = 0;
+      AA::OffsetAndSize OAS,
+      function_ref<bool(const Access &, bool)> CB) const = 0;
 
   /// Call \p CB on all accesses that might interfere with \p I and
   /// return true if all such accesses were known and the callback returned true
@@ -5086,11 +5150,10 @@ struct AAPointerInfo : public AbstractAttribute {
   /// affect the load even if they on the surface look as if they would. The
   /// flag \p HasBeenWrittenTo will be set to true if we know that \p I does not
   /// read the intial value of the underlying memory.
-  virtual bool
-  forallInterferingAccesses(Attributor &A, const AbstractAttribute &QueryingAA,
-                            Instruction &I,
-                            function_ref<bool(const Access &, bool)> CB,
-                            bool &HasBeenWrittenTo) const = 0;
+  virtual bool forallInterferingAccesses(
+      Attributor &A, const AbstractAttribute &QueryingAA, Instruction &I,
+      function_ref<bool(const Access &, bool)> CB, bool &HasBeenWrittenTo,
+      AA::OffsetAndSize &OAS) const = 0;
 
   /// This function should return true if the type of the \p AA is AAPointerInfo
   static bool classof(const AbstractAttribute *AA) {

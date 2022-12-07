@@ -13,6 +13,15 @@
 using namespace llvm;
 using namespace llvm::objcopy::macho;
 
+Section::Section(StringRef SegName, StringRef SectName)
+    : Segname(SegName), Sectname(SectName),
+      CanonicalName((Twine(SegName) + Twine(',') + SectName).str()) {}
+
+Section::Section(StringRef SegName, StringRef SectName, StringRef Content)
+    : Segname(SegName), Sectname(SectName),
+      CanonicalName((Twine(SegName) + Twine(',') + SectName).str()),
+      Content(Content) {}
+
 const SymbolEntry *SymbolTable::getSymbolByIndex(uint32_t Index) const {
   assert(Index < Symbols.size() && "invalid symbol index");
   return Symbols[Index].get();
@@ -65,6 +74,9 @@ void Object::updateLoadCommandIndexes() {
       break;
     case MachO::LC_FUNCTION_STARTS:
       FunctionStartsCommandIndex = Index;
+      break;
+    case MachO::LC_DYLIB_CODE_SIGN_DRS:
+      DylibCodeSignDRsIndex = Index;
       break;
     case MachO::LC_DYLD_CHAINED_FIXUPS:
       ChainedFixupsCommandIndex = Index;
@@ -197,7 +209,7 @@ Optional<StringRef> LoadCommand::getSegmentName() const {
   case MachO::LC_SEGMENT_64:
     return extractSegmentName(MLC.segment_command_64_data.segname);
   default:
-    return None;
+    return std::nullopt;
   }
 }
 
@@ -209,6 +221,6 @@ Optional<uint64_t> LoadCommand::getSegmentVMAddr() const {
   case MachO::LC_SEGMENT_64:
     return MLC.segment_command_64_data.vmaddr;
   default:
-    return None;
+    return std::nullopt;
   }
 }

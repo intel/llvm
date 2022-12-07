@@ -46,12 +46,6 @@ private:
 template <int Dimensions, typename AllocatorT> class image;
 
 // Image property trait specializations
-template <>
-struct is_property<property::image::use_host_ptr> : std::true_type {};
-template <> struct is_property<property::image::use_mutex> : std::true_type {};
-template <>
-struct is_property<property::image::context_bound> : std::true_type {};
-
 template <int Dimensions, typename AllocatorT>
 struct is_property_of<property::image::use_host_ptr,
                       image<Dimensions, AllocatorT>> : std::true_type {};

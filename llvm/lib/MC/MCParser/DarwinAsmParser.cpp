@@ -472,7 +472,7 @@ public:
 } // end anonymous namespace
 
 bool DarwinAsmParser::parseSectionSwitch(StringRef Segment, StringRef Section,
-                                         unsigned TAA, unsigned Align,
+                                         unsigned TAA, unsigned Alignment,
                                          unsigned StubSize) {
   if (getLexer().isNot(AsmToken::EndOfStatement))
     return TokError("unexpected token in section switching directive");
@@ -492,8 +492,8 @@ bool DarwinAsmParser::parseSectionSwitch(StringRef Segment, StringRef Section,
   // the section. However, this is arguably more reasonable behavior, and there
   // is no good reason for someone to intentionally emit incorrectly sized
   // values into the implicitly aligned sections.
-  if (Align)
-    getStreamer().emitValueToAlignment(Align);
+  if (Alignment)
+    getStreamer().emitValueToAlignment(Align(Alignment));
 
   return false;
 }
@@ -767,8 +767,8 @@ bool DarwinAsmParser::parseDirectiveSecureLogUnique(StringRef, SMLoc IDLoc) {
     return Error(IDLoc, ".secure_log_unique specified multiple times");
 
   // Get the secure log path.
-  const char *SecureLogFile = getContext().getSecureLogFile();
-  if (!SecureLogFile)
+  StringRef SecureLogFile = getContext().getSecureLogFile();
+  if (SecureLogFile.empty())
     return Error(IDLoc, ".secure_log_unique used but AS_SECURE_LOG_FILE "
                  "environment variable unset.");
 
@@ -776,9 +776,8 @@ bool DarwinAsmParser::parseDirectiveSecureLogUnique(StringRef, SMLoc IDLoc) {
   raw_fd_ostream *OS = getContext().getSecureLog();
   if (!OS) {
     std::error_code EC;
-    auto NewOS = std::make_unique<raw_fd_ostream>(StringRef(SecureLogFile), EC,
-                                                  sys::fs::OF_Append |
-                                                      sys::fs::OF_TextWithCRLF);
+    auto NewOS = std::make_unique<raw_fd_ostream>(
+        SecureLogFile, EC, sys::fs::OF_Append | sys::fs::OF_TextWithCRLF);
     if (EC)
        return Error(IDLoc, Twine("can't open secure log file: ") +
                                SecureLogFile + " (" + EC.message() + ")");

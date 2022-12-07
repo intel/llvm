@@ -77,9 +77,11 @@ Decl *Parser::ParseHLSLBuffer(SourceLocation &DeclEnd) {
 
   while (Tok.isNot(tok::r_brace) && Tok.isNot(tok::eof)) {
     // FIXME: support attribute on constants inside cbuffer/tbuffer.
-    ParsedAttributes Attrs(AttrFactory);
+    ParsedAttributes DeclAttrs(AttrFactory);
+    ParsedAttributes EmptyDeclSpecAttrs(AttrFactory);
 
-    DeclGroupPtrTy Result = ParseExternalDeclaration(Attrs);
+    DeclGroupPtrTy Result =
+        ParseExternalDeclaration(DeclAttrs, EmptyDeclSpecAttrs);
     if (!validateDeclsInsideHLSLBuffer(Result, IdentifierLoc, IsCBuffer,
                                        *this)) {
       T.skipToEnd();
@@ -186,6 +188,7 @@ void Parser::ParseHLSLSemantics(ParsedAttributes &Attrs,
     Diag(Loc, diag::err_unknown_hlsl_semantic) << II;
     return;
   case ParsedAttr::AT_HLSLSV_GroupIndex:
+  case ParsedAttr::AT_HLSLSV_DispatchThreadID:
     break;
   default:
     llvm_unreachable("invalid HLSL Semantic");

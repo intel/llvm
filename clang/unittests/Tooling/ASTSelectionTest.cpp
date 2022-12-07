@@ -101,22 +101,22 @@ void checkDeclName(const SelectedASTNode &Node, StringRef Name) {
 }
 
 template <typename T>
-const SelectedASTNode &checkNode(
-    const SelectedASTNode &StmtNode, SourceSelectionKind SelectionKind,
-    unsigned NumChildren = 0,
-    std::enable_if_t<std::is_base_of<Stmt, T>::value, T> *StmtOverloadChecker =
-        nullptr) {
+const SelectedASTNode &
+checkNode(const SelectedASTNode &StmtNode, SourceSelectionKind SelectionKind,
+          unsigned NumChildren = 0,
+          std::enable_if_t<std::is_base_of_v<Stmt, T>, T> *StmtOverloadChecker =
+              nullptr) {
   checkNodeImpl(isa<T>(StmtNode.Node.get<Stmt>()), StmtNode, SelectionKind,
                 NumChildren);
   return StmtNode;
 }
 
 template <typename T>
-const SelectedASTNode &checkNode(
-    const SelectedASTNode &DeclNode, SourceSelectionKind SelectionKind,
-    unsigned NumChildren = 0, StringRef Name = "",
-    std::enable_if_t<std::is_base_of<Decl, T>::value, T> *DeclOverloadChecker =
-        nullptr) {
+const SelectedASTNode &
+checkNode(const SelectedASTNode &DeclNode, SourceSelectionKind SelectionKind,
+          unsigned NumChildren = 0, StringRef Name = "",
+          std::enable_if_t<std::is_base_of_v<Decl, T>, T> *DeclOverloadChecker =
+              nullptr) {
   checkNodeImpl(isa<T>(DeclNode.Node.get<Decl>()), DeclNode, SelectionKind,
                 NumChildren);
   if (!Name.empty())
@@ -149,13 +149,13 @@ ForAllChildrenOf allChildrenOf(const SelectedASTNode &Node) {
 
 TEST(ASTSelectionFinder, CursorNoSelection) {
   findSelectedASTNodes(
-      " void f() { }", {1, 1}, None,
+      " void f() { }", {1, 1}, std::nullopt,
       [](Optional<SelectedASTNode> Node) { EXPECT_FALSE(Node); });
 }
 
 TEST(ASTSelectionFinder, CursorAtStartOfFunction) {
   findSelectedASTNodes(
-      "void f() { }", {1, 1}, None, [](Optional<SelectedASTNode> Node) {
+      "void f() { }", {1, 1}, std::nullopt, [](Optional<SelectedASTNode> Node) {
         EXPECT_TRUE(Node);
         checkNode<TranslationUnitDecl>(*Node, SourceSelectionKind::None,
                                        /*NumChildren=*/1);
@@ -525,15 +525,15 @@ TEST(ASTSelectionFinder, CorrectEndForObjectiveCImplementation) {
 @ end
 )";
   // Just after '@ end'
-  findSelectedASTNodes(Source, {5, 6}, None,
-                       [](Optional<SelectedASTNode> Node) {
-                         EXPECT_TRUE(Node);
-                         EXPECT_EQ(Node->Children.size(), 1u);
-                         checkNode<ObjCImplementationDecl>(
-                             Node->Children[0],
-                             SourceSelectionKind::ContainsSelection);
-                       },
-                       SelectionFinderVisitor::Lang_OBJC);
+  findSelectedASTNodes(
+      Source, {5, 6}, std::nullopt,
+      [](Optional<SelectedASTNode> Node) {
+        EXPECT_TRUE(Node);
+        EXPECT_EQ(Node->Children.size(), 1u);
+        checkNode<ObjCImplementationDecl>(
+            Node->Children[0], SourceSelectionKind::ContainsSelection);
+      },
+      SelectionFinderVisitor::Lang_OBJC);
 }
 
 const SelectedASTNode &checkFnBody(const Optional<SelectedASTNode> &Node,
@@ -688,7 +688,7 @@ void f2() {
 )";
   // No selection range.
   findSelectedASTNodesWithRange(
-      Source, {2, 2}, None,
+      Source, {2, 2}, std::nullopt,
       [](SourceRange SelectionRange, Optional<SelectedASTNode> Node) {
         EXPECT_TRUE(Node);
         Optional<CodeRangeASTSelection> SelectedCode =

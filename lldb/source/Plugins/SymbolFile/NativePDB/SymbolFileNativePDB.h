@@ -148,7 +148,7 @@ public:
                  llvm::DenseSet<SymbolFile *> &searched_symbol_files,
                  TypeMap &types) override;
 
-  llvm::Expected<TypeSystem &>
+  llvm::Expected<lldb::TypeSystemSP>
   GetTypeSystemForLanguage(lldb::LanguageType language) override;
 
   CompilerDeclContext
@@ -267,6 +267,9 @@ private:
 
   lldb::addr_t m_obj_load_address = 0;
   bool m_done_full_type_scan = false;
+  // UID for anonymous union and anonymous struct as they don't have entities in
+  // pdb debug info.
+  lldb::user_id_t anonymous_id = LLDB_INVALID_UID - 1;
 
   std::unique_ptr<llvm::pdb::PDBFile> m_file_up;
   std::unique_ptr<PdbIndex> m_index;

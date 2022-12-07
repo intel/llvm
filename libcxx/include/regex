@@ -769,9 +769,11 @@ typedef regex_token_iterator<wstring::const_iterator> wsregex_token_iterator;
 #include <__iterator/back_insert_iterator.h>
 #include <__iterator/wrap_iter.h>
 #include <__locale>
+#include <__memory_resource/polymorphic_allocator.h>
 #include <__utility/move.h>
 #include <__utility/pair.h>
 #include <__utility/swap.h>
+#include <cstring>
 #include <deque>
 #include <stdexcept>
 #include <string>
@@ -1024,7 +1026,7 @@ public:
     typedef _CharT                  char_type;
     typedef basic_string<char_type> string_type;
     typedef locale                  locale_type;
-#ifdef __BIONIC__
+#if defined(__BIONIC__) || defined(_NEWLIB_VERSION)
     // Originally bionic's ctype_base used its own ctype masks because the
     // builtin ctype implementation wasn't in libc++ yet. Bionic's ctype mask
     // was only 8 bits wide and already saturated, so it used a wider type here
@@ -1033,6 +1035,11 @@ public:
     // implementation, but this was not updated to match. Since then Android has
     // needed to maintain a stable libc++ ABI, and this can't be changed without
     // an ABI break.
+    // We also need this workaround for newlib since _NEWLIB_VERSION is not
+    // defined yet inside __config, so we can't set the
+    // _LIBCPP_PROVIDES_DEFAULT_RUNE_TABLE macro. Additionally, newlib is
+    // often used for space constrained environments, so it makes sense not to
+    // duplicate the ctype table.
     typedef uint16_t char_class_type;
 #else
     typedef ctype_base::mask        char_class_type;
@@ -6837,10 +6844,32 @@ regex_replace(const _CharT* __s,
 
 _LIBCPP_END_NAMESPACE_STD
 
+#if _LIBCPP_STD_VER > 14
+_LIBCPP_BEGIN_NAMESPACE_STD
+namespace pmr {
+template <class _BidirT>
+using match_results = std::match_results<_BidirT, polymorphic_allocator<std::sub_match<_BidirT>>>;
+
+using cmatch  = match_results<const char*>;
+using smatch  = match_results<std::pmr::string::const_iterator>;
+
+#ifndef _LIBCPP_HAS_NO_WIDE_CHARACTERS
+using wcmatch = match_results<const wchar_t*>;
+using wsmatch = match_results<std::pmr::wstring::const_iterator>;
+#endif
+} // namespace pmr
+_LIBCPP_END_NAMESPACE_STD
+#endif
+
 _LIBCPP_POP_MACROS
 
 #if !defined(_LIBCPP_REMOVE_TRANSITIVE_INCLUDES) && _LIBCPP_STD_VER <= 20
+#  include <atomic>
+#  include <concepts>
+#  include <iosfwd>
 #  include <iterator>
+#  include <new>
+#  include <typeinfo>
 #  include <utility>
 #endif
 

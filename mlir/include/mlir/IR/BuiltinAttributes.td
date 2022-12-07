@@ -72,7 +72,7 @@ def Builtin_AffineMapAttr : Builtin_Attr<"AffineMap", [
 //===----------------------------------------------------------------------===//
 
 def Builtin_ArrayAttr : Builtin_Attr<"Array", [
-    DeclareAttrInterfaceMethods<SubElementAttrInterface>
+    SubElementAttrInterface
   ]> {
   let summary = "A collection of other Attribute values";
   let description = [{
@@ -510,7 +510,7 @@ def Builtin_DenseResourceElementsAttr : Builtin_Attr<"DenseResourceElements", [
 //===----------------------------------------------------------------------===//
 
 def Builtin_DictionaryAttr : Builtin_Attr<"Dictionary", [
-    DeclareAttrInterfaceMethods<SubElementAttrInterface>
+    SubElementAttrInterface
   ]> {
   let summary = "An dictionary of named Attribute values";
   let description = [{
@@ -1009,7 +1009,7 @@ def StridedLayoutAttr : Builtin_Attr<"StridedLayout",
     Strides must be positive and the offset must be non-negative. Both the
     strides and the offset may be _dynamic_, i.e. their value may not be known
     at compile time. This is expressed as a `?` in the assembly syntax and as
-    `ShapedType::kDynamicStrideOrOffset` in the code. Stride and offset values
+    `ShapedType::kDynamic` in the code. Stride and offset values
     must satisfy the constraints above at runtime, the behavior is undefined
     otherwise.
 
@@ -1115,7 +1115,7 @@ def Builtin_StringAttr : Builtin_Attr<"String", [TypedAttrInterface]> {
 //===----------------------------------------------------------------------===//
 
 def Builtin_SymbolRefAttr : Builtin_Attr<"SymbolRef", [
-    DeclareAttrInterfaceMethods<SubElementAttrInterface>
+    SubElementAttrInterface
   ]> {
   let summary = "An Attribute containing a symbolic reference to an Operation";
   let description = [{
@@ -1190,7 +1190,7 @@ def Builtin_SymbolRefAttr : Builtin_Attr<"SymbolRef", [
 //===----------------------------------------------------------------------===//
 
 def Builtin_TypeAttr : Builtin_Attr<"Type", [
-    DeclareAttrInterfaceMethods<SubElementAttrInterface>
+    SubElementAttrInterface
   ]> {
   let summary = "An Attribute containing a Type";
   let description = [{

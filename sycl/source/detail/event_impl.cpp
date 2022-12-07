@@ -60,20 +60,22 @@ event_impl::~event_impl() {
 
 void event_impl::waitInternal() {
   if (!MHostEvent && MEvent) {
+    // Wait for the native event
     getPlugin().call<PiApiKind::piEventsWait>(1, &MEvent);
-    return;
-  }
-
-  if (MState == HES_Discarded)
+  } else if (MState == HES_Discarded) {
+    // Waiting for the discarded event is invalid
     throw sycl::exception(
         make_error_code(errc::invalid),
         "waitInternal method cannot be used for a discarded event.");
+  } else if (MState != HES_Complete) {
+    // Wait for the host event
+    std::unique_lock<std::mutex> lock(MMutex);
+    cv.wait(lock, [this] { return MState == HES_Complete; });
+  }
 
-  if (MState == HES_Complete)
-    return;
-
-  std::unique_lock<std::mutex> lock(MMutex);
-  cv.wait(lock, [this] { return MState == HES_Complete; });
+  // Wait for connected events(e.g. streams prints)
+  for (const EventImplPtr &Event : MPostCompleteEvents)
+    Event->wait(Event);
 }
 
 void event_impl::setComplete() {
@@ -236,27 +238,10 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self) {
 
 void event_impl::wait_and_throw(
     std::shared_ptr<sycl::detail::event_impl> Self) {
-  Scheduler &Sched = Scheduler::getInstance();
-
-  QueueImplPtr submittedQueue = nullptr;
-  {
-    Scheduler::ReadLockT Lock(Sched.MGraphLock);
-    Command *Cmd = static_cast<Command *>(Self->getCommand());
-    if (Cmd)
-      submittedQueue = Cmd->getSubmittedQueue();
-  }
   wait(Self);
 
-  {
-    Scheduler::ReadLockT Lock(Sched.MGraphLock);
-    for (auto &EventImpl : getWaitList()) {
-      Command *Cmd = (Command *)EventImpl->getCommand();
-      if (Cmd)
-        Cmd->getSubmittedQueue()->throw_asynchronous();
-    }
-  }
-  if (submittedQueue)
-    submittedQueue->throw_asynchronous();
+  if (QueueImplPtr SubmittedQueue = MSubmittedQueue.lock())
+    SubmittedQueue->throw_asynchronous();
 }
 
 void event_impl::cleanupCommand(
@@ -402,7 +387,9 @@ std::vector<EventImplPtr> event_impl::getWaitList() {
 }
 
 void event_impl::flushIfNeeded(const QueueImplPtr &UserQueue) {
-  if (MIsFlushed)
+  // Some events might not have a native handle underneath even at this point,
+  // e.g. those produced by memset with 0 size (no PI call is made).
+  if (MIsFlushed || !MEvent)
     return;
 
   QueueImplPtr Queue = MQueue.lock();
@@ -416,7 +403,6 @@ void event_impl::flushIfNeeded(const QueueImplPtr &UserQueue) {
     return;
 
   // Check if the task for this event has already been submitted.
-  assert(MEvent != nullptr);
   pi_event_status Status = PI_EVENT_QUEUED;
   getPlugin().call<PiApiKind::piEventGetInfo>(
       MEvent, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS, sizeof(pi_int32), &Status,

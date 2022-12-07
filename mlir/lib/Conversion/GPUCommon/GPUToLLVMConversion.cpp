@@ -464,6 +464,10 @@ LogicalResult ConvertHostRegisterOpToGpuRuntimeCallPattern::matchAndRewrite(
 LogicalResult ConvertAllocOpToGpuRuntimeCallPattern::matchAndRewrite(
     gpu::AllocOp allocOp, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
+  if (adaptor.getHostShared())
+    return rewriter.notifyMatchFailure(
+        allocOp, "host_shared allocation is not supported");
+
   MemRefType memRefType = allocOp.getType();
 
   if (failed(areAllLLVMTypes(allocOp, adaptor.getOperands(), rewriter)) ||
@@ -532,7 +536,7 @@ static bool isGpuAsyncTokenType(Value value) {
 LogicalResult ConvertAsyncYieldToGpuRuntimeCallPattern::matchAndRewrite(
     async::YieldOp yieldOp, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  if (llvm::none_of(yieldOp.operands(), isGpuAsyncTokenType))
+  if (llvm::none_of(yieldOp.getOperands(), isGpuAsyncTokenType))
     return rewriter.notifyMatchFailure(yieldOp, "no gpu async token operand");
 
   Location loc = yieldOp.getLoc();

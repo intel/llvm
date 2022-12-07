@@ -91,6 +91,7 @@ void CodeGenFunction::EmitDecl(const Decl &D) {
   case Decl::Export:
   case Decl::ObjCPropertyImpl:
   case Decl::FileScopeAsm:
+  case Decl::TopLevelStmt:
   case Decl::Friend:
   case Decl::FriendTemplate:
   case Decl::Block:
@@ -101,6 +102,7 @@ void CodeGenFunction::EmitDecl(const Decl &D) {
   case Decl::ObjCTypeParam:
   case Decl::Binding:
   case Decl::UnresolvedUsingIfExists:
+  case Decl::HLSLBuffer:
     llvm_unreachable("Declaration should not be in declstmts!");
   case Decl::Record:    // struct/union/class X;
   case Decl::CXXRecord: // struct/union/class X; [C++]
@@ -127,6 +129,7 @@ void CodeGenFunction::EmitDecl(const Decl &D) {
   case Decl::OMPRequires:
   case Decl::Empty:
   case Decl::Concept:
+  case Decl::ImplicitConceptSpecialization:
   case Decl::LifetimeExtendedTemporary:
   case Decl::RequiresExprBody:
     // None of these decls require codegen support.
@@ -180,9 +183,6 @@ void CodeGenFunction::EmitDecl(const Decl &D) {
       EmitVariablyModifiedType(Ty);
     return;
   }
-  case Decl::HLSLBuffer:
-    // FIXME: add codegen for HLSLBuffer.
-    return;
   }
 }
 
@@ -2766,5 +2766,5 @@ CodeGenModule::getOMPAllocateAlignment(const VarDecl *VD) {
           std::max<unsigned>(UserAlign, NaturalAlign.getQuantity()));
     }
   }
-  return llvm::None;
+  return std::nullopt;
 }

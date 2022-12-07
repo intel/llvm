@@ -80,14 +80,14 @@ Value ConvertToLLVMPattern::getStridedElementPtr(
 
   Value index;
   if (offset != 0) // Skip if offset is zero.
-    index = ShapedType::isDynamicStrideOrOffset(offset)
+    index = ShapedType::isDynamic(offset)
                 ? memRefDescriptor.offset(rewriter, loc)
                 : createIndexConstant(rewriter, loc, offset);
 
   for (int i = 0, e = indices.size(); i < e; ++i) {
     Value increment = indices[i];
     if (strides[i] != 1) { // Skip if stride is 1.
-      Value stride = ShapedType::isDynamicStrideOrOffset(strides[i])
+      Value stride = ShapedType::isDynamic(strides[i])
                          ? memRefDescriptor.stride(rewriter, loc, i)
                          : createIndexConstant(rewriter, loc, strides[i]);
       increment = rewriter.create<LLVM::MulOp>(loc, increment, stride);
@@ -123,14 +123,14 @@ void ConvertToLLVMPattern::getMemRefDescriptorSizes(
     SmallVectorImpl<Value> &strides, Value &sizeBytes) const {
   assert(isConvertibleAndHasIdentityMaps(memRefType) &&
          "layout maps must have been normalized away");
-  assert(count(memRefType.getShape(), ShapedType::kDynamicSize) ==
+  assert(count(memRefType.getShape(), ShapedType::kDynamic) ==
              static_cast<ssize_t>(dynamicSizes.size()) &&
          "dynamicSizes size doesn't match dynamic sizes count in memref shape");
 
   sizes.reserve(memRefType.getRank());
   unsigned dynamicIndex = 0;
   for (int64_t size : memRefType.getShape()) {
-    sizes.push_back(size == ShapedType::kDynamicSize
+    sizes.push_back(size == ShapedType::kDynamic
                         ? dynamicSizes[dynamicIndex++]
                         : createIndexConstant(rewriter, loc, size));
   }
@@ -146,14 +146,14 @@ void ConvertToLLVMPattern::getMemRefDescriptorSizes(
     if (size == 0)
       continue;
     bool useSizeAsStride = stride == 1;
-    if (size == ShapedType::kDynamicSize)
-      stride = ShapedType::kDynamicSize;
-    if (stride != ShapedType::kDynamicSize)
+    if (size == ShapedType::kDynamic)
+      stride = ShapedType::kDynamic;
+    if (stride != ShapedType::kDynamic)
       stride *= size;
 
     if (useSizeAsStride)
       runningStride = sizes[i];
-    else if (stride == ShapedType::kDynamicSize)
+    else if (stride == ShapedType::kDynamic)
       runningStride =
           rewriter.create<LLVM::MulOp>(loc, runningStride, sizes[i]);
     else
@@ -308,7 +308,8 @@ LogicalResult ConvertToLLVMPattern::copyUnrankedDescriptors(
 /// and given operands.
 LogicalResult LLVM::detail::oneToOneRewrite(
     Operation *op, StringRef targetOp, ValueRange operands,
-    LLVMTypeConverter &typeConverter, ConversionPatternRewriter &rewriter) {
+    ArrayRef<NamedAttribute> targetAttrs, LLVMTypeConverter &typeConverter,
+    ConversionPatternRewriter &rewriter) {
   unsigned numResults = op->getNumResults();
 
   SmallVector<Type> resultTypes;
@@ -322,7 +323,7 @@ LogicalResult LLVM::detail::oneToOneRewrite(
   // Create the operation through state since we don't know its C++ type.
   Operation *newOp =
       rewriter.create(op->getLoc(), rewriter.getStringAttr(targetOp), operands,
-                      resultTypes, op->getAttrs());
+                      resultTypes, targetAttrs);
 
   // If the operation produced 0 or 1 result, return them immediately.
   if (numResults == 0)

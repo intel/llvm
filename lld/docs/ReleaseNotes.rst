@@ -31,6 +31,8 @@ ELF Improvements
 * ``--compress-debug-sections=zstd`` is now available to compress debug
   sections with zstd (``ELFCOMPRESS_ZSTD``).
   (`D133548 <https://reviews.llvm.org/D133548>`_)
+* ``--no-warnings``/``-w`` is now available to suppress warnings.
+  (`D136569 <https://reviews.llvm.org/D136569>`_)
 
 Breaking changes
 ----------------
@@ -38,7 +40,14 @@ Breaking changes
 COFF Improvements
 -----------------
 
-* ...
+* The linker command line entry in ``S_ENVBLOCK`` of the PDB is now stripped
+  from input files, to align with MSVC behavior.
+  (`D137723 <https://reviews.llvm.org/D137723>`_)
+* Switched from SHA1 to BLAKE3 for PDB type hashing / ``-gcodeview-ghash``
+  (`D137101 <https://reviews.llvm.org/D137101>`_)
+* Improvements to the PCH.OBJ files handling. Now LLD behaves the same as MSVC
+  link.exe when merging PCH.OBJ files that don't have the same signature.
+  (`D136762 <https://reviews.llvm.org/D136762>`_)
 
 MinGW Improvements
 ------------------

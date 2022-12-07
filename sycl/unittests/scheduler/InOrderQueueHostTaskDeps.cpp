@@ -34,7 +34,7 @@ inline pi_result redefinedEventsWait(pi_uint32 num_events,
 TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  Mock.redefine<detail::PiApiKind::piEventsWait>(redefinedEventsWait);
+  Mock.redefineBefore<detail::PiApiKind::piEventsWait>(redefinedEventsWait);
 
   context Ctx{Plt};
   queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};

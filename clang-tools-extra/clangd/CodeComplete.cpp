@@ -258,14 +258,14 @@ struct CompletionCandidate {
   headerToInsertIfAllowed(const CodeCompleteOptions &Opts) const {
     if (Opts.InsertIncludes == CodeCompleteOptions::NeverInsert ||
         RankedIncludeHeaders.empty())
-      return None;
+      return std::nullopt;
     if (SemaResult && SemaResult->Declaration) {
       // Avoid inserting new #include if the declaration is found in the current
       // file e.g. the symbol is forward declared.
       auto &SM = SemaResult->Declaration->getASTContext().getSourceManager();
       for (const Decl *RD : SemaResult->Declaration->redecls())
         if (SM.isInMainFile(SM.getExpansionLoc(RD->getBeginLoc())))
-          return None;
+          return std::nullopt;
     }
     return RankedIncludeHeaders[0];
   }
@@ -411,6 +411,8 @@ struct CodeCompletionBuilder {
       bool IsPattern = C.SemaResult->Kind == CodeCompletionResult::RK_Pattern;
       getSignature(*SemaCCS, &S.Signature, &S.SnippetSuffix,
                    &Completion.RequiredQualifier, IsPattern);
+      if (!C.SemaResult->FunctionCanBeCall)
+        S.SnippetSuffix.clear();
       S.ReturnType = getReturnType(*SemaCCS);
     } else if (C.IndexResult) {
       S.Signature = std::string(C.IndexResult->Signature);
@@ -1766,8 +1768,8 @@ private:
         assert(IdentifierResult);
         C.Name = IdentifierResult->Name;
       }
-      if (auto OverloadSet = C.overloadSet(
-              Opts, FileName, Inserter ? Inserter.getPointer() : nullptr)) {
+      if (auto OverloadSet =
+              C.overloadSet(Opts, FileName, Inserter ? &*Inserter : nullptr)) {
         auto Ret = BundleLookup.try_emplace(OverloadSet, Bundles.size());
         if (Ret.second)
           Bundles.emplace_back();
@@ -1819,7 +1821,7 @@ private:
          (C.IndexResult &&
           C.IndexResult->SymInfo.Kind == index::SymbolKind::Macro)) &&
         !C.Name.startswith_insensitive(Filter->pattern()))
-      return None;
+      return std::nullopt;
     return Filter->match(C.Name);
   }
 
@@ -1861,9 +1863,9 @@ private:
     Relevance.Name = Bundle.front().Name;
     Relevance.FilterLength = HeuristicPrefix.Name.size();
     Relevance.Query = SymbolRelevanceSignals::CodeComplete;
-    Relevance.FileProximityMatch = FileProximity.getPointer();
+    Relevance.FileProximityMatch = &*FileProximity;
     if (ScopeProximity)
-      Relevance.ScopeProximityMatch = ScopeProximity.getPointer();
+      Relevance.ScopeProximityMatch = &*ScopeProximity;
     if (PreferredType)
       Relevance.HadContextType = true;
     Relevance.ContextWords = &ContextWords;
@@ -2014,14 +2016,23 @@ CodeCompleteResult codeCompleteComment(PathRef FileName, unsigned Offset,
     return CodeCompleteResult();
 
   CodeCompleteResult Result;
+  Range CompletionRange;
+  // Skip /*
+  Offset += 2;
+  CompletionRange.start = offsetToPosition(ParseInput.Contents, Offset);
+  CompletionRange.end =
+      offsetToPosition(ParseInput.Contents, Offset + Prefix.size());
+  Result.CompletionRange = CompletionRange;
   Result.Context = CodeCompletionContext::CCC_NaturalLanguage;
   for (llvm::StringRef Name : ParamNames) {
     if (!Name.startswith(Prefix))
       continue;
     CodeCompletion Item;
-    Item.Name = Name.str() + "=";
+    Item.Name = Name.str() + "=*/";
     Item.FilterText = Item.Name;
     Item.Kind = CompletionItemKind::Text;
+    Item.CompletionTokenRange = CompletionRange;
+    Item.Origin = SymbolOrigin::AST;
     Result.Completions.push_back(Item);
   }
 
@@ -2038,7 +2049,7 @@ maybeFunctionArgumentCommentStart(llvm::StringRef Content) {
   Content = Content.rtrim();
   if (Content.endswith("/*"))
     return Content.size() - 2;
-  return None;
+  return std::nullopt;
 }
 
 CodeCompleteResult codeComplete(PathRef FileName, Position Pos,
@@ -2114,6 +2125,9 @@ bool isIndexedForCodeCompletion(const NamedDecl &ND, ASTContext &ASTCtx) {
     };
     return false;
   };
+  auto InClassScope = [](const NamedDecl &ND) {
+    return ND.getDeclContext()->getDeclKind() == Decl::CXXRecord;
+  };
   // We only complete symbol's name, which is the same as the name of the
   // *primary* template in case of template specializations.
   if (isExplicitTemplateSpecialization(&ND))
@@ -2129,8 +2143,11 @@ bool isIndexedForCodeCompletion(const NamedDecl &ND, ASTContext &ASTCtx) {
   if (InTopLevelScope(ND))
     return true;
 
+  // Always index enum constants, even if they're not in the top level scope:
+  // when
+  // --all-scopes-completion is set, we'll want to complete those as well.
   if (const auto *EnumDecl = dyn_cast<clang::EnumDecl>(ND.getDeclContext()))
-    return InTopLevelScope(*EnumDecl) && !EnumDecl->isScoped();
+    return (InTopLevelScope(*EnumDecl) || InClassScope(*EnumDecl));
 
   return false;
 }

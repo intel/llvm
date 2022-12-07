@@ -21,21 +21,6 @@ namespace {
 
 struct PadOpTiling : public TilingInterface::ExternalModel<PadOpTiling, PadOp> {
 
-  SmallVector<Value> getDestinationOperands(Operation *op, OpBuilder &b) const {
-    OpBuilder::InsertionGuard g(b);
-    b.setInsertionPoint(op);
-    ReifiedRankedShapedTypeDims reifiedShapes;
-    ReifyRankedShapedTypeOpInterface reifyShapedTypeInterface =
-        dyn_cast<ReifyRankedShapedTypeOpInterface>(op);
-    (void)reifyShapedTypeInterface.reifyResultShapes(b, reifiedShapes);
-
-    auto padOp = cast<PadOp>(op);
-    SmallVector<OpFoldResult> mixedSizes = getAsOpFoldResult(reifiedShapes[0]);
-    Value emptyTensor = b.create<EmptyOp>(
-        op->getLoc(), mixedSizes, padOp.getResultType().getElementType());
-    return {emptyTensor};
-  }
-
   SmallVector<utils::IteratorType> getLoopIteratorTypes(Operation *op) const {
     auto padOp = cast<PadOp>(op);
     SmallVector<utils::IteratorType> iteratorTypes(
@@ -128,7 +113,7 @@ Operation *tensor::bubbleUpPadSlice(OpBuilder &b, tensor::PadOp padOp,
     if (auto constInt = getConstantIntValue(val)) {
       staticIndices.push_back(*constInt);
     } else {
-      staticIndices.push_back(ShapedType::kDynamicSize);
+      staticIndices.push_back(ShapedType::kDynamic);
       dynIndices.push_back(val);
     }
   };
@@ -231,7 +216,7 @@ Operation *tensor::bubbleUpPadSlice(OpBuilder &b, tensor::PadOp padOp,
   // The shape of the result can be obtained from the sizes passed in.
   SmallVector<Value> dynDims;
   SmallVector<int64_t> shape;
-  dispatchIndexOpFoldResults(sizes, dynDims, shape, ShapedType::kDynamicSize);
+  dispatchIndexOpFoldResults(sizes, dynDims, shape, ShapedType::kDynamic);
   RankedTensorType resultType =
       RankedTensorType::get(shape, padOp.getResultType().getElementType());
 

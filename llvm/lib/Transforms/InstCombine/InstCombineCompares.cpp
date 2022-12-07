@@ -5873,13 +5873,13 @@ InstCombiner::getFlippedStrictnessPredicateAndConstant(CmpInst::Predicate Pred,
   if (auto *CI = dyn_cast<ConstantInt>(C)) {
     // Bail out if the constant can't be safely incremented/decremented.
     if (!ConstantIsOk(CI))
-      return llvm::None;
+      return std::nullopt;
   } else if (auto *FVTy = dyn_cast<FixedVectorType>(Type)) {
     unsigned NumElts = FVTy->getNumElements();
     for (unsigned i = 0; i != NumElts; ++i) {
       Constant *Elt = C->getAggregateElement(i);
       if (!Elt)
-        return llvm::None;
+        return std::nullopt;
 
       if (isa<UndefValue>(Elt))
         continue;
@@ -5888,14 +5888,14 @@ InstCombiner::getFlippedStrictnessPredicateAndConstant(CmpInst::Predicate Pred,
       // know that this constant is min/max.
       auto *CI = dyn_cast<ConstantInt>(Elt);
       if (!CI || !ConstantIsOk(CI))
-        return llvm::None;
+        return std::nullopt;
 
       if (!SafeReplacementConstant)
         SafeReplacementConstant = CI;
     }
   } else {
     // ConstantExpr?
-    return llvm::None;
+    return std::nullopt;
   }
 
   // It may not be safe to change a compare predicate in the presence of
@@ -6772,9 +6772,47 @@ static Instruction *foldFCmpReciprocalAndZero(FCmpInst &I, Instruction *LHSI,
 /// Optimize fabs(X) compared with zero.
 static Instruction *foldFabsWithFcmpZero(FCmpInst &I, InstCombinerImpl &IC) {
   Value *X;
-  if (!match(I.getOperand(0), m_FAbs(m_Value(X))) ||
-      !match(I.getOperand(1), m_PosZeroFP()))
+  if (!match(I.getOperand(0), m_FAbs(m_Value(X))))
     return nullptr;
+
+  const APFloat *C;
+  if (!match(I.getOperand(1), m_APFloat(C)))
+    return nullptr;
+
+  if (!C->isPosZero()) {
+    if (*C != APFloat::getSmallestNormalized(C->getSemantics()))
+      return nullptr;
+
+    const Function *F = I.getFunction();
+    DenormalMode Mode = F->getDenormalMode(C->getSemantics());
+    if (Mode.Input == DenormalMode::PreserveSign ||
+        Mode.Input == DenormalMode::PositiveZero) {
+
+      auto replaceFCmp = [](FCmpInst *I, FCmpInst::Predicate P, Value *X) {
+        Constant *Zero = ConstantFP::getNullValue(X->getType());
+        return new FCmpInst(P, X, Zero, "", I);
+      };
+
+      switch (I.getPredicate()) {
+      case FCmpInst::FCMP_OLT:
+        // fcmp olt fabs(x), smallest_normalized_number -> fcmp oeq x, 0.0
+        return replaceFCmp(&I, FCmpInst::FCMP_OEQ, X);
+      case FCmpInst::FCMP_UGE:
+        // fcmp uge fabs(x), smallest_normalized_number -> fcmp une x, 0.0
+        return replaceFCmp(&I, FCmpInst::FCMP_UNE, X);
+      case FCmpInst::FCMP_OGE:
+        // fcmp oge fabs(x), smallest_normalized_number -> fcmp one x, 0.0
+        return replaceFCmp(&I, FCmpInst::FCMP_ONE, X);
+      case FCmpInst::FCMP_ULT:
+        // fcmp ult fabs(x), smallest_normalized_number -> fcmp ueq x, 0.0
+        return replaceFCmp(&I, FCmpInst::FCMP_UEQ, X);
+      default:
+        break;
+      }
+    }
+
+    return nullptr;
+  }
 
   auto replacePredAndOp0 = [&IC](FCmpInst *I, FCmpInst::Predicate P, Value *X) {
     I->setPredicate(P);
@@ -7063,6 +7101,24 @@ Instruction *InstCombinerImpl::visitFCmpInst(FCmpInst &I) {
       return new ICmpInst(ICmpInst::ICMP_SLT, IntX,
                           ConstantInt::getNullValue(IntType));
     }
+  }
+
+  {
+    Value *CanonLHS = nullptr, *CanonRHS = nullptr;
+    match(Op0, m_Intrinsic<Intrinsic::canonicalize>(m_Value(CanonLHS)));
+    match(Op1, m_Intrinsic<Intrinsic::canonicalize>(m_Value(CanonRHS)));
+
+    // (canonicalize(x) == x) => (x == x)
+    if (CanonLHS == Op1)
+      return new FCmpInst(Pred, Op1, Op1, "", &I);
+
+    // (x == canonicalize(x)) => (x == x)
+    if (CanonRHS == Op0)
+      return new FCmpInst(Pred, Op0, Op0, "", &I);
+
+    // (canonicalize(x) == canonicalize(y)) => (x == y)
+    if (CanonLHS && CanonRHS)
+      return new FCmpInst(Pred, CanonLHS, CanonRHS, "", &I);
   }
 
   if (I.getType()->isVectorTy())

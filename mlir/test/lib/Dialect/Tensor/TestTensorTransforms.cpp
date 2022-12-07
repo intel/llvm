@@ -128,7 +128,22 @@ struct RewriteExtractSliceFromCollapseShapeBase
       return rewriter.notifyMatchFailure(
           op, "producer is not a tensor.collapse_shape op");
 
-    // Materialize the output shape values of the slice operation.a
+    // Try to simplify the collapse shape using a rank-reducing slice, if
+    // possible.
+    FailureOr<Operation *> simplifiedCollapseShapeResult =
+        tensor::simplifyCollapseShapeWithRankReducingExtractSlice(collapseOp,
+                                                                  rewriter);
+    if (succeeded(simplifiedCollapseShapeResult)) {
+      auto newCollapseOp =
+          dyn_cast<tensor::CollapseShapeOp>(*simplifiedCollapseShapeResult);
+      // The collapse shape op might have been simplified away, so we can just
+      // return.
+      if (!newCollapseOp)
+        return success();
+      collapseOp = newCollapseOp;
+    }
+
+    // Materialize the output shape values of the slice operation.
     ReifiedRankedShapedTypeDims reifiedShapes;
     if (failed(op.reifyResultShapes(rewriter, reifiedShapes)))
       return rewriter.notifyMatchFailure(op, "failed to reify result shapes");
@@ -164,12 +179,6 @@ struct RewriteExtractSliceFromCollapseShapeUsingScfFor
     SmallVector<Value> lbs(numTiledDims, zero);
     SmallVector<Value> steps(numTiledDims, one);
 
-    // Below, we pass out the result of the loop body builder lambda via the
-    // `insertResult` variable. In certain cases, no loops will be created, but
-    // the body builder will still execute. In this case, the results will not
-    // be passed to the LoopNest object.
-    // TODO: remove this workaround if `scf::buildLoopNest` behavior is updated.
-    Value insertResult = nullptr;
     scf::LoopNest nest = scf::buildLoopNest(
         rewriter, loc, lbs, helper.getIterationSpaceSizes(), steps, dest,
         [&](OpBuilder &nestedBuilder, Location loc, ValueRange outputIvs,
@@ -178,15 +187,10 @@ struct RewriteExtractSliceFromCollapseShapeUsingScfFor
               helper.emitLoopNestBody(nestedBuilder, loc, outputIvs);
 
           // Insert the slice into the destination.
-          insertResult = nestedBuilder.create<tensor::InsertSliceOp>(
-              loc, tile, iterArgs[0], insertParams);
-          return {insertResult};
+          return {nestedBuilder.create<tensor::InsertSliceOp>(
+              loc, tile, iterArgs[0], insertParams)};
         });
-
-    if (!nest.loops.empty())
-      rewriter.replaceOp(op, nest.getResults());
-    else
-      rewriter.replaceOp(op, insertResult);
+    rewriter.replaceOp(op, nest.results);
 
     return success();
   }
@@ -202,7 +206,7 @@ struct RewriteExtractSliceFromCollapseShapeUsingScfForeach
     Location loc = op.getLoc();
     auto foreachOp = rewriter.create<scf::ForeachThreadOp>(
         loc, /*outputs=*/dest, /*numThreads=*/helper.getIterationSpaceSizes(),
-        /*threadDimMapping=*/ArrayRef<int64_t>{},
+        /*mapping=*/ArrayRef<Attribute>{},
         [&](OpBuilder &nestedBuilder, Location loc, ValueRange regionArgs) {
           unsigned numThreadIdRegionArgs =
               helper.getIterationSpaceSizes().size();

@@ -7,8 +7,6 @@ from lldbsuite.test import lldbutil
 
 class FPEvalTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def setUp(self):
         # Call super's setUp().
         TestBase.setUp(self)
@@ -97,5 +95,5 @@ class FPEvalTestCase(TestBase):
                 v1 = frame.EvaluateExpression("{0}; eval(x, y, 2)".format(vardef), self.jit_opts)
                 v2 = frame.EvaluateExpression("{0}; x / y".format(vardef), self.no_jit_opts)
                 self.assertTrue(v1.IsValid() and v2.IsValid())
-                self.assertTrue(str(v1.GetData()) == str(v2.GetData()))
+                self.assertEqual(str(v1.GetData()), str(v2.GetData()))
 

@@ -34,6 +34,7 @@
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
+#include "llvm/Analysis/VectorUtils.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
@@ -73,6 +74,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <optional>
 #include <utility>
 
 using namespace llvm;
@@ -166,39 +168,16 @@ static const Instruction *safeCxtI(const Value *V1, const Value *V2, const Instr
 static bool getShuffleDemandedElts(const ShuffleVectorInst *Shuf,
                                    const APInt &DemandedElts,
                                    APInt &DemandedLHS, APInt &DemandedRHS) {
-  // The length of scalable vectors is unknown at compile time, thus we
-  // cannot check their values
-  if (isa<ScalableVectorType>(Shuf->getType()))
-    return false;
+  if (isa<ScalableVectorType>(Shuf->getType())) {
+    assert(DemandedElts == APInt(1,1));
+    DemandedLHS = DemandedRHS = DemandedElts;
+    return true;
+  }
 
   int NumElts =
       cast<FixedVectorType>(Shuf->getOperand(0)->getType())->getNumElements();
-  int NumMaskElts = cast<FixedVectorType>(Shuf->getType())->getNumElements();
-  DemandedLHS = DemandedRHS = APInt::getZero(NumElts);
-  if (DemandedElts.isZero())
-    return true;
-  // Simple case of a shuffle with zeroinitializer.
-  if (all_of(Shuf->getShuffleMask(), [](int Elt) { return Elt == 0; })) {
-    DemandedLHS.setBit(0);
-    return true;
-  }
-  for (int i = 0; i != NumMaskElts; ++i) {
-    if (!DemandedElts[i])
-      continue;
-    int M = Shuf->getMaskValue(i);
-    assert(M < (NumElts * 2) && "Invalid shuffle mask constant");
-
-    // For undef elements, we don't know anything about the common state of
-    // the shuffle result.
-    if (M == -1)
-      return false;
-    if (M < NumElts)
-      DemandedLHS.setBit(M % NumElts);
-    else
-      DemandedRHS.setBit(M % NumElts);
-  }
-
-  return true;
+  return llvm::getShuffleDemandedElts(NumElts, Shuf->getShuffleMask(),
+                                      DemandedElts, DemandedLHS, DemandedRHS);
 }
 
 static void computeKnownBits(const Value *V, const APInt &DemandedElts,
@@ -206,13 +185,9 @@ static void computeKnownBits(const Value *V, const APInt &DemandedElts,
 
 static void computeKnownBits(const Value *V, KnownBits &Known, unsigned Depth,
                              const Query &Q) {
-  // FIXME: We currently have no way to represent the DemandedElts of a scalable
-  // vector
-  if (isa<ScalableVectorType>(V->getType())) {
-    Known.resetAll();
-    return;
-  }
-
+  // Since the number of lanes in a scalable vector is unknown at compile time,
+  // we track one bit which is implicitly broadcast to all lanes.  This means
+  // that all lanes in a scalable vector are considered demanded.
   auto *FVTy = dyn_cast<FixedVectorType>(V->getType());
   APInt DemandedElts =
       FVTy ? APInt::getAllOnes(FVTy->getNumElements()) : APInt(1, 1);
@@ -401,11 +376,6 @@ static unsigned ComputeNumSignBits(const Value *V, const APInt &DemandedElts,
 
 static unsigned ComputeNumSignBits(const Value *V, unsigned Depth,
                                    const Query &Q) {
-  // FIXME: We currently have no way to represent the DemandedElts of a scalable
-  // vector
-  if (isa<ScalableVectorType>(V->getType()))
-    return 1;
-
   auto *FVTy = dyn_cast<FixedVectorType>(V->getType());
   APInt DemandedElts =
       FVTy ? APInt::getAllOnes(FVTy->getNumElements()) : APInt(1, 1);
@@ -1047,7 +1017,7 @@ static void computeKnownBitsFromShiftOperator(
   // If we know the shifter operand is nonzero, we can sometimes infer more
   // known bits. However this is expensive to compute, so be lazy about it and
   // only compute it when absolutely necessary.
-  Optional<bool> ShifterOperandIsNonZero;
+  std::optional<bool> ShifterOperandIsNonZero;
 
   // Early exit if we can't constrain any well-defined shift amount.
   if (!(ShiftAmtKZ & (PowerOf2Ceil(BitWidth) - 1)) &&
@@ -1232,7 +1202,8 @@ static void computeKnownBitsFromOperator(const Operator *I,
     // Handle cast from vector integer type to scalar or vector integer.
     auto *SrcVecTy = dyn_cast<FixedVectorType>(SrcTy);
     if (!SrcVecTy || !SrcVecTy->getElementType()->isIntegerTy() ||
-        !I->getType()->isIntOrIntVectorTy())
+        !I->getType()->isIntOrIntVectorTy() ||
+        isa<ScalableVectorType>(I->getType()))
       break;
 
     // Look through a cast from narrow vector elements to wider type.
@@ -1776,7 +1747,7 @@ static void computeKnownBitsFromOperator(const Operator *I,
           break;
 
         auto Attr = II->getFunction()->getFnAttribute(Attribute::VScaleRange);
-        Optional<unsigned> VScaleMax = Attr.getVScaleRangeMax();
+        std::optional<unsigned> VScaleMax = Attr.getVScaleRangeMax();
 
         if (!VScaleMax)
           break;
@@ -1832,6 +1803,10 @@ static void computeKnownBitsFromOperator(const Operator *I,
     break;
   }
   case Instruction::InsertElement: {
+    if (isa<ScalableVectorType>(I->getType())) {
+      Known.resetAll();
+      return;
+    }
     const Value *Vec = I->getOperand(0);
     const Value *Elt = I->getOperand(1);
     auto *CIdx = dyn_cast<ConstantInt>(I->getOperand(2));
@@ -1948,9 +1923,8 @@ KnownBits computeKnownBits(const Value *V, unsigned Depth, const Query &Q) {
 /// for all of the demanded elements in the vector specified by DemandedElts.
 void computeKnownBits(const Value *V, const APInt &DemandedElts,
                       KnownBits &Known, unsigned Depth, const Query &Q) {
-  if (!DemandedElts || isa<ScalableVectorType>(V->getType())) {
-    // No demanded elts or V is a scalable vector, better to assume we don't
-    // know anything.
+  if (!DemandedElts) {
+    // No demanded elts, better to assume we don't know anything.
     Known.resetAll();
     return;
   }
@@ -1971,7 +1945,7 @@ void computeKnownBits(const Value *V, const APInt &DemandedElts,
         "DemandedElt width should equal the fixed vector number of elements");
   } else {
     assert(DemandedElts == APInt(1, 1) &&
-           "DemandedElt width should be 1 for scalars");
+           "DemandedElt width should be 1 for scalars or scalable vectors");
   }
 
   Type *ScalarTy = Ty->getScalarType();
@@ -1998,6 +1972,7 @@ void computeKnownBits(const Value *V, const APInt &DemandedElts,
   // Handle a constant vector by taking the intersection of the known bits of
   // each element.
   if (const ConstantDataVector *CDV = dyn_cast<ConstantDataVector>(V)) {
+    assert(!isa<ScalableVectorType>(V->getType()));
     // We know that CDV must be a vector of integers. Take the intersection of
     // each element.
     Known.Zero.setAllBits(); Known.One.setAllBits();
@@ -2012,6 +1987,7 @@ void computeKnownBits(const Value *V, const APInt &DemandedElts,
   }
 
   if (const auto *CV = dyn_cast<ConstantVector>(V)) {
+    assert(!isa<ScalableVectorType>(V->getType()));
     // We know that CV must be a vector of integers. Take the intersection of
     // each element.
     Known.Zero.setAllBits(); Known.One.setAllBits();
@@ -2297,7 +2273,7 @@ static bool isGEPKnownNonNull(const GEPOperator *GEP, unsigned Depth,
     }
 
     // If we have a zero-sized type, the index doesn't matter. Keep looping.
-    if (Q.DL.getTypeAllocSize(GTI.getIndexedType()).getKnownMinSize() == 0)
+    if (Q.DL.getTypeAllocSize(GTI.getIndexedType()).isZero())
       continue;
 
     // Fast path the constant operand case both for efficiency and so we don't
@@ -2469,10 +2445,20 @@ static bool isNonZeroRecurrence(const PHINode *PN) {
 /// Supports values with integer or pointer type and vectors of integers.
 bool isKnownNonZero(const Value *V, const APInt &DemandedElts, unsigned Depth,
                     const Query &Q) {
-  // FIXME: We currently have no way to represent the DemandedElts of a scalable
-  // vector
-  if (isa<ScalableVectorType>(V->getType()))
-    return false;
+
+#ifndef NDEBUG
+  Type *Ty = V->getType();
+  assert(Depth <= MaxAnalysisRecursionDepth && "Limit Search Depth");
+
+  if (auto *FVTy = dyn_cast<FixedVectorType>(Ty)) {
+    assert(
+        FVTy->getNumElements() == DemandedElts.getBitWidth() &&
+        "DemandedElt width should equal the fixed vector number of elements");
+  } else {
+    assert(DemandedElts == APInt(1, 1) &&
+           "DemandedElt width should be 1 for scalars");
+  }
+#endif
 
   if (auto *C = dyn_cast<Constant>(V)) {
     if (C->isNullValue())
@@ -2580,14 +2566,16 @@ bool isKnownNonZero(const Value *V, const APInt &DemandedElts, unsigned Depth,
     // Note that we have to take special care to avoid looking through
     // truncating casts, e.g., int2ptr/ptr2int with appropriate sizes, as well
     // as casts that can alter the value, e.g., AddrSpaceCasts.
-    if (Q.DL.getTypeSizeInBits(I->getOperand(0)->getType()).getFixedSize() <=
+    if (!isa<ScalableVectorType>(I->getType()) &&
+        Q.DL.getTypeSizeInBits(I->getOperand(0)->getType()).getFixedSize() <=
         Q.DL.getTypeSizeInBits(I->getType()).getFixedSize())
       return isKnownNonZero(I->getOperand(0), Depth, Q);
     break;
   case Instruction::PtrToInt:
     // Similar to int2ptr above, we can look through ptr2int here if the cast
     // is a no-op or an extend and not a truncate.
-    if (Q.DL.getTypeSizeInBits(I->getOperand(0)->getType()).getFixedSize() <=
+    if (!isa<ScalableVectorType>(I->getType()) &&
+        Q.DL.getTypeSizeInBits(I->getOperand(0)->getType()).getFixedSize() <=
         Q.DL.getTypeSizeInBits(I->getType()).getFixedSize())
       return isKnownNonZero(I->getOperand(0), Depth, Q);
     break;
@@ -2746,11 +2734,6 @@ bool isKnownNonZero(const Value *V, const APInt &DemandedElts, unsigned Depth,
 }
 
 bool isKnownNonZero(const Value* V, unsigned Depth, const Query& Q) {
-  // FIXME: We currently have no way to represent the DemandedElts of a scalable
-  // vector
-  if (isa<ScalableVectorType>(V->getType()))
-    return false;
-
   auto *FVTy = dyn_cast<FixedVectorType>(V->getType());
   APInt DemandedElts =
       FVTy ? APInt::getAllOnes(FVTy->getNumElements()) : APInt(1, 1);
@@ -2763,11 +2746,11 @@ bool isKnownNonZero(const Value* V, unsigned Depth, const Query& Q) {
 /// every input value to exactly one output value.  This is equivalent to
 /// saying that Op1 and Op2 are equal exactly when the specified pair of
 /// operands are equal, (except that Op1 and Op2 may be poison more often.)
-static Optional<std::pair<Value*, Value*>>
+static std::optional<std::pair<Value*, Value*>>
 getInvertibleOperands(const Operator *Op1,
                       const Operator *Op2) {
   if (Op1->getOpcode() != Op2->getOpcode())
-    return None;
+    return std::nullopt;
 
   auto getOperands = [&](unsigned OpNum) -> auto {
     return std::make_pair(Op1->getOperand(OpNum), Op2->getOperand(OpNum));
@@ -2861,7 +2844,7 @@ getInvertibleOperands(const Operator *Op1,
     return std::make_pair(Start1, Start2);
   }
   }
-  return None;
+  return std::nullopt;
 }
 
 /// Return true if V2 == V1 + X, where X is known non-zero.
@@ -3102,12 +3085,6 @@ static unsigned ComputeNumSignBitsImpl(const Value *V,
                                        const APInt &DemandedElts,
                                        unsigned Depth, const Query &Q) {
   Type *Ty = V->getType();
-
-  // FIXME: We currently have no way to represent the DemandedElts of a scalable
-  // vector
-  if (isa<ScalableVectorType>(Ty))
-    return 1;
-
 #ifndef NDEBUG
   assert(Depth <= MaxAnalysisRecursionDepth && "Limit Search Depth");
 
@@ -3802,12 +3779,24 @@ bool llvm::isKnownNeverInfinity(const Value *V, const TargetLibraryInfo *TLI,
       Type *FPTy = Inst->getType()->getScalarType();
       return ilogb(APFloat::getLargest(FPTy->getFltSemantics())) >= IntSize;
     }
+    case Instruction::FNeg:
     case Instruction::FPExt: {
       // Peek through to source op. If it is not infinity, this is not infinity.
       return isKnownNeverInfinity(Inst->getOperand(0), TLI, Depth + 1);
     }
     default:
       break;
+    }
+
+    if (const auto *II = dyn_cast<IntrinsicInst>(V)) {
+      switch (II->getIntrinsicID()) {
+      case Intrinsic::fabs:
+      case Intrinsic::canonicalize:
+      case Intrinsic::copysign:
+        return isKnownNeverInfinity(Inst->getOperand(0), TLI, Depth + 1);
+      default:
+        break;
+      }
     }
   }
 
@@ -3882,6 +3871,7 @@ bool llvm::isKnownNeverNaN(const Value *V, const TargetLibraryInfo *TLI,
       return true;
     case Instruction::FPTrunc:
     case Instruction::FPExt:
+    case Instruction::FNeg:
       return isKnownNeverNaN(Inst->getOperand(0), TLI, Depth + 1);
     default:
       break;
@@ -4232,10 +4222,14 @@ bool llvm::isGEPBasedOnPointerToString(const GEPOperator *GEP,
 // its initializer if the size of its elements equals ElementSize, or,
 // for ElementSize == 8, to its representation as an array of unsiged
 // char. Return true on success.
+// Offset is in the unit "nr of ElementSize sized elements".
 bool llvm::getConstantDataArrayInfo(const Value *V,
                                     ConstantDataArraySlice &Slice,
                                     unsigned ElementSize, uint64_t Offset) {
-  assert(V);
+  assert(V && "V should not be null.");
+  assert((ElementSize % 8) == 0 &&
+         "ElementSize expected to be a multiple of the size of a byte.");
+  unsigned ElementSizeInBytes = ElementSize / 8;
 
   // Drill down into the pointer expression V, ignoring any intervening
   // casts, and determine the identity of the object it references along
@@ -4259,15 +4253,19 @@ bool llvm::getConstantDataArrayInfo(const Value *V,
     // Fail if the constant offset is excessive.
     return false;
 
-  Offset += StartIdx;
+  // Off/StartIdx is in the unit of bytes. So we need to convert to number of
+  // elements. Simply bail out if that isn't possible.
+  if ((StartIdx % ElementSizeInBytes) != 0)
+    return false;
 
+  Offset += StartIdx / ElementSizeInBytes;
   ConstantDataArray *Array = nullptr;
   ArrayType *ArrayTy = nullptr;
 
   if (GV->getInitializer()->isNullValue()) {
     Type *GVTy = GV->getValueType();
     uint64_t SizeInBytes = DL.getTypeStoreSize(GVTy).getFixedSize();
-    uint64_t Length = SizeInBytes / (ElementSize / 8);
+    uint64_t Length = SizeInBytes / ElementSizeInBytes;
 
     Slice.Array = nullptr;
     Slice.Offset = 0;
@@ -4321,9 +4319,9 @@ bool llvm::getConstantDataArrayInfo(const Value *V,
 /// return true.  When TrimAtNul is set, Str will contain only the bytes up
 /// to but not including the first nul.  Return false on failure.
 bool llvm::getConstantStringInfo(const Value *V, StringRef &Str,
-                                 uint64_t Offset, bool TrimAtNul) {
+                                 bool TrimAtNul) {
   ConstantDataArraySlice Slice;
-  if (!getConstantDataArrayInfo(V, Slice, 8, Offset))
+  if (!getConstantDataArrayInfo(V, Slice, 8))
     return false;
 
   if (Slice.Array == nullptr) {
@@ -5721,11 +5719,6 @@ static bool programUndefinedIfUndefOrPoison(const Value *V,
   SmallSet<const BasicBlock *, 4> Visited;
 
   YieldsPoison.insert(V);
-  auto Propagate = [&](const User *User) {
-    if (propagatesPoison(cast<Operator>(User)))
-      YieldsPoison.insert(User);
-  };
-  for_each(V->users(), Propagate);
   Visited.insert(BB);
 
   while (true) {
@@ -5739,9 +5732,16 @@ static bool programUndefinedIfUndefOrPoison(const Value *V,
       if (!isGuaranteedToTransferExecutionToSuccessor(&I))
         return false;
 
-      // Mark poison that propagates from I through uses of I.
-      if (YieldsPoison.count(&I))
-        for_each(I.users(), Propagate);
+      // If this instruction propagates poison, mark it as poison if any of
+      // its operands are poison
+      if (propagatesPoison(cast<Operator>(&I))) {
+        for (const Value *Op : I.operands()) {
+          if (YieldsPoison.count(Op)) {
+            YieldsPoison.insert(&I);
+            break;
+          }
+        }
+      }
     }
 
     BB = BB->getSingleSuccessor();
@@ -6482,10 +6482,6 @@ Intrinsic::ID llvm::getInverseMinMaxIntrinsic(Intrinsic::ID MinMaxID) {
   }
 }
 
-CmpInst::Predicate llvm::getInverseMinMaxPred(SelectPatternFlavor SPF) {
-  return getMinMaxPred(getInverseMinMaxFlavor(SPF));
-}
-
 APInt llvm::getMinMaxLimit(SelectPatternFlavor SPF, unsigned BitWidth) {
   switch (SPF) {
   case SPF_SMAX: return APInt::getSignedMaxValue(BitWidth);
@@ -6668,21 +6664,21 @@ isImpliedCondOperands(CmpInst::Predicate Pred, const Value *ALHS,
                       const DataLayout &DL, unsigned Depth) {
   switch (Pred) {
   default:
-    return None;
+    return std::nullopt;
 
   case CmpInst::ICMP_SLT:
   case CmpInst::ICMP_SLE:
     if (isTruePredicate(CmpInst::ICMP_SLE, BLHS, ALHS, DL, Depth) &&
         isTruePredicate(CmpInst::ICMP_SLE, ARHS, BRHS, DL, Depth))
       return true;
-    return None;
+    return std::nullopt;
 
   case CmpInst::ICMP_ULT:
   case CmpInst::ICMP_ULE:
     if (isTruePredicate(CmpInst::ICMP_ULE, BLHS, ALHS, DL, Depth) &&
         isTruePredicate(CmpInst::ICMP_ULE, ARHS, BRHS, DL, Depth))
       return true;
-    return None;
+    return std::nullopt;
   }
 }
 
@@ -6711,7 +6707,7 @@ static Optional<bool> isImpliedCondMatchingOperands(CmpInst::Predicate LPred,
   if (CmpInst::isImpliedFalseByMatchingCmp(LPred, RPred))
     return false;
 
-  return None;
+  return std::nullopt;
 }
 
 /// Return true if "icmp LPred X, LC" implies "icmp RPred X, RC" is true.
@@ -6728,7 +6724,7 @@ static Optional<bool> isImpliedCondCommonOperandWithConstants(
     return false;
   if (Difference.isEmptySet())
     return true;
-  return None;
+  return std::nullopt;
 }
 
 /// Return true if LHS implies RHS (expanded to its components as "R0 RPred R1")
@@ -6761,7 +6757,7 @@ static Optional<bool> isImpliedCondICmps(const ICmpInst *LHS,
   if (LPred == RPred)
     return isImpliedCondOperands(LPred, L0, L1, R0, R1, DL, Depth);
 
-  return None;
+  return std::nullopt;
 }
 
 /// Return true if LHS implies RHS is true.  Return false if LHS implies RHS is
@@ -6792,9 +6788,9 @@ isImpliedCondAndOr(const Instruction *LHS, CmpInst::Predicate RHSPred,
     if (Optional<bool> Implication = isImpliedCondition(
             ARHS, RHSPred, RHSOp0, RHSOp1, DL, LHSIsTrue, Depth + 1))
       return Implication;
-    return None;
+    return std::nullopt;
   }
-  return None;
+  return std::nullopt;
 }
 
 Optional<bool>
@@ -6803,12 +6799,12 @@ llvm::isImpliedCondition(const Value *LHS, CmpInst::Predicate RHSPred,
                          const DataLayout &DL, bool LHSIsTrue, unsigned Depth) {
   // Bail out when we hit the limit.
   if (Depth == MaxAnalysisRecursionDepth)
-    return None;
+    return std::nullopt;
 
   // A mismatch occurs when we compare a scalar cmp to a vector cmp, for
   // example.
   if (RHSOp0->getType()->isVectorTy() != LHS->getType()->isVectorTy())
-    return None;
+    return std::nullopt;
 
   assert(LHS->getType()->isIntOrIntVectorTy(1) &&
          "Expected integer type only!");
@@ -6829,7 +6825,7 @@ llvm::isImpliedCondition(const Value *LHS, CmpInst::Predicate RHSPred,
       return isImpliedCondAndOr(LHSI, RHSPred, RHSOp0, RHSOp1, DL, LHSIsTrue,
                                 Depth);
   }
-  return None;
+  return std::nullopt;
 }
 
 Optional<bool> llvm::isImpliedCondition(const Value *LHS, const Value *RHS,
@@ -6845,7 +6841,7 @@ Optional<bool> llvm::isImpliedCondition(const Value *LHS, const Value *RHS,
                               LHSIsTrue, Depth);
 
   if (Depth == MaxAnalysisRecursionDepth)
-    return None;
+    return std::nullopt;
 
   // LHS ==> (RHS1 || RHS2) if LHS ==> RHS1 or LHS ==> RHS2
   // LHS ==> !(RHS1 && RHS2) if LHS ==> !RHS1 or LHS ==> !RHS2
@@ -6871,7 +6867,7 @@ Optional<bool> llvm::isImpliedCondition(const Value *LHS, const Value *RHS,
         return false;
   }
 
-  return None;
+  return std::nullopt;
 }
 
 // Returns a pair (Condition, ConditionIsTrue), where Condition is a branch
@@ -6912,7 +6908,7 @@ Optional<bool> llvm::isImpliedByDomCondition(const Value *Cond,
   auto PredCond = getDomPredecessorCondition(ContextI);
   if (PredCond.first)
     return isImpliedCondition(PredCond.first, Cond, DL, PredCond.second);
-  return None;
+  return std::nullopt;
 }
 
 Optional<bool> llvm::isImpliedByDomCondition(CmpInst::Predicate Pred,
@@ -6923,7 +6919,7 @@ Optional<bool> llvm::isImpliedByDomCondition(CmpInst::Predicate Pred,
   if (PredCond.first)
     return isImpliedCondition(PredCond.first, Pred, LHS, RHS, DL,
                               PredCond.second);
-  return None;
+  return std::nullopt;
 }
 
 static void setLimitsForBinOp(const BinaryOperator &BO, APInt &Lower,
@@ -7327,7 +7323,7 @@ ConstantRange llvm::computeConstantRange(const Value *V, bool ForSigned,
   return CR;
 }
 
-static Optional<int64_t>
+static std::optional<int64_t>
 getOffsetFromIndex(const GEPOperator *GEP, unsigned Idx, const DataLayout &DL) {
   // Skip over the first indices.
   gep_type_iterator GTI = gep_type_begin(GEP);
@@ -7339,7 +7335,7 @@ getOffsetFromIndex(const GEPOperator *GEP, unsigned Idx, const DataLayout &DL) {
   for (unsigned i = Idx, e = GEP->getNumOperands(); i != e; ++i, ++GTI) {
     ConstantInt *OpC = dyn_cast<ConstantInt>(GEP->getOperand(i));
     if (!OpC)
-      return None;
+      return std::nullopt;
     if (OpC->isZero())
       continue; // No offset.
 
@@ -7353,7 +7349,7 @@ getOffsetFromIndex(const GEPOperator *GEP, unsigned Idx, const DataLayout &DL) {
     // vector. Multiply the index by the ElementSize.
     TypeSize Size = DL.getTypeAllocSize(GTI.getIndexedType());
     if (Size.isScalable())
-      return None;
+      return std::nullopt;
     Offset += Size.getFixedSize() * OpC->getSExtValue();
   }
 
@@ -7381,7 +7377,7 @@ Optional<int64_t> llvm::isPointerOffset(const Value *Ptr1, const Value *Ptr2,
   // handle no other case.
   if (!GEP1 || !GEP2 || GEP1->getOperand(0) != GEP2->getOperand(0) ||
       GEP1->getSourceElementType() != GEP2->getSourceElementType())
-    return None;
+    return std::nullopt;
 
   // Skip any common indices and track the GEP types.
   unsigned Idx = 1;
@@ -7392,7 +7388,7 @@ Optional<int64_t> llvm::isPointerOffset(const Value *Ptr1, const Value *Ptr2,
   auto IOffset1 = getOffsetFromIndex(GEP1, Idx, DL);
   auto IOffset2 = getOffsetFromIndex(GEP2, Idx, DL);
   if (!IOffset1 || !IOffset2)
-    return None;
+    return std::nullopt;
   return *IOffset2 - *IOffset1 + Offset2.getSExtValue() -
          Offset1.getSExtValue();
 }

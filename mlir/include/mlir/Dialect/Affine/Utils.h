@@ -159,14 +159,15 @@ vectorizeAffineLoopNest(std::vector<SmallVector<AffineForOp, 2>> &loops,
 /// early if the op is already in a normalized form.
 void normalizeAffineParallel(AffineParallelOp op);
 
-/// Normalize an affine.for op. If the affine.for op has only a single iteration
-/// only then it is simply promoted, else it is normalized in the traditional
-/// way, by converting the lower bound to zero and loop step to one. The upper
-/// bound is set to the trip count of the loop. Original loops must have a
-/// lower bound with only a single result. There is no such restriction on upper
-/// bounds. Returns success if the loop has been normalized (or is already in
-/// the normal form).
-LogicalResult normalizeAffineFor(AffineForOp op);
+/// Normalize an affine.for op. An affine.for op is normalized by converting the
+/// lower bound to zero and loop step to one. The upper bound is set to the trip
+/// count of the loop. Original loops must have a lower bound with only a single
+/// result. There is no such restriction on upper bounds. Returns success if the
+/// loop has been normalized (or is already in the normal form). If
+/// `promoteSingleIter` is true, the loop is simply promoted if it has a single
+/// iteration.
+LogicalResult normalizeAffineFor(AffineForOp op,
+                                 bool promoteSingleIter = false);
 
 /// Traverse `e` and return an AffineExpr where all occurrences of `dim` have
 /// been replaced by either:
@@ -240,12 +241,11 @@ LogicalResult replaceAllMemRefUsesWith(Value oldMemRef, Value newMemRef,
 /// escape (while leaving the IR in a valid state).
 LogicalResult normalizeMemRef(memref::AllocOp *op);
 
-/// Uses the old memref type map layout and computes the new memref type to have
-/// a new shape and a layout map, where the old layout map has been normalized
-/// to an identity layout map. It returns the old memref in case no
-/// normalization was needed or a failure occurs while transforming the old map
-/// layout to an identity layout map.
-MemRefType normalizeMemRefType(MemRefType memrefType, OpBuilder builder,
+/// Normalizes `memrefType` so that the affine layout map of the memref is
+/// transformed to an identity map with a new shape being computed for the
+/// normalized memref type and returns it. The old memref type is simplify
+/// returned if the normalization failed.
+MemRefType normalizeMemRefType(MemRefType memrefType,
                                unsigned numSymbolicOperands);
 
 /// Creates and inserts into 'builder' a new AffineApplyOp, with the number of

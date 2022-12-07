@@ -58,6 +58,7 @@
 #include "llvm/MC/MCValue.h"
 #include "llvm/MC/SectionKind.h"
 #include "llvm/ProfileData/InstrProf.h"
+#include "llvm/Support/Base64.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -289,6 +290,14 @@ void TargetLoweringObjectFileELF::Initialize(MCContext &Ctx,
       TTypeEncoding = dwarf::DW_EH_PE_absptr;
     }
     break;
+  case Triple::loongarch32:
+  case Triple::loongarch64:
+    LSDAEncoding = dwarf::DW_EH_PE_pcrel | dwarf::DW_EH_PE_sdata4;
+    PersonalityEncoding = dwarf::DW_EH_PE_indirect | dwarf::DW_EH_PE_pcrel |
+                          dwarf::DW_EH_PE_sdata4;
+    TTypeEncoding = dwarf::DW_EH_PE_indirect | dwarf::DW_EH_PE_pcrel |
+                    dwarf::DW_EH_PE_sdata4;
+    break;
   default:
     break;
   }
@@ -358,6 +367,31 @@ void TargetLoweringObjectFileELF::emitModuleMetadata(MCStreamer &Streamer,
     }
   }
 
+  if (NamedMDNode *LLVMStats = M.getNamedMetadata("llvm.stats")) {
+    // Emit the metadata for llvm statistics into .llvm_stats section, which is
+    // formatted as a list of key/value pair, the value is base64 encoded.
+    auto *S = C.getObjectFileInfo()->getLLVMStatsSection();
+    Streamer.switchSection(S);
+    for (const auto *Operand : LLVMStats->operands()) {
+      const auto *MD = cast<MDNode>(Operand);
+      assert(MD->getNumOperands() % 2 == 0 &&
+             ("Operand num should be even for a list of key/value pair"));
+      for (size_t I = 0; I < MD->getNumOperands(); I += 2) {
+        // Encode the key string size.
+        auto *Key = cast<MDString>(MD->getOperand(I));
+        Streamer.emitULEB128IntValue(Key->getString().size());
+        Streamer.emitBytes(Key->getString());
+        // Encode the value into a Base64 string.
+        std::string Value = encodeBase64(
+            Twine(mdconst::dyn_extract<ConstantInt>(MD->getOperand(I + 1))
+                      ->getZExtValue())
+                .str());
+        Streamer.emitULEB128IntValue(Value.size());
+        Streamer.emitBytes(Value);
+      }
+    }
+  }
+
   unsigned Version = 0;
   unsigned Flags = 0;
   StringRef Section;
@@ -400,7 +434,7 @@ void TargetLoweringObjectFileELF::emitPersonalityValue(
                                                    ELF::SHT_PROGBITS, Flags, 0);
   unsigned Size = DL.getPointerSize();
   Streamer.switchSection(Sec);
-  Streamer.emitValueToAlignment(DL.getPointerABIAlignment(0).value());
+  Streamer.emitValueToAlignment(DL.getPointerABIAlignment(0));
   Streamer.emitSymbolAttribute(Label, MCSA_ELF_TypeObject);
   const MCExpr *E = MCConstantExpr::create(Size, getContext());
   Streamer.emitELFSize(Label, E);

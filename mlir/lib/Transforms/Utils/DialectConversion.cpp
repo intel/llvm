@@ -1571,7 +1571,7 @@ void ConversionPatternRewriter::replaceUsesOfBlockArgument(BlockArgument from,
 
 Value ConversionPatternRewriter::getRemappedValue(Value key) {
   SmallVector<Value> remappedValues;
-  if (failed(impl->remapValues("value", /*inputLoc=*/llvm::None, *this, key,
+  if (failed(impl->remapValues("value", /*inputLoc=*/std::nullopt, *this, key,
                                remappedValues)))
     return nullptr;
   return remappedValues.front();
@@ -1582,7 +1582,7 @@ ConversionPatternRewriter::getRemappedValues(ValueRange keys,
                                              SmallVectorImpl<Value> &results) {
   if (keys.empty())
     return success();
-  return impl->remapValues("value", /*inputLoc=*/llvm::None, *this, keys,
+  return impl->remapValues("value", /*inputLoc=*/std::nullopt, *this, keys,
                            results);
 }
 
@@ -1690,8 +1690,8 @@ ConversionPattern::matchAndRewrite(Operation *op,
   auto &rewriterImpl = dialectRewriter.getImpl();
 
   // Track the current conversion pattern type converter in the rewriter.
-  llvm::SaveAndRestore<TypeConverter *> currentConverterGuard(
-      rewriterImpl.currentTypeConverter, getTypeConverter());
+  llvm::SaveAndRestore currentConverterGuard(rewriterImpl.currentTypeConverter,
+                                             getTypeConverter());
 
   // Remap the operands of the operation.
   SmallVector<Value, 4> operands;
@@ -3048,13 +3048,36 @@ auto TypeConverter::convertBlockSignature(Block *block)
     -> Optional<SignatureConversion> {
   SignatureConversion conversion(block->getNumArguments());
   if (failed(convertSignatureArgs(block->getArgumentTypes(), conversion)))
-    return llvm::None;
+    return std::nullopt;
   return conversion;
 }
 
 //===----------------------------------------------------------------------===//
 // FunctionOpInterfaceSignatureConversion
 //===----------------------------------------------------------------------===//
+
+static LogicalResult convertFuncOpTypes(FunctionOpInterface funcOp,
+                                        TypeConverter &typeConverter,
+                                        ConversionPatternRewriter &rewriter) {
+  FunctionType type = funcOp.getFunctionType().cast<FunctionType>();
+
+  // Convert the original function types.
+  TypeConverter::SignatureConversion result(type.getNumInputs());
+  SmallVector<Type, 1> newResults;
+  if (failed(typeConverter.convertSignatureArgs(type.getInputs(), result)) ||
+      failed(typeConverter.convertTypes(type.getResults(), newResults)) ||
+      failed(rewriter.convertRegionTypes(&funcOp.getFunctionBody(),
+                                         typeConverter, &result)))
+    return failure();
+
+  // Update the function signature in-place.
+  auto newType = FunctionType::get(rewriter.getContext(),
+                                   result.getConvertedTypes(), newResults);
+
+  rewriter.updateRootInPlace(funcOp, [&] { funcOp.setType(newType); });
+
+  return success();
+}
 
 /// Create a default conversion pattern that rewrites the type signature of a
 /// FunctionOpInterface op. This only supports ops which use FunctionType to
@@ -3067,27 +3090,21 @@ struct FunctionOpInterfaceSignatureConversion : public ConversionPattern {
       : ConversionPattern(converter, functionLikeOpName, /*benefit=*/1, ctx) {}
 
   LogicalResult
-  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+  matchAndRewrite(Operation *op, ArrayRef<Value> /*operands*/,
                   ConversionPatternRewriter &rewriter) const override {
     FunctionOpInterface funcOp = cast<FunctionOpInterface>(op);
-    FunctionType type = funcOp.getFunctionType().cast<FunctionType>();
+    return convertFuncOpTypes(funcOp, *typeConverter, rewriter);
+  }
+};
 
-    // Convert the original function types.
-    TypeConverter::SignatureConversion result(type.getNumInputs());
-    SmallVector<Type, 1> newResults;
-    if (failed(typeConverter->convertSignatureArgs(type.getInputs(), result)) ||
-        failed(typeConverter->convertTypes(type.getResults(), newResults)) ||
-        failed(rewriter.convertRegionTypes(&funcOp.getFunctionBody(),
-                                           *typeConverter, &result)))
-      return failure();
+struct AnyFunctionOpInterfaceSignatureConversion
+    : public OpInterfaceConversionPattern<FunctionOpInterface> {
+  using OpInterfaceConversionPattern::OpInterfaceConversionPattern;
 
-    // Update the function signature in-place.
-    auto newType = FunctionType::get(rewriter.getContext(),
-                                     result.getConvertedTypes(), newResults);
-
-    rewriter.updateRootInPlace(op, [&] { funcOp.setType(newType); });
-
-    return success();
+  LogicalResult
+  matchAndRewrite(FunctionOpInterface funcOp, ArrayRef<Value> /*operands*/,
+                  ConversionPatternRewriter &rewriter) const override {
+    return convertFuncOpTypes(funcOp, *typeConverter, rewriter);
   }
 };
 } // namespace
@@ -3097,6 +3114,12 @@ void mlir::populateFunctionOpInterfaceTypeConversionPattern(
     TypeConverter &converter) {
   patterns.add<FunctionOpInterfaceSignatureConversion>(
       functionLikeOpName, patterns.getContext(), converter);
+}
+
+void mlir::populateAnyFunctionOpInterfaceTypeConversionPattern(
+    RewritePatternSet &patterns, TypeConverter &converter) {
+  patterns.add<AnyFunctionOpInterfaceSignatureConversion>(
+      converter, patterns.getContext());
 }
 
 //===----------------------------------------------------------------------===//
@@ -3124,7 +3147,7 @@ auto ConversionTarget::isLegal(Operation *op) const
     -> Optional<LegalOpDetails> {
   Optional<LegalizationInfo> info = getOpInfo(op->getName());
   if (!info)
-    return llvm::None;
+    return std::nullopt;
 
   // Returns true if this operation instance is known to be legal.
   auto isOpLegal = [&] {
@@ -3139,7 +3162,7 @@ auto ConversionTarget::isLegal(Operation *op) const
     return info->action == LegalizationAction::Legal;
   };
   if (!isOpLegal())
-    return llvm::None;
+    return std::nullopt;
 
   // This operation is legal, compute any additional legality information.
   LegalOpDetails legalityDetails;
@@ -3246,7 +3269,77 @@ auto ConversionTarget::getOpInfo(OperationName op) const
   if (unknownLegalityFn)
     return LegalizationInfo{LegalizationAction::Dynamic,
                             /*isRecursivelyLegal=*/false, unknownLegalityFn};
-  return llvm::None;
+  return std::nullopt;
+}
+
+//===----------------------------------------------------------------------===//
+// PDL Configuration
+//===----------------------------------------------------------------------===//
+
+void PDLConversionConfig::notifyRewriteBegin(PatternRewriter &rewriter) {
+  auto &rewriterImpl =
+      static_cast<ConversionPatternRewriter &>(rewriter).getImpl();
+  rewriterImpl.currentTypeConverter = getTypeConverter();
+}
+
+void PDLConversionConfig::notifyRewriteEnd(PatternRewriter &rewriter) {
+  auto &rewriterImpl =
+      static_cast<ConversionPatternRewriter &>(rewriter).getImpl();
+  rewriterImpl.currentTypeConverter = nullptr;
+}
+
+/// Remap the given value using the rewriter and the type converter in the
+/// provided config.
+static FailureOr<SmallVector<Value>>
+pdllConvertValues(ConversionPatternRewriter &rewriter, ValueRange values) {
+  SmallVector<Value> mappedValues;
+  if (failed(rewriter.getRemappedValues(values, mappedValues)))
+    return failure();
+  return std::move(mappedValues);
+}
+
+void mlir::registerConversionPDLFunctions(RewritePatternSet &patterns) {
+  patterns.getPDLPatterns().registerRewriteFunction(
+      "convertValue",
+      [](PatternRewriter &rewriter, Value value) -> FailureOr<Value> {
+        auto results = pdllConvertValues(
+            static_cast<ConversionPatternRewriter &>(rewriter), value);
+        if (failed(results))
+          return failure();
+        return results->front();
+      });
+  patterns.getPDLPatterns().registerRewriteFunction(
+      "convertValues", [](PatternRewriter &rewriter, ValueRange values) {
+        return pdllConvertValues(
+            static_cast<ConversionPatternRewriter &>(rewriter), values);
+      });
+  patterns.getPDLPatterns().registerRewriteFunction(
+      "convertType",
+      [](PatternRewriter &rewriter, Type type) -> FailureOr<Type> {
+        auto &rewriterImpl =
+            static_cast<ConversionPatternRewriter &>(rewriter).getImpl();
+        if (TypeConverter *converter = rewriterImpl.currentTypeConverter) {
+          if (Type newType = converter->convertType(type))
+            return newType;
+          return failure();
+        }
+        return type;
+      });
+  patterns.getPDLPatterns().registerRewriteFunction(
+      "convertTypes",
+      [](PatternRewriter &rewriter,
+         TypeRange types) -> FailureOr<SmallVector<Type>> {
+        auto &rewriterImpl =
+            static_cast<ConversionPatternRewriter &>(rewriter).getImpl();
+        TypeConverter *converter = rewriterImpl.currentTypeConverter;
+        if (!converter)
+          return SmallVector<Type>(types);
+
+        SmallVector<Type> remappedTypes;
+        if (failed(converter->convertTypes(types, remappedTypes)))
+          return failure();
+        return std::move(remappedTypes);
+      });
 }
 
 //===----------------------------------------------------------------------===//

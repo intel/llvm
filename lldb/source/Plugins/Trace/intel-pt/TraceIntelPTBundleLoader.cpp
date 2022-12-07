@@ -34,14 +34,14 @@ Error TraceIntelPTBundleLoader::ParseModule(Target &target,
   auto do_parse = [&]() -> Error {
     FileSpec system_file_spec(module.system_path);
 
-    FileSpec local_file_spec(module.file.hasValue() ? *module.file
-                                                    : module.system_path);
+    FileSpec local_file_spec(module.file.has_value() ? *module.file
+                                                     : module.system_path);
 
     ModuleSpec module_spec;
     module_spec.GetFileSpec() = local_file_spec;
     module_spec.GetPlatformFileSpec() = system_file_spec;
 
-    if (module.uuid.hasValue())
+    if (module.uuid.has_value())
       module_spec.GetUUID().SetFromStringRef(*module.uuid);
 
     Status error;
@@ -241,6 +241,8 @@ StringRef TraceIntelPTBundleLoader::GetSchema() {
       "pid": integer,
       "triple"?: string,
           // Optional clang/llvm target triple.
+          // This must be provided if the trace will be created not using the
+          // CLI or on a machine other than where the target was traced.
       "threads": [
           // A list of known threads for the given process. When context switch
           // data is provided, LLDB will automatically create threads for the

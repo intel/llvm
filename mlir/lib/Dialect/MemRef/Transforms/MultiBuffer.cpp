@@ -45,9 +45,8 @@ static void replaceUsesAndPropagateType(Operation *oldOp, Value val,
     builder.setInsertionPoint(subviewUse);
     Type newType = memref::SubViewOp::inferRankReducedResultType(
         subviewUse.getType().getShape(), val.getType().cast<MemRefType>(),
-        extractFromI64ArrayAttr(subviewUse.getStaticOffsets()),
-        extractFromI64ArrayAttr(subviewUse.getStaticSizes()),
-        extractFromI64ArrayAttr(subviewUse.getStaticStrides()));
+        subviewUse.getStaticOffsets(), subviewUse.getStaticSizes(),
+        subviewUse.getStaticStrides());
     Value newSubview = builder.create<memref::SubViewOp>(
         subviewUse->getLoc(), newType.cast<MemRefType>(), val,
         subviewUse.getMixedOffsets(), subviewUse.getMixedSizes(),
@@ -128,11 +127,11 @@ FailureOr<memref::AllocOp> mlir::memref::multiBuffer(memref::AllocOp allocOp,
   auto getAffineExpr = [&](OpFoldResult e) -> AffineExpr {
     if (Optional<int64_t> constValue = getConstantIntValue(e)) {
       return getAffineConstantExpr(*constValue, allocOp.getContext());
-    } else {
-      auto value = getOrCreateValue(e, builder, candidateLoop->getLoc());
-      operands.push_back(value);
-      return getAffineDimExpr(dimCount++, allocOp.getContext());
     }
+    auto value = getOrCreateValue(e, builder, candidateLoop->getLoc());
+    operands.push_back(value);
+    return getAffineDimExpr(dimCount++, allocOp.getContext());
+   
   };
   auto init = getAffineExpr(*lowerBound);
   auto step = getAffineExpr(*singleStep);

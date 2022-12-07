@@ -295,8 +295,12 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     std::memcpy(paramValue, &result, sizeof(cl_bool));
     return PI_SUCCESS;
   }
-  case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16:
-    return PI_ERROR_INVALID_VALUE;
+  case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS: {
+    // bfloat16 math functions are not yet supported on Intel GPUs.
+    cl_bool result = false;
+    std::memcpy(paramValue, &result, sizeof(cl_bool));
+    return PI_SUCCESS;
+  }
   case PI_DEVICE_INFO_IMAGE_SRGB: {
     cl_bool result = true;
     std::memcpy(paramValue, &result, sizeof(cl_bool));
@@ -499,6 +503,28 @@ pi_result piQueueCreate(pi_context context, pi_device device,
       cast<cl_context>(context), cast<cl_device_id>(device),
       CreationFlagProperties, &ret_err));
   return cast<pi_result>(ret_err);
+}
+
+pi_result piQueueGetInfo(pi_queue queue, pi_queue_info param_name,
+                         size_t param_value_size, void *param_value,
+                         size_t *param_value_size_ret) {
+  if (queue == nullptr) {
+    return PI_ERROR_INVALID_QUEUE;
+  }
+
+  switch (param_name) {
+  case PI_EXT_ONEAPI_QUEUE_INFO_EMPTY:
+    // OpenCL doesn't provide API to check the status of the queue.
+    return PI_ERROR_INVALID_VALUE;
+  default:
+    cl_int CLErr = clGetCommandQueueInfo(
+        cast<cl_command_queue>(queue), cast<cl_command_queue_info>(param_name),
+        param_value_size, param_value, param_value_size_ret);
+    if (CLErr != CL_SUCCESS) {
+      return cast<pi_result>(CLErr);
+    }
+  }
+  return PI_SUCCESS;
 }
 
 pi_result piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
@@ -973,8 +999,13 @@ pi_result piKernelGetSubGroupInfo(pi_kernel kernel, pi_device device,
 pi_result piEventCreate(pi_context context, pi_event *ret_event) {
 
   pi_result ret_err = PI_ERROR_INVALID_OPERATION;
-  *ret_event = cast<pi_event>(
-      clCreateUserEvent(cast<cl_context>(context), cast<cl_int *>(&ret_err)));
+  auto *cl_err = cast<cl_int *>(&ret_err);
+
+  cl_event e = clCreateUserEvent(cast<cl_context>(context), cl_err);
+  *ret_event = cast<pi_event>(e);
+  if (*cl_err != CL_SUCCESS)
+    return ret_err;
+  *cl_err = clSetUserEventStatus(e, CL_COMPLETE);
   return ret_err;
 }
 
@@ -1540,7 +1571,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextContextCreateWithNativeHandle, piextContextCreateWithNativeHandle)
   // Queue
   _PI_CL(piQueueCreate, piQueueCreate)
-  _PI_CL(piQueueGetInfo, clGetCommandQueueInfo)
+  _PI_CL(piQueueGetInfo, piQueueGetInfo)
   _PI_CL(piQueueFinish, clFinish)
   _PI_CL(piQueueFlush, clFlush)
   _PI_CL(piQueueRetain, clRetainCommandQueue)

@@ -49,7 +49,7 @@ func.func @vector_transfer_ops(%arg0: memref<?x?xf32>,
   %v0 = vector.splat %c0 : vector<4x3xi32>
   %vi0 = vector.splat %i0 : vector<4x3xindex>
   %m = arith.constant dense<[0, 0, 1, 0, 1]> : vector<5xi1>
-  %m2 = vector.splat %i1 : vector<5x4xi1>
+  %m2 = vector.splat %i1 : vector<4x5xi1>
   //
   // CHECK: vector.transfer_read
   %0 = vector.transfer_read %arg0[%c3, %c3], %f0 {permutation_map = affine_map<(d0, d1)->(d0)>} : memref<?x?xf32>, vector<128xf32>
@@ -786,7 +786,7 @@ func.func @vector_scan(%0: vector<4x8x16x32xf32>) -> vector<4x8x16x32xf32> {
 func.func @test_splat_op(%s : f32) {
   // CHECK: vector.splat [[S]] : vector<8xf32>
   %v = vector.splat %s : vector<8xf32>
-  
+
   // CHECK: vector.splat [[S]] : vector<4xf32>
   %u = "vector.splat"(%s) : (f32) -> vector<4xf32>
   return
@@ -824,4 +824,57 @@ func.func @warp_operand_result(%laneid: index, %v0 : vector<4xi32>) -> (vector<4
   return %2 : vector<4xi32>
 }
 
+// CHECK-LABEL: func @vector_mask
+func.func @vector_mask(%a: vector<8xi32>, %m0: vector<8xi1>) -> i32 {
+//  CHECK-NEXT:   %{{.*}} = vector.mask %{{.*}} { vector.reduction <add>, %{{.*}} : vector<8xi32> into i32 } : vector<8xi1> -> i32
+  %0 = vector.mask %m0 { vector.reduction <add>, %a : vector<8xi32> into i32 } : vector<8xi1> -> i32
+  return %0 : i32
+}
 
+// CHECK-LABEL: func @vector_mask_passthru
+func.func @vector_mask_passthru(%t0: tensor<?xf32>, %idx: index, %m0: vector<16xi1>, %pt0: vector<16xf32>) -> vector<16xf32> {
+  %ft0 = arith.constant 0.0 : f32
+//       CHECK:   %{{.*}} = vector.mask %{{.*}}, %{{.*}} { vector.transfer_read %{{.*}}[%{{.*}}], %{{.*}} : tensor<?xf32>, vector<16xf32> } : vector<16xi1> -> vector<16xf32>
+  %0 = vector.mask %m0, %pt0 { vector.transfer_read %t0[%idx], %ft0 : tensor<?xf32>, vector<16xf32> } : vector<16xi1> -> vector<16xf32>
+  return %0 : vector<16xf32>
+}
+
+// CHECK-LABEL: func @vector_mask_no_return
+func.func @vector_mask_no_return(%val: vector<16xf32>, %t0: memref<?xf32>, %idx: index, %m0: vector<16xi1>) {
+//  CHECK-NEXT:   vector.mask %{{.*}} { vector.transfer_write %{{.*}}, %{{.*}}[%{{.*}}] : vector<16xf32>, memref<?xf32> } : vector<16xi1>
+  vector.mask %m0 { vector.transfer_write %val, %t0[%idx] : vector<16xf32>, memref<?xf32> } : vector<16xi1>
+  return
+}
+
+// CHECK-LABEL: func @vector_mask_tensor_return
+func.func @vector_mask_tensor_return(%val: vector<16xf32>, %t0: tensor<?xf32>, %idx: index, %m0: vector<16xi1>) {
+//  CHECK-NEXT:   vector.mask %{{.*}} { vector.transfer_write %{{.*}}, %{{.*}}[%{{.*}}] : vector<16xf32>, tensor<?xf32> } : vector<16xi1> -> tensor<?xf32>
+  vector.mask %m0 { vector.transfer_write %val, %t0[%idx] : vector<16xf32>, tensor<?xf32> } : vector<16xi1> -> tensor<?xf32>
+  return
+}
+
+// CHECK-LABEL: func @vector_scalable_insert(
+// CHECK-SAME: %[[SUB0:.*]]: vector<4xi32>, %[[SUB1:.*]]: vector<8xi32>,
+// CHECK-SAME: %[[SUB2:.*]]: vector<[4]xi32>, %[[SV:.*]]: vector<[8]xi32>
+func.func @vector_scalable_insert(%sub0: vector<4xi32>, %sub1: vector<8xi32>,
+                                 %sub2: vector<[4]xi32>, %sv: vector<[8]xi32>) {
+  // CHECK-NEXT: vector.scalable.insert %[[SUB0]], %[[SV]][12] : vector<4xi32> into vector<[8]xi32>
+  %0 = vector.scalable.insert %sub0, %sv[12] : vector<4xi32> into vector<[8]xi32>
+  // CHECK-NEXT: vector.scalable.insert %[[SUB1]], %[[SV]][0] : vector<8xi32> into vector<[8]xi32>
+  %1 = vector.scalable.insert %sub1, %sv[0] : vector<8xi32> into vector<[8]xi32>
+  // CHECK-NEXT: vector.scalable.insert %[[SUB2]], %[[SV]][0] : vector<[4]xi32> into vector<[8]xi32>
+  %2 = vector.scalable.insert %sub2, %sv[0] : vector<[4]xi32> into vector<[8]xi32>
+  return
+ }
+
+// CHECK-LABEL: func @vector_scalable_extract(
+// CHECK-SAME: %[[SV:.*]]: vector<[8]xi32>
+func.func @vector_scalable_extract(%sv: vector<[8]xi32>) {
+  // CHECK-NEXT: vector.scalable.extract %[[SV]][0] : vector<16xi32> from vector<[8]xi32>
+  %0 = vector.scalable.extract %sv[0] : vector<16xi32> from vector<[8]xi32>
+  // CHECK-NEXT: vector.scalable.extract %[[SV]][0] : vector<[4]xi32> from vector<[8]xi32>
+  %1 = vector.scalable.extract %sv[0] : vector<[4]xi32> from vector<[8]xi32>
+  // CHECK-NEXT: vector.scalable.extract %[[SV]][4] : vector<4xi32> from vector<[8]xi32>
+  %2 = vector.scalable.extract %sv[4] : vector<4xi32> from vector<[8]xi32>
+  return
+ }

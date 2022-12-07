@@ -95,9 +95,10 @@ size_t MachOWriter::totalSize() const {
   }
 
   for (Optional<size_t> LinkEditDataCommandIndex :
-       {O.CodeSignatureCommandIndex, O.DataInCodeCommandIndex,
-        O.LinkerOptimizationHintCommandIndex, O.FunctionStartsCommandIndex,
-        O.ChainedFixupsCommandIndex, O.ExportsTrieCommandIndex})
+       {O.CodeSignatureCommandIndex, O.DylibCodeSignDRsIndex,
+        O.DataInCodeCommandIndex, O.LinkerOptimizationHintCommandIndex,
+        O.FunctionStartsCommandIndex, O.ChainedFixupsCommandIndex,
+        O.ExportsTrieCommandIndex})
     if (LinkEditDataCommandIndex) {
       const MachO::linkedit_data_command &LinkEditDataCommand =
           O.LoadCommands[*LinkEditDataCommandIndex]
@@ -559,12 +560,24 @@ void MachOWriter::writeFunctionStartsData() {
   return writeLinkData(O.FunctionStartsCommandIndex, O.FunctionStarts);
 }
 
+void MachOWriter::writeDylibCodeSignDRsData() {
+  return writeLinkData(O.DylibCodeSignDRsIndex, O.DylibCodeSignDRs);
+}
+
 void MachOWriter::writeChainedFixupsData() {
   return writeLinkData(O.ChainedFixupsCommandIndex, O.ChainedFixups);
 }
 
 void MachOWriter::writeExportsTrieData() {
-  return writeLinkData(O.ExportsTrieCommandIndex, O.ExportsTrie);
+  if (!O.ExportsTrieCommandIndex)
+    return;
+  const MachO::linkedit_data_command &ExportsTrieCmd =
+      O.LoadCommands[*O.ExportsTrieCommandIndex]
+          .MachOLoadCommand.linkedit_data_command_data;
+  char *Out = (char *)Buf->getBufferStart() + ExportsTrieCmd.dataoff;
+  assert((ExportsTrieCmd.datasize == O.Exports.Trie.size()) &&
+         "Incorrect export trie size");
+  memcpy(Out, O.Exports.Trie.data(), O.Exports.Trie.size());
 }
 
 void MachOWriter::writeTail() {
@@ -615,6 +628,7 @@ void MachOWriter::writeTail() {
   std::initializer_list<std::pair<Optional<size_t>, WriteHandlerType>>
       LinkEditDataCommandWriters = {
           {O.CodeSignatureCommandIndex, &MachOWriter::writeCodeSignatureData},
+          {O.DylibCodeSignDRsIndex, &MachOWriter::writeDylibCodeSignDRsData},
           {O.DataInCodeCommandIndex, &MachOWriter::writeDataInCodeData},
           {O.LinkerOptimizationHintCommandIndex,
            &MachOWriter::writeLinkerOptimizationHint},

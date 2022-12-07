@@ -21,7 +21,7 @@ static Command *getCommand(const EventImplPtr &Event) {
   return (Command *)Event->getCommand();
 }
 
-void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event,
+void Scheduler::GraphProcessor::waitForEvent(const EventImplPtr &Event,
                                              ReadLockT &GraphReadLock,
                                              std::vector<Command *> &ToCleanUp,
                                              bool LockTheLock) {

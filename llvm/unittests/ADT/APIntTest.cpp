@@ -8,6 +8,7 @@
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/Twine.h"
 #include "gtest/gtest.h"
@@ -2931,10 +2932,10 @@ TEST(APIntTest, MultiplicativeInverseExaustive) {
 
 TEST(APIntTest, GetMostSignificantDifferentBit) {
   EXPECT_EQ(APIntOps::GetMostSignificantDifferentBit(APInt(8, 0), APInt(8, 0)),
-            llvm::None);
+            std::nullopt);
   EXPECT_EQ(
       APIntOps::GetMostSignificantDifferentBit(APInt(8, 42), APInt(8, 42)),
-      llvm::None);
+      std::nullopt);
   EXPECT_EQ(*APIntOps::GetMostSignificantDifferentBit(APInt(8, 0), APInt(8, 1)),
             0u);
   EXPECT_EQ(*APIntOps::GetMostSignificantDifferentBit(APInt(8, 0), APInt(8, 2)),
@@ -2944,7 +2945,7 @@ TEST(APIntTest, GetMostSignificantDifferentBit) {
   EXPECT_EQ(*APIntOps::GetMostSignificantDifferentBit(APInt(8, 1), APInt(8, 0)),
             0u);
   EXPECT_EQ(APIntOps::GetMostSignificantDifferentBit(APInt(8, 1), APInt(8, 1)),
-            llvm::None);
+            std::nullopt);
   EXPECT_EQ(*APIntOps::GetMostSignificantDifferentBit(APInt(8, 1), APInt(8, 2)),
             1u);
   EXPECT_EQ(*APIntOps::GetMostSignificantDifferentBit(APInt(8, 1), APInt(8, 3)),
@@ -2959,7 +2960,7 @@ TEST(APIntTest, GetMostSignificantDifferentBitExaustive) {
       [](const APInt &V0, const APInt &V1) -> llvm::Optional<unsigned> {
     assert(V0.getBitWidth() == V1.getBitWidth() && "Must have same bitwidth");
     if (V0 == V1)
-      return llvm::None; // Bitwise identical.
+      return std::nullopt; // Bitwise identical.
     // There is a mismatch. Let's find the most significant different bit.
     for (int Bit = V0.getBitWidth() - 1; Bit >= 0; --Bit) {
       if (V0[Bit] == V1[Bit])
@@ -3124,6 +3125,13 @@ TEST(APIntTest, ScaleBitMask) {
   EXPECT_EQ(APIntOps::ScaleBitMask(APInt(8, 0x00), 4, true), APInt(4, 0x00));
   EXPECT_EQ(APIntOps::ScaleBitMask(APInt(8, 0xFF), 4, true), APInt(4, 0x0F));
   EXPECT_EQ(APIntOps::ScaleBitMask(APInt(8, 0xE4), 4, true), APInt(4, 0x08));
+}
+
+TEST(APIntTest, DenseMap) {
+  DenseMap<APInt, int> Map;
+  APInt ZeroWidthInt(0, 0, false);
+  Map.insert({ZeroWidthInt, 0});
+  Map.find(ZeroWidthInt);
 }
 
 } // end anonymous namespace

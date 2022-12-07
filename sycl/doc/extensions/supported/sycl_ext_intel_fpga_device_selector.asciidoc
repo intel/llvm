@@ -90,18 +90,25 @@ supports.
 
 |2
 |fpga_simulator_selector added.
+
+|3
+|SYCL 2020 selector variants `fpga_selector_v`, `fpga_simulator_selector_v`, and
+`fpga_emulator_selector_v` added.  Old selectors `fpga_selector`,
+`fpga_simulator_selector`, and `fpga_emulator_selector` deprecated.
 |===
 
 === Select FPGA hardware device
 ....
 // select FPGA hardware device
-sycl::queue deviceQueue{sycl::ext::intel::fpga_selector{}};
+sycl::queue deviceQueue1{sycl::ext::intel::fpga_selector{}}; // Deprecated
+sycl::queue deviceQueue2{sycl::ext::intel::fpga_selector_v};
 ....
 
 === Select FPGA simulator device
 ....
 // select FPGA simulator device
-sycl::queue deviceQueue{sycl::ext::intel::fpga_simulator_selector{}};
+sycl::queue deviceQueue1{sycl::ext::intel::fpga_simulator_selector{}}; // Deprecated
+sycl::queue deviceQueue2{sycl::ext::intel::fpga_simulator_selector_v};
 ....
 
 [NOTE]
@@ -112,14 +119,16 @@ Added in version 2 of this extension.
 === Select FPGA emulator device
 ....
 // select FPGA emulator device
-sycl::queue deviceQueue{sycl::ext::intel::fpga_emulator_selector{}};
+sycl::queue deviceQueue1{sycl::ext::intel::fpga_emulator_selector{}}; // Deprecated
+sycl::queue deviceQueue2{sycl::ext::intel::fpga_emulator_selector_v};
 ....
 
 == Implementation notes
 
 The current implementation has a restriction on the use of
-`fpga_simulator_selector`.  If an object of `fpga_simulator_selector` is
-defined in the application, FPGA hardware devices selected using
-`fpga_selector` will select a simulator device. This behaviour is expected to
+`fpga_simulator_selector` and `fpga_simulator_selector_v`.  If an object of
+`fpga_simulator_selector` is defined or `fpga_simulator_selector_v` is used in
+the application, FPGA hardware devices selected using fpga_selector` and
+`fpga_selector_v` will select a simulator device. This behaviour is expected to
 be eliminated in the future.
 

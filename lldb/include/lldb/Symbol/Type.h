@@ -135,6 +135,8 @@ public:
 
   ConstString GetName();
 
+  ConstString GetBaseName();
+
   llvm::Optional<uint64_t> GetByteSize(ExecutionContextScope *exe_scope);
 
   uint32_t GetNumChildren(bool omit_empty_base_classes);
@@ -295,7 +297,7 @@ public:
 
   CompilerType GetCompilerType(bool prefer_dynamic);
 
-  TypeSystem *GetTypeSystem(bool prefer_dynamic);
+  CompilerType::TypeSystemSPWrapper GetTypeSystem(bool prefer_dynamic);
 
   bool GetDescription(lldb_private::Stream &strm,
                       lldb::DescriptionLevel description_level);

@@ -43,6 +43,35 @@ static pi_result redefinedDeviceGetInfo(pi_device device,
     }
   } else if (param_name == PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY) {
     TestContext->FreeMemoryInfoCalled = true;
+  } else if (param_name == PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE) {
+    if (param_value_size_ret)
+      *param_value_size_ret = 4;
+
+    if (param_value) {
+      assert(param_value_size == sizeof(uint32_t));
+      *static_cast<uint32_t *>(param_value) = 800;
+    }
+  } else if (param_name == PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH) {
+    if (param_value_size_ret)
+      *param_value_size_ret = 4;
+
+    if (param_value) {
+      assert(param_value_size == sizeof(uint32_t));
+      *static_cast<uint32_t *>(param_value) = 64;
+    }
+  }
+
+  // This mock device has no sub-devices
+  if (param_name == PI_DEVICE_INFO_PARTITION_PROPERTIES) {
+    if (param_value_size_ret) {
+      *param_value_size_ret = 0;
+    }
+  }
+  if (param_name == PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN) {
+    assert(param_value_size == sizeof(pi_device_affinity_domain));
+    if (param_value) {
+      *static_cast<pi_device_affinity_domain *>(param_value) = 0;
+    }
   }
 
   return PI_SUCCESS;
@@ -54,7 +83,41 @@ public:
 
 protected:
   void SetUp() override {
-    Mock.redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
+    Mock.redefineBefore<detail::PiApiKind::piDeviceGetInfo>(
+        redefinedDeviceGetInfo);
+  }
+
+protected:
+  unittest::PiMock Mock;
+  sycl::platform Plt;
+};
+
+static pi_result redefinedNegativeDeviceGetInfo(pi_device device,
+                                                pi_device_info param_name,
+                                                size_t param_value_size,
+                                                void *param_value,
+                                                size_t *param_value_size_ret) {
+  switch (param_name) {
+  case PI_DEVICE_INFO_UUID:
+  case PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY:
+  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE:
+  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH:
+    return PI_ERROR_INVALID_VALUE;
+  default:
+    return PI_SUCCESS;
+  }
+
+  return PI_SUCCESS;
+}
+
+class DeviceInfoNegativeTest : public ::testing::Test {
+public:
+  DeviceInfoNegativeTest() : Mock{}, Plt{Mock.getPlatform()} {}
+
+protected:
+  void SetUp() override {
+    Mock.redefineBefore<detail::PiApiKind::piDeviceGetInfo>(
+        redefinedNegativeDeviceGetInfo);
   }
 
 protected:
@@ -107,6 +170,34 @@ TEST_F(DeviceInfoTest, GetDeviceFreeMemory) {
       << "Expect free_memory to be of uint64_t size";
 }
 
+TEST_F(DeviceInfoTest, GetDeviceMemoryClockRate) {
+  context Ctx{Plt.get_devices()[0]};
+  TestContext.reset(new TestCtx(Ctx));
+
+  device Dev = Ctx.get_devices()[0];
+
+  auto MemoryClockRate =
+      Dev.get_info<ext::intel::info::device::memory_clock_rate>();
+
+  EXPECT_EQ(MemoryClockRate, 800u);
+  EXPECT_EQ(sizeof(MemoryClockRate), sizeof(uint32_t))
+      << "Expect memory_clock_rate to be of uint32_t size";
+}
+
+TEST_F(DeviceInfoTest, GetDeviceMemoryBusWidth) {
+  context Ctx{Plt.get_devices()[0]};
+  TestContext.reset(new TestCtx(Ctx));
+
+  device Dev = Ctx.get_devices()[0];
+
+  auto MemoryBusWidth =
+      Dev.get_info<ext::intel::info::device::memory_bus_width>();
+
+  EXPECT_EQ(MemoryBusWidth, 64u);
+  EXPECT_EQ(sizeof(MemoryBusWidth), sizeof(uint32_t))
+      << "Expect memory_bus_width to be of uint32_t size";
+}
+
 TEST_F(DeviceInfoTest, BuiltInKernelIDs) {
   context Ctx{Plt.get_devices()[0]};
   TestContext.reset(new TestCtx(Ctx));
@@ -133,4 +224,14 @@ TEST_F(DeviceInfoTest, BuiltInKernelIDs) {
   EXPECT_EQ(val, errc::kernel_argument);
   EXPECT_EQ(
       msg, "Attempting to use a built-in kernel. They are not fully supported");
+}
+
+TEST_F(DeviceInfoNegativeTest, TestAspectNotSupported) {
+  context Ctx{Plt.get_devices()[0]};
+  device Dev = Ctx.get_devices()[0];
+
+  EXPECT_EQ(Dev.has(aspect::ext_intel_device_info_uuid), false);
+  EXPECT_EQ(Dev.has(aspect::ext_intel_free_memory), false);
+  EXPECT_EQ(Dev.has(aspect::ext_intel_memory_clock_rate), false);
+  EXPECT_EQ(Dev.has(aspect::ext_intel_memory_bus_width), false);
 }

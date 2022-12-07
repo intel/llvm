@@ -155,8 +155,6 @@ TargetInfo::TargetInfo(const llvm::Triple &T) : Triple(T) {
   MaxOpenCLWorkGroupSize = 1024;
 
   MaxBitIntWidth.reset();
-
-  ProgramAddrSpace = 0;
 }
 
 // Out of line virtual dtor for TargetInfo.
@@ -557,6 +555,10 @@ TargetInfo::getCallingConvKind(bool ClangABICompat4) const {
       (ClangABICompat4 || getTriple().isPS4()))
     return CCK_ClangABI4OrPS4;
   return CCK_Default;
+}
+
+bool TargetInfo::areDefaultedSMFStillPOD(const LangOptions &LangOpts) const {
+  return LangOpts.getClangABICompat() > LangOptions::ClangABI::Ver15;
 }
 
 LangAS TargetInfo::getOpenCLTypeAddrSpace(OpenCLTypeKind TK) const {

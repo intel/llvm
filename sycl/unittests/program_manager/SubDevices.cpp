@@ -99,15 +99,17 @@ TEST(SubDevices, DISABLED_BuildProgramForSubdevices) {
   // Setup Mock APIs
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  Mock.redefine<sycl::detail::PiApiKind::piDeviceGetInfo>(
+  Mock.redefineBefore<sycl::detail::PiApiKind::piDeviceGetInfo>(
       redefinedDeviceGetInfo);
-  Mock.redefine<sycl::detail::PiApiKind::piDevicePartition>(
+  Mock.redefineBefore<sycl::detail::PiApiKind::piDevicePartition>(
       redefinedDevicePartition);
-  Mock.redefine<sycl::detail::PiApiKind::piDeviceRetain>(redefinedDeviceRetain);
-  Mock.redefine<sycl::detail::PiApiKind::piDeviceRelease>(
+  Mock.redefineBefore<sycl::detail::PiApiKind::piDeviceRetain>(
+      redefinedDeviceRetain);
+  Mock.redefineBefore<sycl::detail::PiApiKind::piDeviceRelease>(
       redefinedDeviceRelease);
-  Mock.redefine<sycl::detail::PiApiKind::piProgramBuild>(redefinedProgramBuild);
-  Mock.redefine<sycl::detail::PiApiKind::piContextCreate>(
+  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramBuild>(
+      redefinedProgramBuild);
+  Mock.redefineBefore<sycl::detail::PiApiKind::piContextCreate>(
       redefinedContextCreate);
 
   // Create 2 sub-devices and use first platform device as a root device

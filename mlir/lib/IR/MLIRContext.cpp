@@ -206,6 +206,8 @@ public:
   StorageUniquer typeUniquer;
 
   /// Cached Type Instances.
+  Float8E5M2Type f8E5M2Ty;
+  Float8E4M3FNType f8E4M3FNTy;
   BFloat16Type bf16Ty;
   Float16Type f16Ty;
   Float32Type f32Ty;
@@ -276,6 +278,8 @@ MLIRContext::MLIRContext(const DialectRegistry &registry, Threading setting)
 
   //// Types.
   /// Floating-point Types.
+  impl->f8E5M2Ty = TypeUniquer::get<Float8E5M2Type>(this);
+  impl->f8E4M3FNTy = TypeUniquer::get<Float8E4M3FNType>(this);
   impl->bf16Ty = TypeUniquer::get<BFloat16Type>(this);
   impl->f16Ty = TypeUniquer::get<Float16Type>(this);
   impl->f32Ty = TypeUniquer::get<Float32Type>(this);
@@ -427,9 +431,11 @@ MLIRContext::getOrLoadDialect(StringRef dialectNamespace, TypeID dialectID,
           ") while in a multi-threaded execution context (maybe "
           "the PassManager): this can indicate a "
           "missing `dependentDialects` in a pass for example.");
-#endif
-    std::unique_ptr<Dialect> &dialect =
-        impl.loadedDialects.insert({dialectNamespace, ctor()}).first->second;
+#endif // NDEBUG
+    // loadedDialects entry is initialized to nullptr, indicating that the
+    // dialect is currently being loaded.
+    std::unique_ptr<Dialect> &dialect = impl.loadedDialects[dialectNamespace];
+    dialect = ctor();
     assert(dialect && "dialect ctor failed");
 
     // Refresh all the identifiers dialect field, this catches cases where a
@@ -447,6 +453,14 @@ MLIRContext::getOrLoadDialect(StringRef dialectNamespace, TypeID dialectID,
     return dialect.get();
   }
 
+#ifndef NDEBUG
+  if (dialectIt->second == nullptr)
+    llvm::report_fatal_error(
+        "Loading (and getting) a dialect (" + dialectNamespace +
+        ") while the same dialect is still loading: use loadDialect instead "
+        "of getOrLoadDialect.");
+#endif // NDEBUG
+
   // Abort if dialect with namespace has already been registered.
   std::unique_ptr<Dialect> &dialect = dialectIt->second;
   if (dialect->getTypeID() != dialectID)
@@ -456,6 +470,12 @@ MLIRContext::getOrLoadDialect(StringRef dialectNamespace, TypeID dialectID,
   return dialect.get();
 }
 
+bool MLIRContext::isDialectLoading(StringRef dialectNamespace) {
+  auto it = getImpl().loadedDialects.find(dialectNamespace);
+  // nullptr indicates that the dialect is currently being loaded.
+  return it != getImpl().loadedDialects.end() && it->second == nullptr;
+}
+
 DynamicDialect *MLIRContext::getOrLoadDynamicDialect(
     StringRef dialectNamespace, function_ref<void(DynamicDialect *)> ctor) {
   auto &impl = getImpl();
@@ -463,7 +483,7 @@ DynamicDialect *MLIRContext::getOrLoadDynamicDialect(
   auto dialectIt = impl.loadedDialects.find(dialectNamespace);
 
   if (dialectIt != impl.loadedDialects.end()) {
-    if (auto dynDialect = dyn_cast<DynamicDialect>(dialectIt->second.get()))
+    if (auto *dynDialect = dyn_cast<DynamicDialect>(dialectIt->second.get()))
       return dynDialect;
     llvm::report_fatal_error("a dialect with namespace '" + dialectNamespace +
                              "' has already been registered");
@@ -733,7 +753,7 @@ RegisteredOperationName::lookup(StringRef name, MLIRContext *ctx) {
   auto it = impl.registeredOperations.find(name);
   if (it != impl.registeredOperations.end())
     return it->getValue();
-  return llvm::None;
+  return std::nullopt;
 }
 
 ParseResult
@@ -840,6 +860,12 @@ AbstractType *AbstractType::lookupMutable(TypeID typeID, MLIRContext *context) {
 /// This should not be used directly.
 StorageUniquer &MLIRContext::getTypeUniquer() { return getImpl().typeUniquer; }
 
+Float8E5M2Type Float8E5M2Type::get(MLIRContext *context) {
+  return context->getImpl().f8E5M2Ty;
+}
+Float8E4M3FNType Float8E4M3FNType::get(MLIRContext *context) {
+  return context->getImpl().f8E4M3FNTy;
+}
 BFloat16Type BFloat16Type::get(MLIRContext *context) {
   return context->getImpl().bf16Ty;
 }

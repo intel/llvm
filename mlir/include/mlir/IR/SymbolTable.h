@@ -249,7 +249,7 @@ public:
   Operation *lookupSymbolIn(Operation *symbolTableOp, StringAttr symbol);
   Operation *lookupSymbolIn(Operation *symbolTableOp, SymbolRefAttr name);
   template <typename T, typename NameT>
-  T lookupSymbolIn(Operation *symbolTableOp, NameT &&name) const {
+  T lookupSymbolIn(Operation *symbolTableOp, NameT &&name) {
     return dyn_cast_or_null<T>(
         lookupSymbolIn(symbolTableOp, std::forward<NameT>(name)));
   }
@@ -301,7 +301,7 @@ public:
   /// Return the users of the provided symbol operation.
   ArrayRef<Operation *> getUsers(Operation *symbol) const {
     auto it = symbolToUsers.find(symbol);
-    return it != symbolToUsers.end() ? it->second.getArrayRef() : llvm::None;
+    return it != symbolToUsers.end() ? it->second.getArrayRef() : std::nullopt;
   }
 
   /// Return true if the given symbol has no uses.

@@ -244,7 +244,7 @@ static void optimizeModule(Module &TheModule, TargetMachine &TM,
   ModuleAnalysisManager MAM;
 
   PassInstrumentationCallbacks PIC;
-  StandardInstrumentations SI(DebugPassManager);
+  StandardInstrumentations SI(TheModule.getContext(), DebugPassManager);
   SI.registerCallbacks(PIC, &FAM);
   PipelineTuningOptions PTO;
   PTO.LoopVectorization = true;
@@ -618,7 +618,7 @@ std::unique_ptr<TargetMachine> TargetMachineBuilder::create() const {
 
   std::unique_ptr<TargetMachine> TM(
       TheTarget->createTargetMachine(TheTriple.str(), MCpu, FeatureStr, Options,
-                                     RelocModel, None, CGOptLevel));
+                                     RelocModel, std::nullopt, CGOptLevel));
   assert(TM && "Cannot create target machine");
 
   return TM;
@@ -1217,7 +1217,7 @@ void ThinLTOCodeGenerator::run() {
     }
   }
 
-  pruneCache(CacheOptions.Path, CacheOptions.Policy);
+  pruneCache(CacheOptions.Path, CacheOptions.Policy, ProducedBinaries);
 
   // If statistics were requested, print them out now.
   if (llvm::AreStatisticsEnabled())

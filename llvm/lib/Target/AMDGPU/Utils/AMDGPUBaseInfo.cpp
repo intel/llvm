@@ -23,6 +23,7 @@
 #include "llvm/Support/AMDHSAKernelDescriptor.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/TargetParser.h"
+#include <optional>
 
 #define GET_INSTRINFO_NAMED_OPS
 #define GET_INSTRMAP_INFO
@@ -99,7 +100,7 @@ namespace AMDGPU {
 
 Optional<uint8_t> getHsaAbiVersion(const MCSubtargetInfo *STI) {
   if (STI && STI->getTargetTriple().getOS() != Triple::AMDHSA)
-    return None;
+    return std::nullopt;
 
   switch (AmdhsaCodeObjectVersion) {
   case 2:
@@ -430,7 +431,35 @@ unsigned getVOPDOpcode(unsigned Opc) {
 }
 
 bool isVOPD(unsigned Opc) {
-  return AMDGPU::getNamedOperandIdx(Opc, AMDGPU::OpName::src0X) != -1;
+  return AMDGPU::hasNamedOperand(Opc, AMDGPU::OpName::src0X);
+}
+
+bool isMAC(unsigned Opc) {
+  return Opc == AMDGPU::V_MAC_F32_e64_gfx6_gfx7 ||
+         Opc == AMDGPU::V_MAC_F32_e64_gfx10 ||
+         Opc == AMDGPU::V_MAC_F32_e64_vi ||
+         Opc == AMDGPU::V_MAC_LEGACY_F32_e64_gfx6_gfx7 ||
+         Opc == AMDGPU::V_MAC_LEGACY_F32_e64_gfx10 ||
+         Opc == AMDGPU::V_MAC_F16_e64_vi ||
+         Opc == AMDGPU::V_FMAC_F64_e64_gfx90a ||
+         Opc == AMDGPU::V_FMAC_F32_e64_gfx10 ||
+         Opc == AMDGPU::V_FMAC_F32_e64_gfx11 ||
+         Opc == AMDGPU::V_FMAC_F32_e64_vi ||
+         Opc == AMDGPU::V_FMAC_LEGACY_F32_e64_gfx10 ||
+         Opc == AMDGPU::V_FMAC_DX9_ZERO_F32_e64_gfx11 ||
+         Opc == AMDGPU::V_FMAC_F16_e64_gfx10 ||
+         Opc == AMDGPU::V_FMAC_F16_t16_e64_gfx11 ||
+         Opc == AMDGPU::V_DOT2C_F32_F16_e64_vi ||
+         Opc == AMDGPU::V_DOT2C_I32_I16_e64_vi ||
+         Opc == AMDGPU::V_DOT4C_I32_I8_e64_vi ||
+         Opc == AMDGPU::V_DOT8C_I32_I4_e64_vi;
+}
+
+bool isPermlane16(unsigned Opc) {
+  return Opc == AMDGPU::V_PERMLANE16_B32_gfx10 ||
+         Opc == AMDGPU::V_PERMLANEX16_B32_gfx10 ||
+         Opc == AMDGPU::V_PERMLANE16_B32_e64_gfx11 ||
+         Opc == AMDGPU::V_PERMLANEX16_B32_e64_gfx11;
 }
 
 bool isTrue16Inst(unsigned Opc) {
@@ -460,6 +489,113 @@ int getVOPDFull(unsigned OpX, unsigned OpY) {
   return Info ? Info->Opcode : -1;
 }
 
+std::pair<unsigned, unsigned> getVOPDComponents(unsigned VOPDOpcode) {
+  const VOPDInfo *Info = getVOPDOpcodeHelper(VOPDOpcode);
+  assert(Info);
+  auto OpX = getVOPDBaseFromComponent(Info->OpX);
+  auto OpY = getVOPDBaseFromComponent(Info->OpY);
+  assert(OpX && OpY);
+  return {OpX->BaseVOP, OpY->BaseVOP};
+}
+
+namespace VOPD {
+
+ComponentProps::ComponentProps(const MCInstrDesc &OpDesc) {
+  assert(OpDesc.getNumDefs() == Component::DST_NUM);
+
+  assert(OpDesc.getOperandConstraint(Component::SRC0, MCOI::TIED_TO) == -1);
+  assert(OpDesc.getOperandConstraint(Component::SRC1, MCOI::TIED_TO) == -1);
+  auto TiedIdx = OpDesc.getOperandConstraint(Component::SRC2, MCOI::TIED_TO);
+  assert(TiedIdx == -1 || TiedIdx == Component::DST);
+  HasSrc2Acc = TiedIdx != -1;
+
+  SrcOperandsNum = OpDesc.getNumOperands() - OpDesc.getNumDefs();
+  assert(SrcOperandsNum <= Component::MAX_SRC_NUM);
+
+  auto OperandsNum = OpDesc.getNumOperands();
+  unsigned CompOprIdx;
+  for (CompOprIdx = Component::SRC1; CompOprIdx < OperandsNum; ++CompOprIdx) {
+    if (OpDesc.OpInfo[CompOprIdx].OperandType == AMDGPU::OPERAND_KIMM32) {
+      MandatoryLiteralIdx = CompOprIdx;
+      break;
+    }
+  }
+}
+
+unsigned ComponentInfo::getIndexInParsedOperands(unsigned CompOprIdx) const {
+  assert(CompOprIdx < Component::MAX_OPR_NUM);
+
+  if (CompOprIdx == Component::DST)
+    return getIndexOfDstInParsedOperands();
+
+  auto CompSrcIdx = CompOprIdx - Component::DST_NUM;
+  if (CompSrcIdx < getCompParsedSrcOperandsNum())
+    return getIndexOfSrcInParsedOperands(CompSrcIdx);
+
+  // The specified operand does not exist.
+  return 0;
+}
+
+Optional<unsigned> InstInfo::getInvalidCompOperandIndex(
+    std::function<unsigned(unsigned, unsigned)> GetRegIdx) const {
+
+  auto OpXRegs = getRegIndices(ComponentIndex::X, GetRegIdx);
+  auto OpYRegs = getRegIndices(ComponentIndex::Y, GetRegIdx);
+
+  unsigned CompOprIdx;
+  for (CompOprIdx = 0; CompOprIdx < Component::MAX_OPR_NUM; ++CompOprIdx) {
+    unsigned BanksNum = BANKS_NUM[CompOprIdx];
+    if (OpXRegs[CompOprIdx] && OpYRegs[CompOprIdx] &&
+        (OpXRegs[CompOprIdx] % BanksNum == OpYRegs[CompOprIdx] % BanksNum))
+      return CompOprIdx;
+  }
+
+  return {};
+}
+
+// Return an array of VGPR registers [DST,SRC0,SRC1,SRC2] used
+// by the specified component. If an operand is unused
+// or is not a VGPR, the corresponding value is 0.
+//
+// GetRegIdx(Component, MCOperandIdx) must return a VGPR register index
+// for the specified component and MC operand. The callback must return 0
+// if the operand is not a register or not a VGPR.
+InstInfo::RegIndices InstInfo::getRegIndices(
+    unsigned CompIdx,
+    std::function<unsigned(unsigned, unsigned)> GetRegIdx) const {
+  assert(CompIdx < COMPONENTS_NUM);
+
+  const auto &Comp = CompInfo[CompIdx];
+  InstInfo::RegIndices RegIndices;
+
+  RegIndices[DST] = GetRegIdx(CompIdx, Comp.getIndexOfDstInMCOperands());
+
+  for (unsigned CompOprIdx : {SRC0, SRC1, SRC2}) {
+    unsigned CompSrcIdx = CompOprIdx - DST_NUM;
+    RegIndices[CompOprIdx] =
+        Comp.hasRegSrcOperand(CompSrcIdx)
+            ? GetRegIdx(CompIdx, Comp.getIndexOfSrcInMCOperands(CompSrcIdx))
+            : 0;
+  }
+  return RegIndices;
+}
+
+} // namespace VOPD
+
+VOPD::InstInfo getVOPDInstInfo(const MCInstrDesc &OpX, const MCInstrDesc &OpY) {
+  return VOPD::InstInfo(OpX, OpY);
+}
+
+VOPD::InstInfo getVOPDInstInfo(unsigned VOPDOpcode,
+                               const MCInstrInfo *InstrInfo) {
+  auto [OpX, OpY] = getVOPDComponents(VOPDOpcode);
+  const auto &OpXDesc = InstrInfo->get(OpX);
+  const auto &OpYDesc = InstrInfo->get(OpY);
+  VOPD::ComponentInfo OpXInfo(OpXDesc, VOPD::ComponentKind::COMPONENT_X);
+  VOPD::ComponentInfo OpYInfo(OpYDesc, OpXInfo);
+  return VOPD::InstInfo(OpXInfo, OpYInfo);
+}
+
 namespace IsaInfo {
 
 AMDGPUTargetID::AMDGPUTargetID(const MCSubtargetInfo &STI)
@@ -476,8 +612,8 @@ void AMDGPUTargetID::setTargetIDFromFeaturesString(StringRef FS) {
   // absence of the target features we assume we must generate code that can run
   // in any environment.
   SubtargetFeatures Features(FS);
-  Optional<bool> XnackRequested;
-  Optional<bool> SramEccRequested;
+  std::optional<bool> XnackRequested;
+  std::optional<bool> SramEccRequested;
 
   for (const std::string &Feature : Features.getFeatures()) {
     if (Feature == "+xnack")
@@ -2067,6 +2203,42 @@ unsigned getRegBitWidth(unsigned RCID) {
   case AMDGPU::AV_256RegClassID:
   case AMDGPU::AV_256_Align2RegClassID:
     return 256;
+  case AMDGPU::SGPR_288RegClassID:
+  case AMDGPU::SReg_288RegClassID:
+  case AMDGPU::VReg_288RegClassID:
+  case AMDGPU::AReg_288RegClassID:
+  case AMDGPU::VReg_288_Align2RegClassID:
+  case AMDGPU::AReg_288_Align2RegClassID:
+  case AMDGPU::AV_288RegClassID:
+  case AMDGPU::AV_288_Align2RegClassID:
+    return 288;
+  case AMDGPU::SGPR_320RegClassID:
+  case AMDGPU::SReg_320RegClassID:
+  case AMDGPU::VReg_320RegClassID:
+  case AMDGPU::AReg_320RegClassID:
+  case AMDGPU::VReg_320_Align2RegClassID:
+  case AMDGPU::AReg_320_Align2RegClassID:
+  case AMDGPU::AV_320RegClassID:
+  case AMDGPU::AV_320_Align2RegClassID:
+    return 320;
+  case AMDGPU::SGPR_352RegClassID:
+  case AMDGPU::SReg_352RegClassID:
+  case AMDGPU::VReg_352RegClassID:
+  case AMDGPU::AReg_352RegClassID:
+  case AMDGPU::VReg_352_Align2RegClassID:
+  case AMDGPU::AReg_352_Align2RegClassID:
+  case AMDGPU::AV_352RegClassID:
+  case AMDGPU::AV_352_Align2RegClassID:
+    return 352;
+  case AMDGPU::SGPR_384RegClassID:
+  case AMDGPU::SReg_384RegClassID:
+  case AMDGPU::VReg_384RegClassID:
+  case AMDGPU::AReg_384RegClassID:
+  case AMDGPU::VReg_384_Align2RegClassID:
+  case AMDGPU::AReg_384_Align2RegClassID:
+  case AMDGPU::AV_384RegClassID:
+  case AMDGPU::AV_384_Align2RegClassID:
+    return 384;
   case AMDGPU::SGPR_512RegClassID:
   case AMDGPU::SReg_512RegClassID:
   case AMDGPU::VReg_512RegClassID:
@@ -2269,25 +2441,26 @@ Optional<int64_t> getSMRDEncodedOffset(const MCSubtargetInfo &ST,
   // The signed version is always a byte offset.
   if (!IsBuffer && hasSMRDSignedImmOffset(ST)) {
     assert(hasSMEMByteOffset(ST));
-    return isInt<20>(ByteOffset) ? Optional<int64_t>(ByteOffset) : None;
+    return isInt<20>(ByteOffset) ? Optional<int64_t>(ByteOffset) : std::nullopt;
   }
 
   if (!isDwordAligned(ByteOffset) && !hasSMEMByteOffset(ST))
-    return None;
+    return std::nullopt;
 
   int64_t EncodedOffset = convertSMRDOffsetUnits(ST, ByteOffset);
   return isLegalSMRDEncodedUnsignedOffset(ST, EncodedOffset)
              ? Optional<int64_t>(EncodedOffset)
-             : None;
+             : std::nullopt;
 }
 
 Optional<int64_t> getSMRDEncodedLiteralOffset32(const MCSubtargetInfo &ST,
                                                 int64_t ByteOffset) {
   if (!isCI(ST) || !isDwordAligned(ByteOffset))
-    return None;
+    return std::nullopt;
 
   int64_t EncodedOffset = convertSMRDOffsetUnits(ST, ByteOffset);
-  return isUInt<32>(EncodedOffset) ? Optional<int64_t>(EncodedOffset) : None;
+  return isUInt<32>(EncodedOffset) ? Optional<int64_t>(EncodedOffset)
+                                   : std::nullopt;
 }
 
 unsigned getNumFlatOffsetBits(const MCSubtargetInfo &ST, bool Signed) {

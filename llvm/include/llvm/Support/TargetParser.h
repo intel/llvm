@@ -157,6 +157,9 @@ IsaVersion getIsaVersion(StringRef GPU);
 
 namespace RISCV {
 
+// We use 64 bits as the known part in the scalable vector types.
+static constexpr unsigned RVVBitsPerBlock = 64;
+
 enum CPUKind : unsigned {
 #define PROC(ENUM, NAME, FEATURES, DEFAULT_MARCH) CK_##ENUM,
 #define TUNE_PROC(ENUM, NAME) CK_##ENUM,
@@ -179,19 +182,6 @@ void fillValidTuneCPUArchList(SmallVectorImpl<StringRef> &Values, bool IsRV64);
 bool getCPUFeaturesExceptStdExt(CPUKind Kind, std::vector<StringRef> &Features);
 
 } // namespace RISCV
-
-namespace ARM {
-struct ParsedBranchProtection {
-  StringRef Scope;
-  StringRef Key;
-  bool BranchTargetEnforcement;
-};
-
-bool parseBranchProtection(StringRef Spec, ParsedBranchProtection &PBP,
-                           StringRef &Err);
-
-} // namespace ARM
-
 } // namespace llvm
 
 #endif

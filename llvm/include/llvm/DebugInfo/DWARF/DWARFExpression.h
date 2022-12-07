@@ -140,7 +140,7 @@ public:
   };
 
   DWARFExpression(DataExtractor Data, uint8_t AddressSize,
-                  Optional<dwarf::DwarfFormat> Format = None)
+                  Optional<dwarf::DwarfFormat> Format = std::nullopt)
       : Data(Data), AddressSize(AddressSize), Format(Format) {
     assert(AddressSize == 8 || AddressSize == 4 || AddressSize == 2);
   }
@@ -163,6 +163,11 @@ public:
   bool operator==(const DWARFExpression &RHS) const;
 
   StringRef getData() const { return Data.getData(); }
+
+  static bool prettyPrintRegisterOp(DWARFUnit *U, raw_ostream &OS,
+                                    DIDumpOptions DumpOpts, uint8_t Opcode,
+                                    const uint64_t Operands[2],
+                                    const MCRegisterInfo *MRI, bool isEH);
 
 private:
   DataExtractor Data;

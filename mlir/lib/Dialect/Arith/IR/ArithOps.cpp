@@ -19,6 +19,7 @@
 
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/TypeSwitch.h"
 
 using namespace mlir;
 using namespace mlir::arith;
@@ -224,7 +225,7 @@ void arith::AddIOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 Optional<SmallVector<int64_t, 4>> arith::AddUICarryOp::getShapeForUnroll() {
   if (auto vt = getType(0).dyn_cast<VectorType>())
     return llvm::to_vector<4>(vt.getShape());
-  return None;
+  return std::nullopt;
 }
 
 // Returns the carry bit, assuming that `sum` is the result of addition of
@@ -366,6 +367,12 @@ OpFoldResult arith::DivUIOp::fold(ArrayRef<Attribute> operands) {
   return div0 ? Attribute() : result;
 }
 
+Speculation::Speculatability arith::DivUIOp::getSpeculatability() {
+  // X / 0 => UB
+  return matchPattern(getRhs(), m_NonZero()) ? Speculation::Speculatable
+                                             : Speculation::NotSpeculatable;
+}
+
 //===----------------------------------------------------------------------===//
 // DivSIOp
 //===----------------------------------------------------------------------===//
@@ -387,6 +394,18 @@ OpFoldResult arith::DivSIOp::fold(ArrayRef<Attribute> operands) {
       });
 
   return overflowOrDiv0 ? Attribute() : result;
+}
+
+Speculation::Speculatability arith::DivSIOp::getSpeculatability() {
+  bool mayHaveUB = true;
+
+  APInt constRHS;
+  // X / 0 => UB
+  // INT_MIN / -1 => UB
+  if (matchPattern(getRhs(), m_ConstantInt(&constRHS)))
+    mayHaveUB = constRHS.isAllOnes() || constRHS.isZero();
+
+  return mayHaveUB ? Speculation::NotSpeculatable : Speculation::Speculatable;
 }
 
 //===----------------------------------------------------------------------===//
@@ -425,6 +444,12 @@ OpFoldResult arith::CeilDivUIOp::fold(ArrayRef<Attribute> operands) {
       });
 
   return overflowOrDiv0 ? Attribute() : result;
+}
+
+Speculation::Speculatability arith::CeilDivUIOp::getSpeculatability() {
+  // X / 0 => UB
+  return matchPattern(getRhs(), m_NonZero()) ? Speculation::Speculatable
+                                             : Speculation::NotSpeculatable;
 }
 
 //===----------------------------------------------------------------------===//
@@ -474,6 +499,18 @@ OpFoldResult arith::CeilDivSIOp::fold(ArrayRef<Attribute> operands) {
       });
 
   return overflowOrDiv0 ? Attribute() : result;
+}
+
+Speculation::Speculatability arith::CeilDivSIOp::getSpeculatability() {
+  bool mayHaveUB = true;
+
+  APInt constRHS;
+  // X / 0 => UB
+  // INT_MIN / -1 => UB
+  if (matchPattern(getRhs(), m_ConstantInt(&constRHS)))
+    mayHaveUB = constRHS.isAllOnes() || constRHS.isZero();
+
+  return mayHaveUB ? Speculation::NotSpeculatable : Speculation::Speculatable;
 }
 
 //===----------------------------------------------------------------------===//
@@ -575,6 +612,23 @@ OpFoldResult arith::RemSIOp::fold(ArrayRef<Attribute> operands) {
 // AndIOp
 //===----------------------------------------------------------------------===//
 
+/// Fold `and(a, and(a, b))` to `and(a, b)`
+static Value foldAndIofAndI(arith::AndIOp op) {
+  for (bool reversePrev : {false, true}) {
+    auto prev = (reversePrev ? op.getRhs() : op.getLhs())
+                    .getDefiningOp<arith::AndIOp>();
+    if (!prev)
+      continue;
+
+    Value other = (reversePrev ? op.getLhs() : op.getRhs());
+    if (other != prev.getLhs() && other != prev.getRhs())
+      continue;
+
+    return prev.getResult();
+  }
+  return {};
+}
+
 OpFoldResult arith::AndIOp::fold(ArrayRef<Attribute> operands) {
   /// and(x, 0) -> 0
   if (matchPattern(getRhs(), m_Zero()))
@@ -593,6 +647,10 @@ OpFoldResult arith::AndIOp::fold(ArrayRef<Attribute> operands) {
                                           m_ConstantInt(&intValue))) &&
       intValue.isAllOnes())
     return IntegerAttr::get(getType(), 0);
+
+  /// and(a, and(a, b)) -> and(a, b)
+  if (Value result = foldAndIofAndI(*this))
+    return result;
 
   return constFoldBinaryOp<IntegerAttr>(
       operands, [](APInt a, const APInt &b) { return std::move(a) & b; });
@@ -1444,6 +1502,16 @@ static Attribute getBoolAttribute(Type type, MLIRContext *ctx, bool value) {
   return DenseElementsAttr::get(shapedType, boolAttr);
 }
 
+static Optional<int64_t> getIntegerWidth(Type t) {
+  if (auto intType = t.dyn_cast<IntegerType>()) {
+    return intType.getWidth();
+  }
+  if (auto vectorIntType = t.dyn_cast<VectorType>()) {
+    return vectorIntType.getElementType().cast<IntegerType>().getWidth();
+  }
+  return std::nullopt;
+}
+
 OpFoldResult arith::CmpIOp::fold(ArrayRef<Attribute> operands) {
   assert(operands.size() == 2 && "cmpi takes two operands");
 
@@ -1456,13 +1524,17 @@ OpFoldResult arith::CmpIOp::fold(ArrayRef<Attribute> operands) {
   if (matchPattern(getRhs(), m_Zero())) {
     if (auto extOp = getLhs().getDefiningOp<ExtSIOp>()) {
       // extsi(%x : i1 -> iN) != 0  ->  %x
-      if (extOp.getOperand().getType().cast<IntegerType>().getWidth() == 1 &&
+      Optional<int64_t> integerWidth =
+          getIntegerWidth(extOp.getOperand().getType());
+      if (integerWidth && integerWidth.value() == 1 &&
           getPredicate() == arith::CmpIPredicate::ne)
         return extOp.getOperand();
     }
     if (auto extOp = getLhs().getDefiningOp<ExtUIOp>()) {
       // extui(%x : i1 -> iN) != 0  ->  %x
-      if (extOp.getOperand().getType().cast<IntegerType>().getWidth() == 1 &&
+      Optional<int64_t> integerWidth =
+          getIntegerWidth(extOp.getOperand().getType());
+      if (integerWidth && integerWidth.value() == 1 &&
           getPredicate() == arith::CmpIPredicate::ne)
         return extOp.getOperand();
     }
@@ -1481,7 +1553,7 @@ OpFoldResult arith::CmpIOp::fold(ArrayRef<Attribute> operands) {
     Pred origPred = getPredicate();
     for (auto pred : invPreds) {
       if (origPred == pred.first) {
-        setPredicateAttr(CmpIPredicateAttr::get(getContext(), pred.second));
+        setPredicate(pred.second);
         Value lhs = getLhs();
         Value rhs = getRhs();
         getLhsMutable().assign(rhs);

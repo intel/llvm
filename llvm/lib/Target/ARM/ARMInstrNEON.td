@@ -439,39 +439,39 @@ def VecListFourQWordIndexed : Operand<i32> {
 }
 
 def dword_alignedload : PatFrag<(ops node:$ptr), (load node:$ptr), [{
-  return cast<LoadSDNode>(N)->getAlignment() >= 8;
+  return cast<LoadSDNode>(N)->getAlign() >= 8;
 }]>;
 def dword_alignedstore : PatFrag<(ops node:$val, node:$ptr),
                                  (store node:$val, node:$ptr), [{
-  return cast<StoreSDNode>(N)->getAlignment() >= 8;
+  return cast<StoreSDNode>(N)->getAlign() >= 8;
 }]>;
 def word_alignedload : PatFrag<(ops node:$ptr), (load node:$ptr), [{
-  return cast<LoadSDNode>(N)->getAlignment() == 4;
+  return cast<LoadSDNode>(N)->getAlign() == 4;
 }]>;
 def word_alignedstore : PatFrag<(ops node:$val, node:$ptr),
                                  (store node:$val, node:$ptr), [{
-  return cast<StoreSDNode>(N)->getAlignment() == 4;
+  return cast<StoreSDNode>(N)->getAlign() == 4;
 }]>;
 def hword_alignedload : PatFrag<(ops node:$ptr), (load node:$ptr), [{
-  return cast<LoadSDNode>(N)->getAlignment() == 2;
+  return cast<LoadSDNode>(N)->getAlign() == 2;
 }]>;
 def hword_alignedstore : PatFrag<(ops node:$val, node:$ptr),
                                  (store node:$val, node:$ptr), [{
-  return cast<StoreSDNode>(N)->getAlignment() == 2;
+  return cast<StoreSDNode>(N)->getAlign() == 2;
 }]>;
 def byte_alignedload : PatFrag<(ops node:$ptr), (load node:$ptr), [{
-  return cast<LoadSDNode>(N)->getAlignment() == 1;
+  return cast<LoadSDNode>(N)->getAlign() == 1;
 }]>;
 def byte_alignedstore : PatFrag<(ops node:$val, node:$ptr),
                              (store node:$val, node:$ptr), [{
-  return cast<StoreSDNode>(N)->getAlignment() == 1;
+  return cast<StoreSDNode>(N)->getAlign() == 1;
 }]>;
 def non_word_alignedload : PatFrag<(ops node:$ptr), (load node:$ptr), [{
-  return cast<LoadSDNode>(N)->getAlignment() < 4;
+  return cast<LoadSDNode>(N)->getAlign() < 4;
 }]>;
 def non_word_alignedstore : PatFrag<(ops node:$val, node:$ptr),
                                     (store node:$val, node:$ptr), [{
-  return cast<StoreSDNode>(N)->getAlignment() < 4;
+  return cast<StoreSDNode>(N)->getAlign() < 4;
 }]>;
 
 //===----------------------------------------------------------------------===//
@@ -6697,7 +6697,7 @@ def VDUPLN32q : VDUPLNQ<{?,1,0,0}, "vdup", "32", v4i32, v2i32, VectorIndex32> {
 
 let Predicates = [HasNEON] in {
 def : Pat<(v4f16 (ARMvduplane (v4f16 DPR:$Vm), imm:$lane)),
-          (VDUPLN32d DPR:$Vm, imm:$lane)>;
+          (VDUPLN16d DPR:$Vm, imm:$lane)>;
 
 def : Pat<(v2f32 (ARMvduplane (v2f32 DPR:$Vm), imm:$lane)),
           (VDUPLN32d DPR:$Vm, imm:$lane)>;

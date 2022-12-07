@@ -651,7 +651,7 @@ static Optional<std::string> demangle(StringRef Name) {
   std::string Demangled;
   if (nonMicrosoftDemangle(Name.str().c_str(), Demangled))
     return Demangled;
-  return None;
+  return std::nullopt;
 }
 
 static Optional<std::string> demangleXCOFF(StringRef Name) {
@@ -662,7 +662,7 @@ static Optional<std::string> demangleXCOFF(StringRef Name) {
   Optional<std::string> DemangledName = demangle(Name);
   if (DemangledName)
     return "." + *DemangledName;
-  return None;
+  return std::nullopt;
 }
 
 static Optional<std::string> demangleMachO(StringRef Name) {
@@ -2297,7 +2297,7 @@ exportSymbolNamesFromFiles(const std::vector<std::string> &InputFilenames) {
   printExportSymbolList(SymbolList);
 }
 
-int main(int argc, char **argv) {
+int llvm_nm_main(int argc, char **argv) {
   InitLLVM X(argc, argv);
   BumpPtrAllocator A;
   StringSaver Saver(A);
@@ -2474,4 +2474,5 @@ int main(int argc, char **argv) {
 
   if (HadError)
     return 1;
+  return 0;
 }

@@ -1576,11 +1576,11 @@ static Optional<size_t> getLengthOnSingleLine(const SourceManager &SM,
 
   FileID FID = SM.getFileID(ExpansionRange.getBegin());
   if (FID != SM.getFileID(ExpansionRange.getEnd()))
-    return None;
+    return std::nullopt;
 
   Optional<MemoryBufferRef> Buffer = SM.getBufferOrNone(FID);
   if (!Buffer)
-    return None;
+    return std::nullopt;
 
   unsigned BeginOffset = SM.getFileOffset(ExpansionRange.getBegin());
   unsigned EndOffset = SM.getFileOffset(ExpansionRange.getEnd());
@@ -1591,7 +1591,7 @@ static Optional<size_t> getLengthOnSingleLine(const SourceManager &SM,
   // SourceRange is covering a large or small amount of space in the user's
   // editor.
   if (Snippet.find_first_of("\r\n") != StringRef::npos)
-    return None;
+    return std::nullopt;
 
   // This isn't Unicode-aware, but it doesn't need to be.
   return Snippet.size();
@@ -2332,25 +2332,25 @@ PathSensitiveBugReport::getInterestingnessKind(SVal V) const {
       "BugReport::getInterestingnessKind currently can only handle 2 different "
       "tracking kinds! Please define what tracking kind should we return here "
       "when the kind of getAsRegion() and getAsSymbol() is different!");
-  return None;
+  return std::nullopt;
 }
 
 Optional<bugreporter::TrackingKind>
 PathSensitiveBugReport::getInterestingnessKind(SymbolRef sym) const {
   if (!sym)
-    return None;
+    return std::nullopt;
   // We don't currently consider metadata symbols to be interesting
   // even if we know their region is interesting. Is that correct behavior?
   auto It = InterestingSymbols.find(sym);
   if (It == InterestingSymbols.end())
-    return None;
+    return std::nullopt;
   return It->getSecond();
 }
 
 Optional<bugreporter::TrackingKind>
 PathSensitiveBugReport::getInterestingnessKind(const MemRegion *R) const {
   if (!R)
-    return None;
+    return std::nullopt;
 
   R = R->getBaseRegion();
   auto It = InterestingRegions.find(R);
@@ -2359,7 +2359,7 @@ PathSensitiveBugReport::getInterestingnessKind(const MemRegion *R) const {
 
   if (const auto *SR = dyn_cast<SymbolicRegion>(R))
     return getInterestingnessKind(SR->getSymbol());
-  return None;
+  return std::nullopt;
 }
 
 bool PathSensitiveBugReport::isInteresting(SVal V) const {
@@ -3097,9 +3097,8 @@ void BugReporter::FlushReport(BugReportEquivClass& EQ) {
     if (getAnalyzerOptions().ShouldDisplayNotesAsEvents) {
       // For path diagnostic consumers that don't support extra notes,
       // we may optionally convert those to path notes.
-      for (auto I = report->getNotes().rbegin(),
-           E = report->getNotes().rend(); I != E; ++I) {
-        PathDiagnosticNotePiece *Piece = I->get();
+      for (const auto &I : llvm::reverse(report->getNotes())) {
+        PathDiagnosticNotePiece *Piece = I.get();
         auto ConvertedPiece = std::make_shared<PathDiagnosticEventPiece>(
           Piece->getLocation(), Piece->getString());
         for (const auto &R: Piece->getRanges())
@@ -3108,9 +3107,8 @@ void BugReporter::FlushReport(BugReportEquivClass& EQ) {
         Pieces.push_front(std::move(ConvertedPiece));
       }
     } else {
-      for (auto I = report->getNotes().rbegin(),
-           E = report->getNotes().rend(); I != E; ++I)
-        Pieces.push_front(*I);
+      for (const auto &I : llvm::reverse(report->getNotes()))
+        Pieces.push_front(I);
     }
 
     for (const auto &I : report->getFixits())

@@ -43,7 +43,7 @@
 #error "wrong value for __cpp_if_consteval"
 #endif
 
-#if check(multidimensional_subscript, 0, 0, 0, 0, 0, 202110)
+#if check(multidimensional_subscript, 0, 0, 0, 0, 0, 202211)
 #error "wrong value for __cpp_multidimensional_subscript"
 #endif
 
@@ -66,9 +66,9 @@
 #error "wrong value for __cpp_aggregate_paren_init"
 #endif
 
-#if defined(CHAR8_T) ? check(char8_t, 201811, 201811, 201811, 201811, 201811, 201811) : \
+#if defined(CHAR8_T) ? check(char8_t, 202207, 202207, 202207, 202207, 202207, 202207) : \
     defined(NO_CHAR8_T) ? check(char8_t, 0, 0, 0, 0, 0, 0) : \
-    check(char8_t, 0, 0, 0, 0, 201811, 201811)
+    check(char8_t, 0, 0, 0, 0, 202207, 202207)
 #error "wrong value for __cpp_char8_t"
 #endif
 
@@ -297,7 +297,7 @@
 #error "wrong value for __cpp_lambdas"
 #endif
 
-#if check(constexpr, 0, 200704, 201304, 201603, 201907, 202110)
+#if check(constexpr, 0, 200704, 201304, 201603, 201907, 202211)
 #error "wrong value for __cpp_constexpr"
 #endif
 

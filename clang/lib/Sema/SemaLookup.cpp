@@ -40,6 +40,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/TinyPtrVector.h"
 #include "llvm/ADT/edit_distance.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
 #include <algorithm>
 #include <iterator>
@@ -991,11 +992,9 @@ bool Sema::LookupBuiltin(LookupResult &R) {
 
       // If this is a builtin on this (or all) targets, create the decl.
       if (unsigned BuiltinID = II->getBuiltinID()) {
-        // In C++, C2x, and OpenCL (spec v1.2 s6.9.f), we don't have any
-        // predefined library functions like 'malloc'. Instead, we'll just
-        // error.
-        if ((getLangOpts().CPlusPlus || getLangOpts().OpenCL ||
-             getLangOpts().C2x) &&
+        // In C++ and OpenCL (spec v1.2 s6.9.f), we don't have any predefined
+        // library functions like 'malloc'. Instead, we'll just error.
+        if ((getLangOpts().CPlusPlus || getLangOpts().OpenCL) &&
             Context.BuiltinInfo.isPredefinedLibFunction(BuiltinID))
           return false;
 
@@ -1231,9 +1230,8 @@ static bool LookupDirect(Sema &S, LookupResult &R, const DeclContext *DC) {
     FunctionProtoType::ExtProtoInfo EPI = ConvProto->getExtProtoInfo();
     EPI.ExtInfo = EPI.ExtInfo.withCallingConv(CC_C);
     EPI.ExceptionSpec = EST_None;
-    QualType ExpectedType
-      = R.getSema().Context.getFunctionType(R.getLookupName().getCXXNameType(),
-                                            None, EPI);
+    QualType ExpectedType = R.getSema().Context.getFunctionType(
+        R.getLookupName().getCXXNameType(), std::nullopt, EPI);
 
     // Perform template argument deduction against the type that we would
     // expect the function to have.
@@ -3667,9 +3665,10 @@ CXXMethodDecl *Sema::LookupMovingAssignment(CXXRecordDecl *Class,
 ///
 /// \returns The destructor for this class.
 CXXDestructorDecl *Sema::LookupDestructor(CXXRecordDecl *Class) {
-  return cast<CXXDestructorDecl>(LookupSpecialMember(Class, CXXDestructor,
-                                                     false, false, false,
-                                                     false, false).getMethod());
+  return cast_or_null<CXXDestructorDecl>(
+      LookupSpecialMember(Class, CXXDestructor, false, false, false, false,
+                          false)
+          .getMethod());
 }
 
 /// LookupLiteralOperator - Determine which literal operator should be used for
@@ -3743,11 +3742,11 @@ Sema::LookupLiteralOperator(Scope *S, LookupResult &R,
         // is a well-formed template argument for the template parameter.
         if (StringLit) {
           SFINAETrap Trap(*this);
-          SmallVector<TemplateArgument, 1> Checked;
+          SmallVector<TemplateArgument, 1> SugaredChecked, CanonicalChecked;
           TemplateArgumentLoc Arg(TemplateArgument(StringLit), StringLit);
-          if (CheckTemplateArgument(Params->getParam(0), Arg, FD,
-                                    R.getNameLoc(), R.getNameLoc(), 0,
-                                    Checked) ||
+          if (CheckTemplateArgument(
+                  Params->getParam(0), Arg, FD, R.getNameLoc(), R.getNameLoc(),
+                  0, SugaredChecked, CanonicalChecked, CTAK_Specified) ||
               Trap.hasErrorOccurred())
             IsTemplate = false;
         }

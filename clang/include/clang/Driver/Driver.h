@@ -36,6 +36,9 @@ class Triple;
 namespace vfs {
 class FileSystem;
 }
+namespace cl {
+class ExpansionContext;
+}
 } // namespace llvm
 
 namespace clang {
@@ -690,13 +693,14 @@ private:
   /// executable filename).
   ///
   /// \returns true if error occurred.
-  bool loadDefaultConfigFiles(ArrayRef<StringRef> CfgFileSearchDirs);
+  bool loadDefaultConfigFiles(llvm::cl::ExpansionContext &ExpCtx);
 
   /// Read options from the specified file.
   ///
   /// \param [in] FileName File to read.
+  /// \param [in] Search and expansion options.
   /// \returns true, if error occurred while reading.
-  bool readConfigFile(StringRef FileName);
+  bool readConfigFile(StringRef FileName, llvm::cl::ExpansionContext &ExpCtx);
 
   /// Set the driver mode (cl, gcc, etc) from the value of the `--driver-mode`
   /// option.
@@ -797,6 +801,11 @@ private:
   /// targets.
   mutable llvm::StringMap<StringRef> SYCLUniqueIDList;
 
+  /// Vector of Macros that need to be added to the Host compilation in a
+  /// SYCL based offloading scenario.  These macros are gathered during
+  /// construction of the device compilations.
+  mutable std::vector<std::string> SYCLTargetMacroArgs;
+
   /// Return the typical executable name for the specified driver \p Mode.
   static const char *getExecutableForDriverMode(DriverMode Mode);
 
@@ -866,6 +875,17 @@ public:
   /// createAppendedFooterInput - Create new source file.
   void createAppendedFooterInput(Action *&Input, Compilation &C,
                                  const llvm::opt::ArgList &Args) const;
+
+  /// addSYCLTargetMacroArg - Add the given macro to the vector of args to be
+  /// added to the host compilation step.
+  void addSYCLTargetMacroArg(const llvm::opt::ArgList &Args,
+                             StringRef Macro) const {
+    SYCLTargetMacroArgs.push_back(Args.MakeArgString(Macro));
+  }
+  /// getSYCLTargetMacroArgs - return the previously gathered macro target args.
+  llvm::ArrayRef<std::string> getSYCLTargetMacroArgs() const {
+    return SYCLTargetMacroArgs;
+  }
 
   /// setSYCLUniqueID - set the Unique ID that is used for all FE invocations
   /// when performing compilations for SYCL.

@@ -9,6 +9,7 @@
 #include "Headers.h"
 
 #include "Compiler.h"
+#include "Matchers.h"
 #include "TestFS.h"
 #include "TestTU.h"
 #include "clang/Basic/TokenKinds.h"
@@ -30,6 +31,7 @@ namespace {
 using ::testing::AllOf;
 using ::testing::Contains;
 using ::testing::ElementsAre;
+using ::testing::Eq;
 using ::testing::IsEmpty;
 using ::testing::Not;
 using ::testing::UnorderedElementsAre;

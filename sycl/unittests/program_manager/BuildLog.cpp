@@ -49,7 +49,8 @@ static pi_result redefinedProgramGetBuildInfo(
 
 static void setupCommonTestAPIs(sycl::unittest::PiMock &Mock) {
   using namespace sycl::detail;
-  Mock.redefine<PiApiKind::piProgramGetBuildInfo>(redefinedProgramGetBuildInfo);
+  Mock.redefineBefore<PiApiKind::piProgramGetBuildInfo>(
+      redefinedProgramGetBuildInfo);
 }
 
 TEST(BuildLog, OutputNothingOnLevel1) {
