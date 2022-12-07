@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -fsycl-is-host -internal-isystem %S/Inputs -sycl-std=2020 -emit-llvm %s -o - | FileCheck %s -check-prefix CHECK-HOST
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -emit-llvm %s -o - | FileCheck %s -check-prefix CHECK-DEV
+// RUN: %clang_cc1 -fsycl-is-host -sycl-std=2020 -emit-llvm %s -o - | FileCheck %s -check-prefix CHECK-HOST
+// RUN: %clang_cc1 -fsycl-is-device -sycl-std=2020 -emit-llvm %s -o - | FileCheck %s -check-prefix CHECK-DEV
 
 // This tests
 // - if a dummy __host__ function (returning undef) is generated for every
@@ -11,13 +11,12 @@
 //   the same function due to the cuda-device compilation.
 
 #include "../CodeGenCUDA/Inputs/cuda.h"
-#include "sycl.hpp"
 
-__host__ int fun0() { return 7; }
+__host__ int fun0() { return 0; }
 __device__ int fun0();
 
 // CHECK-HOST: define dso_local noundef i32 @_Z4fun0v()
-// CHECK-HOST: ret i32 7
+// CHECK-HOST: ret i32 0
 
 // CHECK-DEV: declare noundef i32 @_Z4fun0v()
 
@@ -67,23 +66,13 @@ int fun6() { return 7; }
 // CHECK-DEV: define dso_local noundef i32 @_Z4fun6v()
 // CHECK-DEV: ret i32 7
 
-
-int main(){
-
-  sycl::queue deviceQueue;
-
-  deviceQueue.submit([&](sycl::handler &h) {
-    h.single_task<class kern>([]() {
-      fun0();
-      fun1();
-      fun2();
-      fun3();
-      fun4();
-      fun5();
-      fun6(); 
-    });
-  });
-
-  return 0;
+__attribute((sycl_device)) void test() {
+  fun0();
+  fun1();
+  fun2();
+  fun3();
+  fun4();
+  fun5();
+  fun6();
 }
 
