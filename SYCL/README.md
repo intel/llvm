@@ -181,7 +181,7 @@ Following options can be passed to llvm-lit tool through --param option to
 configure specific single test execution in the command line:
 
  * **dpcpp_compiler** - full path to dpcpp compiler;
- * **target_device** - comma-separated list of target devices (cpu, gpu, acc);
+ * **target_devices** - comma-separated list of target devices (cpu, gpu, acc);
  * **sycl_be** - SYCL backend to be used (opencl, ext_oneapi_level_zero,
    ext_oneapi_cuda, ext_oneapi_hip, ext_oneapi_intel_emulator);
  * **dump_ir** - if IR dumping is supported for compiler (True, False);
