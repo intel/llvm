@@ -96,10 +96,11 @@ This extension is no longer implemented in {dpcpp}.  This specification is
 being archived only for historical purposes.  *The APIs defined in this
 specification no longer exist and cannot be used.*
 
-_Sometimes an extension can be used only on certain backends. Your
-extension document should include this section when this is the case._
 
 == Backend support status
+
+_Sometimes an extension can be used only on certain backends. Your
+extension document should include this section when this is the case._
 
 _Our preference is to tie the extension to a device aspect when it is
 available only on certain backends because it results in a clear error
