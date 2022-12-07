@@ -1234,30 +1234,29 @@ void CodeGenTypes::constructAttributeList(
 
 mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
                                      bool AllowMerge) {
-  if (const auto *ET = dyn_cast<clang::ElaboratedType>(QT)) {
+  if (const auto *ET = dyn_cast<clang::ElaboratedType>(QT))
     return getMLIRType(ET->getNamedType(), ImplicitRef, AllowMerge);
-  }
-  if (const auto *ET = dyn_cast<clang::UsingType>(QT)) {
+
+  if (const auto *ET = dyn_cast<clang::UsingType>(QT))
     return getMLIRType(ET->getUnderlyingType(), ImplicitRef, AllowMerge);
-  }
-  if (const auto *ET = dyn_cast<clang::ParenType>(QT)) {
+
+  if (const auto *ET = dyn_cast<clang::ParenType>(QT))
     return getMLIRType(ET->getInnerType(), ImplicitRef, AllowMerge);
-  }
-  if (const auto *ET = dyn_cast<clang::DeducedType>(QT)) {
+
+  if (const auto *ET = dyn_cast<clang::DeducedType>(QT))
     return getMLIRType(ET->getDeducedType(), ImplicitRef, AllowMerge);
-  }
-  if (const auto *ST = dyn_cast<clang::SubstTemplateTypeParmType>(QT)) {
+
+  if (const auto *ST = dyn_cast<clang::SubstTemplateTypeParmType>(QT))
     return getMLIRType(ST->getReplacementType(), ImplicitRef, AllowMerge);
-  }
-  if (const auto *ST = dyn_cast<clang::TemplateSpecializationType>(QT)) {
+
+  if (const auto *ST = dyn_cast<clang::TemplateSpecializationType>(QT))
     return getMLIRType(ST->desugar(), ImplicitRef, AllowMerge);
-  }
-  if (const auto *ST = dyn_cast<clang::TypedefType>(QT)) {
+
+  if (const auto *ST = dyn_cast<clang::TypedefType>(QT))
     return getMLIRType(ST->desugar(), ImplicitRef, AllowMerge);
-  }
-  if (const auto *DT = dyn_cast<clang::DecltypeType>(QT)) {
+
+  if (const auto *DT = dyn_cast<clang::DecltypeType>(QT))
     return getMLIRType(DT->desugar(), ImplicitRef, AllowMerge);
-  }
 
   if (const auto *DT = dyn_cast<clang::DecayedType>(QT)) {
     bool AssumeRef = false;
@@ -1276,7 +1275,6 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
           SmallVector<int64_t, 4> Shape;
           clang::QualType ElemTy;
           getConstantArrayShapeAndElemType(OrigTy, Shape, ElemTy);
-
           return mlir::MemRefType::get(Shape, getMLIRType(ElemTy));
         }
       }
@@ -1310,28 +1308,31 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
   mlir::LLVM::TypeFromLLVMIRTranslator TypeTranslator(*TheModule->getContext());
 
   if (const auto *RT = dyn_cast<clang::RecordType>(QT)) {
-    if (RT->getDecl()->isInvalidDecl()) {
-      RT->getDecl()->dump();
-      RT->dump();
-    }
+    LLVM_DEBUG({
+      if (RT->getDecl()->isInvalidDecl()) {
+        RT->getDecl()->dump();
+        RT->dump();
+      }
+    });
     assert(!RT->getDecl()->isInvalidDecl());
+
     if (TypeCache.find(RT) != TypeCache.end())
       return TypeCache[RT];
+
     llvm::Type *LT = CGM.getTypes().ConvertType(QT);
-    if (!isa<llvm::StructType>(LT)) {
-      QT->dump();
-      llvm::errs() << "LT: " << *LT << "\n";
-    }
+    LLVM_DEBUG({
+      if (!isa<llvm::StructType>(LT)) {
+        QT->dump();
+        llvm::errs() << "LT: " << *LT << "\n";
+      }
+    });
     llvm::StructType *ST = cast<llvm::StructType>(LT);
 
-    bool NotAllSame = false;
     bool Recursive = false;
     for (size_t I = 0; I < ST->getNumElements(); I++) {
       SmallPtrSet<llvm::Type *, 4> Seen;
       if (isRecursiveStruct(ST->getTypeAtIndex(I), ST, Seen))
         Recursive = true;
-      if (ST->getTypeAtIndex(I) != ST->getTypeAtIndex(0U))
-        NotAllSame = true;
     }
 
     const auto *RD = RT->getAsRecordDecl();
@@ -1350,9 +1351,9 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
           TypeName == "OwnerLessBase" || TypeName == "range" ||
           TypeName == "sub_group" ||
           TypeName == "TupleCopyAssignableValueHolder" ||
-          TypeName == "TupleValueHolder" || TypeName == "vec") {
+          TypeName == "TupleValueHolder" || TypeName == "vec")
         return getSYCLType(RT, *this);
-      }
+
       // No need special handling for types that don't have record declaration
       // name.
       CGEIST_WARNING({
@@ -1367,14 +1368,6 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     if (CodeGenTypes::isLLVMStructABI(RT->getDecl(), ST))
       return TypeTranslator.translateType(anonymize(ST));
 
-    /* TODO
-    if (ST->getNumElements() == 1 && !recursive &&
-        !RT->getDecl()->fields().empty() && ++RT->getDecl()->field_begin() ==
-    RT->getDecl()->field_end()) { auto subT =
-    getMLIRType((*RT->getDecl()->field_begin())->getType(), ImplicitRef,
-    AllowMerge); return subT;
-    }
-    */
     if (Recursive)
       TypeCache[RT] = LLVM::LLVMStructType::getIdentified(
           TheModule->getContext(), ("polygeist@mlir@" + ST->getName()).str());
@@ -1414,27 +1407,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
       return TypeCache[RT];
     }
 
-    if (!MemRefABI || NotAllSame || !AllowMerge || InnerLLVM || InnerSYCL)
-      return LLVM::LLVMStructType::getLiteral(TheModule->getContext(), Types);
-
-    if (!Types.size()) {
-      RT->dump();
-      llvm::errs() << "ST: " << *ST << "\n";
-      llvm::errs() << "fields\n";
-      for (auto *F : RT->getDecl()->fields()) {
-        llvm::errs() << " +++ ";
-        F->getType()->dump();
-        llvm::errs() << " @@@ " << *CGM.getTypes().ConvertType(F->getType())
-                     << "\n";
-      }
-      llvm::errs() << "types\n";
-      for (auto T : Types)
-        llvm::errs() << " --- " << T << "\n";
-    }
-    assert(Types.size());
-    if (ImplicitRef)
-      *ImplicitRef = true;
-    return mlir::MemRefType::get(Types.size(), Types[0]);
+    return LLVM::LLVMStructType::getLiteral(TheModule->getContext(), Types);
   }
 
   const auto *T = QT->getUnqualifiedDesugaredType();
@@ -1443,16 +1416,13 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     return Builder.getNoneType();
   }
 
-  // if (auto AT = dyn_cast<clang::VariableArrayType>(t)) {
-  //   return getMLIRType(AT->getElementType(), ImplicitRef, AllowMerge);
-  // }
-
   if (const auto *AT = dyn_cast<clang::ArrayType>(T)) {
     const auto *PTT = AT->getElementType()->getUnqualifiedDesugaredType();
     if (PTT->isCharType()) {
       llvm::Type *Ty = CGM.getTypes().ConvertType(QualType(T, 0));
       return TypeTranslator.translateType(Ty);
     }
+
     bool SubRef = false;
     auto ET = getMLIRType(AT->getElementType(), &SubRef, AllowMerge);
     int64_t Size = ShapedType::kDynamic;
@@ -1468,13 +1438,16 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
                                    MemRefLayoutAttrInterface(),
                                    MT.getMemorySpace());
     }
+
     if (!MemRefABI || !AllowMerge ||
         ET.isa<LLVM::LLVMPointerType, LLVM::LLVMArrayType,
                LLVM::LLVMFunctionType, LLVM::LLVMStructType>())
       return LLVM::LLVMArrayType::get(
           ET, (Size == ShapedType::kDynamic) ? 0 : Size);
+
     if (ImplicitRef)
       *ImplicitRef = true;
+
     return mlir::MemRefType::get(
         {Size}, ET, {},
         CGM.getContext().getTargetAddressSpace(AT->getElementType()));
@@ -1486,6 +1459,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     int64_t Size = AT->getNumElements();
     if (isa<clang::ExtVectorType>(T))
       return mlir::VectorType::get(Size, ET);
+
     if (MemRefABI && SubRef) {
       auto MT = ET.cast<MemRefType>();
       auto Shape2 = std::vector<int64_t>(MT.getShape());
@@ -1496,12 +1470,15 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
                                    MemRefLayoutAttrInterface(),
                                    MT.getMemorySpace());
     }
+
     if (!MemRefABI || !AllowMerge ||
         ET.isa<LLVM::LLVMPointerType, LLVM::LLVMArrayType,
                LLVM::LLVMFunctionType, LLVM::LLVMStructType>())
       return LLVM::LLVMFixedVectorType::get(ET, Size);
+
     if (ImplicitRef)
       *ImplicitRef = true;
+
     return mlir::MemRefType::get({Size}, ET);
   }
 
@@ -1510,11 +1487,11 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     if (RT.isa<mlir::NoneType>())
       RT = LLVM::LLVMVoidType::get(RT.getContext());
     SmallVector<mlir::Type> Args;
-    for (auto T : FT->getParamTypes()) {
+    for (auto T : FT->getParamTypes())
       Args.push_back(getMLIRType(T));
-    }
     return LLVM::LLVMFunctionType::get(RT, Args, FT->isVariadic());
   }
+
   if (const auto *FT = dyn_cast<clang::FunctionNoProtoType>(T)) {
     auto RT = getMLIRType(FT->getReturnType());
     if (RT.isa<mlir::NoneType>())
@@ -1534,6 +1511,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
       llvm::Type *Ty = CGM.getTypes().ConvertType(QualType(T, 0));
       return TypeTranslator.translateType(Ty);
     }
+
     bool SubRef = false;
     auto SubType = getMLIRType(PointeeType, &SubRef, /*AllowMerge*/ true);
 
@@ -1567,6 +1545,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
         // FIXME: We should create memref of rank 0.
         // Details: https://github.com/intel/llvm/issues/7354
         return mlir::MemRefType::get(Outer, SubType);
+
       if (SubType.isa<MemRefType>()) {
         assert(SubRef);
         auto MT = SubType.cast<MemRefType>();
@@ -1576,20 +1555,20 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
                                      MemRefLayoutAttrInterface(),
                                      MT.getMemorySpace());
       }
+
       return LLVM::LLVMPointerType::get(SubType);
     }
 
-    if (isa<clang::RecordType>(PTT))
-      if (SubRef) {
-        auto MT = SubType.cast<MemRefType>();
-        auto Shape2 = std::vector<int64_t>(MT.getShape());
-        Shape2.insert(Shape2.begin(), Outer);
-        return mlir::MemRefType::get(Shape2, MT.getElementType(),
-                                     MemRefLayoutAttrInterface(),
-                                     MT.getMemorySpace());
-      }
-
+    if (isa<clang::RecordType>(PTT) && SubRef) {
+      auto MT = SubType.cast<MemRefType>();
+      auto Shape2 = std::vector<int64_t>(MT.getShape());
+      Shape2.insert(Shape2.begin(), Outer);
+      return mlir::MemRefType::get(Shape2, MT.getElementType(),
+                                   MemRefLayoutAttrInterface(),
+                                   MT.getMemorySpace());
+    }
     assert(!SubRef);
+
     return mlir::MemRefType::get(
         {Outer}, SubType, {},
         CGM.getContext().getTargetAddressSpace(PointeeType));
@@ -1600,17 +1579,15 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
       OpBuilder Builder(TheModule->getContext());
       return Builder.getIntegerType(8);
     }
+
     llvm::Type *Ty = CGM.getTypes().ConvertType(QualType(T, 0));
     mlir::OpBuilder Builder(TheModule->getContext());
-    if (Ty->isVoidTy()) {
+    if (Ty->isVoidTy())
       return Builder.getNoneType();
-    }
-    if (Ty->isFloatTy()) {
+    if (Ty->isFloatTy())
       return Builder.getF32Type();
-    }
-    if (Ty->isDoubleTy()) {
+    if (Ty->isDoubleTy())
       return Builder.getF64Type();
-    }
     if (Ty->isX86_FP80Ty())
       return Builder.getF80Type();
     if (Ty->isFP128Ty())
@@ -1626,12 +1603,12 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
       return Builder.getF16Type();
     }
 
-    if (auto *IT = dyn_cast<llvm::IntegerType>(Ty)) {
+    if (auto *IT = dyn_cast<llvm::IntegerType>(Ty))
       return Builder.getIntegerType(IT->getBitWidth());
-    }
   }
-  QT->dump();
-  assert(0 && "unhandled type");
+
+  LLVM_DEBUG(llvm::dbgs() << "QT: "; QT->dump(); llvm::dbgs() << "\n");
+  llvm_unreachable("unhandled type");
 }
 
 // Note: In principle we should always create a memref here because we want to

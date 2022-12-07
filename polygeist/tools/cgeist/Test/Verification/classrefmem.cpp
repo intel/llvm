@@ -1,4 +1,4 @@
-// RUN: cgeist %s -O0 --function=* -S | FileCheck %s
+// RUN: cgeist %s -O0 -w --function=* -S | FileCheck %s
 
 extern int& moo;
 void oadd(int& x) {
@@ -23,12 +23,13 @@ void Q(A& a) {
 // CHECK-NEXT:     affine.store %1, %arg0[0] : memref<?xi32>
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
-// CHECK:   func @_Z1QR1A(%arg0: memref<?x1xmemref<?xi32>>) attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     call @_ZN1A3addEv(%arg0) : (memref<?x1xmemref<?xi32>>) -> ()
+// CHECK:   func @_Z1QR1A(%arg0: !llvm.ptr<!llvm.struct<(memref<?xi32>)>>) attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK-NEXT:     call @_ZN1A3addEv(%arg0) : (!llvm.ptr<!llvm.struct<(memref<?xi32>)>>) -> ()
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
-// CHECK:   func @_ZN1A3addEv(%arg0: memref<?x1xmemref<?xi32>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-NEXT:     %0 = affine.load %arg0[0, 0] : memref<?x1xmemref<?xi32>>
-// CHECK-NEXT:     call @_Z4oaddRi(%0) : (memref<?xi32>) -> ()
+// CHECK:   func @_ZN1A3addEv(%arg0: !llvm.ptr<!llvm.struct<(memref<?xi32>)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
+// CHECK-NEXT:     %0 = llvm.getelementptr %arg0[0, 0] : (!llvm.ptr<!llvm.struct<(memref<?xi32>)>>) -> !llvm.ptr<memref<?xi32>>
+// CHECK-NEXT:     %1 = llvm.load %0 : !llvm.ptr<memref<?xi32>>
+// CHECK-NEXT:     call @_Z4oaddRi(%1) : (memref<?xi32>) -> ()
 // CHECK-NEXT:     return
-// CHECK-NEXT:   }
+// CHECK-NEXT:   } 
