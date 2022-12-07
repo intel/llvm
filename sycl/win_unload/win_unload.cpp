@@ -1,6 +1,8 @@
 #include <iostream>
 
+#ifdef _WIN32
 #include <windows.h>
+#endif
 
 #include "win_unload.hpp"
 
@@ -36,6 +38,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, // handle to DLL module
     //printf(">> Module   load: %s\n", dllFilePath);
     std::cout << "win_unload process_attach" << std::endl;
     oclPtr = LoadLibraryA("C:\\iusers\\cperkins\\sycl_workspace\\build\\bin\\pi_opencl.dll");
+    //oclPtr = LoadLibraryA("C:\\iusers\\cperkins\\sycl_workspace\\junk-drawer\\dll_unload\\xmain\\deploy\\win_prod\\bin\\pi_opencl.dll");
     l0Ptr = LoadLibraryA("C:\\iusers\\cperkins\\sycl_workspace\\build\\bin\\pi_level_zero.dll");
     break;
   case DLL_PROCESS_DETACH:
