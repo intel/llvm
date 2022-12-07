@@ -53,14 +53,14 @@ params:
             Contrary to clEnqueueNDRangeKernel, its input can not be a nullptr. 
             TODO: change to allow nullptr.
 returns:      
-    - $X_RESULT_INVALID_QUEUE
-    - $X_RESULT_INVALID_KERNEL
-    - $X_RESULT_INVALID_EVENT
-    - $X_RESULT_INVALID_WORK_DIMENSION
-    - $X_RESULT_INVALID_WORK_GROUP_SIZE
-    - $X_RESULT_INVALID_VALUE
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_KERNEL
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_WORK_DIMENSION
+    - $X_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Enqueue a command which waits a list of events to complete before it completes" 
@@ -92,11 +92,11 @@ params:
             Input can not be a nullptr.
             TODO: change to allow nullptr. 
 returns:      
-    - $X_RESULT_INVALID_QUEUE
-    - $X_RESULT_INVALID_EVENT
-    - $X_RESULT_INVALID_VALUE
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Enqueue a barrier command which waits a list of events to complete before it completes" 
@@ -129,11 +129,11 @@ params:
             Input can not be a nullptr.
             TODO: change to allow nullptr. 
 returns:      
-    - $X_RESULT_INVALID_QUEUE
-    - $X_RESULT_INVALID_EVENT
-    - $X_RESULT_INVALID_VALUE
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Enqueue a command to read from a buffer object to host memory" 
@@ -178,11 +178,11 @@ params:
             Input can not be a nullptr.
             TODO: change to allow nullptr. 
 returns:      
-    - $X_RESULT_INVALID_QUEUE
-    - $X_RESULT_INVALID_EVENT
-    - $X_RESULT_INVALID_MEM_OBJECT
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Enqueue a command to write into a buffer object from host memory" 
@@ -227,11 +227,11 @@ params:
             Input can not be a nullptr.
             TODO: change to allow nullptr. 
 returns:      
-    - $X_RESULT_INVALID_QUEUE
-    - $X_RESULT_INVALID_EVENT
-    - $X_RESULT_INVALID_MEM_OBJECT
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Enqueue a command to read a 2D or 3D rectangular region from a buffer object to host memory" 
@@ -292,11 +292,11 @@ params:
             Input can not be a nullptr.
             TODO: change to allow nullptr. 
 returns:      
-    - $X_RESULT_INVALID_QUEUE
-    - $X_RESULT_INVALID_EVENT
-    - $X_RESULT_INVALID_MEM_OBJECT
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Enqueue a command to write a 2D or 3D rectangular region in a buffer object from host memory" 
@@ -357,11 +357,11 @@ params:
             Input can not be a nullptr.
             TODO: change to allow nullptr. 
 returns:      
-    - $X_RESULT_INVALID_QUEUE
-    - $X_RESULT_INVALID_EVENT
-    - $X_RESULT_INVALID_MEM_OBJECT
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Enqueue a command to copy from a buffer object to another" 
@@ -398,11 +398,11 @@ params:
             Input can not be a nullptr.
             TODO: change to allow nullptr. 
 returns:      
-    - $X_RESULT_INVALID_QUEUE
-    - $X_RESULT_INVALID_EVENT
-    - $X_RESULT_INVALID_MEM_OBJECT
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Enqueue a command to copy a 2D or 3D rectangular region from one buffer object to another" 
@@ -457,11 +457,11 @@ params:
             Input can not be a nullptr.
             TODO: change to allow nullptr. 
 returns:      
-    - $X_RESULT_INVALID_QUEUE
-    - $X_RESULT_INVALID_EVENT
-    - $X_RESULT_INVALID_MEM_OBJECT
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Enqueue a command to fill a buffer object with a pattern of a given size" 
@@ -504,11 +504,11 @@ params:
             Input can not be a nullptr.
             TODO: change to allow nullptr. 
 returns:      
-    - $X_RESULT_INVALID_QUEUE
-    - $X_RESULT_INVALID_EVENT
-    - $X_RESULT_INVALID_MEM_OBJECT
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Enqueue a command to read from an image or image array object to host memory" 
@@ -559,11 +559,11 @@ params:
             Input can not be a nullptr.
             TODO: change to allow nullptr. 
 returns:      
-    - $X_RESULT_INVALID_QUEUE
-    - $X_RESULT_INVALID_EVENT
-    - $X_RESULT_INVALID_MEM_OBJECT
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Enqueue a command to write an image or image array object from host memory" 
@@ -614,11 +614,11 @@ params:
             Input can not be a nullptr.
             TODO: change to allow nullptr. 
 returns:      
-    - $X_RESULT_INVALID_QUEUE
-    - $X_RESULT_INVALID_EVENT
-    - $X_RESULT_INVALID_MEM_OBJECT
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Enqueue a command to copy from an image object to another" 
@@ -661,11 +661,11 @@ params:
             Input can not be a nullptr.
             TODO: change to allow nullptr. 
 returns:      
-    - $X_RESULT_INVALID_QUEUE
-    - $X_RESULT_INVALID_EVENT
-    - $X_RESULT_INVALID_MEM_OBJECT
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Enqueue a command to fill an image object with specified color" 
@@ -711,11 +711,11 @@ params:
             Input can not be a nullptr.
             TODO: change to allow nullptr. 
 returns:      
-    - $X_RESULT_INVALID_QUEUE
-    - $X_RESULT_INVALID_EVENT
-    - $X_RESULT_INVALID_MEM_OBJECT
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Map flags"
@@ -786,11 +786,11 @@ params:
       name: ppRetMap
       desc: "[in,out] return mapped pointer.  TODO: move it before numEventsInWaitList?"
 returns:      
-    - $X_RESULT_INVALID_QUEUE
-    - $X_RESULT_INVALID_EVENT
-    - $X_RESULT_INVALID_MEM_OBJECT
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Enqueue a command to map a region of the image object into the host address space and return a pointer to the mapped region" 
@@ -847,11 +847,11 @@ params:
             Input can not be a nullptr.
             TODO: change to allow nullptr. 
 returns:      
-    - $X_RESULT_INVALID_QUEUE
-    - $X_RESULT_INVALID_EVENT
-    - $X_RESULT_INVALID_MEM_OBJECT
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Enqueue a command to unmap a previously mapped region of a memory object" 
@@ -885,11 +885,11 @@ params:
             Input can not be a nullptr.
             TODO: change to allow nullptr. 
 returns:      
-    - $X_RESULT_INVALID_QUEUE
-    - $X_RESULT_INVALID_EVENT
-    - $X_RESULT_INVALID_MEM_OBJECT
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Enqueue a command to set USM memory object value" 
@@ -924,11 +924,11 @@ params:
             Input can not be a nullptr.
             TODO: change to allow nullptr. 
 returns:      
-    - $X_RESULT_INVALID_QUEUE
-    - $X_RESULT_INVALID_EVENT
-    - $X_RESULT_INVALID_MEM_OBJECT
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Enqueue a command to copy USM memory" 
@@ -966,11 +966,11 @@ params:
             Input can not be a nullptr.
             TODO: change to allow nullptr. 
 returns:      
-    - $X_RESULT_INVALID_QUEUE
-    - $X_RESULT_INVALID_EVENT
-    - $X_RESULT_INVALID_MEM_OBJECT
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Enqueue a command to prefetch USM memory" 
@@ -1005,11 +1005,11 @@ params:
             Input can not be a nullptr.
             TODO: change to allow nullptr. 
 returns:      
-    - $X_RESULT_INVALID_QUEUE
-    - $X_RESULT_INVALID_EVENT
-    - $X_RESULT_INVALID_MEM_OBJECT
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "USM memory advice"
@@ -1044,8 +1044,8 @@ params:
             Input can not be a nullptr.
             TODO: change to allow nullptr. 
 returns:      
-    - $X_RESULT_INVALID_QUEUE
-    - $X_RESULT_INVALID_EVENT
-    - $X_RESULT_INVALID_MEM_OBJECT
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES

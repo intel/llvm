@@ -227,14 +227,14 @@ params:
       name: phMem      
       desc: "[out] pointer to handle of image object created"
 returns:      
-    - $X_RESULT_INVALID_CONTEXT
-    - $X_RESULT_INVALID_VALUE
-    - $X_RESULT_INVALID_IMAGE_FORMAT_DESCRIPTOR
-    - $X_RESULT_INVALID_IMAGE_SIZE
-    - $X_RESULT_INVALID_OPERATION
-    - $X_RESULT_INVALID_HOST_PTR
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
+    - $X_RESULT_ERROR_INVALID_IMAGE_SIZE
+    - $X_RESULT_ERROR_INVALID_OPERATION
+    - $X_RESULT_ERROR_INVALID_HOST_PTR
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Create a memory buffer"
@@ -260,12 +260,12 @@ params:
       name: phBuffer     
       desc: "[out] pointer to handle of the memory buffer created"
 returns:      
-    - $X_RESULT_INVALID_CONTEXT
-    - $X_RESULT_INVALID_VALUE
-    - $X_RESULT_INVALID_BUFFER_SIZE
-    - $X_RESULT_INVALID_HOST_PTR
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_INVALID_BUFFER_SIZE
+    - $X_RESULT_ERROR_INVALID_HOST_PTR
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Get a reference the memory object. Increment the memory object's reference count"
@@ -282,9 +282,9 @@ params:
       name: hMem
       desc: "[in] handle of the memory object to get access"
 returns:
-    - $X_RESULT_INVALID_MEM_OBJECT
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Decrement the memory object's reference count and delete the object if the reference count becomes zero."
@@ -299,8 +299,8 @@ params:
       name: hMem
       desc: "[in] handle of the memory object to release"
 returns:
-    - $X_RESULT_INVALID_MEM_OBJECT
-    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Buffer region type, used to describe a sub buffer"
@@ -347,13 +347,13 @@ params:
       name: phMem      
       desc: "[out] pointer to the handle of sub buffer created"
 returns:      
-    - $X_RESULT_INVALID_MEM_OBJECT
-    - $X_RESULT_OBJECT_ALLOCATION_FAILURE
-    - $X_RESULT_INVALID_VALUE
-    - $X_RESULT_INVALID_BUFFER_SIZE
-    - $X_RESULT_INVALID_HOST_PTR
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_INVALID_BUFFER_SIZE
+    - $X_RESULT_ERROR_INVALID_HOST_PTR
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Return platform native mem handle."

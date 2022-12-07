@@ -55,11 +55,11 @@ params:
       name: ppMem
       desc: "[out] pointer to USM host memory object"
 returns:      
-    - $X_RESULT_INVALID_CONTEXT
-    - $X_RESULT_INVALID_VALUE
-    - $X_RESULT_INVALID_USM_SIZE
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_INVALID_USM_SIZE
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
 desc: "USM allocate device memory"
@@ -86,11 +86,11 @@ params:
       name: ppMem
       desc: "[out] pointer to USM device memory object"
 returns:      
-    - $X_RESULT_INVALID_CONTEXT
-    - $X_RESULT_INVALID_VALUE
-    - $X_RESULT_INVALID_USM_SIZE
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_INVALID_USM_SIZE
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
 desc: "USM allocate shared memory"
@@ -117,11 +117,11 @@ params:
       name: ppMem
       desc: "[out] pointer to USM shared memory object"
 returns:      
-    - $X_RESULT_INVALID_CONTEXT
-    - $X_RESULT_INVALID_VALUE
-    - $X_RESULT_INVALID_USM_SIZE
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_INVALID_USM_SIZE
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Free the USM memory object"
@@ -136,8 +136,8 @@ params:
       name: pMem
       desc: "[in] pointer to USM memory object"
 returns:
-    - $X_RESULT_INVALID_MEM_OBJECT
-    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Get USM memory object allocation information"
@@ -164,7 +164,7 @@ params:
       name: pPropValueSizeRet
       desc: "[out] bytes returned in USM allocation property"
 returns:
-    - $X_RESULT_INVALID_CONTEXT
-    - $X_RESULT_INVALID_VALUE
-    - $X_RESULT_INVALID_MEM_OBJECT
-    - $X_RESULT_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY

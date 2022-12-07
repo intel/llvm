@@ -78,11 +78,11 @@ params:
       name: phSampler
       desc: "[out] pointer to handle of sampler object created"
 returns:
-    - $X_RESULT_INVALID_CONTEXT
-    - $X_RESULT_INVALID_VALUE
-    - $X_RESULT_INVALID_OPERATION
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_INVALID_OPERATION
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Get a reference to the sampler object handle. Increment its reference count"
@@ -96,9 +96,9 @@ params:
       name: hSampler
       desc: "[in] handle of the sampler object to get access"
 returns:
-    - $X_RESULT_INVALID_SAMPLER
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_SAMPLER
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Decrement the sampler's reference count and delete the sampler if the reference count becomes zero."
@@ -112,9 +112,9 @@ params:
       name: hSampler
       desc: "[in] handle of the sampler object to release"
 returns:
-    - $X_RESULT_INVALID_SAMPLER
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES    
+    - $X_RESULT_ERROR_INVALID_SAMPLER
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES    
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Query information about a sampler object"
@@ -140,10 +140,10 @@ params:
       name: pPropSizeRet
       desc: "[out] size in bytes returned in sampler property value"
 returns:
-    - $X_RESULT_INVALID_SAMPLER
-    - $X_RESULT_INVALID_VALUE
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_SAMPLER
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Return sampler native sampler handle."

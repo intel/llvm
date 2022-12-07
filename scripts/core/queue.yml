@@ -70,10 +70,10 @@ params:
       name: pPropSizeRet
       desc: "[out] size in bytes returned in queue property value"
 returns:
-    - $X_RESULT_INVALID_QUEUE
-    - $X_RESULT_INVALID_VALUE
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Create a command queue for a device in a context"
@@ -99,12 +99,12 @@ params:
       name: phQueue
       desc: "[out] pointer to handle of queue object created"
 returns:
-    - $X_RESULT_INVALID_CONTEXT
-    - $X_RESULT_INVALID_DEVICE
-    - $X_RESULT_INVALID_VALUE
-    - $X_RESULT_INVALID_QUEUE_PROPERTIES
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_DEVICE
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_INVALID_QUEUE_PROPERTIES
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Get a reference to the command queue handle. Increment the command queue's reference count"
@@ -121,9 +121,9 @@ params:
       name: hQueue
       desc: "[in] handle of the queue object to get access"
 returns:
-    - $X_RESULT_INVALID_QUEUE
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Decrement the command queue's reference count and delete the command queue if the reference count becomes zero."
@@ -141,9 +141,9 @@ params:
       name: hQueue
       desc: "[in] handle of the queue object to release"
 returns:
-    - $X_RESULT_INVALID_QUEUE
-    - $X_RESULT_OUT_OF_HOST_MEMORY
-    - $X_RESULT_OUT_OF_RESOURCES    
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES    
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Return queue native queue handle."
@@ -206,7 +206,7 @@ params:
       name: hQueue
       desc: "[in] handle of the queue to be finished."
 returns:
-    - $X_RESULT_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
 --- #--------------------------------------------------------------------------
 type: function
@@ -225,5 +225,5 @@ params:
       name: hQueue
       desc: "[in] handle of the queue to be flushed."
 returns:
-    - $X_RESULT_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY

@@ -124,89 +124,90 @@ etors:
     - name: SUCCESS
       value: "0"
       desc: "Success"
-    - name: INVALID_KERNEL_NAME
-      desc: "Invalid kernel name"
-    - name: INVALID_OPERATION
+    - name: ERROR_INVALID_OPERATION
       desc: "Invalid operation"
-    - name: INVALID_KERNEL
-      desc: "Invalid kernel"
-    - name: INVALID_QUEUE_PROPERTIES
+    - name: ERROR_INVALID_QUEUE_PROPERTIES
       desc: "Invalid queue properties"
-    - name: INVALID_VALUE
-      desc: "Invalid Value"
-    - name: INVALID_CONTEXT
-      desc: "Invalid context"
-    - name: INVALID_PLATFORM
-      desc: "Invalid platform"
-    - name: INVALID_DEVICE
-      desc: "Invalid device"
-    - name: INVALID_BINARY
-      desc: "Invalid binary"
-    - name: INVALID_QUEUE
+    - name: ERROR_INVALID_QUEUE
       desc: "Invalid queue"
-    - name: OUT_OF_HOST_MEMORY
-      desc: "Out of host memory"
-    - name: INVALID_PROGRAM
+    - name: ERROR_INVALID_VALUE
+      desc: "Invalid Value"
+    - name: ERROR_INVALID_CONTEXT
+      desc: "Invalid context"
+    - name: ERROR_INVALID_PLATFORM
+      desc: "Invalid platform"
+    - name: ERROR_INVALID_BINARY
+      desc: "Invalid binary"
+    - name: ERROR_INVALID_PROGRAM
       desc: "Invalid program"
-    - name: INVALID_PROGRAM_EXECUTABLE
-      desc: "Invalid program executable"
-    - name: INVALID_SAMPLER
+    - name: ERROR_INVALID_SAMPLER
       desc: "Invalid sampler"
-    - name: INVALID_BUFFER_SIZE
+    - name: ERROR_INVALID_BUFFER_SIZE
       desc: "Invalid buffer size"
-    - name: INVALID_MEM_OBJECT
+    - name: ERROR_INVALID_MEM_OBJECT
       desc: "Invalid memory object"
-    - name: OUT_OF_RESOURCES
-      desc: "Out of resources"
-    - name: INVALID_EVENT
+    - name: ERROR_INVALID_EVENT
       desc: "Invalid event"
-    - name: INVALID_EVENT_WAIT_LIST
+    - name: ERROR_INVALID_EVENT_WAIT_LIST
       desc: "Invalid event wait list"
-    - name: MISALIGNED_SUB_BUFFER_OFFSET
+    - name: ERROR_MISALIGNED_SUB_BUFFER_OFFSET
       desc: "Misaligned sub buffer offset"
-    - name: BUILD_PROGRAM_FAILURE
+    - name: ERROR_BUILD_PROGRAM_FAILURE
       desc: "Build program failure"
-    - name: INVALID_WORK_GROUP_SIZE
+    - name: ERROR_INVALID_WORK_GROUP_SIZE
       desc: "Invalid work group size"
-    - name: COMPILER_NOT_AVAILABLE
+    - name: ERROR_COMPILER_NOT_AVAILABLE
       desc: "Compiler not available"
-    - name: PROFILING_INFO_NOT_AVAILABLE
+    - name: ERROR_PROFILING_INFO_NOT_AVAILABLE
       desc: "Profiling info not available"
-    - name: DEVICE_NOT_FOUND
+    - name: ERROR_DEVICE_NOT_FOUND
       desc: "Device not found"
-    - name: INVALID_WORK_ITEM_SIZE
-      desc: "Invalid work item size"
-    - name: INVALID_WORK_DIMENSION
-      desc: "Invalid work dimension"
-    - name: INVALID_KERNEL_ARGS
-      desc: "Invalid kernel args"
-    - name: INVALID_IMAGE_SIZE
-      desc: "Invalid image size"
-    - name: INVALID_IMAGE_FORMAT_DESCRIPTOR
-      desc: "Invalid image format descriptor"
-    - name: IMAGE_FORMAT_NOT_SUPPORTED
-      desc: "Image format not supported"
-    - name: MEM_OBJECT_ALLOCATION_FAILURE
-      desc: "Memory object allocation failure"
-    - name: ERROR_INVALID_PROGRAM_EXECUTABLE
-      desc: "Program object parameter is invalid."
-    - name: ERROR_UNINITIALIZED
-      value: "0x78000001"
-      desc: "[Validation] driver is not initialized"
+    - name: ERROR_INVALID_DEVICE
+      desc: "Invalid device"
     - name: ERROR_DEVICE_LOST
       desc: "Device hung, reset, was removed, or driver update occurred"
-    - name: ERROR_OUT_OF_HOST_MEMORY
-      desc: "Insufficient host memory to satisfy call"
-    - name: ERROR_OUT_OF_DEVICE_MEMORY
-      desc: "Insufficient device memory to satisfy call"
-    - name: ERROR_MODULE_BUILD_FAILURE
-      desc: "Error occurred when building module, see build log for details"
-    - name: ERROR_MODULE_LINK_FAILURE
-      desc: "Error occurred when linking modules, see build log for details"
     - name: ERROR_DEVICE_REQUIRES_RESET
       desc: "Device requires a reset"
     - name: ERROR_DEVICE_IN_LOW_POWER_STATE
       desc: "Device currently in low power state"
+    - name: ERROR_INVALID_WORK_ITEM_SIZE
+      desc: "Invalid work item size"
+    - name: ERROR_INVALID_WORK_DIMENSION
+      desc: "Invalid work dimension"
+    - name: ERROR_INVALID_KERNEL_ARGS
+      desc: "Invalid kernel args"
+    - name: ERROR_INVALID_KERNEL
+      desc: "Invalid kernel"
+    - name: ERROR_INVALID_KERNEL_NAME
+      desc: "[Validation] kernel name is not found in the module"
+    - name: ERROR_INVALID_KERNEL_ARGUMENT_INDEX
+      desc: "[Validation] kernel argument index is not valid for kernel"
+    - name: ERROR_INVALID_KERNEL_ARGUMENT_SIZE
+      desc: "[Validation] kernel argument size does not match kernel"
+    - name: ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE
+      desc: "[Validation] value of kernel attribute is not valid for the kernel or device"
+    - name: ERROR_INVALID_IMAGE_SIZE
+      desc: "Invalid image size"
+    - name: ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
+      desc: "Invalid image format descriptor"
+    - name: ERROR_IMAGE_FORMAT_NOT_SUPPORTED
+      desc: "Image format not supported"
+    - name: ERROR_MEM_OBJECT_ALLOCATION_FAILURE
+      desc: "Memory object allocation failure"
+    - name: ERROR_INVALID_PROGRAM_EXECUTABLE
+      desc: "Program object parameter is invalid."
+    - name: ERROR_UNINITIALIZED
+      desc: "[Validation] driver is not initialized"  
+    - name: ERROR_OUT_OF_HOST_MEMORY
+      desc: "Insufficient host memory to satisfy call"
+    - name: ERROR_OUT_OF_DEVICE_MEMORY
+      desc: "Insufficient device memory to satisfy call"
+    - name: ERROR_OUT_OF_RESOURCES
+      desc: "Out of resources"
+    - name: ERROR_MODULE_BUILD_FAILURE
+      desc: "Error occurred when building module, see build log for details"
+    - name: ERROR_MODULE_LINK_FAILURE
+      desc: "Error occurred when linking modules, see build log for details"
     - name: ERROR_UNSUPPORTED_VERSION
       desc: "[Validation] generic error code for unsupported versions"
     - name: ERROR_UNSUPPORTED_FEATURE
@@ -237,33 +238,23 @@ etors:
       desc: "[Validation] native binary is not supported by the device"
     - name: ERROR_INVALID_GLOBAL_NAME
       desc: "[Validation] global variable is not found in the module"
-    - name: ERROR_INVALID_KERNEL_NAME
-      desc: "[Validation] kernel name is not found in the module"
     - name: ERROR_INVALID_FUNCTION_NAME
       desc: "[Validation] function name is not found in the module"
     - name: ERROR_INVALID_GROUP_SIZE_DIMENSION
       desc: "[Validation] group size dimension is not valid for the kernel or device"
     - name: ERROR_INVALID_GLOBAL_WIDTH_DIMENSION
       desc: "[Validation] global width dimension is not valid for the kernel or device"
-    - name: ERROR_INVALID_KERNEL_ARGUMENT_INDEX
-      desc: "[Validation] kernel argument index is not valid for kernel"
-    - name: ERROR_INVALID_KERNEL_ARGUMENT_SIZE
-      desc: "[Validation] kernel argument size does not match kernel"
-    - name: ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE
-      desc: "[Validation] value of kernel attribute is not valid for the kernel or device"
-    - name: ERROR_INVALID_MODULE_UNLINKED
+    - name: ERROR_MODULE_UNLINKED
       desc: "[Validation] module with imports needs to be linked before kernels can be created from it."
-    - name: ERROR_INVALID_COMMAND_LIST_TYPE
-      desc: "[Validation] command list type does not match command queue type"
     - name: ERROR_OVERLAPPING_REGIONS
       desc: "[Validation] copy operations do not support overlapping regions of memory"
-    - name: INVALID_HOST_PTR
+    - name: ERROR_INVALID_HOST_PTR
       desc: "Invalid host pointer"
-    - name: INVALID_USM_SIZE
+    - name: ERROR_INVALID_USM_SIZE
       desc: "Invalid USM size"
-    - name: OBJECT_ALLOCATION_FAILURE
+    - name: ERROR_OBJECT_ALLOCATION_FAILURE
       desc: "Objection allocation failure"
-    - name: ADAPTER_SPECIFIC
+    - name: ERROR_ADAPTER_SPECIFIC
       desc: "An adapter specific warning/error has been reported and can be retrieved
              via the urGetLastResult entry point."
     - name: ERROR_UNKNOWN
