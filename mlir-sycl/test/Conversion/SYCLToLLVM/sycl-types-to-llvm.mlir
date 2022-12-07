@@ -154,7 +154,6 @@ func.func @test_get_scalar_op(%arg0: !sycl_get_scalar_op_i32_) {
 
 // -----
 
-!sycl_array_1_ = !sycl.array<[1], (memref<1xi64, 4>)>
 !sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
 !sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
 !sycl_LocalAccessorBaseDevice_1_ = !sycl.LocalAccessorBaseDevice<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>

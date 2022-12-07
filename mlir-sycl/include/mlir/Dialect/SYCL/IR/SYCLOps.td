@@ -320,7 +320,7 @@ def SYCL_VecType : SYCL_Type<"Vec", "vec"> {
 // Define MemRef types (alphabetical order).
 def AccessorCommonMemRef : MemRefOf<[SYCL_AccessorCommonType]>;
 def AccessorImplDeviceMemRef : MemRefOf<[SYCL_AccessorImplDeviceType]>;
-def AccessorMemRef : MemRefOf<[SYCL_AccessorType, SYCL_LocalAccessorType]>;
+def AccessorMemRef : MemRefOf<[SYCL_AccessorType]>;
 def AccessorSubscriptMemRef : MemRefOf<[SYCL_AccessorSubscriptType]>;
 def ArrayMemRef : MemRefOf<[SYCL_ArrayType]>;
 def AtomicMemRef : MemRefOf<[SYCL_AtomicType]>;
