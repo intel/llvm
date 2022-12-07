@@ -271,8 +271,8 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
                                                    MemRefLayoutAttrInterface(),
                                                    MT.getMemorySpace());
                     })
-                    .Default([](mlir::Type T) -> mlir::MemRefType {
-                      T.dump();
+                    .Default([](auto Ty) -> mlir::MemRefType {
+                      Ty.dump();
                       llvm_unreachable("not implemented");
                     });
           } else {
