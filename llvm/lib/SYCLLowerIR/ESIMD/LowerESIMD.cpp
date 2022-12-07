@@ -1159,8 +1159,11 @@ static Instruction *generateGenXCall(Instruction *EEI, StringRef IntrinName,
           ? GenXIntrinsic::getGenXDeclaration(
                 EEI->getModule(), ID, FixedVectorType::get(I32Ty, MAX_DIMS))
           : GenXIntrinsic::getGenXDeclaration(EEI->getModule(), ID);
-
-  std::string ResultName = (Twine(EEI->getName()) + "." + FullIntrinName).str();
+  // Use hardcoded prefix when EEI has no name.
+  std::string ResultName =
+      ((EEI->hasName() ? Twine(EEI->getName()) : Twine("Res")) + "." +
+       FullIntrinName)
+          .str();
   Instruction *Inst = IntrinsicInst::Create(NewFDecl, {}, ResultName, EEI);
   Inst->setDebugLoc(EEI->getDebugLoc());
 
@@ -1242,16 +1245,21 @@ translateSpirvGlobalUses(LoadInst *LI, StringRef SpirvGlobalName,
     InstsToErase.push_back(LI);
     return;
   }
-
+  bool isLIErased = false;
   // Only loads from _vector_ SPIRV globals reach here now. Their users are
   // expected to be ExtractElementInst or TruncInst only, and they are replaced
   // in this loop. When loads from _scalar_ SPIRV globals are handled here as
   // well, the users will not be replaced by new instructions, but the GenX call
   // replacing the original load 'LI' should be inserted before each user.
   for (User *LU : LI->users()) {
-    assert(
-        (isa<ExtractElementInst>(LU) || isa<TruncInst>(LU)) &&
-        "SPIRV global users should be either ExtractElementInst or TruncInst");
+    // Ignore pointer type uses
+    if (LU->getType()->getTypeID() == llvm::Type::TypeID::PointerTyID)
+      continue;
+
+    assert((isa<ExtractElementInst>(LU) || isa<TruncInst>(LU) ||
+            isa<StoreInst>(LU)) &&
+           "SPIRV global users should be either ExtractElementInst, TruncInst "
+           "or StoreInst");
     Instruction *EEI = cast<Instruction>(LU);
     NewInst = nullptr;
 
@@ -1264,6 +1272,21 @@ translateSpirvGlobalUses(LoadInst *LI, StringRef SpirvGlobalName,
       IndexValue = cast<Constant>(GEPCE->getOperand(2))
                        ->getUniqueInteger()
                        .getZExtValue();
+
+      if (isa<StoreInst>(LU)) {
+        auto *SI = cast<StoreInst>(LU);
+        if (!isa<Instruction>(SI->getValueOperand()))
+          continue;
+        EEI = cast<Instruction>(SI->getValueOperand());
+        isLIErased = true;
+      }
+      if (isa<TruncInst>(LU)) {
+        auto *TI = cast<TruncInst>(LU);
+        if (!isa<Instruction>(TI->getOperand(0)))
+          continue;
+        EEI = cast<Instruction>(TI->getOperand(0));
+        isLIErased = true;
+      }
     }
 
     if (SpirvGlobalName == "WorkgroupSize") {
@@ -1300,10 +1323,12 @@ translateSpirvGlobalUses(LoadInst *LI, StringRef SpirvGlobalName,
 
     llvm::esimd::assert_and_diag(
         NewInst, "Load from global SPIRV builtin was not translated");
+
     EEI->replaceAllUsesWith(NewInst);
     InstsToErase.push_back(EEI);
   }
-  InstsToErase.push_back(LI);
+  if (!isLIErased)
+    InstsToErase.push_back(LI);
 }
 
 static void createESIMDIntrinsicArgs(const ESIMDIntrinDesc &Desc,
