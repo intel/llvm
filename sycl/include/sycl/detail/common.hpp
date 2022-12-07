@@ -30,11 +30,11 @@ namespace detail {
 // TODO: Align these checks with the SYCL specification when the behaviour
 // with void * is clarified.
 template <typename DataT>
-using EnableIfOutputPointerT = detail::enable_if_t<
+using EnableIfOutputPointerT = std::enable_if_t<
     /*is_output_iterator<DataT>::value &&*/ std::is_pointer<DataT>::value>;
 
 template <typename DataT>
-using EnableIfOutputIteratorT = detail::enable_if_t<
+using EnableIfOutputIteratorT = std::enable_if_t<
     /*is_output_iterator<DataT>::value &&*/ !std::is_pointer<DataT>::value>;
 
 #if !defined(NDEBUG) && (_MSC_VER > 1929 || __has_builtin(__builtin_FILE))
