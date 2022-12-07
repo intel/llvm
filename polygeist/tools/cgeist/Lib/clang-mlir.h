@@ -287,6 +287,13 @@ private:
   mlir::Value SYCLCommonFieldLookup(mlir::Value V, size_t FNum,
                                     llvm::ArrayRef<int64_t> Shape);
 
+  // Return a MemRefType with the \p ElemIndex element of \p SYCLType with \p
+  // Shape shape in \p MemorySpace memory space.
+  template <typename T>
+  mlir::MemRefType SYCLGetElementType(T SYCLType, unsigned ElemIndex,
+                                      llvm::ArrayRef<int64_t> Shape,
+                                      mlir::Attribute MemorySpace);
+
   mlir::LLVM::AllocaOp allocateBuffer(size_t I, mlir::LLVM::LLVMPointerType T) {
     auto &Vec = Bufs[T.getAsOpaquePointer()];
     if (I < Vec.size())
