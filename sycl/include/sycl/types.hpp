@@ -103,7 +103,7 @@ template <typename T> struct vec_helper {
   static constexpr RetType get(T value) { return value; }
 };
 
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 template <> struct vec_helper<std::byte> {
   using RetType = std::uint8_t;
   static constexpr RetType get(std::byte value) { return (RetType)value; }
@@ -2202,7 +2202,7 @@ using select_apply_cl_t =
         __SYCL_GET_CL_TYPE(int, num), __SYCL_GET_CL_TYPE(long, num)>;          \
   };
 
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 #define __SYCL_DECLARE_BYTE_CONVERTER(num)                                     \
   template <> class BaseCLTypeConverter<std::byte, num> {                      \
   public:                                                                      \
@@ -2227,7 +2227,7 @@ using select_apply_cl_t =
     using DataType = bool;                                                     \
   };
 
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 #define __SYCL_DECLARE_SCALAR_BYTE_CONVERTER                                   \
   template <> class BaseCLTypeConverter<std::byte, 1> {                        \
   public:                                                                      \
@@ -2326,7 +2326,7 @@ using select_apply_cl_t =
   __SYCL_DECLARE_SCALAR_BOOL_CONVERTER                                         \
   } // namespace detail
 
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 #define __SYCL_DECLARE_BYTE_VECTOR_CONVERTER                                   \
   namespace detail {                                                           \
   __SYCL_DECLARE_BYTE_CONVERTER(2)                                             \
@@ -2340,7 +2340,7 @@ using select_apply_cl_t =
 __SYCL_DECLARE_VECTOR_CONVERTERS(char)
 __SYCL_DECLARE_SCHAR_VECTOR_CONVERTERS
 __SYCL_DECLARE_BOOL_VECTOR_CONVERTERS
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 __SYCL_DECLARE_BYTE_VECTOR_CONVERTER
 #endif
 __SYCL_DECLARE_UNSIGNED_INTEGRAL_VECTOR_CONVERTERS(uchar)
@@ -2367,7 +2367,7 @@ __SYCL_DECLARE_FLOAT_VECTOR_CONVERTERS(double)
 #undef __SYCL_DECLARE_SCALAR_SCHAR_CONVERTER
 #undef __SYCL_DECLARE_BOOL_VECTOR_CONVERTERS
 #undef __SYCL_DECLARE_BOOL_CONVERTER
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 #undef __SYCL_DECLARE_BYTE_VECTOR_CONVERTER
 #undef __SYCL_DECLARE_BYTE_CONVERTER
 #undef __SYCL_DECLARE_SCALAR_BYTE_CONVERTER
@@ -2395,10 +2395,8 @@ struct is_device_copyable<
     T, std::enable_if_t<std::is_trivially_copyable<T>::value>>
     : std::true_type {};
 
-#if __cplusplus >= 201703L
 template <typename T>
 inline constexpr bool is_device_copyable_v = is_device_copyable<T>::value;
-#endif // __cplusplus >= 201703L
 
 // std::tuple<> is implicitly device copyable type.
 template <> struct is_device_copyable<std::tuple<>> : std::true_type {};

@@ -1431,7 +1431,6 @@ public:
   handler &operator=(const handler &) = delete;
   handler &operator=(handler &&) = delete;
 
-#if __cplusplus >= 201703L
   template <auto &SpecName>
   void set_specialization_constant(
       typename std::remove_reference_t<decltype(SpecName)>::value_type Value) {
@@ -1462,8 +1461,6 @@ public:
                KernelBundleImplPtr)
         .get_specialization_constant<SpecName>();
   }
-
-#endif
 
   void
   use_kernel_bundle(const kernel_bundle<bundle_state::executable> &ExecBundle);

@@ -515,7 +515,7 @@ template <typename T> struct TypeHelper {
   using RetType = T;
 };
 
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 template <> struct TypeHelper<std::byte> {
   using RetType = std::uint8_t;
 };

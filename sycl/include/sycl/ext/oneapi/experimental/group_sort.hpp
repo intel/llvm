@@ -8,7 +8,7 @@
 
 #pragma once
 
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/group_sort_impl.hpp>
 #include <sycl/detail/type_traits.hpp>
@@ -141,4 +141,4 @@ joint_sort(experimental::group_with_scratchpad<Group, Extent> exec, Iter first,
 } // namespace ext
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-#endif // __cplusplus >=201703L
+#endif
