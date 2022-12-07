@@ -49,9 +49,7 @@ _iml_half_internal __imf_truncf16(_iml_half_internal);
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace intel {
-namespace math {
+namespace ext::intel::math {
 
 #if __cplusplus >= 201703L
 
@@ -202,8 +200,6 @@ sycl::half2 trunc(sycl::half2 x) {
 }
 
 #endif
-} // namespace math
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel::math
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

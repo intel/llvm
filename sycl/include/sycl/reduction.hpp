@@ -1853,11 +1853,9 @@ void reduCGFuncImplArray(
    ...);
 }
 
-namespace reduction {
-namespace main_krn {
+namespace reduction::main_krn {
 template <class KernelName, class Accessor> struct NDRangeMulti;
-} // namespace main_krn
-} // namespace reduction
+} // namespace reduction::main_krn
 template <typename KernelName, typename KernelType, int Dims,
           typename PropertiesT, typename... Reductions, size_t... Is>
 void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
@@ -2103,11 +2101,9 @@ void reduAuxCGFuncImplArray(
    ...);
 }
 
-namespace reduction {
-namespace aux_krn {
+namespace reduction::aux_krn {
 template <class KernelName, class Predicate> struct Multi;
-} // namespace aux_krn
-} // namespace reduction
+} // namespace reduction::aux_krn
 template <typename KernelName, typename KernelType, typename... Reductions,
           size_t... Is>
 size_t reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,

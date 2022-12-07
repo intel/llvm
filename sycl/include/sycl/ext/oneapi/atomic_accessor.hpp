@@ -15,8 +15,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 
 #if __cplusplus >= 201703L
 
@@ -127,8 +126,7 @@ atomic_accessor(buffer<DataT, Dimensions, AllocatorT>, handler,
 
 #endif
 
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

@@ -360,9 +360,7 @@ id<Dims> this_id() {
 #endif
 }
 
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
 template <int Dims> id<Dims> this_id() {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::Builder::getElement(sycl::detail::declptr<id<Dims>>());
@@ -372,8 +370,6 @@ template <int Dims> id<Dims> this_id() {
       "Free function calls are not supported on host device");
 #endif
 }
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

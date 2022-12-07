@@ -35,12 +35,10 @@ class device_impl;
 auto getDeviceComparisonLambda();
 } // namespace detail
 
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 // Forward declaration
 class filter_selector;
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 
 /// The SYCL device class encapsulates a single SYCL device on which kernels
 /// may be executed.

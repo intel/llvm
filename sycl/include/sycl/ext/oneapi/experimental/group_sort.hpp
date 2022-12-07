@@ -18,9 +18,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
 namespace detail {
 
 // ---- traits
@@ -136,9 +134,7 @@ joint_sort(experimental::group_with_scratchpad<Group, Extent> exec, Iter first,
              experimental::default_sorter<>(exec.get_memory()));
 }
 
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
 #endif // __cplusplus >=201703L

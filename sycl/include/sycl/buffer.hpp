@@ -36,11 +36,9 @@ class host_accessor;
 template <typename T, int Dimensions, typename AllocatorT, typename Enable>
 class buffer;
 
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 template <typename SYCLObjT> class weak_object;
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 
 namespace detail {
 

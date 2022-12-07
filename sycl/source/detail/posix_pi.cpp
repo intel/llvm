@@ -14,8 +14,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace detail {
-namespace pi {
+namespace detail::pi {
 
 void *loadOsLibrary(const std::string &PluginPath) {
   // TODO: Check if the option RTLD_NOW is correct. Explore using
@@ -41,7 +40,6 @@ void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName) {
   return dlsym(Library, FunctionName.c_str());
 }
 
-} // namespace pi
-} // namespace detail
+} // namespace detail::pi
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

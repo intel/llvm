@@ -21,11 +21,9 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 // Forward declarations
 class device;
 
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 class filter_selector;
-}
-} // namespace ext
+} // namespace ext::oneapi
 
 /// The SYCL 1.2.1 device_selector class provides ability to choose the
 /// best SYCL device based on heuristics specified by the user.
