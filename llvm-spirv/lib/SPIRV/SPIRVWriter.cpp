@@ -841,6 +841,7 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
       BA->addAttr(FunctionParameterAttributeNoWrite);
     if (Attrs.hasParamAttr(ArgNo, Attribute::ReadNone))
       // TODO: intel/llvm customization
+      // see https://github.com/intel/llvm/issues/7592
       // Need to return FunctionParameterAttributeNoReadWrite
       BA->addAttr(FunctionParameterAttributeNoWrite);
     if (Attrs.hasParamAttr(ArgNo, Attribute::ZExt))
