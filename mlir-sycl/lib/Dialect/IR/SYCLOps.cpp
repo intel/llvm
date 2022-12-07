@@ -60,6 +60,15 @@ bool mlir::sycl::SYCLCastOp::areCastCompatible(::mlir::TypeRange Inputs,
   if (HasOwnerLessBaseTrait && IsOwnerLessBase)
     return true;
 
+  const bool HasLocalAccessorBaseTrait =
+      Input.getElementType()
+          .hasTrait<mlir::sycl::SYCLInheritanceTypeTrait<
+              mlir::sycl::LocalAccessorBaseType>::Trait>();
+  const bool IsLocalAccessorBase =
+      Output.getElementType().isa<mlir::sycl::LocalAccessorBaseType>();
+  if (HasLocalAccessorBaseTrait && IsLocalAccessorBase)
+    return true;    
+
   return false;
 }
 
