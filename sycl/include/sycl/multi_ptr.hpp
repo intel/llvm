@@ -173,10 +173,9 @@ public:
            Space == access::address_space::ext_intel_global_device_space) &&
           std::is_const<RelayElementType>::value &&
           std::is_same<RelayElementType, ElementType>::value>>
-  multi_ptr(
-      accessor<typename detail::remove_const_t<RelayElementType>, Dimensions,
-               Mode, access::target::device, isPlaceholder, PropertyListT>
-          Accessor)
+  multi_ptr(accessor<typename std::remove_const_t<RelayElementType>, Dimensions,
+                     Mode, access::target::device, isPlaceholder, PropertyListT>
+                Accessor)
       : multi_ptr(Accessor.get_pointer().get()) {}
 
   // Only if Space == local_space || generic_space and element type is const
@@ -190,10 +189,9 @@ public:
                  Space == access::address_space::local_space) &&
                 std::is_const<RelayElementType>::value &&
                 std::is_same<RelayElementType, ElementType>::value>>
-  multi_ptr(
-      accessor<typename detail::remove_const_t<RelayElementType>, Dimensions,
-               Mode, access::target::local, isPlaceholder, PropertyListT>
-          Accessor)
+  multi_ptr(accessor<typename std::remove_const_t<RelayElementType>, Dimensions,
+                     Mode, access::target::local, isPlaceholder, PropertyListT>
+                Accessor)
       : multi_ptr(Accessor.get_pointer().get()) {}
 
   // Only if Space == local_space || generic_space and element type is const
@@ -205,9 +203,9 @@ public:
                  Space == access::address_space::local_space) &&
                 std::is_const<RelayElementType>::value &&
                 std::is_same<RelayElementType, ElementType>::value>>
-  multi_ptr(local_accessor<typename detail::remove_const_t<RelayElementType>,
-                           Dimensions>
-                Accessor)
+  multi_ptr(
+      local_accessor<typename std::remove_const_t<RelayElementType>, Dimensions>
+          Accessor)
       : multi_ptr(Accessor.get_pointer().get()) {}
 
   // Assignment and access operators
@@ -647,9 +645,9 @@ template <typename ElementType, access::address_space Space>
 class multi_ptr<ElementType, Space, access::decorated::legacy> {
 public:
   using element_type =
-      detail::conditional_t<std::is_same<ElementType, half>::value,
-                            sycl::detail::half_impl::BIsRepresentationT,
-                            ElementType>;
+      std::conditional_t<std::is_same<ElementType, half>::value,
+                         sycl::detail::half_impl::BIsRepresentationT,
+                         ElementType>;
   using difference_type = std::ptrdiff_t;
 
   // Implementation defined pointer and reference types that correspond to
@@ -813,7 +811,7 @@ public:
            Space == access::address_space::global_space ||
            Space == access::address_space::ext_intel_global_device_space) &&
           std::is_const<ET>::value && std::is_same<ET, ElementType>::value>>
-  multi_ptr(accessor<typename detail::remove_const_t<ET>, dimensions, Mode,
+  multi_ptr(accessor<typename std::remove_const_t<ET>, dimensions, Mode,
                      access::target::device, isPlaceholder, PropertyListT>
                 Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
@@ -828,7 +826,7 @@ public:
           (Space == access::address_space::generic_space ||
            Space == access::address_space::local_space) &&
           std::is_const<ET>::value && std::is_same<ET, ElementType>::value>>
-  multi_ptr(accessor<typename detail::remove_const_t<ET>, dimensions, Mode,
+  multi_ptr(accessor<typename std::remove_const_t<ET>, dimensions, Mode,
                      access::target::local, isPlaceholder, PropertyListT>
                 Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
@@ -843,7 +841,7 @@ public:
            Space == access::address_space::local_space) &&
           std::is_const<ET>::value && std::is_same<ET, ElementType>::value>>
   multi_ptr(
-      local_accessor<typename detail::remove_const_t<ET>, dimensions> Accessor)
+      local_accessor<typename std::remove_const_t<ET>, dimensions> Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
 
   // Only if Space == constant_space and element type is const
@@ -855,7 +853,7 @@ public:
           _Space == Space && Space == access::address_space::constant_space &&
           std::is_const<ET>::value && std::is_same<ET, ElementType>::value>>
   multi_ptr(
-      accessor<typename detail::remove_const_t<ET>, dimensions, Mode,
+      accessor<typename std::remove_const_t<ET>, dimensions, Mode,
                access::target::constant_buffer, isPlaceholder, PropertyListT>
           Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
@@ -871,7 +869,7 @@ public:
   template <typename ET = ElementType>
   multi_ptr(typename std::enable_if_t<
             std::is_const<ET>::value && std::is_same<ET, ElementType>::value,
-            const multi_ptr<typename detail::remove_const_t<ET>, Space,
+            const multi_ptr<typename std::remove_const_t<ET>, Space,
                             access::decorated::legacy>> &ETP)
       : m_Pointer(ETP.get()) {}
 

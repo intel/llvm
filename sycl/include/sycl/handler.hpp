@@ -329,8 +329,8 @@ private:
           std::shared_ptr<detail::queue_impl> SecondaryQueue, bool IsHost);
 
   /// Stores copy of Arg passed to the MArgsStorage.
-  template <typename T, typename F = typename detail::remove_const_t<
-                            typename detail::remove_reference_t<T>>>
+  template <typename T, typename F = typename std::remove_const_t<
+                            typename std::remove_reference_t<T>>>
   F *storePlainArg(T &&Arg) {
     MArgsStorage.emplace_back(sizeof(T));
     auto Storage = reinterpret_cast<F *>(MArgsStorage.back().data());
@@ -794,7 +794,7 @@ private:
         class __copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
         Range, [=](id<Dim> Index) {
           const size_t LinearIndex = detail::getLinearIndex(Index, Range);
-          using TSrcNonConst = typename detail::remove_const_t<TSrc>;
+          using TSrcNonConst = typename std::remove_const_t<TSrc>;
           (reinterpret_cast<TSrcNonConst *>(Dst))[LinearIndex] = Src[Index];
         });
   }
@@ -811,7 +811,7 @@ private:
                    TDst *Dst) {
     single_task<class __copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
         [=]() {
-          using TSrcNonConst = typename detail::remove_const_t<TSrc>;
+          using TSrcNonConst = typename std::remove_const_t<TSrc>;
           *(reinterpret_cast<TSrcNonConst *>(Dst)) = *(Src.get_pointer());
         });
   }
@@ -1410,9 +1410,9 @@ private:
       const std::shared_ptr<detail::kernel_bundle_impl> &NewKernelBundleImpPtr);
 
   template <typename FuncT>
-  std::enable_if_t<detail::check_fn_signature<detail::remove_reference_t<FuncT>,
+  std::enable_if_t<detail::check_fn_signature<std::remove_reference_t<FuncT>,
                                               void()>::value ||
-                   detail::check_fn_signature<detail::remove_reference_t<FuncT>,
+                   detail::check_fn_signature<std::remove_reference_t<FuncT>,
                                               void(interop_handle)>::value>
   host_task_impl(FuncT &&Func) {
     throwIfActionIsCreated();
@@ -1494,17 +1494,16 @@ public:
   void depends_on(const std::vector<event> &Events);
 
   template <typename T>
-  using remove_cv_ref_t =
-      typename detail::remove_cv_t<detail::remove_reference_t<T>>;
+  using remove_cv_ref_t = typename std::remove_cv_t<std::remove_reference_t<T>>;
 
   template <typename U, typename T>
   using is_same_type = std::is_same<remove_cv_ref_t<U>, remove_cv_ref_t<T>>;
 
   template <typename T> struct ShouldEnableSetArg {
     static constexpr bool value =
-        std::is_trivially_copyable<detail::remove_reference_t<T>>::value
+        std::is_trivially_copyable<std::remove_reference_t<T>>::value
 #if SYCL_LANGUAGE_VERSION && SYCL_LANGUAGE_VERSION <= 201707
-            && std::is_standard_layout<detail::remove_reference_t<T>>::value
+            && std::is_standard_layout<std::remove_reference_t<T>>::value
 #endif
         || is_same_type<sampler, T>::value // Sampler
         || (!is_same_type<cl_mem, T>::value &&
@@ -1593,9 +1592,9 @@ public:
 
   /// Enqueues a command to the SYCL runtime to invoke \p Func once.
   template <typename FuncT>
-  std::enable_if_t<detail::check_fn_signature<detail::remove_reference_t<FuncT>,
+  std::enable_if_t<detail::check_fn_signature<std::remove_reference_t<FuncT>,
                                               void()>::value ||
-                   detail::check_fn_signature<detail::remove_reference_t<FuncT>,
+                   detail::check_fn_signature<std::remove_reference_t<FuncT>,
                                               void(interop_handle)>::value>
   host_task(FuncT &&Func) {
     host_task_impl(Func);

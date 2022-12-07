@@ -56,13 +56,13 @@ struct GroupOpTag<T, std::enable_if_t<detail::is_sgenfloat<T>::value>> {
   static T calc(GroupTag, T x, BinaryOperation) {                              \
     using ConvertedT = detail::ConvertToOpenCLType_t<T>;                       \
                                                                                \
-    using OCLT =                                                               \
-        conditional_t<std::is_same<ConvertedT, cl_char>() ||                   \
-                          std::is_same<ConvertedT, cl_short>(),                \
-                      cl_int,                                                  \
-                      conditional_t<std::is_same<ConvertedT, cl_uchar>() ||    \
-                                        std::is_same<ConvertedT, cl_ushort>(), \
-                                    cl_uint, ConvertedT>>;                     \
+    using OCLT = std::conditional_t<                                           \
+        std::is_same<ConvertedT, cl_char>() ||                                 \
+            std::is_same<ConvertedT, cl_short>(),                              \
+        cl_int,                                                                \
+        std::conditional_t<std::is_same<ConvertedT, cl_uchar>() ||             \
+                               std::is_same<ConvertedT, cl_ushort>(),          \
+                           cl_uint, ConvertedT>>;                              \
     OCLT Arg = x;                                                              \
     OCLT Ret =                                                                 \
         __spirv_Group##SPIRVOperation(S, static_cast<unsigned int>(O), Arg);   \
