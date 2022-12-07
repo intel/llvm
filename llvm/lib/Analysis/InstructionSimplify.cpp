@@ -41,6 +41,7 @@
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/Support/KnownBits.h"
 #include <algorithm>
+#include <optional>
 using namespace llvm;
 using namespace llvm::PatternMatch;
 
@@ -4555,9 +4556,26 @@ static Value *simplifySelectInst(Value *Cond, Value *TrueVal, Value *FalseVal,
     if (match(TrueVal, m_One()) && match(FalseVal, m_ZeroInt()))
       return Cond;
 
-    // (X || Y) && (X || !Y) --> X (commuted 8 ways)
+    // (X && Y) ? X : Y --> Y (commuted 2 ways)
+    if (match(Cond, m_c_LogicalAnd(m_Specific(TrueVal), m_Specific(FalseVal))))
+      return FalseVal;
+
+    // (X || Y) ? X : Y --> X (commuted 2 ways)
+    if (match(Cond, m_c_LogicalOr(m_Specific(TrueVal), m_Specific(FalseVal))))
+      return TrueVal;
+
+    // (X || Y) ? false : X --> false (commuted 2 ways)
+    if (match(Cond, m_c_LogicalOr(m_Specific(FalseVal), m_Value())) &&
+        match(TrueVal, m_ZeroInt()))
+      return ConstantInt::getFalse(Cond->getType());
+
     Value *X, *Y;
     if (match(FalseVal, m_ZeroInt())) {
+      // !(X || Y) && X --> false (commuted 2 ways)
+      if (match(Cond, m_Not(m_c_LogicalOr(m_Specific(TrueVal), m_Value()))))
+        return ConstantInt::getFalse(Cond->getType());
+
+      // (X || Y) && (X || !Y) --> X (commuted 8 ways)
       if (match(Cond, m_c_LogicalOr(m_Value(X), m_Not(m_Value(Y)))) &&
           match(TrueVal, m_c_LogicalOr(m_Specific(X), m_Specific(Y))))
         return X;
@@ -6202,7 +6220,7 @@ static Value *simplifyIntrinsic(CallBase *Call, const SimplifyQuery &Q) {
       if (!Attr.isValid())
         return nullptr;
       unsigned VScaleMin = Attr.getVScaleRangeMin();
-      Optional<unsigned> VScaleMax = Attr.getVScaleRangeMax();
+      std::optional<unsigned> VScaleMax = Attr.getVScaleRangeMax();
       if (VScaleMax && VScaleMin == VScaleMax)
         return ConstantInt::get(F->getReturnType(), VScaleMin);
       return nullptr;

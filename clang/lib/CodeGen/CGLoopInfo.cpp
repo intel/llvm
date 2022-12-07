@@ -88,7 +88,7 @@ LoopInfo::createPartialUnrollMetadata(const LoopAttributes &Attrs,
   if (Attrs.UnrollEnable == LoopAttributes::Disable)
     Enabled = false;
   else if (Attrs.UnrollEnable == LoopAttributes::Full)
-    Enabled = None;
+    Enabled = std::nullopt;
   else if (Attrs.UnrollEnable != LoopAttributes::Unspecified ||
            Attrs.UnrollCount != 0)
     Enabled = true;
@@ -702,7 +702,7 @@ LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,
       Attrs.SYCLNofusionEnable == false && !EndLoc && !Attrs.MustProgress)
     return;
 
-  TempLoopID = MDNode::getTemporary(Header->getContext(), None);
+  TempLoopID = MDNode::getTemporary(Header->getContext(), std::nullopt);
 }
 
 void LoopInfo::finish() {
