@@ -29,6 +29,10 @@ prepareOclocArgs(sycl::info::device_type DeviceType, device_arch DeviceArch,
 
   if (DeviceType == sycl::info::device_type::gpu) {
     switch (DeviceArch) {
+    case device_arch::gpu_gen9:
+      Args.push_back("skl");
+      break;
+
     case device_arch::gpu_gen9_5:
       Args.push_back("cfl");
       break;
