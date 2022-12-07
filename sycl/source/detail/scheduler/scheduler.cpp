@@ -560,10 +560,13 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
       break;
     ReleaseCandidateIt = ObjsReadyToRelease.erase(ReleaseCandidateIt);
   }
-  MDeferredMemObjRelease.insert(
-      MDeferredMemObjRelease.end(),
-      std::make_move_iterator(ObjsReadyToRelease.begin()),
-      std::make_move_iterator(ObjsReadyToRelease.end()));
+  if (!ObjsReadyToRelease.empty()) {
+    std::lock_guard<std::mutex> LockDef{MDeferredMemReleaseMutex};
+    MDeferredMemObjRelease.insert(
+        MDeferredMemObjRelease.end(),
+        std::make_move_iterator(ObjsReadyToRelease.begin()),
+        std::make_move_iterator(ObjsReadyToRelease.end()));
+  }
 }
 
 } // namespace detail
