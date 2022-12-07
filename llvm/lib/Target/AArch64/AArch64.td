@@ -70,10 +70,6 @@ def FeatureLSE : SubtargetFeature<"lse", "HasLSE", "true",
 def FeatureLSE2 : SubtargetFeature<"lse2", "HasLSE2", "true",
   "Enable ARMv8.4 Large System Extension 2 (LSE2) atomicity rules (FEAT_LSE2)">;
 
-def FeatureLDAPR : SubtargetFeature<"ldapr", "HasLDAPR", "true",
-  "Use LDAPR to lower atomic loads; experimental until we "
-  "have more testing/a formal correctness proof">;
-
 def FeatureOutlineAtomics : SubtargetFeature<"outline-atomics", "OutlineAtomics", "true",
   "Enable out of line atomics to support LSE instructions">;
 
@@ -165,6 +161,9 @@ def FeatureSVE2BitPerm : SubtargetFeature<"sve2-bitperm", "HasSVE2BitPerm", "tru
 def FeatureSVE2p1: SubtargetFeature<"sve2p1", "HasSVE2p1", "true",
   "Enable Scalable Vector Extension 2.1 instructions", [FeatureSVE2]>;
 
+def FeatureB16B16 : SubtargetFeature<"b16b16", "HasB16B16", "true",
+  "Enable SVE2.1 or SME2.1 non-widening BFloat16 to BFloat16 instructions (FEAT_B16B16)", []>;
+
 def FeatureZCRegMove : SubtargetFeature<"zcm", "HasZeroCycleRegMove", "true",
                                         "Has zero-cycle register moves">;
 
@@ -209,6 +208,10 @@ def FeatureBalanceFPOps : SubtargetFeature<"balance-fp-ops", "BalanceFPOps",
 def FeaturePredictableSelectIsExpensive : SubtargetFeature<
     "predictable-select-expensive", "PredictableSelectIsExpensive", "true",
     "Prefer likely predicted branches over selects">;
+
+def FeatureEnableSelectOptimize : SubtargetFeature<
+    "enable-select-opt", "EnableSelectOptimize", "true",
+    "Enable the select optimize pass for select loop heuristics">;
 
 def FeatureCustomCheapAsMoveHandling : SubtargetFeature<"custom-cheap-as-move",
     "HasCustomCheapAsMoveHandling", "true",
@@ -476,8 +479,14 @@ def FeatureSMEF64F64 : SubtargetFeature<"sme-f64f64", "HasSMEF64F64", "true",
 def FeatureSMEI16I64 : SubtargetFeature<"sme-i16i64", "HasSMEI16I64", "true",
   "Enable Scalable Matrix Extension (SME) I16I64 instructions (FEAT_SME_I16I64)", [FeatureSME]>;
 
+def FeatureSMEF16F16 : SubtargetFeature<"sme-f16f16", "HasSMEF16F16", "true",
+  "Enable SME2.1 non-widening Float16 instructions (FEAT_SME_F16F16)", []>;
+
 def FeatureSME2 : SubtargetFeature<"sme2", "HasSME2", "true",
   "Enable Scalable Matrix Extension 2 (SME2) instructions", [FeatureSME]>;
+
+def FeatureSME2p1 : SubtargetFeature<"sme2p1", "HasSME2p1", "true",
+  "Enable Scalable Matrix Extension 2.1 (FEAT_SME2p1) instructions", [FeatureSME2]>;
 
 def FeatureAppleA7SysReg  : SubtargetFeature<"apple-a7-sysreg", "HasAppleA7SysReg", "true",
   "Apple A7 (the CPU formerly known as Cyclone)">;
@@ -488,6 +497,9 @@ def FeatureEL2VMSA : SubtargetFeature<"el2vmsa", "HasEL2VMSA", "true",
 def FeatureEL3 : SubtargetFeature<"el3", "HasEL3", "true",
   "Enable Exception Level 3">;
 
+def FeatureCSSC : SubtargetFeature<"cssc", "HasCSSC", "true",
+  "Enable Common Short Sequence Compression (CSSC) instructions (FEAT_CSSC)">;
+
 def FeatureFixCortexA53_835769 : SubtargetFeature<"fix-cortex-a53-835769",
   "FixCortexA53_835769", "true", "Mitigate Cortex-A53 Erratum 835769">;
 
@@ -495,6 +507,31 @@ def FeatureNoBTIAtReturnTwice : SubtargetFeature<"no-bti-at-return-twice",
                                                  "NoBTIAtReturnTwice", "true",
                                                  "Don't place a BTI instruction "
                                                  "after a return-twice">;
+
+def FeatureMEC : SubtargetFeature<"mec", "HasMEC",
+    "true", "Enable Memory Encryption Contexts Extension", [FeatureRME]>;
+
+def FeatureITE : SubtargetFeature<"ite", "HasITE",
+    "true", "Enable Armv9.4-A Instrumentation Extension FEAT_ITE", [FeatureETE,
+    FeatureTRBE]>;
+
+def FeatureRCPC3 : SubtargetFeature<"rcpc3", "HasRCPC3",
+    "true", "Enable Armv8.9-A RCPC instructions for A64 and Advanced SIMD and floating-point instruction set (FEAT_LRCPC3)",
+    [FeatureRCPC_IMMO]>;
+
+def FeatureTHE : SubtargetFeature<"the", "HasTHE",
+    "true", "Enable Armv8.9-A Translation Hardening Extension (FEAT_THE)">;
+
+def FeatureLSE128 : SubtargetFeature<"lse128", "HasLSE128",
+    "true", "Enable Armv9.4-A 128-bit Atomic Instructions (FEAT_LSE128)",
+    [FeatureLSE]>;
+
+// FEAT_D128, FEAT_LVA3, FEAT_SYSREG128, and FEAT_SYSINSTR128 are mutually implicit.
+// Therefore group them all under a single feature flag, d128:
+def FeatureD128 : SubtargetFeature<"d128", "HasD128",
+    "true", "Enable Armv9.4-A 128-bit Page Table Descriptors, System Registers "
+    "and Instructions (FEAT_D128, FEAT_LVA3, FEAT_SYSREG128, FEAT_SYSINSTR128)",
+    [FeatureLSE128]>;
 
 //===----------------------------------------------------------------------===//
 // Architectures.
@@ -539,9 +576,13 @@ def HasV8_8aOps : SubtargetFeature<
   "v8.8a", "HasV8_8aOps", "true", "Support ARM v8.8a instructions",
   [HasV8_7aOps, FeatureHBC, FeatureMOPS]>;
 
+def HasV8_9aOps : SubtargetFeature<
+  "v8.9a", "HasV8_9aOps", "true", "Support ARM v8.9a instructions",
+  [HasV8_8aOps, FeatureCSSC]>;
+
 def HasV9_0aOps : SubtargetFeature<
   "v9a", "HasV9_0aOps", "true", "Support ARM v9a instructions",
-  [HasV8_5aOps, FeatureSVE2]>;
+  [HasV8_5aOps, FeatureMEC, FeatureSVE2]>;
 
 def HasV9_1aOps : SubtargetFeature<
   "v9.1a", "HasV9_1aOps", "true", "Support ARM v9.1a instructions",
@@ -554,6 +595,10 @@ def HasV9_2aOps : SubtargetFeature<
 def HasV9_3aOps : SubtargetFeature<
   "v9.3a", "HasV9_3aOps", "true", "Support ARM v9.3a instructions",
   [HasV8_8aOps, HasV9_2aOps]>;
+
+def HasV9_4aOps : SubtargetFeature<
+  "v9.4a", "HasV9_4aOps", "true", "Support ARM v9.4a instructions",
+  [HasV8_9aOps, HasV9_3aOps]>;
 
 def HasV8_0rOps : SubtargetFeature<
   "v8r", "HasV8_0rOps", "true", "Support ARM v8r instructions",
@@ -640,7 +685,7 @@ class AArch64Unsupported { list<Predicate> F; }
 
 def SVEUnsupported : AArch64Unsupported {
   let F = [HasSVE, HasSVE2, HasSVE2AES, HasSVE2SM4, HasSVE2SHA3,
-           HasSVE2BitPerm, HasSVEorSME, HasSVE2orSME];
+           HasSVE2BitPerm, HasSVEorSME, HasSVE2p1, HasSVE2orSME, HasSVE2p1_or_HasSME2p1];
 }
 
 def PAUnsupported : AArch64Unsupported {
@@ -648,7 +693,8 @@ def PAUnsupported : AArch64Unsupported {
 }
 
 def SMEUnsupported : AArch64Unsupported {
-  let F = [HasSME, HasSMEF64F64, HasSMEI16I64, HasSME2, HasSVE2p1_or_HasSME2];
+  let F = [HasSME, HasSMEF64F64, HasSMEI16I64, HasSME2, HasSVE2p1_or_HasSME2,
+           HasSVE2p1_or_HasSME2p1, HasSME2p1, HasSMEF16F16];
 }
 
 include "AArch64SchedA53.td"
@@ -701,6 +747,7 @@ def TuneA57     : SubtargetFeature<"a57", "ARMProcFamily", "CortexA57",
                                    FeatureFuseAdrpAdd,
                                    FeatureFuseLiterals,
                                    FeaturePostRAScheduler,
+                                   FeatureEnableSelectOptimize,
                                    FeaturePredictableSelectIsExpensive]>;
 
 def TuneA65     : SubtargetFeature<"a65", "ARMProcFamily", "CortexA65",
@@ -708,36 +755,42 @@ def TuneA65     : SubtargetFeature<"a65", "ARMProcFamily", "CortexA65",
                                    FeatureFuseAES,
                                    FeatureFuseAddress,
                                    FeatureFuseAdrpAdd,
-                                   FeatureFuseLiterals]>;
+                                   FeatureFuseLiterals,
+                                   FeatureEnableSelectOptimize]>;
 
 def TuneA72     : SubtargetFeature<"a72", "ARMProcFamily", "CortexA72",
                                    "Cortex-A72 ARM processors", [
                                    FeatureFuseAES,
                                    FeatureFuseAdrpAdd,
-                                   FeatureFuseLiterals]>;
+                                   FeatureFuseLiterals,
+                                   FeatureEnableSelectOptimize]>;
 
 def TuneA73     : SubtargetFeature<"a73", "ARMProcFamily", "CortexA73",
                                    "Cortex-A73 ARM processors", [
                                    FeatureFuseAES,
-                                   FeatureFuseAdrpAdd]>;
+                                   FeatureFuseAdrpAdd,
+                                   FeatureEnableSelectOptimize]>;
 
 def TuneA75     : SubtargetFeature<"a75", "ARMProcFamily", "CortexA75",
                                    "Cortex-A75 ARM processors", [
                                    FeatureFuseAES,
-                                   FeatureFuseAdrpAdd]>;
+                                   FeatureFuseAdrpAdd,
+                                   FeatureEnableSelectOptimize]>;
 
 def TuneA76     : SubtargetFeature<"a76", "ARMProcFamily", "CortexA76",
                                    "Cortex-A76 ARM processors", [
                                    FeatureFuseAES,
                                    FeatureFuseAdrpAdd,
-                                   FeatureLSLFast]>;
+                                   FeatureLSLFast,
+                                   FeatureEnableSelectOptimize]>;
 
 def TuneA77     : SubtargetFeature<"a77", "ARMProcFamily", "CortexA77",
                                    "Cortex-A77 ARM processors", [
                                    FeatureCmpBccFusion,
                                    FeatureFuseAES,
                                    FeatureFuseAdrpAdd,
-                                   FeatureLSLFast]>;
+                                   FeatureLSLFast,
+                                   FeatureEnableSelectOptimize]>;
 
 def TuneA78 : SubtargetFeature<"a78", "ARMProcFamily", "CortexA78",
                                "Cortex-A78 ARM processors", [
@@ -745,7 +798,8 @@ def TuneA78 : SubtargetFeature<"a78", "ARMProcFamily", "CortexA78",
                                FeatureFuseAES,
                                FeatureFuseAdrpAdd,
                                FeatureLSLFast,
-                               FeaturePostRAScheduler]>;
+                               FeaturePostRAScheduler,
+                               FeatureEnableSelectOptimize]>;
 
 def TuneA78C : SubtargetFeature<"a78c", "ARMProcFamily",
                                 "CortexA78C",
@@ -754,7 +808,8 @@ def TuneA78C : SubtargetFeature<"a78c", "ARMProcFamily",
                                 FeatureFuseAES,
                                 FeatureFuseAdrpAdd,
                                 FeatureLSLFast,
-                                FeaturePostRAScheduler]>;
+                                FeaturePostRAScheduler,
+                                FeatureEnableSelectOptimize]>;
 
 def TuneA710    : SubtargetFeature<"a710", "ARMProcFamily", "CortexA710",
                                    "Cortex-A710 ARM processors", [
@@ -762,7 +817,17 @@ def TuneA710    : SubtargetFeature<"a710", "ARMProcFamily", "CortexA710",
                                    FeatureFuseAES,
                                    FeatureFuseAdrpAdd,
                                    FeatureLSLFast,
-                                   FeaturePostRAScheduler]>;
+                                   FeaturePostRAScheduler,
+                                   FeatureEnableSelectOptimize]>;
+
+def TuneA715 : SubtargetFeature<"a715", "ARMProcFamily", "CortexA715",
+                                 "Cortex-A715 ARM processors", [
+                                 FeatureFuseAES,
+                                 FeaturePostRAScheduler,
+                                 FeatureCmpBccFusion,
+                                 FeatureLSLFast,
+                                 FeatureFuseAdrpAdd,
+                                 FeatureEnableSelectOptimize]>;
 
 def TuneR82 : SubtargetFeature<"cortex-r82", "ARMProcFamily",
                                "CortexR82",
@@ -775,7 +840,8 @@ def TuneX1 : SubtargetFeature<"cortex-x1", "ARMProcFamily", "CortexX1",
                                   FeatureFuseAES,
                                   FeatureFuseAdrpAdd,
                                   FeatureLSLFast,
-                                  FeaturePostRAScheduler]>;
+                                  FeaturePostRAScheduler,
+                                  FeatureEnableSelectOptimize]>;
 
 def TuneX2 : SubtargetFeature<"cortex-x2", "ARMProcFamily", "CortexX2",
                                   "Cortex-X2 ARM processors", [
@@ -783,7 +849,16 @@ def TuneX2 : SubtargetFeature<"cortex-x2", "ARMProcFamily", "CortexX2",
                                   FeatureFuseAES,
                                   FeatureFuseAdrpAdd,
                                   FeatureLSLFast,
-                                  FeaturePostRAScheduler]>;
+                                  FeaturePostRAScheduler,
+                                  FeatureEnableSelectOptimize]>;
+
+def TuneX3 : SubtargetFeature<"cortex-x3", "ARMProcFamily", "CortexX3",
+                              "Cortex-X3 ARM processors", [
+                               FeatureLSLFast,
+                               FeatureFuseAdrpAdd,
+                               FeatureFuseAES,
+                               FeaturePostRAScheduler,
+                               FeatureEnableSelectOptimize]>;
 
 def TuneA64FX : SubtargetFeature<"a64fx", "ARMProcFamily", "A64FX",
                                  "Fujitsu A64FX processors", [
@@ -967,34 +1042,39 @@ def TuneNeoverseN1 : SubtargetFeature<"neoversen1", "ARMProcFamily", "NeoverseN1
                                       FeatureFuseAES,
                                       FeatureFuseAdrpAdd,
                                       FeatureLSLFast,
-                                      FeaturePostRAScheduler]>;
+                                      FeaturePostRAScheduler,
+                                      FeatureEnableSelectOptimize]>;
 
 def TuneNeoverseN2 : SubtargetFeature<"neoversen2", "ARMProcFamily", "NeoverseN2",
                                       "Neoverse N2 ARM processors", [
                                       FeatureFuseAES,
                                       FeatureFuseAdrpAdd,
                                       FeatureLSLFast,
-                                      FeaturePostRAScheduler]>;
+                                      FeaturePostRAScheduler,
+                                      FeatureEnableSelectOptimize]>;
 
 def TuneNeoverse512TVB : SubtargetFeature<"neoverse512tvb", "ARMProcFamily", "Neoverse512TVB",
                                       "Neoverse 512-TVB ARM processors", [
                                       FeatureFuseAES,
                                       FeatureFuseAdrpAdd,
                                       FeatureLSLFast,
-                                      FeaturePostRAScheduler]>;
+                                      FeaturePostRAScheduler,
+                                      FeatureEnableSelectOptimize]>;
 
 def TuneNeoverseV1 : SubtargetFeature<"neoversev1", "ARMProcFamily", "NeoverseV1",
                                       "Neoverse V1 ARM processors", [
                                       FeatureFuseAES,
                                       FeatureFuseAdrpAdd,
                                       FeatureLSLFast,
-                                      FeaturePostRAScheduler]>;
+                                      FeaturePostRAScheduler,
+                                      FeatureEnableSelectOptimize]>;
 
 def TuneNeoverseV2 : SubtargetFeature<"neoversev2", "ARMProcFamily", "NeoverseV2",
                                       "Neoverse V2 ARM processors", [
                                       FeatureFuseAES,
                                       FeatureLSLFast,
-                                      FeaturePostRAScheduler]>;
+                                      FeaturePostRAScheduler,
+                                      FeatureEnableSelectOptimize]>;
 
 def TuneSaphira  : SubtargetFeature<"saphira", "ARMProcFamily", "Saphira",
                                    "Qualcomm Saphira processors", [
@@ -1093,6 +1173,10 @@ def ProcessorFeatures {
   list<SubtargetFeature> A710 = [HasV9_0aOps, FeatureNEON, FeaturePerfMon,
                                  FeatureETE, FeatureMTE, FeatureFP16FML,
                                  FeatureSVE2BitPerm, FeatureBF16, FeatureMatMulInt8];
+  list<SubtargetFeature> A715 = [HasV9_0aOps, FeatureNEON, FeatureMTE,
+                                 FeatureFP16FML, FeatureSVE, FeatureTRBE,
+                                 FeatureSVE2BitPerm, FeatureBF16, FeatureETE,
+                                 FeaturePerfMon, FeatureMatMulInt8, FeatureSPE];
   list<SubtargetFeature> R82  = [HasV8_0rOps, FeaturePerfMon, FeatureFullFP16,
                                  FeatureFP16FML, FeatureSSBS, FeaturePredRes,
                                  FeatureSB];
@@ -1108,6 +1192,11 @@ def ProcessorFeatures {
   list<SubtargetFeature> X2   = [HasV9_0aOps, FeatureNEON, FeaturePerfMon,
                                  FeatureMatMulInt8, FeatureBF16, FeatureAM,
                                  FeatureMTE, FeatureETE, FeatureSVE2BitPerm,
+                                 FeatureFP16FML];
+  list<SubtargetFeature> X3 =   [HasV9_0aOps, FeatureSVE, FeatureNEON,
+                                 FeaturePerfMon, FeatureETE, FeatureTRBE,
+                                 FeatureSPE, FeatureBF16, FeatureMatMulInt8,
+                                 FeatureMTE, FeatureSVE2BitPerm, FeatureFullFP16,
                                  FeatureFP16FML];
   list<SubtargetFeature> A64FX    = [HasV8_2aOps, FeatureFPARMv8, FeatureNEON,
                                      FeatureSHA2, FeaturePerfMon, FeatureFullFP16,
@@ -1196,7 +1285,8 @@ def ProcessorFeatures {
 // FeatureFuseAdrpAdd is enabled under Generic to allow linker merging
 // optimizations.
 def : ProcessorModel<"generic", CortexA55Model, ProcessorFeatures.Generic,
-                     [FeatureFuseAES, FeatureFuseAdrpAdd, FeaturePostRAScheduler]>;
+                     [FeatureFuseAES, FeatureFuseAdrpAdd, FeaturePostRAScheduler,
+                      FeatureEnableSelectOptimize]>;
 def : ProcessorModel<"cortex-a35", CortexA53Model, ProcessorFeatures.A53,
                      [TuneA35]>;
 def : ProcessorModel<"cortex-a34", CortexA53Model, ProcessorFeatures.A53,
@@ -1231,6 +1321,8 @@ def : ProcessorModel<"cortex-a78c", CortexA57Model, ProcessorFeatures.A78C,
                      [TuneA78C]>;
 def : ProcessorModel<"cortex-a710", NeoverseN2Model, ProcessorFeatures.A710,
                      [TuneA710]>;
+def : ProcessorModel<"cortex-a715", NeoverseN2Model, ProcessorFeatures.A715,
+                     [TuneA715]>;
 def : ProcessorModel<"cortex-r82", CortexA55Model, ProcessorFeatures.R82,
                      [TuneR82]>;
 def : ProcessorModel<"cortex-x1", CortexA57Model, ProcessorFeatures.X1,
@@ -1239,6 +1331,8 @@ def : ProcessorModel<"cortex-x1c", CortexA57Model, ProcessorFeatures.X1C,
                      [TuneX1]>;
 def : ProcessorModel<"cortex-x2", NeoverseN2Model, ProcessorFeatures.X2,
                      [TuneX2]>;
+def : ProcessorModel<"cortex-x3", NeoverseN2Model, ProcessorFeatures.X3,
+                     [TuneX3]>;
 def : ProcessorModel<"neoverse-e1", CortexA53Model,
                      ProcessorFeatures.NeoverseE1, [TuneNeoverseE1]>;
 def : ProcessorModel<"neoverse-n1", CortexA57Model,

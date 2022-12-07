@@ -244,7 +244,7 @@ def Vector_ContractionOp :
       return getOperand(4).getType().cast<VectorType>();
     }
     Type getResultType() { return getResult().getType(); }
-    ArrayRef<StringRef> getTraitAttrNames();
+    SmallVector<StringRef> getTraitAttrNames();
     static unsigned getAccOperandIndex() { return 2; }
 
     llvm::SmallVector<::mlir::AffineMap, 4> getIndexingMapsArray() {
@@ -265,18 +265,15 @@ def Vector_ContractionOp :
     std::vector<std::pair<int64_t, int64_t>> getContractingDimMap();
     std::vector<std::pair<int64_t, int64_t>> getBatchDimMap();
 
-    static constexpr StringRef getKindAttrStrName() { return "kind"; }
-
     static CombiningKind getDefaultKind() {
       return CombiningKind::ADD;
     }
 
-    // Returns iterator types in string format.
-    SmallVector<StringRef> getIteratorTypeNames() {
-      return llvm::to_vector(
-          llvm::map_range(getIteratorTypes(), [](Attribute a) {
-            return stringifyIteratorType(a.cast<IteratorTypeAttr>().getValue());
-          }));
+    SmallVector<IteratorType> getIteratorTypesArray() {
+      auto range =
+          getIteratorTypes()
+              .template getAsValueRange<IteratorTypeAttr, IteratorType>();
+      return {range.begin(), range.end()};
     }
   }];
 
@@ -448,6 +445,27 @@ def Vector_BroadcastOp :
     VectorType getVectorType() {
       return getVector().getType().cast<VectorType>();
     }
+
+    /// Return the dimensions of the result vector that were formerly ones in the
+    /// source tensor and thus correspond to "dim-1" broadcasting.
+    llvm::SetVector<int64_t> computeBroadcastedUnitDims();
+
+    /// Broadcast `value` to a vector of `dstShape`, knowing that exactly the 
+    /// `broadcastedDims` dimensions in the dstShape are broadcasted.
+    /// This requires (and asserts) that the broadcast is free of dim-1 
+    /// broadcasting.
+    /// Since vector.broadcast only allows expanding leading dimensions, an extra
+    /// vector.transpose may be inserted to make the broadcast possible.
+    /// `value`, `dstShape` and `broadcastedDims` must be properly specified or 
+    /// the helper will assert. This means:
+    ///   1. `dstShape` must not be empty.
+    ///   2. `broadcastedDims` must be confined to [0 .. rank(value.getVectorType)]
+    ///   2. `dstShape` trimmed of the dimensions specified in `broadcastedDims`
+    //       must match the `value` shape.
+    static Value createOrFoldBroadcastOp(
+      OpBuilder &b, Value value,
+      ArrayRef<int64_t> dstShape,
+      const llvm::SetVector<int64_t> &broadcastedDims);
   }];
   let assemblyFormat = "$source attr-dict `:` type($source) `to` type($vector)";
   let hasFolder = 1;
@@ -727,6 +745,114 @@ def Vector_InsertOp :
   let hasCanonicalizer = 1;
   let hasFolder = 1;
   let hasVerifier = 1;
+}
+
+def Vector_ScalableInsertOp :
+  Vector_Op<"scalable.insert", [Pure,
+       AllElementTypesMatch<["source", "dest"]>,
+       AllTypesMatch<["dest", "res"]>,
+       PredOpTrait<"position is a multiple of the source length.",
+        CPred<
+          "(getPos() % getSourceVectorType().getNumElements()) == 0"
+        >>]>,
+     Arguments<(ins VectorOfRank<[1]>:$source,
+                    ScalableVectorOfRank<[1]>:$dest,
+                    I64Attr:$pos)>,
+     Results<(outs ScalableVectorOfRank<[1]>:$res)> {
+  let summary = "insert subvector into scalable vector operation";
+  // NOTE: This operation is designed to map to `llvm.vector.insert`, and its
+  //       documentation should be kept aligned with LLVM IR:
+  //       https://llvm.org/docs/LangRef.html#llvm-vector-insert-intrinsic
+  let description = [{
+    This operations takes a rank-1 fixed-length or scalable subvector and
+    inserts it within the destination scalable vector starting from the
+    position specificed by `pos`. If the source vector is scalable, the
+    insertion position will be scaled by the runtime scaling factor of the
+    source subvector.
+
+    The insertion position must be a multiple of the minimum size of the source
+    vector. For the operation to be well defined, the source vector must fit in
+    the destination vector from the specified position. Since the destination
+    vector is scalable and its runtime length is unknown, the validity of the
+    operation can't be verified nor guaranteed at compile time.
+
+    Example:
+
+    ```mlir
+    %2 = vector.scalable.insert %0, %1[8] : vector<4xf32> into vector<[16]xf32>
+    %5 = vector.scalable.insert %3, %4[0] : vector<8xf32> into vector<[4]xf32>
+    %8 = vector.scalable.insert %6, %7[0] : vector<[4]xf32> into vector<[8]xf32>
+    ```
+
+    Invalid example:
+    ```mlir
+    %2 = vector.scalable.insert %0, %1[5] : vector<4xf32> into vector<[16]xf32>
+    ```
+  }];
+
+  let assemblyFormat = [{
+    $source `,` $dest `[` $pos `]` attr-dict `:` type($source) `into` type($dest)
+  }];
+
+  let extraClassDeclaration = [{
+    VectorType getSourceVectorType() {
+      return getSource().getType().cast<VectorType>();
+    }
+    VectorType getDestVectorType() {
+      return getDest().getType().cast<VectorType>();
+    }
+  }];
+}
+
+def Vector_ScalableExtractOp :
+  Vector_Op<"scalable.extract", [Pure,
+       AllElementTypesMatch<["source", "res"]>,
+       PredOpTrait<"position is a multiple of the result length.",
+        CPred<
+          "(getPos() % getResultVectorType().getNumElements()) == 0"
+        >>]>,
+     Arguments<(ins ScalableVectorOfRank<[1]>:$source,
+                    I64Attr:$pos)>,
+     Results<(outs VectorOfRank<[1]>:$res)> {
+  let summary = "extract subvector from scalable vector operation";
+  // NOTE: This operation is designed to map to `llvm.vector.extract`, and its
+  //       documentation should be kept aligned with LLVM IR:
+  //       https://llvm.org/docs/LangRef.html#llvm-vector-extract-intrinsic
+  let description = [{
+    Takes rank-1 source vector and a position `pos` within the source
+    vector, and extracts a subvector starting from that position.
+
+    The extraction position must be a multiple of the minimum size of the result
+    vector. For the operation to be well defined, the destination vector must
+    fit within the source vector from the specified position. Since the source
+    vector is scalable and its runtime length is unknown, the validity of the
+    operation can't be verified nor guaranteed at compile time.
+
+    Example:
+
+    ```mlir
+    %1 = vector.scalable.extract %0[8] : vector<4xf32> from vector<[8]xf32>
+    %3 = vector.scalable.extract %2[0] : vector<[4]xf32> from vector<[8]xf32>
+    ```
+
+    Invalid example:
+    ```mlir
+    %1 = vector.scalable.extract %0[5] : vector<4xf32> from vector<[16]xf32>
+    ```
+  }];
+
+  let assemblyFormat = [{
+    $source `[` $pos `]` attr-dict `:` type($res) `from` type($source)
+  }];
+
+  let extraClassDeclaration = [{
+    VectorType getSourceVectorType() {
+      return getSource().getType().cast<VectorType>();
+    }
+    VectorType getResultVectorType() {
+      return getRes().getType().cast<VectorType>();
+    }
+  }];
 }
 
 def Vector_InsertStridedSliceOp :
@@ -1098,9 +1224,11 @@ def Vector_TransferReadOp :
     provided to specify a fallback value in the case of out-of-bounds accesses
     and/or masking.
 
-    An optional SSA value `mask` of the same shape as the vector type may be
-    specified to mask out elements. Such elements will be replaces with
-    `padding`. Elements whose corresponding mask element is `0` are masked out.
+    An optional SSA value `mask` may be specified to mask out elements read from
+    the MemRef/Tensor. The `mask` type is an `i1` vector with a shape that
+    matches how elements are read from the MemRef/Tensor, *before* any
+    permutation or broadcasting. Elements whose corresponding mask element is
+    `0` are masked out and replaced with `padding`.
 
     An optional boolean array attribute `in_bounds` specifies for every vector
     dimension if the transfer is guaranteed to be within the source bounds.
@@ -1309,6 +1437,12 @@ def Vector_TransferWriteOp :
     write ops cannot have broadcast dimensions.
 
     The size of the slice is specified by the size of the vector.
+
+    An optional SSA value `mask` may be specified to mask out elements written
+    to the MemRef/Tensor. The `mask` type is an `i1` vector with a shape that
+    matches how elements are written into the MemRef/Tensor, *after* applying
+    any permutation. Elements whose corresponding mask element is `0` are
+    masked out.
 
     An optional SSA value `mask` of the same shape as the vector type may be
     specified to mask out elements. Elements whose corresponding mask element

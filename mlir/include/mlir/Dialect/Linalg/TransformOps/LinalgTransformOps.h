@@ -12,6 +12,7 @@
 #include "mlir/Dialect/PDL/IR/PDLTypes.h"
 #include "mlir/Dialect/Transform/IR/TransformInterfaces.h"
 #include "mlir/IR/OpImplementation.h"
+#include "mlir/IR/RegionKindInterface.h"
 
 namespace mlir {
 class TilingInterface;
@@ -20,6 +21,12 @@ namespace linalg {
 class GenericOp;
 class LinalgOp;
 } // namespace linalg
+
+namespace transform {
+// Types needed for builders.
+struct TileSizesSpec {};
+struct NumThreadsSpec {};
+} // namespace transform
 } // namespace mlir
 
 //===----------------------------------------------------------------------===//
@@ -41,7 +48,7 @@ DiagnosedSilenceableFailure tileToForeachThreadOpImpl(
     RewriterBase &rewriter, transform::TransformState &state,
     TransformOpInterface transformOp, ArrayRef<Operation *> targets,
     ArrayRef<OpFoldResult> mixedNumThreads,
-    ArrayRef<OpFoldResult> mixedTileSizes, Optional<ArrayAttr> threadDimMapping,
+    ArrayRef<OpFoldResult> mixedTileSizes, Optional<ArrayAttr> mapping,
     SmallVector<Operation *> &tileOps, SmallVector<Operation *> &tiledOps);
 } // namespace transform
 

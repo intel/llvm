@@ -109,6 +109,15 @@ PowFStrengthReduction::matchAndRewrite(math::PowFOp op,
     return success();
   }
 
+  // Replace `pow(x, 0.75)` with `sqrt(sqrt(x)) * sqrt(x)`.
+  if (isExponentValue(0.75)) {
+    Value powHalf = rewriter.create<math::SqrtOp>(op.getLoc(), x);
+    Value powQuarter = rewriter.create<math::SqrtOp>(op.getLoc(), powHalf);
+    rewriter.replaceOpWithNewOp<arith::MulFOp>(op,
+                                               ValueRange{powHalf, powQuarter});
+    return success();
+  }
+
   return failure();
 }
 

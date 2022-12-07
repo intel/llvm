@@ -175,3 +175,22 @@ define i64 @desirable_to_commute2(i64* %p, i64 %i) {
   %r = load i64, i64* %pidx
   ret i64 %r
 }
+
+; Shrink demanded op will shrink the shl to i32,
+; Lshr and shl will have different shift amount type.
+; Compare apint will cause crash when type is different.
+define void @apint_type_mismatch(i16 %a, i32* %p) {
+; CHECK-LABEL: apint_type_mismatch:
+; CHECK:       // %bb.0: // %entry
+; CHECK-NEXT:    and w8, w0, #0x7f8
+; CHECK-NEXT:    str w8, [x1]
+; CHECK-NEXT:    ret
+entry:
+  %lshr = lshr i16 %a, 3
+  %and = and i16 %lshr, 255
+  %zext = zext i16 %and to i64
+  %shl = shl i64 %zext, 3
+  %trunc = trunc i64 %shl to i32
+  store i32 %trunc, i32* %p
+  ret void
+}

@@ -41,6 +41,7 @@
 #include "llvm/Transforms/Utils/UnrollLoop.h"
 
 #include <cstdint>
+#include <optional>
 
 #define DEBUG_TYPE "openmp-ir-builder"
 
@@ -261,8 +262,7 @@ void llvm::spliceBB(IRBuilderBase::InsertPoint IP, BasicBlock *New,
 
   // Move instructions to new block.
   BasicBlock *Old = IP.getBlock();
-  New->getInstList().splice(New->begin(), Old->getInstList(), IP.getPoint(),
-                            Old->end());
+  New->splice(New->begin(), Old, IP.getPoint(), Old->end());
 
   if (CreateBranch)
     BranchInst::Create(New, Old);
@@ -625,7 +625,7 @@ Constant *OpenMPIRBuilder::getOrCreateSrcLocStr(DebugLoc DL,
     return getOrCreateDefaultSrcLocStr(SrcLocStrSize);
   StringRef FileName = M.getName();
   if (DIFile *DIF = DIL->getFile())
-    if (Optional<StringRef> Source = DIF->getSource())
+    if (std::optional<StringRef> Source = DIF->getSource())
       FileName = *Source;
   StringRef Function = DIL->getScope()->getSubprogram()->getName();
   if (Function.empty() && F)
@@ -3195,8 +3195,8 @@ createTargetMachine(Function *F, CodeGenOpt::Level OptLevel) {
 
   llvm::TargetOptions Options;
   return std::unique_ptr<TargetMachine>(TheTarget->createTargetMachine(
-      Triple, CPU, Features, Options, /*RelocModel=*/None, /*CodeModel=*/None,
-      OptLevel));
+      Triple, CPU, Features, Options, /*RelocModel=*/std::nullopt,
+      /*CodeModel=*/std::nullopt, OptLevel));
 }
 
 /// Heuristically determine the best-performant unroll factor for \p CLI. This
@@ -3241,12 +3241,12 @@ static int32_t computeHeuristicUnrollFactor(CanonicalLoopInfo *CLI) {
       gatherUnrollingPreferences(L, SE, TTI,
                                  /*BlockFrequencyInfo=*/nullptr,
                                  /*ProfileSummaryInfo=*/nullptr, ORE, OptLevel,
-                                 /*UserThreshold=*/None,
-                                 /*UserCount=*/None,
+                                 /*UserThreshold=*/std::nullopt,
+                                 /*UserCount=*/std::nullopt,
                                  /*UserAllowPartial=*/true,
                                  /*UserAllowRuntime=*/true,
-                                 /*UserUpperBound=*/None,
-                                 /*UserFullUnrollMaxCount=*/None);
+                                 /*UserUpperBound=*/std::nullopt,
+                                 /*UserFullUnrollMaxCount=*/std::nullopt);
 
   UP.Force = true;
 
@@ -3866,7 +3866,7 @@ CallInst *OpenMPIRBuilder::createCachedThreadPrivate(
   Value *Ident = getOrCreateIdent(SrcLocStr, SrcLocStrSize);
   Value *ThreadId = getOrCreateThreadID(Ident);
   Constant *ThreadPrivateCache =
-      getOrCreateOMPInternalVariable(Int8PtrPtr, Name);
+      getOrCreateInternalVariable(Int8PtrPtr, Name.str());
   llvm::Value *Args[] = {Ident, ThreadId, Pointer, Size, ThreadPrivateCache};
 
   Function *Fn =
@@ -3950,6 +3950,62 @@ void OpenMPIRBuilder::createTargetDeinit(const LocationDescription &Loc,
   Builder.CreateCall(Fn, {Ident, IsSPMDVal, RequiresFullRuntimeVal});
 }
 
+void OpenMPIRBuilder::setOutlinedTargetRegionFunctionAttributes(
+    Function *OutlinedFn, int32_t NumTeams, int32_t NumThreads) {
+  if (Config.isEmbedded()) {
+    OutlinedFn->setLinkage(GlobalValue::WeakODRLinkage);
+    // TODO: Determine if DSO local can be set to true.
+    OutlinedFn->setDSOLocal(false);
+    OutlinedFn->setVisibility(GlobalValue::ProtectedVisibility);
+    if (Triple(M.getTargetTriple()).isAMDGCN())
+      OutlinedFn->setCallingConv(CallingConv::AMDGPU_KERNEL);
+  }
+
+  if (NumTeams > 0)
+    OutlinedFn->addFnAttr("omp_target_num_teams", std::to_string(NumTeams));
+  if (NumThreads > 0)
+    OutlinedFn->addFnAttr("omp_target_thread_limit",
+                          std::to_string(NumThreads));
+}
+
+Constant *OpenMPIRBuilder::createOutlinedFunctionID(Function *OutlinedFn,
+                                                    StringRef EntryFnIDName) {
+  if (Config.isEmbedded()) {
+    assert(OutlinedFn && "The outlined function must exist if embedded");
+    return ConstantExpr::getBitCast(OutlinedFn, Builder.getInt8PtrTy());
+  }
+
+  return new GlobalVariable(
+      M, Builder.getInt8Ty(), /*isConstant=*/true, GlobalValue::WeakAnyLinkage,
+      Constant::getNullValue(Builder.getInt8Ty()), EntryFnIDName);
+}
+
+Constant *OpenMPIRBuilder::createTargetRegionEntryAddr(Function *OutlinedFn,
+                                                       StringRef EntryFnName) {
+  if (OutlinedFn)
+    return OutlinedFn;
+
+  assert(!M.getGlobalVariable(EntryFnName, true) &&
+         "Named kernel already exists?");
+  return new GlobalVariable(
+      M, Builder.getInt8Ty(), /*isConstant=*/true, GlobalValue::InternalLinkage,
+      Constant::getNullValue(Builder.getInt8Ty()), EntryFnName);
+}
+
+Constant *OpenMPIRBuilder::registerTargetRegionFunction(
+    OffloadEntriesInfoManager &InfoManager, TargetRegionEntryInfo &EntryInfo,
+    Function *OutlinedFn, StringRef EntryFnName, StringRef EntryFnIDName,
+    int32_t NumTeams, int32_t NumThreads) {
+  if (OutlinedFn)
+    setOutlinedTargetRegionFunctionAttributes(OutlinedFn, NumTeams, NumThreads);
+  auto OutlinedFnID = createOutlinedFunctionID(OutlinedFn, EntryFnIDName);
+  auto EntryAddr = createTargetRegionEntryAddr(OutlinedFn, EntryFnName);
+  InfoManager.registerTargetRegionEntryInfo(
+      EntryInfo, EntryAddr, OutlinedFnID,
+      OffloadEntriesInfoManager::OMPTargetRegionEntryTargetRegion);
+  return OutlinedFnID;
+}
+
 std::string OpenMPIRBuilder::getNameWithSeparators(ArrayRef<StringRef> Parts,
                                                    StringRef FirstSeparator,
                                                    StringRef Separator) {
@@ -3963,18 +4019,16 @@ std::string OpenMPIRBuilder::getNameWithSeparators(ArrayRef<StringRef> Parts,
   return OS.str().str();
 }
 
-Constant *OpenMPIRBuilder::getOrCreateOMPInternalVariable(
-    llvm::Type *Ty, const llvm::Twine &Name, unsigned AddressSpace) {
-  // TODO: Replace the twine arg with stringref to get rid of the conversion
-  // logic. However This is taken from current implementation in clang as is.
-  // Since this method is used in many places exclusively for OMP internal use
-  // we will keep it as is for temporarily until we move all users to the
-  // builder and then, if possible, fix it everywhere in one go.
-  SmallString<256> Buffer;
-  llvm::raw_svector_ostream Out(Buffer);
-  Out << Name;
-  StringRef RuntimeName = Out.str();
-  auto &Elem = *InternalVars.try_emplace(RuntimeName, nullptr).first;
+std::string
+OpenMPIRBuilder::createPlatformSpecificName(ArrayRef<StringRef> Parts) const {
+  return OpenMPIRBuilder::getNameWithSeparators(Parts, Config.firstSeparator(),
+                                                Config.separator());
+}
+
+GlobalVariable *
+OpenMPIRBuilder::getOrCreateInternalVariable(Type *Ty, const StringRef &Name,
+                                             unsigned AddressSpace) {
+  auto &Elem = *InternalVars.try_emplace(Name, nullptr).first;
   if (Elem.second) {
     assert(cast<PointerType>(Elem.second->getType())
                ->isOpaqueOrPointeeTypeMatches(Ty) &&
@@ -3984,20 +4038,19 @@ Constant *OpenMPIRBuilder::getOrCreateOMPInternalVariable(
     // variable for possibly changing that to internal or private, or maybe
     // create different versions of the function for different OMP internal
     // variables.
-    Elem.second = new llvm::GlobalVariable(
-        M, Ty, /*IsConstant*/ false, llvm::GlobalValue::CommonLinkage,
-        llvm::Constant::getNullValue(Ty), Elem.first(),
-        /*InsertBefore=*/nullptr, llvm::GlobalValue::NotThreadLocal,
-        AddressSpace);
+    Elem.second = new GlobalVariable(
+        M, Ty, /*IsConstant=*/false, GlobalValue::CommonLinkage,
+        Constant::getNullValue(Ty), Elem.first(),
+        /*InsertBefore=*/nullptr, GlobalValue::NotThreadLocal, AddressSpace);
   }
 
-  return Elem.second;
+  return cast<GlobalVariable>(&*Elem.second);
 }
 
 Value *OpenMPIRBuilder::getOMPCriticalRegionLock(StringRef CriticalName) {
   std::string Prefix = Twine("gomp_critical_user_", CriticalName).str();
   std::string Name = getNameWithSeparators({Prefix, "var"}, ".", ".");
-  return getOrCreateOMPInternalVariable(KmpCriticalNameTy, Name);
+  return getOrCreateInternalVariable(KmpCriticalNameTy, Name);
 }
 
 GlobalVariable *
@@ -4692,22 +4745,266 @@ void OpenMPIRBuilder::OutlineInfo::collectBlocks(
   }
 }
 
-void TargetRegionEntryInfo::getTargetRegionEntryFnName(
-    SmallVectorImpl<char> &Name, StringRef ParentName, unsigned DeviceID,
-    unsigned FileID, unsigned Line) {
-  raw_svector_ostream OS(Name);
-  OS << "__omp_offloading" << llvm::format("_%x", DeviceID)
-     << llvm::format("_%x_", FileID) << ParentName << "_l" << Line;
+void OpenMPIRBuilder::createOffloadEntry(Constant *ID, Constant *Addr,
+                                         uint64_t Size, int32_t Flags,
+                                         GlobalValue::LinkageTypes) {
+  if (!Config.isTargetCodegen()) {
+    emitOffloadingEntry(ID, Addr->getName(), Size, Flags);
+    return;
+  }
+  // TODO: Add support for global variables on the device after declare target
+  // support.
+  Function *Fn = dyn_cast<Function>(Addr);
+  if (!Fn)
+    return;
+
+  Module &M = *(Fn->getParent());
+  LLVMContext &Ctx = M.getContext();
+
+  // Get "nvvm.annotations" metadata node.
+  NamedMDNode *MD = M.getOrInsertNamedMetadata("nvvm.annotations");
+
+  Metadata *MDVals[] = {
+      ConstantAsMetadata::get(Fn), MDString::get(Ctx, "kernel"),
+      ConstantAsMetadata::get(ConstantInt::get(Type::getInt32Ty(Ctx), 1))};
+  // Append metadata to nvvm.annotations.
+  MD->addOperand(MDNode::get(Ctx, MDVals));
+
+  // Add a function attribute for the kernel.
+  Fn->addFnAttr(Attribute::get(Ctx, "kernel"));
+}
+
+// We only generate metadata for function that contain target regions.
+void OpenMPIRBuilder::createOffloadEntriesAndInfoMetadata(
+    OffloadEntriesInfoManager &OffloadEntriesInfoManager,
+    EmitMetadataErrorReportFunctionTy &ErrorFn) {
+
+  // If there are no entries, we don't need to do anything.
+  if (OffloadEntriesInfoManager.empty())
+    return;
+
+  LLVMContext &C = M.getContext();
+  SmallVector<std::pair<const OffloadEntriesInfoManager::OffloadEntryInfo *,
+                        TargetRegionEntryInfo>,
+              16>
+      OrderedEntries(OffloadEntriesInfoManager.size());
+
+  // Auxiliary methods to create metadata values and strings.
+  auto &&GetMDInt = [this](unsigned V) {
+    return ConstantAsMetadata::get(ConstantInt::get(Builder.getInt32Ty(), V));
+  };
+
+  auto &&GetMDString = [&C](StringRef V) { return MDString::get(C, V); };
+
+  // Create the offloading info metadata node.
+  NamedMDNode *MD = M.getOrInsertNamedMetadata("omp_offload.info");
+  auto &&TargetRegionMetadataEmitter =
+      [&C, MD, &OrderedEntries, &GetMDInt, &GetMDString](
+          const TargetRegionEntryInfo &EntryInfo,
+          const OffloadEntriesInfoManager::OffloadEntryInfoTargetRegion &E) {
+        // Generate metadata for target regions. Each entry of this metadata
+        // contains:
+        // - Entry 0 -> Kind of this type of metadata (0).
+        // - Entry 1 -> Device ID of the file where the entry was identified.
+        // - Entry 2 -> File ID of the file where the entry was identified.
+        // - Entry 3 -> Mangled name of the function where the entry was
+        // identified.
+        // - Entry 4 -> Line in the file where the entry was identified.
+        // - Entry 5 -> Count of regions at this DeviceID/FilesID/Line.
+        // - Entry 6 -> Order the entry was created.
+        // The first element of the metadata node is the kind.
+        Metadata *Ops[] = {
+            GetMDInt(E.getKind()),      GetMDInt(EntryInfo.DeviceID),
+            GetMDInt(EntryInfo.FileID), GetMDString(EntryInfo.ParentName),
+            GetMDInt(EntryInfo.Line),   GetMDInt(EntryInfo.Count),
+            GetMDInt(E.getOrder())};
+
+        // Save this entry in the right position of the ordered entries array.
+        OrderedEntries[E.getOrder()] = std::make_pair(&E, EntryInfo);
+
+        // Add metadata to the named metadata node.
+        MD->addOperand(MDNode::get(C, Ops));
+      };
+
+  OffloadEntriesInfoManager.actOnTargetRegionEntriesInfo(
+      TargetRegionMetadataEmitter);
+
+  // Create function that emits metadata for each device global variable entry;
+  auto &&DeviceGlobalVarMetadataEmitter =
+      [&C, &OrderedEntries, &GetMDInt, &GetMDString, MD](
+          StringRef MangledName,
+          const OffloadEntriesInfoManager::OffloadEntryInfoDeviceGlobalVar &E) {
+        // Generate metadata for global variables. Each entry of this metadata
+        // contains:
+        // - Entry 0 -> Kind of this type of metadata (1).
+        // - Entry 1 -> Mangled name of the variable.
+        // - Entry 2 -> Declare target kind.
+        // - Entry 3 -> Order the entry was created.
+        // The first element of the metadata node is the kind.
+        Metadata *Ops[] = {GetMDInt(E.getKind()), GetMDString(MangledName),
+                           GetMDInt(E.getFlags()), GetMDInt(E.getOrder())};
+
+        // Save this entry in the right position of the ordered entries array.
+        TargetRegionEntryInfo varInfo(MangledName, 0, 0, 0);
+        OrderedEntries[E.getOrder()] = std::make_pair(&E, varInfo);
+
+        // Add metadata to the named metadata node.
+        MD->addOperand(MDNode::get(C, Ops));
+      };
+
+  OffloadEntriesInfoManager.actOnDeviceGlobalVarEntriesInfo(
+      DeviceGlobalVarMetadataEmitter);
+
+  for (const auto &E : OrderedEntries) {
+    assert(E.first && "All ordered entries must exist!");
+    if (const auto *CE =
+            dyn_cast<OffloadEntriesInfoManager::OffloadEntryInfoTargetRegion>(
+                E.first)) {
+      if (!CE->getID() || !CE->getAddress()) {
+        // Do not blame the entry if the parent funtion is not emitted.
+        TargetRegionEntryInfo EntryInfo = E.second;
+        StringRef FnName = EntryInfo.ParentName;
+        if (!M.getNamedValue(FnName))
+          continue;
+        ErrorFn(EMIT_MD_TARGET_REGION_ERROR, EntryInfo);
+        continue;
+      }
+      createOffloadEntry(CE->getID(), CE->getAddress(),
+                         /*Size=*/0, CE->getFlags(),
+                         GlobalValue::WeakAnyLinkage);
+    } else if (const auto *CE = dyn_cast<
+                   OffloadEntriesInfoManager::OffloadEntryInfoDeviceGlobalVar>(
+                   E.first)) {
+      OffloadEntriesInfoManager::OMPTargetGlobalVarEntryKind Flags =
+          static_cast<OffloadEntriesInfoManager::OMPTargetGlobalVarEntryKind>(
+              CE->getFlags());
+      switch (Flags) {
+      case OffloadEntriesInfoManager::OMPTargetGlobalVarEntryTo: {
+        if (Config.isEmbedded() && Config.hasRequiresUnifiedSharedMemory())
+          continue;
+        if (!CE->getAddress()) {
+          ErrorFn(EMIT_MD_DECLARE_TARGET_ERROR, E.second);
+          continue;
+        }
+        // The vaiable has no definition - no need to add the entry.
+        if (CE->getVarSize() == 0)
+          continue;
+        break;
+      }
+      case OffloadEntriesInfoManager::OMPTargetGlobalVarEntryLink:
+        assert(((Config.isEmbedded() && !CE->getAddress()) ||
+                (!Config.isEmbedded() && CE->getAddress())) &&
+               "Declaret target link address is set.");
+        if (Config.isEmbedded())
+          continue;
+        if (!CE->getAddress()) {
+          ErrorFn(EMIT_MD_GLOBAL_VAR_LINK_ERROR, TargetRegionEntryInfo());
+          continue;
+        }
+        break;
+      }
+
+      // Hidden or internal symbols on the device are not externally visible.
+      // We should not attempt to register them by creating an offloading
+      // entry.
+      if (auto *GV = dyn_cast<GlobalValue>(CE->getAddress()))
+        if (GV->hasLocalLinkage() || GV->hasHiddenVisibility())
+          continue;
+
+      createOffloadEntry(CE->getAddress(), CE->getAddress(), CE->getVarSize(),
+                         Flags, CE->getLinkage());
+
+    } else {
+      llvm_unreachable("Unsupported entry kind.");
+    }
+  }
 }
 
 void TargetRegionEntryInfo::getTargetRegionEntryFnName(
-    SmallVectorImpl<char> &Name) {
-  getTargetRegionEntryFnName(Name, ParentName, DeviceID, FileID, Line);
+    SmallVectorImpl<char> &Name, StringRef ParentName, unsigned DeviceID,
+    unsigned FileID, unsigned Line, unsigned Count) {
+  raw_svector_ostream OS(Name);
+  OS << "__omp_offloading" << llvm::format("_%x", DeviceID)
+     << llvm::format("_%x_", FileID) << ParentName << "_l" << Line;
+  if (Count)
+    OS << "_" << Count;
+}
+
+void OffloadEntriesInfoManager::getTargetRegionEntryFnName(
+    SmallVectorImpl<char> &Name, const TargetRegionEntryInfo &EntryInfo) {
+  unsigned NewCount = getTargetRegionEntryInfoCount(EntryInfo);
+  TargetRegionEntryInfo::getTargetRegionEntryFnName(
+      Name, EntryInfo.ParentName, EntryInfo.DeviceID, EntryInfo.FileID,
+      EntryInfo.Line, NewCount);
+}
+
+/// Loads all the offload entries information from the host IR
+/// metadata.
+void OpenMPIRBuilder::loadOffloadInfoMetadata(
+    Module &M, OffloadEntriesInfoManager &OffloadEntriesInfoManager) {
+  // If we are in target mode, load the metadata from the host IR. This code has
+  // to match the metadata creation in createOffloadEntriesAndInfoMetadata().
+
+  NamedMDNode *MD = M.getNamedMetadata(ompOffloadInfoName);
+  if (!MD)
+    return;
+
+  for (MDNode *MN : MD->operands()) {
+    auto &&GetMDInt = [MN](unsigned Idx) {
+      auto *V = cast<ConstantAsMetadata>(MN->getOperand(Idx));
+      return cast<ConstantInt>(V->getValue())->getZExtValue();
+    };
+
+    auto &&GetMDString = [MN](unsigned Idx) {
+      auto *V = cast<MDString>(MN->getOperand(Idx));
+      return V->getString();
+    };
+
+    switch (GetMDInt(0)) {
+    default:
+      llvm_unreachable("Unexpected metadata!");
+      break;
+    case OffloadEntriesInfoManager::OffloadEntryInfo::
+        OffloadingEntryInfoTargetRegion: {
+      TargetRegionEntryInfo EntryInfo(/*ParentName=*/GetMDString(3),
+                                      /*DeviceID=*/GetMDInt(1),
+                                      /*FileID=*/GetMDInt(2),
+                                      /*Line=*/GetMDInt(4),
+                                      /*Count=*/GetMDInt(5));
+      OffloadEntriesInfoManager.initializeTargetRegionEntryInfo(
+          EntryInfo, /*Order=*/GetMDInt(6));
+      break;
+    }
+    case OffloadEntriesInfoManager::OffloadEntryInfo::
+        OffloadingEntryInfoDeviceGlobalVar:
+      OffloadEntriesInfoManager.initializeDeviceGlobalVarEntryInfo(
+          /*MangledName=*/GetMDString(1),
+          static_cast<OffloadEntriesInfoManager::OMPTargetGlobalVarEntryKind>(
+              /*Flags=*/GetMDInt(2)),
+          /*Order=*/GetMDInt(3));
+      break;
+    }
+  }
 }
 
 bool OffloadEntriesInfoManager::empty() const {
   return OffloadEntriesTargetRegion.empty() &&
          OffloadEntriesDeviceGlobalVar.empty();
+}
+
+unsigned OffloadEntriesInfoManager::getTargetRegionEntryInfoCount(
+    const TargetRegionEntryInfo &EntryInfo) const {
+  auto It = OffloadEntriesTargetRegionCount.find(
+      getTargetRegionEntryCountKey(EntryInfo));
+  if (It == OffloadEntriesTargetRegionCount.end())
+    return 0;
+  return It->second;
+}
+
+void OffloadEntriesInfoManager::incrementTargetRegionEntryInfoCount(
+    const TargetRegionEntryInfo &EntryInfo) {
+  OffloadEntriesTargetRegionCount[getTargetRegionEntryCountKey(EntryInfo)] =
+      EntryInfo.Count + 1;
 }
 
 /// Initialize target region entry.
@@ -4720,11 +5017,16 @@ void OffloadEntriesInfoManager::initializeTargetRegionEntryInfo(
 }
 
 void OffloadEntriesInfoManager::registerTargetRegionEntryInfo(
-    const TargetRegionEntryInfo &EntryInfo, Constant *Addr, Constant *ID,
-    OMPTargetRegionEntryKind Flags, bool IsDevice) {
+    TargetRegionEntryInfo EntryInfo, Constant *Addr, Constant *ID,
+    OMPTargetRegionEntryKind Flags) {
+  assert(EntryInfo.Count == 0 && "expected default EntryInfo");
+
+  // Update the EntryInfo with the next available count for this location.
+  EntryInfo.Count = getTargetRegionEntryInfoCount(EntryInfo);
+
   // If we are emitting code for a target, the entry is already initialized,
   // only has to be registered.
-  if (IsDevice) {
+  if (Config.isEmbedded()) {
     // This could happen if the device compilation is invoked standalone.
     if (!hasTargetRegionEntryInfo(EntryInfo)) {
       return;
@@ -4743,10 +5045,15 @@ void OffloadEntriesInfoManager::registerTargetRegionEntryInfo(
     OffloadEntriesTargetRegion[EntryInfo] = Entry;
     ++OffloadingEntriesNum;
   }
+  incrementTargetRegionEntryInfoCount(EntryInfo);
 }
 
 bool OffloadEntriesInfoManager::hasTargetRegionEntryInfo(
-    const TargetRegionEntryInfo &EntryInfo, bool IgnoreAddressId) const {
+    TargetRegionEntryInfo EntryInfo, bool IgnoreAddressId) const {
+
+  // Update the EntryInfo with the next available count for this location.
+  EntryInfo.Count = getTargetRegionEntryInfoCount(EntryInfo);
+
   auto It = OffloadEntriesTargetRegion.find(EntryInfo);
   if (It == OffloadEntriesTargetRegion.end()) {
     return false;
@@ -4773,9 +5080,8 @@ void OffloadEntriesInfoManager::initializeDeviceGlobalVarEntryInfo(
 
 void OffloadEntriesInfoManager::registerDeviceGlobalVarEntryInfo(
     StringRef VarName, Constant *Addr, int64_t VarSize,
-    OMPTargetGlobalVarEntryKind Flags, GlobalValue::LinkageTypes Linkage,
-    bool IsDevice) {
-  if (IsDevice) {
+    OMPTargetGlobalVarEntryKind Flags, GlobalValue::LinkageTypes Linkage) {
+  if (Config.isEmbedded()) {
     // This could happen if the device compilation is invoked standalone.
     if (!hasDeviceGlobalVarEntryInfo(VarName))
       return;

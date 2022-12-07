@@ -17,8 +17,12 @@
 #ifndef CLANG_INCLUDE_CLEANER_RECORD_H
 #define CLANG_INCLUDE_CLEANER_RECORD_H
 
+#include "clang-include-cleaner/Types.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Allocator.h"
 #include "llvm/Support/FileSystem/UniqueID.h"
 #include <memory>
 #include <vector>
@@ -29,6 +33,9 @@ class ASTContext;
 class CompilerInstance;
 class Decl;
 class FileEntry;
+class Preprocessor;
+class PPCallbacks;
+class FileManager;
 
 namespace include_cleaner {
 
@@ -55,6 +62,17 @@ public:
   /// Returns "" if there is none.
   llvm::StringRef getPublic(const FileEntry *File) const;
 
+  /// Returns all direct exporter headers for the given header file.
+  /// Returns empty if there is none.
+  llvm::SmallVector<const FileEntry *> getExporters(const FileEntry *File,
+                                                    FileManager &FM) const;
+
+  /// Returns true if the given file is a self-contained file.
+  bool isSelfContained(const FileEntry *File) const;
+
+  /// Returns true if the given file is marked with the IWYU private pragma.
+  bool isPrivate(const FileEntry *File) const;
+
 private:
   class RecordPragma;
   /// 1-based Line numbers for the #include directives of the main file that
@@ -62,30 +80,59 @@ private:
   /// export` right after).
   llvm::DenseSet</*LineNumber*/ unsigned> ShouldKeep;
 
-  /// The public header mapping by the IWYU private pragma.
+  /// The public header mapping by the IWYU private pragma. For private pragmas
+  //  without public mapping an empty StringRef is stored.
   //
   // !!NOTE: instead of using a FileEntry* to identify the physical file, we
   // deliberately use the UniqueID to ensure the result is stable across
   // FileManagers (for clangd's preamble and main-file builds).
-  llvm::DenseMap<llvm::sys::fs::UniqueID, std::string /*VerbatimSpelling*/>
+  llvm::DenseMap<llvm::sys::fs::UniqueID, llvm::StringRef /*VerbatimSpelling*/>
       IWYUPublic;
 
-  // FIXME: add other IWYU supports (export etc)
+  /// A reverse map from the underlying header to its exporter headers.
+  //
+  //  There's no way to get a FileEntry from a UniqueID, especially when it
+  //  hasn't been opened before. So store the full path and convert it to a
+  //  FileEntry by opening the file again through a FileManager.
+  llvm::DenseMap<llvm::sys::fs::UniqueID,
+                 llvm::SmallVector</*RealPathNames*/ llvm::StringRef>>
+      IWYUExportBy;
+
+  /// Contains all non self-contained files detected during the parsing.
+  llvm::DenseSet<llvm::sys::fs::UniqueID> NonSelfContainedFiles;
+
+  /// Owns the strings.
+  llvm::BumpPtrAllocator Arena;
+
   // FIXME: add support for clang use_instead pragma
-  // FIXME: add selfcontained file.
 };
 
-// Contains recorded parser events relevant to include-cleaner.
+/// Recorded main-file parser events relevant to include-cleaner.
 struct RecordedAST {
-  // The consumer (when installed into clang) tracks declarations in this.
+  /// The consumer (when installed into clang) tracks declarations in `*this`.
   std::unique_ptr<ASTConsumer> record();
 
   ASTContext *Ctx = nullptr;
-  // The set of declarations written at file scope inside the main file.
-  //
-  // These are the roots of the subtrees that should be traversed to find uses.
-  // (Traversing the TranslationUnitDecl would find uses inside headers!)
+  /// The set of declarations written at file scope inside the main file.
+  ///
+  /// These are the roots of the subtrees that should be traversed to find uses.
+  /// (Traversing the TranslationUnitDecl would find uses inside headers!)
   std::vector<Decl *> Roots;
+};
+
+/// Recorded main-file preprocessor events relevant to include-cleaner.
+///
+/// This doesn't include facts that we record globally for the whole TU, even
+/// when they occur in the main file (e.g. IWYU pragmas).
+struct RecordedPP {
+  /// The callback (when installed into clang) tracks macros/includes in this.
+  std::unique_ptr<PPCallbacks> record(const Preprocessor &PP);
+
+  /// Describes where macros were used in the main file.
+  std::vector<SymbolReference> MacroReferences;
+
+  /// The include directives seen in the main file.
+  include_cleaner::Includes Includes;
 };
 
 } // namespace include_cleaner

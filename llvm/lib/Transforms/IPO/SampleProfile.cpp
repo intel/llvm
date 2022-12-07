@@ -133,6 +133,11 @@ static cl::opt<bool> ReportProfileStaleness(
     "report-profile-staleness", cl::Hidden, cl::init(false),
     cl::desc("Compute and report stale profile statistical metrics."));
 
+static cl::opt<bool> PersistProfileStaleness(
+    "persist-profile-staleness", cl::Hidden, cl::init(false),
+    cl::desc("Compute stale profile statistical metrics and write it into the "
+             "native object file(.llvm_stats section)."));
+
 static cl::opt<bool> ProfileSampleAccurate(
     "profile-sample-accurate", cl::Hidden, cl::init(false),
     cl::desc("If the sample profile is accurate, we will mark all un-sampled "
@@ -1149,7 +1154,7 @@ bool SampleProfileLoader::inlineHotFunctions(
       bool Hot = false;
       SmallVector<CallBase *, 10> AllCandidates;
       SmallVector<CallBase *, 10> ColdCandidates;
-      for (auto &I : BB.getInstList()) {
+      for (auto &I : BB) {
         const FunctionSamples *FS = nullptr;
         if (auto *CB = dyn_cast<CallBase>(&I)) {
           if (!isa<IntrinsicInst>(I)) {
@@ -1418,7 +1423,7 @@ bool SampleProfileLoader::inlineHotFunctionsWithPriority(
   CandidateQueue CQueue;
   InlineCandidate NewCandidate;
   for (auto &BB : F) {
-    for (auto &I : BB.getInstList()) {
+    for (auto &I : BB) {
       auto *CB = dyn_cast<CallBase>(&I);
       if (!CB)
         continue;
@@ -1612,7 +1617,7 @@ void SampleProfileLoader::generateMDProfMetadata(Function &F) {
     BasicBlock *BB = &BI;
 
     if (BlockWeights[BB]) {
-      for (auto &I : BB->getInstList()) {
+      for (auto &I : *BB) {
         if (!isa<CallInst>(I) && !isa<InvokeInst>(I))
           continue;
         if (!cast<CallBase>(I).getCalledFunction()) {
@@ -1664,7 +1669,7 @@ void SampleProfileLoader::generateMDProfMetadata(Function &F) {
     } else if (OverwriteExistingWeights || ProfileSampleBlockAccurate) {
       // Set profile metadata (possibly annotated by LTO prelink) to zero or
       // clear it for cold code.
-      for (auto &I : BB->getInstList()) {
+      for (auto &I : *BB) {
         if (isa<CallInst>(I) || isa<InvokeInst>(I)) {
           if (cast<CallBase>(I).isIndirectCall())
             I.setMetadata(LLVMContext::MD_prof, nullptr);
@@ -2041,7 +2046,7 @@ bool SampleProfileLoader::doInitialization(Module &M,
     }
   }
 
-  if (ReportProfileStaleness) {
+  if (ReportProfileStaleness || PersistProfileStaleness) {
     MatchingManager =
         std::make_unique<SampleProfileMatcher>(M, *Reader, ProbeManager.get());
   }
@@ -2067,7 +2072,7 @@ void SampleProfileMatcher::detectProfileMismatch(const Function &F,
   // Go through all the callsites on the IR and flag the callsite if the target
   // name is the same as the one in the profile.
   for (auto &BB : F) {
-    for (auto &I : BB.getInstList()) {
+    for (auto &I : BB) {
       if (!isa<CallBase>(&I) || isa<IntrinsicInst>(&I))
         continue;
 
@@ -2150,18 +2155,42 @@ void SampleProfileMatcher::detectProfileMismatch() {
     detectProfileMismatch(F, *FS);
   }
 
-  if (FunctionSamples::ProfileIsProbeBased) {
-    errs() << "(" << NumMismatchedFuncHash << "/" << TotalProfiledFunc << ")"
-           << " of functions' profile are invalid and "
-           << " (" << MismatchedFuncHashSamples << "/" << TotalFuncHashSamples
+  if (ReportProfileStaleness) {
+    if (FunctionSamples::ProfileIsProbeBased) {
+      errs() << "(" << NumMismatchedFuncHash << "/" << TotalProfiledFunc << ")"
+             << " of functions' profile are invalid and "
+             << " (" << MismatchedFuncHashSamples << "/" << TotalFuncHashSamples
+             << ")"
+             << " of samples are discarded due to function hash mismatch.\n";
+    }
+    errs() << "(" << NumMismatchedCallsite << "/" << TotalProfiledCallsite
            << ")"
-           << " of samples are discarded due to function hash mismatch.\n";
+           << " of callsites' profile are invalid and "
+           << "(" << MismatchedCallsiteSamples << "/" << TotalCallsiteSamples
+           << ")"
+           << " of samples are discarded due to callsite location mismatch.\n";
   }
-  errs() << "(" << NumMismatchedCallsite << "/" << TotalProfiledCallsite << ")"
-         << " of callsites' profile are invalid and "
-         << "(" << MismatchedCallsiteSamples << "/" << TotalCallsiteSamples
-         << ")"
-         << " of samples are discarded due to callsite location mismatch.\n";
+
+  if (PersistProfileStaleness) {
+    LLVMContext &Ctx = M.getContext();
+    MDBuilder MDB(Ctx);
+
+    SmallVector<std::pair<StringRef, uint64_t>> ProfStatsVec;
+    if (FunctionSamples::ProfileIsProbeBased) {
+      ProfStatsVec.emplace_back("NumMismatchedFuncHash", NumMismatchedFuncHash);
+      ProfStatsVec.emplace_back("TotalProfiledFunc", TotalProfiledFunc);
+      ProfStatsVec.emplace_back("MismatchedFuncHashSamples",
+                                MismatchedFuncHashSamples);
+      ProfStatsVec.emplace_back("TotalFuncHashSamples", TotalFuncHashSamples);
+    }
+    ProfStatsVec.emplace_back("MismatchedCallsiteSamples",
+                              MismatchedCallsiteSamples);
+    ProfStatsVec.emplace_back("TotalCallsiteSamples", TotalCallsiteSamples);
+
+    auto *MD = MDB.createLLVMStats(ProfStatsVec);
+    auto *NMD = M.getOrInsertNamedMetadata("llvm.stats");
+    NMD->addOperand(MD);
+  }
 }
 
 bool SampleProfileLoader::runOnModule(Module &M, ModuleAnalysisManager *AM,
@@ -2208,7 +2237,7 @@ bool SampleProfileLoader::runOnModule(Module &M, ModuleAnalysisManager *AM,
   assert(SymbolMap.count(StringRef()) == 0 &&
          "No empty StringRef should be added in SymbolMap");
 
-  if (ReportProfileStaleness)
+  if (ReportProfileStaleness || PersistProfileStaleness)
     MatchingManager->detectProfileMismatch();
 
   bool retval = false;

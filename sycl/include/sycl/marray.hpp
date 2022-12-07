@@ -17,7 +17,7 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
-/// Provides a cross-patform math array class template that works on
+/// Provides a cross-platform math array class template that works on
 /// SYCL devices as well as in host C++ code.
 ///
 /// \ingroup sycl_api
@@ -64,7 +64,7 @@ public:
   template <
       typename... ArgTN, typename = EnableIfSuitableTypes<ArgTN...>,
       typename = typename std::enable_if<sizeof...(ArgTN) == NumElements>::type>
-  constexpr marray(const ArgTN &...Args) : MData{Args...} {}
+  constexpr marray(const ArgTN &...Args) : MData{static_cast<Type>(Args)...} {}
 
   constexpr marray(const marray<Type, NumElements> &Rhs) = default;
 

@@ -62,6 +62,7 @@
 #include "llvm/Transforms/Utils/ValueMapper.h"
 #include <cassert>
 #include <numeric>
+#include <optional>
 
 using namespace llvm;
 
@@ -1516,15 +1517,13 @@ struct AAPointerInfoCallSiteArgument final : AAPointerInfoFloating {
   AAPointerInfoCallSiteArgument(const IRPosition &IRP, Attributor &A)
       : AAPointerInfoFloating(IRP, A) {}
 
-  /// See AbstractAttribute::initialize(...).
-  void initialize(Attributor &A) override {
-    AAPointerInfoFloating::initialize(A);
-
+  /// See AbstractAttribute::updateImpl(...).
+  ChangeStatus updateImpl(Attributor &A) override {
+    using namespace AA::PointerInfo;
     // We handle memory intrinsics explicitly, at least the first (=
     // destination) and second (=source) arguments as we know how they are
     // accessed.
     if (auto *MI = dyn_cast_or_null<MemIntrinsic>(getCtxI())) {
-      // TODO: Simplify the length.
       ConstantInt *Length = dyn_cast<ConstantInt>(MI->getLength());
       int64_t LengthVal = AA::OffsetAndSize::Unknown;
       if (Length)
@@ -1541,22 +1540,16 @@ struct AAPointerInfoCallSiteArgument final : AAPointerInfoFloating {
       } else {
         LLVM_DEBUG(dbgs() << "[AAPointerInfo] Unhandled memory intrinsic "
                           << *MI << "\n");
-        indicatePessimisticFixpoint();
+        return indicatePessimisticFixpoint();
       }
 
-      indicateOptimisticFixpoint();
-
       LLVM_DEBUG({
-        dbgs() << "Accesses by bin after initialization:\n";
+        dbgs() << "Accesses by bin after update:\n";
         dumpState(dbgs());
       });
-      return;
-    }
-  }
 
-  /// See AbstractAttribute::updateImpl(...).
-  ChangeStatus updateImpl(Attributor &A) override {
-    using namespace AA::PointerInfo;
+      return Changed;
+    }
 
     // TODO: Once we have call site specific value information we can provide
     //       call site specific liveness information and then it makes
@@ -2299,7 +2292,7 @@ static int64_t getKnownNonNullAndDerefBytesForUse(
     return DerefAA.getKnownDereferenceableBytes();
   }
 
-  Optional<MemoryLocation> Loc = MemoryLocation::getOrNone(I);
+  std::optional<MemoryLocation> Loc = MemoryLocation::getOrNone(I);
   if (!Loc || Loc->Ptr != UseV || !Loc->Size.isPrecise() || I->isVolatile())
     return 0;
 
@@ -2868,7 +2861,7 @@ private:
         // If it is known (which we tested above) but it doesn't have a value,
         // then we can assume `undef` and hence the instruction is UB.
         KnownUBInsts.insert(I);
-        return llvm::None;
+        return std::nullopt;
       }
       if (!*SimplifiedV)
         return nullptr;
@@ -2876,7 +2869,7 @@ private:
     }
     if (isa<UndefValue>(V)) {
       KnownUBInsts.insert(I);
-      return llvm::None;
+      return std::nullopt;
     }
     return V;
   }
@@ -4245,7 +4238,7 @@ struct AADereferenceableImpl : AADereferenceable {
     if (!UseV->getType()->isPointerTy())
       return;
 
-    Optional<MemoryLocation> Loc = MemoryLocation::getOrNone(I);
+    std::optional<MemoryLocation> Loc = MemoryLocation::getOrNone(I);
     if (!Loc || Loc->Ptr != UseV || !Loc->Size.isPrecise() || I->isVolatile())
       return;
 
@@ -5541,7 +5534,7 @@ struct AAValueSimplifyImpl : AAValueSimplify {
     Optional<Constant *> COpt = AA.getAssumedConstant(A);
 
     if (!COpt) {
-      SimplifiedAssociatedValue = llvm::None;
+      SimplifiedAssociatedValue = std::nullopt;
       A.recordDependence(AA, *this, DepClassTy::OPTIONAL);
       return true;
     }
@@ -6098,7 +6091,7 @@ struct AAHeapToStackFunction final : public AAHeapToStack {
       if (!isa<UndefValue>(InitVal)) {
         IRBuilder<> Builder(Alloca->getNextNode());
         // TODO: Use alignment above if align!=1
-        Builder.CreateMemSet(Alloca, InitVal, Size, None);
+        Builder.CreateMemSet(Alloca, InitVal, Size, std::nullopt);
       }
       HasChanged = ChangeStatus::CHANGED;
     }
@@ -6115,7 +6108,7 @@ struct AAHeapToStackFunction final : public AAHeapToStack {
       return APInt(64, 0);
     if (auto *CI = dyn_cast_or_null<ConstantInt>(SimpleV.value()))
       return CI->getValue();
-    return llvm::None;
+    return std::nullopt;
   }
 
   Optional<APInt> getSize(Attributor &A, const AbstractAttribute &AA,
@@ -6161,7 +6154,7 @@ ChangeStatus AAHeapToStackFunction::updateImpl(Attributor &A) {
 
   LoopInfo *LI =
       A.getInfoCache().getAnalysisResultForFunction<LoopAnalysis>(*F);
-  Optional<bool> MayContainIrreducibleControl;
+  std::optional<bool> MayContainIrreducibleControl;
   auto IsInLoop = [&](BasicBlock &BB) {
     if (&F->getEntryBlock() == &BB)
       return false;
@@ -6446,7 +6439,7 @@ ChangeStatus AAHeapToStackFunction::updateImpl(Attributor &A) {
 namespace {
 struct AAPrivatizablePtrImpl : public AAPrivatizablePtr {
   AAPrivatizablePtrImpl(const IRPosition &IRP, Attributor &A)
-      : AAPrivatizablePtr(IRP, A), PrivatizableType(llvm::None) {}
+      : AAPrivatizablePtr(IRP, A), PrivatizableType(std::nullopt) {}
 
   ChangeStatus indicatePessimisticFixpoint() override {
     AAPrivatizablePtr::indicatePessimisticFixpoint();
@@ -7299,13 +7292,28 @@ struct AAMemoryBehaviorFunction final : public AAMemoryBehaviorImpl {
 
   /// See AbstractAttribute::manifest(...).
   ChangeStatus manifest(Attributor &A) override {
+    // TODO: It would be better to merge this with AAMemoryLocation, so that
+    // we could determine read/write per location. This would also have the
+    // benefit of only one place trying to manifest the memory attribute.
     Function &F = cast<Function>(getAnchorValue());
-    if (isAssumedReadNone()) {
-      F.removeFnAttr(Attribute::ArgMemOnly);
-      F.removeFnAttr(Attribute::InaccessibleMemOnly);
-      F.removeFnAttr(Attribute::InaccessibleMemOrArgMemOnly);
-    }
-    return AAMemoryBehaviorImpl::manifest(A);
+    MemoryEffects ME = MemoryEffects::unknown();
+    if (isAssumedReadNone())
+      ME = MemoryEffects::none();
+    else if (isAssumedReadOnly())
+      ME = MemoryEffects::readOnly();
+    else if (isAssumedWriteOnly())
+      ME = MemoryEffects::writeOnly();
+
+    // Intersect with existing memory attribute, as we currently deduce the
+    // location and modref portion separately.
+    MemoryEffects ExistingME = F.getMemoryEffects();
+    ME &= ExistingME;
+    if (ME == ExistingME)
+      return ChangeStatus::UNCHANGED;
+
+    return IRAttributeManifest::manifestAttrs(
+        A, getIRPosition(), Attribute::getWithMemoryEffects(F.getContext(), ME),
+        /*ForceReplace*/ true);
   }
 
   /// See AbstractAttribute::trackStatistics()
@@ -7343,6 +7351,31 @@ struct AAMemoryBehaviorCallSite final : AAMemoryBehaviorImpl {
     auto &FnAA =
         A.getAAFor<AAMemoryBehavior>(*this, FnPos, DepClassTy::REQUIRED);
     return clampStateAndIndicateChange(getState(), FnAA.getState());
+  }
+
+  /// See AbstractAttribute::manifest(...).
+  ChangeStatus manifest(Attributor &A) override {
+    // TODO: Deduplicate this with AAMemoryBehaviorFunction.
+    CallBase &CB = cast<CallBase>(getAnchorValue());
+    MemoryEffects ME = MemoryEffects::unknown();
+    if (isAssumedReadNone())
+      ME = MemoryEffects::none();
+    else if (isAssumedReadOnly())
+      ME = MemoryEffects::readOnly();
+    else if (isAssumedWriteOnly())
+      ME = MemoryEffects::writeOnly();
+
+    // Intersect with existing memory attribute, as we currently deduce the
+    // location and modref portion separately.
+    MemoryEffects ExistingME = CB.getMemoryEffects();
+    ME &= ExistingME;
+    if (ME == ExistingME)
+      return ChangeStatus::UNCHANGED;
+
+    return IRAttributeManifest::manifestAttrs(
+        A, getIRPosition(),
+        Attribute::getWithMemoryEffects(CB.getContext(), ME),
+        /*ForceReplace*/ true);
   }
 
   /// See AbstractAttribute::trackStatistics()
@@ -7614,36 +7647,54 @@ struct AAMemoryLocationImpl : public AAMemoryLocation {
     // unlikely this will cause real performance problems. If we are deriving
     // attributes for the anchor function we even remove the attribute in
     // addition to ignoring it.
+    // TODO: A better way to handle this would be to add ~NO_GLOBAL_MEM /
+    // MemoryEffects::Other as a possible location.
     bool UseArgMemOnly = true;
     Function *AnchorFn = IRP.getAnchorScope();
     if (AnchorFn && A.isRunOn(*AnchorFn))
       UseArgMemOnly = !AnchorFn->hasLocalLinkage();
 
     SmallVector<Attribute, 2> Attrs;
-    IRP.getAttrs(AttrKinds, Attrs, IgnoreSubsumingPositions);
+    IRP.getAttrs({Attribute::Memory}, Attrs, IgnoreSubsumingPositions);
     for (const Attribute &Attr : Attrs) {
-      switch (Attr.getKindAsEnum()) {
-      case Attribute::ReadNone:
+      // TODO: We can map MemoryEffects to Attributor locations more precisely.
+      MemoryEffects ME = Attr.getMemoryEffects();
+      if (ME.doesNotAccessMemory()) {
         State.addKnownBits(NO_LOCAL_MEM | NO_CONST_MEM);
-        break;
-      case Attribute::InaccessibleMemOnly:
+        continue;
+      }
+      if (ME.onlyAccessesInaccessibleMem()) {
         State.addKnownBits(inverseLocation(NO_INACCESSIBLE_MEM, true, true));
-        break;
-      case Attribute::ArgMemOnly:
+        continue;
+      }
+      if (ME.onlyAccessesArgPointees()) {
         if (UseArgMemOnly)
           State.addKnownBits(inverseLocation(NO_ARGUMENT_MEM, true, true));
-        else
-          IRP.removeAttrs({Attribute::ArgMemOnly});
-        break;
-      case Attribute::InaccessibleMemOrArgMemOnly:
+        else {
+          // Remove location information, only keep read/write info.
+          ME = MemoryEffects(ME.getModRef());
+          IRAttributeManifest::manifestAttrs(
+              A, IRP,
+              Attribute::getWithMemoryEffects(IRP.getAnchorValue().getContext(),
+                                              ME),
+              /*ForceReplace*/ true);
+        }
+        continue;
+      }
+      if (ME.onlyAccessesInaccessibleOrArgMem()) {
         if (UseArgMemOnly)
           State.addKnownBits(inverseLocation(
               NO_INACCESSIBLE_MEM | NO_ARGUMENT_MEM, true, true));
-        else
-          IRP.removeAttrs({Attribute::InaccessibleMemOrArgMemOnly});
-        break;
-      default:
-        llvm_unreachable("Unexpected attribute!");
+        else {
+          // Remove location information, only keep read/write info.
+          ME = MemoryEffects(ME.getModRef());
+          IRAttributeManifest::manifestAttrs(
+              A, IRP,
+              Attribute::getWithMemoryEffects(IRP.getAnchorValue().getContext(),
+                                              ME),
+              /*ForceReplace*/ true);
+        }
+        continue;
       }
     }
   }
@@ -7651,41 +7702,53 @@ struct AAMemoryLocationImpl : public AAMemoryLocation {
   /// See AbstractAttribute::getDeducedAttributes(...).
   void getDeducedAttributes(LLVMContext &Ctx,
                             SmallVectorImpl<Attribute> &Attrs) const override {
+    // TODO: We can map Attributor locations to MemoryEffects more precisely.
     assert(Attrs.size() == 0);
-    if (isAssumedReadNone()) {
-      Attrs.push_back(Attribute::get(Ctx, Attribute::ReadNone));
-    } else if (getIRPosition().getPositionKind() == IRPosition::IRP_FUNCTION) {
-      if (isAssumedInaccessibleMemOnly())
-        Attrs.push_back(Attribute::get(Ctx, Attribute::InaccessibleMemOnly));
-      else if (isAssumedArgMemOnly())
-        Attrs.push_back(Attribute::get(Ctx, Attribute::ArgMemOnly));
-      else if (isAssumedInaccessibleOrArgMemOnly())
+    if (getIRPosition().getPositionKind() == IRPosition::IRP_FUNCTION) {
+      if (isAssumedReadNone())
         Attrs.push_back(
-            Attribute::get(Ctx, Attribute::InaccessibleMemOrArgMemOnly));
+            Attribute::getWithMemoryEffects(Ctx, MemoryEffects::none()));
+      else if (isAssumedInaccessibleMemOnly())
+        Attrs.push_back(Attribute::getWithMemoryEffects(
+            Ctx, MemoryEffects::inaccessibleMemOnly()));
+      else if (isAssumedArgMemOnly())
+        Attrs.push_back(
+            Attribute::getWithMemoryEffects(Ctx, MemoryEffects::argMemOnly()));
+      else if (isAssumedInaccessibleOrArgMemOnly())
+        Attrs.push_back(Attribute::getWithMemoryEffects(
+            Ctx, MemoryEffects::inaccessibleOrArgMemOnly()));
     }
     assert(Attrs.size() <= 1);
   }
 
   /// See AbstractAttribute::manifest(...).
   ChangeStatus manifest(Attributor &A) override {
+    // TODO: If AAMemoryLocation and AAMemoryBehavior are merged, we could
+    // provide per-location modref information here.
     const IRPosition &IRP = getIRPosition();
 
-    // Check if we would improve the existing attributes first.
-    SmallVector<Attribute, 4> DeducedAttrs;
+    SmallVector<Attribute, 1> DeducedAttrs;
     getDeducedAttributes(IRP.getAnchorValue().getContext(), DeducedAttrs);
-    if (llvm::all_of(DeducedAttrs, [&](const Attribute &Attr) {
-          return IRP.hasAttr(Attr.getKindAsEnum(),
-                             /* IgnoreSubsumingPositions */ true);
-        }))
+    if (DeducedAttrs.size() != 1)
       return ChangeStatus::UNCHANGED;
+    MemoryEffects ME = DeducedAttrs[0].getMemoryEffects();
 
-    // Clear existing attributes.
-    IRP.removeAttrs(AttrKinds);
-    if (isAssumedReadNone())
-      IRP.removeAttrs(AAMemoryBehaviorImpl::AttrKinds);
+    // Intersect with existing memory attribute, as we currently deduce the
+    // location and modref portion separately.
+    SmallVector<Attribute, 1> ExistingAttrs;
+    IRP.getAttrs({Attribute::Memory}, ExistingAttrs,
+                 /* IgnoreSubsumingPositions */ true);
+    if (ExistingAttrs.size() == 1) {
+      MemoryEffects ExistingME = ExistingAttrs[0].getMemoryEffects();
+      ME &= ExistingME;
+      if (ME == ExistingME)
+        return ChangeStatus::UNCHANGED;
+    }
 
-    // Use the generic manifest method.
-    return IRAttribute::manifest(A);
+    return IRAttributeManifest::manifestAttrs(
+        A, IRP,
+        Attribute::getWithMemoryEffects(IRP.getAnchorValue().getContext(), ME),
+        /*ForceReplace*/ true);
   }
 
   /// See AAMemoryLocation::checkForAllAccessesToMemoryKind(...).
@@ -7808,14 +7871,7 @@ protected:
 
   /// Used to allocate access sets.
   BumpPtrAllocator &Allocator;
-
-  /// The set of IR attributes AAMemoryLocation deals with.
-  static const Attribute::AttrKind AttrKinds[4];
 };
-
-const Attribute::AttrKind AAMemoryLocationImpl::AttrKinds[] = {
-    Attribute::ReadNone, Attribute::InaccessibleMemOnly, Attribute::ArgMemOnly,
-    Attribute::InaccessibleMemOrArgMemOnly};
 
 void AAMemoryLocationImpl::categorizePtrValue(
     Attributor &A, const Instruction &I, const Value &Ptr,
@@ -9574,7 +9630,7 @@ private:
       if (Unreachable.count(&Fn))
         return false;
 
-      return llvm::None;
+      return std::nullopt;
     }
 
     /// Set of functions that we know for sure is reachable.
@@ -9853,7 +9909,7 @@ askForAssumedConstant(Attributor &A, const AbstractAttribute &QueryingAA,
 
   if (!COpt.has_value()) {
     A.recordDependence(AA, QueryingAA, DepClassTy::OPTIONAL);
-    return llvm::None;
+    return std::nullopt;
   }
   if (auto *C = COpt.value()) {
     A.recordDependence(AA, QueryingAA, DepClassTy::OPTIONAL);
@@ -9916,7 +9972,7 @@ struct AAPotentialValuesImpl : AAPotentialValues {
       return &IRP.getAssociatedValue();
     Optional<Constant *> C = askForAssumedConstant<AAType>(A, AA, IRP, Ty);
     if (!C)
-      return llvm::None;
+      return std::nullopt;
     if (C.value())
       if (auto *CC = AA::getWithType(**C, Ty))
         return CC;

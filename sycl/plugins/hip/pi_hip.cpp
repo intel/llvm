@@ -1659,6 +1659,13 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     SupportedExtensions += PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT;
     SupportedExtensions += " ";
 
+    hipDeviceProp_t props;
+    sycl::detail::pi::assertion(hipGetDeviceProperties(&props, device->get()) ==
+                                hipSuccess);
+    if (props.arch.hasDoubles) {
+      SupportedExtensions += "cl_khr_fp64 ";
+    }
+
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    SupportedExtensions.c_str());
   }
@@ -1815,6 +1822,26 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    FreeMemory);
   }
 
+  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE: {
+    int value = 0;
+    sycl::detail::pi::assertion(
+        hipDeviceGetAttribute(&value, hipDeviceAttributeMemoryClockRate,
+                              device->get()) == hipSuccess);
+    sycl::detail::pi::assertion(value >= 0);
+    // Convert kilohertz to megahertz when returning.
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   value / 1000);
+  }
+
+  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH: {
+    int value = 0;
+    sycl::detail::pi::assertion(
+        hipDeviceGetAttribute(&value, hipDeviceAttributeMemoryBusWidth,
+                              device->get()) == hipSuccess);
+    sycl::detail::pi::assertion(value >= 0);
+    return getInfo(param_value_size, param_value, param_value_size_ret, value);
+  }
+
   // TODO: Implement.
   case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
   // TODO: Investigate if this information is available on HIP.
@@ -1828,7 +1855,7 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
   case PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
-  case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16:
+  case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS:
     return PI_ERROR_INVALID_VALUE;
 
   default:
@@ -2393,6 +2420,21 @@ pi_result hip_piQueueGetInfo(pi_queue command_queue, pi_queue_info param_name,
   case PI_QUEUE_INFO_PROPERTIES:
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    command_queue->properties_);
+  case PI_EXT_ONEAPI_QUEUE_INFO_EMPTY: {
+    bool IsReady = command_queue->all_of([](hipStream_t s) -> bool {
+      const hipError_t ret = hipStreamQuery(s);
+      if (ret == hipSuccess)
+        return true;
+
+      if (ret == hipErrorNotReady)
+        return false;
+
+      PI_CHECK_ERROR(ret);
+      return false;
+    });
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   IsReady);
+  }
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
@@ -2757,6 +2799,11 @@ pi_result hip_piEnqueueKernelLaunch(
   assert(global_work_offset != nullptr);
   assert(work_dim > 0);
   assert(work_dim < 4);
+
+  if (*global_work_size == 0) {
+    return hip_piEnqueueEventsWaitWithBarrier(
+        command_queue, num_events_in_wait_list, event_wait_list, event);
+  }
 
   // Set the number of threads per block to the number of threads per warp
   // by default unless user has provided a better number
@@ -3742,7 +3789,7 @@ pi_result hip_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
     hipStream_t hipStream = command_queue->get_next_compute_stream(
         num_events_in_wait_list, event_wait_list, guard, &stream_token);
     {
-      std::lock_guard(command_queue->barrier_mutex_);
+      std::lock_guard<std::mutex> guard(command_queue->barrier_mutex_);
       if (command_queue->barrier_event_ == nullptr) {
         PI_CHECK_ERROR(hipEventCreate(&command_queue->barrier_event_));
       }

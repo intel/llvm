@@ -62,7 +62,7 @@ public:
 
     ContextImplPtr DefaultContext = detail::getSyclObjImpl(
         Device->get_platform().ext_oneapi_get_default_context());
-    if (isValidDevice(DefaultContext, Device))
+    if (DefaultContext->isDeviceValid(Device))
       return DefaultContext;
     return detail::getSyclObjImpl(
         context{createSyclObjFromImpl<device>(Device), {}, {}});
@@ -104,7 +104,7 @@ public:
                             "Queue cannot be constructed with both of "
                             "discard_events and enable_profiling.");
     }
-    if (!isValidDevice(Context, Device)) {
+    if (!Context->isDeviceValid(Device)) {
       if (!Context->is_host() &&
           Context->getPlugin().getBackend() == backend::opencl)
         throw sycl::invalid_object_error(
@@ -312,6 +312,31 @@ public:
       // queue property.
       CreationFlags |= PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS;
     }
+    // Track that priority settings are not ambiguous.
+    bool PrioritySeen = false;
+    if (MPropList
+            .has_property<ext::oneapi::property::queue::priority_normal>()) {
+      // Normal is the default priority, don't pass anything.
+      PrioritySeen = true;
+    }
+    if (MPropList.has_property<ext::oneapi::property::queue::priority_low>()) {
+      if (PrioritySeen) {
+        throw sycl::exception(
+            make_error_code(errc::invalid),
+            "Queue cannot be constructed with different priorities.");
+      }
+      CreationFlags |= PI_EXT_ONEAPI_QUEUE_PRIORITY_LOW;
+      PrioritySeen = true;
+    }
+    if (MPropList.has_property<ext::oneapi::property::queue::priority_high>()) {
+      if (PrioritySeen) {
+        throw sycl::exception(
+            make_error_code(errc::invalid),
+            "Queue cannot be constructed with different priorities.");
+      }
+      CreationFlags |= PI_EXT_ONEAPI_QUEUE_PRIORITY_HIGH;
+      PrioritySeen = true;
+    }
     RT::PiQueue Queue{};
     RT::PiContext Context = MContext->getHandleRef();
     RT::PiDevice Device = MDevice->getHandleRef();
@@ -451,6 +476,8 @@ public:
     MStreamsServiceEvents.push_back(Event);
   }
 
+  bool ext_oneapi_empty() const;
+
 protected:
   // template is needed for proper unit testing
   template <typename HandlerType = handler>
@@ -486,27 +513,6 @@ protected:
   }
 
 protected:
-  /// Helper function for checking whether a device is either a member of a
-  /// context or a descendnant of its member.
-  /// \return True iff the device or its parent is a member of the context.
-  static bool isValidDevice(const ContextImplPtr &Context,
-                            DeviceImplPtr Device) {
-    // OpenCL does not support creating a queue with a descendant of a device
-    // from the given context yet.
-    // TODO remove once this limitation is lifted
-    if (!Context->is_host() &&
-        Context->getPlugin().getBackend() == backend::opencl)
-      return Context->hasDevice(Device);
-
-    while (!Context->hasDevice(Device)) {
-      if (Device->isRootDevice())
-        return false;
-      Device = detail::getSyclObjImpl(
-          Device->get_info<info::device::parent_device>());
-    }
-    return true;
-  }
-
   /// Performs command group submission to the queue.
   ///
   /// \param CGF is a function object containing command group.
@@ -576,7 +582,7 @@ protected:
   void addEvent(const event &Event);
 
   /// Protects all the fields that can be changed by class' methods.
-  std::mutex MMutex;
+  mutable std::mutex MMutex;
 
   DeviceImplPtr MDevice;
   const ContextImplPtr MContext;
@@ -607,7 +613,7 @@ protected:
   // This event is employed for enhanced dependency tracking with in-order queue
   // Access to the event should be guarded with MLastEventMtx
   event MLastEvent;
-  std::mutex MLastEventMtx;
+  mutable std::mutex MLastEventMtx;
   // Used for in-order queues in pair with MLastEvent
   // Host tasks are explicitly synchronized in RT, pi tasks - implicitly by
   // backend. Using type to setup explicit sync between host and pi tasks.

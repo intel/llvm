@@ -30,6 +30,7 @@
 #include <sycl/nd_item.hpp>
 #include <sycl/nd_range.hpp>
 #include <sycl/property_list.hpp>
+#include <sycl/reduction_forward.hpp>
 #include <sycl/sampler.hpp>
 #include <sycl/stl.hpp>
 
@@ -170,8 +171,8 @@ struct GetMergedKernelProperties<
 
 #if __SYCL_ID_QUERIES_FIT_IN_INT__
 template <typename T, typename ValT>
-typename detail::enable_if_t<std::is_same<ValT, size_t>::value ||
-                             std::is_same<ValT, unsigned long long>::value>
+typename std::enable_if_t<std::is_same<ValT, size_t>::value ||
+                          std::is_same<ValT, unsigned long long>::value>
 checkValueRangeImpl(ValT V) {
   static constexpr size_t Limit =
       static_cast<size_t>((std::numeric_limits<int>::max)());
@@ -181,8 +182,8 @@ checkValueRangeImpl(ValT V) {
 #endif
 
 template <int Dims, typename T>
-typename detail::enable_if_t<std::is_same<T, range<Dims>>::value ||
-                             std::is_same<T, id<Dims>>::value>
+typename std::enable_if_t<std::is_same<T, range<Dims>>::value ||
+                          std::is_same<T, id<Dims>>::value>
 checkValueRange(const T &V) {
 #if __SYCL_ID_QUERIES_FIT_IN_INT__
   for (size_t Dim = 0; Dim < Dims; ++Dim)
@@ -219,7 +220,7 @@ void checkValueRange(const range<Dims> &R, const id<Dims> &O) {
 }
 
 template <int Dims, typename T>
-typename detail::enable_if_t<std::is_same<T, nd_range<Dims>>::value>
+typename std::enable_if_t<std::is_same<T, nd_range<Dims>>::value>
 checkValueRange(const T &V) {
 #if __SYCL_ID_QUERIES_FIT_IN_INT__
   checkValueRange<Dims>(V.get_global_range());
@@ -268,43 +269,9 @@ private:
   KernelType KernelFunc;
 };
 
-template <typename T, class BinaryOperation, int Dims, size_t Extent,
-          typename RedOutVar>
-class reduction_impl_algo;
-
-using sycl::detail::enable_if_t;
+using std::enable_if_t;
 using sycl::detail::queue_impl;
 
-// Reductions implementation need access to private members of handler. Those
-// are limited to those below.
-namespace reduction {
-inline void finalizeHandler(handler &CGH);
-template <class FunctorTy> void withAuxHandler(handler &CGH, FunctorTy Func);
-} // namespace reduction
-
-template <typename KernelName, int Dims, typename PropertiesT,
-          typename KernelType, typename Reduction>
-void reduction_parallel_for(handler &CGH,
-                            std::shared_ptr<detail::queue_impl> Queue,
-                            range<Dims> Range, PropertiesT Properties,
-                            Reduction Redu, KernelType KernelFunc);
-
-template <typename KernelName, int Dims, typename PropertiesT,
-          typename KernelType, typename Reduction>
-void reduction_parallel_for(handler &CGH,
-                            std::shared_ptr<detail::queue_impl> Queue,
-                            nd_range<Dims> Range, PropertiesT Properties,
-                            Reduction Redu, KernelType KernelFunc);
-
-template <typename KernelName, int Dims, typename PropertiesT,
-          typename... RestT>
-void reduction_parallel_for(handler &CGH,
-                            std::shared_ptr<detail::queue_impl> Queue,
-                            nd_range<Dims> Range, PropertiesT Properties,
-                            RestT... Rest);
-
-template <typename T> struct IsReduction;
-template <typename FirstT, typename... RestT> struct AreAllButLastReductions;
 } // namespace detail
 
 /// Command group handler class.
@@ -497,7 +464,7 @@ private:
   // setArgHelper for non local accessor argument.
   template <typename DataT, int Dims, access::mode AccessMode,
             access::target AccessTarget, access::placeholder IsPlaceholder>
-  typename detail::enable_if_t<AccessTarget != access::target::local, void>
+  typename std::enable_if_t<AccessTarget != access::target::local, void>
   setArgHelper(
       int ArgIndex,
       accessor<DataT, Dims, AccessMode, AccessTarget, IsPlaceholder> &&Arg) {
@@ -767,7 +734,7 @@ private:
             access::target TargetSrc, typename TDst, int DimDst,
             access::mode ModeDst, access::target TargetDst,
             access::placeholder IsPHSrc, access::placeholder IsPHDst>
-  detail::enable_if_t<(DimSrc > 0) && (DimDst > 0), bool>
+  std::enable_if_t<(DimSrc > 0) && (DimDst > 0), bool>
   copyAccToAccHelper(accessor<TSrc, DimSrc, ModeSrc, TargetSrc, IsPHSrc> Src,
                      accessor<TDst, DimDst, ModeDst, TargetDst, IsPHDst> Dst) {
     if (!MIsHost &&
@@ -798,7 +765,7 @@ private:
             access::target TargetSrc, typename TDst, int DimDst,
             access::mode ModeDst, access::target TargetDst,
             access::placeholder IsPHSrc, access::placeholder IsPHDst>
-  detail::enable_if_t<DimSrc == 0 || DimDst == 0, bool>
+  std::enable_if_t<DimSrc == 0 || DimDst == 0, bool>
   copyAccToAccHelper(accessor<TSrc, DimSrc, ModeSrc, TargetSrc, IsPHSrc> Src,
                      accessor<TDst, DimDst, ModeDst, TargetDst, IsPHDst> Dst) {
     if (!MIsHost)
@@ -819,7 +786,7 @@ private:
   /// \param Dst is a pointer to destination memory.
   template <typename TSrc, typename TDst, int Dim, access::mode AccMode,
             access::target AccTarget, access::placeholder IsPH>
-  detail::enable_if_t<(Dim > 0)>
+  std::enable_if_t<(Dim > 0)>
   copyAccToPtrHost(accessor<TSrc, Dim, AccMode, AccTarget, IsPH> Src,
                    TDst *Dst) {
     range<Dim> Range = Src.get_range();
@@ -839,7 +806,7 @@ private:
   /// \param Dst is a pointer to destination memory.
   template <typename TSrc, typename TDst, int Dim, access::mode AccMode,
             access::target AccTarget, access::placeholder IsPH>
-  detail::enable_if_t<Dim == 0>
+  std::enable_if_t<Dim == 0>
   copyAccToPtrHost(accessor<TSrc, Dim, AccMode, AccTarget, IsPH> Src,
                    TDst *Dst) {
     single_task<class __copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
@@ -855,7 +822,7 @@ private:
   /// \param Dst is a destination SYCL accessor.
   template <typename TSrc, typename TDst, int Dim, access::mode AccMode,
             access::target AccTarget, access::placeholder IsPH>
-  detail::enable_if_t<(Dim > 0)>
+  std::enable_if_t<(Dim > 0)>
   copyPtrToAccHost(TSrc *Src,
                    accessor<TDst, Dim, AccMode, AccTarget, IsPH> Dst) {
     range<Dim> Range = Dst.get_range();
@@ -874,7 +841,7 @@ private:
   /// \param Dst is a destination SYCL accessor.
   template <typename TSrc, typename TDst, int Dim, access::mode AccMode,
             access::target AccTarget, access::placeholder IsPH>
-  detail::enable_if_t<Dim == 0>
+  std::enable_if_t<Dim == 0>
   copyPtrToAccHost(TSrc *Src,
                    accessor<TDst, Dim, AccMode, AccTarget, IsPH> Dst) {
     single_task<class __copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
@@ -1443,11 +1410,10 @@ private:
       const std::shared_ptr<detail::kernel_bundle_impl> &NewKernelBundleImpPtr);
 
   template <typename FuncT>
-  detail::enable_if_t<
-      detail::check_fn_signature<detail::remove_reference_t<FuncT>,
-                                 void()>::value ||
-      detail::check_fn_signature<detail::remove_reference_t<FuncT>,
-                                 void(interop_handle)>::value>
+  std::enable_if_t<detail::check_fn_signature<detail::remove_reference_t<FuncT>,
+                                              void()>::value ||
+                   detail::check_fn_signature<detail::remove_reference_t<FuncT>,
+                                              void(interop_handle)>::value>
   host_task_impl(FuncT &&Func) {
     throwIfActionIsCreated();
 
@@ -1553,7 +1519,7 @@ public:
   /// \param ArgIndex is a positional number of argument to be set.
   /// \param Arg is an argument value to be set.
   template <typename T>
-  typename detail::enable_if_t<ShouldEnableSetArg<T>::value, void>
+  typename std::enable_if_t<ShouldEnableSetArg<T>::value, void>
   set_arg(int ArgIndex, T &&Arg) {
     setArgHelper(ArgIndex, std::move(Arg));
   }
@@ -1627,11 +1593,10 @@ public:
 
   /// Enqueues a command to the SYCL runtime to invoke \p Func once.
   template <typename FuncT>
-  detail::enable_if_t<
-      detail::check_fn_signature<detail::remove_reference_t<FuncT>,
-                                 void()>::value ||
-      detail::check_fn_signature<detail::remove_reference_t<FuncT>,
-                                 void(interop_handle)>::value>
+  std::enable_if_t<detail::check_fn_signature<detail::remove_reference_t<FuncT>,
+                                              void()>::value ||
+                   detail::check_fn_signature<detail::remove_reference_t<FuncT>,
+                                              void(interop_handle)>::value>
   host_task(FuncT &&Func) {
     host_task_impl(Func);
   }
@@ -2062,25 +2027,24 @@ public:
 
   /// Reductions @{
 
-  template <typename KernelName = detail::auto_name, typename KernelType,
-            typename PropertiesT, int Dims, typename Reduction>
+  template <typename KernelName = detail::auto_name, int Dims,
+            typename PropertiesT, typename... RestT>
   std::enable_if_t<
-      detail::IsReduction<Reduction>::value &&
+      (sizeof...(RestT) > 1) &&
+      detail::AreAllButLastReductions<RestT...>::value &&
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
-  parallel_for(range<Dims> Range, PropertiesT Properties, Reduction Redu,
-               _KERNELFUNCPARAM(KernelFunc)) {
-    detail::reduction_parallel_for<KernelName>(*this, MQueue, Range, Properties,
-                                               Redu, std::move(KernelFunc));
+  parallel_for(range<Dims> Range, PropertiesT Properties, RestT &&...Rest) {
+    detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
+                                               std::forward<RestT>(Rest)...);
   }
 
-  template <typename KernelName = detail::auto_name, typename KernelType,
-            int Dims, typename Reduction>
-  std::enable_if_t<detail::IsReduction<Reduction>::value>
-  parallel_for(range<Dims> Range, Reduction Redu,
-               _KERNELFUNCPARAM(KernelFunc)) {
+  template <typename KernelName = detail::auto_name, int Dims,
+            typename... RestT>
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
+  parallel_for(range<Dims> Range, RestT &&...Rest) {
     parallel_for<KernelName>(
-        Range, ext::oneapi::experimental::detail::empty_properties_t{}, Redu,
-        std::move(KernelFunc));
+        Range, ext::oneapi::experimental::detail::empty_properties_t{},
+        std::forward<RestT>(Rest)...);
   }
 
   template <typename KernelName = detail::auto_name, int Dims,
@@ -2090,7 +2054,7 @@ public:
       detail::AreAllButLastReductions<RestT...>::value &&
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for(nd_range<Dims> Range, PropertiesT Properties, RestT &&...Rest) {
-    detail::reduction_parallel_for<KernelName>(*this, MQueue, Range, Properties,
+    detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
                                                std::forward<RestT>(Rest)...);
   }
 
@@ -2551,6 +2515,18 @@ private:
   friend inline void detail::reduction::finalizeHandler(handler &CGH);
   template <class FunctorTy>
   friend void detail::reduction::withAuxHandler(handler &CGH, FunctorTy Func);
+
+  template <typename KernelName, detail::reduction::strategy Strategy, int Dims,
+            typename PropertiesT, typename... RestT>
+  friend void detail::reduction_parallel_for(handler &CGH, range<Dims> NDRange,
+                                             PropertiesT Properties,
+                                             RestT... Rest);
+
+  template <typename KernelName, detail::reduction::strategy Strategy, int Dims,
+            typename PropertiesT, typename... RestT>
+  friend void
+  detail::reduction_parallel_for(handler &CGH, nd_range<Dims> NDRange,
+                                 PropertiesT Properties, RestT... Rest);
 
 #ifndef __SYCL_DEVICE_ONLY__
   friend void detail::associateWithHandler(handler &,

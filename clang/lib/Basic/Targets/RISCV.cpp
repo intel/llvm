@@ -190,8 +190,12 @@ void RISCVTargetInfo::getTargetDefines(const LangOptions &Opts,
   if (ISAInfo->hasExtension("c"))
     Builder.defineMacro("__riscv_compressed");
 
-  if (ISAInfo->hasExtension("zve32x"))
+  if (ISAInfo->hasExtension("zve32x")) {
     Builder.defineMacro("__riscv_vector");
+    // Currently we support the v0.10 RISC-V V intrinsics.
+    unsigned Version = (0 * 1000000) + (10 * 1000);
+    Builder.defineMacro("__riscv_v_intrinsic", Twine(Version));
+  }
 }
 
 const Builtin::Info RISCVTargetInfo::BuiltinInfo[] = {
@@ -252,13 +256,15 @@ RISCVTargetInfo::getVScaleRange(const LangOptions &LangOpts) const {
     return std::pair<unsigned, unsigned>(
         LangOpts.VScaleMin ? LangOpts.VScaleMin : 1, LangOpts.VScaleMax);
 
-  if (unsigned MinVLen = ISAInfo->getMinVLen()) {
+  if (unsigned MinVLen = ISAInfo->getMinVLen();
+      MinVLen >= llvm::RISCV::RVVBitsPerBlock) {
     unsigned MaxVLen = ISAInfo->getMaxVLen();
     // RISCV::RVVBitsPerBlock is 64.
-    return std::pair<unsigned, unsigned>(MinVLen/64, MaxVLen/64);
+    return std::make_pair(MinVLen / llvm::RISCV::RVVBitsPerBlock,
+                          MaxVLen / llvm::RISCV::RVVBitsPerBlock);
   }
 
-  return None;
+  return std::nullopt;
 }
 
 /// Return true if has this feature, need to sync with handleTargetFeatures.
@@ -270,7 +276,7 @@ bool RISCVTargetInfo::hasFeature(StringRef Feature) const {
                     .Case("riscv64", Is64Bit)
                     .Case("32bit", !Is64Bit)
                     .Case("64bit", Is64Bit)
-                    .Default(None);
+                    .Default(std::nullopt);
   if (Result)
     return Result.value();
 

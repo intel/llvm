@@ -574,8 +574,8 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
         DefaultLogical},
     {"llt", {{"string_a", SameCharNoLen}, {"string_b", SameCharNoLen}},
         DefaultLogical},
-    {"loc", {{"loc_argument", Addressable, Rank::anyOrAssumedRank}},
-        SubscriptInt, Rank::scalar},
+    {"loc", {{"x", Addressable, Rank::anyOrAssumedRank}}, SubscriptInt,
+        Rank::scalar},
     {"log", {{"x", SameFloating}}, SameFloating},
     {"log10", {{"x", SameReal}}, SameReal},
     {"logical", {{"l", AnyLogical}, DefaultingKIND}, KINDLogical},
@@ -917,7 +917,7 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
 // TODO: Coarray intrinsic functions
 //  IMAGE_INDEX, COSHAPE
 // TODO: Non-standard intrinsic functions
-//  LSHIFT, RSHIFT, SHIFT,
+//  SHIFT,
 //  COMPL, EQV, NEQV, INT8, JINT, JNINT, KNINT,
 //  QCMPLX, QEXT, QFLOAT, QREAL, DNUM,
 //  INUM, JNUM, KNUM, QNUM, RNUM, RAN, RANF, ILEN,
@@ -934,7 +934,9 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
 static const std::pair<const char *, const char *> genericAlias[]{
     {"and", "iand"},
     {"imag", "aimag"},
+    {"lshift", "shiftl"},
     {"or", "ior"},
+    {"rshift", "shifta"},
     {"xor", "ieor"},
     {"__builtin_ieee_selected_real_kind", "selected_real_kind"},
 };
@@ -1232,6 +1234,14 @@ static const IntrinsicInterface intrinsicSubroutine[]{
             {"stat", AnyInt, Rank::scalar, Optionality::optional,
                 common::Intent::Out}},
         {}, Rank::elemental, IntrinsicClass::atomicSubroutine},
+    {"atomic_xor",
+        {{"atom", AtomicInt, Rank::atom, Optionality::required,
+             common::Intent::InOut},
+            {"value", AnyInt, Rank::scalar, Optionality::required,
+                common::Intent::In},
+            {"stat", AnyInt, Rank::scalar, Optionality::optional,
+                common::Intent::Out}},
+        {}, Rank::elemental, IntrinsicClass::atomicSubroutine},
     {"co_broadcast",
         {{"a", AnyData, Rank::anyOrAssumedRank, Optionality::required,
              common::Intent::InOut},
@@ -1373,7 +1383,7 @@ static const IntrinsicInterface intrinsicSubroutine[]{
 };
 
 // TODO: Intrinsic subroutine EVENT_QUERY
-// TODO: Atomic intrinsic subroutines: ATOMIC_ADD &al.
+// TODO: Atomic intrinsic subroutines: ATOMIC_ADD
 // TODO: Collective intrinsic subroutines: co_reduce
 
 // Finds a built-in derived type and returns it as a DynamicType.
@@ -1452,6 +1462,37 @@ static bool CheckMaxMinArgument(std::optional<parser::CharBlock> keyword,
     }
   }
   return true;
+}
+
+static void CheckMaxMinA1A2Argument(const ActualArguments &arguments,
+    std::set<parser::CharBlock> &set, parser::ContextualMessages &messages) {
+  parser::CharBlock kwA1{"a1", 2};
+  parser::CharBlock kwA2{"a2", 2};
+  bool missingA1{set.find(kwA1) == set.end()};
+  bool missingA2{set.find(kwA2) == set.end()};
+
+  if (arguments.size() > 1) {
+    if (arguments.at(0)->keyword()) {
+      // If the keyword is specified in the first argument, the following
+      // arguments must have the keywords.
+      if (missingA1 && missingA2) {
+        messages.Say("missing mandatory '%s=' and '%s=' arguments"_err_en_US,
+            kwA1.ToString(), kwA2.ToString());
+      } else if (missingA1 && !missingA2) {
+        messages.Say(
+            "missing mandatory '%s=' argument"_err_en_US, kwA1.ToString());
+      } else if (!missingA1 && missingA2) {
+        messages.Say(
+            "missing mandatory '%s=' argument"_err_en_US, kwA2.ToString());
+      }
+    } else if (arguments.at(1)->keyword()) {
+      // No keyword is specified in the first argument.
+      if (missingA1 && missingA2) {
+        messages.Say(
+            "missing mandatory '%s=' argument"_err_en_US, kwA2.ToString());
+      }
+    }
+  }
 }
 
 static bool CheckAtomicKind(const ActualArgument &arg,
@@ -1562,6 +1603,17 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
     }
   }
 
+  if (isMaxMin) {
+    int nArgs{0};
+    // max() / max(x) is invalid
+    while ((arguments.size() + nArgs) < 2) {
+      actualForDummy.push_back(nullptr);
+      nArgs++;
+    }
+
+    CheckMaxMinA1A2Argument(arguments, maxMinKeywords, messages);
+  }
+
   std::size_t dummies{actualForDummy.size()};
 
   // Check types and kinds of the actual arguments against the intrinsic's
@@ -1582,7 +1634,23 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
     const ActualArgument *arg{actualForDummy[j]};
     if (!arg) {
       if (d.optionality == Optionality::required) {
-        messages.Say("missing mandatory '%s=' argument"_err_en_US, d.keyword);
+        std::string kw{d.keyword};
+        if (isMaxMin && maxMinKeywords.size() == 1) {
+          // max(a1=x) or max(a2=x)
+          const auto kwA1{dummy[0].keyword};
+          const auto kwA2{dummy[1].keyword};
+          if (maxMinKeywords.begin()->ToString().compare(kwA1) == 0) {
+            messages.Say("missing mandatory 'a2=' argument"_err_en_US);
+          } else if (maxMinKeywords.begin()->ToString().compare(kwA2) == 0) {
+            messages.Say("missing mandatory 'a1=' argument"_err_en_US);
+          } else {
+            messages.Say(
+                "missing mandatory 'a1=' and 'a2=' arguments"_err_en_US);
+          }
+        } else {
+          messages.Say(
+              "missing mandatory '%s=' argument"_err_en_US, kw.c_str());
+        }
         return std::nullopt; // missing non-OPTIONAL argument
       } else {
         continue;
@@ -2563,8 +2631,8 @@ static bool CheckAssociated(SpecificCall &call, FoldingContext &context) {
                     *targetProcDesignator, context);
                 targetName = targetProcDesignator->GetName();
               } else if (targetSymbol) {
-                // proc that's not a call
                 if (IsProcedure(*targetSymbol)) {
+                  // proc that's not a call
                   targetProc = characteristics::Procedure::Characterize(
                       *targetSymbol, context);
                 }
@@ -2625,6 +2693,11 @@ static bool CheckAssociated(SpecificCall &call, FoldingContext &context) {
                   for (SymbolRef ref : symbols) {
                     msg = AttachDeclaration(msg, *ref);
                   }
+                } else if (HasVectorSubscript(*targetExpr) ||
+                    ExtractCoarrayRef(*targetExpr)) {
+                  context.messages().Say(targetArg->sourceLocation(),
+                      "TARGET= argument '%s' may not have a vector subscript or coindexing"_err_en_US,
+                      targetExpr->AsFortran());
                 }
                 if (const auto pointerType{pointerArg->GetType()}) {
                   if (const auto targetType{targetArg->GetType()}) {
@@ -2761,7 +2834,8 @@ static bool ApplySpecificChecks(SpecificCall &call, FoldingContext &context) {
     }
   } else if (name == "associated") {
     return CheckAssociated(call, context);
-  } else if (name == "atomic_and" || name == "atomic_or") {
+  } else if (name == "atomic_and" || name == "atomic_or" ||
+      name == "atomic_xor") {
     return CheckForCoindexedObject(context, call.arguments[2], name, "stat");
   } else if (name == "atomic_cas") {
     return CheckForCoindexedObject(context, call.arguments[4], name, "stat");

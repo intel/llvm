@@ -172,7 +172,7 @@ if(TARGET LTO)
   set(LLVM_TEST_DEPENDS ${LLVM_TEST_DEPENDS} LTO)
 endif()
 
-if(TARGET spirv-to-ir-wrapper)
+if(TARGET llvm-spirv)
   set(LLVM_TEST_DEPENDS ${LLVM_TEST_DEPENDS} llvm-spirv)
 endif()
 
