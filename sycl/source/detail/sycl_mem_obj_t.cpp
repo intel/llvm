@@ -92,6 +92,7 @@ void SYCLMemObjT::updateHostMemory() {
   // record. We may get detached before we do this.
   if (MRecord) {
     bool Result = Scheduler::getInstance().removeMemoryObject(this);
+    std::ignore = Result; // for no assert build
     assert(
         Result &&
         "removeMemoryObject should not return false in mem object destructor");
