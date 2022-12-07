@@ -1,5 +1,7 @@
 // FIXME flaky fail on CUDA
-// UNSUPPORTED: cuda
+// FIXME HIP: https://github.com/intel/llvm/issues/7634
+// UNSUPPORTED: cuda, hip
+
 // RUN: %clangxx -DSYCL_FALLBACK_ASSERT=1 -fsycl -fsycl-targets=%sycl_triple -DDEFINE_NDEBUG_INFILE2 -I %S/Inputs %S/assert_in_simultaneously_multiple_tus.cpp %S/Inputs/kernels_in_file2.cpp -o %t.out %threads_lib
 // RUN: %CPU_RUN_PLACEHOLDER %t.out &> %t.cpu.txt || true
 // RUN: %CPU_RUN_PLACEHOLDER FileCheck %s --input-file %t.cpu.txt
