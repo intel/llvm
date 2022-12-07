@@ -54,6 +54,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   ESIMD/ESIMDVerifier.cpp
   ESIMD/LowerESIMDKernelAttrs.cpp
   ESIMD/ESIMDOptimizeVecArgCallConv.cpp
+  IR/PassAdaptors.cpp
   LowerInvokeSimd.cpp
   LowerKernelProps.cpp
   LowerWGScope.cpp
