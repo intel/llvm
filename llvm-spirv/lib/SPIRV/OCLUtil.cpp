@@ -638,6 +638,7 @@ template <> void LLVMSPIRVAtomicRmwOpCodeMap::init() {
   add(llvm::AtomicRMWInst::Min, OpAtomicSMin);
   add(llvm::AtomicRMWInst::UMax, OpAtomicUMax);
   add(llvm::AtomicRMWInst::UMin, OpAtomicUMin);
+  add(llvm::AtomicRMWInst::FAdd, OpAtomicFAddEXT);
 }
 
 } // namespace SPIRV
