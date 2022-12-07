@@ -150,7 +150,7 @@ template <typename T>
 mlir::MemRefType MLIRScanner::SYCLGetElementType(T SYCLType, unsigned ElemIndex,
                                                  llvm::ArrayRef<int64_t> Shape,
                                                  mlir::Attribute MemorySpace) {
-  return mlir::MemRefType::get(Shape, cast<T>(SYCLType).getBody()[ElemIndex],
+  return mlir::MemRefType::get(Shape, SYCLType.getBody()[ElemIndex],
                                MemRefLayoutAttrInterface(), MemorySpace);
 }
 
@@ -280,9 +280,8 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
                       return SYCLGetElementType<decltype(ElemTy)>(
                           ElemTy, I, Shape, MT.getMemorySpace());
                     })
-                    .Default([&MT](mlir::Type T) {
+                    .Default([](mlir::Type T) -> mlir::MemRefType {
                       llvm_unreachable("not implemented");
-                      return MT;
                     });
           } else {
             ET = mlir::MemRefType::get(Shape, MT.getElementType(),
