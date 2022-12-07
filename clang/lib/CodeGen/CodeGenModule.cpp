@@ -4455,11 +4455,11 @@ llvm::Constant *CodeGenModule::GetOrCreateLLVMFunction(
     auto DDI = DeferredDecls.find(MangledName);
     if (DDI != DeferredDecls.end() &&
         (!(getLangOpts().isSYCL() && getLangOpts().CUDA &&
-          !getLangOpts().CUDAIsDevice)
-             || ((DDI->second).getDecl()->hasAttr<CUDAHostAttr>() ==
-                            D->hasAttr<CUDAHostAttr>()
-                 && (DDI->second).getDecl()->hasAttr<CUDADeviceAttr>() ==
-                            D->hasAttr<CUDADeviceAttr>()))) {
+           !getLangOpts().CUDAIsDevice) ||
+         ((DDI->second).getDecl()->hasAttr<CUDAHostAttr>() ==
+              D->hasAttr<CUDAHostAttr>() &&
+          (DDI->second).getDecl()->hasAttr<CUDADeviceAttr>() ==
+              D->hasAttr<CUDADeviceAttr>()))) {
       // Move the potentially referenced deferred decl to the
       // DeferredDeclsToEmit list, and remove it from DeferredDecls (since we
       // don't need it anymore).
