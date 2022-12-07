@@ -185,7 +185,7 @@ SYCL_EXTERNAL void range_2(sycl::range<2> range) {}
 // CHECL-LABEL: func.func @_Z13sub_groupN4sycl3_V13ext6oneapi9sub_groupE(
 // CHECK:          %arg0: memref<?x!sycl.sub_group> {llvm.align = 1 : i64, llvm.byval = !sycl.sub_group, llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
-SYCL_EXTERNAL void sub_group(sycl::ext::oneapi::sub_group get_sub_group) {}
+SYCL_EXTERNAL void sub_group(sycl::ext::oneapi::sub_group sub_group) {}
 
 // CHECK-LABEL: func.func @_Z36tuple_copy_assignable_value_holder_1N4sycl3_V16detail30TupleCopyAssignableValueHolderIiLb1EEE(
 // CHECK:          %arg0: memref<?x![[TUPLE_COPY_ASSIGNABLE_VALUE_HOLDER_TRUE]]> {llvm.align = 4 : i64, llvm.byval = ![[TUPLE_COPY_ASSIGNABLE_VALUE_HOLDER_TRUE]], llvm.noundef})
