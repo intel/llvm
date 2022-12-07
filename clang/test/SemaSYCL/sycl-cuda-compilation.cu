@@ -23,32 +23,31 @@
 
 #include "cuda.h"
 
+__host__ void host_fn() {}  //#HOST_FN
+__global__ void kernel() {} //#KERNEL
+
 // (A)
-__host__ void host_fn_0() {}
-// expected-note@-1 {{candidate function not viable: call to __host__ function from __device__ function}}
+// expected-note@#HOST_FN {{candidate function not viable: call to __host__ function from __device__ function}}
 __device__ void dev_fn_0() {
-  host_fn_0();
-// expected-error@-1 {{no matching function for call to 'host_fn_0'}}
+  host_fn();
+// expected-error@-1 {{no matching function for call to 'host_fn'}}
 }
 
 // (B)
-__host__ void host_fn_1() {}
-// expected-note@-1 {{candidate function not viable: call to __host__ function from __global__ function}}
-__global__ void kernel() { host_fn_1(); }
-// expected-error@-1 {{no matching function for call to 'host_fn_1'}}
-void func_0(void) { kernel<<<1, 1>>>(); }
+// expected-note@#HOST_FN {{candidate function not viable: call to __host__ function from __global__ function}}
+__global__ void kernel_0() { host_fn(); }
+// expected-error@-1 {{no matching function for call to 'host_fn'}}
+void func_0(void) { kernel_0<<<1, 1>>>(); }
 
 // (C)
-__global__ void kernel_1() {}
-// expected-note@-1 {{candidate function not viable: call to __global__ function from __global__ function}}
-__global__ void kernel_2() { kernel_1(); }
-// expected-error@-1 {{no matching function for call to 'kernel_1'}}
-void func_2(void) { kernel_2<<<1, 1>>>(); }
+// expected-note@#KERNEL {{candidate function not viable: call to __global__ function from __global__ function}}
+__global__ void kernel_1() { kernel(); }
+// expected-error@-1 {{no matching function for call to 'kernel'}}
+void func_2(void) { kernel_1<<<1, 1>>>(); }
 
 // (D)
-__global__ void kernel_3() {}
-__device__ void device_func() { kernel_3<<<1, 1>>>();}
-// expected-error@-1 {{reference to __global__ function 'kernel_3' in __device__ function}}
+__device__ void device_func() { kernel<<<1, 1>>>();}
+// expected-error@-1 {{reference to __global__ function 'kernel' in __device__ function}}
 void func_3(void) { device_func(); }
 
 #if defined(__sycl_cuda_host) || defined(__sycl_device)
@@ -60,8 +59,7 @@ void func_3(void) { device_func(); }
 
 // (E)
 #if defined(__sycl_device)
-__global__ void kernel_4() {}
-__host__ __device__ void hostdevice_func() { kernel_4<<<1, 1>>>();} //
-// expected-error@-1 {{reference to __global__ function 'kernel_4' in __host__ __device__ function}}
+__host__ __device__ void hostdevice_func() { kernel<<<1, 1>>>();} //
+// expected-error@-1 {{reference to __global__ function 'kernel' in __host__ __device__ function}}
 void func_4(void) { hostdevice_func(); }
 #endif
