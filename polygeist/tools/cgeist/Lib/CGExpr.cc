@@ -146,14 +146,6 @@ ValueCategory MLIRScanner::VisitParenExpr(clang::ParenExpr *Expr) {
   return Visit(Expr->getSubExpr());
 }
 
-template <typename T>
-mlir::MemRefType MLIRScanner::SYCLGetElementType(T SYCLType, unsigned ElemIndex,
-                                                 llvm::ArrayRef<int64_t> Shape,
-                                                 mlir::Attribute MemorySpace) {
-  return mlir::MemRefType::get(Shape, SYCLType.getBody()[ElemIndex],
-                               MemRefLayoutAttrInterface(), MemorySpace);
-}
-
 ValueCategory
 MLIRScanner::VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *Decl) {
   mlir::Type MLIRTy = Glob.getTypes().getMLIRType(Decl->getType());
@@ -260,31 +252,31 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
           assert(!Shape.empty());
           Shape[0] = ShapedType::kDynamic;
 
+          mlir::Type ElemTy = MT.getElementType();
           mlir::Type ET;
-          if (auto ST =
-                  MT.getElementType().dyn_cast<mlir::LLVM::LLVMStructType>()) {
+          if (auto ST = ElemTy.dyn_cast<mlir::LLVM::LLVMStructType>()) {
             ET = mlir::MemRefType::get(Shape, ST.getBody()[I],
                                        MemRefLayoutAttrInterface(),
                                        MT.getMemorySpace());
-          } else if (sycl::isSYCLType(MT.getElementType())) {
-            mlir::Type ElemTy = MT.getElementType();
+          } else if (sycl::isSYCLType(ElemTy)) {
             ET =
                 TypeSwitch<mlir::Type, mlir::MemRefType>(ElemTy)
-                    .Case<mlir::sycl::IDType, mlir::sycl::RangeType>(
-                        [&](auto T) {
-                          return mlir::MemRefType::get(
-                              Shape, MT.getElementType(),
-                              MemRefLayoutAttrInterface(), MT.getMemorySpace());
-                        })
-                    .Case<mlir::sycl::ItemBaseType>([&](auto ElemTy) {
-                      return SYCLGetElementType<decltype(ElemTy)>(
-                          ElemTy, I, Shape, MT.getMemorySpace());
+                    .Case<mlir::sycl::IDType, mlir::sycl::RangeType>([&](auto) {
+                      return mlir::MemRefType::get(Shape, ElemTy,
+                                                   MemRefLayoutAttrInterface(),
+                                                   MT.getMemorySpace());
+                    })
+                    .Case<mlir::sycl::ItemBaseType>([&](auto Ty) {
+                      return mlir::MemRefType::get(Shape, Ty.getBody()[I],
+                                                   MemRefLayoutAttrInterface(),
+                                                   MT.getMemorySpace());
                     })
                     .Default([](mlir::Type T) -> mlir::MemRefType {
+                      T.dump();
                       llvm_unreachable("not implemented");
                     });
           } else {
-            ET = mlir::MemRefType::get(Shape, MT.getElementType(),
+            ET = mlir::MemRefType::get(Shape, ElemTy,
                                        MemRefLayoutAttrInterface(),
                                        MT.getMemorySpace());
           }
