@@ -174,7 +174,6 @@ class MockScheduler;
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
-
 class queue_impl;
 class event_impl;
 class context_impl;
@@ -444,11 +443,16 @@ public:
   const QueueImplPtr &getDefaultHostQueue() const { return DefaultHostQueue; }
 
   static MemObjRecord *getMemObjRecord(const Requirement *const Req);
+  // Virtual for testing purposes only
+  void deferMemObjRelease(const std::shared_ptr<detail::SYCLMemObjI> &MemObj);
 
   Scheduler();
   ~Scheduler();
+  void releaseResources();
+  inline bool isDeferredMemObjectsEmpty();
 
 protected:
+  std::atomic_bool MReleaseStarted{false};
   using RWLockT = std::shared_timed_mutex;
   using ReadLockT = std::shared_lock<RWLockT>;
   using WriteLockT = std::unique_lock<RWLockT>;
@@ -482,6 +486,9 @@ protected:
 
   static void enqueueLeavesOfReqUnlocked(const Requirement *const Req,
                                          std::vector<Command *> &ToCleanUp);
+
+  // May lock graph with read and write modes during execution.
+  void cleanupDeferredMemObjects(BlockingT Blocking);
 
   /// Graph builder class.
   ///
@@ -785,12 +792,16 @@ protected:
   /// GraphReadLock will be unlocked/locked as needed. Upon return from the
   /// function, GraphReadLock will be left in locked state.
   void waitForRecordToFinish(MemObjRecord *Record, ReadLockT &GraphReadLock);
+  bool checkLeavesCompletion(MemObjRecord *Record);
 
   GraphBuilder MGraphBuilder;
   RWLockT MGraphLock;
 
   std::vector<Command *> MDeferredCleanupCommands;
   std::mutex MDeferredCleanupMutex;
+
+  std::vector<std::shared_ptr<SYCLMemObjI>> MDeferredMemObjRelease;
+  std::mutex MDeferredMemReleaseMutex;
 
   QueueImplPtr DefaultHostQueue;
 

@@ -292,9 +292,14 @@ public:
     assert(MThisCmd->getCG().getType() == CG::CGTYPE::CodeplayHostTask);
 
     CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
-
+    // std::cout << std::this_thread::get_id() << " Host task waitForEvents
+    // begin "
+    //           << std::endl;
     pi_result WaitResult = waitForEvents();
     if (WaitResult != PI_SUCCESS) {
+      // std::cout << std::this_thread::get_id()
+      //           << " Host task waitForEvents WaitResult != success "
+      //           << std::endl;
       std::exception_ptr EPtr = std::make_exception_ptr(sycl::runtime_error(
           std::string("Couldn't wait for host-task's dependencies"),
           WaitResult));
@@ -304,7 +309,9 @@ public:
       HostTask.MHostTask.reset();
       return;
     }
-
+    // std::cout << std::this_thread::get_id() << " Host task job execution
+    // begin "
+    //           << std::endl;
     try {
       // we're ready to call the user-defined lambda now
       if (HostTask.MHostTask->isInteropTask()) {
@@ -318,6 +325,9 @@ public:
     } catch (...) {
       HostTask.MQueue->reportAsyncException(std::current_exception());
     }
+    // std::cout << std::this_thread::get_id() << " Host task job execution end
+    // "
+    //           << std::endl;
 
     HostTask.MHostTask.reset();
 
@@ -326,6 +336,8 @@ public:
     assert(EmptyCmd && "No empty command found");
 
     Scheduler::getInstance().NotifyHostTaskCompletion(MThisCmd, EmptyCmd);
+    // std::cout << std::this_thread::get_id() << " Host task operator end "
+    //           << std::endl;
   }
 };
 
@@ -692,7 +704,8 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
   // Exit if already enqueued
   if (MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess)
     return true;
-
+  // std::cout << std::this_thread::get_id() << " Command::enqueue  begin"
+  //           << std::endl;
   // If the command is blocked from enqueueing
   if (MIsBlockable && MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked) {
     // Exit if enqueue type is not blocking
@@ -717,6 +730,8 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
     emitInstrumentation(xpti::trace_barrier_end, Info.c_str());
 #endif
   }
+  // std::cout << std::this_thread::get_id()
+  //           << " Command::enqueue  after blocking handling" << std::endl;
 
   std::lock_guard<std::mutex> Lock(MEnqueueMtx);
 
@@ -739,7 +754,8 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
   MEnqueueStatus = EnqueueResultT::SyclEnqueueFailed;
   MShouldCompleteEventIfPossible = true;
   pi_int32 Res = enqueueImp();
-
+  // std::cout << std::this_thread::get_id() << " Command::enqueueImp  after"
+  //           << std::endl;
   if (PI_SUCCESS != Res)
     EnqueueResult =
         EnqueueResultT(EnqueueResultT::SyclEnqueueFailed, this, Res);
@@ -764,6 +780,8 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   emitInstrumentation(xpti::trace_task_end, nullptr);
 #endif
+  // std::cout << std::this_thread::get_id() << " Command::enqueue complete"
+  //           << std::endl;
   return MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess;
 }
 
@@ -2440,12 +2458,18 @@ pi_int32 ExecCGCommand::enqueueImp() {
     // Wait for dependencies to complete before dispatching work on the host
     // TODO: Use a callback to dispatch the interop task instead of waiting for
     //  the event
+    // std::cout << std::this_thread::get_id()
+    //           << " enqueueImp  CodeplayInteropTask piEventsWait begin"
+    //           << std::endl;
     if (!RawEvents.empty()) {
       Plugin.call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
     }
+    // std::cout << std::this_thread::get_id()
+    //           << " enqueueImp  CodeplayInteropTask piEventsWait end"
+    //           << std::endl;
     std::vector<interop_handler::ReqToMem> ReqMemObjs;
     // Extract the Mem Objects for all Requirements, to ensure they are
-    // available if a user ask for them inside the interop task scope
+    // available if a user ask for them inside the interop task scope::enqueue
     const auto &HandlerReq = ExecInterop->MRequirements;
     std::for_each(
         std::begin(HandlerReq), std::end(HandlerReq), [&](Requirement *Req) {

@@ -26,8 +26,22 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
+bool Scheduler::checkLeavesCompletion(MemObjRecord *Record) {
+  for (Command *Cmd : Record->MReadLeaves) {
+    if (!Cmd->getEvent()->isCompleted())
+      return false;
+  }
+  for (Command *Cmd : Record->MWriteLeaves) {
+    if (!Cmd->getEvent()->isCompleted())
+      return false;
+  }
+  return true;
+}
+
 void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
                                       ReadLockT &GraphReadLock) {
+  // std::cout << std::this_thread::get_id()
+  //           << " waitForRecordToFinish begin Record " << Record << std::endl;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // Will contain the list of dependencies for the Release Command
   std::set<Command *> DepCommands;
@@ -71,6 +85,8 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
     GraphProcessor::waitForEvent(ReleaseCmd->getEvent(), GraphReadLock,
                                  ToCleanUp);
   }
+  // std::cout << std::this_thread::get_id()
+  //           << " waitForRecordToFinish end Record " << Record << std::endl;
 }
 
 EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
@@ -269,30 +285,43 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
   std::vector<std::shared_ptr<const void>> AuxResourcesToDeallocate;
 
   {
-    MemObjRecord *Record = nullptr;
+    MemObjRecord *Record = MGraphBuilder.getMemObjRecord(MemObj);
+    if (!Record)
+      // No operations were performed on the mem object
+      return;
 
     {
       // This only needs a shared mutex as it only involves enqueueing and
       // awaiting for events
       ReadLockT Lock = acquireReadLock();
-
-      Record = MGraphBuilder.getMemObjRecord(MemObj);
-      if (!Record)
-        // No operations were performed on the mem object
-        return;
-
       waitForRecordToFinish(Record, Lock);
     }
-
     {
       WriteLockT Lock = acquireWriteLock();
+      // std::cout << std::this_thread::get_id()
+      //           << " removeMemoryObject write lock acquired Record = " <<
+      //           Record
+      //           << std::endl;
       MGraphBuilder.decrementLeafCountersForRecord(Record);
+      // std::cout
+      //     << std::this_thread::get_id()
+      //     << " removeMemoryObject cleanupCommandsForRecord before Record = "
+      //     << Record << std::endl;
       MGraphBuilder.cleanupCommandsForRecord(Record, StreamsToDeallocate,
                                              AuxResourcesToDeallocate);
+      // std::cout << std::this_thread::get_id()
+      //           << " removeMemoryObject removeRecordForMemObj before Record =
+      //           "
+      //           << Record << std::endl;
       MGraphBuilder.removeRecordForMemObj(MemObj);
+      // std::cout << std::this_thread::get_id()
+      //           << " removeMemoryObject removeRecordForMemObj done Record = "
+      //           << Record << std::endl;
     }
   }
   deallocateStreams(StreamsToDeallocate);
+  // std::cout << std::this_thread::get_id()
+  //           << " removeMemoryObject streams deallocated" << std::endl;
 }
 
 EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
@@ -334,6 +363,9 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
 }
 
 void Scheduler::releaseHostAccessor(Requirement *Req) {
+  // std::cout << "releaseHostAccessor begin MSYCLMemObj = " << Req->MSYCLMemObj
+  //           << std::endl;
+
   Command *const BlockedCmd = Req->MBlockedCmd;
 
   std::vector<Command *> ToCleanUp;
@@ -347,6 +379,8 @@ void Scheduler::releaseHostAccessor(Requirement *Req) {
     enqueueLeavesOfReqUnlocked(Req, ToCleanUp);
   }
   cleanupCommands(ToCleanUp);
+  // std::cout << "releaseHostAccessor end MSYCLMemObj = " << Req->MSYCLMemObj
+  //           << std::endl;
 }
 
 void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req,
@@ -355,7 +389,13 @@ void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req,
   auto EnqueueLeaves = [&ToCleanUp](LeavesCollection &Leaves) {
     for (Command *Cmd : Leaves) {
       EnqueueResultT Res;
+      // std::cout << std::this_thread::get_id()
+      //           << "EnqueueLeavesOfReqUnlocked enqueueCommand begin  " << Cmd
+      //           << std::endl;
       bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
+      // std::cout << std::this_thread::get_id()
+      //           << " enqueueLeavesOfReqUnlocked enqueueCommand end  " << Cmd
+      //           << std::endl;
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
         throw runtime_error("Enqueue process failed.",
                             PI_ERROR_INVALID_OPERATION);
@@ -406,10 +446,37 @@ Scheduler::~Scheduler() {
           "not all resources were released. Please be sure that all kernels "
           "have synchronization points.\n\n");
   }
-  // There might be some commands scheduled for post enqueue cleanup that
-  // haven't been freed because of the graph mutex being locked at the time,
-  // clean them up now.
+  DefaultHostQueue.reset();
+}
+
+void Scheduler::releaseResources() {
+  MReleaseStarted = true;
+  // TraceEvent trace("releaseResources");
+  // std::cout << "releaseResources begin " << std::endl;
+  if (DefaultHostQueue) {
+    DefaultHostQueue->wait();
+    // std::cout << "DefaultHostQueue wait finished" << std::endl;
+  }
+  GlobalHandler::instance().drainThreadPool();
+  // std::cout << "threads finished" << std::endl;
+  //  There might be some commands scheduled for post enqueue cleanup that
+  //  haven't been freed because of the graph mutex being locked at the time,
+  //  clean them up now.
   cleanupCommands({});
+
+  // We need loop since sometimes we may need new objects to be added to
+  // deferred mem objects storage during cleanup. Known example is: we cleanup
+  // existing deferred mem objects under write lock, during this process we
+  // cleanup commands related to this record, command may have last reference to
+  // queue_impl, ~queue_impl is called and buffer for assert (which is created
+  // with size only so all confitions for deferred release are satisfied) is
+  // added to deferred mem obj storage. So we may end up with leak.
+  // std::cout << "cleanupDeferredMemObjects(BlockingT::BLOCKING); begin "
+  //           << std::endl;
+  while (!isDeferredMemObjectsEmpty())
+    cleanupDeferredMemObjects(BlockingT::BLOCKING);
+  // std::cout << "cleanupDeferredMemObjects(BlockingT::BLOCKING); end "
+  //           << std::endl;
 }
 
 MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
@@ -417,17 +484,22 @@ MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
 }
 
 void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
-  if (Cmds.empty())
-  {
+  if (Cmds.empty()) {
     std::lock_guard<std::mutex> Lock{MDeferredCleanupMutex};
-    if (MDeferredCleanupCommands.empty())
+    if (MDeferredCleanupCommands.empty()) {
+      // std::cout << std::this_thread::get_id() << " cleanupCommands end "
+      //           << std::endl;
       return;
+    }
   }
-
+  // std::cout << std::this_thread::get_id()
+  //           << " cleanupCommands:: before try lock" << std::endl;
   WriteLockT Lock(MGraphLock, std::try_to_lock);
   // In order to avoid deadlocks related to blocked commands, defer cleanup if
   // the lock wasn't acquired.
   if (Lock.owns_lock()) {
+    // std::cout << std::this_thread::get_id() << "cleanupCommand owns lock"
+    //           << std::endl;
     for (Command *Cmd : Cmds) {
       MGraphBuilder.cleanupCommand(Cmd);
     }
@@ -441,10 +513,17 @@ void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
     }
 
   } else {
+    // std::cout << std::this_thread::get_id() << "ready to defer command
+    // cleanup"
+    //           << std::endl;
     std::lock_guard<std::mutex> Lock{MDeferredCleanupMutex};
     MDeferredCleanupCommands.insert(MDeferredCleanupCommands.end(),
                                     Cmds.begin(), Cmds.end());
+    // std::cout << std::this_thread::get_id() << "defered command inserted"
+    //           << std::endl;
   }
+  // std::cout << std::this_thread::get_id() << " cleanupCommands end "
+  //           << std::endl;
 }
 
 void Scheduler::NotifyHostTaskCompletion(Command *Cmd, Command *BlockingCmd) {
@@ -454,7 +533,9 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd, Command *BlockingCmd) {
   // of empty command.
   // Also, it's possible to have record deallocated prior to enqueue process.
   // Thus we employ read-lock of graph.
-
+  // std::cout << std::this_thread::get_id() << " NotifyHostTaskCompletion begin
+  // "
+  //           << std::endl;
   std::vector<Command *> ToCleanUp;
   {
     ReadLockT Lock = acquireReadLock();
@@ -462,7 +543,12 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd, Command *BlockingCmd) {
     std::vector<DepDesc> Deps = Cmd->MDeps;
 
     // update self-event status
+    // std::cout << "NotifyHostTaskCompletion Cmd->getEvent()->setComplete begin
+    // "
+    //           << std::endl;
     Cmd->getEvent()->setComplete();
+    // std::cout << "NotifyHostTaskCompletion Cmd->getEvent()->setComplete end "
+    //           << std::endl;
 
     BlockingCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
@@ -470,6 +556,64 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd, Command *BlockingCmd) {
       Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement, ToCleanUp);
   }
   cleanupCommands(ToCleanUp);
+  // std::cout << std::this_thread::get_id() << "NotifyHostTaskCompletion end "
+  //           << std::endl;
+}
+
+void Scheduler::deferMemObjRelease(const std::shared_ptr<SYCLMemObjI> &MemObj) {
+  if (!MReleaseStarted) {
+    std::lock_guard<std::mutex> Lock{MDeferredMemReleaseMutex};
+    MDeferredMemObjRelease.push_back(MemObj);
+  }
+  cleanupDeferredMemObjects(BlockingT::NON_BLOCKING);
+}
+
+inline bool Scheduler::isDeferredMemObjectsEmpty() {
+  std::lock_guard<std::mutex> Lock{MDeferredMemReleaseMutex};
+  return MDeferredMemObjRelease.empty();
+}
+
+void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
+  // std::cout << "MDeferredMemObjRelease.size = " <<
+  // MDeferredMemObjRelease.size() << std::endl;
+  if (isDeferredMemObjectsEmpty())
+    return;
+  if (Blocking == BlockingT::BLOCKING) {
+    std::vector<std::shared_ptr<SYCLMemObjI>> TempStorage;
+    {
+      std::lock_guard<std::mutex> LockDef{MDeferredMemReleaseMutex};
+      MDeferredMemObjRelease.swap(TempStorage);
+    }
+    // if any objects in TempStorage exist - it is leaving scope and being
+    // deleted
+  }
+
+  std::vector<std::shared_ptr<SYCLMemObjI>> ObjsReadyToRelease;
+  {
+
+    ReadLockT Lock = ReadLockT(MGraphLock, std::try_to_lock);
+    if (Lock.owns_lock()) {
+      // Not expected that Blocking == true will be used in parallel with
+      // adding MemObj to storage, no such scenario.
+      std::lock_guard<std::mutex> LockDef{MDeferredMemReleaseMutex};
+      auto MemObjIt = MDeferredMemObjRelease.begin();
+      while (MemObjIt != MDeferredMemObjRelease.end()) {
+        MemObjRecord *Record = MGraphBuilder.getMemObjRecord((*MemObjIt).get());
+        if (!checkLeavesCompletion(Record)) {
+          MemObjIt++;
+          continue;
+        }
+        // std::cout << std::this_thread::get_id()
+        //           << " cleanupDeferredMemObjects Record = " << Record
+        //           << std::endl;
+        ObjsReadyToRelease.push_back(*MemObjIt);
+        MemObjIt = MDeferredMemObjRelease.erase(MemObjIt);
+      }
+    }
+  }
+  // std::cout << "MDeferredMemObjRelease after NON_BLOCKING.size = " <<
+  // MDeferredMemObjRelease.size() << std::endl;
+  //  if any ObjsReadyToRelease found - it is leaving scope and being deleted
 }
 
 } // namespace detail

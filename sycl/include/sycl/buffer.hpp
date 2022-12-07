@@ -125,6 +125,8 @@ protected:
 
   size_t getSize() const;
 
+  void handleRelease() const;
+
   std::shared_ptr<detail::buffer_impl> impl;
 };
 
@@ -466,7 +468,7 @@ public:
 
   buffer &operator=(buffer &&rhs) = default;
 
-  ~buffer() = default;
+  ~buffer() { buffer_plain::handleRelease(); }
 
   bool operator==(const buffer &rhs) const { return impl == rhs.impl; }
 

@@ -34,9 +34,18 @@ void AccessorImplHost::resize(size_t GlobalSize) {
 }
 
 void addHostAccessorAndWait(Requirement *Req) {
+  // std::cout << std::this_thread::get_id()
+  //           << " addHostAccessorAndWait begin MSYCLMemObj = "
+  //           << Req->MSYCLMemObj << std::endl;
   detail::EventImplPtr Event =
       detail::Scheduler::getInstance().addHostAccessor(Req);
+  // std::cout << std::this_thread::get_id()
+  //           << " addHostAccessorAndWait starting wait event" << Event.get()
+  //           << std::endl;
   Event->wait(Event);
+  // std::cout << std::this_thread::get_id()
+  //           << " addHostAccessorAndWait end event " << Event.get() <<
+  //           std::endl;
 }
 
 void constructorNotification(void *BufferObj, void *AccessorObj,

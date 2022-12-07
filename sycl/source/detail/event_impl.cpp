@@ -69,28 +69,37 @@ void event_impl::waitInternal() {
         "waitInternal method cannot be used for a discarded event.");
   } else if (MState != HES_Complete) {
     // Wait for the host event
+    // std::cout << std::this_thread::get_id() << " waitInternal  cv.wait begin"
+    //           << std::endl;
     std::unique_lock<std::mutex> lock(MMutex);
     cv.wait(lock, [this] { return MState == HES_Complete; });
+    // std::cout << std::this_thread::get_id() << " waitInternal  cv.wait end"
+    //           << std::endl;
   }
-
+  // std::cout << std::this_thread::get_id()
+  //           << " waitInternal  MPostCompleteEvents.wait begin" << std::endl;
   // Wait for connected events(e.g. streams prints)
   for (const EventImplPtr &Event : MPostCompleteEvents)
     Event->wait(Event);
+  // std::cout << std::this_thread::get_id()
+  //           << " waitInternal  MPostCompleteEvents.wait end" << std::endl;
 }
 
 void event_impl::setComplete() {
   if (MHostEvent || !MEvent) {
-    std::unique_lock<std::mutex> lock(MMutex);
+    {
+      std::unique_lock<std::mutex> lock(MMutex);
 #ifndef NDEBUG
-    int Expected = HES_NotComplete;
-    int Desired = HES_Complete;
+      int Expected = HES_NotComplete;
+      int Desired = HES_Complete;
 
-    bool Succeeded = MState.compare_exchange_strong(Expected, Desired);
+      bool Succeeded = MState.compare_exchange_strong(Expected, Desired);
 
-    assert(Succeeded && "Unexpected state of event");
+      assert(Succeeded && "Unexpected state of event");
 #else
-    MState.store(static_cast<int>(HES_Complete));
+      MState.store(static_cast<int>(HES_Complete));
 #endif
+    }
     cv.notify_all();
     return;
   }
@@ -144,8 +153,8 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
 }
 
 event_impl::event_impl(const QueueImplPtr &Queue)
-    : MQueue{Queue}, MIsProfilingEnabled{Queue->is_host() ||
-                                         Queue->MIsProfilingEnabled} {
+    : MQueue{Queue},
+      MIsProfilingEnabled{Queue->is_host() || Queue->MIsProfilingEnabled} {
   this->setContextImpl(Queue->getContextImplPtr());
 
   if (Queue->is_host()) {
@@ -230,6 +239,9 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self) {
   else if (MCommand)
     detail::Scheduler::getInstance().waitForEvent(Self);
   cleanupCommand(std::move(Self));
+
+  detail::Scheduler::getInstance().cleanupDeferredMemObjects(
+      BlockingT::NON_BLOCKING);
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
@@ -427,6 +439,11 @@ void event_impl::cleanDepEventsThroughOneLevel() {
   for (auto &Event : MPreparedHostDepsEvents) {
     Event->cleanupDependencyEvents();
   }
+}
+
+bool event_impl::isCompleted() {
+  return get_info<info::event::command_execution_status>() ==
+         info::event_command_status::complete;
 }
 
 } // namespace detail
