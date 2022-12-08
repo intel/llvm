@@ -81,6 +81,8 @@ etors:
       desc: "$x_device_type_t: type of the device"
     - name: VENDOR_ID
       desc: "uint32_t: vendor Id of the device"
+    - name: DEVICE_ID
+      desc: "uint32_t: Id of the device"
     - name: MAX_COMPUTE_UNITS
       desc: "uint32_t: the number of compute units"
     - name: MAX_WORK_ITEM_DIMENSIONS
@@ -127,6 +129,8 @@ etors:
       desc: "uint32_t: native vector width for half float"
     - name: MAX_CLOCK_FREQUENCY
       desc: "uint32_t: max clock frequency in MHz"
+    - name: MEMORY_CLOCK_RATE
+      desc: "uint32_t: memory clock frequency in MHz"
     - name: ADDRESS_BITS
       desc: "uint32_t: address bits"
     - name: MAX_MEM_ALLOC_SIZE
@@ -167,6 +171,8 @@ etors:
       desc: "uint64_t: size of global memory cache in bytes"
     - name: GLOBAL_MEM_SIZE
       desc: "uint64_t: size of global memory in bytes"
+    - name: GLOBAL_MEM_FREE
+      desc: "uint64_t: size of global memory which is free in bytes"
     - name: MAX_CONSTANT_BUFFER_SIZE
       desc: "uint64_t: max constant buffer size in bytes"
     - name: MAX_CONSTANT_ARGS
@@ -213,6 +219,8 @@ etors:
       desc: "char[]: Device profile"
     - name: VERSION
       desc: "char[]: Device version"
+    - name: BACKEND_RUNTIME_VERSION
+      desc: "char[]: Version of backend runtime"
     - name: EXTENSIONS
       desc: "char[]: Return a space separated list of extension names"
     - name: PRINTF_BUFFER_SIZE
@@ -265,6 +273,8 @@ etors:
       desc: "bool: support 64 bit atomics"
     - name: ATOMIC_MEMORY_ORDER_CAPABILITIES
       desc: "uint32_t: atomics memory order capabilities"
+    - name: BFLOAT16
+      desc: "bool: support for bfloat16"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about device"

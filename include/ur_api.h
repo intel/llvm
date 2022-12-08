@@ -2780,110 +2780,115 @@ typedef enum ur_device_info_t
 {
     UR_DEVICE_INFO_TYPE = 0,                        ///< ::ur_device_type_t: type of the device
     UR_DEVICE_INFO_VENDOR_ID = 1,                   ///< uint32_t: vendor Id of the device
-    UR_DEVICE_INFO_MAX_COMPUTE_UNITS = 2,           ///< uint32_t: the number of compute units
-    UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS = 3,    ///< uint32_t: max work item dimensions
-    UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES = 4,         ///< size_t[]: return an array of max work item sizes
-    UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE = 5,         ///< size_t: max work group size
-    UR_DEVICE_INFO_SINGLE_FP_CONFIG = 6,            ///< Return a bit field of ::ur_fp_capability_flags_t: single precision
+    UR_DEVICE_INFO_DEVICE_ID = 2,                   ///< uint32_t: Id of the device
+    UR_DEVICE_INFO_MAX_COMPUTE_UNITS = 3,           ///< uint32_t: the number of compute units
+    UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS = 4,    ///< uint32_t: max work item dimensions
+    UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES = 5,         ///< size_t[]: return an array of max work item sizes
+    UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE = 6,         ///< size_t: max work group size
+    UR_DEVICE_INFO_SINGLE_FP_CONFIG = 7,            ///< Return a bit field of ::ur_fp_capability_flags_t: single precision
                                                     ///< floating point capability
-    UR_DEVICE_INFO_HALF_FP_CONFIG = 7,              ///< Return a bit field of ::ur_fp_capability_flags_t: half precsion
+    UR_DEVICE_INFO_HALF_FP_CONFIG = 8,              ///< Return a bit field of ::ur_fp_capability_flags_t: half precsion
                                                     ///< floating point capability
-    UR_DEVICE_INFO_DOUBLE_FP_CONFIG = 8,            ///< Return a bit field of ::ur_fp_capability_flags_t: double precision
+    UR_DEVICE_INFO_DOUBLE_FP_CONFIG = 9,            ///< Return a bit field of ::ur_fp_capability_flags_t: double precision
                                                     ///< floating point capability
-    UR_DEVICE_INFO_QUEUE_PROPERTIES = 9,            ///< Return a bit field of ::ur_queue_flags_t: command queue properties
+    UR_DEVICE_INFO_QUEUE_PROPERTIES = 10,           ///< Return a bit field of ::ur_queue_flags_t: command queue properties
                                                     ///< supported by the device
-    UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR = 10,///< uint32_t: preferred vector width for char
-    UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_SHORT = 11,   ///< uint32_t: preferred vector width for short
-    UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT = 12, ///< uint32_t: preferred vector width for int
-    UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG = 13,///< uint32_t: preferred vector width for long
-    UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT = 14,   ///< uint32_t: preferred vector width for float
-    UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE = 15,  ///< uint32_t: preferred vector width for double
-    UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF = 16,///< uint32_t: preferred vector width for half float
-    UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR = 17,   ///< uint32_t: native vector width for char
-    UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_SHORT = 18,  ///< uint32_t: native vector width for short
-    UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT = 19,    ///< uint32_t: native vector width for int
-    UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG = 20,   ///< uint32_t: native vector width for long
-    UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT = 21,  ///< uint32_t: native vector width for float
-    UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE = 22, ///< uint32_t: native vector width for double
-    UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF = 23,   ///< uint32_t: native vector width for half float
-    UR_DEVICE_INFO_MAX_CLOCK_FREQUENCY = 24,        ///< uint32_t: max clock frequency in MHz
-    UR_DEVICE_INFO_ADDRESS_BITS = 25,               ///< uint32_t: address bits
-    UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE = 26,         ///< uint64_t: max memory allocation size
-    UR_DEVICE_INFO_IMAGE_SUPPORTED = 27,            ///< bool: images are supported
-    UR_DEVICE_INFO_MAX_READ_IMAGE_ARGS = 28,        ///< uint32_t: max number of image objects arguments of a kernel declared
+    UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR = 11,///< uint32_t: preferred vector width for char
+    UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_SHORT = 12,   ///< uint32_t: preferred vector width for short
+    UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT = 13, ///< uint32_t: preferred vector width for int
+    UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG = 14,///< uint32_t: preferred vector width for long
+    UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT = 15,   ///< uint32_t: preferred vector width for float
+    UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE = 16,  ///< uint32_t: preferred vector width for double
+    UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF = 17,///< uint32_t: preferred vector width for half float
+    UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR = 18,   ///< uint32_t: native vector width for char
+    UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_SHORT = 19,  ///< uint32_t: native vector width for short
+    UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT = 20,    ///< uint32_t: native vector width for int
+    UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG = 21,   ///< uint32_t: native vector width for long
+    UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT = 22,  ///< uint32_t: native vector width for float
+    UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE = 23, ///< uint32_t: native vector width for double
+    UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF = 24,   ///< uint32_t: native vector width for half float
+    UR_DEVICE_INFO_MAX_CLOCK_FREQUENCY = 25,        ///< uint32_t: max clock frequency in MHz
+    UR_DEVICE_INFO_MEMORY_CLOCK_RATE = 26,          ///< uint32_t: memory clock frequency in MHz
+    UR_DEVICE_INFO_ADDRESS_BITS = 27,               ///< uint32_t: address bits
+    UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE = 28,         ///< uint64_t: max memory allocation size
+    UR_DEVICE_INFO_IMAGE_SUPPORTED = 29,            ///< bool: images are supported
+    UR_DEVICE_INFO_MAX_READ_IMAGE_ARGS = 30,        ///< uint32_t: max number of image objects arguments of a kernel declared
                                                     ///< with the read_only qualifier
-    UR_DEVICE_INFO_MAX_WRITE_IMAGE_ARGS = 29,       ///< uint32_t: max number of image objects arguments of a kernel declared
+    UR_DEVICE_INFO_MAX_WRITE_IMAGE_ARGS = 31,       ///< uint32_t: max number of image objects arguments of a kernel declared
                                                     ///< with the write_only qualifier
-    UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS = 30,  ///< uint32_t: max number of image objects arguments of a kernel declared
+    UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS = 32,  ///< uint32_t: max number of image objects arguments of a kernel declared
                                                     ///< with the read_write qualifier
-    UR_DEVICE_INFO_IMAGE2D_MAX_WIDTH = 31,          ///< size_t: max width of Image2D object
-    UR_DEVICE_INFO_IMAGE2D_MAX_HEIGHT = 32,         ///< size_t: max heigh of Image2D object
-    UR_DEVICE_INFO_IMAGE3D_MAX_WIDTH = 33,          ///< size_t: max width of Image3D object
-    UR_DEVICE_INFO_IMAGE3D_MAX_HEIGHT = 34,         ///< size_t: max height of Image3D object
-    UR_DEVICE_INFO_IMAGE3D_MAX_DEPTH = 35,          ///< size_t: max depth of Image3D object
-    UR_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE = 36,      ///< size_t: max image buffer size
-    UR_DEVICE_INFO_IMAGE_MAX_ARRAR_SIZE = 37,       ///< size_t: max image array size
-    UR_DEVICE_INFO_MAX_SAMPLERS = 38,               ///< uint32_t: max number of samplers that can be used in a kernel
-    UR_DEVICE_INFO_MAX_PARAMETER_SIZE = 39,         ///< size_t: max size in bytes of all arguments passed to a kernel
-    UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN = 40,        ///< uint32_t: memory base address alignment
-    UR_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE = 41,      ///< ::ur_device_mem_cache_type_t: global memory cache type
-    UR_DEVICE_INFO_GLOBAL_MEM_CACHELINE_SIZE = 42,  ///< uint32_t: global memory cache line size in bytes
-    UR_DEVICE_INFO_GLOBAL_MEM_CACHE_SIZE = 43,      ///< uint64_t: size of global memory cache in bytes
-    UR_DEVICE_INFO_GLOBAL_MEM_SIZE = 44,            ///< uint64_t: size of global memory in bytes
-    UR_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE = 45,   ///< uint64_t: max constant buffer size in bytes
-    UR_DEVICE_INFO_MAX_CONSTANT_ARGS = 46,          ///< uint32_t: max number of __const declared arguments in a kernel
-    UR_DEVICE_INFO_LOCAL_MEM_TYPE = 47,             ///< ::ur_device_local_mem_type_t: local memory type
-    UR_DEVICE_INFO_LOCAL_MEM_SIZE = 48,             ///< uint64_t: local memory size in bytes
-    UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT = 49,   ///< bool: support error correction to gloal and local memory
-    UR_DEVICE_INFO_HOST_UNIFIED_MEMORY = 50,        ///< bool: unifed host device memory
-    UR_DEVICE_INFO_PROFILING_TIMER_RESOLUTION = 51, ///< size_t: profiling timer resolution in nanoseconds
-    UR_DEVICE_INFO_ENDIAN_LITTLE = 52,              ///< bool: little endian byte order
-    UR_DEVICE_INFO_AVAILABLE = 53,                  ///< bool: device is available
-    UR_DEVICE_INFO_COMPILER_AVAILABLE = 54,         ///< bool: device compiler is available
-    UR_DEVICE_INFO_LINKER_AVAILABLE = 55,           ///< bool: device linker is available
-    UR_DEVICE_INFO_EXECUTION_CAPABILITIES = 56,     ///< ::ur_device_exec_capability_flags_t: device kernel execution
+    UR_DEVICE_INFO_IMAGE2D_MAX_WIDTH = 33,          ///< size_t: max width of Image2D object
+    UR_DEVICE_INFO_IMAGE2D_MAX_HEIGHT = 34,         ///< size_t: max heigh of Image2D object
+    UR_DEVICE_INFO_IMAGE3D_MAX_WIDTH = 35,          ///< size_t: max width of Image3D object
+    UR_DEVICE_INFO_IMAGE3D_MAX_HEIGHT = 36,         ///< size_t: max height of Image3D object
+    UR_DEVICE_INFO_IMAGE3D_MAX_DEPTH = 37,          ///< size_t: max depth of Image3D object
+    UR_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE = 38,      ///< size_t: max image buffer size
+    UR_DEVICE_INFO_IMAGE_MAX_ARRAR_SIZE = 39,       ///< size_t: max image array size
+    UR_DEVICE_INFO_MAX_SAMPLERS = 40,               ///< uint32_t: max number of samplers that can be used in a kernel
+    UR_DEVICE_INFO_MAX_PARAMETER_SIZE = 41,         ///< size_t: max size in bytes of all arguments passed to a kernel
+    UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN = 42,        ///< uint32_t: memory base address alignment
+    UR_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE = 43,      ///< ::ur_device_mem_cache_type_t: global memory cache type
+    UR_DEVICE_INFO_GLOBAL_MEM_CACHELINE_SIZE = 44,  ///< uint32_t: global memory cache line size in bytes
+    UR_DEVICE_INFO_GLOBAL_MEM_CACHE_SIZE = 45,      ///< uint64_t: size of global memory cache in bytes
+    UR_DEVICE_INFO_GLOBAL_MEM_SIZE = 46,            ///< uint64_t: size of global memory in bytes
+    UR_DEVICE_INFO_GLOBAL_MEM_FREE = 47,            ///< uint64_t: size of global memory which is free in bytes
+    UR_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE = 48,   ///< uint64_t: max constant buffer size in bytes
+    UR_DEVICE_INFO_MAX_CONSTANT_ARGS = 49,          ///< uint32_t: max number of __const declared arguments in a kernel
+    UR_DEVICE_INFO_LOCAL_MEM_TYPE = 50,             ///< ::ur_device_local_mem_type_t: local memory type
+    UR_DEVICE_INFO_LOCAL_MEM_SIZE = 51,             ///< uint64_t: local memory size in bytes
+    UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT = 52,   ///< bool: support error correction to gloal and local memory
+    UR_DEVICE_INFO_HOST_UNIFIED_MEMORY = 53,        ///< bool: unifed host device memory
+    UR_DEVICE_INFO_PROFILING_TIMER_RESOLUTION = 54, ///< size_t: profiling timer resolution in nanoseconds
+    UR_DEVICE_INFO_ENDIAN_LITTLE = 55,              ///< bool: little endian byte order
+    UR_DEVICE_INFO_AVAILABLE = 56,                  ///< bool: device is available
+    UR_DEVICE_INFO_COMPILER_AVAILABLE = 57,         ///< bool: device compiler is available
+    UR_DEVICE_INFO_LINKER_AVAILABLE = 58,           ///< bool: device linker is available
+    UR_DEVICE_INFO_EXECUTION_CAPABILITIES = 59,     ///< ::ur_device_exec_capability_flags_t: device kernel execution
                                                     ///< capability bit-field
-    UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES = 57, ///< ::ur_queue_flags_t: device command queue property bit-field
-    UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES = 58,   ///< ::ur_queue_flags_t: host queue property bit-field
-    UR_DEVICE_INFO_BUILT_IN_KERNELS = 59,           ///< char[]: a semi-colon separated list of built-in kernels
-    UR_DEVICE_INFO_PLATFORM = 60,                   ///< ::ur_platform_handle_t: the platform associated with the device
-    UR_DEVICE_INFO_REFERENCE_COUNT = 61,            ///< uint32_t: reference count
-    UR_DEVICE_INFO_IL_VERSION = 62,                 ///< char[]: IL version
-    UR_DEVICE_INFO_NAME = 63,                       ///< char[]: Device name
-    UR_DEVICE_INFO_VENDOR = 64,                     ///< char[]: Device vendor
-    UR_DEVICE_INFO_DRIVER_VERSION = 65,             ///< char[]: Driver version
-    UR_DEVICE_INFO_PROFILE = 66,                    ///< char[]: Device profile
-    UR_DEVICE_INFO_VERSION = 67,                    ///< char[]: Device version
-    UR_DEVICE_INFO_EXTENSIONS = 68,                 ///< char[]: Return a space separated list of extension names
-    UR_DEVICE_INFO_PRINTF_BUFFER_SIZE = 69,         ///< size_t: Maximum size in bytes of internal printf buffer
-    UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC = 70,///< bool: prefer user synchronization when sharing object with other API
-    UR_DEVICE_INFO_PARENT_DEVICE = 71,              ///< ::ur_device_handle_t: return parent device handle
-    UR_DEVICE_INFO_PARTITION_PROPERTIES = 72,       ///< uint32_t: return a bit-field of partition properties
+    UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES = 60, ///< ::ur_queue_flags_t: device command queue property bit-field
+    UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES = 61,   ///< ::ur_queue_flags_t: host queue property bit-field
+    UR_DEVICE_INFO_BUILT_IN_KERNELS = 62,           ///< char[]: a semi-colon separated list of built-in kernels
+    UR_DEVICE_INFO_PLATFORM = 63,                   ///< ::ur_platform_handle_t: the platform associated with the device
+    UR_DEVICE_INFO_REFERENCE_COUNT = 64,            ///< uint32_t: reference count
+    UR_DEVICE_INFO_IL_VERSION = 65,                 ///< char[]: IL version
+    UR_DEVICE_INFO_NAME = 66,                       ///< char[]: Device name
+    UR_DEVICE_INFO_VENDOR = 67,                     ///< char[]: Device vendor
+    UR_DEVICE_INFO_DRIVER_VERSION = 68,             ///< char[]: Driver version
+    UR_DEVICE_INFO_PROFILE = 69,                    ///< char[]: Device profile
+    UR_DEVICE_INFO_VERSION = 70,                    ///< char[]: Device version
+    UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION = 71,    ///< char[]: Version of backend runtime
+    UR_DEVICE_INFO_EXTENSIONS = 72,                 ///< char[]: Return a space separated list of extension names
+    UR_DEVICE_INFO_PRINTF_BUFFER_SIZE = 73,         ///< size_t: Maximum size in bytes of internal printf buffer
+    UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC = 74,///< bool: prefer user synchronization when sharing object with other API
+    UR_DEVICE_INFO_PARENT_DEVICE = 75,              ///< ::ur_device_handle_t: return parent device handle
+    UR_DEVICE_INFO_PARTITION_PROPERTIES = 76,       ///< uint32_t: return a bit-field of partition properties
                                                     ///< ::ur_device_partition_property_flags_t
-    UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES = 73,  ///< uint32_t: maximum number of sub-devices when the device is partitioned
-    UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN = 74,  ///< uint32_t: return a bit-field of affinity domain
+    UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES = 77,  ///< uint32_t: maximum number of sub-devices when the device is partitioned
+    UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN = 78,  ///< uint32_t: return a bit-field of affinity domain
                                                     ///< ::ur_device_affinity_domain_flags_t
-    UR_DEVICE_INFO_PARTITION_TYPE = 75,             ///< uint32_t: return a bit-field of ::ur_device_partition_property_flags_t
+    UR_DEVICE_INFO_PARTITION_TYPE = 79,             ///< uint32_t: return a bit-field of ::ur_device_partition_property_flags_t
                                                     ///< for properties specified in ::urDevicePartition
-    UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS = 76,         ///< uint32_t: max number of sub groups
-    UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS = 77, ///< bool: support sub group independent forward progress
-    UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL = 78,      ///< uint32_t[]: return an array of sub group sizes supported on Intel
+    UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS = 80,         ///< uint32_t: max number of sub groups
+    UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS = 81, ///< bool: support sub group independent forward progress
+    UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL = 82,      ///< uint32_t[]: return an array of sub group sizes supported on Intel
                                                     ///< device
-    UR_DEVICE_INFO_USM_HOST_SUPPORT = 79,           ///< bool: support USM host memory access
-    UR_DEVICE_INFO_USM_DEVICE_SUPPORT = 80,         ///< bool: support USM device memory access
-    UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT = 81,  ///< bool: support USM single device shared memory access
-    UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT = 82,   ///< bool: support USM cross device shared memory access
-    UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT = 83,  ///< bool: support USM system wide shared memory access
-    UR_DEVICE_INFO_UUID = 84,                       ///< char[]: return device UUID
-    UR_DEVICE_INFO_PCI_ADDRESS = 85,                ///< char[]: return device PCI address
-    UR_DEVICE_INFO_GPU_EU_COUNT = 86,               ///< uint32_t: return Intel GPU EU count
-    UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH = 87,          ///< uint32_t: return Intel GPU EU SIMD width
-    UR_DEVICE_INFO_GPU_EU_SLICES = 88,              ///< uint32_t: return Intel GPU number of slices
-    UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE = 89,    ///< uint32_t: return Intel GPU number of subslices per slice
-    UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH = 90,       ///< uint32_t: return max memory bandwidth in Mb/s
-    UR_DEVICE_INFO_IMAGE_SRGB = 91,                 ///< bool: image is SRGB
-    UR_DEVICE_INFO_ATOMIC_64 = 92,                  ///< bool: support 64 bit atomics
-    UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 93,   ///< uint32_t: atomics memory order capabilities
+    UR_DEVICE_INFO_USM_HOST_SUPPORT = 83,           ///< bool: support USM host memory access
+    UR_DEVICE_INFO_USM_DEVICE_SUPPORT = 84,         ///< bool: support USM device memory access
+    UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT = 85,  ///< bool: support USM single device shared memory access
+    UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT = 86,   ///< bool: support USM cross device shared memory access
+    UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT = 87,  ///< bool: support USM system wide shared memory access
+    UR_DEVICE_INFO_UUID = 88,                       ///< char[]: return device UUID
+    UR_DEVICE_INFO_PCI_ADDRESS = 89,                ///< char[]: return device PCI address
+    UR_DEVICE_INFO_GPU_EU_COUNT = 90,               ///< uint32_t: return Intel GPU EU count
+    UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH = 91,          ///< uint32_t: return Intel GPU EU SIMD width
+    UR_DEVICE_INFO_GPU_EU_SLICES = 92,              ///< uint32_t: return Intel GPU number of slices
+    UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE = 93,    ///< uint32_t: return Intel GPU number of subslices per slice
+    UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH = 94,       ///< uint32_t: return max memory bandwidth in Mb/s
+    UR_DEVICE_INFO_IMAGE_SRGB = 95,                 ///< bool: image is SRGB
+    UR_DEVICE_INFO_ATOMIC_64 = 96,                  ///< bool: support 64 bit atomics
+    UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 97,   ///< uint32_t: atomics memory order capabilities
+    UR_DEVICE_INFO_BFLOAT16 = 98,                   ///< bool: support for bfloat16
     UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
 
 } ur_device_info_t;
@@ -2906,7 +2911,7 @@ typedef enum ur_device_info_t
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES < infoType`
+///         + `::UR_DEVICE_INFO_BFLOAT16 < infoType`
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceGetInfo(
     ur_device_handle_t hDevice,                     ///< [in] handle of the device instance
