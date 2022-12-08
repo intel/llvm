@@ -2782,6 +2782,12 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
         Device->ZeDeviceProperties->numEUsPerSubslice *
         Device->ZeDeviceProperties->numSubslicesPerSlice *
         Device->ZeDeviceProperties->numSlices;
+
+    bool RepresentsCSlice =
+        Device->QueueGroup[_pi_queue::queue_type::Compute].ZeIndex >= 0;
+    if (RepresentsCSlice)
+      MaxComputeUnits /= Device->RootDevice->SubDevices.size();
+
     return ReturnValue(pi_uint32{MaxComputeUnits});
   }
   case PI_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS:
