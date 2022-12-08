@@ -2,7 +2,6 @@
 ; TODO: Remove -opaque-pointers flag when the project supports opaque pointers
 ; by default
 ; RUN: opt -opaque-pointers < %s -passes=rewrite-statepoints-for-gc -S | FileCheck %s
-; RUN: opt -opaque-pointers < %s -passes=rewrite-statepoints-for-gc -S | FileCheck %s
 
 ;; This test is to verify that gc_result from a call statepoint
 ;; can have preceding phis in its parent basic block. Unlike

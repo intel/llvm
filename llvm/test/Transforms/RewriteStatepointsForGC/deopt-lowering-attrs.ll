@@ -2,7 +2,6 @@
 ; TODO: Remove -opaque-pointers flag when the project supports opaque pointers
 ; by default
 ; RUN: opt -opaque-pointers -passes=rewrite-statepoints-for-gc -S < %s | FileCheck %s
-; RUN: opt -opaque-pointers -passes=rewrite-statepoints-for-gc -S < %s | FileCheck %s
 ; Check that the "deopt-lowering" function attribute gets transcoded into
 ; flags on the resulting statepoint
 
