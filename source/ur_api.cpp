@@ -2387,7 +2387,7 @@ urDeviceGet(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES < infoType`
+///         + `::UR_DEVICE_INFO_BFLOAT16 < infoType`
 ur_result_t UR_APICALL
 urDeviceGetInfo(
     ur_device_handle_t hDevice,                     ///< [in] handle of the device instance
