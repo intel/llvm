@@ -59,7 +59,7 @@ inline pi_result piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
   uint32_t Count = num_entries;
   auto phPlatforms = reinterpret_cast<zer_platform_handle_t *>(platforms);
   HANDLE_ERRORS(zerPlatformGet(&Count, phPlatforms));
-  if (*num_platforms) {
+  if (num_platforms) {
     *num_platforms = Count;
   }
   return PI_SUCCESS;
