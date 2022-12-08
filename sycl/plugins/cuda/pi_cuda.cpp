@@ -2665,12 +2665,10 @@ pi_result cuda_piextQueueGetNativeHandle(pi_queue queue,
 /// \param UseImmCmdList is for the level_zero plugin only.
 ///
 /// \return TBD
-pi_result cuda_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                                pi_context context,
-                                                pi_device device,
-                                                bool UseImmCmdList,
-                                                bool ownNativeHandle,
-                                                pi_queue *queue) {
+pi_result cuda_piextQueueCreateWithNativeHandle(
+    pi_native_handle nativeHandle, pi_context context, pi_device device,
+    bool UseImmCmdList, bool ownNativeHandle, pi_queue *queue) {
+
   (void)device;
   (void)UseImmCmdList;
   (void)ownNativeHandle;
