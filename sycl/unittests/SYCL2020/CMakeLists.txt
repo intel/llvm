@@ -6,5 +6,6 @@ add_sycl_unittest(SYCL2020Tests OBJECT
   KernelBundle.cpp
   KernelID.cpp
   HasExtension.cpp
+  IsCompatible.cpp
 )
 
