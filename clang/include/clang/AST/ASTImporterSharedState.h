@@ -70,7 +70,7 @@ public:
     if (Pos != ImportErrors.end())
       return Pos->second;
     else
-      return Optional<ASTImportError>();
+      return std::nullopt;
   }
 
   void setImportDeclError(Decl *To, ASTImportError Error) {

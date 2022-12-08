@@ -17,6 +17,7 @@
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 
+#include "../../IR/ConstantsContext.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -41,6 +42,7 @@
 
 using namespace llvm;
 namespace id = itanium_demangle;
+using namespace llvm::esimd;
 
 #define DEBUG_TYPE "lower-esimd"
 
@@ -678,36 +680,6 @@ static const ESIMDIntrinDesc &getIntrinDesc(StringRef SrcSpelling) {
   return It->second;
 }
 
-// Simplest possible implementation of an allocator for the Itanium demangler
-class SimpleAllocator {
-protected:
-  SmallVector<void *, 128> Ptrs;
-
-public:
-  void reset() {
-    for (void *Ptr : Ptrs) {
-      // Destructors are not called, but that is OK for the
-      // itanium_demangle::Node subclasses
-      std::free(Ptr);
-    }
-    Ptrs.resize(0);
-  }
-
-  template <typename T, typename... Args> T *makeNode(Args &&...args) {
-    void *Ptr = std::calloc(1, sizeof(T));
-    Ptrs.push_back(Ptr);
-    return new (Ptr) T(std::forward<Args>(args)...);
-  }
-
-  void *allocateNodeArray(size_t sz) {
-    void *Ptr = std::calloc(sz, sizeof(id::Node *));
-    Ptrs.push_back(Ptr);
-    return Ptr;
-  }
-
-  ~SimpleAllocator() { reset(); }
-};
-
 Type *parsePrimitiveTypeString(StringRef TyStr, LLVMContext &Ctx) {
   return llvm::StringSwitch<Type *>(TyStr)
       .Case("bool", IntegerType::getInt1Ty(Ctx))
@@ -1142,9 +1114,8 @@ static uint64_t getIndexFromExtract(ExtractElementInst *EEI) {
 /// right before the given extract element instruction \p EEI using the result
 /// of vector load. The parameter \p IsVectorCall tells what version of GenX
 /// intrinsic (scalar or vector) to use to lower the load from SPIRV global.
-static Instruction *generateGenXCall(ExtractElementInst *EEI,
-                                     StringRef IntrinName, bool IsVectorCall) {
-  uint64_t IndexValue = getIndexFromExtract(EEI);
+static Instruction *generateGenXCall(Instruction *EEI, StringRef IntrinName,
+                                     bool IsVectorCall, uint64_t IndexValue) {
   std::string Suffix =
       IsVectorCall
           ? ".v3i32"
@@ -1244,39 +1215,58 @@ translateSpirvGlobalUses(LoadInst *LI, StringRef SpirvGlobalName,
   }
 
   // Only loads from _vector_ SPIRV globals reach here now. Their users are
-  // expected to be ExtractElementInst only, and they are replaced in this loop.
-  // When loads from _scalar_ SPIRV globals are handled here as well, the users
-  // will not be replaced by new instructions, but the GenX call replacing the
-  // original load 'LI' should be inserted before each user.
+  // expected to be ExtractElementInst or TruncInst only, and they are replaced
+  // in this loop. When loads from _scalar_ SPIRV globals are handled here as
+  // well, the users will not be replaced by new instructions, but the GenX call
+  // replacing the original load 'LI' should be inserted before each user.
   for (User *LU : LI->users()) {
-    ExtractElementInst *EEI = cast<ExtractElementInst>(LU);
+    assert(
+        (isa<ExtractElementInst>(LU) || isa<TruncInst>(LU)) &&
+        "SPIRV global users should be either ExtractElementInst or TruncInst");
+    Instruction *EEI = cast<Instruction>(LU);
     NewInst = nullptr;
 
+    uint64_t IndexValue = 0;
+    if (isa<ExtractElementInst>(EEI)) {
+      IndexValue = getIndexFromExtract(cast<ExtractElementInst>(EEI));
+    } else {
+      auto *GEPCE = cast<GetElementPtrConstantExpr>(LI->getPointerOperand());
+
+      IndexValue = cast<Constant>(GEPCE->getOperand(2))
+                       ->getUniqueInteger()
+                       .getZExtValue();
+    }
+
     if (SpirvGlobalName == "WorkgroupSize") {
-      NewInst = generateGenXCall(EEI, "local.size", true);
+      NewInst = generateGenXCall(EEI, "local.size", true, IndexValue);
     } else if (SpirvGlobalName == "LocalInvocationId") {
-      NewInst = generateGenXCall(EEI, "local.id", true);
+      NewInst = generateGenXCall(EEI, "local.id", true, IndexValue);
     } else if (SpirvGlobalName == "WorkgroupId") {
-      NewInst = generateGenXCall(EEI, "group.id", false);
+      NewInst = generateGenXCall(EEI, "group.id", false, IndexValue);
     } else if (SpirvGlobalName == "GlobalInvocationId") {
       // GlobalId = LocalId + WorkGroupSize * GroupId
-      Instruction *LocalIdI = generateGenXCall(EEI, "local.id", true);
-      Instruction *WGSizeI = generateGenXCall(EEI, "local.size", true);
-      Instruction *GroupIdI = generateGenXCall(EEI, "group.id", false);
+      Instruction *LocalIdI =
+          generateGenXCall(EEI, "local.id", true, IndexValue);
+      Instruction *WGSizeI =
+          generateGenXCall(EEI, "local.size", true, IndexValue);
+      Instruction *GroupIdI =
+          generateGenXCall(EEI, "group.id", false, IndexValue);
       Instruction *MulI =
           BinaryOperator::CreateMul(WGSizeI, GroupIdI, "mul", EEI);
       NewInst = BinaryOperator::CreateAdd(LocalIdI, MulI, "add", EEI);
     } else if (SpirvGlobalName == "GlobalSize") {
       // GlobalSize = WorkGroupSize * NumWorkGroups
-      Instruction *WGSizeI = generateGenXCall(EEI, "local.size", true);
-      Instruction *NumWGI = generateGenXCall(EEI, "group.count", true);
+      Instruction *WGSizeI =
+          generateGenXCall(EEI, "local.size", true, IndexValue);
+      Instruction *NumWGI =
+          generateGenXCall(EEI, "group.count", true, IndexValue);
       NewInst = BinaryOperator::CreateMul(WGSizeI, NumWGI, "mul", EEI);
     } else if (SpirvGlobalName == "GlobalOffset") {
       // TODO: Support GlobalOffset SPIRV intrinsics
       // Currently all users of load of GlobalOffset are replaced with 0.
       NewInst = llvm::Constant::getNullValue(EEI->getType());
     } else if (SpirvGlobalName == "NumWorkgroups") {
-      NewInst = generateGenXCall(EEI, "group.count", true);
+      NewInst = generateGenXCall(EEI, "group.count", true, IndexValue);
     }
 
     llvm::esimd::assert_and_diag(
@@ -1786,9 +1776,13 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
     if (LI) {
       Value *LoadPtrOp = LI->getPointerOperand();
       Value *SpirvGlobal = nullptr;
-      // Look through casts to find SPIRV builtin globals
+      // Look through constant expressions to find SPIRV builtin globals
+      // It may come with or without cast.
       auto *CE = dyn_cast<ConstantExpr>(LoadPtrOp);
-      if (CE) {
+      auto *GEPCE = dyn_cast<GetElementPtrConstantExpr>(LoadPtrOp);
+      if (GEPCE) {
+        SpirvGlobal = GEPCE->getOperand(0);
+      } else if (CE) {
         assert(CE->isCast() && "ConstExpr should be a cast");
         SpirvGlobal = CE->getOperand(0);
       } else {

@@ -24,11 +24,15 @@
 #include "clang-include-cleaner/Record.h"
 #include "clang-include-cleaner/Types.h"
 #include "clang/Basic/SourceLocation.h"
+#include "clang/Tooling/Inclusions/StandardLibrary.h"
 #include "llvm/ADT/STLFunctionalExtras.h"
+#include <variant>
+#include <vector>
 
 namespace clang {
 class ASTContext;
 class Decl;
+class HeaderSearch;
 class NamedDecl;
 namespace include_cleaner {
 
@@ -65,7 +69,6 @@ struct SymbolLocation {
   bool operator==(const SymbolLocation &RHS) const {
     return Storage == RHS.Storage;
   }
-
   SourceLocation physical() const { return std::get<Physical>(Storage); }
   tooling::stdlib::Symbol standard() const {
     return std::get<Standard>(Storage);
@@ -84,9 +87,14 @@ llvm::SmallVector<Header> findHeaders(const SymbolLocation &Loc,
                                       const PragmaIncludes *PI);
 
 /// Write an HTML summary of the analysis to the given stream.
-void writeHTMLReport(FileID File, llvm::ArrayRef<Decl *> Roots,
+void writeHTMLReport(FileID File, const Includes &,
+                     llvm::ArrayRef<Decl *> Roots,
                      llvm::ArrayRef<SymbolReference> MacroRefs, ASTContext &Ctx,
-                     PragmaIncludes *PI, llvm::raw_ostream &OS);
+                     HeaderSearch &HS, PragmaIncludes *PI,
+                     llvm::raw_ostream &OS);
+
+/// A set of locations that provides the declaration.
+std::vector<SymbolLocation> locateSymbol(const Symbol &S);
 
 } // namespace include_cleaner
 } // namespace clang

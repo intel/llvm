@@ -5,11 +5,11 @@
 ; RUN: FileCheck %s -input-file=%t.table --check-prefix CHECK-TABLE
 ;
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefix CHECK-M0-SYMS \
-; RUN:     --implicit-check-not kernel0 --implicit-check-not kernel1 \
+; RUN:     --implicit-check-not kernel3 --implicit-check-not kernel1 \
 ; RUN:     --implicit-check-not kernel2
 ;
 ; RUN: FileCheck %s -input-file=%t_1.sym --check-prefix CHECK-M1-SYMS \
-; RUN:     --implicit-check-not kernel3 --implicit-check-not kernel1 \
+; RUN:     --implicit-check-not kernel0 --implicit-check-not kernel1 \
 ; RUN:     --implicit-check-not kernel2
 ;
 ; RUN: FileCheck %s -input-file=%t_2.sym --check-prefix CHECK-M2-SYMS \
@@ -21,9 +21,9 @@
 ; CHECK-TABLE-NEXT: _2.sym
 ; CHECK-TABLE-EMPTY:
 
-; CHECK-M0-SYMS: kernel3
+; CHECK-M0-SYMS: kernel0
 
-; CHECK-M1-SYMS: kernel0
+; CHECK-M1-SYMS: kernel3
 
 ; CHECK-M2-SYMS: kernel1
 ; CHECK-M2-SYMS: kernel2

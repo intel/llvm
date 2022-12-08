@@ -1,4 +1,4 @@
-* @pvchupin
+* @bader
 
 # Front-end compiler
 clang/ @intel/dpcpp-cfe-reviewers
@@ -70,3 +70,6 @@ llvm/include/llvm/SYCLLowerIR/LowerInvokeSimd.h @kbobrovs @v-klochkov @rolandsch
 .github/workflows/ @intel/dpcpp-devops-reviewers
 buildbot/ @intel/dpcpp-devops-reviewers
 devops/ @intel/dpcpp-devops-reviewers
+
+# Kernel fusion JIT compiler
+sycl-fusion/ @victor-eds @Naghasan @sommerlukas
